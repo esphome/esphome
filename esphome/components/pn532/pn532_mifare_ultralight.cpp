@@ -122,7 +122,7 @@ bool PN532::write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, nfc::NdefMes
   uint32_t buffer_length = nfc::get_mifare_ultralight_buffer_size(message_length);
 
   if (buffer_length > capacity) {
-    ESP_LOGE(TAG, "Message length exceeds tag capacity %d > %d", buffer_length, capacity);
+    ESP_LOGE(TAG, "Message length exceeds tag capacity %" PRIu32 " > %" PRIu32, buffer_length, capacity);
     return false;
   }
 
@@ -175,13 +175,13 @@ bool PN532::write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t>
   });
   data.insert(data.end(), write_data.begin(), write_data.end());
   if (!this->write_command_(data)) {
-    ESP_LOGE(TAG, "Error writing page %d", page_num);
+    ESP_LOGE(TAG, "Error writing page %u", page_num);
     return false;
   }
 
   std::vector<uint8_t> response;
   if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, response)) {
-    ESP_LOGE(TAG, "Error writing page %d", page_num);
+    ESP_LOGE(TAG, "Error writing page %u", page_num);
     return false;
   }
 

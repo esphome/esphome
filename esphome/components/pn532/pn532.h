@@ -7,6 +7,7 @@
 #include "esphome/components/nfc/nfc.h"
 #include "esphome/components/nfc/automation.h"
 
+#include <cinttypes>
 #include <vector>
 
 namespace esphome {
