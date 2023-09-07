@@ -540,7 +540,10 @@ class DownloadListRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        from esphome.components.esp32 import get_download_types as esp32_types
+        from esphome.components.esp32 import (
+            get_download_types as esp32_types,
+            VARIANTS as ESP32_VARIANTS,
+        )
         from esphome.components.esp8266 import get_download_types as esp8266_types
         from esphome.components.rp2040 import get_download_types as rp2040_types
         from esphome.components.libretiny import get_download_types as libretiny_types
@@ -551,7 +554,7 @@ class DownloadListRequestHandler(BaseHandler):
             downloads = rp2040_types(storage_json)
         elif platform == const.PLATFORM_ESP8266:
             downloads = esp8266_types(storage_json)
-        elif platform == const.PLATFORM_ESP32:
+        elif platform.upper() in ESP32_VARIANTS:
             downloads = esp32_types(storage_json)
         elif platform == const.PLATFORM_BK72XX:
             downloads = libretiny_types(storage_json)
