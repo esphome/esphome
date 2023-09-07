@@ -326,7 +326,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
   }
 
-#if LWIP_IPV6
+#if ENABLE_IPV6
   for (bool configured = false; !configured;) {
     for (auto addr : addrList) {
       ESP_LOGV(TAG, "Address %s", addr.toString().c_str());
