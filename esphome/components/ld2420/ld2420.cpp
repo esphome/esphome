@@ -40,12 +40,15 @@ void LD2420Component::setup() {
       this->set_gate_threshold_(gate);
     }
     restart = true;
+    this->set_config_mode_(false);
   }
 
-  this->set_system_mode_(CMD_SYSTEM_MODE_NORMAL);
-  this->set_config_mode_(false);
-  if (restart)
-    this->restart_();
+  if (restart) {
+    this->module_restart();
+  } else {
+    this->set_system_mode_(CMD_SYSTEM_MODE_NORMAL);
+    this->set_config_mode_(false);
+  }
   ESP_LOGCONFIG(TAG, "LD2420 setup complete.");
 }
 
@@ -103,7 +106,7 @@ Gate 0 low thresh = 20 00 uint16_t 0x0020, Threshold value = 60 EA 00 00 uint32_
 
 */
 
-void LD2420Component::readline_(uint8_t rx_data, uint8_t *buffer, int len) {
+void LD2420Component::readline_(int rx_data, uint8_t *buffer, int len) {
   static int pos = 0;
 
   if (rx_data >= 0) {
@@ -292,6 +295,9 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
 
     delay_microseconds_safe(500);  // give the module a moment to process it
     error = 0;
+    if (frame.command == CMD_RESTART)
+      return 0;  // restart does not reply exit now
+
     while (!cmd_reply_.ack) {
       while (available()) {
         this->readline_(read(), ack_buffer, sizeof(ack_buffer));
@@ -324,6 +330,14 @@ uint8_t LD2420Component::set_config_mode_(bool enable) {
   cmd_frame.footer = CMD_FRAME_FOOTER;
   ESP_LOGD(TAG, "Sending set config %s command: %2X", enable ? "enable" : "disable", cmd_frame.command);
   return this->send_cmd_from_array(cmd_frame);
+}
+
+// Sends a restart and set system running mode to normal
+void LD2420Component::module_restart() {
+  this->restart_();
+  this->set_config_mode_(true);
+  this->set_system_mode_(CMD_SYSTEM_MODE_NORMAL);
+  this->set_config_mode_(false);
 }
 
 void LD2420Component::restart_() {
