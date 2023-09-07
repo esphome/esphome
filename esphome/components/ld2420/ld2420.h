@@ -86,6 +86,7 @@ class LD2420Component : public Component, public uart::UARTDevice {
     uint32_t footer;
   };
 
+  void module_restart();
   float get_setup_priority() const override;
   int send_cmd_from_array(CmdFrameT cmd_frame);
   void handle_cmd_error(uint8_t error);
@@ -100,38 +101,38 @@ class LD2420Component : public Component, public uart::UARTDevice {
                              uint32_t rg10_move, uint32_t rg10_still, uint32_t rg11_move, uint32_t rg11_still,
                              uint32_t rg12_move, uint32_t rg12_still, uint32_t rg13_move, uint32_t rg13_still,
                              uint32_t rg14_move, uint32_t rg14_still, uint32_t rg15_move, uint32_t rg15_still) {
-    this->new_config_.high_thresh[(uint8_t) 0] = rg0_move;
-    this->new_config_.low_thresh[(uint8_t) 0] = rg0_still;
-    this->new_config_.high_thresh[(uint8_t) 1] = rg1_move;
-    this->new_config_.low_thresh[(uint8_t) 1] = rg1_still;
-    this->new_config_.high_thresh[(uint8_t) 2] = rg2_move;
-    this->new_config_.low_thresh[(uint8_t) 2] = rg2_still;
-    this->new_config_.high_thresh[(uint8_t) 3] = rg3_move;
-    this->new_config_.low_thresh[(uint8_t) 3] = rg3_still;
-    this->new_config_.high_thresh[(uint8_t) 4] = rg4_move;
-    this->new_config_.low_thresh[(uint8_t) 4] = rg4_still;
-    this->new_config_.high_thresh[(uint8_t) 5] = rg5_move;
-    this->new_config_.low_thresh[(uint8_t) 5] = rg5_still;
-    this->new_config_.high_thresh[(uint8_t) 6] = rg6_move;
-    this->new_config_.low_thresh[(uint8_t) 6] = rg6_still;
-    this->new_config_.high_thresh[(uint8_t) 7] = rg7_move;
-    this->new_config_.low_thresh[(uint8_t) 7] = rg7_still;
-    this->new_config_.high_thresh[(uint8_t) 8] = rg8_move;
-    this->new_config_.low_thresh[(uint8_t) 8] = rg8_still;
-    this->new_config_.high_thresh[(uint8_t) 9] = rg9_move;
-    this->new_config_.low_thresh[(uint8_t) 9] = rg9_still;
-    this->new_config_.high_thresh[(uint8_t) 10] = rg10_move;
-    this->new_config_.low_thresh[(uint8_t) 10] = rg10_still;
-    this->new_config_.high_thresh[(uint8_t) 11] = rg11_move;
-    this->new_config_.low_thresh[(uint8_t) 11] = rg11_still;
-    this->new_config_.high_thresh[(uint8_t) 12] = rg12_move;
-    this->new_config_.low_thresh[(uint8_t) 12] = rg12_still;
-    this->new_config_.high_thresh[(uint8_t) 13] = rg13_move;
-    this->new_config_.low_thresh[(uint8_t) 13] = rg13_still;
-    this->new_config_.high_thresh[(uint8_t) 14] = rg14_move;
-    this->new_config_.low_thresh[(uint8_t) 14] = rg14_still;
-    this->new_config_.high_thresh[(uint8_t) 15] = rg15_move;
-    this->new_config_.low_thresh[(uint8_t) 15] = rg15_still;
+    this->new_config_.high_thresh[0] = rg0_move;
+    this->new_config_.low_thresh[0] = rg0_still;
+    this->new_config_.high_thresh[1] = rg1_move;
+    this->new_config_.low_thresh[1] = rg1_still;
+    this->new_config_.high_thresh[2] = rg2_move;
+    this->new_config_.low_thresh[2] = rg2_still;
+    this->new_config_.high_thresh[3] = rg3_move;
+    this->new_config_.low_thresh[3] = rg3_still;
+    this->new_config_.high_thresh[4] = rg4_move;
+    this->new_config_.low_thresh[4] = rg4_still;
+    this->new_config_.high_thresh[5] = rg5_move;
+    this->new_config_.low_thresh[5] = rg5_still;
+    this->new_config_.high_thresh[6] = rg6_move;
+    this->new_config_.low_thresh[6] = rg6_still;
+    this->new_config_.high_thresh[7] = rg7_move;
+    this->new_config_.low_thresh[7] = rg7_still;
+    this->new_config_.high_thresh[8] = rg8_move;
+    this->new_config_.low_thresh[8] = rg8_still;
+    this->new_config_.high_thresh[9] = rg9_move;
+    this->new_config_.low_thresh[9] = rg9_still;
+    this->new_config_.high_thresh[10] = rg10_move;
+    this->new_config_.low_thresh[10] = rg10_still;
+    this->new_config_.high_thresh[11] = rg11_move;
+    this->new_config_.low_thresh[11] = rg11_still;
+    this->new_config_.high_thresh[12] = rg12_move;
+    this->new_config_.low_thresh[12] = rg12_still;
+    this->new_config_.high_thresh[13] = rg13_move;
+    this->new_config_.low_thresh[13] = rg13_still;
+    this->new_config_.high_thresh[14] = rg14_move;
+    this->new_config_.low_thresh[14] = rg14_still;
+    this->new_config_.high_thresh[15] = rg15_move;
+    this->new_config_.low_thresh[15] = rg15_still;
   };
 
   int32_t last_periodic_millis = millis();
@@ -180,7 +181,7 @@ class LD2420Component : public Component, public uart::UARTDevice {
   void handle_stream_data_(uint8_t *buffer, int len);
   void handle_normal_mode_(const uint8_t *inbuf, int len);
   void handle_ack_data_(uint8_t *buffer, int len);
-  void readline_(uint8_t rx_data, uint8_t *buffer, int len);
+  void readline_(int rx_data, uint8_t *buffer, int len);
 
   uint32_t timeout_;
   uint32_t max_distance_gate_;
