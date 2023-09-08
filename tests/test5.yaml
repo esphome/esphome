@@ -566,7 +566,7 @@ script:
   - id: zero_repeat_test
     then:
       - repeat:
-          count: 0
+          count: !lambda "return 0;"
           then:
             - logger.log: shouldn't see mee!
 
