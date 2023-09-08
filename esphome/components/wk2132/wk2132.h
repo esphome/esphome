@@ -343,7 +343,7 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief Returns the number of bytes in the receive buffer
   /// @return the number of bytes available in the receiver fifo
-  int available() override { return this->receive_buffer_.count(); }
+  int available() override;
 
   /// @brief Flush the output fifo.
   ///

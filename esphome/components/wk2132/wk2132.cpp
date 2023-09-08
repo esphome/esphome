@@ -436,6 +436,18 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
   }
 }
 
+int WK2132Channel::available() {
+  auto available = this->receive_buffer_.count();
+
+  // here if we do not have bytes in buffer we want to check if
+  // there are bytes in the fifo,in which case we do not want to
+  // delay reading them in the next loop.
+  if (!available)
+    available = rx_fifo_to_buffer_();
+
+  return available;
+}
+
 bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
   bool status = true;
   auto available = this->receive_buffer_.count();
