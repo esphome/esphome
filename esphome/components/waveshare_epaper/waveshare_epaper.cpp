@@ -233,7 +233,7 @@ void WaveshareEPaperTypeA::initialize() {
   }
 }
 void WaveshareEPaperTypeA::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   switch (this->model_) {
     case WAVESHARE_EPAPER_1_54_IN:
       ESP_LOGCONFIG(TAG, "  Model: 1.54in");
@@ -264,10 +264,10 @@ void WaveshareEPaperTypeA::dump_config() {
       break;
   }
   ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 void HOT WaveshareEPaperTypeA::display() {
   bool full_update = this->at_update_ == 0;
@@ -605,12 +605,12 @@ void HOT WaveshareEPaper2P7In::display() {
 int WaveshareEPaper2P7In::get_width_internal() { return 176; }
 int WaveshareEPaper2P7In::get_height_internal() { return 264; }
 void WaveshareEPaper2P7In::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 2.7in");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 // ========================================================
@@ -684,12 +684,12 @@ void HOT WaveshareEPaper2P9InB::display() {
 int WaveshareEPaper2P9InB::get_width_internal() { return 128; }
 int WaveshareEPaper2P9InB::get_height_internal() { return 296; }
 void WaveshareEPaper2P9InB::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 2.9in (B)");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 // ========================================================
@@ -768,12 +768,12 @@ void HOT GDEY029T94::display() {
 int GDEY029T94::get_width_internal() { return 128; }
 int GDEY029T94::get_height_internal() { return 296; }
 void GDEY029T94::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper (Good Display)", this)
+  LOG_DISPLAY("", "Waveshare E-Paper (Good Display)", this);
   ESP_LOGCONFIG(TAG, "  Model: 2.9in Greyscale GDEY029T94");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 // ========================================================
@@ -908,12 +908,12 @@ void GDEW0154M09::deep_sleep() {
 int GDEW0154M09::get_width_internal() { return 200; }
 int GDEW0154M09::get_height_internal() { return 200; }
 void GDEW0154M09::dump_config() {
-  LOG_DISPLAY("", "M5Stack CoreInk E-Paper (Good Display)", this)
+  LOG_DISPLAY("", "M5Stack CoreInk E-Paper (Good Display)", this);
   ESP_LOGCONFIG(TAG, "  Model: 1.54in Greyscale GDEW0154M09");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 static const uint8_t LUT_VCOM_DC_4_2[] = {
@@ -1030,12 +1030,12 @@ void HOT WaveshareEPaper4P2In::display() {
 int WaveshareEPaper4P2In::get_width_internal() { return 400; }
 int WaveshareEPaper4P2In::get_height_internal() { return 300; }
 void WaveshareEPaper4P2In::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 4.2in");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 // ========================================================
@@ -1086,12 +1086,12 @@ void HOT WaveshareEPaper4P2InBV2::display() {
 int WaveshareEPaper4P2InBV2::get_width_internal() { return 400; }
 int WaveshareEPaper4P2InBV2::get_height_internal() { return 300; }
 void WaveshareEPaper4P2InBV2::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 4.2in (B V2)");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 void WaveshareEPaper5P8In::initialize() {
@@ -1183,12 +1183,12 @@ void HOT WaveshareEPaper5P8In::display() {
 int WaveshareEPaper5P8In::get_width_internal() { return 600; }
 int WaveshareEPaper5P8In::get_height_internal() { return 448; }
 void WaveshareEPaper5P8In::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 5.83in");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 // ========================================================
@@ -1264,12 +1264,12 @@ void HOT WaveshareEPaper5P8InV2::display() {
 int WaveshareEPaper5P8InV2::get_width_internal() { return 648; }
 int WaveshareEPaper5P8InV2::get_height_internal() { return 480; }
 void WaveshareEPaper5P8InV2::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 5.83inv2");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 void WaveshareEPaper7P5InBV2::initialize() {
@@ -1333,12 +1333,12 @@ void HOT WaveshareEPaper7P5InBV2::display() {
 int WaveshareEPaper7P5InBV2::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InBV2::get_height_internal() { return 480; }
 void WaveshareEPaper7P5InBV2::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 7.5in-bv2");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 bool WaveshareEPaper7P5InBV3::wait_until_idle_() {
@@ -1483,12 +1483,12 @@ void HOT WaveshareEPaper7P5InBV3::display() {
 int WaveshareEPaper7P5InBV3::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InBV3::get_height_internal() { return 480; }
 void WaveshareEPaper7P5InBV3::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 7.5in-bv3");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 void WaveshareEPaper7P5In::initialize() {
@@ -1566,12 +1566,12 @@ void HOT WaveshareEPaper7P5In::display() {
 int WaveshareEPaper7P5In::get_width_internal() { return 640; }
 int WaveshareEPaper7P5In::get_height_internal() { return 384; }
 void WaveshareEPaper7P5In::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 7.5in");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 void WaveshareEPaper7P5InV2::initialize() {
   // COMMAND POWER SETTING
@@ -1623,12 +1623,12 @@ void HOT WaveshareEPaper7P5InV2::display() {
 int WaveshareEPaper7P5InV2::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InV2::get_height_internal() { return 480; }
 void WaveshareEPaper7P5InV2::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 7.5inV2rev2");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 /* 7.50inV2alt */
@@ -1755,12 +1755,12 @@ void WaveshareEPaper7P5InV2alt::initialize() {
 }
 
 void WaveshareEPaper7P5InV2alt::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 7.5inV2");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 /* 7.50in-bc */
@@ -1851,12 +1851,12 @@ int WaveshareEPaper7P5InBC::get_width_internal() { return 640; }
 int WaveshareEPaper7P5InBC::get_height_internal() { return 384; }
 
 void WaveshareEPaper7P5InBC::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 7.5in-bc");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 void WaveshareEPaper7P5InHDB::initialize() {
@@ -1952,12 +1952,12 @@ int WaveshareEPaper7P5InHDB::get_width_internal() { return 880; }
 int WaveshareEPaper7P5InHDB::get_height_internal() { return 528; }
 
 void WaveshareEPaper7P5InHDB::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 7.5in-HD-b");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 static const uint8_t LUT_SIZE_TTGO_DKE_PART = 153;
@@ -2019,7 +2019,7 @@ void HOT WaveshareEPaper2P13InDKE::display() {
     // set up partial update
     this->command(0x32);
     this->start_data_();
-    this->write_array(PART_UPDATE_LUT_TTGO_DKE, sizeof(PART_UPDATE_LUT_TTGO_DKE));
+    this->write_array(PART_UPDATE_LUT_TTGO_DKE, sizeof (PART_UPDATE_LUT_TTGO_DKE));
     this->end_data_();
     this->command(0x3F);
     this->data(0x22);
@@ -2070,7 +2070,7 @@ void HOT WaveshareEPaper2P13InDKE::display() {
     this->start_data_();
     this->write_array(this->buffer_, this->get_buffer_length_());
     this->end_data_();
-    // delay(300);  // NOLINT
+    //delay(300);  // NOLINT
   }
 
   ESP_LOGI(TAG, "Completed e-paper update.");
@@ -2080,13 +2080,13 @@ int WaveshareEPaper2P13InDKE::get_width_internal() { return 128; }
 int WaveshareEPaper2P13InDKE::get_height_internal() { return 250; }
 uint32_t WaveshareEPaper2P13InDKE::idle_timeout_() { return 5000; }
 void WaveshareEPaper2P13InDKE::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 2.13inDKE");
-  LOG_PIN("  CS Pin: ", this->cs_)
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  CS Pin: ", this->cs_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 void WaveshareEPaper2P13InDKE::set_full_update_every(uint32_t full_update_every) {
