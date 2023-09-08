@@ -164,46 +164,6 @@ static const char *const REG_TO_STR_P0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "S
                                             "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
 static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "BAUD1", "BAUD0", "PRES",
                                             "RFTL", "TFTL", "_INV_", "_INV_", "_INV_", "_INV_"};
-void do_work() {
-  constexpr size_t CMD_SIZE = 23;
-  uint8_t command_buffer[CMD_SIZE];
-  auto uart = new uart::UARTDevice();
-
-  // infinite loop to do requests and get responses
-  while (true) {
-    // prepare the command buffer
-    // ...
-    uart->flush();  // we get rid of bytes still in UART FIFO
-    uart->write_array(command_buffer, CMD_SIZE);
-    bool end_of_frame = false;
-    int available = 0;
-    while (!end_of_frame && (available = uart->available())) {
-      uint8_t rec_buffer[available];
-      uart->read_array(rec_buffer, available);
-      // here we loop for all received bytes
-      for (auto byte : rec_buffer) {
-        // here we process each byte received
-        // ...
-        // based on certain conditions we set end_of frame
-      }
-    }
-  }
-
-  // infinite loop to do requests and get responses
-  while (true) {
-    // prepare the command buffer
-    // ...
-    uart->write_array(command_buffer, CMD_SIZE);
-    uart->flush();  // we get rid of bytes still in UART FIFO
-    bool end_of_frame = false;
-    while (!end_of_frame && uart->available()) {
-      uint8_t byte = uart->read();
-      // here we process each byte received
-      // ...
-      // based on certain conditions we set end_of frame
-    }
-  }
-}
 
 // convert an int to binary string
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
