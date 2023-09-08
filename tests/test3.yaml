@@ -1154,6 +1154,9 @@ fingerprint_grow:
   on_finger_scan_unmatched:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_finger_scan_unmatched
+  on_finger_scan_misplaced:
+    - homeassistant.event:
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_misplaced
   on_enrollment_scan:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_enrollment_scan
