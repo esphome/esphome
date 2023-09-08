@@ -387,6 +387,8 @@ class WK2132Channel : public uart::UARTComponent {
   /// @return true if succeed false otherwise
   bool write_data_(const uint8_t *buffer, size_t len);
 
+  size_t rx_fifo_to_buffer_();
+
 #ifdef AUTOTEST_COMPONENT
   /// @brief Sends bytes to the UART in loop mode
   /// @param preamble info to print about the uart address and channel

@@ -16,7 +16,7 @@ namespace wk2132 {
  @n But before that let see how the different classes interact with ESPHome.
  We have the following UML class diagram:
 
- <img src="UART.png" align="left" width="1024">
+ <img src="WK2132 Class diagram.png" align="left" width="1024">
  <div style="clear: both"></div>
 
  As you can see, the WK2132Component class derives from the two ESPHome classes:
@@ -479,8 +479,15 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
 bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
   bool status = true;
   auto available = this->receive_buffer_.count();
+
+  // here if we do not have bytes in buffer we want to check if
+  // there are bytes in the fifo,in which case we do not want to
+  // delay reading them in the next loop.
+  if (!available)
+    available = rx_fifo_to_buffer_();
+
   if ((len > FIFO_SIZE) || (len > available)) {
-    ESP_LOGE(TAG, "read_array buffer underflow requested %d bytes available %d ...", len, available);
+    // ESP_LOGE(TAG, "read_array buffer underflow requested %d bytes available %d ...", len, available);
     len = available;
     status = false;
   }
@@ -523,6 +530,24 @@ void WK2132Channel::flush() {
   // is gone otherwise it will wait. This gives time for the bytes
   // to go
   this->flush_requested = true;
+}
+
+size_t WK2132Channel::rx_fifo_to_buffer_() {
+  // we look if some characters has been received in the fifo
+  auto to_transfer = this->rx_in_fifo_();
+  if (to_transfer) {
+    uint8_t data[to_transfer]{0};
+    this->read_data_(data, to_transfer);
+    auto free = this->receive_buffer_.free();
+    if (to_transfer > free) {
+      ESP_LOGV(TAG, "Ring buffer overrun --> requested %d available %d", to_transfer, free);
+      to_transfer = free;  // hopefully will do the rest next time
+    }
+    ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
+    for (size_t i = 0; i < to_transfer; i++)
+      this->receive_buffer_.push(data[i]);
+  }
+  return to_transfer;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -614,19 +639,9 @@ void WK2132Component::loop() {
   elapsed(time);
   for (auto *child : this->children_) {
     // we look if some characters has been received in the fifo
-    if (auto to_transfer = child->rx_in_fifo_()) {
-      uint8_t data[to_transfer]{0};
-      child->read_data_(data, to_transfer);
-      auto free = child->receive_buffer_.free();
-      if (to_transfer > free) {
-        ESP_LOGV(TAG, "Ring buffer overrun --> requested %d available %d", to_transfer, free);
-        to_transfer = free;  // hopefully will do the rest next time
-      }
-      ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
-      for (size_t i = 0; i < to_transfer; i++)
-        child->receive_buffer_.push(data[i]);
-    }
+    child->rx_fifo_to_buffer_();
   }
+
   if (this->test_mode_.any())
     ESP_LOGI(TAG, "transfer all fifo to ring execution time %d µs...", elapsed(time));
 
