@@ -90,7 +90,7 @@ void WaveshareEPaper2P13InV3::setup() {
   delay(20);
   this->send_reset_();
   // as a one-off delay this is not worth working around.
-  delay(100); // NOLINT
+  delay(100);  // NOLINT
   this->wait_until_idle_();
   this->command(SW_RESET);
   this->wait_until_idle_();
