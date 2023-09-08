@@ -244,14 +244,15 @@ uint8_t AS3935Component::read_div_ratio() {
   uint8_t reg_val = this->read_register_(INT_MASK_ANT, DIV_MASK);
   reg_val >>= 6;  // Front of the line.
 
-  if (reg_val == 0)
+  if (reg_val == 0) {
     return 16;
-  else if (reg_val == 1)
+  } else if (reg_val == 1) {
     return 32;
-  else if (reg_val == 2)
+  } else if (reg_val == 2) {
     return 64;
-  else if (reg_val == 3)
+  } else if (reg_val == 3) {
     return 128;
+  }
   ESP_LOGW(TAG, "Unknown response received for div_ratio");
   return 0;
 }
@@ -267,11 +268,11 @@ uint8_t AS3935Component::read_capacitance() {
 //  _osc 1, bit[5] = TRCO - System RCO at 32.768kHz
 //  _osc 2, bit[6] = SRCO - Timer RCO Oscillators 1.1MHz
 //  _osc 3, bit[7] = LCO - Frequency of the Antenna
-void AS3935Component::display_oscillator(bool _state, uint8_t osc) {
+void AS3935Component::display_oscillator(bool state, uint8_t osc) {
   if ((osc < 1) || (osc > 3))
     return;
 
-  this->write_register(FREQ_DISP_IRQ, OSC_MASK, _state, 4 + osc);
+  this->write_register(FREQ_DISP_IRQ, OSC_MASK, state, 4 + osc);
 }
 
 // REG0x3D, bits[7:0]
