@@ -15,14 +15,14 @@ void FingerprintGrowComponent::update() {
     return;
   }
 
-  if ((has_sensing_pin_ == true) && (sensing_pin_->digital_read())) {
+  if ((has_sensing_pin_) && (sensing_pin_->digital_read())) {
     ESP_LOGV(TAG, "No touch sensing");
     this->waiting_removal_ = false;
     return;
   }
 
   if (this->waiting_removal_) {
-    if ((has_sensing_pin_ == false) && (scan_image_(1) == NO_FINGER)) {
+    if ((!has_sensing_pin_) && (scan_image_(1) == NO_FINGER)) {
       ESP_LOGD(TAG, "Finger removed");
       this->waiting_removal_ = false;
     }
@@ -90,7 +90,7 @@ void FingerprintGrowComponent::finish_enrollment(uint8_t result) {
 }
 
 void FingerprintGrowComponent::scan_and_match_() {
-  if (has_sensing_pin_ == true) {
+  if (has_sensing_pin_) {
     ESP_LOGD(TAG, "Scan and match");
   } else {
     ESP_LOGV(TAG, "Scan and match");
@@ -121,7 +121,7 @@ void FingerprintGrowComponent::scan_and_match_() {
 }
 
 uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
-  if (has_sensing_pin_ == true) {
+  if (has_sensing_pin_) {
     ESP_LOGD(TAG, "Getting image %d", buffer);
   } else {
     ESP_LOGV(TAG, "Getting image %d", buffer);
@@ -132,7 +132,7 @@ uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
     case OK:
       break;
     case NO_FINGER:
-      if (has_sensing_pin_ == true) {
+      if (has_sensing_pin_) {
         waiting_removal_ = true;
         ESP_LOGD(TAG, "Finger Misplaced");
         finger_scan_misplaced_callback_.call();
@@ -435,17 +435,17 @@ void FingerprintGrowComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Touch Sensing Pin: %s", has_sensing_pin_ ? sensing_pin_->dump_summary().c_str() : "None");
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Fingerprint Count", fingerprint_count_sensor_);
-  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint16_t)fingerprint_count_sensor_->get_state());
+  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint16_t) fingerprint_count_sensor_->get_state());
   LOG_SENSOR("  ", "Status", status_sensor_);
-  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint8_t)status_sensor_->get_state());
+  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint8_t) status_sensor_->get_state());
   LOG_SENSOR("  ", "Capacity", capacity_sensor_);
-  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint16_t)capacity_sensor_->get_state());
+  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint16_t) capacity_sensor_->get_state());
   LOG_SENSOR("  ", "Security Level", security_level_sensor_);
-  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint8_t)security_level_sensor_->get_state());
+  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint8_t) security_level_sensor_->get_state());
   LOG_SENSOR("  ", "Last Finger ID", last_finger_id_sensor_);
-  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint32_t)last_finger_id_sensor_->get_state());
+  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint32_t) last_finger_id_sensor_->get_state());
   LOG_SENSOR("  ", "Last Confidence", last_confidence_sensor_);
-  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint32_t)last_confidence_sensor_->get_state());
+  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint32_t) last_confidence_sensor_->get_state());
 }
 
 }  // namespace fingerprint_grow
