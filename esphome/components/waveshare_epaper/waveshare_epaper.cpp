@@ -2019,7 +2019,7 @@ void HOT WaveshareEPaper2P13InDKE::display() {
     // set up partial update
     this->command(0x32);
     this->start_data_();
-    this->write_array(PART_UPDATE_LUT_TTGO_DKE, sizeof (PART_UPDATE_LUT_TTGO_DKE));
+    this->write_array(PART_UPDATE_LUT_TTGO_DKE, sizeof(PART_UPDATE_LUT_TTGO_DKE));
     this->end_data_();
     this->command(0x3F);
     this->data(0x22);
@@ -2070,7 +2070,7 @@ void HOT WaveshareEPaper2P13InDKE::display() {
     this->start_data_();
     this->write_array(this->buffer_, this->get_buffer_length_());
     this->end_data_();
-    //delay(300);  // NOLINT
+    // delay(300);  // NOLINT
   }
 
   ESP_LOGI(TAG, "Completed e-paper update.");
