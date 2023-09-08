@@ -124,8 +124,8 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   void add_on_finger_scan_unmatched_callback(std::function<void()> callback) {
     this->finger_scan_unmatched_callback_.add(std::move(callback));
   }
-  void add_on_finger_scan_invalid_callback(std::function<void()> callback) {
-    this->finger_scan_invalid_callback_.add(std::move(callback));
+  void add_on_finger_scan_misplaced_callback(std::function<void()> callback) {
+    this->finger_scan_misplaced_callback_.add(std::move(callback));
   }
   void add_on_enrollment_scan_callback(std::function<void(uint8_t, uint16_t)> callback) {
     this->enrollment_scan_callback_.add(std::move(callback));
@@ -168,6 +168,7 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   bool waiting_removal_ = false;
   uint32_t last_aura_led_control_ = 0;
   uint16_t last_aura_led_duration_ = 0;
+  uint16_t system_identifier_code_ = 0;
   sensor::Sensor *fingerprint_count_sensor_{nullptr};
   sensor::Sensor *status_sensor_{nullptr};
   sensor::Sensor *capacity_sensor_{nullptr};
@@ -175,9 +176,9 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   sensor::Sensor *last_finger_id_sensor_{nullptr};
   sensor::Sensor *last_confidence_sensor_{nullptr};
   binary_sensor::BinarySensor *enrolling_binary_sensor_{nullptr};
-  CallbackManager<void()> finger_scan_invalid_callback_;
   CallbackManager<void(uint16_t, uint16_t)> finger_scan_matched_callback_;
   CallbackManager<void()> finger_scan_unmatched_callback_;
+  CallbackManager<void()> finger_scan_misplaced_callback_;
   CallbackManager<void(uint8_t, uint16_t)> enrollment_scan_callback_;
   CallbackManager<void(uint16_t)> enrollment_done_callback_;
   CallbackManager<void(uint16_t)> enrollment_failed_callback_;
@@ -198,10 +199,10 @@ class FingerScanUnmatchedTrigger : public Trigger<> {
   }
 };
 
-class FingerScanInvalidTrigger : public Trigger<> {
+class FingerScanMisplacedTrigger : public Trigger<> {
  public:
-  explicit FingerScanInvalidTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_finger_scan_invalid_callback([this]() { this->trigger(); });
+  explicit FingerScanMisplacedTrigger(FingerprintGrowComponent *parent) {
+    parent->add_on_finger_scan_misplaced_callback([this]() { this->trigger(); });
   }
 };
 
