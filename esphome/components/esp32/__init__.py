@@ -583,9 +583,9 @@ def copy_files():
 
         import shutil
 
-        shutil.rmtree(CORE.relative_build_path("components"), ignore_errors=True)
-
         if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
+            shutil.rmtree(CORE.relative_build_path("components"), ignore_errors=True)
+
             components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
 
             for name, component in components.items():
