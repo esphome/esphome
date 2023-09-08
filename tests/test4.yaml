@@ -32,6 +32,7 @@ spi:
   clk_pin: GPIO21
   mosi_pin: GPIO22
   miso_pin: GPIO23
+  interface: hardware
 
 uart:
   - id: uart115200
