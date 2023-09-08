@@ -2,6 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
+    CONF_FIELD_STRENGTH_X,
+    CONF_FIELD_STRENGTH_Y,
+    CONF_FIELD_STRENGTH_Z,
     CONF_ID,
     ICON_MAGNET,
     STATE_CLASS_MEASUREMENT,
@@ -14,10 +17,6 @@ mmc5983_ns = cg.esphome_ns.namespace("mmc5983")
 MMC5983Component = mmc5983_ns.class_(
     "MMC5983Component", cg.PollingComponent, i2c.I2CDevice
 )
-
-CONF_FIELD_STRENGTH_X = "field_strength_x"
-CONF_FIELD_STRENGTH_Y = "field_strength_y"
-CONF_FIELD_STRENGTH_Z = "field_strength_z"
 
 field_strength_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_MICROTESLA,
