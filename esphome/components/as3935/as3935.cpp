@@ -36,7 +36,7 @@ void AS3935Component::dump_config() {
     ESP_LOGCONFIG(TAG, "  Antenna tuning: ENABLED - lightning detection will not function in this mode");
     this->tune_antenna();
   } else if (this->calibration_) {
-      this->calibrate_oscillator();
+    this->calibrate_oscillator();
   }
 #endif
 }
@@ -272,7 +272,7 @@ void AS3935Component::display_oscillator(bool _state, uint8_t osc) {
     return;
 
   this->write_register(FREQ_DISP_IRQ, OSC_MASK, _state, 4 + osc);
-  }
+}
 
 // REG0x3D, bits[7:0]
 // This function calibrates both internal oscillators The oscillators are tuned
@@ -290,10 +290,10 @@ bool AS3935Component::calibrate_oscillator() {
   uint8_t reg_val_srco = this->read_register_(CALIB_SRCO, CALIB_MASK_NOK);
   uint8_t reg_val_trco = this->read_register_(CALIB_TRCO, CALIB_MASK_NOK);
 
-  //reg_val_srco &= CALIB_MASK;
-  //reg_val_srco >>= 6;
-  //reg_val_trco &= CALIB_MASK;
-  //reg_val_trco >>= 6;
+  // reg_val_srco &= CALIB_MASK;
+  // reg_val_srco >>= 6;
+  // reg_val_trco &= CALIB_MASK;
+  // reg_val_trco >>= 6;
   if (!reg_val_srco && !reg_val_trco) {  // Zero upon success
     ESP_LOGI(TAG, "Calibration was succesful");
     return true;
