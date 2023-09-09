@@ -290,6 +290,11 @@ ads1115:
   address: 0x48
   i2c_id: i2c_bus
 
+ads7128:
+  - id: ads7128_hub
+    address: 0x10
+    i2c_id: i2c_bus
+
 dallas:
   pin: GPIO23
 
@@ -496,6 +501,19 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: ads7128
+    name: "My Single-Sample Sensor"
+    channel: 0
+    oversampling: 64
+    update_interval: 1s
+  - platform: ads7128
+    name: "My RMS Sensor"
+    channel: 1
+    oversampling: 64
+    rms: true
+    rms_samples: 16384
+    cycle_time: 1
+    update_interval: 5s
   - platform: as7341
     update_interval: 15s
     gain: X8
@@ -1670,6 +1688,14 @@ binary_sensor:
       number: 7
       mode: INPUT
       inverted: false
+  - platform: gpio
+    name: "ads7128 Input #0"
+    pin:
+      ads7128: ads7128_hub
+      number: 0
+      # One of INPUT, OUTPUT, or OUTPUT_OPEN_DRAIN
+      mode: INPUT
+      inverted: false
 
   - platform: remote_receiver
     name: Raw Remote Receiver Test
@@ -1914,6 +1940,14 @@ output:
     pin:
       mcp23016: mcp23016_hub
       number: 0
+      mode: OUTPUT
+      inverted: false
+  - platform: gpio
+    id: ads7128_hub_1
+    pin:
+      ads7128: ads7128_hub
+      number: 1
+      # One of INPUT, OUTPUT, or OUTPUT_OPEN_DRAIN
       mode: OUTPUT
       inverted: false
   - platform: my9231
