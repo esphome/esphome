@@ -5,6 +5,10 @@ from esphome.const import CONF_ANALOG, CONF_INPUT
 
 from esphome.core import CORE
 from esphome.components.esp32 import get_esp32_variant
+from esphome.const import (
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
+)
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -143,7 +147,7 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
 
 def validate_adc_pin(value):
     if str(value).upper() == "VCC":
-        return cv.only_on_esp8266("VCC")
+        return cv.only_on([PLATFORM_ESP8266, PLATFORM_RP2040])("VCC")
 
     if str(value).upper() == "TEMPERATURE":
         return cv.only_on_rp2040("TEMPERATURE")
