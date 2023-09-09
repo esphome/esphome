@@ -563,6 +563,13 @@ script:
           then:
             - logger.log: looping!
 
+  - id: zero_repeat_test
+    then:
+      - repeat:
+          count: !lambda "return 0;"
+          then:
+            - logger.log: shouldn't see mee!
+
 switch:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_test
