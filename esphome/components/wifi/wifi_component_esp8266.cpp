@@ -718,8 +718,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)
   auto& server = WiFi.softAPDhcpServer();
-  if (!server.isRunning())
-  {
+  if (!server.isRunning()) {
     server.begin();
   }
 #elif USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
