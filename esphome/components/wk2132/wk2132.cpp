@@ -158,9 +158,9 @@ static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "B
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 #define I2CS(val) (i2s(val).c_str())
 
-auto elapsed = [](uint32_t &t) {
-  auto e = micros() - t;
-  t = micros();
+uint32_t elapsed(uint32_t &last_time) {
+  uint32_t e = micros() - last_time;
+  last_time = micros();
   return e;
 };
 
@@ -263,7 +263,7 @@ void WK2132Component::dump_config() {
 
     // here we reset the buffers and the fifos
     child->receive_buffer_.clear();
-    child->flush_requested = false;
+    child->flush_requested_ = false;
     child->reset_fifo_();
   }
   this->initialized_ = true;  // we can safely use the wk2132
@@ -471,7 +471,7 @@ void WK2132Channel::write_array(const uint8_t *buffer, size_t len) {
   }
 
   // if we had a flush request it is time to check it has been honored
-  if (this->flush_requested) {
+  if (this->flush_requested_) {
     if (this->tx_fifo_is_not_empty_()) {
       // despite the fact that we have waited a max the fifo is still not empty
       // therefore we now have to wait until it gets empty
@@ -483,8 +483,8 @@ void WK2132Channel::write_array(const uint8_t *buffer, size_t len) {
         }
         yield();  // reschedule our thread to avoid blocking
       }
-    } else
-      this->flush_requested = false;  // we are all set
+    }
+    this->flush_requested_ = false;  // we are all set
   }
 
   this->write_data_(buffer, len);
@@ -495,14 +495,14 @@ void WK2132Channel::flush() {
   // Tje next write_array() call will first check that everything
   // is gone otherwise it will wait. This gives time for the bytes
   // to go
-  this->flush_requested = true;
+  this->flush_requested_ = true;
 }
 
 size_t WK2132Channel::rx_fifo_to_buffer_() {
   // we look if some characters has been received in the fifo
   auto to_transfer = this->rx_in_fifo_();
   if (to_transfer) {
-    uint8_t data[to_transfer]{0};
+    uint8_t data[to_transfer];
     this->read_data_(data, to_transfer);
     auto free = this->receive_buffer_.free();
     if (to_transfer > free) {
@@ -523,11 +523,12 @@ void WK2132Component::loop() {
 
   static uint32_t loop_time = 0;
   static uint32_t loop_count = 0;
-  uint32_t time;
+  uint32_t time = 0;
 
-  if (test_mode_)
+  if (test_mode_) {
     ESP_LOGI(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count++, this->get_name(),
              millis() - loop_time);
+  }
   loop_time = millis();
 
   // here we transfer bytes from fifo to ring buffers

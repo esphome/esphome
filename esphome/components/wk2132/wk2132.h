@@ -215,7 +215,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 
   void set_crystal(uint32_t crystal) { this->crystal_ = crystal; }
   void set_test_mode(int test_mode) { this->test_mode_ = test_mode; }
-  void set_name(std::string name) { this->name_ = name; }
+  void set_name(std::string name) { this->name_ = std::move(name); }
   const char *get_name() { return this->name_.c_str(); }
 
   //
@@ -282,7 +282,7 @@ class WK2132Channel : public uart::UARTComponent {
     this->parent_->children_.push_back(this);  // add ourself to the list (vector)
   }
   void set_channel(uint8_t channel) { this->channel_ = channel; }
-  void set_channel_name(std::string name) { this->name_ = name; }
+  void set_channel_name(std::string name) { this->name_ = std::move(name); }
   const char *get_channel_name() { return this->name_.c_str(); }
 
   //
@@ -389,11 +389,11 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief the buffer where we store temporarily the bytes received
   RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
-  bool flush_requested{false};  ///< flush was requested but not honored
-  WK2132Component *parent_;     ///< Our WK2132component parent
-  uint8_t channel_;             ///< Our Channel number
-  uint8_t data_;                ///< one byte buffer
-  std::string name_;            ///< name of the entity
+  bool flush_requested_{false};  ///< flush was requested but not honored
+  WK2132Component *parent_;      ///< Our WK2132component parent
+  uint8_t channel_;              ///< Our Channel number
+  uint8_t data_;                 ///< one byte buffer
+  std::string name_;             ///< name of the entity
 };
 
 }  // namespace wk2132
