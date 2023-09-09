@@ -446,9 +446,9 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
   bool status = true;
   auto available = this->receive_buffer_.count();
 
-  // here if we do not have bytes in buffer we want to check if
-  // there are bytes in the fifo,in which case we do not want to
-  // delay reading them in the next loop.
+  // If we do not have any bytes in buffer we want to check if
+  // there are bytes in the fifo,in which case we read them
+  // immediately so we do not delay until the next loop.
   if (!available)
     available = rx_fifo_to_buffer_();
 
@@ -521,12 +521,13 @@ void WK2132Component::loop() {
     return;
   }
 
-  static uint16_t loop_calls = 0;
   static uint32_t loop_time = 0;
+  static uint32_t loop_count = 0;
   uint32_t time;
 
   if (test_mode_)
-    ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
+    ESP_LOGI(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count++, this->get_name(),
+             millis() - loop_time);
   loop_time = millis();
 
   // here we transfer bytes from fifo to ring buffers
