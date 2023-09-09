@@ -122,11 +122,11 @@ void ST7789V::setup() {
 
 void ST7789V::dump_config() {
   LOG_DISPLAY("", "SPI ST7789V", this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
-  if (this->model_ == ST7789V_MODEL_CUSTOM) {
-    ESP_LOGCONFIG(TAG, "  Height Offset: %u", this->offset_height_);
-    ESP_LOGCONFIG(TAG, "  Width Offset: %u", this->offset_width_);
-  }
+  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_);
+  ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
+  ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
+  ESP_LOGCONFIG(TAG, "  Height Offset: %u", this->offset_height_);
+  ESP_LOGCONFIG(TAG, "  Width Offset: %u", this->offset_width_);
   ESP_LOGCONFIG(TAG, "  8-bit color mode: %s", YESNO(this->eightbitcolor_));
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
@@ -145,42 +145,7 @@ void ST7789V::update() {
   this->write_display_data();
 }
 
-void ST7789V::set_model(ST7789VModel model) {
-  this->model_ = model;
-
-  switch (this->model_) {
-    case ST7789V_MODEL_TTGO_TDISPLAY_135_240:
-      this->height_ = 240;
-      this->width_ = 135;
-      this->offset_height_ = 52;
-      this->offset_width_ = 40;
-      break;
-
-    case ST7789V_MODEL_ADAFRUIT_FUNHOUSE_240_240:
-      this->height_ = 240;
-      this->width_ = 240;
-      this->offset_height_ = 0;
-      this->offset_width_ = 0;
-      break;
-
-    case ST7789V_MODEL_ADAFRUIT_RR_280_240:
-      this->height_ = 280;
-      this->width_ = 240;
-      this->offset_height_ = 0;
-      this->offset_width_ = 20;
-      break;
-
-    case ST7789V_MODEL_ADAFRUIT_S2_TFT_FEATHER_240_135:
-      this->height_ = 240;
-      this->width_ = 135;
-      this->offset_height_ = 52;
-      this->offset_width_ = 40;
-      break;
-
-    default:
-      break;
-  }
-}
+void ST7789V::set_model_str(const char *model_str) { this->model_str_ = model_str; }
 
 void ST7789V::write_display_data() {
   uint16_t x1 = this->offset_height_;
@@ -336,21 +301,6 @@ void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, Color color) {
     uint32_t pos = (x + y * this->get_width_internal()) * 2;
     this->buffer_[pos++] = (color565 >> 8) & 0xff;
     this->buffer_[pos] = color565 & 0xff;
-  }
-}
-
-const char *ST7789V::model_str_() {
-  switch (this->model_) {
-    case ST7789V_MODEL_TTGO_TDISPLAY_135_240:
-      return "TTGO T-Display 135x240";
-    case ST7789V_MODEL_ADAFRUIT_FUNHOUSE_240_240:
-      return "Adafruit Funhouse 240x240";
-    case ST7789V_MODEL_ADAFRUIT_RR_280_240:
-      return "Adafruit Round-Rectangular 280x240";
-    case ST7789V_MODEL_ADAFRUIT_S2_TFT_FEATHER_240_135:
-      return "Adafruit ESP32-S2 TFT Feather";
-    default:
-      return "Custom";
   }
 }
 

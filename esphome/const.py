@@ -11,8 +11,19 @@ PLATFORM_ESP32 = "esp32"
 PLATFORM_ESP8266 = "esp8266"
 PLATFORM_RP2040 = "rp2040"
 PLATFORM_HOST = "host"
+PLATFORM_BK72XX = "bk72xx"
+PLATFORM_RTL87XX = "rtl87xx"
+PLATFORM_LIBRETINY_OLDSTYLE = "libretiny"
 
-TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_HOST]
+TARGET_PLATFORMS = [
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
+    PLATFORM_HOST,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
+    PLATFORM_LIBRETINY_OLDSTYLE,
+]
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
@@ -37,6 +48,7 @@ CONF_ADVANCED = "advanced"
 CONF_AFTER = "after"
 CONF_ALPHA = "alpha"
 CONF_ALTITUDE = "altitude"
+CONF_ANALOG = "analog"
 CONF_AND = "and"
 CONF_AP = "ap"
 CONF_APPARENT_POWER = "apparent_power"
@@ -835,6 +847,7 @@ ICON_BRIEFCASE_DOWNLOAD = "mdi:briefcase-download"
 ICON_BRIGHTNESS_5 = "mdi:brightness-5"
 ICON_BRIGHTNESS_6 = "mdi:brightness-6"
 ICON_BUG = "mdi:bug"
+ICON_CELLPHONE_ARROW_DOWN = "mdi:cellphone-arrow-down"
 ICON_CHECK_CIRCLE_OUTLINE = "mdi:check-circle-outline"
 ICON_CHEMICAL_WEAPON = "mdi:chemical-weapon"
 ICON_CHIP = "mdi:chip"
@@ -967,7 +980,6 @@ DEVICE_CLASS_DURATION = "duration"
 DEVICE_CLASS_EMPTY = ""
 DEVICE_CLASS_ENERGY = "energy"
 DEVICE_CLASS_ENERGY_STORAGE = "energy_storage"
-DEVICE_CLASS_ENUM = "enum"
 DEVICE_CLASS_FREQUENCY = "frequency"
 DEVICE_CLASS_GARAGE = "garage"
 DEVICE_CLASS_GARAGE_DOOR = "garage_door"
