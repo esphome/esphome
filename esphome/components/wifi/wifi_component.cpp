@@ -40,7 +40,7 @@ void WiFiComponent::setup() {
   if (this->enable_on_boot_) {
     this->start();
   } else {
-#if defined(USE_ESP32) || defined(USE_ESP8266)
+#ifdef USE_ESP32
     esp_netif_init();
 #endif
     this->state_ = WIFI_COMPONENT_STATE_DISABLED;
