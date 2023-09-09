@@ -1,6 +1,6 @@
-/// @file wk2132.cpp
+/// @file uart_tester.cpp
 /// @author DrCoolzic
-/// @brief wk2132 classes implementation
+/// @brief uart_tester classes implementation
 
 #include "uart_tester.h"
 
@@ -8,10 +8,6 @@ namespace esphome {
 namespace uart_tester {
 
 static const char *const TAG = "UARTTester";
-
-// convert an int to binary string
-inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
-#define I2CS(val) (i2s(val).c_str())
 
 void print_buffer(std::vector<uint8_t> buffer) {
   // quick and ugly hex converter to display buffer in hex format
@@ -39,6 +35,7 @@ class Increment {  // A "Functor" (A class object that acts like a method with s
   uint8_t i_;
 };
 
+// lambda
 auto elapsed = [](uint32_t &last_time, bool micro = false) {
   if (micro) {
     auto e = micros() - last_time;
@@ -54,13 +51,8 @@ auto elapsed = [](uint32_t &last_time, bool micro = false) {
 ///////////////////////////////////////////////////////////////////////////////
 // The UARTTester methods
 ///////////////////////////////////////////////////////////////////////////////
-//
-// overloaded methods from Component
-//
-
 void UARTTester::setup() {
   ESP_LOGCONFIG(TAG, "Initializing uart tester %s ...", this->get_name());
-  // we initialize the input buffer
   generate(output_buffer.begin(), output_buffer.end(), Increment());
 }
 
@@ -85,8 +77,7 @@ void UARTTester::uart_receive_frame_() {
   elapsed(time, true);
   while (to_read) {
     int available;
-    if (this->available()) {
-      available = this->available();
+    if (available = this->available()) {
       this->read_array(&input_buffer[BUFFER_SIZE - to_read], available);
       to_read -= available;
     }
@@ -125,9 +116,6 @@ void UARTTester::uart_receive_frame_1_by_1_() {
   // print_buffer(input_buffer);
 }
 
-//
-// This is the WK2132Component loop() method
-//
 void UARTTester::loop() {
   if (!this->initialized_)
     return;
@@ -138,39 +126,38 @@ void UARTTester::loop() {
   ESP_LOGI(TAG, "loop %d for tester %s : %d ms since last call ...", loop_calls++, this->get_name(),
            elapsed(loop_time));
 
-  // // if (this->test_mode_.test(0)) {  // test echo mode (bit 0)
-  // elapsed(time);
-  // for (auto *uart : this->uart_list_) {
-  //   uint8_t data;
-  //   if (child->available()) {
-  //     child->read_byte(&data);
-  //     ESP_LOGI(TAG, "echo mode: read -> send %02X", data);
-  //     child->write_byte(data);
-  //   }
-  // }
-  // ESP_LOGI(TAG, "echo execution time %d µs...", elapsed(time));
-  // //  }
+  if (mode_.none()) {  // mode 0
+    char preamble[64];
 
-  // if (test_mode_.test(1)) {  // test loop mode (bit 1)
-  char preamble[64];
+    elapsed(time);
+    this->uart_send_frame_();
+    ESP_LOGI(TAG, "  send frame call time %d ms", elapsed(time));
 
-  elapsed(time);
-  this->uart_send_frame_();
-  ESP_LOGI(TAG, "  send frame call time %d ms", elapsed(time));
+    elapsed(time);
+    this->uart_receive_frame_();
+    ESP_LOGI(TAG, "  receive frame call time %d ms", elapsed(time));
 
-  elapsed(time);
-  this->uart_receive_frame_();
-  ESP_LOGI(TAG, "  receive frame call time %d ms", elapsed(time));
+    elapsed(time);
+    this->uart_send_frame_();
+    ESP_LOGI(TAG, "  send frame call time %d ms", elapsed(time));
 
-  elapsed(time);
-  this->uart_send_frame_();
-  ESP_LOGI(TAG, "  send frame call time %d ms", elapsed(time));
+    elapsed(time);
+    this->uart_receive_frame_1_by_1_();
+    ESP_LOGI(TAG, "  receive frame 1 by 1 call time %d ms", elapsed(time));
+  }
 
-  elapsed(time);
-  this->uart_receive_frame_1_by_1_();
-  ESP_LOGI(TAG, "  receive frame 1 by 1 call time %d ms", elapsed(time));
-
-  // }
+  if (this->mode_.test(1)) {  // test echo mode (bit 0)
+    // elapsed(time);
+    // for (auto *uart : this->uart_list_) {
+    //   uint8_t data;
+    //   if (child->available()) {
+    //     child->read_byte(&data);
+    //     ESP_LOGI(TAG, "echo mode: read -> send %02X", data);
+    //     child->write_byte(data);
+    //   }
+    // }
+    // ESP_LOGI(TAG, "echo execution time %d µs...", elapsed(time));
+  }
 
   ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 }

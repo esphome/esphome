@@ -11,9 +11,6 @@
 namespace esphome {
 namespace wk2132 {
 
-// here we indicate if we want to include the code for auto tests (recommended)
-#define AUTOTEST_COMPONENT
-
 /// @brief the max size we allow for transmissions
 constexpr size_t FIFO_SIZE = 128;
 
@@ -218,6 +215,8 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 
   void set_crystal(uint32_t crystal) { this->crystal_ = crystal; }
   void set_test_mode(int test_mode) { this->test_mode_ = test_mode; }
+  void set_name(std::string name) { this->name_ = name; }
+  const char *get_name() { return this->name_.c_str(); }
 
   //
   //  override virtual Component methods
@@ -248,17 +247,14 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   /// @return the I²C error codes
   uint8_t read_wk2132_register_(uint8_t reg_number, uint8_t channel, uint8_t *buffer, size_t len);
 
-  /// @brief for debug: returns the address of the device on the I²C bus
-  /// @return the address
-  int get_base_addr_() const { return base_address_; }
-
   uint32_t crystal_;                         ///< crystal default value;
   uint8_t base_address_;                     ///< base address of I2C device
-  std::bitset<8> test_mode_;                 ///< test mode 0 -> no tests
+  int test_mode_;                            ///< test mode 0 -> no tests
   uint8_t data_;                             ///< temporary buffer
   bool page1_{false};                        ///< set to true when in page1 mode
   std::vector<WK2132Channel *> children_{};  ///< the list of WK2132Channel UART children
   bool initialized_{false};                  ///< set to true when the wk2132 is initialized
+  std::string name_;                         ///< store name of entity
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -286,6 +282,8 @@ class WK2132Channel : public uart::UARTComponent {
     this->parent_->children_.push_back(this);  // add ourself to the list (vector)
   }
   void set_channel(uint8_t channel) { this->channel_ = channel; }
+  void set_channel_name(std::string name) { this->name_ = name; }
+  const char *get_channel_name() { return this->name_.c_str(); }
 
   //
   // we implement the virtual class from UARTComponent
@@ -389,22 +387,13 @@ class WK2132Channel : public uart::UARTComponent {
 
   size_t rx_fifo_to_buffer_();
 
-#ifdef AUTOTEST_COMPONENT
-  /// @brief Sends bytes to the UART in loop mode
-  /// @param preamble info to print about the uart address and channel
-  void uart_send_test_(char *preamble);
-  /// @brief Receive bytes from the UART in loop mode
-  /// @param preamble info to print about the uart address and channel
-  /// @param print_buf whether or not we display the buffer content
-  void uart_receive_test_(char *preamble, bool print_buf = true);
-#endif
-
   /// @brief the buffer where we store temporarily the bytes received
   RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
   bool flush_requested{false};  ///< flush was requested but not honored
   WK2132Component *parent_;     ///< Our WK2132component parent
   uint8_t channel_;             ///< Our Channel number
   uint8_t data_;                ///< one byte buffer
+  std::string name_;            ///< name of the entity
 };
 
 }  // namespace wk2132
