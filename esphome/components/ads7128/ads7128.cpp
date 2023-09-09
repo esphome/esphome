@@ -31,22 +31,22 @@ void ADS7128Component::setup() {
     this->mark_failed();
     return;
   }
-  this->reset_device();
+  this->reset_device_();
 }
 
 void ADS7128Component::digital_setup(uint8_t pin, gpio::Flags flags) {
   uint8_t mask = 0x1 << pin;
-  this->set_register_bits(Register::PIN_CFG, mask);
+  this->set_register_bits_(Register::PIN_CFG, mask);
   if (flags & gpio::Flags::FLAG_INPUT) {
     this->any_gpi_ = true;
-    this->clear_register_bits(Register::GPIO_CFG, mask);
+    this->clear_register_bits_(Register::GPIO_CFG, mask);
   } else {
-    this->set_register_bits(Register::GPIO_CFG, mask);
+    this->set_register_bits_(Register::GPIO_CFG, mask);
   }
   if (flags & gpio::Flags::FLAG_OPEN_DRAIN) {
-    this->clear_register_bits(Register::GPO_DRIVE_CFG, mask);
+    this->clear_register_bits_(Register::GPO_DRIVE_CFG, mask);
   } else {
-    this->set_register_bits(Register::GPO_DRIVE_CFG, mask);
+    this->set_register_bits_(Register::GPO_DRIVE_CFG, mask);
   }
 }
 
@@ -60,7 +60,7 @@ void ADS7128Component::dump_config() {
 
 void ADS7128Component::loop() {
   if (this->any_gpi_)
-    this->gpi_value_ = this->read_register(Register::GPI_VALUE);
+    this->gpi_value_ = this->read_register_(Register::GPI_VALUE);
 
   if (!this->sensors_.empty()) {
     bool advance = this->read_sensor(this->sensors_.front());
@@ -72,9 +72,9 @@ void ADS7128Component::loop() {
 void ADS7128Component::digital_write(uint8_t pin, bool value) {
   uint8_t mask = 0x1 << pin;
   if (value)
-    this->set_register_bits(Register::GPO_VALUE, mask);
+    this->set_register_bits_(Register::GPO_VALUE, mask);
   else
-    this->clear_register_bits(Register::GPO_VALUE, mask);
+    this->clear_register_bits_(Register::GPO_VALUE, mask);
 }
 
 void ADS7128Component::sensor_update(ADS7128Sensor *sensor) {
@@ -83,7 +83,7 @@ void ADS7128Component::sensor_update(ADS7128Sensor *sensor) {
   this->sensors_.push_back(sensor);
 }
 
-uint8_t ADS7128Component::read_register(Register r) {
+uint8_t ADS7128Component::read_register_(Register r) {
   uint8_t command[2] = {opcode::READ, uint8_t(r)};
   if (this->write(command, 2) != i2c::ERROR_OK) {
     this->status_set_warning();
@@ -98,21 +98,21 @@ uint8_t ADS7128Component::read_register(Register r) {
   return value;
 }
 
-void ADS7128Component::write_register(Register r, uint8_t value) {
+void ADS7128Component::write_register_(Register r, uint8_t value) {
   uint8_t command[3] = {opcode::WRITE, uint8_t(r), value};
   if (this->write(command, 3) != i2c::ERROR_OK) {
     this->status_set_warning();
   }
 }
 
-void ADS7128Component::set_register_bits(Register r, uint8_t mask) {
+void ADS7128Component::set_register_bits_(Register r, uint8_t mask) {
   uint8_t command[3] = {opcode::SET_BITS, uint8_t(r), mask};
   if (this->write(command, 3) != i2c::ERROR_OK) {
     this->status_set_warning();
   }
 }
 
-void ADS7128Component::clear_register_bits(Register r, uint8_t mask) {
+void ADS7128Component::clear_register_bits_(Register r, uint8_t mask) {
   uint8_t command[3] = {opcode::CLEAR_BITS, uint8_t(r), mask};
   if (this->write(command, 3) != i2c::ERROR_OK) {
     this->status_set_warning();
@@ -124,14 +124,14 @@ bool ADS7128Component::read_sensor(ADS7128Sensor *sensor) {
   // https://e2e.ti.com/support/data-converters-group/data-converters/f/data-converters-forum/1225819/faq-ads7128-using-the-rms-module
   if (!this->is_waiting_) {
     OSR(*this) = sensor->get_oversampling();
-    OSC_SEL(*this) = sensor->get_OSC_SEL();
-    CLK_DIV(*this) = sensor->get_CLK_DIV();
+    OSC_SEL(*this) = sensor->get_osc_sel();
+    CLK_DIV(*this) = sensor->get_clk_div();
     if (sensor->get_rms()) {
       RMS_CHID(*this) = sensor->get_channel();
       RMS_DC_SUB(*this) = true;
       RMS_SAMPLES(*this) = sensor->get_rms_samples();
       RMS_EN(*this) = true;
-      write_register(Register::AUTO_SEQ_CH_SEL, 1 << sensor->get_channel());
+      write_register_(Register::AUTO_SEQ_CH_SEL, 1 << sensor->get_channel());
       SEQ_MODE(*this) = 1;
       CONV_MODE(*this) = 1;
       SEQ_START(*this) = true;
@@ -149,7 +149,7 @@ bool ADS7128Component::read_sensor(ADS7128Sensor *sensor) {
   if (sensor->get_rms()) {
     if (RMS_DONE(*this)) {
       SEQ_START(*this) = false;
-      auto value = uint16_t(read_register(Register::RMS_MSB)) << 8 | read_register(Register::RMS_LSB);
+      auto value = uint16_t(read_register_(Register::RMS_MSB)) << 8 | read_register_(Register::RMS_LSB);
       sensor->publish_state(float(value) / 0xFFFF);
       RMS_DONE(*this).set();
       RMS_EN(*this) = false;

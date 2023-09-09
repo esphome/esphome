@@ -214,23 +214,23 @@ class ADS7128Component : public Component, public i2c::I2CDevice {
   };
 
   // Register access
-  uint8_t read_register(Register r);
-  void write_register(Register r, uint8_t value);
-  void set_register_bits(Register r, uint8_t mask);
-  void clear_register_bits(Register r, uint8_t mask);
+  uint8_t read_register_(Register r);
+  void write_register_(Register r, uint8_t value);
+  void set_register_bits_(Register r, uint8_t mask);
+  void clear_register_bits_(Register r, uint8_t mask);
 
   // Read an analog sensor - returns true if complete, false if should be called again with the same sensor to complete
   // the read later
   bool read_sensor(ADS7128Sensor *sensor);
 
   // Accessor type for a single bit field of a register
-  template<Register R, uint8_t i> struct RegisterBit {
+  template<Register R, uint8_t I> struct RegisterBit {
     ADS7128Component &parent;
     RegisterBit(ADS7128Component &parent) : parent{parent} {}
-    bool get() { return parent.read_register(R) & (1 << i); }
+    bool get() { return parent.read_register_(R) & (1 << I); }
     operator bool() { return get(); }
-    void set() { parent.set_register_bits(R, 1 << i); }
-    void clear() { parent.clear_register_bits(R, 1 << i); }
+    void set() { parent.set_register_bits_(R, 1 << I); }
+    void clear() { parent.clear_register_bits_(R, 1 << I); }
     RegisterBit &operator=(bool value) {
       if (value)
         set();
@@ -241,17 +241,17 @@ class ADS7128Component : public Component, public i2c::I2CDevice {
   };
 
   // Accessor type for int field of a register
-  template<Register R, uint8_t i, uint8_t bit_count> struct RegisterInt {
-    static constexpr uint8_t mask = 0xFF >> (8 - bit_count) << i;
+  template<Register R, uint8_t I, uint8_t BIT_COUNT> struct RegisterInt {
+    static constexpr uint8_t MASK = 0xFF >> (8 - BIT_COUNT) << I;
     ADS7128Component &parent;
     RegisterInt(ADS7128Component &parent) : parent{parent} {}
-    uint8_t get() { return (parent.read_register(R) & mask) >> i; }
+    uint8_t get() { return (parent.read_register_(R) & MASK) >> I; }
     operator uint8_t() { return get(); }
     void set(uint8_t value) {
-      uint8_t r = parent.read_register(R);
-      r &= ~mask;
-      r |= value << i;
-      parent.write_register(R, r);
+      uint8_t r = parent.read_register_(R);
+      r &= ~MASK;
+      r |= value << I;
+      parent.write_register_(R, r);
     }
     RegisterInt &operator=(uint8_t value) {
       set(value);
@@ -298,7 +298,7 @@ class ADS7128Component : public Component, public i2c::I2CDevice {
   using RMS_DC_SUB = RegisterBit<Register::RMS_CFG, 2>;
   using RMS_SAMPLES = RegisterInt<Register::RMS_CFG, 0, 2>;
 
-  void reset_device() {
+  void reset_device_() {
     RST(*this).set();
     while (RST(*this)) {
     }  // Wait for reset
@@ -338,8 +338,8 @@ class ADS7128Sensor : public PollingComponent, public sensor::Sensor {
   void set_channel(uint8_t channel) { this->channel_ = channel; }
 
   uint8_t get_cycle_time() { return uint8_t(this->cycle_time_); }
-  uint8_t get_OSC_SEL() { return (this->get_cycle_time() & 0x10) >> 4; }
-  uint8_t get_CLK_DIV() { return this->get_cycle_time() & 0x0F; }
+  uint8_t get_osc_sel() { return (this->get_cycle_time() & 0x10) >> 4; }
+  uint8_t get_clk_div() { return this->get_cycle_time() & 0x0F; }
   uint32_t get_cycle_time_ns() {
     switch (this->cycle_time_) {
       case ADS7128_CYCLE_TIME_1:
