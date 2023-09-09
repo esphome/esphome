@@ -50,7 +50,7 @@ void Touchscreen::send_touch_(std::vector<TouchPoint> *tp_map) {
     tp.x = (int16_t) ((int) tp.x * this->get_width_() / 0xfff);
     tp.y = (int16_t) ((int) tp.y * this->get_height_() / 0xfff);
 
-    if (auto search = this->first_touch_.find(tp.id); search == this->first_touch_.end()) {
+    if (this->first_touch_.count(tp.id) == 0) {
       this->first_touch_[tp.id] = tp;
       this->first_touch_[tp.id].state = 1;
       tp.state = 1;
