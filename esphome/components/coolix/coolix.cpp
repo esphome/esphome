@@ -114,7 +114,7 @@ bool CoolixClimate::on_coolix(climate::Climate *parent, remote_base::RemoteRecei
   if (!decoded.has_value())
     return false;
   // Decoded remote state y 3 bytes long code.
-  uint32_t remote_state = *decoded;
+  uint32_t remote_state = (*decoded).second;
   ESP_LOGV(TAG, "Decoded 0x%06X", remote_state);
   if ((remote_state & 0xFF0000) != 0xB20000)
     return false;

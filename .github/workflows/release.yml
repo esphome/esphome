@@ -19,7 +19,7 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get tag
         id: tag
         # yamllint disable rule:line-length
@@ -43,15 +43,17 @@ jobs:
     if: github.repository == 'esphome/esphome' && github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.x"
       - name: Set up python environment
+        env:
+          ESPHOME_NO_VENV: 1
         run: |
           script/setup
-          pip install setuptools wheel twine
+          pip install twine
       - name: Build
         run: python setup.py sdist bdist_wheel
       - name: Upload
@@ -86,7 +88,7 @@ jobs:
             target: "lint"
             baseimg: "docker"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v4
         with:

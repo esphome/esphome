@@ -1,4 +1,5 @@
 #include "pulse_meter_sensor.h"
+#include <utility>
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -9,66 +10,58 @@ static const char *const TAG = "pulse_meter";
 void PulseMeterSensor::setup() {
   this->pin_->setup();
   this->isr_pin_ = pin_->to_isr();
-  this->pin_->attach_interrupt(PulseMeterSensor::gpio_intr, this, gpio::INTERRUPT_ANY_EDGE);
 
-  this->last_detected_edge_us_ = 0;
-  this->last_valid_edge_us_ = 0;
-  this->pulse_width_us_ = 0;
-  this->sensor_is_high_ = this->isr_pin_.digital_read();
-  this->has_valid_edge_ = false;
-  this->pending_state_change_ = NONE;
+  if (this->filter_mode_ == FILTER_EDGE) {
+    this->pin_->attach_interrupt(PulseMeterSensor::edge_intr, this, gpio::INTERRUPT_RISING_EDGE);
+  } else if (this->filter_mode_ == FILTER_PULSE) {
+    this->pin_->attach_interrupt(PulseMeterSensor::pulse_intr, this, gpio::INTERRUPT_ANY_EDGE);
+  }
 }
-// In PULSE mode we set a flag (pending_state_change_) for every interrupt
-// that constitutes a state change. In the loop() method we check if a time
-// interval greater than the internal_filter time has passed without any
-// interrupts.
 
 void PulseMeterSensor::loop() {
-  // Get a snapshot of the needed volatile sensor values, to make sure they are not
-  // modified by the ISR while we are in the loop() method. If they are changed
-  // after we the variable "now" has been set, overflow will occur in the
-  // subsequent arithmetic
-  const bool has_valid_edge = this->has_valid_edge_;
-  const uint32_t last_detected_edge_us = this->last_detected_edge_us_;
-  const uint32_t last_valid_edge_us = this->last_valid_edge_us_;
-  // Get the current time after the snapshot of saved times
-  const uint32_t now = micros();
+  // Reset the count in get before we pass it back to the ISR as set
+  this->get_->count_ = 0;
 
-  this->handle_state_change_(now, last_detected_edge_us, last_valid_edge_us, has_valid_edge);
+  // Swap out set and get to get the latest state from the ISR
+  // The ISR could interrupt on any of these lines and the results would be consistent
+  auto *temp = this->set_;
+  this->set_ = this->get_;
+  this->get_ = temp;
 
-  // If we've exceeded our timeout interval without receiving any pulses, assume 0 pulses/min until
-  // we get at least two valid pulses.
-  const uint32_t time_since_valid_edge_us = now - last_detected_edge_us;
-  if ((has_valid_edge) && (time_since_valid_edge_us > this->timeout_us_)) {
-    ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
-
-    this->last_valid_edge_us_ = 0;
-    this->pulse_width_us_ = 0;
-    this->has_valid_edge_ = false;
-    this->last_detected_edge_us_ = 0;
-  }
-
-  // We quantize our pulse widths to 1 ms to avoid unnecessary jitter
-  const uint32_t pulse_width_ms = this->pulse_width_us_ / 1000;
-  if (this->pulse_width_dedupe_.next(pulse_width_ms)) {
-    if (pulse_width_ms == 0) {
-      // Treat 0 pulse width as 0 pulses/min (normally because we've not detected any pulses for a while)
-      this->publish_state(0);
-    } else {
-      // Calculate pulses/min from the pulse width in ms
-      this->publish_state((60.0f * 1000.0f) / pulse_width_ms);
-    }
-  }
-
-  if (this->total_sensor_ != nullptr) {
-    const uint32_t total = this->total_pulses_;
-    if (this->total_dedupe_.next(total)) {
+  // Check if we detected a pulse this loop
+  if (this->get_->count_ > 0) {
+    // Keep a running total of pulses if a total sensor is configured
+    if (this->total_sensor_ != nullptr) {
+      this->total_pulses_ += this->get_->count_;
+      const uint32_t total = this->total_pulses_;
       this->total_sensor_->publish_state(total);
+    }
+
+    // We need to detect at least two edges to have a valid pulse width
+    if (!this->initialized_) {
+      this->initialized_ = true;
+    } else {
+      uint32_t delta_us = this->get_->last_detected_edge_us_ - this->last_processed_edge_us_;
+      float pulse_width_us = delta_us / float(this->get_->count_);
+      this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
+    }
+
+    this->last_processed_edge_us_ = this->get_->last_detected_edge_us_;
+  }
+  // No detected edges this loop
+  else {
+    const uint32_t now = micros();
+    const uint32_t time_since_valid_edge_us = now - this->last_processed_edge_us_;
+
+    if (this->initialized_ && time_since_valid_edge_us > this->timeout_us_) {
+      ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
+      this->initialized_ = false;
+      this->publish_state(0.0f);
     }
   }
 }
 
-void PulseMeterSensor::set_total_pulses(uint32_t pulses) { this->total_pulses_ = pulses; }
+float PulseMeterSensor::get_setup_priority() const { return setup_priority::DATA; }
 
 void PulseMeterSensor::dump_config() {
   LOG_SENSOR("", "Pulse Meter", this);
@@ -81,96 +74,49 @@ void PulseMeterSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Assuming 0 pulses/min after not receiving a pulse for %us", this->timeout_us_ / 1000000);
 }
 
-void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
+void IRAM_ATTR PulseMeterSensor::edge_intr(PulseMeterSensor *sensor) {
+  // This is an interrupt handler - we can't call any virtual method from this method
+  // Get the current time before we do anything else so the measurements are consistent
+  const uint32_t now = micros();
+
+  if ((now - sensor->last_edge_candidate_us_) >= sensor->filter_us_) {
+    sensor->last_edge_candidate_us_ = now;
+    sensor->set_->last_detected_edge_us_ = now;
+    sensor->set_->count_++;
+  }
+}
+
+void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
   // This is an interrupt handler - we can't call any virtual method from this method
   // Get the current time before we do anything else so the measurements are consistent
   const uint32_t now = micros();
   const bool pin_val = sensor->isr_pin_.digital_read();
 
-  if (sensor->filter_mode_ == FILTER_EDGE) {
-    // We only look at rising edges
-    if (!pin_val) {
-      return;
+  // A pulse occurred faster than we can detect
+  if (sensor->last_pin_val_ == pin_val) {
+    // If we haven't reached the filter length yet we need to reset our last_intr_ to now
+    // otherwise we can consider this noise as the "pulse" was certainly less than filter_us_
+    if (now - sensor->last_intr_ < sensor->filter_us_) {
+      sensor->last_intr_ = now;
     }
-    // Check to see if we should filter this edge out
-    if ((now - sensor->last_detected_edge_us_) >= sensor->filter_us_) {
-      // Don't measure the first valid pulse (we need at least two pulses to measure the width)
-      if (sensor->has_valid_edge_) {
-        sensor->pulse_width_us_ = (now - sensor->last_valid_edge_us_);
-      }
-      sensor->total_pulses_++;
-      sensor->last_valid_edge_us_ = now;
-      sensor->has_valid_edge_ = true;
-    }
-    sensor->last_detected_edge_us_ = now;
   } else {
-    // Filter Mode is PULSE
-    const uint32_t delta_t_us = now - sensor->last_detected_edge_us_;
-    // We need to check if we have missed to handle a state change in the
-    // loop() function. This can happen when the filter_us value is less than
-    // the loop() interval, which is ~50-60ms
-    // The section below is essentially a modified repeat of the
-    // handle_state_change method. Ideally i would refactor and call the
-    // method here as well. However functions called in ISRs need to meet
-    // strict criteria and I don't think the methos would meet them.
-    if (sensor->pending_state_change_ != NONE && (delta_t_us > sensor->filter_us_)) {
-      // We have missed to handle a state change in the loop function.
-      sensor->sensor_is_high_ = sensor->pending_state_change_ == TO_HIGH;
-      if (sensor->sensor_is_high_) {
-        // We need to handle a pulse that would have been missed by the loop function
-        sensor->total_pulses_++;
-        if (sensor->has_valid_edge_) {
-          sensor->pulse_width_us_ = sensor->last_detected_edge_us_ - sensor->last_valid_edge_us_;
-          sensor->has_valid_edge_ = true;
-          sensor->last_valid_edge_us_ = sensor->last_detected_edge_us_;
-        }
+    // Check if the last interrupt was long enough in the past
+    if (now - sensor->last_intr_ > sensor->filter_us_) {
+      // High pulse of filter length now falling (therefore last_intr_ was the rising edge)
+      if (!sensor->in_pulse_ && sensor->last_pin_val_) {
+        sensor->last_edge_candidate_us_ = sensor->last_intr_;
+        sensor->in_pulse_ = true;
       }
-    }  // End of checking for and handling of change in state
-
-    // Ignore false edges that may be caused by bouncing and exit the ISR ASAP
-    if (pin_val == sensor->sensor_is_high_) {
-      sensor->pending_state_change_ = NONE;
-      return;
-    }
-    sensor->pending_state_change_ = pin_val ? TO_HIGH : TO_LOW;
-    sensor->last_detected_edge_us_ = now;
-  }
-}
-
-void PulseMeterSensor::handle_state_change_(uint32_t now, uint32_t last_detected_edge_us, uint32_t last_valid_edge_us,
-                                            bool has_valid_edge) {
-  if (this->pending_state_change_ == NONE) {
-    return;
-  }
-
-  const bool pin_val = this->isr_pin_.digital_read();
-  if (pin_val == this->sensor_is_high_) {
-    // Most likely caused by high frequency bouncing. Theoretically we should
-    // expect interrupts of alternating state. Here we are registering an
-    // interrupt with no change in state. Another interrupt will likely trigger
-    // just after this one and have an alternate state.
-    this->pending_state_change_ = NONE;
-    return;
-  }
-
-  if ((now - last_detected_edge_us) > this->filter_us_) {
-    this->sensor_is_high_ = pin_val;
-    ESP_LOGVV(TAG, "State is now %s", pin_val ? "high" : "low");
-
-    // Increment with valid rising edges only
-    if (pin_val) {
-      this->total_pulses_++;
-      ESP_LOGVV(TAG, "Incremented pulses to %u", this->total_pulses_);
-
-      if (has_valid_edge) {
-        this->pulse_width_us_ = last_detected_edge_us - last_valid_edge_us;
-        ESP_LOGVV(TAG, "Set pulse width to %u", this->pulse_width_us_);
+      // Low pulse of filter length now rising (therefore last_intr_ was the falling edge)
+      else if (sensor->in_pulse_ && !sensor->last_pin_val_) {
+        sensor->set_->last_detected_edge_us_ = sensor->last_edge_candidate_us_;
+        sensor->set_->count_++;
+        sensor->in_pulse_ = false;
       }
-      this->has_valid_edge_ = true;
-      this->last_valid_edge_us_ = last_detected_edge_us;
-      ESP_LOGVV(TAG, "last_valid_edge_us_ is now %u", this->last_valid_edge_us_);
     }
-    this->pending_state_change_ = NONE;
+
+    sensor->last_intr_ = now;
+    sensor->last_pin_val_ = pin_val;
   }
 }
 

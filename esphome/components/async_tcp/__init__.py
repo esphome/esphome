@@ -8,13 +8,13 @@ CODEOWNERS = ["@OttoWinter"]
 CONFIG_SCHEMA = cv.All(
     cv.Schema({}),
     cv.only_with_arduino,
-    cv.only_on(["esp32", "esp8266"]),
+    cv.only_on(["esp32", "esp8266", "bk72xx", "rtl87xx"]),
 )
 
 
 @coroutine_with_priority(200.0)
 async def to_code(config):
-    if CORE.is_esp32:
+    if CORE.is_esp32 or CORE.is_libretiny:
         cg.add_library(
             None,
             None,
