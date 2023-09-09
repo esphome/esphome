@@ -221,7 +221,7 @@ class ADS7128Component : public Component, public i2c::I2CDevice {
 
   // Read an analog sensor - returns true if complete, false if should be called again with the same sensor to complete
   // the read later
-  bool read_sensor(ADS7128Sensor *sensor);
+  bool read_sensor_(ADS7128Sensor *sensor);
 
   // Accessor type for a single bit field of a register
   template<Register R, uint8_t I> struct RegisterBit {
@@ -232,10 +232,11 @@ class ADS7128Component : public Component, public i2c::I2CDevice {
     void set() { parent.set_register_bits_(R, 1 << I); }
     void clear() { parent.clear_register_bits_(R, 1 << I); }
     RegisterBit &operator=(bool value) {
-      if (value)
+      if (value) {
         set();
-      else
+      } else {
         clear();
+      }
       return *this;
     }
   };

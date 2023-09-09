@@ -63,7 +63,7 @@ void ADS7128Component::loop() {
     this->gpi_value_ = this->read_register_(Register::GPI_VALUE);
 
   if (!this->sensors_.empty()) {
-    bool advance = this->read_sensor(this->sensors_.front());
+    bool advance = this->read_sensor_(this->sensors_.front());
     if (advance)
       this->sensors_.pop_front();
   }
@@ -71,10 +71,11 @@ void ADS7128Component::loop() {
 
 void ADS7128Component::digital_write(uint8_t pin, bool value) {
   uint8_t mask = 0x1 << pin;
-  if (value)
+  if (value) {
     this->set_register_bits_(Register::GPO_VALUE, mask);
-  else
+  } else {
     this->clear_register_bits_(Register::GPO_VALUE, mask);
+  }
 }
 
 void ADS7128Component::sensor_update(ADS7128Sensor *sensor) {
@@ -119,7 +120,7 @@ void ADS7128Component::clear_register_bits_(Register r, uint8_t mask) {
   }
 }
 
-bool ADS7128Component::read_sensor(ADS7128Sensor *sensor) {
+bool ADS7128Component::read_sensor_(ADS7128Sensor *sensor) {
   // In addition to the datasheet, see also
   // https://e2e.ti.com/support/data-converters-group/data-converters/f/data-converters-forum/1225819/faq-ads7128-using-the-rms-module
   if (!this->is_waiting_) {
