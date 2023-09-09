@@ -62,6 +62,7 @@ def validate_hasdisplay(config):
                 CONF_DIMENSIONS
                 + " is mandatory when this touchscreen is NOT connected to a display "
             )
+    return config
 
 
 TOUCHSCREEN_SCHEMA = (

@@ -37,7 +37,7 @@ class TouchListener {
   virtual void touch(TouchPoint tp) {}
   virtual void touch(std::vector<TouchPoint> *tpoints) {}
   /* return true to update first touch position */
-  virtual bool update(std::vector<TouchPoint> *tpoints) {}
+  virtual bool update(std::vector<TouchPoint> *tpoints) { return false; }
   virtual void release() {}
 };
 // std::vector<Style> styles_{};
@@ -60,7 +60,7 @@ class Touchscreen : public PollingComponent {
   }
   void set_rotation(TouchRotation rotation) { this->rotation_ = rotation; }
 
-  void set_swap_XY(boolean swap) { this->swap_x_y_ = swap; }
+  void set_swap_x_y(bool swap) { this->swap_x_y_ = swap; }
   void set_calibration(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max) {
     this->x_raw_min_ = std::min(x_min, x_max);
     this->x_raw_max_ = std::max(x_min, x_max);
@@ -71,7 +71,7 @@ class Touchscreen : public PollingComponent {
   }
 
   Trigger<TouchPoint, std::vector<TouchPoint>> *get_touch_trigger() { return &this->touch_trigger_; }
-  Trigger<std::vector<TouchPoint>, std::vector<TouchPoint>> *get_update_trigger() { return &this->update_trigger_; }
+  Trigger<std::vector<TouchPoint>> *get_update_trigger() { return &this->update_trigger_; }
   Trigger<> *get_release_trigger() { return &this->release_trigger_; }
 
   void register_listener(TouchListener *listener) { this->touch_listeners_.push_back(listener); }

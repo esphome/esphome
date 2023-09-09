@@ -18,7 +18,7 @@ void XPT2046Component::setup() {
     this->irq_pin_->setup();  // INPUT
     this->irq_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
     this->irq_pin_->setup();
-    this->irq_pin_->attach_interrupt(XPT2046TouchscreenStore::gpio_intr, &this->store_, gpio::INTERRUPT_FALLING_EDGE);
+    this->attach_interrupt_(this->irq_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
   spi_setup();
   read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
