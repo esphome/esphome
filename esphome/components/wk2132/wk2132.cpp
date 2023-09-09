@@ -453,9 +453,9 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
     available = rx_fifo_to_buffer_();
 
   if ((len > FIFO_SIZE) || (len > available)) {
-    // ESP_LOGE(TAG, "read_array buffer underflow requested %d bytes available %d ...", len, available);
+    ESP_LOGVV(TAG, "read_array buffer underflow requested %d bytes available %d ...", len, available);
     len = available;
-    status = false;
+    status = false;  // invalid call or not enough char
   }
   // retrieve the bytes from ring buffer
   for (size_t i = 0; i < len; i++) {
