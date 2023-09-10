@@ -185,14 +185,14 @@ class Logger : public Component {
   bool recursion_guard_ = false;
 
 #ifdef ESPHOME_LOGGER_QUEUE_MSG_LENGTH
+  uint8_t log_queue_length_{0};
   ESPHOME_LOGGER_QUEUE_MSG *log_static_queue_storage_{nullptr};
   StaticQueue_t log_static_queue_;
   QueueHandle_t log_queue_ = NULL;
   TaskHandle_t eventTaskHandle_ = NULL;
   static void eventTask_(void *args);
-  uint8_t log_queue_length_{0};
-
-  inline bool use_log_queue() { return this->log_queue_ != NULL; }
+  
+  inline bool use_log_queue_() { return this->log_queue_ != NULL; }
 #endif  // ESPHOME_LOGGER_QUEUE_MSG_LENGTH
 };
 

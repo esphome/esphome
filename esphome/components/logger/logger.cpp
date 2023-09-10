@@ -119,7 +119,7 @@ void HOT Logger::log_message_(int level, const char *tag, uint32_t offset) {
   const char *msg = this->tx_buffer_ + offset;
 
 #ifdef ESPHOME_LOGGER_QUEUE_MSG_LENGTH
-  if (this->use_log_queue()) {
+  if (this->use_log_queue_()) {
     // log queue is created. All messages are handeld by queue.
     ESPHOME_LOGGER_QUEUE_MSG log_msg{level, tag, 0};
     memcpy(&log_msg.tx_buffer, msg, (this->tx_buffer_at_ - offset + 1));
@@ -370,7 +370,7 @@ void Logger::setup() {
                            sizeof(ESPHOME_LOGGER_QUEUE_MSG),                      // uxItemSize
                            (uint8_t *) (void *) this->log_static_queue_storage_,  // pucQueueStorageBuffer
                            &this->log_static_queue_);                             // pxQueueBuffer
-    if (this->use_log_queue()) {
+    if (this->use_log_queue_()) {
       // Creating log msg event Task
       if (xTaskCreatePinnedToCore(Logger::eventTask_,
                                   "logger_task",            // name
@@ -448,7 +448,7 @@ void Logger::dump_config() {
   }
 
 #ifdef ESPHOME_LOGGER_QUEUE_MSG_LENGTH
-  if (this->use_log_queue()) {
+  if (this->use_log_queue_()) {
     ESP_LOGCONFIG(TAG, "  Queue length: %" PRIu32, this->log_queue_length_);
   }
 #endif  // ESPHOME_LOGGER_QUEUE_MSG_LENGTH
