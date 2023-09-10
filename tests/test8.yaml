@@ -37,8 +37,17 @@ light:
     data_rate: 8MHz
 
 spi:
+  id: spi_id_1
   clk_pin: GPIO7
   mosi_pin: GPIO6
+  interface: any
+
+spi_device:
+  id: spidev
+  data_rate: 2MHz
+  spi_id: spi_id_1
+  mode: 3
+  bit_order: lsb_first
 
 display:
   - platform: ili9xxx
