@@ -61,11 +61,11 @@ buffer so they can be accessed fast.
  Lets first describe the optimum usage of these methods to get the best performance.
 
  Usually UART are used to communicate with remote devices following this kind of protocol:
-   -# the master (the microcontroller) asks the remote slave device for information
-   by sending a specific command frame.
-   -# in response the slave send back the information requested by the master as a frame
-   with many bytes (often several hundreds)
-   -# the master process the information received and prepare the frame for the next request.
+   -# the initiator (the microcontroller) asks the remote device for information
+   by sending a specific command/control frame of a few dozen bytes.
+   -# in response the remote send back the information requested by the initiator as a frame
+   with often several hundred bytes
+   -# the requestor process the information received and prepare the frame for the next request.
    -# and these steps repeat forever
 
  With such protocol and the available methods, the optimum sequence of calls would look like this:
