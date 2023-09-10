@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "esphome/components/light/addressable_light.h"
 #include "esphome/components/spi/spi.h"
