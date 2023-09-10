@@ -36,7 +36,14 @@ namespace wk2132 {
  and they are popped from the other side in the same order as they entered.
 
  @section WK2132Component The WK2132Component class
- TODO
+This class does not do too much work! It is mainly used as a container for
+the WK2132Channel instances. When a child is added to the container its
+reference is kept in a list. This class also contains global information
+about the component like the frequency of the crystal connected.
+It is also responsible of the setup of the component as well as the
+setup of WK2132Channel instances. The loop() method of this component is
+used to transfer the bytes accumulated in the receive fifo into the ring
+buffer so they can be accessed fast.
 
  @section WK2132Channel_ The WK2132Channel class
  We have one instance of this class per UART channel. This class implements
@@ -158,6 +165,9 @@ static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "B
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 #define I2CS(val) (i2s(val).c_str())
 
+/// @brief measure the time elapsed between two calls
+/// @param last_time time od the previous call
+/// @return the elapsed time in microseconds
 uint32_t elapsed(uint32_t &last_time) {
   uint32_t e = micros() - last_time;
   last_time = micros();
@@ -532,7 +542,7 @@ void WK2132Component::loop() {
   loop_time = millis();
 
   // here we transfer bytes from fifo to ring buffers
-  elapsed(time);
+  elapsed(time);  // set time to now
   for (auto *child : this->children_) {
     // we look if some characters has been received in the fifo
     child->rx_fifo_to_buffer_();
