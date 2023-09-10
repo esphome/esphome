@@ -225,7 +225,7 @@ def wizard_write(path, **kwargs):
 
     write_file(path, wizard_file(**kwargs))
     storage = StorageJSON.from_wizard(name, name, f"{name}.local", hardware)
-    storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
+    storage_path = ext_storage_path(os.path.basename(path))
     storage.save(storage_path)
 
     return True
