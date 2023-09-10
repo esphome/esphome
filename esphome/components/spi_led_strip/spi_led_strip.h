@@ -9,14 +9,10 @@
 namespace esphome {
 namespace spi_led_strip {
 
-#ifndef SPIRGBLED_DATA_RATE
-#define SPIRGBLED_DATA_RATE spi::DATA_RATE_1MHZ
-#endif  // SPIRGBLED_DATA_RATE
-
 static const char *const TAG = "spi_led_strip";
 class SpiRgbLed : public light::AddressableLight,
                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
-                                        SPIRGBLED_DATA_RATE> {
+                                        spi::DATA_RATE_1MHZ> {
  public:
   void setup() { this->spi_setup(); }
 
@@ -49,8 +45,12 @@ class SpiRgbLed : public light::AddressableLight,
   }
 
   void dump_config() {
-    esph_log_config(TAG, "spi_led_strip:");
-    esph_log_config(TAG, "NumLeds: %d", this->num_leds_);
+    esph_log_config(TAG, "SPI LED Strip:");
+    esph_log_config(TAG, "  LEDs: %d", this->num_leds_);
+    if (this->data_rate_ >= spi::DATA_RATE_1MHZ)
+      esph_log_config(TAG, "  Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));
+    else
+      esph_log_config(TAG, "  Data rate: %ukHz", (unsigned) (this->data_rate_ / 1000));
   }
 
   void write_state(light::LightState *state) override {

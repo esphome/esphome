@@ -18,9 +18,8 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
+    cg.add(var.set_data_rate(spi.SPI_DATA_RATE_OPTIONS[config[CONF_DATA_RATE]]))
     cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
     await light.register_light(var, config)
     await spi.register_spi_device(var, config)
     await cg.register_component(var, config)
-    spi_data_rate = str(spi.SPI_DATA_RATE_OPTIONS[config[CONF_DATA_RATE]])
-    cg.add_define("SPIRGBLED_DATA_RATE", cg.RawExpression(spi_data_rate))
