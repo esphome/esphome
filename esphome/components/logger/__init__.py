@@ -201,7 +201,7 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH, esp8266=True
             ): cv.All(cv.only_on_esp8266, cv.boolean),
-            cv.Optional(CONF_LOG_QUEUE_LENGTH, default=0): cv.All(
+            cv.Optional(CONF_LOG_QUEUE_LENGTH): cv.All(
                 cv.only_on_esp32,
                 cv.int_range(min=0, max=32),
             ),
@@ -223,7 +223,7 @@ async def to_code(config):
         )
     cg.add(log.pre_setup())
 
-    if config[CONF_LOG_QUEUE_LENGTH] > 0:
+    if CONF_LOG_QUEUE_LENGTH in config and config[CONF_LOG_QUEUE_LENGTH] > 0:
         cg.add_build_flag(
             f"-DESPHOME_LOGGER_QUEUE_MSG_LENGTH={config[CONF_TX_BUFFER_SIZE]}"
         )
