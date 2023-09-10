@@ -203,9 +203,11 @@ void Logger::pre_setup() {
         Serial1.begin(this->baud_rate_);
 #else
         this->hw_serial_ = &Serial;
+#ifdef USE_ESP32
         if (this->tx_buffer_size_ > SOC_UART_FIFO_LEN) {
           Serial.setTxBufferSize(this->tx_buffer_size_);
         }
+#endif  // USE_ESP32
         Serial.begin(this->baud_rate_);
 #endif
 #ifdef USE_ESP8266
@@ -221,9 +223,11 @@ void Logger::pre_setup() {
         Serial2.begin(this->baud_rate_);
 #else
         this->hw_serial_ = &Serial1;
+#ifdef USE_ESP32
         if (this->tx_buffer_size_ > SOC_UART_FIFO_LEN) {
           Serial1.setTxBufferSize(this->tx_buffer_size_);
         }
+#endif  // USE_ESP32
         Serial1.begin(this->baud_rate_);
 #endif
 #ifdef USE_ESP8266
@@ -234,9 +238,11 @@ void Logger::pre_setup() {
     !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_UART2:
         this->hw_serial_ = &Serial2;
+#ifdef USE_ESP32
         if (this->tx_buffer_size_ > SOC_UART_FIFO_LEN) {
           Serial2.setTxBufferSize(this->tx_buffer_size_);
         }
+#endif  // USE_ESP32
         Serial2.begin(this->baud_rate_);
         break;
 #endif

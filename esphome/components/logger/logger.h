@@ -101,7 +101,7 @@ class Logger : public Component {
   /// Set up this component.
   void pre_setup();
   void dump_config() override;
-  void setup();
+  void setup() override;
 
   int level_for(const char *tag);
 
