@@ -5,11 +5,13 @@ from esphome.components import spi
 from esphome.const import CONF_OUTPUT_ID, CONF_NUM_LEDS, CONF_DATA_RATE
 
 spi_rgb_led_ns = cg.esphome_ns.namespace("spi_led_strip")
-SpiRgbLed = spi_rgb_led_ns.class_("SpiLedStrip", light.AddressableLight, spi.SPIDevice)
+SpiLedStrip = spi_rgb_led_ns.class_(
+    "SpiLedStrip", light.AddressableLight, spi.SPIDevice
+)
 
 CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
     {
-        cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(SpiRgbLed),
+        cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(SpiLedStrip),
         cv.Optional(CONF_NUM_LEDS, default=1): cv.positive_not_null_int,
         cv.Optional(CONF_DATA_RATE, default="1MHz"): spi.SPI_DATA_RATE_SCHEMA,
     }
