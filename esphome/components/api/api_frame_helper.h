@@ -109,6 +109,7 @@ class APINoiseFrameHelper : public APIFrameHelper {
   void send_explicit_handshake_reject_(const std::string &reason);
 
   std::unique_ptr<socket::Socket> socket_;
+  bool socket_tx_active_ = false;
 
   std::string info_;
   uint8_t rx_header_buf_[3];
@@ -167,6 +168,7 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
   APIError write_raw_(const struct iovec *iov, int iovcnt);
 
   std::unique_ptr<socket::Socket> socket_;
+  bool socket_tx_active_ = false;
 
   std::string info_;
   std::vector<uint8_t> rx_header_buf_;

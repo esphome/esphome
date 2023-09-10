@@ -102,6 +102,8 @@ HARDWARE_UART_TO_SERIAL = {
     UART2: cg.global_ns.Serial2,
 }
 
+CONF_LOG_QUEUE_LENGTH = "log_queue_length"
+
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
@@ -167,6 +169,10 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH, esp8266=True
             ): cv.All(cv.only_on_esp8266, cv.boolean),
+            cv.Optional(CONF_LOG_QUEUE_LENGTH, default=0): cv.All(
+                cv.only_on_esp32,
+                cv.int_range(min=0, max=32),
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_local_no_higher_than_global,
@@ -184,6 +190,12 @@ async def to_code(config):
             )
         )
     cg.add(log.pre_setup())
+
+    if config[CONF_LOG_QUEUE_LENGTH] > 0:
+        cg.add_build_flag(
+            f"-DESPHOME_LOGGER_QUEUE_MSG_LENGTH={config[CONF_TX_BUFFER_SIZE]}"
+        )
+        cg.add(log.set_log_queue_length(config[CONF_LOG_QUEUE_LENGTH]))
 
     for tag, level in config[CONF_LOGS].items():
         cg.add(log.set_log_level(tag, LOG_LEVELS[level]))

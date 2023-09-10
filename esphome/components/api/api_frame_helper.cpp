@@ -524,8 +524,10 @@ APIError APINoiseFrameHelper::write_packet(uint16_t type, const uint8_t *payload
 }
 APIError APINoiseFrameHelper::try_send_tx_buf_() {
   // try send from tx_buf
-  while (state_ != State::CLOSED && !tx_buf_.empty()) {
+  while (state_ != State::CLOSED && state_ != State::FAILED && !tx_buf_.empty() && !this->socket_tx_active_) {
+    this->socket_tx_active_ = true;
     ssize_t sent = socket_->write(tx_buf_.data(), tx_buf_.size());
+    this->socket_tx_active_ = false;
     if (sent == -1) {
       if (errno == EWOULDBLOCK || errno == EAGAIN)
         break;
@@ -926,8 +928,10 @@ APIError APIPlaintextFrameHelper::write_packet(uint16_t type, const uint8_t *pay
 }
 APIError APIPlaintextFrameHelper::try_send_tx_buf_() {
   // try send from tx_buf
-  while (state_ != State::CLOSED && !tx_buf_.empty()) {
+  while (state_ != State::CLOSED && state_ != State::FAILED && !tx_buf_.empty() && !this->socket_tx_active_) {
+    this->socket_tx_active_ = true;
     ssize_t sent = socket_->write(tx_buf_.data(), tx_buf_.size());
+    this->socket_tx_active_ = false;
     if (is_would_block(sent)) {
       break;
     } else if (sent == -1) {
