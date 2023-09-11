@@ -191,7 +191,7 @@ class Logger : public Component {
   QueueHandle_t log_queue_ = NULL;
   TaskHandle_t eventTaskHandle_ = NULL;
   static void eventTask_(void *args);
-  
+
   inline bool use_log_queue_() { return this->log_queue_ != NULL; }
 #endif  // ESPHOME_LOGGER_QUEUE_MSG_LENGTH
 };
