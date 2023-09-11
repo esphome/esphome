@@ -1051,6 +1051,10 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.manufacturer = "Espressif";
 #elif defined(USE_RP2040)
   resp.manufacturer = "Raspberry Pi";
+#elif defined(USE_BK72XX)
+  resp.manufacturer = "Beken";
+#elif defined(USE_RTL87XX)
+  resp.manufacturer = "Realtek";
 #elif defined(USE_HOST)
   resp.manufacturer = "Host";
 #endif
