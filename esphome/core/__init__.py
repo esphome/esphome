@@ -558,7 +558,7 @@ class EsphomeCore:
     def data_dir(self):
         if is_ha_addon():
             return os.path.join("/data")
-        return os.path.join(self.config_dir, ".esphome")
+        return self.relative_config_path(".esphome")
 
     @property
     def config_filename(self):
