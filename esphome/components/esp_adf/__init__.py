@@ -51,12 +51,6 @@ async def to_code(config):
         submodules=["components/esp-sr", "components/esp-adf-libs"],
     )
 
-    esp32.add_idf_component(
-        name="esp-dsp",
-        repo="https://github.com/espressif/esp-dsp",
-        ref="v1.2.0",
-    )
-
     cg.add_platformio_option(
         "board_build.embed_txtfiles", "components/dueros_service/duer_profile"
     )
