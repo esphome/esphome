@@ -93,7 +93,7 @@ void ESPADFMicrophone::read_task(void *params) {
       .use_apll = false,
       .tx_desc_auto_clear = true,
       .fixed_mclk = 0,
-      .mclk_multiple = I2S_MCLK_MULTIPLE_DEFAULT,
+      .mclk_multiple = I2S_MCLK_MULTIPLE_256,
       .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
   };
 
@@ -121,7 +121,7 @@ void ESPADFMicrophone::read_task(void *params) {
       .dest_rate = 16000,
       .dest_bits = 16,
       .dest_ch = 1,
-      .src_bits = 16,
+      .src_bits = I2S_BITS_PER_SAMPLE_16BIT,
       .mode = RESAMPLE_DECODE_MODE,
       .max_indata_bytes = RSP_FILTER_BUFFER_BYTE,
       .out_len_bytes = RSP_FILTER_BUFFER_BYTE,
