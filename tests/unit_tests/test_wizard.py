@@ -1,7 +1,9 @@
 """Tests for the wizard.py file."""
+import os
 
 import esphome.wizard as wz
 import pytest
+from esphome.core import CORE
 from esphome.components.esp8266.boards import ESP8266_BOARD_PINS
 from esphome.components.esp32.boards import ESP32_BOARD_PINS
 from esphome.components.bk72xx.boards import BK72XX_BOARD_PINS
@@ -110,6 +112,7 @@ def test_wizard_write_sets_platform(default_config, tmp_path, monkeypatch):
     # Given
     del default_config["platform"]
     monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
 
     # When
     wz.wizard_write(tmp_path, **default_config)
@@ -130,6 +133,7 @@ def test_wizard_write_defaults_platform_from_board_esp8266(
     default_config["board"] = [*ESP8266_BOARD_PINS][0]
 
     monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
 
     # When
     wz.wizard_write(tmp_path, **default_config)
@@ -150,6 +154,7 @@ def test_wizard_write_defaults_platform_from_board_esp32(
     default_config["board"] = [*ESP32_BOARD_PINS][0]
 
     monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
 
     # When
     wz.wizard_write(tmp_path, **default_config)
@@ -170,6 +175,7 @@ def test_wizard_write_defaults_platform_from_board_bk72xx(
     default_config["board"] = [*BK72XX_BOARD_PINS][0]
 
     monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
 
     # When
     wz.wizard_write(tmp_path, **default_config)
@@ -190,6 +196,7 @@ def test_wizard_write_defaults_platform_from_board_rtl87xx(
     default_config["board"] = [*RTL87XX_BOARD_PINS][0]
 
     monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
 
     # When
     wz.wizard_write(tmp_path, **default_config)
