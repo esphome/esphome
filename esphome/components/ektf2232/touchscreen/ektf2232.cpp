@@ -51,12 +51,11 @@ void EKTF2232Touchscreen::setup() {
     return;
   }
   this->y_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
- 
+
   this->set_power_state(true);
 }
 
 void EKTF2232Touchscreen::handle_touch_(std::vector<TouchPoint> *tp_map) {
-
   uint8_t touch_count = 0;
   TouchPoint tp;
 

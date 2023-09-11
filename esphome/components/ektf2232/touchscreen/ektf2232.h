@@ -26,7 +26,7 @@ class EKTF2232Touchscreen : public Touchscreen, public i2c::I2CDevice {
   void hard_reset_();
   bool soft_reset_();
   void handle_touch_(std::vector<TouchPoint> *tp_map) override;
- 
+
   InternalGPIOPin *interrupt_pin_;
   GPIOPin *rts_pin_;
 };

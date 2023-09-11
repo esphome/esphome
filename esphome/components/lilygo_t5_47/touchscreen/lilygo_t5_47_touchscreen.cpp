@@ -76,7 +76,7 @@ void LilygoT547Touchscreen::handle_touch_(std::vector<TouchPoint> *tp_map) {
   }
 
   this->write_register(TOUCH_REGISTER, CLEAR_FLAGS, 2);
-  
+
   if (point == 0)
     point = 1;
 

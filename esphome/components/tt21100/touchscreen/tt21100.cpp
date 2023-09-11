@@ -44,8 +44,6 @@ struct TT21100TouchReport {
   TT21100TouchRecord touch_record[MAX_TOUCH_POINTS];
 } __attribute__((packed));
 
-
-
 float TT21100Touchscreen::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 
 void TT21100Touchscreen::setup() {
