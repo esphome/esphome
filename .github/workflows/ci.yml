@@ -7,6 +7,10 @@ on:
     branches: [dev, beta, release]
 
   pull_request:
+    paths:
+      - "**"
+      - "!.github/workflows/*.yml"
+      - ".github/workflows/ci.yml"
   merge_group:
 
 permissions:
