@@ -53,7 +53,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_INITIAL_VALUE, default=""): cv.string_strict,
             cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
-            cv.Optional(CONF_MAX_RESTORE_DATA_LENGTH, default=64): cv.int_range(0, 255),
+            cv.Optional(CONF_MAX_RESTORE_DATA_LENGTH, default=63): cv.int_range(0, 255),
         }
     ).extend(cv.polling_component_schema("60s")),
     validate,
