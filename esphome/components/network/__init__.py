@@ -21,14 +21,14 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    if CONF_ENABLE_IPV6 in config:
-        cg.add_define("ENABLE_IPV6", config[CONF_ENABLE_IPV6])
-        if CORE.using_esp_idf:
-            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", config[CONF_ENABLE_IPV6])
-            add_idf_sdkconfig_option(
-                "CONFIG_LWIP_IPV6_AUTOCONFIG", config[CONF_ENABLE_IPV6]
-            )
-        else:
+    cg.add_define("ENABLE_IPV6", config[CONF_ENABLE_IPV6])
+    if CORE.using_esp_idf:
+        add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", config[CONF_ENABLE_IPV6])
+        add_idf_sdkconfig_option(
+            "CONFIG_LWIP_IPV6_AUTOCONFIG", config[CONF_ENABLE_IPV6]
+        )
+    else:
+        if config[CONF_ENABLE_IPV6]:
             cg.add_build_flag("-DCONFIG_LWIP_IPV6")
             cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
             if CORE.is_rp2040:
