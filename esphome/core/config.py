@@ -198,8 +198,8 @@ def preload_core_config(config, result):
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
-        conf[CONF_BUILD_PATH] = f".esphome/build/{CORE.name}"
-    CORE.build_path = CORE.relative_config_path(conf[CONF_BUILD_PATH])
+        conf[CONF_BUILD_PATH] = f"build/{CORE.name}"
+    CORE.build_path = CORE.relative_internal_path(conf[CONF_BUILD_PATH])
 
     has_oldstyle = CONF_PLATFORM in conf
     newstyle_found = [key for key in TARGET_PLATFORMS if key in config]
