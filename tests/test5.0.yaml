@@ -1,4 +1,5 @@
 ---
+# copy of test5.yaml configured to build on IDF 5
 esphome:
   name: test5-1
   build_path: build/test5.1
