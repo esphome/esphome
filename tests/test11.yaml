@@ -1,10 +1,10 @@
 ---
 # copy of test5.yaml configured to build on IDF 5
 esphome:
-  name: test5-0
-  build_path: build/test5.0
+  name: test11
+  build_path: build/test11
   project:
-    name: esphome.test50_project
+    name: esphome.test11_project
     version: "1.0.0"
 
 esp32:
@@ -273,7 +273,7 @@ esp32_ble:
 
 esp32_ble_server:
   manufacturer: ESPHome
-  model: Test5
+  model: Test11
 
 esp32_improv:
   authorizer: io0_button
