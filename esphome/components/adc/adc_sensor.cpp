@@ -255,26 +255,26 @@ float ADCSensor::sample() {
     return raw * 3.3f / 4096.0f;
   } else {
     uint8_t pin = this->pin_->get_pin();
-    if (pin == PICO_VSYS_PIN) {
 #ifdef CYW43_USES_VSYS_PIN
+    if (pin == PICO_VSYS_PIN) {
       // Measuring VSYS on Raspberry Pico W needs to be wrapped with
       // `cyw43_thread_enter()`/`cyw43_thread_exit()` as discussed in
       // https://github.com/raspberrypi/pico-sdk/issues/1222, since Wifi chip and
       // VSYS ADC both share GPIO29
       cyw43_thread_enter();
-#endif  // CYW43_USES_VSYS_PIN
     }
+#endif  // CYW43_USES_VSYS_PIN
 
     adc_gpio_init(pin);
     adc_select_input(pin - 26);
 
     int32_t raw = adc_read();
 
-    if (pin == PICO_VSYS_PIN) {
 #ifdef CYW43_USES_VSYS_PIN
+    if (pin == PICO_VSYS_PIN) {
       cyw43_thread_exit();
-#endif  // CYW43_USES_VSYS_PIN
     }
+#endif  // CYW43_USES_VSYS_PIN
 
     if (output_raw_) {
       return raw;
