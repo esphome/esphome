@@ -39,6 +39,8 @@ ota:
 
 logger:
 
+debug:
+
 sensor:
   - platform: apds9960
     type: proximity

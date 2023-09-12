@@ -28,6 +28,10 @@ ota:
 
 logger:
 
+debug:
+
+psram:
+
 uart:
   - id: uart_1
     tx_pin: 1
@@ -525,6 +529,16 @@ sensor:
     time:
       name: System Time
 
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Heap Max Block"
+    loop_time:
+      name: "Loop Time"
+    psram:
+      name: "PSRAM Free"
+
   - platform: vbus
     model: custom
     command: 0x100
@@ -548,6 +562,13 @@ script:
           count: 5
           then:
             - logger.log: looping!
+
+  - id: zero_repeat_test
+    then:
+      - repeat:
+          count: !lambda "return 0;"
+          then:
+            - logger.log: shouldn't see mee!
 
 switch:
   - platform: modbus_controller
