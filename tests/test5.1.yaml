@@ -1,15 +1,17 @@
 ---
 esphome:
-  name: test5
-  build_path: build/test5
+  name: test5-1
+  build_path: build/test5.1
   project:
-    name: esphome.test5_project
+    name: esphome.test51_project
     version: "1.0.0"
 
 esp32:
   board: nodemcu-32s
   framework:
     type: esp-idf
+    version: 5.0.2
+    platform_version: 6.3.2
     advanced:
       ignore_efuse_mac_crc: true
 
