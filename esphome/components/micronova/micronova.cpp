@@ -56,7 +56,7 @@ void MicroNova::write_address(uint8_t location, uint8_t address, uint8_t data) {
   checksum = ((uint16_t) write_data[0] + (uint16_t) write_data[1] + (uint16_t) write_data[2]) & 0xFF;
   write_data[3] = checksum;
 
-  ESP_LOGD(TAG, "Write 4 bytes [%02X,%02X,%02X,%02X]", write_data[0], write_data[1], write_data[2], write_data[3]);
+  ESP_LOGV(TAG, "Write 4 bytes [%02X,%02X,%02X,%02X]", write_data[0], write_data[1], write_data[2], write_data[3]);
   this->enable_rx_pin_->digital_write(true);
   this->write_array(write_data, 4);
   this->flush();
@@ -68,7 +68,7 @@ void MicroNova::write_address(uint8_t location, uint8_t address, uint8_t data) {
   this->read_byte(&reply_data[1]);
 
   this->enable_rx_pin_->digital_write(true);
-  ESP_LOGD(TAG, "First 2 bytes from [%02X:%02X] [%02X,%02X]", write_data[0], write_data[1], reply_data[0],
+  ESP_LOGV(TAG, "First 2 bytes from [%02X:%02X] [%02X,%02X]", write_data[0], write_data[1], reply_data[0],
            reply_data[1]);
 }
 
@@ -96,7 +96,7 @@ int MicroNova::read_address(uint8_t addr, uint8_t reg) {
   this->read_byte(&data[1]);
 
   this->enable_rx_pin_->digital_write(true);
-  ESP_LOGD(TAG, "First 2 bytes from [0x%02X:0x%02X] [0x%02X,0x%02X] dec: [%d,%d]", addr, reg, data[0], data[1], data[0],
+  ESP_LOGV(TAG, "First 2 bytes from [0x%02X:0x%02X] [0x%02X,0x%02X] dec: [%d,%d]", addr, reg, data[0], data[1], data[0],
            data[1]);
 
   checksum = ((uint16_t) addr + (uint16_t) reg + (uint16_t) data[1]) & 0xFF;

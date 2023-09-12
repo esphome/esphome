@@ -14,10 +14,6 @@ from .. import (
 
 CONF_STOVE_STATE = "stove_state"
 
-TYPES = [
-    CONF_STOVE_STATE,
-]
-
 MicroNovaTextSensor = micronova_ns.class_(
     "MicroNovaTextSensor", text_sensor.TextSensor, cg.Component
 )
@@ -34,12 +30,14 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
-    for key in TYPES:
-        if key in config:
-            conf = config[key]
-            sens = await text_sensor.new_text_sensor(conf, mv)
-            cg.add(mv.register_micronova_listener(sens))
-            if key == CONF_STOVE_STATE:
-                cg.add(sens.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0x00)))
-                cg.add(sens.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0x21)))
-                cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_STOVE_STATE))
+
+    if stove_state_config := config.get(CONF_STOVE_STATE):
+        sens = await text_sensor.new_text_sensor(stove_state_config, mv)
+        cg.add(mv.register_micronova_listener(sens))
+        cg.add(
+            sens.set_memory_location(stove_state_config.get(CONF_MEMORY_LOCATION, 0x00))
+        )
+        cg.add(
+            sens.set_memory_address(stove_state_config.get(CONF_MEMORY_ADDRESS, 0x21))
+        )
+        cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_STOVE_STATE))

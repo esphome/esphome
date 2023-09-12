@@ -40,14 +40,12 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
-    for key in TYPES:
-        if key in config:
-            conf = config[key]
-            sw = await switch.new_switch(conf, mv)
-            cg.add(sw.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0x80)))
-            cg.add(sw.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0x21)))
-            cg.add(sw.set_memory_data_on(conf[CONF_MEMORY_DATA_ON]))
-            cg.add(sw.set_memory_data_off(conf[CONF_MEMORY_DATA_OFF]))
-            if key == CONF_STOVE:
-                cg.add(sw.set_function(MicroNovaFunctions.STOVE_FUNCTION_SWITCH))
-                cg.add(mv.set_stove(sw))
+
+    if stove_config := config.get(CONF_STOVE):
+        sw = await switch.new_switch(stove_config, mv)
+        cg.add(mv.set_stove(sw))
+        cg.add(sw.set_memory_location(stove_config.get(CONF_MEMORY_LOCATION, 0x80)))
+        cg.add(sw.set_memory_address(stove_config.get(CONF_MEMORY_ADDRESS, 0x21)))
+        cg.add(sw.set_memory_data_on(stove_config[CONF_MEMORY_DATA_ON]))
+        cg.add(sw.set_memory_data_off(stove_config[CONF_MEMORY_DATA_OFF]))
+        cg.add(sw.set_function(MicroNovaFunctions.STOVE_FUNCTION_SWITCH))

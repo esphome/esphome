@@ -18,11 +18,6 @@ CONF_TEMPERATURE_UP = "temperature_up"
 CONF_TEMPERATURE_DOWN = "temperature_down"
 CONF_MEMORY_DATA = "memory_data"
 
-TYPES = [
-    CONF_TEMPERATURE_UP,
-    CONF_TEMPERATURE_DOWN,
-]
-
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
@@ -42,14 +37,31 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
-    for key in TYPES:
-        if key in config:
-            conf = config[key]
-            bt = await button.new_button(conf, mv)
-            cg.add(bt.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0xA0)))
-            cg.add(bt.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0x7D)))
-            cg.add(bt.set_memory_data(conf[CONF_MEMORY_DATA]))
-            if key == CONF_TEMPERATURE_UP:
-                cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_TEMP_UP))
-            if key == CONF_TEMPERATURE_DOWN:
-                cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_TEMP_DOWN))
+
+    if temperature_up_config := config.get(CONF_TEMPERATURE_UP):
+        bt = await button.new_button(temperature_up_config, mv)
+        cg.add(
+            bt.set_memory_location(
+                temperature_up_config.get(CONF_MEMORY_LOCATION, 0xA0)
+            )
+        )
+        cg.add(
+            bt.set_memory_address(temperature_up_config.get(CONF_MEMORY_ADDRESS, 0x7D))
+        )
+        cg.add(bt.set_memory_data(temperature_up_config[CONF_MEMORY_DATA]))
+        cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_TEMP_UP))
+
+    if temperature_down_config := config.get(CONF_TEMPERATURE_DOWN):
+        bt = await button.new_button(temperature_down_config, mv)
+        cg.add(
+            bt.set_memory_location(
+                temperature_down_config.get(CONF_MEMORY_LOCATION, 0xA0)
+            )
+        )
+        cg.add(
+            bt.set_memory_address(
+                temperature_down_config.get(CONF_MEMORY_ADDRESS, 0x7D)
+            )
+        )
+        cg.add(bt.set_memory_data(temperature_down_config[CONF_MEMORY_DATA]))
+        cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_TEMP_DOWN))
