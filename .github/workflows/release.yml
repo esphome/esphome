@@ -119,7 +119,7 @@ jobs:
             --suffix "${{ matrix.image.suffix }}"
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v5.0.0
         with:
           context: .
           file: ./docker/Dockerfile
