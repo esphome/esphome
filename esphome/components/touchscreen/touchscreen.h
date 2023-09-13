@@ -20,6 +20,8 @@ struct TouchPoint {
   uint8_t state;
 };
 
+using TouchPoints_t = std::vector<TouchPoint>;
+
 enum TouchMode {
   SINGLE_TOUCH,
   MULTI_TOUCH,
@@ -35,9 +37,9 @@ struct TouchscreenInterupt {
 class TouchListener {
  public:
   virtual void touch(TouchPoint tp) {}
-  virtual void touch(std::vector<TouchPoint> *tpoints) {}
+  virtual void touch(const TouchPoints_t &tpoints) {}
   /* return true to update first touch position */
-  virtual bool update(std::vector<TouchPoint> *tpoints) { return false; }
+  virtual void update(const TouchPoints_t &tpoints) {}
   virtual void release() {}
 };
 // std::vector<Style> styles_{};
@@ -70,8 +72,8 @@ class Touchscreen : public PollingComponent {
     this->invert_y_ = (y_min > y_max);
   }
 
-  Trigger<TouchPoint, std::vector<TouchPoint>> *get_touch_trigger() { return &this->touch_trigger_; }
-  Trigger<std::vector<TouchPoint>> *get_update_trigger() { return &this->update_trigger_; }
+  Trigger<TouchPoint, const TouchPoints_t &> *get_touch_trigger() { return &this->touch_trigger_; }
+  Trigger<const TouchPoints_t &> *get_update_trigger() { return &this->update_trigger_; }
   Trigger<> *get_release_trigger() { return &this->release_trigger_; }
 
   void register_listener(TouchListener *listener) { this->touch_listeners_.push_back(listener); }
@@ -83,8 +85,8 @@ class Touchscreen : public PollingComponent {
   /// Call this function to send touch points to the `on_touch` listener and the binary_sensors.
   void attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::InterruptType type);
 
-  virtual void handle_touch_(std::vector<TouchPoint> *tp_map) = 0;
-  void send_touch_(std::vector<TouchPoint> *tp_map);
+  virtual void handle_touch_(TouchPoints_t *tp_map) = 0;
+  void send_touch_(TouchPoints_t *tp_map);
 
   static int16_t normalize_(int16_t val, int16_t min_val, int16_t max_val, bool inverted = false);
 
@@ -118,8 +120,8 @@ class Touchscreen : public PollingComponent {
   bool invert_x_{false}, invert_y_{false};
   bool swap_x_y_{false};
 
-  Trigger<TouchPoint, std::vector<TouchPoint>> touch_trigger_;
-  Trigger<std::vector<TouchPoint>> update_trigger_;
+  Trigger<TouchPoint, const TouchPoints_t &> touch_trigger_;
+  Trigger<const TouchPoints_t &> update_trigger_;
   Trigger<> release_trigger_;
   std::vector<TouchListener *> touch_listeners_;
 

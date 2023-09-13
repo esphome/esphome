@@ -15,7 +15,7 @@ void Touchscreen::attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::Int
   this->store_.touched = false;
 }
 
-void Touchscreen::send_touch_(std::vector<TouchPoint> *tp_map) {
+void Touchscreen::send_touch_(TouchPoints_t *tp_map) {
   bool first_touch = this->first_touch_.empty();
 
   for (auto &i : this->first_touch_) {
@@ -71,14 +71,14 @@ void Touchscreen::send_touch_(std::vector<TouchPoint> *tp_map) {
     this->touch_trigger_.trigger(tp, *tp_map);
     for (auto *listener : this->touch_listeners_) {
       listener->touch(tp);
-      listener->touch(tp_map);
+      listener->touch(*tp_map);
     }
   } else {
     TouchPoint tp = tp_map->front();
     ESP_LOGV(TAG, "Update Touch (x=%d, y=%d)", tp.x, tp.y);
     this->update_trigger_.trigger(*tp_map);
     for (auto *listener : this->touch_listeners_) {
-      listener->update(tp_map);
+      listener->update(*tp_map);
     }
   }
 }
@@ -102,7 +102,7 @@ int16_t Touchscreen::normalize_(int16_t val, int16_t min_val, int16_t max_val, b
 void Touchscreen::loop() {
   if (this->store_.touched) {
     this->store_.touched = false;
-    std::vector<TouchPoint> *tp_map;
+    TouchPoints_t *tp_map;
     handle_touch_(tp_map);
     send_touch_(tp_map);
   }

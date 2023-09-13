@@ -3,7 +3,7 @@ import esphome.codegen as cg
 
 from esphome.components import display
 from esphome import automation
-from esphome.const import CONF_ON_TOUCH, CONF_DIMENSIONS, CONF_ROTATION
+from esphome.const import CONF_ON_TOUCH, CONF_ON_RELEASE, CONF_DIMENSIONS, CONF_ROTATION
 from esphome.core import coroutine_with_priority
 
 CODEOWNERS = ["@jesserockz"]
@@ -16,12 +16,15 @@ touchscreen_ns = cg.esphome_ns.namespace("touchscreen")
 Touchscreen = touchscreen_ns.class_("Touchscreen", cg.PollingComponent)
 TouchRotation = touchscreen_ns.enum("TouchRotation")
 TouchPoint = touchscreen_ns.struct("TouchPoint")
+TouchPoints_t = cg.std_vector.template(TouchPoint)
+TouchPoints_t_const_ref = TouchPoints_t.operator("ref").operator("const")
 TouchListener = touchscreen_ns.class_("TouchListener")
 
 CONF_DISPLAY = "display"
 CONF_TOUCHSCREEN_ID = "touchscreen_id"
 # not used yet: CONF_REPORT_INTERVAL = "report_interval"
 CONF_SWAP_X_Y = "swap_x_y"
+CONF_ON_UPDATE = "on_update"
 
 DISPLAY_ROTATIONS = {
     0: touchscreen_ns.ROTATE_0_DEGREES,
@@ -73,6 +76,8 @@ TOUCHSCREEN_SCHEMA = (
             cv.Optional(CONF_ROTATION): validate_rotation,
             cv.Optional(CONF_SWAP_X_Y, default=False): cv.boolean,
             cv.Optional(CONF_ON_TOUCH): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_UPDATE): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_RELEASE): automation.validate_automation(single=True),
             # not used yet: cv.Optional(CONF_REPORT_INTERVAL, default="never"): report_interval,
         }
     )
@@ -102,8 +107,22 @@ async def register_touchscreen(var, config):
     if CONF_ON_TOUCH in config:
         await automation.build_automation(
             var.get_touch_trigger(),
-            [(TouchPoint, "touch")],
+            [(TouchPoint, "touch"), (TouchPoints_t_const_ref, "touches")],
             config[CONF_ON_TOUCH],
+        )
+
+    if CONF_ON_UPDATE in config:
+        await automation.build_automation(
+            var.get_update_trigger(),
+            [(TouchPoints_t_const_ref, "touches")],
+            config[CONF_ON_UPDATE],
+        )
+
+    if CONF_ON_RELEASE in config:
+        await automation.build_automation(
+            var.get_release_trigger(),
+            [],
+            config[CONF_ON_RELEASE],
         )
 
 
