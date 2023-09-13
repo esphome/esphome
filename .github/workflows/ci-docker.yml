@@ -40,15 +40,15 @@ jobs:
         arch: [amd64, armv7, aarch64]
         build_type: ["ha-addon", "docker", "lint"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.0.0
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v4.7.0
         with:
           python-version: "3.9"
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3.0.0
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3.0.0
 
       - name: Set TAG
         run: |
