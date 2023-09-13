@@ -33,18 +33,23 @@ IsPlayingCondition = rtttl_ns.class_("IsPlayingCondition", automation.Condition)
 
 MULTI_CONF = True
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_ID): cv.declare_id(Rtttl),
-        cv.Exclusive(CONF_OUTPUT, "output"): cv.use_id(FloatOutput),
-        cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(Speaker),
-        cv.Optional(CONF_ON_FINISHED_PLAYBACK): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FinishedPlaybackTrigger),
-            }
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_ID): cv.declare_id(Rtttl),
+            cv.Optional(CONF_OUTPUT): cv.use_id(FloatOutput),
+            cv.Optional(CONF_SPEAKER): cv.use_id(Speaker),
+            cv.Optional(CONF_ON_FINISHED_PLAYBACK): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        FinishedPlaybackTrigger
+                    ),
+                }
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.has_exactly_one_key(CONF_OUTPUT, CONF_SPEAKER),
+)
 
 
 def validate_parent_speaker_config(value):
@@ -78,11 +83,8 @@ def validate_parent_output_config(value):
 
 FINAL_VALIDATE_SCHEMA = cv.Schema(
     {
-        cv.Exclusive(CONF_OUTPUT, "output"): fv.id_declaration_match_schema(
+        cv.Optional(CONF_OUTPUT): fv.id_declaration_match_schema(
             validate_parent_output_config
-        ),
-        cv.Exclusive(CONF_SPEAKER, "output"): fv.id_declaration_match_schema(
-            validate_parent_speaker_config
         ),
     },
     extra=cv.ALLOW_EXTRA,
