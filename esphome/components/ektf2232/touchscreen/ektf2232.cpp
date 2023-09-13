@@ -55,7 +55,7 @@ void EKTF2232Touchscreen::setup() {
   this->set_power_state(true);
 }
 
-void EKTF2232Touchscreen::handle_touch_(std::vector<TouchPoint> *tp_map) {
+void EKTF2232Touchscreen::handle_touch(TouchPoints_t &touches) {
   uint8_t touch_count = 0;
   TouchPoint tp;
 
@@ -74,7 +74,7 @@ void EKTF2232Touchscreen::handle_touch_(std::vector<TouchPoint> *tp_map) {
     uint8_t *d = raw + 1 + (i * 3);
     tp.x_raw = (d[0] & 0xF0) << 4 | d[1];
     tp.y_raw = (d[0] & 0x0F) << 8 | d[2];
-    tp_map->push_back(tp);
+    touches.push_back(tp);
   }
 }
 

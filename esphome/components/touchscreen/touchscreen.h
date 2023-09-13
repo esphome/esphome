@@ -1,7 +1,9 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#ifdef USE_DISPLAY
 #include "esphome/components/display/display_buffer.h"
+#endif
 
 #include "esphome/core/automation.h"
 #include "esphome/core/hal.h"
@@ -25,7 +27,7 @@ using TouchPoints_t = std::vector<TouchPoint>;
 enum TouchMode {
   SINGLE_TOUCH,
   MULTI_TOUCH,
-  moving_TOUCH,
+  MOVING_TOUCH,
 };
 
 struct TouchscreenInterupt {
@@ -53,9 +55,10 @@ enum TouchRotation {
 
 class Touchscreen : public PollingComponent {
  public:
+#ifdef USE_DISPLAY
   void set_display(display::Display *display) { this->display_ = display; }
   display::Display *get_display() const { return this->display_; }
-
+#endif
   void set_display_dimension(uint16_t width, u_int16_t height) {
     this->display_width_ = width;
     this->display_height_ = height;
@@ -85,40 +88,46 @@ class Touchscreen : public PollingComponent {
   /// Call this function to send touch points to the `on_touch` listener and the binary_sensors.
   void attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::InterruptType type);
 
-  virtual void handle_touch_(TouchPoints_t *tp_map) = 0;
-  void send_touch_(TouchPoints_t *tp_map);
+  virtual void handle_touch(TouchPoints_t &touches) = 0;
+  void send_touch_(TouchPoints_t touches);
 
-  static int16_t normalize_(int16_t val, int16_t min_val, int16_t max_val, bool inverted = false);
+  static int16_t normalize(int16_t val, int16_t min_val, int16_t max_val, bool inverted = false);
 
   uint16_t get_width_() {
+#ifdef USE_DISPLAY
     if (this->display_ != nullptr) {
       return this->display_->get_width();
     }
+#endif
     return display_width_;
   }
 
   uint16_t get_height_() {
+#ifdef USE_DISPLAY
     if (this->display_ != nullptr) {
       return display_->get_height();
     }
+#endif
     return display_height_;
   }
 
   TouchRotation get_rotation_() {
+#ifdef USE_DISPLAY
     if (this->display_ != nullptr) {
       return static_cast<TouchRotation>(this->display_->get_rotation());
     }
+#endif
     return this->rotation_;
   }
-
+#ifdef USE_DISPLAY
   display::Display *display_{nullptr};
+#endif
   uint16_t display_width_{240};
   uint16_t display_height_{320};
   TouchRotation rotation_{ROTATE_0_DEGREES};
 
   int16_t x_raw_min_{0}, x_raw_max_{0}, y_raw_min_{0}, y_raw_max_{0};
-  bool invert_x_{false}, invert_y_{false};
-  bool swap_x_y_{false};
+  bool invert_x_{false}, invert_y_{false}, swap_x_y_{false};
 
   Trigger<TouchPoint, const TouchPoints_t &> touch_trigger_;
   Trigger<const TouchPoints_t &> update_trigger_;

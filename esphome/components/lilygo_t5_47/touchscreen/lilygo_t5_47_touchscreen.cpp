@@ -43,7 +43,7 @@ void LilygoT547Touchscreen::setup() {
   this->y_raw_max_ = this->get_height_();
 }
 
-void LilygoT547Touchscreen::handle_touch_(std::vector<TouchPoint> *tp_map) {
+void LilygoT547Touchscreen::handle_touch(TouchPoints_t &touches) {
   uint8_t point = 0;
   uint8_t buffer[40] = {0};
   TouchPoint tp;
@@ -88,7 +88,7 @@ void LilygoT547Touchscreen::handle_touch_(std::vector<TouchPoint> *tp_map) {
 
     tp.y_raw = (uint16_t) ((buffer[i * 5 + 1] << 4) | ((buffer[i * 5 + 3] >> 4) & 0x0F));
     tp.x_raw = (uint16_t) ((buffer[i * 5 + 2] << 4) | (buffer[i * 5 + 3] & 0x0F));
-    tp_map->push_back(tp);
+    touches.push_back(tp);
   }
 
   this->status_clear_warning();

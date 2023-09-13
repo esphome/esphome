@@ -91,6 +91,7 @@ async def register_touchscreen(var, config):
 
     if CONF_DISPLAY in config:
         disp = await cg.get_variable(config[CONF_DISPLAY])
+        cg.add_define("USE_DISPLAY")
         cg.add(var.set_display(disp))
     else:
         if CONF_DIMENSIONS in config:

@@ -15,16 +15,16 @@ void Touchscreen::attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::Int
   this->store_.touched = false;
 }
 
-void Touchscreen::send_touch_(TouchPoints_t *tp_map) {
+void Touchscreen::send_touch_(TouchPoints_t touches) {
   bool first_touch = this->first_touch_.empty();
 
   for (auto &i : this->first_touch_) {
     i.second.state = 0;
   }
 
-  for (auto &tp : *tp_map) {
-    tp.x = normalize_(tp.x_raw, this->x_raw_min_, this->x_raw_max_, this->invert_x_);
-    tp.y = normalize_(tp.y_raw, this->y_raw_min_, this->y_raw_max_, this->invert_y_);
+  for (auto &tp : touches) {
+    tp.x = normalize(tp.x_raw, this->x_raw_min_, this->x_raw_max_, this->invert_x_);
+    tp.y = normalize(tp.y_raw, this->y_raw_min_, this->y_raw_max_, this->invert_y_);
 
     if (this->swap_x_y_) {
       std::swap(tp.x, tp.y);
@@ -60,30 +60,30 @@ void Touchscreen::send_touch_(TouchPoints_t *tp_map) {
     }
   }
 
-  if (tp_map->size() == 0) {
+  if (touches.empty()) {
     this->release_trigger_.trigger();
     for (auto *listener : this->touch_listeners_)
       listener->release();
     this->first_touch_.clear();
   } else if (first_touch) {
-    TouchPoint tp = tp_map->front();
+    TouchPoint tp = touches.front();
     ESP_LOGV(TAG, "Touch (x=%d, y=%d)", tp.x, tp.y);
-    this->touch_trigger_.trigger(tp, *tp_map);
+    this->touch_trigger_.trigger(tp, touches);
     for (auto *listener : this->touch_listeners_) {
       listener->touch(tp);
-      listener->touch(*tp_map);
+      listener->touch(touches);
     }
   } else {
-    TouchPoint tp = tp_map->front();
+    TouchPoint tp = touches.front();
     ESP_LOGV(TAG, "Update Touch (x=%d, y=%d)", tp.x, tp.y);
-    this->update_trigger_.trigger(*tp_map);
+    this->update_trigger_.trigger(touches);
     for (auto *listener : this->touch_listeners_) {
-      listener->update(*tp_map);
+      listener->update(touches);
     }
   }
 }
 
-int16_t Touchscreen::normalize_(int16_t val, int16_t min_val, int16_t max_val, bool inverted) {
+int16_t Touchscreen::normalize(int16_t val, int16_t min_val, int16_t max_val, bool inverted) {
   int16_t ret;
 
   if (val <= min_val) {
@@ -102,9 +102,9 @@ int16_t Touchscreen::normalize_(int16_t val, int16_t min_val, int16_t max_val, b
 void Touchscreen::loop() {
   if (this->store_.touched) {
     this->store_.touched = false;
-    TouchPoints_t *tp_map;
-    handle_touch_(tp_map);
-    send_touch_(tp_map);
+    TouchPoints_t touches;
+    handle_touch(touches);
+    send_touch_(touches);
   }
 }
 

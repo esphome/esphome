@@ -66,7 +66,7 @@ void TT21100Touchscreen::setup() {
   this->y_raw_max_ = this->get_height_();
 }
 
-void TT21100Touchscreen::handle_touch_(std::vector<TouchPoint> *tp_map) {
+void TT21100Touchscreen::handle_touch(TouchPoints_t &touches) {
   // Read report length
   uint16_t data_len;
   this->read((uint8_t *) &data_len, sizeof(data_len));
@@ -115,7 +115,7 @@ void TT21100Touchscreen::handle_touch_(std::vector<TouchPoint> *tp_map) {
         tp.z_raw = touch->pressure;
 
         tp.id = touch->tip;
-        tp_map->push_back(tp);
+        touches.push_back(tp);
       }
     }
   }

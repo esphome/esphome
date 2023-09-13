@@ -24,7 +24,7 @@ void XPT2046Component::setup() {
   read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
 }
 
-void XPT2046Component::handle_touch_(std::vector<TouchPoint> *tp_map) {
+void XPT2046Component::handle_touch(TouchPoints_t &touches) {
   int16_t data[6];
   bool touch = false;
   uint32_t now = millis();
@@ -56,7 +56,7 @@ void XPT2046Component::handle_touch_(std::vector<TouchPoint> *tp_map) {
     tp.y_raw = best_two_avg(data[0], data[2], data[4]);
 
     ESP_LOGV(TAG, "Touchscreen Update [%d, %d], z = %d", tp.x_raw, tp.y_raw, tp.z_raw);
-    tp_map->push_back(tp);
+    touches.push_back(tp);
   }
 }
 
