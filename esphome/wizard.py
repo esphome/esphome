@@ -343,7 +343,9 @@ def wizard(path):
     while True:
         sleep(0.5)
         safe_print()
-        platform = safe_input(color(Fore.BOLD_WHITE, f"({'/'.join(wizard_platforms)}): "))
+        platform = safe_input(
+            color(Fore.BOLD_WHITE, f"({'/'.join(wizard_platforms)}): ")
+        )
         try:
             platform = vol.All(vol.Upper, vol.Any(*wizard_platforms))(platform.upper())
             break
