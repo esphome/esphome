@@ -555,6 +555,12 @@ class EsphomeCore:
         return os.path.dirname(self.config_path)
 
     @property
+    def data_dir(self):
+        if is_ha_addon():
+            return os.path.join("/data")
+        return self.relative_config_path(".esphome")
+
+    @property
     def config_filename(self):
         return os.path.basename(self.config_path)
 
@@ -563,7 +569,7 @@ class EsphomeCore:
         return os.path.join(self.config_dir, path_)
 
     def relative_internal_path(self, *path: str) -> str:
-        return self.relative_config_path(".esphome", *path)
+        return os.path.join(self.data_dir, *path)
 
     def relative_build_path(self, *path):
         path_ = os.path.expanduser(os.path.join(*path))
@@ -573,17 +579,15 @@ class EsphomeCore:
         return self.relative_build_path("src", *path)
 
     def relative_pioenvs_path(self, *path):
-        if is_ha_addon():
-            return os.path.join("/data", self.name, ".pioenvs", *path)
         return self.relative_build_path(".pioenvs", *path)
 
     def relative_piolibdeps_path(self, *path):
-        if is_ha_addon():
-            return os.path.join("/data", self.name, ".piolibdeps", *path)
         return self.relative_build_path(".piolibdeps", *path)
 
     @property
     def firmware_bin(self):
+        if self.is_libretiny:
+            return self.relative_pioenvs_path(self.name, "firmware.uf2")
         return self.relative_pioenvs_path(self.name, "firmware.bin")
 
     @property
@@ -601,6 +605,18 @@ class EsphomeCore:
     @property
     def is_rp2040(self):
         return self.target_platform == "rp2040"
+
+    @property
+    def is_bk72xx(self):
+        return self.target_platform == "bk72xx"
+
+    @property
+    def is_rtl87xx(self):
+        return self.target_platform == "rtl87xx"
+
+    @property
+    def is_libretiny(self):
+        return self.is_bk72xx or self.is_rtl87xx
 
     @property
     def is_host(self):

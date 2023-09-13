@@ -67,7 +67,7 @@ optional<PanasonicData> PanasonicProtocol::decode(RemoteReceiveData src) {
   return out;
 }
 void PanasonicProtocol::dump(const PanasonicData &data) {
-  ESP_LOGD(TAG, "Received Panasonic: address=0x%04X, command=0x%08X", data.address, data.command);
+  ESP_LOGI(TAG, "Received Panasonic: address=0x%04X, command=0x%08X", data.address, data.command);
 }
 
 }  // namespace remote_base
