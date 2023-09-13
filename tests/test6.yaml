@@ -62,3 +62,6 @@ switch:
 sensor:
   - platform: internal_temperature
     name: Internal Temperature
+  - platform: adc
+    pin: VCC
+    name: VSYS

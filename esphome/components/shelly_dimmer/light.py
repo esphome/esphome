@@ -87,12 +87,7 @@ def get_firmware(value):
     url = value[CONF_URL]
 
     if CONF_SHA256 in value:  # we have a hash, enable caching
-        path = (
-            Path(CORE.config_dir)
-            / ".esphome"
-            / DOMAIN
-            / (value[CONF_SHA256] + "_fw_stm.bin")
-        )
+        path = Path(CORE.data_dir) / DOMAIN / (value[CONF_SHA256] + "_fw_stm.bin")
 
         if not path.is_file():
             firmware_data, dl_hash = dl(url)

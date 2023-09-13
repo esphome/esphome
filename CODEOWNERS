@@ -49,6 +49,7 @@ esphome/components/bl0942/* @dbuezas
 esphome/components/ble_client/* @buxtronix
 esphome/components/bluetooth_proxy/* @jesserockz
 esphome/components/bme680_bsec/* @trvrnrth
+esphome/components/bmi160/* @flaviut
 esphome/components/bmp3xx/* @martgras
 esphome/components/bmp581/* @kahrendt
 esphome/components/bp1658cj/* @Cossid
@@ -271,6 +272,7 @@ esphome/components/sonoff_d1/* @anatoly-savchenkov
 esphome/components/speaker/* @jesserockz
 esphome/components/spi/* @esphome/core
 esphome/components/spi_device/* @clydebarrow
+esphome/components/spi_led_strip/* @clydebarrow
 esphome/components/sprinkler/* @kbx81
 esphome/components/sps30/* @martgras
 esphome/components/ssd1322_base/* @kbx81
@@ -331,6 +333,7 @@ esphome/components/web_server_idf/* @dentra
 esphome/components/whirlpool/* @glmnet
 esphome/components/whynter/* @aeonsablaze
 esphome/components/wiegand/* @ssieb
+esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/x9c/* @EtienneMD
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
