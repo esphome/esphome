@@ -27,7 +27,6 @@ void XPT2046Component::setup() {
 void XPT2046Component::handle_touch(TouchPoints_t &touches) {
   int16_t data[6];
   bool touch = false;
-  uint32_t now = millis();
   TouchPoint tp;
 
   enable();
