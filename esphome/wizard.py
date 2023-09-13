@@ -6,12 +6,12 @@ import unicodedata
 import voluptuous as vol
 
 import esphome.config_validation as cv
+from esphome.const import ALLOWED_NAME_CHARS, ENV_QUICKWIZARD
+from esphome.core import CORE
 from esphome.helpers import get_bool_env, write_file
-from esphome.log import color, Fore
-
+from esphome.log import Fore, color
 from esphome.storage_json import StorageJSON, ext_storage_path
 from esphome.util import safe_print
-from esphome.const import ALLOWED_NAME_CHARS, ENV_QUICKWIZARD
 
 CORE_BIG = r"""    _____ ____  _____  ______
    / ____/ __ \|  __ \|  ____|
@@ -193,10 +193,10 @@ captive_portal:
 
 
 def wizard_write(path, **kwargs):
-    from esphome.components.esp8266 import boards as esp8266_boards
-    from esphome.components.esp32 import boards as esp32_boards
-    from esphome.components.rp2040 import boards as rp2040_boards
     from esphome.components.bk72xx import boards as bk72xx_boards
+    from esphome.components.esp32 import boards as esp32_boards
+    from esphome.components.esp8266 import boards as esp8266_boards
+    from esphome.components.rp2040 import boards as rp2040_boards
     from esphome.components.rtl87xx import boards as rtl87xx_boards
 
     name = kwargs["name"]
@@ -225,7 +225,7 @@ def wizard_write(path, **kwargs):
 
     write_file(path, wizard_file(**kwargs))
     storage = StorageJSON.from_wizard(name, name, f"{name}.local", hardware)
-    storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
+    storage_path = ext_storage_path(os.path.basename(path))
     storage.save(storage_path)
 
     return True
@@ -265,9 +265,9 @@ def strip_accents(value):
 
 
 def wizard(path):
+    from esphome.components.bk72xx import boards as bk72xx_boards
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
-    from esphome.components.bk72xx import boards as bk72xx_boards
     from esphome.components.rtl87xx import boards as rtl87xx_boards
 
     if not path.endswith(".yaml") and not path.endswith(".yml"):
@@ -280,6 +280,9 @@ def wizard(path):
             f"Uh oh, it seems like {color(Fore.CYAN, path)} already exists, please delete that file first or chose another configuration file."
         )
         return 2
+
+    CORE.config_path = path
+
     safe_print("Hi there!")
     sleep(1.5)
     safe_print("I'm the wizard of ESPHome :)")
