@@ -22,7 +22,7 @@ TouchListener = touchscreen_ns.class_("TouchListener")
 
 CONF_DISPLAY = "display"
 CONF_TOUCHSCREEN_ID = "touchscreen_id"
-# not used yet: CONF_REPORT_INTERVAL = "report_interval"
+CONF_REPORT_INTERVAL = "report_interval"  # not used yet:
 CONF_SWAP_X_Y = "swap_x_y"
 CONF_ON_UPDATE = "on_update"
 
@@ -78,7 +78,9 @@ TOUCHSCREEN_SCHEMA = (
             cv.Optional(CONF_ON_TOUCH): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_UPDATE): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_RELEASE): automation.validate_automation(single=True),
-            # not used yet: cv.Optional(CONF_REPORT_INTERVAL, default="never"): report_interval,
+            cv.Optional(
+                CONF_REPORT_INTERVAL, default="never"
+            ): report_interval,  # not used yet:
         }
     )
     .extend(cv.polling_component_schema("50ms"))

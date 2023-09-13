@@ -44,29 +44,31 @@ def validate_xpt2046(config):
     return config
 
 
-CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(XPT2046Component),
-            cv.Optional(CONF_INTERRUPT_PIN): cv.All(
-                pins.internal_gpio_input_pin_schema
-            ),
-            cv.Optional(CONF_CALIBRATION_X_MIN, default=0): cv.int_range(
-                min=0, max=4095
-            ),
-            cv.Optional(CONF_CALIBRATION_X_MAX, default=4095): cv.int_range(
-                min=0, max=4095
-            ),
-            cv.Optional(CONF_CALIBRATION_Y_MIN, default=0): cv.int_range(
-                min=0, max=4095
-            ),
-            cv.Optional(CONF_CALIBRATION_Y_MAX, default=4095): cv.int_range(
-                min=0, max=4095
-            ),
-            cv.Optional(CONF_THRESHOLD, default=400): cv.int_range(min=0, max=4095),
-        },
-    ).extend(spi.spi_device_schema()),
-).add_extra(validate_xpt2046)
+CONFIG_SCHEMA = (
+    touchscreen.TOUCHSCREEN_SCHEMA.extend(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(XPT2046Component),
+                cv.Optional(CONF_INTERRUPT_PIN): cv.All(
+                    pins.internal_gpio_input_pin_schema
+                ),
+                cv.Optional(CONF_CALIBRATION_X_MIN, default=0): cv.int_range(
+                    min=0, max=4095
+                ),
+                cv.Optional(CONF_CALIBRATION_X_MAX, default=4095): cv.int_range(
+                    min=0, max=4095
+                ),
+                cv.Optional(CONF_CALIBRATION_Y_MIN, default=0): cv.int_range(
+                    min=0, max=4095
+                ),
+                cv.Optional(CONF_CALIBRATION_Y_MAX, default=4095): cv.int_range(
+                    min=0, max=4095
+                ),
+                cv.Optional(CONF_THRESHOLD, default=400): cv.int_range(min=0, max=4095),
+            },
+        ).extend(spi.spi_device_schema())
+    ).add_extra(validate_xpt2046),
+)
 
 
 async def to_code(config):
