@@ -1649,10 +1649,10 @@ void HOT WaveshareEPaper7P5InV2::display() {
   delay(100);  // NOLINT
   this->wait_until_idle_();
 
-  ESP_LOGI(TAG, "Before command(0x02) (>> power off)");
+  ESP_LOGV(TAG, "Before command(0x02) (>> power off)");
   this->command(0x02);
   this->wait_until_idle_();
-  ESP_LOGI(TAG, "After command(0x02) (>> power off)");
+  ESP_LOGV(TAG, "After command(0x02) (>> power off)");
 }
 
 int WaveshareEPaper7P5InV2::get_width_internal() { return 800; }
