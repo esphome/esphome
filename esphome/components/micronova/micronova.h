@@ -4,9 +4,9 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/log.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 #include <vector>
-#include <mutex>
 
 namespace esphome {
 namespace micronova {
@@ -157,7 +157,7 @@ class MicroNova : public PollingComponent, public uart::UARTDevice {
     MicroNovaSensorListener *initiating_listener;
   };
 
-  std::mutex reply_pending_mutex_;
+  Mutex reply_pending_mutex_;
   MicroNovaSerialTransmission current_transmission_;
 
   std::vector<MicroNovaSensorListener *> micronova_listeners_{};
