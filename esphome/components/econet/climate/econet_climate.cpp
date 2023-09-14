@@ -240,9 +240,9 @@ void EconetClimate::control(const climate::ClimateCall &call) {
   if (call.get_custom_preset().has_value()) {
     const std::string &preset = call.get_custom_preset().value();
 
-    ESP_LOGI("econet", "Set custom preset: %s", preset);
+    ESP_LOGI("econet", "Set custom preset: %s", preset.c_str());
 
-    uint8_t new_mode = -1;
+    int8_t new_mode = -1;
 
     if (preset == "Off") {
       new_mode = 0;

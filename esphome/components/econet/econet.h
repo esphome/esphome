@@ -84,8 +84,8 @@ class Econet : public Component, public uart::UARTDevice {
   uint32_t update_interval_millis_{30000};
   std::vector<EconetDatapointListener> listeners_;
   ReadRequest read_req_;
-  void set_datapoint_(const std::string &datapoint_id, EconetDatapoint value);
-  void send_datapoint_(const std::string &datapoint_id, EconetDatapoint value, bool skip_update_state = false);
+  void set_datapoint_(const std::string &datapoint_id, const EconetDatapoint &value);
+  void send_datapoint_(const std::string &datapoint_id, const EconetDatapoint &value, bool skip_update_state = false);
 
   void make_request_();
   void read_buffer_(int bytes_available);

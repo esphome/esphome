@@ -30,7 +30,7 @@ uint16_t gen_crc16(const uint8_t *data, uint16_t size) {
   int bits_read = 0, bit_flag;
 
   /* Sanity check: */
-  if (data == NULL) {
+  if (data == nullptr) {
     return 0;
   }
 
@@ -131,10 +131,9 @@ void extract_obj_names(const uint8_t *pdata, uint8_t data_len, std::vector<std::
 
 // Reverse of extract_obj_names
 void join_obj_names(const std::vector<std::string> &objects, std::vector<uint8_t> *data) {
-  for (int i = 0; i < objects.size(); i++) {
+  for (const auto & s : objects) {
     data->push_back(0);
     data->push_back(0);
-    const std::string &s = objects[i];
     for (int j = 0; j < 8; j++) {
       data->push_back(j < s.length() ? s[j] : 0);
     }
@@ -235,15 +234,15 @@ void Econet::parse_message_(bool is_tx) {
     EconetDatapointType type = EconetDatapointType(pdata[0] & 0x7F);
     uint8_t prop_type = pdata[1];
 
-    ESP_LOGI(TAG, "  Type    : %d", type);
-    ESP_LOGI(TAG, "  PropType: %d", prop_type);
+    ESP_LOGI(TAG, "  Type    : %hhu", type);
+    ESP_LOGI(TAG, "  PropType: %hhu", prop_type);
 
     if (type != EconetDatapointType::TEXT && type != EconetDatapointType::ENUM_TEXT) {
-      ESP_LOGI(TAG, "  Don't Currently Support This Class Type", type);
+      ESP_LOGI(TAG, "  Don't Currently Support This Class Type %hhu", type);
       return;
     }
     if (prop_type != 1) {
-      ESP_LOGI(TAG, "  Don't Currently Support This Property Type", prop_type);
+      ESP_LOGI(TAG, "  Don't Currently Support This Property Type %hhu", prop_type);
       return;
     }
 
@@ -260,7 +259,7 @@ void Econet::parse_message_(bool is_tx) {
     }
 
   } else if (command == ACK) {
-    if (read_req_.dst_adr == src_adr && read_req_.src_adr == dst_adr && read_req_.awaiting_res == true) {
+    if (read_req_.dst_adr == src_adr && read_req_.src_adr == dst_adr && read_req_.awaiting_res) {
       if (read_req_.obj_names.size() == 1) {
         EconetDatapointType item_type = EconetDatapointType(pdata[0] & 0x7F);
         if (item_type == EconetDatapointType::RAW) {
@@ -448,7 +447,7 @@ void Econet::set_enum_datapoint_value(const std::string &datapoint_id, uint8_t v
   this->set_datapoint_(datapoint_id, EconetDatapoint{.type = EconetDatapointType::ENUM_TEXT, .value_enum = value});
 }
 
-void Econet::set_datapoint_(const std::string &datapoint_id, EconetDatapoint value) {
+void Econet::set_datapoint_(const std::string &datapoint_id, const EconetDatapoint &value) {
   if (datapoints_.count(datapoint_id) == 0) {
     ESP_LOGW(TAG, "Setting unknown datapoint %s", datapoint_id.c_str());
   } else {
@@ -468,7 +467,7 @@ void Econet::set_datapoint_(const std::string &datapoint_id, EconetDatapoint val
   send_datapoint_(datapoint_id, value, true);
 }
 
-void Econet::send_datapoint_(const std::string &datapoint_id, EconetDatapoint value, bool skip_update_state) {
+void Econet::send_datapoint_(const std::string &datapoint_id, const EconetDatapoint &value, bool skip_update_state) {
   if (!skip_update_state) {
     if (pending_confirmation_writes_.count(datapoint_id) == 1) {
       if (value == pending_confirmation_writes_[datapoint_id]) {
