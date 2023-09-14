@@ -2,11 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import uart
-from esphome.const import CONF_ID, CONF_SENSOR_DATAPOINT, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_MODEL, CONF_SENSOR_DATAPOINT, CONF_TRIGGER_ID
 
 DEPENDENCIES = ["uart"]
-
-CONF_MODEL = "model"
 
 CONF_ON_DATAPOINT_UPDATE = "on_datapoint_update"
 CONF_DATAPOINT_TYPE = "datapoint_type"

@@ -17,10 +17,6 @@ float celsius_to_fahrenheit(float c) { return c * 9 / 5 + 32; }
 
 }  // namespace
 
-#define SETPOINT_MIN 26.6667
-#define SETPOINT_MAX 4838889
-#define SETPOINT_STEP 1.0f
-
 static const char *const TAG = "econet.climate";
 
 void EconetClimate::dump_config() {
@@ -53,12 +49,12 @@ climate::ClimateTraits EconetClimate::traits() {
 
     traits.set_supports_two_point_target_temperature(true);
   } else {
-    traits.set_visual_min_temperature(SETPOINT_MIN);
-    traits.set_visual_max_temperature(SETPOINT_MAX);
+    traits.set_visual_min_temperature(26.6667);
+    traits.set_visual_max_temperature(4838889);
 
     traits.set_supports_two_point_target_temperature(false);
   }
-  traits.set_visual_temperature_step(SETPOINT_STEP);
+  traits.set_visual_temperature_step(1.0f);
 
   return traits;
 }
