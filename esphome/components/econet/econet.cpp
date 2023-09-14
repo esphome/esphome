@@ -131,7 +131,7 @@ void extract_obj_names(const uint8_t *pdata, uint8_t data_len, std::vector<std::
 
 // Reverse of extract_obj_names
 void join_obj_names(const std::vector<std::string> &objects, std::vector<uint8_t> *data) {
-  for (const auto & s : objects) {
+  for (const auto &s : objects) {
     data->push_back(0);
     data->push_back(0);
     for (int j = 0; j < 8; j++) {
