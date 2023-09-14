@@ -126,7 +126,7 @@ void MicroNova::write_address(uint8_t location, uint8_t address, uint8_t data) {
     checksum = ((uint16_t) write_data[0] + (uint16_t) write_data[1] + (uint16_t) write_data[2]) & 0xFF;
     write_data[3] = checksum;
 
-    ESP_LOGD(TAG, "Write 4 bytes [%02X,%02X,%02X,%02X]", write_data[0], write_data[1], write_data[2], write_data[3]);
+    ESP_LOGV(TAG, "Write 4 bytes [%02X,%02X,%02X,%02X]", write_data[0], write_data[1], write_data[2], write_data[3]);
 
     this->enable_rx_pin_->digital_write(true);
     this->write_array(write_data, 4);
