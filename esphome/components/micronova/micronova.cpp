@@ -116,7 +116,6 @@ int MicroNova::read_stove_reply() {
 
 void MicroNova::write_address(uint8_t location, uint8_t address, uint8_t data) {
   uint8_t write_data[4] = {0, 0, 0, 0};
-  uint8_t reply_data[2] = {0, 0};
   uint16_t checksum = 0;
 
   if (this->reply_pending_mutex_.try_lock()) {
