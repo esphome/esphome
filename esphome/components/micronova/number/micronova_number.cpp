@@ -12,7 +12,7 @@ void MicroNovaNumber::process_value_from_stove(int value_from_stove) {
   float new_sensor_value = (float) value_from_stove;
   switch (this->get_function()) {
     case MicroNovaFunctions::STOVE_FUNCTION_THERMOSTAT_TEMPERATURE:
-      this->micronova_->set_thermostat_temperature(new_sensor_value);
+      this->micronova_->set_thermostat_temperature((uint8_t)value_from_stove);
       break;
     default:
       break;
