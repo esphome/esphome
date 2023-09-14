@@ -83,20 +83,20 @@ class Econet : public Component, public uart::UARTDevice {
   ModelType model_type_;
   uint32_t update_interval_millis_{30000};
   std::vector<EconetDatapointListener> listeners_;
-  ReadRequest read_req;
-  void set_datapoint(const std::string &datapoint_id, EconetDatapoint value);
-  void send_datapoint(const std::string &datapoint_id, EconetDatapoint value, bool skip_update_state = false);
+  ReadRequest read_req_;
+  void set_datapoint_(const std::string &datapoint_id, EconetDatapoint value);
+  void send_datapoint_(const std::string &datapoint_id, EconetDatapoint value, bool skip_update_state = false);
 
-  void make_request();
-  void read_buffer(int bytes_available);
-  void parse_message(bool is_tx);
-  void parse_rx_message();
-  void parse_tx_message();
+  void make_request_();
+  void read_buffer_(int bytes_available);
+  void parse_message_(bool is_tx);
+  void parse_rx_message_();
+  void parse_tx_message_();
 
-  void transmit_message(uint32_t dst_adr, uint32_t src_adr, uint8_t command, const std::vector<uint8_t> &data);
-  void request_strings(uint32_t dst_adr, uint32_t src_adr, const std::vector<std::string> &objects);
-  void write_value(uint32_t dst_adr, uint32_t src_adr, const std::string &object, EconetDatapointType type,
-                   float value);
+  void transmit_message_(uint32_t dst_adr, uint32_t src_adr, uint8_t command, const std::vector<uint8_t> &data);
+  void request_strings_(uint32_t dst_adr, uint32_t src_adr, const std::vector<std::string> &objects);
+  void write_value_(uint32_t dst_adr, uint32_t src_adr, const std::string &object, EconetDatapointType type,
+                    float value);
 
   std::set<std::string> datapoint_ids_{};
   std::map<std::string, EconetDatapoint> datapoints_{};
@@ -108,7 +108,7 @@ class Econet : public Component, public uart::UARTDevice {
   std::vector<uint8_t> rx_message_;
   std::vector<uint8_t> tx_message_;
 
-  uint32_t dst_adr = 0;
+  uint32_t dst_adr_ = 0;
 };
 
 class EconetClient {
