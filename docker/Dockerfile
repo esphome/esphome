@@ -29,7 +29,8 @@ RUN \
         curl=7.74.0-1.3+deb11u7 \
         openssh-client=1:8.4p1-5+deb11u1 \
         python3-cffi=1.14.5-1 \
-        libcairo2=1.16.0-5; \
+        libcairo2=1.16.0-5 \
+        patch=2.7.6-7; \
     if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
         apt-get install -y --no-install-recommends \
           build-essential=12.9 \
@@ -61,7 +62,7 @@ RUN \
     # Ubuntu python3-pip is missing wheel
     pip3 install --no-cache-dir \
         wheel==0.37.1 \
-        platformio==6.1.10 \
+        platformio==6.1.11 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \

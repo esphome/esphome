@@ -392,6 +392,12 @@ select:
       "Three": 3
 
 sensor:
+  - platform: adc
+    id: adc_sensor_p32
+    name: ADC pin 32
+    pin: 32
+    attenuation: 11db
+    update_interval: 1s
   - platform: internal_temperature
     name: Internal Temperature
   - platform: selec_meter
@@ -562,6 +568,13 @@ script:
           count: 5
           then:
             - logger.log: looping!
+
+  - id: zero_repeat_test
+    then:
+      - repeat:
+          count: !lambda "return 0;"
+          then:
+            - logger.log: shouldn't see mee!
 
 switch:
   - platform: modbus_controller

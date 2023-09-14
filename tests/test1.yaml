@@ -915,6 +915,23 @@ sensor:
     temperature:
       name: MPU6886 Temperature
     i2c_id: i2c_bus
+  - platform: bmi160
+    address: 0x68
+    acceleration_x:
+      name: BMI160 Accel X
+    acceleration_y:
+      name: BMI160 Accel Y
+    acceleration_z:
+      name: BMI160 Accel z
+    gyroscope_x:
+      name: BMI160 Gyro X
+    gyroscope_y:
+      name: BMI160 Gyro Y
+    gyroscope_z:
+      name: BMI160 Gyro z
+    temperature:
+      name: BMI160 Temperature
+    i2c_id: i2c_bus
   - platform: mmc5603
     address: 0x30
     field_strength_x:
