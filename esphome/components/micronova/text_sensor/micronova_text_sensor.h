@@ -10,7 +10,10 @@ class MicroNovaTextSensor : public text_sensor::TextSensor, public MicroNovaSens
  public:
   MicroNovaTextSensor(MicroNova *m) : MicroNovaSensorListener(m) {}
   void dump_config() override { LOG_TEXT_SENSOR("", "Micronova text sensor", this); }
-  void read_value_from_stove() override;
+  void request_value_from_stove() override {
+    this->micronova_->request_address(this->memory_location_, this->memory_address_, this);
+  }
+  void process_value_from_stove(int value_from_stove) override;
 };
 
 }  // namespace micronova

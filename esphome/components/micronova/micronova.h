@@ -6,6 +6,7 @@
 #include "esphome/core/defines.h"
 
 #include <vector>
+#include <mutex>
 
 namespace esphome {
 namespace micronova {
@@ -37,6 +38,8 @@ enum class MicroNovaFunctions {
   STOVE_FUNCTION_FAN_SPEED = 8,
   STOVE_FUNCTION_STOVE_STATE = 9,
   STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR = 10,
+  STOVE_FUNCTION_WATER_TEMPERATURE = 11,
+  STOVE_FUNCTION_WATER_PRESSURE = 12,
 };
 
 class MicroNova;
@@ -45,6 +48,7 @@ class MicroNova;
 // Interface classes.
 class MicroNovaBaseListener {
  public:
+  MicroNovaBaseListener() {}
   MicroNovaBaseListener(MicroNova *m) { micronova_ = m; }
   virtual void dump_config();
 
@@ -53,10 +57,10 @@ class MicroNovaBaseListener {
   void set_function(MicroNovaFunctions f) { function_ = f; }
   MicroNovaFunctions get_function() { return function_; }
 
-  void set_memory_location(uint8_t f) { memory_location_ = f; }
+  void set_memory_location(uint8_t l) { memory_location_ = l; }
   uint8_t get_memory_location() { return memory_location_; }
 
-  void set_memory_address(uint8_t f) { memory_address_ = f; }
+  void set_memory_address(uint8_t a) { memory_address_ = a; }
   uint8_t get_memory_address() { return memory_address_; }
 
  protected:
@@ -68,8 +72,23 @@ class MicroNovaBaseListener {
 
 class MicroNovaSensorListener : public MicroNovaBaseListener {
  public:
+  MicroNovaSensorListener() {}
   MicroNovaSensorListener(MicroNova *m) : MicroNovaBaseListener(m) {}
-  virtual void read_value_from_stove();
+  virtual void request_value_from_stove();
+  virtual void process_value_from_stove(int value_from_stove);
+
+  void set_needs_update(bool u) { needs_update_ = u; }
+  bool get_needs_update() { return needs_update_; }
+
+ protected:
+  bool needs_update_ = false;
+};
+
+class MicroNovaNumberListener : public MicroNovaBaseListener {
+ public:
+  MicroNovaNumberListener(MicroNova *m) : MicroNovaBaseListener(m) {}
+  virtual void request_value_from_stove();
+  virtual void process_value_from_stove(int value_from_stove);
 
   void set_needs_update(bool u) { needs_update_ = u; }
   bool get_needs_update() { return needs_update_; }
@@ -109,8 +128,9 @@ class MicroNova : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
   void register_micronova_listener(MicroNovaSensorListener *l) { micronova_listeners_.push_back(l); }
 
-  int read_address(uint8_t addr, uint8_t reg);
+  void request_address(uint8_t location, uint8_t address, MicroNovaSensorListener *listener);
   void write_address(uint8_t location, uint8_t address, uint8_t data);
+  int read_stove_reply();
 
   void set_enable_rx_pin(GPIOPin *enable_rx_pin) { this->enable_rx_pin_ = enable_rx_pin; }
 
@@ -128,6 +148,17 @@ class MicroNova : public PollingComponent, public uart::UARTDevice {
   uint8_t current_thermostat_temperature_ = 20;
 
   GPIOPin *enable_rx_pin_{nullptr};
+
+  struct MicroNovaSerialTransmission {
+    uint32_t request_transmission_time;
+    uint8_t memory_location;
+    uint8_t memory_address;
+    bool reply_pending;
+    MicroNovaSensorListener *initiating_listener;
+  };
+
+  std::mutex reply_pending_mutex_;
+  MicroNovaSerialTransmission current_transmission_;
 
   std::vector<MicroNovaSensorListener *> micronova_listeners_{};
   MicroNovaSwitchListener *stove_switch_{nullptr};

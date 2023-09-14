@@ -3,8 +3,10 @@ import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_PRESSURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_PASCAL,
     UNIT_REVOLUTIONS_PER_MINUTE,
 )
 
@@ -21,10 +23,11 @@ from .. import (
 MicroNovaSensor = micronova_ns.class_("MicroNovaSensor", sensor.Sensor, cg.Component)
 
 CONF_ROOM_TEMPERATURE = "room_temperature"
-CONF_THERMOSTAT_TEMPERATURE = "thermostat_temperature"
 CONF_FUMES_TEMPERATURE = "fumes_temperature"
 CONF_STOVE_POWER = "stove_power"
 CONF_FAN_SPEED = "fan_speed"
+CONF_WATER_TEMPERATURE = "water_temperature"
+CONF_WATER_PRESSURE = "water_pressure"
 CONF_MEMORY_ADDRESS_SENSOR = "memory_address_sensor"
 CONF_FAN_RPM_OFFSET = "fan_rpm_offset"
 
@@ -32,13 +35,6 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
         cv.Optional(CONF_ROOM_TEMPERATURE): sensor.sensor_schema(
-            MicroNovaSensor,
-            unit_of_measurement=UNIT_CELSIUS,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
-        ).extend(MICRONOVA_LISTENER_SCHEMA),
-        cv.Optional(CONF_THERMOSTAT_TEMPERATURE): sensor.sensor_schema(
             MicroNovaSensor,
             unit_of_measurement=UNIT_CELSIUS,
             device_class=DEVICE_CLASS_TEMPERATURE,
@@ -66,6 +62,20 @@ CONFIG_SCHEMA = cv.Schema(
         .extend(
             {cv.Optional(CONF_FAN_RPM_OFFSET, default=0): cv.int_range(min=0, max=255)}
         ),
+        cv.Optional(CONF_WATER_TEMPERATURE): sensor.sensor_schema(
+            MicroNovaSensor,
+            unit_of_measurement=UNIT_CELSIUS,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+            accuracy_decimals=0,
+        ).extend(MICRONOVA_LISTENER_SCHEMA),
+        cv.Optional(CONF_WATER_PRESSURE): sensor.sensor_schema(
+            MicroNovaSensor,
+            unit_of_measurement=UNIT_PASCAL,
+            device_class=DEVICE_CLASS_PRESSURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+            accuracy_decimals=0,
+        ).extend(MICRONOVA_LISTENER_SCHEMA),
         cv.Optional(CONF_MEMORY_ADDRESS_SENSOR): sensor.sensor_schema(
             MicroNovaSensor,
         ).extend(MICRONOVA_LISTENER_SCHEMA),
@@ -90,23 +100,6 @@ async def to_code(config):
             )
         )
         cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_ROOM_TEMPERATURE))
-
-    if thermostat_temperature_config := config.get(CONF_THERMOSTAT_TEMPERATURE):
-        sens = await sensor.new_sensor(thermostat_temperature_config, mv)
-        cg.add(mv.register_micronova_listener(sens))
-        cg.add(
-            sens.set_memory_location(
-                thermostat_temperature_config.get(CONF_MEMORY_LOCATION, 0x20)
-            )
-        )
-        cg.add(
-            sens.set_memory_address(
-                thermostat_temperature_config.get(CONF_MEMORY_ADDRESS, 0x7D)
-            )
-        )
-        cg.add(
-            sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_THERMOSTAT_TEMPERATURE)
-        )
 
     if fumes_temperature_config := config.get(CONF_FUMES_TEMPERATURE):
         sens = await sensor.new_sensor(fumes_temperature_config, mv)
@@ -160,3 +153,33 @@ async def to_code(config):
         cg.add(
             sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR)
         )
+
+    if water_temperature_config := config.get(CONF_WATER_TEMPERATURE):
+        sens = await sensor.new_sensor(water_temperature_config, mv)
+        cg.add(mv.register_micronova_listener(sens))
+        cg.add(
+            sens.set_memory_location(
+                water_temperature_config.get(CONF_MEMORY_LOCATION, 0x00)
+            )
+        )
+        cg.add(
+            sens.set_memory_address(
+                water_temperature_config.get(CONF_MEMORY_ADDRESS, 0x3B)
+            )
+        )
+        cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_WATER_TEMPERATURE))
+
+    if water_pressure_config := config.get(CONF_WATER_PRESSURE):
+        sens = await sensor.new_sensor(water_pressure_config, mv)
+        cg.add(mv.register_micronova_listener(sens))
+        cg.add(
+            sens.set_memory_location(
+                water_pressure_config.get(CONF_MEMORY_LOCATION, 0x00)
+            )
+        )
+        cg.add(
+            sens.set_memory_address(
+                water_pressure_config.get(CONF_MEMORY_ADDRESS, 0x3C)
+            )
+        )
+        cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_FUMES_TEMPERATURE))

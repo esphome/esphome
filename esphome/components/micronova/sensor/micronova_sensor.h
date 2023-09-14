@@ -10,7 +10,10 @@ class MicroNovaSensor : public sensor::Sensor, public MicroNovaSensorListener {
  public:
   MicroNovaSensor(MicroNova *m) : MicroNovaSensorListener(m) {}
   void dump_config() override { LOG_SENSOR("", "Micronova sensor", this); }
-  void read_value_from_stove() override;
+  void request_value_from_stove() override {
+    this->micronova_->request_address(this->memory_location_, this->memory_address_, this);
+  }
+  void process_value_from_stove(int value_from_stove) override;
 
   void set_fan_speed_offset(uint8_t f) { fan_speed_offset_ = f; }
   uint8_t get_set_fan_speed_offset() { return fan_speed_offset_; }

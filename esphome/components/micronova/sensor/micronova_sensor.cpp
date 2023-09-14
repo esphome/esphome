@@ -3,16 +3,13 @@
 namespace esphome {
 namespace micronova {
 
-void MicroNovaSensor::read_value_from_stove() {
-  int new_raw_value = -1;
-
-  new_raw_value = this->micronova_->read_address(this->memory_location_, this->memory_address_);
-  if (new_raw_value == -1) {
+void MicroNovaSensor::process_value_from_stove(int value_from_stove) {
+  if (value_from_stove == -1) {
     this->publish_state(NAN);
     return;
   }
 
-  float new_sensor_value = (float) new_raw_value;
+  float new_sensor_value = (float) value_from_stove;
   switch (this->get_function()) {
     case MicroNovaFunctions::STOVE_FUNCTION_ROOM_TEMPERATURE:
       new_sensor_value = (float) new_sensor_value / 2;
@@ -22,6 +19,12 @@ void MicroNovaSensor::read_value_from_stove() {
       break;
     case MicroNovaFunctions::STOVE_FUNCTION_FAN_SPEED:
       new_sensor_value = new_sensor_value == 0 ? 0 : (new_sensor_value * 10) + this->fan_speed_offset_;
+      break;
+    case MicroNovaFunctions::STOVE_FUNCTION_WATER_TEMPERATURE:
+      this->micronova_->set_thermostat_temperature(new_sensor_value);
+      break;
+    case MicroNovaFunctions::STOVE_FUNCTION_WATER_PRESSURE:
+      this->micronova_->set_thermostat_temperature(new_sensor_value / 10);
       break;
     default:
       break;
