@@ -15,10 +15,14 @@ void FingerprintGrowComponent::update() {
     return;
   }
 
-  if ((has_sensing_pin_) && (sensing_pin_->digital_read())) {
-    ESP_LOGV(TAG, "No touch sensing");
-    this->waiting_removal_ = false;
-    return;
+  if (has_sensing_pin_) {
+    if (sensing_pin_->digital_read()) {
+      ESP_LOGV(TAG, "No touch sensing");
+      this->waiting_removal_ = false;
+      return;
+    } else if (!this->waiting_removal_) {
+      finger_scan_start_callback_.call();
+    }
   }
 
   if (this->waiting_removal_) {

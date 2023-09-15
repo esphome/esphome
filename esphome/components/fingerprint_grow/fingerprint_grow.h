@@ -118,6 +118,9 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   void set_enrolling_binary_sensor(binary_sensor::BinarySensor *enrolling_binary_sensor) {
     this->enrolling_binary_sensor_ = enrolling_binary_sensor;
   }
+  void add_on_finger_scan_start_callback(std::function<void()> callback) {
+    this->finger_scan_start_callback_.add(std::move(callback));
+  }
   void add_on_finger_scan_matched_callback(std::function<void(uint16_t, uint16_t)> callback) {
     this->finger_scan_matched_callback_.add(std::move(callback));
   }
@@ -177,12 +180,20 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   sensor::Sensor *last_finger_id_sensor_{nullptr};
   sensor::Sensor *last_confidence_sensor_{nullptr};
   binary_sensor::BinarySensor *enrolling_binary_sensor_{nullptr};
+  CallbackManager<void()> finger_scan_start_callback_;
   CallbackManager<void(uint16_t, uint16_t)> finger_scan_matched_callback_;
   CallbackManager<void()> finger_scan_unmatched_callback_;
   CallbackManager<void()> finger_scan_misplaced_callback_;
   CallbackManager<void(uint8_t, uint16_t)> enrollment_scan_callback_;
   CallbackManager<void(uint16_t)> enrollment_done_callback_;
   CallbackManager<void(uint16_t)> enrollment_failed_callback_;
+};
+
+class FingerScanStartTrigger : public Trigger<> {
+ public:
+  explicit FingerScanStartTrigger(FingerprintGrowComponent *parent) {
+    parent->add_on_finger_scan_start_callback([this]() { this->trigger(); });
+  }
 };
 
 class FingerScanMatchedTrigger : public Trigger<uint16_t, uint16_t> {
