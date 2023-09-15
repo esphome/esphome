@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_ON_ENROLLMENT_DONE,
     CONF_ON_ENROLLMENT_FAILED,
     CONF_ON_ENROLLMENT_SCAN,
+    CONF_ON_FINGER_SCAN_START,
     CONF_ON_FINGER_SCAN_MATCHED,
     CONF_ON_FINGER_SCAN_UNMATCHED,
     CONF_ON_FINGER_SCAN_MISPLACED,
@@ -33,6 +34,10 @@ CONF_FINGERPRINT_GROW_ID = "fingerprint_grow_id"
 fingerprint_grow_ns = cg.esphome_ns.namespace("fingerprint_grow")
 FingerprintGrowComponent = fingerprint_grow_ns.class_(
     "FingerprintGrowComponent", cg.PollingComponent, uart.UARTDevice
+)
+
+FingerScanStartTrigger = fingerprint_grow_ns.class_(
+    "FingerScanStartTrigger", automation.Trigger.template()
 )
 
 FingerScanMatchedTrigger = fingerprint_grow_ns.class_(
@@ -99,6 +104,13 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_SENSING_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_PASSWORD): cv.uint32_t,
             cv.Optional(CONF_NEW_PASSWORD): cv.uint32_t,
+            cv.Optional(CONF_ON_FINGER_SCAN_START): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        FingerScanStartTrigger
+                    ),
+                }
+            ),
             cv.Optional(CONF_ON_FINGER_SCAN_MATCHED): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -163,6 +175,10 @@ async def to_code(config):
     if CONF_SENSING_PIN in config:
         sensing_pin = await cg.gpio_pin_expression(config[CONF_SENSING_PIN])
         cg.add(var.set_sensing_pin(sensing_pin))
+
+    for conf in config.get(CONF_ON_FINGER_SCAN_START, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_FINGER_SCAN_MATCHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
