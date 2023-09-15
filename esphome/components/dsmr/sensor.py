@@ -647,4 +647,3 @@ async def to_code(config):
         cg.add_define(
             "DSMR_SENSOR_LIST(F, sep)", cg.RawExpression(" sep ".join(sensors))
         )
-        
