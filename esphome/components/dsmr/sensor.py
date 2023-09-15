@@ -552,17 +552,13 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_APPARENT_POWER,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(
-            "active_energy_import_last_completed_demand"
-        ): sensor.sensor_schema(
+        cv.Optional("active_energy_import_last_completed_demand"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOWATT,
             accuracy_decimals=3,
             device_class=DEVICE_CLASS_POWER,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(
-            "active_energy_export_last_completed_demand"
-        ): sensor.sensor_schema(
+        cv.Optional("active_energy_export_last_completed_demand"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOWATT,
             accuracy_decimals=3,
             device_class=DEVICE_CLASS_POWER,
@@ -616,14 +612,10 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_POWER,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(
-            "fw_core_version"
-        ): sensor.sensor_schema(
+        cv.Optional("fw_core_version"): sensor.sensor_schema(
             accuracy_decimals=2,
         ),
-        cv.Optional(
-            "fw_module_version"
-        ): sensor.sensor_schema(
+        cv.Optional("fw_module_version"): sensor.sensor_schema(
             accuracy_decimals=2,
         ),
     }
