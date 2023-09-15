@@ -50,7 +50,7 @@ def validate_xpt2046(config):
     return config
 
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     touchscreen.TOUCHSCREEN_SCHEMA.extend(
         cv.Schema(
             {
@@ -72,8 +72,9 @@ CONFIG_SCHEMA = (
                 ),
                 cv.Optional(CONF_THRESHOLD, default=400): cv.int_range(min=0, max=4095),
             },
-        ).extend(spi.spi_device_schema())
-    ).add_extra(validate_xpt2046),
+        )
+    ).extend(spi.spi_device_schema()),
+    validate_xpt2046,
 )
 
 

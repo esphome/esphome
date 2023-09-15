@@ -41,12 +41,6 @@ def validate_rotation(value):
     return cv.enum(DISPLAY_ROTATIONS, int=True)(value)
 
 
-def report_interval(value):
-    if value == "never":
-        return 4294967295  # uint32_t max
-    return cv.positive_time_period_milliseconds(value)
-
-
 def validate_hasdisplay(config):
     if CONF_DISPLAY in config:
         if CONF_DIMENSIONS in config:
@@ -80,7 +74,7 @@ TOUCHSCREEN_SCHEMA = (
             cv.Optional(CONF_ON_RELEASE): automation.validate_automation(single=True),
             cv.Optional(
                 CONF_REPORT_INTERVAL, default="never"
-            ): report_interval,  # not used yet:
+            ): cv.update_interval,  # not used yet:
         }
     )
     .extend(cv.polling_component_schema("50ms"))
