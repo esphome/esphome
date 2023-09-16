@@ -216,7 +216,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Check out code from GitHub
-      uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.0.0
       - name: Find all YAML test files
         id: set-matrix
         run: echo "::set-output name=matrix::$(ls tests/test*.yaml | jq -R -s -c 'split("\n")[:-1]')"
