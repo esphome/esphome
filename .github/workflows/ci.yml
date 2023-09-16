@@ -215,6 +215,17 @@ jobs:
         run: script/ci-suggest-changes
         if: always()
 
+  compile-tests-list:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4
+      - name: Find all YAML test files
+        id: set-matrix
+        run: echo "::set-output name=matrix::$(ls tests/test*.yaml | jq -R -s -c 'split("\n")[:-1]')"
+
   compile-tests:
     name: Run YAML test ${{ matrix.file }}
     runs-on: ubuntu-latest
@@ -228,11 +239,12 @@ jobs:
       - pytest
       - pyupgrade
       - yamllint
+      - compile-tests-list
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
-        file: [1, 2, 3, 3.1, 4, 5, 6, 7, 8]
+        file: ${{ fromJson(needs.compile-tests-list.outputs.matrix) }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v4
@@ -241,10 +253,10 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run esphome compile tests/test${{ matrix.file }}.yaml
+      - name: Run esphome compile ${{ matrix.file }}
         run: |
           . venv/bin/activate
-          esphome compile tests/test${{ matrix.file }}.yaml
+          esphome compile ${{ matrix.file }}
 
   clang-tidy:
     name: ${{ matrix.name }}
