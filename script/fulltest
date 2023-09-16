@@ -12,3 +12,4 @@ script/lint-cpp
 script/unit_test
 script/component_test
 script/test
+script/test_build_components
