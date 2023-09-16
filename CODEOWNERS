@@ -272,6 +272,7 @@ esphome/components/sonoff_d1/* @anatoly-savchenkov
 esphome/components/speaker/* @jesserockz
 esphome/components/spi/* @esphome/core
 esphome/components/spi_device/* @clydebarrow
+esphome/components/spi_led_strip/* @clydebarrow
 esphome/components/sprinkler/* @kbx81
 esphome/components/sps30/* @martgras
 esphome/components/ssd1322_base/* @kbx81
@@ -332,6 +333,7 @@ esphome/components/web_server_idf/* @dentra
 esphome/components/whirlpool/* @glmnet
 esphome/components/whynter/* @aeonsablaze
 esphome/components/wiegand/* @ssieb
+esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/x9c/* @EtienneMD
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
