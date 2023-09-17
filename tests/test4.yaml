@@ -32,11 +32,17 @@ spi:
   clk_pin: GPIO21
   mosi_pin: GPIO22
   miso_pin: GPIO23
+  interface: hardware
 
 uart:
-  tx_pin: GPIO22
-  rx_pin: GPIO23
-  baud_rate: 115200
+  - id: uart115200
+    tx_pin: GPIO22
+    rx_pin: GPIO23
+    baud_rate: 115200
+  - id: uart9600
+    tx_pin: GPIO22
+    rx_pin: GPIO23
+    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -44,6 +50,8 @@ ota:
 
 logger:
   level: DEBUG
+
+debug:
 
 web_server:
   ota: false
@@ -58,6 +66,7 @@ time:
 
 tuya:
   time_id: sntp_time
+  uart_id: uart115200
   status_pin:
     number: 14
     inverted: true
@@ -73,6 +82,7 @@ select:
 
 pipsolar:
   id: inverter0
+  uart_id: uart115200
 
 sx1509:
   - id: sx1509_hub
@@ -229,6 +239,7 @@ sensor:
       name: inverter0_pv_charging_power
   - platform: hrxl_maxsonar_wr
     name: Rainwater Tank Level
+    uart_id: uart115200
     filters:
       - sliding_window_moving_average:
           window_size: 12
@@ -257,6 +268,10 @@ sensor:
       name: Ufire Temperature
     ph:
       name: Ufire pH
+  - platform: a01nyub
+    id: a01nyub_sensor
+    name: "a01nyub Distance"
+    uart_id: uart9600
 
 #
 # platform sensor.apds9960 requires component apds9960
