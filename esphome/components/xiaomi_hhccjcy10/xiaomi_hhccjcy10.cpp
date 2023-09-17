@@ -31,22 +31,22 @@ bool XiaomiHHCCJCY10::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
       ESP_LOGVV(TAG, "no tuya service data UUID.");
       continue;
     }
-    if (service_data.data.size() != 9) { //tuya alternate between two service data
+    if (service_data.data.size() != 9) {  // tuya alternate between two service data
       continue;
     }
     const uint8_t *data = service_data.data.data();
-    
+
     const int16_t temperature = encode_uint16(data[1], data[2]);
-    this->temperature_->publish_state((float)temperature / 10.0f);
+    this->temperature_->publish_state((float) temperature / 10.0f);
 
     this->moisture_->publish_state(data[0]);
 
     const uint16_t conductivity = encode_uint16(data[7], data[8]);
-    this->conductivity_->publish_state((float)conductivity);
+    this->conductivity_->publish_state((float) conductivity);
 
     const uint32_t illuminance = encode_uint24(data[3], data[4], data[5]);
-    this->illuminance_->publish_state((float)illuminance);
-    
+    this->illuminance_->publish_state((float) illuminance);
+
     this->battery_level_->publish_state(data[6]);
     success = true;
   }
