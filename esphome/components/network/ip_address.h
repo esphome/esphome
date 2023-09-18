@@ -41,6 +41,9 @@ struct IPAddress {
 #if USE_ESP32_FRAMEWORK_ARDUINO
   IPAddress(const Arduino_h::IPAddress &other_ip) { ip_addr_set_ip4_u32(&ip_addr_, other_ip); }
 #endif /* USE_ESP32_FRAMEWORK_ARDUINO */
+#if USE_LIBRETINY
+  IPAddress(const arduino::IPAddress &other_ip) { ip_addr_set_ip4_u32(&ip_addr_, other_ip); }
+#endif /* USE_LIBRETINY */
   bool is_set() { return !ip_addr_isany(&ip_addr_); }
   std::string str() const { return ipaddr_ntoa(&ip_addr_); }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
@@ -68,6 +71,10 @@ struct IPAddress {
 #if USE_ESP32_FRAMEWORK_ARDUINO
   operator Arduino_h::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); };
 #endif /* USE_ESP32_FRAMEWORK_ADRDUINO */
+
+#if USE_LIBRETINY
+  operator arduino::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); };
+#endif /* USE_LIBRETINY */
 
 #ifdef USE_ESP32
   operator esp_ip_addr_t() const {
