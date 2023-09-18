@@ -59,21 +59,21 @@ struct IPAddress {
     return *this;
   }
 
-  operator ip_addr_t() const { return ip_addr_; };
+  operator ip_addr_t() const { return ip_addr_; }
 #if LWIP_IPV6
-  operator ip4_addr_t() const { return *ip_2_ip4(&ip_addr_); };
+  operator ip4_addr_t() const { return *ip_2_ip4(&ip_addr_); }
 #endif /* LWIP_IPV6 */
 
 #ifdef USE_RP2040
-  operator arduino::IPAddress() const { return arduino::IPAddress(&ip_addr_); };
+  operator arduino::IPAddress() const { return arduino::IPAddress(&ip_addr_); }
 #endif /* USE_RP2040 */
 
 #if USE_ESP32_FRAMEWORK_ARDUINO
-  operator Arduino_h::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); };
+  operator Arduino_h::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); }
 #endif /* USE_ESP32_FRAMEWORK_ADRDUINO */
 
 #if USE_LIBRETINY
-  operator arduino::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); };
+  operator arduino::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); }
 #endif /* USE_LIBRETINY */
 
 #ifdef USE_ESP32
