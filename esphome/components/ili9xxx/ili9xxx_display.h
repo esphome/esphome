@@ -7,7 +7,7 @@
 namespace esphome {
 namespace ili9xxx {
 
-const uint32_t ILI9XXX_TRANSFER_BUFFER_SIZE = 64;
+const size_t ILI9XXX_TRANSFER_BUFFER_SIZE = 126;   // ensure this is divisible by 6
 
 enum ILI9XXXColorMode {
   BITS_8 = 0x08,
@@ -54,7 +54,7 @@ class ILI9XXXDisplay : public PollingComponent,
 
   void display_();
   void init_lcd_(const uint8_t *init_cmd);
-  void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
+  void set_addr_window_(uint16_t x, uint16_t y, uint16_t x2, uint16_t y2);
   void invert_display_(bool invert);
   void reset_();
 
@@ -76,10 +76,6 @@ class ILI9XXXDisplay : public PollingComponent,
   void end_command_();
   void start_data_();
   void end_data_();
-
-  uint16_t transfer_buffer_[ILI9XXX_TRANSFER_BUFFER_SIZE];
-
-  uint32_t buffer_to_transfer_(uint32_t pos, uint32_t sz);
 
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *dc_pin_{nullptr};

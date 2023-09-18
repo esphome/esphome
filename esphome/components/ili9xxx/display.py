@@ -140,8 +140,6 @@ async def to_code(config):
         rhs = []
         for x in range(256):
             rhs.extend([HexInt(x), HexInt(x), HexInt(x)])
-        prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-        cg.add(var.set_palette(prog_arr))
     elif config[CONF_COLOR_PALETTE] == "IMAGE_ADAPTIVE":
         cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_8_INDEXED))
         from PIL import Image
@@ -178,6 +176,4 @@ async def to_code(config):
     if rhs is not None:
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_palette(prog_arr))
-
-    spi_data_rate = str(spi.SPI_DATA_RATE_OPTIONS[config[CONF_DATA_RATE]])
-    cg.add_define("ILI9XXXDisplay_DATA_RATE", cg.RawExpression(spi_data_rate))
+    cg.add(var.set_data_rate(config[CONF_DATA_RATE]))
