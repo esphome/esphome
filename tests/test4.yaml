@@ -21,6 +21,9 @@ ethernet:
     subnet: 255.255.255.0
   domain: .local
 
+network:
+  enable_ipv6: true
+
 api:
 
 i2c:
