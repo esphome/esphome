@@ -205,7 +205,7 @@ void ILI9XXXDisplay::display_() {
           color_val = display::ColorUtil::color_to_565(
               display::ColorUtil::index8_to_color_palette888(this->buffer_[pos++], this->palette_));
           break;
-        default: //case BITS_16:
+        default:  // case BITS_16:
           color_val = (buffer_[pos * 2] << 8) + buffer_[pos * 2 + 1];
           pos += 2;
           break;

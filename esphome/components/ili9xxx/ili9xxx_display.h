@@ -7,7 +7,7 @@
 namespace esphome {
 namespace ili9xxx {
 
-const size_t ILI9XXX_TRANSFER_BUFFER_SIZE = 126;   // ensure this is divisible by 6
+const size_t ILI9XXX_TRANSFER_BUFFER_SIZE = 126;  // ensure this is divisible by 6
 
 enum ILI9XXXColorMode {
   BITS_8 = 0x08,
