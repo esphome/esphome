@@ -1011,6 +1011,7 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       assert(trig != nullptr);
+      this->custom_preset = custom_preset;
       trig->trigger();
 
       this->refresh();
