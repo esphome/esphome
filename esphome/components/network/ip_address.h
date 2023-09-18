@@ -28,7 +28,7 @@ struct IPAddress {
   }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
-  IPAddress(ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_)); }
+  IPAddress(ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t)); }
 #ifdef USE_ESP32
 #if LWIP_IPV6
   IPAddress(esp_ip4_addr_t *other_ip) {
