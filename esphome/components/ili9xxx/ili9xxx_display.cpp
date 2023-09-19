@@ -181,19 +181,19 @@ void ILI9XXXDisplay::display_() {
   uint16_t const w = this->width_;
   uint16_t const h = this->y_high_ - this->y_low_ + 1;  // NOLINT
   size_t pos = this->y_low_ * this->width_;
+  size_t rem = h * w;  // remaining number of pixels to write
 
   ESP_LOGV(TAG,
            "Start display(xlow:%d, ylow:%d, xhigh:%d, yhigh:%d, width:%d, "
-           "height:%d, mode=%d, 18bit=%d)",
+           "height:%d, mode=%d, 18bit=%d, rem=%d)",
            this->x_low_, this->y_low_, this->x_high_, this->y_high_, w, h, this->buffer_color_mode_,
-           this->is_18bitdisplay_);
+           this->is_18bitdisplay_, rem);
 
   set_addr_window_(0, this->y_low_, this->width_ - 1, this->y_high_);
   if (this->buffer_color_mode_ == BITS_16 && !this->is_18bitdisplay_) {
     // 16 bit mode maps directly to display format
-    this->write_array(this->buffer_ + pos * 2, h * w * 2);
+    this->write_array(this->buffer_ + pos * 2, rem * 2);
   } else {
-    size_t rem = h * w;  // remaining number of pixels to write
     size_t idx = 0;      // index into transfer_buffer
     while (rem-- != 0) {
       uint16_t color_val;

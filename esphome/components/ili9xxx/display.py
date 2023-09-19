@@ -25,7 +25,7 @@ def AUTO_LOAD():
     return []
 
 
-CODEOWNERS = ["@nielsnl68"]
+CODEOWNERS = ["@nielsnl68", "@clydebarrow"]
 
 ili9XXX_ns = cg.esphome_ns.namespace("ili9xxx")
 ili9XXXSPI = ili9XXX_ns.class_(
