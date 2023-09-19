@@ -194,7 +194,7 @@ void ILI9XXXDisplay::display_() {
     // 16 bit mode maps directly to display format
     this->write_array(this->buffer_ + pos * 2, rem * 2);
   } else {
-    size_t idx = 0;      // index into transfer_buffer
+    size_t idx = 0;  // index into transfer_buffer
     while (rem-- != 0) {
       uint16_t color_val;
       switch (this->buffer_color_mode_) {
