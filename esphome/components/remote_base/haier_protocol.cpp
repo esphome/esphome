@@ -47,11 +47,12 @@ optional<HaierData> HaierProtocol::decode(RemoteReceiveData src) {
   if (!src.expect_mark(BIT_MARK_US)) {
     return {};
   }
+  size_t size = src.size() - src.get_index() - 1;
+  if (size < HAIER_IR_PACKET_BIT_SIZE * 2)
+    return {};
+  size = HAIER_IR_PACKET_BIT_SIZE * 2;
   uint8_t checksum = 0;
   HaierData out;
-  size_t size = src.size() - src.get_index() - 1;
-  if (size != HAIER_IR_PACKET_BIT_SIZE * 2)
-    return {};
   while (size > 0) {
     uint8_t data = 0;
     for (uint8_t mask = 0x80; mask != 0; mask >>= 1) {
