@@ -10,10 +10,18 @@ namespace wifi_info {
 class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
   void update() override {
-    auto ip = wifi::global_wifi_component->wifi_sta_ip();
-    if (ip != this->last_ip_) {
-      this->last_ip_ = ip;
-      this->publish_state(ip.str());
+    std::string address_results;
+    auto ips = wifi::global_wifi_component->wifi_sta_ip();
+    if (ips != this->last_ips_) {
+      this->last_ips_ = ips;
+      for (auto& ip: ips) {
+        if (ip.is_set()) {
+          address_results += ip.is_ip4() ? "IPv4: " : "IPv6: ";
+          address_results += ip.str();
+          address_results += "\n";
+        }
+      }
+      this->publish_state(address_results);
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
@@ -21,7 +29,7 @@ class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSenso
   void dump_config() override;
 
  protected:
-  network::IPAddress last_ip_;
+  network::IPAddresses last_ips_;
 };
 
 class DNSAddressWifiInfo : public PollingComponent, public text_sensor::TextSensor {

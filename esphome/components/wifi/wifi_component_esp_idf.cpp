@@ -464,17 +464,35 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   return true;
 }
 
-network::IPAddress WiFiComponent::wifi_sta_ip() {
+network::IPAddresses WiFiComponent::wifi_sta_ip() {
   if (!this->has_sta())
     return {};
+  network::IPAddresses addresses;
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
   if (err != ESP_OK) {
     ESP_LOGV(TAG, "esp_netif_get_ip_info failed: %s", esp_err_to_name(err));
     // TODO: do something smarter
     // return false;
+  } else {
+    addresses[0] = network::IPAddress(&ip.ip);
   }
-  return network::IPAddress(&ip.ip);
+#if ENABLE_IPV6
+  esp_ip6_addr_t ipv6;
+  err = esp_netif_get_ip6_global(s_sta_netif, &ipv6);
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "esp_netif_get_ip6_gobal failed: %s", esp_err_to_name(err));
+  } else  {
+    addresses[1] = network::IPAddress(&ipv6);
+  }
+  err = esp_netif_get_ip6_linklocal(s_sta_netif, &ipv6);
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "esp_netif_get_ip6_linklocal failed: %s", esp_err_to_name(err));
+  } else  {
+    addresses[2] = network::IPAddress(&ipv6);
+  }
+#endif
+  return addresses;
 }
 
 bool WiFiComponent::wifi_apply_hostname_() {

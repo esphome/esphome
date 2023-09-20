@@ -29,7 +29,7 @@ bool is_connected() {
   return false;
 }
 
-network::IPAddress get_ip_address() {
+network::IPAddresses get_ip_address() {
 #ifdef USE_ETHERNET
   if (ethernet::global_eth_component != nullptr)
     return ethernet::global_eth_component->get_ip_address();

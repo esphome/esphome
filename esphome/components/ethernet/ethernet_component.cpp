@@ -233,10 +233,34 @@ float EthernetComponent::get_setup_priority() const { return setup_priority::WIF
 
 bool EthernetComponent::can_proceed() { return this->is_connected(); }
 
-network::IPAddress EthernetComponent::get_ip_address() {
+network::IPAddresses EthernetComponent::get_ip_address() {
+  network::IPAddresses addresses;
   esp_netif_ip_info_t ip;
-  esp_netif_get_ip_info(this->eth_netif_, &ip);
-  return network::IPAddress(&ip.ip);
+  esp_err_t err = esp_netif_get_ip_info(this->eth_netif_, &ip);
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "esp_netif_get_ip_info failed: %s", esp_err_to_name(err));
+    // TODO: do something smarter
+    // return false;
+  } else {
+    addresses[0] = network::IPAddress(&ip.ip);
+  }
+#if ENABLE_IPV6
+  esp_ip6_addr_t ipv6;
+  err = esp_netif_get_ip6_global(this->eth_netif_, &ipv6);
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "esp_netif_get_ip6_gobal failed: %s", esp_err_to_name(err));
+  } else  {
+    addresses[1] = network::IPAddress(&ipv6);
+  }
+  err = esp_netif_get_ip6_linklocal(this->eth_netif_, &ipv6);
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "esp_netif_get_ip6_linklocal failed: %s", esp_err_to_name(err));
+  } else  {
+    addresses[2] = network::IPAddress(&ipv6);
+  }
+ #endif
+
+  return addresses;
 }
 
 void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event, void *event_data) {

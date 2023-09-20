@@ -190,11 +190,12 @@ void WiFiComponent::set_fast_connect(bool fast_connect) { this->fast_connect_ = 
 void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
 void WiFiComponent::set_rrm(bool rrm) { this->rrm_ = rrm; }
 #endif
-network::IPAddress WiFiComponent::get_ip_address() {
+network::IPAddresses WiFiComponent::get_ip_address() {
   if (this->has_sta())
     return this->wifi_sta_ip();
-  if (this->has_ap())
-    return this->wifi_soft_ap_ip();
+  // TODO: fix soft ap
+/*  if (this->has_ap())
+    return this->wifi_soft_ap_ip();*/
   return {};
 }
 network::IPAddress WiFiComponent::get_dns_address(int num) {
@@ -381,7 +382,11 @@ void WiFiComponent::print_connect_params_() {
 
   ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
   ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), wifi_ssid().c_str());
-  ESP_LOGCONFIG(TAG, "  IP Address: %s", wifi_sta_ip().str().c_str());
+  for (auto& ip: wifi_sta_ip()) {
+    if (ip.is_set()) {
+      ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str().c_str());
+    }
+  }
   ESP_LOGCONFIG(TAG, "  BSSID: " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X"), bssid[0], bssid[1], bssid[2], bssid[3],
                 bssid[4], bssid[5]);
   ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());

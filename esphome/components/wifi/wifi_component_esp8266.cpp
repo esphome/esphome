@@ -17,10 +17,8 @@ extern "C" {
 #include "lwip/dhcp.h"
 #include "lwip/init.h"  // LWIP_VERSION_
 #include "lwip/apps/sntp.h"
-#if LWIP_IPV6
 #include "lwip/netif.h"  // struct netif
 #include <AddrList.h>
-#endif
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
 #include "LwipDhcpServer.h"
 #define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
@@ -185,12 +183,23 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   return ret;
 }
 
-network::IPAddress WiFiComponent::wifi_sta_ip() {
+network::IPAddresses WiFiComponent::wifi_sta_ip() {
   if (!this->has_sta())
     return {};
-  struct ip_info ip {};
-  wifi_get_ip_info(STATION_IF, &ip);
-  return network::IPAddress(&ip.ip);
+  network::IPAddresses addresses;
+  for (auto addr : addrList) {
+    if (addr.isV4()) {
+      addresses[0] = addr.addr();
+    }
+    if (addr.isV6()) {
+      if (!addr.isLocal()) {
+        addresses[1] = addr.addr();
+      } else {
+        addresses[2] = addr.addr();
+      }
+    }
+  }
+  return addresses;
 }
 bool WiFiComponent::wifi_apply_hostname_() {
   const std::string &hostname = App.get_name();
