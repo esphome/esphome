@@ -15,7 +15,7 @@ AUTO_LOAD = ["uart"]
 
 wk2132_ns = cg.esphome_ns.namespace("wk2132")
 WK2132Component = wk2132_ns.class_("WK2132Component", cg.Component, i2c.I2CDevice)
-WK2132Channel = wk2132_ns.class_("WK2132Channel", cg.Component, uart.UARTComponent)
+WK2132Channel = wk2132_ns.class_("WK2132Channel", uart.UARTComponent)
 
 CONF_WK2132 = "wk2132"
 MULTI_CONF = True
