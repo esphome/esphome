@@ -10,6 +10,7 @@
 #endif /* USE_RP2040 */
 #if USE_ARDUINO
 #include <Arduino.h>
+#include <IPAddress.h>
 #endif /* USE_ADRDUINO */
 
 #ifdef USE_ESP32
@@ -29,10 +30,21 @@ struct IPAddress {
   IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t)); }
+#if LWIP_IPV6
+  IPAddress(ip6_addr_t *other_ip) {
+    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip6_addr_t));
+    ip_addr_.type = IPADDR_TYPE_V6;
+  }
+#endif /* LWIP_IPV6 */
 #ifdef USE_ESP32
 #if LWIP_IPV6
+  IPAddress(esp_ip6_addr_t *other_ip) {
+    memcpy((void *) &ip_addr_.u_addr.ip6, (void *) other_ip, sizeof(esp_ip6_addr_t));
+    ip_addr_.type = IPADDR_TYPE_V6;
+  }
   IPAddress(esp_ip4_addr_t *other_ip) {
     memcpy((void *) &ip_addr_.u_addr.ip4, (void *) other_ip, sizeof(esp_ip4_addr_t));
+    ip_addr_.type = IPADDR_TYPE_V4;
   }
 #else
   IPAddress(esp_ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_)); }
@@ -40,11 +52,14 @@ struct IPAddress {
 #endif /* USE_ESP32 */
 #if USE_ESP32_FRAMEWORK_ARDUINO
   IPAddress(const Arduino_h::IPAddress &other_ip) { ip_addr_set_ip4_u32(&ip_addr_, other_ip); }
-#endif /* USE_ESP32_FRAMEWORK_ARDUINO */
-#if USE_LIBRETINY
+#elif USE_LIBRETINY
   IPAddress(const arduino::IPAddress &other_ip) { ip_addr_set_ip4_u32(&ip_addr_, other_ip); }
-#endif /* USE_LIBRETINY */
+#elif USE_ARDUINO
+  IPAddress(const ::IPAddress &other_ip) { ip_addr_ = other_ip; }
+#endif /* USE_ARDUINO */
   bool is_set() { return !ip_addr_isany(&ip_addr_); }
+  bool is_ip4() { return IP_IS_V4(&ip_addr_); }
+  bool is_ip6() { return IP_IS_V6(&ip_addr_); }
   std::string str() const { return ipaddr_ntoa(&ip_addr_); }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !(&ip_addr_ == &other.ip_addr_); }
