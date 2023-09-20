@@ -72,16 +72,13 @@ void Wireguard::loop() {
 }
 
 void Wireguard::update() {
-  if (!this->enabled_) {
-    return;
-  }
-
   bool peer_up = this->is_peer_up();
   time_t lhs = this->get_latest_handshake();
   bool lhs_updated = (lhs > this->latest_saved_handshake_);
 
-  ESP_LOGV(TAG, "handshake: latest=%.0f, saved=%.0f, updated=%d", (double) lhs, (double) this->latest_saved_handshake_,
-           (int) lhs_updated);
+  ESP_LOGV(TAG, "enabled=%d, connected=%d, peer_up=%d, handshake: current=%.0f latest=%.0f updated=%d",
+           (int) (this->wg_connected_ == ESP_OK), (int) this->enabled_, (int) peer_up, (double) lhs,
+           (double) this->latest_saved_handshake_, (int) lhs_updated);
 
   if (lhs_updated) {
     this->latest_saved_handshake_ = lhs;
@@ -103,13 +100,13 @@ void Wireguard::update() {
     if (this->wg_peer_offline_time_ == 0) {
       ESP_LOGW(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
       this->wg_peer_offline_time_ = millis();
-    } else {
+    } else if (this->enabled_) {
       ESP_LOGD(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
       this->start_connection_();
     }
 
     // check reboot timeout every time the peer is down
-    if (this->reboot_timeout_ > 0) {
+    if (this->enabled_ && this->reboot_timeout_ > 0) {
       if (millis() - this->wg_peer_offline_time_ > this->reboot_timeout_) {
         ESP_LOGE(TAG, "WireGuard remote peer is unreachable, rebooting...");
         App.reboot();
@@ -211,7 +208,7 @@ bool Wireguard::is_enabled() { return this->enabled_; }
 
 void Wireguard::start_connection_() {
   if (!this->enabled_) {
-    ESP_LOGV(TAG, "WireGuard is disabled");
+    ESP_LOGV(TAG, "WireGuard is disabled, cannot start connection");
     return;
   }
 
