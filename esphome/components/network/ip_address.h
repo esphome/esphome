@@ -5,9 +5,6 @@
 #include <array>
 #include <lwip/ip_addr.h>
 
-#ifdef USE_RP2040
-#include <Arduino.h>
-#endif /* USE_RP2040 */
 #if USE_ARDUINO
 #include <Arduino.h>
 #include <IPAddress.h>
@@ -30,49 +27,47 @@ struct IPAddress {
   IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t)); }
-#if LWIP_IPV6
-  IPAddress(ip6_addr_t *other_ip) {
-    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip6_addr_t));
-    ip_addr_.type = IPADDR_TYPE_V6;
-  }
-#endif /* LWIP_IPV6 */
-#ifdef USE_ESP32
-#if LWIP_IPV6
-  IPAddress(esp_ip6_addr_t *other_ip) {
-    memcpy((void *) &ip_addr_.u_addr.ip6, (void *) other_ip, sizeof(esp_ip6_addr_t));
-    ip_addr_.type = IPADDR_TYPE_V6;
-  }
-  IPAddress(esp_ip4_addr_t *other_ip) {
-    memcpy((void *) &ip_addr_.u_addr.ip4, (void *) other_ip, sizeof(esp_ip4_addr_t));
-    ip_addr_.type = IPADDR_TYPE_V4;
-  }
-#else
-  IPAddress(esp_ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_)); }
-#endif /* LWIP_IPV6 */
-#endif /* USE_ESP32 */
 #if USE_ESP32_FRAMEWORK_ARDUINO
   IPAddress(const Arduino_h::IPAddress &other_ip) { ip_addr_set_ip4_u32(&ip_addr_, other_ip); }
 #elif USE_LIBRETINY
   IPAddress(const arduino::IPAddress &other_ip) { ip_addr_set_ip4_u32(&ip_addr_, other_ip); }
 #elif USE_ARDUINO
   IPAddress(const ::IPAddress &other_ip) { ip_addr_ = other_ip; }
-#endif /* USE_ARDUINO */
-  bool is_set() { return !ip_addr_isany(&ip_addr_); }
-  bool is_ip4() { return IP_IS_V4(&ip_addr_); }
-  bool is_ip6() { return IP_IS_V6(&ip_addr_); }
-  std::string str() const { return ipaddr_ntoa(&ip_addr_); }
-  bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
-  bool operator!=(const IPAddress &other) const { return !(&ip_addr_ == &other.ip_addr_); }
-  IPAddress &operator+=(uint8_t increase) {
-    if (IP_IS_V4(&ip_addr_)) {
+#endif
 #if LWIP_IPV6
-      (((u8_t *) (&ip_addr_.u_addr.ip4))[3]) += increase;
-#else
-      (((u8_t *) (&ip_addr_.addr))[3]) += increase;
-#endif /* LWIP_IPV6 */
-    }
-    return *this;
+  IPAddress(ip6_addr_t *other_ip) {
+    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip6_addr_t));
+    ip_addr_.type = IPADDR_TYPE_V6;
   }
+#endif /* LWIP_IPV6 */
+
+#ifdef USE_ESP32
+#if LWIP_IPV6
+  IPAddress(esp_ip6_addr_t *other_ip) {
+    memcpy((void *) &ip_addr_.u_addr.ip6, (void *) other_ip, sizeof(esp_ip6_addr_t));
+    ip_addr_.type = IPADDR_TYPE_V6;
+  }
+#endif /* LWIP_IPV6 */
+  IPAddress(esp_ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t)); }
+  operator esp_ip_addr_t() const {
+    esp_ip_addr_t tmp;
+#if LWIP_IPV6
+    memcpy((void *) &tmp, (void *) &ip_addr_, sizeof(ip_addr_));
+#else
+    memcpy((void *) &tmp.u_addr.ip4, (void *) &ip_addr_, sizeof(ip_addr_));
+#endif /* LWIP_IPV6 */
+    return tmp;
+  }
+  operator esp_ip4_addr_t() const {
+    esp_ip4_addr_t tmp;
+#if LWIP_IPV6
+    memcpy((void *) &tmp, (void *) &ip_addr_.u_addr.ip4, sizeof(esp_ip4_addr_t));
+#else
+    memcpy((void *) &tmp, (void *) &ip_addr_, sizeof(ip_addr_));
+#endif /* LWIP_IPV6 */
+    return tmp;
+  }
+#endif /* USE_ESP32 */
 
   operator ip_addr_t() const { return ip_addr_; }
 #if LWIP_IPV6
@@ -91,29 +86,22 @@ struct IPAddress {
   operator arduino::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); }
 #endif /* USE_LIBRETINY */
 
-#ifdef USE_ESP32
-  operator esp_ip_addr_t() const {
-    esp_ip_addr_t tmp;
+  bool is_set() { return !ip_addr_isany(&ip_addr_); }
+  bool is_ip4() { return IP_IS_V4(&ip_addr_); }
+  bool is_ip6() { return IP_IS_V6(&ip_addr_); }
+  std::string str() const { return ipaddr_ntoa(&ip_addr_); }
+  bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
+  bool operator!=(const IPAddress &other) const { return !(&ip_addr_ == &other.ip_addr_); }
+  IPAddress &operator+=(uint8_t increase) {
+    if (IP_IS_V4(&ip_addr_)) {
 #if LWIP_IPV6
-    memcpy((void *) &tmp, (void *) &ip_addr_, sizeof(ip_addr_));
+      (((u8_t *) (&ip_addr_.u_addr.ip4))[3]) += increase;
 #else
-    memcpy((void *) &tmp.u_addr.ip4, (void *) &ip_addr_, sizeof(ip_addr_));
+      (((u8_t *) (&ip_addr_.addr))[3]) += increase;
 #endif /* LWIP_IPV6 */
-    return tmp;
+    }
+    return *this;
   }
-#endif /* USE_ESP32 */
-
-#if USE_ESP32
-  operator esp_ip4_addr_t() const {
-    esp_ip4_addr_t tmp;
-#if LWIP_IPV6
-    memcpy((void *) &tmp, (void *) &ip_addr_.u_addr.ip4, sizeof(esp_ip4_addr_t));
-#else
-    memcpy((void *) &tmp, (void *) &ip_addr_, sizeof(ip_addr_));
-#endif /* LWIP_IPV6 */
-    return tmp;
-  }
-#endif /* USE_ESP32 */
 
  protected:
   ip_addr_t ip_addr_;
