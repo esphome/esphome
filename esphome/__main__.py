@@ -26,13 +26,15 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
     CONF_SUBSTITUTIONS,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
-from esphome.helpers import indent
+from esphome.helpers import indent, is_ip_address
 from esphome.util import (
     run_external_command,
     run_external_process,
@@ -83,6 +85,8 @@ def choose_upload_log_host(
     options = []
     for port in get_serial_ports():
         options.append((f"{port.path} ({port.description})", port.path))
+    if default == "SERIAL":
+        return choose_prompt(options, purpose=purpose)
     if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
         options.append((f"Over The Air ({CORE.address})", CORE.address))
         if default == "OTA":
@@ -216,14 +220,16 @@ def compile_program(args, config):
     return 0 if idedata is not None else 1
 
 
-def upload_using_esptool(config, port):
+def upload_using_esptool(config, port, file):
     from esphome import platformio_api
 
     first_baudrate = config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
         "upload_speed", 460800
     )
 
-    def run_esptool(baud_rate):
+    if file is not None:
+        flash_images = [platformio_api.FlashImage(path=file, offset="0x0")]
+    else:
         idedata = platformio_api.get_idedata(config)
 
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
@@ -234,12 +240,13 @@ def upload_using_esptool(config, port):
             *idedata.extra_flash_images,
         ]
 
-        mcu = "esp8266"
-        if CORE.is_esp32:
-            from esphome.components.esp32 import get_esp32_variant
+    mcu = "esp8266"
+    if CORE.is_esp32:
+        from esphome.components.esp32 import get_esp32_variant
 
-            mcu = get_esp32_variant().lower()
+        mcu = get_esp32_variant().lower()
 
+    def run_esptool(baud_rate):
         cmd = [
             "esptool.py",
             "--before",
@@ -278,20 +285,26 @@ def upload_using_esptool(config, port):
     return run_esptool(115200)
 
 
+def upload_using_platformio(config, port):
+    from esphome import platformio_api
+
+    upload_args = ["-t", "upload", "-t", "nobuild"]
+    if port is not None:
+        upload_args += ["--upload-port", port]
+    return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+
+
 def upload_program(config, args, host):
     if get_port_type(host) == "SERIAL":
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
-            return upload_using_esptool(config, host)
+            file = getattr(args, "file", None)
+            return upload_using_esptool(config, host, file)
 
         if CORE.target_platform in (PLATFORM_RP2040):
-            from esphome import platformio_api
+            return upload_using_platformio(config, args.device)
 
-            upload_args = ["-t", "upload"]
-            if args.device is not None:
-                upload_args += ["--upload-port", args.device]
-            return platformio_api.run_platformio_cli_run(
-                config, CORE.verbose, *upload_args
-            )
+        if CORE.target_platform in (PLATFORM_BK72XX, PLATFORM_RTL87XX):
+            return upload_using_platformio(config, host)
 
         return 1  # Unknown target platform
 
@@ -308,8 +321,10 @@ def upload_program(config, args, host):
     password = ota_conf.get(CONF_PASSWORD, "")
 
     if (
-        get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED]
-    ) and CONF_MQTT in config:
+        not is_ip_address(CORE.address)
+        and (get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED])
+        and CONF_MQTT in config
+    ):
         from esphome import mqtt
 
         host = mqtt.get_esphome_device_ip(
@@ -363,10 +378,16 @@ def command_wizard(args):
 
 
 def command_config(args, config):
-    _LOGGER.info("Configuration is valid!")
     if not CORE.verbose:
         config = strip_default_ids(config)
-    safe_print(yaml_util.dump(config, args.show_secrets))
+    output = yaml_util.dump(config, args.show_secrets)
+    # add the console decoration so the front-end can hide the secrets
+    if not args.show_secrets:
+        output = re.sub(
+            r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[5m\2\\033[6m", output
+        )
+    safe_print(output)
+    _LOGGER.info("Configuration is valid!")
     return 0
 
 

@@ -271,10 +271,10 @@ def exp_mqtt_message(config):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    # Add required libraries for arduino
-    if CORE.using_arduino:
-        # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
-        cg.add_library("ottowinter/AsyncMqttClient-esphome", "0.8.6")
+    # Add required libraries for ESP8266
+    if CORE.is_esp8266:
+        # https://github.com/heman/async-mqtt-client/blob/master/library.json
+        cg.add_library("heman/AsyncMqttClient-esphome", "1.0.0")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)

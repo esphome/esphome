@@ -1,14 +1,17 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 #include <memory>
 #include <utility>
 #include <vector>
 
 #include "esphome/core/component.h"
 
+#ifdef USE_ARDUINO
 #include <ESPAsyncWebServer.h>
+#elif USE_ESP_IDF
+#include "esphome/core/hal.h"
+#include "esphome/components/web_server_idf/web_server_idf.h"
+#endif
 
 namespace esphome {
 namespace web_server_base {
@@ -83,6 +86,7 @@ class WebServerBase : public Component {
       return;
     }
     this->server_ = std::make_shared<AsyncWebServer>(this->port_);
+    // All content is controlled and created by user - so allowing all origins is fine here.
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
     this->server_->begin();
 
@@ -140,5 +144,3 @@ class OTARequestHandler : public AsyncWebHandler {
 
 }  // namespace web_server_base
 }  // namespace esphome
-
-#endif  // USE_ARDUINO
