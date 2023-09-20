@@ -168,14 +168,9 @@ void MQTTClientComponent::start_dnslookup_() {
     case ERR_OK: {
       // Got IP immediately
       this->dns_resolved_ = true;
-#ifdef USE_ESP32
 #if LWIP_IPV6
       this->ip_ = addr.u_addr.ip4.addr;
 #else
-      this->ip_ = addr.addr;
-#endif
-#endif
-#ifdef USE_ESP8266
       this->ip_ = addr.addr;
 #endif
       this->start_connect_();
@@ -228,14 +223,9 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
   if (ipaddr == nullptr) {
     a_this->dns_resolve_error_ = true;
   } else {
-#ifdef USE_ESP32
 #if LWIP_IPV6
     a_this->ip_ = ipaddr->u_addr.ip4.addr;
 #else
-    a_this->ip_ = ipaddr->addr;
-#endif
-#endif  // USE_ESP32
-#ifdef USE_ESP8266
     a_this->ip_ = ipaddr->addr;
 #endif
     a_this->dns_resolved_ = true;
