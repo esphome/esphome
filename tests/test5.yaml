@@ -667,6 +667,7 @@ matrix_keypad:
     - pin: 17
     - pin: 16
   keys: "1234"
+  has_pulldowns: true
 
 key_collector:
   - id: reader
