@@ -100,6 +100,23 @@ static const uint8_t PROGMEM INITCMD_ILI9481[] = {
   0x00 // end
 };
 
+static const uint8_t PROGMEM INITCMD_ILI9481_18[] = {
+    ILI9XXX_SLPOUT ,  0x80,    // Exit sleep mode
+    ILI9XXX_PWSET  , 3, 0x07, 0x41, 0x1D,
+    ILI9XXX_VMCTR  , 3, 0x00, 0x1C, 0x1F,
+    ILI9XXX_PWSETN , 2, 0x01, 0x11,
+    ILI9XXX_PWCTR1 , 5, 0x10, 0x3B, 0x00, 0x02, 0x11,
+    ILI9XXX_VMCTR1 , 1, 0x03,
+    ILI9XXX_IFCTR  , 1, 0x83,
+    ILI9XXX_GMCTR  ,12, 0x00, 0x26, 0x21, 0x00, 0x00, 0x1F, 0x65, 0x23, 0x77, 0x00, 0x0F, 0x00,
+    ILI9XXX_IFMODE , 1, 0x00,  // CommandAccessProtect
+    0xE4        , 1, 0xA0,
+    ILI9XXX_CSCON , 1, 0x01,
+    ILI9XXX_PIXFMT, 1, 0x66,  // 18 bit mode
+    ILI9XXX_DISPON, 0x80,     // Set display on
+    0x00 // end
+};
+
 static const uint8_t PROGMEM INITCMD_ILI9486[] = {
   ILI9XXX_SLPOUT, 0x80,
   ILI9XXX_PIXFMT, 1, 0x55,

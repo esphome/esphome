@@ -207,7 +207,7 @@ void ILI9XXXDisplay::display_() {
           break;
         default:  // case BITS_16:
           color_val = (buffer_[pos * 2] << 8) + buffer_[pos * 2 + 1];
-          pos += 2;
+          pos++;
           break;
       }
       if (this->is_18bitdisplay_) {
@@ -379,6 +379,17 @@ void ILI9XXXILI9481::initialize() {
   if (this->height_ == 0) {
     this->height_ = 320;
   }
+}
+
+void ILI9XXXILI9481_18::initialize() {
+  this->init_lcd_(INITCMD_ILI9481_18);
+  if (this->width_ == 0) {
+    this->width_ = 480;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 320;
+  }
+  this->is_18bitdisplay_ = true;
 }
 
 //   35_TFT display

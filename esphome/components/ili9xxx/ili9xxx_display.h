@@ -116,6 +116,12 @@ class ILI9XXXILI9481 : public ILI9XXXDisplay {
   void initialize() override;
 };
 
+//-----------   ILI9481 in 18 bit mode --------------
+class ILI9XXXILI9481_18 : public ILI9XXXDisplay {
+ protected:
+  void initialize() override;
+};
+
 //-----------   ILI9XXX_35_TFT rotated display --------------
 class ILI9XXXILI9486 : public ILI9XXXDisplay {
  protected:
