@@ -39,12 +39,11 @@ for f in ./esphome/components/*/test*.*.yaml; do
   component_test_file="./tests/Testing/$target_component.$test_name.$target_platform.yaml"
 
   cp $target_platform_file $component_test_file
-  sed -i "s!<component_name>!$target_component!g" $component_test_file
-  sed -i "s!<test_name>!$test_name!g" $component_test_file
-  sed -i "s!<target_platform>!$target_platform!g" $component_test_file
-  sed -i "s!<component_test_file>!../.$f!g" $component_test_file
+  sed -i "s!\$component_test_file!../.$f!g" $component_test_file
+
 
   # Start esphome compile process
   echo "> [$target_component] [$test_name] [$target_platform]"
-  esphome compile $component_test_file
+  # TODO: Validate escape of Command line substitution value
+  esphome -s component_name $target_component -s test_name $test_name -s target_platform $target_platform build $component_test_file
 done
