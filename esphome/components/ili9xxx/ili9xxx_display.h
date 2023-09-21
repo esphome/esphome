@@ -117,7 +117,7 @@ class ILI9XXXILI9481 : public ILI9XXXDisplay {
 };
 
 //-----------   ILI9481 in 18 bit mode --------------
-class ILI9XXXILI9481_18 : public ILI9XXXDisplay {
+class ILI9XXXILI948118 : public ILI9XXXDisplay {
  protected:
   void initialize() override;
 };

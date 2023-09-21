@@ -65,6 +65,7 @@ void ILI9XXXDisplay::dump_config() {
   if (this->is_18bitdisplay_) {
     ESP_LOGCONFIG(TAG, "  18-Bit Mode: YES");
   }
+  ESP_LOGCONFIG(TAG, "  Data rate: %dMHz", (unsigned)(this->data_rate_/1000000));
 
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
@@ -381,13 +382,13 @@ void ILI9XXXILI9481::initialize() {
   }
 }
 
-void ILI9XXXILI9481_18::initialize() {
+void ILI9XXXILI948118::initialize() {
   this->init_lcd_(INITCMD_ILI9481_18);
   if (this->width_ == 0) {
-    this->width_ = 480;
+    this->width_ = 320;
   }
   if (this->height_ == 0) {
-    this->height_ = 320;
+    this->height_ = 480;
   }
   this->is_18bitdisplay_ = true;
 }
