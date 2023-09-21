@@ -10,6 +10,14 @@
 #include <IPAddress.h>
 #endif /* USE_ADRDUINO */
 
+#if USE_ESP32_FRAMEWORK_ARDUINO
+#define arduino_ns Arduino_h
+#elif USE_LIBRETINY
+#define arduino_ns arduino
+#elif USE_ARDUINO
+#define arduino_ns
+#endif
+
 #ifdef USE_ESP32
 #include <cstring>
 #include <esp_netif.h>
@@ -27,12 +35,8 @@ struct IPAddress {
   IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t)); }
-#if USE_ESP32_FRAMEWORK_ARDUINO
-  IPAddress(const Arduino_h::IPAddress &other_ip) { ip_addr_set_ip4_u32(&ip_addr_, other_ip); }
-#elif USE_LIBRETINY
-  IPAddress(const arduino::IPAddress &other_ip) { ip_addr_set_ip4_u32(&ip_addr_, other_ip); }
-#elif USE_ARDUINO
-  IPAddress(const ::IPAddress &other_ip) { ip_addr_ = other_ip; }
+#if USE_ARDUINO
+  IPAddress(const arduino_ns::IPAddress &other_ip) { ip_addr_set_ip4_u32(&ip_addr_, other_ip); }
 #endif
 #if LWIP_IPV6
   IPAddress(ip6_addr_t *other_ip) {
@@ -74,17 +78,9 @@ struct IPAddress {
   operator ip4_addr_t() const { return *ip_2_ip4(&ip_addr_); }
 #endif /* LWIP_IPV6 */
 
-#ifdef USE_RP2040
-  operator arduino::IPAddress() const { return arduino::IPAddress(&ip_addr_); }
-#endif /* USE_RP2040 */
-
-#if USE_ESP32_FRAMEWORK_ARDUINO
-  operator Arduino_h::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); }
-#endif /* USE_ESP32_FRAMEWORK_ADRDUINO */
-
-#if USE_LIBRETINY
-  operator arduino::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); }
-#endif /* USE_LIBRETINY */
+#if USE_ARDUINO
+  operator arduino_ns::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); }
+#endif
 
   bool is_set() { return !ip_addr_isany(&ip_addr_); }
   bool is_ip4() { return IP_IS_V4(&ip_addr_); }
