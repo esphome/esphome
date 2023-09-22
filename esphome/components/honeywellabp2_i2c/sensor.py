@@ -14,7 +14,7 @@ from esphome.const import (
 
 DEPENDENCIES = ["i2c"]
 
-honeywellabp2_ns = cg.esphome_ns.namespace("honeywellabp2")
+honeywellabp2_ns = cg.esphome_ns.namespace("honeywellabp2_i2c")
 
 CONF_MIN_PRESSURE = "min_pressure"
 CONF_MAX_PRESSURE = "max_pressure"
