@@ -55,6 +55,8 @@ class SPIBusHw : public SPIBus {
  public:
   SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel) : SPIBus(clk, sdo, sdi), channel_(channel) {
 #ifdef USE_ESP8266
+    clk->setup();
+    clk->digital_write(true);
     channel->pins(Utility::get_pin_no(clk), Utility::get_pin_no(sdi), Utility::get_pin_no(sdo), -1);
     channel->begin();
 #endif  // USE_ESP8266
