@@ -274,7 +274,7 @@ async def to_code(config):
     # Add required libraries for ESP8266 or RP2040
     if CORE.is_esp8266 or CORE.is_rp2040:
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
-        cg.add_library("heman/AsyncMqttClient-esphome", "1.0.0")
+        cg.add_library("heman/AsyncMqttClient-esphome", "1.1.0")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
