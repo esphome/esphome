@@ -106,6 +106,9 @@ void MQTTClientComponent::send_device_info_() {
 #ifdef USE_ESP32
         root["platform"] = "ESP32";
 #endif
+#ifdef USE_RP2040
+        root["platform"] = "RP2040";
+#endif
 
         root["board"] = ESPHOME_BOARD;
 #if defined(USE_WIFI)
@@ -161,6 +164,10 @@ void MQTTClientComponent::start_dnslookup_() {
                                          MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
 #endif
 #ifdef USE_ESP8266
+  err_t err = dns_gethostbyname(this->credentials_.address.c_str(), &addr,
+                                esphome::mqtt::MQTTClientComponent::dns_found_callback, this);
+#endif
+#ifdef USE_RP2040
   err_t err = dns_gethostbyname(this->credentials_.address.c_str(), &addr,
                                 esphome::mqtt::MQTTClientComponent::dns_found_callback, this);
 #endif
