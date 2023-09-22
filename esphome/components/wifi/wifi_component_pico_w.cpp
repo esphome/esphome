@@ -173,17 +173,9 @@ int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
 
 network::IPAddresses WiFiComponent::wifi_sta_ip() {
   network::IPAddresses addresses;
+  uint8_t index = 0;
   for (auto addr : addrList) {
-    if (addr.isV4()) {
-      addresses[0] = addr.addr();
-    }
-    if (addr.isV6()) {
-      if (!addr.isLocal()) {
-        addresses[1] = addr.addr();
-      } else {
-        addresses[2] = addr.addr();
-      }
-    }
+    addresses[index++] = addr.ipFromNetifNum();
   }
   return addresses;
 }

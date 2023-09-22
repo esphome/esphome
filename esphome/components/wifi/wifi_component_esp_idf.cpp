@@ -478,18 +478,12 @@ network::IPAddresses WiFiComponent::wifi_sta_ip() {
     addresses[0] = network::IPAddress(&ip.ip);
   }
 #if ENABLE_IPV6
-  esp_ip6_addr_t ipv6;
-  err = esp_netif_get_ip6_global(s_sta_netif, &ipv6);
-  if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_netif_get_ip6_gobal failed: %s", esp_err_to_name(err));
-  } else  {
-    addresses[1] = network::IPAddress(&ipv6);
-  }
-  err = esp_netif_get_ip6_linklocal(s_sta_netif, &ipv6);
-  if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_netif_get_ip6_linklocal failed: %s", esp_err_to_name(err));
-  } else  {
-    addresses[2] = network::IPAddress(&ipv6);
+  struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+  uint8_t count = 0;
+  count = esp_netif_get_all_ip6(s_sta_netif, if_ip6s);
+  assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
+  for (int i = 0; i < count; i++) {
+        addresses[i+1] = network::IPAddress(&if_ip6s[i]);
   }
 #endif
   return addresses;
