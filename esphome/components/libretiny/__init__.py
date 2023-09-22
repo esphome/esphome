@@ -168,9 +168,9 @@ def _notify_old_style(config):
 # NOTE: Keep this in mind when updating the recommended version:
 #  * For all constants below, update platformio.ini (in this repo)
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(0, 0, 0), "https://github.com/kuba2k2/libretiny.git"),
+    "dev": (cv.Version(0, 0, 0), "https://github.com/libretiny-eu/libretiny.git"),
     "latest": (cv.Version(0, 0, 0), None),
-    "recommended": (cv.Version(1, 3, 0), None),
+    "recommended": (cv.Version(1, 4, 0), None),
 }
 
 
