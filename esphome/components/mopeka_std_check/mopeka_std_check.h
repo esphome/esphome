@@ -14,6 +14,7 @@ namespace mopeka_std_check {
 enum SensorType {
   STANDARD = 0x02,
   XL = 0x03,
+  ETRAILER = 0x46,
 };
 
 // 4 values in one struct so it aligns to 8 byte. One `mopeka_std_values` is 40 bit long.
