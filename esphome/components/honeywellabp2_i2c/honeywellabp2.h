@@ -42,10 +42,10 @@ class HONEYWELLABP2Sensor : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pressure_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
 
-  const float max_count_A_ = 15099494.4;  // (90% of 2^24 counts or 0xE66666)
-  const float min_count_A_ = 1677721.6;   // (10% of 2^24 counts or 0x19999A)
-  const float max_count_B_ = 11744051.2;  // (70% of 2^24 counts or 0xB33333)
-  const float min_count_B_ = 5033164.8;   // (30% of 2^24 counts or 0x4CCCCC)
+  const float max_count_a_ = 15099494.4;  // (90% of 2^24 counts or 0xE66666)
+  const float min_count_a_ = 1677721.6;   // (10% of 2^24 counts or 0x19999A)
+  const float max_count_b_ = 11744051.2;  // (70% of 2^24 counts or 0xB33333)
+  const float min_count_b_ = 5033164.8;   // (30% of 2^24 counts or 0x4CCCCC)
 
   float max_count_;
   float min_count_;

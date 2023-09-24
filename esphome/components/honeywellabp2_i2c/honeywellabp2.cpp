@@ -97,11 +97,11 @@ void HONEYWELLABP2Sensor::dump_config() {
 void HONEYWELLABP2Sensor::set_transfer_function(ABP2TRANFERFUNCTION transfer_function) {
   this->transfer_function_ = transfer_function;
   if (this->transfer_function_ == ABP2_TRANS_FUNC_B) {
-    this->max_count_ = this->max_count_B_;
-    this->min_count_ = this->min_count_B_;
+    this->max_count_ = this->max_count_b_;
+    this->min_count_ = this->min_count_b_;
   } else {
-    this->max_count_ = this->max_count_A_;
-    this->min_count_ = this->min_count_A_;
+    this->max_count_ = this->max_count_a_;
+    this->min_count_ = this->min_count_a_;
   }
 }
 
