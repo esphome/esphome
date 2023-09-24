@@ -3566,6 +3566,14 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+  - platform: template
+    name: Poller component suspend test
+    on_press:
+      - component.suspend: myteleinfo
+      - delay: 20s
+      - component.update: myteleinfo
+      - delay: 20s
+      - component.resume: myteleinfo
   - platform: ld2410
     factory_reset:
       name: "factory reset"
