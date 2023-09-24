@@ -69,6 +69,8 @@ WhileAction = cg.esphome_ns.class_("WhileAction", Action)
 RepeatAction = cg.esphome_ns.class_("RepeatAction", Action)
 WaitUntilAction = cg.esphome_ns.class_("WaitUntilAction", Action, cg.Component)
 UpdateComponentAction = cg.esphome_ns.class_("UpdateComponentAction", Action)
+SuspendComponentAction = cg.esphome_ns.class_("SuspendComponentAction", Action)
+ResumeComponentAction = cg.esphome_ns.class_("ResumeComponentAction", Action)
 Automation = cg.esphome_ns.class_("Automation")
 
 LambdaCondition = cg.esphome_ns.class_("LambdaCondition", Condition)
@@ -301,7 +303,7 @@ async def lambda_action_to_code(config, action_id, template_arg, args):
 
 @register_action(
     "component.suspend",
-    UpdateComponentAction,
+    SuspendComponentAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
@@ -311,7 +313,7 @@ async def lambda_action_to_code(config, action_id, template_arg, args):
 
 @register_action(
     "component.resume",
-    UpdateComponentAction,
+    ResumeComponentAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),

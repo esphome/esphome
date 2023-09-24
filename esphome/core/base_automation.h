@@ -337,7 +337,7 @@ template<typename... Ts> class SuspendComponentAction : public Action<Ts...> {
   void play(Ts... x) override {
     if (!this->component_->is_ready())
       return;
-    this->component_->stopPoller();
+    this->component_->stop_poller();
   }
 
  protected:
@@ -351,7 +351,7 @@ template<typename... Ts> class ResumeComponentAction : public Action<Ts...> {
   void play(Ts... x) override {
     if (!this->component_->is_ready())
       return;
-    this->component_->startPoller();
+    this->component_->start_poller();
   }
 
  protected:
