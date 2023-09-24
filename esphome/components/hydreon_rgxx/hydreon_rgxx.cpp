@@ -199,7 +199,7 @@ void HydreonRGxxComponent::process_line_() {
     if (this->model_ == RG9) {
       this->write_str("P\n");  // set sensor to (P)polling mode
 
-      if(this->disable_led_) {
+      if (this->disable_led_) {
         this->write_str("D 1\n");  // set sensor (D 1)rain detection LED disabled
       } else {
         this->write_str("D 0\n");  // set sensor (D 0)rain detection LED enabled
@@ -245,16 +245,16 @@ void HydreonRGxxComponent::process_line_() {
         continue;
       }
 
-      if (n == this->buffer_.find("t", n) ) {
+      if (n == this->buffer_.find("t", n)) {
         // The device temperature ('t') response contains both °C and °F values in the format: "t 72F 22C".
         // ESPHome uses only °C, only parse °C value:
         n = this->buffer_.find("F ", n);
         if (n == std::string::npos) {
           continue;
         }
-        n += 2; // move past "F "
+        n += 2;  // move past "F "
       } else {
-        n += strlen(PROTOCOL_NAMES[i]); // move past protocol name
+        n += strlen(PROTOCOL_NAMES[i]);  // move past protocol name
       }
 
       // parse value, starting at str position n

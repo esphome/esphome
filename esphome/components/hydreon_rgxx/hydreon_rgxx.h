@@ -75,7 +75,7 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   bool em_sat_ = false;
   bool request_temperature_ = false;
   bool disable_led_ = false;
-  
+
   // bit field showing which sensors we have received data for
   int sensors_received_ = -1;
 };
