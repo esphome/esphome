@@ -194,10 +194,16 @@ uint8_t DS248xComponent::read_config() {
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_SETREADPTR;
   cmd[1] = DS248X_POINTER_CONFIG;
-  this->write(cmd.data(), sizeof(cmd));
+  auto err = this->write(cmd.data(), sizeof(cmd));
+  if (err != esphome::i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "error writing SETREADPTR command to Master: %d", err);
+  }
 
   uint8_t cfg_byte;
-  this->read(&cfg_byte, sizeof(cfg_byte));
+  err = this->read(&cfg_byte, sizeof(cfg_byte));
+  if (err != esphome::i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "error reading from Master: %d", err);
+  }
 
   return cfg_byte;
 }
@@ -206,20 +212,26 @@ void DS248xComponent::write_config(uint8_t cfg) {
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_WRITECONFIG;
   cmd[1] = cfg | ((~cfg) << 4);
-  this->write(cmd.data(), sizeof(cmd));
+  auto err = this->write(cmd.data(), sizeof(cmd));
+  if (err != esphome::i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "error writing WRITECONFIG command to Master: %d", err);
+  }
 }
 
 uint8_t DS248xComponent::wait_while_busy() {
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_SETREADPTR;
   cmd[1] = DS248X_POINTER_STATUS;
-  this->write(cmd.data(), sizeof(cmd));
+  auto err = this->write(cmd.data(), sizeof(cmd));
+  if (err != esphome::i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "error writing SETREADPRT command to Master: %d", err);
+  }
 
   uint8_t status;
 	for(int i=1000; i>0; i--) {
-      this->read(&status, sizeof(status));
-		if (!(status & DS248X_STATUS_BUSY))
-			break;
+      auto err = this->read(&status, sizeof(status));
+      if (err == esphome::i2c::ERROR_OK && !(status & DS248X_STATUS_BUSY))
+        break;
 	}
 	return status;
 }
@@ -239,10 +251,16 @@ bool DS248xComponent::select_channel(uint8_t channel)
   cmd[0] = DS248X_COMMAND_CHANNELSELECT;
   cmd[1] = DS248X_CODE_CHANNEL0 - (channel << 4) + channel;
   ESP_LOGV(TAG, "select_channel command: %x", cmd[1]);
-  this->write(cmd.data(), sizeof(cmd));
+  auto err = this->write(cmd.data(), sizeof(cmd));
+  if (err != esphome::i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "error writing CHANNELSELECT command to Master: %d", err);
+  }
 
   uint8_t selected;
-  this->read(&selected, sizeof(selected));
+  err = this->read(&selected, sizeof(selected));
+  if (err != esphome::i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "error reading from Master: %d", err);
+  }
   if (selected != DS248X_CODE_CHANNEL7 + (7 * (7 - channel))) {
     ESP_LOGW(TAG, "select_channel failed: wrote %02xh read back %02xh", cmd[1], selected);
     return false;
@@ -259,7 +277,10 @@ void DS248xComponent::reset_hub() {
   }
 
   uint8_t cmd = DS248X_COMMAND_RESET;
-  auto result = this->write(&cmd, sizeof(cmd));
+  auto err = this->write(&cmd, sizeof(cmd));
+  if (err != esphome::i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "error writing RESET command to Master: %d", err);
+  }
 
   if (this->enable_active_pullup_) {
     this->write_config(DS248X_CONFIG_ACTIVE_PULLUP);
@@ -302,13 +323,17 @@ void DS248xComponent::write_command(uint8_t command, uint8_t data) {
   auto status = wait_while_busy();
 
   if (status & DS248X_STATUS_BUSY) {
-    return; // TODO: error handling
+    ESP_LOGE(TAG, "Master never finished command");
+    return;
   }
 
   std::array<uint8_t, 2> cmd;
   cmd[0] = command;
   cmd[1] = data;
-  this->write(cmd.data(), sizeof(cmd));
+  auto err = this->write(cmd.data(), sizeof(cmd));
+  if (err != esphome::i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "error writing command to Master: %d", cmd[0]);
+  }
 }
 
 void DS248xComponent::select(uint8_t channel, uint64_t address) {
@@ -328,25 +353,36 @@ uint8_t DS248xComponent::read_from_wire() {
   auto status = wait_while_busy();
 
   if (status & DS248X_STATUS_BUSY) {
-    return 0; // TODO: error handling
+    ESP_LOGE(TAG, "Master never finished command");
+    return 0;
   }
 
   uint8_t command = DS248X_COMMAND_READBYTE;
-  this->write(&command, sizeof(command));
+  auto err = this->write(&command, sizeof(command));
+  if (err != esphome::i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "error writing READBYTE command to Master: %d", err);
+  }
 
   status = wait_while_busy();
 
   if (status & DS248X_STATUS_BUSY) {
-    return 0; // TODO: error handling
+    ESP_LOGE(TAG, "Master never finished command");
+    return 0;
   }
 
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_SETREADPTR;
   cmd[1] = DS248X_POINTER_DATA;
-  this->write(cmd.data(), sizeof(cmd));
+  err = this->write(cmd.data(), sizeof(cmd));
+  if (err != esphome::i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "error writing SETREADPTR command to Master: %d", err);
+  }
 
   uint8_t data_byte;
-  this->read(&data_byte, sizeof(data_byte));
+  err = this->read(&data_byte, sizeof(data_byte));
+  if (err != esphome::i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "error reading from Master: %d", err);
+  }
 
   return data_byte;
 }
@@ -433,6 +469,8 @@ void DS248xSensor::write_to_wire(uint8_t data) { this->parent_->write_to_wire(da
 bool DS248xSensor::reset_devices() { return this->parent_->reset_devices(); }
 
 bool IRAM_ATTR DS248xSensor::read_scratch_pad() {
+  this->parent_->select_channel(*this->channel_);
+  
   bool result = this->parent_->reset_devices();
   if (!result) {
     this->parent_->status_set_warning();
