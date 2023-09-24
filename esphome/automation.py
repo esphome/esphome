@@ -298,6 +298,26 @@ async def lambda_action_to_code(config, action_id, template_arg, args):
         }
     ),
 )
+
+@register_action(
+    "component.suspend",
+    UpdateComponentAction,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
+        }
+    ),
+)
+
+@register_action(
+    "component.resume",
+    UpdateComponentAction,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
+        }
+    ),
+)
 async def component_update_action_to_code(config, action_id, template_arg, args):
     comp = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, comp)
