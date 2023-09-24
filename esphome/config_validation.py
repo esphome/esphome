@@ -125,6 +125,7 @@ RESERVED_IDS = [
     "char16_t",
     "char32_t",
     "class",
+    "clock",
     "compl",
     "concept",
     "const",
@@ -928,6 +929,27 @@ def temperature(value):
     raise err
 
 
+def temperature_delta(value):
+    err = None
+    try:
+        return _temperature_c(value)
+    except Invalid as orig_err:
+        err = orig_err
+
+    try:
+        return _temperature_k(value)
+    except Invalid:
+        pass
+
+    try:
+        fahrenheit = _temperature_f(value)
+        return fahrenheit * (5 / 9)
+    except Invalid:
+        pass
+
+    raise err
+
+
 _color_temperature_mireds = float_with_unit("Color Temperature", r"(mireds|Mireds)")
 _color_temperature_kelvin = float_with_unit("Color Temperature", r"(K|Kelvin)")
 
@@ -1478,6 +1500,8 @@ class SplitDefault(Optional):
         esp32_arduino=vol.UNDEFINED,
         esp32_idf=vol.UNDEFINED,
         rp2040=vol.UNDEFINED,
+        bk72xx=vol.UNDEFINED,
+        rtl87xx=vol.UNDEFINED,
         host=vol.UNDEFINED,
     ):
         super().__init__(key)
@@ -1489,6 +1513,8 @@ class SplitDefault(Optional):
             esp32_idf if esp32 is vol.UNDEFINED else esp32
         )
         self._rp2040_default = vol.default_factory(rp2040)
+        self._bk72xx_default = vol.default_factory(bk72xx)
+        self._rtl87xx_default = vol.default_factory(rtl87xx)
         self._host_default = vol.default_factory(host)
 
     @property
@@ -1501,6 +1527,10 @@ class SplitDefault(Optional):
             return self._esp32_idf_default
         if CORE.is_rp2040:
             return self._rp2040_default
+        if CORE.is_bk72xx:
+            return self._bk72xx_default
+        if CORE.is_rtl87xx:
+            return self._rtl87xx_default
         if CORE.is_host:
             return self._host_default
         raise NotImplementedError

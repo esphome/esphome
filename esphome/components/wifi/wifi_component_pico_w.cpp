@@ -175,7 +175,11 @@ network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask(
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
+#ifdef PIO_FRAMEWORK_ARDUINO_ENABLE_IPV6
+  return {dns_ip->u_addr.ip4.addr};
+#else
   return {dns_ip->addr};
+#endif
 }
 
 void WiFiComponent::wifi_loop_() {
