@@ -11,6 +11,9 @@ void PulseMeterSensor::setup() {
   this->pin_->setup();
   this->isr_pin_ = pin_->to_isr();
 
+  // Set the last processed edge to now for the first timeout
+  this->last_processed_edge_us_ = micros();
+
   if (this->filter_mode_ == FILTER_EDGE) {
     this->pin_->attach_interrupt(PulseMeterSensor::edge_intr, this, gpio::INTERRUPT_RISING_EDGE);
   } else if (this->filter_mode_ == FILTER_PULSE) {
@@ -38,12 +41,16 @@ void PulseMeterSensor::loop() {
     }
 
     // We need to detect at least two edges to have a valid pulse width
-    if (!this->initialized_) {
-      this->initialized_ = true;
-    } else {
-      uint32_t delta_us = this->get_->last_detected_edge_us_ - this->last_processed_edge_us_;
-      float pulse_width_us = delta_us / float(this->get_->count_);
-      this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
+    switch (this->meter_state_) {
+      case MeterState::INITIAL:
+      case MeterState::TIMED_OUT: {
+        this->meter_state_ = MeterState::RUNNING;
+      } break;
+      case MeterState::RUNNING: {
+        uint32_t delta_us = this->get_->last_detected_edge_us_ - this->last_processed_edge_us_;
+        float pulse_width_us = delta_us / float(this->get_->count_);
+        this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
+      } break;
     }
 
     this->last_processed_edge_us_ = this->get_->last_detected_edge_us_;
@@ -53,10 +60,18 @@ void PulseMeterSensor::loop() {
     const uint32_t now = micros();
     const uint32_t time_since_valid_edge_us = now - this->last_processed_edge_us_;
 
-    if (this->initialized_ && time_since_valid_edge_us > this->timeout_us_) {
-      ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
-      this->initialized_ = false;
-      this->publish_state(0.0f);
+    switch (this->meter_state_) {
+        // Running and initial states can timeout
+      case MeterState::INITIAL:
+      case MeterState::RUNNING: {
+        if (time_since_valid_edge_us > this->timeout_us_) {
+          this->meter_state_ = MeterState::TIMED_OUT;
+          ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
+          this->publish_state(0.0f);
+        }
+      } break;
+      default:
+        break;
     }
   }
 }
