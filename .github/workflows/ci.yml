@@ -34,7 +34,7 @@ jobs:
       cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Generate cache-key
         id: cache-key
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
@@ -66,7 +66,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -87,7 +87,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -108,7 +108,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -129,7 +129,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -150,7 +150,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -171,7 +171,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -191,7 +191,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -216,7 +216,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Find all YAML test files
         id: set-matrix
         run: echo "matrix=$(ls tests/test*.yaml | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
@@ -241,7 +241,7 @@ jobs:
         file: ${{ fromJson(needs.compile-tests-list.outputs.matrix) }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -296,7 +296,7 @@ jobs:
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
