@@ -189,7 +189,7 @@ void PollingComponent::call_setup() {
   this->setup();
 
   // init the poller
-  this->startPoller();
+  this->start_poller();
 }
 
 void PollingComponent::start_poller() {

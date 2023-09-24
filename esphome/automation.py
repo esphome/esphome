@@ -300,7 +300,6 @@ async def lambda_action_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-
 @register_action(
     "component.suspend",
     SuspendComponentAction,
@@ -310,7 +309,6 @@ async def lambda_action_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-
 @register_action(
     "component.resume",
     ResumeComponentAction,

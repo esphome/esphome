@@ -307,7 +307,7 @@ class PollingComponent : public Component {
 
   /// Get the update interval in ms of this sensor
   virtual uint32_t get_update_interval() const;
-  
+
   // Start the poller, used for component.suspend
   void start_poller();
 
