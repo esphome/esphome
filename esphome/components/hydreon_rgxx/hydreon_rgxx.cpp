@@ -245,14 +245,15 @@ void HydreonRGxxComponent::process_line_() {
         continue;
       }
 
-      if (n == this->buffer_.find("t", n)) {
-        // The device temperature ('t') response contains both °C and °F values in the format: "t 72F 22C".
-        // ESPHome uses only °C, only parse °C value:
-        n = this->buffer_.find("F ", n);
+      if (n == this->buffer_.find('t', n)) {
+        // The device temperature ('t') response contains both °C and °F values:
+        // "t 72F 22C".
+        // ESPHome uses only °C, only parse °C value (move past 'F').
+        n = this->buffer_.find('F', n);
         if (n == std::string::npos) {
           continue;
         }
-        n += 2;  // move past "F "
+        n += 1;  // move past 'F'
       } else {
         n += strlen(PROTOCOL_NAMES[i]);  // move past protocol name
       }
