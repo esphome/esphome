@@ -24,6 +24,7 @@ class DS18xTemperatureSensor : public DS248xSensor {
   bool setup_sensor();
 
   bool update();
+  void add_conversion_commands(std::set<uint8_t> &commands);
 
  protected:
    uint8_t resolution_;

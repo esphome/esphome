@@ -116,6 +116,11 @@ uint16_t DS18xTemperatureSensor::millis_to_wait_for_conversion() const {
   }
 }
 
+void DS18xTemperatureSensor::add_conversion_commands(std::set<uint8_t> &commands)
+{
+  commands.insert(DALLAS_COMMAND_START_CONVERSION);
+}
+
 float DS18xTemperatureSensor::get_temp_c() {
   int16_t temp = (int16_t(this->scratch_pad_[1]) << 11) | (int16_t(this->scratch_pad_[0]) << 3);
   if (this->get_address8()[0] == DALLAS_MODEL_DS18S20) {

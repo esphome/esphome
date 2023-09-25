@@ -4,6 +4,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include <vector>
+#include <set>
 
 namespace esphome {
 namespace ds248x {
@@ -108,6 +110,9 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
 
   std::vector<DS248xSensor *> sensors_;
 
+  std::set<uint8_t> convCmds_;
+  std::set<uint8_t>::iterator convCmdsIter_;
+
   uint8_t read_config();
   void write_config(uint8_t cfg);
 
@@ -130,6 +135,8 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
 
 private:
   void updateChannel(uint8_t channel);
+  void start_next_conversion();
+  void update_channel_sensors();
 };
 
 class DS248xSensor : public sensor::Sensor {
@@ -162,6 +169,8 @@ class DS248xSensor : public sensor::Sensor {
   virtual bool setup_sensor() = 0;
 
   virtual bool update() = 0;
+
+  virtual void add_conversion_commands(std::set<uint8_t> &commands) = 0;
 
   bool read_scratch_pad();
 

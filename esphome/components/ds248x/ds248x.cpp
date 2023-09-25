@@ -123,68 +123,98 @@ void DS248xComponent::update() {
   }
 
   readIdx = 0;
+  /* this call triggers a cascade of async calls
+  - collect all conversion commands from the sensors to be send to this channel
+  - trigger conversion and wait for it: start_next_conversion uses set_interval
+  - when all conversions were done
+    - update each sensor on channel: update_channel_sensors uses set_interval
+    - when all sensors on channel updated, updateChannel(+1)*/
   updateChannel(0);
 }
 
 void DS248xComponent::updateChannel(uint8_t channel) {
-  ESP_LOGV(TAG, "Updating channel %i...", channel);
+  if (channel >= channel_count_) return;
+  ESP_LOGD(TAG, "Updating channel %i...", channel);
   if (!select_channel(channel)) {
     this->status_set_warning();
     ESP_LOGE(TAG, "Select channel failed");
     return;
   }
 
+  if (this->enable_strong_pullup_) {
+    this->write_config(this->read_config() | DS248X_CONFIG_STRONG_PULLUP);
+  }
+
+  convCmds_.clear();
+  for (auto* sensor: this->sensors_) {
+      if (*sensor->get_channel() != channel) continue;
+      sensor->add_conversion_commands(convCmds_);
+  }
+
+  convCmdsIter_ = convCmds_.begin();
+  if (convCmdsIter_ != convCmds_.end()) {
+    start_next_conversion();
+  } else {
+    updateChannel(channel + 1);
+  }
+}
+
+void DS248xComponent::start_next_conversion() {
+  if (convCmdsIter_ == convCmds_.end()) { // all conversions done
+    ESP_LOGD(TAG, "conversions done");
+    this->update_channel_sensors();
+    return;
+  }
+  ESP_LOGD(TAG, "starting next conversion: %02x", *convCmdsIter_);
   bool result = this->reset_devices();
   if (!result) {
     this->status_set_warning();
     ESP_LOGE(TAG, "Reset failed");
     return;
   }
-
   this->write_to_wire(WIRE_COMMAND_SKIP);
-  if (this->enable_strong_pullup_) {
-    this->write_config(this->read_config() | DS248X_CONFIG_STRONG_PULLUP);
-  }
-  this->write_to_wire(DALLAS_COMMAND_START_CONVERSION);
+  this->write_to_wire(*convCmdsIter_);
+  convCmdsIter_++;
 
-  uint16_t max_wait_time = 0;
-
-  // calculate max conversion time to wait on this channel
-  for (auto *sensor : this->sensors_) {
-    if (*sensor->get_channel() != channel) continue;
-    auto sensorWaitTime = sensor->millis_to_wait_for_conversion();
-    if (max_wait_time < sensorWaitTime) {
-      max_wait_time = sensorWaitTime;
+  this->set_interval(TAG, 50, [&] {
+    this->write_command(DS248X_COMMAND_SINGLEBIT, 0x80); // generates read bit
+    delayMicroseconds(500); // wait for single bit command to complete
+    uint8_t status = 0;
+    this->read(&status, 1);
+    if ((status & 0x20) != 0) { // bit 5 SBR = Single Bit Result
+      // if not busy anymore
+      this->cancel_interval(TAG);
+      this->start_next_conversion();
     }
-  }
+  });
+}
 
-  this->set_timeout(TAG, max_wait_time, [this] {
-    ESP_LOGV(TAG, "Sensors conversion completed");
-    this->set_interval(TAG, 50, [this] {
-      if (readIdx >= sensors_.size()) {
-        this->cancel_interval(TAG);
-        if (this->enable_bus_sleep_) {
-          this->write_config(this->read_config() | DS248X_CONFIG_POWER_DOWN);
-        }
-        return;
+void DS248xComponent::update_channel_sensors()
+{
+  this->set_interval(TAG, 50, [this] {
+    if (readIdx >= sensors_.size()) {
+      this->cancel_interval(TAG);
+      if (this->enable_bus_sleep_) {
+        this->write_config(this->read_config() | DS248X_CONFIG_POWER_DOWN);
       }
-      DS248xSensor* sensor = sensors_[readIdx];
-      if (*sensor->get_channel() != selectedChannel) { // selected sensor is from different channel
-        // cancel this interval and continue with this sensor on the next channel
-        this->cancel_interval(TAG);
-        updateChannel(*sensor->get_channel());
-        return;
-      }
-      readIdx++;
+      return;
+    }
+    DS248xSensor* sensor = sensors_[readIdx];
+    if (*sensor->get_channel() != selectedChannel) { // selected sensor is from different channel
+      // cancel this interval and continue with this sensor on the next channel
+      this->cancel_interval(TAG);
+      updateChannel(*sensor->get_channel());
+      return;
+    }
+    readIdx++;
 
-      if (!sensor->isIgnored()) {
-        ESP_LOGV(TAG, "Update Sensor idx: %i", readIdx);
-        bool res = sensor->update();
-        if (!res) {
-          ESP_LOGW(TAG, "Reading sensor failed!");
-        }
+    if (!sensor->isIgnored()) {
+      ESP_LOGD(TAG, "Update Sensor idx: %i", readIdx);
+      bool res = sensor->update();
+      if (!res) {
+        ESP_LOGW(TAG, "Reading sensor failed!");
       }
-    });
+    }
   });
 }
 
