@@ -60,14 +60,13 @@ bool DS18xTemperatureSensor::setup_sensor() {
 
   if (this->scratch_pad_[4] == resolution_register_val)
     return true;
+  this->scratch_pad_[4] = resolution_register_val; // update
 
   if (this->get_address8()[0] == DALLAS_MODEL_DS18S20) {
     // DS18S20 doesn't support resolution.
     ESP_LOGW(TAG, "DS18S20 doesn't support setting resolution.");
     return false;
   }
-
-  this->selectChannel();
 
   bool result = this->reset_devices();
   if (!result) {
@@ -87,6 +86,7 @@ bool DS18xTemperatureSensor::setup_sensor() {
     return false;
   }
 
+  this->select();
   this->write_to_wire(DALLAS_COMMAND_SAVE_EEPROM);
 
   delay(20);  // allow it to finish operation
@@ -96,6 +96,7 @@ bool DS18xTemperatureSensor::setup_sensor() {
     ESP_LOGE(TAG, "Reset failed");
     return false;
   }
+  ESP_LOGI(TAG, "set resolution to %d on sensor %s done", this->resolution_, this->get_address_name().c_str());
   return true;
 }
 
