@@ -481,10 +481,10 @@ void FluvalBleLed::sync_time() {
              "Syncing time with Fluval: Year: %d / Month: %d / Day: %d / Day of week: %d / Hour: %d / Minute: %d / Second: %d / Checksumm: %d",
              year, month, day, day_of_week, hour, minute, second, checksum);
 
-    std::vector<uint8_t> value_sync{0x68, 0x0E, year, month, day, day_of_week, hour, minute, second, checksum};
+    std::vector<uint8_t> value_sync{0x68, 0x0E, year, month, day, day_of_week, hour, minute, second};
     this->send_packet_(value_sync);
     // Read device Time
-    std::vector<uint8_t> value_read{0x68, 0x0D, 0x68 ^ 0x0D};
+    std::vector<uint8_t> value_read{0x68, 0x0D};
     this->send_packet_(value_read);
   }
 }
