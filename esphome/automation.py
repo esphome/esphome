@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_TIME,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
 
@@ -333,7 +332,7 @@ async def component_suspend_action_to_code(config, action_id, template_arg, args
 )
 async def component_resume_action_to_code(config, action_id, template_arg, args):
     comp = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, comp);
+    var = cg.new_Pvariable(action_id, template_arg, comp)
     if CONF_UPDATE_INTERVAL in config:
         cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     return var

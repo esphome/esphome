@@ -350,22 +350,12 @@ template<typename... Ts> class ResumeComponentAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint32_t, update_interval)
 
   void play(Ts... x) override {
-    if (this->update_interval_.has_value()) {
-      ESP_LOGW("automation", "has update interval %u", this->update_interval_.value());
-    } else {
-      ESP_LOGW("automation", "no update interval");
-    }
-
     if (!this->component_->is_ready()) {
-      ESP_LOGW("automation", "Component not ready");
       return;
     }
     optional<uint32_t> update_interval = this->update_interval_.optional_value(x...);
     if (update_interval.has_value()) {
-      ESP_LOGW("automation", "No update Interval %u", update_interval.value());
       this->component_->set_update_interval(update_interval.value());
-    } else {
-      ESP_LOGW("automation", "No update Interval");
     }
     this->component_->start_poller();
   }
