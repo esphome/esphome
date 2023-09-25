@@ -305,13 +305,13 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
 
       // HANDSHAKE STEP 3
       // ================
-      if (this->handshake_step_ == 3) {        
+      if (this->handshake_step_ == 3) {   
+        this->sync_time();     
         ESP_LOGI(TAG, "Connected to Fluval LED [%s]", this->parent_->address_str().c_str());
         // Sending device read request as last part of the handshake
         std::vector<uint8_t> update{0x68, 0x05};
         this->send_packet_(update);        
-        this->handshake_step_ = 4;        
-        this->sync_time();
+        this->handshake_step_ = 4;                
       }
 
       break;
