@@ -146,9 +146,9 @@ optional<PioneerData> PioneerProtocol::decode(RemoteReceiveData src) {
 }
 void PioneerProtocol::dump(const PioneerData &data) {
   if (data.rc_code_2 == 0) {
-    ESP_LOGD(TAG, "Received Pioneer: rc_code_X=0x%04X", data.rc_code_1);
+    ESP_LOGI(TAG, "Received Pioneer: rc_code_X=0x%04X", data.rc_code_1);
   } else {
-    ESP_LOGD(TAG, "Received Pioneer: rc_code_1=0x%04X, rc_code_2=0x%04X", data.rc_code_1, data.rc_code_2);
+    ESP_LOGI(TAG, "Received Pioneer: rc_code_1=0x%04X, rc_code_2=0x%04X", data.rc_code_1, data.rc_code_2);
   }
 }
 

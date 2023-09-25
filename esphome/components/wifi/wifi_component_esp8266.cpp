@@ -19,6 +19,7 @@ extern "C" {
 #include "lwip/apps/sntp.h"
 #if LWIP_IPV6
 #include "lwip/netif.h"  // struct netif
+#include <AddrList.h>
 #endif
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
 #include "LwipDhcpServer.h"
@@ -97,6 +98,7 @@ bool WiFiComponent::wifi_apply_power_save_() {
       power_save = NONE_SLEEP_T;
       break;
   }
+  wifi_fpm_auto_sleep_set_in_null_mode(1);
   return wifi_set_sleep_type(power_save);
 }
 
@@ -164,11 +166,11 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 
   ip_addr_t dns;
   if (uint32_t(manual_ip->dns1) != 0) {
-    dns.addr = static_cast<uint32_t>(manual_ip->dns1);
+    ip_addr_set_ip4_u32_val(dns, static_cast<uint32_t>(manual_ip->dns1));
     dns_setserver(0, &dns);
   }
   if (uint32_t(manual_ip->dns2) != 0) {
-    dns.addr = static_cast<uint32_t>(manual_ip->dns2);
+    ip_addr_set_ip4_u32_val(dns, static_cast<uint32_t>(manual_ip->dns2));
     dns_setserver(1, &dns);
   }
 
@@ -324,6 +326,18 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     ESP_LOGV(TAG, "wifi_station_connect failed!");
     return false;
   }
+
+#if ENABLE_IPV6
+  for (bool configured = false; !configured;) {
+    for (auto addr : addrList) {
+      ESP_LOGV(TAG, "Address %s", addr.toString().c_str());
+      if ((configured = !addr.isLocal() && addr.isV6())) {
+        break;
+      }
+    }
+    delay(500);  // NOLINT
+  }
+#endif
 
   if (ap.get_channel().has_value()) {
     ret = wifi_set_channel(*ap.get_channel());

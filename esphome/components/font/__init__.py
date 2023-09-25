@@ -98,10 +98,9 @@ def validate_truetype_file(value):
 
 
 def _compute_local_font_dir(name) -> Path:
-    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN
     h = hashlib.new("sha256")
     h.update(name.encode())
-    return base_dir / h.hexdigest()[:8]
+    return Path(CORE.data_dir) / DOMAIN / h.hexdigest()[:8]
 
 
 def _compute_gfonts_local_path(value) -> Path:

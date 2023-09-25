@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Union
+from typing import Union, Optional
 from pathlib import Path
 import logging
 import os
@@ -22,6 +22,7 @@ from esphome.const import (
     CONF_IGNORE_EFUSE_MAC_CRC,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
+    KEY_NAME,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     TYPE_GIT,
@@ -37,13 +38,14 @@ from .const import (  # noqa
     KEY_BOARD,
     KEY_COMPONENTS,
     KEY_ESP32,
+    KEY_EXTRA_BUILD_FILES,
     KEY_PATH,
     KEY_REF,
     KEY_REFRESH,
     KEY_REPO,
     KEY_SDKCONFIG_OPTIONS,
+    KEY_SUBMODULES,
     KEY_VARIANT,
-    VARIANT_ESP32C3,
     VARIANT_FRIENDLY,
     VARIANTS,
 )
@@ -73,11 +75,34 @@ def set_core_data(config):
     )
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ESP32][KEY_VARIANT] = config[CONF_VARIANT]
+    CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES] = {}
+
     return config
 
 
 def get_esp32_variant(core_obj=None):
     return (core_obj or CORE).data[KEY_ESP32][KEY_VARIANT]
+
+
+def get_board(core_obj=None):
+    return (core_obj or CORE).data[KEY_ESP32][KEY_BOARD]
+
+
+def get_download_types(storage_json):
+    return [
+        {
+            "title": "Modern format",
+            "description": "For use with ESPHome Web and other tools.",
+            "file": "firmware-factory.bin",
+            "download": f"{storage_json.name}-factory.bin",
+        },
+        {
+            "title": "Legacy format",
+            "description": "For use with ESPHome Flasher.",
+            "file": "firmware.bin",
+            "download": f"{storage_json.name}.bin",
+        },
+    ]
 
 
 def only_on_variant(*, supported=None, unsupported=None):
@@ -120,18 +145,47 @@ def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
 
 
 def add_idf_component(
-    name: str, repo: str, ref: str = None, path: str = None, refresh: TimePeriod = None
+    *,
+    name: str,
+    repo: str,
+    ref: str = None,
+    path: str = None,
+    refresh: TimePeriod = None,
+    components: Optional[list[str]] = None,
+    submodules: Optional[list[str]] = None,
 ):
     """Add an esp-idf component to the project."""
     if not CORE.using_esp_idf:
         raise ValueError("Not an esp-idf project")
+    if components is None:
+        components = []
     if name not in CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         CORE.data[KEY_ESP32][KEY_COMPONENTS][name] = {
             KEY_REPO: repo,
             KEY_REF: ref,
             KEY_PATH: path,
             KEY_REFRESH: refresh,
+            KEY_COMPONENTS: components,
+            KEY_SUBMODULES: submodules,
         }
+
+
+def add_extra_script(stage: str, filename: str, path: str):
+    """Add an extra script to the project."""
+    key = f"{stage}:{filename}"
+    if add_extra_build_file(filename, path):
+        cg.add_platformio_option("extra_scripts", [key])
+
+
+def add_extra_build_file(filename: str, path: str) -> bool:
+    """Add an extra build file to the project."""
+    if filename not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
+        CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES][filename] = {
+            KEY_NAME: filename,
+            KEY_PATH: path,
+        }
+        return True
+    return False
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
@@ -163,23 +217,23 @@ RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 0, 5)
 # The platformio/espressif32 version to use for arduino frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ARDUINO_PLATFORM_VERSION = cv.Version(5, 3, 0)
+ARDUINO_PLATFORM_VERSION = cv.Version(5, 4, 0)
 
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 4)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 5)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ESP_IDF_PLATFORM_VERSION = cv.Version(5, 3, 0)
+ESP_IDF_PLATFORM_VERSION = cv.Version(5, 4, 0)
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
         "dev": (cv.Version(2, 1, 0), "https://github.com/espressif/arduino-esp32.git"),
-        "latest": (cv.Version(2, 0, 7), None),
+        "latest": (cv.Version(2, 0, 9), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -214,7 +268,7 @@ def _esp_idf_check_versions(value):
     value = value.copy()
     lookups = {
         "dev": (cv.Version(5, 1, 0), "https://github.com/espressif/esp-idf.git"),
-        "latest": (cv.Version(5, 0, 1), None),
+        "latest": (cv.Version(5, 1, 0), None),
         "recommended": (RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION, None),
     }
 
@@ -358,7 +412,11 @@ async def to_code(config):
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
 
-    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+    add_extra_script(
+        "post",
+        "post_build2.py",
+        os.path.join(os.path.dirname(__file__), "post_build.py.script"),
+    )
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option("framework", "espidf")
@@ -536,24 +594,51 @@ def copy_files():
                     ref=component[KEY_REF],
                     refresh=component[KEY_REFRESH],
                     domain="idf_components",
+                    submodules=component[KEY_SUBMODULES],
                 )
                 mkdir_p(CORE.relative_build_path("components"))
                 component_dir = repo_dir
                 if component[KEY_PATH] is not None:
                     component_dir = component_dir / component[KEY_PATH]
 
-                shutil.copytree(
-                    component_dir,
-                    CORE.relative_build_path(f"components/{name}"),
-                    dirs_exist_ok=True,
-                    ignore=shutil.ignore_patterns(".git", ".github"),
-                    symlinks=True,
-                    ignore_dangling_symlinks=True,
-                )
+                if component[KEY_COMPONENTS] == ["*"]:
+                    shutil.copytree(
+                        component_dir,
+                        CORE.relative_build_path("components"),
+                        dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns(".git*"),
+                        symlinks=True,
+                        ignore_dangling_symlinks=True,
+                    )
+                elif len(component[KEY_COMPONENTS]) > 0:
+                    for comp in component[KEY_COMPONENTS]:
+                        shutil.copytree(
+                            component_dir / comp,
+                            CORE.relative_build_path(f"components/{comp}"),
+                            dirs_exist_ok=True,
+                            ignore=shutil.ignore_patterns(".git*"),
+                            symlinks=True,
+                            ignore_dangling_symlinks=True,
+                        )
+                else:
+                    shutil.copytree(
+                        component_dir,
+                        CORE.relative_build_path(f"components/{name}"),
+                        dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns(".git*"),
+                        symlinks=True,
+                        ignore_dangling_symlinks=True,
+                    )
 
-    dir = os.path.dirname(__file__)
-    post_build_file = os.path.join(dir, "post_build.py.script")
-    copy_file_if_changed(
-        post_build_file,
-        CORE.relative_build_path("post_build.py"),
-    )
+    for _, file in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES].items():
+        if file[KEY_PATH].startswith("http"):
+            import requests
+
+            mkdir_p(CORE.relative_build_path(os.path.dirname(file[KEY_NAME])))
+            with open(CORE.relative_build_path(file[KEY_NAME]), "wb") as f:
+                f.write(requests.get(file[KEY_PATH], timeout=30).content)
+        else:
+            copy_file_if_changed(
+                file[KEY_PATH],
+                CORE.relative_build_path(file[KEY_NAME]),
+            )

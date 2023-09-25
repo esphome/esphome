@@ -51,10 +51,10 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
 #endif
   void set_external_dac_channels(uint8_t channels) { this->external_dac_channels_ = channels; }
 
-  void start();
+  void start() override;
   void stop() override;
 
-  bool play(const uint8_t *data, size_t length) override;
+  size_t play(const uint8_t *data, size_t length) override;
 
  protected:
   void start_();
