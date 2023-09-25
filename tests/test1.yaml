@@ -3574,6 +3574,10 @@ button:
       - component.update: myteleinfo
       - delay: 20s
       - component.resume: myteleinfo
+      - delay: 20s
+      - component.resume:
+          id: myteleinfo
+          update_interval: 2s
   - platform: ld2410
     factory_reset:
       name: "factory reset"

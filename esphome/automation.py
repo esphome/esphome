@@ -11,7 +11,9 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE_ID,
     CONF_TIME,
+    CONF_UPDATE_INTERVAL,
 )
+from esphome.core import TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
 
@@ -300,6 +302,11 @@ async def lambda_action_to_code(config, action_id, template_arg, args):
         }
     ),
 )
+async def component_update_action_to_code(config, action_id, template_arg, args):
+    comp = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, comp)
+
+
 @register_action(
     "component.suspend",
     SuspendComponentAction,
@@ -309,18 +316,27 @@ async def lambda_action_to_code(config, action_id, template_arg, args):
         }
     ),
 )
+async def component_suspend_action_to_code(config, action_id, template_arg, args):
+    comp = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, comp)
+
+
 @register_action(
     "component.resume",
     ResumeComponentAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
+            cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
         }
     ),
 )
-async def component_update_action_to_code(config, action_id, template_arg, args):
+async def component_resume_action_to_code(config, action_id, template_arg, args):
     comp = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, comp)
+    var = cg.new_Pvariable(action_id, template_arg, comp);
+    if CONF_UPDATE_INTERVAL in config:
+        cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+    return var
 
 
 async def build_action(full_config, template_arg, args):
