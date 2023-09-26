@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
+    CONF_LAMBDA,
     CONF_RESTORE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
@@ -104,16 +105,15 @@ WINDOW_TYPES = {
 CONF_CHUNK_SIZE = "chunk_size"
 CONF_CHUNK_DURATION = "chunk_duration"
 
-############################
-# Statistics Configuration #
-############################
+########################################
+# Statistics Calculation Configuration #
+########################################
 
 # Struct stores group type and weight type
 StatisticsCalculationConfig = statistics_ns.struct("StatisticsCalculationConfig")
 
 # Group Type
 CONF_GROUP_TYPE = "group_type"
-
 GroupType = statistics_ns.enum("GroupType")
 GROUP_TYPES = {
     "sample": GroupType.GROUP_TYPE_SAMPLE,
@@ -193,12 +193,25 @@ RAW_STAT_TIMESTAMP_REFERENCE = "timestamp_reference"
 
 StatisticType = statistics_ns.enum("StatisticType")
 
+# Lambda code that returns the statistic from the Aggregate agg object
 STAT_TYPE_CONF_RETURN_LAMBDA = "return_lambda"
+
+# List of properties to inherit from source sensor
 STAT_TYPE_CONF_INHERITED_PROPERTIES = "inhertited_properties"
+
+# Function that transforms the number of accuracy decimals when inherited
 STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM = "accuracy_decimals_transform"
+
+# Function that transforms the unit of measurement when inherited
 STAT_TYPE_CONF_UOM_TRANSFORM = "uom_transform"
+
+# Set of raw stats required to be tracked to compute the statistic
 STAT_TYPE_CONF_REQUIRED_RAW_STATS = "required_raw_stats"
+
+# The enum type of the sensor, used for logging
 STAT_TYPE_CONF_ENUM_TYPE = "enum_type"
+
+# The sensor schema used for defining the statistic type
 STAT_TYPE_CONF_SENSOR_SCHEMA = "sensor_schema"
 
 STATISTIC_TYPE_CONFIGS = {
@@ -233,6 +246,20 @@ STATISTIC_TYPE_CONFIGS = {
                 cv.Optional(CONF_TIME_UNIT, default=UNIT_SECOND): cv.enum(
                     TIME_CONVERSION_FACTORS, lower=True
                 ),
+            }
+        ),
+    },
+    CONF_LAMBDA: {
+        STAT_TYPE_CONF_INHERITED_PROPERTIES: [
+            CONF_ENTITY_CATEGORY,
+        ],
+        STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM: None,
+        STAT_TYPE_CONF_UOM_TRANSFORM: None,
+        STAT_TYPE_CONF_REQUIRED_RAW_STATS: {},
+        STAT_TYPE_CONF_ENUM_TYPE: StatisticType.STATISTIC_LAMBDA,
+        STAT_TYPE_CONF_SENSOR_SCHEMA: sensor.sensor_schema().extend(
+            {
+                cv.Required(CONF_LAMBDA): cv.returning_lambda,
             }
         ),
     },
@@ -403,7 +430,33 @@ STATISTIC_TYPE_CONFIGS = {
 ######################################
 
 
-# based on inherit_property_from function from core/entity_helpers.py (accessed September 2023)
+# Borrowed from sensor/__init__.py (accessed July 2023)
+def validate_send_first_at(config):
+    send_first_at = config.get(CONF_SEND_FIRST_AT)
+    send_every = config.get(CONF_SEND_EVERY)
+    if send_every > 0:  # If send_every == 0, then automatic publication is disabled
+        if send_first_at > send_every:
+            raise cv.Invalid(
+                f"send_first_at must be smaller than or equal to send_every! {send_first_at} <= {send_every}"
+            )
+    return config
+
+
+# Ensures that the trend sensor is not enabled if restore from flash is enabled
+def validate_no_trend_and_restore(config):
+    window_config = config.get(CONF_WINDOW)
+
+    if CONF_RESTORE in window_config:
+        if stats_list := config.get(CONF_STATISTICS):
+            for sens in stats_list:
+                if sens.get("type") == CONF_TREND:
+                    raise cv.Invalid(
+                        "A trend sensor cannot be configured if restore is enabled."
+                    )
+    return config
+
+
+# Based on inherit_property_from function from core/entity_helpers.py (accessed September 2023)
 def set_property(property_to_inherit, property_value):
     """Validator that sets a provided configuration property, for use with FINAL_VALIDATE_SCHEMA.
     If a property is already set, it will not be inherited.
@@ -446,29 +499,116 @@ def set_property(property_to_inherit, property_value):
     return inherit_property
 
 
-# Borrowed from sensor/__init__.py (accessed July 2023)
-def validate_send_first_at(config):
-    send_first_at = config.get(CONF_SEND_FIRST_AT)
-    send_every = config.get(CONF_SEND_EVERY)
-    if send_every > 0:  # If send_every == 0, then automatic publication is disabled
-        if send_first_at > send_every:
-            raise cv.Invalid(
-                f"send_first_at must be smaller than or equal to send_every! {send_first_at} <= {send_every}"
+# Based on inherit_property_from function from core/entity_helpers.py (accessed September 2023)
+def inherit_property_from_id(property_to_inherit, parent_id, transform=None):
+    """Validator that inherits a configuration property from another entity, for use with FINAL_VALIDATE_SCHEMA.
+    If a property is already set, it will not be inherited.
+    Keyword arguments:
+    property_to_inherit -- the name or path of the property to inherit, e.g. CONF_ICON or [CONF_SENSOR, 0, CONF_ICON]
+                           (the parent must exist, otherwise nothing is done).
+    parent_id -- the ID of the parent from which the property is inherited.
+    """
+
+    def _walk_config(config, path):
+        walk = [path] if not isinstance(path, list) else path
+        for item_or_index in walk:
+            config = config[item_or_index]
+        return config
+
+    def inherit_property(config):
+        # Split the property into its path and name
+        if not isinstance(property_to_inherit, list):
+            property_path, property = [], property_to_inherit
+        else:
+            property_path, property = property_to_inherit[:-1], property_to_inherit[-1]
+
+        # Check if the property to inherit is accessible
+        try:
+            config_part = _walk_config(config, property_path)
+        except KeyError:
+            return config
+
+        # Only inherit the property if it does not exist yet
+        if property not in config_part:
+            fconf = fv.full_config.get()
+
+            # Get config for the parent entity
+            # parent_id = _walk_config(config, parent_id_property)
+            parent_path = fconf.get_path_for_id(parent_id)[:-1]
+            parent_config = fconf.get_config_for_path(parent_path)
+
+            # If parent sensor has the property set, inherit it
+            if property in parent_config:
+                path = fconf.get_path_for_id(config[CONF_ID])[:-1]
+                this_config = _walk_config(
+                    fconf.get_config_for_path(path), property_path
+                )
+                value = parent_config[property]
+                if transform:
+                    value = transform(value, config)
+                this_config[property] = value
+
+        return config
+
+    return inherit_property
+
+
+# In STATISTICS_TYPE_CONFIGS, the uom_transform function has an input of the time unit, but the transform function expected by the inherit_property_from_id function does not include it
+def get_time_adjusted_uom(base_function, time_unit):
+    if callable(base_function):
+        return lambda uom, config: base_function(
+            time_unit=time_unit,
+            uom=uom,
+            config=config,
+        )
+
+    return str(time_unit)
+
+
+# Return a function that will inherit `property_to_inherit` from `source_id` for the statistic `stat_type` given the sensor's `config`
+def get_property_inherit_function(config, stats_type, property_to_inherit, source_id):
+    if property_to_inherit == CONF_UNIT_OF_MEASUREMENT:
+        # Only statistics with a time unit change the unit of measurement
+        if time_unit := config.get(CONF_TIME_UNIT):
+            time_adjusted_uom = get_time_adjusted_uom(
+                stats_type.get(STAT_TYPE_CONF_UOM_TRANSFORM), time_unit
             )
-    return config
+
+            # If time adjusted uom is a string, then set that as the unit
+            if isinstance(time_adjusted_uom, str):
+                return set_property(CONF_UNIT_OF_MEASUREMENT, time_adjusted_uom)
+            # Otherewise, it is a transformation function
+            return inherit_property_from_id(
+                CONF_UNIT_OF_MEASUREMENT, source_id, transform=time_adjusted_uom
+            )
+    elif property_to_inherit == CONF_ACCURACY_DECIMALS:
+        return inherit_property_from_id(
+            CONF_ACCURACY_DECIMALS,
+            source_id,
+            transform=stats_type.get(STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM),
+        )
+
+    return inherit_property_from_id(property_to_inherit, source_id)
 
 
-# Ensures that the trend sensor is not enabled if restore from flash is enabled
-def validate_no_trend_and_restore(config):
-    window_config = config.get(CONF_WINDOW)
+# Sets/inherits properties based on each statistic type
+def validate_statistic_sensor(config):
+    fconf = fv.full_config.get()
 
-    if CONF_RESTORE in window_config:
-        if stats_list := config.get(CONF_STATISTICS):
-            for sens in stats_list:
-                if sens.get("type") == CONF_TREND:
-                    raise cv.Invalid(
-                        "A trend sensor cannot be configured if restore is enabled."
-                    )
+    # Get ID for source sensor
+    path = fconf.get_path_for_id(config[CONF_ID])[:-3]
+    path.append(CONF_SOURCE_ID)
+    source_id = fconf.get_config_for_path(path)
+
+    stats_type = STATISTIC_TYPE_CONFIGS[config.get(CONF_TYPE)]
+
+    for property_to_inherit in stats_type[STAT_TYPE_CONF_INHERITED_PROPERTIES]:
+        inherit_function = get_property_inherit_function(
+            config, stats_type, property_to_inherit, source_id
+        )
+
+        inherit_function(config)  # attempt to inherit the property
+
     return config
 
 
@@ -529,6 +669,7 @@ SENSOR_TYPE_SCHEMA = cv.typed_schema(
             STAT_TYPE_CONF_SENSOR_SCHEMA
         ],
         CONF_TREND: STATISTIC_TYPE_CONFIGS[CONF_TREND][STAT_TYPE_CONF_SENSOR_SCHEMA],
+        CONF_LAMBDA: STATISTIC_TYPE_CONFIGS[CONF_LAMBDA][STAT_TYPE_CONF_SENSOR_SCHEMA],
     }
 )
 
@@ -563,111 +704,6 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     validate_no_trend_and_restore,
 )
-
-
-def inherit_property_from_id(property_to_inherit, parent_id, transform=None):
-    """Validator that inherits a configuration property from another entity, for use with FINAL_VALIDATE_SCHEMA.
-    If a property is already set, it will not be inherited.
-    Keyword arguments:
-    property_to_inherit -- the name or path of the property to inherit, e.g. CONF_ICON or [CONF_SENSOR, 0, CONF_ICON]
-                           (the parent must exist, otherwise nothing is done).
-    parent_id_property -- the name or path of the property that holds the ID of the parent, e.g. CONF_POWER_ID or
-                          [CONF_SENSOR, 1, CONF_POWER_ID].
-    """
-
-    def _walk_config(config, path):
-        walk = [path] if not isinstance(path, list) else path
-        for item_or_index in walk:
-            config = config[item_or_index]
-        return config
-
-    def inherit_property(config):
-        # Split the property into its path and name
-        if not isinstance(property_to_inherit, list):
-            property_path, property = [], property_to_inherit
-        else:
-            property_path, property = property_to_inherit[:-1], property_to_inherit[-1]
-
-        # Check if the property to inherit is accessible
-        try:
-            config_part = _walk_config(config, property_path)
-        except KeyError:
-            return config
-
-        # Only inherit the property if it does not exist yet
-        if property not in config_part:
-            fconf = fv.full_config.get()
-
-            # Get config for the parent entity
-            # parent_id = _walk_config(config, parent_id_property)
-            parent_path = fconf.get_path_for_id(parent_id)[:-1]
-            parent_config = fconf.get_config_for_path(parent_path)
-
-            # If parent sensor has the property set, inherit it
-            if property in parent_config:
-                path = fconf.get_path_for_id(config[CONF_ID])[:-1]
-                this_config = _walk_config(
-                    fconf.get_config_for_path(path), property_path
-                )
-                value = parent_config[property]
-                if transform:
-                    value = transform(value, config)
-                this_config[property] = value
-
-        return config
-
-    return inherit_property
-
-
-def return_uom_transform_function(base_function, time_unit):
-    if callable(base_function):
-        return lambda uom, config: base_function(
-            time_unit=time_unit,
-            uom=uom,
-            config=config,
-        )
-
-    return time_unit
-
-
-def validate_statistic_sensor(config):
-    fconf = fv.full_config.get()
-
-    # Get ID for source sensor
-    path = fconf.get_path_for_id(config[CONF_ID])[:-3]
-    path.append(CONF_SOURCE_ID)
-    source_id = fconf.get_config_for_path(path)
-
-    stats_type = STATISTIC_TYPE_CONFIGS[config.get(CONF_TYPE)]
-
-    for property_to_inherit in stats_type[STAT_TYPE_CONF_INHERITED_PROPERTIES]:
-        inherit_function = inherit_property_from_id(property_to_inherit, source_id)
-        if property_to_inherit == CONF_UNIT_OF_MEASUREMENT:
-            if time_unit := config.get(CONF_TIME_UNIT):
-                uom_transform = return_uom_transform_function(
-                    stats_type.get(STAT_TYPE_CONF_UOM_TRANSFORM), time_unit
-                )
-
-                if callable(uom_transform):
-                    inherit_function = inherit_property_from_id(
-                        CONF_UNIT_OF_MEASUREMENT, source_id, transform=uom_transform
-                    )
-                else:
-                    inherit_function = set_property(
-                        CONF_UNIT_OF_MEASUREMENT,
-                        str(config[CONF_TIME_UNIT]),
-                    )
-        elif property_to_inherit == CONF_ACCURACY_DECIMALS:
-            inherit_function = inherit_property_from_id(
-                CONF_ACCURACY_DECIMALS,
-                source_id,
-                transform=stats_type[STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM],
-            )
-
-        inherit_function(config)
-
-    return config
-
 
 FINAL_VALIDATE_SCHEMA = cv.Schema(
     {
@@ -711,7 +747,7 @@ async def to_code(config):
     window_type = WINDOW_TYPES[window_config.get(CONF_TYPE)]
     cg.add(var.set_window_type(window_type))
 
-    # Setup window size
+    # Set up window size
     window_size_setting = window_config.get(CONF_WINDOW_SIZE)
     if window_size_setting > 0:
         cg.add(var.set_window_size(window_size_setting))
@@ -729,7 +765,7 @@ async def to_code(config):
         cg.add(var.set_chunk_size(1))
         cg.add(var.set_chunk_duration(4294967295))  # uint32_t max
 
-    # Setup send parameters
+    # Set up send parameters
     cg.add(var.set_first_at(window_config.get(CONF_SEND_FIRST_AT)))
 
     send_every_setting = window_config.get(CONF_SEND_EVERY)
@@ -738,42 +774,55 @@ async def to_code(config):
     else:
         cg.add(var.set_send_every(4294967295))  # uint32_t max
 
-    # Setup restore setting
+    # Set up restore setting
     if restore_setting := window_config.get(CONF_RESTORE):
         cg.add(var.set_restore(restore_setting))
 
-    # Setup triggers
+    # Set up triggers
     for conf in config.get(CONF_ON_UPDATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(Aggregate, "x")], conf)
+        await automation.build_automation(trigger, [(Aggregate, "agg")], conf)
 
-    ############################
-    # Setup Configured Sensors #
-    ############################
+    #############################
+    # Set up Configured Sensors #
+    #############################
     tracked_stats = set()
 
     if config.get(CONF_WEIGHT_TYPE) == "duration":
         tracked_stats.add(RAW_STAT_DURATION)
-        tracked_stats.add(RAW_STAT_DURATION_SQUARED)
+        if config.get(CONF_GROUP_TYPE) == "sample":
+            # Squared duration is used for reliability weights
+            # Only needed for sample group types that are duration weighted
+            tracked_stats.add(RAW_STAT_DURATION_SQUARED)
 
     if stat_sensor_list := config.get(CONF_STATISTICS):
         for stat_sensor in stat_sensor_list:
             sens = await sensor.new_sensor(stat_sensor)
 
-            return_string = STATISTIC_TYPE_CONFIGS[stat_sensor.get(CONF_TYPE)][
-                STAT_TYPE_CONF_RETURN_LAMBDA
-            ].format(
-                time_conversion=TIME_CONVERSION_FACTORS[stat_sensor.get(CONF_TIME_UNIT)]
-                if (CONF_TIME_UNIT in stat_sensor)
-                else 1,
-                time_component=time_,
-            )
+            if stat_sensor.get(CONF_TYPE) == CONF_LAMBDA:
+                func = await cg.process_lambda(
+                    stat_sensor[CONF_LAMBDA],
+                    [(Aggregate, "agg")],
+                    return_type=cg.float_,
+                )
+            else:
+                # Substitute the sensor's configured time unit into the return lambda string if defined
+                return_string = STATISTIC_TYPE_CONFIGS[stat_sensor.get(CONF_TYPE)][
+                    STAT_TYPE_CONF_RETURN_LAMBDA
+                ].format(
+                    time_conversion=TIME_CONVERSION_FACTORS[
+                        stat_sensor.get(CONF_TIME_UNIT)
+                    ]
+                    if (CONF_TIME_UNIT in stat_sensor)
+                    else 1,
+                    time_component=time_,
+                )
 
-            func = await cg.process_lambda(
-                Lambda(f"return {return_string};"),
-                [(Aggregate, "agg")],
-                return_type=cg.float_,
-            )
+                func = await cg.process_lambda(
+                    Lambda(f"return {return_string};"),
+                    [(Aggregate, "agg")],
+                    return_type=cg.float_,
+                )
 
             tracked_stats.update(
                 STATISTIC_TYPE_CONFIGS[stat_sensor.get(CONF_TYPE)][
@@ -793,6 +842,7 @@ async def to_code(config):
                 )
             )
 
+    # Sets which raw statistics are tracked based on the configured sensors
     cg.add(
         var.set_tracked_statistics(
             cg.StructInitializer(

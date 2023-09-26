@@ -7,6 +7,7 @@
  * Available statistics as sensors
  *  - count: number of valid measurements in the window (component ignores NaN values in the window)
  *  - duration: the duration in milliseconds between the first and last measurement's timestamps
+ *  - lambda: user provided lambda can return any calculations from the computed aggregate
  *  - min: minimum of the set of measurements
  *  - mean: average of the set of measurements
  *  - max: maximum of the set of measurements
@@ -83,16 +84,17 @@ enum WindowType {
 };
 
 enum StatisticType {
-  STATISTIC_MEAN,
-  STATISTIC_MAX,
-  STATISTIC_MIN,
-  STATISTIC_STD_DEV,
   STATISTIC_COUNT,
   STATISTIC_DURATION,
+  STATISTIC_LAMBDA,
+  STATISTIC_MAX,
+  STATISTIC_MEAN,
+  STATISTIC_MIN,
+  STATISTIC_QUADRATURE,
   STATISTIC_SINCE_ARGMAX,
   STATISTIC_SINCE_ARGMIN,
+  STATISTIC_STD_DEV,
   STATISTIC_TREND,
-  STATISTIC_QUADRATURE,
 };
 
 struct StatisticSensorTuple {

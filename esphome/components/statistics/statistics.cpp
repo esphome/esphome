@@ -9,28 +9,29 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace statistics {
 
 static const char *const TAG = "statistics";
 static const uint32_t NEVER_BOUND = 4294967295UL;  // uint32_t maximum
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_CONFIG
-static const LogString *weight_type_to_string(WeightType type) {
+const LogString *weight_type_to_string(WeightType type) {
   if (type == WEIGHT_TYPE_SIMPLE)
     return LOG_STR("simple");
 
   return LOG_STR("duration");
 }
 
-static const LogString *group_type_to_string(GroupType type) {
+const LogString *group_type_to_string(GroupType type) {
   if (type == GROUP_TYPE_SAMPLE)
     return LOG_STR("sample");
 
   return LOG_STR("population");
 }
 
-static const LogString *window_type_to_string(WindowType type) {
+const LogString *window_type_to_string(WindowType type) {
   switch (type) {
     case WINDOW_TYPE_SLIDING:
       return LOG_STR("sliding");
@@ -43,34 +44,34 @@ static const LogString *window_type_to_string(WindowType type) {
   }
 }
 
-static const LogString *statistic_type_to_string(StatisticType type) {
+const LogString *statistic_type_to_string(StatisticType type) {
   switch (type) {
-    case STATISTIC_MEAN:
-      return LOG_STR("Mean Sensor:");
-    case STATISTIC_MAX:
-      return LOG_STR("Max Sensor:");
-    case STATISTIC_MIN:
-      return LOG_STR("Min Sensor:");
-    case STATISTIC_STD_DEV:
-      return LOG_STR("Standard Deviation Sensor:");
     case STATISTIC_COUNT:
       return LOG_STR("Count Sensor:");
     case STATISTIC_DURATION:
       return LOG_STR("Duration Sensor:");
+    case STATISTIC_MAX:
+      return LOG_STR("Max Sensor:");
+    case STATISTIC_MEAN:
+      return LOG_STR("Mean Sensor:");
+    case STATISTIC_MIN:
+      return LOG_STR("Min Sensor:");
+    case STATISTIC_LAMBDA:
+      return LOG_STR("Lambda Sensor:");
+    case STATISTIC_QUADRATURE:
+      return LOG_STR("Quadrature Sensor:");
     case STATISTIC_SINCE_ARGMAX:
       return LOG_STR("Since Argmax Sensor:");
     case STATISTIC_SINCE_ARGMIN:
       return LOG_STR("Since Argmin Sensor:");
+    case STATISTIC_STD_DEV:
+      return LOG_STR("Standard Deviation Sensor:");
     case STATISTIC_TREND:
       return LOG_STR("Trend Sensor:");
-    case STATISTIC_QUADRATURE:
-      return LOG_STR("Quadrature Sensor:");
     default:
       return LOG_STR("");
   }
 }
-
-#endif
 
 //////////////////////////
 // Public Class Methods //
@@ -79,7 +80,7 @@ static const LogString *statistic_type_to_string(StatisticType type) {
 void StatisticsComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Statistics Component:");
 
-  LOG_SENSOR("  ", "Source Sensor:", this->source_sensor_);
+  ESP_LOGCONFIG(TAG, "  Source Sensor: %s", this->source_sensor_->get_name().c_str());
 
   ESP_LOGCONFIG(TAG, "  Average Type: %s",
                 LOG_STR_ARG(weight_type_to_string(this->statistics_calculation_config_.weight_type)));
@@ -87,28 +88,28 @@ void StatisticsComponent::dump_config() {
                 LOG_STR_ARG(group_type_to_string(this->statistics_calculation_config_.group_type)));
 
   if (this->restore_) {
-    ESP_LOGCONFIG(TAG, "  Restore Hash: %u", this->hash_);
+    ESP_LOGCONFIG(TAG, "  Restore Hash: %" PRIu32, this->hash_);
   }
 
   ESP_LOGCONFIG(TAG, "  Window Configuration:");
   ESP_LOGCONFIG(TAG, "    Type: %s", LOG_STR_ARG(window_type_to_string(this->window_type_)));
 
   if (this->window_size_ < NEVER_BOUND) {
-    ESP_LOGCONFIG(TAG, "    Window Size: %u", this->window_size_);
+    ESP_LOGCONFIG(TAG, "    Window Size: %zu", this->window_size_);
   } else {
     ESP_LOGCONFIG(TAG, "    Window Size: infinite");
   }
 
   if (this->chunk_size_ < NEVER_BOUND) {
-    ESP_LOGCONFIG(TAG, "    Chunk Size: %u", this->chunk_size_);
+    ESP_LOGCONFIG(TAG, "    Chunk Size: %zu", this->chunk_size_);
   }
 
   if (this->chunk_duration_ < NEVER_BOUND) {
-    ESP_LOGCONFIG(TAG, "    Chunk Duration: %u ms", this->chunk_duration_);
+    ESP_LOGCONFIG(TAG, "    Chunk Duration: %" PRIu32 " ms", this->chunk_duration_);
   }
 
   if (this->send_every_ < NEVER_BOUND) {
-    ESP_LOGCONFIG(TAG, "    Send Every: %u", this->send_every_);
+    ESP_LOGCONFIG(TAG, "    Send Every: %zu", this->send_every_);
   } else {
     ESP_LOGCONFIG(TAG, "    Send Every: never");
   }

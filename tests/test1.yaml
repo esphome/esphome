@@ -1770,6 +1770,9 @@ sensor:
         name: "DHT Temperature - Count of Valid Measurements"
       - type: duration
         name: "DHT Temperature - Duration"
+      - type: lambda
+        name: "DHT Temperature - Lambda Mean"
+        lambda: !lambda "return agg.get_mean();"
       - type: max
         name: "DHT Temperature - Maximum"
       - type: min
@@ -1790,6 +1793,7 @@ sensor:
         name: "DHT Temperature - Trend"
   - platform: statistics
     source_id: dht_temperature
+    id: dht_15_minute_stats
     window:
       type: continuous
       window_size: 45
@@ -1804,6 +1808,9 @@ sensor:
       - type: duration
         name: "DHT Temperature - Duration (over 15 min)"
         time_unit: "h"
+      - type: lambda
+        name: "DHT Temperature - Lambda Mean (over 15 min)"
+        lambda: !lambda "return agg.get_mean();"
       - type: max
         name: "DHT Temperature - Maximum (over 15 min)"
       - type: min
@@ -1840,6 +1847,9 @@ sensor:
         name: "DHT Temperature - Count of Valid Measurements (all time)"
       - type: duration
         name: "DHT Temperature - Duration (all time)"
+      - type: lambda
+        name: "DHT Temperature - Lambda Mean (all time)"
+        lambda: !lambda "return agg.get_mean();"
       - type: max
         name: "DHT Temperature - Maximum (all time)"
       - type: min
@@ -1855,6 +1865,10 @@ sensor:
         name: "DHT Temperature - Time Since Last Minimum (all time)"
       - type: std_dev
         name: "DHT Temperature - Standard Deviation (all time)"
+    on_update:
+      then:
+        - sensor.statistics.force_publish: dht_15_minute_stats
+        - sensor.statistics.reset: dht_15_minute_stats
 
 psram:
 
