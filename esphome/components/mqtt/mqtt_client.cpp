@@ -106,6 +106,9 @@ void MQTTClientComponent::send_device_info_() {
 #ifdef USE_ESP32
         root["platform"] = "ESP32";
 #endif
+#ifdef USE_LIBRETINY
+        root["platform"] = lt_cpu_get_model_name();
+#endif
 
         root["board"] = ESPHOME_BOARD;
 #if defined(USE_WIFI)
@@ -156,7 +159,7 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
                                          MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
 #endif
