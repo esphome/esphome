@@ -60,7 +60,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_PEER_ALLOWED_IPS, default=["0.0.0.0/0"]): cv.ensure_list(
             _cidr_network
         ),
-        cv.Optional(CONF_PEER_PERSISTENT_KEEPALIVE, default=0): cv.All(
+        cv.Optional(CONF_PEER_PERSISTENT_KEEPALIVE, default="0s"): cv.All(
             cv.positive_time_period_seconds,
             cv.Range(max=TimePeriod(seconds=65535)),
         ),
