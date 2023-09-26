@@ -19,6 +19,7 @@ CODEOWNERS = ["@jesserockz"]
 CONF_SILENCE_DETECTION = "silence_detection"
 CONF_ON_LISTENING = "on_listening"
 CONF_ON_START = "on_start"
+CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
 CONF_ON_STT_END = "on_stt_end"
 CONF_ON_TTS_START = "on_tts_start"
 CONF_ON_TTS_END = "on_tts_end"
@@ -71,6 +72,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_LISTENING): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
+                single=True
+            ),
             cv.Optional(CONF_ON_STT_END): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_TTS_START): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_TTS_END): automation.validate_automation(single=True),
@@ -113,6 +117,13 @@ async def to_code(config):
     if CONF_ON_START in config:
         await automation.build_automation(
             var.get_start_trigger(), [], config[CONF_ON_START]
+        )
+
+    if CONF_ON_WAKE_WORD_DETECTED in config:
+        await automation.build_automation(
+            var.get_wake_word_detected_trigger(),
+            [],
+            config[CONF_ON_WAKE_WORD_DETECTED],
         )
 
     if CONF_ON_STT_END in config:

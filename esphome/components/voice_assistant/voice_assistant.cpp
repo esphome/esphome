@@ -398,6 +398,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     case api::enums::VOICE_ASSISTANT_WAKE_WORD_END: {
       ESP_LOGD(TAG, "Wake word detected");
+      this->wake_word_detected_trigger_->trigger();
       break;
     }
     case api::enums::VOICE_ASSISTANT_STT_START:

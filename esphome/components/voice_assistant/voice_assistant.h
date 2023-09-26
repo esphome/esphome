@@ -100,6 +100,7 @@ class VoiceAssistant : public Component {
 
   Trigger<> *get_listening_trigger() const { return this->listening_trigger_; }
   Trigger<> *get_start_trigger() const { return this->start_trigger_; }
+  Trigger<> *get_wake_word_detected_trigger() const { return this->wake_word_detected_trigger_; }
   Trigger<std::string> *get_stt_end_trigger() const { return this->stt_end_trigger_; }
   Trigger<std::string> *get_tts_start_trigger() const { return this->tts_start_trigger_; }
   Trigger<std::string> *get_tts_end_trigger() const { return this->tts_end_trigger_; }
@@ -117,6 +118,7 @@ class VoiceAssistant : public Component {
 
   Trigger<> *listening_trigger_ = new Trigger<>();
   Trigger<> *start_trigger_ = new Trigger<>();
+  Trigger<> *wake_word_detected_trigger_ = new Trigger<>();
   Trigger<std::string> *stt_end_trigger_ = new Trigger<std::string>();
   Trigger<std::string> *tts_start_trigger_ = new Trigger<std::string>();
   Trigger<std::string> *tts_end_trigger_ = new Trigger<std::string>();
