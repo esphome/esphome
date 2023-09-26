@@ -59,7 +59,7 @@ void ILI9XXXDisplay::dump_config() {
   if (this->is_18bitdisplay_) {
     ESP_LOGCONFIG(TAG, "  18-Bit Mode: YES");
   }
-  ESP_LOGCONFIG(TAG, "  Data rate: %dMHz", (unsigned)(this->data_rate_/1000000));
+  ESP_LOGCONFIG(TAG, "  Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
