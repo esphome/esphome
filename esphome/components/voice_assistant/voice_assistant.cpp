@@ -486,6 +486,10 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
           message = std::move(arg.value);
         }
       }
+      if (code == "wake-word-timeout") {
+        this->set_state_(State::IDLE, State::IDLE);
+        return;
+      }
       ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
       if (this->state_ != State::IDLE) {
         this->signal_stop_();
