@@ -59,10 +59,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_PEER_ALLOWED_IPS, default=["0.0.0.0/0"]): cv.ensure_list(
             _cidr_network
         ),
-        cv.Optional(CONF_PEER_PERSISTENT_KEEPALIVE, default=0): cv.Any(
-            cv.positive_time_period_seconds,
-            cv.uint16_t,
-        ),
+        cv.Optional(
+            CONF_PEER_PERSISTENT_KEEPALIVE, default="0s"
+        ): cv.positive_time_period_seconds,
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="15min"
         ): cv.positive_time_period_milliseconds,
