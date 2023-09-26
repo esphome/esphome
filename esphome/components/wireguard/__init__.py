@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_REBOOT_TIMEOUT,
 )
 from esphome.components import time
+from esphome.core import TimePeriod
 
 CONF_NETMASK = "netmask"
 CONF_PRIVATE_KEY = "private_key"
@@ -59,9 +60,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_PEER_ALLOWED_IPS, default=["0.0.0.0/0"]): cv.ensure_list(
             _cidr_network
         ),
-        cv.Optional(
-            CONF_PEER_PERSISTENT_KEEPALIVE, default="0s"
-        ): cv.positive_time_period_seconds,
+        cv.Optional(CONF_PEER_PERSISTENT_KEEPALIVE, default=0): cv.All(
+            cv.positive_time_period_seconds,
+            cv.Range(max=TimePeriod(seconds=65535)),
+        ),
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="15min"
         ): cv.positive_time_period_milliseconds,
