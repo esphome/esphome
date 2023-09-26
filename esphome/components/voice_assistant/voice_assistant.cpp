@@ -202,11 +202,13 @@ void VoiceAssistant::loop() {
       this->read_microphone_();
       ESP_LOGD(TAG, "Requesting start...");
       uint32_t flags = 0;
-#ifdef USE_ESP_ADF
       if (this->use_wake_word_)
         flags |= api::enums::VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD;
-#endif
-      if (!api::global_api_server->start_voice_assistant(this->conversation_id_, flags)) {
+      api::VoiceAssistantAudioSettings audio_settings;
+      audio_settings.noise_suppression_level = this->noise_suppression_level_;
+      audio_settings.auto_gain = this->auto_gain_;
+      audio_settings.volume_multiplier = this->volume_multiplier_;
+      if (!api::global_api_server->start_voice_assistant(this->conversation_id_, flags, audio_settings)) {
         ESP_LOGW(TAG, "Could not request start.");
         this->error_trigger_->trigger("not-connected", "Could not request start.");
         this->continuous_ = false;

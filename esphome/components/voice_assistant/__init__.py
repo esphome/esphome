@@ -27,6 +27,10 @@ CONF_ON_ERROR = "on_error"
 CONF_USE_WAKE_WORD = "use_wake_word"
 CONF_VAD_THRESHOLD = "vad_threshold"
 
+CONF_NOISE_SUPPRESSION_LEVEL = "noise_suppression_level"
+CONF_AUTO_GAIN = "auto_gain"
+CONF_VOLUME_MULTIPLIER = "volume_multiplier"
+
 
 voice_assistant_ns = cg.esphome_ns.namespace("voice_assistant")
 VoiceAssistant = voice_assistant_ns.class_("VoiceAssistant", cg.Component)
@@ -53,11 +57,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Exclusive(CONF_MEDIA_PLAYER, "output"): cv.use_id(
                 media_player.MediaPlayer
             ),
-            cv.Optional(CONF_USE_WAKE_WORD): cv.All(
-                cv.requires_component("esp_adf"), cv.only_with_esp_idf, cv.boolean
-            ),
+            cv.Optional(CONF_USE_WAKE_WORD, default=False): cv.boolean,
             cv.Optional(CONF_VAD_THRESHOLD): cv.All(
                 cv.requires_component("esp_adf"), cv.only_with_esp_idf, cv.uint8_t
+            ),
+            cv.Optional(CONF_NOISE_SUPPRESSION_LEVEL, default=0): cv.int_range(0, 4),
+            cv.Optional(CONF_AUTO_GAIN, default="0dBFS"): cv.All(
+                cv.float_with_unit("decibel full scale", "(dBFS|dbfs|DBFS)"),
+                cv.int_range(0, 31),
+            ),
+            cv.Optional(CONF_VOLUME_MULTIPLIER, default=1.0): cv.float_range(
+                min=0.0, min_included=False
             ),
             cv.Optional(CONF_ON_LISTENING): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
@@ -86,11 +96,14 @@ async def to_code(config):
         mp = await cg.get_variable(config[CONF_MEDIA_PLAYER])
         cg.add(var.set_media_player(mp))
 
-    if (use_wake_word := config.get(CONF_USE_WAKE_WORD)) is not None:
-        cg.add(var.set_use_wake_word(use_wake_word))
+    cg.add(var.set_use_wake_word(config[CONF_USE_WAKE_WORD]))
 
     if (vad_threshold := config.get(CONF_VAD_THRESHOLD)) is not None:
         cg.add(var.set_vad_threshold(vad_threshold))
+
+    cg.add(var.set_noise_suppression_level(config[CONF_NOISE_SUPPRESSION_LEVEL]))
+    cg.add(var.set_auto_gain(config[CONF_AUTO_GAIN]))
+    cg.add(var.set_volume_multiplier(config[CONF_VOLUME_MULTIPLIER]))
 
     if CONF_ON_LISTENING in config:
         await automation.build_automation(

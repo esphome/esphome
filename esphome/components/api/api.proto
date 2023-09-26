@@ -1419,6 +1419,12 @@ enum VoiceAssistantRequestFlag {
   VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD = 2;
 }
 
+message VoiceAssistantAudioSettings {
+  uint32 noise_suppression_level = 1;
+  uint32 auto_gain = 2;
+  float volume_multiplier = 3;
+}
+
 message VoiceAssistantRequest {
   option (id) = 90;
   option (source) = SOURCE_SERVER;
@@ -1426,7 +1432,8 @@ message VoiceAssistantRequest {
 
   bool start = 1;
   string conversation_id = 2;
-  int32 flags = 3;
+  uint32 flags = 3;
+  VoiceAssistantAudioSettings audio_settings = 4;
 }
 
 message VoiceAssistantResponse {

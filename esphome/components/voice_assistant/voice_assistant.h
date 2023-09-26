@@ -87,10 +87,16 @@ class VoiceAssistant : public Component {
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
   bool is_continuous() const { return this->continuous_; }
 
-#ifdef USE_ESP_ADF
   void set_use_wake_word(bool use_wake_word) { this->use_wake_word_ = use_wake_word; }
+#ifdef USE_ESP_ADF
   void set_vad_threshold(uint8_t vad_threshold) { this->vad_threshold_ = vad_threshold; }
 #endif
+
+  void set_noise_suppression_level(uint8_t noise_suppression_level) {
+    this->noise_suppression_level_ = noise_suppression_level;
+  }
+  void set_auto_gain(uint8_t auto_gain) { this->auto_gain_ = auto_gain; }
+  void set_volume_multiplier(float volume_multiplier) { this->volume_multiplier_ = volume_multiplier; }
 
   Trigger<> *get_listening_trigger() const { return this->listening_trigger_; }
   Trigger<> *get_start_trigger() const { return this->start_trigger_; }
@@ -140,8 +146,13 @@ class VoiceAssistant : public Component {
   ringbuf_handle_t ring_buffer_;
   uint8_t vad_threshold_{5};
   uint8_t vad_counter_{0};
-  bool use_wake_word_{false};
 #endif
+
+  bool use_wake_word_;
+  uint8_t noise_suppression_level_;
+  uint8_t auto_gain_;
+  float volume_multiplier_;
+
   uint8_t *send_buffer_;
   int16_t *input_buffer_;
 
