@@ -82,6 +82,9 @@ wifi:
   reboot_timeout: 120s
   power_save_mode: light
 
+network:
+  enable_ipv6: true
+
 mdns:
   disabled: false
 
@@ -2977,6 +2980,7 @@ display:
     model: TFT 2.4
     cs_pin: GPIO5
     dc_pin: GPIO4
+    color_palette: GRAYSCALE
     reset_pin: GPIO22
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());

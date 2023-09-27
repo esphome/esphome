@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP8266
+#ifdef USE_LIBRETINY
 
 #include "mqtt_backend.h"
 #include <AsyncMqttClient.h>
@@ -8,7 +8,7 @@
 namespace esphome {
 namespace mqtt {
 
-class MQTTBackendESP8266 final : public MQTTBackend {
+class MQTTBackendLibreTiny final : public MQTTBackend {
  public:
   void set_keep_alive(uint16_t keep_alive) final { mqtt_client_.setKeepAlive(keep_alive); }
   void set_client_id(const char *client_id) final { mqtt_client_.setClientId(client_id); }
@@ -19,7 +19,9 @@ class MQTTBackendESP8266 final : public MQTTBackend {
   void set_will(const char *topic, uint8_t qos, bool retain, const char *payload) final {
     mqtt_client_.setWill(topic, qos, retain, payload);
   }
-  void set_server(network::IPAddress ip, uint16_t port) final { mqtt_client_.setServer(IPAddress(ip), port); }
+  void set_server(network::IPAddress ip, uint16_t port) final {
+    mqtt_client_.setServer(IPAddress(static_cast<uint32_t>(ip)), port);
+  }
   void set_server(const char *host, uint16_t port) final { mqtt_client_.setServer(host, port); }
 #if ASYNC_TCP_SSL_ENABLED
   void set_secure(bool secure) { mqtt_client.setSecure(secure); }
@@ -69,4 +71,4 @@ class MQTTBackendESP8266 final : public MQTTBackend {
 }  // namespace mqtt
 }  // namespace esphome
 
-#endif  // defined(USE_ESP8266)
+#endif  // defined(USE_LIBRETINY)
