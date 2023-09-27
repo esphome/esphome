@@ -8,6 +8,8 @@ namespace esphome {
 namespace ili9xxx {
 
 static const char *const TAG = "ili9xxx";
+static const uint16_t SPI_SETUP_US = 100;         // estimated fixed overhead in microseconds for an SPI write
+static const uint16_t SPI_MAX_BLOCK_SIZE = 4092;  // Max size of continuous SPI transfer
 
 // store a 16 bit value in a buffer, big endian.
 static inline void put16_be(uint8_t *buf, uint16_t value) {
@@ -179,23 +181,33 @@ void ILI9XXXDisplay::display_() {
   }
 
   // we will only update the changed rows to the display
-  uint16_t const w = this->width_;
-  uint16_t const h = this->y_high_ - this->y_low_ + 1;  // NOLINT
-  size_t pos = this->y_low_ * this->width_;
-  size_t rem = h * w;  // remaining number of pixels to write
+  size_t const w = this->x_high_ - this->x_low_ + 1;
+  size_t const h = this->y_high_ - this->y_low_ + 1;
 
+  bool single_write = !this->is_18bitdisplay_ && this->buffer_color_mode_ == BITS_16;
+  size_t mhz = this->data_rate_ / 1000000;
+  // estimate time for a single write
+  size_t sw_time = this->width_ * h * 16 / mhz + this->width_ * h * 2 / SPI_MAX_BLOCK_SIZE * SPI_SETUP_US * 2;
+  // estimate time for multiple writes
+  size_t mw_time = (w * h * 16) / mhz + w * h * 2 / ILI9XXX_TRANSFER_BUFFER_SIZE * SPI_SETUP_US;
   ESP_LOGV(TAG,
            "Start display(xlow:%d, ylow:%d, xhigh:%d, yhigh:%d, width:%d, "
-           "height:%d, mode=%d, 18bit=%d, rem=%d)",
+           "height:%d, mode=%d, 18bit=%d, sw_time=%dus, mw_time=%dus)",
            this->x_low_, this->y_low_, this->x_high_, this->y_high_, w, h, this->buffer_color_mode_,
-           this->is_18bitdisplay_, rem);
-
-  set_addr_window_(0, this->y_low_, this->width_ - 1, this->y_high_);
-  if (this->buffer_color_mode_ == BITS_16 && !this->is_18bitdisplay_) {
+           this->is_18bitdisplay_, sw_time, mw_time);
+  auto now = millis();
+  if (this->buffer_color_mode_ == BITS_16 && !this->is_18bitdisplay_ && sw_time < mw_time) {
     // 16 bit mode maps directly to display format
-    this->write_array(this->buffer_ + pos * 2, rem * 2);
+    ESP_LOGV(TAG, "Doing single write of %d bytes", this->width_ * h * 2);
+    set_addr_window_(0, this->y_low_, this->width_ - 1, this->y_high_);
+    this->write_array(this->buffer_ + this->y_low_ * this->width_ * 2, h * this->width_ * 2);
   } else {
-    size_t idx = 0;  // index into transfer_buffer
+    ESP_LOGV(TAG, "Doing multiple write");
+    size_t rem = h * w;  // remaining number of pixels to write
+    set_addr_window_(this->x_low_, this->y_low_, this->x_high_, this->y_high_);
+    size_t idx = 0;    // index into transfer_buffer
+    size_t pixel = 0;  // pixel number offset
+    size_t pos = this->y_low_ * this->width_ + this->x_low_;
     while (rem-- != 0) {
       uint16_t color_val;
       switch (this->buffer_color_mode_) {
@@ -224,12 +236,18 @@ void ILI9XXXDisplay::display_() {
         idx = 0;
         App.feed_wdt();
       }
+      // end of line? Skip to the next.
+      if (++pixel == w) {
+        pixel = 0;
+        pos += this->width_ - w;
+      }
     }
     // flush any balance.
     if (idx != 0) {
       this->write_array(transfer_buffer, idx);
     }
   }
+  ESP_LOGV(TAG, "Data write took %dms", (unsigned) (millis() - now));
   this->end_data_();
   // invalidate watermarks
   this->x_low_ = this->width_;
