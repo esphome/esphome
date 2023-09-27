@@ -13,6 +13,8 @@
 #include "mqtt_backend_esp32.h"
 #elif defined(USE_ESP8266)
 #include "mqtt_backend_esp8266.h"
+#elif defined(USE_LIBRETINY)
+#include "mqtt_backend_libretiny.h"
 #elif defined(USE_RP2040)
 #include "mqtt_backend_rp2040.h"
 #endif
@@ -302,6 +304,8 @@ class MQTTClientComponent : public Component {
   MQTTBackendESP32 mqtt_backend_;
 #elif defined(USE_ESP8266)
   MQTTBackendESP8266 mqtt_backend_;
+#elif defined(USE_LIBRETINY)
+  MQTTBackendLibreTiny mqtt_backend_;
 #elif defined(USE_RP2040)
   MQTTBackendRP2040 mqtt_backend_;
 #endif
