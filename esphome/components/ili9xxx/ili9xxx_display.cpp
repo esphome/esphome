@@ -184,7 +184,6 @@ void ILI9XXXDisplay::display_() {
   size_t const w = this->x_high_ - this->x_low_ + 1;
   size_t const h = this->y_high_ - this->y_low_ + 1;
 
-  bool single_write = !this->is_18bitdisplay_ && this->buffer_color_mode_ == BITS_16;
   size_t mhz = this->data_rate_ / 1000000;
   // estimate time for a single write
   size_t sw_time = this->width_ * h * 16 / mhz + this->width_ * h * 2 / SPI_MAX_BLOCK_SIZE * SPI_SETUP_US * 2;
