@@ -17,7 +17,7 @@ enum InkplateModel : uint8_t {
   INKPLATE_6_V2 = 3,
 };
 
-class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public i2c::I2CDevice {
+class Inkplate6 : public display::DisplayBuffer, public i2c::I2CDevice {
  public:
   const uint8_t LUT2[16] = {0xAA, 0xA9, 0xA6, 0xA5, 0x9A, 0x99, 0x96, 0x95,
                             0x6A, 0x69, 0x66, 0x65, 0x5A, 0x59, 0x56, 0x55};
