@@ -49,6 +49,7 @@ esphome/components/bl0942/* @dbuezas
 esphome/components/ble_client/* @buxtronix
 esphome/components/bluetooth_proxy/* @jesserockz
 esphome/components/bme680_bsec/* @trvrnrth
+esphome/components/bmi160/* @flaviut
 esphome/components/bmp3xx/* @martgras
 esphome/components/bmp581/* @kahrendt
 esphome/components/bp1658cj/* @Cossid
@@ -130,7 +131,7 @@ esphome/components/i2s_audio/* @jesserockz
 esphome/components/i2s_audio/media_player/* @jesserockz
 esphome/components/i2s_audio/microphone/* @jesserockz
 esphome/components/i2s_audio/speaker/* @jesserockz
-esphome/components/ili9xxx/* @nielsnl68
+esphome/components/ili9xxx/* @clydebarrow @nielsnl68
 esphome/components/improv_base/* @esphome/core
 esphome/components/improv_serial/* @esphome/core
 esphome/components/ina260/* @mreditor97
@@ -150,6 +151,7 @@ esphome/components/ledc/* @OttoWinter
 esphome/components/libretiny/* @kuba2k2
 esphome/components/libretiny_pwm/* @kuba2k2
 esphome/components/light/* @esphome/core
+esphome/components/lightwaverf/* @max246
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
@@ -246,6 +248,7 @@ esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/sdp3x/* @Azimath
 esphome/components/selec_meter/* @sourabhjaiswal
 esphome/components/select/* @esphome/core
+esphome/components/sen0321/* @notjj
 esphome/components/sen21231/* @shreyaskarnik
 esphome/components/sen5x/* @martgras
 esphome/components/sensirion_common/* @martgras
@@ -268,6 +271,8 @@ esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
 esphome/components/speaker/* @jesserockz
 esphome/components/spi/* @esphome/core
+esphome/components/spi_device/* @clydebarrow
+esphome/components/spi_led_strip/* @clydebarrow
 esphome/components/sprinkler/* @kbx81
 esphome/components/sps30/* @martgras
 esphome/components/ssd1322_base/* @kbx81
@@ -328,6 +333,7 @@ esphome/components/web_server_idf/* @dentra
 esphome/components/whirlpool/* @glmnet
 esphome/components/whynter/* @aeonsablaze
 esphome/components/wiegand/* @ssieb
+esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/x9c/* @EtienneMD
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
