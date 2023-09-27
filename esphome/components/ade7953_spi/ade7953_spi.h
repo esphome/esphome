@@ -12,8 +12,8 @@ namespace esphome {
 namespace ade7953_spi {
 
 class AdE7953Spi : public ade7953_base::ADE7953,
-                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_LEADING,
-                                          spi::DATA_RATE_4MHZ> {
+                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_LEADING,
+                                         spi::DATA_RATE_4MHZ> {
  public:
   void setup() override {
     this->spi_setup();
