@@ -1,15 +1,13 @@
-#include "ade7953.h"
+#include "ade7953_base.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace ade7953 {
+namespace ade7953_base {
 
 static const char *const TAG = "ade7953";
 
 void ADE7953::dump_config() {
-  ESP_LOGCONFIG(TAG, "ADE7953:");
   LOG_PIN("  IRQ Pin: ", irq_pin_);
-  LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage Sensor", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current A Sensor", this->current_a_sensor_);
@@ -19,7 +17,7 @@ void ADE7953::dump_config() {
 }
 
 #define ADE_PUBLISH_(name, val, factor) \
-  if (err == i2c::ERROR_OK && this->name##_sensor_) { \
+  if (err == 0 && this->name##_sensor_) { \
     float value = (val) / (factor); \
     this->name##_sensor_->publish_state(value); \
   }
@@ -30,7 +28,7 @@ void ADE7953::update() {
     return;
 
   uint32_t val;
-  i2c::ErrorCode err = ade_read_32_(0x0312, &val);
+  bool err = ade_read_32_(0x0312, &val);
   ADE_PUBLISH(active_power_a, (int32_t) val, 154.0f);
   err = ade_read_32_(0x0313, &val);
   ADE_PUBLISH(active_power_b, (int32_t) val, 154.0f);
@@ -49,5 +47,6 @@ void ADE7953::update() {
   //    auto power_factor_b = this->ade_read_<int16_t>(0x010B);
 }
 
-}  // namespace ade7953
+
+}  // namespace ade7953_base
 }  // namespace esphome
