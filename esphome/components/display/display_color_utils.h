@@ -3,8 +3,13 @@
 
 namespace esphome {
 namespace display {
-enum ColorOrder : uint8_t { COLOR_ORDER_RGB = 0, COLOR_ORDER_BGR = 1, COLOR_ORDER_GRB = 2 };
-enum ColorBitness : uint8_t { COLOR_BITNESS_888 = 0, COLOR_BITNESS_565 = 1, COLOR_BITNESS_332 = 2 };
+enum ColorOrder : uint8_t { COLOR_ORDER_RGB = 0, COLOR_ORDER_BGR = 1, COLOR_ORDER_GRB = 2, COLOR_ORDER_UNKNOWN = 255 };
+enum ColorBitness : uint8_t {
+  COLOR_BITNESS_888 = 0,
+  COLOR_BITNESS_565 = 1,
+  COLOR_BITNESS_332 = 2,
+  COLOR_BITNESS_UNKNOWN = 255
+};
 inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 255) { return (max_value * i / scale); }
 
 class ColorUtil {
@@ -27,7 +32,7 @@ class ColorUtil {
         second_bits = 6;
         third_bits = 5;
         break;
-      case COLOR_BITNESS_332:
+      default:
         first_bits = 3;
         second_bits = 3;
         third_bits = 2;
@@ -48,7 +53,7 @@ class ColorUtil {
     Color color_return;
 
     switch (color_order) {
-      case COLOR_ORDER_RGB:
+      default:
         color_return.r = first_color;
         color_return.g = second_color;
         color_return.b = third_color;
@@ -77,7 +82,7 @@ class ColorUtil {
     blue_color = esp_scale8(color.blue, (1 << 2) - 1);
 
     switch (color_order) {
-      case COLOR_ORDER_RGB:
+      default:
         return red_color << 5 | green_color << 2 | blue_color;
       case COLOR_ORDER_BGR:
         return blue_color << 6 | green_color << 3 | red_color;
@@ -94,7 +99,7 @@ class ColorUtil {
     blue_color = esp_scale8(color.blue, (1 << 5) - 1);
 
     switch (color_order) {
-      case COLOR_ORDER_RGB:
+      default:
         return red_color << 11 | green_color << 5 | blue_color;
       case COLOR_ORDER_BGR:
         return blue_color << 11 | green_color << 5 | red_color;

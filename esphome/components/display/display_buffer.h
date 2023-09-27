@@ -28,11 +28,13 @@ class DisplayBuffer : public Display, public PollingComponent {
   /// TODO: handle one-bit-per-pixel monochrome
   virtual void draw_pixels_in_window(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                                      ColorBitness bitness, bool big_endian = true) {
+    if (bitness == COLOR_BITNESS_UNKNOWN)
+      return;
     uint32_t color_value;
     for (int y = y_start; y != y_start + h; y++)
       for (int x = x_start; x != x_start + w; x++) {
         switch (bitness) {
-          case COLOR_BITNESS_332:
+          default:
             color_value = *ptr++;
             break;
           case COLOR_BITNESS_565:
