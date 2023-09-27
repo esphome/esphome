@@ -12,6 +12,5 @@ void ADE7953_spi::dump_config() {
   ade7953_base::ADE7953::dump_config();
 }
 
-
 }  // namespace ade7953_spi
 }  // namespace esphome

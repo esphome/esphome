@@ -47,6 +47,5 @@ void ADE7953::update() {
   //    auto power_factor_b = this->ade_read_<int16_t>(0x010B);
 }
 
-
 }  // namespace ade7953_base
 }  // namespace esphome

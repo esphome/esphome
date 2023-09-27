@@ -12,6 +12,5 @@ void ADE7953_i2c::dump_config() {
   ade7953_base::ADE7953::dump_config();
 }
 
-
 }  // namespace ade7953_i2c
 }  // namespace esphome

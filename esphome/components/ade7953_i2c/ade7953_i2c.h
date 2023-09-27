@@ -11,14 +11,11 @@
 namespace esphome {
 namespace ade7953_i2c {
 
-class ADE7953_i2c : public ade7953_base::ADE7953, 
-                 public i2c::I2CDevice {  
-
-public:
-
+class ADE7953_i2c : public ade7953_base::ADE7953, public i2c::I2CDevice {
+ public:
   void dump_config() override;
 
-protected:
+ protected:
   bool ade_write_8_(uint16_t reg, uint8_t value) {
     std::vector<uint8_t> data;
     data.push_back(reg >> 8);
@@ -64,5 +61,5 @@ protected:
   }
 };
 
-}  // namespace ade7953
+}  // namespace ade7953_i2c
 }  // namespace esphome

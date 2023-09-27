@@ -1,11 +1,8 @@
-CODEOWNERS = ["@angelnu"]
-
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome import pins
 from esphome.const import (
-    CONF_ID,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
@@ -16,8 +13,7 @@ from esphome.const import (
     UNIT_WATT,
 )
 
-# ade7953_ns = cg.esphome_ns.namespace("ade7953_base")
-# ADE7953 = ade7953_ns.class_("ADE7953", cg.PollingComponent)
+CODEOWNERS = ["@angelnu"]
 
 CONF_IRQ_PIN = "irq_pin"
 CONF_CURRENT_A = "current_a"
@@ -25,45 +21,41 @@ CONF_CURRENT_B = "current_b"
 CONF_ACTIVE_POWER_A = "active_power_a"
 CONF_ACTIVE_POWER_B = "active_power_b"
 
-ADE7953_CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            #cv.GenerateID(): cv.declare_id(ADE7953),
-            cv.Optional(CONF_IRQ_PIN): pins.internal_gpio_input_pin_schema,
-            cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CURRENT_A): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CURRENT_B): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_ACTIVE_POWER_A): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_ACTIVE_POWER_B): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-        }
-    )
-    .extend(cv.polling_component_schema("1s"))
-)
+ADE7953_CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_IRQ_PIN): pins.internal_gpio_input_pin_schema,
+        cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_VOLT,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_VOLTAGE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_CURRENT_A): sensor.sensor_schema(
+            unit_of_measurement=UNIT_AMPERE,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_CURRENT,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_CURRENT_B): sensor.sensor_schema(
+            unit_of_measurement=UNIT_AMPERE,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_CURRENT,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_ACTIVE_POWER_A): sensor.sensor_schema(
+            unit_of_measurement=UNIT_WATT,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_ACTIVE_POWER_B): sensor.sensor_schema(
+            unit_of_measurement=UNIT_WATT,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+    }
+).extend(cv.polling_component_schema("1s"))
 
 
 async def register_ade7953(var, config):
