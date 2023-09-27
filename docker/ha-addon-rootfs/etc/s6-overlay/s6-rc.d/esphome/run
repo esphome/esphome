@@ -42,7 +42,12 @@ fi
 mkdir -p "${pio_cache_base}"
 
 if bashio::fs.directory_exists '/config/esphome/.esphome'; then
-    bashio::log.info "Removing old .esphome directory..."
+    bashio::log.info "Migrating old .esphome directory..."
+    if bashio::fs.file_exists '/config/esphome/.esphome/esphome.json'; then
+        mv /config/esphome/.esphome/esphome.json /data/esphome.json
+    fi
+    mkdir -p "/data/storage"
+    mv /config/esphome/.esphome/*.json /data/storage/ || true
     rm -rf /config/esphome/.esphome
 fi
 
