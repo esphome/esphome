@@ -26,11 +26,11 @@ class DisplayBuffer : public Display, public PollingComponent {
   /// The naive implementation here will work in all cases, but can be overridden by sub-classes
   /// in order to optimise the procedure.
   /// TODO: handle one-bit-per-pixel monochrome
-  virtual void draw_pixels_in_window(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                                     ColorBitness bitness, bool big_endian = true) {
+  virtual void draw_pixels_in_window(int x_start, int y_start, int x_end, int y_end, const uint8_t *ptr,
+                                     ColorOrder order, ColorBitness bitness, bool big_endian = true) {
     uint32_t color_value;
-    for (int y = y_start; y != y_start + h; y++)
-      for (int x = x_start; x != x_start + w; x++) {
+    for (int y = y_start; y != y_end; y++)
+      for (int x = x_start; x != x_end; x++) {
         switch (bitness) {
           case COLOR_BITNESS_332:
             color_value = *ptr++;
@@ -40,6 +40,7 @@ class DisplayBuffer : public Display, public PollingComponent {
               color_value = (ptr[0] << 8) + ptr[1];
             else
               color_value = ptr[0] + (ptr[1] << 8);
+            ptr += 2;
             break;
           case COLOR_BITNESS_888:
             if (big_endian)
