@@ -1655,6 +1655,7 @@ class VoiceAssistantRequest : public ProtoMessage {
  public:
   bool start{false};
   std::string conversation_id{};
+  bool use_vad{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

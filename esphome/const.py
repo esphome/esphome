@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2023.8.0-dev"
+__version__ = "2023.10.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -11,8 +11,19 @@ PLATFORM_ESP32 = "esp32"
 PLATFORM_ESP8266 = "esp8266"
 PLATFORM_RP2040 = "rp2040"
 PLATFORM_HOST = "host"
+PLATFORM_BK72XX = "bk72xx"
+PLATFORM_RTL87XX = "rtl87xx"
+PLATFORM_LIBRETINY_OLDSTYLE = "libretiny"
 
-TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_HOST]
+TARGET_PLATFORMS = [
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
+    PLATFORM_HOST,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
+    PLATFORM_LIBRETINY_OLDSTYLE,
+]
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
@@ -37,6 +48,7 @@ CONF_ADVANCED = "advanced"
 CONF_AFTER = "after"
 CONF_ALPHA = "alpha"
 CONF_ALTITUDE = "altitude"
+CONF_ANALOG = "analog"
 CONF_AND = "and"
 CONF_AP = "ap"
 CONF_APPARENT_POWER = "apparent_power"
@@ -286,6 +298,9 @@ CONF_GLYPHS = "glyphs"
 CONF_GPIO = "gpio"
 CONF_GREEN = "green"
 CONF_GROUP = "group"
+CONF_GYROSCOPE_X = "gyroscope_x"
+CONF_GYROSCOPE_Y = "gyroscope_y"
+CONF_GYROSCOPE_Z = "gyroscope_z"
 CONF_HARDWARE_UART = "hardware_uart"
 CONF_HEAD = "head"
 CONF_HEARTBEAT = "heartbeat"
@@ -526,8 +541,11 @@ CONF_PAYLOAD_AVAILABLE = "payload_available"
 CONF_PAYLOAD_NOT_AVAILABLE = "payload_not_available"
 CONF_PERIOD = "period"
 CONF_PH = "ph"
+CONF_PHASE_A = "phase_a"
 CONF_PHASE_ANGLE = "phase_angle"
+CONF_PHASE_B = "phase_b"
 CONF_PHASE_BALANCER = "phase_balancer"
+CONF_PHASE_C = "phase_c"
 CONF_PIN = "pin"
 CONF_PIN_A = "pin_a"
 CONF_PIN_B = "pin_b"
@@ -835,6 +853,7 @@ ICON_BRIEFCASE_DOWNLOAD = "mdi:briefcase-download"
 ICON_BRIGHTNESS_5 = "mdi:brightness-5"
 ICON_BRIGHTNESS_6 = "mdi:brightness-6"
 ICON_BUG = "mdi:bug"
+ICON_CELLPHONE_ARROW_DOWN = "mdi:cellphone-arrow-down"
 ICON_CHECK_CIRCLE_OUTLINE = "mdi:check-circle-outline"
 ICON_CHEMICAL_WEAPON = "mdi:chemical-weapon"
 ICON_CHIP = "mdi:chip"
@@ -842,6 +861,7 @@ ICON_COUNTER = "mdi:counter"
 ICON_CURRENT_AC = "mdi:current-ac"
 ICON_DATABASE = "mdi:database"
 ICON_EMPTY = ""
+ICON_FAN = "mdi:fan"
 ICON_FINGERPRINT = "mdi:fingerprint"
 ICON_FLASH = "mdi:flash"
 ICON_FLASK = "mdi:flask"
@@ -850,6 +870,10 @@ ICON_FLOWER = "mdi:flower"
 ICON_GAS_CYLINDER = "mdi:gas-cylinder"
 ICON_GAUGE = "mdi:gauge"
 ICON_GRAIN = "mdi:grain"
+ICON_GYROSCOPE_X = "mdi:axis-x-rotate-clockwise"
+ICON_GYROSCOPE_Y = "mdi:axis-y-rotate-clockwise"
+ICON_GYROSCOPE_Z = "mdi:axis-z-rotate-clockwise"
+ICON_HEATING_COIL = "mdi:heating-coil"
 ICON_KEY_PLUS = "mdi:key-plus"
 ICON_LIGHTBULB = "mdi:lightbulb"
 ICON_MAGNET = "mdi:magnet"
@@ -988,6 +1012,7 @@ DEVICE_CLASS_OCCUPANCY = "occupancy"
 DEVICE_CLASS_OPENING = "opening"
 DEVICE_CLASS_OUTLET = "outlet"
 DEVICE_CLASS_OZONE = "ozone"
+DEVICE_CLASS_PH = "ph"
 DEVICE_CLASS_PLUG = "plug"
 DEVICE_CLASS_PM1 = "pm1"
 DEVICE_CLASS_PM10 = "pm10"

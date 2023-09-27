@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/network/ip_address.h"
 
@@ -65,6 +66,9 @@ class EthernetComponent : public Component {
  protected:
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+#if LWIP_IPV6
+  static void got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+#endif /* LWIP_IPV6 */
 
   void start_connect_();
   void dump_connect_params_();
@@ -83,6 +87,10 @@ class EthernetComponent : public Component {
 
   bool started_{false};
   bool connected_{false};
+#if LWIP_IPV6
+  bool got_ipv6_{false};
+  uint8_t ipv6_count_{0};
+#endif /* LWIP_IPV6 */
   EthernetComponentState state_{EthernetComponentState::STOPPED};
   uint32_t connect_begin_;
   esp_netif_t *eth_netif_{nullptr};
