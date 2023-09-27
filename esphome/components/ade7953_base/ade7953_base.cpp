@@ -28,15 +28,15 @@ void ADE7953::update() {
     return;
 
   uint32_t val;
-  bool err = ade_read_32_(0x0312, &val);
+  bool err = ade_read_32(0x0312, &val);
   ADE_PUBLISH(active_power_a, (int32_t) val, 154.0f);
-  err = ade_read_32_(0x0313, &val);
+  err = ade_read_32(0x0313, &val);
   ADE_PUBLISH(active_power_b, (int32_t) val, 154.0f);
-  err = ade_read_32_(0x031A, &val);
+  err = ade_read_32(0x031A, &val);
   ADE_PUBLISH(current_a, (uint32_t) val, 100000.0f);
-  err = ade_read_32_(0x031B, &val);
+  err = ade_read_32(0x031B, &val);
   ADE_PUBLISH(current_b, (uint32_t) val, 100000.0f);
-  err = ade_read_32_(0x031C, &val);
+  err = ade_read_32(0x031C, &val);
   ADE_PUBLISH(voltage, (uint32_t) val, 26000.0f);
 
   //    auto apparent_power_a = this->ade_read_<int32_t>(0x0310);

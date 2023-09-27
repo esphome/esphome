@@ -28,9 +28,9 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
     }
 
     this->set_timeout(100, [this]() {
-      this->ade_write_8_(0x0010, 0x04);
-      this->ade_write_8_(0x00FE, 0xAD);
-      this->ade_write_16_(0x0120, 0x0030);
+      this->ade_write_8(0x0010, 0x04);
+      this->ade_write_8(0x00FE, 0xAD);
+      this->ade_write_16(0x0120, 0x0030);
       this->is_setup_ = true;
     });
   }
@@ -47,13 +47,13 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
   sensor::Sensor *active_power_a_sensor_{nullptr};
   sensor::Sensor *active_power_b_sensor_{nullptr};
 
-  virtual bool ade_write_8_(uint16_t reg, uint8_t value) = 0;
+  virtual bool ade_write_8(uint16_t reg, uint8_t value) = 0;
 
-  virtual bool ade_write_16_(uint16_t reg, uint16_t value) = 0;
+  virtual bool ade_write_16(uint16_t reg, uint16_t value) = 0;
 
-  virtual bool ade_write_32_(uint16_t reg, uint32_t value) = 0;
+  virtual bool ade_write_32(uint16_t reg, uint32_t value) = 0;
 
-  virtual bool ade_read_32_(uint16_t reg, uint32_t *value) = 0;
+  virtual bool ade_read_32(uint16_t reg, uint32_t *value) = 0;
 };
 
 }  // namespace ade7953_base

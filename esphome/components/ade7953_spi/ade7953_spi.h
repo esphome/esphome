@@ -11,7 +11,7 @@
 namespace esphome {
 namespace ade7953_spi {
 
-class ADE7953_spi : public ade7953_base::ADE7953,
+class AdE7953Spi : public ade7953_base::ADE7953,
                     public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_LEADING,
                                           spi::DATA_RATE_4MHZ> {
  public:
@@ -23,7 +23,7 @@ class ADE7953_spi : public ade7953_base::ADE7953,
   void dump_config() override;
 
  protected:
-  bool ade_write_8_(uint16_t reg, uint8_t value) override {
+  bool ade_write_8(uint16_t reg, uint8_t value) override {
     this->enable();
     this->write_byte16(reg);
     this->transfer_byte(0);
@@ -31,7 +31,7 @@ class ADE7953_spi : public ade7953_base::ADE7953,
     this->disable();
     return false;
   }
-  bool ade_write_16_(uint16_t reg, uint16_t value) override {
+  bool ade_write_16(uint16_t reg, uint16_t value) override {
     this->enable();
     this->write_byte16(reg);
     this->transfer_byte(0);
@@ -39,7 +39,7 @@ class ADE7953_spi : public ade7953_base::ADE7953,
     this->disable();
     return false;
   }
-  bool ade_write_32_(uint16_t reg, uint32_t value) override {
+  bool ade_write_32(uint16_t reg, uint32_t value) override {
     this->enable();
     this->write_byte16(reg);
     this->transfer_byte(0);
@@ -48,7 +48,7 @@ class ADE7953_spi : public ade7953_base::ADE7953,
     this->disable();
     return false;
   }
-  bool ade_read_32_(uint16_t reg, uint32_t *value) override {
+  bool ade_read_32(uint16_t reg, uint32_t *value) override {
     this->enable();
     this->write_byte16(reg);
     this->transfer_byte(0x80);

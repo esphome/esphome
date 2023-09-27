@@ -8,7 +8,7 @@ DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["ade7953_base"]
 
 ade7953_ns = cg.esphome_ns.namespace("ade7953_i2c")
-ADE7953 = ade7953_ns.class_("ADE7953_i2c", cg.PollingComponent, i2c.I2CDevice)
+ADE7953 = ade7953_ns.class_("AdE7953I2c", cg.PollingComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(

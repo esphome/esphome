@@ -6,7 +6,7 @@ namespace ade7953_spi {
 
 static const char *const TAG = "ade7953";
 
-void ADE7953_spi::dump_config() {
+void AdE7953Spi::dump_config() {
   ESP_LOGCONFIG(TAG, "ADE7953_spi:");
   LOG_PIN("  CS Pin: ", this->cs_);
   ade7953_base::ADE7953::dump_config();
