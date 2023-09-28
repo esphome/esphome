@@ -332,7 +332,7 @@ Rect Display::get_clipping() const {
 }
 void Display::clear_clipping_() {
   this->clipping_rectangle_.clear();
-  this->clipping_rectangle_.push_back(Rect(0, 0, this->get_width(), this->get_height()));
+  this->clipping_rectangle_.emplace_back(0, 0, this->get_width(), this->get_height());
 }
 bool Display::clip(int x, int y) {
   if (x < 0 || x >= this->get_width() || y < 0 || y >= this->get_height())
