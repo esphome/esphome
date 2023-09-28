@@ -375,13 +375,13 @@ void OrFilter::initialize(Sensor *parent, Filter *next) {
 
 // TimeoutFilter
 optional<float> TimeoutFilter::new_value(float value) {
-  this->set_timeout("timeout", this->time_period_, [this]() { this->output(NAN); });
+  this->set_timeout("timeout", this->time_period_, [this]() { this->output(this->value_); });
   this->output(value);
 
   return {};
 }
 
-TimeoutFilter::TimeoutFilter(uint32_t time_period) : time_period_(time_period) {}
+TimeoutFilter::TimeoutFilter(uint32_t time_period, float new_value) : time_period_(time_period), value_(new_value) {}
 float TimeoutFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 // DebounceFilter
