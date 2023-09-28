@@ -160,8 +160,28 @@ void ILI9XXXDisplay::draw_pixels_in_window(int x_start, int y_start, int w, int 
     return;
   }
 
-  ESP_LOGV(TAG, "copy with rotation %d degrees", (int) this->rotation_);
   size_t line_stride = x_start + w + x_pad;
+  /*
+  auto clip_rect = this->get_clipping();
+  if (clip_rect.is_set()) {
+    if (x_start < clip_rect.x) {
+      x_offset += clip_rect.x - x_start;
+      w -= clip_rect.x - x_start;
+      x_start = clip_rect.x;
+    }
+    if (y_start < clip_rect.y) {
+      y_offset += clip_rect.y - y_start;
+      h -= clip_rect.y - y_start;
+      y_start = clip_rect.y;
+    }
+    if (x_start + w > clip_rect.x + clip_rect.w) {
+      w = clip_rect.x + clip_rect.w - x_start;
+    }
+    if (y_start + h > clip_rect.y + clip_rect.h) {
+      h = clip_rect.y + clip_rect.h - y_start;
+    }
+  } */
+  ESP_LOGV(TAG, "copy with rotation %d degrees", (int) this->rotation_);
   uint16_t *src_ptr;
   uint16_t *dst_ptr;
   switch (this->rotation_) {
