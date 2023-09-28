@@ -48,6 +48,16 @@ class AdE7953Spi : public ade7953_base::ADE7953,
     this->disable();
     return false;
   }
+  bool ade_read_16(uint16_t reg, uint16_t *value) override {
+    this->enable();
+    this->write_byte16(reg);
+    this->transfer_byte(0x80);
+    *value  = 0;
+    *value |= this->read_byte() << 8;
+    *value |= this->read_byte();
+    this->disable();
+    return false;
+  }
   bool ade_read_32(uint16_t reg, uint32_t *value) override {
     this->enable();
     this->write_byte16(reg);

@@ -5,21 +5,35 @@ from esphome import pins
 from esphome.const import (
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_POWER,
+    DEVICE_CLASS_REACTIVE_POWER,
+    DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
     UNIT_AMPERE,
+    UNIT_VOLT_AMPS,
     UNIT_WATT,
+    UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_PERCENT,
 )
 
-CODEOWNERS = ["@angelnu"]
+# ade7953_ns = cg.esphome_ns.namespace("ade7953_base")
+# ADE7953 = ade7953_ns.class_("ADE7953", cg.PollingComponent)
 
 CONF_IRQ_PIN = "irq_pin"
 CONF_CURRENT_A = "current_a"
 CONF_CURRENT_B = "current_b"
 CONF_ACTIVE_POWER_A = "active_power_a"
 CONF_ACTIVE_POWER_B = "active_power_b"
+CONF_APPARENT_POWER_A = "apparent_power_a"
+CONF_APPARENT_POWER_B = "apparent_power_b"
+CONF_REACTIVE_POWER_A = "reactive_power_a"
+CONF_REACTIVE_POWER_B = "reactive_power_b"
+CONF_POWER_FACTOR_A = "power_factor_a"
+CONF_POWER_FACTOR_B = "power_factor_b"
+
 
 ADE7953_CONFIG_SCHEMA = cv.Schema(
     {
@@ -54,6 +68,42 @@ ADE7953_CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_POWER,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
+        cv.Optional(CONF_APPARENT_POWER_A): sensor.sensor_schema(
+            unit_of_measurement=UNIT_VOLT_AMPS,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_APPARENT_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_APPARENT_POWER_B): sensor.sensor_schema(
+            unit_of_measurement=UNIT_VOLT_AMPS,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_APPARENT_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_REACTIVE_POWER_A): sensor.sensor_schema(
+            unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_REACTIVE_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_REACTIVE_POWER_B): sensor.sensor_schema(
+            unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_REACTIVE_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_POWER_FACTOR_A): sensor.sensor_schema(
+            unit_of_measurement=UNIT_PERCENT,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_POWER_FACTOR,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_POWER_FACTOR_B): sensor.sensor_schema(
+            unit_of_measurement=UNIT_PERCENT,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_POWER_FACTOR,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
     }
 ).extend(cv.polling_component_schema("1s"))
 
@@ -69,8 +119,14 @@ async def register_ade7953(var, config):
         CONF_VOLTAGE,
         CONF_CURRENT_A,
         CONF_CURRENT_B,
+        CONF_POWER_FACTOR_A,
+        CONF_POWER_FACTOR_B,
+        CONF_APPARENT_POWER_A,
+        CONF_APPARENT_POWER_B,
         CONF_ACTIVE_POWER_A,
         CONF_ACTIVE_POWER_B,
+        CONF_REACTIVE_POWER_A,
+        CONF_REACTIVE_POWER_B,
     ]:
         if key not in config:
             continue
