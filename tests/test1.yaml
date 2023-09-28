@@ -82,6 +82,9 @@ wifi:
   reboot_timeout: 120s
   power_save_mode: light
 
+network:
+  enable_ipv6: true
+
 mdns:
   disabled: false
 
