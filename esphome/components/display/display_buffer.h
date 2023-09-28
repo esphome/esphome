@@ -35,16 +35,14 @@ class DisplayBuffer : public Display {
    * \param order The ordering of the colors
    * \param bitness Defines the number of bits and their format for each pixel
    * \param big_endian True if 16 bit values are stored big-endian
-   * \param x_offset The initial x-offset into the source buffer. Defaults to 0.
-   * \param y_offset The initial y-offset into the source buffer. Defaults to 0
+   * \param x_offset The initial x-offset into the source buffer.
+   * \param y_offset The initial y-offset into the source buffer.
    * \param x_pad How many pixels are in each line after the end of the pixels to be copied.
    *
    * The length of each source buffer line will be x_offset + w + x_pad.
-   *  TODO: handle one-bit-per-pixel monochrome
    */
   virtual void draw_pixels_in_window(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                                     ColorBitness bitness, bool big_endian = true, int x_offset = 0, int y_offset = 0,
-                                     int x_pad = 0) {
+                                     ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
     if (bitness == COLOR_BITNESS_UNKNOWN)
       return;
     size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
@@ -81,6 +79,12 @@ class DisplayBuffer : public Display {
         this->draw_pixel_at(x + x_start, y + y_start, ColorUtil::to_color(color_value, order, bitness));
       }
     }
+  }
+
+  /// Convenience overload for base case where the pixels are packed into the buffer with no gaps (e.g. suits LVGL.)
+  void draw_pixels_in_window(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                             ColorBitness bitness, bool big_endian) {
+    this->draw_pixels_in_window(x_start, y_start, w, h, ptr, order, bitness, big_endian, 0, 0, 0);
   }
 
   virtual int get_height_internal() = 0;
