@@ -4,8 +4,6 @@
 namespace esphome {
 namespace whirlpool {
 
-int32_t t1 = millis() + 500;
-
 static const char *const TAG = "whirlpool.climate";
 
 const uint16_t WHIRLPOOL_HEADER_MARK = 9000;
@@ -35,7 +33,7 @@ const uint8_t WHIRLPOOL_SWING_MASK = 128;
 const uint8_t WHIRLPOOL_POWER = 0x04;
 
 void WhirlpoolClimate::transmit_state() {
-  t1 = millis();  // setting the time of the last transmission.
+  this->last_transmit_time_ = millis();  // setting the time of the last transmission.
   uint8_t remote_state[WHIRLPOOL_STATE_LENGTH] = {0};
   remote_state[0] = 0x83;
   remote_state[1] = 0x06;
@@ -153,7 +151,7 @@ void WhirlpoolClimate::transmit_state() {
 
 bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Check if the esp isn't currently transmitting.
-  if (millis() - t1 < 500) {
+  if (millis() - this->last_transmit_time_ < 500) {
     ESP_LOGV(TAG, "Blocked receive because of current trasmittion");
     return false;
   }
