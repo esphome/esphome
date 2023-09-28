@@ -32,8 +32,7 @@ enum ST7735Model {
   ST7735_INITR_18REDTAB = INITR_18REDTAB
 };
 
-class ST7735 : public PollingComponent,
-               public display::DisplayBuffer,
+class ST7735 : public display::DisplayBuffer,
                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                      spi::DATA_RATE_8MHZ> {
  public:
