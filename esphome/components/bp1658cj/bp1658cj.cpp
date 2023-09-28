@@ -88,7 +88,7 @@ void BP1658CJ::write_bit_(bool value) {
   this->data_pin_->digital_write(value);
   this->clock_pin_->digital_write(true);
 
-  esphome::delayMicroseconds(BP1658CJ_DELAY);
+  delayMicroseconds(BP1658CJ_DELAY);
 
   this->clock_pin_->digital_write(false);
 }
@@ -96,14 +96,14 @@ void BP1658CJ::write_bit_(bool value) {
 void BP1658CJ::write_byte_(uint8_t data) {
   for (uint8_t mask = 0x80; mask; mask >>= 1) {
     this->write_bit_(data & mask);
-    esphome::delayMicroseconds(BP1658CJ_DELAY);
+    delayMicroseconds(BP1658CJ_DELAY);
   }
 
   // ack bit
   this->data_pin_->pin_mode(gpio::FLAG_INPUT);
   this->clock_pin_->digital_write(true);
 
-  esphome::delayMicroseconds(BP1658CJ_DELAY);
+  delayMicroseconds(BP1658CJ_DELAY);
 
   this->clock_pin_->digital_write(false);
   this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
@@ -115,7 +115,7 @@ void BP1658CJ::write_buffer_(uint8_t *buffer, uint8_t size) {
 
   for (uint32_t i = 0; i < size; i++) {
     this->write_byte_(buffer[i]);
-    esphome::delayMicroseconds(BP1658CJ_DELAY);
+    delayMicroseconds(BP1658CJ_DELAY);
   }
   
   this->clock_pin_->digital_write(true);
