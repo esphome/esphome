@@ -11,7 +11,7 @@ from esphome.core import CORE
 from esphome.helpers import get_bool_env, write_file
 from esphome.log import Fore, color
 from esphome.storage_json import StorageJSON, ext_storage_path
-from esphome.util import safe_print
+from esphome.util import safe_input, safe_print
 
 CORE_BIG = r"""    _____ ____  _____  ______
    / ____/ __ \|  __ \|  ____|
@@ -252,7 +252,7 @@ def safe_print_step(step, big):
 def default_input(text, default):
     safe_print()
     safe_print(f"Press ENTER for default ({default})")
-    return input(text.format(default)) or default
+    return safe_input(text.format(default)) or default
 
 
 # From https://stackoverflow.com/a/518232/8924614
@@ -306,7 +306,7 @@ def wizard(path):
     )
     safe_print()
     sleep(1)
-    name = input(color(Fore.BOLD_WHITE, "(name): "))
+    name = safe_input(color(Fore.BOLD_WHITE, "(name): "))
 
     while True:
         try:
@@ -343,7 +343,9 @@ def wizard(path):
     while True:
         sleep(0.5)
         safe_print()
-        platform = input(color(Fore.BOLD_WHITE, f"({'/'.join(wizard_platforms)}): "))
+        platform = safe_input(
+            color(Fore.BOLD_WHITE, f"({'/'.join(wizard_platforms)}): ")
+        )
         try:
             platform = vol.All(vol.Upper, vol.Any(*wizard_platforms))(platform.upper())
             break
@@ -397,7 +399,7 @@ def wizard(path):
         boards.append(board_id)
 
     while True:
-        board = input(color(Fore.BOLD_WHITE, "(board): "))
+        board = safe_input(color(Fore.BOLD_WHITE, "(board): "))
         try:
             board = vol.All(vol.Lower, vol.Any(*boards))(board)
             break
@@ -423,7 +425,7 @@ def wizard(path):
     sleep(1.5)
     safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'Abraham Linksys')}\".")
     while True:
-        ssid = input(color(Fore.BOLD_WHITE, "(ssid): "))
+        ssid = safe_input(color(Fore.BOLD_WHITE, "(ssid): "))
         try:
             ssid = cv.ssid(ssid)
             break
@@ -449,7 +451,7 @@ def wizard(path):
     safe_print()
     safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'PASSWORD42')}\"")
     sleep(0.5)
-    psk = input(color(Fore.BOLD_WHITE, "(PSK): "))
+    psk = safe_input(color(Fore.BOLD_WHITE, "(PSK): "))
     safe_print(
         "Perfect! WiFi is now set up (you can create static IPs and so on later)."
     )
@@ -466,7 +468,7 @@ def wizard(path):
     safe_print()
     sleep(0.25)
     safe_print("Press ENTER for no password")
-    password = input(color(Fore.BOLD_WHITE, "(password): "))
+    password = safe_input(color(Fore.BOLD_WHITE, "(password): "))
 
     if not wizard_write(
         path=path,

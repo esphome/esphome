@@ -11,6 +11,9 @@ void PulseMeterSensor::setup() {
   this->pin_->setup();
   this->isr_pin_ = pin_->to_isr();
 
+  // Set the last processed edge to now for the first timeout
+  this->last_processed_edge_us_ = micros();
+
   if (this->filter_mode_ == FILTER_EDGE) {
     this->pin_->attach_interrupt(PulseMeterSensor::edge_intr, this, gpio::INTERRUPT_RISING_EDGE);
   } else if (this->filter_mode_ == FILTER_PULSE) {
@@ -38,13 +41,17 @@ void PulseMeterSensor::loop() {
     }
 
     // We need to detect at least two edges to have a valid pulse width
-    if (!this->initialized_) {
-      this->initialized_ = true;
-    } else {
-      uint32_t delta_us = this->get_->last_detected_edge_us_ - this->last_processed_edge_us_;
-      float pulse_width_us = delta_us / float(this->get_->count_);
-      this->last_pulse_width_us_ = pulse_width_us;
-      this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
+    switch (this->meter_state_) {
+      case MeterState::INITIAL:
+      case MeterState::TIMED_OUT: {
+        this->meter_state_ = MeterState::RUNNING;
+      } break;
+      case MeterState::RUNNING: {
+        uint32_t delta_us = this->get_->last_detected_edge_us_ - this->last_processed_edge_us_;
+        float pulse_width_us = delta_us / float(this->get_->count_);
+        this->last_pulse_width_us_ = pulse_width_us;
+        this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
+      } break;
     }
 
     this->last_processed_edge_us_ = this->get_->last_detected_edge_us_;
@@ -55,17 +62,24 @@ void PulseMeterSensor::loop() {
     // If we received a pulse right now, this is what the pulse width would be
     const uint32_t pulse_width_us = now - this->last_processed_edge_us_;
 
-    if (this->initialized_) {
-      if (pulse_width_us > this->timeout_us_) {
-        ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", pulse_width_us / 1000000);
-        this->initialized_ = false;
-        this->publish_state(0.0f);
-      } else if (this->fade_mode_ && (pulse_width_us >= this->last_pulse_width_us_ * 2)) {
-        // In fade mode, if the amount of time since the last pulse has doubled, then we publish a simulated signal
-        // The result is if the pulses suddenly stop (or get much slower) the sensor will fade towards it
-        this->last_pulse_width_us_ = pulse_width_us;
-        this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
-      }
+    switch (this->meter_state_) {
+        // Running and initial states can timeout
+      case MeterState::INITIAL:
+      case MeterState::RUNNING: {
+        if (pulse_width_us > this->timeout_us_) {
+          this->meter_state_ = MeterState::TIMED_OUT;
+          ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
+          this->publish_state(0.0f);
+        } else if (this->fade_mode_ && this->meter_state_ == MeterState::RUNNING &&
+                   (pulse_width_us >= this->last_pulse_width_us_ * 2)) {
+          // In fade mode, if the amount of time since the last pulse has doubled, then we publish a simulated signal
+          // The result is if the pulses suddenly stop (or get much slower) the sensor will fade towards 0
+          this->last_pulse_width_us_ = pulse_width_us;
+          this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
+        }
+      } break;
+      default:
+        break;
     }
   }
 }

@@ -40,7 +40,8 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   bool fade_mode_{false};
 
   // Variables used in the loop
-  bool initialized_ = false;
+  enum class MeterState { INITIAL, RUNNING, TIMED_OUT };
+  MeterState meter_state_ = MeterState::INITIAL;
   uint32_t total_pulses_ = 0;
   uint32_t last_processed_edge_us_ = 0;
   uint32_t last_pulse_width_us_ = 0;
