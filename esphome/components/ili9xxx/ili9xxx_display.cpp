@@ -160,8 +160,8 @@ void ILI9XXXDisplay::draw_pixels_in_window(int x_start, int y_start, int w, int 
     return;
   }
 
+  ESP_LOGV(TAG, "drawing into %d/%d, %d/%d", x_start, y_start, w, h);
   size_t line_stride = x_start + w + x_pad;
-  /*
   auto clip_rect = this->get_clipping();
   if (clip_rect.is_set()) {
     if (x_start < clip_rect.x) {
@@ -180,7 +180,10 @@ void ILI9XXXDisplay::draw_pixels_in_window(int x_start, int y_start, int w, int 
     if (y_start + h > clip_rect.y + clip_rect.h) {
       h = clip_rect.y + clip_rect.h - y_start;
     }
-  } */
+    ESP_LOGV(TAG, "clipped to %d/%d, %d/%d", x_start, y_start, w, h);
+  }
+  if (w <= 0 || h <= 0)
+    return;
   ESP_LOGV(TAG, "copy with rotation %d degrees", (int) this->rotation_);
   uint16_t *src_ptr;
   uint16_t *dst_ptr;
