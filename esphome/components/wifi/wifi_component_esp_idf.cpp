@@ -483,7 +483,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip() {
   count = esp_netif_get_all_ip6(s_sta_netif, if_ip6s);
   assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
   for (int i = 0; i < count; i++) {
-        addresses[i+1] = network::IPAddress(&if_ip6s[i]);
+    addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
   }
 #endif
   return addresses;

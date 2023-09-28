@@ -16,7 +16,7 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
     auto ips = ethernet::global_eth_component->get_ip_address();
     if (ips != this->last_ips_) {
       this->last_ips_ = ips;
-      for (auto& ip: ips) {
+      for (auto &ip : ips) {
         if (ip.is_set()) {
           address_results += ip.is_ip4() ? "IPv4: " : "IPv6: ";
           address_results += ip.str();

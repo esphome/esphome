@@ -250,9 +250,9 @@ network::IPAddresses EthernetComponent::get_ip_address() {
   count = esp_netif_get_all_ip6(this->eth_netif_, if_ip6s);
   assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
   for (int i = 0; i < count; i++) {
-        addresses[i+1] = network::IPAddress(&if_ip6s[i]);
+    addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
   }
- #endif
+#endif /* ENABLE_IPV6 */
 
   return addresses;
 }

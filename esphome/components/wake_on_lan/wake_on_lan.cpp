@@ -34,8 +34,7 @@ void WakeOnLanButton::press_action() {
 #ifdef USE_ESP8266
   for (auto ip : esphome::network::get_ip_address()) {
     if (ip.is_ip4()) {
-      begin_status = this->udp_client_.beginPacketMulticast(broadcast, 9,
-                                                            ip, 128);
+      begin_status = this->udp_client_.beginPacketMulticast(broadcast, 9, ip, 128);
       break;
     }
   }

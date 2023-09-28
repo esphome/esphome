@@ -188,8 +188,8 @@ network::IPAddresses WiFiComponent::wifi_sta_ip() {
     return {};
   network::IPAddresses addresses;
   uint8_t index = 0;
-  for (auto addr : addrList) {
-      addresses[index++] = addr.ipFromNetifNum();
+  for (auto &addr : addrList) {
+    addresses[index++] = addr.ipFromNetifNum();
   }
   return addresses;
 }

@@ -14,7 +14,7 @@ class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSenso
     auto ips = wifi::global_wifi_component->wifi_sta_ip();
     if (ips != this->last_ips_) {
       this->last_ips_ = ips;
-      for (auto& ip: ips) {
+      for (auto &ip : ips) {
         if (ip.is_set()) {
           address_results += ip.is_ip4() ? "IPv4: " : "IPv6: ";
           address_results += ip.str();

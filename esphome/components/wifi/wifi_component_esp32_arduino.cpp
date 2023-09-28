@@ -149,7 +149,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip() {
     return {};
   network::IPAddresses addresses;
   tcpip_adapter_ip_info_t ip;
-  esp_err_t err =tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
+  esp_err_t err = tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
   if (err != ESP_OK) {
     ESP_LOGV(TAG, "esp_netif_get_ip_info failed: %s", esp_err_to_name(err));
     // TODO: do something smarter
@@ -162,13 +162,13 @@ network::IPAddresses WiFiComponent::wifi_sta_ip() {
   err = tcpip_adapter_get_ip6_global(TCPIP_ADAPTER_IF_STA, &ipv6);
   if (err != ESP_OK) {
     ESP_LOGV(TAG, "esp_netif_get_ip6_gobal failed: %s", esp_err_to_name(err));
-  } else  {
+  } else {
     addresses[1] = network::IPAddress(&ipv6);
   }
   err = tcpip_adapter_get_ip6_linklocal(TCPIP_ADAPTER_IF_STA, &ipv6);
   if (err != ESP_OK) {
     ESP_LOGV(TAG, "esp_netif_get_ip6_linklocal failed: %s", esp_err_to_name(err));
-  } else  {
+  } else {
     addresses[2] = network::IPAddress(&ipv6);
   }
 #endif

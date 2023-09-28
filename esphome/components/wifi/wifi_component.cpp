@@ -194,8 +194,8 @@ network::IPAddresses WiFiComponent::get_ip_address() {
   if (this->has_sta())
     return this->wifi_sta_ip();
   // TODO: fix soft ap
-/*  if (this->has_ap())
-    return this->wifi_soft_ap_ip();*/
+  if (this->has_ap())
+    return {this->wifi_soft_ap_ip()};
   return {};
 }
 network::IPAddress WiFiComponent::get_dns_address(int num) {
@@ -382,7 +382,7 @@ void WiFiComponent::print_connect_params_() {
 
   ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
   ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), wifi_ssid().c_str());
-  for (auto& ip: wifi_sta_ip()) {
+  for (auto &ip : wifi_sta_ip()) {
     if (ip.is_set()) {
       ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str().c_str());
     }
