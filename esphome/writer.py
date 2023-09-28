@@ -354,14 +354,10 @@ def write_cpp(code_s):
 def clean_build():
     import shutil
 
-    pioenvs = CORE.relative_pioenvs_path()
-    if os.path.isdir(pioenvs):
-        _LOGGER.info("Deleting %s", pioenvs)
-        shutil.rmtree(pioenvs)
-    piolibdeps = CORE.relative_piolibdeps_path()
-    if os.path.isdir(piolibdeps):
-        _LOGGER.info("Deleting %s", piolibdeps)
-        shutil.rmtree(piolibdeps)
+    build_dir = CORE.relative_build_path("")
+    if os.path.isdir(build_dir):
+        _LOGGER.info("Deleting %s", build_dir)
+        shutil.rmtree(build_dir)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
