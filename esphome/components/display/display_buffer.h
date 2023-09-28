@@ -12,7 +12,7 @@
 namespace esphome {
 namespace display {
 
-class DisplayBuffer : public Display, public PollingComponent {
+class DisplayBuffer : public Display {
  public:
   /// Get the width of the image in pixels with rotation applied.
   int get_width() override;
@@ -49,30 +49,38 @@ class DisplayBuffer : public Display, public PollingComponent {
       return;
     size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
     uint32_t color_value;
-    for (int y = y_start; y != y_start + h; y++)
-      for (int x = x_start; x != x_start + w; x++) {
-        size_t source_idx = (y + y_offset) * line_stride + x_offset;
+    for (int y = 0; y != h; y++) {
+      size_t source_idx = (y_offset + y) * line_stride + x_offset;
+      size_t source_idx_mod;
+      for (int x = 0; x != w; x++, source_idx++) {
         switch (bitness) {
           default:
             color_value = ptr[source_idx];
             break;
           case COLOR_BITNESS_565:
-            source_idx *= 2;
-            if (big_endian)
-              color_value = (ptr[source_idx] << 8) + ptr[source_idx + 1];
-            else
-              color_value = ptr[source_idx] + (ptr[source_idx + 1] << 8);
+            source_idx_mod = source_idx * 2;
+            if (big_endian) {
+              color_value = (ptr[source_idx_mod] << 8) + ptr[source_idx_mod + 1];
+            } else {
+              color_value = ptr[source_idx_mod] + (ptr[source_idx_mod + 1] << 8);
+            }
             break;
           case COLOR_BITNESS_888:
-            source_idx *= 2;
-            if (big_endian)
-              color_value = (ptr[source_idx + 0] << 16) + (ptr[source_idx + 1] << 8) + ptr[source_idx + 2];
-            else
-              color_value = ptr[source_idx + 0] + (ptr[source_idx + 1] << 8) + (ptr[source_idx + 2] << 16);
+            source_idx_mod = source_idx * 3;
+            if (big_endian) {
+              color_value = (ptr[source_idx_mod + 0] << 16) + (ptr[source_idx_mod + 1] << 8) + ptr[source_idx_mod + 2];
+            } else {
+              color_value = ptr[source_idx_mod + 0] + (ptr[source_idx_mod + 1] << 8) + (ptr[source_idx_mod + 2] << 16);
+            }
+            break;
+          case COLOR_BITNESS_A888:
+            source_idx_mod = source_idx * 4;
+            color_value = (ptr[source_idx_mod + 2] << 16) + (ptr[source_idx_mod + 1] << 8) + ptr[source_idx_mod + 0];
             break;
         }
-        this->draw_pixel_at(x, y, ColorUtil::to_color(color_value, order, bitness));
+        this->draw_pixel_at(x + x_start, y + y_start, ColorUtil::to_color(color_value, order, bitness));
       }
+    }
   }
 
   virtual int get_height_internal() = 0;

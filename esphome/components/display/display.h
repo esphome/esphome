@@ -163,7 +163,7 @@ class BaseFont {
   virtual void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) = 0;
 };
 
-class Display {
+class Display : public PollingComponent {
  public:
   /// Fill the entire screen with the given color.
   virtual void fill(Color color);

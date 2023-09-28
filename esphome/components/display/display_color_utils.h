@@ -8,6 +8,7 @@ enum ColorBitness : uint8_t {
   COLOR_BITNESS_888 = 0,
   COLOR_BITNESS_565 = 1,
   COLOR_BITNESS_332 = 2,
+  COLOR_BITNESS_A888 = 3,
   COLOR_BITNESS_UNKNOWN = 255
 };
 inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 255) { return (max_value * i / scale); }
@@ -23,6 +24,7 @@ class ColorUtil {
 
     switch (color_bitness) {
       case COLOR_BITNESS_888:
+      case COLOR_BITNESS_A888:
         first_bits = 8;
         second_bits = 8;
         third_bits = 8;
