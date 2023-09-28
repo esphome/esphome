@@ -50,7 +50,7 @@ class ILI9XXXDisplay : public PollingComponent,
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void draw_pixels_in_window(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                             display::ColorBitness bitness, bool big_endian = true, int x_offset, int y_offset,
+                             display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
                              int x_pad) override;
   void setup_pins_();
   virtual void initialize() = 0;

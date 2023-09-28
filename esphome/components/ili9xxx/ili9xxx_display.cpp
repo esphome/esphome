@@ -228,7 +228,7 @@ void ILI9XXXDisplay::display_() {
   // we will only update the changed window to the display
   uint16_t w = this->x_high_ - this->x_low_ + 1;  // NOLINT
   uint16_t h = this->y_high_ - this->y_low_ + 1;  // NOLINT
-  uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
+  size_t start_pos = ((this->y_low_ * this->width_) + x_low_);
 
   // check if something was displayed
   if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_)) {
