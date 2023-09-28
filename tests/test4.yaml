@@ -21,6 +21,9 @@ ethernet:
     subnet: 255.255.255.0
   domain: .local
 
+network:
+  enable_ipv6: true
+
 api:
 
 i2c:
@@ -32,6 +35,7 @@ spi:
   clk_pin: GPIO21
   mosi_pin: GPIO22
   miso_pin: GPIO23
+  interface: hardware
 
 uart:
   - id: uart115200

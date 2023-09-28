@@ -249,7 +249,11 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
   void play_complex(Ts... x) override {
     this->num_running_++;
     this->var_ = std::make_tuple(x...);
-    this->then_.play(0, x...);
+    if (this->count_.value(x...) > 0) {
+      this->then_.play(0, x...);
+    } else {
+      this->play_next_tuple_(this->var_);
+    }
   }
 
   void play(Ts... x) override { /* ignore - see play_complex */

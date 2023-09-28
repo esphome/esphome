@@ -32,6 +32,7 @@ import yaml
 from tornado.log import access_log
 
 from esphome import const, platformio_api, util, yaml_util
+from esphome.core import CORE
 from esphome.helpers import get_bool_env, mkdir_p, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -70,6 +71,7 @@ class DashboardSettings:
             self.password_hash = password_hash(password)
         self.config_dir = args.configuration
         self.absolute_config_dir = Path(self.config_dir).resolve()
+        CORE.config_path = os.path.join(self.config_dir, ".")
 
     @property
     def relative_url(self):
@@ -534,13 +536,16 @@ class DownloadListRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        storage_path = ext_storage_path(settings.config_dir, configuration)
+        storage_path = ext_storage_path(configuration)
         storage_json = StorageJSON.load(storage_path)
         if storage_json is None:
             self.send_error(404)
             return
 
-        from esphome.components.esp32 import get_download_types as esp32_types
+        from esphome.components.esp32 import (
+            get_download_types as esp32_types,
+            VARIANTS as ESP32_VARIANTS,
+        )
         from esphome.components.esp8266 import get_download_types as esp8266_types
         from esphome.components.rp2040 import get_download_types as rp2040_types
         from esphome.components.libretiny import get_download_types as libretiny_types
@@ -551,7 +556,7 @@ class DownloadListRequestHandler(BaseHandler):
             downloads = rp2040_types(storage_json)
         elif platform == const.PLATFORM_ESP8266:
             downloads = esp8266_types(storage_json)
-        elif platform == const.PLATFORM_ESP32:
+        elif platform.upper() in ESP32_VARIANTS:
             downloads = esp32_types(storage_json)
         elif platform == const.PLATFORM_BK72XX:
             downloads = libretiny_types(storage_json)
@@ -574,7 +579,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
     def get(self, configuration=None):
         compressed = self.get_argument("compressed", "0") == "1"
 
-        storage_path = ext_storage_path(settings.config_dir, configuration)
+        storage_path = ext_storage_path(configuration)
         storage_json = StorageJSON.load(storage_path)
         if storage_json is None:
             self.send_error(404)
@@ -663,9 +668,7 @@ class DashboardEntry:
     @property
     def storage(self) -> Optional[StorageJSON]:
         if not self._loaded_storage:
-            self._storage = StorageJSON.load(
-                ext_storage_path(settings.config_dir, self.filename)
-            )
+            self._storage = StorageJSON.load(ext_storage_path(self.filename))
             self._loaded_storage = True
         return self._storage
 
@@ -1041,9 +1044,9 @@ class DeleteRequestHandler(BaseHandler):
     @bind_config
     def post(self, configuration=None):
         config_file = settings.rel_path(configuration)
-        storage_path = ext_storage_path(settings.config_dir, configuration)
+        storage_path = ext_storage_path(configuration)
 
-        trash_path = trash_storage_path(settings.config_dir)
+        trash_path = trash_storage_path()
         mkdir_p(trash_path)
         shutil.move(config_file, os.path.join(trash_path, configuration))
 
@@ -1064,7 +1067,7 @@ class UndoDeleteRequestHandler(BaseHandler):
     @bind_config
     def post(self, configuration=None):
         config_file = settings.rel_path(configuration)
-        trash_path = trash_storage_path(settings.config_dir)
+        trash_path = trash_storage_path()
         shutil.move(os.path.join(trash_path, configuration), config_file)
 
 
@@ -1322,10 +1325,9 @@ def make_app(debug=get_bool_env(ENV_DEV)):
 
 def start_web_server(args):
     settings.parse_args(args)
-    mkdir_p(settings.rel_path(".esphome"))
 
     if settings.using_auth:
-        path = esphome_storage_path(settings.config_dir)
+        path = esphome_storage_path()
         storage = EsphomeStorageJSON.load(path)
         if storage is None:
             storage = EsphomeStorageJSON.get_default()

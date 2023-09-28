@@ -16,6 +16,9 @@ wifi:
     - ssid: "MySSID"
       password: "password1"
 
+network:
+  enable_ipv6: true
+
 api:
 
 ota:
@@ -62,3 +65,6 @@ switch:
 sensor:
   - platform: internal_temperature
     name: Internal Temperature
+  - platform: adc
+    pin: VCC
+    name: VSYS
