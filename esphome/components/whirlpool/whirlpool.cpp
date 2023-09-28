@@ -4,7 +4,7 @@
 namespace esphome {
 namespace whirlpool {
 
-long int t1 = millis() + 500;
+int32_t t1 = millis() + 500;
 
 static const char *const TAG = "whirlpool.climate";
 
