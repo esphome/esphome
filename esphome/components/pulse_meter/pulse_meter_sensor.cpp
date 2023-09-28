@@ -68,7 +68,7 @@ void PulseMeterSensor::loop() {
       case MeterState::RUNNING: {
         if (pulse_width_us > this->timeout_us_) {
           this->meter_state_ = MeterState::TIMED_OUT;
-          ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
+          ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", pulse_width_us / 1000000);
           this->publish_state(0.0f);
         } else if (this->fade_mode_ && this->meter_state_ == MeterState::RUNNING &&
                    (pulse_width_us >= this->last_pulse_width_us_ * 2)) {
