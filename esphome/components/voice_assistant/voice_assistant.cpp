@@ -487,8 +487,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
           message = std::move(arg.value);
         }
       }
-      if (code == "wake-word-timeout") {
-        this->set_state_(State::IDLE, State::IDLE);
+      if (code == "wake-word-timeout" || code == "wake_word_detection_aborted") {
+        this->set_state_(State::STOP_MICROPHONE, State::IDLE);
         return;
       }
       ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
