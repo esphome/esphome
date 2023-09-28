@@ -14,7 +14,10 @@ const Color COLOR_ON(255, 255, 255, 255);
 
 void Display::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void Display::clear() { this->fill(COLOR_OFF); }
-void Display::set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
+void Display::set_rotation(DisplayRotation rotation) {
+  this->rotation_ = rotation;
+  this->clear_clipping_();
+}
 void HOT Display::line(int x1, int y1, int x2, int y2, Color color) {
   const int32_t dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
   const int32_t dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
@@ -321,12 +324,16 @@ void Display::shrink_clipping(Rect add_rect) {
 }
 Rect Display::get_clipping() const {
   if (this->clipping_rectangle_.empty()) {
+    ESP_LOGE(TAG, "Clipping has been over-freed");
     return Rect();
   } else {
     return this->clipping_rectangle_.back();
   }
 }
-void Display::clear_clipping_() { this->clipping_rectangle_.clear(); }
+void Display::clear_clipping_() {
+  this->clipping_rectangle_.clear();
+  this->clipping_rectangle_.push_back(Rect(0, 0, this->get_width(), this->get_height()));
+}
 bool Display::clip(int x, int y) {
   if (x < 0 || x >= this->get_width() || y < 0 || y >= this->get_height())
     return false;
