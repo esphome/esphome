@@ -10,7 +10,7 @@
 namespace esphome {
 namespace addressable_light {
 
-class AddressableLightDisplay : public display::DisplayBuffer {
+class AddressableLightDisplay : public display::DisplayBuffer, public PollingComponent {
  public:
   light::AddressableLight *get_light() const { return this->light_; }
 
