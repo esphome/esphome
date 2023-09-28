@@ -12,7 +12,7 @@
 namespace esphome {
 namespace display {
 
-class DisplayBuffer : public Display {
+class DisplayBuffer : public Display, public PollingComponent {
  public:
   /// Get the width of the image in pixels with rotation applied.
   int get_width() override;
