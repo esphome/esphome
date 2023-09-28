@@ -117,7 +117,7 @@ void BP1658CJ::write_buffer_(uint8_t *buffer, uint8_t size) {
     this->write_byte_(buffer[i]);
     delayMicroseconds(BP1658CJ_DELAY);
   }
-  
+
   this->clock_pin_->digital_write(true);
   this->data_pin_->digital_write(true);
 }
