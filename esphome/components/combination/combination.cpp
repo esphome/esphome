@@ -64,6 +64,15 @@ void CombinationComponent::setup() {
   }
 }
 
+void CombinationComponent::loop() {
+  // Any updates are first stored in updated_value_ and then sent in the next loop. This prevents the combination sensor
+  // from publishing multiple times when more than one sensor is updated in the same loop.
+  if (std::isfinite(this->updated_value_)) {
+    this->publish_state(this->updated_value_);
+    this->updated_value_ = NAN;
+  }
+}
+
 void CombinationComponent::handle_new_value_(float value) {
   if (std::isfinite(value)) {
     switch (this->combo_type_) {
@@ -78,7 +87,7 @@ void CombinationComponent::handle_new_value_(float value) {
           }
         }
 
-        this->publish_state(sum);
+        this->updated_value_ = sum;
         break;
       }
       case CombinationType::COMBINATION_MAXIMUM: {
@@ -89,7 +98,7 @@ void CombinationComponent::handle_new_value_(float value) {
           max_value = std::max(max_value, sensor.first->state);
         }
 
-        this->publish_state(max_value);
+        this->updated_value_ = max_value;
         break;
       }
       case CombinationType::COMBINATION_MEAN: {
@@ -103,7 +112,7 @@ void CombinationComponent::handle_new_value_(float value) {
           }
         }
 
-        this->publish_state(sum / count);
+        this->updated_value_ = sum / count;
         break;
       }
       case CombinationType::COMBINATION_MEDIAN: {
@@ -130,7 +139,7 @@ void CombinationComponent::handle_new_value_(float value) {
           }
         }
 
-        this->publish_state(median);
+        this->updated_value_ = median;
         break;
       }
       case CombinationType::COMBINATION_MINIMUM: {
@@ -140,11 +149,11 @@ void CombinationComponent::handle_new_value_(float value) {
           min_value = std::min(min_value, sensor.first->state);
         }
 
-        this->publish_state(min_value);
+        this->updated_value_ = min_value;
         break;
       }
       case CombinationType::COMBINATION_MOST_RECENTLY_UPDATED: {
-        this->publish_state(value);
+        this->updated_value_ = value;
         break;
       }
       case CombinationType::COMBINATION_RANGE: {
@@ -159,7 +168,7 @@ void CombinationComponent::handle_new_value_(float value) {
 
         sort(sensor_states.begin(), sensor_states.end());
 
-        this->publish_state(sensor_states.back() - sensor_states.front());
+        this->updated_value_ = sensor_states.back() - sensor_states.front();
         break;
       }
       default:
