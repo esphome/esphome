@@ -52,7 +52,7 @@ class AdE7953Spi : public ade7953_base::ADE7953,
     this->enable();
     this->write_byte16(reg);
     this->transfer_byte(0x80);
-    *value  = 0;
+    *value = 0;
     *value |= this->read_byte() << 8;
     *value |= this->read_byte();
     this->disable();

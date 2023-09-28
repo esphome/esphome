@@ -30,7 +30,6 @@ void ADE7953::dump_config() {
 #define ADE_PUBLISH(name, val, factor) ADE_PUBLISH_(name, val, factor)
 
 void ADE7953::update() {
-
   if (!this->is_setup_)
     return;
 
