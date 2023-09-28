@@ -166,7 +166,7 @@ void ILI9XXXDisplay::draw_pixels_in_window(int x_start, int y_start, int w, int 
   uint16_t *dst_ptr;
   switch (this->rotation_) {
     case display::DISPLAY_ROTATION_0_DEGREES: {
-      src_ptr = ((uint16_t *) ptr) + y_offset  * line_stride + x_offset;
+      src_ptr = ((uint16_t *) ptr) + y_offset * line_stride + x_offset;
       dst_ptr = ((uint16_t *) this->buffer_) + y_start * this->width_ + x_start;
       for (int y = 0; y != h; y++) {
         memcpy(dst_ptr, src_ptr, w * 2);
