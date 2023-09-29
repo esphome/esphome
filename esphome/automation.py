@@ -326,7 +326,9 @@ async def component_suspend_action_to_code(config, action_id, template_arg, args
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
-            cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_UPDATE_INTERVAL): cv.templatable(
+                cv.positive_time_period_milliseconds
+            ),
         }
     ),
 )
