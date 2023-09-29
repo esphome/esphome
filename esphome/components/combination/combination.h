@@ -24,7 +24,6 @@ class CombinationComponent : public Component, public sensor::Sensor {
 
   void dump_config() override;
   void setup() override;
-  void loop() override;
 
   void add_source(Sensor *sensor, std::function<float(float)> const &stddev);
   void add_source(Sensor *sensor, float stddev);
@@ -38,8 +37,6 @@ class CombinationComponent : public Component, public sensor::Sensor {
   void set_std_dev_sensor(Sensor *sensor) { this->std_dev_sensor_ = sensor; }
 
  private:
-  float updated_value_{NAN};
-
   CombinationType combo_type_{};
 
   // Source sensors and their helper functions
