@@ -9,8 +9,7 @@ namespace combination {
 
 static const char *const TAG = "combination";
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_CONFIG
-static const LogString *combination_type_to_str(CombinationType type) {
+const LogString *combination_type_to_str(CombinationType type) {
   switch (type) {
     case CombinationType::COMBINATION_KALMAN:
       return LOG_STR("kalman");
@@ -32,7 +31,6 @@ static const LogString *combination_type_to_str(CombinationType type) {
       return LOG_STR("");
   }
 }
-#endif
 
 void CombinationComponent::dump_config() {
   LOG_SENSOR("", "Combination Sensor:", this);
