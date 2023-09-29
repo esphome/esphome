@@ -51,6 +51,15 @@ uart:
 i2c:
   frequency: 100khz
 
+spi:
+  - id: spi_1
+    clk_pin: 12
+    mosi_pin: 13
+    miso_pin: 14
+  - id: spi_2
+    clk_pin: 32
+    mosi_pin: 33
+
 modbus:
   uart_id: uart_1
   flow_control_pin: 5
@@ -620,6 +629,7 @@ sensor:
     update_interval: 1s
 
   - platform: ade7953_spi
+    spi_id: spi_1
     cs_pin: 04
     irq_pin: 16
     voltage:
