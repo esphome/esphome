@@ -58,6 +58,7 @@ class BP5758D : public Component {
   std::vector<uint8_t> channel_current_;
   std::vector<uint16_t> pwm_amounts_;
   bool update_{true};
+  bool sleeping_{false};
 };
 
 }  // namespace bp5758d
