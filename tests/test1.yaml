@@ -3578,6 +3578,10 @@ button:
       - component.resume:
           id: myteleinfo
           update_interval: 2s
+      - delay: 20s
+      - component.resume:
+          id: myteleinfo
+          update_interval: !lambda return 2500;
   - platform: ld2410
     factory_reset:
       name: "factory reset"
