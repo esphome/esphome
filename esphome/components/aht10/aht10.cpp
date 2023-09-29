@@ -20,6 +20,7 @@ namespace esphome {
 namespace aht10 {
 
 static const char *const TAG = "aht10";
+static const size_t SIZE_CALIBRATE_CMD = 3;
 static const uint8_t AHT10_CALIBRATE_CMD[] = {0xE1, 0x08, 0x00};
 static const uint8_t AHT20_CALIBRATE_CMD[] = {0xBE, 0x08, 0x00};
 static const uint8_t AHT10_MEASURE_CMD[] = {0xAC, 0x33, 0x00};
@@ -42,7 +43,7 @@ void AHT10Component::setup() {
       ESP_LOGCONFIG(TAG, "Setting up AHT10");
   }
 
-  if (this->write(calibrate_cmd, sizeof(AHT20_CALIBRATE_CMD)) != i2c::ERROR_OK) {
+  if (this->write(calibrate_cmd, SIZE_CALIBRATE_CMD) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with AHT10 failed!");
     this->mark_failed();
     return;
