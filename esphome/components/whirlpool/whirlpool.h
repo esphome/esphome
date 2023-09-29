@@ -48,7 +48,7 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
   /// Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
   /// Set the time of the last transmission.
-  int32_t last_transmit_time_;
+  int32_t last_transmit_time_{};
 
   bool send_swing_cmd_{false};
   Model model_;
