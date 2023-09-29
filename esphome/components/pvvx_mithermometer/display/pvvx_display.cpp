@@ -142,7 +142,7 @@ void PVVXDisplay::sync_time_() {
 #if ESP_IDF_VERSION_MAJOR >= 5
   ESP_LOGD(TAG, "[%s] Sync time with timestamp %" PRIu64 ".", this->parent_->address_str().c_str(), time.timestamp);
 #else
-  ESP_LOGD(TAG, "[%s] Sync time with timestamp %" PRIu32 ".", this->parent_->address_str().c_str(), time.timestamp);
+  ESP_LOGD(TAG, "[%s] Sync time with timestamp %lu.", this->parent_->address_str().c_str(), time.timestamp);
 #endif
   blk[0] = 0x23;
   blk[1] = time.timestamp & 0xff;
