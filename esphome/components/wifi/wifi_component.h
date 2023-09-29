@@ -15,6 +15,10 @@
 #include <WiFi.h>
 #endif
 
+#ifdef USE_LIBRETINY
+#include <WiFi.h>
+#endif
+
 #ifdef USE_ESP8266
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiType.h>
@@ -47,6 +51,8 @@ struct SavedWifiSettings {
 enum WiFiComponentState {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
   WIFI_COMPONENT_STATE_OFF = 0,
+  /** WiFi is disabled. */
+  WIFI_COMPONENT_STATE_DISABLED,
   /** WiFi is in cooldown mode because something went wrong, scanning will begin after a short period of time. */
   WIFI_COMPONENT_STATE_COOLDOWN,
   /** WiFi is in STA-only mode and currently scanning for APs. */
@@ -198,6 +204,9 @@ class WiFiComponent : public Component {
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
 
+  void enable();
+  void disable();
+  bool is_disabled();
   void start_scanning();
   void check_scanning_finished();
   void start_connecting(const WiFiAP &ap, bool two);
@@ -224,6 +233,7 @@ class WiFiComponent : public Component {
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
   void setup() override;
+  void start();
   void dump_config() override;
   /// WIFI setup_priority.
   float get_setup_priority() const override;
@@ -240,6 +250,7 @@ class WiFiComponent : public Component {
   void set_rrm(bool rrm);
 #endif
 
+  network::IPAddress get_dns_address(int num);
   network::IPAddress get_ip_address();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
@@ -281,6 +292,8 @@ class WiFiComponent : public Component {
 
   int8_t wifi_rssi();
 
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
   void setup_ap_config_();
@@ -315,11 +328,7 @@ class WiFiComponent : public Component {
 #endif
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#if ESP_IDF_VERSION_MAJOR >= 4
   void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
-#else
-  void wifi_event_callback_(system_event_id_t event, system_event_info_t info);
-#endif
   void wifi_scan_done_callback_();
 #endif
 #ifdef USE_ESP_IDF
@@ -329,6 +338,11 @@ class WiFiComponent : public Component {
 #ifdef USE_RP2040
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
   void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+#endif
+
+#ifdef USE_LIBRETINY
+  void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
+  void wifi_scan_done_callback_();
 #endif
 
   std::string use_address_;
@@ -358,18 +372,30 @@ class WiFiComponent : public Component {
   bool btm_{false};
   bool rrm_{false};
 #endif
+  bool enable_on_boot_;
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class WiFiConnectedCondition : public Condition<Ts...> {
  public:
-  bool check(Ts... x) override;
+  bool check(Ts... x) override { return global_wifi_component->is_connected(); }
 };
 
-template<typename... Ts> bool WiFiConnectedCondition<Ts...>::check(Ts... x) {
-  return global_wifi_component->is_connected();
-}
+template<typename... Ts> class WiFiEnabledCondition : public Condition<Ts...> {
+ public:
+  bool check(Ts... x) override { return !global_wifi_component->is_disabled(); }
+};
+
+template<typename... Ts> class WiFiEnableAction : public Action<Ts...> {
+ public:
+  void play(Ts... x) override { global_wifi_component->enable(); }
+};
+
+template<typename... Ts> class WiFiDisableAction : public Action<Ts...> {
+ public:
+  void play(Ts... x) override { global_wifi_component->disable(); }
+};
 
 }  // namespace wifi
 }  // namespace esphome

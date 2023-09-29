@@ -15,10 +15,14 @@ enum ILI9XXXColorMode {
   BITS_16 = 0x10,
 };
 
+#ifndef ILI9XXXDisplay_DATA_RATE
+#define ILI9XXXDisplay_DATA_RATE spi::DATA_RATE_40MHZ
+#endif  // ILI9XXXDisplay_DATA_RATE
+
 class ILI9XXXDisplay : public PollingComponent,
                        public display::DisplayBuffer,
                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                             spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_40MHZ> {
+                                             spi::CLOCK_PHASE_LEADING, ILI9XXXDisplay_DATA_RATE> {
  public:
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
@@ -116,6 +120,12 @@ class ILI9XXXILI9481 : public ILI9XXXDisplay {
   void initialize() override;
 };
 
+//-----------   ILI9481 in 18 bit mode --------------
+class ILI9XXXILI948118 : public ILI9XXXDisplay {
+ protected:
+  void initialize() override;
+};
+
 //-----------   ILI9XXX_35_TFT rotated display --------------
 class ILI9XXXILI9486 : public ILI9XXXDisplay {
  protected:
@@ -128,8 +138,24 @@ class ILI9XXXILI9488 : public ILI9XXXDisplay {
   void initialize() override;
 };
 
+//-----------   ILI9XXX_35_TFT origin colors rotated display --------------
+class ILI9XXXILI9488A : public ILI9XXXDisplay {
+ protected:
+  void initialize() override;
+};
+
 //-----------   ILI9XXX_35_TFT rotated display --------------
 class ILI9XXXST7796 : public ILI9XXXDisplay {
+ protected:
+  void initialize() override;
+};
+
+class ILI9XXXS3Box : public ILI9XXXDisplay {
+ protected:
+  void initialize() override;
+};
+
+class ILI9XXXS3BoxLite : public ILI9XXXDisplay {
  protected:
   void initialize() override;
 };

@@ -66,6 +66,7 @@ file_types = (
     ".txt",
     ".ico",
     ".svg",
+    ".png",
     ".py",
     ".html",
     ".js",
@@ -80,7 +81,7 @@ file_types = (
     "",
 )
 cpp_include = ("*.h", "*.c", "*.cpp", "*.tcc")
-ignore_types = (".ico", ".woff", ".woff2", "")
+ignore_types = (".ico", ".png", ".woff", ".woff2", "")
 
 LINT_FILE_CHECKS = []
 LINT_CONTENT_CHECKS = []
@@ -511,7 +512,10 @@ def relative_py_search_text(fname, content):
 @lint_content_find_check(
     relative_py_search_text,
     include=["esphome/components/*.py"],
-    exclude=["esphome/components/web_server/__init__.py"],
+    exclude=[
+        "esphome/components/libretiny/generate_components.py",
+        "esphome/components/web_server/__init__.py",
+    ],
 )
 def lint_relative_py_import(fname):
     return (
@@ -535,6 +539,8 @@ def lint_relative_py_import(fname):
         "esphome/components/esp32/core.cpp",
         "esphome/components/esp8266/core.cpp",
         "esphome/components/rp2040/core.cpp",
+        "esphome/components/libretiny/core.cpp",
+        "esphome/components/host/core.cpp",
     ],
 )
 def lint_namespace(fname, content):
@@ -605,7 +611,7 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/button/button.h",
         "esphome/components/climate/climate.h",
         "esphome/components/cover/cover.h",
-        "esphome/components/display/display_buffer.h",
+        "esphome/components/display/display.h",
         "esphome/components/fan/fan.h",
         "esphome/components/i2c/i2c.h",
         "esphome/components/lock/lock.h",

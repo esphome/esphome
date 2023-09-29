@@ -18,7 +18,7 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v8
+      - uses: actions/stale@v8.0.0
         with:
           days-before-pr-stale: 90
           days-before-pr-close: 7
@@ -26,7 +26,7 @@ jobs:
           days-before-issue-close: -1
           remove-stale-when-updated: true
           stale-pr-label: "stale"
-          exempt-pr-labels: "no-stale"
+          exempt-pr-labels: "not-stale"
           stale-pr-message: >
             There hasn't been any activity on this pull request recently. This
             pull request has been automatically marked as stale because of that
@@ -38,7 +38,7 @@ jobs:
   close-issues:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v8
+      - uses: actions/stale@v8.0.0
         with:
           days-before-pr-stale: -1
           days-before-pr-close: -1

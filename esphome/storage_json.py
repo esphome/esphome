@@ -10,25 +10,31 @@ from esphome import const
 from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
 
+
+from esphome.const import (
+    CONF_MDNS,
+    CONF_DISABLED,
+)
+
 from esphome.types import CoreType
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def storage_path() -> str:
-    return CORE.relative_internal_path(f"{CORE.config_filename}.json")
+    return os.path.join(CORE.data_dir, "storage", f"{CORE.config_filename}.json")
 
 
-def ext_storage_path(base_path: str, config_filename: str) -> str:
-    return os.path.join(base_path, ".esphome", f"{config_filename}.json")
+def ext_storage_path(config_filename: str) -> str:
+    return os.path.join(CORE.data_dir, "storage", f"{config_filename}.json")
 
 
-def esphome_storage_path(base_path: str) -> str:
-    return os.path.join(base_path, ".esphome", "esphome.json")
+def esphome_storage_path() -> str:
+    return os.path.join(CORE.data_dir, "esphome.json")
 
 
-def trash_storage_path(base_path: str) -> str:
-    return os.path.join(base_path, ".esphome", "trash")
+def trash_storage_path() -> str:
+    return CORE.relative_config_path("trash")
 
 
 class StorageJSON:
@@ -46,6 +52,7 @@ class StorageJSON:
         build_path,
         firmware_bin_path,
         loaded_integrations,
+        no_mdns,
     ):
         # Version of the storage JSON schema
         assert storage_version is None or isinstance(storage_version, int)
@@ -75,6 +82,8 @@ class StorageJSON:
         # A list of strings of names of loaded integrations
         self.loaded_integrations: list[str] = loaded_integrations
         self.loaded_integrations.sort()
+        # Is mDNS disabled
+        self.no_mdns = no_mdns
 
     def as_dict(self):
         return {
@@ -90,6 +99,7 @@ class StorageJSON:
             "build_path": self.build_path,
             "firmware_bin_path": self.firmware_bin_path,
             "loaded_integrations": self.loaded_integrations,
+            "no_mdns": self.no_mdns,
         }
 
     def to_json(self):
@@ -120,6 +130,11 @@ class StorageJSON:
             build_path=esph.build_path,
             firmware_bin_path=esph.firmware_bin,
             loaded_integrations=list(esph.loaded_integrations),
+            no_mdns=(
+                CONF_MDNS in esph.config
+                and CONF_DISABLED in esph.config[CONF_MDNS]
+                and esph.config[CONF_MDNS][CONF_DISABLED] is True
+            ),
         )
 
     @staticmethod
@@ -139,6 +154,7 @@ class StorageJSON:
             build_path=None,
             firmware_bin_path=None,
             loaded_integrations=[],
+            no_mdns=False,
         )
 
     @staticmethod
@@ -159,6 +175,7 @@ class StorageJSON:
         build_path = storage.get("build_path")
         firmware_bin_path = storage.get("firmware_bin_path")
         loaded_integrations = storage.get("loaded_integrations", [])
+        no_mdns = storage.get("no_mdns", False)
         return StorageJSON(
             storage_version,
             name,
@@ -172,6 +189,7 @@ class StorageJSON:
             build_path,
             firmware_bin_path,
             loaded_integrations,
+            no_mdns,
         )
 
     @staticmethod

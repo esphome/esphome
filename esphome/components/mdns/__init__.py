@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_SERVICE,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
+    CONF_DISABLED,
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -39,7 +40,6 @@ SERVICE_SCHEMA = cv.Schema(
     }
 )
 
-CONF_DISABLED = "disabled"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -86,10 +86,10 @@ async def to_code(config):
         5, 0, 0
     ):
         add_idf_component(
-            "mdns",
-            "https://github.com/espressif/esp-protocols.git",
-            "mdns-v1.0.9",
-            "components/mdns",
+            name="mdns",
+            repo="https://github.com/espressif/esp-protocols.git",
+            ref="mdns-v1.2.0",
+            path="components/mdns",
         )
 
     if config[CONF_DISABLED]:
