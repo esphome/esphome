@@ -49,7 +49,6 @@ void BP5758D::loop() {
     for (int i = 1; i < 16; i++)
       data[i] = 0;
     this->write_buffer_(data, 17);
-    this->sleep_=true;
   } else if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
              (this->pwm_amounts_[3] > 0 || this->pwm_amounts_[4] > 0)) {
     // Only data on white channels
