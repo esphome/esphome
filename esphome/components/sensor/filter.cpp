@@ -439,17 +439,19 @@ ClampFilter::ClampFilter(float min, float max, bool ignore_out_of_range)
 optional<float> ClampFilter::new_value(float value) {
   if (std::isfinite(value)) {
     if (std::isfinite(this->min_) && value < this->min_) {
-      if (this->ignore_out_of_range_)
+      if (this->ignore_out_of_range_) {
         return {};
-      else
+      } else {
         return this->min_;
+      }
     }
 
     if (std::isfinite(this->max_) && value > this->max_) {
-      if (this->ignore_out_of_range_)
+      if (this->ignore_out_of_range_) {
         return {};
-      else
+      } else {
         return this->max_;
+      }
     }
   }
   return value;
