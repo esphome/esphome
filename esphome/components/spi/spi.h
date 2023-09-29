@@ -248,6 +248,7 @@ class SPIDelegateDummy : public SPIDelegate {
   SPIDelegateDummy() = default;
 
   uint8_t transfer(uint8_t data) override { return 0; }
+  void end_transaction() override{};
 
   void begin_transaction() override;
 };
