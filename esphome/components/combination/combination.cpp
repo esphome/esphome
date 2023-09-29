@@ -57,15 +57,15 @@ void CombinationComponent::setup() {
       const auto stddev = sensor.second;
       sensor.first->add_on_state_callback([this, stddev](float x) -> void { this->correct_(x, stddev(x)); });
     } else {
-      sensor.first->add_on_state_callback([this](float value) -> void { this->handle_new_value_(value); });
+      // All sensor updates are deferred until the next loop. This avoids publishing the combined sensor's result
+      // repeatedly in the same loop if multiple source senors update.
+      sensor.first->add_on_state_callback(
+          [this](float value) -> void { this->defer([this, value]() { this->handle_new_value_(value); }); });
     }
   }
 }
 
 void CombinationComponent::handle_new_value_(float value) {
-  // All sensor updates are deferred until the next loop
-  // This avoids publishing the combined sensor's result repeatedly in the same loop if multiple source senors update
-
   if (!std::isfinite(value))
     return;
   switch (this->combo_type_) {
@@ -80,7 +80,7 @@ void CombinationComponent::handle_new_value_(float value) {
         }
       }
 
-      this->defer([this, sum]() { this->publish_state(sum); });
+      this->publish_state(sum);
       break;
     }
     case CombinationType::COMBINATION_MAXIMUM: {
@@ -91,7 +91,7 @@ void CombinationComponent::handle_new_value_(float value) {
         max_value = std::max(max_value, sensor.first->state);
       }
 
-      this->defer([this, max_value]() { this->publish_state(max_value); });
+      this->publish_state(max_value);
       break;
     }
     case CombinationType::COMBINATION_MEAN: {
@@ -107,7 +107,7 @@ void CombinationComponent::handle_new_value_(float value) {
 
       float mean = sum / count;
 
-      this->defer([this, mean]() { this->publish_state(mean); });
+      this->publish_state(mean);
       break;
     }
     case CombinationType::COMBINATION_MEDIAN: {
@@ -134,7 +134,7 @@ void CombinationComponent::handle_new_value_(float value) {
         }
       }
 
-      this->defer([this, median]() { this->publish_state(median); });
+      this->publish_state(median);
       break;
     }
     case CombinationType::COMBINATION_MINIMUM: {
@@ -144,11 +144,11 @@ void CombinationComponent::handle_new_value_(float value) {
         min_value = std::min(min_value, sensor.first->state);
       }
 
-      this->defer([this, min_value]() { this->publish_state(min_value); });
+      this->publish_state(min_value);
       break;
     }
     case CombinationType::COMBINATION_MOST_RECENTLY_UPDATED: {
-      this->defer([this, value]() { this->publish_state(value); });
+      this->publish_state(value);
       break;
     }
     case CombinationType::COMBINATION_RANGE: {
@@ -164,7 +164,7 @@ void CombinationComponent::handle_new_value_(float value) {
       sort(sensor_states.begin(), sensor_states.end());
 
       float range = sensor_states.back() - sensor_states.front();
-      this->defer([this, range]() { this->publish_state(range); });
+      this->publish_state(range);
       break;
     }
     default:
