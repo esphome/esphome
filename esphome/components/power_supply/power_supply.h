@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace power_supply {
 

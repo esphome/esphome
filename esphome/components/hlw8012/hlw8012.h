@@ -5,6 +5,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/pulse_counter/pulse_counter_sensor.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace hlw8012 {
 
