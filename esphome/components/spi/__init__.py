@@ -187,7 +187,7 @@ def get_spi_interface(index):
     # Following code can't apply to C2, H2 or 8266 since they have only one SPI
     if get_target_variant() in (VARIANT_ESP32S3, VARIANT_ESP32S2):
         return "new SPIClass(FSPI)"
-    return "return new SPIClass(HSPI)"
+    return "new SPIClass(HSPI)"
 
 
 SPI_SCHEMA = cv.All(
