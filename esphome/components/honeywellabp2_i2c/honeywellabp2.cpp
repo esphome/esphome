@@ -1,5 +1,6 @@
 #include "honeywellabp2.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace honeywellabp2_i2c {
@@ -11,19 +12,17 @@ static const uint8_t STATUS_MATH_SAT = 0;
 
 static const char *const TAG = "honeywellabp2";
 
-void HONEYWELLABP2Sensor::setup() { ESP_LOGD(TAG, "Setting up Honeywell ABP2 Sensor "); }
-
 void HONEYWELLABP2Sensor::read_sensor_data() {
   if (this->read(raw_data_, 7) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with ABP2 failed!");
     this->mark_failed();
     return;
   }
-  float press_counts = raw_data_[3] + raw_data_[2] * 256 + raw_data_[1] * 65536;  // calculate digital pressure counts
-  float temp_counts = raw_data_[6] + raw_data_[5] * 256 + raw_data_[4] * 65536;  // calculate digital temperature counts
+  float press_counts = encode_uint24(raw_data_[1], raw_data_[2], raw_data_[3]);  // calculate digital pressure counts
+  float temp_counts = encode_uint24(raw_data_[4], raw_data_[5], raw_data_[6]);   // calculate digital temperature counts
 
-  this->last_pressure_ = ((press_counts - this->min_count_) * (double) (this->max_pressure_ - this->min_pressure_)) /
-                             (this->max_count_ - this->min_count_) +
+  this->last_pressure_ = (((press_counts - this->min_count_) / (this->max_count_ - this->min_count_)) *
+                          (this->max_pressure_ - this->min_pressure_)) +
                          this->min_pressure_;
   this->last_temperature_ = (temp_counts * 200 / 16777215) - 50;
 }
