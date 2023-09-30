@@ -28,7 +28,7 @@ from esphome.const import (
 )
 from esphome.core import coroutine_with_priority, CORE
 
-CODEOWNERS = ["@esphome/core"]
+CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 SPIDevice = spi_ns.class_("SPIDevice")

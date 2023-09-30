@@ -558,7 +558,7 @@ class EsphomeCore:
     def data_dir(self):
         if is_ha_addon():
             return os.path.join("/data")
-        if get_str_env("ESPHOME_DATA_DIR", None) is not None:
+        if "ESPHOME_DATA_DIR" in os.environ:
             return get_str_env("ESPHOME_DATA_DIR", None)
         return self.relative_config_path(".esphome")
 
