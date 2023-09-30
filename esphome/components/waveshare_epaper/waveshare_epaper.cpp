@@ -1331,7 +1331,6 @@ void WaveshareEPaper7P5InBV2::dump_config() {
 
 void WaveshareEPaper7P5InBV3::initialize() {
   this->init_display_();
-  this->clear_screen();
 }
 bool WaveshareEPaper7P5InBV3::wait_until_idle_() {
   if (this->busy_pin_ == nullptr) {
@@ -1345,6 +1344,7 @@ bool WaveshareEPaper7P5InBV3::wait_until_idle_() {
       ESP_LOGI(TAG, "Timeout while displaying image!");
       return false;
     }
+    App.feed_wdt();
     delay(10);
   }
   delay(200);  // NOLINT
@@ -1471,10 +1471,6 @@ void HOT WaveshareEPaper7P5InBV3::display() {
   delay(100);           // NOLINT
   this->wait_until_idle_();
   this->deep_sleep();
-}
-void WaveshareEPaper7P5InBV3::clear_screen() {
-  this->fill(Color::WHITE);
-  this->display();
 }
 int WaveshareEPaper7P5InBV3::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InBV3::get_height_internal() { return 480; }
