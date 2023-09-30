@@ -60,7 +60,7 @@ void CombinationComponent::setup() {
       // All sensor updates are deferred until the next loop. This avoids publishing the combined sensor's result
       // repeatedly in the same loop if multiple source senors update.
       sensor.first->add_on_state_callback(
-          [this](float value) -> void { this->defer([this, value]() { this->handle_new_value_(value); }); });
+          [this](float value) -> void { this->defer("update", [this, value]() { this->handle_new_value_(value); }); });
     }
   }
 }
