@@ -1329,9 +1329,7 @@ void WaveshareEPaper7P5InBV2::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-void WaveshareEPaper7P5InBV3::initialize() {
-  this->init_display_();
-}
+void WaveshareEPaper7P5InBV3::initialize() { this->init_display_(); }
 bool WaveshareEPaper7P5InBV3::wait_until_idle_() {
   if (this->busy_pin_ == nullptr) {
     return true;
