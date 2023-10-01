@@ -10,7 +10,7 @@
 namespace esphome {
 namespace econet {
 
-enum ModelType { MODEL_TYPE_TANKLESS = 0, MODEL_TYPE_HEATPUMP = 1, MODEL_TYPE_HVAC = 2 };
+enum ModelType { MODEL_TYPE_TANKLESS = 0, MODEL_TYPE_HEATPUMP = 1, MODEL_TYPE_HVAC = 2, MODEL_TYPE_ELECTRIC_TANK = 3 };
 
 class ReadRequest {
  public:

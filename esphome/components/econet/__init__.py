@@ -40,6 +40,7 @@ MODEL_TYPES = {
     "Tankless": ModelType.MODEL_TYPE_TANKLESS,
     "Heatpump": ModelType.MODEL_TYPE_HEATPUMP,
     "HVAC": ModelType.MODEL_TYPE_HVAC,
+    "Electric Tank": ModelType.MODEL_TYPE_ELECTRIC_TANK,
 }
 
 CONFIG_SCHEMA = (
