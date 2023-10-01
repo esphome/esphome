@@ -42,7 +42,7 @@ void ILI9XXXDisplay::setup() {
   }
 }
 
-void ILI9XXXDisplay::downsize_resolution(uint16_t bytes_per_pixel) {
+void ILI9XXXDisplay::downsize_resolution_(uint16_t bytes_per_pixel) {
   uint32_t max_mem = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
   while (this->get_buffer_length_() * bytes_per_pixel > max_mem) {
     this->width_ = this->width_ - 2;
