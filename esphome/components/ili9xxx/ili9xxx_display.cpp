@@ -24,7 +24,7 @@ void ILI9XXXDisplay::setup() {
   if (this->buffer_color_mode_ == BITS_16) {
     if (this->get_buffer_length_() * 2 > max_mem) {
       downsize_resolution(2);  // Reduce size.
-      this->fill_spi(this->x_high_, this->y_high_, this->x_low_, this->y_low_, 0x0000);  // fill display without using the buffer to clear border around buffered screen
+      this->fill_spi(this->x_high_, this->y_high_, this->x_low_, this->y_low_, 0x0000);
     }
     this->init_internal_(this->get_buffer_length_() * 2);
     if (this->buffer_ != nullptr) {
@@ -34,8 +34,8 @@ void ILI9XXXDisplay::setup() {
   }
   if (this->get_buffer_length_() > max_mem) {
     downsize_resolution(1);  // Reduce size
-    this->fill_spi(this->x_high_, this->y_high_, this->x_low_, this->y_low_, 0x0000);  // fill display without using the buffer to clear border around buffered screen
-  }
+    this->fill_spi(this->x_high_, this->y_high_, this->x_low_, this->y_low_, 0x0000);
+    }
   this->init_internal_(this->get_buffer_length_());
   if (this->buffer_ == nullptr) {
     this->mark_failed();
