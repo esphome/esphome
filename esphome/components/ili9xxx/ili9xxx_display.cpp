@@ -150,7 +150,6 @@ void ILI9XXXDisplay::fill_spi(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2
 
   set_addr_window_(x1, y1, w, h);
 
-  //this->dc_pin_->digital_write(true);
   this->start_data_();
   for (int i = x1; i <= x2; i++) {
     uint16_t size = y2 - y1 + 1;
