@@ -141,6 +141,15 @@ void join_obj_names(const std::vector<std::string> &objects, std::vector<uint8_t
   }
 }
 
+std::string trim_trailing_whitespace(const char *p, uint8_t len) {
+  const char *endp = p + len - 1;
+  while (*endp == ' ' || *endp == 0) {
+    endp--;
+  }
+  std::string s(p, endp - p + 1);
+  return s;
+}
+
 void Econet::dump_config() {
   ESP_LOGCONFIG(TAG, "Econet:");
   this->check_uart_settings(38400);
@@ -286,7 +295,7 @@ void Econet::parse_message_(bool is_tx) {
           } else if (item_type == EconetDatapointType::TEXT && tpos + 4 < data_len) {
             uint8_t item_text_len = item_len - 4;
             if (item_text_len > 0 && tpos + 4 + item_text_len < data_len) {
-              std::string s((const char *) pdata + tpos + 4, item_text_len);
+              std::string s = trim_trailing_whitespace((const char *) pdata + tpos + 4, item_text_len);
               ESP_LOGI(TAG, "  %s : (%s)", datapoint_id.c_str(), s.c_str());
               this->send_datapoint_(datapoint_id, EconetDatapoint{.type = item_type, .value_string = s});
             }
@@ -294,12 +303,7 @@ void Econet::parse_message_(bool is_tx) {
             uint8_t item_value = pdata[tpos + 4];
             uint8_t item_text_len = pdata[tpos + 5];
             if (item_text_len > 0 && tpos + 6 + item_text_len < data_len) {
-              const uint8_t *s_start = pdata + tpos + 6;
-              const uint8_t *s_end = s_start + item_text_len - 1;
-              while (*s_end == ' ' || *s_end == 0) {
-                s_end--;
-              }
-              std::string s((const char *) s_start, s_end - s_start + 1);
+              std::string s = trim_trailing_whitespace((const char *) pdata + tpos + 6, item_text_len);
               ESP_LOGI(TAG, "  %s : %d (%s)", datapoint_id.c_str(), item_value, s.c_str());
               this->send_datapoint_(datapoint_id,
                                     EconetDatapoint{.type = item_type, .value_enum = item_value, .value_string = s});
