@@ -35,7 +35,7 @@ void ILI9XXXDisplay::setup() {
   if (this->get_buffer_length_() > max_mem) {
     downsize_resolution(1);  // Reduce size
     this->fill_spi(this->x_high_, this->y_high_, this->x_low_, this->y_low_, 0x0000);
-    }
+  }
   this->init_internal_(this->get_buffer_length_());
   if (this->buffer_ == nullptr) {
     this->mark_failed();
