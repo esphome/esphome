@@ -19,7 +19,7 @@ void ILI9XXXDisplay::setup() {
   this->y_high_ = 0;
   this->offset_height_ = 0;
   this->offset_width_ = 0;
-  
+
   uint32_t max_mem = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
   if (this->buffer_color_mode_ == BITS_16) {
     if (this->get_buffer_length_() * 2 > max_mem) {
@@ -27,7 +27,7 @@ void ILI9XXXDisplay::setup() {
       downsize_resolution(2);
       //fill display without using the buffer to clear border around buffered screen
       this->fill_spi(this->x_high_, this->y_high_, this->x_low_, this->y_low_, 0x0000);
-    }	
+    }
     this->init_internal_(this->get_buffer_length_() * 2);
     if (this->buffer_ != nullptr) {
       return;
@@ -39,7 +39,7 @@ void ILI9XXXDisplay::setup() {
     downsize_resolution(1);
     //fill display without using the buffer to clear border around buffered screen
     this->fill_spi(this->x_high_, this->y_high_, this->x_low_, this->y_low_, 0x0000);
-  }	
+  }
   this->init_internal_(this->get_buffer_length_());
   if (this->buffer_ == nullptr) {
     this->mark_failed();
@@ -148,9 +148,9 @@ void ILI9XXXDisplay::fill_spi(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2
   int index = 0;
   uint16_t w = x2 - x1 + 1;  // NOLINT
   uint16_t h = y2 - y1 + 1;  // NOLINT
-  
+
   set_addr_window_(x1, y1, w, h);
-  
+
   //this->dc_pin_->digital_write(true);
   this->start_data_();
   for (int i = x1; i <= x2; i++) {
@@ -160,7 +160,7 @@ void ILI9XXXDisplay::fill_spi(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2
       byte[index++] = (color >> 8) & 0xFF;
       byte[index++] = color & 0xFF;
     }
-    write_array(byte, size * 2);
+    this->write_array(byte, size * 2);
   }
   this->end_data_();
 }
