@@ -50,7 +50,7 @@ class ILI9XXXDisplay : public PollingComponent,
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
-  void downsize_resolution(uint16_t bytes_per_pixel);
+  void downsize_resolution_(uint16_t bytes_per_pixel);
   void setup_pins_();
   virtual void initialize() = 0;
 
