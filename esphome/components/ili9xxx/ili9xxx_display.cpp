@@ -49,7 +49,7 @@ void ILI9XXXDisplay::setup() {
 void ILI9XXXDisplay::downsize_resolution(uint16_t bytes_per_pixel) {
   uint32_t max_mem = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
   while (this->get_buffer_length_() * bytes_per_pixel > max_mem) {
-   	this->width_ = this->width_ - 2;
+    this->width_ = this->width_ - 2;
    	this->height_ = this->height_ - 2;
     this->offset_height_ = this->offset_height_ + 1;
     this->offset_width_ = this->offset_width_ + 1;
