@@ -210,8 +210,7 @@ void Econet::make_request_() {
     return;
   }
 
-  std::vector<std::string> str_ids(datapoint_ids_.begin(), datapoint_ids_.end());
-  request_strings_(dst_adr, src_adr, str_ids);
+  request_strings_(dst_adr, src_adr, datapoint_ids_);
 }
 
 void Econet::parse_tx_message_() { this->parse_message_(true); }
@@ -508,7 +507,9 @@ void Econet::register_listener(const std::string &datapoint_id, const std::funct
   // Don't issue a READ_COMMAND in request_strings_ for RAW datapoints. These need to be requested separately.
   // For now rely on other devices, e.g. thermostat, requesting them.
   if (!is_raw_datapoint) {
-    datapoint_ids_.insert(datapoint_id);
+    if (std::find(datapoint_ids_.begin(), datapoint_ids_.end(), datapoint_id) == datapoint_ids_.end()) {
+      datapoint_ids_.push_back(datapoint_id);
+    }
   }
   auto listener = EconetDatapointListener{
       .datapoint_id = datapoint_id,
