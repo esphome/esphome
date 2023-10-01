@@ -145,7 +145,6 @@ void ILI9XXXDisplay::fill(Color color) {
 // color: color
 void ILI9XXXDisplay::fill_spi(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {
   static uint8_t byte[1024];
-  int index = 0;
   uint16_t w = x2 - x1 + 1;  // NOLINT
   uint16_t h = y2 - y1 + 1;  // NOLINT
 
@@ -155,7 +154,7 @@ void ILI9XXXDisplay::fill_spi(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2
   this->start_data_();
   for (int i = x1; i <= x2; i++) {
     uint16_t size = y2 - y1 + 1;
-    index = 0;
+    int index = 0;
     for (int b = 0; b < size; b++) {
       byte[index++] = (color >> 8) & 0xFF;
       byte[index++] = color & 0xFF;
