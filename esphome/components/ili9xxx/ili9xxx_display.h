@@ -41,6 +41,7 @@ class ILI9XXXDisplay : public PollingComponent,
   void update() override;
 
   void fill(Color color) override;
+  void fill_spi(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
 
   void dump_config() override;
   void setup() override;
@@ -49,6 +50,7 @@ class ILI9XXXDisplay : public PollingComponent,
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  void downsize_resolution(uint16_t bytes_per_pixel);
   void setup_pins_();
   virtual void initialize() = 0;
 
@@ -64,6 +66,8 @@ class ILI9XXXDisplay : public PollingComponent,
   uint16_t y_low_{0};
   uint16_t x_high_{0};
   uint16_t y_high_{0};
+  uint16_t offset_height_{0};
+  uint16_t offset_width_{0};
   const uint8_t *palette_;
 
   ILI9XXXColorMode buffer_color_mode_{BITS_16};
