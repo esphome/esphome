@@ -505,7 +505,9 @@ void Econet::send_datapoint_(const std::string &datapoint_id, const EconetDatapo
 void Econet::register_listener(const std::string &datapoint_id, bool listen_only,
                                const std::function<void(EconetDatapoint)> &func) {
   if (!listen_only) {
-    datapoint_ids_.insert(datapoint_id);
+    if (std::find(datapoint_ids_.begin(), datapoint_ids_.end(), datapoint_id) == datapoint_ids_.end()) {
+      datapoint_ids_.push_back(datapoint_id);
+    }
   }
   auto listener = EconetDatapointListener{
       .datapoint_id = datapoint_id,
