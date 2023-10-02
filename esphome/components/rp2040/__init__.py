@@ -152,6 +152,9 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     cg.add(rp2040_ns.setup_preferences())
 
+    # Allow LDF to properly discover dependency including those in preprocessor
+    # conditionals
+    cg.add_platformio_option("lib_ldf_mode", "chain+")
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_RP2040")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
