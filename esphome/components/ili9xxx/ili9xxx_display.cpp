@@ -52,7 +52,7 @@ void ILI9XXXDisplay::downsize_resolution_(uint16_t bytes_per_pixel) {
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
   ESP_LOGD(TAG, "Largest free heap block: %u bytes", max_mem);
-  ESP_LOGD(TAG, "Reduced display size to %ux%u", this->width_, this->height_);
+  ESP_LOGD(TAG, "Reduced display size to %ux%u", this->get_width_internal(), this->get_height_internal());
 }
 
 void ILI9XXXDisplay::setup_pins_() {
