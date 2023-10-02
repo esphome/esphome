@@ -245,14 +245,15 @@ async def to_code(configs):
         cg.add_library("SPI", None)
 
 
-def spi_device_schema(cs_pin_required=True, data_rate=cv.UNDEFINED):
+def spi_device_schema(cs_pin_required=True, default_data_rate=cv.UNDEFINED):
     """Create a schema for an SPI device.
     :param cs_pin_required: If true, make the CS_PIN required in the config.
+    :param default_data_rate: Optional data_rate to use as default
     :return: The SPI device schema, `extend` this in your config schema.
     """
     schema = {
         cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
-        cv.Optional(CONF_DATA_RATE, default=data_rate): SPI_DATA_RATE_SCHEMA,
+        cv.Optional(CONF_DATA_RATE, default=default_data_rate): SPI_DATA_RATE_SCHEMA,
     }
     if cs_pin_required:
         schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
@@ -267,6 +268,8 @@ async def register_spi_device(var, config):
     if CONF_CS_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_CS_PIN])
         cg.add(var.set_cs_pin(pin))
+    if CONF_DATA_RATE in config:
+        cg.add(var.set_data_rate(config[CONF_DATA_RATE]))
 
 
 def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso: bool):

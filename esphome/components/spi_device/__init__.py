@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import spi
-from esphome.const import CONF_ID, CONF_DATA_RATE, CONF_MODE
+from esphome.const import CONF_ID, CONF_MODE
 
 DEPENDENCIES = ["spi"]
 CODEOWNERS = ["@clydebarrow"]
@@ -42,8 +42,6 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    if CONF_DATA_RATE in config:
-        cg.add(var.set_data_rate(config[CONF_DATA_RATE]))
     cg.add(var.set_mode(config[CONF_MODE]))
     cg.add(var.set_bit_order(config[CONF_BIT_ORDER]))
     await spi.register_spi_device(var, config)

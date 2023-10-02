@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_PIN,
     CONF_DIMENSIONS,
-    CONF_DATA_RATE,
 )
 
 DEPENDENCIES = ["spi"]
@@ -176,5 +175,3 @@ async def to_code(config):
     if rhs is not None:
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_palette(prog_arr))
-    if CONF_DATA_RATE in config:
-        cg.add(var.set_data_rate(config[CONF_DATA_RATE]))
