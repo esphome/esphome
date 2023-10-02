@@ -115,7 +115,7 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        nginx-light=1.18.0-6.1+deb11u3 \
+        nginx \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
