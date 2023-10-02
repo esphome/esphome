@@ -8,7 +8,7 @@ ARG BASEIMGTYPE=docker
 # https://github.com/hassio-addons/addon-debian-base/releases
 FROM ghcr.io/hassio-addons/debian-base:7.1.0 AS base-hassio
 # https://hub.docker.com/_/debian?tab=tags&page=1&name=bullseye
-FROM debian:bullseye-20230208-slim AS base-docker
+FROM debian:bookworm-20230919-slim AS base-docker
 
 FROM base-${BASEIMGTYPE} AS base
 
