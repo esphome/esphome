@@ -31,12 +31,10 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_AS3935_ID])
 
-    if CONF_DISTANCE in config:
-        conf = config[CONF_DISTANCE]
-        distance_sensor = await sensor.new_sensor(conf)
-        cg.add(hub.set_distance_sensor(distance_sensor))
+    if distance_config := config.get(CONF_DISTANCE):
+        sens = await sensor.new_sensor(distance_config)
+        cg.add(hub.set_distance_sensor(sens))
 
-    if CONF_LIGHTNING_ENERGY in config:
-        conf = config[CONF_LIGHTNING_ENERGY]
-        lightning_energy_sensor = await sensor.new_sensor(conf)
-        cg.add(hub.set_energy_sensor(lightning_energy_sensor))
+    if lightning_energy_config := config.get(CONF_LIGHTNING_ENERGY):
+        sens = await sensor.new_sensor(lightning_energy_config)
+        cg.add(hub.set_energy_sensor(sens))
