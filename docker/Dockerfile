@@ -31,6 +31,7 @@ RUN \
         python3-cffi=1.14.5-1 \
         libcairo2=1.16.0-5 \
         patch=2.7.6-7; \
+        libffi-dev; \
     if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
         apt-get install -y --no-install-recommends \
           build-essential=12.9 \
