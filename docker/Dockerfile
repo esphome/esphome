@@ -24,6 +24,7 @@ RUN \
         python3-setuptools \
         python3-cryptography \
         python3-venv \
+        python3-wheel \
         iputils-ping \
         git \
         curl \
@@ -66,7 +67,6 @@ RUN \
 RUN \
     # Ubuntu python3-pip is missing wheel
     pip3 install --no-cache-dir \
-        wheel==0.37.1 \
         platformio==6.1.11 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
