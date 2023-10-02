@@ -245,14 +245,14 @@ async def to_code(configs):
         cg.add_library("SPI", None)
 
 
-def spi_device_schema(cs_pin_required=True):
+def spi_device_schema(cs_pin_required=True, data_rate=cv.UNDEFINED):
     """Create a schema for an SPI device.
     :param cs_pin_required: If true, make the CS_PIN required in the config.
     :return: The SPI device schema, `extend` this in your config schema.
     """
     schema = {
         cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
-        cv.Optional(CONF_DATA_RATE): SPI_DATA_RATE_SCHEMA,
+        cv.Optional(CONF_DATA_RATE, default=data_rate): SPI_DATA_RATE_SCHEMA,
     }
     if cs_pin_required:
         schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
