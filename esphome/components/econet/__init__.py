@@ -8,6 +8,8 @@ DEPENDENCIES = ["uart"]
 
 CONF_ON_DATAPOINT_UPDATE = "on_datapoint_update"
 CONF_DATAPOINT_TYPE = "datapoint_type"
+CONF_REQUEST_MOD = "request_mod"
+MAX_REQUEST_MOD = 7
 
 econet_ns = cg.esphome_ns.namespace("econet")
 Econet = econet_ns.class_("Econet", cg.Component, uart.UARTDevice)
@@ -54,6 +56,9 @@ CONFIG_SCHEMA = (
                         DATAPOINT_TRIGGERS[DPTYPE_RAW]
                     ),
                     cv.Required(CONF_SENSOR_DATAPOINT): cv.string,
+                    cv.Optional(CONF_REQUEST_MOD, default=-1): cv.int_range(
+                        min=-1, max=MAX_REQUEST_MOD
+                    ),
                     cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_RAW): cv.one_of(
                         *DATAPOINT_TRIGGERS, lower=True
                     ),
@@ -67,11 +72,12 @@ CONFIG_SCHEMA = (
 )
 
 CONF_ECONET_ID = "econet_id"
-CONF_LISTEN_ONLY = "listen_only"
 ECONET_CLIENT_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ECONET_ID): cv.use_id(Econet),
-        cv.Optional(CONF_LISTEN_ONLY, default=False): cv.boolean,
+        cv.Optional(CONF_REQUEST_MOD, default=0): cv.int_range(
+            min=-1, max=MAX_REQUEST_MOD
+        ),
     }
 )
 
@@ -83,7 +89,10 @@ async def to_code(config):
     cg.add(var.set_model_type(config[CONF_MODEL]))
     for conf in config.get(CONF_ON_DATAPOINT_UPDATE, []):
         trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], var, conf[CONF_SENSOR_DATAPOINT]
+            conf[CONF_TRIGGER_ID],
+            var,
+            conf[CONF_SENSOR_DATAPOINT],
+            conf[CONF_REQUEST_MOD],
         )
         await automation.build_automation(
             trigger, [(DATAPOINT_TYPES[conf[CONF_DATAPOINT_TYPE]], "x")], conf

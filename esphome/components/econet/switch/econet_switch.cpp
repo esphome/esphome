@@ -7,7 +7,7 @@ namespace econet {
 static const char *const TAG = "econet.switch";
 
 void EconetSwitch::setup() {
-  this->parent_->register_listener(this->switch_id_, this->listen_only_, [this](const EconetDatapoint &datapoint) {
+  this->parent_->register_listener(this->switch_id_, this->request_mod_, [this](const EconetDatapoint &datapoint) {
     ESP_LOGV(TAG, "MCU reported switch %s is: %s", this->switch_id_.c_str(), ONOFF(datapoint.value_enum));
     this->publish_state(datapoint.value_enum);
   });

@@ -205,12 +205,11 @@ void Econet::make_request_() {
         ESP_LOGW(TAG, "Unexpected pending write: datapoint %s", kv->first.c_str());
         break;
     }
-    pending_confirmation_writes_[kv->first] = kv->second;
     pending_writes_.erase(kv->first);
     return;
   }
 
-  request_strings_(dst_adr, src_adr, datapoint_ids_);
+  request_strings_(dst_adr, src_adr);
 }
 
 void Econet::parse_tx_message_() { this->parse_message_(true); }
@@ -372,8 +371,7 @@ void Econet::loop() {
   }
 
   // Quickly send writes but delay reads.
-  if (!pending_writes_.empty() || !pending_confirmation_writes_.empty() ||
-      (now - this->last_request_ > this->update_interval_millis_)) {
+  if (!pending_writes_.empty() || (now - this->last_request_ > this->update_interval_millis_ / request_mods_)) {
     ESP_LOGI(TAG, "request ms=%d", now);
     this->last_request_ = now;
     this->make_request_();
@@ -405,10 +403,15 @@ void Econet::write_value_(uint32_t dst_adr, uint32_t src_adr, const std::string 
   transmit_message_(dst_adr, src_adr, WRITE_COMMAND, data);
 }
 
-void Econet::request_strings_(uint32_t dst_adr, uint32_t src_adr, const std::vector<std::string> &objects) {
+void Econet::request_strings_(uint32_t dst_adr, uint32_t src_adr) {
+  uint8_t request_mod = read_requests_++ % request_mods_;
+  const std::vector<std::string> &objects = request_datapoint_ids_[request_mod];
+
   std::vector<uint8_t> data;
 
-  if (objects.size() > 1) {
+  if (objects.empty()) {
+    return;
+  } else if (objects.size() > 1) {
     // Read Class
     data.push_back(2);
   } else {
@@ -477,15 +480,6 @@ void Econet::set_datapoint_(const std::string &datapoint_id, const EconetDatapoi
 
 void Econet::send_datapoint_(const std::string &datapoint_id, const EconetDatapoint &value, bool skip_update_state) {
   if (!skip_update_state) {
-    if (pending_confirmation_writes_.count(datapoint_id) == 1) {
-      if (value == pending_confirmation_writes_[datapoint_id]) {
-        ESP_LOGV(TAG, "Confirmed write for datapoint %s", datapoint_id.c_str());
-      } else {
-        ESP_LOGW(TAG, "Retrying write for datapoint %s", datapoint_id.c_str());
-        pending_writes_[datapoint_id] = pending_confirmation_writes_[datapoint_id];
-      }
-      pending_confirmation_writes_.erase(datapoint_id);
-    }
     if (datapoints_.count(datapoint_id) == 1) {
       EconetDatapoint old_value = datapoints_[datapoint_id];
       if (old_value == value) {
@@ -502,12 +496,14 @@ void Econet::send_datapoint_(const std::string &datapoint_id, const EconetDatapo
   }
 }
 
-void Econet::register_listener(const std::string &datapoint_id, bool listen_only,
+void Econet::register_listener(const std::string &datapoint_id, int8_t request_mod,
                                const std::function<void(EconetDatapoint)> &func) {
-  if (!listen_only) {
-    if (std::find(datapoint_ids_.begin(), datapoint_ids_.end(), datapoint_id) == datapoint_ids_.end()) {
-      datapoint_ids_.push_back(datapoint_id);
+  if (request_mod >= 0 && request_mod < request_datapoint_ids_.size()) {
+    auto dids = &request_datapoint_ids_[request_mod];
+    if (std::find(dids->begin(), dids->end(), datapoint_id) == dids->end()) {
+      dids->push_back(datapoint_id);
     }
+    request_mods_ = std::max(request_mods_, (uint8_t) (request_mod + 1));
   }
   auto listener = EconetDatapointListener{
       .datapoint_id = datapoint_id,

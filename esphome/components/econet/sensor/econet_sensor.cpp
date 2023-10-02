@@ -7,7 +7,7 @@ namespace econet {
 static const char *const TAG = "econet.sensor";
 
 void EconetSensor::setup() {
-  this->parent_->register_listener(this->sensor_id_, this->listen_only_, [this](const EconetDatapoint &datapoint) {
+  this->parent_->register_listener(this->sensor_id_, this->request_mod_, [this](const EconetDatapoint &datapoint) {
     if (datapoint.type == EconetDatapointType::FLOAT) {
       ESP_LOGV(TAG, "MCU reported sensor %s is: %f", this->sensor_id_.c_str(), datapoint.value_float);
       this->publish_state(datapoint.value_float);

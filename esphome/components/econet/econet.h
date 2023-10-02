@@ -76,7 +76,7 @@ class Econet : public Component, public uart::UARTDevice {
   void set_float_datapoint_value(const std::string &datapoint_id, float value);
   void set_enum_datapoint_value(const std::string &datapoint_id, uint8_t value);
 
-  void register_listener(const std::string &datapoint_id, bool listen_only,
+  void register_listener(const std::string &datapoint_id, int8_t request_mod,
                          const std::function<void(EconetDatapoint)> &func);
 
  protected:
@@ -94,31 +94,32 @@ class Econet : public Component, public uart::UARTDevice {
   void parse_tx_message_();
 
   void transmit_message_(uint32_t dst_adr, uint32_t src_adr, uint8_t command, const std::vector<uint8_t> &data);
-  void request_strings_(uint32_t dst_adr, uint32_t src_adr, const std::vector<std::string> &objects);
+  void request_strings_(uint32_t dst_adr, uint32_t src_adr);
   void write_value_(uint32_t dst_adr, uint32_t src_adr, const std::string &object, EconetDatapointType type,
                     float value);
 
-  std::vector<std::string> datapoint_ids_{};
-  std::map<std::string, EconetDatapoint> datapoints_{};
-  std::map<std::string, EconetDatapoint> pending_writes_{};
-  std::map<std::string, EconetDatapoint> pending_confirmation_writes_{};
+  std::vector<std::vector<std::string>> request_datapoint_ids_ = std::vector<std::vector<std::string>>(8);
+  uint8_t request_mods_{1};
+  std::map<std::string, EconetDatapoint> datapoints_;
+  std::map<std::string, EconetDatapoint> pending_writes_;
 
+  uint32_t read_requests_{0};
   uint32_t last_request_{0};
   uint32_t last_read_data_{0};
   std::vector<uint8_t> rx_message_;
   std::vector<uint8_t> tx_message_;
 
-  uint32_t dst_adr_ = 0;
+  uint32_t dst_adr_{0};
 };
 
 class EconetClient {
  public:
   void set_econet_parent(Econet *parent) { this->parent_ = parent; }
-  void set_listen_only(bool listen_only) { this->listen_only_ = listen_only; }
+  void set_request_mod(int8_t request_mod) { this->request_mod_ = request_mod; }
 
  protected:
   Econet *parent_;
-  bool listen_only_ = false;
+  int8_t request_mod_{0};
 };
 
 }  // namespace econet

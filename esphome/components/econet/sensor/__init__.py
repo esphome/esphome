@@ -5,7 +5,7 @@ from esphome.const import CONF_ID, CONF_SENSOR_DATAPOINT
 
 from .. import (
     CONF_ECONET_ID,
-    CONF_LISTEN_ONLY,
+    CONF_REQUEST_MOD,
     ECONET_CLIENT_SCHEMA,
     EconetClient,
     econet_ns,
@@ -36,5 +36,5 @@ async def to_code(config):
 
     paren = await cg.get_variable(config[CONF_ECONET_ID])
     cg.add(var.set_econet_parent(paren))
-    cg.add(var.set_listen_only(config[CONF_LISTEN_ONLY]))
+    cg.add(var.set_request_mod(config[CONF_REQUEST_MOD]))
     cg.add(var.set_sensor_id(config[CONF_SENSOR_DATAPOINT]))
