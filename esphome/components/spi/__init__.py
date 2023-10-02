@@ -25,6 +25,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_PLATFORM,
     KEY_VARIANT,
+    CONF_DATA_RATE,
 )
 from esphome.core import coroutine_with_priority, CORE
 
@@ -251,6 +252,7 @@ def spi_device_schema(cs_pin_required=True):
     """
     schema = {
         cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
+        cv.Optional(CONF_DATA_RATE): SPI_DATA_RATE_SCHEMA,
     }
     if cs_pin_required:
         schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
