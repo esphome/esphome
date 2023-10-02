@@ -10,7 +10,7 @@ platformio==6.1.11  # When updating platformio, also update Dockerfile
 esptool==4.6.2
 click==8.1.7
 esphome-dashboard==20230904.0
-aioesphomeapi==15.0.0
+aioesphomeapi==17.0.1
 zeroconf==0.115.1
 
 # esp-idf requires this, but doesn't bundle it by default
