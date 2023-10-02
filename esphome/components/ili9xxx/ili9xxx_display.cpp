@@ -24,7 +24,6 @@ void ILI9XXXDisplay::setup() {
   if (this->buffer_color_mode_ == BITS_16) {
     if (this->get_buffer_length_() * 2 > max_mem) {
       downsize_resolution_(2);  // Reduce size.
-      this->fill_spi(this->x_high_, this->y_high_, this->x_low_, this->y_low_, 0x0000);
     }
     this->init_internal_(this->get_buffer_length_() * 2);
     if (this->buffer_ != nullptr) {
@@ -34,7 +33,6 @@ void ILI9XXXDisplay::setup() {
   }
   if (this->get_buffer_length_() > max_mem) {
     downsize_resolution_(1);  // Reduce size
-    this->fill_spi(this->x_high_, this->y_high_, this->x_low_, this->y_low_, 0x0000);
   }
   this->init_internal_(this->get_buffer_length_());
   if (this->buffer_ == nullptr) {
@@ -44,6 +42,7 @@ void ILI9XXXDisplay::setup() {
 
 void ILI9XXXDisplay::downsize_resolution_(uint16_t bytes_per_pixel) {
   uint32_t max_mem = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+  this->fill_spi(this->x_high_, this->y_high_, this->x_low_, this->y_low_, 0x0000);
   while (this->get_buffer_length_() * bytes_per_pixel > max_mem) {
     this->width_ = this->width_ - 2;
     this->height_ = this->height_ - 2;
