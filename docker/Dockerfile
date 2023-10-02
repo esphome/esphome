@@ -66,7 +66,7 @@ RUN \
 
 RUN \
     # Ubuntu python3-pip is missing wheel
-    pip3 install --no-cache-dir \
+    pip3 install --break-system-packages --no-cache-dir \
         platformio==6.1.11 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
@@ -77,7 +77,7 @@ RUN \
 # First install requirements to leverage caching when requirements don't change
 COPY requirements.txt requirements_optional.txt script/platformio_install_deps.py platformio.ini /
 RUN \
-    pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
+    pip3 install --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
     && /platformio_install_deps.py /platformio.ini --libraries
 
 
@@ -86,7 +86,7 @@ FROM base AS docker
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --no-cache-dir --no-use-pep517 -e /esphome
+RUN pip3 install --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
 
 # Settings for dashboard
 ENV USERNAME="" PASSWORD=""
@@ -128,7 +128,7 @@ COPY docker/ha-addon-rootfs/ /
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --no-cache-dir --no-use-pep517 -e /esphome
+RUN pip3 install --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
 
 # Labels
 LABEL \
@@ -164,7 +164,7 @@ RUN \
         /var/lib/apt/lists/*
 
 COPY requirements_test.txt /
-RUN pip3 install --no-cache-dir -r /requirements_test.txt
+RUN pip3 install --break-system-packages --no-cache-dir -r /requirements_test.txt
 
 VOLUME ["/esphome"]
 WORKDIR /esphome
