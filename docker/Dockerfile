@@ -30,15 +30,19 @@ RUN \
         openssh-client=1:8.4p1-5+deb11u1 \
         python3-cffi=1.14.5-1 \
         libcairo2=1.16.0-5 \
-        patch=2.7.6-7 \
-        libffi-dev; \
+        patch=2.7.6-7; \
     if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
         apt-get install -y --no-install-recommends \
           build-essential=12.9 \
           python3-dev=3.9.2-3 \
           zlib1g-dev=1:1.2.11.dfsg-2+deb11u2 \
           libjpeg-dev=1:2.0.6-4 \
-          libfreetype-dev=2.10.4+dfsg-1+deb11u1; \
+          libfreetype-dev=2.10.4+dfsg-1+deb11u1 \
+          build-essential \
+          libssl-dev \
+          libffi-dev \
+          cargo \
+          pkg-config; \
     fi; \
     rm -rf \
         /tmp/* \
