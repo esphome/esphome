@@ -62,32 +62,32 @@ climate::ClimateTraits EconetClimate::traits() {
 void EconetClimate::setup() {
   ModelType model_type = this->parent_->get_model_type();
   if (model_type == MODEL_TYPE_HVAC) {
-    this->parent_->register_listener("HEATSETP", [this](const EconetDatapoint &datapoint) {
+    this->parent_->register_listener("HEATSETP", this->listen_only_, [this](const EconetDatapoint &datapoint) {
       this->target_temperature_low = fahrenheit_to_celsius(datapoint.value_float);
       this->publish_state();
     });
-    this->parent_->register_listener("COOLSETP", [this](const EconetDatapoint &datapoint) {
+    this->parent_->register_listener("COOLSETP", this->listen_only_, [this](const EconetDatapoint &datapoint) {
       this->target_temperature_high = fahrenheit_to_celsius(datapoint.value_float);
       this->publish_state();
     });
-    this->parent_->register_listener("SPT_STAT", [this](const EconetDatapoint &datapoint) {
+    this->parent_->register_listener("SPT_STAT", this->listen_only_, [this](const EconetDatapoint &datapoint) {
       this->current_temperature = fahrenheit_to_celsius(datapoint.value_float);
       this->publish_state();
     });
   } else {
-    this->parent_->register_listener("WHTRSETP", [this](const EconetDatapoint &datapoint) {
+    this->parent_->register_listener("WHTRSETP", this->listen_only_, [this](const EconetDatapoint &datapoint) {
       this->target_temperature = fahrenheit_to_celsius(datapoint.value_float);
       this->publish_state();
     });
     this->parent_->register_listener(
         (model_type == MODEL_TYPE_HEATPUMP || model_type == MODEL_TYPE_ELECTRIC_TANK) ? "UPHTRTMP" : "TEMP_OUT",
-        [this](const EconetDatapoint &datapoint) {
+        this->listen_only_, [this](const EconetDatapoint &datapoint) {
           this->current_temperature = fahrenheit_to_celsius(datapoint.value_float);
           this->publish_state();
         });
   }
   if (model_type == MODEL_TYPE_HVAC) {
-    this->parent_->register_listener("STATMODE", [this](const EconetDatapoint &datapoint) {
+    this->parent_->register_listener("STATMODE", this->listen_only_, [this](const EconetDatapoint &datapoint) {
       switch (datapoint.value_enum) {
         case 0:
           this->mode = climate::CLIMATE_MODE_HEAT;
@@ -107,7 +107,7 @@ void EconetClimate::setup() {
       }
       this->publish_state();
     });
-    this->parent_->register_listener("STATNFAN", [this](const EconetDatapoint &datapoint) {
+    this->parent_->register_listener("STATNFAN", this->listen_only_, [this](const EconetDatapoint &datapoint) {
       switch (datapoint.value_enum) {
         case 0:
           this->set_custom_fan_mode_("Automatic");
@@ -131,7 +131,7 @@ void EconetClimate::setup() {
       this->publish_state();
     });
   } else {
-    this->parent_->register_listener("WHTRENAB", [this](const EconetDatapoint &datapoint) {
+    this->parent_->register_listener("WHTRENAB", this->listen_only_, [this](const EconetDatapoint &datapoint) {
       if (datapoint.value_enum == 1) {
         this->mode = climate::CLIMATE_MODE_AUTO;
       } else {
@@ -141,7 +141,7 @@ void EconetClimate::setup() {
     });
   }
   if (model_type == MODEL_TYPE_HEATPUMP) {
-    this->parent_->register_listener("WHTRCNFG", [this](const EconetDatapoint &datapoint) {
+    this->parent_->register_listener("WHTRCNFG", this->listen_only_, [this](const EconetDatapoint &datapoint) {
       switch (datapoint.value_enum) {
         case 0:
           this->set_custom_preset_("Off");
@@ -165,7 +165,7 @@ void EconetClimate::setup() {
       this->publish_state();
     });
   } else if (model_type == MODEL_TYPE_ELECTRIC_TANK) {
-    this->parent_->register_listener("WHTRCNFG", [this](const EconetDatapoint &datapoint) {
+    this->parent_->register_listener("WHTRCNFG", this->listen_only_, [this](const EconetDatapoint &datapoint) {
       switch (datapoint.value_enum) {
         case 0:
           this->set_custom_preset_("Energy Saver");

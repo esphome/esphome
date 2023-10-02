@@ -76,8 +76,8 @@ class Econet : public Component, public uart::UARTDevice {
   void set_float_datapoint_value(const std::string &datapoint_id, float value);
   void set_enum_datapoint_value(const std::string &datapoint_id, uint8_t value);
 
-  void register_listener(const std::string &datapoint_id, const std::function<void(EconetDatapoint)> &func,
-                         bool is_raw_datapoint = false);
+  void register_listener(const std::string &datapoint_id, bool listen_only,
+                         const std::function<void(EconetDatapoint)> &func);
 
  protected:
   ModelType model_type_;
@@ -114,9 +114,11 @@ class Econet : public Component, public uart::UARTDevice {
 class EconetClient {
  public:
   void set_econet_parent(Econet *parent) { this->parent_ = parent; }
+  void set_listen_only(bool listen_only) { this->listen_only_ = listen_only; }
 
  protected:
   Econet *parent_;
+  bool listen_only_ = false;
 };
 
 }  // namespace econet

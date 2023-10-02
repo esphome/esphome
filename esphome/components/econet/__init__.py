@@ -67,9 +67,11 @@ CONFIG_SCHEMA = (
 )
 
 CONF_ECONET_ID = "econet_id"
+CONF_LISTEN_ONLY = "listen_only"
 ECONET_CLIENT_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ECONET_ID): cv.use_id(Econet),
+        cv.Optional(CONF_LISTEN_ONLY, default=False): cv.boolean,
     }
 )
 
