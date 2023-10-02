@@ -143,7 +143,7 @@ void join_obj_names(const std::vector<std::string> &objects, std::vector<uint8_t
 
 std::string trim_trailing_whitespace(const char *p, uint8_t len) {
   const char *endp = p + len - 1;
-  while (*endp == ' ' || *endp == 0) {
+  while ((*endp == ' ' || *endp == 0) && endp != p - 1) {
     endp--;
   }
   std::string s(p, endp - p + 1);
