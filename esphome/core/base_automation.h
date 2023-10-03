@@ -330,4 +330,38 @@ template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
   PollingComponent *component_;
 };
 
+template<typename... Ts> class SuspendComponentAction : public Action<Ts...> {
+ public:
+  SuspendComponentAction(PollingComponent *component) : component_(component) {}
+
+  void play(Ts... x) override {
+    if (!this->component_->is_ready())
+      return;
+    this->component_->stop_poller();
+  }
+
+ protected:
+  PollingComponent *component_;
+};
+
+template<typename... Ts> class ResumeComponentAction : public Action<Ts...> {
+ public:
+  ResumeComponentAction(PollingComponent *component) : component_(component) {}
+  TEMPLATABLE_VALUE(uint32_t, update_interval)
+
+  void play(Ts... x) override {
+    if (!this->component_->is_ready()) {
+      return;
+    }
+    optional<uint32_t> update_interval = this->update_interval_.optional_value(x...);
+    if (update_interval.has_value()) {
+      this->component_->set_update_interval(update_interval.value());
+    }
+    this->component_->start_poller();
+  }
+
+ protected:
+  PollingComponent *component_;
+};
+
 }  // namespace esphome
