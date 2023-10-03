@@ -38,7 +38,6 @@ static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid
 static esp_netif_t *s_ap_netif = nullptr;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_started = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connected = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_got_ip = false;              // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_ap_started = false;              // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connect_not_found = false;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connect_error = false;       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -399,7 +398,6 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // may be called from wifi_station_connect
   s_sta_connecting = true;
   s_sta_connected = false;
-  s_sta_got_ip = false;
   s_sta_connect_error = false;
   s_sta_connect_not_found = false;
 
@@ -663,17 +661,18 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif /* ENABLE_IPV6 */
     ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip_info.ip).c_str(),
              format_ip4_addr(it.ip_info.gw).c_str());
-    s_sta_got_ip = true;
+    this->got_ipv4_address_ = true;
 
 #if ENABLE_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
     ESP_LOGV(TAG, "Event: Got IPv6 address=%s", format_ip6_addr(it.ip6_info.ip).c_str());
+    this->num_ipv6_addresses_++;
 #endif /* ENABLE_IPV6 */
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_LOST_IP) {
     ESP_LOGV(TAG, "Event: Lost IP");
-    s_sta_got_ip = false;
+    this->got_ipv4_address_ = false;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_SCAN_DONE) {
     const auto &it = data->data.sta_scan_done;
@@ -732,8 +731,14 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
-  if (s_sta_connected && s_sta_got_ip) {
+  if (s_sta_connected && this->got_ipv4_address_) {
+#if ENABLE_IPV6
+    if (this->num_ipv6_addresses_>=MIN_IPV6_ADDR_COUNT) {
+      return WiFiSTAConnectStatus::CONNECTED;
+    }
+#else
     return WiFiSTAConnectStatus::CONNECTED;
+#endif
   }
   if (s_sta_connect_error) {
     return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;

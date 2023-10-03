@@ -329,14 +329,17 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 
 #if ENABLE_IPV6
-  for (bool configured = false; !configured;) {
+  bool connected = false;
+  while (!connected) {
+    uint8_t ipv6_addr_count = 0;
     for (auto addr : addrList) {
       ESP_LOGV(TAG, "Address %s", addr.toString().c_str());
-      if ((configured = !addr.isLocal() && addr.isV6())) {
-        break;
+      if (addr.isV6()) {
+        ipv6_addr_count++;
       }
     }
     delay(500);  // NOLINT
+    connected = (ipv6_addr_count >= MIN_IPV6_ADDR_COUNT);
   }
 #endif
 

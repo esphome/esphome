@@ -373,6 +373,10 @@ class WiFiComponent : public Component {
   bool rrm_{false};
 #endif
   bool enable_on_boot_;
+  bool got_ipv4_address_{false};
+#if ENABLE_IPV6
+  uint8_t num_ipv6_addresses_{0};
+#endif
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

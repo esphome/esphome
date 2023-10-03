@@ -87,8 +87,8 @@ class EthernetComponent : public Component {
 
   bool started_{false};
   bool connected_{false};
+  bool got_ipv4_address_{false};
 #if LWIP_IPV6
-  bool got_ipv6_{false};
   uint8_t ipv6_count_{0};
 #endif /* LWIP_IPV6 */
   EthernetComponentState state_{EthernetComponentState::STOPPED};

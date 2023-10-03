@@ -518,18 +518,26 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       auto it = info.got_ip.ip_info;
       ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip).c_str(),
                format_ip4_addr(it.gw).c_str());
+      this->got_ipv4_address_ = true;
+#if ENABLE_IPV6
+      s_sta_connecting = this->num_ipv6_addresses_ < MIN_IPV6_ADDR_COUNT;
+#else
       s_sta_connecting = false;
+#endif
       break;
     }
 #if ENABLE_IPV6
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
       auto it = info.got_ip6.ip6_info;
       ESP_LOGV(TAG, "Got IPv6 address=" IPV6STR, IPV62STR(it.ip));
+      this->num_ipv6_addresses_++;
+      s_sta_connecting = !(this->got_ipv4_address_ & (this->num_ipv6_addresses_ >= MIN_IPV6_ADDR_COUNT));
       break;
     }
 #endif /* ENABLE_IPV6 */
     case ESPHOME_EVENT_ID_WIFI_STA_LOST_IP: {
       ESP_LOGV(TAG, "Event: Lost IP");
+      this->got_ipv4_address_ = false;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_START: {
