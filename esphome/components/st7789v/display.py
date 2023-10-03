@@ -138,7 +138,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MODEL): cv.one_of(*MODELS.keys(), upper=True, space="_"),
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_BACKLIGHT_PIN, default=False): cv.Any(
+            cv.Optional(CONF_BACKLIGHT_PIN): cv.Any(
                 cv.boolean,
                 pins.gpio_output_pin_schema,
             ),
