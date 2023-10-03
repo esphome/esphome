@@ -311,7 +311,9 @@ def spi_device_schema(
     schema = {
         cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
         cv.Optional(CONF_DATA_RATE, default=default_data_rate): SPI_DATA_RATE_SCHEMA,
-        cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(SPI_MODE_OPTIONS),
+        cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(
+            SPI_MODE_OPTIONS, upper=True
+        ),
     }
     if cs_pin_required:
         schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
