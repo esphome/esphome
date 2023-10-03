@@ -104,13 +104,12 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       header.value = val.value(x...);
       headers.push_back(header);
     }
-    
     this->parent_->set_headers(headers);
-    this->parent_->set_body("");
     HttpResponse response = this->parent_->send();
 
     for (auto *trigger : this->response_triggers_)
       trigger->process(response);
+    this->parent_->set_body("");
   }
 
  protected:
