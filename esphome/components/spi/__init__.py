@@ -34,6 +34,7 @@ spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 SPIDevice = spi_ns.class_("SPIDevice")
 SPIDataRate = spi_ns.enum("SPIDataRate")
+SPIMode = spi_ns.enum("SPIMode")
 
 SPI_DATA_RATE_OPTIONS = {
     80e6: SPIDataRate.DATA_RATE_80MHZ,
@@ -51,6 +52,18 @@ SPI_DATA_RATE_OPTIONS = {
 }
 SPI_DATA_RATE_SCHEMA = cv.All(cv.frequency, cv.enum(SPI_DATA_RATE_OPTIONS))
 
+SPI_MODE_OPTIONS = {
+    "MODE0": SPIMode.MODE0,
+    "MODE1": SPIMode.MODE1,
+    "MODE2": SPIMode.MODE2,
+    "MODE3": SPIMode.MODE3,
+    0: SPIMode.MODE0,
+    1: SPIMode.MODE1,
+    2: SPIMode.MODE2,
+    3: SPIMode.MODE3,
+}
+
+CONF_SPI_MODE = "spi_mode"
 CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
@@ -287,7 +300,9 @@ async def to_code(configs):
         cg.add_library("SPI", None)
 
 
-def spi_device_schema(cs_pin_required=True, default_data_rate=cv.UNDEFINED):
+def spi_device_schema(
+    cs_pin_required=True, default_data_rate=cv.UNDEFINED, default_mode=cv.UNDEFINED
+):
     """Create a schema for an SPI device.
     :param cs_pin_required: If true, make the CS_PIN required in the config.
     :param default_data_rate: Optional data_rate to use as default
@@ -296,6 +311,7 @@ def spi_device_schema(cs_pin_required=True, default_data_rate=cv.UNDEFINED):
     schema = {
         cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
         cv.Optional(CONF_DATA_RATE, default=default_data_rate): SPI_DATA_RATE_SCHEMA,
+        cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(SPI_MODE_OPTIONS),
     }
     if cs_pin_required:
         schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
@@ -312,6 +328,8 @@ async def register_spi_device(var, config):
         cg.add(var.set_cs_pin(pin))
     if CONF_DATA_RATE in config:
         cg.add(var.set_data_rate(config[CONF_DATA_RATE]))
+    if CONF_SPI_MODE in config:
+        cg.add(var.set_mode(config[CONF_SPI_MODE]))
 
 
 def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso: bool):
