@@ -71,8 +71,6 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, url)
   TEMPLATABLE_VALUE(const char *, method)
   TEMPLATABLE_VALUE(std::string, body)
-  TEMPLATABLE_VALUE(const char *, useragent)
-  TEMPLATABLE_VALUE(uint16_t, timeout)
   TEMPLATABLE_VALUE(bool, capture_response)
 
   void add_header(const char *key, TemplatableValue<const char *, Ts...> value) { this->headers_.insert({key, value}); }
@@ -98,23 +96,17 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       auto f = std::bind(&HttpRequestSendAction<Ts...>::encode_json_func_, this, x..., std::placeholders::_1);
       this->parent_->set_body(json::build_json(f));
     }
-    if (this->useragent_.has_value()) {
-      this->parent_->set_useragent(this->useragent_.value(x...));
+    std::list<Header> headers;
+    for (const auto &item : this->headers_) {
+      auto val = item.second;
+      Header header;
+      header.name = item.first;
+      header.value = val.value(x...);
+      headers.push_back(header);
     }
-    if (this->timeout_.has_value()) {
-      this->parent_->set_timeout(this->timeout_.value(x...));
-    }
-    if (!this->headers_.empty()) {
-      std::list<Header> headers;
-      for (const auto &item : this->headers_) {
-        auto val = item.second;
-        Header header;
-        header.name = item.first;
-        header.value = val.value(x...);
-        headers.push_back(header);
-      }
-      this->parent_->set_headers(headers);
-    }
+    
+    this->parent_->set_headers(headers);
+    this->parent_->set_body("");
     HttpResponse response = this->parent_->send();
 
     for (auto *trigger : this->response_triggers_)
