@@ -9,7 +9,6 @@ DEPENDENCIES = ["uart"]
 CONF_ON_DATAPOINT_UPDATE = "on_datapoint_update"
 CONF_DATAPOINT_TYPE = "datapoint_type"
 CONF_REQUEST_MOD = "request_mod"
-MAX_REQUEST_MOD = 7
 
 econet_ns = cg.esphome_ns.namespace("econet")
 Econet = econet_ns.class_("Econet", cg.Component, uart.UARTDevice)
@@ -45,6 +44,13 @@ MODEL_TYPES = {
     "Electric Tank": ModelType.MODEL_TYPE_ELECTRIC_TANK,
 }
 
+
+def request_mod(value):
+    if isinstance(value, str) and value.lower() == "none":
+        return -1
+    return cv.int_range(min=0, max=7)(value)
+
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -56,9 +62,7 @@ CONFIG_SCHEMA = (
                         DATAPOINT_TRIGGERS[DPTYPE_RAW]
                     ),
                     cv.Required(CONF_SENSOR_DATAPOINT): cv.string,
-                    cv.Optional(CONF_REQUEST_MOD, default=-1): cv.int_range(
-                        min=-1, max=MAX_REQUEST_MOD
-                    ),
+                    cv.Optional(CONF_REQUEST_MOD, default="none"): request_mod,
                     cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_RAW): cv.one_of(
                         *DATAPOINT_TRIGGERS, lower=True
                     ),
@@ -75,9 +79,7 @@ CONF_ECONET_ID = "econet_id"
 ECONET_CLIENT_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ECONET_ID): cv.use_id(Econet),
-        cv.Optional(CONF_REQUEST_MOD, default=0): cv.int_range(
-            min=-1, max=MAX_REQUEST_MOD
-        ),
+        cv.Optional(CONF_REQUEST_MOD, default=0): request_mod,
     }
 )
 
