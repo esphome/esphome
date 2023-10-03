@@ -152,7 +152,7 @@ RUN \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
         clang-format-13 \
-        clang-tidy-11 \
+        clang-tidy-14 \
         patch \
         software-properties-common \
         nano \
