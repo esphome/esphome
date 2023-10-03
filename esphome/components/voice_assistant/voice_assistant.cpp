@@ -204,6 +204,8 @@ void VoiceAssistant::loop() {
       uint32_t flags = 0;
       if (this->use_wake_word_)
         flags |= api::enums::VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD;
+      if (this->silence_detection_)
+        flags |= api::enums::VOICE_ASSISTANT_REQUEST_USE_VAD;
       api::VoiceAssistantAudioSettings audio_settings;
       audio_settings.noise_suppression_level = this->noise_suppression_level_;
       audio_settings.auto_gain = this->auto_gain_;
@@ -335,7 +337,7 @@ void VoiceAssistant::start_streaming(struct sockaddr_storage *addr, uint16_t por
   }
 }
 
-void VoiceAssistant::request_start(bool continuous) {
+void VoiceAssistant::request_start(bool continuous, bool silence_detection) {
   if (!api::global_api_server->is_connected()) {
     ESP_LOGE(TAG, "No API client connected");
     this->set_state_(State::IDLE, State::IDLE);
@@ -344,6 +346,7 @@ void VoiceAssistant::request_start(bool continuous) {
   }
   if (this->state_ == State::IDLE) {
     this->continuous_ = continuous;
+    this->silence_detection_ = silence_detection;
 #ifdef USE_ESP_ADF
     if (this->use_wake_word_) {
       rb_reset(this->ring_buffer_);

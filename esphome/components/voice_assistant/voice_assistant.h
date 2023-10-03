@@ -78,7 +78,7 @@ class VoiceAssistant : public Component {
     return INITIAL_VERSION;
   }
 
-  void request_start(bool continuous = false);
+  void request_start(bool continuous, bool silence_detection);
   void request_stop();
 
   void on_event(const api::VoiceAssistantEventResponse &msg);
@@ -159,6 +159,7 @@ class VoiceAssistant : public Component {
   int16_t *input_buffer_;
 
   bool continuous_{false};
+  bool silence_detection_;
 
   State state_{State::IDLE};
   State desired_state_{State::IDLE};
@@ -166,12 +167,17 @@ class VoiceAssistant : public Component {
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {
  public:
-  void play(Ts... x) override { this->parent_->request_start(); }
+  void play(Ts... x) override { this->parent_->request_start(false, this->silence_detection_); }
+
+  void set_silence_detection(bool silence_detection) { this->silence_detection_ = silence_detection; }
+
+ protected:
+  bool silence_detection_;
 };
 
 template<typename... Ts> class StartContinuousAction : public Action<Ts...>, public Parented<VoiceAssistant> {
  public:
-  void play(Ts... x) override { this->parent_->request_start(true); }
+  void play(Ts... x) override { this->parent_->request_start(true, true); }
 };
 
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<VoiceAssistant> {

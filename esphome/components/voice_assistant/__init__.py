@@ -166,10 +166,20 @@ VOICE_ASSISTANT_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(VoiceAssis
     StartContinuousAction,
     VOICE_ASSISTANT_ACTION_SCHEMA,
 )
-@register_action("voice_assistant.start", StartAction, VOICE_ASSISTANT_ACTION_SCHEMA)
+@register_action(
+    "voice_assistant.start",
+    StartAction,
+    VOICE_ASSISTANT_ACTION_SCHEMA.extend(
+        {
+            cv.Optional(CONF_SILENCE_DETECTION, default=True): cv.boolean,
+        }
+    ),
+)
 async def voice_assistant_listen_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    if CONF_SILENCE_DETECTION in config:
+        cg.add(var.set_silence_detection(config[CONF_SILENCE_DETECTION]))
     return var
 
 
