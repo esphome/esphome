@@ -7,7 +7,7 @@ namespace pulse_meter {
 
 static const char *const TAG = "pulse_meter";
 
-void set_total_pulses(uint32_t pulses) {
+void PulseMeterSensor::set_total_pulses(uint32_t pulses) {
   this->total_pulses_ = pulses;
   if (this->total_sensor_ != nullptr) {
     this->total_sensor_->publish_state(this->total_pulses_);
