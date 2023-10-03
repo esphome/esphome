@@ -370,8 +370,11 @@ void VoiceAssistant::request_stop() {
     case State::WAIT_FOR_VAD:
     case State::WAITING_FOR_VAD:
     case State::START_PIPELINE:
+      this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+      break;
     case State::STARTING_PIPELINE:
     case State::STREAMING_MICROPHONE:
+      this->signal_stop_();
       this->set_state_(State::STOP_MICROPHONE, State::IDLE);
       break;
     case State::STOP_MICROPHONE:
