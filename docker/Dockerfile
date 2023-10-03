@@ -43,6 +43,7 @@ RUN \
           libssl-dev \
           libffi-dev \
           cargo \
+          librust-openssl-sys-dev \
           pkg-config; \
     fi; \
     rm -rf \
