@@ -43,13 +43,10 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   MitsubishiClimate()
       : climate_ir::ClimateIR(
         MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, false,{
-          climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
-          climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH
-        },
-        {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
-          climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL
-        }
-      ) {}
+          climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
+          climate::CLIMATE_FAN_HIGH},
+        {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
+          climate::CLIMATE_SWING_HORIZONTAL}) {}
 
   void set_fan_low(Setfanspeed low) { this->fan_low_ = low; }
   void set_fan_medium(Setfanspeed medium) { this->fan_medium_ = medium; }
@@ -69,7 +66,7 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);
 
-//  Setfanspeeds setfanspeeds_;
+  // Setfanspeeds setfanspeeds_;
   Setfanspeed fan_low_;
   Setfanspeed fan_medium_;
   Setfanspeed fan_hi_;
