@@ -272,7 +272,7 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
 
 void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
                                              void *event_data) {
-  ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
+  ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
   const esp_netif_ip_info_t *ip_info = &event->ip_info;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IP " IPSTR, IP2STR(&ip_info->ip));
   global_eth_component->got_ipv4_address_ = true;
@@ -286,10 +286,11 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
 #if ENABLE_IPV6
 void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
                                               void *event_data) {
-  ip_event_got_ip6_t *event = (ip_event_got_ip6_t *)event_data;
+  ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IPv6: " IPV6STR, IPV62STR(event->ip6_info.ip));
   global_eth_component->ipv6_count_ += 1;
-  global_eth_component->connected_ = global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= MIN_IPV6_ADDR_COUNT);
+  global_eth_component->connected_ =
+      global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= MIN_IPV6_ADDR_COUNT);
 }
 #endif /* ENABLE_IPV6 */
 
