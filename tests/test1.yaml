@@ -2321,9 +2321,9 @@ climate:
   - platform: mitsubishi
     name: Mitsubishi
     set_fan_speeds:
-      fan_low: "fan2"
-      fan_medium: "fan3"
-      fan_hi: "fan4"
+      low: "fan2"
+      medium: "fan3"
+      high: "fan4"
     horizontal_default: "left"
     vertical_default: "down"
   - platform: whirlpool
