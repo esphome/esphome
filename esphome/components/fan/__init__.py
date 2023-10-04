@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_DIRECTION,
     CONF_RESTORE_MODE,
+    CONF_OFF_SPEED_CYCLE
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -100,8 +101,10 @@ FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).exte
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanSpeedSetTrigger),
             }
         ),
+        cv.Optional(CONF_OFF_SPEED_CYCLE, default=False): cv.boolean,
     }
 )
+
 
 
 async def setup_fan_core_(var, config):
