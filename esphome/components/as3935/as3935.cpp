@@ -310,7 +310,7 @@ void AS3935Component::tune_antenna() {
   uint8_t tune_val = this->read_capacitance();
   ESP_LOGI(TAG, "Division Ratio is set to: %d", div_ratio);
   ESP_LOGI(TAG, "Internal Capacitor is set to: %d", tune_val);
-  ESP_LOGI(TAG, "Displaying oscillator on INT pin. Measure its frequency - multiply value by DivisionRatio");
+  ESP_LOGI(TAG, "Displaying oscillator on INT pin. Measure its frequency - multiply value by Division Ratio");
   this->display_oscillator(true, ANTFREQ);
 }
 
