@@ -70,9 +70,15 @@ async def to_code(config):
         name="esp-adf",
         repo="https://github.com/espressif/esp-adf",
         path="components",
-        ref="v2.5",
+        ref="master",
         components=["*"],
         submodules=["components/esp-sr", "components/esp-adf-libs"],
+    )
+
+    esp32.add_idf_component(
+        name="esp-dsp",
+        repo="https://github.com/espressif/esp-dsp",
+        ref="v1.2.0",
     )
 
     cg.add_platformio_option(
