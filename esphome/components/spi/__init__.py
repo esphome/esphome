@@ -28,7 +28,7 @@ from esphome.const import (
 )
 from esphome.core import coroutine_with_priority, CORE
 
-CODEOWNERS = ["@esphome/core"]
+CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 SPIDevice = spi_ns.class_("SPIDevice")
@@ -53,6 +53,21 @@ SPI_DATA_RATE_SCHEMA = cv.All(cv.frequency, cv.enum(SPI_DATA_RATE_OPTIONS))
 CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
+
+# RP2040 SPI pin assignments are complicated. Refer to https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
+
+RP_SPI_PINSETS = [
+    {
+        CONF_MISO_PIN: [0, 4, 16, 20, -1],
+        CONF_CLK_PIN: [2, 6, 18, 22],
+        CONF_MOSI_PIN: [3, 7, 19, 23, -1],
+    },
+    {
+        CONF_MISO_PIN: [8, 12, 24, 28, -1],
+        CONF_CLK_PIN: [10, 14, 26],
+        CONF_MOSI_PIN: [11, 23, 27, -1],
+    },
+]
 
 
 def get_target_platform():
@@ -85,7 +100,7 @@ def get_hw_interface_list():
             return [["spi", "spi2"]]
         return [["spi", "spi2"], ["spi3"]]
     if target_platform == "rp2040":
-        return [["spi"]]
+        return [["spi"], ["spi1"]]
     return []
 
 
@@ -99,8 +114,10 @@ def get_spi_index(name):
 
 
 # Check that pins are suitable for HW spi
+# \param spi the config data for the spi instance
+# \param index the selected hw interface number, -1 if not yet known
 # TODO verify that the pins are internal
-def validate_hw_pins(spi):
+def validate_hw_pins(spi, index=-1):
     clk_pin = spi[CONF_CLK_PIN]
     if clk_pin[CONF_INVERTED]:
         return False
@@ -129,7 +146,28 @@ def validate_hw_pins(spi):
     if target_platform == "esp32":
         return clk_pin_no >= 0
 
+    if target_platform == "rp2040":
+        pin_set = (
+            list(filter(lambda s: clk_pin_no in s[CONF_CLK_PIN], RP_SPI_PINSETS))[0]
+            if index == -1
+            else RP_SPI_PINSETS[index]
+        )
+        if pin_set is None:
+            return False
+        if sdo_pin_no not in pin_set[CONF_MOSI_PIN]:
+            return False
+        if sdi_pin_no not in pin_set[CONF_MISO_PIN]:
+            return False
+        return True
     return False
+
+
+def get_hw_spi(config, available):
+    """Get an available hardware spi interface suitable for this config"""
+    matching = list(filter(lambda idx: validate_hw_pins(config, idx), available))
+    if len(matching) != 0:
+        return matching[0]
+    return None
 
 
 def validate_spi_config(config):
@@ -147,9 +185,10 @@ def validate_spi_config(config):
             if not validate_hw_pins(spi):
                 spi[CONF_INTERFACE] = "software"
         elif interface == "hardware":
-            if len(available) == 0:
-                raise cv.Invalid("No hardware interface available")
-            index = spi[CONF_INTERFACE_INDEX] = available[0]
+            index = get_hw_spi(spi, available)
+            if index is None:
+                raise cv.Invalid("No suitable hardware interface available")
+            spi[CONF_INTERFACE_INDEX] = index
             available.remove(index)
         else:
             # Must be a specific name
@@ -164,11 +203,14 @@ def validate_spi_config(config):
     # Any specific names and any 'hardware' requests will have already been filled,
     # so just need to assign remaining hardware to 'any' requests.
     for spi in config:
-        if spi[CONF_INTERFACE] == "any" and len(available) != 0:
-            index = available[0]
-            spi[CONF_INTERFACE_INDEX] = index
-            available.remove(index)
-        if CONF_INTERFACE_INDEX in spi and not validate_hw_pins(spi):
+        if spi[CONF_INTERFACE] == "any":
+            index = get_hw_spi(spi, available)
+            if index is not None:
+                spi[CONF_INTERFACE_INDEX] = index
+                available.remove(index)
+        if CONF_INTERFACE_INDEX in spi and not validate_hw_pins(
+            spi, spi[CONF_INTERFACE_INDEX]
+        ):
             raise cv.Invalid("Invalid pin selections for hardware SPI interface")
 
     return config
@@ -181,13 +223,13 @@ def get_spi_interface(index):
     # Arduino code follows
     platform = get_target_platform()
     if platform == "rp2040":
-        return "&spi1"
+        return ["&SPI", "&SPI1"][index]
     if index == 0:
         return "&SPI"
     # Following code can't apply to C2, H2 or 8266 since they have only one SPI
     if get_target_variant() in (VARIANT_ESP32S3, VARIANT_ESP32S2):
         return "new SPIClass(FSPI)"
-    return "return new SPIClass(HSPI)"
+    return "new SPIClass(HSPI)"
 
 
 SPI_SCHEMA = cv.All(
