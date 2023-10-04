@@ -2954,7 +2954,7 @@ display:
     cs_pin: GPIO5
     dc_pin: GPIO16
     reset_pin: GPIO23
-    backlight_pin: GPIO4
+    backlight_pin: no
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7920
