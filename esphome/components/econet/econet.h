@@ -102,7 +102,7 @@ class Econet : public Component, public uart::UARTDevice {
 
   std::vector<std::set<std::string>> request_datapoint_ids_ = std::vector<std::set<std::string>>(8);
   uint8_t request_mods_{1};
-  std::set<std::string> raw__datapoint_ids_;
+  std::set<std::string> raw_datapoint_ids_;
   std::map<std::string, EconetDatapoint> datapoints_;
   std::map<std::string, EconetDatapoint> pending_writes_;
 
