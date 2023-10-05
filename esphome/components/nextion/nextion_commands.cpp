@@ -36,6 +36,16 @@ void Nextion::sleep(bool sleep) {
 }
 // End sleep safe commands
 
+// Protocol reparse mode
+void Nextion::set_protocol_reparse_mode(bool active_mode) {
+  if (!active_mode) { // To exit active reparse mode a special sequence must be sent
+    this->send_nextion_command("DRAKJHSUYDGBNCJHGJKSHBDN");
+    this->send_nextion_command("recmod=0"); // Sending recmode=0 twice is recommended
+  }
+  this->send_nextion_command("recmod=%i", active_mode ? 1 : 0);
+  this->send_nextion_command("connect");
+}
+
 // Set Colors
 void Nextion::set_component_background_color(const char *component, uint32_t color) {
   this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%d", component, color);
