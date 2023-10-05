@@ -210,6 +210,12 @@ binary_sensor:
         name: VBus Custom Binary Sensor
         lambda: return x[0] & 1;
 
+  - platform: mr24hpb1
+    occupancy:
+      name: Occupancy
+    movement:
+      name: Movement
+
 tlc5947:
   data_pin: GPIO12
   clock_pin: GPIO14
@@ -564,6 +570,10 @@ sensor:
     temperature:
       name: Kuntze temperature
 
+  - platform: mr24hpb1
+    movement_rate:
+      name: Movement Rate
+
 script:
   - id: automation_test
     then:
@@ -623,24 +633,6 @@ mr24hpb1:
   threshold_gear: 7
   scene_setting: DEFAULT
   force_unoccupied: NONE
-  environment_status:
-    name: Environment Status
-  occupancy:
-    name: Occupancy
-  movement:
-    name: Movement
-  movement_rate:
-    name: Movement Rate
-  movement_type:
-    name: Movement Type
-  device_id:
-    name: Device ID
-  software_version:
-    name: Software version
-  protocol_version:
-    name: Protocol Version
-  hardware_version:
-    name: Hardware Version
 
 time:
   - platform: pcf85063
@@ -676,6 +668,20 @@ text_sensor:
         - ezo_pmp.arbitrary_command:
             id: hcl_pump
             command: D,?
+
+  - platform: mr24hpb1
+    device_id:
+      name: Device ID
+    software_version:
+      name: Software version
+    protocol_version:
+      name: Protocol Version
+    hardware_version:
+      name: Hardware Version
+    movement_type:
+      name: Movement Type
+    environment_status:
+      name: Environment Status
 
 sn74hc165:
   id: sn74hc165_hub

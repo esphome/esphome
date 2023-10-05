@@ -1,32 +1,21 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.components import uart, text_sensor, binary_sensor, sensor
+from esphome.components import uart
 from esphome.const import (
     CONF_ID,
-    DEVICE_CLASS_OCCUPANCY,
-    DEVICE_CLASS_MOTION,
-    ICON_MOTION_SENSOR,
-    ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
 CODEOWNERS = ["@lorki97", "@florianL21"]
 
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["text_sensor", "binary_sensor", "sensor"]
 
 mr24hpb1_ns = cg.esphome_ns.namespace("mr24hpb1")
 
-CONF_DEVICE_ID = "device_id"
-CONF_SOFTWARE_VERSION = "software_version"
-CONF_HARDWARE_VERSION = "hardware_version"
-CONF_PROTOCOL_VERSION = "protocol_version"
+CONF_MR24HPB1_ID = "mr24hpb1"
 
 MR24HPB1Component = mr24hpb1_ns.class_(
     "MR24HPB1Component", cg.Component, uart.UARTDevice
 )
-
-# Enviroment status
-CONF_ENVIRONMENT_STATUS = "environment_status"
 
 # Scene Setting enum
 CONF_SCENE_SETTING = "scene_setting"
@@ -44,15 +33,6 @@ SCENE_SETTING = {
 # Threshold gear
 CONF_THRESHOLD_GEAR = "threshold_gear"
 
-# Occupancy binary sensor
-CONF_OCCUPANCY = "occupancy"
-
-# Movment binary sensor
-CONF_MOVEMENT = "movement"
-
-# Movement rate
-CONF_MOVEMENT_RATE = "movement_rate"
-
 # Forced unoccupied enum
 CONF_FORCE_UNOCCUPIED = "force_unoccupied"
 MR24HPB1ForcedUnoccupied = mr24hpb1_ns.enum("ForcedUnoccupied", True)
@@ -68,35 +48,10 @@ FORCED_UNOCCUPIED = {
     "60MIN": MR24HPB1ForcedUnoccupied.MIN_60,
 }
 
-# Movment type text sensor
-CONF_MOVEMENT_TYPE = "movement_type"
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MR24HPB1Component),
-            cv.Optional(CONF_DEVICE_ID): text_sensor.text_sensor_schema(
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-            ),
-            cv.Optional(CONF_SOFTWARE_VERSION): text_sensor.text_sensor_schema(
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-            ),
-            cv.Optional(CONF_HARDWARE_VERSION): text_sensor.text_sensor_schema(
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-            ),
-            cv.Optional(CONF_PROTOCOL_VERSION): text_sensor.text_sensor_schema(
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-            ),
-            cv.Optional(CONF_ENVIRONMENT_STATUS): text_sensor.text_sensor_schema(),
-            cv.Optional(CONF_OCCUPANCY): binary_sensor.binary_sensor_schema(
-                device_class=DEVICE_CLASS_OCCUPANCY,
-            ),
-            cv.Optional(CONF_MOVEMENT): binary_sensor.binary_sensor_schema(
-                device_class=DEVICE_CLASS_MOTION,
-                icon=ICON_MOTION_SENSOR,
-            ),
-            cv.Optional(CONF_MOVEMENT_RATE): sensor.sensor_schema(),
-            cv.Optional(CONF_MOVEMENT_TYPE): text_sensor.text_sensor_schema(),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -122,39 +77,3 @@ async def to_code(config):
     cg.add(var.set_scene_setting(config[CONF_SCENE_SETTING]))
     cg.add(var.set_forced_unoccupied(config[CONF_FORCE_UNOCCUPIED]))
     cg.add(var.set_threshold_gear(config[CONF_THRESHOLD_GEAR]))
-
-    if CONF_DEVICE_ID in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_DEVICE_ID])
-        cg.add(var.set_device_id_sensor(sens))
-
-    if CONF_SOFTWARE_VERSION in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_SOFTWARE_VERSION])
-        cg.add(var.set_software_version_sensor(sens))
-
-    if CONF_HARDWARE_VERSION in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_HARDWARE_VERSION])
-        cg.add(var.set_hardware_version_sensor(sens))
-
-    if CONF_PROTOCOL_VERSION in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_PROTOCOL_VERSION])
-        cg.add(var.set_protocol_version_sensor(sens))
-
-    if CONF_ENVIRONMENT_STATUS in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_ENVIRONMENT_STATUS])
-        cg.add(var.set_environment_status_sensor(sens))
-
-    if CONF_OCCUPANCY in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_OCCUPANCY])
-        cg.add(var.set_occupancy_sensor(sens))
-
-    if CONF_MOVEMENT in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_MOVEMENT])
-        cg.add(var.set_movement_sensor(sens))
-
-    if CONF_MOVEMENT_RATE in config:
-        sens = await sensor.new_sensor(config[CONF_MOVEMENT_RATE])
-        cg.add(var.set_movement_rate_sensor(sens))
-
-    if CONF_MOVEMENT_TYPE in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_MOVEMENT_TYPE])
-        cg.add(var.set_movement_type_sensor(sens))
