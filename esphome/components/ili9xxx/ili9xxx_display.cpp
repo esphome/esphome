@@ -59,6 +59,7 @@ void ILI9XXXDisplay::dump_config() {
   if (this->is_18bitdisplay_) {
     ESP_LOGCONFIG(TAG, "  18-Bit Mode: YES");
   }
+  ESP_LOGCONFIG(TAG, "  Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
@@ -152,12 +153,10 @@ void ILI9XXXDisplay::update() {
     this->need_update_ = true;
     return;
   }
+  this->prossing_update_ = true;
   do {
-    this->prossing_update_ = true;
     this->need_update_ = false;
-    if (!this->need_update_) {
-      this->do_update_();
-    }
+    this->do_update_();
   } while (this->need_update_);
   this->prossing_update_ = false;
   this->display_();
@@ -389,6 +388,17 @@ void ILI9XXXILI9481::initialize() {
   }
 }
 
+void ILI9XXXILI948118::initialize() {
+  this->init_lcd_(INITCMD_ILI9481_18);
+  if (this->width_ == 0) {
+    this->width_ = 320;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 480;
+  }
+  this->is_18bitdisplay_ = true;
+}
+
 //   35_TFT display
 void ILI9XXXILI9486::initialize() {
   this->init_lcd_(INITCMD_ILI9486);
@@ -411,6 +421,17 @@ void ILI9XXXILI9488::initialize() {
   this->is_18bitdisplay_ = true;
 }
 //    40_TFT display
+void ILI9XXXILI9488A::initialize() {
+  this->init_lcd_(INITCMD_ILI9488_A);
+  if (this->width_ == 0) {
+    this->width_ = 480;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 320;
+  }
+  this->is_18bitdisplay_ = true;
+}
+//    40_TFT display
 void ILI9XXXST7796::initialize() {
   this->init_lcd_(INITCMD_ST7796);
   if (this->width_ == 0) {
@@ -419,6 +440,29 @@ void ILI9XXXST7796::initialize() {
   if (this->height_ == 0) {
     this->height_ = 480;
   }
+}
+
+//   24_TFT rotated display
+void ILI9XXXS3Box::initialize() {
+  this->init_lcd_(INITCMD_S3BOX);
+  if (this->width_ == 0) {
+    this->width_ = 320;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 240;
+  }
+}
+
+//   24_TFT rotated display
+void ILI9XXXS3BoxLite::initialize() {
+  this->init_lcd_(INITCMD_S3BOXLITE);
+  if (this->width_ == 0) {
+    this->width_ = 320;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 240;
+  }
+  this->invert_display_(true);
 }
 
 }  // namespace ili9xxx

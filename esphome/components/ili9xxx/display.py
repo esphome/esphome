@@ -24,7 +24,7 @@ def AUTO_LOAD():
     return []
 
 
-CODEOWNERS = ["@nielsnl68"]
+CODEOWNERS = ["@nielsnl68", "@clydebarrow"]
 
 ili9XXX_ns = cg.esphome_ns.namespace("ili9xxx")
 ili9XXXSPI = ili9XXX_ns.class_(
@@ -41,9 +41,13 @@ MODELS = {
     "ILI9341": ili9XXX_ns.class_("ILI9XXXILI9341", ili9XXXSPI),
     "ILI9342": ili9XXX_ns.class_("ILI9XXXILI9342", ili9XXXSPI),
     "ILI9481": ili9XXX_ns.class_("ILI9XXXILI9481", ili9XXXSPI),
+    "ILI9481-18": ili9XXX_ns.class_("ILI9XXXILI948118", ili9XXXSPI),
     "ILI9486": ili9XXX_ns.class_("ILI9XXXILI9486", ili9XXXSPI),
     "ILI9488": ili9XXX_ns.class_("ILI9XXXILI9488", ili9XXXSPI),
+    "ILI9488_A": ili9XXX_ns.class_("ILI9XXXILI9488A", ili9XXXSPI),
     "ST7796": ili9XXX_ns.class_("ILI9XXXST7796", ili9XXXSPI),
+    "S3BOX": ili9XXX_ns.class_("ILI9XXXS3Box", ili9XXXSPI),
+    "S3BOX_LITE": ili9XXX_ns.class_("ILI9XXXS3BoxLite", ili9XXXSPI),
 }
 
 COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
@@ -98,7 +102,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("1s"))
-    .extend(spi.spi_device_schema(False)),
+    .extend(spi.spi_device_schema(False, "40MHz")),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
     _validate,
 )
@@ -116,7 +120,7 @@ async def to_code(config):
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
+            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
 
@@ -135,8 +139,6 @@ async def to_code(config):
         rhs = []
         for x in range(256):
             rhs.extend([HexInt(x), HexInt(x), HexInt(x)])
-        prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-        cg.add(var.set_palette(prog_arr))
     elif config[CONF_COLOR_PALETTE] == "IMAGE_ADAPTIVE":
         cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_8_INDEXED))
         from PIL import Image
