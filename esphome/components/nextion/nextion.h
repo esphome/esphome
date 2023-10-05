@@ -628,7 +628,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param True or false.
    * active_mode=true to enter active protocol reparse mode
    * active_mode=false to enter passive protocol reparse mode.
-  */
+   */
   void set_protocol_reparse_mode(bool active_mode);
 
   // ========== INTERNAL METHODS ==========
