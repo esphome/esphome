@@ -7,6 +7,10 @@ namespace x9c {
 static const char *const TAG = "x9c.output";
 
 void X9cOutput::trim_value(int change_amount) {
+  if (change_amount == 0) {
+    return;
+  }
+
   if (change_amount > 0) {  // Set change direction
     this->ud_pin_->digital_write(true);
   } else {
@@ -25,8 +29,10 @@ void X9cOutput::trim_value(int change_amount) {
 
   delayMicroseconds(100);  // Let value settle
 
-  this->inc_pin_->digital_write(false);
   this->cs_pin_->digital_write(true);  // Deselect chip safely (no save)
+  // Protection against: "Wiper Up (not recommended)"
+  // See page 7 of the datasheet. Table "mode selection"
+  this->inc_pin_->digital_write(true);
 }
 
 void X9cOutput::setup() {
