@@ -11,7 +11,7 @@ DEPENDENCIES = ["uart"]
 
 mr24hpb1_ns = cg.esphome_ns.namespace("mr24hpb1")
 
-CONF_MR24HPB1_ID = "mr24hpb1"
+CONF_MR24HPB1_ID = "mr24hpb1_id"
 
 MR24HPB1Component = mr24hpb1_ns.class_(
     "MR24HPB1Component", cg.Component, uart.UARTDevice
