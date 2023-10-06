@@ -3,7 +3,13 @@ from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import nfc
-from esphome.const import CONF_ID, CONF_ON_TAG_REMOVED, CONF_ON_TAG, CONF_TRIGGER_ID
+from esphome.const import (
+    CONF_ID,
+    CONF_IRQ_PIN,
+    CONF_ON_TAG_REMOVED,
+    CONF_ON_TAG,
+    CONF_TRIGGER_ID,
+)
 
 AUTO_LOAD = ["binary_sensor", "nfc"]
 CODEOWNERS = ["@kbx81", "@jesserockz"]
@@ -12,7 +18,6 @@ CONF_EMULATION_MESSAGE = "emulation_message"
 CONF_EMULATION_OFF = "emulation_off"
 CONF_EMULATION_ON = "emulation_on"
 CONF_INCLUDE_ANDROID_APP_RECORD = "include_android_app_record"
-CONF_IRQ_PIN = "irq_pin"
 CONF_MESSAGE = "message"
 CONF_ON_FINISHED_WRITE = "on_finished_write"
 CONF_ON_EMULATED_TAG_SCAN = "on_emulated_tag_scan"

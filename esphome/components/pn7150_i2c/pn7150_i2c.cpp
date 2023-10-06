@@ -7,7 +7,7 @@ namespace pn7150_i2c {
 
 static const char *const TAG = "pn7150_i2c";
 
-uint8_t PN7150I2C::read_nfcc_(nfc::NciMessage &rx, uint16_t timeout) {
+uint8_t PN7150I2C::read_nfcc(nfc::NciMessage &rx, const uint16_t timeout) {
   if (this->wait_for_irq_(timeout) != nfc::STATUS_OK) {
     ESP_LOGW(TAG, "read_nfcc_() timeout waiting for IRQ");
     return nfc::STATUS_FAILED;
@@ -33,7 +33,7 @@ uint8_t PN7150I2C::read_nfcc_(nfc::NciMessage &rx, uint16_t timeout) {
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7150I2C::write_nfcc_(nfc::NciMessage &tx) {
+uint8_t PN7150I2C::write_nfcc(nfc::NciMessage &tx) {
   if (this->write(tx.encode().data(), tx.encode().size()) == i2c::ERROR_OK) {
     return nfc::STATUS_OK;
   }

@@ -1,4 +1,4 @@
-#include <inttypes.h>
+#include <cinttypes>
 #include <memory>
 
 #include "pn7150.h"
@@ -114,7 +114,8 @@ uint8_t PN7150::find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_
   return nfc::STATUS_FAILED;
 }
 
-uint8_t PN7150::write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, std::shared_ptr<nfc::NdefMessage> message) {
+uint8_t PN7150::write_mifare_ultralight_tag_(std::vector<uint8_t> &uid,
+                                             const std::shared_ptr<nfc::NdefMessage> &message) {
   uint32_t capacity = this->read_mifare_ultralight_capacity_();
 
   auto encoded = message->encode();

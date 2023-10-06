@@ -1,6 +1,8 @@
 #include "automation.h"
 #include "pn7150.h"
 
+#include <utility>
+
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -37,11 +39,11 @@ void PN7150::loop() {
 }
 
 void PN7150::set_tag_emulation_message(std::shared_ptr<nfc::NdefMessage> message) {
-  this->card_emulation_message_ = message;
+  this->card_emulation_message_ = std::move(message);
   ESP_LOGD(TAG, "Tag emulation message set");
 }
 
-void PN7150::set_tag_emulation_message(const optional<std::string> message,
+void PN7150::set_tag_emulation_message(const optional<std::string> &message,
                                        const optional<bool> include_android_app_record) {
   if (!message.has_value()) {
     return;
@@ -129,7 +131,7 @@ void PN7150::write_mode() {
 }
 
 void PN7150::set_tag_write_message(std::shared_ptr<nfc::NdefMessage> message) {
-  this->next_task_message_to_write_ = message;
+  this->next_task_message_to_write_ = std::move(message);
   ESP_LOGD(TAG, "Message to write has been set");
 }
 
@@ -208,7 +210,7 @@ uint8_t PN7150::set_test_mode(const TestMode test_mode, const std::vector<uint8_
   } else {
     result = rx.get_message();
     result.erase(result.begin(), result.begin() + 4);  // remove NCI header
-    if (result.size()) {
+    if (!result.empty()) {
       ESP_LOGW(TAG, "Test results: %s", nfc::format_bytes(result).c_str());
     }
   }
@@ -302,8 +304,8 @@ uint8_t PN7150::send_init_config_() {
 }
 
 uint8_t PN7150::send_core_config_() {
-  auto core_config_begin = std::begin(CORE_CONFIG_SOLO);
-  auto core_config_end = std::end(CORE_CONFIG_SOLO);
+  const auto *core_config_begin = std::begin(CORE_CONFIG_SOLO);
+  const auto *core_config_end = std::end(CORE_CONFIG_SOLO);
   this->core_config_is_solo_ = true;
 
   if (this->listening_enabled_ && this->polling_enabled_) {
@@ -428,7 +430,7 @@ uint8_t PN7150::deactivate_(const uint8_t type, const uint16_t timeout) {
 }
 
 void PN7150::select_endpoint_() {
-  if (!this->discovered_endpoint_.size()) {
+  if (this->discovered_endpoint_.empty()) {
     ESP_LOGW(TAG, "No cached tags to select");
     this->stop_discovery_();
     this->nci_fsm_set_state_(NCIState::RFST_IDLE);
@@ -507,7 +509,7 @@ uint8_t PN7150::format_endpoint_(std::vector<uint8_t> &uid) {
   return nfc::STATUS_FAILED;
 }
 
-uint8_t PN7150::write_endpoint_(std::vector<uint8_t> &uid, std::shared_ptr<nfc::NdefMessage> message) {
+uint8_t PN7150::write_endpoint_(std::vector<uint8_t> &uid, std::shared_ptr<nfc::NdefMessage> &message) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   switch (type) {
     case nfc::TAG_TYPE_MIFARE_CLASSIC:
@@ -532,7 +534,7 @@ std::unique_ptr<nfc::NfcTag> PN7150::build_tag_(const uint8_t mode_tech, const s
         return nullptr;
       }
       std::vector<uint8_t> uid(data.begin() + 3, data.begin() + 3 + uid_length);
-      auto tag_type_str =
+      const auto *tag_type_str =
           nfc::guess_tag_type(uid_length) == nfc::TAG_TYPE_MIFARE_CLASSIC ? nfc::MIFARE_CLASSIC : nfc::NFC_FORUM_TYPE_2;
       return make_unique<nfc::NfcTag>(uid, tag_type_str);
     }
@@ -541,7 +543,7 @@ std::unique_ptr<nfc::NfcTag> PN7150::build_tag_(const uint8_t mode_tech, const s
 }
 
 optional<size_t> PN7150::find_tag_uid_(const std::vector<uint8_t> &uid) {
-  if (this->discovered_endpoint_.size()) {
+  if (!this->discovered_endpoint_.empty()) {
     for (size_t i = 0; i < this->discovered_endpoint_.size(); i++) {
       auto existing_tag_uid = this->discovered_endpoint_[i].tag->get_uid();
       bool uid_match = (uid.size() == existing_tag_uid.size());
@@ -573,7 +575,7 @@ void PN7150::erase_tag_(const uint8_t tag_index) {
       trigger->process(this->discovered_endpoint_[tag_index].tag);
     }
     for (auto *bs : this->binary_sensors_) {
-      bs->tag_off(*this->discovered_endpoint_[tag_index].tag.get());
+      bs->tag_off(*this->discovered_endpoint_[tag_index].tag);
     }
     ESP_LOGI(TAG, "Tag %s removed", nfc::format_uid(this->discovered_endpoint_[tag_index].tag->get_uid()).c_str());
     this->discovered_endpoint_.erase(this->discovered_endpoint_.begin() + tag_index);
@@ -710,7 +712,7 @@ bool PN7150::nci_fsm_set_error_state_(NCIState new_state) {
 
 void PN7150::process_message_() {
   nfc::NciMessage rx;
-  if (this->read_nfcc_(rx) != nfc::STATUS_OK) {
+  if (this->read_nfcc(rx, NFCC_DEFAULT_TIMEOUT) != nfc::STATUS_OK) {
     return;  // No data
   }
 
@@ -819,7 +821,7 @@ void PN7150::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
   if (incoming_tag == nullptr) {
     ESP_LOGE(TAG, "Could not build tag");
   } else {
-    auto tag_loc = this->find_tag_uid_(incoming_tag.get()->get_uid());
+    auto tag_loc = this->find_tag_uid_(incoming_tag->get_uid());
     if (tag_loc.has_value()) {
       this->discovered_endpoint_[tag_loc.value()].id = discovery_id;
       this->discovered_endpoint_[tag_loc.value()].protocol = protocol;
@@ -875,13 +877,13 @@ void PN7150::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
         if (!working_endpoint.trig_called) {
           ESP_LOGI(TAG, "Read tag type %s with UID %s", working_endpoint.tag->get_tag_type().c_str(),
                    nfc::format_uid(working_endpoint.tag->get_uid()).c_str());
-          if (this->read_endpoint_data_(*working_endpoint.tag.get()) != nfc::STATUS_OK) {
+          if (this->read_endpoint_data_(*working_endpoint.tag) != nfc::STATUS_OK) {
             ESP_LOGW(TAG, "  Unable to read NDEF record(s)");
           } else if (working_endpoint.tag->has_ndef_message()) {
             const auto message = working_endpoint.tag->get_ndef_message();
             const auto records = message->get_records();
             ESP_LOGD(TAG, "  NDEF record(s):");
-            for (auto record : records) {
+            for (const auto &record : records) {
               ESP_LOGD(TAG, "    %s - %s", record->get_type().c_str(), record->get_payload().c_str());
             }
           } else {
@@ -891,7 +893,7 @@ void PN7150::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
             trigger->process(working_endpoint.tag);
           }
           for (auto *bs : this->binary_sensors_) {
-            bs->tag_on(*working_endpoint.tag.get());
+            bs->tag_on(*working_endpoint.tag);
           }
           working_endpoint.trig_called = true;
           break;
@@ -913,10 +915,10 @@ void PN7150::process_rf_discover_oid_(nfc::NciMessage &rx) {
   auto incoming_tag = this->build_tag_(rx.get_message_byte(nfc::RF_DISCOVER_NTF_MODE_TECH),
                                        std::vector<uint8_t>(rx.get_message().begin() + 7, rx.get_message().end()));
 
-  if (incoming_tag.get() == nullptr) {
+  if (incoming_tag == nullptr) {
     ESP_LOGE(TAG, "Could not build tag!");
   } else {
-    auto tag_loc = this->find_tag_uid_(incoming_tag.get()->get_uid());
+    auto tag_loc = this->find_tag_uid_(incoming_tag->get_uid());
     if (tag_loc.has_value()) {
       this->discovered_endpoint_[tag_loc.value()].id = rx.get_message_byte(nfc::RF_DISCOVER_NTF_DISCOVERY_ID);
       this->discovered_endpoint_[tag_loc.value()].protocol = rx.get_message_byte(nfc::RF_DISCOVER_NTF_PROTOCOL);
@@ -1066,7 +1068,6 @@ void PN7150::card_emu_t4t_get_response_(std::vector<uint8_t> &response, std::vec
     // CARD_EMU_T4T_WRITE
     if (this->ce_state_ == CardEmulationState::CARD_EMU_NDEF_SELECTED) {
       ESP_LOGVV(TAG, "CARD_EMU_T4T_WRITE");
-      uint16_t offset = (response[nfc::NCI_PKT_HEADER_SIZE + 2] << 8) + response[nfc::NCI_PKT_HEADER_SIZE + 3];
       uint8_t length = response[nfc::NCI_PKT_HEADER_SIZE + 4];
       std::vector<uint8_t> ndef_msg_written;
 
@@ -1084,13 +1085,13 @@ uint8_t PN7150::transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint
 
   while (retries) {
     // first, send the message we need to send
-    if (this->write_nfcc_(tx) != nfc::STATUS_OK) {
+    if (this->write_nfcc(tx) != nfc::STATUS_OK) {
       ESP_LOGE(TAG, "Error sending message");
       return nfc::STATUS_FAILED;
     }
     ESP_LOGVV(TAG, "Wrote: %s", nfc::format_bytes(tx.get_message()).c_str());
     // next, the NFCC should send back a response
-    if (this->read_nfcc_(rx, timeout) != nfc::STATUS_OK) {
+    if (this->read_nfcc(rx, timeout) != nfc::STATUS_OK) {
       ESP_LOGW(TAG, "Error receiving message");
       if (!retries--) {
         ESP_LOGE(TAG, "  ...giving up");
@@ -1123,7 +1124,7 @@ uint8_t PN7150::transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint
 
     if (expect_notification) {
       // if the NFCC said "OK", there will be additional data to read; this comes back in a notification message
-      if (this->read_nfcc_(rx, timeout) != nfc::STATUS_OK) {
+      if (this->read_nfcc(rx, timeout) != nfc::STATUS_OK) {
         ESP_LOGE(TAG, "Error receiving data from endpoint");
         return nfc::STATUS_FAILED;
       }
@@ -1159,7 +1160,7 @@ void PN7150BinarySensor::set_tag_name(const std::string &str) {
 void PN7150BinarySensor::set_uid(const std::vector<uint8_t> &uid) { this->uid_ = uid; }
 
 bool PN7150BinarySensor::tag_match_ndef_string(const std::shared_ptr<esphome::nfc::NdefMessage> &msg) {
-  for (auto record : msg->get_records()) {
+  for (const auto &record : msg->get_records()) {
     if (record->get_payload().find(this->match_string_) != std::string::npos) {
       return true;
     }
@@ -1168,7 +1169,7 @@ bool PN7150BinarySensor::tag_match_ndef_string(const std::shared_ptr<esphome::nf
 }
 
 bool PN7150BinarySensor::tag_match_tag_name(const std::shared_ptr<esphome::nfc::NdefMessage> &msg) {
-  for (auto record : msg->get_records()) {
+  for (const auto &record : msg->get_records()) {
     if (record->get_payload().find(nfc::HA_TAG_ID_PREFIX) != std::string::npos) {
       auto rec_substr = record->get_payload().substr(sizeof(nfc::HA_TAG_ID_PREFIX) - 1);
       if (rec_substr.find(this->match_string_) != std::string::npos) {
