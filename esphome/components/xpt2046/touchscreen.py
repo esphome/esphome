@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 
 from esphome import pins
 from esphome.components import spi, touchscreen
-from esphome.const import CONF_ID, CONF_THRESHOLD, CONF_INTERRUPT_PIN
+from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_IRQ_PIN, CONF_THRESHOLD
 
 CODEOWNERS = ["@numo68", "@nielsnl68"]
 DEPENDENCIES = ["spi"]
@@ -26,7 +26,6 @@ CONF_SWAP_X_Y = "swap_x_y"
 # obsolete Keys
 CONF_DIMENSION_X = "dimension_x"
 CONF_DIMENSION_Y = "dimension_y"
-CONF_IRQ_PIN = "irq_pin"
 
 
 def validate_xpt2046(config):
