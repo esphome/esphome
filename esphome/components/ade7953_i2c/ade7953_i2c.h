@@ -41,6 +41,16 @@ class AdE7953I2c : public ade7953_base::ADE7953, public i2c::I2CDevice {
     data.push_back(value >> 0);
     return write(data.data(), data.size()) != i2c::ERROR_OK;
   }
+  bool ade_read_8(uint16_t reg, uint8_t *value) override {
+    uint8_t reg_data[2];
+    reg_data[0] = reg >> 8;
+    reg_data[1] = reg >> 0;
+    i2c::ErrorCode err = write(reg_data, 2);
+    if (err != i2c::ERROR_OK)
+      return true;
+    err = read(value, 1);
+    return (err != i2c::ERROR_OK);
+  }
   bool ade_read_16(uint16_t reg, uint16_t *value) override {
     uint8_t reg_data[2];
     reg_data[0] = reg >> 8;

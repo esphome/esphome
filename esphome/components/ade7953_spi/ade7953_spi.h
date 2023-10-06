@@ -13,7 +13,7 @@ namespace ade7953_spi {
 
 class AdE7953Spi : public ade7953_base::ADE7953,
                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_LEADING,
-                                         spi::DATA_RATE_4MHZ> {
+                                         spi::DATA_RATE_1MHZ> {
  public:
   void setup() override {
     this->spi_setup();
@@ -45,6 +45,14 @@ class AdE7953Spi : public ade7953_base::ADE7953,
     this->transfer_byte(0);
     this->write_byte16(value >> 16);
     this->write_byte16(value & 0xFFFF);
+    this->disable();
+    return false;
+  }
+  bool ade_read_8(uint16_t reg, uint8_t *value) override {
+    this->enable();
+    this->write_byte16(reg);
+    this->transfer_byte(0x80);
+    *value = this->read_byte();
     this->disable();
     return false;
   }

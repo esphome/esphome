@@ -20,6 +20,25 @@ void ADE7953::dump_config() {
   LOG_SENSOR("  ", "Active Power B Sensor", this->active_power_b_sensor_);
   LOG_SENSOR("  ", "Rective Power A Sensor", this->reactive_power_a_sensor_);
   LOG_SENSOR("  ", "Reactive Power B Sensor", this->reactive_power_b_sensor_);
+
+  if (!this->is_setup_)
+    return;
+
+  uint32_t val;
+  uint8_t val_8;
+
+  ade_read_8(PGA_V_8, &val_8);
+  ESP_LOGCONFIG(TAG, "  PGA_V_8: 0x%X", val_8);
+  ade_read_8(PGA_IA_8, &val_8);
+  ESP_LOGCONFIG(TAG, "  PGA_IA_8: 0x%X", val_8);
+  ade_read_8(PGA_IB_8, &val_8);
+  ESP_LOGCONFIG(TAG, "  PGA_IB_8: 0x%X", val_8);
+  ade_read_32(AIGAIN_32, &val);
+  ESP_LOGCONFIG(TAG, "  AIGAIN_32: 0x%X", val);
+  ade_read_32(AVGAIN_32, &val);
+  ESP_LOGCONFIG(TAG, "  AIGAIN_32: 0x%X", val);
+  ade_read_32(AWGAIN_32, &val);
+  ESP_LOGCONFIG(TAG, "  AIGAIN_32: 0x%X", val);
 }
 
 #define ADE_PUBLISH_(name, val, factor) \
@@ -79,6 +98,10 @@ void ADE7953::update() {
   // Voltage
   err = ade_read_32(0x031C, &val);
   ADE_PUBLISH(voltage, (uint32_t) val, 26000.0f);
+
+  // Frequency
+  err = ade_read_16(0x010E, &val_16);
+  ADE_PUBLISH(frequency, 223750.0f, 1 + val_16);
 }
 
 }  // namespace ade7953_base
