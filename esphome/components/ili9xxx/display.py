@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_PIN,
     CONF_DIMENSIONS,
-    CONF_DATA_RATE,
 )
 
 DEPENDENCIES = ["spi"]
@@ -100,11 +99,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
                 cv.file_
             ),
-            cv.Optional(CONF_DATA_RATE, default="40MHz"): spi.SPI_DATA_RATE_SCHEMA,
         }
     )
     .extend(cv.polling_component_schema("1s"))
-    .extend(spi.spi_device_schema(False)),
+    .extend(spi.spi_device_schema(False, "40MHz")),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
     _validate,
 )
@@ -177,4 +175,3 @@ async def to_code(config):
     if rhs is not None:
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_palette(prog_arr))
-    cg.add(var.set_data_rate(config[CONF_DATA_RATE]))
