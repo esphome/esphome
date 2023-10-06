@@ -138,3 +138,6 @@ sdkconfig.*
 .tests/
 
 /components
+
+#docker
+compose-dev.yaml
