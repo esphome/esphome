@@ -181,7 +181,7 @@ class PN7160 : public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const { return setup_priority::DATA; }
+  float get_setup_priority() const override { return setup_priority::DATA; }
   void loop() override;
 
   void set_dwl_req_pin(GPIOPin *dwl_req_pin) { this->dwl_req_pin_ = dwl_req_pin; }
@@ -191,8 +191,8 @@ class PN7160 : public Component {
 
   void set_tag_ttl(uint32_t ttl) { this->tag_ttl_ = ttl; }
   void set_tag_emulation_message(std::shared_ptr<nfc::NdefMessage> message);
-  void set_tag_emulation_message(const optional<std::string> message, const optional<bool> include_android_app_record);
-  void set_tag_emulation_message(const char *message, const bool include_android_app_record = true);
+  void set_tag_emulation_message(const optional<std::string> &message, optional<bool> include_android_app_record);
+  void set_tag_emulation_message(const char *message, bool include_android_app_record = true);
   void set_tag_emulation_off();
   void set_tag_emulation_on();
   bool tag_emulation_enabled() { return this->listening_enabled_; }
@@ -222,7 +222,7 @@ class PN7160 : public Component {
   void set_tag_write_message(std::shared_ptr<nfc::NdefMessage> message);
   void set_tag_write_message(optional<std::string> message, optional<bool> include_android_app_record);
 
-  uint8_t set_test_mode(const TestMode test_mode, const std::vector<uint8_t> &data, std::vector<uint8_t> &result);
+  uint8_t set_test_mode(TestMode test_mode, const std::vector<uint8_t> &data, std::vector<uint8_t> &result);
 
  protected:
   uint8_t reset_core_(bool reset_config, bool power);
@@ -237,19 +237,19 @@ class PN7160 : public Component {
 
   uint8_t start_discovery_();
   uint8_t stop_discovery_();
-  uint8_t deactivate_(const uint8_t type, const uint16_t timeout = NFCC_DEFAULT_TIMEOUT);
+  uint8_t deactivate_(uint8_t type, uint16_t timeout = NFCC_DEFAULT_TIMEOUT);
 
   void select_endpoint_();
 
   uint8_t read_endpoint_data_(nfc::NfcTag &tag);
   uint8_t clean_endpoint_(std::vector<uint8_t> &uid);
   uint8_t format_endpoint_(std::vector<uint8_t> &uid);
-  uint8_t write_endpoint_(std::vector<uint8_t> &uid, std::shared_ptr<nfc::NdefMessage> message);
+  uint8_t write_endpoint_(std::vector<uint8_t> &uid, std::shared_ptr<nfc::NdefMessage> &message);
 
-  std::unique_ptr<nfc::NfcTag> build_tag_(const uint8_t mode_tech, const std::vector<uint8_t> &data);
+  std::unique_ptr<nfc::NfcTag> build_tag_(uint8_t mode_tech, const std::vector<uint8_t> &data);
   optional<size_t> find_tag_uid_(const std::vector<uint8_t> &uid);
   void purge_old_tags_();
-  void erase_tag_(const uint8_t tag_index);
+  void erase_tag_(uint8_t tag_index);
 
   /// advance controller state as required
   void nci_fsm_transition_();
@@ -266,31 +266,31 @@ class PN7160 : public Component {
 
   void card_emu_t4t_get_response_(std::vector<uint8_t> &response, std::vector<uint8_t> &ndef_response);
 
-  uint8_t transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint16_t timeout = NFCC_DEFAULT_TIMEOUT,
-                      const bool expect_notification = true);
-  virtual uint8_t read_nfcc_(nfc::NciMessage &rx, const uint16_t timeout = NFCC_DEFAULT_TIMEOUT) = 0;
-  virtual uint8_t write_nfcc_(nfc::NciMessage &tx) = 0;
+  uint8_t transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, uint16_t timeout = NFCC_DEFAULT_TIMEOUT,
+                      bool expect_notification = true);
+  virtual uint8_t read_nfcc(nfc::NciMessage &rx, uint16_t timeout) = 0;
+  virtual uint8_t write_nfcc(nfc::NciMessage &tx) = 0;
 
   uint8_t wait_for_irq_(uint16_t timeout = NFCC_DEFAULT_TIMEOUT, bool pin_state = true);
 
   uint8_t read_mifare_classic_tag_(nfc::NfcTag &tag);
-  uint8_t read_mifare_classic_block_(const uint8_t block_num, std::vector<uint8_t> &data);
-  uint8_t write_mifare_classic_block_(const uint8_t block_num, std::vector<uint8_t> &data);
-  uint8_t auth_mifare_classic_block_(const uint8_t block_num, const uint8_t key_num, const uint8_t *key);
-  uint8_t sect_to_auth(const uint8_t block_num);
+  uint8_t read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
+  uint8_t write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
+  uint8_t auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, const uint8_t *key);
+  uint8_t sect_to_auth_(uint8_t block_num);
   uint8_t format_mifare_classic_mifare_();
   uint8_t format_mifare_classic_ndef_();
-  uint8_t write_mifare_classic_tag_(std::shared_ptr<nfc::NdefMessage> message);
+  uint8_t write_mifare_classic_tag_(const std::shared_ptr<nfc::NdefMessage> &message);
   uint8_t halt_mifare_classic_tag_();
 
   uint8_t read_mifare_ultralight_tag_(nfc::NfcTag &tag);
-  uint8_t read_mifare_ultralight_bytes_(const uint8_t start_page, const uint16_t num_bytes, std::vector<uint8_t> &data);
+  uint8_t read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, std::vector<uint8_t> &data);
   bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_to_6);
   uint16_t read_mifare_ultralight_capacity_();
   uint8_t find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
                                        uint8_t &message_start_index);
-  uint8_t write_mifare_ultralight_page_(const uint8_t page_num, std::vector<uint8_t> &write_data);
-  uint8_t write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, std::shared_ptr<nfc::NdefMessage> message);
+  uint8_t write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &write_data);
+  uint8_t write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, const std::shared_ptr<nfc::NdefMessage> &message);
   uint8_t clean_mifare_ultralight_();
 
   enum NfcTask : uint8_t {

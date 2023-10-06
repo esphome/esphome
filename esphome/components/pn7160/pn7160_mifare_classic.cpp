@@ -91,7 +91,7 @@ uint8_t PN7160::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_
 
 uint8_t PN7160::auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, const uint8_t *key) {
   nfc::NciMessage rx;
-  nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {MFC_AUTHENTICATE_OID, this->sect_to_auth(block_num), key_num});
+  nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {MFC_AUTHENTICATE_OID, this->sect_to_auth_(block_num), key_num});
 
   switch (key_num) {
     case nfc::MIFARE_CMD_AUTH_A:
@@ -127,7 +127,7 @@ uint8_t PN7160::auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, c
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160::sect_to_auth(const uint8_t block_num) {
+uint8_t PN7160::sect_to_auth_(const uint8_t block_num) {
   const uint8_t first_high_block = nfc::MIFARE_CLASSIC_BLOCKS_PER_SECT_LOW * nfc::MIFARE_CLASSIC_16BLOCK_SECT_START;
   if (block_num >= first_high_block) {
     return ((block_num - first_high_block) / nfc::MIFARE_CLASSIC_BLOCKS_PER_SECT_HIGH) +
@@ -263,7 +263,7 @@ uint8_t PN7160::write_mifare_classic_block_(uint8_t block_num, std::vector<uint8
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160::write_mifare_classic_tag_(std::shared_ptr<nfc::NdefMessage> message) {
+uint8_t PN7160::write_mifare_classic_tag_(const std::shared_ptr<nfc::NdefMessage> &message) {
   auto encoded = message->encode();
 
   uint32_t message_length = encoded.size();

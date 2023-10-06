@@ -22,8 +22,8 @@ class PN7160Spi : public pn7160::PN7160,
   void dump_config() override;
 
  protected:
-  uint8_t read_nfcc_(nfc::NciMessage &rx, const uint16_t timeout = pn7160::NFCC_DEFAULT_TIMEOUT) override;
-  uint8_t write_nfcc_(nfc::NciMessage &tx) override;
+  uint8_t read_nfcc(nfc::NciMessage &rx, uint16_t timeout) override;
+  uint8_t write_nfcc(nfc::NciMessage &tx) override;
 };
 
 }  // namespace pn7160_spi

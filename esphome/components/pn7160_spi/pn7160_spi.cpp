@@ -12,7 +12,7 @@ void PN7160Spi::setup() {
   PN7160::setup();
 }
 
-uint8_t PN7160Spi::read_nfcc_(nfc::NciMessage &rx, const uint16_t timeout) {
+uint8_t PN7160Spi::read_nfcc(nfc::NciMessage &rx, const uint16_t timeout) {
   if (this->wait_for_irq_(timeout) != nfc::STATUS_OK) {
     ESP_LOGW(TAG, "read_nfcc_() timeout waiting for IRQ");
     return nfc::STATUS_FAILED;
@@ -37,7 +37,7 @@ uint8_t PN7160Spi::read_nfcc_(nfc::NciMessage &rx, const uint16_t timeout) {
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160Spi::write_nfcc_(nfc::NciMessage &tx) {
+uint8_t PN7160Spi::write_nfcc(nfc::NciMessage &tx) {
   this->enable();
   this->write_byte(TDD_SPI_WRITE);  // send "transfer direction detector"
   this->write_array(tx.encode().data(), tx.encode().size());

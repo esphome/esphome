@@ -3029,7 +3029,6 @@ pn7160_i2c:
 
 pn7160_spi:
   id: nfcc_pn7160_spi
-  spi_id: spi_pn7160
   cs_pin: GPIO15
   dwl_req_pin: GPIO17
   irq_pin: GPIO35
