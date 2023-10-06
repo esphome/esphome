@@ -409,7 +409,6 @@ class ModbusCommandItem {
 
 class ModbusController : public PollingComponent, public modbus::ModbusDevice {
  public:
-  ModbusController(uint16_t throttle = 0) : command_throttle_(throttle){};
   void dump_config() override;
   void loop() override;
   void setup() override;
@@ -431,6 +430,12 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
                                   const std::vector<uint8_t> &data);
   /// called by esphome generated code to set the command_throttle period
   void set_command_throttle(uint16_t command_throttle) { this->command_throttle_ = command_throttle; }
+  /// called by esphome generated code to set the offline_skip_updates
+  void set_offline_skip_updates(uint16_t offline_skip_updates) { this->offline_skip_updates_ = offline_skip_updates; }
+  /// get the number of queued modbus commands (should be mostly empty)
+  size_t get_command_queue_length() { return command_queue_.size(); }
+  /// get if the module is offline, didn't respond the last command
+  bool get_module_offline() { return module_offline_; }
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -443,8 +448,6 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void process_modbus_data_(const ModbusCommandItem *response);
   /// send the next modbus command from the send queue
   bool send_next_command_();
-  /// get the number of queued modbus commands (should be mostly empty)
-  size_t get_command_queue_length_() { return command_queue_.size(); }
   /// dump the parsed sensormap for diagnostics
   void dump_sensors_();
   /// Collection of all sensors for this component
@@ -459,6 +462,10 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   uint32_t last_command_timestamp_;
   /// min time in ms between sending modbus commands
   uint16_t command_throttle_;
+  /// if module didn't respond the last command
+  bool module_offline_;
+  /// how many updates to skip if module is offline
+  uint16_t offline_skip_updates_;
 };
 
 /** Convert vector<uint8_t> response payload to float.
