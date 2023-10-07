@@ -41,12 +41,12 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
   void set_irq_pin(InternalGPIOPin *irq_pin) { irq_pin_ = irq_pin; }
 
   // Set PGA current input gain: 0 1x, 1 2x, 0b10 4x
-  void set_pga_ia(uint8_t pga_ia) { this->ade_write_8(PGA_IA_8, pga_ia); }
-  void set_pga_ib(uint8_t pga_ib) { this->ade_write_8(PGA_IB_8, pga_ib); }
+  void set_pga_ia(uint8_t pga_ia) { pga_ia_ = pga_ia; }
+  void set_pga_ib(uint8_t pga_ib) { pga_ib_ = pga_ib; }
 
   // Set current input gain
-  void set_aigain(uint32_t aigan) { this->ade_write_32(AIGAIN_32, aigan); }
-  void set_bigain(uint32_t bigan) { this->ade_write_32(BIGAIN_32, bigan); }
+  void set_aigain(uint32_t aigan) { aigan_ = aigan; }
+  void set_bigain(uint32_t bigan) { bigan_ = bigan; }
 
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_frequency_sensor(sensor::Sensor *frequency_sensor) { frequency_sensor_ = frequency_sensor; }
@@ -79,6 +79,11 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
       // this->ade_write_8(0x0010, 0x04);
       this->ade_write_8(0x00FE, 0xAD);
       this->ade_write_16(0x0120, 0x0030);
+      // Set gains
+      this->ade_write_8(PGA_IA_8, pga_ia_);
+      this->ade_write_8(PGA_IB_8, pga_ib_);
+      this->ade_write_32(AIGAIN_32, aigan_);
+      this->ade_write_32(BIGAIN_32, bigan_);
       this->is_setup_ = true;
     });
   }
@@ -102,6 +107,10 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
   sensor::Sensor *reactive_power_b_sensor_{nullptr};
   sensor::Sensor *power_factor_a_sensor_{nullptr};
   sensor::Sensor *power_factor_b_sensor_{nullptr};
+  uint8_t pga_ia_;
+  uint8_t pga_ib_;
+  uint32_t aigan_;
+  uint32_t bigan_;
 
   virtual bool ade_write_8(uint16_t reg, uint8_t value) = 0;
 
