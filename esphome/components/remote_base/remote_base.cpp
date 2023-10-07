@@ -26,22 +26,30 @@ void RemoteRMTChannel::config_rmt(rmt_config_t &rmt) {
 
 /* RemoteReceiveData */
 
-bool RemoteReceiveData::peek_mark(uint32_t length, uint32_t offset) const {
+bool RemoteReceiveData::peek_mark(int32_t min_length, int32_t max_length, uint32_t offset) const {
   if (!this->is_valid(offset))
     return false;
-  const int32_t value = this->peek(offset);
-  const int32_t lo = this->lower_bound_(length);
-  const int32_t hi = this->upper_bound_(length);
-  return value >= 0 && lo <= value && value <= hi;
+  int32_t value = this->peek(offset);
+  return value >= 0 && min_length <= value && value <= max_length;
 }
 
-bool RemoteReceiveData::peek_space(uint32_t length, uint32_t offset) const {
-  if (!this->is_valid(offset))
-    return false;
-  const int32_t value = this->peek(offset);
+bool RemoteReceiveData::peek_mark(uint32_t length, uint32_t offset = 0) const {
   const int32_t lo = this->lower_bound_(length);
   const int32_t hi = this->upper_bound_(length);
-  return value <= 0 && lo <= -value && -value <= hi;
+  return peek_mark(lo, hi, offset);
+}
+
+bool RemoteReceiveData::peek_space(int32_t min_length, int32_t max_length, uint32_t offset) const {
+  if (!this->is_valid(offset))
+    return false;
+  int32_t value = this->peek(offset);
+  return value <= 0 && min_length <= -value && -value <= max_length;
+}
+
+bool RemoteReceiveData::peek_space(uint32_t length, uint32_t offset = 0) const {
+  const int32_t lo = this->lower_bound_(length);
+  const int32_t hi = this->upper_bound_(length);
+  return peek_space(lo, hi, offset);
 }
 
 bool RemoteReceiveData::peek_space_at_least(uint32_t length, uint32_t offset) const {
@@ -59,8 +67,22 @@ bool RemoteReceiveData::expect_mark(uint32_t length) {
   return true;
 }
 
+bool RemoteReceiveData::expect_mark(int32_t min_length, int32_t max_length) {
+  if (!this->peek_mark(min_length, max_length, 0))
+    return false;
+  this->advance();
+  return true;
+}
+
 bool RemoteReceiveData::expect_space(uint32_t length) {
   if (!this->peek_space(length))
+    return false;
+  this->advance();
+  return true;
+}
+
+bool RemoteReceiveData::expect_space(int32_t min_length, int32_t max_length) {
+  if (!this->peek_space(min_length, max_length, 0))
     return false;
   this->advance();
   return true;
