@@ -130,8 +130,12 @@ ADE7953_CONFIG_SCHEMA = cv.Schema(
             CONF_CURRENT_PGA_GAIN_B,
             default="1x",
         ): cv.one_of(*PGA_GAINS, lower=True),
-        cv.Optional(CONF_CURRENT_GAIN_A, default=0x400000): cv.int_,
-        cv.Optional(CONF_CURRENT_GAIN_B, default=0x400000): cv.int_,
+        cv.Optional(CONF_CURRENT_GAIN_A, default=0x400000): cv.hex_int_range(
+            min=0x100000, max=0x800000
+        ),
+        cv.Optional(CONF_CURRENT_GAIN_B, default=0x400000): cv.hex_int_range(
+            min=0x100000, max=0x800000
+        ),
     }
 ).extend(cv.polling_component_schema("1s"))
 

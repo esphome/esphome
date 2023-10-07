@@ -45,8 +45,8 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
   void set_pga_ib(uint8_t pga_ib) { this->ade_write_8(PGA_IB_8, pga_ib); }
 
   // Set current input gain
-  void set_aigain(uint8_t aigan) { this->ade_write_8(AIGAIN_32, aigan); }
-  void set_bigain(uint8_t bigan) { this->ade_write_8(BIGAIN_32, bigan); }
+  void set_aigain(uint32_t aigan) { this->ade_write_32(AIGAIN_32, aigan); }
+  void set_bigain(uint32_t bigan) { this->ade_write_32(BIGAIN_32, bigan); }
 
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_frequency_sensor(sensor::Sensor *frequency_sensor) { frequency_sensor_ = frequency_sensor; }
