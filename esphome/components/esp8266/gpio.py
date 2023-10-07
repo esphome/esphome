@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 
 from esphome.const import (
+    CONF_ANALOG,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
@@ -140,7 +141,6 @@ def validate_supports(value):
     return value
 
 
-CONF_ANALOG = "analog"
 ESP8266_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(ESP8266GPIOPin),

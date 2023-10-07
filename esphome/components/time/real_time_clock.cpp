@@ -24,7 +24,7 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   struct timeval timev {
     .tv_sec = static_cast<time_t>(epoch), .tv_usec = 0,
   };
-  ESP_LOGVV(TAG, "Got epoch %u", epoch);
+  ESP_LOGVV(TAG, "Got epoch %" PRIu32, epoch);
   timezone tz = {0, 0};
   int ret = settimeofday(&timev, &tz);
   if (ret == EINVAL) {
