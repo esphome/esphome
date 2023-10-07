@@ -205,7 +205,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
   return out;
 }
 void DraytonProtocol::dump(const DraytonData &data) {
-  ESP_LOGD(TAG, "Received Drayton: address=0x%04X (0x%04x), channel=0x%03x command=0x%03X", data.address,
+  ESP_LOGI(TAG, "Received Drayton: address=0x%04X (0x%04x), channel=0x%03x command=0x%03X", data.address,
            ((data.address << 1) & 0xffff), data.channel, data.command);
 }
 

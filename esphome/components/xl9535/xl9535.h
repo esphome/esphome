@@ -26,7 +26,7 @@ class XL9535Component : public Component, public i2c::I2CDevice {
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
+  float get_setup_priority() const override { return setup_priority::IO; }
 };
 
 class XL9535GPIOPin : public GPIOPin {

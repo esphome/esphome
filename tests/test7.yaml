@@ -3,6 +3,9 @@
 wifi:
   ssid: 'ssid'
 
+network:
+  enable_ipv6: true
+
 esp32:
   board: lolin_c3_mini
   framework:
@@ -28,6 +31,16 @@ esphome:
 
 logger:
 
+debug:
+
 http_request:
   useragent: esphome/tagreader
   timeout: 10s
+
+sensor:
+  - platform: adc
+    id: adc_sensor_p4
+    name: ADC pin 4
+    pin: 4
+    attenuation: 11db
+    update_interval: 1s

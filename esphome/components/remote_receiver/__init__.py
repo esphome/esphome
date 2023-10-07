@@ -55,7 +55,11 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
             cv.Optional(CONF_TOLERANCE, default="25%"): validate_tolerance,
             cv.SplitDefault(
-                CONF_BUFFER_SIZE, esp32="10000b", esp8266="1000b"
+                CONF_BUFFER_SIZE,
+                esp32="10000b",
+                esp8266="1000b",
+                bk72xx="1000b",
+                rtl87xx="1000b",
             ): cv.validate_bytes,
             cv.Optional(CONF_FILTER, default="50us"): cv.All(
                 cv.positive_time_period_microseconds,
