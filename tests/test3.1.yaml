@@ -21,6 +21,13 @@ wifi:
   ssid: "MySSID"
   password: "password1"
 
+network:
+  enable_ipv6: true
+
+web_server:
+  port: 80
+  version: 2
+
 i2c:
   sda: 4
   scl: 5
@@ -34,6 +41,8 @@ spi:
 ota:
 
 logger:
+
+debug:
 
 sensor:
   - platform: apds9960
