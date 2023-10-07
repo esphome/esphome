@@ -106,6 +106,9 @@ void MQTTClientComponent::send_device_info_() {
 #ifdef USE_ESP32
         root["platform"] = "ESP32";
 #endif
+#ifdef USE_LIBRETINY
+        root["platform"] = lt_cpu_get_model_name();
+#endif
 
         root["board"] = ESPHOME_BOARD;
 #if defined(USE_WIFI)
@@ -156,7 +159,7 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
                                          MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
 #endif
@@ -168,11 +171,7 @@ void MQTTClientComponent::start_dnslookup_() {
     case ERR_OK: {
       // Got IP immediately
       this->dns_resolved_ = true;
-#if LWIP_IPV6
-      this->ip_ = addr.u_addr.ip4.addr;
-#else
-      this->ip_ = addr.addr;
-#endif
+      this->ip_ = network::IPAddress(&addr);
       this->start_connect_();
       return;
     }
@@ -223,11 +222,7 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
   if (ipaddr == nullptr) {
     a_this->dns_resolve_error_ = true;
   } else {
-#if LWIP_IPV6
-    a_this->ip_ = ipaddr->u_addr.ip4.addr;
-#else
-    a_this->ip_ = ipaddr->addr;
-#endif
+    a_this->ip_ = network::IPAddress(ipaddr);
     a_this->dns_resolved_ = true;
   }
 }
