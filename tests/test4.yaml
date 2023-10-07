@@ -21,6 +21,9 @@ ethernet:
     subnet: 255.255.255.0
   domain: .local
 
+network:
+  enable_ipv6: true
+
 api:
 
 i2c:
@@ -29,14 +32,25 @@ i2c:
   scan: false
 
 spi:
+- id: spi_id_1
   clk_pin: GPIO21
   mosi_pin: GPIO22
   miso_pin: GPIO23
+  interface: hardware
+- id: spi_id_2
+  clk_pin: GPIO32
+  mosi_pin: GPIO33
+  interface: hardware
 
 uart:
-  tx_pin: GPIO22
-  rx_pin: GPIO23
-  baud_rate: 115200
+  - id: uart115200
+    tx_pin: GPIO22
+    rx_pin: GPIO23
+    baud_rate: 115200
+  - id: uart9600
+    tx_pin: GPIO22
+    rx_pin: GPIO23
+    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -44,6 +58,8 @@ ota:
 
 logger:
   level: DEBUG
+
+debug:
 
 web_server:
   ota: false
@@ -58,6 +74,7 @@ time:
 
 tuya:
   time_id: sntp_time
+  uart_id: uart115200
   status_pin:
     number: 14
     inverted: true
@@ -73,12 +90,14 @@ select:
 
 pipsolar:
   id: inverter0
+  uart_id: uart115200
 
 sx1509:
   - id: sx1509_hub
     address: 0x3E
 
 mcp3204:
+  spi_id: spi_id_1
   cs_pin: GPIO23
 
 dac7678:
@@ -229,6 +248,7 @@ sensor:
       name: inverter0_pv_charging_power
   - platform: hrxl_maxsonar_wr
     name: Rainwater Tank Level
+    uart_id: uart115200
     filters:
       - sliding_window_moving_average:
           window_size: 12
@@ -257,6 +277,10 @@ sensor:
       name: Ufire Temperature
     ph:
       name: Ufire pH
+  - platform: a01nyub
+    id: a01nyub_sensor
+    name: "a01nyub Distance"
+    uart_id: uart9600
 
 #
 # platform sensor.apds9960 requires component apds9960
@@ -477,6 +501,7 @@ display:
     update_interval: 16ms
 
   - platform: waveshare_epaper
+    spi_id: spi_id_1
     cs_pin: GPIO23
     dc_pin: GPIO23
     busy_pin: GPIO23
@@ -486,6 +511,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
+    spi_id: spi_id_1
     cs_pin: GPIO23
     dc_pin: GPIO23
     busy_pin: GPIO23
@@ -496,6 +522,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
+    spi_id: spi_id_1
     cs_pin: GPIO23
     dc_pin: GPIO23
     busy_pin: GPIO23
@@ -505,6 +532,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
+    spi_id: spi_id_1
     cs_pin: GPIO23
     dc_pin: GPIO23
     busy_pin: GPIO23
@@ -655,6 +683,7 @@ touchscreen:
 
   - platform: xpt2046
     id: xpt_touchscreen
+    spi_id: spi_id_2
     cs_pin: 17
     interrupt_pin: 16
     display: inkplate_display
