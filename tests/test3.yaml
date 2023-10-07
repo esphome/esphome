@@ -215,6 +215,9 @@ wifi:
   ssid: "MySSID"
   password: "password1"
 
+network:
+  enable_ipv6: true
+
 uart:
   - id: uart_1
     tx_pin:
@@ -286,6 +289,8 @@ logger:
   hardware_uart: UART1
   level: DEBUG
   esp8266_store_log_strings_in_flash: true
+
+debug:
 
 improv_serial:
   next_url: https://esphome.io/?name={{device_name}}&version={{esphome_version}}&ip={{ip_address}}
@@ -1185,6 +1190,10 @@ daly_bms:
 qr_code:
   - id: homepage_qr
     value: https://esphome.io/index.html
+
+lightwaverf:
+  read_pin: 13
+  write_pin: 14
 
 alarm_control_panel:
   - platform: template

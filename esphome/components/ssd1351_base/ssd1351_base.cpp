@@ -112,6 +112,9 @@ void SSD1351::set_brightness(float brightness) {
   } else {
     this->brightness_ = brightness;
   }
+  if (!this->is_ready()) {
+    return;  // Component is not yet setup skip the command
+  }
   // now write the new brightness level to the display
   this->command(SSD1351_CONTRASTMASTER);
   this->data(int(SSD1351_MAX_CONTRAST * (this->brightness_)));
