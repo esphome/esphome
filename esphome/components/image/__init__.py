@@ -52,7 +52,7 @@ Image_ = image_ns.class_("Image")
 
 
 def _compute_local_icon_path(value) -> Path:
-    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN / "mdi"
+    base_dir = Path(CORE.data_dir) / DOMAIN / "mdi"
     return base_dir / f"{value[CONF_ICON]}.svg"
 
 
