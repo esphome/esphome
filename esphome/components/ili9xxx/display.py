@@ -54,7 +54,7 @@ COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
 
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
-CONF_INVERTDISPLAY = "invert_display"
+CONF_INVERT_DISPLAY = "invert_display"
 
 
 def _validate(config):
@@ -100,7 +100,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
                 cv.file_
             ),
-            cv.GenerateID(CONF_INVERTDISPLAY): cv.boolean,
+            cv.GenerateID(CONF_INVERT_DISPLAY): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -178,5 +178,5 @@ async def to_code(config):
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_palette(prog_arr))
 
-    if CONF_INVERTDISPLAY in config:
-        cg.add(var.invert_display(config[CONF_INVERTDISPLAY]))
+    if CONF_INVERT_DISPLAY in config:
+        cg.add(var.invert_display(config[CONF_INVERT_DISPLAY]))
