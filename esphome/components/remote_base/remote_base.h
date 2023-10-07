@@ -78,11 +78,11 @@ class RemoteReceiveData {
   ToleranceMode get_tolerance_mode() { return tolerance_mode_; }
 
  protected:
-  int32_t lower_bound_(uint32_t length) {
+  int32_t lower_bound_(uint32_t length) const {
     return (tolerance_mode_ == TOLERANCE_MODE_TIME) ? int32_t(length - this->tolerance_)
                                                     : int32_t(100 - this->tolerance_) * length / 100U;
   }
-  int32_t upper_bound_(uint32_t length) {
+  int32_t upper_bound_(uint32_t length) const {
     return (tolerance_mode_ == TOLERANCE_MODE_TIME) ? int32_t(length + this->tolerance_)
                                                     : int32_t(100 + this->tolerance_) * length / 100U;
   }
