@@ -206,9 +206,9 @@ class GROVETB6612FNGMotorNoStandbyAction : public Action<Ts...>, public Parented
 template<typename... Ts>
 class GROVETB6612FNGMotorChangeAddressAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
  public:
-  TEMPLATABLE_VALUE(uint8_t, channel)
+  TEMPLATABLE_VALUE(uint8_t, address)
 
-  void play(Ts... x) override { this->parent_->set_i2c_addr(this->channel_.value(x...)); }
+  void play(Ts... x) override { this->parent_->set_i2c_addr(this->address_.value(x...)); }
 };
 
 }  // namespace grove_tb6612fng
