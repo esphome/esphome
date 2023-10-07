@@ -1549,6 +1549,7 @@ def aeha_trigger(var, config):
 def aeha_dumper(var, config):
     pass
 
+
 @register_action("aeha", AEHAAction, AEHA_SCHEMA)
 async def aeha_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
