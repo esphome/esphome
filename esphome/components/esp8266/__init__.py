@@ -50,6 +50,17 @@ def set_core_data(config):
     return config
 
 
+def get_download_types(storage_json):
+    return [
+        {
+            "title": "Standard format",
+            "description": "For flashing ESP8266.",
+            "file": "firmware.bin",
+            "download": f"{storage_json.name}.bin",
+        },
+    ]
+
+
 def _format_framework_arduino_version(ver: cv.Version) -> str:
     # format the given arduino (https://github.com/esp8266/Arduino/releases) version to
     # a PIO platformio/framework-arduinoespressif8266 value

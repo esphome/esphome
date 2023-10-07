@@ -22,6 +22,10 @@ void SHT3XDComponent::setup() {
     this->mark_failed();
     return;
   }
+  if (!this->write_command(heater_enabled_ ? SHT3XD_COMMAND_HEATER_ENABLE : SHT3XD_COMMAND_HEATER_DISABLE)) {
+    this->mark_failed();
+    return;
+  }
   uint32_t serial_number = (uint32_t(raw_serial_number[0]) << 16) | uint32_t(raw_serial_number[1]);
   ESP_LOGV(TAG, "    Serial Number: 0x%08X", serial_number);
 }
