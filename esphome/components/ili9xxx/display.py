@@ -100,7 +100,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
                 cv.file_
             ),
-            cv.GenerateID(CONF_INVERT_DISPLAY): cv.boolean,
+            cv.Optional(CONF_INVERT_DISPLAY): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("1s"))
