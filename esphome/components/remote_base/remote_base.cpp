@@ -29,11 +29,11 @@ void RemoteRMTChannel::config_rmt(rmt_config_t &rmt) {
 bool RemoteReceiveData::peek_mark(int32_t min_length, int32_t max_length, uint32_t offset) const {
   if (!this->is_valid(offset))
     return false;
-  int32_t value = this->peek(offset);
+  const int32_t value = this->peek(offset);
   return value >= 0 && min_length <= value && value <= max_length;
 }
 
-bool RemoteReceiveData::peek_mark(uint32_t length, uint32_t offset = 0) const {
+bool RemoteReceiveData::peek_mark(uint32_t length, uint32_t offset) const {
   const int32_t lo = this->lower_bound_(length);
   const int32_t hi = this->upper_bound_(length);
   return peek_mark(lo, hi, offset);
@@ -42,11 +42,11 @@ bool RemoteReceiveData::peek_mark(uint32_t length, uint32_t offset = 0) const {
 bool RemoteReceiveData::peek_space(int32_t min_length, int32_t max_length, uint32_t offset) const {
   if (!this->is_valid(offset))
     return false;
-  int32_t value = this->peek(offset);
+  const int32_t value = this->peek(offset);
   return value <= 0 && min_length <= -value && -value <= max_length;
 }
 
-bool RemoteReceiveData::peek_space(uint32_t length, uint32_t offset = 0) const {
+bool RemoteReceiveData::peek_space(uint32_t length, uint32_t offset) const {
   const int32_t lo = this->lower_bound_(length);
   const int32_t hi = this->upper_bound_(length);
   return peek_space(lo, hi, offset);
