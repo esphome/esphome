@@ -14,7 +14,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = []
-AUTO_LOAD = ["spi"]
+AUTO_LOAD = []
 MULTI_CONF = True
 
 sn74hc595_ns = cg.esphome_ns.namespace("sn74hc595")
