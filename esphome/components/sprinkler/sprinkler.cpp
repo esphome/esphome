@@ -395,9 +395,7 @@ Sprinkler::Sprinkler(const std::string &name) {
   this->timer_.push_back({this->name_ + "vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
 }
 
-void Sprinkler::setup() {
-  this->all_valves_off_(true);
-}
+void Sprinkler::setup() { this->all_valves_off_(true); }
 
 void Sprinkler::loop() {
   for (auto &p : this->pump_) {
