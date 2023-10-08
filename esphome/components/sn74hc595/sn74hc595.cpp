@@ -57,7 +57,7 @@ void SN74HC595Component::write_gpio_() {
       this->disable();
 #endif
     } else {
-      for (uint8_t i = 7; i >= 0; i--) {
+      for (int8_t i = 7; i >= 0; i--) {
         bool bit = (*byte >> i) & 1;
         this->data_pin_->digital_write(bit);
         this->clock_pin_->digital_write(true);
