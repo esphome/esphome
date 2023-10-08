@@ -574,9 +574,7 @@ async def to_code(config):
         if len(sprinkler_controller[CONF_VALVES]) > 1:
             name = sprinkler_controller[CONF_MAIN_SWITCH][CONF_NAME]
         else:
-            name = sprinkler_controller[CONF_VALVES][0][CONF_VALVE_SWITCH][
-                CONF_NAME
-            ]
+            name = sprinkler_controller[CONF_VALVES][0][CONF_VALVE_SWITCH][CONF_NAME]
         name = sprinkler_controller.get(CONF_NAME, name)
         var = cg.new_Pvariable(sprinkler_controller[CONF_ID], name)
 
