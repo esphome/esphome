@@ -3,13 +3,16 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/components/spi/spi.h"
 
 #include <vector>
 
 namespace esphome {
 namespace sn74hc595 {
 
-class SN74HC595Component : public Component {
+class SN74HC595Component : public Component,
+                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                 spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_4MHZ> {
  public:
   SN74HC595Component() = default;
 
@@ -24,9 +27,10 @@ class SN74HC595Component : public Component {
     oe_pin_ = pin;
     have_oe_pin_ = true;
   }
+  void use_spi() { use_spi_ = true; }
   void set_sr_count(uint8_t count) {
     sr_count_ = count;
-    this->output_bits_.resize(count * 8);
+    this->output_bytes_.resize(count);
   }
 
  protected:
@@ -40,7 +44,8 @@ class SN74HC595Component : public Component {
   GPIOPin *oe_pin_;
   uint8_t sr_count_;
   bool have_oe_pin_{false};
-  std::vector<bool> output_bits_;
+  bool use_spi_{false};
+  std::vector<uint8_t> output_bytes_;
 };
 
 /// Helper class to expose a SC74HC595 pin as an internal output GPIO pin.
