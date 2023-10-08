@@ -1488,6 +1488,17 @@ sensor:
       name: "Loop Time"
     psram:
       name: "PSRAM Free"
+  - platform: mmc5983
+    i2c_id: i2c_bus
+    field_strength_x:
+      name: "Magnet X"
+      id: magnet_x
+    field_strength_y:
+      name: "Magnet Y"
+      id: magnet_y
+    field_strength_z:
+      name: "Magnet Z"
+      id: magnet_z
 
 esp32_touch:
   setup_mode: false
