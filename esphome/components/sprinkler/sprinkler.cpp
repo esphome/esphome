@@ -386,8 +386,8 @@ SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this
 
 SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
 
-Sprinkler::Sprinkler () {}
-Sprinkler::Sprinkler (const std::string &name) {
+Sprinkler::Sprinkler() {}
+Sprinkler::Sprinkler(const std::string &name) {
   // The `name` is needed to set timers up, hence non-default constructor
   // replaces `set_name()` method previously existed
   this->name_ = name;
