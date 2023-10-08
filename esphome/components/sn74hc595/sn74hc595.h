@@ -3,16 +3,23 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#if __has_include("esphome/components/spi/spi.h")
 #include "esphome/components/spi/spi.h"
+#define HAS_SPI
+#endif
 
 #include <vector>
 
 namespace esphome {
 namespace sn74hc595 {
 
+#ifdef HAS_SPI
 class SN74HC595Component : public Component,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_4MHZ> {
+#else
+class SN74HC595Component : public Component {
+#endif
  public:
   SN74HC595Component() = default;
 

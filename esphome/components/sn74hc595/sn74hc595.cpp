@@ -16,7 +16,9 @@ void SN74HC595Component::setup() {
 
   // initialize output pins
   if (use_spi_) {
+#ifdef HAS_SPI
     this->spi_setup();
+#endif
   } else {
     this->clock_pin_->setup();
     this->data_pin_->setup();
@@ -49,9 +51,11 @@ void SN74HC595Component::digital_write_(uint16_t pin, bool value) {
 void SN74HC595Component::write_gpio_() {
   for (auto byte = this->output_bytes_.rbegin(); byte != this->output_bytes_.rend(); byte++) {
     if (use_spi_) {
+#ifdef HAS_SPI
       this->enable();
       this->transfer_byte(*byte);
       this->disable();
+#endif
     } else {
       for (uint8_t i = 7; i >= 0; i--) {
         bool bit = (*byte >> i) & 1;
