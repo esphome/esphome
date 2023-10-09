@@ -21,7 +21,7 @@ from esphome.coroutine import FakeEventLoop as _FakeEventLoop
 
 # pylint: disable=unused-import
 from esphome.coroutine import coroutine, coroutine_with_priority  # noqa
-from esphome.helpers import ensure_unique_string, is_ha_addon
+from esphome.helpers import ensure_unique_string, get_str_env, is_ha_addon
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
@@ -558,6 +558,8 @@ class EsphomeCore:
     def data_dir(self):
         if is_ha_addon():
             return os.path.join("/data")
+        if "ESPHOME_DATA_DIR" in os.environ:
+            return get_str_env("ESPHOME_DATA_DIR", None)
         return self.relative_config_path(".esphome")
 
     @property
