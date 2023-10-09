@@ -1,4 +1,5 @@
 #include "esp_adf.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_ESP_IDF
 
