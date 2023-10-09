@@ -19,7 +19,7 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.0
       - name: Get tag
         id: tag
         # yamllint disable rule:line-length
@@ -43,9 +43,9 @@ jobs:
     if: github.repository == 'esphome/esphome' && github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.0
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v4.7.1
         with:
           python-version: "3.x"
       - name: Set up python environment
@@ -88,24 +88,24 @@ jobs:
             target: "lint"
             baseimg: "docker"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.0
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v4.7.1
         with:
           python-version: "3.9"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3.0.0
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3.0.0
 
       - name: Log in to docker hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3.0.0
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Log in to the GitHub container registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3.0.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -119,7 +119,7 @@ jobs:
             --suffix "${{ matrix.image.suffix }}"
 
       - name: Build and push
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5.0.0
         with:
           context: .
           file: ./docker/Dockerfile
@@ -141,7 +141,7 @@ jobs:
     needs: [deploy-docker]
     steps:
       - name: Trigger Workflow
-        uses: actions/github-script@v6
+        uses: actions/github-script@v6.4.1
         with:
           github-token: ${{ secrets.DEPLOY_HA_ADDON_REPO_TOKEN }}
           script: |

@@ -82,6 +82,9 @@ wifi:
   reboot_timeout: 120s
   power_save_mode: light
 
+network:
+  enable_ipv6: true
+
 mdns:
   disabled: false
 
@@ -856,6 +859,8 @@ sensor:
       name: Living Room Temperature 6
     humidity:
       name: Living Room Humidity 6
+    heater:
+      name: Living Room Heater 6
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: max6675
@@ -920,6 +925,23 @@ sensor:
       name: MPU6886 Gyro z
     temperature:
       name: MPU6886 Temperature
+    i2c_id: i2c_bus
+  - platform: bmi160
+    address: 0x68
+    acceleration_x:
+      name: BMI160 Accel X
+    acceleration_y:
+      name: BMI160 Accel Y
+    acceleration_z:
+      name: BMI160 Accel z
+    gyroscope_x:
+      name: BMI160 Gyro X
+    gyroscope_y:
+      name: BMI160 Gyro Y
+    gyroscope_z:
+      name: BMI160 Gyro z
+    temperature:
+      name: BMI160 Temperature
     i2c_id: i2c_bus
   - platform: mmc5603
     address: 0x30
@@ -1086,6 +1108,11 @@ sensor:
     altitude_compensation: 10m
     ambient_pressure_compensation: 961mBar
     temperature_offset: 4.2C
+    i2c_id: i2c_bus
+  - platform: sen0321
+    name: Workshop Ozone Sensor
+    id: sen0321_ozone
+    update_interval: 10s
     i2c_id: i2c_bus
   - platform: sgp30
     eco2:
@@ -1461,6 +1488,26 @@ sensor:
     pressure:
       name: "BMP581 Pressure"
       oversampling: 128x
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Heap Max Block"
+    loop_time:
+      name: "Loop Time"
+    psram:
+      name: "PSRAM Free"
+  - platform: mmc5983
+    i2c_id: i2c_bus
+    field_strength_x:
+      name: "Magnet X"
+      id: magnet_x
+    field_strength_y:
+      name: "Magnet Y"
+      id: magnet_y
+    field_strength_z:
+      name: "Magnet Z"
+      id: magnet_z
 
 esp32_touch:
   setup_mode: false
@@ -2605,6 +2652,11 @@ switch:
             0xFF,
           ]
   - platform: template
+    name: Haier
+    turn_on_action:
+      remote_transmitter.transmit_haier:
+        code: [0xA6, 0xDA, 0x00, 0x00, 0x40, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x05]
+  - platform: template
     name: Living Room Lights
     id: livingroom_lights
     optimistic: true
@@ -2934,7 +2986,7 @@ display:
     cs_pin: GPIO5
     dc_pin: GPIO16
     reset_pin: GPIO23
-    backlight_pin: GPIO4
+    backlight_pin: no
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7920
@@ -2961,6 +3013,7 @@ display:
     model: TFT 2.4
     cs_pin: GPIO5
     dc_pin: GPIO4
+    color_palette: GRAYSCALE
     reset_pin: GPIO22
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
@@ -3089,11 +3142,39 @@ time:
   - platform: ds1307
     id: ds1307_time
     update_interval: never
-    on_time:
-      seconds: 0
-      then: ds1307.read_time
     i2c_id: i2c_bus
-
+    on_time:
+      - seconds: 0
+        then: ds1307.read_time
+      - at: "16:00:00"
+        then:
+          - if:
+              condition:
+                or:
+                  - binary_sensor.is_on: close_sensor
+                  - binary_sensor.is_on: open_sensor
+              then:
+                logger.log: "close_sensor or open_sensor is on"
+          - if:
+              condition:
+                and:
+                  - binary_sensor.is_on: close_sensor
+                  - binary_sensor.is_on: open_sensor
+              then:
+                logger.log: "close_sensor and open_sensor are both on"
+          - if:
+              condition:
+                xor:
+                  - binary_sensor.is_on: close_sensor
+                  - binary_sensor.is_on: open_sensor
+              then:
+                logger.log: "close_sensor or open_sensor is exclusively on"
+          - if:
+              condition:
+                not:
+                  - binary_sensor.is_on: close_sensor
+              then:
+                logger.log: "close_sensor is not on"
 cover:
   - platform: template
     name: Template Cover
@@ -3484,7 +3565,6 @@ number:
       still_threshold:
         name: g8 still threshold
 
-
 select:
   - platform: template
     id: test_select
@@ -3576,6 +3656,22 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+  - platform: template
+    name: Poller component suspend test
+    on_press:
+      - component.suspend: myteleinfo
+      - delay: 20s
+      - component.update: myteleinfo
+      - delay: 20s
+      - component.resume: myteleinfo
+      - delay: 20s
+      - component.resume:
+          id: myteleinfo
+          update_interval: 2s
+      - delay: 20s
+      - component.resume:
+          id: myteleinfo
+          update_interval: !lambda return 2500;
   - platform: ld2410
     factory_reset:
       name: "factory reset"

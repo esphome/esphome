@@ -60,7 +60,7 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
   memset(server, 0, sizeof(sockaddr_in6));
   server->sin6_family = AF_INET6;
   server->sin6_port = htons(port);
-  server->sin6_addr = in6addr_any;
+  server->sin6_addr = IN6ADDR_ANY_INIT;
   return sizeof(sockaddr_in6);
 #else
   if (addrlen < sizeof(sockaddr_in)) {
