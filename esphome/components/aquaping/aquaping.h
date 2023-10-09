@@ -16,22 +16,19 @@ namespace esphome {
 namespace aquaping {
 
 class AQUAPINGComponent : public PollingComponent, public i2c::I2CDevice {
+#ifdef USE_SENSOR
+  SUB_SENSOR(quiet_count)
+  SUB_SENSOR(leak_count)
+  SUB_SENSOR(noise_count)
+  SUB_SENSOR(version)
+#endif
 
-  #ifdef USE_SENSOR
-     SUB_SENSOR(quiet_count)
-     SUB_SENSOR(leak_count)
-     SUB_SENSOR(noise_count)
-     SUB_SENSOR(version)
-  #endif
-
-  #ifdef USE_BINARY_SENSOR
-   SUB_BINARY_SENSOR(alarm)
-   SUB_BINARY_SENSOR(noise_alert)
-   SUB_BINARY_SENSOR(led)
-   SUB_BINARY_SENSOR(sleep)
-  #endif
-
-
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(alarm)
+  SUB_BINARY_SENSOR(noise_alert)
+  SUB_BINARY_SENSOR(led)
+  SUB_BINARY_SENSOR(sleep)
+#endif
 
   // TODO
   // Background size
@@ -41,10 +38,10 @@ class AQUAPINGComponent : public PollingComponent, public i2c::I2CDevice {
   // Version
 
  public:
- float get_setup_priority() const override { return setup_priority::DATA; }
- void setup() override;
- void dump_config() override;
- void update() override;
+  float get_setup_priority() const override { return setup_priority::DATA; }
+  void setup() override;
+  void dump_config() override;
+  void update() override;
 };
 
 }  // namespace aquaping
