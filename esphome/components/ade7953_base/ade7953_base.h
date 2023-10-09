@@ -75,6 +75,7 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
       this->irq_pin_->setup();
     }
 
+    // The chip might take up to 100ms to initialise
     this->set_timeout(100, [this]() {
       // this->ade_write_8(0x0010, 0x04);
       this->ade_write_8(0x00FE, 0xAD);
