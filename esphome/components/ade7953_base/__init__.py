@@ -137,7 +137,7 @@ ADE7953_CONFIG_SCHEMA = cv.Schema(
             min=0x100000, max=0x800000
         ),
     }
-).extend(cv.polling_component_schema("1s"))
+).extend(cv.polling_component_schema("60s"))
 
 
 async def register_ade7953(var, config):
