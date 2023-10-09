@@ -179,7 +179,6 @@ def find_begin_end(text, begin_s, end_s):
 
 
 def write_platformio_ini(content):
-    update_storage_json()
     path = CORE.relative_build_path("platformio.ini")
 
     if os.path.isfile(path):
@@ -195,6 +194,7 @@ def write_platformio_ini(content):
 
 
 def write_platformio_project():
+    update_storage_json()
     mkdir_p(CORE.build_path)
 
     content = get_ini_content()
@@ -354,10 +354,9 @@ def write_cpp(code_s):
 def clean_build():
     import shutil
 
-    build_dir = CORE.relative_build_path("")
-    if os.path.isdir(build_dir):
-        _LOGGER.info("Deleting %s", build_dir)
-        shutil.rmtree(build_dir)
+    if os.path.isdir(CORE.build_path):
+        _LOGGER.info("Deleting %s", CORE.build_path)
+        shutil.rmtree(CORE.build_path)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
