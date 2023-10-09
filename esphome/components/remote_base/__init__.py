@@ -1558,3 +1558,37 @@ async def aeha_action(var, config, args):
         config[CONF_DATA], args, cg.std_vector.template(cg.uint8)
     )
     cg.add(var.set_data(template_))
+
+
+# Haier
+HaierData, HaierBinarySensor, HaierTrigger, HaierAction, HaierDumper = declare_protocol(
+    "Haier"
+)
+HaierAction = ns.class_("HaierAction", RemoteTransmitterActionBase)
+HAIER_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=13, max=13)),
+    }
+)
+
+
+@register_binary_sensor("haier", HaierBinarySensor, HAIER_SCHEMA)
+def haier_binary_sensor(var, config):
+    cg.add(var.set_code(config[CONF_CODE]))
+
+
+@register_trigger("haier", HaierTrigger, HaierData)
+def haier_trigger(var, config):
+    pass
+
+
+@register_dumper("haier", HaierDumper)
+def haier_dumper(var, config):
+    pass
+
+
+@register_action("haier", HaierAction, HAIER_SCHEMA)
+async def haier_action(var, config, args):
+    vec_ = cg.std_vector.template(cg.uint8)
+    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
+    cg.add(var.set_code(template_))
