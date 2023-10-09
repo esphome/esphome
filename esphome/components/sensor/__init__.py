@@ -190,7 +190,9 @@ def validate_datapoint(value):
 
 
 _SENSOR_ENTITY_CATEGORIES = {
-    k: v for k, v in cv._ENTITY_CATEGORIES.items() if k != ENTITY_CATEGORY_CONFIG
+    k: v
+    for k, v in cv._ENTITY_CATEGORIES.items()  # pylint: disable=protected-access
+    if k != ENTITY_CATEGORY_CONFIG
 }
 
 
