@@ -18,7 +18,6 @@ CONFIG_SCHEMA = (
     )
     .extend(ade7953_base.ADE7953_CONFIG_SCHEMA)
     .extend(spi.spi_device_schema())
-    .extend(cv.polling_component_schema("1s"))
 )
 
 
