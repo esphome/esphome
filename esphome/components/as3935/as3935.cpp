@@ -21,6 +21,14 @@ void AS3935Component::setup() {
   this->write_mask_disturber(this->mask_disturber_);
   this->write_div_ratio(this->div_ratio_);
   this->write_capacitance(this->capacitance_);
+
+  // Handle setting up tuning or auto-calibration
+  if (this->tune_antenna_) {
+    ESP_LOGCONFIG(TAG, "  Antenna tuning: ENABLED - lightning detection will not function in this mode");
+    this->tune_antenna();
+  } else if (this->calibration_) {
+    this->calibrate_oscillator();
+  }
 }
 
 void AS3935Component::dump_config() {
@@ -32,12 +40,6 @@ void AS3935Component::dump_config() {
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Distance", this->distance_sensor_);
   LOG_SENSOR("  ", "Lightning energy", this->energy_sensor_);
-  if (this->tune_antenna_) {
-    ESP_LOGCONFIG(TAG, "  Antenna tuning: ENABLED - lightning detection will not function in this mode");
-    this->tune_antenna();
-  } else if (this->calibration_) {
-    this->calibrate_oscillator();
-  }
 #endif
 }
 
