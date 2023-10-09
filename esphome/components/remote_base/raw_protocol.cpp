@@ -25,7 +25,7 @@ bool RawDumper::dump(RemoteReceiveData src) {
     if (written < 0 || written >= int(remaining_length)) {
       // write failed, flush...
       buffer[buffer_offset] = '\0';
-      ESP_LOGD(TAG, "%s", buffer);
+      ESP_LOGI(TAG, "%s", buffer);
       buffer_offset = 0;
       written = sprintf(buffer, "  ");
       if (i + 1 < src.size()) {
@@ -38,7 +38,7 @@ bool RawDumper::dump(RemoteReceiveData src) {
     buffer_offset += written;
   }
   if (buffer_offset != 0) {
-    ESP_LOGD(TAG, "%s", buffer);
+    ESP_LOGI(TAG, "%s", buffer);
   }
   return true;
 }

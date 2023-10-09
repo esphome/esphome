@@ -72,7 +72,7 @@ def clang_options(idedata):
     # copy compiler flags, except those clang doesn't understand.
     cmd.extend(
         flag
-        for flag in idedata["cxx_flags"].split(" ")
+        for flag in idedata["cxx_flags"]
         if flag
         not in (
             "-free",
