@@ -51,6 +51,9 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
     TYPE_GIT,
     TYPE_LOCAL,
     VALID_SUBSTITUTIONS_CHARACTERS,
@@ -583,9 +586,9 @@ def only_with_framework(frameworks):
     return validator_
 
 
-only_on_esp32 = only_on("esp32")
-only_on_esp8266 = only_on("esp8266")
-only_on_rp2040 = only_on("rp2040")
+only_on_esp32 = only_on(PLATFORM_ESP32)
+only_on_esp8266 = only_on(PLATFORM_ESP8266)
+only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework("arduino")
 only_with_esp_idf = only_with_framework("esp-idf")
 
