@@ -89,6 +89,7 @@ class ILI9XXXDisplay : public PollingComponent,
   bool prossing_update_ = false;
   bool need_update_ = false;
   bool is_18bitdisplay_ = false;
+  bool pre_invertdisplay_ = false;
 };
 
 //-----------   M5Stack display --------------
