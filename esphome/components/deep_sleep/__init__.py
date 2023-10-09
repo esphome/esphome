@@ -198,7 +198,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TOUCH_WAKEUP): cv.All(cv.only_on_esp32, cv.boolean),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on(PLATFORM_ESP32, PLATFORM_ESP8266),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
 )
 
 
