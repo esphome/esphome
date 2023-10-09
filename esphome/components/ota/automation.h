@@ -54,11 +54,7 @@ class OTAEndTrigger : public Trigger<> {
   }
 };
 
-#if ESP_IDF_VERSION_MAJOR >= 5
-class OTAErrorTrigger : public Trigger<long int> {
-#else
-class OTAErrorTrigger : public Trigger<int> {
-#endif
+class OTAErrorTrigger : public Trigger<uint8_t> {
  public:
   explicit OTAErrorTrigger(OTAComponent *parent) {
     parent->add_on_state_callback([this, parent](OTAState state, float progress, uint8_t error) {
