@@ -272,6 +272,7 @@ CONFIG_SCHEMA = cv.All(
 
 @coroutine_with_priority(1.0)
 async def to_code(configs):
+    cg.add_define("USE_SPI")
     cg.add_global(spi_ns.using)
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
