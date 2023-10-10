@@ -54,6 +54,7 @@ class VoiceAssistant : public Component {
   void loop() override;
   float get_setup_priority() const override;
   void start_streaming(struct sockaddr_storage *addr, uint16_t port);
+  void failed_to_start();
 
   void set_microphone(microphone::Microphone *mic) { this->mic_ = mic; }
 #ifdef USE_SPEAKER

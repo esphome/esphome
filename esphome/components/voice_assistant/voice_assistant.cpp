@@ -310,6 +310,12 @@ void VoiceAssistant::set_state_(State state, State desired_state) {
   ESP_LOGD(TAG, "Desired state set to %d", static_cast<uint8_t>(desired_state));
 }
 
+void VoiceAssistant::failed_to_start() {
+  ESP_LOGE(TAG, "Failed to start server. See Home Assistant logs for more details.");
+  this->error_trigger_->trigger("failed-to-start", "Failed to start server. See Home Assistant logs for more details.");
+  this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+}
+
 void VoiceAssistant::start_streaming(struct sockaddr_storage *addr, uint16_t port) {
   if (this->state_ != State::STARTING_PIPELINE) {
     this->signal_stop_();
