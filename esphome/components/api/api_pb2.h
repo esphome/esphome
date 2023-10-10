@@ -165,6 +165,11 @@ enum BluetoothDeviceRequestType : uint32_t {
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE = 5,
   BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE = 6,
 };
+enum VoiceAssistantRequestFlag : uint32_t {
+  VOICE_ASSISTANT_REQUEST_NONE = 0,
+  VOICE_ASSISTANT_REQUEST_USE_VAD = 1,
+  VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD = 2,
+};
 enum VoiceAssistantEvent : uint32_t {
   VOICE_ASSISTANT_ERROR = 0,
   VOICE_ASSISTANT_RUN_START = 1,
@@ -175,6 +180,10 @@ enum VoiceAssistantEvent : uint32_t {
   VOICE_ASSISTANT_INTENT_END = 6,
   VOICE_ASSISTANT_TTS_START = 7,
   VOICE_ASSISTANT_TTS_END = 8,
+  VOICE_ASSISTANT_WAKE_WORD_START = 9,
+  VOICE_ASSISTANT_WAKE_WORD_END = 10,
+  VOICE_ASSISTANT_STT_VAD_START = 11,
+  VOICE_ASSISTANT_STT_VAD_END = 12,
 };
 enum AlarmControlPanelState : uint32_t {
   ALARM_STATE_DISARMED = 0,
@@ -1651,11 +1660,26 @@ class SubscribeVoiceAssistantRequest : public ProtoMessage {
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
+class VoiceAssistantAudioSettings : public ProtoMessage {
+ public:
+  uint32_t noise_suppression_level{0};
+  uint32_t auto_gain{0};
+  float volume_multiplier{0.0f};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
 class VoiceAssistantRequest : public ProtoMessage {
  public:
   bool start{false};
   std::string conversation_id{};
-  bool use_vad{false};
+  uint32_t flags{0};
+  VoiceAssistantAudioSettings audio_settings{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
