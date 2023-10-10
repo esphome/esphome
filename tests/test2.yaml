@@ -724,6 +724,7 @@ interval:
 display:
   - platform: st7789v
     model: LILYGO_T-EMBED_170X320
+    spi_mode: mode0
     height: 320
     width: 170
     offset_height: 35
@@ -758,6 +759,11 @@ image:
   - id: another_alert_icon
     file: mdi:alert-outline
     type: BINARY
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
 
 graph:
   - id: my_graph
