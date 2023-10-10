@@ -347,7 +347,20 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+aquaping:
+  id: "aquaping_device"
+  update_interval: 2s
+
 sensor:
+  - platform: aquaping
+    quiet_count:
+      name: "Quiet Count"
+    leak_count:
+      name: "Leak Count"
+    noise_count:
+      name: "Noise Count"
+    version:
+      name: "Version"
   - platform: pmwcs3
     i2c_id: i2c_bus
     e25:
@@ -1490,6 +1503,15 @@ esp32_touch:
   voltage_attenuation: 1.5V
 
 binary_sensor:
+  - platform: aquaping
+    alarm:
+      name: "Alarm"
+    noise_alert:
+      name: "Noise Alert"
+    led:
+      name: "LED"
+    sleep:
+      name: "Sleep"
   - platform: gpio
     name: "MCP23S08 Pin #1"
     pin:
