@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, pins
-from esphome.components import display, spi
+from esphome.components import display, spi, font
 from esphome.core import CORE, HexInt
 from esphome.const import (
     CONF_COLOR_PALETTE,
@@ -84,6 +84,7 @@ def _validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
+    font.validate_pillow_installed,
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ili9XXXSPI),
@@ -162,7 +163,7 @@ async def to_code(config):
             x = x + i.width
 
         # reduce the colors on combined image to 256.
-        converted = ref_image.convert("P", palette=Image.ADAPTIVE, colors=256)
+        converted = ref_image.convert("P", palette=Image.Palette.ADAPTIVE, colors=256)
         # if you want to verify how the images look use
         # ref_image.save("ref_in.png")
         # converted.save("ref_out.png")
