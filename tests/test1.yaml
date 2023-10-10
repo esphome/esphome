@@ -1482,6 +1482,17 @@ sensor:
       name: "Loop Time"
     psram:
       name: "PSRAM Free"
+  - platform: mmc5983
+    i2c_id: i2c_bus
+    field_strength_x:
+      name: "Magnet X"
+      id: magnet_x
+    field_strength_y:
+      name: "Magnet Y"
+      id: magnet_y
+    field_strength_z:
+      name: "Magnet Z"
+      id: magnet_z
 
 esp32_touch:
   setup_mode: false
@@ -2622,6 +2633,11 @@ switch:
             0x00,
             0xFF,
           ]
+  - platform: template
+    name: Haier
+    turn_on_action:
+      remote_transmitter.transmit_haier:
+        code: [0xA6, 0xDA, 0x00, 0x00, 0x40, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x05]
   - platform: template
     name: Living Room Lights
     id: livingroom_lights

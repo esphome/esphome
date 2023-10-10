@@ -186,6 +186,7 @@ esphome/components/mitsubishi/* @RubyBailey
 esphome/components/mlx90393/* @functionpointer
 esphome/components/mlx90614/* @jesserockz
 esphome/components/mmc5603/* @benhoff
+esphome/components/mmc5983/* @agoode
 esphome/components/modbus_controller/* @martgras
 esphome/components/modbus_controller/binary_sensor/* @martgras
 esphome/components/modbus_controller/number/* @martgras
