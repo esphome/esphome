@@ -85,6 +85,7 @@ from esphome.const import (
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
+    ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
@@ -188,6 +189,15 @@ def validate_datapoint(value):
     return validate_datapoint({CONF_FROM: cv.float_(a), CONF_TO: cv.float_(b)})
 
 
+_SENSOR_ENTITY_CATEGORIES = {
+    k: v for k, v in cv.ENTITY_CATEGORIES.items() if k != ENTITY_CATEGORY_CONFIG
+}
+
+
+def sensor_entity_category(value):
+    return cv.enum(_SENSOR_ENTITY_CATEGORIES, lower=True)(value)
+
+
 # Base
 Sensor = sensor_ns.class_("Sensor", cg.EntityBase)
 SensorPtr = Sensor.operator("ptr")
@@ -246,6 +256,7 @@ SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
         cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
         cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
         cv.Optional(CONF_STATE_CLASS): validate_state_class,
+        cv.Optional(CONF_ENTITY_CATEGORY): sensor_entity_category,
         cv.Optional("last_reset_type"): cv.invalid(
             "last_reset_type has been removed since 2021.9.0. state_class: total_increasing should be used for total values."
         ),
@@ -301,7 +312,7 @@ def sensor_schema(
         (CONF_ACCURACY_DECIMALS, accuracy_decimals, validate_accuracy_decimals),
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
         (CONF_STATE_CLASS, state_class, validate_state_class),
-        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ENTITY_CATEGORY, entity_category, sensor_entity_category),
     ]:
         if default is not _UNDEF:
             schema[cv.Optional(key, default=default)] = validator
