@@ -19,7 +19,8 @@ static const size_t SAMPLE_RATE_HZ = 16000;
 static const size_t INPUT_BUFFER_SIZE = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
 static const size_t BUFFER_SIZE = 1000 * SAMPLE_RATE_HZ / 1000;      // 1s
 static const size_t SEND_BUFFER_SIZE = INPUT_BUFFER_SIZE * sizeof(int16_t);
-static const size_t SPEAKER_BUFFER_SIZE = 8192;
+static const size_t RECEIVE_SIZE = 1024;
+static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
 
 float VoiceAssistant::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
@@ -263,8 +264,8 @@ void VoiceAssistant::loop() {
       bool playing = false;
 #ifdef USE_SPEAKER
       if (this->speaker_ != nullptr) {
-        if (this->speaker_buffer_index_ + 1024 < SPEAKER_BUFFER_SIZE) {
-          auto len = this->socket_->read(this->speaker_buffer_ + this->speaker_buffer_index_, 1024);
+        if (this->speaker_buffer_index_ + RECEIVE_SIZE < SPEAKER_BUFFER_SIZE) {
+          auto len = this->socket_->read(this->speaker_buffer_ + this->speaker_buffer_index_, RECEIVE_SIZE);
           if (len > 0) {
             this->speaker_buffer_index_ += len;
             this->speaker_buffer_size_ += len;
@@ -272,6 +273,7 @@ void VoiceAssistant::loop() {
         } else {
           ESP_LOGW(TAG, "Speaker buffer full.");
         }
+        ESP_LOGD(TAG, "Playing %d bytes", this->speaker_buffer_size_);
         if (this->speaker_buffer_size_ > 0) {
           size_t written = this->speaker_->play(this->speaker_buffer_, this->speaker_buffer_size_);
           memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
