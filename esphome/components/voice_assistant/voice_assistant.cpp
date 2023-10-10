@@ -273,7 +273,6 @@ void VoiceAssistant::loop() {
         } else {
           ESP_LOGW(TAG, "Speaker buffer full.");
         }
-        ESP_LOGD(TAG, "Playing %d bytes", this->speaker_buffer_size_);
         if (this->speaker_buffer_size_ > 0) {
           size_t written = this->speaker_->play(this->speaker_buffer_, this->speaker_buffer_size_);
           memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
