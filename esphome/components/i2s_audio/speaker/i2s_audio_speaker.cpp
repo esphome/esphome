@@ -158,10 +158,10 @@ void I2SAudioSpeaker::watch_() {
         this->status_clear_warning();
         break;
       case TaskEventType::STOPPED:
-        this->parent_->unlock();
         this->state_ = speaker::STATE_STOPPED;
         vTaskDelete(this->player_task_handle_);
         this->player_task_handle_ = nullptr;
+        this->parent_->unlock();
         break;
       case TaskEventType::WARNING:
         ESP_LOGW(TAG, "Error writing to I2S: %s", esp_err_to_name(event.err));
@@ -177,9 +177,9 @@ void I2SAudioSpeaker::loop() {
       this->start_();
       break;
     case speaker::STATE_RUNNING:
+    case speaker::STATE_STOPPING:
       this->watch_();
       break;
-    case speaker::STATE_STOPPING:
     case speaker::STATE_STOPPED:
       break;
   }
