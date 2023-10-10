@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import (
     DEVICE_CLASS_EMPTY,
-    UNIT_EMPTY,
 )
 
 
@@ -13,28 +12,24 @@ optional_sensors = {
     "alarm": {
         "target": "set_alarm_binary_sensor",
         "config": binary_sensor.binary_sensor_schema(
-            unit_of_measurement=UNIT_EMPTY,
             device_class=DEVICE_CLASS_EMPTY,
         ),
     },
     "noise_alert": {
         "target": "set_noise_alert_binary_sensor",
         "config": binary_sensor.binary_sensor_schema(
-            unit_of_measurement=UNIT_EMPTY,
             device_class=DEVICE_CLASS_EMPTY,
         ),
     },
     "led": {
         "target": "set_led_binary_sensor",
         "config": binary_sensor.binary_sensor_schema(
-            unit_of_measurement=UNIT_EMPTY,
             device_class=DEVICE_CLASS_EMPTY,
         ),
     },
     "sleep": {
         "target": "set_sleep_binary_sensor",
         "config": binary_sensor.binary_sensor_schema(
-            unit_of_measurement=UNIT_EMPTY,
             device_class=DEVICE_CLASS_EMPTY,
         ),
     },
