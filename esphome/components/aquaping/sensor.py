@@ -3,6 +3,9 @@ import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
     DEVICE_CLASS_EMPTY,
+    UNIT_EMPTY,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_NONE,
 )
 
 from . import CONF_AQUAPING_ID, AQUAPINGComponent
@@ -11,29 +14,36 @@ optional_sensors = {
     "quiet_count": {
         "target": "set_quiet_count_sensor",
         "config": sensor.sensor_schema(
-            # unit_of_measurement=UNIT_BYTES,
+            unit_of_measurement=UNIT_EMPTY,
+            accuracy_decimals=0,
             device_class=DEVICE_CLASS_EMPTY,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
     },
     "leak_count": {
         "target": "set_leak_count_sensor",
         "config": sensor.sensor_schema(
-            # unit_of_measurement=UNIT_BYTES,
+            unit_of_measurement=UNIT_EMPTY,
+            accuracy_decimals=0,
             device_class=DEVICE_CLASS_EMPTY,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
     },
     "noise_count": {
         "target": "set_noise_count_sensor",
         "config": sensor.sensor_schema(
-            # unit_of_measurement=UNIT_BYTES,
+            unit_of_measurement=UNIT_EMPTY,
+            accuracy_decimals=0,
             device_class=DEVICE_CLASS_EMPTY,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
     },
     "version": {
         "target": "set_version_sensor",
         "config": sensor.sensor_schema(
-            # unit_of_measurement=UNIT_BYTES,
+            unit_of_measurement=UNIT_EMPTY,
             device_class=DEVICE_CLASS_EMPTY,
+            state_class=STATE_CLASS_NONE,
         ),
     },
 }
