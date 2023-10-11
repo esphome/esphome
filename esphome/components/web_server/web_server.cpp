@@ -806,7 +806,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET) {
       auto detail = DETAIL_STATE;
-      auto param = request->getParam("detail");
+      auto *param = request->getParam("detail");
       if (param && param->value() == "all") {
         detail = DETAIL_ALL;
       }
