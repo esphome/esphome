@@ -3,7 +3,9 @@
 
 #ifdef USE_ESP_IDF
 
+#ifdef USE_ESP_ADF_BOARD
 #include <board.h>
+#endif
 
 #include "esphome/core/log.h"
 
