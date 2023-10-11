@@ -188,6 +188,7 @@ void VoiceAssistant::loop() {
           } else {
             ESP_LOGD(TAG, "VAD detected speech");
             this->set_state_(State::START_PIPELINE, State::STREAMING_MICROPHONE);
+            this->vad_counter_ = 0;
           }
         } else {
           if (this->vad_counter_ > 0) {
