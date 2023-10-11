@@ -988,6 +988,10 @@ media_player:
       number: GPIO25
     mute_pin:
       number: GPIO14
+    tone:
+      lo: 6
+      mid: 2
+      hi: -2
     on_state:
       - media_player.play:
       - media_player.play_media: http://localhost/media.mp3
