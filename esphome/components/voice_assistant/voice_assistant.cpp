@@ -497,11 +497,10 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
           // No need to stop the microphone since we didn't use the speaker
           this->set_state_(State::WAIT_FOR_VAD, State::WAITING_FOR_VAD);
         } else
-#else
+#endif
         {
           this->set_state_(State::IDLE, State::IDLE);
         }
-#endif
       }
       this->end_trigger_->trigger();
       break;
