@@ -20,31 +20,14 @@ void ADE7953::dump_config() {
   LOG_SENSOR("  ", "Active Power B Sensor", this->active_power_b_sensor_);
   LOG_SENSOR("  ", "Rective Power A Sensor", this->reactive_power_a_sensor_);
   LOG_SENSOR("  ", "Reactive Power B Sensor", this->reactive_power_b_sensor_);
-
-  if (!this->is_setup_)
-    return;
-
-  uint32_t val;
-  uint8_t val_8;
-
-  ade_read_8(PGA_V_8, &val_8);
-  ESP_LOGCONFIG(TAG, "  PGA_V_8: 0x%X", val_8);
-  ade_read_8(PGA_IA_8, &val_8);
-  ESP_LOGCONFIG(TAG, "  PGA_IA_8: 0x%X", val_8);
-  ade_read_8(PGA_IB_8, &val_8);
-  ESP_LOGCONFIG(TAG, "  PGA_IB_8: 0x%X", val_8);
-  ade_read_32(AIGAIN_32, &val);
-  ESP_LOGCONFIG(TAG, "  AIGAIN_32: 0x%08jX", (uintmax_t) val);
-  ade_read_32(AVGAIN_32, &val);
-  ESP_LOGCONFIG(TAG, "  AVGAIN_32: 0x%08jX", (uintmax_t) val);
-  ade_read_32(AWGAIN_32, &val);
-  ESP_LOGCONFIG(TAG, "  AWGAIN_32: 0x%08jX", (uintmax_t) val);
-  ade_read_32(BIGAIN_32, &val);
-  ESP_LOGCONFIG(TAG, "  BIGAIN_32: 0x%08jX", (uintmax_t) val);
-  ade_read_32(BVGAIN_32, &val);
-  ESP_LOGCONFIG(TAG, "  BVGAIN_32: 0x%08jX", (uintmax_t) val);
-  ade_read_32(BWGAIN_32, &val);
-  ESP_LOGCONFIG(TAG, "  BWGAIN_32: 0x%08jX", (uintmax_t) val);
+  ESP_LOGCONFIG(TAG, "  PGA_V_8: 0x%X", pga_v_);
+  ESP_LOGCONFIG(TAG, "  PGA_IA_8: 0x%X", pga_ia_);
+  ESP_LOGCONFIG(TAG, "  PGA_IB_8: 0x%X", pga_ib_);
+  ESP_LOGCONFIG(TAG, "  VGAIN_32: 0x%08jX", (uintmax_t) vgain_);
+  ESP_LOGCONFIG(TAG, "  AIGAIN_32: 0x%08jX", (uintmax_t) aigain_);
+  ESP_LOGCONFIG(TAG, "  BIGAIN_32: 0x%08jX", (uintmax_t) bigain_);
+  ESP_LOGCONFIG(TAG, "  AWGAIN_32: 0x%08jX", (uintmax_t) awgain_);
+  ESP_LOGCONFIG(TAG, "  BWGAIN_32: 0x%08jX", (uintmax_t) bwgain_);
 }
 
 #define ADE_PUBLISH_(name, val, factor) \
