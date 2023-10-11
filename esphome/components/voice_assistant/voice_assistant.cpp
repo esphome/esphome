@@ -491,8 +491,17 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     case api::enums::VOICE_ASSISTANT_RUN_END: {
       ESP_LOGD(TAG, "Assist Pipeline ended");
       if (this->state_ == State::STREAMING_MICROPHONE) {
-        // No need to stop the microphone since we didn't use the speaker
-        this->set_state_(State::WAITING_FOR_VAD, State::WAITING_FOR_VAD);
+#ifdef USE_ESP_ADF
+        if (this->use_wake_word_) {
+          rb_reset(this->ring_buffer_);
+          // No need to stop the microphone since we didn't use the speaker
+          this->set_state_(State::WAIT_FOR_VAD, State::WAITING_FOR_VAD);
+        } else
+#else
+        {
+          this->set_state_(State::IDLE, State::IDLE);
+        }
+#endif
       }
       this->end_trigger_->trigger();
       break;
