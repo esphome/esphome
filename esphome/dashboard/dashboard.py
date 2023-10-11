@@ -32,6 +32,7 @@ import yaml
 from tornado.log import access_log
 
 from esphome import const, platformio_api, util, yaml_util
+from esphome.core import CORE
 from esphome.helpers import get_bool_env, mkdir_p, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -70,6 +71,7 @@ class DashboardSettings:
             self.password_hash = password_hash(password)
         self.config_dir = args.configuration
         self.absolute_config_dir = Path(self.config_dir).resolve()
+        CORE.config_path = os.path.join(self.config_dir, ".")
 
     @property
     def relative_url(self):
@@ -530,40 +532,75 @@ class ImportRequestHandler(BaseHandler):
         self.finish()
 
 
-class DownloadBinaryRequestHandler(BaseHandler):
+class DownloadListRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        type = self.get_argument("type", "firmware.bin")
-        compressed = self.get_argument("compressed", "0") == "1"
-
-        storage_path = ext_storage_path(settings.config_dir, configuration)
+        storage_path = ext_storage_path(configuration)
         storage_json = StorageJSON.load(storage_path)
         if storage_json is None:
             self.send_error(404)
             return
 
-        if storage_json.target_platform.lower() == const.PLATFORM_RP2040:
-            filename = f"{storage_json.name}.uf2"
-            path = storage_json.firmware_bin_path.replace(
-                "firmware.bin", "firmware.uf2"
-            )
+        from esphome.components.esp32 import (
+            get_download_types as esp32_types,
+            VARIANTS as ESP32_VARIANTS,
+        )
+        from esphome.components.esp8266 import get_download_types as esp8266_types
+        from esphome.components.rp2040 import get_download_types as rp2040_types
+        from esphome.components.libretiny import get_download_types as libretiny_types
 
-        elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
-            filename = f"{storage_json.name}.bin"
-            path = storage_json.firmware_bin_path
-
-        elif type == "firmware.bin":
-            filename = f"{storage_json.name}.bin"
-            path = storage_json.firmware_bin_path
-
-        elif type == "firmware-factory.bin":
-            filename = f"{storage_json.name}-factory.bin"
-            path = storage_json.firmware_bin_path.replace(
-                "firmware.bin", "firmware-factory.bin"
-            )
-
+        downloads = []
+        platform = storage_json.target_platform.lower()
+        if platform == const.PLATFORM_RP2040:
+            downloads = rp2040_types(storage_json)
+        elif platform == const.PLATFORM_ESP8266:
+            downloads = esp8266_types(storage_json)
+        elif platform.upper() in ESP32_VARIANTS:
+            downloads = esp32_types(storage_json)
+        elif platform == const.PLATFORM_BK72XX:
+            downloads = libretiny_types(storage_json)
+        elif platform == const.PLATFORM_RTL87XX:
+            downloads = libretiny_types(storage_json)
         else:
+            self.send_error(418)
+            return
+
+        self.set_status(200)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(downloads))
+        self.finish()
+        return
+
+
+class DownloadBinaryRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    def get(self, configuration=None):
+        compressed = self.get_argument("compressed", "0") == "1"
+
+        storage_path = ext_storage_path(configuration)
+        storage_json = StorageJSON.load(storage_path)
+        if storage_json is None:
+            self.send_error(404)
+            return
+
+        # fallback to type=, but prioritize file=
+        file_name = self.get_argument("type", None)
+        file_name = self.get_argument("file", file_name)
+        if file_name is None:
+            self.send_error(400)
+            return
+        file_name = file_name.replace("..", "").lstrip("/")
+        # get requested download name, or build it based on filename
+        download_name = self.get_argument(
+            "download",
+            f"{storage_json.name}-{file_name}",
+        )
+        path = os.path.dirname(storage_json.firmware_bin_path)
+        path = os.path.join(path, file_name)
+
+        if not Path(path).is_file():
             args = ["esphome", "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = run_system_command(*args)
 
@@ -575,9 +612,9 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
             found = False
             for image in idedata.extra_flash_images:
-                if image.path.endswith(type):
+                if image.path.endswith(file_name):
                     path = image.path
-                    filename = type
+                    download_name = file_name
                     found = True
                     break
 
@@ -585,10 +622,12 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 self.send_error(404)
                 return
 
-        filename = filename + ".gz" if compressed else filename
+        download_name = download_name + ".gz" if compressed else download_name
 
         self.set_header("Content-Type", "application/octet-stream")
-        self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.set_header(
+            "Content-Disposition", f'attachment; filename="{download_name}"'
+        )
         self.set_header("Cache-Control", "no-cache")
         if not Path(path).is_file():
             self.send_error(404)
@@ -629,9 +668,7 @@ class DashboardEntry:
     @property
     def storage(self) -> Optional[StorageJSON]:
         if not self._loaded_storage:
-            self._storage = StorageJSON.load(
-                ext_storage_path(settings.config_dir, self.filename)
-            )
+            self._storage = StorageJSON.load(ext_storage_path(self.filename))
             self._loaded_storage = True
         return self._storage
 
@@ -797,17 +834,21 @@ class BoardsRequestHandler(BaseHandler):
         from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
         from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
         from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
+        from esphome.components.bk72xx.boards import BOARDS as BK72XX_BOARDS
+        from esphome.components.rtl87xx.boards import BOARDS as RTL87XX_BOARDS
 
         platform_to_boards = {
-            "esp32": ESP32_BOARDS,
-            "esp8266": ESP8266_BOARDS,
-            "rp2040": RP2040_BOARDS,
+            const.PLATFORM_ESP32: ESP32_BOARDS,
+            const.PLATFORM_ESP8266: ESP8266_BOARDS,
+            const.PLATFORM_RP2040: RP2040_BOARDS,
+            const.PLATFORM_BK72XX: BK72XX_BOARDS,
+            const.PLATFORM_RTL87XX: RTL87XX_BOARDS,
         }
         # filter all ESP32 variants by requested platform
         if platform.startswith("esp32"):
             boards = {
                 k: v
-                for k, v in platform_to_boards["esp32"].items()
+                for k, v in platform_to_boards[const.PLATFORM_ESP32].items()
                 if v[const.KEY_VARIANT] == platform.upper()
             }
         else:
@@ -1003,9 +1044,9 @@ class DeleteRequestHandler(BaseHandler):
     @bind_config
     def post(self, configuration=None):
         config_file = settings.rel_path(configuration)
-        storage_path = ext_storage_path(settings.config_dir, configuration)
+        storage_path = ext_storage_path(configuration)
 
-        trash_path = trash_storage_path(settings.config_dir)
+        trash_path = trash_storage_path()
         mkdir_p(trash_path)
         shutil.move(config_file, os.path.join(trash_path, configuration))
 
@@ -1026,7 +1067,7 @@ class UndoDeleteRequestHandler(BaseHandler):
     @bind_config
     def post(self, configuration=None):
         config_file = settings.rel_path(configuration)
-        trash_path = trash_storage_path(settings.config_dir)
+        trash_path = trash_storage_path()
         shutil.move(os.path.join(trash_path, configuration), config_file)
 
 
@@ -1259,6 +1300,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}update-all", EsphomeUpdateAllHandler),
             (f"{rel}info", InfoRequestHandler),
             (f"{rel}edit", EditRequestHandler),
+            (f"{rel}downloads", DownloadListRequestHandler),
             (f"{rel}download.bin", DownloadBinaryRequestHandler),
             (f"{rel}serial-ports", SerialPortRequestHandler),
             (f"{rel}ping", PingRequestHandler),
@@ -1283,10 +1325,9 @@ def make_app(debug=get_bool_env(ENV_DEV)):
 
 def start_web_server(args):
     settings.parse_args(args)
-    mkdir_p(settings.rel_path(".esphome"))
 
     if settings.using_auth:
-        path = esphome_storage_path(settings.config_dir)
+        path = esphome_storage_path()
         storage = EsphomeStorageJSON.load(path)
         if storage is None:
             storage = EsphomeStorageJSON.get_default()

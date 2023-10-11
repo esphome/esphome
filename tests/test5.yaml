@@ -22,11 +22,18 @@ wifi:
         gateway: 192.168.1.1
         subnet: 255.255.255.0
 
+network:
+  enable_ipv6: true
+
 api:
 
 ota:
 
 logger:
+
+debug:
+
+psram:
 
 uart:
   - id: uart_1
@@ -388,6 +395,12 @@ select:
       "Three": 3
 
 sensor:
+  - platform: adc
+    id: adc_sensor_p32
+    name: ADC pin 32
+    pin: 32
+    attenuation: 11db
+    update_interval: 1s
   - platform: internal_temperature
     name: Internal Temperature
   - platform: selec_meter
@@ -525,6 +538,16 @@ sensor:
     time:
       name: System Time
 
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Heap Max Block"
+    loop_time:
+      name: "Loop Time"
+    psram:
+      name: "PSRAM Free"
+
   - platform: vbus
     model: custom
     command: 0x100
@@ -548,6 +571,13 @@ script:
           count: 5
           then:
             - logger.log: looping!
+
+  - id: zero_repeat_test
+    then:
+      - repeat:
+          count: !lambda "return 0;"
+          then:
+            - logger.log: shouldn't see mee!
 
 switch:
   - platform: modbus_controller
@@ -640,6 +670,7 @@ matrix_keypad:
     - pin: 17
     - pin: 16
   keys: "1234"
+  has_pulldowns: true
 
 key_collector:
   - id: reader

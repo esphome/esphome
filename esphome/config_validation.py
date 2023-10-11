@@ -51,6 +51,9 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
     TYPE_GIT,
     TYPE_LOCAL,
     VALID_SUBSTITUTIONS_CHARACTERS,
@@ -583,9 +586,9 @@ def only_with_framework(frameworks):
     return validator_
 
 
-only_on_esp32 = only_on("esp32")
-only_on_esp8266 = only_on("esp8266")
-only_on_rp2040 = only_on("rp2040")
+only_on_esp32 = only_on(PLATFORM_ESP32)
+only_on_esp8266 = only_on(PLATFORM_ESP8266)
+only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework("arduino")
 only_with_esp_idf = only_with_framework("esp-idf")
 
@@ -1500,6 +1503,8 @@ class SplitDefault(Optional):
         esp32_arduino=vol.UNDEFINED,
         esp32_idf=vol.UNDEFINED,
         rp2040=vol.UNDEFINED,
+        bk72xx=vol.UNDEFINED,
+        rtl87xx=vol.UNDEFINED,
         host=vol.UNDEFINED,
     ):
         super().__init__(key)
@@ -1511,6 +1516,8 @@ class SplitDefault(Optional):
             esp32_idf if esp32 is vol.UNDEFINED else esp32
         )
         self._rp2040_default = vol.default_factory(rp2040)
+        self._bk72xx_default = vol.default_factory(bk72xx)
+        self._rtl87xx_default = vol.default_factory(rtl87xx)
         self._host_default = vol.default_factory(host)
 
     @property
@@ -1523,6 +1530,10 @@ class SplitDefault(Optional):
             return self._esp32_idf_default
         if CORE.is_rp2040:
             return self._rp2040_default
+        if CORE.is_bk72xx:
+            return self._bk72xx_default
+        if CORE.is_rtl87xx:
+            return self._rtl87xx_default
         if CORE.is_host:
             return self._host_default
         raise NotImplementedError
@@ -1661,7 +1672,7 @@ def maybe_simple_value(*validators, **kwargs):
     return validate
 
 
-_ENTITY_CATEGORIES = {
+ENTITY_CATEGORIES = {
     ENTITY_CATEGORY_NONE: cg.EntityCategory.ENTITY_CATEGORY_NONE,
     ENTITY_CATEGORY_CONFIG: cg.EntityCategory.ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_DIAGNOSTIC: cg.EntityCategory.ENTITY_CATEGORY_DIAGNOSTIC,
@@ -1669,7 +1680,7 @@ _ENTITY_CATEGORIES = {
 
 
 def entity_category(value):
-    return enum(_ENTITY_CATEGORIES, lower=True)(value)
+    return enum(ENTITY_CATEGORIES, lower=True)(value)
 
 
 MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(

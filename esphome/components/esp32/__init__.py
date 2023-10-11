@@ -22,8 +22,10 @@ from esphome.const import (
     CONF_IGNORE_EFUSE_MAC_CRC,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
+    KEY_NAME,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
     TYPE_GIT,
     TYPE_LOCAL,
     __version__,
@@ -37,6 +39,7 @@ from .const import (  # noqa
     KEY_BOARD,
     KEY_COMPONENTS,
     KEY_ESP32,
+    KEY_EXTRA_BUILD_FILES,
     KEY_PATH,
     KEY_REF,
     KEY_REFRESH,
@@ -60,7 +63,7 @@ AUTO_LOAD = ["preferences"]
 
 def set_core_data(config):
     CORE.data[KEY_ESP32] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "esp32"
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP32
     conf = config[CONF_FRAMEWORK]
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "esp-idf"
@@ -73,6 +76,8 @@ def set_core_data(config):
     )
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ESP32][KEY_VARIANT] = config[CONF_VARIANT]
+    CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES] = {}
+
     return config
 
 
@@ -82,6 +87,23 @@ def get_esp32_variant(core_obj=None):
 
 def get_board(core_obj=None):
     return (core_obj or CORE).data[KEY_ESP32][KEY_BOARD]
+
+
+def get_download_types(storage_json):
+    return [
+        {
+            "title": "Modern format",
+            "description": "For use with ESPHome Web and other tools.",
+            "file": "firmware-factory.bin",
+            "download": f"{storage_json.name}-factory.bin",
+        },
+        {
+            "title": "Legacy format",
+            "description": "For use with ESPHome Flasher.",
+            "file": "firmware.bin",
+            "download": f"{storage_json.name}.bin",
+        },
+    ]
 
 
 def only_on_variant(*, supported=None, unsupported=None):
@@ -147,6 +169,24 @@ def add_idf_component(
             KEY_COMPONENTS: components,
             KEY_SUBMODULES: submodules,
         }
+
+
+def add_extra_script(stage: str, filename: str, path: str):
+    """Add an extra script to the project."""
+    key = f"{stage}:{filename}"
+    if add_extra_build_file(filename, path):
+        cg.add_platformio_option("extra_scripts", [key])
+
+
+def add_extra_build_file(filename: str, path: str) -> bool:
+    """Add an extra build file to the project."""
+    if filename not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
+        CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES][filename] = {
+            KEY_NAME: filename,
+            KEY_PATH: path,
+        }
+        return True
+    return False
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
@@ -373,7 +413,11 @@ async def to_code(config):
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
 
-    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+    add_extra_script(
+        "post",
+        "post_build2.py",
+        os.path.join(os.path.dirname(__file__), "post_build.py.script"),
+    )
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option("framework", "espidf")
@@ -587,9 +631,15 @@ def copy_files():
                         ignore_dangling_symlinks=True,
                     )
 
-    dir = os.path.dirname(__file__)
-    post_build_file = os.path.join(dir, "post_build.py.script")
-    copy_file_if_changed(
-        post_build_file,
-        CORE.relative_build_path("post_build.py"),
-    )
+    for _, file in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES].items():
+        if file[KEY_PATH].startswith("http"):
+            import requests
+
+            mkdir_p(CORE.relative_build_path(os.path.dirname(file[KEY_NAME])))
+            with open(CORE.relative_build_path(file[KEY_NAME]), "wb") as f:
+                f.write(requests.get(file[KEY_PATH], timeout=30).content)
+        else:
+            copy_file_if_changed(
+                file[KEY_PATH],
+                CORE.relative_build_path(file[KEY_NAME]),
+            )
