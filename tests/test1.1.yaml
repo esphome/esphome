@@ -23,6 +23,10 @@ esphome:
           blue: 0%
           white: 100%
 
+wled:
+
+adalight:
+
 light:
   - platform: fastled_clockless
     id: addr1

@@ -292,10 +292,6 @@ as3935_spi:
   cs_pin: GPIO12
   irq_pin: GPIO13
 
-wled:
-
-adalight:
-
 esp32_ble:
   io_capability: keyboard_only
 
