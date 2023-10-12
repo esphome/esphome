@@ -18,8 +18,8 @@ void Nextion::set_wake_up_page(uint8_t page_id) {
 }
 
 void Nextion::set_touch_sleep_timeout(uint16_t timeout) {
-  if (timeout < 3 || timeout > 65535) {
-    ESP_LOGD(TAG, "Sleep timeout out of bounds, range 3-65535");
+  if (timeout != 0 && (timeout < 3 || timeout > 65535)) {
+    ESP_LOGD(TAG, "Sleep timeout out of bounds, range 3-65535 or 0");
     return;
   }
 
