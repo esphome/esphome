@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2023.10.0-dev"
+__version__ = "2023.11.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -783,6 +783,7 @@ CONF_TRACES = "traces"
 CONF_TRANSITION_LENGTH = "transition_length"
 CONF_TRIGGER_ID = "trigger_id"
 CONF_TRIGGER_PIN = "trigger_pin"
+CONF_TUNE_ANTENNA = "tune_antenna"
 CONF_TURN_OFF_ACTION = "turn_off_action"
 CONF_TURN_ON_ACTION = "turn_on_action"
 CONF_TVOC = "tvoc"
