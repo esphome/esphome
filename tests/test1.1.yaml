@@ -25,6 +25,8 @@ esphome:
 
 wled:
 
+wifi:
+
 uart:
   - id: adalight_uart
     tx_pin: GPIO25
