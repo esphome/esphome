@@ -39,6 +39,12 @@ network:
 e131:
 
 light:
+  - platform: rgb
+    name: Living Room Lights
+    id: ${roomname}_lights
+    red: pca_0
+    green: pca_1
+    blue: pca_2
   - platform: fastled_clockless
     id: addr1
     chipset: WS2811
