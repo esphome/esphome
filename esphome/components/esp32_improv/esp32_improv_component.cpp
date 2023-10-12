@@ -24,6 +24,7 @@ void ESP32ImprovComponent::setup() {
     this->authorizer_->add_on_state_callback([this](bool state) {
       if (state) {
         this->authorized_start_ = millis();
+        this->identify_start_ = 0;
       }
     });
   }
