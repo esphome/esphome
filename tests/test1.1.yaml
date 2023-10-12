@@ -47,6 +47,31 @@ power_supply:
     number: 13
     inverted: true
 
+
+i2c:
+  sda: 21
+  scl: 22
+  scan: true
+  frequency: 100kHz
+  setup_priority: -100
+  id: i2c_bus
+  
+pca9685:
+  frequency: 500
+  address: 0x0
+  i2c_id: i2c_bus
+
+output:
+  - platform: pca9685
+    id: pca_0
+    channel: 0
+  - platform: pca9685
+    id: pca_1
+    channel: 1
+  - platform: pca9685
+    id: pca_2
+    channel: 2
+
 light:
   - platform: rgb
     name: Living Room Lights
