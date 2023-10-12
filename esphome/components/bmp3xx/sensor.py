@@ -87,14 +87,16 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
     cg.add(var.set_iir_filter_config(config[CONF_IIR_FILTER]))
-    if CONF_TEMPERATURE in config:
-        conf = config[CONF_TEMPERATURE]
-        sens = await sensor.new_sensor(conf)
+    if temperature_config := config.get(CONF_TEMPERATURE):
+        sens = await sensor.new_sensor(temperature_config)
         cg.add(var.set_temperature_sensor(sens))
-        cg.add(var.set_temperature_oversampling_config(conf[CONF_OVERSAMPLING]))
+        cg.add(
+            var.set_temperature_oversampling_config(
+                temperature_config[CONF_OVERSAMPLING]
+            )
+        )
 
-    if CONF_PRESSURE in config:
-        conf = config[CONF_PRESSURE]
-        sens = await sensor.new_sensor(conf)
+    if pressure_config := config.get(CONF_PRESSURE):
+        sens = await sensor.new_sensor(pressure_config)
         cg.add(var.set_pressure_sensor(sens))
-        cg.add(var.set_pressure_oversampling_config(conf[CONF_OVERSAMPLING]))
+        cg.add(var.set_pressure_oversampling_config(pressure_config[CONF_OVERSAMPLING]))

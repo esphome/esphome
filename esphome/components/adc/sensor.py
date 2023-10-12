@@ -1,5 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
+from esphome.core import CORE
 from esphome.components import sensor, voltage_sampler
 from esphome.components.esp32 import get_esp32_variant
 from esphome.const import (
@@ -8,15 +10,15 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_PIN,
     CONF_RAW,
+    CONF_WIFI,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
 )
-from esphome.core import CORE
-
 from . import (
     ATTENUATION_MODES,
     ESP32_VARIANT_ADC1_PIN_TO_CHANNEL,
+    ESP32_VARIANT_ADC2_PIN_TO_CHANNEL,
     validate_adc_pin,
 )
 
@@ -25,7 +27,23 @@ AUTO_LOAD = ["voltage_sampler"]
 
 def validate_config(config):
     if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
-        raise cv.Invalid("Automatic attenuation cannot be used when raw output is set.")
+        raise cv.Invalid("Automatic attenuation cannot be used when raw output is set")
+
+    return config
+
+
+def final_validate_config(config):
+    if CORE.is_esp32:
+        variant = get_esp32_variant()
+        if (
+            CONF_WIFI in fv.full_config.get()
+            and config[CONF_PIN][CONF_NUMBER]
+            in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant]
+        ):
+            raise cv.Invalid(
+                f"{variant} doesn't support ADC on this pin when Wi-Fi is configured"
+            )
+
     return config
 
 
@@ -55,6 +73,8 @@ CONFIG_SCHEMA = cv.All(
     validate_config,
 )
 
+FINAL_VALIDATE_SCHEMA = final_validate_config
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -69,17 +89,26 @@ async def to_code(config):
         pin = await cg.gpio_pin_expression(config[CONF_PIN])
         cg.add(var.set_pin(pin))
 
-    if CONF_RAW in config:
-        cg.add(var.set_output_raw(config[CONF_RAW]))
+    cg.add(var.set_output_raw(config[CONF_RAW]))
 
-    if CONF_ATTENUATION in config:
-        if config[CONF_ATTENUATION] == "auto":
+    if attenuation := config.get(CONF_ATTENUATION):
+        if attenuation == "auto":
             cg.add(var.set_autorange(cg.global_ns.true))
         else:
-            cg.add(var.set_attenuation(config[CONF_ATTENUATION]))
+            cg.add(var.set_attenuation(attenuation))
 
     if CORE.is_esp32:
         variant = get_esp32_variant()
         pin_num = config[CONF_PIN][CONF_NUMBER]
-        chan = ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant][pin_num]
-        cg.add(var.set_channel(chan))
+        if (
+            variant in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL
+            and pin_num in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant]
+        ):
+            chan = ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant][pin_num]
+            cg.add(var.set_channel1(chan))
+        elif (
+            variant in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL
+            and pin_num in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant]
+        ):
+            chan = ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant][pin_num]
+            cg.add(var.set_channel2(chan))
