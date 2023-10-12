@@ -26,7 +26,7 @@ RUN \
         python3-venv=3.9.2-3 \
         iputils-ping=3:20210202-1 \
         git=1:2.30.2-1+deb11u2 \
-        curl=7.74.0-1.3+deb11u9 \
+        curl=7.74.0-1.3+deb11u10 \
         openssh-client=1:8.4p1-5+deb11u2 \
         python3-cffi=1.14.5-1 \
         libcairo2=1.16.0-5 \
