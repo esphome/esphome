@@ -188,6 +188,9 @@ void VoiceAssistant::loop() {
           } else {
             ESP_LOGD(TAG, "VAD detected speech");
             this->set_state_(State::START_PIPELINE, State::STREAMING_MICROPHONE);
+
+            // Reset for next time
+            this->vad_counter_ = 0;
           }
         } else {
           if (this->vad_counter_ > 0) {
@@ -270,13 +273,18 @@ void VoiceAssistant::loop() {
             this->speaker_buffer_size_ += len;
           }
         } else {
-          ESP_LOGW(TAG, "Speaker buffer full.");
+          ESP_LOGW(TAG, "Receive buffer full.");
         }
         if (this->speaker_buffer_size_ > 0) {
           size_t written = this->speaker_->play(this->speaker_buffer_, this->speaker_buffer_size_);
-          memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
-          this->speaker_buffer_size_ -= written;
-          this->speaker_buffer_index_ -= written;
+          if (written > 0) {
+            memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
+            this->speaker_buffer_size_ -= written;
+            this->speaker_buffer_index_ -= written;
+            this->set_timeout("speaker-timeout", 1000, [this]() { this->speaker_->stop(); });
+          } else {
+            ESP_LOGW(TAG, "Speaker buffer full.");
+          }
         }
         playing = this->speaker_->is_running();
       }
@@ -287,7 +295,10 @@ void VoiceAssistant::loop() {
       }
 #endif
       if (playing) {
-        this->set_timeout("playing", 100, [this]() { this->set_state_(State::IDLE, State::IDLE); });
+        this->set_timeout("playing", 100, [this]() {
+          this->cancel_timeout("speaker-timeout");
+          this->set_state_(State::IDLE, State::IDLE);
+        });
       }
       break;
     }
@@ -483,8 +494,17 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     }
     case api::enums::VOICE_ASSISTANT_RUN_END: {
       ESP_LOGD(TAG, "Assist Pipeline ended");
-      if (this->state_ != State::STREAMING_RESPONSE && this->state_ != State::IDLE) {
-        this->set_state_(State::IDLE, State::IDLE);
+      if (this->state_ == State::STREAMING_MICROPHONE) {
+#ifdef USE_ESP_ADF
+        if (this->use_wake_word_) {
+          rb_reset(this->ring_buffer_);
+          // No need to stop the microphone since we didn't use the speaker
+          this->set_state_(State::WAIT_FOR_VAD, State::WAITING_FOR_VAD);
+        } else
+#endif
+        {
+          this->set_state_(State::IDLE, State::IDLE);
+        }
       }
       this->end_trigger_->trigger();
       break;
@@ -500,7 +520,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         }
       }
       if (code == "wake-word-timeout" || code == "wake_word_detection_aborted") {
-        this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+        // Don't change state here since either the "tts-end" or "run-end" events will do it.
         return;
       }
       ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
