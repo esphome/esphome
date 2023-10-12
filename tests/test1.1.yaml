@@ -38,6 +38,15 @@ network:
 
 e131:
 
+
+power_supply:
+  id: atx_power_supply
+  enable_time: 20ms
+  keep_on_time: 10s
+  pin:
+    number: 13
+    inverted: true
+
 light:
   - platform: rgb
     name: Living Room Lights
