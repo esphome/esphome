@@ -43,7 +43,7 @@ void BP5758D::loop() {
   uint8_t data[17];
   if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
       this->pwm_amounts_[3] == 0 && this->pwm_amounts_[4] == 0) {
-    for (int i = 1; i < 16; i++)
+    for (int i = 1; i < 17; i++)
       data[i] = 0;
 
     // First turn all channels off
