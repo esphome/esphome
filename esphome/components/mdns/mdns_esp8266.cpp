@@ -13,8 +13,7 @@ namespace mdns {
 void MDNSComponent::setup() {
   this->compile_records_();
 
-  network::IPAddress addr = network::get_ip_address();
-  MDNS.begin(this->hostname_.c_str(), (uint32_t) addr);
+  MDNS.begin(this->hostname_.c_str());
 
   for (const auto &service : this->services_) {
     // Strip the leading underscore from the proto and service_type. While it is
