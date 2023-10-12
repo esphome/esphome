@@ -92,7 +92,8 @@ void ESP32ImprovComponent::loop() {
       break;
     case improv::STATE_AWAITING_AUTHORIZATION: {
 #ifdef USE_BINARY_SENSOR
-      if (this->authorizer_ == nullptr || (now - this->authorized_start_) < this->authorized_duration_) {
+      if (this->authorizer_ == nullptr ||
+          (this->authorized_start_ != 0 && ((now - this->authorized_start_) < this->authorized_duration_))) {
         this->set_state_(improv::STATE_AUTHORIZED);
       } else
 #else
