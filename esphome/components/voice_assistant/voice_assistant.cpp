@@ -281,7 +281,6 @@ void VoiceAssistant::loop() {
             memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
             this->speaker_buffer_size_ -= written;
             this->speaker_buffer_index_ -= written;
-            this->last_data_played_at_ = millis();
             this->set_timeout("speaker-timeout", 1000, [this]() { this->speaker_->stop(); });
           } else {
             ESP_LOGW(TAG, "Speaker buffer full.");
