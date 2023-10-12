@@ -6,7 +6,7 @@ substitutions:
   roomname: fastled_room
 
 esphome:
-  name: test1_1
+  name: test1-1
   name_add_mac_suffix: true
   platform: ESP32
   board: nodemcu-32s
