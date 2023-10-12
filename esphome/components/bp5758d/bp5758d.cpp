@@ -47,7 +47,7 @@ void BP5758D::loop() {
       data[i] = 0;
 
     // First turn all channels off
-    data[0] = BP5758D_MODEL_ID + BP5758D_ADDR_START_3CH;
+    data[0] = BP5758D_MODEL_ID + BP5758D_ADDR_START_5CH;
     this->write_buffer_(data, 17);
     // Then sleep
     data[0] = BP5758D_MODEL_ID + BP5758D_ADDR_STANDBY;
