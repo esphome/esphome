@@ -1101,6 +1101,16 @@ sensor:
     ambient_pressure_compensation: 961mBar
     temperature_offset: 4.2C
     i2c_id: i2c_bus
+  - platform: sfa30
+    formaldehyde:
+      name: "SFA30 formaldehyde"
+    temperature:
+      name: "SFA30 temperature"
+    humidity:
+      name: "SFA30 humidity"
+    i2c_id: i2c_bus
+    address: 0x5D
+    update_interval: 30s
   - platform: sen0321
     name: Workshop Ozone Sensor
     id: sen0321_ozone
