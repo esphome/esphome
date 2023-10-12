@@ -273,17 +273,19 @@ void VoiceAssistant::loop() {
             this->speaker_buffer_size_ += len;
           }
         } else {
-          ESP_LOGW(TAG, "Speaker buffer full.");
-
-          // Abort playback
-          this->set_state_(State::IDLE, State::IDLE);
-          break;
+          ESP_LOGW(TAG, "Receive buffer full.");
         }
         if (this->speaker_buffer_size_ > 0) {
           size_t written = this->speaker_->play(this->speaker_buffer_, this->speaker_buffer_size_);
-          memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
-          this->speaker_buffer_size_ -= written;
-          this->speaker_buffer_index_ -= written;
+          if (written > 0) {
+            memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
+            this->speaker_buffer_size_ -= written;
+            this->speaker_buffer_index_ -= written;
+            this->last_data_played_at_ = millis();
+            this->set_timeout("speaker-timeout", 1000, [this]() { this->speaker_->stop(); });
+          } else {
+            ESP_LOGW(TAG, "Speaker buffer full.");
+          }
         }
         playing = this->speaker_->is_running();
       }
@@ -294,7 +296,10 @@ void VoiceAssistant::loop() {
       }
 #endif
       if (playing) {
-        this->set_timeout("playing", 100, [this]() { this->set_state_(State::IDLE, State::IDLE); });
+        this->set_timeout("playing", 100, [this]() {
+          this->cancel_timeout("speaker-timeout");
+          this->set_state_(State::IDLE, State::IDLE);
+        });
       }
       break;
     }
