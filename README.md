@@ -4,6 +4,6 @@
 
 **Documentation:** https://esphome.io/
 
-For issues, please go to [the issue tracker](https://github.com/esphome/issues/issues).
+**Issue Tracker, please go to** [the issue tracker](https://github.com/esphome/issues/issues).
 
-For feature requests, please see [feature requests](https://github.com/esphome/feature-requests/issues).
+**Feature Requests, please see** [feature requests](https://github.com/esphome/feature-requests/issues).
