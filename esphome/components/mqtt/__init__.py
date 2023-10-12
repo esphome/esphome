@@ -43,6 +43,9 @@ from esphome.const import (
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_BK72XX,
 )
 from esphome.core import coroutine_with_priority, CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
@@ -250,7 +253,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
-    cv.only_on(["esp32", "esp8266", "bk72xx"]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
 )
 
 

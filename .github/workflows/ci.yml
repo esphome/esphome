@@ -34,13 +34,13 @@ jobs:
       cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Generate cache-key
         id: cache-key
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@v4.7.0
+        uses: actions/setup-python@v4.7.1
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
@@ -66,7 +66,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -87,7 +87,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -108,7 +108,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -129,7 +129,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -150,7 +150,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -171,7 +171,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -191,7 +191,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -210,6 +210,17 @@ jobs:
         run: script/ci-suggest-changes
         if: always()
 
+  compile-tests-list:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.0
+      - name: Find all YAML test files
+        id: set-matrix
+        run: echo "matrix=$(ls tests/test*.yaml | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
+
   compile-tests:
     name: Run YAML test ${{ matrix.file }}
     runs-on: ubuntu-latest
@@ -222,23 +233,24 @@ jobs:
       - pylint
       - pytest
       - pyupgrade
+      - compile-tests-list
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
-        file: [1, 2, 3, 3.1, 4, 5, 6, 7, 8, 10, 11.5]
+        file: ${{ fromJson(needs.compile-tests-list.outputs.matrix) }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run esphome compile tests/test${{ matrix.file }}.yaml
+      - name: Run esphome compile ${{ matrix.file }}
         run: |
           . venv/bin/activate
-          esphome compile tests/test${{ matrix.file }}.yaml
+          esphome compile ${{ matrix.file }}
 
   clang-tidy:
     name: ${{ matrix.name }}
@@ -284,7 +296,7 @@ jobs:
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v4.1.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:

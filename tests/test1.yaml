@@ -82,6 +82,9 @@ wifi:
   reboot_timeout: 120s
   power_save_mode: light
 
+network:
+  enable_ipv6: true
+
 mdns:
   disabled: false
 
@@ -1479,6 +1482,17 @@ sensor:
       name: "Loop Time"
     psram:
       name: "PSRAM Free"
+  - platform: mmc5983
+    i2c_id: i2c_bus
+    field_strength_x:
+      name: "Magnet X"
+      id: magnet_x
+    field_strength_y:
+      name: "Magnet Y"
+      id: magnet_y
+    field_strength_z:
+      name: "Magnet Z"
+      id: magnet_z
 
 esp32_touch:
   setup_mode: false
@@ -2620,6 +2634,11 @@ switch:
             0xFF,
           ]
   - platform: template
+    name: Haier
+    turn_on_action:
+      remote_transmitter.transmit_haier:
+        code: [0xA6, 0xDA, 0x00, 0x00, 0x40, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x05]
+  - platform: template
     name: Living Room Lights
     id: livingroom_lights
     optimistic: true
@@ -2945,7 +2964,7 @@ display:
     cs_pin: GPIO5
     dc_pin: GPIO16
     reset_pin: GPIO23
-    backlight_pin: GPIO4
+    backlight_pin: no
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7920
@@ -3101,11 +3120,39 @@ time:
   - platform: ds1307
     id: ds1307_time
     update_interval: never
-    on_time:
-      seconds: 0
-      then: ds1307.read_time
     i2c_id: i2c_bus
-
+    on_time:
+      - seconds: 0
+        then: ds1307.read_time
+      - at: "16:00:00"
+        then:
+          - if:
+              condition:
+                or:
+                  - binary_sensor.is_on: close_sensor
+                  - binary_sensor.is_on: open_sensor
+              then:
+                logger.log: "close_sensor or open_sensor is on"
+          - if:
+              condition:
+                and:
+                  - binary_sensor.is_on: close_sensor
+                  - binary_sensor.is_on: open_sensor
+              then:
+                logger.log: "close_sensor and open_sensor are both on"
+          - if:
+              condition:
+                xor:
+                  - binary_sensor.is_on: close_sensor
+                  - binary_sensor.is_on: open_sensor
+              then:
+                logger.log: "close_sensor or open_sensor is exclusively on"
+          - if:
+              condition:
+                not:
+                  - binary_sensor.is_on: close_sensor
+              then:
+                logger.log: "close_sensor is not on"
 cover:
   - platform: template
     name: Template Cover
@@ -3563,6 +3610,22 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+  - platform: template
+    name: Poller component suspend test
+    on_press:
+      - component.suspend: myteleinfo
+      - delay: 20s
+      - component.update: myteleinfo
+      - delay: 20s
+      - component.resume: myteleinfo
+      - delay: 20s
+      - component.resume:
+          id: myteleinfo
+          update_interval: 2s
+      - delay: 20s
+      - component.resume:
+          id: myteleinfo
+          update_interval: !lambda return 2500;
   - platform: ld2410
     factory_reset:
       name: "factory reset"
