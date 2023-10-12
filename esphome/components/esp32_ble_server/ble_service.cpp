@@ -90,6 +90,7 @@ void BLEService::stop() {
     ESP_LOGE(TAG, "esp_ble_gatts_stop_service failed: %d", err);
     return;
   }
+  esp32_ble::global_ble->get_advertising()->remove_service_uuid(this->uuid_);
   this->running_state_ = STOPPING;
 }
 
