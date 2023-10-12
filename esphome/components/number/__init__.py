@@ -18,6 +18,8 @@ from esphome.const import (
     CONF_VALUE,
     CONF_OPERATION,
     CONF_CYCLE,
+    CONF_RESTORE_DEFAULT_STATE,
+    CONF_RESTORE_MODE,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
@@ -128,6 +130,13 @@ number_ns = cg.esphome_ns.namespace("number")
 Number = number_ns.class_("Number", cg.EntityBase)
 NumberPtr = Number.operator("ptr")
 
+NumberRestoreMode = number_ns.enum("NumberRestoreMode")
+
+RESTORE_MODES = {
+    "ENABLED": NumberRestoreMode.NUMBER_RESTORE_ENABLED,
+    "DISABLED": NumberRestoreMode.NUMBER_RESTORE_DISABLED
+}
+
 # Triggers
 NumberStateTrigger = number_ns.class_(
     "NumberStateTrigger", automation.Trigger.template(cg.float_)
@@ -197,8 +206,13 @@ def number_schema(
     entity_category: str = _UNDEF,
     device_class: str = _UNDEF,
     unit_of_measurement: str = _UNDEF,
+    default_restore_mode: str = "DISABLED",
 ) -> cv.Schema:
-    schema = {cv.GenerateID(): cv.declare_id(class_)}
+    schema = {cv.GenerateID(): cv.declare_id(class_),
+              cv.Optional(CONF_RESTORE_MODE, default=default_restore_mode): cv.enum(
+                  RESTORE_MODES, upper=True, space="_"
+              ),
+              cv.Optional(CONF_RESTORE_DEFAULT_STATE, default=0): cv.templatable(cv.float_)}
 
     for key, default, validator in [
         (CONF_ICON, icon, cv.icon),
@@ -244,6 +258,11 @@ async def setup_number_core_(
         await mqtt.register_mqtt_component(mqtt_, config)
     if CONF_DEVICE_CLASS in config:
         cg.add(var.traits.set_device_class(config[CONF_DEVICE_CLASS]))
+
+    if CONF_RESTORE_MODE in config:
+        cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
+    if CONF_RESTORE_DEFAULT_STATE in config:
+        cg.add(var.set_restore_default_state(config[CONF_RESTORE_DEFAULT_STATE]))
 
 
 async def register_number(
