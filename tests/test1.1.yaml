@@ -29,7 +29,7 @@ wifi:
   networks:
     - ssid: "MySSID"
       password: "password1"
-      
+
 uart:
   - id: adalight_uart
     tx_pin: GPIO25
