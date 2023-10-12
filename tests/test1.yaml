@@ -875,10 +875,10 @@ sensor:
     name: Linearly combined temperatures
     sources:
       - source: scd30_temperature
-        constant: !lambda |-
+        coeffecient: !lambda |-
           return 0.4 + std::abs(x - 25) * 0.023;
       - source: scd4x_temperature
-        constant: 1.5
+        coeffecient: 1.5
   - platform: combination
     type: max
     name: Max of combined temperatures

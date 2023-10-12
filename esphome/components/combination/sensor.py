@@ -22,7 +22,7 @@ CombinationComponent = combination_ns.class_(
     "CombinationComponent", cg.Component, sensor.Sensor
 )
 
-CONF_CONSTANT = "constant"
+CONF_COEFFECIENT = "coeffecient"
 CONF_ERROR = "error"
 CONF_KALMAN = "kalman"
 CONF_LINEAR = "linear"
@@ -59,7 +59,7 @@ KALMAN_SOURCE_SCHEMA = cv.Schema(
 LINEAR_SOURCE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
-        cv.Required(CONF_CONSTANT): cv.templatable(cv.float_),
+        cv.Required(CONF_COEFFECIENT): cv.templatable(cv.float_),
     }
 )
 
@@ -152,14 +152,14 @@ async def to_code(config):
             )
             cg.add(var.add_source(source, error))
         elif config[CONF_TYPE] == CONF_LINEAR:
-            constant = await cg.templatable(
-                source_conf[CONF_CONSTANT],
+            coeffecient = await cg.templatable(
+                source_conf[CONF_COEFFECIENT],
                 [(float, "x")],
                 cg.float_,
             )
-            cg.add(var.add_source(source, constant))
+            cg.add(var.add_source(source, coeffecient))
         else:
-            # If SUM type, then we use a linear combination with constants of 1. All other types do not use the constant at all
+            # If SUM type, then we use a linear combination with coeffecients of 1. All other types do not use the given coeffecient at all
             cg.add(var.add_source(source, 1))
 
     if CONF_STD_DEV in config:

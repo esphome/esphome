@@ -70,8 +70,7 @@ void CombinationComponent::handle_new_value_(float value) {
     return;
   switch (this->combo_type_) {
     case CombinationType::COMBINATION_LINEAR: {
-      // Multiplies sensor states by a configured constant and then sums them
-
+      // Multiply each sensor state by a configured coeffecient and then sum
       float sum = 0.0;
 
       for (const auto &sensor : this->sensors_) {
