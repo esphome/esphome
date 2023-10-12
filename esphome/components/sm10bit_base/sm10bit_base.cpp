@@ -120,7 +120,7 @@ void Sm10BitBase::write_buffer_(uint8_t *buffer, uint8_t size) {
   for (uint32_t i = 0; i < size; i++) {
     this->write_byte_(buffer[i]);
   }
-  
+
   this->clock_pin_->digital_write(true);
   delayMicroseconds(SM10BIT_DELAY);
   this->data_pin_->digital_write(true);
