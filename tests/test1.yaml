@@ -214,12 +214,6 @@ uart:
         - lambda: UARTDebug::log_string(direction, bytes);
         - lambda: UARTDebug::log_int(direction, bytes, ',');
         - lambda: UARTDebug::log_binary(direction, bytes, ';');
-
-  - id: adalight_uart
-    tx_pin: GPIO25
-    rx_pin: GPIO26
-    baud_rate: 115200
-    rx_buffer_size: 1024
   - id: ld2410_uart
     tx_pin: 18
     rx_pin: 23

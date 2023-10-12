@@ -25,6 +25,13 @@ esphome:
 
 wled:
 
+uart:
+  - id: adalight_uart
+    tx_pin: GPIO25
+    rx_pin: GPIO26
+    baud_rate: 115200
+    rx_buffer_size: 1024
+
 adalight:
 
 network:
