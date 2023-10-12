@@ -73,6 +73,6 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     for key, funcName in SENSOR_MAP.items():
-        if key in config:
-            sens = await sensor.new_sensor(config[key])
+        if sensor_config := config.get(key):
+            sens = await sensor.new_sensor(sensor_config)
             cg.add(getattr(var, funcName)(sens))
