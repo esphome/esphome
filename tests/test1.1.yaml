@@ -38,7 +38,6 @@ network:
 
 e131:
 
-
 power_supply:
   id: atx_power_supply
   enable_time: 20ms
@@ -47,7 +46,6 @@ power_supply:
     number: 13
     inverted: true
 
-
 i2c:
   sda: 21
   scl: 22
@@ -55,7 +53,7 @@ i2c:
   frequency: 100kHz
   setup_priority: -100
   id: i2c_bus
-  
+
 pca9685:
   frequency: 500
   address: 0x0
