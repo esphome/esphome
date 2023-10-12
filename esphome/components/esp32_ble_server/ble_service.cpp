@@ -91,6 +91,7 @@ void BLEService::stop() {
     return;
   }
   esp32_ble::global_ble->get_advertising()->remove_service_uuid(this->uuid_);
+  esp32_ble::global_ble->get_advertising()->start();
   this->running_state_ = STOPPING;
 }
 
