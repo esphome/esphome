@@ -2061,8 +2061,6 @@ output:
     ud_pin: GPIO27
     initial_value: 0.5
 
-e131:
-
 light:
   - platform: binary
     name: Desk Lamp

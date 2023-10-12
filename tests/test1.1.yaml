@@ -27,6 +27,8 @@ wled:
 
 adalight:
 
+e131:
+
 light:
   - platform: fastled_clockless
     id: addr1
@@ -92,6 +94,9 @@ light:
       - adalight:
           uart_id: adalight_uart
 
+      - e131:
+          universe: 1
+
       - automation:
           name: Custom Effect
           sequence:
@@ -106,8 +111,7 @@ light:
                 red: 0%
                 green: 100%
                 blue: 0%
-      - e131:
-          universe: 1
+
   - platform: fastled_spi
     id: addr2
     chipset: WS2801
