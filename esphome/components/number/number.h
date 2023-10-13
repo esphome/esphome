@@ -22,13 +22,10 @@ namespace number {
     if (!(obj)->traits.get_device_class().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->traits.get_device_class().c_str()); \
     }                                 \
-    const LogString *restore; \
-    if (obj->restore_mode & number::RESTORE_MODE_DISABLED_MASK) { \
-      restore = LOG_STR("disabled"); \
-    } else { \
-      restore = obj->restore_mode & number::RESTORE_MODE_PERSISTENT_MASK ? LOG_STR("restore defaults to") : LOG_STR("INVALID");\
-    } \
-    ESP_LOGCONFIG(TAG, "%s  Restore Mode: %s %.5f", prefix, LOG_STR_ARG(restore), obj->restore_default_state);\
+    const LogString *restore = obj->restore_mode == number::NumberRestoreMode::NUMBER_RESTORE_DISABLED \
+        ? LOG_STR("disabled") \
+        : LOG_STR("restore defaults to"); \
+    ESP_LOGCONFIG(TAG, "%s  Restore Mode: %s %.2f", prefix, LOG_STR_ARG(restore), obj->restore_default_state);\
   }
 
 #define SUB_NUMBER(name) \
