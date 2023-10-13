@@ -18,6 +18,17 @@ ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
 void ESP32ImprovComponent::setup() {
   this->service_ = global_ble_server->create_service(improv::SERVICE_UUID, true);
   this->setup_characteristics();
+
+#ifdef USE_BINARY_SENSOR
+  if (this->authorizer_ != nullptr) {
+    this->authorizer_->add_on_state_callback([this](bool state) {
+      if (state) {
+        this->authorized_start_ = millis();
+        this->identify_start_ = 0;
+      }
+    });
+  }
+#endif
 }
 
 void ESP32ImprovComponent::setup_characteristics() {
@@ -50,8 +61,10 @@ void ESP32ImprovComponent::setup_characteristics() {
   BLEDescriptor *capabilities_descriptor = new BLE2902();
   this->capabilities_->add_descriptor(capabilities_descriptor);
   uint8_t capabilities = 0x00;
+#ifdef USE_OUTPUT
   if (this->status_indicator_ != nullptr)
     capabilities |= improv::CAPABILITY_IDENTIFY;
+#endif
   this->capabilities_->set_value(capabilities);
   this->setup_complete_ = true;
 }
@@ -63,8 +76,7 @@ void ESP32ImprovComponent::loop() {
 
   switch (this->state_) {
     case improv::STATE_STOPPED:
-      if (this->status_indicator_ != nullptr)
-        this->status_indicator_->turn_off();
+      this->set_status_indicator_state_(false);
 
       if (this->service_->is_created() && this->should_start_ && this->setup_complete_) {
         if (this->service_->is_running()) {
@@ -80,14 +92,17 @@ void ESP32ImprovComponent::loop() {
       }
       break;
     case improv::STATE_AWAITING_AUTHORIZATION: {
-      if (this->authorizer_ == nullptr || this->authorizer_->state) {
+#ifdef USE_BINARY_SENSOR
+      if (this->authorizer_ == nullptr ||
+          (this->authorized_start_ != 0 && ((now - this->authorized_start_) < this->authorized_duration_))) {
         this->set_state_(improv::STATE_AUTHORIZED);
-        this->authorized_start_ = now;
-      } else {
-        if (this->status_indicator_ != nullptr) {
-          if (!this->check_identify_())
-            this->status_indicator_->turn_on();
-        }
+      } else
+#else
+      this->set_state_(improv::STATE_AUTHORIZED);
+#endif
+      {
+        if (!this->check_identify_())
+          this->set_status_indicator_state_(true);
       }
       break;
     }
@@ -99,25 +114,13 @@ void ESP32ImprovComponent::loop() {
           return;
         }
       }
-      if (this->status_indicator_ != nullptr) {
-        if (!this->check_identify_()) {
-          if ((now % 1000) < 500) {
-            this->status_indicator_->turn_on();
-          } else {
-            this->status_indicator_->turn_off();
-          }
-        }
+      if (!this->check_identify_()) {
+        this->set_status_indicator_state_((now % 1000) < 500);
       }
       break;
     }
     case improv::STATE_PROVISIONING: {
-      if (this->status_indicator_ != nullptr) {
-        if ((now % 200) < 100) {
-          this->status_indicator_->turn_on();
-        } else {
-          this->status_indicator_->turn_off();
-        }
-      }
+      this->set_status_indicator_state_((now % 200) < 100);
       if (wifi::global_wifi_component->is_connected()) {
         wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(),
                                                    this->connecting_sta_.get_password());
@@ -146,11 +149,25 @@ void ESP32ImprovComponent::loop() {
     }
     case improv::STATE_PROVISIONED: {
       this->incoming_data_.clear();
-      if (this->status_indicator_ != nullptr)
-        this->status_indicator_->turn_off();
+      this->set_status_indicator_state_(false);
       break;
     }
   }
+}
+
+void ESP32ImprovComponent::set_status_indicator_state_(bool state) {
+#ifdef USE_OUTPUT
+  if (this->status_indicator_ == nullptr)
+    return;
+  if (this->status_indicator_state_ == state)
+    return;
+  this->status_indicator_state_ = state;
+  if (state) {
+    this->status_indicator_->turn_on();
+  } else {
+    this->status_indicator_->turn_off();
+  }
+#endif
 }
 
 bool ESP32ImprovComponent::check_identify_() {
@@ -160,11 +177,7 @@ bool ESP32ImprovComponent::check_identify_() {
 
   if (identify) {
     uint32_t time = now % 1000;
-    if (time < 600 && time % 200 < 100) {
-      this->status_indicator_->turn_on();
-    } else {
-      this->status_indicator_->turn_off();
-    }
+    this->set_status_indicator_state_(time < 600 && time % 200 < 100);
   }
   return identify;
 }
@@ -217,8 +230,12 @@ float ESP32ImprovComponent::get_setup_priority() const { return setup_priority::
 
 void ESP32ImprovComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 Improv:");
+#ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Authorizer", this->authorizer_);
+#endif
+#ifdef USE_OUTPUT
   ESP_LOGCONFIG(TAG, "  Status Indicator: '%s'", YESNO(this->status_indicator_ != nullptr));
+#endif
 }
 
 void ESP32ImprovComponent::process_incoming_data_() {
