@@ -69,7 +69,7 @@ class LWIPRawImpl : public Socket {
     }
     if (name == nullptr) {
       errno = EINVAL;
-      return 0;
+      return -1;
     }
     ip_addr_t ip;
     in_port_t port;
@@ -126,6 +126,76 @@ class LWIPRawImpl : public Socket {
     }
     return 0;
   }
+  int connect(const struct sockaddr *addr, socklen_t addrlen) override {
+    if (pcb_ == nullptr) {
+      errno = EBADF;
+      return -1;
+    }
+    if (addr == nullptr) {
+      errno = EINVAL;
+      return -1;
+    }
+    if (connecting_) {
+      errno = EALREADY;
+      return -1;
+    }
+
+    ip_addr_t ipaddr;
+    uint16_t port;
+
+    if (addr->sa_family == AF_INET) {
+      const struct sockaddr_in *sa4 = reinterpret_cast<const struct sockaddr_in *>(addr);
+      inet_addr_to_ip4addr(ip_2_ip4(&ipaddr), &sa4->sin_addr);
+#if LWIP_IPV4 && LWIP_IPV6
+      ipaddr.type = IPADDR_TYPE_V4;
+#endif
+      port = ntohs(sa4->sin_port);
+#if LWIP_IPV6
+    } else if (addr->sa_family == AF_INET6) {
+      const struct sockaddr_in6 *sa6 = reinterpret_cast<const struct sockaddr_in6 *>(addr);
+      inet6_addr_to_ip6addr(ip_2_ip6(&ipaddr), &sa6->sin_addr);
+      ipaddr.type = IPADDR_TYPE_V6;
+      port = ntohs(sa6->sin_port);
+#endif  // LWIP_IPV6
+    } else {
+      errno = EAFNOSUPPORT;
+      return -1;
+    }
+
+    connecting_ = true;
+    connected_ = false;
+    connect_error_ = false;
+    LWIP_LOG("tcp_connect(%u)", port);
+    err_t err = tcp_connect(pcb_, &ipaddr, port, LWIPRawImpl::s_connected_fn);
+    if (err == ERR_VAL) {
+      errno = EINVAL;
+      return -1;
+    }
+    if (err != ERR_OK) {
+      errno = EIO;
+      return -1;
+    }
+
+    errno = EINPROGRESS;
+    return -1;
+  }
+  int connect_finished() override {
+    if (connected_) {
+      return 0;
+    }
+    if (connect_error_) {
+      errno = ECONNREFUSED;
+      return -1;
+    }
+    if (connecting_) {
+      errno = EINPROGRESS;
+      return -1;
+    }
+    // no connect started
+    errno = EALREADY;
+    return -1;
+  }
+
   int close() override {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
@@ -369,9 +439,10 @@ class LWIPRawImpl : public Socket {
     for (int i = 0; i < iovcnt; i++) {
       ssize_t err = read(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
       if (err == -1) {
-        if (ret != 0)
+        if (ret != 0) {
           // if we already read some don't return an error
           break;
+        }
         return err;
       }
       ret += err;
@@ -433,9 +504,10 @@ class LWIPRawImpl : public Socket {
     ssize_t written = internal_write(buf, len);
     if (written == -1)
       return -1;
-    if (written == 0)
+    if (written == 0) {
       // no need to output if nothing written
       return 0;
+    }
     if (nodelay_) {
       int err = internal_output();
       if (err == -1)
@@ -448,18 +520,20 @@ class LWIPRawImpl : public Socket {
     for (int i = 0; i < iovcnt; i++) {
       ssize_t err = internal_write(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
       if (err == -1) {
-        if (written != 0)
+        if (written != 0) {
           // if we already read some don't return an error
           break;
+        }
         return err;
       }
       written += err;
       if ((size_t) err != iov[i].iov_len)
         break;
     }
-    if (written == 0)
+    if (written == 0) {
       // no need to output if nothing written
       return 0;
+    }
     if (nodelay_) {
       int err = internal_output();
       if (err == -1)
@@ -528,6 +602,18 @@ class LWIPRawImpl : public Socket {
     }
     return ERR_OK;
   }
+  err_t connected_fn(err_t err) {
+    LWIP_LOG("connected(err=%d)", err);
+    if (err != ERR_OK) {
+      connected_ = false;
+      connect_error_ = false;
+    } else {
+      connected_ = true;
+      connect_error_ = true;
+    }
+    connecting_ = false;
+    return ERR_OK;
+  }
 
   static err_t s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err) {
     LWIPRawImpl *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
@@ -542,6 +628,11 @@ class LWIPRawImpl : public Socket {
   static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err) {
     LWIPRawImpl *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
     return arg_this->recv_fn(pb, err);
+  }
+
+  static err_t s_connected_fn(void *arg, struct tcp_pcb *pcb, err_t err) {
+    LWIPRawImpl *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
+    return arg_this->connected_fn(err);
   }
 
  protected:
@@ -594,6 +685,9 @@ class LWIPRawImpl : public Socket {
   // instead use it for determining whether to call lwip_output
   bool nodelay_ = false;
   sa_family_t family_ = 0;
+  bool connecting_ = false;
+  bool connected_ = false;
+  bool connect_error_ = false;
 };
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol) {

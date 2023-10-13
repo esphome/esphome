@@ -8,6 +8,7 @@
 
 #define LWIP_INTERNAL
 #include "lwip/inet.h"
+#include "lwip/netdb.h"
 #include <cerrno>
 #include <cstdint>
 #include <sys/types.h>
@@ -118,6 +119,34 @@ struct iovec {
 #define ESPHOME_INADDR_NONE INADDR_NONE
 #endif
 
+#ifndef EAI_FAIL
+#define EAI_BADFLAGS (-1)
+#define EAI_NONAME (-2)
+#define EAI_AGAIN (-3)
+#define EAI_FAIL (-4)
+#define EAI_FAMILY (-6)
+#define EAI_SOCKTYPE (-7)
+#define EAI_SERVICE (-8)
+#define EAI_MEMORY (-10)
+#define EAI_SYSTEM (-11)
+#define EAI_OVERFLOW (-12)
+#endif  // !EAI_FAIL
+
+#ifndef IPPROTO_UDP
+#define IPPROTO_UDP 17
+#endif
+
+struct addrinfo {  // NOLINT(readability-identifier-naming)
+  int ai_flags;
+  int ai_family;
+  int ai_socktype;
+  int ai_protocol;
+  socklen_t ai_addrlen;
+  struct sockaddr *ai_addr;
+  char *ai_canonname;
+  struct addrinfo *ai_next;
+};
+
 #endif  // USE_SOCKET_IMPL_LWIP_TCP
 
 #ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
@@ -158,6 +187,7 @@ using socklen_t = uint32_t;
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <netdb.h>
 
 #ifdef USE_HOST
 #include <arpa/inet.h>

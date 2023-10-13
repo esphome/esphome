@@ -53,6 +53,43 @@ class BSDSocketImpl : public Socket {
     return make_unique<BSDSocketImpl>(fd);
   }
   int bind(const struct sockaddr *addr, socklen_t addrlen) override { return ::bind(fd_, addr, addrlen); }
+  int connect(const struct sockaddr *addr, socklen_t addrlen) override { return ::connect(fd_, addr, addrlen); }
+  int connect_finished() override {
+    fd_set wfds;
+    struct timeval tv;
+    FD_ZERO(&wfds);
+    FD_SET(fd_, &wfds);
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    int retval = ::select(fd_ + 1, nullptr, &wfds, nullptr, &tv);
+    if (retval == -1) {
+      // reuse errno
+      return -1;
+    }
+    if (retval == 0) {
+      // timeout, not writable yet
+      errno = EINPROGRESS;
+      return -1;
+    }
+    if (!FD_ISSET(fd_, &wfds)) {
+      errno = ECONNREFUSED;
+      return -1;
+    }
+
+    int so_error;
+    socklen_t len = sizeof(so_error);
+    int ret = this->getsockopt(SOL_SOCKET, SO_ERROR, &so_error, &len);
+    if (ret == -1) {
+      // reuse errno
+      return -1;
+    }
+    if (so_error == 0) {
+      return 0;
+    }
+    errno = ECONNREFUSED;
+    return -1;
+  }
+
   int close() override {
     int ret = ::close(fd_);
     closed_ = true;

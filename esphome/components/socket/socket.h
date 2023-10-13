@@ -5,6 +5,12 @@
 #include "esphome/core/optional.h"
 #include "headers.h"
 
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+#if LWIP_IPV6
+#define USE_SOCKET_IPV6
+#endif
+#endif
+
 namespace esphome {
 namespace socket {
 
@@ -17,10 +23,17 @@ class Socket {
 
   virtual std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) = 0;
   virtual int bind(const struct sockaddr *addr, socklen_t addrlen) = 0;
+  virtual int connect(const struct sockaddr *addr, socklen_t addrlen) = 0;
+  /**
+   * @brief Helper to check if a socket connect() that was EINPROGRESS is now finished.
+   *
+   * If the connect finnished successfully, returns 0.
+   * If it's still in progress, returns -1 and sets errno to EINPROGRESS.
+   * Other errors result in return code -1 and errno like in blocking connect().
+   */
+  virtual int connect_finished() = 0;
+
   virtual int close() = 0;
-  // not supported yet:
-  // virtual int connect(const std::string &address) = 0;
-  // virtual int connect(const struct sockaddr *addr, socklen_t addrlen) = 0;
   virtual int shutdown(int how) = 0;
 
   virtual int getpeername(struct sockaddr *addr, socklen_t *addrlen) = 0;

@@ -1,5 +1,6 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.core import CORE
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -37,3 +38,6 @@ async def to_code(config):
         cg.add_define("USE_SOCKET_IMPL_LWIP_SOCKETS")
     elif impl == IMPLEMENTATION_BSD_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")
+
+    if CORE.target_platform in ["esp8266", "esp32"]:
+        cg.add_define("USE_SOCKET_HAS_LWIP")
