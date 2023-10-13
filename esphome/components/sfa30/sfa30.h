@@ -8,11 +8,7 @@ namespace esphome {
 namespace sfa30 {
 
 class SFA30Component : public PollingComponent, public sensirion_common::SensirionI2CDevice {
-  enum ErrorCode {
-    DEVICE_MARKING_READ_FAILED,
-    MEASUREMENT_INIT_FAILED,
-    UNKNOWN
-  };
+  enum ErrorCode { DEVICE_MARKING_READ_FAILED, MEASUREMENT_INIT_FAILED, UNKNOWN };
 
  public:
   float get_setup_priority() const override { return setup_priority::DATA; }
