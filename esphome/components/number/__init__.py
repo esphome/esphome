@@ -193,6 +193,8 @@ NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
         cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
         cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
         cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+        cv.Optional(CONF_RESTORE_MODE, default="DISABLED"): cv.enum(RESTORE_MODES, upper=True, space="_"),
+        cv.Optional(CONF_RESTORE_DEFAULT_STATE, default=0): cv.templatable(cv.float_)
     }
 )
 
