@@ -39,7 +39,6 @@ RUN \
           zlib1g-dev \
           libjpeg-dev \
           libfreetype-dev \
-          build-essential \
           libssl-dev \
           libffi-dev \
           cargo \
@@ -50,6 +49,7 @@ RUN \
         /tmp/* \
         /var/{cache,log}/* \
         /var/lib/apt/lists/*
+
 
 ENV \
   # Fix click python3 lang warning https://click.palletsprojects.com/en/7.x/python3/
