@@ -42,7 +42,6 @@ RUN \
           libssl-dev \
           libffi-dev \
           cargo \
-          librust-openssl-sys-dev \
           pkg-config; \
     fi; \
     rm -rf \
@@ -77,11 +76,11 @@ RUN \
     && mkdir -p /piolibs
 
 
-ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
-
 # First install requirements to leverage caching when requirements don't change
+# tmpfs is for https://github.com/rust-lang/cargo/issues/8719
+
 COPY requirements.txt requirements_optional.txt script/platformio_install_deps.py platformio.ini /
-RUN --mount=type=tmpfs,target=/root/.cargo \
+RUN --mount=type=tmpfs,target=/root/.cargo  CARGO_HOME=/.cargo \
     pip3 install --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
     && /platformio_install_deps.py /platformio.ini --libraries
 
