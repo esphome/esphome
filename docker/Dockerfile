@@ -19,30 +19,30 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        python3 \
-        python3-pip \
-        python3-setuptools \
-        python3-cryptography \
-        python3-venv \
-        python3-wheel \
-        iputils-ping \
-        git \
-        curl \
-        openssh-client \
-        python3-cffi \
-        libcairo2 \
-        patch; \
+        python3=3.11.2-6 \
+        python3-pip=23.0.1+dfsg-1 \
+        python3-setuptools=66.1.1-1 \
+        python3-cryptography=38.0.4-3 \
+        python3-venv=3.11.2-1+b1 \
+        python3-wheel=0.38.4-2 \
+        iputils-ping=3:20221126-1 \
+        git=1:2.39.2-1.1 \
+        curl=7.88.1-10+deb12u4 \
+        openssh-client=1:9.2p1-2+deb12u1 \
+        python3-cffi=1.15.1-5 \
+        libcairo2=1.16.0-7 \
+        patch=2.7.6-7; \
     if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
         apt-get install -y --no-install-recommends \
-          build-essential \
-          python3-dev \
-          zlib1g-dev \
-          libjpeg-dev \
-          libfreetype-dev \
-          libssl-dev \
-          libffi-dev \
-          cargo \
-          pkg-config; \
+          build-essential=12.9 \
+          python3-dev=3.11.2-1+b1 \
+          zlib1g-dev=1:1.2.13.dfsg-1 \
+          libjpeg-dev=1:2.1.5-2 \
+          libfreetype-dev=2.12.1+dfsg-5 \
+          libssl-dev=3.0.11-1~deb12u1 \
+          libffi-dev=3.4.4-1 \
+          cargo=0.66.0+ds1-1 \
+          pkg-config=1.8.1-1; \
     fi; \
     rm -rf \
         /tmp/* \
@@ -119,7 +119,7 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        nginx \
+        nginx==1.22.1-9 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
@@ -155,13 +155,13 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        clang-format-13 \
-        clang-tidy-14 \
-        patch \
-        software-properties-common \
-        nano \
-        build-essential \
-        python3-dev \
+        clang-format-13=1:13.0.1-11+b2 \
+        clang-tidy-14=1:14.0.6-12 \
+        patch=2.7.6-7 \
+        software-properties-common=0.99.30-4 \
+        nano=7.2-1 \
+        build-essential=12.9 \
+        python3-dev=3.11.2-1+b1 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
