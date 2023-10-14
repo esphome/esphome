@@ -15,6 +15,12 @@ FROM base-${BASEIMGTYPE} AS base
 ARG TARGETARCH
 ARG TARGETVARIANT
 
+# Note that --break-system-packages is used below because
+# https://peps.python.org/pep-0668/ added a safety check that prevents
+# installing packages with the same name as a system package. This is
+# not a problem for us because we are not concerned about overwriting
+# system packages because we are running in an isolated container.
+
 RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
