@@ -19,7 +19,6 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        python3=3.11.2-6 \
         python3-pip=23.0.1+dfsg-1 \
         python3-setuptools=66.1.1-1 \
         python3-cryptography=38.0.4-3 \
