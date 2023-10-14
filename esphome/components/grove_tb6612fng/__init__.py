@@ -15,6 +15,8 @@ DEPENDENCIES = ["i2c"]
 
 CODEOWNERS = ["@max246"]
 
+MULTI_CONF = True
+
 grove_tb6612fng_ns = cg.esphome_ns.namespace("grove_tb6612fng")
 GROVE_TB6612FNG = grove_tb6612fng_ns.class_(
     "GroveMotorDriveTB6612FNG", cg.Component, i2c.I2CDevice
