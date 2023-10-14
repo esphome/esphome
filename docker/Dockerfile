@@ -15,13 +15,6 @@ FROM base-${BASEIMGTYPE} AS base
 ARG TARGETARCH
 ARG TARGETVARIANT
 
-# pip will refuse to install packages if it detects that it's running
-# in an "externally managed" environment. This is the case when running
-# under Debian, but we are building an isolated Docker image so we are
-# not concerned with overriding system packages. 
-# See https://peps.python.org/pep-0668/
-RUN rm -fv /usr/lib/python3.x/EXTERNALLY-MANAGED
-
 RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
