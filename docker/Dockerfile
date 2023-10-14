@@ -77,6 +77,8 @@ RUN \
     && mkdir -p /piolibs
 
 
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
 # First install requirements to leverage caching when requirements don't change
 COPY requirements.txt requirements_optional.txt script/platformio_install_deps.py platformio.ini /
 RUN \
