@@ -55,7 +55,9 @@ ENV \
   # Fix click python3 lang warning https://click.palletsprojects.com/en/7.x/python3/
   LANG=C.UTF-8 LC_ALL=C.UTF-8 \
   # Store globally installed pio libs in /piolibs
-  PLATFORMIO_GLOBALLIB_DIR=/piolibs
+  PLATFORMIO_GLOBALLIB_DIR=/piolibs \
+  # https://github.com/rust-lang/cargo/issues/8719
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
 # Support legacy binaries on Debian multiarch system. There is no "correct" way
 # to do this, other than using properly built toolchains...
