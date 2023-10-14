@@ -48,6 +48,22 @@ template<typename... Ts> class NotCondition : public Condition<Ts...> {
   Condition<Ts...> *condition_;
 };
 
+template<typename... Ts> class XorCondition : public Condition<Ts...> {
+ public:
+  explicit XorCondition(const std::vector<Condition<Ts...> *> &conditions) : conditions_(conditions) {}
+  bool check(Ts... x) override {
+    bool xor_state = false;
+    for (auto *condition : this->conditions_) {
+      xor_state = xor_state ^ condition->check(x...);
+    }
+
+    return xor_state;
+  }
+
+ protected:
+  std::vector<Condition<Ts...> *> conditions_;
+};
+
 template<typename... Ts> class LambdaCondition : public Condition<Ts...> {
  public:
   explicit LambdaCondition(std::function<bool(Ts...)> &&f) : f_(std::move(f)) {}
@@ -324,6 +340,40 @@ template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
     if (!this->component_->is_ready())
       return;
     this->component_->update();
+  }
+
+ protected:
+  PollingComponent *component_;
+};
+
+template<typename... Ts> class SuspendComponentAction : public Action<Ts...> {
+ public:
+  SuspendComponentAction(PollingComponent *component) : component_(component) {}
+
+  void play(Ts... x) override {
+    if (!this->component_->is_ready())
+      return;
+    this->component_->stop_poller();
+  }
+
+ protected:
+  PollingComponent *component_;
+};
+
+template<typename... Ts> class ResumeComponentAction : public Action<Ts...> {
+ public:
+  ResumeComponentAction(PollingComponent *component) : component_(component) {}
+  TEMPLATABLE_VALUE(uint32_t, update_interval)
+
+  void play(Ts... x) override {
+    if (!this->component_->is_ready()) {
+      return;
+    }
+    optional<uint32_t> update_interval = this->update_interval_.optional_value(x...);
+    if (update_interval.has_value()) {
+      this->component_->set_update_interval(update_interval.value());
+    }
+    this->component_->start_poller();
   }
 
  protected:

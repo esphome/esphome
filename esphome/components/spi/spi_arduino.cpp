@@ -15,6 +15,11 @@ class SPIDelegateHw : public SPIDelegate {
   void begin_transaction() override {
 #ifdef USE_RP2040
     SPISettings const settings(this->data_rate_, static_cast<BitOrder>(this->bit_order_), this->mode_);
+#elif defined(ESP8266)
+    // Arduino ESP8266 library has mangled values for SPI modes :-(
+    auto mode = (this->mode_ & 0x01) + ((this->mode_ & 0x02) << 3);
+    ESP_LOGV(TAG, "8266 mangled SPI mode 0x%X", mode);
+    SPISettings const settings(this->data_rate_, this->bit_order_, mode);
 #else
     SPISettings const settings(this->data_rate_, this->bit_order_, this->mode_);
 #endif

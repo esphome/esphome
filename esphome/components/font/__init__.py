@@ -67,18 +67,13 @@ def validate_pillow_installed(value):
     except ImportError as err:
         raise cv.Invalid(
             "Please install the pillow python package to use this feature. "
-            '(pip install pillow">4.0.0,<10.0.0")'
+            '(pip install "pillow==10.0.1")'
         ) from err
 
-    if version.parse(PIL.__version__) < version.parse("4.0.0"):
+    if version.parse(PIL.__version__) != version.parse("10.0.1"):
         raise cv.Invalid(
-            "Please update your pillow installation to at least 4.0.x. "
-            '(pip install pillow">4.0.0,<10.0.0")'
-        )
-    if version.parse(PIL.__version__) >= version.parse("10.0.0"):
-        raise cv.Invalid(
-            "Please downgrade your pillow installation to below 10.0.0. "
-            '(pip install pillow">4.0.0,<10.0.0")'
+            "Please update your pillow installation to 10.0.1. "
+            '(pip install "pillow==10.0.1")'
         )
 
     return value
@@ -98,10 +93,9 @@ def validate_truetype_file(value):
 
 
 def _compute_local_font_dir(name) -> Path:
-    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN
     h = hashlib.new("sha256")
     h.update(name.encode())
-    return base_dir / h.hexdigest()[:8]
+    return Path(CORE.data_dir) / DOMAIN / h.hexdigest()[:8]
 
 
 def _compute_gfonts_local_path(value) -> Path:
