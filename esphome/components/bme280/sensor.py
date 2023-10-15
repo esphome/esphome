@@ -106,7 +106,7 @@ async def to_code(config):
                 "BME280SPIComponent", cg.PollingComponent, spi.SPIDevice
             )
             func = spi.register_spi_device
-    
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await func(var, config)

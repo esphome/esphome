@@ -352,28 +352,33 @@ uint16_t BME280Component::read_u16_le_(uint8_t a_register) {
 int16_t BME280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 
 
-  bool BME280I2CComponent::read_byte(uint8_t a_register, uint8_t *data)  {
-    return I2CDevice::read_byte(a_register, data);
-  };
-  bool BME280I2CComponent::write_byte(uint8_t a_register, uint8_t data) { 
-    return I2CDevice::write_byte(a_register, data);
-  };
-  bool BME280I2CComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t len) {
-    return I2CDevice::read_bytes(a_register, data, len);
-  };
-  bool BME280I2CComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
-    return I2CDevice::read_byte_16(a_register, data);
-  };
+void BME280I2CComponent::dump_config() {
+  LOG_I2C_DEVICE(this);
+  this->dump_config();
+}
 
-  void BME280SPIComponent::setup() {
+bool BME280I2CComponent::read_byte(uint8_t a_register, uint8_t *data)  {
+  return I2CDevice::read_byte(a_register, data);
+};
+bool BME280I2CComponent::write_byte(uint8_t a_register, uint8_t data) {
+  return I2CDevice::write_byte(a_register, data);
+};
+bool BME280I2CComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t len) {
+  return I2CDevice::read_bytes(a_register, data, len);
+};
+bool BME280I2CComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
+  return I2CDevice::read_byte_16(a_register, data);
+};
+
+void BME280SPIComponent::setup() {
     SPIDevice::spi_setup();
     BME280Component::setup();
-  };
-  // In SPI mode, only 7 bits of the register addresses are used; the MSB of register address is not used
-  // and replaced by a read/write bit (RW = ‘0’ for write and RW = ‘1’ for read).
-  // Example: address 0xF7 is accessed by using SPI register address 0x77. For write access, the byte
-  // 0x77 is transferred, for read access, the byte 0xF7 is transferred.
-  // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf
+};
+// In SPI mode, only 7 bits of the register addresses are used; the MSB of register address is not used
+// and replaced by a read/write bit (RW = ‘0’ for write and RW = ‘1’ for read).
+// Example: address 0xF7 is accessed by using SPI register address 0x77. For write access, the byte
+// 0x77 is transferred, for read access, the byte 0xF7 is transferred.
+// https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf
 
 bool BME280SPIComponent::read_byte(uint8_t a_register, uint8_t *data) {
   this->enable();
@@ -415,7 +420,7 @@ bool BME280SPIComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
   esph_log_d("spi.h", "read_byte_16 %x %x", data[0], data[1]);
 
   this->disable();
-  return 1; 
+  return 1;
 }
 
 }  // namespace bme280
