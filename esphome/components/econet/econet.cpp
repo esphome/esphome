@@ -288,7 +288,7 @@ void Econet::parse_message_(bool is_tx) {
           float item_value = bytes_to_float(pdata + 6 + 8);
           ESP_LOGI(TAG, "  %s: %f", s.c_str(), item_value);
         } else {
-          ESP_LOGI(TAG, "  Unexpected Write Data Length", datatype);
+          ESP_LOGI(TAG, "  Unexpected Write Data Length");
         }
       }
     } else if (type == 7) {
