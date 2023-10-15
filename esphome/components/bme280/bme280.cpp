@@ -175,7 +175,6 @@ void BME280Component::setup() {
 }
 void BME280Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME280:");
-  //LOG_I2C_DEVICE(this);
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
       ESP_LOGE(TAG, "Communication with BME280 failed!");
@@ -351,13 +350,12 @@ uint16_t BME280Component::read_u16_le_(uint8_t a_register) {
 }
 int16_t BME280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 
-
 void BME280I2CComponent::dump_config() {
   LOG_I2C_DEVICE(this);
   this->dump_config();
 }
 
-bool BME280I2CComponent::read_byte(uint8_t a_register, uint8_t *data)  {
+bool BME280I2CComponent::read_byte(uint8_t a_register, uint8_t *data) {
   return I2CDevice::read_byte(a_register, data);
 };
 bool BME280I2CComponent::write_byte(uint8_t a_register, uint8_t data) {
@@ -371,8 +369,8 @@ bool BME280I2CComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
 };
 
 void BME280SPIComponent::setup() {
-    SPIDevice::spi_setup();
-    BME280Component::setup();
+  SPIDevice::spi_setup();
+  BME280Component::setup();
 };
 // In SPI mode, only 7 bits of the register addresses are used; the MSB of register address is not used
 // and replaced by a read/write bit (RW = ‘0’ for write and RW = ‘1’ for read).
@@ -389,7 +387,7 @@ bool BME280SPIComponent::read_byte(uint8_t a_register, uint8_t *data) {
   *data = this->delegate_->transfer(0);
   esph_log_d("spi.h", "read byte %x", *data);
   this->disable();
-  return 1; // changeme
+  return 1;  // changeme
 }
 
 bool BME280SPIComponent::write_byte(uint8_t a_register, uint8_t data) {
@@ -397,7 +395,7 @@ bool BME280SPIComponent::write_byte(uint8_t a_register, uint8_t data) {
   this->delegate_->transfer(a_register &= ~(1U << (8 - 1)));
   this->delegate_->transfer(data);
   this->disable();
-  return 1; // changeme
+  return 1;  // changeme
 }
 
 bool BME280SPIComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t len) {
