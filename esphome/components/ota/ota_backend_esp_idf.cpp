@@ -189,7 +189,7 @@ void IDFOTABackend::log_partitions() {
     if (next_partition != nullptr) {
       ESP_LOGI(TAG, "type: 0x%02x; subtype: 0x%02x; addr: 0x%06x; size: 0x%06x; label: %s\n",
                (unsigned int) next_partition->type, (unsigned int) next_partition->subtype,
-               (uint32_t) next_partition->address, (unsigned int) next_partition->size, next_partition->label);
+               (unsigned int) next_partition->address, (unsigned int) next_partition->size, next_partition->label);
       iterator = esp_partition_next(iterator);
     }
   }
@@ -198,13 +198,15 @@ void IDFOTABackend::deregister_partitions_() {
   switch (this->bin_type_) {
 #ifdef USE_UNPROTECTED_WRITES
     case OTA_BIN_BOOTLOADER:
-    case OTA_FEATURE_WRITING_PARTITION_TABLE:
-      if (esp_err_t err = esp_partition_deregister_external(this->partition_); err != ESP_OK) {
-        ESP_LOGW(TAG, "Error deregistering partition. Error: 0x%x Pointer: 0x%06L", err, (uint32_t) this->partition_);
+    case OTA_FEATURE_WRITING_PARTITION_TABLE: {
+      esp_err_t err = esp_partition_deregister_external(this->partition_);
+      if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Error deregistering partition. Error: 0x%x Pointer: 0x%06X", err, (uint32_t) this->partition_);
       }
       this->partition_ = nullptr;
       IDFOTABackend::log_partitions();
       break;
+    }
 #endif
     default:
       break;
