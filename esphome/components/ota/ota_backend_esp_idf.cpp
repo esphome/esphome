@@ -187,8 +187,9 @@ void IDFOTABackend::log_partitions() {
   while (iterator) {
     next_partition = esp_partition_get(iterator);
     if (next_partition != NULL) {
-      ESP_LOGI(TAG, "type: 0x%02x; subtype: 0x%02x; addr: %p; size: 0x%06x; label: %s\n", (unsigned int)next_partition->type,
-               (unsigned int)next_partition->subtype, (void*)next_partition->address, (unsigned int)next_partition->size, next_partition->label);
+      ESP_LOGI(TAG, "type: 0x%02x; subtype: 0x%02x; addr: %p; size: 0x%06x; label: %s\n",
+               (unsigned int) next_partition->type, (unsigned int) next_partition->subtype,
+               (void *) next_partition->address, (unsigned int) next_partition->size, next_partition->label);
       iterator = esp_partition_next(iterator);
     }
   }
