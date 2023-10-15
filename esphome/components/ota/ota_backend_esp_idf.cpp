@@ -37,7 +37,7 @@ OTAResponseTypes IDFOTABackend::begin(OTABinType bin_type, size_t image_size) {
       if (err != ESP_OK || this->partition_ == nullptr) {
         ESP_LOGW(TAG, "Error registering bootloader partition. Error: 0x%x Pointer: %p", err,
                  (void *) this->partition_);
-        IDFOTABackend::deregister_partitions();
+        IDFOTABackend::deregister_partitions_();
         return OTA_RESPONSE_ERROR_REGISTERING_PARTITION;
       }
       break;
@@ -47,7 +47,7 @@ OTAResponseTypes IDFOTABackend::begin(OTABinType bin_type, size_t image_size) {
       if (err != ESP_OK || this->partition_ == nullptr) {
         ESP_LOGW(TAG, "Error registering partition table partition. Error: 0x%x Pointer: %p", err,
                  (void *) this->partition_);
-        IDFOTABackend::deregister_partitions();
+        IDFOTABackend::deregister_partitions_();
         return OTA_RESPONSE_ERROR_REGISTERING_PARTITION;
       }
       break;
@@ -153,7 +153,7 @@ OTAResponseTypes IDFOTABackend::end() {
     this->abort();
     return OTA_RESPONSE_ERROR_MD5_MISMATCH;
   }
-  this->deregister_partitions();
+  this->deregister_partitions_();
   esp_err_t err = ESP_OK;
   if ((err == ESP_OK) && (this->bin_type_ == OTA_BIN_APP)) {
     esp_ota_end(this->update_handle_);
@@ -175,36 +175,32 @@ OTAResponseTypes IDFOTABackend::end() {
 void IDFOTABackend::abort() {
   esp_ota_abort(this->update_handle_);
   this->update_handle_ = 0;
-  this->deregister_partitions();
+  this->deregister_partitions_();
 }
 
 void IDFOTABackend::log_partitions() {
-  esp_partition_iterator_t iterator = NULL;
-  const esp_partition_t *next_partition = NULL;
-  iterator = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
+  esp_partition_iterator_t iterator = nullptr;
+  const esp_partition_t *next_partition = nullptr;
+  iterator = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, nullptr);
   ESP_LOGI(TAG, "PARTITION TABLE");
   ESP_LOGI(TAG, "===============");
   while (iterator) {
     next_partition = esp_partition_get(iterator);
-    if (next_partition != NULL) {
-      ESP_LOGI(TAG, "type: 0x%02x; subtype: 0x%02x; addr: %p; size: 0x%06x; label: %s\n",
+    if (next_partition != nullptr) {
+      ESP_LOGI(TAG, "type: 0x%02x; subtype: 0x%02x; addr: 0x%06x; size: 0x%06x; label: %s\n",
                (unsigned int) next_partition->type, (unsigned int) next_partition->subtype,
-               (void *) next_partition->address, (unsigned int) next_partition->size, next_partition->label);
+               (uint32_t) next_partition->address, (unsigned int) next_partition->size, next_partition->label);
       iterator = esp_partition_next(iterator);
     }
   }
 }
-void IDFOTABackend::deregister_partitions() {
-  esp_err_t err;
+void IDFOTABackend::deregister_partitions_() {
   switch (this->bin_type_) {
-    case OTA_BIN_APP:
-      break;
 #ifdef USE_UNPROTECTED_WRITES
     case OTA_BIN_BOOTLOADER:
     case OTA_FEATURE_WRITING_PARTITION_TABLE:
-      err = esp_partition_deregister_external(this->partition_);
-      if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Error deregistering partition. Error: 0x%x Pointer: %p", err, (void *) this->partition_);
+      if (esp_err_t err = esp_partition_deregister_external(this->partition_); err != ESP_OK) {
+        ESP_LOGW(TAG, "Error deregistering partition. Error: 0x%x Pointer: 0x%06L", err, (uint32_t) this->partition_);
       }
       this->partition_ = nullptr;
       IDFOTABackend::log_partitions();

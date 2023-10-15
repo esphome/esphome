@@ -29,14 +29,12 @@ class IDFOTABackend : public OTABackend {
 #endif
  private:
   static void log_partitions();
-  void deregister_partitions();
+  void deregister_partitions_();
 
   OTABinType bin_type_;
   esp_ota_handle_t update_handle_{0};
   size_t data_written_;
   const esp_partition_t *partition_;
-  const esp_partition_t *bootloader_partition_{0};
-  const esp_partition_t *partition_table_partition_{0};
   md5::MD5Digest md5_{};
   char expected_bin_md5_[32];
 };
