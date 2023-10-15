@@ -17,7 +17,7 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
-DEPENDENCIES = ["i2c", "spi"]
+DEPENDENCIES = []
 
 bme280_ns = cg.esphome_ns.namespace("bme280")
 BME280Oversampling = bme280_ns.enum("BME280Oversampling")
@@ -39,9 +39,7 @@ IIR_FILTER_OPTIONS = {
     "16X": BME280IIRFilter.BME280_IIR_FILTER_16X,
 }
 
-BME280Component = bme280_ns.class_(
-    "BME280Component", cg.PollingComponent
-)
+BME280Component = bme280_ns.class_("BME280Component", cg.PollingComponent)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -86,8 +84,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_IIR_FILTER, default="OFF"): cv.enum(
                 IIR_FILTER_OPTIONS, upper=True
             ),
-            cv.Optional("bus", default="i2c"): cv.string
-            ,
+            cv.Optional("bus", default="i2c"): cv.string,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -95,17 +92,21 @@ CONFIG_SCHEMA = (
     .extend(spi.spi_device_schema(cs_pin_required=False))
 )
 
+
 async def to_code(config):
+    global DEPENDENCIES
     config[CONF_ID].type = bme280_ns.class_(
-                "BME280I2CComponent", cg.PollingComponent, i2c.I2CDevice
-            )
+        "BME280I2CComponent", cg.PollingComponent, i2c.I2CDevice
+    )
     func = i2c.register_i2c_device
+    DEPENDENCIES = ["i2c"]
     if bus_config := config.get("bus"):
         if bus_config == "spi":
             config[CONF_ID].type = bme280_ns.class_(
                 "BME280SPIComponent", cg.PollingComponent, spi.SPIDevice
             )
             func = spi.register_spi_device
+            DEPENDENCIES = ["spi"]
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

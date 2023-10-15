@@ -1309,7 +1309,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}wizard", WizardRequestHandler),
             (f"{rel}static/(.*)", StaticFileHandler, {"path": get_static_path()}),
             (f"{rel}devices", ListDevicesHandler),
-            (f"{rel}import", ImportRequestHandler),
+            (f"{rel}import", ImportRequestHandler),  # noqa: E275
             (f"{rel}secret_keys", SecretKeysRequestHandler),
             (f"{rel}json-config", JsonConfigRequestHandler),
             (f"{rel}rename", EsphomeRenameHandler),
