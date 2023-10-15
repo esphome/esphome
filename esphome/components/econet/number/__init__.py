@@ -12,6 +12,7 @@ from esphome.const import (
 from .. import (
     CONF_ECONET_ID,
     CONF_REQUEST_MOD,
+    CONF_REQUEST_ONCE,
     ECONET_CLIENT_SCHEMA,
     EconetClient,
     econet_ns,
@@ -60,4 +61,5 @@ async def to_code(config):
     paren = await cg.get_variable(config[CONF_ECONET_ID])
     cg.add(var.set_econet_parent(paren))
     cg.add(var.set_request_mod(config[CONF_REQUEST_MOD]))
+    cg.add(var.set_request_once(config[CONF_REQUEST_ONCE]))
     cg.add(var.set_number_id(config[CONF_NUMBER_DATAPOINT]))

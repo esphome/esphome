@@ -10,8 +10,6 @@
 namespace esphome {
 namespace econet {
 
-enum ModelType { MODEL_TYPE_TANKLESS = 0, MODEL_TYPE_HEATPUMP = 1, MODEL_TYPE_HVAC = 2, MODEL_TYPE_ELECTRIC_TANK = 3 };
-
 class ReadRequest {
  public:
   uint32_t dst_adr;
@@ -68,25 +66,23 @@ class Econet : public Component, public uart::UARTDevice {
  public:
   void loop() override;
   void dump_config() override;
-
-  void set_model_type(ModelType model_type) { model_type_ = model_type; }
-  ModelType get_model_type() { return model_type_; }
+  void set_src_address(uint32_t address) { src_adr_ = address; }
+  void set_dst_address(uint32_t address) { dst_adr_ = address; }
 
   void set_update_interval(uint32_t interval_millis) { update_interval_millis_ = interval_millis; }
 
   void set_float_datapoint_value(const std::string &datapoint_id, float value);
   void set_enum_datapoint_value(const std::string &datapoint_id, uint8_t value);
 
-  void register_listener(const std::string &datapoint_id, int8_t request_mod,
+  void register_listener(const std::string &datapoint_id, int8_t request_mod, bool request_once,
                          const std::function<void(EconetDatapoint)> &func, bool is_raw_datapoint = false);
 
  protected:
-  ModelType model_type_;
   uint32_t update_interval_millis_{30000};
   std::vector<EconetDatapointListener> listeners_;
   ReadRequest read_req_;
   void set_datapoint_(const std::string &datapoint_id, const EconetDatapoint &value);
-  void send_datapoint_(const std::string &datapoint_id, const EconetDatapoint &value, bool skip_update_state = false);
+  void send_datapoint_(const std::string &datapoint_id, const EconetDatapoint &value);
 
   void make_request_();
   void read_buffer_(int bytes_available);
@@ -95,14 +91,14 @@ class Econet : public Component, public uart::UARTDevice {
   void parse_tx_message_();
   void handle_response_(const std::string &datapoint_id, EconetDatapointType item_type, const uint8_t *p, uint8_t len);
 
-  void transmit_message_(uint32_t dst_adr, uint32_t src_adr, uint8_t command, const std::vector<uint8_t> &data);
-  void request_strings_(uint32_t dst_adr, uint32_t src_adr);
-  void write_value_(uint32_t dst_adr, uint32_t src_adr, const std::string &object, EconetDatapointType type,
-                    float value);
+  void transmit_message_(uint8_t command, const std::vector<uint8_t> &data);
+  void request_strings_();
+  void write_value_(const std::string &object, EconetDatapointType type, float value);
 
   std::vector<std::set<std::string>> request_datapoint_ids_ = std::vector<std::set<std::string>>(8);
   uint8_t request_mods_{1};
   std::set<std::string> raw_datapoint_ids_;
+  std::set<std::string> request_once_datapoint_ids_;
   std::map<std::string, EconetDatapoint> datapoints_;
   std::map<std::string, EconetDatapoint> pending_writes_;
 
@@ -112,6 +108,7 @@ class Econet : public Component, public uart::UARTDevice {
   std::vector<uint8_t> rx_message_;
   std::vector<uint8_t> tx_message_;
 
+  uint32_t src_adr_{0};
   uint32_t dst_adr_{0};
 };
 
@@ -119,10 +116,12 @@ class EconetClient {
  public:
   void set_econet_parent(Econet *parent) { this->parent_ = parent; }
   void set_request_mod(int8_t request_mod) { this->request_mod_ = request_mod; }
+  void set_request_once(bool request_once) { this->request_once_ = request_once; }
 
  protected:
   Econet *parent_;
   int8_t request_mod_{0};
+  bool request_once_{false};
 };
 
 }  // namespace econet

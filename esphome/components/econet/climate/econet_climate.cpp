@@ -15,271 +15,141 @@ namespace {
 float fahrenheit_to_celsius(float f) { return (f - 32) * 5 / 9; }
 float celsius_to_fahrenheit(float c) { return c * 9 / 5 + 32; }
 
+template<class K, class V> std::set<V> map_values_as_set(std::map<K, V> map) {
+  std::set<V> v;
+  std::transform(map.begin(), map.end(), std::inserter(v, v.end()), [](const std::pair<K, V> &p) { return p.second; });
+  return v;
+}
+
 }  // namespace
 
 static const char *const TAG = "econet.climate";
 
 void EconetClimate::dump_config() {
   LOG_CLIMATE("", "Econet Climate", this);
-  this->dump_traits_(TAG);
+  dump_traits_(TAG);
 }
 
 climate::ClimateTraits EconetClimate::traits() {
-  ModelType model_type = this->parent_->get_model_type();
   auto traits = climate::ClimateTraits();
-
-  traits.set_supports_action(false);
-
-  if (model_type == MODEL_TYPE_HVAC) {
-    traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL, climate::CLIMATE_MODE_HEAT,
-                                climate::CLIMATE_MODE_HEAT_COOL, climate::CLIMATE_MODE_FAN_ONLY});
-  } else {
-    traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_AUTO});
+  traits.set_supports_current_temperature(!current_temperature_id_.empty());
+  traits.set_supports_two_point_target_temperature(!target_temperature_high_id_.empty());
+  if (!mode_id_.empty()) {
+    traits.set_supported_modes(map_values_as_set(modes_));
   }
-
-  if (model_type == MODEL_TYPE_HEATPUMP) {
-    traits.set_supported_custom_presets({"Off", "Eco Mode", "Heat Pump", "High Demand", "Electric", "Vacation"});
-  } else if (model_type == MODEL_TYPE_ELECTRIC_TANK) {
-    traits.set_supported_custom_presets({"Energy Saver", "Performance"});
+  if (!custom_preset_id_.empty()) {
+    traits.set_supported_custom_presets(map_values_as_set(custom_presets_));
   }
-  traits.set_supports_current_temperature(true);
-  if (model_type == MODEL_TYPE_HVAC) {
-    traits.set_supported_custom_fan_modes({"Automatic", "Speed 1 (Low)", "Speed 2 (Medium Low)", "Speed 3 (Medium)",
-                                           "Speed 4 (Medium High)", "Speed 5 (High)"});
-
-    traits.set_supports_two_point_target_temperature(true);
-  } else {
-    traits.set_visual_min_temperature(43.3333);
-    traits.set_visual_max_temperature(60);
-
-    traits.set_supports_two_point_target_temperature(false);
+  if (!custom_fan_mode_id_.empty()) {
+    traits.set_supported_custom_fan_modes(map_values_as_set(custom_fan_modes_));
   }
-  traits.set_visual_temperature_step(1.0f);
-
   return traits;
 }
 
 void EconetClimate::setup() {
-  ModelType model_type = this->parent_->get_model_type();
-  if (model_type == MODEL_TYPE_HVAC) {
-    this->parent_->register_listener("HEATSETP", this->request_mod_, [this](const EconetDatapoint &datapoint) {
-      this->target_temperature_low = fahrenheit_to_celsius(datapoint.value_float);
-      this->publish_state();
-    });
-    this->parent_->register_listener("COOLSETP", this->request_mod_, [this](const EconetDatapoint &datapoint) {
-      this->target_temperature_high = fahrenheit_to_celsius(datapoint.value_float);
-      this->publish_state();
-    });
-    this->parent_->register_listener("SPT_STAT", this->request_mod_, [this](const EconetDatapoint &datapoint) {
-      this->current_temperature = fahrenheit_to_celsius(datapoint.value_float);
-      this->publish_state();
-    });
-  } else {
-    this->parent_->register_listener("WHTRSETP", this->request_mod_, [this](const EconetDatapoint &datapoint) {
-      this->target_temperature = fahrenheit_to_celsius(datapoint.value_float);
-      this->publish_state();
-    });
-    this->parent_->register_listener(
-        (model_type == MODEL_TYPE_HEATPUMP || model_type == MODEL_TYPE_ELECTRIC_TANK) ? "UPHTRTMP" : "TEMP_OUT",
-        this->request_mod_, [this](const EconetDatapoint &datapoint) {
-          this->current_temperature = fahrenheit_to_celsius(datapoint.value_float);
-          this->publish_state();
-        });
+  if (!current_temperature_id_.empty()) {
+    parent_->register_listener(current_temperature_id_, request_mod_, request_once_,
+                               [this](const EconetDatapoint &datapoint) {
+                                 current_temperature = fahrenheit_to_celsius(datapoint.value_float);
+                                 publish_state();
+                               });
   }
-  if (model_type == MODEL_TYPE_HVAC) {
-    this->parent_->register_listener("STATMODE", this->request_mod_, [this](const EconetDatapoint &datapoint) {
-      switch (datapoint.value_enum) {
-        case 0:
-          this->mode = climate::CLIMATE_MODE_HEAT;
-          break;
-        case 1:
-          this->mode = climate::CLIMATE_MODE_COOL;
-          break;
-        case 2:
-          this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-          break;
-        case 3:
-          this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-          break;
-        case 4:
-          this->mode = climate::CLIMATE_MODE_OFF;
-          break;
-      }
-      this->publish_state();
-    });
-    this->parent_->register_listener("STATNFAN", this->request_mod_, [this](const EconetDatapoint &datapoint) {
-      switch (datapoint.value_enum) {
-        case 0:
-          this->set_custom_fan_mode_("Automatic");
-          break;
-        case 1:
-          this->set_custom_fan_mode_("Speed 1 (Low)");
-          break;
-        case 2:
-          this->set_custom_fan_mode_("Speed 2 (Medium Low)");
-          break;
-        case 3:
-          this->set_custom_fan_mode_("Speed 3 (Medium)");
-          break;
-        case 4:
-          this->set_custom_fan_mode_("Speed 4 (Medium High)");
-          break;
-        case 5:
-          this->set_custom_fan_mode_("Speed 5 (High)");
-          break;
-      }
-      this->publish_state();
-    });
-  } else {
-    this->parent_->register_listener("WHTRENAB", this->request_mod_, [this](const EconetDatapoint &datapoint) {
-      if (datapoint.value_enum == 1) {
-        this->mode = climate::CLIMATE_MODE_AUTO;
+  if (!target_temperature_id_.empty()) {
+    parent_->register_listener(target_temperature_id_, request_mod_, request_once_,
+                               [this](const EconetDatapoint &datapoint) {
+                                 target_temperature = fahrenheit_to_celsius(datapoint.value_float);
+                                 publish_state();
+                               });
+  }
+  if (!target_temperature_low_id_.empty()) {
+    parent_->register_listener(target_temperature_low_id_, request_mod_, request_once_,
+                               [this](const EconetDatapoint &datapoint) {
+                                 target_temperature_low = fahrenheit_to_celsius(datapoint.value_float);
+                                 publish_state();
+                               });
+  }
+  if (!target_temperature_high_id_.empty()) {
+    parent_->register_listener(target_temperature_high_id_, request_mod_, request_once_,
+                               [this](const EconetDatapoint &datapoint) {
+                                 target_temperature_high = fahrenheit_to_celsius(datapoint.value_float);
+                                 publish_state();
+                               });
+  }
+  if (!mode_id_.empty()) {
+    parent_->register_listener(mode_id_, request_mod_, request_once_, [this](const EconetDatapoint &datapoint) {
+      auto it = modes_.find(datapoint.value_enum);
+      if (it == modes_.end()) {
+        ESP_LOGW(TAG, "In modes of your yaml add a ClimateMode that corresponds to: %d: \"%s\"", datapoint.value_enum,
+                 datapoint.value_string.c_str());
       } else {
-        this->mode = climate::CLIMATE_MODE_OFF;
+        mode = it->second;
+        publish_state();
       }
-      this->publish_state();
     });
   }
-  if (model_type == MODEL_TYPE_HEATPUMP) {
-    this->parent_->register_listener("WHTRCNFG", this->request_mod_, [this](const EconetDatapoint &datapoint) {
-      switch (datapoint.value_enum) {
-        case 0:
-          this->set_custom_preset_("Off");
-          break;
-        case 1:
-          this->set_custom_preset_("Eco Mode");
-          break;
-        case 2:
-          this->set_custom_preset_("Heat Pump");
-          break;
-        case 3:
-          this->set_custom_preset_("High Demand");
-          break;
-        case 4:
-          this->set_custom_preset_("Electric");
-          break;
-        case 5:
-          this->set_custom_preset_("Vacation");
-          break;
-      }
-      this->publish_state();
-    });
-  } else if (model_type == MODEL_TYPE_ELECTRIC_TANK) {
-    this->parent_->register_listener("WHTRCNFG", this->request_mod_, [this](const EconetDatapoint &datapoint) {
-      switch (datapoint.value_enum) {
-        case 0:
-          this->set_custom_preset_("Energy Saver");
-          break;
-        case 1:
-          this->set_custom_preset_("Performance");
-          break;
-      }
-      this->publish_state();
-    });
+  if (!custom_preset_id_.empty()) {
+    parent_->register_listener(custom_preset_id_, request_mod_, request_once_,
+                               [this](const EconetDatapoint &datapoint) {
+                                 auto it = custom_presets_.find(datapoint.value_enum);
+                                 if (it == custom_presets_.end()) {
+                                   ESP_LOGW(TAG, "In custom_presets of your yaml add: %d: \"%s\"", datapoint.value_enum,
+                                            datapoint.value_string.c_str());
+                                 } else {
+                                   set_custom_preset_(it->second);
+                                   publish_state();
+                                 }
+                               });
+  }
+  if (!custom_fan_mode_id_.empty()) {
+    parent_->register_listener(custom_fan_mode_id_, request_mod_, request_once_,
+                               [this](const EconetDatapoint &datapoint) {
+                                 auto it = custom_fan_modes_.find(datapoint.value_enum);
+                                 if (it == custom_fan_modes_.end()) {
+                                   ESP_LOGW(TAG, "In custom_fan_modes of your yaml add: %d: \"%s\"",
+                                            datapoint.value_enum, datapoint.value_string.c_str());
+                                 } else {
+                                   set_custom_fan_mode_(it->second);
+                                   publish_state();
+                                 }
+                               });
   }
 }
 
 void EconetClimate::control(const climate::ClimateCall &call) {
-  ModelType model_type = this->parent_->get_model_type();
-  if (call.get_target_temperature_low().has_value()) {
-    this->parent_->set_float_datapoint_value("HEATSETP",
-                                             celsius_to_fahrenheit(call.get_target_temperature_low().value()));
+  if (call.get_target_temperature().has_value() && !target_temperature_id_.empty()) {
+    parent_->set_float_datapoint_value(target_temperature_id_,
+                                       celsius_to_fahrenheit(call.get_target_temperature().value()));
   }
-
-  if (call.get_target_temperature_high().has_value()) {
-    this->parent_->set_float_datapoint_value("COOLSETP",
-                                             celsius_to_fahrenheit(call.get_target_temperature_high().value()));
+  if (call.get_target_temperature_low().has_value() && !target_temperature_low_id_.empty()) {
+    parent_->set_float_datapoint_value(target_temperature_low_id_,
+                                       celsius_to_fahrenheit(call.get_target_temperature_low().value()));
   }
-
-  if (call.get_target_temperature().has_value()) {
-    this->parent_->set_float_datapoint_value("WHTRSETP", celsius_to_fahrenheit(call.get_target_temperature().value()));
+  if (call.get_target_temperature_high().has_value() && !target_temperature_high_id_.empty()) {
+    parent_->set_float_datapoint_value(target_temperature_high_id_,
+                                       celsius_to_fahrenheit(call.get_target_temperature_high().value()));
   }
-
-  if (call.get_mode().has_value()) {
-    climate::ClimateMode climate_mode = call.get_mode().value();
-    if (model_type == MODEL_TYPE_HVAC) {
-      uint8_t new_mode = 0;
-
-      switch (climate_mode) {
-        case climate::CLIMATE_MODE_HEAT_COOL:
-          new_mode = 2;
-          break;
-        case climate::CLIMATE_MODE_HEAT:
-          new_mode = 0;
-          break;
-        case climate::CLIMATE_MODE_COOL:
-          new_mode = 1;
-          break;
-        case climate::CLIMATE_MODE_FAN_ONLY:
-          new_mode = 3;
-          break;
-        case climate::CLIMATE_MODE_OFF:
-          new_mode = 4;
-          break;
-        default:
-          new_mode = 4;
-      }
-      ESP_LOGI("econet", "Raw Mode is %d", climate_mode);
-      ESP_LOGI("econet", "Lets change the mode to %d", new_mode);
-      this->parent_->set_enum_datapoint_value("STATMODE", new_mode);
-    } else {
-      bool new_mode = climate_mode != climate::CLIMATE_MODE_OFF;
-      ESP_LOGI("econet", "Raw Mode is %d", climate_mode);
-      ESP_LOGI("econet", "Lets change the mode to %d", new_mode);
-      this->parent_->set_enum_datapoint_value("WHTRENAB", new_mode);
+  if (call.get_mode().has_value() && !mode_id_.empty()) {
+    climate::ClimateMode mode = call.get_mode().value();
+    auto it = std::find_if(modes_.begin(), modes_.end(),
+                           [&mode](const std::pair<uint8_t, climate::ClimateMode> &p) { return p.second == mode; });
+    if (it != modes_.end()) {
+      parent_->set_enum_datapoint_value(mode_id_, it->first);
     }
   }
-
-  if (call.get_custom_fan_mode().has_value()) {
-    const std::string &fan_mode = call.get_custom_fan_mode().value();
-    int new_fan_mode = 0;
-    if (fan_mode == "Automatic") {
-      new_fan_mode = 0;
-    } else if (fan_mode == "Speed 1 (Low)") {
-      new_fan_mode = 1;
-    } else if (fan_mode == "Speed 2 (Medium Low)") {
-      new_fan_mode = 2;
-    } else if (fan_mode == "Speed 3 (Medium)") {
-      new_fan_mode = 3;
-    } else if (fan_mode == "Speed 4 (Medium High)") {
-      new_fan_mode = 4;
-    } else if (fan_mode == "Speed 5 (High)") {
-      new_fan_mode = 5;
-    }
-    this->parent_->set_enum_datapoint_value("STATNFAN", new_fan_mode);
-  }
-
-  if (call.get_custom_preset().has_value()) {
+  if (call.get_custom_preset().has_value() && !custom_preset_id_.empty()) {
     const std::string &preset = call.get_custom_preset().value();
-
-    ESP_LOGI("econet", "Set custom preset: %s", preset.c_str());
-
-    int8_t new_mode = -1;
-
-    if (model_type == MODEL_TYPE_HEATPUMP) {
-      if (preset == "Off") {
-        new_mode = 0;
-      } else if (preset == "Eco Mode") {
-        new_mode = 1;
-      } else if (preset == "Heat Pump") {
-        new_mode = 2;
-      } else if (preset == "High Demand") {
-        new_mode = 3;
-      } else if (preset == "Electric") {
-        new_mode = 4;
-      } else if (preset == "Vacation") {
-        new_mode = 5;
-      }
-    } else if (model_type == MODEL_TYPE_ELECTRIC_TANK) {
-      if (preset == "Energy Saver") {
-        new_mode = 0;
-      } else if (preset == "Performance") {
-        new_mode = 1;
-      }
+    auto it = std::find_if(custom_presets_.begin(), custom_presets_.end(),
+                           [&preset](const std::pair<uint8_t, std::string> &p) { return p.second == preset; });
+    if (it != custom_presets_.end()) {
+      parent_->set_enum_datapoint_value(custom_preset_id_, it->first);
     }
-
-    if (new_mode != -1) {
-      this->parent_->set_enum_datapoint_value("WHTRCNFG", new_mode);
+  }
+  if (call.get_custom_fan_mode().has_value() && !custom_fan_mode_id_.empty()) {
+    const std::string &fan_mode = call.get_custom_fan_mode().value();
+    auto it = std::find_if(custom_fan_modes_.begin(), custom_fan_modes_.end(),
+                           [&fan_mode](const std::pair<uint8_t, std::string> &p) { return p.second == fan_mode; });
+    if (it != custom_fan_modes_.end()) {
+      parent_->set_enum_datapoint_value(custom_fan_mode_id_, it->first);
     }
   }
 }

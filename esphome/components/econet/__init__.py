@@ -2,13 +2,16 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import uart
-from esphome.const import CONF_ID, CONF_MODEL, CONF_SENSOR_DATAPOINT, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_SENSOR_DATAPOINT, CONF_TRIGGER_ID
 
 DEPENDENCIES = ["uart"]
 
+CONF_SRC_ADDRESS = "src_address"
+CONF_DST_ADDRESS = "dst_address"
 CONF_ON_DATAPOINT_UPDATE = "on_datapoint_update"
 CONF_DATAPOINT_TYPE = "datapoint_type"
 CONF_REQUEST_MOD = "request_mod"
+CONF_REQUEST_ONCE = "request_once"
 
 econet_ns = cg.esphome_ns.namespace("econet")
 Econet = econet_ns.class_("Econet", cg.Component, uart.UARTDevice)
@@ -36,15 +39,6 @@ def assign_declare_id(value):
     return value
 
 
-ModelType = econet_ns.enum("ModelType")
-MODEL_TYPES = {
-    "Tankless": ModelType.MODEL_TYPE_TANKLESS,
-    "Heatpump": ModelType.MODEL_TYPE_HEATPUMP,
-    "HVAC": ModelType.MODEL_TYPE_HVAC,
-    "Electric Tank": ModelType.MODEL_TYPE_ELECTRIC_TANK,
-}
-
-
 def request_mod(value):
     if isinstance(value, str) and value.lower() == "none":
         return -1
@@ -55,7 +49,8 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Econet),
-            cv.Required(CONF_MODEL): cv.enum(MODEL_TYPES),
+            cv.Required(CONF_SRC_ADDRESS): cv.uint32_t,
+            cv.Optional(CONF_DST_ADDRESS, default="0"): cv.uint32_t,
             cv.Optional(CONF_ON_DATAPOINT_UPDATE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -80,6 +75,7 @@ ECONET_CLIENT_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ECONET_ID): cv.use_id(Econet),
         cv.Optional(CONF_REQUEST_MOD, default=0): request_mod,
+        cv.Optional(CONF_REQUEST_ONCE, default=False): cv.boolean,
     }
 )
 
@@ -88,7 +84,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    cg.add(var.set_model_type(config[CONF_MODEL]))
+    cg.add(var.set_src_address(config[CONF_SRC_ADDRESS]))
+    cg.add(var.set_dst_address(config[CONF_DST_ADDRESS]))
     for conf in config.get(CONF_ON_DATAPOINT_UPDATE, []):
         trigger = cg.new_Pvariable(
             conf[CONF_TRIGGER_ID],
