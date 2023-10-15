@@ -5,12 +5,19 @@ import socket
 import sys
 import time
 import gzip
+import struct
 
 from esphome.core import EsphomeError
 from esphome.helpers import is_ip_address, resolve_ip_address
 
+UPLOAD_TYPE_APP = 1
+UPLOAD_TYPE_BOOTLOADER = 2
+UPLOAD_TYPE_PARTITION_TABLE = 3
+UPLOAD_TYPE_PARTITION = 4
+
 RESPONSE_OK = 0
 RESPONSE_REQUEST_AUTH = 1
+RESPONSE_OK_NO_REBOOT = 2
 
 RESPONSE_HEADER_OK = 64
 RESPONSE_AUTH_OK = 65
@@ -19,6 +26,7 @@ RESPONSE_BIN_MD5_OK = 67
 RESPONSE_RECEIVE_OK = 68
 RESPONSE_UPDATE_END_OK = 69
 RESPONSE_SUPPORTS_COMPRESSION = 70
+RESPONSE_SUPPORTS_EXTENDED = 71
 
 RESPONSE_ERROR_MAGIC = 128
 RESPONSE_ERROR_UPDATE_PREPARE = 129
@@ -38,7 +46,13 @@ OTA_VERSION_1_0 = 1
 
 MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 
+FEATURE_QUERY_SUPPORTS_COMPRESSION = 0x01
+FEATURE_QUERY_SUPPORTS_EXTENDED = 0x02
+
 FEATURE_SUPPORTS_COMPRESSION = 0x01
+FEATURE_SUPPORTS_WRITING_BOOTLOADER = 0x02
+FEATURE_SUPPORTS_WRITING_PARTITION_TABLE = 0x03
+FEATURE_SUPPORTS_WRITING_PARTITIONS = 0x04
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -184,7 +198,7 @@ def send_check(sock, data, msg):
         raise OTAError(f"Error sending {msg}: {err}") from err
 
 
-def perform_ota(sock, password, file_handle, filename):
+def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot):
     file_contents = file_handle.read()
     file_size = len(file_contents)
     _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
@@ -197,17 +211,50 @@ def perform_ota(sock, password, file_handle, filename):
     if version != OTA_VERSION_1_0:
         raise OTAError(f"Unsupported OTA version {version}")
 
-    # Features
-    send_check(sock, FEATURE_SUPPORTS_COMPRESSION, "features")
-    features = receive_exactly(
-        sock, 1, "features", [RESPONSE_HEADER_OK, RESPONSE_SUPPORTS_COMPRESSION]
+    # Query features
+    send_check(
+        sock,
+        FEATURE_QUERY_SUPPORTS_COMPRESSION + FEATURE_QUERY_SUPPORTS_EXTENDED,
+        "features",
+    )
+    features_reply = receive_exactly(
+        sock,
+        1,
+        "features",
+        [RESPONSE_HEADER_OK, RESPONSE_SUPPORTS_COMPRESSION, RESPONSE_SUPPORTS_EXTENDED],
     )[0]
 
-    if features == RESPONSE_SUPPORTS_COMPRESSION:
+    # Check feature reply and set features
+    features = []
+    if features_reply == RESPONSE_SUPPORTS_COMPRESSION:
+        features = [FEATURE_SUPPORTS_COMPRESSION]
+    if features_reply == RESPONSE_SUPPORTS_EXTENDED:
+        enabled_features = receive_exactly(sock, 1, "extended features legth", False)[0]
+        if enabled_features > 0:
+            features = receive_exactly(
+                sock, enabled_features, "extended features", False
+            )
+    _LOGGER.debug("Features: %s", features)
+
+    if FEATURE_SUPPORTS_COMPRESSION in features:
         upload_contents = gzip.compress(file_contents, compresslevel=9)
         _LOGGER.info("Compressed to %s bytes", len(upload_contents))
     else:
         upload_contents = file_contents
+
+    if (bin_type == UPLOAD_TYPE_BOOTLOADER) and (
+        FEATURE_SUPPORTS_WRITING_BOOTLOADER not in features
+    ):
+        raise OTAError(
+            "Uploading bootloader is not supported by remote device - upgrade the firmware first!"
+        )
+
+    if (bin_type == UPLOAD_TYPE_PARTITION_TABLE) and (
+        FEATURE_SUPPORTS_WRITING_PARTITION_TABLE not in features
+    ):
+        raise OTAError(
+            "Uploading partition table is not supported by remote device - upgrade the firmware first!"
+        )
 
     (auth,) = receive_exactly(
         sock, 1, "auth", [RESPONSE_REQUEST_AUTH, RESPONSE_AUTH_OK]
@@ -235,13 +282,38 @@ def perform_ota(sock, password, file_handle, filename):
         receive_exactly(sock, 1, "auth result", RESPONSE_AUTH_OK)
 
     upload_size = len(upload_contents)
-    upload_size_encoded = [
-        (upload_size >> 24) & 0xFF,
-        (upload_size >> 16) & 0xFF,
-        (upload_size >> 8) & 0xFF,
-        (upload_size >> 0) & 0xFF,
-    ]
-    send_check(sock, upload_size_encoded, "binary size")
+    if features_reply == RESPONSE_SUPPORTS_EXTENDED:
+        # Read partition info
+        # - [ 0   ] version: 0x1
+        # - [ 1   ] bin type
+        # - [ 2- 5] bin length
+        # - [ 6   ] partition type - when bin type = partition
+        # - [ 7   ] partition subtype - when bin type = partition
+        # - [ 8   ] partition index - when bin type = partition
+        # - [16-31] partition label - when bin type = partition
+        version = 1
+        partition_type = 0
+        partition_subtype = 0
+        partition_index = 0
+        partition_label = ""
+        assert len(partition_label) <= 15
+        partition_label_bytes = bytes(partition_label, "ascii") + b"\x00"
+        partition_info = struct.pack(
+            "!BBLBBB7x16s",
+            version,
+            bin_type,
+            upload_size,
+            partition_type,
+            partition_subtype,
+            partition_index,
+            partition_label_bytes,
+        )
+        assert len(partition_info) == 32
+        _LOGGER.debug("Partition info: %s", list(partition_info))
+        send_check(sock, partition_info, "partition info")
+    else:
+        upload_size_encoded = struct.pack("!L", upload_size)
+        send_check(sock, upload_size_encoded, "binary size")
     receive_exactly(sock, 1, "binary size", RESPONSE_UPDATE_PREPARE_OK)
 
     upload_md5 = hashlib.md5(upload_contents).hexdigest()
@@ -282,7 +354,10 @@ def perform_ota(sock, password, file_handle, filename):
 
     receive_exactly(sock, 1, "receive OK", RESPONSE_RECEIVE_OK)
     receive_exactly(sock, 1, "Update end", RESPONSE_UPDATE_END_OK)
-    send_check(sock, RESPONSE_OK, "end acknowledgement")
+    if no_reboot:
+        send_check(sock, RESPONSE_OK_NO_REBOOT, "end without reboot")
+    else:
+        send_check(sock, RESPONSE_OK, "end acknowledgement")
 
     _LOGGER.info("OTA successful")
 
@@ -290,7 +365,7 @@ def perform_ota(sock, password, file_handle, filename):
     time.sleep(1)
 
 
-def run_ota_impl_(remote_host, remote_port, password, filename):
+def run_ota_impl_(remote_host, remote_port, password, bin_type, filename, no_reboot):
     if is_ip_address(remote_host):
         _LOGGER.info("Connecting to %s", remote_host)
         ip = remote_host
@@ -321,7 +396,7 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
 
     with open(filename, "rb") as file_handle:
         try:
-            perform_ota(sock, password, file_handle, filename)
+            perform_ota(sock, password, file_handle, bin_type, filename, no_reboot)
         except OTAError as err:
             _LOGGER.error(str(err))
             return 1
@@ -331,9 +406,11 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
     return 0
 
 
-def run_ota(remote_host, remote_port, password, filename):
+def run_ota(remote_host, remote_port, password, bin_type, filename, no_reboot):
     try:
-        return run_ota_impl_(remote_host, remote_port, password, filename)
+        return run_ota_impl_(
+            remote_host, remote_port, password, bin_type, filename, no_reboot
+        )
     except OTAError as err:
         _LOGGER.error(err)
         return 1

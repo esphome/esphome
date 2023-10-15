@@ -120,6 +120,7 @@ void OTAComponent::loop() {
 }
 
 static const uint8_t FEATURE_SUPPORTS_COMPRESSION = 0x01;
+static const uint8_t FEATURE_SUPPORTS_EXTENDED = 0x02;
 
 void OTAComponent::handle_() {
   OTAResponseTypes error_code = OTA_RESPONSE_ERROR_UNKNOWN;
@@ -132,6 +133,9 @@ void OTAComponent::handle_() {
   uint8_t ota_features;
   std::unique_ptr<OTABackend> backend;
   (void) ota_features;
+  size_t features_reply_length;
+  OTABinType bin_type;
+  bool reboot = true;
 
   if (client_ == nullptr) {
     struct sockaddr_storage source_addr;
@@ -181,13 +185,34 @@ void OTAComponent::handle_() {
   ota_features = buf[0];  // NOLINT
   ESP_LOGV(TAG, "OTA features is 0x%02X", ota_features);
 
-  // Acknowledge header - 1 byte
+  // Acknowledge header - variable, depending on requested features
+  features_reply_length = 1;
   buf[0] = OTA_RESPONSE_HEADER_OK;
   if ((ota_features & FEATURE_SUPPORTS_COMPRESSION) != 0 && backend->supports_compression()) {
     buf[0] = OTA_RESPONSE_SUPPORTS_COMPRESSION;
   }
+  if ((ota_features & FEATURE_SUPPORTS_EXTENDED) != 0) {
+    buf[0] = OTA_RESPONSE_SUPPORTS_EXTENDED;
+    uint8_t enabled_features = 0;
+    if (backend->supports_compression()) {
+      buf[2 + (enabled_features++)] = OTA_RESPONSE_SUPPORTS_EXTENDED;
+    }
+    if (backend->supports_writing_bootloader()) {
+      buf[2 + (enabled_features++)] = OTA_FEATURE_WRITING_BOOTLOADER;
+    }
+    if (backend->supports_writing_partition_table()) {
+      buf[2 + (enabled_features++)] = OTA_FEATURE_WRITING_PARTITION_TABLE;
+    }
+    if (backend->supports_writing_partitions()) {
+      buf[2 + (enabled_features++)] = OTA_FEATURE_WRITING_PARTITIONS;
+    }
+    // Each enabled feature consumes a byte plus one byte for the length.
+    // So the max number of features that can be supported is 255
+    buf[1] = enabled_features;
+    features_reply_length += 1 + enabled_features;
+  }
 
-  this->writeall_(buf, 1);
+  this->writeall_(buf, features_reply_length);
 
 #ifdef USE_OTA_PASSWORD
   if (!this->password_.empty()) {
@@ -252,19 +277,52 @@ void OTAComponent::handle_() {
   buf[0] = OTA_RESPONSE_AUTH_OK;
   this->writeall_(buf, 1);
 
-  // Read size, 4 bytes MSB first
-  if (!this->readall_(buf, 4)) {
-    ESP_LOGW(TAG, "Reading size failed!");
-    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+  bin_type = OTA_BIN_APP;
+  if ((ota_features & FEATURE_SUPPORTS_EXTENDED) != 0) {
+    // Read partition info
+    // - [ 0   ] version: 0x1
+    // - [ 1   ] bin type
+    // - [ 2- 5] bin length
+    // - [ 6   ] partition type - when bin type = partition
+    // - [ 7   ] partition subtype - when bin type = partition
+    // - [ 8   ] partition index - when bin type = partition
+    // - [16-31] partition label - when bin type = partition
+    if (!this->readall_(buf, 1)) {
+      ESP_LOGW(TAG, "Reading partition info failed!");
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+    if (buf[0] != 1) {
+      ESP_LOGW(TAG, "Unknown partition info (0) version!");
+      buf[0] = OTA_RESPONSE_ERROR_UNKNOWN_PARTITION_INFO_VERSION;
+      this->writeall_(buf, 1);
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+    if (!this->readall_(&buf[1], 31)) {
+      ESP_LOGW(TAG, "Reading partition info (1-31) failed!");
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+    bin_type = (OTABinType) buf[1];
+    ota_size = 0;
+    for (uint8_t i = 2; i < 6; i++) {
+      ota_size <<= 8;
+      ota_size |= buf[i];
+    }
+  } else {
+    // Read size, 4 bytes MSB first
+    if (!this->readall_(buf, 4)) {
+      ESP_LOGW(TAG, "Reading size failed!");
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+    ota_size = 0;
+    for (uint8_t i = 0; i < 4; i++) {
+      ota_size <<= 8;
+      ota_size |= buf[i];
+    }
   }
-  ota_size = 0;
-  for (uint8_t i = 0; i < 4; i++) {
-    ota_size <<= 8;
-    ota_size |= buf[i];
-  }
-  ESP_LOGV(TAG, "OTA size is %u bytes", ota_size);
 
-  error_code = backend->begin(ota_size);
+  ESP_LOGV(TAG, "OTA type is %u and size is %u bytes", bin_type, ota_size);
+
+  error_code = backend->begin(bin_type, ota_size);
   if (error_code != OTA_RESPONSE_OK)
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   update_started = true;
@@ -342,7 +400,11 @@ void OTAComponent::handle_() {
   this->writeall_(buf, 1);
 
   // Read ACK
-  if (!this->readall_(buf, 1) || buf[0] != OTA_RESPONSE_OK) {
+  if (this->readall_(buf, 1)) {
+    if (buf[0] == RESPONSE_OK_NO_REBOOT) {
+      reboot = false;
+    }
+  } else {
     ESP_LOGW(TAG, "Reading back acknowledgement failed!");
     // do not go to error, this is not fatal
   }
@@ -355,8 +417,11 @@ void OTAComponent::handle_() {
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(OTA_COMPLETED, 100.0f, 0);
 #endif
-  delay(100);  // NOLINT
-  App.safe_reboot();
+
+  if (reboot) {
+    delay(100);  // NOLINT
+    App.safe_reboot();
+  }
 
 error:
   buf[0] = static_cast<uint8_t>(error_code);

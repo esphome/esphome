@@ -331,10 +331,21 @@ def upload_program(config, args, host):
             config, args.username, args.password, args.client_id
         )
 
+    file_to_upload = CORE.firmware_bin
+    file_type = espota2.UPLOAD_TYPE_APP
+    no_reboot = getattr(args, "no_reboot", False)
+    if getattr(args, "bootloader", False):
+        file_to_upload = CORE.bootloader_bin
+        file_type = espota2.UPLOAD_TYPE_BOOTLOADER
+    if getattr(args, "partition_table", False):
+        file_to_upload = CORE.partition_table_bin
+        file_type = espota2.UPLOAD_TYPE_PARTITION_TABLE
     if getattr(args, "file", None) is not None:
-        return espota2.run_ota(host, remote_port, password, args.file)
+        file_to_upload = args.file
 
-    return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
+    return espota2.run_ota(
+        host, remote_port, password, file_type, file_to_upload, no_reboot
+    )
 
 
 def show_logs(config, args, port):
@@ -756,6 +767,21 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--file",
         help="Manually specify the binary file to upload.",
+    )
+    parser_upload.add_argument(
+        "--bootloader",
+        help="Upload as bootloader",
+        action="store_true",
+    )
+    parser_upload.add_argument(
+        "--partition-table",
+        help="Upload as partition table",
+        action="store_true",
+    )
+    parser_upload.add_argument(
+        "--no-reboot",
+        help="Do not reboot after uploading",
+        action="store_true",
     )
 
     parser_logs = subparsers.add_parser(

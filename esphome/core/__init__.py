@@ -599,6 +599,14 @@ class EsphomeCore:
         return self.relative_pioenvs_path(self.name, "firmware.bin")
 
     @property
+    def bootloader_bin(self):
+        return self.relative_pioenvs_path(self.name, "bootloader.bin")
+
+    @property
+    def partition_table_bin(self):
+        return self.relative_pioenvs_path(self.name, "partitions.bin")
+
+    @property
     def target_platform(self):
         return self.data[KEY_CORE][KEY_TARGET_PLATFORM]
 

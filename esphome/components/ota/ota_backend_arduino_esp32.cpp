@@ -10,7 +10,9 @@
 namespace esphome {
 namespace ota {
 
-OTAResponseTypes ArduinoESP32OTABackend::begin(size_t image_size) {
+OTAResponseTypes ArduinoESP32OTABackend::begin(OTABinType bin_type, size_t image_size) {
+  if (bin_type != OTA_BIN_APP)
+    return OTA_RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED;
   bool ret = Update.begin(image_size, U_FLASH);
   if (ret) {
     return OTA_RESPONSE_OK;
