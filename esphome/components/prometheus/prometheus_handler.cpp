@@ -87,7 +87,7 @@ void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor 
     stream->print(obj->get_unit_of_measurement().c_str());
     stream->print(F("\"} "));
     stream->print(value_accuracy_to_string(obj->state, obj->get_accuracy_decimals()).c_str());
-    stream->print('\n');
+    stream->print(F("\n"));
   } else {
     // Invalid state
     stream->print(F("esphome_sensor_failed{id=\""));
@@ -122,7 +122,7 @@ void PrometheusHandler::binary_sensor_row_(AsyncResponseStream *stream, binary_s
     stream->print(relabel_name_(obj).c_str());
     stream->print(F("\"} "));
     stream->print(obj->state);
-    stream->print('\n');
+    stream->print(F("\n"));
   } else {
     // Invalid state
     stream->print(F("esphome_binary_sensor_failed{id=\""));
@@ -156,7 +156,7 @@ void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj) {
   stream->print(relabel_name_(obj).c_str());
   stream->print(F("\"} "));
   stream->print(obj->state);
-  stream->print('\n');
+  stream->print(F("\n"));
   // Speed if available
   if (obj->get_traits().supports_speed()) {
     stream->print(F("esphome_fan_speed{id=\""));
@@ -165,7 +165,7 @@ void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj) {
     stream->print(relabel_name_(obj).c_str());
     stream->print(F("\"} "));
     stream->print(obj->speed);
-    stream->print('\n');
+    stream->print(F("\n"));
   }
   // Oscillation if available
   if (obj->get_traits().supports_oscillation()) {
@@ -175,7 +175,7 @@ void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj) {
     stream->print(relabel_name_(obj).c_str());
     stream->print(F("\"} "));
     stream->print(obj->oscillating);
-    stream->print('\n');
+    stream->print(F("\n"));
   }
 }
 #endif
@@ -279,7 +279,7 @@ void PrometheusHandler::cover_row_(AsyncResponseStream *stream, cover::Cover *ob
     stream->print(relabel_name_(obj).c_str());
     stream->print(F("\"} "));
     stream->print(obj->position);
-    stream->print('\n');
+    stream->print(F("\n"));
     if (obj->get_traits().get_supports_tilt()) {
       stream->print(F("esphome_cover_tilt{id=\""));
       stream->print(relabel_id_(obj).c_str());
@@ -287,7 +287,7 @@ void PrometheusHandler::cover_row_(AsyncResponseStream *stream, cover::Cover *ob
       stream->print(relabel_name_(obj).c_str());
       stream->print(F("\"} "));
       stream->print(obj->tilt);
-      stream->print('\n');
+      stream->print(F("\n"));
     }
   } else {
     // Invalid state
@@ -320,7 +320,7 @@ void PrometheusHandler::switch_row_(AsyncResponseStream *stream, switch_::Switch
   stream->print(relabel_name_(obj).c_str());
   stream->print(F("\"} "));
   stream->print(obj->state);
-  stream->print('\n');
+  stream->print(F("\n"));
 }
 #endif
 
@@ -344,7 +344,7 @@ void PrometheusHandler::lock_row_(AsyncResponseStream *stream, lock::Lock *obj) 
   stream->print(relabel_name_(obj).c_str());
   stream->print(F("\"} "));
   stream->print(obj->state);
-  stream->print('\n');
+  stream->print(F("\n"));
 }
 #endif
 
