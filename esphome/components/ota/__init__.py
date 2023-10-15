@@ -54,7 +54,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(OTAComponent),
             cv.Optional(CONF_SAFE_MODE, default=False): cv.boolean,
-            cv.Optional(CONF_UNPROTECTED_WRITES, default=True): cv.boolean,
+            cv.Optional(CONF_UNPROTECTED_WRITES, default=False): cv.boolean,
             cv.SplitDefault(
                 CONF_PORT,
                 esp8266=8266,
