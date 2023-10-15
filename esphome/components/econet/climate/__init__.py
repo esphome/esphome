@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import climate
-from esphome.const import CONF_ID
+from esphome.const import CONF_CUSTOM_FAN_MODES, CONF_CUSTOM_PRESETS, CONF_ID
 
 from .. import (
     CONF_ECONET_ID,
@@ -22,8 +22,6 @@ CONF_MODE_DATAPOINT = "mode_datapoint"
 CONF_CUSTOM_PRESET_DATAPOINT = "custom_preset_datapoint"
 CONF_CUSTOM_FAN_MODE_DATAPOINT = "custom_fan_mode_datapoint"
 CONF_MODES = "modes"
-CONF_CUSTOM_PRESETS = "custom_presets"
-CONF_CUSTOM_FAN_MODES = "custom_fan_modes"
 
 EconetClimate = econet_ns.class_(
     "EconetClimate", climate.Climate, cg.Component, EconetClient
