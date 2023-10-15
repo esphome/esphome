@@ -112,7 +112,7 @@ async def to_code(config):
         cg.add(var.set_auth_password(config[CONF_PASSWORD]))
         cg.add_define("USE_OTA_PASSWORD")
     if config[CONF_UNPROTECTED_WRITES]:
-        cg.add_build_flag("-DDCONFIG_SPI_FLASH_DANGEROUS_WRITE_ALLOWED=1")
+        cg.add_build_flag("-DCONFIG_SPI_FLASH_DANGEROUS_WRITE_ALLOWED=1")
         cg.add_define("USE_UNPROTECTED_WRITES")
 
     await cg.register_component(var, config)
