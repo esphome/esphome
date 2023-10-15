@@ -43,7 +43,7 @@ OTAResponseTypes IDFOTABackend::begin(OTABinType bin_type, size_t image_size) {
       break;
     case OTA_FEATURE_WRITING_PARTITION_TABLE:
       err = esp_partition_register_external(esp_flash_default_chip, ESP_PARTITION_TABLE_OFFSET, 0x1000, "part-table",
-                                            (esp_partition_type_t) 42, (esp_partition_subtype_t) 0, &this->partition_);
+                                            (esp_partition_type_t) 42, (esp_partition_subtype_t) 1, &this->partition_);
       if (err != ESP_OK || this->partition_ == nullptr) {
         ESP_LOGW(TAG, "Error registering partition table partition. Error: 0x%x Pointer: %p", err,
                  (void *) this->partition_);
@@ -187,8 +187,8 @@ void IDFOTABackend::log_partitions() {
   while (iterator) {
     next_partition = esp_partition_get(iterator);
     if (next_partition != NULL) {
-      ESP_LOGI(TAG, "type: 0x%x; subtype: 0x%x; addr: 0x%06x; size: 0x%06x; label: %s\n", next_partition->type,
-               next_partition->subtype, next_partition->address, next_partition->size, next_partition->label);
+      ESP_LOGI(TAG, "type: 0x%02x; subtype: 0x%02x; addr: %p; size: 0x%06x; label: %s\n", (unsigned int)next_partition->type,
+               (unsigned int)next_partition->subtype, (void*)next_partition->address, (unsigned int)next_partition->size, next_partition->label);
       iterator = esp_partition_next(iterator);
     }
   }
