@@ -99,7 +99,6 @@ async def to_code(config):
     config[CONF_ID].type = bme280_ns.class_(
                 "BME280I2CComponent", cg.PollingComponent, i2c.I2CDevice
             )
-    config[CONF_ID].type = "BME280I2CComponent"
     func = i2c.register_i2c_device
     if bus_config := config.get("bus"):
         if bus_config == "spi":
@@ -110,11 +109,6 @@ async def to_code(config):
     
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
-    import pprint
-    pprint.pprint(config[CONF_ID])
-
-
     await func(var, config)
 
     if temperature_config := config.get(CONF_TEMPERATURE):

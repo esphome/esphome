@@ -59,8 +59,7 @@ enum BME280IIRFilter {
 };
 
 /// This class implements support for the BME280 Temperature+Pressure+Humidity spi sensor.
-class BME280BaseComponent : public PollingComponent
-                          {
+class BME280BaseComponent : public PollingComponent {
  public:
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }

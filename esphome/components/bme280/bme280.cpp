@@ -98,7 +98,7 @@ void BME280BaseComponent::setup() {
     this->mark_failed();
     return;
   }
-    if (chip_id != 0x60) {
+  if (chip_id != 0x60) {
     this->error_code_ = WRONG_CHIP_ID;
     this->mark_failed();
     return;
@@ -109,11 +109,11 @@ void BME280BaseComponent::setup() {
     this->mark_failed();
     return;
   }
-    // Wait until the NVM data has finished loading.
+  // Wait until the NVM data has finished loading.
   uint8_t status;
   uint8_t retry = 5;
   do {
-        delay(2);
+    delay(2);
     if (!this->read_byte(BME280_REGISTER_STATUS, &status)) {
       ESP_LOGW(TAG, "Error reading status register.");
       this->mark_failed();
@@ -243,7 +243,7 @@ void BME280BaseComponent::update() {
     if (this->humidity_sensor_ != nullptr)
       this->humidity_sensor_->publish_state(humidity);
     this->status_clear_warning();
-      });
+  });
 }
 float BME280BaseComponent::read_temperature_(const uint8_t *data, int32_t *t_fine) {
   int32_t adc = ((data[3] & 0xFF) << 16) | ((data[4] & 0xFF) << 8) | (data[5] & 0xFF);
