@@ -32,11 +32,11 @@ class EconetClimate : public climate::Climate, public Component, public EconetCl
   }
   void set_custom_presets(const std::vector<uint8_t> &keys, const std::vector<std::string> &values) {
     std::transform(keys.begin(), keys.end(), values.begin(), std::inserter(custom_presets_, custom_presets_.end()),
-                   [](uint8_t k, std::string v) { return std::make_pair(k, v); });
+                   [](uint8_t k, const std::string &v) { return std::make_pair(k, v); });
   }
   void set_custom_fan_modes(const std::vector<uint8_t> &keys, const std::vector<std::string> &values) {
     std::transform(keys.begin(), keys.end(), values.begin(), std::inserter(custom_fan_modes_, custom_fan_modes_.end()),
-                   [](uint8_t k, std::string v) { return std::make_pair(k, v); });
+                   [](uint8_t k, const std::string &v) { return std::make_pair(k, v); });
   }
 
  protected:
