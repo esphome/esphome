@@ -131,7 +131,10 @@ def validate_weight_name(value):
 
 def get_font_url(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
-        wght = value[CONF_FILE][CONF_WEIGHT]
+        wght = value[CONF_WEIGHT]
+        if value[CONF_ITALIC]:
+            wght = f"1,{wght}"
+
         return (
             f"https://fonts.googleapis.com/css2?family={value[CONF_FAMILY]}:wght@{wght}"
         )
@@ -151,7 +154,7 @@ def get_font_name(value):
 
 def get_font_path(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
-        name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}"
+        name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
         return external_files.compute_local_file_dir(name, DOMAIN) / "font.ttf"
     if value[CONF_TYPE] == TYPE_WEB:
         file_name, file_extension = external_files.get_file_info_from_url(
@@ -164,7 +167,15 @@ def get_font_path(value):
     return None
 
 
-def download_gfont_ttf(value, req):
+def download_gfont_ttf(value, url):
+    try:
+        req = requests.get(url, timeout=30)
+        req.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise cv.Invalid(
+            f"Could not download font at {url}, please check the fonts exists "
+            f"at google fonts ({e})"
+        )
     match = re.search(r"src:\s+url\((.+)\)\s+format\('truetype'\);", req.text)
     name = get_font_name(value)
     if match is None:
@@ -177,6 +188,7 @@ def download_gfont_ttf(value, req):
     try:
         req = requests.get(ttf_url, timeout=NETWORK_TIMEOUT)
         req.raise_for_status()
+        return req.content
     except requests.exceptions.RequestException as e:
         raise cv.Invalid(f"Could not download ttf file for {name} ({ttf_url}): {e}")
 
@@ -187,20 +199,23 @@ def download_web_font(value):
     path = get_font_path(value)
     if external_files.is_file_recent(path, value[CONF_REFRESH]):
         return value
-    try:
-        req = requests.get(url, timeout=NETWORK_TIMEOUT)
-        req.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise cv.Invalid(
-            f"Could not download font for {name}, please check the fonts exists "
-            f"at google fonts ({e})"
-        )
 
-    if value[CONF_TYPE] == TYPE_GFONTS:
-        download_gfont_ttf(value, req)
+    if value[CONF_TYPE] == TYPE_WEB:
+        try:
+            req = requests.get(url, timeout=NETWORK_TIMEOUT)
+            req.raise_for_status()
+            path.parent.mkdir(exist_ok=True, parents=True)
+            path.write_bytes(req.content)
+        except requests.exceptions.RequestException as e:
+            raise cv.Invalid(
+                f"Could not download font for {name}, please check the fonts exists "
+                f"at google fonts ({e})"
+            )
 
-    path.parent.mkdir(exist_ok=True, parents=True)
-    path.write_bytes(req.content)
+    elif value[CONF_TYPE] == TYPE_GFONTS:
+        content = download_gfont_ttf(value, url)
+        path.parent.mkdir(exist_ok=True, parents=True)
+        path.write_bytes(content)
     return value
 
 
