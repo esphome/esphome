@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
+from esphome.components import i2c, spi, sensor
 from esphome.const import (
     CONF_HUMIDITY,
     CONF_ID,
@@ -17,7 +17,7 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
-DEPENDENCIES = ["i2c"]
+DEPENDENCIES = ["i2c", "spi"]
 
 bme280_ns = cg.esphome_ns.namespace("bme280")
 BME280Oversampling = bme280_ns.enum("BME280Oversampling")
@@ -40,7 +40,7 @@ IIR_FILTER_OPTIONS = {
 }
 
 BME280Component = bme280_ns.class_(
-    "BME280Component", cg.PollingComponent, i2c.I2CDevice
+    "BME280Component", cg.PollingComponent
 )
 
 CONFIG_SCHEMA = (
@@ -86,17 +86,36 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_IIR_FILTER, default="OFF"): cv.enum(
                 IIR_FILTER_OPTIONS, upper=True
             ),
+            cv.Optional("bus", default="i2c"): cv.string
+            ,
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x77))
+    .extend(spi.spi_device_schema(cs_pin_required=False))
 )
 
-
 async def to_code(config):
+    config[CONF_ID].type = bme280_ns.class_(
+                "BME280I2CComponent", cg.PollingComponent, i2c.I2CDevice
+            )
+    config[CONF_ID].type = "BME280I2CComponent"
+    func = i2c.register_i2c_device
+    if bus_config := config.get("bus"):
+        if bus_config == "spi":
+            config[CONF_ID].type = bme280_ns.class_(
+                "BME280SPIComponent", cg.PollingComponent, spi.SPIDevice
+            )
+            func = spi.register_spi_device
+    
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+
+    import pprint
+    pprint.pprint(config[CONF_ID])
+
+
+    await func(var, config)
 
     if temperature_config := config.get(CONF_TEMPERATURE):
         sens = await sensor.new_sensor(temperature_config)

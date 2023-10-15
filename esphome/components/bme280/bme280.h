@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/spi/spi.h"
 
 namespace esphome {
 namespace bme280 {
@@ -57,8 +58,9 @@ enum BME280IIRFilter {
   BME280_IIR_FILTER_16X = 0b100,
 };
 
-/// This class implements support for the BME280 Temperature+Pressure+Humidity i2c sensor.
-class BME280Component : public PollingComponent, public i2c::I2CDevice {
+/// This class implements support for the BME280 Temperature+Pressure+Humidity spi sensor.
+class BME280BaseComponent : public PollingComponent
+                          {
  public:
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
@@ -91,6 +93,11 @@ class BME280Component : public PollingComponent, public i2c::I2CDevice {
   uint16_t read_u16_le_(uint8_t a_register);
   int16_t read_s16_le_(uint8_t a_register);
 
+  virtual bool read_byte(uint8_t a_register, uint8_t *data) = 0;
+  virtual bool write_byte(uint8_t a_register, uint8_t data) = 0;
+  virtual bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
+  virtual bool read_byte_16(uint8_t a_register, uint16_t *data) = 0;
+
   BME280CalibrationData calibration_;
   BME280Oversampling temperature_oversampling_{BME280_OVERSAMPLING_16X};
   BME280Oversampling pressure_oversampling_{BME280_OVERSAMPLING_16X};
@@ -104,6 +111,23 @@ class BME280Component : public PollingComponent, public i2c::I2CDevice {
     COMMUNICATION_FAILED,
     WRONG_CHIP_ID,
   } error_code_{NONE};
+};
+
+class BME280I2CComponent : public BME280BaseComponent, public i2c::I2CDevice {
+  bool read_byte(uint8_t a_register, uint8_t *data) override;
+  bool write_byte(uint8_t a_register, uint8_t data) override;
+  bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
+  bool read_byte_16(uint8_t a_register, uint16_t *data) override;
+};
+
+class BME280SPIComponent : public BME280BaseComponent, 
+                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_200KHZ> {
+  void setup();
+  bool read_byte(uint8_t a_register, uint8_t *data) override;
+  bool write_byte(uint8_t a_register, uint8_t data) override ;
+  bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
+  bool read_byte_16(uint8_t a_register, uint16_t *data) override;
 };
 
 }  // namespace bme280

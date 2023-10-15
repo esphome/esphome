@@ -82,7 +82,7 @@ static const char *iir_filter_to_str(BME280IIRFilter filter) {
   }
 }
 
-void BME280Component::setup() {
+void BME280BaseComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BME280...");
   uint8_t chip_id = 0;
 
@@ -92,13 +92,13 @@ void BME280Component::setup() {
     this->component_state_ &= ~COMPONENT_STATE_MASK;
     this->component_state_ |= COMPONENT_STATE_CONSTRUCTION;
   }
-
+  
   if (!this->read_byte(BME280_REGISTER_CHIPID, &chip_id)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
   }
-  if (chip_id != 0x60) {
+    if (chip_id != 0x60) {
     this->error_code_ = WRONG_CHIP_ID;
     this->mark_failed();
     return;
@@ -109,11 +109,11 @@ void BME280Component::setup() {
     this->mark_failed();
     return;
   }
-  // Wait until the NVM data has finished loading.
+    // Wait until the NVM data has finished loading.
   uint8_t status;
   uint8_t retry = 5;
   do {
-    delay(2);
+        delay(2);
     if (!this->read_byte(BME280_REGISTER_STATUS, &status)) {
       ESP_LOGW(TAG, "Error reading status register.");
       this->mark_failed();
@@ -173,9 +173,9 @@ void BME280Component::setup() {
     return;
   }
 }
-void BME280Component::dump_config() {
+void BME280BaseComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "BME280:");
-  LOG_I2C_DEVICE(this);
+  //LOG_I2C_DEVICE(this);
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
       ESP_LOGE(TAG, "Communication with BME280 failed!");
@@ -197,11 +197,11 @@ void BME280Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->humidity_oversampling_));
 }
-float BME280Component::get_setup_priority() const { return setup_priority::DATA; }
+float BME280BaseComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 inline uint8_t oversampling_to_time(BME280Oversampling over_sampling) { return (1 << uint8_t(over_sampling)) >> 1; }
 
-void BME280Component::update() {
+void BME280BaseComponent::update() {
   // Enable sensor
   ESP_LOGV(TAG, "Sending conversion request...");
   uint8_t meas_value = 0;
@@ -243,9 +243,9 @@ void BME280Component::update() {
     if (this->humidity_sensor_ != nullptr)
       this->humidity_sensor_->publish_state(humidity);
     this->status_clear_warning();
-  });
+      });
 }
-float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
+float BME280BaseComponent::read_temperature_(const uint8_t *data, int32_t *t_fine) {
   int32_t adc = ((data[3] & 0xFF) << 16) | ((data[4] & 0xFF) << 8) | (data[5] & 0xFF);
   adc >>= 4;
   if (adc == 0x80000) {
@@ -265,7 +265,7 @@ float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
   return temperature / 100.0f;
 }
 
-float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
+float BME280BaseComponent::read_pressure_(const uint8_t *data, int32_t t_fine) {
   int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
   adc >>= 4;
   if (adc == 0x80000) {
@@ -302,7 +302,7 @@ float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
   return (p / 256.0f) / 100.0f;
 }
 
-float BME280Component::read_humidity_(const uint8_t *data, int32_t t_fine) {
+float BME280BaseComponent::read_humidity_(const uint8_t *data, int32_t t_fine) {
   uint16_t raw_adc = ((data[6] & 0xFF) << 8) | (data[7] & 0xFF);
   if (raw_adc == 0x8000)
     return NAN;
@@ -329,27 +329,94 @@ float BME280Component::read_humidity_(const uint8_t *data, int32_t t_fine) {
 
   return h / 1024.0f;
 }
-void BME280Component::set_temperature_oversampling(BME280Oversampling temperature_over_sampling) {
+void BME280BaseComponent::set_temperature_oversampling(BME280Oversampling temperature_over_sampling) {
   this->temperature_oversampling_ = temperature_over_sampling;
 }
-void BME280Component::set_pressure_oversampling(BME280Oversampling pressure_over_sampling) {
+void BME280BaseComponent::set_pressure_oversampling(BME280Oversampling pressure_over_sampling) {
   this->pressure_oversampling_ = pressure_over_sampling;
 }
-void BME280Component::set_humidity_oversampling(BME280Oversampling humidity_over_sampling) {
+void BME280BaseComponent::set_humidity_oversampling(BME280Oversampling humidity_over_sampling) {
   this->humidity_oversampling_ = humidity_over_sampling;
 }
-void BME280Component::set_iir_filter(BME280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
-uint8_t BME280Component::read_u8_(uint8_t a_register) {
+void BME280BaseComponent::set_iir_filter(BME280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
+uint8_t BME280BaseComponent::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
   this->read_byte(a_register, &data);
   return data;
 }
-uint16_t BME280Component::read_u16_le_(uint8_t a_register) {
+uint16_t BME280BaseComponent::read_u16_le_(uint8_t a_register) {
   uint16_t data = 0;
   this->read_byte_16(a_register, &data);
   return (data >> 8) | (data << 8);
 }
-int16_t BME280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
+int16_t BME280BaseComponent::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
+
+
+  bool BME280I2CComponent::read_byte(uint8_t a_register, uint8_t *data)  { 
+    return I2CDevice::read_byte(a_register, data);
+  };
+  bool BME280I2CComponent::write_byte(uint8_t a_register, uint8_t data) { 
+    return I2CDevice::write_byte(a_register, data);
+  };
+  bool BME280I2CComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t len) { 
+    return I2CDevice::read_bytes(a_register, data, len);
+  };
+  bool BME280I2CComponent::read_byte_16(uint8_t a_register, uint16_t *data) { 
+    return I2CDevice::read_byte_16(a_register, data);
+  };
+
+  void BME280SPIComponent::setup() {           
+    SPIDevice::spi_setup();
+    BME280BaseComponent::setup();
+  };
+  // In SPI mode, only 7 bits of the register addresses are used; the MSB of register address is not used
+  // and replaced by a read/write bit (RW = ‘0’ for write and RW = ‘1’ for read).
+  // Example: address 0xF7 is accessed by using SPI register address 0x77. For write access, the byte
+  // 0x77 is transferred, for read access, the byte 0xF7 is transferred.
+  // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf
+
+bool BME280SPIComponent::read_byte(uint8_t a_register, uint8_t *data) {   
+  this->enable();
+  uint8_t tmp = a_register |= (1U << (8 - 1));
+  esph_log_d("spi.h", "send byte %x", tmp);
+  // cause: *data = this->delegate_->transfer(tmp) doesnt work
+  this->delegate_->transfer(tmp);
+  *data = this->delegate_->transfer(0);
+  esph_log_d("spi.h", "read byte %x", *data);
+  this->disable();
+  return 1; // changeme
+}
+
+bool BME280SPIComponent::write_byte(uint8_t a_register, uint8_t data) {
+  this->enable();
+  this->delegate_->transfer(a_register &= ~(1U << (8 - 1)));
+  this->delegate_->transfer(data);
+  this->disable();
+  return 1; // changeme
+}
+
+bool BME280SPIComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t len) { 
+  this->enable();
+  uint8_t tmp = a_register |= (1U << (8 - 1));
+  this->delegate_->transfer(tmp);
+  this->delegate_->read_array(data, len);
+  this->disable();
+  return 1; 
+}
+
+bool BME280SPIComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
+  this->enable();
+  uint8_t tmp = a_register |= (1U << (8 - 1));
+  esph_log_d("spi.h", "send_byte_16 %x", tmp);
+  this->delegate_->transfer(tmp);
+  data[1] = this->delegate_->transfer(0);
+  data[0] = this->delegate_->transfer(0);
+
+  esph_log_d("spi.h", "read_byte_16 %x %x", data[0], data[1]);
+  
+  this->disable();
+  return 1; 
+}
 
 }  // namespace bme280
 }  // namespace esphome
