@@ -75,7 +75,6 @@ class DfrobotMmwaveRadarSwitch : public switch_::Switch, public Component {
 class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
  public:
   void dump_config() override;
-  void setup() override;
   void loop() override;
   void set_active(bool active) {
     if (active != active_) {

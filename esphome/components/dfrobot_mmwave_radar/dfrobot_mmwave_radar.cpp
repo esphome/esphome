@@ -83,8 +83,6 @@ void DfrobotMmwaveRadarComponent::dump_config() {
 #endif
 }
 
-void DfrobotMmwaveRadarComponent::setup() {}
-
 void DfrobotMmwaveRadarComponent::loop() {
   if (cmd_queue_.is_empty()) {
     // Command queue empty. Read sensor state.
