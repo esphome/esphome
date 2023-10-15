@@ -350,6 +350,7 @@ mcp23s17:
 aquaping:
   id: "aquaping_device"
   update_interval: 2s
+  i2c_id: i2c_bus
 
 sensor:
   - platform: aquaping
