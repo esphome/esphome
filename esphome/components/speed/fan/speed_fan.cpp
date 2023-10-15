@@ -15,7 +15,7 @@ void SpeedFan::setup() {
 }
 void SpeedFan::dump_config() { LOG_FAN("", "Speed Fan", this); }
 fan::FanTraits SpeedFan::get_traits() {
-  return fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
+  return fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_, this->off_speed_cycle_);
 }
 void SpeedFan::control(const fan::FanCall &call) {
   if (call.get_state().has_value())

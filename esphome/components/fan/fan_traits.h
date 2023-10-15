@@ -6,8 +6,8 @@ namespace fan {
 class FanTraits {
  public:
   FanTraits() = default;
-  FanTraits(bool oscillation, bool speed, bool direction, int speed_count)
-      : oscillation_(oscillation), speed_(speed), direction_(direction), speed_count_(speed_count) {}
+  FanTraits(bool oscillation, bool speed, bool direction, int speed_count, bool off_speed_cycle)
+      : oscillation_(oscillation), speed_(speed), direction_(direction), speed_count_(speed_count), off_speed_cycle_(off_speed_cycle) {}
 
   /// Return if this fan supports oscillation.
   bool supports_oscillation() const { return this->oscillation_; }
@@ -25,12 +25,15 @@ class FanTraits {
   bool supports_direction() const { return this->direction_; }
   /// Set whether this fan supports changing direction
   void set_direction(bool direction) { this->direction_ = direction; }
+  /// Return if this fan should cycle through off when cycling speeds.
+  bool cycle_off() const {return this->off_speed_cycle_; }
 
  protected:
   bool oscillation_{false};
   bool speed_{false};
   bool direction_{false};
   int speed_count_{};
+  bool off_speed_cycle_{};
 };
 
 }  // namespace fan

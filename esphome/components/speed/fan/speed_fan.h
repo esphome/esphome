@@ -25,6 +25,7 @@ class SpeedFan : public Component, public fan::Fan {
   output::BinaryOutput *oscillating_{nullptr};
   output::BinaryOutput *direction_{nullptr};
   int speed_count_{};
+  bool off_speed_cycle_{};
 };
 
 }  // namespace speed

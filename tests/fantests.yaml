@@ -1,7 +1,10 @@
 esphome:
     name: fantest
-    platform: ESP32
-    board: nodemcu-32s
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
 
 output:
   - platform: ledc
@@ -9,16 +12,48 @@ output:
     inverted: false
     pin: GPIO19
 
+  - platform: gpio
+    pin: 2
+    id: boardled
+
+
+logger:
+
+interval:
+  - interval: 1000ms
+    then:
+      - output.turn_on: boardled
+      - delay: 50ms
+      - output.turn_off: boardled
 
 
 fan:
     - platform: speed
-      id: fan_speed
-      icon: mdi:weather-windy
-      speed_count: 10
+      id: test_speed_fan
+      speed_count: 3
       off_speed_cycle: True
-      name: Living Room Fan 2
       output: my_output_id
       on_speed_set:
         then:
           - logger.log: Fan speed was changed!cat 
+
+binary_sensor:
+  - platform: gpio
+    name: Cycle Fan Speed
+    id: cyclespeed
+    pin:
+      number: 18
+      mode:
+        input: true
+        pulldown: true
+
+    filters:
+      - delayed_on: 10ms
+
+    # Optional variables:
+    on_press:
+      - fan.cycle_speed: test_speed_fan
+      - logger.log: "Cycle speed clicked"
+
+
+##NOTE THAT GPIO 5 IN PULL DOWN MODE DOES NOT WORK
