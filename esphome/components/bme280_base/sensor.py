@@ -37,52 +37,49 @@ IIR_FILTER_OPTIONS = {
     "16X": BME280IIRFilter.BME280_IIR_FILTER_16X,
 }
 
-CONFIG_SCHEMA_BASE = (
-    cv.Schema(
-        {
-            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(
-                {
-                    cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
-                        OVERSAMPLING_OPTIONS, upper=True
-                    ),
-                }
-            ),
-            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HECTOPASCAL,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_PRESSURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(
-                {
-                    cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
-                        OVERSAMPLING_OPTIONS, upper=True
-                    ),
-                }
-            ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(
-                {
-                    cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
-                        OVERSAMPLING_OPTIONS, upper=True
-                    ),
-                }
-            ),
-            cv.Optional(CONF_IIR_FILTER, default="OFF"): cv.enum(
-                IIR_FILTER_OPTIONS, upper=True
-            ),
-        }
-    )
-    .extend(cv.polling_component_schema("60s"))
-)
+CONFIG_SCHEMA_BASE = cv.Schema(
+    {
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ).extend(
+            {
+                cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
+                    OVERSAMPLING_OPTIONS, upper=True
+                ),
+            }
+        ),
+        cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_HECTOPASCAL,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_PRESSURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ).extend(
+            {
+                cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
+                    OVERSAMPLING_OPTIONS, upper=True
+                ),
+            }
+        ),
+        cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
+            unit_of_measurement=UNIT_PERCENT,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_HUMIDITY,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ).extend(
+            {
+                cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
+                    OVERSAMPLING_OPTIONS, upper=True
+                ),
+            }
+        ),
+        cv.Optional(CONF_IIR_FILTER, default="OFF"): cv.enum(
+            IIR_FILTER_OPTIONS, upper=True
+        ),
+    }
+).extend(cv.polling_component_schema("60s"))
 
 
 async def to_code(config, func=None):
