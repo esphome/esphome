@@ -333,8 +333,8 @@ static const LogString *voice_assistant_state_to_string(State state) {
       return LOG_STR("AWAITING_RESPONSE");
     case State::STREAMING_RESPONSE:
       return LOG_STR("STREAMING_RESPONSE");
-    case State::FINISHED:
-      return LOG_STR("FINISHED");
+    case State::RESPONSE_FINISHED:
+      return LOG_STR("RESPONSE_FINISHED");
     default:
       return LOG_STR("UNKNOWN");
   }

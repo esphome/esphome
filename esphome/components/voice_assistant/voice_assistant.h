@@ -46,7 +46,7 @@ enum class State {
   STOPPING_MICROPHONE,
   AWAITING_RESPONSE,
   STREAMING_RESPONSE,
-  FINISHED,
+  RESPONSE_FINISHED,
 };
 
 class VoiceAssistant : public Component {
