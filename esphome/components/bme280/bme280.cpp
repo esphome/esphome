@@ -3,7 +3,7 @@
 
 #include "bme280.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/bme280_base/bme280_base.h"
+#include "../bme280_base/bme280_base.h"
 
 namespace esphome {
 namespace bme280 {
