@@ -135,7 +135,6 @@ class VoiceAssistant : public Component {
 #endif
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
-  bool playing_tts_{false};
 #endif
 
   bool local_output_{false};
