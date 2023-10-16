@@ -35,7 +35,7 @@ fan:
       output: my_output_id
       on_speed_set:
         then:
-          - logger.log: Fan speed was changed!cat 
+          - logger.log: Fan speed was changed!
 
 binary_sensor:
   - platform: gpio

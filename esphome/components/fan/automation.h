@@ -7,6 +7,8 @@
 namespace esphome {
 namespace fan {
 
+static const char *const TAG = "COBB";
+
 template<typename... Ts> class TurnOnAction : public Action<Ts...> {
  public:
   explicit TurnOnAction(Fan *state) : state_(state) {}
@@ -62,33 +64,40 @@ template<typename... Ts> class CycleSpeedAction : public Action<Ts...> {
         int supported_speed_count = this->state_->get_traits().supported_speed_count();
         bool off_speed_cycle = this->state_->get_traits().cycle_off();
 
+        ESP_LOGD(TAG,  "Off speed cycle is is: %s", off_speed_cycle ? "true" : "false");
+
         if (speed > supported_speed_count && off_speed_cycle) {
-          // was running at max speed, off speed cycle enabled,  so turn off
+          // was running at max speed, off speed cycle enabled, so turn off
           speed = 1;
           auto call = this->state_->turn_off();
           call.set_speed(speed);
           call.perform();
+          ESP_LOGD(TAG, "CASE 1");
         }
         else if (speed > supported_speed_count && !off_speed_cycle) {
-                    // was running at max speed, off speed cycle disabled,  set to lowest speed
+          // was running at max speed, off speed cycle disabled,  set to lowest speed
           auto call = this->state_->turn_on();
           call.set_speed(1);
           call.perform();
+          ESP_LOGD(TAG, "CASE 2");
         }
         else {
           auto call = this->state_->turn_on();
           call.set_speed(speed);
           call.perform();
+          ESP_LOGD(TAG, "CASE 2");
         }
       } else {
         // fan was off, so set speed to 1
         auto call = this->state_->turn_on();
         call.set_speed(1);
         call.perform();
+        ESP_LOGD(TAG, "CASE 4");
       }
     } else {
       // fan doesn't support speed counts, so toggle
       this->state_->toggle().perform();
+      ESP_LOGD(TAG, "CASE D");
     }
   }
 
