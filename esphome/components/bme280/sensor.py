@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c
-from esphome.components.bme280_base.sensor import (
+from ..bme280_base.sensor import (
     to_code as to_code_base,
     bme280_ns,
     CONFIG_SCHEMA_BASE,
@@ -14,7 +14,7 @@ BME280SPIComponent = bme280_ns.class_(
     "BME280I2CComponent", cg.PollingComponent, i2c.I2CDevice
 )
 
-CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(i2c.i2c_device_schema())
+CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(i2c.i2c_device_schema(default_address=0x77))
 
 FUNC = i2c.register_i2c_device
 

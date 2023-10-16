@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace bme280 {
+namespace bme280_base {
 
 static const char *const TAG = "bme280.sensor";
 
@@ -350,5 +350,5 @@ uint16_t BME280Component::read_u16_le_(uint8_t a_register) {
 }
 int16_t BME280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 
-}  // namespace bme280
+}  // namespace bme280_base
 }  // namespace esphome

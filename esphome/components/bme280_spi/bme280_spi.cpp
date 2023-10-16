@@ -1,7 +1,7 @@
 #include "bme280_spi.h"
 
 namespace esphome {
-namespace bme280 {
+namespace bme280_spi {
 
 void BME280SPIComponent::setup() {
   SPIDevice::spi_setup();
@@ -56,5 +56,5 @@ bool BME280SPIComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
   return true;
 }
 
-}  // namespace bme280
+}  // namespace bme280_spi
 }  // namespace esphome
