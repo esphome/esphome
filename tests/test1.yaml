@@ -3504,6 +3504,9 @@ button:
       name: "restart"
     query_params:
       name: query params
+  - platform: uart
+    name: UART button
+    data: "Pressed\r\n"
 
 ld2410:
   id: my_ld2410
