@@ -615,7 +615,7 @@ sensor:
     iir_filter: 16x
     update_interval: 15s
     i2c_id: i2c_bus
-  - platform: bme280
+  - platform: bme280_spi
     temperature:
       name: Outside Temperature
       oversampling: 16x
