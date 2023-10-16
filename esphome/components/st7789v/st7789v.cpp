@@ -13,6 +13,11 @@ void ST7789V::setup() {
   this->power_.request();
   // the PowerSupply component takes care of post turn-on delay
 #endif
+  // If no CS pin st7789 needs to operate in SPI mode 3 instead of mode 0
+  if (this->cs_ == nullptr) {
+    ESP_LOGD(TAG,"No CS pin : Using SPI mode 3");
+    this->set_mode(spi::MODE3);
+  }
   this->spi_setup();
   this->dc_pin_->setup();  // OUTPUT
 
