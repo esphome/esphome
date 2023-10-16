@@ -3505,6 +3505,7 @@ button:
     query_params:
       name: query params
   - platform: uart
+    uart_id: uart_0
     name: UART button
     data: "Pressed\r\n"
 
