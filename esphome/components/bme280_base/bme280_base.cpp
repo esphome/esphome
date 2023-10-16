@@ -7,42 +7,6 @@
 #include <esphome/components/sensor/sensor.h>
 #include <esphome/core/component.h>
 
-const char *iir_filter_to_str(BME280IIRFilter filter) {
-  switch (filter) {
-    case BME280_IIR_FILTER_OFF:
-      return "OFF";
-    case BME280_IIR_FILTER_2X:
-      return "2x";
-    case BME280_IIR_FILTER_4X:
-      return "4x";
-    case BME280_IIR_FILTER_8X:
-      return "8x";
-    case BME280_IIR_FILTER_16X:
-      return "16x";
-    default:
-      return "UNKNOWN";
-  }
-}
-
-const char *oversampling_to_str(BME280Oversampling oversampling) {
-  switch (oversampling) {
-    case BME280_OVERSAMPLING_NONE:
-      return "None";
-    case BME280_OVERSAMPLING_1X:
-      return "1x";
-    case BME280_OVERSAMPLING_2X:
-      return "2x";
-    case BME280_OVERSAMPLING_4X:
-      return "4x";
-    case BME280_OVERSAMPLING_8X:
-      return "8x";
-    case BME280_OVERSAMPLING_16X:
-      return "16x";
-    default:
-      return "UNKNOWN";
-  }
-}
-
 namespace esphome {
 namespace bme280_base {
 
@@ -86,6 +50,42 @@ static const uint8_t BME280_SOFT_RESET = 0xB6;
 static const uint8_t BME280_STATUS_IM_UPDATE = 0b01;
 
 inline uint16_t combine_bytes(uint8_t msb, uint8_t lsb) { return ((msb & 0xFF) << 8) | (lsb & 0xFF); }
+
+const char *iir_filter_to_str(BME280IIRFilter filter) {  // NOLINT
+  switch (filter) {
+    case BME280_IIR_FILTER_OFF:
+      return "OFF";
+    case BME280_IIR_FILTER_2X:
+      return "2x";
+    case BME280_IIR_FILTER_4X:
+      return "4x";
+    case BME280_IIR_FILTER_8X:
+      return "8x";
+    case BME280_IIR_FILTER_16X:
+      return "16x";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+const char *oversampling_to_str(BME280Oversampling oversampling) {  // NOLINT
+  switch (oversampling) {
+    case BME280_OVERSAMPLING_NONE:
+      return "None";
+    case BME280_OVERSAMPLING_1X:
+      return "1x";
+    case BME280_OVERSAMPLING_2X:
+      return "2x";
+    case BME280_OVERSAMPLING_4X:
+      return "4x";
+    case BME280_OVERSAMPLING_8X:
+      return "8x";
+    case BME280_OVERSAMPLING_16X:
+      return "16x";
+    default:
+      return "UNKNOWN";
+  }
+}
 
 void BME280Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BME280...");
