@@ -4,6 +4,16 @@
 #include "bme280_spi.h"
 #include <esphome/components/bme280_base/bme280_base.h>
 
+int set_bit(uint8_t num, int position) {
+  int mask = 1 << position;
+  return num | mask;
+}
+
+int clear_bit(uint8_t num, int position) {
+  int mask = 1 << position;
+  return num & ~mask;
+}
+
 namespace esphome {
 namespace bme280_spi {
 
@@ -20,9 +30,8 @@ void BME280SPIComponent::setup() {
 
 bool BME280SPIComponent::read_byte(uint8_t a_register, uint8_t *data) {
   this->enable();
-  uint8_t tmp = a_register |= (1U << (8 - 1));
   // cause: *data = this->delegate_->transfer(tmp) doesnt work
-  this->delegate_->transfer(tmp);
+  this->delegate_->transfer(set_bit(a_register, 7));
   *data = this->delegate_->transfer(0);
   this->disable();
   return true;
@@ -30,7 +39,7 @@ bool BME280SPIComponent::read_byte(uint8_t a_register, uint8_t *data) {
 
 bool BME280SPIComponent::write_byte(uint8_t a_register, uint8_t data) {
   this->enable();
-  this->delegate_->transfer(a_register &= ~(1U << (8 - 1)));
+  this->delegate_->transfer(clear_bit(a_register, 7));
   this->delegate_->transfer(data);
   this->disable();
   return true;
@@ -38,8 +47,7 @@ bool BME280SPIComponent::write_byte(uint8_t a_register, uint8_t data) {
 
 bool BME280SPIComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t len) {
   this->enable();
-  uint8_t tmp = a_register |= (1U << (8 - 1));
-  this->delegate_->transfer(tmp);
+  this->delegate_->transfer(set_bit(a_register, 7));
   this->delegate_->read_array(data, len);
   this->disable();
   return true;
@@ -47,11 +55,9 @@ bool BME280SPIComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t le
 
 bool BME280SPIComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
   this->enable();
-  uint8_t tmp = a_register |= (1U << (8 - 1));
-  this->delegate_->transfer(tmp);
+  this->delegate_->transfer(set_bit(a_register, 7));
   data[1] = this->delegate_->transfer(0);
   data[0] = this->delegate_->transfer(0);
-
   this->disable();
   return true;
 }
