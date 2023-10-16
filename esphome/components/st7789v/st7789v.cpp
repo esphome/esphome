@@ -15,7 +15,7 @@ void ST7789V::setup() {
 #endif
   // If no CS pin st7789 needs to operate in SPI mode 3 instead of mode 0
   if (this->cs_ == nullptr) {
-    ESP_LOGD(TAG,"No CS pin : Using SPI mode 3");
+    ESP_LOGD(TAG, "No CS pin : Using SPI mode 3");
     this->set_mode(spi::MODE3);
   }
   this->spi_setup();
