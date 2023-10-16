@@ -1,4 +1,8 @@
+#include <cstdint>
+#include <cstddef>
+
 #include "bme280_spi.h"
+#include <esphome/components/bme280_base/bme280_base.h>
 
 namespace esphome {
 namespace bme280_spi {
@@ -17,11 +21,9 @@ void BME280SPIComponent::setup() {
 bool BME280SPIComponent::read_byte(uint8_t a_register, uint8_t *data) {
   this->enable();
   uint8_t tmp = a_register |= (1U << (8 - 1));
-  esph_log_d("spi.h", "send byte %x", tmp);
   // cause: *data = this->delegate_->transfer(tmp) doesnt work
   this->delegate_->transfer(tmp);
   *data = this->delegate_->transfer(0);
-  esph_log_d("spi.h", "read byte %x", *data);
   this->disable();
   return true;
 }
@@ -46,12 +48,9 @@ bool BME280SPIComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t le
 bool BME280SPIComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
   this->enable();
   uint8_t tmp = a_register |= (1U << (8 - 1));
-  esph_log_d("spi.h", "send_byte_16 %x", tmp);
   this->delegate_->transfer(tmp);
   data[1] = this->delegate_->transfer(0);
   data[0] = this->delegate_->transfer(0);
-
-  esph_log_d("spi.h", "read_byte_16 %x %x", data[0], data[1]);
 
   this->disable();
   return true;

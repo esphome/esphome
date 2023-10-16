@@ -1,6 +1,11 @@
+#include <cmath>
+#include <cstdint>
+
 #include "bme280_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include <esphome/components/sensor/sensor.h>
+#include <esphome/core/component.h>
 
 namespace esphome {
 namespace bme280_base {
@@ -225,14 +230,14 @@ void BME280Component::update() {
       return;
     }
     int32_t t_fine = 0;
-    float temperature = this->read_temperature_(data, &t_fine);
+    float const temperature = this->read_temperature_(data, &t_fine);
     if (std::isnan(temperature)) {
       ESP_LOGW(TAG, "Invalid temperature, cannot read pressure & humidity values.");
       this->status_set_warning();
       return;
     }
-    float pressure = this->read_pressure_(data, t_fine);
-    float humidity = this->read_humidity_(data, t_fine);
+    float const pressure = this->read_pressure_(data, t_fine);
+    float const humidity = this->read_humidity_(data, t_fine);
 
     ESP_LOGV(TAG, "Got temperature=%.1f°C pressure=%.1fhPa humidity=%.1f%%", temperature, pressure, humidity);
     if (this->temperature_sensor_ != nullptr)
@@ -256,11 +261,11 @@ float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
   const int32_t t2 = this->calibration_.t2;
   const int32_t t3 = this->calibration_.t3;
 
-  int32_t var1 = (((adc >> 3) - (t1 << 1)) * t2) >> 11;
-  int32_t var2 = (((((adc >> 4) - t1) * ((adc >> 4) - t1)) >> 12) * t3) >> 14;
+  int32_t const var1 = (((adc >> 3) - (t1 << 1)) * t2) >> 11;
+  int32_t const var2 = (((((adc >> 4) - t1) * ((adc >> 4) - t1)) >> 12) * t3) >> 14;
   *t_fine = var1 + var2;
 
-  float temperature = (*t_fine * 5 + 128) >> 8;
+  float const temperature = (*t_fine * 5 + 128) >> 8;
   return temperature / 100.0f;
 }
 
@@ -302,11 +307,11 @@ float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
 }
 
 float BME280Component::read_humidity_(const uint8_t *data, int32_t t_fine) {
-  uint16_t raw_adc = ((data[6] & 0xFF) << 8) | (data[7] & 0xFF);
+  uint16_t const raw_adc = ((data[6] & 0xFF) << 8) | (data[7] & 0xFF);
   if (raw_adc == 0x8000)
     return NAN;
 
-  int32_t adc = raw_adc;
+  int32_t const adc = raw_adc;
 
   const int32_t h1 = this->calibration_.h1;
   const int32_t h2 = this->calibration_.h2;
@@ -324,7 +329,7 @@ float BME280Component::read_humidity_(const uint8_t *data, int32_t t_fine) {
 
   v_x1_u32r = v_x1_u32r < 0 ? 0 : v_x1_u32r;
   v_x1_u32r = v_x1_u32r > 419430400 ? 419430400 : v_x1_u32r;
-  float h = v_x1_u32r >> 12;
+  float const h = v_x1_u32r >> 12;
 
   return h / 1024.0f;
 }
