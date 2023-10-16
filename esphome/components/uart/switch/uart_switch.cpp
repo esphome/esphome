@@ -21,7 +21,24 @@ void UARTSwitch::write_command_() {
   this->write_array(this->data_.data(), this->data_.size());
 }
 
+void UARTSwitch::write_command_(bool state) {
+  if (state && this->data_on_.size()) {
+    ESP_LOGD(TAG, "'%s': Sending on data...", this->get_name().c_str());
+    this->write_array(this->data_on_.data(), this->data_on_.size());
+  }
+  if (!state && this->data_off_.size()) {
+    ESP_LOGD(TAG, "'%s': Sending off data...", this->get_name().c_str());
+    this->write_array(this->data_off_.data(), this->data_off_.size());
+  }
+}
+
 void UARTSwitch::write_state(bool state) {
+  if (!this->single_state_) {
+    this->publish_state(state);
+    this->write_command_(state);
+    return;
+  }
+
   if (!state) {
     this->publish_state(false);
     return;
@@ -36,6 +53,7 @@ void UARTSwitch::write_state(bool state) {
     this->last_transmission_ = millis();
   }
 }
+
 void UARTSwitch::dump_config() {
   LOG_SWITCH("", "UART Switch", this);
   if (this->send_every_) {
