@@ -19,12 +19,12 @@ class IDFOTABackend : public OTABackend {
   void abort() override;
   bool supports_compression() override { return false; }
 #ifdef USE_UNPROTECTED_WRITES
-  bool supports_writing_bootloader() override { return false; }
-  bool supports_writing_partition_table() override { return false; }
-  bool supports_writing_partitions() override { return false; }
-#else
   bool supports_writing_bootloader() override { return true; }
   bool supports_writing_partition_table() override { return true; }
+  bool supports_writing_partitions() override { return false; }
+#else
+  bool supports_writing_bootloader() override { return false; }
+  bool supports_writing_partition_table() override { return false; }
   bool supports_writing_partitions() override { return false; }
 #endif
  private:
