@@ -133,6 +133,7 @@ class VoiceAssistant : public Component {
   uint8_t *speaker_buffer_;
   size_t speaker_buffer_index_{0};
   size_t speaker_buffer_size_{0};
+  bool wait_for_stream_end_{false};
 #endif
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
