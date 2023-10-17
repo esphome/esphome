@@ -158,8 +158,13 @@ void I2SAudioSpeaker::watch_() {
   if (xQueueReceive(this->event_queue_, &event, 0) == pdTRUE) {
     switch (event.type) {
       case TaskEventType::STARTING:
+        ESP_LOGD(TAG, "Starting I2S Audio Speaker");
+        break;
       case TaskEventType::STARTED:
+        ESP_LOGD(TAG, "Started I2S Audio Speaker");
+        break;
       case TaskEventType::STOPPING:
+        ESP_LOGD(TAG, "Stopping I2S Audio Speaker");
         break;
       case TaskEventType::PLAYING:
         this->status_clear_warning();
@@ -170,6 +175,7 @@ void I2SAudioSpeaker::watch_() {
         this->player_task_handle_ = nullptr;
         this->parent_->unlock();
         xQueueReset(this->buffer_queue_);
+        ESP_LOGD(TAG, "Stopped I2S Audio Speaker");
         break;
       case TaskEventType::WARNING:
         ESP_LOGW(TAG, "Error writing to I2S: %s", esp_err_to_name(event.err));
