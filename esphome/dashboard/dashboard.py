@@ -838,17 +838,17 @@ class BoardsRequestHandler(BaseHandler):
         from esphome.components.rtl87xx.boards import BOARDS as RTL87XX_BOARDS
 
         platform_to_boards = {
-            "esp32": ESP32_BOARDS,
-            "esp8266": ESP8266_BOARDS,
-            "rp2040": RP2040_BOARDS,
-            "bk72xx": BK72XX_BOARDS,
-            "rtl87xx": RTL87XX_BOARDS,
+            const.PLATFORM_ESP32: ESP32_BOARDS,
+            const.PLATFORM_ESP8266: ESP8266_BOARDS,
+            const.PLATFORM_RP2040: RP2040_BOARDS,
+            const.PLATFORM_BK72XX: BK72XX_BOARDS,
+            const.PLATFORM_RTL87XX: RTL87XX_BOARDS,
         }
         # filter all ESP32 variants by requested platform
         if platform.startswith("esp32"):
             boards = {
                 k: v
-                for k, v in platform_to_boards["esp32"].items()
+                for k, v in platform_to_boards[const.PLATFORM_ESP32].items()
                 if v[const.KEY_VARIANT] == platform.upper()
             }
         else:
