@@ -287,6 +287,7 @@ void VoiceAssistant::loop() {
           }
         }
         if (this->wait_for_stream_end_) {
+          this->cancel_timeout("playing");
           break;  // We dont want to timeout here as the STREAM_END event will take care of that.
         }
         playing = this->speaker_->is_running();
