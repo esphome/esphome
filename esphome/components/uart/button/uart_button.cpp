@@ -11,9 +11,7 @@ void UARTButton::press_action() {
   this->write_array(this->data_.data(), this->data_.size());
 }
 
-void UARTButton::dump_config() {
-  LOG_BUTTON("", "UART Button", this);
-}
+void UARTButton::dump_config() { LOG_BUTTON("", "UART Button", this); }
 
 }  // namespace uart
 }  // namespace esphome

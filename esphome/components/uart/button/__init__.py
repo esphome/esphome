@@ -5,6 +5,8 @@ from esphome.const import CONF_DATA
 from esphome.core import HexInt
 from .. import uart_ns, validate_raw_data
 
+CODEOWNERS = ["@ssieb"]
+
 DEPENDENCIES = ["uart"]
 
 UARTButton = uart_ns.class_("UARTButton", button.Button, uart.UARTDevice, cg.Component)
