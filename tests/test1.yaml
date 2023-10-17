@@ -2594,6 +2594,12 @@ switch:
     name: UART Recurring Output
     data: [0xDE, 0xAD, 0xBE, 0xEF]
     send_every: 1s
+  - platform: uart
+    uart_id: uart_0
+    name: "UART On/Off"
+    data:
+      turn_on: "TurnOn\r\n"
+      turn_off: "TurnOff\r\n"
   - platform: template
     assumed_state: true
     name: Stepper Switch
