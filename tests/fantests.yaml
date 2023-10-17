@@ -19,14 +19,6 @@ output:
 
 logger:
 
-interval:
-  - interval: 1000ms
-    then:
-      - output.turn_on: boardled
-      - delay: 50ms
-      - output.turn_off: boardled
-
-
 fan:
     - platform: speed
       id: test_speed_fan
@@ -54,6 +46,3 @@ binary_sensor:
     on_press:
       - fan.cycle_speed: test_speed_fan
       - logger.log: "Cycle speed clicked"
-
-
-##NOTE THAT GPIO 5 IN PULL DOWN MODE DOES NOT WORK
