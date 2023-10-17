@@ -18,13 +18,13 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
     {
         cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(SpeedFan),
         cv.Required(CONF_OUTPUT): cv.use_id(output.FloatOutput),
-        cv.Required(CONF_OFF_SPEED_CYCLE): cv.boolean,
         cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_id(output.BinaryOutput),
         cv.Optional(CONF_DIRECTION_OUTPUT): cv.use_id(output.BinaryOutput),
         cv.Optional(CONF_SPEED): cv.invalid(
             "Configuring individual speeds is deprecated."
         ),
         cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
+        cv.Optional(CONF_OFF_SPEED_CYCLE, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
