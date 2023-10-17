@@ -3,7 +3,7 @@ from esphome.components import i2c
 from esphome.const import CONF_ID
 import esphome.config_validation as cv
 
-CODEOWNERS = ["@ardi"]
+CODEOWNERS = ["@sjtrny"]
 DEPENDENCIES = ["i2c"]
 
 aquaping_ns = cg.esphome_ns.namespace("aquaping")
