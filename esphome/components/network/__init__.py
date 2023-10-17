@@ -5,6 +5,10 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 
 from esphome.const import (
     CONF_ENABLE_IPV6,
+    CONF_HOSTS,
+    CONF_ID,
+    CONF_IP_ADDRESS,
+    CONF_NAME,
 )
 
 CODEOWNERS = ["@esphome/core"]
@@ -12,15 +16,36 @@ AUTO_LOAD = ["mdns"]
 
 network_ns = cg.esphome_ns.namespace("network")
 IPAddress = network_ns.class_("IPAddress")
+Resolver = network_ns.class_("Resolver")
+CONF_NETWORK_ID = "network_id"
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(CONF_NETWORK_ID): cv.declare_id(Resolver),
         cv.Optional(CONF_ENABLE_IPV6, default=False): cv.boolean,
+        cv.Optional(CONF_HOSTS): cv.ensure_list(
+            cv.Schema(
+                {
+                    cv.Required(CONF_NAME): cv.string,
+                    cv.Required(CONF_IP_ADDRESS): cv.string,
+                }
+            )
+        ),
     }
 )
 
 
 async def to_code(config):
+    if config[CONF_HOSTS]:
+        hosts = [
+            (host[CONF_NAME], IPAddress(host[CONF_IP_ADDRESS]))
+            for host in config[CONF_HOSTS]
+        ]
+    else:
+        hosts = []
+
+    map_ = cg.std_ns.class_("map").template(cg.std_string, IPAddress)
+    cg.new_Pvariable(config[CONF_NETWORK_ID], map_(hosts))
     cg.add_define("ENABLE_IPV6", config[CONF_ENABLE_IPV6])
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", config[CONF_ENABLE_IPV6])
