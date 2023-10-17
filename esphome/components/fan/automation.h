@@ -7,8 +7,6 @@
 namespace esphome {
 namespace fan {
 
-static const char *const TAG = "COBB";
-
 template<typename... Ts> class TurnOnAction : public Action<Ts...> {
  public:
   explicit TurnOnAction(Fan *state) : state_(state) {}
