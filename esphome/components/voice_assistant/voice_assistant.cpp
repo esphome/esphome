@@ -281,10 +281,14 @@ void VoiceAssistant::loop() {
             memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
             this->speaker_buffer_size_ -= written;
             this->speaker_buffer_index_ -= written;
-            this->set_timeout("speaker-timeout", 1000, [this]() { this->speaker_->stop(); });
+            this->set_timeout("speaker-timeout", 2000, [this]() { this->speaker_->stop(); });
           } else {
             ESP_LOGW(TAG, "Speaker buffer full.");
           }
+        }
+        if (this->wait_for_stream_end_) {
+          this->cancel_timeout("playing");
+          break;  // We dont want to timeout here as the STREAM_END event will take care of that.
         }
         playing = this->speaker_->is_running();
       }
@@ -295,11 +299,26 @@ void VoiceAssistant::loop() {
       }
 #endif
       if (playing) {
-        this->set_timeout("playing", 100, [this]() {
+        this->set_timeout("playing", 2000, [this]() {
           this->cancel_timeout("speaker-timeout");
           this->set_state_(State::IDLE, State::IDLE);
         });
       }
+      break;
+    }
+    case State::RESPONSE_FINISHED: {
+#ifdef USE_SPEAKER
+      if (this->speaker_ != nullptr) {
+        this->speaker_->stop();
+        this->cancel_timeout("speaker-timeout");
+        this->cancel_timeout("playing");
+        this->speaker_buffer_size_ = 0;
+        this->speaker_buffer_index_ = 0;
+        memset(this->speaker_buffer_, 0, SPEAKER_BUFFER_SIZE);
+      }
+#endif
+      this->wait_for_stream_end_ = false;
+      this->set_state_(State::IDLE, State::IDLE);
       break;
     }
     default:
@@ -307,16 +326,50 @@ void VoiceAssistant::loop() {
   }
 }
 
+static const LogString *voice_assistant_state_to_string(State state) {
+  switch (state) {
+    case State::IDLE:
+      return LOG_STR("IDLE");
+    case State::START_MICROPHONE:
+      return LOG_STR("START_MICROPHONE");
+    case State::STARTING_MICROPHONE:
+      return LOG_STR("STARTING_MICROPHONE");
+    case State::WAIT_FOR_VAD:
+      return LOG_STR("WAIT_FOR_VAD");
+    case State::WAITING_FOR_VAD:
+      return LOG_STR("WAITING_FOR_VAD");
+    case State::START_PIPELINE:
+      return LOG_STR("START_PIPELINE");
+    case State::STARTING_PIPELINE:
+      return LOG_STR("STARTING_PIPELINE");
+    case State::STREAMING_MICROPHONE:
+      return LOG_STR("STREAMING_MICROPHONE");
+    case State::STOP_MICROPHONE:
+      return LOG_STR("STOP_MICROPHONE");
+    case State::STOPPING_MICROPHONE:
+      return LOG_STR("STOPPING_MICROPHONE");
+    case State::AWAITING_RESPONSE:
+      return LOG_STR("AWAITING_RESPONSE");
+    case State::STREAMING_RESPONSE:
+      return LOG_STR("STREAMING_RESPONSE");
+    case State::RESPONSE_FINISHED:
+      return LOG_STR("RESPONSE_FINISHED");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+};
+
 void VoiceAssistant::set_state_(State state) {
   State old_state = this->state_;
   this->state_ = state;
-  ESP_LOGD(TAG, "State changed from %d to %d", static_cast<uint8_t>(old_state), static_cast<uint8_t>(state));
+  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(voice_assistant_state_to_string(old_state)),
+           LOG_STR_ARG(voice_assistant_state_to_string(state)));
 }
 
 void VoiceAssistant::set_state_(State state, State desired_state) {
   this->set_state_(state);
   this->desired_state_ = desired_state;
-  ESP_LOGD(TAG, "Desired state set to %d", static_cast<uint8_t>(desired_state));
+  ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(desired_state)));
 }
 
 void VoiceAssistant::failed_to_start() {
@@ -400,6 +453,7 @@ void VoiceAssistant::request_stop() {
       break;
     case State::AWAITING_RESPONSE:
     case State::STREAMING_RESPONSE:
+    case State::RESPONSE_FINISHED:
       break;  // Let the incoming audio stream finish then it will go to idle.
   }
 }
@@ -529,6 +583,14 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         this->set_state_(State::STOP_MICROPHONE, State::IDLE);
       }
       this->error_trigger_->trigger(code, message);
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_TTS_STREAM_START: {
+      this->wait_for_stream_end_ = true;
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_TTS_STREAM_END: {
+      this->set_state_(State::RESPONSE_FINISHED, State::IDLE);
       break;
     }
     default:
