@@ -19,7 +19,7 @@ from esphome.const import (
     CONF_ON_TURN_ON,
     CONF_TRIGGER_ID,
     CONF_DIRECTION,
-    CONF_RESTORE_MODE
+    CONF_RESTORE_MODE,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -102,7 +102,6 @@ FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).exte
         ),
     }
 )
-
 
 
 async def setup_fan_core_(var, config):

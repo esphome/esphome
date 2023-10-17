@@ -8,7 +8,7 @@ from esphome.const import (
     CONF_OUTPUT_ID,
     CONF_SPEED,
     CONF_SPEED_COUNT,
-    CONF_OFF_SPEED_CYCLE
+    CONF_OFF_SPEED_CYCLE,
 )
 from .. import speed_ns
 
@@ -24,7 +24,7 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
         cv.Optional(CONF_SPEED): cv.invalid(
             "Configuring individual speeds is deprecated."
         ),
-        cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1), 
+        cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -42,3 +42,6 @@ async def to_code(config):
     if CONF_DIRECTION_OUTPUT in config:
         direction_output = await cg.get_variable(config[CONF_DIRECTION_OUTPUT])
         cg.add(var.set_direction(direction_output))
+
+    if CONF_OFF_SPEED_CYCLE in config:
+        cg.add(var.set_offcycle(config[CONF_OFF_SPEED_CYCLE]))

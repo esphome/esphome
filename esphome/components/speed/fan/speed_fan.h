@@ -15,6 +15,7 @@ class SpeedFan : public Component, public fan::Fan {
   void dump_config() override;
   void set_oscillating(output::BinaryOutput *oscillating) { this->oscillating_ = oscillating; }
   void set_direction(output::BinaryOutput *direction) { this->direction_ = direction; }
+  void set_offcycle(bool offCycle) {this->off_speed_cycle_ = offCycle; }
   fan::FanTraits get_traits() override;
 
  protected:
