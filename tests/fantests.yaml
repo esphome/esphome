@@ -46,3 +46,4 @@ binary_sensor:
     on_press:
       - fan.cycle_speed: test_speed_fan
       - logger.log: "Cycle speed clicked"
+      
