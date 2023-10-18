@@ -14,6 +14,8 @@
 #endif
 #ifdef USE_ESP_IDF
 #include <driver/uart.h>
+#include <driver/usb_serial_jtag.h>
+#include <esp_private/usb_console.h>
 #endif
 
 namespace esphome {
@@ -26,6 +28,7 @@ enum ImprovSerialType : uint8_t {
   TYPE_RPC_RESPONSE = 0x04
 };
 
+static const uint16_t IMPROV_SERIAL_TIMEOUT = 100;
 static const uint8_t IMPROV_SERIAL_VERSION = 1;
 
 class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
@@ -48,8 +51,7 @@ class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
   std::vector<uint8_t> build_rpc_settings_response_(improv::Command command);
   std::vector<uint8_t> build_version_info_();
 
-  int available_();
-  uint8_t read_byte_();
+  optional<uint8_t> read_byte_();
   void write_data_(std::vector<uint8_t> &data);
 
 #ifdef USE_ARDUINO
