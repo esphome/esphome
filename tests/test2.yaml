@@ -5,6 +5,13 @@ esphome:
   board: nodemcu-32s
   build_path: build/test2
 
+globals:
+  - id: my_global_string
+    type: std::string
+    restore_value: yes
+    max_restore_data_length: 70
+    initial_value: '"DefaultValue"'
+
 substitutions:
   devicename: test2
 
@@ -20,6 +27,9 @@ ethernet:
     gateway: 192.168.178.1
     subnet: 255.255.255.0
   domain: .local
+
+network:
+  enable_ipv6: true
 
 mdns:
   disabled: true
@@ -54,6 +64,8 @@ ota:
 
 logger:
   level: DEBUG
+
+debug:
 
 deep_sleep:
   run_duration:
@@ -710,6 +722,15 @@ interval:
     - logger.log: Interval Run
 
 display:
+  - platform: st7789v
+    model: LILYGO_T-EMBED_170X320
+    spi_mode: mode0
+    height: 320
+    width: 170
+    offset_height: 35
+    offset_width: 0
+    dc_pin: GPIO13
+    reset_pin: GPIO9
 
 image:
   - id: binary_image
@@ -738,6 +759,11 @@ image:
   - id: another_alert_icon
     file: mdi:alert-outline
     type: BINARY
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
 
 graph:
   - id: my_graph
