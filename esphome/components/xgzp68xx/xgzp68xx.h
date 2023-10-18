@@ -9,9 +9,8 @@ namespace xgzp68xx {
 
 class XGZP68XXComponent : public PollingComponent, public sensor::Sensor, public i2c::I2CDevice {
  public:
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
-  
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
   void update() override;
   void setup() override;
   void dump_config() override;
