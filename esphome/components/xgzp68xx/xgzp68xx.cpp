@@ -52,8 +52,10 @@ void XGZP68XXComponent::update() {
       temp = (float)(temperature_raw - pow(2, 16)) / 256.0;
   }
 
-
-  this->pressure_sensor_->publish_state(pressure_in_pa);
+  if (this->pressure_sensor_ != nullptr)
+    this->pressure_sensor_->publish_state(pressure_in_pa);
+  
+  if (this->temperature_sensor_ != nullptr)
   this->temperature_sensor_->publish_state(temp);
   
 
@@ -66,8 +68,6 @@ void XGZP68XXComponent::setup() {
   // Display some sample bits to confirm we are talking to the sensor
   this->read_byte(SYSCONFIG_ADDRESS, &config);
   ESP_LOGCONFIG(TAG, "Gain bits are %03b", (config >> 3) & 0b111);
-  
-
   ESP_LOGCONFIG(TAG, "XGZP68xx started!");
 }
 
