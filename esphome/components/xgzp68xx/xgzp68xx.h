@@ -18,8 +18,6 @@ class XGZP68XXComponent : public PollingComponent, public sensor::Sensor, public
  protected:
   /// Internal method to read the pressure from the component after it has been scheduled.
   void read_pressure_();
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
 };
 
 }  // namespace xgzp68xx
