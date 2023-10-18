@@ -53,7 +53,7 @@ void UARTSwitch::write_state(bool state) {
 void UARTSwitch::dump_config() {
   LOG_SWITCH("", "UART Switch", this);
   if (this->send_every_) {
-    ESP_LOGCONFIG(TAG, "  Send Every: %u", this->send_every_);
+    ESP_LOGCONFIG(TAG, "  Send Every: %" PRIu32, this->send_every_);
   }
 }
 

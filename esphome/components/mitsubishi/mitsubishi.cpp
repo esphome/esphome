@@ -45,8 +45,8 @@ void MitsubishiClimate::transmit_state() {
   remote_state[7] = (uint8_t) roundf(clamp<float>(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) -
                                      MITSUBISHI_TEMP_MIN);
 
-  ESP_LOGV(TAG, "Sending Mitsubishi target temp: %.1f state: %02X mode: %02X temp: %02X", this->target_temperature,
-           remote_state[5], remote_state[6], remote_state[7]);
+  ESP_LOGV(TAG, "Sending Mitsubishi target temp: %.1f state: %02" PRIX32 " mode: %02" PRIX32 " temp: %02" PRIX32,
+           this->target_temperature, remote_state[5], remote_state[6], remote_state[7]);
 
   // Checksum
   for (int i = 0; i < 17; i++) {
