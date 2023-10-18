@@ -325,6 +325,7 @@ esphome/components/whynter/* @aeonsablaze
 esphome/components/wiegand/* @ssieb
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/x9c/* @EtienneMD
+esphome/components/xgzp68xx/* @gcormier
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
