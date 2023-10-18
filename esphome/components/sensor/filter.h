@@ -419,5 +419,14 @@ class ClampFilter : public Filter {
   float max_{NAN};
 };
 
+class RoundFilter : public Filter {
+ public:
+  explicit RoundFilter(uint8_t precision);
+  optional<float> new_value(float value) override;
+
+ protected:
+  uint8_t precision_;
+};
+
 }  // namespace sensor
 }  // namespace esphome

@@ -2,9 +2,9 @@
 
 #ifdef USE_ESP32
 
-#include "ble_uuid.h"
-#include <cstring>
 #include <cstdio>
+#include <cstring>
+#include "ble_uuid.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -16,8 +16,8 @@ BLEAdvertising::BLEAdvertising() {
   this->advertising_data_.set_scan_rsp = false;
   this->advertising_data_.include_name = true;
   this->advertising_data_.include_txpower = true;
-  this->advertising_data_.min_interval = 0x20;
-  this->advertising_data_.max_interval = 0x40;
+  this->advertising_data_.min_interval = 0;
+  this->advertising_data_.max_interval = 0;
   this->advertising_data_.appearance = 0x00;
   this->advertising_data_.manufacturer_len = 0;
   this->advertising_data_.p_manufacturer_data = nullptr;
@@ -40,6 +40,17 @@ void BLEAdvertising::add_service_uuid(ESPBTUUID uuid) { this->advertising_uuids_
 void BLEAdvertising::remove_service_uuid(ESPBTUUID uuid) {
   this->advertising_uuids_.erase(std::remove(this->advertising_uuids_.begin(), this->advertising_uuids_.end(), uuid),
                                  this->advertising_uuids_.end());
+}
+
+void BLEAdvertising::set_service_data(const std::vector<uint8_t> &data) {
+  delete[] this->advertising_data_.p_service_data;
+  this->advertising_data_.p_service_data = nullptr;
+  this->advertising_data_.service_data_len = data.size();
+  if (!data.empty()) {
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    this->advertising_data_.p_service_data = new uint8_t[data.size()];
+    memcpy(this->advertising_data_.p_service_data, data.data(), data.size());
+  }
 }
 
 void BLEAdvertising::set_manufacturer_data(const std::vector<uint8_t> &data) {
@@ -85,8 +96,6 @@ void BLEAdvertising::start() {
     this->scan_response_data_.set_scan_rsp = true;
     this->scan_response_data_.include_name = true;
     this->scan_response_data_.include_txpower = true;
-    this->scan_response_data_.min_interval = 0;
-    this->scan_response_data_.max_interval = 0;
     this->scan_response_data_.manufacturer_len = 0;
     this->scan_response_data_.appearance = 0;
     this->scan_response_data_.flag = 0;

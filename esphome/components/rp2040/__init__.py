@@ -14,6 +14,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_RP2040,
 )
 from esphome.core import CORE, coroutine_with_priority, EsphomeError
 from esphome.helpers import mkdir_p, write_file, copy_file_if_changed
@@ -30,7 +31,7 @@ AUTO_LOAD = []
 
 def set_core_data(config):
     CORE.data[KEY_RP2040] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "rp2040"
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_RP2040
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]

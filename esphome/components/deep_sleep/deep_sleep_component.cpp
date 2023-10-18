@@ -39,7 +39,7 @@ void DeepSleepComponent::setup() {
 
   const optional<uint32_t> run_duration = get_run_duration_();
   if (run_duration.has_value()) {
-    ESP_LOGI(TAG, "Scheduling Deep Sleep to start in %u ms", *run_duration);
+    ESP_LOGI(TAG, "Scheduling Deep Sleep to start in %" PRIu32 " ms", *run_duration);
     this->set_timeout(*run_duration, [this]() { this->begin_sleep(); });
   } else {
     ESP_LOGD(TAG, "Not scheduling Deep Sleep, as no run duration is configured.");
@@ -49,19 +49,20 @@ void DeepSleepComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Setting up Deep Sleep...");
   if (this->sleep_duration_.has_value()) {
     uint32_t duration = *this->sleep_duration_ / 1000;
-    ESP_LOGCONFIG(TAG, "  Sleep Duration: %u ms", duration);
+    ESP_LOGCONFIG(TAG, "  Sleep Duration: %" PRIu32 " ms", duration);
   }
   if (this->run_duration_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Run Duration: %u ms", *this->run_duration_);
+    ESP_LOGCONFIG(TAG, "  Run Duration: %" PRIu32 " ms", *this->run_duration_);
   }
 #ifdef USE_ESP32
   if (wakeup_pin_ != nullptr) {
     LOG_PIN("  Wakeup Pin: ", this->wakeup_pin_);
   }
   if (this->wakeup_cause_to_run_duration_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Default Wakeup Run Duration: %u ms", this->wakeup_cause_to_run_duration_->default_cause);
-    ESP_LOGCONFIG(TAG, "  Touch Wakeup Run Duration: %u ms", this->wakeup_cause_to_run_duration_->touch_cause);
-    ESP_LOGCONFIG(TAG, "  GPIO Wakeup Run Duration: %u ms", this->wakeup_cause_to_run_duration_->gpio_cause);
+    ESP_LOGCONFIG(TAG, "  Default Wakeup Run Duration: %" PRIu32 " ms",
+                  this->wakeup_cause_to_run_duration_->default_cause);
+    ESP_LOGCONFIG(TAG, "  Touch Wakeup Run Duration: %" PRIu32 " ms", this->wakeup_cause_to_run_duration_->touch_cause);
+    ESP_LOGCONFIG(TAG, "  GPIO Wakeup Run Duration: %" PRIu32 " ms", this->wakeup_cause_to_run_duration_->gpio_cause);
   }
 #endif
 }

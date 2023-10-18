@@ -16,6 +16,9 @@ wifi:
     - ssid: "MySSID"
       password: "password1"
 
+network:
+  enable_ipv6: true
+
 api:
 
 ota:
@@ -38,6 +41,14 @@ switch:
   - platform: output
     output: pin_4
     id: pin_4_switch
+
+
+spi:  # Pins are for SPI1 on the RP2040 Pico-W
+  miso_pin: 8
+  clk_pin: 10
+  mosi_pin: 11
+  id: spi_0
+  interface: hardware
 
 #light:
 #  - platform: rp2040_pio_led_strip
