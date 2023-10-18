@@ -173,7 +173,6 @@ async def create_fan_state(config):
 FAN_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(Fan),
-        cv.Optional(CONF_OFF_SPEED_CYCLE, default=True): cv.boolean,
     }
 )
 
@@ -219,7 +218,13 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action("fan.cycle_speed", CycleSpeedAction, FAN_ACTION_SCHEMA)
+@automation.register_action(
+    "fan.cycle_speed", 
+    CycleSpeedAction, 
+    FAN_ACTION_SCHEMA.extend({
+        cv.Optional(CONF_OFF_SPEED_CYCLE, default=True): cv.boolean,
+    }),
+)
 async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
