@@ -4,6 +4,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/switch/switch.h"
 
+#include <cinttypes>
 #include <vector>
 
 namespace esphome {
