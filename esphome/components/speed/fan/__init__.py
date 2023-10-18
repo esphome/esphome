@@ -43,5 +43,4 @@ async def to_code(config):
         direction_output = await cg.get_variable(config[CONF_DIRECTION_OUTPUT])
         cg.add(var.set_direction(direction_output))
 
-    if CONF_OFF_SPEED_CYCLE in config:
-        cg.add(var.set_offcycle(config[CONF_OFF_SPEED_CYCLE]))
+    cg.add(var.set_offcycle(config[CONF_OFF_SPEED_CYCLE]))
