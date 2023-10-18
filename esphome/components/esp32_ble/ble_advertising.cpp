@@ -16,8 +16,8 @@ BLEAdvertising::BLEAdvertising() {
   this->advertising_data_.set_scan_rsp = false;
   this->advertising_data_.include_name = true;
   this->advertising_data_.include_txpower = true;
-  this->advertising_data_.min_interval = 0x20;
-  this->advertising_data_.max_interval = 0x40;
+  this->advertising_data_.min_interval = 0;
+  this->advertising_data_.max_interval = 0;
   this->advertising_data_.appearance = 0x00;
   this->advertising_data_.manufacturer_len = 0;
   this->advertising_data_.p_manufacturer_data = nullptr;
@@ -96,8 +96,6 @@ void BLEAdvertising::start() {
     this->scan_response_data_.set_scan_rsp = true;
     this->scan_response_data_.include_name = true;
     this->scan_response_data_.include_txpower = true;
-    this->scan_response_data_.min_interval = 0;
-    this->scan_response_data_.max_interval = 0;
     this->scan_response_data_.manufacturer_len = 0;
     this->scan_response_data_.appearance = 0;
     this->scan_response_data_.flag = 0;
