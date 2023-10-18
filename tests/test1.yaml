@@ -1693,7 +1693,18 @@ binary_sensor:
       number: 7
       mode: INPUT
       inverted: false
- 
+  - platform: gpio
+    name: Speed Fan Cycle binary sensor"
+    pin:
+      number: 18
+      mode:
+        input: true
+        pulldown: true
+    on_press:
+      - fan.cycle_speed:
+          id: fan_speed
+          off_speed_cycle: False
+      - logger.log: "Cycle speed clicked"
   - platform: remote_receiver
     name: Raw Remote Receiver Test
     raw:
