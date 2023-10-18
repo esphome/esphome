@@ -81,7 +81,7 @@ void NextionSensor::set_state(float state, bool publish, bool send_to_nextion) {
     if (publish) {
       if (this->precision_ > 0) {
         double to_multiply = pow(10, -this->precision_);
-        published_state = (float)(state * to_multiply);
+        published_state = (float) (state * to_multiply);
       }
 
       this->publish_state(published_state);
