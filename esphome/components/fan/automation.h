@@ -68,14 +68,12 @@ template<typename... Ts> class CycleSpeedAction : public Action<Ts...> {
           auto call = this->state_->turn_off();
           call.set_speed(speed);
           call.perform();
-        }
-        else if (speed > supported_speed_count && !off_speed_cycle) {
+        } else if (speed > supported_speed_count && !off_speed_cycle) {
           // was running at max speed, off speed cycle disabled,  set to lowest speed
           auto call = this->state_->turn_on();
           call.set_speed(1);
           call.perform();
-        }
-        else {
+        } else {
           auto call = this->state_->turn_on();
           call.set_speed(speed);
           call.perform();
