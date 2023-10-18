@@ -56,7 +56,7 @@ void XGZP68XXComponent::update() {
     this->pressure_sensor_->publish_state(pressure_in_pa);
   
   if (this->temperature_sensor_ != nullptr)
-  this->temperature_sensor_->publish_state(temp);
+    this->temperature_sensor_->publish_state(temp);
   
 
 }
