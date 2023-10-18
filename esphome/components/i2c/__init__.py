@@ -12,6 +12,9 @@ from esphome.const import (
     CONF_SDA,
     CONF_ADDRESS,
     CONF_I2C_ID,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
 )
 from esphome.core import coroutine_with_priority, CORE
 
@@ -60,7 +63,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SCAN, default=True): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on(["esp32", "esp8266", "rp2040"]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
 )
 
 

@@ -805,7 +805,12 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
       continue;
 
     if (request->method() == HTTP_GET) {
-      std::string data = this->select_json(obj, obj->state, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->select_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
