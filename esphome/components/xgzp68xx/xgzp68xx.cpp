@@ -72,7 +72,9 @@ void XGZP68XXComponent::setup() {
 }
 
 void XGZP68XXComponent::dump_config() {
-  LOG_SENSOR("  ", "XGZP68xx", this);
+  ESP_LOGCONFIG(TAG, "XGZP68xx");
+  LOG_SENSOR("  ", "Temperature: ", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Pressure: ", this->pressure_sensor_);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "  Connection with XGZP68xx failed!");
