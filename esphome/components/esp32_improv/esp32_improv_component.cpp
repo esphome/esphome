@@ -189,9 +189,10 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
     if (state != improv::STATE_STOPPED)
       this->status_->notify();
   }
-  std::vector<uint8_t> service_data(6, 0);
+  std::vector<uint8_t> service_data(8, 0);
   service_data[0] = 0x77;  // PR
   service_data[1] = 0x46;  // IM
+  service_data[2] = static_cast<uint8_t>(state);
 
   uint8_t capabilities = 0x00;
 #ifdef USE_OUTPUT
@@ -199,10 +200,11 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
     capabilities |= improv::CAPABILITY_IDENTIFY;
 #endif
 
-  service_data[2] = capabilities;
-  service_data[3] = static_cast<uint8_t>(state);
+  service_data[3] = capabilities;
   service_data[4] = 0x00;  // Reserved
   service_data[5] = 0x00;  // Reserved
+  service_data[6] = 0x00;  // Reserved
+  service_data[7] = 0x00;  // Reserved
 
   esp32_ble::global_ble->get_advertising()->set_service_data(service_data);
   esp32_ble::global_ble->get_advertising()->start();
