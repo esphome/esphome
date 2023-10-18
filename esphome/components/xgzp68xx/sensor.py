@@ -24,7 +24,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(XGZP68XXComponent),
-            cv.Required(CONF_PRESSURE): sensor.sensor_schema(
+            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PASCAL,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_PRESSURE,
