@@ -1700,7 +1700,7 @@ binary_sensor:
         input: true
         pulldown: true
     on_press:
-      - fan.cycle_speed: 
+      - fan.cycle_speed:
           id: fan_speed
           off_speed_cycle: False
       - logger.log: "Cycle speed clicked"
