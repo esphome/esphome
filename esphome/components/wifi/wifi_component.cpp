@@ -8,16 +8,16 @@
 #include <user_interface.h>
 #endif
 
-#include <utility>
 #include <algorithm>
-#include "lwip/err.h"
+#include <utility>
 #include "lwip/dns.h"
+#include "lwip/err.h"
 
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/util.h"
-#include "esphome/core/application.h"
 
 #ifdef USE_CAPTIVE_PORTAL
 #include "esphome/components/captive_portal/captive_portal.h"
@@ -96,7 +96,7 @@ void WiFiComponent::start() {
 #endif
   }
 #ifdef USE_IMPROV
-  if (esp32_improv::global_improv_component != nullptr) {
+  if (!this->has_sta() && esp32_improv::global_improv_component != nullptr) {
     if (this->wifi_mode_(true, {}))
       esp32_improv::global_improv_component->start();
   }
@@ -163,8 +163,8 @@ void WiFiComponent::loop() {
     }
 
 #ifdef USE_IMPROV
-    if (esp32_improv::global_improv_component != nullptr) {
-      if (!this->is_connected()) {
+    if (esp32_improv::global_improv_component != nullptr && !esp32_improv::global_improv_component->is_active()) {
+      if (now - this->last_connected_ > esp32_improv::global_improv_component->get_wifi_timeout()) {
         if (this->wifi_mode_(true, {}))
           esp32_improv::global_improv_component->start();
       }

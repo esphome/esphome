@@ -107,6 +107,7 @@ void ESP32ImprovComponent::loop() {
       break;
     }
     case improv::STATE_AUTHORIZED: {
+#ifdef USE_BINARY_SENSOR
       if (this->authorizer_ != nullptr) {
         if (now - this->authorized_start_ > this->authorized_duration_) {
           ESP_LOGD(TAG, "Authorization timeout");
@@ -114,6 +115,7 @@ void ESP32ImprovComponent::loop() {
           return;
         }
       }
+#endif
       if (!this->check_identify_()) {
         this->set_status_indicator_state_((now % 1000) < 500);
       }
@@ -191,6 +193,25 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
     if (state != improv::STATE_STOPPED)
       this->status_->notify();
   }
+  std::vector<uint8_t> service_data(8, 0);
+  service_data[0] = 0x77;  // PR
+  service_data[1] = 0x46;  // IM
+  service_data[2] = static_cast<uint8_t>(state);
+
+  uint8_t capabilities = 0x00;
+#ifdef USE_OUTPUT
+  if (this->status_indicator_ != nullptr)
+    capabilities |= improv::CAPABILITY_IDENTIFY;
+#endif
+
+  service_data[3] = capabilities;
+  service_data[4] = 0x00;  // Reserved
+  service_data[5] = 0x00;  // Reserved
+  service_data[6] = 0x00;  // Reserved
+  service_data[7] = 0x00;  // Reserved
+
+  esp32_ble::global_ble->get_advertising()->set_service_data(service_data);
+  esp32_ble::global_ble->get_advertising()->start();
 }
 
 void ESP32ImprovComponent::set_error_(improv::Error error) {
@@ -294,8 +315,10 @@ void ESP32ImprovComponent::process_incoming_data_() {
 void ESP32ImprovComponent::on_wifi_connect_timeout_() {
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
+#ifdef USE_BINARY_SENSOR
   if (this->authorizer_ != nullptr)
     this->authorized_start_ = millis();
+#endif
   ESP_LOGW(TAG, "Timed out trying to connect to given WiFi network");
   wifi::global_wifi_component->clear_sta();
 }

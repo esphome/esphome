@@ -36,6 +36,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_AUTHORIZED_DURATION, default="1min"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_WIFI_TIMEOUT, default="1min"
+        ): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -52,6 +55,8 @@ async def to_code(config):
 
     cg.add(var.set_identify_duration(config[CONF_IDENTIFY_DURATION]))
     cg.add(var.set_authorized_duration(config[CONF_AUTHORIZED_DURATION]))
+
+    cg.add(var.set_wifi_timeout(config[CONF_WIFI_TIMEOUT]))
 
     if CONF_AUTHORIZER in config and config[CONF_AUTHORIZER] is not None:
         activator = await cg.get_variable(config[CONF_AUTHORIZER])

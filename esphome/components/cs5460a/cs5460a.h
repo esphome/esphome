@@ -5,6 +5,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace cs5460a {
 
