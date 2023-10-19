@@ -89,7 +89,7 @@ SUPPORTED_SWING_MODES_OPTIONS = {
 
 SUPPORTED_CLIMATE_MODES_OPTIONS = {
     "OFF": ClimateMode.CLIMATE_MODE_OFF,  # always available
-    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,  # always available
+    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,  # always available
     "COOL": ClimateMode.CLIMATE_MODE_COOL,
     "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
     "DRY": ClimateMode.CLIMATE_MODE_DRY,
@@ -136,12 +136,10 @@ def validate_visual(config):
                     f"Configured visual temperature step {temp_step} is wrong, it should be a multiple of 0.5"
                 )
         else:
-            config[CONF_VISUAL][CONF_TEMPERATURE_STEP] = (
-                {
-                    CONF_TARGET_TEMPERATURE: PROTOCOL_TARGET_TEMPERATURE_STEP,
-                    CONF_CURRENT_TEMPERATURE: PROTOCOL_CURRENT_TEMPERATURE_STEP,
-                },
-            )
+            config[CONF_VISUAL][CONF_TEMPERATURE_STEP] = {
+                CONF_TARGET_TEMPERATURE: PROTOCOL_TARGET_TEMPERATURE_STEP,
+                CONF_CURRENT_TEMPERATURE: PROTOCOL_CURRENT_TEMPERATURE_STEP,
+            }
     else:
         config[CONF_VISUAL] = {
             CONF_MIN_TEMPERATURE: PROTOCOL_MIN_TEMPERATURE,

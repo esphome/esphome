@@ -14,6 +14,8 @@
 #include "esphome/core/time.h"
 #endif
 
+#include <cinttypes>
+
 namespace esphome {
 namespace deep_sleep {
 

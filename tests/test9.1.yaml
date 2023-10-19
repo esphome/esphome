@@ -1,0 +1,28 @@
+# Tests for rtl87xx boards using LibreTiny
+---
+wifi:
+  ssid: "ssid"
+
+rtl87xx:
+  board: generic-rtl8710bn-2mb-788k
+
+esphome:
+  name: rtl87xx-test
+
+logger:
+
+ota:
+
+captive_portal:
+
+binary_sensor:
+  - platform: gpio
+    name: Home Button
+    pin: GPIO11
+
+sensor:
+  - platform: adc
+    id: adc_sensor
+    name: ADC
+    pin: PA19
+    update_interval: 1s

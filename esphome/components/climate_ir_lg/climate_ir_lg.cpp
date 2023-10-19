@@ -121,7 +121,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
   }
 
-  ESP_LOGD(TAG, "Decoded 0x%02X", remote_state);
+  ESP_LOGD(TAG, "Decoded 0x%02" PRIX32, remote_state);
   if ((remote_state & 0xFF00000) != 0x8800000)
     return false;
 
@@ -173,7 +173,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
 }
 void LgIrClimate::transmit_(uint32_t value) {
   calc_checksum_(value);
-  ESP_LOGD(TAG, "Sending climate_lg_ir code: 0x%02X", value);
+  ESP_LOGD(TAG, "Sending climate_lg_ir code: 0x%02" PRIX32, value);
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
