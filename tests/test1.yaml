@@ -348,6 +348,11 @@ mcp23s17:
     deviceaddress: 1
 
 sensor:
+  - platform: xgzp68xx
+    temperature:
+      name: "Pressure Temperature"
+    pressure:
+      name: "Differential pressure"
   - platform: gcja5
     pm_1_0:
       name: "Particulate Matter <1.0µm Concentration"
