@@ -63,7 +63,7 @@ void XGZP68XXComponent::update() {
 
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
-  });   // end of set_timeout
+  });  // end of set_timeout
 }
 
 void XGZP68XXComponent::setup() {
