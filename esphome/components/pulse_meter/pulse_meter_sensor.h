@@ -5,6 +5,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace pulse_meter {
 
@@ -38,7 +40,8 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   InternalFilterMode filter_mode_{FILTER_EDGE};
 
   // Variables used in the loop
-  bool initialized_ = false;
+  enum class MeterState { INITIAL, RUNNING, TIMED_OUT };
+  MeterState meter_state_ = MeterState::INITIAL;
   uint32_t total_pulses_ = 0;
   uint32_t last_processed_edge_us_ = 0;
 
