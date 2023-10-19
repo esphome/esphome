@@ -353,6 +353,7 @@ sensor:
       name: "Pressure Temperature"
     pressure:
       name: "Differential pressure"
+    k_value: 4096
   - platform: gcja5
     pm_1_0:
       name: "Particulate Matter <1.0µm Concentration"

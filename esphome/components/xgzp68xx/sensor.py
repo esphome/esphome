@@ -15,6 +15,8 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@gcormier"]
 
+CONF_K_VALUE = "k_value"
+
 xgzp68xx_ns = cg.esphome_ns.namespace("xgzp68xx")
 XGZP68XXComponent = xgzp68xx_ns.class_(
     "XGZP68XXComponent", cg.PollingComponent, i2c.I2CDevice
@@ -36,6 +38,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_K_VALUE): cv.uint16_t,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -55,3 +58,5 @@ async def to_code(config):
     if pressure_config := config.get(CONF_PRESSURE):
         sens = await sensor.new_sensor(pressure_config)
         cg.add(var.set_pressure_sensor(sens))
+
+    cg.add(var.set_k_value(config.get(CONF_K_VALUE, 4096)))
