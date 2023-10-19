@@ -964,7 +964,7 @@ RC_SWITCH_PROTOCOL_SCHEMA = cv.Any(
 
 
 def validate_rc_switch_code(value):
-    if not isinstance(value, (str, str)):
+    if not isinstance(value, str):
         raise cv.Invalid("All RCSwitch codes must be in quotes ('')")
     for c in value:
         if c not in ("0", "1"):
@@ -981,7 +981,7 @@ def validate_rc_switch_code(value):
 
 
 def validate_rc_switch_raw_code(value):
-    if not isinstance(value, (str, str)):
+    if not isinstance(value, str):
         raise cv.Invalid("All RCSwitch raw codes must be in quotes ('')")
     for c in value:
         if c not in ("0", "1", "x"):
