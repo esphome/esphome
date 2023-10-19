@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "esphome/core/component.h"
+#include "esphome/components/network/ip_address.h"
 
 namespace esphome {
 namespace mdns {
@@ -35,6 +36,8 @@ class MDNSComponent : public Component {
 
   void add_extra_service(MDNSService service) { services_extra_.push_back(std::move(service)); }
 
+  network::IPAddress resolve(std::string);
+
   void on_shutdown() override;
 
  protected:
@@ -43,6 +46,8 @@ class MDNSComponent : public Component {
   std::string hostname_;
   void compile_records_();
 };
+
+extern MDNSComponent *global_mdns;
 
 }  // namespace mdns
 }  // namespace esphome
