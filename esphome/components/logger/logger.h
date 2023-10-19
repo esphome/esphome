@@ -107,6 +107,16 @@ class Logger : public Component {
 #endif
 
  protected:
+#ifdef USE_ESP_IDF
+  void init_uart_();
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+  void init_usb_cdc_();
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32H2)
+  void init_usb_serial_jtag_();
+#endif
+#endif
   void write_header_(int level, const char *tag, int line);
   void write_footer_();
   void log_message_(int level, const char *tag, int offset = 0);
