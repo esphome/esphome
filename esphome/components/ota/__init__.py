@@ -128,7 +128,7 @@ async def to_code(config):
         use_state_callback = True
     for conf in config.get(CONF_ON_ERROR, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(int, "x")], conf)
+        await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
         use_state_callback = True
     if use_state_callback:
         cg.add_define("USE_OTA_STATE_CALLBACK")

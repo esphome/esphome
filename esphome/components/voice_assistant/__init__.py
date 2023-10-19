@@ -19,11 +19,18 @@ CODEOWNERS = ["@jesserockz"]
 CONF_SILENCE_DETECTION = "silence_detection"
 CONF_ON_LISTENING = "on_listening"
 CONF_ON_START = "on_start"
+CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
 CONF_ON_STT_END = "on_stt_end"
 CONF_ON_TTS_START = "on_tts_start"
 CONF_ON_TTS_END = "on_tts_end"
 CONF_ON_END = "on_end"
 CONF_ON_ERROR = "on_error"
+CONF_USE_WAKE_WORD = "use_wake_word"
+CONF_VAD_THRESHOLD = "vad_threshold"
+
+CONF_NOISE_SUPPRESSION_LEVEL = "noise_suppression_level"
+CONF_AUTO_GAIN = "auto_gain"
+CONF_VOLUME_MULTIPLIER = "volume_multiplier"
 
 
 voice_assistant_ns = cg.esphome_ns.namespace("voice_assistant")
@@ -42,23 +49,40 @@ IsRunningCondition = voice_assistant_ns.class_(
     "IsRunningCondition", automation.Condition, cg.Parented.template(VoiceAssistant)
 )
 
-
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(VoiceAssistant),
-        cv.GenerateID(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
-        cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(speaker.Speaker),
-        cv.Exclusive(CONF_MEDIA_PLAYER, "output"): cv.use_id(media_player.MediaPlayer),
-        cv.Optional(CONF_SILENCE_DETECTION, default=True): cv.boolean,
-        cv.Optional(CONF_ON_LISTENING): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_STT_END): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_TTS_START): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_TTS_END): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_END): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(VoiceAssistant),
+            cv.GenerateID(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
+            cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(speaker.Speaker),
+            cv.Exclusive(CONF_MEDIA_PLAYER, "output"): cv.use_id(
+                media_player.MediaPlayer
+            ),
+            cv.Optional(CONF_USE_WAKE_WORD, default=False): cv.boolean,
+            cv.Optional(CONF_VAD_THRESHOLD): cv.All(
+                cv.requires_component("esp_adf"), cv.only_with_esp_idf, cv.uint8_t
+            ),
+            cv.Optional(CONF_NOISE_SUPPRESSION_LEVEL, default=0): cv.int_range(0, 4),
+            cv.Optional(CONF_AUTO_GAIN, default="0dBFS"): cv.All(
+                cv.float_with_unit("decibel full scale", "(dBFS|dbfs|DBFS)"),
+                cv.int_range(0, 31),
+            ),
+            cv.Optional(CONF_VOLUME_MULTIPLIER, default=1.0): cv.float_range(
+                min=0.0, min_included=False
+            ),
+            cv.Optional(CONF_ON_LISTENING): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_STT_END): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_TTS_START): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_TTS_END): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_END): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+)
 
 
 async def to_code(config):
@@ -76,7 +100,14 @@ async def to_code(config):
         mp = await cg.get_variable(config[CONF_MEDIA_PLAYER])
         cg.add(var.set_media_player(mp))
 
-    cg.add(var.set_silence_detection(config[CONF_SILENCE_DETECTION]))
+    cg.add(var.set_use_wake_word(config[CONF_USE_WAKE_WORD]))
+
+    if (vad_threshold := config.get(CONF_VAD_THRESHOLD)) is not None:
+        cg.add(var.set_vad_threshold(vad_threshold))
+
+    cg.add(var.set_noise_suppression_level(config[CONF_NOISE_SUPPRESSION_LEVEL]))
+    cg.add(var.set_auto_gain(config[CONF_AUTO_GAIN]))
+    cg.add(var.set_volume_multiplier(config[CONF_VOLUME_MULTIPLIER]))
 
     if CONF_ON_LISTENING in config:
         await automation.build_automation(
@@ -86,6 +117,13 @@ async def to_code(config):
     if CONF_ON_START in config:
         await automation.build_automation(
             var.get_start_trigger(), [], config[CONF_ON_START]
+        )
+
+    if CONF_ON_WAKE_WORD_DETECTED in config:
+        await automation.build_automation(
+            var.get_wake_word_detected_trigger(),
+            [],
+            config[CONF_ON_WAKE_WORD_DETECTED],
         )
 
     if CONF_ON_STT_END in config:
@@ -128,10 +166,20 @@ VOICE_ASSISTANT_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(VoiceAssis
     StartContinuousAction,
     VOICE_ASSISTANT_ACTION_SCHEMA,
 )
-@register_action("voice_assistant.start", StartAction, VOICE_ASSISTANT_ACTION_SCHEMA)
+@register_action(
+    "voice_assistant.start",
+    StartAction,
+    VOICE_ASSISTANT_ACTION_SCHEMA.extend(
+        {
+            cv.Optional(CONF_SILENCE_DETECTION, default=True): cv.boolean,
+        }
+    ),
+)
 async def voice_assistant_listen_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    if CONF_SILENCE_DETECTION in config:
+        cg.add(var.set_silence_detection(config[CONF_SILENCE_DETECTION]))
     return var
 
 
