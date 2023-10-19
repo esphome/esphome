@@ -25,18 +25,17 @@ void XGZP68XXComponent::update() {
     uint16_t temperature_raw;
     float pressure_in_pa, temperature;
     int success;
-    
+
     // Read the sensor data
     success = this->read_register(0x06, data, 5);
-    if (success != 0)
-    {
+    if (success != 0) {
       ESP_LOGE(TAG, "Failed to read sensor data! Error code: %i", success);
       return;
     }
 
     pressure_raw = encode_uint24(data[0], data[1], data[2]);
     temperature_raw = encode_uint16(data[3], data[4]);
-    
+
     // Convert the pressure data to hPa
     ESP_LOGV(TAG, "Got raw pressure=%d, raw temperature=%d ", pressure_raw, temperature_raw);
     ESP_LOGV(TAG, "K value is %d ", this->k_value_);
@@ -53,10 +52,10 @@ void XGZP68XXComponent::update() {
 
     if (temperature_raw > pow(2, 15)) {
       // Negative temperature
-      temperature = (float)(temperature_raw - pow(2, 16)) / 256.0f;
+      temperature = (float) (temperature_raw - pow(2, 16)) / 256.0f;
     } else {
       // Positive temperature
-      temperature = (float)temperature_raw / 256.0f;
+      temperature = (float) temperature_raw / 256.0f;
     }
 
     if (this->pressure_sensor_ != nullptr)
@@ -64,9 +63,7 @@ void XGZP68XXComponent::update() {
     
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
-  
   }); // end of set_timeout
-
 }
 
 void XGZP68XXComponent::setup() {
