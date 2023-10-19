@@ -10,6 +10,7 @@ from esphome.const import (
 )
 
 import esphome.config_validation as cv
+from esphome.pins import check_strapping_pin
 
 _ESP32S2_SPI_PSRAM_PINS = {
     26: "SPICS1",
@@ -33,13 +34,6 @@ def esp32_s2_validate_gpio_pin(value):
     if value in _ESP32S2_SPI_PSRAM_PINS:
         raise cv.Invalid(
             f"This pin cannot be used on ESP32-S2s and is already used by the SPI/PSRAM interface (function: {_ESP32S2_SPI_PSRAM_PINS[value]})"
-        )
-    if value in _ESP32S2_STRAPPING_PINS:
-        _LOGGER.warning(
-            "GPIO%d is a Strapping PIN and should be avoided.\n"
-            "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
-            "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
-            value,
         )
 
     if value in (22, 23, 24, 25):
@@ -77,4 +71,5 @@ def esp32_s2_validate_supports(value):
             f"GPIO{num} does not support pulldowns.", [CONF_MODE, CONF_PULLDOWN]
         )
 
+    check_strapping_pin(value, _ESP32S2_STRAPPING_PINS, _LOGGER)
     return value
