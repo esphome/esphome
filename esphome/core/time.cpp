@@ -49,6 +49,11 @@ std::string ESPTime::strftime(const std::string &format) {
   struct tm c_tm = this->to_c_tm();
   size_t len = ::strftime(&timestr[0], timestr.size(), format.c_str(), &c_tm);
   while (len == 0) {
+    if (timestr.size() >= 128) {
+      // strftime has failed for reasons unrelated to the size of the buffer
+      // so return a formatting error
+      return "ERROR";
+    }
     timestr.resize(timestr.size() * 2);
     len = ::strftime(&timestr[0], timestr.size(), format.c_str(), &c_tm);
   }

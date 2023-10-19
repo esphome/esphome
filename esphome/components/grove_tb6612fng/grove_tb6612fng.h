@@ -84,8 +84,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
   *************************************************************/
   void set_i2c_addr(uint8_t addr);
 
-  /*************************************************************
-      Description
+  /***********************************change_address
        Drive a motor.
       Parameter
        chl: MOTOR_CHA or MOTOR_CHB
@@ -202,6 +201,14 @@ template<typename... Ts>
 class GROVETB6612FNGMotorNoStandbyAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
  public:
   void play(Ts... x) override { this->parent_->not_standby(); }
+};
+
+template<typename... Ts>
+class GROVETB6612FNGMotorChangeAddressAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
+ public:
+  TEMPLATABLE_VALUE(uint8_t, address)
+
+  void play(Ts... x) override { this->parent_->set_i2c_addr(this->address_.value(x...)); }
 };
 
 }  // namespace grove_tb6612fng

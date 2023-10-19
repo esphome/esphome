@@ -473,6 +473,8 @@ class WaveshareEPaper7P5InBC : public WaveshareEPaper {
 
 class WaveshareEPaper7P5InV2 : public WaveshareEPaper {
  public:
+  bool wait_until_idle_();
+
   void initialize() override;
 
   void display() override;
@@ -492,6 +494,8 @@ class WaveshareEPaper7P5InV2 : public WaveshareEPaper {
   int get_width_internal() override;
 
   int get_height_internal() override;
+
+  uint32_t idle_timeout_() override;
 };
 
 class WaveshareEPaper7P5InV2alt : public WaveshareEPaper7P5InV2 {

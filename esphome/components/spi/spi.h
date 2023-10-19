@@ -248,6 +248,7 @@ class SPIDelegateDummy : public SPIDelegate {
   SPIDelegateDummy() = default;
 
   uint8_t transfer(uint8_t data) override { return 0; }
+  void end_transaction() override{};
 
   void begin_transaction() override;
 };
@@ -351,6 +352,7 @@ class SPIClient {
       : bit_order_(bit_order), mode_(mode), data_rate_(data_rate) {}
 
   virtual void spi_setup() {
+    esph_log_d("spi_device", "mode %u, data_rate %ukHz", (unsigned) this->mode_, (unsigned) (this->data_rate_ / 1000));
     this->delegate_ = this->parent_->register_device(this, this->mode_, this->bit_order_, this->data_rate_, this->cs_);
   }
 
@@ -398,10 +400,7 @@ class SPIDevice : public SPIClient {
 
   void set_data_rate(uint32_t data_rate) { this->data_rate_ = data_rate; }
 
-  void set_bit_order(SPIBitOrder order) {
-    this->bit_order_ = order;
-    esph_log_d("spi.h", "bit order set to %d", order);
-  }
+  void set_bit_order(SPIBitOrder order) { this->bit_order_ = order; }
 
   void set_mode(SPIMode mode) { this->mode_ = mode; }
 
