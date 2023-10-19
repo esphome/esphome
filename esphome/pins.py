@@ -9,10 +9,10 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
+    CONF_IGNORE_STRAPPING_WARNING,
 )
 from esphome.util import SimpleRegistry
 from esphome.core import CORE
-
 
 PIN_SCHEMA_REGISTRY = SimpleRegistry()
 
@@ -146,3 +146,18 @@ internal_gpio_input_pullup_pin_number = _internal_number_creator(
         CONF_PULLUP: True,
     }
 )
+
+
+def check_strapping_pin(conf, strapping_pin_list, logger):
+    import esphome.config_validation as cv
+
+    num = conf[CONF_NUMBER]
+    if num in strapping_pin_list and not conf.get(CONF_IGNORE_STRAPPING_WARNING):
+        logger.warning(
+            f"GPIO{num} is a strapping PIN and should only be used for I/O with care.\n"
+            "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
+            "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
+        )
+    # mitigate undisciplined use of strapping:
+    if num not in strapping_pin_list and conf.get(CONF_IGNORE_STRAPPING_WARNING):
+        raise cv.Invalid(f"GPIO{num} is not a strapping pin")

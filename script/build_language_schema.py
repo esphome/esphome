@@ -82,6 +82,10 @@ def load_components():
         components[domain] = get_component(domain)
 
 
+from esphome.const import CONF_TYPE, KEY_CORE
+from esphome.core import CORE
+
+CORE.data[KEY_CORE] = {}
 load_components()
 
 # Import esphome after loading components (so schema is tracked)
@@ -91,7 +95,6 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome import pins
 from esphome.components import remote_base
-from esphome.const import CONF_TYPE
 from esphome.loader import get_platform, CORE_COMPONENTS_PATH
 from esphome.helpers import write_file_if_changed
 from esphome.util import Registry
@@ -868,8 +871,11 @@ def convert(schema, config_var, path):
         else:
             raise Exception("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":
-        if path == "i2c/CONFIG_SCHEMA/extL/all/id":
-            config_var["id_type"] = {"class": "i2c::I2CBus", "parents": ["Component"]}
+        if path.startswith("i2c/CONFIG_SCHEMA/") and path.endswith("/id"):
+            config_var["id_type"] = {
+                "class": "i2c::I2CBus",
+                "parents": ["Component"],
+            }
         elif path == "uart/CONFIG_SCHEMA/val 1/extL/all/id":
             config_var["id_type"] = {
                 "class": "uart::UARTComponent",
