@@ -37,10 +37,14 @@ void BP1658CJ::loop() {
   uint8_t data[12];
   if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
       this->pwm_amounts_[3] == 0 && this->pwm_amounts_[4] == 0) {
-    // Off / Sleep
-    data[0] = BP1658CJ_MODEL_ID + BP1658CJ_ADDR_STANDBY;
     for (int i = 1; i < 12; i++)
       data[i] = 0;
+
+    // First turn all channels off
+    data[0] = BP1658CJ_MODEL_ID + BP1658CJ_ADDR_START_5CH;
+    this->write_buffer_(data, 12);
+    // Then sleep
+    data[0] = BP1658CJ_MODEL_ID + BP1658CJ_ADDR_STANDBY;
     this->write_buffer_(data, 12);
   } else if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
              (this->pwm_amounts_[3] > 0 || this->pwm_amounts_[4] > 0)) {
