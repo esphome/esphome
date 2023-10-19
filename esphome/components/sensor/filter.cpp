@@ -445,5 +445,14 @@ optional<float> ClampFilter::new_value(float value) {
   return value;
 }
 
+RoundFilter::RoundFilter(uint8_t precision) : precision_(precision) {}
+optional<float> RoundFilter::new_value(float value) {
+  if (std::isfinite(value)) {
+    float accuracy_mult = powf(10.0f, this->precision_);
+    return roundf(accuracy_mult * value) / accuracy_mult;
+  }
+  return value;
+}
+
 }  // namespace sensor
 }  // namespace esphome

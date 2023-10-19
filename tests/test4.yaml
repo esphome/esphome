@@ -21,6 +21,9 @@ ethernet:
     subnet: 255.255.255.0
   domain: .local
 
+network:
+  enable_ipv6: true
+
 api:
 
 i2c:
@@ -29,9 +32,15 @@ i2c:
   scan: false
 
 spi:
+- id: spi_id_1
   clk_pin: GPIO21
   mosi_pin: GPIO22
   miso_pin: GPIO23
+  interface: hardware
+- id: spi_id_2
+  clk_pin: GPIO32
+  mosi_pin: GPIO33
+  interface: hardware
 
 uart:
   - id: uart115200
@@ -49,6 +58,8 @@ ota:
 
 logger:
   level: DEBUG
+
+debug:
 
 web_server:
   ota: false
@@ -86,6 +97,7 @@ sx1509:
     address: 0x3E
 
 mcp3204:
+  spi_id: spi_id_1
   cs_pin: GPIO23
 
 dac7678:
@@ -489,6 +501,7 @@ display:
     update_interval: 16ms
 
   - platform: waveshare_epaper
+    spi_id: spi_id_1
     cs_pin: GPIO23
     dc_pin: GPIO23
     busy_pin: GPIO23
@@ -498,6 +511,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
+    spi_id: spi_id_1
     cs_pin: GPIO23
     dc_pin: GPIO23
     busy_pin: GPIO23
@@ -508,6 +522,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
+    spi_id: spi_id_1
     cs_pin: GPIO23
     dc_pin: GPIO23
     busy_pin: GPIO23
@@ -517,6 +532,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
+    spi_id: spi_id_1
     cs_pin: GPIO23
     dc_pin: GPIO23
     busy_pin: GPIO23
@@ -667,6 +683,7 @@ touchscreen:
 
   - platform: xpt2046
     id: xpt_touchscreen
+    spi_id: spi_id_2
     cs_pin: 17
     interrupt_pin: 16
     display: inkplate_display
@@ -750,6 +767,9 @@ speaker:
 
 voice_assistant:
   microphone: mic_id_external
+  speaker: speaker_id
+  on_listening:
+    - logger.log: "Voice assistant microphone listening"
   on_start:
     - logger.log: "Voice assistant started"
   on_stt_end:
