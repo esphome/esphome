@@ -5,6 +5,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace pulse_meter {
 

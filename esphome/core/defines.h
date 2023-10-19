@@ -37,6 +37,7 @@
 #define USE_OTA
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
+#define USE_OUTPUT
 #define USE_POWER_SUPPLY
 #define USE_QR_CODE
 #define USE_SELECT
@@ -117,6 +118,6 @@
 #endif
 
 // Disabled feature flags
-//#define USE_BSEC  // Requires a library with proprietary license.
+// #define USE_BSEC  // Requires a library with proprietary license.
 
 #define USE_DASHBOARD_IMPORT
