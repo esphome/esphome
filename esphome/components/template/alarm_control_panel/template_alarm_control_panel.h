@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cinttypes>
 #include <map>
 
 #include "esphome/core/automation.h"
