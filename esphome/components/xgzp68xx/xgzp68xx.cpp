@@ -39,15 +39,16 @@ void XGZP68XXComponent::update() {
     
     // Convert the pressure data to hPa
     ESP_LOGV(TAG, "Got raw pressure=%d, raw temperature=%d ", pressure_raw, temperature_raw);
+    ESP_LOGV(TAG, "K value is %d ", this->k_value_);
 
     // The most significant bit of both pressure and temperature will be 1 to indicate a negative value.
     // This is directly from the datasheet, and the calculations below will handle this.
     if (pressure_raw > pow(2, 23)) {
       // Negative pressure
-      pressure_in_pa = (pressure_raw - pow(2, 24)) / 4096.0f;
+      pressure_in_pa = (pressure_raw - pow(2, 24)) / (float) (this->k_value_);
     } else {
       // Positive pressure
-      pressure_in_pa = pressure_raw / 4096.0f;
+      pressure_in_pa = pressure_raw / (float) (this->k_value_);
     }
 
     if (temperature_raw > pow(2, 15)) {
