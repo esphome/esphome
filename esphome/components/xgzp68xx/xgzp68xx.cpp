@@ -14,7 +14,7 @@ static const uint8_t SYSCONFIG_ADDRESS = 0xA5;
 static const uint8_t PCONFIG_ADDRESS = 0xA6;
 static const uint8_t READ_COMMAND = 0x0A;
 
-void XGZP68XXComponent::update() { 
+void XGZP68XXComponent::update() {
   // Request temp + pressure acquisition
   this->write_register(0x30, &READ_COMMAND, 1);
   
