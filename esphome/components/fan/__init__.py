@@ -221,8 +221,9 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
 @automation.register_action(
     "fan.cycle_speed",
     CycleSpeedAction,
-    FAN_ACTION_SCHEMA.extend(
+    maybe_simple_id(
         {
+            cv.Required(CONF_ID): cv.use_id(Fan),
             cv.Optional(CONF_OFF_SPEED_CYCLE, default=True): cv.boolean,
         }
     ),
