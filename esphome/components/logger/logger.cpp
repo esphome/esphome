@@ -3,9 +3,13 @@
 
 #ifdef USE_ESP_IDF
 #include <driver/uart.h>
+
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32H2)
 #include <driver/usb_serial_jtag.h>
 #include <esp_vfs_dev.h>
 #include <esp_vfs_usb_serial_jtag.h>
+#endif
 
 #include "freertos/FreeRTOS.h"
 #include "esp_idf_version.h"
