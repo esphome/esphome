@@ -15,10 +15,10 @@ static const uint8_t READ_COMMAND = 0x0A;
 
 void XGZP68XXComponent::update() { 
   uint8_t data[5];
-
   uint32_t pressure_raw;
   uint16_t temperature_raw;
-
+  float pressure_in_pa, temperature;
+  
   // Request temp + pressure acquisition
   this->write_register(0x30, &READ_COMMAND, 1);
   
@@ -33,29 +33,29 @@ void XGZP68XXComponent::update() {
   // Convert the pressure data to hPa
   ESP_LOGV(TAG, "Got raw pressure=%d, raw temperature=%d ", pressure_raw, temperature_raw);
 
-  float pressure_in_pa;
-  if (pressure_raw > 8388608) {
-    // Positive pressure
-    pressure_in_pa = (pressure_raw - 16777216) / 4096.0f;
-  } else {
+  // The most significant bit of both pressure and temperature will be 1 to indicate a negative value.
+  // This is directly from the datasheet, and the calculations below will handle this.
+  if (pressure_raw > pow(2, 23)) {
     // Negative pressure
+    pressure_in_pa = (pressure_raw - pow(2, 24)) / 4096.0f;
+  } else {
+    // Positive pressure
     pressure_in_pa = pressure_raw / 4096.0f;
   }
 
-
-  uint16_t temp;
-  if (temperature_raw < pow(2, 15)) {
-      temp = (float)temperature_raw / 256.0;
+  if (temperature_raw > pow(2, 15)) {
+    // Negative temperature
+    temperature = (float)(temperature_raw - pow(2, 16)) / 256.0f;
   } else {
-      temp = (float)(temperature_raw - pow(2, 16)) / 256.0;
+    // Positive temperature
+    temperature = (float)temperature_raw / 256.0f;
   }
 
   if (this->pressure_sensor_ != nullptr)
     this->pressure_sensor_->publish_state(pressure_in_pa);
   
   if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temp);
-  
+    this->temperature_sensor_->publish_state(temperature);
 
 }
 
