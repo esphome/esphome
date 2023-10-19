@@ -316,8 +316,8 @@ void VoiceAssistant::loop() {
         this->speaker_buffer_index_ = 0;
         memset(this->speaker_buffer_, 0, SPEAKER_BUFFER_SIZE);
       }
-#endif
       this->wait_for_stream_end_ = false;
+#endif
       this->set_state_(State::IDLE, State::IDLE);
       break;
     }
@@ -586,7 +586,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_STREAM_START: {
+#ifdef USE_SPEAKER
       this->wait_for_stream_end_ = true;
+#endif
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_STREAM_END: {
