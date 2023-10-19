@@ -17,7 +17,7 @@ static const uint8_t READ_COMMAND = 0x0A;
 void XGZP68XXComponent::update() {
   // Request temp + pressure acquisition
   this->write_register(0x30, &READ_COMMAND, 1);
-  
+
   // Wait 20mS per datasheet
   this->set_timeout("measurement", 20, [this]() {
     uint8_t data[5];
@@ -60,7 +60,7 @@ void XGZP68XXComponent::update() {
 
     if (this->pressure_sensor_ != nullptr)
       this->pressure_sensor_->publish_state(pressure_in_pa);
-    
+
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
   }); // end of set_timeout
