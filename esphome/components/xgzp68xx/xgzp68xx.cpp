@@ -11,36 +11,34 @@ static const char *const TAG = "xgzp68xx.sensor";
 static const uint8_t CMD_ADDRESS = 0x30;
 static const uint8_t SYSCONFIG_ADDRESS = 0xA5;
 static const uint8_t PCONFIG_ADDRESS = 0xA6;
+static const uint8_t READ_COMMAND = 0x0A;
 
 void XGZP68XXComponent::update() { 
-  uint8_t press_msb, press_csb, press_lsb;
-  uint8_t temp_msb, temp_lsb;
+  uint8_t data[5];
+
+  uint32_t pressure_raw;
+  uint16_t temperature_raw;
 
   // Request temp + pressure acquisition
-  this->write_byte(0x30, 0x0A);
-
+  this->write_register(0x30, &READ_COMMAND, 1);
+  
   // Wait 20mS per datasheet
   delay(20);
 
   // Read the sensor data
-  this->read_byte(0x06, &press_msb);
-  this->read_byte(0x07, &press_csb);
-  this->read_byte(0x08, &press_lsb);
-  this->read_byte(0x09, &temp_msb);
-  this->read_byte(0x0A, &temp_lsb);
-
-  // Convert the pressure data to hPa
-  uint32_t pressure_raw = ((uint32_t)press_msb << 16) | ((uint32_t)press_csb << 8) | (uint32_t)press_lsb;
-  uint32_t temperature_raw = ((uint32_t)temp_msb << 8) | (uint32_t)temp_lsb;
+  this->read_register(0x06, data, 5);
+  pressure_raw = encode_uint24(data[0], data[1], data[2]);
+  temperature_raw = encode_uint16(data[3], data[4]);
   
+  // Convert the pressure data to hPa
   ESP_LOGV(TAG, "Got raw pressure=%d, raw temperature=%d ", pressure_raw, temperature_raw);
 
   float pressure_in_pa;
-  if (pressure_raw & 0x800000) {
-    // Negative pressure
-    pressure_in_pa = (pressure_raw - 0x1000000) / 4096.0f;
-  } else {
+  if (pressure_raw > 8388608) {
     // Positive pressure
+    pressure_in_pa = (pressure_raw - 16777216) / 4096.0f;
+  } else {
+    // Negative pressure
     pressure_in_pa = pressure_raw / 4096.0f;
   }
 
@@ -66,7 +64,7 @@ void XGZP68XXComponent::setup() {
   uint8_t config;
 
   // Display some sample bits to confirm we are talking to the sensor
-  this->read_byte(SYSCONFIG_ADDRESS, &config);
+  this->read_register(SYSCONFIG_ADDRESS, &config, 1);
   ESP_LOGCONFIG(TAG, "Gain bits are %03b", (config >> 3) & 0b111);
   ESP_LOGCONFIG(TAG, "XGZP68xx started!");
 }
