@@ -2,6 +2,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/components/i2c/i2c.h"
+
 
 namespace esphome {
 namespace xgzp68xx {
@@ -14,48 +16,58 @@ static const uint8_t PCONFIG_ADDRESS = 0xA6;
 static const uint8_t READ_COMMAND = 0x0A;
 
 void XGZP68XXComponent::update() { 
-  uint8_t data[5];
-  uint32_t pressure_raw;
-  uint16_t temperature_raw;
-  float pressure_in_pa, temperature;
-  
+
+
   // Request temp + pressure acquisition
   this->write_register(0x30, &READ_COMMAND, 1);
   
   // Wait 20mS per datasheet
-  delay(20);
+  this->set_timeout("measurement", 20, [this]() {
+    uint8_t data[5];
+    uint32_t pressure_raw;
+    uint16_t temperature_raw;
+    float pressure_in_pa, temperature;
+    int success;
+    
+    // Read the sensor data
+    success = this->read_register(0x06, data, 5);
+    if (success != 0)
+    {
+      ESP_LOGE(TAG, "Failed to read sensor data! Error code: %i", success);
+      return;
+    }
 
-  // Read the sensor data
-  this->read_register(0x06, data, 5);
-  pressure_raw = encode_uint24(data[0], data[1], data[2]);
-  temperature_raw = encode_uint16(data[3], data[4]);
+    pressure_raw = encode_uint24(data[0], data[1], data[2]);
+    temperature_raw = encode_uint16(data[3], data[4]);
+    
+    // Convert the pressure data to hPa
+    ESP_LOGV(TAG, "Got raw pressure=%d, raw temperature=%d ", pressure_raw, temperature_raw);
+
+    // The most significant bit of both pressure and temperature will be 1 to indicate a negative value.
+    // This is directly from the datasheet, and the calculations below will handle this.
+    if (pressure_raw > pow(2, 23)) {
+      // Negative pressure
+      pressure_in_pa = (pressure_raw - pow(2, 24)) / 4096.0f;
+    } else {
+      // Positive pressure
+      pressure_in_pa = pressure_raw / 4096.0f;
+    }
+
+    if (temperature_raw > pow(2, 15)) {
+      // Negative temperature
+      temperature = (float)(temperature_raw - pow(2, 16)) / 256.0f;
+    } else {
+      // Positive temperature
+      temperature = (float)temperature_raw / 256.0f;
+    }
+
+    if (this->pressure_sensor_ != nullptr)
+      this->pressure_sensor_->publish_state(pressure_in_pa);
+    
+    if (this->temperature_sensor_ != nullptr)
+      this->temperature_sensor_->publish_state(temperature);
   
-  // Convert the pressure data to hPa
-  ESP_LOGV(TAG, "Got raw pressure=%d, raw temperature=%d ", pressure_raw, temperature_raw);
-
-  // The most significant bit of both pressure and temperature will be 1 to indicate a negative value.
-  // This is directly from the datasheet, and the calculations below will handle this.
-  if (pressure_raw > pow(2, 23)) {
-    // Negative pressure
-    pressure_in_pa = (pressure_raw - pow(2, 24)) / 4096.0f;
-  } else {
-    // Positive pressure
-    pressure_in_pa = pressure_raw / 4096.0f;
-  }
-
-  if (temperature_raw > pow(2, 15)) {
-    // Negative temperature
-    temperature = (float)(temperature_raw - pow(2, 16)) / 256.0f;
-  } else {
-    // Positive temperature
-    temperature = (float)temperature_raw / 256.0f;
-  }
-
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure_in_pa);
-  
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
+  }); // end of set_timeout
 
 }
 
