@@ -20,7 +20,7 @@ class MQTTBackendLibreTiny final : public MQTTBackend {
     mqtt_client_.setWill(topic, qos, retain, payload);
   }
   void set_server(network::IPAddress ip, uint16_t port) final {
-    mqtt_client_.setServer(IPAddress(static_cast<uint32_t>(ip)), port);
+    mqtt_client_.setServer(IPAddress(ip), port);
   }
   void set_server(const char *host, uint16_t port) final { mqtt_client_.setServer(host, port); }
 #if ASYNC_TCP_SSL_ENABLED
