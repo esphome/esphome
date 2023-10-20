@@ -334,6 +334,7 @@ mcp23s17:
 
 sensor:
   - platform: xgzp68xx
+    i2c_id: i2c_bus
     temperature:
       name: "Pressure Temperature"
     pressure:
