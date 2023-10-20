@@ -29,17 +29,17 @@ static const std::string STOVE_STATES[11] = {"Off",
 enum class MicroNovaFunctions {
   STOVE_FUNCTION_VOID = 0,
   STOVE_FUNCTION_SWITCH = 1,
-  STOVE_FUNCTION_TEMP_UP = 2,
-  STOVE_FUNCTION_TEMP_DOWN = 3,
-  STOVE_FUNCTION_ROOM_TEMPERATURE = 4,
-  STOVE_FUNCTION_THERMOSTAT_TEMPERATURE = 5,
-  STOVE_FUNCTION_FUMES_TEMPERATURE = 6,
-  STOVE_FUNCTION_STOVE_POWER = 7,
-  STOVE_FUNCTION_FAN_SPEED = 8,
-  STOVE_FUNCTION_STOVE_STATE = 9,
-  STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR = 10,
-  STOVE_FUNCTION_WATER_TEMPERATURE = 11,
-  STOVE_FUNCTION_WATER_PRESSURE = 12,
+  STOVE_FUNCTION_ROOM_TEMPERATURE = 2,
+  STOVE_FUNCTION_THERMOSTAT_TEMPERATURE = 3,
+  STOVE_FUNCTION_FUMES_TEMPERATURE = 4,
+  STOVE_FUNCTION_STOVE_POWER = 5,
+  STOVE_FUNCTION_FAN_SPEED = 6,
+  STOVE_FUNCTION_STOVE_STATE = 7,
+  STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR = 8,
+  STOVE_FUNCTION_WATER_TEMPERATURE = 9,
+  STOVE_FUNCTION_WATER_PRESSURE = 10,
+  STOVE_FUNCTION_POWER_LEVEL = 11,
+  STOVE_FUNCTION_CUSTOM = 12
 };
 
 class MicroNova;
@@ -137,15 +137,11 @@ class MicroNova : public PollingComponent, public uart::UARTDevice {
   void set_current_stove_state(uint8_t s) { current_stove_state_ = s; }
   uint8_t get_current_stove_state() { return current_stove_state_; }
 
-  void set_thermostat_temperature(uint8_t t) { current_thermostat_temperature_ = t; }
-  uint8_t get_thermostat_temperature() { return current_thermostat_temperature_; }
-
   void set_stove(MicroNovaSwitchListener *s) { stove_switch_ = s; }
   MicroNovaSwitchListener *get_stove_switch() { return stove_switch_; }
 
  protected:
   uint8_t current_stove_state_ = 0;
-  uint8_t current_thermostat_temperature_ = 20;
 
   GPIOPin *enable_rx_pin_{nullptr};
 

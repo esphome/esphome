@@ -6,7 +6,6 @@ from esphome.const import (
     DEVICE_CLASS_PRESSURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    UNIT_PASCAL,
     UNIT_REVOLUTIONS_PER_MINUTE,
 )
 
@@ -19,6 +18,8 @@ from .. import (
     MICRONOVA_LISTENER_SCHEMA,
     micronova_ns,
 )
+
+UNIT_BAR = "bar"
 
 MicroNovaSensor = micronova_ns.class_("MicroNovaSensor", sensor.Sensor, cg.Component)
 
@@ -67,14 +68,14 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_CELSIUS,
             device_class=DEVICE_CLASS_TEMPERATURE,
             state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=0,
+            accuracy_decimals=1,
         ).extend(MICRONOVA_LISTENER_SCHEMA),
         cv.Optional(CONF_WATER_PRESSURE): sensor.sensor_schema(
             MicroNovaSensor,
-            unit_of_measurement=UNIT_PASCAL,
+            unit_of_measurement=UNIT_BAR,
             device_class=DEVICE_CLASS_PRESSURE,
             state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=0,
+            accuracy_decimals=1,
         ).extend(MICRONOVA_LISTENER_SCHEMA),
         cv.Optional(CONF_MEMORY_ADDRESS_SENSOR): sensor.sensor_schema(
             MicroNovaSensor,

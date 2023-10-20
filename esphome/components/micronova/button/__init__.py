@@ -14,23 +14,17 @@ from .. import (
 
 MicroNovaButton = micronova_ns.class_("MicroNovaButton", button.Button, cg.Component)
 
-CONF_TEMPERATURE_UP = "temperature_up"
-CONF_TEMPERATURE_DOWN = "temperature_down"
+CONF_CUSTOM_BUTTON = "custom_button"
 CONF_MEMORY_DATA = "memory_data"
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
-        cv.Optional(CONF_TEMPERATURE_UP): button.button_schema(
+        cv.Optional(CONF_CUSTOM_BUTTON): button.button_schema(
             MicroNovaButton,
         )
         .extend(MICRONOVA_LISTENER_SCHEMA)
-        .extend({cv.Optional(CONF_MEMORY_DATA, default=0x00): cv.hex_int_range()}),
-        cv.Optional(CONF_TEMPERATURE_DOWN): button.button_schema(
-            MicroNovaButton,
-        )
-        .extend(MICRONOVA_LISTENER_SCHEMA)
-        .extend({cv.Optional(CONF_MEMORY_DATA, default=0x00): cv.hex_int_range()}),
+        .extend({cv.Required(CONF_MEMORY_DATA): cv.hex_int_range()}),
     }
 )
 
@@ -38,30 +32,13 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
 
-    if temperature_up_config := config.get(CONF_TEMPERATURE_UP):
-        bt = await button.new_button(temperature_up_config, mv)
+    if custom_button_config := config.get(CONF_CUSTOM_BUTTON):
+        bt = await button.new_button(custom_button_config, mv)
         cg.add(
-            bt.set_memory_location(
-                temperature_up_config.get(CONF_MEMORY_LOCATION, 0xA0)
-            )
+            bt.set_memory_location(custom_button_config.get(CONF_MEMORY_LOCATION, 0xA0))
         )
         cg.add(
-            bt.set_memory_address(temperature_up_config.get(CONF_MEMORY_ADDRESS, 0x7D))
+            bt.set_memory_address(custom_button_config.get(CONF_MEMORY_ADDRESS, 0x7D))
         )
-        cg.add(bt.set_memory_data(temperature_up_config[CONF_MEMORY_DATA]))
-        cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_TEMP_UP))
-
-    if temperature_down_config := config.get(CONF_TEMPERATURE_DOWN):
-        bt = await button.new_button(temperature_down_config, mv)
-        cg.add(
-            bt.set_memory_location(
-                temperature_down_config.get(CONF_MEMORY_LOCATION, 0xA0)
-            )
-        )
-        cg.add(
-            bt.set_memory_address(
-                temperature_down_config.get(CONF_MEMORY_ADDRESS, 0x7D)
-            )
-        )
-        cg.add(bt.set_memory_data(temperature_down_config[CONF_MEMORY_DATA]))
-        cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_TEMP_DOWN))
+        cg.add(bt.set_memory_data(custom_button_config[CONF_MEMORY_DATA]))
+        cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_CUSTOM))

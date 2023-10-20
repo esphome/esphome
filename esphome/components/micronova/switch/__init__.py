@@ -1,6 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch
+from esphome.const import (
+    ICON_POWER,
+)
 
 from .. import (
     MicroNova,
@@ -16,8 +19,6 @@ CONF_STOVE = "stove"
 CONF_MEMORY_DATA_ON = "memory_data_on"
 CONF_MEMORY_DATA_OFF = "memory_data_off"
 
-ICON_STATE = "mdi:checkbox-marked-circle-outline"
-
 TYPES = [
     CONF_STOVE,
 ]
@@ -29,7 +30,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
         cv.Optional(CONF_STOVE): switch.switch_schema(
             MicroNovaSwitch,
-            icon=ICON_STATE,
+            icon=ICON_POWER,
         )
         .extend(MICRONOVA_LISTENER_SCHEMA)
         .extend({cv.Optional(CONF_MEMORY_DATA_OFF, default=0x06): cv.hex_int_range()})

@@ -10,6 +10,7 @@ class MicroNovaSensor : public sensor::Sensor, public MicroNovaSensorListener {
  public:
   MicroNovaSensor(MicroNova *m) : MicroNovaSensorListener(m) {}
   void dump_config() override { LOG_SENSOR("", "Micronova sensor", this); }
+
   void request_value_from_stove() override {
     this->micronova_->request_address(this->memory_location_, this->memory_address_, this);
   }
