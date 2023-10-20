@@ -3627,13 +3627,6 @@ ld2410:
 ld2420:
   id: my_ld2420
   uart_id: ld2420_uart
-  presence_time_window: 120s
-  detection_gate_min: 1
-  detection_gate_max: 12
-  g0_move_threshold: 60000
-  g0_still_threshold: 40000
-  g1_move_threshold: 40000
-  g1_still_threshold: 20000
 
 lcd_menu:
   display_id: my_lcd_gpio
