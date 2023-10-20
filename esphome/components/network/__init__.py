@@ -47,7 +47,7 @@ async def to_code(config):
         cg.add_define("USE_NETWORK_IPV6", config[CONF_ENABLE_IPV6])
         cg.add_define(
             "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
-    if config[CONF_HOSTS]:
+    if CONF_HOSTS in config:
         hosts = [
             (host[CONF_NAME], IPAddress(host[CONF_IP_ADDRESS]))
             for host in config[CONF_HOSTS]

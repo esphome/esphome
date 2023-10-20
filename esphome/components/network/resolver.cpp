@@ -1,6 +1,7 @@
 #include "resolver.h"
 #include "lwip/dns.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace network {
@@ -39,12 +40,16 @@ network::IPAddress Resolver::resolve(std::string hostname) {
       default:
       case ERR_ARG: {
         // error
-        ESP_LOGW(TAG, "Error resolving IP address: %" PRId32, err);
+#if defined(USE_ESP8266)
+      ESP_LOGW(TAG, "Error resolving IP address: %ld", err);
+#else
+      ESP_LOGW(TAG, "Error resolving IP address: %d", err);
+#endif
         break;
       }
     }
     // TODO: Add timeout
-    delay(100);
+    delay_microseconds_safe(100);
   }
   return this->ip_;
 
