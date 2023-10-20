@@ -36,7 +36,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    if config[CONF_HOSTS]:
+    if CONF_HOSTS in config:
         hosts = [
             (host[CONF_NAME], IPAddress(host[CONF_IP_ADDRESS]))
             for host in config[CONF_HOSTS]
