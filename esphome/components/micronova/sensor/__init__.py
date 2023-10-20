@@ -5,6 +5,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_REVOLUTIONS_PER_MINUTE,
 )
 
 from .. import (
@@ -16,8 +17,6 @@ from .. import (
     MICRONOVA_LISTENER_SCHEMA,
     micronova_ns,
 )
-
-UNIT_RPM = "rpm"
 
 MicroNovaSensor = micronova_ns.class_("MicroNovaSensor", sensor.Sensor, cg.Component)
 

@@ -19,19 +19,19 @@ CONF_TEMPERATURE_DOWN = "temperature_down"
 CONF_MEMORY_DATA = "memory_data"
 
 TYPES = [
-    CONF_BUT_TEMP_UP,
-    CONF_BUT_TEMP_DOWN,
+    CONF_TEMPERATURE_UP,
+    CONF_TEMPERATURE_DOWN,
 ]
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
-        cv.Optional(CONF_BUT_TEMP_UP): button.button_schema(
+        cv.Optional(CONF_TEMPERATURE_UP): button.button_schema(
             MicroNovaButton,
         )
         .extend(MICRONOVA_LISTENER_SCHEMA)
         .extend({cv.Optional(CONF_MEMORY_DATA, default=0x00): cv.hex_int_range()}),
-        cv.Optional(CONF_BUT_TEMP_DOWN): button.button_schema(
+        cv.Optional(CONF_TEMPERATURE_DOWN): button.button_schema(
             MicroNovaButton,
         )
         .extend(MICRONOVA_LISTENER_SCHEMA)
@@ -49,7 +49,7 @@ async def to_code(config):
             cg.add(bt.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0xA0)))
             cg.add(bt.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0x7D)))
             cg.add(bt.set_memory_data(conf[CONF_MEMORY_DATA]))
-            if key == CONF_BUT_TEMP_UP:
+            if key == CONF_TEMPERATURE_UP:
                 cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_TEMP_UP))
-            if key == CONF_BUT_TEMP_DOWN:
+            if key == CONF_TEMPERATURE_DOWN:
                 cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_TEMP_DOWN))

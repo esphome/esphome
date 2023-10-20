@@ -2720,7 +2720,7 @@ switch:
     bluetooth:
       name: "control ld2410 bluetooth"
   - platform: micronova
-    stove_switch:
+    stove:
       name: Stove on/off
 
 fan:
@@ -3643,11 +3643,18 @@ button:
     name: UART button
     data: "Pressed\r\n"
   - platform: micronova
+<<<<<<< HEAD
     custom_button:
       name: Custom Micronova Button
       memory_location: 0xA0
       memory_address: 0x7D
       memory_data: 0x0F
+=======
+    temperature_up:
+      name: Thermostat up
+    temperature_down:
+      name: Thermostat down
+>>>>>>> aaf35bca (button/switch rename and cleanup)
 
 ld2410:
   id: my_ld2410

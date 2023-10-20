@@ -19,7 +19,7 @@ CONF_MEMORY_DATA_OFF = "memory_data_off"
 ICON_STATE = "mdi:checkbox-marked-circle-outline"
 
 TYPES = [
-    CONF_STOVE_SWITCH,
+    CONF_STOVE,
 ]
 
 MicroNovaSwitch = micronova_ns.class_("MicroNovaSwitch", switch.Switch, cg.Component)
@@ -27,7 +27,7 @@ MicroNovaSwitch = micronova_ns.class_("MicroNovaSwitch", switch.Switch, cg.Compo
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
-        cv.Optional(CONF_STOVE_SWITCH): switch.switch_schema(
+        cv.Optional(CONF_STOVE): switch.switch_schema(
             MicroNovaSwitch,
             icon=ICON_STATE,
         )
@@ -48,6 +48,6 @@ async def to_code(config):
             cg.add(sw.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0x21)))
             cg.add(sw.set_memory_data_on(conf[CONF_MEMORY_DATA_ON]))
             cg.add(sw.set_memory_data_off(conf[CONF_MEMORY_DATA_OFF]))
-            if key == CONF_STOVE_SWITCH:
+            if key == CONF_STOVE:
                 cg.add(sw.set_function(MicroNovaFunctions.STOVE_FUNCTION_SWITCH))
-                cg.add(mv.set_stove_switch(sw))
+                cg.add(mv.set_stove(sw))

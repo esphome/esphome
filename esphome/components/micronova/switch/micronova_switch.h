@@ -12,8 +12,8 @@ class MicroNovaSwitch : public Component, public switch_::Switch, public MicroNo
   MicroNovaSwitch(MicroNova *m) : MicroNovaSwitchListener(m) {}
   void dump_config() override { LOG_SWITCH("", "Micronova switch", this); }
 
-  void set_stove_switch_state(bool v) override { this->publish_state(v); }
-  bool get_stove_switch_state() override { return this->state; }
+  void set_stove_state(bool v) override { this->publish_state(v); }
+  bool get_stove_state() override { return this->state; }
 
   void set_memory_data_on(uint8_t f) { memory_data_on_ = f; }
   uint8_t get_memory_data_on() { return memory_data_on_; }

@@ -81,8 +81,8 @@ class MicroNovaSensorListener : public MicroNovaBaseListener {
 class MicroNovaSwitchListener : public MicroNovaBaseListener {
  public:
   MicroNovaSwitchListener(MicroNova *m) : MicroNovaBaseListener(m) {}
-  virtual void set_stove_switch_state(bool v);
-  virtual bool get_stove_switch_state();
+  virtual void set_stove_state(bool v);
+  virtual bool get_stove_state();
 
  protected:
   uint8_t memory_data_on_ = 0;
@@ -120,7 +120,7 @@ class MicroNova : public PollingComponent, public uart::UARTDevice {
   void set_thermostat_temperature(uint8_t t) { current_thermostat_temperature_ = t; }
   uint8_t get_thermostat_temperature() { return current_thermostat_temperature_; }
 
-  void set_stove_switch(MicroNovaSwitchListener *s) { stove_switch_ = s; }
+  void set_stove(MicroNovaSwitchListener *s) { stove_switch_ = s; }
   MicroNovaSwitchListener *get_stove_switch() { return stove_switch_; }
 
  protected:
