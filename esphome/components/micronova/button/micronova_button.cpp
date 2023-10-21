@@ -11,6 +11,7 @@ void MicroNovaButton::press_action() {
     default:
       break;
   }
+  this->micronova_->update();
 }
 
 }  // namespace micronova
