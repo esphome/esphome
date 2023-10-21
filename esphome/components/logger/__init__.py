@@ -32,6 +32,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S3,
     VARIANT_ESP32C2,
     VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
 )
 from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
 from esphome.components.libretiny.const import (
@@ -86,6 +87,7 @@ UART_SELECTION_ESP32 = {
     VARIANT_ESP32C3: [UART0, UART1, USB_SERIAL_JTAG],
     VARIANT_ESP32C2: [UART0, UART1],
     VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]

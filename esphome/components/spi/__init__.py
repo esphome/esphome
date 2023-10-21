@@ -26,6 +26,9 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     KEY_VARIANT,
     CONF_DATA_RATE,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
 )
 from esphome.core import coroutine_with_priority, CORE
 
@@ -102,9 +105,9 @@ def get_target_variant():
 # The returned value is a list of lists of names
 def get_hw_interface_list():
     target_platform = get_target_platform()
-    if target_platform == "esp8266":
+    if target_platform == PLATFORM_ESP8266:
         return [["spi", "hspi"]]
-    if target_platform == "esp32":
+    if target_platform == PLATFORM_ESP32:
         if get_target_variant() in [
             VARIANT_ESP32C2,
             VARIANT_ESP32C3,
@@ -113,7 +116,7 @@ def get_hw_interface_list():
         ]:
             return [["spi", "spi2"]]
         return [["spi", "spi2"], ["spi3"]]
-    if target_platform == "rp2040":
+    if target_platform == PLATFORM_RP2040:
         return [["spi"], ["spi1"]]
     return []
 
@@ -150,17 +153,17 @@ def validate_hw_pins(spi, index=-1):
         sdi_pin_no = sdi_pin[CONF_NUMBER]
 
     target_platform = get_target_platform()
-    if target_platform == "esp8266":
+    if target_platform == PLATFORM_ESP8266:
         if clk_pin_no == 6:
             return sdo_pin_no in (-1, 8) and sdi_pin_no in (-1, 7)
         if clk_pin_no == 14:
             return sdo_pin_no in (-1, 13) and sdi_pin_no in (-1, 12)
         return False
 
-    if target_platform == "esp32":
+    if target_platform == PLATFORM_ESP32:
         return clk_pin_no >= 0
 
-    if target_platform == "rp2040":
+    if target_platform == PLATFORM_RP2040:
         pin_set = (
             list(filter(lambda s: clk_pin_no in s[CONF_CLK_PIN], RP_SPI_PINSETS))[0]
             if index == -1
@@ -236,7 +239,7 @@ def get_spi_interface(index):
         return ["SPI2_HOST", "SPI3_HOST"][index]
     # Arduino code follows
     platform = get_target_platform()
-    if platform == "rp2040":
+    if platform == PLATFORM_RP2040:
         return ["&SPI", "&SPI1"][index]
     if index == 0:
         return "&SPI"
@@ -261,7 +264,7 @@ SPI_SCHEMA = cv.All(
         }
     ),
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
-    cv.only_on(["esp32", "esp8266", "rp2040"]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -272,6 +275,7 @@ CONFIG_SCHEMA = cv.All(
 
 @coroutine_with_priority(1.0)
 async def to_code(configs):
+    cg.add_define("USE_SPI")
     cg.add_global(spi_ns.using)
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
