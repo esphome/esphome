@@ -423,6 +423,8 @@ void OTAComponent::handle_() {
     App.safe_reboot();
   }
 
+  return;
+
 error:
   buf[0] = static_cast<uint8_t>(error_code);
   this->writeall_(buf, 1);
