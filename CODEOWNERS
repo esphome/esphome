@@ -274,6 +274,7 @@ esphome/components/sonoff_d1/* @anatoly-savchenkov
 esphome/components/speaker/* @jesserockz
 esphome/components/spi/* @clydebarrow @esphome/core
 esphome/components/spi_device/* @clydebarrow
+esphome/components/spi_displays/* @clydebarrow @nielsnl68
 esphome/components/spi_led_strip/* @clydebarrow
 esphome/components/sprinkler/* @kbx81
 esphome/components/sps30/* @martgras
@@ -344,5 +345,6 @@ esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
 esphome/components/xiaomi_rtcgq02lm/* @jesserockz
 esphome/components/xl9535/* @mreditor97
+esphome/components/xpt2046/* @nielsnl68 @numo68
 esphome/components/xpt2046/touchscreen/* @nielsnl68 @numo68
 esphome/components/zio_ultrasonic/* @kahrendt
