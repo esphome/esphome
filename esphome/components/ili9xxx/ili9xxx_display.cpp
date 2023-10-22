@@ -180,7 +180,7 @@ void ILI9XXXDisplay::display_() {
 
   ESP_LOGV(TAG,
            "Start display(xlow:%d, ylow:%d, xhigh:%d, yhigh:%d, width:%d, "
-           "heigth:%d, start_pos:%d)",
+           "heigth:%d, start_pos:%" PRId32 ")",
            this->x_low_, this->y_low_, this->x_high_, this->y_high_, w, h, start_pos);
 
   this->start_data_();

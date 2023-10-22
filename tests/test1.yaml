@@ -1083,6 +1083,16 @@ sensor:
     ambient_pressure_compensation: 961mBar
     temperature_offset: 4.2C
     i2c_id: i2c_bus
+  - platform: sfa30
+    formaldehyde:
+      name: "SFA30 formaldehyde"
+    temperature:
+      name: "SFA30 temperature"
+    humidity:
+      name: "SFA30 humidity"
+    i2c_id: i2c_bus
+    address: 0x5D
+    update_interval: 30s
   - platform: sen0321
     name: Workshop Ozone Sensor
     id: sen0321_ozone
@@ -1683,7 +1693,18 @@ binary_sensor:
       number: 7
       mode: INPUT
       inverted: false
-
+  - platform: gpio
+    name: Speed Fan Cycle binary sensor"
+    pin:
+      number: 18
+      mode:
+        input: true
+        pulldown: true
+    on_press:
+      - fan.cycle_speed:
+          id: fan_speed
+          off_speed_cycle: False
+      - logger.log: "Cycle speed clicked"
   - platform: remote_receiver
     name: Raw Remote Receiver Test
     raw:
@@ -2578,6 +2599,12 @@ switch:
     name: UART Recurring Output
     data: [0xDE, 0xAD, 0xBE, 0xEF]
     send_every: 1s
+  - platform: uart
+    uart_id: uart_0
+    name: "UART On/Off"
+    data:
+      turn_on: "TurnOn\r\n"
+      turn_off: "TurnOff\r\n"
   - platform: template
     assumed_state: true
     name: Stepper Switch
@@ -3494,6 +3521,10 @@ button:
       name: "restart"
     query_params:
       name: query params
+  - platform: uart
+    uart_id: uart_0
+    name: UART button
+    data: "Pressed\r\n"
 
 ld2410:
   id: my_ld2410
