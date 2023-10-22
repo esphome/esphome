@@ -449,7 +449,6 @@ OTAResponseTypes OTAComponent::flash_(uint8_t *buf, std::unique_ptr<OTABackend> 
   bool update_started = false;
   size_t total = 0;
   uint32_t last_progress = 0;
-  bool reboot = true;
   char *sbuf = reinterpret_cast<char *>(buf);
 
   ESP_LOGI(TAG, "OTA type is %u and size is %u bytes", bin_type.type, ota_size);
