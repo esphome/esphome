@@ -284,7 +284,7 @@ void OTAComponent::handle_() {
         goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
       }
       command = buf[0];
-      switch (buf[0]) {
+      switch (command) {
         case OTA_COMMAND_FLASH:
           error_code = this->get_partition_info_(buf, bin_type, ota_size);
           if (error_code)
@@ -337,11 +337,6 @@ void OTAComponent::handle_() {
     App.safe_reboot();
     return;  // Will never be reached
   }
-
-  this->client_->close();
-  this->client_ = nullptr;
-  delay(10);
-  return;
 
 error:
   buf[0] = static_cast<uint8_t>(error_code);
