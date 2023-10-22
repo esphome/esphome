@@ -1,0 +1,125 @@
+// firmware update from http (ie when OTA port is behind a firewall)
+// code adapted from
+// esphome/components/ota/ota_backend.cpp
+// and
+// esphome/components/http_request
+
+#include "ota_http.h"
+
+#ifdef USE_ARDUINO
+#include "ota_http_arduino.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/log.h"
+#include "esphome/core/application.h"
+#include "esphome/components/network/util.h"
+#include "esphome/components/md5/md5.h"
+
+namespace esphome {
+namespace ota_http {
+
+struct Header {
+  const char *name;
+  const char *value;
+};
+
+int OtaHttpArduino::http_init() {
+  int http_code;
+  unsigned long start_time;
+  unsigned long duration;
+
+  const char *headerKeys[] = {"Content-Length", "Content-Type"};
+  const size_t headerCount = sizeof(headerKeys) / sizeof(headerKeys[0]);
+
+#ifdef USE_ESP8266
+#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
+  if (this->secure_) {
+    ESP_LOGE(TAG, "https connection not handled!");
+  }
+#endif  // USE_HTTP_REQUEST_ESP8266_HTTPS
+#endif  // USE_ESP8266
+
+  ESP_LOGD(TAG, "Trying to connect to %s", this->url_.c_str());
+
+  bool status = false;
+#ifdef USE_ESP32
+  status = this->client_.begin(this->url_.c_str());
+#endif
+#ifdef USE_ESP8266
+  status = client_.begin(*this->streamPtr, this->url_.c_str());
+#endif
+
+  if (!status) {
+    ESP_LOGE(TAG, "Unable to make http connection");
+    this->client_.end();
+    return -1;
+  } else {
+    ESP_LOGV(TAG, "http begin successfull.");
+  }
+
+  this->client_.setReuse(true);
+  ESP_LOGVV(TAG, "http client setReuse.");
+
+  // returned needed headers must be collected before the requests
+  this->client_.collectHeaders(headerKeys, headerCount);
+  ESP_LOGV(TAG, "http headers collected.");
+
+  // http GET
+  start_time = millis();
+  http_code = this->client_.GET();
+  duration = millis() - start_time;
+  ESP_LOGV(TAG, "http GET finished.");
+
+  if (http_code >= 310) {
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s (%d); Duration: %lu ms", url_.c_str(),
+             HTTPClient::errorToString(http_code).c_str(), http_code, duration);
+    return -1;
+  }
+
+  if (this->client_.getSize() < 0) {
+    ESP_LOGE(TAG, "Incorrect file size (%d) reported by http server (http status: %d). Aborting",
+             this->client_.getSize(), http_code);
+    return -1;
+  }
+
+  this->body_length = (size_t) this->client_.getSize();
+  ESP_LOGD(TAG, "firmware is %d bytes length.", this->body_length);
+
+#ifdef USE_ESP32
+  this->streamPtr = this->client_.getStreamPtr();
+#endif
+
+  return 1;
+}
+
+size_t OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
+  // wait for the stream to be populated
+  while (this->streamPtr->available() == 0) {
+    // give other tasks a chance to run while waiting for some data:
+    // ESP_LOGVV(TAG, "not enougth data available: %zu (total read: %zu)", streamPtr->available(), bytes_read);
+    yield();
+    delay(1);
+  }
+  // size_t bufsize = std::min(max_len, this->body_length - this->bytes_read);
+  int available_data = this->streamPtr->available();
+  if (available_data < 0) {
+    ESP_LOGE(TAG, "ERROR: stream closed");
+    this->cleanup();
+    return -1;
+  }
+  size_t bufsize = std::min(max_len, (size_t) available_data);
+
+  // ESP_LOGVV(TAG, "data available: %zu", available_data);
+
+  this->streamPtr->readBytes(buf, bufsize);
+  this->bytes_read += bufsize;
+  buf[bufsize] = '\0';  // not fed to ota
+
+  return bufsize;
+}
+
+void OtaHttpArduino::http_end() { this->client_.end(); }
+
+}  // namespace ota_http
+}  // namespace esphome
+
+#endif  // USE_ARDUINO
