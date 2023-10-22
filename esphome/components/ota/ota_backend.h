@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 namespace esphome {
 namespace ota {
@@ -51,9 +52,9 @@ enum OTABinType {
 
 struct OTAPartitionType {
   OTABinType type;
-  unsigned char part_type;
-  unsigned char part_subtype;
-  unsigned char part_index;
+  uint8_t part_type;
+  uint8_t part_subtype;
+  uint8_t part_index;
   char part_label[16];
 };
 
