@@ -907,21 +907,22 @@ BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
-bool APIConnection::request_voice_assistant(bool start, const std::string &conversation_id, bool use_vad) {
+bool APIConnection::request_voice_assistant(const VoiceAssistantRequest &msg) {
   if (!this->voice_assistant_subscription_)
     return false;
-  VoiceAssistantRequest msg;
-  msg.start = start;
-  msg.conversation_id = conversation_id;
-  msg.use_vad = use_vad;
+
   return this->send_voice_assistant_request(msg);
 }
 void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
   if (voice_assistant::global_voice_assistant != nullptr) {
+    if (msg.error) {
+      voice_assistant::global_voice_assistant->failed_to_start();
+      return;
+    }
     struct sockaddr_storage storage;
     socklen_t len = sizeof(storage);
     this->helper_->getpeername((struct sockaddr *) &storage, &len);
-    voice_assistant::global_voice_assistant->start(&storage, msg.port);
+    voice_assistant::global_voice_assistant->start_streaming(&storage, msg.port);
   }
 };
 void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) {
@@ -1051,6 +1052,10 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.manufacturer = "Espressif";
 #elif defined(USE_RP2040)
   resp.manufacturer = "Raspberry Pi";
+#elif defined(USE_BK72XX)
+  resp.manufacturer = "Beken";
+#elif defined(USE_RTL87XX)
+  resp.manufacturer = "Realtek";
 #elif defined(USE_HOST)
   resp.manufacturer = "Host";
 #endif
