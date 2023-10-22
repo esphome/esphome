@@ -276,7 +276,7 @@ void OTAComponent::handle_() {
 
   bin_type.type = OTA_BIN_APP;
   if ((ota_features & FEATURE_SUPPORTS_EXTENDED) != 0) {
-    while(true) {
+    while (true) {
       // Read command
       if (!this->readall_(buf, 1)) {
         error_code = OTA_RESPONSE_ERROR_SOCKET_READ;
@@ -284,12 +284,14 @@ void OTAComponent::handle_() {
         goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
       }
       command = buf[0];
-      switch(buf[0]){
+      switch (buf[0]) {
         case OTA_COMMAND_FLASH:
-           error_code = this->get_partition_info_(buf, bin_type, ota_size);
-           if (error_code) goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-           error_code = this->flash_(buf, backend, bin_type, ota_size);
-           if (error_code) goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+          error_code = this->get_partition_info_(buf, bin_type, ota_size);
+          if (error_code)
+            goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+          error_code = this->flash_(buf, backend, bin_type, ota_size);
+          if (error_code)
+            goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
           break;
         case OTA_COMMAND_REBOOT:
           buf[0] = OTA_RESPONSE_OK;
@@ -298,7 +300,7 @@ void OTAComponent::handle_() {
           this->client_ = nullptr;
           delay(100);  // NOLINT
           App.safe_reboot();
-          return; // Will never be reached
+          return;  // Will never be reached
         case OTA_COMMAND_END:
           ESP_LOGI(TAG, "OTA session finished!");
           return;
@@ -322,7 +324,8 @@ void OTAComponent::handle_() {
       ota_size |= buf[i];
     }
     error_code = this->flash_(buf, backend, bin_type, ota_size);
-    if (error_code) goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    if (error_code)
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
 
     // Read ACK
     this->readall_(buf, 1);
@@ -332,7 +335,7 @@ void OTAComponent::handle_() {
     this->client_ = nullptr;
     delay(100);  // NOLINT
     App.safe_reboot();
-    return; // Will never be reached
+    return;  // Will never be reached
   }
 
   this->client_->close();
@@ -410,8 +413,7 @@ bool OTAComponent::writeall_(const uint8_t *buf, size_t len) {
   }
   return true;
 }
-OTAResponseTypes OTAComponent::get_partition_info_(uint8_t *buf, OTAPartitionType& bin_type, size_t& ota_size) {
-
+OTAResponseTypes OTAComponent::get_partition_info_(uint8_t *buf, OTAPartitionType &bin_type, size_t &ota_size) {
   // Read partition info
   // - [ 0   ] version: 0x1
   // - [ 1   ] bin type (if version >= 1)
@@ -447,8 +449,8 @@ OTAResponseTypes OTAComponent::get_partition_info_(uint8_t *buf, OTAPartitionTyp
   return OTA_RESPONSE_OK;
 }
 
-OTAResponseTypes OTAComponent::flash(uint8_t *buf, std::unique_ptr<OTABackend>& backend, const OTAPartitionType& bin_type, size_t ota_size) {
-
+OTAResponseTypes OTAComponent::flash_(uint8_t *buf, std::unique_ptr<OTABackend> &backend,
+                                      const OTAPartitionType &bin_type, size_t ota_size) {
   bool update_started = false;
   size_t total = 0;
   uint32_t last_progress = 0;
@@ -543,11 +545,11 @@ OTAResponseTypes OTAComponent::flash(uint8_t *buf, std::unique_ptr<OTABackend>& 
 
   return OTA_RESPONSE_OK;
 
-  error:
-    if (backend != nullptr && update_started) {
-      backend->abort();
-    }
-    return error_code;
+error:
+  if (backend != nullptr && update_started) {
+    backend->abort();
+  }
+  return error_code;
 }
 
 float OTAComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }

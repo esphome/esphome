@@ -10,7 +10,6 @@
 namespace esphome {
 namespace ota {
 
-
 enum OTAFeatureTypes {
   OTA_FEATURE_COMPRESSION = 1,
   OTA_FEATURE_WRITING_BOOTLOADER = 2,
@@ -68,8 +67,9 @@ class OTAComponent : public Component {
   bool readall_(uint8_t *buf, size_t len);
   bool writeall_(const uint8_t *buf, size_t len);
 
-  OTAResponseTypes get_partition_info_(uint8_t *buf, OTAPartitionType& /*bin_type*/, size_t& ota_size);
-  OTAResponseTypes flash_(uint8_t *buf, std::unique_ptr<OTABackend>& backend, const OTAPartitionType&, size_t ota_size);
+  OTAResponseTypes get_partition_info_(uint8_t *buf, OTAPartitionType & /*bin_type*/, size_t &ota_size);
+  OTAResponseTypes flash_(uint8_t *buf, std::unique_ptr<OTABackend> &backend, const OTAPartitionType &,
+                          size_t ota_size);
 
 #ifdef USE_OTA_PASSWORD
   std::string password_;

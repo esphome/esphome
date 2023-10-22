@@ -24,8 +24,8 @@ namespace ota {
 
 static const char *const TAG = "ota";
 
-static uint32_t running_partition_start = 0;
-static uint32_t running_partition_size = 0;
+static uint32_t running_partition_start = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static uint32_t running_partition_size = 0;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t image_size) {
   esp_err_t err;
@@ -46,9 +46,9 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t image_si
       break;
 #ifdef USE_UNPROTECTED_WRITES
     case OTA_BIN_BOOTLOADER:
-      err = esp_partition_register_external(esp_flash_default_chip, ESP_BOOTLOADER_OFFSET,
-                                            ESP_PARTITION_TABLE_OFFSET - ESP_BOOTLOADER_OFFSET, "bootloader",
-                                            (esp_partition_type_t) 0x42, (esp_partition_subtype_t) 0, &this->partition_);
+      err = esp_partition_register_external(
+          esp_flash_default_chip, ESP_BOOTLOADER_OFFSET, ESP_PARTITION_TABLE_OFFSET - ESP_BOOTLOADER_OFFSET,
+          "bootloader", (esp_partition_type_t) 0x42, (esp_partition_subtype_t) 0, &this->partition_);
       if (err != ESP_OK || this->partition_ == nullptr) {
         ESP_LOGE(TAG, "Error registering bootloader partition. Error: 0x%x Pointer: %p", err,
                  (void *) this->partition_);
@@ -57,8 +57,9 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t image_si
       }
       break;
     case OTA_FEATURE_WRITING_PARTITION_TABLE:
-      err = esp_partition_register_external(esp_flash_default_chip, ESP_PARTITION_TABLE_OFFSET, 0x1000, "part-table",
-                                            (esp_partition_type_t) 0x42, (esp_partition_subtype_t) 1, &this->partition_);
+      err =
+          esp_partition_register_external(esp_flash_default_chip, ESP_PARTITION_TABLE_OFFSET, 0x1000, "part-table",
+                                          (esp_partition_type_t) 0x42, (esp_partition_subtype_t) 1, &this->partition_);
       if (err != ESP_OK || this->partition_ == nullptr) {
         ESP_LOGE(TAG, "Error registering partition table partition. Error: 0x%x Pointer: %p", err,
                  (void *) this->partition_);
@@ -96,21 +97,26 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t image_si
       return OTA_RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED;
   }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
   // round up to the next erase_size
   size_t erase_size = this->partition_->erase_size ? this->partition_->erase_size : this->partition_->size;
+#else
+  size_t erase_size = this->partition_->size;
+#endif
   size_t image_erase_size = (1 + ((image_size - 1) / erase_size)) * erase_size;
   if (this->partition_->address + image_erase_size > running_partition_start &&
-    this->partition_->address < running_partition_start + running_partition_size) {
-        ESP_LOGE(TAG, "Aborting to avoid overriding running partition");
-        ESP_LOGE(TAG, "New partition - addr: 0x%06x; size: 0x%06x", (unsigned int )this->partition_->address, (unsigned int) image_erase_size);
-        ESP_LOGE(TAG, "Running partition - addr: 0x%06x; size: 0x%06x", (unsigned int) running_partition_start, (unsigned int) running_partition_size);
-        IDFOTABackend::log_partitions();
-        return OTA_RESPONSE_ERROR_ABORT_OVERRIDE;
-    }
-
+      this->partition_->address < running_partition_start + running_partition_size) {
+    ESP_LOGE(TAG, "Aborting to avoid overriding running partition");
+    ESP_LOGE(TAG, "New partition - addr: 0x%06x; size: 0x%06x", (unsigned int) this->partition_->address,
+             (unsigned int) image_erase_size);
+    ESP_LOGE(TAG, "Running partition - addr: 0x%06x; size: 0x%06x", (unsigned int) running_partition_start,
+             (unsigned int) running_partition_size);
+    IDFOTABackend::log_partitions();
+    return OTA_RESPONSE_ERROR_ABORT_OVERRIDE;
+  }
 
 #if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-    // The following function takes longer than the 5 seconds timeout of WDT
+  // The following function takes longer than the 5 seconds timeout of WDT
 #if ESP_IDF_VERSION_MAJOR >= 5
   esp_task_wdt_config_t wdtc;
   wdtc.idle_core_mask = 0;
@@ -257,7 +263,8 @@ void IDFOTABackend::deregister_partitions_() {
     case OTA_FEATURE_WRITING_PARTITION_TABLE: {
       esp_err_t err = esp_partition_deregister_external(this->partition_);
       if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Error deregistering partition. Error: 0x%x Pointer: 0x%06X", err, (unsigned int) this->partition_);
+        ESP_LOGW(TAG, "Error deregistering partition. Error: 0x%x Pointer: 0x%06X", err,
+                 (unsigned int) this->partition_);
       }
       this->partition_ = nullptr;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
