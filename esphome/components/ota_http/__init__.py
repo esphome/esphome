@@ -73,7 +73,6 @@ def _declare_request_class(value):
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-
             cv.GenerateID(): _declare_request_class,
             cv.Optional(
                 CONF_TIMEOUT, default="5min"
