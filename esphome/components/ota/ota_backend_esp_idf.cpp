@@ -14,15 +14,30 @@
 #include <spi_flash_mmap.h>
 #endif
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+// private function in partition.c to unload partitions and free space allocated by them
+extern "C" void unload_partitions(void);
+#endif
+
 namespace esphome {
 namespace ota {
 
 static const char *const TAG = "ota";
 
-OTAResponseTypes IDFOTABackend::begin(OTABinType bin_type, size_t image_size) {
+static uint32_t running_partition_start = 0;
+static uint32_t running_partition_size = 0;
+
+OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t image_size) {
   esp_err_t err;
   this->bin_type_ = bin_type;
-  switch (this->bin_type_) {
+
+  // On first usage, query our running area so we never overwrite it
+  if (running_partition_start == 0) {
+    running_partition_start = esp_ota_get_running_partition()->address;
+    running_partition_size = esp_ota_get_running_partition()->size;
+  }
+
+  switch (this->bin_type_.type) {
     case OTA_BIN_APP:
       this->partition_ = esp_ota_get_next_update_partition(nullptr);
       if (this->partition_ == nullptr) {
@@ -33,28 +48,66 @@ OTAResponseTypes IDFOTABackend::begin(OTABinType bin_type, size_t image_size) {
     case OTA_BIN_BOOTLOADER:
       err = esp_partition_register_external(esp_flash_default_chip, ESP_BOOTLOADER_OFFSET,
                                             ESP_PARTITION_TABLE_OFFSET - ESP_BOOTLOADER_OFFSET, "bootloader",
-                                            (esp_partition_type_t) 42, (esp_partition_subtype_t) 0, &this->partition_);
+                                            (esp_partition_type_t) 0x42, (esp_partition_subtype_t) 0, &this->partition_);
       if (err != ESP_OK || this->partition_ == nullptr) {
-        ESP_LOGW(TAG, "Error registering bootloader partition. Error: 0x%x Pointer: %p", err,
+        ESP_LOGE(TAG, "Error registering bootloader partition. Error: 0x%x Pointer: %p", err,
                  (void *) this->partition_);
         IDFOTABackend::deregister_partitions_();
-        return OTA_RESPONSE_ERROR_REGISTERING_PARTITION;
+        return OTA_RESPONSE_ERROR_ESP32_REGISTERING_PARTITION;
       }
       break;
     case OTA_FEATURE_WRITING_PARTITION_TABLE:
       err = esp_partition_register_external(esp_flash_default_chip, ESP_PARTITION_TABLE_OFFSET, 0x1000, "part-table",
-                                            (esp_partition_type_t) 42, (esp_partition_subtype_t) 1, &this->partition_);
+                                            (esp_partition_type_t) 0x42, (esp_partition_subtype_t) 1, &this->partition_);
       if (err != ESP_OK || this->partition_ == nullptr) {
-        ESP_LOGW(TAG, "Error registering partition table partition. Error: 0x%x Pointer: %p", err,
+        ESP_LOGE(TAG, "Error registering partition table partition. Error: 0x%x Pointer: %p", err,
                  (void *) this->partition_);
         IDFOTABackend::deregister_partitions_();
-        return OTA_RESPONSE_ERROR_REGISTERING_PARTITION;
+        return OTA_RESPONSE_ERROR_ESP32_REGISTERING_PARTITION;
+      }
+      break;
+    case OTA_BIN_PARTITION: {
+      esp_partition_iterator_t iterator = esp_partition_find(
+          (esp_partition_type_t) this->bin_type_.part_type, (esp_partition_subtype_t) this->bin_type_.part_subtype,
+          strlen(this->bin_type_.part_label) ? this->bin_type_.part_label : nullptr);
+      while (iterator) {
+        this->partition_ = esp_partition_get(iterator);
+        if (this->bin_type_.part_index-- == 0)
+          break;
+        if (this->partition_ != nullptr)
+          iterator = esp_partition_next(iterator);
+      }
+      esp_partition_iterator_release(iterator);
+    }
+      if (this->partition_ != nullptr) {
+        ESP_LOGV(TAG, "Partition found - type: 0x%02x; subtype: 0x%02x; addr: 0x%06x; size: 0x%06x; label: %s",
+                 (unsigned int) this->partition_->type, (unsigned int) this->partition_->subtype,
+                 (unsigned int) this->partition_->address, (unsigned int) this->partition_->size,
+                 this->partition_->label);
+      } else {
+        ESP_LOGE(TAG, "Partition not found - type: 0x%02x; subtype: 0x%02x; label: %s", this->bin_type_.part_type,
+                 this->bin_type_.part_subtype, this->bin_type_.part_label);
+        IDFOTABackend::log_partitions();
+        return OTA_RESPONSE_ERROR_PARTITION_NOT_FOUND;
       }
       break;
 #endif
     default:
       return OTA_RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED;
   }
+
+  // round up to the next erase_size
+  size_t erase_size = this->partition_->erase_size ? this->partition_->erase_size : this->partition_->size;
+  size_t image_erase_size = (1 + ((image_size - 1) / erase_size)) * erase_size;
+  if (this->partition_->address + image_erase_size > running_partition_start &&
+    this->partition_->address < running_partition_start + running_partition_size) {
+        ESP_LOGE(TAG, "Aborting to avoid overriding running partition");
+        ESP_LOGE(TAG, "New partition - addr: 0x%06x; size: 0x%06x", (unsigned int )this->partition_->address, (unsigned int) image_erase_size);
+        ESP_LOGE(TAG, "Running partition - addr: 0x%06x; size: 0x%06x", (unsigned int) running_partition_start, (unsigned int) running_partition_size);
+        IDFOTABackend::log_partitions();
+        return OTA_RESPONSE_ERROR_ABORT_OVERRIDE;
+    }
+
 
 #if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
     // The following function takes longer than the 5 seconds timeout of WDT
@@ -75,17 +128,18 @@ OTAResponseTypes IDFOTABackend::begin(OTABinType bin_type, size_t image_size) {
 #endif
 #endif
 
-  switch (this->bin_type_) {
+  switch (this->bin_type_.type) {
     case OTA_BIN_APP:
       err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
       break;
 #ifdef USE_UNPROTECTED_WRITES
     case OTA_BIN_BOOTLOADER:
     case OTA_FEATURE_WRITING_PARTITION_TABLE:
-      if (image_size > this->partition_->size) {
+    case OTA_BIN_PARTITION:
+      if (image_erase_size > this->partition_->size) {
         err = ESP_ERR_INVALID_SIZE;
       } else {
-        err = esp_partition_erase_range(this->partition_, 0, this->partition_->size);
+        err = esp_partition_erase_range(this->partition_, 0, image_erase_size);
       }
       break;
 #endif
@@ -121,13 +175,14 @@ void IDFOTABackend::set_update_md5(const char *expected_md5) { memcpy(this->expe
 
 OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
   esp_err_t err;
-  switch (this->bin_type_) {
+  switch (this->bin_type_.type) {
     case OTA_BIN_APP:
       err = esp_ota_write(this->update_handle_, data, len);
       break;
 #ifdef USE_UNPROTECTED_WRITES
     case OTA_BIN_BOOTLOADER:
     case OTA_FEATURE_WRITING_PARTITION_TABLE:
+    case OTA_BIN_PARTITION:
       err = esp_partition_write(this->partition_, this->data_written_, data, len);
       break;
 #endif
@@ -155,7 +210,7 @@ OTAResponseTypes IDFOTABackend::end() {
   }
   this->deregister_partitions_();
   esp_err_t err = ESP_OK;
-  if ((err == ESP_OK) && (this->bin_type_ == OTA_BIN_APP)) {
+  if ((err == ESP_OK) && (this->bin_type_.type == OTA_BIN_APP)) {
     esp_ota_end(this->update_handle_);
     this->update_handle_ = 0;
     err = esp_ota_set_boot_partition(this->partition_);
@@ -193,17 +248,22 @@ void IDFOTABackend::log_partitions() {
       iterator = esp_partition_next(iterator);
     }
   }
+  esp_partition_iterator_release(iterator);
 }
 void IDFOTABackend::deregister_partitions_() {
-  switch (this->bin_type_) {
+  switch (this->bin_type_.type) {
 #ifdef USE_UNPROTECTED_WRITES
     case OTA_BIN_BOOTLOADER:
     case OTA_FEATURE_WRITING_PARTITION_TABLE: {
       esp_err_t err = esp_partition_deregister_external(this->partition_);
       if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Error deregistering partition. Error: 0x%x Pointer: 0x%06X", err, (uint32_t) this->partition_);
+        ESP_LOGW(TAG, "Error deregistering partition. Error: 0x%x Pointer: 0x%06X", err, (unsigned int) this->partition_);
       }
       this->partition_ = nullptr;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+      // Need to undload so they can be refreshed in memory without reboot
+      unload_partitions();
+#endif
       IDFOTABackend::log_partitions();
       break;
     }

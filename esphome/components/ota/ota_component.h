@@ -5,42 +5,11 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
+#include "ota_backend.h"
 
 namespace esphome {
 namespace ota {
 
-enum OTAResponseTypes {
-  OTA_RESPONSE_OK = 0,
-  OTA_RESPONSE_REQUEST_AUTH = 1,
-  RESPONSE_OK_NO_REBOOT = 2,
-
-  OTA_RESPONSE_HEADER_OK = 64,
-  OTA_RESPONSE_AUTH_OK = 65,
-  OTA_RESPONSE_UPDATE_PREPARE_OK = 66,
-  OTA_RESPONSE_BIN_MD5_OK = 67,
-  OTA_RESPONSE_RECEIVE_OK = 68,
-  OTA_RESPONSE_UPDATE_END_OK = 69,
-  OTA_RESPONSE_SUPPORTS_COMPRESSION = 70,
-  OTA_RESPONSE_SUPPORTS_EXTENDED = 71,
-
-  OTA_RESPONSE_ERROR_MAGIC = 128,
-  OTA_RESPONSE_ERROR_UPDATE_PREPARE = 129,
-  OTA_RESPONSE_ERROR_AUTH_INVALID = 130,
-  OTA_RESPONSE_ERROR_WRITING_FLASH = 131,
-  OTA_RESPONSE_ERROR_UPDATE_END = 132,
-  OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING = 133,
-  OTA_RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG = 134,
-  OTA_RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG = 135,
-  OTA_RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE = 136,
-  OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE = 137,
-  OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION = 138,
-  OTA_RESPONSE_ERROR_MD5_MISMATCH = 139,
-  OTA_RESPONSE_ERROR_RP2040_NOT_ENOUGH_SPACE = 140,
-  OTA_RESPONSE_ERROR_UNKNOWN_PARTITION_INFO_VERSION = 141,
-  OTA_RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED = 142,
-  OTA_RESPONSE_ERROR_REGISTERING_PARTITION = 143,
-  OTA_RESPONSE_ERROR_UNKNOWN = 255,
-};
 
 enum OTAFeatureTypes {
   OTA_FEATURE_COMPRESSION = 1,
@@ -49,11 +18,10 @@ enum OTAFeatureTypes {
   OTA_FEATURE_WRITING_PARTITIONS = 4,
 };
 
-enum OTABinType {
-  OTA_BIN_APP = 1,
-  OTA_BIN_BOOTLOADER = 2,
-  OTA_BIN_PARTITION_TABLE = 3,
-  OTA_BIN_PARTITION = 4,
+enum OTACommands {
+  OTA_COMMAND_FLASH = 1,
+  OTA_COMMAND_REBOOT = 2,
+  OTA_COMMAND_END = 3,
 };
 
 enum OTAState { OTA_COMPLETED = 0, OTA_STARTED, OTA_IN_PROGRESS, OTA_ERROR };
@@ -99,6 +67,9 @@ class OTAComponent : public Component {
   void handle_();
   bool readall_(uint8_t *buf, size_t len);
   bool writeall_(const uint8_t *buf, size_t len);
+
+  OTAResponseTypes get_partition_info_(uint8_t *buf, OTAPartitionType& /*bin_type*/, size_t& ota_size);
+  OTAResponseTypes flash_(uint8_t *buf, std::unique_ptr<OTABackend>& backend, const OTAPartitionType&, size_t ota_size);
 
 #ifdef USE_OTA_PASSWORD
   std::string password_;

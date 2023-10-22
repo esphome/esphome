@@ -7,6 +7,7 @@ import time
 import gzip
 import struct
 
+from dataclasses import dataclass
 from esphome.core import EsphomeError
 from esphome.helpers import is_ip_address, resolve_ip_address
 
@@ -15,9 +16,12 @@ UPLOAD_TYPE_BOOTLOADER = 2
 UPLOAD_TYPE_PARTITION_TABLE = 3
 UPLOAD_TYPE_PARTITION = 4
 
+COMMAND_FLASH = 1
+COMMAND_REBOOT = 2
+COMMAND_END = 3
+
 RESPONSE_OK = 0
 RESPONSE_REQUEST_AUTH = 1
-RESPONSE_OK_NO_REBOOT = 2
 
 RESPONSE_HEADER_OK = 64
 RESPONSE_AUTH_OK = 65
@@ -40,6 +44,13 @@ RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE = 136
 RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE = 137
 RESPONSE_ERROR_NO_UPDATE_PARTITION = 138
 RESPONSE_ERROR_MD5_MISMATCH = 139
+RESPONSE_ERROR_RP2040_NOT_ENOUGH_SPACE = 140
+RESPONSE_ERROR_UNKNOWN_PARTITION_INFO_VERSION = 141
+RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED = 142
+RESPONSE_ERROR_ESP32_REGISTERING_PARTITION = 143
+RESPONSE_ERROR_PARTITION_NOT_FOUND = 144
+RESPONSE_ERROR_UNKNOWN_COMMAND = 145
+RESPONSE_ERROR_ABORT_OVERRIDE = 146
 RESPONSE_ERROR_UNKNOWN = 255
 
 OTA_VERSION_1_0 = 1
@@ -55,6 +66,20 @@ FEATURE_SUPPORTS_WRITING_PARTITION_TABLE = 0x03
 FEATURE_SUPPORTS_WRITING_PARTITIONS = 0x04
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class OTAPartitionType:
+    type: int
+
+    @dataclass
+    class partition:
+        """Partition information for flash"""
+
+        type: int = 0xFF
+        subtype: int = 0xFF
+        index: int = 0
+        label: str = ""
 
 
 class ProgressBar:
@@ -176,6 +201,44 @@ def check_error(data, expect):
             "Error: Application MD5 code mismatch. Please try again "
             "or flash over USB with a good quality cable."
         )
+    if dat == RESPONSE_ERROR_RP2040_NOT_ENOUGH_SPACE:
+        raise OTAError(
+            "Error: The OTA partition on the RP2040 is too small. ESPHome needs to resize "
+            "this partition, please flash over USB."
+        )
+    if dat == RESPONSE_ERROR_UNKNOWN_PARTITION_INFO_VERSION:
+        raise OTAError(
+            "Error: The device firmware is too old and does not support this type of OTA. Try "
+            "to update first."
+        )
+    if dat == RESPONSE_ERROR_UNKNOWN_PARTITION_INFO_VERSION:
+        raise OTAError(
+            "Error: The device firmware is too old and does not support this type of OTA. Try "
+            "a regular OTA update first or flash over USB."
+        )
+    if dat == RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED:
+        raise OTAError(
+            "Error: The device does not support flashing this type of partition. Check if the "
+            "framework and CPU you are using supports it."
+        )
+    if dat == RESPONSE_ERROR_ESP32_REGISTERING_PARTITION:
+        raise OTAError(
+            "Error: could not register partition before flashing. Try to reboot your device first"
+        )
+    if dat == RESPONSE_ERROR_PARTITION_NOT_FOUND:
+        raise OTAError(
+            "Error: could not find the custom partition to flash. Did you specify the right values?"
+        )
+    if dat == RESPONSE_ERROR_UNKNOWN_COMMAND:
+        raise OTAError(
+            "Error: device does not support the sent command. This means the device firmware is too "
+            "old and this CLI did not check the device features properly."
+        )
+    if dat == RESPONSE_ERROR_ABORT_OVERRIDE:
+        raise OTAError(
+            "Error: device aborted flash that would have overriden running partition. Check your "
+            "device log for more information."
+        )
     if dat == RESPONSE_ERROR_UNKNOWN:
         raise OTAError("Unknown error from ESP")
     if not isinstance(expect, (list, tuple)):
@@ -242,18 +305,25 @@ def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot):
     else:
         upload_contents = file_contents
 
-    if (bin_type == UPLOAD_TYPE_BOOTLOADER) and (
+    if (bin_type.type == UPLOAD_TYPE_BOOTLOADER) and (
         FEATURE_SUPPORTS_WRITING_BOOTLOADER not in features
     ):
         raise OTAError(
             "Uploading bootloader is not supported by remote device - upgrade the firmware first!"
         )
 
-    if (bin_type == UPLOAD_TYPE_PARTITION_TABLE) and (
+    if (bin_type.type == UPLOAD_TYPE_PARTITION_TABLE) and (
         FEATURE_SUPPORTS_WRITING_PARTITION_TABLE not in features
     ):
         raise OTAError(
             "Uploading partition table is not supported by remote device - upgrade the firmware first!"
+        )
+
+    if (bin_type.type == UPLOAD_TYPE_PARTITION) and (
+        FEATURE_SUPPORTS_WRITING_PARTITIONS not in features
+    ):
+        raise OTAError(
+            "Uploading partition is not supported by remote device - upgrade the firmware first!"
         )
 
     (auth,) = receive_exactly(
@@ -283,35 +353,38 @@ def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot):
 
     upload_size = len(upload_contents)
     if features_reply == RESPONSE_SUPPORTS_EXTENDED:
-        # Read partition info
+        send_check(sock, struct.pack("!B", 1), "flash command")
+        # Send partition info
         # - [ 0   ] version: 0x1
-        # - [ 1   ] bin type
-        # - [ 2- 5] bin length
-        # - [ 6   ] partition type - when bin type = partition
-        # - [ 7   ] partition subtype - when bin type = partition
-        # - [ 8   ] partition index - when bin type = partition
-        # - [16-31] partition label - when bin type = partition
+        # - [ 1   ] bin type (if version >= 1)
+        # - [ 2- 5] bin length (if version >= 1)
+        # - [ 6   ] partition type - when bin type = partition (if version >= 1)
+        # - [ 7   ] partition subtype - when bin type = partition (if version >= 1)
+        # - [ 8   ] partition index - when bin type = partition (if version >= 1)
+        # - [16-31] partition label - when bin type = partition (if version >= 1)
         version = 1
-        partition_type = 0
-        partition_subtype = 0
-        partition_index = 0
-        partition_label = ""
+        partition_label = bin_type.partition.label
         assert len(partition_label) <= 15
         partition_label_bytes = bytes(partition_label, "ascii") + b"\x00"
         partition_info = struct.pack(
             "!BBLBBB7x16s",
             version,
-            bin_type,
+            bin_type.type,
             upload_size,
-            partition_type,
-            partition_subtype,
-            partition_index,
+            bin_type.partition.type,
+            bin_type.partition.subtype,
+            bin_type.partition.index,
             partition_label_bytes,
         )
         assert len(partition_info) == 32
         _LOGGER.debug("Partition info: %s", list(partition_info))
         send_check(sock, partition_info, "partition info")
     else:
+        if bin_type.type != UPLOAD_TYPE_APP:
+            raise OTAError(
+                "Error: The device firmware is too old and does not support anything else beyond "
+                "the plain OTA. Try an update first."
+            )
         upload_size_encoded = struct.pack("!L", upload_size)
         send_check(sock, upload_size_encoded, "binary size")
     receive_exactly(sock, 1, "binary size", RESPONSE_UPDATE_PREPARE_OK)
@@ -355,9 +428,9 @@ def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot):
     receive_exactly(sock, 1, "receive OK", RESPONSE_RECEIVE_OK)
     receive_exactly(sock, 1, "Update end", RESPONSE_UPDATE_END_OK)
     if no_reboot:
-        send_check(sock, RESPONSE_OK_NO_REBOOT, "end without reboot")
+        send_check(sock, COMMAND_END, "end without reboot")
     else:
-        send_check(sock, RESPONSE_OK, "end acknowledgement")
+        send_check(sock, COMMAND_REBOOT, "end with reboot")
 
     _LOGGER.info("OTA successful")
 
