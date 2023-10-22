@@ -77,7 +77,7 @@ void Wireguard::update() {
   bool lhs_updated = (lhs > this->latest_saved_handshake_);
 
   ESP_LOGV(TAG, "enabled=%d, connected=%d, peer_up=%d, handshake: current=%.0f latest=%.0f updated=%d",
-           (int) (this->wg_connected_ == ESP_OK), (int) this->enabled_, (int) peer_up, (double) lhs,
+           (int) this->enabled_, (int) (this->wg_connected_ == ESP_OK), (int) peer_up, (double) lhs,
            (double) this->latest_saved_handshake_, (int) lhs_updated);
 
   if (lhs_updated) {
