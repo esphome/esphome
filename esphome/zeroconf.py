@@ -17,6 +17,8 @@ from zeroconf import (
     current_time_millis,
 )
 
+from esphome.storage_json import StorageJSON, ext_storage_path
+
 _CLASS_IN = 1
 _FLAGS_QR_QUERY = 0x0000  # query
 _TYPE_A = 1
@@ -131,6 +133,7 @@ TXT_RECORD_PROJECT_NAME = b"project_name"
 TXT_RECORD_PROJECT_VERSION = b"project_version"
 TXT_RECORD_NETWORK = b"network"
 TXT_RECORD_FRIENDLY_NAME = b"friendly_name"
+TXT_RECORD_VERSION = b"version"
 
 
 @dataclass
@@ -186,6 +189,10 @@ class DashboardImportDiscovery:
         ]
         if any(key not in info.properties for key in required_keys):
             # Not a dashboard import device
+            version = info.properties.get(TXT_RECORD_VERSION)
+            if version is not None:
+                version = version.decode()
+                self.update_device_mdns(node_name, version)
             return
 
         import_url = info.properties[TXT_RECORD_PACKAGE_IMPORT_URL].decode()
@@ -207,6 +214,22 @@ class DashboardImportDiscovery:
 
     def cancel(self) -> None:
         self.service_browser.cancel()
+
+    def update_device_mdns(self, node_name: str, version: str):
+        storage_path = ext_storage_path(node_name + ".yaml")
+        storage_json = StorageJSON.load(storage_path)
+
+        if storage_json is not None:
+            storage_version = storage_json.esphome_version
+            if version != storage_version:
+                storage_json.esphome_version = version
+                storage_json.save(storage_path)
+                _LOGGER.info(
+                    "Updated %s with mdns version %s (was %s)",
+                    node_name,
+                    version,
+                    storage_version,
+                )
 
 
 class EsphomeZeroconf(Zeroconf):
