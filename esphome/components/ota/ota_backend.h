@@ -49,9 +49,9 @@ enum OTABinType {
 
 struct OTAPartitionType {
   OTABinType type;
-  uint8_t part_type;
-  uint8_t part_subtype;
-  uint8_t part_index;
+  unsigned char part_type;
+  unsigned char part_subtype;
+  unsigned char part_index;
   char part_label[16];
 };
 

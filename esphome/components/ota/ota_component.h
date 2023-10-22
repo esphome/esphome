@@ -67,8 +67,8 @@ class OTAComponent : public Component {
   bool readall_(uint8_t *buf, size_t len);
   bool writeall_(const uint8_t *buf, size_t len);
 
-  OTAResponseTypes get_partition_info_(uint8_t *buf, OTAPartitionType & /*bin_type*/, size_t &ota_size);
-  OTAResponseTypes flash_(uint8_t *buf, std::unique_ptr<OTABackend> &backend, const OTAPartitionType &,
+  OTAResponseTypes get_partition_info_(uint8_t *buf, OTAPartitionType &bin_type, size_t &ota_size);
+  OTAResponseTypes flash_(uint8_t *buf, std::unique_ptr<OTABackend> &backend, const OTAPartitionType &bin_type,
                           size_t ota_size);
 
 #ifdef USE_OTA_PASSWORD
