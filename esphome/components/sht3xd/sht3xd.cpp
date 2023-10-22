@@ -27,7 +27,7 @@ void SHT3XDComponent::setup() {
     return;
   }
   uint32_t serial_number = (uint32_t(raw_serial_number[0]) << 16) | uint32_t(raw_serial_number[1]);
-  ESP_LOGV(TAG, "    Serial Number: 0x%08X", serial_number);
+  ESP_LOGV(TAG, "    Serial Number: 0x%08" PRIX32, serial_number);
 }
 void SHT3XDComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SHT3xD:");

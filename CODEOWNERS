@@ -225,7 +225,7 @@ esphome/components/pn532_spi/* @OttoWinter @jesserockz
 esphome/components/power_supply/* @esphome/core
 esphome/components/preferences/* @esphome/core
 esphome/components/psram/* @esphome/core
-esphome/components/pulse_meter/* @cstaahl @stevebaxter
+esphome/components/pulse_meter/* @TrentHouliston @cstaahl @stevebaxter
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/qmp6988/* @andrewpc
 esphome/components/qr_code/* @wjtje
@@ -323,6 +323,7 @@ esphome/components/tuya/sensor/* @jesserockz
 esphome/components/tuya/switch/* @jesserockz
 esphome/components/tuya/text_sensor/* @dentra
 esphome/components/uart/* @esphome/core
+esphome/components/uart/button/* @ssieb
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
