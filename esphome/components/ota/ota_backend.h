@@ -1,6 +1,6 @@
 #pragma once
 
-#include "stddef.h"
+#include <cstdef>
 
 namespace esphome {
 namespace ota {
