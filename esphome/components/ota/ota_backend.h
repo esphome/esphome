@@ -1,5 +1,7 @@
 #pragma once
 
+#include "stddef.h"
+
 namespace esphome {
 namespace ota {
 
