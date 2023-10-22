@@ -13,6 +13,8 @@ from esphome.const import (
 from esphome.components import esp32
 from esphome.core import Lambda, CORE
 
+CODEOWNERS = ["@oarcher"]
+
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["md5"]
 
