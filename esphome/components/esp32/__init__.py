@@ -25,6 +25,7 @@ from esphome.const import (
     KEY_NAME,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
     TYPE_GIT,
     TYPE_LOCAL,
     __version__,
@@ -62,7 +63,7 @@ AUTO_LOAD = ["preferences"]
 
 def set_core_data(config):
     CORE.data[KEY_ESP32] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "esp32"
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP32
     conf = config[CONF_FRAMEWORK]
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "esp-idf"

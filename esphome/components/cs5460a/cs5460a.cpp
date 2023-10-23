@@ -86,7 +86,7 @@ void CS5460AComponent::hw_init_() {
   }
 
   uint32_t status = this->read_register_(REG_STATUS);
-  ESP_LOGCONFIG(TAG, "  Version: %x", (status >> 6) & 7);
+  ESP_LOGCONFIG(TAG, "  Version: %" PRIx32, (status >> 6) & 7);
 
   this->write_register_(REG_CYCLE_COUNT, samples_);
   this->write_register_(REG_PULSE_RATE, lroundf(pulse_freq_ * 32.0f));
@@ -323,7 +323,7 @@ void CS5460AComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Init status: %s",
                 state == COMPONENT_STATE_LOOP ? "OK" : (state == COMPONENT_STATE_FAILED ? "failed" : "other"));
   LOG_PIN("  CS Pin: ", cs_);
-  ESP_LOGCONFIG(TAG, "  Samples / cycle: %u", samples_);
+  ESP_LOGCONFIG(TAG, "  Samples / cycle: %" PRIu32, samples_);
   ESP_LOGCONFIG(TAG, "  Phase offset: %i", phase_offset_);
   ESP_LOGCONFIG(TAG, "  PGA Gain: %s", pga_gain_ == CS5460A_PGA_GAIN_50X ? "50x" : "10x");
   ESP_LOGCONFIG(TAG, "  Current gain: %.5f", current_gain_);

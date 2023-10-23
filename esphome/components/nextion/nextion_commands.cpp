@@ -10,15 +10,11 @@ static const char *const TAG = "nextion";
 void Nextion::soft_reset() { this->send_command_("rest"); }
 
 void Nextion::set_wake_up_page(uint8_t page_id) {
-  if (page_id > 255) {
-    ESP_LOGD(TAG, "Wake up page of bounds, range 0-255");
-    return;
-  }
   this->add_no_result_to_queue_with_set_internal_("wake_up_page", "wup", page_id, true);
 }
 
 void Nextion::set_touch_sleep_timeout(uint16_t timeout) {
-  if (timeout < 3 || timeout > 65535) {
+  if (timeout < 3) {
     ESP_LOGD(TAG, "Sleep timeout out of bounds, range 3-65535");
     return;
   }
