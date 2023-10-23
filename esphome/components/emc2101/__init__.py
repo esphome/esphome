@@ -71,13 +71,11 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_PWM in config:
+    if pwm_config := config.get(CONF_PWM):
         cg.add(var.set_dac_mode(False))
-        pwm_config = config[CONF_PWM]
         cg.add(var.set_pwm_resolution(pwm_config[CONF_RESOLUTION]))
         cg.add(var.set_pwm_divider(pwm_config[CONF_DIVIDER]))
-    if CONF_DAC in config:
+    if dac_config := config.get(CONF_DAC):
         cg.add(var.set_dac_mode(True))
-        dac_config = config[CONF_DAC]
         cg.add(var.set_dac_conversion_rate(dac_config[CONF_CONVERSION_RATE]))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
