@@ -2297,6 +2297,8 @@ climate:
     heat_mode: extended
   - platform: whynter
     name: Whynter
+  - platform: zhlt01
+    name: ZH/LT-01 Climate
 
 script:
   - id: climate_custom
