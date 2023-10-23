@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
+    UNIT_REVOLUTIONS_PER_MINUTE,
     ICON_PERCENT,
 )
 from .. import EMC2101_COMPONENT_SCHEMA, CONF_EMC2101_ID, emc2101_ns
@@ -36,7 +37,7 @@ CONFIG_SCHEMA = EMC2101_COMPONENT_SCHEMA.extend(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_SPEED): sensor.sensor_schema(
-            unit_of_measurement="RPM",
+            unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
             accuracy_decimals=2,
             state_class=STATE_CLASS_MEASUREMENT,
             icon="mdi:fan",
