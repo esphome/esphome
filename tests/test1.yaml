@@ -289,6 +289,8 @@ ota:
       lambda: >-
         ESP_LOGD("ota", "Got error code %d", x);
 
+ota_http:
+
 logger:
   baud_rate: 0
   level: VERBOSE

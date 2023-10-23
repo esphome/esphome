@@ -332,6 +332,8 @@ ota:
   port: 3286
   reboot_timeout: 15min
 
+ota_http:
+
 logger:
   hardware_uart: UART1
   level: DEBUG
