@@ -132,6 +132,7 @@ esphome/components/i2s_audio/* @jesserockz
 esphome/components/i2s_audio/media_player/* @jesserockz
 esphome/components/i2s_audio/microphone/* @jesserockz
 esphome/components/i2s_audio/speaker/* @jesserockz
+esphome/components/iaqcore/* @yozik04
 esphome/components/ili9xxx/* @clydebarrow @nielsnl68
 esphome/components/improv_base/* @esphome/core
 esphome/components/improv_serial/* @esphome/core

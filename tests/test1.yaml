@@ -1442,6 +1442,12 @@ sensor:
       id: temp_etuve
     humidity:
       name: "Humidity hyt271"
+  - platform: iaqcore
+    i2c_id: i2c_bus
+    co2:
+      name: "iAQ Core CO2 Sensor"
+    tvoc:
+      name: "iAQ Core TVOC Sensor"
   - platform: tmp1075
     name: "Temperature TMP1075"
     update_interval: 10s
