@@ -29,7 +29,6 @@
 #include "esp_http_client.h"
 
 static const uint16_t MAX_HTTP_RECV_BUFFER = 1024;
-static const char *TAG = "HTTP_CLIENT";
 
 namespace esphome {
 namespace ota_http {
