@@ -14,6 +14,8 @@ from esphome.const import (
     CONF_SLEEP_DURATION,
     CONF_TIME_ID,
     CONF_WAKEUP_PIN,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
 )
 
 from esphome.components.esp32 import get_esp32_variant
@@ -165,34 +167,39 @@ WAKEUP_CAUSES_SCHEMA = cv.Schema(
     }
 )
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(DeepSleepComponent),
-        cv.Optional(CONF_RUN_DURATION): cv.Any(
-            cv.All(cv.only_on_esp32, WAKEUP_CAUSES_SCHEMA),
-            cv.positive_time_period_milliseconds,
-        ),
-        cv.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_WAKEUP_PIN): cv.All(
-            cv.only_on_esp32, pins.internal_gpio_input_pin_schema, validate_pin_number
-        ),
-        cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
-            cv.only_on_esp32, cv.enum(WAKEUP_PIN_MODES), upper=True
-        ),
-        cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(
-            cv.only_on_esp32,
-            cv.Schema(
-                {
-                    cv.Required(CONF_PINS): cv.ensure_list(
-                        pins.internal_gpio_input_pin_schema, validate_pin_number
-                    ),
-                    cv.Required(CONF_MODE): cv.enum(EXT1_WAKEUP_MODES, upper=True),
-                }
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(DeepSleepComponent),
+            cv.Optional(CONF_RUN_DURATION): cv.Any(
+                cv.All(cv.only_on_esp32, WAKEUP_CAUSES_SCHEMA),
+                cv.positive_time_period_milliseconds,
             ),
-        ),
-        cv.Optional(CONF_TOUCH_WAKEUP): cv.All(cv.only_on_esp32, cv.boolean),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+            cv.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_WAKEUP_PIN): cv.All(
+                cv.only_on_esp32,
+                pins.internal_gpio_input_pin_schema,
+                validate_pin_number,
+            ),
+            cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
+                cv.only_on_esp32, cv.enum(WAKEUP_PIN_MODES), upper=True
+            ),
+            cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(
+                cv.only_on_esp32,
+                cv.Schema(
+                    {
+                        cv.Required(CONF_PINS): cv.ensure_list(
+                            pins.internal_gpio_input_pin_schema, validate_pin_number
+                        ),
+                        cv.Required(CONF_MODE): cv.enum(EXT1_WAKEUP_MODES, upper=True),
+                    }
+                ),
+            ),
+            cv.Optional(CONF_TOUCH_WAKEUP): cv.All(cv.only_on_esp32, cv.boolean),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
+)
 
 
 async def to_code(config):

@@ -76,7 +76,7 @@ void HTU21DComponent::update() {
   if (this->humidity_ != nullptr)
     this->humidity_->publish_state(humidity);
   if (this->heater_ != nullptr)
-    this->heater_->publish_state(humidity);
+    this->heater_->publish_state(heater_level);
   this->status_clear_warning();
 }
 

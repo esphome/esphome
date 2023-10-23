@@ -251,7 +251,7 @@ async def component_to_code(config):
     # setup board config
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_LIBRETINY")
-    cg.add_build_flag(f"-DUSE_{config[CONF_COMPONENT_ID]}")
+    cg.add_build_flag(f"-DUSE_{config[CONF_COMPONENT_ID].upper()}")
     cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", FAMILY_FRIENDLY[config[CONF_FAMILY]])

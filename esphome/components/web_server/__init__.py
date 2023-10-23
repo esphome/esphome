@@ -18,6 +18,10 @@ from esphome.const import (
     CONF_LOG,
     CONF_VERSION,
     CONF_LOCAL,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -90,7 +94,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LOCAL): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on(["esp32", "esp8266", "bk72xx", "rtl87xx"]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
     default_url,
     validate_local,
     validate_ota,
