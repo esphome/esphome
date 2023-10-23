@@ -2,7 +2,13 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
-from esphome.const import CONF_ID
+from esphome.const import (
+    CONF_ID,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
+)
 from esphome.core import coroutine_with_priority, CORE
 
 AUTO_LOAD = ["web_server_base"]
@@ -21,8 +27,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_arduino,
-    cv.only_on(["esp32", "esp8266"]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
 )
 
 
@@ -34,8 +39,11 @@ async def to_code(config):
     await cg.register_component(var, config)
     cg.add_define("USE_CAPTIVE_PORTAL")
 
-    if CORE.is_esp32:
-        cg.add_library("DNSServer", None)
-        cg.add_library("WiFi", None)
-    if CORE.is_esp8266:
-        cg.add_library("DNSServer", None)
+    if CORE.using_arduino:
+        if CORE.is_esp32:
+            cg.add_library("DNSServer", None)
+            cg.add_library("WiFi", None)
+        if CORE.is_esp8266:
+            cg.add_library("DNSServer", None)
+        if CORE.is_libretiny:
+            cg.add_library("DNSServer", None)

@@ -16,6 +16,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
+CODEOWNERS = ["@freekode"]
 
 hm3301_ns = cg.esphome_ns.namespace("hm3301")
 HM3301Component = hm3301_ns.class_(

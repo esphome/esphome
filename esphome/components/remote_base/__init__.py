@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_PROTOCOL,
     CONF_GROUP,
     CONF_DEVICE,
+    CONF_SECOND,
     CONF_STATE,
     CONF_CHANNEL,
     CONF_FAMILY,
@@ -39,6 +40,7 @@ AUTO_LOAD = ["binary_sensor"]
 
 CONF_RECEIVER_ID = "receiver_id"
 CONF_TRANSMITTER_ID = "transmitter_id"
+CONF_FIRST = "first"
 
 ns = remote_base_ns = cg.esphome_ns.namespace("remote_base")
 RemoteProtocol = ns.class_("RemoteProtocol")
@@ -79,7 +81,9 @@ def register_trigger(name, type, data_type):
     validator = automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(type),
-            cv.GenerateID(CONF_RECEIVER_ID): cv.use_id(RemoteReceiverBase),
+            cv.Optional(CONF_RECEIVER_ID): cv.invalid(
+                "This has been removed in ESPHome 2022.3.0 and the trigger attaches directly to the parent receiver."
+            ),
         }
     )
     registerer = TRIGGER_REGISTRY.register(f"on_{name}", validator)
@@ -87,7 +91,6 @@ def register_trigger(name, type, data_type):
     def decorator(func):
         async def new_func(config):
             var = cg.new_Pvariable(config[CONF_TRIGGER_ID])
-            await register_listener(var, config)
             await coroutine(func)(var, config)
             await automation.build_automation(var, [(data_type, "x")], config)
             return var
@@ -223,10 +226,12 @@ async def build_binary_sensor(full_config):
 
 
 async def build_triggers(full_config):
+    triggers = []
     for key in TRIGGER_REGISTRY:
         for config in full_config.get(key, []):
             func = TRIGGER_REGISTRY[key][0]
-            await func(config)
+            triggers.append(await func(config))
+    return triggers
 
 
 async def build_dumpers(config):
@@ -346,19 +351,43 @@ async def canalsatld_action(var, config, args):
     CoolixAction,
     CoolixDumper,
 ) = declare_protocol("Coolix")
-COOLIX_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint32_t})
 
 
-@register_binary_sensor("coolix", CoolixBinarySensor, COOLIX_SCHEMA)
+COOLIX_BASE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_FIRST): cv.hex_int_range(0, 16777215),
+        cv.Optional(CONF_SECOND, default=0): cv.hex_int_range(0, 16777215),
+        cv.Optional(CONF_DATA): cv.invalid(
+            "'data' option has been removed in ESPHome 2023.8. "
+            "Use the 'first' and 'second' options instead."
+        ),
+    }
+)
+
+COOLIX_SENSOR_SCHEMA = cv.Any(cv.hex_int_range(0, 16777215), COOLIX_BASE_SCHEMA)
+
+
+@register_binary_sensor("coolix", CoolixBinarySensor, COOLIX_SENSOR_SCHEMA)
 def coolix_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                CoolixData,
-                ("data", config[CONF_DATA]),
+    if isinstance(config, dict):
+        cg.add(
+            var.set_data(
+                cg.ArrayInitializer(
+                    config[CONF_FIRST],
+                    config[CONF_SECOND],
+                )
             )
         )
-    )
+    else:
+        cg.add(var.set_data(cg.ArrayInitializer(0, config)))
+
+
+@register_action("coolix", CoolixAction, COOLIX_BASE_SCHEMA)
+async def coolix_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_FIRST], args, cg.uint32)
+    cg.add(var.set_first(template_))
+    template_ = await cg.templatable(config[CONF_SECOND], args, cg.uint32)
+    cg.add(var.set_second(template_))
 
 
 @register_trigger("coolix", CoolixTrigger, CoolixData)
@@ -369,12 +398,6 @@ def coolix_trigger(var, config):
 @register_dumper("coolix", CoolixDumper)
 def coolix_dumper(var, config):
     pass
-
-
-@register_action("coolix", CoolixAction, COOLIX_SCHEMA)
-async def coolix_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
-    cg.add(var.set_data(template_))
 
 
 # Dish
@@ -710,7 +733,7 @@ def sony_dumper(var, config):
 
 @register_action("sony", SonyAction, SONY_SCHEMA)
 async def sony_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
     template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
     cg.add(var.set_nbits(template_))
@@ -786,6 +809,57 @@ async def raw_action(var, config, args):
         cg.add(var.set_code_static(arr, len(code_)))
     templ = await cg.templatable(config[CONF_CARRIER_FREQUENCY], args, cg.uint32)
     cg.add(var.set_carrier_frequency(templ))
+
+
+# Drayton
+(
+    DraytonData,
+    DraytonBinarySensor,
+    DraytonTrigger,
+    DraytonAction,
+    DraytonDumper,
+) = declare_protocol("Drayton")
+DRAYTON_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
+        cv.Required(CONF_CHANNEL): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
+        cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
+    }
+)
+
+
+@register_binary_sensor("drayton", DraytonBinarySensor, DRAYTON_SCHEMA)
+def drayton_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                DraytonData,
+                ("address", config[CONF_ADDRESS]),
+                ("channel", config[CONF_CHANNEL]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("drayton", DraytonTrigger, DraytonData)
+def drayton_trigger(var, config):
+    pass
+
+
+@register_dumper("drayton", DraytonDumper)
+def drayton_dumper(var, config):
+    pass
+
+
+@register_action("drayton", DraytonAction, DRAYTON_SCHEMA)
+async def drayton_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
+    cg.add(var.set_channel(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
 
 
 # RC5
@@ -890,7 +964,7 @@ RC_SWITCH_PROTOCOL_SCHEMA = cv.Any(
 
 
 def validate_rc_switch_code(value):
-    if not isinstance(value, (str, str)):
+    if not isinstance(value, str):
         raise cv.Invalid("All RCSwitch codes must be in quotes ('')")
     for c in value:
         if c not in ("0", "1"):
@@ -907,7 +981,7 @@ def validate_rc_switch_code(value):
 
 
 def validate_rc_switch_raw_code(value):
-    if not isinstance(value, (str, str)):
+    if not isinstance(value, str):
         raise cv.Invalid("All RCSwitch raw codes must be in quotes ('')")
     for c in value:
         if c not in ("0", "1", "x"):
@@ -1409,12 +1483,7 @@ MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_p
 MideaAction = ns.class_("MideaAction", RemoteTransmitterActionBase)
 MIDEA_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CODE): cv.templatable(
-            cv.All(
-                [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
-                cv.Length(min=5, max=5),
-            )
-        ),
+        cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=5, max=5)),
     }
 )
 
@@ -1434,18 +1503,11 @@ def midea_dumper(var, config):
     pass
 
 
-@register_action(
-    "midea",
-    MideaAction,
-    MIDEA_SCHEMA,
-)
+@register_action("midea", MideaAction, MIDEA_SCHEMA)
 async def midea_action(var, config, args):
-    code_ = config[CONF_CODE]
-    if cg.is_template(code_):
-        template_ = await cg.templatable(code_, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_code_template(template_))
-    else:
-        cg.add(var.set_code_static(code_))
+    vec_ = cg.std_vector.template(cg.uint8)
+    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
+    cg.add(var.set_code(template_))
 
 
 # AEHA
@@ -1455,10 +1517,7 @@ AEHAData, AEHABinarySensor, AEHATrigger, AEHAAction, AEHADumper = declare_protoc
 AEHA_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
-        cv.Required(CONF_DATA): cv.All(
-            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
-            cv.Length(min=2, max=35),
-        ),
+        cv.Required(CONF_DATA): cv.All([cv.hex_uint8_t], cv.Length(min=2, max=35)),
     }
 )
 
@@ -1490,4 +1549,41 @@ def aeha_dumper(var, config):
 async def aeha_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
-    cg.add(var.set_data(config[CONF_DATA]))
+    template_ = await cg.templatable(
+        config[CONF_DATA], args, cg.std_vector.template(cg.uint8)
+    )
+    cg.add(var.set_data(template_))
+
+
+# Haier
+HaierData, HaierBinarySensor, HaierTrigger, HaierAction, HaierDumper = declare_protocol(
+    "Haier"
+)
+HaierAction = ns.class_("HaierAction", RemoteTransmitterActionBase)
+HAIER_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=13, max=13)),
+    }
+)
+
+
+@register_binary_sensor("haier", HaierBinarySensor, HAIER_SCHEMA)
+def haier_binary_sensor(var, config):
+    cg.add(var.set_code(config[CONF_CODE]))
+
+
+@register_trigger("haier", HaierTrigger, HaierData)
+def haier_trigger(var, config):
+    pass
+
+
+@register_dumper("haier", HaierDumper)
+def haier_dumper(var, config):
+    pass
+
+
+@register_action("haier", HaierAction, HAIER_SCHEMA)
+async def haier_action(var, config, args):
+    vec_ = cg.std_vector.template(cg.uint8)
+    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
+    cg.add(var.set_code(template_))

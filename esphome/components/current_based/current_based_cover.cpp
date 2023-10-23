@@ -12,6 +12,7 @@ using namespace esphome::cover;
 
 CoverTraits CurrentBasedCover::get_traits() {
   auto traits = CoverTraits();
+  traits.set_supports_stop(true);
   traits.set_supports_position(true);
   traits.set_supports_toggle(true);
   traits.set_is_assumed_state(false);
@@ -37,7 +38,7 @@ void CurrentBasedCover::control(const CoverCall &call) {
   }
   if (call.get_position().has_value()) {
     auto pos = *call.get_position();
-    if (pos == this->position) {
+    if (fabsf(this->position - pos) < 0.01) {
       // already at target
     } else {
       auto op = pos < this->position ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;

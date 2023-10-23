@@ -1,0 +1,22 @@
+name: YAML lint
+
+on:
+  push:
+    branches: [dev, beta, release]
+    paths:
+      - "**.yaml"
+      - "**.yml"
+  pull_request:
+    paths:
+      - "**.yaml"
+      - "**.yml"
+
+jobs:
+  yamllint:
+    name: yamllint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Run yamllint
+        uses: frenck/action-yamllint@v1.4.1

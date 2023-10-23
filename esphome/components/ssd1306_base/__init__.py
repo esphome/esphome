@@ -27,6 +27,7 @@ MODELS = {
     "SSD1306_96X16": SSD1306Model.SSD1306_MODEL_96_16,
     "SSD1306_64X48": SSD1306Model.SSD1306_MODEL_64_48,
     "SSD1306_64X32": SSD1306Model.SSD1306_MODEL_64_32,
+    "SSD1306_72X40": SSD1306Model.SSD1306_MODEL_72_40,
     "SH1106_128X32": SSD1306Model.SH1106_MODEL_128_32,
     "SH1106_128X64": SSD1306Model.SH1106_MODEL_128_64,
     "SH1106_96X16": SSD1306Model.SH1106_MODEL_96_16,
@@ -95,6 +96,6 @@ async def setup_ssd1306(var, config):
         cg.add(var.init_invert(config[CONF_INVERT]))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
+            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))

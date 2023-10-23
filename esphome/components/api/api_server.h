@@ -1,16 +1,16 @@
 #pragma once
 
+#include "api_noise_context.h"
+#include "api_pb2.h"
+#include "api_pb2_service.h"
+#include "esphome/components/socket/socket.h"
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
-#include "esphome/components/socket/socket.h"
-#include "api_pb2.h"
-#include "api_pb2_service.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
 #include "user_services.h"
-#include "api_noise_context.h"
 
 #include <vector>
 
@@ -75,21 +75,19 @@ class APIServer : public Component, public Controller {
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
-#ifdef USE_BLUETOOTH_PROXY
-  void send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &call);
-  void send_bluetooth_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, esp_err_t error = ESP_OK);
-  void send_bluetooth_connections_free(uint8_t free, uint8_t limit);
-  void send_bluetooth_gatt_read_response(const BluetoothGATTReadResponse &call);
-  void send_bluetooth_gatt_write_response(const BluetoothGATTWriteResponse &call);
-  void send_bluetooth_gatt_notify_data_response(const BluetoothGATTNotifyDataResponse &call);
-  void send_bluetooth_gatt_notify_response(const BluetoothGATTNotifyResponse &call);
-  void send_bluetooth_gatt_services(const BluetoothGATTGetServicesResponse &call);
-  void send_bluetooth_gatt_services_done(uint64_t address);
-  void send_bluetooth_gatt_error(uint64_t address, uint16_t handle, esp_err_t error);
-#endif
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
+#endif
+
+#ifdef USE_VOICE_ASSISTANT
+  bool start_voice_assistant(const std::string &conversation_id, uint32_t flags,
+                             const api::VoiceAssistantAudioSettings &audio_settings);
+  void stop_voice_assistant();
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
 #endif
 
   bool is_connected() const;

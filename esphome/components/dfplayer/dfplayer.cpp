@@ -7,10 +7,10 @@ namespace dfplayer {
 static const char *const TAG = "dfplayer";
 
 void DFPlayer::play_folder(uint16_t folder, uint16_t file) {
-  if (folder < 100 && file < 256) {
+  if (folder <= 10 && file <= 1000) {
     this->ack_set_is_playing_ = true;
     this->send_cmd_(0x0F, (uint8_t) folder, (uint8_t) file);
-  } else if (folder <= 10 && file <= 1000) {
+  } else if (folder < 100 && file < 256) {
     this->ack_set_is_playing_ = true;
     this->send_cmd_(0x14, (((uint16_t) folder) << 12) | file);
   } else {
@@ -19,7 +19,7 @@ void DFPlayer::play_folder(uint16_t folder, uint16_t file) {
 }
 
 void DFPlayer::send_cmd_(uint8_t cmd, uint16_t argument) {
-  uint8_t buffer[10]{0x7e, 0xff, 0x06, cmd, 0x01, (uint8_t)(argument >> 8), (uint8_t) argument, 0x00, 0x00, 0xef};
+  uint8_t buffer[10]{0x7e, 0xff, 0x06, cmd, 0x01, (uint8_t) (argument >> 8), (uint8_t) argument, 0x00, 0x00, 0xef};
   uint16_t checksum = 0;
   for (uint8_t i = 1; i < 7; i++)
     checksum += buffer[i];
@@ -101,6 +101,11 @@ void DFPlayer::loop() {
             ESP_LOGV(TAG, "Nack");
             this->ack_set_is_playing_ = false;
             this->ack_reset_is_playing_ = false;
+            if (argument == 6) {
+              ESP_LOGV(TAG, "File not found");
+              this->is_playing_ = false;
+            }
+            break;
           case 0x41:
             ESP_LOGV(TAG, "Ack ok");
             this->is_playing_ |= this->ack_set_is_playing_;
