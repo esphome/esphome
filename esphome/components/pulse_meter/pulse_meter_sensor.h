@@ -5,6 +5,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace pulse_meter {
 
@@ -20,7 +22,8 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   void set_timeout_us(uint32_t timeout) { this->timeout_us_ = timeout; }
   void set_total_sensor(sensor::Sensor *sensor) { this->total_sensor_ = sensor; }
   void set_filter_mode(InternalFilterMode mode) { this->filter_mode_ = mode; }
-  void set_total_pulses(uint32_t pulses) { this->total_pulses_ = pulses; }
+
+  void set_total_pulses(uint32_t pulses);
 
   void setup() override;
   void loop() override;
@@ -38,7 +41,8 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   InternalFilterMode filter_mode_{FILTER_EDGE};
 
   // Variables used in the loop
-  bool initialized_ = false;
+  enum class MeterState { INITIAL, RUNNING, TIMED_OUT };
+  MeterState meter_state_ = MeterState::INITIAL;
   uint32_t total_pulses_ = 0;
   uint32_t last_processed_edge_us_ = 0;
 
