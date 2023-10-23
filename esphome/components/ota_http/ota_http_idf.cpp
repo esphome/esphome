@@ -28,8 +28,7 @@
 
 #include "esp_http_client.h"
 
-#define MAX_HTTP_RECV_BUFFER 512
-#define MAX_HTTP_OUTPUT_BUFFER 2048
+static const uint16_t MAX_HTTP_RECV_BUFFER = 1024;
 static const char *TAG = "HTTP_CLIENT";
 
 namespace esphome {

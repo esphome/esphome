@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/log.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -17,10 +16,7 @@ static const char *const TAG = "ota_http";
 
 class OtaHttpComponent : public Component {
  public:
-  void dump_config() override {
-    ESP_LOGCONFIG(TAG, "OTA_http:");
-    ESP_LOGCONFIG(TAG, "  Timeout: %llums", (uint64_t) this->timeout_);
-  };
+  void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void set_url(std::string url) {
     this->url_ = std::move(url);
@@ -40,14 +36,7 @@ class OtaHttpComponent : public Component {
   uint64_t timeout_{1000 * 60 * 10};  // must match CONF_TIMEOUT in __init__.py
   bool update_started_ = false;
   static std::unique_ptr<ota::OTABackend> backend_;
-  void cleanup() {
-    if (this->update_started_) {
-      ESP_LOGE(TAG, "Abort OTA backend");
-      this->backend_->abort();
-    }
-    ESP_LOGE(TAG, "Abort http con");
-    this->http_end();
-  };
+  void cleanup();
 };
 
 template<typename... Ts> class OtaHttpFlashAction : public Action<Ts...> {

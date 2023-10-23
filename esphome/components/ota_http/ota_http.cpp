@@ -38,6 +38,11 @@ std::unique_ptr<ota::OTABackend> make_ota_backend() {
 
 std::unique_ptr<ota::OTABackend> OtaHttpComponent::backend_ = make_ota_backend();
 
+void OtaHttpComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "OTA_http:");
+  ESP_LOGCONFIG(TAG, "  Timeout: %llums", (uint64_t) this->timeout_);
+};
+
 void OtaHttpComponent::flash() {
   unsigned long update_start_time = millis();
   const size_t chunk_size = 1024;  // must be =< HTTP_TCP_BUFFER_SIZE;
@@ -108,7 +113,7 @@ void OtaHttpComponent::flash() {
   // feed watchdog and give other tasks a chance to run
   esphome::App.feed_wdt();
   yield();
-  delay(100);
+  delay(100);  // NOLINT
 
   error_code = this->backend_->end();
   if (error_code != 0) {
@@ -119,11 +124,20 @@ void OtaHttpComponent::flash() {
 
   delay(10);
   ESP_LOGI(TAG, "OTA update finished! Rebooting...");
-  delay(100);  // NOLINT
+  delay(10);  
   esphome::App.safe_reboot();
   // new firmware flashed!
   return;
 }
+
+void OtaHttpComponent::cleanup() {
+  if (this->update_started_) {
+    ESP_LOGE(TAG, "Abort OTA backend");
+    this->backend_->abort();
+  }
+  ESP_LOGE(TAG, "Abort http con");
+  this->http_end();
+};
 
 }  // namespace ota_http
 }  // namespace esphome
