@@ -1,6 +1,7 @@
 #include "iaqcore.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace iaqcore {
@@ -16,10 +17,10 @@ struct SensorData {
   uint16_t tvoc;
 
   SensorData(const uint8_t *buffer) {
-    this->co2 = (buffer[0] << 8) | buffer[1];
+    this->co2 = encode_uint16(buffer[0], buffer[1]);
     this->status = static_cast<IAQCoreErrorCode>(buffer[2]);
-    this->resistance = (buffer[3] << 24) | (buffer[4] << 16) | (buffer[5] << 8) | buffer[6];
-    this->tvoc = (buffer[7] << 8) | buffer[8];
+    this->resistance = encode_uint32(buffer[3], buffer[4], buffer[5], buffer[6]);
+    this->tvoc = encode_uint16(buffer[7], buffer[8]);
   }
 };
 
