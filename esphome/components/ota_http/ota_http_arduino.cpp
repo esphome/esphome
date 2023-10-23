@@ -70,7 +70,7 @@ int OtaHttpArduino::http_init() {
   ESP_LOGV(TAG, "http GET finished.");
 
   if (http_code >= 310) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s (%d); Duration: %lu ms", url_.c_str(),
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s (%d); Duration: %u ms", url_.c_str(),
              HTTPClient::errorToString(http_code).c_str(), http_code, duration);
     return -1;
   }

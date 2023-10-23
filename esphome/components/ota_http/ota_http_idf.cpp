@@ -9,15 +9,15 @@
 #include "esphome/components/network/util.h"
 #include "esphome/components/md5/md5.h"
 
-#include <string.h>
-#include <sys/param.h>
-#include <stdlib.h>
-#include <ctype.h>
-#include "esp_log.h"
-#include "nvs_flash.h"
 #include "esp_event.h"
+#include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_tls.h"
+#include "nvs_flash.h"
+#include <cctype>
+#include <cstdlib>
+#include <cstring>
+#include <sys/param.h>
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
 #include "esp_crt_bundle.h"
 #endif
@@ -37,7 +37,7 @@ namespace ota_http {
 int OtaHttpIDF::http_init() {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-  esp_http_client_config_t config = {0};
+  esp_http_client_config_t config = {nullptr};
   config.url = this->url_.c_str();
   config.method = HTTP_METHOD_GET;
   config.timeout_ms = (int) this->timeout_;
