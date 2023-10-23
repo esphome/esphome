@@ -27,8 +27,8 @@ int OtaHttpArduino::http_init() {
   unsigned long start_time;
   unsigned long duration;
 
-  const char *headerKeys[] = {"Content-Length", "Content-Type"};
-  const size_t headerCount = sizeof(headerKeys) / sizeof(headerKeys[0]);
+  const char *header_keys[] = {"Content-Length", "Content-Type"};
+  const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
 
 #ifdef USE_ESP8266
 #ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
@@ -45,7 +45,7 @@ int OtaHttpArduino::http_init() {
   status = this->client_.begin(this->url_.c_str());
 #endif
 #ifdef USE_ESP8266
-  status = client_.begin(*this->streamPtr, this->url_.c_str());
+  status = client_.begin(*this->stream_ptr_, this->url_.c_str());
 #endif
 
   if (!status) {
@@ -60,7 +60,7 @@ int OtaHttpArduino::http_init() {
   ESP_LOGVV(TAG, "http client setReuse.");
 
   // returned needed headers must be collected before the requests
-  this->client_.collectHeaders(headerKeys, headerCount);
+  this->client_.collectHeaders(header_keys, header_count);
   ESP_LOGV(TAG, "http headers collected.");
 
   // http GET
@@ -81,11 +81,11 @@ int OtaHttpArduino::http_init() {
     return -1;
   }
 
-  this->body_length = (size_t) this->client_.getSize();
-  ESP_LOGD(TAG, "firmware is %d bytes length.", this->body_length);
+  this->body_length_ = (size_t) this->client_.getSize();
+  ESP_LOGD(TAG, "firmware is %d bytes length.", this->body_length_);
 
 #ifdef USE_ESP32
-  this->streamPtr = this->client_.getStreamPtr();
+  this->stream_ptr_ = this->client_.getStreamPtr();
 #endif
 
   return 1;
@@ -93,25 +93,25 @@ int OtaHttpArduino::http_init() {
 
 size_t OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
   // wait for the stream to be populated
-  while (this->streamPtr->available() == 0) {
+  while (this->stream_ptr_->available() == 0) {
     // give other tasks a chance to run while waiting for some data:
     // ESP_LOGVV(TAG, "not enougth data available: %zu (total read: %zu)", streamPtr->available(), bytes_read);
     yield();
     delay(1);
   }
   // size_t bufsize = std::min(max_len, this->body_length - this->bytes_read);
-  int available_data = this->streamPtr->available();
+  int available_data = this->stream_ptr_->available();
   if (available_data < 0) {
     ESP_LOGE(TAG, "ERROR: stream closed");
-    this->cleanup();
+    this->cleanup_();
     return -1;
   }
   size_t bufsize = std::min(max_len, (size_t) available_data);
 
   // ESP_LOGVV(TAG, "data available: %zu", available_data);
 
-  this->streamPtr->readBytes(buf, bufsize);
-  this->bytes_read += bufsize;
+  this->stream_ptr_->readBytes(buf, bufsize);
+  this->bytes_read_ += bufsize;
   buf[bufsize] = '\0';  // not fed to ota
 
   return bufsize;

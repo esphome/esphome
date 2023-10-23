@@ -31,12 +31,12 @@ class OtaHttpComponent : public Component {
  protected:
   std::string url_;
   bool secure_;
-  size_t body_length = 0;
-  size_t bytes_read = 0;
+  size_t body_length_ = 0;
+  size_t bytes_read_ = 0;
   uint64_t timeout_{1000 * 60 * 10};  // must match CONF_TIMEOUT in __init__.py
   bool update_started_ = false;
-  static std::unique_ptr<ota::OTABackend> backend_;
-  void cleanup();
+  static std::unique_ptr<ota::OTABackend> backend;
+  void cleanup_();
 };
 
 template<typename... Ts> class OtaHttpFlashAction : public Action<Ts...> {

@@ -33,8 +33,8 @@ class OtaHttpArduino : public OtaHttpComponent {
 
  protected:
   HTTPClient client_{};
-  WiFiClient stream;  // needed for 8266
-  WiFiClient *streamPtr = &stream;
+  WiFiClient stream_;  // needed for 8266
+  WiFiClient *stream_ptr_ = &stream_;
 };
 
 }  // namespace ota_http
