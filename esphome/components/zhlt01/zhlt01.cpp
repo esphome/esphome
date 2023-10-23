@@ -97,7 +97,7 @@ void ZHLT01Climate::transmit_state() {
   }
 
   // -- Temperature
-  ir_message[9] |= (uint8_t)(this->target_temperature - 16.0f);
+  ir_message[9] |= (uint8_t) (this->target_temperature - 16.0f);
 
   // Byte 11 : Remote control ID
   ir_message[11] = 0xD5;
@@ -164,8 +164,8 @@ bool ZHLT01Climate::on_receive(remote_base::RemoteReceiveData data) {
 
   // Validate checksum
   for (int i = 0; i < 12; i += 2) {
-    if (ir_message[i] != (uint8_t)(~ir_message[i + 1])) {
-      ESP_LOGV(TAG, "Byte %d checksum incorrect (%02X != %02X)", i, ir_message[i], (uint8_t)(~ir_message[i + 1]));
+    if (ir_message[i] != (uint8_t) (~ir_message[i + 1])) {
+      ESP_LOGV(TAG, "Byte %d checksum incorrect (%02X != %02X)", i, ir_message[i], (uint8_t) (~ir_message[i + 1]));
       return false;
     }
   }
