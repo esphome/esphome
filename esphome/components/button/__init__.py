@@ -85,11 +85,11 @@ async def setup_button_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    if CONF_DEVICE_CLASS in config:
-        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
+    if device_class := config.get(CONF_DEVICE_CLASS):
+        cg.add(var.set_device_class(device_class))
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if mqtt_id := config.get(CONF_MQTT_ID):
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
 

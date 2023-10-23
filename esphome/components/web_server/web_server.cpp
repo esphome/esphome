@@ -328,6 +328,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
+  // No gzip header here because the HTML file is so small
   request->send(response);
 }
 #endif
@@ -336,6 +337,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/css", ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
+  response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
 #endif
@@ -344,6 +346,7 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/javascript", ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
+  response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
 #endif
@@ -802,7 +805,12 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
       continue;
 
     if (request->method() == HTTP_GET) {
-      std::string data = this->select_json(obj, obj->state, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->select_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }

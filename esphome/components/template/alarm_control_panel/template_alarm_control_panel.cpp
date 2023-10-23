@@ -26,18 +26,22 @@ void TemplateAlarmControlPanel::dump_config() {
   ESP_LOGCONFIG(TAG, "  Number of Codes: %u", this->codes_.size());
   if (!this->codes_.empty())
     ESP_LOGCONFIG(TAG, "  Requires Code To Arm: %s", YESNO(this->requires_code_to_arm_));
-  ESP_LOGCONFIG(TAG, "  Arming Away Time: %us", (this->arming_away_time_ / 1000));
+  ESP_LOGCONFIG(TAG, "  Arming Away Time: %" PRIu32 "s", (this->arming_away_time_ / 1000));
   if (this->arming_home_time_ != 0)
-    ESP_LOGCONFIG(TAG, "  Arming Home Time: %us", (this->arming_home_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Pending Time: %us", (this->pending_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Trigger Time: %us", (this->trigger_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Supported Features: %u", this->get_supported_features());
+    ESP_LOGCONFIG(TAG, "  Arming Home Time: %" PRIu32 "s", (this->arming_home_time_ / 1000));
+  if (this->arming_night_time_ != 0)
+    ESP_LOGCONFIG(TAG, "  Arming Night Time: %" PRIu32 "s", (this->arming_night_time_ / 1000));
+  ESP_LOGCONFIG(TAG, "  Pending Time: %" PRIu32 "s", (this->pending_time_ / 1000));
+  ESP_LOGCONFIG(TAG, "  Trigger Time: %" PRIu32 "s", (this->trigger_time_ / 1000));
+  ESP_LOGCONFIG(TAG, "  Supported Features: %" PRIu32, this->get_supported_features());
 #ifdef USE_BINARY_SENSOR
   for (auto sensor_pair : this->sensor_map_) {
     ESP_LOGCONFIG(TAG, "  Binary Sesnsor:");
     ESP_LOGCONFIG(TAG, "    Name: %s", sensor_pair.first->get_name().c_str());
     ESP_LOGCONFIG(TAG, "    Armed home bypass: %s",
                   TRUEFALSE(sensor_pair.second & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME));
+    ESP_LOGCONFIG(TAG, "    Armed night bypass: %s",
+                  TRUEFALSE(sensor_pair.second & BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT));
   }
 #endif
 }
@@ -69,6 +73,9 @@ void TemplateAlarmControlPanel::loop() {
     if (this->desired_state_ == ACP_STATE_ARMED_HOME) {
       delay = this->arming_home_time_;
     }
+    if (this->desired_state_ == ACP_STATE_ARMED_NIGHT) {
+      delay = this->arming_night_time_;
+    }
     if ((millis() - this->last_update_) > delay) {
       this->publish_state(this->desired_state_);
     }
@@ -93,6 +100,10 @@ void TemplateAlarmControlPanel::loop() {
       if (sensor_pair.first->state) {
         if (this->current_state_ == ACP_STATE_ARMED_HOME &&
             (sensor_pair.second & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME)) {
+          continue;
+        }
+        if (this->current_state_ == ACP_STATE_ARMED_NIGHT &&
+            (sensor_pair.second & BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT)) {
           continue;
         }
         trigger = true;
@@ -129,6 +140,9 @@ uint32_t TemplateAlarmControlPanel::get_supported_features() const {
   if (this->supports_arm_home_) {
     features |= ACP_FEAT_ARM_HOME;
   }
+  if (this->supports_arm_night_) {
+    features |= ACP_FEAT_ARM_NIGHT;
+  }
   return features;
 }
 
@@ -158,6 +172,8 @@ void TemplateAlarmControlPanel::control(const AlarmControlPanelCall &call) {
       this->arm_(call.get_code(), ACP_STATE_ARMED_AWAY, this->arming_away_time_);
     } else if (call.get_state() == ACP_STATE_ARMED_HOME) {
       this->arm_(call.get_code(), ACP_STATE_ARMED_HOME, this->arming_home_time_);
+    } else if (call.get_state() == ACP_STATE_ARMED_NIGHT) {
+      this->arm_(call.get_code(), ACP_STATE_ARMED_NIGHT, this->arming_night_time_);
     } else if (call.get_state() == ACP_STATE_DISARMED) {
       if (!this->is_code_valid_(call.get_code())) {
         ESP_LOGW(TAG, "Not disarming code doesn't match");

@@ -37,6 +37,7 @@
 #define USE_OTA
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
+#define USE_OUTPUT
 #define USE_POWER_SUPPLY
 #define USE_QR_CODE
 #define USE_SELECT
@@ -95,6 +96,10 @@
 #define USE_HTTP_REQUEST_ESP8266_HTTPS
 #define USE_SOCKET_IMPL_LWIP_TCP
 
+#ifdef USE_LIBRETINY
+#define USE_SOCKET_IMPL_LWIP_SOCKETS
+#endif
+
 // Dummy firmware payload for shelly_dimmer
 #define USE_SHD_FIRMWARE_MAJOR_VERSION 56
 #define USE_SHD_FIRMWARE_MINOR_VERSION 5
@@ -103,11 +108,16 @@
 
 #endif
 
+#ifdef USE_RP2040
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 0)
+#define USE_SOCKET_IMPL_LWIP_TCP
+#endif
+
 #ifdef USE_HOST
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #endif
 
 // Disabled feature flags
-//#define USE_BSEC  // Requires a library with proprietary license.
+// #define USE_BSEC  // Requires a library with proprietary license.
 
 #define USE_DASHBOARD_IMPORT

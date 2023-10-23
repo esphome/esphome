@@ -1,21 +1,23 @@
+import logging
 import socket
 import threading
 import time
-from typing import Optional
-import logging
 from dataclasses import dataclass
+from typing import Optional
 
 from zeroconf import (
     DNSAddress,
     DNSOutgoing,
-    DNSRecord,
     DNSQuestion,
+    RecordUpdate,
     RecordUpdateListener,
-    Zeroconf,
     ServiceBrowser,
     ServiceStateChange,
+    Zeroconf,
     current_time_millis,
 )
+
+from esphome.storage_json import StorageJSON, ext_storage_path
 
 _CLASS_IN = 1
 _FLAGS_QR_QUERY = 0x0000  # query
@@ -24,17 +26,28 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class HostResolver(RecordUpdateListener):
+    """Resolve a host name to an IP address."""
+
     def __init__(self, name: str):
         self.name = name
         self.address: Optional[bytes] = None
 
-    def update_record(self, zc: Zeroconf, now: float, record: DNSRecord) -> None:
-        if record is None:
-            return
-        if record.type == _TYPE_A:
-            assert isinstance(record, DNSAddress)
-            if record.name == self.name:
-                self.address = record.address
+    def async_update_records(
+        self, zc: Zeroconf, now: float, records: list[RecordUpdate]
+    ) -> None:
+        """Update multiple records in one shot.
+
+        This will run in zeroconf's event loop thread so it
+        must be thread-safe.
+        """
+        for record_update in records:
+            record, _ = record_update
+            if record is None:
+                continue
+            if record.type == _TYPE_A:
+                assert isinstance(record, DNSAddress)
+                if record.name == self.name:
+                    self.address = record.address
 
     def request(self, zc: Zeroconf, timeout: float) -> bool:
         now = time.time()
@@ -120,6 +133,7 @@ TXT_RECORD_PROJECT_NAME = b"project_name"
 TXT_RECORD_PROJECT_VERSION = b"project_version"
 TXT_RECORD_NETWORK = b"network"
 TXT_RECORD_FRIENDLY_NAME = b"friendly_name"
+TXT_RECORD_VERSION = b"version"
 
 
 @dataclass
@@ -175,6 +189,10 @@ class DashboardImportDiscovery:
         ]
         if any(key not in info.properties for key in required_keys):
             # Not a dashboard import device
+            version = info.properties.get(TXT_RECORD_VERSION)
+            if version is not None:
+                version = version.decode()
+                self.update_device_mdns(node_name, version)
             return
 
         import_url = info.properties[TXT_RECORD_PACKAGE_IMPORT_URL].decode()
@@ -196,6 +214,22 @@ class DashboardImportDiscovery:
 
     def cancel(self) -> None:
         self.service_browser.cancel()
+
+    def update_device_mdns(self, node_name: str, version: str):
+        storage_path = ext_storage_path(node_name + ".yaml")
+        storage_json = StorageJSON.load(storage_path)
+
+        if storage_json is not None:
+            storage_version = storage_json.esphome_version
+            if version != storage_version:
+                storage_json.esphome_version = version
+                storage_json.save(storage_path)
+                _LOGGER.info(
+                    "Updated %s with mdns version %s (was %s)",
+                    node_name,
+                    version,
+                    storage_version,
+                )
 
 
 class EsphomeZeroconf(Zeroconf):
