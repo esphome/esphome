@@ -1485,6 +1485,18 @@ sensor:
     field_strength_z:
       name: "Magnet Z"
       id: magnet_z
+  - platform: grove_gas_mc_v2
+    i2c_id: i2c_bus
+    no2:
+      name: "Nitrogen Dioxide"
+    ethanol:
+      name: "Ethanol"
+    carbon_monoxide:
+      name: "Carbon Monoxide"
+    tvoc:
+      name: "Volatile Organic Compounds"
+    update_interval: 30s
+    address: 0xAD
 
 esp32_touch:
   setup_mode: false
