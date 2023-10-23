@@ -17,8 +17,6 @@ static const uint8_t EEH210_I2C_COMMAND_TRIGGER_RH_MEASURE_NO_HOLD = 0xF5;
 static const uint8_t EEH210_I2C_COMMAND_WRITE_USER_REGISTER = 0xE6;
 static const uint8_t EEH210_I2C_COMMAND_READ_USER_REGISTER = 0xFE;
 
-void EEH210Component::setup() { ESP_LOGCONFIG(TAG, "Setting up EEH210..."); }
-
 void EEH210Component::dump_config() {
   ESP_LOGCONFIG(TAG, "EEH210:");
   LOG_I2C_DEVICE(this);
@@ -46,11 +44,11 @@ void EEH210Component::update() {
     uint8_t i2c_response[6];
     this->read(i2c_response, 6);
 
-    unsigned int raw_temperature = (i2c_response[1] << 8) | (i2c_response[2] & 0b11111100);
-    float temperature = -46.85 + 175.72 * (raw_temperature / 65536.0);
+    uint32_t raw_temperature = (i2c_response[1] << 8) | (i2c_response[2] & 0b11111100);
+    float temperature = -46.85f + 175.72f * (raw_temperature / 65536.0f);
 
-    unsigned int raw_humidity = (i2c_response[3] << 8) | (i2c_response[4] & 0b11111100);
-    float relative_humidity = -6.0 + 125.0 * (raw_humidity / 65536.0);
+    uint32_t raw_humidity = (i2c_response[3] << 8) | (i2c_response[4] & 0b11111100);
+    float relative_humidity = -6.0f + 125.0f * (raw_humidity / 65536.0f);
 
     ESP_LOGD(TAG, "Got temperature=%.4f°C humidity=%.4f%%", temperature, relative_humidity);
     if (this->temperature_sensor_ != nullptr)
@@ -61,10 +59,10 @@ void EEH210Component::update() {
   });
 }
 
-unsigned char EEH210Component::calc_crc8_(const unsigned char buf[], unsigned char from, unsigned char to) {
-  unsigned char crc_val = 0xFF;
-  unsigned char i = 0;
-  unsigned char j = 0;
+uint8_t EEH210Component::calc_crc8_(const uint8_t buf[], uint8_t from, uint8_t to) {
+  uint8_t crc_val = 0xFF;
+  uint8_t i = 0;
+  uint8_t j = 0;
   for (i = from; i <= to; i++) {
     int cur_val = buf[i];
     for (j = 0; j < 8; j++) {
