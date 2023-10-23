@@ -35,7 +35,7 @@ class OtaHttpComponent : public Component {
   size_t bytes_read_ = 0;
   uint64_t timeout_{1000 * 60 * 10};  // must match CONF_TIMEOUT in __init__.py
   bool update_started_ = false;
-  static const std::unique_ptr<ota::OTABackend> backend;
+  static const std::unique_ptr<ota::OTABackend> BACKEND;
   void cleanup_();
 };
 

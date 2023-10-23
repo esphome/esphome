@@ -36,7 +36,7 @@ std::unique_ptr<ota::OTABackend> make_ota_backend() {
   ESP_LOGE(TAG, "No OTA backend!");
 }
 
-const std::unique_ptr<ota::OTABackend> OtaHttpComponent::backend = make_ota_backend();
+const std::unique_ptr<ota::OTABackend> OtaHttpComponent::BACKEND = make_ota_backend();
 
 void OtaHttpComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "OTA_http:");
@@ -61,9 +61,9 @@ void OtaHttpComponent::flash() {
   md5_receive.init();
   ESP_LOGV(TAG, "md5sum from received data initialized.");
 
-  error_code = esphome::ota_http::OtaHttpComponent::backend->begin(this->body_length_);
+  error_code = esphome::ota_http::OtaHttpComponent::BACKEND->begin(this->body_length_);
   if (error_code != 0) {
-    ESP_LOGW(TAG, "this->backend_->begin error: %d", error_code);
+    ESP_LOGW(TAG, "BACKEND->begin error: %d", error_code);
     this->cleanup_();
     return;
   }
@@ -78,7 +78,7 @@ void OtaHttpComponent::flash() {
 
     // write bytes to OTA backend
     this->update_started_ = true;
-    error_code = esphome::ota_http::OtaHttpComponent::backend->write(buf, bufsize);
+    error_code = esphome::ota_http::OtaHttpComponent::BACKEND->write(buf, bufsize);
     if (error_code != 0) {
       // error code explaination available at
       // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_component.h
@@ -104,7 +104,7 @@ void OtaHttpComponent::flash() {
   md5_receive.calculate();
   md5_receive.get_hex(md5_receive_str.get());
   ESP_LOGD(TAG, "md5sum recieved: %s (size %d)", md5_receive_str.get(), bytes_read_);
-  esphome::ota_http::OtaHttpComponent::backend->set_update_md5(md5_receive_str.get());
+  esphome::ota_http::OtaHttpComponent::BACKEND->set_update_md5(md5_receive_str.get());
 
   this->http_end();
 
@@ -113,7 +113,7 @@ void OtaHttpComponent::flash() {
   yield();
   delay(100);  // NOLINT
 
-  error_code = esphome::ota_http::OtaHttpComponent::backend->end();
+  error_code = esphome::ota_http::OtaHttpComponent::BACKEND->end();
   if (error_code != 0) {
     ESP_LOGE(TAG, "Error ending OTA!, error_code: %d", error_code);
     this->cleanup_();
@@ -129,7 +129,7 @@ void OtaHttpComponent::flash() {
 void OtaHttpComponent::cleanup_() {
   if (this->update_started_) {
     ESP_LOGE(TAG, "Abort OTA backend");
-    esphome::ota_http::OtaHttpComponent::backend->abort();
+    esphome::ota_http::OtaHttpComponent::BACKEND->abort();
   }
   ESP_LOGE(TAG, "Abort http con");
   this->http_end();
