@@ -10,23 +10,42 @@ CONF_RED_INT = "red_int"
 CONF_GREEN_INT = "green_int"
 CONF_BLUE_INT = "blue_int"
 CONF_WHITE_INT = "white_int"
-
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ID): cv.declare_id(ColorStruct),
-        cv.Exclusive(CONF_RED, "red"): cv.percentage,
-        cv.Exclusive(CONF_RED_INT, "red"): cv.uint8_t,
-        cv.Exclusive(CONF_GREEN, "green"): cv.percentage,
-        cv.Exclusive(CONF_GREEN_INT, "green"): cv.uint8_t,
-        cv.Exclusive(CONF_BLUE, "blue"): cv.percentage,
-        cv.Exclusive(CONF_BLUE_INT, "blue"): cv.uint8_t,
-        cv.Exclusive(CONF_WHITE, "white"): cv.percentage,
-        cv.Exclusive(CONF_WHITE_INT, "white"): cv.uint8_t,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONF_HEX = "hex"
 
 
-async def to_code(config):
+def hex_color(value):
+    if len(value) != 6:
+        raise cv.Invalid("Color must have six digits")
+    try:
+        return (int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16))
+    except ValueError as exc:
+        raise cv.Invalid("Color must be hexadecimal") from exc
+
+
+CONFIG_SCHEMA = cv.Any(
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.declare_id(ColorStruct),
+            cv.Exclusive(CONF_RED, "red"): cv.percentage,
+            cv.Exclusive(CONF_RED_INT, "red"): cv.uint8_t,
+            cv.Exclusive(CONF_GREEN, "green"): cv.percentage,
+            cv.Exclusive(CONF_GREEN_INT, "green"): cv.uint8_t,
+            cv.Exclusive(CONF_BLUE, "blue"): cv.percentage,
+            cv.Exclusive(CONF_BLUE_INT, "blue"): cv.uint8_t,
+            cv.Exclusive(CONF_WHITE, "white"): cv.percentage,
+            cv.Exclusive(CONF_WHITE_INT, "white"): cv.uint8_t,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.declare_id(ColorStruct),
+            cv.Required(CONF_HEX): hex_color,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+)
+
+
+def from_rgbw(config):
     r = 0
     if CONF_RED in config:
         r = int(config[CONF_RED] * 255)
@@ -51,7 +70,17 @@ async def to_code(config):
     elif CONF_WHITE_INT in config:
         w = config[CONF_WHITE_INT]
 
+    return (r, g, b, w)
+
+
+async def to_code(config):
+    if CONF_HEX in config:
+        r, g, b = config[CONF_HEX]
+        w = 0
+    else:
+        r, g, b, w = from_rgbw(config)
+
     cg.new_variable(
         config[CONF_ID],
-        cg.StructInitializer(ColorStruct, ("r", r), ("g", g), ("b", b), ("w", w)),
+        cg.ArrayInitializer(r, g, b, w),
     )

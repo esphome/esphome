@@ -1,6 +1,8 @@
 #pragma once
 
 #include <array>
+#include <vector>
+
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "remote_base.h"
@@ -20,8 +22,6 @@ class MideaData {
   MideaData(const std::vector<uint8_t> &data) {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
-  // Default copy constructor
-  MideaData(const MideaData &) = default;
 
   uint8_t *data() { return this->data_.data(); }
   const uint8_t *data() const { return this->data_.data(); }
@@ -84,9 +84,9 @@ using MideaDumper = RemoteReceiverDumper<MideaProtocol, MideaData>;
 
 template<typename... Ts> class MideaAction : public RemoteTransmitterActionBase<Ts...> {
   TEMPLATABLE_VALUE(std::vector<uint8_t>, code)
-  void set_code(const std::vector<uint8_t> &code) { code_ = code; }
+
   void encode(RemoteTransmitData *dst, Ts... x) override {
-    MideaData data = this->code_.value(x...);
+    MideaData data(this->code_.value(x...));
     data.finalize();
     MideaProtocol().encode(dst, data);
   }

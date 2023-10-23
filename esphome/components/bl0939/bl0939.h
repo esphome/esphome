@@ -75,16 +75,16 @@ class BL0939 : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
  protected:
-  sensor::Sensor *voltage_sensor_;
-  sensor::Sensor *current_sensor_1_;
-  sensor::Sensor *current_sensor_2_;
+  sensor::Sensor *voltage_sensor_{nullptr};
+  sensor::Sensor *current_sensor_1_{nullptr};
+  sensor::Sensor *current_sensor_2_{nullptr};
   // NB This may be negative as the circuits is seemingly able to measure
   // power in both directions
-  sensor::Sensor *power_sensor_1_;
-  sensor::Sensor *power_sensor_2_;
-  sensor::Sensor *energy_sensor_1_;
-  sensor::Sensor *energy_sensor_2_;
-  sensor::Sensor *energy_sensor_sum_;
+  sensor::Sensor *power_sensor_1_{nullptr};
+  sensor::Sensor *power_sensor_2_{nullptr};
+  sensor::Sensor *energy_sensor_1_{nullptr};
+  sensor::Sensor *energy_sensor_2_{nullptr};
+  sensor::Sensor *energy_sensor_sum_{nullptr};
 
   // Divide by this to turn into Watt
   float power_reference_ = BL0939_PREF;

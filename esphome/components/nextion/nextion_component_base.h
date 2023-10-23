@@ -1,5 +1,6 @@
 #pragma once
 #include <utility>
+#include <vector>
 #include "esphome/core/defines.h"
 
 namespace esphome {

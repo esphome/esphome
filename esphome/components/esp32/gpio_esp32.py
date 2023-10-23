@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_PULLUP,
 )
 import esphome.config_validation as cv
+from esphome.pins import check_strapping_pin
 
 
 _ESP_SDIO_PINS = {
@@ -18,7 +19,7 @@ _ESP_SDIO_PINS = {
     11: "Flash Command",
 }
 
-_ESP32_STRAPPING_PINS = {0, 2, 4, 12, 15}
+_ESP32_STRAPPING_PINS = {0, 2, 5, 12, 15}
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -35,14 +36,7 @@ def esp32_validate_gpio_pin(value):
             "flash interface in QUAD IO flash mode.",
             value,
         )
-    if value in _ESP32_STRAPPING_PINS:
-        _LOGGER.warning(
-            "GPIO%d is a Strapping PIN and should be avoided.\n"
-            "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
-            "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
-            value,
-        )
-    if value in (20, 24, 28, 29, 30, 31):
+    if value in (24, 28, 29, 30, 31):
         # These pins are not exposed in GPIO mux (reason unknown)
         # but they're missing from IO_MUX list in datasheet
         raise cv.Invalid(f"The pin GPIO{value} is not usable on ESP32s.")
@@ -74,4 +68,5 @@ def esp32_validate_supports(value):
             f"GPIO{num} (34-39) does not support pulldowns.", [CONF_MODE, CONF_PULLDOWN]
         )
 
+    check_strapping_pin(value, _ESP32_STRAPPING_PINS, _LOGGER)
     return value

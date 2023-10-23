@@ -41,12 +41,19 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
     this->check_ibeacon_minor_ = true;
     this->ibeacon_minor_ = minor;
   }
+  void set_minimum_rssi(int rssi) {
+    this->check_minimum_rssi_ = true;
+    this->minimum_rssi_ = rssi;
+  }
   void on_scan_end() override {
     if (!this->found_)
       this->publish_state(false);
     this->found_ = false;
   }
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
+    if (this->check_minimum_rssi_ && this->minimum_rssi_ > device.get_rssi()) {
+      return false;
+    }
     switch (this->match_by_) {
       case MATCH_BY_MAC_ADDRESS:
         if (device.address_uint64() == this->address_) {
@@ -58,7 +65,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
       case MATCH_BY_SERVICE_UUID:
         for (auto uuid : device.get_service_uuids()) {
           if (this->uuid_ == uuid) {
-            this->publish_state(device.get_rssi());
+            this->publish_state(true);
             this->found_ = true;
             return true;
           }
@@ -83,7 +90,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
           return false;
         }
 
-        this->publish_state(device.get_rssi());
+        this->publish_state(true);
         this->found_ = true;
         return true;
     }
@@ -96,17 +103,21 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   enum MatchType { MATCH_BY_MAC_ADDRESS, MATCH_BY_SERVICE_UUID, MATCH_BY_IBEACON_UUID };
   MatchType match_by_;
 
-  bool found_{false};
-
   uint64_t address_;
 
   esp32_ble_tracker::ESPBTUUID uuid_;
 
   esp32_ble_tracker::ESPBTUUID ibeacon_uuid_;
-  uint16_t ibeacon_major_;
-  bool check_ibeacon_major_;
-  uint16_t ibeacon_minor_;
-  bool check_ibeacon_minor_;
+  uint16_t ibeacon_major_{0};
+  uint16_t ibeacon_minor_{0};
+
+  int minimum_rssi_{0};
+
+  bool check_ibeacon_major_{false};
+  bool check_ibeacon_minor_{false};
+  bool check_minimum_rssi_{false};
+
+  bool found_{false};
 };
 
 }  // namespace ble_presence

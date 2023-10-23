@@ -8,6 +8,7 @@ from .const import (
     CONF_BITMASK,
     CONF_BYTE_OFFSET,
     CONF_COMMAND_THROTTLE,
+    CONF_OFFLINE_SKIP_UPDATES,
     CONF_CUSTOM_COMMAND,
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
@@ -24,7 +25,6 @@ AUTO_LOAD = ["modbus"]
 
 MULTI_CONF = True
 
-# pylint: disable=invalid-name
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
 ModbusController = modbus_controller_ns.class_(
     "ModbusController", cg.PollingComponent, modbus.ModbusDevice
@@ -105,6 +105,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_COMMAND_THROTTLE, default="0ms"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_OFFLINE_SKIP_UPDATES, default=0): cv.positive_int,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -207,8 +208,9 @@ async def add_modbus_base_properties(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_COMMAND_THROTTLE])
+    var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
+    cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
     await register_modbus_device(var, config)
 
 

@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 
 from esphome import pins
 from esphome.components import i2c, touchscreen
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_INTERRUPT_PIN
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2c"]
@@ -17,9 +17,7 @@ EKTF2232Touchscreen = ektf2232_ns.class_(
 )
 
 CONF_EKTF2232_ID = "ektf2232_id"
-CONF_INTERRUPT_PIN = "interrupt_pin"
 CONF_RTS_PIN = "rts_pin"
-
 
 CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
     cv.Schema(

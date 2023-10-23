@@ -1,7 +1,11 @@
 #pragma once
 
 #include <deque>
+#include <vector>
+
 #include "esphome/core/defines.h"
+#include "esphome/core/time.h"
+
 #include "esphome/components/uart/uart.h"
 #include "nextion_base.h"
 #include "nextion_component.h"
@@ -15,10 +19,6 @@
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
 #endif
-#endif
-
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
 #endif
 
 namespace esphome {
@@ -316,13 +316,11 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Changes the font of the component named `textveiw`. Font IDs are set in the Nextion Editor.
    */
   void set_component_font(const char *component, uint8_t font_id) override;
-#ifdef USE_TIME
   /**
    * Send the current time to the nextion display.
    * @param time The time instance to send (get this with id(my_time).now() ).
    */
-  void set_nextion_rtc_time(time::ESPTime time);
-#endif
+  void set_nextion_rtc_time(ESPTime time);
 
   /**
    * Show the page with a given name.
@@ -625,6 +623,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param True or false. Sleep=true to enter sleep mode or sleep=false to exit sleep mode.
    */
   void sleep(bool sleep);
+  /**
+   * Sets Nextion Protocol Reparse mode between active or passive
+   * @param True or false.
+   * active_mode=true to enter active protocol reparse mode
+   * active_mode=false to enter passive protocol reparse mode.
+   */
+  void set_protocol_reparse_mode(bool active_mode);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -688,6 +693,12 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param callback The void() callback.
    */
   void add_setup_state_callback(std::function<void()> &&callback);
+
+  /** Add a callback to be notified when the nextion changes pages.
+   *
+   * @param callback The void(std::string) callback.
+   */
+  void add_new_page_callback(std::function<void(uint8_t)> &&callback);
 
   void update_all_components();
 
@@ -813,6 +824,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   CallbackManager<void()> setup_callback_{};
   CallbackManager<void()> sleep_callback_{};
   CallbackManager<void()> wake_callback_{};
+  CallbackManager<void(uint8_t)> page_callback_{};
 
   optional<nextion_writer_t> writer_;
   float brightness_{1.0};

@@ -9,6 +9,7 @@ static const int MAX_DATA_LENGTH_BYTES = 80;
 static const uint8_t ASCII_LF = 0x0A;
 #define HYDREON_RGXX_COMMA ,
 static const char *const PROTOCOL_NAMES[] = {HYDREON_RGXX_PROTOCOL_LIST(, HYDREON_RGXX_COMMA)};
+static const char *const IGNORE_STRINGS[] = {HYDREON_RGXX_IGNORE_LIST(, HYDREON_RGXX_COMMA)};
 
 void HydreonRGxxComponent::dump_config() {
   this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
@@ -24,6 +25,10 @@ void HydreonRGxxComponent::dump_config() {
     LOG_SENSOR("  ", #s, this->sensors_[i - 1]); \
   }
   HYDREON_RGXX_PROTOCOL_LIST(HYDREON_RGXX_LOG_SENSOR, );
+
+  if (this->model_ == RG9) {
+    ESP_LOGCONFIG(TAG, "disable_led: %s", TRUEFALSE(this->disable_led_));
+  }
 }
 
 void HydreonRGxxComponent::setup() {
@@ -34,33 +39,37 @@ void HydreonRGxxComponent::setup() {
   this->schedule_reboot_();
 }
 
-bool HydreonRGxxComponent::sensor_missing_() {
+int HydreonRGxxComponent::num_sensors_missing_() {
   if (this->sensors_received_ == -1) {
-    // no request sent yet, don't check
-    return false;
-  } else {
-    if (this->sensors_received_ == 0) {
-      ESP_LOGW(TAG, "No data at all");
-      return true;
-    }
-    for (int i = 0; i < NUM_SENSORS; i++) {
-      if (this->sensors_[i] == nullptr) {
-        continue;
-      }
-      if ((this->sensors_received_ >> i & 1) == 0) {
-        ESP_LOGW(TAG, "Missing %s", PROTOCOL_NAMES[i]);
-        return true;
-      }
-    }
-    return false;
+    return -1;
   }
+  int ret = NUM_SENSORS;
+  for (int i = 0; i < NUM_SENSORS; i++) {
+    if (this->sensors_[i] == nullptr) {
+      ret -= 1;
+      continue;
+    }
+    if ((this->sensors_received_ >> i & 1) != 0) {
+      ret -= 1;
+    }
+  }
+  return ret;
 }
 
 void HydreonRGxxComponent::update() {
   if (this->boot_count_ > 0) {
-    if (this->sensor_missing_()) {
+    if (this->num_sensors_missing_() > 0) {
+      for (int i = 0; i < NUM_SENSORS; i++) {
+        if (this->sensors_[i] == nullptr) {
+          continue;
+        }
+        if ((this->sensors_received_ >> i & 1) == 0) {
+          ESP_LOGW(TAG, "Missing %s", PROTOCOL_NAMES[i]);
+        }
+      }
+
       this->no_response_count_++;
-      ESP_LOGE(TAG, "data missing %d times", this->no_response_count_);
+      ESP_LOGE(TAG, "missing %d sensors; %d times in a row", this->num_sensors_missing_(), this->no_response_count_);
       if (this->no_response_count_ > 15) {
         ESP_LOGE(TAG, "asking sensor to reboot");
         for (auto &sensor : this->sensors_) {
@@ -79,8 +88,16 @@ void HydreonRGxxComponent::update() {
     if (this->too_cold_sensor_ != nullptr) {
       this->too_cold_sensor_->publish_state(this->too_cold_);
     }
+    if (this->lens_bad_sensor_ != nullptr) {
+      this->lens_bad_sensor_->publish_state(this->lens_bad_);
+    }
+    if (this->em_sat_sensor_ != nullptr) {
+      this->em_sat_sensor_->publish_state(this->em_sat_);
+    }
 #endif
     this->too_cold_ = false;
+    this->lens_bad_ = false;
+    this->em_sat_ = false;
     this->sensors_received_ = 0;
   }
 }
@@ -146,6 +163,25 @@ void HydreonRGxxComponent::process_line_() {
     ESP_LOGI(TAG, "Comment: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
     return;
   }
+  std::string::size_type newlineposn = this->buffer_.find('\n');
+  if (newlineposn <= 1) {
+    // allow both \r\n and \n
+    ESP_LOGD(TAG, "Received empty line");
+    return;
+  }
+  if (newlineposn <= 2) {
+    // single character lines, such as acknowledgements
+    ESP_LOGD(TAG, "Received ack: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
+    return;
+  }
+  if (this->buffer_.find("LensBad") != std::string::npos) {
+    ESP_LOGW(TAG, "Received LensBad!");
+    this->lens_bad_ = true;
+  }
+  if (this->buffer_.find("EmSat") != std::string::npos) {
+    ESP_LOGW(TAG, "Received EmSat!");
+    this->em_sat_ = true;
+  }
   if (this->buffer_starts_with_("PwrDays")) {
     if (this->boot_count_ <= 0) {
       this->boot_count_ = 1;
@@ -155,7 +191,20 @@ void HydreonRGxxComponent::process_line_() {
     this->cancel_interval("reboot");
     this->no_response_count_ = 0;
     ESP_LOGI(TAG, "Boot detected: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
-    this->write_str("P\nH\nM\n");  // set sensor to polling mode, high res mode, metric mode
+
+    if (this->model_ == RG15) {
+      this->write_str("P\nH\nM\n");  // set sensor to (P)polling mode, (H)high res mode, (M)metric mode
+    }
+
+    if (this->model_ == RG9) {
+      this->write_str("P\n");  // set sensor to (P)polling mode
+
+      if (this->disable_led_) {
+        this->write_str("D 1\n");  // set sensor (D 1)rain detection LED disabled
+      } else {
+        this->write_str("D 0\n");  // set sensor (D 0)rain detection LED enabled
+      }
+    }
     return;
   }
   if (this->buffer_starts_with_("SW")) {
@@ -195,12 +244,36 @@ void HydreonRGxxComponent::process_line_() {
       if (n == std::string::npos) {
         continue;
       }
-      float data = strtof(this->buffer_.substr(n + strlen(PROTOCOL_NAMES[i])).c_str(), nullptr);
+
+      if (n == this->buffer_.find('t', n)) {
+        // The device temperature ('t') response contains both °C and °F values:
+        // "t 72F 22C".
+        // ESPHome uses only °C, only parse °C value (move past 'F').
+        n = this->buffer_.find('F', n);
+        if (n == std::string::npos) {
+          continue;
+        }
+        n += 1;  // move past 'F'
+      } else {
+        n += strlen(PROTOCOL_NAMES[i]);  // move past protocol name
+      }
+
+      // parse value, starting at str position n
+      float data = strtof(this->buffer_.substr(n).c_str(), nullptr);
       this->sensors_[i]->publish_state(data);
       ESP_LOGD(TAG, "Received %s: %f", PROTOCOL_NAMES[i], this->sensors_[i]->get_raw_state());
       this->sensors_received_ |= (1 << i);
     }
+    if (this->request_temperature_ && this->num_sensors_missing_() == 1) {
+      this->write_str("T\n");
+    }
   } else {
+    for (const auto *ignore : IGNORE_STRINGS) {
+      if (this->buffer_starts_with_(ignore)) {
+        ESP_LOGI(TAG, "Ignoring %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
+        return;
+      }
+    }
     ESP_LOGI(TAG, "Got unknown line: %s", this->buffer_.c_str());
   }
 }

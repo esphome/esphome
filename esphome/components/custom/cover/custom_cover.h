@@ -2,6 +2,8 @@
 
 #include "esphome/components/cover/cover.h"
 
+#include <vector>
+
 namespace esphome {
 namespace custom {
 

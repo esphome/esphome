@@ -39,7 +39,7 @@ void DeepSleepComponent::setup() {
 
   const optional<uint32_t> run_duration = get_run_duration_();
   if (run_duration.has_value()) {
-    ESP_LOGI(TAG, "Scheduling Deep Sleep to start in %u ms", *run_duration);
+    ESP_LOGI(TAG, "Scheduling Deep Sleep to start in %" PRIu32 " ms", *run_duration);
     this->set_timeout(*run_duration, [this]() { this->begin_sleep(); });
   } else {
     ESP_LOGD(TAG, "Not scheduling Deep Sleep, as no run duration is configured.");
@@ -49,19 +49,20 @@ void DeepSleepComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Setting up Deep Sleep...");
   if (this->sleep_duration_.has_value()) {
     uint32_t duration = *this->sleep_duration_ / 1000;
-    ESP_LOGCONFIG(TAG, "  Sleep Duration: %u ms", duration);
+    ESP_LOGCONFIG(TAG, "  Sleep Duration: %" PRIu32 " ms", duration);
   }
   if (this->run_duration_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Run Duration: %u ms", *this->run_duration_);
+    ESP_LOGCONFIG(TAG, "  Run Duration: %" PRIu32 " ms", *this->run_duration_);
   }
 #ifdef USE_ESP32
   if (wakeup_pin_ != nullptr) {
     LOG_PIN("  Wakeup Pin: ", this->wakeup_pin_);
   }
   if (this->wakeup_cause_to_run_duration_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Default Wakeup Run Duration: %u ms", this->wakeup_cause_to_run_duration_->default_cause);
-    ESP_LOGCONFIG(TAG, "  Touch Wakeup Run Duration: %u ms", this->wakeup_cause_to_run_duration_->touch_cause);
-    ESP_LOGCONFIG(TAG, "  GPIO Wakeup Run Duration: %u ms", this->wakeup_cause_to_run_duration_->gpio_cause);
+    ESP_LOGCONFIG(TAG, "  Default Wakeup Run Duration: %" PRIu32 " ms",
+                  this->wakeup_cause_to_run_duration_->default_cause);
+    ESP_LOGCONFIG(TAG, "  Touch Wakeup Run Duration: %" PRIu32 " ms", this->wakeup_cause_to_run_duration_->touch_cause);
+    ESP_LOGCONFIG(TAG, "  GPIO Wakeup Run Duration: %" PRIu32 " ms", this->wakeup_cause_to_run_duration_->gpio_cause);
   }
 #endif
 }
@@ -114,9 +115,9 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 #endif
 
   ESP_LOGI(TAG, "Beginning Deep Sleep");
-  if (this->sleep_duration_.has_value())
+  if (this->sleep_duration_.has_value()) {
     ESP_LOGI(TAG, "Sleeping for %" PRId64 "us", *this->sleep_duration_);
-
+  }
   App.run_safe_shutdown_hooks();
 
 #if defined(USE_ESP32)
@@ -147,7 +148,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read()) {
       level = !level;
     }
-    esp_deep_sleep_enable_gpio_wakeup(gpio_num_t(this->wakeup_pin_->get_pin()),
+    esp_deep_sleep_enable_gpio_wakeup(1 << this->wakeup_pin_->get_pin(),
                                       static_cast<esp_deepsleep_gpio_wake_up_mode_t>(level));
   }
 #endif

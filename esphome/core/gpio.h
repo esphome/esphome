@@ -73,7 +73,7 @@ class ISRInternalGPIOPin {
   void pin_mode(gpio::Flags flags);
 
  protected:
-  void *arg_ = nullptr;
+  void *arg_{nullptr};
 };
 
 class InternalGPIOPin : public GPIOPin {

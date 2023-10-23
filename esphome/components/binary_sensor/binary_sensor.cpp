@@ -37,21 +37,13 @@ void BinarySensor::send_state_internal(bool state, bool is_initial) {
   }
   this->has_state_ = true;
   this->state = state;
-  if (!is_initial) {
+  if (!is_initial || this->publish_initial_state_) {
     this->state_callback_.call(state);
   }
 }
-std::string BinarySensor::device_class() { return ""; }
+
 BinarySensor::BinarySensor() : state(false) {}
-void BinarySensor::set_device_class(const std::string &device_class) { this->device_class_ = device_class; }
-std::string BinarySensor::get_device_class() {
-  if (this->device_class_.has_value())
-    return *this->device_class_;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return this->device_class();
-#pragma GCC diagnostic pop
-}
+
 void BinarySensor::add_filter(Filter *filter) {
   filter->parent_ = this;
   if (this->filter_list_ == nullptr) {

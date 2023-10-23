@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import json
-from typing import List, Union
+from typing import Union
 from pathlib import Path
 
 import logging
@@ -8,7 +8,7 @@ import os
 import re
 import subprocess
 
-from esphome.const import KEY_CORE
+from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
 from esphome.util import run_external_command, run_external_process
 
@@ -37,7 +37,6 @@ def patch_structhash():
         if not isdir(build_dir):
             makedirs(build_dir)
 
-    # pylint: disable=protected-access
     helpers.clean_build_dir = patched_clean_build_dir
     cli.clean_build_dir = patched_clean_build_dir
 
@@ -48,7 +47,7 @@ FILTER_PLATFORMIO_LINES = [
     r"CONFIGURATION: https://docs.platformio.org/.*",
     r"DEBUG: Current.*",
     r"LDF Modes:.*",
-    r"LDF: Library Dependency Finder -> http://bit.ly/configure-pio-ldf.*",
+    r"LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf.*",
     f"Looking for {IGNORE_LIB_WARNINGS} library in registry",
     f"Warning! Library `.*'{IGNORE_LIB_WARNINGS}.*` has not been found in PlatformIO Registry.",
     f"You can ignore this message, if `.*{IGNORE_LIB_WARNINGS}.*` is a built-in library.*",
@@ -103,7 +102,10 @@ def run_platformio_cli_run(config, verbose, *args, **kwargs) -> Union[str, int]:
 
 
 def run_compile(config, verbose):
-    return run_platformio_cli_run(config, verbose)
+    args = []
+    if CONF_COMPILE_PROCESS_LIMIT in config[CONF_ESPHOME]:
+        args += [f"-j{config[CONF_ESPHOME][CONF_COMPILE_PROCESS_LIMIT]}"]
+    return run_platformio_cli_run(config, verbose, *args)
 
 
 def _run_idedata(config):
@@ -310,7 +312,7 @@ class IDEData:
         return str(Path(self.firmware_elf_path).with_suffix(".bin"))
 
     @property
-    def extra_flash_images(self) -> List[FlashImage]:
+    def extra_flash_images(self) -> list[FlashImage]:
         return [
             FlashImage(path=entry["path"], offset=entry["offset"])
             for entry in self.raw["extra"]["flash_images"]

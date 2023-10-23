@@ -1,8 +1,8 @@
 import logging
 from dataclasses import dataclass
-from typing import List
 
 from esphome.const import (
+    CONF_ANALOG,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
@@ -141,7 +141,6 @@ def validate_supports(value):
     return value
 
 
-CONF_ANALOG = "analog"
 ESP8266_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(ESP8266GPIOPin),
@@ -200,7 +199,7 @@ async def esp8266_pin_to_code(config):
 @coroutine_with_priority(-999.0)
 async def add_pin_initial_states_array():
     # Add includes at the very end, so that they override everything
-    initial_states: List[PinInitialState] = CORE.data[KEY_ESP8266][
+    initial_states: list[PinInitialState] = CORE.data[KEY_ESP8266][
         KEY_PIN_INITIAL_STATES
     ]
     initial_modes_s = ", ".join(str(x.mode) for x in initial_states)

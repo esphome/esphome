@@ -13,6 +13,7 @@ enum SSD1306Model {
   SSD1306_MODEL_96_16,
   SSD1306_MODEL_64_48,
   SSD1306_MODEL_64_32,
+  SSD1306_MODEL_72_40,
   SH1106_MODEL_128_32,
   SH1106_MODEL_128_64,
   SH1106_MODEL_96_16,
@@ -42,6 +43,7 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   void init_offset_x(uint8_t offset_x) { this->offset_x_ = offset_x; }
   void init_offset_y(uint8_t offset_y) { this->offset_y_ = offset_y; }
   void init_invert(bool invert) { this->invert_ = invert; }
+  void set_invert(bool invert);
   bool is_on();
   void turn_on();
   void turn_off();

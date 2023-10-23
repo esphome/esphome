@@ -10,7 +10,7 @@ import yaml
 import yaml.constructor
 
 from esphome import core
-from esphome.config_helpers import read_config_file
+from esphome.config_helpers import read_config_file, Extend
 from esphome.core import (
     EsphomeError,
     IPAddress,
@@ -88,7 +88,7 @@ def _add_data_ref(fn):
     return wrapped
 
 
-class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
+class ESPHomeLoader(yaml.SafeLoader):
     """Loader class that keeps track of line numbers."""
 
     @_add_data_ref
@@ -338,6 +338,10 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         obj = self.construct_scalar(node)
         return add_class_to_obj(obj, ESPForceValue)
 
+    @_add_data_ref
+    def construct_extend(self, node):
+        return Extend(str(node.value))
+
 
 ESPHomeLoader.add_constructor("tag:yaml.org,2002:int", ESPHomeLoader.construct_yaml_int)
 ESPHomeLoader.add_constructor(
@@ -369,6 +373,7 @@ ESPHomeLoader.add_constructor(
 )
 ESPHomeLoader.add_constructor("!lambda", ESPHomeLoader.construct_lambda)
 ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
+ESPHomeLoader.add_constructor("!extend", ESPHomeLoader.construct_extend)
 
 
 def load_yaml(fname, clear_secrets=True):
@@ -390,8 +395,11 @@ def _load_yaml_internal(fname):
         loader.dispose()
 
 
-def dump(dict_):
+def dump(dict_, show_secrets=False):
     """Dump YAML to a string and remove null."""
+    if show_secrets:
+        _SECRET_VALUES.clear()
+        _SECRET_CACHE.clear()
     return yaml.dump(
         dict_, default_flow_style=False, allow_unicode=True, Dumper=ESPHomeDumper
     )
@@ -419,7 +427,7 @@ def is_secret(value):
         return None
 
 
-class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
+class ESPHomeDumper(yaml.SafeDumper):
     def represent_mapping(self, tag, mapping, flow_style=None):
         value = []
         node = yaml.MappingNode(tag, value, flow_style=flow_style)

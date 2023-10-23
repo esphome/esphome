@@ -24,6 +24,7 @@ class DebugComponent : public PollingComponent {
 
 #ifdef USE_TEXT_SENSOR
   void set_device_info_sensor(text_sensor::TextSensor *device_info) { device_info_ = device_info; }
+  void set_reset_reason_sensor(text_sensor::TextSensor *reset_reason) { reset_reason_ = reset_reason; }
 #endif  // USE_TEXT_SENSOR
 #ifdef USE_SENSOR
   void set_free_sensor(sensor::Sensor *free_sensor) { free_sensor_ = free_sensor; }
@@ -32,6 +33,9 @@ class DebugComponent : public PollingComponent {
   void set_fragmentation_sensor(sensor::Sensor *fragmentation_sensor) { fragmentation_sensor_ = fragmentation_sensor; }
 #endif
   void set_loop_time_sensor(sensor::Sensor *loop_time_sensor) { loop_time_sensor_ = loop_time_sensor; }
+#ifdef USE_ESP32
+  void set_psram_sensor(sensor::Sensor *psram_sensor) { this->psram_sensor_ = psram_sensor; }
+#endif  // USE_ESP32
 #endif  // USE_SENSOR
  protected:
   uint32_t free_heap_{};
@@ -46,10 +50,14 @@ class DebugComponent : public PollingComponent {
   sensor::Sensor *fragmentation_sensor_{nullptr};
 #endif
   sensor::Sensor *loop_time_sensor_{nullptr};
+#ifdef USE_ESP32
+  sensor::Sensor *psram_sensor_{nullptr};
+#endif  // USE_ESP32
 #endif  // USE_SENSOR
 
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *device_info_{nullptr};
+  text_sensor::TextSensor *reset_reason_{nullptr};
 #endif  // USE_TEXT_SENSOR
 };
 

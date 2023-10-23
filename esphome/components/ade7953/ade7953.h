@@ -5,6 +5,8 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 
+#include <vector>
+
 namespace esphome {
 namespace ade7953 {
 
@@ -82,7 +84,7 @@ class ADE7953 : public i2c::I2CDevice, public PollingComponent {
     return i2c::ERROR_OK;
   }
 
-  InternalGPIOPin *irq_pin_ = nullptr;
+  InternalGPIOPin *irq_pin_{nullptr};
   bool is_setup_{false};
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_a_sensor_{nullptr};

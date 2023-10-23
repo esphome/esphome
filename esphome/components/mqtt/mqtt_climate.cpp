@@ -62,22 +62,41 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
   // max_temp
   root[MQTT_MAX_TEMP] = traits.get_visual_max_temperature();
   // temp_step
-  root["temp_step"] = traits.get_visual_temperature_step();
+  root["temp_step"] = traits.get_visual_target_temperature_step();
   // temperature units are always coerced to Celsius internally
   root[MQTT_TEMPERATURE_UNIT] = "C";
 
-  if (traits.supports_preset(CLIMATE_PRESET_AWAY)) {
-    // away_mode_command_topic
-    root[MQTT_AWAY_MODE_COMMAND_TOPIC] = this->get_away_command_topic();
-    // away_mode_state_topic
-    root[MQTT_AWAY_MODE_STATE_TOPIC] = this->get_away_state_topic();
+  if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
+    // preset_mode_command_topic
+    root[MQTT_PRESET_MODE_COMMAND_TOPIC] = this->get_preset_command_topic();
+    // preset_mode_state_topic
+    root[MQTT_PRESET_MODE_STATE_TOPIC] = this->get_preset_state_topic();
+    // presets
+    JsonArray presets = root.createNestedArray("preset_modes");
+    if (traits.supports_preset(CLIMATE_PRESET_HOME))
+      presets.add("home");
+    if (traits.supports_preset(CLIMATE_PRESET_AWAY))
+      presets.add("away");
+    if (traits.supports_preset(CLIMATE_PRESET_BOOST))
+      presets.add("boost");
+    if (traits.supports_preset(CLIMATE_PRESET_COMFORT))
+      presets.add("comfort");
+    if (traits.supports_preset(CLIMATE_PRESET_ECO))
+      presets.add("eco");
+    if (traits.supports_preset(CLIMATE_PRESET_SLEEP))
+      presets.add("sleep");
+    if (traits.supports_preset(CLIMATE_PRESET_ACTIVITY))
+      presets.add("activity");
+    for (const auto &preset : traits.get_supported_custom_presets())
+      presets.add(preset);
   }
+
   if (traits.get_supports_action()) {
     // action_topic
     root[MQTT_ACTION_TOPIC] = this->get_action_state_topic();
   }
 
-  if (traits.get_supports_fan_modes() || !traits.get_supported_custom_fan_modes().empty()) {
+  if (traits.get_supports_fan_modes()) {
     // fan_mode_command_topic
     root[MQTT_FAN_MODE_COMMAND_TOPIC] = this->get_fan_mode_command_topic();
     // fan_mode_state_topic
@@ -102,6 +121,8 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
       fan_modes.add("focus");
     if (traits.supports_fan_mode(CLIMATE_FAN_DIFFUSE))
       fan_modes.add("diffuse");
+    if (traits.supports_fan_mode(CLIMATE_FAN_QUIET))
+      fan_modes.add("quiet");
     for (const auto &fan_mode : traits.get_supported_custom_fan_modes())
       fan_modes.add(fan_mode);
   }
@@ -171,25 +192,10 @@ void MQTTClimateComponent::setup() {
                     });
   }
 
-  if (traits.supports_preset(CLIMATE_PRESET_AWAY)) {
-    this->subscribe(this->get_away_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto onoff = parse_on_off(payload.c_str());
+  if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
+    this->subscribe(this->get_preset_command_topic(), [this](const std::string &topic, const std::string &payload) {
       auto call = this->device_->make_call();
-      switch (onoff) {
-        case PARSE_ON:
-          call.set_preset(CLIMATE_PRESET_AWAY);
-          break;
-        case PARSE_OFF:
-          call.set_preset(CLIMATE_PRESET_HOME);
-          break;
-        case PARSE_TOGGLE:
-          call.set_preset(this->device_->preset == CLIMATE_PRESET_AWAY ? CLIMATE_PRESET_HOME : CLIMATE_PRESET_AWAY);
-          break;
-        case PARSE_NONE:
-        default:
-          ESP_LOGW(TAG, "Unknown payload '%s'", payload.c_str());
-          return;
-      }
+      call.set_preset(payload);
       call.perform();
     });
   }
@@ -210,7 +216,7 @@ void MQTTClimateComponent::setup() {
     });
   }
 
-  this->device_->add_on_state_callback([this]() { this->publish_state_(); });
+  this->device_->add_on_state_callback([this](Climate & /*unused*/) { this->publish_state_(); });
 }
 MQTTClimateComponent::MQTTClimateComponent(Climate *device) : device_(device) {}
 bool MQTTClimateComponent::send_initial_state() { return this->publish_state_(); }
@@ -247,30 +253,62 @@ bool MQTTClimateComponent::publish_state_() {
   bool success = true;
   if (!this->publish(this->get_mode_state_topic(), mode_s))
     success = false;
-  int8_t accuracy = traits.get_temperature_accuracy_decimals();
+  int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
+  int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
   if (traits.get_supports_current_temperature() && !std::isnan(this->device_->current_temperature)) {
-    std::string payload = value_accuracy_to_string(this->device_->current_temperature, accuracy);
+    std::string payload = value_accuracy_to_string(this->device_->current_temperature, current_accuracy);
     if (!this->publish(this->get_current_temperature_state_topic(), payload))
       success = false;
   }
   if (traits.get_supports_two_point_target_temperature()) {
-    std::string payload = value_accuracy_to_string(this->device_->target_temperature_low, accuracy);
+    std::string payload = value_accuracy_to_string(this->device_->target_temperature_low, target_accuracy);
     if (!this->publish(this->get_target_temperature_low_state_topic(), payload))
       success = false;
-    payload = value_accuracy_to_string(this->device_->target_temperature_high, accuracy);
+    payload = value_accuracy_to_string(this->device_->target_temperature_high, target_accuracy);
     if (!this->publish(this->get_target_temperature_high_state_topic(), payload))
       success = false;
   } else {
-    std::string payload = value_accuracy_to_string(this->device_->target_temperature, accuracy);
+    std::string payload = value_accuracy_to_string(this->device_->target_temperature, target_accuracy);
     if (!this->publish(this->get_target_temperature_state_topic(), payload))
       success = false;
   }
 
-  if (traits.supports_preset(CLIMATE_PRESET_AWAY)) {
-    std::string payload = ONOFF(this->device_->preset == CLIMATE_PRESET_AWAY);
-    if (!this->publish(this->get_away_state_topic(), payload))
+  if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
+    std::string payload;
+    if (this->device_->preset.has_value()) {
+      switch (this->device_->preset.value()) {
+        case CLIMATE_PRESET_NONE:
+          payload = "none";
+          break;
+        case CLIMATE_PRESET_HOME:
+          payload = "home";
+          break;
+        case CLIMATE_PRESET_AWAY:
+          payload = "away";
+          break;
+        case CLIMATE_PRESET_BOOST:
+          payload = "boost";
+          break;
+        case CLIMATE_PRESET_COMFORT:
+          payload = "comfort";
+          break;
+        case CLIMATE_PRESET_ECO:
+          payload = "eco";
+          break;
+        case CLIMATE_PRESET_SLEEP:
+          payload = "sleep";
+          break;
+        case CLIMATE_PRESET_ACTIVITY:
+          payload = "activity";
+          break;
+      }
+    }
+    if (this->device_->custom_preset.has_value())
+      payload = this->device_->custom_preset.value();
+    if (!this->publish(this->get_preset_state_topic(), payload))
       success = false;
   }
+
   if (traits.get_supports_action()) {
     const char *payload = "unknown";
     switch (this->device_->action) {
@@ -327,6 +365,9 @@ bool MQTTClimateComponent::publish_state_() {
           break;
         case CLIMATE_FAN_DIFFUSE:
           payload = "diffuse";
+          break;
+        case CLIMATE_FAN_QUIET:
+          payload = "quiet";
           break;
       }
     }

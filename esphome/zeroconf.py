@@ -1,21 +1,23 @@
+import logging
 import socket
 import threading
 import time
-from typing import Dict, Optional
-import logging
 from dataclasses import dataclass
+from typing import Optional
 
 from zeroconf import (
     DNSAddress,
     DNSOutgoing,
-    DNSRecord,
     DNSQuestion,
+    RecordUpdate,
     RecordUpdateListener,
-    Zeroconf,
     ServiceBrowser,
     ServiceStateChange,
+    Zeroconf,
     current_time_millis,
 )
+
+from esphome.storage_json import StorageJSON, ext_storage_path
 
 _CLASS_IN = 1
 _FLAGS_QR_QUERY = 0x0000  # query
@@ -24,17 +26,28 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class HostResolver(RecordUpdateListener):
+    """Resolve a host name to an IP address."""
+
     def __init__(self, name: str):
         self.name = name
         self.address: Optional[bytes] = None
 
-    def update_record(self, zc: Zeroconf, now: float, record: DNSRecord) -> None:
-        if record is None:
-            return
-        if record.type == _TYPE_A:
-            assert isinstance(record, DNSAddress)
-            if record.name == self.name:
-                self.address = record.address
+    def async_update_records(
+        self, zc: Zeroconf, now: float, records: list[RecordUpdate]
+    ) -> None:
+        """Update multiple records in one shot.
+
+        This will run in zeroconf's event loop thread so it
+        must be thread-safe.
+        """
+        for record_update in records:
+            record, _ = record_update
+            if record is None:
+                continue
+            if record.type == _TYPE_A:
+                assert isinstance(record, DNSAddress)
+                if record.name == self.name:
+                    self.address = record.address
 
     def request(self, zc: Zeroconf, timeout: float) -> bool:
         now = time.time()
@@ -71,12 +84,12 @@ class DashboardStatus(threading.Thread):
         threading.Thread.__init__(self)
         self.zc = zc
         self.query_hosts: set[str] = set()
-        self.key_to_host: Dict[str, str] = {}
+        self.key_to_host: dict[str, str] = {}
         self.stop_event = threading.Event()
         self.query_event = threading.Event()
         self.on_update = on_update
 
-    def request_query(self, hosts: Dict[str, str]) -> None:
+    def request_query(self, hosts: dict[str, str]) -> None:
         self.query_hosts = set(hosts.values())
         self.key_to_host = hosts
         self.query_event.set()
@@ -118,14 +131,19 @@ ESPHOME_SERVICE_TYPE = "_esphomelib._tcp.local."
 TXT_RECORD_PACKAGE_IMPORT_URL = b"package_import_url"
 TXT_RECORD_PROJECT_NAME = b"project_name"
 TXT_RECORD_PROJECT_VERSION = b"project_version"
+TXT_RECORD_NETWORK = b"network"
+TXT_RECORD_FRIENDLY_NAME = b"friendly_name"
+TXT_RECORD_VERSION = b"version"
 
 
 @dataclass
 class DiscoveredImport:
+    friendly_name: Optional[str]
     device_name: str
     package_import_url: str
     project_name: str
     project_version: str
+    network: str
 
 
 class DashboardImportDiscovery:
@@ -134,7 +152,7 @@ class DashboardImportDiscovery:
         self.service_browser = ServiceBrowser(
             self.zc, ESPHOME_SERVICE_TYPE, [self._on_update]
         )
-        self.import_state = {}
+        self.import_state: dict[str, DiscoveredImport] = {}
 
     def _on_update(
         self,
@@ -153,6 +171,11 @@ class DashboardImportDiscovery:
             return
         if state_change == ServiceStateChange.Removed:
             self.import_state.pop(name, None)
+            return
+
+        if state_change == ServiceStateChange.Updated and name not in self.import_state:
+            # Ignore updates for devices that are not in the import state
+            return
 
         info = zeroconf.get_service_info(service_type, name)
         _LOGGER.debug("-> resolved info: %s", info)
@@ -166,21 +189,47 @@ class DashboardImportDiscovery:
         ]
         if any(key not in info.properties for key in required_keys):
             # Not a dashboard import device
+            version = info.properties.get(TXT_RECORD_VERSION)
+            if version is not None:
+                version = version.decode()
+                self.update_device_mdns(node_name, version)
             return
 
         import_url = info.properties[TXT_RECORD_PACKAGE_IMPORT_URL].decode()
         project_name = info.properties[TXT_RECORD_PROJECT_NAME].decode()
         project_version = info.properties[TXT_RECORD_PROJECT_VERSION].decode()
+        network = info.properties.get(TXT_RECORD_NETWORK, b"wifi").decode()
+        friendly_name = info.properties.get(TXT_RECORD_FRIENDLY_NAME)
+        if friendly_name is not None:
+            friendly_name = friendly_name.decode()
 
         self.import_state[name] = DiscoveredImport(
+            friendly_name=friendly_name,
             device_name=node_name,
             package_import_url=import_url,
             project_name=project_name,
             project_version=project_version,
+            network=network,
         )
 
     def cancel(self) -> None:
         self.service_browser.cancel()
+
+    def update_device_mdns(self, node_name: str, version: str):
+        storage_path = ext_storage_path(node_name + ".yaml")
+        storage_json = StorageJSON.load(storage_path)
+
+        if storage_json is not None:
+            storage_version = storage_json.esphome_version
+            if version != storage_version:
+                storage_json.esphome_version = version
+                storage_json.save(storage_path)
+                _LOGGER.info(
+                    "Updated %s with mdns version %s (was %s)",
+                    node_name,
+                    version,
+                    storage_version,
+                )
 
 
 class EsphomeZeroconf(Zeroconf):

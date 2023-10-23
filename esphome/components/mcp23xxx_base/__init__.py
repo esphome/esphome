@@ -19,7 +19,6 @@ CODEOWNERS = ["@jesserockz"]
 mcp23xxx_base_ns = cg.esphome_ns.namespace("mcp23xxx_base")
 MCP23XXXBase = mcp23xxx_base_ns.class_("MCP23XXXBase", cg.Component)
 MCP23XXXGPIOPin = mcp23xxx_base_ns.class_("MCP23XXXGPIOPin", cg.GPIOPin)
-MCP23XXXGPIOMode = mcp23xxx_base_ns.enum("MCP23XXXGPIOMode")
 MCP23XXXInterruptMode = mcp23xxx_base_ns.enum("MCP23XXXInterruptMode")
 
 MCP23XXX_INTERRUPT_MODES = {
@@ -27,12 +26,6 @@ MCP23XXX_INTERRUPT_MODES = {
     "CHANGE": MCP23XXXInterruptMode.MCP23XXX_CHANGE,
     "RISING": MCP23XXXInterruptMode.MCP23XXX_RISING,
     "FALLING": MCP23XXXInterruptMode.MCP23XXX_FALLING,
-}
-
-MCP23XXX_GPIO_MODES = {
-    "INPUT": MCP23XXXGPIOMode.MCP23XXX_INPUT,
-    "INPUT_PULLUP": MCP23XXXGPIOMode.MCP23XXX_INPUT_PULLUP,
-    "OUTPUT": MCP23XXXGPIOMode.MCP23XXX_OUTPUT,
 }
 
 MCP23XXX_CONFIG_SCHEMA = cv.Schema(
@@ -95,20 +88,3 @@ async def mcp23xxx_pin_to_code(config):
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
     cg.add(var.set_interrupt_mode(config[CONF_INTERRUPT]))
     return var
-
-
-# BEGIN Removed pin schemas below to show error in configuration
-# TODO remove in 2022.5.0
-
-for id in ["mcp23008", "mcp23s08", "mcp23017", "mcp23s17"]:
-    invalid_schema = cv.invalid(
-        f"'{id}:' has been removed from the pin schema in 1.17.0, please use 'mcp23xxx:'"
-    )
-
-    # pylint: disable=cell-var-from-loop
-    @pins.PIN_SCHEMA_REGISTRY.register(id, invalid_schema)
-    def pin_to_code(config):
-        pass
-
-
-# END Removed pin schemas

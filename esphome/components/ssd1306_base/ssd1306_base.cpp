@@ -59,6 +59,7 @@ void SSD1306::setup() {
   // Set Y offset (0xD3)
   this->command(SSD1306_COMMAND_SET_DISPLAY_OFFSET_Y);
   this->command(0x00 + this->offset_y_);
+
   // Set start line at line 0 (0x40)
   this->command(SSD1306_COMMAND_SET_START_LINE | 0x00);
 
@@ -100,6 +101,7 @@ void SSD1306::setup() {
     case SH1107_MODEL_128_64:
     case SSD1305_MODEL_128_32:
     case SSD1305_MODEL_128_64:
+    case SSD1306_MODEL_72_40:
       this->command(0x12);
       break;
   }
@@ -118,6 +120,9 @@ void SSD1306::setup() {
     case SH1107_MODEL_128_64:
       this->command(0x35);
       break;
+    case SSD1306_MODEL_72_40:
+      this->command(0x20);
+      break;
     default:
       this->command(0x00);
       break;
@@ -127,7 +132,7 @@ void SSD1306::setup() {
   this->command(SSD1306_COMMAND_DISPLAY_ALL_ON_RESUME);
 
   // Inverse display mode (0xA6, 0xA7)
-  this->command(SSD1306_COMMAND_NORMAL_DISPLAY | this->invert_);
+  this->set_invert(this->invert_);
 
   // Disable scrolling mode (0x2E)
   this->command(SSD1306_COMMAND_DEACTIVATE_SCROLL);
@@ -156,6 +161,10 @@ void SSD1306::display() {
       this->command(0x20 + this->offset_x_);
       this->command(0x20 + this->offset_x_ + this->get_width_internal() - 1);
       break;
+    case SSD1306_MODEL_72_40:
+      this->command(0x1C + this->offset_x_);
+      this->command(0x1C + this->offset_x_ + this->get_width_internal() - 1);
+      break;
     default:
       this->command(0 + this->offset_x_);  // Page start address, 0
       this->command(this->get_width_internal() + this->offset_x_ - 1);
@@ -180,6 +189,12 @@ bool SSD1306::is_ssd1305_() const {
 void SSD1306::update() {
   this->do_update_();
   this->display();
+}
+
+void SSD1306::set_invert(bool invert) {
+  this->invert_ = invert;
+  // Inverse display mode (0xA6, 0xA7)
+  this->command(SSD1306_COMMAND_NORMAL_DISPLAY | this->invert_);
 }
 void SSD1306::set_contrast(float contrast) {
   // validation
@@ -225,6 +240,8 @@ int SSD1306::get_height_internal() {
     case SSD1306_MODEL_64_48:
     case SH1106_MODEL_64_48:
       return 48;
+    case SSD1306_MODEL_72_40:
+      return 40;
     default:
       return 0;
   }
@@ -246,6 +263,8 @@ int SSD1306::get_width_internal() {
     case SH1106_MODEL_64_48:
     case SH1107_MODEL_128_64:
       return 64;
+    case SSD1306_MODEL_72_40:
+      return 72;
     default:
       return 0;
   }
@@ -294,6 +313,8 @@ const char *SSD1306::model_str_() {
       return "SSD1306 96x16";
     case SSD1306_MODEL_64_48:
       return "SSD1306 64x48";
+    case SSD1306_MODEL_72_40:
+      return "SSD1306 72x40";
     case SH1106_MODEL_128_32:
       return "SH1106 128x32";
     case SH1106_MODEL_128_64:

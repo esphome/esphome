@@ -4,6 +4,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace tsl2591 {
 
@@ -217,13 +219,20 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    *
    * This gets called on update and tries to keep the ADC readings in the middle of the range
    */
-
   void automatic_gain_update(uint16_t full_spectrum);
+
+  /** Reads the actual gain used
+   *
+   * Useful for exposing the real gain used when configured in "auto" gain mode
+   */
+  float get_actual_gain();
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these. They're for ESPHome integration use.)
   /** Used by ESPHome framework. */
   void set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor);
+  /** Used by ESPHome framework. */
+  void set_actual_gain_sensor(sensor::Sensor *actual_gain_sensor);
   /** Used by ESPHome framework. */
   void set_infrared_sensor(sensor::Sensor *infrared_sensor);
   /** Used by ESPHome framework. */
@@ -245,10 +254,11 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
 
  protected:
   const char *name_;
-  sensor::Sensor *full_spectrum_sensor_;
-  sensor::Sensor *infrared_sensor_;
-  sensor::Sensor *visible_sensor_;
-  sensor::Sensor *calculated_lux_sensor_;
+  sensor::Sensor *full_spectrum_sensor_{nullptr};
+  sensor::Sensor *infrared_sensor_{nullptr};
+  sensor::Sensor *visible_sensor_{nullptr};
+  sensor::Sensor *calculated_lux_sensor_{nullptr};
+  sensor::Sensor *actual_gain_sensor_{nullptr};
   TSL2591IntegrationTime integration_time_;
   TSL2591ComponentGain component_gain_;
   TSL2591Gain gain_;

@@ -1,53 +1,63 @@
+---
 name: CI for docker images
 
 # Only run when docker paths change
+# yamllint disable-line rule:truthy
 on:
   push:
     branches: [dev, beta, release]
     paths:
-      - 'docker/**'
-      - '.github/workflows/**'
-      - 'requirements*.txt'
-      - 'platformio.ini'
+      - "docker/**"
+      - ".github/workflows/ci-docker.yml"
+      - "requirements*.txt"
+      - "platformio.ini"
+      - "script/platformio_install_deps.py"
 
   pull_request:
     paths:
-      - 'docker/**'
-      - '.github/workflows/**'
-      - 'requirements*.txt'
-      - 'platformio.ini'
+      - "docker/**"
+      - ".github/workflows/ci-docker.yml"
+      - "requirements*.txt"
+      - "platformio.ini"
+      - "script/platformio_install_deps.py"
 
 permissions:
   contents: read
   packages: read
+
+concurrency:
+  # yamllint disable-line rule:line-length
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check-docker:
     name: Build docker containers
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         arch: [amd64, armv7, aarch64]
         build_type: ["ha-addon", "docker", "lint"]
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
+      - uses: actions/checkout@v4.1.1
+      - name: Set up Python
+        uses: actions/setup-python@v4.7.1
+        with:
+          python-version: "3.9"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.0.0
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3.0.0
 
-    - name: Set TAG
-      run: |
-        echo "TAG=check" >> $GITHUB_ENV
+      - name: Set TAG
+        run: |
+          echo "TAG=check" >> $GITHUB_ENV
 
-    - name: Run build
-      run: |
-        docker/build.py \
-          --tag "${TAG}" \
-          --arch "${{ matrix.arch }}" \
-          --build-type "${{ matrix.build_type }}" \
-          build
+      - name: Run build
+        run: |
+          docker/build.py \
+            --tag "${TAG}" \
+            --arch "${{ matrix.arch }}" \
+            --build-type "${{ matrix.build_type }}" \
+            build

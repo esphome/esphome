@@ -4,13 +4,14 @@ from esphome.components import sensor, i2c
 from esphome import pins
 from esphome.const import (
     CONF_ID,
+    CONF_IRQ_PIN,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_VOLT,
     UNIT_AMPERE,
+    UNIT_VOLT,
     UNIT_WATT,
 )
 
@@ -19,7 +20,6 @@ DEPENDENCIES = ["i2c"]
 ade7953_ns = cg.esphome_ns.namespace("ade7953")
 ADE7953 = ade7953_ns.class_("ADE7953", cg.PollingComponent, i2c.I2CDevice)
 
-CONF_IRQ_PIN = "irq_pin"
 CONF_CURRENT_A = "current_a"
 CONF_CURRENT_B = "current_b"
 CONF_ACTIVE_POWER_A = "active_power_a"
@@ -72,8 +72,8 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_IRQ_PIN in config:
-        irq_pin = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
+    if irq_pin_config := config.get(CONF_IRQ_PIN):
+        irq_pin = await cg.gpio_pin_expression(irq_pin_config)
         cg.add(var.set_irq_pin(irq_pin))
 
     for key in [

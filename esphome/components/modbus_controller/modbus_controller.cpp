@@ -26,6 +26,17 @@ bool ModbusController::send_next_command_() {
 
     // remove from queue if command was sent too often
     if (command->send_countdown < 1) {
+      if (!this->module_offline_) {
+        ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
+
+        if (this->offline_skip_updates_ > 0) {
+          // Update skip_updates_counter to stop flooding channel with timeouts
+          for (auto &r : this->register_ranges_) {
+            r.skip_updates_counter = this->offline_skip_updates_;
+          }
+        }
+      }
+      this->module_offline_ = true;
       ESP_LOGD(
           TAG,
           "Modbus command to device=%d register=0x%02X countdown=%d no response received - removed from send queue",
@@ -49,6 +60,18 @@ bool ModbusController::send_next_command_() {
 void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
+    if (this->module_offline_) {
+      ESP_LOGW(TAG, "Modbus device=%d back online", this->address_);
+
+      if (this->offline_skip_updates_ > 0) {
+        // Restore skip_updates_counter to restore commands updates
+        for (auto &r : this->register_ranges_) {
+          r.skip_updates_counter = 0;
+        }
+      }
+    }
+    this->module_offline_ = false;
+
     // Move the commandItem to the response queue
     current_command->payload = data;
     this->incoming_queue_.push(std::move(current_command));
@@ -236,7 +259,7 @@ size_t ModbusController::create_register_ranges_() {
       }
     }
 
-    if (curr->start_address == r.start_address) {
+    if (curr->start_address == r.start_address && curr->register_type == r.register_type) {
       // use the lowest non zero value for the whole range
       // Because zero is the default value for skip_updates it is excluded from getting the min value.
       if (curr->skip_updates != 0) {
@@ -506,12 +529,12 @@ void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueTy
     case SensorValueType::U_DWORD:
     case SensorValueType::S_DWORD:
     case SensorValueType::FP32:
-    case SensorValueType::FP32_R:
       data.push_back((value & 0xFFFF0000) >> 16);
       data.push_back(value & 0xFFFF);
       break;
     case SensorValueType::U_DWORD_R:
     case SensorValueType::S_DWORD_R:
+    case SensorValueType::FP32_R:
       data.push_back(value & 0xFFFF);
       data.push_back((value & 0xFFFF0000) >> 16);
       break;
@@ -571,24 +594,16 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
           static_cast<int32_t>(((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) | sign_bit), bitmask);
     } break;
     case SensorValueType::U_QWORD:
-      // Ignore bitmask for U_QWORD
-      value = get_data<uint64_t>(data, offset);
-      break;
     case SensorValueType::S_QWORD:
-      // Ignore bitmask for S_QWORD
-      value = get_data<int64_t>(data, offset);
+      // Ignore bitmask for QWORD
+      value = get_data<uint64_t>(data, offset);
       break;
     case SensorValueType::U_QWORD_R:
-      // Ignore bitmask for U_QWORD
-      value = get_data<uint64_t>(data, offset);
-      value = static_cast<uint64_t>(value & 0xFFFF) << 48 | (value & 0xFFFF000000000000) >> 48 |
-              static_cast<uint64_t>(value & 0xFFFF0000) << 32 | (value & 0x0000FFFF00000000) >> 32 |
-              static_cast<uint64_t>(value & 0xFFFF00000000) << 16 | (value & 0x00000000FFFF0000) >> 16;
-      break;
-    case SensorValueType::S_QWORD_R:
-      // Ignore bitmask for S_QWORD
-      value = get_data<int64_t>(data, offset);
-      break;
+    case SensorValueType::S_QWORD_R: {
+      // Ignore bitmask for QWORD
+      uint64_t tmp = get_data<uint64_t>(data, offset);
+      value = (tmp << 48) | (tmp >> 48) | ((tmp & 0xFFFF0000) << 16) | ((tmp >> 16) & 0xFFFF0000);
+    } break;
     case SensorValueType::RAW:
     default:
       break;

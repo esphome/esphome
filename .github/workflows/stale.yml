@@ -1,8 +1,10 @@
+---
 name: Stale
 
+# yamllint disable-line rule:truthy
 on:
   schedule:
-    - cron: '30 0 * * *'
+    - cron: "30 0 * * *"
   workflow_dispatch:
 
 permissions:
@@ -16,7 +18,7 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v5
+      - uses: actions/stale@v8.0.0
         with:
           days-before-pr-stale: 90
           days-before-pr-close: 7
@@ -24,18 +26,19 @@ jobs:
           days-before-issue-close: -1
           remove-stale-when-updated: true
           stale-pr-label: "stale"
-          exempt-pr-labels: "no-stale"
+          exempt-pr-labels: "not-stale"
           stale-pr-message: >
             There hasn't been any activity on this pull request recently. This
             pull request has been automatically marked as stale because of that
             and will be closed if no further activity occurs within 7 days.
             Thank you for your contributions.
 
-  # Use stale to automatically close issues with a reference to the issue tracker
+  # Use stale to automatically close issues with a
+  # reference to the issue tracker
   close-issues:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v5
+      - uses: actions/stale@v8.0.0
         with:
           days-before-pr-stale: -1
           days-before-pr-close: -1

@@ -125,8 +125,8 @@ class BMP3XXComponent : public PollingComponent, public i2c::I2CDevice {
   Oversampling pressure_oversampling_{OVERSAMPLING_X16};
   IIRFilter iir_filter_{IIR_FILTER_OFF};
   OperationMode operation_mode_{FORCED_MODE};
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *pressure_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *pressure_sensor_{nullptr};
   enum ErrorCode {
     NONE = 0,
     ERROR_COMMUNICATION_FAILED,

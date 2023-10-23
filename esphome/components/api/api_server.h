@@ -1,16 +1,18 @@
 #pragma once
 
+#include "api_noise_context.h"
+#include "api_pb2.h"
+#include "api_pb2_service.h"
+#include "esphome/components/socket/socket.h"
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
-#include "esphome/components/socket/socket.h"
-#include "api_pb2.h"
-#include "api_pb2_service.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
 #include "user_services.h"
-#include "api_noise_context.h"
+
+#include <vector>
 
 namespace esphome {
 namespace api {
@@ -76,6 +78,16 @@ class APIServer : public Component, public Controller {
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
+#endif
+
+#ifdef USE_VOICE_ASSISTANT
+  bool start_voice_assistant(const std::string &conversation_id, uint32_t flags,
+                             const api::VoiceAssistantAudioSettings &audio_settings);
+  void stop_voice_assistant();
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
 #endif
 
   bool is_connected() const;

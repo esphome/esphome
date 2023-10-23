@@ -4,12 +4,15 @@ from esphome.components import binary_sensor
 from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_COLD,
+    DEVICE_CLASS_PROBLEM,
 )
 
 from . import hydreon_rgxx_ns, HydreonRGxxComponent
 
 CONF_HYDREON_RGXX_ID = "hydreon_rgxx_id"
 CONF_TOO_COLD = "too_cold"
+CONF_LENS_BAD = "lens_bad"
+CONF_EM_SAT = "em_sat"
 
 HydreonRGxxBinarySensor = hydreon_rgxx_ns.class_(
     "HydreonRGxxBinaryComponent", cg.Component
@@ -23,6 +26,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_TOO_COLD): binary_sensor.binary_sensor_schema(
             device_class=DEVICE_CLASS_COLD
         ),
+        cv.Optional(CONF_LENS_BAD): binary_sensor.binary_sensor_schema(
+            device_class=DEVICE_CLASS_PROBLEM,
+        ),
+        cv.Optional(CONF_EM_SAT): binary_sensor.binary_sensor_schema(
+            device_class=DEVICE_CLASS_PROBLEM,
+        ),
     }
 )
 
@@ -31,6 +40,14 @@ async def to_code(config):
     main_sensor = await cg.get_variable(config[CONF_HYDREON_RGXX_ID])
     bin_component = cg.new_Pvariable(config[CONF_ID], main_sensor)
     await cg.register_component(bin_component, config)
-    if CONF_TOO_COLD in config:
-        tc = await binary_sensor.new_binary_sensor(config[CONF_TOO_COLD])
-        cg.add(main_sensor.set_too_cold_sensor(tc))
+
+    mapping = {
+        CONF_TOO_COLD: main_sensor.set_too_cold_sensor,
+        CONF_LENS_BAD: main_sensor.set_lens_bad_sensor,
+        CONF_EM_SAT: main_sensor.set_em_sat_sensor,
+    }
+
+    for key, value in mapping.items():
+        if key in config:
+            sensor = await binary_sensor.new_binary_sensor(config[key])
+            cg.add(value(sensor))
