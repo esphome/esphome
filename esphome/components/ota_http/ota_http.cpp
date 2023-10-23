@@ -36,7 +36,7 @@ std::unique_ptr<ota::OTABackend> make_ota_backend() {
   ESP_LOGE(TAG, "No OTA backend!");
 }
 
-std::unique_ptr<ota::OTABackend> OtaHttpComponent::backend = make_ota_backend();
+const std::unique_ptr<ota::OTABackend> OtaHttpComponent::backend = make_ota_backend();
 
 void OtaHttpComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "OTA_http:");
@@ -44,13 +44,13 @@ void OtaHttpComponent::dump_config() {
 };
 
 void OtaHttpComponent::flash() {
-  unsigned long update_start_time = millis();
+  uint32_t update_start_time = millis();
   const size_t chunk_size = 1024;  // must be =< HTTP_TCP_BUFFER_SIZE;
   uint8_t buf[chunk_size + 1];
   int error_code = 0;
-  unsigned long last_progress = 0;
+  uint32_t last_progress = 0;
   esphome::md5::MD5Digest md5_receive;
-  char *md5_receive_str = new char[33];
+  std::unique_ptr<char[]> md5_receive_str(new char[33]);
 
   if (!this->http_init()) {
     return;
@@ -88,7 +88,7 @@ void OtaHttpComponent::flash() {
       return;
     }
 
-    unsigned long now = millis();
+    uint32_t now = millis();
     if ((now - last_progress > 1000) or (this->bytes_read_ == this->body_length_)) {
       last_progress = now;
       ESP_LOGI(TAG, "Progress: %0.1f%%", this->bytes_read_ * 100. / this->body_length_);
@@ -102,13 +102,11 @@ void OtaHttpComponent::flash() {
 
   // send md5 to backend (backend will check that the flashed one has the same)
   md5_receive.calculate();
-  md5_receive.get_hex(md5_receive_str);
-  ESP_LOGD(TAG, "md5sum recieved: %s (size %d)", md5_receive_str, bytes_read_);
-  esphome::ota_http::OtaHttpComponent::backend->set_update_md5(md5_receive_str);
+  md5_receive.get_hex(md5_receive_str.get());
+  ESP_LOGD(TAG, "md5sum recieved: %s (size %d)", md5_receive_str.get(), bytes_read_);
+  esphome::ota_http::OtaHttpComponent::backend->set_update_md5(md5_receive_str.get());
 
   this->http_end();
-
-  delete[] md5_receive_str;
 
   // feed watchdog and give other tasks a chance to run
   esphome::App.feed_wdt();

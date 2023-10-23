@@ -24,8 +24,8 @@ struct Header {
 
 int OtaHttpArduino::http_init() {
   int http_code;
-  unsigned long start_time;
-  unsigned long duration;
+  uint32_t start_time;
+  uint32_t long duration;
 
   const char *header_keys[] = {"Content-Length", "Content-Type"};
   const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
