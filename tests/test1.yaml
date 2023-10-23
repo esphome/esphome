@@ -2297,6 +2297,9 @@ climate:
     heat_mode: extended
   - platform: whynter
     name: Whynter
+  - platform: gree
+    name: GREE
+    model: generic
   - platform: zhlt01
     name: ZH/LT-01 Climate
 
