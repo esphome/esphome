@@ -54,6 +54,12 @@ void Wireguard::setup() {
     this->wg_peer_offline_time_ = millis();
     this->srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection_, this));
     this->defer(std::bind(&Wireguard::start_connection_, this));  // defer to avoid blocking setup
+
+#ifdef USE_TEXT_SENSOR
+    if (this->address_sensor_ != nullptr) {
+      this->address_sensor_->publish_state(this->address_);
+    }
+#endif
   } else {
     ESP_LOGE(TAG, "cannot initialize WireGuard, error code %d", this->wg_initialized_);
     this->mark_failed();
@@ -184,6 +190,10 @@ void Wireguard::set_status_sensor(binary_sensor::BinarySensor *sensor) { this->s
 
 #ifdef USE_SENSOR
 void Wireguard::set_handshake_sensor(sensor::Sensor *sensor) { this->handshake_sensor_ = sensor; }
+#endif
+
+#ifdef USE_TEXT_SENSOR
+void Wireguard::set_address_sensor(text_sensor::TextSensor *sensor) { this->address_sensor_ = sensor; }
 #endif
 
 void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
