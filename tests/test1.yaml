@@ -3215,6 +3215,10 @@ text_sensor:
           can_id: 23
           data: [0x10, 0x20, 0x30]
       - canbus.send:
+          canbus_id: mcp2515_can
+          can_id: 23
+          data: !lambda return {0x10, 0x20, 0x30};
+      - canbus.send:
           canbus_id: esp32_internal_can
           can_id: 23
           data: [0x10, 0x20, 0x30]
