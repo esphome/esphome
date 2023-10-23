@@ -124,7 +124,7 @@ void OtaHttpComponent::flash() {
 
   delay(10);
   ESP_LOGI(TAG, "OTA update finished! Rebooting...");
-  delay(10);  
+  delay(10);
   esphome::App.safe_reboot();
   // new firmware flashed!
   return;
