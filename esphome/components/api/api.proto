@@ -1540,9 +1540,8 @@ message AlarmControlPanelCommandRequest {
 
 // ===================== TEXT =====================
 enum TextMode {
-  TEXT_MODE_AUTO = 0;
-  TEXT_MODE_TEXT = 1;
-  TEXT_MODE_PASSWORD = 2;
+  TEXT_MODE_TEXT = 0;
+  TEXT_MODE_PASSWORD = 1;
 }
 message ListEntitiesTextResponse {
   option (id) = 97;

@@ -209,9 +209,8 @@ enum AlarmControlPanelStateCommand : uint32_t {
   ALARM_CONTROL_PANEL_TRIGGER = 6,
 };
 enum TextMode : uint32_t {
-  TEXT_MODE_AUTO = 0,
-  TEXT_MODE_TEXT = 1,
-  TEXT_MODE_PASSWORD = 2,
+  TEXT_MODE_TEXT = 0,
+  TEXT_MODE_PASSWORD = 1,
 };
 
 }  // namespace enums

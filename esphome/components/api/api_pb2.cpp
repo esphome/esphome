@@ -515,8 +515,6 @@ const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::Al
 #ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::TextMode>(enums::TextMode value) {
   switch (value) {
-    case enums::TEXT_MODE_AUTO:
-      return "TEXT_MODE_AUTO";
     case enums::TEXT_MODE_TEXT:
       return "TEXT_MODE_TEXT";
     case enums::TEXT_MODE_PASSWORD:
@@ -6893,7 +6891,7 @@ void ListEntitiesTextResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -6910,12 +6908,12 @@ void ListEntitiesTextResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  min_length: ");
-  sprintf(buffer, "%u", this->min_length);
+  sprintf(buffer, "%" PRIu32, this->min_length);
   out.append(buffer);
   out.append("\n");
 
   out.append("  max_length: ");
-  sprintf(buffer, "%u", this->max_length);
+  sprintf(buffer, "%" PRIu32, this->max_length);
   out.append(buffer);
   out.append("\n");
 
@@ -6977,7 +6975,7 @@ void TextStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("TextStateResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -7020,7 +7018,7 @@ void TextCommandRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("TextCommandRequest {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
