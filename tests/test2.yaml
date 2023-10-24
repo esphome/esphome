@@ -767,7 +767,7 @@ font:
   - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
     id: monocraft
     size: 20
-  - file: 
+  - file:
       type: web
       url: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
     id: monocraft2
