@@ -1787,13 +1787,12 @@ class ListEntitiesTextResponse : public ProtoMessage {
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
-  std::string unique_id{};
   std::string icon{};
+  bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
   uint32_t min_length{0};
   uint32_t max_length{0};
   std::string pattern{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
   enums::TextMode mode{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

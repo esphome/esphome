@@ -6809,23 +6809,23 @@ void AlarmControlPanelCommandRequest::dump_to(std::string &out) const {
 #endif
 bool ListEntitiesTextResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
-    case 6: {
-      this->min_length = value.as_uint32();
-      return true;
-    }
-    case 7: {
-      this->max_length = value.as_uint32();
-      return true;
-    }
-    case 9: {
+    case 5: {
       this->disabled_by_default = value.as_bool();
       return true;
     }
-    case 10: {
+    case 6: {
       this->entity_category = value.as_enum<enums::EntityCategory>();
       return true;
     }
-    case 12: {
+    case 7: {
+      this->min_length = value.as_uint32();
+      return true;
+    }
+    case 8: {
+      this->max_length = value.as_uint32();
+      return true;
+    }
+    case 10: {
       this->mode = value.as_enum<enums::TextMode>();
       return true;
     }
@@ -6844,14 +6844,10 @@ bool ListEntitiesTextResponse::decode_length(uint32_t field_id, ProtoLengthDelim
       return true;
     }
     case 4: {
-      this->unique_id = value.as_string();
-      return true;
-    }
-    case 5: {
       this->icon = value.as_string();
       return true;
     }
-    case 8: {
+    case 9: {
       this->pattern = value.as_string();
       return true;
     }
@@ -6873,14 +6869,13 @@ void ListEntitiesTextResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->object_id);
   buffer.encode_fixed32(2, this->key);
   buffer.encode_string(3, this->name);
-  buffer.encode_string(4, this->unique_id);
-  buffer.encode_string(5, this->icon);
-  buffer.encode_uint32(6, this->min_length);
-  buffer.encode_uint32(7, this->max_length);
-  buffer.encode_string(8, this->pattern);
-  buffer.encode_bool(9, this->disabled_by_default);
-  buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
-  buffer.encode_enum<enums::TextMode>(12, this->mode);
+  buffer.encode_string(4, this->icon);
+  buffer.encode_bool(5, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(6, this->entity_category);
+  buffer.encode_uint32(7, this->min_length);
+  buffer.encode_uint32(8, this->max_length);
+  buffer.encode_string(9, this->pattern);
+  buffer.encode_enum<enums::TextMode>(10, this->mode);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesTextResponse::dump_to(std::string &out) const {
@@ -6899,12 +6894,16 @@ void ListEntitiesTextResponse::dump_to(std::string &out) const {
   out.append("'").append(this->name).append("'");
   out.append("\n");
 
-  out.append("  unique_id: ");
-  out.append("'").append(this->unique_id).append("'");
-  out.append("\n");
-
   out.append("  icon: ");
   out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
 
   out.append("  min_length: ");
@@ -6919,14 +6918,6 @@ void ListEntitiesTextResponse::dump_to(std::string &out) const {
 
   out.append("  pattern: ");
   out.append("'").append(this->pattern).append("'");
-  out.append("\n");
-
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
 
   out.append("  mode: ");

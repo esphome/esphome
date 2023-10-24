@@ -1,7 +1,7 @@
 #include "api_connection.h"
 #include <cerrno>
-#include <utility>
 #include <cinttypes>
+#include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
@@ -672,7 +672,6 @@ bool APIConnection::send_text_info(text::Text *text) {
   msg.key = text->get_object_id_hash();
   msg.object_id = text->get_object_id();
   msg.name = text->get_name();
-  msg.unique_id = get_default_unique_id("text", text);
   msg.icon = text->get_icon();
   msg.disabled_by_default = text->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(text->get_entity_category());
