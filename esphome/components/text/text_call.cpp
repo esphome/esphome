@@ -1,6 +1,6 @@
 #include "text_call.h"
-#include "text.h"
 #include "esphome/core/log.h"
+#include "text.h"
 
 namespace esphome {
 namespace text {
@@ -36,10 +36,9 @@ void TextCall::validate_() {
 }
 
 void TextCall::perform() {
-  auto *parent = this->parent_;
-  const auto *name = parent->get_name().c_str();
+  this->validate_();
   if (!this->value_.has_value()) {
-    ESP_LOGW(TAG, "'%s' - No value set for TextCall", name);
+    ESP_LOGW(TAG, "'%s' - No value set for TextCall", this->parent_->get_name().c_str());
     return;
   }
   std::string target_value = this->value_.value();
