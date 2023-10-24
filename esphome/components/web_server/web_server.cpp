@@ -862,7 +862,11 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
     root["min_length"] = obj->traits.get_min_length();
     root["max_length"] = obj->traits.get_max_length();
     root["pattern"] = obj->traits.get_pattern();
-    root["state"] = value;
+    if (obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD) {
+      root["state"] = "********";
+    } else {
+      root["state"] = value;
+    }
     root["value"] = value;
   });
 }

@@ -43,7 +43,12 @@ void TextCall::perform() {
   }
   std::string target_value = this->value_.value();
 
-  ESP_LOGD(TAG, "  New text value: %s", target_value.c_str());
+  if (this->parent_->traits.get_mode() == TEXT_MODE_PASSWORD) {
+    ESP_LOGD(TAG, "'%s' - Setting password value: " LOG_SECRET("'%s'"), this->parent_->get_name().c_str(),
+             target_value.c_str());
+  } else {
+    ESP_LOGD(TAG, "'%s' - Setting text value: %s", this->parent_->get_name().c_str(), target_value.c_str());
+  }
   this->parent_->control(target_value);
 }
 
