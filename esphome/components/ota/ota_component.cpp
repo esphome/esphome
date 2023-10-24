@@ -199,6 +199,9 @@ void OTAComponent::handle_() {
     if (backend->supports_writing_partitions()) {
       buf[2 + (enabled_features++)] = OTA_FEATURE_WRITING_PARTITIONS;
     }
+    if (backend->supports_reading()) {
+      buf[2 + (enabled_features++)] = OTA_FEATURE_READING;
+    }
     // Each enabled feature consumes a byte plus one byte for the length.
     // So the max number of features that can be supported is 255
     buf[1] = enabled_features;
@@ -281,11 +284,11 @@ void OTAComponent::handle_() {
       }
       command = buf[0];
       switch (command) {
-        case OTA_COMMAND_FLASH:
+        case OTA_COMMAND_WRITE:
           error_code = this->get_partition_info_(buf, bin_type, ota_size);
           if (error_code)
             goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-          error_code = this->flash_(buf, backend, bin_type, ota_size);
+          error_code = this->write_flash_(buf, backend, bin_type, ota_size);
           if (error_code)
             goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
           break;
@@ -300,6 +303,14 @@ void OTAComponent::handle_() {
         case OTA_COMMAND_END:
           ESP_LOGI(TAG, "OTA session finished!");
           return;
+        case OTA_COMMAND_READ:
+          error_code = this->get_partition_info_(buf, bin_type, ota_size);
+          if (error_code)
+            goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+          error_code = this->read_flash_(buf, backend, bin_type);
+          if (error_code)
+            goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+          break;
         default:
           ESP_LOGE(TAG, "Reading command failed!");
           error_code = OTA_RESPONSE_ERROR_UNKNOWN_COMMAND;
@@ -319,7 +330,7 @@ void OTAComponent::handle_() {
       ota_size <<= 8;
       ota_size |= buf[i];
     }
-    error_code = this->flash_(buf, backend, bin_type, ota_size);
+    error_code = this->write_flash_(buf, backend, bin_type, ota_size);
     if (error_code)
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
 
@@ -440,7 +451,7 @@ OTAResponseTypes OTAComponent::get_partition_info_(uint8_t *buf, OTAPartitionTyp
   return OTA_RESPONSE_OK;
 }
 
-OTAResponseTypes OTAComponent::flash_(uint8_t *buf, std::unique_ptr<OTABackend> &backend,
+OTAResponseTypes OTAComponent::write_flash(uint8_t *buf, std::unique_ptr<OTABackend> &backend,
                                       const OTAPartitionType &bin_type, size_t ota_size) {
   bool update_started = false;
   size_t total = 0;
@@ -537,6 +548,84 @@ OTAResponseTypes OTAComponent::flash_(uint8_t *buf, std::unique_ptr<OTABackend> 
 
 error:
   if (backend != nullptr && update_started) {
+    backend->abort();
+  }
+  return error_code;
+}
+
+OTAResponseTypes OTAComponent::read_flash(uint8_t *buf, std::unique_ptr<OTABackend> &backend,
+                                      const OTAPartitionType &bin_type) {
+  bool read_started = false;
+  size_t total = 0, ota_size = 0;
+  uint32_t last_progress = 0;
+  char *sbuf = reinterpret_cast<char *>(buf);
+
+  OTAResponseTypes error_code = backend->begin(bin_type, ota_size);
+  if (error_code != OTA_RESPONSE_OK)
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+  read_started = true;
+
+  ESP_LOGI(TAG, "OTA READ type is %u and size is %u bytes", bin_type.type, ota_size);
+
+  // Acknowledge read cmd - 5 bytes
+  buf[0] = OTA_RESPONSE_READ_PREPARE_OK;
+  buf[1] = (ota_size >> 24) & 0xFF;
+  buf[2] = (ota_size >> 16) & 0xFF;
+  buf[3] = (ota_size >> 8) & 0xFF;
+  buf[4] = ota_size & 0xFF;
+  this->writeall_(buf, 5);
+
+  while (total < ota_size) {
+
+    size_t chunk_size = std::min(sizeof(buf), ota_size - total);
+
+    error_code = backend->read(buf, chunk_size);
+    if (error_code != OTA_RESPONSE_OK) {
+      ESP_LOGE(TAG, "Error reading from flash!, error_code: %d", error_code);
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+    this->writeall_(buf, chunk_size);
+    if (error_code != OTA_RESPONSE_OK) {
+      ESP_LOGE(TAG, "Error sending read data!, error_code: %d", error_code);
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+
+    total += chunk_size;
+
+    uint32_t now = millis();
+    if (now - last_progress > 1000) {
+      last_progress = now;
+      float percentage = (total * 100.0f) / ota_size;
+      ESP_LOGD(TAG, "OTA read in progress: %0.1f%%", percentage);
+      // feed watchdog and give other tasks a chance to run
+      App.feed_wdt();
+      yield();
+    }
+  }
+
+  // Read binary MD5, 32 bytes
+  if (!this->readall_(buf, 32)) {
+    ESP_LOGW(TAG, "Reading binary MD5 checksum failed!");
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+  }
+  sbuf[32] = '\0';
+  ESP_LOGV(TAG, "Received: Binary MD5 is %s", sbuf);
+  backend->set_update_md5(sbuf);
+
+  error_code = backend->end();
+  if (error_code != OTA_RESPONSE_OK) {
+    ESP_LOGW(TAG, "Error ending OTA read!, error_code: %d", error_code);
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+  }
+
+  // Acknowledge MD5 OK - 1 byte
+  buf[0] = OTA_RESPONSE_BIN_MD5_OK;
+  this->writeall_(buf, 1);
+
+  return OTA_RESPONSE_OK;
+
+error:
+  if (backend != nullptr && read_started) {
     backend->abort();
   }
   return error_code;

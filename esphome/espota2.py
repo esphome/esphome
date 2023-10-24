@@ -16,12 +16,14 @@ UPLOAD_TYPE_BOOTLOADER = 2
 UPLOAD_TYPE_PARTITION_TABLE = 3
 UPLOAD_TYPE_PARTITION = 4
 
-COMMAND_FLASH = 1
+COMMAND_WRITE = 1
 COMMAND_REBOOT = 2
 COMMAND_END = 3
+COMMAND_READ = 4
 
 RESPONSE_OK = 0
 RESPONSE_REQUEST_AUTH = 1
+RESPONSE_REQUEST_MD5 = 2
 
 RESPONSE_HEADER_OK = 64
 RESPONSE_AUTH_OK = 65
@@ -31,6 +33,8 @@ RESPONSE_RECEIVE_OK = 68
 RESPONSE_UPDATE_END_OK = 69
 RESPONSE_SUPPORTS_COMPRESSION = 70
 RESPONSE_SUPPORTS_EXTENDED = 71
+RESPONSE_READ_PREPARE_OK = (72,)
+RESPONSE_READ_END_OK = (73,)
 
 RESPONSE_ERROR_MAGIC = 128
 RESPONSE_ERROR_UPDATE_PREPARE = 129
@@ -64,6 +68,7 @@ FEATURE_SUPPORTS_COMPRESSION = 0x01
 FEATURE_SUPPORTS_WRITING_BOOTLOADER = 0x02
 FEATURE_SUPPORTS_WRITING_PARTITION_TABLE = 0x03
 FEATURE_SUPPORTS_WRITING_PARTITIONS = 0x04
+FEATURE_SUPPORTS_READING = 0x05
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -83,8 +88,9 @@ class OTAPartitionType:
 
 
 class ProgressBar:
-    def __init__(self):
+    def __init__(self, prefix="Uploading"):
         self.last_progress = None
+        self.prefix = prefix
 
     def update(self, progress):
         bar_length = 60
@@ -97,7 +103,7 @@ class ProgressBar:
             return
         self.last_progress = new_progress
         block = int(round(bar_length * progress))
-        text = f"\rUploading: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
+        text = f"\r{self.prefix}: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
         sys.stderr.write(text)
         sys.stderr.flush()
 
@@ -261,11 +267,7 @@ def send_check(sock, data, msg):
         raise OTAError(f"Error sending {msg}: {err}") from err
 
 
-def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot):
-    file_contents = file_handle.read()
-    file_size = len(file_contents)
-    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
-
+def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot, is_upload):
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     send_check(sock, MAGIC_BYTES, "magic bytes")
@@ -299,31 +301,30 @@ def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot):
             )
     _LOGGER.debug("Features: %s", features)
 
-    if FEATURE_SUPPORTS_COMPRESSION in features:
-        upload_contents = gzip.compress(file_contents, compresslevel=9)
-        _LOGGER.info("Compressed to %s bytes", len(upload_contents))
-    else:
-        upload_contents = file_contents
-
     if (bin_type.type == UPLOAD_TYPE_BOOTLOADER) and (
         FEATURE_SUPPORTS_WRITING_BOOTLOADER not in features
     ):
         raise OTAError(
-            "Uploading bootloader is not supported by remote device - upgrade the firmware first!"
+            "Transfering bootloader is not supported by remote device - upgrade the firmware first!"
         )
 
     if (bin_type.type == UPLOAD_TYPE_PARTITION_TABLE) and (
         FEATURE_SUPPORTS_WRITING_PARTITION_TABLE not in features
     ):
         raise OTAError(
-            "Uploading partition table is not supported by remote device - upgrade the firmware first!"
+            "Transfering partition table is not supported by remote device - upgrade the firmware first!"
         )
 
     if (bin_type.type == UPLOAD_TYPE_PARTITION) and (
         FEATURE_SUPPORTS_WRITING_PARTITIONS not in features
     ):
         raise OTAError(
-            "Uploading partition is not supported by remote device - upgrade the firmware first!"
+            "Transfering partition is not supported by remote device - upgrade the firmware first!"
+        )
+
+    if (not is_upload) and (FEATURE_SUPPORTS_READING not in features):
+        raise OTAError(
+            "Reading firmware is not supported by remote device - upgrade the firmware first!"
         )
 
     (auth,) = receive_exactly(
@@ -351,9 +352,26 @@ def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot):
         send_check(sock, result, "auth result")
         receive_exactly(sock, 1, "auth result", RESPONSE_AUTH_OK)
 
-    upload_size = len(upload_contents)
+    if is_upload:
+        file_contents = file_handle.read()
+        file_size = len(file_contents)
+        _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
+
+        if FEATURE_SUPPORTS_COMPRESSION in features:
+            transfer_contents = gzip.compress(file_contents, compresslevel=9)
+            _LOGGER.info("Compressed to %s bytes", len(transfer_contents))
+        else:
+            transfer_contents = file_contents
+
+        upload_size = len(transfer_contents)
+
+        send_check(sock, struct.pack("!B", COMMAND_WRITE), "write command")
+    else:
+        # Read
+        upload_size = 0
+        send_check(sock, struct.pack("!B", COMMAND_READ), "read command")
+
     if features_reply == RESPONSE_SUPPORTS_EXTENDED:
-        send_check(sock, struct.pack("!B", 1), "flash command")
         # Send partition info
         # - [ 0   ] version: 0x1
         # - [ 1   ] bin type (if version >= 1)
@@ -387,13 +405,22 @@ def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot):
             )
         upload_size_encoded = struct.pack("!L", upload_size)
         send_check(sock, upload_size_encoded, "binary size")
-    receive_exactly(sock, 1, "binary size", RESPONSE_UPDATE_PREPARE_OK)
+    if is_upload:
+        receive_exactly(sock, 1, "binary size", RESPONSE_UPDATE_PREPARE_OK)
 
-    upload_md5 = hashlib.md5(upload_contents).hexdigest()
-    _LOGGER.debug("MD5 of upload is %s", upload_md5)
+        upload_md5 = hashlib.md5(transfer_contents).hexdigest()
+        _LOGGER.debug("MD5 of upload is %s", upload_md5)
 
-    send_check(sock, upload_md5, "file checksum")
-    receive_exactly(sock, 1, "file checksum", RESPONSE_BIN_MD5_OK)
+        send_check(sock, upload_md5, "file checksum")
+        receive_exactly(sock, 1, "file checksum", RESPONSE_BIN_MD5_OK)
+    else:
+        # Read
+        read_prep_response = receive_exactly(
+            sock, 5, "file size for read", RESPONSE_READ_PREPARE_OK
+        )
+
+        file_size = struct.unpack("!BL", bytes(read_prep_response))[1]
+        _LOGGER.info("Downloading %s (%s bytes)", filename, file_size)
 
     # Disable nodelay for transfer
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
@@ -404,20 +431,32 @@ def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot):
     sock.settimeout(20.0)
 
     offset = 0
-    progress = ProgressBar()
+    progress = ProgressBar("Uploading" if is_upload else "Downloading")
     while True:
-        chunk = upload_contents[offset : offset + 1024]
+        if is_upload:
+            chunk = transfer_contents[offset : offset + 1024]
+        else:
+            chunk_size = min(1024, file_size - offset)
+            chunk = (
+                receive_exactly(sock, chunk_size, "receive firmware chunk", None)
+                if chunk_size > 0
+                else None
+            )
+
         if not chunk:
             break
         offset += len(chunk)
 
-        try:
-            sock.sendall(chunk)
-        except OSError as err:
-            sys.stderr.write("\n")
-            raise OTAError(f"Error sending data: {err}") from err
+        if is_upload:
+            try:
+                sock.sendall(chunk)
+            except OSError as err:
+                sys.stderr.write("\n")
+                raise OTAError(f"Error sending data: {err}") from err
+        else:
+            file_handle.write(bytes(chunk))
 
-        progress.update(offset / upload_size)
+        progress.update(offset / file_size)
     progress.done()
 
     # Enable nodelay for last checks
@@ -425,8 +464,19 @@ def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot):
 
     _LOGGER.info("Waiting for result...")
 
-    receive_exactly(sock, 1, "receive OK", RESPONSE_RECEIVE_OK)
-    receive_exactly(sock, 1, "Update end", RESPONSE_UPDATE_END_OK)
+    if is_upload:
+        receive_exactly(sock, 1, "receive OK", RESPONSE_RECEIVE_OK)
+        receive_exactly(sock, 1, "Update end", RESPONSE_UPDATE_END_OK)
+    else:
+        # End Read
+
+        file_handle.seek(0)
+        download_md5 = hashlib.md5(file_handle.read()).hexdigest()
+        _LOGGER.debug("MD5 of upload is %s", download_md5)
+
+        send_check(sock, download_md5, "file checksum")
+        receive_exactly(sock, 1, "file checksum", RESPONSE_BIN_MD5_OK)
+
     if no_reboot:
         send_check(sock, COMMAND_END, "end without reboot")
     else:
@@ -438,7 +488,9 @@ def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot):
     time.sleep(1)
 
 
-def run_ota_impl_(remote_host, remote_port, password, bin_type, filename, no_reboot):
+def run_ota_impl_(
+    remote_host, remote_port, password, bin_type, filename, no_reboot, is_upload
+):
     if is_ip_address(remote_host):
         _LOGGER.info("Connecting to %s", remote_host)
         ip = remote_host
@@ -467,9 +519,12 @@ def run_ota_impl_(remote_host, remote_port, password, bin_type, filename, no_reb
         _LOGGER.error("Connecting to %s:%s failed: %s", remote_host, remote_port, err)
         return 1
 
-    with open(filename, "rb") as file_handle:
+    open_mode = "rb" if is_upload else "wb+"
+    with open(filename, open_mode) as file_handle:
         try:
-            perform_ota(sock, password, file_handle, bin_type, filename, no_reboot)
+            perform_ota(
+                sock, password, file_handle, bin_type, filename, no_reboot, is_upload
+            )
         except OTAError as err:
             _LOGGER.error(str(err))
             return 1
@@ -482,7 +537,17 @@ def run_ota_impl_(remote_host, remote_port, password, bin_type, filename, no_reb
 def run_ota(remote_host, remote_port, password, bin_type, filename, no_reboot):
     try:
         return run_ota_impl_(
-            remote_host, remote_port, password, bin_type, filename, no_reboot
+            remote_host, remote_port, password, bin_type, filename, no_reboot, True
+        )
+    except OTAError as err:
+        _LOGGER.error(err)
+        return 1
+
+
+def download_ota(remote_host, remote_port, password, bin_type, filename):
+    try:
+        return run_ota_impl_(
+            remote_host, remote_port, password, bin_type, filename, True, False
         )
     except OTAError as err:
         _LOGGER.error(err)

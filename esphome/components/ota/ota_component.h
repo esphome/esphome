@@ -15,12 +15,14 @@ enum OTAFeatureTypes {
   OTA_FEATURE_WRITING_BOOTLOADER = 2,
   OTA_FEATURE_WRITING_PARTITION_TABLE = 3,
   OTA_FEATURE_WRITING_PARTITIONS = 4,
+  OTA_FEATURE_READING = 5,
 };
 
 enum OTACommands {
-  OTA_COMMAND_FLASH = 1,
+  OTA_COMMAND_WRITE = 1,
   OTA_COMMAND_REBOOT = 2,
   OTA_COMMAND_END = 3,
+  OTA_COMMAND_READ = 4,
 };
 
 enum OTAState { OTA_COMPLETED = 0, OTA_STARTED, OTA_IN_PROGRESS, OTA_ERROR };
@@ -68,8 +70,9 @@ class OTAComponent : public Component {
   bool writeall_(const uint8_t *buf, size_t len);
 
   OTAResponseTypes get_partition_info_(uint8_t *buf, OTAPartitionType &bin_type, size_t &ota_size);
-  OTAResponseTypes flash_(uint8_t *buf, std::unique_ptr<OTABackend> &backend, const OTAPartitionType &bin_type,
+  OTAResponseTypes write_flash_(uint8_t *buf, std::unique_ptr<OTABackend> &backend, const OTAPartitionType &bin_type,
                           size_t ota_size);
+  OTAResponseTypes read_flash_(uint8_t *buf, std::unique_ptr<OTABackend> &backend, const OTAPartitionType &bin_type);
 
 #ifdef USE_OTA_PASSWORD
   std::string password_;

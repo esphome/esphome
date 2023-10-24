@@ -27,8 +27,9 @@ static const char *const TAG = "ota";
 static uint32_t running_partition_start = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static uint32_t running_partition_size = 0;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t image_size) {
+OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t &image_size) {
   esp_err_t err;
+  this->is_upload_ = (image_size == 0);
   this->bin_type_ = bin_type;
 
   // On first usage, query our running area so we never overwrite it
@@ -104,7 +105,8 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t image_si
   size_t erase_size = this->partition_->size;
 #endif
   size_t image_erase_size = (1 + ((image_size - 1) / erase_size)) * erase_size;
-  if (this->partition_->address + image_erase_size > running_partition_start &&
+  if (this->is_upload_ &&
+      this->partition_->address + image_erase_size > running_partition_start &&
       this->partition_->address < running_partition_start + running_partition_size) {
     ESP_LOGE(TAG, "Aborting to avoid overriding running partition");
     ESP_LOGE(TAG, "New partition - addr: 0x%06x; size: 0x%06x", (unsigned int) this->partition_->address,
@@ -134,23 +136,29 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t image_si
 #endif
 #endif
 
-  switch (this->bin_type_.type) {
-    case OTA_BIN_APP:
-      err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
-      break;
-#ifdef USE_UNPROTECTED_WRITES
-    case OTA_BIN_BOOTLOADER:
-    case OTA_FEATURE_WRITING_PARTITION_TABLE:
-    case OTA_BIN_PARTITION:
-      if (image_erase_size > this->partition_->size) {
-        err = ESP_ERR_INVALID_SIZE;
-      } else {
-        err = esp_partition_erase_range(this->partition_, 0, image_erase_size);
-      }
-      break;
-#endif
-    default:
-      return OTA_RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED;  // This should never happen (checked before)
+  if (this->is_upload_) {
+    // Read operation
+    image_size = this->partition_->size;
+  } else {
+    // Write operation
+    switch (this->bin_type_.type) {
+      case OTA_BIN_APP:
+        err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
+        break;
+  #ifdef USE_UNPROTECTED_WRITES
+      case OTA_BIN_BOOTLOADER:
+      case OTA_FEATURE_WRITING_PARTITION_TABLE:
+      case OTA_BIN_PARTITION:
+        if (image_erase_size > this->partition_->size) {
+          err = ESP_ERR_INVALID_SIZE;
+        } else {
+          err = esp_partition_erase_range(this->partition_, 0, image_erase_size);
+        }
+        break;
+  #endif
+      default:
+        return OTA_RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED;  // This should never happen (checked before)
+    }
   }
 
 #if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
@@ -173,7 +181,7 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t image_si
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
   this->md5_.init();
-  this->data_written_ = 0;
+  this->data_transfered_ = 0;
   return OTA_RESPONSE_OK;
 }
 
@@ -189,19 +197,44 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
     case OTA_BIN_BOOTLOADER:
     case OTA_FEATURE_WRITING_PARTITION_TABLE:
     case OTA_BIN_PARTITION:
-      err = esp_partition_write(this->partition_, this->data_written_, data, len);
+      err = esp_partition_write(this->partition_, this->data_transfered_, data, len);
       break;
 #endif
     default:
       return OTA_RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED;  // This should never happen (checked before)
   }
   this->md5_.add(data, len);
-  this->data_written_ += len;
+  this->data_transfered_ += len;
   if (err != ESP_OK) {
     if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
       return OTA_RESPONSE_ERROR_MAGIC;
     } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
       return OTA_RESPONSE_ERROR_WRITING_FLASH;
+    }
+    return OTA_RESPONSE_ERROR_UNKNOWN;
+  }
+  return OTA_RESPONSE_OK;
+}
+
+OTAResponseTypes IDFOTABackend::read(uint8_t *data, size_t len) {
+  esp_err_t err;
+  switch (this->bin_type_.type) {
+    case OTA_BIN_APP:
+    case OTA_BIN_BOOTLOADER:
+    case OTA_FEATURE_WRITING_PARTITION_TABLE:
+    case OTA_BIN_PARTITION:
+      err = esp_partition_read(this->partition_, this->data_transfered_, data, len);
+      break;
+    default:
+      return OTA_RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED;  // This should never happen (checked before)
+  }
+  this->md5_.add(data, len);
+  this->data_transfered_ += len;
+  if (err != ESP_OK) {
+    if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+      return OTA_RESPONSE_ERROR_MAGIC;
+    } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
+      return OTA_RESPONSE_ERROR_READING_FLASH;
     }
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
@@ -217,9 +250,11 @@ OTAResponseTypes IDFOTABackend::end() {
   this->deregister_partitions_();
   esp_err_t err = ESP_OK;
   if ((err == ESP_OK) && (this->bin_type_.type == OTA_BIN_APP)) {
-    esp_ota_end(this->update_handle_);
+    if (this->is_upload_) {
+      esp_ota_end(this->update_handle_);
+      err = esp_ota_set_boot_partition(this->partition_);
+    }
     this->update_handle_ = 0;
-    err = esp_ota_set_boot_partition(this->partition_);
   }
   if (err == ESP_OK) {
     return OTA_RESPONSE_OK;
@@ -234,7 +269,9 @@ OTAResponseTypes IDFOTABackend::end() {
 }
 
 void IDFOTABackend::abort() {
-  esp_ota_abort(this->update_handle_);
+  if (this->is_upload_) {
+    esp_ota_abort(this->update_handle_);
+  }
   this->update_handle_ = 0;
   this->deregister_partitions_();
 }
