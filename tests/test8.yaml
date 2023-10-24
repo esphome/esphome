@@ -65,7 +65,9 @@ i2c:
 
 touchscreen:
   - platform: tt21100
-    interrupt_pin: GPIO3
+    interrupt_pin:
+      number: GPIO3
+      ignore_strapping_warning: true
     reset_pin: GPIO48
 
 binary_sensor:

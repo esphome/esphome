@@ -372,19 +372,14 @@ def coolix_binary_sensor(var, config):
     if isinstance(config, dict):
         cg.add(
             var.set_data(
-                cg.StructInitializer(
-                    CoolixData,
-                    ("first", config[CONF_FIRST]),
-                    ("second", config[CONF_SECOND]),
+                cg.ArrayInitializer(
+                    config[CONF_FIRST],
+                    config[CONF_SECOND],
                 )
             )
         )
     else:
-        cg.add(
-            var.set_data(
-                cg.StructInitializer(CoolixData, ("first", 0), ("second", config))
-            )
-        )
+        cg.add(var.set_data(cg.ArrayInitializer(0, config)))
 
 
 @register_action("coolix", CoolixAction, COOLIX_BASE_SCHEMA)
@@ -969,7 +964,7 @@ RC_SWITCH_PROTOCOL_SCHEMA = cv.Any(
 
 
 def validate_rc_switch_code(value):
-    if not isinstance(value, (str, str)):
+    if not isinstance(value, str):
         raise cv.Invalid("All RCSwitch codes must be in quotes ('')")
     for c in value:
         if c not in ("0", "1"):
@@ -986,7 +981,7 @@ def validate_rc_switch_code(value):
 
 
 def validate_rc_switch_raw_code(value):
-    if not isinstance(value, (str, str)):
+    if not isinstance(value, str):
         raise cv.Invalid("All RCSwitch raw codes must be in quotes ('')")
     for c in value:
         if c not in ("0", "1", "x"):

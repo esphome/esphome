@@ -3,8 +3,21 @@
 
 #ifdef USE_ESP_IDF
 #include <driver/uart.h>
+
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32H2)
+#include <driver/usb_serial_jtag.h>
+#include <esp_vfs_dev.h>
+#include <esp_vfs_usb_serial_jtag.h>
+#endif
+
 #include "freertos/FreeRTOS.h"
 #include "esp_idf_version.h"
+
+#include <cstdint>
+#include <cstdio>
+#include <fcntl.h>
+
 #endif  // USE_ESP_IDF
 
 #if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
@@ -93,6 +106,58 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
 }
 #endif
 
+#ifdef USE_ESP_IDF
+void Logger::init_uart_() {
+  uart_config_t uart_config{};
+  uart_config.baud_rate = (int) baud_rate_;
+  uart_config.data_bits = UART_DATA_8_BITS;
+  uart_config.parity = UART_PARITY_DISABLE;
+  uart_config.stop_bits = UART_STOP_BITS_1;
+  uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+  uart_config.source_clk = UART_SCLK_DEFAULT;
+#endif
+  uart_param_config(this->uart_num_, &uart_config);
+  const int uart_buffer_size = tx_buffer_size_;
+  // Install UART driver using an event queue here
+  uart_driver_install(this->uart_num_, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
+}
+
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+void Logger::init_usb_cdc_() {}
+#endif
+
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32H2)
+void Logger::init_usb_serial_jtag_() {
+  setvbuf(stdin, NULL, _IONBF, 0);  // Disable buffering on stdin
+
+  // Minicom, screen, idf_monitor send CR when ENTER key is pressed
+  esp_vfs_dev_usb_serial_jtag_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
+  // Move the caret to the beginning of the next line on '\n'
+  esp_vfs_dev_usb_serial_jtag_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+
+  // Enable non-blocking mode on stdin and stdout
+  fcntl(fileno(stdout), F_SETFL, 0);
+  fcntl(fileno(stdin), F_SETFL, 0);
+
+  usb_serial_jtag_driver_config_t usb_serial_jtag_config{};
+  usb_serial_jtag_config.rx_buffer_size = 512;
+  usb_serial_jtag_config.tx_buffer_size = 512;
+
+  esp_err_t ret = ESP_OK;
+  // Install USB-SERIAL-JTAG driver for interrupt-driven reads and writes
+  ret = usb_serial_jtag_driver_install(&usb_serial_jtag_config);
+  if (ret != ESP_OK) {
+    return;
+  }
+
+  // Tell vfs to use usb-serial-jtag driver
+  esp_vfs_usb_serial_jtag_use_driver();
+}
+#endif
+#endif
+
 int HOT Logger::level_for(const char *tag) {
   // Uses std::vector<> for low memory footprint, though the vector
   // could be sorted to minimize lookup times. This feature isn't used that
@@ -120,19 +185,19 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
 #ifdef USE_ESP_IDF
     if (
 #if defined(USE_ESP32_VARIANT_ESP32S2)
-        uart_ == UART_SELECTION_USB_CDC
+        this->uart_ == UART_SELECTION_USB_CDC
 #elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
-        uart_ == UART_SELECTION_USB_SERIAL_JTAG
+        this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
 #elif defined(USE_ESP32_VARIANT_ESP32S3)
-        uart_ == UART_SELECTION_USB_CDC || uart_ == UART_SELECTION_USB_SERIAL_JTAG
+        this->uart_ == UART_SELECTION_USB_CDC || this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
 #else
         /* DISABLES CODE */ (false)  // NOLINT
 #endif
     ) {
       puts(msg);
     } else {
-      uart_write_bytes(uart_num_, msg, strlen(msg));
-      uart_write_bytes(uart_num_, "\n", 1);
+      uart_write_bytes(this->uart_num_, msg, strlen(msg));
+      uart_write_bytes(this->uart_num_, "\n", 1);
     }
 #endif
   }
@@ -209,48 +274,38 @@ void Logger::pre_setup() {
     }
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
-    uart_num_ = UART_NUM_0;
-    switch (uart_) {
+    this->uart_num_ = UART_NUM_0;
+    switch (this->uart_) {
       case UART_SELECTION_UART0:
-        uart_num_ = UART_NUM_0;
+        this->uart_num_ = UART_NUM_0;
         break;
       case UART_SELECTION_UART1:
-        uart_num_ = UART_NUM_1;
+        this->uart_num_ = UART_NUM_1;
         break;
 #if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
     !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3) && !defined(USE_ESP32_VARIANT_ESP32H2)
       case UART_SELECTION_UART2:
-        uart_num_ = UART_NUM_2;
+        this->uart_num_ = UART_NUM_2;
         break;
 #endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32S2 && !USE_ESP32_VARIANT_ESP32S3 &&
         // !USE_ESP32_VARIANT_ESP32H2
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_USB_CDC:
-        uart_num_ = -1;
+        this->uart_num_ = -1;
+        this->init_usb_cdc_();
         break;
 #endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32H2)
       case UART_SELECTION_USB_SERIAL_JTAG:
-        uart_num_ = -1;
+        this->uart_num_ = -1;
+        this->init_usb_serial_jtag_();
         break;
 #endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C6 || USE_ESP32_VARIANT_ESP32S3 ||
         // USE_ESP32_VARIANT_ESP32H2
     }
-    if (uart_num_ >= 0) {
-      uart_config_t uart_config{};
-      uart_config.baud_rate = (int) baud_rate_;
-      uart_config.data_bits = UART_DATA_8_BITS;
-      uart_config.parity = UART_PARITY_DISABLE;
-      uart_config.stop_bits = UART_STOP_BITS_1;
-      uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-      uart_config.source_clk = UART_SCLK_DEFAULT;
-#endif
-      uart_param_config(uart_num_, &uart_config);
-      const int uart_buffer_size = tx_buffer_size_;
-      // Install UART driver using an event queue here
-      uart_driver_install(uart_num_, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
+    if (this->uart_num_ >= 0) {
+      this->init_uart_();
     }
 #endif  // USE_ESP_IDF
   }
