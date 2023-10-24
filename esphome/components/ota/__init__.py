@@ -41,7 +41,14 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(OTAComponent),
         cv.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
-        cv.SplitDefault(CONF_PORT, esp8266=8266, esp32=3232, rp2040=2040): cv.port,
+        cv.SplitDefault(
+            CONF_PORT,
+            esp8266=8266,
+            esp32=3232,
+            rp2040=2040,
+            bk72xx=8892,
+            rtl87xx=8892,
+        ): cv.port,
         cv.Optional(CONF_PASSWORD): cv.string,
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="5min"
@@ -121,7 +128,7 @@ async def to_code(config):
         use_state_callback = True
     for conf in config.get(CONF_ON_ERROR, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(int, "x")], conf)
+        await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
         use_state_callback = True
     if use_state_callback:
         cg.add_define("USE_OTA_STATE_CALLBACK")
