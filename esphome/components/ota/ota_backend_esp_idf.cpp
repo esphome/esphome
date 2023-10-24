@@ -57,7 +57,7 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t &image_s
         return OTA_RESPONSE_ERROR_ESP32_REGISTERING_PARTITION;
       }
       break;
-    case OTA_FEATURE_WRITING_PARTITION_TABLE:
+    case OTA_BIN_PARTITION_TABLE:
       err =
           esp_partition_register_external(esp_flash_default_chip, ESP_PARTITION_TABLE_OFFSET, 0x1000, "part-table",
                                           (esp_partition_type_t) 0x42, (esp_partition_subtype_t) 1, &this->partition_);
@@ -146,7 +146,7 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t &image_s
         break;
 #ifdef USE_UNPROTECTED_WRITES
       case OTA_BIN_BOOTLOADER:
-      case OTA_FEATURE_WRITING_PARTITION_TABLE:
+      case OTA_BIN_PARTITION_TABLE:
       case OTA_BIN_PARTITION:
         if (image_erase_size > this->partition_->size) {
           err = ESP_ERR_INVALID_SIZE;
@@ -194,7 +194,7 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
       break;
 #ifdef USE_UNPROTECTED_WRITES
     case OTA_BIN_BOOTLOADER:
-    case OTA_FEATURE_WRITING_PARTITION_TABLE:
+    case OTA_BIN_PARTITION_TABLE:
     case OTA_BIN_PARTITION:
       err = esp_partition_write(this->partition_, this->data_transfered_, data, len);
       break;
@@ -220,7 +220,7 @@ OTAResponseTypes IDFOTABackend::read(uint8_t *data, size_t len) {
   switch (this->bin_type_.type) {
     case OTA_BIN_APP:
     case OTA_BIN_BOOTLOADER:
-    case OTA_FEATURE_WRITING_PARTITION_TABLE:
+    case OTA_BIN_PARTITION_TABLE:
     case OTA_BIN_PARTITION:
       err = esp_partition_read(this->partition_, this->data_transfered_, data, len);
       break;
@@ -296,7 +296,7 @@ void IDFOTABackend::deregister_partitions_() {
   switch (this->bin_type_.type) {
 #ifdef USE_UNPROTECTED_WRITES
     case OTA_BIN_BOOTLOADER:
-    case OTA_FEATURE_WRITING_PARTITION_TABLE: {
+    case OTA_BIN_PARTITION_TABLE: {
       esp_err_t err = esp_partition_deregister_external(this->partition_);
       if (err != ESP_OK) {
         ESP_LOGW(TAG, "Error deregistering partition. Error: 0x%x Pointer: 0x%06X", err,
