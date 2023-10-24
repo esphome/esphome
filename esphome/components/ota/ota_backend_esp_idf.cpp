@@ -1,6 +1,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include <esp_task_wdt.h>
 

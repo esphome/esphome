@@ -1,6 +1,5 @@
 #include "ota_component.h"
 #include "ota_backend.h"
-#include "ota_backend_arduino_esp32.h"
 #include "ota_backend_arduino_esp8266.h"
 #include "ota_backend_arduino_rp2040.h"
 #include "ota_backend_arduino_libretiny.h"
@@ -30,11 +29,8 @@ std::unique_ptr<OTABackend> make_ota_backend() {
 #ifdef USE_ESP8266
   return make_unique<ArduinoESP8266OTABackend>();
 #endif  // USE_ESP8266
-#ifdef USE_ESP32
-  return make_unique<ArduinoESP32OTABackend>();
-#endif  // USE_ESP32
 #endif  // USE_ARDUINO
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   return make_unique<IDFOTABackend>();
 #endif  // USE_ESP_IDF
 #ifdef USE_RP2040

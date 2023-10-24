@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "ota_component.h"
 #include "ota_backend.h"

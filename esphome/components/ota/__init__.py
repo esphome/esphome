@@ -41,10 +41,6 @@ OTAErrorTrigger = ota_ns.class_("OTAErrorTrigger", automation.Trigger.template()
 def validate_config(config):
     if config[CONF_UNPROTECTED_WRITES] and not CORE.is_esp32:
         raise cv.Invalid(f"{CONF_UNPROTECTED_WRITES} is only supported on the esp32")
-    if config[CONF_UNPROTECTED_WRITES] and not CORE.using_esp_idf:
-        raise cv.Invalid(
-            f"{CONF_UNPROTECTED_WRITES} is only supported by the IDF framework"
-        )
 
     return config
 
@@ -123,9 +119,6 @@ async def to_code(config):
         )
         cg.add(RawExpression(f"if ({condition}) return"))
         CORE.data[CONF_OTA][KEY_PAST_SAFE_MODE] = True
-
-    if CORE.is_esp32 and CORE.using_arduino:
-        cg.add_library("Update", None)
 
     if CORE.is_rp2040 and CORE.using_arduino:
         cg.add_library("Updater", None)
