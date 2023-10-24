@@ -58,7 +58,7 @@ class EthernetComponent : public Component {
   void set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_clock_gpio_t clk_gpio);
   void set_manual_ip(const ManualIP &manual_ip);
 
-  network::IPAddresses get_ip_address();
+  network::IPAddresses get_ip_addresses();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
   bool powerdown();

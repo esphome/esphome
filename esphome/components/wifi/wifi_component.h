@@ -251,7 +251,7 @@ class WiFiComponent : public Component {
 #endif
 
   network::IPAddress get_dns_address(int num);
-  network::IPAddresses get_ip_address();
+  network::IPAddresses get_ip_addresses();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
 

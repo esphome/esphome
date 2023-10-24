@@ -13,7 +13,7 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
  public:
   void update() override {
     std::string address_results;
-    auto ips = ethernet::global_eth_component->get_ip_address();
+    auto ips = ethernet::global_eth_component->get_ip_addresses();
     if (ips != this->last_ips_) {
       this->last_ips_ = ips;
       for (auto &ip : ips) {

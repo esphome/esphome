@@ -10,7 +10,7 @@ namespace network {
 bool is_connected();
 /// Get the active network hostname
 std::string get_use_address();
-IPAddresses get_ip_address();
+IPAddresses get_ip_addresses();
 
 }  // namespace network
 }  // namespace esphome

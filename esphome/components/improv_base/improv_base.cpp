@@ -21,7 +21,7 @@ std::string ImprovBase::get_formatted_next_url_() {
   // Ip address
   pos = this->next_url_.find("{{ip_address}}");
   if (pos != std::string::npos) {
-    for (auto &ip : network::get_ip_address()) {
+    for (auto &ip : network::get_ip_addresses()) {
       if (ip.is_ip4()) {
         std::string ipa = ip.str();
         copy.replace(pos, 14, ipa);

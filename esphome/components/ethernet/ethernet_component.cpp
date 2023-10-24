@@ -219,7 +219,7 @@ float EthernetComponent::get_setup_priority() const { return setup_priority::WIF
 
 bool EthernetComponent::can_proceed() { return this->is_connected(); }
 
-network::IPAddresses EthernetComponent::get_ip_address() {
+network::IPAddresses EthernetComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(this->eth_netif_, &ip);

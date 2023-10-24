@@ -92,7 +92,7 @@ void MQTTClientComponent::send_device_info_() {
       topic,
       [](JsonObject root) {
         uint8_t index = 0;
-        for (auto &ip : network::get_ip_address()) {
+        for (auto &ip : network::get_ip_addresses()) {
           if (ip.is_set()) {
             root["ip" + (index == 0 ? "" : esphome::to_string(index))] = ip.str();
             index++;
