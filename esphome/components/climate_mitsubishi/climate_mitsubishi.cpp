@@ -778,7 +778,7 @@ void ClimateMitsubishiVerticalAirflowSelect::control(const std::string &value) {
 }
 
 void ClimateMitsubishiHorizontalAirflowSelect::control(const std::string &value) {
-  this->climate_->set_vertical_airflow_direction(value);
+  this->climate_->set_horizontal_airflow_direction(value);
 }
 
 void ClimateMitsubishiInjectEnableSwitch::set_climate(ClimateMitsubishi *climate) { this->climate_ = climate; }
