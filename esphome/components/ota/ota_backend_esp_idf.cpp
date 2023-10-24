@@ -105,8 +105,7 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t &image_s
   size_t erase_size = this->partition_->size;
 #endif
   size_t image_erase_size = (1 + ((image_size - 1) / erase_size)) * erase_size;
-  if (this->is_upload_ &&
-      this->partition_->address + image_erase_size > running_partition_start &&
+  if (this->is_upload_ && this->partition_->address + image_erase_size > running_partition_start &&
       this->partition_->address < running_partition_start + running_partition_size) {
     ESP_LOGE(TAG, "Aborting to avoid overriding running partition");
     ESP_LOGE(TAG, "New partition - addr: 0x%06x; size: 0x%06x", (unsigned int) this->partition_->address,
@@ -145,7 +144,7 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t &image_s
       case OTA_BIN_APP:
         err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
         break;
-  #ifdef USE_UNPROTECTED_WRITES
+#ifdef USE_UNPROTECTED_WRITES
       case OTA_BIN_BOOTLOADER:
       case OTA_FEATURE_WRITING_PARTITION_TABLE:
       case OTA_BIN_PARTITION:
@@ -155,14 +154,14 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t &image_s
           err = esp_partition_erase_range(this->partition_, 0, image_erase_size);
         }
         break;
-  #endif
+#endif
       default:
         return OTA_RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED;  // This should never happen (checked before)
     }
   }
 
 #if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-    // Set the WDT back to the configured timeout
+  // Set the WDT back to the configured timeout
 #if ESP_IDF_VERSION_MAJOR >= 5
   wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
   esp_task_wdt_reconfigure(&wdtc);

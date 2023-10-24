@@ -452,7 +452,7 @@ OTAResponseTypes OTAComponent::get_partition_info_(uint8_t *buf, OTAPartitionTyp
 }
 
 OTAResponseTypes OTAComponent::write_flash(uint8_t *buf, std::unique_ptr<OTABackend> &backend,
-                                      const OTAPartitionType &bin_type, size_t ota_size) {
+                                           const OTAPartitionType &bin_type, size_t ota_size) {
   bool update_started = false;
   size_t total = 0;
   uint32_t last_progress = 0;
@@ -554,7 +554,7 @@ error:
 }
 
 OTAResponseTypes OTAComponent::read_flash(uint8_t *buf, std::unique_ptr<OTABackend> &backend,
-                                      const OTAPartitionType &bin_type) {
+                                          const OTAPartitionType &bin_type) {
   bool read_started = false;
   size_t total = 0, ota_size = 0;
   uint32_t last_progress = 0;
@@ -576,7 +576,6 @@ OTAResponseTypes OTAComponent::read_flash(uint8_t *buf, std::unique_ptr<OTABacke
   this->writeall_(buf, 5);
 
   while (total < ota_size) {
-
     size_t chunk_size = std::min(sizeof(buf), ota_size - total);
 
     error_code = backend->read(buf, chunk_size);
