@@ -52,5 +52,5 @@ def test_text_config_value_mode_set(generate_main):
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
 
     # Then
-    assert "it_1->traits.set_mode(text::TEXT_MODE_AUTO);" in main_cpp
+    assert "it_1->traits.set_mode(text::TEXT_MODE_TEXT);" in main_cpp
     assert "it_3->traits.set_mode(text::TEXT_MODE_PASSWORD);" in main_cpp
