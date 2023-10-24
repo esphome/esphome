@@ -120,7 +120,7 @@ std::string ClimateMitsubishi::vertical_vane_to_vertical_airflow_select_(uint8_t
 }
 
 std::string ClimateMitsubishi::horizontal_vane_to_horizontal_airflow_select_(uint8_t vertical_vane) {
-  switch (vertical_vane) {
+  switch (vertical_vane & 0x0F) {
     case (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_LEFT_2:
       return "<<";
     case (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_LEFT_1:
