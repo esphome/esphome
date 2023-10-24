@@ -34,12 +34,9 @@ TextSetAction = text_ns.class_("TextSetAction", automation.Action)
 TextMode = text_ns.enum("TextMode")
 
 TEXT_MODES = {
-    "AUTO": TextMode.TEXT_MODE_AUTO,
     "TEXT": TextMode.TEXT_MODE_TEXT,
     "PASSWORD": TextMode.TEXT_MODE_PASSWORD,  # to be implemented for keys, passwords, etc.
 }
-
-icon = cv.icon
 
 TEXT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
@@ -50,7 +47,7 @@ TEXT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextStateTrigger),
             }
         ),
-        cv.Optional(CONF_MODE, default="AUTO"): cv.enum(TEXT_MODES, upper=True),
+        cv.Required(CONF_MODE): cv.enum(TEXT_MODES, upper=True),
     }
 )
 

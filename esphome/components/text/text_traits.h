@@ -8,9 +8,8 @@ namespace esphome {
 namespace text {
 
 enum TextMode : uint8_t {
-  TEXT_MODE_AUTO = 0,
-  TEXT_MODE_TEXT = 1,
-  TEXT_MODE_PASSWORD = 2,
+  TEXT_MODE_TEXT = 0,
+  TEXT_MODE_PASSWORD = 1,
 };
 
 class TextTraits {
@@ -33,7 +32,7 @@ class TextTraits {
   int min_length_;
   int max_length_;
   std::string pattern_;
-  TextMode mode_{TEXT_MODE_AUTO};
+  TextMode mode_{TEXT_MODE_TEXT};
 };
 
 }  // namespace text

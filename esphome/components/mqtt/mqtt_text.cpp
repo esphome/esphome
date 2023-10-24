@@ -35,8 +35,6 @@ const EntityBase *MQTTTextComponent::get_entity() const { return this->text_; }
 
 void MQTTTextComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   switch (this->text_->traits.get_mode()) {
-    case TEXT_MODE_AUTO:
-      break;
     case TEXT_MODE_TEXT:
       root[MQTT_MODE] = "text";
       break;
