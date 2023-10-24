@@ -2303,6 +2303,11 @@ climate:
     heat_mode: extended
   - platform: whynter
     name: Whynter
+  - platform: noblex
+    name: AC Living
+    id: noblex_ac
+    sensor: ${sensorname}_sensor
+    receiver_id: rcvr
   - platform: gree
     name: GREE
     model: generic
@@ -2939,6 +2944,7 @@ tm1651:
   dio_pin: GPIO23
 
 remote_receiver:
+  id: rcvr
   pin: GPIO32
   dump: all
   on_coolix:
