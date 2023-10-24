@@ -28,7 +28,7 @@ static uint32_t running_partition_start = 0;  // NOLINT(cppcoreguidelines-avoid-
 static uint32_t running_partition_size = 0;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t &image_size) {
-  esp_err_t err;
+  esp_err_t err = ESP_OK;
   this->is_upload_ = (image_size == 0);
   this->bin_type_ = bin_type;
 
