@@ -1,13 +1,13 @@
 #include "api_server.h"
+#include <cerrno>
 #include "api_connection.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/version.h"
-#include "esphome/core/hal.h"
-#include "esphome/components/network/util.h"
-#include <cerrno>
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -323,16 +323,24 @@ void APIServer::on_shutdown() {
 }
 
 #ifdef USE_VOICE_ASSISTANT
-bool APIServer::start_voice_assistant(const std::string &conversation_id, bool use_vad) {
+bool APIServer::start_voice_assistant(const std::string &conversation_id, uint32_t flags,
+                                      const api::VoiceAssistantAudioSettings &audio_settings) {
+  VoiceAssistantRequest msg;
+  msg.start = true;
+  msg.conversation_id = conversation_id;
+  msg.flags = flags;
+  msg.audio_settings = audio_settings;
   for (auto &c : this->clients_) {
-    if (c->request_voice_assistant(true, conversation_id, use_vad))
+    if (c->request_voice_assistant(msg))
       return true;
   }
   return false;
 }
 void APIServer::stop_voice_assistant() {
+  VoiceAssistantRequest msg;
+  msg.start = false;
   for (auto &c : this->clients_) {
-    if (c->request_voice_assistant(false, "", false))
+    if (c->request_voice_assistant(msg))
       return;
   }
 }

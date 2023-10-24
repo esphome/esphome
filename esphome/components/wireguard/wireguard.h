@@ -17,6 +17,10 @@
 #include "esphome/components/sensor/sensor.h"
 #endif
 
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
+
 #include <esp_wireguard.h>
 
 namespace esphome {
@@ -54,6 +58,10 @@ class Wireguard : public PollingComponent {
 
 #ifdef USE_SENSOR
   void set_handshake_sensor(sensor::Sensor *sensor);
+#endif
+
+#ifdef USE_TEXT_SENSOR
+  void set_address_sensor(text_sensor::TextSensor *sensor);
 #endif
 
   /// Block the setup step until peer is connected.
@@ -97,6 +105,10 @@ class Wireguard : public PollingComponent {
 
 #ifdef USE_SENSOR
   sensor::Sensor *handshake_sensor_ = nullptr;
+#endif
+
+#ifdef USE_TEXT_SENSOR
+  text_sensor::TextSensor *address_sensor_ = nullptr;
 #endif
 
   /// Set to false to block the setup step until peer is connected.
