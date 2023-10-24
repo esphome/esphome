@@ -18,9 +18,14 @@ void TemplateText::setup() {
   if (!this->pref_) {
     ESP_LOGD(TAG, "State from initial: %s", value.c_str());
   } else {
-    this->pref_->setup(this->get_object_id_hash(), value);
+    uint32_t key = this->get_object_id_hash();
+    key += this->traits.get_min_length() << 2;
+    key += this->traits.get_max_length() << 4;
+    key += fnv1_hash(this->traits.get_pattern()) << 6;
+    this->pref_->setup(key, value);
   }
-  this->publish_state(value);
+  if (!value.empty())
+    this->publish_state(value);
 }
 
 void TemplateText::update() {
