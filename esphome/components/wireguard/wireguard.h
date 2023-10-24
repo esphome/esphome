@@ -49,6 +49,7 @@ class Wireguard : public PollingComponent {
 
 #ifdef USE_BINARY_SENSOR
   void set_status_sensor(binary_sensor::BinarySensor *sensor);
+  void set_enabled_sensor(binary_sensor::BinarySensor *sensor);
 #endif
 
 #ifdef USE_SENSOR
@@ -58,13 +59,16 @@ class Wireguard : public PollingComponent {
   /// Block the setup step until peer is connected.
   void disable_auto_proceed();
 
-  /// Enable the WireGuard component
+  /// Enable the WireGuard component.
   void enable();
 
-  /// Stop running connection and disable the WireGuard component
+  /// Stop any running connection and disable the WireGuard component.
   void disable();
 
-  /// Return if the WireGuard component is or is not enabled
+  /// Publish the enabled state if the enabled binary sensor is configured.
+  void publish_enabled_state();
+
+  /// Return if the WireGuard component is or is not enabled.
   bool is_enabled();
 
   bool is_peer_up() const;
@@ -88,6 +92,7 @@ class Wireguard : public PollingComponent {
 
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *status_sensor_ = nullptr;
+  binary_sensor::BinarySensor *enabled_sensor_ = nullptr;
 #endif
 
 #ifdef USE_SENSOR

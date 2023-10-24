@@ -185,6 +185,7 @@ void Wireguard::set_srctime(time::RealTimeClock *srctime) { this->srctime_ = src
 
 #ifdef USE_BINARY_SENSOR
 void Wireguard::set_status_sensor(binary_sensor::BinarySensor *sensor) { this->status_sensor_ = sensor; }
+void Wireguard::set_enabled_sensor(binary_sensor::BinarySensor *sensor) { this->enabled_sensor_ = sensor; }
 #endif
 
 #ifdef USE_SENSOR
@@ -195,13 +196,23 @@ void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
 
 void Wireguard::enable() {
   this->enabled_ = true;
+  this->publish_enabled_state();
   ESP_LOGI(TAG, "WireGuard enabled");
 }
 
 void Wireguard::disable() {
   this->enabled_ = false;
+  this->publish_enabled_state();
   this->stop_connection_();
   ESP_LOGI(TAG, "WireGuard disabled");
+}
+
+void Wireguard::publish_enabled_state() {
+#ifdef USE_BINARY_SENSOR
+  if (this->enabled_sensor_ != nullptr) {
+    this->enabled_sensor_->publish_state(this->enabled_);
+  }
+#endif
 }
 
 bool Wireguard::is_enabled() { return this->enabled_; }
