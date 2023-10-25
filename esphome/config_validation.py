@@ -182,6 +182,7 @@ RESERVED_IDS = [
     "struct",
     "switch",
     "template",
+    "text",
     "this",
     "thread_local",
     "throw",
