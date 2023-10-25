@@ -211,6 +211,7 @@ void APIServer::on_light_update(light::LightState *obj) {
 
 #ifdef USE_SENSOR
 void APIServer::on_sensor_update(sensor::Sensor *obj, float state) {
+  ESP_LOGE(TAG, "on_sensor_update %s=%0.2f", obj->get_name().c_str(), state);
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)

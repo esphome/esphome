@@ -1551,14 +1551,15 @@ message ListEntitiesTextResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string icon = 4;
-  bool disabled_by_default = 5;
-  EntityCategory entity_category = 6;
+  string unique_id = 4;
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
 
-  uint32 min_length = 7;
-  uint32 max_length = 8;
-  string pattern = 9;
-  TextMode mode = 10;
+  uint32 min_length = 8;
+  uint32 max_length = 9;
+  string pattern = 10;
+  TextMode mode = 11;
 }
 message TextStateResponse {
   option (id) = 98;
