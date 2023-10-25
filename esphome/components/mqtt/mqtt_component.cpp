@@ -238,7 +238,7 @@ std::string MQTTComponent::friendly_name() const { return this->get_entity()->ge
 std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
 bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
 bool MQTTComponent::is_internal() {
-  if ((this->get_state_topic_().empty()) && (this->get_command_topic_().empty())) {
+  if ((this->get_state_topic_().empty()) || (this->get_command_topic_().empty())) {
     // If both state_topic and command_topic are empty, then the entity is internal to mqtt
     return true;
   }
