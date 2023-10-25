@@ -12,6 +12,10 @@ from esphome.const import (
 )
 from .. import optolink_ns, CONF_OPTOLINK_ID, SENSOR_BASE_SCHEMA
 
+
+DEPENDENCIES = ["optolink"]
+CODEOWNERS = ["@j0ta29"]
+
 OptolinkNumber = optolink_ns.class_(
     "OptolinkNumber", number.Number, cg.PollingComponent
 )

@@ -5,6 +5,10 @@ from esphome.components import switch
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_UPDATE_INTERVAL
 from .. import OptolinkComponent, optolink_ns
 
+DEPENDENCIES = ["optolink"]
+CODEOWNERS = ["@j0ta29"]
+
+
 OptolinkSwitch = optolink_ns.class_(
     "OptolinkSwitch", switch.Switch, cg.PollingComponent
 )

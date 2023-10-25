@@ -3,6 +3,10 @@ from esphome.components import binary_sensor
 from esphome.const import CONF_ADDRESS, CONF_ID
 from .. import SENSOR_BASE_SCHEMA, optolink_ns, CONF_OPTOLINK_ID
 
+DEPENDENCIES = ["optolink"]
+CODEOWNERS = ["@j0ta29"]
+
+
 OptolinkBinarySensor = optolink_ns.class_(
     "OptolinkBinarySensor", binary_sensor.BinarySensor, cg.PollingComponent
 )

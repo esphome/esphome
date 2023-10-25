@@ -11,7 +11,8 @@ from esphome.const import (
 )
 from .. import optolink_ns, CONF_OPTOLINK_ID, SENSOR_BASE_SCHEMA
 
-DEPENDENCIES = ["api"]
+DEPENDENCIES = ["optolink", "api"]
+CODEOWNERS = ["@j0ta29"]
 
 TextSensorMode = optolink_ns.enum("TextSensorMode")
 MODE = {
