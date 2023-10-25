@@ -286,7 +286,7 @@ class WiFiComponent : public Component {
     });
   }
 
-  network::IPAddresses wifi_sta_ip();
+  network::IPAddresses wifi_sta_ip_addresses();
   std::string wifi_ssid();
   bssid_t wifi_bssid();
 

@@ -171,7 +171,7 @@ std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
 int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
 
-network::IPAddresses WiFiComponent::wifi_sta_ip() {
+network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   network::IPAddresses addresses;
   uint8_t index = 0;
   for (auto addr : addrList) {

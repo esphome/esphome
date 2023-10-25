@@ -183,7 +183,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   return ret;
 }
 
-network::IPAddresses WiFiComponent::wifi_sta_ip() {
+network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
   network::IPAddresses addresses;
