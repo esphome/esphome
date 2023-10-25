@@ -1,6 +1,7 @@
 #include "api_connection.h"
 #include <cerrno>
 #include <cinttypes>
+#include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
@@ -650,6 +651,44 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
     return;
 
   auto call = number->make_call();
+  call.set_value(msg.state);
+  call.perform();
+}
+#endif
+
+#ifdef USE_TEXT
+bool APIConnection::send_text_state(text::Text *text, std::string state) {
+  if (!this->state_subscription_)
+    return false;
+
+  TextStateResponse resp{};
+  resp.key = text->get_object_id_hash();
+  resp.state = std::move(state);
+  resp.missing_state = !text->has_state();
+  return this->send_text_state_response(resp);
+}
+bool APIConnection::send_text_info(text::Text *text) {
+  ListEntitiesTextResponse msg;
+  msg.key = text->get_object_id_hash();
+  msg.object_id = text->get_object_id();
+  msg.name = text->get_name();
+  msg.icon = text->get_icon();
+  msg.disabled_by_default = text->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(text->get_entity_category());
+  msg.mode = static_cast<enums::TextMode>(text->traits.get_mode());
+
+  msg.min_length = text->traits.get_min_length();
+  msg.max_length = text->traits.get_max_length();
+  msg.pattern = text->traits.get_pattern();
+
+  return this->send_list_entities_text_response(msg);
+}
+void APIConnection::text_command(const TextCommandRequest &msg) {
+  text::Text *text = App.get_text_by_key(msg.key);
+  if (text == nullptr)
+    return;
+
+  auto call = text->make_call();
   call.set_value(msg.state);
   call.perform();
 }

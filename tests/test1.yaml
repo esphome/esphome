@@ -1457,6 +1457,12 @@ sensor:
     div_ratio: 100
     unit_of_measurement: °C
     device_class: temperature
+  - platform: iaqcore
+    i2c_id: i2c_bus
+    co2:
+      name: "iAQ Core CO2 Sensor"
+    tvoc:
+      name: "iAQ Core TVOC Sensor"
   - platform: tmp1075
     name: "Temperature TMP1075"
     update_interval: 10s
@@ -2315,6 +2321,16 @@ climate:
     heat_mode: extended
   - platform: whynter
     name: Whynter
+  - platform: noblex
+    name: AC Living
+    id: noblex_ac
+    sensor: ${sensorname}_sensor
+    receiver_id: rcvr
+  - platform: gree
+    name: GREE
+    model: generic
+  - platform: zhlt01
+    name: ZH/LT-01 Climate
 
 script:
   - id: climate_custom
@@ -2537,7 +2553,22 @@ switch:
     name: Haier
     turn_on_action:
       remote_transmitter.transmit_haier:
-        code: [0xA6, 0xDA, 0x00, 0x00, 0x40, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x05]
+        code:
+          [
+            0xA6,
+            0xDA,
+            0x00,
+            0x00,
+            0x40,
+            0x40,
+            0x00,
+            0x80,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x05,
+          ]
   - platform: template
     name: Living Room Lights
     id: livingroom_lights
@@ -2950,6 +2981,7 @@ tm1651:
   dio_pin: GPIO23
 
 remote_receiver:
+  id: rcvr
   pin: GPIO32
   dump: all
   on_coolix:
@@ -3236,6 +3268,10 @@ text_sensor:
           canbus_id: mcp2515_can
           can_id: 23
           data: [0x10, 0x20, 0x30]
+      - canbus.send:
+          canbus_id: mcp2515_can
+          can_id: 23
+          data: !lambda return {0x10, 0x20, 0x30};
       - canbus.send:
           canbus_id: esp32_internal_can
           can_id: 23
