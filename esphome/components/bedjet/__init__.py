@@ -48,5 +48,5 @@ async def to_code(config):
     if time_id := config.get(CONF_TIME_ID):
         time_ = await cg.get_variable(time_id)
         cg.add(var.set_time_id(time_))
-    if receive_timeout := config.get(CONF_RECEIVE_TIMEOUT):
+    if (receive_timeout := config.get(CONF_RECEIVE_TIMEOUT)) is not None:
         cg.add(var.set_status_timeout(receive_timeout))

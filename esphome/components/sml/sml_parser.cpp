@@ -95,19 +95,15 @@ int64_t bytes_to_int(const bytes &buffer) {
   uint64_t tmp = bytes_to_uint(buffer);
   int64_t val;
 
-  switch (buffer.size()) {
-    case 1:  // int8
-      val = (int8_t) tmp;
-      break;
-    case 2:  // int16
-      val = (int16_t) tmp;
-      break;
-    case 4:  // int32
-      val = (int32_t) tmp;
-      break;
-    default:  // int64
-      val = (int64_t) tmp;
+  // sign extension for abbreviations of leading ones (e.g. 3 byte transmissions, see 6.2.2 of SML protocol definition)
+  // see https://stackoverflow.com/questions/42534749/signed-extension-from-24-bit-to-32-bit-in-c
+  if (buffer.size() < 8) {
+    const int bits = buffer.size() * 8;
+    const uint64_t m = 1u << (bits - 1);
+    tmp = (tmp ^ m) - m;
   }
+
+  val = (int64_t) tmp;
   return val;
 }
 

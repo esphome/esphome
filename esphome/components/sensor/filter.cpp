@@ -375,13 +375,13 @@ void OrFilter::initialize(Sensor *parent, Filter *next) {
 
 // TimeoutFilter
 optional<float> TimeoutFilter::new_value(float value) {
-  this->set_timeout("timeout", this->time_period_, [this]() { this->output(NAN); });
+  this->set_timeout("timeout", this->time_period_, [this]() { this->output(this->value_); });
   this->output(value);
 
   return {};
 }
 
-TimeoutFilter::TimeoutFilter(uint32_t time_period) : time_period_(time_period) {}
+TimeoutFilter::TimeoutFilter(uint32_t time_period, float new_value) : time_period_(time_period), value_(new_value) {}
 float TimeoutFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 // DebounceFilter
@@ -434,13 +434,34 @@ optional<float> CalibratePolynomialFilter::new_value(float value) {
   return res;
 }
 
-ClampFilter::ClampFilter(float min, float max) : min_(min), max_(max) {}
+ClampFilter::ClampFilter(float min, float max, bool ignore_out_of_range)
+    : min_(min), max_(max), ignore_out_of_range_(ignore_out_of_range) {}
 optional<float> ClampFilter::new_value(float value) {
   if (std::isfinite(value)) {
-    if (std::isfinite(this->min_) && value < this->min_)
-      return this->min_;
-    if (std::isfinite(this->max_) && value > this->max_)
-      return this->max_;
+    if (std::isfinite(this->min_) && value < this->min_) {
+      if (this->ignore_out_of_range_) {
+        return {};
+      } else {
+        return this->min_;
+      }
+    }
+
+    if (std::isfinite(this->max_) && value > this->max_) {
+      if (this->ignore_out_of_range_) {
+        return {};
+      } else {
+        return this->max_;
+      }
+    }
+  }
+  return value;
+}
+
+RoundFilter::RoundFilter(uint8_t precision) : precision_(precision) {}
+optional<float> RoundFilter::new_value(float value) {
+  if (std::isfinite(value)) {
+    float accuracy_mult = powf(10.0f, this->precision_);
+    return roundf(accuracy_mult * value) / accuracy_mult;
   }
   return value;
 }
