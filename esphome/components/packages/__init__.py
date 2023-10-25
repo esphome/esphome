@@ -139,17 +139,22 @@ def _process_base_package(config: dict) -> dict:
                 ) from e
         return packages
 
-    packages = {}
+    packages = None
+    error = ""
 
     try:
         packages = get_packages(files)
-    except cv.Invalid:
-        if revert is not None:
-            revert()
-            packages = get_packages(files)
-    finally:
-        if packages is None:
-            raise cv.Invalid("Failed to load packages")
+    except cv.Invalid as e:
+        error = e
+        try:
+            if revert is not None:
+                revert()
+                packages = get_packages(files)
+        except cv.Invalid as er:
+            error = er
+
+    if packages is None:
+        raise cv.Invalid(f"Failed to load packages. {error}")
 
     return {"packages": packages}
 
