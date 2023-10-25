@@ -1813,6 +1813,9 @@ binary_sensor:
       name: still
     out_pin_presence_status:
       name: out pin presence status
+  - platform: qwiic_pir
+    i2c_id: i2c_bus
+    name: "Qwiic PIR Motion Sensor"
 
 pca9685:
   frequency: 500

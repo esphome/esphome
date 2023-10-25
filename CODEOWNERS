@@ -234,6 +234,7 @@ esphome/components/pulse_meter/* @TrentHouliston @cstaahl @stevebaxter
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/qmp6988/* @andrewpc
 esphome/components/qr_code/* @wjtje
+esphome/components/qwiic_pir/* @kahrendt
 esphome/components/radon_eye_ble/* @jeffeb3
 esphome/components/radon_eye_rd200/* @jeffeb3
 esphome/components/rc522/* @glmnet
