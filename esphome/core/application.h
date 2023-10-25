@@ -39,6 +39,9 @@
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
+#ifdef USE_TEXT
+#include "esphome/components/text/text.h"
+#endif
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
@@ -115,6 +118,10 @@ class Application {
 
 #ifdef USE_NUMBER
   void register_number(number::Number *number) { this->numbers_.push_back(number); }
+#endif
+
+#ifdef USE_TEXT
+  void register_text(text::Text *text) { this->texts_.push_back(text); }
 #endif
 
 #ifdef USE_SELECT
@@ -277,6 +284,15 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_TEXT
+  const std::vector<text::Text *> &get_texts() { return this->texts_; }
+  text::Text *get_text_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->texts_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 #ifdef USE_SELECT
   const std::vector<select::Select *> &get_selects() { return this->selects_; }
   select::Select *get_select_by_key(uint32_t key, bool include_internal = false) {
@@ -363,6 +379,9 @@ class Application {
 #endif
 #ifdef USE_SELECT
   std::vector<select::Select *> selects_{};
+#endif
+#ifdef USE_TEXT
+  std::vector<text::Text *> texts_{};
 #endif
 #ifdef USE_LOCK
   std::vector<lock::Lock *> locks_{};
