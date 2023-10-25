@@ -17,7 +17,7 @@ void HYT271Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_);
 }
 void HYT271Component::update() {
-  uint8_t raw_data[4];
+  uint8_t raw_data[4] = {0, 0, 0, 0};
 
   if (this->write(&raw_data[0], 0) != i2c::ERROR_OK) {
     this->status_set_warning();
