@@ -21,7 +21,7 @@ static const std::string STOVE_STATES[11] = {"Off",
                                              "Working",
                                              "Brazier Cleaning",
                                              "Final Cleaning",
-                                             "Stanby",
+                                             "Standby",
                                              "No pellets alarm",
                                              "No ignition alarm",
                                              "Undefined alarm"};
