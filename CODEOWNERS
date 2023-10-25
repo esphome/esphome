@@ -85,6 +85,7 @@ esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/duty_time/* @dudanov
 esphome/components/ee895/* @Stock-M
 esphome/components/ektf2232/* @jesserockz
+esphome/components/emc2101/* @ellull
 esphome/components/ens210/* @itn3rd77
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @jesserockz
