@@ -411,12 +411,13 @@ class CalibratePolynomialFilter : public Filter {
 
 class ClampFilter : public Filter {
  public:
-  ClampFilter(float min, float max);
+  ClampFilter(float min, float max, bool ignore_out_of_range);
   optional<float> new_value(float value) override;
 
  protected:
   float min_{NAN};
   float max_{NAN};
+  bool ignore_out_of_range_;
 };
 
 class RoundFilter : public Filter {
