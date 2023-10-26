@@ -249,6 +249,15 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_ALARM_CONTROL_PANEL
   virtual void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &value){};
 #endif
+#ifdef USE_TEXT
+  bool send_list_entities_text_response(const ListEntitiesTextResponse &msg);
+#endif
+#ifdef USE_TEXT
+  bool send_text_state_response(const TextStateResponse &msg);
+#endif
+#ifdef USE_TEXT
+  virtual void on_text_command_request(const TextCommandRequest &value){};
+#endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
@@ -287,6 +296,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_NUMBER
   virtual void number_command(const NumberCommandRequest &msg) = 0;
+#endif
+#ifdef USE_TEXT
+  virtual void text_command(const TextCommandRequest &msg) = 0;
 #endif
 #ifdef USE_SELECT
   virtual void select_command(const SelectCommandRequest &msg) = 0;
@@ -370,6 +382,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_NUMBER
   void on_number_command_request(const NumberCommandRequest &msg) override;
+#endif
+#ifdef USE_TEXT
+  void on_text_command_request(const TextCommandRequest &msg) override;
 #endif
 #ifdef USE_SELECT
   void on_select_command_request(const SelectCommandRequest &msg) override;
