@@ -328,6 +328,7 @@ class DeviceInfoResponse : public ProtoMessage {
   std::string manufacturer{};
   std::string friendly_name{};
   uint32_t voice_assistant_version{0};
+  std::string suggested_area{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

@@ -136,6 +136,7 @@ bool MQTTComponent::send_discovery_() {
         if (node_friendly_name.empty()) {
           node_friendly_name = node_name;
         }
+        const std::string &node_area = App.get_area();
 
         JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
         device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
@@ -143,6 +144,7 @@ bool MQTTComponent::send_discovery_() {
         device_info[MQTT_DEVICE_SW_VERSION] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
         device_info[MQTT_DEVICE_MANUFACTURER] = "espressif";
+        device_info[MQTT_DEVICE_SUGGESTED_AREA] = node_area;
       },
       0, discovery_info.retain);
 }
