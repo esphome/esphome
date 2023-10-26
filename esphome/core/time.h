@@ -8,10 +8,6 @@ namespace esphome {
 
 template<typename T> bool increment_time_value(T &current, uint16_t begin, uint16_t end);
 
-static bool is_leap_year(uint32_t year);
-
-static uint8_t days_in_month(uint8_t month, uint16_t year);
-
 /// A more user-friendly version of struct tm from time.h
 struct ESPTime {
   /** seconds after the minute [0-60]
@@ -49,6 +45,10 @@ struct ESPTime {
    *
    * @warning This method uses dynamically allocated strings which can cause heap fragmentation with some
    * microcontrollers.
+   *
+   * @warning This method can return "ERROR" when the underlying strftime() call fails, e.g. when the
+   * format string contains unsupported specifiers or when the format string doesn't produce any
+   * output.
    */
   std::string strftime(const std::string &format);
 

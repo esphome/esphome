@@ -39,6 +39,9 @@
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
+#ifdef USE_TEXT
+#include "esphome/components/text/text.h"
+#endif
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
@@ -56,7 +59,7 @@ namespace esphome {
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, const std::string &comment,
+  void pre_setup(const std::string &name, const std::string &friendly_name, const char *comment,
                  const char *compilation_time, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
@@ -117,6 +120,10 @@ class Application {
   void register_number(number::Number *number) { this->numbers_.push_back(number); }
 #endif
 
+#ifdef USE_TEXT
+  void register_text(text::Text *text) { this->texts_.push_back(text); }
+#endif
+
 #ifdef USE_SELECT
   void register_select(select::Select *select) { this->selects_.push_back(select); }
 #endif
@@ -154,11 +161,11 @@ class Application {
   /// Get the friendly name of this Application set by pre_setup().
   const std::string &get_friendly_name() const { return this->friendly_name_; }
   /// Get the comment of this Application set by pre_setup().
-  const std::string &get_comment() const { return this->comment_; }
+  std::string get_comment() const { return this->comment_; }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
-  const std::string &get_compilation_time() const { return this->compilation_time_; }
+  std::string get_compilation_time() const { return this->compilation_time_; }
 
   /** Set the target interval with which to run the loop() calls.
    * If the loop() method takes longer than the target interval, ESPHome won't
@@ -277,6 +284,15 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_TEXT
+  const std::vector<text::Text *> &get_texts() { return this->texts_; }
+  text::Text *get_text_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->texts_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 #ifdef USE_SELECT
   const std::vector<select::Select *> &get_selects() { return this->selects_; }
   select::Select *get_select_by_key(uint32_t key, bool include_internal = false) {
@@ -364,6 +380,9 @@ class Application {
 #ifdef USE_SELECT
   std::vector<select::Select *> selects_{};
 #endif
+#ifdef USE_TEXT
+  std::vector<text::Text *> texts_{};
+#endif
 #ifdef USE_LOCK
   std::vector<lock::Lock *> locks_{};
 #endif
@@ -376,8 +395,8 @@ class Application {
 
   std::string name_;
   std::string friendly_name_;
-  std::string comment_;
-  std::string compilation_time_;
+  const char *comment_{nullptr};
+  const char *compilation_time_{nullptr};
   bool name_add_mac_suffix_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};

@@ -10,15 +10,11 @@ static const char *const TAG = "nextion";
 void Nextion::soft_reset() { this->send_command_("rest"); }
 
 void Nextion::set_wake_up_page(uint8_t page_id) {
-  if (page_id > 255) {
-    ESP_LOGD(TAG, "Wake up page of bounds, range 0-255");
-    return;
-  }
   this->add_no_result_to_queue_with_set_internal_("wake_up_page", "wup", page_id, true);
 }
 
 void Nextion::set_touch_sleep_timeout(uint16_t timeout) {
-  if (timeout < 3 || timeout > 65535) {
+  if (timeout < 3) {
     ESP_LOGD(TAG, "Sleep timeout out of bounds, range 3-65535");
     return;
   }
@@ -35,6 +31,25 @@ void Nextion::sleep(bool sleep) {
   }
 }
 // End sleep safe commands
+
+// Protocol reparse mode
+void Nextion::set_protocol_reparse_mode(bool active_mode) {
+  const uint8_t to_send[3] = {0xFF, 0xFF, 0xFF};
+  if (active_mode) {  // Sets active protocol reparse mode
+    this->write_str(
+        "recmod=1");  // send_command_ cannot be used as Nextion might not be setup if incorrect reparse mode
+    this->write_array(to_send, sizeof(to_send));
+  } else {                                        // Sets passive protocol reparse mode
+    this->write_str("DRAKJHSUYDGBNCJHGJKSHBDN");  // To exit active reparse mode this sequence must be sent
+    this->write_array(to_send, sizeof(to_send));
+    this->write_str("recmod=0");  // Sending recmode=0 twice is recommended
+    this->write_array(to_send, sizeof(to_send));
+    this->write_str("recmod=0");
+    this->write_array(to_send, sizeof(to_send));
+  }
+  this->write_str("connect");
+  this->write_array(to_send, sizeof(to_send));
+}
 
 // Set Colors
 void Nextion::set_component_background_color(const char *component, uint32_t color) {

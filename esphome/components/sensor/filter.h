@@ -313,6 +313,20 @@ class ThrottleFilter : public Filter {
   uint32_t min_time_between_inputs_;
 };
 
+class TimeoutFilter : public Filter, public Component {
+ public:
+  explicit TimeoutFilter(uint32_t time_period, float new_value);
+  void set_value(float new_value) { this->value_ = new_value; }
+
+  optional<float> new_value(float value) override;
+
+  float get_setup_priority() const override;
+
+ protected:
+  uint32_t time_period_;
+  float value_;
+};
+
 class DebounceFilter : public Filter, public Component {
  public:
   explicit DebounceFilter(uint32_t time_period);
@@ -378,12 +392,12 @@ class OrFilter : public Filter {
 
 class CalibrateLinearFilter : public Filter {
  public:
-  CalibrateLinearFilter(float slope, float bias);
+  CalibrateLinearFilter(std::vector<std::array<float, 3>> linear_functions)
+      : linear_functions_(std::move(linear_functions)) {}
   optional<float> new_value(float value) override;
 
  protected:
-  float slope_;
-  float bias_;
+  std::vector<std::array<float, 3>> linear_functions_;
 };
 
 class CalibratePolynomialFilter : public Filter {
@@ -393,6 +407,26 @@ class CalibratePolynomialFilter : public Filter {
 
  protected:
   std::vector<float> coefficients_;
+};
+
+class ClampFilter : public Filter {
+ public:
+  ClampFilter(float min, float max, bool ignore_out_of_range);
+  optional<float> new_value(float value) override;
+
+ protected:
+  float min_{NAN};
+  float max_{NAN};
+  bool ignore_out_of_range_;
+};
+
+class RoundFilter : public Filter {
+ public:
+  explicit RoundFilter(uint8_t precision);
+  optional<float> new_value(float value) override;
+
+ protected:
+  uint8_t precision_;
 };
 
 }  // namespace sensor

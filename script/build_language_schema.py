@@ -82,6 +82,10 @@ def load_components():
         components[domain] = get_component(domain)
 
 
+from esphome.const import CONF_TYPE, KEY_CORE
+from esphome.core import CORE
+
+CORE.data[KEY_CORE] = {}
 load_components()
 
 # Import esphome after loading components (so schema is tracked)
@@ -91,7 +95,6 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome import pins
 from esphome.components import remote_base
-from esphome.const import CONF_TYPE
 from esphome.loader import get_platform, CORE_COMPONENTS_PATH
 from esphome.helpers import write_file_if_changed
 from esphome.util import Registry
@@ -461,8 +464,10 @@ def merge(source, destination):
 
 def is_platform_schema(schema_name):
     # added mostly because of schema_name == "microphone.MICROPHONE_SCHEMA"
+    # and "alarm_control_panel"
     # which is shrunk because there is only one component of the schema (i2s_audio)
-    return schema_name == "microphone.MICROPHONE_SCHEMA"
+    component = schema_name.split(".")[0]
+    return component in components and components[component].is_platform_component
 
 
 def shrink():
@@ -530,6 +535,10 @@ def shrink():
         elif not key_s:
             for target in paths:
                 target_s = get_arr_path_schema(target)
+                if S_SCHEMA not in target_s:
+                    # an empty schema like speaker.SPEAKER_SCHEMA
+                    target_s[S_EXTENDS].remove(x)
+                    continue
                 assert target_s[S_SCHEMA][S_EXTENDS] == [x]
                 target_s.pop(S_SCHEMA)
                 target_s.pop(S_TYPE)  # undefined
@@ -862,8 +871,11 @@ def convert(schema, config_var, path):
         else:
             raise Exception("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":
-        if path == "i2c/CONFIG_SCHEMA/extL/all/id":
-            config_var["id_type"] = {"class": "i2c::I2CBus", "parents": ["Component"]}
+        if path.startswith("i2c/CONFIG_SCHEMA/") and path.endswith("/id"):
+            config_var["id_type"] = {
+                "class": "i2c::I2CBus",
+                "parents": ["Component"],
+            }
         elif path == "uart/CONFIG_SCHEMA/val 1/extL/all/id":
             config_var["id_type"] = {
                 "class": "uart::UARTComponent",
