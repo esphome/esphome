@@ -74,8 +74,9 @@ void CombinationComponent::handle_new_value_(float value) {
       float sum = 0.0;
 
       for (const auto &sensor : this->sensors_) {
-        if (std::isfinite(sensor.first->state)) {
-          sum += sensor.first->state * sensor.second(0);
+        const float sensor_state = sensor.first->state;
+        if (std::isfinite(sensor_state)) {
+          sum += sensor_state * sensor.second(sensor_state);
         }
       }
 
