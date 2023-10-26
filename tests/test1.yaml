@@ -2559,7 +2559,22 @@ switch:
     name: Haier
     turn_on_action:
       remote_transmitter.transmit_haier:
-        code: [0xA6, 0xDA, 0x00, 0x00, 0x40, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x05]
+        code:
+          [
+            0xA6,
+            0xDA,
+            0x00,
+            0x00,
+            0x40,
+            0x40,
+            0x00,
+            0x80,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x05,
+          ]
   - platform: template
     name: Living Room Lights
     id: livingroom_lights
@@ -3573,6 +3588,7 @@ button:
     name: Reset Mmwave Sensor
     on_press:
       - dfrobot_sen0395.reset
+  - platform: template
     name: Poller component suspend test
     on_press:
       - component.suspend: myteleinfo
