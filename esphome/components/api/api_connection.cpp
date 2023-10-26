@@ -1084,6 +1084,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.uses_password = this->parent_->uses_password();
   resp.name = App.get_name();
   resp.friendly_name = App.get_friendly_name();
+  resp.suggested_area = App.get_area();
   resp.mac_address = get_mac_address_pretty();
   resp.esphome_version = ESPHOME_VERSION;
   resp.compilation_time = App.get_compilation_time();
