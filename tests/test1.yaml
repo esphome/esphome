@@ -343,7 +343,7 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
-dfrobot_mmwave_radar:
+dfrobot_sen0395:
   - id: mmwave
     uart_id: dfrobot_mmwave_uart
 
@@ -1598,9 +1598,9 @@ binary_sensor:
       name: movement
     has_still_target:
       name: still
-  - platform: dfrobot_mmwave_radar
+  - platform: dfrobot_sen0395
     id: mmwave_detected_uart
-    dfrobot_mmwave_radar_id: mmwave
+    dfrobot_sen0395_id: mmwave
 
 pca9685:
   frequency: 500
@@ -3290,14 +3290,14 @@ button:
   - platform: template
     name: Update Mmwave Sensor Settings
     on_press:
-      - dfrobot_mmwave_radar.settings:
+      - dfrobot_sen0395.settings:
           id: mmwave
           factory_reset: true
           detection_segments:
             - [0cm, 5m]
             - 600cm
             - !lambda |-
-                return 7;
+              return 7;
           output_latency:
             delay_after_detect: 0s
             delay_after_disappear: 0s
@@ -3308,15 +3308,15 @@ button:
   - platform: template
     name: Start Mmwave Sensor
     on_press:
-      - dfrobot_mmwave_radar.start
+      - dfrobot_sen0395.start
   - platform: template
     name: Stop Mmwave Sensor
     on_press:
-      - dfrobot_mmwave_radar.stop
+      - dfrobot_sen0395.stop
   - platform: template
     name: Reset Mmwave Sensor
     on_press:
-      - dfrobot_mmwave_radar.reset
+      - dfrobot_sen0395.reset
 
 ld2410:
   id: my_ld2410
