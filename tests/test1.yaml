@@ -3572,9 +3572,6 @@ button:
           output_latency:
             delay_after_detect: 0s
             delay_after_disappear: 0s
-          start_after_power_on: true
-          turn_on_led: false
-          presence_via_uart: true
           sensitivity: 6
   - platform: template
     name: Start Mmwave Sensor
