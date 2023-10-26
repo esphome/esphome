@@ -3,13 +3,14 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import (
     CONF_STATUS,
-    CONF_ENABLED,
     DEVICE_CLASS_CONNECTIVITY,
+    ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
 from . import Wireguard
 
 CONF_WIREGUARD_ID = "wireguard_id"
+CONF_ENABLED = "enabled"
 
 DEPENDENCIES = ["wireguard"]
 
@@ -18,7 +19,9 @@ CONFIG_SCHEMA = {
     cv.Optional(CONF_STATUS): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_CONNECTIVITY,
     ),
-    cv.Optional(CONF_ENABLED): binary_sensor.binary_sensor_schema(),
+    cv.Optional(CONF_ENABLED): binary_sensor.binary_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
 }
 
 

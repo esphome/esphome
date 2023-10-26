@@ -47,6 +47,8 @@ void Wireguard::setup() {
   if (this->preshared_key_.length() > 0)
     this->wg_config_.preshared_key = this->preshared_key_.c_str();
 
+  this->publish_enabled_state();
+
   this->wg_initialized_ = esp_wireguard_init(&(this->wg_config_), &(this->wg_ctx_));
 
   if (this->wg_initialized_ == ESP_OK) {
@@ -206,15 +208,15 @@ void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
 
 void Wireguard::enable() {
   this->enabled_ = true;
-  this->publish_enabled_state();
   ESP_LOGI(TAG, "WireGuard enabled");
+  this->publish_enabled_state();
 }
 
 void Wireguard::disable() {
   this->enabled_ = false;
-  this->publish_enabled_state();
   this->stop_connection_();
   ESP_LOGI(TAG, "WireGuard disabled");
+  this->publish_enabled_state();
 }
 
 void Wireguard::publish_enabled_state() {
