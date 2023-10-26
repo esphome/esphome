@@ -49,19 +49,19 @@ class MicroNova;
 class MicroNovaBaseListener {
  public:
   MicroNovaBaseListener() {}
-  MicroNovaBaseListener(MicroNova *m) { micronova_ = m; }
+  MicroNovaBaseListener(MicroNova *m) { this->micronova_ = m; }
   virtual void dump_config();
 
-  void set_micronova_object(MicroNova *m) { micronova_ = m; }
+  void set_micronova_object(MicroNova *m) { this->micronova_ = m; }
 
-  void set_function(MicroNovaFunctions f) { function_ = f; }
-  MicroNovaFunctions get_function() { return function_; }
+  void set_function(MicroNovaFunctions f) { this->function_ = f; }
+  MicroNovaFunctions get_function() { return this->function_; }
 
-  void set_memory_location(uint8_t l) { memory_location_ = l; }
-  uint8_t get_memory_location() { return memory_location_; }
+  void set_memory_location(uint8_t l) { this->memory_location_ = l; }
+  uint8_t get_memory_location() { return this->memory_location_; }
 
-  void set_memory_address(uint8_t a) { memory_address_ = a; }
-  uint8_t get_memory_address() { return memory_address_; }
+  void set_memory_address(uint8_t a) { this->memory_address_ = a; }
+  uint8_t get_memory_address() { return this->memory_address_; }
 
  protected:
   MicroNova *micronova_{nullptr};
@@ -74,11 +74,11 @@ class MicroNovaSensorListener : public MicroNovaBaseListener {
  public:
   MicroNovaSensorListener() {}
   MicroNovaSensorListener(MicroNova *m) : MicroNovaBaseListener(m) {}
-  virtual void request_value_from_stove();
-  virtual void process_value_from_stove(int value_from_stove);
+  virtual void request_value_from_stove() = 0;
+  virtual void process_value_from_stove(int value_from_stove) = 0;
 
-  void set_needs_update(bool u) { needs_update_ = u; }
-  bool get_needs_update() { return needs_update_; }
+  void set_needs_update(bool u) { this->needs_update_ = u; }
+  bool get_needs_update() { return this->needs_update_; }
 
  protected:
   bool needs_update_ = false;
@@ -87,11 +87,11 @@ class MicroNovaSensorListener : public MicroNovaBaseListener {
 class MicroNovaNumberListener : public MicroNovaBaseListener {
  public:
   MicroNovaNumberListener(MicroNova *m) : MicroNovaBaseListener(m) {}
-  virtual void request_value_from_stove();
-  virtual void process_value_from_stove(int value_from_stove);
+  virtual void request_value_from_stove() = 0;
+  virtual void process_value_from_stove(int value_from_stove) = 0;
 
-  void set_needs_update(bool u) { needs_update_ = u; }
-  bool get_needs_update() { return needs_update_; }
+  void set_needs_update(bool u) { this->needs_update_ = u; }
+  bool get_needs_update() { return this->needs_update_; }
 
  protected:
   bool needs_update_ = false;
@@ -100,8 +100,8 @@ class MicroNovaNumberListener : public MicroNovaBaseListener {
 class MicroNovaSwitchListener : public MicroNovaBaseListener {
  public:
   MicroNovaSwitchListener(MicroNova *m) : MicroNovaBaseListener(m) {}
-  virtual void set_stove_state(bool v);
-  virtual bool get_stove_state();
+  virtual void set_stove_state(bool v) = 0;
+  virtual bool get_stove_state() = 0;
 
  protected:
   uint8_t memory_data_on_ = 0;
@@ -134,11 +134,11 @@ class MicroNova : public PollingComponent, public uart::UARTDevice {
 
   void set_enable_rx_pin(GPIOPin *enable_rx_pin) { this->enable_rx_pin_ = enable_rx_pin; }
 
-  void set_current_stove_state(uint8_t s) { current_stove_state_ = s; }
-  uint8_t get_current_stove_state() { return current_stove_state_; }
+  void set_current_stove_state(uint8_t s) { this->current_stove_state_ = s; }
+  uint8_t get_current_stove_state() { return this->current_stove_state_; }
 
-  void set_stove(MicroNovaSwitchListener *s) { stove_switch_ = s; }
-  MicroNovaSwitchListener *get_stove_switch() { return stove_switch_; }
+  void set_stove(MicroNovaSwitchListener *s) { this->stove_switch_ = s; }
+  MicroNovaSwitchListener *get_stove_switch() { return this->stove_switch_; }
 
  protected:
   uint8_t current_stove_state_ = 0;

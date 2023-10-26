@@ -33,7 +33,11 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_CELSIUS,
             device_class=DEVICE_CLASS_TEMPERATURE,
         )
-        .extend(MICRONOVA_LISTENER_SCHEMA)
+        .extend(
+            MICRONOVA_LISTENER_SCHEMA(
+                default_memory_location=0x20, default_memory_address=0x7D
+            )
+        )
         .extend(
             {cv.Optional(CONF_MEMORY_WRITE_LOCATION, default=0xA0): cv.hex_int_range()},
             {cv.Optional(CONF_STEP, default=1.0): cv.float_range(min=0.1, max=10.0)},
@@ -42,7 +46,11 @@ CONFIG_SCHEMA = cv.Schema(
             MicroNovaNumber,
             icon=ICON_FLASH,
         )
-        .extend(MICRONOVA_LISTENER_SCHEMA)
+        .extend(
+            MICRONOVA_LISTENER_SCHEMA(
+                default_memory_location=0x20, default_memory_address=0x7F
+            )
+        )
         .extend(
             {cv.Optional(CONF_MEMORY_WRITE_LOCATION, default=0xA0): cv.hex_int_range()}
         ),
@@ -64,13 +72,11 @@ async def to_code(config):
         cg.add(mv.register_micronova_listener(numb))
         cg.add(
             numb.set_memory_location(
-                thermostat_temperature_config.get(CONF_MEMORY_LOCATION, 0x20)
+                thermostat_temperature_config[CONF_MEMORY_LOCATION]
             )
         )
         cg.add(
-            numb.set_memory_address(
-                thermostat_temperature_config.get(CONF_MEMORY_ADDRESS, 0x7D)
-            )
+            numb.set_memory_address(thermostat_temperature_config[CONF_MEMORY_ADDRESS])
         )
         cg.add(
             numb.set_memory_write_location(
@@ -90,12 +96,8 @@ async def to_code(config):
         )
         cg.add(numb.set_micronova_object(mv))
         cg.add(mv.register_micronova_listener(numb))
-        cg.add(
-            numb.set_memory_location(power_level_config.get(CONF_MEMORY_LOCATION, 0x20))
-        )
-        cg.add(
-            numb.set_memory_address(power_level_config.get(CONF_MEMORY_ADDRESS, 0x7F))
-        )
+        cg.add(numb.set_memory_location(power_level_config[CONF_MEMORY_LOCATION]))
+        cg.add(numb.set_memory_address(power_level_config[CONF_MEMORY_ADDRESS]))
         cg.add(
             numb.set_memory_write_location(
                 power_level_config.get(CONF_MEMORY_WRITE_LOCATION)

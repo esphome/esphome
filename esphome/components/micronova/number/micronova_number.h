@@ -17,8 +17,8 @@ class MicroNovaNumber : public number::Number, public MicroNovaSensorListener {
   }
   void process_value_from_stove(int value_from_stove) override;
 
-  void set_memory_write_location(uint8_t l) { memory_write_location_ = l; }
-  uint8_t get_memory_write_location() { return memory_write_location_; }
+  void set_memory_write_location(uint8_t l) { this->memory_write_location_ = l; }
+  uint8_t get_memory_write_location() { return this->memory_write_location_; }
 
  protected:
   uint8_t memory_write_location_ = 0;

@@ -16,8 +16,8 @@ class MicroNovaSensor : public sensor::Sensor, public MicroNovaSensorListener {
   }
   void process_value_from_stove(int value_from_stove) override;
 
-  void set_fan_speed_offset(uint8_t f) { fan_speed_offset_ = f; }
-  uint8_t get_set_fan_speed_offset() { return fan_speed_offset_; }
+  void set_fan_speed_offset(uint8_t f) { this->fan_speed_offset_ = f; }
+  uint8_t get_set_fan_speed_offset() { return this->fan_speed_offset_; }
 
  protected:
   int fan_speed_offset_ = 0;

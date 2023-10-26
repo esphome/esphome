@@ -35,18 +35,6 @@ MICRONOVA_FUNCTIONS_ENUM = {
 
 MicroNova = micronova_ns.class_("MicroNova", cg.PollingComponent, uart.UARTDevice)
 
-MICRONOVA_LISTENER_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
-        cv.Optional(
-            CONF_MEMORY_LOCATION,
-        ): cv.hex_int_range(),
-        cv.Optional(
-            CONF_MEMORY_ADDRESS,
-        ): cv.hex_int_range(),
-    }
-)
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -57,6 +45,20 @@ CONFIG_SCHEMA = (
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.polling_component_schema("60s"))
 )
+
+
+def MICRONOVA_LISTENER_SCHEMA(default_memory_location, default_memory_address):
+    return cv.Schema(
+        {
+            cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
+            cv.Optional(
+                CONF_MEMORY_LOCATION, default=default_memory_location
+            ): cv.hex_int_range(),
+            cv.Optional(
+                CONF_MEMORY_ADDRESS, default=default_memory_address
+            ): cv.hex_int_range(),
+        }
+    )
 
 
 async def to_code(config):

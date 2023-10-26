@@ -20,7 +20,6 @@ void MicroNovaSwitch::write_state(bool state) {
           this->publish_state(false);
         } else
           ESP_LOGW(TAG, "Unable to turn stove off, invalid state: %d", micronova_->get_current_stove_state());
-        this->publish_state(true);
       }
       this->micronova_->update();
       break;

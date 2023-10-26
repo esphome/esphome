@@ -15,11 +15,11 @@ class MicroNovaSwitch : public Component, public switch_::Switch, public MicroNo
   void set_stove_state(bool v) override { this->publish_state(v); }
   bool get_stove_state() override { return this->state; }
 
-  void set_memory_data_on(uint8_t f) { memory_data_on_ = f; }
-  uint8_t get_memory_data_on() { return memory_data_on_; }
+  void set_memory_data_on(uint8_t f) { this->memory_data_on_ = f; }
+  uint8_t get_memory_data_on() { return this->memory_data_on_; }
 
-  void set_memory_data_off(uint8_t f) { memory_data_off_ = f; }
-  uint8_t get_memory_data_off() { return memory_data_off_; }
+  void set_memory_data_off(uint8_t f) { this->memory_data_off_ = f; }
+  uint8_t get_memory_data_off() { return this->memory_data_off_; }
 
  protected:
   void write_state(bool state) override;
