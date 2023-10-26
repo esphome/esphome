@@ -76,7 +76,7 @@ void MicroNova::request_address(uint8_t location, uint8_t address, MicroNovaSens
 
     write_data[0] = location;
     write_data[1] = address;
-    ESP_LOGD(TAG, "Request from stove [%02X,%02X]", write_data[0], write_data[1]);
+    ESP_LOGV(TAG, "Request from stove [%02X,%02X]", write_data[0], write_data[1]);
 
     this->enable_rx_pin_->digital_write(true);
     this->write_array(write_data, 2);
@@ -101,7 +101,7 @@ int MicroNova::read_stove_reply() {
   this->read_array(reply_data, 2);
 
   this->reply_pending_mutex_.unlock();
-  ESP_LOGD(TAG, "Reply from stove [%02X,%02X]", reply_data[0], reply_data[1]);
+  ESP_LOGV(TAG, "Reply from stove [%02X,%02X]", reply_data[0], reply_data[1]);
 
   checksum = ((uint16_t) this->current_transmission_.memory_location +
               (uint16_t) this->current_transmission_.memory_address + (uint16_t) reply_data[1]) &
@@ -127,7 +127,7 @@ void MicroNova::write_address(uint8_t location, uint8_t address, uint8_t data) {
     checksum = ((uint16_t) write_data[0] + (uint16_t) write_data[1] + (uint16_t) write_data[2]) & 0xFF;
     write_data[3] = checksum;
 
-    ESP_LOGD(TAG, "Write 4 bytes [%02X,%02X,%02X,%02X]", write_data[0], write_data[1], write_data[2], write_data[3]);
+    ESP_LOGV(TAG, "Write 4 bytes [%02X,%02X,%02X,%02X]", write_data[0], write_data[1], write_data[2], write_data[3]);
 
     this->enable_rx_pin_->digital_write(true);
     this->write_array(write_data, 4);
