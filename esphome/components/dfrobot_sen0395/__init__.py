@@ -151,12 +151,10 @@ MMWAVE_SETTINGS_SCHEMA = cv.Schema(
     }
 ).add_extra(
     cv.has_at_least_one_key(
-        [
-            CONF_FACTORY_RESET,
-            CONF_DETECTION_SEGMENTS,
-            CONF_OUTPUT_LATENCY,
-            CONF_SENSITIVITY,
-        ]
+        CONF_FACTORY_RESET,
+        CONF_DETECTION_SEGMENTS,
+        CONF_OUTPUT_LATENCY,
+        CONF_SENSITIVITY,
     )
 )
 
