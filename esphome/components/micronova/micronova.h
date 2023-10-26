@@ -126,7 +126,7 @@ class MicroNova : public PollingComponent, public uart::UARTDevice {
   void loop() override;
   void update() override;
   void dump_config() override;
-  void register_micronova_listener(MicroNovaSensorListener *l) { micronova_listeners_.push_back(l); }
+  void register_micronova_listener(MicroNovaSensorListener *l) { this->micronova_listeners_.push_back(l); }
 
   void request_address(uint8_t location, uint8_t address, MicroNovaSensorListener *listener);
   void write_address(uint8_t location, uint8_t address, uint8_t data);
