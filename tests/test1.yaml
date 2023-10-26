@@ -3576,15 +3576,15 @@ button:
   - platform: template
     name: Start Mmwave Sensor
     on_press:
-      - dfrobot_sen0395.start
+      - dfrobot_sen0395.start:
   - platform: template
     name: Stop Mmwave Sensor
     on_press:
-      - dfrobot_sen0395.stop
+      - dfrobot_sen0395.stop:
   - platform: template
     name: Reset Mmwave Sensor
     on_press:
-      - dfrobot_sen0395.reset
+      - dfrobot_sen0395.reset:
   - platform: template
     name: Poller component suspend test
     on_press:
