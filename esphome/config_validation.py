@@ -1047,6 +1047,8 @@ def ipv4(value):
 
 def _valid_topic(value):
     """Validate that this is a valid topic name/filter."""
+    if value is None:  # Used to disable publishing and subscribing
+        return ""
     if isinstance(value, dict):
         raise Invalid("Can't use dictionary with topic")
     value = string(value)
