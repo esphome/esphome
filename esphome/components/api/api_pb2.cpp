@@ -762,7 +762,7 @@ bool DeviceInfoResponse::decode_length(uint32_t field_id, ProtoLengthDelimited v
       return true;
     }
     case 16: {
-      this->area = value.as_string();
+      this->suggested_area = value.as_string();
       return true;
     }
     default:
@@ -785,7 +785,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(12, this->manufacturer);
   buffer.encode_string(13, this->friendly_name);
   buffer.encode_uint32(14, this->voice_assistant_version);
-  buffer.encode_string(16, this->area);
+  buffer.encode_string(16, this->suggested_area);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
@@ -855,8 +855,8 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  area: ");
-  out.append("'").append(this->area).append("'");
+  out.append("  suggested_area: ");
+  out.append("'").append(this->suggested_area).append("'");
   out.append("\n");
   out.append("}");
 }

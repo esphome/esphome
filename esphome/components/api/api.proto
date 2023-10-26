@@ -218,7 +218,7 @@ message DeviceInfoResponse {
 
   uint32 voice_assistant_version = 14;
 
-  string area = 16;
+  string suggested_area = 16;
 }
 
 message ListEntitiesRequest {
