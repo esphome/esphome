@@ -192,7 +192,7 @@ void WiFiComponent::set_rrm(bool rrm) { this->rrm_ = rrm; }
 #endif
 network::IPAddresses WiFiComponent::get_ip_addresses() {
   if (this->has_sta())
-    return this->wifi_sta_ip();
+    return this->wifi_sta_ip_addresses();
   // TODO: fix soft ap
   if (this->has_ap())
     return {this->wifi_soft_ap_ip()};
@@ -382,7 +382,7 @@ void WiFiComponent::print_connect_params_() {
 
   ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
   ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), wifi_ssid().c_str());
-  for (auto &ip : wifi_sta_ip()) {
+  for (auto &ip : wifi_sta_ip_addresses()) {
     if (ip.is_set()) {
       ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str().c_str());
     }

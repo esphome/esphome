@@ -11,7 +11,7 @@ class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSenso
  public:
   void update() override {
     std::string address_results;
-    auto ips = wifi::global_wifi_component->wifi_sta_ip();
+    auto ips = wifi::global_wifi_component->wifi_sta_ip_addresses();
     if (ips != this->last_ips_) {
       this->last_ips_ = ips;
       for (auto &ip : ips) {
