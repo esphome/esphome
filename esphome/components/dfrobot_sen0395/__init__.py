@@ -65,8 +65,8 @@ async def to_code(config):
     ),
 )
 async def dfrobot_sen0395_reset_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
 
     return var
 
@@ -165,8 +165,8 @@ MMWAVE_SETTINGS_SCHEMA = cv.Schema(
     MMWAVE_SETTINGS_SCHEMA,
 )
 async def dfrobot_sen0395_settings_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
 
     if factory_reset_config := config.get(CONF_FACTORY_RESET):
         template_ = await cg.templatable(factory_reset_config, args, int)
