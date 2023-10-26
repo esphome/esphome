@@ -327,8 +327,8 @@ class DeviceInfoResponse : public ProtoMessage {
   uint32_t bluetooth_proxy_feature_flags{0};
   std::string manufacturer{};
   std::string friendly_name{};
-  std::string area{};
   uint32_t voice_assistant_version{0};
+  std::string area{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
