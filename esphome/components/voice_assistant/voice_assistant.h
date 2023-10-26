@@ -19,9 +19,10 @@
 #endif
 #include "esphome/components/socket/socket.h"
 
+#include <freertos/stream_buffer.h>
+
 #ifdef USE_ESP_ADF
 #include <esp_vad.h>
-#include <ringbuf.h>
 #endif
 
 namespace esphome {
@@ -145,9 +146,10 @@ class VoiceAssistant : public Component {
 
   HighFrequencyLoopRequester high_freq_;
 
+  StreamBufferHandle_t stream_buffer_;
+
 #ifdef USE_ESP_ADF
   vad_handle_t vad_instance_;
-  ringbuf_handle_t ring_buffer_;
   uint8_t vad_threshold_{5};
   uint8_t vad_counter_{0};
 #endif
