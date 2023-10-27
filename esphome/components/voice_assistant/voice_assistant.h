@@ -91,9 +91,7 @@ class VoiceAssistant : public Component {
   bool is_continuous() const { return this->continuous_; }
 
   void set_use_wake_word(bool use_wake_word) { this->use_wake_word_ = use_wake_word; }
-#ifdef USE_ESP_ADF
   void set_vad_threshold(uint8_t vad_threshold) { this->vad_threshold_ = vad_threshold; }
-#endif
 
   void set_noise_suppression_level(uint8_t noise_suppression_level) {
     this->noise_suppression_level_ = noise_suppression_level;
@@ -148,10 +146,13 @@ class VoiceAssistant : public Component {
 
   StreamBufferHandle_t stream_buffer_;
 
-#ifdef USE_ESP_ADF
-  vad_handle_t vad_instance_;
   uint8_t vad_threshold_{5};
   uint8_t vad_counter_{0};
+
+#ifdef USE_ESP_ADF
+  vad_handle_t vad_instance_;
+#else
+  uint16_t noise_floor_{0};
 #endif
 
   bool use_wake_word_;

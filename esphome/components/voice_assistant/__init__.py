@@ -60,7 +60,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_USE_WAKE_WORD, default=False): cv.boolean,
             cv.Optional(CONF_VAD_THRESHOLD): cv.All(
-                cv.requires_component("esp_adf"), cv.only_with_esp_idf, cv.uint8_t
+                cv.uint8_t,
             ),
             cv.Optional(CONF_NOISE_SUPPRESSION_LEVEL, default=0): cv.int_range(0, 4),
             cv.Optional(CONF_AUTO_GAIN, default="0dBFS"): cv.All(
