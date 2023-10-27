@@ -33,7 +33,12 @@ int OtaHttpArduino::http_init() {
 #ifdef USE_ESP8266
 #ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
   if (this->secure_) {
-    ESP_LOGE(TAG, "https connection not handled!");
+    this->stream_ptr_ = std::make_unique<WiFiClientSecure>();
+    WiFiClientSecure *secureClient = static_cast<WiFiClientSecure *>(this->stream_ptr_.get());
+    secureClient->setBufferSizes(this->MAX_HTTP_RECV_BUFFER_, 512);
+    secureClient->setInsecure();
+  } else {
+    this->stream_ptr_ = std::make_unique<WiFiClient>();
   }
 #endif  // USE_HTTP_REQUEST_ESP8266_HTTPS
 #endif  // USE_ESP8266
@@ -45,7 +50,7 @@ int OtaHttpArduino::http_init() {
   status = this->client_.begin(this->url_.c_str());
 #endif
 #ifdef USE_ESP8266
-  status = client_.begin(*this->stream_ptr_, this->url_.c_str());
+  status = this->client_.begin(*this->stream_ptr_.get(), this->url_.c_str());
 #endif
 
   if (!status) {
@@ -85,7 +90,7 @@ int OtaHttpArduino::http_init() {
   ESP_LOGD(TAG, "firmware is %d bytes length.", this->body_length_);
 
 #ifdef USE_ESP32
-  this->stream_ptr_ = this->client_.getStreamPtr();
+  this->stream_ptr_ = std::unique_ptr<WiFiClient>(this->client_.getStreamPtr());
 #endif
 
   return 1;

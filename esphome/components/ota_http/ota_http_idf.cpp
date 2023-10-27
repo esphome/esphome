@@ -28,8 +28,6 @@
 
 #include "esp_http_client.h"
 
-static const uint16_t MAX_HTTP_RECV_BUFFER = 1024;
-
 namespace esphome {
 namespace ota_http {
 
@@ -40,7 +38,7 @@ int OtaHttpIDF::http_init() {
   config.url = this->url_.c_str();
   config.method = HTTP_METHOD_GET;
   config.timeout_ms = (int) this->timeout_;
-  config.buffer_size = MAX_HTTP_RECV_BUFFER;
+  config.buffer_size = this->MAX_HTTP_RECV_BUFFER_;
 #pragma GCC diagnostic pop
 
   this->client_ = esp_http_client_init(&config);
