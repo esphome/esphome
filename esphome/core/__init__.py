@@ -464,6 +464,8 @@ class EsphomeCore:
         self.name: Optional[str] = None
         # The friendly name of the node
         self.friendly_name: Optional[str] = None
+        # The area / zone of the node
+        self.area: Optional[str] = None
         # Additional data components can store temporary data in
         # The first key to this dict should always be the integration name
         self.data = {}
@@ -504,6 +506,7 @@ class EsphomeCore:
         self.dashboard = False
         self.name = None
         self.friendly_name = None
+        self.area = None
         self.data = {}
         self.config_path = None
         self.build_path = None

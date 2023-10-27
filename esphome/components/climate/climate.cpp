@@ -213,6 +213,8 @@ ClimateCall &ClimateCall::set_preset(const std::string &preset) {
     this->set_preset(CLIMATE_PRESET_SLEEP);
   } else if (str_equals_case_insensitive(preset, "ACTIVITY")) {
     this->set_preset(CLIMATE_PRESET_ACTIVITY);
+  } else if (str_equals_case_insensitive(preset, "NONE")) {
+    this->set_preset(CLIMATE_PRESET_NONE);
   } else {
     if (this->parent_->get_traits().supports_custom_preset(preset)) {
       this->custom_preset_ = preset;

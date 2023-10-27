@@ -623,6 +623,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param True or false. Sleep=true to enter sleep mode or sleep=false to exit sleep mode.
    */
   void sleep(bool sleep);
+  /**
+   * Sets Nextion Protocol Reparse mode between active or passive
+   * @param True or false.
+   * active_mode=true to enter active protocol reparse mode
+   * active_mode=false to enter passive protocol reparse mode.
+   */
+  void set_protocol_reparse_mode(bool active_mode);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)

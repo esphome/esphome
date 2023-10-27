@@ -19,6 +19,8 @@
 - [ ] ESP32 IDF
 - [ ] ESP8266
 - [ ] RP2040
+- [ ] BK72xx
+- [ ] RTL87xx
 
 ## Example entry for `config.yaml`:
 <!--

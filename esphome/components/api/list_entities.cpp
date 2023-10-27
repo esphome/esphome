@@ -60,6 +60,10 @@ bool ListEntitiesIterator::on_climate(climate::Climate *climate) { return this->
 bool ListEntitiesIterator::on_number(number::Number *number) { return this->client_->send_number_info(number); }
 #endif
 
+#ifdef USE_TEXT
+bool ListEntitiesIterator::on_text(text::Text *text) { return this->client_->send_text_info(text); }
+#endif
+
 #ifdef USE_SELECT
 bool ListEntitiesIterator::on_select(select::Select *select) { return this->client_->send_select_info(select); }
 #endif

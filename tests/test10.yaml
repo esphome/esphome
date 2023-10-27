@@ -49,3 +49,8 @@ sensor:
   - platform: wireguard
     latest_handshake:
       name: 'WireGuard Latest Handshake'
+
+text_sensor:
+  - platform: wireguard
+    address:
+      name: 'WireGuard Address'

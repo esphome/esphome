@@ -203,3 +203,19 @@ light:
         from: 20
         to: 25
       - single_light_id: ${roomname}_lights
+
+canbus:
+  - platform: esp32_can
+    id: esp32_internal_can
+    rx_pin: GPIO04
+    tx_pin: GPIO05
+    can_id: 4
+    bit_rate: 50kbps
+
+button:
+  - platform: template
+    name: Canbus Actions
+    on_press:
+      - canbus.send: "abc"
+      - canbus.send: [0, 1, 2]
+      - canbus.send: !lambda return {0, 1, 2};
