@@ -62,6 +62,7 @@ CONFIG_SCHEMA = cv.Any(
             cv.Required(CONF_SPI_ID): cv.use_id(spi.SPIComponent),
         }
     ),
+    msg='Either "data_pin" and "clock_pin" must be set or "spi_id" must be set.',
 )
 
 
