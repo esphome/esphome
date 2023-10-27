@@ -55,7 +55,7 @@ void SN74HC595Component::digital_write_(uint16_t pin, bool value) {
   this->write_gpio();
 }
 
-void SN74HC595GPIOComponent::write_gpio_() {
+void SN74HC595GPIOComponent::write_gpio() {
   for (auto byte = this->output_bytes_.rbegin(); byte != this->output_bytes_.rend(); byte++) {
     for (int8_t i = 7; i >= 0; i--) {
       bool bit = (*byte >> i) & 1;
@@ -68,7 +68,7 @@ void SN74HC595GPIOComponent::write_gpio_() {
 }
 
 #ifdef USE_SPI
-void SN74HC595SPIComponent::write_gpio_() {
+void SN74HC595SPIComponent::write_gpio() {
   for (auto byte = this->output_bytes_.rbegin(); byte != this->output_bytes_.rend(); byte++) {
     this->enable();
     this->transfer_byte(*byte);
