@@ -1,8 +1,8 @@
 #include "filter.h"
+#include <cmath>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "sensor.h"
-#include <cmath>
 
 namespace esphome {
 namespace sensor {
@@ -376,9 +376,7 @@ void OrFilter::initialize(Sensor *parent, Filter *next) {
 // TimeoutFilter
 optional<float> TimeoutFilter::new_value(float value) {
   this->set_timeout("timeout", this->time_period_, [this]() { this->output(this->value_); });
-  this->output(value);
-
-  return {};
+  return value;
 }
 
 TimeoutFilter::TimeoutFilter(uint32_t time_period, float new_value) : time_period_(time_period), value_(new_value) {}
