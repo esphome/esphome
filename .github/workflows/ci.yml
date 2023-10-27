@@ -229,7 +229,6 @@ jobs:
       - compile-tests-list
     strategy:
       fail-fast: false
-      max-parallel: 2
       matrix:
         file: ${{ fromJson(needs.compile-tests-list.outputs.matrix) }}
     steps:
