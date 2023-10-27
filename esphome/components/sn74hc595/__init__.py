@@ -14,8 +14,6 @@ from esphome.const import (
 )
 from esphome.core import EsphomeError
 
-DEPENDENCIES = []
-AUTO_LOAD = []
 MULTI_CONF = True
 
 sn74hc595_ns = cg.esphome_ns.namespace("sn74hc595")
