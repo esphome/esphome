@@ -27,6 +27,9 @@ enum OTACommands {
 
 enum OTAState { OTA_COMPLETED = 0, OTA_STARTED, OTA_IN_PROGRESS, OTA_ERROR };
 
+/// Create a singleton with the backend implementation for the selected framework/platform
+std::unique_ptr<OTABackend> make_ota_backend();
+
 /// OTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
 class OTAComponent : public Component {
  public:
