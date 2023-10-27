@@ -220,6 +220,12 @@ uart:
     baud_rate: 256000
     parity: NONE
     stop_bits: 1
+  - id: ld2450_uart
+    tx_pin: 18
+    rx_pin: 23
+    baud_rate: 256000
+    parity: NONE
+    stop_bits: 1
   - id: dfrobot_mmwave_uart
     tx_pin: 14
     rx_pin: 27
@@ -1440,6 +1446,39 @@ sensor:
         name: g8 move energy
       still_energy:
         name: g8 still energy
+  - platform: ld2450
+    all_target_counts:
+      name: All Target Counts
+    target1_x:
+      name: Target1 X
+    target1_y:
+      name: Target1 Y
+    target1_speed:
+      name: Target1 Speed
+    target1_resolution:
+      name: Target1 Resolution
+    target1_angle:
+      name: Target1 Angle
+    target2_x:
+      name: Target2 X
+    target2_y:
+      name: Target2 Y
+    target2_speed:
+      name: Target2 Speed
+    target2_resolution:
+      name: Target2 Resolution
+    target2_angle:
+      name: Target2 Angle
+    target3_x:
+      name: Target3 X
+    target3_y:
+      name: Target3 Y
+    target3_speed:
+      name: Target3 Speed
+    target3_resolution:
+      name: Target3 Resolution
+    target3_angle:
+      name: Target3 Angle
 
   - platform: sen21231
     name: "Person Sensor"
@@ -1821,6 +1860,9 @@ binary_sensor:
       name: still
     out_pin_presence_status:
       name: out pin presence status
+  - platform: ld2450
+    any_presence:
+      name: "Any Presence"
   - platform: qwiic_pir
     i2c_id: i2c_bus
     name: "Qwiic PIR Motion Sensor"
@@ -3317,6 +3359,19 @@ text_sensor:
       name: "presenece sensor version"
     mac_address:
       name: "presenece sensor mac address"
+  - platform: ld2450
+    target1_direction:
+      name: Target1 Direction
+    target1_position:
+      name: Target1 Position
+    target2_direction:
+      name: Target2 Direction
+    target2_position:
+      name: Target2 Position
+    target3_direction:
+      name: Target3 Direction
+    target3_position:
+      name: Target3 Position
 
 sn74hc595:
   - id: sn74hc595_hub
@@ -3614,6 +3669,10 @@ button:
 ld2410:
   id: my_ld2410
   uart_id: ld2410_uart
+
+ld2450:
+  id: my_ld2450
+  uart_id: ld2450_uart
 
 lcd_menu:
   display_id: my_lcd_gpio
