@@ -71,7 +71,7 @@ class SN74HC595GPIOComponent : public SN74HC595Component {
   void set_clock_pin(GPIOPin *pin) { clock_pin_ = pin; }
 
  protected:
-  void write_gpio_() override;
+  void write_gpio() override;
 
   GPIOPin *data_pin_;
   GPIOPin *clock_pin_;
@@ -85,7 +85,7 @@ class SN74HC595SPIComponent : public SN74HC595Component,
   void setup() override;
 
  protected:
-  void write_gpio_() override;
+  void write_gpio() override;
 };
 
 #endif
