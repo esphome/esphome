@@ -185,6 +185,7 @@ i2c:
   id: i2c_bus
 
 spi:
+  id: spi_bus
   clk_pin: GPIO21
   mosi_pin: GPIO22
   miso_pin: GPIO23
@@ -3302,6 +3303,7 @@ sn74hc595:
     latch_pin: GPIO22
     oe_pin: GPIO32
     sr_count: 2
+    spi_id: spi_bus
 
 rtttl:
   output: gpio_19
