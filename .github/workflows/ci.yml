@@ -221,6 +221,29 @@ jobs:
         id: set-matrix
         run: echo "matrix=$(ls tests/test*.yaml | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
 
+  validate-tests:
+    name: Validate YAML test ${{ matrix.file }}
+    runs-on: ubuntu-latest
+    needs:
+      - common
+      - compile-tests-list
+    strategy:
+      fail-fast: false
+      matrix:
+        file: ${{ fromJson(needs.compile-tests-list.outputs.matrix) }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Run esphome config ${{ matrix.file }}
+        run: |
+          . venv/bin/activate
+          esphome config ${{ matrix.file }}
+
   compile-tests:
     name: Run YAML test ${{ matrix.file }}
     runs-on: ubuntu-latest
@@ -234,6 +257,7 @@ jobs:
       - pytest
       - pyupgrade
       - compile-tests-list
+      - validate-tests
     strategy:
       fail-fast: false
       max-parallel: 2
