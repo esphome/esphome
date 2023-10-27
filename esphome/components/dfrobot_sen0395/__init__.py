@@ -3,9 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome import core
 from esphome.automation import maybe_simple_id
-from esphome.const import (
-    CONF_ID,
-)
+from esphome.const import CONF_ID
 from esphome.components import uart
 
 CODEOWNERS = ["@niklasweber"]
@@ -18,9 +16,6 @@ DfrobotSen0395Component = dfrobot_sen0395_ns.class_(
 )
 
 # Actions
-DfrobotSen0395PowerAction = dfrobot_sen0395_ns.class_(
-    "DfrobotSen0395PowerAction", automation.Action
-)
 DfrobotSen0395ResetAction = dfrobot_sen0395_ns.class_(
     "DfrobotSen0395ResetAction", automation.Action
 )
@@ -34,10 +29,7 @@ CONF_DELAY_AFTER_DETECT = "delay_after_detect"
 CONF_DELAY_AFTER_DISAPPEAR = "delay_after_disappear"
 CONF_DETECTION_SEGMENTS = "detection_segments"
 CONF_OUTPUT_LATENCY = "output_latency"
-CONF_START_AFTER_POWER_ON = "start_after_power_on"
-CONF_TURN_ON_LED = "turn_on_led"
 CONF_FACTORY_RESET = "factory_reset"
-CONF_PRESENCE_VIA_UART = "presence_via_uart"
 CONF_SENSITIVITY = "sensitivity"
 
 CONFIG_SCHEMA = cv.All(
