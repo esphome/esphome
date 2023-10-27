@@ -45,7 +45,7 @@ void OtaHttpComponent::dump_config() {
 
 void OtaHttpComponent::flash() {
   uint32_t update_start_time = millis();
-  uint8_t buf[this->HTTP_RECV_BUFFER_ + 1];
+  uint8_t buf[this->http_recv_buffer_ + 1];
   int error_code = 0;
   uint32_t last_progress = 0;
   esphome::md5::MD5Digest md5_receive;
@@ -70,7 +70,7 @@ void OtaHttpComponent::flash() {
 
   while (this->bytes_read_ != this->body_length_) {
     // read a maximum of chunk_size bytes into buf. (real read size returned)
-    size_t bufsize = this->http_read(buf, this->HTTP_RECV_BUFFER_);
+    size_t bufsize = this->http_read(buf, this->http_recv_buffer_);
 
     // add read bytes to md5
     md5_receive.add(buf, bufsize);

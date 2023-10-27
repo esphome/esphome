@@ -34,8 +34,8 @@ class OtaHttpComponent : public Component {
   size_t body_length_ = 0;
   size_t bytes_read_ = 0;
   uint64_t timeout_{1000 * 60 * 10};            // must match CONF_TIMEOUT in __init__.py
-  const uint16_t HTTP_RECV_BUFFER_ = 1000;      // the firwmware GET chunk size
-  const uint16_t MAX_HTTP_RECV_BUFFER_ = 1024;  // internal max http buffer size must be > HTTP_RECV_BUFFER_ (TLS
+  const uint16_t http_recv_buffer_ = 1000;      // the firwmware GET chunk size
+  const uint16_t max_http_recv_buffer_ = 1024;  // internal max http buffer size must be > HTTP_RECV_BUFFER_ (TLS
                                                 // overhead) and must be a power of two from 512 to 4096
   bool update_started_ = false;
   static const std::unique_ptr<ota::OTABackend> BACKEND;

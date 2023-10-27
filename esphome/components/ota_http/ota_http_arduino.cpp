@@ -34,9 +34,9 @@ int OtaHttpArduino::http_init() {
 #ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
   if (this->secure_) {
     this->stream_ptr_ = std::make_unique<WiFiClientSecure>();
-    WiFiClientSecure *secureClient = static_cast<WiFiClientSecure *>(this->stream_ptr_.get());
-    secureClient->setBufferSizes(this->MAX_HTTP_RECV_BUFFER_, 512);
-    secureClient->setInsecure();
+    WiFiClientSecure *secure_client = static_cast<WiFiClientSecure *>(this->stream_ptr_.get());
+    secure_client->setBufferSizes(this->max_http_recv_buffer_, 512);
+    secure_client->setInsecure();
   } else {
     this->stream_ptr_ = std::make_unique<WiFiClient>();
   }
@@ -50,7 +50,7 @@ int OtaHttpArduino::http_init() {
   status = this->client_.begin(this->url_.c_str());
 #endif
 #ifdef USE_ESP8266
-  status = this->client_.begin(*this->stream_ptr_.get(), this->url_.c_str());
+  status = this->client_.begin(*this->stream_ptr_, this->url_.c_str());
 #endif
 
   if (!status) {
