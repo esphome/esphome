@@ -68,9 +68,18 @@ void SX1509Component::digital_write(uint8_t pin, bool bit_value) {
     uint16_t temp_reg_data = 0;
     this->read_byte_16(REG_DATA_B, &temp_reg_data);
     if (bit_value) {
-      temp_reg_data |= (1 << pin);
+      output_state_ |= (1 << pin);  // set bit in shadow register
     } else {
-      temp_reg_data &= ~(1 << pin);
+      output_state_ &= ~(1 << pin);  // reset bit shadow register
+    }
+    for (uint16_t b = 0x8000; b; b >>= 1) {
+      if ((~ddr_mask_) & b) {  // transfer bits of outputs, but don't mess with inputs
+        if (output_state_ & b) {
+          temp_reg_data |= b;
+        } else {
+          temp_reg_data &= ~b;
+        }
+      }
     }
     this->write_byte_16(REG_DATA_B, temp_reg_data);
   }
@@ -134,6 +143,7 @@ void SX1509Component::setup_led_driver(uint8_t pin) {
 
   this->read_byte_16(REG_DATA_B, &temp_word);
   temp_word &= ~(1 << pin);
+  output_state_ &= ~(1 << pin);
   this->write_byte_16(REG_DATA_B, temp_word);
 }
 
