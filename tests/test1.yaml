@@ -220,6 +220,10 @@ uart:
     baud_rate: 256000
     parity: NONE
     stop_bits: 1
+  - id: dfrobot_mmwave_uart
+    tx_pin: 14
+    rx_pin: 27
+    baud_rate: 115200
   - id: gcja5_uart
     rx_pin: GPIO10
     parity: EVEN
@@ -331,6 +335,10 @@ mcp23s17:
   - id: mcp23s17_hub
     cs_pin: GPIO12
     deviceaddress: 1
+
+dfrobot_sen0395:
+  - id: mmwave
+    uart_id: dfrobot_mmwave_uart
 
 sensor:
   - platform: pmwcs3
@@ -1816,6 +1824,9 @@ binary_sensor:
   - platform: qwiic_pir
     i2c_id: i2c_bus
     name: "Qwiic PIR Motion Sensor"
+  - platform: dfrobot_sen0395
+    id: mmwave_detected_uart
+    dfrobot_sen0395_id: mmwave
 
 pca9685:
   frequency: 500
@@ -2548,7 +2559,22 @@ switch:
     name: Haier
     turn_on_action:
       remote_transmitter.transmit_haier:
-        code: [0xA6, 0xDA, 0x00, 0x00, 0x40, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x05]
+        code:
+          [
+            0xA6,
+            0xDA,
+            0x00,
+            0x00,
+            0x40,
+            0x40,
+            0x00,
+            0x80,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x05,
+          ]
   - platform: template
     name: Living Room Lights
     id: livingroom_lights
@@ -3532,6 +3558,25 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+  - platform: template
+    name: Update Mmwave Sensor Settings
+    on_press:
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          factory_reset: true
+          detection_segments:
+            - [0cm, 5m]
+            - 600cm
+            - !lambda |-
+              return 7;
+          output_latency:
+            delay_after_detect: 0s
+            delay_after_disappear: 0s
+          sensitivity: 6
+  - platform: template
+    name: Reset Mmwave Sensor
+    on_press:
+      - dfrobot_sen0395.reset:
   - platform: template
     name: Poller component suspend test
     on_press:

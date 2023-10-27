@@ -77,6 +77,7 @@ esphome/components/dashboard_import/* @esphome/core
 esphome/components/debug/* @OttoWinter
 esphome/components/delonghi/* @grob6000
 esphome/components/dfplayer/* @glmnet
+esphome/components/dfrobot_sen0395/* @niklasweber
 esphome/components/dht/* @OttoWinter
 esphome/components/display_menu_base/* @numo68
 esphome/components/dps310/* @kbx81
