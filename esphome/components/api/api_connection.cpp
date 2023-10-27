@@ -1,6 +1,7 @@
 #include "api_connection.h"
 #include <cerrno>
 #include <cinttypes>
+#include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
@@ -655,6 +656,44 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_TEXT
+bool APIConnection::send_text_state(text::Text *text, std::string state) {
+  if (!this->state_subscription_)
+    return false;
+
+  TextStateResponse resp{};
+  resp.key = text->get_object_id_hash();
+  resp.state = std::move(state);
+  resp.missing_state = !text->has_state();
+  return this->send_text_state_response(resp);
+}
+bool APIConnection::send_text_info(text::Text *text) {
+  ListEntitiesTextResponse msg;
+  msg.key = text->get_object_id_hash();
+  msg.object_id = text->get_object_id();
+  msg.name = text->get_name();
+  msg.icon = text->get_icon();
+  msg.disabled_by_default = text->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(text->get_entity_category());
+  msg.mode = static_cast<enums::TextMode>(text->traits.get_mode());
+
+  msg.min_length = text->traits.get_min_length();
+  msg.max_length = text->traits.get_max_length();
+  msg.pattern = text->traits.get_pattern();
+
+  return this->send_list_entities_text_response(msg);
+}
+void APIConnection::text_command(const TextCommandRequest &msg) {
+  text::Text *text = App.get_text_by_key(msg.key);
+  if (text == nullptr)
+    return;
+
+  auto call = text->make_call();
+  call.set_value(msg.state);
+  call.perform();
+}
+#endif
+
 #ifdef USE_SELECT
 bool APIConnection::send_select_state(select::Select *select, std::string state) {
   if (!this->state_subscription_)
@@ -907,21 +946,22 @@ BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
-bool APIConnection::request_voice_assistant(bool start, const std::string &conversation_id, bool use_vad) {
+bool APIConnection::request_voice_assistant(const VoiceAssistantRequest &msg) {
   if (!this->voice_assistant_subscription_)
     return false;
-  VoiceAssistantRequest msg;
-  msg.start = start;
-  msg.conversation_id = conversation_id;
-  msg.use_vad = use_vad;
+
   return this->send_voice_assistant_request(msg);
 }
 void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
   if (voice_assistant::global_voice_assistant != nullptr) {
+    if (msg.error) {
+      voice_assistant::global_voice_assistant->failed_to_start();
+      return;
+    }
     struct sockaddr_storage storage;
     socklen_t len = sizeof(storage);
     this->helper_->getpeername((struct sockaddr *) &storage, &len);
-    voice_assistant::global_voice_assistant->start(&storage, msg.port);
+    voice_assistant::global_voice_assistant->start_streaming(&storage, msg.port);
   }
 };
 void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) {
@@ -1044,6 +1084,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.uses_password = this->parent_->uses_password();
   resp.name = App.get_name();
   resp.friendly_name = App.get_friendly_name();
+  resp.suggested_area = App.get_area();
   resp.mac_address = get_mac_address_pretty();
   resp.esphome_version = ESPHOME_VERSION;
   resp.compilation_time = App.get_compilation_time();

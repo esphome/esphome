@@ -1,5 +1,6 @@
 #include "sen5x.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -135,9 +136,12 @@ void SEN5XComponent::setup() {
       ESP_LOGD(TAG, "Firmware version %d", this->firmware_version_);
 
       if (this->voc_sensor_ && this->store_baseline_) {
-        // Hash with compilation time
+        uint32_t combined_serial =
+            encode_uint24(this->serial_number_[0], this->serial_number_[1], this->serial_number_[2]);
+        // Hash with compilation time and serial number
         // This ensures the baseline storage is cleared after OTA
-        uint32_t hash = fnv1_hash(App.get_compilation_time());
+        // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
+        uint32_t hash = fnv1_hash(App.get_compilation_time() + std::to_string(combined_serial));
         this->pref_ = global_preferences->make_preference<Sen5xBaselines>(hash, true);
 
         if (this->pref_.load(&this->voc_baselines_storage_)) {

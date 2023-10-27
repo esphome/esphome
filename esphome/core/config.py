@@ -8,6 +8,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import (
     CONF_ARDUINO_VERSION,
+    CONF_AREA,
     CONF_BOARD,
     CONF_BOARD_FLASH_MODE,
     CONF_BUILD_PATH,
@@ -126,6 +127,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_NAME): cv.valid_name,
             cv.Optional(CONF_FRIENDLY_NAME, ""): cv.string,
+            cv.Optional(CONF_AREA, ""): cv.string,
             cv.Optional(CONF_COMMENT): cv.string,
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
@@ -350,6 +352,7 @@ async def to_code(config):
         cg.App.pre_setup(
             config[CONF_NAME],
             config[CONF_FRIENDLY_NAME],
+            config[CONF_AREA],
             config.get(CONF_COMMENT, ""),
             cg.RawExpression('__DATE__ ", " __TIME__'),
             config[CONF_NAME_ADD_MAC_SUFFIX],
