@@ -14,6 +14,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_RP2040,
 )
 from esphome.core import CORE, coroutine_with_priority, EsphomeError
 from esphome.helpers import mkdir_p, write_file, copy_file_if_changed
@@ -30,7 +31,7 @@ AUTO_LOAD = []
 
 def set_core_data(config):
     CORE.data[KEY_RP2040] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "rp2040"
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_RP2040
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
@@ -152,6 +153,9 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     cg.add(rp2040_ns.setup_preferences())
 
+    # Allow LDF to properly discover dependency including those in preprocessor
+    # conditionals
+    cg.add_platformio_option("lib_ldf_mode", "chain+")
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_RP2040")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
