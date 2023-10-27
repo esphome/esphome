@@ -18,7 +18,7 @@ class SN74HC595Component : public Component {
  public:
   SN74HC595Component() = default;
 
-  virtual void setup() override = 0;
+  void setup() override = 0;
   float get_setup_priority() const override;
   void dump_config() override;
 
@@ -35,7 +35,7 @@ class SN74HC595Component : public Component {
  protected:
   friend class SN74HC595GPIOPin;
   void digital_write_(uint16_t pin, bool value);
-  virtual void write_gpio_();
+  virtual void write_gpio();
 
   void pre_setup_();
   void post_setup_();

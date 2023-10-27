@@ -19,7 +19,7 @@ void SN74HC595Component::post_setup_() {
   this->latch_pin_->digital_write(false);
 
   // send state to shift register
-  this->write_gpio_();
+  this->write_gpio();
 }
 
 void SN74HC595GPIOComponent::setup() {
@@ -52,7 +52,7 @@ void SN74HC595Component::digital_write_(uint16_t pin, bool value) {
   } else {
     this->output_bytes_[pin / 8] &= ~(1 << (pin % 8));
   }
-  this->write_gpio_();
+  this->write_gpio();
 }
 
 void SN74HC595GPIOComponent::write_gpio_() {
@@ -64,7 +64,7 @@ void SN74HC595GPIOComponent::write_gpio_() {
       this->clock_pin_->digital_write(false);
     }
   }
-  SN74HC595Component::write_gpio_();
+  SN74HC595Component::write_gpio();
 }
 
 #ifdef USE_SPI
@@ -74,11 +74,11 @@ void SN74HC595SPIComponent::write_gpio_() {
     this->transfer_byte(*byte);
     this->disable();
   }
-  SN74HC595Component::write_gpio_();
+  SN74HC595Component::write_gpio();
 }
 #endif
 
-void SN74HC595Component::write_gpio_() {
+void SN74HC595Component::write_gpio() {
   // pulse latch to activate new values
   this->latch_pin_->digital_write(true);
   this->latch_pin_->digital_write(false);

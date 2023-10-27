@@ -76,7 +76,6 @@ async def to_code(config):
         cg.add(var.set_clock_pin(clock_pin))
     elif CONF_SPI_ID in config:
         await spi.register_spi_device(var, config)
-        cg.add(var.use_spi())
     else:
         raise EsphomeError("Not supported")
 
