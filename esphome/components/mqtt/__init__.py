@@ -133,33 +133,51 @@ def validate_config(value):
     # Populate default fields
     out = value.copy()
     topic_prefix = value[CONF_TOPIC_PREFIX]
+    # If the topic prefix is not null and these messages are not configured, then set them to the default
+    # If the topic prefix is null and these messages are not configured, then set them to null
     if CONF_BIRTH_MESSAGE not in value:
-        out[CONF_BIRTH_MESSAGE] = {
-            CONF_TOPIC: f"{topic_prefix}/status",
-            CONF_PAYLOAD: "online",
-            CONF_QOS: 0,
-            CONF_RETAIN: True,
-        }
+        out[CONF_BIRTH_MESSAGE] = (
+            {
+                CONF_TOPIC: f"{topic_prefix}/status",
+                CONF_PAYLOAD: "online",
+                CONF_QOS: 0,
+                CONF_RETAIN: True,
+            }
+            if topic_prefix != ""
+            else {}
+        )
     if CONF_WILL_MESSAGE not in value:
-        out[CONF_WILL_MESSAGE] = {
-            CONF_TOPIC: f"{topic_prefix}/status",
-            CONF_PAYLOAD: "offline",
-            CONF_QOS: 0,
-            CONF_RETAIN: True,
-        }
+        out[CONF_WILL_MESSAGE] = (
+            {
+                CONF_TOPIC: f"{topic_prefix}/status",
+                CONF_PAYLOAD: "offline",
+                CONF_QOS: 0,
+                CONF_RETAIN: True,
+            }
+            if topic_prefix != ""
+            else {}
+        )
     if CONF_SHUTDOWN_MESSAGE not in value:
-        out[CONF_SHUTDOWN_MESSAGE] = {
-            CONF_TOPIC: f"{topic_prefix}/status",
-            CONF_PAYLOAD: "offline",
-            CONF_QOS: 0,
-            CONF_RETAIN: True,
-        }
+        out[CONF_SHUTDOWN_MESSAGE] = (
+            {
+                CONF_TOPIC: f"{topic_prefix}/status",
+                CONF_PAYLOAD: "offline",
+                CONF_QOS: 0,
+                CONF_RETAIN: True,
+            }
+            if topic_prefix != ""
+            else {}
+        )
     if CONF_LOG_TOPIC not in value:
-        out[CONF_LOG_TOPIC] = {
-            CONF_TOPIC: f"{topic_prefix}/debug",
-            CONF_QOS: 0,
-            CONF_RETAIN: True,
-        }
+        out[CONF_LOG_TOPIC] = (
+            {
+                CONF_TOPIC: f"{topic_prefix}/debug",
+                CONF_QOS: 0,
+                CONF_RETAIN: True,
+            }
+            if topic_prefix != ""
+            else {}
+        )
     return out
 
 
