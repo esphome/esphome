@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_FROM,
     CONF_ICON,
     CONF_ID,
+    CONF_IGNORE_OUT_OF_RANGE,
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
@@ -85,6 +86,7 @@ from esphome.const import (
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
+    ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
@@ -188,6 +190,15 @@ def validate_datapoint(value):
     return validate_datapoint({CONF_FROM: cv.float_(a), CONF_TO: cv.float_(b)})
 
 
+_SENSOR_ENTITY_CATEGORIES = {
+    k: v for k, v in cv.ENTITY_CATEGORIES.items() if k != ENTITY_CATEGORY_CONFIG
+}
+
+
+def sensor_entity_category(value):
+    return cv.enum(_SENSOR_ENTITY_CATEGORIES, lower=True)(value)
+
+
 # Base
 Sensor = sensor_ns.class_("Sensor", cg.EntityBase)
 SensorPtr = Sensor.operator("ptr")
@@ -232,6 +243,7 @@ CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
+RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 
 validate_unit_of_measurement = cv.string_strict
 validate_accuracy_decimals = cv.int_
@@ -246,6 +258,7 @@ SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
         cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
         cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
         cv.Optional(CONF_STATE_CLASS): validate_state_class,
+        cv.Optional(CONF_ENTITY_CATEGORY): sensor_entity_category,
         cv.Optional("last_reset_type"): cv.invalid(
             "last_reset_type has been removed since 2021.9.0. state_class: total_increasing should be used for total values."
         ),
@@ -301,7 +314,7 @@ def sensor_schema(
         (CONF_ACCURACY_DECIMALS, accuracy_decimals, validate_accuracy_decimals),
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
         (CONF_STATE_CLASS, state_class, validate_state_class),
-        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ENTITY_CATEGORY, entity_category, sensor_entity_category),
     ]:
         if default is not _UNDEF:
             schema[cv.Optional(key, default=default)] = validator
@@ -676,6 +689,7 @@ CLAMP_SCHEMA = cv.All(
         {
             cv.Optional(CONF_MIN_VALUE, default="NaN"): cv.float_,
             cv.Optional(CONF_MAX_VALUE, default="NaN"): cv.float_,
+            cv.Optional(CONF_IGNORE_OUT_OF_RANGE, default=False): cv.boolean,
         }
     ),
     validate_clamp,
@@ -688,6 +702,24 @@ async def clamp_filter_to_code(config, filter_id):
         filter_id,
         config[CONF_MIN_VALUE],
         config[CONF_MAX_VALUE],
+        config[CONF_IGNORE_OUT_OF_RANGE],
+    )
+
+
+@FILTER_REGISTRY.register(
+    "round",
+    RoundFilter,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ACCURACY_DECIMALS): cv.uint8_t,
+        },
+        key=CONF_ACCURACY_DECIMALS,
+    ),
+)
+async def round_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_ACCURACY_DECIMALS],
     )
 
 

@@ -72,6 +72,11 @@ class APIConnection : public APIServerConnection {
   bool send_number_info(number::Number *number);
   void number_command(const NumberCommandRequest &msg) override;
 #endif
+#ifdef USE_TEXT
+  bool send_text_state(text::Text *text, std::string state);
+  bool send_text_info(text::Text *text);
+  void text_command(const TextCommandRequest &msg) override;
+#endif
 #ifdef USE_SELECT
   bool send_select_state(select::Select *select, std::string state);
   bool send_select_info(select::Select *select);
@@ -124,7 +129,7 @@ class APIConnection : public APIServerConnection {
   void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override {
     this->voice_assistant_subscription_ = msg.subscribe;
   }
-  bool request_voice_assistant(bool start, const std::string &conversation_id, bool use_vad);
+  bool request_voice_assistant(const VoiceAssistantRequest &msg);
   void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
   void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
 #endif
