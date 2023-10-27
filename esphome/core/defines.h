@@ -100,10 +100,6 @@
 
 #define USE_SPI
 
-#ifdef USE_LIBRETINY
-#define USE_SOCKET_IMPL_LWIP_SOCKETS
-#endif
-
 // Dummy firmware payload for shelly_dimmer
 #define USE_SHD_FIRMWARE_MAJOR_VERSION 56
 #define USE_SHD_FIRMWARE_MINOR_VERSION 5
@@ -116,6 +112,10 @@
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 0)
 #define USE_SOCKET_IMPL_LWIP_TCP
 #define USE_SPI
+#endif
+
+#ifdef USE_LIBRETINY
+#define USE_SOCKET_IMPL_LWIP_SOCKETS
 #endif
 
 #ifdef USE_HOST
