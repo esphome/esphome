@@ -22,7 +22,7 @@ using namespace esp32_ble;
 
 class BLEService {
  public:
-  BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id);
+  BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bool advertise);
   ~BLEService();
   BLECharacteristic *get_characteristic(ESPBTUUID uuid);
   BLECharacteristic *get_characteristic(uint16_t uuid);
@@ -58,6 +58,7 @@ class BLEService {
   uint16_t num_handles_;
   uint16_t handle_{0xFFFF};
   uint8_t inst_id_;
+  bool advertise_{false};
 
   bool do_create_characteristics_();
 

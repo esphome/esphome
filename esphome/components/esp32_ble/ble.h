@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ble_advertising.h"
+#include "ble_uuid.h"
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -74,7 +75,11 @@ class ESP32BLE : public Component {
   void dump_config() override;
   float get_setup_priority() const override;
 
-  BLEAdvertising *get_advertising() { return this->advertising_; }
+  void advertising_start();
+  void advertising_set_service_data(const std::vector<uint8_t> &data);
+  void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);
+  void advertising_add_service_uuid(ESPBTUUID uuid);
+  void advertising_remove_service_uuid(ESPBTUUID uuid);
 
   void register_gap_event_handler(GAPEventHandler *handler) { this->gap_event_handlers_.push_back(handler); }
   void register_gattc_event_handler(GATTcEventHandler *handler) { this->gattc_event_handlers_.push_back(handler); }
@@ -93,6 +98,7 @@ class ESP32BLE : public Component {
   bool ble_setup_();
   bool ble_dismantle_();
   bool ble_pre_setup_();
+  void advertising_init_();
 
   std::vector<GAPEventHandler *> gap_event_handlers_;
   std::vector<GATTcEventHandler *> gattc_event_handlers_;

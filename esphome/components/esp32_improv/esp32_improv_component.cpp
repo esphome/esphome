@@ -93,7 +93,7 @@ void ESP32ImprovComponent::loop() {
 
       if (this->service_->is_created() && this->should_start_ && this->setup_complete_) {
         if (this->service_->is_running()) {
-          esp32_ble::global_ble->get_advertising()->start();
+          esp32_ble::global_ble->advertising_start();
 
           this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
           this->set_error_(improv::ERROR_NONE);
@@ -219,8 +219,7 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
   service_data[6] = 0x00;  // Reserved
   service_data[7] = 0x00;  // Reserved
 
-  esp32_ble::global_ble->get_advertising()->set_service_data(service_data);
-  esp32_ble::global_ble->get_advertising()->start();
+  esp32_ble::global_ble->advertising_set_service_data(service_data);
 }
 
 void ESP32ImprovComponent::set_error_(improv::Error error) {

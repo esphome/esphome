@@ -51,10 +51,6 @@ void ESP32BLE::enable() {
     return;
   }
 
-#ifdef USE_ESP32_BLE_SERVER
-  this->advertising_->start();
-#endif  // USE_ESP32_BLE_SERVER
-
   this->state_ = BLE_COMPONENT_STATE_ACTIVE;
 }
 
@@ -65,10 +61,6 @@ void ESP32BLE::disable() {
   ESP_LOGD(TAG, "Disabling BLE...");
   this->state_ = BLE_COMPONENT_STATE_DISABLED;
 
-  #ifdef USE_ESP32_BLE_SERVER
-    this->advertising_->stop();
-  #endif  // USE_ESP32_BLE_SERVER
-
   if (!ble_dismantle_()) {
     ESP_LOGE(TAG, "BLE could not be dismantled");
     this->mark_failed();
@@ -78,20 +70,52 @@ void ESP32BLE::disable() {
 
 bool ESP32BLE::is_disabled() { return this->state_ == BLE_COMPONENT_STATE_DISABLED; }
 
+void ESP32BLE::advertising_start() {
+  this->advertising_init_();
+  // TODO: Test if it works disabled
+  this->advertising_->start();
+}
+
+void ESP32BLE::advertising_set_service_data(const std::vector<uint8_t> &data) {
+  this->advertising_init_();
+  this->advertising_->set_service_data(data);
+  this->advertising_start();
+}
+
+void ESP32BLE::advertising_set_manufacturer_data(const std::vector<uint8_t> &data) {
+  this->advertising_init_();
+  this->advertising_->set_manufacturer_data(data);
+  this->advertising_start();
+}
+
+void ESP32BLE::advertising_add_service_uuid(ESPBTUUID uuid) {
+  this->advertising_init_();
+  this->advertising_->add_service_uuid(uuid);
+  this->advertising_start();
+}
+
+void ESP32BLE::advertising_remove_service_uuid(ESPBTUUID uuid) {
+  this->advertising_init_();
+  this->advertising_->remove_service_uuid(uuid);
+  this->advertising_start();
+}
+
 bool ESP32BLE::ble_pre_setup_() {
   esp_err_t err = nvs_flash_init();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "nvs_flash_init failed: %d", err);
     return false;
   }
+  return true;
+}
 
-#ifdef USE_ESP32_BLE_SERVER
+void ESP32BLE::advertising_init_() {
+  if (this->advertising_ != nullptr)
+    return;
   this->advertising_ = new BLEAdvertising();  // NOLINT(cppcoreguidelines-owning-memory)
 
   this->advertising_->set_scan_response(true);
   this->advertising_->set_min_preferred_interval(0x06);
-#endif  // USE_ESP32_BLE_SERVER
-  return true;
 }
 
 bool ESP32BLE::ble_setup_() {

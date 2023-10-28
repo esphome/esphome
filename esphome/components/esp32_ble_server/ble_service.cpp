@@ -9,8 +9,8 @@ namespace esp32_ble_server {
 
 static const char *const TAG = "esp32_ble_server.service";
 
-BLEService::BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id)
-    : uuid_(uuid), num_handles_(num_handles), inst_id_(inst_id) {}
+BLEService::BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bool advertise)
+    : uuid_(uuid), num_handles_(num_handles), inst_id_(inst_id), advertise_(advertise) {}
 
 BLEService::~BLEService() {
   for (auto &chr : this->characteristics_)
@@ -81,6 +81,8 @@ void BLEService::start() {
     ESP_LOGE(TAG, "esp_ble_gatts_start_service failed: %d", err);
     return;
   }
+  if (this->advertise_)
+    esp32_ble::global_ble->advertising_add_service_uuid(this->uuid_);
   this->running_state_ = STARTING;
 }
 
@@ -90,8 +92,8 @@ void BLEService::stop() {
     ESP_LOGE(TAG, "esp_ble_gatts_stop_service failed: %d", err);
     return;
   }
-  esp32_ble::global_ble->get_advertising()->remove_service_uuid(this->uuid_);
-  esp32_ble::global_ble->get_advertising()->start();
+  if (this->advertise_)
+    esp32_ble::global_ble->advertising_remove_service_uuid(this->uuid_);
   this->running_state_ = STOPPING;
 }
 

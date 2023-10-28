@@ -5,7 +5,7 @@ from esphome.const import CONF_ID
 
 
 AUTO_LOAD = ["esp32_ble_server"]
-CODEOWNERS = ["@jesserockz"]
+CODEOWNERS = ["@jesserockz", "@Rapsssito"]
 CONFLICTS_WITH = ["esp32_ble_beacon"]
 DEPENDENCIES = ["wifi", "esp32"]
 

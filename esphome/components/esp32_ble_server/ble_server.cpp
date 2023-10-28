@@ -94,8 +94,7 @@ bool BLEServer::can_proceed() {
 
 void BLEServer::restart_advertising_() {
   if (this->is_running()) {
-    esp32_ble::global_ble->get_advertising()->set_manufacturer_data(this->manufacturer_data_);
-    esp32_ble::global_ble->get_advertising()->start();
+    esp32_ble::global_ble->advertising_set_manufacturer_data(this->manufacturer_data_);
   }
 }
 
@@ -133,11 +132,8 @@ std::shared_ptr<BLEService> BLEServer::create_service(const std::string &uuid, b
 std::shared_ptr<BLEService> BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles,
                                                       uint8_t inst_id) {
   ESP_LOGV(TAG, "Creating service - %s", uuid.to_string().c_str());
-  std::shared_ptr<BLEService> service = std::make_shared<BLEService>(uuid, num_handles, inst_id);
+  std::shared_ptr<BLEService> service = std::make_shared<BLEService>(uuid, num_handles, inst_id, advertise);
   this->services_.emplace_back(service);
-  if (advertise) {
-    esp32_ble::global_ble->get_advertising()->add_service_uuid(uuid);
-  }
   service->do_create(this);
   return service;
 }
@@ -158,7 +154,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       ESP_LOGD(TAG, "BLE Client disconnected");
       if (this->remove_client_(param->disconnect.conn_id))
         this->connected_clients_--;
-      esp32_ble::global_ble->get_advertising()->start();
+      esp32_ble::global_ble->advertising_start();
       for (auto *component : this->service_components_) {
         component->on_client_disconnect();
       }

@@ -6,7 +6,7 @@ from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
 
 AUTO_LOAD = ["esp32_ble"]
-CODEOWNERS = ["@jesserockz", "@clydebarrow"]
+CODEOWNERS = ["@jesserockz", "@clydebarrow", "@Rapsssito"]
 CONFLICTS_WITH = ["esp32_ble_beacon"]
 DEPENDENCIES = ["esp32"]
 
