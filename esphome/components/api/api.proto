@@ -39,6 +39,7 @@ service APIConnection {
   rpc camera_image (CameraImageRequest) returns (void) {}
   rpc climate_command (ClimateCommandRequest) returns (void) {}
   rpc number_command (NumberCommandRequest) returns (void) {}
+  rpc text_command (TextCommandRequest) returns (void) {}
   rpc select_command (SelectCommandRequest) returns (void) {}
   rpc button_command (ButtonCommandRequest) returns (void) {}
   rpc lock_command (LockCommandRequest) returns (void) {}
@@ -216,6 +217,8 @@ message DeviceInfoResponse {
   string friendly_name = 13;
 
   uint32 voice_assistant_version = 14;
+
+  string suggested_area = 16;
 }
 
 message ListEntitiesRequest {
@@ -1413,6 +1416,18 @@ message SubscribeVoiceAssistantRequest {
   bool subscribe = 1;
 }
 
+enum VoiceAssistantRequestFlag {
+  VOICE_ASSISTANT_REQUEST_NONE = 0;
+  VOICE_ASSISTANT_REQUEST_USE_VAD = 1;
+  VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD = 2;
+}
+
+message VoiceAssistantAudioSettings {
+  uint32 noise_suppression_level = 1;
+  uint32 auto_gain = 2;
+  float volume_multiplier = 3;
+}
+
 message VoiceAssistantRequest {
   option (id) = 90;
   option (source) = SOURCE_SERVER;
@@ -1420,7 +1435,8 @@ message VoiceAssistantRequest {
 
   bool start = 1;
   string conversation_id = 2;
-  bool use_vad = 3;
+  uint32 flags = 3;
+  VoiceAssistantAudioSettings audio_settings = 4;
 }
 
 message VoiceAssistantResponse {
@@ -1442,6 +1458,12 @@ enum VoiceAssistantEvent {
   VOICE_ASSISTANT_INTENT_END = 6;
   VOICE_ASSISTANT_TTS_START = 7;
   VOICE_ASSISTANT_TTS_END = 8;
+  VOICE_ASSISTANT_WAKE_WORD_START = 9;
+  VOICE_ASSISTANT_WAKE_WORD_END = 10;
+  VOICE_ASSISTANT_STT_VAD_START = 11;
+  VOICE_ASSISTANT_STT_VAD_END = 12;
+  VOICE_ASSISTANT_TTS_STREAM_START = 98;
+  VOICE_ASSISTANT_TTS_STREAM_END = 99;
 }
 
 message VoiceAssistantEventData {
@@ -1516,4 +1538,49 @@ message AlarmControlPanelCommandRequest {
   fixed32 key = 1;
   AlarmControlPanelStateCommand command = 2;
   string code = 3;
+}
+
+// ===================== TEXT =====================
+enum TextMode {
+  TEXT_MODE_TEXT = 0;
+  TEXT_MODE_PASSWORD = 1;
+}
+message ListEntitiesTextResponse {
+  option (id) = 97;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_TEXT";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+
+  uint32 min_length = 8;
+  uint32 max_length = 9;
+  string pattern = 10;
+  TextMode mode = 11;
+}
+message TextStateResponse {
+  option (id) = 98;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_TEXT";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  string state = 2;
+  // If the Text does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
+}
+message TextCommandRequest {
+  option (id) = 99;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_TEXT";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  string state = 2;
 }

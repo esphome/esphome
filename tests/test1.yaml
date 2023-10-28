@@ -25,14 +25,6 @@ esphome:
     then:
       - lambda: >-
           ESP_LOGV("main", "ON LOOP!");
-      - light.addressable_set:
-          id: addr1
-          range_from: 0
-          range_to: 100
-          red: 100%
-          green: !lambda "return 255;"
-          blue: 0%
-          white: 100%
       - http_request.get:
           url: https://esphome.io
           headers:
@@ -222,18 +214,16 @@ uart:
         - lambda: UARTDebug::log_string(direction, bytes);
         - lambda: UARTDebug::log_int(direction, bytes, ',');
         - lambda: UARTDebug::log_binary(direction, bytes, ';');
-
-  - id: adalight_uart
-    tx_pin: GPIO25
-    rx_pin: GPIO26
-    baud_rate: 115200
-    rx_buffer_size: 1024
   - id: ld2410_uart
     tx_pin: 18
     rx_pin: 23
     baud_rate: 256000
     parity: NONE
     stop_bits: 1
+  - id: dfrobot_mmwave_uart
+    tx_pin: 14
+    rx_pin: 27
+    baud_rate: 115200
   - id: gcja5_uart
     rx_pin: GPIO10
     parity: EVEN
@@ -300,10 +290,6 @@ as3935_spi:
   cs_pin: GPIO12
   irq_pin: GPIO13
 
-wled:
-
-adalight:
-
 esp32_ble:
   io_capability: keyboard_only
 
@@ -349,6 +335,10 @@ mcp23s17:
   - id: mcp23s17_hub
     cs_pin: GPIO12
     deviceaddress: 1
+
+dfrobot_sen0395:
+  - id: mmwave
+    uart_id: dfrobot_mmwave_uart
 
 sensor:
   - platform: pmwcs3
@@ -760,6 +750,16 @@ sensor:
     temperature:
       name: Honeywell temperature
     cs_pin: GPIO5
+  - platform: honeywellabp2_i2c
+    pressure:
+      name: Honeywell2 pressure
+      min_pressure: 0
+      max_pressure: 16000
+      transfer_function: A
+    temperature:
+      name: Honeywell temperature
+    i2c_id: i2c_bus
+    address: 0x28
   - platform: hte501
     temperature:
       name: Office Temperature 2
@@ -1101,6 +1101,16 @@ sensor:
     ambient_pressure_compensation: 961mBar
     temperature_offset: 4.2C
     i2c_id: i2c_bus
+  - platform: sfa30
+    formaldehyde:
+      name: "SFA30 formaldehyde"
+    temperature:
+      name: "SFA30 temperature"
+    humidity:
+      name: "SFA30 humidity"
+    i2c_id: i2c_bus
+    address: 0x5D
+    update_interval: 30s
   - platform: sen0321
     name: Workshop Ozone Sensor
     id: sen0321_ozone
@@ -1450,6 +1460,12 @@ sensor:
       id: temp_etuve
     humidity:
       name: "Humidity hyt271"
+  - platform: iaqcore
+    i2c_id: i2c_bus
+    co2:
+      name: "iAQ Core CO2 Sensor"
+    tvoc:
+      name: "iAQ Core TVOC Sensor"
   - platform: tmp1075
     name: "Temperature TMP1075"
     update_interval: 10s
@@ -1482,6 +1498,17 @@ sensor:
       name: "Loop Time"
     psram:
       name: "PSRAM Free"
+  - platform: mmc5983
+    i2c_id: i2c_bus
+    field_strength_x:
+      name: "Magnet X"
+      id: magnet_x
+    field_strength_y:
+      name: "Magnet Y"
+      id: magnet_y
+    field_strength_z:
+      name: "Magnet Z"
+      id: magnet_z
 
 esp32_touch:
   setup_mode: false
@@ -1690,7 +1717,18 @@ binary_sensor:
       number: 7
       mode: INPUT
       inverted: false
-
+  - platform: gpio
+    name: Speed Fan Cycle binary sensor"
+    pin:
+      number: 18
+      mode:
+        input: true
+        pulldown: true
+    on_press:
+      - fan.cycle_speed:
+          id: fan_speed
+          off_speed_cycle: False
+      - logger.log: "Cycle speed clicked"
   - platform: remote_receiver
     name: Raw Remote Receiver Test
     raw:
@@ -1783,6 +1821,12 @@ binary_sensor:
       name: still
     out_pin_presence_status:
       name: out pin presence status
+  - platform: qwiic_pir
+    i2c_id: i2c_bus
+    name: "Qwiic PIR Motion Sensor"
+  - platform: dfrobot_sen0395
+    id: mmwave_detected_uart
+    dfrobot_sen0395_id: mmwave
 
 pca9685:
   frequency: 500
@@ -2062,8 +2106,6 @@ output:
     ud_pin: GPIO27
     initial_value: 0.5
 
-e131:
-
 light:
   - platform: binary
     name: Desk Lamp
@@ -2152,125 +2194,6 @@ light:
     brightness: pca_6
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
-  - platform: fastled_clockless
-    id: addr1
-    chipset: WS2811
-    pin: GPIO23
-    num_leds: 60
-    rgb_order: BRG
-    max_refresh_rate: 20ms
-    power_supply: atx_power_supply
-    color_correct: [75%, 100%, 50%]
-    name: FastLED WS2811 Light
-    effects:
-      - addressable_color_wipe:
-      - addressable_color_wipe:
-          name: Color Wipe Effect With Custom Values
-          colors:
-            - red: 100%
-              green: 100%
-              blue: 100%
-              num_leds: 1
-            - red: 0%
-              green: 0%
-              blue: 0%
-              num_leds: 1
-          add_led_interval: 100ms
-          reverse: false
-      - addressable_scan:
-      - addressable_scan:
-          name: Scan Effect With Custom Values
-          move_interval: 100ms
-      - addressable_twinkle:
-      - addressable_twinkle:
-          name: Twinkle Effect With Custom Values
-          twinkle_probability: 5%
-          progress_interval: 4ms
-      - addressable_random_twinkle:
-      - addressable_random_twinkle:
-          name: Random Twinkle Effect With Custom Values
-          twinkle_probability: 5%
-          progress_interval: 32ms
-      - addressable_fireworks:
-      - addressable_fireworks:
-          name: Fireworks Effect With Custom Values
-          update_interval: 32ms
-          spark_probability: 10%
-          use_random_color: false
-          fade_out_rate: 120
-      - addressable_flicker:
-      - addressable_flicker:
-          name: Flicker Effect With Custom Values
-          update_interval: 16ms
-          intensity: 5%
-      - addressable_lambda:
-          name: Test For Custom Lambda Effect
-          lambda: |-
-            if (initial_run) {
-              it[0] = current_color;
-            }
-
-      - wled:
-          port: 11111
-
-      - adalight:
-          uart_id: adalight_uart
-
-      - automation:
-          name: Custom Effect
-          sequence:
-            - light.addressable_set:
-                id: addr1
-                red: 100%
-                green: 100%
-                blue: 0%
-            - delay: 100ms
-            - light.addressable_set:
-                id: addr1
-                red: 0%
-                green: 100%
-                blue: 0%
-      - e131:
-          universe: 1
-  - platform: fastled_spi
-    id: addr2
-    chipset: WS2801
-    data_pin: GPIO23
-    clock_pin: GPIO22
-    data_rate: 2MHz
-    num_leds: 60
-    rgb_order: BRG
-    name: FastLED SPI Light
-  - platform: neopixelbus
-    id: addr3
-    name: Neopixelbus Light
-    gamma_correct: 2.8
-    color_correct: [0.0, 0.0, 0.0, 0.0]
-    default_transition_length: 10s
-    power_supply: atx_power_supply
-    effects:
-      - addressable_flicker:
-          name: Flicker Effect With Custom Values
-          update_interval: 16ms
-          intensity: 5%
-    type: GRBW
-    variant: SK6812
-    method: ESP32_I2S_0
-    num_leds: 60
-    pin: GPIO23
-  - platform: partition
-    name: Partition Light
-    segments:
-      - id: addr1
-        from: 0
-        to: 0
-      - id: addr2
-        from: 1
-        to: 10
-      - id: addr2
-        from: 20
-        to: 25
-      - single_light_id: ${roomname}_lights
 
 remote_transmitter:
   - pin: 32
@@ -2404,6 +2327,16 @@ climate:
     heat_mode: extended
   - platform: whynter
     name: Whynter
+  - platform: noblex
+    name: AC Living
+    id: noblex_ac
+    sensor: ${sensorname}_sensor
+    receiver_id: rcvr
+  - platform: gree
+    name: GREE
+    model: generic
+  - platform: zhlt01
+    name: ZH/LT-01 Climate
 
 script:
   - id: climate_custom
@@ -2623,6 +2556,26 @@ switch:
             0xFF,
           ]
   - platform: template
+    name: Haier
+    turn_on_action:
+      remote_transmitter.transmit_haier:
+        code:
+          [
+            0xA6,
+            0xDA,
+            0x00,
+            0x00,
+            0x40,
+            0x40,
+            0x00,
+            0x80,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x05,
+          ]
+  - platform: template
     name: Living Room Lights
     id: livingroom_lights
     optimistic: true
@@ -2701,6 +2654,12 @@ switch:
     name: UART Recurring Output
     data: [0xDE, 0xAD, 0xBE, 0xEF]
     send_every: 1s
+  - platform: uart
+    uart_id: uart_0
+    name: "UART On/Off"
+    data:
+      turn_on: "TurnOn\r\n"
+      turn_off: "TurnOff\r\n"
   - platform: template
     assumed_state: true
     name: Stepper Switch
@@ -2948,7 +2907,7 @@ display:
     cs_pin: GPIO5
     dc_pin: GPIO16
     reset_pin: GPIO23
-    backlight_pin: GPIO4
+    backlight_pin: no
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7920
@@ -3024,6 +2983,7 @@ tm1651:
   dio_pin: GPIO23
 
 remote_receiver:
+  id: rcvr
   pin: GPIO32
   dump: all
   on_coolix:
@@ -3104,11 +3064,39 @@ time:
   - platform: ds1307
     id: ds1307_time
     update_interval: never
-    on_time:
-      seconds: 0
-      then: ds1307.read_time
     i2c_id: i2c_bus
-
+    on_time:
+      - seconds: 0
+        then: ds1307.read_time
+      - at: "16:00:00"
+        then:
+          - if:
+              condition:
+                or:
+                  - binary_sensor.is_on: close_sensor
+                  - binary_sensor.is_on: open_sensor
+              then:
+                logger.log: "close_sensor or open_sensor is on"
+          - if:
+              condition:
+                and:
+                  - binary_sensor.is_on: close_sensor
+                  - binary_sensor.is_on: open_sensor
+              then:
+                logger.log: "close_sensor and open_sensor are both on"
+          - if:
+              condition:
+                xor:
+                  - binary_sensor.is_on: close_sensor
+                  - binary_sensor.is_on: open_sensor
+              then:
+                logger.log: "close_sensor or open_sensor is exclusively on"
+          - if:
+              condition:
+                not:
+                  - binary_sensor.is_on: close_sensor
+              then:
+                logger.log: "close_sensor is not on"
 cover:
   - platform: template
     name: Template Cover
@@ -3282,6 +3270,10 @@ text_sensor:
           canbus_id: mcp2515_can
           can_id: 23
           data: [0x10, 0x20, 0x30]
+      - canbus.send:
+          canbus_id: mcp2515_can
+          can_id: 23
+          data: !lambda return {0x10, 0x20, 0x30};
       - canbus.send:
           canbus_id: esp32_internal_can
           can_id: 23
@@ -3566,6 +3558,41 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+  - platform: template
+    name: Update Mmwave Sensor Settings
+    on_press:
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          factory_reset: true
+          detection_segments:
+            - [0cm, 5m]
+            - 600cm
+            - !lambda |-
+              return 7;
+          output_latency:
+            delay_after_detect: 0s
+            delay_after_disappear: 0s
+          sensitivity: 6
+  - platform: template
+    name: Reset Mmwave Sensor
+    on_press:
+      - dfrobot_sen0395.reset:
+  - platform: template
+    name: Poller component suspend test
+    on_press:
+      - component.suspend: myteleinfo
+      - delay: 20s
+      - component.update: myteleinfo
+      - delay: 20s
+      - component.resume: myteleinfo
+      - delay: 20s
+      - component.resume:
+          id: myteleinfo
+          update_interval: 2s
+      - delay: 20s
+      - component.resume:
+          id: myteleinfo
+          update_interval: !lambda return 2500;
   - platform: ld2410
     factory_reset:
       name: "factory reset"
@@ -3573,6 +3600,10 @@ button:
       name: "restart"
     query_params:
       name: query params
+  - platform: uart
+    uart_id: uart_0
+    name: UART button
+    data: "Pressed\r\n"
 
 ld2410:
   id: my_ld2410

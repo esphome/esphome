@@ -15,6 +15,12 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
+    PLATFORM_RP2040,
+    PLATFORM_HOST,
 )
 from esphome.coroutine import FakeAwaitable as _FakeAwaitable
 from esphome.coroutine import FakeEventLoop as _FakeEventLoop
@@ -458,6 +464,8 @@ class EsphomeCore:
         self.name: Optional[str] = None
         # The friendly name of the node
         self.friendly_name: Optional[str] = None
+        # The area / zone of the node
+        self.area: Optional[str] = None
         # Additional data components can store temporary data in
         # The first key to this dict should always be the integration name
         self.data = {}
@@ -498,6 +506,7 @@ class EsphomeCore:
         self.dashboard = False
         self.name = None
         self.friendly_name = None
+        self.area = None
         self.data = {}
         self.config_path = None
         self.build_path = None
@@ -598,23 +607,23 @@ class EsphomeCore:
 
     @property
     def is_esp8266(self):
-        return self.target_platform == "esp8266"
+        return self.target_platform == PLATFORM_ESP8266
 
     @property
     def is_esp32(self):
-        return self.target_platform == "esp32"
+        return self.target_platform == PLATFORM_ESP32
 
     @property
     def is_rp2040(self):
-        return self.target_platform == "rp2040"
+        return self.target_platform == PLATFORM_RP2040
 
     @property
     def is_bk72xx(self):
-        return self.target_platform == "bk72xx"
+        return self.target_platform == PLATFORM_BK72XX
 
     @property
     def is_rtl87xx(self):
-        return self.target_platform == "rtl87xx"
+        return self.target_platform == PLATFORM_RTL87XX
 
     @property
     def is_libretiny(self):
@@ -622,7 +631,7 @@ class EsphomeCore:
 
     @property
     def is_host(self):
-        return self.target_platform == "host"
+        return self.target_platform == PLATFORM_HOST
 
     @property
     def target_framework(self):
