@@ -15,7 +15,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(generate.OpenthermHub),
-            cv.Required("in_pin_"): pins.internal_gpio_input_pin_schema,
+            cv.Required("in_pin"): pins.internal_gpio_input_pin_schema,
             cv.Required("out_pin"): pins.internal_gpio_output_pin_schema,
             cv.Optional("ch_enable", True): cv.boolean,
             cv.Optional("dhw_enable", True): cv.boolean,
@@ -44,28 +44,23 @@ async def to_code(config: Dict[str, Any]) -> None:
         cg.RawExpression(id + "_handle_interrupt"),
         cg.RawExpression(id + "_process_response"),
     )
-    # Define two global callbacks to process responses on interrupt
+    # Define global callback to process responses on interrupt
     cg.add_global(
         cg.RawStatement(
-            f"void IRAM_ATTR {id}_handle_interrupt() {{ {id}->handle_interrupt(); }}"
-        )
-    )
-    cg.add_global(
-        cg.RawStatement(
-            f"void {id}_process_response(unsigned long response, OpenThermResponseStatus status) {{ {id}->process_response(response, status); }}"
+            f"void {id}_process_response(uint32_t response, OpenThermResponseStatus status) {{ {id}->process_response(response, status); }}"
         )
     )
     await cg.register_component(var, config)
 
     # Set pins
-    in_pin = await cg.gpio_pin_expression(config["in_pin_"])
+    in_pin = await cg.gpio_pin_expression(config["in_pin"])
     cg.add(var.set_in_pin(in_pin))
 
     out_pin = await cg.gpio_pin_expression(config["out_pin"])
     cg.add(var.set_out_pin(out_pin))
 
     input_sensors = []
-    non_sensors = {CONF_ID, "in_pin_", "out_pin"}
+    non_sensors = {CONF_ID, "in_pin", "out_pin"}
     for key, value in config.items():
         if key not in non_sensors:
             if key in schema.INPUTS:
