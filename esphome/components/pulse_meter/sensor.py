@@ -19,7 +19,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
-CODEOWNERS = ["@stevebaxter", "@cstaahl"]
+CODEOWNERS = ["@stevebaxter", "@cstaahl", "@TrentHouliston"]
 
 pulse_meter_ns = cg.esphome_ns.namespace("pulse_meter")
 
