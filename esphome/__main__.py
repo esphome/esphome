@@ -1,3 +1,5 @@
+# PYTHON_ARGCOMPLETE_OK
+import argcomplete
 import argparse
 import functools
 import logging
@@ -966,6 +968,7 @@ def parse_args(argv):
     # Finally, run the new-style parser again with the possibly swapped arguments,
     # and let it error out if the command is unparsable.
     parser.set_defaults(deprecated_argv_suggestion=deprecated_argv_suggestion)
+    argcomplete.autocomplete(parser)
     return parser.parse_args(arguments)
 
 
