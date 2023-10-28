@@ -69,7 +69,7 @@ class ESP32BLE : public Component {
 
   void enable();
   void disable();
-  bool is_disabled();
+  bool is_active();
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -116,7 +116,7 @@ extern ESP32BLE *global_ble;
 
 template<typename... Ts> class BLEEnabledCondition : public Condition<Ts...> {
  public:
-  bool check(Ts... x) override { return !global_ble->is_disabled(); }
+  bool check(Ts... x) override { return global_ble->is_active(); }
 };
 
 template<typename... Ts> class BLEEnableAction : public Action<Ts...> {

@@ -87,10 +87,12 @@ void BLEService::start() {
 }
 
 void BLEService::stop() {
-  esp_err_t err = esp_ble_gatts_stop_service(this->handle_);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ble_gatts_stop_service failed: %d", err);
-    return;
+  if (esp32_ble::global_ble->is_active()) {
+    esp_err_t err = esp_ble_gatts_stop_service(this->handle_);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_ble_gatts_stop_service failed: %d", err);
+      return;
+    }
   }
   if (this->advertise_)
     esp32_ble::global_ble->advertising_remove_service_uuid(this->uuid_);

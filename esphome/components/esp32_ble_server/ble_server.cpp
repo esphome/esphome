@@ -37,10 +37,8 @@ void BLEServer::setup() {
 }
 
 void BLEServer::loop() {
-  if (this->parent_->is_disabled()) {
-    this->registered_ = false;
-    this->state_ = INIT;
-    this->services_.clear();
+  if (!this->parent_->is_active()) {
+    this->reset_();
     return;
   }
   switch (this->state_) {
@@ -59,11 +57,8 @@ void BLEServer::loop() {
     }
     case REGISTERING: {
       if (this->registered_) {
-        // TODO: Should we create the service again?
         this->device_information_service_ = this->create_service(DEVICE_INFORMATION_SERVICE_UUID);
-
         this->create_device_characteristics_();
-
         this->state_ = STARTING_SERVICE;
       }
       break;
@@ -85,16 +80,25 @@ void BLEServer::loop() {
 }
 
 bool BLEServer::is_running() {
-  return !this->parent_->is_disabled() && this->state_ == RUNNING;
+  return this->parent_->is_active() && this->state_ == RUNNING;
 }
 
 bool BLEServer::can_proceed() {
-  return this->is_running() || this->parent_->is_disabled();
+  return this->is_running() || !this->parent_->is_active();
 }
 
 void BLEServer::restart_advertising_() {
   if (this->is_running()) {
     esp32_ble::global_ble->advertising_set_manufacturer_data(this->manufacturer_data_);
+  }
+}
+
+void BLEServer::reset_() {
+  this->registered_ = false;
+  this->state_ = INIT;
+  // Delete all services
+  while (!this->services_.empty()) {
+    this->delete_service(this->services_.back());
   }
 }
 
@@ -136,6 +140,12 @@ std::shared_ptr<BLEService> BLEServer::create_service(ESPBTUUID uuid, bool adver
   this->services_.emplace_back(service);
   service->do_create(this);
   return service;
+}
+
+void BLEServer::delete_service(std::shared_ptr<BLEService> service) {
+  service->stop();
+  this->services_.erase(std::remove(this->services_.begin(), this->services_.end(), service), this->services_.end());
+  // delete service.get(); // TODO: Do better management of BLEService
 }
 
 void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,

@@ -56,6 +56,7 @@ class BLEServer : public Component, public GATTsEventHandler, public Parented<ES
   std::shared_ptr<BLEService> create_service(const std::string &uuid, bool advertise = false);
   std::shared_ptr<BLEService> create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15,
                                              uint8_t inst_id = 0);
+  void delete_service(std::shared_ptr<BLEService> service);
 
   esp_gatt_if_t get_gatts_if() { return this->gatts_if_; }
   uint32_t get_connected_client_count() { return this->connected_clients_; }
@@ -69,6 +70,7 @@ class BLEServer : public Component, public GATTsEventHandler, public Parented<ES
  protected:
   bool create_device_characteristics_();
   void restart_advertising_();
+  void reset_();
 
   void add_client_(uint16_t conn_id, void *client) {
     this->clients_.insert(std::pair<uint16_t, void *>(conn_id, client));
