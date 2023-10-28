@@ -38,6 +38,7 @@ class BLEService {
   BLEServer *get_server() { return this->server_; }
 
   void do_create(BLEServer *server);
+  void do_delete();
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
   void start();
@@ -59,6 +60,7 @@ class BLEService {
   uint16_t handle_{0xFFFF};
   uint8_t inst_id_;
   bool advertise_{false};
+  bool should_start_{false};
 
   bool do_create_characteristics_();
 
@@ -68,6 +70,7 @@ class BLEService {
     CREATING,
     CREATING_DEPENDENTS,
     CREATED,
+    DELETED,
   } init_state_{INIT};
 
   enum RunningState : uint8_t {

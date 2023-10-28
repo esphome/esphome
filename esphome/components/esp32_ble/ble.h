@@ -63,6 +63,12 @@ class GATTsEventHandler {
                                    esp_ble_gatts_cb_param_t *param) = 0;
 };
 
+class BLEStatusEventHandler {
+  public:
+    virtual void on_ble_enabled() = 0;
+    virtual void on_ble_disabled() = 0;
+};
+
 class ESP32BLE : public Component {
  public:
   void set_io_capability(IoCapability io_capability) { this->io_cap_ = (esp_ble_io_cap_t) io_capability; }
@@ -84,6 +90,7 @@ class ESP32BLE : public Component {
   void register_gap_event_handler(GAPEventHandler *handler) { this->gap_event_handlers_.push_back(handler); }
   void register_gattc_event_handler(GATTcEventHandler *handler) { this->gattc_event_handlers_.push_back(handler); }
   void register_gatts_event_handler(GATTsEventHandler *handler) { this->gatts_event_handlers_.push_back(handler); }
+  void register_ble_status_event_handler(BLEStatusEventHandler *handler) { this->ble_status_event_handlers_.push_back(handler); }
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
  protected:
@@ -103,6 +110,7 @@ class ESP32BLE : public Component {
   std::vector<GAPEventHandler *> gap_event_handlers_;
   std::vector<GATTcEventHandler *> gattc_event_handlers_;
   std::vector<GATTsEventHandler *> gatts_event_handlers_;
+  std::vector<BLEStatusEventHandler *> ble_status_event_handlers_;
   BLEComponentState state_{BLE_COMPONENT_STATE_OFF};
 
   Queue<BLEEvent> ble_events_;

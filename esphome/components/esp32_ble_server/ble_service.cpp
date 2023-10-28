@@ -58,6 +58,19 @@ void BLEService::do_create(BLEServer *server) {
   this->init_state_ = CREATING;
 }
 
+void BLEService::do_delete() {
+  if (this->handle_ == 0)
+    return;
+  this->stop();
+  esp_err_t err = esp_ble_gatts_delete_service(this->handle_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gatts_delete_service failed: %d", err);
+    return;
+  }
+  this->init_state_ = DELETED;
+  this->handle_ = 0;
+}
+
 bool BLEService::do_create_characteristics_() {
   if (this->created_characteristic_count_ >= this->characteristics_.size() &&
       (this->last_created_characteristic_ == nullptr || this->last_created_characteristic_->is_created()))
@@ -75,6 +88,7 @@ bool BLEService::do_create_characteristics_() {
 void BLEService::start() {
   if (this->do_create_characteristics_())
     return;
+  should_start_ = true;
 
   esp_err_t err = esp_ble_gatts_start_service(this->handle_);
   if (err != ESP_OK) {
@@ -87,12 +101,12 @@ void BLEService::start() {
 }
 
 void BLEService::stop() {
-  if (esp32_ble::global_ble->is_active()) {
-    esp_err_t err = esp_ble_gatts_stop_service(this->handle_);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "esp_ble_gatts_stop_service failed: %d", err);
-      return;
-    }
+  should_start_ = false;
+
+  esp_err_t err = esp_ble_gatts_stop_service(this->handle_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gatts_stop_service failed: %d", err);
+    return;
   }
   if (this->advertise_)
     esp32_ble::global_ble->advertising_remove_service_uuid(this->uuid_);
@@ -120,6 +134,8 @@ void BLEService::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t g
           this->inst_id_ == param->create.service_id.id.inst_id) {
         this->handle_ = param->create.service_handle;
         this->init_state_ = CREATED;
+        if (this->should_start_)
+          this->start();
       }
       break;
     }

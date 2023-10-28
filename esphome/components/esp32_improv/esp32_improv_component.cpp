@@ -40,11 +40,7 @@ void ESP32ImprovComponent::setup_characteristics() {
   this->error_->add_descriptor(error_descriptor);
 
   this->rpc_ = this->service_->create_characteristic(improv::RPC_COMMAND_UUID, BLECharacteristic::PROPERTY_WRITE);
-  this->rpc_->on_write([this](const std::vector<uint8_t> &data) {
-    if (!data.empty()) {
-      this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
-    }
-  });
+  this->rpc_->on_write(ESP32ImprovComponent::rpc_on_write_);
   BLEDescriptor *rpc_descriptor = new BLE2902();
   this->rpc_->add_descriptor(rpc_descriptor);
 
@@ -69,18 +65,15 @@ void ESP32ImprovComponent::setup_characteristics() {
 void ESP32ImprovComponent::loop() {
   if (!global_ble_server->is_running()) {
     this->state_ = improv::STATE_STOPPED;
-// TODO: Do something with this->status_
     this->setup_complete_ = false;
-    if (this->service_ != nullptr) {
-// TODO: Probably del this->service_
-      this->service_ = nullptr;
-    }
+    this->service_ = nullptr;
     return;
   }
-  if(this->service_ == nullptr) {
+  if (this->service_ == nullptr) {
     // Setup the service
     ESP_LOGD(TAG, "Creating Improv service");
-    this->service_ = global_ble_server->create_service(improv::SERVICE_UUID, true);
+    global_ble_server->create_service(ESPBTUUID::from_raw(improv::SERVICE_UUID), true);
+    this->service_ = global_ble_server->get_service(ESPBTUUID::from_raw(improv::SERVICE_UUID));
     this->setup_characteristics();
   }
 
@@ -152,10 +145,7 @@ void ESP32ImprovComponent::loop() {
 #endif
         std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
         this->send_response_(data);
-        this->set_timeout("end-service", 1000, [this] {
-          this->service_->stop();
-          this->set_state_(improv::STATE_STOPPED);
-        });
+        this->stop();
       }
       break;
     }
@@ -192,6 +182,16 @@ bool ESP32ImprovComponent::check_identify_() {
     this->set_status_indicator_state_(time < 600 && time % 200 < 100);
   }
   return identify;
+}
+
+void ESP32ImprovComponent::rpc_on_write_(const std::vector<uint8_t> &data) {
+  global_improv_component->real_rpc_on_write_(data);
+}
+
+void ESP32ImprovComponent::real_rpc_on_write_(const std::vector<uint8_t> &data) {
+  if (data.empty())
+    return;
+  this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
 }
 
 void ESP32ImprovComponent::set_state_(improv::State state) {

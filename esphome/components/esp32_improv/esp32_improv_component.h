@@ -55,6 +55,9 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   uint32_t get_wifi_timeout() const { return this->wifi_timeout_; }
 
  protected:
+  static void rpc_on_write_(const std::vector<uint8_t> &data);
+  void real_rpc_on_write_(const std::vector<uint8_t> &data);
+
   bool should_start_{false};
   bool setup_complete_{false};
 
@@ -68,7 +71,7 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   std::vector<uint8_t> incoming_data_;
   wifi::WiFiAP connecting_sta_;
 
-  std::shared_ptr<BLEService> service_;
+  BLEService *service_;
   BLECharacteristic *status_;
   BLECharacteristic *error_;
   BLECharacteristic *rpc_;

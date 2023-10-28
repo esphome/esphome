@@ -38,7 +38,6 @@ void BLEServer::setup() {
 
 void BLEServer::loop() {
   if (!this->parent_->is_active()) {
-    this->reset_();
     return;
   }
   switch (this->state_) {
@@ -57,7 +56,8 @@ void BLEServer::loop() {
     }
     case REGISTERING: {
       if (this->registered_) {
-        this->device_information_service_ = this->create_service(DEVICE_INFORMATION_SERVICE_UUID);
+        this->create_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
+        this->device_information_service_ = this->get_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
         this->create_device_characteristics_();
         this->state_ = STARTING_SERVICE;
       }
@@ -93,15 +93,6 @@ void BLEServer::restart_advertising_() {
   }
 }
 
-void BLEServer::reset_() {
-  this->registered_ = false;
-  this->state_ = INIT;
-  // Delete all services
-  while (!this->services_.empty()) {
-    this->delete_service(this->services_.back());
-  }
-}
-
 bool BLEServer::create_device_characteristics_() {
   if (this->model_.has_value()) {
     BLECharacteristic *model =
@@ -124,28 +115,38 @@ bool BLEServer::create_device_characteristics_() {
   return true;
 }
 
-std::shared_ptr<BLEService> BLEServer::create_service(const uint8_t *uuid, bool advertise) {
-  return this->create_service(ESPBTUUID::from_raw(uuid), advertise);
-}
-std::shared_ptr<BLEService> BLEServer::create_service(uint16_t uuid, bool advertise) {
-  return this->create_service(ESPBTUUID::from_uint16(uuid), advertise);
-}
-std::shared_ptr<BLEService> BLEServer::create_service(const std::string &uuid, bool advertise) {
-  return this->create_service(ESPBTUUID::from_raw(uuid), advertise);
-}
-std::shared_ptr<BLEService> BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles,
+void BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles,
                                                       uint8_t inst_id) {
-  ESP_LOGV(TAG, "Creating service - %s", uuid.to_string().c_str());
-  std::shared_ptr<BLEService> service = std::make_shared<BLEService>(uuid, num_handles, inst_id, advertise);
-  this->services_.emplace_back(service);
+  ESP_LOGV(TAG, "Creating BLE service - %s", uuid.to_string().c_str());
+  // If the service already exists, do nothing
+  BLEService *service = this->get_service(uuid);
+  if (service != nullptr) {
+    ESP_LOGW(TAG, "BLE service %s already exists", uuid.to_string().c_str());
+    return;
+  }
+  service = new BLEService(uuid, num_handles, inst_id, advertise);
+  this->services_.emplace(uuid.to_string(), service);
   service->do_create(this);
-  return service;
 }
 
-void BLEServer::delete_service(std::shared_ptr<BLEService> service) {
-  service->stop();
-  this->services_.erase(std::remove(this->services_.begin(), this->services_.end(), service), this->services_.end());
-  // delete service.get(); // TODO: Do better management of BLEService
+void BLEServer::remove_service(ESPBTUUID uuid) {
+  ESP_LOGV(TAG, "Removing BLE service - %s", uuid.to_string().c_str());
+  BLEService *service = this->get_service(uuid);
+  if (service == nullptr) {
+    ESP_LOGW(TAG, "BLE service %s not found", uuid.to_string().c_str());
+    return;
+  }
+  service->do_delete();
+  delete service;
+  this->services_.erase(uuid.to_string());
+}
+
+BLEService *BLEServer::get_service(ESPBTUUID uuid) {
+  BLEService *service = nullptr;
+  if (this->services_.count(uuid.to_string()) > 0) {
+    service = this->services_.at(uuid.to_string());
+  }
+  return service;
 }
 
 void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
@@ -179,8 +180,26 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       break;
   }
 
-  for (const auto &service : this->services_) {
-    service->gatts_event_handler(event, gatts_if, param);
+  for (const auto &pair : this->services_) {
+    pair.second->gatts_event_handler(event, gatts_if, param);
+  }
+}
+
+void BLEServer::on_ble_enabled() {
+  // Create all services
+  for (auto &pair : this->services_) {
+    pair.second->do_create(this);
+  }
+  // Restart advertising
+  this->restart_advertising_();
+}
+
+void BLEServer::on_ble_disabled() {
+  // Delete all clients
+  this->clients_.clear();
+  // Delete all services
+  for (auto &pair : this->services_) {
+    pair.second->do_delete();
   }
 }
 
