@@ -4,6 +4,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
 #include "queue.h"
@@ -35,6 +36,15 @@ enum IoCapability {
   IO_CAP_KBDISP = ESP_IO_CAP_KBDISP,
 };
 
+enum BLEComponentState {
+  /** Nothing has been initialized yet. */
+  BLE_COMPONENT_STATE_OFF = 0,
+  /** BLE is disabled. */
+  BLE_COMPONENT_STATE_DISABLED,
+  /** BLE is active. */
+  BLE_COMPONENT_STATE_ACTIVE,
+};
+
 class GAPEventHandler {
  public:
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
@@ -56,6 +66,9 @@ class ESP32BLE : public Component {
  public:
   void set_io_capability(IoCapability io_capability) { this->io_cap_ = (esp_ble_io_cap_t) io_capability; }
 
+  void enable();
+  void disable();
+  bool is_disabled();
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -66,6 +79,7 @@ class ESP32BLE : public Component {
   void register_gap_event_handler(GAPEventHandler *handler) { this->gap_event_handlers_.push_back(handler); }
   void register_gattc_event_handler(GATTcEventHandler *handler) { this->gattc_event_handlers_.push_back(handler); }
   void register_gatts_event_handler(GATTsEventHandler *handler) { this->gatts_event_handlers_.push_back(handler); }
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
  protected:
   static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
@@ -77,18 +91,37 @@ class ESP32BLE : public Component {
   void real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
   bool ble_setup_();
+  bool ble_dismantle_();
+  bool ble_pre_setup_();
 
   std::vector<GAPEventHandler *> gap_event_handlers_;
   std::vector<GATTcEventHandler *> gattc_event_handlers_;
   std::vector<GATTsEventHandler *> gatts_event_handlers_;
+  BLEComponentState state_{BLE_COMPONENT_STATE_OFF};
 
   Queue<BLEEvent> ble_events_;
   BLEAdvertising *advertising_;
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};
+  bool enable_on_boot_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32BLE *global_ble;
+
+template<typename... Ts> class BLEEnabledCondition : public Condition<Ts...> {
+ public:
+  bool check(Ts... x) override { return !global_ble->is_disabled(); }
+};
+
+template<typename... Ts> class BLEEnableAction : public Action<Ts...> {
+ public:
+  void play(Ts... x) override { global_ble->enable(); }
+};
+
+template<typename... Ts> class BLEDisableAction : public Action<Ts...> {
+ public:
+  void play(Ts... x) override { global_ble->disable(); }
+};
 
 }  // namespace esp32_ble
 }  // namespace esphome

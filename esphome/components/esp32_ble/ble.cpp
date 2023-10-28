@@ -26,6 +26,25 @@ void ESP32BLE::setup() {
   global_ble = this;
   ESP_LOGCONFIG(TAG, "Setting up BLE...");
 
+  if (!ble_pre_setup_()) {
+    ESP_LOGE(TAG, "BLE could not be prepared for configuration");
+    this->mark_failed();
+    return;
+  }
+
+  this->state_ = BLE_COMPONENT_STATE_DISABLED;
+  if (this->enable_on_boot_) {
+    this->enable();
+  }
+}
+
+void ESP32BLE::enable() {
+  if (this->state_ != BLE_COMPONENT_STATE_DISABLED)
+    return;
+
+  ESP_LOGD(TAG, "Enabling BLE...");
+  this->state_ = BLE_COMPONENT_STATE_OFF;
+  
   if (!ble_setup_()) {
     ESP_LOGE(TAG, "BLE could not be set up");
     this->mark_failed();
@@ -33,23 +52,50 @@ void ESP32BLE::setup() {
   }
 
 #ifdef USE_ESP32_BLE_SERVER
-  this->advertising_ = new BLEAdvertising();  // NOLINT(cppcoreguidelines-owning-memory)
-
-  this->advertising_->set_scan_response(true);
-  this->advertising_->set_min_preferred_interval(0x06);
   this->advertising_->start();
 #endif  // USE_ESP32_BLE_SERVER
 
-  ESP_LOGD(TAG, "BLE setup complete");
+  this->state_ = BLE_COMPONENT_STATE_ACTIVE;
 }
 
-bool ESP32BLE::ble_setup_() {
+void ESP32BLE::disable() {
+  if (this->state_ == BLE_COMPONENT_STATE_DISABLED)
+    return;
+
+  ESP_LOGD(TAG, "Disabling BLE...");
+  this->state_ = BLE_COMPONENT_STATE_DISABLED;
+
+  #ifdef USE_ESP32_BLE_SERVER
+    this->advertising_->stop();
+  #endif  // USE_ESP32_BLE_SERVER
+
+  if (!ble_dismantle_()) {
+    ESP_LOGE(TAG, "BLE could not be dismantled");
+    this->mark_failed();
+    return;
+  }
+}
+
+bool ESP32BLE::is_disabled() { return this->state_ == BLE_COMPONENT_STATE_DISABLED; }
+
+bool ESP32BLE::ble_pre_setup_() {
   esp_err_t err = nvs_flash_init();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "nvs_flash_init failed: %d", err);
     return false;
   }
 
+#ifdef USE_ESP32_BLE_SERVER
+  this->advertising_ = new BLEAdvertising();  // NOLINT(cppcoreguidelines-owning-memory)
+
+  this->advertising_->set_scan_response(true);
+  this->advertising_->set_min_preferred_interval(0x06);
+#endif  // USE_ESP32_BLE_SERVER
+  return true;
+}
+
+bool ESP32BLE::ble_setup_() {
+  esp_err_t err;
 #ifdef USE_ARDUINO
   if (!btStart()) {
     ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
@@ -146,26 +192,79 @@ bool ESP32BLE::ble_setup_() {
   return true;
 }
 
-void ESP32BLE::loop() {
-  BLEEvent *ble_event = this->ble_events_.pop();
-  while (ble_event != nullptr) {
-    switch (ble_event->type_) {
-      case BLEEvent::GATTS:
-        this->real_gatts_event_handler_(ble_event->event_.gatts.gatts_event, ble_event->event_.gatts.gatts_if,
-                                        &ble_event->event_.gatts.gatts_param);
-        break;
-      case BLEEvent::GATTC:
-        this->real_gattc_event_handler_(ble_event->event_.gattc.gattc_event, ble_event->event_.gattc.gattc_if,
-                                        &ble_event->event_.gattc.gattc_param);
-        break;
-      case BLEEvent::GAP:
-        this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
-        break;
-      default:
-        break;
+bool ESP32BLE::ble_dismantle_() {
+  esp_err_t err = esp_bluedroid_disable();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_bluedroid_disable failed: %d", err);
+    return false;
+  }
+  err = esp_bluedroid_deinit();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_bluedroid_deinit failed: %d", err);
+    return false;
+  }
+
+  #ifdef USE_ARDUINO
+  if (!btStop()) {
+    ESP_LOGE(TAG, "btStop failed: %d", esp_bt_controller_get_status());
+    return false;
+  }
+#else
+  if(esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
+    // stop bt controller
+    if(esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {
+      err = esp_bt_controller_disable();
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_disable failed: %s", esp_err_to_name(err));
+        return false;
+      }
+      while(esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED)
+        ;
     }
-    delete ble_event;  // NOLINT(cppcoreguidelines-owning-memory)
-    ble_event = this->ble_events_.pop();
+    if(esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
+      err = esp_bt_controller_deinit();
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_deinit failed: %s", esp_err_to_name(err));
+        return false;
+      }
+    }
+    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
+      ESP_LOGE(TAG, "esp bt controller disable failed");
+      return false;
+    }
+  }
+#endif
+  return true;
+}
+
+void ESP32BLE::loop() {
+  switch (this->state_) {
+    case BLE_COMPONENT_STATE_ACTIVE: {
+      BLEEvent *ble_event = this->ble_events_.pop();
+      while (ble_event != nullptr) {
+        switch (ble_event->type_) {
+          case BLEEvent::GATTS:
+            this->real_gatts_event_handler_(ble_event->event_.gatts.gatts_event, ble_event->event_.gatts.gatts_if,
+                                            &ble_event->event_.gatts.gatts_param);
+            break;
+          case BLEEvent::GATTC:
+            this->real_gattc_event_handler_(ble_event->event_.gattc.gattc_event, ble_event->event_.gattc.gattc_if,
+                                            &ble_event->event_.gattc.gattc_param);
+            break;
+          case BLEEvent::GAP:
+            this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
+            break;
+          default:
+            break;
+        }
+        delete ble_event;  // NOLINT(cppcoreguidelines-owning-memory)
+        ble_event = this->ble_events_.pop();
+      }
+      break;
+    }
+    case BLE_COMPONENT_STATE_DISABLED:
+    case BLE_COMPONENT_STATE_OFF:
+      return;
   }
 }
 
