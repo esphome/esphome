@@ -4,7 +4,7 @@ from esphome.components import output
 from esphome.const import CONF_CHANNEL, CONF_ID, CONF_GAIN
 from .. import MCP4728Component, CONF_MCP4728_ID, mcp4728_ns
 
-DEPENDENCIES = ["mcp4728"]
+AUTO_LOAD = ["mcp4728"]
 
 MCP4728Channel = mcp4728_ns.class_("MCP4728Channel", output.FloatOutput)
 CONF_VREF = "vref"
