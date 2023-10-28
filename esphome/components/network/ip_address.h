@@ -3,7 +3,6 @@
 #include <string>
 #include <cstdio>
 #include <array>
-#include <lwip/ip_addr.h>
 
 #if USE_ARDUINO
 #include <Arduino.h>
