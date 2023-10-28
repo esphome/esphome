@@ -149,7 +149,6 @@ void MitsubishiClimate::transmit_state() {
 
   ESP_LOGD(TAG, "default_vertical_direction_: %02X", this->default_vertical_direction_);
   
-
   // Checksum
   for (int i = 0; i < 17; i++) {
     remote_state[17] += remote_state[i];
