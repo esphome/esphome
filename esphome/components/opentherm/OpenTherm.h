@@ -5,6 +5,8 @@ http://ihormelnyk.com/pages/OpenTherm
 Licensed under MIT license
 Copyright 2018, Ihor Melnyk
 
+Adapted for ESPHome by Oleg Tarasov in 2023
+
 Frame Structure:
 P MGS-TYPE SPARE DATA-ID  DATA-VALUE
 0 000      0000  00000000 00000000 00000000
@@ -113,80 +115,81 @@ enum OpenThermStatus {
 class OpenTherm {
  public:
   OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, bool is_slave = false);
-  volatile OpenThermStatus status;
+  volatile OpenThermStatus cur_status;
   void begin();
   void begin(void (*process_response_callback)(uint32_t, OpenThermResponseStatus));
-  bool isReady();
-  unsigned long sendRequest(unsigned long request);
-  bool sendResponse(unsigned long request);
-  bool sendRequestAync(unsigned long request);
-  unsigned long buildRequest(OpenThermMessageType type, OpenThermMessageID id, unsigned int data);
-  unsigned long buildResponse(OpenThermMessageType type, OpenThermMessageID id, unsigned int data);
-  unsigned long getLastResponse();
-  OpenThermResponseStatus getLastResponseStatus();
-  const char *statusToString(OpenThermResponseStatus status);
+  bool is_ready();
+  uint32_t send_request(uint32_t request);
+  bool send_response(uint32_t request);
+  bool send_request_aync(uint32_t request);
+  uint32_t build_request(OpenThermMessageType type, OpenThermMessageID id, uint16_t data);
+  uint32_t build_response(OpenThermMessageType type, OpenThermMessageID id, uint16_t data);
+  uint32_t get_last_response();
+  OpenThermResponseStatus get_last_response_status();
+  const char *status_to_string(OpenThermResponseStatus status);
   void process();
   void end();
 
-  static void handleInterrupt(OpenTherm *arg);
+  static void handle_interrupt(OpenTherm *arg);
 
-  bool parity(unsigned long frame);
-  OpenThermMessageType getMessageType(unsigned long message);
-  OpenThermMessageID getDataID(unsigned long frame);
-  const char *messageTypeToString(OpenThermMessageType message_type);
-  bool isValidRequest(unsigned long request);
-  bool isValidResponse(unsigned long response);
+  bool parity(uint32_t frame);
+  OpenThermMessageType get_message_type(uint32_t message);
+  OpenThermMessageID get_data_id(uint32_t frame);
+  const char *message_type_to_string(OpenThermMessageType message_type);
+  bool is_valid_request(uint32_t request);
+  bool is_valid_response(uint32_t response);
 
   // requests
-  unsigned long buildSetBoilerStatusRequest(bool enableCentralHeating, bool enableHotWater = false,
-                                            bool enableCooling = false,
-                                            bool enableOutsideTemperatureCompensation = false,
-                                            bool enableCentralHeating2 = false);
-  unsigned long buildSetBoilerTemperatureRequest(float temperature);
-  unsigned long buildGetBoilerTemperatureRequest();
+  uint32_t build_set_boiler_status_request(bool enable_central_heating, bool enable_hot_water = false,
+                                           bool enable_cooling = false,
+                                           bool enable_outside_temperature_compensation = false,
+                                           bool enable_central_heating_2 = false);
+  uint32_t build_set_boiler_temperature_request(float temperature);
+  uint32_t build_get_boiler_temperature_request();
 
   // responses
-  bool isFault(unsigned long response);
-  bool isCentralHeatingActive(unsigned long response);
-  bool isHotWaterActive(unsigned long response);
-  bool isFlameOn(unsigned long response);
-  bool isCoolingActive(unsigned long response);
-  bool isDiagnostic(unsigned long response);
-  uint16_t getUInt(const unsigned long response) const;
-  float getFloat(const unsigned long response) const;
-  unsigned int temperatureToData(float temperature);
+  bool is_fault(uint32_t response);
+  bool is_central_heating_active(uint32_t response);
+  bool is_hot_water_active(uint32_t response);
+  bool is_flame_on(uint32_t response);
+  bool is_cooling_active(uint32_t response);
+  bool is_diagnostic(uint32_t response);
+  uint16_t get_u_int(uint32_t response) const;
+  float get_float(uint32_t response) const;
+  uint16_t temperature_to_data(float temperature);
 
   // basic requests
-  unsigned long setBoilerStatus(bool enableCentralHeating, bool enableHotWater = false, bool enableCooling = false,
-                                bool enableOutsideTemperatureCompensation = false, bool enableCentralHeating2 = false);
-  bool setBoilerTemperature(float temperature);
-  float getBoilerTemperature();
-  float getReturnTemperature();
-  bool setDHWSetpoint(float temperature);
-  float getDHWTemperature();
-  float getModulation();
-  float getPressure();
-  unsigned char getFault();
+  uint32_t set_boiler_status(bool enable_central_heating, bool enable_hot_water = false, bool enable_cooling = false,
+                             bool enable_outside_temperature_compensation = false,
+                             bool enable_central_heating_2 = false);
+  bool set_boiler_temperature(float temperature);
+  float get_boiler_temperature();
+  float get_return_temperature();
+  bool set_dhw_setpoint(float temperature);
+  float get_dhw_temperature();
+  float get_modulation();
+  float get_pressure();
+  uint8_t get_fault();
 
  private:
   InternalGPIOPin *in_pin_;
   InternalGPIOPin *out_pin_;
   ISRInternalGPIOPin isr_in_pin_;
   ISRInternalGPIOPin isr_out_pin_;
-  const bool is_slave_;
+  bool is_slave_;
 
-  volatile unsigned long response;
-  volatile OpenThermResponseStatus responseStatus;
-  volatile unsigned long responseTimestamp;
-  volatile uint8_t responseBitIndex;
+  volatile uint32_t response_;
+  volatile OpenThermResponseStatus response_status_;
+  volatile uint32_t response_timestamp_;
+  volatile uint8_t response_bit_index_;
 
-  int readState();
-  void setActiveState();
-  void setIdleState();
-  void activateBoiler();
+  int read_state_();
+  void set_active_state_();
+  void set_idle_state_();
+  void activate_boiler_();
 
-  void sendBit(bool high);
-  void (*processResponseCallback)(unsigned long, OpenThermResponseStatus);
+  void send_bit_(bool high);
+  void (*process_response_callback_)(uint32_t, OpenThermResponseStatus);
 };
 
 #ifndef ICACHE_RAM_ATTR
@@ -198,5 +201,5 @@ class OpenTherm {
 #endif
 
 #endif  // OpenTherm_h
-}
-}
+}  // namespace opentherm
+}  // namespace esphome
