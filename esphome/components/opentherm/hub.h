@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/hal.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 
@@ -61,7 +62,7 @@ namespace opentherm {
 class OpenthermHub : public Component {
 protected:
     // Communication pins for the OpenTherm interface
-    int in_pin, out_pin;
+    InternalGPIOPin *in_pin, *out_pin;
     // The OpenTherm interface from @ihormelnyk's library
     OpenTherm* ot;
 
@@ -112,8 +113,8 @@ public:
     void process_response(unsigned long response, OpenThermResponseStatus status);
 
     // Setters for the input and output OpenTherm interface pins
-    void set_in_pin(int in_pin) { this->in_pin = in_pin; }
-    void set_out_pin(int out_pin) { this->out_pin = out_pin; }
+    void set_in_pin(InternalGPIOPin *in_pin) { this->in_pin = in_pin; }
+    void set_out_pin(InternalGPIOPin *out_pin) { this->out_pin = out_pin; }
 
     #define OPENTHERM_SET_SENSOR(entity) void set_ ## entity(sensor::Sensor* sensor) { this->entity = sensor; }
     OPENTHERM_SENSOR_LIST(OPENTHERM_SET_SENSOR, )
