@@ -16,9 +16,6 @@ static const char *const ESPHOME_MY_LINK = "https://my.home-assistant.io/redirec
 ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
 
 void ESP32ImprovComponent::setup() {
-  this->service_ = global_ble_server->create_service(improv::SERVICE_UUID, true);
-  this->setup_characteristics();
-
 #ifdef USE_BINARY_SENSOR
   if (this->authorizer_ != nullptr) {
     this->authorizer_->add_on_state_callback([this](bool state) {
@@ -70,6 +67,22 @@ void ESP32ImprovComponent::setup_characteristics() {
 }
 
 void ESP32ImprovComponent::loop() {
+  if (!global_ble_server->is_running()) {
+    this->state_ = improv::STATE_STOPPED;
+    // TODO: Do something with this->status_
+    this->setup_complete_ = false;
+    if (this->service_ != nullptr) {
+      // TODO: Probably del this->service_
+      this->service_ = nullptr;
+    }
+    return;
+  }
+  if(this->service_ == nullptr) {
+    // Setup the service
+    this->service_ = global_ble_server->create_service(improv::SERVICE_UUID, true);
+    this->setup_characteristics();
+  }
+
   if (!this->incoming_data_.empty())
     this->process_incoming_data_();
   uint32_t now = millis();
@@ -238,6 +251,7 @@ void ESP32ImprovComponent::start() {
 
 void ESP32ImprovComponent::stop() {
   this->set_timeout("end-service", 1000, [this] {
+    if (this->state_ == improv::STATE_STOPPED) return;
     this->service_->stop();
     this->set_state_(improv::STATE_STOPPED);
   });

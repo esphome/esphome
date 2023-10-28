@@ -37,6 +37,12 @@ void BLEServer::setup() {
 }
 
 void BLEServer::loop() {
+  if (this->parent_->is_disabled()) {
+    this->registered_ = false;
+    this->state_ = INIT;
+    this->services_.clear();
+    return;
+  }
   switch (this->state_) {
     case RUNNING:
       return;
@@ -53,6 +59,7 @@ void BLEServer::loop() {
     }
     case REGISTERING: {
       if (this->registered_) {
+        // TODO: Should we create the service again?
         this->device_information_service_ = this->create_service(DEVICE_INFORMATION_SERVICE_UUID);
 
         this->create_device_characteristics_();
@@ -67,7 +74,6 @@ void BLEServer::loop() {
       }
       if (this->device_information_service_->is_running()) {
         this->state_ = RUNNING;
-        this->can_proceed_ = true;
         this->restart_advertising_();
         ESP_LOGD(TAG, "BLE server setup successfully");
       } else if (!this->device_information_service_->is_starting()) {
@@ -78,8 +84,16 @@ void BLEServer::loop() {
   }
 }
 
+bool BLEServer::is_running() {
+  return !this->parent_->is_disabled() && this->state_ == RUNNING;
+}
+
+bool BLEServer::can_proceed() {
+  return this->is_running() || this->parent_->is_disabled();
+}
+
 void BLEServer::restart_advertising_() {
-  if (this->state_ == RUNNING) {
+  if (this->is_running()) {
     esp32_ble::global_ble->get_advertising()->set_manufacturer_data(this->manufacturer_data_);
     esp32_ble::global_ble->get_advertising()->start();
   }

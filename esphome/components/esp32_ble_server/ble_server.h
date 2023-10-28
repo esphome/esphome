@@ -39,9 +39,10 @@ class BLEServer : public Component, public GATTsEventHandler, public Parented<ES
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  bool can_proceed() override { return this->can_proceed_; }
+  bool can_proceed() override;
 
   void teardown();
+  bool is_running();
 
   void set_manufacturer(const std::string &manufacturer) { this->manufacturer_ = manufacturer; }
   void set_model(const std::string &model) { this->model_ = model; }
@@ -73,8 +74,6 @@ class BLEServer : public Component, public GATTsEventHandler, public Parented<ES
     this->clients_.insert(std::pair<uint16_t, void *>(conn_id, client));
   }
   bool remove_client_(uint16_t conn_id) { return this->clients_.erase(conn_id) > 0; }
-
-  bool can_proceed_{false};
 
   std::string manufacturer_;
   optional<std::string> model_;
