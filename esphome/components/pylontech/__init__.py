@@ -50,6 +50,8 @@ CONFIG_SCHEMA = cv.All(
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+num_batteries = -1
+
 
 async def check_battery_index(index: int):
     if not (1 <= index <= num_batteries):
