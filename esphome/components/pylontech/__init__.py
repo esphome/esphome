@@ -4,9 +4,6 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-
-from esphome.core import CORE, coroutine_with_priority
-
 CODEOWNERS = ["@functionpointer"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor"]
@@ -26,52 +23,44 @@ CONF_BASE_STATE = "base_state"
 CONF_VOLTAGE_STATE = "voltage_state"
 CONF_CURRENT_STATE = "current_state"
 CONF_TEMPERATURE_STATE = "temperature_state"
+CONF_NUM_BATTERIES = "num_batteries"
 
 pylontech_ns = cg.esphome_ns.namespace("pylontech")
 PylontechComponent = pylontech_ns.class_(
     "PylontechComponent", cg.PollingComponent, uart.UARTDevice
 )
 
+CV_NUM_BATTERIES = cv.int_range(1, 6)
+
 PYLONTECH_COMPONENT_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_PYLONTECH_ID): cv.use_id(PylontechComponent),
-        cv.Required(CONF_BATTERY): cv.int_range(1, 6),
+        cv.Required(CONF_BATTERY): CV_NUM_BATTERIES,
     }
 )
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema({cv.GenerateID(): cv.declare_id(PylontechComponent)})
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(PylontechComponent),
+            cv.Required(CONF_NUM_BATTERIES): CV_NUM_BATTERIES,
+        }
+    )
     .extend(cv.polling_component_schema("60s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
-# Each instance of PylontechComponent may address multiple batteries
-# With their own sensors for voltage, current, etc
-# To make this possible, each PylontechComponent has an array for each type of sensor
-# Problem: we need to know how long those arrays should be
-# Solution: keep track of the maximum index that is used in the entire esphome config
-# This is done using the global _MAX_BATTERY_INDEX
-# Whenever a battery index is used, mark_battery_index_in_use is called to keep track
-# add_num_batteries() will be called after all configs are processed to tell the c code the final count
-_MAX_BATTERY_INDEX = -1
 
 
-async def mark_battery_index_in_use(index: int, parent):
-    global _MAX_BATTERY_INDEX
-    _MAX_BATTERY_INDEX = max(_MAX_BATTERY_INDEX, index)
-    cg.add(parent.mark_battery_index_in_use(index))
-
-
-@coroutine_with_priority(-5.0)
-async def add_num_batteries():
-    if not getattr(add_num_batteries, "already_ran", False):
-        if _MAX_BATTERY_INDEX < 0:
-            _LOGGER.error("no idea how many batteries!")
-        cg.add_define("PYLONTECH_NUM_BATTERIES", _MAX_BATTERY_INDEX)
-        add_num_batteries.already_ran = True
+async def check_battery_index(index: int):
+    if not (1 <= index <= num_batteries):
+        raise cv.Invalid(f"battery expected between 1 and {num_batteries}")
 
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    CORE.add_job(add_num_batteries)
+
+    global num_batteries
+    num_batteries = config[CONF_NUM_BATTERIES]
+    cg.add_define("PYLONTECH_NUM_BATTERIES", config[CONF_NUM_BATTERIES])

@@ -25,7 +25,7 @@ from .. import (
     CONF_VOLTAGE_HIGH,
     CONF_VOLTAGE_LOW,
     CONF_MOS_TEMPERATURE,
-    mark_battery_index_in_use,
+    check_battery_index,
 )
 
 TYPES: dict[str, cv.Schema] = {
@@ -84,7 +84,7 @@ CONFIG_SCHEMA = PYLONTECH_COMPONENT_SCHEMA.extend(
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_PYLONTECH_ID])
     bat: int = config[CONF_BATTERY]
-    await mark_battery_index_in_use(bat, paren)
+    await check_battery_index(bat)
 
     for marker in TYPES:
         if marker in config:

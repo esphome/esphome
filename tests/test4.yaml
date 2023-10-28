@@ -95,8 +95,10 @@ pipsolar:
 pylontech:
   - id: pylontech0
     uart_id: uart115200
+    num_batteries: 1
   - id: pylontech1
     uart_id: uart115200
+    num_batteries: 2
 
 sx1509:
   - id: sx1509_hub
@@ -125,7 +127,7 @@ sensor:
       id: pyl01_mos_temperature
   - platform: pylontech
     pylontech_id: pylontech1
-    battery: 3
+    battery: 2
     voltage:
       id: pyl13_voltage
     temperature_low:
