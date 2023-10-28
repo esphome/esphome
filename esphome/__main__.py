@@ -1,5 +1,4 @@
 # PYTHON_ARGCOMPLETE_OK
-import argcomplete
 import argparse
 import functools
 import logging
@@ -8,6 +7,8 @@ import re
 import sys
 import time
 from datetime import datetime
+
+import argcomplete
 
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
