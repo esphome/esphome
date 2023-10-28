@@ -200,6 +200,7 @@ class OpenTherm {
 #define IRAM_ATTR ICACHE_RAM_ATTR
 #endif
 
-#endif  // OpenTherm_h
 }  // namespace opentherm
 }  // namespace esphome
+
+#endif  // OpenTherm_h

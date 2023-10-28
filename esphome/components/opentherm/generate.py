@@ -84,7 +84,7 @@ def add_messages(hub: cg.MockObj, keys: List[str], schema_: schema.Schema[TSchem
     for key in keys:
         messages.add((schema_[key]["message"], schema_[key]["keep_updated"]))
     for msg, keep_updated in messages:
-        msg_expr = cg.RawExpression(f"OpenThermMessageID::{msg}")
+        msg_expr = cg.RawExpression(f"esphome::opentherm::OpenThermMessageID::{msg}")
         if keep_updated:
             cg.add(hub.add_repeating_message(msg_expr))
         else:

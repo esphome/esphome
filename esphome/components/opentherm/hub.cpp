@@ -173,7 +173,7 @@ unsigned int OpenthermHub::build_request_(OpenThermMessageID request_id) {
     unsigned int data = 0;
 #define OPENTHERM_MESSAGE_WRITE_ENTITY(key, msg_data) data = message_data::write_##msg_data(this->key->state, data);
 #define OPENTHERM_MESSAGE_WRITE_POSTSCRIPT \
-  return ot->buildRequest(OpenThermMessageType::WRITE_DATA, request_id, data); \
+  return opentherm_->build_request(OpenThermMessageType::WRITE_DATA, request_id, data); \
   }
   switch (request_id) {
     OPENTHERM_SWITCH_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
@@ -190,7 +190,7 @@ unsigned int OpenthermHub::build_request_(OpenThermMessageID request_id) {
 #define OPENTHERM_MESSAGE_READ_MESSAGE(msg) \
   case OpenThermMessageID::msg: \
     ESP_LOGD(TAG, "Building %s read request", #msg); \
-    return ot->buildRequest(OpenThermMessageType::READ_DATA, request_id, 0);
+    return opentherm_->build_request(OpenThermMessageType::READ_DATA, request_id, 0);
   switch (request_id) { OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE_2, , , ) }
   switch (request_id) {
     OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE_2, , , )
@@ -213,8 +213,7 @@ void OpenthermHub::process_response(uint32_t response, OpenThermResponseStatus s
   // First check if the response is valid and short-circuit execution if it isn't.
   if (!opentherm_->is_valid_response(response)) {
     ESP_LOGW(OT_TAG, "Received invalid OpenTherm response (id: %u): %08x, status=%s", id, response,
-             // String(response, HEX).c_str(),
-             String(opentherm_->get_last_response_status()).c_str());
+             opentherm_->status_to_string(opentherm_->get_last_response_status()));
     return;
   }
 
