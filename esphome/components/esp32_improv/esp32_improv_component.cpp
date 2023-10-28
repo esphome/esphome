@@ -63,12 +63,8 @@ void ESP32ImprovComponent::setup_characteristics() {
 }
 
 void ESP32ImprovComponent::loop() {
-  if (!global_ble_server->is_running()) {
-    this->state_ = improv::STATE_STOPPED;
-    this->setup_complete_ = false;
-    this->service_ = nullptr;
+  if (!global_ble_server->is_running())
     return;
-  }
   if (this->service_ == nullptr) {
     // Setup the service
     ESP_LOGD(TAG, "Creating Improv service");
