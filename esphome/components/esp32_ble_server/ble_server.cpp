@@ -59,7 +59,8 @@ void BLEServer::loop() {
         }
         if (this->device_information_service_ == nullptr) {
           this->create_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
-          this->device_information_service_ = this->get_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
+          this->device_information_service_ =
+              this->get_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
           this->create_device_characteristics_();
         }
         this->state_ = STARTING_SERVICE;
@@ -82,13 +83,9 @@ void BLEServer::loop() {
   }
 }
 
-bool BLEServer::is_running() {
-  return this->parent_->is_active() && this->state_ == RUNNING;
-}
+bool BLEServer::is_running() { return this->parent_->is_active() && this->state_ == RUNNING; }
 
-bool BLEServer::can_proceed() {
-  return this->is_running() || !this->parent_->is_active();
-}
+bool BLEServer::can_proceed() { return this->is_running() || !this->parent_->is_active(); }
 
 void BLEServer::restart_advertising_() {
   if (this->is_running()) {
@@ -118,8 +115,7 @@ bool BLEServer::create_device_characteristics_() {
   return true;
 }
 
-void BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles,
-                                                      uint8_t inst_id) {
+void BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles, uint8_t inst_id) {
   ESP_LOGV(TAG, "Creating BLE service - %s", uuid.to_string().c_str());
   // If the service already exists, do nothing
   BLEService *service = this->get_service(uuid);

@@ -64,8 +64,8 @@ class GATTsEventHandler {
 };
 
 class BLEStatusEventHandler {
-  public:
-    virtual void on_ble_before_disabled() = 0;
+ public:
+  virtual void on_ble_before_disabled() = 0;
 };
 
 class ESP32BLE : public Component {
@@ -89,7 +89,9 @@ class ESP32BLE : public Component {
   void register_gap_event_handler(GAPEventHandler *handler) { this->gap_event_handlers_.push_back(handler); }
   void register_gattc_event_handler(GATTcEventHandler *handler) { this->gattc_event_handlers_.push_back(handler); }
   void register_gatts_event_handler(GATTsEventHandler *handler) { this->gatts_event_handlers_.push_back(handler); }
-  void register_ble_status_event_handler(BLEStatusEventHandler *handler) { this->ble_status_event_handlers_.push_back(handler); }
+  void register_ble_status_event_handler(BLEStatusEventHandler *handler) {
+    this->ble_status_event_handlers_.push_back(handler);
+  }
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
  protected:

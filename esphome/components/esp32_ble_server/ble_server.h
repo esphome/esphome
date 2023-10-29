@@ -70,9 +70,7 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
   bool create_device_characteristics_();
   void restart_advertising_();
 
-  void add_client_(uint16_t conn_id, void *client) {
-    this->clients_.emplace(conn_id, client);
-  }
+  void add_client_(uint16_t conn_id, void *client) { this->clients_.emplace(conn_id, client); }
   bool remove_client_(uint16_t conn_id) { return this->clients_.erase(conn_id) > 0; }
 
   std::string manufacturer_;
@@ -83,7 +81,7 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
 
   uint32_t connected_clients_{0};
   std::unordered_map<uint16_t, void *> clients_;
-  std::unordered_map<std::string, BLEService*> services_;
+  std::unordered_map<std::string, BLEService *> services_;
   BLEService *device_information_service_;
 
   std::vector<BLEServiceComponent *> service_components_;

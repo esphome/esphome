@@ -44,7 +44,7 @@ void ESP32BLE::enable() {
 
   ESP_LOGD(TAG, "Enabling BLE...");
   this->state_ = BLE_COMPONENT_STATE_OFF;
-  
+
   if (!ble_setup_()) {
     ESP_LOGE(TAG, "BLE could not be set up");
     this->mark_failed();
@@ -233,24 +233,24 @@ bool ESP32BLE::ble_dismantle_() {
     return false;
   }
 
-  #ifdef USE_ARDUINO
+#ifdef USE_ARDUINO
   if (!btStop()) {
     ESP_LOGE(TAG, "btStop failed: %d", esp_bt_controller_get_status());
     return false;
   }
 #else
-  if(esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
+  if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
     // stop bt controller
-    if(esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {
       err = esp_bt_controller_disable();
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_bt_controller_disable failed: %s", esp_err_to_name(err));
         return false;
       }
-      while(esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED)
+      while (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED)
         ;
     }
-    if(esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
       err = esp_bt_controller_deinit();
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_bt_controller_deinit failed: %s", esp_err_to_name(err));
