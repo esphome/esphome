@@ -106,4 +106,5 @@ async def output_set_level_to_code(config, action_id, template_arg, args):
 
 
 async def to_code(config):
+    cg.add_define("USE_OUTPUT")
     cg.add_global(output_ns.using)
