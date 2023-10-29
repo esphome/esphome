@@ -178,7 +178,7 @@ def validate_file_shorthand(value):
                 CONF_ICON: icon,
             }
         )
-    if value.startswith("https"):
+    if value.startswith("http://") or value.startswith("https://"):
         validate_cairosvg_installed(value)
 
         # match = re.search(r"([a-zA-Z0-9\-]+)", value)
