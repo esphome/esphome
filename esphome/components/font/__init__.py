@@ -143,7 +143,7 @@ def get_font_name(value):
     if value[CONF_TYPE] == TYPE_WEB:
         file_name, _ = external_files.get_file_info_from_url(value[CONF_URL])
         return file_name
-    return ""
+    return None
 
 
 def get_font_path(value):
