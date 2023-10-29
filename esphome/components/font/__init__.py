@@ -3,11 +3,10 @@ from pathlib import Path
 import os
 import re
 from packaging import version
-
+import external_files
 import requests
 
 from esphome import core
-from esphome.components import external_files
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.helpers import copy_file_if_changed
