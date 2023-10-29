@@ -98,7 +98,7 @@ class OpenthermHub : public Component {
   std::unordered_set<OpenThermMessageID>::const_iterator current_message_iterator_;
 
   // Create OpenTherm messages based on the message id
-  unsigned int build_request_(OpenThermMessageID request_id);
+  uint32_t build_request_(OpenThermMessageID request_id);
 
   // Callbacks to pass to OpenTherm interface for globally defined interrupts
   void (*process_response_callback_)(uint32_t, OpenThermResponseStatus);

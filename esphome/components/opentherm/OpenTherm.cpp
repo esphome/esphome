@@ -223,7 +223,7 @@ OpenThermMessageType OpenTherm::get_message_type(uint32_t message) {
 
 OpenThermMessageID OpenTherm::get_data_id(uint32_t frame) { return (OpenThermMessageID) ((frame >> 16) & 0xFF); }
 
-uint32_t OpenTherm::build_request(OpenThermMessageType type, OpenThermMessageID id, uint16_t data) {
+uint32_t OpenTherm::build_request(OpenThermMessageType type, OpenThermMessageID id, uint32_t data) {
   uint32_t request = data;
   if (type == OpenThermMessageType::WRITE_DATA) {
     request |= 1ul << 28;
@@ -234,7 +234,7 @@ uint32_t OpenTherm::build_request(OpenThermMessageType type, OpenThermMessageID 
   return request;
 }
 
-uint32_t OpenTherm::build_response(OpenThermMessageType type, OpenThermMessageID id, uint16_t data) {
+uint32_t OpenTherm::build_response(OpenThermMessageType type, OpenThermMessageID id, uint32_t data) {
   uint32_t response = data;
   response |= ((uint32_t) type) << 28;
   response |= ((uint32_t) id) << 16;
@@ -309,7 +309,7 @@ uint32_t OpenTherm::build_set_boiler_status_request(bool enable_central_heating,
 }
 
 uint32_t OpenTherm::build_set_boiler_temperature_request(float temperature) {
-  uint16_t const data = temperature_to_data(temperature);
+  uint32_t const data = temperature_to_data(temperature);
   return build_request(OpenThermMessageType::WRITE_DATA, OpenThermMessageID::TSet, data);
 }
 
@@ -341,13 +341,12 @@ float OpenTherm::get_float(const uint32_t response) const {
   return f;
 }
 
-uint16_t OpenTherm::temperature_to_data(float temperature) {
+uint32_t OpenTherm::temperature_to_data(float temperature) {
   if (temperature < 0)
     temperature = 0;
   if (temperature > 100)
     temperature = 100;
-  uint16_t const data = (unsigned int) (temperature * 256);
-  return data;
+  return (uint32_t) (temperature * 256);
 }
 
 // basic requests
@@ -375,7 +374,7 @@ float OpenTherm::get_return_temperature() {
 }
 
 bool OpenTherm::set_dhw_setpoint(float temperature) {
-  uint16_t const data = temperature_to_data(temperature);
+  auto data = temperature_to_data(temperature);
   uint32_t const response =
       send_request(build_request(OpenThermMessageType::WRITE_DATA, OpenThermMessageID::TdhwSet, data));
   return is_valid_response(response);

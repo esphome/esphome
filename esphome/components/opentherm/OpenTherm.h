@@ -122,8 +122,8 @@ class OpenTherm {
   uint32_t send_request(uint32_t request);
   bool send_response(uint32_t request);
   bool send_request_aync(uint32_t request);
-  uint32_t build_request(OpenThermMessageType type, OpenThermMessageID id, uint16_t data);
-  uint32_t build_response(OpenThermMessageType type, OpenThermMessageID id, uint16_t data);
+  uint32_t build_request(OpenThermMessageType type, OpenThermMessageID id, uint32_t data);
+  uint32_t build_response(OpenThermMessageType type, OpenThermMessageID id, uint32_t data);
   uint32_t get_last_response();
   OpenThermResponseStatus get_last_response_status();
   const char *status_to_string(OpenThermResponseStatus status);
@@ -156,7 +156,7 @@ class OpenTherm {
   bool is_diagnostic(uint32_t response);
   uint16_t get_u_int(uint32_t response) const;
   float get_float(uint32_t response) const;
-  uint16_t temperature_to_data(float temperature);
+  uint32_t temperature_to_data(float temperature);
 
   // basic requests
   uint32_t set_boiler_status(bool enable_central_heating, bool enable_hot_water = false, bool enable_cooling = false,
