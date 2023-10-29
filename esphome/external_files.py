@@ -1,6 +1,6 @@
 from pathlib import Path
 import os
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 from datetime import datetime
 from esphome.core import CORE, TimePeriodSeconds
 
@@ -30,9 +30,10 @@ def get_file_info_from_url(url):
     parsed_url = urlparse(url)
 
     # Get the path component
-    path = parsed_url.path
+    path = unquote(parsed_url.path)
 
     # Extract file name and extension
     file_name = os.path.basename(path)
+
     file_base_name, file_extension = os.path.splitext(file_name)
     return file_base_name, file_extension
