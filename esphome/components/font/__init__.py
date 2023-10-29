@@ -137,7 +137,9 @@ def validate_weight_name(value):
 
 
 def download_gfonts(value):
-    name = f"{value[CONF_FAMILY]}:ital,wght@{int(value[CONF_ITALIC])},{value[CONF_WEIGHT]}"
+    name = (
+        f"{value[CONF_FAMILY]}:ital,wght@{int(value[CONF_ITALIC])},{value[CONF_WEIGHT]}"
+    )
     url = f"https://fonts.googleapis.com/css2?family={name}"
 
     path = _compute_gfonts_local_path(value)
