@@ -134,7 +134,7 @@ def get_font_url(value):
         return f"https://fonts.googleapis.com/css2?family={name}"
     if value[CONF_TYPE] == TYPE_WEB:
         return value[CONF_URL]
-    return ""
+    return None
 
 
 def get_font_name(value):
