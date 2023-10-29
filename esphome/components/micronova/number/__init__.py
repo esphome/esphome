@@ -40,7 +40,9 @@ CONFIG_SCHEMA = cv.Schema(
         )
         .extend(
             {
-                cv.Optional(CONF_MEMORY_WRITE_LOCATION, default=0xA0): cv.hex_int_range(),
+                cv.Optional(
+                    CONF_MEMORY_WRITE_LOCATION, default=0xA0
+                ): cv.hex_int_range(),
                 cv.Optional(CONF_STEP, default=1.0): cv.float_range(min=0.1, max=10.0),
             }
         ),
