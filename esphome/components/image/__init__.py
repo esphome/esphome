@@ -45,12 +45,11 @@ IMAGE_TYPE = {
 CONF_USE_TRANSPARENCY = "use_transparency"
 
 # If the MDI file cannot be downloaded within this time, abort.
-MDI_DOWNLOAD_TIMEOUT = 30  # seconds
+IMAGE_DOWNLOAD_TIMEOUT = 30  # seconds
 
 SOURCE_LOCAL = "local"
 SOURCE_MDI = "mdi"
 SOURCE_WEB = "web"
-CONF_FILETYPE = "filetype"
 
 Image_ = image_ns.class_("Image")
 
@@ -75,7 +74,7 @@ def download_mdi(value):
     url = f"https://raw.githubusercontent.com/Templarian/MaterialDesign/master/svg/{mdi_id}.svg"
     _LOGGER.debug("Downloading %s MDI image from %s", mdi_id, url)
     try:
-        req = requests.get(url, timeout=MDI_DOWNLOAD_TIMEOUT)
+        req = requests.get(url, timeout=IMAGE_DOWNLOAD_TIMEOUT)
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise cv.Invalid(f"Could not download MDI image {mdi_id} from {url}: {e}")
@@ -103,7 +102,7 @@ def download_image(value):
     if path.is_file():
         return value
     try:
-        req = requests.get(url, timeout=MDI_DOWNLOAD_TIMEOUT)
+        req = requests.get(url, timeout=IMAGE_DOWNLOAD_TIMEOUT)
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise cv.Invalid(f"Could not download image {image_id} from {url}: {e}")
@@ -181,10 +180,6 @@ def validate_file_shorthand(value):
     if value.startswith("http://") or value.startswith("https://"):
         validate_cairosvg_installed(value)
 
-        # match = re.search(r"([a-zA-Z0-9\-]+)", value)
-        # if match is None:
-        #     raise cv.Invalid("Could not parse mdi icon name.")
-        # icon = match.group(1)
         return FILE_SCHEMA(
             {
                 CONF_SOURCE: SOURCE_WEB,
