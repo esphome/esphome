@@ -43,8 +43,8 @@ class AggregateQueue {
   // Virtual methods to be overloaded //
   //////////////////////////////////////
 
-  /// @brief Set the queue's capacity and preallocates memory.
-  virtual bool set_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) = 0;
+  /// @brief Configure the queue's capacity and preallocates memory.
+  virtual bool configure_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) = 0;
 
   /// @brief Clear all aggregates in the queue.
   virtual void clear() = 0;
@@ -83,6 +83,11 @@ class AggregateQueue {
    * @return amount of aggregates inserted and aggregated into the queue
    */
   size_t size() const { return this->size_; };
+
+  /** Returns a null measurement Aggregate with the appropriate statistics configured
+   *
+   */
+  Aggregate null_aggregate();
 
  protected:
   // Stores the number of aggregates inserted into the queue

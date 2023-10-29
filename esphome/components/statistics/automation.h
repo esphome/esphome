@@ -31,10 +31,10 @@ template<typename... Ts> class ForcePublishAction : public Action<Ts...> {
 };
 
 // Trigger for after statistics sensors are updated
-class StatisticsUpdateTrigger : public Trigger<Aggregate> {
+class StatisticsUpdateTrigger : public Trigger<Aggregate, float> {
  public:
   explicit StatisticsUpdateTrigger(StatisticsComponent *parent) {
-    parent->add_on_update_callback([this](Aggregate value) { this->trigger(value); });
+    parent->add_on_update_callback([this](Aggregate value, float x) { this->trigger(value, x); });
   }
 };
 

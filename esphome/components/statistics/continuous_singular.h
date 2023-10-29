@@ -59,7 +59,7 @@ class ContinuousSingular : public AggregateQueue {
    * @param tracked_statistics_config not applicable to class
    * @return true if memory was successfully allocated, false otherwise
    */
-  bool set_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) override;
+  bool configure_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) override;
 
  protected:
   // Stores summary statistics for all inserted Aggregate chunks into this queue

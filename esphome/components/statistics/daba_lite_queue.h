@@ -147,7 +147,7 @@ class DABALiteQueue : public AggregateQueue {
    * @param tracked_statistics_config which summary statistics are in the queue
    * @return true if memory was successfully allocated, false otherwise
    */
-  bool set_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) override;
+  bool configure_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) override;
 
  protected:
   // Maximum window capacity; i.e., the total number of Aggregates that can be inserted

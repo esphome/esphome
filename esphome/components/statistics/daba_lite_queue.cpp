@@ -14,9 +14,10 @@ Aggregate DABALiteQueue::compute_current_aggregate() {
     Aggregate alpha = this->get_alpha_();
     Aggregate back = this->get_back_();
 
-    return alpha.combine_with(back);
+    return alpha + back;
   }
-  return Aggregate(this->statistics_calculation_config_);
+
+  return this->null_aggregate();
 }
 
 void DABALiteQueue::clear() {
@@ -30,7 +31,8 @@ void DABALiteQueue::clear() {
   this->b_ = CircularQueueIndex(0, this->window_size_);
   this->e_ = CircularQueueIndex(0, this->window_size_);
 
-  *this->mid_sum_ = *this->back_sum_ = Aggregate(this->statistics_calculation_config_);
+  this->mid_sum_->clear();
+  this->back_sum_->clear();
 }
 
 void DABALiteQueue::evict() {
@@ -41,7 +43,7 @@ void DABALiteQueue::evict() {
 }
 
 void DABALiteQueue::insert(Aggregate value) {
-  *this->back_sum_ = this->back_sum_->combine_with(value);
+  *this->back_sum_ += value;
   this->emplace(value, this->e_.get_index());
 
   ++this->e_;
@@ -49,7 +51,7 @@ void DABALiteQueue::insert(Aggregate value) {
   this->step_();
 }
 
-bool DABALiteQueue::set_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) {
+bool DABALiteQueue::configure_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) {
   this->window_size_ = capacity;
 
   // Verify additional aggregates were successfully allocated during class construction
@@ -80,13 +82,13 @@ void DABALiteQueue::step_() {
       --this->a_;
       Aggregate old_a = this->lower(this->a_.get_index());
 
-      this->emplace(old_a.combine_with(prev_delta), this->a_.get_index());
+      this->emplace(old_a + prev_delta, this->a_.get_index());
     }
 
     if (this->l_ != this->r_) {
       Aggregate old_l = this->lower(this->l_.get_index());
 
-      this->emplace(old_l.combine_with(*this->mid_sum_), this->l_.get_index());
+      this->emplace(old_l + *this->mid_sum_, this->l_.get_index());
       ++this->l_;
     } else {
       ++this->l_;
@@ -95,7 +97,8 @@ void DABALiteQueue::step_() {
       *this->mid_sum_ = get_delta_();
     }
   } else {
-    *this->back_sum_ = *this->mid_sum_ = Aggregate(this->statistics_calculation_config_);
+    this->back_sum_->clear();
+    this->mid_sum_->clear();
   }
 }
 
@@ -106,7 +109,7 @@ void DABALiteQueue::flip_() {
   this->b_ = this->e_;
 
   *this->mid_sum_ = *this->back_sum_;
-  *this->back_sum_ = Aggregate(this->statistics_calculation_config_);
+  this->back_sum_->clear();
 }
 
 // Checks if the b_ index is equal to the front index f_;
@@ -117,10 +120,10 @@ inline bool DABALiteQueue::is_front_empty_() { return (this->b_ == this->f_) && 
 inline bool DABALiteQueue::is_delta_empty_() { return this->a_ == this->b_; }
 inline Aggregate DABALiteQueue::get_back_() { return *this->back_sum_; }
 inline Aggregate DABALiteQueue::get_alpha_() {
-  return this->is_front_empty_() ? Aggregate(this->statistics_calculation_config_) : this->lower(this->f_.get_index());
+  return this->is_front_empty_() ? this->null_aggregate() : this->lower(this->f_.get_index());
 }
 inline Aggregate DABALiteQueue::get_delta_() {
-  return this->is_delta_empty_() ? Aggregate(this->statistics_calculation_config_) : this->lower(this->a_.get_index());
+  return this->is_delta_empty_() ? this->null_aggregate() : this->lower(this->a_.get_index());
 }
 
 //////////////////////////////////

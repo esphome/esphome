@@ -99,7 +99,7 @@ enum StatisticType {
 
 struct StatisticSensorTuple {
   sensor::Sensor *sens;
-  std::function<float(Aggregate)> lambda_fnctn;
+  std::function<float(Aggregate, float)> lambda_fnctn;
   StatisticType type;
 };
 
@@ -114,7 +114,10 @@ class StatisticsComponent : public Component {
   void setup() override;
 
   /// @brief Add a callback that will be called after all sensors have finished updating
-  void add_on_update_callback(std::function<void(Aggregate)> &&callback);
+  void add_on_update_callback(std::function<void(Aggregate, float)> &&callback);
+
+  /// @brief Add a statistic sensor with the appropriate lambda call to compute it
+  void add_sensor(sensor::Sensor *sensor, std::function<float(Aggregate, float)> const &func, StatisticType type);
 
   /// @brief Forces sensor updates using the current aggregate from the queue combined with the running chunk aggregate.
   void force_publish();
@@ -150,16 +153,6 @@ class StatisticsComponent : public Component {
   void set_hash(const std::string &config_id) { this->hash_ = fnv1_hash("statistics_component_" + config_id); }
   void set_restore(bool restore) { this->restore_ = restore; }
 
-  /// @brief Add a statistic sensor with the appropriate lambda call to compute it
-  void add_sensor(sensor::Sensor *sensor, std::function<float(Aggregate)> const &func, StatisticType type) {
-    struct StatisticSensorTuple sens = {
-        .sens = sensor,
-        .lambda_fnctn = func,
-        .type = type,
-    };
-    this->sensors_.emplace_back(sens);
-  }
-
  protected:
   // Source sensor of measurement data
   sensor::Sensor *source_sensor_{nullptr};
@@ -175,7 +168,7 @@ class StatisticsComponent : public Component {
   time::RealTimeClock *time_{nullptr};
 
   // Storage for callbacks on sensor updates
-  CallbackManager<void(Aggregate)> callback_;
+  CallbackManager<void(Aggregate, float)> callback_;
 
   // Stores the Aggregates
   AggregateQueue *queue_{nullptr};

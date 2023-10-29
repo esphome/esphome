@@ -257,7 +257,9 @@ STATISTIC_TYPE_CONFIGS = {
         STAT_TYPE_CONF_UOM_TRANSFORM: None,
         STAT_TYPE_CONF_REQUIRED_RAW_STATS: {},
         STAT_TYPE_CONF_ENUM_TYPE: StatisticType.STATISTIC_LAMBDA,
-        STAT_TYPE_CONF_SENSOR_SCHEMA: sensor.sensor_schema().extend(
+        STAT_TYPE_CONF_SENSOR_SCHEMA: sensor.sensor_schema(
+            state_class=STATE_CLASS_MEASUREMENT
+        ).extend(
             {
                 cv.Required(CONF_LAMBDA): cv.returning_lambda,
             }
@@ -781,7 +783,9 @@ async def to_code(config):
     # Set up triggers
     for conf in config.get(CONF_ON_UPDATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(Aggregate, "agg")], conf)
+        await automation.build_automation(
+            trigger, [(Aggregate, "agg"), (float, "x")], conf
+        )
 
     #############################
     # Set up Configured Sensors #
@@ -802,7 +806,7 @@ async def to_code(config):
             if stat_sensor.get(CONF_TYPE) == CONF_LAMBDA:
                 func = await cg.process_lambda(
                     stat_sensor[CONF_LAMBDA],
-                    [(Aggregate, "agg")],
+                    [(Aggregate, "agg"), (float, "x")],
                     return_type=cg.float_,
                 )
             else:
@@ -820,7 +824,7 @@ async def to_code(config):
 
                 func = await cg.process_lambda(
                     Lambda(f"return {return_string};"),
-                    [(Aggregate, "agg")],
+                    [(Aggregate, "agg"), (float, "x")],
                     return_type=cg.float_,
                 )
 

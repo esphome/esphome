@@ -46,7 +46,7 @@ void AggregateQueue::emplace(const Aggregate &value, size_t index) {
 }
 
 Aggregate AggregateQueue::lower(size_t index) {
-  Aggregate aggregate = Aggregate(this->statistics_calculation_config_);
+  Aggregate aggregate = this->null_aggregate();
 
   // Count queue is always enabled
   aggregate.set_count(this->count_queue_[index]);
@@ -177,6 +177,8 @@ bool AggregateQueue::allocate_memory_(size_t capacity, TrackedStatisticsConfigur
 
   return true;
 }
+
+Aggregate AggregateQueue::null_aggregate() { return Aggregate(this->statistics_calculation_config_); }
 
 }  // namespace statistics
 }  // namespace esphome

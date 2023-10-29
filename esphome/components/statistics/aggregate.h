@@ -3,7 +3,7 @@
  * binary operation and an identity. It has three main purposes:
  *  - Set a default value for a null measurement (a set with 0 measurements) - Aggregate constructor
  *    - This is the identity monoid
- *  - Combine two aggregates from two disjoint sets of measurements - combine_with method
+ *  - Combine two aggregates from two disjoint sets of measurements - overloaded += method
  *    - This is the binary operation
  *    - Summary statistics are combined using parallel algorithms
  *      - See the article "Numerically Stable Parallel Computation of (Co-)Variance" by Schubert and Gertz for details
@@ -73,23 +73,27 @@ class Aggregate {
     this->statistics_calculation_config_ = statistics_calculation_config;
   }
 
-  /** Construct an Aggregate.
+  /** Set measurements for Aggregate
    *
    * @param value sensor measurement
    * @param duration length of time (in milliseconds) for measurement
    * @param timestamp timestamp (in milliseconds) since boot; i.e., millis()
    * @param unix_time UTC Unix time for measurement (in seconds)
    */
-  Aggregate(StatisticsCalculationConfig statistics_config, double value, uint64_t duration, uint32_t timestamp,
-            time_t unix_time);
+  void add_measurement(double value, uint64_t duration, uint32_t timestamp, time_t unix_time);
 
-  /** Combine Aggregate with another.
+  /// @brief Clears all fields and resets to a null measurement Aggregate
+  void clear();
+
+  /** Compound assignment operator combines Aggregate with another
    *
-   * Binary operation that combines two aggregates that store statistics from non-overlapping sets of measurements.
-   * @param b Aggregate to combine with
+   * Combines two aggregates that store statistics from non-overlapping sets of measurements.
+   * @param b
    * @return combined Aggregate
    */
-  Aggregate combine_with(const Aggregate &b);
+  Aggregate &operator+=(const Aggregate &b);
+
+  const Aggregate operator+(const Aggregate &b) const;
 
   /** Compute the covariance of the set of measurements with respect to timestamps.
    *
@@ -249,8 +253,8 @@ class Aggregate {
    * @param b_count count of measurements in second Aggregate
    * @return timestamp that a_mean and b_mean are now both in reference to
    */
-  double normalize_timestamp_means_(double &a_mean, uint32_t a_timestamp_reference, size_t a_count, double &b_mean,
-                                    uint32_t b_timestamp_reference, size_t b_count);
+  static double normalize_timestamp_means(double &a_mean, uint32_t a_timestamp_reference, size_t a_count,
+                                          double &b_mean, uint32_t b_timestamp_reference, size_t b_count);
 
   /** Returns the more recent timestamp
    *
@@ -258,7 +262,7 @@ class Aggregate {
    * @param a_timestamp first timestamp to compare
    * @param b_timestamp second timestamp to compare
    */
-  inline uint32_t more_recent_timestamp_(uint32_t a_timestamp, uint32_t b_timestamp);
+  static inline uint32_t more_recent_timestamp(uint32_t a_timestamp, uint32_t b_timestamp);
 };
 
 }  // namespace statistics

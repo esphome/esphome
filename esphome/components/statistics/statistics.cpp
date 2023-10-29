@@ -131,7 +131,7 @@ void StatisticsComponent::setup() {
     this->queue_ = new ContinuousSingular(this->statistics_calculation_config_);
   }
 
-  if (!this->queue_->set_capacity(this->window_size_, this->tracked_statistics_)) {
+  if (!this->queue_->configure_capacity(this->window_size_, this->tracked_statistics_)) {
     ESP_LOGE(TAG, "Failed to allocate memory for statistical aggregates.");
     this->mark_failed();
     return;
@@ -162,9 +162,19 @@ void StatisticsComponent::setup() {
   this->source_sensor_->add_on_state_callback([this](float value) -> void { this->handle_new_value_(value); });
 }
 
+void StatisticsComponent::add_sensor(sensor::Sensor *sensor, std::function<float(Aggregate, float)> const &func,
+                                     StatisticType type) {
+  struct StatisticSensorTuple sens = {
+      .sens = sensor,
+      .lambda_fnctn = func,
+      .type = type,
+  };
+  this->sensors_.emplace_back(sens);
+}
+
 // Automations
 
-void StatisticsComponent::add_on_update_callback(std::function<void(Aggregate)> &&callback) {
+void StatisticsComponent::add_on_update_callback(std::function<void(Aggregate, float)> &&callback) {
   this->callback_.add(std::move(callback));
 }
 
@@ -172,7 +182,7 @@ void StatisticsComponent::force_publish() {
   Aggregate aggregate_to_publish = this->queue_->compute_current_aggregate();
 
   if ((this->window_type_ == WINDOW_TYPE_CONTINUOUS) || (this->window_type_ == WINDOW_TYPE_CONTINUOUS_LONG_TERM))
-    aggregate_to_publish = aggregate_to_publish.combine_with(*this->running_chunk_aggregate_);
+    aggregate_to_publish += *this->running_chunk_aggregate_;
 
   this->publish_and_save_(aggregate_to_publish);
 }
@@ -180,9 +190,8 @@ void StatisticsComponent::force_publish() {
 void StatisticsComponent::reset() {
   this->queue_->clear();
 
-  *this->running_chunk_aggregate_ =
-      Aggregate(this->statistics_calculation_config_);  // reset the running aggregate to the identity/null measurement
-  this->measurements_in_running_chunk_count_ = 0;       // reset the running chunk count
+  this->running_chunk_aggregate_->clear();
+  this->measurements_in_running_chunk_count_ = 0;  // reset the running chunk count
 
   this->send_at_chunks_counter_ = 0;  // reset the inserted chunks counter
 }
@@ -219,8 +228,9 @@ void StatisticsComponent::handle_new_value_(float value) {
   if (std::isnan(insert_value))
     return;
 
-  *this->running_chunk_aggregate_ = this->running_chunk_aggregate_->combine_with(Aggregate(
-      this->statistics_calculation_config_, insert_value, duration_since_last_measurement, now_timestamp, now_time));
+  Aggregate new_aggregate = this->queue_->null_aggregate();
+  new_aggregate.add_measurement(insert_value, duration_since_last_measurement, now_timestamp, now_time);
+  *this->running_chunk_aggregate_ += new_aggregate;
 
   ++this->measurements_in_running_chunk_count_;
 
@@ -237,15 +247,6 @@ void StatisticsComponent::handle_new_value_(float value) {
 void StatisticsComponent::insert_running_chunk_() {
   // This function is called either by a configured interval of chunk_duration_ length or by handle_new_value_()
 
-  //////////////////////////////////////////////////
-  // Evict elements or reset queue if at capacity //
-  //////////////////////////////////////////////////
-
-  while ((this->queue_->size() + 1) > this->window_size_) {
-    // Uses size() + 1 to rollover and never evict if window_size_ is size_t max
-    this->queue_->evict();  // evict is equivalent to clearing the queue for ContinuousQueue and ContinuousSingular
-  }
-
   ///////////////////////
   // Insert into queue //
   ///////////////////////
@@ -257,7 +258,7 @@ void StatisticsComponent::insert_running_chunk_() {
   // Reset running_chunk_aggregate to a null measurement and reset the counter //
   ///////////////////////////////////////////////////////////////////////////////
 
-  *this->running_chunk_aggregate_ = Aggregate(this->statistics_calculation_config_);
+  this->running_chunk_aggregate_->clear();
   this->measurements_in_running_chunk_count_ = 0;
 
   /////////////
@@ -274,6 +275,15 @@ void StatisticsComponent::insert_running_chunk_() {
 
     this->publish_and_save_(this->queue_->compute_current_aggregate());
   }
+
+  //////////////////////////////////////////////////
+  // Evict elements or reset queue if at capacity //
+  //////////////////////////////////////////////////
+
+  while ((this->queue_->size() + 1) > this->window_size_) {
+    // Uses size() + 1 to rollover and never evict if window_size_ is size_t max
+    this->queue_->evict();  // evict is equivalent to clearing the queue for ContinuousQueue and ContinuousSingular
+  }
 }
 
 void StatisticsComponent::publish_and_save_(Aggregate value) {
@@ -286,7 +296,7 @@ void StatisticsComponent::publish_and_save_(Aggregate value) {
     // Publish updates for all statistic sensors
     for (const auto &sens : this->sensors_) {
       const auto func = sens.lambda_fnctn;
-      sens.sens->publish_state(func(value));
+      sens.sens->publish_state(func(value, this->source_sensor_->state));
     }
 
     // Save results to flash if configured
@@ -295,7 +305,7 @@ void StatisticsComponent::publish_and_save_(Aggregate value) {
     }
 
     // Execute trigger callbacks
-    this->callback_.call(value);
+    this->callback_.call(value, this->source_sensor_->state);
   }
 }
 

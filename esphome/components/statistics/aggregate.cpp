@@ -7,8 +7,7 @@
 namespace esphome {
 namespace statistics {
 
-Aggregate::Aggregate(StatisticsCalculationConfig statistics_config, double value, uint64_t duration, uint32_t timestamp,
-                     time_t unix_time) {
+void Aggregate::add_measurement(double value, uint64_t duration, uint32_t timestamp, time_t unix_time) {
   if (!std::isnan(value)) {
     this->argmax_ = unix_time;
     this->argmin_ = unix_time;
@@ -24,15 +23,31 @@ Aggregate::Aggregate(StatisticsCalculationConfig statistics_config, double value
     this->duration_ = duration;
     this->duration_squared_ = duration * duration;
   }
-  this->statistics_calculation_config_ = statistics_config;
 }
 
-Aggregate Aggregate::combine_with(const Aggregate &b) {
+void Aggregate::clear() {
+  this->argmax_ = std::numeric_limits<time_t>::infinity() * (-1);
+  this->argmin_ = std::numeric_limits<time_t>::infinity() * (-1);
+  this->c2_ = NAN;
+  this->count_ = 0;
+  this->m2_ = NAN;
+  this->max_ = std::numeric_limits<float>::infinity() * (-1);
+  this->mean_ = NAN;
+  this->min_ = std::numeric_limits<float>::infinity();
+  this->timestamp_m2_ = NAN;
+  this->timestamp_mean_ = NAN;
+  this->timestamp_reference_ = 0;
+  this->duration_ = 0;
+  this->duration_squared_ = 0;
+}
+
+Aggregate &Aggregate::operator+=(const Aggregate &b) {
   // If either of the Aggregates is the identity, return the other Aggregate.
   if (b.get_count() == 0) {
     return *this;
   } else if (this->get_count() == 0) {
-    return b;
+    *this = b;
+    return *this;
   }
 
   Aggregate combined(this->statistics_calculation_config_);
@@ -71,8 +86,8 @@ Aggregate Aggregate::combine_with(const Aggregate &b) {
   double b_timestamp_mean = b.get_timestamp_mean();
 
   combined.timestamp_reference_ =
-      this->normalize_timestamp_means_(a_timestamp_mean, this->get_timestamp_reference(), this->get_count(),
-                                       b_timestamp_mean, b.get_timestamp_reference(), b.get_count());
+      this->normalize_timestamp_means(a_timestamp_mean, this->get_timestamp_reference(), this->get_count(),
+                                      b_timestamp_mean, b.get_timestamp_reference(), b.get_count());
 
   // If the averages are time-weighted, then use measurement durations.
   // Otherwise, use the Aggregates' counts as the weights.
@@ -112,8 +127,12 @@ Aggregate Aggregate::combine_with(const Aggregate &b) {
   // Compute C2 quantity for a variation of Welford's algorithm, which determines the covariance.
   combined.c2_ = this->get_c2() + b.get_c2() + a_weight * delta * timestamp_delta_prime;
 
-  return combined;
+  *this = combined;
+
+  return *this;
 }
+
+const Aggregate Aggregate::operator+(const Aggregate &b) const { return Aggregate(*this) += b; }
 
 double Aggregate::compute_covariance() const {
   if (this->count_ > 1)
@@ -165,8 +184,8 @@ double Aggregate::denominator_() const {
   return denominator;
 }
 
-double Aggregate::normalize_timestamp_means_(double &a_mean, uint32_t a_timestamp_reference, size_t a_count,
-                                             double &b_mean, uint32_t b_timestamp_reference, size_t b_count) {
+double Aggregate::normalize_timestamp_means(double &a_mean, uint32_t a_timestamp_reference, size_t a_count,
+                                            double &b_mean, uint32_t b_timestamp_reference, size_t b_count) {
   if (a_count == 0) {
     // a is null, so b is always the more recent timestamp; no adjustments are necessary
     return b_timestamp_reference;
@@ -176,7 +195,7 @@ double Aggregate::normalize_timestamp_means_(double &a_mean, uint32_t a_timestam
     return a_timestamp_reference;
   }
 
-  if (b_timestamp_reference == this->more_recent_timestamp_(a_timestamp_reference, b_timestamp_reference)) {
+  if (b_timestamp_reference == more_recent_timestamp(a_timestamp_reference, b_timestamp_reference)) {
     // b is the more recent timestamp, so normalize the a_mean using the b_timestamp
 
     uint32_t timestamp_delta = b_timestamp_reference - a_timestamp_reference;
@@ -193,7 +212,7 @@ double Aggregate::normalize_timestamp_means_(double &a_mean, uint32_t a_timestam
   }
 }
 
-inline uint32_t Aggregate::more_recent_timestamp_(const uint32_t a_timestamp, const uint32_t b_timestamp) {
+inline uint32_t Aggregate::more_recent_timestamp(const uint32_t a_timestamp, const uint32_t b_timestamp) {
   // Test the sign bit of the difference to see if the subtraction rolls over
   //  - this assumes the timestamps are not truly more than 2^31 ms apart, which is about 24.86 days
   //    (https://arduino.stackexchange.com/a/12591, accessed June 2023)

@@ -93,14 +93,14 @@ class ContinuousQueue : public AggregateQueue {
    */
   void insert(Aggregate value) override;
 
-  /** Set the queue's size and pre-allocate memory.
+  /** Configure the queue's size and pre-allocate memory.
    *
    * This queue uses at most log_2(<window_size>)+1 aggregates to store <chunk_capacity> aggregate chunks.
    * @param capacity the total amount of Aggregate chunks that can be inserted into the queue before an overflow
    * @param tracked_statistics_config which summary statistics are saved in the queue
    * @return true if memory was successfully allocated, false otherwise
    */
-  bool set_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) override;
+  bool configure_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) override;
 
  protected:
   // Largest possible index before running out of memory
