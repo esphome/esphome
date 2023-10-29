@@ -78,7 +78,6 @@ void ESP32BLE::advertising_start() {
   this->advertising_init_();
   if (!this->is_active())
     return;
-  // TODO: Test if it works disabled
   this->advertising_->start();
 }
 
