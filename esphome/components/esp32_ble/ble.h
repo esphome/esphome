@@ -65,8 +65,7 @@ class GATTsEventHandler {
 
 class BLEStatusEventHandler {
   public:
-    virtual void on_ble_enabled() = 0;
-    virtual void on_ble_disabled() = 0;
+    virtual void on_ble_before_disabled() = 0;
 };
 
 class ESP32BLE : public Component {

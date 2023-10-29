@@ -52,10 +52,6 @@ void ESP32BLE::enable() {
   }
 
   this->state_ = BLE_COMPONENT_STATE_ACTIVE;
-
-  for (auto *ble_event_handler : this->ble_status_event_handlers_) {
-    ble_event_handler->on_ble_enabled();
-  }
 }
 
 void ESP32BLE::disable() {
@@ -66,7 +62,7 @@ void ESP32BLE::disable() {
   this->state_ = BLE_COMPONENT_STATE_DISABLED;
 
   for (auto *ble_event_handler : this->ble_status_event_handlers_) {
-    ble_event_handler->on_ble_disabled();
+    ble_event_handler->on_ble_before_disabled();
   }
 
   if (!ble_dismantle_()) {
