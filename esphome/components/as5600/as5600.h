@@ -44,11 +44,8 @@ enum AS5600MagnetStatus : uint8_t {
   MAGNET_WEAK = 6,    // 0b110 / magnet too weak
 };
 
-class AS5600Sensor;
-
 class AS5600Component : public Component, public i2c::I2CDevice {
  public:
-  void register_sensor(AS5600Sensor *obj) { this->sensors_.push_back(obj); }
   /// Set up the internal sensor array.
   void setup() override;
   void dump_config() override;
@@ -88,7 +85,6 @@ class AS5600Component : public Component, public i2c::I2CDevice {
   optional<uint16_t> read_raw_position();
 
  protected:
-  std::vector<AS5600Sensor *> sensors_;
   InternalGPIOPin *dir_pin_{nullptr};
   uint8_t direction_;
   uint8_t fast_filter_;
@@ -103,33 +99,6 @@ class AS5600Component : public Component, public i2c::I2CDevice {
   uint16_t raw_max_;
   EndPositionMode end_mode_{END_MODE_RANGE};
   float range_scale_{1.0};
-};
-
-class AS5600Sensor : public sensor::Sensor, public PollingComponent {
- public:
-  AS5600Sensor(AS5600Component *parent) : parent_(parent) { parent->register_sensor(this); }
-  void update() override;
-
-  void set_angle_sensor(sensor::Sensor *angle_sensor) { angle_sensor_ = angle_sensor; }
-  void set_raw_angle_sensor(sensor::Sensor *raw_angle_sensor) { raw_angle_sensor_ = raw_angle_sensor; }
-  void set_position_sensor(sensor::Sensor *position_sensor) { position_sensor_ = position_sensor; }
-  void set_raw_position_sensor(sensor::Sensor *raw_position_sensor) { raw_position_sensor_ = raw_position_sensor; }
-  void set_gain_sensor(sensor::Sensor *gain_sensor) { gain_sensor_ = gain_sensor; }
-  void set_magnitude_sensor(sensor::Sensor *magnitude_sensor) { magnitude_sensor_ = magnitude_sensor; }
-  void set_status_sensor(sensor::Sensor *status_sensor) { status_sensor_ = status_sensor; }
-  void set_out_of_range_mode(OutRangeMode oor_mode) { out_of_range_mode_ = oor_mode; }
-  OutRangeMode get_out_of_range_mode() { return out_of_range_mode_; }
-
- protected:
-  AS5600Component *parent_;
-  sensor::Sensor *angle_sensor_{nullptr};
-  sensor::Sensor *raw_angle_sensor_{nullptr};
-  sensor::Sensor *position_sensor_{nullptr};
-  sensor::Sensor *raw_position_sensor_{nullptr};
-  sensor::Sensor *gain_sensor_{nullptr};
-  sensor::Sensor *magnitude_sensor_{nullptr};
-  sensor::Sensor *status_sensor_{nullptr};
-  OutRangeMode out_of_range_mode_{OUT_RANGE_MODE_MIN_MAX};
 };
 
 }  // namespace as5600

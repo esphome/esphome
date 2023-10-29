@@ -12,11 +12,10 @@ from esphome.const import (
     CONF_STATUS,
     CONF_POSITION,
 )
-from . import as5600_ns, AS5600Component
+from .. import as5600_ns, AS5600Component
 
 CODEOWNERS = ["@ammmze"]
 DEPENDENCIES = ["as5600"]
-AUTO_LOAD = ["as5600"]
 
 AS5600Sensor = as5600_ns.class_("AS5600Sensor", sensor.Sensor, cg.PollingComponent)
 
@@ -83,10 +82,10 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    paren = await cg.get_variable(config[CONF_AS5600_ID])
-    var = cg.new_Pvariable(config[CONF_ID], paren)
-    await sensor.register_sensor(var, config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_parented(var, config[CONF_AS5600_ID])
     await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
 
     if CONF_OUT_OF_RANGE_MODE in config:
         cg.add(var.set_out_of_range_mode(config[CONF_OUT_OF_RANGE_MODE]))

@@ -105,11 +105,6 @@ void AS5600Component::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Range: %d", this->end_position_);
   }
-
-  for (auto *sensor : this->sensors_) {
-    LOG_SENSOR("  ", "Sensor", sensor);
-    ESP_LOGCONFIG(TAG, "    Out of Range Mode: %u", sensor->get_out_of_range_mode());
-  }
 }
 
 bool AS5600Component::in_range(uint16_t raw_position) {
@@ -137,49 +132,6 @@ optional<uint16_t> AS5600Component::read_raw_position() {
     return {};
   }
   return pos;
-}
-
-void AS5600Sensor::update() {
-  if (this->gain_sensor_ != nullptr) {
-    this->gain_sensor_->publish_state(this->parent_->reg(REGISTER_AGC).get());
-  }
-
-  if (this->magnitude_sensor_ != nullptr) {
-    uint16_t value = 0;
-    this->parent_->read_byte_16(REGISTER_MAGNITUDE, &value);
-    this->magnitude_sensor_->publish_state(value);
-  }
-
-  // 2 = magnet not detected
-  // 4 = magnet just right
-  // 5 = magnet too strong
-  // 6 = magnet too weak
-  if (this->status_sensor_ != nullptr) {
-    this->status_sensor_->publish_state(this->parent_->read_magnet_status());
-  }
-
-  auto pos = this->parent_->read_position();
-  if (!pos.has_value()) {
-    this->status_set_warning();
-    return;
-  }
-
-  auto raw = this->parent_->read_raw_position();
-  if (!raw.has_value()) {
-    this->status_set_warning();
-    return;
-  }
-
-  if (this->out_of_range_mode_ == OUT_RANGE_MODE_NAN) {
-    this->publish_state(this->parent_->in_range(raw.value()) ? pos.value() : NAN);
-  } else {
-    this->publish_state(pos.value());
-  }
-
-  if (this->raw_position_sensor_ != nullptr) {
-    this->raw_position_sensor_->publish_state(raw.value());
-  }
-  this->status_clear_warning();
 }
 
 }  // namespace as5600
