@@ -84,16 +84,6 @@ def download_mdi(value):
     return value
 
 
-def get_file_type(file_name):
-    # Regular expression pattern to match the file extension
-    pattern = r"\.([^.]+)$"
-    match = re.search(pattern, file_name)
-    if match:
-        file_type = match.group(1)
-        return file_type
-    return None
-
-
 def download_image(value):
     url = value[CONF_URL]
     image_id, _ = external_files.get_file_info_from_url(url)

@@ -753,7 +753,7 @@ image:
     type: RGB565
     use_transparency: no
   - id: launch_image
-    file: https://esphome.io/_images/logo-text.svg
+    file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
     resize: 256x48
     type: TRANSPARENT_BINARY
 
