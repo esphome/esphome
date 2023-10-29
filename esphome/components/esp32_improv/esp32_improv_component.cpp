@@ -63,8 +63,11 @@ void ESP32ImprovComponent::setup_characteristics() {
 }
 
 void ESP32ImprovComponent::loop() {
-  if (!global_ble_server->is_running())
+  if (!global_ble_server->is_running()) {
+    this->state_ = improv::STATE_STOPPED;
+    this->incoming_data_.clear();
     return;
+  }
   if (this->service_ == nullptr) {
     // Setup the service
     ESP_LOGD(TAG, "Creating Improv service");
@@ -87,7 +90,6 @@ void ESP32ImprovComponent::loop() {
 
           this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
           this->set_error_(improv::ERROR_NONE);
-          this->should_start_ = false;
           ESP_LOGD(TAG, "Service started!");
         } else {
           this->service_->start();
@@ -246,8 +248,10 @@ void ESP32ImprovComponent::start() {
 }
 
 void ESP32ImprovComponent::stop() {
+  this->should_start_ = false;
   this->set_timeout("end-service", 1000, [this] {
-    if (this->state_ == improv::STATE_STOPPED) return;
+    if (this->state_ == improv::STATE_STOPPED || this->service_ == nullptr)
+      return;
     this->service_->stop();
     this->set_state_(improv::STATE_STOPPED);
   });

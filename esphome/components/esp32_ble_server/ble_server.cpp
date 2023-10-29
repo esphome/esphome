@@ -30,9 +30,6 @@ void BLEServer::setup() {
     ESP_LOGE(TAG, "BLE Server was marked failed by ESP32BLE");
     return;
   }
-
-  ESP_LOGD(TAG, "Setting up BLE Server...");
-
   global_ble_server = this;
 }
 
@@ -56,9 +53,15 @@ void BLEServer::loop() {
     }
     case REGISTERING: {
       if (this->registered_) {
-        this->create_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
-        this->device_information_service_ = this->get_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
-        this->create_device_characteristics_();
+        // Create all services previously created
+        for (auto &pair : this->services_) {
+          pair.second->do_create(this);
+        }
+        if (this->device_information_service_ == nullptr) {
+          this->create_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
+          this->device_information_service_ = this->get_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
+          this->create_device_characteristics_();
+        }
         this->state_ = STARTING_SERVICE;
       }
       break;
@@ -186,12 +189,6 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
 }
 
 void BLEServer::on_ble_enabled() {
-  // Create all services
-  for (auto &pair : this->services_) {
-    pair.second->do_create(this);
-  }
-  // Restart advertising
-  this->restart_advertising_();
 }
 
 void BLEServer::on_ble_disabled() {
@@ -201,6 +198,8 @@ void BLEServer::on_ble_disabled() {
   for (auto &pair : this->services_) {
     pair.second->do_delete();
   }
+  this->registered_ = false;
+  this->state_ = INIT;
 }
 
 float BLEServer::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH + 10; }

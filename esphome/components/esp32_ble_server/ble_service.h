@@ -49,6 +49,7 @@ class BLEService {
 
   bool is_running() { return this->running_state_ == RUNNING; }
   bool is_starting() { return this->running_state_ == STARTING; }
+  bool is_deleted() { return this->init_state_ == DELETED; }
 
  protected:
   std::vector<BLECharacteristic *> characteristics_;
@@ -63,6 +64,7 @@ class BLEService {
   bool should_start_{false};
 
   bool do_create_characteristics_();
+  void stop_();
 
   enum InitState : uint8_t {
     FAILED = 0x00,
@@ -70,6 +72,7 @@ class BLEService {
     CREATING,
     CREATING_DEPENDENTS,
     CREATED,
+    DELETING,
     DELETED,
   } init_state_{INIT};
 

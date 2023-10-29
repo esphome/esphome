@@ -71,7 +71,7 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   std::vector<uint8_t> incoming_data_;
   wifi::WiFiAP connecting_sta_;
 
-  BLEService *service_;
+  BLEService *service_ = nullptr;
   BLECharacteristic *status_;
   BLECharacteristic *error_;
   BLECharacteristic *rpc_;
