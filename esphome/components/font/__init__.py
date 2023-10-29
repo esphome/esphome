@@ -29,7 +29,6 @@ from esphome.core import CORE, HexInt
 DOMAIN = "font"
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
-NETWORK_TIMEOUT = 30
 
 font_ns = cg.esphome_ns.namespace("font")
 
@@ -163,7 +162,7 @@ def get_font_path(value):
 
 def download_gfont_ttf(value, url):
     try:
-        req = requests.get(url, timeout=30)
+        req = requests.get(url, timeout=external_files.NETWORK_TIMEOUT)
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise cv.Invalid(
@@ -180,7 +179,7 @@ def download_gfont_ttf(value, url):
 
     ttf_url = match.group(1)
     try:
-        req = requests.get(ttf_url, timeout=NETWORK_TIMEOUT)
+        req = requests.get(ttf_url, timeout=external_files.NETWORK_TIMEOUT)
         req.raise_for_status()
         return req.content
     except requests.exceptions.RequestException as e:
@@ -191,12 +190,15 @@ def download_web_font(value):
     name = get_font_name(value)
     url = get_font_url(value)
     path = get_font_path(value)
-    if external_files.is_file_recent(path, value[CONF_REFRESH]):
+
+    if external_files.is_file_recent(
+        path, value[CONF_REFRESH]
+    ) or external_files.check_etag_equality(url, path):
         return value
 
     if value[CONF_TYPE] == TYPE_WEB:
         try:
-            req = requests.get(url, timeout=NETWORK_TIMEOUT)
+            req = requests.get(url, timeout=external_files.NETWORK_TIMEOUT)
             req.raise_for_status()
             path.parent.mkdir(exist_ok=True, parents=True)
             path.write_bytes(req.content)
@@ -219,9 +221,7 @@ EXTERNAL_FONT_SCHEMA = cv.Schema(
             cv.int_, validate_weight_name
         ),
         cv.Optional(CONF_ITALIC, default=False): cv.boolean,
-        cv.Optional(CONF_REFRESH, default="never"): cv.All(
-            cv.string, cv.source_refresh
-        ),
+        cv.Optional(CONF_REFRESH, default="1d"): cv.All(cv.string, cv.source_refresh),
     }
 )
 
