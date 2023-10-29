@@ -11,6 +11,7 @@ namespace esphome {
 namespace mdns {
 
 void MDNSComponent::setup() {
+  global_mdns = this;
   this->compile_records_();
 
   MDNS.begin(this->hostname_.c_str());
@@ -35,6 +36,14 @@ void MDNSComponent::setup() {
   }
 }
 
+network::IPAddress MDNSComponent::resolve(std::string servicename) {
+  int n = MDNS.queryService(servicename.c_str(), "tcp");
+  if (n > 0) {
+    return network::IPAddress(MDNS.IP(0));
+  }
+  return network::IPAddress();
+}
+
 void MDNSComponent::loop() { MDNS.update(); }
 
 void MDNSComponent::on_shutdown() {
@@ -42,6 +51,7 @@ void MDNSComponent::on_shutdown() {
   delay(40);
 }
 
+MDNSComponent *global_mdns = nullptr;
 }  // namespace mdns
 }  // namespace esphome
 
