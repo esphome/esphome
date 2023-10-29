@@ -130,13 +130,8 @@ def validate_weight_name(value):
 
 def get_font_url(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
-        wght = value[CONF_WEIGHT]
-        if value[CONF_ITALIC]:
-            wght = f"1,{wght}"
-
-        return (
-            f"https://fonts.googleapis.com/css2?family={value[CONF_FAMILY]}:wght@{wght}"
-        )
+        name = get_font_name(value)
+        return f"https://fonts.googleapis.com/css2?family={name}"
     if value[CONF_TYPE] == TYPE_WEB:
         return value[CONF_URL]
     return ""
@@ -144,7 +139,7 @@ def get_font_url(value):
 
 def get_font_name(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
-        return f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}"
+        return f"{value[CONF_FAMILY]}:ital,wght@{int(value[CONF_ITALIC])},{value[CONF_WEIGHT]}"
     if value[CONF_TYPE] == TYPE_WEB:
         file_name, _ = external_files.get_file_info_from_url(value[CONF_URL])
         return file_name
