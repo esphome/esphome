@@ -72,7 +72,7 @@ void XGZP68XXComponent::setup() {
 
   // Display some sample bits to confirm we are talking to the sensor
   this->read_register(SYSCONFIG_ADDRESS, &config, 1);
-  ESP_LOGCONFIG(TAG, "Gain bits are %03b", (config >> 3) & 0b111);
+  ESP_LOGCONFIG(TAG, "Gain value is %d", (config >> 3) & 0b111);
   ESP_LOGCONFIG(TAG, "XGZP68xx started!");
 }
 
