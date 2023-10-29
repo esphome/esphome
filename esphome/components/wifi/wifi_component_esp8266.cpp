@@ -23,11 +23,11 @@ extern "C" {
 #endif
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
 #include "LwipDhcpServer.h"
-#endif
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0) && USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
+#if USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
 #define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
 #define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
 #define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpSoftAP.set_dhcps_offer_option(offer, mode)
+#endif
 #endif
 }
 
