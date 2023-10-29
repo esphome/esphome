@@ -752,6 +752,10 @@ image:
     file: pnglogo.png
     type: RGB565
     use_transparency: no
+  - id: launch_image
+    file: https://esphome.io/_images/logo-text.svg
+    resize: 256x48
+    type: TRANSPARENT_BINARY
 
   - id: mdi_alert
     file: mdi:alert-circle-outline

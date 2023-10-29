@@ -7,6 +7,7 @@ import requests
 
 from esphome import core
 from esphome.components import font
+from esphome import external_files
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
@@ -55,8 +56,15 @@ Image_ = image_ns.class_("Image")
 
 
 def _compute_local_icon_path(value) -> Path:
-    base_dir = Path(CORE.data_dir) / DOMAIN / "mdi"
+    base_dir = external_files.compute_local_file_dir(value[CONF_ICON], DOMAIN) / "mdi"
     return base_dir / f"{value[CONF_ICON]}.svg"
+
+
+def _compute_local_image_path(config) -> Path:
+    url = config[CONF_URL]
+    file_name, file_type = external_files.get_file_info_from_url(url)
+    base_dir = external_files.compute_local_file_dir(file_name, DOMAIN)
+    return base_dir / f"{file_name}{file_type}"
 
 
 def download_mdi(value):
@@ -77,21 +85,6 @@ def download_mdi(value):
     return value
 
 
-def get_filename_from_url(url):
-    # Regular expression pattern to match the file name at the end of the URL
-    pattern = r"/([^/]+)$"
-    match = re.search(pattern, url)
-    if match:
-        file_name = match.group(1)
-        file_name = re.sub(r"%20", "", file_name)  # Replace %20 with empty string
-
-        # Remove the file extension
-        file_name = re.sub(r"\.[^.]+$", "", file_name)
-
-        return file_name
-    return None
-
-
 def get_file_type(file_name):
     # Regular expression pattern to match the file extension
     pattern = r"\.([^.]+)$"
@@ -102,20 +95,13 @@ def get_file_type(file_name):
     return None
 
 
-def _compute_local_image_path(value) -> Path:
-    image_id = get_filename_from_url(value[CONF_URL])
-    filetype = get_file_type(value[CONF_URL])
-    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN / f"{filetype}"
-    return base_dir / f"{image_id}.{filetype}"
-
-
 def download_image(value):
-    image_id = get_filename_from_url(value[CONF_URL])
+    url = value[CONF_URL]
+    image_id, _ = external_files.get_file_info_from_url(url)
     path = _compute_local_image_path(value)
+    _LOGGER.info("Downloading %s image from %s to %s", image_id, url, path)
     if path.is_file():
         return value
-    url = value[CONF_URL]
-    _LOGGER.debug("Downloading %s image from %s", image_id, url)
     try:
         req = requests.get(url, timeout=MDI_DOWNLOAD_TIMEOUT)
         req.raise_for_status()
