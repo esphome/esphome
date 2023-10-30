@@ -86,8 +86,8 @@ Aggregate &Aggregate::operator+=(const Aggregate &b) {
   double b_timestamp_mean = b.get_timestamp_mean();
 
   combined.timestamp_reference_ =
-      this->normalize_timestamp_means(a_timestamp_mean, this->get_timestamp_reference(), this->get_count(),
-                                      b_timestamp_mean, b.get_timestamp_reference(), b.get_count());
+      normalize_timestamp_means(a_timestamp_mean, this->get_timestamp_reference(), this->get_count(), b_timestamp_mean,
+                                b.get_timestamp_reference(), b.get_count());
 
   // If the averages are time-weighted, then use measurement durations.
   // Otherwise, use the Aggregates' counts as the weights.
@@ -132,7 +132,7 @@ Aggregate &Aggregate::operator+=(const Aggregate &b) {
   return *this;
 }
 
-const Aggregate Aggregate::operator+(const Aggregate &b) const { return Aggregate(*this) += b; }
+Aggregate Aggregate::operator+(const Aggregate &b) const { return Aggregate(*this) += b; }
 
 double Aggregate::compute_covariance() const {
   if (this->count_ > 1)

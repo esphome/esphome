@@ -73,6 +73,16 @@ class Aggregate {
     this->statistics_calculation_config_ = statistics_calculation_config;
   }
 
+  /** Compound assignment operator combines Aggregate with another
+   *
+   * Combines two aggregates that store statistics from non-overlapping sets of measurements.
+   * @param b
+   * @return combined Aggregate
+   */
+  Aggregate &operator+=(const Aggregate &b);
+
+  Aggregate operator+(const Aggregate &b) const;
+
   /** Set measurements for Aggregate
    *
    * @param value sensor measurement
@@ -84,16 +94,6 @@ class Aggregate {
 
   /// @brief Clears all fields and resets to a null measurement Aggregate
   void clear();
-
-  /** Compound assignment operator combines Aggregate with another
-   *
-   * Combines two aggregates that store statistics from non-overlapping sets of measurements.
-   * @param b
-   * @return combined Aggregate
-   */
-  Aggregate &operator+=(const Aggregate &b);
-
-  const Aggregate operator+(const Aggregate &b) const;
 
   /** Compute the covariance of the set of measurements with respect to timestamps.
    *
