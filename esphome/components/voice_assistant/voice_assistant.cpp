@@ -353,7 +353,6 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
 
   this->api_client_ = client;
   this->client_connected_trigger_->trigger();
-  return;
 }
 
 static const LogString *voice_assistant_state_to_string(State state) {
