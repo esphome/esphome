@@ -111,6 +111,7 @@ void APIServer::loop() {
                                 [](const std::unique_ptr<APIConnection> &conn) { return !conn->remove_; });
   // print disconnection messages
   for (auto it = new_end; it != this->clients_.end(); ++it) {
+    this->client_disconnected_trigger_->trigger((*it)->client_info_, (*it)->client_peername_);
     ESP_LOGV(TAG, "Removing connection to %s", (*it)->client_info_.c_str());
   }
   // resize vector
@@ -251,6 +252,15 @@ void APIServer::on_number_update(number::Number *obj, float state) {
     return;
   for (auto &c : this->clients_)
     c->send_number_state(obj, state);
+}
+#endif
+
+#ifdef USE_TEXT
+void APIServer::on_text_update(text::Text *obj, const std::string &state) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_text_state(obj, state);
 }
 #endif
 

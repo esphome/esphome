@@ -135,21 +135,26 @@ def _process_base_package(config: dict) -> dict:
                 packages[file] = new_yaml
             except EsphomeError as e:
                 raise cv.Invalid(
-                    f"{file} is not a valid YAML file. Please check the file contents."
+                    f"{file} is not a valid YAML file. Please check the file contents.\n{e}"
                 ) from e
         return packages
 
-    packages = {}
+    packages = None
+    error = ""
 
     try:
         packages = get_packages(files)
-    except cv.Invalid:
-        if revert is not None:
-            revert()
-            packages = get_packages(files)
-    finally:
-        if packages is None:
-            raise cv.Invalid("Failed to load packages")
+    except cv.Invalid as e:
+        error = e
+        try:
+            if revert is not None:
+                revert()
+                packages = get_packages(files)
+        except cv.Invalid as er:
+            error = er
+
+    if packages is None:
+        raise cv.Invalid(f"Failed to load packages. {error}")
 
     return {"packages": packages}
 
