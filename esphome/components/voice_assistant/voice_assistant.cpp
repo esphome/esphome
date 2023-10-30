@@ -89,7 +89,7 @@ void VoiceAssistant::setup() {
   this->vad_instance_ = vad_create(VAD_MODE_4);
 #endif
 
-  this->stream_buffer_ = xStreamBufferCreate(BUFFER_SIZE*sizeof(int16_t), 0);
+  this->stream_buffer_ = xStreamBufferCreate(BUFFER_SIZE * sizeof(int16_t), 0);
   if (this->stream_buffer_ == nullptr) {
     ESP_LOGW(TAG, "Could not allocate ring buffer.");
     this->mark_failed();
@@ -116,8 +116,7 @@ int VoiceAssistant::read_microphone_() {
     // Write audio into ring buffer
     size_t available = xStreamBufferSpacesAvailable(this->stream_buffer_);
     if (available < bytes_read) {
-      //ESP_LOGW(TAG, "Microphone buffer dropped data");
-      xStreamBufferReceive(this->stream_buffer_, (void *) this->send_buffer_, bytes_read - available, 0 ); // drop some data
+      xStreamBufferReceive(this->stream_buffer_, (void *) this->send_buffer_, bytes_read - available, 0);
     }
     xStreamBufferSend(this->stream_buffer_, (void *) this->input_buffer_, bytes_read, 0);
   } else {
@@ -185,27 +184,22 @@ void VoiceAssistant::loop() {
           speech_detected = true;
         }
 #else
-        size_t num_samples = bytes_read/sizeof(int16_t);
+        size_t num_samples = bytes_read / sizeof(int16_t);
         uint32_t sum = 0;
-        for (int i=0; i<num_samples; i++) {
+        for (int i = 0; i < num_samples; i++) {
           int16_t in = this->input_buffer_[i];
           sum += ((int32_t) in * in);
         }
-        uint16_t rms = sqrt(sum/num_samples);
-
+        uint16_t rms = sqrt(sum / num_samples);
         if (this->noise_floor_ == 0) {
           this->noise_floor_ = rms; // initialize
         }
 
-        float snr = 20.0*log10f((float)rms/this->noise_floor_);
-
+        float snr = 20.0 * log10f((float) rms / this->noise_floor_);
         if (snr >= SNR_TRESHOLD_DB) {
-          //vad_state_t vad_state = VAD_SPEECH;
-          ESP_LOGD(TAG, "VAD value %d", rms);
-          ESP_LOGD(TAG, "SNR: %.2f", snr);
           speech_detected = true;
         } else {
-          this->noise_floor_ = (((uint32_t)15 * this->noise_floor_) + rms) / 16;
+          this->noise_floor_ = (((uint32_t) 15 * this->noise_floor_) + rms) / 16;
         }
 #endif
         if (speech_detected) {
@@ -213,14 +207,6 @@ void VoiceAssistant::loop() {
             this->vad_counter_++;
           } else {
             ESP_LOGD(TAG, "VAD detected speech");
-/*
-            // drop leading silence
-            size_t available = xStreamBufferBytesAvailable(this->stream_buffer_);
-            if (available - (this->vad_counter_ + 5) * bytes_read > 0) {
-              ESP_LOGD(TAG, "Dropped leading silence. Buf avail: %d, bytes_read: %d, vad_counter: %d", available, bytes_read, this->vad_counter_);
-              xStreamBufferReceive(this->stream_buffer_, (void *) this->send_buffer_, available - (this->vad_counter_ + 5) * bytes_read, 0 ); // drop some data
-            }
-*/
             this->set_state_(State::START_PIPELINE, State::STREAMING_MICROPHONE);
 
             // Reset for next time
