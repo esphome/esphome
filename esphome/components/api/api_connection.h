@@ -207,6 +207,8 @@ class APIConnection : public APIServerConnection {
   std::unique_ptr<APIFrameHelper> helper_;
 
   std::string client_info_;
+  std::string client_peername_;
+  std::string client_combined_info_;
   uint32_t client_api_version_major_{0};
   uint32_t client_api_version_minor_{0};
 #ifdef USE_ESP32_CAMERA
