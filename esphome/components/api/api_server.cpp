@@ -111,6 +111,7 @@ void APIServer::loop() {
                                 [](const std::unique_ptr<APIConnection> &conn) { return !conn->remove_; });
   // print disconnection messages
   for (auto it = new_end; it != this->clients_.end(); ++it) {
+    this->client_disconnected_trigger_->trigger((*it)->client_info_, (*it)->client_peername_);
     ESP_LOGV(TAG, "Removing connection to %s", (*it)->client_info_.c_str());
   }
   // resize vector
