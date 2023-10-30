@@ -126,10 +126,7 @@ class APIConnection : public APIServerConnection {
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
-  void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override {
-    this->voice_assistant_subscription_ = msg.subscribe;
-  }
-  bool request_voice_assistant(const VoiceAssistantRequest &msg);
+  void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override;
   void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
   void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
 #endif
@@ -188,6 +185,8 @@ class APIConnection : public APIServerConnection {
   }
   bool send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) override;
 
+  std::string get_client_combined_info() const { return this->client_combined_info_; }
+
  protected:
   friend APIServer;
 
@@ -220,9 +219,6 @@ class APIConnection : public APIServerConnection {
   uint32_t last_traffic_;
   bool sent_ping_{false};
   bool service_call_subscription_{false};
-#ifdef USE_VOICE_ASSISTANT
-  bool voice_assistant_subscription_{false};
-#endif
   bool next_close_ = false;
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;
