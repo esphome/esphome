@@ -265,6 +265,7 @@ esphome/components/sfa30/* @ghsensdev
 esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sgp4x/* @SenexCrenshaw @martgras
 esphome/components/shelly_dimmer/* @edge90 @rnauber
+esphome/components/sht2x/* @dmaasland
 esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core @jsuanet
 esphome/components/sigma_delta_output/* @Cat-Ion
