@@ -47,7 +47,7 @@ RUN \
           libffi-dev=3.4.4-1 \
           cargo=0.66.0+ds1-1 \
           pkg-config=1.8.1-1; \
-          'gcc-arm*'; \
+          'gcc-arm-linux-gnueabihf'; \
     fi; \
     rm -rf \
         /tmp/* \
