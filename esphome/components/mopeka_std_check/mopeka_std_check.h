@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cinttypes>
 #include <vector>
 
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
