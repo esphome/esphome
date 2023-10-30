@@ -1,8 +1,8 @@
 #include "ble_rssi_sensor.h"
-#include "esphome/core/log.h"
+#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP32
 
@@ -37,6 +37,10 @@ void BLEClientRSSISensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
     }
     case ESP_GATTC_SEARCH_CMPL_EVT:
       this->node_state = espbt::ClientState::ESTABLISHED;
+      if (this->should_update_) {
+        this->should_update_ = false;
+        this->get_rssi_();
+      }
       break;
     default:
       break;
@@ -50,6 +54,7 @@ void BLEClientRSSISensor::gap_event_handler(esp_gap_ble_cb_event_t event, esp_bl
       if (param->read_rssi_cmpl.status == ESP_BT_STATUS_SUCCESS) {
         int8_t rssi = param->read_rssi_cmpl.rssi;
         ESP_LOGI(TAG, "ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT RSSI: %d", rssi);
+        this->status_clear_warning();
         this->publish_state(rssi);
       }
       break;
@@ -61,9 +66,12 @@ void BLEClientRSSISensor::gap_event_handler(esp_gap_ble_cb_event_t event, esp_bl
 void BLEClientRSSISensor::update() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->get_name().c_str());
+    this->should_update_ = true;
     return;
   }
-
+  this->get_rssi_();
+}
+void BLEClientRSSISensor::get_rssi_() {
   ESP_LOGV(TAG, "requesting rssi from %s", this->parent()->address_str().c_str());
   auto status = esp_ble_gap_read_rssi(this->parent()->get_remote_bda());
   if (status != ESP_OK) {
