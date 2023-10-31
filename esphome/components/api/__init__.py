@@ -18,6 +18,8 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_EVENT,
     CONF_TAG,
+    CONF_ON_CLIENT_CONNECTED,
+    CONF_ON_CLIENT_DISCONNECTED,
 )
 from esphome.core import coroutine_with_priority
 
@@ -45,8 +47,6 @@ SERVICE_ARG_NATIVE_TYPES = {
     "string[]": cg.std_vector.template(cg.std_string),
 }
 CONF_ENCRYPTION = "encryption"
-CONF_ON_CLIENT_CONNECTED = "on_client_connected"
-CONF_ON_CLIENT_DISCONNECTED = "on_client_disconnected"
 
 
 def validate_encryption_key(value):

@@ -60,6 +60,11 @@ APIConnection::~APIConnection() {
     bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
   }
 #endif
+#ifdef USE_VOICE_ASSISTANT
+  if (voice_assistant::global_voice_assistant->get_api_connection() == this) {
+    voice_assistant::global_voice_assistant->client_subscription(this, false);
+  }
+#endif
 }
 
 void APIConnection::loop() {
@@ -950,14 +955,17 @@ BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
-bool APIConnection::request_voice_assistant(const VoiceAssistantRequest &msg) {
-  if (!this->voice_assistant_subscription_)
-    return false;
-
-  return this->send_voice_assistant_request(msg);
+void APIConnection::subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe);
+  }
 }
 void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
   if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
     if (msg.error) {
       voice_assistant::global_voice_assistant->failed_to_start();
       return;
@@ -970,6 +978,10 @@ void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &ms
 };
 void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) {
   if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
     voice_assistant::global_voice_assistant->on_event(msg);
   }
 }
