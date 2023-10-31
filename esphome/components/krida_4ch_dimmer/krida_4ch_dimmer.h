@@ -5,9 +5,9 @@ const uint16_t REGISTER_ADDRESS = 0x80;
 const uint16_t POLLING_PERIOD = 15000; //milliseconds
 char temp = 100; //Initial value of the register
 
-class Frida4chDimmer : public PollingComponent {
+class Krida4chDimmer : public PollingComponent {
  public:
-  MyCustomComponent() : PollingComponent(POLLING_PERIOD) {}
+  Krida4chDimmer() : PollingComponent(POLLING_PERIOD) {}
   float get_setup_priority() const override { return esphome::setup_priority::BUS; } //Access I2C bus
 
   void setup() override {
