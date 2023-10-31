@@ -230,8 +230,8 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   struct station_config conf {};
   memset(&conf, 0, sizeof(conf));
-  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid));
-  strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password));
+  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid) - 1);
+  strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password) - 1);
 
   if (ap.get_bssid().has_value()) {
     conf.bssid_set = 1;
@@ -759,7 +759,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
 
   struct softap_config conf {};
-  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid));
+  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid) - 1);
   conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
   conf.channel = ap.get_channel().value_or(1);
   conf.ssid_hidden = ap.get_hidden();
@@ -771,7 +771,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     *conf.password = 0;
   } else {
     conf.authmode = AUTH_WPA2_PSK;
-    strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password));
+    strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password) - 1);
   }
 
   ETS_UART_INTR_DISABLE();
