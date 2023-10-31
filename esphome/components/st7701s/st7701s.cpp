@@ -1,0 +1,30 @@
+//
+// Created by Clyde Stubbs on 29/10/2023.
+//
+#include "st7701s.h"
+#include "esphome/core/log.h"
+
+namespace esphome {
+namespace st7701s {
+
+static const char *const TAG = "st7701s";
+
+void ST7701S::dump_config() {
+  LOG_DISPLAY("", "SPI ST7789V", this);
+  ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
+  ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
+  ESP_LOGCONFIG(TAG, "  Height Offset: %u", this->offset_height_);
+  ESP_LOGCONFIG(TAG, "  Width Offset: %u", this->offset_width_);
+  LOG_PIN("  CS Pin: ", this->cs_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  B/L Pin: ", this->backlight_pin_);
+  LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  SPI Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
+#ifdef USE_POWER_SUPPLY
+  ESP_LOGCONFIG(TAG, "  Power Supply Configured: yes");
+#endif
+}
+
+}  // namespace st7701s
+}  // namespace esphome
