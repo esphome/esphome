@@ -14,7 +14,7 @@ static const char *const TAG = "pca9554";
 
 void PCA9554Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PCA9554/PCA9554A...");
-  this->reg_width_ = (this->nbits_ + 7) / 8;
+  this->reg_width_ = (this->pin_count_ + 7) / 8;
   // Test to see if device exists
   if (!this->read_inputs_()) {
     ESP_LOGE(TAG, "PCA95xx not detected at 0x%02X", this->address_);
@@ -46,7 +46,7 @@ void PCA9554Component::loop() {
 
 void PCA9554Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCA9554:");
-  ESP_LOGCONFIG(TAG, "  Bits: %d", this->nbits_);
+  ESP_LOGCONFIG(TAG, "  Bits: %d", this->pin_count_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with PCA9554 failed!");

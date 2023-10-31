@@ -9,12 +9,12 @@ from esphome.const import (
     CONF_MODE,
     CONF_INVERTED,
     CONF_OUTPUT,
-    CONF_NBITS,
 )
 
 CODEOWNERS = ["@hwstar", "@clydebarrow"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
+CONF_PIN_COUNT = "pin_count"
 pca9554_ns = cg.esphome_ns.namespace("pca9554")
 
 PCA9554Component = pca9554_ns.class_("PCA9554Component", cg.Component, i2c.I2CDevice)
@@ -27,7 +27,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(PCA9554Component),
-            cv.Optional(CONF_NBITS, default=8): cv.one_of(4, 8, 16),
+            cv.Optional(CONF_PIN_COUNT, default=8): cv.one_of(4, 8, 16),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -39,7 +39,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_nbits(config[CONF_NBITS]))
+    cg.add(var.set_pin_count(config[CONF_PIN_COUNT]))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 

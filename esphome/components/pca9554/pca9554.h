@@ -28,7 +28,7 @@ class PCA9554Component : public Component, public i2c::I2CDevice {
 
   void dump_config() override;
 
-  void set_nbits(size_t nbits) { this->nbits_ = nbits; }
+  void set_pin_count(size_t pin_count) { this->pin_count_ = pin_count; }
 
  protected:
   bool read_inputs_();
@@ -36,7 +36,7 @@ class PCA9554Component : public Component, public i2c::I2CDevice {
   bool write_register_(uint8_t reg, uint16_t value);
 
   /// number of bits the expander has
-  size_t nbits_{8};
+  size_t pin_count_{8};
   /// width of registers
   size_t reg_width_{1};
   /// Mask for the pin config - 1 means OUTPUT, 0 means INPUT
