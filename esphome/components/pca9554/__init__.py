@@ -9,9 +9,10 @@ from esphome.const import (
     CONF_MODE,
     CONF_INVERTED,
     CONF_OUTPUT,
+    CONF_NBITS,
 )
 
-CODEOWNERS = ["@hwstar"]
+CODEOWNERS = ["@hwstar", "@clydebarrow"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 pca9554_ns = cg.esphome_ns.namespace("pca9554")
@@ -23,7 +24,12 @@ PCA9554GPIOPin = pca9554_ns.class_(
 
 CONF_PCA9554 = "pca9554"
 CONFIG_SCHEMA = (
-    cv.Schema({cv.Required(CONF_ID): cv.declare_id(PCA9554Component)})
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.declare_id(PCA9554Component),
+            cv.Optional(CONF_NBITS, default=8): cv.one_of(4, 8, 16),
+        }
+    )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(
         i2c.i2c_device_schema(0x20)
@@ -33,6 +39,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_nbits(config[CONF_NBITS]))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
@@ -49,7 +56,7 @@ PCA9554_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(PCA9554GPIOPin),
         cv.Required(CONF_PCA9554): cv.use_id(PCA9554Component),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=8),
+        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
         cv.Optional(CONF_MODE, default={}): cv.All(
             {
                 cv.Optional(CONF_INPUT, default=False): cv.boolean,
@@ -58,7 +65,7 @@ PCA9554_PIN_SCHEMA = cv.All(
             validate_mode,
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-    }
+    },
 )
 
 
