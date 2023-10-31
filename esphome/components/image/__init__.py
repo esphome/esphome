@@ -86,11 +86,15 @@ def download_mdi(value):
 
 def download_image(value):
     url = value[CONF_URL]
-    image_id, _ = external_files.get_file_info_from_url(url)
     path = _compute_local_image_path(value)
-    _LOGGER.info("Downloading %s image from %s to %s", image_id, url, path)
-    if path.is_file():
+
+    if not external_files.has_remote_file_changed(url, path):
         return value
+
+    image_id, _ = external_files.get_file_info_from_url(url)
+
+    _LOGGER.info("Downloading %s image from %s to %s", image_id, url, path)
+
     try:
         req = requests.get(url, timeout=IMAGE_DOWNLOAD_TIMEOUT)
         req.raise_for_status()
