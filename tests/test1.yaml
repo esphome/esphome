@@ -1173,6 +1173,14 @@ sensor:
     address: 0x70
     update_interval: 15s
     i2c_id: i2c_bus
+  - platform: sht2x
+    temperature:
+      name: Living Room Temperature 11
+    humidity:
+      name: Living Room Humidity 11
+    address: 0x40
+    i2c_id: i2c_bus
+    update_interval: 15s
   - platform: template
     name: Template Sensor
     state_class: measurement
