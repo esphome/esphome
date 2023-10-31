@@ -16,19 +16,16 @@ static const uint16_t SHT2X_DELAY_HUMIDITY = 30;
 
 // Thank you @RobTillaart for this
 // https://github.com/RobTillaart/SHT2x/tree/master
-uint8_t SHT2XComponent::crc8(const uint8_t *data, uint8_t len)
-{
+uint8_t SHT2XComponent::crc8(const uint8_t *data, uint8_t len) {
   //  CRC-8 formula from page 14 of SHT spec pdf
   //  Sensirion_Humidity_Sensors_SHT2x_CRC_Calculation.pdf
   const uint8_t POLY = 0x31;
   uint8_t crc = 0x00;
 
-  for (uint8_t j = len; j; --j)
-  {
+  for (uint8_t j = len; j; --j) {
     crc ^= *data++;
 
-    for (uint8_t i = 8; i; --i)
-    {
+    for (uint8_t i = 8; i; --i) {
       crc = (crc & 0x80) ? (crc << 1) ^ POLY : (crc << 1);
     }
   }
@@ -57,7 +54,6 @@ void SHT2XComponent::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-
 uint16_t SHT2XComponent::read_raw_value() {
   uint8_t buffer[3];
   uint8_t crc;
@@ -85,7 +81,7 @@ float SHT2XComponent::get_temperature() {
     ESP_LOGE(TAG, "Reading temperature error");
   };
 
-  delay(SHT2X_DELAY_TEMPERATURE); // NOLINT
+  delay(SHT2X_DELAY_TEMPERATURE);  // NOLINT
   uint16_t _raw_temperature = read_raw_value();
   float temperature = -46.85 + (175.72 / 65536.0) * _raw_temperature;
   return temperature;
@@ -96,7 +92,7 @@ float SHT2XComponent::get_humidity() {
     ESP_LOGE(TAG, "Reading humidity error");
   }
 
-  delay(SHT2X_DELAY_HUMIDITY); // NOLINT
+  delay(SHT2X_DELAY_HUMIDITY);  // NOLINT
   uint16_t _raw_humidity = read_raw_value();
   float humidity = -6.0 + (125.0 / 65536.0) * _raw_humidity;
   return humidity;
