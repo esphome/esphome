@@ -14,8 +14,8 @@ static const char *const TAG = "cst860";
 void CST860TouchscreenStore::gpio_intr(CST860TouchscreenStore *store) { store->touch = true; }
 
 void CST860Component::setup() {
-  static const uint8_t power[] = { 0xFF };
-  write_register(0xFE, power, sizeof(power)); // Disable automatic entry into low power mode
+  static const uint8_t power[] = {0xFF};
+  write_register(0xFE, power, sizeof(power));  // Disable automatic entry into low power mode
 }
 
 void CST860Component::loop() {
@@ -25,9 +25,7 @@ void CST860Component::loop() {
   }
 }
 
-void CST860Component::update() {
-  check_touch_();
-}
+void CST860Component::update() { check_touch_(); }
 
 void CST860Component::check_touch_() {
   uint32_t now = millis();
@@ -83,7 +81,7 @@ void CST860Component::check_touch_() {
     this->last_pos_ms_ = now;
   };
 
-  ESP_LOGD(TAG, "Touching at [%d, %d]", x, y); //, touchpoint.x, touchpoint.y);
+  ESP_LOGD(TAG, "Touching at [%d, %d]", x, y);  //, touchpoint.x, touchpoint.y);
 }
 
 void CST860Component::set_calibration(int16_t x_max, int16_t y_max, bool invert_x, bool invert_y) {  // NOLINT
@@ -108,8 +106,6 @@ void CST860Component::dump_config() {
 }
 
 float CST860Component::get_setup_priority() const { return setup_priority::DATA; }
-
-
 
 }  // namespace cst860
 }  // namespace esphome

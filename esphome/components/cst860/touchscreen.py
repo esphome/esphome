@@ -41,8 +41,8 @@ CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
             cv.Optional(CONF_INTERRUPT_PIN): cv.All(
                 pins.internal_gpio_input_pin_schema
             ),
-            cv.Optional(CONF_X_MAX, default=4095): cv.int_range( min=0, max=4095),
-            cv.Optional(CONF_Y_MAX, default=4095): cv.int_range( min=0, max=4095),
+            cv.Optional(CONF_X_MAX, default=4095): cv.int_range(min=0, max=4095),
+            cv.Optional(CONF_Y_MAX, default=4095): cv.int_range(min=0, max=4095),
             cv.Optional(CONF_REPORT_INTERVAL, default="never"): report_interval,
             cv.Optional(CONF_INVERT_X, default=False): cv.boolean,
             cv.Optional(CONF_INVERT_Y, default=False): cv.boolean,
