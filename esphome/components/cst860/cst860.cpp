@@ -64,15 +64,16 @@ void CST860Component::check_touch_() {
   }
 
   TouchPoint touchpoint;
-  if (!this->invert_x_)
+  if (!this->invert_x_) {
     touchpoint.x = x;
-  else
+  } else {
     touchpoint.x = this->x_raw_max_ - x;
-  if (!this->invert_y_)
+  };
+  if (!this->invert_y_) {
     touchpoint.y = y;
-  else
+  } else {
     touchpoint.y = this->y_raw_max_ - y;
-
+  };
   if (!this->touched || (now - this->last_pos_ms_) >= this->report_millis_) {
     this->defer([this, touchpoint]() { this->send_touch_(touchpoint); });
     this->x = touchpoint.x;
