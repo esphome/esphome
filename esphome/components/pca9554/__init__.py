@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_OUTPUT,
 )
+from esphome.core import CORE
 
 CODEOWNERS = ["@hwstar", "@clydebarrow"]
 DEPENDENCIES = ["i2c"]
@@ -52,6 +53,16 @@ def validate_mode(value):
     return value
 
 
+def validate_pin(config):
+    pca_id = config[CONF_PCA9554].id
+    pca = list(filter(lambda p: p[CONF_ID] == pca_id, CORE.raw_config[CONF_PCA9554]))
+    if not pca:
+        raise cv.Invalid("No pca9554 component found with matching id")
+    if config[CONF_NUMBER] >= pca[0][CONF_PIN_COUNT]:
+        raise cv.Invalid(f"Pin number out of range 0-{pca[0][CONF_PIN_COUNT] - 1}")
+    return config
+
+
 PCA9554_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(PCA9554GPIOPin),
@@ -66,6 +77,7 @@ PCA9554_PIN_SCHEMA = cv.All(
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     },
+    validate_pin,
 )
 
 

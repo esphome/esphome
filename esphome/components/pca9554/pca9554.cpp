@@ -46,7 +46,7 @@ void PCA9554Component::loop() {
 
 void PCA9554Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCA9554:");
-  ESP_LOGCONFIG(TAG, "  Bits: %d", this->pin_count_);
+  ESP_LOGCONFIG(TAG, "  I/O Pins: %d", this->pin_count_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with PCA9554 failed!");
