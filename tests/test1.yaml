@@ -3182,6 +3182,7 @@ pcf8574:
 
 pca9554:
   - id: pca9554_hub
+    pin_count: 8
     address: 0x3F
     i2c_id: i2c_bus
 
@@ -3331,7 +3332,12 @@ rtttl:
 canbus:
   - platform: mcp2515
     id: mcp2515_can
-    cs_pin: GPIO17
+    cs_pin:
+      pca9554: pca9554_hub
+      number: 7
+      mode:
+        output: true
+      inverted: true
     can_id: 4
     bit_rate: 50kbps
     on_frame:
