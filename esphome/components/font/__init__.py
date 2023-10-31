@@ -193,7 +193,7 @@ def download_web_font(value):
 
     if external_files.is_file_recent(
         path, value[CONF_REFRESH]
-    ) or external_files.has_remote_file_changed(url, path):
+    ) or not external_files.has_remote_file_changed(url, path):
         return value
 
     if value[CONF_TYPE] == TYPE_WEB:
