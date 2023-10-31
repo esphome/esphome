@@ -3,6 +3,7 @@ import os
 from urllib.parse import urlparse, unquote
 from datetime import datetime
 import requests
+import esphome.config_validation as cv
 from esphome.core import CORE, TimePeriodSeconds
 
 CODEOWNERS = ["@landonr"]
@@ -11,21 +12,30 @@ NETWORK_TIMEOUT = 30
 ETAG = "ETag"
 
 
-def check_etag_equality(url, local_file_path):
+def has_remote_file_changed(url, local_file_path):
     # Check if the local file exists
     if os.path.exists(local_file_path):
-        # Send an HTTP HEAD request to the URL to get the remote file's ETag
-        response = requests.head(url, timeout=NETWORK_TIMEOUT)
-        remote_etag = response.headers.get(ETAG)
+        try:
+            # Get the local file's modification time
+            local_modification_time = os.path.getmtime(local_file_path)
 
-        # Get the local file's ETag if available
-        with open(local_file_path, "rb") as local_file:
-            local_etag = local_file.headers.get(ETAG)
+            # Convert it to a format suitable for the "If-Modified-Since" header
+            local_modification_time_str = datetime.utcfromtimestamp(
+                local_modification_time
+            ).strftime("%a, %d %b %Y %H:%M:%S GMT")
 
-        # Compare ETags
-        if remote_etag is not None and local_etag is not None:
-            return remote_etag == local_etag
-    return False
+            # Send an HTTP GET request to the URL with the "If-Modified-Since" header
+            headers = {"If-Modified-Since": local_modification_time_str}
+            response = requests.get(url, headers=headers, timeout=NETWORK_TIMEOUT)
+
+            # Check if the response indicates that the file has been modified
+            return response.status_code == 200
+        except requests.exceptions.RequestException as e:
+            raise cv.Invalid(
+                f"Could check if {url} has changed, please check if file exists "
+                f"({e})"
+            )
+    return True
 
 
 def is_file_recent(file_path: str, refresh: TimePeriodSeconds) -> bool:
