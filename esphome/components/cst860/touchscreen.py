@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 
 from esphome import pins
 from esphome.components import touchscreen, i2c
-from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_IRQ_PIN, CONF_THRESHOLD
+from esphome.const import CONF_ID, CONF_INTERRUPT_PIN
 
 CODEOWNERS = ["@dirkjankrijnders"]
 DEPENDENCIES = ["i2c"]
@@ -24,30 +24,10 @@ CONF_INVERT_Y = "invert_y"
 CONF_SWAP_X_Y = "swap_x_y"
 
 
-
 def validate_cst860(config):
     return config
-#    if (
-#        #abs(
-#            #cv.int_(config[CONF_CALIBRATION_X_MAX])
-#            #- cv.int_(config[CONF_CALIBRATION_X_MIN])
-#        #)
-#        #< 1000
-#    #):
-#        #raise cv.Invalid("Calibration X values difference < 1000")
-#
-#    #if (
-#        #abs(
-#            #cv.int_(config[CONF_CALIBRATION_Y_MAX])
-#            #- cv.int_(config[CONF_CALIBRATION_Y_MIN])
-#        #)
-#        #< 1000
-#    #):
-#        #raise cv.Invalid("Calibration Y values difference < 1000")
-#
-#    #return config
-#
-#
+
+
 def report_interval(value):
     if value == "never":
         return 4294967295  # uint32_t max
@@ -61,12 +41,8 @@ CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
             cv.Optional(CONF_INTERRUPT_PIN): cv.All(
                 pins.internal_gpio_input_pin_schema
             ),
-            cv.Optional(CONF_X_MAX, default=4095): cv.int_range(
-                min=0, max=4095
-            ),
-            cv.Optional(CONF_Y_MAX, default=4095): cv.int_range(
-                min=0, max=4095
-            ),
+            cv.Optional(CONF_X_MAX, default=4095): cv.int_range( min=0, max=4095),
+            cv.Optional(CONF_Y_MAX, default=4095): cv.int_range( min=0, max=4095),
             cv.Optional(CONF_REPORT_INTERVAL, default="never"): report_interval,
             cv.Optional(CONF_INVERT_X, default=False): cv.boolean,
             cv.Optional(CONF_INVERT_Y, default=False): cv.boolean,
@@ -91,7 +67,7 @@ async def to_code(config):
             config[CONF_X_MAX],
             config[CONF_Y_MAX],
             config[CONF_INVERT_X],
-            config[CONF_INVERT_Y]
+            config[CONF_INVERT_Y],
         )
     )
 

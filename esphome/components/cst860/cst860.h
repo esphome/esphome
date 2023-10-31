@@ -17,9 +17,7 @@ struct CST860TouchscreenStore {
   static void gpio_intr(CST860TouchscreenStore *store);
 };
 
-class CST860Component : public Touchscreen,
-                         public PollingComponent,
-                         public i2c::I2CDevice {
+class CST860Component : public Touchscreen, public PollingComponent, public i2c::I2CDevice {
  public:
   /// Set the logical touch screen dimensions.
   void set_dimensions(int16_t x, int16_t y) {
@@ -93,5 +91,5 @@ class CST860Component : public Touchscreen,
   CST860TouchscreenStore store_;
 };
 
-}  // namespace xpt2046
+}  // namespace cst860
 }  // namespace esphome
