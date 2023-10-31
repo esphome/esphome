@@ -14,6 +14,8 @@ static const uint8_t SHT2X_COMMAND_SOFT_RESET = 0xFE;
 static const uint16_t SHT2X_DELAY_TEMPERATURE = 85;
 static const uint16_t SHT2X_DELAY_HUMIDITY = 30;
 
+// Thank you @RobTillaart for this
+// https://github.com/RobTillaart/SHT2x/tree/master
 uint8_t SHT2XComponent::crc8(const uint8_t *data, uint8_t len)
 {
   //  CRC-8 formula from page 14 of SHT spec pdf
