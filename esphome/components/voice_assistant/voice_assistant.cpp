@@ -127,8 +127,8 @@ int VoiceAssistant::read_microphone_() {
 }
 
 void VoiceAssistant::loop() {
-  if (this->state_ != State::IDLE && this->state_ != State::STOP_MICROPHONE &&
-      this->state_ != State::STOPPING_MICROPHONE && !api::global_api_server->is_connected()) {
+  if (this->api_client_ == nullptr && this->state_ != State::IDLE && this->state_ != State::STOP_MICROPHONE &&
+      this->state_ != State::STOPPING_MICROPHONE) {
     if (this->mic_->is_running() || this->state_ == State::STARTING_MICROPHONE) {
       this->set_state_(State::STOP_MICROPHONE, State::IDLE);
     } else {
@@ -213,7 +213,14 @@ void VoiceAssistant::loop() {
       audio_settings.noise_suppression_level = this->noise_suppression_level_;
       audio_settings.auto_gain = this->auto_gain_;
       audio_settings.volume_multiplier = this->volume_multiplier_;
-      if (!api::global_api_server->start_voice_assistant(this->conversation_id_, flags, audio_settings)) {
+
+      api::VoiceAssistantRequest msg;
+      msg.start = true;
+      msg.conversation_id = this->conversation_id_;
+      msg.flags = flags;
+      msg.audio_settings = audio_settings;
+
+      if (this->api_client_ == nullptr || !this->api_client_->send_voice_assistant_request(msg)) {
         ESP_LOGW(TAG, "Could not request start.");
         this->error_trigger_->trigger("not-connected", "Could not request start.");
         this->continuous_ = false;
@@ -326,6 +333,28 @@ void VoiceAssistant::loop() {
   }
 }
 
+void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscribe) {
+  if (!subscribe) {
+    if (this->api_client_ == nullptr || client != this->api_client_) {
+      ESP_LOGE(TAG, "Client attempting to unsubscribe that is not the current API Client");
+      return;
+    }
+    this->api_client_ = nullptr;
+    this->client_disconnected_trigger_->trigger();
+    return;
+  }
+
+  if (this->api_client_ != nullptr) {
+    ESP_LOGE(TAG, "Multiple API Clients attempting to connect to Voice Assistant");
+    ESP_LOGE(TAG, "Current client: %s", this->api_client_->get_client_combined_info().c_str());
+    ESP_LOGE(TAG, "New client: %s", client->get_client_combined_info().c_str());
+    return;
+  }
+
+  this->api_client_ = client;
+  this->client_connected_trigger_->trigger();
+}
+
 static const LogString *voice_assistant_state_to_string(State state) {
   switch (state) {
     case State::IDLE:
@@ -408,7 +437,7 @@ void VoiceAssistant::start_streaming(struct sockaddr_storage *addr, uint16_t por
 }
 
 void VoiceAssistant::request_start(bool continuous, bool silence_detection) {
-  if (!api::global_api_server->is_connected()) {
+  if (this->api_client_ == nullptr) {
     ESP_LOGE(TAG, "No API client connected");
     this->set_state_(State::IDLE, State::IDLE);
     this->continuous_ = false;
@@ -459,9 +488,14 @@ void VoiceAssistant::request_stop() {
 }
 
 void VoiceAssistant::signal_stop_() {
-  ESP_LOGD(TAG, "Signaling stop...");
-  api::global_api_server->stop_voice_assistant();
   memset(&this->dest_addr_, 0, sizeof(this->dest_addr_));
+  if (this->api_client_ == nullptr) {
+    return;
+  }
+  ESP_LOGD(TAG, "Signaling stop...");
+  api::VoiceAssistantRequest msg;
+  msg.start = false;
+  this->api_client_->send_voice_assistant_request(msg);
 }
 
 void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
