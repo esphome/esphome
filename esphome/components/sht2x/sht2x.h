@@ -19,19 +19,15 @@ class SHT2XComponent : public PollingComponent, public sensirion_common::Sensiri
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
-  void set_heater_enabled(bool heater_enabled) { heater_enabled_ = heater_enabled; }
 
  protected:
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
 
-  uint8_t crc8(const uint8_t *data, uint8_t len);
-  uint16_t read_raw_value();
-  float get_temperature();
-  float get_humidity();
-  uint8_t get_firmware_version();
-
-  bool heater_enabled_{true};
+  uint8_t crc8_(const uint8_t *data, uint8_t len);
+  uint16_t read_raw_value_();
+  float get_temperature_();
+  float get_humidity_();
 };
 
 }  // namespace sht2x
