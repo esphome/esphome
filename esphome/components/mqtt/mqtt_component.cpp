@@ -23,10 +23,11 @@ std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discove
 }
 
 std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) const {
-  const std::string topic_prefix = global_mqtt_client->get_topic_prefix();
-  if (topic_prefix.empty())
+  const std::string &topic_prefix = global_mqtt_client->get_topic_prefix();
+  if (topic_prefix.empty()) {
     // If the topic_prefix is null, the default topic should be null
     return "";
+  }
 
   return topic_prefix + "/" + this->component_type() + "/" + this->get_default_object_id_() + "/" + suffix;
 }
