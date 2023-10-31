@@ -13,7 +13,7 @@ jobs:
         uses: actions/github-script@v6.4.1
         with:
           script: |
-            const { data: labels } = await github.issues.listLabelsOnIssue({
+            const { data: labels } = await github.rest.issues.listLabelsOnIssue({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number
