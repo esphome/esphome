@@ -58,7 +58,7 @@ def is_file_recent(file_path: str, refresh: TimePeriodSeconds) -> bool:
 
 
 def compute_local_file_dir(name: str, domain: str) -> Path:
-    base_directory = Path(CORE.config_dir) / ".esphome" / domain
+    base_directory = Path(CORE.data_dir) / domain
     if not os.path.exists(base_directory):
         os.makedirs(base_directory)
 
