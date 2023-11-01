@@ -15,13 +15,19 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
+    PLATFORM_RP2040,
+    PLATFORM_HOST,
 )
 from esphome.coroutine import FakeAwaitable as _FakeAwaitable
 from esphome.coroutine import FakeEventLoop as _FakeEventLoop
 
 # pylint: disable=unused-import
 from esphome.coroutine import coroutine, coroutine_with_priority  # noqa
-from esphome.helpers import ensure_unique_string, is_ha_addon
+from esphome.helpers import ensure_unique_string, get_str_env, is_ha_addon
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
@@ -458,6 +464,8 @@ class EsphomeCore:
         self.name: Optional[str] = None
         # The friendly name of the node
         self.friendly_name: Optional[str] = None
+        # The area / zone of the node
+        self.area: Optional[str] = None
         # Additional data components can store temporary data in
         # The first key to this dict should always be the integration name
         self.data = {}
@@ -498,6 +506,7 @@ class EsphomeCore:
         self.dashboard = False
         self.name = None
         self.friendly_name = None
+        self.area = None
         self.data = {}
         self.config_path = None
         self.build_path = None
@@ -555,6 +564,14 @@ class EsphomeCore:
         return os.path.dirname(self.config_path)
 
     @property
+    def data_dir(self):
+        if is_ha_addon():
+            return os.path.join("/data")
+        if "ESPHOME_DATA_DIR" in os.environ:
+            return get_str_env("ESPHOME_DATA_DIR", None)
+        return self.relative_config_path(".esphome")
+
+    @property
     def config_filename(self):
         return os.path.basename(self.config_path)
 
@@ -563,7 +580,7 @@ class EsphomeCore:
         return os.path.join(self.config_dir, path_)
 
     def relative_internal_path(self, *path: str) -> str:
-        return self.relative_config_path(".esphome", *path)
+        return os.path.join(self.data_dir, *path)
 
     def relative_build_path(self, *path):
         path_ = os.path.expanduser(os.path.join(*path))
@@ -573,13 +590,9 @@ class EsphomeCore:
         return self.relative_build_path("src", *path)
 
     def relative_pioenvs_path(self, *path):
-        if is_ha_addon():
-            return os.path.join("/data", self.name, ".pioenvs", *path)
         return self.relative_build_path(".pioenvs", *path)
 
     def relative_piolibdeps_path(self, *path):
-        if is_ha_addon():
-            return os.path.join("/data", self.name, ".piolibdeps", *path)
         return self.relative_build_path(".piolibdeps", *path)
 
     @property
@@ -594,23 +607,23 @@ class EsphomeCore:
 
     @property
     def is_esp8266(self):
-        return self.target_platform == "esp8266"
+        return self.target_platform == PLATFORM_ESP8266
 
     @property
     def is_esp32(self):
-        return self.target_platform == "esp32"
+        return self.target_platform == PLATFORM_ESP32
 
     @property
     def is_rp2040(self):
-        return self.target_platform == "rp2040"
+        return self.target_platform == PLATFORM_RP2040
 
     @property
     def is_bk72xx(self):
-        return self.target_platform == "bk72xx"
+        return self.target_platform == PLATFORM_BK72XX
 
     @property
     def is_rtl87xx(self):
-        return self.target_platform == "rtl87xx"
+        return self.target_platform == PLATFORM_RTL87XX
 
     @property
     def is_libretiny(self):
@@ -618,7 +631,7 @@ class EsphomeCore:
 
     @property
     def is_host(self):
-        return self.target_platform == "host"
+        return self.target_platform == PLATFORM_HOST
 
     @property
     def target_framework(self):

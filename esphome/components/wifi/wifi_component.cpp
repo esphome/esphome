@@ -8,16 +8,16 @@
 #include <user_interface.h>
 #endif
 
-#include <utility>
 #include <algorithm>
-#include "lwip/err.h"
+#include <utility>
 #include "lwip/dns.h"
+#include "lwip/err.h"
 
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/util.h"
-#include "esphome/core/application.h"
 
 #ifdef USE_CAPTIVE_PORTAL
 #include "esphome/components/captive_portal/captive_portal.h"
@@ -40,6 +40,9 @@ void WiFiComponent::setup() {
   if (this->enable_on_boot_) {
     this->start();
   } else {
+#ifdef USE_ESP32
+    esp_netif_init();
+#endif
     this->state_ = WIFI_COMPONENT_STATE_DISABLED;
   }
 }
@@ -93,7 +96,7 @@ void WiFiComponent::start() {
 #endif
   }
 #ifdef USE_IMPROV
-  if (esp32_improv::global_improv_component != nullptr) {
+  if (!this->has_sta() && esp32_improv::global_improv_component != nullptr) {
     if (this->wifi_mode_(true, {}))
       esp32_improv::global_improv_component->start();
   }
@@ -160,8 +163,8 @@ void WiFiComponent::loop() {
     }
 
 #ifdef USE_IMPROV
-    if (esp32_improv::global_improv_component != nullptr) {
-      if (!this->is_connected()) {
+    if (esp32_improv::global_improv_component != nullptr && !esp32_improv::global_improv_component->is_active()) {
+      if (now - this->last_connected_ > esp32_improv::global_improv_component->get_wifi_timeout()) {
         if (this->wifi_mode_(true, {}))
           esp32_improv::global_improv_component->start();
       }
@@ -258,8 +261,8 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
 void WiFiComponent::clear_sta() { this->sta_.clear(); }
 void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
   SavedWifiSettings save{};
-  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid));
-  strncpy(save.password, password.c_str(), sizeof(save.password));
+  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid) - 1);
+  strncpy(save.password, password.c_str(), sizeof(save.password) - 1);
   this->pref_.save(&save);
   // ensure it's written immediately
   global_preferences->sync();

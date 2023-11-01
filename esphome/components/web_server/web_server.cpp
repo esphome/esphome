@@ -264,6 +264,32 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   }
 #endif
 
+#ifdef USE_TEXT
+  for (auto *obj : App.get_texts()) {
+    if (this->include_internal_ || !obj->is_internal()) {
+      write_row(stream, obj, "text", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+        text::Text *text = (text::Text *) obj;
+        auto mode = (int) text->traits.get_mode();
+        stream.print(R"(<input type=")");
+        if (mode == 2) {
+          stream.print(R"(password)");
+        } else {  // default
+          stream.print(R"(text)");
+        }
+        stream.print(R"(" minlength=")");
+        stream.print(text->traits.get_min_length());
+        stream.print(R"(" maxlength=")");
+        stream.print(text->traits.get_max_length());
+        stream.print(R"(" pattern=")");
+        stream.print(text->traits.get_pattern().c_str());
+        stream.print(R"(" value=")");
+        stream.print(text->state.c_str());
+        stream.print(R"("/>)");
+      });
+    }
+  }
+#endif
+
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects()) {
     if (this->include_internal_ || !obj->is_internal()) {
@@ -795,6 +821,57 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 }
 #endif
 
+#ifdef USE_TEXT
+void WebServer::on_text_update(text::Text *obj, const std::string &state) {
+  this->events_.send(this->text_json(obj, state, DETAIL_STATE).c_str(), "state");
+}
+void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_texts()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->text_json(obj, obj->state, DETAIL_STATE);
+      request->send(200, "text/json", data.c_str());
+      return;
+    }
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+    if (request->hasParam("value")) {
+      String value = request->getParam("value")->value();
+      call.set_value(value.c_str());
+    }
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+std::string WebServer::text_json(text::Text *obj, const std::string &value, JsonDetail start_config) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
+    set_json_id(root, obj, "text-" + obj->get_object_id(), start_config);
+    if (start_config == DETAIL_ALL) {
+      root["mode"] = (int) obj->traits.get_mode();
+    }
+    root["min_length"] = obj->traits.get_min_length();
+    root["max_length"] = obj->traits.get_max_length();
+    root["pattern"] = obj->traits.get_pattern();
+    if (obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD) {
+      root["state"] = "********";
+    } else {
+      root["state"] = value;
+    }
+    root["value"] = value;
+  });
+}
+#endif
+
 #ifdef USE_SELECT
 void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   this->events_.send(this->select_json(obj, state, DETAIL_STATE).c_str(), "state");
@@ -805,7 +882,12 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
       continue;
 
     if (request->method() == HTTP_GET) {
-      std::string data = this->select_json(obj, obj->state, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->select_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1111,6 +1193,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_TEXT
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "text")
+    return true;
+#endif
+
 #ifdef USE_SELECT
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "select")
     return true;
@@ -1213,6 +1300,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_NUMBER
   if (match.domain == "number") {
     this->handle_number_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_TEXT
+  if (match.domain == "text") {
+    this->handle_text_request(request, match);
     return;
   }
 #endif
