@@ -177,7 +177,11 @@ class ESPBTClient : public ESPBTDeviceListener {
   ClientState state_;
 };
 
-class ESP32BLETracker : public Component, public GAPEventHandler, public GATTcEventHandler, public BLEStatusEventHandler, public Parented<ESP32BLE> {
+class ESP32BLETracker : public Component,
+                        public GAPEventHandler,
+                        public GATTcEventHandler,
+                        public BLEStatusEventHandler,
+                        public Parented<ESP32BLE> {
  public:
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
   void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }

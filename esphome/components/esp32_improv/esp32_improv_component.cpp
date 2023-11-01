@@ -40,7 +40,11 @@ void ESP32ImprovComponent::setup_characteristics() {
   this->error_->add_descriptor(error_descriptor);
 
   this->rpc_ = this->service_->create_characteristic(improv::RPC_COMMAND_UUID, BLECharacteristic::PROPERTY_WRITE);
-  this->rpc_->on_write(ESP32ImprovComponent::rpc_on_write_);
+  this->rpc_->on_write([this](const std::vector<uint8_t> &data) {
+    if (!data.empty()) {
+      this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
+    }
+  });
   BLEDescriptor *rpc_descriptor = new BLE2902();
   this->rpc_->add_descriptor(rpc_descriptor);
 
@@ -180,16 +184,6 @@ bool ESP32ImprovComponent::check_identify_() {
     this->set_status_indicator_state_(time < 600 && time % 200 < 100);
   }
   return identify;
-}
-
-void ESP32ImprovComponent::rpc_on_write_(const std::vector<uint8_t> &data) {
-  global_improv_component->real_rpc_on_write_(data);
-}
-
-void ESP32ImprovComponent::real_rpc_on_write_(const std::vector<uint8_t> &data) {
-  if (data.empty())
-    return;
-  this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
 }
 
 void ESP32ImprovComponent::set_state_(improv::State state) {
