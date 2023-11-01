@@ -62,7 +62,7 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                            esp_ble_gatts_cb_param_t *param) override;
 
-  void on_ble_before_disabled() override;
+  void ble_before_disabled_event_handler() override;
 
   void register_service_component(BLEServiceComponent *component) { this->service_components_.push_back(component); }
 

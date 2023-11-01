@@ -89,7 +89,7 @@ bool BLEServer::can_proceed() { return this->is_running() || !this->parent_->is_
 
 void BLEServer::restart_advertising_() {
   if (this->is_running()) {
-    esp32_ble::global_ble->advertising_set_manufacturer_data(this->manufacturer_data_);
+    this->parent_->advertising_set_manufacturer_data(this->manufacturer_data_);
   }
 }
 
@@ -164,7 +164,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       ESP_LOGD(TAG, "BLE Client disconnected");
       if (this->remove_client_(param->disconnect.conn_id))
         this->connected_clients_--;
-      esp32_ble::global_ble->advertising_start();
+      this->parent_->advertising_start();
       for (auto *component : this->service_components_) {
         component->on_client_disconnect();
       }
@@ -184,7 +184,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
   }
 }
 
-void BLEServer::on_ble_before_disabled() {
+void BLEServer::ble_before_disabled_event_handler() {
   // Delete all clients
   this->clients_.clear();
   // Delete all services
