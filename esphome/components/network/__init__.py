@@ -10,7 +10,6 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
     CONF_HOSTS,
-    CONF_ID,
     CONF_IP_ADDRESS,
     CONF_NAME,
 )

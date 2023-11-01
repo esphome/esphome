@@ -12,17 +12,17 @@ class Resolver {
   Resolver();
   Resolver(std::map<std::string, network::IPAddress>);
   ~Resolver();
-  network::IPAddress resolve(std::string);
+  network::IPAddress resolve(const std::string *hostname);
 
-protected:
-  static void dns_found_callback(const char *, const ip_addr_t *, void *);
+ protected:
+  static void dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
   std::map<std::string, network::IPAddress> hosts_;
   network::IPAddress ip_;
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
 };
 
-extern Resolver *global_resolver;
+extern Resolver *global_resolver;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace network
 }  // namespace esphome
