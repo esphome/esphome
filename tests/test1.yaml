@@ -348,6 +348,7 @@ sensor:
     pressure:
       name: Differential pressure
     k_value: 4096
+    offset: 1.5
   - platform: pmwcs3
     i2c_id: i2c_bus
     e25:
