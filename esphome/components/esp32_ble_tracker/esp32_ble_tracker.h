@@ -206,6 +206,7 @@ class ESP32BLETracker : public Component, public GAPEventHandler, public GATTcEv
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
  protected:
+  void stop_scan_();
   /// Start a single scan by setting up the parameters and doing some esp-idf calls.
   void start_scan_(bool first);
   /// Called when a scan ends

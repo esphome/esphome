@@ -182,8 +182,7 @@ void ESP32BLETracker::loop() {
         xSemaphoreGive(this->scan_end_lock_);
       } else {
         ESP_LOGD(TAG, "Stopping scan after failure...");
-        esp_ble_gap_stop_scanning();
-        this->cancel_timeout("scan");
+        this->stop_scan_();
       }
       if (this->scan_start_failed_) {
         ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
@@ -212,8 +211,7 @@ void ESP32BLETracker::loop() {
           client->set_state(ClientState::READY_TO_CONNECT);
         } else {
           ESP_LOGD(TAG, "Pausing scan to make connection...");
-          esp_ble_gap_stop_scanning();
-          this->cancel_timeout("scan");
+          this->stop_scan_();
         }
         break;
       }
@@ -232,8 +230,16 @@ void ESP32BLETracker::start_scan() {
 void ESP32BLETracker::stop_scan() {
   ESP_LOGD(TAG, "Stopping scan.");
   this->scan_continuous_ = false;
-  esp_ble_gap_stop_scanning();
+  this->stop_scan_();
+}
+
+void ESP32BLETracker::stop_scan_() {
   this->cancel_timeout("scan");
+  esp_err_t err = esp_ble_gap_stop_scanning();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_stop_scanning failed: %d", err);
+    return;
+  }
 }
 
 void ESP32BLETracker::start_scan_(bool first) {
@@ -256,8 +262,16 @@ void ESP32BLETracker::start_scan_(bool first) {
   this->scan_params_.scan_interval = this->scan_interval_;
   this->scan_params_.scan_window = this->scan_window_;
 
-  esp_ble_gap_set_scan_params(&this->scan_params_);
-  esp_ble_gap_start_scanning(this->scan_duration_);
+  esp_err_t err = esp_ble_gap_set_scan_params(&this->scan_params_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_set_scan_params failed: %d", err);
+    return;
+  }
+  err = esp_ble_gap_start_scanning(this->scan_duration_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_start_scanning failed: %d", err);
+    return;
+  }
 
   this->set_timeout("scan", this->scan_duration_ * 2000, []() {
     ESP_LOGE(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
