@@ -29,6 +29,13 @@ ethernet:
 
 network:
   enable_ipv6: true
+  hosts:
+    - name: www.example.com
+      ip_address: 192.168.1.80
+    - name: www.mqtt.com
+      ip_address: 10.20.18.33
+    - name: ipv6.example.com
+      ip_address: 2001:db8:4455:6677::32
 
 mqtt:
   broker: test.mosquitto.org
