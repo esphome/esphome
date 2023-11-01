@@ -10,7 +10,9 @@ static const int MAX_DATA_SIZE = (sizeof(E131Packet::values) - 1);
 
 E131AddressableLightEffect::E131AddressableLightEffect(const std::string &name) : AddressableLightEffect(name) {}
 
-bool E131AddressableLightEffect::is_universe_valid(int universe) const { return !(universe < first_universe_ || universe > get_last_universe()); }
+bool E131AddressableLightEffect::is_universe_valid(int universe) const {
+  return !(universe < first_universe_ || universe > get_last_universe());
+}
 
 int E131AddressableLightEffect::get_data_per_universe() const { return get_lights_per_universe() * channels_; }
 
