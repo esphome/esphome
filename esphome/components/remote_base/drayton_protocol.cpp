@@ -114,7 +114,7 @@ void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
   out_data <<= NBITS_CHANNEL;
   out_data |= data.channel;
 
-  ESP_LOGV(TAG, "Send Drayton: out_data %08x", out_data);
+  ESP_LOGV(TAG, "Send Drayton: out_data %08" PRIx32, out_data);
 
   for (uint32_t mask = 1UL << (NBITS - 1); mask != 0; mask >>= 1) {
     if (out_data & mask) {
@@ -169,7 +169,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
              (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) {
     out_data |= 1 << bit;
   } else {
-    ESP_LOGV(TAG, "Decode Drayton: Fail 1, - %d", src.get_index());
+    ESP_LOGV(TAG, "Decode Drayton: Fail 1, - %" PRIu32, src.get_index());
     return {};
   }
 
@@ -194,7 +194,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
   } else if (src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) {
     out_data |= 1;
   }
-  ESP_LOGV(TAG, "Decode Drayton: Data, %2d %08x", bit, out_data);
+  ESP_LOGV(TAG, "Decode Drayton: Data, %2d %08" PRIx32, bit, out_data);
 
   out.channel = (uint8_t) (out_data & 0x1F);
   out_data >>= NBITS_CHANNEL;

@@ -14,6 +14,9 @@ wifi:
   reboot_timeout: 3min
   power_save_mode: high
 
+network:
+  enable_ipv6: true
+
 logger:
   level: VERBOSE
 
@@ -46,3 +49,8 @@ sensor:
   - platform: wireguard
     latest_handshake:
       name: 'WireGuard Latest Handshake'
+
+text_sensor:
+  - platform: wireguard
+    address:
+      name: 'WireGuard Address'
