@@ -71,7 +71,7 @@ static const uint16_t CMD_GATE_STILL_THRESH[LD2420_TOTAL_GATES] = {0x0020, 0x002
                                                                    0x002C, 0x002D, 0x002E, 0x002F};
 static const uint32_t FACTORY_MOVE_THRESH[LD2420_TOTAL_GATES] = {60000, 30000, 400, 250, 250, 250, 250, 250,
                                                                  250,   250,   250, 250, 250, 250, 250, 250};
-static const uint32_t FACTORY_STILL_THRESH[LD2420_TOTAL_GATES] = {40000, 20000, 200, 200, 200, 200, 000, 150,
+static const uint32_t FACTORY_STILL_THRESH[LD2420_TOTAL_GATES] = {40000, 20000, 200, 200, 200, 200, 200, 150,
                                                                   150,   100,   100, 100, 100, 100, 100, 100};
 static const uint16_t FACTORY_TIMEOUT = 120;
 static const uint16_t FACTORY_MIN_GATE = 1;
@@ -89,11 +89,7 @@ static const uint32_t ENERGY_FRAME_HEADER = 0xF1F2F3F4;
 static const uint8_t CMD_FRAME_STATUS = 7;
 static const uint8_t CMD_ERROR_WORD = 8;
 static const uint8_t ENERGY_SENSOR_START = 9;
-static const uint8_t CALIBRATE_REPORT_INTERVAL = 5;
-static const float CALIBRATE_MOVE_FACTOR = 1.5;
-static const float CALIBRATE_STILL_FACTOR = 1.05;
-static const uint16_t CALIBRATE_MOVE_BASE = 200;
-static const uint16_t CALIBRATE_STILL_BASE = 100;
+static const uint8_t CALIBRATE_REPORT_INTERVAL = 4;
 static const int CALIBRATE_VERSION_MIN = 154;
 static const std::string OP_NORMAL_MODE_STRING = "Normal";
 static const std::string OP_SIMPLE_MODE_STRING = "Simple";
@@ -124,8 +120,24 @@ class LD2420Component : public Component, public uart::UARTDevice {
   void set_gate_select_number(number::Number *number) { this->gate_select_number_ = number; };
   void set_min_gate_distance_number(number::Number *number) { this->min_gate_distance_number_ = number; };
   void set_max_gate_distance_number(number::Number *number) { this->max_gate_distance_number_ = number; };
-  void set_move_threshold_number(number::Number *number) { this->gate_move_threshold_number_ = number; };
-  void set_still_threshold_number(number::Number *number) { this->gate_still_threshold_number_ = number; };
+  void set_gate_move_sensitivity_factor_number(number::Number *number) {
+    this->gate_move_sensitivity_factor_number_ = number;
+  };
+  void set_gate_still_sensitivity_factor_number(number::Number *number) {
+    this->gate_still_sensitivity_factor_number_ = number;
+  };
+  void set_gate_still_threshold_numbers(int gate, number::Number *n) { this->gate_still_threshold_numbers_[gate] = n; };
+  void set_gate_move_threshold_numbers(int gate, number::Number *n) { this->gate_move_threshold_numbers_[gate] = n; };
+  bool is_gate_select() { return gate_select_number_ != nullptr; };
+  uint8_t get_gate_select_value() { return static_cast<uint8_t>(this->gate_select_number_->state); };
+  float get_min_gate_distance_value() { return min_gate_distance_number_->state; };
+  float get_max_gate_distance_value() { return max_gate_distance_number_->state; };
+  void publish_gate_move_threshold(uint8_t gate) {
+    this->gate_move_threshold_numbers_[gate]->publish_state(this->new_config.move_thresh[gate]);
+  };
+  void publish_gate_still_threshold(uint8_t gate) {
+    this->gate_move_threshold_numbers_[gate]->publish_state(this->new_config.move_thresh[gate]);
+  };
   void init_gate_config_numbers();
   void refresh_gate_config_numbers();
 #endif
@@ -168,9 +180,8 @@ class LD2420Component : public Component, public uart::UARTDevice {
   void update_radar_data(uint16_t const *gate_energy, uint8_t sample_number);
   uint8_t calc_checksum(void *data, size_t size);
 
-  RegConfigT current_config_;
-  RegConfigT new_config_;
-  bool configuration_update{false};
+  RegConfigT current_config;
+  RegConfigT new_config;
   int32_t last_periodic_millis = millis();
   int32_t report_periodic_millis = millis();
   int32_t monitor_periodic_millis = millis();
@@ -182,17 +193,10 @@ class LD2420Component : public Component, public uart::UARTDevice {
   uint16_t gate_peak[LD2420_TOTAL_GATES];
   uint8_t sample_number_counter{0};
   uint16_t total_sample_number_counter{0};
-
+  float gate_move_sensitivity_factor{0.5};
+  float gate_still_sensitivity_factor{0.5};
 #ifdef USE_SELECT
   select::Select *operating_selector_{nullptr};
-#endif
-#ifdef USE_NUMBER
-  number::Number *gate_timeout_number_{nullptr};
-  number::Number *gate_select_number_{nullptr};
-  number::Number *min_gate_distance_number_{nullptr};
-  number::Number *max_gate_distance_number_{nullptr};
-  number::Number *gate_move_threshold_number_{nullptr};
-  number::Number *gate_still_threshold_number_{nullptr};
 #endif
 #ifdef USE_BUTTON
   button::Button *apply_config_button_{nullptr};
@@ -200,7 +204,6 @@ class LD2420Component : public Component, public uart::UARTDevice {
   button::Button *restart_module_button_{nullptr};
   button::Button *factory_reset_button_{nullptr};
 #endif
-
   void set_min_max_distances_timeout(uint32_t max_gate_distance, uint32_t min_gate_distance, uint32_t timeout);
   void set_gate_threshold(uint8_t gate);
   void set_reg_value(uint16_t reg, uint16_t value);
@@ -238,10 +241,19 @@ class LD2420Component : public Component, public uart::UARTDevice {
   void set_calibration_(bool state) { this->calibration_ = state; };
   bool get_calibration_() { return this->calibration_; };
 
+#ifdef USE_NUMBER
+  number::Number *gate_timeout_number_{nullptr};
+  number::Number *gate_select_number_{nullptr};
+  number::Number *min_gate_distance_number_{nullptr};
+  number::Number *max_gate_distance_number_{nullptr};
+  number::Number *gate_move_sensitivity_factor_number_{nullptr};
+  number::Number *gate_still_sensitivity_factor_number_{nullptr};
+  std::vector<number::Number *> gate_still_threshold_numbers_ = std::vector<number::Number *>(16);
+  std::vector<number::Number *> gate_move_threshold_numbers_ = std::vector<number::Number *>(16);
+#endif
+
   uint16_t gate_energy_[LD2420_TOTAL_GATES];
-
   CmdReplyT cmd_reply_;
-
   uint32_t timeout_;
   uint32_t max_distance_gate_;
   uint32_t min_distance_gate_;
