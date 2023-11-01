@@ -8,7 +8,7 @@ namespace network {
 
 static const char *const TAG = "resolver";
 
-Resolver::Resolver() : hosts_{} { global_resolver = this; }
+Resolver::Resolver() { global_resolver = this; }
 Resolver::Resolver(std::map<std::string, network::IPAddress> hosts) : hosts_(std::move(hosts)) {
   global_resolver = this;
 }

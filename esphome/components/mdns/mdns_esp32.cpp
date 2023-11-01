@@ -73,7 +73,7 @@ void MDNSComponent::on_shutdown() {
   delay(40);  // Allow the mdns packets announcing service removal to be sent
 }
 
-MDNSComponent *global_mdns = nullptr;
+MDNSComponent *global_mdns = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace mdns
 }  // namespace esphome
 
