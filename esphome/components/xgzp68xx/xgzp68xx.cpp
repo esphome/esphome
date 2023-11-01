@@ -58,6 +58,9 @@ void XGZP68XXComponent::update() {
       temperature = (float) temperature_raw / 256.0f;
     }
 
+    // No matter what, offset your pressure by the offset value
+    pressure_in_pa += this->offset_;
+
     if (this->pressure_sensor_ != nullptr)
       this->pressure_sensor_->publish_state(pressure_in_pa);
 

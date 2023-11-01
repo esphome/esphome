@@ -12,7 +12,8 @@ class XGZP68XXComponent : public PollingComponent, public sensor::Sensor, public
   SUB_SENSOR(temperature)
   SUB_SENSOR(pressure)
   void set_k_value(uint16_t k_value) { this->k_value_ = k_value; }
-
+  void set_offset(float offset) { this->offset_ = offset; }
+  
   void update() override;
   void setup() override;
   void dump_config() override;
@@ -21,6 +22,7 @@ class XGZP68XXComponent : public PollingComponent, public sensor::Sensor, public
   /// Internal method to read the pressure from the component after it has been scheduled.
   void read_pressure_();
   uint16_t k_value_{4096};
+  float offset_{0.0f};
 };
 
 }  // namespace xgzp68xx

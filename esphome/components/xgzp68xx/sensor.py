@@ -10,6 +10,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     CONF_TEMPERATURE,
     CONF_PRESSURE,
+    CONF_OFFSET,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -39,6 +40,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_K_VALUE): cv.uint16_t,
+            cv.Optional(CONF_OFFSET): cv.float_,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -60,3 +62,4 @@ async def to_code(config):
         cg.add(var.set_pressure_sensor(sens))
 
     cg.add(var.set_k_value(config.get(CONF_K_VALUE, 4096)))
+    cg.add(var.set_offset(config.get(CONF_OFFSET, 0.0)))
