@@ -12,6 +12,7 @@
 namespace esphome {
 namespace e131 {
 
+class E131BasicLightEffect;
 class E131AddressableLightEffect;
 
 enum E131ListenMethod { E131_MULTICAST, E131_UNICAST };

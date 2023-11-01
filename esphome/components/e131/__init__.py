@@ -1,13 +1,16 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components.light.types import AddressableLightEffect
+from esphome.components.light.types import LightEffect
 from esphome.components.light.effects import register_addressable_effect
+from esphome.components.light.effects import register_monochromatic_effect
 from esphome.const import CONF_ID, CONF_NAME, CONF_METHOD, CONF_CHANNELS
 
 AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["network"]
 
 e131_ns = cg.esphome_ns.namespace("e131")
+E131BasicLightEffect = e131_ns.class_("E131BasicLightEffect", LightEffect)
 E131AddressableLightEffect = e131_ns.class_(
     "E131AddressableLightEffect", AddressableLightEffect
 )
@@ -38,6 +41,16 @@ async def to_code(config):
     cg.add(var.set_method(METHODS[config[CONF_METHOD]]))
 
 
+@register_monochromatic_effect(
+    "e131",
+    E131BasicLightEffect,
+    "E1.31",
+    {
+        cv.GenerateID(CONF_E131_ID): cv.use_id(E131Component),
+        cv.Required(CONF_UNIVERSE): cv.int_range(min=1, max=512),
+        cv.Optional(CONF_CHANNELS, default="RGB"): cv.one_of(*CHANNELS, upper=True),
+    },
+)
 @register_addressable_effect(
     "e131",
     E131AddressableLightEffect,
