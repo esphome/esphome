@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cinttypes>
+#include <vector>
+
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -9,8 +12,6 @@
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/core/time.h"
 #endif
-
-#include <vector>
 
 namespace esphome {
 namespace tuya {

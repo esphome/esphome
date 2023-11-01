@@ -69,7 +69,7 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   if ((this->distance_ != nullptr) || (this->level_ != nullptr)) {
     uint32_t distance_value = this->parse_distance_(manu_data.data);
     SensorReadQuality quality_value = this->parse_read_quality_(manu_data.data);
-    ESP_LOGD(TAG, "Distance Sensor: Quality (0x%X) Distance (%dmm)", quality_value, distance_value);
+    ESP_LOGD(TAG, "Distance Sensor: Quality (0x%X) Distance (%" PRId32 "mm)", quality_value, distance_value);
     if (quality_value < QUALITY_HIGH) {
       ESP_LOGW(TAG, "Poor read quality.");
     }

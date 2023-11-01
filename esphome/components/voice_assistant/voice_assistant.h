@@ -8,8 +8,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
-#include "esphome/components/api/api_server.h"
 #include "esphome/components/microphone/microphone.h"
 #ifdef USE_SPEAKER
 #include "esphome/components/speaker/speaker.h"
@@ -109,6 +109,12 @@ class VoiceAssistant : public Component {
   Trigger<> *get_end_trigger() const { return this->end_trigger_; }
   Trigger<std::string, std::string> *get_error_trigger() const { return this->error_trigger_; }
 
+  Trigger<> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
+  Trigger<> *get_client_disconnected_trigger() const { return this->client_disconnected_trigger_; }
+
+  void client_subscription(api::APIConnection *client, bool subscribe);
+  api::APIConnection *get_api_connection() const { return this->api_client_; }
+
  protected:
   int read_microphone_();
   void set_state_(State state);
@@ -126,6 +132,11 @@ class VoiceAssistant : public Component {
   Trigger<std::string> *tts_end_trigger_ = new Trigger<std::string>();
   Trigger<> *end_trigger_ = new Trigger<>();
   Trigger<std::string, std::string> *error_trigger_ = new Trigger<std::string, std::string>();
+
+  Trigger<> *client_connected_trigger_ = new Trigger<>();
+  Trigger<> *client_disconnected_trigger_ = new Trigger<>();
+
+  api::APIConnection *api_client_{nullptr};
 
   microphone::Microphone *mic_{nullptr};
 #ifdef USE_SPEAKER

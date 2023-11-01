@@ -61,7 +61,7 @@ void Tuya::dump_config() {
     } else if (info.type == TuyaDatapointType::ENUM) {
       ESP_LOGCONFIG(TAG, "  Datapoint %u: enum (value: %d)", info.id, info.value_enum);
     } else if (info.type == TuyaDatapointType::BITMASK) {
-      ESP_LOGCONFIG(TAG, "  Datapoint %u: bitmask (value: %x)", info.id, info.value_bitmask);
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: bitmask (value: %" PRIx32 ")", info.id, info.value_bitmask);
     } else {
       ESP_LOGCONFIG(TAG, "  Datapoint %u: unknown", info.id);
     }
@@ -342,7 +342,7 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
             ESP_LOGW(TAG, "Datapoint %u has bad bitmask len %zu", datapoint.id, data_size);
             return;
         }
-        ESP_LOGD(TAG, "Datapoint %u update to %#08X", datapoint.id, datapoint.value_bitmask);
+        ESP_LOGD(TAG, "Datapoint %u update to %#08" PRIX32, datapoint.id, datapoint.value_bitmask);
         break;
       default:
         ESP_LOGW(TAG, "Datapoint %u has unknown type %#02hhX", datapoint.id, static_cast<uint8_t>(datapoint.type));
@@ -594,7 +594,7 @@ optional<TuyaDatapoint> Tuya::get_datapoint_(uint8_t datapoint_id) {
 
 void Tuya::set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, const uint32_t value,
                                         uint8_t length, bool forced) {
-  ESP_LOGD(TAG, "Setting datapoint %u to %u", datapoint_id, value);
+  ESP_LOGD(TAG, "Setting datapoint %u to %" PRIu32, datapoint_id, value);
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {
     ESP_LOGW(TAG, "Setting unknown datapoint %u", datapoint_id);

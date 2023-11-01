@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 
 #include <algorithm>
+#include <cinttypes>
 
 namespace esphome {
 namespace xpt2046 {
@@ -151,7 +152,7 @@ void XPT2046Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Invert Y: %s", YESNO(this->invert_y_));
 
   ESP_LOGCONFIG(TAG, "  threshold: %d", this->threshold_);
-  ESP_LOGCONFIG(TAG, "  Report interval: %u", this->report_millis_);
+  ESP_LOGCONFIG(TAG, "  Report interval: %" PRIu32, this->report_millis_);
 
   LOG_UPDATE_INTERVAL(this);
 }
