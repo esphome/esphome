@@ -51,7 +51,7 @@ void MDNSComponent::setup() {
 
 network::IPAddress MDNSComponent::resolve(const std::string &servicename) {
   network::IPAddress resolved;
-  mdns_result_t *results = NULL;
+  mdns_result_t *results = nullptr;
   esp_err_t err = mdns_query_ptr(servicename.c_str(), "_tcp", 3000, 20, &results);
   if (err) {
     ESP_LOGE(TAG, "Query Failed: %s", esp_err_to_name(err));
