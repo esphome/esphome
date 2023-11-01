@@ -267,33 +267,28 @@ bool ESP32BLE::ble_dismantle_() {
 }
 
 void ESP32BLE::loop() {
-  switch (this->state_) {
-    case BLE_COMPONENT_STATE_ACTIVE: {
-      BLEEvent *ble_event = this->ble_events_.pop();
-      while (ble_event != nullptr) {
-        switch (ble_event->type_) {
-          case BLEEvent::GATTS:
-            this->real_gatts_event_handler_(ble_event->event_.gatts.gatts_event, ble_event->event_.gatts.gatts_if,
-                                            &ble_event->event_.gatts.gatts_param);
-            break;
-          case BLEEvent::GATTC:
-            this->real_gattc_event_handler_(ble_event->event_.gattc.gattc_event, ble_event->event_.gattc.gattc_if,
-                                            &ble_event->event_.gattc.gattc_param);
-            break;
-          case BLEEvent::GAP:
-            this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
-            break;
-          default:
-            break;
-        }
-        delete ble_event;  // NOLINT(cppcoreguidelines-owning-memory)
-        ble_event = this->ble_events_.pop();
-      }
-      break;
+  if (!this->is_active()) {
+    return;
+  }
+  BLEEvent *ble_event = this->ble_events_.pop();
+  while (ble_event != nullptr) {
+    switch (ble_event->type_) {
+      case BLEEvent::GATTS:
+        this->real_gatts_event_handler_(ble_event->event_.gatts.gatts_event, ble_event->event_.gatts.gatts_if,
+                                        &ble_event->event_.gatts.gatts_param);
+        break;
+      case BLEEvent::GATTC:
+        this->real_gattc_event_handler_(ble_event->event_.gattc.gattc_event, ble_event->event_.gattc.gattc_if,
+                                        &ble_event->event_.gattc.gattc_param);
+        break;
+      case BLEEvent::GAP:
+        this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
+        break;
+      default:
+        break;
     }
-    case BLE_COMPONENT_STATE_DISABLED:
-    case BLE_COMPONENT_STATE_OFF:
-      return;
+    delete ble_event;  // NOLINT(cppcoreguidelines-owning-memory)
+    ble_event = this->ble_events_.pop();
   }
 }
 
