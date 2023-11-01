@@ -72,8 +72,10 @@ void LD2420Component::dump_config() {
   LOG_NUMBER(TAG, "  Gate Max Distance:", this->max_gate_distance_number_);
   LOG_NUMBER(TAG, "  Gate Min Distance:", this->min_gate_distance_number_);
   LOG_NUMBER(TAG, "  Gate Select:", this->gate_select_number_);
-  LOG_NUMBER(TAG, "  Gate Move Threshold:", this->gate_move_threshold_number_);
-  LOG_NUMBER(TAG, "  Gate Still Threshold::", this->gate_still_threshold_number_);
+  for (uint8_t gate = 0; gate < LD2420_TOTAL_GATES; gate++) {
+    LOG_NUMBER(TAG, "  Gate Move Threshold:", this->gate_move_threshold_numbers_[gate]);
+    LOG_NUMBER(TAG, "  Gate Still Threshold::", this->gate_still_threshold_numbers_[gate]);
+  }
   LOG_BUTTON(TAG, "  Apply Config:", this->apply_config_button_);
   LOG_BUTTON(TAG, "  Revert Edits:", this->revert_config_button_);
   LOG_BUTTON(TAG, "  Factory Reset:", this->factory_reset_button_);
@@ -128,7 +130,7 @@ void LD2420Component::setup() {
     this->get_gate_threshold_(gate);
   }
 
-  memcpy(&this->new_config_, &this->current_config_, sizeof(this->current_config_));
+  memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
   if (get_firmware_int_(ld2420_firmware_ver_) < CALIBRATE_VERSION_MIN) {
     this->set_operating_mode(OP_SIMPLE_MODE_STRING);
     this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
@@ -147,8 +149,8 @@ void LD2420Component::setup() {
 }
 
 void LD2420Component::apply_config_action() {
-  const uint8_t checksum = calc_checksum(&this->new_config_, sizeof(this->new_config_));
-  if (checksum == calc_checksum(&this->current_config_, sizeof(this->current_config_))) {
+  const uint8_t checksum = calc_checksum(&this->new_config, sizeof(this->new_config));
+  if (checksum == calc_checksum(&this->current_config, sizeof(this->current_config))) {
     ESP_LOGCONFIG(TAG, "No configuration change detected");
     return;
   }
@@ -158,13 +160,12 @@ void LD2420Component::apply_config_action() {
     this->mark_failed();
     return;
   }
-  this->set_min_max_distances_timeout(this->new_config_.max_gate, this->new_config_.min_gate,
-                                      this->new_config_.timeout);
+  this->set_min_max_distances_timeout(this->new_config.max_gate, this->new_config.min_gate, this->new_config.timeout);
   for (uint8_t gate = 0; gate < LD2420_TOTAL_GATES; gate++) {
     delay_microseconds_safe(125);
     this->set_gate_threshold(gate);
   }
-  memcpy(&current_config_, &new_config_, sizeof(new_config_));
+  memcpy(&current_config, &new_config, sizeof(new_config));
 #ifdef USE_NUMBER
   this->init_gate_config_numbers();
 #endif
@@ -181,19 +182,22 @@ void LD2420Component::factory_reset_action() {
     this->mark_failed();
     return;
   }
-
   this->set_min_max_distances_timeout(FACTORY_MAX_GATE, FACTORY_MIN_GATE, FACTORY_TIMEOUT);
+  this->gate_timeout_number_->state = FACTORY_TIMEOUT;
+  this->min_gate_distance_number_->state = FACTORY_MIN_GATE;
+  this->max_gate_distance_number_->state = FACTORY_MAX_GATE;
   for (uint8_t gate = 0; gate < LD2420_TOTAL_GATES; gate++) {
-    this->new_config_.move_thresh[gate] = FACTORY_MOVE_THRESH[gate];
-    this->new_config_.still_thresh[gate] = FACTORY_STILL_THRESH[gate];
+    this->new_config.move_thresh[gate] = FACTORY_MOVE_THRESH[gate];
+    this->new_config.still_thresh[gate] = FACTORY_STILL_THRESH[gate];
     delay_microseconds_safe(125);
     this->set_gate_threshold(gate);
   }
-  memcpy(&this->current_config_, &this->new_config_, sizeof(this->new_config_));
+  memcpy(&this->current_config, &this->new_config, sizeof(this->new_config));
   this->set_system_mode(this->system_mode_);
   this->set_config_mode(false);
 #ifdef USE_NUMBER
   this->init_gate_config_numbers();
+  this->refresh_gate_config_numbers();
 #endif
   ESP_LOGCONFIG(TAG, "LD2420 factory reset complete.");
 }
@@ -209,7 +213,7 @@ void LD2420Component::restart_module_action() {
 }
 
 void LD2420Component::revert_config_action() {
-  memcpy(&this->new_config_, &this->current_config_, sizeof(this->current_config_));
+  memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
 #ifdef USE_NUMBER
   this->init_gate_config_numbers();
 #endif
@@ -239,6 +243,8 @@ void LD2420Component::update_radar_data(uint16_t const *gate_energy, uint8_t sam
 
 void LD2420Component::auto_calibrate_sensitivity() {
   // Calculate average and peak values for each gate
+  const float move_factor = gate_move_sensitivity_factor + 1;
+  const float still_factor = (gate_still_sensitivity_factor / 2) + 1;
   for (uint8_t gate = 0; gate < LD2420_TOTAL_GATES; ++gate) {
     uint32_t sum = 0;
     uint16_t peak = 0;
@@ -257,11 +263,13 @@ void LD2420Component::auto_calibrate_sensitivity() {
     this->gate_avg[gate] = sum / CALIBRATE_SAMPLES;
     if (this->gate_peak[gate] < peak)
       this->gate_peak[gate] = peak;
+
     uint32_t calculated_value =
-        static_cast<uint32_t>(this->gate_peak[gate]) * CALIBRATE_MOVE_FACTOR + CALIBRATE_MOVE_BASE;
-    this->new_config_.move_thresh[gate] = static_cast<uint16_t>(calculated_value <= 65535 ? calculated_value : 65535);
-    calculated_value = static_cast<uint32_t>(this->gate_peak[gate]) * CALIBRATE_STILL_FACTOR + CALIBRATE_STILL_BASE;
-    this->new_config_.still_thresh[gate] = static_cast<uint16_t>(calculated_value <= 65535 ? calculated_value : 65535);
+        (static_cast<uint32_t>(this->gate_peak[gate]) + (move_factor * static_cast<uint32_t>(this->gate_peak[gate])));
+    this->new_config.move_thresh[gate] = static_cast<uint16_t>(calculated_value <= 65535 ? calculated_value : 65535);
+    calculated_value =
+        (static_cast<uint32_t>(this->gate_peak[gate]) + (still_factor * static_cast<uint32_t>(this->gate_peak[gate])));
+    this->new_config.still_thresh[gate] = static_cast<uint16_t>(calculated_value <= 65535 ? calculated_value : 65535);
   }
 }
 
@@ -292,7 +300,7 @@ void LD2420Component::set_operating_mode(const std::string &state) {
     } else {
       // Set the current data back so we don't have new data that can be applied in error.
       if (this->get_calibration_())
-        memcpy(&this->new_config_, &this->current_config_, sizeof(this->current_config_));
+        memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
       this->set_calibration_(false);
     }
   } else {
@@ -609,8 +617,8 @@ int LD2420Component::get_gate_threshold_(uint8_t gate) {
   ESP_LOGD(TAG, "Sending read gate %d high/low theshold command: %2X", gate, cmd_frame.command);
   error = this->send_cmd_from_array(cmd_frame);
   if (error == 0) {
-    this->current_config_.move_thresh[gate] = cmd_reply_.data[0];
-    this->current_config_.still_thresh[gate] = cmd_reply_.data[1];
+    this->current_config.move_thresh[gate] = cmd_reply_.data[0];
+    this->current_config.still_thresh[gate] = cmd_reply_.data[1];
   }
   return error;
 }
@@ -634,9 +642,9 @@ int LD2420Component::get_min_max_distances_timeout_() {
   ESP_LOGD(TAG, "Sending read gate min max and timeout command: %2X", cmd_frame.command);
   error = this->send_cmd_from_array(cmd_frame);
   if (error == 0) {
-    this->current_config_.min_gate = (uint16_t) cmd_reply_.data[0];
-    this->current_config_.max_gate = (uint16_t) cmd_reply_.data[1];
-    this->current_config_.timeout = (uint16_t) cmd_reply_.data[2];
+    this->current_config.min_gate = (uint16_t) cmd_reply_.data[0];
+    this->current_config.max_gate = (uint16_t) cmd_reply_.data[1];
+    this->current_config.timeout = (uint16_t) cmd_reply_.data[2];
   }
   return error;
 }
@@ -716,14 +724,14 @@ void LD2420Component::set_gate_threshold(uint8_t gate) {
   cmd_frame.command = CMD_WRITE_ABD_PARAM;
   memcpy(&cmd_frame.data[cmd_frame.data_length], &move_threshold_gate, sizeof(move_threshold_gate));
   cmd_frame.data_length += sizeof(move_threshold_gate);
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &this->new_config_.move_thresh[gate],
-         sizeof(this->new_config_.move_thresh[gate]));
-  cmd_frame.data_length += sizeof(this->new_config_.move_thresh[gate]);
+  memcpy(&cmd_frame.data[cmd_frame.data_length], &this->new_config.move_thresh[gate],
+         sizeof(this->new_config.move_thresh[gate]));
+  cmd_frame.data_length += sizeof(this->new_config.move_thresh[gate]);
   memcpy(&cmd_frame.data[cmd_frame.data_length], &still_threshold_gate, sizeof(still_threshold_gate));
   cmd_frame.data_length += sizeof(still_threshold_gate);
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &this->new_config_.still_thresh[gate],
-         sizeof(this->new_config_.still_thresh[gate]));
-  cmd_frame.data_length += sizeof(this->new_config_.still_thresh[gate]);
+  memcpy(&cmd_frame.data[cmd_frame.data_length], &this->new_config.still_thresh[gate],
+         sizeof(this->new_config.still_thresh[gate]));
+  cmd_frame.data_length += sizeof(this->new_config.still_thresh[gate]);
   cmd_frame.footer = CMD_FRAME_FOOTER;
   ESP_LOGD(TAG, "Sending set gate %4X sensitivity command: %2X", gate, cmd_frame.command);
   this->send_cmd_from_array(cmd_frame);
@@ -731,19 +739,37 @@ void LD2420Component::set_gate_threshold(uint8_t gate) {
 
 #ifdef USE_NUMBER
 void LD2420Component::init_gate_config_numbers() {
-  this->gate_timeout_number_->publish_state(this->current_config_.timeout);
-  this->gate_select_number_->publish_state(0);
-  this->min_gate_distance_number_->publish_state(this->current_config_.min_gate);
-  this->max_gate_distance_number_->publish_state(this->current_config_.max_gate);
-  const uint8_t gate = static_cast<uint8_t>(this->gate_select_number_->state);
-  this->gate_still_threshold_number_->publish_state(static_cast<uint16_t>(this->current_config_.still_thresh[gate]));
-  this->gate_move_threshold_number_->publish_state(static_cast<uint16_t>(this->current_config_.move_thresh[gate]));
+  uint8_t gate = 0;
+  if (this->gate_timeout_number_ != nullptr)
+    this->gate_timeout_number_->publish_state(static_cast<uint16_t>(this->current_config.timeout));
+  // if (this->gate_select_number_ != nullptr)
+  //   this->gate_select_number_->publish_state(gate);
+  if (this->min_gate_distance_number_ != nullptr)
+    this->min_gate_distance_number_->publish_state(static_cast<uint16_t>(this->current_config.min_gate));
+  if (this->max_gate_distance_number_ != nullptr)
+    this->max_gate_distance_number_->publish_state(static_cast<uint16_t>(this->current_config.max_gate));
+  if (this->gate_select_number_ != nullptr)
+    gate = static_cast<uint8_t>(this->gate_select_number_->state);
+  if (this->gate_move_sensitivity_factor_number_ != nullptr)
+    this->gate_move_sensitivity_factor_number_->publish_state(this->gate_move_sensitivity_factor);
+  if (this->gate_still_sensitivity_factor_number_ != nullptr)
+    this->gate_still_sensitivity_factor_number_->publish_state(this->gate_still_sensitivity_factor);
+  for (uint8_t gate = 0; gate < LD2420_TOTAL_GATES; gate++) {
+    if (this->gate_still_threshold_numbers_[gate] != nullptr) {
+      this->gate_still_threshold_numbers_[gate]->publish_state(
+          static_cast<uint16_t>(this->current_config.still_thresh[gate]));
+    }
+    if (this->gate_move_threshold_numbers_[gate] != nullptr) {
+      this->gate_move_threshold_numbers_[gate]->publish_state(
+          static_cast<uint16_t>(this->current_config.move_thresh[gate]));
+    }
+  }
 }
 
 void LD2420Component::refresh_gate_config_numbers() {
-  this->gate_timeout_number_->publish_state(this->new_config_.timeout);
-  this->min_gate_distance_number_->publish_state(this->new_config_.min_gate);
-  this->max_gate_distance_number_->publish_state(this->new_config_.max_gate);
+  this->gate_timeout_number_->publish_state(this->new_config.timeout);
+  this->min_gate_distance_number_->publish_state(this->new_config.min_gate);
+  this->max_gate_distance_number_->publish_state(this->new_config.max_gate);
 }
 
 #endif
