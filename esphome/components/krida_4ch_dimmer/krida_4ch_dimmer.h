@@ -16,7 +16,7 @@ class Krida4chDimmer : public PollingComponent {
     }
 
   void update() override {
-  char register_value = id(input_1).state; //Read the number set on the dashboard
+  char register_value = id(dimmer_ch_1).state; //Read the number set on the dashboard
   //Did the user change the input?
   if(register_value != temp){
         Wire.beginTransmission(I2C_ADDRESS);
