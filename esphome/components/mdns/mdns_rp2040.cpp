@@ -36,7 +36,7 @@ void MDNSComponent::setup() {
   }
 }
 
-network::IPAddress MDNSComponent::resolve(std::string servicename) {
+network::IPAddress MDNSComponent::resolve(const std::string &servicename) {
   int n = MDNS.queryService(servicename.c_str(), "tcp");
   if (n > 0) {
     return network::IPAddress(MDNS.IP(0));

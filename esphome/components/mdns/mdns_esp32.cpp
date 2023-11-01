@@ -49,17 +49,17 @@ void MDNSComponent::setup() {
   }
 }
 
-network::IPAddress MDNSComponent::resolve(std::string servicename) {
+network::IPAddress MDNSComponent::resolve(const std::string &servicename) {
   network::IPAddress resolved;
   mdns_result_t *results = NULL;
-  esp_err_t err = mdns_query_ptr(servicename.c_str(), "_tcp", 3000, 20,  &results);
+  esp_err_t err = mdns_query_ptr(servicename.c_str(), "_tcp", 3000, 20, &results);
   if (err) {
     ESP_LOGE(TAG, "Query Failed: %s", esp_err_to_name(err));
     return network::IPAddress();
   }
   if (!results) {
     ESP_LOGW(TAG, "No results found!");
-      return network::IPAddress();
+    return network::IPAddress();
   }
 
   resolved = network::IPAddress(&results->addr->addr);

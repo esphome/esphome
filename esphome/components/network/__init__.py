@@ -6,7 +6,6 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.const import (
     CONF_ENABLE_IPV6,
     CONF_HOSTS,
-    CONF_ID,
     CONF_IP_ADDRESS,
     CONF_NAME,
 )
