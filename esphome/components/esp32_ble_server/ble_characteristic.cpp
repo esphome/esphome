@@ -13,7 +13,7 @@ static const char *const TAG = "esp32_ble_server.characteristic";
 
 BLECharacteristic::~BLECharacteristic() {
   for (auto *descriptor : this->descriptors_) {
-    delete descriptor;
+    delete descriptor;  // NOLINT(cppcoreguidelines-owning-memory)
   }
   vSemaphoreDelete(this->set_value_lock_);
 }

@@ -123,7 +123,7 @@ void BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_hand
     ESP_LOGW(TAG, "BLE service %s already exists", uuid.to_string().c_str());
     return;
   }
-  service = new BLEService(uuid, num_handles, inst_id, advertise);
+  service = new BLEService(uuid, num_handles, inst_id, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
   this->services_.emplace(uuid.to_string(), service);
   service->do_create(this);
 }
@@ -136,7 +136,7 @@ void BLEServer::remove_service(ESPBTUUID uuid) {
     return;
   }
   service->do_delete();
-  delete service;
+  delete service;  // NOLINT(cppcoreguidelines-owning-memory)
   this->services_.erase(uuid.to_string());
 }
 
