@@ -57,6 +57,15 @@ class SimpleRegistry(dict):
         return decorator
 
 
+class PinRegistry(dict):
+    def register(self, name, schema, final_validate_schema=None):
+        def decorator(fun):
+            self[name] = (fun, schema, final_validate_schema)
+            return fun
+
+        return decorator
+
+
 def safe_print(message="", end="\n"):
     from esphome.core import CORE
 

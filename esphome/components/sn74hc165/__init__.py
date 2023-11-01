@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import pins
 from esphome.const import (
     CONF_ID,
@@ -77,7 +78,21 @@ SN74HC165_PIN_SCHEMA = cv.All(
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register(CONF_SN74HC165, SN74HC165_PIN_SCHEMA)
+def sn74hc165_pin_final_validate_schema(pin_config):
+    fconf = fv.full_config.get()
+    parent_path = fconf.get_path_for_id(pin_config[CONF_SN74HC165])[:-1]
+    parent_config = fconf.get_config_for_path(parent_path)
+
+    pin_path = fconf.get_path_for_id(pin_config[CONF_ID])[:-1]
+    with cv.prepend_path([cv.ROOT_CONFIG_PATH] + pin_path):
+        max_pins = parent_config[CONF_SR_COUNT] * 8
+        if pin_config[CONF_NUMBER] >= max_pins:
+            raise cv.Invalid(f"Pin number must be less than {max_pins}")
+
+
+@pins.PIN_SCHEMA_REGISTRY.register(
+    CONF_SN74HC165, SN74HC165_PIN_SCHEMA, sn74hc165_pin_final_validate_schema
+)
 async def sn74hc165_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_parented(var, config[CONF_SN74HC165])
