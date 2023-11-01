@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/component.h"
 
 #ifdef USE_OUTPUT
 #include "esphome/components/output/float_output.h"
@@ -26,30 +26,16 @@ struct SpeakerSample {
 class Rtttl : public Component {
  public:
 #ifdef USE_OUTPUT
-  void set_output(output::FloatOutput *output) { output_ = output; }
+  void set_output(output::FloatOutput *output) { this->output_ = output; }
 #endif
 #ifdef USE_SPEAKER
-  void set_speaker(speaker::Speaker *speaker) { speaker_ = speaker; }
+  void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
 #endif
   void play(std::string rtttl);
-  void stop() {
-    note_duration_ = 0;
-#ifdef USE_OUTPUT
-    if (output_ != nullptr) {
-      output_->set_level(0.0);
-    }
-#endif
-#ifdef USE_SPEAKER
-    if (this->speaker_ != nullptr) {
-      if (this->speaker_->is_running()) {
-        this->speaker_->stop();
-      }
-    }
-#endif
-  }
+  void stop();
   void dump_config() override;
 
-  bool is_playing() { return note_duration_ != 0; }
+  bool is_playing() { return this->note_duration_ != 0; }
   void loop() override;
 
   void add_on_finished_playback_callback(std::function<void()> callback) {
@@ -59,8 +45,8 @@ class Rtttl : public Component {
  protected:
   inline uint8_t get_integer_() {
     uint8_t ret = 0;
-    while (isdigit(rtttl_[position_])) {
-      ret = (ret * 10) + (rtttl_[position_++] - '0');
+    while (isdigit(this->rtttl_[this->position_])) {
+      ret = (ret * 10) + (this->rtttl_[this->position_++] - '0');
     }
     return ret;
   }

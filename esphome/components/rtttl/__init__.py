@@ -16,7 +16,6 @@ from esphome.const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-
 CODEOWNERS = ["@glmnet"]
 CONF_RTTTL = "rtttl"
 CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
@@ -50,11 +49,6 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_exactly_one_key(CONF_OUTPUT, CONF_SPEAKER),
 )
-
-
-def validate_parent_speaker_config(value):
-    # platform = value.get(CONF_PLATFORM)
-    pass
 
 
 def validate_parent_output_config(value):
