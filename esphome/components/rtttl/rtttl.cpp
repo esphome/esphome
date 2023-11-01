@@ -1,5 +1,5 @@
-#include <cmath>
 #include "rtttl.h"
+#include <cmath>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -247,31 +247,35 @@ void Rtttl::loop() {
   }
 
 #ifdef USE_OUTPUT
-  if (need_note_gap) {
-    output_->set_level(0.0);
-    delay(DOUBLE_NOTE_GAP_MS);
-    note_duration_ -= DOUBLE_NOTE_GAP_MS;
-  }
-  if (output_freq_ != 0) {
-    output_->update_frequency(output_freq_);
-    output_->set_level(0.5);
-  } else {
-    output_->set_level(0.0);
+  if (this->output_ != nullptr) {
+    if (need_note_gap) {
+      output_->set_level(0.0);
+      delay(DOUBLE_NOTE_GAP_MS);
+      note_duration_ -= DOUBLE_NOTE_GAP_MS;
+    }
+    if (output_freq_ != 0) {
+      output_->update_frequency(output_freq_);
+      output_->set_level(0.5);
+    } else {
+      output_->set_level(0.0);
+    }
   }
 #endif
 #ifdef USE_SPEAKER
-  samples_sent_ = 0;
-  samples_count_ = (sample_rate_ * note_duration_) / I2S_SPEED;
-  // Convert from frequency in Hz to high and low samples in fixed point
-  if (output_freq_ != 0) {
-    samples_per_wave_ = (sample_rate_ << 10) / output_freq_;
-  } else {
-    samples_per_wave_ = 0;
-  }
-  if (need_note_gap) {
-    samples_gap_ = (sample_rate_ * DOUBLE_NOTE_GAP_MS) / I2S_SPEED;
-  } else {
-    samples_gap_ = 0;
+  if (this->speaker_ != nullptr) {
+    samples_sent_ = 0;
+    samples_count_ = (sample_rate_ * note_duration_) / I2S_SPEED;
+    // Convert from frequency in Hz to high and low samples in fixed point
+    if (output_freq_ != 0) {
+      samples_per_wave_ = (sample_rate_ << 10) / output_freq_;
+    } else {
+      samples_per_wave_ = 0;
+    }
+    if (need_note_gap) {
+      samples_gap_ = (sample_rate_ * DOUBLE_NOTE_GAP_MS) / I2S_SPEED;
+    } else {
+      samples_gap_ = 0;
+    }
   }
 #endif
 
