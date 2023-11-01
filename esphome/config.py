@@ -21,7 +21,7 @@ from esphome.const import (
     CONF_EXTERNAL_COMPONENTS,
     TARGET_PLATFORMS,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, EsphomeError, ID
 from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
@@ -1010,3 +1010,27 @@ def read_config(command_line_substitutions):
 
         return None
     return OrderedDict(res)
+
+
+# find a component of the given type and id and return its configuration
+# If the component is not multi-conf, the component_id is ignored.
+def get_config_for_component(component_type, component_id=None):
+    if component_type not in CORE.raw_config:
+        return None
+    components = CORE.raw_config[component_type]
+    if not isinstance(components, list):
+        return components
+
+    # when validation is performed, the entire YAML has been read, but depending on the component order,
+    # the target component may not yet have been processed, so its id property could be either the original string,
+    # or an ID object.
+    def matcher(p):
+        this_id = p[CONF_ID]
+        if isinstance(this_id, ID):
+            return this_id.id == component_id
+        return this_id == component_id
+
+    comp_list = list(filter(matcher, components))
+    if not comp_list:
+        return None
+    return comp_list[0]

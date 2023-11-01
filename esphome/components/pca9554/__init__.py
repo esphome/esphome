@@ -10,7 +10,7 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_OUTPUT,
 )
-from esphome.core import CORE, ID
+from esphome.config import get_config_for_component
 
 CODEOWNERS = ["@hwstar", "@clydebarrow"]
 DEPENDENCIES = ["i2c"]
@@ -55,20 +55,10 @@ def validate_mode(value):
 
 def validate_pin(config):
     pca_id = config[CONF_PCA9554].id
-
-    # when pin config validation is performed, the entire YAML has been read, but depending on the component order,
-    # the pca9554 component may not yet have been processed, so its id property could be either the original string,
-    # or an ID object.
-    def matcher(p):
-        id = p[CONF_ID]
-        if isinstance(id, ID):
-            return id.id == pca_id
-        return id == pca_id
-
-    pca = list(filter(matcher, CORE.raw_config[CONF_PCA9554]))
-    if not pca:
+    pca = get_config_for_component(CONF_PCA9554, pca_id)
+    if pca is None:
         raise cv.Invalid(f"No pca9554 component found with id matching {pca_id}")
-    count = pca[0][CONF_PIN_COUNT]
+    count = pca[CONF_PIN_COUNT]
     if config[CONF_NUMBER] >= count:
         raise cv.Invalid(f"Pin number must be in range 0-{count - 1}")
     return config
