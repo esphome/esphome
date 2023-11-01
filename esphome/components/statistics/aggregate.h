@@ -1,13 +1,14 @@
 /*
  * Aggregate class stores summary statistics for a set of measurements. It is mathematically a monoid paired with a
  * binary operation and an identity. It has three main purposes:
- *  - Set a default value for a null measurement (a set with 0 measurements) - Aggregate constructor
+ *  1. Set a default value for a null measurement (a set with 0 measurements) - Aggregate constructor
  *    - This is the identity monoid
- *  - Combine two aggregates from two disjoint sets of measurements - overloaded += method
+ *    - Aggregate can be reset to the null measurement state using clear method
+ *  2. Combine two aggregates from two disjoint sets of measurements - overloaded += method
  *    - This is the binary operation
  *    - Summary statistics are combined using parallel algorithms
  *      - See the article "Numerically Stable Parallel Computation of (Co-)Variance" by Schubert and Gertz for details
- *  - Compute summary statistics from the stored aggregates - get_* and compute_* methods
+ *  3. Compute summary statistics from the stored aggregates - get_* and compute_* methods
  *    - Some summary statistics are directly stored
  *      - argmax, argmin, count, duration, min, mean, and max
  *      - Use get_* methods for retrieval
@@ -23,6 +24,8 @@
  *        statistics
  *        - M2 requires the mean statistic and count (or duration if duration weighted) for the combine operation
  *      - Use compute_* methods for retrieval
+ *    - The StatisticsCalclulationConfig enum specifies how measurements are weighted and whether to apply Bessel's
+ *      correction or reliability weights
  *
  * For any statistic that uses timestamp_mean, the Aggregate also stores timestamp_reference.
  *  - timestamp_reference is the offset (in milliseconds) for the timestamp_mean

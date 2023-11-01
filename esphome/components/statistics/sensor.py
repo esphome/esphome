@@ -214,7 +214,21 @@ STAT_TYPE_CONF_ENUM_TYPE = "enum_type"
 # The sensor schema used for defining the statistic type
 STAT_TYPE_CONF_SENSOR_SCHEMA = "sensor_schema"
 
+# This dictionary specifies how each sensor type is implemented
+#   - Return Lambda: String for C++ code that returns the statistic
+#       - Available variables: agg for current Aggregate and x for current source sensor state
+#       - {time_conversion} string format placeholder that is replaced by a time unit conversion factor
+#   - Inherited Properties: List that specifies which properties from the source function are inherited
+#   - Accuracy Decimals Transform: Specifies a Python function that transforms the source sensor's accuracy decimals
+#       - Some sensors add two accuracy decimals
+#   - UOM Transform: Specifies a Python function that transforms the source sensor's unit of measurement
+#   - Required Raw Stats: The necessary Aggregate class raw statistics used to compute the desired statistic
+#   - Enum Type: Specifies which StatisticType enum value for the statistic used in the config logging
+#   - Sensor Schema: The config_validation sensor schema for the statistic
+#       - Typically specifies state_class, device_class, and units
+#       - Can be extended for additional configuration options, like the time unit to use
 STATISTIC_TYPE_CONFIGS = {
+    # Measurement Count Sensor
     CONF_COUNT: {
         STAT_TYPE_CONF_RETURN_LAMBDA: "agg.get_count()",
         STAT_TYPE_CONF_INHERITED_PROPERTIES: [
@@ -228,6 +242,7 @@ STATISTIC_TYPE_CONFIGS = {
             state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
     },
+    # Duration of Measurements Sensor
     CONF_DURATION: {
         STAT_TYPE_CONF_RETURN_LAMBDA: "agg.get_duration()/{time_conversion}",
         STAT_TYPE_CONF_INHERITED_PROPERTIES: [
@@ -249,6 +264,7 @@ STATISTIC_TYPE_CONFIGS = {
             }
         ),
     },
+    # User Configured Lambda Sensor
     CONF_LAMBDA: {
         STAT_TYPE_CONF_INHERITED_PROPERTIES: [
             CONF_ENTITY_CATEGORY,
@@ -265,6 +281,7 @@ STATISTIC_TYPE_CONFIGS = {
             }
         ),
     },
+    # Maximum Sensor
     CONF_MAX: {
         STAT_TYPE_CONF_RETURN_LAMBDA: "agg.get_max()",
         STAT_TYPE_CONF_INHERITED_PROPERTIES: [
@@ -282,6 +299,7 @@ STATISTIC_TYPE_CONFIGS = {
             state_class=STATE_CLASS_MEASUREMENT,
         ),
     },
+    # Mean Sensor
     CONF_MEAN: {
         STAT_TYPE_CONF_RETURN_LAMBDA: "agg.get_mean()",
         STAT_TYPE_CONF_INHERITED_PROPERTIES: [
@@ -299,6 +317,7 @@ STATISTIC_TYPE_CONFIGS = {
             state_class=STATE_CLASS_MEASUREMENT,
         ),
     },
+    # Minimum sensor
     CONF_MIN: {
         STAT_TYPE_CONF_RETURN_LAMBDA: "agg.get_min()",
         STAT_TYPE_CONF_INHERITED_PROPERTIES: [
@@ -316,6 +335,7 @@ STATISTIC_TYPE_CONFIGS = {
             state_class=STATE_CLASS_MEASUREMENT,
         ),
     },
+    # Quadrature Sensor
     CONF_QUADRATURE: {
         STAT_TYPE_CONF_RETURN_LAMBDA: "agg.compute_quadrature()/{time_conversion}",
         STAT_TYPE_CONF_INHERITED_PROPERTIES: [
@@ -337,6 +357,7 @@ STATISTIC_TYPE_CONFIGS = {
             }
         ),
     },
+    # Time Since Argmax Sensor
     CONF_SINCE_ARGMAX: {
         STAT_TYPE_CONF_RETURN_LAMBDA: "({time_component}->timestamp_now() - agg.get_argmax())*1000.0/{time_conversion}",
         STAT_TYPE_CONF_INHERITED_PROPERTIES: [
@@ -358,6 +379,7 @@ STATISTIC_TYPE_CONFIGS = {
             }
         ),
     },
+    # Time Since Argmin Sensor
     CONF_SINCE_ARGMIN: {
         STAT_TYPE_CONF_RETURN_LAMBDA: "({time_component}->timestamp_now() - agg.get_argmin())*1000.0/{time_conversion}",
         STAT_TYPE_CONF_INHERITED_PROPERTIES: [
@@ -379,6 +401,7 @@ STATISTIC_TYPE_CONFIGS = {
             }
         ),
     },
+    # Standard Deviation Sensor
     CONF_STD_DEV: {
         STAT_TYPE_CONF_RETURN_LAMBDA: "agg.compute_std_dev()",
         STAT_TYPE_CONF_INHERITED_PROPERTIES: [
@@ -396,6 +419,7 @@ STATISTIC_TYPE_CONFIGS = {
             state_class=STATE_CLASS_MEASUREMENT,
         ),
     },
+    # Linear Trend Sensor
     CONF_TREND: {
         STAT_TYPE_CONF_RETURN_LAMBDA: "agg.compute_trend()*{time_conversion}",
         STAT_TYPE_CONF_INHERITED_PROPERTIES: [
@@ -459,6 +483,7 @@ def validate_no_trend_and_restore(config):
 
 
 # Based on inherit_property_from function from core/entity_helpers.py (accessed September 2023)
+#   - used to set the time unit so long as the user has not configured it themselves
 def set_property(property_to_inherit, property_value):
     """Validator that sets a provided configuration property, for use with FINAL_VALIDATE_SCHEMA.
     If a property is already set, it will not be inherited.
@@ -502,6 +527,7 @@ def set_property(property_to_inherit, property_value):
 
 
 # Based on inherit_property_from function from core/entity_helpers.py (accessed September 2023)
+#   - inherit_property_from does not work for sensors in a cv.ensure_list
 def inherit_property_from_id(property_to_inherit, parent_id, transform=None):
     """Validator that inherits a configuration property from another entity, for use with FINAL_VALIDATE_SCHEMA.
     If a property is already set, it will not be inherited.

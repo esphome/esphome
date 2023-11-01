@@ -4,10 +4,10 @@
  * collected over a sliding window or as a resettable running total. Each measurement can have equal weight or
  * have weights given by their duration.
  *
- * Available statistics as sensors
+ * Available statistics as sensors (the Python codegen generates lambda functions that retrieve each statistic)
  *  - count: number of valid measurements in the window (component ignores NaN values in the window)
  *  - duration: the duration in milliseconds between the first and last measurement's timestamps
- *  - lambda: user provided lambda can return any calculations from the computed aggregate
+ *  - lambda: user provided lambda can return any calculations from the computed aggregate and the source sensor state
  *  - min: minimum of the set of measurements
  *  - mean: average of the set of measurements
  *  - max: maximum of the set of measurements
@@ -99,7 +99,7 @@ enum StatisticType {
 
 struct StatisticSensorTuple {
   sensor::Sensor *sens;
-  std::function<float(Aggregate, float)> lambda_fnctn;
+  std::function<float(Aggregate, float)> lambda_fnctn;  // Codegen gives a lambda that returns the desired statistic
   StatisticType type;
 };
 

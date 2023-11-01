@@ -1,8 +1,9 @@
 /*
  * AggregateQueue class facilitates storing aggregate statistics in queues. It has three purposes:
- *  - Allocate memory only for arrays that are necessary based on configured sensors (allocate_memory method)
- *  - Add a new Aggregate to the queue by inserting actual values into allocated arrays (emplace method)
- *  - Retrieve an aggregate from the queue by reading actual values in the allocated arrays (lower method)
+ *  1. Allocate memory only for arrays that are necessary based on configured sensors (allocate_memory method)
+ *    - The TrackedStatisticsConfiguration struct specifies which statistics are necessary
+ *  2. Add a new Aggregate to the queue by inserting actual values into allocated arrays (emplace method)
+ *  3. Retrieve an aggregate from the queue by reading actual values in the allocated arrays (lower method)
  *
  * Additionally, it defines several virtual methods that child classes implement. These virtual methods allow for
  * uniform calls regardless of the specific child queue structure used.
