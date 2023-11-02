@@ -663,7 +663,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef USE_NEXTION_TFT_UPLOAD
   /**
-   * Set the tft file URL. https seems problamtic with arduino..
+   * Set the tft file URL. https seems problematic with arduino..
    */
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
 
