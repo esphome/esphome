@@ -652,6 +652,24 @@ class FinalValidateValidationStep(ConfigValidationStep):
             if self.comp.final_validate_schema is not None:
                 self.comp.final_validate_schema(conf)
 
+            fconf = fv.full_config.get()
+
+            def _check_pins(c):
+                for value in c.values():
+                    if not isinstance(value, dict):
+                        continue
+                    for key, (
+                        _,
+                        _,
+                        pin_final_validate,
+                    ) in pins.PIN_SCHEMA_REGISTRY.items():
+                        if (
+                            key != CORE.target_platform
+                            and key in value
+                            and pin_final_validate is not None
+                        ):
+                            pin_final_validate(fconf, value)
+
             # Check for pin configs and a final_validate schema in the pin registry
             confs = conf
             if not isinstance(
@@ -660,17 +678,7 @@ class FinalValidateValidationStep(ConfigValidationStep):
                 confs = [conf]
             for c in confs:
                 if c:  # Some component have None or empty schemas
-                    for value in c.values():
-                        if not isinstance(value, dict):
-                            continue
-                        for key, (
-                            _,
-                            _,
-                            pin_final_validate,
-                        ) in pins.PIN_SCHEMA_REGISTRY.items():
-                            if key != CORE.target_platform and key in value:
-                                if pin_final_validate is not None:
-                                    pin_final_validate(fv.full_config.get(), value)
+                    _check_pins(c)
 
         fv.full_config.reset(token)
 
