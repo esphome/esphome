@@ -22,8 +22,8 @@ class DfrobotSen0395SettingsAction : public Action<Ts...>, public Parented<Dfrob
   TEMPLATABLE_VALUE(int8_t, turn_on_led)
   TEMPLATABLE_VALUE(int8_t, presence_via_uart)
   TEMPLATABLE_VALUE(int8_t, sensitivity)
-  TEMPLATABLE_VALUE(float, delay_after_detect)
-  TEMPLATABLE_VALUE(float, delay_after_disappear)
+  TEMPLATABLE_VALUE(int8_t, delay_after_detect)
+  TEMPLATABLE_VALUE(int8_t, delay_after_disappear)
   TEMPLATABLE_VALUE(float, det_min1)
   TEMPLATABLE_VALUE(float, det_max1)
   TEMPLATABLE_VALUE(float, det_min2)
@@ -47,10 +47,10 @@ class DfrobotSen0395SettingsAction : public Action<Ts...>, public Parented<Dfrob
       }
     }
     if (this->delay_after_detect_.has_value() && this->delay_after_disappear_.has_value()) {
-      float detect = this->delay_after_detect_.value(x...);
-      float disappear = this->delay_after_disappear_.value(x...);
+      int8_t detect = this->delay_after_detect_.value(x...);
+      int8_t disappear = this->delay_after_disappear_.value(x...);
       if (detect >= 0 && disappear >= 0) {
-        this->parent_->enqueue(make_unique<OutputLatencyCommand>(detect, disappear));
+        this->parent_->enqueue(make_unique<SetLatencyCommand>(detect, disappear));
       }
     }
     if (this->start_after_power_on_.has_value()) {

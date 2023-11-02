@@ -128,14 +128,14 @@ MMWAVE_SETTINGS_SCHEMA = cv.Schema(
         cv.Optional(CONF_OUTPUT_LATENCY): {
             cv.Required(CONF_DELAY_AFTER_DETECT): cv.templatable(
                 cv.All(
-                    cv.positive_time_period,
-                    cv.Range(max=core.TimePeriod(seconds=1638.375)),
+                    cv.positive_time_period_seconds,
+                    cv.Range(max=core.TimePeriod(seconds=60)),
                 )
             ),
             cv.Required(CONF_DELAY_AFTER_DISAPPEAR): cv.templatable(
                 cv.All(
-                    cv.positive_time_period,
-                    cv.Range(max=core.TimePeriod(seconds=1638.375)),
+                    cv.positive_time_period_seconds,
+                    cv.Range(max=core.TimePeriod(seconds=60)),
                 )
             ),
         },
@@ -189,17 +189,17 @@ async def dfrobot_sen0395_settings_to_code(config, action_id, template_arg, args
             cg.add(var.set_det_max4(template_))
     if CONF_OUTPUT_LATENCY in config:
         template_ = await cg.templatable(
-            config[CONF_OUTPUT_LATENCY][CONF_DELAY_AFTER_DETECT], args, float
+            config[CONF_OUTPUT_LATENCY][CONF_DELAY_AFTER_DETECT], args, int
         )
         if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds / 1000
+            template_ = template_.total_seconds
         cg.add(var.set_delay_after_detect(template_))
 
         template_ = await cg.templatable(
-            config[CONF_OUTPUT_LATENCY][CONF_DELAY_AFTER_DISAPPEAR], args, float
+            config[CONF_OUTPUT_LATENCY][CONF_DELAY_AFTER_DISAPPEAR], args, int
         )
         if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds / 1000
+            template_ = template_.total_seconds
         cg.add(var.set_delay_after_disappear(template_))
     if CONF_SENSITIVITY in config:
         template_ = await cg.templatable(config[CONF_SENSITIVITY], args, int)
