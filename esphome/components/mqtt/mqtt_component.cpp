@@ -2,9 +2,9 @@
 
 #ifdef USE_MQTT
 
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/version.h"
 
 #include "mqtt_const.h"
@@ -28,15 +28,15 @@ std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) con
 }
 
 std::string MQTTComponent::get_state_topic_() const {
-  if (this->custom_state_topic_.empty())
-    return this->get_default_topic_for_("state");
-  return this->custom_state_topic_;
+  if (this->has_custom_state_topic_)
+    return this->custom_state_topic_;
+  return this->get_default_topic_for_("state");
 }
 
 std::string MQTTComponent::get_command_topic_() const {
-  if (this->custom_command_topic_.empty())
-    return this->get_default_topic_for_("command");
-  return this->custom_command_topic_;
+  if (this->has_custom_command_topic_)
+    return this->custom_command_topic_;
+  return this->get_default_topic_for_("command");
 }
 
 bool MQTTComponent::publish(const std::string &topic, const std::string &payload) {
@@ -136,6 +136,7 @@ bool MQTTComponent::send_discovery_() {
         if (node_friendly_name.empty()) {
           node_friendly_name = node_name;
         }
+        const std::string &node_area = App.get_area();
 
         JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
         device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
@@ -143,6 +144,7 @@ bool MQTTComponent::send_discovery_() {
         device_info[MQTT_DEVICE_SW_VERSION] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
         device_info[MQTT_DEVICE_MANUFACTURER] = "espressif";
+        device_info[MQTT_DEVICE_SUGGESTED_AREA] = node_area;
       },
       0, discovery_info.retain);
 }
@@ -171,9 +173,11 @@ float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_C
 void MQTTComponent::disable_discovery() { this->discovery_enabled_ = false; }
 void MQTTComponent::set_custom_state_topic(const std::string &custom_state_topic) {
   this->custom_state_topic_ = custom_state_topic;
+  this->has_custom_state_topic_ = true;
 }
 void MQTTComponent::set_custom_command_topic(const std::string &custom_command_topic) {
   this->custom_command_topic_ = custom_command_topic;
+  this->has_custom_command_topic_ = true;
 }
 void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
 
@@ -240,7 +244,20 @@ bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connec
 std::string MQTTComponent::friendly_name() const { return this->get_entity()->get_name(); }
 std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
 bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
-bool MQTTComponent::is_internal() { return this->get_entity()->is_internal(); }
+bool MQTTComponent::is_internal() {
+  if ((this->get_state_topic_().empty()) || (this->get_command_topic_().empty())) {
+    // If both state_topic and command_topic are empty, then the entity is internal to mqtt
+    return true;
+  }
+
+  if (this->has_custom_state_topic_ || this->has_custom_command_topic_) {
+    // If a custom state_topic or command_topic is set, then the entity is not internal to mqtt
+    return false;
+  }
+
+  // Use ESPHome's entity internal state
+  return this->get_entity()->is_internal();
+}
 
 }  // namespace mqtt
 }  // namespace esphome

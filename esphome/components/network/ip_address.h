@@ -3,7 +3,11 @@
 #include <string>
 #include <cstdio>
 #include <array>
+#include "esphome/core/macros.h"
+
+#if defined(USE_ESP_IDF) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
 #include <lwip/ip_addr.h>
+#endif
 
 #if USE_ARDUINO
 #include <Arduino.h>
@@ -36,7 +40,7 @@ struct IPAddress {
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(ip4_addr_t *other_ip) {
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t));
-#if USE_ESP32
+#if USE_ESP32 && LWIP_IPV6
     ip_addr_.type = IPADDR_TYPE_V4;
 #endif
   }

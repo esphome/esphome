@@ -111,6 +111,7 @@ void APIServer::loop() {
                                 [](const std::unique_ptr<APIConnection> &conn) { return !conn->remove_; });
   // print disconnection messages
   for (auto it = new_end; it != this->clients_.end(); ++it) {
+    this->client_disconnected_trigger_->trigger((*it)->client_info_, (*it)->client_peername_);
     ESP_LOGV(TAG, "Removing connection to %s", (*it)->client_info_.c_str());
   }
   // resize vector
@@ -254,6 +255,15 @@ void APIServer::on_number_update(number::Number *obj, float state) {
 }
 #endif
 
+#ifdef USE_TEXT
+void APIServer::on_text_update(text::Text *obj, const std::string &state) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_text_state(obj, state);
+}
+#endif
+
 #ifdef USE_SELECT
 void APIServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   if (obj->is_internal())
@@ -321,30 +331,6 @@ void APIServer::on_shutdown() {
   }
   delay(10);
 }
-
-#ifdef USE_VOICE_ASSISTANT
-bool APIServer::start_voice_assistant(const std::string &conversation_id, uint32_t flags,
-                                      const api::VoiceAssistantAudioSettings &audio_settings) {
-  VoiceAssistantRequest msg;
-  msg.start = true;
-  msg.conversation_id = conversation_id;
-  msg.flags = flags;
-  msg.audio_settings = audio_settings;
-  for (auto &c : this->clients_) {
-    if (c->request_voice_assistant(msg))
-      return true;
-  }
-  return false;
-}
-void APIServer::stop_voice_assistant() {
-  VoiceAssistantRequest msg;
-  msg.start = false;
-  for (auto &c : this->clients_) {
-    if (c->request_voice_assistant(msg))
-      return;
-  }
-}
-#endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
 void APIServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
