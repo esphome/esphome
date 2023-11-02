@@ -73,10 +73,11 @@ def _final_validate(parent_id_key, fun):
 
 class PinRegistry(dict):
     def register(self, name, schema, final_validate=None):
+        if final_validate is not None:
+            final_validate = _final_validate(name, final_validate)
+
         def decorator(fun):
-            if final_validate is not None:
-                fun = _final_validate(name, final_validate)
-            self[name] = (fun, schema, fun)
+            self[name] = (fun, schema, final_validate)
             return fun
 
         return decorator
