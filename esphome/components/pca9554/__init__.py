@@ -92,7 +92,7 @@ PCA9554_PIN_SCHEMA = cv.All(
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("pca9554", PCA9554_PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_PCA9554, PCA9554_PIN_SCHEMA)
 async def pca9554_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_PCA9554])
