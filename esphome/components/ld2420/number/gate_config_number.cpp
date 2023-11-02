@@ -30,7 +30,6 @@ void LD2420MaxDistanceNumber::control(float max_gate) {
   this->publish_state(max_gate);
 }
 
-
 void LD2420GateSelectNumber::control(float gate_select) {
   const uint8_t gate = (uint8_t) gate_select;
   this->publish_state(gate_select);
