@@ -224,6 +224,12 @@ uart:
     tx_pin: 14
     rx_pin: 27
     baud_rate: 115200
+  - id: ld2420_uart
+    tx_pin: 17
+    rx_pin: 16
+    baud_rate: 115200
+    parity: NONE
+    stop_bits: 1
   - id: gcja5_uart
     rx_pin: GPIO10
     parity: EVEN
@@ -1441,6 +1447,9 @@ sensor:
       still_energy:
         name: g8 still energy
 
+  - platform: ld2420
+    moving_distance:
+      name: "Moving distance (cm)"
   - platform: sen21231
     name: "Person Sensor"
     i2c_id: i2c_bus
@@ -3614,6 +3623,10 @@ button:
 ld2410:
   id: my_ld2410
   uart_id: ld2410_uart
+
+ld2420:
+  id: my_ld2420
+  uart_id: ld2420_uart
 
 lcd_menu:
   display_id: my_lcd_gpio
