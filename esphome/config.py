@@ -656,9 +656,9 @@ class FinalValidateValidationStep(ConfigValidationStep):
             for value in conf.values():
                 if not isinstance(value, dict):
                     continue
-                for key, entry in pins.PIN_SCHEMA_REGISTRY.items():
+                for key, (_, _, pin_final_validate) in pins.PIN_SCHEMA_REGISTRY.items():
                     if key != CORE.target_platform and key in value:
-                        if pin_final_validate := entry[2]:
+                        if pin_final_validate is not None:
                             pin_final_validate(fv.full_config.get(), value)
 
         fv.full_config.reset(token)
