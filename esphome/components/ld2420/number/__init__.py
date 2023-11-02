@@ -93,7 +93,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
     {
-        cv.Optional(f"g{x}"): (
+        cv.Optional(f"gate_{x}"): (
             {
                 cv.Required(CONF_MOVE_THRESHOLD): number.number_schema(
                     LD2420MoveThresholdNumbers,
