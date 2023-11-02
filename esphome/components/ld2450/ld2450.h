@@ -12,6 +12,7 @@
 #include "esphome/components/sensor/sensor.h"
 #endif
 
+#include <array>
 #include <stdint.h>
 
 namespace esphome {
@@ -29,7 +30,8 @@ class LD2450Component : public ::esphome::Component, public ::esphome::uart::UAR
 #endif
 
  public:
-  LD2450Component(uint8_t num_targets);
+  LD2450Component();
+  virtual ~LD2450Component();
 
   void dump_config() override;
   void loop() override;
@@ -50,14 +52,14 @@ class LD2450Component : public ::esphome::Component, public ::esphome::uart::UAR
   uint32_t throttle_;
 
   // 4 bytes header + 3 * (8 bytes) + 2 bytes = 30 bytes per record
-  static const size_t LD2450_RECORD_LENGTH = 30;
+  // NUM_TARGETS is used in case HILINK extends the number of targets.
+  static const size_t LD2450_RECORD_LENGTH = 4 + NUM_TARGETS * 8 + 2;
   static const size_t BUFFER_CAPACITY = LD2450_RECORD_LENGTH * 2;
 
   uint8_t uartBuf_[BUFFER_CAPACITY];
   size_t uartBufSize_ = 0;
 
-  const size_t num_targets_;
-  Target *const targets_;
+  std::array<Target *, NUM_TARGETS> targets_;
 
   std::vector<PresenceZone *> zones;
 };

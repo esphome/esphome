@@ -2,6 +2,7 @@
 
 #include "esphome/components/ld2450/defines.h"
 #include "esphome/components/ld2450/target.h"
+#include "esphome/components/ld2450/zone.h"
 
 #define _USE_MATH_DEFINES
 
@@ -16,9 +17,15 @@ constexpr const uint8_t DATA_FRAME_HEADER[4] = {0xAA, 0xFF, 0x03, 0x00};
 constexpr const uint8_t DATA_FRAME_END[2] = {0x55, 0xCC};
 constexpr const char *const TAG = "ld2450";
 
-LD2450Component::LD2450Component(uint8_t num_targets) : num_targets_(num_targets), targets_(new Target[num_targets]) {
-  for (size_t i = 0; i < num_targets_; ++i) {
-    targets_[i] = Target();
+LD2450Component::LD2450Component() {
+  for (size_t i = 0; i < NUM_TARGETS; ++i) {
+    targets_[i] = new Target();
+  }
+}
+
+LD2450Component::~LD2450Component() {
+  for (auto target : targets_) {
+    delete target;
   }
 }
 
@@ -30,7 +37,7 @@ void LD2450Component::dump_config() {
 
 void LD2450Component::add_zone(PresenceZone *zone) { zones.emplace_back(zone); }
 
-Target &LD2450Component::get_target(uint8_t n) const { return targets_[n]; }
+Target &LD2450Component::get_target(uint8_t n) const { return *targets_[n]; }
 
 void LD2450Component::setup() { ESP_LOGCONFIG(TAG, "LD2450 setup complete."); }
 
@@ -42,13 +49,13 @@ void LD2450Component::parseAndPublishRecord_(const uint8_t *buffer) {
 
   // Extract the targets.
   uint8_t active_targets = 0;
-  for (size_t i = 0; i < num_targets_; ++i) {
-    targets_[i].update_from_buffer(buffer + 4 + (i * 8));
-    active_targets += targets_[i].valid();
-    targets_[i].publish();
+  for (size_t i = 0; i < NUM_TARGETS; ++i) {
+    targets_[i]->update_from_buffer(buffer + 4 + (i * 8));
+    active_targets += targets_[i]->valid();
+    targets_[i]->publish();
 
     for (auto *zone : zones) {
-      zone->check_targets(targets_, num_targets_);
+      zone->check_targets(targets_);
     }
   }
 

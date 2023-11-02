@@ -11,6 +11,8 @@ LD2450Component = ld2450_ns.class_("LD2450Component", cg.Component, uart.UARTDev
 PresenceZone = ld2450_ns.class_("PresenceZone")
 
 CONF_LD2450_ID = "ld2450_id"
+CONF_PRESENCE = "presence"
+CONF_TARGET_COUNT = "target_count"
 CONF_X_START = "x_start"
 CONF_Y_START = "y_start"
 CONF_X_END = "x_end"
@@ -19,7 +21,7 @@ CONF_ZONES = "zones"
 CONF_ZONE_ID = "zone_id"
 
 # This is currently hard-coded from the sensor itself, but it could change one
-# day, so define it here.
+# day, so define it here. It is also defined in the C++ code via code gen.
 NUM_TARGETS = 3
 
 
@@ -82,9 +84,10 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], NUM_TARGETS)
+    var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+    cg.add_define("NUM_TARGETS", NUM_TARGETS)
     cg.add(var.set_throttle(config[CONF_THROTTLE]))
     if zones := config.get(CONF_ZONES):
         for zone in zones:

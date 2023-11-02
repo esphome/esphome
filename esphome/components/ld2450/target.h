@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome.h"
-#include "esphome/components/ld2450/zone.h"
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -32,12 +31,8 @@ inline int16_t convert_signed(const uint8_t *two_bytes) {
 
 inline uint16_t convert_unsigned(const uint8_t *two_bytes) { return (two_bytes[1] << 8) | two_bytes[0]; }
 
-struct Target {
+class Target {
  public:
-  int16_t get_x() const { return x_; }
-
-  int16_t get_y() const { return y_; })
-
   /**
    * Publish values to sensors.
    */
@@ -49,6 +44,8 @@ struct Target {
   void update_from_buffer(const uint8_t *buffer);
 
   bool valid() const { return valid_; }
+
+  friend class PresenceZone;
 
  protected:
 #if defined(USE_SENSOR) || defined(USE_BINARY_SENSOR) || defined(USE_TEXT_SENSOR)

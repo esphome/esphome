@@ -14,9 +14,18 @@ from esphome.const import (
     ICON_COUNTER,
     ICON_FOCUS_FIELD_HORIZONTAL,
     ICON_FOCUS_FIELD_VERTICAL,
+    ICON_MOTION_SENSOR,
     STATE_CLASS_MEASUREMENT,
 )
-from . import CONF_LD2450_ID, LD2450Component, NUM_TARGETS
+from . import (
+    CONF_LD2450_ID,
+    CONF_TARGET_COUNT,
+    CONF_ZONES,
+    CONF_ZONE_ID,
+    LD2450Component,
+    NUM_TARGETS,
+    PresenceZone,
+)
 
 DEPENDENCIES = ["ld2450"]
 
@@ -69,6 +78,16 @@ config_schema = {
         }
         for n in range(NUM_TARGETS)
     },
+    cv.Optional(CONF_ZONES): cv.ensure_list(
+        cv.Schema(
+            {
+                cv.Required(CONF_ZONE_ID): cv.use_id(PresenceZone),
+                cv.Optional(CONF_TARGET_COUNT): sensor.sensor_schema(
+                    icon=ICON_MOTION_SENSOR, unit_of_measurement="targets"
+                ),
+            },
+        ),
+    ),
 }
 CONFIG_SCHEMA = cv.Schema(config_schema)
 
@@ -96,3 +115,10 @@ async def to_code(config):
             if resolution_config := target_conf.get(CONF_RESOLUTION):
                 sens = await sensor.new_sensor(resolution_config)
                 cg.add(ld2450_component.get_target(n).set_resolution_sensor(sens))
+
+    if zone_configs := config.get(CONF_ZONES):
+        for zone_config in zone_configs:
+            if target_count_conf := zone_config.get(CONF_TARGET_COUNT):
+                zone_obj = await cg.get_variable(zone_config[CONF_ZONE_ID])
+                sens = await sensor.new_sensor(target_count_conf)
+                cg.add(zone_obj.set_target_count_sensor(sens))
