@@ -133,10 +133,11 @@ class LD2420Component : public Component, public uart::UARTDevice {
   float get_min_gate_distance_value() { return min_gate_distance_number_->state; };
   float get_max_gate_distance_value() { return max_gate_distance_number_->state; };
   void publish_gate_move_threshold(uint8_t gate) {
-    this->gate_move_threshold_numbers_[gate]->publish_state(this->new_config.move_thresh[gate]);
+    // With gate_select we only use 1 number pointer, thus we hard code [0]
+    this->gate_move_threshold_numbers_[0]->publish_state(this->new_config.move_thresh[gate]);
   };
   void publish_gate_still_threshold(uint8_t gate) {
-    this->gate_move_threshold_numbers_[gate]->publish_state(this->new_config.move_thresh[gate]);
+    this->gate_still_threshold_numbers_[0]->publish_state(this->new_config.still_thresh[gate]);
   };
   void init_gate_config_numbers();
   void refresh_gate_config_numbers();
