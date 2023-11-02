@@ -33,8 +33,8 @@ int Nextion::upload_range_(const std::string &url, int range_start) {
   }
 
   esp_http_client_config_t config = {
-    .url = url.c_str(),
-    .cert_pem = nullptr,
+      .url = url.c_str(),
+      .cert_pem = nullptr,
   };
   esp_http_client_handle_t client = esp_http_client_init(&config);
 
@@ -64,7 +64,7 @@ int Nextion::upload_range_(const std::string &url, int range_start) {
   int total_read_len = 0, read_len;
 
   ESP_LOGV(TAG, "Allocate buffer");
-  uint8_t* buffer = new uint8_t[4096];
+  uint8_t *buffer = new uint8_t[4096];
   std::string recv_string;
   if (buffer == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate memory for buffer");
@@ -75,7 +75,7 @@ int Nextion::upload_range_(const std::string &url, int range_start) {
     while (true) {
       App.feed_wdt();
       ESP_LOGVV(TAG, "Available heap: %u", esp_get_free_heap_size());
-      int read_len = esp_http_client_read(client, reinterpret_cast<char*>(buffer), 4096);
+      int read_len = esp_http_client_read(client, reinterpret_cast<char *>(buffer), 4096);
       ESP_LOGVV(TAG, "Read %d bytes from HTTP client, writing to UART", read_len);
       if (read_len > 0) {
         this->write_array(buffer, read_len);
@@ -83,11 +83,11 @@ int Nextion::upload_range_(const std::string &url, int range_start) {
         recv_ret_string_(recv_string, 5000, true);
         this->content_length_ -= read_len;
         ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %d bytes",
-            100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_,
-            this->content_length_);
+                 100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_);
         if (recv_string[0] != 0x05) {  // 0x05 == "ok"
-          ESP_LOGD(TAG, "recv_string [%s]",
-          format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
+          ESP_LOGD(
+              TAG, "recv_string [%s]",
+              format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
         }
         // handle partial upload request
         if (recv_string[0] == 0x08 && recv_string.size() == 5) {
@@ -145,10 +145,10 @@ bool Nextion::upload_tft_() {
   ESP_LOGV(TAG, "Establishing connection to HTTP server");
   ESP_LOGVV(TAG, "Available heap: %u", esp_get_free_heap_size());
   esp_http_client_config_t config = {
-    .url = this->tft_url_.c_str(),
-    .cert_pem = nullptr,
-    .method = HTTP_METHOD_HEAD,
-    .timeout_ms = 15000,
+      .url = this->tft_url_.c_str(),
+      .cert_pem = nullptr,
+      .method = HTTP_METHOD_HEAD,
+      .timeout_ms = 15000,
   };
 
   // Initialize the HTTP client with the configuration
@@ -205,11 +205,11 @@ bool Nextion::upload_tft_() {
 
   std::string response;
   ESP_LOGD(TAG, "Waiting for upgrade response");
-  recv_ret_string_(response, 2000, true); // This can take some time to return
+  recv_ret_string_(response, 2000, true);  // This can take some time to return
 
   // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
   ESP_LOGD(TAG, "Upgrade response is [%s]",
-  format_hex_pretty(reinterpret_cast<const uint8_t *>(response.data()), response.size()).c_str());
+           format_hex_pretty(reinterpret_cast<const uint8_t *>(response.data()), response.size()).c_str());
 
   if (response.find(0x05) != std::string::npos) {
     ESP_LOGV(TAG, "Preparation for tft update done");
@@ -219,8 +219,8 @@ bool Nextion::upload_tft_() {
     return upload_end_(false);
   }
 
-  ESP_LOGD(TAG, "Updating tft from \"%s\" with a file size of %d, Heap Size %d",
-    this->tft_url_.c_str(), content_length_, esp_get_free_heap_size());
+  ESP_LOGD(TAG, "Updating tft from \"%s\" with a file size of %d, Heap Size %d", this->tft_url_.c_str(),
+           content_length_, esp_get_free_heap_size());
 
   ESP_LOGV(TAG, "Starting transfer by chunks loop");
   int result = 0;
