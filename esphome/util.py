@@ -57,10 +57,26 @@ class SimpleRegistry(dict):
         return decorator
 
 
+def _final_validate(parent_id_key, fun):
+    def validator(fconf, pin_config):
+        import esphome.config_validation as cv
+
+        parent_path = fconf.get_path_for_id(pin_config[parent_id_key])[:-1]
+        parent_config = fconf.get_config_for_path(parent_path)
+
+        pin_path = fconf.get_path_for_id(pin_config[const.CONF_ID])[:-1]
+        with cv.prepend_path([cv.ROOT_CONFIG_PATH] + pin_path):
+            fun(pin_config, parent_config)
+
+    return validator
+
+
 class PinRegistry(dict):
-    def register(self, name, schema, final_validate_schema=None):
+    def register(self, name, schema, final_validate=None):
         def decorator(fun):
-            self[name] = (fun, schema, final_validate_schema)
+            if final_validate is not None:
+                fun = _final_validate(name, final_validate)
+            self[name] = (fun, schema, fun)
             return fun
 
         return decorator

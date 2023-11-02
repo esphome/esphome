@@ -659,7 +659,7 @@ class FinalValidateValidationStep(ConfigValidationStep):
                 for key, entry in pins.PIN_SCHEMA_REGISTRY.items():
                     if key != CORE.target_platform and key in value:
                         if pin_final_validate := entry[2]:
-                            pin_final_validate(value)
+                            pin_final_validate(fv.full_config.get(), value)
 
         fv.full_config.reset(token)
 
