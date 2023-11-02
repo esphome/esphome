@@ -13,13 +13,17 @@
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP32
+#ifdef ARDUINO
 #include <HTTPClient.h>
-#endif
+#elif defined(ESP_PLATFORM)
+#include <esp_http_client.h>
+#endif  // ARDUINO vs ESP-IDF
+#endif  // USE_ESP32
 #ifdef USE_ESP8266
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#endif
-#endif
+#endif  // USE_ESP8266
+#endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome {
 namespace nextion {
