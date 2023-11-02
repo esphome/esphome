@@ -39,8 +39,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_K_VALUE): cv.uint16_t,
-            cv.Optional(CONF_OFFSET): cv.float_,
+            cv.Optional(CONF_K_VALUE, default=4096): cv.uint16_t,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -61,5 +60,4 @@ async def to_code(config):
         sens = await sensor.new_sensor(pressure_config)
         cg.add(var.set_pressure_sensor(sens))
 
-    cg.add(var.set_k_value(config.get(CONF_K_VALUE, 4096)))
-    cg.add(var.set_offset(config.get(CONF_OFFSET, 0.0)))
+    cg.add(var.set_k_value(config[CONF_K_VALUE]))
