@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome.h"
+#include "esphome/components/ld2450/zone.h"
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -14,6 +15,8 @@
 
 namespace esphome {
 namespace ld2450 {
+
+class PresenceZone;
 
 /**
  * Two helper functions to help convert the 16 bit buffered numbers into usable
@@ -31,6 +34,10 @@ inline uint16_t convert_unsigned(const uint8_t *two_bytes) { return (two_bytes[1
 
 struct Target {
  public:
+  int16_t get_x() const { return x_; }
+
+  int16_t get_y() const { return y_; })
+
   /**
    * Publish values to sensors.
    */

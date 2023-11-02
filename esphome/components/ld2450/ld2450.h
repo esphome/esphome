@@ -17,6 +17,7 @@
 namespace esphome {
 namespace ld2450 {
 
+class PresenceZone;
 class Target;
 
 class LD2450Component : public ::esphome::Component, public ::esphome::uart::UARTDevice {
@@ -34,6 +35,7 @@ class LD2450Component : public ::esphome::Component, public ::esphome::uart::UAR
   void loop() override;
   void setup() override;
 
+  void add_zone(PresenceZone *zone);
   Target &get_target(uint8_t n) const;
   void set_throttle(uint16_t throttle) { throttle_ = throttle; };
 
@@ -54,8 +56,10 @@ class LD2450Component : public ::esphome::Component, public ::esphome::uart::UAR
   uint8_t uartBuf_[BUFFER_CAPACITY];
   size_t uartBufSize_ = 0;
 
-  const uint8_t num_targets_;
+  const size_t num_targets_;
   Target *const targets_;
+
+  std::vector<PresenceZone *> zones;
 };
 
 }  // namespace ld2450

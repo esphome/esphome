@@ -28,6 +28,8 @@ void LD2450Component::dump_config() {
   LOG_SENSOR_("AllTargetCounts", all_target_counts)
 }
 
+void LD2450Component::add_zone(PresenceZone *zone) { zones.emplace_back(zone); }
+
 Target &LD2450Component::get_target(uint8_t n) const { return targets_[n]; }
 
 void LD2450Component::setup() { ESP_LOGCONFIG(TAG, "LD2450 setup complete."); }
@@ -44,6 +46,10 @@ void LD2450Component::parseAndPublishRecord_(const uint8_t *buffer) {
     targets_[i].update_from_buffer(buffer + 4 + (i * 8));
     active_targets += targets_[i].valid();
     targets_[i].publish();
+
+    for (auto *zone : zones) {
+      zone->check_targets(targets_, num_targets_);
+    }
   }
 
   PUBLISH_BINARY_SENSOR(any_presence, active_targets > 0)

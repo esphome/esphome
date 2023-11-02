@@ -8,12 +8,41 @@ CODEOWNERS = ["@amcfague"]
 
 ld2450_ns = cg.esphome_ns.namespace("ld2450")
 LD2450Component = ld2450_ns.class_("LD2450Component", cg.Component, uart.UARTDevice)
+PresenceZone = ld2450_ns.class_("PresenceZone")
 
 CONF_LD2450_ID = "ld2450_id"
+CONF_X_START = "x_start"
+CONF_Y_START = "y_start"
+CONF_X_END = "x_end"
+CONF_Y_END = "y_end"
+CONF_ZONES = "zones"
+CONF_ZONE_ID = "zone_id"
 
 # This is currently hard-coded from the sensor itself, but it could change one
 # day, so define it here.
 NUM_TARGETS = 3
+
+
+def verify_coordinates(zone):
+    id = zone[CONF_ID]
+    x_start = zone[CONF_X_START]
+    y_start = zone[CONF_Y_START]
+    x_end = zone[CONF_X_END]
+    y_end = zone[CONF_Y_END]
+
+    errors = []
+    if x_start > x_end:
+        errors.append(f"{id}: x_end ({x_end}) must be less than x_start ({x_start})")
+    if y_start > y_end:
+        errors.append(f"{id}: y_end ({y_end}) must be less than y_start ({y_start})")
+
+    if errors:
+        raise cv.MultipleInvalid(errors=errors)
+
+    return zone
+
+
+coordinate_ranges = cv.int_range(-4000, 4000)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -21,6 +50,20 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_THROTTLE, default="1000ms"): cv.All(
             cv.positive_time_period_milliseconds,
             cv.Range(min=cv.TimePeriod(milliseconds=1)),
+        ),
+        cv.Optional(CONF_ZONES): cv.ensure_list(
+            cv.All(
+                cv.Schema(
+                    {
+                        cv.GenerateID(): cv.declare_id(PresenceZone),
+                        cv.Required(CONF_X_START): coordinate_ranges,
+                        cv.Required(CONF_Y_START): coordinate_ranges,
+                        cv.Required(CONF_X_END): coordinate_ranges,
+                        cv.Required(CONF_Y_END): coordinate_ranges,
+                    }
+                ),
+                verify_coordinates,
+            )
         ),
     }
 )
@@ -43,3 +86,13 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     cg.add(var.set_throttle(config[CONF_THROTTLE]))
+    if zones := config.get(CONF_ZONES):
+        for zone in zones:
+            zone_obj = cg.new_Pvariable(
+                zone[CONF_ID],
+                zone[CONF_X_START],
+                zone[CONF_Y_START],
+                zone[CONF_X_END],
+                zone[CONF_Y_END],
+            )
+            cg.add(var.add_zone(zone_obj))
