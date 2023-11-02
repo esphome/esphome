@@ -128,13 +128,13 @@ MMWAVE_SETTINGS_SCHEMA = cv.Schema(
         cv.Optional(CONF_OUTPUT_LATENCY): {
             cv.Required(CONF_DELAY_AFTER_DETECT): cv.templatable(
                 cv.All(
-                    cv.positive_time_period,
+                    cv.positive_time_period_milliseconds,
                     cv.Range(max=core.TimePeriod(seconds=1638.375)),
                 )
             ),
             cv.Required(CONF_DELAY_AFTER_DISAPPEAR): cv.templatable(
                 cv.All(
-                    cv.positive_time_period,
+                    cv.positive_time_period_milliseconds,
                     cv.Range(max=core.TimePeriod(seconds=1638.375)),
                 )
             ),
