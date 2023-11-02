@@ -10,7 +10,6 @@ from esphome.const import (
     UNIT_CELSIUS,
     CONF_TEMPERATURE,
     CONF_PRESSURE,
-    CONF_OFFSET,
 )
 
 DEPENDENCIES = ["i2c"]
