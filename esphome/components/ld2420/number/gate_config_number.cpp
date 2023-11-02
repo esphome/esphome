@@ -51,7 +51,7 @@ LD2420MoveThresholdNumbers::LD2420MoveThresholdNumbers(uint8_t gate) : gate_(gat
 
 void LD2420MoveThresholdNumbers::control(float move_threshold) {
   this->publish_state(move_threshold);
-  if (this->parent_->is_gate_select()) {
+  if (!this->parent_->is_gate_select()) {
     this->parent_->new_config.move_thresh[this->gate_] = move_threshold;
   } else {
     this->parent_->new_config.move_thresh[this->parent_->get_gate_select_value()] = move_threshold;

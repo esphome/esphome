@@ -165,7 +165,7 @@ async def to_code(config):
             cg.add(LD2420_component.set_gate_move_threshold_numbers(0, n))
     else:
         for x in range(16):
-            if gate_conf := config.get(f"g{x}"):
+            if gate_conf := config.get(f"gate_{x}"):
                 move_config = gate_conf[CONF_MOVE_THRESHOLD]
                 n = cg.new_Pvariable(move_config[CONF_ID], x)
                 await number.register_number(
