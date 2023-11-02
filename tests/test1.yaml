@@ -2148,6 +2148,20 @@ light:
             state += 1;
             if (state == 4)
               state = 0;
+      - pulse:
+          transition_length: 10s
+          update_interval: 20s
+          min_brightness: 10%
+          max_brightness: 90%
+      - pulse:
+          name: pulse2
+          transition_length:
+            on_length: 10s
+            off_length: 5s
+          update_interval: 15s
+          min_brightness: 10%
+          max_brightness: 90%
+
   - platform: rgb
     name: Living Room Lights
     id: ${roomname}_lights
