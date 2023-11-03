@@ -68,6 +68,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
             cv.Optional(CONF_JS_URL): cv.string,
             cv.Optional(CONF_JS_INCLUDE): cv.file_,
+            cv.Optional(CONF_ENABLE_PRIVATE_NETWORK_ACCESS, default=True): cv.boolean,
             cv.Optional(CONF_AUTH): cv.Schema(
                 {
                     cv.Required(CONF_USERNAME): cv.All(
@@ -158,6 +159,8 @@ async def to_code(config):
         cg.add(var.set_js_url(config[CONF_JS_URL]))
     cg.add(var.set_allow_ota(config[CONF_OTA]))
     cg.add(var.set_expose_log(config[CONF_LOG]))
+    if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
+        cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS");
     if CONF_AUTH in config:
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))

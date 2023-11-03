@@ -6,6 +6,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_ARDUINO
 #include "StreamString.h"
@@ -130,8 +131,8 @@ void WebServer::setup() {
         [this](int level, const char *tag, const char *message) { this->events_.send(message, "log", millis()); });
   }
 #endif
-  this->base_->add_handler(&this->events_);
   this->base_->add_handler(this);
+  this->base_->add_handler(&this->events_);
 
   if (this->allow_ota_)
     this->base_->add_ota_handler();
@@ -356,6 +357,16 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
       request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
   // No gzip header here because the HTML file is so small
   request->send(response);
+}
+#endif
+
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
+    AsyncWebServerResponse *response = request->beginResponse(200, "");
+    response->addHeader("Access-Control-Allow-Private-Network", "true");
+    response->addHeader("Private-Network-Access-Name", App.get_name().c_str());
+    response->addHeader("Private-Network-Access-ID", get_mac_address_pretty().c_str());
+    request->send(response);
 }
 #endif
 
@@ -1145,6 +1156,13 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+  if (request->method() == HTTP_OPTIONS && request->hasHeader("Access-Control-Request-Private-Network")) {
+      request->addInterestingHeader("Access-Control-Request-Private-Network");
+      return true;
+  }
+#endif
+
   UrlMatch match = match_url(request->url().c_str(), true);
   if (!match.valid)
     return false;
@@ -1237,6 +1255,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   if (request->url() == "/0.js") {
     this->handle_js_request(request);
     return;
+  }
+#endif
+
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+  if (request->method() == HTTP_OPTIONS && request->hasHeader("Access-Control-Request-Private-Network")) {
+      this->handle_pna_cors_request(request);
+      return;
   }
 #endif
 
