@@ -1,6 +1,7 @@
 ---
 esphome:
   name: $device_name
+  check_pin_use: false
   comment: $device_comment
   build_path: build/test3.1
   includes:

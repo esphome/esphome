@@ -43,6 +43,7 @@ class PinRegistry(dict):
         if (
             CORE.raw_config[CONF_ESPHOME].get(CONF_CHECK_PIN_USE) is False
             or CONF_NUMBER not in config
+            or config.get(CONF_OTHER_USES) is True
         ):
             return
         key = config[component] if component in config else component
@@ -119,8 +120,9 @@ def _schema_creator(default_mode, internal: bool = False):
         value = _set_mode(value, default_mode)
         keys = list(filter(lambda k: k in value, PIN_SCHEMA_REGISTRY))
         key = CORE.target_platform if internal or not keys else keys[0]
+        value = PIN_SCHEMA_REGISTRY[key][1](value)
         PIN_SCHEMA_REGISTRY.increment_count(key, value)
-        return PIN_SCHEMA_REGISTRY[key][1](value)
+        return value
 
     return validator
 
