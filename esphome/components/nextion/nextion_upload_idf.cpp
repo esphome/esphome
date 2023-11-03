@@ -18,7 +18,7 @@ static const char *const TAG = "nextion_upload";
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
 
-int Nextion::upload_range(const std::string &url, int range_start) {
+int Nextion::upload_range_(const std::string &url, int range_start) {
   ESP_LOGVV(TAG, "url: %s", url.c_str());
   uint range_size = this->tft_size_ - range_start;
   ESP_LOGVV(TAG, "tft_size_: %i", this->tft_size_);
@@ -131,12 +131,12 @@ bool Nextion::upload_tft() {
 
   if (this->is_updating_) {
     ESP_LOGW(TAG, "Currently updating");
-    return upload_end(false);
+    return upload_end_(false);
   }
 
   if (!network::is_connected()) {
     ESP_LOGE(TAG, "Network is not connected");
-    return upload_end(false);
+    return upload_end_(false);
   }
 
   this->is_updating_ = true;
@@ -157,7 +157,7 @@ bool Nextion::upload_tft() {
   esp_http_client_handle_t http = esp_http_client_init(&config);
   if (!http) {
     ESP_LOGE(TAG, "Failed to initialize HTTP client.");
-    return upload_end(false);  // return -1 to indicate an error
+    return upload_end_(false);  // return -1 to indicate an error
   }
 
   // Perform the HTTP request
@@ -167,7 +167,7 @@ bool Nextion::upload_tft() {
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "HTTP request failed: %s", esp_err_to_name(err));
     esp_http_client_cleanup(http);
-    return upload_end(false);
+    return upload_end_(false);
   }
 
   // Check the HTTP Status Code
@@ -179,7 +179,7 @@ bool Nextion::upload_tft() {
   if (tft_file_size < 4096) {
     ESP_LOGE(TAG, "File size check failed. Size: %zu", tft_file_size);
     esp_http_client_cleanup(http);
-    return upload_end(false);
+    return upload_end_(false);
   } else {
     ESP_LOGD(TAG, "File size check passed. Proceeding...");
   }
@@ -216,7 +216,7 @@ bool Nextion::upload_tft() {
   } else {
     ESP_LOGE(TAG, "Preparation for tft update failed %d \"%s\"", response[0], response.c_str());
     esp_http_client_cleanup(http);
-    return upload_end(false);
+    return upload_end_(false);
   }
 
   ESP_LOGD(TAG, "Updating tft from \"%s\" with a file size of %d, Heap Size %d", this->tft_url_.c_str(),
@@ -225,11 +225,11 @@ bool Nextion::upload_tft() {
   ESP_LOGV(TAG, "Starting transfer by chunks loop");
   int result = 0;
   while (content_length_ > 0) {
-    result = upload_range(url.c_str(), result);
+    result = upload_range_(url.c_str(), result);
     if (result < 0) {
       ESP_LOGE(TAG, "Error updating Nextion!");
       esp_http_client_cleanup(http);
-      return upload_end(false);
+      return upload_end_(false);
     }
     App.feed_wdt();
     ESP_LOGV(TAG, "Heap Size %d, Bytes left %d", esp_get_free_heap_size(), content_length_);
@@ -240,10 +240,10 @@ bool Nextion::upload_tft() {
   ESP_LOGD(TAG, "Close HTTP connection");
   esp_http_client_close(http);
   esp_http_client_cleanup(http);
-  return upload_end(true);
+  return upload_end_(true);
 }
 
-bool Nextion::upload_end(bool successful) {
+bool Nextion::upload_end_(bool successful) {
   this->is_updating_ = false;
   ESP_LOGD(TAG, "Restarting Nextion");
   this->soft_reset();

@@ -669,10 +669,18 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #endif
 
+#ifdef ARDUINO
   /**
    * Upload the tft file and softreset the Nextion
    */
   void upload_tft();
+#elif defined(ESP_PLATFORM)
+  /**
+   * Upload the tft file and soft reset Nextion
+   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   */
+  bool Nextion::upload_tft()
+#endif  // ARDUINO vs ESP-IDF
   void dump_config() override;
 
   /**
@@ -793,16 +801,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
   WiFiClient *get_wifi_client_();
 #endif
-
+  int content_length_ = 0;
+  int tft_size_ = 0;
+#ifdef ARDUINO
   /**
    * will request chunk_size chunks from the web server
    * and send each to the nextion
-   * @param int contentLength Total size of the file
-   * @param uint32_t chunk_size
-   * @return true if success, false for failure.
+   * @param HTTPClient http HTTP client handler.
+   * @param int range_start Position of next byte to transfer.
+   * @return position of last byte transferred, -1 for failure.
    */
-  int content_length_ = 0;
-  int tft_size_ = 0;
   int upload_by_chunks_(HTTPClient *http, int range_start);
 
   bool upload_with_range_(uint32_t range_start, uint32_t range_end);
@@ -816,6 +824,23 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool upload_from_buffer_(const uint8_t *file_buf, size_t buf_size);
   void upload_end_();
+#elif defined(ESP_PLATFORM)
+  /**
+   * will request 4096 bytes chunks from the web server
+   * and send each to Nextion
+   * @param std::string url Full url for download.
+   * @param int range_start Position of next byte to transfer.
+   * @return position of last byte transferred, -1 for failure.
+   */
+  int Nextion::upload_range_(const std::string &url, int range_start)
+  /**
+   * Ends the upload process, restart Nextion and, if successful,
+   * restarts ESP
+   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
+   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   */
+  bool Nextion::upload_end_(bool successful)
+#endif  // ARDUINO vs ESP-IDF
 
 #endif  // USE_NEXTION_TFT_UPLOAD
 
