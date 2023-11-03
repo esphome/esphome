@@ -11,7 +11,7 @@ from esphome.const import (
 )
 from esphome.cpp_helpers import setup_entity
 
-CODEOWNERS = ["@grahambrown11", "hwstar"]
+CODEOWNERS = ["@grahambrown11", "@hwstar"]
 IS_PLATFORM_COMPONENT = True
 
 CONF_ON_TRIGGERED = "on_triggered"
