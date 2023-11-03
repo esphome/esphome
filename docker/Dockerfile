@@ -43,10 +43,11 @@ RUN \
           zlib1g-dev=1:1.2.13.dfsg-1 \
           libjpeg-dev=1:2.1.5-2 \
           libfreetype-dev=2.12.1+dfsg-5 \
-          libssl-dev=3.0.11-1~deb12u1 \
+          libssl-dev=3.0.11-1~deb12u2 \
           libffi-dev=3.4.4-1 \
           cargo=0.66.0+ds1-1 \
           pkg-config=1.8.1-1; \
+          gcc-arm-linux-gnueabihf=4:12.2.0-3; \
     fi; \
     rm -rf \
         /tmp/* \
@@ -99,6 +100,10 @@ ENV USERNAME="" PASSWORD=""
 
 # Expose the dashboard to Docker
 EXPOSE 6052
+
+# Run healthcheck (heartbeat)
+HEALTHCHECK --interval=30s --timeout=30s \
+  CMD curl --fail http://localhost:6052/version -A "HealthCheck" || exit 1
 
 COPY docker/docker_entrypoint.sh /entrypoint.sh
 
