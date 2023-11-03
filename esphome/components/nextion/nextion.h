@@ -832,14 +832,14 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param int range_start Position of next byte to transfer.
    * @return position of last byte transferred, -1 for failure.
    */
-  int Nextion::upload_range_(const std::string &url, int range_start);
+  int Nextion::upload_range(const std::string &url, int range_start);
   /**
    * Ends the upload process, restart Nextion and, if successful,
    * restarts ESP
    * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
-  bool Nextion::upload_end_(bool successful);
+  bool Nextion::upload_end(bool successful);
 #endif  // ARDUINO vs ESP-IDF
 
 #endif  // USE_NEXTION_TFT_UPLOAD
