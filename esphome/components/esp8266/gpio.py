@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
+    PLATFORM_ESP8266,
 )
 from esphome import pins
 from esphome.core import CORE, coroutine_with_priority
@@ -151,7 +152,7 @@ class PinInitialState:
     level: int = 255
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("esp8266", ESP8266_PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register(PLATFORM_ESP8266, ESP8266_PIN_SCHEMA)
 async def esp8266_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]

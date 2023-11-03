@@ -224,12 +224,24 @@ GPIO_STANDARD_MODES = (
 )
 
 
-def gpio_base_schema(pin_type, validator, modes=GPIO_STANDARD_MODES, invertable=True):
+def gpio_validate_modes(value):
+    if value[CONF_INPUT] == value[CONF_OUTPUT]:
+        raise cv.Invalid("Mode must be either input or output")
+
+
+def gpio_base_schema(
+    pin_type,
+    number_validator,
+    modes=GPIO_STANDARD_MODES,
+    mode_validator=gpio_validate_modes,
+    invertable=True,
+):
     """
     Generate a base gpio pin schema
     :param pin_type: The type for the pin variable
-    :param validator: A validator for the pin number
+    :param number_validator: A validator for the pin number
     :param modes: The available modes, default is all standard modes
+    :param mode_validator: A validator function for the pin mode
     :param invertable: If the pin supports hardware inversion
     :return: A schema for the pin
     """
@@ -237,9 +249,9 @@ def gpio_base_schema(pin_type, validator, modes=GPIO_STANDARD_MODES, invertable=
     schema = cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(pin_type),
-            cv.Required(CONF_NUMBER): validator,
+            cv.Required(CONF_NUMBER): number_validator,
             cv.Optional(CONF_OTHER_USES): cv.boolean,
-            cv.Optional(CONF_MODE, default={}): cv.Schema(mode_dict),
+            cv.Optional(CONF_MODE, default={}): cv.All(mode_dict, mode_validator),
         }
     )
     if invertable:
