@@ -12,17 +12,17 @@
 #include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-#ifdef USE_ESP32
 #ifdef ARDUINO
+#ifdef USE_ESP32
 #include <HTTPClient.h>
-#elif defined(ESP_PLATFORM)
-#include <esp_http_client.h>
-#endif  // ARDUINO vs ESP-IDF
 #endif  // USE_ESP32
 #ifdef USE_ESP8266
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
 #endif  // USE_ESP8266
+#elif defined(ESP_PLATFORM)
+#include <esp_http_client.h>
+#endif  // ARDUINO vs ESP-IDF
 #endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome {

@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import display, uart
+from esphome.components import display, uart, esp32
 from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
@@ -84,9 +84,12 @@ async def to_code(config):
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
         if CORE.is_esp32:
-            cg.add_library("WiFiClientSecure", None)
-            cg.add_library("HTTPClient", None)
-        if CORE.is_esp8266:
+            if esp32.framework.framework['name'] == 'esp-idf':  # framework: esp-idf
+                cg.add_library("esp_http_client", None)
+            else:
+                cg.add_library("WiFiClientSecure", None)
+                cg.add_library("HTTPClient", None)
+        elif CORE.is_esp8266:
             cg.add_library("ESP8266HTTPClient", None)
 
     if CONF_TOUCH_SLEEP_TIMEOUT in config:
