@@ -77,6 +77,7 @@ esphome/components/dashboard_import/* @esphome/core
 esphome/components/debug/* @OttoWinter
 esphome/components/delonghi/* @grob6000
 esphome/components/dfplayer/* @glmnet
+esphome/components/dfrobot_sen0395/* @niklasweber
 esphome/components/dht/* @OttoWinter
 esphome/components/display_menu_base/* @numo68
 esphome/components/dps310/* @kbx81
@@ -151,6 +152,7 @@ esphome/components/key_provider/* @ssieb
 esphome/components/kuntze/* @ssieb
 esphome/components/lcd_menu/* @numo68
 esphome/components/ld2410/* @regevbr @sebcaps
+esphome/components/ld2420/* @descipher
 esphome/components/ledc/* @OttoWinter
 esphome/components/libretiny/* @kuba2k2
 esphome/components/libretiny_pwm/* @kuba2k2
@@ -182,6 +184,7 @@ esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
 esphome/components/media_player/* @jesserockz
+esphome/components/micronova/* @jorre05
 esphome/components/microphone/* @jesserockz
 esphome/components/mics_4514/* @jesserockz
 esphome/components/midea/* @dudanov
@@ -216,7 +219,7 @@ esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pca6416a/* @Mat931
-esphome/components/pca9554/* @hwstar
+esphome/components/pca9554/* @clydebarrow @hwstar
 esphome/components/pcf85063/* @brogon
 esphome/components/pcf8563/* @KoenBreeman
 esphome/components/pid/* @OttoWinter
