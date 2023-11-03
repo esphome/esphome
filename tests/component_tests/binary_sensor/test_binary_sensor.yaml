@@ -1,6 +1,7 @@
 ---
 esphome:
   name: test
+  check_pin_use: false
   platform: ESP8266
   board: d1_mini_lite
 

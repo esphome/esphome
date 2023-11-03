@@ -1,7 +1,7 @@
 import operator
+from functools import reduce
 import esphome.config_validation as cv
 from esphome.core import ID
-from functools import reduce
 
 from esphome.const import (
     CONF_INPUT,
@@ -202,8 +202,6 @@ internal_gpio_input_pullup_pin_number = _internal_number_creator(
 
 
 def check_strapping_pin(conf, strapping_pin_list, logger):
-    import esphome.config_validation as cv
-
     num = conf[CONF_NUMBER]
     if num in strapping_pin_list and not conf.get(CONF_IGNORE_STRAPPING_WARNING):
         logger.warning(
