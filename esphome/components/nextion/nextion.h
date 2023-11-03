@@ -669,18 +669,12 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #endif
 
-#ifdef ARDUINO
-  /**
-   * Upload the tft file and softreset the Nextion
-   */
-  void upload_tft();
-#elif defined(ESP_PLATFORM)
   /**
    * Upload the tft file and soft reset Nextion
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
   bool upload_tft();
-#endif  // ARDUINO vs ESP-IDF
+
   void dump_config() override;
 
   /**
@@ -823,7 +817,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return true if success, false for failure.
    */
   bool upload_from_buffer_(const uint8_t *file_buf, size_t buf_size);
-  void upload_end_();
+  /**
+   * Ends the upload process, restart Nextion and, if successful,
+   * restarts ESP
+   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
+   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   */
+  bool upload_end_(bool successful);
 #elif defined(ESP_PLATFORM)
   /**
    * will request 4096 bytes chunks from the web server
