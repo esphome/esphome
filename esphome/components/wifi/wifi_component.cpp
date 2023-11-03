@@ -82,8 +82,8 @@ void WiFiComponent::start() {
     } else {
       this->start_scanning();
     }
+#ifdef USE_WIFI_AP
   } else if (this->has_ap()) {
-#ifdef ENABLE_WIFI_AP
     this->setup_ap_config_();
     if (this->output_power_.has_value() && !this->wifi_apply_output_power_(*this->output_power_)) {
       ESP_LOGV(TAG, "Setting Output Power Option failed!");
@@ -95,7 +95,7 @@ void WiFiComponent::start() {
       captive_portal::global_captive_portal->start();
     }
 #endif
-#endif  // ENABLE_WIFI_AP
+#endif  // USE_WIFI_AP
   }
 #ifdef USE_IMPROV
   if (!this->has_sta() && esp32_improv::global_improv_component != nullptr) {
@@ -162,8 +162,8 @@ void WiFiComponent::loop() {
         return;
     }
 
+#if USE_WIFI_AP
     if (this->has_ap() && !this->ap_setup_) {
-#if ENABLE_WIFI_AP
       if (now - this->last_connected_ > this->ap_timeout_) {
         ESP_LOGI(TAG, "Starting fallback AP!");
         this->setup_ap_config_();
@@ -172,8 +172,8 @@ void WiFiComponent::loop() {
           captive_portal::global_captive_portal->start();
 #endif
       }
-#endif  // ENABLE_WIFI_AP
     }
+#endif  // USE_WIFI_AP
 
 #ifdef USE_IMPROV
     if (esp32_improv::global_improv_component != nullptr && !esp32_improv::global_improv_component->is_active()) {
@@ -208,10 +208,10 @@ network::IPAddress WiFiComponent::get_ip_address() {
   if (this->has_sta())
     return this->wifi_sta_ip();
 
-#if ENABLE_WIFI_AP
+#if USE_WIFI_AP
   if (this->has_ap())
     return this->wifi_soft_ap_ip();
-#endif  // ENABLE_WIFI_AP
+#endif  // USE_WIFI_AP
 
   return {};
 }
@@ -228,7 +228,7 @@ std::string WiFiComponent::get_use_address() const {
 }
 void WiFiComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
 
-#ifdef ENABLE_WIFI_AP
+#ifdef USE_WIFI_AP
 void WiFiComponent::setup_ap_config_() {
   this->wifi_mode_({}, true);
 
@@ -265,18 +265,16 @@ void WiFiComponent::setup_ap_config_() {
     this->state_ = WIFI_COMPONENT_STATE_AP;
   }
 }
-#endif  // ENABLE_WIFI_AP
 
-float WiFiComponent::get_loop_priority() const {
-  return 10.0f;  // before other loop components
-}
-
-#ifdef ENABLE_WIFI_AP
 void WiFiComponent::set_ap(const WiFiAP &ap) {
   this->ap_ = ap;
   this->has_ap_ = true;
 }
-#endif  // ENABLE_WIFI_AP
+#endif  // USE_WIFI_AP
+
+float WiFiComponent::get_loop_priority() const {
+  return 10.0f;  // before other loop components
+}
 
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
 void WiFiComponent::set_sta(const WiFiAP &ap) {

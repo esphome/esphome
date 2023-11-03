@@ -689,7 +689,7 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
   this->scan_done_ = true;
 }
 
-#ifdef ENABLE_WIFI_AP
+#ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   // enable AP
   if (!this->wifi_mode_({}, true))
@@ -799,7 +799,7 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   wifi_get_ip_info(SOFTAP_IF, &ip);
   return network::IPAddress(&ip.ip);
 }
-#endif  // ENABLE_WIFI_AP
+#endif  // USE_WIFI_AP
 
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};

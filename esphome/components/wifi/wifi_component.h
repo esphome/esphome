@@ -194,7 +194,7 @@ class WiFiComponent : public Component {
   void add_sta(const WiFiAP &ap);
   void clear_sta();
 
-#ifdef ENABLE_WIFI_AP
+#ifdef USE_WIFI_AP
   /** Setup an Access Point that should be created if no connection to a station can be made.
    *
    * This can also be used without set_sta(). Then the AP will always be active.
@@ -204,7 +204,7 @@ class WiFiComponent : public Component {
    */
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
-#endif  // ENABLE_WIFI_AP
+#endif  // USE_WIFI_AP
 
   void enable();
   void disable();
@@ -302,9 +302,9 @@ class WiFiComponent : public Component {
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
 
-#ifdef ENABLE_WIFI_AP
+#ifdef USE_WIFI_AP
   void setup_ap_config_();
-#endif  // ENABLE_WIFI_AP
+#endif  // USE_WIFI_AP
 
   void print_connect_params_();
 
@@ -320,10 +320,10 @@ class WiFiComponent : public Component {
   WiFiSTAConnectStatus wifi_sta_connect_status_();
   bool wifi_scan_start_(bool passive);
 
-#ifdef ENABLE_WIFI_AP
+#ifdef USE_WIFI_AP
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
-#endif  // ENABLE_WIFI_AP
+#endif  // USE_WIFI_AP
 
   bool wifi_disconnect_();
   int32_t wifi_channel_();

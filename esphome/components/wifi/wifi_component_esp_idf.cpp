@@ -18,9 +18,9 @@
 #include <esp_wpa2.h>
 #endif
 
-#ifdef ENABLE_WIFI_AP
+#ifdef USE_WIFI_AP
 #include "dhcpserver/dhcpserver.h"
-#endif  // ENABLE_WIFI_AP
+#endif  // USE_WIFI_AP
 
 #include "lwip/err.h"
 #include "lwip/dns.h"
@@ -40,9 +40,9 @@ static EventGroupHandle_t s_wifi_event_group;  // NOLINT(cppcoreguidelines-avoid
 static QueueHandle_t s_event_queue;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#ifdef ENABLE_WIFI_AP
+#ifdef USE_WIFI_AP
 static esp_netif_t *s_ap_netif = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-#endif                                     // ENABLE_WIFI_AP
+#endif                                     // USE_WIFI_AP
 
 static bool s_sta_started = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -168,9 +168,9 @@ void WiFiComponent::wifi_pre_setup_() {
 
   s_sta_netif = esp_netif_create_default_wifi_sta();
 
-#ifdef ENABLE_WIFI_AP
+#ifdef USE_WIFI_AP
   s_ap_netif = esp_netif_create_default_wifi_ap();
-#endif  // ENABLE_WIFI_AP
+#endif  // USE_WIFI_AP
 
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   // cfg.nvs_enable = false;
@@ -774,7 +774,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   return true;
 }
 
-#ifdef ENABLE_WIFI_AP
+#ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   esp_err_t err;
 
@@ -868,7 +868,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
-#endif  // ENABLE_WIFI_AP
+#endif  // USE_WIFI_AP
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   esp_netif_ip_info_t ip;
