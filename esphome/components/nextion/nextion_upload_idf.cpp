@@ -251,7 +251,7 @@ bool Nextion::upload_end(bool successful) {
   vTaskDelay(pdMS_TO_TICKS(1500));  // NOLINT
   if (successful) {
     ESP_LOGD(TAG, "Restarting esphome");
-    ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
+    esp_restart();  // NOLINT(readability-static-accessed-through-instance)
   }
   return successful;
 }
