@@ -81,7 +81,7 @@ int Nextion::upload_range(const std::string &url, int range_start) {
       if (read_len > 0) {
         this->write_array(buffer, read_len);
         ESP_LOGVV(TAG, "Write to UART successful");
-        recv_ret_string_(recv_string, 5000, true);
+        this->recv_ret_string_(recv_string, 2000, true);
         this->content_length_ -= read_len;
         ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %d bytes",
                  100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_);
@@ -182,7 +182,7 @@ bool Nextion::upload_tft() {
     esp_http_client_cleanup(http);
     return upload_end(false);
   } else {
-    ESP_LOGD(TAG, "File size check passed. Proceeding...");
+    ESP_LOGV(TAG, "File size check passed. Proceeding...");
   }
   this->content_length_ = tft_file_size;
   this->tft_size_ = tft_file_size;
@@ -205,8 +205,8 @@ bool Nextion::upload_tft() {
   this->send_command_(command);
 
   std::string response;
-  ESP_LOGD(TAG, "Waiting for upgrade response");
-  recv_ret_string_(response, 2000, true);  // This can take some time to return
+  ESP_LOGV(TAG, "Waiting for upgrade response");
+  this->recv_ret_string_(response, 2048, true);  // This can take some time to return
 
   // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
   ESP_LOGD(TAG, "Upgrade response is [%s]",
