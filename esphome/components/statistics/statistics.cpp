@@ -17,21 +17,21 @@ namespace statistics {
 static const char *const TAG = "statistics";
 static const uint32_t NEVER_BOUND = 4294967295UL;  // uint32_t maximum
 
-const LogString *weight_type_to_string(WeightType type) {
+static const LogString *weight_type_to_string(WeightType type) {
   if (type == WEIGHT_TYPE_SIMPLE)
     return LOG_STR("simple");
 
   return LOG_STR("duration");
 }
 
-const LogString *group_type_to_string(GroupType type) {
+static const LogString *group_type_to_string(GroupType type) {
   if (type == GROUP_TYPE_SAMPLE)
     return LOG_STR("sample");
 
   return LOG_STR("population");
 }
 
-const LogString *window_type_to_string(WindowType type) {
+static const LogString *window_type_to_string(WindowType type) {
   switch (type) {
     case WINDOW_TYPE_SLIDING:
       return LOG_STR("sliding");
@@ -44,7 +44,7 @@ const LogString *window_type_to_string(WindowType type) {
   }
 }
 
-const LogString *statistic_type_to_string(StatisticType type) {
+static const LogString *statistic_type_to_string(StatisticType type) {
   switch (type) {
     case STATISTIC_COUNT:
       return LOG_STR("Count Sensor:");
