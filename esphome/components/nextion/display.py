@@ -88,9 +88,9 @@ async def to_code(config):
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
         core_data = CORE.data[KEY_CORE]
         framework = core_data[KEY_TARGET_FRAMEWORK]
-        if framework == "esp-idf":
+        #if framework == "esp-idf":
             # cg.add_library("esp_http_client", None)
-        elif CORE.is_esp32 and framework == "arduino":
+        if CORE.is_esp32 and framework == "arduino":
             cg.add_library("WiFiClientSecure", None)
             cg.add_library("HTTPClient", None)
         elif CORE.is_esp8266 and framework == "arduino":
