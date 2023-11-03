@@ -21,9 +21,7 @@ import esphome.codegen as cg
 from . import boards
 from .const import KEY_BOARD, KEY_ESP8266, KEY_PIN_INITIAL_STATES, esp8266_ns
 
-
 _LOGGER = logging.getLogger(__name__)
-
 
 ESP8266GPIOPin = esp8266_ns.class_("ESP8266GPIOPin", cg.InternalGPIOPin)
 
@@ -142,21 +140,7 @@ def validate_supports(value):
 
 
 ESP8266_PIN_SCHEMA = cv.All(
-    {
-        cv.GenerateID(): cv.declare_id(ESP8266GPIOPin),
-        cv.Required(CONF_NUMBER): validate_gpio_pin,
-        cv.Optional(CONF_MODE, default={}): cv.Schema(
-            {
-                cv.Optional(CONF_ANALOG, default=False): cv.boolean,
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OPEN_DRAIN, default=False): cv.boolean,
-                cv.Optional(CONF_PULLUP, default=False): cv.boolean,
-                cv.Optional(CONF_PULLDOWN, default=False): cv.boolean,
-            }
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-    },
+    pins.gpio_base_schema(ESP8266GPIOPin, validate_gpio_pin),
     validate_supports,
 )
 

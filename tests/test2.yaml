@@ -1,6 +1,7 @@
 ---
 esphome:
   name: $devicename
+  check_pin_use: false
   platform: ESP32
   board: nodemcu-32s
   build_path: build/test2
