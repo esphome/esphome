@@ -860,6 +860,11 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
   start = millis();
 
   while ((timeout == 0 && this->available()) || millis() - start <= timeout) {
+    if (!this->available()) {
+      App.feed_wdt();
+      continue;
+    }
+
     this->read_byte(&c);
     if (c == 0xFF) {
       nr_of_ff_bytes++;
@@ -878,7 +883,7 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
       }
     }
     App.feed_wdt();
-    delay(1);
+    delay(2);
 
     if (exit_flag || ff_flag) {
       break;
