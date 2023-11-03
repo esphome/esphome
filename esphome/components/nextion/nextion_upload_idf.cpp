@@ -226,7 +226,7 @@ bool Nextion::upload_tft() {
   ESP_LOGV(TAG, "Starting transfer by chunks loop");
   int result = 0;
   while (content_length_ > 0) {
-    result = upload_range(url.c_str(), result);
+    result = upload_range(this->tft_url_.c_str(), result);
     if (result < 0) {
       ESP_LOGE(TAG, "Error updating Nextion!");
       esp_http_client_cleanup(http);
