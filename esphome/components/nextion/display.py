@@ -89,7 +89,7 @@ async def to_code(config):
         core_data = CORE.data[KEY_CORE]
         framework = core_data[KEY_TARGET_FRAMEWORK]
         if framework == "esp-idf":
-            cg.add_library("esp_http_client", None)
+            # cg.add_library("esp_http_client", None)
         elif CORE.is_esp32 and framework == "arduino":
             cg.add_library("WiFiClientSecure", None)
             cg.add_library("HTTPClient", None)
