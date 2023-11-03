@@ -7,6 +7,9 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_BRIGHTNESS,
     CONF_TRIGGER_ID,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+    KEY_TARGET_FRAMEWORK,
 )
 from esphome.core import CORE
 from . import Nextion, nextion_ns, nextion_ref
@@ -83,13 +86,14 @@ async def to_code(config):
     if CONF_TFT_URL in config:
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
-        if CORE.is_esp32:
-            if esp32.framework.framework['name'] == 'esp-idf':  # framework: esp-idf
-                cg.add_library("esp_http_client", None)
-            else:
-                cg.add_library("WiFiClientSecure", None)
-                cg.add_library("HTTPClient", None)
-        elif CORE.is_esp8266:
+        core_data = CORE.data[KEY_CORE]
+        framework = core_data[KEY_TARGET_FRAMEWORK]
+        if framework == "esp-idf":
+            cg.add_library("esp_http_client", None)
+        elif CORE.is_esp32 and framework == "arduino":
+            cg.add_library("WiFiClientSecure", None)
+            cg.add_library("HTTPClient", None)
+        elif CORE.is_esp8266 and framework == "arduino":
             cg.add_library("ESP8266HTTPClient", None)
 
     if CONF_TOUCH_SLEEP_TIMEOUT in config:
