@@ -37,16 +37,16 @@ enum TemplateAlarmControlPanelRestoreMode {
   ALARM_CONTROL_PANEL_RESTORE_DEFAULT_DISARMED,
 };
 
-typedef struct SensorDataStore {
+using SensorDataStore = struct SensorDataStore {
   bool last_chime_state;
-} SensorDataStore;
+};
 
-typedef struct SensorInfo {
+using SensorInfo = struct SensorInfo {
   uint16_t flags;
   uint16_t type;
   bool last_chime_state;
   SensorDataStore *data_store;
-} SensorInfo;
+};
 
 class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel, public Component {
  public:

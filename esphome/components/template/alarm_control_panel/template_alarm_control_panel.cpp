@@ -124,7 +124,7 @@ void TemplateAlarmControlPanel::loop() {
     // Check for chime zones
     if ((sensor_info.second.flags & BINARY_SENSOR_MODE_CHIME)) {
       // Look for the transition from closed to open
-      if ((sensor_info.second.data_store->last_chime_state == false) && (sensor_info.first->state == true)) {
+      if ((!sensor_info.second.data_store->last_chime_state) && (sensor_info.first->state)) {
         // Must be disarmed to chime
         if (this->current_state_ == ACP_STATE_DISARMED) {
           // ESP_LOGI(TAG, "Object ID hash: %08X", sensor_info.first->get_object_id_hash());
@@ -169,7 +169,7 @@ void TemplateAlarmControlPanel::loop() {
     }
   }
   // Update all sensors not ready flag
-  this->sensors_ready_ = ((instant_sensor_not_ready == false) && (delayed_sensor_not_ready == false));
+  this->sensors_ready_ = ((!instant_sensor_not_ready) && (!delayed_sensor_not_ready));
 
   // Call the ready state change callback if there was a change
   if (this->sensors_ready_ != this->sensors_ready_last_) {
