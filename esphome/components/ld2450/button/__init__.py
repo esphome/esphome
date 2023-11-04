@@ -7,13 +7,13 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART,
     ICON_RESTART_ALERT,
+    CONF_FACTORY_RESET,
 )
 from .. import CONF_LD2450_ID, LD2450Component, ld2450_ns
 
 ResetButton = ld2450_ns.class_("ResetButton", button.Button)
 RestartButton = ld2450_ns.class_("RestartButton", button.Button)
 
-CONF_FACTORY_RESET = "factory_reset"
 CONF_RESTART = "restart"
 
 CONFIG_SCHEMA = {
