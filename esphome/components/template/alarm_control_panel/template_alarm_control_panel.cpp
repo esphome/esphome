@@ -23,7 +23,7 @@ void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, 
   this->sensor_map_[sensor].flags = flags;
   this->sensor_map_[sensor].type = type;
   this->sensor_data_.push_back(sd);
-  this->sensor_map_[sensor].store_index = this->next_store_index++;
+  this->sensor_map_[sensor].store_index = this->next_store_index_++;
 };
 #endif
 
@@ -181,12 +181,11 @@ void TemplateAlarmControlPanel::loop() {
     // Instant sensors
     if (instant_sensor_not_ready) {
       this->publish_state(ACP_STATE_TRIGGERED);
-    }
-    // Delayed sensors
-    else if ((this->pending_time_ > 0) && (this->current_state_ != ACP_STATE_TRIGGERED)) {
-      this->publish_state(ACP_STATE_PENDING);
-    } else {  // If pending time is zero, go directly to triggered.
-      this->publish_state(ACP_STATE_TRIGGERED);
+    } else if (delayed_sensor_not_ready) {
+      // Delayed sensors
+      this->publish_state(((this->pending_time_ > 0) && (this->current_state_ != ACP_STATE_TRIGGERED))
+                              ? ACP_STATE_PENDING
+                              : ACP_STATE_TRIGGERED);
     }
   } else if (future_state != this->current_state_) {
     this->publish_state(future_state);
