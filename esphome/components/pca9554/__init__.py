@@ -53,7 +53,10 @@ def validate_mode(value):
 
 
 PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
-    PCA9554GPIOPin, cv.int_range(min=0, max=15), modes=[CONF_INPUT, CONF_OUTPUT]
+    PCA9554GPIOPin,
+    cv.int_range(min=0, max=15),
+    modes=[CONF_INPUT, CONF_OUTPUT],
+    mode_validator=validate_mode,
 ).extend(
     {
         cv.Required(CONF_PCA9554): cv.use_id(PCA9554Component),

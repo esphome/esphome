@@ -225,8 +225,9 @@ GPIO_STANDARD_MODES = (
 
 
 def gpio_validate_modes(value):
-    if value[CONF_INPUT] == value[CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
+    if not value[CONF_INPUT] and not value[CONF_OUTPUT]:
+        raise cv.Invalid("Mode must be input or output")
+    return value
 
 
 def gpio_base_schema(
