@@ -1,11 +1,13 @@
 #pragma once
-#include "esphome/components/api/custom_api_device.h"
+
+#include <map>
+#include <sstream>
+#include <iomanip>
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
+#include "esphome/components/uart/uart.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -21,14 +23,15 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
+#ifdef USE_API
+#include "esphome/components/api/custom_api_device.h"
+#endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
-#include "esphome/components/uart/uart.h"
-#include "esphome/core/helpers.h"
-#include <map>
-#include <sstream>
-#include <iomanip>
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
 #ifndef M_PI
 #define M_PI 3.14
