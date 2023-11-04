@@ -37,9 +37,7 @@ enum TemplateAlarmControlPanelRestoreMode {
   ALARM_CONTROL_PANEL_RESTORE_DEFAULT_DISARMED,
 };
 
-using SensorDataStore = struct SensorDataStore {
-  bool last_chime_state;
-};
+using SensorDataStore = struct SensorDataStore { bool last_chime_state; };
 
 using SensorInfo = struct SensorInfo {
   uint16_t flags;
