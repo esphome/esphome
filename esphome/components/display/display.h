@@ -133,12 +133,10 @@ enum DisplayRotation {
 };
 
 class Display;
-class DisplayBuffer;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
 
 using display_writer_t = std::function<void(Display &)>;
-using display_buffer_writer_t = std::function<void(DisplayBuffer &)>;
 
 #define LOG_DISPLAY(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -411,10 +409,6 @@ class Display {
 
   /// Internal method to set the display writer lambda.
   void set_writer(display_writer_t &&writer);
-  void set_writer(const display_buffer_writer_t &writer) {
-    // Temporary mapping to be removed once all lambdas are changed to use `display.DisplayRef`
-    this->set_writer([writer](Display &display) { return writer((display::DisplayBuffer &) display); });
-  }
 
   void show_page(DisplayPage *page);
   void show_next_page();
@@ -478,14 +472,21 @@ class Display {
    *
    * return rect for active clipping region
    */
-  Rect get_clipping();
+  Rect get_clipping() const;
 
   bool is_clipping() const { return !this->clipping_rectangle_.empty(); }
 
+  /** Check if pixel is within region of display.
+   */
+  bool clip(int x, int y);
+
  protected:
+  bool clamp_x_(int x, int w, int &min_x, int &max_x);
+  bool clamp_y_(int y, int h, int &min_y, int &max_y);
   void vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg);
 
   void do_update_();
+  void clear_clipping_();
 
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};
@@ -499,9 +500,6 @@ class Display {
 class DisplayPage {
  public:
   DisplayPage(display_writer_t writer);
-  // Temporary mapping to be removed once all lambdas are changed to use `display.DisplayRef`
-  DisplayPage(const display_buffer_writer_t &writer)
-      : DisplayPage([writer](Display &display) { return writer((display::DisplayBuffer &) display); }) {}
   void show();
   void show_next();
   void show_prev();

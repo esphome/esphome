@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 #include "list_entities.h"
 
 #include "esphome/components/web_server_base/web_server_base.h"
@@ -218,6 +216,15 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string number_json(number::Number *obj, float value, JsonDetail start_config);
 #endif
 
+#ifdef USE_TEXT
+  void on_text_update(text::Text *obj, const std::string &state) override;
+  /// Handle a text input request under '/text/<id>'.
+  void handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the text state with its value as a JSON string.
+  std::string text_json(text::Text *obj, const std::string &value, JsonDetail start_config);
+#endif
+
 #ifdef USE_SELECT
   void on_select_update(select::Select *obj, const std::string &state, size_t index) override;
   /// Handle a select request under '/select/<id>'.
@@ -291,5 +298,3 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
 }  // namespace web_server
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

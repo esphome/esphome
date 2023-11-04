@@ -57,19 +57,18 @@ async def to_code(config):
         var.get_idle_trigger(), [], config[CONF_IDLE_ACTION]
     )
 
-    if CONF_COOL_ACTION in config:
+    if cool_action_config := config.get(CONF_COOL_ACTION):
         await automation.build_automation(
-            var.get_cool_trigger(), [], config[CONF_COOL_ACTION]
+            var.get_cool_trigger(), [], cool_action_config
         )
         cg.add(var.set_supports_cool(True))
-    if CONF_HEAT_ACTION in config:
+    if heat_action_config := config.get(CONF_HEAT_ACTION):
         await automation.build_automation(
-            var.get_heat_trigger(), [], config[CONF_HEAT_ACTION]
+            var.get_heat_trigger(), [], heat_action_config
         )
         cg.add(var.set_supports_heat(True))
 
-    if CONF_AWAY_CONFIG in config:
-        away = config[CONF_AWAY_CONFIG]
+    if away := config.get(CONF_AWAY_CONFIG):
         away_config = BangBangClimateTargetTempConfig(
             away[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
             away[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],

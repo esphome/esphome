@@ -386,11 +386,16 @@ SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this
 
 SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
 
-void Sprinkler::setup() {
+Sprinkler::Sprinkler() {}
+Sprinkler::Sprinkler(const std::string &name) {
+  // The `name` is needed to set timers up, hence non-default constructor
+  // replaces `set_name()` method previously existed
+  this->name_ = name;
   this->timer_.push_back({this->name_ + "sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)});
   this->timer_.push_back({this->name_ + "vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
-  this->all_valves_off_(true);
 }
+
+void Sprinkler::setup() { this->all_valves_off_(true); }
 
 void Sprinkler::loop() {
   for (auto &p : this->pump_) {
@@ -954,10 +959,18 @@ void Sprinkler::pause() {
 }
 
 void Sprinkler::resume() {
+  if (this->standby()) {
+    ESP_LOGD(TAG, "resume called but standby is enabled; no action taken");
+    return;
+  }
+
   if (this->paused_valve_.has_value() && (this->resume_duration_.has_value())) {
-    ESP_LOGD(TAG, "Resuming valve %u with %u seconds remaining", this->paused_valve_.value_or(0),
-             this->resume_duration_.value_or(0));
-    this->fsm_request_(this->paused_valve_.value(), this->resume_duration_.value());
+    // Resume only if valve has not been completed yet
+    if (!this->valve_cycle_complete_(this->paused_valve_.value())) {
+      ESP_LOGD(TAG, "Resuming valve %u with %u seconds remaining", this->paused_valve_.value_or(0),
+               this->resume_duration_.value_or(0));
+      this->fsm_request_(this->paused_valve_.value(), this->resume_duration_.value());
+    }
     this->reset_resume();
   } else {
     ESP_LOGD(TAG, "No valve to resume!");
