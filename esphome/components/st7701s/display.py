@@ -17,6 +17,7 @@ from . import st7701s_ns
 
 CONF_OFFSET_HEIGHT = "offset_height"
 CONF_OFFSET_WIDTH = "offset_width"
+CONF_DATA_PINS = "data_pins"
 
 CODEOWNERS = ["@clydebarrow"]
 
@@ -47,6 +48,10 @@ CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ST7701S),
+            cv.Required(CONF_DATA_PINS): cv.All(
+                [pins.internal_gpio_output_pin_number],
+                cv.Length(min=16, max=16, msg="Exactly 16 data pins required"),
+            ),
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BACKLIGHT_PIN): cv.Any(

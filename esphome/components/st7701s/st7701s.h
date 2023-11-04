@@ -35,7 +35,9 @@ class ST7701S : public PollingComponent,
     config.timings.vsync_front_porch = 10;
     config.timings.flags.pclk_active_neg = 0;
     config.data_width = 16;
-    config.data_gpio_nums[0] = 15;
+    for (size_t i = 0; i != sizeof(this->data_pins_) / sizeof(this->data_pins_[0]); i++) {
+      config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
+    }
     config.data_gpio_nums[1] = 14;
     config.data_gpio_nums[2] = 13;
     config.data_gpio_nums[3] = 12;
@@ -51,8 +53,7 @@ class ST7701S : public PollingComponent,
     config.data_gpio_nums[13] = 2;
     config.data_gpio_nums[14] = 1;
     config.data_gpio_nums[15] = 0;
-    config.sram_trans_align =
-    config.clk_src = LCD_CLK_SRC_PLL160M;
+    config.sram_trans_align = config.clk_src = LCD_CLK_SRC_PLL160M;
     config.sram_trans_align = 4;
     config.psram_trans_align = 4;
     config.hsync_gpio_num = 16;
@@ -60,12 +61,12 @@ class ST7701S : public PollingComponent,
     config.de_gpio_num = 18;
     config.pclk_gpio_num = 21;
     esp_lcd_new_rgb_panel(&config, &this->handle_);
-
   }
 
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
-  void set_backlight_pin(GPIOPin *backlight_pin) { this->backlight_pin_ = backlight_pin; }
+  void set_backlight_pin(InternalGPIOPin *backlight_pin) { this->backlight_pin_ = backlight_pin; }
+  void set_data_pins(GPIOPin *data_pins[]) { memcpy(this->data_pins_, data_pins, sizeof this->data_pins_); }
 #ifdef USE_POWER_SUPPLY
   void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
 #endif
@@ -92,6 +93,7 @@ class ST7701S : public PollingComponent,
   GPIOPin *dc_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *backlight_pin_{nullptr};
+  InternalGPIOPin *data_pins_[16]{};
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;
 #endif
