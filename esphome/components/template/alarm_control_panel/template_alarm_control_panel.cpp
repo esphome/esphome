@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+
 namespace esphome {
 namespace template_ {
 
@@ -17,13 +18,13 @@ TemplateAlarmControlPanel::TemplateAlarmControlPanel(){};
 
 #ifdef USE_BINARY_SENSOR
 void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, uint16_t flags, uint16_t type) {
+  // Save the flags and type. Assign a store index for the per sensor data type.
+  SensorDataStore sd;
+  sd.last_chime_state = false;
   this->sensor_map_[sensor].flags = flags;
   this->sensor_map_[sensor].type = type;
-  // Allocate a data store for the new sensor.
-  SensorDataStore *sd = new SensorDataStore;
-  // Initialize it
-  memset(sd, 0, sizeof(SensorDataStore));
-  this->sensor_map_[sensor].data_store = sd;
+  this->sensor_data_.push_back(sd);
+  this->sensor_map_[sensor].store_index = this->next_store_index++;
 };
 #endif
 
@@ -124,15 +125,14 @@ void TemplateAlarmControlPanel::loop() {
     // Check for chime zones
     if ((sensor_info.second.flags & BINARY_SENSOR_MODE_CHIME)) {
       // Look for the transition from closed to open
-      if ((!sensor_info.second.data_store->last_chime_state) && (sensor_info.first->state)) {
+      if ((!this->sensor_data_[sensor_info.second.store_index].last_chime_state) && (sensor_info.first->state)) {
         // Must be disarmed to chime
         if (this->current_state_ == ACP_STATE_DISARMED) {
-          // ESP_LOGI(TAG, "Object ID hash: %08X", sensor_info.first->get_object_id_hash());
-          // ESP_LOGI(TAG, "Chime");
           this->chime_callback_.call();
         }
       }
-      sensor_info.second.data_store->last_chime_state = sensor_info.first->state;
+      // Record the sensor state change
+      this->sensor_data_[sensor_info.second.store_index].last_chime_state = sensor_info.first->state;
     }
     // Check for triggered sensors
     if (sensor_info.first->state) {  // Sensor triggered?
@@ -178,7 +178,7 @@ void TemplateAlarmControlPanel::loop() {
   }
 
 #endif
-  if (this->is_state_armed(future_state) && (delayed_sensor_not_ready || instant_sensor_not_ready)) {
+  if (this->is_state_armed(future_state) && (!this->sensors_ready_)) {
     // Instant sensors
     if (instant_sensor_not_ready) {
       this->publish_state(ACP_STATE_TRIGGERED);

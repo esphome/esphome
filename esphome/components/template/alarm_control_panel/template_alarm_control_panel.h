@@ -42,8 +42,7 @@ using SensorDataStore = struct SensorDataStore { bool last_chime_state; };
 using SensorInfo = struct SensorInfo {
   uint16_t flags;
   uint16_t type;
-  bool last_chime_state;
-  SensorDataStore *data_store;
+  uint8_t store_index;
 };
 
 class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel, public Component {
@@ -134,12 +133,15 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   uint32_t trigger_time_;
   // a list of codes
   std::vector<std::string> codes_;
+  // Per sensor data store
+  std::vector<SensorDataStore> sensor_data_;
   // requires a code to arm
   bool requires_code_to_arm_ = false;
   bool supports_arm_home_ = false;
   bool supports_arm_night_ = false;
   bool sensors_ready_ = false;
   bool sensors_ready_last_ = false;
+  uint8_t next_store_index = 0;
   // check if the code is valid
   bool is_code_valid_(optional<std::string> code);
 
