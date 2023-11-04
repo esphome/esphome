@@ -26,11 +26,13 @@ template<> std::vector<std::string> get_execute_arg_value<std::vector<std::strin
 }
 
 template<> enums::ServiceArgType to_service_arg_type<bool>() { return enums::SERVICE_ARG_TYPE_BOOL; }
-template<> enums::ServiceArgType to_service_arg_type<int>() { return enums::SERVICE_ARG_TYPE_INT; }
+template<> enums::ServiceArgType to_service_arg_type<int32_t>() { return enums::SERVICE_ARG_TYPE_INT; }
 template<> enums::ServiceArgType to_service_arg_type<float>() { return enums::SERVICE_ARG_TYPE_FLOAT; }
 template<> enums::ServiceArgType to_service_arg_type<std::string>() { return enums::SERVICE_ARG_TYPE_STRING; }
 template<> enums::ServiceArgType to_service_arg_type<std::vector<bool>>() { return enums::SERVICE_ARG_TYPE_BOOL_ARRAY; }
-template<> enums::ServiceArgType to_service_arg_type<std::vector<int>>() { return enums::SERVICE_ARG_TYPE_INT_ARRAY; }
+template<> enums::ServiceArgType to_service_arg_type<std::vector<int32_t>>() {
+  return enums::SERVICE_ARG_TYPE_INT_ARRAY;
+}
 template<> enums::ServiceArgType to_service_arg_type<std::vector<float>>() {
   return enums::SERVICE_ARG_TYPE_FLOAT_ARRAY;
 }
