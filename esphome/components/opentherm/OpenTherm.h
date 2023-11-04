@@ -16,11 +16,16 @@ P MGS-TYPE SPARE DATA-ID  DATA-VALUE
 #define OpenTherm_h
 
 #include "esphome/core/hal.h"
+#include <string>
+#include <iomanip>
+#include <sstream>
 
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 
 namespace esphome {
 namespace opentherm {
+
+using std::string;
 
 enum OpenThermResponseStatus { NONE, SUCCESS, INVALID, TIMEOUT };
 
@@ -112,6 +117,8 @@ enum OpenThermStatus {
   RESPONSE_INVALID
 };
 
+enum OpenThermProtocolError { NO_ERROR, BEFORE_START_BIT, AFTER_START_BIT };
+
 class OpenTherm {
  public:
   OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, bool is_slave = false);
@@ -125,8 +132,13 @@ class OpenTherm {
   uint32_t build_request(OpenThermMessageType type, OpenThermMessageID id, uint32_t data);
   uint32_t build_response(OpenThermMessageType type, OpenThermMessageID id, uint32_t data);
   uint32_t get_last_response();
+  uint8_t get_response_bit_index() { return response_bit_index_; }
+  OpenThermProtocolError get_protocol_error() { return protocol_error_; }
   OpenThermResponseStatus get_last_response_status();
   const char *status_to_string(OpenThermResponseStatus status);
+  const char *protocol_error_to_string(OpenThermProtocolError error);
+  const char *frame_msg_type_to_string(uint32_t frame);
+  string debug_response(uint32_t response);
   void process();
   void end();
 
@@ -180,6 +192,7 @@ class OpenTherm {
 
   volatile uint32_t response_;
   volatile OpenThermResponseStatus response_status_;
+  volatile OpenThermProtocolError protocol_error_;
   volatile uint32_t response_timestamp_;
   volatile uint8_t response_bit_index_;
 
@@ -191,6 +204,12 @@ class OpenTherm {
   void send_bit_(bool high);
   void (*process_response_callback_)(uint32_t, OpenThermResponseStatus);
 };
+
+template<typename T> string int_to_hex(T i) {
+  std::stringstream stream;
+  stream << "0x" << std::setfill('0') << std::setw(sizeof(T) * 2) << std::hex << i;
+  return stream.str();
+}
 
 #ifndef ICACHE_RAM_ATTR
 #define ICACHE_RAM_ATTR

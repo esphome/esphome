@@ -5,6 +5,7 @@ Copyright 2018, Ihor Melnyk
 
 #include "OpenTherm.h"
 #include "esphome/core/helpers.h"
+#include <bitset>
 
 namespace esphome {
 namespace opentherm {
@@ -81,6 +82,7 @@ bool OpenTherm::send_request_aync(uint32_t request) {
   cur_status = OpenThermStatus::REQUEST_SENDING;
   response_ = 0;
   response_status_ = OpenThermResponseStatus::NONE;
+  protocol_error_ = OpenThermProtocolError::NO_ERROR;
 
   send_bit_(true);  // start bit
   for (int i = 31; i >= 0; i--) {
@@ -139,6 +141,7 @@ void IRAM_ATTR OpenTherm::handle_interrupt(OpenTherm *arg) {
       arg->response_timestamp_ = new_ts;
     } else {
       arg->cur_status = OpenThermStatus::RESPONSE_INVALID;
+      arg->protocol_error_ = OpenThermProtocolError::BEFORE_START_BIT;
       arg->response_timestamp_ = new_ts;
     }
   } else if (arg->cur_status == OpenThermStatus::RESPONSE_START_BIT) {
@@ -148,6 +151,7 @@ void IRAM_ATTR OpenTherm::handle_interrupt(OpenTherm *arg) {
       arg->response_bit_index_ = 0;
     } else {
       arg->cur_status = OpenThermStatus::RESPONSE_INVALID;
+      arg->protocol_error_ = OpenThermProtocolError::AFTER_START_BIT;
       arg->response_timestamp_ = new_ts;
     }
   } else if (arg->cur_status == OpenThermStatus::RESPONSE_RECEIVING) {
@@ -397,6 +401,42 @@ float OpenTherm::get_pressure() {
 
 uint8_t OpenTherm::get_fault() {
   return ((send_request(build_request(OpenThermMessageType::READ, OpenThermMessageID::ASFflags, 0)) >> 8) & 0xff);
+}
+const char *OpenTherm::protocol_error_to_string(OpenThermProtocolError error) {
+  switch (error) {
+    case BEFORE_START_BIT:
+      return "BEFORE_START_BIT";
+    case AFTER_START_BIT:
+      return "AFTER_START_BIT";
+    case NO_ERROR:
+      return "NO_ERROR";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+const char *OpenTherm::frame_msg_type_to_string(uint32_t frame) {
+  auto msg_type = (OpenThermMessageType) ((frame << 1) >> 29);
+  return message_type_to_string(msg_type);
+}
+
+string OpenTherm::debug_response(uint32_t response) {
+  string result = int_to_hex(response);
+  result += "[parity: ";
+  result += (parity(response) ? "OK" : "FAIL");
+  result += "; msg_type: ";
+  result += frame_msg_type_to_string(response);
+  result += "; data_id: ";
+  result += std::to_string((response >> 16 & 0xFF));
+  result += "value_int: ";
+  result += std::to_string(get_u_int(response));
+  result += "value_float: ";
+  result += std::to_string(get_float(response));
+  result += "value_bin: ";
+  result += std::bitset<16>(get_u_int(response)).to_string();
+  result += "]";
+
+  return result;
 }
 
 }  // namespace opentherm

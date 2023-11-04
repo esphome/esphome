@@ -1,8 +1,6 @@
 #include "hub.h"
 
 #include <string>
-#include <iomanip>
-#include <sstream>
 
 // Disable incomplete switch statement warnings, because the cases in each
 // switch are generated based on the configured sensors and inputs.
@@ -96,11 +94,6 @@ uint32_t write_u16(const uint16_t value, const uint32_t data) { return value; }
 uint32_t write_s16(const int16_t value, const uint32_t data) { return value; }
 uint32_t write_f88(const float value, const uint32_t data) { return (unsigned int) (value * 256.0f); }
 
-template<typename T> std::string int_to_hex(T i) {
-  std::stringstream stream;
-  stream << "0x" << std::setfill('0') << std::setw(sizeof(T) * 2) << std::hex << i;
-  return stream.str();
-}
 }  // namespace message_data
 
 #define OPENTHERM_IGNORE_1(x)
@@ -222,12 +215,14 @@ void OpenthermHub::process_response(uint32_t response, OpenThermResponseStatus s
   uint8_t const id = (response >> 16 & 0xFF);
   // First check if the response is valid and short-circuit execution if it isn't.
   if (!opentherm_->is_valid_response(response)) {
-    ESP_LOGW(OT_TAG, "Received invalid OpenTherm response (id: %u): %08x, status=%s", id, response,
-             opentherm_->status_to_string(opentherm_->get_last_response_status()));
+    ESP_LOGW(OT_TAG, "Received invalid OpenTherm response. Status=%s, Proto error=%s, Response=%s",
+             opentherm_->status_to_string(opentherm_->get_last_response_status()),
+             opentherm_->protocol_error_to_string(opentherm_->get_protocol_error()),
+             opentherm_->debug_response(response).c_str());
     return;
   }
 
-  ESP_LOGD(OT_TAG, "Received OpenTherm response with id %d: %s", id, message_data::int_to_hex(response).c_str());
+  ESP_LOGD(OT_TAG, "Received OpenTherm response with id %u: %s", id, int_to_hex(response).c_str());
 
 // Define the handler helpers to publish the results to all sensors
 #define OPENTHERM_MESSAGE_RESPONSE_MESSAGE(msg) \
@@ -276,11 +271,11 @@ void OpenthermHub::loop() {
 
     uint32_t const request = this->build_request_(*this->current_message_iterator_);
     if (this->sync_mode) {
-      ESP_LOGD(OT_TAG, "Sending SYNC OpenTherm request: %s", message_data::int_to_hex(request).c_str());
+      ESP_LOGD(OT_TAG, "Sending SYNC OpenTherm request: %s", int_to_hex(request).c_str());
       this->opentherm_->send_request(request);
     } else {
       this->opentherm_->send_request_aync(request);
-      ESP_LOGD(OT_TAG, "Sent OpenTherm request: %s", message_data::int_to_hex(request).c_str());
+      ESP_LOGD(OT_TAG, "Sent OpenTherm request: %s", int_to_hex(request).c_str());
     }
     this->current_message_iterator_++;
   }
