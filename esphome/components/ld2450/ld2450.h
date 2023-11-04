@@ -23,9 +23,6 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
-#ifdef USE_API
-#include "esphome/components/api/custom_api_device.h"
-#endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
@@ -113,7 +110,7 @@ enum PeriodicDataValue : uint8_t { HEAD = 0XAA, END = 0x55, CHECK = 0x00 };
 
 enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
 
-class LD2450Component : public Component, public uart::UARTDevice, public esphome::api::CustomAPIDevice {
+class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_SENSOR
   SUB_SENSOR(target_count)
   SUB_SENSOR(still_target_count)
