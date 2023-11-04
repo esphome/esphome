@@ -231,7 +231,6 @@ void Nextion::loop() {
     this->send_command_("bkcmd=3");  // Always, returns 0x00 to 0x23 result of serial command.
 
     this->set_backlight_brightness(this->brightness_);
-    this->goto_page("0");
 
     this->set_auto_wake_on_touch(this->auto_wake_on_touch_);
 
