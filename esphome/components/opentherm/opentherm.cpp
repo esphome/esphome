@@ -6,7 +6,9 @@ namespace esphome {
 namespace opentherm {
 
 OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t slave_timeout)
-    : mode_(OperationMode::IDLE),
+    : in_pin_(in_pin),
+      out_pin_(out_pin),
+      mode_(OperationMode::IDLE),
       capture_(0),
       clock_(0),
       bit_pos_(0),
@@ -17,6 +19,15 @@ OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t 
       timer_initialized_(false) {
   isr_in_pin_ = in_pin->to_isr();
   isr_out_pin_ = out_pin->to_isr();
+}
+
+void OpenTherm::begin() {
+  in_pin_->pin_mode(gpio::FLAG_INPUT);
+  out_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  out_pin_->digital_write(true);
+
+  // delay(1000); // It was here in Igor Melnik's library, but there is nothing like this in arduino-opentherm
+  // library example. Commenting out for now.
 }
 
 void OpenTherm::listen() {
@@ -83,7 +94,8 @@ void IRAM_ATTR OpenTherm::read_() {
   mode_ = OperationMode::READ;
   capture_ = 1;         // reset counter and add as if read start bit
   clock_ = 1;           // clock is high at the start of comm
-  start_read_timer_();  // get us into 1/4 of manchester code
+  start_read_timer_();  // get us into 1/4 of manchester code. 5 timer ticks constitute 1 ms, which is 1 bit period in
+                        // OpenTherm.
 }
 
 #pragma clang diagnostic push
@@ -109,6 +121,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
       // transition of signal from last sampling
       if (arg->clock_ == 1 && arg->capture_ > 0xF) {
         // no transition in the middle of the bit
+        // TODO: ADD ERROR
         arg->listen_();
       } else if (arg->clock_ == 1 || arg->capture_ > 0xF) {
         // transition in the middle of the bit OR no transition between two bit, both are valid data points
@@ -118,6 +131,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
             arg->mode_ = OperationMode::RECEIVED;
             arg->stop_();
           } else {
+            // TODO: ADD ERROR
             // end of data not verified, invalid data
             arg->listen_();
           }
@@ -133,6 +147,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
       arg->capture_ = 1;  // reset counter
     } else if (arg->capture_ > 0xFF) {
       // no change for too long, invalid mancheter encoding
+      // TODO: ADD ERROR
       arg->listen_();
     }
     arg->capture_ = (arg->capture_ << 1) | value;
@@ -172,8 +187,8 @@ bool IRAM_ATTR OpenTherm::verify_stop_bit_(uint8_t value) {
   }
 }
 
-void IRAM_ATTR OpenTherm::write_bit_(uint8_t high, uint8_t pos) {
-  if (pos == 1) {                       // left part of manchester encoding
+void IRAM_ATTR OpenTherm::write_bit_(uint8_t high, uint8_t clock) {
+  if (clock == 1) {                     // left part of manchester encoding
     isr_out_pin_.digital_write(!high);  // low means logical 1 to protocol
   } else {                              // right part of manchester encoding
     isr_out_pin_.digital_write(high);   // high means logical 0 to protocol

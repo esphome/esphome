@@ -159,6 +159,11 @@ class OpenTherm {
   OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t slave_timeout = 800);
 
   /**
+   * Setup pins.
+   */
+  void begin();
+
+  /**
    * Start listening for Opentherm data packet comming from line connected to given pin.
    * If data packet is received then has_message() function returns true and data packet can be retrieved by calling
    * get_message() function. If timeout > 0 then this function waits for incomming data package for timeout millis and
@@ -223,6 +228,8 @@ class OpenTherm {
   static bool timer_isr(OpenTherm *arg);
 
  private:
+  InternalGPIOPin *in_pin_;
+  InternalGPIOPin *out_pin_;
   ISRInternalGPIOPin isr_in_pin_;
   ISRInternalGPIOPin isr_out_pin_;
 
@@ -249,7 +256,7 @@ class OpenTherm {
 
   void bit_read_(uint8_t value);
   bool verify_stop_bit_(uint8_t value);
-  void write_bit_(uint8_t high, uint8_t pos);
+  void write_bit_(uint8_t high, uint8_t clock);
 };
 
 }  // namespace opentherm
