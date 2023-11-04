@@ -79,6 +79,10 @@ MAX6956_PIN_SCHEMA = pins.gpio_base_schema(
     cv.int_range(min=4, max=31),
     modes=[CONF_INPUT, CONF_PULLUP, CONF_OUTPUT],
     mode_validator=validate_mode,
+).extend(
+    {
+        cv.Required(CONF_MAX6956): cv.use_id(MAX6956),
+    }
 )
 
 
