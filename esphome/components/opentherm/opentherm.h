@@ -10,6 +10,10 @@
 
 // The only thing we want from Arduino :)
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+#define bitSet(value, bit) ((value) |= (1UL << (bit)))
+#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
+#define bitToggle(value, bit) ((value) ^= (1UL << (bit)))
+#define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
 
 namespace esphome {
 namespace opentherm {
@@ -24,8 +28,16 @@ enum OperationMode {
   WRITE = 4,  // writing data with timer_
   SENT = 5,   // all data written to output
 
-  ERROR_MANCH = 8,   // manchester protocol data transfer error
-  ERROR_TIMEOUT = 9  // read timeout
+  ERROR_PROTOCOL = 8,  // manchester protocol data transfer error
+  ERROR_TIMEOUT = 9    // read timeout
+};
+
+enum OpenThermProtocolErrorType {
+  NO_ERROR = 0,            // No error
+  NO_TRANSITION = 1,       // No transition in the middle of the bit
+  INVALID_STOP_BIT = 2,    // Stop bit wasn't present when expected
+  PARITY_ERROR = 3,        // Parity check didn't pass
+  NO_CHANGE_TOO_LONG = 4,  // No level change for too much timer ticks
 };
 
 enum OpenThermMessageType {
@@ -120,6 +132,8 @@ struct OpenthermData {
   uint8_t valueHB;
   uint8_t valueLB;
 
+  OpenthermData() : type(0), id(0), valueHB(0), valueLB(0) {}
+
   /**
    * @return float representation of data packet value
    */
@@ -151,6 +165,14 @@ struct OpenthermData {
   void s16(int16_t value);
 };
 
+struct OpenThermError {
+  OpenThermProtocolErrorType error_type;
+  uint32_t capture;
+  uint8_t clock;
+  uint32_t data;
+  uint8_t bit_pos;
+};
+
 /**
  * Opentherm static class that supports either listening or sending Opentherm data packets in the same time
  */
@@ -177,7 +199,7 @@ class OpenTherm {
    *
    * @return true if data packet has been captured from line by listen() function.
    */
-  bool has_message();
+  bool has_message() { return mode_ == OperationMode::RECEIVED; }
 
   /**
    * Use this to retrive data packed captured by listen() function. Data packet is ready when has_message() function
@@ -204,11 +226,18 @@ class OpenTherm {
   void stop();
 
   /**
+   * Get protocol error details in case a protocol error occured.
+   * @param error reference to data structure to which fill the error details
+   * @return true if protocol error occured during last conversation, false otherwise.
+   */
+  bool get_protocol_error(OpenThermError &error);
+
+  /**
    * Use this function to check whether send() function already finished sending data packed to line.
    *
    * @return true if data packet has been sent, false otherwise.
    */
-  bool is_sent();
+  bool is_sent() { return mode_ == OperationMode::SENT; }
 
   /**
    * Indicates whether listinig or sending is not in progress.
@@ -216,14 +245,27 @@ class OpenTherm {
    *
    * @return true if listening nor sending is in progress.
    */
-  bool is_idle();
+  bool is_idle() { return mode_ == OperationMode::IDLE; }
 
   /**
-   * Indicates whether last listen() or send() operation ends up with an error.
+   * Indicates whether last listen() or send() operation ends up with an error. Includes both timeout and
+   * protocol errors.
    *
    * @return true if last listen() or send() operation ends up with an error.
    */
-  bool is_error();
+  bool is_error() { return mode_ == OperationMode::ERROR_TIMEOUT || mode_ == OperationMode::ERROR_PROTOCOL; }
+
+  /**
+   * Indicates whether last listen() or send() operation ends up with a *timeout* error
+   * @return true if last listen() or send() operation ends up with a *timeout* error.
+   */
+  bool is_timeout() { return mode_ == OperationMode::ERROR_TIMEOUT; }
+
+  /**
+   * Indicates whether last listen() or send() operation ends up with a *protocol* error
+   * @return true if last listen() or send() operation ends up with a *protocol* error.
+   */
+  bool is_protocol_error() { return mode_ == OperationMode::ERROR_PROTOCOL; }
 
   static bool timer_isr(OpenTherm *arg);
 
@@ -234,6 +276,7 @@ class OpenTherm {
   ISRInternalGPIOPin isr_out_pin_;
 
   volatile OperationMode mode_;
+  volatile OpenThermProtocolErrorType error_type_;
   volatile uint32_t capture_;
   volatile uint8_t clock_;
   volatile uint32_t data_;
@@ -255,7 +298,7 @@ class OpenTherm {
   bool check_parity_(uint32_t val);
 
   void bit_read_(uint8_t value);
-  bool verify_stop_bit_(uint8_t value);
+  OpenThermProtocolErrorType verify_stop_bit_(uint8_t value);
   void write_bit_(uint8_t high, uint8_t clock);
 };
 

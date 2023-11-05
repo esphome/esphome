@@ -9,6 +9,7 @@ OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t 
     : in_pin_(in_pin),
       out_pin_(out_pin),
       mode_(OperationMode::IDLE),
+      error_type_(OpenThermProtocolErrorType::NO_ERROR),
       capture_(0),
       clock_(0),
       bit_pos_(0),
@@ -76,6 +77,20 @@ bool OpenTherm::get_message(OpenthermData &data) {
   return false;
 }
 
+bool OpenTherm::get_protocol_error(OpenThermError &error) {
+  if (mode_ != OperationMode::ERROR_PROTOCOL) {
+    return false;
+  }
+
+  error.error_type = error_type_;
+  error.bit_pos = bit_pos_;
+  error.capture = capture_;
+  error.clock = clock_;
+  error.data = data_;
+
+  return true;
+}
+
 void OpenTherm::stop() {
   stop_();
   mode_ = OperationMode::IDLE;
@@ -122,18 +137,22 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
       if (arg->clock_ == 1 && arg->capture_ > 0xF) {
         // no transition in the middle of the bit
         // TODO: ADD ERROR
-        arg->listen_();
+        arg->mode_ = OperationMode::ERROR_PROTOCOL;
+        arg->error_type_ = OpenThermProtocolErrorType::NO_TRANSITION;
+        arg->stop_();
       } else if (arg->clock_ == 1 || arg->capture_ > 0xF) {
         // transition in the middle of the bit OR no transition between two bit, both are valid data points
         if (arg->bit_pos_ == BitPositions::STOP_BIT) {
           // expecting stop bit
-          if (arg->verify_stop_bit_(last)) {
+          auto stop_bit_error = arg->verify_stop_bit_(last);
+          if (stop_bit_error == OpenThermProtocolErrorType::NO_ERROR) {
             arg->mode_ = OperationMode::RECEIVED;
             arg->stop_();
           } else {
-            // TODO: ADD ERROR
             // end of data not verified, invalid data
-            arg->listen_();
+            arg->mode_ = OperationMode::ERROR_PROTOCOL;
+            arg->error_type_ = stop_bit_error;
+            arg->stop_();
           }
         } else {
           // normal data point at clock high
@@ -148,7 +167,9 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
     } else if (arg->capture_ > 0xFF) {
       // no change for too long, invalid mancheter encoding
       // TODO: ADD ERROR
-      arg->listen_();
+      arg->mode_ = OperationMode::ERROR_PROTOCOL;
+      arg->error_type_ = OpenThermProtocolErrorType::NO_CHANGE_TOO_LONG;
+      arg->stop_();
     }
     arg->capture_ = (arg->capture_ << 1) | value;
   } else if (arg->mode_ == OperationMode::WRITE) {
@@ -179,11 +200,11 @@ void IRAM_ATTR OpenTherm::bit_read_(uint8_t value) {
   bit_pos_++;
 }
 
-bool IRAM_ATTR OpenTherm::verify_stop_bit_(uint8_t value) {
+OpenThermProtocolErrorType OpenTherm::verify_stop_bit_(uint8_t value) {
   if (value) {  // stop bit detected
-    return check_parity_(data_);
+    return check_parity_(data_) ? OpenThermProtocolErrorType::NO_ERROR : OpenThermProtocolErrorType::PARITY_ERROR;
   } else {  // no stop bit detected, error
-    return false;
+    return OpenThermProtocolErrorType::INVALID_STOP_BIT;
   }
 }
 
@@ -194,14 +215,6 @@ void IRAM_ATTR OpenTherm::write_bit_(uint8_t high, uint8_t clock) {
     isr_out_pin_.digital_write(high);   // high means logical 0 to protocol
   }
 }
-
-bool OpenTherm::has_message() { return mode_ == OperationMode::RECEIVED; }
-
-bool OpenTherm::is_sent() { return mode_ == OperationMode::SENT; }
-
-bool OpenTherm::is_idle() { return mode_ == OperationMode::IDLE; }
-
-bool OpenTherm::is_error() { return mode_ == OperationMode::ERROR_TIMEOUT; }
 
 #ifdef ESP32
 
