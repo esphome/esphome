@@ -166,6 +166,11 @@ def validate_config(value):
         _LOGGER.warning(
             "Ignoring validation error on pin %d; error: %s", value[CONF_NUMBER], exc
         )
+    else:
+        # Throw an exception if used for a pin that would not have resulted
+        # in a validation error anyway!
+        if ignore_pin_validation_warning:
+            raise cv.Invalid(f"GPIO{value[CONF_NUMBER]} is not a reserved pin")
 
     return value
 
