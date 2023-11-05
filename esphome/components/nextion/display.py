@@ -7,8 +7,6 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_BRIGHTNESS,
     CONF_TRIGGER_ID,
-    KEY_CORE,
-    KEY_TARGET_FRAMEWORK,
 )
 from esphome.core import CORE
 from . import Nextion, nextion_ns, nextion_ref
@@ -85,8 +83,6 @@ async def to_code(config):
     if CONF_TFT_URL in config:
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
-        core_data = CORE.data[KEY_CORE]
-        framework = core_data[KEY_TARGET_FRAMEWORK]
         if CORE.is_esp32 and CORE.using_arduino:
             cg.add_library("WiFiClientSecure", None)
             cg.add_library("HTTPClient", None)
