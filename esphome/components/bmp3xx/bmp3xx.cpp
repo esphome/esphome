@@ -8,6 +8,7 @@
 #include "bmp3xx.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace bmp3xx {
@@ -198,8 +199,9 @@ void BMP3XXComponent::update() {
     return;
   }
 
-  ESP_LOGVV(TAG, "measurement time %d", uint32_t(ceilf(meas_time)));
-  this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
+  const uint32_t meas_timeout = uint32_t(ceilf(meas_time));
+  ESP_LOGVV(TAG, "measurement time %" PRIu32, meas_timeout);
+  this->set_timeout("data", meas_timeout, [this]() {
     float temperature = 0.0f;
     float pressure = 0.0f;
     if (this->pressure_sensor_ != nullptr) {
