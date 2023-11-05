@@ -36,8 +36,9 @@ CONF_VSYNC_FRONT_PORCH = "vsync_front_porch"
 CODEOWNERS = ["@clydebarrow"]
 
 DEPENDENCIES = ["spi"]
+AUTO_LOAD = ["panel_driver"]
 
-ST7701S = st7701s_ns.class_("ST7701S", cg.PollingComponent, spi.SPIDevice)
+ST7701S = st7701s_ns.class_("ST7701S", cg.Component, spi.SPIDevice)
 
 DATA_PIN_SCHEMA = pins.gpio_pin_schema(
     {
@@ -99,15 +100,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_WIDTH): cv.int_,
         }
     )
-    .extend(cv.polling_component_schema("5s"))
-    .extend(spi.spi_device_schema(cs_pin_required=False)),
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6)),
     cv.only_with_esp_idf,
 )
 
 
 async def to_code(config):
-    # cg.add_library("esp_lcd")
-    print(config[CONF_INIT_SEQUENCE])
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)

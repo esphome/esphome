@@ -5,6 +5,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/spi/spi.h"
+#include "esphome/components/panel_driver/panel_driver.h"
 #ifdef USE_POWER_SUPPLY
 #include "esphome/components/power_supply/power_supply.h"
 #endif
@@ -14,13 +15,15 @@
 namespace esphome {
 namespace st7701s {
 
-class ST7701S : public PollingComponent,
+class ST7701S : public Component,
+                public panel_driver::PanelDriver,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                      spi::DATA_RATE_10MHZ> {
+                                      spi::DATA_RATE_1MHZ> {
  public:
   void setup() override {
     this->spi_setup();
 
+    /*
     esp_lcd_rgb_panel_config_t config{};
     config.flags.fb_in_psram = 1;
     config.num_fbs = 1;
@@ -54,10 +57,13 @@ class ST7701S : public PollingComponent,
     if (err != ESP_OK) {
       esph_log_e("st7701s", "lcd_new_rgb_panel failed: %s", esp_err_to_name(err));
     }
+     */
+    this->write_init_sequence();
   }
 
-  void update() override {}
+  void draw_pixels_in_window() override {}
 
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void add_data_pin(InternalGPIOPin *data_pin, size_t index) { this->data_pins_[index] = data_pin; };
   void set_de_pin(InternalGPIOPin *de_pin) { this->de_pin_ = de_pin; }
   void set_pclk_pin(InternalGPIOPin *pclk_pin) { this->pclk_pin_ = pclk_pin; }
@@ -73,7 +79,7 @@ class ST7701S : public PollingComponent,
   void set_vsync_pulse_width(uint16_t vsync_pulse_width) { this->vsync_pulse_width_ = vsync_pulse_width; }
   void set_vsync_back_porch(uint16_t vsync_back_porch) { this->vsync_back_porch_ = vsync_back_porch; }
   void set_vsync_front_porch(uint16_t vsync_front_porch) { this->vsync_front_porch_ = vsync_front_porch; }
-  void set_init_sequence(std::vector<uint8_t> &init_sequence) { this->init_sequence_ = init_sequence; }
+  void set_init_sequence(const std::vector<uint8_t> &init_sequence) { this->init_sequence_ = init_sequence; }
 #ifdef USE_POWER_SUPPLY
   void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
 #endif
@@ -83,18 +89,23 @@ class ST7701S : public PollingComponent,
   void write_command_(uint8_t value) {
     this->enable();
     if (this->dc_pin_ == nullptr) {
-      this->write()
+      this->write(value, 9);
+    } else {
+      this->dc_pin_->digital_write(false);
+      this->write_byte(value);
+      this->dc_pin_->digital_write(true);
     }
-    this->dc_pin_->digital_write(false);
-    this->write_byte(value);
-    this->dc_pin_->digital_write(true);
     this->disable();
   }
 
   void write_data_(uint8_t value) {
-    this->dc_pin_->digital_write(true);
     this->enable();
-    this->write_byte(value);
+    if (this->dc_pin_ == nullptr) {
+      this->write(value | 0x100, 9);
+    } else {
+      this->dc_pin_->digital_write(true);
+      this->write_byte(value);
+    }
     this->disable();
   }
 
@@ -102,15 +113,14 @@ class ST7701S : public PollingComponent,
    * this relies upon the init sequence being well-formed, which is guaranteed by the Python init code.
    */
   void write_init_sequence() {
-    for(size_t i = 0 ; i != this->init_sequence_.size() ; ) {
+    for (size_t i = 0; i != this->init_sequence_.size();) {
       this->write_command_(this->init_sequence_[i++]);
       size_t len = this->init_sequence_[i++];
       while (len-- != 0)
         this->write_data_(this->init_sequence_[i++]);
     }
+    this->set_timeout(120, [this] { this->write_command_(0x29); });
   }
-
-  float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
   InternalGPIOPin *de_pin_{nullptr};
   InternalGPIOPin *pclk_pin_{nullptr};
