@@ -43,6 +43,8 @@ uart:
     parity: NONE
     stop_bits: 1
 
+api:
+
 ld2450:
   id: ld2450_radar
   uart_id: uart_ld2450
