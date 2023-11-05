@@ -824,7 +824,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
   bool upload_end_(bool successful);
-#elif defined(ESP_PLATFORM)
+#elif defined(USE_ESP_IDF)
   /**
    * will request 4096 bytes chunks from the web server
    * and send each to Nextion
