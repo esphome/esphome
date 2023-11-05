@@ -90,7 +90,7 @@ async def to_code(config):
         if CORE.is_esp32 and CORE.using_arduino:
             cg.add_library("WiFiClientSecure", None)
             cg.add_library("HTTPClient", None)
-        elif CORE.is_esp8266 and framework == "arduino":
+        elif CORE.is_esp8266 and CORE.using_arduino:
             cg.add_library("ESP8266HTTPClient", None)
 
     if CONF_TOUCH_SLEEP_TIMEOUT in config:
