@@ -1,5 +1,6 @@
 #include "bl0940.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace bl0940 {
@@ -115,8 +116,8 @@ void BL0940::received_package_(const DataPacket *data) const {
     energy_sensor_->publish_state(total_energy_consumption);
   }
 
-  ESP_LOGV("bl0940", "BL0940: U %fV, I %fA, P %fW, Cnt %d, ∫P %fkWh, T1 %f°C, T2 %f°C", v_rms, i_rms, watt, cf_cnt,
-           total_energy_consumption, tps1, tps2);
+  ESP_LOGV("bl0940", "BL0940: U %fV, I %fA, P %fW, Cnt %" PRId32 ", ∫P %fkWh, T1 %f°C, T2 %f°C", v_rms, i_rms, watt,
+           cf_cnt, total_energy_consumption, tps1, tps2);
 }
 
 void BL0940::dump_config() {  // NOLINT(readability-function-cognitive-complexity)
