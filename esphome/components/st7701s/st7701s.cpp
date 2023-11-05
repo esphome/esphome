@@ -10,11 +10,9 @@ namespace st7701s {
 static const char *const TAG = "st7701s";
 
 void ST7701S::dump_config() {
-  LOG_DISPLAY("", "SPI ST7789V", this);
+  ESP_LOGCONFIG("", "ST7701S RGB LCD");
   ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
   ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
-  ESP_LOGCONFIG(TAG, "  Height Offset: %u", this->offset_height_);
-  ESP_LOGCONFIG(TAG, "  Width Offset: %u", this->offset_width_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
