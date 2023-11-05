@@ -37,7 +37,7 @@ CONFIG_SCHEMA = (
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(Nextion),
-            cv.Optional(CONF_TFT_URL): cv.All(cv.string),
+            cv.Optional(CONF_TFT_URL): cv.url,
             cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
             cv.Optional(CONF_ON_SETUP): automation.validate_automation(
                 {
