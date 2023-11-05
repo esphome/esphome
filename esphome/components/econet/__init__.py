@@ -1,8 +1,14 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
+from esphome import automation, pins
 from esphome.components import uart
-from esphome.const import CONF_ID, CONF_SENSOR_DATAPOINT, CONF_TRIGGER_ID
+from esphome.const import (
+    CONF_ID,
+    CONF_FLOW_CONTROL_PIN,
+    CONF_SENSOR_DATAPOINT,
+    CONF_TRIGGER_ID,
+)
+from esphome.cpp_helpers import gpio_pin_expression
 
 DEPENDENCIES = ["uart"]
 
@@ -64,6 +70,7 @@ CONFIG_SCHEMA = (
                 },
                 extra_validators=assign_declare_id,
             ),
+            cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
         }
     )
     .extend(cv.polling_component_schema("30s"))
@@ -86,6 +93,9 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
     cg.add(var.set_src_address(config[CONF_SRC_ADDRESS]))
     cg.add(var.set_dst_address(config[CONF_DST_ADDRESS]))
+    if CONF_FLOW_CONTROL_PIN in config:
+        pin = await gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
+        cg.add(var.set_flow_control_pin(pin))
     for conf in config.get(CONF_ON_DATAPOINT_UPDATE, []):
         trigger = cg.new_Pvariable(
             conf[CONF_TRIGGER_ID],

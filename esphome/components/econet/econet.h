@@ -64,12 +64,14 @@ struct EconetDatapointListener {
 
 class Econet : public Component, public uart::UARTDevice {
  public:
+  void setup() override;
   void loop() override;
   void dump_config() override;
+
   void set_src_address(uint32_t address) { src_adr_ = address; }
   void set_dst_address(uint32_t address) { dst_adr_ = address; }
-
   void set_update_interval(uint32_t interval_millis) { update_interval_millis_ = interval_millis; }
+  void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
 
   void set_float_datapoint_value(const std::string &datapoint_id, float value);
   void set_enum_datapoint_value(const std::string &datapoint_id, uint8_t value);
@@ -110,6 +112,7 @@ class Econet : public Component, public uart::UARTDevice {
 
   uint32_t src_adr_{0};
   uint32_t dst_adr_{0};
+  GPIOPin *flow_control_pin_{nullptr};
 };
 
 class EconetClient {
