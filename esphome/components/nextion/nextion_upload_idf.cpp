@@ -1,8 +1,6 @@
 #include "nextion.h"
 
-#ifdef ARDUINO
-// Please look at `nextion_upload_arduino.cpp`
-#elif defined(ESP_PLATFORM)
+#ifdef ESP_IDF
 #ifdef USE_NEXTION_TFT_UPLOAD
 
 #include "esphome/core/application.h"
