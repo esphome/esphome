@@ -237,7 +237,6 @@ void Econet::parse_message_(bool is_tx) {
     uint8_t type = pdata[0];
     ESP_LOGI(TAG, "  ClssType: %d", type);
     if (type == 1 && pdata[1] == 1 && data_len >= WRITE_DATA_POS) {
-      EconetDatapointType datatype = EconetDatapointType(pdata[2]);
       std::string item_name((const char *) pdata + OBJ_NAME_POS, OBJ_NAME_SIZE);
       switch (EconetDatapointType(pdata[2])) {
         case EconetDatapointType::FLOAT:
