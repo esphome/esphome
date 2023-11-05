@@ -265,4 +265,4 @@ bool Nextion::upload_end(bool successful) {
 }  // namespace esphome
 
 #endif  // USE_NEXTION_TFT_UPLOAD
-#endif  // defined(ESP_PLATFORM)
+#endif  // USE_ESP_IDF
