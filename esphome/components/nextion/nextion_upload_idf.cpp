@@ -1,6 +1,6 @@
 #include "nextion.h"
 
-#ifdef ESP_IDF
+#ifdef USE_ESP_IDF
 #ifdef USE_NEXTION_TFT_UPLOAD
 
 #include "esphome/core/application.h"
