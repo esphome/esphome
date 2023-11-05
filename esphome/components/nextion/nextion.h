@@ -630,7 +630,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * The display will go to page 2 when it establishes a connection to ESPHome.
    */
   void set_start_up_page(uint8_t page_id = 255);
-  
+
   /**
    * Sets if Nextion should auto-wake from sleep when touch press occurs.
    * @param auto_wake True or false. When auto_wake is true and Nextion is in sleep mode,
