@@ -20,7 +20,7 @@
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
 #endif  // USE_ESP8266
-#elif defined(ESP_PLATFORM)
+#elif defined(USE_ESP_IDF)
 #include <esp_http_client.h>
 #endif  // ARDUINO vs ESP-IDF
 #endif  // USE_NEXTION_TFT_UPLOAD
