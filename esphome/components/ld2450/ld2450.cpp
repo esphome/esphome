@@ -20,8 +20,10 @@ LD2450Component::LD2450Component() {}
 
 void LD2450Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2450");
+#ifdef USE_NUMBER
   this->pref_ = global_preferences->make_preference<float>(this->presence_timeout_number_->get_object_id_hash());
   this->set_presence_timeout();
+#endif
   this->read_all_info();
   ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
   ESP_LOGCONFIG(TAG, "Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
@@ -387,9 +389,8 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, int len) {
 #endif
   }  // End loop thru targets
 
-  still_target_count = target_count - moving_target_count;
-
 #ifdef USE_SENSOR
+  still_target_count = target_count - moving_target_count;
   // Target Count
   if (this->target_count_sensor_ != nullptr) {
     if (this->target_count_sensor_->get_state() != target_count) {
@@ -444,6 +445,7 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, int len) {
     }
   }
 #endif
+#ifdef USE_SENSOR
   // For presence timeout check
   if (target_count > 0) {
     this->presence_millis_ = millis();
@@ -454,6 +456,7 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, int len) {
   if (still_target_count > 0) {
     this->still_presence_millis_ = millis();
   }
+#endif
 }
 
 const char VERSION_FMT[] = "%u.%02X.%02X%02X%02X%02X";
@@ -708,6 +711,8 @@ void LD2450Component::set_move_distance_sensor(int target, sensor::Sensor *s) {
 void LD2450Component::set_move_resolution_sensor(int target, sensor::Sensor *s) {
   this->move_resolution_sensors_[target] = s;
 }
+#endif
+#ifdef USE_TEXT_SENSOR
 void LD2450Component::set_direction_text_sensor(int target, text_sensor::TextSensor *s) {
   this->direction_text_sensors_[target] = s;
 }
@@ -751,7 +756,6 @@ void LD2450Component::set_presence_timeout() {
     }
   }
 }
-#endif
 
 // Save Presence Timeout to flash
 void LD2450Component::save_to_flash_(float value) { this->pref_.save(&value); }
@@ -764,6 +768,7 @@ float LD2450Component::restore_from_flash_() {
   }
   return value;
 }
+#endif
 
 }  // namespace ld2450
 }  // namespace esphome

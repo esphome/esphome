@@ -248,7 +248,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   int32_t still_presence_millis_ = 0;
   int32_t moving_presence_millis_ = 0;
   uint16_t throttle_;
-  uint16_t timeout_;
+  uint16_t timeout_ = 5;
   uint8_t zone_type_ = 0;
   std::string version_;
   std::string mac_;

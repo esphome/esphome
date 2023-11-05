@@ -26,7 +26,7 @@ ZoneCoordinateNumber = ld2450_ns.class_("ZoneCoordinateNumber", number.Number)
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
-        cv.Optional(CONF_PRESENCE_TIMEOUT): number.number_schema(
+        cv.Required(CONF_PRESENCE_TIMEOUT): number.number_schema(
             PresenceTimeoutNumber,
             unit_of_measurement=UNIT_SECOND,
             entity_category=ENTITY_CATEGORY_CONFIG,
