@@ -23,7 +23,6 @@ class ST7701S : public Component,
   void setup() override {
     this->spi_setup();
 
-    /*
     esp_lcd_rgb_panel_config_t config{};
     config.flags.fb_in_psram = 1;
     config.num_fbs = 1;
@@ -42,10 +41,6 @@ class ST7701S : public Component,
     config.psram_trans_align = 64;
     size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
     for (size_t i = 0; i != data_pin_count; i++) {
-      if (this->data_pins_[i] == nullptr) {
-        esph_log_e("st7701s", "Data pin %u is not defined", i);
-        return;
-      }
       config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
     }
     config.data_width = data_pin_count;
@@ -57,7 +52,6 @@ class ST7701S : public Component,
     if (err != ESP_OK) {
       esph_log_e("st7701s", "lcd_new_rgb_panel failed: %s", esp_err_to_name(err));
     }
-     */
     this->write_init_sequence();
   }
 
