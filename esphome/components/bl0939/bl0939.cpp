@@ -81,7 +81,7 @@ void BL0939::setup() {
 void BL0939::received_package_(const DataPacket *data) const {
   // Bad header
   if (data->frame_header != BL0939_PACKET_HEADER) {
-    ESP_LOGI("bl0939", "Invalid data. Header mismatch: %d", data->frame_header);
+    ESP_LOGI(TAG, "Invalid data. Header mismatch: %d", data->frame_header);
     return;
   }
 
@@ -121,7 +121,7 @@ void BL0939::received_package_(const DataPacket *data) const {
     energy_sensor_sum_->publish_state(total_energy_consumption);
   }
 
-  ESP_LOGV("bl0939",
+  ESP_LOGV(TAG,
            "BL0939: U %fV, I1 %fA, I2 %fA, P1 %fW, P2 %fW, CntA %" PRId32 ", CntB %" PRId32 ", ∫P1 %fkWh, ∫P2 %fkWh",
            v_rms, ia_rms, ib_rms, a_watt, b_watt, cfa_cnt, cfb_cnt, a_energy_consumption, b_energy_consumption);
 }
