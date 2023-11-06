@@ -130,8 +130,8 @@ void WebServer::setup() {
         [this](int level, const char *tag, const char *message) { this->events_.send(message, "log", millis()); });
   }
 #endif
-  this->base_->add_handler(this);
   this->base_->add_handler(&this->events_);
+  this->base_->add_handler(this);
 
   if (this->allow_ota_)
     this->base_->add_ota_handler();
