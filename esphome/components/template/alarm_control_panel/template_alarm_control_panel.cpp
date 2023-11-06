@@ -49,8 +49,7 @@ void TemplateAlarmControlPanel::dump_config() {
                   TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME));
     ESP_LOGCONFIG(TAG, "    Armed night bypass: %s",
                   TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT));
-    ESP_LOGCONFIG(TAG, "    Chime mode: %s",
-                  TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_CHIME));
+    ESP_LOGCONFIG(TAG, "    Chime mode: %s", TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_CHIME));
     const char *sensor_type;
     switch (sensor_info.second.type) {
       case 0:
