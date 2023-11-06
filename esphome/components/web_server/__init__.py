@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ID,
     CONF_JS_INCLUDE,
     CONF_JS_URL,
+    CONF_ENABLE_PRIVATE_NETWORK_ACCESS,
     CONF_PORT,
     CONF_AUTH,
     CONF_USERNAME,
@@ -23,7 +24,6 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_RTL87XX,
 )
-CONF_ENABLE_PRIVATE_NETWORK_ACCESS='pna'
 from esphome.core import CORE, coroutine_with_priority
 
 AUTO_LOAD = ["json", "web_server_base"]

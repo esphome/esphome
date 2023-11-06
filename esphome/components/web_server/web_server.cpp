@@ -366,12 +366,12 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
-    AsyncWebServerResponse *response = request->beginResponse(200, "");
-    response->addHeader(HEADER_CORS_ALLOW_PNA, "true");
-    response->addHeader(HEADER_PNA_NAME, App.get_name().c_str());
-    std::string mac = get_mac_address_pretty();
-    response->addHeader(HEADER_PNA_ID, mac.c_str());
-    request->send(response);
+  AsyncWebServerResponse *response = request->beginResponse(200, "");
+  response->addHeader(HEADER_CORS_ALLOW_PNA, "true");
+  response->addHeader(HEADER_PNA_NAME, App.get_name().c_str());
+  std::string mac = get_mac_address_pretty();
+  response->addHeader(HEADER_PNA_ID, mac.c_str());
+  request->send(response);
 }
 #endif
 
@@ -1164,12 +1164,12 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
   if (request->method() == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA)) {
 #ifdef USE_ARDUINO
-      // Header needs to be added to interesting header list for it to not be
-      // nuked by the time we handle the request later.
-      // Only required in Arduino framework.
-      request->addInterestingHeader(HEADER_CORS_REQ_PNA);
+    // Header needs to be added to interesting header list for it to not be
+    // nuked by the time we handle the request later.
+    // Only required in Arduino framework.
+    request->addInterestingHeader(HEADER_CORS_REQ_PNA);
 #endif
-      return true;
+    return true;
   }
 #endif
 
@@ -1270,8 +1270,8 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
   if (request->method() == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA)) {
-      this->handle_pna_cors_request(request);
-      return;
+    this->handle_pna_cors_request(request);
+    return;
   }
 #endif
 
