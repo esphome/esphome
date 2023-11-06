@@ -162,7 +162,7 @@ void WiFiComponent::loop() {
         return;
     }
 
-#if USE_WIFI_AP
+#ifdef USE_WIFI_AP
     if (this->has_ap() && !this->ap_setup_) {
       if (now - this->last_connected_ > this->ap_timeout_) {
         ESP_LOGI(TAG, "Starting fallback AP!");
@@ -208,7 +208,7 @@ network::IPAddress WiFiComponent::get_ip_address() {
   if (this->has_sta())
     return this->wifi_sta_ip();
 
-#if USE_WIFI_AP
+#ifdef USE_WIFI_AP
   if (this->has_ap())
     return this->wifi_soft_ap_ip();
 #endif  // USE_WIFI_AP
