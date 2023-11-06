@@ -1,5 +1,6 @@
 #include "cd74hc4067.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace cd74hc4067 {
@@ -27,7 +28,7 @@ void CD74HC4067Component::dump_config() {
   LOG_PIN("  S1 Pin: ", this->pin_s1_);
   LOG_PIN("  S2 Pin: ", this->pin_s2_);
   LOG_PIN("  S3 Pin: ", this->pin_s3_);
-  ESP_LOGCONFIG(TAG, "switch delay: %d", this->switch_delay_);
+  ESP_LOGCONFIG(TAG, "switch delay: %" PRIu32, this->switch_delay_);
 }
 
 void CD74HC4067Component::activate_pin(uint8_t pin) {

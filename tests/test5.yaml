@@ -64,6 +64,7 @@ mqtt:
   discovery: true
   discovery_prefix: homeassistant
   idf_send_async: false
+  log_topic:
   on_message:
     topic: testing/sensor/testing_sensor/state
     qos: 0
@@ -403,6 +404,7 @@ sensor:
     update_interval: 1s
   - platform: internal_temperature
     name: Internal Temperature
+    state_topic:
   - platform: selec_meter
     total_active_energy:
       name: SelecEM2M Total Active Energy
