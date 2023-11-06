@@ -66,7 +66,7 @@ bool AdE7953Spi::ade_read_32(uint16_t reg, uint32_t *value) {
   this->write_byte16(reg);
   this->transfer_byte(0x80);
   uint8_t recv[4];
-  read_array(recv, 4);
+  this->read_array(recv, 4);
   *value = encode_uint32(recv[0], recv[1], recv[2], recv[3]);
   this->disable();
   return false;
