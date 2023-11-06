@@ -4,6 +4,8 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
+import esphome.final_validate as fv
+
 CODEOWNERS = ["@functionpointer"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor"]
@@ -39,6 +41,21 @@ PYLONTECH_COMPONENT_SCHEMA = cv.Schema(
     }
 )
 
+
+def _final_validate_component(component_cfg):
+    fconf = fv.full_config.get()
+
+    parent_path = fconf.get_path_for_id(component_cfg[CONF_PYLONTECH_ID])[:-1]
+    parent_config = fconf.get_config_for_path(parent_path)
+
+    num_batteries = parent_config[CONF_NUM_BATTERIES]
+
+    if not (1 <= component_cfg[CONF_BATTERY] <= num_batteries):
+        raise cv.Invalid(f"battery expected between 1 and {num_batteries}")
+
+
+PYLONTECH_COMPONENT_FINAL_VALIDATE = _final_validate_component
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -50,12 +67,11 @@ CONFIG_SCHEMA = cv.All(
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
-num_batteries = -1
-
-
-async def check_battery_index(index: int):
-    if not (1 <= index <= num_batteries):
-        raise cv.Invalid(f"battery expected between 1 and {num_batteries}")
+FINAL_VALIDATE = uart.final_validate_device_schema(
+    "pylontech",
+    require_tx=True,
+    require_rx=True,
+)
 
 
 async def to_code(config):
@@ -63,6 +79,4 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    global num_batteries
-    num_batteries = config[CONF_NUM_BATTERIES]
     cg.add_define("PYLONTECH_NUM_BATTERIES", config[CONF_NUM_BATTERIES])

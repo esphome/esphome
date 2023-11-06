@@ -127,7 +127,7 @@ sensor:
       id: pyl01_mos_temperature
   - platform: pylontech
     pylontech_id: pylontech1
-    battery: 2
+    battery: 1
     voltage:
       id: pyl13_voltage
     temperature_low:
@@ -602,7 +602,7 @@ number:
 text_sensor:
   - platform: pylontech
     pylontech_id: pylontech0
-    battery: 2
+    battery: 1
     base_state:
       id: pyl0_base_state
     voltage_state:
