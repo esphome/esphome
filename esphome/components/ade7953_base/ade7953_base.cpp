@@ -6,6 +6,38 @@ namespace ade7953_base {
 
 static const char *const TAG = "ade7953";
 
+void ADE7953::setup() {
+  if (this->irq_pin_ != nullptr) {
+    this->irq_pin_->setup();
+  }
+
+  // The chip might take up to 100ms to initialise
+  this->set_timeout(100, [this]() {
+    // this->ade_write_8(0x0010, 0x04);
+    this->ade_write_8(0x00FE, 0xAD);
+    this->ade_write_16(0x0120, 0x0030);
+    // Set gains
+    this->ade_write_8(PGA_V_8, pga_v_);
+    this->ade_write_8(PGA_IA_8, pga_ia_);
+    this->ade_write_8(PGA_IB_8, pga_ib_);
+    this->ade_write_32(AVGAIN_32, vgain_);
+    this->ade_write_32(AIGAIN_32, aigain_);
+    this->ade_write_32(BIGAIN_32, bigain_);
+    this->ade_write_32(AWGAIN_32, awgain_);
+    this->ade_write_32(BWGAIN_32, bwgain_);
+    // Read back gains for debugging
+    this->ade_read_8(PGA_V_8, &pga_v_);
+    this->ade_read_8(PGA_IA_8, &pga_ia_);
+    this->ade_read_8(PGA_IB_8, &pga_ib_);
+    this->ade_read_32(AVGAIN_32, &vgain_);
+    this->ade_read_32(AIGAIN_32, &aigain_);
+    this->ade_read_32(BIGAIN_32, &bigain_);
+    this->ade_read_32(AWGAIN_32, &awgain_);
+    this->ade_read_32(BWGAIN_32, &bwgain_);
+    this->is_setup_ = true;
+  });
+}
+
 void ADE7953::dump_config() {
   LOG_PIN("  IRQ Pin: ", irq_pin_);
   LOG_UPDATE_INTERVAL(this);
