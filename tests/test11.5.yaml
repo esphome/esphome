@@ -104,6 +104,12 @@ binary_sensor:
     on_release:
       then:
         - switch.turn_off: Led0
+        - if:
+            condition: ble.enabled
+            then:
+              - ble.disable:
+            else:
+              - ble.enable:
 
   - platform: tm1638
     id: Button1
@@ -273,6 +279,7 @@ output:
 demo:
 
 esp32_ble:
+  enable_on_boot: false
 
 esp32_ble_server:
   manufacturer: ESPHome
