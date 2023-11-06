@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #include "sml_parser.h"
 
@@ -23,6 +24,7 @@ class Sml : public Component, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
   std::vector<SmlListener *> sml_listeners_{};
+  void add_on_data_callback(std::function<void(std::vector<uint8_t>, bool)> &&callback);
 
  protected:
   void process_sml_file_(const bytes &sml_data);
@@ -35,6 +37,8 @@ class Sml : public Component, public uart::UARTDevice {
   bool record_ = false;
   uint16_t incoming_mask_ = 0;
   bytes sml_data_;
+
+  CallbackManager<void(const std::vector<uint8_t> &, bool)> data_callbacks_{};
 };
 
 bool check_sml_data(const bytes &buffer);
