@@ -338,7 +338,7 @@ void resume_wdt() {
 
 std::string mask_key(const std::string &key) { return (key.substr(0, 5) + "[...]="); }
 
-Wireguard *global_wireguard;
+Wireguard *global_wireguard;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace wireguard
 }  // namespace esphome
