@@ -25,7 +25,7 @@ bool AdE7953I2c::ade_write_16(uint16_t reg, uint16_t value) {
   data.push_back(reg >> 0);
   data.push_back(value >> 8);
   data.push_back(value >> 0);
-  return write(data.data(), data.size()) != i2c::ERROR_OK;
+  return this->write(data.data(), data.size()) != i2c::ERROR_OK;
 }
 bool AdE7953I2c::ade_write_32(uint16_t reg, uint32_t value) {
   std::vector<uint8_t> data(6);
@@ -35,13 +35,13 @@ bool AdE7953I2c::ade_write_32(uint16_t reg, uint32_t value) {
   data.push_back(value >> 16);
   data.push_back(value >> 8);
   data.push_back(value >> 0);
-  return write(data.data(), data.size()) != i2c::ERROR_OK;
+  return this->write(data.data(), data.size()) != i2c::ERROR_OK;
 }
 bool AdE7953I2c::ade_read_8(uint16_t reg, uint8_t *value) {
   uint8_t reg_data[2];
   reg_data[0] = reg >> 8;
   reg_data[1] = reg >> 0;
-  i2c::ErrorCode err = write(reg_data, 2);
+  i2c::ErrorCode err = this->write(reg_data, 2);
   if (err != i2c::ERROR_OK)
     return true;
   err = this->read(value, 1);
@@ -51,7 +51,7 @@ bool AdE7953I2c::ade_read_16(uint16_t reg, uint16_t *value) {
   uint8_t reg_data[2];
   reg_data[0] = reg >> 8;
   reg_data[1] = reg >> 0;
-  i2c::ErrorCode err = write(reg_data, 2);
+  i2c::ErrorCode err = this->write(reg_data, 2);
   if (err != i2c::ERROR_OK)
     return true;
   uint8_t recv[2];
@@ -65,7 +65,7 @@ bool AdE7953I2c::ade_read_32(uint16_t reg, uint32_t *value) {
   uint8_t reg_data[2];
   reg_data[0] = reg >> 8;
   reg_data[1] = reg >> 0;
-  i2c::ErrorCode err = write(reg_data, 2);
+  i2c::ErrorCode err = this->write(reg_data, 2);
   if (err != i2c::ERROR_OK)
     return true;
   uint8_t recv[4];
