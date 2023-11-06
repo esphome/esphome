@@ -109,7 +109,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
     this->write_array(&this->transfer_buffer_[i], write_len);
     this->content_length_ -= write_len;
     ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %d bytes",
-            100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_);
+             100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_);
 
     if (!this->upload_first_chunk_sent_) {
       this->upload_first_chunk_sent_ = true;
