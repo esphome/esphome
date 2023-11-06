@@ -88,7 +88,7 @@ AsyncWebServerRequest::~AsyncWebServerRequest() {
   }
 }
 
-bool AsyncWebServerRequest::hasHeader(const char *name) const { return httpd_req_get_hdr_value_len(*this, name); }
+bool AsyncWebServerRequest::hasHeader(const char *name) const { return httpd_req_get_hdr_value_len(*this, name); } 
 
 optional<std::string> AsyncWebServerRequest::get_header(const char *name) const {
   size_t buf_len = httpd_req_get_hdr_value_len(*this, name);
