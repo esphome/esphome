@@ -58,7 +58,6 @@ bool AdE7953I2c::ade_read_16(uint16_t reg, uint16_t *value) {
   err = read(recv, 2);
   if (err != i2c::ERROR_OK)
     return true;
-  *value = 0;
   *value = encode_uint16(recv[0], recv[1]);
   return false;
 }
