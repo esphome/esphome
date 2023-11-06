@@ -173,10 +173,13 @@ sensor:
     irq_pin: GPIO16
     voltage:
       name: ADE7953 Voltage
+      id: ade7953_voltage
     current_a:
       name: ADE7953 Current A
+      id: ade7953_current_a
     current_b:
       name: ADE7953 Current B
+      id: ade7953_current_b
     power_factor_a:
       name: "ADE7953 Power Factor A"
     power_factor_b:
