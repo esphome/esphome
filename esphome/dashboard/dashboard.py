@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import binascii
 import codecs
@@ -15,7 +17,6 @@ import shutil
 import subprocess
 import threading
 from pathlib import Path
-from typing import Optional
 
 import tornado
 import tornado.concurrent
@@ -42,7 +43,13 @@ from esphome.storage_json import (
     trash_storage_path,
 )
 from esphome.util import get_serial_ports, shlex_quote
-from esphome.zeroconf import DashboardImportDiscovery, DashboardStatus, EsphomeZeroconf
+from esphome.zeroconf import (
+    ESPHOME_SERVICE_TYPE,
+    DashboardBrowser,
+    DashboardImportDiscovery,
+    DashboardStatus,
+    EsphomeZeroconf,
+)
 
 from .util import friendly_name_slugify, password_hash
 
@@ -517,6 +524,8 @@ class ImportRequestHandler(BaseHandler):
                 network,
                 encryption,
             )
+            # Make sure the device gets marked online right away
+            PING_REQUEST.set()
         except FileExistsError:
             self.set_status(500)
             self.write("File already exists")
@@ -542,13 +551,11 @@ class DownloadListRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        from esphome.components.esp32 import (
-            get_download_types as esp32_types,
-            VARIANTS as ESP32_VARIANTS,
-        )
+        from esphome.components.esp32 import VARIANTS as ESP32_VARIANTS
+        from esphome.components.esp32 import get_download_types as esp32_types
         from esphome.components.esp8266 import get_download_types as esp8266_types
-        from esphome.components.rp2040 import get_download_types as rp2040_types
         from esphome.components.libretiny import get_download_types as libretiny_types
+        from esphome.components.rp2040 import get_download_types as rp2040_types
 
         downloads = []
         platform = storage_json.target_platform.lower()
@@ -661,12 +668,21 @@ class DashboardEntry:
         self._storage = None
         self._loaded_storage = False
 
+    def __repr__(self):
+        return (
+            f"DashboardEntry({self.path} "
+            f"address={self.address} "
+            f"web_port={self.web_port} "
+            f"name={self.name} "
+            f"no_mdns={self.no_mdns})"
+        )
+
     @property
     def filename(self):
         return os.path.basename(self.path)
 
     @property
-    def storage(self) -> Optional[StorageJSON]:
+    def storage(self) -> StorageJSON | None:
         if not self._loaded_storage:
             self._storage = StorageJSON.load(ext_storage_path(self.filename))
             self._loaded_storage = True
@@ -831,10 +847,10 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
 class BoardsRequestHandler(BaseHandler):
     @authenticated
     def get(self, platform: str):
+        from esphome.components.bk72xx.boards import BOARDS as BK72XX_BOARDS
         from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
         from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
         from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
-        from esphome.components.bk72xx.boards import BOARDS as BK72XX_BOARDS
         from esphome.components.rtl87xx.boards import BOARDS as RTL87XX_BOARDS
 
         platform_to_boards = {
@@ -865,35 +881,76 @@ class BoardsRequestHandler(BaseHandler):
 
 
 class MDNSStatusThread(threading.Thread):
+    def __init__(self):
+        """Initialize the MDNSStatusThread."""
+        super().__init__()
+        # This is the current mdns state for each host (True, False, None)
+        self.host_mdns_state: dict[str, bool | None] = {}
+        # This is the hostnames to filenames mapping
+        self.host_name_to_filename: dict[str, str] = {}
+        # This is a set of host names to track (i.e no_mdns = false)
+        self.host_name_with_mdns_enabled: set[set] = set()
+        self._refresh_hosts()
+
+    def _refresh_hosts(self):
+        """Refresh the hosts to track."""
+        entries = _list_dashboard_entries()
+        host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
+        host_mdns_state = self.host_mdns_state
+        host_name_to_filename = self.host_name_to_filename
+
+        for entry in entries:
+            name = entry.name
+            # If no_mdns is set, remove it from the set
+            if entry.no_mdns:
+                host_name_with_mdns_enabled.discard(name)
+                continue
+
+            # We are tracking this host
+            host_name_with_mdns_enabled.add(name)
+            filename = entry.filename
+
+            # If we just adopted/imported this host, we likely
+            # already have a state for it, so we should make sure
+            # to set it so the dashboard shows it as online
+            if name in host_mdns_state:
+                PING_RESULT[filename] = host_mdns_state[name]
+
+            # Make sure the mapping is up to date
+            # so when we get an mdns update we can map it back
+            # to the filename
+            host_name_to_filename[name] = filename
+
     def run(self):
         global IMPORT_RESULT
 
         zc = EsphomeZeroconf()
+        host_mdns_state = self.host_mdns_state
+        host_name_to_filename = self.host_name_to_filename
+        host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
 
-        def on_update(dat):
-            for key, b in dat.items():
-                PING_RESULT[key] = b
+        def on_update(dat: dict[str, bool | None]) -> None:
+            """Update the global PING_RESULT dict."""
+            for name, result in dat.items():
+                host_mdns_state[name] = result
+                if name in host_name_with_mdns_enabled:
+                    filename = host_name_to_filename[name]
+                    PING_RESULT[filename] = result
 
-        stat = DashboardStatus(zc, on_update)
-        imports = DashboardImportDiscovery(zc)
+        self._refresh_hosts()
+        stat = DashboardStatus(on_update)
+        imports = DashboardImportDiscovery()
+        browser = DashboardBrowser(
+            zc, ESPHOME_SERVICE_TYPE, [stat.browser_callback, imports.browser_callback]
+        )
 
-        stat.start()
         while not STOP_EVENT.is_set():
-            entries = _list_dashboard_entries()
-            hosts = {}
-            for entry in entries:
-                if entry.no_mdns is not True:
-                    hosts[entry.filename] = f"{entry.name}.local."
-
-            stat.request_query(hosts)
+            self._refresh_hosts()
             IMPORT_RESULT = imports.import_state
-
             PING_REQUEST.wait()
             PING_REQUEST.clear()
 
-        stat.stop()
-        stat.join()
-        imports.cancel()
+        browser.cancel()
         zc.close()
 
 
