@@ -191,7 +191,7 @@ void ATM90E32Component::dump_config() {
   LOG_SENSOR("  ", "Chip Temp", this->chip_temperature_sensor_);
 }
 
-float ATM90E32Component::get_setup_priority() const { return setup_priority::BUS; }
+float ATM90E32Component::get_setup_priority() const { return setup_priority::IO; }
 
 uint16_t ATM90E32Component::read16_(uint16_t a_register) {
   uint8_t addrh = (1 << 7) | ((a_register >> 8) & 0x03);
