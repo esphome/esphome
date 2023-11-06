@@ -13,7 +13,7 @@ void AdE7953I2c::dump_config() {
   ade7953_base::ADE7953::dump_config();
 }
 bool AdE7953I2c::ade_write_8(uint16_t reg, uint8_t value) {
-  std::vector<uint8_t> data;
+  std::vector<uint8_t> data(3);
   data.push_back(reg >> 8);
   data.push_back(reg >> 0);
   data.push_back(value);
