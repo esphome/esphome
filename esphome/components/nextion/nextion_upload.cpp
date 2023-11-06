@@ -61,7 +61,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
     ++tries;
     if (!begin_status) {
       ESP_LOGD(TAG, "upload_by_chunks_: connection failed");
-      delay(500);
+      delay(500);  // NOLINT
       continue;
     }
 
@@ -109,8 +109,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
     this->write_array(&this->transfer_buffer_[i], write_len);
     this->content_length_ -= write_len;
     ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %d bytes",
-              100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_,
-              this->content_length_);
+            100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_);
 
     if (!this->upload_first_chunk_sent_) {
       this->upload_first_chunk_sent_ = true;
@@ -253,8 +252,8 @@ void Nextion::upload_tft() {
 
   // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
   ESP_LOGD(TAG, "Upgrade response is [%s] - %zu bytes",
-          format_hex_pretty(reinterpret_cast<const uint8_t *>(response.data()), response.size()).c_str(),
-          response.length());
+           format_hex_pretty(reinterpret_cast<const uint8_t *>(response.data()), response.size()).c_str(),
+           response.length());
 
   for (size_t i = 0; i < response.length(); i++) {
     ESP_LOGD(TAG, "Available %d : 0x%02X", i, response[i]);
