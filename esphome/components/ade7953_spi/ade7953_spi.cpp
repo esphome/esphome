@@ -1,5 +1,6 @@
 #include "ade7953_spi.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace ade7953_spi {
@@ -64,11 +65,9 @@ bool AdE7953Spi::ade_read_32(uint16_t reg, uint32_t *value) {
   this->enable();
   this->write_byte16(reg);
   this->transfer_byte(0x80);
-  *value = 0;
-  *value |= this->read_byte() << 24;
-  *value |= this->read_byte() << 16;
-  *value |= this->read_byte() << 8;
-  *value |= this->read_byte();
+  uint8_t recv[4];
+  read_array(recv, 4);
+  *value = encode_uint32(recv[0], recv[1], recv[2], recv[3]);
   this->disable();
   return false;
 }

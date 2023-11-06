@@ -1,5 +1,6 @@
 #include "ade7953_i2c.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace ade7953_i2c {
