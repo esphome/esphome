@@ -61,7 +61,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
     ++tries;
     if (!begin_status) {
       ESP_LOGD(TAG, "upload_by_chunks_: connection failed");
-      delay(1000);
+      delay(500);
       continue;
     }
 
@@ -75,7 +75,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
              HTTPClient::errorToString(code).c_str(), tries);
     http->end();
     App.feed_wdt();
-    delay(1000);  // NOLINT
+    delay(500);  // NOLINT
   }
 
   if (tries > 5) {
@@ -118,9 +118,9 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
     }
 
     this->recv_ret_string_(recv_string, 4096, true);
-    if (recv_string[0] != 0x05) { // 0x05 == "ok"
+    if (recv_string[0] != 0x05) {  // 0x05 == "ok"
       ESP_LOGD(TAG, "recv_string [%s]",
-              format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
+               format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
     }
 
     // handle partial upload request
