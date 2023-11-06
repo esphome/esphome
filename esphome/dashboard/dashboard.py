@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import binascii
 import codecs
@@ -15,7 +17,6 @@ import shutil
 import subprocess
 import threading
 from pathlib import Path
-from typing import Optional
 
 import tornado
 import tornado.concurrent
@@ -42,7 +43,13 @@ from esphome.storage_json import (
     trash_storage_path,
 )
 from esphome.util import get_serial_ports, shlex_quote
-from esphome.zeroconf import DashboardImportDiscovery, DashboardStatus, EsphomeZeroconf
+from esphome.zeroconf import (
+    ESPHOME_SERVICE_TYPE,
+    DashboardBrowser,
+    DashboardImportDiscovery,
+    DashboardStatus,
+    EsphomeZeroconf,
+)
 
 from .util import friendly_name_slugify, password_hash
 
@@ -542,13 +549,11 @@ class DownloadListRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        from esphome.components.esp32 import (
-            get_download_types as esp32_types,
-            VARIANTS as ESP32_VARIANTS,
-        )
+        from esphome.components.esp32 import VARIANTS as ESP32_VARIANTS
+        from esphome.components.esp32 import get_download_types as esp32_types
         from esphome.components.esp8266 import get_download_types as esp8266_types
-        from esphome.components.rp2040 import get_download_types as rp2040_types
         from esphome.components.libretiny import get_download_types as libretiny_types
+        from esphome.components.rp2040 import get_download_types as rp2040_types
 
         downloads = []
         platform = storage_json.target_platform.lower()
@@ -661,12 +666,21 @@ class DashboardEntry:
         self._storage = None
         self._loaded_storage = False
 
+    def __repr__(self):
+        return (
+            f"DashboardEntry({self.path} "
+            f"address={self.address} "
+            f"web_port={self.web_port} "
+            f"name={self.name} "
+            f"no_mdns={self.no_mdns})"
+        )
+
     @property
     def filename(self):
         return os.path.basename(self.path)
 
     @property
-    def storage(self) -> Optional[StorageJSON]:
+    def storage(self) -> StorageJSON | None:
         if not self._loaded_storage:
             self._storage = StorageJSON.load(ext_storage_path(self.filename))
             self._loaded_storage = True
@@ -831,10 +845,10 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
 class BoardsRequestHandler(BaseHandler):
     @authenticated
     def get(self, platform: str):
+        from esphome.components.bk72xx.boards import BOARDS as BK72XX_BOARDS
         from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
         from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
         from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
-        from esphome.components.bk72xx.boards import BOARDS as BK72XX_BOARDS
         from esphome.components.rtl87xx.boards import BOARDS as RTL87XX_BOARDS
 
         platform_to_boards = {
@@ -865,35 +879,43 @@ class BoardsRequestHandler(BaseHandler):
 
 
 class MDNSStatusThread(threading.Thread):
+    def __init__(self):
+        """Initialize the MDNSStatusThread."""
+        super().__init__()
+        self.host_to_filename: dict[str, str] = {}
+        self._refresh_hosts()
+
+    def _refresh_hosts(self):
+        entries = _list_dashboard_entries()
+        for entry in entries:
+            if entry.no_mdns is not True:
+                self.host_to_filename[entry.name] = entry.filename
+
     def run(self):
         global IMPORT_RESULT
 
         zc = EsphomeZeroconf()
 
-        def on_update(dat):
-            for key, b in dat.items():
-                PING_RESULT[key] = b
+        def on_update(dat: dict[str, bool | None]) -> None:
+            """Update the global PING_RESULT dict."""
+            for host, result in dat.items():
+                if filename := self.host_to_filename.get(host):
+                    PING_RESULT[filename] = result
 
-        stat = DashboardStatus(zc, on_update)
-        imports = DashboardImportDiscovery(zc)
+        self._refresh_hosts()
+        stat = DashboardStatus(on_update)
+        imports = DashboardImportDiscovery()
+        browser = DashboardBrowser(
+            zc, ESPHOME_SERVICE_TYPE, [stat.browser_callback, imports.browser_callback]
+        )
 
-        stat.start()
         while not STOP_EVENT.is_set():
-            entries = _list_dashboard_entries()
-            hosts = {}
-            for entry in entries:
-                if entry.no_mdns is not True:
-                    hosts[entry.filename] = f"{entry.name}.local."
-
-            stat.request_query(hosts)
+            self._refresh_hosts()
             IMPORT_RESULT = imports.import_state
-
             PING_REQUEST.wait()
             PING_REQUEST.clear()
 
-        stat.stop()
-        stat.join()
-        imports.cancel()
+        browser.cancel()
         zc.close()
 
 
