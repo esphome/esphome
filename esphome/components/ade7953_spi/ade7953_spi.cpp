@@ -54,9 +54,9 @@ bool AdE7953Spi::ade_read_16(uint16_t reg, uint16_t *value) {
   this->enable();
   this->write_byte16(reg);
   this->transfer_byte(0x80);
-  *value = 0;
-  *value |= this->read_byte() << 8;
-  *value |= this->read_byte();
+  uint8_t recv[2];
+  this->read_array(recv, 4);
+  *value = encode_uint16(recv[0], recv[1]);
   this->disable();
   return false;
 }
