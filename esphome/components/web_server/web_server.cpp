@@ -34,10 +34,12 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 static const char *const HEADER_PNA_NAME = "Private-Network-Access-Name";
 static const char *const HEADER_PNA_ID = "Private-Network-Access-ID";
 static const char *const HEADER_CORS_REQ_PNA = "Access-Control-Request-Private-Network";
 static const char *const HEADER_CORS_ALLOW_PNA = "Access-Control-Allow-Private-Network";
+#endif
 
 #if USE_WEBSERVER_VERSION == 1
 void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
