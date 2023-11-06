@@ -11,6 +11,7 @@ namespace opentherm {
 using std::string;
 using std::bitset;
 using std::stringstream;
+using std::to_string;
 
 OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t slave_timeout)
     : in_pin_(in_pin),
@@ -42,11 +43,6 @@ void OpenTherm::listen() {
   stop_();
   this->timeout_counter_ = slave_timeout_ * 5;  // timer_ ticks at 5 ticks/ms
 
-  listen_();
-}
-
-void OpenTherm::listen_() {
-  stop_timer_();
   mode_ = OperationMode::LISTEN;
   active_ = true;
   data_ = 0;
@@ -227,6 +223,7 @@ void IRAM_ATTR OpenTherm::init_timer_() {
   timer_config_t const config = {
       .alarm_en = TIMER_ALARM_DIS,
       .counter_en = TIMER_PAUSE,
+      .intr_type = TIMER_INTR_LEVEL,
       .counter_dir = TIMER_COUNT_UP,
       .auto_reload = TIMER_AUTORELOAD_DIS,
       .divider = 80,
@@ -240,7 +237,8 @@ void IRAM_ATTR OpenTherm::init_timer_() {
 }
 
 void IRAM_ATTR OpenTherm::start_timer_(uint64_t alarm_value) {
-  timer_isr_callback_add(TIMER_GROUP_0, TIMER_0, reinterpret_cast<bool (*)(void *)>(timer_isr), this, 0);
+  timer_isr_callback_add(TIMER_GROUP_0, TIMER_0, reinterpret_cast<bool (*)(void *)>(timer_isr), this,
+                         ESP_INTR_FLAG_IRAM);
   timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, alarm_value);
   timer_set_auto_reload(TIMER_GROUP_0, TIMER_0, TIMER_AUTORELOAD_EN);
   timer_set_alarm(TIMER_GROUP_0, TIMER_0, TIMER_ALARM_EN);
@@ -333,11 +331,11 @@ string OpenTherm::debug_data(OpenthermData &data) {
   result << bitset<8>(data.type) << " " << bitset<8>(data.id) << " " << bitset<8>(data.valueHB) << " "
          << bitset<8>(data.valueLB) << "\n";
   result << "type: " << message_type_to_str_((MessageType) data.type) << "; ";
-  result << "id: " << data.id << "; ";
-  result << "HB: " << data.valueHB << "; ";
-  result << "LB: " << data.valueLB << "; ";
-  result << "uint_16: " << data.u16() << "; ";
-  result << "float: " << data.f88();
+  result << "id: " << to_string(data.id) << "; ";
+  result << "HB: " << to_string(data.valueHB) << "; ";
+  result << "LB: " << to_string(data.valueLB) << "; ";
+  result << "uint_16: " << to_string(data.u16()) << "; ";
+  result << "float: " << to_string(data.f88());
 
   return result.str();
 }
@@ -347,12 +345,9 @@ std::string OpenTherm::debug_error(OpenThermError &error) {
   result << "type: " << protocol_error_to_to_str_(error.error_type) << "; ";
   result << "data: ";
   int_to_hex(result, error.data);
-  result << "; clock: ";
-  int_to_hex(result, error.clock);
-  result << "; capture: ";
-  int_to_hex(result, error.capture);
-  result << "; bit_pos: ";
-  int_to_hex(result, error.bit_pos);
+  result << "; clock: " << to_string(clock_);
+  result << "; capture: " << bitset<32>(error.capture);
+  result << "; bit_pos: " << to_string(error.bit_pos);
 
   return result.str();
 }

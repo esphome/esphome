@@ -76,7 +76,6 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
   // It is also included in the macro-generated code below, but that will
   // never be executed, because we short-circuit it here.
   if (request_id == MessageId::STATUS) {
-    ESP_LOGD(OT_TAG, "Building Status request");
     // NOLINTBEGIN
     bool const ch_enabled = this->ch_enable &&
 #ifdef OPENTHERM_READ_ch_enable
@@ -147,7 +146,6 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
 // supported).
 #define OPENTHERM_MESSAGE_WRITE_MESSAGE(msg) \
   case MessageId::msg: { \
-    ESP_LOGD(OT_TAG, "Building %s write request", #msg); \
     data.type = MessageType::WRITE_DATA; \
     data.id = request_id;
 #define OPENTHERM_MESSAGE_WRITE_ENTITY(key, msg_data) message_data::write_##msg_data(this->key->state, data);
@@ -168,7 +166,6 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
 // Finally, handle the simple read requests, which only change with the message id.
 #define OPENTHERM_MESSAGE_READ_MESSAGE(msg) \
   case MessageId::msg: \
-    ESP_LOGD(OT_TAG, "Building %s read request", #msg); \
     data.type = MessageType::READ_DATA; \
     data.id = request_id; \
     return data;
@@ -188,12 +185,12 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
 OpenthermHub::OpenthermHub() : Component() {}
 
 void OpenthermHub::process_response(OpenthermData &data) {
-  ESP_LOGD(OT_TAG, "Received OpenTherm response with id %d: %s", data.id, opentherm_->debug_data(data).c_str());
+  ESP_LOGD(OT_TAG, "Received OpenTherm response with id %d (%s)", data.id,
+           opentherm_->message_type_to_str_((MessageType) data.id));
+  ESP_LOGD(OT_TAG, "%s", opentherm_->debug_data(data).c_str());
 
 // Define the handler helpers to publish the results to all sensors
-#define OPENTHERM_MESSAGE_RESPONSE_MESSAGE(msg) \
-  case MessageId::msg: \
-    ESP_LOGD(OT_TAG, "Received %s response", #msg);
+#define OPENTHERM_MESSAGE_RESPONSE_MESSAGE(msg) case MessageId::msg:
 #define OPENTHERM_MESSAGE_RESPONSE_ENTITY(key, msg_data) this->key->publish_state(message_data::parse_##msg_data(data));
 #define OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT break;
 
@@ -252,6 +249,10 @@ void OpenthermHub::loop() {
   }
 
   auto request = this->build_request_(*this->current_message_iterator_);
+
+  ESP_LOGD(OT_TAG, "Sending request with id %d (%s)", request.id,
+           opentherm_->message_type_to_str_((MessageType) request.id));
+  ESP_LOGD(OT_TAG, "%s", opentherm_->debug_data(request).c_str());
 
   // Send the request
   last_conversation_start_ = millis();
@@ -318,7 +319,7 @@ void OpenthermHub::loop() {
 
   opentherm_->stop();
   last_conversation_end_ = millis();
-  
+
   process_response(response);
 
   this->current_message_iterator_++;
