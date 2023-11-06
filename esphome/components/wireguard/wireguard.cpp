@@ -33,6 +33,8 @@ static const char *const LOGMSG_PEER_STATUS = "WireGuard remote peer is %s (late
 static const char *const LOGMSG_ONLINE = "online";
 static const char *const LOGMSG_OFFLINE = "offline";
 
+Wireguard::Wireguard() { global_wireguard = this; }
+
 void Wireguard::setup() {
   ESP_LOGD(TAG, "initializing WireGuard...");
 
@@ -335,6 +337,8 @@ void resume_wdt() {
 }
 
 std::string mask_key(const std::string &key) { return (key.substr(0, 5) + "[...]="); }
+
+Wireguard *global_wireguard;
 
 }  // namespace wireguard
 }  // namespace esphome

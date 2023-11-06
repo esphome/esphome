@@ -26,8 +26,11 @@
 namespace esphome {
 namespace wireguard {
 
+/// Main Wireguard component class.
 class Wireguard : public PollingComponent {
  public:
+  Wireguard();
+
   void setup() override;
   void loop() override;
   void update() override;
@@ -144,6 +147,33 @@ void resume_wdt();
 
 /// Strip most part of the key only for secure printing
 std::string mask_key(const std::string &key);
+
+/// Global reference to Wireguard component to handle actions and conditions.
+extern Wireguard *global_wireguard;
+
+/// Condition to check if remote peer is up.
+template<typename... Ts> class WireguardPeerUpCondition : public Condition<Ts...> {
+ public:
+  bool check(Ts... x) override { return global_wireguard->is_peer_up(); }
+};
+
+/// Condition to check if Wireguard component is enabled.
+template<typename... Ts> class WireguardEnabledCondition : public Condition<Ts...> {
+ public:
+  bool check(Ts... x) override { return global_wireguard->is_enabled(); }
+};
+
+/// Action to enable Wireguard component.
+template<typename... Ts> class WireguardEnableAction : public Action<Ts...> {
+ public:
+  void play(Ts... x) override { global_wireguard->enable(); }
+};
+
+/// Action to disable Wireguard component.
+template<typename... Ts> class WireguardDisableAction : public Action<Ts...> {
+ public:
+  void play(Ts... x) override { global_wireguard->disable(); }
+};
 
 }  // namespace wireguard
 }  // namespace esphome
