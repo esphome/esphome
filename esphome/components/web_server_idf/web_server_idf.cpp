@@ -88,9 +88,7 @@ AsyncWebServerRequest::~AsyncWebServerRequest() {
   }
 }
 
-bool AsyncWebServerRequest::hasHeader(const char *name) const {
-  return httpd_req_get_hdr_value_len(*this, name);
-}
+bool AsyncWebServerRequest::hasHeader(const char *name) const { return httpd_req_get_hdr_value_len(*this, name); }
 
 optional<std::string> AsyncWebServerRequest::get_header(const char *name) const {
   size_t buf_len = httpd_req_get_hdr_value_len(*this, name);
@@ -316,7 +314,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   httpd_resp_set_type(req, "text/event-stream");
   httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
   httpd_resp_set_hdr(req, "Connection", "keep-alive");
- 
+
   for (const auto &pair : DefaultHeaders::Instance().headers_) {
     httpd_resp_set_hdr(req, pair.first.c_str(), pair.second.c_str());
   }
