@@ -277,9 +277,10 @@ class OpenTherm {
   std::string debug_data(OpenthermData &data);
   std::string debug_error(OpenThermError &error);
 
-  const char *protocol_error_to_to_str_(ProtocolErrorType error_type);
-  const char *message_type_to_str_(MessageType message_type);
-  const char *operation_mode_to_str_(OperationMode mode);
+  const char *protocol_error_to_to_str(ProtocolErrorType error_type);
+  const char *message_type_to_str(MessageType message_type);
+  const char *operation_mode_to_str(OperationMode mode);
+  const char *message_id_to_str(MessageId id);
 
   static bool timer_isr(OpenTherm *arg);
 
@@ -300,7 +301,7 @@ class OpenTherm {
   volatile bool timer_initialized_;
 
   int32_t slave_timeout_;
-  
+
   void read_();  // data detected start reading
   void stop_();  // stop timers and interrupts
   void init_timer_();

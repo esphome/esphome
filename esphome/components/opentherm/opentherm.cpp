@@ -286,7 +286,7 @@ bool OpenTherm::check_parity_(uint32_t val) {
   case name: \
     return #name;
 
-const char *OpenTherm::operation_mode_to_str_(OperationMode mode) {
+const char *OpenTherm::operation_mode_to_str(OperationMode mode) {
   switch (mode) {
     TO_STRING_MEMBER(IDLE)
     TO_STRING_MEMBER(LISTEN)
@@ -300,7 +300,7 @@ const char *OpenTherm::operation_mode_to_str_(OperationMode mode) {
       return "<INVALID>";
   }
 }
-const char *OpenTherm::protocol_error_to_to_str_(ProtocolErrorType error_type) {
+const char *OpenTherm::protocol_error_to_to_str(ProtocolErrorType error_type) {
   switch (error_type) {
     TO_STRING_MEMBER(NO_ERROR)
     TO_STRING_MEMBER(NO_TRANSITION)
@@ -311,7 +311,7 @@ const char *OpenTherm::protocol_error_to_to_str_(ProtocolErrorType error_type) {
       return "<INVALID>";
   }
 }
-const char *OpenTherm::message_type_to_str_(MessageType message_type) {
+const char *OpenTherm::message_type_to_str(MessageType message_type) {
   switch (message_type) {
     TO_STRING_MEMBER(READ_DATA)
     TO_STRING_MEMBER(READ_ACK)
@@ -325,11 +325,82 @@ const char *OpenTherm::message_type_to_str_(MessageType message_type) {
   }
 }
 
+const char *OpenTherm::message_id_to_str(MessageId id) {
+  switch (id) {
+    TO_STRING_MEMBER(STATUS)
+    TO_STRING_MEMBER(CH_SETPOINT)
+    TO_STRING_MEMBER(MASTER_CONFIG)
+    TO_STRING_MEMBER(SLAVE_CONFIG)
+    TO_STRING_MEMBER(COMMAND_CODE)
+    TO_STRING_MEMBER(FAULT_FLAGS)
+    TO_STRING_MEMBER(REMOTE)
+    TO_STRING_MEMBER(COOLING_CONTROL)
+    TO_STRING_MEMBER(CH2_SETPOINT)
+    TO_STRING_MEMBER(CH_SETPOINT_OVERRIDE)
+    TO_STRING_MEMBER(TSP_COUNT)
+    TO_STRING_MEMBER(TSP_COMMAND)
+    TO_STRING_MEMBER(FHB_SIZE)
+    TO_STRING_MEMBER(FHB_COMMAND)
+    TO_STRING_MEMBER(MAX_MODULATION_LEVEL)
+    TO_STRING_MEMBER(MAX_BOILER_CAPACITY)
+    TO_STRING_MEMBER(ROOM_SETPOINT)
+    TO_STRING_MEMBER(MODULATION_LEVEL)
+    TO_STRING_MEMBER(CH_WATER_PRESSURE)
+    TO_STRING_MEMBER(DHW_FLOW_RATE)
+    TO_STRING_MEMBER(DAY_TIME)
+    TO_STRING_MEMBER(DATE)
+    TO_STRING_MEMBER(YEAR)
+    TO_STRING_MEMBER(ROOM_SETPOINT_CH2)
+    TO_STRING_MEMBER(ROOM_TEMP)
+    TO_STRING_MEMBER(FEED_TEMP)
+    TO_STRING_MEMBER(DHW_TEMP)
+    TO_STRING_MEMBER(OUTSIDE_TEMP)
+    TO_STRING_MEMBER(RETURN_WATER_TEMP)
+    TO_STRING_MEMBER(SOLAR_STORE_TEMP)
+    TO_STRING_MEMBER(SOLAR_COLLECT_TEMP)
+    TO_STRING_MEMBER(FEED_TEMP_CH2)
+    TO_STRING_MEMBER(DHW2_TEMP)
+    TO_STRING_MEMBER(EXHAUST_TEMP)
+    TO_STRING_MEMBER(DHW_BOUNDS)
+    TO_STRING_MEMBER(CH_BOUNDS)
+    TO_STRING_MEMBER(OTC_CURVE_BOUNDS)
+    TO_STRING_MEMBER(DHW_SETPOINT)
+    TO_STRING_MEMBER(MAX_CH_SETPOINT)
+    TO_STRING_MEMBER(OTC_CURVE_RATIO)
+    TO_STRING_MEMBER(HVAC_STATUS)
+    TO_STRING_MEMBER(REL_VENT_SETPOINT)
+    TO_STRING_MEMBER(SLAVE_VENT)
+    TO_STRING_MEMBER(REL_VENTILATION)
+    TO_STRING_MEMBER(REL_HUMID_EXHAUST)
+    TO_STRING_MEMBER(SUPPLY_INLET_TEMP)
+    TO_STRING_MEMBER(SUPPLY_OUTLET_TEMP)
+    TO_STRING_MEMBER(EXHAUST_INLET_TEMP)
+    TO_STRING_MEMBER(EXHAUST_OUTLET_TEMP)
+    TO_STRING_MEMBER(NOM_REL_VENTILATION)
+    TO_STRING_MEMBER(OVERRIDE_FUNC)
+    TO_STRING_MEMBER(OEM_DIAGNOSTIC)
+    TO_STRING_MEMBER(BURNER_STARTS)
+    TO_STRING_MEMBER(CH_PUMP_STARTS)
+    TO_STRING_MEMBER(DHW_PUMP_STARTS)
+    TO_STRING_MEMBER(DHW_BURNER_STARTS)
+    TO_STRING_MEMBER(BURNER_HOURS)
+    TO_STRING_MEMBER(CH_PUMP_HOURS)
+    TO_STRING_MEMBER(DHW_PUMP_HOURS)
+    TO_STRING_MEMBER(DHW_BURNER_HOURS)
+    TO_STRING_MEMBER(OT_VERSION_MASTER)
+    TO_STRING_MEMBER(OT_VERSION_SLAVE)
+    TO_STRING_MEMBER(VERSION_MASTER)
+    TO_STRING_MEMBER(VERSION_SLAVE)
+    default:
+      return "<INVALID>";
+  }
+}
+
 string OpenTherm::debug_data(OpenthermData &data) {
   stringstream result;
   result << bitset<8>(data.type) << " " << bitset<8>(data.id) << " " << bitset<8>(data.valueHB) << " "
          << bitset<8>(data.valueLB) << "\n";
-  result << "type: " << message_type_to_str_((MessageType) data.type) << "; ";
+  result << "type: " << message_type_to_str((MessageType) data.type) << "; ";
   result << "id: " << to_string(data.id) << "; ";
   result << "HB: " << to_string(data.valueHB) << "; ";
   result << "LB: " << to_string(data.valueLB) << "; ";
@@ -338,10 +409,9 @@ string OpenTherm::debug_data(OpenthermData &data) {
 
   return result.str();
 }
-
 std::string OpenTherm::debug_error(OpenThermError &error) {
   stringstream result;
-  result << "type: " << protocol_error_to_to_str_(error.error_type) << "; ";
+  result << "type: " << protocol_error_to_to_str(error.error_type) << "; ";
   result << "data: ";
   int_to_hex(result, error.data);
   result << "; clock: " << to_string(clock_);

@@ -186,7 +186,7 @@ OpenthermHub::OpenthermHub() : Component() {}
 
 void OpenthermHub::process_response(OpenthermData &data) {
   ESP_LOGD(OT_TAG, "Received OpenTherm response with id %d (%s)", data.id,
-           opentherm_->message_type_to_str_((MessageType) data.id));
+           opentherm_->message_id_to_str((MessageId) data.id));
   ESP_LOGD(OT_TAG, "%s", opentherm_->debug_data(data).c_str());
 
 // Define the handler helpers to publish the results to all sensors
@@ -251,7 +251,7 @@ void OpenthermHub::loop() {
   auto request = this->build_request_(*this->current_message_iterator_);
 
   ESP_LOGD(OT_TAG, "Sending request with id %d (%s)", request.id,
-           opentherm_->message_type_to_str_((MessageType) request.id));
+           opentherm_->message_id_to_str((MessageId) request.id));
   ESP_LOGD(OT_TAG, "%s", opentherm_->debug_data(request).c_str());
 
   // Send the request
@@ -265,14 +265,14 @@ void OpenthermHub::loop() {
   }
 
   if (opentherm_->is_error()) {
-    ESP_LOGW(OT_TAG, "Error while sending request: %s", opentherm_->operation_mode_to_str_(opentherm_->get_mode()));
+    ESP_LOGW(OT_TAG, "Error while sending request: %s", opentherm_->operation_mode_to_str(opentherm_->get_mode()));
     ESP_LOGW(OT_TAG, "%s", opentherm_->debug_data(request).c_str());
     opentherm_->stop();
     last_conversation_end_ = millis();
     return;
   } else if (!opentherm_->is_sent()) {
     ESP_LOGW(OT_TAG, "Unexpected state after sending request: %s",
-             opentherm_->operation_mode_to_str_(opentherm_->get_mode()));
+             opentherm_->operation_mode_to_str(opentherm_->get_mode()));
     ESP_LOGW(OT_TAG, "%s", opentherm_->debug_data(request).c_str());
     opentherm_->stop();
     last_conversation_end_ = millis();
@@ -302,7 +302,7 @@ void OpenthermHub::loop() {
     return;
   } else if (!opentherm_->has_message()) {
     ESP_LOGW(OT_TAG, "Unexpected state after receiving response: %s",
-             opentherm_->operation_mode_to_str_(opentherm_->get_mode()));
+             opentherm_->operation_mode_to_str(opentherm_->get_mode()));
     opentherm_->stop();
     last_conversation_end_ = millis();
     return;
