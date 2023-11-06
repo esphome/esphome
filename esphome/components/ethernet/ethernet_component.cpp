@@ -5,6 +5,7 @@
 
 #ifdef USE_ESP32
 
+#include <cinttypes>
 #include <lwip/dns.h>
 #include "esp_event.h"
 

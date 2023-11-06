@@ -1,5 +1,6 @@
 #include "esphome/core/log.h"
 #include "tuya_sensor.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace tuya {
@@ -18,7 +19,7 @@ void TuyaSensor::setup() {
       ESP_LOGV(TAG, "MCU reported sensor %u is: %u", datapoint.id, datapoint.value_enum);
       this->publish_state(datapoint.value_enum);
     } else if (datapoint.type == TuyaDatapointType::BITMASK) {
-      ESP_LOGV(TAG, "MCU reported sensor %u is: %x", datapoint.id, datapoint.value_bitmask);
+      ESP_LOGV(TAG, "MCU reported sensor %u is: %" PRIx32, datapoint.id, datapoint.value_bitmask);
       this->publish_state(datapoint.value_bitmask);
     }
   });
