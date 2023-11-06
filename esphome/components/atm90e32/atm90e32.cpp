@@ -342,5 +342,30 @@ float ATM90E32Component::get_chip_temperature_() {
   return (float) ctemp;
 }
 
+uint16_t ATM90E32Component::calibrate_voltage_offset_phase(uint8_t phase) {
+  const uint8_t num_reads = 5;
+  uint64_t total_value = 0;
+  for (int i = 0; i < num_reads; ++i) {
+    const uint32_t measurement_value = read32_(ATM90E32_REGISTER_URMS + phase, ATM90E32_REGISTER_URMSLSB + phase);
+    total_value += measurement_value;
+  }
+  const uint32_t average_value = total_value / num_reads;
+  const uint32_t shifted_value = average_value >> 7;
+  const uint32_t voltage_offset = ~shifted_value + 1;
+  return voltage_offset & 0xFFFF;  // Take the lower 16 bits
+}
+
+uint16_t ATM90E32Component::calibrate_current_offset_phase(uint8_t phase) {
+  const uint8_t num_reads = 5;
+  uint64_t total_value = 0;
+  for (int i = 0; i < num_reads; ++i) {
+    const uint32_t measurement_value = read32_(ATM90E32_REGISTER_IRMS + phase, ATM90E32_REGISTER_IRMSLSB + phase);
+    total_value += measurement_value;
+  }
+  const uint32_t average_value = total_value / num_reads;
+  const uint32_t current_offset = ~average_value + 1;
+  return current_offset & 0xFFFF;  // Take the lower 16 bits
+}
+
 }  // namespace atm90e32
 }  // namespace esphome

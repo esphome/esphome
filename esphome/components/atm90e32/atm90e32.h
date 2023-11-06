@@ -42,31 +42,8 @@ class ATM90E32Component : public PollingComponent,
   void set_line_freq(int freq) { line_freq_ = freq; }
   void set_current_phases(int phases) { current_phases_ = phases; }
   void set_pga_gain(uint16_t gain) { pga_gain_ = gain; }
-
-  uint16_t calibrate_voltage_offset_phase(uint8_t phase) {
-    uint8_t num_reads = 5;
-    uint64_t total_value = 0;
-    for (int i = 0; i < num_reads; ++i) {
-      uint32_t measurement_value = read32_(ATM90E32_REGISTER_URMS + phase, ATM90E32_REGISTER_URMSLSB + phase);
-      total_value += measurement_value;
-    }
-    uint32_t average_value = total_value / num_reads;
-    uint32_t shifted_value = average_value >> 7;
-    uint32_t voltage_offset = ~shifted_value + 1;
-    return voltage_offset & 0xFFFF;  // Take the lower 16 bits
-  }
-
-  uint16_t calibrate_current_offset_phase(uint8_t phase) {
-    uint8_t num_reads = 5;
-    uint64_t total_value = 0;
-    for (int i = 0; i < num_reads; ++i) {
-      uint32_t measurement_value = read32_(ATM90E32_REGISTER_IRMS + phase, ATM90E32_REGISTER_IRMSLSB + phase);
-      total_value += measurement_value;
-    }
-    uint32_t average_value = total_value / num_reads;
-    uint32_t current_offset = ~average_value + 1;
-    return current_offset & 0xFFFF;  // Take the lower 16 bits
-  }
+  uint16_t calibrate_voltage_offset_phase(uint8_t /*phase*/);
+  uint16_t calibrate_current_offset_phase(uint8_t /*phase*/);
 
   int32_t last_periodic_millis = millis();
 
