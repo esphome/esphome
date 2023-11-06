@@ -5,8 +5,8 @@
 #include "esphome/core/log.h"
 
 #include <esp_bt.h>
-#include <esp_bt_main.h>
 #include <esp_bt_device.h>
+#include <esp_bt_main.h>
 #include <esp_gap_ble_api.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/FreeRTOSConfig.h>
@@ -42,34 +42,14 @@ void ESP32BLE::enable() {
   if (this->state_ != BLE_COMPONENT_STATE_DISABLED)
     return;
 
-  ESP_LOGD(TAG, "Enabling BLE...");
-  this->state_ = BLE_COMPONENT_STATE_OFF;
-
-  if (!ble_setup_()) {
-    ESP_LOGE(TAG, "BLE could not be set up");
-    this->mark_failed();
-    return;
-  }
-
-  this->state_ = BLE_COMPONENT_STATE_ACTIVE;
+  this->state_ = BLE_COMPONENT_STATE_ENABLE;
 }
 
 void ESP32BLE::disable() {
   if (this->state_ == BLE_COMPONENT_STATE_DISABLED)
     return;
 
-  ESP_LOGD(TAG, "Disabling BLE...");
-  this->state_ = BLE_COMPONENT_STATE_DISABLED;
-
-  for (auto *ble_event_handler : this->ble_status_event_handlers_) {
-    ble_event_handler->ble_before_disabled_event_handler();
-  }
-
-  if (!ble_dismantle_()) {
-    ESP_LOGE(TAG, "BLE could not be dismantled");
-    this->mark_failed();
-    return;
-  }
+  this->state_ = BLE_COMPONENT_STATE_DISABLE;
 }
 
 bool ESP32BLE::is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
@@ -267,9 +247,42 @@ bool ESP32BLE::ble_dismantle_() {
 }
 
 void ESP32BLE::loop() {
-  if (!this->is_active()) {
-    return;
+  switch (this->state_) {
+    case BLE_COMPONENT_STATE_OFF:
+    case BLE_COMPONENT_STATE_DISABLED:
+      return;
+    case BLE_COMPONENT_STATE_DISABLE: {
+      ESP_LOGD(TAG, "Disabling BLE...");
+
+      for (auto *ble_event_handler : this->ble_status_event_handlers_) {
+        ble_event_handler->ble_before_disabled_event_handler();
+      }
+
+      if (!ble_dismantle_()) {
+        ESP_LOGE(TAG, "BLE could not be dismantled");
+        this->mark_failed();
+        return;
+      }
+      this->state_ = BLE_COMPONENT_STATE_DISABLED;
+      return;
+    }
+    case BLE_COMPONENT_STATE_ENABLE: {
+      ESP_LOGD(TAG, "Enabling BLE...");
+      this->state_ = BLE_COMPONENT_STATE_OFF;
+
+      if (!ble_setup_()) {
+        ESP_LOGE(TAG, "BLE could not be set up");
+        this->mark_failed();
+        return;
+      }
+
+      this->state_ = BLE_COMPONENT_STATE_ACTIVE;
+      return;
+    }
+    case BLE_COMPONENT_STATE_ACTIVE:
+      break;
   }
+
   BLEEvent *ble_event = this->ble_events_.pop();
   while (ble_event != nullptr) {
     switch (ble_event->type_) {

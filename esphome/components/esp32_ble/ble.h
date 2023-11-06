@@ -3,19 +3,19 @@
 #include "ble_advertising.h"
 #include "ble_uuid.h"
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
-#include "queue.h"
 #include "ble_event.h"
+#include "queue.h"
 
 #ifdef USE_ESP32
 
 #include <esp_gap_ble_api.h>
-#include <esp_gatts_api.h>
 #include <esp_gattc_api.h>
+#include <esp_gatts_api.h>
 
 namespace esphome {
 namespace esp32_ble {
@@ -40,8 +40,12 @@ enum IoCapability {
 enum BLEComponentState {
   /** Nothing has been initialized yet. */
   BLE_COMPONENT_STATE_OFF = 0,
+  /** BLE should be disabled on next loop. */
+  BLE_COMPONENT_STATE_DISABLE,
   /** BLE is disabled. */
   BLE_COMPONENT_STATE_DISABLED,
+  /** BLE should be enabled on next loop. */
+  BLE_COMPONENT_STATE_ENABLE,
   /** BLE is active. */
   BLE_COMPONENT_STATE_ACTIVE,
 };
