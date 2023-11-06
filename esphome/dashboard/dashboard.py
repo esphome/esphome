@@ -524,6 +524,8 @@ class ImportRequestHandler(BaseHandler):
                 network,
                 encryption,
             )
+            # Make sure the device gets marked online right away
+            PING_REQUEST.set()
         except FileExistsError:
             self.set_status(500)
             self.write("File already exists")
@@ -882,24 +884,57 @@ class MDNSStatusThread(threading.Thread):
     def __init__(self):
         """Initialize the MDNSStatusThread."""
         super().__init__()
-        self.host_to_filename: dict[str, str] = {}
+        # This is the current mdns state for each host (True, False, None)
+        self.host_mdns_state: dict[str, bool | None] = {}
+        # This is the hostnames to filenames mapping
+        self.host_name_to_filename: dict[str, str] = {}
+        # This is a set of host names to track (i.e no_mdns = false)
+        self.host_name_with_mdns_enabled: set[set] = set()
         self._refresh_hosts()
 
     def _refresh_hosts(self):
+        """Refresh the hosts to track."""
         entries = _list_dashboard_entries()
+        host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
+        host_mdns_state = self.host_mdns_state
+        host_name_to_filename = self.host_name_to_filename
+
         for entry in entries:
-            if entry.no_mdns is not True:
-                self.host_to_filename[entry.name] = entry.filename
+            name = entry.name
+            # If no_mdns is set, remove it from the set
+            if entry.no_mdns:
+                host_name_with_mdns_enabled.discard(name)
+                continue
+
+            # We are tracking this host
+            host_name_with_mdns_enabled.add(name)
+            filename = entry.filename
+
+            # If we just adopted/imported this host, we likely
+            # already have a state for it, so we should make sure
+            # to set it so the dashboard shows it as online
+            if name in host_mdns_state:
+                PING_RESULT[filename] = host_mdns_state[name]
+
+            # Make sure the mapping is up to date
+            # so when we get an mdns update we can map it back
+            # to the filename
+            host_name_to_filename[name] = filename
 
     def run(self):
         global IMPORT_RESULT
 
         zc = EsphomeZeroconf()
+        host_mdns_state = self.host_mdns_state
+        host_name_to_filename = self.host_name_to_filename
+        host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
 
         def on_update(dat: dict[str, bool | None]) -> None:
             """Update the global PING_RESULT dict."""
-            for host, result in dat.items():
-                if filename := self.host_to_filename.get(host):
+            for name, result in dat.items():
+                host_mdns_state[name] = result
+                if name in host_name_with_mdns_enabled:
+                    filename = host_name_to_filename[name]
                     PING_RESULT[filename] = result
 
         self._refresh_hosts()
