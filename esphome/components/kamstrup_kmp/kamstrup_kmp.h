@@ -82,20 +82,14 @@ class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
   void set_temp_diff_sensor(sensor::Sensor *sensor) { temp_diff_sensor_ = sensor; }
   void set_flow_sensor(sensor::Sensor *sensor) { flow_sensor_ = sensor; }
   void set_volume_sensor(sensor::Sensor *sensor) { volume_sensor_ = sensor; }
-  void set_custom1_sensor(sensor::Sensor *sensor) { custom1_sensor_ = sensor; }
-  void set_custom2_sensor(sensor::Sensor *sensor) { custom2_sensor_ = sensor; }
-  void set_custom3_sensor(sensor::Sensor *sensor) { custom3_sensor_ = sensor; }
-  void set_custom4_sensor(sensor::Sensor *sensor) { custom4_sensor_ = sensor; }
-  void set_custom5_sensor(sensor::Sensor *sensor) { custom5_sensor_ = sensor; }
-  void set_custom1_command(uint16_t command) { custom1_command_ = command; }
-  void set_custom2_command(uint16_t command) { custom2_command_ = command; }
-  void set_custom3_command(uint16_t command) { custom3_command_ = command; }
-  void set_custom4_command(uint16_t command) { custom4_command_ = command; }
-  void set_custom5_command(uint16_t command) { custom5_command_ = command; }
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
+  void set_custom_sensor(int i, sensor::Sensor *sensor, uint16_t command) {
+    this->custom_sensors_.insert(this->custom_sensors_.begin() + i, sensor);
+    this->custom_commands_.insert(this->custom_commands_.begin() + i, command);
+  }
 
  protected:
   // Sensors
@@ -106,18 +100,10 @@ class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *temp_diff_sensor_{nullptr};
   sensor::Sensor *flow_sensor_{nullptr};
   sensor::Sensor *volume_sensor_{nullptr};
-  sensor::Sensor *custom1_sensor_{nullptr};
-  sensor::Sensor *custom2_sensor_{nullptr};
-  sensor::Sensor *custom3_sensor_{nullptr};
-  sensor::Sensor *custom4_sensor_{nullptr};
-  sensor::Sensor *custom5_sensor_{nullptr};
 
-  // Custom sensor commands
-  uint16_t custom1_command_{0};
-  uint16_t custom2_command_{0};
-  uint16_t custom3_command_{0};
-  uint16_t custom4_command_{0};
-  uint16_t custom5_command_{0};
+  // Custom sensors and commands
+  std::vector<sensor::Sensor *> custom_sensors_;
+  std::vector<uint16_t> custom_commands_;
 
   // Methods
 

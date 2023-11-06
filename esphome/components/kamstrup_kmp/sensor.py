@@ -33,11 +33,7 @@ CONF_TEMP1 = "temp1"
 CONF_TEMP2 = "temp2"
 CONF_TEMP_DIFF = "temp_diff"
 CONF_FLOW = "flow"
-CONF_CUSTOM_1 = "custom1"
-CONF_CUSTOM_2 = "custom2"
-CONF_CUSTOM_3 = "custom3"
-CONF_CUSTOM_4 = "custom4"
-CONF_CUSTOM_5 = "custom5"
+CONF_CUSTOM = "custom"
 
 UNIT_GIGA_JOULE = "GJ"
 UNIT_LITRE_PER_HOUR = "l/h"
@@ -89,36 +85,14 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
                 unit_of_measurement=UNIT_CUBIC_METER,
             ),
-            cv.Optional(CONF_CUSTOM_1): sensor.sensor_schema(
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_EMPTY,
-                state_class=STATE_CLASS_MEASUREMENT,
-                unit_of_measurement=UNIT_EMPTY,
-            ).extend({cv.Required(CONF_COMMAND): cv.hex_uint16_t}),
-            cv.Optional(CONF_CUSTOM_2): sensor.sensor_schema(
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_EMPTY,
-                state_class=STATE_CLASS_MEASUREMENT,
-                unit_of_measurement=UNIT_EMPTY,
-            ).extend({cv.Required(CONF_COMMAND): cv.hex_uint16_t}),
-            cv.Optional(CONF_CUSTOM_3): sensor.sensor_schema(
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_EMPTY,
-                state_class=STATE_CLASS_MEASUREMENT,
-                unit_of_measurement=UNIT_EMPTY,
-            ).extend({cv.Required(CONF_COMMAND): cv.hex_uint16_t}),
-            cv.Optional(CONF_CUSTOM_4): sensor.sensor_schema(
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_EMPTY,
-                state_class=STATE_CLASS_MEASUREMENT,
-                unit_of_measurement=UNIT_EMPTY,
-            ).extend({cv.Required(CONF_COMMAND): cv.hex_uint16_t}),
-            cv.Optional(CONF_CUSTOM_5): sensor.sensor_schema(
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_EMPTY,
-                state_class=STATE_CLASS_MEASUREMENT,
-                unit_of_measurement=UNIT_EMPTY,
-            ).extend({cv.Required(CONF_COMMAND): cv.hex_uint16_t}),
+            cv.Optional(CONF_CUSTOM): cv.ensure_list(
+                sensor.sensor_schema(
+                    accuracy_decimals=1,
+                    device_class=DEVICE_CLASS_EMPTY,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                    unit_of_measurement=UNIT_EMPTY,
+                ).extend({cv.Required(CONF_COMMAND): cv.hex_uint16_t})
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -135,6 +109,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
+    # Standard sensors
     for key in [
         CONF_HEAT_ENERGY,
         CONF_POWER,
@@ -143,16 +118,15 @@ async def to_code(config):
         CONF_TEMP_DIFF,
         CONF_FLOW,
         CONF_VOLUME,
-        CONF_CUSTOM_1,
-        CONF_CUSTOM_2,
-        CONF_CUSTOM_3,
-        CONF_CUSTOM_4,
-        CONF_CUSTOM_5,
     ]:
         if key not in config:
             continue
         conf = config[key]
         sens = await sensor.new_sensor(conf)
         cg.add(getattr(var, f"set_{key}_sensor")(sens))
-        if CONF_COMMAND in conf:
-            cg.add(getattr(var, f"set_{key}_command")(conf[CONF_COMMAND]))
+
+    # Custom sensors
+    if CONF_CUSTOM in config:
+        for i, conf in enumerate(config[CONF_CUSTOM]):
+            sens = await sensor.new_sensor(conf)
+            cg.add(getattr(var, "set_custom_sensor")(i, sens, conf[CONF_COMMAND]))

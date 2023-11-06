@@ -44,29 +44,9 @@ void KamstrupKMPComponent::dump_config() {
     LOG_SENSOR("  ", "Volume", this->volume_sensor_);
   }
 
-  if (this->custom1_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Custom Sensor 1", this->custom1_sensor_);
-    ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom1_command_);
-  }
-
-  if (this->custom2_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Custom Sensor 2", this->custom2_sensor_);
-    ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom2_command_);
-  }
-
-  if (this->custom3_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Custom Sensor 3", this->custom3_sensor_);
-    ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom3_command_);
-  }
-
-  if (this->custom4_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Custom Sensor 4", this->custom4_sensor_);
-    ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom4_command_);
-  }
-
-  if (this->custom5_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Custom Sensor 5", this->custom5_sensor_);
-    ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom5_command_);
+  for (int i = 0; i < this->custom_sensors_.size(); i++) {
+    LOG_SENSOR("  ", "Custom Sensor", this->custom_sensors_[i]);
+    ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom_commands_[i]);
   }
 
   this->check_uart_settings(1200, 2, uart::UART_CONFIG_PARITY_NONE, 8);
@@ -103,24 +83,8 @@ void KamstrupKMPComponent::update() {
     this->send_command_(CMD_VOLUME);
   }
 
-  if (this->custom1_sensor_ != nullptr) {
-    this->send_command_(this->custom1_command_);
-  }
-
-  if (this->custom2_sensor_ != nullptr) {
-    this->send_command_(this->custom2_command_);
-  }
-
-  if (this->custom3_sensor_ != nullptr) {
-    this->send_command_(this->custom3_command_);
-  }
-
-  if (this->custom4_sensor_ != nullptr) {
-    this->send_command_(this->custom4_command_);
-  }
-
-  if (this->custom5_sensor_ != nullptr) {
-    this->send_command_(this->custom5_command_);
+  for (int i = 0; i < this->custom_commands_.size(); i++) {
+    this->send_command_(this->custom_commands_[i]);
   }
 }
 
@@ -318,20 +282,10 @@ void KamstrupKMPComponent::set_sensor_value_(uint16_t command, float value, uint
   }
 
   // Custom sensors
-  if (command == this->custom1_command_ && this->custom1_sensor_ != nullptr) {
-    this->custom1_sensor_->publish_state(value);
-  }
-  if (command == this->custom2_command_ && this->custom2_sensor_ != nullptr) {
-    this->custom2_sensor_->publish_state(value);
-  }
-  if (command == this->custom3_command_ && this->custom3_sensor_ != nullptr) {
-    this->custom3_sensor_->publish_state(value);
-  }
-  if (command == this->custom4_command_ && this->custom4_sensor_ != nullptr) {
-    this->custom4_sensor_->publish_state(value);
-  }
-  if (command == this->custom5_command_ && this->custom5_sensor_ != nullptr) {
-    this->custom5_sensor_->publish_state(value);
+  for (int i = 0; i < this->custom_commands_.size(); i++) {
+    if (command == this->custom_commands_[i]) {
+      this->custom_sensors_[i]->publish_state(value);
+    }
   }
 
   ESP_LOGD(TAG, "Received value for command 0x%04X: %.3f [%s]", command, value, unit);
