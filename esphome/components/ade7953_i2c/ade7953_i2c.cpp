@@ -20,7 +20,7 @@ bool AdE7953I2c::ade_write_8(uint16_t reg, uint8_t value) {
   return write(data.data(), data.size()) != i2c::ERROR_OK;
 }
 bool AdE7953I2c::ade_write_16(uint16_t reg, uint16_t value) {
-  std::vector<uint8_t> data;
+  std::vector<uint8_t> data(4);
   data.push_back(reg >> 8);
   data.push_back(reg >> 0);
   data.push_back(value >> 8);
