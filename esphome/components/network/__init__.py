@@ -24,7 +24,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     cg.add_define("ENABLE_IPV6", config[CONF_ENABLE_IPV6])
-    cg.add_define("MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT])
+    cg.add_define("USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT])
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", config[CONF_ENABLE_IPV6])
         add_idf_sdkconfig_option(

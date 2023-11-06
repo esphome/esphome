@@ -339,7 +339,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
       }
     }
     delay(500);  // NOLINT
-    connected = (ipv6_addr_count >= MIN_IPV6_ADDR_COUNT);
+    connected = (ipv6_addr_count >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
   }
 #endif
 

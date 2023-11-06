@@ -193,7 +193,6 @@ void WiFiComponent::set_rrm(bool rrm) { this->rrm_ = rrm; }
 network::IPAddresses WiFiComponent::get_ip_addresses() {
   if (this->has_sta())
     return this->wifi_sta_ip_addresses();
-  // TODO: fix soft ap
   if (this->has_ap())
     return {this->wifi_soft_ap_ip()};
   return {};

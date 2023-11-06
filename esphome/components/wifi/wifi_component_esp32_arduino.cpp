@@ -520,7 +520,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
                format_ip4_addr(it.gw).c_str());
       this->got_ipv4_address_ = true;
 #if ENABLE_IPV6
-      s_sta_connecting = this->num_ipv6_addresses_ < MIN_IPV6_ADDR_COUNT;
+      s_sta_connecting = this->num_ipv6_addresses_ < USE_NETWORK_MIN_IPV6_ADDR_COUNT;
 #else
       s_sta_connecting = false;
 #endif
@@ -531,7 +531,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       auto it = info.got_ip6.ip6_info;
       ESP_LOGV(TAG, "Got IPv6 address=" IPV6STR, IPV62STR(it.ip));
       this->num_ipv6_addresses_++;
-      s_sta_connecting = !(this->got_ipv4_address_ & (this->num_ipv6_addresses_ >= MIN_IPV6_ADDR_COUNT));
+      s_sta_connecting = !(this->got_ipv4_address_ & (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT));
       break;
     }
 #endif /* ENABLE_IPV6 */
