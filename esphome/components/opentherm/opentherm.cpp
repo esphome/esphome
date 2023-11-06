@@ -237,8 +237,7 @@ void IRAM_ATTR OpenTherm::init_timer_() {
 }
 
 void IRAM_ATTR OpenTherm::start_timer_(uint64_t alarm_value) {
-  timer_isr_callback_add(TIMER_GROUP_0, TIMER_0, reinterpret_cast<bool (*)(void *)>(timer_isr), this,
-                         ESP_INTR_FLAG_IRAM);
+  timer_isr_callback_add(TIMER_GROUP_0, TIMER_0, reinterpret_cast<bool (*)(void *)>(timer_isr), this, 0);
   timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, alarm_value);
   timer_set_auto_reload(TIMER_GROUP_0, TIMER_0, TIMER_AUTORELOAD_EN);
   timer_set_alarm(TIMER_GROUP_0, TIMER_0, TIMER_ALARM_EN);
