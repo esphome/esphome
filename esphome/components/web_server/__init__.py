@@ -23,6 +23,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_RTL87XX,
 )
+CONF_ENABLE_PRIVATE_NETWORK_ACCESS='pna'
 from esphome.core import CORE, coroutine_with_priority
 
 AUTO_LOAD = ["json", "web_server_base"]
@@ -160,7 +161,7 @@ async def to_code(config):
     cg.add(var.set_allow_ota(config[CONF_OTA]))
     cg.add(var.set_expose_log(config[CONF_LOG]))
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
-        cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS");
+        cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if CONF_AUTH in config:
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
