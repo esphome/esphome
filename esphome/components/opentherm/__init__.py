@@ -29,7 +29,8 @@ CONFIG_SCHEMA = cv.All(
             schema.INPUTS, (lambda _: cv.use_id(sensor.Sensor))
         )
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    cv.only_with_arduino,
 )
 
 
