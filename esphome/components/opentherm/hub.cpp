@@ -64,12 +64,12 @@ void write_f88(const float value, OpenthermData &data) { data.f88(value); }
 #define OPENTHERM_IGNORE_1(x)
 #define OPENTHERM_IGNORE_2(x, y)
 
-OpenthermData OpenthermHub::build_request_(OpenThermMessageId request_id) {
+OpenthermData OpenthermHub::build_request_(MessageId request_id) {
   // First, handle the status request. This requires special logic, because we
   // wouldn't want to inadvertently disable domestic hot water, for example.
   // It is also included in the macro-generated code below, but that will
   // never be executed, because we short-circuit it here.
-  if (request_id == OpenThermMessageId::STATUS) {
+  if (request_id == MessageId::STATUS) {
     ESP_LOGD(OT_TAG, "Building Status request");
     // NOLINTBEGIN
     bool const ch_enabled = this->ch_enable &&
@@ -129,8 +129,8 @@ OpenthermData OpenthermHub::build_request_(OpenThermMessageId request_id) {
     // NOLINTEND
 
     OpenthermData data;
-    data.type = OpenThermMessageType::READ_DATA;
-    data.id = OpenThermMessageId::STATUS;
+    data.type = MessageType::READ_DATA;
+    data.id = MessageId::STATUS;
     data.valueHB = ch_enabled | (dhw_enabled << 1) | (cooling_enabled << 2) | (otc_enabled << 3) | (ch2_enabled << 4);
     data.valueLB = 0;
 
@@ -185,8 +185,7 @@ OpenthermData OpenthermHub::build_request_(OpenThermMessageId request_id) {
 OpenthermHub::OpenthermHub() : Component() {}
 
 void OpenthermHub::process_response(OpenthermData &data) {
-  // TODO: Debug print the response
-  // ESP_LOGD(OT_TAG, "Received OpenTherm response with id %d: %s", id, int_to_hex(response).c_str());
+  ESP_LOGD(OT_TAG, "Received OpenTherm response with id %d: %s", data.id, opentherm_->debug_data(data).c_str());
 
 // Define the handler helpers to publish the results to all sensors
 #define OPENTHERM_MESSAGE_RESPONSE_MESSAGE(msg) \
@@ -217,7 +216,7 @@ void OpenthermHub::setup() {
   // Ensure that there is at least one request, as we are required to
   // communicate at least once every second. Sending the status request is
   // good practice anyway.
-  this->add_repeating_message(OpenThermMessageId::STATUS);
+  this->add_repeating_message(MessageId::STATUS);
 
   this->current_message_iterator_ = this->initial_messages_.begin();
 }
@@ -238,7 +237,64 @@ void OpenthermHub::loop() {
   }
 
   auto request = this->build_request_(*this->current_message_iterator_);
-  // TODO: Send request logic
+
+  // Send the request
+  opentherm_->send(request);
+  if (!spin_wait_(1150, [&] { return opentherm_->is_active(); })) {
+    ESP_LOGE(OT_TAG, "Hub timeout triggered during send");
+    opentherm_->stop();
+    return;
+  }
+
+  if (opentherm_->is_error()) {
+    ESP_LOGW(OT_TAG, "Error while sending request: %s", opentherm_->operation_mode_to_str_(opentherm_->get_mode()));
+    ESP_LOGW(OT_TAG, "%s", opentherm_->debug_data(request).c_str());
+    opentherm_->stop();
+    return;
+  } else if (!opentherm_->is_sent()) {
+    ESP_LOGW(OT_TAG, "Unexpected state after sending request: %s",
+             opentherm_->operation_mode_to_str_(opentherm_->get_mode()));
+    ESP_LOGW(OT_TAG, "%s", opentherm_->debug_data(request).c_str());
+    opentherm_->stop();
+    return;
+  }
+
+  // Listen for the response
+  opentherm_->listen();
+  if (!spin_wait_(1150, [&] { return opentherm_->is_active(); })) {
+    ESP_LOGE(OT_TAG, "Hub timeout triggered during receive");
+    opentherm_->stop();
+    return;
+  }
+
+  if (opentherm_->is_timeout()) {
+    ESP_LOGW(OT_TAG, "Receive response timed out at a protocol level");
+    opentherm_->stop();
+    return;
+  } else if (opentherm_->is_protocol_error()) {
+    OpenThermError error;
+    opentherm_->get_protocol_error(error);
+    ESP_LOGW(OT_TAG, "Protocol error occured while receiving response: %s", opentherm_->debug_error(error).c_str());
+    opentherm_->stop();
+    return;
+  } else if (!opentherm_->has_message()) {
+    ESP_LOGW(OT_TAG, "Unexpected state after receiving response: %s",
+             opentherm_->operation_mode_to_str_(opentherm_->get_mode()));
+    opentherm_->stop();
+    return;
+  }
+
+  // Process the response
+  OpenthermData response;
+  if (!opentherm_->get_message(response)) {
+    ESP_LOGW(OT_TAG, "Couldn't get the response, but flags indicated success. This is a bug.");
+    opentherm_->stop();
+    return;
+  }
+
+  opentherm_->stop();
+  process_response(response);
+
   this->current_message_iterator_++;
 }
 

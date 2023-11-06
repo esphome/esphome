@@ -1,23 +1,30 @@
 #include "opentherm.h"
 #include "esphome/core/helpers.h"
 #include "driver/timer.h"
+#include <string>
+#include <sstream>
+#include <bitset>
 
 namespace esphome {
 namespace opentherm {
+
+using std::string;
+using std::bitset;
+using std::stringstream;
 
 OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t slave_timeout)
     : in_pin_(in_pin),
       out_pin_(out_pin),
       mode_(OperationMode::IDLE),
-      error_type_(OpenThermProtocolErrorType::NO_ERROR),
+      error_type_(ProtocolErrorType::NO_ERROR),
       capture_(0),
       clock_(0),
-      bit_pos_(0),
       data_(0),
+      bit_pos_(0),
       active_(false),
       timeout_counter_(-1),
-      slave_timeout_(slave_timeout),
-      timer_initialized_(false) {
+      timer_initialized_(false),
+      slave_timeout_(slave_timeout) {
   isr_in_pin_ = in_pin->to_isr();
   isr_out_pin_ = out_pin->to_isr();
 }
@@ -113,8 +120,6 @@ void IRAM_ATTR OpenTherm::read_() {
                         // OpenTherm.
 }
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "ConstantFunctionResult"
 bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
   if (arg->mode_ == OperationMode::LISTEN) {
     if (arg->timeout_counter_ == 0) {
@@ -136,16 +141,15 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
       // transition of signal from last sampling
       if (arg->clock_ == 1 && arg->capture_ > 0xF) {
         // no transition in the middle of the bit
-        // TODO: ADD ERROR
         arg->mode_ = OperationMode::ERROR_PROTOCOL;
-        arg->error_type_ = OpenThermProtocolErrorType::NO_TRANSITION;
+        arg->error_type_ = ProtocolErrorType::NO_TRANSITION;
         arg->stop_();
       } else if (arg->clock_ == 1 || arg->capture_ > 0xF) {
         // transition in the middle of the bit OR no transition between two bit, both are valid data points
         if (arg->bit_pos_ == BitPositions::STOP_BIT) {
           // expecting stop bit
           auto stop_bit_error = arg->verify_stop_bit_(last);
-          if (stop_bit_error == OpenThermProtocolErrorType::NO_ERROR) {
+          if (stop_bit_error == ProtocolErrorType::NO_ERROR) {
             arg->mode_ = OperationMode::RECEIVED;
             arg->stop_();
           } else {
@@ -166,9 +170,8 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
       arg->capture_ = 1;  // reset counter
     } else if (arg->capture_ > 0xFF) {
       // no change for too long, invalid mancheter encoding
-      // TODO: ADD ERROR
       arg->mode_ = OperationMode::ERROR_PROTOCOL;
-      arg->error_type_ = OpenThermProtocolErrorType::NO_CHANGE_TOO_LONG;
+      arg->error_type_ = ProtocolErrorType::NO_CHANGE_TOO_LONG;
       arg->stop_();
     }
     arg->capture_ = (arg->capture_ << 1) | value;
@@ -193,18 +196,17 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
 
   return false;
 }
-#pragma clang diagnostic pop
 
 void IRAM_ATTR OpenTherm::bit_read_(uint8_t value) {
   data_ = (data_ << 1) | value;
   bit_pos_++;
 }
 
-OpenThermProtocolErrorType OpenTherm::verify_stop_bit_(uint8_t value) {
+ProtocolErrorType OpenTherm::verify_stop_bit_(uint8_t value) {
   if (value) {  // stop bit detected
-    return check_parity_(data_) ? OpenThermProtocolErrorType::NO_ERROR : OpenThermProtocolErrorType::PARITY_ERROR;
+    return check_parity_(data_) ? ProtocolErrorType::NO_ERROR : ProtocolErrorType::PARITY_ERROR;
   } else {  // no stop bit detected, error
-    return OpenThermProtocolErrorType::INVALID_STOP_BIT;
+    return ProtocolErrorType::INVALID_STOP_BIT;
   }
 }
 
@@ -216,7 +218,7 @@ void IRAM_ATTR OpenTherm::write_bit_(uint8_t high, uint8_t clock) {
   }
 }
 
-#ifdef ESP32
+// #ifdef ESP32
 
 void IRAM_ATTR OpenTherm::init_timer_() {
   if (timer_initialized_)
@@ -271,7 +273,7 @@ void IRAM_ATTR OpenTherm::stop_timer_() {
   }
 }
 
-#endif  // END ESP32
+// #endif  // END ESP32
 
 // https://stackoverflow.com/questions/21617970/how-to-check-if-value-has-even-parity-of-bits-or-odd
 bool OpenTherm::check_parity_(uint32_t val) {
@@ -281,6 +283,78 @@ bool OpenTherm::check_parity_(uint32_t val) {
   val ^= val >> 2;
   val ^= val >> 1;
   return (~val) & 1;
+}
+
+#define TO_STRING_MEMBER(name) \
+  case name: \
+    return #name;
+
+const char *OpenTherm::operation_mode_to_str_(OperationMode mode) {
+  switch (mode) {
+    TO_STRING_MEMBER(IDLE)
+    TO_STRING_MEMBER(LISTEN)
+    TO_STRING_MEMBER(READ)
+    TO_STRING_MEMBER(RECEIVED)
+    TO_STRING_MEMBER(WRITE)
+    TO_STRING_MEMBER(SENT)
+    TO_STRING_MEMBER(ERROR_PROTOCOL)
+    TO_STRING_MEMBER(ERROR_TIMEOUT)
+    default:
+      return "<INVALID>";
+  }
+}
+const char *OpenTherm::protocol_error_to_to_str_(ProtocolErrorType error_type) {
+  switch (error_type) {
+    TO_STRING_MEMBER(NO_ERROR)
+    TO_STRING_MEMBER(NO_TRANSITION)
+    TO_STRING_MEMBER(INVALID_STOP_BIT)
+    TO_STRING_MEMBER(PARITY_ERROR)
+    TO_STRING_MEMBER(NO_CHANGE_TOO_LONG)
+    default:
+      return "<INVALID>";
+  }
+}
+const char *OpenTherm::message_type_to_str_(MessageType message_type) {
+  switch (message_type) {
+    TO_STRING_MEMBER(READ_DATA)
+    TO_STRING_MEMBER(READ_ACK)
+    TO_STRING_MEMBER(WRITE_DATA)
+    TO_STRING_MEMBER(WRITE_ACK)
+    TO_STRING_MEMBER(INVALID_DATA)
+    TO_STRING_MEMBER(DATA_INVALID)
+    TO_STRING_MEMBER(UNKNOWN_DATAID)
+    default:
+      return "<INVALID>";
+  }
+}
+
+string OpenTherm::debug_data(OpenthermData &data) {
+  stringstream result;
+  result << bitset<8>(data.type) << " " << bitset<8>(data.id) << " " << bitset<8>(data.valueHB) << " "
+         << bitset<8>(data.valueLB) << "\n";
+  result << "type: " << message_type_to_str_((MessageType) data.type) << "; ";
+  result << "id: " << data.id << "; ";
+  result << "HB: " << data.valueHB << "; ";
+  result << "LB: " << data.valueLB << "; ";
+  result << "uint_16: " << data.u16() << "; ";
+  result << "float: " << data.f88();
+
+  return result.str();
+}
+
+std::string OpenTherm::debug_error(OpenThermError &error) {
+  stringstream result;
+  result << "type: " << protocol_error_to_to_str_(error.error_type) << "; ";
+  result << "data: ";
+  int_to_hex(result, error.data);
+  result << "; clock: ";
+  int_to_hex(result, error.clock);
+  result << "; capture: ";
+  int_to_hex(result, error.capture);
+  result << "; bit_pos: ";
+  int_to_hex(result, error.bit_pos);
+
+  return result.str();
 }
 
 float OpenthermData::f88() {

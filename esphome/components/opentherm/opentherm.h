@@ -1,5 +1,8 @@
 #pragma once
 
+#include <string>
+#include <sstream>
+#include <iomanip>
 #include "esphome/core/hal.h"
 
 #ifdef ESP8266
@@ -32,7 +35,7 @@ enum OperationMode {
   ERROR_TIMEOUT = 9    // read timeout
 };
 
-enum OpenThermProtocolErrorType {
+enum ProtocolErrorType {
   NO_ERROR = 0,            // No error
   NO_TRANSITION = 1,       // No transition in the middle of the bit
   INVALID_STOP_BIT = 2,    // Stop bit wasn't present when expected
@@ -40,7 +43,7 @@ enum OpenThermProtocolErrorType {
   NO_CHANGE_TOO_LONG = 4,  // No level change for too much timer ticks
 };
 
-enum OpenThermMessageType {
+enum MessageType {
   READ_DATA = 0,
   READ_ACK = 4,
   WRITE_DATA = 1,
@@ -50,7 +53,7 @@ enum OpenThermMessageType {
   UNKNOWN_DATAID = 7
 };
 
-enum OpenThermMessageId {
+enum MessageId {
   STATUS = 0,
   CH_SETPOINT = 1,
   MASTER_CONFIG = 2,
@@ -166,7 +169,7 @@ struct OpenthermData {
 };
 
 struct OpenThermError {
-  OpenThermProtocolErrorType error_type;
+  ProtocolErrorType error_type;
   uint32_t capture;
   uint8_t clock;
   uint32_t data;
@@ -267,6 +270,17 @@ class OpenTherm {
    */
   bool is_protocol_error() { return mode_ == OperationMode::ERROR_PROTOCOL; }
 
+  bool is_active() { return active_; }
+
+  OperationMode get_mode() { return mode_; }
+
+  std::string debug_data(OpenthermData &data);
+  std::string debug_error(OpenThermError &error);
+
+  const char *protocol_error_to_to_str_(ProtocolErrorType error_type);
+  const char *message_type_to_str_(MessageType message_type);
+  const char *operation_mode_to_str_(OperationMode mode);
+
   static bool timer_isr(OpenTherm *arg);
 
  private:
@@ -276,7 +290,7 @@ class OpenTherm {
   ISRInternalGPIOPin isr_out_pin_;
 
   volatile OperationMode mode_;
-  volatile OpenThermProtocolErrorType error_type_;
+  volatile ProtocolErrorType error_type_;
   volatile uint32_t capture_;
   volatile uint8_t clock_;
   volatile uint32_t data_;
@@ -298,9 +312,14 @@ class OpenTherm {
   bool check_parity_(uint32_t val);
 
   void bit_read_(uint8_t value);
-  OpenThermProtocolErrorType verify_stop_bit_(uint8_t value);
+  ProtocolErrorType verify_stop_bit_(uint8_t value);
   void write_bit_(uint8_t high, uint8_t clock);
 };
+
+template<typename T> void int_to_hex(std::stringstream &stream, T i) {
+  std::ostream out(stream.rdbuf());
+  out << std::showbase << std::setfill('0') << std::setw(sizeof(T) * 2) << std::hex << i;
+}
 
 }  // namespace opentherm
 }  // namespace esphome
