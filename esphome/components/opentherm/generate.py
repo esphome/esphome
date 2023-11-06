@@ -28,17 +28,17 @@ def define_message_handler(
 ) -> None:
     # The macros defined here should be able to generate things like this:
     # // Parsing a message and publishing to sensors
-    # case OpenthermMessageID::Message:
+    # case MessageId::Message:
     #     // Can have multiple sensors here, for example for a Status message with multiple flags
     #     this->thing_binary_sensor->publish_state(parse_flag8_lb_0(response));
     #     this->other_binary_sensor->publish_state(parse_flag8_lb_1(response));
     #     break;
     # // Building a message for a write request
-    # case OpenthermMessageID::Message: {
+    # case MessageId::Message: {
     #     unsigned int data = 0;
     #     data = write_flag8_lb_0(some_input_switch->state, data); // Where input_sensor can also be a number/output/switch
     #     data = write_u8_hb(some_number->state, data);
-    #     return opentherm_->build_request_(OpenthermMessageType::WriteData, OpenthermMessageID::Message, data);
+    #     return opentherm_->build_request_(MessageType::WriteData, MessageId::Message, data);
     # }
 
     # There doesn't seem to be a way to combine the handlers for different components, so we'll

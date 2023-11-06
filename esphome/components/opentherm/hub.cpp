@@ -65,6 +65,12 @@ void write_f88(const float value, OpenthermData &data) { data.f88(value); }
 #define OPENTHERM_IGNORE_2(x, y)
 
 OpenthermData OpenthermHub::build_request_(MessageId request_id) {
+  OpenthermData data;
+  data.type = 0;
+  data.id = 0;
+  data.valueHB = 0;
+  data.valueLB = 0;
+
   // First, handle the status request. This requires special logic, because we
   // wouldn't want to inadvertently disable domestic hot water, for example.
   // It is also included in the macro-generated code below, but that will
@@ -128,11 +134,9 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
         ;
     // NOLINTEND
 
-    OpenthermData data;
     data.type = MessageType::READ_DATA;
     data.id = MessageId::STATUS;
     data.valueHB = ch_enabled | (dhw_enabled << 1) | (cooling_enabled << 2) | (otc_enabled << 3) | (ch2_enabled << 4);
-    data.valueLB = 0;
 
     return data;
   }
@@ -142,13 +146,10 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
 // request a read for that type (in the case that both read and write are
 // supported).
 #define OPENTHERM_MESSAGE_WRITE_MESSAGE(msg) \
-  case OpenThermMessageId::msg: { \
+  case MessageId::msg: { \
     ESP_LOGD(OT_TAG, "Building %s write request", #msg); \
-    OpenthermData data; \
-    data.type = OpenThermMessageType::WRITE_DATA; \
-    data.id = request_id; \
-    data.valueHB = 0; \
-    data.valueLB = 0;
+    data.type = MessageType::WRITE_DATA; \
+    data.id = request_id;
 #define OPENTHERM_MESSAGE_WRITE_ENTITY(key, msg_data) message_data::write_##msg_data(this->key->state, data);
 #define OPENTHERM_MESSAGE_WRITE_POSTSCRIPT \
   return data; \
@@ -166,9 +167,11 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
 
 // Finally, handle the simple read requests, which only change with the message id.
 #define OPENTHERM_MESSAGE_READ_MESSAGE(msg) \
-  case OpenThermMessageId::msg: \
+  case MessageId::msg: \
     ESP_LOGD(OT_TAG, "Building %s read request", #msg); \
-    return opentherm_->build_request(OpenThermMessageType::READ_DATA, request_id, 0);
+    data.type = MessageType::READ_DATA; \
+    data.id = request_id; \
+    return data;
   switch (request_id) { OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE_2, , , ) }
   switch (request_id) {
     OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE_2, , , )
@@ -189,10 +192,9 @@ void OpenthermHub::process_response(OpenthermData &data) {
 
 // Define the handler helpers to publish the results to all sensors
 #define OPENTHERM_MESSAGE_RESPONSE_MESSAGE(msg) \
-  case OpenThermMessageId::msg: \
+  case MessageId::msg: \
     ESP_LOGD(OT_TAG, "Received %s response", #msg);
-#define OPENTHERM_MESSAGE_RESPONSE_ENTITY(key, msg_data) \
-  this->key->publish_state(message_data::parse_##msg_data(response));
+#define OPENTHERM_MESSAGE_RESPONSE_ENTITY(key, msg_data) this->key->publish_state(message_data::parse_##msg_data(data));
 #define OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT break;
 
   // Then use those to create a switch statement for each thing we would want
@@ -236,13 +238,28 @@ void OpenthermHub::loop() {
     this->current_message_iterator_ = this->repeating_messages_.begin();
   }
 
+  auto cur_time = millis();
+  if (last_conversation_start_ > 0 && (cur_time - last_conversation_start_) > 1150) {
+    ESP_LOGW(OT_TAG,
+             "%d ms elapsed since the start of the last convo, but 1150 ms are allowed at maximum. Look at other "
+             "components that might slow the loop down.",
+             cur_time - last_conversation_start_);
+  }
+
+  if (last_conversation_end_ > 0 && (cur_time - last_conversation_end_) < 100) {
+    ESP_LOGD(OT_TAG, "Less than 100 ms elapsed since last convo, skipping this iteration");
+    return;
+  }
+
   auto request = this->build_request_(*this->current_message_iterator_);
 
   // Send the request
+  last_conversation_start_ = millis();
   opentherm_->send(request);
   if (!spin_wait_(1150, [&] { return opentherm_->is_active(); })) {
     ESP_LOGE(OT_TAG, "Hub timeout triggered during send");
     opentherm_->stop();
+    last_conversation_end_ = millis();
     return;
   }
 
@@ -250,12 +267,14 @@ void OpenthermHub::loop() {
     ESP_LOGW(OT_TAG, "Error while sending request: %s", opentherm_->operation_mode_to_str_(opentherm_->get_mode()));
     ESP_LOGW(OT_TAG, "%s", opentherm_->debug_data(request).c_str());
     opentherm_->stop();
+    last_conversation_end_ = millis();
     return;
   } else if (!opentherm_->is_sent()) {
     ESP_LOGW(OT_TAG, "Unexpected state after sending request: %s",
              opentherm_->operation_mode_to_str_(opentherm_->get_mode()));
     ESP_LOGW(OT_TAG, "%s", opentherm_->debug_data(request).c_str());
     opentherm_->stop();
+    last_conversation_end_ = millis();
     return;
   }
 
@@ -264,23 +283,27 @@ void OpenthermHub::loop() {
   if (!spin_wait_(1150, [&] { return opentherm_->is_active(); })) {
     ESP_LOGE(OT_TAG, "Hub timeout triggered during receive");
     opentherm_->stop();
+    last_conversation_end_ = millis();
     return;
   }
 
   if (opentherm_->is_timeout()) {
     ESP_LOGW(OT_TAG, "Receive response timed out at a protocol level");
     opentherm_->stop();
+    last_conversation_end_ = millis();
     return;
   } else if (opentherm_->is_protocol_error()) {
     OpenThermError error;
     opentherm_->get_protocol_error(error);
     ESP_LOGW(OT_TAG, "Protocol error occured while receiving response: %s", opentherm_->debug_error(error).c_str());
     opentherm_->stop();
+    last_conversation_end_ = millis();
     return;
   } else if (!opentherm_->has_message()) {
     ESP_LOGW(OT_TAG, "Unexpected state after receiving response: %s",
              opentherm_->operation_mode_to_str_(opentherm_->get_mode()));
     opentherm_->stop();
+    last_conversation_end_ = millis();
     return;
   }
 
@@ -289,10 +312,13 @@ void OpenthermHub::loop() {
   if (!opentherm_->get_message(response)) {
     ESP_LOGW(OT_TAG, "Couldn't get the response, but flags indicated success. This is a bug.");
     opentherm_->stop();
+    last_conversation_end_ = millis();
     return;
   }
 
   opentherm_->stop();
+  last_conversation_end_ = millis();
+  
   process_response(response);
 
   this->current_message_iterator_++;

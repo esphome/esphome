@@ -37,16 +37,7 @@ async def to_code(config: Dict[str, Any]) -> None:
     id = str(config[CONF_ID])
     # Create the hub, passing the two callbacks defined below
     # Since the hub is used in the callbacks, we need to define it first
-    var = cg.new_Pvariable(
-        config[CONF_ID],
-        cg.RawExpression(id + "_process_response"),
-    )
-    # Define global callback to process responses on interrupt
-    cg.add_global(
-        cg.RawStatement(
-            f"void {id}_process_response(uint32_t response, esphome::opentherm::OpenThermResponseStatus status) {{ {id}->process_response(response, status); }}"
-        )
-    )
+    var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     # Set pins

@@ -98,10 +98,13 @@ class OpenthermHub : public Component {
   // Index for the current request in one of the _requests sets.
   std::unordered_set<MessageId>::const_iterator current_message_iterator_;
 
+  uint32_t last_conversation_start_ = 0;
+  uint32_t last_conversation_end_ = 0;
+
   // Create OpenTherm messages based on the message id
   OpenthermData build_request_(MessageId request_id);
 
-  template<typename F> bool spin_wait_(uint64_t timeout, F func) {
+  template<typename F> bool spin_wait_(uint32_t timeout, F func) {
     auto start_time = millis();
     while (func()) {
       yield();
@@ -158,7 +161,7 @@ class OpenthermHub : public Component {
 
   // There are five status variables, which can either be set as a simple variable,
   // or using a switch. ch_enable and dhw_enable default to true, the others to false.
-  bool ch_enable = true, dhw_enable = true, cooling_enable, otc_active, ch2_active;
+  bool ch_enable = true, dhw_enable = true, cooling_enable = false, otc_active = false, ch2_active = false;
 
   // Setters for the status variables
   void set_ch_enable(bool value) { this->ch_enable = value; }
