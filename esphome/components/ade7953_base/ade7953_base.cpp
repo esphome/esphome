@@ -47,49 +47,49 @@ void ADE7953::update() {
   uint32_t interrupts_b = 0;
   if (this->irq_pin_ != nullptr) {
     // Read and reset interrupts
-    ade_read_32(0x032E, &interrupts_a);
-    ade_read_32(0x0331, &interrupts_b);
+    this->ade_read_32(0x032E, &interrupts_a);
+    this->ade_read_32(0x0331, &interrupts_b);
   }
 
   uint32_t val;
   uint16_t val_16;
 
   // Power factor
-  err = ade_read_16(0x010A, &val_16);
+  err = this->ade_read_16(0x010A, &val_16);
   ADE_PUBLISH(power_factor_a, (int16_t) val_16, (0x7FFF / 100.0f));
-  err = ade_read_16(0x010B, &val_16);
+  err = this->ade_read_16(0x010B, &val_16);
   ADE_PUBLISH(power_factor_b, (int16_t) val_16, (0x7FFF / 100.0f));
 
   // Apparent power
-  err = ade_read_32(0x0310, &val);
+  err = this->ade_read_32(0x0310, &val);
   ADE_PUBLISH(apparent_power_a, (int32_t) val, 154.0f);
-  err = ade_read_32(0x0311, &val);
+  err = this->ade_read_32(0x0311, &val);
   ADE_PUBLISH(apparent_power_b, (int32_t) val, 154.0f);
 
   // Active power
-  err = ade_read_32(0x0312, &val);
+  err = this->ade_read_32(0x0312, &val);
   ADE_PUBLISH(active_power_a, (int32_t) val, 154.0f);
-  err = ade_read_32(0x0313, &val);
+  err = this->ade_read_32(0x0313, &val);
   ADE_PUBLISH(active_power_b, (int32_t) val, 154.0f);
 
   // Reactive power
-  err = ade_read_32(0x0314, &val);
+  err = this->ade_read_32(0x0314, &val);
   ADE_PUBLISH(reactive_power_a, (int32_t) val, 154.0f);
-  err = ade_read_32(0x0315, &val);
+  err = this->ade_read_32(0x0315, &val);
   ADE_PUBLISH(reactive_power_b, (int32_t) val, 154.0f);
 
   // Current
-  err = ade_read_32(0x031A, &val);
+  err = this->ade_read_32(0x031A, &val);
   ADE_PUBLISH(current_a, (uint32_t) val, 100000.0f);
-  err = ade_read_32(0x031B, &val);
+  err = this->ade_read_32(0x031B, &val);
   ADE_PUBLISH(current_b, (uint32_t) val, 100000.0f);
 
   // Voltage
-  err = ade_read_32(0x031C, &val);
+  err = this->ade_read_32(0x031C, &val);
   ADE_PUBLISH(voltage, (uint32_t) val, 26000.0f);
 
   // Frequency
-  err = ade_read_16(0x010E, &val_16);
+  err = this->ade_read_16(0x010E, &val_16);
   ADE_PUBLISH(frequency, 223750.0f, 1 + val_16);
 }
 

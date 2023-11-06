@@ -44,7 +44,7 @@ bool AdE7953I2c::ade_read_8(uint16_t reg, uint8_t *value) {
   i2c::ErrorCode err = write(reg_data, 2);
   if (err != i2c::ERROR_OK)
     return true;
-  err = read(value, 1);
+  err = this->read(value, 1);
   return (err != i2c::ERROR_OK);
 }
 bool AdE7953I2c::ade_read_16(uint16_t reg, uint16_t *value) {
@@ -55,7 +55,7 @@ bool AdE7953I2c::ade_read_16(uint16_t reg, uint16_t *value) {
   if (err != i2c::ERROR_OK)
     return true;
   uint8_t recv[2];
-  err = read(recv, 2);
+  err = this->read(recv, 2);
   if (err != i2c::ERROR_OK)
     return true;
   *value = encode_uint16(recv[0], recv[1]);
@@ -69,7 +69,7 @@ bool AdE7953I2c::ade_read_32(uint16_t reg, uint32_t *value) {
   if (err != i2c::ERROR_OK)
     return true;
   uint8_t recv[4];
-  err = read(recv, 4);
+  err = this->read(recv, 4);
   if (err != i2c::ERROR_OK)
     return true;
   *value = encode_uint32(recv[0], recv[1], recv[2], recv[3]);
