@@ -28,7 +28,7 @@ ethernet:
   reset_pin:
     allow_other_uses: true
     number: GPIO22
-  clock_speed: 30
+  clock_speed: 10Mhz
   manual_ip:
     static_ip: 192.168.178.56
     gateway: 192.168.178.1

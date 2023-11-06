@@ -44,20 +44,18 @@ void EthernetComponent::setup() {
   gpio_install_isr_service(0);
 
   spi_bus_config_t buscfg = {
-    .mosi_io_num = this->mosi_pin_,
-    .miso_io_num = this->miso_pin_,
-    .sclk_io_num = this->clk_pin_,
-    .quadwp_io_num = -1,
-    .quadhd_io_num = -1,
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
-    .data4_io_num = -1,
-    .data5_io_num = -1,
-    .data6_io_num = -1,
-    .data7_io_num = -1,
-#endif
-    .max_transfer_sz = 0,
-    .flags = 0,
-    .intr_flags = 0,
+      .mosi_io_num = this->mosi_pin_,
+      .miso_io_num = this->miso_pin_,
+      .sclk_io_num = this->clk_pin_,
+      .quadwp_io_num = -1,
+      .quadhd_io_num = -1,
+      .data4_io_num = -1,
+      .data5_io_num = -1,
+      .data6_io_num = -1,
+      .data7_io_num = -1,
+      .max_transfer_sz = 0,
+      .flags = 0,
+      .intr_flags = 0,
   };
 
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
@@ -498,7 +496,7 @@ void EthernetComponent::set_mosi_pin(uint8_t mosi_pin) { this->mosi_pin_ = mosi_
 void EthernetComponent::set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
 void EthernetComponent::set_interrupt_pin(uint8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
 void EthernetComponent::set_reset_pin(uint8_t reset_pin) { this->reset_pin_ = reset_pin; }
-void EthernetComponent::set_clock_speed(uint8_t clock_speed) { this->clock_speed_ = clock_speed * 1000000; }
+void EthernetComponent::set_clock_speed(int clock_speed) { this->clock_speed_ = clock_speed; }
 #else
 void EthernetComponent::set_phy_addr(uint8_t phy_addr) { this->phy_addr_ = phy_addr; }
 void EthernetComponent::set_power_pin(int power_pin) { this->power_pin_ = power_pin; }

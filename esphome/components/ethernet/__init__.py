@@ -22,10 +22,11 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.components.network import IPAddress
+from esphome.components.spi import SPI_DATA_RATE_SCHEMA
 
 CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
-AUTO_LOAD = ["network"]
+AUTO_LOAD = ["network", "spi"]
 
 ethernet_ns = cg.esphome_ns.namespace("ethernet")
 CONF_PHY_ADDR = "phy_addr"
@@ -130,7 +131,7 @@ SPI_SCHEMA = BASE_SCHEMA.extend(
             cv.Required(CONF_CS_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_number,
             cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
-            cv.Optional(CONF_CLOCK_SPEED, default=30): cv.int_range(1, 80),  # type: ignore[arg-type]
+            cv.Optional(CONF_CLOCK_SPEED, default="20MHz"): SPI_DATA_RATE_SCHEMA,
         }
     ),
 )

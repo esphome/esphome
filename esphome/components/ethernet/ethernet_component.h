@@ -4,6 +4,9 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/network/ip_address.h"
+#ifdef USE_ETHERNET_SPI
+#include "esphome/components/spi/spi.h"
+#endif
 
 #ifdef USE_ESP32
 
@@ -58,7 +61,7 @@ class EthernetComponent : public Component {
   void set_cs_pin(uint8_t cs_pin);
   void set_interrupt_pin(uint8_t interrupt_pin);
   void set_reset_pin(uint8_t reset_pin);
-  void set_clock_speed(uint8_t clock_speed);
+  void set_clock_speed(int clock_speed);
 #else
   void set_phy_addr(uint8_t phy_addr);
   void set_power_pin(int power_pin);
@@ -95,7 +98,7 @@ class EthernetComponent : public Component {
   uint8_t interrupt_pin_;
   int reset_pin_{-1};
   int phy_addr_spi_{-1};
-  int clock_speed_{30 * 1000000};
+  int clock_speed_;
 #else
   uint8_t phy_addr_{0};
   int power_pin_{-1};
