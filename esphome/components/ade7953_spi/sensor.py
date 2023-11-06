@@ -8,7 +8,7 @@ DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["ade7953_base"]
 
 ade7953_ns = cg.esphome_ns.namespace("ade7953_spi")
-ADE7953 = ade7953_ns.class_("AdE7953Spi", cg.PollingComponent, spi.SPIDevice)
+ADE7953 = ade7953_ns.class_("AdE7953Spi", ade7953_base.ADE7953, spi.SPIDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(

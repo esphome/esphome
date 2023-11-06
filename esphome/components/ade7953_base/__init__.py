@@ -50,6 +50,9 @@ PGA_GAINS = {
     "22x": 0b101,
 }
 
+ade7953_base_ns = cg.esphome_ns.namespace("ade7953_base")
+ADE7953 = ade7953_base_ns.class_("ADE7953", cg.PollingComponent)
+
 ADE7953_CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_IRQ_PIN): pins.internal_gpio_input_pin_schema,
