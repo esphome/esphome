@@ -623,6 +623,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param True or false. Sleep=true to enter sleep mode or sleep=false to exit sleep mode.
    */
   void sleep(bool sleep);
+  /**
+   * Sets Nextion Protocol Reparse mode between active or passive
+   * @param True or false.
+   * active_mode=true to enter active protocol reparse mode
+   * active_mode=false to enter passive protocol reparse mode.
+   */
+  void set_protocol_reparse_mode(bool active_mode);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -733,6 +740,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
  protected:
   std::deque<NextionQueue *> nextion_queue_;
+  std::deque<NextionQueue *> waveform_queue_;
   uint16_t recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag);
   void all_components_send_state_(bool force_update = false);
   uint64_t comok_sent_ = 0;
@@ -772,6 +780,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void add_no_result_to_queue_with_set_internal_(const std::string &variable_name,
                                                  const std::string &variable_name_to_send,
                                                  const std::string &state_value, bool is_sleep_safe = false);
+
+  void check_pending_waveform_();
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP8266

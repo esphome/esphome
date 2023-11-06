@@ -111,6 +111,7 @@ MQTTSensorComponent = mqtt_ns.class_("MQTTSensorComponent", MQTTComponent)
 MQTTSwitchComponent = mqtt_ns.class_("MQTTSwitchComponent", MQTTComponent)
 MQTTTextSensor = mqtt_ns.class_("MQTTTextSensor", MQTTComponent)
 MQTTNumberComponent = mqtt_ns.class_("MQTTNumberComponent", MQTTComponent)
+MQTTTextComponent = mqtt_ns.class_("MQTTTextComponent", MQTTComponent)
 MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
 MQTTButtonComponent = mqtt_ns.class_("MQTTButtonComponent", MQTTComponent)
 MQTTLockComponent = mqtt_ns.class_("MQTTLockComponent", MQTTComponent)
@@ -132,33 +133,47 @@ def validate_config(value):
     # Populate default fields
     out = value.copy()
     topic_prefix = value[CONF_TOPIC_PREFIX]
+    # If the topic prefix is not null and these messages are not configured, then set them to the default
+    # If the topic prefix is null and these messages are not configured, then set them to null
     if CONF_BIRTH_MESSAGE not in value:
-        out[CONF_BIRTH_MESSAGE] = {
-            CONF_TOPIC: f"{topic_prefix}/status",
-            CONF_PAYLOAD: "online",
-            CONF_QOS: 0,
-            CONF_RETAIN: True,
-        }
+        if topic_prefix != "":
+            out[CONF_BIRTH_MESSAGE] = {
+                CONF_TOPIC: f"{topic_prefix}/status",
+                CONF_PAYLOAD: "online",
+                CONF_QOS: 0,
+                CONF_RETAIN: True,
+            }
+        else:
+            out[CONF_BIRTH_MESSAGE] = {}
     if CONF_WILL_MESSAGE not in value:
-        out[CONF_WILL_MESSAGE] = {
-            CONF_TOPIC: f"{topic_prefix}/status",
-            CONF_PAYLOAD: "offline",
-            CONF_QOS: 0,
-            CONF_RETAIN: True,
-        }
+        if topic_prefix != "":
+            out[CONF_WILL_MESSAGE] = {
+                CONF_TOPIC: f"{topic_prefix}/status",
+                CONF_PAYLOAD: "offline",
+                CONF_QOS: 0,
+                CONF_RETAIN: True,
+            }
+        else:
+            out[CONF_WILL_MESSAGE] = {}
     if CONF_SHUTDOWN_MESSAGE not in value:
-        out[CONF_SHUTDOWN_MESSAGE] = {
-            CONF_TOPIC: f"{topic_prefix}/status",
-            CONF_PAYLOAD: "offline",
-            CONF_QOS: 0,
-            CONF_RETAIN: True,
-        }
+        if topic_prefix != "":
+            out[CONF_SHUTDOWN_MESSAGE] = {
+                CONF_TOPIC: f"{topic_prefix}/status",
+                CONF_PAYLOAD: "offline",
+                CONF_QOS: 0,
+                CONF_RETAIN: True,
+            }
+        else:
+            out[CONF_SHUTDOWN_MESSAGE] = {}
     if CONF_LOG_TOPIC not in value:
-        out[CONF_LOG_TOPIC] = {
-            CONF_TOPIC: f"{topic_prefix}/debug",
-            CONF_QOS: 0,
-            CONF_RETAIN: True,
-        }
+        if topic_prefix != "":
+            out[CONF_LOG_TOPIC] = {
+                CONF_TOPIC: f"{topic_prefix}/debug",
+                CONF_QOS: 0,
+                CONF_RETAIN: True,
+            }
+        else:
+            out[CONF_LOG_TOPIC] = {}
     return out
 
 
