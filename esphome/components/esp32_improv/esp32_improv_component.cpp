@@ -16,9 +16,6 @@ static const char *const ESPHOME_MY_LINK = "https://my.home-assistant.io/redirec
 ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
 
 void ESP32ImprovComponent::setup() {
-  this->service_ = global_ble_server->create_service(improv::SERVICE_UUID, true);
-  this->setup_characteristics();
-
 #ifdef USE_BINARY_SENSOR
   if (this->authorizer_ != nullptr) {
     this->authorizer_->add_on_state_callback([this](bool state) {
@@ -70,6 +67,19 @@ void ESP32ImprovComponent::setup_characteristics() {
 }
 
 void ESP32ImprovComponent::loop() {
+  if (!global_ble_server->is_running()) {
+    this->state_ = improv::STATE_STOPPED;
+    this->incoming_data_.clear();
+    return;
+  }
+  if (this->service_ == nullptr) {
+    // Setup the service
+    ESP_LOGD(TAG, "Creating Improv service");
+    global_ble_server->create_service(ESPBTUUID::from_raw(improv::SERVICE_UUID), true);
+    this->service_ = global_ble_server->get_service(ESPBTUUID::from_raw(improv::SERVICE_UUID));
+    this->setup_characteristics();
+  }
+
   if (!this->incoming_data_.empty())
     this->process_incoming_data_();
   uint32_t now = millis();
@@ -80,11 +90,10 @@ void ESP32ImprovComponent::loop() {
 
       if (this->service_->is_created() && this->should_start_ && this->setup_complete_) {
         if (this->service_->is_running()) {
-          esp32_ble::global_ble->get_advertising()->start();
+          esp32_ble::global_ble->advertising_start();
 
           this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
           this->set_error_(improv::ERROR_NONE);
-          this->should_start_ = false;
           ESP_LOGD(TAG, "Service started!");
         } else {
           this->service_->start();
@@ -107,6 +116,7 @@ void ESP32ImprovComponent::loop() {
       break;
     }
     case improv::STATE_AUTHORIZED: {
+#ifdef USE_BINARY_SENSOR
       if (this->authorizer_ != nullptr) {
         if (now - this->authorized_start_ > this->authorized_duration_) {
           ESP_LOGD(TAG, "Authorization timeout");
@@ -114,6 +124,7 @@ void ESP32ImprovComponent::loop() {
           return;
         }
       }
+#endif
       if (!this->check_identify_()) {
         this->set_status_indicator_state_((now % 1000) < 500);
       }
@@ -136,10 +147,7 @@ void ESP32ImprovComponent::loop() {
 #endif
         std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
         this->send_response_(data);
-        this->set_timeout("end-service", 1000, [this] {
-          this->service_->stop();
-          this->set_state_(improv::STATE_STOPPED);
-        });
+        this->stop();
       }
       break;
     }
@@ -187,6 +195,24 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
     if (state != improv::STATE_STOPPED)
       this->status_->notify();
   }
+  std::vector<uint8_t> service_data(8, 0);
+  service_data[0] = 0x77;  // PR
+  service_data[1] = 0x46;  // IM
+  service_data[2] = static_cast<uint8_t>(state);
+
+  uint8_t capabilities = 0x00;
+#ifdef USE_OUTPUT
+  if (this->status_indicator_ != nullptr)
+    capabilities |= improv::CAPABILITY_IDENTIFY;
+#endif
+
+  service_data[3] = capabilities;
+  service_data[4] = 0x00;  // Reserved
+  service_data[5] = 0x00;  // Reserved
+  service_data[6] = 0x00;  // Reserved
+  service_data[7] = 0x00;  // Reserved
+
+  esp32_ble::global_ble->advertising_set_service_data(service_data);
 }
 
 void ESP32ImprovComponent::set_error_(improv::Error error) {
@@ -216,7 +242,10 @@ void ESP32ImprovComponent::start() {
 }
 
 void ESP32ImprovComponent::stop() {
+  this->should_start_ = false;
   this->set_timeout("end-service", 1000, [this] {
+    if (this->state_ == improv::STATE_STOPPED || this->service_ == nullptr)
+      return;
     this->service_->stop();
     this->set_state_(improv::STATE_STOPPED);
   });
@@ -290,8 +319,10 @@ void ESP32ImprovComponent::process_incoming_data_() {
 void ESP32ImprovComponent::on_wifi_connect_timeout_() {
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
+#ifdef USE_BINARY_SENSOR
   if (this->authorizer_ != nullptr)
     this->authorized_start_ = millis();
+#endif
   ESP_LOGW(TAG, "Timed out trying to connect to given WiFi network");
   wifi::global_wifi_component->clear_sta();
 }

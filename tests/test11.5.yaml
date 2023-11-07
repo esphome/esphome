@@ -51,6 +51,15 @@ uart:
 i2c:
   frequency: 100khz
 
+spi:
+  - id: spi_1
+    clk_pin: 12
+    mosi_pin: 13
+    miso_pin: 14
+  - id: spi_2
+    clk_pin: 32
+    mosi_pin: 33
+
 modbus:
   uart_id: uart_1
   flow_control_pin: 5
@@ -104,6 +113,12 @@ binary_sensor:
     on_release:
       then:
         - switch.turn_off: Led0
+        - if:
+            condition: ble.enabled
+            then:
+              - ble.disable:
+            else:
+              - ble.enable:
 
   - platform: tm1638
     id: Button1
@@ -273,6 +288,7 @@ output:
 demo:
 
 esp32_ble:
+  enable_on_boot: false
 
 esp32_ble_server:
   manufacturer: ESPHome
@@ -566,6 +582,60 @@ sensor:
       name: Kuntze pH
     temperature:
       name: Kuntze temperature
+
+  - platform: ade7953_i2c
+    irq_pin: 16
+    voltage:
+      name: ADE7953 Voltage
+    current_a:
+      name: ADE7953 Current A
+    current_b:
+      name: ADE7953 Current B
+    power_factor_a:
+      name: "ADE7953 Power Factor A"
+    power_factor_b:
+      name: "ADE7953 Power Factor B"
+    apparent_power_a:
+      name: "ADE7953 Apparent Power A"
+    apparent_power_b:
+      name: "ADE7953 Apparent Power B"
+    active_power_a:
+      name: ADE7953 Active Power A
+    active_power_b:
+      name: ADE7953 Active Power B
+    reactive_power_a:
+      name: "ADE7953 Reactive Power A"
+    reactive_power_b:
+      name: "ADE7953 Reactive Power B"
+    update_interval: 1s
+
+  - platform: ade7953_spi
+    spi_id: spi_1
+    cs_pin: 04
+    irq_pin: 16
+    voltage:
+      name: ADE7953 Voltage
+    current_a:
+      name: ADE7953 Current A
+    current_b:
+      name: ADE7953 Current B
+    power_factor_a:
+      name: "ADE7953 Power Factor A"
+    power_factor_b:
+      name: "ADE7953 Power Factor B"
+    apparent_power_a:
+      name: "ADE7953 Apparent Power A"
+    apparent_power_b:
+      name: "ADE7953 Apparent Power B"
+    active_power_a:
+      name: ADE7953 Active Power A
+    active_power_b:
+      name: ADE7953 Active Power B
+    reactive_power_a:
+      name: "ADE7953 Reactive Power A"
+    reactive_power_b:
+      name: "ADE7953 Reactive Power B"
+    update_interval: 1s
 
 script:
   - id: automation_test

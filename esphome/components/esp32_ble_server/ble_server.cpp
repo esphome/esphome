@@ -30,13 +30,13 @@ void BLEServer::setup() {
     ESP_LOGE(TAG, "BLE Server was marked failed by ESP32BLE");
     return;
   }
-
-  ESP_LOGD(TAG, "Setting up BLE Server...");
-
   global_ble_server = this;
 }
 
 void BLEServer::loop() {
+  if (!this->parent_->is_active()) {
+    return;
+  }
   switch (this->state_) {
     case RUNNING:
       return;
@@ -53,10 +53,16 @@ void BLEServer::loop() {
     }
     case REGISTERING: {
       if (this->registered_) {
-        this->device_information_service_ = this->create_service(DEVICE_INFORMATION_SERVICE_UUID);
-
-        this->create_device_characteristics_();
-
+        // Create all services previously created
+        for (auto &pair : this->services_) {
+          pair.second->do_create(this);
+        }
+        if (this->device_information_service_ == nullptr) {
+          this->create_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
+          this->device_information_service_ =
+              this->get_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
+          this->create_device_characteristics_();
+        }
         this->state_ = STARTING_SERVICE;
       }
       break;
@@ -67,7 +73,6 @@ void BLEServer::loop() {
       }
       if (this->device_information_service_->is_running()) {
         this->state_ = RUNNING;
-        this->can_proceed_ = true;
         this->restart_advertising_();
         ESP_LOGD(TAG, "BLE server setup successfully");
       } else if (!this->device_information_service_->is_starting()) {
@@ -78,10 +83,13 @@ void BLEServer::loop() {
   }
 }
 
+bool BLEServer::is_running() { return this->parent_->is_active() && this->state_ == RUNNING; }
+
+bool BLEServer::can_proceed() { return this->is_running() || !this->parent_->is_active(); }
+
 void BLEServer::restart_advertising_() {
-  if (this->state_ == RUNNING) {
-    esp32_ble::global_ble->get_advertising()->set_manufacturer_data(this->manufacturer_data_);
-    esp32_ble::global_ble->get_advertising()->start();
+  if (this->is_running()) {
+    this->parent_->advertising_set_manufacturer_data(this->manufacturer_data_);
   }
 }
 
@@ -107,24 +115,36 @@ bool BLEServer::create_device_characteristics_() {
   return true;
 }
 
-std::shared_ptr<BLEService> BLEServer::create_service(const uint8_t *uuid, bool advertise) {
-  return this->create_service(ESPBTUUID::from_raw(uuid), advertise);
-}
-std::shared_ptr<BLEService> BLEServer::create_service(uint16_t uuid, bool advertise) {
-  return this->create_service(ESPBTUUID::from_uint16(uuid), advertise);
-}
-std::shared_ptr<BLEService> BLEServer::create_service(const std::string &uuid, bool advertise) {
-  return this->create_service(ESPBTUUID::from_raw(uuid), advertise);
-}
-std::shared_ptr<BLEService> BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles,
-                                                      uint8_t inst_id) {
-  ESP_LOGV(TAG, "Creating service - %s", uuid.to_string().c_str());
-  std::shared_ptr<BLEService> service = std::make_shared<BLEService>(uuid, num_handles, inst_id);
-  this->services_.emplace_back(service);
-  if (advertise) {
-    esp32_ble::global_ble->get_advertising()->add_service_uuid(uuid);
+void BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles, uint8_t inst_id) {
+  ESP_LOGV(TAG, "Creating BLE service - %s", uuid.to_string().c_str());
+  // If the service already exists, do nothing
+  BLEService *service = this->get_service(uuid);
+  if (service != nullptr) {
+    ESP_LOGW(TAG, "BLE service %s already exists", uuid.to_string().c_str());
+    return;
   }
+  service = new BLEService(uuid, num_handles, inst_id, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
+  this->services_.emplace(uuid.to_string(), service);
   service->do_create(this);
+}
+
+void BLEServer::remove_service(ESPBTUUID uuid) {
+  ESP_LOGV(TAG, "Removing BLE service - %s", uuid.to_string().c_str());
+  BLEService *service = this->get_service(uuid);
+  if (service == nullptr) {
+    ESP_LOGW(TAG, "BLE service %s not found", uuid.to_string().c_str());
+    return;
+  }
+  service->do_delete();
+  delete service;  // NOLINT(cppcoreguidelines-owning-memory)
+  this->services_.erase(uuid.to_string());
+}
+
+BLEService *BLEServer::get_service(ESPBTUUID uuid) {
+  BLEService *service = nullptr;
+  if (this->services_.count(uuid.to_string()) > 0) {
+    service = this->services_.at(uuid.to_string());
+  }
   return service;
 }
 
@@ -144,7 +164,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       ESP_LOGD(TAG, "BLE Client disconnected");
       if (this->remove_client_(param->disconnect.conn_id))
         this->connected_clients_--;
-      esp32_ble::global_ble->get_advertising()->start();
+      this->parent_->advertising_start();
       for (auto *component : this->service_components_) {
         component->on_client_disconnect();
       }
@@ -159,9 +179,20 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       break;
   }
 
-  for (const auto &service : this->services_) {
-    service->gatts_event_handler(event, gatts_if, param);
+  for (const auto &pair : this->services_) {
+    pair.second->gatts_event_handler(event, gatts_if, param);
   }
+}
+
+void BLEServer::ble_before_disabled_event_handler() {
+  // Delete all clients
+  this->clients_.clear();
+  // Delete all services
+  for (auto &pair : this->services_) {
+    pair.second->do_delete();
+  }
+  this->registered_ = false;
+  this->state_ = INIT;
 }
 
 float BLEServer::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH + 10; }
