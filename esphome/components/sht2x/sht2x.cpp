@@ -62,7 +62,7 @@ uint16_t SHT2XComponent::read_raw_value_() {
   if (this->read(buffer, 3) != i2c::ERROR_OK) {
     this->status_set_warning();
   }
-  crc = crc8_(buffer, 2);
+  crc = this->crc8_(buffer, 2);
 
   if (crc != buffer[2]) {
     ESP_LOGE(TAG, "CRC8 Checksum invalid. 0x%02X != 0x%02X", buffer[2], crc);
@@ -81,10 +81,11 @@ float SHT2XComponent::get_temperature_() {
     ESP_LOGE(TAG, "Reading temperature error");
   };
 
-  delay(SHT2X_DELAY_TEMPERATURE);  // NOLINT
-  uint16_t raw_temperature = read_raw_value_();
-  float temperature = -46.85 + (175.72 / 65536.0) * raw_temperature;
-  return temperature;
+  this->set_timeout("read_temperature", SHT2X_DELAY_TEMPERATURE, [this]() {
+    uint16_t raw_temperature = this->read_raw_value_();
+    float temperature = -46.85 + (175.72 / 65536.0) * raw_temperature;
+    return temperature;
+  });
 }
 
 float SHT2XComponent::get_humidity_() {
@@ -92,10 +93,11 @@ float SHT2XComponent::get_humidity_() {
     ESP_LOGE(TAG, "Reading humidity error");
   }
 
-  delay(SHT2X_DELAY_HUMIDITY);  // NOLINT
-  uint16_t raw_humidity = read_raw_value_();
-  float humidity = -6.0 + (125.0 / 65536.0) * raw_humidity;
-  return humidity;
+  this->set_timeout("read_humidity", SHT2X_DELAY_HUMIDITY, [this]() {
+    uint16_t raw_humidity = this->read_raw_value_();
+    float humidity = -6.0 + (125.0 / 65536.0) * raw_humidity;
+    return humidity;
+  });
 }
 
 void SHT2XComponent::update() {

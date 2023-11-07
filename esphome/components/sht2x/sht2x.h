@@ -12,8 +12,8 @@ namespace sht2x {
 /// This class implements support for the SHT2x family of temperature+humidity i2c sensors.
 class SHT2XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
+  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
 
   void setup() override;
   void dump_config() override;
