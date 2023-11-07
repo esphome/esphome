@@ -152,7 +152,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     // Look for sync pulse, after. If sucessful index points to space of sync symbol
     while (src.size() - src.get_index() >= NDATABITS) {
       ESP_LOGVV(TAG, "Decode Drayton: sync search %d, %" PRId32 " %" PRId32, src.size() - src.get_index(), src.peek(),
-        src.peek(1));
+                src.peek(1));
       if (src.peek_mark(2 * BIT_TIME_US) &&
           (src.peek_space(2 * BIT_TIME_US, 1) || src.peek_space(3 * BIT_TIME_US, 1))) {
         src.advance(1);
