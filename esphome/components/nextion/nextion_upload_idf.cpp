@@ -97,7 +97,7 @@ int Nextion::upload_range(const std::string &url, int range_start) {
             result += static_cast<uint8_t>(recv_string[j + 1]) << (8 * j);
           }
           if (result > 0) {
-            ESP_LOGI(TAG, "Nextion reported new range %d", result);
+            ESP_LOGI(TAG, "Nextion reported new range %" PRIu32, result);
             this->content_length_ = this->tft_size_ - result;
             // Deallocate the buffer when done
             delete[] buffer;
@@ -199,7 +199,8 @@ bool Nextion::upload_tft() {
   // Tells the Nextion the content length of the tft file and baud rate it will be sent at
   // Once the Nextion accepts the command it will wait until the file is successfully uploaded
   // If it fails for any reason a power cycle of the display will be needed
-  sprintf(command, "whmi-wris %d,%d,1", this->content_length_, this->parent_->get_baud_rate());
+  sprintf(command, "whmi-wris %d,%" PRIu32 ",1", this->content_length_, this->parent_->get_baud_rate());
+
 
   // Clear serial receive buffer
   uint8_t d;
@@ -225,7 +226,7 @@ bool Nextion::upload_tft() {
     return this->upload_end(false);
   }
 
-  ESP_LOGD(TAG, "Updating tft from \"%s\" with a file size of %d, Heap Size %d", this->tft_url_.c_str(),
+  ESP_LOGD(TAG, "Updating tft from \"%s\" with a file size of %d, Heap Size %" PRIu32, this->tft_url_.c_str(),
            content_length_, esp_get_free_heap_size());
 
   ESP_LOGV(TAG, "Starting transfer by chunks loop");
@@ -238,7 +239,7 @@ bool Nextion::upload_tft() {
       return this->upload_end(false);
     }
     App.feed_wdt();
-    ESP_LOGV(TAG, "Heap Size %d, Bytes left %d", esp_get_free_heap_size(), content_length_);
+    ESP_LOGV(TAG, "Heap Size %" PRIu32 ", Bytes left %d", esp_get_free_heap_size(), content_length_);
   }
 
   ESP_LOGD(TAG, "Successfully updated Nextion!");
