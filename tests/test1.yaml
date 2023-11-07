@@ -189,6 +189,7 @@ i2c:
   id: i2c_bus
 
 spi:
+  id: spi_bus
   clk_pin: GPIO21
   mosi_pin: GPIO22
   miso_pin: GPIO23
@@ -2737,7 +2738,7 @@ switch:
   - platform: gpio
     name: "SN74HC595 Pin #0"
     pin:
-      sn74hc595: sn74hc595_hub
+      sn74hc595: sn74hc595_hub_2
       # Use pin number 0
       number: 0
       inverted: false
@@ -3385,6 +3386,11 @@ sn74hc595:
     latch_pin: GPIO22
     oe_pin: GPIO32
     sr_count: 2
+  - id: sn74hc595_hub_2
+    latch_pin: GPIO22
+    oe_pin: GPIO32
+    sr_count: 2
+    spi_id: spi_bus
 
 rtttl:
   output: gpio_19
