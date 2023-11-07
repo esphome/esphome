@@ -15,7 +15,9 @@ public:
   float get_setup_priority() { return esphome::setup_priority::HARDWARE; }
   void setup() override;
   void dump_config() override;
-  void loop() override;
+  void loop() {};
+
+  static void interrupt(HDMICEC* self);
 
 protected:
   InternalGPIOPin *cec_pin_;
