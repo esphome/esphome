@@ -17,6 +17,9 @@ esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/adc128s102/* @DeerMaximum
 esphome/components/addressable_light/* @justfalter
+esphome/components/ade7953/* @angelnu
+esphome/components/ade7953_i2c/* @angelnu
+esphome/components/ade7953_spi/* @angelnu
 esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_base/* @jeromelaban @kpfleming @ncareau
 esphome/components/airthings_wave_mini/* @ncareau
@@ -349,6 +352,7 @@ esphome/components/wiegand/* @ssieb
 esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/x9c/* @EtienneMD
+esphome/components/xgzp68xx/* @gcormier
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs

@@ -157,6 +157,8 @@ class AsyncWebServerRequest {
 
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  bool hasHeader(const char *name) const;
 
  protected:
   httpd_req_t *req_;
@@ -254,6 +256,7 @@ class AsyncEventSource : public AsyncWebHandler {
 
 class DefaultHeaders {
   friend class AsyncWebServerRequest;
+  friend class AsyncEventSourceResponse;
 
  public:
   // NOLINTNEXTLINE(readability-identifier-naming)
