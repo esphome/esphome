@@ -16,9 +16,6 @@ static const char *const ESPHOME_MY_LINK = "https://my.home-assistant.io/redirec
 ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
 
 void ESP32ImprovComponent::setup() {
-  this->service_ = global_ble_server->create_service(improv::SERVICE_UUID, true);
-  this->setup_characteristics();
-
 #ifdef USE_BINARY_SENSOR
   if (this->authorizer_ != nullptr) {
     this->authorizer_->add_on_state_callback([this](bool state) {
@@ -70,6 +67,19 @@ void ESP32ImprovComponent::setup_characteristics() {
 }
 
 void ESP32ImprovComponent::loop() {
+  if (!global_ble_server->is_running()) {
+    this->state_ = improv::STATE_STOPPED;
+    this->incoming_data_.clear();
+    return;
+  }
+  if (this->service_ == nullptr) {
+    // Setup the service
+    ESP_LOGD(TAG, "Creating Improv service");
+    global_ble_server->create_service(ESPBTUUID::from_raw(improv::SERVICE_UUID), true);
+    this->service_ = global_ble_server->get_service(ESPBTUUID::from_raw(improv::SERVICE_UUID));
+    this->setup_characteristics();
+  }
+
   if (!this->incoming_data_.empty())
     this->process_incoming_data_();
   uint32_t now = millis();
@@ -80,11 +90,10 @@ void ESP32ImprovComponent::loop() {
 
       if (this->service_->is_created() && this->should_start_ && this->setup_complete_) {
         if (this->service_->is_running()) {
-          esp32_ble::global_ble->get_advertising()->start();
+          esp32_ble::global_ble->advertising_start();
 
           this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
           this->set_error_(improv::ERROR_NONE);
-          this->should_start_ = false;
           ESP_LOGD(TAG, "Service started!");
         } else {
           this->service_->start();
@@ -138,10 +147,7 @@ void ESP32ImprovComponent::loop() {
 #endif
         std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
         this->send_response_(data);
-        this->set_timeout("end-service", 1000, [this] {
-          this->service_->stop();
-          this->set_state_(improv::STATE_STOPPED);
-        });
+        this->stop();
       }
       break;
     }
@@ -206,8 +212,7 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
   service_data[6] = 0x00;  // Reserved
   service_data[7] = 0x00;  // Reserved
 
-  esp32_ble::global_ble->get_advertising()->set_service_data(service_data);
-  esp32_ble::global_ble->get_advertising()->start();
+  esp32_ble::global_ble->advertising_set_service_data(service_data);
 }
 
 void ESP32ImprovComponent::set_error_(improv::Error error) {
@@ -237,7 +242,10 @@ void ESP32ImprovComponent::start() {
 }
 
 void ESP32ImprovComponent::stop() {
+  this->should_start_ = false;
   this->set_timeout("end-service", 1000, [this] {
+    if (this->state_ == improv::STATE_STOPPED || this->service_ == nullptr)
+      return;
     this->service_->stop();
     this->set_state_(improv::STATE_STOPPED);
   });
