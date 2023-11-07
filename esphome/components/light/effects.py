@@ -415,7 +415,7 @@ async def addressable_color_wipe_effect_to_code(config, effect_id):
                 ("w", int(round(color[CONF_WHITE] * 255))),
                 ("random", color[CONF_RANDOM]),
                 ("num_leds", num_leds),
-                ("gradient", gradient)
+                ("gradient", gradient),
             )
         )
     cg.add(var.set_colors(colors))
