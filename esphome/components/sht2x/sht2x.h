@@ -30,6 +30,8 @@ class SHT2XComponent : public PollingComponent, public sensirion_common::Sensiri
   void request_humidity_();
   void publish_temperature_();
   void publish_humidity_();
+  void handle_temperature_();
+  void handle_humidity_();
 };
 
 }  // namespace sht2x
