@@ -22,14 +22,14 @@ void PylontechTextSensor::on_line_read(PylontechListener::LineContents *line) {
   if (this->bat_num_ != line->bat_num) {
     return;
   }
-  if (this->base_state_) {
+  if (this->base_state_ != nullptr) {
     this->base_state_->publish_state(std::string(line->base_st));
   }
   if (this->voltage_state_ != nullptr) {
     this->voltage_state_->publish_state(std::string(line->volt_st));
   }
   if (this->current_state_ != nullptr) {
-    this->voltage_state_->publish_state(std::string(line->curr_st));
+    this->current_state_->publish_state(std::string(line->curr_st));
   }
   if (this->temperature_state_ != nullptr) {
     this->temperature_state_->publish_state(std::string(line->temp_st));
