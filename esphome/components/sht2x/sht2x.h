@@ -26,8 +26,8 @@ class SHT2XComponent : public PollingComponent, public sensirion_common::Sensiri
 
   uint8_t crc8_(const uint8_t *data, uint8_t len);
   uint16_t read_raw_value_();
-  float get_temperature_();
-  float get_humidity_();
+  void get_temperature_();
+  void get_humidity_();
 };
 
 }  // namespace sht2x
