@@ -25,7 +25,7 @@ class PylontechSensor : public PylontechListener, public Component {
   void on_line_read(LineContents *line) override;
 
  protected:
-  int _bat_num;
+  int bat_num_;
 };
 
 }  // namespace pylontech

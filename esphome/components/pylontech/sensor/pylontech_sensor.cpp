@@ -7,11 +7,11 @@ namespace pylontech {
 
 static const char *const TAG = "pylontech.sensor";
 
-PylontechSensor::PylontechSensor(int bat_num) { this->_bat_num = bat_num; }
+PylontechSensor::PylontechSensor(int bat_num) { this->bat_num_ = bat_num; }
 
 void PylontechSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Pylontech Sensor:");
-  ESP_LOGCONFIG(TAG, " Battery %d", this->_bat_num);
+  ESP_LOGCONFIG(TAG, " Battery %d", this->bat_num_);
   LOG_SENSOR("  ", "Voltage", this->voltage_);
   LOG_SENSOR("  ", "Current", this->current_);
   LOG_SENSOR("  ", "Temperature", this->temperature_);
@@ -24,7 +24,7 @@ void PylontechSensor::dump_config() {
 }
 
 void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
-  if (this->_bat_num != line->bat_num) {
+  if (this->bat_num_ != line->bat_num) {
     return;
   }
   if (this->voltage_) {
