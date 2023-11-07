@@ -67,6 +67,9 @@ class DashboardSettings:
         self.on_ha_addon = False
         self.cookie_secret = None
         self.absolute_config_dir = None
+        self._entry_cache: dict[
+            str, tuple[tuple[int, int, float, int], DashboardEntry]
+        ] = {}
 
     def parse_args(self, args):
         self.on_ha_addon = args.ha_addon
@@ -121,8 +124,58 @@ class DashboardSettings:
         Path(joined_path).resolve().relative_to(self.absolute_config_dir)
         return joined_path
 
-    def list_yaml_files(self):
+    def list_yaml_files(self) -> list[str]:
         return util.list_yaml_files([self.config_dir])
+
+    def entries(self):
+        """Fetch all dashboard entries, thread-safe."""
+        path_to_cache_key: dict[str, tuple[int, int, float, int]] = {}
+        #
+        # The cache key is (inode, device, mtime, size)
+        # which allows us to avoid locking since it ensures
+        # every iteration of this call will always return the newest
+        # items from disk at the cost of a stat() call on each
+        # file which is much faster than reading the file
+        # for the cache hit case which is the common case.
+        #
+        # Because there is no lock the cache may
+        # get built more than once but that's fine as its still
+        # thread-safe and results in orders of magnitude less
+        # reads from disk than if we did not cache at all and
+        # does not have a lock contention issue.
+        #
+        for file in self.list_yaml_files():
+            stat = Path(file).stat()
+            path_to_cache_key[file] = (
+                stat.st_ino,
+                stat.st_dev,
+                stat.st_mtime,
+                stat.st_size,
+            )
+
+        entry_cache = self._entry_cache
+        dashboard_entries: list[DashboardEntry] = []
+        for file, cache_key in path_to_cache_key.items():
+            if cached_entry := entry_cache.get(file):
+                entry_key, dashboard_entry = cached_entry
+                if entry_key == cache_key:
+                    dashboard_entries.append(dashboard_entry)
+                    continue
+
+            dashboard_entry = DashboardEntry(file)
+            dashboard_entries.append(dashboard_entry)
+            entry_cache[file] = (cache_key, dashboard_entry)
+
+        # Remove entries that no longer exist
+        removed: list[str] = []
+        for file in entry_cache:
+            if file not in path_to_cache_key:
+                removed.append(file)
+
+        for file in removed:
+            entry_cache.pop(file)
+
+        return dashboard_entries
 
 
 settings = DashboardSettings()
@@ -657,18 +710,26 @@ class EsphomeVersionHandler(BaseHandler):
         self.finish()
 
 
-def _list_dashboard_entries():
-    files = settings.list_yaml_files()
-    return [DashboardEntry(file) for file in files]
+def _list_dashboard_entries() -> list[DashboardEntry]:
+    return settings.entries()
 
 
 class DashboardEntry:
-    def __init__(self, path):
+    """Represents a single dashboard entry.
+
+    This class is thread-safe and read-only.
+    """
+
+    __slots__ = ("path", "_storage", "_loaded_storage")
+
+    def __init__(self, path: str) -> None:
+        """Initialize the DashboardEntry."""
         self.path = path
         self._storage = None
         self._loaded_storage = False
 
     def __repr__(self):
+        """Return the representation of this entry."""
         return (
             f"DashboardEntry({self.path} "
             f"address={self.address} "
@@ -679,10 +740,12 @@ class DashboardEntry:
 
     @property
     def filename(self):
+        """Return the filename of this entry."""
         return os.path.basename(self.path)
 
     @property
     def storage(self) -> StorageJSON | None:
+        """Return the StorageJSON object for this entry."""
         if not self._loaded_storage:
             self._storage = StorageJSON.load(ext_storage_path(self.filename))
             self._loaded_storage = True
@@ -690,48 +753,56 @@ class DashboardEntry:
 
     @property
     def address(self):
+        """Return the address of this entry."""
         if self.storage is None:
             return None
         return self.storage.address
 
     @property
     def no_mdns(self):
+        """Return the no_mdns of this entry."""
         if self.storage is None:
             return None
         return self.storage.no_mdns
 
     @property
     def web_port(self):
+        """Return the web port of this entry."""
         if self.storage is None:
             return None
         return self.storage.web_port
 
     @property
     def name(self):
+        """Return the name of this entry."""
         if self.storage is None:
             return self.filename.replace(".yml", "").replace(".yaml", "")
         return self.storage.name
 
     @property
     def friendly_name(self):
+        """Return the friendly name of this entry."""
         if self.storage is None:
             return self.name
         return self.storage.friendly_name
 
     @property
     def comment(self):
+        """Return the comment of this entry."""
         if self.storage is None:
             return None
         return self.storage.comment
 
     @property
     def target_platform(self):
+        """Return the target platform of this entry."""
         if self.storage is None:
             return None
         return self.storage.target_platform
 
     @property
     def update_available(self):
+        """Return if an update is available for this entry."""
         if self.storage is None:
             return True
         return self.update_old != self.update_new
