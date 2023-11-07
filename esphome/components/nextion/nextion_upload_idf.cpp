@@ -201,7 +201,6 @@ bool Nextion::upload_tft() {
   // If it fails for any reason a power cycle of the display will be needed
   sprintf(command, "whmi-wris %d,%" PRIu32 ",1", this->content_length_, this->parent_->get_baud_rate());
 
-
   // Clear serial receive buffer
   uint8_t d;
   while (this->available()) {
