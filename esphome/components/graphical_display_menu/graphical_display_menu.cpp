@@ -145,7 +145,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
       int height_left_to_use = bounds->h;
       for (int i = last_item_index - 1; i >= 0; i--) {
         display::Rect item_dimensions = menu_dimensions[i];
-        height_left_to_use -= item_dimensions.h - y_padding;
+        height_left_to_use -= (item_dimensions.h + y_padding);
 
         if (height_left_to_use <= 0) {
           // Ran out of space -  this is our first item to draw
