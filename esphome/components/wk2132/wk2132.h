@@ -8,14 +8,19 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/uart/uart.h"
 
+#define TEST_COMPONENT
+
 namespace esphome {
 namespace wk2132 {
 
-/// @brief the max size we allow for transmissions
-constexpr size_t FIFO_SIZE = 128;
+/// @brief the max size we allow for transmissions calls
+constexpr size_t BUS_XFER_SIZE = 128;
+
+/// @brief The size of the internal buffer
+constexpr size_t FIFO_SIZE = 256;
 
 /// @brief size of the ring buffer
-constexpr size_t RING_BUFFER_SIZE = 128;
+constexpr size_t RING_BUFFER_SIZE = 256;
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief This is an helper class that provides a simple ring buffers
 /// that implements a FIFO function
@@ -123,10 +128,11 @@ constexpr uint8_t REG_WK2132_GENA = 0x00;
 /// @endcode
 constexpr uint8_t REG_WK2132_GRST = 0x01;
 
-constexpr uint8_t REG_WK2132_GMUT = 0x02;  ///< Global main UART control register
+/// Global main UART control register
+constexpr uint8_t REG_WK2132_GMUT = 0x02;
 
 /// @brief UART Channel register when PAGE = 0
-constexpr uint8_t REG_WK2132_SPAGE = 0x03;  ///< UART page control register
+constexpr uint8_t REG_WK2132_SPAGE = 0x03;
 
 /// SCR description of UART Serial control register:
 /// @code
@@ -224,7 +230,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::IO; }
+  float get_setup_priority() const override { return setup_priority::BUS - 0.1F; }
   void loop() override;
 
  protected:
@@ -235,17 +241,17 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   /// @param reg_address the register address
   /// @param channel the channel number (0-1). Only significant for UART registers
   /// @param buffer pointer to a buffer
-  /// @param len length of the buffer
+  /// @param length length of the buffer
   /// @return the I²C error codes
-  void write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer, size_t len);
+  void write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer, size_t length);
 
   /// @brief All read calls to I²C registers are performed through this method
   /// @param number the register number
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer the buffer pointer
-  /// @param len length of the buffer
+  /// @param length length of the buffer
   /// @return the I²C error codes
-  uint8_t read_wk2132_register_(uint8_t reg_number, uint8_t channel, uint8_t *buffer, size_t len);
+  uint8_t read_wk2132_register_(uint8_t reg_number, uint8_t channel, uint8_t *buffer, size_t length);
 
   uint32_t crystal_;                         ///< crystal default value;
   uint8_t base_address_;                     ///< base address of I2C device
@@ -253,7 +259,6 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   uint8_t data_;                             ///< temporary buffer
   bool page1_{false};                        ///< set to true when in page1 mode
   std::vector<WK2132Channel *> children_{};  ///< the list of WK2132Channel UART children
-  bool initialized_{false};                  ///< set to true when the wk2132 is initialized
   std::string name_;                         ///< store name of entity
 };
 
@@ -291,9 +296,9 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief Writes a specified number of bytes toward a serial port
   /// @param buffer pointer to the buffer
-  /// @param len number of bytes to write
+  /// @param length number of bytes to write
   ///
-  /// This method sends 'len' characters from the buffer to the serial line.
+  /// This method sends 'length' characters from the buffer to the serial line.
   /// Unfortunately (unlike the Arduino equivalent) this method
   /// does not return any flag and therefore it is not possible to know
   /// if any/all bytes have been transmitted correctly. Another problem
@@ -307,28 +312,28 @@ class WK2132Channel : public uart::UARTComponent {
   ///   // ...
   ///   uint8_t buffer[128];
   ///   // ...
-  ///   write_array(&buffer, len);
+  ///   write_array(&buffer, length);
   ///   flush();
   ///   // ...
   /// @endcode
-  void write_array(const uint8_t *buffer, size_t len) override;
+  void write_array(const uint8_t *buffer, size_t length) override;
 
   /// @brief Reads a specified number of bytes from a serial port
   /// @param buffer buffer to store the bytes
-  /// @param len number of bytes to read
+  /// @param length number of bytes to read
   /// @return true if succeed, false otherwise
   ///
   /// Typical usage:
   /// @code
   ///   // ...
-  ///   auto len = available();
+  ///   auto length = available();
   ///   uint8_t buffer[128];
-  ///   if (len > 0) {
-  ///     auto status = read_array(&buffer, len)
+  ///   if (length > 0) {
+  ///     auto status = read_array(&buffer, length)
   ///     // test status ...
   ///   }
   /// @endcode
-  bool read_array(uint8_t *buffer, size_t len) override;
+  bool read_array(uint8_t *buffer, size_t length) override;
 
   /// @brief Reads first byte in FIFO without removing it
   /// @param buffer pointer to the byte
@@ -337,7 +342,7 @@ class WK2132Channel : public uart::UARTComponent {
   /// This method returns the next byte from receiving buffer without
   /// removing it from the internal fifo. It returns true if a character
   /// is available and has been read, false otherwise.\n
-  bool peek_byte(uint8_t *buffer) override { return this->receive_buffer_.peek(*buffer); }
+  bool peek_byte(uint8_t *buffer) override;
 
   /// @brief Returns the number of bytes in the receive buffer
   /// @return the number of bytes available in the receiver fifo
@@ -355,6 +360,11 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief this cannot happen with external uart
   void check_logger_conflict() override {}
+
+#ifdef TEST_COMPONENT
+  void uart_send_test_(char *message);
+  bool uart_receive_test_(char *message);
+#endif
 
   void reset_fifo_();
   void set_line_param_();
@@ -375,25 +385,27 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief Reads data from the receive fifo to a buffer
   /// @param buffer the buffer
-  /// @param len the number of bytes we want to read
+  /// @param length the number of bytes we want to read
   /// @return true if succeed false otherwise
-  bool read_data_(uint8_t *buffer, size_t len);
+  bool read_data_(uint8_t *buffer, size_t length);
 
   /// @brief Writes data from a buffer to the transmit fifo
   /// @param buffer the buffer
-  /// @param len the number of bytes we want to write
+  /// @param length the number of bytes we want to write
   /// @return true if succeed false otherwise
-  bool write_data_(const uint8_t *buffer, size_t len);
+  bool write_data_(const uint8_t *buffer, size_t length);
 
-  size_t rx_fifo_to_buffer_();
+  /// @brief transfer bytes in fifo to the buffer if any
+  /// @return number of bytes transferred
+  size_t xfer_fifo_to_buffer_();
 
   /// @brief the buffer where we store temporarily the bytes received
   RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
-  bool flush_requested_{false};  ///< flush was requested but not honored
-  WK2132Component *parent_;      ///< Our WK2132component parent
-  uint8_t channel_;              ///< Our Channel number
-  uint8_t data_;                 ///< one byte buffer
-  std::string name_;             ///< name of the entity
+  // bool flush_requested_{false};  ///< flush was requested but not honored
+  WK2132Component *parent_;  ///< Our WK2132component parent
+  uint8_t channel_;          ///< Our Channel number
+  uint8_t data_;             ///< one byte buffer
+  std::string name_;         ///< name of the entity
 };
 
 }  // namespace wk2132

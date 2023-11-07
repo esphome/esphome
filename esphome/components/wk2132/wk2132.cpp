@@ -216,31 +216,32 @@ const char *parity2string(uart::UARTParityOptions parity) {
 // method to print registers as text: used in log messages ...
 const char *WK2132Component::reg_to_str_(int val) { return this->page1_ ? REG_TO_STR_P1[val] : REG_TO_STR_P0[val]; }
 
-void WK2132Component::write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer, size_t len) {
+void WK2132Component::write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer,
+                                             size_t length) {
   this->address_ = i2c_address(this->base_address_, channel, 0);  // update the I²C address
-  auto error = this->write_register(reg_number, buffer, len);     // write to the register
+  auto error = this->write_register(reg_number, buffer, length);  // write to the register
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
-    ESP_LOGVV(TAG, "write_wk2132_register_(@%02X %s, ch=%d b=%02X, len=%d): I2C code %d", this->address_,
-              this->reg_to_str_(reg_number), channel, *buffer, len, (int) error);
+    ESP_LOGVV(TAG, "write_wk2132_register_(@%02X %s, ch=%d b=%02X, length=%d): I2C code %d", this->address_,
+              this->reg_to_str_(reg_number), channel, *buffer, length, (int) error);
   } else {  // error
     this->status_set_warning();
-    ESP_LOGE(TAG, "write_wk2132_register_(@%02X %s, ch=%d b=%02X, len=%d): I2C code %d", this->address_,
-             this->reg_to_str_(reg_number), channel, *buffer, len, (int) error);
+    ESP_LOGE(TAG, "write_wk2132_register_(@%02X %s, ch=%d b=%02X, length=%d): I2C code %d", this->address_,
+             this->reg_to_str_(reg_number), channel, *buffer, length, (int) error);
   }
 }
 
-uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t channel, uint8_t *buffer, size_t len) {
+uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t channel, uint8_t *buffer, size_t length) {
   this->address_ = i2c_address(this->base_address_, channel, 0);  // update the i2c address
-  auto error = this->read_register(reg_number, buffer, len);
+  auto error = this->read_register(reg_number, buffer, length);
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
-    ESP_LOGVV(TAG, "read_wk2132_register_(@%02X %s, ch=%d b=%02X, len=%d): I2C code %d", this->address_,
-              this->reg_to_str_(reg_number), channel, *buffer, len, (int) error);
+    ESP_LOGVV(TAG, "read_wk2132_register_(@%02X %s, ch=%d b=%02X, length=%d): I2C code %d", this->address_,
+              this->reg_to_str_(reg_number), channel, *buffer, length, (int) error);
   } else {  // error
     this->status_set_warning();
-    ESP_LOGE(TAG, "read_wk2132_register_(@%02X %s, ch=%d b=%02X, len=%d): I2C code %d", this->address_,
-             this->reg_to_str_(reg_number), channel, *buffer, len, (int) error);
+    ESP_LOGE(TAG, "read_wk2132_register_(@%02X %s, ch=%d b=%02X, length=%d): I2C code %d", this->address_,
+             this->reg_to_str_(reg_number), channel, *buffer, length, (int) error);
   }
   return *buffer;
 }
@@ -251,32 +252,30 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
 
 void WK2132Component::setup() {
   this->base_address_ = this->address_;  // TODO should not be necessary done in the ctor
-  ESP_LOGCONFIG(TAG, "Setting up wk2132 : %s with %d UARTs...", this->get_name(), this->children_.size());
+  ESP_LOGCONFIG(TAG, "Setting up wk2132: %s with %d UARTs...", this->get_name(), this->children_.size());
   // we setup our children
-  for (auto *child : this->children_)
+  for (auto *child : this->children_) {
     child->setup_channel_();
+    child->receive_buffer_.clear();
+    // child->flush_requested_ = false;
+    child->reset_fifo_();
+  }
 }
 
 void WK2132Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
-  ESP_LOGCONFIG(TAG, "  crystal %d", this->crystal_);
+  ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
   if (test_mode_)
-    ESP_LOGCONFIG(TAG, "  test_mode %d", test_mode_);
+    ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
   LOG_I2C_DEVICE(this);
 
   for (auto *child : this->children_) {
     ESP_LOGCONFIG(TAG, "  UART %s:%s...", this->get_name(), child->get_channel_name());
-    ESP_LOGCONFIG(TAG, "    baudrate %d Bd", child->baud_rate_);
-    ESP_LOGCONFIG(TAG, "    data_bits %d", child->data_bits_);
-    ESP_LOGCONFIG(TAG, "    stop_bits %d", child->stop_bits_);
-    ESP_LOGCONFIG(TAG, "    parity %s", parity2string(child->parity_));
-
-    // here we reset the buffers and the fifos
-    child->receive_buffer_.clear();
-    child->flush_requested_ = false;
-    child->reset_fifo_();
+    ESP_LOGCONFIG(TAG, "    Baud rate: %d Bd", child->baud_rate_);
+    ESP_LOGCONFIG(TAG, "    Data bits: %d", child->data_bits_);
+    ESP_LOGCONFIG(TAG, "    Stop bits: %d", child->stop_bits_);
+    ESP_LOGCONFIG(TAG, "    Parity: %s", parity2string(child->parity_));
   }
-  this->initialized_ = true;  // we can safely use the wk2132
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -295,7 +294,7 @@ void WK2132Channel::setup_channel_() {
   this->parent_->write_wk2132_register_(REG_WK2132_GENA, 0, &gena, 1);
   // software reset UART channels
   uint8_t grst = 0;
-  this->parent_->read_wk2132_register_(REG_WK2132_GRST, 0, &gena, 1);
+  this->parent_->read_wk2132_register_(REG_WK2132_GRST, 0, &grst, 1);
   (this->channel_ == 0) ? grst |= 0x01 : grst |= 0x02;  // reset channel 1 or 2
   this->parent_->write_wk2132_register_(REG_WK2132_GRST, 0, &grst, 1);
 
@@ -306,7 +305,7 @@ void WK2132Channel::setup_channel_() {
   // initialize the spage register to page 0
   uint8_t const page = 0;
   this->parent_->page1_ = false;
-  this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, channel_, &page, 1);
+  this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, this->channel_, &page, 1);
   // we enable both channel
   uint8_t const scr = 0x3;  // 0000 0011 enable receive and transmit
   this->parent_->write_wk2132_register_(REG_WK2132_SCR, this->channel_, &scr, 1);
@@ -341,8 +340,8 @@ void WK2132Channel::set_baudrate_() {
   this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, this->channel_, &page, 1);
   this->parent_->page1_ = false;
 
-  ESP_LOGCONFIG(TAG, "    Crystal=%d baudrate=%d => registers [%d %d %d]", this->parent_->crystal_, this->baud_rate_,
-                baud_high, baud_low, baud_dec);
+  ESP_LOGV(TAG, "    Crystal=%d baudrate=%d => registers [%d %d %d]", this->parent_->crystal_, this->baud_rate_,
+           baud_high, baud_low, baud_dec);
 }
 
 void WK2132Channel::set_line_param_() {
@@ -364,8 +363,8 @@ void WK2132Channel::set_line_param_() {
       break;  // no parity 000x
   }
   this->parent_->write_wk2132_register_(REG_WK2132_LCR, this->channel_, &lcr, 1);
-  ESP_LOGCONFIG(TAG, "    line config: %d data_bits, %d stop_bits, parity %s register [%s]", this->data_bits_,
-                this->stop_bits_, parity2string(this->parity_), I2CS(lcr));
+  ESP_LOGV(TAG, "    line config: %d data_bits, %d stop_bits, parity %s register [%s]", this->data_bits_,
+           this->stop_bits_, parity2string(this->parity_), I2CS(lcr));
 }
 
 inline bool WK2132Channel::tx_fifo_is_not_empty_() {
@@ -374,10 +373,12 @@ inline bool WK2132Channel::tx_fifo_is_not_empty_() {
 
 size_t WK2132Channel::tx_in_fifo_() {
   size_t tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);
-  uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
-  if ((fsr & 0x02) && (tfcnt == 0)) {
-    ESP_LOGVV(TAG, "tx_in_fifo overflow FSR=%s", I2CS(fsr));
-    tfcnt = FIFO_SIZE;
+  if (tfcnt == 0) {
+    uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
+    if (fsr & 0x02) {
+      ESP_LOGVV(TAG, "tx_in_fifo full FSR=%s", I2CS(fsr));
+      tfcnt = FIFO_SIZE;
+    }
   }
   return tfcnt;
 }
@@ -386,73 +387,89 @@ size_t WK2132Channel::tx_in_fifo_() {
 /// @return number of bytes
 /// @image html write_cycles.png
 size_t WK2132Channel::rx_in_fifo_() {
-  size_t available = 0;
-
-  available = this->parent_->read_wk2132_register_(REG_WK2132_RFCNT, this->channel_, &this->data_, 1);
+  size_t available = this->parent_->read_wk2132_register_(REG_WK2132_RFCNT, this->channel_, &this->data_, 1);
   if (available == 0) {
     uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
-    if (fsr & 0x8) {  // if RDAT bit is set we set available to FIFO_SIZE
-      ESP_LOGVV(TAG, "rx_in_fifo overflow FSR=%s", I2CS(fsr));
+    if (fsr & 0x8) {  // if RDAT bit is set we set available to 256
+      ESP_LOGVV(TAG, "rx_in_fifo full FSR=%s", I2CS(fsr));
       available = FIFO_SIZE;
     }
   }
-
-  if (available > FIFO_SIZE)  // no more than what is set in the fifo_size
-    available = FIFO_SIZE;
-
   ESP_LOGVV(TAG, "rx_in_fifo %d", available);
   return available;
 }
 
-bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
+bool WK2132Channel::read_data_(uint8_t *buffer, size_t length) {
   this->parent_->address_ = i2c_address(this->parent_->base_address_, this->channel_, 1);  // fifo flag is set
 
   // With the WK2132 we need to read data directly from the fifo buffer without passing through a register
   // note: that theoretically it should be possible to read through the REG_WK2132_FDA register
   // but beware that it does not work !
-  auto error = this->parent_->read(buffer, len);
+
+  // If length is more than transmission can take we split
+  if (length > BUS_XFER_SIZE) {
+    this->parent_->read(buffer, BUS_XFER_SIZE);
+    length -= BUS_XFER_SIZE;
+  }
+  auto error = this->parent_->read(buffer, length);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
-    ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X, len=%d): I2C code %d", this->channel_, *buffer, len, (int) error);
+    ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X, length=%d): I2C code %d", this->channel_, *buffer, length,
+             (int) error);
     return true;
   } else {  // error found
     this->parent_->status_set_warning();
-    ESP_LOGE(TAG, "read_data(ch=%d buffer[0]=%02X, len=%d): I2C code %d", this->channel_, *buffer, len, (int) error);
+    ESP_LOGE(TAG, "read_data(ch=%d buffer[0]=%02X, length=%d): I2C code %d", this->channel_, *buffer, length,
+             (int) error);
     return false;
   }
 }
 
-bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
+bool WK2132Channel::write_data_(const uint8_t *buffer, size_t length) {
   this->parent_->address_ = i2c_address(this->parent_->base_address_, this->channel_, 1);  // set fifo flag
 
   // With the WK2132 we need to write to the fifo buffer without passing through a register
   // note: that theoretically it should be possible to write through the REG_WK2132_FDA register
   // but beware that it does not seems to work !
-  auto error = this->parent_->write(buffer, len);
+  bool split = false;
+  if (length > BUS_XFER_SIZE) {
+    this->parent_->write(buffer, BUS_XFER_SIZE);
+    this->flush();
+    split = true;
+    length -= BUS_XFER_SIZE;
+  }
+  auto error = this->parent_->write(buffer, split ? (length - BUS_XFER_SIZE) : length);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
-    ESP_LOGV(TAG, "write_data(ch=%d buffer[0]=%02X, len=%d): I2C code %d", this->channel_, *buffer, len, (int) error);
+    ESP_LOGV(TAG, "write_data_(ch=%d buffer[0]=%02X, length=%d): I2C code %d", this->channel_, *buffer, length,
+             (int) error);
     return true;
   } else {  // error
     this->parent_->status_set_warning();
-    ESP_LOGE(TAG, "write_data(ch=%d buffer[0]=%02X, len=%d): I2C code %d", this->channel_, *buffer, len, (int) error);
+    ESP_LOGE(TAG, "write_data_(ch=%d buffer[0]=%02X, length=%d): I2C code %d", this->channel_, *buffer, length,
+             (int) error);
     return false;
   }
 }
 
+bool WK2132Channel::peek_byte(uint8_t *buffer) {
+  auto available = this->receive_buffer_.count();
+  if (!available)
+    xfer_fifo_to_buffer_();
+  return this->receive_buffer_.peek(*buffer);
+}
+
 int WK2132Channel::available() {
   auto available = this->receive_buffer_.count();
-
   // here if we do not have bytes in buffer we want to check if
   // there are bytes in the fifo,in which case we do not want to
   // delay reading them in the next loop.
   if (!available)
-    available = rx_fifo_to_buffer_();
-
+    available = xfer_fifo_to_buffer_();
   return available;
 }
 
-bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
+bool WK2132Channel::read_array(uint8_t *buffer, size_t length) {
   bool status = true;
   auto available = this->receive_buffer_.count();
 
@@ -460,55 +477,63 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
   // there are bytes in the fifo,in which case we read them
   // immediately so we do not delay until the next loop.
   if (!available)
-    available = rx_fifo_to_buffer_();
+    available = xfer_fifo_to_buffer_();
 
-  if ((len > FIFO_SIZE) || (len > available)) {
-    ESP_LOGVV(TAG, "read_array buffer underflow requested %d bytes available %d ...", len, available);
-    len = available;
+  if ((length > FIFO_SIZE) || (length > available)) {
+    ESP_LOGVV(TAG, "read_array buffer underflow requested %d bytes available %d ...", length, available);
+    length = available;
     status = false;  // invalid call or not enough char
   }
   // retrieve the bytes from ring buffer
-  for (size_t i = 0; i < len; i++) {
+  for (size_t i = 0; i < length; i++) {
     this->receive_buffer_.pop(buffer[i]);
   }
   return status;
 }
 
-void WK2132Channel::write_array(const uint8_t *buffer, size_t len) {
-  if (len > FIFO_SIZE) {
-    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, FIFO_SIZE);
-    len = FIFO_SIZE;
+void WK2132Channel::write_array(const uint8_t *buffer, size_t length) {
+  if (length > FIFO_SIZE) {
+    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", length, FIFO_SIZE);
+    length = FIFO_SIZE;
   }
+  // this->write_data_(buffer, length);
 
-  // if we had a flush request it is time to check it has been honored
-  if (this->flush_requested_) {
-    if (this->tx_fifo_is_not_empty_()) {
-      // despite the fact that we have waited a max the fifo is still not empty
-      // therefore we now have to wait until it gets empty
-      uint32_t const start_time = millis();
-      while (this->tx_fifo_is_not_empty_()) {  // wait until buffer empty
-        if (millis() - start_time > 100) {
-          ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...", this->tx_in_fifo_());
-          return;
-        }
-        yield();  // reschedule our thread to avoid blocking
-      }
-    }
-    this->flush_requested_ = false;  // we are all set
+  // With the WK2132 we need to write to the fifo buffer without passing through a register
+  // note: that theoretically it should be possible to write through the REG_WK2132_FDA register
+  // but beware that it does not seems to work !
+  this->parent_->address_ = i2c_address(this->parent_->base_address_, this->channel_, 1);  // set fifo flag
+  bool split = false;
+  // if (length > BUS_XFER_SIZE) {
+  //   this->parent_->write(buffer, BUS_XFER_SIZE);
+  //   this->flush();
+  //   split = true;
+  // }
+  auto error = this->parent_->write(buffer, split ? (length - BUS_XFER_SIZE) : length);
+  if (error == i2c::ERROR_OK) {
+    this->parent_->status_clear_warning();
+    ESP_LOGV(TAG, "write_array(ch=%d buffer[0]=%02X, length=%d): I2C code %d", this->channel_, *buffer, length,
+             (int) error);
+  } else {  // error
+    this->parent_->status_set_warning();
+    ESP_LOGE(TAG, "write_array(ch=%d buffer[0]=%02X, length=%d): I2C code %d", this->channel_, *buffer, length,
+             (int) error);
   }
-
-  this->write_data_(buffer, len);
 }
 
 void WK2132Channel::flush() {
-  // here we just record the request but we do not wait at this time.
-  // Tje next write_array() call will first check that everything
-  // is gone otherwise it will wait. This gives time for the bytes
-  // to go
-  this->flush_requested_ = true;
+  if (this->tx_fifo_is_not_empty_()) {
+    uint32_t const start_time = millis();
+    while (this->tx_fifo_is_not_empty_()) {  // wait until buffer empty
+      if (millis() - start_time > 100) {
+        ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...", this->tx_in_fifo_());
+        return;
+      }
+      yield();  // reschedule our thread to avoid blocking
+    }
+  }
 }
 
-size_t WK2132Channel::rx_fifo_to_buffer_() {
+size_t WK2132Channel::xfer_fifo_to_buffer_() {
   // we look if some characters has been received in the fifo
   auto to_transfer = this->rx_in_fifo_();
   if (to_transfer) {
@@ -527,9 +552,8 @@ size_t WK2132Channel::rx_fifo_to_buffer_() {
 }
 
 void WK2132Component::loop() {
-  if (!this->initialized_) {
+  if (this->component_state_ & COMPONENT_STATE_MASK != COMPONENT_STATE_LOOP)
     return;
-  }
 
   static uint32_t loop_time = 0;
   static uint32_t loop_count = 0;
@@ -543,13 +567,35 @@ void WK2132Component::loop() {
 
   // here we transfer bytes from fifo to ring buffers
   elapsed(time);  // set time to now
+  size_t transferred = 0;
   for (auto *child : this->children_) {
     // we look if some characters has been received in the fifo
-    child->rx_fifo_to_buffer_();
+    transferred += child->xfer_fifo_to_buffer_();
   }
   if (test_mode_)
-    ESP_LOGI(TAG, "transfer rx fifo to buffer - execution time %d µs...", elapsed(time));
+    ESP_LOGI(TAG, "transferred %d bytes to buffer - execution time %d µs...", transferred, elapsed(time));
 
+#ifdef TEST_COMPONENT
+  if (test_mode_ == 1) {
+    char message[64];
+    elapsed(time);  // set time to now
+    for (auto *child : this->children_) {
+      snprintf(message, sizeof(message), "%s:%s", this->get_name(), child->get_channel_name());
+      child->uart_send_test_(message);
+      ESP_LOGV(TAG, "uart_send_test - execution time %d ms...", elapsed(time));
+      uint32_t const start_time = millis();
+      while (child->rx_in_fifo_() < FIFO_SIZE) {  // wait until buffer empty
+        if (millis() - start_time > 100) {
+          ESP_LOGE(TAG, "Timed out waiting for bytes - %d bytes in buffer...", child->rx_in_fifo_());
+          break;
+        }
+        yield();  // reschedule our thread to avoid blocking
+      }
+      bool status = child->uart_receive_test_(message);
+      ESP_LOGI(TAG, "Loop %d send/received %d bytes %s", loop_count, FIFO_SIZE, status ? "correctly" : "with error");
+      ESP_LOGV(TAG, "uart_receive_test - execution time %d ms...", elapsed(time));
+    }
+  }
   if (this->test_mode_ == 2) {  // test echo mode
     for (auto *child : this->children_) {
       uint8_t data;
@@ -560,10 +606,90 @@ void WK2132Component::loop() {
       }
     }
   }
-
+#endif
   if (this->test_mode_)
     ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 }
+
+///
+// TEST COMPONENT
+//
+#ifdef TEST_COMPONENT
+class Increment {  // A increment "Functor" (A class object that acts like a method with state!)
+ public:
+  Increment() : i_(0) {}
+  uint8_t operator()() { return i_++; }
+
+ private:
+  uint8_t i_;
+};
+
+void print_buffer(std::vector<uint8_t> buffer) {
+  // quick and ugly hex converter to display buffer in hex format
+  char hex_buffer[80];
+  hex_buffer[50] = 0;
+  for (size_t i = 0; i < buffer.size(); i++) {
+    snprintf(&hex_buffer[3 * (i % 16)], sizeof(hex_buffer), "%02X ", buffer[i]);
+    if (i % 16 == 15)
+      ESP_LOGI(TAG, "   %s", hex_buffer);
+  }
+  if (buffer.size() % 16) {
+    // null terminate if incomplete line
+    hex_buffer[3 * (buffer.size() % 16) + 2] = 0;
+    ESP_LOGI(TAG, "   %s", hex_buffer);
+  }
+}
+
+/// @brief test the write_array method
+void WK2132Channel::uart_send_test_(char *message) {
+  auto start_exec = micros();
+  this->flush();  // we wait until they are gone
+  std::vector<uint8_t> output_buffer(FIFO_SIZE);
+  generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
+  this->write_array(&output_buffer[0], FIFO_SIZE);                    // we send the buffer
+  ESP_LOGV(TAG, "%s => sending %d bytes - exec time %d µs ...", message, FIFO_SIZE, micros() - start_exec);
+}
+
+/// @brief test read_array method
+bool WK2132Channel::uart_receive_test_(char *message) {
+  auto start_exec = micros();
+  bool status = true;
+  size_t received;
+  std::vector<uint8_t> buffer(FIFO_SIZE);
+
+  // we wait until we have received all the bytes
+  uint32_t const start_time = millis();
+  while (FIFO_SIZE > (received = this->available())) {
+    if (millis() - start_time > 100) {
+      ESP_LOGE(TAG, "uart_receive_test() timeout: only %d bytes received...", received);
+      break;
+    }
+    yield();  // reschedule our thread to avoid blocking
+  }
+
+  uint8_t peek_value;
+  this->peek_byte(&peek_value);
+  if (peek_value != 0) {
+    ESP_LOGE(TAG, "Peek first byte value error...");
+    print_buffer(buffer);
+    status = false;
+  }
+
+  status = status && this->read_array(&buffer[0], FIFO_SIZE);
+  for (int i = 0; i < FIFO_SIZE; i++) {
+    if (buffer[i] != i) {
+      ESP_LOGE(TAG, "Read buffer contains error...");
+      print_buffer(buffer);
+      status = false;
+      break;
+    }
+  }
+
+  ESP_LOGV(TAG, "%s => %d bytes received status %s - exec time %d µs ...", message, FIFO_SIZE, status ? "OK" : "ERROR",
+           micros() - start_exec);
+  return status;
+}
+#endif
 
 }  // namespace wk2132
 }  // namespace esphome
