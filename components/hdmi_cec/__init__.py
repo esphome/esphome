@@ -15,7 +15,7 @@ HDMICEC = hdmi_cec_ns.class_(
 CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(HDMICEC),
-        cv.Required(CONF_PIN): pins.gpio_output_pin_schema
+        cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema
     }
 )
 

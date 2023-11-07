@@ -9,7 +9,7 @@ namespace hdmi_cec {
 
 class HDMICEC : public Component {
 public:
-  void set_cec_pin(GPIOPin *cec_pin) { cec_pin_ = cec_pin; };
+  void set_cec_pin(InternalGPIOPin *cec_pin) { cec_pin_ = cec_pin; };
 
   // Component overrides
   float get_setup_priority() { return esphome::setup_priority::HARDWARE; }
@@ -18,7 +18,7 @@ public:
   void loop() override;
 
 protected:
-  GPIOPin *cec_pin_;
+  InternalGPIOPin *cec_pin_;
 };
 
 }
