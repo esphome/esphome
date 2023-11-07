@@ -112,10 +112,10 @@ void SHT2XComponent::update() {
     this->write_command(SHT2X_COMMAND_SOFT_RESET);
   }
 
-  this->set_timeout("request_humidity", SHT2X_DELAY_HUMIDITY, [this]() { this->request_humidity_(); });
-  this->set_timeout("publish_humidity", SHT2X_DELAY_HUMIDITY, [this]() { this->publish_humidity_(); });
-  this->set_timeout("request_temperature", SHT2X_DELAY_TEMPERATURE, [this]() { this->request_temperature_(); });
-  this->set_timeout("publish_temperature", SHT2X_DELAY_TEMPERATURE, [this]() { this->publish_temperature_(); });
+  this->set_timeout(SHT2X_DELAY_HUMIDITY, [this]() { this->request_humidity_(); });
+  this->set_timeout(SHT2X_DELAY_HUMIDITY, [this]() { this->publish_humidity_(); });
+  this->set_timeout(SHT2X_DELAY_TEMPERATURE, [this]() { this->request_temperature_(); });
+  this->set_timeout(SHT2X_DELAY_TEMPERATURE, [this]() { this->publish_temperature_(); });
 
   this->status_clear_warning();
 }
