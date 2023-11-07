@@ -127,7 +127,7 @@ class DashboardSettings:
     def list_yaml_files(self) -> list[str]:
         return util.list_yaml_files([self.config_dir])
 
-    def entries(self):
+    def entries(self) -> list[DashboardEntry]:
         """Fetch all dashboard entries, thread-safe."""
         path_to_cache_key: dict[str, tuple[int, int, float, int]] = {}
         #
