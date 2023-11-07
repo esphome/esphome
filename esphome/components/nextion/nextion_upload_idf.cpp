@@ -97,7 +97,7 @@ int Nextion::upload_range(const std::string &url, int range_start) {
             result += static_cast<uint8_t>(recv_string[j + 1]) << (8 * j);
           }
           if (result > 0) {
-            ESP_LOGI(TAG, "Nextion reported new range %d", result);
+            ESP_LOGI(TAG, "Nextion reported new range %" PRIu32, result);
             this->content_length_ = this->tft_size_ - result;
             // Deallocate the buffer when done
             delete[] buffer;
@@ -199,7 +199,8 @@ bool Nextion::upload_tft() {
   // Tells the Nextion the content length of the tft file and baud rate it will be sent at
   // Once the Nextion accepts the command it will wait until the file is successfully uploaded
   // If it fails for any reason a power cycle of the display will be needed
-  sprintf(command, "whmi-wris %d,%d,1", this->content_length_, this->parent_->get_baud_rate());
+  sprintf(command, "whmi-wris %" PRIu32 ",%" PRIu32 ",1", this->content_length_, this->parent_->get_baud_rate());
+
 
   // Clear serial receive buffer
   uint8_t d;
