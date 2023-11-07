@@ -308,8 +308,10 @@ CONFIG_SCHEMA = cv.All(
                 "new mdns component instead."
             ),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(),
-            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(),
+            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
+                single=True
+            ),
         }
     ),
     _validate,
@@ -434,11 +436,15 @@ async def to_code(config):
 
     await cg.past_safe_mode()
 
-    for conf in config.get(CONF_ON_CONNECT, []):
-        await automation.build_automation(var.get_connect_trigger(), [], conf)
+    if on_connect_config := config.get(CONF_ON_CONNECT):
+        await automation.build_automation(
+            var.get_connect_trigger(), [], on_connect_config
+        )
 
-    for conf in config.get(CONF_ON_DISCONNECT, []):
-        await automation.build_automation(var.get_disconnect_trigger(), [], conf)
+    if on_disconnect_config := config.get(CONF_ON_DISCONNECT):
+        await automation.build_automation(
+            var.get_disconnect_trigger(), [], on_disconnect_config
+        )
 
 
 @automation.register_condition("wifi.connected", WiFiConnectedCondition, cv.Schema({}))
