@@ -27,31 +27,31 @@ void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
   if (this->bat_num_ != line->bat_num) {
     return;
   }
-  if (this->voltage_) {
+  if (this->voltage_ != nullptr) {
     this->voltage_->publish_state(((float) line->volt) / 1000.0f);
   }
-  if (this->current_) {
+  if (this->current_ != nullptr) {
     this->current_->publish_state(((float) line->curr) / 1000.0f);
   }
-  if (this->temperature_) {
+  if (this->temperature_ != nullptr) {
     this->temperature_->publish_state(((float) line->tempr) / 1000.0f);
   }
-  if (this->temperature_low_) {
+  if (this->temperature_low_ != nullptr) {
     this->temperature_low_->publish_state(((float) line->tlow) / 1000.0f);
   }
-  if (this->temperature_high_) {
+  if (this->temperature_high_ != nullptr) {
     this->temperature_high_->publish_state(((float) line->thigh) / 1000.0f);
   }
-  if (this->voltage_low_) {
+  if (this->voltage_low_ != nullptr) {
     this->voltage_low_->publish_state(((float) line->vlow) / 1000.0f);
   }
-  if (this->voltage_high_) {
+  if (this->voltage_high_ != nullptr) {
     this->voltage_high_->publish_state(((float) line->vhigh) / 1000.0f);
   }
-  if (this->coulomb_) {
+  if (this->coulomb_ != nullptr) {
     this->coulomb_->publish_state(line->coulomb);
   }
-  if (this->mos_temperature_) {
+  if (this->mos_temperature_ != nullptr) {
     this->mos_temperature_->publish_state(((float) line->mostempr) / 1000.0f);
   }
 }
