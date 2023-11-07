@@ -145,7 +145,7 @@ class DashboardSettings:
         # does not have a lock contention issue.
         #
         for file in self.list_yaml_files():
-            stat = Path(file).stat()
+            stat = os.stat(ext_storage_path(os.path.basename(file)))
             path_to_cache_key[file] = (
                 stat.st_ino,
                 stat.st_dev,
