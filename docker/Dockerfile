@@ -101,6 +101,10 @@ ENV USERNAME="" PASSWORD=""
 # Expose the dashboard to Docker
 EXPOSE 6052
 
+# Run healthcheck (heartbeat)
+HEALTHCHECK --interval=30s --timeout=30s \
+  CMD curl --fail http://localhost:6052/version -A "HealthCheck" || exit 1
+
 COPY docker/docker_entrypoint.sh /entrypoint.sh
 
 # The directory the user should mount their configuration files to

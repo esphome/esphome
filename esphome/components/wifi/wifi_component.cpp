@@ -138,9 +138,19 @@ void WiFiComponent::loop() {
           ESP_LOGW(TAG, "WiFi Connection lost... Reconnecting...");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
+
+          if (this->handled_connected_state_) {
+            this->disconnect_trigger_->trigger();
+            this->handled_connected_state_ = false;
+          }
         } else {
           this->status_clear_warning();
           this->last_connected_ = now;
+
+          if (!this->handled_connected_state_) {
+            this->connect_trigger_->trigger();
+            this->handled_connected_state_ = true;
+          }
         }
         break;
       }
@@ -261,8 +271,8 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
 void WiFiComponent::clear_sta() { this->sta_.clear(); }
 void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
   SavedWifiSettings save{};
-  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid) - 1);
-  strncpy(save.password, password.c_str(), sizeof(save.password) - 1);
+  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid));
+  strncpy(save.password, password.c_str(), sizeof(save.password));
   this->pref_.save(&save);
   // ensure it's written immediately
   global_preferences->sync();
