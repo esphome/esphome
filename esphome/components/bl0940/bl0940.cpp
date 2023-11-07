@@ -1,5 +1,6 @@
 #include "bl0940.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace bl0940 {
@@ -77,7 +78,7 @@ float BL0940::update_temp_(sensor::Sensor *sensor, ube16_t temperature) const {
   float converted_temp = ((float) 170 / 448) * (tb / 2 - 32) - 45;
   if (sensor != nullptr) {
     if (sensor->has_state() && std::abs(converted_temp - sensor->get_state()) > max_temperature_diff_) {
-      ESP_LOGD("bl0940", "Invalid temperature change. Sensor: '%s', Old temperature: %f, New temperature: %f",
+      ESP_LOGD(TAG, "Invalid temperature change. Sensor: '%s', Old temperature: %f, New temperature: %f",
                sensor->get_name().c_str(), sensor->get_state(), converted_temp);
       return 0.0f;
     }
@@ -89,7 +90,7 @@ float BL0940::update_temp_(sensor::Sensor *sensor, ube16_t temperature) const {
 void BL0940::received_package_(const DataPacket *data) const {
   // Bad header
   if (data->frame_header != BL0940_PACKET_HEADER) {
-    ESP_LOGI("bl0940", "Invalid data. Header mismatch: %d", data->frame_header);
+    ESP_LOGI(TAG, "Invalid data. Header mismatch: %d", data->frame_header);
     return;
   }
 
@@ -115,7 +116,7 @@ void BL0940::received_package_(const DataPacket *data) const {
     energy_sensor_->publish_state(total_energy_consumption);
   }
 
-  ESP_LOGV("bl0940", "BL0940: U %fV, I %fA, P %fW, Cnt %d, ∫P %fkWh, T1 %f°C, T2 %f°C", v_rms, i_rms, watt, cf_cnt,
+  ESP_LOGV(TAG, "BL0940: U %fV, I %fA, P %fW, Cnt %" PRId32 ", ∫P %fkWh, T1 %f°C, T2 %f°C", v_rms, i_rms, watt, cf_cnt,
            total_energy_consumption, tps1, tps2);
 }
 

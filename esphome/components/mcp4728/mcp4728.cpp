@@ -1,4 +1,4 @@
-#include "mcp4728_output.h"
+#include "mcp4728.h"
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -108,13 +108,6 @@ void MCP4728Component::select_gain_(MCP4728ChannelIdx channel, MCP4728Gain gain)
   reg_[channel].gain = gain;
 
   this->update_ = true;
-}
-
-void MCP4728Channel::write_state(float state) {
-  const uint16_t max_duty = 4095;
-  const float duty_rounded = roundf(state * max_duty);
-  auto duty = static_cast<uint16_t>(duty_rounded);
-  this->parent_->set_channel_value_(this->channel_, duty);
 }
 
 }  // namespace mcp4728

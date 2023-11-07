@@ -190,6 +190,9 @@ class MQTTComponent : public Component {
 
   std::string custom_state_topic_{};
   std::string custom_command_topic_{};
+  bool has_custom_state_topic_{false};
+  bool has_custom_command_topic_{false};
+
   bool command_retain_{false};
   bool retain_{true};
   bool discovery_enabled_{true};

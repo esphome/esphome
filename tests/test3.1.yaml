@@ -169,7 +169,7 @@ sensor:
       - id: custom_sensor
         name: Custom Sensor
 
-  - platform: ade7953
+  - platform: ade7953_i2c
     irq_pin: GPIO16
     voltage:
       name: ADE7953 Voltage
@@ -180,12 +180,50 @@ sensor:
     current_b:
       name: ADE7953 Current B
       id: ade7953_current_b
+    power_factor_a:
+      name: "ADE7953 Power Factor A"
+    power_factor_b:
+      name: "ADE7953 Power Factor B"
+    apparent_power_a:
+      name: "ADE7953 Apparent Power A"
+    apparent_power_b:
+      name: "ADE7953 Apparent Power B"
     active_power_a:
       name: ADE7953 Active Power A
-      id: ade7953_active_power_a
     active_power_b:
       name: ADE7953 Active Power B
-      id: ade7953_active_power_b
+    reactive_power_a:
+      name: "ADE7953 Reactive Power A"
+    reactive_power_b:
+      name: "ADE7953 Reactive Power B"
+    update_interval: 1s
+
+  - platform: ade7953_spi
+    cs_pin: GPIO04
+    irq_pin: GPIO16
+    voltage:
+      name: ADE7953 Voltage
+    current_a:
+      name: ADE7953 Current A
+    current_b:
+      name: ADE7953 Current B
+    power_factor_a:
+      name: "ADE7953 Power Factor A"
+    power_factor_b:
+      name: "ADE7953 Power Factor B"
+    apparent_power_a:
+      name: "ADE7953 Apparent Power A"
+    apparent_power_b:
+      name: "ADE7953 Apparent Power B"
+    active_power_a:
+      name: ADE7953 Active Power A
+    active_power_b:
+      name: ADE7953 Active Power B
+    reactive_power_a:
+      name: "ADE7953 Reactive Power A"
+    reactive_power_b:
+      name: "ADE7953 Reactive Power B"
+    update_interval: 1s
 
   - platform: tmp102
     name: TMP102 Temperature
