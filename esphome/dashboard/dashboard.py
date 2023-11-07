@@ -154,6 +154,16 @@ class DashboardSettings:
             )
 
         entry_cache = self._entry_cache
+
+        # Remove entries that no longer exist
+        removed: list[str] = []
+        for file in entry_cache:
+            if file not in path_to_cache_key:
+                removed.append(file)
+
+        for file in removed:
+            entry_cache.pop(file)
+
         dashboard_entries: list[DashboardEntry] = []
         for file, cache_key in path_to_cache_key.items():
             if cached_entry := entry_cache.get(file):
@@ -165,15 +175,6 @@ class DashboardSettings:
             dashboard_entry = DashboardEntry(file)
             dashboard_entries.append(dashboard_entry)
             entry_cache[file] = (cache_key, dashboard_entry)
-
-        # Remove entries that no longer exist
-        removed: list[str] = []
-        for file in entry_cache:
-            if file not in path_to_cache_key:
-                removed.append(file)
-
-        for file in removed:
-            entry_cache.pop(file)
 
         return dashboard_entries
 
