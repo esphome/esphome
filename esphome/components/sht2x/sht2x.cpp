@@ -81,14 +81,16 @@ void SHT2XComponent::get_temperature_() {
     ESP_LOGE(TAG, "Reading temperature error");
   };
 
-  this->set_timeout("read_temperature", SHT2X_DELAY_TEMPERATURE, [this]() {
-    uint16_t raw_temperature = this->read_raw_value_();
+  this->set_timeout("read_temperature", SHT2X_DELAY_TEMPERATURE, [this]() { this->publish_temperature_(); });
+}
+
+void SHT2XComponent::publish_temperature_() {
+  uint16_t raw_temperature = this->read_raw_value_();
     float temperature = -46.85 + (175.72 / 65536.0) * raw_temperature;
 
     if (this->temperature_sensor_ != nullptr) {
       this->temperature_sensor_->publish_state(temperature);
     }
-  });
 }
 
 void SHT2XComponent::get_humidity_() {
