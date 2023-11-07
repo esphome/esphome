@@ -363,8 +363,8 @@ class WK2132Channel : public uart::UARTComponent {
   void check_logger_conflict() override {}
 
 #ifdef TEST_COMPONENT
-  void uart_send_test_(char *message);
-  bool uart_receive_test_(char *message);
+  void uart_send_test_(char *header);
+  bool uart_receive_test_(char *header);
 #endif
 
   void reset_fifo_();

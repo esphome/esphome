@@ -378,7 +378,7 @@ size_t WK2132Channel::tx_in_fifo_() {
       tfcnt = FIFO_SIZE;
     }
   }
-  ESP_LOGVV(TAG, "tx_in_fifo %d", available);
+  ESP_LOGVV(TAG, "tx_in_fifo %d", tfcnt);
   return tfcnt;
 }
 
@@ -472,10 +472,11 @@ size_t WK2132Channel::xfer_fifo_to_buffer_() {
     uint8_t data[transfer];
     this->parent_->address_ = i2c_address(this->parent_->base_address_, this->channel_, 1);  // fifo flag is set
     auto error = this->parent_->read(data, transfer);
-    if (error == i2c::ERROR_OK)
+    if (error == i2c::ERROR_OK) {
       ESP_LOGVV(TAG, "xfer_fifo_to_buffer_: transferred %d bytes from fifo to buffer", transfer);
-    else
+    } else {
       ESP_LOGE(TAG, "xfer_fifo_to_buffer_: error i2c=%d while reading", (int) error);
+    }
 
     for (size_t i = 0; i < transfer; i++)
       this->receive_buffer_.push(data[i]);
@@ -485,7 +486,7 @@ size_t WK2132Channel::xfer_fifo_to_buffer_() {
 }
 
 void WK2132Component::loop() {
-  if (this->component_state_ & COMPONENT_STATE_MASK != COMPONENT_STATE_LOOP)
+  if (this->component_state_ & (COMPONENT_STATE_MASK != COMPONENT_STATE_LOOP))
     return;
 
   static uint32_t loop_time = 0;
@@ -531,7 +532,7 @@ void WK2132Component::loop() {
 
   if (this->test_mode_ == 2) {  // test echo mode
     for (auto *child : this->children_) {
-      uint8_t data;
+      uint8_t data = 0;
       if (child->available()) {
         child->read_byte(&data);
         ESP_LOGI(TAG, "echo mode: read -> send %02X", data);
@@ -600,7 +601,7 @@ bool WK2132Channel::uart_receive_test_(char *header) {
     yield();  // reschedule our thread to avoid blocking
   }
 
-  uint8_t peek_value;
+  uint8_t peek_value = 0;
   this->peek_byte(&peek_value);
   if (peek_value != 0) {
     ESP_LOGE(TAG, "Peek first byte value error...");
@@ -608,7 +609,7 @@ bool WK2132Channel::uart_receive_test_(char *header) {
     status = false;
   }
 
-  status = status && this->read_array(&buffer[0], XFER_MAX_SIZE);
+  status = this->read_array(&buffer[0], XFER_MAX_SIZE) && status;
   for (int i = 0; i < XFER_MAX_SIZE; i++) {
     if (buffer[i] != i) {
       ESP_LOGE(TAG, "Read buffer contains error...");
