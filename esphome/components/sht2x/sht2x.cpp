@@ -113,6 +113,7 @@ void SHT2XComponent::update() {
   }
 
   this->get_temperature_();
+  delay(1000);
   this->get_humidity_();
   this->status_clear_warning();
 }
