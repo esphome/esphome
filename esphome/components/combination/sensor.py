@@ -18,8 +18,33 @@ from esphome.core.entity_helpers import inherit_property_from
 CODEOWNERS = ["@Cat-Ion", "@kahrendt"]
 
 combination_ns = cg.esphome_ns.namespace("combination")
-CombinationComponent = combination_ns.class_(
-    "CombinationComponent", cg.Component, sensor.Sensor
+
+KalmanCombinationComponent = combination_ns.class_(
+    "KalmanCombinationComponent", cg.Component, sensor.Sensor
+)
+LinearCombinationComponent = combination_ns.class_(
+    "LinearCombinationComponent", cg.Component, sensor.Sensor
+)
+MaximumCombinationComponent = combination_ns.class_(
+    "MaximumCombinationComponent", cg.Component, sensor.Sensor
+)
+MeanCombinationComponent = combination_ns.class_(
+    "MeanCombinationComponent", cg.Component, sensor.Sensor
+)
+MedianCombinationComponent = combination_ns.class_(
+    "MedianCombinationComponent", cg.Component, sensor.Sensor
+)
+MinimumCombinationComponent = combination_ns.class_(
+    "MinimumCombinationComponent", cg.Component, sensor.Sensor
+)
+MostRecentCombinationComponent = combination_ns.class_(
+    "MostRecentCombinationComponent", cg.Component, sensor.Sensor
+)
+RangeCombinationComponent = combination_ns.class_(
+    "RangeCombinationComponent", cg.Component, sensor.Sensor
+)
+SumCombinationComponent = combination_ns.class_(
+    "SumCombinationComponent", cg.Component, sensor.Sensor
 )
 
 CONF_COEFFECIENT = "coeffecient"
@@ -35,19 +60,6 @@ CONF_PROCESS_STD_DEV = "process_std_dev"
 CONF_SOURCES = "sources"
 CONF_STD_DEV = "std_dev"
 
-
-CombinationType = combination_ns.enum("CombinationType")
-COMBINATION_TYPES = {
-    CONF_KALMAN: CombinationType.COMBINATION_KALMAN,
-    CONF_LINEAR: CombinationType.COMBINATION_LINEAR,
-    CONF_MAX: CombinationType.COMBINATION_MAXIMUM,
-    CONF_MEAN: CombinationType.COMBINATION_MEAN,
-    CONF_MEDIAN: CombinationType.COMBINATION_MEDIAN,
-    CONF_MIN: CombinationType.COMBINATION_MINIMUM,
-    CONF_MOST_RECENTLY_UPDATED: CombinationType.COMBINATION_MOST_RECENTLY_UPDATED,
-    CONF_RANGE: CombinationType.COMBINATION_RANGE,
-    CONF_SUM: CombinationType.COMBINATION_LINEAR,
-}
 
 KALMAN_SOURCE_SCHEMA = cv.Schema(
     {
@@ -71,7 +83,7 @@ SENSOR_ONLY_SOURCE_SCHEMA = cv.Schema(
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_KALMAN: sensor.sensor_schema(CombinationComponent)
+        CONF_KALMAN: sensor.sensor_schema(KalmanCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
         .extend(
             {
@@ -80,28 +92,28 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.Optional(CONF_STD_DEV): sensor.sensor_schema(),
             }
         ),
-        CONF_LINEAR: sensor.sensor_schema(CombinationComponent)
+        CONF_LINEAR: sensor.sensor_schema(LinearCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
         .extend({cv.Required(CONF_SOURCES): cv.ensure_list(LINEAR_SOURCE_SCHEMA)}),
-        CONF_MAX: sensor.sensor_schema(CombinationComponent)
+        CONF_MAX: sensor.sensor_schema(MaximumCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
         .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
-        CONF_MEAN: sensor.sensor_schema(CombinationComponent)
+        CONF_MEAN: sensor.sensor_schema(MeanCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
         .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
-        CONF_MEDIAN: sensor.sensor_schema(CombinationComponent)
+        CONF_MEDIAN: sensor.sensor_schema(MedianCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
         .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
-        CONF_MIN: sensor.sensor_schema(CombinationComponent)
+        CONF_MIN: sensor.sensor_schema(MinimumCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
         .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
-        CONF_MOST_RECENTLY_UPDATED: sensor.sensor_schema(CombinationComponent)
+        CONF_MOST_RECENTLY_UPDATED: sensor.sensor_schema(MostRecentCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
         .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
-        CONF_RANGE: sensor.sensor_schema(CombinationComponent)
+        CONF_RANGE: sensor.sensor_schema(RangeCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
         .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
-        CONF_SUM: sensor.sensor_schema(CombinationComponent)
+        CONF_SUM: sensor.sensor_schema(SumCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
         .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
     }
@@ -137,14 +149,12 @@ async def to_code(config):
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
-    cg.add(var.set_combo_type(COMBINATION_TYPES[config.get(CONF_TYPE)]))
-
     if proces_std_dev := config.get(CONF_PROCESS_STD_DEV):
         cg.add(var.set_process_std_dev(proces_std_dev))
 
     for source_conf in config[CONF_SOURCES]:
         source = await cg.get_variable(source_conf[CONF_SOURCE])
-        if config.get(CONF_TYPE) == CONF_KALMAN:
+        if config[CONF_TYPE] == CONF_KALMAN:
             error = await cg.templatable(
                 source_conf[CONF_ERROR],
                 [(float, "x")],
@@ -159,8 +169,7 @@ async def to_code(config):
             )
             cg.add(var.add_source(source, coeffecient))
         else:
-            # If SUM type, then we use a linear combination with coeffecients of 1. All other types do not use the given coeffecient at all
-            cg.add(var.add_source(source, 1))
+            cg.add(var.add_source(source))
 
     if CONF_STD_DEV in config:
         sens = await sensor.new_sensor(config[CONF_STD_DEV])
