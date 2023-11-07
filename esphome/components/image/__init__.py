@@ -6,7 +6,7 @@ import re
 import requests
 
 from esphome import core
-from esphome.components import display, font
+from esphome.components import font
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
@@ -28,7 +28,9 @@ DOMAIN = "image"
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
 
-ImageType = display.display_ns.enum("ImageType")
+image_ns = cg.esphome_ns.namespace("image")
+
+ImageType = image_ns.enum("ImageType")
 IMAGE_TYPE = {
     "BINARY": ImageType.IMAGE_TYPE_BINARY,
     "TRANSPARENT_BINARY": ImageType.IMAGE_TYPE_BINARY,
@@ -46,11 +48,11 @@ MDI_DOWNLOAD_TIMEOUT = 30  # seconds
 SOURCE_LOCAL = "local"
 SOURCE_MDI = "mdi"
 
-Image_ = display.display_ns.class_("Image")
+Image_ = image_ns.class_("Image")
 
 
 def _compute_local_icon_path(value) -> Path:
-    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN / "mdi"
+    base_dir = Path(CORE.data_dir) / DOMAIN / "mdi"
     return base_dir / f"{value[CONF_ICON]}.svg"
 
 
@@ -253,7 +255,11 @@ async def to_code(config):
 
     transparent = config[CONF_USE_TRANSPARENCY]
 
-    dither = Image.NONE if config[CONF_DITHER] == "NONE" else Image.FLOYDSTEINBERG
+    dither = (
+        Image.Dither.NONE
+        if config[CONF_DITHER] == "NONE"
+        else Image.Dither.FLOYDSTEINBERG
+    )
     if config[CONF_TYPE] == "GRAYSCALE":
         image = image.convert("LA", dither=dither)
         pixels = list(image.getdata())

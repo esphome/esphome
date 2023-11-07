@@ -1,7 +1,7 @@
 import logging
 
 from esphome import automation, core
-from esphome.components import display, font
+from esphome.components import font
 import esphome.components.image as espImage
 from esphome.components.image import CONF_USE_TRANSPARENCY
 import esphome.config_validation as cv
@@ -18,6 +18,7 @@ from esphome.core import CORE, HexInt
 
 _LOGGER = logging.getLogger(__name__)
 
+AUTO_LOAD = ["image"]
 CODEOWNERS = ["@syndlex"]
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
@@ -27,16 +28,18 @@ CONF_START_FRAME = "start_frame"
 CONF_END_FRAME = "end_frame"
 CONF_FRAME = "frame"
 
-Animation_ = display.display_ns.class_("Animation", espImage.Image_)
+animation_ns = cg.esphome_ns.namespace("animation")
+
+Animation_ = animation_ns.class_("Animation", espImage.Image_)
 
 # Actions
-NextFrameAction = display.display_ns.class_(
+NextFrameAction = animation_ns.class_(
     "AnimationNextFrameAction", automation.Action, cg.Parented.template(Animation_)
 )
-PrevFrameAction = display.display_ns.class_(
+PrevFrameAction = animation_ns.class_(
     "AnimationPrevFrameAction", automation.Action, cg.Parented.template(Animation_)
 )
-SetFrameAction = display.display_ns.class_(
+SetFrameAction = animation_ns.class_(
     "AnimationSetFrameAction", automation.Action, cg.Parented.template(Animation_)
 )
 
@@ -112,8 +115,8 @@ async def animation_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    if CONF_FRAME in config:
-        template_ = await cg.templatable(config[CONF_FRAME], args, cg.uint16)
+    if (frame := config.get(CONF_FRAME)) is not None:
+        template_ = await cg.templatable(frame, args, cg.uint16)
         cg.add(var.set_frame(template_))
     return var
 
@@ -148,7 +151,7 @@ async def to_code(config):
         pos = 0
         for frameIndex in range(frames):
             image.seek(frameIndex)
-            frame = image.convert("LA", dither=Image.NONE)
+            frame = image.convert("LA", dither=Image.Dither.NONE)
             if CONF_RESIZE in config:
                 frame = frame.resize([width, height])
             pixels = list(frame.getdata())
@@ -256,7 +259,7 @@ async def to_code(config):
             if transparent:
                 alpha = image.split()[-1]
                 has_alpha = alpha.getextrema()[0] < 0xFF
-            frame = image.convert("1", dither=Image.NONE)
+            frame = image.convert("1", dither=Image.Dither.NONE)
             if CONF_RESIZE in config:
                 frame = frame.resize([width, height])
                 if transparent:
@@ -286,8 +289,8 @@ async def to_code(config):
         espImage.IMAGE_TYPE[config[CONF_TYPE]],
     )
     cg.add(var.set_transparency(transparent))
-    if CONF_LOOP in config:
-        start = config[CONF_LOOP][CONF_START_FRAME]
-        end = config[CONF_LOOP].get(CONF_END_FRAME, frames)
-        count = config[CONF_LOOP].get(CONF_REPEAT, -1)
+    if loop_config := config.get(CONF_LOOP):
+        start = loop_config[CONF_START_FRAME]
+        end = loop_config.get(CONF_END_FRAME, frames)
+        count = loop_config.get(CONF_REPEAT, -1)
         cg.add(var.set_loop(start, end, count))

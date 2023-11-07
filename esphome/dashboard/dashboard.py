@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import binascii
 import codecs
@@ -15,7 +17,6 @@ import shutil
 import subprocess
 import threading
 from pathlib import Path
-from typing import Optional
 
 import tornado
 import tornado.concurrent
@@ -25,12 +26,14 @@ import tornado.ioloop
 import tornado.iostream
 import tornado.netutil
 import tornado.process
+import tornado.queues
 import tornado.web
 import tornado.websocket
 import yaml
 from tornado.log import access_log
 
 from esphome import const, platformio_api, util, yaml_util
+from esphome.core import CORE
 from esphome.helpers import get_bool_env, mkdir_p, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -40,7 +43,13 @@ from esphome.storage_json import (
     trash_storage_path,
 )
 from esphome.util import get_serial_ports, shlex_quote
-from esphome.zeroconf import DashboardImportDiscovery, DashboardStatus, EsphomeZeroconf
+from esphome.zeroconf import (
+    ESPHOME_SERVICE_TYPE,
+    DashboardBrowser,
+    DashboardImportDiscovery,
+    DashboardStatus,
+    EsphomeZeroconf,
+)
 
 from .util import friendly_name_slugify, password_hash
 
@@ -69,6 +78,7 @@ class DashboardSettings:
             self.password_hash = password_hash(password)
         self.config_dir = args.configuration
         self.absolute_config_dir = Path(self.config_dir).resolve()
+        CORE.config_path = os.path.join(self.config_dir, ".")
 
     @property
     def relative_url(self):
@@ -91,6 +101,10 @@ class DashboardSettings:
     @property
     def using_auth(self):
         return self.using_password or self.using_ha_addon_auth
+
+    @property
+    def streamer_mode(self):
+        return get_bool_env("ESPHOME_STREAMER_MODE")
 
     def check_password(self, username, password):
         if not self.using_auth:
@@ -130,7 +144,7 @@ def template_args():
         "docs_link": docs_link,
         "get_static_file_url": get_static_file_url,
         "relative_url": settings.relative_url,
-        "streamer_mode": get_bool_env("ESPHOME_STREAMER_MODE"),
+        "streamer_mode": settings.streamer_mode,
         "config_dir": settings.config_dir,
     }
 
@@ -202,7 +216,11 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
     def __init__(self, application, request, **kwargs):
         super().__init__(application, request, **kwargs)
         self._proc = None
+        self._queue = None
         self._is_closed = False
+        # Windows doesn't support non-blocking pipes,
+        # use Popen() with a reading thread instead
+        self._use_popen = os.name == "nt"
 
     @authenticated
     def on_message(self, message):
@@ -224,13 +242,28 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
             return
         command = self.build_command(json_message)
         _LOGGER.info("Running command '%s'", " ".join(shlex_quote(x) for x in command))
-        self._proc = tornado.process.Subprocess(
-            command,
-            stdout=tornado.process.Subprocess.STREAM,
-            stderr=subprocess.STDOUT,
-            stdin=tornado.process.Subprocess.STREAM,
-        )
-        self._proc.set_exit_callback(self._proc_on_exit)
+
+        if self._use_popen:
+            self._queue = tornado.queues.Queue()
+            # pylint: disable=consider-using-with
+            self._proc = subprocess.Popen(
+                command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            stdout_thread = threading.Thread(target=self._stdout_thread)
+            stdout_thread.daemon = True
+            stdout_thread.start()
+        else:
+            self._proc = tornado.process.Subprocess(
+                command,
+                stdout=tornado.process.Subprocess.STREAM,
+                stderr=subprocess.STDOUT,
+                stdin=tornado.process.Subprocess.STREAM,
+            )
+            self._proc.set_exit_callback(self._proc_on_exit)
+
         tornado.ioloop.IOLoop.current().spawn_callback(self._redirect_stdout)
 
     @property
@@ -252,13 +285,32 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
 
         while True:
             try:
-                data = yield self._proc.stdout.read_until_regex(reg)
+                if self._use_popen:
+                    data = yield self._queue.get()
+                    if data is None:
+                        self._proc_on_exit(self._proc.poll())
+                        break
+                else:
+                    data = yield self._proc.stdout.read_until_regex(reg)
             except tornado.iostream.StreamClosedError:
                 break
             data = codecs.decode(data, "utf8", "replace")
 
             _LOGGER.debug("> stdout: %s", data)
             self.write_message({"event": "line", "data": data})
+
+    def _stdout_thread(self):
+        if not self._use_popen:
+            return
+        while True:
+            data = self._proc.stdout.readline()
+            if data:
+                data = data.replace(b"\r", b"")
+                self._queue.put_nowait(data)
+            if self._proc.poll() is not None:
+                break
+        self._proc.wait(1.0)
+        self._queue.put_nowait(None)
 
     def _proc_on_exit(self, returncode):
         if not self._is_closed:
@@ -270,7 +322,10 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         # Check if proc exists (if 'start' has been run)
         if self.is_process_active:
             _LOGGER.debug("Terminating process")
-            self._proc.proc.terminate()
+            if self._use_popen:
+                self._proc.terminate()
+            else:
+                self._proc.proc.terminate()
         # Shutdown proc on WS close
         self._is_closed = True
 
@@ -354,7 +409,10 @@ class EsphomeCompileHandler(EsphomeCommandWebSocket):
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
-        return ["esphome", "--dashboard", "config", config_file]
+        command = ["esphome", "--dashboard", "config", config_file]
+        if not settings.streamer_mode:
+            command.append("--show-secrets")
+        return command
 
 
 class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
@@ -466,6 +524,8 @@ class ImportRequestHandler(BaseHandler):
                 network,
                 encryption,
             )
+            # Make sure the device gets marked online right away
+            PING_REQUEST.set()
         except FileExistsError:
             self.set_status(500)
             self.write("File already exists")
@@ -481,40 +541,73 @@ class ImportRequestHandler(BaseHandler):
         self.finish()
 
 
-class DownloadBinaryRequestHandler(BaseHandler):
+class DownloadListRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        type = self.get_argument("type", "firmware.bin")
-        compressed = self.get_argument("compressed", "0") == "1"
-
-        storage_path = ext_storage_path(settings.config_dir, configuration)
+        storage_path = ext_storage_path(configuration)
         storage_json = StorageJSON.load(storage_path)
         if storage_json is None:
             self.send_error(404)
             return
 
-        if storage_json.target_platform.lower() == const.PLATFORM_RP2040:
-            filename = f"{storage_json.name}.uf2"
-            path = storage_json.firmware_bin_path.replace(
-                "firmware.bin", "firmware.uf2"
-            )
+        from esphome.components.esp32 import VARIANTS as ESP32_VARIANTS
+        from esphome.components.esp32 import get_download_types as esp32_types
+        from esphome.components.esp8266 import get_download_types as esp8266_types
+        from esphome.components.libretiny import get_download_types as libretiny_types
+        from esphome.components.rp2040 import get_download_types as rp2040_types
 
-        elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
-            filename = f"{storage_json.name}.bin"
-            path = storage_json.firmware_bin_path
-
-        elif type == "firmware.bin":
-            filename = f"{storage_json.name}.bin"
-            path = storage_json.firmware_bin_path
-
-        elif type == "firmware-factory.bin":
-            filename = f"{storage_json.name}-factory.bin"
-            path = storage_json.firmware_bin_path.replace(
-                "firmware.bin", "firmware-factory.bin"
-            )
-
+        downloads = []
+        platform = storage_json.target_platform.lower()
+        if platform == const.PLATFORM_RP2040:
+            downloads = rp2040_types(storage_json)
+        elif platform == const.PLATFORM_ESP8266:
+            downloads = esp8266_types(storage_json)
+        elif platform.upper() in ESP32_VARIANTS:
+            downloads = esp32_types(storage_json)
+        elif platform == const.PLATFORM_BK72XX:
+            downloads = libretiny_types(storage_json)
+        elif platform == const.PLATFORM_RTL87XX:
+            downloads = libretiny_types(storage_json)
         else:
+            self.send_error(418)
+            return
+
+        self.set_status(200)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(downloads))
+        self.finish()
+        return
+
+
+class DownloadBinaryRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    def get(self, configuration=None):
+        compressed = self.get_argument("compressed", "0") == "1"
+
+        storage_path = ext_storage_path(configuration)
+        storage_json = StorageJSON.load(storage_path)
+        if storage_json is None:
+            self.send_error(404)
+            return
+
+        # fallback to type=, but prioritize file=
+        file_name = self.get_argument("type", None)
+        file_name = self.get_argument("file", file_name)
+        if file_name is None:
+            self.send_error(400)
+            return
+        file_name = file_name.replace("..", "").lstrip("/")
+        # get requested download name, or build it based on filename
+        download_name = self.get_argument(
+            "download",
+            f"{storage_json.name}-{file_name}",
+        )
+        path = os.path.dirname(storage_json.firmware_bin_path)
+        path = os.path.join(path, file_name)
+
+        if not Path(path).is_file():
             args = ["esphome", "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = run_system_command(*args)
 
@@ -526,9 +619,9 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
             found = False
             for image in idedata.extra_flash_images:
-                if image.path.endswith(type):
+                if image.path.endswith(file_name):
                     path = image.path
-                    filename = type
+                    download_name = file_name
                     found = True
                     break
 
@@ -536,32 +629,23 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 self.send_error(404)
                 return
 
-        filename = filename + ".gz" if compressed else filename
+        download_name = download_name + ".gz" if compressed else download_name
 
         self.set_header("Content-Type", "application/octet-stream")
-        self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.set_header(
+            "Content-Disposition", f'attachment; filename="{download_name}"'
+        )
         self.set_header("Cache-Control", "no-cache")
         if not Path(path).is_file():
             self.send_error(404)
             return
 
         with open(path, "rb") as f:
-            while True:
-                # For a 528KB image used as benchmark:
-                #   - using 256KB blocks resulted in the smallest file size.
-                #   - blocks larger than 256KB didn't improve the size of compressed file.
-                #   - blocks smaller than 256KB hindered compression, making the output file larger.
+            data = f.read()
+            if compressed:
+                data = gzip.compress(data, 9)
+            self.write(data)
 
-                # Read file in blocks of 256KB.
-                data = f.read(256 * 1024)
-
-                if not data:
-                    break
-
-                if compressed:
-                    data = gzip.compress(data, 9)
-
-                self.write(data)
         self.finish()
 
 
@@ -584,16 +668,23 @@ class DashboardEntry:
         self._storage = None
         self._loaded_storage = False
 
+    def __repr__(self):
+        return (
+            f"DashboardEntry({self.path} "
+            f"address={self.address} "
+            f"web_port={self.web_port} "
+            f"name={self.name} "
+            f"no_mdns={self.no_mdns})"
+        )
+
     @property
     def filename(self):
         return os.path.basename(self.path)
 
     @property
-    def storage(self) -> Optional[StorageJSON]:
+    def storage(self) -> StorageJSON | None:
         if not self._loaded_storage:
-            self._storage = StorageJSON.load(
-                ext_storage_path(settings.config_dir, self.filename)
-            )
+            self._storage = StorageJSON.load(ext_storage_path(self.filename))
             self._loaded_storage = True
         return self._storage
 
@@ -756,20 +847,24 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
 class BoardsRequestHandler(BaseHandler):
     @authenticated
     def get(self, platform: str):
+        from esphome.components.bk72xx.boards import BOARDS as BK72XX_BOARDS
         from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
         from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
         from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
+        from esphome.components.rtl87xx.boards import BOARDS as RTL87XX_BOARDS
 
         platform_to_boards = {
-            "esp32": ESP32_BOARDS,
-            "esp8266": ESP8266_BOARDS,
-            "rp2040": RP2040_BOARDS,
+            const.PLATFORM_ESP32: ESP32_BOARDS,
+            const.PLATFORM_ESP8266: ESP8266_BOARDS,
+            const.PLATFORM_RP2040: RP2040_BOARDS,
+            const.PLATFORM_BK72XX: BK72XX_BOARDS,
+            const.PLATFORM_RTL87XX: RTL87XX_BOARDS,
         }
         # filter all ESP32 variants by requested platform
         if platform.startswith("esp32"):
             boards = {
                 k: v
-                for k, v in platform_to_boards["esp32"].items()
+                for k, v in platform_to_boards[const.PLATFORM_ESP32].items()
                 if v[const.KEY_VARIANT] == platform.upper()
             }
         else:
@@ -786,35 +881,76 @@ class BoardsRequestHandler(BaseHandler):
 
 
 class MDNSStatusThread(threading.Thread):
+    def __init__(self):
+        """Initialize the MDNSStatusThread."""
+        super().__init__()
+        # This is the current mdns state for each host (True, False, None)
+        self.host_mdns_state: dict[str, bool | None] = {}
+        # This is the hostnames to filenames mapping
+        self.host_name_to_filename: dict[str, str] = {}
+        # This is a set of host names to track (i.e no_mdns = false)
+        self.host_name_with_mdns_enabled: set[set] = set()
+        self._refresh_hosts()
+
+    def _refresh_hosts(self):
+        """Refresh the hosts to track."""
+        entries = _list_dashboard_entries()
+        host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
+        host_mdns_state = self.host_mdns_state
+        host_name_to_filename = self.host_name_to_filename
+
+        for entry in entries:
+            name = entry.name
+            # If no_mdns is set, remove it from the set
+            if entry.no_mdns:
+                host_name_with_mdns_enabled.discard(name)
+                continue
+
+            # We are tracking this host
+            host_name_with_mdns_enabled.add(name)
+            filename = entry.filename
+
+            # If we just adopted/imported this host, we likely
+            # already have a state for it, so we should make sure
+            # to set it so the dashboard shows it as online
+            if name in host_mdns_state:
+                PING_RESULT[filename] = host_mdns_state[name]
+
+            # Make sure the mapping is up to date
+            # so when we get an mdns update we can map it back
+            # to the filename
+            host_name_to_filename[name] = filename
+
     def run(self):
         global IMPORT_RESULT
 
         zc = EsphomeZeroconf()
+        host_mdns_state = self.host_mdns_state
+        host_name_to_filename = self.host_name_to_filename
+        host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
 
-        def on_update(dat):
-            for key, b in dat.items():
-                PING_RESULT[key] = b
+        def on_update(dat: dict[str, bool | None]) -> None:
+            """Update the global PING_RESULT dict."""
+            for name, result in dat.items():
+                host_mdns_state[name] = result
+                if name in host_name_with_mdns_enabled:
+                    filename = host_name_to_filename[name]
+                    PING_RESULT[filename] = result
 
-        stat = DashboardStatus(zc, on_update)
-        imports = DashboardImportDiscovery(zc)
+        self._refresh_hosts()
+        stat = DashboardStatus(on_update)
+        imports = DashboardImportDiscovery()
+        browser = DashboardBrowser(
+            zc, ESPHOME_SERVICE_TYPE, [stat.browser_callback, imports.browser_callback]
+        )
 
-        stat.start()
         while not STOP_EVENT.is_set():
-            entries = _list_dashboard_entries()
-            hosts = {}
-            for entry in entries:
-                if entry.no_mdns is not True:
-                    hosts[entry.filename] = f"{entry.name}.local."
-
-            stat.request_query(hosts)
+            self._refresh_hosts()
             IMPORT_RESULT = imports.import_state
-
             PING_REQUEST.wait()
             PING_REQUEST.clear()
 
-        stat.stop()
-        stat.join()
-        imports.cancel()
+        browser.cancel()
         zc.close()
 
 
@@ -830,9 +966,6 @@ class PingStatusThread(threading.Thread):
                 entries = _list_dashboard_entries()
                 queue = collections.deque()
                 for entry in entries:
-                    if entry.no_mdns is True:
-                        continue
-
                     if entry.address is None:
                         PING_RESULT[entry.filename] = None
                         continue
@@ -968,9 +1101,9 @@ class DeleteRequestHandler(BaseHandler):
     @bind_config
     def post(self, configuration=None):
         config_file = settings.rel_path(configuration)
-        storage_path = ext_storage_path(settings.config_dir, configuration)
+        storage_path = ext_storage_path(configuration)
 
-        trash_path = trash_storage_path(settings.config_dir)
+        trash_path = trash_storage_path()
         mkdir_p(trash_path)
         shutil.move(config_file, os.path.join(trash_path, configuration))
 
@@ -991,7 +1124,7 @@ class UndoDeleteRequestHandler(BaseHandler):
     @bind_config
     def post(self, configuration=None):
         config_file = settings.rel_path(configuration)
-        trash_path = trash_storage_path(settings.config_dir)
+        trash_path = trash_storage_path()
         shutil.move(os.path.join(trash_path, configuration), config_file)
 
 
@@ -1116,7 +1249,7 @@ class JsonConfigRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        args = ["esphome", "config", settings.rel_path(configuration), "--show-secrets"]
+        args = ["esphome", "config", filename, "--show-secrets"]
 
         rc, stdout, _ = run_system_command(*args)
 
@@ -1195,9 +1328,11 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             if "favicon.ico" in path:
                 self.set_header("Cache-Control", "max-age=84600, public")
             else:
-                self.set_header(
-                    "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
-                )
+                if debug:
+                    self.set_header(
+                        "Cache-Control",
+                        "no-store, no-cache, must-revalidate, max-age=0",
+                    )
 
     app_settings = {
         "debug": debug,
@@ -1224,6 +1359,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}update-all", EsphomeUpdateAllHandler),
             (f"{rel}info", InfoRequestHandler),
             (f"{rel}edit", EditRequestHandler),
+            (f"{rel}downloads", DownloadListRequestHandler),
             (f"{rel}download.bin", DownloadBinaryRequestHandler),
             (f"{rel}serial-ports", SerialPortRequestHandler),
             (f"{rel}ping", PingRequestHandler),
@@ -1248,10 +1384,9 @@ def make_app(debug=get_bool_env(ENV_DEV)):
 
 def start_web_server(args):
     settings.parse_args(args)
-    mkdir_p(settings.rel_path(".esphome"))
 
     if settings.using_auth:
-        path = esphome_storage_path(settings.config_dir)
+        path = esphome_storage_path()
         storage = EsphomeStorageJSON.load(path)
         if storage is None:
             storage = EsphomeStorageJSON.get_default()

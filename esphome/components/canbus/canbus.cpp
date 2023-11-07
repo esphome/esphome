@@ -16,9 +16,9 @@ void Canbus::setup() {
 
 void Canbus::dump_config() {
   if (this->use_extended_id_) {
-    ESP_LOGCONFIG(TAG, "config extended id=0x%08x", this->can_id_);
+    ESP_LOGCONFIG(TAG, "config extended id=0x%08" PRIx32, this->can_id_);
   } else {
-    ESP_LOGCONFIG(TAG, "config standard id=0x%03x", this->can_id_);
+    ESP_LOGCONFIG(TAG, "config standard id=0x%03" PRIx32, this->can_id_);
   }
 }
 
@@ -28,9 +28,11 @@ void Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transm
 
   uint8_t size = static_cast<uint8_t>(data.size());
   if (use_extended_id) {
-    ESP_LOGD(TAG, "send extended id=0x%08x rtr=%s size=%d", can_id, TRUEFALSE(remote_transmission_request), size);
+    ESP_LOGD(TAG, "send extended id=0x%08" PRIx32 " rtr=%s size=%d", can_id, TRUEFALSE(remote_transmission_request),
+             size);
   } else {
-    ESP_LOGD(TAG, "send extended id=0x%03x rtr=%s size=%d", can_id, TRUEFALSE(remote_transmission_request), size);
+    ESP_LOGD(TAG, "send standard id=0x%03" PRIx32 " rtr=%s size=%d", can_id, TRUEFALSE(remote_transmission_request),
+             size);
   }
   if (size > CAN_MAX_DATA_LENGTH)
     size = CAN_MAX_DATA_LENGTH;
@@ -49,9 +51,9 @@ void Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transm
 
 void Canbus::add_trigger(CanbusTrigger *trigger) {
   if (trigger->use_extended_id_) {
-    ESP_LOGVV(TAG, "add trigger for extended canid=0x%08x", trigger->can_id_);
+    ESP_LOGVV(TAG, "add trigger for extended canid=0x%08" PRIx32, trigger->can_id_);
   } else {
-    ESP_LOGVV(TAG, "add trigger for std canid=0x%03x", trigger->can_id_);
+    ESP_LOGVV(TAG, "add trigger for std canid=0x%03" PRIx32, trigger->can_id_);
   }
   this->triggers_.push_back(trigger);
 };
@@ -63,10 +65,10 @@ void Canbus::loop() {
   while (this->read_message(&can_message) == canbus::ERROR_OK) {
     message_counter++;
     if (can_message.use_extended_id) {
-      ESP_LOGD(TAG, "received can message (#%d) extended can_id=0x%x size=%d", message_counter, can_message.can_id,
-               can_message.can_data_length_code);
+      ESP_LOGD(TAG, "received can message (#%d) extended can_id=0x%" PRIx32 " size=%d", message_counter,
+               can_message.can_id, can_message.can_data_length_code);
     } else {
-      ESP_LOGD(TAG, "received can message (#%d) std can_id=0x%x size=%d", message_counter, can_message.can_id,
+      ESP_LOGD(TAG, "received can message (#%d) std can_id=0x%" PRIx32 " size=%d", message_counter, can_message.can_id,
                can_message.can_data_length_code);
     }
 

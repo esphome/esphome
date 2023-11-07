@@ -105,9 +105,9 @@ optional<ToshibaAcData> ToshibaAcProtocol::decode(RemoteReceiveData src) {
 
 void ToshibaAcProtocol::dump(const ToshibaAcData &data) {
   if (data.rc_code_2 != 0) {
-    ESP_LOGD(TAG, "Received Toshiba AC: rc_code_1=0x%" PRIX64 ", rc_code_2=0x%" PRIX64, data.rc_code_1, data.rc_code_2);
+    ESP_LOGI(TAG, "Received Toshiba AC: rc_code_1=0x%" PRIX64 ", rc_code_2=0x%" PRIX64, data.rc_code_1, data.rc_code_2);
   } else {
-    ESP_LOGD(TAG, "Received Toshiba AC: rc_code_1=0x%" PRIX64, data.rc_code_1);
+    ESP_LOGI(TAG, "Received Toshiba AC: rc_code_1=0x%" PRIX64, data.rc_code_1);
   }
 }
 

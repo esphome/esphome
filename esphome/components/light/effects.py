@@ -76,6 +76,8 @@ CONF_ADDRESSABLE_RANDOM_TWINKLE = "addressable_random_twinkle"
 CONF_ADDRESSABLE_FIREWORKS = "addressable_fireworks"
 CONF_ADDRESSABLE_FLICKER = "addressable_flicker"
 CONF_AUTOMATION = "automation"
+CONF_ON_LENGTH = "on_length"
+CONF_OFF_LENGTH = "off_length"
 
 BINARY_EFFECTS = []
 MONOCHROMATIC_EFFECTS = []
@@ -170,9 +172,15 @@ async def automation_effect_to_code(config, effect_id):
     PulseLightEffect,
     "Pulse",
     {
-        cv.Optional(
-            CONF_TRANSITION_LENGTH, default="1s"
-        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_TRANSITION_LENGTH, default="1s"): cv.Any(
+            cv.positive_time_period_milliseconds,
+            cv.Schema(
+                {
+                    cv.Required(CONF_ON_LENGTH): cv.positive_time_period_milliseconds,
+                    cv.Required(CONF_OFF_LENGTH): cv.positive_time_period_milliseconds,
+                }
+            ),
+        ),
         cv.Optional(
             CONF_UPDATE_INTERVAL, default="1s"
         ): cv.positive_time_period_milliseconds,
@@ -182,7 +190,21 @@ async def automation_effect_to_code(config, effect_id):
 )
 async def pulse_effect_to_code(config, effect_id):
     effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
-    cg.add(effect.set_transition_length(config[CONF_TRANSITION_LENGTH]))
+    if isinstance(config[CONF_TRANSITION_LENGTH], dict):
+        cg.add(
+            effect.set_transition_on_length(
+                config[CONF_TRANSITION_LENGTH][CONF_ON_LENGTH]
+            )
+        )
+        cg.add(
+            effect.set_transition_off_length(
+                config[CONF_TRANSITION_LENGTH][CONF_OFF_LENGTH]
+            )
+        )
+    else:
+        transition_length = config[CONF_TRANSITION_LENGTH]
+        cg.add(effect.set_transition_on_length(transition_length))
+        cg.add(effect.set_transition_off_length(transition_length))
     cg.add(effect.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     cg.add(
         effect.set_min_max_brightness(
