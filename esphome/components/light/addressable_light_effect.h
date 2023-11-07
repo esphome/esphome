@@ -100,6 +100,7 @@ struct AddressableColorWipeEffectColor {
   uint8_t r, g, b, w;
   bool random;
   size_t num_leds;
+  bool gradient;
 };
 
 class AddressableColorWipeEffect : public AddressableLightEffect {
@@ -108,7 +109,6 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
   void set_colors(const std::vector<AddressableColorWipeEffectColor> &colors) { this->colors_ = colors; }
   void set_add_led_interval(uint32_t add_led_interval) { this->add_led_interval_ = add_led_interval; }
   void set_reverse(bool reverse) { this->reverse_ = reverse; }
-  void set_gradient(bool gradient) { this->gradient_ = gradient; }
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
     if (now - this->last_add_ < this->add_led_interval_)
@@ -118,11 +118,11 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
       it.shift_left(1);
     else
       it.shift_right(1);
-    const AddressableColorWipeEffectColor color = this->colors_[this->at_color_];
+    const AddressableColorWipeEffectColor &color = this->colors_[this->at_color_];
     Color esp_color = Color(color.r, color.g, color.b, color.w);
-    if (this->gradient_) {
+    if (color.gradient) {
       size_t next_color_index = (this->at_color_ + 1) % this->colors_.size();
-      const AddressableColorWipeEffectColor next_color = this->colors_[next_color_index];
+      const AddressableColorWipeEffectColor &next_color = this->colors_[next_color_index];
       const Color next_esp_color = Color(next_color.r, next_color.g, next_color.b, next_color.w);
       uint8_t gradient = 255 * ((float) this->leds_added_ / color.num_leds);
       esp_color = esp_color.gradient(next_esp_color, gradient);
