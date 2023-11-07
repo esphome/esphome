@@ -226,7 +226,7 @@ bool Nextion::upload_tft() {
     return this->upload_end(false);
   }
 
-  ESP_LOGD(TAG, "Updating tft from \"%s\" with a file size of %" PRIu32 ", Heap Size %d", this->tft_url_.c_str(),
+  ESP_LOGD(TAG, "Updating tft from \"%s\" with a file size of %d, Heap Size %" PRIu32, this->tft_url_.c_str(),
            content_length_, esp_get_free_heap_size());
 
   ESP_LOGV(TAG, "Starting transfer by chunks loop");
@@ -239,7 +239,7 @@ bool Nextion::upload_tft() {
       return this->upload_end(false);
     }
     App.feed_wdt();
-    ESP_LOGV(TAG, "Heap Size %d, Bytes left %d", esp_get_free_heap_size(), content_length_);
+    ESP_LOGV(TAG, "Heap Size %" PRIu32 ", Bytes left %d", esp_get_free_heap_size(), content_length_);
   }
 
   ESP_LOGD(TAG, "Successfully updated Nextion!");
