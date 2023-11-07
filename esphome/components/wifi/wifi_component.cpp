@@ -138,9 +138,19 @@ void WiFiComponent::loop() {
           ESP_LOGW(TAG, "WiFi Connection lost... Reconnecting...");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
+
+          if (this->handled_connected_state_) {
+            this->disconnect_trigger_->trigger();
+            this->handled_connected_state_ = false;
+          }
         } else {
           this->status_clear_warning();
           this->last_connected_ = now;
+
+          if (!this->handled_connected_state_) {
+            this->connect_trigger_->trigger();
+            this->handled_connected_state_ = true;
+          }
         }
         break;
       }
