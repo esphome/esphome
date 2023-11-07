@@ -145,7 +145,17 @@ class DashboardSettings:
         # does not have a lock contention issue.
         #
         for file in self.list_yaml_files():
-            stat = os.stat(ext_storage_path(os.path.basename(file)))
+            try:
+                # Prefer the json storage path if it exists
+                stat = os.stat(ext_storage_path(os.path.basename(file)))
+            except OSError:
+                try:
+                    # Fallback to the yaml file if the storage
+                    # file does not exist or could not be generated
+                    stat = os.stat(file)
+                except OSError:
+                    # File was deleted, ignore
+                    continue
             path_to_cache_key[file] = (
                 stat.st_ino,
                 stat.st_dev,
