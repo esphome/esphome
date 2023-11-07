@@ -75,20 +75,20 @@ static const char *const UNITS[] = {
 
 class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
  public:
-  void set_heat_energy_sensor(sensor::Sensor *sensor) { heat_energy_sensor_ = sensor; }
-  void set_power_sensor(sensor::Sensor *sensor) { power_sensor_ = sensor; }
-  void set_temp1_sensor(sensor::Sensor *sensor) { temp1_sensor_ = sensor; }
-  void set_temp2_sensor(sensor::Sensor *sensor) { temp2_sensor_ = sensor; }
-  void set_temp_diff_sensor(sensor::Sensor *sensor) { temp_diff_sensor_ = sensor; }
-  void set_flow_sensor(sensor::Sensor *sensor) { flow_sensor_ = sensor; }
-  void set_volume_sensor(sensor::Sensor *sensor) { volume_sensor_ = sensor; }
+  void set_heat_energy_sensor(sensor::Sensor *sensor) { this->heat_energy_sensor_ = sensor; }
+  void set_power_sensor(sensor::Sensor *sensor) { this->power_sensor_ = sensor; }
+  void set_temp1_sensor(sensor::Sensor *sensor) { this->temp1_sensor_ = sensor; }
+  void set_temp2_sensor(sensor::Sensor *sensor) { this->temp2_sensor_ = sensor; }
+  void set_temp_diff_sensor(sensor::Sensor *sensor) { this->temp_diff_sensor_ = sensor; }
+  void set_flow_sensor(sensor::Sensor *sensor) { this->flow_sensor_ = sensor; }
+  void set_volume_sensor(sensor::Sensor *sensor) { this->volume_sensor_ = sensor; }
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
-  void set_custom_sensor(int i, sensor::Sensor *sensor, uint16_t command) {
-    this->custom_sensors_.insert(this->custom_sensors_.begin() + i, sensor);
-    this->custom_commands_.insert(this->custom_commands_.begin() + i, command);
+  void add_custom_sensor(sensor::Sensor *sensor, uint16_t command) {
+    this->custom_sensors_.push_back(sensor);
+    this->custom_commands_.push_back(command);
   }
 
  protected:

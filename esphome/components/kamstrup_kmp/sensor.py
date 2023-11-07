@@ -127,6 +127,6 @@ async def to_code(config):
 
     # Custom sensors
     if CONF_CUSTOM in config:
-        for i, conf in enumerate(config[CONF_CUSTOM]):
+        for conf in config[CONF_CUSTOM]:
             sens = await sensor.new_sensor(conf)
-            cg.add(getattr(var, "set_custom_sensor")(i, sens, conf[CONF_COMMAND]))
+            cg.add(var.add_custom_sensor(sens, conf[CONF_COMMAND]))
