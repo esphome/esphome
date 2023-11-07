@@ -123,7 +123,7 @@ void SHT2XComponent::update() {
   }
 
   this->handle_humidity_();
-  this->set_timeout(SHT2X_DELAY_HUMIDITY+10, [this]() { this->handle_temperature_(); });
+  this->set_timeout(SHT2X_DELAY_HUMIDITY + 10, [this]() { this->handle_temperature_(); });
 }
 
 float SHT2XComponent::get_setup_priority() const { return setup_priority::DATA; }
