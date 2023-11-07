@@ -4,15 +4,12 @@
 #include <sstream>
 #include <iomanip>
 #include "esphome/core/hal.h"
-#include "esphome/core/log.h"
 
 #ifdef ESP8266
 #ifndef IRAM_ATTR
 #define IRAM_ATTR ICACHE_RAM_ATTR
 #endif
 #endif
-
-#define OT_LIB_TAG "opentherm.adapter"
 
 // The only thing we want from Arduino :)
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
@@ -306,6 +303,7 @@ class OpenTherm {
   int32_t slave_timeout_;
 
   void read_();  // data detected start reading
+  void stop_();  // stop timers and interrupts
   void init_timer_();
   void start_timer_(uint64_t alarm_value);
   void start_read_timer_();   // reading timer_ to sample at 1/5 of manchester code bit length (at 5kHz)

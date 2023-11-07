@@ -40,7 +40,7 @@ void OpenTherm::begin() {
 }
 
 void OpenTherm::listen() {
-  stop_timer_();
+  stop_();
   this->timeout_counter_ = slave_timeout_ * 5;  // timer_ ticks at 5 ticks/ms
 
   mode_ = OperationMode::LISTEN;
@@ -52,7 +52,7 @@ void OpenTherm::listen() {
 }
 
 void OpenTherm::send(OpenthermData &data) {
-  stop_timer_();
+  stop_();
   data_ = data.type;
   data_ = (data_ << 12) | data.id;
   data_ = (data_ << 8) | data.valueHB;
@@ -95,8 +95,15 @@ bool OpenTherm::get_protocol_error(OpenThermError &error) {
 }
 
 void OpenTherm::stop() {
-  stop_timer_();
+  stop_();
   mode_ = OperationMode::IDLE;
+}
+
+void IRAM_ATTR OpenTherm::stop_() {
+  if (active_) {
+    stop_timer_();
+    active_ = false;
+  }
 }
 
 void IRAM_ATTR OpenTherm::read_() {
@@ -110,14 +117,10 @@ void IRAM_ATTR OpenTherm::read_() {
 }
 
 bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
-  if (!arg->active_) {
-    return false;
-  }
-
   if (arg->mode_ == OperationMode::LISTEN) {
     if (arg->timeout_counter_ == 0) {
       arg->mode_ = OperationMode::ERROR_TIMEOUT;
-      arg->stop_timer_();
+      arg->stop_();
       return false;
     }
     bool const value = arg->isr_in_pin_.digital_read();
@@ -136,7 +139,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
         // no transition in the middle of the bit
         arg->mode_ = OperationMode::ERROR_PROTOCOL;
         arg->error_type_ = ProtocolErrorType::NO_TRANSITION;
-        arg->stop_timer_();
+        arg->stop_();
       } else if (arg->clock_ == 1 || arg->capture_ > 0xF) {
         // transition in the middle of the bit OR no transition between two bit, both are valid data points
         if (arg->bit_pos_ == BitPositions::STOP_BIT) {
@@ -144,12 +147,12 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
           auto stop_bit_error = arg->verify_stop_bit_(last);
           if (stop_bit_error == ProtocolErrorType::NO_ERROR) {
             arg->mode_ = OperationMode::RECEIVED;
-            arg->stop_timer_();
+            arg->stop_();
           } else {
             // end of data not verified, invalid data
             arg->mode_ = OperationMode::ERROR_PROTOCOL;
             arg->error_type_ = stop_bit_error;
-            arg->stop_timer_();
+            arg->stop_();
           }
         } else {
           // normal data point at clock high
@@ -165,7 +168,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
       // no change for too long, invalid mancheter encoding
       arg->mode_ = OperationMode::ERROR_PROTOCOL;
       arg->error_type_ = ProtocolErrorType::NO_CHANGE_TOO_LONG;
-      arg->stop_timer_();
+      arg->stop_();
     }
     arg->capture_ = (arg->capture_ << 1) | value;
   } else if (arg->mode_ == OperationMode::WRITE) {
@@ -178,7 +181,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
     if (arg->clock_ == 0) {
       if (arg->bit_pos_ <= 0) {            // check termination
         arg->mode_ = OperationMode::SENT;  // all data written
-        arg->stop_timer_();
+        arg->stop_();
       }
       arg->bit_pos_--;
       arg->clock_ = 1;
@@ -226,51 +229,45 @@ void IRAM_ATTR OpenTherm::init_timer_() {
       .divider = 80,
   };
 
-  if (!timer_init(TIMER_GROUP_0, TIMER_0, &config))
-    ESP_LOGE(OT_LIB_TAG, "Failed to initialize timer");
-  if (!timer_set_counter_value(TIMER_GROUP_0, TIMER_0, 0))
-    ESP_LOGE(OT_LIB_TAG, "Failed to set timer counter value");
-  if (!timer_start(TIMER_GROUP_0, TIMER_0))
-    ESP_LOGE(OT_LIB_TAG, "Failed to start timer");
+  timer_init(TIMER_GROUP_0, TIMER_0, &config);
+  timer_set_counter_value(TIMER_GROUP_0, TIMER_0, 0);
+  timer_start(TIMER_GROUP_0, TIMER_0);
 
   timer_initialized_ = true;
 }
 
 void IRAM_ATTR OpenTherm::start_timer_(uint64_t alarm_value) {
-  if (!timer_isr_callback_add(TIMER_GROUP_0, TIMER_0, reinterpret_cast<bool (*)(void *)>(timer_isr), this,
-                              ESP_INTR_FLAG_LEVEL3))
-    ESP_LOGE(OT_LIB_TAG, "Failed to add timer ISR");
-  if (!timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, alarm_value))
-    ESP_LOGE(OT_LIB_TAG, "Failed to set timer alarm value");
-  if (!timer_set_auto_reload(TIMER_GROUP_0, TIMER_0, TIMER_AUTORELOAD_EN))
-    ESP_LOGE(OT_LIB_TAG, "Failed to enable timer auto reload");
-  if (!timer_set_alarm(TIMER_GROUP_0, TIMER_0, TIMER_ALARM_EN))
-    ESP_LOGE(OT_LIB_TAG, "Failed to activate timer alarm");
+  timer_isr_callback_add(TIMER_GROUP_0, TIMER_0, reinterpret_cast<bool (*)(void *)>(timer_isr), this, 0);
+  timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, alarm_value);
+  timer_set_auto_reload(TIMER_GROUP_0, TIMER_0, TIMER_AUTORELOAD_EN);
+  timer_set_alarm(TIMER_GROUP_0, TIMER_0, TIMER_ALARM_EN);
 }
 
 // 5 kHz timer_
 void IRAM_ATTR OpenTherm::start_read_timer_() {
-  init_timer_();
-  start_timer_(200);
+  {
+    InterruptLock const lock;
+    init_timer_();
+    start_timer_(200);
+  }
 }
 
 // 2 kHz timer_
 void IRAM_ATTR OpenTherm::start_write_timer_() {
-  init_timer_();
-  start_timer_(500);
+  {
+    InterruptLock const lock;
+    init_timer_();
+    start_timer_(500);
+  }
 }
 
 void IRAM_ATTR OpenTherm::stop_timer_() {
-  if (!active_)
-    return;
-
-  active_ = false;
-
-  init_timer_();
-  if (!timer_set_alarm(TIMER_GROUP_0, TIMER_0, TIMER_ALARM_DIS))
-    ESP_LOGE(OT_LIB_TAG, "Failed to deactivate timer alarm");
-  if (!timer_isr_callback_remove(TIMER_GROUP_0, TIMER_0))
-    ESP_LOGE(OT_LIB_TAG, "Failed to remove timer ISR");
+  {
+    InterruptLock const lock;
+    init_timer_();
+    timer_set_alarm(TIMER_GROUP_0, TIMER_0, TIMER_ALARM_DIS);
+    timer_isr_callback_remove(TIMER_GROUP_0, TIMER_0);
+  }
 }
 
 // #endif  // END ESP32
