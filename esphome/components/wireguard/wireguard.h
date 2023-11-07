@@ -151,8 +151,8 @@ std::string mask_key(const std::string &key);
 /// Global reference to Wireguard component to handle actions and conditions.
 extern Wireguard *global_wireguard;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-/// Condition to check if remote peer is up.
-template<typename... Ts> class WireguardPeerUpCondition : public Condition<Ts...> {
+/// Condition to check if remote peer is online.
+template<typename... Ts> class WireguardPeerOnlineCondition : public Condition<Ts...> {
  public:
   bool check(Ts... x) override { return global_wireguard->is_peer_up(); }
 };

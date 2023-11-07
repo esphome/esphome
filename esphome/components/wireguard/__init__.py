@@ -31,8 +31,8 @@ _WG_KEY_REGEX = re.compile(r"^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$")
 
 wireguard_ns = cg.esphome_ns.namespace("wireguard")
 Wireguard = wireguard_ns.class_("Wireguard", cg.Component, cg.PollingComponent)
-WireguardPeerUpCondition = wireguard_ns.class_(
-    "WireguardPeerUpCondition", automation.Condition
+WireguardPeerOnlineCondition = wireguard_ns.class_(
+    "WireguardPeerOnlineCondition", automation.Condition
 )
 WireguardEnabledCondition = wireguard_ns.class_(
     "WireguardEnabledCondition", automation.Condition
@@ -126,7 +126,7 @@ async def to_code(config):
 
 
 @automation.register_condition(
-    "wireguard.peer_up", WireguardPeerUpCondition, cv.Schema({})
+    "wireguard.peer_online", WireguardPeerOnlineCondition, cv.Schema({})
 )
 async def wireguard_peer_up_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
