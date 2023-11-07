@@ -10,6 +10,7 @@ namespace esphome {
 namespace ac_dimmer {
 
 enum DimMethod { DIM_METHOD_LEADING_PULSE = 0, DIM_METHOD_LEADING, DIM_METHOD_TRAILING };
+enum InterruptMethod { INTERRUPT_METHOD_FALLING = 0, INTERRUPT_METHOD_RISING, INTERRUPT_METHOD_ANY, INTERRUPT_METHOD_CHANGE };
 
 struct AcDimmerDataStore {
   /// Zero-cross pin
@@ -34,6 +35,8 @@ struct AcDimmerDataStore {
   bool init_cycle;
   /// Dimmer method
   DimMethod method;
+  /// Interrupt Edge Detect ZC
+  InterruptMethod interrupt_method;
 
   uint32_t timer_intr(uint32_t now);
 
@@ -53,6 +56,7 @@ class AcDimmer : public output::FloatOutput, public Component {
   void set_zero_cross_pin(InternalGPIOPin *zero_cross_pin) { zero_cross_pin_ = zero_cross_pin; }
   void set_init_with_half_cycle(bool init_with_half_cycle) { init_with_half_cycle_ = init_with_half_cycle; }
   void set_method(DimMethod method) { method_ = method; }
+  void set_interrupt_method(InterruptMethod interrupt_method) { interrupt_method_ = interrupt_method; }
 
  protected:
   void write_state(float state) override;
@@ -62,6 +66,7 @@ class AcDimmer : public output::FloatOutput, public Component {
   AcDimmerDataStore store_;
   bool init_with_half_cycle_;
   DimMethod method_;
+  InterruptMethod interrupt_method_;
 };
 
 }  // namespace ac_dimmer
