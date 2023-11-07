@@ -199,7 +199,7 @@ bool Nextion::upload_tft() {
   // Tells the Nextion the content length of the tft file and baud rate it will be sent at
   // Once the Nextion accepts the command it will wait until the file is successfully uploaded
   // If it fails for any reason a power cycle of the display will be needed
-  sprintf(command, "whmi-wris %" PRIu32 ",%" PRIu32 ",1", this->content_length_, this->parent_->get_baud_rate());
+  sprintf(command, "whmi-wris %d,%" PRIu32 ",1", this->content_length_, this->parent_->get_baud_rate());
 
 
   // Clear serial receive buffer
@@ -226,7 +226,7 @@ bool Nextion::upload_tft() {
     return this->upload_end(false);
   }
 
-  ESP_LOGD(TAG, "Updating tft from \"%s\" with a file size of %d, Heap Size %d", this->tft_url_.c_str(),
+  ESP_LOGD(TAG, "Updating tft from \"%s\" with a file size of %" PRIu32 ", Heap Size %d", this->tft_url_.c_str(),
            content_length_, esp_get_free_heap_size());
 
   ESP_LOGV(TAG, "Starting transfer by chunks loop");
