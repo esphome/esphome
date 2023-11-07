@@ -1,18 +1,18 @@
 #pragma once
 
+#include "esphome/components/network/ip_address.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/network/ip_address.h"
 
 #include <string>
 #include <vector>
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#include <esp_wifi.h>
-#include <WiFiType.h>
 #include <WiFi.h>
+#include <WiFiType.h>
+#include <esp_wifi.h>
 #endif
 
 #ifdef USE_LIBRETINY
@@ -294,8 +294,8 @@ class WiFiComponent : public Component {
 
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
-  Trigger<> *get_connect_trigger() const;
-  Trigger<> *get_disconnect_trigger() const;
+  Trigger<> *get_connect_trigger() const { return this->connect_trigger_; };
+  Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; };
 
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
@@ -378,8 +378,8 @@ class WiFiComponent : public Component {
 #endif
   bool enable_on_boot_;
 
-  Trigger<> *connect_trigger_;
-  Trigger<> *disconnect_trigger_;
+  Trigger<> *connect_trigger_{new Trigger<>()};
+  Trigger<> *disconnect_trigger_{new Trigger<>()};
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
