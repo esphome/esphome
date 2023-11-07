@@ -91,19 +91,13 @@ void SHT2XComponent::request_humidity_() {
 void SHT2XComponent::publish_temperature_() {
   uint16_t raw_temperature = this->read_raw_value_();
   float temperature = -46.85 + (175.72 / 65536.0) * raw_temperature;
-
-  if (this->temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(temperature);
-  }
+  this->temperature_sensor_->publish_state(temperature);
 }
 
 void SHT2XComponent::publish_humidity_() {
   uint16_t raw_humidity = this->read_raw_value_();
   float humidity = -6.0 + (125.0 / 65536.0) * raw_humidity;
-
-  if (this->humidity_sensor_ != nullptr) {
-    this->humidity_sensor_->publish_state(humidity);
-  }
+  this->humidity_sensor_->publish_state(humidity);
 }
 
 void SHT2XComponent::handle_temperature_() {
@@ -122,8 +116,15 @@ void SHT2XComponent::update() {
     this->write_command(SHT2X_COMMAND_SOFT_RESET);
   }
 
-  this->handle_humidity_();
-  this->set_timeout(SHT2X_DELAY_HUMIDITY + 10, [this]() { this->handle_temperature_(); });
+  uint16_t sensor_switch_delay = 0;
+  if (this->humidity_sensor_ != nullptr) {
+    this->handle_humidity_();
+    sensor_switch_delay = SHT2X_DELAY_HUMIDITY + 10;
+  }
+
+  if (this->temperature_sensor_ != nullptr) {
+    this->set_timeout(sensor_switch_delay, [this]() { this->handle_temperature_(); });
+  }
 }
 
 float SHT2XComponent::get_setup_priority() const { return setup_priority::DATA; }
