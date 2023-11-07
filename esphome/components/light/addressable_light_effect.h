@@ -120,11 +120,11 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
       it.shift_right(1);
     const AddressableColorWipeEffectColor color = this->colors_[this->at_color_];
     Color esp_color = Color(color.r, color.g, color.b, color.w);
-    if(this->gradient_) {
+    if (this->gradient_) {
       size_t next_color_index = (this->at_color_ + 1) % this->colors_.size();
       const AddressableColorWipeEffectColor next_color = this->colors_[next_color_index];
       const Color next_esp_color = Color(next_color.r, next_color.g, next_color.b, next_color.w);
-      uint8_t gradient = 255 * ((float)this->leds_added_ / color.num_leds);
+      uint8_t gradient = 255 * ((float) this->leds_added_ / color.num_leds);
       esp_color = esp_color.gradient(next_esp_color, gradient);
     }
     if (this->reverse_)
