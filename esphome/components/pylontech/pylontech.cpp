@@ -16,9 +16,8 @@ void PylontechComponent::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Connection with pylontech failed!");
   }
-  //ESP_LOGCONFIG(TAG, " expecting %d batteries", this->max_battery_index_);
 
-  for (PylontechListener *listener: this->listeners_) {
+  for (PylontechListener *listener : this->listeners_) {
     listener->dump_config();
   }
 
@@ -81,7 +80,7 @@ void PylontechComponent::process_line_(std::string &buffer) {
     return;
   }
 
-  for (PylontechListener *listener: this->listeners_) {
+  for (PylontechListener *listener : this->listeners_) {
     listener->on_line_read(&l);
   }
 }

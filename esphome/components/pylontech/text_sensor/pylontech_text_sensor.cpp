@@ -7,9 +7,7 @@ namespace pylontech {
 
 static const char *const TAG = "pylontech.textsensor";
 
-PylontechTextSensor::PylontechTextSensor(int bat_num) {
-  this->_bat_num = bat_num;
-}
+PylontechTextSensor::PylontechTextSensor(int bat_num) { this->_bat_num = bat_num; }
 
 void PylontechTextSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Pylontech Text Sensor:");
