@@ -26,7 +26,7 @@ static AcDimmerDataStore *all_dimmers[32];  // NOLINT(cppcoreguidelines-avoid-no
 /// However other factors like gate driver propagation time
 /// are also considered and a really low value is not important
 /// See also: https://github.com/esphome/issues/issues/1632
-static const uint32_t GATE_ENABLE_TIME = 150; //50
+static const uint32_t GATE_ENABLE_TIME = 50;
 
 /// Function called from timer interrupt
 /// Input is current time in microseconds (micros())
@@ -236,17 +236,17 @@ void AcDimmer::dump_config() {
   }
   switch (interrupt_method_)  {
   case INTERRUPT_METHOD_FALLING:
-        ESP_LOGCONFIG(TAG, "   Zero Cross INTERRUPT_FALLING_EDGE");
+        ESP_LOGCONFIG(TAG, "   ZC INTERRUPT_FALLING_EDGE");
     break;
   case INTERRUPT_METHOD_RISING:
-        ESP_LOGCONFIG(TAG, "   Zero Cross INTERRUPT_RISING_EDGE");
+        ESP_LOGCONFIG(TAG, "   ZC INTERRUPT_RISING_EDGE");
     break;
   default:  //CHANGE = ANY
-        ESP_LOGCONFIG(TAG, "   Zero Cross INTERRUPT_ANY_EDGE");
+        ESP_LOGCONFIG(TAG, "   ZC INTERRUPT_ANY_EDGE");
     break;
   }
   LOG_FLOAT_OUTPUT(this);
-  ESP_LOGV(TAG, " Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
+  ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
 }
 
 }  // namespace ac_dimmer
