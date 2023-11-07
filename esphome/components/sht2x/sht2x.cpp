@@ -112,19 +112,20 @@ void SHT2XComponent::update() {
     this->write_command(SHT2X_COMMAND_SOFT_RESET);
   }
 
-  // this->set_timeout(SHT2X_DELAY_HUMIDITY, [this]() { this->request_humidity_(); });
-  // this->set_timeout(SHT2X_DELAY_HUMIDITY, [this]() { this->publish_humidity_(); });
-  // this->set_timeout(SHT2X_DELAY_TEMPERATURE, [this]() { this->request_temperature_(); });
-  // this->set_timeout(SHT2X_DELAY_TEMPERATURE, [this]() { this->publish_temperature_(); });
-  this->request_humidity_();
-  delay(SHT2X_DELAY_HUMIDITY); // NOLINT
-  this->publish_humidity_();
+  this->set_timeout(0, [this]() { this->request_humidity_(); });
+  this->set_timeout(SHT2X_DELAY_HUMIDITY, [this]() { this->publish_humidity_(); });
+  this->set_timeout(SHT2X_DELAY_HUMIDITY, [this]() { this->request_temperature_(); });
+  this->set_timeout(SHT2X_DELAY_HUMIDITY + SHT2X_DELAY_TEMPERATURE, [this]() { this->publish_temperature_(); });
 
-  this->request_temperature_();
-  delay(SHT2X_DELAY_TEMPERATURE); // NOLINT
-  this->publish_temperature_();
+  // this->request_humidity_();
+  // delay(SHT2X_DELAY_HUMIDITY); // NOLINT
+  // this->publish_humidity_();
 
-  this->status_clear_warning();
+  // this->request_temperature_();
+  // delay(SHT2X_DELAY_TEMPERATURE); // NOLINT
+  // this->publish_temperature_();
+
+  // this->status_clear_warning();
 }
 
 float SHT2XComponent::get_setup_priority() const { return setup_priority::DATA; }
