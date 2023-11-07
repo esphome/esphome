@@ -76,36 +76,34 @@ uint16_t SHT2XComponent::read_raw_value_() {
   return result;
 }
 
-void SHT2XComponent::get_temperature_() {
+void SHT2XComponent::request_temperature_() {
   if (this->write(&SHT2X_COMMAND_TEMPERATURE, 1) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Reading temperature error");
   };
+}
 
-  this->set_timeout("read_temperature", SHT2X_DELAY_TEMPERATURE, [this]() { this->publish_temperature_(); });
+void SHT2XComponent::request_humidity_() {
+  if (this->write(&SHT2X_COMMAND_HUMIDITY, 1) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Reading humidity error");
+  }
 }
 
 void SHT2XComponent::publish_temperature_() {
   uint16_t raw_temperature = this->read_raw_value_();
-    float temperature = -46.85 + (175.72 / 65536.0) * raw_temperature;
+  float temperature = -46.85 + (175.72 / 65536.0) * raw_temperature;
 
-    if (this->temperature_sensor_ != nullptr) {
-      this->temperature_sensor_->publish_state(temperature);
-    }
+  if (this->temperature_sensor_ != nullptr) {
+    this->temperature_sensor_->publish_state(temperature);
+  }
 }
 
-void SHT2XComponent::get_humidity_() {
-  if (this->write(&SHT2X_COMMAND_HUMIDITY, 1) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Reading humidity error");
+void SHT2XComponent::publish_humidity_() {
+  uint16_t raw_humidity = this->read_raw_value_();
+  float humidity = -6.0 + (125.0 / 65536.0) * raw_humidity;
+
+  if (this->humidity_sensor_ != nullptr) {
+    this->humidity_sensor_->publish_state(humidity);
   }
-
-  this->set_timeout("read_humidity", SHT2X_DELAY_HUMIDITY, [this]() {
-    uint16_t raw_humidity = this->read_raw_value_();
-    float humidity = -6.0 + (125.0 / 65536.0) * raw_humidity;
-
-    if (this->humidity_sensor_ != nullptr) {
-      this->humidity_sensor_->publish_state(humidity);
-    }
-  });
 }
 
 void SHT2XComponent::update() {
@@ -114,9 +112,11 @@ void SHT2XComponent::update() {
     this->write_command(SHT2X_COMMAND_SOFT_RESET);
   }
 
-  this->get_temperature_();
-  delay(1000);
-  this->get_humidity_();
+  this->set_timeout("request_humidity", SHT2X_DELAY_HUMIDITY, [this]() { this->request_humidity_(); });
+  this->set_timeout("publish_humidity", SHT2X_DELAY_HUMIDITY, [this]() { this->publish_humidity_(); });
+  this->set_timeout("request_temperature", SHT2X_DELAY_TEMPERATURE, [this]() { this->request_temperature_(); });
+  this->set_timeout("publish_temperature", SHT2X_DELAY_TEMPERATURE, [this]() { this->publish_temperature_(); });
+
   this->status_clear_warning();
 }
 
