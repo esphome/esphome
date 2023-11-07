@@ -4,15 +4,11 @@
 #include "esphome/core/defines.h"
 #include "esphome/components/uart/uart.h"
 
+#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
-#endif
-
-#ifndef PYLONTECH_NUM_BATTERIES
-// set by add_num_batteries() in __init__.py
-// this fallback is for linting and IDE stuff
-#define PYLONTECH_NUM_BATTERIES 3  // NOLINT
 #endif
 
 namespace esphome {
@@ -23,41 +19,31 @@ static const uint8_t TEXT_SENSOR_MAX_LEN = 8;
 
 #define PYLONTECH_ENTITY_(type, name) \
  protected: \
-  type *name##_[PYLONTECH_NUM_BATTERIES]{}; /* NOLINT */ \
+  type *name##_{}; /* NOLINT */ \
 \
  public: \
-  void set_##name(type *name, int batnum) { /* NOLINT */ \
-    this->name##_[batnum - 1] = name; \
+  void set_##name(type *name) { /* NOLINT */ \
+    this->name##_ = name; \
   }
 
 #define PYLONTECH_SENSOR(name) PYLONTECH_ENTITY_(sensor::Sensor, name)
 #define PYLONTECH_TEXT_SENSOR(name) PYLONTECH_ENTITY_(text_sensor::TextSensor, name)
 
+class PylontechListener {
+ public:
+  struct LineContents {
+    int bat_num = 0, volt, curr, tempr, tlow, thigh, vlow, vhigh, coulomb, mostempr;
+    char base_st[TEXT_SENSOR_MAX_LEN], volt_st[TEXT_SENSOR_MAX_LEN], curr_st[TEXT_SENSOR_MAX_LEN],
+        temp_st[TEXT_SENSOR_MAX_LEN];
+  };
+
+  virtual void on_line_read(LineContents *line);
+  virtual void dump_config();
+};
+
 class PylontechComponent : public PollingComponent, public uart::UARTDevice {
  public:
-  PYLONTECH_SENSOR(voltage)
-  PYLONTECH_SENSOR(current)
-  PYLONTECH_SENSOR(temperature)
-  PYLONTECH_SENSOR(temperature_low)
-  PYLONTECH_SENSOR(temperature_high)
-  PYLONTECH_SENSOR(voltage_low)
-  PYLONTECH_SENSOR(voltage_high)
-
-  PYLONTECH_SENSOR(coulomb)
-  PYLONTECH_SENSOR(mos_temperature)
-
-#ifdef USE_TEXT_SENSOR
-  PYLONTECH_TEXT_SENSOR(base_state)
-  PYLONTECH_TEXT_SENSOR(voltage_state)
-  PYLONTECH_TEXT_SENSOR(current_state)
-  PYLONTECH_TEXT_SENSOR(temperature_state)
-#endif
   PylontechComponent();
-
-  void mark_battery_index_in_use(uint8_t max_bat) {
-    if (max_bat > this->max_battery_index_)
-      this->max_battery_index_ = max_bat;
-  }
 
   /// Schedule data readings.
   void update() override;
@@ -69,20 +55,17 @@ class PylontechComponent : public PollingComponent, public uart::UARTDevice {
 
   float get_setup_priority() const override;
 
+  void register_listener(PylontechListener *listener) { this->listeners_.push_back(listener); }
+
  protected:
   void process_line_(std::string &buffer);
-
-  uint8_t max_battery_index_ = 0;
 
   // ring buffer
   std::string buffer_[NUM_BUFFERS];
   int buffer_index_write_ = 0;
   int buffer_index_read_ = 0;
-};
 
-class PylontechTextComponent : public Component {
- public:
-  PylontechTextComponent(PylontechComponent *parent) {}
+  std::vector<PylontechListener *> listeners_{};
 };
 
 }  // namespace pylontech
