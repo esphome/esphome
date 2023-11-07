@@ -11,6 +11,13 @@ namespace esp32_ble_server {
 
 static const char *const TAG = "esp32_ble_server.characteristic";
 
+BLECharacteristic::~BLECharacteristic() {
+  for (auto *descriptor : this->descriptors_) {
+    delete descriptor;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
+  vSemaphoreDelete(this->set_value_lock_);
+}
+
 BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) : uuid_(uuid) {
   this->set_value_lock_ = xSemaphoreCreateBinary();
   xSemaphoreGive(this->set_value_lock_);
@@ -97,6 +104,11 @@ void BLECharacteristic::notify(bool notification) {
 }
 
 void BLECharacteristic::add_descriptor(BLEDescriptor *descriptor) { this->descriptors_.push_back(descriptor); }
+
+void BLECharacteristic::remove_descriptor(BLEDescriptor *descriptor) {
+  this->descriptors_.erase(std::remove(this->descriptors_.begin(), this->descriptors_.end(), descriptor),
+                           this->descriptors_.end());
+}
 
 void BLECharacteristic::do_create(BLEService *service) {
   this->service_ = service;

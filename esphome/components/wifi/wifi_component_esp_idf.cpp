@@ -275,8 +275,8 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_wifi.html#_CPPv417wifi_sta_config_t
   wifi_config_t conf;
   memset(&conf, 0, sizeof(conf));
-  strncpy(reinterpret_cast<char *>(conf.sta.ssid), ap.get_ssid().c_str(), sizeof(conf.sta.ssid) - 1);
-  strncpy(reinterpret_cast<char *>(conf.sta.password), ap.get_password().c_str(), sizeof(conf.sta.password) - 1);
+  strncpy(reinterpret_cast<char *>(conf.sta.ssid), ap.get_ssid().c_str(), sizeof(conf.sta.ssid));
+  strncpy(reinterpret_cast<char *>(conf.sta.password), ap.get_password().c_str(), sizeof(conf.sta.password));
 
   // The weakest authmode to accept in the fast scan mode
   if (ap.get_password().empty()) {
@@ -823,7 +823,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   wifi_config_t conf;
   memset(&conf, 0, sizeof(conf));
-  strncpy(reinterpret_cast<char *>(conf.ap.ssid), ap.get_ssid().c_str(), sizeof(conf.ap.ssid) - 1);
+  strncpy(reinterpret_cast<char *>(conf.ap.ssid), ap.get_ssid().c_str(), sizeof(conf.ap.ssid));
   conf.ap.channel = ap.get_channel().value_or(1);
   conf.ap.ssid_hidden = ap.get_ssid().size();
   conf.ap.max_connection = 5;
@@ -834,7 +834,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     *conf.ap.password = 0;
   } else {
     conf.ap.authmode = WIFI_AUTH_WPA2_PSK;
-    strncpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), sizeof(conf.ap.password) - 1);
+    strncpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), sizeof(conf.ap.password));
   }
 
   // pairwise cipher of SoftAP, group cipher will be derived using this.

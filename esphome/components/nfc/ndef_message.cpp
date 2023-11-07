@@ -1,4 +1,5 @@
 #include "ndef_message.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace nfc {
@@ -32,7 +33,7 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
       id_length = data[index++];
     }
 
-    ESP_LOGVV(TAG, "Lengths: type=%d, payload=%d, id=%d", type_length, payload_length, id_length);
+    ESP_LOGVV(TAG, "Lengths: type=%d, payload=%" PRIu32 ", id=%d", type_length, payload_length, id_length);
 
     std::string type_str(data.begin() + index, data.begin() + index + type_length);
 

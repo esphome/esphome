@@ -34,6 +34,13 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+static const char *const HEADER_PNA_NAME = "Private-Network-Access-Name";
+static const char *const HEADER_PNA_ID = "Private-Network-Access-ID";
+static const char *const HEADER_CORS_REQ_PNA = "Access-Control-Request-Private-Network";
+static const char *const HEADER_CORS_ALLOW_PNA = "Access-Control-Allow-Private-Network";
+#endif
+
 #if USE_WEBSERVER_VERSION == 1
 void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
                const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
@@ -355,6 +362,17 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
   // No gzip header here because the HTML file is so small
+  request->send(response);
+}
+#endif
+
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
+  AsyncWebServerResponse *response = request->beginResponse(200, "");
+  response->addHeader(HEADER_CORS_ALLOW_PNA, "true");
+  response->addHeader(HEADER_PNA_NAME, App.get_name().c_str());
+  std::string mac = get_mac_address_pretty();
+  response->addHeader(HEADER_PNA_ID, mac.c_str());
   request->send(response);
 }
 #endif
@@ -1145,6 +1163,18 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+  if (request->method() == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA)) {
+#ifdef USE_ARDUINO
+    // Header needs to be added to interesting header list for it to not be
+    // nuked by the time we handle the request later.
+    // Only required in Arduino framework.
+    request->addInterestingHeader(HEADER_CORS_REQ_PNA);
+#endif
+    return true;
+  }
+#endif
+
   UrlMatch match = match_url(request->url().c_str(), true);
   if (!match.valid)
     return false;
@@ -1236,6 +1266,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   if (request->url() == "/0.js") {
     this->handle_js_request(request);
+    return;
+  }
+#endif
+
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+  if (request->method() == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA)) {
+    this->handle_pna_cors_request(request);
     return;
   }
 #endif

@@ -13,6 +13,8 @@ void Nextion::set_wake_up_page(uint8_t page_id) {
   this->add_no_result_to_queue_with_set_internal_("wake_up_page", "wup", page_id, true);
 }
 
+void Nextion::set_start_up_page(uint8_t page_id) { this->start_up_page_ = page_id; }
+
 void Nextion::set_touch_sleep_timeout(uint16_t timeout) {
   if (timeout < 3) {
     ESP_LOGD(TAG, "Sleep timeout out of bounds, range 3-65535");
@@ -124,6 +126,7 @@ void Nextion::set_component_text_printf(const char *component, const char *forma
 
 // General Nextion
 void Nextion::goto_page(const char *page) { this->add_no_result_to_queue_with_printf_("goto_page", "page %s", page); }
+void Nextion::goto_page(uint8_t page) { this->add_no_result_to_queue_with_printf_("goto_page", "page %i", page); }
 
 void Nextion::set_backlight_brightness(float brightness) {
   if (brightness < 0 || brightness > 1.0) {

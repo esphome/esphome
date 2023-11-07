@@ -5,6 +5,7 @@
 
 #ifdef USE_ESP32
 
+#include <cinttypes>
 #include <lwip/dns.h>
 #include "esp_event.h"
 
@@ -275,7 +276,7 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
 #if ENABLE_IPV6
 void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
                                               void *event_data) {
-  ESP_LOGV(TAG, "[Ethernet event] ETH Got IP6 (num=%d)", event_id);
+  ESP_LOGV(TAG, "[Ethernet event] ETH Got IP6 (num=%" PRId32 ")", event_id);
   global_eth_component->got_ipv6_ = true;
   global_eth_component->ipv6_count_ += 1;
 }

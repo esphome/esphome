@@ -15,6 +15,7 @@
 #include "aht10.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace aht10 {
@@ -72,7 +73,7 @@ void AHT10Component::update() {
     delay_ms = AHT10_HUMIDITY_DELAY;
   bool success = false;
   for (int i = 0; i < AHT10_ATTEMPTS; ++i) {
-    ESP_LOGVV(TAG, "Attempt %d at %6u", i, millis());
+    ESP_LOGVV(TAG, "Attempt %d at %6" PRIu32, i, millis());
     delay(delay_ms);
     if (this->read(data, 6) != i2c::ERROR_OK) {
       ESP_LOGD(TAG, "Communication with AHT10 failed, waiting...");
@@ -96,7 +97,7 @@ void AHT10Component::update() {
       }
     } else {
       // data is valid, we can break the loop
-      ESP_LOGVV(TAG, "Answer at %6u", millis());
+      ESP_LOGVV(TAG, "Answer at %6" PRIu32, millis());
       success = true;
       break;
     }

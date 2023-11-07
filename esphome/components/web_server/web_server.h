@@ -130,6 +130,11 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_js_request(AsyncWebServerRequest *request);
 #endif
 
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+  // Handle Private Network Access CORS OPTIONS request
+  void handle_pna_cors_request(AsyncWebServerRequest *request);
+#endif
+
 #ifdef USE_SENSOR
   void on_sensor_update(sensor::Sensor *obj, float state) override;
   /// Handle a sensor request under '/sensor/<id>'.

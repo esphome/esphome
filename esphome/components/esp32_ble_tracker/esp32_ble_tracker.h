@@ -177,7 +177,11 @@ class ESPBTClient : public ESPBTDeviceListener {
   ClientState state_;
 };
 
-class ESP32BLETracker : public Component, public GAPEventHandler, public GATTcEventHandler, public Parented<ESP32BLE> {
+class ESP32BLETracker : public Component,
+                        public GAPEventHandler,
+                        public GATTcEventHandler,
+                        public BLEStatusEventHandler,
+                        public Parented<ESP32BLE> {
  public:
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
   void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }
@@ -204,8 +208,10 @@ class ESP32BLETracker : public Component, public GAPEventHandler, public GATTcEv
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
+  void ble_before_disabled_event_handler() override;
 
  protected:
+  void stop_scan_();
   /// Start a single scan by setting up the parameters and doing some esp-idf calls.
   void start_scan_(bool first);
   /// Called when a scan ends
@@ -236,6 +242,7 @@ class ESP32BLETracker : public Component, public GAPEventHandler, public GATTcEv
   bool scan_continuous_;
   bool scan_active_;
   bool scanner_idle_;
+  bool ble_was_disabled_{true};
   bool raw_advertisements_{false};
   bool parse_advertisements_{false};
   SemaphoreHandle_t scan_result_lock_;

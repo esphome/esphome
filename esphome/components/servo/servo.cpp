@@ -1,6 +1,7 @@
 #include "servo.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace servo {
@@ -14,8 +15,8 @@ void Servo::dump_config() {
   ESP_LOGCONFIG(TAG, "  Idle Level: %.1f%%", this->idle_level_ * 100.0f);
   ESP_LOGCONFIG(TAG, "  Min Level: %.1f%%", this->min_level_ * 100.0f);
   ESP_LOGCONFIG(TAG, "  Max Level: %.1f%%", this->max_level_ * 100.0f);
-  ESP_LOGCONFIG(TAG, "  auto detach time: %d ms", this->auto_detach_time_);
-  ESP_LOGCONFIG(TAG, "  run duration: %d ms", this->transition_length_);
+  ESP_LOGCONFIG(TAG, "  auto detach time: %" PRIu32 " ms", this->auto_detach_time_);
+  ESP_LOGCONFIG(TAG, "  run duration: %" PRIu32 " ms", this->transition_length_);
 }
 
 void Servo::loop() {

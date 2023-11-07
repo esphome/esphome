@@ -217,7 +217,7 @@ void CSE7761Component::get_data_() {
     this->voltage_sensor_->publish_state(voltage);
   }
 
-  for (uint32_t channel = 0; channel < 2; channel++) {
+  for (uint8_t channel = 0; channel < 2; channel++) {
     // Active power = PowerPA * PowerPAC * 1000 / 0x80000000
     float active_power = (float) this->data_.active_power[channel] / this->coefficient_by_unit_(POWER_PAC);  // W
     float amps = (float) this->data_.current_rms[channel] / this->coefficient_by_unit_(RMS_IAC);             // A

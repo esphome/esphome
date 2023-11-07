@@ -31,6 +31,13 @@ network:
     - name: ipv6.example.com
       ip_address: 2001:db8:4455:6677::32
 
+mqtt:
+  broker: test.mosquitto.org
+  port: 1883
+  discovery: true
+  discovery_prefix: homeassistant
+  topic_prefix:
+
 api:
 
 i2c:
@@ -39,15 +46,15 @@ i2c:
   scan: false
 
 spi:
-- id: spi_id_1
-  clk_pin: GPIO21
-  mosi_pin: GPIO22
-  miso_pin: GPIO23
-  interface: hardware
-- id: spi_id_2
-  clk_pin: GPIO32
-  mosi_pin: GPIO33
-  interface: hardware
+  - id: spi_id_1
+    clk_pin: GPIO21
+    mosi_pin: GPIO22
+    miso_pin: GPIO23
+    interface: hardware
+  - id: spi_id_2
+    clk_pin: GPIO32
+    mosi_pin: GPIO33
+    interface: hardware
 
 uart:
   - id: uart115200
@@ -288,6 +295,7 @@ sensor:
     id: a01nyub_sensor
     name: "a01nyub Distance"
     uart_id: uart9600
+    state_topic: "esphome/sensor/a01nyub_sensor/state"
 
 #
 # platform sensor.apds9960 requires component apds9960
@@ -770,7 +778,6 @@ speaker:
     dac_type: external
     i2s_dout_pin: GPIO25
     mode: mono
-
 
 voice_assistant:
   microphone: mic_id_external
