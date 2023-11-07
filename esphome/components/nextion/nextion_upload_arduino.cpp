@@ -311,8 +311,8 @@ bool Nextion::upload_end_(bool successful) {
   this->is_updating_ = false;
   ESP_LOGD(TAG, "Restarting Nextion");
   this->soft_reset();
-  delay(1500);  // NOLINT
   if (successful) {
+    delay(1500);  // NOLINT
     ESP_LOGD(TAG, "Restarting esphome");
     ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
   }
