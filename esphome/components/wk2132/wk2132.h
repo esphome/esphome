@@ -14,9 +14,10 @@ namespace esphome {
 namespace wk2132 {
 
 /// @brief the max size we allow for transmissions calls
-constexpr size_t BUS_XFER_SIZE = 128;
+/// seems like if the size is larger we get error 6 from the i2c bus
+constexpr size_t XFER_MAX_SIZE = 128;
 
-/// @brief The size of the internal buffer
+/// @brief size of the internal buffer
 constexpr size_t FIFO_SIZE = 256;
 
 /// @brief size of the ring buffer
@@ -382,18 +383,6 @@ class WK2132Channel : public uart::UARTComponent {
   /// @brief test if transmit buffer is not empty
   /// @return true if not empty
   bool tx_fifo_is_not_empty_();
-
-  /// @brief Reads data from the receive fifo to a buffer
-  /// @param buffer the buffer
-  /// @param length the number of bytes we want to read
-  /// @return true if succeed false otherwise
-  bool read_data_(uint8_t *buffer, size_t length);
-
-  /// @brief Writes data from a buffer to the transmit fifo
-  /// @param buffer the buffer
-  /// @param length the number of bytes we want to write
-  /// @return true if succeed false otherwise
-  bool write_data_(const uint8_t *buffer, size_t length);
 
   /// @brief transfer bytes in fifo to the buffer if any
   /// @return number of bytes transferred
