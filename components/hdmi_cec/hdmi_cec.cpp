@@ -44,18 +44,14 @@ void IRAM_ATTR HDMICEC::rising_edge_interrupt(HDMICEC *self) {
   auto pulse_duration = micros() - self->last_falling_edge_us_;
   self->last_falling_edge_us_ = 0;
 
-  ESP_LOGI(TAG, "pulse duration: %zu ms", pulse_duration);
-  
   if (pulse_duration > START_BIT_MIN_US) {
     // start bit detected. reset everything and start receiving
-    ESP_LOGD(TAG, "start bit received");
     self->decoder_state_ = DecoderState::ReceivingByte;
     reset_state_variables(self);
     return;
   }
 
   bool value = (pulse_duration >= HIGH_BIT_MIN_US && pulse_duration <= HIGH_BIT_MAX_US);
-  ESP_LOGD(TAG, "got bit: %d", value);
 
   switch (self->decoder_state_) {
     case DecoderState::ReceivingByte: {
@@ -105,7 +101,6 @@ void IRAM_ATTR HDMICEC::rising_edge_interrupt(HDMICEC *self) {
     }
 
     default: {
-      ESP_LOGI(TAG, "invalid state: %u", (uint8_t)self->decoder_state_);
       self->decoder_state_ = DecoderState::ReceivingByte;
       reset_state_variables(self);
       break;
