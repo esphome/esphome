@@ -293,6 +293,8 @@ bool APIConnection::send_fan_state(fan::Fan *fan) {
   }
   if (traits.supports_direction())
     resp.direction = static_cast<enums::FanDirection>(fan->direction);
+  if (!traits.supported_preset_modes().empty())
+    resp.preset_mode = fan->preset_mode;
   return this->send_fan_state_response(resp);
 }
 bool APIConnection::send_fan_info(fan::Fan *fan) {
@@ -307,6 +309,7 @@ bool APIConnection::send_fan_info(fan::Fan *fan) {
   msg.supports_speed = traits.supports_speed();
   msg.supports_direction = traits.supports_direction();
   msg.supported_speed_count = traits.supported_speed_count();
+  msg.supported_preset_modes = traits.supported_preset_modes();
   msg.disabled_by_default = fan->is_disabled_by_default();
   msg.icon = fan->get_icon();
   msg.entity_category = static_cast<enums::EntityCategory>(fan->get_entity_category());
@@ -328,6 +331,8 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
   }
   if (msg.has_direction)
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));
+  if (msg.has_preset_mode)
+    call.set_preset_mode(msg.preset_mode);
   call.perform();
 }
 #endif
