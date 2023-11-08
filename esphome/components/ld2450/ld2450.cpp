@@ -298,10 +298,10 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, int len) {
   int16_t start;
   int16_t val;
   uint8_t index;
-  int16_t tx;
-  int16_t ty;
-  int16_t td;
-  int16_t ts;
+  int16_t tx = 0;
+  int16_t ty = 0;
+  int16_t td = 0;
+  int16_t ts = 0;
   int16_t angle;
   std::string direction;
 
