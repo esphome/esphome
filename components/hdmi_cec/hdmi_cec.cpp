@@ -22,6 +22,16 @@ void HDMICEC::dump_config() {
   LOG_PIN("  Pin: ", this->cec_pin_);
 }
 
+void HDMICEC::loop() {
+  if (this->recv_queue_.empty()) {
+    return;
+  }
+
+  auto frame = this->recv_queue_.front();
+  this->recv_queue_.pop();
+  ESP_LOGD(TAG, "got frame with %d bytes. first byte is %02x", frame.size(), frame[0]);
+}
+
 void IRAM_ATTR HDMICEC::falling_edge_interrupt(HDMICEC *self) {
   self->last_falling_edge_us_ = micros();
 }
@@ -70,7 +80,8 @@ void IRAM_ATTR HDMICEC::rising_edge_interrupt(HDMICEC *self) {
     case DecoderState::WaitingForEOM: {
       bool isEOM = (value == 1);
       if (isEOM) {
-        // TODO pass frame to app
+        // pass frame to app
+        self->recv_queue_.push(self->recv_frame_buffer_);
         ESP_LOGD(TAG, "frame complete. first byte is %02x", self->recv_frame_buffer_[0]);
         reset_state_variables(self);
       }

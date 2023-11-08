@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <queue>
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -25,7 +26,7 @@ public:
   float get_setup_priority() { return esphome::setup_priority::HARDWARE; }
   void setup() override;
   void dump_config() override;
-  void loop() {};
+  void loop() override;
 
   static void falling_edge_interrupt(HDMICEC *self);
   static void rising_edge_interrupt(HDMICEC *self);
@@ -39,6 +40,7 @@ protected:
   uint8_t recv_bit_counter_;
   uint8_t recv_byte_buffer_;
   std::vector<uint8_t> recv_frame_buffer_;
+  std::queue<std::vector<uint8_t>> recv_queue_;
 };
 
 }
