@@ -84,7 +84,6 @@ void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
       if (isEOM) {
         // pass frame to app
         self->recv_queue_.push(self->recv_frame_buffer_);
-        ESP_LOGD(TAG, "frame complete. first byte is %02x", self->recv_frame_buffer_[0]);
         reset_state_variables(self);
       }
 
