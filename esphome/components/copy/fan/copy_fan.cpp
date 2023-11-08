@@ -50,7 +50,7 @@ void CopyFan::control(const fan::FanCall &call) {
   if (call.get_direction().has_value())
     call2.set_direction(*call.get_direction());
   if (!call.get_preset_mode().empty())
-    call2.set_preset_mode(*call.get_preset_mode());
+    call2.set_preset_mode(call.get_preset_mode());
   call2.perform();
 }
 

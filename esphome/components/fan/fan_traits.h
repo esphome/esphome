@@ -1,3 +1,5 @@
+#include <utility>
+
 #pragma once
 
 namespace esphome {
@@ -28,7 +30,9 @@ class FanTraits {
   /// Return the preset modes supported by the fan.
   std::vector<std::string> supported_preset_modes() const { return this->preset_modes_; }
   /// Set the preset modes supported by the fan.
-  void set_supported_preset_modes(std::vector<std::string> preset_modes) { this->preset_modes_ = preset_modes; }
+  void set_supported_preset_modes(std::vector<std::string> preset_modes) {
+    this->preset_modes_ = std::move(preset_modes);
+  }
 
  protected:
   bool oscillation_{false};
