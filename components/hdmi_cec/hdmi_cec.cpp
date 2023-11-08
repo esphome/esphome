@@ -50,8 +50,7 @@ void IRAM_ATTR HDMICEC::rising_edge_interrupt(HDMICEC *self) {
   switch (self->decoder_state_) {
     case DecoderState::ReceivingByte: {
       // write bit to the current byte
-      self->recv_byte_buffer_ << 1;
-      self->recv_byte_buffer_ |= (value & 0b1);
+      self->recv_byte_buffer_ = (self->recv_byte_buffer_ << 1) | (value & 0b1);
 
       self->recv_bit_counter_++;
       if (self->recv_bit_counter_ >= 8) {
