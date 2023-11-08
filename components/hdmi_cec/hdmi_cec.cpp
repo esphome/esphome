@@ -72,7 +72,8 @@ void IRAM_ATTR HDMICEC::rising_edge_interrupt(HDMICEC *self) {
       bool isEOM = (value == 1);
       if (isEOM) {
         // TODO pass frame to app
-        ESP_LOGD("frame complete. first byte is %02x", self->recv_frame_buffer_[0]);
+        ESP_LOGD(TAG, "frame complete. first byte is %02x", self->recv_frame_buffer_[0]);
+        reset_state_variables(self);
       }
 
       self->decoder_state_ = (
@@ -89,13 +90,12 @@ void IRAM_ATTR HDMICEC::rising_edge_interrupt(HDMICEC *self) {
     }
 
     case DecoderState::WaitingForEOMAck: {
-      reset_state_variables(self);
       self->decoder_state_ = DecoderState::Idle;
       break;
     }
 
     default: {
-      ESP_LOGD(TAG, "invalid state: %u", (uint8_t)self->decoder_state_);
+      ESP_LOGI(TAG, "invalid state: %u", (uint8_t)self->decoder_state_);
       self->decoder_state_ = DecoderState::ReceivingByte;
       reset_state_variables(self);
       break;
