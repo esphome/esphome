@@ -8,6 +8,7 @@ namespace hdmi_cec {
 static const char *const TAG = "hdmi_cec";
 
 void HDMICEC::setup() {
+  this->frame_recv_buffer_.reserve(16); // max 16 bytes per CEC frame
   this->cec_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->cec_pin_->attach_interrupt(HDMICEC::falling_edge_interrupt, this, gpio::INTERRUPT_FALLING_EDGE);
   this->cec_pin_->attach_interrupt(HDMICEC::rising_edge_interrupt, this, gpio::INTERRUPT_RISING_EDGE);
@@ -29,7 +30,7 @@ void IRAM_ATTR HDMICEC::rising_edge_interrupt(HDMICEC *self) {
   }
 
   auto pulse_duration = millis() - self->last_falling_edge_ms_;
-  ESP_LOGI(TAG, "pulse duration: %zu", pulse_duration);
+  ESP_LOGI(TAG, "pulse duration: %zu ms", pulse_duration);
   // TODO
 
   self->last_falling_edge_ms_ = 0;

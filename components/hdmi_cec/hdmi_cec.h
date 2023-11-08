@@ -1,11 +1,21 @@
 #pragma once
 
+#include <vector>
+
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
 
 namespace esphome {
 namespace hdmi_cec {
+
+enum class DecoderState : uint8_t {
+  Idle = 0,
+  StartBitReceived = 1,
+  ReadingEightBits = 2,
+  WaitingForEOM = 3,
+  WaitingForAck = 4,
+};
 
 class HDMICEC : public Component {
 public:
@@ -23,6 +33,9 @@ public:
 protected:
   InternalGPIOPin *cec_pin_;
   uint32_t last_falling_edge_ms_;
+  DecoderState decoder_state_;
+  uint8_t byte_recv_buffer_;
+  std::vector<uint8_t> frame_recv_buffer_;
 };
 
 }
