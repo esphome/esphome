@@ -33,10 +33,12 @@ void HDMICEC::loop() {
 }
 
 void IRAM_ATTR HDMICEC::falling_edge_interrupt(HDMICEC *self) {
+  ESP_DRAM_LOGD(TAG, "falling edge");
   self->last_falling_edge_us_ = micros();
 }
 
 void IRAM_ATTR HDMICEC::rising_edge_interrupt(HDMICEC *self) {
+  ESP_DRAM_LOGD(TAG, "rising edge");
   if (self->last_falling_edge_us_ == 0) {
     return;
   }
