@@ -17,10 +17,12 @@ public:
   void dump_config() override;
   void loop() {};
 
-  static void interrupt(HDMICEC* self);
+  static void falling_edge_interrupt(HDMICEC *self);
+  static void rising_edge_interrupt(HDMICEC *self);
 
 protected:
   InternalGPIOPin *cec_pin_;
+  uint32_t last_falling_edge_ms_;
 };
 
 }
