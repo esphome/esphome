@@ -82,7 +82,12 @@ FanCall FanRestoreState::to_call(Fan &fan) {
   call.set_oscillating(this->oscillating);
   call.set_speed(this->speed);
   call.set_direction(this->direction);
-  call.set_preset_mode(this->preset_mode);
+
+  // Use stored preset index to get preset name
+  const auto &preset_modes = fan.get_traits().supported_preset_modes();
+  if (!preset_modes.empty() && this->preset_mode < preset_modes.size()) {
+    call.set_preset_mode(preset_modes[this->preset_mode]);
+  }
   return call;
 }
 void FanRestoreState::apply(Fan &fan) {
@@ -90,7 +95,12 @@ void FanRestoreState::apply(Fan &fan) {
   fan.oscillating = this->oscillating;
   fan.speed = this->speed;
   fan.direction = this->direction;
-  fan.preset_mode = this->preset_mode;
+
+  // Use stored preset index to get preset name
+  const auto &preset_modes = fan.get_traits().supported_preset_modes();
+  if (!preset_modes.empty() && this->preset_mode < preset_modes.size()) {
+    fan.preset_mode = preset_modes[this->preset_mode];
+  }
   fan.publish_state();
 }
 
@@ -159,7 +169,15 @@ void Fan::save_state_() {
   state.oscillating = this->oscillating;
   state.speed = this->speed;
   state.direction = this->direction;
-  state.preset_mode = this->preset_mode;
+
+  const auto &preset_modes = this->get_traits().supported_preset_modes();
+  if (!preset_modes.empty()) {
+    // Store index of current preset mode
+    auto it = std::find(preset_modes.begin(), preset_modes.end(), this->preset_mode);
+    if (it != preset_modes.end())
+      state.preset_mode = std::distance(preset_modes.begin(), it);
+  }
+
   this->rtc_.save(&state);
 }
 

@@ -96,7 +96,7 @@ struct FanRestoreState {
   int speed;
   bool oscillating;
   FanDirection direction;
-  std::string preset_mode;
+  uint8_t preset_mode;
 
   /// Convert this struct to a fan call that can be performed.
   FanCall to_call(Fan &fan);
