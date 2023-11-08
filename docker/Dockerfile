@@ -14,6 +14,7 @@ FROM base-${BASEIMGTYPE} AS base
 
 ARG TARGETARCH
 ARG TARGETVARIANT
+ARG PIP_EXTRA_INDEX_URL
 
 # Note that --break-system-packages is used below because
 # https://peps.python.org/pep-0668/ added a safety check that prevents
@@ -46,7 +47,7 @@ RUN \
           libssl-dev=3.0.11-1~deb12u2 \
           libffi-dev=3.4.4-1 \
           cargo=0.66.0+ds1-1 \
-          pkg-config=1.8.1-1; \
+          pkg-config=1.8.1-1 \
           gcc-arm-linux-gnueabihf=4:12.2.0-3; \
     fi; \
     rm -rf \
@@ -58,8 +59,8 @@ ENV \
   # Fix click python3 lang warning https://click.palletsprojects.com/en/7.x/python3/
   LANG=C.UTF-8 LC_ALL=C.UTF-8 \
   # Store globally installed pio libs in /piolibs
-  PLATFORMIO_GLOBALLIB_DIR=/piolibs
-
+  PLATFORMIO_GLOBALLIB_DIR=/piolibs \
+  PIP_EXTRA_INDEX_URL=${PIP_EXTRA_INDEX_URL}
 
 # Support legacy binaries on Debian multiarch system. There is no "correct" way
 # to do this, other than using properly built toolchains...
