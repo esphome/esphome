@@ -29,7 +29,11 @@ void HDMICEC::loop() {
 
   auto frame = this->recv_queue_.front();
   this->recv_queue_.pop();
-  ESP_LOGD(TAG, "got frame with %d bytes. first byte is %02x", frame.size(), frame[0]);
+
+  ESP_LOGD(TAG, "got frame (%d bytes):", frame.size());
+  for (int i = 0; i < frame.size(); i++) {
+    ESP_LOGD(TAG, "   [%d] = 0x%02X", i, frame[i]);
+  }
 }
 
 void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
