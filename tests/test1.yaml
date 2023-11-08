@@ -1007,12 +1007,18 @@ sensor:
     i2c_id: i2c_bus
   - platform: pulse_counter
     name: Pulse Counter
+    id: pulse_counter_test
     pin: GPIO12
     count_mode:
       rising_edge: INCREMENT
       falling_edge: DECREMENT
     internal_filter: 13us
     update_interval: 15s
+  - platform: template
+    name: Pulse Counts
+    state_class: measurement
+    lambda: !lambda 'return id(pulse_counter_test).get_total_pulses();'
+    update_interval: 10s
   - platform: pulse_meter
     name: Pulse Meter
     id: pulse_meter_sensor
