@@ -11,10 +11,10 @@ namespace hdmi_cec {
 
 enum class DecoderState : uint8_t {
   Idle = 0,
-  StartBitReceived = 1,
-  ReadingEightBits = 2,
+  ReceivingByte = 2,
   WaitingForEOM = 3,
   WaitingForAck = 4,
+  WaitingForEOMAck = 5,
 };
 
 class HDMICEC : public Component {
@@ -31,11 +31,14 @@ public:
   static void rising_edge_interrupt(HDMICEC *self);
 
 protected:
+  static void reset_state_variables(HDMICEC *self);
+
   InternalGPIOPin *cec_pin_;
-  uint32_t last_falling_edge_ms_;
+  uint32_t last_falling_edge_us_;
   DecoderState decoder_state_;
-  uint8_t byte_recv_buffer_;
-  std::vector<uint8_t> frame_recv_buffer_;
+  uint8_t recv_bit_counter_;
+  uint8_t recv_byte_buffer_;
+  std::vector<uint8_t> recv_frame_buffer_;
 };
 
 }
