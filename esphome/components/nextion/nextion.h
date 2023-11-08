@@ -95,6 +95,21 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   /**
    * Set the background color of a component.
    * @param component The component name.
+   * @param color The color (as a uint16_t).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_background_color("button", 63488);
+   * ```
+   *
+   * This will change the background color of the component `button` to red.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
+   * Nextion HMI colors.
+   */
+  void set_component_background_color(const char *component, uint16_t color);
+  /**
+   * Set the background color of a component.
+   * @param component The component name.
    * @param color The color (as a uint32_t).
    *
    * Example:
@@ -138,11 +153,27 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   /**
    * Set the pressed background color of a component.
    * @param component The component name.
-   * @param color The color (as a int).
+   * @param color The color (as a uint16_t).
    *
    * Example:
    * ```cpp
-   * it.set_component_pressed_background_color("button", 63488 );
+   * it.set_component_pressed_background_color("button", 63488);
+   * ```
+   *
+   * This will change the pressed background color of the component `button` to red. This is the background color that
+   * is shown when the component is pressed.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
+   * Nextion HMI colors.
+   */
+  void set_component_pressed_background_color(const char *component, uint16_t color);
+  /**
+   * Set the pressed background color of a component.
+   * @param component The component name.
+   * @param color The color (as a uint32_t).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_pressed_background_color("button", 63488);
    * ```
    *
    * This will change the pressed background color of the component `button` to red. This is the background color that
@@ -181,6 +212,21 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * is shown when the component is pressed.
    */
   void set_component_pressed_background_color(const char *component, Color color) override;
+  /**
+   * Set the foreground color of a component.
+   * @param component The component name.
+   * @param color The color (as a uint16_t).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_foreground_color("button", 63488);
+   * ```
+   *
+   * This will change the foreground color of the component `button` to red.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
+   * Nextion HMI colors.
+   */
+  void set_component_foreground_color(const char *component, uint16_t color);
   /**
    * Set the foreground color of a component.
    * @param component The component name.
@@ -226,7 +272,23 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   /**
    * Set the pressed foreground color of a component.
    * @param component The component name.
-   * @param color The color (as a int).
+   * @param color The color (as a uint16_t).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_pressed_foreground_color("button", 63488 );
+   * ```
+   *
+   * This will change the pressed foreground color of the component `button` to red. This is the foreground color that
+   * is shown when the component is pressed.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
+   * Nextion HMI colors.
+   */
+  void set_component_pressed_foreground_color(const char *component, uint16_t color);
+  /**
+   * Set the pressed foreground color of a component.
+   * @param component The component name.
+   * @param color The color (as a uint32_t).
    *
    * Example:
    * ```cpp
@@ -300,7 +362,22 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   /**
    * Set the font color of a component.
    * @param component The component name.
-   * @param color The color (as a uint32_t ).
+   * @param color The color (as a uint16_t).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_font_color("textview", 63488);
+   * ```
+   *
+   * This will change the font color of the component `textview` to a red color.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
+   * Nextion HMI colors.
+   */
+  void set_component_font_color(const char *component, uint16_t color);
+  /**
+   * Set the font color of a component.
+   * @param component The component name.
+   * @param color The color (as a uint32_t).
    *
    * Example:
    * ```cpp
@@ -339,6 +416,21 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This will change the font color of the component `textview` to black.
    */
   void set_component_font_color(const char *component, Color color) override;
+  /**
+   * Set the pressed font color of a component.
+   * @param component The component name.
+   * @param color The color (as a uint16_t).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_pressed_font_color("button", 63488);
+   * ```
+   *
+   * This will change the pressed font color of the component `button` to a red.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
+   * Nextion HMI colors.
+   */
+  void set_component_pressed_font_color(const char *component, uint16_t color);
   /**
    * Set the pressed font color of a component.
    * @param component The component name.
