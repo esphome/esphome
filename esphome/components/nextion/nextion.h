@@ -335,6 +335,18 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void goto_page(const char *page);
   /**
+   * Show the page with a given id.
+   * @param page The id of the page.
+   *
+   * Example:
+   * ```cpp
+   * it.goto_page(2);
+   * ```
+   *
+   * Switches to the page named `main`. Pages are named in the Nextion Editor.
+   */
+  void goto_page(uint8_t page);
+  /**
    * Hide a component.
    * @param component The component name.
    *
@@ -606,6 +618,20 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void set_wake_up_page(uint8_t page_id = 255);
   /**
+   * Sets which page Nextion loads when connecting to ESPHome.
+   * @param page_id The page id, from 0 to the lage page in Nextion. Set 255 (not set to any existing page) to
+   * wakes up to current page.
+   *
+   * Example:
+   * ```cpp
+   * it.set_start_up_page(2);
+   * ```
+   *
+   * The display will go to page 2 when it establishes a connection to ESPHome.
+   */
+  void set_start_up_page(uint8_t page_id = 255);
+
+  /**
    * Sets if Nextion should auto-wake from sleep when touch press occurs.
    * @param auto_wake True or false. When auto_wake is true and Nextion is in sleep mode,
    * the first touch will only trigger the auto wake mode and not trigger a Touch Event.
@@ -736,6 +762,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
     this->touch_sleep_timeout_ = touch_sleep_timeout;
   }
   void set_wake_up_page_internal(uint8_t wake_up_page) { this->wake_up_page_ = wake_up_page; }
+  void set_start_up_page_internal(uint8_t start_up_page) { this->start_up_page_ = start_up_page; }
   void set_auto_wake_on_touch_internal(bool auto_wake_on_touch) { this->auto_wake_on_touch_ = auto_wake_on_touch; }
 
  protected:
@@ -758,6 +785,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   bool is_updating_ = false;
   uint32_t touch_sleep_timeout_ = 0;
   int wake_up_page_ = -1;
+  int start_up_page_ = -1;
   bool auto_wake_on_touch_ = true;
 
   /**
