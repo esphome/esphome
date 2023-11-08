@@ -98,7 +98,8 @@ void Nextion::set_component_foreground_color(const char *component, Color color)
 
 // Set Colors - Foreground (pressed)
 void Nextion::set_component_pressed_foreground_color(const char *component, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_foreground_color", "%s.pco2=%" PRIu16, component, color);
+  this->add_no_result_to_queue_with_printf_("set_component_pressed_foreground_color", "%s.pco2=%" PRIu16, component,
+                                            color);
 }
 
 void Nextion::set_component_pressed_foreground_color(const char *component, const char *color) {
@@ -252,7 +253,8 @@ void Nextion::line(int x1, int y1, int x2, int y2, Color color) {
 }
 
 void Nextion::rectangle(int x1, int y1, int width, int height, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("draw", "draw %d,%d,%d,%d,%" PRIu16, x1, y1, x1 + width, y1 + height, color);
+  this->add_no_result_to_queue_with_printf_("draw", "draw %d,%d,%d,%d,%" PRIu16, x1, y1, x1 + width, y1 + height,
+                                            color);
 }
 
 void Nextion::rectangle(int x1, int y1, int width, int height, const char *color) {
