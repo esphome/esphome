@@ -140,6 +140,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
         arg->mode_ = OperationMode::ERROR_PROTOCOL;
         arg->error_type_ = ProtocolErrorType::NO_TRANSITION;
         arg->stop_();
+        return false;
       } else if (arg->clock_ == 1 || arg->capture_ > 0xF) {
         // transition in the middle of the bit OR no transition between two bit, both are valid data points
         if (arg->bit_pos_ == BitPositions::STOP_BIT) {
@@ -148,11 +149,13 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
           if (stop_bit_error == ProtocolErrorType::NO_ERROR) {
             arg->mode_ = OperationMode::RECEIVED;
             arg->stop_();
+            return false;
           } else {
             // end of data not verified, invalid data
             arg->mode_ = OperationMode::ERROR_PROTOCOL;
             arg->error_type_ = stop_bit_error;
             arg->stop_();
+            return false;
           }
         } else {
           // normal data point at clock high
@@ -169,6 +172,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
       arg->mode_ = OperationMode::ERROR_PROTOCOL;
       arg->error_type_ = ProtocolErrorType::NO_CHANGE_TOO_LONG;
       arg->stop_();
+      return false;
     }
     arg->capture_ = (arg->capture_ << 1) | value;
   } else if (arg->mode_ == OperationMode::WRITE) {
