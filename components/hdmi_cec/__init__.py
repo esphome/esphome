@@ -6,6 +6,8 @@ from esphome.const import CONF_ID
 DEPENDENCIES = []
 
 CONF_PIN = "pin"
+CONF_ADDRESS = "address"
+CONF_PROMISCUOUS_MODE = "promiscuous_mode"
 
 hdmi_cec_ns = cg.esphome_ns.namespace("hdmi_cec")
 HDMICEC = hdmi_cec_ns.class_(
@@ -15,7 +17,9 @@ HDMICEC = hdmi_cec_ns.class_(
 CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(HDMICEC),
-        cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema
+        cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
+        cv.Required(CONF_ADDRESS): cv.uint8_t,
+        cv.Optional(CONF_PROMISCUOUS_MODE, False): cv.boolean
     }
 )
 
@@ -24,4 +28,7 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cec_pin_ = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_cec_pin(cec_pin_))
+    cg.add(var.set_pin(cec_pin_))
+
+    cg.add(var.set_address(config[CONF_ADDRESS]))
+    cg.add(var.set_promiscuous_mode(config[CONF_PROMISCUOUS_MODE]))

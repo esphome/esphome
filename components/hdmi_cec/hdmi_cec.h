@@ -20,7 +20,9 @@ enum class DecoderState : uint8_t {
 
 class HDMICEC : public Component {
 public:
-  void set_cec_pin(InternalGPIOPin *cec_pin) { cec_pin_ = cec_pin; };
+  void set_pin(InternalGPIOPin *pin) { pin_ = pin; };
+  void set_address(uint8_t address) { address_ = address; };
+  void set_promiscuous_mode(bool promiscuous_mode) { promiscuous_mode_ = promiscuous_mode; };
 
   // Component overrides
   float get_setup_priority() { return esphome::setup_priority::HARDWARE; }
@@ -33,8 +35,10 @@ public:
 protected:
   static void reset_state_variables(HDMICEC *self);
 
-  InternalGPIOPin *cec_pin_;
-  ISRInternalGPIOPin cec_isr_pin_;
+  InternalGPIOPin *pin_;
+  ISRInternalGPIOPin isr_pin_;
+  uint8_t address_;
+  bool promiscuous_mode_;
   uint32_t last_falling_edge_us_;
   DecoderState decoder_state_;
   uint8_t recv_bit_counter_;

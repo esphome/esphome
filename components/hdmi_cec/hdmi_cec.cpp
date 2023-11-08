@@ -11,15 +11,16 @@ static const uint32_t HIGH_BIT_MIN_US = 400;
 static const uint32_t HIGH_BIT_MAX_US = 800;
 
 void HDMICEC::setup() {
-  this->cec_isr_pin_ = this->cec_pin_->to_isr();
+  this->isr_pin_ = this->pin_->to_isr();
   this->recv_frame_buffer_.reserve(16); // max 16 bytes per CEC frame
-  this->cec_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-  this->cec_pin_->attach_interrupt(HDMICEC::gpio_intr, this, gpio::INTERRUPT_ANY_EDGE);
+  this->pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+  this->pin_->attach_interrupt(HDMICEC::gpio_intr, this, gpio::INTERRUPT_ANY_EDGE);
 }
 
 void HDMICEC::dump_config() {
   ESP_LOGCONFIG(TAG, "HDMI-CEC");
-  LOG_PIN("  Pin: ", this->cec_pin_);
+  LOG_PIN("  pin: ", this->pin_);
+  ESP_LOGCONFIG(TAG, "  address: %x", this->address_);
 }
 
 void HDMICEC::loop() {
@@ -40,7 +41,12 @@ void HDMICEC::loop() {
     uint8_t src_addr = ((header & 0xF0) >> 4);
     uint8_t dest_addr = (header & 0x0F);
 
-    ESP_LOGD(TAG, "%02x -> %02x :", src_addr, dest_addr);
+    if (!promiscuous_mode_ && dest_addr != address_) {
+      // ignore frames not meant for us
+      continue;
+    }
+
+    ESP_LOGD(TAG, "CEC: %02x -> %02x", src_addr, dest_addr);
     for (int i = 0; i < frame.size(); i++) {
       ESP_LOGD(TAG, "   [%d] = 0x%02X", i, frame[i]);
     }
@@ -49,7 +55,7 @@ void HDMICEC::loop() {
 
 void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
   const uint32_t now = micros();
-  const bool level = self->cec_isr_pin_.digital_read();
+  const bool level = self->isr_pin_.digital_read();
 
   // on falling edge, store current time as the start of the low pulse
   if (level == false) {
