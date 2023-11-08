@@ -53,7 +53,7 @@ void Nextion::set_protocol_reparse_mode(bool active_mode) {
   this->write_array(to_send, sizeof(to_send));
 }
 
-// Set Colors
+// Set Colors - Background
 void Nextion::set_component_background_color(const char *component, uint32_t color) {
   this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%" PRIu32, component, color);
 }
@@ -67,6 +67,7 @@ void Nextion::set_component_background_color(const char *component, Color color)
                                             display::ColorUtil::color_to_565(color));
 }
 
+// Set Colors - Background (pressed)
 void Nextion::set_component_pressed_background_color(const char *component, uint32_t color) {
   this->add_no_result_to_queue_with_printf_("set_component_pressed_background_color", "%s.bco2=%" PRIu32, component,
                                             color);
@@ -81,14 +82,35 @@ void Nextion::set_component_pressed_background_color(const char *component, Colo
                                             display::ColorUtil::color_to_565(color));
 }
 
-void Nextion::set_component_pic(const char *component, uint8_t pic_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.pic=%d", component, pic_id);
+// Set Colors - Foreground
+void Nextion::set_component_foreground_color(const char *component, uint32_t color) {
+  this->add_no_result_to_queue_with_printf_("set_component_foreground_color", "%s.pco=%" PRIu32, component, color);
 }
 
-void Nextion::set_component_picc(const char *component, uint8_t pic_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.picc=%d", component, pic_id);
+void Nextion::set_component_foreground_color(const char *component, const char *color) {
+  this->add_no_result_to_queue_with_printf_("set_component_foreground_color", "%s.pco=%s", component, color);
 }
 
+void Nextion::set_component_foreground_color(const char *component, Color color) {
+  this->add_no_result_to_queue_with_printf_("set_component_foreground_color", "%s.pco=%d", component,
+                                            display::ColorUtil::color_to_565(color));
+}
+
+// Set Colors - Foreground (pressed)
+void Nextion::set_component_pressed_foreground_color(const char *component, uint32_t color) {
+  this->add_no_result_to_queue_with_printf_("set_component_pressed_foreground_color", "%s.pco2=%" PRIu32, component, color);
+}
+
+void Nextion::set_component_pressed_foreground_color(const char *component, const char *color) {
+  this->add_no_result_to_queue_with_printf_("set_component_pressed_foreground_color", " %s.pco2=%s", component, color);
+}
+
+void Nextion::set_component_pressed_foreground_color(const char *component, Color color) {
+  this->add_no_result_to_queue_with_printf_("set_component_pressed_foreground_color", "%s.pco2=%d", component,
+                                            display::ColorUtil::color_to_565(color));
+}
+
+// Set Colors - Font
 void Nextion::set_component_font_color(const char *component, uint32_t color) {
   this->add_no_result_to_queue_with_printf_("set_component_font_color", "%s.pco=%" PRIu32, component, color);
 }
@@ -102,6 +124,7 @@ void Nextion::set_component_font_color(const char *component, Color color) {
                                             display::ColorUtil::color_to_565(color));
 }
 
+// Set Colors - Font (pressed)
 void Nextion::set_component_pressed_font_color(const char *component, uint32_t color) {
   this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%" PRIu32, component, color);
 }
@@ -113,6 +136,15 @@ void Nextion::set_component_pressed_font_color(const char *component, const char
 void Nextion::set_component_pressed_font_color(const char *component, Color color) {
   this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%d", component,
                                             display::ColorUtil::color_to_565(color));
+}
+
+// Set picture
+void Nextion::set_component_pic(const char *component, uint8_t pic_id) {
+  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.pic=%d", component, pic_id);
+}
+
+void Nextion::set_component_picc(const char *component, uint8_t pic_id) {
+  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.picc=%d", component, pic_id);
 }
 
 void Nextion::set_component_text_printf(const char *component, const char *format, ...) {
