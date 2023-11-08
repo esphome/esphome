@@ -106,6 +106,7 @@ void IRAM_ATTR HDMICEC::reset_state_variables(HDMICEC *self) {
   self->recv_bit_counter_ = 0;
   self->recv_byte_buffer_ = 0x0;
   self->recv_frame_buffer_.clear();
+  self->recv_frame_buffer_.reserve(16);
 }
 
 }
