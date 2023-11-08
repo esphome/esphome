@@ -36,7 +36,7 @@ CONFIG_SCHEMA = (
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(Nextion),
-            cv.Optional(CONF_TFT_URL): cv.All(cv.string, cv.only_with_arduino),
+            cv.Optional(CONF_TFT_URL): cv.url,
             cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
             cv.Optional(CONF_ON_SETUP): automation.validate_automation(
                 {
@@ -85,10 +85,10 @@ async def to_code(config):
     if CONF_TFT_URL in config:
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
-        if CORE.is_esp32:
+        if CORE.is_esp32 and CORE.using_arduino:
             cg.add_library("WiFiClientSecure", None)
             cg.add_library("HTTPClient", None)
-        if CORE.is_esp8266:
+        elif CORE.is_esp8266 and CORE.using_arduino:
             cg.add_library("ESP8266HTTPClient", None)
 
     if CONF_TOUCH_SLEEP_TIMEOUT in config:
