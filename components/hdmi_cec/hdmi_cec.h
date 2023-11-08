@@ -28,13 +28,13 @@ public:
   void dump_config() override;
   void loop() override;
 
-  static void falling_edge_interrupt(HDMICEC *self);
-  static void rising_edge_interrupt(HDMICEC *self);
+  static void gpio_intr(HDMICEC *self);
 
 protected:
   static void reset_state_variables(HDMICEC *self);
 
   InternalGPIOPin *cec_pin_;
+  ISRInternalGPIOPin cec_isr_pin_;
   uint32_t last_falling_edge_us_;
   DecoderState decoder_state_;
   uint8_t recv_bit_counter_;
