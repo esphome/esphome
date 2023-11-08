@@ -6,6 +6,8 @@ from esphome.const import (
     CONF_MICROPHONE,
     CONF_SPEAKER,
     CONF_MEDIA_PLAYER,
+    CONF_ON_CLIENT_CONNECTED,
+    CONF_ON_CLIENT_DISCONNECTED,
 )
 from esphome import automation
 from esphome.automation import register_action, register_condition
@@ -80,6 +82,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_TTS_END): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_END): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_CLIENT_DISCONNECTED): automation.validate_automation(
+                single=True
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
 )
@@ -153,6 +161,20 @@ async def to_code(config):
             var.get_error_trigger(),
             [(cg.std_string, "code"), (cg.std_string, "message")],
             config[CONF_ON_ERROR],
+        )
+
+    if CONF_ON_CLIENT_CONNECTED in config:
+        await automation.build_automation(
+            var.get_client_connected_trigger(),
+            [],
+            config[CONF_ON_CLIENT_CONNECTED],
+        )
+
+    if CONF_ON_CLIENT_DISCONNECTED in config:
+        await automation.build_automation(
+            var.get_client_disconnected_trigger(),
+            [],
+            config[CONF_ON_CLIENT_DISCONNECTED],
         )
 
     cg.add_define("USE_VOICE_ASSISTANT")

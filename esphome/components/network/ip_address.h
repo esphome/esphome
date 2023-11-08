@@ -3,7 +3,11 @@
 #include <string>
 #include <cstdio>
 #include <array>
+#include "esphome/core/macros.h"
+
+#if defined(USE_ESP_IDF) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
 #include <lwip/ip_addr.h>
+#endif
 
 #if USE_ARDUINO
 #include <Arduino.h>
