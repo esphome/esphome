@@ -58,10 +58,6 @@ void Nextion::set_component_background_color(const char *component, uint16_t col
   this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%" PRIu16, component, color);
 }
 
-void Nextion::set_component_background_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%" PRIu32, component, color);
-}
-
 void Nextion::set_component_background_color(const char *component, const char *color) {
   this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%s", component, color);
 }
@@ -74,11 +70,6 @@ void Nextion::set_component_background_color(const char *component, Color color)
 // Set Colors - Background (pressed)
 void Nextion::set_component_pressed_background_color(const char *component, uint16_t color) {
   this->add_no_result_to_queue_with_printf_("set_component_pressed_background_color", "%s.bco2=%" PRIu16, component,
-                                            color);
-}
-
-void Nextion::set_component_pressed_background_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_background_color", "%s.bco2=%" PRIu32, component,
                                             color);
 }
 
@@ -96,10 +87,6 @@ void Nextion::set_component_foreground_color(const char *component, uint16_t col
   this->add_no_result_to_queue_with_printf_("set_component_foreground_color", "%s.pco=%" PRIu16, component, color);
 }
 
-void Nextion::set_component_foreground_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_foreground_color", "%s.pco=%" PRIu32, component, color);
-}
-
 void Nextion::set_component_foreground_color(const char *component, const char *color) {
   this->add_no_result_to_queue_with_printf_("set_component_foreground_color", "%s.pco=%s", component, color);
 }
@@ -112,10 +99,6 @@ void Nextion::set_component_foreground_color(const char *component, Color color)
 // Set Colors - Foreground (pressed)
 void Nextion::set_component_pressed_foreground_color(const char *component, uint16_t color) {
   this->add_no_result_to_queue_with_printf_("set_component_pressed_foreground_color", "%s.pco2=%" PRIu16, component, color);
-}
-
-void Nextion::set_component_pressed_foreground_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_foreground_color", "%s.pco2=%" PRIu32, component, color);
 }
 
 void Nextion::set_component_pressed_foreground_color(const char *component, const char *color) {
@@ -132,10 +115,6 @@ void Nextion::set_component_font_color(const char *component, uint16_t color) {
   this->add_no_result_to_queue_with_printf_("set_component_font_color", "%s.pco=%" PRIu16, component, color);
 }
 
-void Nextion::set_component_font_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_font_color", "%s.pco=%" PRIu32, component, color);
-}
-
 void Nextion::set_component_font_color(const char *component, const char *color) {
   this->add_no_result_to_queue_with_printf_("set_component_font_color", "%s.pco=%s", component, color);
 }
@@ -148,10 +127,6 @@ void Nextion::set_component_font_color(const char *component, Color color) {
 // Set Colors - Font (pressed)
 void Nextion::set_component_pressed_font_color(const char *component, uint16_t color) {
   this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%" PRIu16, component, color);
-}
-
-void Nextion::set_component_pressed_font_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%" PRIu32, component, color);
 }
 
 void Nextion::set_component_pressed_font_color(const char *component, const char *color) {
