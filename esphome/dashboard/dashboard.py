@@ -4,6 +4,7 @@ import base64
 import binascii
 import codecs
 import collections
+import datetime
 import functools
 import gzip
 import hashlib
@@ -1406,15 +1407,20 @@ def make_app(debug=get_bool_env(ENV_DEV)):
         )
 
     class StaticFileHandler(tornado.web.StaticFileHandler):
-        def set_extra_headers(self, path):
-            if "favicon.ico" in path:
-                self.set_header("Cache-Control", "max-age=84600, public")
-            else:
-                if debug:
-                    self.set_header(
-                        "Cache-Control",
-                        "no-store, no-cache, must-revalidate, max-age=0",
-                    )
+        def get_cache_time(
+            self, path: str, modified: datetime.datetime | None, mime_type: str
+        ) -> int:
+            """Override to customize cache control behavior."""
+            if debug:
+                return 0
+            # Assets that are hashed have ?hash= in the URL, all javascript
+            # filenames hashed so we can cache them for a long time
+            if (
+                "hash" in self.request.arguments
+                or "application/javascript" in mime_type
+            ):
+                return self.CACHE_MAX_AGE
+            return super().get_cache_time(path, modified, mime_type)
 
     app_settings = {
         "debug": debug,
