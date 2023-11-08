@@ -742,7 +742,10 @@ def time_period_str_unit(value):
         raise Invalid(f"Expected time period with unit, got {value}")
     kwarg = unit_to_kwarg[one_of(*unit_to_kwarg)(match.group(2))]
 
-    return TimePeriod(**{kwarg: float(match.group(1))})
+    try:
+        return TimePeriod(**{kwarg: float(match.group(1))})
+    except ValueError as e:
+        raise Invalid(e) from e
 
 
 def time_period_in_milliseconds_(value):
