@@ -1417,7 +1417,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             # filenames hashed so we can cache them for a long time
             if (
                 "hash" in self.request.arguments
-                or "application/javascript" in mime_type
+                or "/javascript" in mime_type
             ):
                 return self.CACHE_MAX_AGE
             return super().get_cache_time(path, modified, mime_type)
