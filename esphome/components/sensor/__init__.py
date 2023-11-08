@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_FROM,
     CONF_ICON,
     CONF_ID,
+    CONF_IGNORE_OUT_OF_RANGE,
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
@@ -242,6 +243,7 @@ CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
+RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 
 validate_unit_of_measurement = cv.string_strict
 validate_accuracy_decimals = cv.int_
@@ -687,6 +689,7 @@ CLAMP_SCHEMA = cv.All(
         {
             cv.Optional(CONF_MIN_VALUE, default="NaN"): cv.float_,
             cv.Optional(CONF_MAX_VALUE, default="NaN"): cv.float_,
+            cv.Optional(CONF_IGNORE_OUT_OF_RANGE, default=False): cv.boolean,
         }
     ),
     validate_clamp,
@@ -699,6 +702,24 @@ async def clamp_filter_to_code(config, filter_id):
         filter_id,
         config[CONF_MIN_VALUE],
         config[CONF_MAX_VALUE],
+        config[CONF_IGNORE_OUT_OF_RANGE],
+    )
+
+
+@FILTER_REGISTRY.register(
+    "round",
+    RoundFilter,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ACCURACY_DECIMALS): cv.uint8_t,
+        },
+        key=CONF_ACCURACY_DECIMALS,
+    ),
+)
+async def round_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_ACCURACY_DECIMALS],
     )
 
 

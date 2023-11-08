@@ -48,7 +48,11 @@ uart_config_t IDFUARTComponent::get_config_() {
   uart_config.parity = parity;
   uart_config.stop_bits = this->stop_bits_ == 1 ? UART_STOP_BITS_1 : UART_STOP_BITS_2;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+  uart_config.source_clk = UART_SCLK_DEFAULT;
+#else
   uart_config.source_clk = UART_SCLK_APB;
+#endif
   uart_config.rx_flow_ctrl_thresh = 122;
 
   return uart_config;

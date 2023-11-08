@@ -4,6 +4,8 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/component.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace max31856 {
 
