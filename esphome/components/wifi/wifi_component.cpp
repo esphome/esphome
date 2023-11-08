@@ -109,6 +109,15 @@ void WiFiComponent::loop() {
   const uint32_t now = millis();
 
   if (this->has_sta()) {
+    if (this->is_connected() != this->handled_connected_state_) {
+      if (this->handled_connected_state_) {
+        this->disconnect_trigger_->trigger();
+      } else {
+        this->connect_trigger_->trigger();
+      }
+      this->handled_connected_state_ = this->is_connected();
+    }
+
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning();
@@ -138,19 +147,9 @@ void WiFiComponent::loop() {
           ESP_LOGW(TAG, "WiFi Connection lost... Reconnecting...");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
-
-          if (this->handled_connected_state_) {
-            this->disconnect_trigger_->trigger();
-            this->handled_connected_state_ = false;
-          }
         } else {
           this->status_clear_warning();
           this->last_connected_ = now;
-
-          if (!this->handled_connected_state_) {
-            this->connect_trigger_->trigger();
-            this->handled_connected_state_ = true;
-          }
         }
         break;
       }

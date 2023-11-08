@@ -55,7 +55,7 @@ void Nextion::set_protocol_reparse_mode(bool active_mode) {
 
 // Set Colors
 void Nextion::set_component_background_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%d", component, color);
+  this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%" PRIu32, component, color);
 }
 
 void Nextion::set_component_background_color(const char *component, const char *color) {
@@ -68,7 +68,8 @@ void Nextion::set_component_background_color(const char *component, Color color)
 }
 
 void Nextion::set_component_pressed_background_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_background_color", "%s.bco2=%d", component, color);
+  this->add_no_result_to_queue_with_printf_("set_component_pressed_background_color", "%s.bco2=%" PRIu32, component,
+                                            color);
 }
 
 void Nextion::set_component_pressed_background_color(const char *component, const char *color) {
@@ -89,7 +90,7 @@ void Nextion::set_component_picc(const char *component, uint8_t pic_id) {
 }
 
 void Nextion::set_component_font_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_font_color", "%s.pco=%d", component, color);
+  this->add_no_result_to_queue_with_printf_("set_component_font_color", "%s.pco=%" PRIu32, component, color);
 }
 
 void Nextion::set_component_font_color(const char *component, const char *color) {
@@ -102,7 +103,7 @@ void Nextion::set_component_font_color(const char *component, Color color) {
 }
 
 void Nextion::set_component_pressed_font_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%d", component, color);
+  this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%" PRIu32, component, color);
 }
 
 void Nextion::set_component_pressed_font_color(const char *component, const char *color) {

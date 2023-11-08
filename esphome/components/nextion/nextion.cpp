@@ -128,7 +128,7 @@ void Nextion::dump_config() {
   ESP_LOGCONFIG(TAG, "  Wake On Touch:    %s", this->auto_wake_on_touch_ ? "True" : "False");
 
   if (this->touch_sleep_timeout_ != 0) {
-    ESP_LOGCONFIG(TAG, "  Touch Timeout:       %d", this->touch_sleep_timeout_);
+    ESP_LOGCONFIG(TAG, "  Touch Timeout:       %" PRIu32, this->touch_sleep_timeout_);
   }
 
   if (this->wake_up_page_ != -1) {
@@ -868,6 +868,12 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
   start = millis();
 
   while ((timeout == 0 && this->available()) || millis() - start <= timeout) {
+    if (!this->available()) {
+      App.feed_wdt();
+      delay(1);
+      continue;
+    }
+
     this->read_byte(&c);
     if (c == 0xFF) {
       nr_of_ff_bytes++;
@@ -886,7 +892,7 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
       }
     }
     App.feed_wdt();
-    delay(1);
+    delay(2);
 
     if (exit_flag || ff_flag) {
       break;
