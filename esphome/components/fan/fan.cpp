@@ -32,9 +32,12 @@ void FanCall::perform() {
   if (this->direction_.has_value()) {
     ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(*this->direction_)));
   }
-
+  if (!this->preset_mode_.empty()) {
+    ESP_LOGD(TAG, "  Preset Mode: %s", this->preset_mode_.c_str());
+  }
   this->parent_.control(*this);
 }
+
 void FanCall::validate_() {
   auto traits = this->parent_.get_traits();
 
@@ -62,6 +65,15 @@ void FanCall::validate_() {
     ESP_LOGW(TAG, "'%s' - This fan does not support directions!", this->parent_.get_name().c_str());
     this->direction_.reset();
   }
+
+  if (!this->preset_mode_.empty()) {
+    const auto &preset_modes = traits.supported_preset_modes();
+    if (std::find(preset_modes.begin(), preset_modes.end(), this->preset_mode_) == preset_modes.end()) {
+      ESP_LOGW(TAG, "'%s' - This fan does not support preset mode '%s'!", this->parent_.get_name().c_str(),
+               this->preset_mode_.c_str());
+      this->preset_mode_.clear();
+    }
+  }
 }
 
 FanCall FanRestoreState::to_call(Fan &fan) {
@@ -70,6 +82,7 @@ FanCall FanRestoreState::to_call(Fan &fan) {
   call.set_oscillating(this->oscillating);
   call.set_speed(this->speed);
   call.set_direction(this->direction);
+  call.set_preset_mode(this->preset_mode);
   return call;
 }
 void FanRestoreState::apply(Fan &fan) {
@@ -77,6 +90,7 @@ void FanRestoreState::apply(Fan &fan) {
   fan.oscillating = this->oscillating;
   fan.speed = this->speed;
   fan.direction = this->direction;
+  fan.preset_mode = this->preset_mode;
   fan.publish_state();
 }
 
@@ -100,7 +114,9 @@ void Fan::publish_state() {
   if (traits.supports_direction()) {
     ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(this->direction)));
   }
-
+  if (!traits.supported_preset_modes().empty()) {
+    ESP_LOGD(TAG, "  Preset Mode: %s", this->preset_mode.c_str());
+  }
   this->state_callback_.call();
   this->save_state_();
 }
@@ -143,6 +159,7 @@ void Fan::save_state_() {
   state.oscillating = this->oscillating;
   state.speed = this->speed;
   state.direction = this->direction;
+  state.preset_mode = this->preset_mode;
   this->rtc_.save(&state);
 }
 
@@ -156,6 +173,11 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
   }
   if (this->get_traits().supports_direction()) {
     ESP_LOGCONFIG(tag, "%s  Direction: YES", prefix);
+  }
+  if (!this->get_traits().supported_preset_modes().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Supported presets:", prefix);
+    for (const std::string &s : this->get_traits().supported_preset_modes())
+      ESP_LOGCONFIG(tag, "%s    - %s", prefix, s.c_str());
   }
 }
 
