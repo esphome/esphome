@@ -14,6 +14,7 @@ FROM base-${BASEIMGTYPE} AS base
 
 ARG TARGETARCH
 ARG TARGETVARIANT
+ARG PIP_EXTRA_INDEX_URL
 
 # Note that --break-system-packages is used below because
 # https://peps.python.org/pep-0668/ added a safety check that prevents
@@ -60,6 +61,7 @@ ENV \
   # Store globally installed pio libs in /piolibs
   PLATFORMIO_GLOBALLIB_DIR=/piolibs
 
+ENV PIP_EXTRA_INDEX_URL=${PIP_EXTRA_INDEX_URL}
 
 # Support legacy binaries on Debian multiarch system. There is no "correct" way
 # to do this, other than using properly built toolchains...
