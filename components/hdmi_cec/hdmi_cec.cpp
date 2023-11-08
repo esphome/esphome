@@ -21,6 +21,7 @@ void HDMICEC::dump_config() {
   ESP_LOGCONFIG(TAG, "HDMI-CEC");
   LOG_PIN("  pin: ", this->pin_);
   ESP_LOGCONFIG(TAG, "  address: %x", this->address_);
+  ESP_LOGCONFIG(TAG, "  promiscuous mode: %s", (promiscuous_mode_ ? "yes" : "no"));
 }
 
 void HDMICEC::loop() {
