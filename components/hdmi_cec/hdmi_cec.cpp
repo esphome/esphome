@@ -36,7 +36,11 @@ void HDMICEC::loop() {
       continue;
     }
 
-    ESP_LOGD(TAG, "got frame (%d bytes):", frame.size());
+    uint8_t header = frame[0];
+    uint8_t src_addr = ((header & 0xF0) >> 4);
+    uint8_t dest_addr = (header & 0x0F);
+
+    ESP_LOGD(TAG, "%02x -> %02x :", src_addr, dest_addr);
     for (int i = 0; i < frame.size(); i++) {
       ESP_LOGD(TAG, "   [%d] = 0x%02X", i, frame[i]);
     }
