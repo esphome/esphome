@@ -12,6 +12,7 @@ do
     case $flag in
         e) esphome_command=${OPTARG};;
         c) target_component=${OPTARG};;
+        \?) echo "Usage: $0 [-e <config|compile|clean>] [-c <string>]" 1>&2; exit 1;;
     esac
 done
 
@@ -37,10 +38,10 @@ start_esphome() {
 }
 
 # Find all test yaml files in components.
-# - `./esphome/components/[target_component]/tests/[test_name].[target_platform].yaml`
-# - `./esphome/components/[target_component]/tests/[test_name].*.yaml`
-# - `./esphome/components/[target_component]/tests/[test_name].yaml`
-for f in ./esphome/components/$target_component/tests/*.yaml; do
+# - `./esphome/components/[target_component]/_test/[test_name].[target_platform].yaml`
+# - `./esphome/components/[target_component]/_test/[test_name].*.yaml`
+# - `./esphome/components/[target_component]/_test/[test_name].yaml`
+for f in ./esphome/components/$target_component/_test/*.yaml; do
   IFS='/' read -r -a folder_name <<< "$f"
   target_component="${folder_name[3]}"
 
