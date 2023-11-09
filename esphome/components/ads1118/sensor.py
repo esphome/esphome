@@ -52,12 +52,12 @@ ADS1118Sensor = ads1118_ns.class_(
     "ADS1118Sensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
 CONF_ADS1118_ID = "ads1118_id"
-CONF_ADC_MODE = "adc"
-CONF_TEMPERATURE_MODE = "temperature"
+TYPE_ADC = "adc"
+TYPE_TEMPERATURE = "temperature"
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_ADC_MODE: sensor.sensor_schema(
+        TYPE_ADC: sensor.sensor_schema(
             ADS1118Sensor,
             unit_of_measurement=UNIT_VOLT,
             accuracy_decimals=3,
@@ -72,7 +72,7 @@ CONFIG_SCHEMA = cv.typed_schema(
             }
         )
         .extend(cv.polling_component_schema("60s")),
-        CONF_TEMPERATURE_MODE: sensor.sensor_schema(
+        TYPE_TEMPERATURE: sensor.sensor_schema(
             ADS1118Sensor,
             unit_of_measurement=UNIT_CELSIUS,
             accuracy_decimals=2,
@@ -85,7 +85,8 @@ CONFIG_SCHEMA = cv.typed_schema(
             }
         )
         .extend(cv.polling_component_schema("60s")),
-    }
+    },
+    default_type=TYPE_ADC,
 )
 
 
@@ -94,12 +95,12 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], parent)
     await cg.register_component(var, config)
 
-    if config[CONF_TYPE] == CONF_ADC_MODE:
+    if config[CONF_TYPE] == TYPE_ADC:
         await sensor.register_sensor(var, config)
         cg.add(var.set_multiplexer(config[CONF_MULTIPLEXER]))
         cg.add(var.set_gain(config[CONF_GAIN]))
         cg.add(parent.register_sensor(var))
-    if config[CONF_TYPE] == CONF_TEMPERATURE_MODE:
+    if config[CONF_TYPE] == TYPE_TEMPERATURE:
         await sensor.register_sensor(var, config)
         cg.add(var.set_temperature_mode(True))
         cg.add(parent.register_sensor(var))
