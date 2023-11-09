@@ -368,7 +368,9 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Find changed components
         id: set-matrix
-        run: echo "matrix=$(./script/list-components-changed.py | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
+        run: |
+          . venv/bin/activate
+          echo "matrix=$(./script/list-components-changed.py | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
 
   test-build-components:
     name: Component test ${{ matrix.file }}
