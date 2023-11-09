@@ -361,12 +361,15 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Check out code from GitHub (dev branch)
+      - name: Check out code from GitHub
         uses: actions/checkout@v4.1.1
         with:
-          ref: dev
-      - name: Check out code from GitHub (PR branch)
-        uses: actions/checkout@v4.1.1
+          # Fetch enough history so `git merge-base refs/remotes/origin/dev HEAD` works.
+          fetch-depth: 100
+      - name: Fetch dev branch
+        run: |
+          git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/dev*:refs/remotes/origin/dev* +refs/tags/dev*:refs/tags/dev*
+          git merge-base refs/remotes/origin/dev HEAD
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
