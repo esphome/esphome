@@ -12,9 +12,19 @@ FROM debian:12.2-slim AS base-docker
 
 FROM base-${BASEIMGTYPE} AS base
 
+FROM base AS branch-armv7
+ENV PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"
+
+FROM base AS branch-aarch64
+ENV PIP_EXTRA_INDEX_URL=""
+
+FROM base AS branch-amd64
+ENV PIP_EXTRA_INDEX_URL=""
+
+FROM branch-${TARGETARCH}${TARGETVARIANT} AS final
+
 ARG TARGETARCH
 ARG TARGETVARIANT
-ARG PIP_EXTRA_INDEX_URL
 
 # Note that --break-system-packages is used below because
 # https://peps.python.org/pep-0668/ added a safety check that prevents
@@ -59,8 +69,7 @@ ENV \
   # Fix click python3 lang warning https://click.palletsprojects.com/en/7.x/python3/
   LANG=C.UTF-8 LC_ALL=C.UTF-8 \
   # Store globally installed pio libs in /piolibs
-  PLATFORMIO_GLOBALLIB_DIR=/piolibs \
-  PIP_EXTRA_INDEX_URL=${PIP_EXTRA_INDEX_URL}
+  PLATFORMIO_GLOBALLIB_DIR=/piolibs
 
 # Support legacy binaries on Debian multiarch system. There is no "correct" way
 # to do this, other than using properly built toolchains...
