@@ -141,7 +141,11 @@ def validate_supports(value):
 
 
 ESP8266_PIN_SCHEMA = cv.All(
-    pins.gpio_base_schema(ESP8266GPIOPin, validate_gpio_pin),
+    pins.gpio_base_schema(
+        ESP8266GPIOPin,
+        validate_gpio_pin,
+        modes=pins.GPIO_STANDARD_MODES + (CONF_ANALOG,),
+    ),
     validate_supports,
 )
 

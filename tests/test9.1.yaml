@@ -8,7 +8,6 @@ rtl87xx:
 
 esphome:
   name: rtl87xx-test
-  check_pin_use: false
 
 logger:
 

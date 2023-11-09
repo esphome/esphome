@@ -186,10 +186,11 @@ def validate_gpio_usage(value):
     return value
 
 
-BASE_PIN_SCHEMA = cv.All(
-    pins.gpio_base_schema(ArduinoInternalGPIOPin, validate_gpio_pin),
-    validate_gpio_usage,
-)
+BASE_PIN_SCHEMA = pins.gpio_base_schema(
+    ArduinoInternalGPIOPin,
+    validate_gpio_pin,
+    modes=pins.GPIO_STANDARD_MODES + (CONF_ANALOG,),
+).add_extra(validate_gpio_usage)
 
 
 async def component_pin_to_code(config):

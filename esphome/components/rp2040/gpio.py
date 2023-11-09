@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
+    CONF_ANALOG,
 )
 from esphome.core import CORE
 from esphome import pins
@@ -77,7 +78,11 @@ def validate_supports(value):
 
 
 RP2040_PIN_SCHEMA = cv.All(
-    pins.gpio_base_schema(RP2040GPIOPin, validate_gpio_pin),
+    pins.gpio_base_schema(
+        RP2040GPIOPin,
+        validate_gpio_pin,
+        modes=[pins.GPIO_STANDARD_MODES + (CONF_ANALOG,)],
+    ),
     validate_supports,
 )
 

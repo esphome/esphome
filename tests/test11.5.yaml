@@ -2,7 +2,6 @@
 # copy of test5.yaml configured to build on IDF 5
 esphome:
   name: test11-5
-  check_pin_use: false
   build_path: build/test11.5
   project:
     name: esphome.test11_5_project

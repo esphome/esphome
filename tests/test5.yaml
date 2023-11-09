@@ -1,7 +1,6 @@
 ---
 esphome:
   name: test5
-  check_pin_use: false
   build_path: build/test5
   project:
     name: esphome.test5_project
@@ -213,8 +212,12 @@ binary_sensor:
         lambda: return x[0] & 1;
 
 tlc5947:
-  data_pin: GPIO12
-  clock_pin: GPIO14
+  data_pin:
+    number: GPIO12
+    allow_other_uses: true
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO14
   lat_pin: GPIO15
 
 gp8403:
@@ -670,7 +673,9 @@ matrix_keypad:
     - pin: 21
     - pin: 19
   columns:
-    - pin: 17
+    - pin: 
+      allow_other_uses: true
+      number: 17
     - pin: 16
   keys: "1234"
   has_pulldowns: true

@@ -8,7 +8,6 @@ substitutions:
 esphome:
   name: test1
   name_add_mac_suffix: true
-  check_pin_use: false
   platform: ESP32
   board: nodemcu-32s
   platformio_options:

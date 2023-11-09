@@ -56,7 +56,6 @@ LoopTrigger = cg.esphome_ns.class_(
 VERSION_REGEX = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$")
 
 CONF_NAME_ADD_MAC_SUFFIX = "name_add_mac_suffix"
-CONF_CHECK_PIN_USE = "check_pin_use"
 
 
 VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
@@ -170,7 +169,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_COMPILE_PROCESS_LIMIT, default=_compile_process_limit_default
             ): cv.int_range(min=1, max=multiprocessing.cpu_count()),
-            cv.Optional(CONF_CHECK_PIN_USE, default=True): cv.boolean,
         }
     ),
     validate_hostname,
