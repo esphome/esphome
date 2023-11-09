@@ -75,9 +75,9 @@ RUN \
 RUN \
     # Ubuntu python3-pip is missing wheel
     pip3 install \
-        $([ "$TARGETARCH$TARGETVARIANT" == "armv7" ] && echo "--extra-index-url=https://www.piwheels.org/simple" || echo "") \
-        --break-system-packages --no-cache-dir \
-        platformio==6.1.11 \
+    $([ "$TARGETARCH$TARGETVARIANT" == "armv7" ] && echo "--extra-index-url=https://www.piwheels.org/simple" || echo "") \
+    --break-system-packages --no-cache-dir \
+    platformio==6.1.11 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \
@@ -186,7 +186,9 @@ RUN \
         /var/lib/apt/lists/*
 
 COPY requirements_test.txt /
-RUN pip3 install --break-system-packages --no-cache-dir -r /requirements_test.txt
+RUN pip3 install \
+  $([ "$TARGETARCH$TARGETVARIANT" == "armv7" ] && echo "--extra-index-url=https://www.piwheels.org/simple" || echo "") \
+  --break-system-packages --no-cache-dir -r /requirements_test.txt
 
 VOLUME ["/esphome"]
 WORKDIR /esphome
