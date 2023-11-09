@@ -16,16 +16,16 @@ FROM base-${BASEIMGTYPE} AS base
 ARG TARGETARCH
 ARG TARGETVARIANT
 
-FROM base AS branch-armv7
+FROM base AS branch_armv7
 ENV PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"
 
-FROM base AS branch-aarch64
+FROM base AS branch_aarch64
 ENV PIP_EXTRA_INDEX_URL=""
 
-FROM base AS branch-amd64
+FROM base AS branch_amd64
 ENV PIP_EXTRA_INDEX_URL=""
 
-FROM branch-${TARGETARCH}${TARGETVARIANT} AS final
+FROM branch_${TARGETARCH}${TARGETVARIANT} AS final
 RUN echo "PIP_EXTRA_INDEX_URL is equal to ${PIP_EXTRA_INDEX_URL}"
 
 
