@@ -17,8 +17,6 @@ FROM base-${BASEIMGTYPE} AS base
 ARG TARGETARCH
 ARG TARGETVARIANT
 
-ENV TARGETARCH=${TARGETARCH}
-ENV TARGETVARIANT=${TARGETVARIANT}
 
 # Note that --break-system-packages is used below because
 # https://peps.python.org/pep-0668/ added a safety check that prevents
