@@ -6,7 +6,7 @@ from esphome import automation
 from esphome.const import CONF_ON_TOUCH, CONF_ON_RELEASE, CONF_DIMENSIONS, CONF_ROTATION
 from esphome.core import coroutine_with_priority
 
-CODEOWNERS = ["@jesserockz"]
+CODEOWNERS = ["@jesserockz","@nielsnl68"]
 DEPENDENCIES = ["display"]
 
 IS_PLATFORM_COMPONENT = True
