@@ -23,6 +23,18 @@ from esphome.core import (
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
 
+try:
+    from yaml import CSafeLoader as FastestAvailableSafeLoader
+    from yaml import CSafeDumper as FastestAvailableSafeDumper
+except ImportError:
+    from yaml import (  # type: ignore[assignment]
+        SafeLoader as FastestAvailableSafeLoader,
+    )
+    from yaml import (  # type: ignore[assignment]
+        SafeDumper as FastestAvailableSafeDumper,
+    )
+
+
 _LOGGER = logging.getLogger(__name__)
 
 # Mostly copied from Home Assistant because that code works fine and
@@ -89,7 +101,7 @@ def _add_data_ref(fn):
     return wrapped
 
 
-class ESPHomeLoader(yaml.SafeLoader):
+class ESPHomeLoader(FastestAvailableSafeLoader):
     """Loader class that keeps track of line numbers."""
 
     @_add_data_ref
@@ -439,7 +451,7 @@ def is_secret(value):
         return None
 
 
-class ESPHomeDumper(yaml.SafeDumper):
+class ESPHomeDumper(FastestAvailableSafeDumper):
     def represent_mapping(self, tag, mapping, flow_style=None):
         value = []
         node = yaml.MappingNode(tag, value, flow_style=flow_style)
