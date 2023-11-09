@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2023.11.0-dev"
+__version__ = "2023.12.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -227,6 +227,7 @@ CONF_ELSE = "else"
 CONF_ENABLE_BTM = "enable_btm"
 CONF_ENABLE_IPV6 = "enable_ipv6"
 CONF_ENABLE_PIN = "enable_pin"
+CONF_ENABLE_PRIVATE_NETWORK_ACCESS = "enable_private_network_access"
 CONF_ENABLE_RRM = "enable_rrm"
 CONF_ENABLE_TIME = "enable_time"
 CONF_ENERGY = "energy"

@@ -128,11 +128,15 @@ void Nextion::dump_config() {
   ESP_LOGCONFIG(TAG, "  Wake On Touch:    %s", this->auto_wake_on_touch_ ? "True" : "False");
 
   if (this->touch_sleep_timeout_ != 0) {
-    ESP_LOGCONFIG(TAG, "  Touch Timeout:       %d", this->touch_sleep_timeout_);
+    ESP_LOGCONFIG(TAG, "  Touch Timeout:       %" PRIu32, this->touch_sleep_timeout_);
   }
 
   if (this->wake_up_page_ != -1) {
     ESP_LOGCONFIG(TAG, "  Wake Up Page :       %d", this->wake_up_page_);
+  }
+
+  if (this->start_up_page_ != -1) {
+    ESP_LOGCONFIG(TAG, "  Start Up Page :      %d", this->start_up_page_);
   }
 }
 
@@ -231,7 +235,11 @@ void Nextion::loop() {
     this->send_command_("bkcmd=3");  // Always, returns 0x00 to 0x23 result of serial command.
 
     this->set_backlight_brightness(this->brightness_);
-    this->goto_page("0");
+
+    // Check if a startup page has been set and send the command
+    if (this->start_up_page_ != -1) {
+      this->goto_page(this->start_up_page_);
+    }
 
     this->set_auto_wake_on_touch(this->auto_wake_on_touch_);
 
@@ -860,6 +868,12 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
   start = millis();
 
   while ((timeout == 0 && this->available()) || millis() - start <= timeout) {
+    if (!this->available()) {
+      App.feed_wdt();
+      delay(1);
+      continue;
+    }
+
     this->read_byte(&c);
     if (c == 0xFF) {
       nr_of_ff_bytes++;
@@ -878,7 +892,7 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
       }
     }
     App.feed_wdt();
-    delay(1);
+    delay(2);
 
     if (exit_flag || ff_flag) {
       break;

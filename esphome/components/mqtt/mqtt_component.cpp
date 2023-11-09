@@ -23,8 +23,13 @@ std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discove
 }
 
 std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) const {
-  return global_mqtt_client->get_topic_prefix() + "/" + this->component_type() + "/" + this->get_default_object_id_() +
-         "/" + suffix;
+  const std::string &topic_prefix = global_mqtt_client->get_topic_prefix();
+  if (topic_prefix.empty()) {
+    // If the topic_prefix is null, the default topic should be null
+    return "";
+  }
+
+  return topic_prefix + "/" + this->component_type() + "/" + this->get_default_object_id_() + "/" + suffix;
 }
 
 std::string MQTTComponent::get_state_topic_() const {
@@ -245,17 +250,25 @@ std::string MQTTComponent::friendly_name() const { return this->get_entity()->ge
 std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
 bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
 bool MQTTComponent::is_internal() {
-  if ((this->get_state_topic_().empty()) || (this->get_command_topic_().empty())) {
-    // If both state_topic and command_topic are empty, then the entity is internal to mqtt
+  if (this->has_custom_state_topic_) {
+    // If the custom state_topic is null, return true as it is internal and should not publish
+    // else, return false, as it is explicitly set to a topic, so it is not internal and should publish
+    return this->get_state_topic_().empty();
+  }
+
+  if (this->has_custom_command_topic_) {
+    // If the custom command_topic is null, return true as it is internal and should not publish
+    // else, return false, as it is explicitly set to a topic, so it is not internal and should publish
+    return this->get_command_topic_().empty();
+  }
+
+  // No custom topics have been set
+  if (this->get_default_topic_for_("").empty()) {
+    // If the default topic prefix is null, then the component, by default, is internal and should not publish
     return true;
   }
 
-  if (this->has_custom_state_topic_ || this->has_custom_command_topic_) {
-    // If a custom state_topic or command_topic is set, then the entity is not internal to mqtt
-    return false;
-  }
-
-  // Use ESPHome's entity internal state
+  // Use ESPHome's component internal state if topic_prefix is not null with no custom state_topic or command_topic
   return this->get_entity()->is_internal();
 }
 
