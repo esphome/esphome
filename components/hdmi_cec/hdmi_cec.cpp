@@ -51,6 +51,23 @@ void HDMICEC::loop() {
     for (int i = 0; i < frame.size(); i++) {
       ESP_LOGD(TAG, "   [%d] = 0x%02X", i, frame[i]);
     }
+
+    uint8_t opcode = frame[1];
+    std::vector<uint8_t> data(frame.begin() + 1, frame.end());
+
+    for (auto trigger : message_triggers_) {
+      bool can_trigger = (
+        (!trigger->source_.has_value()      || (trigger->source_ == src_addr)) &&
+        (!trigger->destination_.has_value() || (trigger->destination_ == dest_addr)) &&
+        (!trigger->opcode_.has_value()      || (trigger->opcode_ == opcode)) &&
+        (!trigger->data_.has_value() ||
+          (data.size() == trigger->data_->size() && std::equal(trigger->data_->begin(), trigger->data_->end(), data.begin()))
+        )
+      );
+      if (can_trigger) {
+        trigger->trigger(src_addr, dest_addr, data);
+      }
+    }
   }
 }
 
