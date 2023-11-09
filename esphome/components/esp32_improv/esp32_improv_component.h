@@ -1,13 +1,21 @@
 #pragma once
 
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/esp32_ble_server/ble_characteristic.h"
-#include "esphome/components/esp32_ble_server/ble_server.h"
-#include "esphome/components/output/binary_output.h"
-#include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+
+#include "esphome/components/esp32_ble_server/ble_characteristic.h"
+#include "esphome/components/esp32_ble_server/ble_server.h"
+#include "esphome/components/wifi/wifi_component.h"
+
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+
+#ifdef USE_OUTPUT
+#include "esphome/components/output/binary_output.h"
+#endif
 
 #include <vector>
 
@@ -34,10 +42,17 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   void stop() override;
   bool is_active() const { return this->state_ != improv::STATE_STOPPED; }
 
+#ifdef USE_BINARY_SENSOR
   void set_authorizer(binary_sensor::BinarySensor *authorizer) { this->authorizer_ = authorizer; }
+#endif
+#ifdef USE_OUTPUT
   void set_status_indicator(output::BinaryOutput *status_indicator) { this->status_indicator_ = status_indicator; }
+#endif
   void set_identify_duration(uint32_t identify_duration) { this->identify_duration_ = identify_duration; }
   void set_authorized_duration(uint32_t authorized_duration) { this->authorized_duration_ = authorized_duration; }
+
+  void set_wifi_timeout(uint32_t wifi_timeout) { this->wifi_timeout_ = wifi_timeout; }
+  uint32_t get_wifi_timeout() const { return this->wifi_timeout_; }
 
  protected:
   bool should_start_{false};
@@ -48,21 +63,30 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   uint32_t authorized_start_{0};
   uint32_t authorized_duration_;
 
+  uint32_t wifi_timeout_{};
+
   std::vector<uint8_t> incoming_data_;
   wifi::WiFiAP connecting_sta_;
 
-  std::shared_ptr<BLEService> service_;
+  BLEService *service_ = nullptr;
   BLECharacteristic *status_;
   BLECharacteristic *error_;
   BLECharacteristic *rpc_;
   BLECharacteristic *rpc_response_;
   BLECharacteristic *capabilities_;
 
+#ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *authorizer_{nullptr};
+#endif
+#ifdef USE_OUTPUT
   output::BinaryOutput *status_indicator_{nullptr};
+#endif
 
   improv::State state_{improv::STATE_STOPPED};
   improv::Error error_state_{improv::ERROR_NONE};
+
+  bool status_indicator_state_{false};
+  void set_status_indicator_state_(bool state);
 
   void set_state_(improv::State state);
   void set_error_(improv::Error error);

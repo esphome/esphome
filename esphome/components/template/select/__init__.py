@@ -9,14 +9,13 @@ from esphome.const import (
     CONF_OPTIONS,
     CONF_OPTIMISTIC,
     CONF_RESTORE_VALUE,
+    CONF_SET_ACTION,
 )
 from .. import template_ns
 
 TemplateSelect = template_ns.class_(
     "TemplateSelect", select.Select, cg.PollingComponent
 )
-
-CONF_SET_ACTION = "set_action"
 
 
 def validate(config):

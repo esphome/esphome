@@ -43,6 +43,9 @@ from esphome.const import (
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_BK72XX,
 )
 from esphome.core import coroutine_with_priority, CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
@@ -108,6 +111,7 @@ MQTTSensorComponent = mqtt_ns.class_("MQTTSensorComponent", MQTTComponent)
 MQTTSwitchComponent = mqtt_ns.class_("MQTTSwitchComponent", MQTTComponent)
 MQTTTextSensor = mqtt_ns.class_("MQTTTextSensor", MQTTComponent)
 MQTTNumberComponent = mqtt_ns.class_("MQTTNumberComponent", MQTTComponent)
+MQTTTextComponent = mqtt_ns.class_("MQTTTextComponent", MQTTComponent)
 MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
 MQTTButtonComponent = mqtt_ns.class_("MQTTButtonComponent", MQTTComponent)
 MQTTLockComponent = mqtt_ns.class_("MQTTLockComponent", MQTTComponent)
@@ -129,33 +133,47 @@ def validate_config(value):
     # Populate default fields
     out = value.copy()
     topic_prefix = value[CONF_TOPIC_PREFIX]
+    # If the topic prefix is not null and these messages are not configured, then set them to the default
+    # If the topic prefix is null and these messages are not configured, then set them to null
     if CONF_BIRTH_MESSAGE not in value:
-        out[CONF_BIRTH_MESSAGE] = {
-            CONF_TOPIC: f"{topic_prefix}/status",
-            CONF_PAYLOAD: "online",
-            CONF_QOS: 0,
-            CONF_RETAIN: True,
-        }
+        if topic_prefix != "":
+            out[CONF_BIRTH_MESSAGE] = {
+                CONF_TOPIC: f"{topic_prefix}/status",
+                CONF_PAYLOAD: "online",
+                CONF_QOS: 0,
+                CONF_RETAIN: True,
+            }
+        else:
+            out[CONF_BIRTH_MESSAGE] = {}
     if CONF_WILL_MESSAGE not in value:
-        out[CONF_WILL_MESSAGE] = {
-            CONF_TOPIC: f"{topic_prefix}/status",
-            CONF_PAYLOAD: "offline",
-            CONF_QOS: 0,
-            CONF_RETAIN: True,
-        }
+        if topic_prefix != "":
+            out[CONF_WILL_MESSAGE] = {
+                CONF_TOPIC: f"{topic_prefix}/status",
+                CONF_PAYLOAD: "offline",
+                CONF_QOS: 0,
+                CONF_RETAIN: True,
+            }
+        else:
+            out[CONF_WILL_MESSAGE] = {}
     if CONF_SHUTDOWN_MESSAGE not in value:
-        out[CONF_SHUTDOWN_MESSAGE] = {
-            CONF_TOPIC: f"{topic_prefix}/status",
-            CONF_PAYLOAD: "offline",
-            CONF_QOS: 0,
-            CONF_RETAIN: True,
-        }
+        if topic_prefix != "":
+            out[CONF_SHUTDOWN_MESSAGE] = {
+                CONF_TOPIC: f"{topic_prefix}/status",
+                CONF_PAYLOAD: "offline",
+                CONF_QOS: 0,
+                CONF_RETAIN: True,
+            }
+        else:
+            out[CONF_SHUTDOWN_MESSAGE] = {}
     if CONF_LOG_TOPIC not in value:
-        out[CONF_LOG_TOPIC] = {
-            CONF_TOPIC: f"{topic_prefix}/debug",
-            CONF_QOS: 0,
-            CONF_RETAIN: True,
-        }
+        if topic_prefix != "":
+            out[CONF_LOG_TOPIC] = {
+                CONF_TOPIC: f"{topic_prefix}/debug",
+                CONF_QOS: 0,
+                CONF_RETAIN: True,
+            }
+        else:
+            out[CONF_LOG_TOPIC] = {}
     return out
 
 
@@ -250,7 +268,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
-    cv.only_on(["esp32", "esp8266"]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
 )
 
 
@@ -271,10 +289,10 @@ def exp_mqtt_message(config):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    # Add required libraries for ESP8266
-    if CORE.is_esp8266:
-        # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
-        cg.add_library("ottowinter/AsyncMqttClient-esphome", "0.8.6")
+    # Add required libraries for ESP8266 and LibreTiny
+    if CORE.is_esp8266 or CORE.is_libretiny:
+        # https://github.com/heman/async-mqtt-client/blob/master/library.json
+        cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)

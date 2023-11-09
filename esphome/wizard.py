@@ -6,12 +6,12 @@ import unicodedata
 import voluptuous as vol
 
 import esphome.config_validation as cv
-from esphome.helpers import get_bool_env, write_file
-from esphome.log import color, Fore
-
-from esphome.storage_json import StorageJSON, ext_storage_path
-from esphome.util import safe_print
 from esphome.const import ALLOWED_NAME_CHARS, ENV_QUICKWIZARD
+from esphome.core import CORE
+from esphome.helpers import get_bool_env, write_file
+from esphome.log import Fore, color
+from esphome.storage_json import StorageJSON, ext_storage_path
+from esphome.util import safe_input, safe_print
 
 CORE_BIG = r"""    _____ ____  _____  ______
    / ____/ __ \|  __ \|  ____|
@@ -193,10 +193,10 @@ captive_portal:
 
 
 def wizard_write(path, **kwargs):
-    from esphome.components.esp8266 import boards as esp8266_boards
-    from esphome.components.esp32 import boards as esp32_boards
-    from esphome.components.rp2040 import boards as rp2040_boards
     from esphome.components.bk72xx import boards as bk72xx_boards
+    from esphome.components.esp32 import boards as esp32_boards
+    from esphome.components.esp8266 import boards as esp8266_boards
+    from esphome.components.rp2040 import boards as rp2040_boards
     from esphome.components.rtl87xx import boards as rtl87xx_boards
 
     name = kwargs["name"]
@@ -225,7 +225,7 @@ def wizard_write(path, **kwargs):
 
     write_file(path, wizard_file(**kwargs))
     storage = StorageJSON.from_wizard(name, name, f"{name}.local", hardware)
-    storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
+    storage_path = ext_storage_path(os.path.basename(path))
     storage.save(storage_path)
 
     return True
@@ -252,7 +252,7 @@ def safe_print_step(step, big):
 def default_input(text, default):
     safe_print()
     safe_print(f"Press ENTER for default ({default})")
-    return input(text.format(default)) or default
+    return safe_input(text.format(default)) or default
 
 
 # From https://stackoverflow.com/a/518232/8924614
@@ -265,9 +265,9 @@ def strip_accents(value):
 
 
 def wizard(path):
+    from esphome.components.bk72xx import boards as bk72xx_boards
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
-    from esphome.components.bk72xx import boards as bk72xx_boards
     from esphome.components.rtl87xx import boards as rtl87xx_boards
 
     if not path.endswith(".yaml") and not path.endswith(".yml"):
@@ -280,6 +280,9 @@ def wizard(path):
             f"Uh oh, it seems like {color(Fore.CYAN, path)} already exists, please delete that file first or chose another configuration file."
         )
         return 2
+
+    CORE.config_path = path
+
     safe_print("Hi there!")
     sleep(1.5)
     safe_print("I'm the wizard of ESPHome :)")
@@ -303,7 +306,7 @@ def wizard(path):
     )
     safe_print()
     sleep(1)
-    name = input(color(Fore.BOLD_WHITE, "(name): "))
+    name = safe_input(color(Fore.BOLD_WHITE, "(name): "))
 
     while True:
         try:
@@ -340,7 +343,9 @@ def wizard(path):
     while True:
         sleep(0.5)
         safe_print()
-        platform = input(color(Fore.BOLD_WHITE, f"({'/'.join(wizard_platforms)}): "))
+        platform = safe_input(
+            color(Fore.BOLD_WHITE, f"({'/'.join(wizard_platforms)}): ")
+        )
         try:
             platform = vol.All(vol.Upper, vol.Any(*wizard_platforms))(platform.upper())
             break
@@ -394,7 +399,7 @@ def wizard(path):
         boards.append(board_id)
 
     while True:
-        board = input(color(Fore.BOLD_WHITE, "(board): "))
+        board = safe_input(color(Fore.BOLD_WHITE, "(board): "))
         try:
             board = vol.All(vol.Lower, vol.Any(*boards))(board)
             break
@@ -420,7 +425,7 @@ def wizard(path):
     sleep(1.5)
     safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'Abraham Linksys')}\".")
     while True:
-        ssid = input(color(Fore.BOLD_WHITE, "(ssid): "))
+        ssid = safe_input(color(Fore.BOLD_WHITE, "(ssid): "))
         try:
             ssid = cv.ssid(ssid)
             break
@@ -446,7 +451,7 @@ def wizard(path):
     safe_print()
     safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'PASSWORD42')}\"")
     sleep(0.5)
-    psk = input(color(Fore.BOLD_WHITE, "(PSK): "))
+    psk = safe_input(color(Fore.BOLD_WHITE, "(PSK): "))
     safe_print(
         "Perfect! WiFi is now set up (you can create static IPs and so on later)."
     )
@@ -463,7 +468,7 @@ def wizard(path):
     safe_print()
     sleep(0.25)
     safe_print("Press ENTER for no password")
-    password = input(color(Fore.BOLD_WHITE, "(password): "))
+    password = safe_input(color(Fore.BOLD_WHITE, "(password): "))
 
     if not wizard_write(
         path=path,

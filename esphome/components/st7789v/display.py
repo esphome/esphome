@@ -138,7 +138,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MODEL): cv.one_of(*MODELS.keys(), upper=True, space="_"),
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_BACKLIGHT_PIN): cv.Any(
+                cv.boolean,
+                pins.gpio_output_pin_schema,
+            ),
             cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
             cv.Optional(CONF_EIGHTBITCOLOR, default=False): cv.boolean,
             cv.Optional(CONF_HEIGHT): cv.int_,
@@ -174,7 +177,7 @@ async def to_code(config):
     reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
     cg.add(var.set_reset_pin(reset))
 
-    if CONF_BACKLIGHT_PIN in config:
+    if CONF_BACKLIGHT_PIN in config and config[CONF_BACKLIGHT_PIN]:
         bl = await cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
         cg.add(var.set_backlight_pin(bl))
 

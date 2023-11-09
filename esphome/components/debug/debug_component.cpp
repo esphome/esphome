@@ -17,6 +17,8 @@
 #include <esp32/rom/rtc.h>
 #elif defined(USE_ESP32_VARIANT_ESP32C3)
 #include <esp32c3/rom/rtc.h>
+#elif defined(USE_ESP32_VARIANT_ESP32C6)
+#include <esp32c6/rom/rtc.h>
 #elif defined(USE_ESP32_VARIANT_ESP32S2)
 #include <esp32s2/rom/rtc.h>
 #elif defined(USE_ESP32_VARIANT_ESP32S3)
@@ -119,6 +121,8 @@ void DebugComponent::dump_config() {
   model = "ESP32";
 #elif defined(USE_ESP32_VARIANT_ESP32C3)
   model = "ESP32-C3";
+#elif defined(USE_ESP32_VARIANT_ESP32C6)
+  model = "ESP32-C6";
 #elif defined(USE_ESP32_VARIANT_ESP32S2)
   model = "ESP32-S2";
 #elif defined(USE_ESP32_VARIANT_ESP32S3)
@@ -202,9 +206,11 @@ void DebugComponent::dump_config() {
     case RTCWDT_SYS_RESET:
       reset_reason = "RTC Watch Dog Reset Digital Core";
       break;
+#if !defined(USE_ESP32_VARIANT_ESP32C6)
     case INTRUSION_RESET:
       reset_reason = "Intrusion Reset CPU";
       break;
+#endif
 #if defined(USE_ESP32_VARIANT_ESP32)
     case TGWDT_CPU_RESET:
       reset_reason = "Timer Group Reset CPU";
