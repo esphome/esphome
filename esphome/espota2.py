@@ -40,6 +40,10 @@ MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 
 FEATURE_SUPPORTS_COMPRESSION = 0x01
 
+
+UPLOAD_BLOCK_SIZE = 8192
+UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -254,14 +258,16 @@ def perform_ota(sock, password, file_handle, filename):
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
     # Limit send buffer (usually around 100kB) in order to have progress bar
     # show the actual progress
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 8192)
+
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UPLOAD_BUFFER_SIZE)
     # Set higher timeout during upload
-    sock.settimeout(20.0)
+    sock.settimeout(30.0)
+    start_time = time.perf_counter()
 
     offset = 0
     progress = ProgressBar()
     while True:
-        chunk = upload_contents[offset : offset + 1024]
+        chunk = upload_contents[offset : offset + UPLOAD_BLOCK_SIZE]
         if not chunk:
             break
         offset += len(chunk)
@@ -277,7 +283,9 @@ def perform_ota(sock, password, file_handle, filename):
 
     # Enable nodelay for last checks
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    duration = time.perf_counter() - start_time
 
+    _LOGGER.info("Upload took %.2f seconds", duration)
     _LOGGER.info("Waiting for result...")
 
     receive_exactly(sock, 1, "receive OK", RESPONSE_RECEIVE_OK)
