@@ -5,12 +5,11 @@
 # One of "docker", "hassio"
 ARG BASEIMGTYPE=docker
 
+
 # https://github.com/hassio-addons/addon-debian-base/releases
 FROM ghcr.io/hassio-addons/debian-base:7.2.0 AS base-hassio
 # https://hub.docker.com/_/debian?tab=tags&page=1&name=bookworm
 FROM debian:12.2-slim AS base-docker
-
-FROM base-${BASEIMGTYPE} AS base
 
 ARG TARGETARCH
 ARG TARGETVARIANT
@@ -18,6 +17,7 @@ ARG TARGETVARIANT
 ENV TARGETARCH=${TARGETARCH}
 ENV TARGETVARIANT=${TARGETVARIANT}
 
+FROM base-${BASEIMGTYPE} AS base
 
 # Note that --break-system-packages is used below because
 # https://peps.python.org/pep-0668/ added a safety check that prevents
