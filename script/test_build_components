@@ -2,17 +2,45 @@
 
 set -e
 
+# Parse parameter:
+# - `e` - Parameter for `esphome` command. Default `compile`. Common alternative is `config`.
+# - `c` - Component folder name to test. Default `*`.
+esphome_command="compile"
+target_component="*"
+while getopts e:c: flag
+do
+    case $flag in
+        e) esphome_command=${OPTARG};;
+        c) target_component=${OPTARG};;
+    esac
+done
+
 cd "$(dirname "$0")/.."
 
 if ! [ -d "./tests/test_build_components/build" ]; then
   mkdir ./tests/test_build_components/build
 fi
 
+start_esphome() {
+  # create dynamic yaml file in `build` folder.
+  # `./tests/test_build_components/build/[target_component].[test_name].[target_platform].yaml`
+  component_test_file="./tests/test_build_components/build/$target_component.$test_name.$target_platform.yaml"
+
+  cp $target_platform_file $component_test_file
+  sed -i "s!\$component_test_file!../../.$f!g" $component_test_file
+
+  # Start esphome process
+  echo "> [$target_component] [$test_name] [$target_platform]"
+  echo "esphome -s component_name $target_component -s test_name $test_name -s target_platform $target_platform $esphome_command $component_test_file"
+  # TODO: Validate escape of Command line substitution value
+  esphome -s component_name $target_component -s test_name $test_name -s target_platform $target_platform $esphome_command $component_test_file
+}
+
 # Find all test yaml files in components.
 # - `./esphome/components/[target_component]/tests/[test_name].[target_platform].yaml`
 # - `./esphome/components/[target_component]/tests/[test_name].*.yaml`
 # - `./esphome/components/[target_component]/tests/[test_name].yaml`
-for f in ./esphome/components/*/tests/*.*yaml; do
+for f in ./esphome/components/$target_component/tests/*.yaml; do
   IFS='/' read -r -a folder_name <<< "$f"
   target_component="${folder_name[3]}"
 
@@ -29,18 +57,7 @@ for f in ./esphome/components/*/tests/*.*yaml; do
       IFS='.' read -r -a file_name <<< "${folder_name[3]}"
       target_platform="${file_name[1]}"
 
-      # create dynamic yaml file in `build` folder.
-      # `./tests/test_build_components/build/[target_component].[test_name].[target_platform].yaml`
-      component_test_file="./tests/test_build_components/build/$target_component.$test_name.$target_platform.yaml"
-
-      cp $target_platform_file $component_test_file
-      sed -i "s!\$component_test_file!../../.$f!g" $component_test_file
-
-      # Start esphome compile process
-      echo "> [$target_component] [$test_name] [$target_platform]"
-      echo "esphome -s component_name $target_component -s test_name $test_name -s target_platform $target_platform compile $component_test_file"
-      # TODO: Validate escape of Command line substitution value
-      esphome -s component_name $target_component -s test_name $test_name -s target_platform $target_platform compile $component_test_file
+      start_esphome
     done
 
   else
@@ -62,17 +79,6 @@ for f in ./esphome/components/*/tests/*.*yaml; do
       target_platform=$target_platform_ard
     fi
 
-    # create dynamic yaml file in `build` folder.
-    # `./tests/test_build_components/build/[target_component].[test_name].[target_platform].yaml`
-    component_test_file="./tests/test_build_components/build/$target_component.$test_name.$target_platform.yaml"
-
-    cp $target_platform_file $component_test_file
-    sed -i "s!\$component_test_file!../../.$f!g" $component_test_file
-
-    # Start esphome compile process
-    echo "> [$target_component] [$test_name] [$target_platform]"
-    echo "esphome -s component_name $target_component -s test_name $test_name -s target_platform $target_platform compile $component_test_file"
-    # TODO: Validate escape of Command line substitution value
-    esphome -s component_name $target_component -s test_name $test_name -s target_platform $target_platform compile $component_test_file
+    start_esphome
   fi
 done
