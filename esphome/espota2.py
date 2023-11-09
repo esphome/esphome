@@ -1,10 +1,13 @@
+from __future__ import annotations
+
+import gzip
 import hashlib
+import io
 import logging
 import random
 import socket
 import sys
 import time
-import gzip
 
 from esphome.core import EsphomeError
 from esphome.helpers import is_ip_address, resolve_ip_address
@@ -188,7 +191,9 @@ def send_check(sock, data, msg):
         raise OTAError(f"Error sending {msg}: {err}") from err
 
 
-def perform_ota(sock, password, file_handle, filename):
+def perform_ota(
+    sock: socket.socket, password: str, file_handle: io.IOBase, filename: str
+) -> None:
     file_contents = file_handle.read()
     file_size = len(file_contents)
     _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
@@ -285,8 +290,7 @@ def perform_ota(sock, password, file_handle, filename):
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     duration = time.perf_counter() - start_time
 
-    _LOGGER.info("Upload took %.2f seconds", duration)
-    _LOGGER.info("Waiting for result...")
+    _LOGGER.info("Upload took %.2f seconds, waiting for result...", duration)
 
     receive_exactly(sock, 1, "receive OK", RESPONSE_RECEIVE_OK)
     receive_exactly(sock, 1, "Update end", RESPONSE_UPDATE_END_OK)
