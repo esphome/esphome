@@ -42,7 +42,7 @@ void HDMICEC::loop() {
     uint8_t src_addr = ((header & 0xF0) >> 4);
     uint8_t dest_addr = (header & 0x0F);
 
-    if (!promiscuous_mode_ && dest_addr != address_) {
+    if (!promiscuous_mode_ && (dest_addr != 0x0F) && (dest_addr != address_)) {
       // ignore frames not meant for us
       continue;
     }
