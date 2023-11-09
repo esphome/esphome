@@ -12,6 +12,10 @@ FROM debian:12.2-slim AS base-docker
 
 FROM base-${BASEIMGTYPE} AS base
 
+
+ARG TARGETARCH
+ARG TARGETVARIANT
+
 FROM base AS branch-armv7
 ENV PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"
 
@@ -22,9 +26,8 @@ FROM base AS branch-amd64
 ENV PIP_EXTRA_INDEX_URL=""
 
 FROM branch-${TARGETARCH}${TARGETVARIANT} AS final
+RUN echo "PIP_EXTRA_INDEX_URL is equal to ${PIP_EXTRA_INDEX_URL}"
 
-ARG TARGETARCH
-ARG TARGETVARIANT
 
 # Note that --break-system-packages is used below because
 # https://peps.python.org/pep-0668/ added a safety check that prevents
