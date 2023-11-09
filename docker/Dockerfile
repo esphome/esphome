@@ -74,8 +74,10 @@ RUN \
 
 RUN \
     # Ubuntu python3-pip is missing wheel
+    if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
+    fi; \
     pip3 install \
-    $([ "$TARGETARCH$TARGETVARIANT" == "armv7" ] && echo "--extra-index-url=https://www.piwheels.org/simple" || echo "") \
     --break-system-packages --no-cache-dir \
     platformio==6.1.11 \
     # Change some platformio settings
@@ -88,9 +90,11 @@ RUN \
 # tmpfs is for https://github.com/rust-lang/cargo/issues/8719
 
 COPY requirements.txt requirements_optional.txt script/platformio_install_deps.py platformio.ini /
-RUN --mount=type=tmpfs,target=/root/.cargo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse CARGO_HOME=/root/.cargo \
+RUN --mount=type=tmpfs,target=/root/.cargo if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
+    fi; \
+    CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse CARGO_HOME=/root/.cargo \
     pip3 install \
-    $([ "$TARGETARCH$TARGETVARIANT" == "armv7" ] && echo "--extra-index-url=https://www.piwheels.org/simple" || echo "") \
     --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
     && /platformio_install_deps.py /platformio.ini --libraries
 
@@ -100,8 +104,10 @@ FROM base AS docker
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install \
-  $([ "$TARGETARCH$TARGETVARIANT" == "armv7" ] && echo "--extra-index-url=https://www.piwheels.org/simple" || echo "") \ 
+RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
+  fi; \
+  pip3 install \
   --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
 
 # Settings for dashboard
@@ -148,8 +154,10 @@ COPY docker/ha-addon-rootfs/ /
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install \
-  $([ "$TARGETARCH$TARGETVARIANT" == "armv7" ] && echo "--extra-index-url=https://www.piwheels.org/simple" || echo "") \
+RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
+  fi; \
+  pip3 install \
   --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
 
 # Labels
@@ -186,8 +194,10 @@ RUN \
         /var/lib/apt/lists/*
 
 COPY requirements_test.txt /
-RUN pip3 install \
-  $([ "$TARGETARCH$TARGETVARIANT" == "armv7" ] && echo "--extra-index-url=https://www.piwheels.org/simple" || echo "") \
+RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
+  fi; \
+  pip3 install \
   --break-system-packages --no-cache-dir -r /requirements_test.txt
 
 VOLUME ["/esphome"]
