@@ -13,9 +13,6 @@ FROM debian:12.2-slim AS base-docker
 FROM base-${BASEIMGTYPE} AS base
 
 
-ARG TARGETARCH
-ARG TARGETVARIANT
-
 FROM base AS branch_armv7
 ENV PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"
 
