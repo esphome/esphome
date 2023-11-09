@@ -109,6 +109,15 @@ void WiFiComponent::loop() {
   const uint32_t now = millis();
 
   if (this->has_sta()) {
+    if (this->is_connected() != this->handled_connected_state_) {
+      if (this->handled_connected_state_) {
+        this->disconnect_trigger_->trigger();
+      } else {
+        this->connect_trigger_->trigger();
+      }
+      this->handled_connected_state_ = this->is_connected();
+    }
+
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning();
@@ -261,8 +270,8 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
 void WiFiComponent::clear_sta() { this->sta_.clear(); }
 void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
   SavedWifiSettings save{};
-  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid) - 1);
-  strncpy(save.password, password.c_str(), sizeof(save.password) - 1);
+  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid));
+  strncpy(save.password, password.c_str(), sizeof(save.password));
   this->pref_.save(&save);
   // ensure it's written immediately
   global_preferences->sync();

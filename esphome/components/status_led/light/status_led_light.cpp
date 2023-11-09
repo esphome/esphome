@@ -1,6 +1,7 @@
 #include "status_led_light.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace status_led {
@@ -11,7 +12,7 @@ void StatusLEDLightOutput::loop() {
   uint32_t new_state = App.get_app_state() & STATUS_LED_MASK;
 
   if (new_state != this->last_app_state_) {
-    ESP_LOGV(TAG, "New app state 0x%08X", new_state);
+    ESP_LOGV(TAG, "New app state 0x%08" PRIX32, new_state);
   }
 
   if ((new_state & STATUS_LED_ERROR) != 0u) {
