@@ -39,7 +39,7 @@ BinarySensorFlags = {
     FLAG_CHIME: 1 << 3,
 }
 
-SensorTypes = ["delayed", "instant", "interior_follower"]
+SensorTypes = ["delayed", "instant", "delayed_follower"]
 
 
 TemplateAlarmControlPanel = template_ns.class_(

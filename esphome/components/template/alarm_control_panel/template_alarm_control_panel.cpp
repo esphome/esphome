@@ -59,10 +59,10 @@ void TemplateAlarmControlPanel::dump_config() {
         sensor_type = "instant";
         break;
       case 2:
-        sensor_type = "interior_follower";
+        sensor_type = "delayed_follower";
         break;
       default:
-        sensor_type = "unknown";
+        sensor_type = "delayed";
     }
     ESP_LOGCONFIG(TAG, "    Sensor type: %s", sensor_type);
   }

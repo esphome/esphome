@@ -272,6 +272,11 @@ async def alarm_action_chime_to_code(config, action_id, template_arg, args):
 @automation.register_action(
     "alarm_control_panel.ready", ReadyAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
 )
+@automation.register_condition(
+    "alarm_control_panel.ready",
+    AlarmControlPanelCondition,
+    ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
+)
 async def alarm_action_ready_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
