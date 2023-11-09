@@ -4,7 +4,6 @@ from esphome.components import sensor, voltage_sampler
 from esphome.const import (
     CONF_GAIN,
     CONF_MULTIPLEXER,
-    CONF_RESOLUTION,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
@@ -38,6 +37,7 @@ GAIN = {
     "0.512": ADS1118Gain.ADS1118_GAIN_0P512,
     "0.256": ADS1118Gain.ADS1118_GAIN_0P256,
 }
+
 
 def validate_gain(value):
     if isinstance(value, float):
@@ -80,8 +80,8 @@ CONFIG_SCHEMA = cv.typed_schema(
             {
                 cv.GenerateID(CONF_ADS1118_ID): cv.use_id(ADS1118),
             }
-        ).extend(cv.polling_component_schema("60s")),            
-    }    
+        ).extend(cv.polling_component_schema("60s")),
+    }
 )
 
 
@@ -92,7 +92,7 @@ async def to_code(config):
         parent
     )
     await cg.register_component(var, config)
-    
+
     if config[CONF_TYPE] == CONF_ADC:
         await sensor.register_sensor(var, config)
         cg.add(var.set_multiplexer(config[CONF_MULTIPLEXER]))
