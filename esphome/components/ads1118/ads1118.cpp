@@ -49,7 +49,7 @@ void ADS1118::setup() {
 void ADS1118::dump_config() {
   ESP_LOGCONFIG(TAG, "ADS1118:");
   LOG_PIN("  CS Pin:", this->cs_);
-  
+
   for (auto *sensor : this->sensors_) {
     LOG_SENSOR("  ", "Sensor", sensor);
     ESP_LOGCONFIG(TAG, "    Multiplexer: %u", sensor->get_multiplexer());
@@ -129,8 +129,6 @@ float ADS1118::request_measurement(ADS1118Sensor *sensor) {
 
     return millivolts / 1e3f;
   }
-
-  
 }
 
 float ADS1118Sensor::sample() { return this->parent_->request_measurement(this); }
