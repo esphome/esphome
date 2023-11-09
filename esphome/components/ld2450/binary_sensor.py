@@ -12,19 +12,23 @@ CONF_HAS_TARGET = "has_target"
 CONF_HAS_MOVING_TARGET = "has_moving_target"
 CONF_HAS_STILL_TARGET = "has_still_target"
 
+ICON_SHIELD_ACCOUNT = "mdi:shield-account"
+ICON_TARGET_ACCOUNT = "mdi:target-account"
+ICON_MEDITATION = "mdi:meditation"
+
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
     cv.Optional(CONF_HAS_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_OCCUPANCY,
-        icon="mdi:shield-account",
+        icon=ICON_SHIELD_ACCOUNT,
     ),
     cv.Optional(CONF_HAS_MOVING_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_MOTION,
-        icon="mdi:target-account",
+        icon=ICON_TARGET_ACCOUNT,
     ),
     cv.Optional(CONF_HAS_STILL_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_OCCUPANCY,
-        icon="mdi:meditation",
+        icon=ICON_MEDITATION,
     ),
 }
 

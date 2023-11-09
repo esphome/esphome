@@ -20,6 +20,11 @@ CONF_Y1 = "y1"
 CONF_X2 = "x2"
 CONF_Y2 = "y2"
 
+ICON_ARROW_TOP_LEFT_BOLD_BOX_OUTLINE = "mdi:arrow-top-left-bold-box-outline"
+ICON_ARROW_TOP_LEFT = "mdi:arrow-top-left"
+ICON_ARROW_BOTTOM_RIGHT_BOLD_BOX_OUTLINE = "mdi:arrow-bottom-right-bold-box-outline"
+ICON_ARROW_BOTTOM_RIGHT = "mdi:arrow-bottom-right"
+
 PresenceTimeoutNumber = ld2450_ns.class_("PresenceTimeoutNumber", number.Number)
 ZoneCoordinateNumber = ld2450_ns.class_("ZoneCoordinateNumber", number.Number)
 
@@ -44,28 +49,28 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
                     device_class=DEVICE_CLASS_DISTANCE,
                     unit_of_measurement=UNIT_MILLIMETER,
                     entity_category=ENTITY_CATEGORY_CONFIG,
-                    icon="mdi:arrow-top-left-bold-box-outline",
+                    icon=ICON_ARROW_TOP_LEFT_BOLD_BOX_OUTLINE,
                 ),
                 cv.Required(CONF_Y1): number.number_schema(
                     ZoneCoordinateNumber,
                     device_class=DEVICE_CLASS_DISTANCE,
                     unit_of_measurement=UNIT_MILLIMETER,
                     entity_category=ENTITY_CATEGORY_CONFIG,
-                    icon="mdi:arrow-top-left",
+                    icon=ICON_ARROW_TOP_LEFT,
                 ),
                 cv.Required(CONF_X2): number.number_schema(
                     ZoneCoordinateNumber,
                     device_class=DEVICE_CLASS_DISTANCE,
                     unit_of_measurement=UNIT_MILLIMETER,
                     entity_category=ENTITY_CATEGORY_CONFIG,
-                    icon="mdi:arrow-bottom-right-bold-box-outline",
+                    icon=ICON_ARROW_BOTTOM_RIGHT_BOLD_BOX_OUTLINE,
                 ),
                 cv.Required(CONF_Y2): number.number_schema(
                     ZoneCoordinateNumber,
                     device_class=DEVICE_CLASS_DISTANCE,
                     unit_of_measurement=UNIT_MILLIMETER,
                     entity_category=ENTITY_CATEGORY_CONFIG,
-                    icon="mdi:arrow-bottom-right",
+                    icon=ICON_ARROW_BOTTOM_RIGHT,
                 ),
             }
         )

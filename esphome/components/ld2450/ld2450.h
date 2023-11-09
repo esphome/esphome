@@ -40,8 +40,6 @@
 namespace esphome {
 namespace ld2450 {
 
-#define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
-
 // Constants
 static const uint16_t START_DELAY = 5000;           // Sensor startup delay 5 sec.
 static const uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presense status 5 sec.
@@ -63,7 +61,7 @@ struct Zone {
   int16_t y2 = 0;
 };
 
-// Commands
+// LD2450 UART Serial Commands
 static const uint8_t CMD_ENABLE_CONF = 0x00FF;
 static const uint8_t CMD_DISABLE_CONF = 0x00FE;
 static const uint8_t CMD_VERSION = 0x00A0;
@@ -88,26 +86,26 @@ enum BaudRateStructure : uint8_t {
   BAUD_RATE_460800 = 8
 };
 
+// Convert Baud Rate enum to int
 static const std::map<std::string, uint8_t> BAUD_RATE_ENUM_TO_INT{
     {"9600", BAUD_RATE_9600},     {"19200", BAUD_RATE_19200},   {"38400", BAUD_RATE_38400},
     {"57600", BAUD_RATE_57600},   {"115200", BAUD_RATE_115200}, {"230400", BAUD_RATE_230400},
     {"256000", BAUD_RATE_256000}, {"460800", BAUD_RATE_460800}};
 
+// Zone Type struct
 enum ZoneTypeStructure : uint8_t { ZONE_DISABLED = 0, ZONE_DETECTION = 1, ZONE_FILTER = 2 };
 
+// Convert Zone Type int to Enum
 static const std::map<ZoneTypeStructure, std::string> ZONE_TYPE_INT_TO_ENUM{
     {ZONE_DISABLED, "Disabled"}, {ZONE_DETECTION, "Detection"}, {ZONE_FILTER, "Filter"}};
 
+// Convert Zone Type enum to int
 static const std::map<std::string, uint8_t> ZONE_TYPE_ENUM_TO_INT{
     {"Disabled", ZONE_DISABLED}, {"Detection", ZONE_DETECTION}, {"Filter", ZONE_FILTER}};
 
-// Command Header & Footer
+// LD2450 UART serial Command Header & Footer
 static const uint8_t CMD_FRAME_HEADER[4] = {0xFD, 0xFC, 0xFB, 0xFA};
 static const uint8_t CMD_FRAME_END[4] = {0x04, 0x03, 0x02, 0x01};
-
-// Data Header & Footer
-static const uint8_t DATA_FRAME_HEADER[4] = {0xAA, 0xFF, 0x03, 0x00};
-static const uint8_t DATA_FRAME_END[2] = {0x55, 0xCC};
 
 enum PeriodicDataStructure : uint8_t {
   TARGET_X = 4,
@@ -119,7 +117,7 @@ enum PeriodicDataStructure : uint8_t {
 enum PeriodicDataValue : uint8_t { HEAD = 0XAA, END = 0x55, CHECK = 0x00 };
 
 enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
-
+// Use CustomAPIDevice if API is defined in YAML - used for service calls to set/reset zone
 #ifdef USE_API
 class LD2450Component : public Component, public uart::UARTDevice, public esphome::api::CustomAPIDevice {
 #else

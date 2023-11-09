@@ -25,8 +25,8 @@ void LD2450Component::setup() {
   this->set_presence_timeout();
 #endif
   this->read_all_info();
-  ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
-  ESP_LOGCONFIG(TAG, "Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
+  ESP_LOGCONFIG(TAG, "Mac Address: %s", const_cast<char *>(this->mac_.c_str()));
+  ESP_LOGCONFIG(TAG, "Firmware Version: %s", const_cast<char *>(this->version_.c_str()));
   ESP_LOGCONFIG(TAG, "HLK-LD2450 setup complete");
 #ifdef USE_API
   ESP_LOGCONFIG(TAG, "Registering services");
@@ -413,6 +413,7 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, int len) {
     }
 #endif
 
+    // Store target info for zone target count
     this->target_info_[index].x = tx;
     this->target_info_[index].y = ty;
     this->target_info_[index].is_moving = is_moving;
@@ -433,7 +434,6 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, int len) {
         szstc->publish_state(zone_still_targets);
       }
     }
-
     // Publish Moving Target Count in Zones
     sensor::Sensor *szmtc = this->zone_moving_target_count_sensors_[index];
     if (szmtc != nullptr) {
@@ -557,8 +557,9 @@ std::string format_mac(uint8_t *buffer) {
   return mac;
 }
 
+// Handle the UART serial ack data
 bool LD2450Component::handle_ack_data_(uint8_t *buffer, int len) {
-  ESP_LOGD(TAG, "Handling ACK DATA for COMMAND %02X", buffer[COMMAND]);
+  ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", buffer[COMMAND]);
   if (len < 10) {
     ESP_LOGE(TAG, "Error with last command: Incorrect length");
     return true;
@@ -577,16 +578,16 @@ bool LD2450Component::handle_ack_data_(uint8_t *buffer, int len) {
   }
   switch (buffer[COMMAND]) {
     case lowbyte(CMD_ENABLE_CONF):
-      ESP_LOGV(TAG, "Handled Enable conf command");
+      ESP_LOGV(TAG, "Handled Enable Conf command");
       break;
     case lowbyte(CMD_DISABLE_CONF):
-      ESP_LOGV(TAG, "Handled Disabled conf command");
+      ESP_LOGV(TAG, "Handled Disabled Conf command");
       break;
     case lowbyte(CMD_SET_BAUD_RATE):
-      ESP_LOGV(TAG, "Handled baud rate change command");
+      ESP_LOGV(TAG, "Handled Baud rate change command");
 #ifdef USE_SELECT
       if (this->baud_rate_select_ != nullptr) {
-        ESP_LOGV(TAG, "Change baud rate component config to %s and reinstall", this->baud_rate_select_->state.c_str());
+        ESP_LOGV(TAG, "Change Baud rate to %s", this->baud_rate_select_->state.c_str());
       }
 #endif
       break;
@@ -640,7 +641,7 @@ bool LD2450Component::handle_ack_data_(uint8_t *buffer, int len) {
       this->publish_zone_type();
 #ifdef USE_SELECT
       if (this->zone_type_select_ != nullptr) {
-        ESP_LOGV(TAG, "Change Zone Type component config to: %s", this->zone_type_select_->state.c_str());
+        ESP_LOGV(TAG, "Change Zone Type to: %s", this->zone_type_select_->state.c_str());
       }
 #endif
       if (buffer[10] == 0x00) {
@@ -676,16 +677,16 @@ void LD2450Component::readline_(int readch, uint8_t *buffer, int len) {
     }
     if (pos >= 4) {
       if (buffer[pos - 2] == 0x55 && buffer[pos - 1] == 0xCC) {
-        ESP_LOGV(TAG, "Handle Periodic Radar Data");
+        ESP_LOGV(TAG, "Handle LD2450 Periodic Radar Data");
         this->handle_periodic_data_(buffer, pos);
         pos = 0;  // Reset position index ready for next time
       } else if (buffer[pos - 4] == 0x04 && buffer[pos - 3] == 0x03 && buffer[pos - 2] == 0x02 &&
                  buffer[pos - 1] == 0x01) {
-        ESP_LOGV(TAG, "Handle Commad ACK Data");
+        ESP_LOGV(TAG, "Handle LD2450 Commad ACK Data");
         if (this->handle_ack_data_(buffer, pos)) {
           pos = 0;  // Reset position index ready for next time
         } else {
-          ESP_LOGV(TAG, "Command ACK Data incomplete");
+          ESP_LOGV(TAG, "LD2450 Command ACK Data incomplete");
         }
       }
     }
@@ -734,13 +735,12 @@ void LD2450Component::publish_zone_type() {
 #endif
 }
 
-// Set Single/Multiplayer
+// Set Single/Multiplayer target detection
 void LD2450Component::set_multi_target(bool enable) {
   this->set_config_mode_(true);
   uint8_t cmd = enable ? CMD_MULTI_TARGET : CMD_SINGLE_TARGET;
   this->send_command_(cmd, nullptr, 0);
   this->set_config_mode_(false);
-  // this->set_timeout(200, [this]() { this->read_all_info(); });
 }
 
 // LD2450 factory reset
