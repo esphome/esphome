@@ -130,6 +130,11 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_js_request(AsyncWebServerRequest *request);
 #endif
 
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+  // Handle Private Network Access CORS OPTIONS request
+  void handle_pna_cors_request(AsyncWebServerRequest *request);
+#endif
+
 #ifdef USE_SENSOR
   void on_sensor_update(sensor::Sensor *obj, float state) override;
   /// Handle a sensor request under '/sensor/<id>'.
@@ -214,6 +219,15 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
   /// Dump the number state with its value as a JSON string.
   std::string number_json(number::Number *obj, float value, JsonDetail start_config);
+#endif
+
+#ifdef USE_TEXT
+  void on_text_update(text::Text *obj, const std::string &state) override;
+  /// Handle a text input request under '/text/<id>'.
+  void handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the text state with its value as a JSON string.
+  std::string text_json(text::Text *obj, const std::string &value, JsonDetail start_config);
 #endif
 
 #ifdef USE_SELECT

@@ -1,5 +1,6 @@
 #include "thermostat_climate.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace thermostat {
@@ -986,6 +987,7 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       assert(trig != nullptr);
+      this->preset = preset;
       trig->trigger();
 
       this->refresh();
@@ -1010,6 +1012,7 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       assert(trig != nullptr);
+      this->custom_preset = custom_preset;
       trig->trigger();
 
       this->refresh();
@@ -1281,11 +1284,13 @@ void ThermostatClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "    Overrun: %.1f°C", this->cooling_overrun_);
     if ((this->supplemental_cool_delta_ > 0) || (this->timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) > 0)) {
       ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_cool_delta_);
-      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us",
+      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %" PRIu32 "s",
                     this->timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) / 1000);
     }
-    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", this->timer_duration_(thermostat::TIMER_COOLING_OFF) / 1000);
-    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", this->timer_duration_(thermostat::TIMER_COOLING_ON) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_COOLING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_COOLING_ON) / 1000);
   }
   if (this->supports_heat_) {
     ESP_LOGCONFIG(TAG, "  Heating Parameters:");
@@ -1293,24 +1298,28 @@ void ThermostatClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "    Overrun: %.1f°C", this->heating_overrun_);
     if ((this->supplemental_heat_delta_ > 0) || (this->timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) > 0)) {
       ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_heat_delta_);
-      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us",
+      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %" PRIu32 "s",
                     this->timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) / 1000);
     }
-    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", this->timer_duration_(thermostat::TIMER_HEATING_OFF) / 1000);
-    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", this->timer_duration_(thermostat::TIMER_HEATING_ON) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_HEATING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_HEATING_ON) / 1000);
   }
   if (this->supports_fan_only_) {
-    ESP_LOGCONFIG(TAG, "  Fanning Minimum Off Time: %us", this->timer_duration_(thermostat::TIMER_FANNING_OFF) / 1000);
-    ESP_LOGCONFIG(TAG, "  Fanning Minimum Run Time: %us", this->timer_duration_(thermostat::TIMER_FANNING_ON) / 1000);
+    ESP_LOGCONFIG(TAG, "  Fanning Minimum Off Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_FANNING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "  Fanning Minimum Run Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_FANNING_ON) / 1000);
   }
   if (this->supports_fan_mode_on_ || this->supports_fan_mode_off_ || this->supports_fan_mode_auto_ ||
       this->supports_fan_mode_low_ || this->supports_fan_mode_medium_ || this->supports_fan_mode_high_ ||
       this->supports_fan_mode_middle_ || this->supports_fan_mode_focus_ || this->supports_fan_mode_diffuse_ ||
       this->supports_fan_mode_quiet_) {
-    ESP_LOGCONFIG(TAG, "  Minimum Fan Mode Switching Time: %us",
+    ESP_LOGCONFIG(TAG, "  Minimum Fan Mode Switching Time: %" PRIu32 "s",
                   this->timer_duration_(thermostat::TIMER_FAN_MODE) / 1000);
   }
-  ESP_LOGCONFIG(TAG, "  Minimum Idle Time: %us", this->timer_[thermostat::TIMER_IDLE_ON].time / 1000);
+  ESP_LOGCONFIG(TAG, "  Minimum Idle Time: %" PRIu32 "s", this->timer_[thermostat::TIMER_IDLE_ON].time / 1000);
   ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));
   ESP_LOGCONFIG(TAG, "  Supports HEAT/COOL: %s", YESNO(this->supports_heat_cool_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));

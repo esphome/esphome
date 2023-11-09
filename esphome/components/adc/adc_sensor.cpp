@@ -1,6 +1,6 @@
 #include "adc_sensor.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP8266
 #ifdef USE_ADC_SENSOR_VCC
@@ -246,45 +246,42 @@ float ADCSensor::sample() {
     adc_set_temp_sensor_enabled(true);
     delay(1);
     adc_select_input(4);
+
+    int32_t raw = adc_read();
+    adc_set_temp_sensor_enabled(false);
+    if (this->output_raw_) {
+      return raw;
+    }
+    return raw * 3.3f / 4096.0f;
   } else {
-    uint8_t pin;
-#ifdef USE_ADC_SENSOR_VCC
+    uint8_t pin = this->pin_->get_pin();
 #ifdef CYW43_USES_VSYS_PIN
-    // Measuring VSYS on Raspberry Pico W needs to be wrapped with
-    // `cyw43_thread_enter()`/`cyw43_thread_exit()` as discussed in
-    // https://github.com/raspberrypi/pico-sdk/issues/1222, since Wifi chip and
-    // VSYS ADC both share GPIO29
-    cyw43_thread_enter();
+    if (pin == PICO_VSYS_PIN) {
+      // Measuring VSYS on Raspberry Pico W needs to be wrapped with
+      // `cyw43_thread_enter()`/`cyw43_thread_exit()` as discussed in
+      // https://github.com/raspberrypi/pico-sdk/issues/1222, since Wifi chip and
+      // VSYS ADC both share GPIO29
+      cyw43_thread_enter();
+    }
 #endif  // CYW43_USES_VSYS_PIN
-    pin = PICO_VSYS_PIN;
-#else
-    pin = this->pin_->get_pin();
-#endif  // USE_ADC_SENSOR_VCC
 
     adc_gpio_init(pin);
     adc_select_input(pin - 26);
-  }
 
-  int32_t raw = adc_read();
-  if (this->is_temperature_) {
-    adc_set_temp_sensor_enabled(false);
-  } else {
-#ifdef USE_ADC_SENSOR_VCC
+    int32_t raw = adc_read();
+
 #ifdef CYW43_USES_VSYS_PIN
-    cyw43_thread_exit();
+    if (pin == PICO_VSYS_PIN) {
+      cyw43_thread_exit();
+    }
 #endif  // CYW43_USES_VSYS_PIN
-#endif  // USE_ADC_SENSOR_VCC
-  }
 
-  if (output_raw_) {
-    return raw;
+    if (output_raw_) {
+      return raw;
+    }
+    float coeff = pin == PICO_VSYS_PIN ? 3.0 : 1.0;
+    return raw * 3.3f / 4096.0f * coeff;
   }
-  float coeff = 1.0;
-#ifdef USE_ADC_SENSOR_VCC
-  // As per Raspberry Pico (W) datasheet (section 2.1) the VSYS/3 is measured
-  coeff = 3.0;
-#endif  // USE_ADC_SENSOR_VCC
-  return raw * 3.3f / 4096.0f * coeff;
 }
 #endif
 

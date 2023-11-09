@@ -242,6 +242,55 @@ async def build_dumpers(config):
     return dumpers
 
 
+# ByronSX
+(
+    ByronSXData,
+    ByronSXBinarySensor,
+    ByronSXTrigger,
+    ByronSXAction,
+    ByronSXDumper,
+) = declare_protocol("ByronSX")
+BYRONSX_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFF)),
+        cv.Optional(CONF_COMMAND, default=0x10): cv.All(
+            cv.hex_int, cv.one_of(1, 2, 3, 5, 6, 9, 0xD, 0xE, 0x10, int=True)
+        ),
+    }
+)
+
+
+@register_binary_sensor("byronsx", ByronSXBinarySensor, BYRONSX_SCHEMA)
+def byronsx_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                ByronSXData,
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("byronsx", ByronSXTrigger, ByronSXData)
+def byronsx_trigger(var, config):
+    pass
+
+
+@register_dumper("byronsx", ByronSXDumper)
+def byronsx_dumper(var, config):
+    pass
+
+
+@register_action("byronsx", ByronSXAction, BYRONSX_SCHEMA)
+async def byronsx_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
+
+
 # CanalSat
 (
     CanalSatData,
@@ -372,19 +421,14 @@ def coolix_binary_sensor(var, config):
     if isinstance(config, dict):
         cg.add(
             var.set_data(
-                cg.StructInitializer(
-                    CoolixData,
-                    ("first", config[CONF_FIRST]),
-                    ("second", config[CONF_SECOND]),
+                cg.ArrayInitializer(
+                    config[CONF_FIRST],
+                    config[CONF_SECOND],
                 )
             )
         )
     else:
-        cg.add(
-            var.set_data(
-                cg.StructInitializer(CoolixData, ("first", 0), ("second", config))
-            )
-        )
+        cg.add(var.set_data(cg.ArrayInitializer(0, config)))
 
 
 @register_action("coolix", CoolixAction, COOLIX_BASE_SCHEMA)
@@ -969,7 +1013,7 @@ RC_SWITCH_PROTOCOL_SCHEMA = cv.Any(
 
 
 def validate_rc_switch_code(value):
-    if not isinstance(value, (str, str)):
+    if not isinstance(value, str):
         raise cv.Invalid("All RCSwitch codes must be in quotes ('')")
     for c in value:
         if c not in ("0", "1"):
@@ -986,7 +1030,7 @@ def validate_rc_switch_code(value):
 
 
 def validate_rc_switch_raw_code(value):
-    if not isinstance(value, (str, str)):
+    if not isinstance(value, str):
         raise cv.Invalid("All RCSwitch raw codes must be in quotes ('')")
     for c in value:
         if c not in ("0", "1", "x"):
@@ -1558,3 +1602,37 @@ async def aeha_action(var, config, args):
         config[CONF_DATA], args, cg.std_vector.template(cg.uint8)
     )
     cg.add(var.set_data(template_))
+
+
+# Haier
+HaierData, HaierBinarySensor, HaierTrigger, HaierAction, HaierDumper = declare_protocol(
+    "Haier"
+)
+HaierAction = ns.class_("HaierAction", RemoteTransmitterActionBase)
+HAIER_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=13, max=13)),
+    }
+)
+
+
+@register_binary_sensor("haier", HaierBinarySensor, HAIER_SCHEMA)
+def haier_binary_sensor(var, config):
+    cg.add(var.set_code(config[CONF_CODE]))
+
+
+@register_trigger("haier", HaierTrigger, HaierData)
+def haier_trigger(var, config):
+    pass
+
+
+@register_dumper("haier", HaierDumper)
+def haier_dumper(var, config):
+    pass
+
+
+@register_action("haier", HaierAction, HAIER_SCHEMA)
+async def haier_action(var, config, args):
+    vec_ = cg.std_vector.template(cg.uint8)
+    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
+    cg.add(var.set_code(template_))

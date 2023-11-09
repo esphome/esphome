@@ -143,15 +143,25 @@ def main():
         imgs = [f"{params.build_to}:{tag}" for tag in tags_to_push]
         imgs += [f"ghcr.io/{params.build_to}:{tag}" for tag in tags_to_push]
 
+        build_args = [
+            "--build-arg",
+            f"BASEIMGTYPE={params.baseimgtype}",
+            "--build-arg",
+            f"BUILD_VERSION={args.tag}",
+        ]
+
+        if args.arch == ARCH_ARMV7:
+            build_args += [
+                "--build-arg",
+                "PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple",
+            ]
+
         # 3. build
         cmd = [
             "docker",
             "buildx",
             "build",
-            "--build-arg",
-            f"BASEIMGTYPE={params.baseimgtype}",
-            "--build-arg",
-            f"BUILD_VERSION={args.tag}",
+            *build_args,
             "--cache-from",
             f"type=registry,ref={cache_img}",
             "--file",
