@@ -20,6 +20,7 @@ esphome/components/addressable_light/* @justfalter
 esphome/components/ade7953/* @angelnu
 esphome/components/ade7953_i2c/* @angelnu
 esphome/components/ade7953_spi/* @angelnu
+esphome/components/ads1118/* @solomondg1
 esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_base/* @jeromelaban @kpfleming @ncareau
 esphome/components/airthings_wave_mini/* @ncareau
