@@ -25,13 +25,9 @@ from esphome.util import OrderedDict, filter_yaml_files
 
 try:
     from yaml import CSafeLoader as FastestAvailableSafeLoader
-    from yaml import CSafeDumper as FastestAvailableSafeDumper
 except ImportError:
     from yaml import (  # type: ignore[assignment]
         SafeLoader as FastestAvailableSafeLoader,
-    )
-    from yaml import (  # type: ignore[assignment]
-        SafeDumper as FastestAvailableSafeDumper,
     )
 
 
@@ -451,7 +447,7 @@ def is_secret(value):
         return None
 
 
-class ESPHomeDumper(FastestAvailableSafeDumper):
+class ESPHomeDumper(yaml.SafeDumper):
     def represent_mapping(self, tag, mapping, flow_style=None):
         value = []
         node = yaml.MappingNode(tag, value, flow_style=flow_style)
