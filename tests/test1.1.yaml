@@ -302,13 +302,25 @@ sensor:
         name: Target-3 Resolution
     zone_1:
       target_count:
-        name: "Zone-1 Target Count"
+        name: Zone-1 All Target Count
+      still_target_count:
+        name: Zone-1 Still Target Count
+      moving_target_count:
+        name: Zone-1 Moving Target Count
     zone_2:
       target_count:
-        name: "Zone-2 Target Count"
+        name: Zone-2 All Target Count
+      still_target_count:
+        name: Zone-2 Still Target Count
+      moving_target_count:
+        name: Zone-2 Moving Target Count
     zone_3:
       target_count:
-        name: "Zone-3 Target Count"
+        name: Zone-3 All Target Count
+      still_target_count:
+        name: Zone-3 Still Target Count
+      moving_target_count:
+        name: Zone-3 Moving Target Count
 
 binary_sensor:
   - platform: ld2450

@@ -91,6 +91,12 @@ void LD2450Component::dump_config() {
   for (sensor::Sensor *s : this->zone_target_count_sensors_) {
     LOG_SENSOR("  ", "NthZoneTargetCountSensor", s);
   }
+  for (sensor::Sensor *s : this->zone_still_target_count_sensors_) {
+    LOG_SENSOR("  ", "NthZoneStillTargetCountSensor", s);
+  }
+  for (sensor::Sensor *s : this->zone_moving_target_count_sensors_) {
+    LOG_SENSOR("  ", "NthZoneMovingTargetCountSensor", s);
+  }
 #endif
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "VersionTextSensor", this->version_text_sensor_);
@@ -136,10 +142,11 @@ void LD2450Component::loop() {
 }
 
 // Count targets in zone
-uint8_t LD2450Component::count_targets_in_zone_(const Zone &zone) {
+uint8_t LD2450Component::count_targets_in_zone_(const Zone &zone, bool is_moving) {
   uint8_t count = 0;
   for (auto &index : this->target_info_) {
-    if (index.x >= zone.x1 && index.x <= zone.x2 && index.y >= zone.y1 && index.y <= zone.y2) {
+    if (index.x > zone.x1 && index.x < zone.x2 && index.y > zone.y1 && index.y < zone.y2 &&
+        index.is_moving == is_moving) {
       count++;
     }
   }
@@ -318,12 +325,14 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, int len) {
   int16_t ts = 0;
   int16_t angle;
   std::string direction;
+  bool is_moving;
 
 #ifdef USE_SENSOR
   // Loop thru targets
   // X
   for (index = 0; index < MAX_TARGETS; index++) {
     start = TARGET_X + index * 8;
+    is_moving = false;
     sensor::Sensor *sx = this->move_x_sensors_[index];
     if (sx != nullptr) {
       val = this->decode_coordinate_(buffer[start], buffer[start + 1]);
@@ -348,8 +357,10 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, int len) {
     if (ss != nullptr) {
       val = this->decode_speed_(buffer[start], buffer[start + 1]);
       ts = val;
-      if (val > 0)
+      if (val > 0) {
+        is_moving = true;
         moving_target_count++;
+      }
       if (ss->get_state() != val) {
         ss->publish_state(val);
       }
@@ -404,20 +415,44 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, int len) {
 
     this->target_info_[index].x = tx;
     this->target_info_[index].y = ty;
+    this->target_info_[index].is_moving = is_moving;
 
   }  // End loop thru targets
 
 #ifdef USE_SENSOR
   // Loop thru zones
+  uint8_t zone_still_targets = 0;
+  uint8_t zone_moving_targets = 0;
+  uint8_t zone_all_targets = 0;
   for (index = 0; index < MAX_ZONES; index++) {
-    // Publish Target Count in Zones
-    sensor::Sensor *sztc = this->zone_target_count_sensors_[index];
-    if (sztc != nullptr) {
-      val = this->count_targets_in_zone_(this->zone_config_[index]);
-      if (sztc->get_state() != val) {
-        sztc->publish_state(val);
+    // Publish Still Target Count in Zones
+    sensor::Sensor *szstc = this->zone_still_target_count_sensors_[index];
+    if (szstc != nullptr) {
+      zone_still_targets = this->count_targets_in_zone_(this->zone_config_[index], false);
+      if (szstc->get_state() != zone_still_targets) {
+        szstc->publish_state(zone_still_targets);
       }
     }
+
+    // Publish Moving Target Count in Zones
+    sensor::Sensor *szmtc = this->zone_moving_target_count_sensors_[index];
+    if (szmtc != nullptr) {
+      zone_moving_targets = this->count_targets_in_zone_(this->zone_config_[index], true);
+      if (szmtc->get_state() != zone_moving_targets) {
+        szmtc->publish_state(zone_moving_targets);
+      }
+    }
+
+    zone_all_targets = zone_still_targets + zone_moving_targets;
+
+    // Publish All Target Count in Zones
+    sensor::Sensor *sztc = this->zone_target_count_sensors_[index];
+    if (sztc != nullptr) {
+      if (sztc->get_state() != zone_all_targets) {
+        sztc->publish_state(zone_all_targets);
+      }
+    }
+
   }  // End loop thru zones
 
   still_target_count = target_count - moving_target_count;
@@ -743,6 +778,12 @@ void LD2450Component::set_move_resolution_sensor(int target, sensor::Sensor *s) 
 }
 void LD2450Component::set_zone_target_count_sensor(int zone, sensor::Sensor *s) {
   this->zone_target_count_sensors_[zone] = s;
+}
+void LD2450Component::set_zone_still_target_count_sensor(int zone, sensor::Sensor *s) {
+  this->zone_still_target_count_sensors_[zone] = s;
+}
+void LD2450Component::set_zone_moving_target_count_sensor(int zone, sensor::Sensor *s) {
+  this->zone_moving_target_count_sensors_[zone] = s;
 }
 #endif
 #ifdef USE_TEXT_SENSOR

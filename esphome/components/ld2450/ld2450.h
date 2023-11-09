@@ -52,6 +52,7 @@ static const uint8_t MAX_ZONES = 3;                 // Max 3 Zones in LD2450
 struct Target {
   int16_t x;
   int16_t y;
+  bool is_moving;
 };
 
 // Zone coordinate struct
@@ -189,6 +190,8 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void set_move_distance_sensor(int target, sensor::Sensor *s);
   void set_move_resolution_sensor(int target, sensor::Sensor *s);
   void set_zone_target_count_sensor(int zone, sensor::Sensor *s);
+  void set_zone_still_target_count_sensor(int zone, sensor::Sensor *s);
+  void set_zone_moving_target_count_sensor(int zone, sensor::Sensor *s);
 #endif
 
  protected:
@@ -261,7 +264,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   std::string version_;
   std::string mac_;
   bool get_timeout_status_(int32_t check_millis);
-  uint8_t count_targets_in_zone_(const Zone &zone);
+  uint8_t count_targets_in_zone_(const Zone &zone, bool is_moving);
 #ifdef USE_TEXT_SENSOR
   std::vector<text_sensor::TextSensor *> direction_text_sensors_ = std::vector<text_sensor::TextSensor *>(3);
 #endif
@@ -279,6 +282,8 @@ class LD2450Component : public Component, public uart::UARTDevice {
   std::vector<sensor::Sensor *> move_distance_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
   std::vector<sensor::Sensor *> move_resolution_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
   std::vector<sensor::Sensor *> zone_target_count_sensors_ = std::vector<sensor::Sensor *>(MAX_ZONES);
+  std::vector<sensor::Sensor *> zone_still_target_count_sensors_ = std::vector<sensor::Sensor *>(MAX_ZONES);
+  std::vector<sensor::Sensor *> zone_moving_target_count_sensors_ = std::vector<sensor::Sensor *>(MAX_ZONES);
 #endif
 };
 

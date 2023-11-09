@@ -85,6 +85,12 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
                 cv.Optional(CONF_TARGET_COUNT): sensor.sensor_schema(
                     icon="mdi:map-marker-account",
                 ),
+                cv.Optional(CONF_STILL_TARGET_COUNT): sensor.sensor_schema(
+                    icon="mdi:map-marker-account",
+                ),
+                cv.Optional(CONF_MOVING_TARGET_COUNT): sensor.sensor_schema(
+                    icon="mdi:map-marker-account",
+                ),
             }
         )
         for n in range(MAX_ZONES)
@@ -127,6 +133,13 @@ async def to_code(config):
                 sens = await sensor.new_sensor(resolution_config)
                 cg.add(ld2450_component.set_move_resolution_sensor(n, sens))
     for n in range(MAX_ZONES):
-        if zone_target_count_config := config.get(f"zone_{n+1}_target_count"):
-            sens = await sensor.new_sensor(zone_target_count_config)
-            cg.add(ld2450_component.set_zone_target_count_sensor(n, sens))
+        if zone_config := config.get(f"zone_{n+1}"):
+            if target_count_config := zone_config.get(CONF_TARGET_COUNT):
+                sens = await sensor.new_sensor(target_count_config)
+                cg.add(ld2450_component.set_zone_target_count_sensor(n, sens))
+            if still_target_count_config := zone_config.get(CONF_STILL_TARGET_COUNT):
+                sens = await sensor.new_sensor(still_target_count_config)
+                cg.add(ld2450_component.set_zone_still_target_count_sensor(n, sens))
+            if moving_target_count_config := zone_config.get(CONF_MOVING_TARGET_COUNT):
+                sens = await sensor.new_sensor(moving_target_count_config)
+                cg.add(ld2450_component.set_zone_moving_target_count_sensor(n, sens))
