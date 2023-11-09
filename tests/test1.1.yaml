@@ -300,6 +300,15 @@ sensor:
         name: Target-3 Distance
       resolution:
         name: Target-3 Resolution
+    zone_1:
+      target_count:
+        name: "Zone-1 Target Count"
+    zone_2:
+      target_count:
+        name: "Zone-2 Target Count"
+    zone_3:
+      target_count:
+        name: "Zone-3 Target Count"
 
 binary_sensor:
   - platform: ld2450

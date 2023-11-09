@@ -48,7 +48,13 @@ static const uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presense
 static const uint8_t MAX_TARGETS = 3;               // Max 3 Targets in LD2450
 static const uint8_t MAX_ZONES = 3;                 // Max 3 Zones in LD2450
 
-// Zone coordinate config
+// Target coordinate struct
+struct Target {
+  int16_t x;
+  int16_t y;
+};
+
+// Zone coordinate struct
 struct Zone {
   int16_t x1 = 0;
   int16_t y1 = 0;
@@ -182,6 +188,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void set_move_angle_sensor(int target, sensor::Sensor *s);
   void set_move_distance_sensor(int target, sensor::Sensor *s);
   void set_move_resolution_sensor(int target, sensor::Sensor *s);
+  void set_zone_target_count_sensor(int zone, sensor::Sensor *s);
 #endif
 
  protected:
@@ -202,6 +209,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void on_reset_radar_zone_();
   void save_to_flash_(float value);
   float restore_from_flash_();
+  Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
   void on_set_radar_zone_(int zone_type, int zone1_x1, int zone1_y1, int zone1_x2, int zone1_y2, int zone2_x1,
                           int zone2_y1, int zone2_x2, int zone2_y2, int zone3_x1, int zone3_y1, int zone3_x2,
@@ -253,22 +261,24 @@ class LD2450Component : public Component, public uart::UARTDevice {
   std::string version_;
   std::string mac_;
   bool get_timeout_status_(int32_t check_millis);
+  uint8_t count_targets_in_zone_(const Zone &zone);
 #ifdef USE_TEXT_SENSOR
   std::vector<text_sensor::TextSensor *> direction_text_sensors_ = std::vector<text_sensor::TextSensor *>(3);
 #endif
 #ifdef USE_NUMBER
-  std::vector<number::Number *> zone_x1_numbers_ = std::vector<number::Number *>(3);
-  std::vector<number::Number *> zone_y1_numbers_ = std::vector<number::Number *>(3);
-  std::vector<number::Number *> zone_x2_numbers_ = std::vector<number::Number *>(3);
-  std::vector<number::Number *> zone_y2_numbers_ = std::vector<number::Number *>(3);
+  std::vector<number::Number *> zone_x1_numbers_ = std::vector<number::Number *>(MAX_ZONES);
+  std::vector<number::Number *> zone_y1_numbers_ = std::vector<number::Number *>(MAX_ZONES);
+  std::vector<number::Number *> zone_x2_numbers_ = std::vector<number::Number *>(MAX_ZONES);
+  std::vector<number::Number *> zone_y2_numbers_ = std::vector<number::Number *>(MAX_ZONES);
 #endif
 #ifdef USE_SENSOR
-  std::vector<sensor::Sensor *> move_x_sensors_ = std::vector<sensor::Sensor *>(3);
-  std::vector<sensor::Sensor *> move_y_sensors_ = std::vector<sensor::Sensor *>(3);
-  std::vector<sensor::Sensor *> move_speed_sensors_ = std::vector<sensor::Sensor *>(3);
-  std::vector<sensor::Sensor *> move_angle_sensors_ = std::vector<sensor::Sensor *>(3);
-  std::vector<sensor::Sensor *> move_distance_sensors_ = std::vector<sensor::Sensor *>(3);
-  std::vector<sensor::Sensor *> move_resolution_sensors_ = std::vector<sensor::Sensor *>(3);
+  std::vector<sensor::Sensor *> move_x_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
+  std::vector<sensor::Sensor *> move_y_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
+  std::vector<sensor::Sensor *> move_speed_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
+  std::vector<sensor::Sensor *> move_angle_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
+  std::vector<sensor::Sensor *> move_distance_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
+  std::vector<sensor::Sensor *> move_resolution_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
+  std::vector<sensor::Sensor *> zone_target_count_sensors_ = std::vector<sensor::Sensor *>(MAX_ZONES);
 #endif
 };
 

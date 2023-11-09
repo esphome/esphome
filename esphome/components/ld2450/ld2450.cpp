@@ -88,6 +88,9 @@ void LD2450Component::dump_config() {
   for (sensor::Sensor *s : this->move_resolution_sensors_) {
     LOG_SENSOR("  ", "NthTargetResolutionSensor", s);
   }
+  for (sensor::Sensor *s : this->zone_target_count_sensors_) {
+    LOG_SENSOR("  ", "NthZoneTargetCountSensor", s);
+  }
 #endif
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "VersionTextSensor", this->version_text_sensor_);
@@ -130,6 +133,17 @@ void LD2450Component::loop() {
   while (available()) {
     this->readline_(read(), buffer, max_line_length);
   }
+}
+
+// Count targets in zone
+uint8_t LD2450Component::count_targets_in_zone_(const Zone &zone) {
+  uint8_t count = 0;
+  for (auto &index : this->target_info_) {
+    if (index.x >= zone.x1 && index.x <= zone.x2 && index.y >= zone.y1 && index.y <= zone.y2) {
+      count++;
+    }
+  }
+  return count;
 }
 
 // Service reset_radar_zone
@@ -387,9 +401,25 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, int len) {
       }
     }
 #endif
+
+    this->target_info_[index].x = tx;
+    this->target_info_[index].y = ty;
+
   }  // End loop thru targets
 
 #ifdef USE_SENSOR
+  // Loop thru zones
+  for (index = 0; index < MAX_ZONES; index++) {
+    // Publish Target Count in Zones
+    sensor::Sensor *sztc = this->zone_target_count_sensors_[index];
+    if (sztc != nullptr) {
+      val = this->count_targets_in_zone_(this->zone_config_[index]);
+      if (sztc->get_state() != val) {
+        sztc->publish_state(val);
+      }
+    }
+  }  // End loop thru zones
+
   still_target_count = target_count - moving_target_count;
   // Target Count
   if (this->target_count_sensor_ != nullptr) {
@@ -710,6 +740,9 @@ void LD2450Component::set_move_distance_sensor(int target, sensor::Sensor *s) {
 }
 void LD2450Component::set_move_resolution_sensor(int target, sensor::Sensor *s) {
   this->move_resolution_sensors_[target] = s;
+}
+void LD2450Component::set_zone_target_count_sensor(int zone, sensor::Sensor *s) {
+  this->zone_target_count_sensors_[zone] = s;
 }
 #endif
 #ifdef USE_TEXT_SENSOR
