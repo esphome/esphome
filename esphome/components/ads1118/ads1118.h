@@ -44,7 +44,7 @@ class ADS1118 : public Component,
   float request_measurement(ADS1118Sensor *sensor);
 
  protected:
-  uint16_t config{0};
+  uint16_t config_{0};
   std::vector<ADS1118Sensor *> sensors_;
 };
 

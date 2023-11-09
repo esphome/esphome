@@ -11,38 +11,38 @@ void ADS1118::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ads1118");
   this->spi_setup();
 
-  this->config = 0;
+  this->config_ = 0;
   // Setup multiplexer
   //        0bx000xxxxxxxxxxxx
-  this->config |= ADS1118_MULTIPLEXER_P0_NG << 12;
+  this->config_ |= ADS1118_MULTIPLEXER_P0_NG << 12;
 
   // Setup Gain
   //        0bxxxx000xxxxxxxxx
-  this->config |= ADS1118_GAIN_6P144 << 9;
+  this->config_ |= ADS1118_GAIN_6P144 << 9;
 
   // Set singleshot mode
   //        0bxxxxxxx1xxxxxxxx
-  this->config |= 0b0000000100000000;
+  this->config_ |= 0b0000000100000000;
 
   // Set data rate - 860 samples per second (we're in singleshot mode)
   //        0bxxxxxxxx100xxxxx
-  this->config |= ADS1118_DATA_RATE_860_SPS << 5;
+  this->config_ |= ADS1118_DATA_RATE_860_SPS << 5;
 
   // Set temperature sensor mode - ADC
   //        0bxxxxxxxxxxx0xxxx
-  this->config |= 0b0000000000000000;
+  this->config_ |= 0b0000000000000000;
 
   // Set DOUT pull up - enable
   //        0bxxxxxxxxxxxx0xxx
-  this->config |= 0b0000000000001000;
+  this->config_ |= 0b0000000000001000;
 
   // NOP - must be 01
   //        0bxxxxxxxxxxxxx01x
-  this->config |= 0b0000000000000010;
+  this->config_ |= 0b0000000000000010;
 
   // Not used - can be 0 or 1, lets be positive
   //        0bxxxxxxxxxxxxxxx1
-  this->config |= 0b0000000000000001;
+  this->config_ |= 0b0000000000000001;
 }
 
 void ADS1118::dump_config() {
@@ -57,7 +57,7 @@ void ADS1118::dump_config() {
 }
 
 float ADS1118::request_measurement(ADS1118Sensor *sensor) {
-  uint16_t temp_config = this->config;
+  uint16_t temp_config = this->config_;
   // Multiplexer
   //        0bxBBBxxxxxxxxxxxx
   temp_config &= 0b1000111111111111;
