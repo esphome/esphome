@@ -12,18 +12,11 @@ FROM debian:12.2-slim AS base-docker
 
 FROM base-${BASEIMGTYPE} AS base
 
+ARG TARGETARCH
+ARG TARGETVARIANT
 
-FROM base AS branch_armv7
-ENV PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"
-
-FROM base AS branch_aarch64
-ENV PIP_EXTRA_INDEX_URL=""
-
-FROM base AS branch_amd64
-ENV PIP_EXTRA_INDEX_URL=""
-
-FROM branch_${TARGETARCH}${TARGETVARIANT} AS final
-RUN echo "PIP_EXTRA_INDEX_URL is equal to ${PIP_EXTRA_INDEX_URL}"
+ENV TARGETARCH=${TARGETARCH}
+ENV TARGETVARIANT=${TARGETVARIANT}
 
 
 # Note that --break-system-packages is used below because
@@ -81,7 +74,9 @@ RUN \
 
 RUN \
     # Ubuntu python3-pip is missing wheel
-    pip3 install --break-system-packages --no-cache-dir \
+    pip3 install \
+        $([ "$TARGETARCH$TARGETVARIANT" == "armv7" ] && echo "--extra-index-url=https://www.piwheels.org/simple" || echo "") \
+        --break-system-packages --no-cache-dir \
         platformio==6.1.11 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
@@ -94,7 +89,9 @@ RUN \
 
 COPY requirements.txt requirements_optional.txt script/platformio_install_deps.py platformio.ini /
 RUN --mount=type=tmpfs,target=/root/.cargo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse CARGO_HOME=/root/.cargo \
-    pip3 install --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
+    pip3 install \
+    $([ "$TARGETARCH$TARGETVARIANT" == "armv7" ] && echo "--extra-index-url=https://www.piwheels.org/simple" || echo "") \
+    --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
     && /platformio_install_deps.py /platformio.ini --libraries
 
 
@@ -103,7 +100,9 @@ FROM base AS docker
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
+RUN pip3 install \
+  $([ "$TARGETARCH$TARGETVARIANT" == "armv7" ] && echo "--extra-index-url=https://www.piwheels.org/simple" || echo "") \ 
+  --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
 
 # Settings for dashboard
 ENV USERNAME="" PASSWORD=""
@@ -149,7 +148,9 @@ COPY docker/ha-addon-rootfs/ /
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
+RUN pip3 install \
+  $([ "$TARGETARCH$TARGETVARIANT" == "armv7" ] && echo "--extra-index-url=https://www.piwheels.org/simple" || echo "") \
+  --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
 
 # Labels
 LABEL \
