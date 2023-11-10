@@ -138,10 +138,23 @@ jobs:
             BASEIMGTYPE=${{ matrix.image.baseimg }}
             BUILD_VERSION=${{ needs.init.outputs.tag }}
           outputs: |
-            type=image,name=docker.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
             type=image,name=ghcr.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
 
-      - name: Export digest
+      - name: Build and push by digest
+        uses: docker/build-push-action@v5.0.0
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          target: ${{ matrix.image.target }}
+          cache-from: type=gha
+          build-args: |
+            BASEIMGTYPE=${{ matrix.image.baseimg }}
+            BUILD_VERSION=${{ needs.init.outputs.tag }}
+          outputs: |
+            type=image,name=docker.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digests
         run: |
           mkdir -p /tmp/digests
           digest="${{ steps.build.outputs.digest }}"
