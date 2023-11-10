@@ -122,7 +122,10 @@ jobs:
           output=$(docker/generate_tags.py \
             --tag "${{ needs.init.outputs.tag }}" \
             --suffix "${{ matrix.image.suffix }}")
-          echo $output >> $GITHUB_OUTPUT
+          echo $output
+          for l in $output; do
+            echo $l >> $GITHUB_OUTPUT
+          done
 
       - name: Build and push by digest
         id: build
@@ -221,7 +224,10 @@ jobs:
             --tag "${{ needs.init.outputs.tag }}" \
             --suffix "${{ matrix.image.suffix }}" \
             --registry "${{ matrix.registry }}")
-          echo $output >> $GITHUB_OUTPUT
+          echo $output
+          for l in $output; do
+            echo $l >> $GITHUB_OUTPUT
+          done
 
       - name: Create manifest list and push
         working-directory: /tmp/digests
