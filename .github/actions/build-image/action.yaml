@@ -42,12 +42,8 @@ runs:
         file: ./docker/Dockerfile
         platforms: ${{ inputs.platform }}
         target: ${{ inputs.target }}
-        cache-from: |
-          type=gha
-          type=local,src=/tmp/.buildx-cache
-        cache-to: |
-          type=gha,mode=max
-          type=local,dest=/tmp/.buildx-cache,mode=max
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
         build-args: |
           BASEIMGTYPE=${{ inputs.baseimg }}
           BUILD_VERSION=${{ inputs.version }}
@@ -77,12 +73,8 @@ runs:
         file: ./docker/Dockerfile
         platforms: ${{ inputs.platform }}
         target: ${{ inputs.target }}
-        cache-from: |
-          type=gha
-          type=local,src=/tmp/.buildx-cache
-        cache-to: |
-          type=gha,mode=max
-          type=local,dest=/tmp/.buildx-cache,mode=max
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
         build-args: |
           BASEIMGTYPE=${{ inputs.baseimg }}
           BUILD_VERSION=${{ inputs.version }}
