@@ -11,12 +11,12 @@ DEPENDENCIES = ["uart"]
 UNIT_MILLIMETERS = "mm"
 
 a02yyuw_ns = cg.esphome_ns.namespace("a02yyuw")
-A02yyuwbComponent = a02yyuwb_ns.class_(
-    "A02yyuwbComponent", sensor.Sensor, cg.Component, uart.UARTDevice
+A02yyuwComponent = a02yyuw_ns.class_(
+    "A02yyuwComponent", sensor.Sensor, cg.Component, uart.UARTDevice
 )
 
 CONFIG_SCHEMA = sensor.sensor_schema(
-    A02yyuwbComponent,
+    A02yyuwComponent,
     unit_of_measurement=UNIT_MILLIMETERS,
     icon=ICON_ARROW_EXPAND_VERTICAL,
     accuracy_decimals=0,
@@ -25,7 +25,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(
 ).extend(uart.UART_DEVICE_SCHEMA)
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "a02yyuwb",
+    "a02yyuw",
     baud_rate=9600,
     require_tx=False,
     require_rx=True,
