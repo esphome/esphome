@@ -616,6 +616,9 @@ class EsphomeCore:
     def relative_piolibdeps_path(self, *path):
         return self.relative_build_path(".piolibdeps", *path)
 
+    def relative_test_path(self, *path):
+        return self.relative_build_path("test", *path)
+
     @property
     def firmware_bin(self):
         if self.is_libretiny:

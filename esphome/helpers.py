@@ -172,6 +172,13 @@ def walk_files(path):
             yield os.path.join(root, name)
 
 
+def remove_empty_folders(path):
+    folders = list(os.walk(path))
+    for path, _, _ in folders[::-1]:
+        if len(os.listdir(path)) == 0:
+            os.rmdir(path)
+
+
 def read_file(path):
     try:
         with codecs.open(path, "r", encoding="utf-8") as f_handle:

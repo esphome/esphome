@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Parse parameter:
+# - `c` - Component folder name to test. Default `*`.
+target_component="*"
+target_platform="host"
+target_platform_file="./tests/test_components/test_components_base.$target_platform.yaml"
+while getopts e:c: flag
+do
+    case $flag in
+        c) target_component=${OPTARG};;
+        \?) echo "Usage: $0 [-c <string>]" 1>&2; exit 1;;
+    esac
+done
+
+cd "$(dirname "$0")/.."
+
+if ! [ -d "./tests/test_components/build" ]; then
+  mkdir ./tests/test_components/build
+fi
+
+start_esphome() {
+  # create dynamic yaml file in `build` folder.
+  # `./tests/test_components/build/[target_component].[target_platform].yaml`
+  component_test_file="./tests/test_components/build/$target_component.$target_platform.yaml"
+
+  cp $target_platform_file $component_test_file
+  sed -i "s!\$component_name!$target_component!g" $component_test_file
+
+  # Start esphome process
+  echo "> [$target_component] [$target_platform]"
+  echo "esphome -s component_name $target_component -s target_platform $target_platform test $component_test_file"
+  # TODO: Validate escape of Command line substitution value
+  esphome -s component_name $target_component -s target_platform $target_platform test $component_test_file
+}
+
+# Find all components with tests.
+# - `./esphome/components/[target_component]/test.py`
+# - `./esphome/components/[target_component]/test/__init__.py`
+for f in ./esphome/components/$target_component/test.py; do
+  [ -f "$f" ] || continue
+  IFS='/' read -r -a folder_name <<< "$f"
+  target_component="${folder_name[3]}"
+
+  start_esphome
+done
+
+for f in ./esphome/components/$target_component/test/__init__.py; do
+  [ -f "$f" ] || continue
+  IFS='/' read -r -a folder_name <<< "$f"
+  target_component="${folder_name[3]}"
+
+  start_esphome
+done

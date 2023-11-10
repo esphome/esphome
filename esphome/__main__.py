@@ -212,6 +212,17 @@ def write_cpp_file():
     return 0
 
 
+def write_test_cpp(config):
+    generate_cpp_contents(config)
+    return write_test_cpp_file()
+
+
+def write_test_cpp_file():
+    writer.write_platformio_project()
+    writer.copy_test_tree()
+    return 0
+
+
 def compile_program(args, config):
     from esphome import platformio_api
 
@@ -366,6 +377,17 @@ def show_logs(config, args, port):
     raise EsphomeError("No remote or local logging method configured (api/mqtt/logger)")
 
 
+def test_using_platformio(config):
+    from esphome import platformio_api
+
+    test_args = []
+    return platformio_api.run_platformio_cli_test(config, CORE.verbose, *test_args)
+
+
+def test_program(config, args):
+    return test_using_platformio(config)
+
+
 def clean_mqtt(config, args):
     from esphome import mqtt
 
@@ -484,6 +506,16 @@ def command_run(args, config):
         purpose="logging",
     )
     return show_logs(config, args, port)
+
+
+def command_test(args, config):
+    exit_code = write_test_cpp(config)
+    if exit_code != 0:
+        return exit_code
+    exit_code = test_program(config, args)
+    if exit_code != 0:
+        return exit_code
+    _LOGGER.info("Successfully tested program.")
 
 
 def command_clean_mqtt(args, config):
@@ -686,6 +718,7 @@ POST_CONFIG_ACTIONS = {
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
+    "test": command_test,
 }
 
 
@@ -893,6 +926,13 @@ def parse_args(argv):
     )
     parser_rename.add_argument("name", help="The new name for the device.", type=str)
 
+    parser_test = subparsers.add_parser(
+        "test",
+        help="Read the configuration and test a program.",
+    )
+    parser_test.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
     # Keep backward compatibility with the old command line format of
     # esphome <config> <command>.
     #

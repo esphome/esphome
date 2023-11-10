@@ -3,8 +3,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome {
 namespace mopeka_std_check {
 
@@ -12,6 +10,8 @@ static const char *const TAG = "mopeka_std_check";
 static const uint16_t SERVICE_UUID = 0xADA0;
 static const uint8_t MANUFACTURER_DATA_LENGTH = 23;
 static const uint16_t MANUFACTURER_ID = 0x000D;
+
+#ifdef USE_ESP32
 
 void MopekaStdCheck::dump_config() {
   ESP_LOGCONFIG(TAG, "Mopeka Std Check");
@@ -70,7 +70,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   // Now parse the data
   const auto *mopeka_data = (const mopeka_std_package *) manu_data.data.data();
 
-  const u_int8_t hardware_id = mopeka_data->data_1 & 0xCF;
+  const uint8_t hardware_id = mopeka_data->data_1 & 0xCF;
   if (static_cast<SensorType>(hardware_id) != STANDARD && static_cast<SensorType>(hardware_id) != XL &&
       static_cast<SensorType>(hardware_id) != ETRAILER) {
     ESP_LOGE(TAG, "[%s] Unsupported Sensor Type (0x%X)", device.address_str().c_str(), hardware_id);
@@ -79,7 +79,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   ESP_LOGVV(TAG, "[%s] Sensor slow update rate: %d", device.address_str().c_str(), mopeka_data->slow_update_rate);
   ESP_LOGVV(TAG, "[%s] Sensor sync pressed: %d", device.address_str().c_str(), mopeka_data->sync_pressed);
-  for (u_int8_t i = 0; i < 3; i++) {
+  for (uint8_t i = 0; i < 3; i++) {
     ESP_LOGVV(TAG, "[%s] %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 1,
               mopeka_data->val[i].value_0, mopeka_data->val[i].time_0);
     ESP_LOGVV(TAG, "[%s] %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 2,
@@ -92,12 +92,12 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   // Get battery level first
   if (this->battery_level_ != nullptr) {
-    uint8_t level = this->parse_battery_level_(mopeka_data);
+    uint8_t level = this->parse_battery_level(mopeka_data);
     this->battery_level_->publish_state(level);
   }
 
   // Get temperature of sensor
-  uint8_t temp_in_c = this->parse_temperature_(mopeka_data);
+  auto temp_in_c = this->parse_temperature(mopeka_data);
   if (this->temperature_ != nullptr) {
     this->temperature_->publish_state(temp_in_c);
   }
@@ -110,12 +110,12 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     // time in 10us ticks.
     // value is amplitude.
 
-    std::array<u_int8_t, 12> measurements_time = {};
-    std::array<u_int8_t, 12> measurements_value = {};
+    std::array<uint8_t, 12> measurements_time = {};
+    std::array<uint8_t, 12> measurements_value = {};
     // Copy measurements over into my array.
     {
-      u_int8_t measurements_index = 0;
-      for (u_int8_t i = 0; i < 3; i++) {
+      uint8_t measurements_index = 0;
+      for (uint8_t i = 0; i < 3; i++) {
         measurements_time[measurements_index] = mopeka_data->val[i].time_0 + 1;
         measurements_value[measurements_index] = mopeka_data->val[i].value_0;
         measurements_index++;
@@ -132,12 +132,12 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     }
 
     // Find best(strongest) value(amplitude) and it's belonging time in sensor dataset.
-    u_int8_t number_of_usable_values = 0;
-    u_int16_t best_value = 0;
-    u_int16_t best_time = 0;
+    uint8_t number_of_usable_values = 0;
+    uint16_t best_value = 0;
+    uint16_t best_time = 0;
     {
-      u_int16_t measurement_time = 0;
-      for (u_int8_t i = 0; i < 12; i++) {
+      uint16_t measurement_time = 0;
+      for (uint8_t i = 0; i < 12; i++) {
         // Time is summed up until a value is reported. This allows time values larger than the 5 bits in transport.
         measurement_time += measurements_time[i];
         if (measurements_value[i] != 0) {
@@ -167,7 +167,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
         this->level_->publish_state(0);
       }
     } else {
-      float lpg_speed_of_sound = this->get_lpg_speed_of_sound_(temp_in_c);
+      float lpg_speed_of_sound = this->get_lpg_speed_of_sound(temp_in_c);
       ESP_LOGV(TAG, "[%s] Speed of sound in current fluid %f m/s", device.address_str().c_str(), lpg_speed_of_sound);
 
       uint32_t distance_value = lpg_speed_of_sound * best_time / 100.0f;
@@ -193,12 +193,14 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return true;
 }
 
-float MopekaStdCheck::get_lpg_speed_of_sound_(float temperature) {
+#endif // USE_ESP32
+
+float MopekaStdCheck_Helper::get_lpg_speed_of_sound(float temperature) {
   return 1040.71f - 4.87f * temperature - 137.5f * this->propane_butane_mix_ - 0.0107f * temperature * temperature -
          1.63f * temperature * this->propane_butane_mix_;
 }
 
-uint8_t MopekaStdCheck::parse_battery_level_(const mopeka_std_package *message) {
+uint8_t MopekaStdCheck_Helper::parse_battery_level(const mopeka_std_package *message) {
   const float voltage = (float) ((message->raw_voltage / 256.0f) * 2.0f + 1.5f);
   ESP_LOGVV(TAG, "Sensor battery voltage: %f V", voltage);
   // convert voltage and scale for CR2032
@@ -212,16 +214,14 @@ uint8_t MopekaStdCheck::parse_battery_level_(const mopeka_std_package *message) 
   return (uint8_t) percent;
 }
 
-uint8_t MopekaStdCheck::parse_temperature_(const mopeka_std_package *message) {
+int8_t MopekaStdCheck_Helper::parse_temperature(const mopeka_std_package *message) {
   uint8_t tmp = message->raw_temp;
   if (tmp == 0x0) {
     return -40;
   } else {
-    return (uint8_t) ((tmp - 25.0f) * 1.776964f);
+    return (int8_t) ((tmp - 25.0f) * 1.776964f);
   }
 }
 
 }  // namespace mopeka_std_check
 }  // namespace esphome
-
-#endif
