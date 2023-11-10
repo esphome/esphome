@@ -293,7 +293,7 @@ bool APIConnection::send_fan_state(fan::Fan *fan) {
   }
   if (traits.supports_direction())
     resp.direction = static_cast<enums::FanDirection>(fan->direction);
-  if (!traits.supported_preset_modes().empty())
+  if (traits.supports_preset_modes())
     resp.preset_mode = fan->preset_mode;
   return this->send_fan_state_response(resp);
 }

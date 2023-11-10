@@ -33,6 +33,8 @@ class FanTraits {
   void set_supported_preset_modes(std::vector<std::string> preset_modes) {
     this->preset_modes_ = std::move(preset_modes);
   }
+  /// Return if preset modes are supported
+  bool supports_preset_modes() const { return !this->preset_modes_.empty(); }
 
  protected:
   bool oscillation_{false};
