@@ -993,7 +993,9 @@ class MDNSStatusThread(threading.Thread):
     def resolve_host_thread_safe(self, host_name: str) -> str | None:
         """Resolve a host name to an address in a thread-safe manner."""
         if zc := self.zeroconf:
-            return zc.resolve_host(host_name)
+            # Currently we do not do any I/O and only
+            # return the cached result (timeout=0)
+            return zc.resolve_host(host_name, 0)
         return None
 
     def _refresh_hosts(self):
