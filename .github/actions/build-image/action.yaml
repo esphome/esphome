@@ -24,6 +24,7 @@ runs:
   steps:
     - name: Generate short tags
       id: tags
+      shell: bash
       run: |
         output=$(docker/generate_tags.py \
           --tag "${{ inputs.version }}" \
@@ -50,6 +51,7 @@ runs:
           type=image,name=ghcr.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
 
     - name: Export ghcr digests
+      shell: bash
       run: |
         mkdir -p /tmp/digests/ghcr
         digest="${{ steps.build-ghcr.outputs.digest }}"
@@ -79,6 +81,7 @@ runs:
           type=image,name=docker.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
 
     - name: Export dockerhub digests
+      shell: bash
       run: |
         mkdir -p /tmp/digests/dockerhub
         digest="${{ steps.build-dockerhub.outputs.digest }}"
