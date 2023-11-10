@@ -3,7 +3,10 @@
 #include <unity.h>
 #include "mopeka_std_check.h"
 
-esphome::mopeka_std_check::MopekaStdCheck_Helper obj;
+namespace esphome {
+namespace mopeka_std_check {
+
+MopekaStdCheck_Helper obj;
 
 void setUp(void) {
   // set stuff up here
@@ -61,4 +64,8 @@ int main(int argc, char **argv) {
   return UNITY_END();
 }
 
+}  // namespace mopeka_std_check
+}  // namespace esphome
+
+int main(int argc, char **argv) { esphome::mopeka_std_check::main(argc, argv); }
 #endif  // PIO_UNIT_TESTING
