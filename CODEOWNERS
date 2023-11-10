@@ -312,6 +312,7 @@ esphome/components/tcl112/* @glmnet
 esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax
 esphome/components/template/alarm_control_panel/* @grahambrown11
+esphome/components/test/* @esphome/core
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter

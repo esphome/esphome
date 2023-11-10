@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.core import coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
+CODEOWNERS = ["@esphome/core"]
 
 
 @coroutine_with_priority(100.0)
