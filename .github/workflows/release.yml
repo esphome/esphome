@@ -63,31 +63,16 @@ jobs:
         run: twine upload dist/*
 
   deploy-docker:
-    name: Build ESPHome ${{ matrix.image.title}} ${{ matrix.platform }}
+    name: Build ESPHome ${{ matrix.platform }}
     if: github.repository == 'esphome/esphome'
     permissions:
       contents: read
       packages: write
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.image.title == 'lint' }}
     needs: [init]
     strategy:
       fail-fast: false
-      max-parallel: 5
       matrix:
-        image:
-          - title: "ha-addon"
-            suffix: "hassio"
-            target: "hassio"
-            baseimg: "hassio"
-          - title: "docker"
-            suffix: ""
-            target: "docker"
-            baseimg: "docker"
-          - title: "lint"
-            suffix: "lint"
-            target: "lint"
-            baseimg: "docker"
         platform:
           - linux/amd64
           - linux/arm/v7
@@ -116,75 +101,32 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate short tags
-        id: tags
-        run: |
-          output=$(docker/generate_tags.py \
-            --tag "${{ needs.init.outputs.tag }}" \
-            --suffix "${{ matrix.image.suffix }}")
-          echo $output
-          for l in $output; do
-            echo $l >> $GITHUB_OUTPUT
-          done
-
-      - name: Build and push to ghcr by digest
-        id: build-ghcr
-        uses: docker/build-push-action@v5.0.0
+      - name: Build docker
+        uses: ./.github/actions/build-image
         with:
-          context: .
-          file: ./docker/Dockerfile
-          platforms: ${{ matrix.platform }}
-          target: ${{ matrix.image.target }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            BASEIMGTYPE=${{ matrix.image.baseimg }}
-            BUILD_VERSION=${{ needs.init.outputs.tag }}
-          outputs: |
-            type=image,name=ghcr.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
+          platform: ${{ matrix.platform }}
+          target: docker
+          baseimg: docker
+          suffix: ""
+          version: ${{ needs.init.outputs.tag }}
 
-      - name: Export ghcr digests
-        run: |
-          mkdir -p /tmp/digests/ghcr
-          digest="${{ steps.build-ghcr.outputs.digest }}"
-          touch "/tmp/digests/ghcr/${digest#sha256:}"
-
-      - name: Upload ghcr digest
-        uses: actions/upload-artifact@v3
+      - name: Build ha-addon
+        uses: ./.github/actions/build-image
         with:
-          name: digests-${{ matrix.image.title }}-ghcr
-          path: /tmp/digests/ghcr/*
-          if-no-files-found: error
-          retention-days: 1
+          platform: ${{ matrix.platform }}
+          target: hassio
+          baseimg: hassio
+          suffix: "hassio"
+          version: ${{ needs.init.outputs.tag }}
 
-      - name: Build and push to dockerhub by digest
-        id: build-dockerhub
-        uses: docker/build-push-action@v5.0.0
+      - name: Build lint
+        uses: ./.github/actions/build-image
         with:
-          context: .
-          file: ./docker/Dockerfile
-          platforms: ${{ matrix.platform }}
-          target: ${{ matrix.image.target }}
-          cache-from: type=gha
-          build-args: |
-            BASEIMGTYPE=${{ matrix.image.baseimg }}
-            BUILD_VERSION=${{ needs.init.outputs.tag }}
-          outputs: |
-            type=image,name=docker.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
-
-      - name: Export dockerhub digests
-        run: |
-          mkdir -p /tmp/digests/dockerhub
-          digest="${{ steps.build-dockerhub.outputs.digest }}"
-          touch "/tmp/digests/dockerhub/${digest#sha256:}"
-
-      - name: Upload dockerhub digest
-        uses: actions/upload-artifact@v3
-        with:
-          name: digests-${{ matrix.image.title }}-dockerhub
-          path: /tmp/digests/dockerhub/*
-          if-no-files-found: error
-          retention-days: 1
+          platform: ${{ matrix.platform }}
+          target: lint
+          baseimg: docker
+          suffix: lint
+          version: ${{ needs.init.outputs.tag }}
 
   deploy-manifest:
     name: Publish ESPHome ${{ matrix.image.title }} to ${{ matrix.registry }}
