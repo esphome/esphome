@@ -193,7 +193,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return true;
 }
 
-#endif // USE_ESP32
+#endif  // USE_ESP32
 
 float MopekaStdCheck_Helper::get_lpg_speed_of_sound(float temperature) {
   return 1040.71f - 4.87f * temperature - 137.5f * this->propane_butane_mix_ - 0.0107f * temperature * temperature -

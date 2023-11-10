@@ -7,7 +7,7 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
-#endif // PIO_UNIT_TESTING
+#endif  // PIO_UNIT_TESTING
 
 namespace esphome {
 namespace mopeka_std_check {
@@ -43,14 +43,14 @@ struct mopeka_std_package {  // NOLINT(readability-identifier-naming,altera-stru
 } __attribute__((packed));
 
 class MopekaStdCheck_Helper {
-  public:
-    void set_propane_butane_mix(float val) { this->propane_butane_mix_ = val; };
+public:
+  void set_propane_butane_mix(float val) { this->propane_butane_mix_ = val; };
 
-    float get_lpg_speed_of_sound(float temperature);
-    uint8_t parse_battery_level(const mopeka_std_package *message);
-    int8_t parse_temperature(const mopeka_std_package *message);
-  protected:
-    float propane_butane_mix_;
+  float get_lpg_speed_of_sound(float temperature);
+  uint8_t parse_battery_level(const mopeka_std_package *message);
+  int8_t parse_temperature(const mopeka_std_package *message);
+protected:
+  float propane_butane_mix_;
 };
 
 #ifdef USE_ESP32
@@ -66,7 +66,7 @@ class MopekaStdCheck : public MopekaStdCheck_Helper, public Component, public es
   void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; };
   void set_battery_level(sensor::Sensor *bat) { this->battery_level_ = bat; };
   void set_distance(sensor::Sensor *distance) { this->distance_ = distance; };
-  
+
   void set_tank_full(float full) { this->full_mm_ = full; };
   void set_tank_empty(float empty) { this->empty_mm_ = empty; };
 
@@ -80,7 +80,7 @@ class MopekaStdCheck : public MopekaStdCheck_Helper, public Component, public es
   uint32_t full_mm_;
   uint32_t empty_mm_;
 };
-#endif // USE_ESP32
+#endif  // USE_ESP32
 
 }  // namespace mopeka_std_check
 }  // namespace esphome
