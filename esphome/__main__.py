@@ -516,6 +516,7 @@ def command_test(args, config):
     if exit_code != 0:
         return exit_code
     _LOGGER.info("Successfully tested program.")
+    return 0
 
 
 def command_clean_mqtt(args, config):

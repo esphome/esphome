@@ -174,9 +174,9 @@ def walk_files(path):
 
 def remove_empty_folders(path):
     folders = list(os.walk(path))
-    for path, _, _ in folders[::-1]:
-        if len(os.listdir(path)) == 0:
-            os.rmdir(path)
+    for folder, _, _ in folders[::-1]:
+        if len(os.listdir(folder)) == 0:
+            os.rmdir(folder)
 
 
 def read_file(path):
