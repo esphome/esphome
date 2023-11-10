@@ -43,10 +43,9 @@ void LilygoT547Touchscreen::setup() {
   this->y_raw_max_ = this->get_height_();
 }
 
-void LilygoT547Touchscreen::handle_touch(TouchPoints_t &touches) {
+void LilygoT547Touchscreen::update_touches() {
   uint8_t point = 0;
   uint8_t buffer[40] = {0};
-  TouchPoint tp;
 
   i2c::ErrorCode err;
   err = this->write_register(TOUCH_REGISTER, READ_FLAGS, 1);
@@ -80,15 +79,17 @@ void LilygoT547Touchscreen::handle_touch(TouchPoints_t &touches) {
   if (point == 0)
     point = 1;
 
+  uint16_t id, x_raw, y_raw;
   for (int i = 0; i < point; i++) {
-    tp.id = (buffer[i * 5] >> 4) & 0x0F;
-    tp.state = buffer[i * 5] & 0x0F;
-    if (tp.state == 0x06)
-      tp.state = 0x07;
+    id = (buffer[i * 5] >> 4) & 0x0F;
+// not sure what todo with this atm.
+//    tp.state = buffer[i * 5] & 0x0F;
+//    if (tp.state == 0x06)
+//      tp.state = 0x07;
 
-    tp.y_raw = (uint16_t) ((buffer[i * 5 + 1] << 4) | ((buffer[i * 5 + 3] >> 4) & 0x0F));
-    tp.x_raw = (uint16_t) ((buffer[i * 5 + 2] << 4) | (buffer[i * 5 + 3] & 0x0F));
-    touches.push_back(tp);
+    y_raw = (uint16_t) ((buffer[i * 5 + 1] << 4) | ((buffer[i * 5 + 3] >> 4) & 0x0F));
+    x_raw = (uint16_t) ((buffer[i * 5 + 2] << 4) | (buffer[i * 5 + 3] & 0x0F));
+    this->set_raw_touch_posistion_(id, x_raw, y_raw);
   }
 
   this->status_clear_warning();

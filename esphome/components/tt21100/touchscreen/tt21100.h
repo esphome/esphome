@@ -31,7 +31,7 @@ class TT21100Touchscreen : public Touchscreen, public i2c::I2CDevice {
  protected:
   void reset_();
 
-  void handle_touch(TouchPoints_t &touches) override;
+  void update_touches() override;
 
   InternalGPIOPin *interrupt_pin_;
   GPIOPin *reset_pin_{nullptr};

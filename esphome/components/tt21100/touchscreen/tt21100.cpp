@@ -66,7 +66,7 @@ void TT21100Touchscreen::setup() {
   this->y_raw_max_ = this->get_height_();
 }
 
-void TT21100Touchscreen::handle_touch(TouchPoints_t &touches) {
+void TT21100Touchscreen::update_touches() {
   // Read report length
   uint16_t data_len;
   this->read((uint8_t *) &data_len, sizeof(data_len));
@@ -109,13 +109,7 @@ void TT21100Touchscreen::handle_touch(TouchPoints_t &touches) {
                  i, touch->touch_type, touch->tip, touch->event_id, touch->touch_id, touch->x, touch->y,
                  touch->pressure, touch->major_axis_length, touch->orientation);
 
-        TouchPoint tp;
-        tp.x_raw = this->get_width_() - touch->x;
-        tp.y_raw = touch->y;
-        tp.z_raw = touch->pressure;
-
-        tp.id = touch->tip;
-        touches.push_back(tp);
+        this->set_raw_touch_posistion_(touch->tip, touch->x, touch->y, touch->pressure);
       }
     }
   }

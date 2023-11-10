@@ -696,7 +696,6 @@ touchscreen:
     interrupt_pin: 16
     display: inkplate_display
     update_interval: 50ms
-    report_interval: 1s
     threshold: 400
     calibration_x_min: 3860
     calibration_x_max: 280

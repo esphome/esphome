@@ -55,9 +55,9 @@ void EKTF2232Touchscreen::setup() {
   this->set_power_state(true);
 }
 
-void EKTF2232Touchscreen::handle_touch(TouchPoints_t &touches) {
+void EKTF2232Touchscreen::update_touches() {
   uint8_t touch_count = 0;
-  TouchPoint tp;
+  int16_t x_raw, y_raw;
 
   uint8_t raw[8];
   this->read(raw, 8);
@@ -72,9 +72,9 @@ void EKTF2232Touchscreen::handle_touch(TouchPoints_t &touches) {
 
   for (int i = 0; i < touch_count; i++) {
     uint8_t *d = raw + 1 + (i * 3);
-    tp.x_raw = (d[0] & 0xF0) << 4 | d[1];
-    tp.y_raw = (d[0] & 0x0F) << 8 | d[2];
-    touches.push_back(tp);
+    x_raw = (d[0] & 0xF0) << 4 | d[1];
+    y_raw = (d[0] & 0x0F) << 8 | d[2];
+    this->set_raw_touch_posistion_(i, x_raw, y_raw);
   }
 }
 

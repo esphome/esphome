@@ -30,7 +30,7 @@ class XPT2046Component : public Touchscreen,
 
   int16_t read_adc_(uint8_t ctrl);
 
-  void handle_touch(TouchPoints_t &touches) override;
+  void update_touches_() override;
 
   int16_t threshold_;
 

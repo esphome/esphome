@@ -22,7 +22,7 @@ class LilygoT547Touchscreen : public Touchscreen, public i2c::I2CDevice {
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
  protected:
-  void handle_touch(TouchPoints_t &touches) override;
+  void update_touches() override;
 
   InternalGPIOPin *interrupt_pin_;
 };

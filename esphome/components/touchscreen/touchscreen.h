@@ -15,9 +15,10 @@ namespace touchscreen {
 struct TouchPoint {
   uint8_t id;
   int16_t x_raw{0}, y_raw{0}, z_raw{0};
-  uint16_t x;
-  uint16_t y;
-  uint8_t state;
+  uint16_t x_prev{0}, y_prev{0};
+  uint16_t x_org{0}, y_org{0};
+  uint16_t x{0}, y{0};
+  uint8_t state{0};
 };
 
 using TouchPoints_t = std::vector<TouchPoint>;
@@ -66,6 +67,8 @@ class Touchscreen : public PollingComponent {
 
   void register_listener(TouchListener *listener) { this->touch_listeners_.push_back(listener); }
 
+  virtual void update_touches() = 0;
+
   void update() override;
   void loop() override;
 
@@ -73,8 +76,9 @@ class Touchscreen : public PollingComponent {
   /// Call this function to send touch points to the `on_touch` listener and the binary_sensors.
   void attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::InterruptType type);
 
-  virtual void handle_touch(TouchPoints_t &touches) = 0;
-  void send_touch_(TouchPoints_t touches);
+  void set_raw_touch_posistion_(uint8_t id, int16_t x_raw, int16_t y_raw, int16_t z_raw = 0);
+
+  void send_touches_();
 
   static int16_t normalize(int16_t val, int16_t min_val, int16_t max_val, bool inverted = false);
 
@@ -93,7 +97,7 @@ class Touchscreen : public PollingComponent {
   Trigger<> release_trigger_;
   std::vector<TouchListener *> touch_listeners_;
 
-  std::map<uint8_t, TouchPoint> first_touch_;
+  std::map<uint8_t, TouchPoint> touches_;
   TouchscreenInterupt store_;
 
   bool first_touch_{true};

@@ -24,19 +24,18 @@ void XPT2046Component::setup() {
   read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
 }
 
-void XPT2046Component::handle_touch(TouchPoints_t &touches) {
-  int16_t data[6];
+void XPT2046Component::update_touches_() {
+  int16_t data[6], x_raw, y_raw, z_raw;
   bool touch = false;
-  TouchPoint tp;
 
   enable();
 
   int16_t touch_pressure_1 = read_adc_(0xB1 /* touch_pressure_1 */);
   int16_t touch_pressure_2 = read_adc_(0xC1 /* touch_pressure_2 */);
   ESP_LOGVV(TAG, "touch_pressure  %d, %d", touch_pressure_1, touch_pressure_2);
-  tp.z_raw = touch_pressure_1 + 0Xfff - touch_pressure_2;
+  z_raw = touch_pressure_1 + 0Xfff - touch_pressure_2;
 
-  touch = (tp.z_raw >= this->threshold_);
+  touch = (z_raw >= this->threshold_);
   if (touch) {
     read_adc_(0xD1 /* X */);  // dummy Y measure, 1st is always noisy
     data[0] = read_adc_(0x91 /* Y */);
@@ -51,11 +50,12 @@ void XPT2046Component::handle_touch(TouchPoints_t &touches) {
   disable();
 
   if (touch) {
-    tp.x_raw = best_two_avg(data[1], data[3], data[5]);
-    tp.y_raw = best_two_avg(data[0], data[2], data[4]);
+    x_raw = best_two_avg(data[1], data[3], data[5]);
+    y_raw = best_two_avg(data[0], data[2], data[4]);
 
-    ESP_LOGV(TAG, "Touchscreen Update [%d, %d], z = %d", tp.x_raw, tp.y_raw, tp.z_raw);
-    touches.push_back(tp);
+    ESP_LOGV(TAG, "Touchscreen Update [%d, %d], z = %d", x_raw, y_raw, z_raw);
+    
+    set_raw_touch_posistion_(0, x_raw, y_raw, z_raw);
   }
 }
 
