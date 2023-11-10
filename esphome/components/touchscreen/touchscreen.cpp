@@ -48,7 +48,7 @@ void Touchscreen::set_raw_touch_posistion_(uint8_t id, int16_t x_raw, int16_t y_
   tp.x_raw = x_raw;
   tp.y_raw = y_raw;
   tp.z_raw = z_raw;
-  
+
   x = normalize(x_raw, this->x_raw_min_, this->x_raw_max_, this->invert_x_);
   y = normalize(y_raw, this->y_raw_min_, this->y_raw_max_, this->invert_y_);
 
@@ -76,8 +76,8 @@ void Touchscreen::set_raw_touch_posistion_(uint8_t id, int16_t x_raw, int16_t y_
   tp.x = (uint16_t) ((int) x * this->get_width_() / 0xfff);
   tp.y = (uint16_t) ((int) y * this->get_height_() / 0xfff);
   if (tp.state == 1) {
-     tp.x_org = tp.x;
-     tp.y_org = tp.y;
+    tp.x_org = tp.x;
+    tp.y_org = tp.y;
   }
 
   this->touches_[id] = tp;

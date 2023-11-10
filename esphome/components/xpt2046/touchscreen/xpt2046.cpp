@@ -54,7 +54,7 @@ void XPT2046Component::update_touches_() {
     y_raw = best_two_avg(data[0], data[2], data[4]);
 
     ESP_LOGV(TAG, "Touchscreen Update [%d, %d], z = %d", x_raw, y_raw, z_raw);
-    
+
     set_raw_touch_posistion_(0, x_raw, y_raw, z_raw);
   }
 }
