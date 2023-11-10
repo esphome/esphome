@@ -43,13 +43,14 @@ struct mopeka_std_package {  // NOLINT(readability-identifier-naming,altera-stru
 } __attribute__((packed));
 
 class MopekaStdCheck_Helper {
-public:
+ public:
   void set_propane_butane_mix(float val) { this->propane_butane_mix_ = val; };
 
   float get_lpg_speed_of_sound(float temperature);
   uint8_t parse_battery_level(const mopeka_std_package *message);
   int8_t parse_temperature(const mopeka_std_package *message);
-protected:
+
+ protected:
   float propane_butane_mix_;
 };
 
@@ -84,4 +85,3 @@ class MopekaStdCheck : public MopekaStdCheck_Helper, public Component, public es
 
 }  // namespace mopeka_std_check
 }  // namespace esphome
-
