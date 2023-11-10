@@ -44,7 +44,7 @@ def validate_mode(mode):
 
 
 def validate_pin(pin):
-    if pin == 8 or pin == 9:
+    if pin in (8, 9):
         raise cv.Invalid(f"pin {pin} doesn't exist")
     return pin
 
