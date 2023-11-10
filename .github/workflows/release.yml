@@ -63,7 +63,7 @@ jobs:
         run: twine upload dist/*
 
   deploy-docker:
-    name: Build and publish ESPHome ${{ matrix.image.title}}
+    name: Build ESPHome ${{ matrix.image.title}} ${{ matrix.platform }}
     if: github.repository == 'esphome/esphome'
     permissions:
       contents: read
@@ -169,7 +169,7 @@ jobs:
           retention-days: 1
 
   deploy-manifest:
-    name: Deploy Docker Manifest for ${{ matrix.image}}}
+    name: Publish ESPHome ${{ matrix.image.title }} to ${{ matrix.registry }}
     runs-on: ubuntu-latest
     needs:
       - init
