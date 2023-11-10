@@ -1,7 +1,7 @@
 #include "ina226.h"
-#include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 #include <cinttypes>
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace ina226 {
@@ -102,6 +102,7 @@ void INA226Component::update() {
       this->status_set_warning();
       return;
     }
+    ESP_LOGD(TAG, "Got raw bus voltage: %d", raw_bus_voltage);
     float bus_voltage_v = int16_t(raw_bus_voltage) * 0.00125f;
     this->bus_voltage_sensor_->publish_state(bus_voltage_v);
   }
