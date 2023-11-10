@@ -105,7 +105,11 @@ CLIMATE_SWING_MODES = {
 
 validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
+CONF_AUX_HEAT = "aux_heat"
 CONF_CURRENT_TEMPERATURE = "current_temperature"
+CONF_MIN_HUMIDITY = "min_humidity"
+CONF_MAX_HUMIDITY = "max_humidity"
+CONF_TARGET_HUMIDITY = "target_humidity"
 
 visual_temperature = cv.float_with_unit(
     "visual_temperature", "(°C|° C|°|C|° K|° K|K|°F|° F|F)?"
@@ -153,6 +157,8 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
                 cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
                 cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
                 cv.Optional(CONF_TEMPERATURE_STEP): VISUAL_TEMPERATURE_STEP_SCHEMA,
+                cv.Optional(CONF_MIN_HUMIDITY): cv.percentage_int,
+                cv.Optional(CONF_MAX_HUMIDITY): cv.percentage_int,
             }
         ),
         cv.Optional(CONF_ACTION_STATE_TOPIC): cv.All(
@@ -238,6 +244,10 @@ async def setup_climate_core_(var, config):
                 visual[CONF_TEMPERATURE_STEP][CONF_CURRENT_TEMPERATURE],
             )
         )
+    if CONF_MIN_HUMIDITY in visual:
+        cg.add(var.set_visual_min_humidity_override(visual[CONF_MIN_HUMIDITY]))
+    if CONF_MAX_HUMIDITY in visual:
+        cg.add(var.set_visual_max_humidity_override(visual[CONF_MAX_HUMIDITY]))
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
@@ -351,6 +361,8 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
         cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
         cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
+        cv.Optional(CONF_TARGET_HUMIDITY): cv.templatable(cv.percentage_int),
+        cv.Optional(CONF_AUX_HEAT): cv.templatable(cv.boolean),
         cv.Optional(CONF_AWAY): cv.invalid("Use preset instead"),
         cv.Exclusive(CONF_FAN_MODE, "fan_mode"): cv.templatable(
             validate_climate_fan_mode
@@ -387,6 +399,12 @@ async def climate_control_to_code(config, action_id, template_arg, args):
             config[CONF_TARGET_TEMPERATURE_HIGH], args, float
         )
         cg.add(var.set_target_temperature_high(template_))
+    if CONF_TARGET_HUMIDITY in config:
+        template_ = await cg.templatable(config[CONF_TARGET_HUMIDITY], args, cg.uint8)
+        cg.add(var.set_target_humidity(template_))
+    if CONF_AUX_HEAT in config:
+        template_ = await cg.templatable(config[CONF_AUX_HEAT], args, bool)
+        cg.add(var.set_aux_heat(template_))
     if CONF_FAN_MODE in config:
         template_ = await cg.templatable(config[CONF_FAN_MODE], args, ClimateFanMode)
         cg.add(var.set_fan_mode(template_))
