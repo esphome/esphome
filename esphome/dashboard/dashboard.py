@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import threading
 from pathlib import Path
+from typing import Any
 
 import tornado
 import tornado.concurrent
@@ -32,7 +33,7 @@ import tornado.web
 import tornado.websocket
 import yaml
 from tornado.log import access_log
-from typing import Any
+
 from esphome import const, platformio_api, util, yaml_util
 from esphome.core import CORE
 from esphome.helpers import get_bool_env, mkdir_p, run_system_command
