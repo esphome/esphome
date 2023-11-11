@@ -110,11 +110,21 @@ void PN532::update() {
   for (auto *obj : this->binary_sensors_)
     obj->on_scan_end();
 
-  if (!this->write_command_({
-          PN532_COMMAND_INLISTPASSIVETARGET,
-          0x01,  // max 1 card
-          0x00,  // baud rate ISO14443A (106 kbit/s)
-      })) {
+  if (!this->write_command_(this->card_standard_ == CARD_STANDARD_ISO14443A
+                                ? std::vector<uint8_t>({
+                                      PN532_COMMAND_INLISTPASSIVETARGET,
+                                      0x01,  // max 1 card
+                                      0x00,  // baud rate ISO14443A (106 kbit/s)
+                                  })
+                                :  // CARD_STANDARD_FELICA
+                                std::vector<uint8_t>({
+                                    PN532_COMMAND_INLISTPASSIVETARGET,
+                                    0x01,        // max 1 card
+                                    0x01,        // baud rate FeliCa polling (212 kbit/s)
+                                    0x00,        // FELICA_CMD_POLLING
+                                    0x00, 0x03,  // CJRC system code (Suica, PASMO, etc)
+                                    0x00, 0x00,  // request code... no idea
+                                }))) {
     ESP_LOGW(TAG, "Requesting tag read failed!");
     this->status_set_warning();
     return;
@@ -157,11 +167,27 @@ void PN532::loop() {
     return;
   }
 
-  uint8_t nfcid_length = read[5];
-  std::vector<uint8_t> nfcid(read.begin() + 6, read.begin() + 6 + nfcid_length);
-  if (read.size() < 6U + nfcid_length) {
-    // oops, pn532 returned invalid data
-    return;
+  std::vector<uint8_t> nfcid;
+  if (this->card_standard_ == CARD_STANDARD_ISO14443A) {
+    uint8_t nfcid_length = read[5];
+    nfcid.assign(read.begin() + 6, read.begin() + 6 + nfcid_length);
+    if (read.size() < 6U + nfcid_length) {
+      // oops, pn532 returned invalid data
+      return;
+    }
+  } else {
+    uint8_t resp_length = read[2];
+    if (read.size() < 20U || resp_length < 18U) {
+      // oops, pn532 returned invalid data
+      return;
+    }
+    // felica has static 8 byte id lengths
+    nfcid.assign(read.begin() + 4, read.begin() + 4 + 8);
+
+    // reading the trip history causes the apple wallet ui
+    // to stop infinite spinning and show a green checkmark
+    std::vector<uint8_t> service_data;
+    read_felica_service_(nfcid, {0x090f}, service_data);
   }
 
   bool report = true;
@@ -302,18 +328,24 @@ void PN532::turn_off_rf_() {
 }
 
 std::unique_ptr<nfc::NfcTag> PN532::read_tag_(std::vector<uint8_t> &uid) {
-  uint8_t type = nfc::guess_tag_type(uid.size());
+  if (this->card_standard_ == CARD_STANDARD_ISO14443A) {
+    uint8_t type = nfc::guess_tag_type(uid.size());
 
-  if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
-    ESP_LOGD(TAG, "Mifare classic");
-    return this->read_mifare_classic_tag_(uid);
-  } else if (type == nfc::TAG_TYPE_2) {
-    ESP_LOGD(TAG, "Mifare ultralight");
-    return this->read_mifare_ultralight_tag_(uid);
-  } else if (type == nfc::TAG_TYPE_UNKNOWN) {
-    ESP_LOGV(TAG, "Cannot determine tag type");
-    return make_unique<nfc::NfcTag>(uid);
+    if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
+      ESP_LOGD(TAG, "Mifare classic");
+      return this->read_mifare_classic_tag_(uid);
+    } else if (type == nfc::TAG_TYPE_2) {
+      ESP_LOGD(TAG, "Mifare ultralight");
+      return this->read_mifare_ultralight_tag_(uid);
+    } else if (type == nfc::TAG_TYPE_UNKNOWN) {
+      ESP_LOGV(TAG, "Cannot determine tag type");
+      return make_unique<nfc::NfcTag>(uid);
+    } else {
+      return make_unique<nfc::NfcTag>(uid);
+    }
   } else {
+    // we don't have code to probe tag types for FeliCa cards yet
+    ESP_LOGV(TAG, "Cannot determine tag type");
     return make_unique<nfc::NfcTag>(uid);
   }
 }
@@ -367,6 +399,36 @@ bool PN532::write_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
   }
   ESP_LOGE(TAG, "Unsupported Tag for formatting");
   return false;
+}
+
+// this should probably be under like pn532_felica.cpp or something like that
+bool PN532::read_felica_service_(const std::vector<uint8_t> &uid, const std::vector<uint16_t> &service_code,
+                                 std::vector<uint8_t> &service_data) {
+  std::vector<uint8_t> data({
+      PN532_COMMAND_INDATAEXCHANGE,
+      0x01,  // One card,
+      0x00,  // fill in later with size of data
+      nfc::FELICA_CMD_REQUEST_SERVICE,
+  });
+  data.insert(data.end(), uid.begin(), uid.end());
+  data.push_back(service_code.size());
+  for (uint16_t i : service_code) {
+    data.push_back(i & 0xff);
+    data.push_back((i >> 8) & 0xff);
+  }
+  data[2] = data.size() - 2;
+
+  if (!this->write_command_(data)) {
+    ESP_LOGE(TAG, "Error writing request service");
+    return false;
+  }
+
+  if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, data)) {
+    ESP_LOGE(TAG, "Error reading request service");
+    return false;
+  }
+
+  return true;
 }
 
 float PN532::get_setup_priority() const { return setup_priority::DATA; }

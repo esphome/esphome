@@ -10,9 +10,16 @@ MULTI_CONF = True
 
 CONF_PN532_ID = "pn532_id"
 CONF_ON_FINISHED_WRITE = "on_finished_write"
+CONF_CARD_STANDARD = "card_standard"
 
 pn532_ns = cg.esphome_ns.namespace("pn532")
 PN532 = pn532_ns.class_("PN532", cg.PollingComponent)
+
+CardStandard = pn532_ns.enum("CardStandard")
+CARD_STANDARD = {
+    "ISO14443A": CardStandard.CARD_STANDARD_ISO14443A,
+    "FELICA": CardStandard.CARD_STANDARD_FELICA,
+}
 
 PN532OnFinishedWriteTrigger = pn532_ns.class_(
     "PN532OnFinishedWriteTrigger", automation.Trigger.template()
@@ -42,6 +49,7 @@ PN532_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(nfc.NfcOnTagTrigger),
             }
         ),
+        cv.Optional(CONF_CARD_STANDARD): cv.enum(CARD_STANDARD, upper=True),
     }
 ).extend(cv.polling_component_schema("1s"))
 
@@ -74,6 +82,12 @@ async def setup_pn532(var, config):
     for conf in config.get(CONF_ON_FINISHED_WRITE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+
+    cg.add(
+        var.set_card_standard(
+            config.get(CONF_CARD_STANDARD, CardStandard.CARD_STANDARD_ISO14443A)
+        )
+    )
 
 
 @automation.register_condition(

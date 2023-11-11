@@ -20,10 +20,14 @@ static const uint8_t PN532_COMMAND_INDATAEXCHANGE = 0x40;
 static const uint8_t PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
 static const uint8_t PN532_COMMAND_POWERDOWN = 0x16;
 
+enum CardStandard { CARD_STANDARD_ISO14443A = 0, CARD_STANDARD_FELICA };
+
 class PN532BinarySensor;
 
 class PN532 : public PollingComponent {
  public:
+  void set_card_standard(const CardStandard card_standard) { this->card_standard_ = card_standard; }
+
   void setup() override;
 
   void dump_config() override;
@@ -84,6 +88,9 @@ class PN532 : public PollingComponent {
   bool write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
   bool clean_mifare_ultralight_();
 
+  bool read_felica_service_(const std::vector<uint8_t> &uid, const std::vector<uint16_t> &service_code,
+                            std::vector<uint8_t> &service_data);
+
   bool updates_enabled_{true};
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
@@ -91,6 +98,8 @@ class PN532 : public PollingComponent {
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
   std::vector<uint8_t> current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
+  CardStandard card_standard_{CARD_STANDARD_ISO14443A};
+
   enum NfcTask {
     READ = 0,
     CLEAN,
