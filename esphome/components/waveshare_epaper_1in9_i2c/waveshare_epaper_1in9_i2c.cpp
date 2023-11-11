@@ -1,4 +1,4 @@
-#include "waveshare_epaper.h"
+#include "waveshare_epaper_1in9_i2c.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
