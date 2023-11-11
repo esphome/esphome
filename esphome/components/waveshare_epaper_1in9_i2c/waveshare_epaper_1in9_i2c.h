@@ -85,8 +85,8 @@ class WaveShareEPaper1in9I2C : public PollingComponent {
   bool inverted_colors_ = false;
 
   uint8_t framebuffer_[FRAMEBUFFER_SIZE] = {CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY,
-                                     CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY,
-                                     CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY};
+                                            CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY,
+                                            CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY};
 
   uint8_t degrees_type_ = CHAR_CELSIUS;
   int temperature_digits_[TEMPERATURE_DIGITS_LEN] = {-1, -1, -1, -1};
