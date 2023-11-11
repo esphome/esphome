@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from aioesphomeapi import APIClient
 from aioesphomeapi.api_pb2 import SubscribeLogsResponse
@@ -20,7 +22,7 @@ async def async_run_logs(config, address):
     conf = config["api"]
     port: int = int(conf[CONF_PORT])
     password: str = conf[CONF_PASSWORD]
-    noise_psk: Optional[str] = None
+    noise_psk: str | None = None
     if CONF_ENCRYPTION in conf:
         noise_psk = conf[CONF_ENCRYPTION][CONF_KEY]
     _LOGGER.info("Starting log output from %s using esphome API", address)
