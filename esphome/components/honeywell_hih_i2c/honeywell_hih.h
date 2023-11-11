@@ -24,10 +24,10 @@ class HONEYWELLHIComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *humidity_sensor_{nullptr};
 
  private:
-  void read_sensor_data();
-  void start_measurement();
-  bool is_measurement_ready();
-  void measurement_timeout();
+  void read_sensor_data_();
+  void start_measurement_();
+  bool is_measurement_ready_();
+  void measurement_timeout_();
 };
 
 }  // namespace honeywell_hih_i2c

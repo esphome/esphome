@@ -13,7 +13,7 @@ static const char *const TAG = "honeywell_hih";
 static const uint8_t RESQUEST_CMD[1] = {0x00};  // Measurement Request Format
 static const uint16_t MAX_COUNT = 0x3FFE;       // 2^14 - 2
 
-void HONEYWELLHIComponent::read_sensor_data() {
+void HONEYWELLHIComponent::read_sensor_data_() {
   uint8_t data[4];
 
   if (this->read(data, sizeof(data)) != i2c::ERROR_OK) {
@@ -35,7 +35,7 @@ void HONEYWELLHIComponent::read_sensor_data() {
     this->humidity_sensor_->publish_state(humidity);
 }
 
-void HONEYWELLHIComponent::start_measurement() {
+void HONEYWELLHIComponent::start_measurement_() {
   if (this->write(RESQUEST_CMD, sizeof(RESQUEST_CMD)) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with Honeywell HIH failed!");
     this->mark_failed();
@@ -45,7 +45,7 @@ void HONEYWELLHIComponent::start_measurement() {
   this->measurement_running_ = true;
 }
 
-bool HONEYWELLHIComponent::is_measurement_ready() {
+bool HONEYWELLHIComponent::is_measurement_ready_() {
   uint8_t data[1];
 
   if (this->read(data, sizeof(data)) != i2c::ERROR_OK) {
@@ -58,7 +58,7 @@ bool HONEYWELLHIComponent::is_measurement_ready() {
   return ((data[0] & 0xC0) == 0x00);
 }
 
-void HONEYWELLHIComponent::measurement_timeout() {
+void HONEYWELLHIComponent::measurement_timeout_() {
   ESP_LOGE(TAG, "Honeywell HIH Timeout!");
   this->measurement_running_ = false;
   this->mark_failed();
@@ -67,16 +67,16 @@ void HONEYWELLHIComponent::measurement_timeout() {
 void HONEYWELLHIComponent::update() {
   ESP_LOGV(TAG, "Update Honeywell HIH Sensor");
 
-  this->start_measurement();
+  this->start_measurement_();
   // The measurement cycle duration is typically 36.65 ms for temperature and humidity readings.
-  this->set_timeout("meas_timeout", 100, [this] { this->measurement_timeout(); });
+  this->set_timeout("meas_timeout", 100, [this] { this->measurement_timeout_(); });
 }
 
 void HONEYWELLHIComponent::loop() {
-  if (this->measurement_running_ && this->is_measurement_ready()) {
+  if (this->measurement_running_ && this->is_measurement_ready_()) {
     this->measurement_running_ = false;
     this->cancel_timeout("meas_timeout");
-    this->read_sensor_data();
+    this->read_sensor_data_();
   }
 }
 
