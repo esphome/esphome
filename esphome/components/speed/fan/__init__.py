@@ -2,10 +2,18 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import fan, output
 from esphome.components.fan import FAN_DIRECTION_ENUM, FanDirection
-from esphome.const import (CONF_DIRECTION,  CONF_PRESET_MODES,
-                           CONF_DIRECTION_OUTPUT, CONF_NAME, CONF_OSCILLATING,
-                           CONF_OSCILLATION_OUTPUT, CONF_OUTPUT,
-                           CONF_OUTPUT_ID, CONF_SPEED, CONF_SPEED_COUNT)
+from esphome.const import (
+    CONF_DIRECTION,
+    CONF_PRESET_MODES,
+    CONF_DIRECTION_OUTPUT,
+    CONF_NAME,
+    CONF_OSCILLATING,
+    CONF_OSCILLATION_OUTPUT,
+    CONF_OUTPUT,
+    CONF_OUTPUT_ID,
+    CONF_SPEED,
+    CONF_SPEED_COUNT,
+)
 
 from .. import speed_ns
 
@@ -13,12 +21,13 @@ SpeedFan = speed_ns.class_("SpeedFan", cg.Component, fan.Fan)
 
 _PRESET_MODES_SCHEMA = cv.All(
     cv.ensure_list(
-        cv.All({
-            cv.Required(CONF_NAME): cv.string_strict,
-            cv.Optional(CONF_SPEED): cv.int_range(1),
-            cv.Optional(CONF_OSCILLATING): cv.boolean,
-            cv.Optional(CONF_DIRECTION): cv.enum(FAN_DIRECTION_ENUM, upper=True),
-        },
+        cv.All(
+            {
+                cv.Required(CONF_NAME): cv.string_strict,
+                cv.Optional(CONF_SPEED): cv.int_range(1),
+                cv.Optional(CONF_OSCILLATING): cv.boolean,
+                cv.Optional(CONF_DIRECTION): cv.enum(FAN_DIRECTION_ENUM, upper=True),
+            },
             cv.has_at_least_one_key(CONF_SPEED, CONF_OSCILLATING, CONF_DIRECTION),
         )
     ),
@@ -36,7 +45,7 @@ def _validate_preset_modes(value):
     for i, preset in enumerate(value):
         name = preset[CONF_NAME]
         # If name does not exist yet add it
-        if not name in names:
+        if name not in names:
             names.add(name)
             continue
 
@@ -87,6 +96,5 @@ async def to_code(config):
         speed = cg.optional.template(int)(preset.get(CONF_SPEED))
         oscillating = cg.optional.template(bool)(preset.get(CONF_OSCILLATING))
         direction = cg.optional.template(FanDirection)(preset.get(CONF_DIRECTION))
-        
+
         cg.add(var.add_preset_mode(preset[CONF_NAME], speed, oscillating, direction))
-        
