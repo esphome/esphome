@@ -92,9 +92,12 @@ async def to_code(config):
         direction_output = await cg.get_variable(config[CONF_DIRECTION_OUTPUT])
         cg.add(var.set_direction(direction_output))
 
-    for preset in config[CONF_PRESET_MODES]:
-        speed = cg.optional.template(int)(preset.get(CONF_SPEED))
-        oscillating = cg.optional.template(bool)(preset.get(CONF_OSCILLATING))
-        direction = cg.optional.template(FanDirection)(preset.get(CONF_DIRECTION))
+    if CONF_PRESET_MODES in config:
+        for preset in config[CONF_PRESET_MODES]:
+            speed = cg.optional.template(int)(preset.get(CONF_SPEED))
+            oscillating = cg.optional.template(bool)(preset.get(CONF_OSCILLATING))
+            direction = cg.optional.template(FanDirection)(preset.get(CONF_DIRECTION))
 
-        cg.add(var.add_preset_mode(preset[CONF_NAME], speed, oscillating, direction))
+            cg.add(
+                var.add_preset_mode(preset[CONF_NAME], speed, oscillating, direction)
+            )
