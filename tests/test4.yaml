@@ -289,6 +289,11 @@ sensor:
     name: "a01nyub Distance"
     uart_id: uart9600
     state_topic: "esphome/sensor/a01nyub_sensor/state"
+  - platform: a02yyuw
+    id: a02yyuw_sensor
+    name: "a02yyuw Distance"
+    uart_id: uart9600
+    state_topic: "esphome/sensor/a02yyuw_sensor/state"
 
 #
 # platform sensor.apds9960 requires component apds9960
