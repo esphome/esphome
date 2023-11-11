@@ -16,10 +16,12 @@ network::IPAddress Resolver::resolve(const std::string *hostname) {
   if (this->hosts_.count(*hostname) > 0) {
     return this->hosts_[*hostname];
   }
+#ifdef USE_MDNS
   network::IPAddress resolved_mdns = mdns::global_mdns->resolve(*hostname);
   if (resolved_mdns.is_set()) {
     return resolved_mdns;
   }
+#endif
   ip_addr_t addr;
   err_t err =
       dns_gethostbyname_addrtype(hostname->c_str(), &addr, Resolver::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
