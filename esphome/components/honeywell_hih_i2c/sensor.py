@@ -15,7 +15,9 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 honeywell_hih_ns = cg.esphome_ns.namespace("honeywell_hih_i2c")
-HONEYWELLHIComponent = honeywell_hih_ns.class_("HONEYWELLHIComponent", cg.PollingComponent, i2c.I2CDevice)
+HONEYWELLHIComponent = honeywell_hih_ns.class_(
+    "HONEYWELLHIComponent", cg.PollingComponent, i2c.I2CDevice
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
