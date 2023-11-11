@@ -147,13 +147,28 @@ class DashboardImportDiscovery:
 
 
 class EsphomeZeroconf(Zeroconf):
-    def resolve_host(self, host: str, timeout: float = 3.0) -> str | None:
-        """Resolve a host name to an IP address."""
+    def _make_host_resolver(self, host: str) -> HostResolver:
+        """Create a new HostResolver for the given host name."""
         name = host.partition(".")[0]
         info = HostResolver(ESPHOME_SERVICE_TYPE, f"{name}.{ESPHOME_SERVICE_TYPE}")
+        return info
+
+    def resolve_host(self, host: str, timeout: float = 3.0) -> str | None:
+        """Resolve a host name to an IP address."""
+        info = self._make_host_resolver(host)
         if (
             info.load_from_cache(self)
             or (timeout and info.request(self, timeout * 1000))
+        ) and (addresses := info.ip_addresses_by_version(IPVersion.V4Only)):
+            return str(addresses[0])
+        return None
+
+    async def async_resolve_host(self, host: str, timeout: float = 3.0) -> str | None:
+        """Resolve a host name to an IP address."""
+        info = self._make_host_resolver(host)
+        if (
+            info.load_from_cache(self)
+            or (timeout and await info.async_request(self, timeout * 1000))
         ) and (addresses := info.ip_addresses_by_version(IPVersion.V4Only)):
             return str(addresses[0])
         return None

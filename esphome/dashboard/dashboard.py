@@ -289,7 +289,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         self._use_popen = os.name == "nt"
 
     @authenticated
-    def on_message(self, message):
+    async def on_message(self, message):
         # Messages are always JSON, 500 when not
         json_message = json.loads(message)
         type_ = json_message["type"]
@@ -299,14 +299,14 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
             _LOGGER.warning("Requested unknown message type %s", type_)
             return
 
-        handlers[type_](self, json_message)
+        await handlers[type_](self, json_message)
 
     @websocket_method("spawn")
-    def handle_spawn(self, json_message):
+    async def handle_spawn(self, json_message):
         if self._proc is not None:
             # spawn can only be called once
             return
-        command = self.build_command(json_message)
+        command = await self.build_command(json_message)
         _LOGGER.info("Running command '%s'", " ".join(shlex_quote(x) for x in command))
 
         if self._use_popen:
@@ -337,7 +337,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         return self._proc is not None and self._proc.returncode is None
 
     @websocket_method("stdin")
-    def handle_stdin(self, json_message):
+    async def handle_stdin(self, json_message):
         if not self.is_process_active:
             return
         data = json_message["data"]
@@ -395,7 +395,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         # Shutdown proc on WS close
         self._is_closed = True
 
-    def build_command(self, json_message):
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         raise NotImplementedError
 
 
@@ -405,7 +405,9 @@ DASHBOARD_COMMAND = ["esphome", "--dashboard"]
 class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
     """Base class for commands that require a port."""
 
-    def run_command(self, args: list[str], json_message: dict[str, Any]) -> list[str]:
+    async def run_command(
+        self, args: list[str], json_message: dict[str, Any]
+    ) -> list[str]:
         """Build the command to run."""
         configuration = json_message["configuration"]
         config_file = settings.rel_path(configuration)
@@ -414,7 +416,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
             port == "OTA"
             and (mdns := MDNS_CONTAINER.get_mdns())
             and (host_name := mdns.filename_to_host_name_thread_safe(configuration))
-            and (address := mdns.resolve_host_thread_safe(host_name))
+            and (address := await mdns.async_resolve_host(host_name))
         ):
             port = address
 
@@ -428,15 +430,15 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
 
 
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):
-    def build_command(self, json_message: dict[str, Any]) -> list[str]:
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         """Build the command to run."""
-        return self.run_command(["logs"], json_message)
+        return await self.run_command(["logs"], json_message)
 
 
 class EsphomeRenameHandler(EsphomeCommandWebSocket):
     old_name: str
 
-    def build_command(self, json_message):
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         config_file = settings.rel_path(json_message["configuration"])
         self.old_name = json_message["configuration"]
         return [
@@ -457,19 +459,19 @@ class EsphomeRenameHandler(EsphomeCommandWebSocket):
 
 
 class EsphomeUploadHandler(EsphomePortCommandWebSocket):
-    def build_command(self, json_message: dict[str, Any]) -> list[str]:
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         """Build the command to run."""
         return self.run_command(["upload"], json_message)
 
 
 class EsphomeRunHandler(EsphomePortCommandWebSocket):
-    def build_command(self, json_message: dict[str, Any]) -> list[str]:
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         """Build the command to run."""
         return self.run_command(["run"], json_message)
 
 
 class EsphomeCompileHandler(EsphomeCommandWebSocket):
-    def build_command(self, json_message):
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         config_file = settings.rel_path(json_message["configuration"])
         command = [*DASHBOARD_COMMAND, "compile"]
         if json_message.get("only_generate", False):
@@ -479,7 +481,7 @@ class EsphomeCompileHandler(EsphomeCommandWebSocket):
 
 
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
-    def build_command(self, json_message):
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         config_file = settings.rel_path(json_message["configuration"])
         command = [*DASHBOARD_COMMAND, "config", config_file]
         if not settings.streamer_mode:
@@ -488,29 +490,29 @@ class EsphomeValidateHandler(EsphomeCommandWebSocket):
 
 
 class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
-    def build_command(self, json_message):
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         config_file = settings.rel_path(json_message["configuration"])
         return [*DASHBOARD_COMMAND, "clean-mqtt", config_file]
 
 
 class EsphomeCleanHandler(EsphomeCommandWebSocket):
-    def build_command(self, json_message):
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         config_file = settings.rel_path(json_message["configuration"])
         return [*DASHBOARD_COMMAND, "clean", config_file]
 
 
 class EsphomeVscodeHandler(EsphomeCommandWebSocket):
-    def build_command(self, json_message):
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         return [*DASHBOARD_COMMAND, "-q", "vscode", "dummy"]
 
 
 class EsphomeAceEditorHandler(EsphomeCommandWebSocket):
-    def build_command(self, json_message):
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         return [*DASHBOARD_COMMAND, "-q", "vscode", "--ace", settings.config_dir]
 
 
 class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
-    def build_command(self, json_message):
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         return [*DASHBOARD_COMMAND, "update-all", settings.config_dir]
 
 
@@ -990,12 +992,12 @@ class MDNSStatusThread(threading.Thread):
         """Resolve a filename to an address in a thread-safe manner."""
         return self.filename_to_host_name.get(filename)
 
-    def resolve_host_thread_safe(self, host_name: str) -> str | None:
+    async def async_resolve_host(self, host_name: str) -> str | None:
         """Resolve a host name to an address in a thread-safe manner."""
         if zc := self.zeroconf:
             # Currently we do not do any I/O and only
             # return the cached result (timeout=0)
-            return zc.resolve_host(host_name, 0)
+            return await zc.async_resolve_host(host_name)
         return None
 
     def _refresh_hosts(self):
