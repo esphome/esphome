@@ -35,7 +35,7 @@ async def async_run_logs(config, address):
         password,
         client_info=f"ESPHome Logs {__version__}",
         noise_psk=noise_psk,
-        zeroconf_instance=aiozc,
+        zeroconf_instance=aiozc.zeroconf,
     )
     dashboard = CORE.dashboard
 
