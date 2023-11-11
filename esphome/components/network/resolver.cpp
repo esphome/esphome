@@ -2,6 +2,9 @@
 #include "lwip/dns.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_MDNS
+#include "esphome/components/mdns/mdns_component.h"
+#endif
 
 namespace esphome {
 namespace network {
