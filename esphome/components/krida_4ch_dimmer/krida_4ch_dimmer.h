@@ -10,7 +10,10 @@ const char* TAG = "krida_4ch_dimmer_c";
 uint8_t temp = 100; //Initial value of the register
 
 namespace esphome {
+namespace krida_dimmer {
   class Krida4chDimmer : public Component, public i2c::I2CDevice, public output::FloatOutput {
+  protected:
+    enum ErrorCode { NONE = 0, COMMUNICATION_FAILED } error_code_{NONE};
   public:
     Krida4chDimmer() {}
     float get_setup_priority() const override { return esphome::setup_priority::BUS; } //Access I2C bus
@@ -35,8 +38,10 @@ namespace esphome {
 
     void write_state(float state) {
       ESP_LOGI(TAG, "Updating dimmer value %3.2f", state);
-      const uint16_t value = trunc(state);
+      const uint8_t value = trunc(state);
       //Did the user change the input?
-      this->write_register(REGISTER_ADDRESS, value, 1);
-  }
+      this->write_register(REGISTER_ADDRESS, &value, 1);
+    }
+  };
+}
 }
