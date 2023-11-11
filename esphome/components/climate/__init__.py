@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_AWAY,
     CONF_AWAY_COMMAND_TOPIC,
     CONF_AWAY_STATE_TOPIC,
+    CONF_CURRENT_HUMIDITY_STATE_TOPIC,
     CONF_CURRENT_TEMPERATURE_STATE_TOPIC,
     CONF_CUSTOM_FAN_MODE,
     CONF_CUSTOM_PRESET,
@@ -28,6 +29,8 @@ from esphome.const import (
     CONF_SWING_MODE,
     CONF_SWING_MODE_COMMAND_TOPIC,
     CONF_SWING_MODE_STATE_TOPIC,
+    CONF_TARGET_HUMIDITY_COMMAND_TOPIC,
+    CONF_TARGET_HUMIDITY_STATE_TOPIC,
     CONF_TARGET_TEMPERATURE,
     CONF_TARGET_TEMPERATURE_COMMAND_TOPIC,
     CONF_TARGET_TEMPERATURE_STATE_TOPIC,
@@ -173,6 +176,9 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
         cv.Optional(CONF_CURRENT_TEMPERATURE_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
+        cv.Optional(CONF_CURRENT_HUMIDITY_STATE_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
         cv.Optional(CONF_FAN_MODE_COMMAND_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
@@ -213,6 +219,12 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
             cv.requires_component("mqtt"), cv.publish_topic
         ),
         cv.Optional(CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_TARGET_HUMIDITY_COMMAND_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_TARGET_HUMIDITY_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
         cv.Optional(CONF_ON_CONTROL): automation.validate_automation(
@@ -263,6 +275,12 @@ async def setup_climate_core_(var, config):
             cg.add(
                 mqtt_.set_custom_current_temperature_state_topic(
                     config[CONF_CURRENT_TEMPERATURE_STATE_TOPIC]
+                )
+            )
+        if CONF_CURRENT_HUMIDITY_STATE_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_current_humidity_state_topic(
+                    config[CONF_CURRENT_HUMIDITY_STATE_TOPIC]
                 )
             )
         if CONF_FAN_MODE_COMMAND_TOPIC in config:
@@ -331,6 +349,18 @@ async def setup_climate_core_(var, config):
             cg.add(
                 mqtt_.set_custom_target_temperature_state_topic(
                     config[CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC]
+                )
+            )
+        if CONF_TARGET_HUMIDITY_COMMAND_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_target_humidity_command_topic(
+                    config[CONF_TARGET_HUMIDITY_COMMAND_TOPIC]
+                )
+            )
+        if CONF_TARGET_HUMIDITY_STATE_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_target_humidity_state_topic(
+                    config[CONF_TARGET_HUMIDITY_STATE_TOPIC]
                 )
             )
 
