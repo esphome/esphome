@@ -61,7 +61,7 @@ runs:
       uses: actions/upload-artifact@v3.1.3
       with:
         name: digests-${{ inputs.target }}-ghcr
-        path: /tmp/digests/${{ inputs.target }}ghcr/*
+        path: /tmp/digests/${{ inputs.target }}/ghcr/*
         if-no-files-found: error
         retention-days: 1
 
