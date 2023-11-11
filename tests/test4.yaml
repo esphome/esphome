@@ -58,6 +58,10 @@ uart:
     tx_pin: GPIO22
     rx_pin: GPIO23
     baud_rate: 9600
+  - id: uart_a02yyuw
+    tx_pin: GPIO22
+    rx_pin: GPIO23
+    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -292,7 +296,7 @@ sensor:
   - platform: a02yyuw
     id: a02yyuw_sensor
     name: "a02yyuw Distance"
-    uart_id: uart9600
+    uart_id: uart_a02yyuw
     state_topic: "esphome/sensor/a02yyuw_sensor/state"
 
 #
