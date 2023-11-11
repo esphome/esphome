@@ -4,18 +4,49 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 
-#define CELSIUS 0x05
-#define FAHRENHEIT 0x06
-#define DOT 0b0000000000100000
-#define PERCENT 0b0000000000100000
-#define LOW_POWER_ON 0b0000000000010000
-#define LOW_POWER_OFF 0b1111111111101111
-
-#define BT_ON 0b0000000000001000
-#define BT_OFF 0b1111111111110111
-
 namespace esphome {
 namespace waveshare_epaper_1in9_i2c {
+
+static const unsigned const FRAMEBUFFER_SIZE = 15;
+static const unsigned const CHAR_SLOTS = 2;
+
+static const uint8_t const CHAR_EMPTY = 0x00;
+static const uint8_t const CHAR_CELSIUS = 0x05;
+static const uint8_t const CHAR_FAHRENHEIT = 0x06;
+static const uint8_t const CHAR_MINUS_SIGN[CHAR_SLOTS] = {0b01000100, 0b00000};
+static const uint8_t const CHAR_DIGITS[10][CHAR_SLOTS] = {
+    {0xbf, 0xff},  // 0
+    {0x00, 0xff},  // 1
+    {0xfd, 0x17},  // 2
+    {0xf5, 0xff},  // 3
+    {0x47, 0xff},  // 4
+    {0xf7, 0x1d},  // 5
+    {0xff, 0x1d},  // 6
+    {0x21, 0xff},  // 7
+    {0xff, 0xff},  // 8
+    {0xf7, 0xff},  // 9
+};
+
+static const unsigned const TEMPERATURE_DIGITS_LEN = 4;
+static const unsigned const HUMIDITY_DIGITS_LEN = 3;
+
+static bool is_naN(float a) { return a != a; }
+
+static void parse_number(float number, int *digits, int digits_count) {
+  for (int i = 0; i < digits_count; i++) {
+    if (is_naN(number)) {
+      digits[i] = -1;
+    } else {
+      digits[i] = (int) (number / pow(10, (digits_count - i) - 2)) % 10;
+
+      if (digits[i] == 0 && (i == 0 || digits[i - 1] == -1)) {
+        digits[i] = -1;
+      }
+    }
+  }
+}
+
+static uint8_t get_pixel(int number, int order) { return number == -1 ? CHAR_EMPTY : CHAR_DIGITS[number][order]; }
 
 class WaveShareEPaper1in9I2C : public PollingComponent {
  public:
@@ -38,22 +69,27 @@ class WaveShareEPaper1in9I2C : public PollingComponent {
 
   void set_rst_pin(GPIOPin *rst_pin) { this->rst_pin_ = rst_pin; }
   void set_busy_pin(GPIOPin *busy_pin) { this->busy_pin_ = busy_pin; }
+  void set_temperature_for_compensation(float temp) { this->compensation_temp = temp; }
   void set_temperature(float temp);
   void set_humidity(float humidity);
-  void set_low_power_indicator(bool isLowPower);
-  void set_bluetooth_indicator(bool isBluetooth);
+  void set_low_power_indicator(bool enabled);
+  void set_bluetooth_indicator(bool enabled);
+  void apply_temperature_compensation();
 
  protected:
+  float compensation_temp = 20;
   bool potential_refresh = false;
   bool inverted_colors = false;
 
-  unsigned char image[15] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  uint8_t image[FRAMEBUFFER_SIZE] = {CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY,
+                                     CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY,
+                                     CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY};
 
-  unsigned char degrees_type = CELSIUS;
-  int temperature_digits[4] = {-1, -1, -1, -1};
+  uint8_t degrees_type = CHAR_CELSIUS;
+  int temperature_digits[TEMPERATURE_DIGITS_LEN] = {-1, -1, -1, -1};
   bool temperature_positive = true;
 
-  int humidity_digits[3] = {-1, -1, -1};
+  int humidity_digits[HUMIDITY_DIGITS_LEN] = {-1, -1, -1};
   bool humidity_positive = true;
 
   i2c::I2CDevice *command_device_;
@@ -61,49 +97,13 @@ class WaveShareEPaper1in9I2C : public PollingComponent {
   GPIOPin *rst_pin_;
   GPIOPin *busy_pin_;
 
-  void init();
-  void reset();
+  void init_screen();
+  void reset_screen();
   void read_busy();
-  void lut_DU_WB();
-  void lut_5S();
-  void temperature_compensation();
-  void write_screen(unsigned char *image);
+  void write_lut(const uint8_t *lut);
+  void write_screen(const uint8_t *image);
   void deep_sleep();
-  bool set_data(unsigned char new_image[15]);
-
-  bool isNaN(float a) { return a != a; }
-
-  void parseNumber(float number, int *digits, int digitsCount) {
-    for (int i = 0; i < digitsCount; i++) {
-      if (isNaN(number)) {
-        digits[i] = -1;
-      } else {
-        digits[i] = (int) (number / pow(10, (digitsCount - i) - 2)) % 10;
-
-        if (digits[i] == 0 && (i == 0 || digits[i - 1] == -1)) {
-          digits[i] = -1;
-        }
-      }
-    }
-  }
-
-  const unsigned char EMPTY = 0x00;
-  const unsigned char MINUS_SIGN[2] = {0b01000100, 0b00000};
-
-  const unsigned char DIGITS[10][2] = {
-      {0xbf, 0xff},  // 0
-      {0x00, 0xff},  // 1
-      {0xfd, 0x17},  // 2
-      {0xf5, 0xff},  // 3
-      {0x47, 0xff},  // 4
-      {0xf7, 0x1d},  // 5
-      {0xff, 0x1d},  // 6
-      {0x21, 0xff},  // 7
-      {0xff, 0xff},  // 8
-      {0xf7, 0xff},  // 9
-  };
-
-  unsigned char getPixel(int number, int order) { return number == -1 ? EMPTY : DIGITS[number][order]; }
+  bool update_framebuffer(uint8_t new_image[FRAMEBUFFER_SIZE]);
 };
 }  // namespace waveshare_epaper_1in9_i2c
 }  // namespace esphome
