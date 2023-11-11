@@ -7,26 +7,26 @@ namespace waveshare_epaper_1in9_i2c {
 
 static const char *const TAG = "waveshare_epaper_1in9_i2c";
 
-static const uint8_t const EMPTY_DISPLAY[FRAMEBUFFER_SIZE] = {
+static const uint8_t EMPTY_DISPLAY[FRAMEBUFFER_SIZE] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
 static const unsigned LUT_SIZE = 7;
 
 // 5S waveform for better anti-ghosting
-static const uint8_t const LUT_5S[LUT_SIZE] = {0x82, 0x28, 0x20, 0xA8, 0xA0, 0x50, 0x65};
+static const uint8_t LUT_5S[LUT_SIZE] = {0x82, 0x28, 0x20, 0xA8, 0xA0, 0x50, 0x65};
 
 // White extinction diagram + black out diagram
-static const uint8_t const LUT_DU_WB[LUT_SIZE] = {0x82, 0x80, 0x00, 0xC0, 0x80, 0x80, 0x62};
+static const uint8_t LUT_DU_WB[LUT_SIZE] = {0x82, 0x80, 0x00, 0xC0, 0x80, 0x80, 0x62};
 
-static const uint8_t const DOT_MASK = 0b0000000000100000;
-static const uint8_t const PERCENT_MASK = 0b0000000000100000;
+static const unsigned DOT_MASK = 0b0000000000100000;
+static const unsigned PERCENT_MASK = 0b0000000000100000;
 
-static const uint8_t const LOW_POWER_ON_MASK = 0b0000000000010000;
-static const uint8_t const LOW_POWER_OFF_MASK = 0b1111111111101111;
+static const unsigned LOW_POWER_ON_MASK = 0b0000000000010000;
+static const unsigned LOW_POWER_OFF_MASK = 0b1111111111101111;
 
-static const uint8_t const BT_ON_MASK = 0b0000000000001000;
-static const uint8_t const BT_OFF_MASK = 0b1111111111110111;
+static const unsigned BT_ON_MASK = 0b0000000000001000;
+static const unsigned BT_OFF_MASK = 0b1111111111110111;
 
 float WaveShareEPaper1in9I2C::get_setup_priority() const { return setup_priority::IO; }
 

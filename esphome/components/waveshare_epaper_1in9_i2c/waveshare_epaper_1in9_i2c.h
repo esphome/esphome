@@ -7,14 +7,14 @@
 namespace esphome {
 namespace waveshare_epaper_1in9_i2c {
 
-static const unsigned const FRAMEBUFFER_SIZE = 15;
-static const unsigned const CHAR_SLOTS = 2;
+static const unsigned FRAMEBUFFER_SIZE = 15;
+static const unsigned CHAR_SLOTS = 2;
 
-static const uint8_t const CHAR_EMPTY = 0x00;
-static const uint8_t const CHAR_CELSIUS = 0x05;
-static const uint8_t const CHAR_FAHRENHEIT = 0x06;
-static const uint8_t const CHAR_MINUS_SIGN[CHAR_SLOTS] = {0b01000100, 0b00000};
-static const uint8_t const CHAR_DIGITS[10][CHAR_SLOTS] = {
+static const uint8_t CHAR_EMPTY = 0x00;
+static const uint8_t CHAR_CELSIUS = 0x05;
+static const uint8_t CHAR_FAHRENHEIT = 0x06;
+static const uint8_t CHAR_MINUS_SIGN[CHAR_SLOTS] = {0b01000100, 0b00000};
+static const uint8_t CHAR_DIGITS[10][CHAR_SLOTS] = {
     {0xbf, 0xff},  // 0
     {0x00, 0xff},  // 1
     {0xfd, 0x17},  // 2
@@ -27,8 +27,8 @@ static const uint8_t const CHAR_DIGITS[10][CHAR_SLOTS] = {
     {0xf7, 0xff},  // 9
 };
 
-static const unsigned const TEMPERATURE_DIGITS_LEN = 4;
-static const unsigned const HUMIDITY_DIGITS_LEN = 3;
+static const unsigned TEMPERATURE_DIGITS_LEN = 4;
+static const unsigned HUMIDITY_DIGITS_LEN = 3;
 
 static bool is_naN(float a) { return a != a; }
 
