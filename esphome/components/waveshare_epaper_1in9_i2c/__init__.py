@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_RESET_PIN,
 )
 
+CODEOWNERS = ["nanomad"]
 DEPENDENCIES = ["i2c"]
 
 waveshare_epaper_1in9_i2c_ns = cg.esphome_ns.namespace("waveshare_epaper_1in9_i2c")
@@ -35,8 +36,8 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    rst_pin = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-    cg.add(var.set_rst_pin(rst_pin))
+    reset_pin = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
+    cg.add(var.set_reset_ping(reset_pin))
     busy_pin = await cg.gpio_pin_expression(config[CONF_BUSY_PIN])
     cg.add(var.set_busy_pin(busy_pin))
 
