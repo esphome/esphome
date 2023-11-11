@@ -40,11 +40,11 @@ void SpeedFan::control(const fan::FanCall &call, bool ignore_preset) {
     this->preset_mode = call.get_preset_mode();
     // Recursively call the control function with the preset's stored FanCall, but ignore the preset field
 
-    if (!this->preset_mode.empty())
+    if (!this->preset_mode.empty()) {
+      // Return to avoid publishing state twice
       this->control(this->preset_modes_.at(this->preset_mode), true);
-
-    // Return to avoid publishing state twice
-    return;
+      return;
+    }
   }
 
   this->write_state_();
