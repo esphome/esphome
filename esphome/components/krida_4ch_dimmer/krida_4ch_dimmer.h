@@ -10,7 +10,7 @@ char temp = 100; //Initial value of the register
 namespace esphome {
   class Krida4chDimmer : public PollingComponent {
   public:
-    Krida4chDimmer() : PollingComponent(POLLING_PERIOD), public i2c::I2CDevice {}
+    Krida4chDimmer() : PollingComponent(POLLING_PERIOD), i2c::I2CDevice() {}
     float get_setup_priority() const override { return esphome::setup_priority::BUS; } //Access I2C bus
 
     // void setup() override {
