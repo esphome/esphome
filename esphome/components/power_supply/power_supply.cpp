@@ -16,7 +16,7 @@ void PowerSupply::setup() {
 void PowerSupply::dump_config() {
   ESP_LOGCONFIG(TAG, "Power Supply:");
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Time to enable: %u ms", this->enable_time_);
+  ESP_LOGCONFIG(TAG, "  Time to enable: %" PRIu32 " ms", this->enable_time_);
   ESP_LOGCONFIG(TAG, "  Keep on time: %.1f s", this->keep_on_time_ / 1000.0f);
 }
 
