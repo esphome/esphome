@@ -24,7 +24,7 @@ void XPT2046Component::setup() {
   read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
 }
 
-void XPT2046Component::update_touches_() {
+void XPT2046Component::update_touches() {
   int16_t data[6], x_raw, y_raw, z_raw;
   bool touch = false;
 
