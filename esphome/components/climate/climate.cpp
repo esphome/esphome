@@ -46,7 +46,7 @@ void ClimateCall::perform() {
     ESP_LOGD(TAG, "  Target Temperature High: %.2f", *this->target_temperature_high_);
   }
   if (this->target_humidity_.has_value()) {
-    ESP_LOGD(TAG, "  Target Humidity: " PRIu8, *this->target_humidity_);
+    ESP_LOGD(TAG, "  Target Humidity: %" PRIu8, *this->target_humidity_);
   }
   if (this->aux_heat_.has_value()) {
     ESP_LOGD(TAG, "  Auxiliary Heater: %s", ONOFF(*this->aux_heat_));
@@ -440,10 +440,10 @@ void Climate::publish_state() {
     ESP_LOGD(TAG, "  Target Temperature: %.2f°C", this->target_temperature);
   }
   if (traits.get_supports_current_humidity()) {
-    ESP_LOGD(TAG, "  Current Humidity: " PRIu8 "%%", this->current_humidity);
+    ESP_LOGD(TAG, "  Current Humidity: %" PRIu8 "%%", this->current_humidity);
   }
   if (traits.get_supports_target_humidity()) {
-    ESP_LOGD(TAG, "  Target Humidity: " PRIu8 "%%", this->target_humidity);
+    ESP_LOGD(TAG, "  Target Humidity: %" PRIu8 "%%", this->target_humidity);
   }
   if (traits.get_supports_aux_heat()) {
     ESP_LOGD(TAG, "  Auxiliary Heater: %s", ONOFF(this->aux_heat));
@@ -599,8 +599,8 @@ void Climate::dump_traits_(const char *tag) {
   ESP_LOGCONFIG(tag, "      - Temperature step:");
   ESP_LOGCONFIG(tag, "          Target: %.1f", traits.get_visual_target_temperature_step());
   ESP_LOGCONFIG(tag, "          Current: %.1f", traits.get_visual_current_temperature_step());
-  ESP_LOGCONFIG(tag, "      - Min humidity: " PRIu8, traits.get_visual_min_humidity());
-  ESP_LOGCONFIG(tag, "      - Max humidity: " PRIu8, traits.get_visual_max_humidity());
+  ESP_LOGCONFIG(tag, "      - Min humidity: %" PRIu8, traits.get_visual_min_humidity());
+  ESP_LOGCONFIG(tag, "      - Max humidity: %" PRIu8, traits.get_visual_max_humidity());
   if (traits.get_supports_current_temperature()) {
     ESP_LOGCONFIG(tag, "  [x] Supports current temperature");
   }
