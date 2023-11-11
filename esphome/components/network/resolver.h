@@ -3,9 +3,6 @@
 #include <string>
 #include <map>
 #include "ip_address.h"
-#ifdef USE_MDNS
-#include "esphome/components/mdns/mdns_component.h"
-#endif
 namespace esphome {
 namespace network {
 
