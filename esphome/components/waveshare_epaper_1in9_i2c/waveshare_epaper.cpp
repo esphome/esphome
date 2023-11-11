@@ -61,7 +61,7 @@ void WaveShareEPaper1in9I2C::update() {
         get_pixel(this->temperature_digits_[3], 0),
         get_pixel(this->temperature_digits_[3], 1),
         this->degrees_type_,  // С°/F°/power/bluetooth
-        CHAR_EMPTY // Position 14 must always be empty
+        CHAR_EMPTY            // Position 14 must always be empty
     };
 
     new_image[4] |= DOT_MASK;       // set top dot
@@ -69,14 +69,13 @@ void WaveShareEPaper1in9I2C::update() {
     new_image[10] |= PERCENT_MASK;  // set percent symbol
 
     bool need_refresh = this->update_framebuffer(new_image);
-    
+
     if (need_refresh) {
       ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::updating...");
       this->write_lut(LUT_DU_WB);
-      delay(300);
+      delay(300);  // NOLINT
       this->write_screen();
     }
-  
   }
 
   deep_sleep();
@@ -86,11 +85,11 @@ void WaveShareEPaper1in9I2C::reset_screen() {
   ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::reset_screen");
 
   reset_pin_->digital_write(true);
-  delay(200);
+  delay(200);  // NOLINT
   reset_pin_->digital_write(false);
   delay(20);
   reset_pin_->digital_write(true);
-  delay(200);
+  delay(200);  // NOLINT
 }
 
 /**
@@ -112,7 +111,7 @@ void WaveShareEPaper1in9I2C::read_busy(void) {
 void WaveShareEPaper1in9I2C::init_screen(void) {
   ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::init_screen...");
   this->reset_screen();
-  delay(100);
+  delay(100);  // NOLINT
 
   uint8_t data[] = {
       0x2B,  // Power on
