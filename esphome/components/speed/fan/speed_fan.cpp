@@ -12,12 +12,21 @@ void SpeedFan::setup() {
     restore->apply(*this);
     this->write_state_();
   }
+
+  // Construct traits
+  this->traits_ = fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
+
+  // Add all presets to traits
+  std::vector<std::string> keys;
+  for (auto const &kv : this->preset_modes_)
+    keys.push_back(kv.first);
+
+  this->traits_.set_supported_preset_modes(keys);
 }
+
 void SpeedFan::dump_config() { LOG_FAN("", "Speed Fan", this); }
-fan::FanTraits SpeedFan::get_traits() {
-  return fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
-}
-void SpeedFan::control(const fan::FanCall &call) {
+
+void SpeedFan::control(const fan::FanCall &call, bool ignore_preset) {
   if (call.get_state().has_value())
     this->state = *call.get_state();
   if (call.get_speed().has_value())
@@ -27,9 +36,21 @@ void SpeedFan::control(const fan::FanCall &call) {
   if (call.get_direction().has_value())
     this->direction = *call.get_direction();
 
+  if (!ignore_preset) {
+    this->preset_mode = call.get_preset_mode();
+    // Recursively call the control function with the preset's stored FanCall, but ignore the preset field
+
+    if (!this->preset_mode.empty())
+      this->control(this->preset_modes_.at(this->preset_mode), true);
+
+    // Return to avoid publishing state twice
+    return;
+  }
+
   this->write_state_();
   this->publish_state();
 }
+
 void SpeedFan::write_state_() {
   float speed = this->state ? static_cast<float>(this->speed) / static_cast<float>(this->speed_count_) : 0.0f;
   this->output_->set_level(speed);
@@ -38,6 +59,22 @@ void SpeedFan::write_state_() {
     this->oscillating_->set_state(this->oscillating);
   if (this->direction_ != nullptr)
     this->direction_->set_state(this->direction == fan::FanDirection::REVERSE);
+}
+
+void SpeedFan::add_preset_mode(const std::string &name, optional<int> speed, optional<bool> oscillating,
+                               optional<fan::FanDirection> direction) {
+  auto call = this->make_call();
+
+  if (speed)
+    call.set_speed(*speed);
+
+  if (oscillating)
+    call.set_oscillating(*oscillating);
+
+  if (direction)
+    call.set_direction(static_cast<fan::FanDirection>(*direction));
+
+  this->preset_modes_.emplace(name, call);
 }
 
 }  // namespace speed
