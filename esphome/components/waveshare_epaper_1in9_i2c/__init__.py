@@ -8,7 +8,7 @@ from esphome.const import (
     CONF_RESET_PIN,
 )
 
-CODEOWNERS = ["nanomad"]
+CODEOWNERS = ["@nanomad"]
 DEPENDENCIES = ["i2c"]
 
 waveshare_epaper_1in9_i2c_ns = cg.esphome_ns.namespace("waveshare_epaper_1in9_i2c")
