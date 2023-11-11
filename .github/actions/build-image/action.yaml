@@ -55,7 +55,7 @@ runs:
       run: |
         mkdir -p /tmp/digests/${{ inputs.target }}/ghcr
         digest="${{ steps.build-ghcr.outputs.digest }}"
-        touch "/tmp/digests/ghcr/${digest#sha256:}"
+        touch "/tmp/digests//${{ inputs.target }}ghcr/${digest#sha256:}"
 
     - name: Upload ghcr digest
       uses: actions/upload-artifact@v3.1.3
@@ -86,7 +86,7 @@ runs:
       run: |
         mkdir -p /tmp/digests/${{ inputs.target }}/dockerhub
         digest="${{ steps.build-dockerhub.outputs.digest }}"
-        touch "/tmp/digests/dockerhub/${digest#sha256:}"
+        touch "/tmp/digests//${{ inputs.target }}dockerhub/${digest#sha256:}"
 
     - name: Upload dockerhub digest
       uses: actions/upload-artifact@v3.1.3
