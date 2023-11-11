@@ -325,7 +325,7 @@ esphome/components/tmp1075/* @sybrenstuvel
 esphome/components/tmp117/* @Azimath
 esphome/components/tof10120/* @wstrzalka
 esphome/components/toshiba/* @kbx81
-esphome/components/touchscreen/* @jesserockz
+esphome/components/touchscreen/* @jesserockz @nielsnl68
 esphome/components/tsl2591/* @wjcarpenter
 esphome/components/tt21100/* @kroimon
 esphome/components/tuya/binary_sensor/* @jesserockz
