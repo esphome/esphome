@@ -289,7 +289,10 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         self._use_popen = os.name == "nt"
 
     @authenticated
-    async def on_message(self, message):
+    async def on_message(  # pylint: disable=invalid-overridden-method
+        self, message: str
+    ) -> None:
+        # Since tornado 4.5, on_message is allowed to be a coroutine
         # Messages are always JSON, 500 when not
         json_message = json.loads(message)
         type_ = json_message["type"]
