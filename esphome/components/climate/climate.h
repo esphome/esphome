@@ -65,9 +65,9 @@ class ClimateCall {
    */
   ClimateCall &set_target_temperature_high(optional<float> target_temperature_high);
   /// Set the target humidity of the climate device.
-  ClimateCall &set_target_humidity(uint8_t target_humidity);
+  ClimateCall &set_target_humidity(float target_humidity);
   /// Set the target humidity of the climate device.
-  ClimateCall &set_target_humidity(optional<uint8_t> target_humidity);
+  ClimateCall &set_target_humidity(optional<float> target_humidity);
   /// Set the auxiliary heater of the climate device.
   ClimateCall &set_aux_heat(bool aux_heat);
   /// Set the auxiliary heater of the climate device.
@@ -101,7 +101,7 @@ class ClimateCall {
   const optional<float> &get_target_temperature() const;
   const optional<float> &get_target_temperature_low() const;
   const optional<float> &get_target_temperature_high() const;
-  const optional<uint8_t> &get_target_humidity() const;
+  const optional<float> &get_target_humidity() const;
   const optional<bool> &get_aux_heat() const;
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
@@ -117,7 +117,7 @@ class ClimateCall {
   optional<float> target_temperature_;
   optional<float> target_temperature_low_;
   optional<float> target_temperature_high_;
-  optional<uint8_t> target_humidity_;
+  optional<float> target_humidity_;
   optional<bool> aux_heat_;
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
@@ -148,7 +148,7 @@ struct ClimateDeviceRestoreState {
       float target_temperature_high;
     };
   };
-  uint8_t target_humidity;
+  float target_humidity;
   bool aux_heat;
 
   /// Convert this struct to a climate call that can be performed.
@@ -176,12 +176,15 @@ class Climate : public EntityBase {
  public:
   /// The active mode of the climate device.
   ClimateMode mode{CLIMATE_MODE_OFF};
+
   /// The active state of the climate device.
   ClimateAction action{CLIMATE_ACTION_OFF};
+
   /// The current temperature of the climate device, as reported from the integration.
   float current_temperature{NAN};
+
   /// The current humidity of the climate device, as reported from the integration.
-  uint8_t current_humidity;
+  float current_humidity{NAN};
 
   union {
     /// The target temperature of the climate device.
@@ -195,7 +198,7 @@ class Climate : public EntityBase {
   };
 
   /// The target humidity of the climate device.
-  uint8_t target_humidity;
+  float target_humidity;
 
   /// The auxiliary heater state of the climate device.
   bool aux_heat;
@@ -253,8 +256,8 @@ class Climate : public EntityBase {
   void set_visual_min_temperature_override(float visual_min_temperature_override);
   void set_visual_max_temperature_override(float visual_max_temperature_override);
   void set_visual_temperature_step_override(float target, float current);
-  void set_visual_min_humidity_override(uint8_t visual_min_humidity_override);
-  void set_visual_max_humidity_override(uint8_t visual_max_humidity_override);
+  void set_visual_min_humidity_override(float visual_min_humidity_override);
+  void set_visual_max_humidity_override(float visual_max_humidity_override);
 
  protected:
   friend ClimateCall;
@@ -304,8 +307,8 @@ class Climate : public EntityBase {
   optional<float> visual_max_temperature_override_{};
   optional<float> visual_target_temperature_step_override_{};
   optional<float> visual_current_temperature_step_override_{};
-  optional<uint8_t> visual_min_humidity_override_{};
-  optional<uint8_t> visual_max_humidity_override_{};
+  optional<float> visual_min_humidity_override_{};
+  optional<float> visual_max_humidity_override_{};
 };
 
 }  // namespace climate

@@ -208,8 +208,8 @@ class ClimateTraits {
   float visual_max_temperature_{30};
   float visual_target_temperature_step_{0.1};
   float visual_current_temperature_step_{0.1};
-  uint8_t visual_min_humidity_{30};
-  uint8_t visual_max_humidity_{99};
+  float visual_min_humidity_{30};
+  float visual_max_humidity_{99};
 };
 
 }  // namespace climate

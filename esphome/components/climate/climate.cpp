@@ -46,7 +46,7 @@ void ClimateCall::perform() {
     ESP_LOGD(TAG, "  Target Temperature High: %.2f", *this->target_temperature_high_);
   }
   if (this->target_humidity_.has_value()) {
-    ESP_LOGD(TAG, "  Target Humidity: %" PRIu8, *this->target_humidity_);
+    ESP_LOGD(TAG, "  Target Humidity: %.0f", *this->target_humidity_);
   }
   if (this->aux_heat_.has_value()) {
     ESP_LOGD(TAG, "  Auxiliary Heater: %s", ONOFF(*this->aux_heat_));
@@ -268,7 +268,7 @@ ClimateCall &ClimateCall::set_target_temperature_high(float target_temperature_h
   this->target_temperature_high_ = target_temperature_high;
   return *this;
 }
-ClimateCall &ClimateCall::set_target_humidity(uint8_t target_humidity) {
+ClimateCall &ClimateCall::set_target_humidity(float target_humidity) {
   this->target_humidity_ = target_humidity;
   return *this;
 }
@@ -281,7 +281,7 @@ const optional<ClimateMode> &ClimateCall::get_mode() const { return this->mode_;
 const optional<float> &ClimateCall::get_target_temperature() const { return this->target_temperature_; }
 const optional<float> &ClimateCall::get_target_temperature_low() const { return this->target_temperature_low_; }
 const optional<float> &ClimateCall::get_target_temperature_high() const { return this->target_temperature_high_; }
-const optional<uint8_t> &ClimateCall::get_target_humidity() const { return this->target_humidity_; }
+const optional<float> &ClimateCall::get_target_humidity() const { return this->target_humidity_; }
 const optional<bool> &ClimateCall::get_aux_heat() const { return this->aux_heat_; }
 const optional<ClimateFanMode> &ClimateCall::get_fan_mode() const { return this->fan_mode_; }
 const optional<std::string> &ClimateCall::get_custom_fan_mode() const { return this->custom_fan_mode_; }
@@ -300,7 +300,7 @@ ClimateCall &ClimateCall::set_target_temperature(optional<float> target_temperat
   this->target_temperature_ = target_temperature;
   return *this;
 }
-ClimateCall &ClimateCall::set_target_humidity(optional<uint8_t> target_humidity) {
+ClimateCall &ClimateCall::set_target_humidity(optional<float> target_humidity) {
   this->target_humidity_ = target_humidity;
   return *this;
 }
@@ -440,10 +440,10 @@ void Climate::publish_state() {
     ESP_LOGD(TAG, "  Target Temperature: %.2f°C", this->target_temperature);
   }
   if (traits.get_supports_current_humidity()) {
-    ESP_LOGD(TAG, "  Current Humidity: %" PRIu8 "%%", this->current_humidity);
+    ESP_LOGD(TAG, "  Current Humidity: %.0f%%", this->current_humidity);
   }
   if (traits.get_supports_target_humidity()) {
-    ESP_LOGD(TAG, "  Target Humidity: %" PRIu8 "%%", this->target_humidity);
+    ESP_LOGD(TAG, "  Target Humidity: %.0f%%", this->target_humidity);
   }
   if (traits.get_supports_aux_heat()) {
     ESP_LOGD(TAG, "  Auxiliary Heater: %s", ONOFF(this->aux_heat));
@@ -487,10 +487,10 @@ void Climate::set_visual_temperature_step_override(float target, float current) 
   this->visual_target_temperature_step_override_ = target;
   this->visual_current_temperature_step_override_ = current;
 }
-void Climate::set_visual_min_humidity_override(uint8_t visual_min_humidity_override) {
+void Climate::set_visual_min_humidity_override(float visual_min_humidity_override) {
   this->visual_min_humidity_override_ = visual_min_humidity_override;
 }
-void Climate::set_visual_max_humidity_override(uint8_t visual_max_humidity_override) {
+void Climate::set_visual_max_humidity_override(float visual_max_humidity_override) {
   this->visual_max_humidity_override_ = visual_max_humidity_override;
 }
 
@@ -599,8 +599,8 @@ void Climate::dump_traits_(const char *tag) {
   ESP_LOGCONFIG(tag, "      - Temperature step:");
   ESP_LOGCONFIG(tag, "          Target: %.1f", traits.get_visual_target_temperature_step());
   ESP_LOGCONFIG(tag, "          Current: %.1f", traits.get_visual_current_temperature_step());
-  ESP_LOGCONFIG(tag, "      - Min humidity: %" PRIu8, traits.get_visual_min_humidity());
-  ESP_LOGCONFIG(tag, "      - Max humidity: %" PRIu8, traits.get_visual_max_humidity());
+  ESP_LOGCONFIG(tag, "      - Min humidity: %.0f", traits.get_visual_min_humidity());
+  ESP_LOGCONFIG(tag, "      - Max humidity: %.0f", traits.get_visual_max_humidity());
   if (traits.get_supports_current_temperature()) {
     ESP_LOGCONFIG(tag, "  [x] Supports current temperature");
   }

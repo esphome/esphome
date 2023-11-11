@@ -400,7 +400,7 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         )
         cg.add(var.set_target_temperature_high(template_))
     if CONF_TARGET_HUMIDITY in config:
-        template_ = await cg.templatable(config[CONF_TARGET_HUMIDITY], args, cg.uint8)
+        template_ = await cg.templatable(config[CONF_TARGET_HUMIDITY], args, float)
         cg.add(var.set_target_humidity(template_))
     if CONF_AUX_HEAT in config:
         template_ = await cg.templatable(config[CONF_AUX_HEAT], args, bool)

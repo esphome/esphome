@@ -14,7 +14,7 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(float, target_temperature)
   TEMPLATABLE_VALUE(float, target_temperature_low)
   TEMPLATABLE_VALUE(float, target_temperature_high)
-  TEMPLATABLE_VALUE(uint8_t, target_humidity)
+  TEMPLATABLE_VALUE(float, target_humidity)
   TEMPLATABLE_VALUE(bool, aux_heat)
   TEMPLATABLE_VALUE(bool, away)
   TEMPLATABLE_VALUE(ClimateFanMode, fan_mode)
