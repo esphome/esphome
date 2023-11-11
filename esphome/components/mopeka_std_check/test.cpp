@@ -6,7 +6,7 @@
 namespace esphome {
 namespace mopeka_std_check {
 
-MopekaStdCheck_Helper obj;
+MopekaStdCheckHelper obj;
 
 void setUp(void) {
   // set stuff up here

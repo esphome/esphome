@@ -195,12 +195,12 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
 #endif  // USE_ESP32
 
-float MopekaStdCheck_Helper::get_lpg_speed_of_sound(float temperature) {
+float MopekaStdCheckHelper::get_lpg_speed_of_sound(float temperature) {
   return 1040.71f - 4.87f * temperature - 137.5f * this->propane_butane_mix_ - 0.0107f * temperature * temperature -
          1.63f * temperature * this->propane_butane_mix_;
 }
 
-uint8_t MopekaStdCheck_Helper::parse_battery_level(const mopeka_std_package *message) {
+uint8_t MopekaStdCheckHelper::parse_battery_level(const mopeka_std_package *message) {
   const float voltage = (float) ((message->raw_voltage / 256.0f) * 2.0f + 1.5f);
   ESP_LOGVV(TAG, "Sensor battery voltage: %f V", voltage);
   // convert voltage and scale for CR2032
@@ -214,7 +214,7 @@ uint8_t MopekaStdCheck_Helper::parse_battery_level(const mopeka_std_package *mes
   return (uint8_t) percent;
 }
 
-int8_t MopekaStdCheck_Helper::parse_temperature(const mopeka_std_package *message) {
+int8_t MopekaStdCheckHelper::parse_temperature(const mopeka_std_package *message) {
   uint8_t tmp = message->raw_temp;
   if (tmp == 0x0) {
     return -40;

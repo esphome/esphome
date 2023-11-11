@@ -42,7 +42,7 @@ struct mopeka_std_package {  // NOLINT(readability-identifier-naming,altera-stru
   mopeka_std_values val[4];
 } __attribute__((packed));
 
-class MopekaStdCheck_Helper {
+class MopekaStdCheckHelper {
  public:
   void set_propane_butane_mix(float val) { this->propane_butane_mix_ = val; };
 
@@ -55,7 +55,7 @@ class MopekaStdCheck_Helper {
 };
 
 #ifdef USE_ESP32
-class MopekaStdCheck : public MopekaStdCheck_Helper, public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class MopekaStdCheck : public MopekaStdCheckHelper, public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
