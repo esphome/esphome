@@ -37,9 +37,8 @@ namespace krida_dimmer {
     }
 
     void write_state(float state) {
-      ESP_LOGI(TAG, "Updating dimmer value %3.2f", state);
-      const uint8_t value = trunc(state);
-      //Did the user change the input?
+      const uint8_t value = trunc(state * 100);
+      ESP_LOGI(TAG, "Updating dimmer value %i", value);
       this->write_register(REGISTER_ADDRESS, &value, 1);
     }
   };
