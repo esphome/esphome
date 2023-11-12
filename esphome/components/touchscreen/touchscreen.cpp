@@ -109,7 +109,6 @@ void Touchscreen::send_touches_() {
         listener->touch(touches);
       }
     } else {
-      TouchPoint tp = touches.front();
       this->update_trigger_.trigger(touches);
       for (auto *listener : this->touch_listeners_) {
         listener->update(touches);
