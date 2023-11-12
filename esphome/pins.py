@@ -23,23 +23,6 @@ class PinRegistry(dict):
         super().__init__()
         self.pins_used = {}
 
-    def record_use(self, key, config):
-        """
-        Record a pin declaration, with its path and some config info.
-        :param key: The id of the component defining the pin schema
-        :param config: The pin config
-        """
-        from esphome.config import path_context
-
-        if CONF_NUMBER not in config:
-            return
-        if isinstance(key, ID):
-            key = key.id
-        pin_key = (key, config[CONF_NUMBER])
-        if pin_key not in self.pins_used:
-            self.pins_used[pin_key] = []
-        self.pins_used[pin_key].append((path_context.get(), config))
-
     def get_count(self, key, number):
         """
         Get the number of places a given pin is used.
@@ -78,16 +61,16 @@ class PinRegistry(dict):
         # Element 1 is the pin validation function
         # evaluate here so a validation failure skips the rest
         result = self[key][1](conf)
-        if CONF_NUMBER in conf:
+        if CONF_NUMBER in result:
             # key maps to the pin schema
             if isinstance(key, ID):
                 key = key.id
-            pin_key = (key, conf[CONF_NUMBER])
+            pin_key = (key, result[CONF_NUMBER])
             if pin_key not in self.pins_used:
                 self.pins_used[pin_key] = []
             # client_id identifies the instance of the providing component
-            client_id = conf.get(key)
-            self.pins_used[pin_key].append((path_context.get(), client_id, conf))
+            client_id = result.get(key)
+            self.pins_used[pin_key].append((path_context.get(), client_id, result))
         # return the validated pin config
         return result
 
@@ -118,7 +101,6 @@ class PinRegistry(dict):
         """
         for (key, number), pin_list in self.pins_used.items():
             count = len(pin_list)  # number of places same pin used.
-            print(key, number, count)
             final_val_fun = self[key][2]  # final validation function
             for pin_path, client_id, pin_config in pin_list:
                 with fconf.catch_error([cv.ROOT_CONFIG_PATH] + pin_path):
