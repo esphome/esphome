@@ -6,6 +6,7 @@
 #include "esphome/components/mdns/mdns_component.h"
 #endif
 
+
 namespace esphome {
 namespace network {
 
@@ -15,26 +16,32 @@ Resolver::Resolver() { global_resolver = this; }
 Resolver::Resolver(std::map<std::string, network::IPAddress> hosts) : hosts_(std::move(hosts)) {
   global_resolver = this;
 }
-network::IPAddress Resolver::resolve(const std::string *hostname) {
-  if (this->hosts_.count(*hostname) > 0) {
-    return this->hosts_[*hostname];
+network::IPAddress Resolver::resolve(const std::string &hostname) {
+  if (this->hosts_.count(hostname) > 0) {
+    ESP_LOGVV(TAG, "Found %s in hosts section", hostname.c_str());
+    return this->hosts_[hostname];
   }
 #ifdef USE_MDNS
-  network::IPAddress resolved_mdns = mdns::global_mdns->resolve(*hostname);
+  ESP_LOGV(TAG, "Looking for %s with mDNS", hostname.c_str());
+  network::IPAddress resolved_mdns = mdns::global_mdns->resolve(hostname);
   if (resolved_mdns.is_set()) {
+    ESP_LOGVV(TAG, "Found %s in mDNS", hostname.c_str());
     return resolved_mdns;
   }
 #endif
   ip_addr_t addr;
+  ESP_LOGVV(TAG, "Resolving %s", hostname.c_str());
   err_t err =
-      dns_gethostbyname_addrtype(hostname->c_str(), &addr, Resolver::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
+      dns_gethostbyname_addrtype(hostname.c_str(), &addr, Resolver::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
   if (err == ERR_OK) {
     return network::IPAddress(&addr);
   }
-  while (!this->dns_resolved_) {
+  this->connect_begin_ = millis();
+  while (!this->dns_resolved_ && !this->dns_resolve_error_ && (this->connect_begin_ - millis() < 20000)) {
     switch (err) {
       case ERR_OK: {
         // Got IP immediately
+        ESP_LOGVV(TAG, "Found %s in DNS", hostname.c_str());
         this->dns_resolved_ = true;
         this->ip_ = network::IPAddress(&addr);
         return this->ip_;
@@ -51,9 +58,12 @@ network::IPAddress Resolver::resolve(const std::string *hostname) {
         break;
       }
     }
-    // TODO: Add timeout
     delay_microseconds_safe(100);
   }
+  if (this->dns_resolve_error_)
+    ESP_LOGV(TAG, "Error resolving IP address");
+  if (!this->dns_resolved_)
+    ESP_LOGVV(TAG, "Not resolved");
   return this->ip_;
 }
 
@@ -62,6 +72,7 @@ void Resolver::dns_found_callback(const char *name, const ip_addr_t *ipaddr, voi
   if (ipaddr == nullptr) {
     a_this->dns_resolve_error_ = true;
   } else {
+    ESP_LOGVV(TAG, "Found %s in DNS", name);
     a_this->ip_ = network::IPAddress(ipaddr);
     a_this->dns_resolved_ = true;
   }
