@@ -73,6 +73,10 @@ wifi:
   domain: .local
   reboot_timeout: 120s
   power_save_mode: light
+  on_connect:
+    - light.turn_on: ${roomname}_lights
+  on_disconnect:
+    - light.turn_off: ${roomname}_lights
 
 network:
   enable_ipv6: true
@@ -185,6 +189,7 @@ i2c:
   id: i2c_bus
 
 spi:
+  id: spi_bus
   clk_pin: GPIO21
   mosi_pin: GPIO22
   miso_pin: GPIO23
@@ -359,6 +364,14 @@ dfrobot_sen0395:
     uart_id: dfrobot_mmwave_uart
 
 sensor:
+  - platform: xgzp68xx
+    i2c_id: i2c_bus
+    temperature:
+      name: Pressure Temperature
+    pressure:
+      name: Differential pressure
+    k_value: 4096
+
   - platform: pmwcs3
     i2c_id: i2c_bus
     e25:
@@ -2197,6 +2210,20 @@ light:
             state += 1;
             if (state == 4)
               state = 0;
+      - pulse:
+          transition_length: 10s
+          update_interval: 20s
+          min_brightness: 10%
+          max_brightness: 90%
+      - pulse:
+          name: pulse2
+          transition_length:
+            on_length: 10s
+            off_length: 5s
+          update_interval: 15s
+          min_brightness: 10%
+          max_brightness: 90%
+
   - platform: rgb
     name: Living Room Lights
     id: ${roomname}_lights
@@ -2729,7 +2756,7 @@ switch:
   - platform: gpio
     name: "SN74HC595 Pin #0"
     pin:
-      sn74hc595: sn74hc595_hub
+      sn74hc595: sn74hc595_hub_2
       # Use pin number 0
       number: 0
       inverted: false
@@ -3386,6 +3413,11 @@ sn74hc595:
     latch_pin: GPIO22
     oe_pin: GPIO32
     sr_count: 2
+  - id: sn74hc595_hub_2
+    latch_pin: GPIO22
+    oe_pin: GPIO32
+    sr_count: 2
+    spi_id: spi_bus
 
 rtttl:
   output: gpio_19
