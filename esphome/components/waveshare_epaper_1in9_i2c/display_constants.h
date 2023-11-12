@@ -7,11 +7,11 @@
 namespace esphome {
 namespace waveshare_epaper_1in9_i2c {
 
-static float TEMPERATURE_MIN = -9.9;
-static float TEMPERATURE_MAX = 199.9;
+static const float TEMPERATURE_MIN = -9.9;
+static const float TEMPERATURE_MAX = 199.9;
 
-static float HUMIDITY_MIN = -9.9;
-static float HUMIDITY_MAX = 99.9;
+static const float HUMIDITY_MIN = -9.9;
+static const float HUMIDITY_MAX = 99.9;
 
 static const unsigned LUT_SIZE = 7;
 

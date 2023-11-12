@@ -9,6 +9,34 @@
 namespace esphome {
 namespace waveshare_epaper_1in9_i2c {
 
+template<typename T> struct VaueState {
+  T current;
+  T future;
+
+  bool is_changed() { return this->current != this->future; }
+  void flip() { this->current = this->future; }
+};
+
+struct DisplayState {
+  VaueState<int16_t> temperature_x10{INT16_MAX, INT16_MAX};
+  VaueState<int16_t> humidity_x10{INT16_MAX, INT16_MAX};
+  VaueState<bool> low_power{false, false};
+  VaueState<bool> bluetooth{false, false};
+  VaueState<bool> is_celsius{true, true};
+
+  bool is_changed() {
+    return this->temperature_x10.is_changed() || this->humidity_x10.is_changed() || this->low_power.is_changed() ||
+           this->bluetooth.is_changed() || this->is_celsius.is_changed();
+  }
+  void flip() {
+    this->temperature_x10.flip();
+    this->humidity_x10.flip();
+    this->low_power.flip();
+    this->bluetooth.flip();
+    this->is_celsius.flip();
+  }
+};
+
 class WaveShareEPaper1in9I2C : public PollingComponent {
  public:
   void setup() override;
@@ -36,7 +64,7 @@ class WaveShareEPaper1in9I2C : public PollingComponent {
 
   void set_temperature_for_compensation(float temp) { this->compensation_temp_ = temp; }
   void set_temperature(float temp);
-  void set_temperature_unit(const char *symbol);
+  void set_temperature_unit(const char *unit);
 
   void set_humidity(float humidity);
 
@@ -48,25 +76,12 @@ class WaveShareEPaper1in9I2C : public PollingComponent {
 
  protected:
   float compensation_temp_{20};
-  bool potential_refresh_{false};
   bool inverted_colors_{false};
+
+  DisplayState display_state_;
 
   uint32_t full_update_every_{30};
   uint32_t at_update_{0};
-
-  uint8_t framebuffer_[FRAMEBUFFER_SIZE]{CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY,
-                                         CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY,
-                                         CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY, CHAR_EMPTY};
-
-  uint8_t degrees_type_{CHAR_CELSIUS};
-  int temperature_digits_[TEMPERATURE_DIGITS_LEN]{-1, -1, -1, -1};
-  bool temperature_positive_{true};
-
-  int humidity_digits_[HUMIDITY_DIGITS_LEN]{-1, -1, -1};
-  bool humidity_positive_{true};
-
-  bool lower_power_{false};
-  bool bluetooth_{false};
 
   uint8_t command_device_address_;
   i2c::I2CDevice *command_device_;
@@ -76,16 +91,12 @@ class WaveShareEPaper1in9I2C : public PollingComponent {
   GPIOPin *reset_pin_;
   GPIOPin *busy_pin_;
 
-  bool is_valid_temperature_();
-  bool is_valid_humidity_();
-
   void init_screen_();
   void reset_screen_();
   void read_busy_();
   void write_lut_(const uint8_t lut[LUT_SIZE]);
-  void write_screen_();
+  void write_screen_(const uint8_t framebuffer[FRAMEBUFFER_SIZE]);
   void deep_sleep_();
-  bool update_framebuffer_(const uint8_t new_image[FRAMEBUFFER_SIZE]);
 
   void send_commands_(const uint8_t *data, uint8_t len, bool stop = true);
   void send_data_(const uint8_t *data, uint8_t len, bool stop = true);
