@@ -1314,9 +1314,9 @@ class ThreadedAsyncEvent:
 
 PING_RESULT: dict = {}
 IMPORT_RESULT = {}
-STOP_EVENT = ThreadedAsyncEvent()
+STOP_EVENT = threading.Event()
 PING_REQUEST = ThreadedAsyncEvent()
-MQTT_PING_REQUEST = ThreadedAsyncEvent()
+MQTT_PING_REQUEST = threading.Event()
 MDNS_CONTAINER = MDNSContainer()
 
 
@@ -1589,8 +1589,6 @@ def start_web_server(args):
 async def async_start_web_server(args):
     loop = asyncio.get_event_loop()
     PING_REQUEST.async_setup(loop, asyncio.Event())
-    MQTT_PING_REQUEST.async_setup(loop, asyncio.Event())
-    STOP_EVENT.async_setup(loop, asyncio.Event())
 
     app = make_app(args.verbose)
     if args.socket is not None:
