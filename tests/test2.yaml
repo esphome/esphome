@@ -73,8 +73,9 @@ deep_sleep:
     gpio_wakeup_reason: 10s
     touch_wakeup_reason: 15s
   sleep_duration: 50s
-  wakeup_pin: GPIO2
-  wakeup_pin_mode: INVERT_WAKEUP
+  wakeup_pin:
+    - pin: GPIO2
+      wakeup_pin_mode: INVERT_WAKEUP
 
 as3935_i2c:
   irq_pin: GPIO12

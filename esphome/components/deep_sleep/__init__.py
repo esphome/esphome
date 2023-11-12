@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_MINUTE,
     CONF_MODE,
     CONF_NUMBER,
+    CONF_PIN,
     CONF_PINS,
     CONF_RUN_DURATION,
     CONF_SECOND,
@@ -167,6 +168,20 @@ WAKEUP_CAUSES_SCHEMA = cv.Schema(
     }
 )
 
+WakeupPinItem = deep_sleep_ns.struct("WakeupPinItem")
+WAKEUP_PIN_SCHEMA = cv.ensure_list(
+    cv.Schema(
+        {
+            cv.Required(CONF_PIN): cv.All(
+                pins.internal_gpio_input_pin_schema, validate_pin_number
+            ),
+            cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
+                cv.enum(WAKEUP_PIN_MODES), upper=True
+            ),
+        }
+    ),
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -178,11 +193,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_WAKEUP_PIN): cv.All(
                 cv.only_on_esp32,
-                pins.internal_gpio_input_pin_schema,
-                validate_pin_number,
-            ),
-            cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
-                cv.only_on_esp32, cv.enum(WAKEUP_PIN_MODES), upper=True
+                WAKEUP_PIN_SCHEMA,
             ),
             cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(
                 cv.only_on_esp32,
@@ -209,10 +220,25 @@ async def to_code(config):
     if CONF_SLEEP_DURATION in config:
         cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
     if CONF_WAKEUP_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_WAKEUP_PIN])
-        cg.add(var.set_wakeup_pin(pin))
-    if CONF_WAKEUP_PIN_MODE in config:
-        cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
+        conf = config[CONF_WAKEUP_PIN]
+        if len(conf) > 1 and get_esp32_variant() != VARIANT_ESP32C3:
+            raise cv.Invalid("Your board only supports wake from a single pin")
+        for item in conf:
+            cg.add(
+                var.add_wakeup_pin(
+                    cg.StructInitializer(
+                        WakeupPinItem,
+                        ("wakeup_pin", await cg.gpio_pin_expression(item[CONF_PIN])),
+                        (
+                            "wakeup_pin_mode",
+                            item.get(
+                                CONF_WAKEUP_PIN_MODE,
+                                WakeupPinMode.WAKEUP_PIN_MODE_IGNORE,
+                            ),
+                        ),
+                    )
+                )
+            )
     if CONF_RUN_DURATION in config:
         run_duration_config = config[CONF_RUN_DURATION]
         if not isinstance(run_duration_config, dict):
