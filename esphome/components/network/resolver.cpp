@@ -2,6 +2,7 @@
 #include "lwip/dns.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 #ifdef USE_MDNS
 #include "esphome/components/mdns/mdns_component.h"
 #endif
@@ -65,10 +66,12 @@ network::IPAddress Resolver::resolve(const std::string &hostname) {
     }
     delay_microseconds_safe(100);
   }
-  if (this->dns_resolve_error_)
+  if (this->dns_resolve_error_) {
     ESP_LOGV(TAG, "Error resolving IP address");
-  if (!this->dns_resolved_)
+  }
+  if (!this->dns_resolved_) {
     ESP_LOGVV(TAG, "Not resolved");
+  }
   return this->ip_;
 }
 
