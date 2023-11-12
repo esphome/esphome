@@ -39,6 +39,8 @@ int OtaHttpIDF::http_init() {
   config.method = HTTP_METHOD_GET;
   config.timeout_ms = (int) this->timeout_;
   config.buffer_size = this->max_http_recv_buffer_;
+  config.auth_type = HTTP_AUTH_TYPE_BASIC;
+  config.max_authorization_retries = -1;
 #pragma GCC diagnostic pop
 
   this->client_ = esp_http_client_init(&config);
