@@ -1580,8 +1580,6 @@ async def async_start_web_server(args):
     shutdown_event = asyncio.Event()
     try:
         await shutdown_event.wait()
-    except KeyboardInterrupt:
-        raise
     finally:
         _LOGGER.info("Shutting down...")
         STOP_EVENT.set()
