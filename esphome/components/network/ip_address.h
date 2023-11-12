@@ -3,7 +3,11 @@
 #include <string>
 #include <cstdio>
 #include <array>
+#include "esphome/core/macros.h"
+
+#if defined(USE_ESP_IDF) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
 #include <lwip/ip_addr.h>
+#endif
 
 #if USE_ARDUINO
 #include <Arduino.h>
@@ -34,7 +38,12 @@ struct IPAddress {
   }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
-  IPAddress(ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t)); }
+  IPAddress(ip4_addr_t *other_ip) {
+    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t));
+#if USE_ESP32 && LWIP_IPV6
+    ip_addr_.type = IPADDR_TYPE_V4;
+#endif
+  }
 #if USE_ARDUINO
   IPAddress(const arduino_ns::IPAddress &other_ip) { ip_addr_set_ip4_u32(&ip_addr_, other_ip); }
 #endif
@@ -87,7 +96,7 @@ struct IPAddress {
   bool is_ip6() { return IP_IS_V6(&ip_addr_); }
   std::string str() const { return ipaddr_ntoa(&ip_addr_); }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
-  bool operator!=(const IPAddress &other) const { return !(&ip_addr_ == &other.ip_addr_); }
+  bool operator!=(const IPAddress &other) const { return !ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   IPAddress &operator+=(uint8_t increase) {
     if (IP_IS_V4(&ip_addr_)) {
 #if LWIP_IPV6

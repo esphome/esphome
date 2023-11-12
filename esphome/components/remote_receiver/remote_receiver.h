@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/remote_base/remote_base.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace remote_receiver {
 
