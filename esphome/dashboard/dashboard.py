@@ -1261,6 +1261,11 @@ class MDNSContainer:
 
 
 class ThreadedAsyncEvent:
+    """This is a shim to allow the asyncio event to be used in a threaded context.
+
+    When more of the code is moved to asyncio, this can be removed.
+    """
+
     def __init__(self) -> None:
         """Initialize the ThreadedAsyncEvent."""
         self.event = threading.Event()
