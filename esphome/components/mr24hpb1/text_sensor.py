@@ -6,6 +6,7 @@ from esphome.const import (
 )
 from . import CONF_MR24HPB1_ID, MR24HPB1Component
 
+DEPENDENCIES = ["mr24hpb1"]
 
 CONF_DEVICE_ID = "device_id"
 CONF_SOFTWARE_VERSION = "software_version"

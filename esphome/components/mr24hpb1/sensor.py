@@ -3,6 +3,8 @@ import esphome.codegen as cg
 from esphome.components import sensor
 from . import CONF_MR24HPB1_ID, MR24HPB1Component
 
+DEPENDENCIES = ["mr24hpb1"]
+
 # Movement rate
 CONF_MOVEMENT_RATE = "movement_rate"
 
