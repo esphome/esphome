@@ -178,7 +178,15 @@ def _schema_creator(default_mode, internal: bool = False):
 
 def _internal_number_creator(mode):
     def validator(value):
-        value_d = {CONF_NUMBER: value}
+        if isinstance(value, dict):
+            if CONF_MODE in value or CONF_INVERTED in value:
+                raise cv.Invalid(
+                    "This variable only supports pin numbers, not full pin schemas "
+                    "(with inverted and mode)."
+                )
+            value_d = value
+        else:
+            value_d = {CONF_NUMBER: value}
         value_d = _set_mode(value_d, mode)
         return PIN_SCHEMA_REGISTRY.validate(value_d, CORE.target_platform)[CONF_NUMBER]
 

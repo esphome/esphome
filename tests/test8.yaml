@@ -59,7 +59,7 @@ display:
     dc_pin: GPIO4
     reset_pin:
       number: GPIO48
-      allow_other_uses: false
+      allow_other_uses: true
 
 i2c:
   scl: GPIO18
@@ -70,10 +70,10 @@ touchscreen:
     interrupt_pin:
       number: GPIO3
       ignore_strapping_warning: true
-      allow_other_uses: true
+      allow_other_uses: false
     reset_pin:
       number: GPIO48
-      allow_other_uses: false
+      allow_other_uses: true
 
 binary_sensor:
   - platform: tt21100
