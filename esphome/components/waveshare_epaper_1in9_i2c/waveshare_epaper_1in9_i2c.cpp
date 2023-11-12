@@ -27,13 +27,13 @@ void HOT WaveShareEPaper1in9I2C::update() {
 
     ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::update Display has changed, performing a refresh...");
 
-    int temperature = this->display_state_.temperature_x10.current;
-    bool valid_temperature = temperature != INT32_MAX;
+    int16_t temperature = this->display_state_.temperature_x10.current;
+    bool valid_temperature = temperature >= TEMPERATURE_X10_MIN && temperature <= TEMPERATURE_X10_MAX;
     bool temperature_minus_sign = valid_temperature && temperature < 0;
     temperature = abs(temperature);
 
-    int humidity = this->display_state_.humidity_x10.current;
-    bool valid_humidity = humidity != INT32_MAX;
+    int16_t humidity = this->display_state_.humidity_x10.current;
+    bool valid_humidity = humidity >= HUMIDITY_X10_MIN && humidity <= HUMIDITY_X10_MAX;
     bool humidity_minus_sign = valid_humidity && humidity < 0;
     humidity = abs(humidity);
 
@@ -41,7 +41,7 @@ void HOT WaveShareEPaper1in9I2C::update() {
     int humidity_digits[HUMIDITY_DIGITS_LEN] = {-1, -1, -1};
 
     if (valid_temperature) {
-      ESP_LOGVV(TAG, "WaveShareEPaper1in9I2C::update Temperature is valid, extracting digits (%d)...", temperature);
+      ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::update Temperature is valid, extracting digits (%d)...", temperature);
       temperature_digits[3] = temperature % 10;
       temperature_digits[2] = (temperature % 100) / 10;
       temperature_digits[1] = (temperature % 1000) / 100;
@@ -53,20 +53,20 @@ void HOT WaveShareEPaper1in9I2C::update() {
         }
       }
 
-      ESP_LOGVV(TAG, "WaveShareEPaper1in9I2C::update Temperature digits: %d %d %d %d", temperature_digits[0],
-                temperature_digits[1], temperature_digits[2], temperature_digits[3]);
+      ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::update Temperature digits: %d %d %d %d", temperature_digits[0],
+               temperature_digits[1], temperature_digits[2], temperature_digits[3]);
     }
 
     if (valid_humidity) {
-      ESP_LOGVV(TAG, "WaveShareEPaper1in9I2C::update Humidity is valid, extracting digits (%d)...", humidity);
+      ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::update Humidity is valid, extracting digits (%d)...", humidity);
       humidity_digits[2] = humidity % 10;
       humidity_digits[1] = (humidity % 100) / 10;
       humidity_digits[0] = humidity / 100;
       if (humidity_digits[0] == 0) {
         humidity_digits[0] = -1;
       }
-      ESP_LOGVV(TAG, "WaveShareEPaper1in9I2C::update Humidity digits: %d %d %d", humidity_digits[0], humidity_digits[1],
-                humidity_digits[2]);
+      ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::update Humidity digits: %d %d %d", humidity_digits[0], humidity_digits[1],
+               humidity_digits[2]);
     }
 
     uint8_t new_image[] = {
@@ -234,9 +234,9 @@ void WaveShareEPaper1in9I2C::write_screen_(const uint8_t framebuffer[FRAMEBUFFER
 }
 
 void WaveShareEPaper1in9I2C::deep_sleep_() {
-  this->send_commands_(&CMD_POWER_OFF, 1, false);
+  this->send_commands_(&CMD_POWER_OFF, 1);
   this->read_busy_();
-  this->send_commands_(&CMD_SLEEP_ON, 1, true);
+  this->send_commands_(&CMD_SLEEP_ON, 1);
 }
 
 void WaveShareEPaper1in9I2C::set_temperature_unit(const char *unit) {
@@ -244,23 +244,11 @@ void WaveShareEPaper1in9I2C::set_temperature_unit(const char *unit) {
 }
 
 void WaveShareEPaper1in9I2C::set_temperature(float temperature) {
-  if (temperature >= TEMPERATURE_MIN && temperature <= TEMPERATURE_MAX) {
-    ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::set_temperature(%f)", temperature);
-    this->display_state_.temperature_x10.future = (int16_t) 10.0 * temperature;
-  } else {
-    ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::set_temperature(INVALID)");
-    this->display_state_.temperature_x10.future = INT16_MAX;
-  }
+  this->display_state_.temperature_x10.future = (int16_t) 10.0 * temperature;
 }
 
 void WaveShareEPaper1in9I2C::set_humidity(float humidity) {
-  if (humidity >= HUMIDITY_MIN && humidity <= HUMIDITY_MAX) {
-    ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::set_humidity(%f)", humidity);
-    this->display_state_.humidity_x10.future = (int16_t) 10.0 * humidity;
-  } else {
-    ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::set_humidity(INVALID)");
-    this->display_state_.humidity_x10.future = INT16_MAX;
-  }
+  this->display_state_.humidity_x10.future = (int16_t) 10.0 * humidity;
 }
 
 void WaveShareEPaper1in9I2C::set_low_power_indicator(bool is_low_power) {
@@ -281,11 +269,11 @@ void WaveShareEPaper1in9I2C::dump_config() {
 }
 
 void WaveShareEPaper1in9I2C::send_commands_(const uint8_t *data, uint8_t len, bool stop) {
-  this->command_device_->write(data, len, stop);
+  this->command_device_.write(data, len, stop);
 }
 
 void WaveShareEPaper1in9I2C::send_data_(const uint8_t *data, uint8_t len, bool stop) {
-  this->data_device_->write(data, len, stop);
+  this->data_device_.write(data, len, stop);
 }
 }  // namespace waveshare_epaper_1in9_i2c
 }  // namespace esphome

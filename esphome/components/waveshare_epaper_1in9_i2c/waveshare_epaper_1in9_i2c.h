@@ -18,8 +18,8 @@ template<typename T> struct VaueState {
 };
 
 struct DisplayState {
-  VaueState<int16_t> temperature_x10{INT16_MAX, INT16_MAX};
-  VaueState<int16_t> humidity_x10{INT16_MAX, INT16_MAX};
+  VaueState<int16_t> temperature_x10{TEMPERATURE_X10_MAX + 1, TEMPERATURE_X10_MAX + 1};
+  VaueState<int16_t> humidity_x10{HUMIDITY_X10_MAX + 1, HUMIDITY_X10_MAX + 1};
   VaueState<bool> low_power{false, false};
   VaueState<bool> bluetooth{false, false};
   VaueState<bool> is_celsius{true, true};
@@ -45,16 +45,14 @@ class WaveShareEPaper1in9I2C : public PollingComponent {
   float get_setup_priority() const override { return setup_priority::IO; };
 
   void create_command_device(i2c::I2CBus *bus, uint8_t address) {
-    this->command_device_ = new i2c::I2CDevice();
-    this->command_device_->set_i2c_address(address);
-    this->command_device_->set_i2c_bus(bus);
+    this->command_device_.set_i2c_address(address);
+    this->command_device_.set_i2c_bus(bus);
     this->command_device_address_ = address;
   }
 
   void create_data_device(i2c::I2CBus *bus, uint8_t address) {
-    this->data_device_ = new i2c::I2CDevice();
-    this->data_device_->set_i2c_address(address);
-    this->data_device_->set_i2c_bus(bus);
+    this->data_device_.set_i2c_address(address);
+    this->data_device_.set_i2c_bus(bus);
     this->data_device_address_ = address;
   }
 
@@ -84,10 +82,10 @@ class WaveShareEPaper1in9I2C : public PollingComponent {
   uint32_t at_update_{0};
 
   uint8_t command_device_address_;
-  i2c::I2CDevice *command_device_;
+  i2c::I2CDevice command_device_;
 
   uint8_t data_device_address_;
-  i2c::I2CDevice *data_device_;
+  i2c::I2CDevice data_device_;
   GPIOPin *reset_pin_;
   GPIOPin *busy_pin_;
 
