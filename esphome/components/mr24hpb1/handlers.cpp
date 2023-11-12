@@ -1,5 +1,5 @@
-#include "mr24hpb1.h"
 #include "constants.h"
+#include "mr24hpb1.h"
 
 namespace esphome {
 namespace mr24hpb1 {
@@ -13,11 +13,13 @@ void MR24HPB1Component::handle_active_reporting_(Packet &packet) {
       this->handle_other_information_(packet);
       break;
     case PROREP_REPORTING_MODULE_ID:
+#ifdef USE_TEXT_SENSOR
       this->handle_module_id_report_(packet);
+#endif
       break;
 
     default:
-      ESP_LOGW(TAG, "Active reporting packet had unkown address code 1: 0x%x", current_addr_code_1);
+      ESP_LOGW(TAG, "Active reporting packet had unknown address code 1: 0x%x", current_addr_code_1);
       packet.log();
       break;
   }
@@ -40,7 +42,7 @@ void MR24HPB1Component::handle_passive_reporting_(Packet &packet) {
       break;
 
     default:
-      ESP_LOGW(TAG, "Passive reporting packet had unkown address code 1: 0x%x", current_addr_code_1);
+      ESP_LOGW(TAG, "Passive reporting packet had unknown address code 1: 0x%x", current_addr_code_1);
       packet.log();
       break;
   }
@@ -66,7 +68,7 @@ void MR24HPB1Component::handle_sleep_data_report_(Packet &packet) {
       break;
 
     default:
-      ESP_LOGW(TAG, "Sleep data reporting packet had unkown address code 1: 0x%x", current_addr_code_1);
+      ESP_LOGW(TAG, "Sleep data reporting packet had unknown address code 1: 0x%x", current_addr_code_1);
       packet.log();
       break;
   }
@@ -79,7 +81,7 @@ void MR24HPB1Component::handle_fall_data_report_(Packet &packet) {
       ESP_LOGD(TAG, "Fall detection reporting is not implemented!");
       break;
     default:
-      ESP_LOGW(TAG, "Fall detection reporting packet had unkown address code 1: 0x%x", current_addr_code_1);
+      ESP_LOGW(TAG, "Fall detection reporting packet had unknown address code 1: 0x%x", current_addr_code_1);
       packet.log();
       break;
   }
@@ -87,11 +89,11 @@ void MR24HPB1Component::handle_fall_data_report_(Packet &packet) {
 
 void MR24HPB1Component::handle_radar_report_(Packet &packet) {
   AddressCode2 current_addr_code_2 = packet.address_code_2();
-  bool occupied = false;
-  bool movement = false;
   switch (current_addr_code_2) {
     case PROREP_RRI_ENVIRONMENT_STATUS: {
       uint32_t data = packet.data_as_int();
+      bool occupied = false;
+      bool movement = false;
       switch (data) {
         case UNOCCUPIED:
           break;
@@ -102,31 +104,39 @@ void MR24HPB1Component::handle_radar_report_(Packet &packet) {
           occupied = true;
           movement = true;
           break;
-
         default:
           ESP_LOGW(TAG, "Environment state data was invalid: 0x%x", data);
-          break;
+          return;
       }
-
+#ifdef USE_BINARY_SENSOR
       if (this->occupancy_sensor_ != nullptr) {
         this->occupancy_sensor_->publish_state(occupied);
       }
       if (this->movement_sensor_ != nullptr) {
         this->movement_sensor_->publish_state(movement);
       }
+#endif
+
+#ifdef USE_TEXT_SENSOR
       if (this->environment_status_sensor_ != nullptr) {
         const char *status = environment_status_to_string(EnvironmentStatus(data));
         ESP_LOGD(TAG, "Got environment status=%s", status);
         this->environment_status_sensor_->publish_state(status);
       }
-    } break;
+#endif
+      break;
+    }
     case PROREP_RRI_MOVEMENT_SIGNS_PARAMETERS: {
+#ifdef USE_SENSOR
       float float_data = packet.data_as_float();
       if (this->movement_rate_sensor_ != nullptr) {
         this->movement_rate_sensor_->publish_state(float_data);
       }
-    } break;
+#endif
+      break;
+    }
     case PROREP_RRI_APPROACHING_AWAY_STATE: {
+#ifdef USE_TEXT_SENSOR
       if (this->movement_type_sensor_ != nullptr) {
         std::vector<uint8_t> packet_data = packet.data();
         uint8_t value = packet_data.at(2);
@@ -136,11 +146,11 @@ void MR24HPB1Component::handle_radar_report_(Packet &packet) {
         ESP_LOGD(TAG, "Got movement type=0x%x (%s)", value, type_str);
         this->movement_type_sensor_->publish_state(type_str);
       }
+#endif
+      break;
     }
-
-    break;
     default:
-      ESP_LOGW(TAG, "Radar report -> Packet had unkown address code 2: 0x%x", current_addr_code_2);
+      ESP_LOGW(TAG, "Radar report -> Packet had unknown address code 2: 0x%x", current_addr_code_2);
       packet.log();
       break;
   }
@@ -149,10 +159,10 @@ void MR24HPB1Component::handle_radar_report_(Packet &packet) {
 void MR24HPB1Component::handle_other_information_(Packet &packet) {
   AddressCode2 current_addr_code_2 = packet.address_code_2();
   uint32_t data = packet.data_as_int();
-  bool occupied = false;
-  bool movement = false;
   switch (current_addr_code_2) {
-    case PROREP_ROI_HEARTBEAT_PACK:
+    case PROREP_ROI_HEARTBEAT_PACK: {
+      bool occupied = false;
+      bool movement = false;
       switch (data) {
         case UNOCCUPIED:
           break;
@@ -163,39 +173,46 @@ void MR24HPB1Component::handle_other_information_(Packet &packet) {
           occupied = true;
           movement = true;
           break;
-
         default:
           ESP_LOGW(TAG, "Heartbeat state data was invalid: %d", data);
-          break;
+          return;
       }
 
+#ifdef USE_BINARY_SENSOR
       if (this->occupancy_sensor_ != nullptr) {
         this->occupancy_sensor_->publish_state(occupied);
       }
       if (this->movement_sensor_ != nullptr) {
         this->movement_sensor_->publish_state(movement);
       }
+#endif
 
+#ifdef USE_TEXT_SENSOR
       if (this->environment_status_sensor_ != nullptr) {
         const char *status = environment_status_to_string(EnvironmentStatus(data));
         ESP_LOGD(TAG, "Got environment status=%s", status);
         this->environment_status_sensor_->publish_state(status);
       }
+#endif
       break;
-    case PROREP_ROI_ABNORMAL_RESET:
+    }
+    case PROREP_ROI_ABNORMAL_RESET: {
       if (data == 0x0F) {
         ESP_LOGW(TAG, "Sensor abnormal Reset");
       } else {
         ESP_LOGW(TAG, "Heartbeat state data was invalid: %d", data);
       }
       break;
-    default:
-      ESP_LOGW(TAG, "Other Information -> Packet had unkown address code 2: 0x%x", current_addr_code_2);
+    }
+    default: {
+      ESP_LOGW(TAG, "Other Information -> Packet had unknown address code 2: 0x%x", current_addr_code_2);
       packet.log();
       break;
+    }
   }
 }
 
+#ifdef USE_TEXT_SENSOR
 void MR24HPB1Component::handle_module_id_report_(Packet &packet) {
   AddressCode2 current_addr_code_2 = packet.address_code_2();
   switch (current_addr_code_2) {
@@ -203,36 +220,37 @@ void MR24HPB1Component::handle_module_id_report_(Packet &packet) {
       if (this->device_id_sensor_ != nullptr) {
         std::string device_id = packet.data_as_string();
         this->device_id_sensor_->publish_state(device_id);
-        this->respone_requested_ = 0;
+        this->response_requested_ = 0;
       }
       break;
     case RC_MS_SOFTWARE_VERSION:
       if (this->software_version_sensor_ != nullptr) {
         std::string software_version = packet.data_as_string();
         this->software_version_sensor_->publish_state(software_version);
-        this->respone_requested_ = 0;
+        this->response_requested_ = 0;
       }
       break;
     case RC_MS_HARDWARE_VERSION:
       if (this->hardware_version_sensor_ != nullptr) {
         std::string hardware_version = packet.data_as_string();
         this->hardware_version_sensor_->publish_state(hardware_version);
-        this->respone_requested_ = 0;
+        this->response_requested_ = 0;
       }
       break;
     case RC_MS_PROTOCOL_VERSION:
       if (this->protocol_version_sensor_ != nullptr) {
         std::string protocol_version = esphome::to_string(packet.data_as_int());
         this->protocol_version_sensor_->publish_state(protocol_version);
-        this->respone_requested_ = 0;
+        this->response_requested_ = 0;
       }
       break;
     default:
-      ESP_LOGW(TAG, "Module ID report -> Packet had unkown address code 2: 0x%x", current_addr_code_2);
+      ESP_LOGW(TAG, "Module ID report -> Packet had unknown address code 2: 0x%x", current_addr_code_2);
       packet.log();
       break;
   }
 }
+#endif
 
 void MR24HPB1Component::handle_system_report_(Packet &packet) {
   AddressCode2 current_addr_code_2 = packet.address_code_2();
@@ -249,7 +267,7 @@ void MR24HPB1Component::handle_system_report_(Packet &packet) {
                forced_unoccupied_to_string(static_cast<ForcedUnoccupied>(packet.data_as_int())));
       break;
     default:
-      ESP_LOGW(TAG, "System report -> Packet had unkown address code 2: 0x%x", current_addr_code_2);
+      ESP_LOGW(TAG, "System report -> Packet had unknown address code 2: 0x%x", current_addr_code_2);
       packet.log();
       break;
   }
@@ -277,7 +295,7 @@ void MR24HPB1Component::handle_other_function_report_(Packet &packet) {
       ESP_LOGD(TAG, "Fall sensitivity setting package transfer: %d", packet.data_as_int());
       break;
     default:
-      ESP_LOGW(TAG, "Other function report -> Packet had unkown address code 2: 0x%x", current_addr_code_2);
+      ESP_LOGW(TAG, "Other function report -> Packet had unknown address code 2: 0x%x", current_addr_code_2);
       packet.log();
       break;
   }

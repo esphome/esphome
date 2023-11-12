@@ -1,15 +1,25 @@
 #pragma once
 
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/sensor/sensor.h"
-#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
-#include "types.h"
-#include "packet.h"
+#include "esphome/core/defines.h"
+
 #include <cstdio>
 #include <tuple>
 #include <vector>
+
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
+
+#include "packet.h"
+#include "types.h"
 
 namespace esphome {
 namespace mr24hpb1 {
@@ -26,6 +36,7 @@ class MR24HPB1Component : public Component, public uart::UARTDevice {
   float get_setup_priority() const override;
   void loop() override;
 
+#ifdef USE_TEXT_SENSOR
   void set_device_id_sensor(text_sensor::TextSensor *device_id_sensor) { this->device_id_sensor_ = device_id_sensor; }
   void set_software_version_sensor(text_sensor::TextSensor *software_version_sensor) {
     this->software_version_sensor_ = software_version_sensor;
@@ -40,9 +51,16 @@ class MR24HPB1Component : public Component, public uart::UARTDevice {
     this->environment_status_sensor_ = environment_sensor;
   }
   void set_movement_type_sensor(text_sensor::TextSensor *sensor) { this->movement_type_sensor_ = sensor; }
+#endif
+
+#ifdef USE_BINARY_SENSOR
   void set_occupancy_sensor(binary_sensor::BinarySensor *sensor) { this->occupancy_sensor_ = sensor; }
-  void set_movement_rate_sensor(sensor::Sensor *sensor) { this->movement_rate_sensor_ = sensor; }
   void set_movement_sensor(binary_sensor::BinarySensor *sensor) { this->movement_sensor_ = sensor; }
+#endif
+
+#ifdef USE_SENSOR
+  void set_movement_rate_sensor(sensor::Sensor *sensor) { this->movement_rate_sensor_ = sensor; }
+#endif
 
   void set_scene_setting(SceneSetting setting) { this->scene_setting_ = setting; };
   void set_forced_unoccupied(ForcedUnoccupied setting) { this->forced_unoccupied_ = setting; };
@@ -88,22 +106,29 @@ class MR24HPB1Component : public Component, public uart::UARTDevice {
 
   ReceptionStatus receive_packet_(Packet &packet);
 
+#ifdef USE_TEXT_SENSOR
   void get_general_infos_();
+#endif
   void handle_active_reporting_(Packet &packet);
   void handle_passive_reporting_(Packet &packet);
   void handle_sleep_data_report_(Packet &packet);
   void handle_fall_data_report_(Packet &packet);
   void handle_radar_report_(Packet &packet);
+#ifdef USE_TEXT_SENSOR
   void handle_module_id_report_(Packet &packet);
+#endif
   void handle_other_information_(Packet &packet);
   void handle_system_report_(Packet &packet);
   void handle_other_function_report_(Packet &packet);
 
   Packet current_packet_;
   ReceptionStatus current_receive_status_ = WAITING;
-  uint32_t respone_requested_ = 0;
-  bool info_fully_populated_ = false;
   uint16_t expected_length_ = 0;
+
+#ifdef USE_TEXT_SENSOR
+  uint32_t response_requested_ = 0;
+  bool info_fully_populated_ = false;
+
   std::vector<std::tuple<text_sensor::TextSensor *, AddressCode1, AddressCode2>> system_information_sensors_;
 
   text_sensor::TextSensor *device_id_sensor_{nullptr};
@@ -111,10 +136,17 @@ class MR24HPB1Component : public Component, public uart::UARTDevice {
   text_sensor::TextSensor *hardware_version_sensor_{nullptr};
   text_sensor::TextSensor *protocol_version_sensor_{nullptr};
   text_sensor::TextSensor *environment_status_sensor_{nullptr};
+  text_sensor::TextSensor *movement_type_sensor_{nullptr};
+#endif
+
+#ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *occupancy_sensor_{nullptr};
   binary_sensor::BinarySensor *movement_sensor_{nullptr};
+#endif
+
+#ifdef USE_SENSOR
   sensor::Sensor *movement_rate_sensor_{nullptr};
-  text_sensor::TextSensor *movement_type_sensor_{nullptr};
+#endif
 
   SceneSetting scene_setting_;
   uint8_t threshold_gear_;

@@ -1,22 +1,29 @@
 #include "mr24hpb1.h"
-#include "esphome/core/log.h"
-#include "esphome/core/application.h"
-#include "crc.h"
 #include "constants.h"
+#include "crc.h"
+#include "esphome/core/application.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace mr24hpb1 {
 void MR24HPB1Component::setup() {
-  // creating a list of all system information that needs to be fetched only once after startup
-  this->system_information_sensors_.emplace_back(this->device_id_sensor_, RC_MARKING_SEARCH, RC_MS_DEVICE_ID);
-  this->system_information_sensors_.emplace_back(this->software_version_sensor_, RC_MARKING_SEARCH,
-                                                 RC_MS_SOFTWARE_VERSION);
-  this->system_information_sensors_.emplace_back(this->hardware_version_sensor_, RC_MARKING_SEARCH,
-                                                 RC_MS_HARDWARE_VERSION);
-  this->system_information_sensors_.emplace_back(this->protocol_version_sensor_, RC_MARKING_SEARCH,
-                                                 RC_MS_PROTOCOL_VERSION);
-
   ESP_LOGCONFIG(TAG, "Setting up MR24HPB1");
+
+#ifdef USE_TEXT_SENSOR
+  // creating a list of all system information that needs to be fetched only once after startup
+  if (this->device_id_sensor_ != nullptr)
+
+    this->system_information_sensors_.emplace_back(this->device_id_sensor_, RC_MARKING_SEARCH, RC_MS_DEVICE_ID);
+  if (this->software_version_sensor_ != nullptr)
+    this->system_information_sensors_.emplace_back(this->software_version_sensor_, RC_MARKING_SEARCH,
+                                                   RC_MS_SOFTWARE_VERSION);
+  if (this->hardware_version_sensor_ != nullptr)
+    this->system_information_sensors_.emplace_back(this->hardware_version_sensor_, RC_MARKING_SEARCH,
+                                                   RC_MS_HARDWARE_VERSION);
+  if (this->protocol_version_sensor_ != nullptr)
+    this->system_information_sensors_.emplace_back(this->protocol_version_sensor_, RC_MARKING_SEARCH,
+                                                   RC_MS_PROTOCOL_VERSION);
+#endif
 
   this->check_uart_settings(9600);
 
@@ -25,13 +32,18 @@ void MR24HPB1Component::setup() {
   while (num_tries < 5) {
     std::string device_id = this->read_device_id_();
     if (!device_id.empty()) {
-      this->device_id_sensor_->publish_state(device_id);
+#ifdef USE_TEXT_SENSOR
+      if (this->device_id_sensor_ != nullptr) {
+        this->device_id_sensor_->publish_state(device_id);
+      }
+#endif
       break;
     }
     num_tries++;
   }
   if (num_tries >= 5) {
     this->mark_failed();
+    return;
   }
 
   // set threshold gear
@@ -42,6 +54,7 @@ void MR24HPB1Component::setup() {
   if (!received) {
     ESP_LOGE(TAG, "Threshold gear write not acknowledged!");
     this->mark_failed();
+    return;
   } else {
     uint8_t threshold_gear = recv_packet.data_as_int();
     if (this->threshold_gear_ == threshold_gear) {
@@ -49,6 +62,7 @@ void MR24HPB1Component::setup() {
     } else {
       ESP_LOGE(TAG, "Reported threshold gear not equal to written value, got: %d!", threshold_gear);
       this->mark_failed();
+      return;
     }
   }
 
@@ -60,6 +74,7 @@ void MR24HPB1Component::setup() {
   if (!received) {
     ESP_LOGE(TAG, "Scene setting write not acknowledged!");
     this->mark_failed();
+    return;
   } else {
     uint8_t scene_setting = recv_packet.data_as_int();
     if (this->scene_setting_ == scene_setting) {
@@ -67,6 +82,7 @@ void MR24HPB1Component::setup() {
     } else {
       ESP_LOGE(TAG, "Reported scene setting not equal to written value, got: %d!", scene_setting);
       this->mark_failed();
+      return;
     }
   }
 
@@ -78,6 +94,7 @@ void MR24HPB1Component::setup() {
   if (!received) {
     ESP_LOGE(TAG, "Forced unoccupied write not acknowledged!");
     this->mark_failed();
+    return;
   } else {
     ForcedUnoccupied forced_unoccupied_setting = static_cast<ForcedUnoccupied>(recv_packet.data_as_int());
     if (this->forced_unoccupied_ == forced_unoccupied_setting) {
@@ -86,6 +103,7 @@ void MR24HPB1Component::setup() {
       ESP_LOGE(TAG, "Reported forced unoccupied not equal to written value, got: %d!",
                static_cast<uint8_t>(forced_unoccupied_setting));
       this->mark_failed();
+      return;
     }
   }
 }
@@ -101,20 +119,28 @@ void MR24HPB1Component::dump_config() {
 
   ESP_LOGCONFIG(TAG, "Scene Setting: %s", scene_setting_to_string(this->scene_setting_));
   ESP_LOGCONFIG(TAG, "Threshold Gear: %d", this->threshold_gear_);
+#ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Device ID:", this->device_id_sensor_);
   LOG_TEXT_SENSOR("  ", "Software Version:", this->software_version_sensor_);
   LOG_TEXT_SENSOR("  ", "Hardware Version:", this->hardware_version_sensor_);
   LOG_TEXT_SENSOR("  ", "Protocol Version:", this->protocol_version_sensor_);
   LOG_TEXT_SENSOR("  ", "Environment Status:", this->environment_status_sensor_);
+#endif
+#ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Occupancy:", this->occupancy_sensor_);
   LOG_BINARY_SENSOR("  ", "Movement:", this->movement_sensor_);
+#endif
+#ifdef USE_SENSOR
   LOG_SENSOR("  ", "Movement Rate:", this->movement_rate_sensor_);
+#endif
 }
 
 void MR24HPB1Component::loop() {
+#ifdef USE_TEXT_SENSOR
   if (!info_fully_populated_) {
     this->get_general_infos_();
   }
+#endif
   ReceptionStatus stat = this->receive_packet_(this->current_packet_);
   if (stat == MR24HPB1Component::COMPLETE) {
     FunctionCode current_func_code = this->current_packet_.function_code();
@@ -132,7 +158,7 @@ void MR24HPB1Component::loop() {
         this->handle_fall_data_report_(this->current_packet_);
         break;
       default:
-        ESP_LOGW(TAG, "Packet had unkown function code: 0x%x", current_func_code);
+        ESP_LOGW(TAG, "Packet had unknown function code: 0x%x", current_func_code);
         this->current_packet_.log();
         break;
     }
@@ -141,20 +167,22 @@ void MR24HPB1Component::loop() {
   }
 }
 
+#ifdef USE_TEXT_SENSOR
 void MR24HPB1Component::get_general_infos_() {
   info_fully_populated_ = true;
   for (auto item : this->system_information_sensors_) {
-    text_sensor::TextSensor *current_sesnor = std::get<0>(item);
-    if (current_sesnor != nullptr && current_sesnor->get_state().empty() && this->respone_requested_ == 0) {
-      this->respone_requested_ = millis();
+    text_sensor::TextSensor *current_sensor = std::get<0>(item);
+    if (current_sensor->get_state().empty() && this->response_requested_ == 0) {
+      this->response_requested_ = millis();
       this->write_packet_(READ_COMMAND, std::get<1>(item), std::get<2>(item));
+      info_fully_populated_ = false;
     }
-    info_fully_populated_ = false;
   }
-  if (millis() > this->respone_requested_ + PACKET_WAIT_TIMEOUT_MS) {
-    this->respone_requested_ = 0;
+  if (millis() > this->response_requested_ + PACKET_WAIT_TIMEOUT_MS) {
+    this->response_requested_ = 0;
   }
 }
+#endif
 
 void MR24HPB1Component::write_packet_(FunctionCode function_code, AddressCode1 address_code_1,
                                       AddressCode2 address_code_2, std::vector<uint8_t> &data) {
