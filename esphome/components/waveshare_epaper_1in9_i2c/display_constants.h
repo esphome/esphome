@@ -7,6 +7,12 @@
 namespace esphome {
 namespace waveshare_epaper_1in9_i2c {
 
+static float TEMPERATURE_MIN = -9.9;
+static float TEMPERATURE_MAX = 199.9;
+
+static float HUMIDITY_MIN = -9.9;
+static float HUMIDITY_MAX = 99.9;
+
 static const unsigned LUT_SIZE = 7;
 
 // 5S waveform for better anti-ghosting
@@ -45,13 +51,11 @@ static const unsigned DOT_MASK = 0b0000000000100000;
 // Bitmask to show humidity % sign
 static const unsigned PERCENT_MASK = 0b0000000000100000;
 
-// Bitmask to enable and disable the low power indicator (empty battery symbol)
+// Bitmask to enable the low power indicator (empty battery symbol)
 static const unsigned LOW_POWER_ON_MASK = 0b0000000000010000;
-static const unsigned LOW_POWER_OFF_MASK = 0b1111111111101111;
 
-// Bitmask to enable and disable the BT indicator
+// Bitmask to enable the BT indicator
 static const unsigned BT_ON_MASK = 0b0000000000001000;
-static const unsigned BT_OFF_MASK = 0b1111111111110111;
 
 }  // namespace waveshare_epaper_1in9_i2c
 }  // namespace esphome
