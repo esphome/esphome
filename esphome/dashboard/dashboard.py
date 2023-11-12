@@ -307,7 +307,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         await handlers[type_](self, json_message)
 
     @websocket_method("spawn")
-    async def handle_spawn(self, json_message):
+    async def handle_spawn(self, json_message: dict[str, Any]) -> None:
         if self._proc is not None:
             # spawn can only be called once
             return
