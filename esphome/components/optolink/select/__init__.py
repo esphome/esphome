@@ -43,6 +43,7 @@ CONFIG_SCHEMA = (
                 cg.std_ns.class_("map").template(cg.std_string, cg.std_string)
             ),
             cv.Required(CONF_MAP): cv.ensure_list(validate_mapping),
+            cv.Required(CONF_ADDRESS): cv.hex_uint32_t,
             cv.Required(CONF_BYTES): cv.one_of(1, 2, 4, int=True),
         }
     )

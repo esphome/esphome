@@ -17,12 +17,14 @@ OptolinkSensor = optolink_ns.class_(
     "OptolinkSensor", sensor.Sensor, cg.PollingComponent
 )
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(OptolinkSensor)
-    .extend(
+    sensor.SENSOR_SCHEMA.extend(
         {
+            cv.GenerateID(): cv.declare_id(OptolinkSensor),
+            cv.Required(CONF_ADDRESS): cv.hex_uint32_t,
             cv.Required(CONF_BYTES): cv.one_of(1, 2, 4, int=True),
         }
     )
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(SENSOR_BASE_SCHEMA)
 )
 

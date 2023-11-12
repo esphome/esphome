@@ -1,5 +1,6 @@
 #ifdef USE_ARDUINO
 
+#include "esphome/core/log.h"
 #include "optolink_text_sensor.h"
 #include "../optolink.h"
 #include "esphome/components/api/api_server.h"
@@ -75,44 +76,55 @@ uint8_t *encode_time_string(std::string input) {
 }
 
 void OptolinkTextSensor::setup() {
-  if (mode_ == RAW) {
-    div_ratio_ = 0;
-  } else if (mode_ == DAY_SCHEDULE) {
-    div_ratio_ = 0;
-    bytes_ = 8;
-    address_ += (8 * dow_);
-  } else if (mode_ == DAY_SCHEDULE_SYNCHRONIZED) {
-    writeable_ = true;
-    div_ratio_ = 0;
-    bytes_ = 8;
-    address_ += (8 * dow_);
-    api::global_api_server->subscribe_home_assistant_state(
-        this->entity_id_, optional<std::string>(), [this](const std::string &state) {
-          ESP_LOGD(TAG, "got time values from entity '%s': %s", this->entity_id_.c_str(), state.c_str());
-          uint8_t *data = encode_time_string(state);
-          if (data) {
-            update_datapoint(data, 8);
-          } else {
-            ESP_LOGW(TAG, "not changing any value of datapoint %s", datapoint_->getName());
-          }
-        });
+  switch (mode_) {
+    case MAP:
+      break;
+    case RAW:
+      div_ratio_ = 0;
+      break;
+    case DAY_SCHEDULE:
+      div_ratio_ = 0;
+      bytes_ = 8;
+      address_ += (8 * dow_);
+      break;
+    case DAY_SCHEDULE_SYNCHRONIZED:
+      writeable_ = true;
+      div_ratio_ = 0;
+      bytes_ = 8;
+      address_ += (8 * dow_);
+      api::global_api_server->subscribe_home_assistant_state(
+          this->entity_id_, optional<std::string>(), [this](const std::string &state) {
+            ESP_LOGD(TAG, "got time values from entity '%s': %s", this->entity_id_.c_str(), state.c_str());
+            uint8_t *data = encode_time_string(state);
+            if (data) {
+              update_datapoint(data, 8);
+            } else {
+              ESP_LOGW(TAG, "not changing any value of datapoint %s", datapoint_->getName());
+            }
+          });
+      break;
+    case DEVICE_INFO:
+      set_entity_category(esphome::ENTITY_CATEGORY_DIAGNOSTIC);
+      bytes_ = 4;
+      address_ = 0x00f8;
+      break;
   }
   setup_datapoint();
 };
 
-void OptolinkTextSensor::value_changed(uint8_t *state, size_t length) {
+void OptolinkTextSensor::value_changed(uint8_t *value, size_t length) {
   switch (mode_) {
     case RAW:
-      publish_state(std::string((const char *) state));
+      publish_state(std::string((const char *) value));
       break;
     case DAY_SCHEDULE:
     case DAY_SCHEDULE_SYNCHRONIZED:
       if (length == 8) {
         char buffer[6 * length + 1];
         for (int i = 0; i < 8; i++) {
-          int hour = state[i] >> 3;
-          int minute = (state[i] & 0b111) * 10;
-          if (state[i] != 0xFF) {
+          int hour = value[i] >> 3;
+          int minute = (value[i] & 0b111) * 10;
+          if (value[i] != 0xFF) {
             sprintf(buffer + i * 6, "%02d:%02d ", hour, minute);
           } else {
             sprintf(buffer + i * 6, "      ");
@@ -123,9 +135,27 @@ void OptolinkTextSensor::value_changed(uint8_t *state, size_t length) {
         unfitting_value_type();
       }
       break;
+    case DEVICE_INFO:
     case MAP:
       unfitting_value_type();
       break;
+  }
+};
+
+void OptolinkTextSensor::value_changed(uint32_t value) {
+  switch (mode_) {
+    case DEVICE_INFO: {
+      ESP_LOGI(TAG, "recieved data for datapoint %s: %d", datapoint_->getName(), value);
+      uint8_t *bytes = (uint8_t *) &value;
+      uint16_t tmp = esphome::byteswap(*((uint16_t *) bytes));
+      std::string geraetekennung = esphome::format_hex_pretty(&tmp, 1);
+      std::string hardware_revision = esphome::format_hex_pretty((uint8_t *) bytes + 2, 1);
+      std::string software_index = esphome::format_hex_pretty((uint8_t *) bytes + 3, 1);
+      publish_state("Device ID: " + geraetekennung + "|Hardware Revision: " + hardware_revision +
+                    "|Software Index: " + software_index);
+    } break;
+    default:
+      publish_state(std::to_string(value));
   }
 };
 

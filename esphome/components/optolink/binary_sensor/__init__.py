@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import CONF_ADDRESS, CONF_ID
 from .. import SENSOR_BASE_SCHEMA, optolink_ns, CONF_OPTOLINK_ID
@@ -10,8 +11,16 @@ CODEOWNERS = ["@j0ta29"]
 OptolinkBinarySensor = optolink_ns.class_(
     "OptolinkBinarySensor", binary_sensor.BinarySensor, cg.PollingComponent
 )
-CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(OptolinkBinarySensor).extend(
-    SENSOR_BASE_SCHEMA
+
+CONFIG_SCHEMA = (
+    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(OptolinkBinarySensor),
+            cv.Required(CONF_ADDRESS): cv.hex_uint32_t,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(SENSOR_BASE_SCHEMA)
 )
 
 

@@ -20,6 +20,7 @@ OptolinkNumber = optolink_ns.class_(
     "OptolinkNumber", number.Number, cg.PollingComponent
 )
 
+
 CONFIG_SCHEMA = (
     number.NUMBER_SCHEMA.extend(
         {
@@ -27,6 +28,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_range(min=0.0),
             cv.Required(CONF_STEP): cv.float_,
+            cv.Required(CONF_ADDRESS): cv.hex_uint32_t,
             cv.Required(CONF_BYTES): cv.one_of(1, 2, 4, int=True),
         }
     )

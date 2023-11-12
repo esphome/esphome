@@ -20,6 +20,7 @@ MODE = {
     "RAW": TextSensorMode.RAW,
     "DAY_SCHEDULE": TextSensorMode.DAY_SCHEDULE,
     "DAY_SCHEDULE_SYNCHRONIZED": TextSensorMode.DAY_SCHEDULE_SYNCHRONIZED,
+    "DEVICE_INFO": TextSensorMode.DEVICE_INFO,
 }
 DAY_OF_WEEK = {
     "MONDAY": 0,
@@ -93,15 +94,16 @@ def check_entity_id():
 
 
 CONFIG_SCHEMA = cv.All(
-    text_sensor.text_sensor_schema(OptolinkTextSensor)
-    .extend(
+    text_sensor.TEXT_SENSOR_SCHEMA.extend(
         {
+            cv.GenerateID(): cv.declare_id(OptolinkTextSensor),
             cv.Optional(CONF_MODE, default="MAP"): cv.enum(MODE, upper=True),
             cv.Optional(CONF_BYTES): cv.int_range(min=1, max=9),
             cv.Optional(CONF_DAY_OF_WEEK): cv.enum(DAY_OF_WEEK, upper=True),
             cv.Optional(CONF_ENTITY_ID): cv.entity_id,
         }
     )
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(SENSOR_BASE_SCHEMA),
     check_bytes(),
     check_dow(),
@@ -117,7 +119,8 @@ async def to_code(config):
     await text_sensor.register_text_sensor(var, config)
 
     cg.add(var.set_mode(config[CONF_MODE]))
-    cg.add(var.set_address(config[CONF_ADDRESS]))
+    if CONF_ADDRESS in config:
+        cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(var.set_div_ratio(config[CONF_DIV_RATIO]))
     if CONF_BYTES in config:
         cg.add(var.set_bytes(config[CONF_BYTES]))

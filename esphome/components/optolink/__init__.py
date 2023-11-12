@@ -4,7 +4,6 @@ import esphome.codegen as cg
 from esphome.components import text_sensor as ts
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ADDRESS,
     CONF_DIV_RATIO,
     CONF_ID,
     CONF_LOGGER,
@@ -42,8 +41,6 @@ SENSOR_BASE_SCHEMA = cv.Schema(
             cv.positive_time_period_milliseconds,
             cv.Range(min=core.TimePeriod(seconds=1), max=core.TimePeriod(seconds=1800)),
         ),
-        cv.Required(CONF_ADDRESS): cv.hex_uint32_t,
-        # cv.Required(CONF_BYTES): cv.one_of(1, 2, 4, int=True),
         cv.Optional(CONF_DIV_RATIO, default=1): cv.one_of(
             1, 10, 100, 1000, 3600, int=True
         ),
@@ -79,7 +76,6 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_LOGGER, default=False): cv.boolean,
             cv.Optional(CONF_STATE): cv.string,
-            cv.Optional(CONF_DEVICE_INFO): cv.string,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
