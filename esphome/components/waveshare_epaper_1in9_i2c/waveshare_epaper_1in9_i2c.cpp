@@ -2,43 +2,23 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include "i2c_commands.h"
+#include "display_utils.h"
+
 namespace esphome {
 namespace waveshare_epaper_1in9_i2c {
 
 static const char *const TAG = "waveshare_epaper_1in9_i2c";
 
-static const uint8_t EMPTY_DISPLAY[FRAMEBUFFER_SIZE] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-};
-
-static const unsigned LUT_SIZE = 7;
-
-// 5S waveform for better anti-ghosting
-static const uint8_t LUT_5S[LUT_SIZE] = {0x82, 0x28, 0x20, 0xA8, 0xA0, 0x50, 0x65};
-
-// White extinction diagram + black out diagram
-static const uint8_t LUT_DU_WB[LUT_SIZE] = {0x82, 0x80, 0x00, 0xC0, 0x80, 0x80, 0x62};
-
-static const unsigned DOT_MASK = 0b0000000000100000;
-static const unsigned PERCENT_MASK = 0b0000000000100000;
-
-static const unsigned LOW_POWER_ON_MASK = 0b0000000000010000;
-static const unsigned LOW_POWER_OFF_MASK = 0b1111111111101111;
-
-static const unsigned BT_ON_MASK = 0b0000000000001000;
-static const unsigned BT_OFF_MASK = 0b1111111111110111;
-
-float WaveShareEPaper1in9I2C::get_setup_priority() const { return setup_priority::IO; }
-
 void WaveShareEPaper1in9I2C::setup() {
   ESP_LOGD(TAG, "Setting up WaveShareEPaper1in9I2C...");
   this->reset_pin_->setup();
   this->busy_pin_->setup();
-  this->init_screen();
-  this->write_lut(LUT_5S);
-  this->read_busy();
-  memcpy(this->framebuffer_, EMPTY_DISPLAY, FRAMEBUFFER_SIZE);
-  this->write_screen();
+  this->init_screen_();
+  this->write_lut_(LUT_5S);
+  this->read_busy_();
+  memset(this->framebuffer_, CHAR_EMPTY, FRAMEBUFFER_SIZE);
+  this->write_screen_();
 }
 
 void WaveShareEPaper1in9I2C::update() {
@@ -68,34 +48,34 @@ void WaveShareEPaper1in9I2C::update() {
     new_image[8] |= DOT_MASK;       // set bottom dot
     new_image[10] |= PERCENT_MASK;  // set percent symbol
 
-    bool need_refresh = this->update_framebuffer(new_image);
+    bool need_refresh = this->update_framebuffer_(new_image);
 
     if (need_refresh) {
-      ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::updating...");
-      this->write_lut(LUT_DU_WB);
+      ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::refreshing...");
+      this->write_lut_(LUT_DU_WB);
       delay(300);  // NOLINT
-      this->write_screen();
+      this->write_screen_();
     }
   }
 
-  deep_sleep();
+  this->deep_sleep_();
 }
 
-void WaveShareEPaper1in9I2C::reset_screen() {
+void WaveShareEPaper1in9I2C::reset_screen_() {
   ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::reset_screen");
 
-  reset_pin_->digital_write(true);
+  this->send_reset_(true);
   delay(200);  // NOLINT
-  reset_pin_->digital_write(false);
+  this->send_reset_(false);
   delay(20);
-  reset_pin_->digital_write(true);
+  this->send_reset_(true);
   delay(200);  // NOLINT
 }
 
 /**
  * Wait until the busy_pin goes LOW
  **/
-void WaveShareEPaper1in9I2C::read_busy(void) {
+void HOT WaveShareEPaper1in9I2C::read_busy_(void) {
   ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::read_busy... screen is busy");
   delay(10);
   while (1) {  //=1 BUSY;
@@ -108,21 +88,19 @@ void WaveShareEPaper1in9I2C::read_busy(void) {
   ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::read_busy... screen no longer busy");
 }
 
-void WaveShareEPaper1in9I2C::init_screen(void) {
+void WaveShareEPaper1in9I2C::init_screen_(void) {
   ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::init_screen...");
-  this->reset_screen();
+  this->reset_screen_();
   delay(100);  // NOLINT
 
-  uint8_t data[] = {
-      0x2B,  // Power on
-      0xFF   // Dummy
-  };
-  this->command_device_->write(data, 1);
+  this->send_commands_(&CMD_POWER_ON, 1);
   delay(10);
 
-  data[0] = 0xA7;  // boost
-  data[1] = 0xE8;  // TSON
-  this->command_device_->write(data, 2);
+  uint8_t data[] = {
+      CMD_DCDC_BOOST_X8,  // DCDC Boost x8
+      0xE8                // TSON
+  };
+  this->send_commands_(data, 2);
   delay(10);
 
   this->apply_temperature_compensation();
@@ -133,10 +111,10 @@ void WaveShareEPaper1in9I2C::apply_temperature_compensation() {
 
   if (this->compensation_temp_ < 10) {
     uint8_t data[] = {0x7E, 0x81, 0xB4};
-    this->command_device_->write(data, 3);
+    this->send_commands_(data, 3);
   } else {
     uint8_t data[] = {0x7E, 0x81, 0xB4};
-    this->command_device_->write(data, 3);
+    this->send_commands_(data, 3);
   }
 
   delay(10);
@@ -156,57 +134,54 @@ void WaveShareEPaper1in9I2C::apply_temperature_compensation() {
       0xe7,       // Set default frame time
       frame_time  // Computed frame time
   };
-  this->command_device_->write(data, 2);
+  this->send_commands_(data, 2);
 }
 
-void WaveShareEPaper1in9I2C::write_lut(const uint8_t lut[LUT_SIZE]) {
+void WaveShareEPaper1in9I2C::write_lut_(const uint8_t lut[LUT_SIZE]) {
   ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::write_lut...");
-  this->command_device_->write(lut, LUT_SIZE);
+  this->send_commands_(lut, LUT_SIZE);
 }
 
-void WaveShareEPaper1in9I2C::write_screen() {
+void WaveShareEPaper1in9I2C::write_screen_() {
   ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::write_screen...");
   uint8_t before_write_data[] = {
-      0xAC,  // Close the sleep
-      0x2B,  // Turn on the power
-      0x40,  // Write RAM address
-      0xA9,  // Turn on the first SRAM
-      0xA8   // Shut down the first SRAM
+      CMD_SLEEP_OFF,        // Close the sleep
+      CMD_POWER_ON,         // Turn on the power
+      CMD_RAM_ADDR_0,       // Write RAM address
+      CMD_DATA_1_LATCH_ON,  // Turn on the first SRAM
+      CMD_DATA_1_LATCH_OFF  // Shut down the first SRAM
   };
-  this->command_device_->write(before_write_data, 5);
+  this->send_commands_(before_write_data, 5);
 
   // Write the image to the screen
-  this->data_device_->write(this->framebuffer_, FRAMEBUFFER_SIZE);
+  this->send_data_(this->framebuffer_, FRAMEBUFFER_SIZE);
   uint8_t bg_color = this->inverted_colors_ ? 0x03 : 0x00;
-  this->data_device_->write(&bg_color, 1);
+  this->send_data_(&bg_color, 1);
 
   uint8_t after_write_data_1[] = {
-      0xAB,  // Turn on the second SRAM
-      0xAA,  // Shut down the second SRAM
-      0xAF   // display on
+      CMD_DATA_2_LATCH_ON,   // Turn on the second SRAM
+      CMD_DATA_2_LATCH_OFF,  // Shut down the second SRAM
+      CMD_DISPLAY_ON         // display on
   };
-  this->command_device_->write(after_write_data_1, 3);
+  this->send_commands_(after_write_data_1, 3);
 
-  this->read_busy();
-  // delay(2000);
+  this->read_busy_();
 
   uint8_t after_write_data_2[] = {
-      0xAE,  // Display off
-      0x28,  // HV OFF
-      0xAD   // Sleep in
+      CMD_DISPLAY_OFF,  // Display off
+      CMD_POWER_OFF,    // HV OFF
+      CMD_SLEEP_ON      // Sleep in
   };
-  this->command_device_->write(after_write_data_2, 3);
+  this->send_commands_(after_write_data_2, 3);
 }
 
-void WaveShareEPaper1in9I2C::deep_sleep(void) {
-  uint8_t data = 0x28;  // HV OFF
-  this->command_device_->write(&data, 1, false);
-  this->read_busy();
-  data = 0xAC;  // Close the sleep;
-  this->command_device_->write(&data, 1, true);
+void WaveShareEPaper1in9I2C::deep_sleep_(void) {
+  this->send_commands_(&CMD_POWER_OFF, 1, false);
+  this->read_busy_();
+  this->send_commands_(&CMD_SLEEP_ON, 1, true);
 }
 
-bool WaveShareEPaper1in9I2C::update_framebuffer(unsigned char new_image[15]) {
+bool HOT WaveShareEPaper1in9I2C::update_framebuffer_(unsigned char new_image[15]) {
   bool need_update = false;
   for (int i = 0; i < FRAMEBUFFER_SIZE; i++) {
     if (new_image[i] != this->framebuffer_[i]) {
@@ -255,6 +230,14 @@ void WaveShareEPaper1in9I2C::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
+}
+
+void WaveShareEPaper1in9I2C::send_commands_(const uint8_t *data, uint8_t len, bool stop) {
+  this->command_device_->write(data, len, stop);
+}
+
+void WaveShareEPaper1in9I2C::send_data_(const uint8_t *data, uint8_t len, bool stop) {
+  this->data_device_->write(data, len, stop);
 }
 }  // namespace waveshare_epaper_1in9_i2c
 }  // namespace esphome
