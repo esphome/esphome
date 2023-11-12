@@ -991,7 +991,7 @@ class MDNSStatus:
         self.filename_to_host_name: dict[str, str] = {}
         # This is a set of host names to track (i.e no_mdns = false)
         self.host_name_with_mdns_enabled: set[set] = set()
-        self._refresh_hosts()
+        self._loop = asyncio.get_running_loop()
 
     def filename_to_host_name_thread_safe(self, filename: str) -> str | None:
         """Resolve a filename to an address in a thread-safe manner."""
@@ -1005,9 +1005,9 @@ class MDNSStatus:
             return await aiozc.async_resolve_host(host_name)
         return None
 
-    def _refresh_hosts(self):
+    async def async_refresh_hosts(self):
         """Refresh the hosts to track."""
-        entries = _list_dashboard_entries()
+        entries = await self._loop.run_in_executor(None, _list_dashboard_entries)
         host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
         host_mdns_state = self.host_mdns_state
         host_name_to_filename = self.host_name_to_filename
@@ -1053,7 +1053,6 @@ class MDNSStatus:
                     filename = host_name_to_filename[name]
                     PING_RESULT[filename] = result
 
-        self._refresh_hosts()
         stat = DashboardStatus(on_update)
         imports = DashboardImportDiscovery()
         browser = DashboardBrowser(
@@ -1063,7 +1062,7 @@ class MDNSStatus:
         )
 
         while not STOP_EVENT.is_set():
-            self._refresh_hosts()
+            await self.async_refresh_hosts()
             IMPORT_RESULT = imports.import_state
             await PING_REQUEST.async_wait()
             PING_REQUEST.async_clear()
@@ -1570,6 +1569,7 @@ async def async_start_web_server(args):
         ping_status_thread.start()
     else:
         mdns_status = MDNSStatus()
+        await mdns_status.async_refresh_hosts()
         MDNS_CONTAINER.set_mdns(mdns_status)
         mdns_task = asyncio.create_task(mdns_status.async_run())
 
