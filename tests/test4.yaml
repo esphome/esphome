@@ -814,3 +814,10 @@ max6956:
 xl9535:
   - id: xl9535_hub
     address: 0x20
+
+waveshare_epaper_1in9_i2c:
+  command_address: 0x3C
+  data_address: 0x3D
+  busy_pin: GPIO23
+  reset_pin: GPIO23
+  update_interval: 5s
