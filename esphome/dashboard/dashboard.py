@@ -342,7 +342,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         return self._proc is not None and self._proc.returncode is None
 
     @websocket_method("stdin")
-    async def handle_stdin(self, json_message):
+    async def handle_stdin(self, json_message: dict[str, Any]) -> None:
         if not self.is_process_active:
             return
         data = json_message["data"]
@@ -351,7 +351,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         self._proc.stdin.write(data)
 
     @tornado.gen.coroutine
-    def _redirect_stdout(self):
+    def _redirect_stdout(self) -> None:
         reg = b"[\n\r]"
 
         while True:
@@ -370,7 +370,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
             _LOGGER.debug("> stdout: %s", data)
             self.write_message({"event": "line", "data": data})
 
-    def _stdout_thread(self):
+    def _stdout_thread(self) -> None:
         if not self._use_popen:
             return
         while True:
@@ -383,13 +383,13 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         self._proc.wait(1.0)
         self._queue.put_nowait(None)
 
-    def _proc_on_exit(self, returncode):
+    def _proc_on_exit(self, returncode: int) -> None:
         if not self._is_closed:
             # Check if the proc was not forcibly closed
             _LOGGER.info("Process exited with return code %s", returncode)
             self.write_message({"event": "exit", "code": returncode})
 
-    def on_close(self):
+    def on_close(self) -> None:
         # Check if proc exists (if 'start' has been run)
         if self.is_process_active:
             _LOGGER.debug("Terminating process")
@@ -466,13 +466,13 @@ class EsphomeRenameHandler(EsphomeCommandWebSocket):
 class EsphomeUploadHandler(EsphomePortCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         """Build the command to run."""
-        return self.run_command(["upload"], json_message)
+        return await self.run_command(["upload"], json_message)
 
 
 class EsphomeRunHandler(EsphomePortCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         """Build the command to run."""
-        return self.run_command(["run"], json_message)
+        return await self.run_command(["run"], json_message)
 
 
 class EsphomeCompileHandler(EsphomeCommandWebSocket):
