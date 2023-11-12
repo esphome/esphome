@@ -6,6 +6,11 @@
 #include "esphome/components/mdns/mdns_component.h"
 #endif
 
+#ifdef ENABLE_IPV6
+#define ESPHOME_DNS_ADDRTYPE LWIP_DNS_ADDRTYPE_IPV6_IPV4
+#else
+#define ESPHOME_DNS_ADDRTYPE LWIP_DNS_ADDRTYPE_IPV4
+#endif
 
 namespace esphome {
 namespace network {
@@ -32,12 +37,12 @@ network::IPAddress Resolver::resolve(const std::string &hostname) {
   ip_addr_t addr;
   ESP_LOGVV(TAG, "Resolving %s", hostname.c_str());
   err_t err =
-      dns_gethostbyname_addrtype(hostname.c_str(), &addr, Resolver::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
+      dns_gethostbyname_addrtype(hostname.c_str(), &addr, Resolver::dns_found_callback, this, ESPHOME_DNS_ADDRTYPE);
   if (err == ERR_OK) {
     return network::IPAddress(&addr);
   }
   this->connect_begin_ = millis();
-  while (!this->dns_resolved_ && !this->dns_resolve_error_ && (this->connect_begin_ - millis() < 20000)) {
+  while (!this->dns_resolved_ && !this->dns_resolve_error_ && (millis() - this->connect_begin_ < 2000)) {
     switch (err) {
       case ERR_OK: {
         // Got IP immediately
@@ -48,7 +53,7 @@ network::IPAddress Resolver::resolve(const std::string &hostname) {
       }
       case ERR_INPROGRESS: {
         // wait for callback
-        ESP_LOGD(TAG, "Resolving IP address...");
+        ESP_LOGVV(TAG, "Resolving IP address...");
         break;
       }
       default:
