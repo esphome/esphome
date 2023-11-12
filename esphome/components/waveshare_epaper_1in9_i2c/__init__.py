@@ -27,8 +27,10 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
         cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
         cv.Required(CONF_I2C_BUS): cv.use_id(i2c.I2CBus),
-        cv.Required(CONF_I2C_COMMAND_ADDRESS): cv.int_range(min=0, max=0xFF),
-        cv.Required(CONF_I2C_DATA_ADDRESS): cv.int_range(min=0, max=0xFF),
+        cv.Optional(CONF_I2C_COMMAND_ADDRESS, default=0x3C): cv.int_range(
+            min=0, max=0xFF
+        ),
+        cv.Optional(CONF_I2C_DATA_ADDRESS, default=0x3D): cv.int_range(min=0, max=0xFF),
     }
 ).extend(cv.polling_component_schema("180s"))
 

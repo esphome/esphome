@@ -4,56 +4,17 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 
+#include "display_constants.h"
+
 namespace esphome {
 namespace waveshare_epaper_1in9_i2c {
-
-static const unsigned FRAMEBUFFER_SIZE = 15;
-static const unsigned CHAR_SLOTS = 2;
-
-static const uint8_t CHAR_EMPTY = 0x00;
-static const uint8_t CHAR_CELSIUS = 0x05;
-static const uint8_t CHAR_FAHRENHEIT = 0x06;
-static const uint8_t CHAR_MINUS_SIGN[CHAR_SLOTS] = {0b01000100, 0b00000};
-static const uint8_t CHAR_DIGITS[10][CHAR_SLOTS] = {
-    {0xbf, 0xff},  // 0
-    {0x00, 0xff},  // 1
-    {0xfd, 0x17},  // 2
-    {0xf5, 0xff},  // 3
-    {0x47, 0xff},  // 4
-    {0xf7, 0x1d},  // 5
-    {0xff, 0x1d},  // 6
-    {0x21, 0xff},  // 7
-    {0xff, 0xff},  // 8
-    {0xf7, 0xff},  // 9
-};
-
-static const unsigned TEMPERATURE_DIGITS_LEN = 4;
-static const unsigned HUMIDITY_DIGITS_LEN = 3;
-
-static bool is_naN(float a) { return a != a; }
-
-static void parse_number(float number, int *digits, int digits_count) {
-  for (int i = 0; i < digits_count; i++) {
-    if (is_naN(number)) {
-      digits[i] = -1;
-    } else {
-      digits[i] = (int) (number / pow(10, (digits_count - i) - 2)) % 10;
-
-      if (digits[i] == 0 && (i == 0 || digits[i - 1] == -1)) {
-        digits[i] = -1;
-      }
-    }
-  }
-}
-
-static uint8_t get_pixel(int number, int order) { return number == -1 ? CHAR_EMPTY : CHAR_DIGITS[number][order]; }
 
 class WaveShareEPaper1in9I2C : public PollingComponent {
  public:
   void setup() override;
   void update() override;
 
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::IO; };
 
   void create_command_device(i2c::I2CBus *bus, uint8_t address) {
     this->command_device_ = new i2c::I2CDevice();
@@ -103,13 +64,17 @@ class WaveShareEPaper1in9I2C : public PollingComponent {
   GPIOPin *reset_pin_;
   GPIOPin *busy_pin_;
 
-  void init_screen();
-  void reset_screen();
-  void read_busy();
-  void write_lut(const uint8_t *lut);
-  void write_screen();
-  void deep_sleep();
-  bool update_framebuffer(uint8_t new_image[FRAMEBUFFER_SIZE]);
+  void init_screen_();
+  void reset_screen_();
+  void read_busy_();
+  void write_lut_(const uint8_t lut[LUT_SIZE]);
+  void write_screen_();
+  void deep_sleep_();
+  bool update_framebuffer_(uint8_t new_image[FRAMEBUFFER_SIZE]);
+
+  void send_commands_(const uint8_t *data, uint8_t len, bool stop = true);
+  void send_data_(const uint8_t *data, uint8_t len, bool stop = true);
+  void send_reset_(bool value) { this->reset_pin_->digital_write(value); };
 };
 }  // namespace waveshare_epaper_1in9_i2c
 }  // namespace esphome
