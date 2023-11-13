@@ -91,7 +91,7 @@ class WaveShareEPaper1in9I2C : public PollingComponent {
 
   void init_screen_();
   void reset_screen_();
-  void read_busy_();
+  void wait_for_idle_();
   void write_lut_(const uint8_t lut[LUT_SIZE]);
   void write_screen_(const uint8_t framebuffer[FRAMEBUFFER_SIZE]);
   void deep_sleep_();
