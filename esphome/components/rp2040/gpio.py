@@ -81,7 +81,7 @@ RP2040_PIN_SCHEMA = cv.All(
     pins.gpio_base_schema(
         RP2040GPIOPin,
         validate_gpio_pin,
-        modes=[pins.GPIO_STANDARD_MODES + (CONF_ANALOG,)],
+        modes=pins.GPIO_STANDARD_MODES + (CONF_ANALOG,),
     ),
     validate_supports,
 )
