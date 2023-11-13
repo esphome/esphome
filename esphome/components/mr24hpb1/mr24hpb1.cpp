@@ -11,18 +11,21 @@ void MR24HPB1Component::setup() {
 
 #ifdef USE_TEXT_SENSOR
   // creating a list of all system information that needs to be fetched only once after startup
-  if (this->device_id_sensor_ != nullptr)
-
+  if (this->device_id_sensor_ != nullptr) {
     this->system_information_sensors_.emplace_back(this->device_id_sensor_, RC_MARKING_SEARCH, RC_MS_DEVICE_ID);
-  if (this->software_version_sensor_ != nullptr)
+  }
+  if (this->software_version_sensor_ != nullptr) {
     this->system_information_sensors_.emplace_back(this->software_version_sensor_, RC_MARKING_SEARCH,
                                                    RC_MS_SOFTWARE_VERSION);
-  if (this->hardware_version_sensor_ != nullptr)
+  }
+  if (this->hardware_version_sensor_ != nullptr) {
     this->system_information_sensors_.emplace_back(this->hardware_version_sensor_, RC_MARKING_SEARCH,
                                                    RC_MS_HARDWARE_VERSION);
-  if (this->protocol_version_sensor_ != nullptr)
+  }
+  if (this->protocol_version_sensor_ != nullptr) {
     this->system_information_sensors_.emplace_back(this->protocol_version_sensor_, RC_MARKING_SEARCH,
                                                    RC_MS_PROTOCOL_VERSION);
+  }
 #endif
 
   this->check_uart_settings(9600);
