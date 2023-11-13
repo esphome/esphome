@@ -108,6 +108,9 @@ void OptolinkTextSensor::setup() {
       bytes_ = 4;
       address_ = 0x00f8;
       break;
+    case STATE_INFO:
+      set_entity_category(esphome::ENTITY_CATEGORY_DIAGNOSTIC);
+      return;  // no datapoint setup!
   }
   setup_datapoint();
 };
@@ -136,6 +139,7 @@ void OptolinkTextSensor::value_changed(uint8_t *value, size_t length) {
       }
       break;
     case DEVICE_INFO:
+    case STATE_INFO:
     case MAP:
       unfitting_value_type();
       break;
@@ -145,7 +149,6 @@ void OptolinkTextSensor::value_changed(uint8_t *value, size_t length) {
 void OptolinkTextSensor::value_changed(uint32_t value) {
   switch (mode_) {
     case DEVICE_INFO: {
-      ESP_LOGI(TAG, "recieved data for datapoint %s: %d", datapoint_->getName(), value);
       uint8_t *bytes = (uint8_t *) &value;
       uint16_t tmp = esphome::byteswap(*((uint16_t *) bytes));
       std::string geraetekennung = esphome::format_hex_pretty(&tmp, 1);

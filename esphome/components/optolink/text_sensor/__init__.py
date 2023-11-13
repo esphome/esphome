@@ -21,6 +21,7 @@ MODE = {
     "DAY_SCHEDULE": TextSensorMode.DAY_SCHEDULE,
     "DAY_SCHEDULE_SYNCHRONIZED": TextSensorMode.DAY_SCHEDULE_SYNCHRONIZED,
     "DEVICE_INFO": TextSensorMode.DEVICE_INFO,
+    "STATE_INFO": TextSensorMode.STATE_INFO,
 }
 DAY_OF_WEEK = {
     "MONDAY": 0,
@@ -38,6 +39,19 @@ OptolinkTextSensor = optolink_ns.class_(
 )
 
 
+def check_address():
+    def validator_(config):
+        address_needed = config[CONF_MODE] in ["MAP", "RAW"]
+        address_defined = CONF_ADDRESS in config
+        if address_needed and not address_defined:
+            raise cv.Invalid(f"{CONF_ADDRESS} is required in mode MAP or RAW")
+        if not address_needed and address_defined:
+            raise cv.Invalid(f"{CONF_ADDRESS} is only allowed in mode MAP or RAW")
+        return config
+
+    return validator_
+
+
 def check_bytes():
     def validator_(config):
         bytes_needed = config[CONF_MODE] in ["MAP", "RAW"]
@@ -45,9 +59,7 @@ def check_bytes():
         if bytes_needed and not bytes_defined:
             raise cv.Invalid(f"{CONF_BYTES} is required in mode MAP or RAW")
         if not bytes_needed and bytes_defined:
-            raise cv.Invalid(
-                f"{CONF_BYTES} is not allowed in mode DAY_SCHEDULE and DAY_SCHEDULE_SYNCHRONIZED"
-            )
+            raise cv.Invalid(f"{CONF_BYTES} is only allowed in mode MAP or RAW")
         return config
 
     return validator_
@@ -97,7 +109,8 @@ CONFIG_SCHEMA = cv.All(
     text_sensor.TEXT_SENSOR_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(OptolinkTextSensor),
-            cv.Optional(CONF_MODE, default="MAP"): cv.enum(MODE, upper=True),
+            cv.Required(CONF_MODE): cv.enum(MODE, upper=True),
+            cv.Optional(CONF_ADDRESS): cv.hex_uint32_t,
             cv.Optional(CONF_BYTES): cv.int_range(min=1, max=9),
             cv.Optional(CONF_DAY_OF_WEEK): cv.enum(DAY_OF_WEEK, upper=True),
             cv.Optional(CONF_ENTITY_ID): cv.entity_id,
@@ -105,6 +118,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(SENSOR_BASE_SCHEMA),
+    check_address(),
     check_bytes(),
     check_dow(),
     check_entity_id(),

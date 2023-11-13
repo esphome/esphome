@@ -10,7 +10,7 @@
 namespace esphome {
 namespace optolink {
 
-enum TextSensorMode { MAP, RAW, DAY_SCHEDULE, DAY_SCHEDULE_SYNCHRONIZED, DEVICE_INFO };
+enum TextSensorMode { MAP, RAW, DAY_SCHEDULE, DAY_SCHEDULE_SYNCHRONIZED, DEVICE_INFO, STATE_INFO };
 
 class OptolinkTextSensor : public OptolinkSensorBase,
                            public esphome::text_sensor::TextSensor,
@@ -24,7 +24,13 @@ class OptolinkTextSensor : public OptolinkSensorBase,
 
  protected:
   void setup() override;
-  void update() override { optolink_->read_value(datapoint_); }
+  void update() override {
+    if (mode_ == STATE_INFO) {
+      publish_state(optolink_->get_error());
+    } else {
+      optolink_->read_value(datapoint_);
+    }
+  }
 
   const StringRef &get_component_name() override { return get_name(); }
   void value_changed(float state) override { publish_state(std::to_string(state)); };

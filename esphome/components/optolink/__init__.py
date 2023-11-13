@@ -19,7 +19,6 @@ CODEOWNERS = ["@j0ta29"]
 DEPENDENCIES = ["text_sensor"]
 AUTO_LOAD = []
 MULTI_CONF = False
-CONF_DEVICE_INFO = "device_info"
 
 optolink_ns = cg.esphome_ns.namespace("optolink")
 CONF_OPTOLINK_ID = "optolink_id"
@@ -102,20 +101,6 @@ async def to_code(config):
             {
                 "id": config[STATE_SENSOR_ID],
                 "name": config[CONF_STATE],
-                "disabled_by_default": "false",
-            },
-        )
-        await cg.register_component(debugSensor, config)
-
-    if CONF_DEVICE_INFO in config:
-        debugSensor = cg.new_Pvariable(
-            config[DEVICE_INFO_SENSOR_ID], config[CONF_DEVICE_INFO], var
-        )
-        await ts.register_text_sensor(
-            debugSensor,
-            {
-                "id": config[DEVICE_INFO_SENSOR_ID],
-                "name": config[CONF_DEVICE_INFO],
                 "disabled_by_default": "false",
             },
         )
