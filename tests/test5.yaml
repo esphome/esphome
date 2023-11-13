@@ -694,7 +694,7 @@ matrix_keypad:
         number: 21
     - pin: 19
   columns:
-    - pin: 
+    - pin:
         allow_other_uses: true
         number: 17
     - pin:

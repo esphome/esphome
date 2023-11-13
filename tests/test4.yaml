@@ -750,7 +750,7 @@ output:
     id: dac7678_1_ch7
 esp32_camera:
   name: ESP-32 Camera
-  data_pins: 
+  data_pins:
     - number: GPIO17
       allow_other_uses: true
     - number: GPIO35
