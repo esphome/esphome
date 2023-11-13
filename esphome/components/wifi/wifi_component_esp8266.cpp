@@ -24,6 +24,7 @@ extern "C" {
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
 #include "LwipDhcpServer.h"
 #if USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
+#include "ESP8266WiFiAP.h"
 #define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
 #define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
 #define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpSoftAP.set_dhcps_offer_option(offer, mode)
