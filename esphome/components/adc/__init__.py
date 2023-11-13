@@ -170,21 +170,20 @@ def validate_adc_pin(value):
         return conf
 
     if CORE.is_esp8266:
-        value = pins.internal_gpio_pin_number({CONF_ANALOG: True, CONF_INPUT: True})(
-            value
-        )
-
-        if value != 17:  # A0
-            raise cv.Invalid("ESP8266: Only pin A0 (GPIO17) supports ADC")
-        return pins.gpio_pin_schema(
+        conf = pins.gpio_pin_schema(
             {CONF_ANALOG: True, CONF_INPUT: True}, internal=True
         )(value)
 
+        if conf[CONF_NUMBER] != 17:  # A0
+            raise cv.Invalid("ESP8266: Only pin A0 (GPIO17) supports ADC")
+        return conf
+
     if CORE.is_rp2040:
-        value = pins.internal_gpio_input_pin_number(value)
-        if value not in (26, 27, 28, 29):
+        conf = pins.internal_gpio_input_pin_schema(value)
+        number = conf[CONF_NUMBER]
+        if number not in (26, 27, 28, 29):
             raise cv.Invalid("RP2040: Only pins 26, 27, 28 and 29 support ADC")
-        return pins.internal_gpio_input_pin_schema(value)
+        return conf
 
     if CORE.is_libretiny:
         return pins.gpio_pin_schema(

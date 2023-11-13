@@ -1,7 +1,7 @@
 import operator
 from functools import reduce
 import esphome.config_validation as cv
-from esphome.core import ID
+from esphome.core import CORE, ID
 
 from esphome.const import (
     CONF_INPUT,
@@ -15,12 +15,14 @@ from esphome.const import (
     CONF_ALLOW_OTHER_USES,
     CONF_INVERTED,
 )
-from esphome.core import CORE
 
 
 class PinRegistry(dict):
     def __init__(self):
         super().__init__()
+        self.pins_used = {}
+
+    def reset(self):
         self.pins_used = {}
 
     def get_count(self, key, number):
@@ -99,7 +101,7 @@ class PinRegistry(dict):
         Run the final validation for all pins, and check for reuse
         :param fconf: The full config
         """
-        for (key, number), pin_list in self.pins_used.items():
+        for (key, _), pin_list in self.pins_used.items():
             count = len(pin_list)  # number of places same pin used.
             final_val_fun = self[key][2]  # final validation function
             for pin_path, client_id, pin_config in pin_list:
