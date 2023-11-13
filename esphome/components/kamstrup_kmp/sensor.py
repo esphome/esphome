@@ -82,7 +82,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_VOLUME): sensor.sensor_schema(
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_VOLUME,
-                state_class=STATE_CLASS_MEASUREMENT,
+                state_class=STATE_CLASS_TOTAL,
                 unit_of_measurement=UNIT_CUBIC_METER,
             ),
             cv.Optional(CONF_CUSTOM): cv.ensure_list(
