@@ -852,8 +852,9 @@ class DashboardEntry:
 
 class ListDevicesHandler(BaseHandler):
     @authenticated
-    def get(self):
-        entries = _list_dashboard_entries()
+    async def get(self):
+        loop = asyncio.get_running_loop()
+        entries = await loop.run_in_executor(None, _list_dashboard_entries)
         self.set_header("content-type", "application/json")
         configured = {entry.name for entry in entries}
         self.write(
