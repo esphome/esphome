@@ -84,12 +84,6 @@ class APIServer : public Component, public Controller {
   void request_time();
 #endif
 
-#ifdef USE_VOICE_ASSISTANT
-  bool start_voice_assistant(const std::string &conversation_id, uint32_t flags,
-                             const api::VoiceAssistantAudioSettings &audio_settings);
-  void stop_voice_assistant();
-#endif
-
 #ifdef USE_ALARM_CONTROL_PANEL
   void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
 #endif

@@ -116,6 +116,7 @@ void Nextion::reset_(bool reset_nextion) {
     this->read_byte(&d);
   };
   this->nextion_queue_.clear();
+  this->waveform_queue_.clear();
 }
 
 void Nextion::dump_config() {
@@ -127,11 +128,15 @@ void Nextion::dump_config() {
   ESP_LOGCONFIG(TAG, "  Wake On Touch:    %s", this->auto_wake_on_touch_ ? "True" : "False");
 
   if (this->touch_sleep_timeout_ != 0) {
-    ESP_LOGCONFIG(TAG, "  Touch Timeout:       %d", this->touch_sleep_timeout_);
+    ESP_LOGCONFIG(TAG, "  Touch Timeout:       %" PRIu32, this->touch_sleep_timeout_);
   }
 
   if (this->wake_up_page_ != -1) {
     ESP_LOGCONFIG(TAG, "  Wake Up Page :       %d", this->wake_up_page_);
+  }
+
+  if (this->start_up_page_ != -1) {
+    ESP_LOGCONFIG(TAG, "  Start Up Page :      %d", this->start_up_page_);
   }
 }
 
@@ -230,7 +235,11 @@ void Nextion::loop() {
     this->send_command_("bkcmd=3");  // Always, returns 0x00 to 0x23 result of serial command.
 
     this->set_backlight_brightness(this->brightness_);
-    this->goto_page("0");
+
+    // Check if a startup page has been set and send the command
+    if (this->start_up_page_ != -1) {
+      this->goto_page(this->start_up_page_);
+    }
 
     this->set_auto_wake_on_touch(this->auto_wake_on_touch_);
 
@@ -364,37 +373,21 @@ void Nextion::process_nextion_commands_() {
         ESP_LOGW(TAG, "Nextion reported baud rate invalid!");
         break;
       case 0x12:  // invalid Waveform ID or Channel # was used
+        if (this->waveform_queue_.empty()) {
+          ESP_LOGW(TAG,
+                   "Nextion reported invalid Waveform ID or Channel # was used but no waveform sensor in queue found!");
+        } else {
+          auto &nb = this->waveform_queue_.front();
+          NextionComponentBase *component = nb->component;
 
-        if (!this->nextion_queue_.empty()) {
-          int index = 0;
-          int found = -1;
-          for (auto &nb : this->nextion_queue_) {
-            NextionComponentBase *component = nb->component;
+          ESP_LOGW(TAG, "Nextion reported invalid Waveform ID %d or Channel # %d was used!",
+                   component->get_component_id(), component->get_wave_channel_id());
 
-            if (component->get_queue_type() == NextionQueueType::WAVEFORM_SENSOR) {
-              ESP_LOGW(TAG, "Nextion reported invalid Waveform ID %d or Channel # %d was used!",
-                       component->get_component_id(), component->get_wave_channel_id());
+          ESP_LOGN(TAG, "Removing waveform from queue with component id %d and waveform id %d",
+                   component->get_component_id(), component->get_wave_channel_id());
 
-              ESP_LOGN(TAG, "Removing waveform from queue with component id %d and waveform id %d",
-                       component->get_component_id(), component->get_wave_channel_id());
-
-              found = index;
-
-              delete component;  // NOLINT(cppcoreguidelines-owning-memory)
-              delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
-
-              break;
-            }
-            ++index;
-          }
-
-          if (found != -1) {
-            this->nextion_queue_.erase(this->nextion_queue_.begin() + found);
-          } else {
-            ESP_LOGW(
-                TAG,
-                "Nextion reported invalid Waveform ID or Channel # was used but no waveform sensor in queue found!");
-          }
+          delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
+          this->waveform_queue_.pop_front();
         }
         break;
       case 0x1A:  // variable name invalid
@@ -697,44 +690,29 @@ void Nextion::process_nextion_commands_() {
       }
       case 0xFD: {  // data transparent transmit finished
         ESP_LOGVV(TAG, "Nextion reported data transmit finished!");
+        this->check_pending_waveform_();
         break;
       }
       case 0xFE: {  // data transparent transmit ready
         ESP_LOGVV(TAG, "Nextion reported ready for transmit!");
-
-        int index = 0;
-        int found = -1;
-        for (auto &nb : this->nextion_queue_) {
-          auto *component = nb->component;
-          if (component->get_queue_type() == NextionQueueType::WAVEFORM_SENSOR) {
-            size_t buffer_to_send = component->get_wave_buffer().size() < 255 ? component->get_wave_buffer().size()
-                                                                              : 255;  // ADDT command can only send 255
-
-            this->write_array(component->get_wave_buffer().data(), static_cast<int>(buffer_to_send));
-
-            ESP_LOGN(TAG, "Nextion sending waveform data for component id %d and waveform id %d, size %zu",
-                     component->get_component_id(), component->get_wave_channel_id(), buffer_to_send);
-
-            if (component->get_wave_buffer().size() <= 255) {
-              component->get_wave_buffer().clear();
-            } else {
-              component->get_wave_buffer().erase(component->get_wave_buffer().begin(),
-                                                 component->get_wave_buffer().begin() + buffer_to_send);
-            }
-            found = index;
-            delete component;  // NOLINT(cppcoreguidelines-owning-memory)
-            delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
-            break;
-          }
-          ++index;
-        }
-
-        if (found == -1) {
+        if (this->waveform_queue_.empty()) {
           ESP_LOGE(TAG, "No waveforms in queue to send data!");
           break;
-        } else {
-          this->nextion_queue_.erase(this->nextion_queue_.begin() + found);
         }
+
+        auto &nb = this->waveform_queue_.front();
+        auto *component = nb->component;
+        size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
+                                                                        : 255;  // ADDT command can only send 255
+
+        this->write_array(component->get_wave_buffer().data(), static_cast<int>(buffer_to_send));
+
+        ESP_LOGN(TAG, "Nextion sending waveform data for component id %d and waveform id %d, size %zu",
+                 component->get_component_id(), component->get_wave_channel_id(), buffer_to_send);
+
+        component->clear_wave_buffer(buffer_to_send);
+        delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
+        this->waveform_queue_.pop_front();
         break;
       }
       default:
@@ -890,6 +868,12 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
   start = millis();
 
   while ((timeout == 0 && this->available()) || millis() - start <= timeout) {
+    if (!this->available()) {
+      App.feed_wdt();
+      delay(1);
+      continue;
+    }
+
     this->read_byte(&c);
     if (c == 0xFF) {
       nr_of_ff_bytes++;
@@ -908,7 +892,7 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
       }
     }
     App.feed_wdt();
-    delay(1);
+    delay(2);
 
     if (exit_flag || ff_flag) {
       break;
@@ -1093,17 +1077,28 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   nextion::NextionQueue *nextion_queue = new nextion::NextionQueue;
 
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  nextion_queue->component = new nextion::NextionComponentBase;
+  nextion_queue->component = component;
   nextion_queue->queue_time = millis();
 
+  this->waveform_queue_.push_back(nextion_queue);
+  if (this->waveform_queue_.size() == 1)
+    this->check_pending_waveform_();
+}
+
+void Nextion::check_pending_waveform_() {
+  if (this->waveform_queue_.empty())
+    return;
+
+  auto *nb = this->waveform_queue_.front();
+  auto *component = nb->component;
   size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
                                                                   : 255;  // ADDT command can only send 255
 
   std::string command = "addt " + to_string(component->get_component_id()) + "," +
                         to_string(component->get_wave_channel_id()) + "," + to_string(buffer_to_send);
-  if (this->send_command_(command)) {
-    this->nextion_queue_.push_back(nextion_queue);
+  if (!this->send_command_(command)) {
+    delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
+    this->waveform_queue_.pop_front();
   }
 }
 

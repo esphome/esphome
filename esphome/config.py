@@ -10,7 +10,7 @@ from contextlib import contextmanager
 
 import voluptuous as vol
 
-from esphome import core, yaml_util, loader
+from esphome import core, yaml_util, loader, pins
 import esphome.core.config as core_config
 from esphome.const import (
     CONF_ESPHOME,
@@ -645,14 +645,40 @@ class FinalValidateValidationStep(ConfigValidationStep):
             # If result already has errors, skip this step
             return
 
-        if self.comp.final_validate_schema is None:
-            return
-
         token = fv.full_config.set(result)
 
         conf = result.get_nested_item(self.path)
         with result.catch_error(self.path):
-            self.comp.final_validate_schema(conf)
+            if self.comp.final_validate_schema is not None:
+                self.comp.final_validate_schema(conf)
+
+            fconf = fv.full_config.get()
+
+            def _check_pins(c):
+                for value in c.values():
+                    if not isinstance(value, dict):
+                        continue
+                    for key, (
+                        _,
+                        _,
+                        pin_final_validate,
+                    ) in pins.PIN_SCHEMA_REGISTRY.items():
+                        if (
+                            key != CORE.target_platform
+                            and key in value
+                            and pin_final_validate is not None
+                        ):
+                            pin_final_validate(fconf, value)
+
+            # Check for pin configs and a final_validate schema in the pin registry
+            confs = conf
+            if not isinstance(
+                confs, list
+            ):  # Handle components like SPI that have a list instead of MULTI_CONF
+                confs = [conf]
+            for c in confs:
+                if c:  # Some component have None or empty schemas
+                    _check_pins(c)
 
         fv.full_config.reset(token)
 
