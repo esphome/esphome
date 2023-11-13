@@ -45,6 +45,11 @@ static const uint8_t CHAR_DIGITS[10][CHAR_SLOTS] = {
 static const unsigned TEMPERATURE_DIGITS_LEN = 4;
 static const unsigned HUMIDITY_DIGITS_LEN = 3;
 
+static const unsigned TEMPERATURE_DOT_INDEX = 4;
+static const unsigned HUMIDITY_DOT_IDX = 8;
+static const unsigned HUMIDITY_PERCENTAGE_IDX = 10;
+static const unsigned INDICATORS_IDX = 13;  // Framebuffer position for °C/F/low power/BT indicators
+
 // Bitmask to show the decimal dot
 static const unsigned DOT_MASK = 0b0000000000100000;
 

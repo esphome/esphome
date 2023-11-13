@@ -16,7 +16,7 @@ void WaveShareEPaper1in9I2C::setup() {
   this->busy_pin_->setup();
   this->init_screen_();
   this->write_lut_(LUT_5S);
-  this->read_busy_();
+  this->wait_for_idle_();
 }
 
 void HOT WaveShareEPaper1in9I2C::update() {
@@ -41,11 +41,14 @@ void HOT WaveShareEPaper1in9I2C::update() {
     int humidity_digits[HUMIDITY_DIGITS_LEN] = {-1, -1, -1};
 
     if (valid_temperature) {
-      ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::update Temperature is valid, extracting digits (%d)...", temperature);
+      ESP_LOGV(TAG, "WaveShareEPaper1in9I2C::update Temperature is valid, extracting digits (%d)...", temperature);
+
       temperature_digits[3] = temperature % 10;
       temperature_digits[2] = (temperature % 100) / 10;
       temperature_digits[1] = (temperature % 1000) / 100;
       temperature_digits[0] = temperature / 1000;
+
+      // Hide leading zeros
       if (temperature_digits[0] == 0) {
         temperature_digits[0] = -1;
         if (temperature_digits[1] == 0) {
@@ -53,23 +56,27 @@ void HOT WaveShareEPaper1in9I2C::update() {
         }
       }
 
-      ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::update Temperature digits: %d %d %d %d", temperature_digits[0],
-               temperature_digits[1], temperature_digits[2], temperature_digits[3]);
+      ESP_LOGVV(TAG, "WaveShareEPaper1in9I2C::update Temperature digits: %d %d %d %d", temperature_digits[0],
+                temperature_digits[1], temperature_digits[2], temperature_digits[3]);
     }
 
     if (valid_humidity) {
-      ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::update Humidity is valid, extracting digits (%d)...", humidity);
+      ESP_LOGV(TAG, "WaveShareEPaper1in9I2C::update Humidity is valid, extracting digits (%d)...", humidity);
+
       humidity_digits[2] = humidity % 10;
       humidity_digits[1] = (humidity % 100) / 10;
       humidity_digits[0] = humidity / 100;
+
+      // Hide leading zeros
       if (humidity_digits[0] == 0) {
         humidity_digits[0] = -1;
       }
-      ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::update Humidity digits: %d %d %d", humidity_digits[0], humidity_digits[1],
-               humidity_digits[2]);
+
+      ESP_LOGVV(TAG, "WaveShareEPaper1in9I2C::update Humidity digits: %d %d %d", humidity_digits[0], humidity_digits[1],
+                humidity_digits[2]);
     }
 
-    uint8_t new_image[] = {
+    uint8_t new_image[FRAMEBUFFER_SIZE] = {
         temperature_minus_sign ? CHAR_EMPTY : get_pixel(temperature_digits[0], 1),
         temperature_minus_sign ? CHAR_MINUS_SIGN[0] : get_pixel(temperature_digits[1], 0),
         temperature_minus_sign ? CHAR_MINUS_SIGN[1] : get_pixel(temperature_digits[1], 1),
@@ -88,33 +95,33 @@ void HOT WaveShareEPaper1in9I2C::update() {
     };
 
     if (valid_temperature) {
-      new_image[4] |= DOT_MASK;  // set top dot
-      new_image[13] |= this->display_state_.is_celsius.current ? CHAR_CELSIUS : CHAR_FAHRENHEIT;
+      new_image[TEMPERATURE_DOT_INDEX] |= DOT_MASK;
+      new_image[INDICATORS_IDX] |= this->display_state_.is_celsius.current ? CHAR_CELSIUS : CHAR_FAHRENHEIT;
     }
 
     if (valid_humidity) {
-      new_image[8] |= DOT_MASK;       // set bottom dot
-      new_image[10] |= PERCENT_MASK;  // set percent symbol
+      new_image[HUMIDITY_DOT_IDX] |= DOT_MASK;
+      new_image[HUMIDITY_PERCENTAGE_IDX] |= PERCENT_MASK;
     }
 
     if (this->display_state_.low_power.current) {
-      new_image[13] |= LOW_POWER_ON_MASK;
+      new_image[INDICATORS_IDX] |= LOW_POWER_ON_MASK;
     }
 
     if (this->display_state_.bluetooth.current) {
-      new_image[13] |= BT_ON_MASK;
+      new_image[INDICATORS_IDX] |= BT_ON_MASK;
     }
 
-    bool partial = this->at_update_ != 0;
+    bool partial_refresh = this->at_update_ != 0;
     this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
 
     ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::refreshing...");
-    if (partial) {
+    if (partial_refresh) {
       this->write_lut_(LUT_DU_WB);
     } else {
       this->write_lut_(LUT_5S);
     }
-    delay(300);  // NOLINT
+    this->wait_for_idle_();
     this->write_screen_(new_image);
   }
 
@@ -135,20 +142,18 @@ void WaveShareEPaper1in9I2C::reset_screen_() {
 /**
  * Wait until the busy_pin goes LOW
  **/
-void HOT WaveShareEPaper1in9I2C::read_busy_() {
-  ESP_LOGVV(TAG, "WaveShareEPaper1in9I2C::read_busy... screen is busy");
-  delay(10);
-  while (busy_pin_->digital_read() != 1) {  //=1 BUSY;
-    delay(1);
+void HOT WaveShareEPaper1in9I2C::wait_for_idle_() {
+  ESP_LOGVV(TAG, "WaveShareEPaper1in9I2C::wait_for_idle_... waiting for screen idle");
+  while (this->busy_pin_->digital_read() != 1) {  //=1 BUSY;
+    delay(10);
   }
-  delay(10);
-  ESP_LOGVV(TAG, "WaveShareEPaper1in9I2C::read_busy... screen no longer busy");
+  ESP_LOGVV(TAG, "WaveShareEPaper1in9I2C::wait_for_idle_... screen no longer busy");
 }
 
 void WaveShareEPaper1in9I2C::init_screen_() {
   ESP_LOGD(TAG, "WaveShareEPaper1in9I2C::init_screen...");
   this->reset_screen_();
-  delay(100);  // NOLINT
+  this->wait_for_idle_();
 
   this->send_commands_(&CMD_POWER_ON, 1);
   delay(10);
@@ -223,7 +228,7 @@ void WaveShareEPaper1in9I2C::write_screen_(const uint8_t framebuffer[FRAMEBUFFER
   };
   this->send_commands_(after_write_data_1, 3);
 
-  this->read_busy_();
+  this->wait_for_idle_();
 
   uint8_t after_write_data_2[] = {
       CMD_DISPLAY_OFF,  // Display off
@@ -235,7 +240,7 @@ void WaveShareEPaper1in9I2C::write_screen_(const uint8_t framebuffer[FRAMEBUFFER
 
 void WaveShareEPaper1in9I2C::deep_sleep_() {
   this->send_commands_(&CMD_POWER_OFF, 1);
-  this->read_busy_();
+  this->wait_for_idle_();
   this->send_commands_(&CMD_SLEEP_ON, 1);
 }
 
