@@ -217,12 +217,12 @@ async def to_code(config):
     cg.add(var.set_fast_filter(config[CONF_FAST_FILTER]))
     cg.add(var.set_start_position(config[CONF_START_POSITION]))
 
-    if CONF_DIR_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_DIR_PIN])
+    if dir_pin_config := config.get(CONF_DIR_PIN):
+        pin = await cg.gpio_pin_expression(dir_pin_config)
         cg.add(var.set_dir_pin(pin))
 
-    if CONF_END_POSITION in config:
-        cg.add(var.set_end_position(config[CONF_END_POSITION]))
+    if end_position_config := config.get(CONF_END_POSITION):
+        cg.add(var.set_end_position(end_position_config))
 
-    if CONF_RANGE in config:
-        cg.add(var.set_range(config[CONF_RANGE]))
+    if range_config := config.get(CONF_RANGE):
+        cg.add(var.set_range(range_config))

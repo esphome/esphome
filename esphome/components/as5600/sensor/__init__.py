@@ -87,33 +87,33 @@ async def to_code(config):
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
-    if CONF_OUT_OF_RANGE_MODE in config:
-        cg.add(var.set_out_of_range_mode(config[CONF_OUT_OF_RANGE_MODE]))
+    if out_of_range_mode_config := config.get(CONF_OUT_OF_RANGE_MODE):
+        cg.add(var.set_out_of_range_mode(out_of_range_mode_config))
 
-    if CONF_ANGLE in config:
-        sens = await sensor.new_sensor(config[CONF_ANGLE])
+    if angle_config := config.get(CONF_ANGLE):
+        sens = await sensor.new_sensor(angle_config)
         cg.add(var.set_angle_sensor(sens))
 
-    if CONF_RAW_ANGLE in config:
-        sens = await sensor.new_sensor(config[CONF_RAW_ANGLE])
+    if raw_angle_config := config.get(CONF_RAW_ANGLE):
+        sens = await sensor.new_sensor(raw_angle_config)
         cg.add(var.set_raw_angle_sensor(sens))
 
-    if CONF_POSITION in config:
-        sens = await sensor.new_sensor(config[CONF_POSITION])
+    if position_config := config.get(CONF_POSITION):
+        sens = await sensor.new_sensor(position_config)
         cg.add(var.set_position_sensor(sens))
 
-    if CONF_RAW_POSITION in config:
-        sens = await sensor.new_sensor(config[CONF_RAW_POSITION])
+    if raw_position_config := config.get(CONF_RAW_POSITION):
+        sens = await sensor.new_sensor(raw_position_config)
         cg.add(var.set_raw_position_sensor(sens))
 
-    if CONF_GAIN in config:
-        sens = await sensor.new_sensor(config[CONF_GAIN])
+    if gain_config := config.get(CONF_GAIN):
+        sens = await sensor.new_sensor(gain_config)
         cg.add(var.set_gain_sensor(sens))
 
-    if CONF_MAGNITUDE in config:
-        sens = await sensor.new_sensor(config[CONF_MAGNITUDE])
+    if magnitude_config := config.get(CONF_MAGNITUDE):
+        sens = await sensor.new_sensor(magnitude_config)
         cg.add(var.set_magnitude_sensor(sens))
 
-    if CONF_STATUS in config:
-        sens = await sensor.new_sensor(config[CONF_STATUS])
+    if status_config := config.get(CONF_STATUS):
+        sens = await sensor.new_sensor(status_config)
         cg.add(var.set_status_sensor(sens))

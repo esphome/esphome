@@ -12,21 +12,21 @@ namespace as5600 {
 
 class AS5600Sensor : public PollingComponent, public Parented<AS5600Component>, public sensor::Sensor {
  public:
-  AS5600Sensor();
-
   void update() override;
   void dump_config() override;
   float get_setup_priority() const override;
 
-  void set_angle_sensor(sensor::Sensor *angle_sensor) { angle_sensor_ = angle_sensor; }
-  void set_raw_angle_sensor(sensor::Sensor *raw_angle_sensor) { raw_angle_sensor_ = raw_angle_sensor; }
-  void set_position_sensor(sensor::Sensor *position_sensor) { position_sensor_ = position_sensor; }
-  void set_raw_position_sensor(sensor::Sensor *raw_position_sensor) { raw_position_sensor_ = raw_position_sensor; }
-  void set_gain_sensor(sensor::Sensor *gain_sensor) { gain_sensor_ = gain_sensor; }
-  void set_magnitude_sensor(sensor::Sensor *magnitude_sensor) { magnitude_sensor_ = magnitude_sensor; }
-  void set_status_sensor(sensor::Sensor *status_sensor) { status_sensor_ = status_sensor; }
-  void set_out_of_range_mode(OutRangeMode oor_mode) { out_of_range_mode_ = oor_mode; }
-  OutRangeMode get_out_of_range_mode() { return out_of_range_mode_; }
+  void set_angle_sensor(sensor::Sensor *angle_sensor) { this->angle_sensor_ = angle_sensor; }
+  void set_raw_angle_sensor(sensor::Sensor *raw_angle_sensor) { this->raw_angle_sensor_ = raw_angle_sensor; }
+  void set_position_sensor(sensor::Sensor *position_sensor) { this->position_sensor_ = position_sensor; }
+  void set_raw_position_sensor(sensor::Sensor *raw_position_sensor) {
+    this->raw_position_sensor_ = raw_position_sensor;
+  }
+  void set_gain_sensor(sensor::Sensor *gain_sensor) { this->gain_sensor_ = gain_sensor; }
+  void set_magnitude_sensor(sensor::Sensor *magnitude_sensor) { this->magnitude_sensor_ = magnitude_sensor; }
+  void set_status_sensor(sensor::Sensor *status_sensor) { this->status_sensor_ = status_sensor; }
+  void set_out_of_range_mode(OutRangeMode oor_mode) { this->out_of_range_mode_ = oor_mode; }
+  OutRangeMode get_out_of_range_mode() { return this->out_of_range_mode_; }
 
  protected:
   sensor::Sensor *angle_sensor_{nullptr};

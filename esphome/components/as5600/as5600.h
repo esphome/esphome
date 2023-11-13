@@ -53,29 +53,29 @@ class AS5600Component : public Component, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   // configuration setters
-  void set_dir_pin(InternalGPIOPin *pin) { dir_pin_ = pin; }
-  void set_direction(uint8_t direction) { direction_ = direction; }
-  void set_fast_filter(uint8_t fast_filter) { fast_filter_ = fast_filter; }
-  void set_hysteresis(uint8_t hysteresis) { hysteresis_ = hysteresis; }
-  void set_power_mode(uint8_t power_mode) { power_mode_ = power_mode; }
-  void set_slow_filter(uint8_t slow_filter) { slow_filter_ = slow_filter; }
-  void set_watchdog(bool watchdog) { watchdog_ = watchdog; }
-  bool get_watchdog() { return watchdog_; }
-  void set_start_position(uint16_t start_position) { start_position_ = start_position % POSITION_COUNT; }
+  void set_dir_pin(InternalGPIOPin *pin) { this->dir_pin_ = pin; }
+  void set_direction(uint8_t direction) { this->direction_ = direction; }
+  void set_fast_filter(uint8_t fast_filter) { this->fast_filter_ = fast_filter; }
+  void set_hysteresis(uint8_t hysteresis) { this->hysteresis_ = hysteresis; }
+  void set_power_mode(uint8_t power_mode) { this->power_mode_ = power_mode; }
+  void set_slow_filter(uint8_t slow_filter) { this->slow_filter_ = slow_filter; }
+  void set_watchdog(bool watchdog) { this->watchdog_ = watchdog; }
+  bool get_watchdog() { return this->watchdog_; }
+  void set_start_position(uint16_t start_position) { this->start_position_ = start_position % POSITION_COUNT; }
   void set_end_position(uint16_t end_position) {
-    end_position_ = end_position % POSITION_COUNT;
-    end_mode_ = END_MODE_POSITION;
+    this->end_position_ = end_position % POSITION_COUNT;
+    this->end_mode_ = END_MODE_POSITION;
   }
   void set_range(uint16_t range) {
-    end_position_ = range % POSITION_COUNT;
-    end_mode_ = END_MODE_RANGE;
+    this->end_position_ = range % POSITION_COUNT;
+    this->end_mode_ = END_MODE_RANGE;
   }
 
   // Gets the scale value for the configured range.
   // For example, if configured to start at 0deg and end at 180deg, the
   // range is 50% of the native/raw range, so the range scale would be 0.5.
   // If configured to use the full 360deg, the range scale would be 1.0.
-  float get_range_scale() { return range_scale_; }
+  float get_range_scale() { return this->range_scale_; }
 
   // Indicates whether the given *raw* position is within the configured range
   bool in_range(uint16_t raw_position);
