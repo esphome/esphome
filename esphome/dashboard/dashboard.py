@@ -523,8 +523,8 @@ class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
 
 class SerialPortRequestHandler(BaseHandler):
     @authenticated
-    def get(self):
-        ports = get_serial_ports()
+    async def get(self):
+        ports = await tornado.ioloop.IOLoop.run_in_executor(None, get_serial_ports)
         data = []
         for port in ports:
             desc = port.description
