@@ -524,7 +524,7 @@ class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
 class SerialPortRequestHandler(BaseHandler):
     @authenticated
     async def get(self):
-        ports = await tornado.ioloop.IOLoop.run_in_executor(None, get_serial_ports)
+        ports = await asyncio.get_running_loop().run_in_executor(None, get_serial_ports)
         data = []
         for port in ports:
             desc = port.description
