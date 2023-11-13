@@ -53,12 +53,12 @@ struct HaierPacketControl {
   // 13
   uint8_t : 8;
   // 14
-  uint8_t ten_degree : 1;          // 10 degree status
-  uint8_t display_status : 1;      // If 0 disables AC's display
-  uint8_t half_degree : 1;         // Use half degree
-  uint8_t intelegence_status : 1;  // Intelligence status
-  uint8_t pmv_status : 1;          // Comfort/PMV status
-  uint8_t use_fahrenheit : 1;      // Use Fahrenheit instead of Celsius
+  uint8_t ten_degree : 1;           // 10 degree status
+  uint8_t display_status : 1;       // If 0 disables AC's display
+  uint8_t half_degree : 1;          // Use half degree
+  uint8_t intelligence_status : 1;  // Intelligence status
+  uint8_t pmv_status : 1;           // Comfort/PMV status
+  uint8_t use_fahrenheit : 1;       // Use Fahrenheit instead of Celsius
   uint8_t : 1;
   uint8_t steri_clean : 1;
   // 15
@@ -153,7 +153,7 @@ enum class FrameType : uint8_t {
                    // <-> device, required)
   REPORT = 0x06,   // Report frame (module <-> device, interactive, required)
   STOP_FAULT_ALARM = 0x09,             // Stop fault alarm frame (module -> device, interactive, required)
-  SYSTEM_DOWNLIK = 0x11,               // System downlink frame (module -> device, optional)
+  SYSTEM_DOWNLINK = 0x11,              // System downlink frame (module -> device, optional)
   DEVICE_UPLINK = 0x12,                // Device uplink frame (module <- device , interactive, optional)
   SYSTEM_QUERY = 0x13,                 // System query frame (module -> device, optional)
   SYSTEM_QUERY_RESPONSE = 0x14,        // System query response frame (module <- device , optional)
@@ -210,7 +210,7 @@ enum class FrameType : uint8_t {
   WAKE_UP = 0xFE,  // Request to wake up (module <-> device, optional)
 };
 
-enum class SubcomandsControl : uint16_t {
+enum class SubcommandsControl : uint16_t {
   GET_PARAMETERS = 0x4C01,  // Request specific parameters (packet content: parameter ID1 + parameter ID2 + ...)
   GET_USER_DATA = 0x4D01,   // Request all user data from device (packet content: None)
   GET_BIG_DATA = 0x4DFE,    // Request big data information from device (packet content: None)

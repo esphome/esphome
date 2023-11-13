@@ -73,7 +73,7 @@ async def to_code(config):
         sens = await text_sensor.new_text_sensor(version_config)
         cg.add(var.set_version(sens))
 
-    if baseline := config.get(CONF_BASELINE):
+    if (baseline := config.get(CONF_BASELINE)) is not None:
         cg.add(var.set_baseline(baseline))
 
     if temperature_id := config.get(CONF_TEMPERATURE):

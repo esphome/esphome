@@ -132,7 +132,7 @@ void SSD1306::setup() {
   this->command(SSD1306_COMMAND_DISPLAY_ALL_ON_RESUME);
 
   // Inverse display mode (0xA6, 0xA7)
-  this->command(SSD1306_COMMAND_NORMAL_DISPLAY | this->invert_);
+  this->set_invert(this->invert_);
 
   // Disable scrolling mode (0x2E)
   this->command(SSD1306_COMMAND_DEACTIVATE_SCROLL);
@@ -189,6 +189,12 @@ bool SSD1306::is_ssd1305_() const {
 void SSD1306::update() {
   this->do_update_();
   this->display();
+}
+
+void SSD1306::set_invert(bool invert) {
+  this->invert_ = invert;
+  // Inverse display mode (0xA6, 0xA7)
+  this->command(SSD1306_COMMAND_NORMAL_DISPLAY | this->invert_);
 }
 void SSD1306::set_contrast(float contrast) {
   // validation

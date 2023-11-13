@@ -26,6 +26,17 @@ bool ModbusController::send_next_command_() {
 
     // remove from queue if command was sent too often
     if (command->send_countdown < 1) {
+      if (!this->module_offline_) {
+        ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
+
+        if (this->offline_skip_updates_ > 0) {
+          // Update skip_updates_counter to stop flooding channel with timeouts
+          for (auto &r : this->register_ranges_) {
+            r.skip_updates_counter = this->offline_skip_updates_;
+          }
+        }
+      }
+      this->module_offline_ = true;
       ESP_LOGD(
           TAG,
           "Modbus command to device=%d register=0x%02X countdown=%d no response received - removed from send queue",
@@ -49,6 +60,18 @@ bool ModbusController::send_next_command_() {
 void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
+    if (this->module_offline_) {
+      ESP_LOGW(TAG, "Modbus device=%d back online", this->address_);
+
+      if (this->offline_skip_updates_ > 0) {
+        // Restore skip_updates_counter to restore commands updates
+        for (auto &r : this->register_ranges_) {
+          r.skip_updates_counter = 0;
+        }
+      }
+    }
+    this->module_offline_ = false;
+
     // Move the commandItem to the response queue
     current_command->payload = data;
     this->incoming_queue_.push(std::move(current_command));

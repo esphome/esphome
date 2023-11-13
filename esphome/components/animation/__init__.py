@@ -115,7 +115,7 @@ async def animation_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    if frame := config.get(CONF_FRAME):
+    if (frame := config.get(CONF_FRAME)) is not None:
         template_ = await cg.templatable(frame, args, cg.uint16)
         cg.add(var.set_frame(template_))
     return var
@@ -151,7 +151,7 @@ async def to_code(config):
         pos = 0
         for frameIndex in range(frames):
             image.seek(frameIndex)
-            frame = image.convert("LA", dither=Image.NONE)
+            frame = image.convert("LA", dither=Image.Dither.NONE)
             if CONF_RESIZE in config:
                 frame = frame.resize([width, height])
             pixels = list(frame.getdata())
@@ -259,7 +259,7 @@ async def to_code(config):
             if transparent:
                 alpha = image.split()[-1]
                 has_alpha = alpha.getextrema()[0] < 0xFF
-            frame = image.convert("1", dither=Image.NONE)
+            frame = image.convert("1", dither=Image.Dither.NONE)
             if CONF_RESIZE in config:
                 frame = frame.resize([width, height])
                 if transparent:

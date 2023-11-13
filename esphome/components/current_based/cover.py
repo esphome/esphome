@@ -83,10 +83,13 @@ async def to_code(config):
             config[CONF_OPEN_MOVING_CURRENT_THRESHOLD]
         )
     )
-    if open_obsticle_current_threshold := config.get(
-        CONF_OPEN_OBSTACLE_CURRENT_THRESHOLD
-    ):
+    if (
+        open_obsticle_current_threshold := config.get(
+            CONF_OPEN_OBSTACLE_CURRENT_THRESHOLD
+        )
+    ) is not None:
         cg.add(var.set_open_obstacle_current_threshold(open_obsticle_current_threshold))
+
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
     await automation.build_automation(
         var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
@@ -100,19 +103,22 @@ async def to_code(config):
             config[CONF_CLOSE_MOVING_CURRENT_THRESHOLD]
         )
     )
-    if close_obsticle_current_threshold := config.get(
-        CONF_CLOSE_OBSTACLE_CURRENT_THRESHOLD
-    ):
+    if (
+        close_obsticle_current_threshold := config.get(
+            CONF_CLOSE_OBSTACLE_CURRENT_THRESHOLD
+        )
+    ) is not None:
         cg.add(
             var.set_close_obstacle_current_threshold(close_obsticle_current_threshold)
         )
+
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
     await automation.build_automation(
         var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]
     )
 
     cg.add(var.set_obstacle_rollback(config[CONF_OBSTACLE_ROLLBACK]))
-    if max_duration := config.get(CONF_MAX_DURATION):
+    if (max_duration := config.get(CONF_MAX_DURATION)) is not None:
         cg.add(var.set_max_duration(max_duration))
     cg.add(var.set_malfunction_detection(config[CONF_MALFUNCTION_DETECTION]))
     if malfunction_action := config.get(CONF_MALFUNCTION_ACTION):

@@ -22,19 +22,19 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def storage_path() -> str:
-    return CORE.relative_internal_path(f"{CORE.config_filename}.json")
+    return os.path.join(CORE.data_dir, "storage", f"{CORE.config_filename}.json")
 
 
-def ext_storage_path(base_path: str, config_filename: str) -> str:
-    return os.path.join(base_path, ".esphome", f"{config_filename}.json")
+def ext_storage_path(config_filename: str) -> str:
+    return os.path.join(CORE.data_dir, "storage", f"{config_filename}.json")
 
 
-def esphome_storage_path(base_path: str) -> str:
-    return os.path.join(base_path, ".esphome", "esphome.json")
+def esphome_storage_path() -> str:
+    return os.path.join(CORE.data_dir, "esphome.json")
 
 
-def trash_storage_path(base_path: str) -> str:
-    return os.path.join(base_path, ".esphome", "trash")
+def trash_storage_path() -> str:
+    return CORE.relative_config_path("trash")
 
 
 class StorageJSON:
