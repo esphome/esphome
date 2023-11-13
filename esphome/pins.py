@@ -302,7 +302,11 @@ def gpio_base_schema(
     :param invertable: If the pin supports hardware inversion
     :return: A schema for the pin
     """
-    mode_dict = dict(map(lambda m: (cv.Optional(m, default=False), cv.boolean), modes))
+    mode_default = len(modes) == 1
+    mode_dict = dict(
+        map(lambda m: (cv.Optional(m, default=mode_default), cv.boolean), modes)
+    )
+
     schema = cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(pin_type),
