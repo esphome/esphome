@@ -287,9 +287,8 @@ power_supply:
 deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
-  wakeup_pin:
-    - pin: GPIO2
-      wakeup_pin_mode: INVERT_WAKEUP
+  wakeup_pin: GPIO2
+  wakeup_pin_mode: INVERT_WAKEUP
 
 ads1115:
   address: 0x48
