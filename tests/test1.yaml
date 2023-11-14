@@ -2781,6 +2781,37 @@ fan:
     on_speed_set:
       then:
         - logger.log: Fan speed was changed!
+  - platform: speed
+    id: fan_speed_presets
+    icon: mdi:weather-windy
+    output: pca_6
+    speed_count: 10
+    name: Speed Fan w/ Presets
+    oscillation_output: gpio_19
+    direction_output: gpio_26
+    preset_modes:
+      - name: Speed Only
+        speed: 10
+      - name: Speed & Direction Only
+        speed: 100
+        direction: REVERSE
+      - name: All
+        speed: 50
+        oscillating: false
+        direction: FORWARD
+  - platform: hbridge
+    id: fan_hbridge_presets
+    icon: mdi:weather-windy
+    speed_count: 4
+    name: H-bridge Fan w/ Presets
+    pin_a: pca_6
+    pin_b: pca_7
+    preset_modes:
+      - name: Speed Only
+        speed: 10
+      - name: Speed & Direction Only
+        speed: 100
+        direction: REVERSE
   - platform: bedjet
     name: My Bedjet fan
     bedjet_id: my_bedjet_client
@@ -3799,4 +3830,3 @@ alarm_control_panel:
       then:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));
-
