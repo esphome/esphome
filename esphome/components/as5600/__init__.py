@@ -221,8 +221,8 @@ async def to_code(config):
         pin = await cg.gpio_pin_expression(dir_pin_config)
         cg.add(var.set_dir_pin(pin))
 
-    if end_position_config := config.get(CONF_END_POSITION):
+    if (end_position_config := config.get(CONF_END_POSITION, None)) is not None:
         cg.add(var.set_end_position(end_position_config))
 
-    if range_config := config.get(CONF_RANGE):
+    if (range_config := config.get(CONF_RANGE, None)) is not None:
         cg.add(var.set_range(range_config))
