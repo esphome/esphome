@@ -16,10 +16,12 @@ class SCD30Component : public Component, public sensirion_common::SensirionI2CDe
   void set_automatic_self_calibration(bool asc) { enable_asc_ = asc; }
   void set_altitude_compensation(uint16_t altitude) { altitude_compensation_ = altitude; }
   void set_ambient_pressure_compensation(float pressure) {
-    ambient_pressure_compensation_ = (uint16_t)(pressure * 1000);
+    ambient_pressure_compensation_ = (uint16_t) (pressure * 1000);
   }
   void set_temperature_offset(float offset) { temperature_offset_ = offset; }
   void set_update_interval(uint16_t interval) { update_interval_ = interval; }
+  bool force_recalibration_with_reference(uint16_t co2_reference);
+  uint16_t get_forced_calibration_reference();
 
   void setup() override;
   void update();
@@ -33,6 +35,7 @@ class SCD30Component : public Component, public sensirion_common::SensirionI2CDe
     COMMUNICATION_FAILED,
     FIRMWARE_IDENTIFICATION_FAILED,
     MEASUREMENT_INIT_FAILED,
+    FORCE_RECALIBRATION_FAILED,
     UNKNOWN
   } error_code_{UNKNOWN};
   bool enable_asc_{true};

@@ -3,6 +3,8 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_ON_VALUE,
     CONF_OPTION,
@@ -14,6 +16,7 @@ from esphome.const import (
     CONF_INDEX,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
@@ -43,8 +46,6 @@ SELECT_OPERATION_OPTIONS = {
     "LAST": SelectOperation.SELECT_OP_LAST,
 }
 
-icon = cv.icon
-
 
 SELECT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
@@ -57,6 +58,30 @@ SELECT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
         ),
     }
 )
+
+_UNDEF = object()
+
+
+def select_schema(
+    class_: MockObjClass = _UNDEF,
+    *,
+    entity_category: str = _UNDEF,
+    icon: str = _UNDEF,
+):
+    schema = cv.Schema({})
+    if class_ is not _UNDEF:
+        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
+    if entity_category is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=entity_category
+                ): cv.entity_category
+            }
+        )
+    if icon is not _UNDEF:
+        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
+    return SELECT_SCHEMA.extend(schema)
 
 
 async def setup_select_core_(var, config, *, options: list[str]):

@@ -22,6 +22,9 @@ from esphome.const import (
     UNIT_WATT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_CURRENT,
+    CONF_MIN_BRIGHTNESS,
+    CONF_MAX_BRIGHTNESS,
 )
 from esphome.core import HexInt, CORE
 
@@ -40,8 +43,7 @@ CONF_UPDATE = "update"
 CONF_LEADING_EDGE = "leading_edge"
 CONF_WARMUP_BRIGHTNESS = "warmup_brightness"
 # CONF_WARMUP_TIME = "warmup_time"
-CONF_MIN_BRIGHTNESS = "min_brightness"
-CONF_MAX_BRIGHTNESS = "max_brightness"
+
 
 CONF_NRST_PIN = "nrst_pin"
 CONF_BOOT0_PIN = "boot0_pin"
@@ -54,6 +56,10 @@ KNOWN_FIRMWARE = {
     "51.6": (
         "https://github.com/jamesturton/shelly-dimmer-stm32/releases/download/v51.6/shelly-dimmer-stm32_v51.6.bin",
         "eda483e111c914723a33f5088f1397d5c0b19333db4a88dc965636b976c16c36",
+    ),
+    "51.7": (
+        "https://github.com/jamesturton/shelly-dimmer-stm32/releases/download/v51.7/shelly-dimmer-stm32_v51.7.bin",
+        "7a20f1c967c469917368a79bc56498009045237080408cef7190743e08031889",
     ),
 }
 
@@ -85,12 +91,7 @@ def get_firmware(value):
     url = value[CONF_URL]
 
     if CONF_SHA256 in value:  # we have a hash, enable caching
-        path = (
-            Path(CORE.config_dir)
-            / ".esphome"
-            / DOMAIN
-            / (value[CONF_SHA256] + "_fw_stm.bin")
-        )
+        path = Path(CORE.data_dir) / DOMAIN / (value[CONF_SHA256] + "_fw_stm.bin")
 
         if not path.is_file():
             firmware_data, dl_hash = dl(url)
@@ -169,7 +170,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_AMPERE,
-                device_class=DEVICE_CLASS_POWER,
+                device_class=DEVICE_CLASS_CURRENT,
                 accuracy_decimals=2,
             ),
             # Change the default gamma_correct setting.

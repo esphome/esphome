@@ -10,15 +10,13 @@ static const char *const TAG = "nextion";
 void Nextion::soft_reset() { this->send_command_("rest"); }
 
 void Nextion::set_wake_up_page(uint8_t page_id) {
-  if (page_id > 255) {
-    ESP_LOGD(TAG, "Wake up page of bounds, range 0-255");
-    return;
-  }
   this->add_no_result_to_queue_with_set_internal_("wake_up_page", "wup", page_id, true);
 }
 
+void Nextion::set_start_up_page(uint8_t page_id) { this->start_up_page_ = page_id; }
+
 void Nextion::set_touch_sleep_timeout(uint16_t timeout) {
-  if (timeout < 3 || timeout > 65535) {
+  if (timeout < 3) {
     ESP_LOGD(TAG, "Sleep timeout out of bounds, range 3-65535");
     return;
   }
@@ -36,9 +34,28 @@ void Nextion::sleep(bool sleep) {
 }
 // End sleep safe commands
 
+// Protocol reparse mode
+void Nextion::set_protocol_reparse_mode(bool active_mode) {
+  const uint8_t to_send[3] = {0xFF, 0xFF, 0xFF};
+  if (active_mode) {  // Sets active protocol reparse mode
+    this->write_str(
+        "recmod=1");  // send_command_ cannot be used as Nextion might not be setup if incorrect reparse mode
+    this->write_array(to_send, sizeof(to_send));
+  } else {                                        // Sets passive protocol reparse mode
+    this->write_str("DRAKJHSUYDGBNCJHGJKSHBDN");  // To exit active reparse mode this sequence must be sent
+    this->write_array(to_send, sizeof(to_send));
+    this->write_str("recmod=0");  // Sending recmode=0 twice is recommended
+    this->write_array(to_send, sizeof(to_send));
+    this->write_str("recmod=0");
+    this->write_array(to_send, sizeof(to_send));
+  }
+  this->write_str("connect");
+  this->write_array(to_send, sizeof(to_send));
+}
+
 // Set Colors
 void Nextion::set_component_background_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%d", component, color);
+  this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%" PRIu32, component, color);
 }
 
 void Nextion::set_component_background_color(const char *component, const char *color) {
@@ -51,7 +68,8 @@ void Nextion::set_component_background_color(const char *component, Color color)
 }
 
 void Nextion::set_component_pressed_background_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_background_color", "%s.bco2=%d", component, color);
+  this->add_no_result_to_queue_with_printf_("set_component_pressed_background_color", "%s.bco2=%" PRIu32, component,
+                                            color);
 }
 
 void Nextion::set_component_pressed_background_color(const char *component, const char *color) {
@@ -72,7 +90,7 @@ void Nextion::set_component_picc(const char *component, uint8_t pic_id) {
 }
 
 void Nextion::set_component_font_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_font_color", "%s.pco=%d", component, color);
+  this->add_no_result_to_queue_with_printf_("set_component_font_color", "%s.pco=%" PRIu32, component, color);
 }
 
 void Nextion::set_component_font_color(const char *component, const char *color) {
@@ -85,7 +103,7 @@ void Nextion::set_component_font_color(const char *component, Color color) {
 }
 
 void Nextion::set_component_pressed_font_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%d", component, color);
+  this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%" PRIu32, component, color);
 }
 
 void Nextion::set_component_pressed_font_color(const char *component, const char *color) {
@@ -109,6 +127,7 @@ void Nextion::set_component_text_printf(const char *component, const char *forma
 
 // General Nextion
 void Nextion::goto_page(const char *page) { this->add_no_result_to_queue_with_printf_("goto_page", "page %s", page); }
+void Nextion::goto_page(uint8_t page) { this->add_no_result_to_queue_with_printf_("goto_page", "page %i", page); }
 
 void Nextion::set_backlight_brightness(float brightness) {
   if (brightness < 0 || brightness > 1.0) {
@@ -219,8 +238,7 @@ void Nextion::filled_circle(int center_x, int center_y, int radius, Color color)
                                             display::ColorUtil::color_to_565(color));
 }
 
-#ifdef USE_TIME
-void Nextion::set_nextion_rtc_time(time::ESPTime time) {
+void Nextion::set_nextion_rtc_time(ESPTime time) {
   this->add_no_result_to_queue_with_printf_("rtc0", "rtc0=%u", time.year);
   this->add_no_result_to_queue_with_printf_("rtc1", "rtc1=%u", time.month);
   this->add_no_result_to_queue_with_printf_("rtc2", "rtc2=%u", time.day_of_month);
@@ -228,7 +246,6 @@ void Nextion::set_nextion_rtc_time(time::ESPTime time) {
   this->add_no_result_to_queue_with_printf_("rtc4", "rtc4=%u", time.minute);
   this->add_no_result_to_queue_with_printf_("rtc5", "rtc5=%u", time.second);
 }
-#endif
 
 }  // namespace nextion
 }  // namespace esphome

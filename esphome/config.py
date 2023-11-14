@@ -10,10 +10,11 @@ from contextlib import contextmanager
 
 import voluptuous as vol
 
-from esphome import core, yaml_util, loader
+from esphome import core, yaml_util, loader, pins
 import esphome.core.config as core_config
 from esphome.const import (
     CONF_ESPHOME,
+    CONF_ID,
     CONF_PLATFORM,
     CONF_PACKAGES,
     CONF_SUBSTITUTIONS,
@@ -24,6 +25,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
+from esphome.config_helpers import Extend
 from esphome.loader import get_component, get_platform, ComponentManifest
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
@@ -334,6 +336,13 @@ class LoadValidationStep(ConfigValidationStep):
                 continue
             p_name = p_config.get("platform")
             if p_name is None:
+                p_id = p_config.get(CONF_ID)
+                if isinstance(p_id, Extend):
+                    result.add_str_error(
+                        f"Source for extension of ID '{p_id.value}' was not found.",
+                        path + [CONF_ID],
+                    )
+                    continue
                 result.add_str_error("No platform specified! See 'platform' key.", path)
                 continue
             # Remove temp output path and construct new one
@@ -636,14 +645,40 @@ class FinalValidateValidationStep(ConfigValidationStep):
             # If result already has errors, skip this step
             return
 
-        if self.comp.final_validate_schema is None:
-            return
-
         token = fv.full_config.set(result)
 
         conf = result.get_nested_item(self.path)
         with result.catch_error(self.path):
-            self.comp.final_validate_schema(conf)
+            if self.comp.final_validate_schema is not None:
+                self.comp.final_validate_schema(conf)
+
+            fconf = fv.full_config.get()
+
+            def _check_pins(c):
+                for value in c.values():
+                    if not isinstance(value, dict):
+                        continue
+                    for key, (
+                        _,
+                        _,
+                        pin_final_validate,
+                    ) in pins.PIN_SCHEMA_REGISTRY.items():
+                        if (
+                            key != CORE.target_platform
+                            and key in value
+                            and pin_final_validate is not None
+                        ):
+                            pin_final_validate(fconf, value)
+
+            # Check for pin configs and a final_validate schema in the pin registry
+            confs = conf
+            if not isinstance(
+                confs, list
+            ):  # Handle components like SPI that have a list instead of MULTI_CONF
+                confs = [conf]
+            for c in confs:
+                if c:  # Some component have None or empty schemas
+                    _check_pins(c)
 
         fv.full_config.reset(token)
 

@@ -4,7 +4,6 @@ from esphome.components import i2c
 from esphome.const import CONF_ID
 
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["sensor", "binary_sensor"]
 MULTI_CONF = True
 
 CONF_APDS9960_ID = "apds9960_id"

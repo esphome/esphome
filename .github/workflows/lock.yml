@@ -18,7 +18,7 @@ jobs:
   lock:
     runs-on: ubuntu-latest
     steps:
-      - uses: dessant/lock-threads@v4
+      - uses: dessant/lock-threads@v4.0.1
         with:
           pr-inactive-days: "1"
           pr-lock-reason: ""

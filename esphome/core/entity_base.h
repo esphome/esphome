@@ -2,6 +2,7 @@
 
 #include <string>
 #include <cstdint>
+#include "string_ref.h"
 
 namespace esphome {
 
@@ -14,15 +15,16 @@ enum EntityCategory : uint8_t {
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
-  EntityBase() : EntityBase("") {}
-  explicit EntityBase(std::string name);
-
   // Get/set the name of this Entity
-  const std::string &get_name() const;
-  void set_name(const std::string &name);
+  const StringRef &get_name() const;
+  void set_name(const char *name);
 
-  // Get the sanitized name of this Entity as an ID. Caching it internally.
-  const std::string &get_object_id();
+  // Get whether this Entity has its own name or it should use the device friendly_name.
+  bool has_own_name() const { return this->has_own_name_; }
+
+  // Get the sanitized name of this Entity as an ID.
+  std::string get_object_id() const;
+  void set_object_id(const char *object_id);
 
   // Get the unique Object ID of this Entity
   uint32_t get_object_id_hash();
@@ -42,8 +44,8 @@ class EntityBase {
   void set_entity_category(EntityCategory entity_category);
 
   // Get/set this entity's icon
-  const std::string &get_icon() const;
-  void set_icon(const std::string &name);
+  std::string get_icon() const;
+  void set_icon(const char *icon);
 
  protected:
   /// The hash_base() function has been deprecated. It is kept in this
@@ -51,13 +53,36 @@ class EntityBase {
   virtual uint32_t hash_base() { return 0L; }
   void calc_object_id_();
 
-  std::string name_;
-  std::string object_id_;
-  std::string icon_;
+  StringRef name_;
+  const char *object_id_c_str_{nullptr};
+  const char *icon_c_str_{nullptr};
   uint32_t object_id_hash_;
+  bool has_own_name_{false};
   bool internal_{false};
   bool disabled_by_default_{false};
   EntityCategory entity_category_{ENTITY_CATEGORY_NONE};
+};
+
+class EntityBase_DeviceClass {
+ public:
+  /// Get the device class, using the manual override if set.
+  std::string get_device_class();
+  /// Manually set the device class.
+  void set_device_class(const char *device_class);
+
+ protected:
+  const char *device_class_{nullptr};  ///< Device class override
+};
+
+class EntityBase_UnitOfMeasurement {
+ public:
+  /// Get the unit of measurement, using the manual override if set.
+  std::string get_unit_of_measurement();
+  /// Manually set the unit of measurement.
+  void set_unit_of_measurement(const char *unit_of_measurement);
+
+ protected:
+  const char *unit_of_measurement_{nullptr};  ///< Unit of measurement override
 };
 
 }  // namespace esphome

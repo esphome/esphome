@@ -9,13 +9,16 @@ CODEOWNERS = ["@jesserockz"]
 
 TuyaSensor = tuya_ns.class_("TuyaSensor", sensor.Sensor, cg.Component)
 
-CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(TuyaSensor),
-        cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
-        cv.Required(CONF_SENSOR_DATAPOINT): cv.uint8_t,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(TuyaSensor)
+    .extend(
+        {
+            cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
+            cv.Required(CONF_SENSOR_DATAPOINT): cv.uint8_t,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):

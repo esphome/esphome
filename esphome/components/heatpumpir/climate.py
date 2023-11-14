@@ -33,6 +33,7 @@ PROTOCOLS = {
     "greeya": Protocol.PROTOCOL_GREEYAA,
     "greeyan": Protocol.PROTOCOL_GREEYAN,
     "greeyac": Protocol.PROTOCOL_GREEYAC,
+    "greeyt": Protocol.PROTOCOL_GREEYT,
     "hisense_aud": Protocol.PROTOCOL_HISENSE_AUD,
     "hitachi": Protocol.PROTOCOL_HITACHI,
     "hyundai": Protocol.PROTOCOL_HYUNDAI,
@@ -115,7 +116,7 @@ def to_code(config):
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
 
-    cg.add_library("tonia/HeatpumpIR", "1.0.20")
+    cg.add_library("tonia/HeatpumpIR", "1.0.23")
 
     if CORE.is_esp8266 or CORE.is_esp32:
         cg.add_library("crankyoldgit/IRremoteESP8266", "2.7.12")

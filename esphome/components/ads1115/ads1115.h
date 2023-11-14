@@ -30,6 +30,11 @@ enum ADS1115Gain {
   ADS1115_GAIN_0P256 = 0b101,
 };
 
+enum ADS1115Resolution {
+  ADS1115_16_BITS = 16,
+  ADS1015_12_BITS = 12,
+};
+
 class ADS1115Sensor;
 
 class ADS1115Component : public Component, public i2c::I2CDevice {
@@ -58,15 +63,17 @@ class ADS1115Sensor : public sensor::Sensor, public PollingComponent, public vol
   void update() override;
   void set_multiplexer(ADS1115Multiplexer multiplexer) { multiplexer_ = multiplexer; }
   void set_gain(ADS1115Gain gain) { gain_ = gain; }
-
+  void set_resolution(ADS1115Resolution resolution) { resolution_ = resolution; }
   float sample() override;
   uint8_t get_multiplexer() const { return multiplexer_; }
   uint8_t get_gain() const { return gain_; }
+  uint8_t get_resolution() const { return resolution_; }
 
  protected:
   ADS1115Component *parent_;
   ADS1115Multiplexer multiplexer_;
   ADS1115Gain gain_;
+  ADS1115Resolution resolution_;
 };
 
 }  // namespace ads1115

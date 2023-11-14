@@ -15,6 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def run_git_command(cmd, cwd=None) -> str:
+    _LOGGER.debug("Running git command: %s", " ".join(cmd))
     try:
         ret = subprocess.run(cmd, cwd=cwd, capture_output=True, check=False)
     except FileNotFoundError as err:
@@ -34,7 +35,7 @@ def run_git_command(cmd, cwd=None) -> str:
 
 
 def _compute_destination_path(key: str, domain: str) -> Path:
-    base_dir = Path(CORE.config_dir) / ".esphome" / domain
+    base_dir = Path(CORE.data_dir) / domain
     h = hashlib.new("sha256")
     h.update(key.encode())
     return base_dir / h.hexdigest()[:8]
@@ -44,10 +45,11 @@ def clone_or_update(
     *,
     url: str,
     ref: str = None,
-    refresh: TimePeriodSeconds,
+    refresh: Optional[TimePeriodSeconds],
     domain: str,
     username: str = None,
     password: str = None,
+    submodules: Optional[list[str]] = None,
 ) -> tuple[Path, Optional[Callable[[], None]]]:
     key = f"{url}@{ref}"
 
@@ -74,6 +76,14 @@ def clone_or_update(
             run_git_command(["git", "fetch", "--", "origin", ref], str(repo_dir))
             run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], str(repo_dir))
 
+        if submodules is not None:
+            _LOGGER.info(
+                "Initialising submodules (%s) for %s", ", ".join(submodules), key
+            )
+            run_git_command(
+                ["git", "submodule", "update", "--init"] + submodules, str(repo_dir)
+            )
+
     else:
         # Check refresh needed
         file_timestamp = Path(repo_dir / ".git" / "FETCH_HEAD")
@@ -81,7 +91,7 @@ def clone_or_update(
         if not file_timestamp.exists():
             file_timestamp = Path(repo_dir / ".git" / "HEAD")
         age = datetime.now() - datetime.fromtimestamp(file_timestamp.stat().st_mtime)
-        if age.total_seconds() > refresh.total_seconds:
+        if refresh is None or age.total_seconds() > refresh.total_seconds:
             old_sha = run_git_command(["git", "rev-parse", "HEAD"], str(repo_dir))
             _LOGGER.info("Updating %s", key)
             _LOGGER.debug("Location: %s", repo_dir)
@@ -96,6 +106,14 @@ def clone_or_update(
             run_git_command(cmd, str(repo_dir))
             # Hard reset to FETCH_HEAD (short-lived git ref corresponding to most recent fetch)
             run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], str(repo_dir))
+
+            if submodules is not None:
+                _LOGGER.info(
+                    "Updating submodules (%s) for %s", ", ".join(submodules), key
+                )
+                run_git_command(
+                    ["git", "submodule", "update", "--init"] + submodules, str(repo_dir)
+                )
 
             def revert():
                 _LOGGER.info("Reverting changes to %s -> %s", key, old_sha)
@@ -129,9 +147,9 @@ class GitFile:
     def raw_url(self) -> str:
         if self.ref is None:
             raise ValueError("URL has no ref")
-        if self.domain == "github":
+        if self.domain == "github.com":
             return f"https://raw.githubusercontent.com/{self.owner}/{self.repo}/{self.ref}/{self.filename}"
-        if self.domain == "gitlab":
+        if self.domain == "gitlab.com":
             return f"https://gitlab.com/{self.owner}/{self.repo}/-/raw/{self.ref}/{self.filename}"
         raise NotImplementedError(f"Git domain {self.domain} not supported")
 

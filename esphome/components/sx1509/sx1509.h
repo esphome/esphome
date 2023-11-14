@@ -61,6 +61,7 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   uint16_t ddr_mask_ = 0x00;
   uint16_t input_mask_ = 0x00;
   uint16_t port_mask_ = 0x00;
+  uint16_t output_state_ = 0x00;
   bool has_keypad_ = false;
   uint8_t rows_ = 0;
   uint8_t cols_ = 0;
@@ -68,6 +69,9 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   uint8_t scan_time_ = 1;
   uint8_t debounce_time_ = 1;
   std::vector<SX1509Processor *> keypad_binary_sensors_;
+
+  uint32_t last_loop_timestamp_ = 0;
+  const uint32_t min_loop_period_ = 15;  // ms
 
   void setup_keypad_();
   void set_debounce_config_(uint8_t config_value);

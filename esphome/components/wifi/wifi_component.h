@@ -1,17 +1,21 @@
 #pragma once
 
+#include "esphome/components/network/ip_address.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/network/ip_address.h"
 
 #include <string>
 #include <vector>
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#include <esp_wifi.h>
+#include <WiFi.h>
 #include <WiFiType.h>
+#include <esp_wifi.h>
+#endif
+
+#ifdef USE_LIBRETINY
 #include <WiFi.h>
 #endif
 
@@ -47,6 +51,8 @@ struct SavedWifiSettings {
 enum WiFiComponentState {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
   WIFI_COMPONENT_STATE_OFF = 0,
+  /** WiFi is disabled. */
+  WIFI_COMPONENT_STATE_DISABLED,
   /** WiFi is in cooldown mode because something went wrong, scanning will begin after a short period of time. */
   WIFI_COMPONENT_STATE_COOLDOWN,
   /** WiFi is in STA-only mode and currently scanning for APs. */
@@ -198,6 +204,9 @@ class WiFiComponent : public Component {
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
 
+  void enable();
+  void disable();
+  bool is_disabled();
   void start_scanning();
   void check_scanning_finished();
   void start_connecting(const WiFiAP &ap, bool two);
@@ -217,11 +226,14 @@ class WiFiComponent : public Component {
   void set_power_save_mode(WiFiPowerSaveMode power_save);
   void set_output_power(float output_power) { output_power_ = output_power; }
 
+  void set_passive_scan(bool passive);
+
   void save_wifi_sta(const std::string &ssid, const std::string &password);
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
   void setup() override;
+  void start();
   void dump_config() override;
   /// WIFI setup_priority.
   float get_setup_priority() const override;
@@ -238,6 +250,7 @@ class WiFiComponent : public Component {
   void set_rrm(bool rrm);
 #endif
 
+  network::IPAddress get_dns_address(int num);
   network::IPAddress get_ip_address();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
@@ -279,6 +292,11 @@ class WiFiComponent : public Component {
 
   int8_t wifi_rssi();
 
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+
+  Trigger<> *get_connect_trigger() const { return this->connect_trigger_; };
+  Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; };
+
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
   void setup_ap_config_();
@@ -294,7 +312,7 @@ class WiFiComponent : public Component {
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
   WiFiSTAConnectStatus wifi_sta_connect_status_();
-  bool wifi_scan_start_();
+  bool wifi_scan_start_(bool passive);
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
   bool wifi_disconnect_();
@@ -313,11 +331,7 @@ class WiFiComponent : public Component {
 #endif
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#if ESP_IDF_VERSION_MAJOR >= 4
   void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
-#else
-  void wifi_event_callback_(system_event_id_t event, system_event_info_t info);
-#endif
   void wifi_scan_done_callback_();
 #endif
 #ifdef USE_ESP_IDF
@@ -329,6 +343,11 @@ class WiFiComponent : public Component {
   void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
 #endif
 
+#ifdef USE_LIBRETINY
+  void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
+  void wifi_scan_done_callback_();
+#endif
+
   std::string use_address_;
   std::vector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
@@ -338,6 +357,7 @@ class WiFiComponent : public Component {
   bool has_ap_{false};
   WiFiAP ap_;
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
+  bool handled_connected_state_{false};
   uint32_t action_started_;
   uint8_t num_retried_{0};
   uint32_t last_connected_{0};
@@ -349,24 +369,40 @@ class WiFiComponent : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   optional<float> output_power_;
+  bool passive_scan_{false};
   ESPPreferenceObject pref_;
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT
   bool btm_{false};
   bool rrm_{false};
 #endif
+  bool enable_on_boot_;
+
+  Trigger<> *connect_trigger_{new Trigger<>()};
+  Trigger<> *disconnect_trigger_{new Trigger<>()};
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class WiFiConnectedCondition : public Condition<Ts...> {
  public:
-  bool check(Ts... x) override;
+  bool check(Ts... x) override { return global_wifi_component->is_connected(); }
 };
 
-template<typename... Ts> bool WiFiConnectedCondition<Ts...>::check(Ts... x) {
-  return global_wifi_component->is_connected();
-}
+template<typename... Ts> class WiFiEnabledCondition : public Condition<Ts...> {
+ public:
+  bool check(Ts... x) override { return !global_wifi_component->is_disabled(); }
+};
+
+template<typename... Ts> class WiFiEnableAction : public Action<Ts...> {
+ public:
+  void play(Ts... x) override { global_wifi_component->enable(); }
+};
+
+template<typename... Ts> class WiFiDisableAction : public Action<Ts...> {
+ public:
+  void play(Ts... x) override { global_wifi_component->disable(); }
+};
 
 }  // namespace wifi
 }  // namespace esphome

@@ -21,9 +21,8 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def setup_conf(config, key, hub):
-    if key in config:
-        conf = config[key]
-        sens = await text_sensor.new_text_sensor(conf)
+    if sensor_config := config.get(key):
+        sens = await text_sensor.new_text_sensor(sensor_config)
         cg.add(getattr(hub, f"set_{key}_text_sensor")(sens))
 
 

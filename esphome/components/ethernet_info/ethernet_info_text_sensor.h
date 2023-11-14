@@ -4,7 +4,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/ethernet/ethernet_component.h"
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace ethernet_info {
@@ -30,4 +30,4 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
 }  // namespace ethernet_info
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32

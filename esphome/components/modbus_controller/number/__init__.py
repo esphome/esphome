@@ -60,9 +60,10 @@ def validate_modbus_number(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    number.NUMBER_SCHEMA.extend(ModbusItemBaseSchema).extend(
+    number.number_schema(ModbusNumber)
+    .extend(ModbusItemBaseSchema)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(ModbusNumber),
             cv.Optional(CONF_REGISTER_TYPE, default="holding"): cv.enum(
                 MODBUS_WRITE_REGISTER_TYPE
             ),

@@ -96,7 +96,7 @@ std::string AEHAProtocol::format_data_(const std::vector<uint8_t> &data) {
 
 void AEHAProtocol::dump(const AEHAData &data) {
   auto data_str = format_data_(data.data);
-  ESP_LOGD(TAG, "Received AEHA: address=0x%04X, data=[%s]", data.address, data_str.c_str());
+  ESP_LOGI(TAG, "Received AEHA: address=0x%04X, data=[%s]", data.address, data_str.c_str());
 }
 
 }  // namespace remote_base
