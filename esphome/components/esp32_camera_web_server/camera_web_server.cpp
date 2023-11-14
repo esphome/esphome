@@ -194,8 +194,8 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
       int64_t frame_time = millis() - last_frame;
       last_frame = millis();
 
-      ESP_LOGD(TAG, "MJPG: %uB %ums (%.1ffps)", (uint32_t) image->get_data_length(), (uint32_t) frame_time,
-               1000.0 / (uint32_t) frame_time);
+      ESP_LOGD(TAG, "MJPG: %" PRIu32 "B %" PRIu32 "ms (%.1ffps)", (uint32_t) image->get_data_length(),
+               (uint32_t) frame_time, 1000.0 / (uint32_t) frame_time);
     }
   }
 
@@ -205,7 +205,7 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
 
   esp32_camera::global_esp32_camera->stop_stream(esphome::esp32_camera::WEB_REQUESTER);
 
-  ESP_LOGI(TAG, "STREAM: closed. Frames: %u", frames);
+  ESP_LOGI(TAG, "STREAM: closed. Frames: %" PRIu32, frames);
 
   return res;
 }

@@ -255,7 +255,11 @@ async def to_code(config):
 
     transparent = config[CONF_USE_TRANSPARENCY]
 
-    dither = Image.NONE if config[CONF_DITHER] == "NONE" else Image.FLOYDSTEINBERG
+    dither = (
+        Image.Dither.NONE
+        if config[CONF_DITHER] == "NONE"
+        else Image.Dither.FLOYDSTEINBERG
+    )
     if config[CONF_TYPE] == "GRAYSCALE":
         image = image.convert("LA", dither=dither)
         pixels = list(image.getdata())

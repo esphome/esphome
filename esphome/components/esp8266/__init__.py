@@ -11,6 +11,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_ESP8266,
 )
 from esphome.core import CORE, coroutine_with_priority
 import esphome.config_validation as cv
@@ -38,7 +39,7 @@ AUTO_LOAD = ["preferences"]
 
 def set_core_data(config):
     CORE.data[KEY_ESP8266] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "esp8266"
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP8266
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]

@@ -724,6 +724,7 @@ interval:
 display:
   - platform: st7789v
     model: LILYGO_T-EMBED_170X320
+    spi_mode: mode0
     height: 320
     width: 170
     offset_height: 35
@@ -759,6 +760,11 @@ image:
     file: mdi:alert-outline
     type: BINARY
 
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
+
 graph:
   - id: my_graph
     sensor: ha_hello_world_temperature
@@ -789,7 +795,23 @@ switch:
           value: !lambda |-
             return {0x13, 0x37};
 
-
 esp32_ble_server:
   id: ble
   manufacturer_data: [0x72, 0x4, 0x00, 0x23]
+
+text:
+  - platform: template
+    name: My Text
+    id: my_text
+    min_length: 0
+    max_length: 20
+    mode: text
+    pattern: "[a-z]+"
+    optimistic: true
+    restore_value: true
+    initial_value: "Hello World"
+  - platform: copy
+    name: My Text Copy
+    id: my_text_copy
+    source_id: my_text
+    mode: password
