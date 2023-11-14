@@ -1001,8 +1001,6 @@ class MDNSStatus:
     async def async_resolve_host(self, host_name: str) -> str | None:
         """Resolve a host name to an address in a thread-safe manner."""
         if aiozc := self.aiozc:
-            # Currently we do not do any I/O and only
-            # return the cached result (timeout=0)
             return await aiozc.async_resolve_host(host_name)
         return None
 
