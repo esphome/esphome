@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
-import codecs
 import collections
 import datetime
 import functools
@@ -339,8 +339,8 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
     def handle_stdin(self, json_message):
         if not self.is_process_active:
             return
-        data = json_message["data"]
-        data = codecs.encode(data, "utf8", "replace")
+        text: str = json_message["data"]
+        data = text.encode("utf-8", "replace")
         _LOGGER.debug("< stdin: %s", data)
         self._proc.stdin.write(data)
 
@@ -351,18 +351,18 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         while True:
             try:
                 if self._use_popen:
-                    data = yield self._queue.get()
+                    data: bytes = yield self._queue.get()
                     if data is None:
                         self._proc_on_exit(self._proc.poll())
                         break
                 else:
-                    data = yield self._proc.stdout.read_until_regex(reg)
+                    data: bytes = yield self._proc.stdout.read_until_regex(reg)
             except tornado.iostream.StreamClosedError:
                 break
-            data = codecs.decode(data, "utf8", "replace")
 
-            _LOGGER.debug("> stdout: %s", data)
-            self.write_message({"event": "line", "data": data})
+            text = data.decode("utf-8", "replace")
+            _LOGGER.debug("> stdout: %s", text)
+            self.write_message({"event": "line", "data": text})
 
     def _stdout_thread(self):
         if not self._use_popen:
@@ -509,8 +509,8 @@ class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
 
 class SerialPortRequestHandler(BaseHandler):
     @authenticated
-    def get(self):
-        ports = get_serial_ports()
+    async def get(self):
+        ports = await asyncio.get_running_loop().run_in_executor(None, get_serial_ports)
         data = []
         for port in ports:
             desc = port.description
