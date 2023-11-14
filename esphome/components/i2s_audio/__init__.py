@@ -10,6 +10,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
 )
 
 CODEOWNERS = ["@jesserockz"]
@@ -38,6 +39,7 @@ I2S_PORTS = {
     VARIANT_ESP32S2: 1,
     VARIANT_ESP32S3: 2,
     VARIANT_ESP32C3: 1,
+    VARIANT_ESP32C6: 1,
 }
 
 CONFIG_SCHEMA = cv.Schema(
