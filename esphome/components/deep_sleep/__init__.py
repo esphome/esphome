@@ -172,9 +172,7 @@ WakeupPinItem = deep_sleep_ns.struct("WakeupPinItem")
 WAKEUP_PIN_SCHEMA = cv.ensure_list(
     cv.Schema(
         {
-            cv.Required(CONF_PIN): cv.All(
-                pins.internal_gpio_input_pin_schema
-            ),
+            cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
                 cv.enum(WAKEUP_PIN_MODES), upper=True
             ),
@@ -193,7 +191,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_WAKEUP_PIN): cv.All(
                 cv.only_on_esp32,
-		cv.Any(WAKEUP_PIN_SCHEMA, cv.All(pins.internal_gpio_input_pin_schema)),
+                cv.Any(WAKEUP_PIN_SCHEMA, cv.All(pins.internal_gpio_input_pin_schema)),
             ),
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
                 cv.only_on_esp32, cv.enum(WAKEUP_PIN_MODES), upper=True
@@ -228,16 +226,23 @@ async def to_code(config):
             if len(conf) > 1 and get_esp32_variant() != VARIANT_ESP32C3:
                 raise cv.Invalid("Your board only supports wake from a single pin")
             if CONF_WAKEUP_PIN_MODE in config:
-                raise cv.Invalid("You need to remove the global wakeup_pin_mode and define it per pin")
+                raise cv.Invalid(
+                    "You need to remove the global wakeup_pin_mode and define it per pin"
+                )
             for item in conf:
                 if CONF_PIN not in item.keys():
-                  raise cv.Invalid("pin definition is required for each item in the list of wakeup_pin")
+                    raise cv.Invalid(
+                        "pin definition is required for each item in the list of wakeup_pin"
+                    )
                 validate_pin_number(item[CONF_PIN])
                 cg.add(
                     var.add_wakeup_pin(
                         cg.StructInitializer(
                             WakeupPinItem,
-                            ("wakeup_pin", await cg.gpio_pin_expression(item[CONF_PIN])),
+                            (
+                                "wakeup_pin",
+                                await cg.gpio_pin_expression(item[CONF_PIN]),
+                            ),
                             (
                                 "wakeup_pin_mode",
                                 item.get(
@@ -251,7 +256,9 @@ async def to_code(config):
         else:
             if isinstance(conf, list):
                 if len(conf) > 1:
-                    raise cv.Invalid("Use a list of pin: definitions if you want to use multiple wake pins")
+                    raise cv.Invalid(
+                        "Use a list of pin: definitions if you want to use multiple wake pins"
+                    )
                 conf = conf[0]
             validate_pin_number(conf)
             cg.add(
