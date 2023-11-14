@@ -1,5 +1,7 @@
 #pragma once
 
+#include <unordered_map>
+
 #include "esphome/core/automation.h"
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/output/float_output.h"
@@ -20,10 +22,11 @@ class HBridgeFan : public Component, public fan::Fan {
   void set_pin_a(output::FloatOutput *pin_a) { pin_a_ = pin_a; }
   void set_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
   void set_enable_pin(output::FloatOutput *enable) { enable_ = enable; }
+  void add_preset_mode(const std::string &name, optional<int> speed, optional<fan::FanDirection> direction);
 
   void setup() override;
   void dump_config() override;
-  fan::FanTraits get_traits() override;
+  fan::FanTraits get_traits() override { return this->traits_; }
 
   fan::FanCall brake();
 
@@ -34,8 +37,11 @@ class HBridgeFan : public Component, public fan::Fan {
   output::BinaryOutput *oscillating_{nullptr};
   int speed_count_{};
   DecayMode decay_mode_{DECAY_MODE_SLOW};
+  fan::FanTraits traits_;
+  std::unordered_map<std::string, const fan::FanCall> preset_modes_{};
 
-  void control(const fan::FanCall &call) override;
+  void control(const fan::FanCall &call, bool ignore_preset);
+  void control(const fan::FanCall &call) override { this->control(call, false); }
   void write_state_();
 
   void set_hbridge_levels_(float a_level, float b_level);

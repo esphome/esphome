@@ -3,6 +3,11 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.components import fan, output
+from esphome.components.fan import (
+    FAN_DIRECTION_ENUM,
+    FanDirection,
+    validate_preset_modes,
+)
 from esphome.const import (
     CONF_ID,
     CONF_DECAY_MODE,
@@ -10,6 +15,10 @@ from esphome.const import (
     CONF_PIN_A,
     CONF_PIN_B,
     CONF_ENABLE_PIN,
+    CONF_DIRECTION,
+    CONF_PRESET_MODES,
+    CONF_NAME,
+    CONF_SPEED,
 )
 from .. import hbridge_ns
 
@@ -28,6 +37,19 @@ DECAY_MODE_OPTIONS = {
 # Actions
 BrakeAction = hbridge_ns.class_("BrakeAction", automation.Action)
 
+_PRESET_MODES_SCHEMA = cv.All(
+    cv.ensure_list(
+        cv.All(
+            {
+                cv.Required(CONF_NAME): cv.string_strict,
+                cv.Optional(CONF_SPEED): cv.int_range(1),
+                cv.Optional(CONF_DIRECTION): cv.enum(FAN_DIRECTION_ENUM, upper=True),
+            },
+            cv.has_at_least_one_key(CONF_SPEED, CONF_DIRECTION),
+        )
+    ),
+    cv.Length(min=1),
+)
 
 CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
     {
@@ -39,6 +61,7 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
         ),
         cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
         cv.Optional(CONF_ENABLE_PIN): cv.use_id(output.FloatOutput),
+        cv.Optional(CONF_PRESET_MODES): validate_preset_modes(_PRESET_MODES_SCHEMA),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -69,3 +92,9 @@ async def to_code(config):
     if CONF_ENABLE_PIN in config:
         enable_pin = await cg.get_variable(config[CONF_ENABLE_PIN])
         cg.add(var.set_enable_pin(enable_pin))
+
+    for preset in config[CONF_PRESET_MODES]:
+        speed = cg.optional.template(int)(preset.get(CONF_SPEED))
+        direction = cg.optional.template(FanDirection)(preset.get(CONF_DIRECTION))
+
+        cg.add(var.add_preset_mode(preset[CONF_NAME], speed, direction))

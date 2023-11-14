@@ -33,7 +33,18 @@ void HBridgeFan::setup() {
     restore->apply(*this);
     this->write_state_();
   }
+
+  // Construct traits
+  this->traits_ = fan::FanTraits(this->oscillating_ != nullptr, true, true, this->speed_count_);
+
+  // Add all presets to traits
+  std::vector<std::string> keys;
+  for (auto const &kv : this->preset_modes_)
+    keys.push_back(kv.first);
+
+  this->traits_.set_supported_preset_modes(keys);
 }
+
 void HBridgeFan::dump_config() {
   LOG_FAN("", "H-Bridge Fan", this);
   if (this->decay_mode_ == DECAY_MODE_SLOW) {
@@ -42,10 +53,8 @@ void HBridgeFan::dump_config() {
     ESP_LOGCONFIG(TAG, "  Decay Mode: Fast");
   }
 }
-fan::FanTraits HBridgeFan::get_traits() {
-  return fan::FanTraits(this->oscillating_ != nullptr, true, true, this->speed_count_);
-}
-void HBridgeFan::control(const fan::FanCall &call) {
+
+void HBridgeFan::control(const fan::FanCall &call, bool ignore_preset) {
   if (call.get_state().has_value())
     this->state = *call.get_state();
   if (call.get_speed().has_value())
@@ -55,9 +64,18 @@ void HBridgeFan::control(const fan::FanCall &call) {
   if (call.get_direction().has_value())
     this->direction = *call.get_direction();
 
+  if (!ignore_preset) {
+    this->preset_mode = call.get_preset_mode();
+
+    // Recursively call the control function with the preset's stored FanCall, but ignore the preset field
+    if (!this->preset_mode.empty())
+      return this->control(this->preset_modes_.at(this->preset_mode), true);
+  }
+
   this->write_state_();
   this->publish_state();
 }
+
 void HBridgeFan::write_state_() {
   float speed = this->state ? static_cast<float>(this->speed) / static_cast<float>(this->speed_count_) : 0.0f;
   if (speed == 0.0f) {  // off means idle
@@ -83,6 +101,18 @@ void HBridgeFan::write_state_() {
 
   if (this->oscillating_ != nullptr)
     this->oscillating_->set_state(this->oscillating);
+}
+
+void HBridgeFan::add_preset_mode(const std::string &name, optional<int> speed, optional<fan::FanDirection> direction) {
+  auto call = this->make_call();
+
+  if (speed)
+    call.set_speed(*speed);
+
+  if (direction)
+    call.set_direction(static_cast<fan::FanDirection>(*direction));
+
+  this->preset_modes_.emplace(name, call);
 }
 
 }  // namespace hbridge

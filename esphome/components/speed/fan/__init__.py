@@ -1,7 +1,11 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import fan, output
-from esphome.components.fan import FAN_DIRECTION_ENUM, FanDirection
+from esphome.components.fan import (
+    FAN_DIRECTION_ENUM,
+    FanDirection,
+    validate_preset_modes,
+)
 from esphome.const import (
     CONF_DIRECTION,
     CONF_PRESET_MODES,
@@ -34,35 +38,6 @@ _PRESET_MODES_SCHEMA = cv.All(
     cv.Length(min=1),
 )
 
-
-def _validate_preset_modes(value):
-    # Check against defined schema
-    value = _PRESET_MODES_SCHEMA(value)
-
-    # Ensure preset names are unique
-    errors = []
-    names = set()
-    for i, preset in enumerate(value):
-        name = preset[CONF_NAME]
-        # If name does not exist yet add it
-        if name not in names:
-            names.add(name)
-            continue
-
-        # Otherwise it's an error
-        errors.append(
-            cv.Invalid(
-                f"Found duplicate preset name '{name}'. Presets must have unique names.",
-                [i],
-            )
-        )
-
-    if errors:
-        raise cv.MultipleInvalid(errors)
-
-    return value
-
-
 CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
     {
         cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(SpeedFan),
@@ -73,7 +48,7 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
             "Configuring individual speeds is deprecated."
         ),
         cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
-        cv.Optional(CONF_PRESET_MODES): _validate_preset_modes,
+        cv.Optional(CONF_PRESET_MODES): validate_preset_modes(_PRESET_MODES_SCHEMA),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
