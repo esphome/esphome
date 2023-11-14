@@ -33,6 +33,7 @@ class ILI9XXXDisplay : public PollingComponent,
     this->height_ = height;
     this->width_ = width;
   }
+  void invert_display(bool invert);
   void command(uint8_t value);
   void data(uint8_t value);
   void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes);
@@ -84,6 +85,7 @@ class ILI9XXXDisplay : public PollingComponent,
   bool prossing_update_ = false;
   bool need_update_ = false;
   bool is_18bitdisplay_ = false;
+  bool pre_invertdisplay_ = false;
 };
 
 //-----------   M5Stack display --------------

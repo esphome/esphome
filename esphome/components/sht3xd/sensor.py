@@ -38,7 +38,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_HEATER_ENABLED, default=True): cv.boolean,
+            cv.Optional(CONF_HEATER_ENABLED, default=False): cv.boolean,
         },
     )
     .extend(cv.polling_component_schema("60s"))

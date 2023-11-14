@@ -212,6 +212,7 @@ async def to_code(config):
     parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
     cg.add(parent.register_gap_event_handler(var))
     cg.add(parent.register_gattc_event_handler(var))
+    cg.add(parent.register_ble_status_event_handler(var))
     cg.add(var.set_parent(parent))
 
     params = config[CONF_SCAN_PARAMETERS]

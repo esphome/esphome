@@ -235,6 +235,7 @@ ESP32_BOARD_PINS = {
         "SDA": 5,
         "SS": 15,
     },
+    "denky_d4": {"RX": 8, "LED": 14},
     "esp-wrover-kit": {},
     "esp32-devkitlipo": {},
     "esp32-evb": {

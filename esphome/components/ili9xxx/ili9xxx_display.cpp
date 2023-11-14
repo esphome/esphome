@@ -20,11 +20,13 @@ static inline void put16_be(uint8_t *buf, uint16_t value) {
 void ILI9XXXDisplay::setup() {
   this->setup_pins_();
   this->initialize();
+  this->command(this->pre_invertdisplay_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
 
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
   this->x_high_ = 0;
   this->y_high_ = 0;
+
   if (this->buffer_color_mode_ == BITS_16) {
     this->init_internal_(this->get_buffer_length_() * 2);
     if (this->buffer_ != nullptr) {
@@ -344,7 +346,12 @@ void ILI9XXXDisplay::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uin
   this->start_data_();
 }
 
-void ILI9XXXDisplay::invert_display_(bool invert) { this->command(invert ? ILI9XXX_INVON : ILI9XXX_INVOFF); }
+void ILI9XXXDisplay::invert_display(bool invert) {
+  this->pre_invertdisplay_ = invert;
+  if (is_ready()) {
+    this->command(invert ? ILI9XXX_INVON : ILI9XXX_INVOFF);
+  }
+}
 
 int ILI9XXXDisplay::get_width_internal() { return this->width_; }
 int ILI9XXXDisplay::get_height_internal() { return this->height_; }
@@ -356,7 +363,7 @@ void ILI9XXXM5Stack::initialize() {
     this->width_ = 320;
   if (this->height_ == 0)
     this->height_ = 240;
-  this->invert_display_(true);
+  this->pre_invertdisplay_ = true;
 }
 
 //   M5CORE display // Based on the configuration settings of M5stact's M5GFX code.
@@ -366,7 +373,7 @@ void ILI9XXXM5CORE::initialize() {
     this->width_ = 320;
   if (this->height_ == 0)
     this->height_ = 240;
-  this->invert_display_(true);
+  this->pre_invertdisplay_ = true;
 }
 
 //   24_TFT display
@@ -473,7 +480,7 @@ void ILI9XXXS3BoxLite::initialize() {
   if (this->height_ == 0) {
     this->height_ = 240;
   }
-  this->invert_display_(true);
+  this->pre_invertdisplay_ = true;
 }
 
 }  // namespace ili9xxx

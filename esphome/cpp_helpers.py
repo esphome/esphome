@@ -35,7 +35,7 @@ async def gpio_pin_expression(conf):
         return None
     from esphome import pins
 
-    for key, (func, _) in pins.PIN_SCHEMA_REGISTRY.items():
+    for key, (func, _, _) in pins.PIN_SCHEMA_REGISTRY.items():
         if key in conf:
             return await coroutine(func)(conf)
     return await coroutine(pins.PIN_SCHEMA_REGISTRY[CORE.target_platform][0])(conf)

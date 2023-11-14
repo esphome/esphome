@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, pins
-from esphome.components import display, spi
+from esphome.components import display, spi, font
 from esphome.core import CORE, HexInt
 from esphome.const import (
     CONF_COLOR_PALETTE,
@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_PIN,
     CONF_DIMENSIONS,
-    CONF_DATA_RATE,
 )
 
 DEPENDENCIES = ["spi"]
@@ -55,6 +54,7 @@ COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
 
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
+CONF_INVERT_DISPLAY = "invert_display"
 
 
 def _validate(config):
@@ -85,6 +85,7 @@ def _validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
+    font.validate_pillow_installed,
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ili9XXXSPI),
@@ -100,11 +101,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
                 cv.file_
             ),
-            cv.Optional(CONF_DATA_RATE, default="40MHz"): spi.SPI_DATA_RATE_SCHEMA,
+            cv.Optional(CONF_INVERT_DISPLAY): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("1s"))
-    .extend(spi.spi_device_schema(False)),
+    .extend(spi.spi_device_schema(False, "40MHz")),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
     _validate,
 )
@@ -164,7 +165,7 @@ async def to_code(config):
             x = x + i.width
 
         # reduce the colors on combined image to 256.
-        converted = ref_image.convert("P", palette=Image.ADAPTIVE, colors=256)
+        converted = ref_image.convert("P", palette=Image.Palette.ADAPTIVE, colors=256)
         # if you want to verify how the images look use
         # ref_image.save("ref_in.png")
         # converted.save("ref_out.png")
@@ -177,4 +178,6 @@ async def to_code(config):
     if rhs is not None:
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_palette(prog_arr))
-    cg.add(var.set_data_rate(config[CONF_DATA_RATE]))
+
+    if CONF_INVERT_DISPLAY in config:
+        cg.add(var.invert_display(config[CONF_INVERT_DISPLAY]))

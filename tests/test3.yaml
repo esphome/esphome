@@ -215,6 +215,9 @@ wifi:
   ssid: "MySSID"
   password: "password1"
 
+network:
+  enable_ipv6: true
+
 uart:
   - id: uart_1
     tx_pin:
@@ -344,6 +347,10 @@ sensor:
     moisture:
       name: hydreon_rain
       id: hydreon_rain
+    temperature:
+      name: hydreon_temperature
+    disable_led: true
+
   - platform: hydreon_rgxx
     model: RG_15
     uart_id: uart_6
@@ -355,6 +362,7 @@ sensor:
       name: hydreon_total_acc
     r_int:
       name: hydreon_r_int
+
   - platform: adc
     pin: VCC
     id: my_sensor
@@ -722,6 +730,7 @@ binary_sensor:
       name: rg9_emsat
     lens_bad:
       name: rg9_lens_bad
+
   - platform: template
     id: pzemac_reset_energy
     on_press:

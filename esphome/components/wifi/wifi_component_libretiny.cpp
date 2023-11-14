@@ -76,9 +76,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
     return true;
   }
 
-  WiFi.config(static_cast<uint32_t>(manual_ip->static_ip), static_cast<uint32_t>(manual_ip->gateway),
-              static_cast<uint32_t>(manual_ip->subnet), static_cast<uint32_t>(manual_ip->dns1),
-              static_cast<uint32_t>(manual_ip->dns2));
+  WiFi.config(manual_ip->static_ip, manual_ip->gateway, manual_ip->subnet, manual_ip->dns1, manual_ip->dns2);
 
   return true;
 }
@@ -420,8 +418,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return false;
 
   if (manual_ip.has_value()) {
-    return WiFi.softAPConfig(static_cast<uint32_t>(manual_ip->static_ip), static_cast<uint32_t>(manual_ip->gateway),
-                             static_cast<uint32_t>(manual_ip->subnet));
+    return WiFi.softAPConfig(manual_ip->static_ip, manual_ip->gateway, manual_ip->subnet);
   } else {
     return WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   }

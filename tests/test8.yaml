@@ -3,6 +3,9 @@
 wifi:
   ssid: "ssid"
 
+network:
+  enable_ipv6: true
+
 esp32:
   board: esp32s3box
   variant: ESP32S3
@@ -62,7 +65,9 @@ i2c:
 
 touchscreen:
   - platform: tt21100
-    interrupt_pin: GPIO3
+    interrupt_pin:
+      number: GPIO3
+      ignore_strapping_warning: true
     reset_pin: GPIO48
 
 binary_sensor:
