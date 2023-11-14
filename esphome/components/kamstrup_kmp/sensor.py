@@ -3,6 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import sensor, uart
 from esphome.const import (
     CONF_COMMAND,
+    CONF_CUSTOM,
+    CONF_FLOW,
     CONF_ID,
     CONF_POWER,
     CONF_VOLUME,
@@ -12,7 +14,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLUME,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
     UNIT_CUBIC_METER,
     UNIT_EMPTY,
@@ -32,8 +34,6 @@ CONF_HEAT_ENERGY = "heat_energy"
 CONF_TEMP1 = "temp1"
 CONF_TEMP2 = "temp2"
 CONF_TEMP_DIFF = "temp_diff"
-CONF_FLOW = "flow"
-CONF_CUSTOM = "custom"
 
 UNIT_GIGA_JOULE = "GJ"
 UNIT_LITRE_PER_HOUR = "l/h"
@@ -46,7 +46,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_HEAT_ENERGY): sensor.sensor_schema(
                 accuracy_decimals=3,
                 device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_TOTAL,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
                 unit_of_measurement=UNIT_GIGA_JOULE,
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
@@ -82,7 +82,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_VOLUME): sensor.sensor_schema(
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_VOLUME,
-                state_class=STATE_CLASS_TOTAL,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
                 unit_of_measurement=UNIT_CUBIC_METER,
             ),
             cv.Optional(CONF_CUSTOM): cv.ensure_list(
