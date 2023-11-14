@@ -1588,7 +1588,8 @@ async def async_start_web_server(args):
         if ping_status_thread:
             ping_status_thread.join()
         MDNS_CONTAINER.set_mdns(None)
-        mdns_task.cancel()
+        if mdns_task:
+            mdns_task.cancel()
         if settings.status_use_mqtt:
             status_thread_mqtt.join()
             MQTT_PING_REQUEST.set()
