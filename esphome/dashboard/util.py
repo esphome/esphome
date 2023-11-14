@@ -1,5 +1,9 @@
 import hashlib
 import unicodedata
+from functools import partial
+from itertools import islice
+from typing import Any
+from collections.abc import Iterable
 
 from esphome.const import ALLOWED_NAME_CHARS
 
@@ -30,3 +34,19 @@ def friendly_name_slugify(value):
         .strip("-")
     )
     return "".join(c for c in value if c in ALLOWED_NAME_CHARS)
+
+
+def take(take_num: int, iterable: Iterable) -> list[Any]:
+    """Return first n items of the iterable as a list.
+
+    From itertools recipes
+    """
+    return list(islice(iterable, take_num))
+
+
+def chunked(iterable: Iterable, chunked_num: int) -> Iterable[Any]:
+    """Break *iterable* into lists of length *n*.
+
+    From more-itertools
+    """
+    return iter(partial(take, chunked_num, iter(iterable)), [])

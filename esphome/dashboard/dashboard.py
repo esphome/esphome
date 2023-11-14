@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
-import collections
 import datetime
 import functools
 import gzip
@@ -11,14 +10,13 @@ import hashlib
 import hmac
 import json
 import logging
-import multiprocessing
 import os
 import secrets
 import shutil
 import subprocess
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import tornado
 import tornado.concurrent
@@ -52,9 +50,9 @@ from esphome.zeroconf import (
     DashboardImportDiscovery,
     DashboardStatus,
 )
-from .async_adapter import ThreadedAsyncEvent
 
-from .util import friendly_name_slugify, password_hash
+from .async_adapter import AsyncEvent
+from .util import chunked, friendly_name_slugify, password_hash
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -603,7 +601,7 @@ class ImportRequestHandler(BaseHandler):
                 encryption,
             )
             # Make sure the device gets marked online right away
-            PING_REQUEST.set()
+            PING_REQUEST.async_set()
         except FileExistsError:
             self.set_status(500)
             self.write("File already exists")
@@ -905,15 +903,6 @@ class MainRequestHandler(BaseHandler):
         )
 
 
-def _ping_func(filename, address):
-    if os.name == "nt":
-        command = ["ping", "-n", "1", address]
-    else:
-        command = ["ping", "-c", "1", address]
-    rc, _, _ = run_system_command(*command)
-    return filename, rc == 0
-
-
 class PrometheusServiceDiscoveryHandler(BaseHandler):
     @authenticated
     def get(self):
@@ -1072,47 +1061,48 @@ class MDNSStatus:
         self.aiozc = None
 
 
-class PingStatusThread(threading.Thread):
-    def run(self):
-        with multiprocessing.Pool(processes=8) as pool:
-            while not STOP_EVENT.wait(2):
-                # Only do pings if somebody has the dashboard open
+async def _async_ping_host(host: str) -> bool:
+    """Ping a host."""
+    ping_command = ["ping", "-n" if os.name == "nt" else "-c", "1"]
+    process = await asyncio.create_subprocess_exec(
+        *ping_command,
+        host,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    await process.wait()
+    return process.returncode == 0
 
-                def callback(ret):
-                    PING_RESULT[ret[0]] = ret[1]
 
-                entries = _list_dashboard_entries()
-                queue = collections.deque()
-                for entry in entries:
-                    if entry.address is None:
-                        PING_RESULT[entry.filename] = None
-                        continue
+class PingStatus:
+    def __init__(self) -> None:
+        """Initialize the PingStatus class."""
+        super().__init__()
+        self._loop = asyncio.get_running_loop()
 
-                    result = pool.apply_async(
-                        _ping_func, (entry.filename, entry.address), callback=callback
-                    )
-                    queue.append(result)
-
-                while queue:
-                    item = queue[0]
-                    if item.ready():
-                        queue.popleft()
-                        continue
-
-                    try:
-                        item.get(0.1)
-                    except OSError:
-                        # ping not installed
-                        pass
-                    except multiprocessing.TimeoutError:
-                        pass
-
-                    if STOP_EVENT.is_set():
-                        pool.terminate()
-                        return
-
-                PING_REQUEST.wait()
-                PING_REQUEST.clear()
+    async def async_run(self) -> None:
+        """Run the ping status."""
+        while not STOP_EVENT.is_set():
+            # Only ping if the dashboard is open
+            await PING_REQUEST.async_wait()
+            PING_REQUEST.async_clear()
+            entries = await self._loop.run_in_executor(None, _list_dashboard_entries)
+            to_ping: list[DashboardEntry] = [
+                entry for entry in entries if entry.address is not None
+            ]
+            for ping_group in chunked(to_ping, 16):
+                ping_group = cast(list[DashboardEntry], ping_group)
+                results = await asyncio.gather(
+                    *(_async_ping_host(entry.address) for entry in ping_group),
+                    return_exceptions=True,
+                )
+                for entry, result in zip(ping_group, results):
+                    if isinstance(result, BaseException):
+                        raise
+                    if isinstance(result, Exception):
+                        result = False
+                    PING_RESULT[entry.filename] = result
 
 
 class MqttStatusThread(threading.Thread):
@@ -1173,7 +1163,7 @@ class MqttStatusThread(threading.Thread):
 class PingRequestHandler(BaseHandler):
     @authenticated
     def get(self):
-        PING_REQUEST.set()
+        PING_REQUEST.async_set()
         if settings.status_use_mqtt:
             MQTT_PING_REQUEST.set()
         self.set_header("content-type", "application/json")
@@ -1263,7 +1253,7 @@ class MDNSContainer:
 PING_RESULT: dict = {}
 IMPORT_RESULT = {}
 STOP_EVENT = threading.Event()
-PING_REQUEST = ThreadedAsyncEvent()
+PING_REQUEST = AsyncEvent()
 MQTT_PING_REQUEST = threading.Event()
 MDNS_CONTAINER = MDNSContainer()
 
@@ -1563,10 +1553,10 @@ async def async_start_web_server(args):
             webbrowser.open(f"http://{args.address}:{args.port}")
 
     mdns_task: asyncio.Task | None = None
-    ping_status_thread: PingStatusThread | None = None
+    ping_status_task: asyncio.Task | None = None
     if settings.status_use_ping:
-        ping_status_thread = PingStatusThread()
-        ping_status_thread.start()
+        ping_status = PingStatus()
+        ping_status_task = asyncio.create_task(ping_status.async_run())
     else:
         mdns_status = MDNSStatus()
         await mdns_status.async_refresh_hosts()
@@ -1583,11 +1573,12 @@ async def async_start_web_server(args):
     finally:
         _LOGGER.info("Shutting down...")
         STOP_EVENT.set()
-        PING_REQUEST.set()
-        if ping_status_thread:
-            ping_status_thread.join()
+        PING_REQUEST.async_set()
+        if ping_status_task:
+            ping_status_task.cancel()
         MDNS_CONTAINER.set_mdns(None)
-        mdns_task.cancel()
+        if mdns_task:
+            mdns_task.cancel()
         if settings.status_use_mqtt:
             status_thread_mqtt.join()
             MQTT_PING_REQUEST.set()
