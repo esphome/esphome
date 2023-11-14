@@ -50,11 +50,21 @@ MODELS = {
     "S3BOX_LITE": ili9XXX_ns.class_("ILI9XXXS3BoxLite", ili9XXXSPI),
 }
 
+COLOR_ORDERS = {
+    "RGB": 0,
+    "BGR": 8,
+}
+
 COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
 
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
 CONF_INVERT_DISPLAY = "invert_display"
+CONF_MIRROR_X = "mirror_x"
+CONF_MIRROR_Y = "mirror_y"
+CONF_SWAP_XY = "swap_xy"
+CONF_PANEL_SETUP = "panel_setup"
+CONF_COLOR_ORDER = "color_order"
 
 
 def _validate(config):
@@ -84,6 +94,16 @@ def _validate(config):
     return config
 
 
+PANEL_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
+        cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+        cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+        cv.Optional(CONF_COLOR_ORDER, default="BGR"): cv.one_of(
+            *COLOR_ORDERS.keys(), upper=True
+        ),
+    }
+)
 CONFIG_SCHEMA = cv.All(
     font.validate_pillow_installed,
     display.FULL_DISPLAY_SCHEMA.extend(
@@ -101,6 +121,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
                 cv.file_
             ),
+            cv.Optional(CONF_PANEL_SETUP): PANEL_SCHEMA,
             cv.Optional(CONF_INVERT_DISPLAY): cv.boolean,
         }
     )
@@ -120,7 +141,16 @@ async def to_code(config):
     await spi.register_spi_device(var, config)
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
-
+    if CONF_PANEL_SETUP in config:
+        panel = config[CONF_PANEL_SETUP]
+        mad = COLOR_ORDERS[panel[CONF_COLOR_ORDER]] | 0x8000
+        if panel[CONF_MIRROR_Y]:
+            mad |= 0x80
+        if panel[CONF_MIRROR_X]:
+            mad |= 0x40
+        if panel[CONF_SWAP_XY]:
+            mad |= 0x20
+        cg.add(var.set_mad(mad))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void

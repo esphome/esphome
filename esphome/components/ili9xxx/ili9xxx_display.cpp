@@ -21,6 +21,11 @@ void ILI9XXXDisplay::setup() {
   this->setup_pins_();
   this->initialize();
   this->command(this->pre_invertdisplay_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
+  // custom x/y transform and color order
+  if (this->mad_ != 0) {
+    uint8_t mad = this->mad_ & 0xFF;
+    this->send_command(ILI9XXX_MADCTL, &mad, 1);
+  }
 
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;

@@ -38,6 +38,7 @@ class ILI9XXXDisplay : public PollingComponent,
   void data(uint8_t value);
   void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes);
   uint8_t read_command(uint8_t command_byte, uint8_t index);
+  void set_mad(uint16_t mad) { this->mad_ = mad; }
 
   void update() override;
 
@@ -86,6 +87,7 @@ class ILI9XXXDisplay : public PollingComponent,
   bool need_update_ = false;
   bool is_18bitdisplay_ = false;
   bool pre_invertdisplay_ = false;
+  uint16_t mad_{0};
 };
 
 //-----------   M5Stack display --------------
