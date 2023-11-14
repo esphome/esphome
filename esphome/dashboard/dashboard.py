@@ -1096,10 +1096,10 @@ class PingStatus:
                     return_exceptions=True,
                 )
                 for entry, result in zip(ping_group, results):
-                    if isinstance(result, BaseException):
-                        raise result
                     if isinstance(result, Exception):
                         result = False
+                    elif isinstance(result, BaseException):
+                        raise result
                     PING_RESULT[entry.filename] = result
 
 
