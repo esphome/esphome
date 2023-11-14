@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 import collections
@@ -508,8 +509,8 @@ class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
 
 class SerialPortRequestHandler(BaseHandler):
     @authenticated
-    def get(self):
-        ports = get_serial_ports()
+    async def get(self):
+        ports = await asyncio.get_running_loop().run_in_executor(None, get_serial_ports)
         data = []
         for port in ports:
             desc = port.description
