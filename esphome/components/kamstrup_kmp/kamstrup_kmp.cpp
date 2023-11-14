@@ -83,8 +83,8 @@ void KamstrupKMPComponent::update() {
     this->send_command_(CMD_VOLUME);
   }
 
-  for (int i = 0; i < this->custom_commands_.size(); i++) {
-    this->send_command_(this->custom_commands_[i]);
+  for (uint16_t custom_command : this->custom_commands_) {
+    this->send_command_(custom_command);
   }
 }
 
