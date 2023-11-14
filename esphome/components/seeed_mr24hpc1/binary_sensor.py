@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import (                    # 这些库都可以在esphome仓库下面的const.py里面找到
-    DEVICE_CLASS_OCCUPANCY,                       # https://github.com/limengdu/esphome/blob/17e1d4c2455997a0a15c875950be1942c6249d0d/esphome/const.py#L1006
+from esphome.const import (
+    DEVICE_CLASS_OCCUPANCY,
 )
 from . import CONF_MR24HPC1_ID, mr24hpc1Component
 
