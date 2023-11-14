@@ -409,7 +409,7 @@ DASHBOARD_COMMAND = ["esphome", "--dashboard"]
 class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
     """Base class for commands that require a port."""
 
-    async def run_command(
+    async def build_device_command(
         self, args: list[str], json_message: dict[str, Any]
     ) -> list[str]:
         """Build the command to run."""
@@ -436,7 +436,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         """Build the command to run."""
-        return await self.run_command(["logs"], json_message)
+        return await self.build_device_command(["logs"], json_message)
 
 
 class EsphomeRenameHandler(EsphomeCommandWebSocket):
@@ -465,13 +465,13 @@ class EsphomeRenameHandler(EsphomeCommandWebSocket):
 class EsphomeUploadHandler(EsphomePortCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         """Build the command to run."""
-        return await self.run_command(["upload"], json_message)
+        return await self.build_device_command(["upload"], json_message)
 
 
 class EsphomeRunHandler(EsphomePortCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         """Build the command to run."""
-        return await self.run_command(["run"], json_message)
+        return await self.build_device_command(["run"], json_message)
 
 
 class EsphomeCompileHandler(EsphomeCommandWebSocket):
