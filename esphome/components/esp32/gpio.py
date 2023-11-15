@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
+    CONF_IGNORE_STRAPPING_WARNING,
 )
 from esphome import pins
 from esphome.core import CORE
@@ -176,6 +177,7 @@ ESP32_PIN_SCHEMA = cv.All(
             }
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+        cv.Optional(CONF_IGNORE_STRAPPING_WARNING, default=False): cv.boolean,
         cv.Optional(CONF_DRIVE_STRENGTH, default="20mA"): cv.All(
             cv.float_with_unit("current", "mA", optional_unit=True),
             cv.enum(DRIVE_STRENGTHS),
