@@ -1,5 +1,5 @@
 import pytest
-from mock import Mock
+from unittest.mock import Mock
 
 from esphome import cpp_helpers as ch
 from esphome import const
