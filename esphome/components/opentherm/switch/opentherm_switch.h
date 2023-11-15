@@ -11,7 +11,7 @@ namespace opentherm {
   opentherm::OpenThermSwitch *name##_switch_{nullptr}; \
 \
  public: \
-  void set_##name##_switch(opentherm::OpenThermSwitch *switch_) { this->name##_switch_ = switch_; }
+  void set_##name##_switch(opentherm::OpenThermSwitch *s) { this->name##_switch_ = s; }
 
 class OpenThermSwitch : public Component, public switch_::Switch {
  protected:
