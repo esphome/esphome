@@ -2,14 +2,12 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import number
 from esphome.const import (
-    CONF_ICON,
     CONF_INITIAL_VALUE,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_MODE,
     CONF_RESTORE_VALUE,
     CONF_STEP,
-    CONF_UNIT_OF_MEASUREMENT,
     UNIT_CELSIUS,
 )
 from ...opentherm import (
@@ -43,7 +41,8 @@ CONFIG_SCHEMA = cv.All(
                 OpenThermNumber,
                 icon=ICON_HOME_THERMOMETER,
                 unit_of_measurement=UNIT_CELSIUS,
-            ).extend(
+            )
+            .extend(
                 {
                     cv.Required(CONF_MAX_VALUE): cv.float_,
                     cv.Required(CONF_MIN_VALUE): cv.float_,
@@ -54,12 +53,14 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_INITIAL_VALUE): cv.float_,
                     cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
                 }
-            ).extend(cv.COMPONENT_SCHEMA),
+            )
+            .extend(cv.COMPONENT_SCHEMA),
             cv.Optional(CONF_CH_2_SETPOINT_TEMPERATURE): number.number_schema(
                 OpenThermNumber,
                 icon=ICON_HOME_THERMOMETER,
                 unit_of_measurement=UNIT_CELSIUS,
-            ).extend(
+            )
+            .extend(
                 {
                     cv.Required(CONF_MAX_VALUE): cv.float_,
                     cv.Required(CONF_MIN_VALUE): cv.float_,
@@ -70,12 +71,14 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_INITIAL_VALUE): cv.float_,
                     cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
                 }
-            ).extend(cv.COMPONENT_SCHEMA),
-            cv.Optional(CONF_DHW_SETPOINT_TEMPERATURE):  number.number_schema(
+            )
+            .extend(cv.COMPONENT_SCHEMA),
+            cv.Optional(CONF_DHW_SETPOINT_TEMPERATURE): number.number_schema(
                 OpenThermNumber,
                 icon=ICON_WATER_THERMOMETER,
                 unit_of_measurement=UNIT_CELSIUS,
-            ).extend(
+            )
+            .extend(
                 {
                     cv.Required(CONF_MAX_VALUE): cv.float_,
                     cv.Required(CONF_MIN_VALUE): cv.float_,
@@ -86,7 +89,8 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_INITIAL_VALUE): cv.float_,
                     cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
                 }
-            ).extend(cv.COMPONENT_SCHEMA),
+            )
+            .extend(cv.COMPONENT_SCHEMA),
         }
     ).extend(cv.COMPONENT_SCHEMA)
 )

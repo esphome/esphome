@@ -28,7 +28,6 @@ namespace esphome {
 namespace opentherm {
 
 class OpenThermComponent : public PollingComponent {
-
 #ifdef USE_SENSOR
   SUB_SENSOR(ch_min_temperature);
   SUB_SENSOR(ch_max_temperature);

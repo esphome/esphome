@@ -1,9 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import button
-from esphome.const import (
-    DEVICE_CLASS_EMPTY
-)
+from esphome.const import DEVICE_CLASS_EMPTY
 from ...opentherm import (
     OpenThermComponent,
     CONF_OPENTHERM_ID,
@@ -40,7 +38,7 @@ CONFIG_SCHEMA = cv.All(
                 CHWaterFillingButton,
                 device_class=DEVICE_CLASS_EMPTY,
                 icon=ICON_WATER_FILLING,
-            )
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA)
 )

@@ -666,10 +666,8 @@ void OpenThermComponent::request_(OpenThermMessageType type, OpenThermMessageID 
 }
 
 void OpenThermComponent::set_boiler_status_() {
-  // Fields: CH enabled | DHW enabled | cooling | outside temperature compensation | CH 2 enabled
-  uint32_t data = this->wanted_ch_enabled_ | (this->wanted_dhw_enabled_ << 1) |
-                      (this->wanted_cooling_enabled_ << 2) | (this->wanted_otc_active_ << 3) |
-                      (this->wanted_ch_2_enabled_ << 4);
+  uint32_t data = this->wanted_ch_enabled_ | (this->wanted_dhw_enabled_ << 1) | (this->wanted_cooling_enabled_ << 2) |
+                  (this->wanted_otc_active_ << 3) | (this->wanted_ch_2_enabled_ << 4);
   data <<= 8;
   this->request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::STATUS, data);
 }
