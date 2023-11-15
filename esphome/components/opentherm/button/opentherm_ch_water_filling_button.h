@@ -6,9 +6,9 @@
 namespace esphome {
 namespace opentherm {
 
-class CHWaterFillingButton : public button::Button, public Parented<OpenThermComponent> {
+class OpenThermCHWaterFillingButton : public button::Button, public Parented<OpenThermComponent> {
  public:
-  CHWaterFillingButton() = default;
+  OpenThermCHWaterFillingButton() = default;
 
  protected:
   void press_action() override;

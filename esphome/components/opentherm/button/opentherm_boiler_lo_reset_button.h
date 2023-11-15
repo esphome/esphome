@@ -6,9 +6,9 @@
 namespace esphome {
 namespace opentherm {
 
-class BoilerLOResetButton : public button::Button, public Parented<OpenThermComponent> {
+class OpenThermBoilerLOResetButton : public button::Button, public Parented<OpenThermComponent> {
  public:
-  BoilerLOResetButton() = default;
+  OpenThermBoilerLOResetButton() = default;
 
  protected:
   void press_action() override;

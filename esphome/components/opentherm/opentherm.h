@@ -15,10 +15,10 @@
 #include "esphome/components/button/button.h"
 #endif
 #ifdef USE_SWITCH
-#include "switch/custom_switch.h"
+#include "switch/opentherm_switch.h"
 #endif
 #ifdef USE_NUMBER
-#include "number/custom_number.h"
+#include "number/opentherm_number.h"
 #endif
 #include "consts.h"
 #include "enums.h"

@@ -1,4 +1,4 @@
-#include "custom_switch.h"
+#include "opentherm_switch.h"
 
 namespace esphome {
 namespace opentherm {

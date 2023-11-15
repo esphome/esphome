@@ -1,5 +1,5 @@
 #include "esphome/core/log.h"
-#include "custom_number.h"
+#include "opentherm_number.h"
 #include "../consts.h"
 
 namespace esphome {
