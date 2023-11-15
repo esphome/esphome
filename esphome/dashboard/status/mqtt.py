@@ -5,14 +5,16 @@ import json
 import os
 import threading
 
-from ..core import DASHBOARD
-from ..settings import list_dashboard_entries
+from esphome import mqtt
+
+from ..core import DASHBOARD, list_dashboard_entries
 
 
 class MqttStatusThread(threading.Thread):
-    def run(self):
-        from esphome import mqtt
+    """Status thread to get the status of the devices via MQTT."""
 
+    def run(self) -> None:
+        """Run the status thread."""
         dashboard = DASHBOARD
         entries = list_dashboard_entries()
 

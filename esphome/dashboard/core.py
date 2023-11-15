@@ -3,13 +3,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from typing import TYPE_CHECKING
 
 from ..zeroconf import DiscoveredImport
-from .settings import DashboardSettings
-from .status.mdns import MDNSStatus
-from .status.mqtt import MqttStatusThread
-from .status.ping import PingStatus
 from .entries import DashboardEntry
+from .settings import DashboardSettings
+
+if TYPE_CHECKING:
+    from .status.mdns import MDNSStatus
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,15 +46,21 @@ class ESPHomeDashboard:
         ping_status_task: asyncio.Task | None = None
 
         if settings.status_use_ping:
+            from .status.ping import PingStatus
+
             ping_status = PingStatus()
             ping_status_task = asyncio.create_task(ping_status.async_run())
         else:
+            from .status.mdns import MDNSStatus
+
             mdns_status = MDNSStatus()
             await mdns_status.async_refresh_hosts()
             self.mdns_status = mdns_status
             mdns_task = asyncio.create_task(mdns_status.async_run())
 
         if settings.status_use_mqtt:
+            from .status.mqtt import MqttStatusThread
+
             status_thread_mqtt = MqttStatusThread()
             status_thread_mqtt.start()
 
