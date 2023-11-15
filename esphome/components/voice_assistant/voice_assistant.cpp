@@ -610,6 +610,11 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       if (code == "wake-word-timeout" || code == "wake_word_detection_aborted") {
         // Don't change state here since either the "tts-end" or "run-end" events will do it.
         return;
+      } else if (code == "wake-provider-missing" || code == "wake-engine-missing") {
+        // Wake word is not set up or not ready on Home Assistant so stop and do not retry until user starts again.
+        this->request_stop();
+        this->error_trigger_->trigger(code, message);
+        return;
       }
       ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
       if (this->state_ != State::IDLE) {
