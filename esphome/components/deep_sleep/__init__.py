@@ -132,7 +132,11 @@ def validate_config(config):
             and get_esp32_variant() != VARIANT_ESP32C3
         ):
             raise cv.Invalid("Your board only supports wake from a single pin")
-        if isinstance(config[CONF_WAKEUP_PIN], list) and CONF_WAKEUP_PIN_MODE in config:
+        if (
+            CONF_WAKEUP_PIN in config
+            and isinstance(config[CONF_WAKEUP_PIN], list)
+            and CONF_WAKEUP_PIN_MODE in config
+        ):
             raise cv.Invalid(
                 "You need to remove the global wakeup_pin_mode and define it per pin"
             )
