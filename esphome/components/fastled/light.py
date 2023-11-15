@@ -113,7 +113,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     _validate,
-    cv.only_on_arduino,
+    cv.only_with_arduino,
 )
 
 
