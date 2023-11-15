@@ -329,6 +329,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
                 stdout=tornado.process.Subprocess.STREAM,
                 stderr=subprocess.STDOUT,
                 stdin=tornado.process.Subprocess.STREAM,
+                close_fds=False,  # required for posix_spawn
             )
             self._proc.set_exit_callback(self._proc_on_exit)
 
