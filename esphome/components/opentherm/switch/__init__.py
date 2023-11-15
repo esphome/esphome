@@ -10,7 +10,9 @@ from ...opentherm import (
 )
 from .. import opentherm
 
-CustomSwitch = opentherm.class_("CustomSwitch", switch.Switch, cg.Component)
+DEPENDENCIES = ["opentherm"]
+
+OpenThermSwitch = opentherm.class_("OpenThermSwitch", switch.Switch, cg.Component)
 
 CONF_CH_ENABLED = "ch_enabled"
 CONF_CH_2_ENABLED = "ch_2_enabled"
@@ -35,23 +37,23 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(OpenThermComponent),
             cv.Optional(CONF_CH_ENABLED): switch.switch_schema(
-                class_=CustomSwitch,
+                OpenThermSwitch,
                 icon=ICON_RADIATOR,
             ),
             cv.Optional(CONF_CH_2_ENABLED): switch.switch_schema(
-                class_=CustomSwitch,
+                OpenThermSwitch,
                 icon=ICON_RADIATOR,
             ),
             cv.Optional(CONF_DHW_ENABLED): switch.switch_schema(
-                class_=CustomSwitch,
+                OpenThermSwitch,
                 icon=ICON_WATER_BOILER,
             ),
             cv.Optional(CONF_COOLING_ENABLED): switch.switch_schema(
-                class_=CustomSwitch,
+                OpenThermSwitch,
                 icon=ICON_SNOWFLAKE,
             ),
             cv.Optional(CONF_OTC_ACTIVE): switch.switch_schema(
-                class_=CustomSwitch,
+                OpenThermSwitch,
                 icon=ICON_THERMOMETER_AUTO,
             ),
         }
@@ -60,8 +62,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def setup_conf(config, key, hub):
-    if key in config:
-        conf = config[key]
+    if conf := config.get(key):
         var = await switch.new_switch(conf)
         cg.add(getattr(hub, f"set_{key}_switch")(var))
 

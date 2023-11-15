@@ -279,12 +279,16 @@ void OpenThermComponent::dump_config() {
   LOG_BINARY_SENSOR("  ", "Gas/flame fault:", this->gas_flame_fault_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Air pressure fault:", this->air_pressure_fault_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Water over temperature fault:", this->water_over_temperature_fault_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "dhw_present:", this->dhw_present_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "modulating:", this->modulating_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "cooling_supported:", this->cooling_supported_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "dhw_storage_tank:", this->dhw_storage_tank_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "device_lowoff_pump_control:", this->device_lowoff_pump_control_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "ch_2_present:", this->ch_2_present_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "DHW present:", this->dhw_present_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Modulating :", this->modulating_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Cooling supported:", this->cooling_supported_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "DHW storage tank:", this->dhw_storage_tank_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Device low-off/pump control allowed:", this->device_lowoff_pump_control_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "CH 2 present:", this->ch_2_present_binary_sensor_);
+#endif
+#ifdef USE_BUTTON
+  LOG_BUTTON("  ", "Boiler lock-out reset:", this->boiler_lo_reset_button_);
+  LOG_BUTTON("  ", "CH water filling:", this->ch_water_filling_button_);
 #endif
 #ifdef USE_SWITCH
   LOG_SWITCH("  ", "CH enabled:", this->ch_enabled_switch_);
@@ -345,6 +349,16 @@ void IRAM_ATTR OpenThermComponent::handle_interrupt(OpenThermComponent *componen
       }
     }
   }
+}
+
+void OpenThermComponent::boiler_lo_reset() {
+  ESP_LOGI(TAG, "Execute: Boiler lock-out reset");
+  this->request_(opentherm::OpenThermMessageType::WRITE_DATA, opentherm::OpenThermMessageID::COMMAND, 0x100);
+}
+
+void OpenThermComponent::ch_water_filling() {
+  ESP_LOGI(TAG, "Execute: CH water filling");
+  this->request_(opentherm::OpenThermMessageType::WRITE_DATA, opentherm::OpenThermMessageID::COMMAND, 0x200);
 }
 
 // Private
@@ -457,7 +471,7 @@ OpenThermMessageID OpenThermComponent::get_data_id_(uint32_t frame) {
   return (OpenThermMessageID) ((frame >> 16) & 0xFF);
 }
 
-uint32_t OpenThermComponent::build_request_(OpenThermMessageType type, OpenThermMessageID id, unsigned int data) {
+uint32_t OpenThermComponent::build_request_(OpenThermMessageType type, OpenThermMessageID id, uint32_t data) {
   uint32_t request = data;
   if (type == OpenThermMessageType::WRITE_DATA) {
     request |= 1ul << 28;
@@ -468,7 +482,7 @@ uint32_t OpenThermComponent::build_request_(OpenThermMessageType type, OpenTherm
   return request;
 }
 
-uint32_t OpenThermComponent::build_response_(OpenThermMessageType type, OpenThermMessageID id, unsigned int data) {
+uint32_t OpenThermComponent::build_response_(OpenThermMessageType type, OpenThermMessageID id, uint32_t data) {
   uint32_t response = data;
   response |= type << 28;
   response |= ((uint32_t) id) << 16;
@@ -647,13 +661,13 @@ void OpenThermComponent::publish_binary_sensor_state_(binary_sensor::BinarySenso
 }
 #endif
 
-void OpenThermComponent::request_(OpenThermMessageType type, OpenThermMessageID id, unsigned int data) {
+void OpenThermComponent::request_(OpenThermMessageType type, OpenThermMessageID id, uint32_t data) {
   this->enqueue_request_(this->build_request_(type, id, data));
 }
 
 void OpenThermComponent::set_boiler_status_() {
   // Fields: CH enabled | DHW enabled | cooling | outside temperature compensation | CH 2 enabled
-  unsigned int data = this->wanted_ch_enabled_ | (this->wanted_dhw_enabled_ << 1) |
+  uint32_t data = this->wanted_ch_enabled_ | (this->wanted_dhw_enabled_ << 1) |
                       (this->wanted_cooling_enabled_ << 2) | (this->wanted_otc_active_ << 3) |
                       (this->wanted_ch_2_enabled_ << 4);
   data <<= 8;

@@ -122,8 +122,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def setup_conf(config, key, hub):
-    if key in config:
-        conf = config[key]
+    if conf := config.get(key):
         var = await binary_sensor.new_binary_sensor(conf)
         cg.add(getattr(hub, f"set_{key}_binary_sensor")(var))
 

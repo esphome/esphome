@@ -18,7 +18,9 @@ from ...opentherm import (
 )
 from .. import opentherm
 
-CustomNumber = opentherm.class_("CustomNumber", number.Number, cg.Component)
+DEPENDENCIES = ["opentherm"]
+
+OpenThermNumber = opentherm.class_("OpenThermNumber", number.Number, cg.Component)
 
 CONF_CH_SETPOINT_TEMPERATURE = "ch_setpoint_temperature"
 CONF_CH_2_SETPOINT_TEMPERATURE = "ch_2_setpoint_temperature"
@@ -37,16 +39,15 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(OpenThermComponent),
-            cv.Optional(CONF_CH_SETPOINT_TEMPERATURE): number.NUMBER_SCHEMA.extend(
+            cv.Optional(CONF_CH_SETPOINT_TEMPERATURE): number.number_schema(
+                OpenThermNumber,
+                icon=ICON_HOME_THERMOMETER,
+                unit_of_measurement=UNIT_CELSIUS,
+            ).extend(
                 {
-                    cv.GenerateID(): cv.declare_id(CustomNumber),
                     cv.Required(CONF_MAX_VALUE): cv.float_,
                     cv.Required(CONF_MIN_VALUE): cv.float_,
                     cv.Required(CONF_STEP): cv.positive_float,
-                    cv.Optional(
-                        CONF_UNIT_OF_MEASUREMENT, default=UNIT_CELSIUS
-                    ): cv.string_strict,
-                    cv.Optional(CONF_ICON, default=ICON_HOME_THERMOMETER): cv.icon,
                     cv.Optional(CONF_MODE, default="BOX"): cv.enum(
                         number.NUMBER_MODES, upper=True
                     ),
@@ -54,16 +55,15 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
                 }
             ).extend(cv.COMPONENT_SCHEMA),
-            cv.Optional(CONF_CH_2_SETPOINT_TEMPERATURE): number.NUMBER_SCHEMA.extend(
+            cv.Optional(CONF_CH_2_SETPOINT_TEMPERATURE): number.number_schema(
+                OpenThermNumber,
+                icon=ICON_HOME_THERMOMETER,
+                unit_of_measurement=UNIT_CELSIUS,
+            ).extend(
                 {
-                    cv.GenerateID(): cv.declare_id(CustomNumber),
                     cv.Required(CONF_MAX_VALUE): cv.float_,
                     cv.Required(CONF_MIN_VALUE): cv.float_,
                     cv.Required(CONF_STEP): cv.positive_float,
-                    cv.Optional(
-                        CONF_UNIT_OF_MEASUREMENT, default=UNIT_CELSIUS
-                    ): cv.string_strict,
-                    cv.Optional(CONF_ICON, default=ICON_HOME_THERMOMETER): cv.icon,
                     cv.Optional(CONF_MODE, default="BOX"): cv.enum(
                         number.NUMBER_MODES, upper=True
                     ),
@@ -71,16 +71,15 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
                 }
             ).extend(cv.COMPONENT_SCHEMA),
-            cv.Optional(CONF_DHW_SETPOINT_TEMPERATURE): number.NUMBER_SCHEMA.extend(
+            cv.Optional(CONF_DHW_SETPOINT_TEMPERATURE):  number.number_schema(
+                OpenThermNumber,
+                icon=ICON_WATER_THERMOMETER,
+                unit_of_measurement=UNIT_CELSIUS,
+            ).extend(
                 {
-                    cv.GenerateID(): cv.declare_id(CustomNumber),
                     cv.Required(CONF_MAX_VALUE): cv.float_,
                     cv.Required(CONF_MIN_VALUE): cv.float_,
                     cv.Required(CONF_STEP): cv.positive_float,
-                    cv.Optional(
-                        CONF_UNIT_OF_MEASUREMENT, default=UNIT_CELSIUS
-                    ): cv.string_strict,
-                    cv.Optional(CONF_ICON, default=ICON_WATER_THERMOMETER): cv.icon,
                     cv.Optional(CONF_MODE, default="BOX"): cv.enum(
                         number.NUMBER_MODES, upper=True
                     ),
@@ -94,8 +93,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def setup_conf(config, key, hub):
-    if key in config:
-        conf = config[key]
+    if conf := config.get(key):
         var = await number.new_number(
             conf,
             min_value=conf[CONF_MIN_VALUE],

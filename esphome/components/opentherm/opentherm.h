@@ -11,6 +11,9 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
 #ifdef USE_SWITCH
 #include "switch/custom_switch.h"
 #endif
@@ -25,67 +28,72 @@ namespace esphome {
 namespace opentherm {
 
 class OpenThermComponent : public PollingComponent {
- public:
+
 #ifdef USE_SENSOR
-  sensor::Sensor *ch_min_temperature_sensor_{nullptr};
-  sensor::Sensor *ch_max_temperature_sensor_{nullptr};
-  sensor::Sensor *dhw_min_temperature_sensor_{nullptr};
-  sensor::Sensor *dhw_max_temperature_sensor_{nullptr};
-  sensor::Sensor *dhw_flow_rate_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
-  sensor::Sensor *modulation_sensor_{nullptr};
-  sensor::Sensor *dhw_temperature_sensor_{nullptr};
-  sensor::Sensor *dhw_2_temperature_sensor_{nullptr};
-  sensor::Sensor *boiler_temperature_sensor_{nullptr};
-  sensor::Sensor *boiler_2_temperature_sensor_{nullptr};
-  sensor::Sensor *return_temperature_sensor_{nullptr};
-  sensor::Sensor *outside_temperature_sensor_{nullptr};
-  sensor::Sensor *exhaust_temperature_sensor_{nullptr};
-  sensor::Sensor *oem_error_code_sensor_{nullptr};
-  sensor::Sensor *oem_diagnostic_code_sensor_{nullptr};
-  sensor::Sensor *burner_starts_sensor_{nullptr};
-  sensor::Sensor *burner_ops_hours_sensor_{nullptr};
-  sensor::Sensor *ch_pump_starts_sensor_{nullptr};
-  sensor::Sensor *ch_pump_ops_hours_sensor_{nullptr};
-  sensor::Sensor *dhw_pump_valve_starts_sensor_{nullptr};
-  sensor::Sensor *dhw_pump_valve_ops_hours_sensor_{nullptr};
-  sensor::Sensor *dhw_burner_starts_sensor_{nullptr};
-  sensor::Sensor *dhw_burner_ops_hours_sensor_{nullptr};
+  SUB_SENSOR(ch_min_temperature);
+  SUB_SENSOR(ch_max_temperature);
+  SUB_SENSOR(dhw_min_temperature);
+  SUB_SENSOR(dhw_max_temperature);
+  SUB_SENSOR(dhw_flow_rate);
+  SUB_SENSOR(pressure);
+  SUB_SENSOR(modulation);
+  SUB_SENSOR(dhw_temperature);
+  SUB_SENSOR(dhw_2_temperature);
+  SUB_SENSOR(boiler_temperature);
+  SUB_SENSOR(boiler_2_temperature);
+  SUB_SENSOR(return_temperature);
+  SUB_SENSOR(outside_temperature);
+  SUB_SENSOR(exhaust_temperature);
+  SUB_SENSOR(oem_error_code);
+  SUB_SENSOR(oem_diagnostic_code);
+  SUB_SENSOR(burner_starts);
+  SUB_SENSOR(burner_ops_hours);
+  SUB_SENSOR(ch_pump_starts);
+  SUB_SENSOR(ch_pump_ops_hours);
+  SUB_SENSOR(dhw_pump_valve_starts);
+  SUB_SENSOR(dhw_pump_valve_ops_hours);
+  SUB_SENSOR(dhw_burner_starts);
+  SUB_SENSOR(dhw_burner_ops_hours);
 #endif
 #ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *ch_active_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *ch_2_active_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *dhw_active_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *cooling_active_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *flame_active_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *fault_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *diagnostic_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *service_request_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *lockout_reset_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *water_pressure_fault_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *gas_flame_fault_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *air_pressure_fault_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *water_over_temperature_fault_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *dhw_present_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *modulating_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *cooling_supported_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *dhw_storage_tank_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *device_lowoff_pump_control_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *ch_2_present_binary_sensor_{nullptr};
+  SUB_BINARY_SENSOR(ch_active);
+  SUB_BINARY_SENSOR(ch_2_active);
+  SUB_BINARY_SENSOR(dhw_active);
+  SUB_BINARY_SENSOR(cooling_active);
+  SUB_BINARY_SENSOR(flame_active);
+  SUB_BINARY_SENSOR(fault);
+  SUB_BINARY_SENSOR(diagnostic);
+  SUB_BINARY_SENSOR(service_request);
+  SUB_BINARY_SENSOR(lockout_reset);
+  SUB_BINARY_SENSOR(water_pressure_fault);
+  SUB_BINARY_SENSOR(gas_flame_fault);
+  SUB_BINARY_SENSOR(air_pressure_fault);
+  SUB_BINARY_SENSOR(water_over_temperature_fault);
+  SUB_BINARY_SENSOR(dhw_present);
+  SUB_BINARY_SENSOR(modulating);
+  SUB_BINARY_SENSOR(cooling_supported);
+  SUB_BINARY_SENSOR(dhw_storage_tank);
+  SUB_BINARY_SENSOR(device_lowoff_pump_control);
+  SUB_BINARY_SENSOR(ch_2_present);
+#endif
+#ifdef USE_BUTTON
+  SUB_BUTTON(boiler_lo_reset);
+  SUB_BUTTON(ch_water_filling);
 #endif
 #ifdef USE_SWITCH
-  opentherm::CustomSwitch *ch_enabled_switch_{nullptr};
-  opentherm::CustomSwitch *ch_2_enabled_switch_{nullptr};
-  opentherm::CustomSwitch *dhw_enabled_switch_{nullptr};
-  opentherm::CustomSwitch *cooling_enabled_switch_{nullptr};
-  opentherm::CustomSwitch *otc_active_switch_{nullptr};
+  SUB_OPENTHERM_SWITCH(ch_enabled);
+  SUB_OPENTHERM_SWITCH(ch_2_enabled);
+  SUB_OPENTHERM_SWITCH(dhw_enabled);
+  SUB_OPENTHERM_SWITCH(cooling_enabled);
+  SUB_OPENTHERM_SWITCH(otc_active);
 #endif
 #ifdef USE_NUMBER
-  opentherm::CustomNumber *ch_setpoint_temperature_number_{nullptr};
-  opentherm::CustomNumber *ch_2_setpoint_temperature_number_{nullptr};
-  opentherm::CustomNumber *dhw_setpoint_temperature_number_{nullptr};
+  SUB_OPENTHERM_NUMBER(ch_setpoint_temperature);
+  SUB_OPENTHERM_NUMBER(ch_2_setpoint_temperature);
+  SUB_OPENTHERM_NUMBER(dhw_setpoint_temperature);
 #endif
 
+ public:
   OpenThermComponent() = default;
 
   void setup() override;
@@ -94,86 +102,8 @@ class OpenThermComponent : public PollingComponent {
   void dump_config() override;
   static void handle_interrupt(OpenThermComponent *component);
   void set_pins(InternalGPIOPin *read_pin, InternalGPIOPin *write_pin);
-
-#ifdef USE_SENSOR
-  void set_ch_min_temperature_sensor(sensor::Sensor *sensor) { ch_min_temperature_sensor_ = sensor; }
-  void set_ch_max_temperature_sensor(sensor::Sensor *sensor) { ch_max_temperature_sensor_ = sensor; }
-  void set_dhw_min_temperature_sensor(sensor::Sensor *sensor) { dhw_min_temperature_sensor_ = sensor; }
-  void set_dhw_max_temperature_sensor(sensor::Sensor *sensor) { dhw_max_temperature_sensor_ = sensor; }
-  void set_dhw_flow_rate_sensor(sensor::Sensor *sensor) { dhw_flow_rate_sensor_ = sensor; }
-  void set_pressure_sensor(sensor::Sensor *sensor) { pressure_sensor_ = sensor; }
-  void set_modulation_sensor(sensor::Sensor *sensor) { modulation_sensor_ = sensor; }
-  void set_dhw_temperature_sensor(sensor::Sensor *sensor) { dhw_temperature_sensor_ = sensor; }
-  void set_dhw_2_temperature_sensor(sensor::Sensor *sensor) { dhw_2_temperature_sensor_ = sensor; }
-  void set_boiler_temperature_sensor(sensor::Sensor *sensor) { boiler_temperature_sensor_ = sensor; }
-  void set_boiler_2_temperature_sensor(sensor::Sensor *sensor) { boiler_2_temperature_sensor_ = sensor; }
-  void set_return_temperature_sensor(sensor::Sensor *sensor) { return_temperature_sensor_ = sensor; }
-  void set_outside_temperature_sensor(sensor::Sensor *sensor) { outside_temperature_sensor_ = sensor; }
-  void set_exhaust_temperature_sensor(sensor::Sensor *sensor) { exhaust_temperature_sensor_ = sensor; }
-  void set_oem_error_code_sensor(sensor::Sensor *sensor) { oem_error_code_sensor_ = sensor; }
-  void set_oem_diagnostic_code_sensor(sensor::Sensor *sensor) { oem_diagnostic_code_sensor_ = sensor; }
-  void set_burner_starts_sensor(sensor::Sensor *sensor) { burner_starts_sensor_ = sensor; }
-  void set_burner_ops_hours_sensor(sensor::Sensor *sensor) { burner_ops_hours_sensor_ = sensor; }
-  void set_ch_pump_starts_sensor(sensor::Sensor *sensor) { ch_pump_starts_sensor_ = sensor; }
-  void set_ch_pump_ops_hours_sensor(sensor::Sensor *sensor) { ch_pump_ops_hours_sensor_ = sensor; }
-  void set_dhw_pump_valve_starts_sensor(sensor::Sensor *sensor) { dhw_pump_valve_starts_sensor_ = sensor; }
-  void set_dhw_pump_valve_ops_hours_sensor(sensor::Sensor *sensor) { dhw_pump_valve_ops_hours_sensor_ = sensor; }
-  void set_dhw_burner_starts_sensor(sensor::Sensor *sensor) { dhw_burner_starts_sensor_ = sensor; }
-  void set_dhw_burner_ops_hours_sensor(sensor::Sensor *sensor) { dhw_burner_ops_hours_sensor_ = sensor; }
-#endif
-#ifdef USE_BINARY_SENSOR
-  void set_ch_active_binary_sensor(binary_sensor::BinarySensor *sensor) { ch_active_binary_sensor_ = sensor; }
-  void set_ch_2_active_binary_sensor(binary_sensor::BinarySensor *sensor) { ch_2_active_binary_sensor_ = sensor; }
-  void set_dhw_active_binary_sensor(binary_sensor::BinarySensor *sensor) { dhw_active_binary_sensor_ = sensor; }
-  void set_cooling_active_binary_sensor(binary_sensor::BinarySensor *sensor) { cooling_active_binary_sensor_ = sensor; }
-  void set_flame_active_binary_sensor(binary_sensor::BinarySensor *sensor) { flame_active_binary_sensor_ = sensor; }
-  void set_fault_binary_sensor(binary_sensor::BinarySensor *sensor) { fault_binary_sensor_ = sensor; }
-  void set_diagnostic_binary_sensor(binary_sensor::BinarySensor *sensor) { diagnostic_binary_sensor_ = sensor; }
-  void set_service_request_binary_sensor(binary_sensor::BinarySensor *sensor) {
-    service_request_binary_sensor_ = sensor;
-  }
-  void set_lockout_reset_binary_sensor(binary_sensor::BinarySensor *sensor) { lockout_reset_binary_sensor_ = sensor; }
-  void set_water_pressure_fault_binary_sensor(binary_sensor::BinarySensor *sensor) {
-    water_pressure_fault_binary_sensor_ = sensor;
-  }
-  void set_gas_flame_fault_binary_sensor(binary_sensor::BinarySensor *sensor) {
-    gas_flame_fault_binary_sensor_ = sensor;
-  }
-  void set_air_pressure_fault_binary_sensor(binary_sensor::BinarySensor *sensor) {
-    air_pressure_fault_binary_sensor_ = sensor;
-  }
-  void set_water_over_temperature_fault_binary_sensor(binary_sensor::BinarySensor *sensor) {
-    water_over_temperature_fault_binary_sensor_ = sensor;
-  }
-  void set_dhw_present_binary_sensor(binary_sensor::BinarySensor *sensor) { dhw_present_binary_sensor_ = sensor; }
-  void set_modulating_binary_sensor(binary_sensor::BinarySensor *sensor) { modulating_binary_sensor_ = sensor; }
-  void set_cooling_supported_binary_sensor(binary_sensor::BinarySensor *sensor) {
-    cooling_supported_binary_sensor_ = sensor;
-  }
-  void set_dhw_storage_tank_binary_sensor(binary_sensor::BinarySensor *sensor) {
-    dhw_storage_tank_binary_sensor_ = sensor;
-  }
-  void set_device_lowoff_pump_control_binary_sensor(binary_sensor::BinarySensor *sensor) {
-    device_lowoff_pump_control_binary_sensor_ = sensor;
-  }
-  void set_ch_2_present_binary_sensor(binary_sensor::BinarySensor *sensor) { ch_2_present_binary_sensor_ = sensor; }
-#endif
-#ifdef USE_SWITCH
-  void set_ch_enabled_switch(opentherm::CustomSwitch *custom_switch) { ch_enabled_switch_ = custom_switch; }
-  void set_ch_2_enabled_switch(opentherm::CustomSwitch *custom_switch) { ch_2_enabled_switch_ = custom_switch; }
-  void set_dhw_enabled_switch(opentherm::CustomSwitch *custom_switch) { dhw_enabled_switch_ = custom_switch; }
-  void set_cooling_enabled_switch(opentherm::CustomSwitch *custom_switch) { cooling_enabled_switch_ = custom_switch; }
-  void set_otc_active_switch(opentherm::CustomSwitch *custom_switch) { otc_active_switch_ = custom_switch; }
-#endif
-#ifdef USE_NUMBER
-  void set_ch_setpoint_temperature_number(opentherm::CustomNumber *number) { ch_setpoint_temperature_number_ = number; }
-  void set_ch_2_setpoint_temperature_number(opentherm::CustomNumber *number) {
-    ch_2_setpoint_temperature_number_ = number;
-  }
-  void set_dhw_setpoint_temperature_number(opentherm::CustomNumber *number) {
-    dhw_setpoint_temperature_number_ = number;
-  }
-#endif
+  void boiler_lo_reset();
+  void ch_water_filling();
 
  private:
   InternalGPIOPin *read_pin_;
@@ -223,7 +153,7 @@ class OpenThermComponent : public PollingComponent {
 
   void update_spread_();
 
-  void request_(OpenThermMessageType type, OpenThermMessageID id, unsigned int data);
+  void request_(OpenThermMessageType type, OpenThermMessageID id, uint32_t data);
   void set_boiler_status_();
 
   void enqueue_request_(uint32_t request);
@@ -244,8 +174,8 @@ class OpenThermComponent : public PollingComponent {
   void publish_binary_sensor_state_(binary_sensor::BinarySensor *sensor, bool state);
 #endif
 
-  uint32_t build_request_(OpenThermMessageType type, OpenThermMessageID id, unsigned int data);
-  uint32_t build_response_(OpenThermMessageType type, OpenThermMessageID id, unsigned int data);
+  uint32_t build_request_(OpenThermMessageType type, OpenThermMessageID id, uint32_t data);
+  uint32_t build_response_(OpenThermMessageType type, OpenThermMessageID id, uint32_t data);
   void process_();
   bool parity_(uint32_t frame);
   void set_active_state_();
@@ -276,13 +206,9 @@ class OpenThermComponent : public PollingComponent {
     const float f = (u88 & 0x8000) ? -(0x10000L - u88) / 256.0f : u88 / 256.0f;
     return f;
   }
-  unsigned int temperature_to_data_(float temperature) {
-    if (temperature < 0)
-      temperature = 0;
-    if (temperature > 100)
-      temperature = 100;
-    unsigned int data = (unsigned int) (temperature * 256);
-    return data;
+  uint32_t temperature_to_data_(float temperature) {
+    temperature = clamp(temperature, 0.0f, 100.0f);
+    return (uint32_t) (temperature * 256);
   }
 };
 

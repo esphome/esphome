@@ -5,7 +5,7 @@
 namespace esphome {
 namespace opentherm {
 
-void CustomNumber::setup() {
+void OpenThermNumber::setup() {
   float value{NAN};
   if (!this->restore_value_) {
     value = this->initial_value_;
@@ -19,7 +19,7 @@ void CustomNumber::setup() {
   this->publish_state(value);
 }
 
-void CustomNumber::control(float value) {
+void OpenThermNumber::control(float value) {
   this->publish_state(value);
 
   if (this->restore_value_) {
@@ -27,7 +27,7 @@ void CustomNumber::control(float value) {
   }
 };
 
-void CustomNumber::dump_custom_config(const char *prefix) {
+void OpenThermNumber::dump_custom_config(const char *prefix) {
   if (!std::isnan(this->initial_value_)) {
     ESP_LOGCONFIG(TAG, "%s  Initial value: '%f'", prefix, this->initial_value_);
   }

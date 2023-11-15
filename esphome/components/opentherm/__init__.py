@@ -8,8 +8,6 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@khenderick"]
-DEPENDENCIES = []
-AUTO_LOAD = []
 
 CONF_OPENTHERM_ID = "opentherm_id"
 

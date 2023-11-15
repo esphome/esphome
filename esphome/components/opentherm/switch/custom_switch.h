@@ -6,7 +6,14 @@
 namespace esphome {
 namespace opentherm {
 
-class CustomSwitch : public Component, public switch_::Switch {
+#define SUB_OPENTHERM_SWITCH(name) \
+ protected: \
+  opentherm::OpenThermSwitch *name##_switch_{nullptr}; \
+\
+ public: \
+  void set_##name##_switch(opentherm::OpenThermSwitch *switch_) { this->name##_switch_ = switch_; }
+
+class OpenThermSwitch : public Component, public switch_::Switch {
  protected:
   void write_state(bool state) override;
 };
