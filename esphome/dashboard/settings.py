@@ -29,15 +29,15 @@ class DashboardSettings:
         ] = {}
 
     def parse_args(self, args):
-        self.on_ha_addon = args.ha_addon
-        password = args.password or os.getenv("PASSWORD", "")
+        self.on_ha_addon: bool = args.ha_addon
+        password: str = args.password or os.getenv("PASSWORD", "")
         if not self.on_ha_addon:
-            self.username = args.username or os.getenv("USERNAME", "")
+            self.username: str = args.username or os.getenv("USERNAME", "")
             self.using_password = bool(password)
         if self.using_password:
             self.password_hash = password_hash(password)
-        self.config_dir = args.configuration
-        self.absolute_config_dir = Path(self.config_dir).resolve()
+        self.config_dir: str = args.configuration
+        self.absolute_config_dir: Path = Path(self.config_dir).resolve()
         CORE.config_path = os.path.join(self.config_dir, ".")
 
     @property
