@@ -25,10 +25,6 @@ void HDMICEC::dump_config() {
 }
 
 void HDMICEC::loop() {
-  if (this->recv_queue_.empty()) {
-    return;
-  }
-
   while(!this->recv_queue_.empty()) {
     auto frame = this->recv_queue_.front();
     this->recv_queue_.pop();
