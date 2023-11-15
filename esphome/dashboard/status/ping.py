@@ -4,8 +4,9 @@ import asyncio
 import os
 from typing import cast
 
-from ..core import DASHBOARD, list_dashboard_entries
+from ..core import DASHBOARD
 from ..entries import DashboardEntry
+from ..core import list_dashboard_entries
 from ..util import chunked
 
 
