@@ -7,22 +7,15 @@ from typing import cast
 from ..core import DASHBOARD
 from ..entries import DashboardEntry
 from ..core import list_dashboard_entries
-from ..util import chunked
+from ..util.itertools import chunked
+from ..util.subprocess import async_system_command_status
 
 
 async def _async_ping_host(host: str) -> bool:
     """Ping a host."""
-    ping_command = ["ping", "-n" if os.name == "nt" else "-c", "1"]
-    process = await asyncio.create_subprocess_exec(
-        *ping_command,
-        host,
-        stdin=asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-        close_fds=False,
+    return await async_system_command_status(
+        ["ping", "-n" if os.name == "nt" else "-c", "1", host]
     )
-    await process.wait()
-    return process.returncode == 0
 
 
 class PingStatus:
