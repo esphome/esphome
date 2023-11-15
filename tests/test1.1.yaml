@@ -85,7 +85,7 @@ light:
   - platform: fastled
     id: addr1
     chipset: WS2811
-    pin: GPIO23
+    data_pin: GPIO23
     num_leds: 60
     rgb_order: BRG
     max_refresh_rate: 20ms
