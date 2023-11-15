@@ -135,7 +135,7 @@ def validate_config(config):
             raise cv.Invalid(
                 "You need to remove the global wakeup_pin_mode and define it per pin"
             )
-        return config
+    return config
 
 
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
