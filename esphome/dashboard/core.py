@@ -23,6 +23,17 @@ def list_dashboard_entries() -> list[DashboardEntry]:
 class ESPHomeDashboard:
     """Class that represents the dashboard."""
 
+    __slots__ = (
+        "loop",
+        "ping_result",
+        "import_result",
+        "stop_event",
+        "ping_request",
+        "mqtt_ping_request",
+        "mdns_status",
+        "settings",
+    )
+
     def __init__(self) -> None:
         """Initialize the ESPHomeDashboard."""
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -37,7 +48,7 @@ class ESPHomeDashboard:
     async def async_setup(self) -> None:
         """Setup the dashboard."""
         self.loop = asyncio.get_running_loop()
-        self._ping_request = asyncio.Event()
+        self.ping_request = asyncio.Event()
 
     async def async_run(self) -> None:
         """Run the dashboard."""
