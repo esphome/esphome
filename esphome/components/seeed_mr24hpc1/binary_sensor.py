@@ -7,7 +7,7 @@ from esphome.const import (
 from . import CONF_MR24HPC1_ID, mr24hpc1Component
 
 AUTO_LOAD = ["mr24hpc1"]
-CONF_SOMEONEEXIST = 'someoneexist'
+CONF_SOMEONEEXIST = "someoneexist"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(mr24hpc1Component),
@@ -15,6 +15,7 @@ CONFIG_SCHEMA = {
         device_class=DEVICE_CLASS_OCCUPANCY, icon="mdi:motion-sensor"
     ),
 }
+
 
 async def to_code(config):
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])

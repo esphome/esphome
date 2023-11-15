@@ -9,7 +9,7 @@ from . import CONF_MR24HPC1_ID, mr24hpc1Component
 
 AUTO_LOAD = ["mr24hpc1"]
 
-CONF_CUSTOMPRESENCEOFDETECTION = 'custompresenceofdetection'
+CONF_CUSTOMPRESENCEOFDETECTION = "custompresenceofdetection"
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -22,9 +22,9 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+
 async def to_code(config):
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
     if custompresenceofdetection_config := config.get(CONF_CUSTOMPRESENCEOFDETECTION):
         sens = await sensor.new_sensor(custompresenceofdetection_config)
         cg.add(mr24hpc1_component.set_custom_presence_of_detection_sensor(sens))
-

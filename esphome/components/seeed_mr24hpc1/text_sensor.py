@@ -9,14 +9,14 @@ from esphome.const import (
 )
 from . import CONF_MR24HPC1_ID, mr24hpc1Component
 
-CONF_HEARTBEAT = 'heartbeat'
-CONF_PRODUCTMODEL = 'productmodel'
-CONF_PRODUCTID = 'productid'
-CONF_HARDWAREMODEL = 'hardwaremodel'
-CONF_FIRWAREVERSION = 'hardwareversion'
+CONF_HEARTBEAT = "heartbeat"
+CONF_PRODUCTMODEL = "productmodel"
+CONF_PRODUCTID = "productid"
+CONF_HARDWAREMODEL = "hardwaremodel"
+CONF_FIRWAREVERSION = "hardwareversion"
 
-CONF_KEEPAWAY = 'keepaway'
-CONF_MOTIONSTATUS = 'motionstatus'
+CONF_KEEPAWAY = "keepaway"
+CONF_MOTIONSTATUS = "motionstatus"
 
 
 AUTO_LOAD = ["mr24hpc1"]
@@ -47,6 +47,7 @@ CONFIG_SCHEMA = {
     ),
 }
 
+
 async def to_code(config):
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
     if heartbeat_config := config.get(CONF_HEARTBEAT):
@@ -70,5 +71,3 @@ async def to_code(config):
     if motionstatus_config := config.get(CONF_MOTIONSTATUS):
         sens = await text_sensor.new_text_sensor(motionstatus_config)
         cg.add(mr24hpc1_component.set_motion_status_text_sensor(sens))
-    
-    

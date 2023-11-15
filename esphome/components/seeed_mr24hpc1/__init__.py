@@ -14,7 +14,9 @@ MULTI_CONF = True
 
 mr24hpc1_ns = cg.esphome_ns.namespace("mr24hpc1")
 
-mr24hpc1Component = mr24hpc1_ns.class_("mr24hpc1Component", cg.PollingComponent, uart.UARTDevice)
+mr24hpc1Component = mr24hpc1_ns.class_(
+    "mr24hpc1Component", cg.PollingComponent, uart.UARTDevice
+)
 
 CONF_MR24HPC1_ID = "mr24hpc1_id"
 
@@ -45,10 +47,9 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
+
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(mr24hpc1Component),
     }
 )
-
-    
