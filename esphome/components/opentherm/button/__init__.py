@@ -22,8 +22,12 @@ TYPES = [
 
 DEPENDENCIES = ["opentherm"]
 
-OpenThermBoilerLOResetButton = opentherm.class_("OpenThermBoilerLOResetButton", button.Button)
-OpenThermCHWaterFillingButton = opentherm.class_("OpenThermCHWaterFillingButton", button.Button)
+OpenThermBoilerLOResetButton = opentherm.class_(
+    "OpenThermBoilerLOResetButton", button.Button
+)
+OpenThermCHWaterFillingButton = opentherm.class_(
+    "OpenThermCHWaterFillingButton", button.Button
+)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
