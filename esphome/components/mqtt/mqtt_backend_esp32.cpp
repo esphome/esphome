@@ -45,6 +45,11 @@ bool MQTTBackendESP32::initialize_() {
     mqtt_cfg_.cert_pem = ca_certificate_.value().c_str();
     mqtt_cfg_.skip_cert_common_name_check = skip_cert_cn_check_;
     mqtt_cfg_.transport = MQTT_TRANSPORT_OVER_SSL;
+
+    if (cl_certificate_.has_value() && cl_key_.has_value()) {
+      mqtt_cfg_.client_cert_pem = cl_certificate_.value().c_str();
+      mqtt_cfg_.client_key_pem = cl_key_.value().c_str();
+    }
   } else {
     mqtt_cfg_.transport = MQTT_TRANSPORT_OVER_TCP;
   }
@@ -79,6 +84,11 @@ bool MQTTBackendESP32::initialize_() {
     mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
     mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
     mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+
+    if (cl_certificate_.has_value() && cl_key_.has_value()) {
+      mqtt_cfg_.credentials.authentication.certificate = cl_certificate_.value().c_str();
+      mqtt_cfg_.credentials.authentication.key = cl_key_.value().c_str();
+    }
   } else {
     mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
   }

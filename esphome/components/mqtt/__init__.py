@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_BIRTH_MESSAGE,
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
+    CONF_CERTIFICATE,
     CONF_CLIENT_ID,
     CONF_COMMAND_TOPIC,
     CONF_COMMAND_RETAIN,
@@ -20,6 +21,7 @@ from esphome.const import (
     CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_ID,
     CONF_KEEPALIVE,
+    CONF_KEY,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
     CONF_ON_JSON_MESSAGE,
@@ -199,6 +201,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
                 cv.string, cv.only_with_esp_idf
             ),
+            cv.Optional(CONF_CERTIFICATE): cv.All(cv.string, cv.only_with_esp_idf),
+            cv.Optional(CONF_KEY): cv.All(cv.string, cv.only_with_esp_idf),
             cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
             ),
@@ -378,6 +382,9 @@ async def to_code(config):
     if CONF_CERTIFICATE_AUTHORITY in config:
         cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
         cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+        if CONF_CERTIFICATE in config and CONF_KEY in config:
+            cg.add(var.set_cl_certificate(config[CONF_CERTIFICATE]))
+            cg.add(var.set_cl_key(config[CONF_KEY]))
 
         # prevent error -0x428e
         # See https://github.com/espressif/esp-idf/issues/139
