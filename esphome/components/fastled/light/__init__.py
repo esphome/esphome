@@ -107,7 +107,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RGB_ORDER): cv.one_of(*RGB_ORDERS, upper=True),
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
             cv.Optional(CONF_DATA_PIN): pins.internal_gpio_output_pin_number,
-            cv.Optional(CONF_PIN): cv.Invalid("This pin is renamed to 'data_pin'"),
+            cv.Optional(CONF_PIN): cv.invalid("This pin is renamed to 'data_pin'"),
             cv.Optional(CONF_CLOCK_PIN, default=-1): validate_gpio_output_pin_number,
             cv.Optional(CONF_DATA_RATE): cv.frequency,
         }
