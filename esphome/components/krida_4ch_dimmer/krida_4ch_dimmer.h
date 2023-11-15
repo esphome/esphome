@@ -14,8 +14,10 @@ namespace krida_dimmer {
   class Krida4chDimmer : public Component, public i2c::I2CDevice, public output::FloatOutput {
   protected:
     enum ErrorCode { NONE = 0, COMMUNICATION_FAILED } error_code_{NONE};
+    uint16_t channel_address_;
   public:
-    Krida4chDimmer() {}
+    Krida4chDimmer() : channel_address_(0x80) {}
+    void set_channel(uint16_t register_address) { channel_address_ = register_address; }
     float get_setup_priority() const override { return esphome::setup_priority::BUS; } //Access I2C bus
 
     void setup() override {
@@ -37,7 +39,7 @@ namespace krida_dimmer {
     }
 
     void write_state(float state) {
-      const uint8_t value = trunc(state * 100);
+      const uint8_t value = trunc(100 - (state * 100));
       ESP_LOGI(TAG, "Updating dimmer value %i", value);
       this->write_register(REGISTER_ADDRESS, &value, 1);
     }
