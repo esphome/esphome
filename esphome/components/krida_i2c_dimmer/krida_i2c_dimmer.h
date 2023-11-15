@@ -2,6 +2,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/output/float_output.h"
+#include "esphome/core/log.h"
+
 
 namespace esphome {
 namespace krida_i2c_dimmer {
