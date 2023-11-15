@@ -1068,6 +1068,7 @@ async def _async_ping_host(host: str) -> bool:
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
+        close_fds=False,  # Required for posix_spawn
     )
     await process.wait()
     return process.returncode == 0
