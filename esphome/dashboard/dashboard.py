@@ -180,7 +180,6 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                close_fds=False,
             )
             stdout_thread = threading.Thread(target=self._stdout_thread)
             stdout_thread.daemon = True
@@ -191,7 +190,6 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
                 stdout=tornado.process.Subprocess.STREAM,
                 stderr=subprocess.STDOUT,
                 stdin=tornado.process.Subprocess.STREAM,
-                close_fds=False,
             )
             self._proc.set_exit_callback(self._proc_on_exit)
 
