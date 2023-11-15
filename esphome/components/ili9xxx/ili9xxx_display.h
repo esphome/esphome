@@ -4,6 +4,9 @@
 #include "ili9xxx_defines.h"
 #include "ili9xxx_init.h"
 
+#ifdef USE_POWER_SUPPLY
+#include "esphome/components/power_supply/power_supply.h"
+#endif
 namespace esphome {
 namespace ili9xxx {
 
@@ -27,11 +30,18 @@ class ILI9XXXDisplay : public PollingComponent,
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
+#ifdef USE_POWER_SUPPLY
+  void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
+#endif
   void set_palette(const uint8_t *palette) { this->palette_ = palette; }
   void set_buffer_color_mode(ILI9XXXColorMode color_mode) { this->buffer_color_mode_ = color_mode; }
-  void set_dimentions(int16_t width, int16_t height) {
+  void set_dimensions(int16_t width, int16_t height) {
     this->height_ = height;
     this->width_ = width;
+  }
+  void set_offsets(int16_t offset_x, int16_t offset_y) {
+    this->offset_x_ = offset_x;
+    this->offset_y_ = offset_y;
   }
   void invert_display(bool invert);
   void command(uint8_t value);
@@ -62,6 +72,8 @@ class ILI9XXXDisplay : public PollingComponent,
 
   int16_t width_{0};   ///< Display width as modified by current rotation
   int16_t height_{0};  ///< Display height as modified by current rotation
+  int16_t offset_x_{0};
+  int16_t offset_y_{0};
   uint16_t x_low_{0};
   uint16_t y_low_{0};
   uint16_t x_high_{0};
@@ -82,6 +94,9 @@ class ILI9XXXDisplay : public PollingComponent,
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *dc_pin_{nullptr};
   GPIOPin *busy_pin_{nullptr};
+#ifdef USE_POWER_SUPPLY
+  power_supply::PowerSupplyRequester power_;
+#endif
 
   bool prossing_update_ = false;
   bool need_update_ = false;
@@ -104,6 +119,12 @@ class ILI9XXXM5CORE : public ILI9XXXDisplay {
 
 //-----------   ILI9XXX_24_TFT display --------------
 class ILI9XXXILI9341 : public ILI9XXXDisplay {
+ protected:
+  void initialize() override;
+};
+
+//-----------   ST7789V display --------------
+class ILI9XXXST7789V : public ILI9XXXDisplay {
  protected:
   void initialize() override;
 };

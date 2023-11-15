@@ -18,6 +18,12 @@ static inline void put16_be(uint8_t *buf, uint16_t value) {
 }
 
 void ILI9XXXDisplay::setup() {
+  ESP_LOGD(TAG, "Setting up ILI9xxx");
+#ifdef USE_POWER_SUPPLY
+  this->power_.request();
+  // the PowerSupply component takes care of post turn-on delay
+#endif
+
   this->setup_pins_();
   this->initialize();
   this->command(this->pre_invertdisplay_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
@@ -60,6 +66,8 @@ void ILI9XXXDisplay::setup_pins_() {
 
 void ILI9XXXDisplay::dump_config() {
   LOG_DISPLAY("", "ili9xxx", this);
+  ESP_LOGCONFIG(TAG, "  Width Offset: %u", this->offset_x_);
+  ESP_LOGCONFIG(TAG, "  Height Offset: %u", this->offset_y_);
   switch (this->buffer_color_mode_) {
     case BITS_8_INDEXED:
       ESP_LOGCONFIG(TAG, "  Color mode: 8bit Indexed");
@@ -77,8 +85,12 @@ void ILI9XXXDisplay::dump_config() {
   ESP_LOGCONFIG(TAG, "  Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
+#ifdef USE_POWER_SUPPLY
+  ESP_LOGCONFIG(TAG, "  Power Supply Configured: yes");
+#endif
 
   if (this->is_failed()) {
     ESP_LOGCONFIG(TAG, "  => Failed to init Memory: YES!");
@@ -336,14 +348,14 @@ void ILI9XXXDisplay::init_lcd_(const uint8_t *init_cmd) {
 void ILI9XXXDisplay::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
   uint8_t buf[4];
   this->command(ILI9XXX_CASET);  // Column address set
-  put16_be(buf, x1);
-  put16_be(buf + 2, x2);
+  put16_be(buf, x1 + this->offset_x_);
+  put16_be(buf + 2, x2 + this->offset_x_);
   this->start_data_();
   this->write_array(buf, sizeof buf);
   this->end_data_();
   this->command(ILI9XXX_PASET);  // Row address set
-  put16_be(buf, y1);
-  put16_be(buf + 2, y2);
+  put16_be(buf, y1 + this->offset_y_);
+  put16_be(buf + 2, y2 + this->offset_y_);
   this->start_data_();
   this->write_array(buf, sizeof buf);
   this->end_data_();
@@ -381,6 +393,13 @@ void ILI9XXXM5CORE::initialize() {
   this->pre_invertdisplay_ = true;
 }
 
+void ILI9XXXST7789V::initialize() {
+  this->init_lcd_(INITCMD_ST7789V);
+  if (this->width_ == 0)
+    this->width_ = 240;
+  if (this->height_ == 0)
+    this->height_ = 320;
+}
 //   24_TFT display
 void ILI9XXXILI9341::initialize() {
   this->init_lcd_(INITCMD_ILI9341);

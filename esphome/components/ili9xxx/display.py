@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, pins
-from esphome.components import display, spi, font
+from esphome.components import display, spi, font, power_supply
 from esphome.core import CORE, HexInt
 from esphome.const import (
     CONF_COLOR_PALETTE,
@@ -13,6 +13,9 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_PIN,
     CONF_DIMENSIONS,
+    CONF_WIDTH,
+    CONF_HEIGHT,
+    CONF_POWER_SUPPLY,
 )
 
 DEPENDENCIES = ["spi"]
@@ -46,6 +49,7 @@ MODELS = {
     "ILI9488": ili9XXX_ns.class_("ILI9XXXILI9488", ili9XXXSPI),
     "ILI9488_A": ili9XXX_ns.class_("ILI9XXXILI9488A", ili9XXXSPI),
     "ST7796": ili9XXX_ns.class_("ILI9XXXST7796", ili9XXXSPI),
+    "ST7789V": ili9XXX_ns.class_("ILI9XXXST7789V", ili9XXXSPI),
     "S3BOX": ili9XXX_ns.class_("ILI9XXXS3Box", ili9XXXSPI),
     "S3BOX_LITE": ili9XXX_ns.class_("ILI9XXXS3BoxLite", ili9XXXSPI),
 }
@@ -65,9 +69,23 @@ CONF_MIRROR_Y = "mirror_y"
 CONF_SWAP_XY = "swap_xy"
 CONF_PANEL_SETUP = "panel_setup"
 CONF_COLOR_ORDER = "color_order"
+CONF_OFFSET_HEIGHT = "offset_height"
+CONF_OFFSET_WIDTH = "offset_width"
 
 
 def _validate(config):
+    has_width = CONF_WIDTH in config
+    if has_width != (CONF_HEIGHT in config):
+        raise cv.Invalid("Must specify both height and width")
+    if CONF_DIMENSIONS in config:
+        if has_width:
+            raise cv.Invalid("Specify height and width or dimensions but not both")
+    elif has_width:
+        config[CONF_DIMENSIONS] = (
+            config[CONF_WIDTH],
+            config[CONF_HEIGHT],
+        )
+
     if config.get(CONF_COLOR_PALETTE) == "IMAGE_ADAPTIVE" and not config.get(
         CONF_COLOR_PALETTE_IMAGES
     ):
@@ -87,6 +105,7 @@ def _validate(config):
         "TFT_2.4R",
         "ILI9341",
         "ILI9342",
+        "ST7789V",
     ]:
         raise cv.Invalid(
             "Provided model can't run on ESP8266. Use an ESP32 with PSRAM onboard"
@@ -111,6 +130,8 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ili9XXXSPI),
             cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
             cv.Optional(CONF_DIMENSIONS): cv.dimensions,
+            cv.Optional(CONF_WIDTH): cv.int_,
+            cv.Optional(CONF_HEIGHT): cv.int_,
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_LED_PIN): cv.invalid(
@@ -123,6 +144,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_PANEL_SETUP): PANEL_SCHEMA,
             cv.Optional(CONF_INVERT_DISPLAY): cv.boolean,
+            cv.Optional(CONF_OFFSET_HEIGHT, default=0): cv.int_,
+            cv.Optional(CONF_OFFSET_WIDTH, default=0): cv.int_,
+            cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -161,10 +185,15 @@ async def to_code(config):
         reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
 
+    if CONF_POWER_SUPPLY in config:
+        ps = await cg.get_variable(config[CONF_POWER_SUPPLY])
+        cg.add(var.set_power_supply(ps))
+
     if CONF_DIMENSIONS in config:
         cg.add(
-            var.set_dimentions(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1])
+            var.set_dimensions(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1])
         )
+    cg.add(var.set_offsets(config[CONF_OFFSET_WIDTH], config[CONF_OFFSET_HEIGHT]))
 
     rhs = None
     if config[CONF_COLOR_PALETTE] == "GRAYSCALE":
