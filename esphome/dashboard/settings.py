@@ -10,7 +10,7 @@ from esphome.helpers import get_bool_env
 from esphome.storage_json import ext_storage_path
 
 from .entries import DashboardEntry
-from .util import password_hash
+from .util.password import password_hash
 
 
 class DashboardSettings:

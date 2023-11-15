@@ -31,13 +31,14 @@ import yaml
 from tornado.log import access_log
 
 from esphome import const, platformio_api, yaml_util
-from esphome.helpers import get_bool_env, mkdir_p, run_system_command
+from esphome.helpers import get_bool_env, mkdir_p
 from esphome.storage_json import StorageJSON, ext_storage_path, trash_storage_path
 from esphome.util import get_serial_ports, shlex_quote
 
 from .core import DASHBOARD, list_dashboard_entries
 from .entries import DashboardEntry
-from .util import friendly_name_slugify
+from .util.text import friendly_name_slugify
+from .util.subprocess import async_run_system_command
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -522,7 +523,7 @@ class DownloadListRequestHandler(BaseHandler):
 class DownloadBinaryRequestHandler(BaseHandler):
     @authenticated
     @bind_config
-    def get(self, configuration=None):
+    async def get(self, configuration=None):
         compressed = self.get_argument("compressed", "0") == "1"
 
         storage_path = ext_storage_path(configuration)
@@ -548,7 +549,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
         if not Path(path).is_file():
             args = ["esphome", "idedata", settings.rel_path(configuration)]
-            rc, stdout, _ = run_system_command(*args)
+            rc, stdout, _ = await async_run_system_command(*args)
 
             if rc != 0:
                 self.send_error(404 if rc == 2 else 500)
@@ -902,7 +903,7 @@ SafeLoaderIgnoreUnknown.add_constructor(
 class JsonConfigRequestHandler(BaseHandler):
     @authenticated
     @bind_config
-    def get(self, configuration=None):
+    async def get(self, configuration=None):
         filename = settings.rel_path(configuration)
         if not os.path.isfile(filename):
             self.send_error(404)
@@ -910,7 +911,7 @@ class JsonConfigRequestHandler(BaseHandler):
 
         args = ["esphome", "config", filename, "--show-secrets"]
 
-        rc, stdout, _ = run_system_command(*args)
+        rc, stdout, _ = await async_run_system_command(*args)
 
         if rc != 0:
             self.send_error(422)
