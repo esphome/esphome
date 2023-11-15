@@ -355,6 +355,10 @@ dfrobot_sen0395:
   - id: mmwave
     uart_id: dfrobot_mmwave_uart
 
+opentherm:
+  read_pin: 21
+  write_pin: 22
+
 sensor:
   - platform: xgzp68xx
     i2c_id: i2c_bus
@@ -1553,6 +1557,55 @@ sensor:
       memory_location: 0x20
       memory_address: 0x7d
       name: Adres sensor
+  - platform: opentherm
+    ch_min_temperature:
+      name: "CH minimum temperature"
+    ch_max_temperature:
+      name: "CH maximum temperature"
+    dhw_min_temperature:
+      name: "DHW minimum temperature"
+    dhw_max_temperature:
+      name: "DHW maximum temperature"
+    dhw_flow_rate:
+      name: "DHW flow rate"
+    pressure:
+      name: "pressure"
+    modulation:
+      name: "modulation"
+    dhw_temperature:
+      name: "DHW temperature"
+    dhw_2_temperature:
+      name: "DHW 2 temperature"
+    boiler_temperature:
+      name: "boiler temperature"
+    boiler_2_temperature:
+      name: "boiler 2 temperature"
+    return_temperature:
+      name: "return temperature"
+    outside_temperature:
+      name: "outside temperature"
+    exhaust_temperature:
+      name: "exhaust temperature"
+    oem_error_code:
+      name: "OEM error code"
+    oem_diagnostic_code:
+      name: "OEM diagnostic code"
+    burner_starts:
+      name: "burner starts"
+    burner_ops_hours:
+      name: "burner operation hours"
+    ch_pump_starts:
+      name: "CH pump starts"
+    ch_pump_ops_hours:
+      name: "CH pump operation hours"
+    dhw_pump_valve_starts:
+      name: "DHW pump/valve starts"
+    dhw_pump_valve_ops_hours:
+      name: "DHW pump/valve operation hours"
+    dhw_burner_starts:
+      name: "DHW burner starts"
+    dhw_burner_ops_hours:
+      name: "DHW burner operation hours"
 
 esp32_touch:
   setup_mode: false
@@ -1871,6 +1924,43 @@ binary_sensor:
   - platform: dfrobot_sen0395
     id: mmwave_detected_uart
     dfrobot_sen0395_id: mmwave
+  - platform: opentherm
+    ch_active:
+      name: "CH active"
+    ch_2_active:
+      name: "CH 2 active"
+    dhw_active:
+      name: "DHW active"
+    flame_active:
+      name: "flame active"
+    fault:
+      name: "fault"
+    diagnostic:
+      name: "diagnostic"
+    service_request:
+      name: "service request"
+    lockout_reset:
+      name: "lockout reset"
+    water_pressure_fault:
+      name: "water pressure fault"
+    gas_flame_fault:
+      name: "gas/flame fault"
+    air_pressure_fault:
+      name: "air pressure fault"
+    water_over_temperature_fault:
+      name: "water over temperature fault"
+    dhw_present:
+      name: "DHW present (= true, not present = false)"
+    modulating:
+      name: "boiler uses modulating (= true, on/off = false)"
+    cooling_supported:
+      name: "cooling supported (= true, unsupported = false)"
+    dhw_storage_tank:
+      name: "DHW storage tank (= true, instantaneous/unsupported = false)"
+    device_lowoff_pump_control:
+      name: "device low-off/pump control allowed (= true, not allowed = false)"
+    ch_2_present:
+      name: "CH 2 present (= true, not present = false)"
 
 pca9685:
   frequency: 500
@@ -2757,6 +2847,15 @@ switch:
   - platform: micronova
     stove:
       name: Stove on/off
+  - platform: opentherm
+    ch_enabled:
+      name: "CH enabled"
+    ch_2_enabled:
+      name: "CH 2 enabled"
+    dhw_enabled:
+      name: "DHW enabled"
+    otc_active:
+      name: "OTC active"
 
 fan:
   - platform: binary
@@ -3555,6 +3654,25 @@ number:
       step: 1
     power_level:
       name: Micronova Power level
+  - platform: opentherm
+    ch_setpoint_temperature:
+      name: "CH setpoint temperature"
+      min_value: 20.0
+      max_value: 45.0
+      step: 0.5
+      restore_value: true
+    ch_2_setpoint_temperature:
+      name: "CH 2 setpoint temperature"
+      min_value: 20.0
+      max_value: 45.0
+      step: 0.5
+      restore_value: true
+    dhw_setpoint_temperature:
+      name: "DHW setpoint temperature"
+      min_value: 38.0
+      max_value: 60.0
+      step: 0.5
+      restore_value: true
 
 select:
   - platform: template
@@ -3691,6 +3809,11 @@ button:
       memory_location: 0xA0
       memory_address: 0x7D
       memory_data: 0x0F
+  - platform: opentherm
+    boiler_lo_reset:
+      name: "Boiler lock-out reset"
+    ch_water_filling:
+      name: "CH water filling"
 
 ld2410:
   id: my_ld2410
