@@ -39,7 +39,7 @@ void UponorSmatrixComponent::loop() {
   const uint32_t now = millis();
 
   // Discard stale data
-  if (this->rx_buffer_.size() > 0 && (now - this->last_rx_ > 50)) {
+  if (!this->rx_buffer_.empty() && (now - this->last_rx_ > 50)) {
     ESP_LOGD(TAG, "Discarding %d bytes of unparsed data", this->rx_buffer_.size());
     this->rx_buffer_.clear();
   }
