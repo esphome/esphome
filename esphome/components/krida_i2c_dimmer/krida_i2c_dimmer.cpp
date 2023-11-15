@@ -1,4 +1,5 @@
 #include "krida_i2c_dimmer.h"
+#include "esphome/core/log.h"
 
 const char* TAG = "krida_i2c_dimmer_c";
 

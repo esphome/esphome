@@ -2,7 +2,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/output/float_output.h"
-#include "esphome/core/log.h"
 
 
 namespace esphome {
@@ -15,10 +14,10 @@ namespace krida_i2c_dimmer {
     KridaI2CDimmer() : channel_address_(0x80) {}
     void set_channel(uint16_t register_address) { channel_address_ = register_address; }
     float get_setup_priority() const override { return esphome::setup_priority::BUS; } //Access I2C bus
-    void setup() override; 
-    void dump_config(); 
+    void setup() override;
+    void dump_config();
 
-    void write_state(float state); 
+    void write_state(float state);
   };
 }
 }
