@@ -126,7 +126,8 @@ def validate_config(config):
         if get_esp32_variant() == VARIANT_ESP32C3 and CONF_TOUCH_WAKEUP in config:
             raise cv.Invalid("ESP32-C3 does not support wakeup from ext1")
         if (
-            isinstance(config[CONF_WAKEUP_PIN], list)
+            CONF_WAKEUP_PIN in config
+            and isinstance(config[CONF_WAKEUP_PIN], list)
             and len(config[CONF_WAKEUP_PIN]) > 1
             and get_esp32_variant() != VARIANT_ESP32C3
         ):
