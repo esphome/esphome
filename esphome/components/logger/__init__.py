@@ -17,6 +17,8 @@ from esphome.const import (
     CONF_TAG,
     CONF_TRIGGER_ID,
     CONF_TX_BUFFER_SIZE,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -30,6 +32,12 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S3,
     VARIANT_ESP32C2,
     VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+)
+from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
+from esphome.components.libretiny.const import (
+    COMPONENT_BK72XX,
+    COMPONENT_RTL87XX,
 )
 
 CODEOWNERS = ["@esphome/core"]
@@ -70,6 +78,7 @@ UART2 = "UART2"
 UART0_SWAP = "UART0_SWAP"
 USB_SERIAL_JTAG = "USB_SERIAL_JTAG"
 USB_CDC = "USB_CDC"
+DEFAULT = "DEFAULT"
 
 UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
@@ -78,9 +87,15 @@ UART_SELECTION_ESP32 = {
     VARIANT_ESP32C3: [UART0, UART1, USB_SERIAL_JTAG],
     VARIANT_ESP32C2: [UART0, UART1],
     VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
+
+UART_SELECTION_LIBRETINY = {
+    COMPONENT_BK72XX: [DEFAULT, UART1, UART2],
+    COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
+}
 
 ESP_IDF_UARTS = [USB_CDC, USB_SERIAL_JTAG]
 
@@ -93,6 +108,7 @@ HARDWARE_UART_TO_UART_SELECTION = {
     UART2: logger_ns.UART_SELECTION_UART2,
     USB_CDC: logger_ns.UART_SELECTION_USB_CDC,
     USB_SERIAL_JTAG: logger_ns.UART_SELECTION_USB_SERIAL_JTAG,
+    DEFAULT: logger_ns.UART_SELECTION_DEFAULT,
 }
 
 HARDWARE_UART_TO_SERIAL = {
@@ -100,6 +116,7 @@ HARDWARE_UART_TO_SERIAL = {
     UART0_SWAP: cg.global_ns.Serial,
     UART1: cg.global_ns.Serial1,
     UART2: cg.global_ns.Serial2,
+    DEFAULT: cg.global_ns.Serial,
 }
 
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
@@ -116,6 +133,13 @@ def uart_selection(value):
         return cv.one_of(*UART_SELECTION_ESP8266, upper=True)(value)
     if CORE.is_rp2040:
         return cv.one_of(*UART_SELECTION_RP2040, upper=True)(value)
+    if CORE.is_libretiny:
+        family = get_libretiny_family()
+        if family in UART_SELECTION_LIBRETINY:
+            return cv.one_of(*UART_SELECTION_LIBRETINY[family], upper=True)(value)
+        component = get_libretiny_component()
+        if component in UART_SELECTION_LIBRETINY:
+            return cv.one_of(*UART_SELECTION_LIBRETINY[component], upper=True)(value)
     raise NotImplementedError
 
 
@@ -148,8 +172,18 @@ CONFIG_SCHEMA = cv.All(
                 esp8266=UART0,
                 esp32=UART0,
                 rp2040=USB_CDC,
+                bk72xx=DEFAULT,
+                rtl87xx=DEFAULT,
             ): cv.All(
-                cv.only_on([PLATFORM_ESP8266, PLATFORM_ESP32, PLATFORM_RP2040]),
+                cv.only_on(
+                    [
+                        PLATFORM_ESP8266,
+                        PLATFORM_ESP32,
+                        PLATFORM_RP2040,
+                        PLATFORM_BK72XX,
+                        PLATFORM_RTL87XX,
+                    ]
+                ),
                 uart_selection,
             ),
             cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,

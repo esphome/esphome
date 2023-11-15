@@ -1,8 +1,13 @@
 """Tests for the wizard.py file."""
+import os
 
 import esphome.wizard as wz
 import pytest
+from esphome.core import CORE
 from esphome.components.esp8266.boards import ESP8266_BOARD_PINS
+from esphome.components.esp32.boards import ESP32_BOARD_PINS
+from esphome.components.bk72xx.boards import BK72XX_BOARD_PINS
+from esphome.components.rtl87xx.boards import RTL87XX_BOARD_PINS
 from unittest.mock import MagicMock
 
 
@@ -107,6 +112,7 @@ def test_wizard_write_sets_platform(default_config, tmp_path, monkeypatch):
     # Given
     del default_config["platform"]
     monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
 
     # When
     wz.wizard_write(tmp_path, **default_config)
@@ -127,6 +133,7 @@ def test_wizard_write_defaults_platform_from_board_esp8266(
     default_config["board"] = [*ESP8266_BOARD_PINS][0]
 
     monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
 
     # When
     wz.wizard_write(tmp_path, **default_config)
@@ -140,13 +147,14 @@ def test_wizard_write_defaults_platform_from_board_esp32(
     default_config, tmp_path, monkeypatch
 ):
     """
-    If the platform is not explicitly set, use "ESP32" if the board is not one of the ESP8266 boards
+    If the platform is not explicitly set, use "ESP32" if the board is one of the ESP32 boards
     """
     # Given
     del default_config["platform"]
-    default_config["board"] = "foo"
+    default_config["board"] = [*ESP32_BOARD_PINS][0]
 
     monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
 
     # When
     wz.wizard_write(tmp_path, **default_config)
@@ -154,6 +162,48 @@ def test_wizard_write_defaults_platform_from_board_esp32(
     # Then
     generated_config = wz.write_file.call_args.args[1]
     assert "esp32:" in generated_config
+
+
+def test_wizard_write_defaults_platform_from_board_bk72xx(
+    default_config, tmp_path, monkeypatch
+):
+    """
+    If the platform is not explicitly set, use "BK72XX" if the board is one of BK72XX boards
+    """
+    # Given
+    del default_config["platform"]
+    default_config["board"] = [*BK72XX_BOARD_PINS][0]
+
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
+
+    # When
+    wz.wizard_write(tmp_path, **default_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert "bk72xx:" in generated_config
+
+
+def test_wizard_write_defaults_platform_from_board_rtl87xx(
+    default_config, tmp_path, monkeypatch
+):
+    """
+    If the platform is not explicitly set, use "RTL87XX" if the board is one of RTL87XX boards
+    """
+    # Given
+    del default_config["platform"]
+    default_config["board"] = [*RTL87XX_BOARD_PINS][0]
+
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
+
+    # When
+    wz.wizard_write(tmp_path, **default_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert "rtl87xx:" in generated_config
 
 
 def test_safe_print_step_prints_step_number_and_description(monkeypatch):
@@ -186,7 +236,7 @@ def test_default_input_uses_default_if_no_input_supplied(monkeypatch):
     """
 
     # Given
-    monkeypatch.setattr("builtins.input", lambda _: "")
+    monkeypatch.setattr("builtins.input", lambda _=None: "")
     default_string = "foobar"
 
     # When
@@ -203,7 +253,7 @@ def test_default_input_uses_user_supplied_value(monkeypatch):
 
     # Given
     user_input = "A value"
-    monkeypatch.setattr("builtins.input", lambda _: user_input)
+    monkeypatch.setattr("builtins.input", lambda _=None: user_input)
     default_string = "foobar"
 
     # When
@@ -269,7 +319,7 @@ def test_wizard_accepts_default_answers_esp8266(tmpdir, monkeypatch, wizard_answ
     config_file = tmpdir.join("test.yaml")
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
-    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
     monkeypatch.setattr(wz, "sleep", lambda _: 0)
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
@@ -291,7 +341,7 @@ def test_wizard_accepts_default_answers_esp32(tmpdir, monkeypatch, wizard_answer
     config_file = tmpdir.join("test.yaml")
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
-    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
     monkeypatch.setattr(wz, "sleep", lambda _: 0)
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
@@ -321,7 +371,7 @@ def test_wizard_offers_better_node_name(tmpdir, monkeypatch, wizard_answers):
     config_file = tmpdir.join("test.yaml")
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
-    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
     monkeypatch.setattr(wz, "sleep", lambda _: 0)
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
@@ -344,7 +394,7 @@ def test_wizard_requires_correct_platform(tmpdir, monkeypatch, wizard_answers):
     config_file = tmpdir.join("test.yaml")
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
-    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
     monkeypatch.setattr(wz, "sleep", lambda _: 0)
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
@@ -366,7 +416,7 @@ def test_wizard_requires_correct_board(tmpdir, monkeypatch, wizard_answers):
     config_file = tmpdir.join("test.yaml")
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
-    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
     monkeypatch.setattr(wz, "sleep", lambda _: 0)
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
@@ -388,7 +438,7 @@ def test_wizard_requires_valid_ssid(tmpdir, monkeypatch, wizard_answers):
     config_file = tmpdir.join("test.yaml")
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
-    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
     monkeypatch.setattr(wz, "sleep", lambda _: 0)
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 

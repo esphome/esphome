@@ -1,6 +1,7 @@
 #include "api_connection.h"
 #include <cerrno>
 #include <cinttypes>
+#include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
@@ -31,9 +32,9 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
   this->proto_write_buffer_.reserve(64);
 
 #if defined(USE_API_PLAINTEXT)
-  helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
+  this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
 #elif defined(USE_API_NOISE)
-  helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
+  this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
 #else
 #error "No frame helper defined"
 #endif
@@ -41,20 +42,27 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
 void APIConnection::start() {
   this->last_traffic_ = millis();
 
-  APIError err = helper_->init();
+  APIError err = this->helper_->init();
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Helper init failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+    ESP_LOGW(TAG, "%s: Helper init failed: %s errno=%d", this->client_combined_info_.c_str(), api_error_to_str(err),
+             errno);
     return;
   }
-  client_info_ = helper_->getpeername();
-  helper_->set_log_info(client_info_);
+  this->client_info_ = helper_->getpeername();
+  this->client_peername_ = this->client_info_;
+  this->helper_->set_log_info(this->client_info_);
 }
 
 APIConnection::~APIConnection() {
 #ifdef USE_BLUETOOTH_PROXY
   if (bluetooth_proxy::global_bluetooth_proxy->get_api_connection() == this) {
     bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
+  }
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  if (voice_assistant::global_voice_assistant->get_api_connection() == this) {
+    voice_assistant::global_voice_assistant->client_subscription(this, false);
   }
 #endif
 }
@@ -67,7 +75,7 @@ void APIConnection::loop() {
     // when network is disconnected force disconnect immediately
     // don't wait for timeout
     this->on_fatal_error();
-    ESP_LOGW(TAG, "%s: Network unavailable, disconnecting", client_info_.c_str());
+    ESP_LOGW(TAG, "%s: Network unavailable, disconnecting", this->client_combined_info_.c_str());
     return;
   }
   if (this->next_close_) {
@@ -77,24 +85,26 @@ void APIConnection::loop() {
     return;
   }
 
-  APIError err = helper_->loop();
+  APIError err = this->helper_->loop();
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", this->client_combined_info_.c_str(),
+             api_error_to_str(err), errno);
     return;
   }
   ReadPacketBuffer buffer;
-  err = helper_->read_packet(&buffer);
+  err = this->helper_->read_packet(&buffer);
   if (err == APIError::WOULD_BLOCK) {
     // pass
   } else if (err != APIError::OK) {
     on_fatal_error();
     if (err == APIError::SOCKET_READ_FAILED && errno == ECONNRESET) {
-      ESP_LOGW(TAG, "%s: Connection reset", client_info_.c_str());
+      ESP_LOGW(TAG, "%s: Connection reset", this->client_combined_info_.c_str());
     } else if (err == APIError::CONNECTION_CLOSED) {
-      ESP_LOGW(TAG, "%s: Connection closed", client_info_.c_str());
+      ESP_LOGW(TAG, "%s: Connection closed", this->client_combined_info_.c_str());
     } else {
-      ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+      ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", this->client_combined_info_.c_str(), api_error_to_str(err),
+               errno);
     }
     return;
   } else {
@@ -114,7 +124,7 @@ void APIConnection::loop() {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > (keepalive * 5) / 2) {
       on_fatal_error();
-      ESP_LOGW(TAG, "%s didn't respond to ping request in time. Disconnecting...", this->client_info_.c_str());
+      ESP_LOGW(TAG, "%s didn't respond to ping request in time. Disconnecting...", this->client_combined_info_.c_str());
     }
   } else if (now - this->last_traffic_ > keepalive) {
     ESP_LOGVV(TAG, "Sending keepalive PING...");
@@ -168,7 +178,7 @@ DisconnectResponse APIConnection::disconnect(const DisconnectRequest &msg) {
   // remote initiated disconnect_client
   // don't close yet, we still need to send the disconnect response
   // close will happen on next loop
-  ESP_LOGD(TAG, "%s requested disconnected", client_info_.c_str());
+  ESP_LOGD(TAG, "%s requested disconnected", this->client_combined_info_.c_str());
   this->next_close_ = true;
   DisconnectResponse resp;
   return resp;
@@ -655,6 +665,44 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_TEXT
+bool APIConnection::send_text_state(text::Text *text, std::string state) {
+  if (!this->state_subscription_)
+    return false;
+
+  TextStateResponse resp{};
+  resp.key = text->get_object_id_hash();
+  resp.state = std::move(state);
+  resp.missing_state = !text->has_state();
+  return this->send_text_state_response(resp);
+}
+bool APIConnection::send_text_info(text::Text *text) {
+  ListEntitiesTextResponse msg;
+  msg.key = text->get_object_id_hash();
+  msg.object_id = text->get_object_id();
+  msg.name = text->get_name();
+  msg.icon = text->get_icon();
+  msg.disabled_by_default = text->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(text->get_entity_category());
+  msg.mode = static_cast<enums::TextMode>(text->traits.get_mode());
+
+  msg.min_length = text->traits.get_min_length();
+  msg.max_length = text->traits.get_max_length();
+  msg.pattern = text->traits.get_pattern();
+
+  return this->send_list_entities_text_response(msg);
+}
+void APIConnection::text_command(const TextCommandRequest &msg) {
+  text::Text *text = App.get_text_by_key(msg.key);
+  if (text == nullptr)
+    return;
+
+  auto call = text->make_call();
+  call.set_value(msg.state);
+  call.perform();
+}
+#endif
+
 #ifdef USE_SELECT
 bool APIConnection::send_select_state(select::Select *select, std::string state) {
   if (!this->state_subscription_)
@@ -907,25 +955,33 @@ BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
-bool APIConnection::request_voice_assistant(bool start, const std::string &conversation_id, bool use_vad) {
-  if (!this->voice_assistant_subscription_)
-    return false;
-  VoiceAssistantRequest msg;
-  msg.start = start;
-  msg.conversation_id = conversation_id;
-  msg.use_vad = use_vad;
-  return this->send_voice_assistant_request(msg);
+void APIConnection::subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe);
+  }
 }
 void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
   if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    if (msg.error) {
+      voice_assistant::global_voice_assistant->failed_to_start();
+      return;
+    }
     struct sockaddr_storage storage;
     socklen_t len = sizeof(storage);
     this->helper_->getpeername((struct sockaddr *) &storage, &len);
-    voice_assistant::global_voice_assistant->start(&storage, msg.port);
+    voice_assistant::global_voice_assistant->start_streaming(&storage, msg.port);
   }
 };
 void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) {
   if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
     voice_assistant::global_voice_assistant->on_event(msg);
   }
 }
@@ -1005,12 +1061,14 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
 }
 
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
-  this->client_info_ = msg.client_info + " (" + this->helper_->getpeername() + ")";
-  this->helper_->set_log_info(client_info_);
+  this->client_info_ = msg.client_info;
+  this->client_peername_ = this->helper_->getpeername();
+  this->client_combined_info_ = this->client_info_ + " (" + this->client_peername_ + ")";
+  this->helper_->set_log_info(this->client_combined_info_);
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
-  ESP_LOGV(TAG, "Hello from client: '%s' | API Version %" PRIu32 ".%" PRIu32, this->client_info_.c_str(),
-           this->client_api_version_major_, this->client_api_version_minor_);
+  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->client_info_.c_str(),
+           this->client_peername_.c_str(), this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
@@ -1028,9 +1086,9 @@ ConnectResponse APIConnection::connect(const ConnectRequest &msg) {
   // bool invalid_password = 1;
   resp.invalid_password = !correct;
   if (correct) {
-    ESP_LOGD(TAG, "%s: Connected successfully", this->client_info_.c_str());
+    ESP_LOGD(TAG, "%s: Connected successfully", this->client_combined_info_.c_str());
     this->connection_state_ = ConnectionState::AUTHENTICATED;
-
+    this->parent_->get_client_connected_trigger()->trigger(this->client_info_, this->client_peername_);
 #ifdef USE_HOMEASSISTANT_TIME
     if (homeassistant::global_homeassistant_time != nullptr) {
       this->send_time_request();
@@ -1044,6 +1102,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.uses_password = this->parent_->uses_password();
   resp.name = App.get_name();
   resp.friendly_name = App.get_friendly_name();
+  resp.suggested_area = App.get_area();
   resp.mac_address = get_mac_address_pretty();
   resp.esphome_version = ESPHOME_VERSION;
   resp.compilation_time = App.get_compilation_time();
@@ -1051,6 +1110,10 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.manufacturer = "Espressif";
 #elif defined(USE_RP2040)
   resp.manufacturer = "Raspberry Pi";
+#elif defined(USE_BK72XX)
+  resp.manufacturer = "Beken";
+#elif defined(USE_RTL87XX)
+  resp.manufacturer = "Realtek";
 #elif defined(USE_HOST)
   resp.manufacturer = "Host";
 #endif
@@ -1100,10 +1163,11 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
     return false;
   if (!this->helper_->can_write_without_blocking()) {
     delay(0);
-    APIError err = helper_->loop();
+    APIError err = this->helper_->loop();
     if (err != APIError::OK) {
       on_fatal_error();
-      ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+      ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", this->client_combined_info_.c_str(),
+               api_error_to_str(err), errno);
       return false;
     }
     if (!this->helper_->can_write_without_blocking()) {
@@ -1122,9 +1186,10 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
   if (err != APIError::OK) {
     on_fatal_error();
     if (err == APIError::SOCKET_WRITE_FAILED && errno == ECONNRESET) {
-      ESP_LOGW(TAG, "%s: Connection reset", client_info_.c_str());
+      ESP_LOGW(TAG, "%s: Connection reset", this->client_combined_info_.c_str());
     } else {
-      ESP_LOGW(TAG, "%s: Packet write failed %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+      ESP_LOGW(TAG, "%s: Packet write failed %s errno=%d", this->client_combined_info_.c_str(), api_error_to_str(err),
+               errno);
     }
     return false;
   }
@@ -1133,11 +1198,11 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
 }
 void APIConnection::on_unauthenticated_access() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s: tried to access without authentication.", this->client_info_.c_str());
+  ESP_LOGD(TAG, "%s: tried to access without authentication.", this->client_combined_info_.c_str());
 }
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s: tried to access without full connection.", this->client_info_.c_str());
+  ESP_LOGD(TAG, "%s: tried to access without full connection.", this->client_combined_info_.c_str());
 }
 void APIConnection::on_fatal_error() {
   this->helper_->close();

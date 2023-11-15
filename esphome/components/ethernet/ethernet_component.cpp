@@ -5,6 +5,7 @@
 
 #ifdef USE_ESP32
 
+#include <cinttypes>
 #include <lwip/dns.h>
 #include "esp_event.h"
 
@@ -118,10 +119,10 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "ETH event handler register error");
   err = esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &EthernetComponent::got_ip_event_handler, nullptr);
   ESPHL_ERROR_CHECK(err, "GOT IP event handler register error");
-#if LWIP_IPV6
+#if ENABLE_IPV6
   err = esp_event_handler_register(IP_EVENT, IP_EVENT_GOT_IP6, &EthernetComponent::got_ip6_event_handler, nullptr);
   ESPHL_ERROR_CHECK(err, "GOT IP6 event handler register error");
-#endif /* LWIP_IPV6 */
+#endif /* ENABLE_IPV6 */
 
   /* start Ethernet driver state machine */
   err = esp_eth_start(this->eth_handle_);
@@ -164,7 +165,7 @@ void EthernetComponent::loop() {
         this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
       }
-#if LWIP_IPV6
+#if ENABLE_IPV6
       else if (this->got_ipv6_) {
         esp_ip6_addr_t ip6_addr;
         if (esp_netif_get_ip6_global(this->eth_netif_, &ip6_addr) == 0 &&
@@ -177,7 +178,7 @@ void EthernetComponent::loop() {
 
         this->got_ipv6_ = false;
       }
-#endif /* LWIP_IPV6 */
+#endif /* ENABLE_IPV6 */
       break;
   }
 }
@@ -236,7 +237,7 @@ bool EthernetComponent::can_proceed() { return this->is_connected(); }
 network::IPAddress EthernetComponent::get_ip_address() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
-  return {ip.ip.addr};
+  return network::IPAddress(&ip.ip);
 }
 
 void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event, void *event_data) {
@@ -272,14 +273,14 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IP (num=%" PRId32 ")", event_id);
 }
 
-#if LWIP_IPV6
+#if ENABLE_IPV6
 void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
                                               void *event_data) {
-  ESP_LOGV(TAG, "[Ethernet event] ETH Got IP6 (num=%d)", event_id);
+  ESP_LOGV(TAG, "[Ethernet event] ETH Got IP6 (num=%" PRId32 ")", event_id);
   global_eth_component->got_ipv6_ = true;
   global_eth_component->ipv6_count_ += 1;
 }
-#endif /* LWIP_IPV6 */
+#endif /* ENABLE_IPV6 */
 
 void EthernetComponent::start_connect_() {
   this->connect_begin_ = millis();
@@ -293,9 +294,9 @@ void EthernetComponent::start_connect_() {
 
   esp_netif_ip_info_t info;
   if (this->manual_ip_.has_value()) {
-    info.ip.addr = static_cast<uint32_t>(this->manual_ip_->static_ip);
-    info.gw.addr = static_cast<uint32_t>(this->manual_ip_->gateway);
-    info.netmask.addr = static_cast<uint32_t>(this->manual_ip_->subnet);
+    info.ip = this->manual_ip_->static_ip;
+    info.gw = this->manual_ip_->gateway;
+    info.netmask = this->manual_ip_->subnet;
   } else {
     info.ip.addr = 0;
     info.gw.addr = 0;
@@ -318,24 +319,14 @@ void EthernetComponent::start_connect_() {
   ESPHL_ERROR_CHECK(err, "DHCPC set IP info error");
 
   if (this->manual_ip_.has_value()) {
-    if (uint32_t(this->manual_ip_->dns1) != 0) {
+    if (this->manual_ip_->dns1.is_set()) {
       ip_addr_t d;
-#if LWIP_IPV6
-      d.type = IPADDR_TYPE_V4;
-      d.u_addr.ip4.addr = static_cast<uint32_t>(this->manual_ip_->dns1);
-#else
-      d.addr = static_cast<uint32_t>(this->manual_ip_->dns1);
-#endif
+      d = this->manual_ip_->dns1;
       dns_setserver(0, &d);
     }
-    if (uint32_t(this->manual_ip_->dns2) != 0) {
+    if (this->manual_ip_->dns2.is_set()) {
       ip_addr_t d;
-#if LWIP_IPV6
-      d.type = IPADDR_TYPE_V4;
-      d.u_addr.ip4.addr = static_cast<uint32_t>(this->manual_ip_->dns2);
-#else
-      d.addr = static_cast<uint32_t>(this->manual_ip_->dns2);
-#endif
+      d = this->manual_ip_->dns2;
       dns_setserver(1, &d);
     }
   } else {
@@ -343,12 +334,12 @@ void EthernetComponent::start_connect_() {
     if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
       ESPHL_ERROR_CHECK(err, "DHCPC start error");
     }
-#if LWIP_IPV6
+#if ENABLE_IPV6
     err = esp_netif_create_ip6_linklocal(this->eth_netif_);
     if (err != ESP_OK) {
       ESPHL_ERROR_CHECK(err, "IPv6 local failed");
     }
-#endif /* LWIP_IPV6 */
+#endif /* ENABLE_IPV6 */
   }
 
   this->connect_begin_ = millis();
@@ -360,23 +351,18 @@ bool EthernetComponent::is_connected() { return this->state_ == EthernetComponen
 void EthernetComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
-  ESP_LOGCONFIG(TAG, "  IP Address: %s", network::IPAddress(ip.ip.addr).str().c_str());
+  ESP_LOGCONFIG(TAG, "  IP Address: %s", network::IPAddress(&ip.ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  Subnet: %s", network::IPAddress(ip.netmask.addr).str().c_str());
-  ESP_LOGCONFIG(TAG, "  Gateway: %s", network::IPAddress(ip.gw.addr).str().c_str());
+  ESP_LOGCONFIG(TAG, "  Subnet: %s", network::IPAddress(&ip.netmask).str().c_str());
+  ESP_LOGCONFIG(TAG, "  Gateway: %s", network::IPAddress(&ip.gw).str().c_str());
 
   const ip_addr_t *dns_ip1 = dns_getserver(0);
   const ip_addr_t *dns_ip2 = dns_getserver(1);
 
-#if LWIP_IPV6
-  ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->u_addr.ip4.addr).str().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->u_addr.ip4.addr).str().c_str());
-#else
-  ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->addr).str().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->addr).str().c_str());
-#endif
+  ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1).str().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2).str().c_str());
 
-#if LWIP_IPV6
+#if ENABLE_IPV6
   if (this->ipv6_count_ > 0) {
     esp_ip6_addr_t ip6_addr;
     esp_netif_get_ip6_linklocal(this->eth_netif_, &ip6_addr);
@@ -387,7 +373,7 @@ void EthernetComponent::dump_connect_params_() {
       ESP_LOGCONFIG(TAG, "IPv6 Addr (Global): " IPV6STR, IPV62STR(ip6_addr));
     }
   }
-#endif /* LWIP_IPV6 */
+#endif /* ENABLE_IPV6 */
 
   esp_err_t err;
 
