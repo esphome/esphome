@@ -1,8 +1,7 @@
 # This file contains a schema for all supported sensors, binary sensors and
 # inputs of the OpenTherm component.
 
-from typing import Dict, Generic, Tuple, TypeVar, TypedDict
-from typing_extensions import NotRequired
+from typing import Dict, Generic, Tuple, TypeVar, TypedDict, Optional
 
 from esphome.const import (
     UNIT_CELSIUS,
@@ -52,10 +51,10 @@ class EntitySchema(TypedDict):
 
 
 class SensorSchema(EntitySchema):
-    unit_of_measurement: NotRequired[str]
+    unit_of_measurement: Optional[str]
     accuracy_decimals: int
-    device_class: NotRequired[str]
-    icon: NotRequired[str]
+    device_class: Optional[str]
+    icon: Optional[str]
     state_class: str
 
 
@@ -370,8 +369,8 @@ SENSORS: Schema[SensorSchema] = Schema(
 
 
 class BinarySensorSchema(EntitySchema):
-    device_class: NotRequired[str]
-    icon: NotRequired[str]
+    device_class: Optional[str]
+    icon: Optional[str]
 
 
 BINARY_SENSORS: Schema = Schema(
@@ -586,8 +585,8 @@ class InputSchema(EntitySchema):
     unit_of_measurement: str
     step: float
     range: Tuple[int, int]
-    auto_max_value: NotRequired[AutoConfigure]
-    auto_min_value: NotRequired[AutoConfigure]
+    auto_max_value: Optional[AutoConfigure]
+    auto_min_value: Optional[AutoConfigure]
 
 
 INPUTS: Schema[InputSchema] = Schema(
