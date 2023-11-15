@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
+    CONF_EXTERNAL_TEMPERATURE,
     CONF_HUMIDITY,
     CONF_TEMPERATURE,
     CONF_ID,
@@ -27,8 +28,6 @@ UponorSmatrixSensor = uponor_smatrix_ns.class_(
     cg.Component,
     UponorSmatrixDevice,
 )
-
-CONF_EXTERNAL_TEMPERATURE = "external_temperature"
 
 CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
     {
