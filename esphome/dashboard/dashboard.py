@@ -41,9 +41,8 @@ from esphome.storage_json import (
 )
 from esphome.util import get_serial_ports, shlex_quote
 
-from .core import DASHBOARD
+from .core import DASHBOARD, list_dashboard_entries
 from .entries import DashboardEntry
-from .settings import list_dashboard_entries, SETTINGS
 from .util import friendly_name_slugify
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,6 +51,9 @@ ENV_DEV = "ESPHOME_DASHBOARD_DEV"
 
 
 cookie_authenticated_yes = b"yes"
+
+
+settings = DASHBOARD.settings
 
 
 def template_args():
@@ -67,9 +69,9 @@ def template_args():
         "version": version,
         "docs_link": docs_link,
         "get_static_file_url": get_static_file_url,
-        "relative_url": SETTINGS.relative_url,
-        "streamer_mode": SETTINGS.streamer_mode,
-        "config_dir": SETTINGS.config_dir,
+        "relative_url": settings.relative_url,
+        "streamer_mode": settings.streamer_mode,
+        "config_dir": settings.config_dir,
     }
 
 
@@ -85,13 +87,13 @@ def authenticated(func):
 
 
 def is_authenticated(request_handler):
-    if SETTINGS.on_ha_addon:
+    if settings.on_ha_addon:
         # Handle ingress - disable auth on ingress port
         # X-HA-Ingress is automatically stripped on the non-ingress server in nginx
         header = request_handler.request.headers.get("X-HA-Ingress", "NO")
         if str(header) == "YES":
             return True
-    if SETTINGS.using_auth:
+    if settings.using_auth:
         return (
             request_handler.get_secure_cookie("authenticated")
             == cookie_authenticated_yes
@@ -274,7 +276,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         """Build the command to run."""
         dashboard = DASHBOARD
         configuration = json_message["configuration"]
-        config_file = SETTINGS.rel_path(configuration)
+        config_file = settings.rel_path(configuration)
         port = json_message["port"]
         if (
             port == "OTA"
@@ -303,7 +305,7 @@ class EsphomeRenameHandler(EsphomeCommandWebSocket):
     old_name: str
 
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
-        config_file = SETTINGS.rel_path(json_message["configuration"])
+        config_file = settings.rel_path(json_message["configuration"])
         self.old_name = json_message["configuration"]
         return [
             *DASHBOARD_COMMAND,
@@ -336,7 +338,7 @@ class EsphomeRunHandler(EsphomePortCommandWebSocket):
 
 class EsphomeCompileHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
-        config_file = SETTINGS.rel_path(json_message["configuration"])
+        config_file = settings.rel_path(json_message["configuration"])
         command = [*DASHBOARD_COMMAND, "compile"]
         if json_message.get("only_generate", False):
             command.append("--only-generate")
@@ -346,22 +348,22 @@ class EsphomeCompileHandler(EsphomeCommandWebSocket):
 
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
-        config_file = SETTINGS.rel_path(json_message["configuration"])
+        config_file = settings.rel_path(json_message["configuration"])
         command = [*DASHBOARD_COMMAND, "config", config_file]
-        if not SETTINGS.streamer_mode:
+        if not settings.streamer_mode:
             command.append("--show-secrets")
         return command
 
 
 class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
-        config_file = SETTINGS.rel_path(json_message["configuration"])
+        config_file = settings.rel_path(json_message["configuration"])
         return [*DASHBOARD_COMMAND, "clean-mqtt", config_file]
 
 
 class EsphomeCleanHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
-        config_file = SETTINGS.rel_path(json_message["configuration"])
+        config_file = settings.rel_path(json_message["configuration"])
         return [*DASHBOARD_COMMAND, "clean", config_file]
 
 
@@ -372,12 +374,12 @@ class EsphomeVscodeHandler(EsphomeCommandWebSocket):
 
 class EsphomeAceEditorHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
-        return [*DASHBOARD_COMMAND, "-q", "vscode", "--ace", SETTINGS.config_dir]
+        return [*DASHBOARD_COMMAND, "-q", "vscode", "--ace", settings.config_dir]
 
 
 class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
-        return [*DASHBOARD_COMMAND, "update-all", SETTINGS.config_dir]
+        return [*DASHBOARD_COMMAND, "update-all", settings.config_dir]
 
 
 class SerialPortRequestHandler(BaseHandler):
@@ -405,6 +407,8 @@ class WizardRequestHandler(BaseHandler):
     def post(self):
         from esphome import wizard
 
+        settings = DASHBOARD.settings
+
         kwargs = {
             k: v
             for k, v in json.loads(self.request.body.decode()).items()
@@ -423,7 +427,7 @@ class WizardRequestHandler(BaseHandler):
         noise_psk = secrets.token_bytes(32)
         kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
         filename = f"{kwargs['name']}.yaml"
-        destination = SETTINGS.rel_path(filename)
+        destination = settings.rel_path(filename)
         wizard.wizard_write(path=destination, **kwargs)
         self.set_status(200)
         self.set_header("content-type", "application/json")
@@ -460,7 +464,7 @@ class ImportRequestHandler(BaseHandler):
                 network = const.CONF_WIFI
 
             import_config(
-                SETTINGS.rel_path(f"{name}.yaml"),
+                settings.rel_path(f"{name}.yaml"),
                 name,
                 friendly_name,
                 args["project_name"],
@@ -552,7 +556,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
         path = os.path.join(path, file_name)
 
         if not Path(path).is_file():
-            args = ["esphome", "idedata", SETTINGS.rel_path(configuration)]
+            args = ["esphome", "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = run_system_command(*args)
 
             if rc != 0:
@@ -655,7 +659,7 @@ class MainRequestHandler(BaseHandler):
             "index.template.html",
             begin=begin,
             **template_args(),
-            login_enabled=SETTINGS.using_password,
+            login_enabled=settings.using_password,
         )
 
 
@@ -727,7 +731,7 @@ class PingRequestHandler(BaseHandler):
     def get(self):
         dashboard = DASHBOARD
         dashboard.ping_request.set()
-        if SETTINGS.status_use_mqtt:
+        if settings.status_use_mqtt:
             dashboard.mqtt_ping_request.set()
         self.set_header("content-type", "application/json")
         self.write(json.dumps(dashboard.ping_result))
@@ -737,8 +741,8 @@ class InfoRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        yaml_path = SETTINGS.rel_path(configuration)
-        all_yaml_files = SETTINGS.list_yaml_files()
+        yaml_path = settings.rel_path(configuration)
+        all_yaml_files = settings.list_yaml_files()
 
         if yaml_path not in all_yaml_files:
             self.set_status(404)
@@ -752,7 +756,7 @@ class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        filename = SETTINGS.rel_path(configuration)
+        filename = settings.rel_path(configuration)
         content = ""
         if os.path.isfile(filename):
             with open(file=filename, encoding="utf-8") as f:
@@ -762,7 +766,7 @@ class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def post(self, configuration=None):
-        with open(file=SETTINGS.rel_path(configuration), mode="wb") as f:
+        with open(file=settings.rel_path(configuration), mode="wb") as f:
             f.write(self.request.body)
         self.set_status(200)
 
@@ -771,7 +775,7 @@ class DeleteRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def post(self, configuration=None):
-        config_file = SETTINGS.rel_path(configuration)
+        config_file = settings.rel_path(configuration)
         storage_path = ext_storage_path(configuration)
 
         trash_path = trash_storage_path()
@@ -782,7 +786,7 @@ class DeleteRequestHandler(BaseHandler):
         if storage_json is not None:
             # Delete build folder (if exists)
             name = storage_json.name
-            build_folder = os.path.join(SETTINGS.config_dir, name)
+            build_folder = os.path.join(settings.config_dir, name)
             if build_folder is not None:
                 shutil.rmtree(build_folder, os.path.join(trash_path, name))
 
@@ -794,7 +798,7 @@ class UndoDeleteRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def post(self, configuration=None):
-        config_file = SETTINGS.rel_path(configuration)
+        config_file = settings.rel_path(configuration)
         trash_path = trash_storage_path()
         shutil.move(os.path.join(trash_path, configuration), config_file)
 
@@ -810,8 +814,8 @@ class LoginHandler(BaseHandler):
         self.render(
             "login.template.html",
             error=error,
-            ha_addon=SETTINGS.using_ha_addon_auth,
-            has_username=bool(SETTINGS.username),
+            ha_addon=settings.using_ha_addon_auth,
+            has_username=bool(settings.username),
             **template_args(),
         )
 
@@ -845,18 +849,18 @@ class LoginHandler(BaseHandler):
     def post_native_login(self):
         username = self.get_argument("username", "")
         password = self.get_argument("password", "")
-        if SETTINGS.check_password(username, password):
+        if settings.check_password(username, password):
             self.set_secure_cookie("authenticated", cookie_authenticated_yes)
             self.redirect("./")
             return
         error_str = (
-            "Invalid username or password" if SETTINGS.username else "Invalid password"
+            "Invalid username or password" if settings.username else "Invalid password"
         )
         self.set_status(401)
         self.render_login_page(error=error_str)
 
     def post(self):
-        if SETTINGS.using_ha_addon_auth:
+        if settings.using_ha_addon_auth:
             self.post_ha_addon_login()
         else:
             self.post_native_login()
@@ -875,7 +879,7 @@ class SecretKeysRequestHandler(BaseHandler):
         filename = None
 
         for secret_filename in const.SECRETS_FILES:
-            relative_filename = SETTINGS.rel_path(secret_filename)
+            relative_filename = settings.rel_path(secret_filename)
             if os.path.isfile(relative_filename):
                 filename = relative_filename
                 break
@@ -908,7 +912,7 @@ class JsonConfigRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        filename = SETTINGS.rel_path(configuration)
+        filename = settings.rel_path(configuration)
         if not os.path.isfile(filename):
             self.send_error(404)
             return
@@ -1002,12 +1006,12 @@ def make_app(debug=get_bool_env(ENV_DEV)):
 
     app_settings = {
         "debug": debug,
-        "cookie_secret": SETTINGS.cookie_secret,
+        "cookie_secret": settings.cookie_secret,
         "log_function": log_function,
         "websocket_ping_interval": 30.0,
         "template_path": get_base_frontend_path(),
     }
-    rel = SETTINGS.relative_url
+    rel = settings.relative_url
     app = tornado.web.Application(
         [
             (f"{rel}", MainRequestHandler),
@@ -1049,15 +1053,15 @@ def make_app(debug=get_bool_env(ENV_DEV)):
 
 
 def start_web_server(args):
-    SETTINGS.parse_args(args)
+    settings.parse_args(args)
 
-    if SETTINGS.using_auth:
+    if settings.using_auth:
         path = esphome_storage_path()
         storage = EsphomeStorageJSON.load(path)
         if storage is None:
             storage = EsphomeStorageJSON.get_default()
             storage.save(path)
-        SETTINGS.cookie_secret = storage.cookie_secret
+        settings.cookie_secret = storage.cookie_secret
 
     try:
         asyncio.run(async_start(args))
@@ -1074,7 +1078,7 @@ async def async_start(args) -> None:
         _LOGGER.info(
             "Starting dashboard web server on unix socket %s and configuration dir %s...",
             args.socket,
-            SETTINGS.config_dir,
+            settings.config_dir,
         )
         server = tornado.httpserver.HTTPServer(app)
         socket = tornado.netutil.bind_unix_socket(args.socket, mode=0o666)
@@ -1084,7 +1088,7 @@ async def async_start(args) -> None:
             "Starting dashboard web server on http://%s:%s and configuration dir %s...",
             args.address,
             args.port,
-            SETTINGS.config_dir,
+            settings.config_dir,
         )
         app.listen(args.port, args.address)
 

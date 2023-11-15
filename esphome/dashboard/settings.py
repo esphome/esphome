@@ -13,11 +13,6 @@ from .entries import DashboardEntry
 from .util import password_hash
 
 
-def list_dashboard_entries() -> list[DashboardEntry]:
-    """List all dashboard entries."""
-    return SETTINGS.entries()
-
-
 class DashboardSettings:
     """Settings for the dashboard."""
 
@@ -149,6 +144,3 @@ class DashboardSettings:
             entry_cache[file] = (cache_key, dashboard_entry)
 
         return dashboard_entries
-
-
-SETTINGS = DashboardSettings()

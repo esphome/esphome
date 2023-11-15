@@ -10,8 +10,7 @@ from esphome.zeroconf import (
     DashboardStatus,
 )
 
-from ..core import DASHBOARD
-from ..settings import list_dashboard_entries
+from ..core import DASHBOARD, list_dashboard_entries
 
 
 class MDNSStatus:

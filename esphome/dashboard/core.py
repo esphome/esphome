@@ -5,12 +5,18 @@ import logging
 import threading
 
 from ..zeroconf import DiscoveredImport
-from .settings import SETTINGS
+from .settings import DashboardSettings
 from .status.mdns import MDNSStatus
 from .status.mqtt import MqttStatusThread
 from .status.ping import PingStatus
+from .entries import DashboardEntry
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def list_dashboard_entries() -> list[DashboardEntry]:
+    """List all dashboard entries."""
+    return DASHBOARD.settings.entries()
 
 
 class ESPHomeDashboard:
@@ -25,6 +31,7 @@ class ESPHomeDashboard:
         self.ping_request: asyncio.Event | None = None
         self.mqtt_ping_request = threading.Event()
         self.mdns_status: MDNSStatus | None = None
+        self.settings: DashboardSettings = DashboardSettings()
 
     async def async_setup(self) -> None:
         """Setup the dashboard."""
@@ -33,10 +40,11 @@ class ESPHomeDashboard:
 
     async def async_run(self) -> None:
         """Run the dashboard."""
+        settings = self.settings
         mdns_task: asyncio.Task | None = None
         ping_status_task: asyncio.Task | None = None
 
-        if SETTINGS.status_use_ping:
+        if settings.status_use_ping:
             ping_status = PingStatus()
             ping_status_task = asyncio.create_task(ping_status.async_run())
         else:
@@ -45,7 +53,7 @@ class ESPHomeDashboard:
             self.mdns_status = mdns_status
             mdns_task = asyncio.create_task(mdns_status.async_run())
 
-        if SETTINGS.status_use_mqtt:
+        if settings.status_use_mqtt:
             status_thread_mqtt = MqttStatusThread()
             status_thread_mqtt.start()
 
@@ -60,7 +68,7 @@ class ESPHomeDashboard:
                 ping_status_task.cancel()
             if mdns_task:
                 mdns_task.cancel()
-            if SETTINGS.status_use_mqtt:
+            if settings.status_use_mqtt:
                 status_thread_mqtt.join()
                 self.mqtt_ping_request.set()
             await asyncio.sleep(0)
