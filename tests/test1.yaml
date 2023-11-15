@@ -239,6 +239,10 @@ uart:
     rx_pin: GPIO10
     parity: EVEN
     baud_rate: 9600
+  - id: uponor_uart
+    baud_rate: 19200
+    tx_pin: GPIO17
+    rx_pin: GPIO16
 
 ota:
   safe_mode: true
@@ -354,6 +358,12 @@ micronova:
 dfrobot_sen0395:
   - id: mmwave
     uart_id: dfrobot_mmwave_uart
+
+uponor_smatrix:
+  uart_id: uponor_uart
+  address: 0x110B
+  time_id: sntp_time
+  time_device_address: 0xDE13
 
 sensor:
   - platform: xgzp68xx
@@ -1553,6 +1563,14 @@ sensor:
       memory_location: 0x20
       memory_address: 0x7d
       name: Adres sensor
+  - platform: uponor_smatrix
+    address: 0xDE13
+    humidity:
+      name: "Thermostat Humidity Living Room"
+    temperature:
+      name: "Thermostat Temperature Living Room"
+    external_temperature:
+      name: "Thermostat Floor Temperature Living Room"
 
 esp32_touch:
   setup_mode: false
@@ -2395,6 +2413,9 @@ climate:
     model: generic
   - platform: zhlt01
     name: ZH/LT-01 Climate
+  - platform: uponor_smatrix
+    address: 0xDE13
+    name: "Thermostat Living Room"
 
 script:
   - id: climate_custom
@@ -3799,4 +3820,3 @@ alarm_control_panel:
       then:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));
-

@@ -341,6 +341,7 @@ esphome/components/uart/button/* @ssieb
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
+esphome/components/uponor_smatrix/* @kroimon
 esphome/components/vbus/* @ssieb
 esphome/components/version/* @esphome/core
 esphome/components/voice_assistant/* @jesserockz
