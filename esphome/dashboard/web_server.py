@@ -549,7 +549,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
         if not Path(path).is_file():
             args = ["esphome", "idedata", settings.rel_path(configuration)]
-            rc, stdout, _ = await async_run_system_command(*args)
+            rc, stdout, _ = await async_run_system_command(args)
 
             if rc != 0:
                 self.send_error(404 if rc == 2 else 500)
@@ -911,7 +911,7 @@ class JsonConfigRequestHandler(BaseHandler):
 
         args = ["esphome", "config", filename, "--show-secrets"]
 
-        rc, stdout, _ = await async_run_system_command(*args)
+        rc, stdout, _ = await async_run_system_command(args)
 
         if rc != 0:
             self.send_error(422)
