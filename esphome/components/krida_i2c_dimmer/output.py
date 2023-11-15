@@ -5,8 +5,8 @@ from esphome.const import CONF_ID, CONF_CHANNEL
 
 DEPENDENCIES = ["i2c"]
 
-krida_dimmer = cg.esphome_ns.namespace("krida_dimmer")
-KridaDimmer = krida_dimmer.class_("Krida4chDimmer", output.FloatOutput, cg.Component, i2c.I2CDevice)
+krida_dimmer = cg.esphome_ns.namespace("krida_i2c_dimmer")
+KridaDimmer = krida_dimmer.class_("KridaI2CDimmer", output.FloatOutput, cg.Component, i2c.I2CDevice)
 
 CONFIG_SCHEMA = (
     output.FLOAT_OUTPUT_SCHEMA.extend(
