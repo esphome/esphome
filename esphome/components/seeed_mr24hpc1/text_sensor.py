@@ -1,12 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    DEVICE_CLASS_DISTANCE,
-    DEVICE_CLASS_MOTION,
-    DEVICE_CLASS_MOVING,
-)
+from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
 from . import CONF_MR24HPC1_ID, mr24hpc1Component
 
 CONF_HEARTBEAT = "heartbeat"
