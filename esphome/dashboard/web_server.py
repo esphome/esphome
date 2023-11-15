@@ -34,6 +34,7 @@ from esphome import const, platformio_api, yaml_util
 from esphome.helpers import get_bool_env, mkdir_p, run_system_command
 from esphome.storage_json import StorageJSON, ext_storage_path, trash_storage_path
 from esphome.util import get_serial_ports, shlex_quote
+from esphome.yaml_util import FastestAvailableSafeLoader
 
 from .core import DASHBOARD, list_dashboard_entries
 from .entries import DashboardEntry
@@ -885,7 +886,7 @@ class SecretKeysRequestHandler(BaseHandler):
         self.write(json.dumps(secret_keys))
 
 
-class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
+class SafeLoaderIgnoreUnknown(FastestAvailableSafeLoader):
     def ignore_unknown(self, node):
         return f"{node.tag} {node.value}"
 
