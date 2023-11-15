@@ -50,7 +50,6 @@ from esphome.zeroconf import (
     DashboardImportDiscovery,
     DashboardStatus,
 )
-
 from .async_adapter import AsyncEvent
 from .util import chunked, friendly_name_slugify, password_hash
 
