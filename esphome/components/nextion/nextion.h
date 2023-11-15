@@ -12,14 +12,18 @@
 #include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
+#ifdef ARDUINO
 #ifdef USE_ESP32
 #include <HTTPClient.h>
-#endif
+#endif  // USE_ESP32
 #ifdef USE_ESP8266
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#endif
-#endif
+#endif  // USE_ESP8266
+#elif defined(USE_ESP_IDF)
+#include <esp_http_client.h>
+#endif  // ARDUINO vs ESP-IDF
+#endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome {
 namespace nextion {
@@ -685,16 +689,18 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef USE_NEXTION_TFT_UPLOAD
   /**
-   * Set the tft file URL. https seems problamtic with arduino..
+   * Set the tft file URL. https seems problematic with arduino..
    */
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
 
 #endif
 
   /**
-   * Upload the tft file and softreset the Nextion
+   * Upload the tft file and soft reset Nextion
+   * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
-  void upload_tft();
+  bool upload_tft();
+
   void dump_config() override;
 
   /**
@@ -817,16 +823,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
   WiFiClient *get_wifi_client_();
 #endif
-
+  int content_length_ = 0;
+  int tft_size_ = 0;
+#ifdef ARDUINO
   /**
    * will request chunk_size chunks from the web server
    * and send each to the nextion
-   * @param int contentLength Total size of the file
-   * @param uint32_t chunk_size
-   * @return true if success, false for failure.
+   * @param HTTPClient http HTTP client handler.
+   * @param int range_start Position of next byte to transfer.
+   * @return position of last byte transferred, -1 for failure.
    */
-  int content_length_ = 0;
-  int tft_size_ = 0;
   int upload_by_chunks_(HTTPClient *http, int range_start);
 
   bool upload_with_range_(uint32_t range_start, uint32_t range_end);
@@ -839,7 +845,30 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return true if success, false for failure.
    */
   bool upload_from_buffer_(const uint8_t *file_buf, size_t buf_size);
-  void upload_end_();
+  /**
+   * Ends the upload process, restart Nextion and, if successful,
+   * restarts ESP
+   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
+   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   */
+  bool upload_end_(bool successful);
+#elif defined(USE_ESP_IDF)
+  /**
+   * will request 4096 bytes chunks from the web server
+   * and send each to Nextion
+   * @param std::string url Full url for download.
+   * @param int range_start Position of next byte to transfer.
+   * @return position of last byte transferred, -1 for failure.
+   */
+  int upload_range(const std::string &url, int range_start);
+  /**
+   * Ends the upload process, restart Nextion and, if successful,
+   * restarts ESP
+   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
+   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   */
+  bool upload_end(bool successful);
+#endif  // ARDUINO vs ESP-IDF
 
 #endif  // USE_NEXTION_TFT_UPLOAD
 
