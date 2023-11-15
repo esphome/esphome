@@ -21,7 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 async def async_run_logs(config: dict[str, Any], address: str) -> None:
     """Run the logs command in the event loop."""
     conf = config["api"]
-    name = config["esphome"].get("name")
+    name = config["esphome"]["name"]
     port: int = int(conf[CONF_PORT])
     password: str = conf[CONF_PASSWORD]
     noise_psk: str | None = None
