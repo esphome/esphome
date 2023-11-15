@@ -17,9 +17,9 @@ bool RawDumper::dump(RemoteReceiveData src) {
     int written;
 
     if (i + 1 < src.size() - 1) {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%d, ", value);
+      written = snprintf(buffer + buffer_offset, remaining_length, "%" PRId32 ", ", value);
     } else {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%d", value);
+      written = snprintf(buffer + buffer_offset, remaining_length, "%" PRId32, value);
     }
 
     if (written < 0 || written >= int(remaining_length)) {
@@ -29,9 +29,9 @@ bool RawDumper::dump(RemoteReceiveData src) {
       buffer_offset = 0;
       written = sprintf(buffer, "  ");
       if (i + 1 < src.size()) {
-        written += sprintf(buffer + written, "%d, ", value);
+        written += sprintf(buffer + written, "%" PRId32 ", ", value);
       } else {
-        written += sprintf(buffer + written, "%d", value);
+        written += sprintf(buffer + written, "%" PRId32, value);
       }
     }
 
