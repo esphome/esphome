@@ -7,7 +7,7 @@ namespace uponor_smatrix {
 static const char *const TAG = "uponor_smatrix.sensor";
 
 void UponorSmatrixSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Uponor Smatrix Sensor", this);
+  ESP_LOGCONFIG(TAG, "Uponor Smatrix Sensor");
   ESP_LOGCONFIG(TAG, "  Device address: 0x%04X", this->address_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "External Temperature", this->external_temperature_sensor_);

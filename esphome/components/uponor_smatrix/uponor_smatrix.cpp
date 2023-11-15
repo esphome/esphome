@@ -98,7 +98,7 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
     return false;
   }
 
-  ESP_LOGVV("Received packet: sys=%04X, dev=%04X, data=%s, crc=%04X", system_address, device_address,
+  ESP_LOGVV(TAG, "Received packet: sys=%04X, dev=%04X, data=%s, crc=%04X", system_address, device_address,
             format_hex(&packet[4], packet_len - 6), crc);
 
   // Detect or check system address
@@ -115,7 +115,7 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
   size_t data_len = (packet_len - 6) / 3;
   if (data_len == 0) {
     if (packet[4] == UPONOR_ID_REQUEST)
-      ESP_LOGVV("Ignoring request packet for device 0x%04X", device_address);
+      ESP_LOGVV(TAG, "Ignoring request packet for device 0x%04X", device_address);
     return true;
   }
 
