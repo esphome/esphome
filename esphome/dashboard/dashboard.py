@@ -407,8 +407,6 @@ class WizardRequestHandler(BaseHandler):
     def post(self):
         from esphome import wizard
 
-        settings = DASHBOARD.settings
-
         kwargs = {
             k: v
             for k, v in json.loads(self.request.body.decode()).items()
