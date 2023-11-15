@@ -1,9 +1,9 @@
 import hashlib
 import unicodedata
+from collections.abc import Iterable
 from functools import partial
 from itertools import islice
 from typing import Any
-from collections.abc import Iterable
 
 from esphome.const import ALLOWED_NAME_CHARS
 
