@@ -65,7 +65,7 @@ def choose_prompt(options, purpose: str = None):
         f'Found multiple options{f" for {purpose}" if purpose else ""}, please choose one:'
     )
     for i, (desc, _) in enumerate(options):
-        safe_print(f"  [{i+1}] {desc}")
+        safe_print(f"  [{i + 1}] {desc}")
 
     while True:
         opt = input("(number): ")
@@ -747,7 +747,9 @@ def parse_args(argv):
     )
 
     parser_upload = subparsers.add_parser(
-        "upload", help="Validate the configuration and upload the latest binary."
+        "upload",
+        help="Validate the configuration and upload the latest binary.",
+        parents=[mqtt_options],
     )
     parser_upload.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs="+"
