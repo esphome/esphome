@@ -17,42 +17,42 @@ namespace esphome {
 namespace uponor_smatrix {
 
 /// Date/Time Part 1 (year, month, day of week)
-#define UPONOR_ID_DATETIME1 0x08
+static const uint8_t UPONOR_ID_DATETIME1 = 0x08;
 /// Date/Time Part 2 (day of month, hour, minute)
-#define UPONOR_ID_DATETIME2 0x09
+static const uint8_t UPONOR_ID_DATETIME2 = 0x09;
 /// Date/Time Part 3 (seconds)
-#define UPONOR_ID_DATETIME3 0x0A
+static const uint8_t UPONOR_ID_DATETIME3 = 0x0A;
 /// Unknown (observed values: 0x0342, 0x0024)
-#define UPONOR_ID_UNKNOWN1 0x0C
+static const uint8_t UPONOR_ID_UNKNOWN1 = 0x0C;
 /// Outdoor Temperature? (sent by controller)
-#define UPONOR_ID_OUTDOOR_TEMP 0x2D
+static const uint8_t UPONOR_ID_OUTDOOR_TEMP = 0x2D;
 /// Unknown (observed values: 0x8000)
-#define UPONOR_ID_UNKNOWN2 0x35
+static const uint8_t UPONOR_ID_UNKNOWN2 = 0x35;
 /// Room Temperature Setpoint Minimum
-#define UPONOR_ID_TARGET_TEMP_MIN 0x37
+static const uint8_t UPONOR_ID_TARGET_TEMP_MIN = 0x37;
 /// Room Temperature Setpoint Maximum
-#define UPONOR_ID_TARGET_TEMP_MAX 0x38
+static const uint8_t UPONOR_ID_TARGET_TEMP_MAX = 0x38;
 /// Room Temperature Setpoint
-#define UPONOR_ID_TARGET_TEMP 0x3B
+static const uint8_t UPONOR_ID_TARGET_TEMP = 0x3B;
 /// Room Temperature Setpoint Setback for ECO Mode
-#define UPONOR_ID_ECO_SETBACK 0x3C
+static const uint8_t UPONOR_ID_ECO_SETBACK = 0x3C;
 /// Heating/Cooling Demand
-#define UPONOR_ID_DEMAND 0x3D
+static const uint8_t UPONOR_ID_DEMAND = 0x3D;
 /// Thermostat Operating Mode 1 (ECO state, program schedule state)
-#define UPONOR_ID_MODE1 0x3E
+static const uint8_t UPONOR_ID_MODE1 = 0x3E;
 /// Thermostat Operating Mode 2 (sensor configuration, heating/cooling allowed)
-#define UPONOR_ID_MODE2 0x3F
+static const uint8_t UPONOR_ID_MODE2 = 0x3F;
 /// Current Room Temperature
-#define UPONOR_ID_ROOM_TEMP 0x40
+static const uint8_t UPONOR_ID_ROOM_TEMP = 0x40;
 /// Current External (Floor/Outdoor) Sensor Temperature
-#define UPONOR_ID_EXTERNAL_TEMP 0x41
+static const uint8_t UPONOR_ID_EXTERNAL_TEMP = 0x41;
 /// Current Room Humidity
-#define UPONOR_ID_HUMIDITY 0x42
+static const uint8_t UPONOR_ID_HUMIDITY = 0x42;
 /// Data Request (sent by controller)
-#define UPONOR_ID_REQUEST 0xFF
+static const uint8_t UPONOR_ID_REQUEST = 0xFF;
 
 /// Indicating an invalid/missing value
-#define UPONOR_INVALID_VALUE 0x7FFF
+static const uint16_t UPONOR_INVALID_VALUE = 0x7FFF;
 
 struct UponorSmatrixData {
   uint8_t id;
