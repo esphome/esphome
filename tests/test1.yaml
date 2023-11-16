@@ -2992,6 +2992,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ili9xxx
+    dimensions: 320x240
     model: TFT 2.4
     cs_pin: GPIO5
     dc_pin: GPIO4
@@ -3000,6 +3001,11 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ili9xxx
+    dimensions:
+      width: 320
+      height: 240
+      offset_width: 20
+      offset_height: 10
     model: TFT 2.4
     cs_pin: GPIO5
     dc_pin: GPIO4

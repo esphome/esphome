@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, pins
-from esphome.components import display, spi, font, power_supply
+from esphome.components import display, spi, font
 from esphome.core import CORE, HexInt
 from esphome.const import (
     CONF_COLOR_PALETTE,
@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_DIMENSIONS,
     CONF_WIDTH,
     CONF_HEIGHT,
-    CONF_POWER_SUPPLY,
 )
 
 DEPENDENCIES = ["spi"]
@@ -74,17 +73,14 @@ CONF_OFFSET_WIDTH = "offset_width"
 
 
 def _validate(config):
-    has_width = CONF_WIDTH in config
-    if has_width != (CONF_HEIGHT in config):
-        raise cv.Invalid("Must specify both height and width")
     if CONF_DIMENSIONS in config:
-        if has_width:
-            raise cv.Invalid("Specify height and width or dimensions but not both")
-    elif has_width:
-        config[CONF_DIMENSIONS] = (
-            config[CONF_WIDTH],
-            config[CONF_HEIGHT],
-        )
+        dimensions = config[CONF_DIMENSIONS]
+        if isinstance(dimensions, dict):
+            config.update(dimensions)
+        else:
+            (config[CONF_WIDTH], config[CONF_HEIGHT]) = dimensions
+            config[CONF_OFFSET_WIDTH] = 0
+            config[CONF_OFFSET_HEIGHT] = 0
 
     if config.get(CONF_COLOR_PALETTE) == "IMAGE_ADAPTIVE" and not config.get(
         CONF_COLOR_PALETTE_IMAGES
@@ -129,9 +125,17 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ili9XXXSPI),
             cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
-            cv.Optional(CONF_DIMENSIONS): cv.dimensions,
-            cv.Optional(CONF_WIDTH): cv.int_,
-            cv.Optional(CONF_HEIGHT): cv.int_,
+            cv.Optional(CONF_DIMENSIONS): cv.Any(
+                cv.dimensions,
+                cv.Schema(
+                    {
+                        cv.Required(CONF_WIDTH): cv.int_,
+                        cv.Required(CONF_HEIGHT): cv.int_,
+                        cv.Optional(CONF_OFFSET_HEIGHT, default=0): cv.int_,
+                        cv.Optional(CONF_OFFSET_WIDTH, default=0): cv.int_,
+                    }
+                ),
+            ),
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_LED_PIN): cv.invalid(
@@ -144,9 +148,6 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_PANEL_SETUP): PANEL_SCHEMA,
             cv.Optional(CONF_INVERT_DISPLAY): cv.boolean,
-            cv.Optional(CONF_OFFSET_HEIGHT, default=0): cv.int_,
-            cv.Optional(CONF_OFFSET_WIDTH, default=0): cv.int_,
-            cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -185,15 +186,9 @@ async def to_code(config):
         reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
 
-    if CONF_POWER_SUPPLY in config:
-        ps = await cg.get_variable(config[CONF_POWER_SUPPLY])
-        cg.add(var.set_power_supply(ps))
-
     if CONF_DIMENSIONS in config:
-        cg.add(
-            var.set_dimensions(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1])
-        )
-    cg.add(var.set_offsets(config[CONF_OFFSET_WIDTH], config[CONF_OFFSET_HEIGHT]))
+        cg.add(var.set_dimensions(config[CONF_WIDTH], config[CONF_HEIGHT]))
+        cg.add(var.set_offsets(config[CONF_OFFSET_WIDTH], config[CONF_OFFSET_HEIGHT]))
 
     rhs = None
     if config[CONF_COLOR_PALETTE] == "GRAYSCALE":
