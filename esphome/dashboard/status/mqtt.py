@@ -51,8 +51,6 @@ class MqttStatusThread(threading.Thread):
         client.loop_start()
 
         while not dashboard.stop_event.wait(2):
-            # update entries
-            dashboard.entries.update_entries()
             entries = dashboard.entries.all()
 
             # will be set to true on on_message

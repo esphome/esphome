@@ -46,12 +46,6 @@ class DashboardEntries:
         """Return all entries."""
         return list(self._entries.values())
 
-    def update_entries(self) -> list[DashboardEntry]:
-        """Update the dashboard entries from disk."""
-        return asyncio.run_coroutine_threadsafe(
-            self.async_update_entries, self._loop
-        ).result()
-
     async def async_request_update_entries(self) -> None:
         """Request an update of the dashboard entries from disk.
 
