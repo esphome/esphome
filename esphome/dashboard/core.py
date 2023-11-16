@@ -60,6 +60,7 @@ class ESPHomeDashboard:
     """Class that represents the dashboard."""
 
     __slots__ = (
+        "bus",
         "entries",
         "loop",
         "import_result",
