@@ -177,9 +177,9 @@ void Fan::save_state_() {
   if (this->get_traits().supports_preset_modes() && !this->preset_mode.empty()) {
     const auto &preset_modes = this->get_traits().supported_preset_modes();
     // Store index of current preset mode
-    auto it = std::find(preset_modes.begin(), preset_modes.end(), this->preset_mode);
-    if (it != preset_modes.end())
-      state.preset_mode = std::distance(preset_modes.begin(), it);
+    auto preset_iterator = std::find(preset_modes.begin(), preset_modes.end(), this->preset_mode);
+    if (preset_iterator != preset_modes.end())
+      state.preset_mode = std::distance(preset_modes.begin(), preset_iterator);
   }
 
   this->rtc_.save(&state);
