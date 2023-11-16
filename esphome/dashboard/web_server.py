@@ -36,10 +36,9 @@ from esphome.storage_json import StorageJSON, ext_storage_path, trash_storage_pa
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
-from .core import DASHBOARD, list_dashboard_entries
-from .entries import DashboardEntry
-from .util.text import friendly_name_slugify
+from .core import DASHBOARD
 from .util.subprocess import async_run_system_command
+from .util.text import friendly_name_slugify
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -601,11 +600,11 @@ class EsphomeVersionHandler(BaseHandler):
 class ListDevicesHandler(BaseHandler):
     @authenticated
     async def get(self):
-        loop = asyncio.get_running_loop()
-        entries = await loop.run_in_executor(None, list_dashboard_entries)
+        dashboard = DASHBOARD
+        await dashboard.entries.async_request_update_entries()
+        entries = dashboard.entries.async_all()
         self.set_header("content-type", "application/json")
         configured = {entry.name for entry in entries}
-        dashboard = DASHBOARD
 
         self.write(
             json.dumps(
@@ -658,8 +657,10 @@ class MainRequestHandler(BaseHandler):
 
 class PrometheusServiceDiscoveryHandler(BaseHandler):
     @authenticated
-    def get(self):
-        entries = list_dashboard_entries()
+    async def get(self):
+        dashboard = DASHBOARD
+        await dashboard.entries.async_request_update_entries()
+        entries = dashboard.entries.async_all()
         self.set_header("content-type", "application/json")
         sd = []
         for entry in entries:
@@ -733,16 +734,17 @@ class PingRequestHandler(BaseHandler):
 class InfoRequestHandler(BaseHandler):
     @authenticated
     @bind_config
-    def get(self, configuration=None):
+    async def get(self, configuration=None):
         yaml_path = settings.rel_path(configuration)
-        all_yaml_files = settings.list_yaml_files()
+        dashboard = DASHBOARD
+        entry = dashboard.entries.get(yaml_path)
 
-        if yaml_path not in all_yaml_files:
+        if not entry:
             self.set_status(404)
             return
 
         self.set_header("content-type", "application/json")
-        self.write(DashboardEntry(yaml_path).storage.to_json())
+        self.write(entry.storage.to_json())
 
 
 class EditRequestHandler(BaseHandler):

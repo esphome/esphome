@@ -6,7 +6,6 @@ from typing import cast
 
 from ..core import DASHBOARD
 from ..entries import DashboardEntry
-from ..core import list_dashboard_entries
 from ..util.itertools import chunked
 from ..util.subprocess import async_system_command_status
 
@@ -32,7 +31,7 @@ class PingStatus:
             # Only ping if the dashboard is open
             await dashboard.ping_request.wait()
             dashboard.ping_result.clear()
-            entries = await self._loop.run_in_executor(None, list_dashboard_entries)
+            entries = dashboard.entries.async_all()
             to_ping: list[DashboardEntry] = [
                 entry for entry in entries if entry.address is not None
             ]

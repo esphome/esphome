@@ -7,7 +7,7 @@ import threading
 
 from esphome import mqtt
 
-from ..core import DASHBOARD, list_dashboard_entries
+from ..core import DASHBOARD
 
 
 class MqttStatusThread(threading.Thread):
@@ -16,7 +16,7 @@ class MqttStatusThread(threading.Thread):
     def run(self) -> None:
         """Run the status thread."""
         dashboard = DASHBOARD
-        entries = list_dashboard_entries()
+        entries = dashboard.entries.all()
 
         config = mqtt.config_from_env()
         topic = "esphome/discover/#"
@@ -51,8 +51,7 @@ class MqttStatusThread(threading.Thread):
         client.loop_start()
 
         while not dashboard.stop_event.wait(2):
-            # update entries
-            entries = list_dashboard_entries()
+            entries = dashboard.entries.all()
 
             # will be set to true on on_message
             for entry in entries:
