@@ -47,7 +47,7 @@ class MDNSStatus:
         host_mdns_state = self.host_mdns_state
         host_name_to_filename = self.host_name_to_filename
         filename_to_host_name = self.filename_to_host_name
-        ping_result = DASHBOARD.ping_result
+        ping_result = dashboard.ping_result
 
         for entry in entries:
             name = entry.name
