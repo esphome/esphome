@@ -89,8 +89,7 @@ class MDNSStatus:
                 host_mdns_state[name] = result
                 if name not in host_name_with_mdns_enabled:
                     continue
-                path = host_name_to_path[name]
-                if entry := entries.get(path):
+                if entry := entries.get(host_name_to_path[name]):
                     entries.async_set_state(entry, bool_to_entry_state(result))
 
         stat = DashboardStatus(on_update)
