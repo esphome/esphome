@@ -21,6 +21,7 @@ ESPADFPipeline = esp_adf_ns.class_("ESPADFPipeline", cg.Parented.template(ESPADF
 SUPPORTED_BOARDS = {
     "esp32s3box": "CONFIG_ESP32_S3_BOX_BOARD",
     "esp32s3boxlite": "CONFIG_ESP32_S3_BOX_LITE_BOARD",
+    "esp32s3box3": "CONFIG_ESP32_S3_BOX_3_BOARD",
 }
 
 
