@@ -258,7 +258,7 @@ class DashboardEntry:
             ")"
         )
 
-    def to_dict(self) -> dict[str, str | bool | None]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a dict representation of this entry.
 
         The dict includes the loaded configuration but not
