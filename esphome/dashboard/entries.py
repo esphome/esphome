@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from enum import Enum
 from typing import TYPE_CHECKING
+
+from .enum import StrEnum
 
 if TYPE_CHECKING:
     from .core import ESPHomeDashboard
@@ -29,7 +30,7 @@ DashboardCacheKeyType = tuple[int, int, float, int]
 # it may be expanded to include more states
 
 
-class EntryState(Enum):
+class EntryState(StrEnum):
     ONLINE = "online"
     OFFLINE = "offline"
     UNKNOWN = "unknown"
