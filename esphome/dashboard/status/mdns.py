@@ -10,7 +10,7 @@ from esphome.zeroconf import (
     DashboardStatus,
 )
 
-from ..core import DASHBOARD, list_dashboard_entries
+from ..core import DASHBOARD
 
 
 class MDNSStatus:
@@ -41,12 +41,13 @@ class MDNSStatus:
 
     async def async_refresh_hosts(self):
         """Refresh the hosts to track."""
-        entries = await self._loop.run_in_executor(None, list_dashboard_entries)
+        dashboard = DASHBOARD
+        entries = dashboard.entries.async_all()
         host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
         host_mdns_state = self.host_mdns_state
         host_name_to_filename = self.host_name_to_filename
         filename_to_host_name = self.filename_to_host_name
-        ping_result = DASHBOARD.ping_result
+        ping_result = dashboard.ping_result
 
         for entry in entries:
             name = entry.name
