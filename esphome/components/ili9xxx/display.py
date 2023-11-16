@@ -89,26 +89,22 @@ def _validate(config):
         config[CONF_ROTATION] = 0
         if isinstance(rotation, dict):
             config.update(rotation)
-        else:
-            match rotation:
-                case 0:
-                    config[CONF_SWAP_XY] = False
-                    config[CONF_MIRROR_X] = False
-                    config[CONF_MIRROR_Y] = False
-                case 90:
-                    config[CONF_SWAP_XY] = True
-                    config[CONF_MIRROR_X] = True
-                    config[CONF_MIRROR_Y] = False
-
-                case 270:
-                    config[CONF_SWAP_XY] = True
-                    config[CONF_MIRROR_X] = False
-                    config[CONF_MIRROR_Y] = True
-
-                case 180:
-                    config[CONF_SWAP_XY] = False
-                    config[CONF_MIRROR_X] = True
-                    config[CONF_MIRROR_Y] = True
+        elif rotation == 0:
+            config[CONF_SWAP_XY] = False
+            config[CONF_MIRROR_X] = False
+            config[CONF_MIRROR_Y] = False
+        elif rotation == 90:
+            config[CONF_SWAP_XY] = True
+            config[CONF_MIRROR_X] = True
+            config[CONF_MIRROR_Y] = False
+        elif rotation == 270:
+            config[CONF_SWAP_XY] = True
+            config[CONF_MIRROR_X] = False
+            config[CONF_MIRROR_Y] = True
+        elif rotation == 180:
+            config[CONF_SWAP_XY] = False
+            config[CONF_MIRROR_X] = True
+            config[CONF_MIRROR_Y] = True
 
     if config.get(CONF_COLOR_PALETTE) == "IMAGE_ADAPTIVE" and not config.get(
         CONF_COLOR_PALETTE_IMAGES
