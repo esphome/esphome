@@ -22,8 +22,7 @@ class SpeedFan : public Component, public fan::Fan {
   fan::FanTraits get_traits() override { return this->traits_; }
 
  protected:
-  void control(const fan::FanCall &call, bool ignore_preset);
-  void control(const fan::FanCall &call) override { this->control(call, false); }
+  void control(const fan::FanCall &call) override;
   void write_state_();
 
   output::FloatOutput *output_;

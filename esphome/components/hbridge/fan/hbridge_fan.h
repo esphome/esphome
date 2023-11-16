@@ -40,8 +40,7 @@ class HBridgeFan : public Component, public fan::Fan {
   fan::FanTraits traits_;
   std::unordered_map<std::string, const fan::FanCall> preset_modes_{};
 
-  void control(const fan::FanCall &call, bool ignore_preset);
-  void control(const fan::FanCall &call) override { this->control(call, false); }
+  void control(const fan::FanCall &call) override;
   void write_state_();
 
   void set_hbridge_levels_(float a_level, float b_level);

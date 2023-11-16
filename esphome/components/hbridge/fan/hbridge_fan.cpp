@@ -54,7 +54,7 @@ void HBridgeFan::dump_config() {
   }
 }
 
-void HBridgeFan::control(const fan::FanCall &call, bool ignore_preset) {
+void HBridgeFan::control(const fan::FanCall &call) {
   if (call.get_state().has_value())
     this->state = *call.get_state();
   if (call.get_speed().has_value())
@@ -64,13 +64,12 @@ void HBridgeFan::control(const fan::FanCall &call, bool ignore_preset) {
   if (call.get_direction().has_value())
     this->direction = *call.get_direction();
 
-  if (!ignore_preset) {
-    this->preset_mode = call.get_preset_mode();
+  // Recursively call the control function with the preset's stored FanCall if it's changed
+  const auto last_preset = this->preset_mode;
+  this->preset_mode = call.get_preset_mode();
 
-    // Recursively call the control function with the preset's stored FanCall, but ignore the preset field
-    if (!this->preset_mode.empty())
-      return this->control(this->preset_modes_.at(this->preset_mode), true);
-  }
+  if (!this->preset_mode.empty() && this->preset_mode != last_preset)
+    return this->control(this->preset_modes_.at(this->preset_mode));
 
   this->write_state_();
   this->publish_state();
@@ -105,6 +104,8 @@ void HBridgeFan::write_state_() {
 
 void HBridgeFan::add_preset_mode(const std::string &name, optional<int> speed, optional<fan::FanDirection> direction) {
   auto call = this->make_call();
+
+  call.set_preset_mode(name);
 
   if (speed)
     call.set_speed(*speed);
