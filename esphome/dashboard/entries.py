@@ -165,7 +165,7 @@ class DashboardEntries:
         }
 
         for path, cache_key in path_to_cache_key.items():
-            if entry := self._entries.get(path):
+            if entry := entries.get(path):
                 if entry.cache_key != cache_key:
                     updated[entry] = cache_key
             else:
