@@ -2993,6 +2993,10 @@ display:
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ili9xxx
     dimensions: 320x240
+    rotation:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
     model: TFT 2.4
     cs_pin: GPIO5
     dc_pin: GPIO4

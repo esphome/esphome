@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, pins
 from esphome.components import display, spi, font
+from esphome.components.display import validate_rotation
 from esphome.core import CORE, HexInt
 from esphome.const import (
     CONF_COLOR_PALETTE,
@@ -15,6 +16,7 @@ from esphome.const import (
     CONF_DIMENSIONS,
     CONF_WIDTH,
     CONF_HEIGHT,
+    CONF_ROTATION,
 )
 
 DEPENDENCIES = ["spi"]
@@ -34,6 +36,7 @@ ili9XXXSPI = ili9XXX_ns.class_(
 )
 
 ILI9XXXColorMode = ili9XXX_ns.enum("ILI9XXXColorMode")
+ColorOrder = display.display_ns.enum("ColorMode")
 
 MODELS = {
     "M5STACK": ili9XXX_ns.class_("ILI9XXXM5Stack", ili9XXXSPI),
@@ -54,8 +57,8 @@ MODELS = {
 }
 
 COLOR_ORDERS = {
-    "RGB": 0,
-    "BGR": 8,
+    "RGB": ColorOrder.COLOR_ORDER_RGB,
+    "BGR": ColorOrder.COLOR_ORDER_BGR,
 }
 
 COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
@@ -66,7 +69,6 @@ CONF_INVERT_DISPLAY = "invert_display"
 CONF_MIRROR_X = "mirror_x"
 CONF_MIRROR_Y = "mirror_y"
 CONF_SWAP_XY = "swap_xy"
-CONF_PANEL_SETUP = "panel_setup"
 CONF_COLOR_ORDER = "color_order"
 CONF_OFFSET_HEIGHT = "offset_height"
 CONF_OFFSET_WIDTH = "offset_width"
@@ -81,6 +83,32 @@ def _validate(config):
             (config[CONF_WIDTH], config[CONF_HEIGHT]) = dimensions
             config[CONF_OFFSET_WIDTH] = 0
             config[CONF_OFFSET_HEIGHT] = 0
+
+    if CONF_ROTATION in config:
+        rotation = config[CONF_ROTATION]
+        config[CONF_ROTATION] = 0
+        if isinstance(rotation, dict):
+            config.update(rotation)
+        else:
+            match rotation:
+                case 0:
+                    config[CONF_SWAP_XY] = False
+                    config[CONF_MIRROR_X] = False
+                    config[CONF_MIRROR_Y] = False
+                case 90:
+                    config[CONF_SWAP_XY] = True
+                    config[CONF_MIRROR_X] = True
+                    config[CONF_MIRROR_Y] = False
+
+                case 270:
+                    config[CONF_SWAP_XY] = True
+                    config[CONF_MIRROR_X] = False
+                    config[CONF_MIRROR_Y] = True
+
+                case 180:
+                    config[CONF_SWAP_XY] = False
+                    config[CONF_MIRROR_X] = True
+                    config[CONF_MIRROR_Y] = True
 
     if config.get(CONF_COLOR_PALETTE) == "IMAGE_ADAPTIVE" and not config.get(
         CONF_COLOR_PALETTE_IMAGES
@@ -109,16 +137,6 @@ def _validate(config):
     return config
 
 
-PANEL_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
-        cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
-        cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
-        cv.Optional(CONF_COLOR_ORDER, default="BGR"): cv.one_of(
-            *COLOR_ORDERS.keys(), upper=True
-        ),
-    }
-)
 CONFIG_SCHEMA = cv.All(
     font.validate_pillow_installed,
     display.FULL_DISPLAY_SCHEMA.extend(
@@ -146,8 +164,18 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
                 cv.file_
             ),
-            cv.Optional(CONF_PANEL_SETUP): PANEL_SCHEMA,
             cv.Optional(CONF_INVERT_DISPLAY): cv.boolean,
+            cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
+            cv.Optional(CONF_ROTATION): cv.Any(
+                validate_rotation,
+                cv.Schema(
+                    {
+                        cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
+                        cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+                        cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+                    }
+                ),
+            ),
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -166,16 +194,15 @@ async def to_code(config):
     await spi.register_spi_device(var, config)
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
-    if CONF_PANEL_SETUP in config:
-        panel = config[CONF_PANEL_SETUP]
-        mad = COLOR_ORDERS[panel[CONF_COLOR_ORDER]] | 0x8000
-        if panel[CONF_MIRROR_Y]:
-            mad |= 0x80
-        if panel[CONF_MIRROR_X]:
-            mad |= 0x40
-        if panel[CONF_SWAP_XY]:
-            mad |= 0x20
-        cg.add(var.set_mad(mad))
+    if CONF_COLOR_ORDER in config:
+        cg.add(var.set_color_order(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
+    if CONF_SWAP_XY in config:
+        cg.add(var.set_swap_xy(config[CONF_SWAP_XY]))
+    if CONF_MIRROR_X in config:
+        cg.add(var.set_mirror_x(config[CONF_MIRROR_X]))
+    if CONF_MIRROR_Y in config:
+        cg.add(var.set_mirror_y(config[CONF_MIRROR_Y]))
+
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
