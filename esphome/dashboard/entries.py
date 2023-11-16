@@ -155,14 +155,15 @@ class DashboardEntries:
         path_to_cache_key = await self._loop.run_in_executor(
             None, self._get_path_to_cache_key
         )
+        entries = self._entries
         added: dict[DashboardEntry, DashboardCacheKeyType] = {}
         updated: dict[DashboardEntry, DashboardCacheKeyType] = {}
         removed: set[DashboardEntry] = {
             entry
-            for filename, entry in self._entries.items()
+            for filename, entry in entries.items()
             if filename not in path_to_cache_key
         }
-        entries = self._entries
+
         for path, cache_key in path_to_cache_key.items():
             if entry := self._entries.get(path):
                 if entry.cache_key != cache_key:
@@ -181,8 +182,8 @@ class DashboardEntries:
             entries[entry.path] = entry
             bus.async_fire(EVENT_ENTRY_ADDED, {"entry": entry})
 
-        if entry in removed:
-            entries.pop(entry.path)
+        for entry in removed:
+            del entries[entry.path]
             bus.async_fire(EVENT_ENTRY_REMOVED, {"entry": entry})
 
         for entry in updated:
@@ -240,11 +241,13 @@ class DashboardEntry:
     def __repr__(self):
         """Return the representation of this entry."""
         return (
-            f"DashboardEntry({self.path} "
+            f"DashboardEntry(path={self.path} "
             f"address={self.address} "
             f"web_port={self.web_port} "
             f"name={self.name} "
-            f"no_mdns={self.no_mdns})"
+            f"no_mdns={self.no_mdns} "
+            f"state={self.state} "
+            ")"
         )
 
     def load_from_disk(self, cache_key: DashboardCacheKeyType | None = None) -> None:
