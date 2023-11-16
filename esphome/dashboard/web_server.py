@@ -612,22 +612,7 @@ class ListDevicesHandler(BaseHandler):
         self.write(
             json.dumps(
                 {
-                    "configured": [
-                        {
-                            "name": entry.name,
-                            "friendly_name": entry.friendly_name,
-                            "configuration": entry.filename,
-                            "loaded_integrations": entry.loaded_integrations,
-                            "deployed_version": entry.update_old,
-                            "current_version": entry.update_new,
-                            "path": entry.path,
-                            "comment": entry.comment,
-                            "address": entry.address,
-                            "web_port": entry.web_port,
-                            "target_platform": entry.target_platform,
-                        }
-                        for entry in entries
-                    ],
+                    "configured": [entry.to_dict() for entry in entries],
                     "importable": [
                         {
                             "name": res.device_name,

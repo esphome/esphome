@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from esphome import const, util
 from esphome.storage_json import StorageJSON, ext_storage_path
@@ -226,7 +226,15 @@ class DashboardEntry:
     This class is thread-safe and read-only.
     """
 
-    __slots__ = ("path", "filename", "_storage_path", "cache_key", "storage", "state")
+    __slots__ = (
+        "path",
+        "filename",
+        "_storage_path",
+        "cache_key",
+        "storage",
+        "state",
+        "_to_dict",
+    )
 
     def __init__(self, path: str, cache_key: DashboardCacheKeyType) -> None:
         """Initialize the DashboardEntry."""
@@ -236,6 +244,7 @@ class DashboardEntry:
         self.cache_key = cache_key
         self.storage: StorageJSON | None = None
         self.state = EntryState.UNKNOWN
+        self._to_dict: dict[str, Any] | None = None
 
     def __repr__(self):
         """Return the representation of this entry."""
@@ -249,9 +258,32 @@ class DashboardEntry:
             ")"
         )
 
+    def to_dict(self) -> dict[str, str | bool | None]:
+        """Return a dict representation of this entry.
+
+        The dict includes the loaded configuration but not
+        the current state of the entry.
+        """
+        if self._to_dict is None:
+            self._to_dict = {
+                "name": self.name,
+                "friendly_name": self.friendly_name,
+                "configuration": self.filename,
+                "loaded_integrations": self.loaded_integrations,
+                "deployed_version": self.update_old,
+                "current_version": self.update_new,
+                "path": self.path,
+                "comment": self.comment,
+                "address": self.address,
+                "web_port": self.web_port,
+                "target_platform": self.target_platform,
+            }
+        return self._to_dict
+
     def load_from_disk(self, cache_key: DashboardCacheKeyType | None = None) -> None:
         """Load this entry from disk."""
         self.storage = StorageJSON.load(self._storage_path)
+        self._to_dict = None
         #
         # Currently StorageJSON.load() will return None if the file does not exist
         #
