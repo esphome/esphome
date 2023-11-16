@@ -46,7 +46,7 @@ int OtaHttpArduino::http_init() {
   ESP_LOGD(TAG, "Trying to connect to %s", this->url_.c_str());
 
   bool status = false;
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_RP2040)
   status = this->client_.begin(this->url_.c_str());
 #endif
 #ifdef USE_ESP8266

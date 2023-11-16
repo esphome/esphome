@@ -65,7 +65,7 @@ def _declare_request_class(value):
     if CORE.using_esp_idf:
         return cv.declare_id(OtaHttpIDF)(value)
 
-    if CORE.is_esp8266 or CORE.is_esp32:
+    if CORE.is_esp8266 or CORE.is_esp32 or CORE.is_rp2040:
         return cv.declare_id(OtaHttpArduino)(value)
     return NotImplementedError
 
@@ -86,6 +86,7 @@ CONFIG_SCHEMA = cv.All(
         esp8266_arduino=cv.Version(2, 5, 1),
         esp32_arduino=cv.Version(0, 0, 0),
         esp_idf=cv.Version(0, 0, 0),
+        rp2040_arduino=cv.Version(0, 0, 0)
     ),
 )
 
@@ -108,6 +109,9 @@ async def to_code(config):
             cg.add_library("HTTPClient", None)
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)
+    if CORE.is_rp2040 and CORE.using_arduino:
+        cg.add_library("HTTPClient", None)
+
 
     await cg.register_component(var, config)
 

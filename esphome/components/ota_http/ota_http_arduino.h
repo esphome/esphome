@@ -12,7 +12,7 @@
 #include <utility>
 #include <string>
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_RP2040)
 #include <HTTPClient.h>
 #endif
 #ifdef USE_ESP8266
