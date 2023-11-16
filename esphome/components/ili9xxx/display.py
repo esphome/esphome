@@ -30,30 +30,30 @@ def AUTO_LOAD():
 
 CODEOWNERS = ["@nielsnl68", "@clydebarrow"]
 
-ili9XXX_ns = cg.esphome_ns.namespace("ili9xxx")
-ili9XXXSPI = ili9XXX_ns.class_(
+ili9xxx_ns = cg.esphome_ns.namespace("ili9xxx")
+ILI9XXXDisplay = ili9xxx_ns.class_(
     "ILI9XXXDisplay", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
 )
 
-ILI9XXXColorMode = ili9XXX_ns.enum("ILI9XXXColorMode")
+ILI9XXXColorMode = ili9xxx_ns.enum("ILI9XXXColorMode")
 ColorOrder = display.display_ns.enum("ColorMode")
 
 MODELS = {
-    "M5STACK": ili9XXX_ns.class_("ILI9XXXM5Stack", ili9XXXSPI),
-    "M5CORE": ili9XXX_ns.class_("ILI9XXXM5CORE", ili9XXXSPI),
-    "TFT_2.4": ili9XXX_ns.class_("ILI9XXXILI9341", ili9XXXSPI),
-    "TFT_2.4R": ili9XXX_ns.class_("ILI9XXXILI9342", ili9XXXSPI),
-    "ILI9341": ili9XXX_ns.class_("ILI9XXXILI9341", ili9XXXSPI),
-    "ILI9342": ili9XXX_ns.class_("ILI9XXXILI9342", ili9XXXSPI),
-    "ILI9481": ili9XXX_ns.class_("ILI9XXXILI9481", ili9XXXSPI),
-    "ILI9481-18": ili9XXX_ns.class_("ILI9XXXILI948118", ili9XXXSPI),
-    "ILI9486": ili9XXX_ns.class_("ILI9XXXILI9486", ili9XXXSPI),
-    "ILI9488": ili9XXX_ns.class_("ILI9XXXILI9488", ili9XXXSPI),
-    "ILI9488_A": ili9XXX_ns.class_("ILI9XXXILI9488A", ili9XXXSPI),
-    "ST7796": ili9XXX_ns.class_("ILI9XXXST7796", ili9XXXSPI),
-    "ST7789V": ili9XXX_ns.class_("ILI9XXXST7789V", ili9XXXSPI),
-    "S3BOX": ili9XXX_ns.class_("ILI9XXXS3Box", ili9XXXSPI),
-    "S3BOX_LITE": ili9XXX_ns.class_("ILI9XXXS3BoxLite", ili9XXXSPI),
+    "M5STACK": ili9xxx_ns.class_("ILI9XXXM5Stack", ILI9XXXDisplay),
+    "M5CORE": ili9xxx_ns.class_("ILI9XXXM5CORE", ILI9XXXDisplay),
+    "TFT_2.4": ili9xxx_ns.class_("ILI9XXXILI9341", ILI9XXXDisplay),
+    "TFT_2.4R": ili9xxx_ns.class_("ILI9XXXILI9342", ILI9XXXDisplay),
+    "ILI9341": ili9xxx_ns.class_("ILI9XXXILI9341", ILI9XXXDisplay),
+    "ILI9342": ili9xxx_ns.class_("ILI9XXXILI9342", ILI9XXXDisplay),
+    "ILI9481": ili9xxx_ns.class_("ILI9XXXILI9481", ILI9XXXDisplay),
+    "ILI9481-18": ili9xxx_ns.class_("ILI9XXXILI948118", ILI9XXXDisplay),
+    "ILI9486": ili9xxx_ns.class_("ILI9XXXILI9486", ILI9XXXDisplay),
+    "ILI9488": ili9xxx_ns.class_("ILI9XXXILI9488", ILI9XXXDisplay),
+    "ILI9488_A": ili9xxx_ns.class_("ILI9XXXILI9488A", ILI9XXXDisplay),
+    "ST7796": ili9xxx_ns.class_("ILI9XXXST7796", ILI9XXXDisplay),
+    "ST7789V": ili9xxx_ns.class_("ILI9XXXST7789V", ILI9XXXDisplay),
+    "S3BOX": ili9xxx_ns.class_("ILI9XXXS3Box", ILI9XXXDisplay),
+    "S3BOX_LITE": ili9xxx_ns.class_("ILI9XXXS3BoxLite", ILI9XXXDisplay),
 }
 
 COLOR_ORDERS = {
@@ -137,7 +137,7 @@ CONFIG_SCHEMA = cv.All(
     font.validate_pillow_installed,
     display.FULL_DISPLAY_SCHEMA.extend(
         {
-            cv.GenerateID(): cv.declare_id(ili9XXXSPI),
+            cv.GenerateID(): cv.declare_id(ILI9XXXDisplay),
             cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
             cv.Optional(CONF_DIMENSIONS): cv.Any(
                 cv.dimensions,
