@@ -3,24 +3,63 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .core import ESPHomeDashboard
 
 from esphome import const, util
 from esphome.storage_json import StorageJSON, ext_storage_path
 
+from .const import (
+    EVENT_ENTRY_ADDED,
+    EVENT_ENTRY_REMOVED,
+    EVENT_ENTRY_STATE_CHANGED,
+    EVENT_ENTRY_UPDATED,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
+
 DashboardCacheKeyType = tuple[int, int, float, int]
+
+# Currently EntryState is a simple
+# online/offline/unknown enum, but in the future
+# it may be expanded to include more states
+
+
+class EntryState(Enum):
+    ONLINE = "online"
+    OFFLINE = "offline"
+    UNKNOWN = "unknown"
+
+
+def bool_to_entry_state(value: bool) -> EntryState:
+    """Convert a bool to an entry state."""
+    if value is None:
+        return EntryState.UNKNOWN
+    return EntryState.ONLINE if value else EntryState.OFFLINE
 
 
 class DashboardEntries:
     """Represents all dashboard entries."""
 
-    __slots__ = ("_loop", "_config_dir", "_entries", "_loaded_entries", "_update_lock")
+    __slots__ = (
+        "_dashboard",
+        "_loop",
+        "_config_dir",
+        "_entries",
+        "_entry_states",
+        "_loaded_entries",
+        "_update_lock",
+    )
 
-    def __init__(self, config_dir: str) -> None:
+    def __init__(self, dashboard: ESPHomeDashboard) -> None:
         """Initialize the DashboardEntries."""
+        self._dashboard = dashboard
         self._loop = asyncio.get_running_loop()
-        self._config_dir = config_dir
+        self._config_dir = dashboard.settings.config_dir
         # Entries are stored as
         # {
         #   "path/to/file.yaml": DashboardEntry,
@@ -45,6 +84,25 @@ class DashboardEntries:
     def async_all(self) -> list[DashboardEntry]:
         """Return all entries."""
         return list(self._entries.values())
+
+    def set_state(self, entry: DashboardEntry, state: EntryState) -> None:
+        """Set the state for an entry."""
+        asyncio.run_coroutine_threadsafe(
+            self._async_set_state(entry, state), self._loop
+        ).result()
+
+    async def _async_set_state(self, entry: DashboardEntry, state: EntryState) -> None:
+        """Set the state for an entry."""
+        self.async_set_state(entry, state)
+
+    def async_set_state(self, entry: DashboardEntry, state: EntryState) -> None:
+        """Set the state for an entry."""
+        if entry.state == state:
+            return
+        entry.state = state
+        self._dashboard.bus.async_fire(
+            EVENT_ENTRY_STATE_CHANGED, {"entry": entry, "state": state}
+        )
 
     async def async_request_update_entries(self) -> None:
         """Request an update of the dashboard entries from disk.
@@ -102,17 +160,17 @@ class DashboardEntries:
                 None, self._load_entries, {**added, **updated}
             )
 
+        bus = self._dashboard.bus
         for entry in added:
-            _LOGGER.debug("Added dashboard entry %s", entry.path)
             entries[entry.path] = entry
+            bus.async_fire(EVENT_ENTRY_ADDED, {"entry": entry})
 
         if entry in removed:
-            _LOGGER.debug("Removed dashboard entry %s", entry.path)
             entries.pop(entry.path)
+            bus.async_fire(EVENT_ENTRY_REMOVED, {"entry": entry})
 
         for entry in updated:
-            _LOGGER.debug("Updated dashboard entry %s", entry.path)
-        # In the future we can fire events when entries are added/removed/updated
+            bus.async_fire(EVENT_ENTRY_UPDATED, {"entry": entry})
 
     def _get_path_to_cache_key(self) -> dict[str, DashboardCacheKeyType]:
         """Return a dict of path to cache key."""
@@ -152,7 +210,7 @@ class DashboardEntry:
     This class is thread-safe and read-only.
     """
 
-    __slots__ = ("path", "filename", "_storage_path", "cache_key", "storage")
+    __slots__ = ("path", "filename", "_storage_path", "cache_key", "storage", "online")
 
     def __init__(self, path: str, cache_key: DashboardCacheKeyType) -> None:
         """Initialize the DashboardEntry."""
@@ -161,6 +219,7 @@ class DashboardEntry:
         self._storage_path = ext_storage_path(self.filename)
         self.cache_key = cache_key
         self.storage: StorageJSON | None = None
+        self.state = EntryState.UNKNOWN
 
     def __repr__(self):
         """Return the representation of this entry."""

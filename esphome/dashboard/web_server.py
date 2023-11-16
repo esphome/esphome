@@ -37,6 +37,7 @@ from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
 from .core import DASHBOARD
+from .entries import EntryState
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
 
@@ -315,7 +316,9 @@ class EsphomeRenameHandler(EsphomeCommandWebSocket):
             return
 
         # Remove the old ping result from the cache
-        DASHBOARD.ping_result.pop(self.old_name, None)
+        entries = DASHBOARD.entries
+        if entry := entries.get(self.old_name):
+            entries.async_set_state(entry, EntryState.UNKNOWN)
 
 
 class EsphomeUploadHandler(EsphomePortCommandWebSocket):
@@ -728,7 +731,15 @@ class PingRequestHandler(BaseHandler):
         if settings.status_use_mqtt:
             dashboard.mqtt_ping_request.set()
         self.set_header("content-type", "application/json")
-        self.write(json.dumps(dashboard.ping_result))
+
+        self.write(
+            json.dumps(
+                {
+                    entry.filename: entry.state == EntryState.ONLINE
+                    for entry in dashboard.entries.async_all()
+                }
+            )
+        )
 
 
 class InfoRequestHandler(BaseHandler):
@@ -784,9 +795,6 @@ class DeleteRequestHandler(BaseHandler):
             build_folder = os.path.join(settings.config_dir, name)
             if build_folder is not None:
                 shutil.rmtree(build_folder, os.path.join(trash_path, name))
-
-        # Remove the old ping result from the cache
-        DASHBOARD.ping_result.pop(configuration, None)
 
 
 class UndoDeleteRequestHandler(BaseHandler):
