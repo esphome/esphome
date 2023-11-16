@@ -164,7 +164,7 @@ class DashboardEntry:
     This class is thread-safe and read-only.
     """
 
-    __slots__ = ("path", "filename", "_storage_path", "cache_key", "storage", "loaded")
+    __slots__ = ("path", "filename", "_storage_path", "cache_key", "storage")
 
     def __init__(self, path: str, cache_key: DashboardCacheKeyType) -> None:
         """Initialize the DashboardEntry."""
@@ -173,7 +173,6 @@ class DashboardEntry:
         self._storage_path = ext_storage_path(self.filename)
         self.cache_key = cache_key
         self.storage: StorageJSON | None = None
-        self.loaded = False
 
     def __repr__(self):
         """Return the representation of this entry."""
@@ -190,7 +189,6 @@ class DashboardEntry:
         self.storage = StorageJSON.load(self._storage_path)
         if self.cache_key:
             self.cache_key = cache_key
-        self.loaded = bool(self.storage)
 
     @property
     def address(self) -> str | None:
