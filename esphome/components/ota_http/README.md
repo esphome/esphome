@@ -10,6 +10,7 @@ external_components:
 
 
 ota_http:
+  esp8266_disable_ssl_support: no # will reduce the firwmare size if set to `yes`
 
 
 button:
@@ -19,6 +20,7 @@ button:
       then:
         - ota_http.flash:
             url: http://example.com/firmware.bin
+            disable_ssl: no  # must be explicitely set to `yes` if https is used.
         - logger.log: "This message should be not displayed(reboot)"
 ```
 
@@ -27,7 +29,7 @@ The file `firmware.bin` can be found at `.esphome/build/xxxx/.pioenvs/xxx/firmwa
 You should got in the logs:
 ```
 [18:48:30][D][button:010]: 'Firmware update' Pressed.
-[18:48:30][D][ota_http:079]: Trying to connect to http://rasp:8080/firmware.bin
+[18:48:30][D][ota_http:079]: Trying to connect to http://example.com/firmware.bin
 [18:48:30][D][ota_http:042]: Using ArduinoESP32OTABackend
 [18:48:30][D][ota_http:209]: Progress: 0.1%
 ...

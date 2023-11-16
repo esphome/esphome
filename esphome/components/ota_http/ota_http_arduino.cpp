@@ -40,6 +40,8 @@ int OtaHttpArduino::http_init() {
   } else {
     this->stream_ptr_ = std::make_unique<WiFiClient>();
   }
+#else
+  this->stream_ptr_ = std::make_unique<WiFiClient>();
 #endif  // USE_HTTP_REQUEST_ESP8266_HTTPS
 #endif  // USE_ESP8266
 
