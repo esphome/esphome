@@ -125,12 +125,6 @@ class DashboardEntries:
         # file which is much faster than reading the file
         # for the cache hit case which is the common case.
         #
-        # Because there is no lock the cache may
-        # get built more than once but that's fine as its still
-        # thread-safe and results in orders of magnitude less
-        # reads from disk than if we did not cache at all and
-        # does not have a lock contention issue.
-        #
         for file in util.list_yaml_files([self._config_dir]):
             try:
                 # Prefer the json storage path if it exists
@@ -181,7 +175,19 @@ class DashboardEntry:
     def load_from_disk(self, cache_key: DashboardCacheKeyType | None = None) -> None:
         """Load this entry from disk."""
         self.storage = StorageJSON.load(self._storage_path)
-        if self.cache_key:
+        #
+        # Currently StorageJSON.load() will return None if the file does not exist
+        #
+        # StorageJSON currently does not provide an updated cache key so we use the
+        # one that is passed
+        # in.
+        #
+        # The cache key was read from the disk moments ago and may be stale but
+        # it does not matter since we are polling anyways, and the next call to
+        # async_update_entries() will load it again in the extremely rare case that
+        # it changed between the two calls.
+        #
+        if cache_key:
             self.cache_key = cache_key
 
     @property
