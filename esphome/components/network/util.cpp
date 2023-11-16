@@ -29,6 +29,14 @@ bool is_connected() {
   return false;
 }
 
+bool is_disabled() {
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component != nullptr)
+    return wifi::global_wifi_component->is_disabled();
+#endif
+  return false;
+}
+
 network::IPAddress get_ip_address() {
 #ifdef USE_ETHERNET
   if (ethernet::global_eth_component != nullptr)
