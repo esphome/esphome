@@ -37,7 +37,7 @@ from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
 from .core import DASHBOARD
-from .entries import EntryState
+from .entries import EntryState, entry_state_to_bool
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
 
@@ -276,7 +276,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         if (
             port == "OTA"
             and (mdns := dashboard.mdns_status)
-            and (host_name := mdns.filename_to_host_name_thread_safe(configuration))
+            and (host_name := mdns.path_to_host_name_thread_safe(config_file))
             and (address := await mdns.async_resolve_host(host_name))
         ):
             port = address
@@ -735,7 +735,7 @@ class PingRequestHandler(BaseHandler):
         self.write(
             json.dumps(
                 {
-                    entry.filename: entry.state == EntryState.ONLINE
+                    entry.filename: entry_state_to_bool(entry.state)
                     for entry in dashboard.entries.async_all()
                 }
             )

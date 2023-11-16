@@ -36,11 +36,26 @@ class EntryState(StrEnum):
     UNKNOWN = "unknown"
 
 
+_BOOL_TO_ENTRY_STATE = {
+    True: EntryState.ONLINE,
+    False: EntryState.OFFLINE,
+    None: EntryState.UNKNOWN,
+}
+_ENTRY_STATE_TO_BOOL = {
+    EntryState.ONLINE: True,
+    EntryState.OFFLINE: False,
+    EntryState.UNKNOWN: None,
+}
+
+
 def bool_to_entry_state(value: bool) -> EntryState:
     """Convert a bool to an entry state."""
-    if value is None:
-        return EntryState.UNKNOWN
-    return EntryState.ONLINE if value else EntryState.OFFLINE
+    return _BOOL_TO_ENTRY_STATE[value]
+
+
+def entry_state_to_bool(value: EntryState) -> bool | None:
+    """Convert an entry state to a bool."""
+    return _ENTRY_STATE_TO_BOOL[value]
 
 
 class DashboardEntries:
@@ -211,12 +226,12 @@ class DashboardEntry:
     This class is thread-safe and read-only.
     """
 
-    __slots__ = ("path", "filename", "_storage_path", "cache_key", "storage", "online")
+    __slots__ = ("path", "filename", "_storage_path", "cache_key", "storage", "state")
 
     def __init__(self, path: str, cache_key: DashboardCacheKeyType) -> None:
         """Initialize the DashboardEntry."""
         self.path = path
-        self.filename = os.path.basename(path)
+        self.filename: str = os.path.basename(path)
         self._storage_path = ext_storage_path(self.filename)
         self.cache_key = cache_key
         self.storage: StorageJSON | None = None
