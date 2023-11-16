@@ -179,8 +179,7 @@ class DashboardEntry:
         # Currently StorageJSON.load() will return None if the file does not exist
         #
         # StorageJSON currently does not provide an updated cache key so we use the
-        # one that is passed
-        # in.
+        # one that is passed in.
         #
         # The cache key was read from the disk moments ago and may be stale but
         # it does not matter since we are polling anyways, and the next call to
