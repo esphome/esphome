@@ -1,6 +1,8 @@
 #pragma once
 #include "esphome/core/helpers.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace ili9xxx {
 

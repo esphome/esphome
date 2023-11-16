@@ -66,6 +66,7 @@ from esphome.core import (
     TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
+    TimePeriodNanoseconds,
     TimePeriodSeconds,
     TimePeriodMinutes,
 )
@@ -182,6 +183,7 @@ RESERVED_IDS = [
     "struct",
     "switch",
     "template",
+    "text",
     "this",
     "thread_local",
     "throw",
@@ -717,6 +719,8 @@ def time_period_str_unit(value):
         raise Invalid("Expected string for time period with unit.")
 
     unit_to_kwarg = {
+        "ns": "nanoseconds",
+        "nanoseconds": "nanoseconds",
         "us": "microseconds",
         "microseconds": "microseconds",
         "ms": "milliseconds",
@@ -738,7 +742,10 @@ def time_period_str_unit(value):
         raise Invalid(f"Expected time period with unit, got {value}")
     kwarg = unit_to_kwarg[one_of(*unit_to_kwarg)(match.group(2))]
 
-    return TimePeriod(**{kwarg: float(match.group(1))})
+    try:
+        return TimePeriod(**{kwarg: float(match.group(1))})
+    except ValueError as e:
+        raise Invalid(e) from e
 
 
 def time_period_in_milliseconds_(value):
@@ -748,10 +755,18 @@ def time_period_in_milliseconds_(value):
 
 
 def time_period_in_microseconds_(value):
+    if value.nanoseconds is not None and value.nanoseconds != 0:
+        raise Invalid("Maximum precision is microseconds")
     return TimePeriodMicroseconds(**value.as_dict())
 
 
+def time_period_in_nanoseconds_(value):
+    return TimePeriodNanoseconds(**value.as_dict())
+
+
 def time_period_in_seconds_(value):
+    if value.nanoseconds is not None and value.nanoseconds != 0:
+        raise Invalid("Maximum precision is seconds")
     if value.microseconds is not None and value.microseconds != 0:
         raise Invalid("Maximum precision is seconds")
     if value.milliseconds is not None and value.milliseconds != 0:
@@ -760,6 +775,8 @@ def time_period_in_seconds_(value):
 
 
 def time_period_in_minutes_(value):
+    if value.nanoseconds is not None and value.nanoseconds != 0:
+        raise Invalid("Maximum precision is minutes")
     if value.microseconds is not None and value.microseconds != 0:
         raise Invalid("Maximum precision is minutes")
     if value.milliseconds is not None and value.milliseconds != 0:
@@ -785,6 +802,9 @@ positive_time_period_minutes = All(positive_time_period, time_period_in_minutes_
 time_period_microseconds = All(time_period, time_period_in_microseconds_)
 positive_time_period_microseconds = All(
     positive_time_period, time_period_in_microseconds_
+)
+positive_time_period_nanoseconds = All(
+    positive_time_period, time_period_in_nanoseconds_
 )
 positive_not_null_time_period = All(
     time_period, Range(min=TimePeriod(), min_included=False)
@@ -1046,6 +1066,8 @@ def ipv4(value):
 
 def _valid_topic(value):
     """Validate that this is a valid topic name/filter."""
+    if value is None:  # Used to disable publishing and subscribing
+        return ""
     if isinstance(value, dict):
         raise Invalid("Can't use dictionary with topic")
     value = string(value)

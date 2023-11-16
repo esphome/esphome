@@ -52,12 +52,12 @@ template<typename... Ts> class XorCondition : public Condition<Ts...> {
  public:
   explicit XorCondition(const std::vector<Condition<Ts...> *> &conditions) : conditions_(conditions) {}
   bool check(Ts... x) override {
-    bool xor_state = false;
+    size_t result = 0;
     for (auto *condition : this->conditions_) {
-      xor_state = xor_state ^ condition->check(x...);
+      result += condition->check(x...);
     }
 
-    return xor_state;
+    return result == 1;
   }
 
  protected:
