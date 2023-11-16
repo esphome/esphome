@@ -31,7 +31,7 @@ class MDNSStatus:
         self.host_name_with_mdns_enabled: set[set] = set()
         self._loop = asyncio.get_running_loop()
 
-    def path_to_host_name_thread_safe(self, path: str) -> str | None:
+    def get_path_to_host_name(self, path: str) -> str | None:
         """Resolve a path to an address in a thread-safe manner."""
         return self.path_to_host_name.get(path)
 
