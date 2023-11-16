@@ -53,7 +53,7 @@ class ESPHomeDashboard:
         settings = self.settings
         mdns_task: asyncio.Task | None = None
         ping_status_task: asyncio.Task | None = None
-        await DASHBOARD.entries.async_update_entries()
+        await self.entries.async_update_entries()
 
         if settings.status_use_ping:
             from .status.ping import PingStatus
