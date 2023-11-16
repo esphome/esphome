@@ -5,11 +5,6 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
-from .enum import StrEnum
-
-if TYPE_CHECKING:
-    from .core import ESPHomeDashboard
-
 from esphome import const, util
 from esphome.storage_json import StorageJSON, ext_storage_path
 
@@ -19,6 +14,10 @@ from .const import (
     EVENT_ENTRY_STATE_CHANGED,
     EVENT_ENTRY_UPDATED,
 )
+from .enum import StrEnum
+
+if TYPE_CHECKING:
+    from .core import ESPHomeDashboard
 
 _LOGGER = logging.getLogger(__name__)
 
