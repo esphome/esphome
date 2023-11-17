@@ -1,5 +1,5 @@
 import urllib.parse as urlparse
-
+from esphome.cpp_generator import RawExpression
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -9,9 +9,10 @@ from esphome.const import (
     CONF_URL,
     CONF_METHOD,
     CONF_ESP8266_DISABLE_SSL_SUPPORT,
+    CONF_SAFE_MODE,
 )
 from esphome.components import esp32
-from esphome.core import Lambda, CORE
+from esphome.core import Lambda, CORE, coroutine_with_priority
 
 CODEOWNERS = ["@oarcher"]
 
@@ -80,17 +81,19 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
                 cv.only_on_esp8266, cv.boolean
             ),
+            cv.Optional(CONF_SAFE_MODE, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
         esp8266_arduino=cv.Version(2, 5, 1),
         esp32_arduino=cv.Version(0, 0, 0),
         esp_idf=cv.Version(0, 0, 0),
-        rp2040_arduino=cv.Version(0, 0, 0)
+        rp2040_arduino=cv.Version(0, 0, 0),
     ),
 )
 
 
+@coroutine_with_priority(50.0)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
@@ -112,8 +115,12 @@ async def to_code(config):
     if CORE.is_rp2040 and CORE.using_arduino:
         cg.add_library("HTTPClient", None)
 
-
     await cg.register_component(var, config)
+
+    if config[CONF_SAFE_MODE]:
+        check_upgrade = var.check_upgrade()
+        # cg.add(RawExpression(f"{check_upgrade}"))
+        cg.add(var.check_upgrade())
 
 
 OTA_HTTP_ACTION_SCHEMA = cv.Schema(

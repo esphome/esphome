@@ -12,6 +12,13 @@
 namespace esphome {
 namespace ota_http {
 
+#define OTA_HTTP_STATE_OK 10
+#define OTA_HTTP_STATE_PROGRESS 20
+#define OTA_HTTP_STATE_SAFE_MODE 30
+#define OTA_HTTP_STATE_ABORT 40
+
+#define OTA_HTTP_PREF_SAFE_MODE_HASH 99380597UL
+
 static const char *const TAG = "ota_http";
 
 class OtaHttpComponent : public Component {
@@ -24,6 +31,7 @@ class OtaHttpComponent : public Component {
   }
   void set_timeout(uint64_t timeout) { this->timeout_ = timeout; }
   void flash();
+  void check_upgrade();
   virtual int http_init() { return -1; };
   virtual size_t http_read(uint8_t *buf, size_t len) { return 0; };
   virtual void http_end(){};
@@ -40,6 +48,8 @@ class OtaHttpComponent : public Component {
   bool update_started_ = false;
   static const std::unique_ptr<ota::OTABackend> BACKEND;
   void cleanup_();
+  ESPPreferenceObject pref_ota_http_state_ = global_preferences->make_preference<int>(OTA_HTTP_PREF_SAFE_MODE_HASH, true);
+  int ota_http_state_ = OTA_HTTP_STATE_OK;
 };
 
 template<typename... Ts> class OtaHttpFlashAction : public Action<Ts...> {
