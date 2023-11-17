@@ -20,7 +20,6 @@ static const uint8_t GET_TOUCHES[2] = {0x81, 0x4F};
   }
 
 void IRAM_ATTR HOT Store::gpio_intr(Store *store) {
-  InterruptLock lock;
   store->available = true;
 }
 
