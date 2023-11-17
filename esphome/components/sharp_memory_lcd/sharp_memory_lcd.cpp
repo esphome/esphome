@@ -112,18 +112,10 @@ void HOT SharpMemoryLCD::draw_absolute_pixel_internal(int x, int y, Color color)
   }
   int width = this->get_width_internal() / 8u;
 
-  if (this->invert_color_) {
-    if (color.is_on()) {
-      this->buffer_[y * width + x / 8] |= (0x01 << (x & 7));
-    } else {
-      this->buffer_[y * width + x / 8] &= ~(0x01 << (x & 7));
-    }
+  if (this->invert_color_ == color.is_on) {
+    this->buffer_[y * width + x / 8] |= (0x01 << (x & 7));
   } else {
-    if (color.is_on()) {
-      this->buffer_[y * width + x / 8] &= ~(0x01 << (x & 7));
-    } else {
-      this->buffer_[y * width + x / 8] |= (0x01 << (x & 7));
-    }
+    this->buffer_[y * width + x / 8] &= ~(0x01 << (x & 7));
   }
 }
 
