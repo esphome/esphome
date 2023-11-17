@@ -155,6 +155,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   bool clean_session_;
   optional<std::string> ca_certificate_;
   bool skip_cert_cn_check_{false};
+  std::string topic_cache_;
 
   // callbacks
   CallbackManager<on_connect_callback_t> on_connect_;
