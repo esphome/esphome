@@ -12,10 +12,10 @@
 namespace esphome {
 namespace ota_http {
 
-#define OTA_HTTP_STATE_OK 10
-#define OTA_HTTP_STATE_PROGRESS 20
-#define OTA_HTTP_STATE_SAFE_MODE 30
-#define OTA_HTTP_STATE_ABORT 40
+static const uint8_t OTA_HTTP_STATE_OK = 10;
+static const uint8_t OTA_HTTP_STATE_PROGRESS = 20;
+static const uint8_t OTA_HTTP_STATE_SAFE_MODE = 30;
+static const uint8_t OTA_HTTP_STATE_ABORT = 40;
 
 #define OTA_HTTP_PREF_SAFE_MODE_HASH 99380597UL
 
