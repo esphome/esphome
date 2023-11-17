@@ -43,7 +43,7 @@ void HOT SharpMemoryLCD::write_display_data() {
 
   this->enable();
 
-  this->transfer_byte(this->sharpmem_vcom_ | SHARPMEM_BIT_WRITECMD);
+  this->write_byte(this->sharpmem_vcom_ | SHARPMEM_BIT_WRITECMD);
   this->sharpmem_vcom_ = this->sharpmem_vcom_ ? 0x00 : SHARPMEM_BIT_VCOM;
 
   uint16_t height = this->get_height_internal();
@@ -61,7 +61,7 @@ void HOT SharpMemoryLCD::write_display_data() {
   this->write_array(this->buffer_, this->get_buffer_length_());  
 
   // Send another trailing 8 bits for the last line
-  this->transfer_byte(0x00);
+  this->write_byte(0x00);
   this->disable();
 }
 
