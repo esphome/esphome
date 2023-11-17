@@ -1,5 +1,4 @@
 import urllib.parse as urlparse
-from esphome.cpp_generator import RawExpression
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -118,8 +117,6 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     if config[CONF_SAFE_MODE]:
-        check_upgrade = var.check_upgrade()
-        # cg.add(RawExpression(f"{check_upgrade}"))
         cg.add(var.check_upgrade())
 
 

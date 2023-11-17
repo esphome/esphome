@@ -48,7 +48,8 @@ class OtaHttpComponent : public Component {
   bool update_started_ = false;
   static const std::unique_ptr<ota::OTABackend> BACKEND;
   void cleanup_();
-  ESPPreferenceObject pref_ota_http_state_ = global_preferences->make_preference<int>(OTA_HTTP_PREF_SAFE_MODE_HASH, true);
+  ESPPreferenceObject pref_ota_http_state_ =
+    global_preferences->make_preference<int>(OTA_HTTP_PREF_SAFE_MODE_HASH, true);
   int ota_http_state_ = OTA_HTTP_STATE_OK;
 };
 
