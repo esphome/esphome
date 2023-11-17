@@ -44,11 +44,11 @@ void OtaHttpComponent::dump_config() {
 };
 
 void OtaHttpComponent::flash() {
-  if(pref_ota_http_state_.load(&ota_http_state_)){
-     ESP_LOGV(TAG, "restored pref ota_http_state: %d", ota_http_state_);
+  if (pref_ota_http_state_.load(&ota_http_state_)) {
+    ESP_LOGV(TAG, "restored pref ota_http_state: %d", ota_http_state_);
   }
 
-  if (ota_http_state_ != OTA_HTTP_STATE_SAFE_MODE){
+  if (ota_http_state_ != OTA_HTTP_STATE_SAFE_MODE) {
     ESP_LOGV(TAG, "setting mode to progress");
     ota_http_state_ = OTA_HTTP_STATE_PROGRESS;
     pref_ota_http_state_.save(&ota_http_state_);
@@ -152,8 +152,8 @@ void OtaHttpComponent::cleanup_() {
 };
 
 void OtaHttpComponent::check_upgrade() {
-  if(pref_ota_http_state_.load(&ota_http_state_)){
-    if(ota_http_state_ == OTA_HTTP_STATE_PROGRESS){
+  if (pref_ota_http_state_.load(&ota_http_state_)) {
+    if (ota_http_state_ == OTA_HTTP_STATE_PROGRESS) {
       // progress at boot time means that there was a problem
       ESP_LOGV(TAG, "previous ota_http doesn't succed. Retrying");
       ota_http_state_ = OTA_HTTP_STATE_SAFE_MODE;
@@ -161,7 +161,7 @@ void OtaHttpComponent::check_upgrade() {
       this->flash();
       return;
     }
-    if(ota_http_state_ == OTA_HTTP_STATE_SAFE_MODE){
+    if (ota_http_state_ == OTA_HTTP_STATE_SAFE_MODE) {
       ESP_LOGE(TAG, "previous safe mode didn't succeed. ota_http skipped");
       ota_http_state_ = OTA_HTTP_STATE_ABORT;
       pref_ota_http_state_.save(&ota_http_state_);
