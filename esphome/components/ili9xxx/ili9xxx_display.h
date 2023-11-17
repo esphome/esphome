@@ -33,6 +33,7 @@ class ILI9XXXDisplay : public PollingComponent,
     this->height_ = height;
     this->width_ = width;
   }
+  void invert_display(bool invert);
   void command(uint8_t value);
   void data(uint8_t value);
   void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes);
@@ -55,7 +56,7 @@ class ILI9XXXDisplay : public PollingComponent,
   void display_();
   void init_lcd_(const uint8_t *init_cmd);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
-  void invert_display_(bool invert);
+
   void reset_();
 
   int16_t width_{0};   ///< Display width as modified by current rotation
@@ -88,6 +89,7 @@ class ILI9XXXDisplay : public PollingComponent,
   bool prossing_update_ = false;
   bool need_update_ = false;
   bool is_18bitdisplay_ = false;
+  bool pre_invertdisplay_ = false;
 };
 
 //-----------   M5Stack display --------------
@@ -116,6 +118,12 @@ class ILI9XXXILI9342 : public ILI9XXXDisplay {
 
 //-----------   ILI9XXX_??_TFT rotated display --------------
 class ILI9XXXILI9481 : public ILI9XXXDisplay {
+ protected:
+  void initialize() override;
+};
+
+//-----------   ILI9481 in 18 bit mode --------------
+class ILI9XXXILI948118 : public ILI9XXXDisplay {
  protected:
   void initialize() override;
 };

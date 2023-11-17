@@ -53,7 +53,11 @@ void arch_init() {
 void IRAM_ATTR HOT arch_feed_wdt() { esp_task_wdt_reset(); }
 
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
+#if ESP_IDF_VERSION_MAJOR >= 5
+uint32_t arch_get_cpu_cycle_count() { return esp_cpu_get_cycle_count(); }
+#else
 uint32_t arch_get_cpu_cycle_count() { return cpu_hal_get_cycle_count(); }
+#endif
 uint32_t arch_get_cpu_freq_hz() { return rtc_clk_apb_freq_get(); }
 
 #ifdef USE_ESP_IDF

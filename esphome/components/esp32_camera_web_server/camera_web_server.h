@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <cinttypes>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 

@@ -52,7 +52,7 @@ Image_ = image_ns.class_("Image")
 
 
 def _compute_local_icon_path(value) -> Path:
-    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN / "mdi"
+    base_dir = Path(CORE.data_dir) / DOMAIN / "mdi"
     return base_dir / f"{value[CONF_ICON]}.svg"
 
 
@@ -255,7 +255,11 @@ async def to_code(config):
 
     transparent = config[CONF_USE_TRANSPARENCY]
 
-    dither = Image.NONE if config[CONF_DITHER] == "NONE" else Image.FLOYDSTEINBERG
+    dither = (
+        Image.Dither.NONE
+        if config[CONF_DITHER] == "NONE"
+        else Image.Dither.FLOYDSTEINBERG
+    )
     if config[CONF_TYPE] == "GRAYSCALE":
         image = image.convert("LA", dither=dither)
         pixels = list(image.getdata())
