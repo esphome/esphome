@@ -16,7 +16,7 @@ using sharp_memory_lcd_writer_t = std::function<void(SharpMemoryLCD &)>;
 class SharpMemoryLCD : public PollingComponent,
                        public display::DisplayBuffer,
                        public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                             spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_20MHZ> {
+                                             spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
   void set_writer(sharp_memory_lcd_writer_t &&writer) { this->writer_local_ = writer; }
   void set_height(uint16_t height) { this->height_ = height; }

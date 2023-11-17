@@ -46,26 +46,19 @@ void HOT SharpMemoryLCD::write_display_data() {
   this->transfer_byte(this->sharpmem_vcom_ | SHARPMEM_BIT_WRITECMD);
   this->sharpmem_vcom_ = this->sharpmem_vcom_ ? 0x00 : SHARPMEM_BIT_VCOM;
 
-  uint16_t width = this->get_width_internal();
   uint16_t height = this->get_height_internal();
 
   uint8_t bytes_per_line = width / 8;
 
   uint16_t totalbytes = (width * height) / 8;
 
-  for (i = 0; i < totalbytes; i += bytes_per_line) {
-    uint8_t line[bytes_per_line + 2];
+  for (size_t i = 0 ; i != height ; i++) {  
+    this->buffer_[i * bytes_per_line] = i + 1;  
+    this->buffer_[i * bytes_per_line + bytes_per_line - 1] = 0;  
+  }  
+  this->buffer_[this->get_buffer_length_() - 1] = 0;  
+  this->write_array(this->buffer_, this->get_buffer_length_());  
 
-    // Send address _byte
-    currentline = ((i + 1) / (width / 8)) + 1;
-    line[0] = currentline;
-    // Copy over this line
-    memcpy(line + 1, this->buffer_ + i, bytes_per_line);
-    // Attach end of line and send it
-    line[bytes_per_line + 1] = 0x00;
-    this->transfer_array(line, bytes_per_line + 2);
-    App.feed_wdt();
-  }
   // Send another trailing 8 bits for the last line
   this->transfer_byte(0x00);
   this->disable();
