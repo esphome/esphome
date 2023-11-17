@@ -43,7 +43,6 @@ void HOT SharpMemoryLCD::write_display_data() {
 
   this->enable();
 
-  this->write_byte(this->sharpmem_vcom_ | SHARPMEM_BIT_WRITECMD);
   this->sharpmem_vcom_ = this->sharpmem_vcom_ ? 0x00 : SHARPMEM_BIT_VCOM;
 
   uint16_t height = this->get_height_internal();
@@ -53,15 +52,15 @@ void HOT SharpMemoryLCD::write_display_data() {
 
   uint16_t totalbytes = (width * height) / 8;
 
-  for (size_t i = 0 ; i != height ; i++) {  
-    this->buffer_[i * bytes_per_line] = i + 1;  
-    this->buffer_[i * bytes_per_line + bytes_per_line - 1] = 0;  
-  }  
-  this->buffer_[this->get_buffer_length_() - 1] = 0;  
-  this->write_array(this->buffer_, this->get_buffer_length_());  
+  this->buffer_[0] = this->sharpmem_vcom_ | SHARPMEM_BIT_WRITECMD;
+  for (size_t i = 1 ; i != height ; i++) {
+    this->buffer_[i * bytes_per_line] = i;
+    this->buffer_[i * bytes_per_line + bytes_per_line - 1] = 0;
+  }
 
-  // Send another trailing 8 bits for the last line
-  this->write_byte(0x00);
+  this->buffer_[this->get_buffer_length_() - 1] = 0;
+  this->write_array(this->buffer_, this->get_buffer_length_());
+
   this->disable();
 }
 
@@ -92,12 +91,12 @@ void SharpMemoryLCD::update() {
   this->write_display_data();
 }
 
-int SharpMemoryLCD::get_width_internal() { return this->width_; }
+int SharpMemoryLCD::get_width_internal() { return this->width_ + 16u; }
 
 int SharpMemoryLCD::get_height_internal() { return this->height_; }
 
 size_t SharpMemoryLCD::get_buffer_length_() {
-  return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
+  return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u + 8u;
 }
 
 void HOT SharpMemoryLCD::draw_absolute_pixel_internal(int x, int y, Color color) {
@@ -106,10 +105,13 @@ void HOT SharpMemoryLCD::draw_absolute_pixel_internal(int x, int y, Color color)
   }
   int width = this->get_width_internal() / 8u;
 
+  // Skip the first byte in each line
+  int index = y * width + 1 + x / 8u;
+
   if (this->invert_color_ == color.is_on()) {
-    this->buffer_[y * width + x / 8] |= (0x01 << (x & 7));
+    this->buffer_[index] |= (0x01 << (x & 7));
   } else {
-    this->buffer_[y * width + x / 8] &= ~(0x01 << (x & 7));
+    this->buffer_[index] &= ~(0x01 << (x & 7));
   }
 }
 
