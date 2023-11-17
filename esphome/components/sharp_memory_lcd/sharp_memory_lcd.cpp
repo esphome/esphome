@@ -53,7 +53,8 @@ void HOT SharpMemoryLCD::write_display_data() {
   uint16_t totalbytes = (width * height) / 8;
 
   this->buffer_[0] = this->sharpmem_vcom_ | SHARPMEM_BIT_WRITECMD;
-  for (size_t i = 1 ; i != height ; i++) {
+
+  for (size_t i = 1 ; i - 1 != height ; i++) {
     this->buffer_[i * bytes_per_line] = i;
     this->buffer_[i * bytes_per_line + bytes_per_line - 1] = 0;
   }
