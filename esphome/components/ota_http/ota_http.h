@@ -31,7 +31,7 @@ class OtaHttpComponent : public Component {
  public:
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-  void set_url(const std::string& url) {
+  void set_url(const std::string &url) {
     // this->url_ = std::move(url);
     // TODO check size
     size_t length = std::min(url.length(), static_cast<size_t>(sizeof(pref_.url) - 1));
