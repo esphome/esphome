@@ -150,7 +150,11 @@ class EsphomeZeroconf(Zeroconf):
     def resolve_host(self, host: str, timeout: float = 3.0) -> str | None:
         """Resolve a host name to an IP address."""
         name = host.partition(".")[0]
-        info = HostResolver(ESPHOME_SERVICE_TYPE, f"{name}.{ESPHOME_SERVICE_TYPE}")
+        info = HostResolver(
+            ESPHOME_SERVICE_TYPE,
+            f"{name}.{ESPHOME_SERVICE_TYPE}",
+            server=f"{name}.local.",
+        )
         if (
             info.load_from_cache(self)
             or (timeout and info.request(self, timeout * 1000))
