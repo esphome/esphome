@@ -756,9 +756,15 @@ class EditRequestHandler(BaseHandler):
 
     @authenticated
     @bind_config
-    def post(self, configuration=None):
-        with open(file=settings.rel_path(configuration), mode="wb") as f:
+    async def post(self, configuration=None):
+        # Atomic write
+        config_file = settings.rel_path(configuration)
+        with open(file=config_file, mode="wb") as f:
             f.write(self.request.body)
+
+        await async_run_system_command(
+            [*DASHBOARD_COMMAND, "compile", "--only-generate", config_file]
+        )
         self.set_status(200)
 
 
