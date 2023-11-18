@@ -460,7 +460,7 @@ def upload_factory_ota(config, args):
             # Bootloader
             file_to_upload = CORE.bootloader_bin
             bin_type.type = espota2.UPLOAD_TYPE_BOOTLOADER
-            bin_type.partition.label = "app0"
+            bin_type.partition.label = ""
             rc = espota2.run_ota(
                 host, remote_port, password, bin_type, file_to_upload, False
             )
@@ -470,6 +470,7 @@ def upload_factory_ota(config, args):
             _LOGGER.info("Trying to restore the partition table backup ...")
             file_to_upload = partition_table_backup.name
             bin_type.type = espota2.UPLOAD_TYPE_PARTITION_TABLE
+            bin_type.partition.label = ""
             restore_rc = espota2.run_ota(
                 host, remote_port, password, bin_type, file_to_upload, True
             )
