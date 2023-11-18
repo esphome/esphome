@@ -69,6 +69,7 @@ class DashboardEntries:
         "_entry_states",
         "_loaded_entries",
         "_update_lock",
+        "_name_to_entry",
     )
 
     def __init__(self, dashboard: ESPHomeDashboard) -> None:
