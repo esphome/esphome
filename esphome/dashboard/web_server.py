@@ -525,9 +525,19 @@ class DownloadListRequestHandler(BaseHandler):
 
 
 class DownloadBinaryRequestHandler(BaseHandler):
+    def _load_file(self, path: str, compressed: bool) -> bytes:
+        """Load a file from disk and compress it if requested."""
+        with open(path, "rb") as f:
+            data = f.read()
+            if compressed:
+                return gzip.compress(data, 9)
+            return data
+
     @authenticated
     @bind_config
-    async def get(self, configuration=None):
+    async def get(self, configuration: str | None = None):
+        """Download a binary file."""
+        loop = asyncio.get_running_loop()
         compressed = self.get_argument("compressed", "0") == "1"
 
         storage_path = ext_storage_path(configuration)
@@ -584,11 +594,8 @@ class DownloadBinaryRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        with open(path, "rb") as f:
-            data = f.read()
-            if compressed:
-                data = gzip.compress(data, 9)
-            self.write(data)
+        data = await loop.run_in_executor(None, self._load_file, path, compressed)
+        self.write(data)
 
         self.finish()
 
@@ -748,13 +755,10 @@ class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     async def get(self, configuration: str | None = None):
+        """Get the content of a file."""
         loop = asyncio.get_running_loop()
         filename = settings.rel_path(configuration)
-        try:
-            content = await loop.run_in_executor(None, self._read_file, filename)
-        except OSError:
-            self.send_error(404)
-            return
+        content = await loop.run_in_executor(None, self._read_file, filename)
         self.write(content)
 
     def _read_file(self, filename: str) -> bytes:
@@ -769,6 +773,7 @@ class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     async def post(self, configuration: str | None = None):
+        """Write the content of a file."""
         loop = asyncio.get_running_loop()
         config_file = settings.rel_path(configuration)
         await loop.run_in_executor(
