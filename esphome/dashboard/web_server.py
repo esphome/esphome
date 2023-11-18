@@ -277,8 +277,8 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         if (
             port == "OTA"
             and (mdns := dashboard.mdns_status)
-            and (host_name := entries.get(configuration))
-            and (address := await mdns.async_resolve_host(host_name))
+            and (entry := entries.get(config_file))
+            and (address := await mdns.async_resolve_host(entry.name))
         ):
             port = address
 
