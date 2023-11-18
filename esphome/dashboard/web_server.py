@@ -37,6 +37,7 @@ from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
 from .core import DASHBOARD
+from .entries import EntryState, entry_state_to_bool
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
 
@@ -269,14 +270,15 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
     ) -> list[str]:
         """Build the command to run."""
         dashboard = DASHBOARD
+        entries = dashboard.entries
         configuration = json_message["configuration"]
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
         if (
             port == "OTA"
             and (mdns := dashboard.mdns_status)
-            and (host_name := mdns.filename_to_host_name_thread_safe(configuration))
-            and (address := await mdns.async_resolve_host(host_name))
+            and (entry := entries.get(config_file))
+            and (address := await mdns.async_resolve_host(entry.name))
         ):
             port = address
 
@@ -315,7 +317,9 @@ class EsphomeRenameHandler(EsphomeCommandWebSocket):
             return
 
         # Remove the old ping result from the cache
-        DASHBOARD.ping_result.pop(self.old_name, None)
+        entries = DASHBOARD.entries
+        if entry := entries.get(self.old_name):
+            entries.async_set_state(entry, EntryState.UNKNOWN)
 
 
 class EsphomeUploadHandler(EsphomePortCommandWebSocket):
@@ -609,22 +613,7 @@ class ListDevicesHandler(BaseHandler):
         self.write(
             json.dumps(
                 {
-                    "configured": [
-                        {
-                            "name": entry.name,
-                            "friendly_name": entry.friendly_name,
-                            "configuration": entry.filename,
-                            "loaded_integrations": entry.loaded_integrations,
-                            "deployed_version": entry.update_old,
-                            "current_version": entry.update_new,
-                            "path": entry.path,
-                            "comment": entry.comment,
-                            "address": entry.address,
-                            "web_port": entry.web_port,
-                            "target_platform": entry.target_platform,
-                        }
-                        for entry in entries
-                    ],
+                    "configured": [entry.to_dict() for entry in entries],
                     "importable": [
                         {
                             "name": res.device_name,
@@ -728,7 +717,15 @@ class PingRequestHandler(BaseHandler):
         if settings.status_use_mqtt:
             dashboard.mqtt_ping_request.set()
         self.set_header("content-type", "application/json")
-        self.write(json.dumps(dashboard.ping_result))
+
+        self.write(
+            json.dumps(
+                {
+                    entry.filename: entry_state_to_bool(entry.state)
+                    for entry in dashboard.entries.async_all()
+                }
+            )
+        )
 
 
 class InfoRequestHandler(BaseHandler):
@@ -784,9 +781,6 @@ class DeleteRequestHandler(BaseHandler):
             build_folder = os.path.join(settings.config_dir, name)
             if build_folder is not None:
                 shutil.rmtree(build_folder, os.path.join(trash_path, name))
-
-        # Remove the old ping result from the cache
-        DASHBOARD.ping_result.pop(configuration, None)
 
 
 class UndoDeleteRequestHandler(BaseHandler):

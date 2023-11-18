@@ -5,7 +5,7 @@ import os
 from typing import cast
 
 from ..core import DASHBOARD
-from ..entries import DashboardEntry
+from ..entries import DashboardEntry, bool_to_entry_state
 from ..util.itertools import chunked
 from ..util.subprocess import async_system_command_status
 
@@ -26,14 +26,14 @@ class PingStatus:
     async def async_run(self) -> None:
         """Run the ping status."""
         dashboard = DASHBOARD
+        entries = dashboard.entries
 
         while not dashboard.stop_event.is_set():
             # Only ping if the dashboard is open
             await dashboard.ping_request.wait()
-            dashboard.ping_result.clear()
-            entries = dashboard.entries.async_all()
+            current_entries = dashboard.entries.async_all()
             to_ping: list[DashboardEntry] = [
-                entry for entry in entries if entry.address is not None
+                entry for entry in current_entries if entry.address is not None
             ]
             for ping_group in chunked(to_ping, 16):
                 ping_group = cast(list[DashboardEntry], ping_group)
@@ -46,4 +46,4 @@ class PingStatus:
                         result = False
                     elif isinstance(result, BaseException):
                         raise result
-                    dashboard.ping_result[entry.filename] = result
+                    entries.async_set_state(entry, bool_to_entry_state(result))
