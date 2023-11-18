@@ -974,9 +974,9 @@ class MDNSStatusThread(threading.Thread):
         # This is a set of host names to track (i.e no_mdns = false)
         self.host_name_with_mdns_enabled: set[set] = set()
         self.zc: EsphomeZeroconf | None = None
-        self._refresh_hosts(poll_non_api_hosts=False)
+        self._refresh_hosts()
 
-    def _refresh_hosts(self, poll_non_api_hosts: bool = True):
+    def _refresh_hosts(self):
         """Refresh the hosts to track."""
         entries = _list_dashboard_entries()
         host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
@@ -997,7 +997,7 @@ class MDNSStatusThread(threading.Thread):
             # If we just adopted/imported this host, we likely
             # already have a state for it, so we should make sure
             # to set it so the dashboard shows it as online
-            if poll_non_api_hosts and (
+            if self.zc and (
                 entry.loaded_integrations and "api" not in entry.loaded_integrations
             ):
                 # No api available so we have to poll since
