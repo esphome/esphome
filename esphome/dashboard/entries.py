@@ -4,7 +4,7 @@ import asyncio
 import logging
 import os
 from typing import TYPE_CHECKING, Any
-
+from collections import defaultdict
 from esphome import const, util
 from esphome.storage_json import StorageJSON, ext_storage_path
 
@@ -83,10 +83,15 @@ class DashboardEntries:
         self._entries: dict[str, DashboardEntry] = {}
         self._loaded_entries = False
         self._update_lock = asyncio.Lock()
+        self._name_to_entry: dict[str, set[DashboardEntry]] = defaultdict(set)
 
     def get(self, path: str) -> DashboardEntry | None:
         """Get an entry by path."""
         return self._entries.get(path)
+
+    def get_by_name(self, name: str) -> set[DashboardEntry] | None:
+        """Get an entry by name."""
+        return self._name_to_entry.get(name)
 
     async def _async_all(self) -> list[DashboardEntry]:
         """Return all entries."""
@@ -155,6 +160,8 @@ class DashboardEntries:
             None, self._get_path_to_cache_key
         )
         entries = self._entries
+        name_to_path = self._name_to_path
+        assert name_to_path is not None
         added: dict[DashboardEntry, DashboardCacheKeyType] = {}
         updated: dict[DashboardEntry, DashboardCacheKeyType] = {}
         removed: set[DashboardEntry] = {
@@ -162,14 +169,17 @@ class DashboardEntries:
             for filename, entry in entries.items()
             if filename not in path_to_cache_key
         }
+        # TODO: remove name
 
         for path, cache_key in path_to_cache_key.items():
             if entry := entries.get(path):
+                # TODO: entry can change name
                 if entry.cache_key != cache_key:
                     updated[entry] = cache_key
             else:
                 entry = DashboardEntry(path, cache_key)
                 added[entry] = cache_key
+                # TODO: add name
 
         if added or updated:
             await self._loop.run_in_executor(

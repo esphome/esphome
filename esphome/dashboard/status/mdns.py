@@ -24,9 +24,6 @@ class MDNSStatus:
         self.aiozc: AsyncEsphomeZeroconf | None = None
         # This is the current mdns state for each host (True, False, None)
         self.host_mdns_state: dict[str, bool | None] = {}
-        # This is the hostnames to path mapping
-        self.host_name_to_path: dict[str, str] = {}
-        self.path_to_host_name: dict[str, str] = {}
         # This is a set of host names to track (i.e no_mdns = false)
         self.host_name_with_mdns_enabled: set[set] = set()
         self._loop = asyncio.get_running_loop()
@@ -47,8 +44,6 @@ class MDNSStatus:
         current_entries = dashboard.entries.async_all()
         host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
         host_mdns_state = self.host_mdns_state
-        host_name_to_path = self.host_name_to_path
-        path_to_host_name = self.path_to_host_name
         entries = dashboard.entries
 
         for entry in current_entries:
@@ -60,19 +55,11 @@ class MDNSStatus:
 
             # We are tracking this host
             host_name_with_mdns_enabled.add(name)
-            path = entry.path
-
             # If we just adopted/imported this host, we likely
             # already have a state for it, so we should make sure
             # to set it so the dashboard shows it as online
             if (online := host_mdns_state.get(name, SENTINEL)) != SENTINEL:
                 entries.async_set_state(entry, bool_to_entry_state(online))
-
-            # Make sure the mapping is up to date
-            # so when we get an mdns update we can map it back
-            # to the filename
-            host_name_to_path[name] = path
-            path_to_host_name[path] = name
 
     async def async_run(self) -> None:
         dashboard = DASHBOARD
@@ -80,7 +67,6 @@ class MDNSStatus:
         aiozc = AsyncEsphomeZeroconf()
         self.aiozc = aiozc
         host_mdns_state = self.host_mdns_state
-        host_name_to_path = self.host_name_to_path
         host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
 
         def on_update(dat: dict[str, bool | None]) -> None:
@@ -89,8 +75,9 @@ class MDNSStatus:
                 host_mdns_state[name] = result
                 if name not in host_name_with_mdns_enabled:
                     continue
-                if entry := entries.get(host_name_to_path[name]):
-                    entries.async_set_state(entry, bool_to_entry_state(result))
+                if matching_entries := entries.get_by_name(name):
+                    for entry in matching_entries:
+                        entries.async_set_state(entry, bool_to_entry_state(result))
 
         stat = DashboardStatus(on_update)
         imports = DashboardImportDiscovery()
