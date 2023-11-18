@@ -24,8 +24,6 @@ class MDNSStatus:
         self.aiozc: AsyncEsphomeZeroconf | None = None
         # This is the current mdns state for each host (True, False, None)
         self.host_mdns_state: dict[str, bool | None] = {}
-        # This is a set of host names to track (i.e no_mdns = false)
-        self.host_name_with_mdns_enabled: set[set] = set()
         self._loop = asyncio.get_running_loop()
 
     def get_path_to_host_name(self, path: str) -> str | None:
@@ -41,24 +39,15 @@ class MDNSStatus:
     async def async_refresh_hosts(self):
         """Refresh the hosts to track."""
         dashboard = DASHBOARD
-        current_entries = dashboard.entries.async_all()
-        host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
         host_mdns_state = self.host_mdns_state
         entries = dashboard.entries
-
-        for entry in current_entries:
-            name = entry.name
-            # If no_mdns is set, remove it from the set
+        for entry in entries.async_all():
             if entry.no_mdns:
-                host_name_with_mdns_enabled.discard(name)
                 continue
-
-            # We are tracking this host
-            host_name_with_mdns_enabled.add(name)
             # If we just adopted/imported this host, we likely
             # already have a state for it, so we should make sure
             # to set it so the dashboard shows it as online
-            if (online := host_mdns_state.get(name, SENTINEL)) != SENTINEL:
+            if (online := host_mdns_state.get(entry.name, SENTINEL)) != SENTINEL:
                 entries.async_set_state(entry, bool_to_entry_state(online))
 
     async def async_run(self) -> None:
@@ -67,17 +56,15 @@ class MDNSStatus:
         aiozc = AsyncEsphomeZeroconf()
         self.aiozc = aiozc
         host_mdns_state = self.host_mdns_state
-        host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
 
         def on_update(dat: dict[str, bool | None]) -> None:
             """Update the entry state."""
             for name, result in dat.items():
                 host_mdns_state[name] = result
-                if name not in host_name_with_mdns_enabled:
-                    continue
                 if matching_entries := entries.get_by_name(name):
                     for entry in matching_entries:
-                        entries.async_set_state(entry, bool_to_entry_state(result))
+                        if not entry.no_mdns:
+                            entries.async_set_state(entry, bool_to_entry_state(result))
 
         stat = DashboardStatus(on_update)
         imports = DashboardImportDiscovery()
@@ -89,10 +76,11 @@ class MDNSStatus:
             [stat.browser_callback, imports.browser_callback],
         )
 
+        ping_request = dashboard.ping_request
         while not dashboard.stop_event.is_set():
             await self.async_refresh_hosts()
-            await dashboard.ping_request.wait()
-            dashboard.ping_request.clear()
+            await ping_request.wait()
+            ping_request.clear()
 
         await browser.async_cancel()
         await aiozc.async_close()

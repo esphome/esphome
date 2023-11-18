@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import TYPE_CHECKING, Any
 from collections import defaultdict
+from typing import TYPE_CHECKING, Any
+
 from esphome import const, util
 from esphome.storage_json import StorageJSON, ext_storage_path
 
