@@ -4,6 +4,7 @@ import hmac
 import os
 from pathlib import Path
 from typing import Any
+
 from esphome.core import CORE
 from esphome.helpers import get_bool_env
 
