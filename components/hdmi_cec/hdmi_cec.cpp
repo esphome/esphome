@@ -10,6 +10,21 @@ static const uint32_t START_BIT_MIN_US = 3500;
 static const uint32_t HIGH_BIT_MIN_US = 400;
 static const uint32_t HIGH_BIT_MAX_US = 800;
 
+std::string bytes_to_string(std::vector<uint8_t> bytes) {
+  std::string result;
+  char part_buffer[3];
+  for (auto it = bytes.begin(); it != bytes.end(); it++) {
+    uint8_t byte_value = *it;
+    sprintf(part_buffer, "%02x", byte_value);
+    result += part_buffer;
+
+    if (it != bytes.end()) {
+      result += ":";
+    }
+  }
+  return result;
+}
+
 void HDMICEC::setup() {
   this->isr_pin_ = this->pin_->to_isr();
   this->recv_frame_buffer_.reserve(16); // max 16 bytes per CEC frame
@@ -43,10 +58,8 @@ void HDMICEC::loop() {
       continue;
     }
 
-    ESP_LOGD(TAG, "CEC: %02x -> %02x", src_addr, dest_addr);
-    for (int i = 0; i < frame.size(); i++) {
-      ESP_LOGD(TAG, "   [%d] = 0x%02X", i, frame[i]);
-    }
+    auto frame_str = bytes_to_string(frame);
+    ESP_LOGD(TAG, "0x%01x -> 0x%01x : %s", src_addr, dest_addr, frame_str.c_str());
 
     uint8_t opcode = frame[1];
     std::vector<uint8_t> data(frame.begin() + 1, frame.end());
