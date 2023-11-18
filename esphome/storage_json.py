@@ -1,21 +1,15 @@
 import binascii
 import codecs
-from datetime import datetime
 import json
 import logging
 import os
+from datetime import datetime
 from typing import Optional
 
 from esphome import const
+from esphome.const import CONF_DISABLED, CONF_MDNS
 from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
-
-
-from esphome.const import (
-    CONF_MDNS,
-    CONF_DISABLED,
-)
-
 from esphome.types import CoreType
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,48 +34,47 @@ def trash_storage_path() -> str:
 class StorageJSON:
     def __init__(
         self,
-        storage_version,
-        name,
-        friendly_name,
-        comment,
-        esphome_version,
-        src_version,
-        address,
-        web_port,
-        target_platform,
-        build_path,
-        firmware_bin_path,
-        loaded_integrations,
-        no_mdns,
-    ):
+        storage_version: int,
+        name: str,
+        friendly_name: str,
+        comment: str,
+        esphome_version: str,
+        src_version: int | None,
+        address: str,
+        web_port: int | None,
+        target_platform: str,
+        build_path: str,
+        firmware_bin_path: str,
+        loaded_integrations: set[str],
+        no_mdns: bool,
+    ) -> None:
         # Version of the storage JSON schema
         assert storage_version is None or isinstance(storage_version, int)
-        self.storage_version: int = storage_version
+        self.storage_version = storage_version
         # The name of the node
-        self.name: str = name
+        self.name = name
         # The friendly name of the node
-        self.friendly_name: str = friendly_name
+        self.friendly_name = friendly_name
         # The comment of the node
-        self.comment: str = comment
+        self.comment = comment
         # The esphome version this was compiled with
-        self.esphome_version: str = esphome_version
+        self.esphome_version = esphome_version
         # The version of the file in src/main.cpp - Used to migrate the file
         assert src_version is None or isinstance(src_version, int)
-        self.src_version: int = src_version
+        self.src_version = src_version
         # Address of the ESP, for example livingroom.local or a static IP
-        self.address: str = address
+        self.address = address
         # Web server port of the ESP, for example 80
         assert web_port is None or isinstance(web_port, int)
-        self.web_port: int = web_port
+        self.web_port = web_port
         # The type of hardware in use, like "ESP32", "ESP32C3", "ESP8266", etc.
-        self.target_platform: str = target_platform
+        self.target_platform = target_platform
         # The absolute path to the platformio project
-        self.build_path: str = build_path
+        self.build_path = build_path
         # The absolute path to the firmware binary
-        self.firmware_bin_path: str = firmware_bin_path
-        # A list of strings of names of loaded integrations
-        self.loaded_integrations: list[str] = loaded_integrations
-        self.loaded_integrations.sort()
+        self.firmware_bin_path = firmware_bin_path
+        # A set of strings of names of loaded integrations
+        self.loaded_integrations = loaded_integrations
         # Is mDNS disabled
         self.no_mdns = no_mdns
 
@@ -98,7 +91,7 @@ class StorageJSON:
             "esp_platform": self.target_platform,
             "build_path": self.build_path,
             "firmware_bin_path": self.firmware_bin_path,
-            "loaded_integrations": self.loaded_integrations,
+            "loaded_integrations": sorted(self.loaded_integrations),
             "no_mdns": self.no_mdns,
         }
 
@@ -129,7 +122,7 @@ class StorageJSON:
             target_platform=hardware,
             build_path=esph.build_path,
             firmware_bin_path=esph.firmware_bin,
-            loaded_integrations=list(esph.loaded_integrations),
+            loaded_integrations=esph.loaded_integrations,
             no_mdns=(
                 CONF_MDNS in esph.config
                 and CONF_DISABLED in esph.config[CONF_MDNS]
@@ -153,7 +146,7 @@ class StorageJSON:
             target_platform=platform,
             build_path=None,
             firmware_bin_path=None,
-            loaded_integrations=[],
+            loaded_integrations=set(),
             no_mdns=False,
         )
 
@@ -174,7 +167,7 @@ class StorageJSON:
         esp_platform = storage.get("esp_platform")
         build_path = storage.get("build_path")
         firmware_bin_path = storage.get("firmware_bin_path")
-        loaded_integrations = storage.get("loaded_integrations", [])
+        loaded_integrations = set(storage.get("loaded_integrations", []))
         no_mdns = storage.get("no_mdns", False)
         return StorageJSON(
             storage_version,

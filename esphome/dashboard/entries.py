@@ -269,7 +269,7 @@ class DashboardEntry:
                 "name": self.name,
                 "friendly_name": self.friendly_name,
                 "configuration": self.filename,
-                "loaded_integrations": self.loaded_integrations,
+                "loaded_integrations": sorted(self.loaded_integrations),
                 "deployed_version": self.update_old,
                 "current_version": self.update_new,
                 "path": self.path,
@@ -365,7 +365,7 @@ class DashboardEntry:
         return const.__version__
 
     @property
-    def loaded_integrations(self) -> list[str]:
+    def loaded_integrations(self) -> set[str]:
         if self.storage is None:
             return []
         return self.storage.loaded_integrations
