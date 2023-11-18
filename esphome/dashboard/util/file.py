@@ -6,10 +6,22 @@ from pathlib import Path
 _LOGGER = logging.getLogger(__name__)
 
 
-# from https://github.com/home-assistant/core/blob/dev/homeassistant/util/file.py
 def write_utf8_file(
     filename: Path,
-    utf8_data: str,
+    utf8_str: str,
+    private: bool = False,
+) -> None:
+    """Write a file and rename it into place.
+
+    Writes all or nothing.
+    """
+    write_file(filename, utf8_str.encode("utf-8"), private)
+
+
+# from https://github.com/home-assistant/core/blob/dev/homeassistant/util/file.py
+def write_file(
+    filename: Path,
+    utf8_data: bytes,
     private: bool = False,
 ) -> None:
     """Write a file and rename it into place.
@@ -21,7 +33,7 @@ def write_utf8_file(
     try:
         # Modern versions of Python tempfile create this file with mode 0o600
         with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=os.path.dirname(filename), delete=False
+            mode="wb", dir=os.path.dirname(filename), delete=False
         ) as fdesc:
             fdesc.write(utf8_data)
             tmp_filename = fdesc.name

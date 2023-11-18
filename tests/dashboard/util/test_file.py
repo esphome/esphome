@@ -5,7 +5,7 @@ from unittest.mock import patch
 import py
 import pytest
 
-from esphome.dashboard.util.file import write_utf8_file
+from esphome.dashboard.util.file import write_file, write_utf8_file
 
 
 def test_write_utf8_file(tmp_path: Path) -> None:
@@ -14,6 +14,11 @@ def test_write_utf8_file(tmp_path: Path) -> None:
 
     with pytest.raises(OSError):
         write_utf8_file(Path("/not-writable"), "bar")
+
+
+def test_write_file(tmp_path: Path) -> None:
+    write_file(tmp_path.joinpath("foo.txt"), b"foo")
+    assert tmp_path.joinpath("foo.txt").read_text() == "foo"
 
 
 def test_write_utf8_file_fails_at_rename(

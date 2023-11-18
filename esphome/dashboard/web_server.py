@@ -38,6 +38,7 @@ from esphome.yaml_util import FastestAvailableSafeLoader
 
 from .core import DASHBOARD
 from .entries import EntryState, entry_state_to_bool
+from .util.file import write_file
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
 
@@ -746,22 +747,34 @@ class InfoRequestHandler(BaseHandler):
 class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
-    def get(self, configuration=None):
+    async def get(self, configuration: str | None = None):
+        loop = asyncio.get_running_loop()
         filename = settings.rel_path(configuration)
-        content = ""
-        if os.path.isfile(filename):
-            with open(file=filename, encoding="utf-8") as f:
-                content = f.read()
+        try:
+            content = await loop.run_in_executor(None, self._read_file, filename)
+        except OSError:
+            self.send_error(404)
+            return
         self.write(content)
+
+    def _read_file(self, filename: str) -> bytes:
+        """Read a file and return the content as bytes."""
+        with open(file=filename, encoding="utf-8") as f:
+            return f.read()
+
+    def _write_file(self, filename: str, content: bytes) -> None:
+        """Write a file with the given content."""
+        write_file(filename, content)
 
     @authenticated
     @bind_config
-    async def post(self, configuration=None):
-        # Atomic write
+    async def post(self, configuration: str | None = None):
+        loop = asyncio.get_running_loop()
         config_file = settings.rel_path(configuration)
-        with open(file=config_file, mode="wb") as f:
-            f.write(self.request.body)
-
+        await loop.run_in_executor(
+            None, self._write_file, config_file, self.request.body
+        )
+        # Ensure the StorageJSON is updated as well
         await async_run_system_command(
             [*DASHBOARD_COMMAND, "compile", "--only-generate", config_file]
         )
