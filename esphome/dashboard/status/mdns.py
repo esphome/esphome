@@ -26,10 +26,6 @@ class MDNSStatus:
         self.host_mdns_state: dict[str, bool | None] = {}
         self._loop = asyncio.get_running_loop()
 
-    def get_path_to_host_name(self, path: str) -> str | None:
-        """Resolve a path to an address in a thread-safe manner."""
-        return self.path_to_host_name.get(path)
-
     async def async_resolve_host(self, host_name: str) -> str | None:
         """Resolve a host name to an address in a thread-safe manner."""
         if aiozc := self.aiozc:
