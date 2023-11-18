@@ -369,6 +369,13 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     _arduino_check_versions,
 )
 
+
+def _check_component_type(config):
+    if config[CONF_SOURCE][CONF_TYPE] == TYPE_LOCAL:
+        raise cv.Invalid("Local components are not implemented yet.")
+    return config
+
+
 CONF_SDKCONFIG_OPTIONS = "sdkconfig_options"
 ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
@@ -385,15 +392,18 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
-                cv.Schema(
-                    {
-                        cv.Required(CONF_NAME): cv.string_strict,
-                        cv.Required(CONF_SOURCE): cv.SOURCE_SCHEMA,
-                        cv.Optional(CONF_PATH): cv.string,
-                        cv.Optional(CONF_REFRESH, default="1d"): cv.All(
-                            cv.string, cv.source_refresh
-                        ),
-                    }
+                cv.All(
+                    cv.Schema(
+                        {
+                            cv.Required(CONF_NAME): cv.string_strict,
+                            cv.Required(CONF_SOURCE): cv.SOURCE_SCHEMA,
+                            cv.Optional(CONF_PATH): cv.string,
+                            cv.Optional(CONF_REFRESH, default="1d"): cv.All(
+                                cv.string, cv.source_refresh
+                            ),
+                        }
+                    ),
+                    _check_component_type,
                 )
             ),
         }
