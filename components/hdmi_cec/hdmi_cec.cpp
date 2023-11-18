@@ -15,7 +15,7 @@ std::string bytes_to_string(std::vector<uint8_t> bytes) {
   char part_buffer[3];
   for (auto it = bytes.begin(); it != bytes.end(); it++) {
     uint8_t byte_value = *it;
-    sprintf(part_buffer, "%02x", byte_value);
+    sprintf(part_buffer, "%02X", byte_value);
     result += part_buffer;
 
     if (it != (bytes.end() - 1)) {
