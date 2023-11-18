@@ -35,7 +35,7 @@ int OtaHttpIDF::http_init() {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
   esp_http_client_config_t config = {nullptr};
-  config.url = this->url_.c_str();
+  config.url = pref_.url;
   config.method = HTTP_METHOD_GET;
   config.timeout_ms = (int) this->timeout_;
   config.buffer_size = this->max_http_recv_buffer_;

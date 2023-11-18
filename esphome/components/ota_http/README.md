@@ -20,7 +20,7 @@ button:
       then:
         - ota_http.flash:
             url: http://example.com/firmware.bin
-            disable_ssl: no  # must be explicitely set to `yes` if https is used.
+            disable_ssl: no  # must be explicitly set to `yes` if https is used.
         - logger.log: "This message should be not displayed(reboot)"
 ```
 

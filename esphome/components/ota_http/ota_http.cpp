@@ -44,14 +44,14 @@ void OtaHttpComponent::dump_config() {
 };
 
 void OtaHttpComponent::flash() {
-  if (pref_ota_http_state_.load(&ota_http_state_)) {
-    ESP_LOGV(TAG, "restored pref ota_http_state: %d", ota_http_state_);
+  if (pref_obj_.load(&pref_)) {
+    ESP_LOGV(TAG, "restored pref ota_http_state: %d", pref_.ota_http_state);
   }
 
-  if (ota_http_state_ != OTA_HTTP_STATE_SAFE_MODE) {
+  if (pref_.ota_http_state != OTA_HTTP_STATE_SAFE_MODE) {
     ESP_LOGV(TAG, "setting mode to progress");
-    ota_http_state_ = OTA_HTTP_STATE_PROGRESS;
-    pref_ota_http_state_.save(&ota_http_state_);
+    pref_.ota_http_state = OTA_HTTP_STATE_PROGRESS;
+    pref_obj_.save(&pref_);
   }
 
   global_preferences->sync();
@@ -131,8 +131,8 @@ void OtaHttpComponent::flash() {
     return;
   }
 
-  ota_http_state_ = OTA_HTTP_STATE_OK;
-  pref_ota_http_state_.save(&ota_http_state_);
+  pref_.ota_http_state = OTA_HTTP_STATE_OK;
+  pref_obj_.save(&pref_);
   delay(10);
   ESP_LOGI(TAG, "OTA update finished! Rebooting...");
   delay(10);
@@ -147,24 +147,30 @@ void OtaHttpComponent::cleanup_() {
   ESP_LOGE(TAG, "Abort http con");
   this->http_end();
   ESP_LOGE(TAG, "previous safe mode didn't succed. ota_http skipped");
-  ota_http_state_ = OTA_HTTP_STATE_ABORT;
-  pref_ota_http_state_.save(&ota_http_state_);
+  pref_.ota_http_state = OTA_HTTP_STATE_ABORT;
+  pref_obj_.save(&pref_);
 };
 
 void OtaHttpComponent::check_upgrade() {
-  if (pref_ota_http_state_.load(&ota_http_state_)) {
-    if (ota_http_state_ == OTA_HTTP_STATE_PROGRESS) {
+  if (pref_obj_.load(&pref_)) {
+    if (pref_.ota_http_state == OTA_HTTP_STATE_PROGRESS) {
       // progress at boot time means that there was a problem
-      ESP_LOGV(TAG, "previous ota_http doesn't succed. Retrying");
-      ota_http_state_ = OTA_HTTP_STATE_SAFE_MODE;
-      pref_ota_http_state_.save(&ota_http_state_);
+
+      // Delay here to allow power to stabilise before Wi-Fi/Ethernet is initialised.
+      delay(300);  // NOLINT
+      App.setup();
+
+      ESP_LOGI(TAG, "previous ota_http doesn't succed. Retrying");
+      pref_.ota_http_state = OTA_HTTP_STATE_SAFE_MODE;
+      pref_obj_.save(&pref_);
       this->flash();
       return;
     }
-    if (ota_http_state_ == OTA_HTTP_STATE_SAFE_MODE) {
+    if (pref_.ota_http_state == OTA_HTTP_STATE_SAFE_MODE) {
       ESP_LOGE(TAG, "previous safe mode didn't succeed. ota_http skipped");
-      ota_http_state_ = OTA_HTTP_STATE_ABORT;
-      pref_ota_http_state_.save(&ota_http_state_);
+      pref_.ota_http_state = OTA_HTTP_STATE_ABORT;
+      pref_obj_.save(&pref_);
+      global_preferences->sync();
     }
   }
 }
