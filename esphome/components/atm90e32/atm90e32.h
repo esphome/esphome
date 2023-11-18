@@ -69,6 +69,8 @@ class ATM90E32Component : public PollingComponent,
   float get_phase_reverse_active_energy_(uint8_t /*phase*/);
   float get_frequency_();
   float get_chip_temperature_();
+  bool get_publish_interval_flag_() { return publish_interval_flag_; };
+  void set_publish_interval_flag_(bool flag) { publish_interval_flag_ = flag; };
 
   struct ATM90E32Phase {
     uint16_t voltage_gain_{7305};
@@ -98,6 +100,7 @@ class ATM90E32Component : public PollingComponent,
   uint16_t pga_gain_{0x15};
   int line_freq_{60};
   int current_phases_{3};
+  bool publish_interval_flag_{true};
 };
 
 }  // namespace atm90e32

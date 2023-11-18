@@ -8,9 +8,8 @@ namespace atm90e32 {
 
 static const char *const TAG = "atm90e32";
 void ATM90E32Component::loop() {
-  const int32_t current_millis = millis();
-  if (current_millis - last_periodic_millis > 400) {
-    last_periodic_millis = current_millis;
+  if (this->get_publish_interval_flag_()) {
+    this->set_publish_interval_flag_(false);
     for (uint8_t phase = 0; phase < 3; phase++) {
       if (this->phase_[phase].voltage_sensor_ != nullptr) {
         this->phase_[phase].voltage_ = this->get_phase_voltage_(phase);
@@ -46,56 +45,58 @@ void ATM90E32Component::loop() {
         this->phase_[phase].reverse_active_energy_ = this->get_phase_reverse_active_energy_(phase);
       }
     }
+    for (uint8_t phase = 0; phase < 3; phase++) {
+      if (this->phase_[phase].voltage_sensor_ != nullptr) {
+        this->phase_[phase].voltage_sensor_->publish_state(this->get_local_phase_voltage_(phase));
+      }
+    }
+    for (uint8_t phase = 0; phase < 3; phase++) {
+      if (this->phase_[phase].current_sensor_ != nullptr) {
+        this->phase_[phase].current_sensor_->publish_state(this->get_local_phase_current_(phase));
+      }
+    }
+    for (uint8_t phase = 0; phase < 3; phase++) {
+      if (this->phase_[phase].power_sensor_ != nullptr) {
+        this->phase_[phase].power_sensor_->publish_state(this->get_local_phase_active_power_(phase));
+      }
+    }
+    for (uint8_t phase = 0; phase < 3; phase++) {
+      if (this->phase_[phase].power_factor_sensor_ != nullptr) {
+        this->phase_[phase].power_factor_sensor_->publish_state(this->get_local_phase_power_factor_(phase));
+      }
+    }
+    for (uint8_t phase = 0; phase < 3; phase++) {
+      if (this->phase_[phase].reactive_power_sensor_ != nullptr) {
+        this->phase_[phase].reactive_power_sensor_->publish_state(this->get_local_phase_reactive_power_(phase));
+      }
+    }
+    for (uint8_t phase = 0; phase < 3; phase++) {
+      if (this->phase_[phase].forward_active_energy_sensor_ != nullptr) {
+        this->phase_[phase].forward_active_energy_sensor_->publish_state(
+            this->get_local_phase_forward_active_energy_(phase));
+      }
+    }
+    for (uint8_t phase = 0; phase < 3; phase++) {
+      if (this->phase_[phase].reverse_active_energy_sensor_ != nullptr) {
+        this->phase_[phase].reverse_active_energy_sensor_->publish_state(
+            this->get_local_phase_reverse_active_energy_(phase));
+      }
+    }
+    if (this->freq_sensor_ != nullptr) {
+      this->freq_sensor_->publish_state(this->get_frequency_());
+    }
+    if (this->chip_temperature_sensor_ != nullptr) {
+      this->chip_temperature_sensor_->publish_state(this->get_chip_temperature_());
+    }
   }
 }
+
 void ATM90E32Component::update() {
   if (this->read16_(ATM90E32_REGISTER_METEREN) != 1) {
     this->status_set_warning();
     return;
   }
-  for (uint8_t phase = 0; phase < 3; phase++) {
-    if (this->phase_[phase].voltage_sensor_ != nullptr) {
-      this->phase_[phase].voltage_sensor_->publish_state(this->get_local_phase_voltage_(phase));
-    }
-  }
-  for (uint8_t phase = 0; phase < 3; phase++) {
-    if (this->phase_[phase].current_sensor_ != nullptr) {
-      this->phase_[phase].current_sensor_->publish_state(this->get_local_phase_current_(phase));
-    }
-  }
-  for (uint8_t phase = 0; phase < 3; phase++) {
-    if (this->phase_[phase].power_sensor_ != nullptr) {
-      this->phase_[phase].power_sensor_->publish_state(this->get_local_phase_active_power_(phase));
-    }
-  }
-  for (uint8_t phase = 0; phase < 3; phase++) {
-    if (this->phase_[phase].power_factor_sensor_ != nullptr) {
-      this->phase_[phase].power_factor_sensor_->publish_state(this->get_local_phase_power_factor_(phase));
-    }
-  }
-  for (uint8_t phase = 0; phase < 3; phase++) {
-    if (this->phase_[phase].reactive_power_sensor_ != nullptr) {
-      this->phase_[phase].reactive_power_sensor_->publish_state(this->get_local_phase_reactive_power_(phase));
-    }
-  }
-  for (uint8_t phase = 0; phase < 3; phase++) {
-    if (this->phase_[phase].forward_active_energy_sensor_ != nullptr) {
-      this->phase_[phase].forward_active_energy_sensor_->publish_state(
-          this->get_local_phase_forward_active_energy_(phase));
-    }
-  }
-  for (uint8_t phase = 0; phase < 3; phase++) {
-    if (this->phase_[phase].reverse_active_energy_sensor_ != nullptr) {
-      this->phase_[phase].reverse_active_energy_sensor_->publish_state(
-          this->get_local_phase_reverse_active_energy_(phase));
-    }
-  }
-  if (this->freq_sensor_ != nullptr) {
-    this->freq_sensor_->publish_state(this->get_frequency_());
-  }
-  if (this->chip_temperature_sensor_ != nullptr) {
-    this->chip_temperature_sensor_->publish_state(this->get_chip_temperature_());
-  }
+  this->set_publish_interval_flag_(true);
   this->status_clear_warning();
 }
 
