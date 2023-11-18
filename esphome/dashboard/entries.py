@@ -160,8 +160,7 @@ class DashboardEntries:
             None, self._get_path_to_cache_key
         )
         entries = self._entries
-        name_to_path = self._name_to_path
-        assert name_to_path is not None
+        name_to_entry = self._name_to_entry
         added: dict[DashboardEntry, DashboardCacheKeyType] = {}
         updated: dict[DashboardEntry, DashboardCacheKeyType] = {}
         removed: set[DashboardEntry] = {
@@ -169,17 +168,16 @@ class DashboardEntries:
             for filename, entry in entries.items()
             if filename not in path_to_cache_key
         }
-        # TODO: remove name
+        original_names: dict[DashboardEntry, str] = {}
 
         for path, cache_key in path_to_cache_key.items():
             if entry := entries.get(path):
-                # TODO: entry can change name
                 if entry.cache_key != cache_key:
                     updated[entry] = cache_key
+                    original_names[entry] = entry.name
             else:
                 entry = DashboardEntry(path, cache_key)
                 added[entry] = cache_key
-                # TODO: add name
 
         if added or updated:
             await self._loop.run_in_executor(
@@ -189,13 +187,18 @@ class DashboardEntries:
         bus = self._dashboard.bus
         for entry in added:
             entries[entry.path] = entry
+            name_to_entry[entry.name].add(entry.path)
             bus.async_fire(EVENT_ENTRY_ADDED, {"entry": entry})
 
         for entry in removed:
             del entries[entry.path]
+            name_to_entry[entry.name].discard(entry.path)
             bus.async_fire(EVENT_ENTRY_REMOVED, {"entry": entry})
 
         for entry in updated:
+            if original_names[entry] != entry.name:
+                name_to_entry[original_names[entry]].discard(entry.path)
+                name_to_entry[entry.name].add(entry.path)
             bus.async_fire(EVENT_ENTRY_UPDATED, {"entry": entry})
 
     def _get_path_to_cache_key(self) -> dict[str, DashboardCacheKeyType]:
