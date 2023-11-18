@@ -21,7 +21,7 @@ static const uint8_t OTA_HTTP_STATE_ABORT = 40;
 
 static const char *const TAG = "ota_http";
 
-struct otaHttpGlobalPrefType {
+struct OtaHttpGlobalPrefType {
   int ota_http_state;
   char url[128];
   bool verify_ssl;
@@ -31,10 +31,10 @@ class OtaHttpComponent : public Component {
  public:
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-  void set_url(std::string url) {
+  void set_url(const std::string& url) {
     // this->url_ = std::move(url);
     // TODO check size
-    size_t length = std::min(url.length(), sizeof(pref_.url) - 1);
+    size_t length = std::min(url.length(), static_cast<size_t>(sizeof(pref_.url) - 1));
     strncpy(pref_.url, url.c_str(), length);
     pref_.url[length] = '\0';
     // this->secure_ = url.rfind("https:", 0) == 0;
@@ -60,9 +60,9 @@ class OtaHttpComponent : public Component {
   bool update_started_ = false;
   static const std::unique_ptr<ota::OTABackend> BACKEND;
   void cleanup_();
-  otaHttpGlobalPrefType pref_ = {OTA_HTTP_STATE_OK, "", true};
+  OtaHttpGlobalPrefType pref_ = {OTA_HTTP_STATE_OK, "", true};
   ESPPreferenceObject pref_obj_ =
-      global_preferences->make_preference<otaHttpGlobalPrefType>(OTA_HTTP_PREF_SAFE_MODE_HASH, true);
+      global_preferences->make_preference<OtaHttpGlobalPrefType>(OTA_HTTP_PREF_SAFE_MODE_HASH, true);
 };
 
 template<typename... Ts> class OtaHttpFlashAction : public Action<Ts...> {
