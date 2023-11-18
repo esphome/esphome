@@ -172,13 +172,14 @@ class DashboardEntries:
         original_names: dict[DashboardEntry, str] = {}
 
         for path, cache_key in path_to_cache_key.items():
-            if entry := entries.get(path):
-                if entry.cache_key != cache_key:
-                    updated[entry] = cache_key
-                    original_names[entry] = entry.name
-            else:
+            if not (entry := entries.get(path)):
                 entry = DashboardEntry(path, cache_key)
                 added[entry] = cache_key
+                continue
+
+            if entry.cache_key != cache_key:
+                updated[entry] = cache_key
+                original_names[entry] = entry.name
 
         if added or updated:
             await self._loop.run_in_executor(
