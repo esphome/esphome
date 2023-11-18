@@ -973,6 +973,7 @@ class MDNSStatusThread(threading.Thread):
         self.host_name_to_filename: dict[str, str] = {}
         # This is a set of host names to track (i.e no_mdns = false)
         self.host_name_with_mdns_enabled: set[set] = set()
+        self.zc: EsphomeZeroconf | None = None
         self._refresh_hosts(poll_non_api_hosts=False)
 
     def _refresh_hosts(self, poll_non_api_hosts: bool = True):
