@@ -302,6 +302,9 @@ void OTAComponent::handle_() {
           return;  // Will never be reached
         case OTA_COMMAND_END:
           ESP_LOGI(TAG, "OTA session finished!");
+          // close connection
+          this->client_->close();
+          this->client_ = nullptr;
           return;
         case OTA_COMMAND_READ:
           error_code = this->get_partition_info_(buf, bin_type, ota_size);
