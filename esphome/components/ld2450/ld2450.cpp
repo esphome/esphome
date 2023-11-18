@@ -166,9 +166,10 @@ void LD2450Component::on_reset_radar_zone_() {
 }
 
 // Service set_radar_zone
-void LD2450Component::on_set_radar_zone_(int zone_type, int zone1_x1, int zone1_y1, int zone1_x2, int zone1_y2,
-                                         int zone2_x1, int zone2_y1, int zone2_x2, int zone2_y2, int zone3_x1,
-                                         int zone3_y1, int zone3_x2, int zone3_y2) {
+void LD2450Component::on_set_radar_zone_(int32_t zone_type, int32_t zone1_x1, int32_t zone1_y1, int32_t zone1_x2,
+                                         int32_t zone1_y2, int32_t zone2_x1, int32_t zone2_y1, int32_t zone2_x2,
+                                         int32_t zone2_y2, int32_t zone3_x1, int32_t zone3_y1, int32_t zone3_x2,
+                                         int32_t zone3_y2) {
   this->zone_type_ = zone_type;
   int zone_parameters[12] = {zone1_x1, zone1_y1, zone1_x2, zone1_y2, zone2_x1, zone2_y1,
                              zone2_x2, zone2_y2, zone3_x1, zone3_y1, zone3_x2, zone3_y2};

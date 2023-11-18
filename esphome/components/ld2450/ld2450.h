@@ -212,9 +212,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
   float restore_from_flash_();
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
-  void on_set_radar_zone_(int zone_type, int zone1_x1, int zone1_y1, int zone1_x2, int zone1_y2, int zone2_x1,
-                          int zone2_y1, int zone2_x2, int zone2_y2, int zone3_x1, int zone3_y1, int zone3_x2,
-                          int zone3_y2);
+  void on_set_radar_zone_(int32_t zone_type, int32_t zone1_x1, int32_t zone1_y1, int32_t zone1_x2, int32_t zone1_y2,
+                          int32_t zone2_x1, int32_t zone2_y1, int32_t zone2_x2, int32_t zone2_y2, int32_t zone3_x1,
+                          int32_t zone3_y1, int32_t zone3_x2, int32_t zone3_y2);
   int16_t decode_coordinate_(uint8_t low_byte, uint8_t high_byte) {
     int16_t coordinate = (high_byte & 0x7F) << 8 | low_byte;
     if ((high_byte & 0x80) == 0)
