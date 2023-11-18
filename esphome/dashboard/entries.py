@@ -190,18 +190,18 @@ class DashboardEntries:
         bus = self._dashboard.bus
         for entry in added:
             entries[entry.path] = entry
-            name_to_entry[entry.name].add(entry.path)
+            name_to_entry[entry.name].add(entry)
             bus.async_fire(EVENT_ENTRY_ADDED, {"entry": entry})
 
         for entry in removed:
             del entries[entry.path]
-            name_to_entry[entry.name].discard(entry.path)
+            name_to_entry[entry.name].discard(entry)
             bus.async_fire(EVENT_ENTRY_REMOVED, {"entry": entry})
 
         for entry in updated:
             if (original_name := original_names[entry]) != (current_name := entry.name):
-                name_to_entry[original_name].discard(entry.path)
-                name_to_entry[current_name].add(entry.path)
+                name_to_entry[original_name].discard(entry)
+                name_to_entry[current_name].add(entry)
             bus.async_fire(EVENT_ENTRY_UPDATED, {"entry": entry})
 
     def _get_path_to_cache_key(self) -> dict[str, DashboardCacheKeyType]:
