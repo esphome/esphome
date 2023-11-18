@@ -18,7 +18,7 @@ std::string bytes_to_string(std::vector<uint8_t> bytes) {
     sprintf(part_buffer, "%02x", byte_value);
     result += part_buffer;
 
-    if (it != bytes.end()) {
+    if (it != (bytes.end() - 1)) {
       result += ":";
     }
   }
@@ -59,7 +59,7 @@ void HDMICEC::loop() {
     }
 
     auto frame_str = bytes_to_string(frame);
-    ESP_LOGD(TAG, "0x%01x -> 0x%01x : %s", src_addr, dest_addr, frame_str.c_str());
+    ESP_LOGD(TAG, "frame received: %s", frame_str.c_str());
 
     uint8_t opcode = frame[1];
     std::vector<uint8_t> data(frame.begin() + 1, frame.end());
