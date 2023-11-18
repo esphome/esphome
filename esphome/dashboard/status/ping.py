@@ -5,24 +5,16 @@ import os
 from typing import cast
 
 from ..core import DASHBOARD
-from ..entries import DashboardEntry
-from ..core import list_dashboard_entries
-from ..util import chunked
+from ..entries import DashboardEntry, bool_to_entry_state
+from ..util.itertools import chunked
+from ..util.subprocess import async_system_command_status
 
 
 async def _async_ping_host(host: str) -> bool:
     """Ping a host."""
-    ping_command = ["ping", "-n" if os.name == "nt" else "-c", "1"]
-    process = await asyncio.create_subprocess_exec(
-        *ping_command,
-        host,
-        stdin=asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-        close_fds=False,
+    return await async_system_command_status(
+        ["ping", "-n" if os.name == "nt" else "-c", "1", host]
     )
-    await process.wait()
-    return process.returncode == 0
 
 
 class PingStatus:
@@ -34,14 +26,14 @@ class PingStatus:
     async def async_run(self) -> None:
         """Run the ping status."""
         dashboard = DASHBOARD
+        entries = dashboard.entries
 
         while not dashboard.stop_event.is_set():
             # Only ping if the dashboard is open
             await dashboard.ping_request.wait()
-            dashboard.ping_result.clear()
-            entries = await self._loop.run_in_executor(None, list_dashboard_entries)
+            current_entries = dashboard.entries.async_all()
             to_ping: list[DashboardEntry] = [
-                entry for entry in entries if entry.address is not None
+                entry for entry in current_entries if entry.address is not None
             ]
             for ping_group in chunked(to_ping, 16):
                 ping_group = cast(list[DashboardEntry], ping_group)
@@ -54,4 +46,4 @@ class PingStatus:
                         result = False
                     elif isinstance(result, BaseException):
                         raise result
-                    dashboard.ping_result[entry.filename] = result
+                    entries.async_set_state(entry, bool_to_entry_state(result))
