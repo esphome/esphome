@@ -1,10 +1,10 @@
+from __future__ import annotations
 import binascii
 import codecs
 import json
 import logging
 import os
 from datetime import datetime
-from typing import Optional
 
 from esphome import const
 from esphome.const import CONF_DISABLED, CONF_MDNS
@@ -102,9 +102,7 @@ class StorageJSON:
         write_file_if_changed(path, self.to_json())
 
     @staticmethod
-    def from_esphome_core(
-        esph: CoreType, old: Optional["StorageJSON"]
-    ) -> "StorageJSON":
+    def from_esphome_core(esph: CoreType, old: StorageJSON | None) -> StorageJSON:
         hardware = esph.target_platform.upper()
         if esph.is_esp32:
             from esphome.components import esp32
@@ -133,7 +131,7 @@ class StorageJSON:
     @staticmethod
     def from_wizard(
         name: str, friendly_name: str, address: str, platform: str
-    ) -> "StorageJSON":
+    ) -> StorageJSON:
         return StorageJSON(
             storage_version=1,
             name=name,
@@ -151,7 +149,7 @@ class StorageJSON:
         )
 
     @staticmethod
-    def _load_impl(path: str) -> Optional["StorageJSON"]:
+    def _load_impl(path: str) -> StorageJSON | None:
         with codecs.open(path, "r", encoding="utf-8") as f_handle:
             storage = json.load(f_handle)
         storage_version = storage["storage_version"]
@@ -186,7 +184,7 @@ class StorageJSON:
         )
 
     @staticmethod
-    def load(path: str) -> Optional["StorageJSON"]:
+    def load(path: str) -> StorageJSON | None:
         try:
             return StorageJSON._load_impl(path)
         except Exception:  # pylint: disable=broad-except
@@ -208,7 +206,7 @@ class EsphomeStorageJSON:
         # The last time ESPHome checked for an update as an isoformat encoded str
         self.last_update_check_str: str = last_update_check
         # Cache of the version gotten in the last version check
-        self.remote_version: Optional[str] = remote_version
+        self.remote_version: str | None = remote_version
 
     def as_dict(self) -> dict:
         return {
@@ -219,7 +217,7 @@ class EsphomeStorageJSON:
         }
 
     @property
-    def last_update_check(self) -> Optional[datetime]:
+    def last_update_check(self) -> datetime | None:
         try:
             return datetime.strptime(self.last_update_check_str, "%Y-%m-%dT%H:%M:%S")
         except Exception:  # pylint: disable=broad-except
@@ -236,7 +234,7 @@ class EsphomeStorageJSON:
         write_file_if_changed(path, self.to_json())
 
     @staticmethod
-    def _load_impl(path: str) -> Optional["EsphomeStorageJSON"]:
+    def _load_impl(path: str) -> EsphomeStorageJSON | None:
         with codecs.open(path, "r", encoding="utf-8") as f_handle:
             storage = json.load(f_handle)
         storage_version = storage["storage_version"]
@@ -248,14 +246,14 @@ class EsphomeStorageJSON:
         )
 
     @staticmethod
-    def load(path: str) -> Optional["EsphomeStorageJSON"]:
+    def load(path: str) -> EsphomeStorageJSON | None:
         try:
             return EsphomeStorageJSON._load_impl(path)
         except Exception:  # pylint: disable=broad-except
             return None
 
     @staticmethod
-    def get_default() -> "EsphomeStorageJSON":
+    def get_default() -> EsphomeStorageJSON:
         return EsphomeStorageJSON(
             storage_version=1,
             cookie_secret=binascii.hexlify(os.urandom(64)).decode(),
