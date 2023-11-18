@@ -472,7 +472,7 @@ def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot, is_u
 
         file_handle.seek(0)
         download_md5 = hashlib.md5(file_handle.read()).hexdigest()
-        _LOGGER.debug("MD5 of upload is %s", download_md5)
+        _LOGGER.debug("MD5 of download is %s", download_md5)
 
         send_check(sock, download_md5, "file checksum")
         receive_exactly(sock, 1, "file checksum", RESPONSE_BIN_MD5_OK)
