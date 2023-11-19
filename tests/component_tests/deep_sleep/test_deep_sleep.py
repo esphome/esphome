@@ -102,5 +102,7 @@ def test_deep_sleep_multi_pin_definition_on_unsupported(generate_main):
     """
     with pytest.raises(AttributeError):
         with pytest.raises(cv.Invalid) as excinfo:
-            main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep4.yaml")
+            main_cpp = generate_main(
+                "tests/component_tests/deep_sleep/test_deep_sleep4.yaml"
+            )
         assert "Your board only supports wake from a single pin" in str(excinfo.value)
