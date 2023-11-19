@@ -42,7 +42,7 @@ reference is kept in a list. This class also contains global information
 about the component like the frequency of the crystal connected.
 It is also responsible of the setup of the component as well as the
 setup of WK2132Channel instances. The loop() method of this component is
-used to transfer the bytes accumulated in the receive fifo into the ring
+used to to_transfer the bytes accumulated in the receive fifo into the ring
 buffer so they can be accessed fast.
 
  @section WK2132Channel_ The WK2132Channel class
@@ -160,9 +160,11 @@ static const char *const REG_TO_STR_P0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "S
 static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "BAUD1", "BAUD0", "PRES",
                                             "RFTL", "TFTL", "_INV_", "_INV_", "_INV_", "_INV_"};
 
-// convert an int to binary string
+/// @brief convert an int to binary string
+/// @param val integer to convert
+/// @return a std::string
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
-#define I2CS(val) (i2s(val).c_str())
+#define I2CS(val) (i2s(val).c_str())  // convert to C string
 
 /// @brief measure the time elapsed between two calls
 /// @param last_time time od the previous call
@@ -176,7 +178,7 @@ uint32_t elapsed(uint32_t &last_time) {
 /// @brief Computes the I²C bus address to access the component
 /// @param base_address the base address of the component - set by the A1 A0 pins
 /// @param channel (0-3) the UART channel
-/// @param fifo (0-1) if 0 access to internal register, if 1 direct access to fifo
+/// @param fifo (0-1) 0 = access to internal register, 1 = direct access to fifo
 /// @return the i2c address to use
 inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, uint8_t fifo) {
   // the address of the device is:
@@ -212,33 +214,33 @@ const char *parity2string(uart::UARTParityOptions parity) {
 // The WK2132Component methods
 ///////////////////////////////////////////////////////////////////////////////
 // method to print registers as text: used in log messages ...
-const char *WK2132Component::reg_to_str_(int val) { return this->page1_ ? REG_TO_STR_P1[val] : REG_TO_STR_P0[val]; }
+const char *WK2132Component::reg_to_str_(int reg) { return this->page1_ ? REG_TO_STR_P1[reg] : REG_TO_STR_P0[reg]; }
 
 void WK2132Component::write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer,
                                              size_t length) {
-  this->address_ = i2c_address(this->base_address_, channel, 0);  // update the I²C address
+  this->address_ = i2c_address(this->base_address_, channel, 0);  // update the I²C bus address
   auto error = this->write_register(reg_number, buffer, length);  // write to the register
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
-    ESP_LOGVV(TAG, "write_wk2132_register_(@%02X %s, ch=%d b=%02X, length=%d): I2C code %d", this->address_,
+    ESP_LOGVV(TAG, "write_wk2132_register_ @%02X r=%s, ch=%d b=%02X, length=%d I2C_code:%d", this->address_,
               this->reg_to_str_(reg_number), channel, *buffer, length, (int) error);
   } else {  // error
     this->status_set_warning();
-    ESP_LOGE(TAG, "write_wk2132_register_(@%02X %s, ch=%d b=%02X, length=%d): I2C code %d", this->address_,
+    ESP_LOGE(TAG, "write_wk2132_register_ @%02X r=%s, ch=%d b=%02X, length=%d I2C_code:%d", this->address_,
              this->reg_to_str_(reg_number), channel, *buffer, length, (int) error);
   }
 }
 
 uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t channel, uint8_t *buffer, size_t length) {
-  this->address_ = i2c_address(this->base_address_, channel, 0);  // update the i2c address
+  this->address_ = i2c_address(this->base_address_, channel, 0);  // update the i2c bus address
   auto error = this->read_register(reg_number, buffer, length);
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
-    ESP_LOGVV(TAG, "read_wk2132_register_(@%02X %s, ch=%d b=%02X, length=%d): I2C code %d", this->address_,
+    ESP_LOGVV(TAG, "read_wk2132_register_ @%02X r=%s, ch=%d b=%02X, length=%d I2C_code:%d", this->address_,
               this->reg_to_str_(reg_number), channel, *buffer, length, (int) error);
   } else {  // error
     this->status_set_warning();
-    ESP_LOGE(TAG, "read_wk2132_register_(@%02X %s, ch=%d b=%02X, length=%d): I2C code %d", this->address_,
+    ESP_LOGE(TAG, "read_wk2132_register_ @%02X r=%s, ch=%d b=%02X, length=%d I2C_code:%d", this->address_,
              this->reg_to_str_(reg_number), channel, *buffer, length, (int) error);
   }
   return *buffer;
@@ -254,9 +256,6 @@ void WK2132Component::setup() {
   // we setup our children
   for (auto *child : this->children_) {
     child->setup_channel_();
-    child->receive_buffer_.clear();
-    // child->flush_requested_ = false;
-    child->reset_fifo_();
   }
 }
 
@@ -266,9 +265,8 @@ void WK2132Component::dump_config() {
   if (test_mode_)
     ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
   LOG_I2C_DEVICE(this);
-
   for (auto *child : this->children_) {
-    ESP_LOGCONFIG(TAG, "  UART %s:%s...", this->get_name(), child->get_channel_name());
+    ESP_LOGCONFIG(TAG, "  UART %s:%s ...", this->get_name(), child->get_channel_name());
     ESP_LOGCONFIG(TAG, "    Baud rate: %d Bd", child->baud_rate_);
     ESP_LOGCONFIG(TAG, "    Data bits: %d", child->data_bits_);
     ESP_LOGCONFIG(TAG, "    Stop bits: %d", child->stop_bits_);
@@ -281,7 +279,7 @@ void WK2132Component::dump_config() {
 ///////////////////////////////////////////////////////////////////////////////
 
 void WK2132Channel::setup_channel_() {
-  ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s...", this->parent_->get_name(), this->get_channel_name());
+  ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s ...", this->parent_->get_name(), this->get_channel_name());
 
   //
   // we first do the global register (common to both channel)
@@ -311,6 +309,7 @@ void WK2132Channel::setup_channel_() {
   this->set_baudrate_();
   this->set_line_param_();
   this->reset_fifo_();
+  this->receive_buffer_.clear();
 }
 
 void WK2132Channel::reset_fifo_() {
@@ -406,9 +405,6 @@ bool WK2132Channel::peek_byte(uint8_t *buffer) {
 
 int WK2132Channel::available() {
   auto available = this->receive_buffer_.count();
-  // here if we do not have bytes in buffer we want to check if
-  // there are bytes in the fifo,in which case we do not want to
-  // delay reading them in the next loop.
   if (!available)
     available = xfer_fifo_to_buffer_();
   return available;
@@ -426,7 +422,7 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t length) {
   for (size_t i = 0; i < length; i++) {
     this->receive_buffer_.pop(buffer[i]);
   }
-  ESP_LOGVV(TAG, "read_array: (ch=%d buffer[0]=%02X, length=%d): status %s", this->channel_, *buffer, length,
+  ESP_LOGVV(TAG, "read_array(ch=%d buffer[0]=%02X, length=%d): status %s", this->channel_, *buffer, length,
             status ? "OK" : "ERROR");
   return status;
 }
@@ -462,27 +458,27 @@ void WK2132Channel::flush() {
 }
 
 size_t WK2132Channel::xfer_fifo_to_buffer_() {
-  auto transfer = this->rx_in_fifo_();
+  auto to_transfer = this->rx_in_fifo_();
   auto free = this->receive_buffer_.free();
-  if (transfer > XFER_MAX_SIZE)
-    transfer = XFER_MAX_SIZE;
-  if (transfer > free)
-    transfer = free;  // we'll do the rest next time
-  if (transfer) {
-    uint8_t data[transfer];
+  if (to_transfer > XFER_MAX_SIZE)
+    to_transfer = XFER_MAX_SIZE;
+  if (to_transfer > free)
+    to_transfer = free;  // we'll do the rest next time
+  if (to_transfer) {
+    uint8_t data[to_transfer];
     this->parent_->address_ = i2c_address(this->parent_->base_address_, this->channel_, 1);  // fifo flag is set
-    auto error = this->parent_->read(data, transfer);
+    auto error = this->parent_->read(data, to_transfer);
     if (error == i2c::ERROR_OK) {
-      ESP_LOGVV(TAG, "xfer_fifo_to_buffer_: transferred %d bytes from fifo to buffer", transfer);
+      ESP_LOGVV(TAG, "xfer_fifo_to_buffer_: transferred %d bytes from fifo to buffer", to_transfer);
     } else {
       ESP_LOGE(TAG, "xfer_fifo_to_buffer_: error i2c=%d while reading", (int) error);
     }
 
-    for (size_t i = 0; i < transfer; i++)
+    for (size_t i = 0; i < to_transfer; i++)
       this->receive_buffer_.push(data[i]);
   } else
-    ESP_LOGVV(TAG, "xfer_fifo_to_buffer: nothing to transfer");
-  return transfer;
+    ESP_LOGVV(TAG, "xfer_fifo_to_buffer: nothing to to_transfer");
+  return to_transfer;
 }
 
 void WK2132Component::loop() {
@@ -499,7 +495,7 @@ void WK2132Component::loop() {
   }
   loop_time = millis();
 
-  // here we transfer bytes from fifo to ring buffers
+  // If there are some bytes in the receive FIFO we transfers them to the ring buffers
   elapsed(time);  // set time to now
   size_t transferred = 0;
   for (auto *child : this->children_) {
@@ -510,7 +506,7 @@ void WK2132Component::loop() {
     ESP_LOGI(TAG, "transferred %d bytes from fifo to buffer - execution time %d µs...", transferred, elapsed(time));
 
 #ifdef TEST_COMPONENT
-  if (test_mode_ == 1) {
+  if (test_mode_ == 1) {  // test component in loop back
     char header[64];
     elapsed(time);  // set time to now
     for (auto *child : this->children_) {
@@ -530,7 +526,7 @@ void WK2132Component::loop() {
     }
   }
 
-  if (this->test_mode_ == 2) {  // test echo mode
+  if (this->test_mode_ == 2) {  // test component in echo mode
     for (auto *child : this->children_) {
       uint8_t data = 0;
       if (child->available()) {

@@ -14,34 +14,33 @@ namespace esphome {
 namespace wk2132 {
 
 /// @brief the max size we allow for transmissions calls
-/// seems like if the size is larger we get error 6 from the i2c bus
+/// seems like if we try to transfer more than this we get error 6 from the i2c bus
 constexpr size_t XFER_MAX_SIZE = 128;
 
-/// @brief size of the internal buffer
+/// @brief size of the internal wk2132 buffer
 constexpr size_t FIFO_SIZE = 256;
 
 /// @brief size of the ring buffer
 constexpr size_t RING_BUFFER_SIZE = 256;
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief This is an helper class that provides a simple ring buffers
-/// that implements a FIFO function
+/// that works as a FIFO
 ///
 /// This ring buffer is used to buffer the exchanges between the receiver
-/// HW fifo and the client. Usually to read characters you first
-/// check if bytes were received and if so you read them.
-/// There is a problem if you try to the received bytes one by one.
-/// If the registers are located on the chip everything is fine but with a
+/// HW fifo and the client. Usually to read characters from the line you first
+/// check how many bytes were received and then you read them all at once.
+/// But if you try to read the bytes one by one there is a potential problem.
+/// When the registers are located on the chip everything is fine but with a
 /// device like the wk2132 these registers are remote and therefore accessing
 /// them requires several transactions on the I²C bus which is relatively slow.
-/// One solution would be for the client to check the number of bytes available
-/// and to read them all using the read_array() method. Unfortunately
-/// most client I have reviewed are reading one character at a time in a
-/// while loop which is the most inefficient way of doing things.
-/// Therefore the solution I have chosen to implement is to
-/// store received bytes locally in a buffer as soon as they arrive. With
-/// this solution the bytes are stored locally and therefore accessible
-/// very quickly when requested one by one.
-/// @image html read_cycles.png
+/// As already described the solution is for the client to check the number of
+/// bytes available and read them all at once using the read_array() method.
+/// Unfortunately most client software I have reviewed are reading characters
+/// one at a time in a while loop which is extremely inefficient for remote
+/// registers. Therefore the solution I have chosen to elevate this problem
+/// is to store received bytes locally in a ring buffer as soon as we read one.
+/// With this solution the bytes are stored locally and therefore accessible
+/// very quickly when requested one by one without the need of extra bus transitions.
 ///////////////////////////////////////////////////////////////////////////////
 template<typename T, size_t SIZE> class RingBuffer {
  public:
@@ -51,9 +50,9 @@ template<typename T, size_t SIZE> class RingBuffer {
   bool push(const T item) {
     if (is_full())
       return false;
-    rb_[head_] = item;
-    head_ = (head_ + 1) % SIZE;
-    count_++;
+    this->rb_[this->head_] = item;
+    this->head_ = (this->head_ + 1) % SIZE;
+    this->count_++;
     return true;
   }
 
@@ -63,9 +62,9 @@ template<typename T, size_t SIZE> class RingBuffer {
   bool pop(T &item) {
     if (is_empty())
       return false;
-    item = rb_[tail_];
-    tail_ = (tail_ + 1) % SIZE;
-    count_--;
+    item = this->rb_[this->tail_];
+    this->tail_ = (this->tail_ + 1) % SIZE;
+    this->count_--;
     return true;
   }
 
@@ -75,34 +74,34 @@ template<typename T, size_t SIZE> class RingBuffer {
   bool peek(T &item) {
     if (is_empty())
       return false;
-    item = rb_[tail_];
+    item = this->rb_[this->tail_];
     return true;
   }
 
   /// @brief test is the Ring Buffer is empty ?
   /// @return true if empty
-  bool is_empty() { return (count_ == 0); }
+  bool is_empty() { return (this->count_ == 0); }
 
   /// @brief test is the ring buffer is full ?
   /// @return true if full
-  bool is_full() { return (count_ == SIZE); }
+  bool is_full() { return (this->count_ == SIZE); }
 
   /// @brief return the number of item in the ring buffer
-  /// @return the count
-  size_t count() { return count_; }
+  /// @return the number of items
+  size_t count() { return this->count_; }
 
   /// @brief returns the number of free positions in the buffer
   /// @return how many items can be added
-  size_t free() { return SIZE - count_; }
+  size_t free() { return SIZE - this->count_; }
 
   /// @brief clear the buffer content
-  void clear() { head_ = tail_ = count_ = 0; }
+  void clear() { this->head_ = this->tail_ = this->count_ = 0; }
 
  private:
-  std::array<T, SIZE> rb_{0};
-  int head_{0};      // points to the next element to write
-  int tail_{0};      // points to the next element to read
-  size_t count_{0};  // count number of element in the buffer
+  std::array<T, SIZE> rb_{0};  // the ring buffer
+  int head_{0};                // points to the next element to write
+  int tail_{0};                // points to the next element to read
+  size_t count_{0};            // count number of element in the buffer
 };
 
 //
@@ -180,13 +179,13 @@ constexpr uint8_t REG_WK2132_RFCNT = 0x0A;  ///< receive FIFO value register
 /// WARNING:\n
 /// The received buffer can hold 256 bytes. However, as the RFCNT reg is 8 bits,
 /// in this case the value 256 is reported as 0 ! Therefore the RFCNT count can be
-/// zero when there is 0 byte or 256 bytes in the buffer. So if we have RXDAT = 1
-/// and RFCNT = 0 it should be interpreted as there is 256 bytes in the FIFO.
+/// zero when there is 0 byte **or** 256 bytes in the buffer. If we have RXDAT = 1
+/// and RFCNT = 0 it should be interpreted as 256 bytes in the FIFO.
 /// Note that in case of overflow the RFOE goes to one **but** as soon as you read
 /// the FSR this bit is cleared. Therefore Overflow can be read only once even if
 /// still in overflow.
 ///
-/// The same remark is valid for the transmit buffer but here we have to check the
+/// The same remark applies to the transmit buffer but here we have to check the
 /// TFULL flag. So if TFULL is set and TFCNT is 0 this should be interpreted as 256
 constexpr uint8_t REG_WK2132_FSR = 0x0B;
 
@@ -201,6 +200,7 @@ constexpr uint8_t REG_WK2132_RFI = 0x07;  ///< Channel receive FIFO interrupt tr
 constexpr uint8_t REG_WK2132_TFI = 0x08;  ///< Channel transmit FIFO interrupt trigger configuration register
 
 class WK2132Channel;  // forward declaration
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief This class describes a WK2132 I²C component.
 ///
@@ -218,11 +218,23 @@ class WK2132Channel;  // forward declaration
 class WK2132Component : public Component, public i2c::I2CDevice {
  public:
   /// @brief WK2132Component ctor. We store the I²C base address of the component
+  /// @note than defining this ctor disable the usage of default ctor
   WK2132Component() : base_address_{this->address_} {}
 
+  /// @brief set crystal frequency
+  /// @param crystal frequency
   void set_crystal(uint32_t crystal) { this->crystal_ = crystal; }
+
+  /// @brief Set the component in test mode only use for debug purpose
+  /// @param test_mode 0=normal other means component in test mode
   void set_test_mode(int test_mode) { this->test_mode_ = test_mode; }
+
+  /// @brief set the name for the component
+  /// @param name the name as defined by the python code generator
   void set_name(std::string name) { this->name_ = std::move(name); }
+
+  /// @brief Get the name of the component
+  /// @return the name
   const char *get_name() { return this->name_.c_str(); }
 
   //
@@ -231,14 +243,24 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::BUS - 0.1F; }
   void loop() override;
+
+  /// @brief Set the priority of the component
+  /// @return the priority
+  ///
+  /// The priority is set just a bit  below BUS because we use the i2c bus with a
+  /// priority of BUS and we will be used as a bus by our client component.
+  float get_setup_priority() const override { return setup_priority::BUS - 0.1F; }
 
  protected:
   friend class WK2132Channel;
-  const char *reg_to_str_(int val);  // for debug
 
-  /// @brief All write calls to I²C registers are performed through this method
+  /// @brief convert the register number into a string easier to understand
+  /// @param reg register value
+  /// @return name of the register
+  const char *reg_to_str_(int reg);  // for debug
+
+  /// @brief All write calls to I²C registers are done through this method
   /// @param reg_address the register address
   /// @param channel the channel number (0-1). Only significant for UART registers
   /// @param buffer pointer to a buffer
@@ -246,7 +268,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   /// @return the I²C error codes
   void write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer, size_t length);
 
-  /// @brief All read calls to I²C registers are performed through this method
+  /// @brief All read calls to I²C registers are done through this method
   /// @param number the register number
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer the buffer pointer
@@ -257,7 +279,6 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   uint32_t crystal_;                         ///< crystal default value;
   uint8_t base_address_;                     ///< base address of I2C device
   int test_mode_;                            ///< test mode 0 -> no tests
-  uint8_t data_;                             ///< temporary buffer
   bool page1_{false};                        ///< set to true when in page1 mode
   std::vector<WK2132Channel *> children_{};  ///< the list of WK2132Channel UART children
   std::string name_;                         ///< store name of entity
@@ -266,11 +287,12 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes a UART channel of a WK2132 I²C component.
 ///
-/// This class derives from the virtual @ref gen_uart::GenericUART class.
+/// This class derives from the virtual @ref uart::UARTComponent class.
 ///
 /// Unfortunately I have not found **any documentation** about the
-/// uart::UARTDevice and uart::UARTComponent classes of @ref ESPHome.\n
-/// However it seems that both of them are based on Arduino library.\n
+/// uart::UARTDevice and uart::UARTComponent classes in @ref ESPHome.\n
+/// However it seems that both of them are based on equivalent classes in
+/// Arduino library.\n
 ///
 /// Most of the interfaces provided by the Arduino Serial library are **poorly
 /// defined** and it seems that the API has even \b changed over time!\n
@@ -279,16 +301,27 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 /// For compatibility reason (?) many helper methods are made available in
 /// ESPHome to read and write. Unfortunately in many cases these helpers
 /// are missing the critical status information and therefore are even
-/// more unsafe to use...\n
+/// more badly defined and more unsafe to use...\n
 ///////////////////////////////////////////////////////////////////////////////
 class WK2132Channel : public uart::UARTComponent {
  public:
+  /// @brief We belong to a WK2132Component
+  /// @param parent the component we belongs to
   void set_parent(WK2132Component *parent) {
     this->parent_ = parent;
     this->parent_->children_.push_back(this);  // add ourself to the list (vector)
   }
+
+  /// @brief Sets the channel number
+  /// @param channel number
   void set_channel(uint8_t channel) { this->channel_ = channel; }
+
+  /// @brief The name as generated by the Python code generator
+  /// @param name of the channel
   void set_channel_name(std::string name) { this->name_ = std::move(name); }
+
+  /// @brief Get the channel name
+  /// @return the name
   const char *get_channel_name() { return this->name_.c_str(); }
 
   //
@@ -336,7 +369,7 @@ class WK2132Channel : public uart::UARTComponent {
   /// @endcode
   bool read_array(uint8_t *buffer, size_t length) override;
 
-  /// @brief Reads first byte in FIFO without removing it
+  /// @brief Reads the first byte in FIFO without removing it
   /// @param buffer pointer to the byte
   /// @return true if succeed reading one byte, false if no character available
   ///
@@ -346,7 +379,7 @@ class WK2132Channel : public uart::UARTComponent {
   bool peek_byte(uint8_t *buffer) override;
 
   /// @brief Returns the number of bytes in the receive buffer
-  /// @return the number of bytes available in the receiver fifo
+  /// @return the number of bytes in the receiver fifo
   int available() override;
 
   /// @brief Flush the output fifo.
@@ -354,12 +387,13 @@ class WK2132Channel : public uart::UARTComponent {
   /// If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission
   /// of outgoing serial data to complete. (Prior to Arduino 1.0, this the method was
   /// removing any buffered incoming serial data.). **
+  /// Therefore we wait until all bytes are gone with a timeout of 100 ms
   void flush() override;
 
  protected:
   friend class WK2132Component;
 
-  /// @brief this cannot happen with external uart
+  /// @brief this cannot happen with external uart therefore we do nothing
   void check_logger_conflict() override {}
 
 #ifdef TEST_COMPONENT
@@ -367,9 +401,16 @@ class WK2132Channel : public uart::UARTComponent {
   bool uart_receive_test_(char *header);
 #endif
 
+  /// @brief reset the wk2132 internal FIFO
   void reset_fifo_();
+
+  /// @brief set the line parameters
   void set_line_param_();
+
+  /// @brief set the baud rate
   void set_baudrate_();
+
+  /// @brief Setup the channel
   void setup_channel_();
 
   /// @brief Returns the number of bytes in the receive fifo
@@ -380,20 +421,19 @@ class WK2132Channel : public uart::UARTComponent {
   /// @return the number of bytes in the fifo
   size_t tx_in_fifo_();
 
-  /// @brief test if transmit buffer is not empty
+  /// @brief test if transmit buffer is not empty in the status register
   /// @return true if not empty
   bool tx_fifo_is_not_empty_();
 
-  /// @brief transfer bytes in fifo to the buffer if any
+  /// @brief transfer bytes from the wk2132 internal FIFO to the buffer (if any)
   /// @return number of bytes transferred
   size_t xfer_fifo_to_buffer_();
 
   /// @brief the buffer where we store temporarily the bytes received
   RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
-  // bool flush_requested_{false};  ///< flush was requested but not honored
   WK2132Component *parent_;  ///< Our WK2132component parent
   uint8_t channel_;          ///< Our Channel number
-  uint8_t data_;             ///< one byte buffer
+  uint8_t data_;             ///< one byte buffer for register read storage
   std::string name_;         ///< name of the entity
 };
 
