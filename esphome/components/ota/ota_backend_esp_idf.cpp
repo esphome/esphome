@@ -29,7 +29,7 @@ static uint32_t running_partition_size = 0;   // NOLINT(cppcoreguidelines-avoid-
 
 OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t &image_size) {
   esp_err_t err = ESP_OK;
-  this->is_upload_ = (image_size == 0);
+  this->is_upload_ = (image_size != 0);
   this->bin_type_ = bin_type;
 
   // On first usage, query our running area so we never overwrite it
@@ -136,9 +136,6 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t &image_s
 #endif
 
   if (this->is_upload_) {
-    // Read operation
-    image_size = this->partition_->size;
-  } else {
     // Write operation
     switch (this->bin_type_.type) {
       case OTA_BIN_APP:
@@ -158,7 +155,10 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t &image_s
       default:
         return OTA_RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED;  // This should never happen (checked before)
     }
-  }
+  } else {
+    // Read operation
+    image_size = this->partition_->size;
+  } 
 
 #if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
   // Set the WDT back to the configured timeout
