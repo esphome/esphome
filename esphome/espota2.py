@@ -1,11 +1,14 @@
+from __future__ import annotations
+
+import gzip
 import hashlib
+import io
 import logging
 import random
 import socket
+import struct
 import sys
 import time
-import gzip
-import struct
 
 from dataclasses import dataclass
 from esphome.core import EsphomeError
@@ -69,6 +72,10 @@ FEATURE_SUPPORTS_WRITING_BOOTLOADER = 0x02
 FEATURE_SUPPORTS_WRITING_PARTITION_TABLE = 0x03
 FEATURE_SUPPORTS_WRITING_PARTITIONS = 0x04
 FEATURE_SUPPORTS_READING = 0x05
+
+
+UPLOAD_BLOCK_SIZE = 8192
+UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -267,7 +274,15 @@ def send_check(sock, data, msg):
         raise OTAError(f"Error sending {msg}: {err}") from err
 
 
-def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot, is_upload):
+def perform_ota(
+    sock: socket.socket,
+    password: str,
+    file_handle: io.IOBase,
+    bin_type,
+    filename: str,
+    no_reboot: bool,
+    is_upload: bool,
+) -> None:
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     send_check(sock, MAGIC_BYTES, "magic bytes")
@@ -426,17 +441,19 @@ def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot, is_u
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
     # Limit send buffer (usually around 100kB) in order to have progress bar
     # show the actual progress
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 8192)
+
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UPLOAD_BUFFER_SIZE)
     # Set higher timeout during upload
-    sock.settimeout(20.0)
+    sock.settimeout(30.0)
+    start_time = time.perf_counter()
 
     offset = 0
     progress = ProgressBar("Uploading" if is_upload else "Downloading")
     while True:
         if is_upload:
-            chunk = transfer_contents[offset : offset + 1024]
+            chunk = transfer_contents[offset : offset + UPLOAD_BLOCK_SIZE]
         else:
-            chunk_size = min(1024, file_size - offset)
+            chunk_size = min(UPLOAD_BLOCK_SIZE, file_size - offset)
             chunk = (
                 receive_exactly(sock, chunk_size, "receive firmware chunk", None)
                 if chunk_size > 0
@@ -461,8 +478,9 @@ def perform_ota(sock, password, file_handle, bin_type, filename, no_reboot, is_u
 
     # Enable nodelay for last checks
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    duration = time.perf_counter() - start_time
 
-    _LOGGER.info("Waiting for result...")
+    _LOGGER.info("Upload took %.2f seconds, waiting for result...", duration)
 
     if is_upload:
         receive_exactly(sock, 1, "receive OK", RESPONSE_RECEIVE_OK)
