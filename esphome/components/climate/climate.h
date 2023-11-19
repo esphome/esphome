@@ -160,7 +160,7 @@ struct ClimateDeviceRestoreState {
  */
 class Climate : public EntityBase {
  public:
-  Climate() { }
+  Climate() {}
 
   /// The active mode of the climate device.
   ClimateMode mode{CLIMATE_MODE_OFF};
