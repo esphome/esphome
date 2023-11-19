@@ -107,11 +107,15 @@ WAKEUP_PINS = {
 }
 
 
+def validate_pin_numbers(value):
+    if CONF_PIN in value:
+        validate_pin_number(value[CONF_PIN])
+    else:
+        validate_pin_number(value)
+    return value
+
 def validate_pin_number(value):
     valid_pins = WAKEUP_PINS.get(get_esp32_variant(), WAKEUP_PINS[VARIANT_ESP32])
-    if isinstance(value, list):
-        value = value[0]
-    value = pins.internal_gpio_input_pin_schema(value)
     if value[CONF_NUMBER] not in valid_pins:
         raise cv.Invalid(
             f"Only pins {', '.join(str(x) for x in valid_pins)} support wakeup"
@@ -189,16 +193,14 @@ WAKEUP_CAUSES_SCHEMA = cv.Schema(
 )
 
 WakeupPinItem = deep_sleep_ns.struct("WakeupPinItem")
-WAKEUP_SINGLEPIN_SCHEMA = validate_pin_number
-WAKEUP_MULTIPIN_SCHEMA = cv.ensure_list(
-    cv.Schema(
+WAKEUP_SINGLEPIN_SCHEMA = cv.All(pins.internal_gpio_input_pin_schema)
+WAKEUP_MULTIPIN_SCHEMA = cv.Schema(
         {
             cv.Required(CONF_PIN): WAKEUP_SINGLEPIN_SCHEMA,
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
                 cv.enum(WAKEUP_PIN_MODES), upper=True
             ),
         }
-    )
 )
 
 
@@ -213,7 +215,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_WAKEUP_PIN): cv.All(
                 cv.only_on_esp32,
-                cv.Any(WAKEUP_MULTIPIN_SCHEMA, WAKEUP_SINGLEPIN_SCHEMA),
+                cv.ensure_list(cv.All(
+                    cv.Any(WAKEUP_SINGLEPIN_SCHEMA, WAKEUP_MULTIPIN_SCHEMA),
+                    validate_pin_numbers,
+                )),
             ),
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
                 cv.only_on_esp32, cv.enum(WAKEUP_PIN_MODES), upper=True
@@ -222,7 +227,9 @@ CONFIG_SCHEMA = cv.All(
                 cv.only_on_esp32,
                 cv.Schema(
                     {
-                        cv.Required(CONF_PINS): cv.ensure_list(validate_pin_number),
+                        cv.Required(CONF_PINS): cv.ensure_list(
+                            pins.internal_gpio_input_pin_schema, validate_pin_number
+                        ),
                         cv.Required(CONF_MODE): cv.enum(EXT1_WAKEUP_MODES, upper=True),
                     }
                 ),
@@ -242,20 +249,18 @@ async def to_code(config):
     if CONF_SLEEP_DURATION in config:
         cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
     if CONF_WAKEUP_PIN in config:
-        conf = config[CONF_WAKEUP_PIN]
-        if isinstance(conf, list):
+            conf = config[CONF_WAKEUP_PIN]
             for item in conf:
+                pin_expr = item[CONF_PIN] if CONF_PIN in item else item
+                wakeup_pin_mode_parent = item if CONF_PIN in item else config
                 cg.add(
                     var.add_wakeup_pin(
                         cg.StructInitializer(
                             WakeupPinItem,
-                            (
-                                "wakeup_pin",
-                                await cg.gpio_pin_expression(item[CONF_PIN]),
-                            ),
+                            ("wakeup_pin", await cg.gpio_pin_expression(pin_expr)),
                             (
                                 "wakeup_pin_mode",
-                                item.get(
+                                wakeup_pin_mode_parent.get(
                                     CONF_WAKEUP_PIN_MODE,
                                     WakeupPinMode.WAKEUP_PIN_MODE_IGNORE,
                                 ),
@@ -263,22 +268,6 @@ async def to_code(config):
                         )
                     )
                 )
-        else:
-            cg.add(
-                var.add_wakeup_pin(
-                    cg.StructInitializer(
-                        WakeupPinItem,
-                        ("wakeup_pin", await cg.gpio_pin_expression(conf)),
-                        (
-                            "wakeup_pin_mode",
-                            config.get(
-                                CONF_WAKEUP_PIN_MODE,
-                                WakeupPinMode.WAKEUP_PIN_MODE_IGNORE,
-                            ),
-                        ),
-                    )
-                )
-            )
     if CONF_RUN_DURATION in config:
         run_duration_config = config[CONF_RUN_DURATION]
         if not isinstance(run_duration_config, dict):
