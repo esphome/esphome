@@ -140,6 +140,7 @@ def validate_config(config):
         if (
             CONF_WAKEUP_PIN in config
             and isinstance(config[CONF_WAKEUP_PIN], list)
+            and CONF_PIN in config[CONF_WAKEUP_PIN]
             and CONF_WAKEUP_PIN_MODE in config
         ):
             raise cv.Invalid(

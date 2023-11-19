@@ -2,6 +2,7 @@
 import pytest
 import esphome.config_validation as cv
 
+
 def test_deep_sleep_setup(generate_main):
     """
     When the deep sleep is set in the yaml file, it should be registered in main
