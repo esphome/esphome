@@ -158,7 +158,7 @@ OTAResponseTypes IDFOTABackend::begin(OTAPartitionType bin_type, size_t &image_s
   } else {
     // Read operation
     image_size = this->partition_->size;
-  } 
+  }
 
 #if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
   // Set the WDT back to the configured timeout
