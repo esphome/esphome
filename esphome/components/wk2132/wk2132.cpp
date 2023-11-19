@@ -251,8 +251,10 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
 //
 
 void WK2132Component::setup() {
-  this->base_address_ = this->address_;  // TODO should not be necessary done in the ctor
-  ESP_LOGCONFIG(TAG, "Setting up wk2132: %s with %d UARTs...", this->get_name(), this->children_.size());
+  // before any manipulation we store the address to base_address_ for future use
+  this->base_address_ = this->address_;
+  ESP_LOGCONFIG(TAG, "Setting up wk2132: %s with %d UARTs at @%02X ...", this->get_name(), this->children_.size(),
+                this->base_address_);
   // we setup our children
   for (auto *child : this->children_) {
     child->setup_channel_();
@@ -264,6 +266,7 @@ void WK2132Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
   if (test_mode_)
     ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
+  this->address_ = this->base_address_;  // we restore the base address before display
   LOG_I2C_DEVICE(this);
   for (auto *child : this->children_) {
     ESP_LOGCONFIG(TAG, "  UART %s:%s ...", this->get_name(), child->get_channel_name());

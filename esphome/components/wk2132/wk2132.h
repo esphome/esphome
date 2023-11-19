@@ -217,10 +217,6 @@ class WK2132Channel;  // forward declaration
 ///////////////////////////////////////////////////////////////////////////////
 class WK2132Component : public Component, public i2c::I2CDevice {
  public:
-  /// @brief WK2132Component ctor. We store the I²C base address of the component
-  /// @note than defining this ctor disable the usage of default ctor
-  WK2132Component() : base_address_{this->address_} {}
-
   /// @brief set crystal frequency
   /// @param crystal frequency
   void set_crystal(uint32_t crystal) { this->crystal_ = crystal; }
