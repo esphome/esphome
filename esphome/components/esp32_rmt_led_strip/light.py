@@ -93,19 +93,19 @@ CONFIG_SCHEMA = cv.All(
             cv.Inclusive(
                 CONF_BIT0_HIGH,
                 "custom",
-            ): cv.positive_time_period_microseconds,
+            ): cv.positive_time_period_nanoseconds,
             cv.Inclusive(
                 CONF_BIT0_LOW,
                 "custom",
-            ): cv.positive_time_period_microseconds,
+            ): cv.positive_time_period_nanoseconds,
             cv.Inclusive(
                 CONF_BIT1_HIGH,
                 "custom",
-            ): cv.positive_time_period_microseconds,
+            ): cv.positive_time_period_nanoseconds,
             cv.Inclusive(
                 CONF_BIT1_LOW,
                 "custom",
-            ): cv.positive_time_period_microseconds,
+            ): cv.positive_time_period_nanoseconds,
         }
     ),
     cv.has_exactly_one_key(CONF_CHIPSET, CONF_BIT0_HIGH),
