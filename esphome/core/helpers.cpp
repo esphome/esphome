@@ -279,9 +279,12 @@ std::string str_snake_case(const std::string &str) {
 }
 std::string str_sanitize(const std::string &str) {
   std::string out;
-  std::replace_if(str.begin(), str.end(), [](const char &c) {
-    return c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-  }, '_');
+  std::replace_if(
+      str.begin(), str.end(),
+      [](const char &c) {
+        return c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+      },
+      '_');
   return out;
 }
 std::string str_snprintf(const char *fmt, size_t len, ...) {
