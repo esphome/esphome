@@ -17,6 +17,12 @@ CONF_SOURCE = "source"
 CONF_DESTINATION = "destination"
 CONF_OPCODE = "opcode"
 CONF_DATA = "data"
+CONF_PARENT = "parent"
+
+def validate_data_array(value):
+    if isinstance(value, list):
+        return cv.Schema([cv.hex_uint8_t])(value)
+    raise cv.Invalid("data must be a list of bytes")
 
 hdmi_cec_ns = cg.esphome_ns.namespace("hdmi_cec")
 HDMICEC = hdmi_cec_ns.class_(
@@ -24,6 +30,9 @@ HDMICEC = hdmi_cec_ns.class_(
 )
 MessageTrigger = hdmi_cec_ns.class_(
     "MessageTrigger", automation.Trigger.template(cg.uint8, cg.uint8, cg.std_vector.template(cg.uint8))
+)
+SendAction = hdmi_cec_ns.class_(
+    "SendAction", automation.Action
 )
 
 CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
@@ -38,7 +47,7 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
                 cv.Optional(CONF_SOURCE): cv.int_range(min=0, max=15),
                 cv.Optional(CONF_DESTINATION): cv.int_range(min=0, max=15),
                 cv.Optional(CONF_OPCODE): cv.uint8_t,
-                cv.Optional(CONF_DATA): cv.Schema([cv.hex_uint8_t])
+                cv.Optional(CONF_DATA): validate_data_array
             }
         )
     }
@@ -82,3 +91,30 @@ async def to_code(config):
             ],
             conf
         )
+
+@automation.register_action(
+    "hdmi_cec.send",
+    SendAction,
+    {
+        cv.GenerateID(CONF_PARENT): cv.use_id(HDMICEC),
+        cv.Optional(CONF_SOURCE): cv.int_range(min=0, max=15),
+        cv.Required(CONF_DESTINATION): cv.int_range(min=0, max=15),
+        cv.Required(CONF_DATA): cv.templatable(validate_data_array)
+    }
+)
+async def send_action_to_code(config, action_id, template_args, args):
+    parent = await cg.get_variable(config[CONF_PARENT])
+    var = cg.new_Pvariable(action_id, template_args, parent)
+
+    source = config.get(CONF_SOURCE)
+    if source is not None:
+        cg.add(var.set_source(source))
+
+    destination = config.get(CONF_DESTINATION)
+    cg.add(var.set_destination(destination))
+
+    data_vec_ = cg.std_vector.template(cg.uint8)
+    data_template_ = await cg.templatable(config.get(CONF_DATA), args, data_vec_, data_vec_)
+    cg.add(var.set_data(data_template_))
+
+    return var
