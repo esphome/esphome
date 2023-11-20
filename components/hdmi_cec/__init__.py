@@ -98,7 +98,7 @@ async def to_code(config):
     {
         cv.GenerateID(CONF_PARENT): cv.use_id(HDMICEC),
         cv.Optional(CONF_SOURCE): cv.int_range(min=0, max=15),
-        cv.Required(CONF_DESTINATION): cv.int_range(min=0, max=15),
+        cv.Required(CONF_DESTINATION): cv.templatable(cv.int_range(min=0, max=15)),
         cv.Required(CONF_DATA): cv.templatable(validate_data_array)
     }
 )
@@ -110,8 +110,8 @@ async def send_action_to_code(config, action_id, template_args, args):
     if source is not None:
         cg.add(var.set_source(source))
 
-    destination = config.get(CONF_DESTINATION)
-    cg.add(var.set_destination(destination))
+    destination_template_ = await cg.templatable(config.get(CONF_DESTINATION), args, cg.uint8)
+    cg.add(var.set_destination(destination_template_))
 
     data_vec_ = cg.std_vector.template(cg.uint8)
     data_template_ = await cg.templatable(config.get(CONF_DATA), args, data_vec_, data_vec_)

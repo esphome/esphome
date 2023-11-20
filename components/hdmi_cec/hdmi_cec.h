@@ -82,21 +82,21 @@ protected:
 template<typename... Ts> class SendAction : public Action<Ts...> {
 public:
   SendAction(HDMICEC *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(uint8_t, destination)
   TEMPLATABLE_VALUE(std::vector<uint8_t>, data)
 
   void set_source(uint8_t source) { source_ = source; }
-  void set_destination(uint8_t destination) { destination_ = destination; }
    
   void play(Ts... x) override {
     auto source_address = source_.has_value() ? source_.value() : parent_->address();
+    auto destination_address = destination_.value(x...);
     auto data = data_.value(x...);
-    parent_->send(source_address, destination_, data);
+    parent_->send(source_address, destination_address, data);
   }
 
 protected:
   HDMICEC *parent_;
   optional<uint8_t> source_;
-  uint8_t destination_;
 };
 
 }
