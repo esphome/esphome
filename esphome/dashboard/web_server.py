@@ -87,18 +87,19 @@ def authenticated(func):
     return decorator
 
 
-def is_authenticated(request_handler):
+def is_authenticated(request_handler: BaseHandler) -> bool:
+    """Check if the request is authenticated."""
     if settings.on_ha_addon:
         # Handle ingress - disable auth on ingress port
         # X-HA-Ingress is automatically stripped on the non-ingress server in nginx
-        header = request_handler.request.headers.get("X-HA-Ingress", "NO")
-        if str(header) == "YES":
-            return True
+        return request_handler.request.headers.get("X-HA-Ingress", "NO") == "YES"
+
     if settings.using_auth:
         return (
             request_handler.get_secure_cookie("authenticated")
             == cookie_authenticated_yes
         )
+
     return True
 
 
