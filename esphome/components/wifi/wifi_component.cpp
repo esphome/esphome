@@ -193,6 +193,8 @@ void WiFiComponent::loop() {
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
 bool WiFiComponent::has_ap() const { return this->has_ap_; }
+bool WiFiComponent::is_ap_enabled() const { return this->ap_setup_; }
+
 bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 void WiFiComponent::set_fast_connect(bool fast_connect) { this->fast_connect_ = fast_connect; }
 #ifdef USE_WIFI_11KV_SUPPORT

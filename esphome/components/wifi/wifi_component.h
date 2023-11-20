@@ -244,6 +244,7 @@ class WiFiComponent : public Component {
 
   bool has_sta() const;
   bool has_ap() const;
+  bool is_ap_enabled() const;
 
 #ifdef USE_WIFI_11KV_SUPPORT
   void set_btm(bool btm);
