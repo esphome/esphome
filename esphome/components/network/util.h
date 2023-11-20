@@ -5,7 +5,8 @@
 
 namespace esphome {
 namespace network {
-
+/// Return whether has network components enabled (through wifi, eth, ...)
+bool has_network();
 /// Return whether the node is connected to the network (through wifi, eth, ...)
 bool is_connected();
 /// Return whether the network is disabled (only wifi for now)
