@@ -6,7 +6,7 @@ from esphome.const import (
     CONF_TRIGGER_ID
 )
 
-DEPENDENCIES = []
+CODEOWNERS = ["@Palakis"]
 
 CONF_PIN = "pin"
 CONF_ADDRESS = "address"
