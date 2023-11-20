@@ -154,7 +154,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         # use Popen() with a reading thread instead
         self._use_popen = os.name == "nt"
 
-    def open(self) -> None:
+    def open(self, *args: str, **kwargs: str) -> None:
         """Handle new WebSocket connection."""
         # Ensure messages from the subprocess are sent immediately
         # to avoid a 200-500ms delay when nodelay is not set.
