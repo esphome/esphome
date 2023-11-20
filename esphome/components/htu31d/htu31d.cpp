@@ -1,4 +1,4 @@
-/* 
+/*
  * This file contains source code derived from Adafruit_HTU31D which is under
  * the BSD license:
  *   Written by Limor Fried/Ladyada for Adafruit Industries.
@@ -19,7 +19,7 @@ static const char *const TAG = "htu31d";
 /**
  * Resets the sensor and ensures that the devices serial number can be read over
  * I2C.
-*/
+ */
 void HTU31DComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up esphome/components/htu31d HTU31D...");
 
@@ -37,7 +37,7 @@ void HTU31DComponent::setup() {
 /**
  * Called once every update interval (user configured, defaults to 60s) and sets
  * the current temperature and humidity.
-*/
+ */
 void HTU31DComponent::update() {
   ESP_LOGD(TAG, "Checking temperature and humidty values");
 
@@ -109,7 +109,7 @@ void HTU31DComponent::update() {
 
 /**
  * Logs the current compoenent config.
-*/
+ */
 void HTU31DComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTU31D:");
   LOG_I2C_DEVICE(this);
@@ -123,9 +123,9 @@ void HTU31DComponent::dump_config() {
 
 /**
  * Computes a CRC result for the provided input.
- * 
+ *
  * @returns the computed CRC result for the provided input
-*/
+ */
 uint8_t HTU31DComponent::compute_crc(uint32_t value) {
   uint32_t polynom = 0x98800000;  // x^8 + x^5 + x^4 + 1
   uint32_t msb = 0x80000000;
@@ -149,7 +149,7 @@ uint8_t HTU31DComponent::compute_crc(uint32_t value) {
 
 /**
  * Sends a 'reset' request to the HTU31D, followed by a 15ms delay.
- * 
+ *
  * @returns True if was able to write the command successfully
  */
 bool HTU31DComponent::reset(void) {
@@ -163,7 +163,7 @@ bool HTU31DComponent::reset(void) {
 
 /**
  * Reads the serial number from the device and checks the CRC.
- * 
+ *
  * @returns the 24bit serial number from the device
  */
 uint32_t HTU31DComponent::read_serial_num(void) {
@@ -197,7 +197,7 @@ uint32_t HTU31DComponent::read_serial_num(void) {
 /**
  * Checks the diagnostics register to determine if the heater is currently
  * enabled.
- * 
+ *
  * @returns True if the heater is currently enabled, False otherwise
  */
 bool HTU31DComponent::is_heater_enabled() {
@@ -217,9 +217,9 @@ bool HTU31DComponent::is_heater_enabled() {
 
 /**
  * Sets the heater state on or off.
- * 
+ *
  * @param desired True for on, and False for off.
-*/
+ */
 void HTU31DComponent::set_heater_state(bool desired) {
   bool current = is_heater_enabled();
 
@@ -246,9 +246,9 @@ void HTU31DComponent::set_heater_state(bool desired) {
 
 /**
  * Sets the startup priority for this component.
- * 
- * @returns The startup priority 
-*/
+ *
+ * @returns The startup priority
+ */
 float HTU31DComponent::get_setup_priority() const { return setup_priority::DATA; }
 }  // namespace htu31d
 }  // namespace esphome
