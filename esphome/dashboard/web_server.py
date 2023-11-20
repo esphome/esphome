@@ -271,14 +271,15 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
     ) -> list[str]:
         """Build the command to run."""
         dashboard = DASHBOARD
+        entries = dashboard.entries
         configuration = json_message["configuration"]
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
         if (
             port == "OTA"
             and (mdns := dashboard.mdns_status)
-            and (host_name := mdns.get_path_to_host_name(config_file))
-            and (address := await mdns.async_resolve_host(host_name))
+            and (entry := entries.get(config_file))
+            and (address := await mdns.async_resolve_host(entry.name))
         ):
             port = address
 

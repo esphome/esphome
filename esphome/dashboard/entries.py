@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 from esphome import const, util
@@ -68,6 +69,7 @@ class DashboardEntries:
         "_entry_states",
         "_loaded_entries",
         "_update_lock",
+        "_name_to_entry",
     )
 
     def __init__(self, dashboard: ESPHomeDashboard) -> None:
@@ -83,10 +85,15 @@ class DashboardEntries:
         self._entries: dict[str, DashboardEntry] = {}
         self._loaded_entries = False
         self._update_lock = asyncio.Lock()
+        self._name_to_entry: dict[str, set[DashboardEntry]] = defaultdict(set)
 
     def get(self, path: str) -> DashboardEntry | None:
         """Get an entry by path."""
         return self._entries.get(path)
+
+    def get_by_name(self, name: str) -> set[DashboardEntry] | None:
+        """Get an entry by name."""
+        return self._name_to_entry.get(name)
 
     async def _async_all(self) -> list[DashboardEntry]:
         """Return all entries."""
@@ -155,6 +162,7 @@ class DashboardEntries:
             None, self._get_path_to_cache_key
         )
         entries = self._entries
+        name_to_entry = self._name_to_entry
         added: dict[DashboardEntry, DashboardCacheKeyType] = {}
         updated: dict[DashboardEntry, DashboardCacheKeyType] = {}
         removed: set[DashboardEntry] = {
@@ -162,14 +170,17 @@ class DashboardEntries:
             for filename, entry in entries.items()
             if filename not in path_to_cache_key
         }
+        original_names: dict[DashboardEntry, str] = {}
 
         for path, cache_key in path_to_cache_key.items():
-            if entry := entries.get(path):
-                if entry.cache_key != cache_key:
-                    updated[entry] = cache_key
-            else:
+            if not (entry := entries.get(path)):
                 entry = DashboardEntry(path, cache_key)
                 added[entry] = cache_key
+                continue
+
+            if entry.cache_key != cache_key:
+                updated[entry] = cache_key
+                original_names[entry] = entry.name
 
         if added or updated:
             await self._loop.run_in_executor(
@@ -179,13 +190,18 @@ class DashboardEntries:
         bus = self._dashboard.bus
         for entry in added:
             entries[entry.path] = entry
+            name_to_entry[entry.name].add(entry)
             bus.async_fire(EVENT_ENTRY_ADDED, {"entry": entry})
 
         for entry in removed:
             del entries[entry.path]
+            name_to_entry[entry.name].discard(entry)
             bus.async_fire(EVENT_ENTRY_REMOVED, {"entry": entry})
 
         for entry in updated:
+            if (original_name := original_names[entry]) != (current_name := entry.name):
+                name_to_entry[original_name].discard(entry)
+                name_to_entry[current_name].add(entry)
             bus.async_fire(EVENT_ENTRY_UPDATED, {"entry": entry})
 
     def _get_path_to_cache_key(self) -> dict[str, DashboardCacheKeyType]:
