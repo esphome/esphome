@@ -322,6 +322,10 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
       self->receiver_state_ = ReceiverState::Idle;
       break;
     }
+
+    default: {
+      break;
+    }
   }
 }
 
