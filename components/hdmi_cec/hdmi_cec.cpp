@@ -104,18 +104,19 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_
   {
     LockGuard send_lock(send_mutex_);
 
-    ESP_LOGV(TAG, "HDMICEC::send(): waiting for the bus to be free...");
-    while((micros() - last_falling_edge_us_) < MIN_SIGNAL_FREE_TIME) {
-      delay_microseconds_safe(TOTAL_BIT_US); // wait for one bit period
-    }
-    ESP_LOGV(TAG, "HDMICEC::send(): bus available, sending frame...");
-
     for (size_t i = 0; i < MAX_ATTEMPTS; i++) {
+      ESP_LOGV(TAG, "HDMICEC::send(): waiting for the bus to be free...");
+      while((micros() - last_falling_edge_us_) < MIN_SIGNAL_FREE_TIME) {
+        delay_microseconds_safe(TOTAL_BIT_US); // wait for one bit period
+      }
+      ESP_LOGV(TAG, "HDMICEC::send(): bus available, sending frame...");
+
       bool success = send_frame_(frame, is_broadcast);
       if (success) {
         ESP_LOGV(TAG, "HDMICEC::send(): frame sent and acknowledged");
         return true;
       }
+
       delay_microseconds_safe(TOTAL_BIT_US);
     }
   }
