@@ -26,7 +26,6 @@ namespace htu31d {
 /** Disable heater */
 #define HTU31D_HEATEROFF (0x02)
 
-
 /** Reset command. */
 #define HTU31D_RESET (0x1E)
 
