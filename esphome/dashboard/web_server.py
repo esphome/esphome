@@ -14,7 +14,7 @@ import shutil
 import subprocess
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import tornado
 import tornado.concurrent
@@ -41,6 +41,10 @@ from .entries import EntryState, entry_state_to_bool
 from .util.file import write_file
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
+
+if TYPE_CHECKING:
+    from requests import Response
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -832,30 +836,37 @@ class LoginHandler(BaseHandler):
             **template_args(),
         )
 
-    def post_ha_addon_login(self):
+    def _make_supervisor_auth_request(
+        self, headers: dict[str, str | None], data: dict[str, str]
+    ) -> Response:
+        """Make a request to the supervisor auth endpoint."""
         import requests
 
-        headers = {
-            "X-Supervisor-Token": os.getenv("SUPERVISOR_TOKEN"),
-        }
+        return requests.post(
+            "http://supervisor/auth", headers=headers, json=data, timeout=30
+        )
 
+    async def post_ha_addon_login(self):
+        loop = asyncio.get_running_loop()
+        headers = {"X-Supervisor-Token": os.getenv("SUPERVISOR_TOKEN")}
         data = {
             "username": self.get_argument("username", ""),
             "password": self.get_argument("password", ""),
         }
         try:
-            req = requests.post(
-                "http://supervisor/auth", headers=headers, json=data, timeout=30
+            req = await loop.run_in_executor(
+                None, self._make_supervisor_auth_request, headers, data
             )
-            if req.status_code == 200:
-                self.set_secure_cookie("authenticated", cookie_authenticated_yes)
-                self.redirect("/")
-                return
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.warning("Error during Hass.io auth request: %s", err)
             self.set_status(500)
             self.render_login_page(error="Internal server error")
             return
+        else:
+            if req.status_code == 200:
+                self.set_secure_cookie("authenticated", cookie_authenticated_yes)
+                self.redirect("/")
+                return
         self.set_status(401)
         self.render_login_page(error="Invalid username or password")
 
@@ -872,9 +883,9 @@ class LoginHandler(BaseHandler):
         self.set_status(401)
         self.render_login_page(error=error_str)
 
-    def post(self):
+    async def post(self):
         if settings.using_ha_addon_auth:
-            self.post_ha_addon_login()
+            await self.post_ha_addon_login()
         else:
             self.post_native_login()
 
