@@ -244,11 +244,14 @@ void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
     if (self->recv_ack_queued_) {
       self->recv_ack_queued_ = false;
 
-      self->isr_pin_.pin_mode(OUTPUT_MODE_FLAGS);
-      self->isr_pin_.digital_write(false);
-      delayMicroseconds(LOW_BIT_US);
-      self->isr_pin_.digital_write(true);
-      self->isr_pin_.pin_mode(INPUT_MODE_FLAGS);
+      {
+        InterruptLock interrupt_lock;
+        self->isr_pin_.pin_mode(OUTPUT_MODE_FLAGS);
+        self->isr_pin_.digital_write(false);
+        delayMicroseconds(LOW_BIT_US);
+        self->isr_pin_.digital_write(true);
+        self->isr_pin_.pin_mode(INPUT_MODE_FLAGS);
+      }
 
       // trigger rising-edge interrupt manually
       gpio_intr(self);
