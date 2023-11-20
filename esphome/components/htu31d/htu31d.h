@@ -26,6 +26,7 @@ namespace htu31d {
 /** Disable heater */
 #define HTU31D_HEATEROFF (0x02)
 
+
 /** Reset command. */
 #define HTU31D_RESET (0x1E)
 
@@ -42,15 +43,15 @@ class HTU31DComponent : public PollingComponent, public i2c::I2CDevice {
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_heater(sensor::Sensor *heater) { heater_ = heater; }
 
-  void set_heater_state(bool enabled);
+  void set_heater_state(bool desired);
   bool is_heater_enabled();
 
   float get_setup_priority() const override;
 
  private:
-  bool reset(void);
-  uint32_t read_serial_num(void);
-  uint8_t compute_crc(uint32_t);
+  bool reset_();
+  uint32_t read_serial_num_();
+  uint8_t compute_crc_(uint32_t value);
 
  protected:
   sensor::Sensor *temperature_{nullptr};

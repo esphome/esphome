@@ -23,12 +23,12 @@ static const char *const TAG = "htu31d";
 void HTU31DComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up esphome/components/htu31d HTU31D...");
 
-  if (!reset()) {
+  if (!reset_()) {
     this->mark_failed();
     return;
   }
 
-  if (read_serial_num() == 0) {
+  if (read_serial_num_() == 0) {
     this->mark_failed();
     return;
   }
@@ -67,7 +67,7 @@ void HTU31DComponent::update() {
   raw_temp <<= 8;
   raw_temp |= thdata[1];
 
-  uint8_t crc = compute_crc((uint32_t) raw_temp << 8);
+  uint8_t crc = compute_crc_((uint32_t) raw_temp << 8);
   if (crc != thdata[2]) {
     this->status_set_warning();
     ESP_LOGE(TAG, "Error validating temperature CRC");
@@ -88,7 +88,7 @@ void HTU31DComponent::update() {
   raw_hum <<= 8;
   raw_hum |= thdata[4];
 
-  crc = compute_crc((uint32_t) raw_hum << 8);
+  crc = compute_crc_((uint32_t) raw_hum << 8);
   if (crc != thdata[5]) {
     this->status_set_warning();
     ESP_LOGE(TAG, "Error validating humidty CRC");
@@ -126,7 +126,7 @@ void HTU31DComponent::dump_config() {
  *
  * @returns the computed CRC result for the provided input
  */
-uint8_t HTU31DComponent::compute_crc(uint32_t value) {
+uint8_t HTU31DComponent::compute_crc_(uint32_t value) {
   uint32_t polynom = 0x98800000;  // x^8 + x^5 + x^4 + 1
   uint32_t msb = 0x80000000;
   uint32_t mask = 0xFF800000;
@@ -152,7 +152,7 @@ uint8_t HTU31DComponent::compute_crc(uint32_t value) {
  *
  * @returns True if was able to write the command successfully
  */
-bool HTU31DComponent::reset(void) {
+bool HTU31DComponent::reset_() {
   if (this->write_register(HTU31D_RESET, nullptr, 0) != i2c::ERROR_OK) {
     return false;
   }
@@ -166,7 +166,7 @@ bool HTU31DComponent::reset(void) {
  *
  * @returns the 24bit serial number from the device
  */
-uint32_t HTU31DComponent::read_serial_num(void) {
+uint32_t HTU31DComponent::read_serial_num_() {
   uint8_t reply[4];
   uint32_t serial = 0;
 
@@ -183,7 +183,7 @@ uint32_t HTU31DComponent::read_serial_num(void) {
   serial |= reply[2];
   serial <<= 8;
 
-  uint8_t crc = compute_crc(serial);
+  uint8_t crc = compute_crc_(serial);
   if (crc != reply[3]) {
     ESP_LOGE(TAG, "Error validating serial CRC");
     return 0;
