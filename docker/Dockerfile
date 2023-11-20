@@ -68,7 +68,7 @@ ENV \
 # See: https://unix.stackexchange.com/questions/553743/correct-way-to-add-lib-ld-linux-so-3-in-debian
 RUN \
     if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
-        ln -s /lib/arm-linux-gnueabihf/ld-linux.so.3 /lib/ld-linux.so.3; \
+        ln -s /lib/arm-linux-gnueabihf/ld-linux-armhf.so.3 /lib/ld-linux.so.3; \
     fi
 
 RUN \
