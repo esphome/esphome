@@ -27,6 +27,7 @@ import tornado.process
 import tornado.queues
 import tornado.web
 import tornado.websocket
+import tornado.httputil
 import yaml
 from tornado.log import access_log
 
@@ -136,7 +137,15 @@ def websocket_method(name):
 
 @websocket_class
 class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
-    def __init__(self, application, request, **kwargs):
+    """Base class for ESPHome websocket commands."""
+
+    def __init__(
+        self,
+        application: tornado.web.Application,
+        request: tornado.httputil.HTTPServerRequest,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize the websocket."""
         super().__init__(application, request, **kwargs)
         self._proc = None
         self._queue = None
@@ -144,6 +153,12 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         # Windows doesn't support non-blocking pipes,
         # use Popen() with a reading thread instead
         self._use_popen = os.name == "nt"
+
+    def open(self) -> None:
+        """Handle new WebSocket connection."""
+        # Ensure messages from the subprocess are sent immediately
+        # to avoid a 200-500ms delay when nodelay is not set.
+        self.set_nodelay(True)
 
     @authenticated
     async def on_message(  # pylint: disable=invalid-overridden-method
