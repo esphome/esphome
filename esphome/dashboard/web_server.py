@@ -862,17 +862,21 @@ class LoginHandler(BaseHandler):
             return
         else:
             if req.status_code == 200:
-                self.set_secure_cookie("authenticated", cookie_authenticated_yes)
+                self._set_authenticated()
                 self.redirect("/")
                 return
         self.set_status(401)
         self.render_login_page(error="Invalid username or password")
 
+    def _set_authenticated(self) -> None:
+        """Set the authenticated cookie."""
+        self.set_secure_cookie("authenticated", cookie_authenticated_yes)
+
     def post_native_login(self):
         username = self.get_argument("username", "")
         password = self.get_argument("password", "")
         if settings.check_password(username, password):
-            self.set_secure_cookie("authenticated", cookie_authenticated_yes)
+            self._set_authenticated()
             self.redirect("./")
             return
         error_str = (
