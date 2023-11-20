@@ -860,11 +860,11 @@ class LoginHandler(BaseHandler):
             self.set_status(500)
             self.render_login_page(error="Internal server error")
             return
-        else:
-            if req.status_code == 200:
-                self._set_authenticated()
-                self.redirect("/")
-                return
+
+        if req.status_code == 200:
+            self._set_authenticated()
+            self.redirect("/")
+            return
         self.set_status(401)
         self.render_login_page(error="Invalid username or password")
 
