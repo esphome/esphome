@@ -18,7 +18,7 @@ class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSenso
       uint8_t sensor = 0;
       for (auto &ip : ips) {
         if (ip.is_set()) {
-          if (ip_sensors_[sensor])  {
+          if (ip_sensors_[sensor]) {
             this->ip_sensors_[sensor]->publish_state(ip.str());
             sensor++;
           }
