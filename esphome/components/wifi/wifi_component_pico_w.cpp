@@ -139,6 +139,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   return true;
 }
 
+#ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   // TODO:
   return false;
@@ -152,7 +153,9 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
+
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *) WiFi.localIP()}; }
+#endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() {
   int err = cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);

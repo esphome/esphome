@@ -412,6 +412,8 @@ void WiFiComponent::wifi_scan_done_callback_() {
   WiFi.scanDelete();
   this->scan_done_ = true;
 }
+
+#ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   // enable AP
   if (!this->wifi_mode_({}, true))
@@ -423,6 +425,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   }
 }
+
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   // enable AP
   if (!this->wifi_mode_({}, true))
@@ -438,7 +441,10 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   return WiFi.softAP(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
                      ap.get_channel().value_or(1), ap.get_hidden());
 }
+
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; }
+#endif  // USE_WIFI_AP
+
 bool WiFiComponent::wifi_disconnect_() { return WiFi.disconnect(); }
 
 bssid_t WiFiComponent::wifi_bssid() {
