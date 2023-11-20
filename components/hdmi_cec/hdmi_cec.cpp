@@ -169,11 +169,11 @@ bool IRAM_ATTR HDMICEC::send_frame_(const std::vector<uint8_t> &frame, bool is_b
 
 void IRAM_ATTR HDMICEC::send_start_bit_() {
   // 1. pull low for 3700 us
-  this->pin_->digital_write(false);
+  pin_->digital_write(false);
   delayMicroseconds(3700);
 
   // 2. pull high for 800 us
-  this->pin_->digital_write(true);
+  pin_->digital_write(true);
   delayMicroseconds(800);
 
   // total duration of start bit: 4500 us
@@ -187,22 +187,22 @@ void IRAM_ATTR HDMICEC::send_bit_(bool bit_value) {
   const uint32_t low_duration_us = (bit_value ? HIGH_BIT_US : LOW_BIT_US);
   const uint32_t high_duration_us = (TOTAL_BIT_US - low_duration_us);
 
-  this->pin_->digital_write(false);
+  pin_->digital_write(false);
   delayMicroseconds(low_duration_us);
-  this->pin_->digital_write(true);
+  pin_->digital_write(true);
   delayMicroseconds(high_duration_us);
 }
 
 bool IRAM_ATTR HDMICEC::send_and_read_ack_(bool is_broadcast) {
   // send a Logical 1
-  this->pin_->digital_write(false);
+  pin_->digital_write(false);
   delayMicroseconds(HIGH_BIT_US);
-  this->pin_->digital_write(true);
+  pin_->digital_write(true);
 
   // 450 us should land us right in the middle of the "Safe sample period" (CEC spec -> Signaling and Bit Timing -> Figure 5)
   static const uint32_t ACK_WAIT_US = 450;
   delayMicroseconds(ACK_WAIT_US);
-  bool value = this->pin_->digital_read();
+  bool value = pin_->digital_read();
 
   // sleep for the rest of the bit duration (TOTAL_BIT_US - HIGH_BIT_US - 400)
   delayMicroseconds(TOTAL_BIT_US - HIGH_BIT_US - ACK_WAIT_US);
