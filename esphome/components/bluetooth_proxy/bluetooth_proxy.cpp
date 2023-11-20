@@ -240,8 +240,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         this->send_device_connection(msg.address, false);
         return;
       }
-      if (connection->state() == espbt::ClientState::CONNECTED ||
-          connection->state() == espbt::ClientState::ESTABLISHED) {
+      if (connection->state() == espbt::ClientState::ESTABLISHED) {
         ESP_LOGW(TAG, "[%d] [%s] Connection already established", connection->get_connection_index(),
                  connection->address_str().c_str());
         this->send_device_connection(msg.address, true);

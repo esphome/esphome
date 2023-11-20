@@ -145,8 +145,6 @@ enum class ClientState {
   READY_TO_CONNECT,
   // Connection in progress.
   CONNECTING,
-  // Initial connection established.
-  CONNECTED,
   // The client and sub-clients have completed setup.
   ESTABLISHED,
 };

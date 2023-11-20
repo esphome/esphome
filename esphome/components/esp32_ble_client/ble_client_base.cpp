@@ -147,8 +147,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
         ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
-        this->set_state(espbt::ClientState::CONNECTED);
-        this->state_ = espbt::ClientState::ESTABLISHED;
+        this->set_state(espbt::ClientState::ESTABLISHED);
         break;
       }
       esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
@@ -199,8 +198,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                  this->address_str_.c_str(), svc->start_handle, svc->end_handle);
       }
       ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
-      this->set_state(espbt::ClientState::CONNECTED);
-      this->state_ = espbt::ClientState::ESTABLISHED;
+      this->set_state(espbt::ClientState::ESTABLISHED);
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
