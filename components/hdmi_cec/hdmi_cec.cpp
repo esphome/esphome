@@ -194,18 +194,26 @@ void IRAM_ATTR HDMICEC::send_bit_(bool bit_value) {
 }
 
 bool IRAM_ATTR HDMICEC::send_and_read_ack_(bool is_broadcast) {
+  uint32_t start_us = micros();
+
   // send a Logical 1
   pin_->digital_write(false);
   delayMicroseconds(HIGH_BIT_US);
   pin_->digital_write(true);
 
-  // 450 us should land us right in the middle of the "Safe sample period" (CEC spec -> Signaling and Bit Timing -> Figure 5)
-  static const uint32_t ACK_WAIT_US = 450;
-  delayMicroseconds(ACK_WAIT_US);
+  // switch to input mode...
+  pin_->pin_mode(INPUT_MODE_FLAGS);
+
+  // ...then wait up to the middle of the "Safe sample period" (CEC spec -> Signaling and Bit Timing -> Figure 5)
+  static const uint32_t SAFE_SAMPLE_US = 1050;
+  while((micros() - start_us) < SAFE_SAMPLE_US);
   bool value = pin_->digital_read();
 
-  // sleep for the rest of the bit duration (TOTAL_BIT_US - HIGH_BIT_US - 400)
-  delayMicroseconds(TOTAL_BIT_US - HIGH_BIT_US - ACK_WAIT_US);
+  pin_->pin_mode(OUTPUT_MODE_FLAGS);
+  pin_->digital_write(true);
+
+  // sleep for the rest of the bit period
+  while((micros() - start_us) < TOTAL_BIT_US);
 
   // broadcast messages: line pulled low by any follower => something went wrong. no need to flip the value.
   if (is_broadcast) {
@@ -233,7 +241,7 @@ void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
   if (level == false) {
     self->last_falling_edge_us_ = now;
 
-    if (self->recv_ack_queued_ == true) {
+    if (self->recv_ack_queued_) {
       self->recv_ack_queued_ = false;
 
       self->isr_pin_.pin_mode(OUTPUT_MODE_FLAGS);
@@ -257,6 +265,7 @@ void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
     // start bit detected. reset everything and start receiving
     self->receiver_state_ = ReceiverState::ReceivingByte;
     reset_state_variables_(self);
+    self->recv_ack_queued_ = false;
     return;
   }
 
@@ -328,7 +337,6 @@ void IRAM_ATTR HDMICEC::reset_state_variables_(HDMICEC *self) {
   self->recv_byte_buffer_ = 0x0;
   self->recv_frame_buffer_.clear();
   self->recv_frame_buffer_.reserve(16);
-  self->recv_ack_queued_ = false;
 }
 
 }
