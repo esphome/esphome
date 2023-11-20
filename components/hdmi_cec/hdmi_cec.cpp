@@ -262,7 +262,6 @@ void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
   // otherwise, it's a rising edge, so it's time to process the pulse length
 
   auto pulse_duration = (micros() - self->last_falling_edge_us_);
-  self->last_falling_edge_us_ = 0;
 
   if (pulse_duration > START_BIT_MIN_US) {
     // start bit detected. reset everything and start receiving
