@@ -836,27 +836,24 @@ class LoginHandler(BaseHandler):
             **template_args(),
         )
 
-    def _make_supervisor_auth_request(
-        self, headers: dict[str, str | None], data: dict[str, str]
-    ) -> Response:
+    def _make_supervisor_auth_request(self) -> Response:
         """Make a request to the supervisor auth endpoint."""
         import requests
 
+        headers = {"X-Supervisor-Token": os.getenv("SUPERVISOR_TOKEN")}
+        data = {
+            "username": self.get_argument("username", ""),
+            "password": self.get_argument("password", ""),
+        }
         return requests.post(
             "http://supervisor/auth", headers=headers, json=data, timeout=30
         )
 
     async def post_ha_addon_login(self):
         loop = asyncio.get_running_loop()
-        headers = {"X-Supervisor-Token": os.getenv("SUPERVISOR_TOKEN")}
-        data = {
-            "username": self.get_argument("username", ""),
-            "password": self.get_argument("password", ""),
-        }
+
         try:
-            req = await loop.run_in_executor(
-                None, self._make_supervisor_auth_request, headers, data
-            )
+            req = await loop.run_in_executor(None, self._make_supervisor_auth_request)
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.warning("Error during Hass.io auth request: %s", err)
             self.set_status(500)
