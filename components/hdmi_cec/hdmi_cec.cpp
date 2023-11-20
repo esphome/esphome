@@ -1,6 +1,5 @@
 #include "hdmi_cec.h"
 
-#include <algorithm>
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -40,7 +39,7 @@ std::string bytes_to_string(std::vector<uint8_t> bytes) {
 void HDMICEC::setup() {
   isr_pin_ = pin_->to_isr();
   recv_frame_buffer_.reserve(16); // max 16 bytes per CEC frame
-  pin_->attach_interrupt(HDMICEC::gpio_intr, this, gpio::INTERRUPT_ANY_EDGE);
+  pin_->attach_interrupt(HDMICEC::gpio_intr_, this, gpio::INTERRUPT_ANY_EDGE);
   switch_to_listen_mode_();
 }
 
@@ -100,6 +99,9 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_
   uint8_t header = (((source & 0x0F) << 4) | (destination & 0x0F));
   std::vector<uint8_t> frame = { header };
   frame.insert(frame.end(), data_bytes.begin(), data_bytes.end());
+
+  std::string bytes_to_send = bytes_to_string(frame);
+  ESP_LOGD(TAG, "sending frame: %s", bytes_to_send.c_str());
 
   {
     LockGuard send_lock(send_mutex_);
@@ -233,7 +235,7 @@ void IRAM_ATTR HDMICEC::switch_to_send_mode_() {
   pin_->digital_write(true);
 }
 
-void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
+void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
   const uint32_t now = micros();
   const bool level = self->isr_pin_.digital_read();
 
@@ -243,7 +245,6 @@ void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
 
     if (self->recv_ack_queued_) {
       self->recv_ack_queued_ = false;
-
       {
         InterruptLock interrupt_lock;
         self->isr_pin_.pin_mode(OUTPUT_MODE_FLAGS);
@@ -252,9 +253,6 @@ void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
         self->isr_pin_.digital_write(true);
         self->isr_pin_.pin_mode(INPUT_MODE_FLAGS);
       }
-
-      // trigger rising-edge interrupt manually
-      gpio_intr(self);
     }
 
     return;
@@ -272,14 +270,14 @@ void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
   }
 
   bool value = (pulse_duration >= HIGH_BIT_MIN_US && pulse_duration <= HIGH_BIT_MAX_US);
-
+  
   switch (self->receiver_state_) {
     case ReceiverState::ReceivingByte: {
       // write bit to the current byte
       self->recv_byte_buffer_ = (self->recv_byte_buffer_ << 1) | (value & 0b1);
 
       self->recv_bit_counter_++;
-      if (self->recv_bit_counter_ >= 8) {
+      if (self->recv_bit_counter_ >= 8) { 
         // if we reached eight bits, push the current byte to the frame buffer
         self->recv_frame_buffer_.push_back(self->recv_byte_buffer_);
 
@@ -295,7 +293,7 @@ void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
 
     case ReceiverState::WaitingForEOM: {
       // check if we need to acknowledge this byte on the next bit
-      uint8_t destination_address = (self->recv_frame_buffer_[0] & 0xF);
+      uint8_t destination_address = (self->recv_frame_buffer_[0] & 0x0F);
       if (destination_address != 0xF && destination_address == self->address_) {
         self->recv_ack_queued_ = true;
       }
@@ -315,7 +313,6 @@ void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
       break;
     }
 
-
     case ReceiverState::WaitingForAck: {
       self->receiver_state_ = ReceiverState::ReceivingByte;
       break;
@@ -323,12 +320,6 @@ void IRAM_ATTR HDMICEC::gpio_intr(HDMICEC *self) {
 
     case ReceiverState::WaitingForEOMAck: {
       self->receiver_state_ = ReceiverState::Idle;
-      break;
-    }
-
-    default: {
-      self->receiver_state_ = ReceiverState::ReceivingByte;
-      reset_state_variables_(self);
       break;
     }
   }

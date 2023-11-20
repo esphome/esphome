@@ -37,7 +37,7 @@ public:
   void loop() override;
 
 protected:
-  static void gpio_intr(HDMICEC *self);
+  static void gpio_intr_(HDMICEC *self);
   static void reset_state_variables_(HDMICEC *self);
   bool send_frame_(const std::vector<uint8_t> &frame, bool is_broadcast);
   void send_start_bit_();
