@@ -29,11 +29,11 @@ class StatusIndicator : public Component {
   float get_setup_priority() const override;
   float get_loop_priority() const override;
 
-  StatusTrigger *get_trigger(std::string key);
-  void set_trigger(std::string key, StatusTrigger *trigger);
+  StatusTrigger *get_trigger(const std::string &key);
+  void set_trigger(const std::string &key, StatusTrigger *trigger);
   void push_trigger(StatusTrigger *trigger);
   void pop_trigger(StatusTrigger *trigger, bool incl_group = false);
-  void pop_trigger(std::string group);
+  void pop_trigger(const std::string &group);
 
  protected:
   std::string current_status_{""};
@@ -70,7 +70,7 @@ template<typename... Ts> class StatusAction : public Action<Ts...>, public Paren
  public:
   void set_state(bool state) { this->state_ = state; }
   void set_trigger(StatusTrigger *trigger) { this->trigger_ = trigger; }
-  void set_group(std::string group) { this->group_ = std::move(std::move(group)); }
+  void set_group(const std::string &group) { this->group_ = std::move(std::move(group)); }
 
   void play(Ts... x) override {
     if (this->state_) {

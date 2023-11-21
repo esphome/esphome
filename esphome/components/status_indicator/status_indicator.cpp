@@ -69,7 +69,7 @@ void StatusIndicator::loop() {
   }
   if (this->current_trigger_ != nullptr) {
     if (this->current_trigger_->is_action_running()) {
-      if (status == "") {
+      if (status.empty()) {
         return;
       }
       this->current_trigger_->stop_action();
@@ -77,7 +77,7 @@ void StatusIndicator::loop() {
   }
   if (has_network()) {
 #ifdef USE_WIFI
-    if (status == "" && wifi::global_wifi_component->is_ap_enabled()) {
+    if (status.empty() && wifi::global_wifi_component->is_ap_enabled()) {
       status = "on_wifi_ap_enabled";
       this->status_.on_wifi_ap = 1;
     } else if (this->status_.on_wifi_ap == 1) {
@@ -86,7 +86,7 @@ void StatusIndicator::loop() {
     }
 #endif
 
-    if (status == "" && not is_connected()) {
+    if (status.empty() && not is_connected()) {
       status = "on_network_disconnected";
       this->status_.on_network = 1;
     } else if (this->status_.on_network == 1) {
@@ -95,7 +95,7 @@ void StatusIndicator::loop() {
     }
 
 #ifdef USE_API
-    if (status == "" && api::global_api_server != nullptr && not api::global_api_server->is_connected()) {
+    if (status.empty() && api::global_api_server != nullptr && not api::global_api_server->is_connected()) {
       status = "on_api_disconnected";
       this->status_.on_api = 1;
     } else if (this->status_.on_error == 1) {
@@ -104,7 +104,7 @@ void StatusIndicator::loop() {
     }
 #endif
 #ifdef USE_MQTT
-    if (status == "" && mqtt::global_mqtt_client != nullptr && not mqtt::global_mqtt_client->is_connected()) {
+    if (status.empty() && mqtt::global_mqtt_client != nullptr && not mqtt::global_mqtt_client->is_connected()) {
       status = "on_mqtt_disconnected";
       this->status_.on_mqtt = 1;
     } else if (this->status_.on_mqtt == 1) {
@@ -115,7 +115,7 @@ void StatusIndicator::loop() {
   }
   if (this->current_status_ != status) {
     StatusTrigger *oldtrigger = this->current_trigger_;
-    if (status != "") {
+    if (!status.empty()) {
       this->current_trigger_ = get_trigger(status);
       if (this->current_trigger_ != nullptr) {
         this->current_trigger_ = get_trigger("on_turn_off");
@@ -134,16 +134,16 @@ void StatusIndicator::loop() {
 float StatusIndicator::get_setup_priority() const { return setup_priority::HARDWARE; }
 float StatusIndicator::get_loop_priority() const { return 50.0f; }
 
-StatusTrigger *StatusIndicator::get_trigger(std::string key) {
+StatusTrigger *StatusIndicator::get_trigger(const std::string& key) {
   auto search = this->triggers_.find(key);
-  if (search != this->triggers_.end())
+  if (search != this->triggers_.end()) {
     return search->second;
-  else {
+  } else {
     return nullptr;
   }
 }
 
-void StatusIndicator::set_trigger(std::string key, StatusTrigger *trigger) { this->triggers_[key] = trigger; }
+void StatusIndicator::set_trigger(const std::string& key, StatusTrigger *trigger) { this->triggers_[key] = trigger; }
 
 void StatusIndicator::push_trigger(StatusTrigger *trigger) {
   this->pop_trigger(trigger, true);
@@ -170,7 +170,7 @@ void StatusIndicator::pop_trigger(StatusTrigger *trigger, bool incl_group) {
     if (trigger == this->custom_triggers_[x]) {
       this->custom_triggers_.erase(this->custom_triggers_.begin() + x);
       this->current_status_ = "update me";
-    } else if (incl_group && trigger->get_group() != "" &&
+    } else if (incl_group && !trigger->get_group().empty() &&
                trigger->get_group() == this->custom_triggers_[x]->get_group()) {
       this->custom_triggers_.erase(this->custom_triggers_.begin() + x);
       this->current_status_ = "update me";
@@ -180,7 +180,7 @@ void StatusIndicator::pop_trigger(StatusTrigger *trigger, bool incl_group) {
   }
 }
 
-void StatusIndicator::pop_trigger(std::string group) {
+void StatusIndicator::pop_trigger(const std::string& group) {
   uint32_t x = 0;
   while (this->custom_triggers_.size() > x) {
     if (group == this->custom_triggers_[x]->get_group()) {
