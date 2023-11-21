@@ -67,10 +67,13 @@ def compute_image_file_type(filepath) -> str:
         return filepath.suffix
     from PIL import Image
 
+    _LOGGER.debug("compute_local_file_type: file_path=%s ", filepath)
     img = Image.open(filepath)
     file_name = img.filename
     file_extension = img.format.lower()
-    _LOGGER.debug("compute_local_file_type: %s %s", file_name, file_extension)
+    _LOGGER.debug(
+        "compute_local_file_type: file_name=%s file_path=%s", file_name, file_extension
+    )
     return "." + file_extension
 
 

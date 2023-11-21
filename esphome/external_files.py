@@ -97,16 +97,28 @@ def get_file_info_from_content_disposition(r):
 
 def parse_file_info_from_url(url):
     parsed_url = urlparse(url)
-    path = unquote(parsed_url.path)
-    file_name = os.path.basename(path)
-
+    if parsed_url.fragment:
+        # handle urls like https://en.wikipedia.org/wiki/Standard_test_image#/media/File:SIPI_Jelly_Beans_4.1.07.tiff
+        path = unquote(parsed_url.fragment)
+        file_name = os.path.basename(path)
+        if file_name.startswith("File:"):
+            file_name = file_name[len("File:") :]
+    else:
+        path = unquote(parsed_url.path)
+        file_name = os.path.basename(path)
+    _LOGGER.debug("parse_file_info_from_url: file_name=%s path=%s", file_name, path)
     file_base_name, file_extension = os.path.splitext(file_name)
     return file_base_name, file_extension
 
 
 def get_file_info_from_url(url):
     _LOGGER.debug("get file info url %s", url)
-    r = requests.get(url, allow_redirects=True, timeout=NETWORK_TIMEOUT)
+    r = requests.get(
+        url,
+        allow_redirects=True,
+        timeout=NETWORK_TIMEOUT,
+        headers={"User-agent": "esphome"},
+    )
     if r.status_code != 200:
         raise cv.Invalid(
             f"Could check {url} info, check if file exists " f"({r.status_code}"
@@ -121,8 +133,13 @@ def get_file_info_from_url(url):
         return file_base_name, file_extension, None
     file_base_name, file_extension = parse_file_info_from_url(url)
     file_name = file_base_name + file_extension
+    _LOGGER.debug(
+        "get_file_info_from_url: file at url has no content disposition file_base_name=%s file_extension=%s",
+        file_base_name,
+        file_extension,
+    )
     temp_path = compute_local_file_dir(file_name, TEMP_DIR)
-    _LOGGER.debug("get file info downloading to temp path %s", temp_path)
+    _LOGGER.debug("get_file_info_from_url: downloading to temp_path=%s", temp_path)
     with open(temp_path, "wb") as f:
         f.write(r.content)
     return file_base_name, file_extension, temp_path
