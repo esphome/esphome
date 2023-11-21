@@ -117,6 +117,7 @@ def build_index_html(config) -> str:
     html += "<esp-app></esp-app>"
     if config[CONF_JS_URL]:
         html += f'<script src="{config[CONF_JS_URL]}"></script>'
+    html += "<script>if (!window.source) {window.location.search = '?fallback';}</script>"
     html += "</body></html>"
     return html
 
