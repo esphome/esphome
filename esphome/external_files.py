@@ -17,7 +17,6 @@ IF_MODIFIED_SINCE = "If-Modified-Since"
 CACHE_CONTROL = "Cache-Control"
 CACHE_CONTROL_MAX_AGE = "max-age="
 CONTENT_DISPOSITION = "content-disposition"
-FILE_NAME_REGEX = 'filename="(.+)"'
 TEMP_DIR = "temp"
 
 
@@ -80,14 +79,21 @@ def compute_local_file_dir(name: str, domain: str) -> Path:
 
 
 def get_file_info_from_content_disposition(r):
+    FILE_NAME_REGEX = (
+        r'filename\*?=UTF-8\'\'([^;\n"]+)|filename=["\']([^"\']+)|filename=([^;\n]+)'
+    )
     cd = r.headers.get(CONTENT_DISPOSITION)
     if not cd:
         return None
-    fname = re.findall(FILE_NAME_REGEX, cd)
-    if len(fname) == 0:
-        return None
-    file_base_name, file_extension = os.path.splitext(fname[0])
-    return file_base_name, file_extension
+    _LOGGER.warning("content disposition=%s", cd)
+    match = re.search(FILE_NAME_REGEX, cd)
+    _LOGGER.warning("match=%s", match)
+    if match:
+        file_name = match.group(1) or match.group(2) or match.group(3)
+        _LOGGER.warning("file_name=%s", file_name)
+        file_base_name, file_extension = os.path.splitext(file_name)
+        return file_base_name, file_extension
+    return None
 
 
 def parse_file_info_from_url(url):
