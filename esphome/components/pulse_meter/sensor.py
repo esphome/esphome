@@ -43,8 +43,8 @@ def validate_internal_filter(value):
 
 def validate_timeout(value):
     value = cv.positive_time_period_microseconds(value)
-    if value.total_minutes > 70:
-        raise cv.Invalid("Maximum timeout is 70 minutes")
+    if value.total_minutes > 35:
+        raise cv.Invalid("Maximum timeout is 35 minutes")
     return value
 
 
