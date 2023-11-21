@@ -25,7 +25,7 @@ CONFIG_SCHEMA = (
     touchscreen.TOUCHSCREEN_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(GT911Touchscreen),
-            cv.Optional(CONF_ROTATION, default=0): cv.enum(ROTATIONS),
+            cv.Optional(CONF_ROTATION): cv.enum(ROTATIONS),
             cv.Required(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
         }
     )
@@ -42,4 +42,5 @@ async def to_code(config):
 
     interrupt_pin = await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN])
     cg.add(var.set_interrupt_pin(interrupt_pin))
-    cg.add(var.set_rotation(ROTATIONS[config[CONF_ROTATION]]))
+    if CONF_ROTATION in config:
+        cg.add(var.set_rotation(ROTATIONS[config[CONF_ROTATION]]))
