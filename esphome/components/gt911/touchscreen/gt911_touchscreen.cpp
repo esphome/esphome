@@ -44,7 +44,9 @@ void GT911Touchscreen::setup() {
   if (err != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Failed to communicate!");
     this->mark_failed();
+    return;
   }
+  ESP_LOGCONFIG(TAG, "GT911 Touchscreen setup complete");
 }
 
 void GT911Touchscreen::loop() {
@@ -66,7 +68,6 @@ void GT911Touchscreen::loop() {
   if ((touch_state & 0x80) == 0)
     return;
   uint8_t num_of_touches = touch_state & 0x07;
-  bool has_key = (touch_state & 0x10) != 0;
   if (num_of_touches == 0)
     this->send_release_();
   if (num_of_touches > MAX_TOUCHES)  // should never happen
