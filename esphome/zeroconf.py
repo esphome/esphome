@@ -169,7 +169,9 @@ class DashboardImportDiscovery:
 def _make_host_resolver(host: str) -> HostResolver:
     """Create a new HostResolver for the given host name."""
     name = host.partition(".")[0]
-    info = HostResolver(ESPHOME_SERVICE_TYPE, f"{name}.{ESPHOME_SERVICE_TYPE}")
+    info = HostResolver(
+        ESPHOME_SERVICE_TYPE, f"{name}.{ESPHOME_SERVICE_TYPE}", server=f"{name}.local."
+    )
     return info
 
 

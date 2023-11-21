@@ -40,6 +40,8 @@ const EntityBase *MQTTLockComponent::get_entity() const { return this->lock_; }
 void MQTTLockComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   if (this->lock_->traits.get_assumed_state())
     root[MQTT_OPTIMISTIC] = true;
+  if (this->lock_->traits.get_supports_open())
+    root[MQTT_PAYLOAD_OPEN] = "OPEN";
 }
 bool MQTTLockComponent::send_initial_state() { return this->publish_state(); }
 
