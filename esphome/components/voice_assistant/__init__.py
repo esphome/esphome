@@ -18,20 +18,25 @@ DEPENDENCIES = ["api", "microphone"]
 
 CODEOWNERS = ["@jesserockz"]
 
-CONF_SILENCE_DETECTION = "silence_detection"
-CONF_ON_LISTENING = "on_listening"
-CONF_ON_START = "on_start"
-CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
-CONF_ON_STT_END = "on_stt_end"
-CONF_ON_TTS_START = "on_tts_start"
-CONF_ON_TTS_END = "on_tts_end"
 CONF_ON_END = "on_end"
 CONF_ON_ERROR = "on_error"
+CONF_ON_INTENT_END = "on_intent_end"
+CONF_ON_INTENT_START = "on_intent_start"
+CONF_ON_LISTENING = "on_listening"
+CONF_ON_START = "on_start"
+CONF_ON_STT_END = "on_stt_end"
+CONF_ON_STT_VAD_END = "on_stt_vad_end"
+CONF_ON_STT_VAD_START = "on_stt_vad_start"
+CONF_ON_TTS_END = "on_tts_end"
+CONF_ON_TTS_START = "on_tts_start"
+CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
+
+CONF_SILENCE_DETECTION = "silence_detection"
 CONF_USE_WAKE_WORD = "use_wake_word"
 CONF_VAD_THRESHOLD = "vad_threshold"
 
-CONF_NOISE_SUPPRESSION_LEVEL = "noise_suppression_level"
 CONF_AUTO_GAIN = "auto_gain"
+CONF_NOISE_SUPPRESSION_LEVEL = "noise_suppression_level"
 CONF_VOLUME_MULTIPLIER = "volume_multiplier"
 
 
@@ -86,6 +91,18 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
             cv.Optional(CONF_ON_CLIENT_DISCONNECTED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_INTENT_START): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_INTENT_END): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_STT_VAD_START): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_STT_VAD_END): automation.validate_automation(
                 single=True
             ),
         }
@@ -175,6 +192,34 @@ async def to_code(config):
             var.get_client_disconnected_trigger(),
             [],
             config[CONF_ON_CLIENT_DISCONNECTED],
+        )
+
+    if CONF_ON_INTENT_START in config:
+        await automation.build_automation(
+            var.get_intent_start_trigger(),
+            [],
+            config[CONF_ON_INTENT_START],
+        )
+
+    if CONF_ON_INTENT_END in config:
+        await automation.build_automation(
+            var.get_intent_end_trigger(),
+            [],
+            config[CONF_ON_INTENT_END],
+        )
+
+    if CONF_ON_STT_VAD_START in config:
+        await automation.build_automation(
+            var.get_stt_vad_start_trigger(),
+            [],
+            config[CONF_ON_STT_VAD_START],
+        )
+
+    if CONF_ON_STT_VAD_END in config:
+        await automation.build_automation(
+            var.get_stt_vad_end_trigger(),
+            [],
+            config[CONF_ON_STT_VAD_END],
         )
 
     cg.add_define("USE_VOICE_ASSISTANT")

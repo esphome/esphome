@@ -5,6 +5,7 @@
 # One of "docker", "hassio"
 ARG BASEIMGTYPE=docker
 
+
 # https://github.com/hassio-addons/addon-debian-base/releases
 FROM ghcr.io/hassio-addons/debian-base:7.2.0 AS base-hassio
 # https://hub.docker.com/_/debian?tab=tags&page=1&name=bookworm
@@ -12,9 +13,10 @@ FROM debian:12.2-slim AS base-docker
 
 FROM base-${BASEIMGTYPE} AS base
 
+
 ARG TARGETARCH
 ARG TARGETVARIANT
-ARG PIP_EXTRA_INDEX_URL
+
 
 # Note that --break-system-packages is used below because
 # https://peps.python.org/pep-0668/ added a safety check that prevents
@@ -46,6 +48,8 @@ RUN \
           libfreetype-dev=2.12.1+dfsg-5 \
           libssl-dev=3.0.11-1~deb12u2 \
           libffi-dev=3.4.4-1 \
+          libopenjp2-7=2.5.0-2 \
+          libtiff6=4.5.0-6 \
           cargo=0.66.0+ds1-1 \
           pkg-config=1.8.1-1 \
           gcc-arm-linux-gnueabihf=4:12.2.0-3; \
@@ -59,21 +63,24 @@ ENV \
   # Fix click python3 lang warning https://click.palletsprojects.com/en/7.x/python3/
   LANG=C.UTF-8 LC_ALL=C.UTF-8 \
   # Store globally installed pio libs in /piolibs
-  PLATFORMIO_GLOBALLIB_DIR=/piolibs \
-  PIP_EXTRA_INDEX_URL=${PIP_EXTRA_INDEX_URL}
+  PLATFORMIO_GLOBALLIB_DIR=/piolibs
 
 # Support legacy binaries on Debian multiarch system. There is no "correct" way
 # to do this, other than using properly built toolchains...
 # See: https://unix.stackexchange.com/questions/553743/correct-way-to-add-lib-ld-linux-so-3-in-debian
 RUN \
     if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
-        ln -s /lib/arm-linux-gnueabihf/ld-linux.so.3 /lib/ld-linux.so.3; \
+        ln -s /lib/arm-linux-gnueabihf/ld-linux-armhf.so.3 /lib/ld-linux.so.3; \
     fi
 
 RUN \
     # Ubuntu python3-pip is missing wheel
-    pip3 install --break-system-packages --no-cache-dir \
-        platformio==6.1.11 \
+    if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
+    fi; \
+    pip3 install \
+    --break-system-packages --no-cache-dir \
+    platformio==6.1.11 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \
@@ -84,8 +91,12 @@ RUN \
 # tmpfs is for https://github.com/rust-lang/cargo/issues/8719
 
 COPY requirements.txt requirements_optional.txt script/platformio_install_deps.py platformio.ini /
-RUN --mount=type=tmpfs,target=/root/.cargo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse CARGO_HOME=/root/.cargo \
-    pip3 install --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
+RUN --mount=type=tmpfs,target=/root/.cargo if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
+    fi; \
+    CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse CARGO_HOME=/root/.cargo \
+    pip3 install \
+    --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
     && /platformio_install_deps.py /platformio.ini --libraries
 
 
@@ -94,7 +105,11 @@ FROM base AS docker
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
+RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
+  fi; \
+  pip3 install \
+  --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
 
 # Settings for dashboard
 ENV USERNAME="" PASSWORD=""
@@ -140,7 +155,11 @@ COPY docker/ha-addon-rootfs/ /
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
+RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
+  fi; \
+  pip3 install \
+  --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
 
 # Labels
 LABEL \
@@ -176,7 +195,11 @@ RUN \
         /var/lib/apt/lists/*
 
 COPY requirements_test.txt /
-RUN pip3 install --break-system-packages --no-cache-dir -r /requirements_test.txt
+RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
+  fi; \
+  pip3 install \
+  --break-system-packages --no-cache-dir -r /requirements_test.txt
 
 VOLUME ["/esphome"]
 WORKDIR /esphome
