@@ -23,5 +23,5 @@ void GT911Button::update_button(uint8_t index, bool state) {
   this->publish_state(state);
 }
 
-}  // namespace GT911
+}  // namespace gt911
 }  // namespace esphome

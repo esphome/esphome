@@ -3,8 +3,8 @@ import esphome.config_validation as cv
 
 from esphome import pins
 from esphome.components import i2c, touchscreen
-from .. import gt911_ns
 from esphome.const import CONF_INTERRUPT_PIN, CONF_ID
+from .. import gt911_ns
 
 
 GT911ButtonListener = gt911_ns.class_("GT911ButtonListener")

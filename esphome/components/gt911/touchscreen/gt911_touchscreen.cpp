@@ -20,9 +20,7 @@ static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
     return; \
   }
 
-void IRAM_ATTR HOT Store::gpio_intr(Store *store) {
-  store->available = true;
-}
+void IRAM_ATTR HOT Store::gpio_intr(Store *store) { store->available = true; }
 
 void GT911Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up GT911 Touchscreen...");
@@ -60,12 +58,12 @@ void GT911Touchscreen::loop() {
   bool has_key = (touch_state & 0x10) != 0;
   if (num_of_touches == 0)
     this->send_release_();
-  if (num_of_touches > MAX_TOUCHES) // should never happen
+  if (num_of_touches > MAX_TOUCHES)  // should never happen
     return;
 
   err = this->write(GET_TOUCHES, sizeof(GET_TOUCHES), false);
   ERROR_CHECK(err);
-  // num_of_touches is guaranteed to be 0..5. Also read the key byte
+  // num_of_touches is guaranteed to be 0..5. Also read the key data
   err = this->read(data[0], sizeof(data[0]) * num_of_touches + 1);
   ERROR_CHECK(err);
 
@@ -95,7 +93,7 @@ void GT911Touchscreen::loop() {
     this->defer([this, tp]() { this->send_touch_(tp); });
   }
   auto keys = data[num_of_touches][0];
-  for (size_t i = 0 ; i != 4 ; i++) {
+  for (size_t i = 0; i != 4; i++) {
     for (auto *listener : this->button_listeners_)
       listener->update_button(i, (keys & (1 << i)) != 0);
   }

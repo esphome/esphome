@@ -9,9 +9,9 @@ namespace esphome {
 namespace gt911 {
 
 class GT911Button : public binary_sensor::BinarySensor,
-                      public Component,
-                      public GT911ButtonListener,
-                      public Parented<GT911Touchscreen> {
+                    public Component,
+                    public GT911ButtonListener,
+                    public Parented<GT911Touchscreen> {
  public:
   void setup() override;
   void dump_config() override;
@@ -24,5 +24,5 @@ class GT911Button : public binary_sensor::BinarySensor,
   uint8_t index_;
 };
 
-}  // namespace tt21100
+}  // namespace gt911
 }  // namespace esphome
