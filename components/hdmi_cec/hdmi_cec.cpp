@@ -104,7 +104,7 @@ bool HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
   }
 
   bool is_broadcast = (destination == 0xF);
-  if (is_broadcast) {
+  if (is_broadcast || destination != address_) {
     return false;
   }
 
