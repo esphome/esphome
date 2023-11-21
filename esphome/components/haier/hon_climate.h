@@ -30,6 +30,8 @@ enum class CleaningState : uint8_t {
   STERI_CLEAN = 2,
 };
 
+enum class HonControlMethod { MONITOR_ONLY = 0, SET_GROUP_PARAMETERS, SET_SINGLE_PARAMETER };
+
 class HonClimate : public HaierClimateBase {
  public:
   HonClimate();
@@ -48,44 +50,57 @@ class HonClimate : public HaierClimateBase {
   CleaningState get_cleaning_status() const;
   void start_self_cleaning();
   void start_steri_cleaning();
+  void set_extra_control_packet_bytes_size(size_t size) { this->extra_control_packet_bytes_ = size; };
+  void set_control_method(HonControlMethod method) { this->control_method_ = method; };
 
  protected:
   void set_handlers() override;
   void process_phase(std::chrono::steady_clock::time_point now) override;
   haier_protocol::HaierMessage get_control_message() override;
-  bool is_message_invalid(uint8_t message_type) override;
-  void process_pending_action() override;
+  haier_protocol::HaierMessage get_power_message(bool state) override;
+  bool prepare_pending_action() override;
+  void process_protocol_reset() override;
 
   // Answers handlers
-  haier_protocol::HandlerError get_device_version_answer_handler_(uint8_t request_type, uint8_t message_type,
+  haier_protocol::HandlerError get_device_version_answer_handler_(haier_protocol::FrameType request_type,
+                                                                  haier_protocol::FrameType message_type,
                                                                   const uint8_t *data, size_t data_size);
-  haier_protocol::HandlerError get_device_id_answer_handler_(uint8_t request_type, uint8_t message_type,
+  haier_protocol::HandlerError get_device_id_answer_handler_(haier_protocol::FrameType request_type,
+                                                             haier_protocol::FrameType message_type,
                                                              const uint8_t *data, size_t data_size);
-  haier_protocol::HandlerError status_handler_(uint8_t request_type, uint8_t message_type, const uint8_t *data,
+  haier_protocol::HandlerError status_handler_(haier_protocol::FrameType request_type,
+                                               haier_protocol::FrameType message_type, const uint8_t *data,
                                                size_t data_size);
-  haier_protocol::HandlerError get_management_information_answer_handler_(uint8_t request_type, uint8_t message_type,
+  haier_protocol::HandlerError get_management_information_answer_handler_(haier_protocol::FrameType request_type,
+                                                                          haier_protocol::FrameType message_type,
                                                                           const uint8_t *data, size_t data_size);
-  haier_protocol::HandlerError report_network_status_answer_handler_(uint8_t request_type, uint8_t message_type,
-                                                                     const uint8_t *data, size_t data_size);
-  haier_protocol::HandlerError get_alarm_status_answer_handler_(uint8_t request_type, uint8_t message_type,
+  haier_protocol::HandlerError get_alarm_status_answer_handler_(haier_protocol::FrameType request_type,
+                                                                haier_protocol::FrameType message_type,
                                                                 const uint8_t *data, size_t data_size);
   // Helper functions
   haier_protocol::HandlerError process_status_message_(const uint8_t *packet, uint8_t size);
-  std::unique_ptr<uint8_t[]> last_status_message_;
+  void fill_control_messages_queue_();
+  void clear_control_messages_queue_();
+
+  struct HardwareInfo {
+    std::string protocol_version_;
+    std::string software_version_;
+    std::string hardware_version_;
+    std::string device_name_;
+    bool functions_[5];
+  };
+
   bool beeper_status_;
   CleaningState cleaning_status_;
   bool got_valid_outdoor_temp_;
   AirflowVerticalDirection vertical_direction_;
   AirflowHorizontalDirection horizontal_direction_;
-  bool hvac_hardware_info_available_;
-  std::string hvac_protocol_version_;
-  std::string hvac_software_version_;
-  std::string hvac_hardware_version_;
-  std::string hvac_device_name_;
-  bool hvac_functions_[5];
-  bool &use_crc_;
+  esphome::optional<HardwareInfo> hvac_hardware_info_;
   uint8_t active_alarms_[8];
+  int extra_control_packet_bytes_;
+  HonControlMethod control_method_;
   esphome::sensor::Sensor *outdoor_sensor_;
+  std::queue<haier_protocol::HaierMessage> control_messages_queue_;
 };
 
 }  // namespace haier
