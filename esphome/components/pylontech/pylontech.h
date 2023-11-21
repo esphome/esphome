@@ -10,7 +10,6 @@ namespace pylontech {
 static const uint8_t NUM_BUFFERS = 20;
 static const uint8_t TEXT_SENSOR_MAX_LEN = 8;
 
-
 class PylontechListener {
  public:
   struct LineContents {
