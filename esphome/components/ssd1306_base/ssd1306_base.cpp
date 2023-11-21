@@ -154,6 +154,7 @@ void SSD1306::setup() {
   // Set V_COM (0xDB)
   this->command(SSD1306_COMMAND_SET_VCOM_DETECT);
   switch (this->model_) {
+    case SH1106_MODEL_128_64:
     case SH1107_MODEL_128_64:
     case SH1107_MODEL_128_128:
       this->command(0x35);
