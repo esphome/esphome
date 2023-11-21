@@ -10,6 +10,7 @@
 #include "htu31d.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace htu31d {
@@ -63,9 +64,7 @@ void HTU31DComponent::update() {
   }
 
   // Calculate temperature value.
-  uint16_t raw_temp = thdata[0];
-  raw_temp <<= 8;
-  raw_temp |= thdata[1];
+  uint16_t raw_temp = encode_uint16(thdata[0], thdata[1]);
 
   uint8_t crc = compute_crc_((uint32_t) raw_temp << 8);
   if (crc != thdata[2]) {
@@ -75,7 +74,7 @@ void HTU31DComponent::update() {
   }
 
   temperature = raw_temp;
-  temperature /= 65535.0;
+  temperature /= 65535.0f;
   temperature *= 165;
   temperature -= 40;
 
@@ -84,9 +83,7 @@ void HTU31DComponent::update() {
   }
 
   // Calculate humidty value.
-  uint16_t raw_hum = thdata[3];
-  raw_hum <<= 8;
-  raw_hum |= thdata[4];
+  uint16_t raw_hum = encode_uint16(thdata[3], thdata[4]);
 
   crc = compute_crc_((uint32_t) raw_hum << 8);
   if (crc != thdata[5]) {
@@ -96,7 +93,7 @@ void HTU31DComponent::update() {
   }
 
   humidity = raw_hum;
-  humidity /= 65535.0;
+  humidity /= 65535.0f;
   humidity *= 100;
 
   if (this->humidity_ != nullptr) {
@@ -176,12 +173,7 @@ uint32_t HTU31DComponent::read_serial_num_() {
     return 0;
   }
 
-  serial = reply[0];
-  serial <<= 8;
-  serial |= reply[1];
-  serial <<= 8;
-  serial |= reply[2];
-  serial <<= 8;
+  serial = encode_uint24(reply[0], reply[1], reply[2]);
 
   uint8_t crc = compute_crc_(serial);
   if (crc != reply[3]) {

@@ -40,7 +40,6 @@ class HTU31DComponent : public PollingComponent, public i2c::I2CDevice {
 
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
-  void set_heater(sensor::Sensor *heater) { heater_ = heater; }
 
   void set_heater_state(bool desired);
   bool is_heater_enabled();
@@ -55,7 +54,6 @@ class HTU31DComponent : public PollingComponent, public i2c::I2CDevice {
  protected:
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
-  sensor::Sensor *heater_{nullptr};
 };
 }  // namespace htu31d
 }  // namespace esphome
