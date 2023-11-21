@@ -31,6 +31,7 @@ CONF_TRIGGER_LIST = {
     "on_mgtt_disconnected": True,
     "on_custom_status": False,
 }
+CONF_ON_TURN_OFF = "on_turn_off"
 
 
 def trigger_setup(Single):
@@ -56,6 +57,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(StatusLED),
+            cv.Required(CONF_ON_TURN_OFF): trigger_setup(True),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -71,22 +73,24 @@ async def add_trigger(var, conf, key):
         conf[CONF_PRIORITY],
     )
     await auto.build_automation(trigger, [], conf)
-    cg.add(var.set_trigger(key, trigger))
+    if key is not None:
+        cg.add(var.set_trigger(key, trigger))
 
 
 @coroutine_with_priority(80.0)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    await add_trigger(var, config.get(CONF_ON_TURN_OFF), CONF_ON_TURN_OFF)
+
     for trigger_name, single in CONF_TRIGGER_LIST.items():
         conf = config.get(trigger_name, None)
-        if conf is None:
-            continue
-        if single:
-            await add_trigger(var, conf, trigger_name)
-        else:
-            for conf in config.get(trigger_name, []):
-                await add_trigger(var, conf, conf[CONF_TRIGGER_ID].id)
+        if conf is not None:
+            if single:
+                await add_trigger(var, conf, trigger_name)
+            else:
+                for conf in config.get(trigger_name, []):
+                    await add_trigger(var, conf, None)
 
 
 @auto.register_action(

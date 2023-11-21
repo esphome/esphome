@@ -48,7 +48,7 @@ class StatusTrigger : public Trigger<> {
   explicit StatusTrigger(StatusIndicator *parent, std::string group, uint32_t priority)
       : parent_(parent), group_(group), priority_(priority) {}
   std::string get_group() { return this->group_; }
-  uint32 get_priority() { return this->priority_; }
+  uint32_t get_priority() { return this->priority_; }
   void push_me() { parent_->push_trigger(this); }
   void pop_me() { parent_->pop_trigger(this, false); }
 
@@ -74,7 +74,7 @@ template<typename... Ts> class StatusAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(bool, state)
 
   void play(Ts... x) override {
-    if (this->state_) {
+    if (false) {
 
     } else {
 
