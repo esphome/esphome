@@ -80,14 +80,12 @@ void Application::loop() {
   this->app_state_ = new_app_state;
 
   const uint32_t now = millis();
+  const uint32_t elapsed = now - this->last_loop_;
 
-  if (HighFrequencyLoopRequester::is_high_frequency()) {
+  if (HighFrequencyLoopRequester::is_high_frequency() || elapsed >= this->loop_interval_) {
     yield();
   } else {
-    uint32_t delay_time = this->loop_interval_;
-    if (now - this->last_loop_ < this->loop_interval_)
-      delay_time = this->loop_interval_ - (now - this->last_loop_);
-
+    uint32_t delay_time = this->loop_interval_ - elapsed;
     uint32_t next_schedule = this->scheduler.next_schedule_in().value_or(delay_time);
     // next_schedule is max 0.5*delay_time
     // otherwise interval=0 schedules result in constant looping with almost no sleep
