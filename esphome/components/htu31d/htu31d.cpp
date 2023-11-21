@@ -191,6 +191,7 @@ bool HTU31DComponent::reset_() {
 uint32_t HTU31DComponent::read_serial_num_() {
   uint8_t reply[4];
   uint32_t serial = 0;
+  uint8_t padding = 0;
 
   // Verify we can read the device serial.
   if (this->read_register(HTU31D_READSERIAL, reply, 4) != i2c::ERROR_OK) {
@@ -198,7 +199,7 @@ uint32_t HTU31DComponent::read_serial_num_() {
     return 0;
   }
 
-  serial = encode_uint24(reply[0], reply[1], reply[2]);
+  serial = encode_uint32(reply[0], reply[1], reply[2], padding);
 
   uint8_t crc = compute_crc_(serial);
   if (crc != reply[3]) {
