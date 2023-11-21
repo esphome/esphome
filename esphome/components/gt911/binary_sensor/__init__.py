@@ -6,7 +6,7 @@ from esphome.const import CONF_INDEX
 from .. import gt911_ns
 from ..touchscreen import GT911Touchscreen, GT911ButtonListener
 
-CONF_GT911_ID = "GT911_id"
+CONF_GT911_ID = "gt911_id"
 
 GT911Button = gt911_ns.class_(
     "GT911Button",
