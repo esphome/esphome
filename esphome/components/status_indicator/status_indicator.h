@@ -66,30 +66,29 @@ template<typename... Ts> class StatusCondition : public Condition<Ts...> {
   bool state_;
 };
 
-template<typename... Ts> class StatusAction : public Action<Ts...> {
+template<typename... Ts> class StatusAction : public Action<Ts...>, public Parented<StatusIndicator> {
  public:
-  explicit StatusAction(StatusIndicator *indicator) : indicator_(indicator) {}
   void set_state(bool state) { this->state_ = state; }
-  void set_tigger(StatusTrigger *trigger) { this->trigger_ = trigger; }
+  void set_trigger(StatusTrigger *trigger) { this->trigger_ = trigger; }
   void set_group(std::string group) {this->group_ = std::move(std::move(group)); }
 
   void play(Ts... x) override {
     if (this->state_) {
       if (this->trigger_ != nullptr) {
-        indicator_->push_trigger(this->trigger_);
+        this->parent_->push_trigger(this->trigger_);
       }
     } else if (this->group_ !="") {
-      indicator_->pop_trigger(group);
+      this->parent_->pop_trigger(this->group_);
     } else if (this->trigger_ != nullptr) {
-      indicator_->pop_trigger(this->trigger_, false);
+      this->parent_->pop_trigger(this->trigger_, false);
     }
   }
 
  protected:
   StatusIndicator *indicator_;
   StatusTrigger *trigger_{nullptr};
-  std::string group{""};
-  bool State_{false};
+  std::string group_{""};
+  bool state_{false};
 };
 
 }  // namespace status_indicator

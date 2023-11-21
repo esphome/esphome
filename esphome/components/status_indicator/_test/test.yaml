@@ -44,18 +44,13 @@ binary_sensor:
     id: button
     on_press:
       - status.push: custom_status
+      - status.push: custom_status2
     on_release:
+      - status.pop:
+          group: "custom"
+      - delay: 5s
       - status.pop: custom_status
-    on_click:
-    - min_length: 50ms
-      max_length: 350ms
-      then:
-        - status.push: custom_status2
-    - min_length: 500ms
-      max_length: 1000ms
-      then:
-        - status.pop:
-            which: "lailydfasdf"
+
 
 
 status_indicator:
@@ -94,7 +89,7 @@ status_indicator:
             brightness: 100%
             effect: None
     - trigger_id: custom_status2
-      group: laily
+      group: custom
       then:
         - light.turn_on:
             id: led
