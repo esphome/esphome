@@ -7,7 +7,7 @@ import requests
 
 from esphome import core
 from esphome.components import font
-from esphome import external_files
+from esphome import external_files, helpers
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
@@ -74,13 +74,6 @@ def compute_image_file_type(filepath) -> str:
     return "." + file_extension
 
 
-def delete_file(filepath):
-    _LOGGER.debug("delete_file: %s", filepath)
-    import os
-
-    os.remove(filepath)
-
-
 def _compute_local_image_path(config) -> (Path, str):
     url = config[CONF_URL]
     file_name, file_type, temp_path = external_files.get_file_info_from_url(url)
@@ -88,7 +81,7 @@ def _compute_local_image_path(config) -> (Path, str):
         file_type = compute_image_file_type(temp_path)
         base_dir = external_files.compute_local_file_dir(file_name, DOMAIN)
         path = base_dir / f"{file_name}{file_type}"
-        delete_file(temp_path)
+        helpers.delete_file(temp_path)
         return path, file_name
     base_dir = external_files.compute_local_file_dir(file_name, DOMAIN)
     return base_dir / f"{file_name}{file_type}", file_name

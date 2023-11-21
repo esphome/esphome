@@ -245,6 +245,11 @@ def write_file_if_changed(path: Union[Path, str], text: str) -> bool:
     return True
 
 
+def delete_file(filepath):
+    _LOGGER.debug("delete_file: %s", filepath)
+    os.remove(filepath)
+
+
 def copy_file_if_changed(src: os.PathLike, dst: os.PathLike) -> None:
     import shutil
 
