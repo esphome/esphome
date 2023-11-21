@@ -170,11 +170,9 @@ void StatusIndicator::push_trigger(StatusTrigger *trigger) {
 void StatusIndicator::pop_trigger(StatusTrigger *trigger, bool incl_group) {
   uint32_t x = 0;
   while (this->custom_triggers_.size() > x) {
-    if (trigger == this->custom_triggers_[x]) {
-      this->custom_triggers_.erase(this->custom_triggers_.begin() + x);
-      this->current_status_ = "update me";
-    } else if (incl_group && !trigger->get_group().empty() &&
-               trigger->get_group() == this->custom_triggers_[x]->get_group()) {
+    if ((incl_group && !trigger->get_group().empty() &&
+         trigger->get_group() == this->custom_triggers_[x]->get_group()) ||
+        (trigger == this->custom_triggers_[x])) {
       this->custom_triggers_.erase(this->custom_triggers_.begin() + x);
       this->current_status_ = "update me";
     } else {
