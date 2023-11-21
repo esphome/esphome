@@ -134,7 +134,7 @@ void StatusIndicator::loop() {
 float StatusIndicator::get_setup_priority() const { return setup_priority::HARDWARE; }
 float StatusIndicator::get_loop_priority() const { return 50.0f; }
 
-StatusTrigger *StatusIndicator::get_trigger(const std::string& key) {
+StatusTrigger *StatusIndicator::get_trigger(const std::string &key) {
   auto search = this->triggers_.find(key);
   if (search != this->triggers_.end()) {
     return search->second;
@@ -143,7 +143,7 @@ StatusTrigger *StatusIndicator::get_trigger(const std::string& key) {
   }
 }
 
-void StatusIndicator::set_trigger(const std::string& key, StatusTrigger *trigger) { this->triggers_[key] = trigger; }
+void StatusIndicator::set_trigger(const std::string &key, StatusTrigger *trigger) { this->triggers_[key] = trigger; }
 
 void StatusIndicator::push_trigger(StatusTrigger *trigger) {
   this->pop_trigger(trigger, true);
@@ -180,7 +180,7 @@ void StatusIndicator::pop_trigger(StatusTrigger *trigger, bool incl_group) {
   }
 }
 
-void StatusIndicator::pop_trigger(const std::string& group) {
+void StatusIndicator::pop_trigger(const std::string & group) {
   uint32_t x = 0;
   while (this->custom_triggers_.size() > x) {
     if (group == this->custom_triggers_[x]->get_group()) {

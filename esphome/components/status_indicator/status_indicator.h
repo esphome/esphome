@@ -46,7 +46,7 @@ class StatusIndicator : public Component {
 class StatusTrigger : public Trigger<> {
  public:
   explicit StatusTrigger(StatusIndicator *parent, std::string group, uint32_t priority)
-      : parent_(parent), group_(std::move(std::move(group))), priority_(priority) {}
+      : parent_(parent), group_(std::move(group)), priority_(priority) {}
   std::string get_group() { return this->group_; }
   uint32_t get_priority() { return this->priority_; }
 
@@ -70,7 +70,7 @@ template<typename... Ts> class StatusAction : public Action<Ts...>, public Paren
  public:
   void set_state(bool state) { this->state_ = state; }
   void set_trigger(StatusTrigger *trigger) { this->trigger_ = trigger; }
-  void set_group(const std::string &group) { this->group_ = std::move(std::move(group)); }
+  void set_group(const std::string &group) { this->group_ = std::move(group); }
 
   void play(Ts... x) override {
     if (this->state_) {
