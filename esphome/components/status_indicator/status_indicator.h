@@ -46,11 +46,9 @@ class StatusIndicator : public Component {
 class StatusTrigger : public Trigger<> {
  public:
   explicit StatusTrigger(StatusIndicator *parent, std::string group, uint32_t priority)
-      : parent_(parent), group_(group), priority_(priority) {}
+      : parent_(parent), group_(std::move(std::move(group))), priority_(priority) {}
   std::string get_group() { return this->group_; }
   uint32_t get_priority() { return this->priority_; }
-  void push_me() { parent_->push_trigger(this); }
-  void pop_me() { parent_->pop_trigger(this, false); }
 
  protected:
   StatusIndicator *parent_;
@@ -70,17 +68,28 @@ template<typename... Ts> class StatusCondition : public Condition<Ts...> {
 
 template<typename... Ts> class StatusAction : public Action<Ts...> {
  public:
-  explicit StatusAction(StatusTrigger *trigger) : trigger_(trigger) {}
-  TEMPLATABLE_VALUE(bool, state)
+  explicit StatusAction(StatusIndicator *indicator) : indicator_(indicator) {}
+  void set_state(bool state) { this->state_ = state; }
+  void set_tigger(StatusTrigger *trigger) { this->trigger_ = trigger; }
+  void set_group(std::string group) {this->group_ = std::move(std::move(group)); }
 
   void play(Ts... x) override {
-    if (false) {
-    } else {
+    if (this->state_) {
+      if (this->trigger_ != nullptr) {
+        indicator_->push_trigger(this->trigger_);
+      }
+    } else if (this->group_ !="") {
+      indicator_->pop_trigger(group);
+    } else if (this->trigger_ != nullptr) {
+      indicator_->pop_trigger(this->trigger_, false);
     }
   }
 
  protected:
-  StatusTrigger *trigger_;
+  StatusIndicator *indicator_;
+  StatusTrigger *trigger_{nullptr};
+  std::string group{""};
+  bool State_{false};
 };
 
 }  // namespace status_indicator

@@ -43,26 +43,23 @@ binary_sensor:
     entity_category: diagnostic
     id: button
     on_press:
-      - status.push:
-          trigger_id: custom_status
+      - status.push: custom_status
     on_release:
-      - status.pop:
-          trigger_id: custom_status
+      - status.pop: custom_status
     on_click:
     - min_length: 50ms
       max_length: 350ms
       then:
-        - status.push:
-            trigger_id: custom_status2
+        - status.push: custom_status2
     - min_length: 500ms
       max_length: 1000ms
       then:
         - status.pop:
-            trigger_id: custom_status2
+            which: "lailydfasdf"
 
 
 status_indicator:
-  on_clear_all: #Manditory
+  on_turn_off: #Manditory
     - light.turn_off:
         id: led
 
@@ -97,6 +94,7 @@ status_indicator:
             brightness: 100%
             effect: None
     - trigger_id: custom_status2
+      group: laily
       then:
         - light.turn_on:
             id: led

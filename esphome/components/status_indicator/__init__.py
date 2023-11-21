@@ -14,7 +14,7 @@ from esphome.core import coroutine_with_priority
 CODEOWNERS = ["@nielsnl68"]
 
 status_led_ns = cg.esphome_ns.namespace("status_indicator")
-StatusLED = status_led_ns.class_("StatusIndicator", cg.Component)
+StatusIndicator = status_led_ns.class_("StatusIndicator", cg.Component)
 StatusTrigger = status_led_ns.class_("StatusTrigger", auto.Trigger.template())
 StatusAction = status_led_ns.class_("StatusAction", auto.Trigger.template())
 CONF_TRIGGER_LIST = {
@@ -32,6 +32,7 @@ CONF_TRIGGER_LIST = {
     "on_mgtt_disconnected": True,
     "on_custom_status": False,
 }
+CONF_WHICH = "which"
 
 
 def trigger_setup(Single):
@@ -56,7 +57,7 @@ def add_default_triggers():
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(CONF_ID): cv.declare_id(StatusLED),
+            cv.GenerateID(CONF_ID): cv.declare_id(StatusIndicator),
             cv.Required(CONF_ON_TURN_OFF): trigger_setup(True),
         }
     )
@@ -96,30 +97,43 @@ async def to_code(config):
 @auto.register_action(
     "status.push",
     StatusAction,
-    cv.Schema(
+    cv.maybe_simple_value(
         {
+            cv.GenerateID(CONF_ID): cv.use_id(StatusIndicator),
             cv.Required(CONF_TRIGGER_ID): cv.use_id(StatusTrigger),
-        }
+        },
+        key=CONF_TRIGGER_ID,
     ),
 )
 async def status_action_push_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_TRIGGER_ID])
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     cg.add(var.set_state(True))
+    cg.add(var.set_trigger(config[CONF_TRIGGER_ID]))
     return var
 
 
 @auto.register_action(
     "status.pop",
     StatusAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_TRIGGER_ID): cv.use_id(StatusTrigger),
-        }
+    cv.All(
+        cv.maybe_simple_value(
+            {
+                cv.GenerateID(CONF_ID): cv.use_id(StatusIndicator),
+                cv.Optional(CONF_TRIGGER_ID): cv.use_id(StatusTrigger),
+                cv.Optional(CONF_WHICH): cv.string,
+            },
+            key=CONF_TRIGGER_ID,
+        ),
     ),
 )
 async def status_action_pop_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_TRIGGER_ID])
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     cg.add(var.set_state(False))
+    if CONF_TRIGGER_ID in config:
+        cg.add(var.set_group(config[CONF_TRIGGER_ID]))
+    else:
+        cg.add(var.set_trigger(config[CONF_WHICH]))
+
     return var
