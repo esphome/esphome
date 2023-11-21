@@ -1,5 +1,6 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.final_validate as fv
 
 from esphome.const import (
     CONF_ID,
@@ -29,6 +30,8 @@ CONF_ON_STT_VAD_END = "on_stt_vad_end"
 CONF_ON_STT_VAD_START = "on_stt_vad_start"
 CONF_ON_TTS_END = "on_tts_end"
 CONF_ON_TTS_START = "on_tts_start"
+CONF_ON_TTS_STREAM_START = "on_tts_stream_start"
+CONF_ON_TTS_STREAM_END = "on_tts_stream_end"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
 
 CONF_SILENCE_DETECTION = "silence_detection"
@@ -55,6 +58,17 @@ StopAction = voice_assistant_ns.class_(
 IsRunningCondition = voice_assistant_ns.class_(
     "IsRunningCondition", automation.Condition, cg.Parented.template(VoiceAssistant)
 )
+
+
+def final_validate(config):
+    if CONF_SPEAKER not in fv.full_config.get() and (
+        CONF_ON_TTS_STREAM_START in config or CONF_ON_TTS_STREAM_END in config
+    ):
+        raise cv.Invalid(
+            f"{CONF_SPEAKER} is required when using {CONF_ON_TTS_STREAM_START} and/or {CONF_ON_TTS_STREAM_END}"
+        )
+    return config
+
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -105,9 +119,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_STT_VAD_END): automation.validate_automation(
                 single=True
             ),
+            cv.Optional(CONF_ON_TTS_STREAM_START): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_TTS_STREAM_END): automation.validate_automation(
+                single=True
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
 )
+
+FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
 
 
 async def to_code(config):
@@ -220,6 +242,20 @@ async def to_code(config):
             var.get_stt_vad_end_trigger(),
             [],
             config[CONF_ON_STT_VAD_END],
+        )
+
+    if CONF_ON_TTS_STREAM_START in config:
+        await automation.build_automation(
+            var.get_tts_stream_start_trigger(),
+            [],
+            config[CONF_ON_TTS_STREAM_START],
+        )
+
+    if CONF_ON_TTS_STREAM_END in config:
+        await automation.build_automation(
+            var.get_tts_stream_end_trigger(),
+            [],
+            config[CONF_ON_TTS_STREAM_END],
         )
 
     cg.add_define("USE_VOICE_ASSISTANT")
