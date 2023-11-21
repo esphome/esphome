@@ -53,12 +53,12 @@ binary_sensor:
       max_length: 350ms
       then:
         - status.push:
-            trigger_id: custom_status
+            trigger_id: custom_status2
     - min_length: 500ms
       max_length: 1000ms
       then:
         - status.pop:
-            trigger_id: custom_status
+            trigger_id: custom_status2
 
 
 status_indicator:
