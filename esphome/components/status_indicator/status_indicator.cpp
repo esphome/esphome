@@ -180,7 +180,7 @@ void StatusIndicator::pop_trigger(StatusTrigger *trigger, bool incl_group) {
   }
 }
 
-void StatusIndicator::pop_trigger(const std::string & group) {
+void StatusIndicator::pop_trigger(const std::string &group) {
   uint32_t x = 0;
   while (this->custom_triggers_.size() > x) {
     if (group == this->custom_triggers_[x]->get_group()) {
