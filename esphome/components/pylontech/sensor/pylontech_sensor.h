@@ -8,24 +8,24 @@ namespace pylontech {
 
 class PylontechSensor : public PylontechListener, public Component {
  public:
-  PylontechSensor(int bat_num);
+  PylontechSensor(int8_t bat_num);
   void dump_config() override;
 
-  PYLONTECH_SENSOR(voltage)
-  PYLONTECH_SENSOR(current)
-  PYLONTECH_SENSOR(temperature)
-  PYLONTECH_SENSOR(temperature_low)
-  PYLONTECH_SENSOR(temperature_high)
-  PYLONTECH_SENSOR(voltage_low)
-  PYLONTECH_SENSOR(voltage_high)
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(current)
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(temperature_low)
+  SUB_SENSOR(temperature_high)
+  SUB_SENSOR(voltage_low)
+  SUB_SENSOR(voltage_high)
 
-  PYLONTECH_SENSOR(coulomb)
-  PYLONTECH_SENSOR(mos_temperature)
+  SUB_SENSOR(coulomb)
+  SUB_SENSOR(mos_temperature)
 
   void on_line_read(LineContents *line) override;
 
  protected:
-  int bat_num_;
+  int8_t bat_num_;
 };
 
 }  // namespace pylontech

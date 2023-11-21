@@ -12,18 +12,6 @@ MULTI_CONF = True
 
 CONF_PYLONTECH_ID = "pylontech_id"
 CONF_BATTERY = "battery"
-CONF_COULOMB = "coulomb"
-CONF_TEMPERATURE_LOW = "temperature_low"
-CONF_TEMPERATURE_HIGH = "temperature_high"
-CONF_VOLTAGE_LOW = "voltage_low"
-CONF_VOLTAGE_HIGH = "voltage_high"
-CONF_MOS_TEMPERATURE = "mos_temperature"
-
-CONF_BASE_STATE = "base_state"
-CONF_VOLTAGE_STATE = "voltage_state"
-CONF_CURRENT_STATE = "current_state"
-CONF_TEMPERATURE_STATE = "temperature_state"
-CONF_NUM_BATTERIES = "num_batteries"
 
 pylontech_ns = cg.esphome_ns.namespace("pylontech")
 PylontechComponent = pylontech_ns.class_(

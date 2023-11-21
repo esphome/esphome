@@ -19,18 +19,18 @@ from esphome.const import (
 from .. import (
     CONF_PYLONTECH_ID,
     PYLONTECH_COMPONENT_SCHEMA,
-    CONF_COULOMB,
     CONF_BATTERY,
-    CONF_TEMPERATURE_LOW,
-    CONF_TEMPERATURE_HIGH,
-    CONF_VOLTAGE_HIGH,
-    CONF_VOLTAGE_LOW,
-    CONF_MOS_TEMPERATURE,
     pylontech_ns,
 )
 
-
 PylontechSensor = pylontech_ns.class_("PylontechSensor", cg.Component)
+
+CONF_COULOMB = "coulomb"
+CONF_TEMPERATURE_LOW = "temperature_low"
+CONF_TEMPERATURE_HIGH = "temperature_high"
+CONF_VOLTAGE_LOW = "voltage_low"
+CONF_VOLTAGE_HIGH = "voltage_high"
+CONF_MOS_TEMPERATURE = "mos_temperature"
 
 TYPES: dict[str, cv.Schema] = {
     CONF_VOLTAGE: sensor.sensor_schema(
@@ -82,8 +82,7 @@ TYPES: dict[str, cv.Schema] = {
 
 CONFIG_SCHEMA = PYLONTECH_COMPONENT_SCHEMA.extend(
     {cv.GenerateID(): cv.declare_id(PylontechSensor)}
-    | {cv.Optional(marker): schema for marker, schema in TYPES.items()}
-)
+).extend({cv.Optional(marker): schema for marker, schema in TYPES.items()})
 
 
 async def to_code(config):
@@ -91,8 +90,8 @@ async def to_code(config):
     bat = cg.new_Pvariable(config[CONF_ID], config[CONF_BATTERY])
 
     for marker in TYPES:
-        if marker in config:
-            sens = await sensor.new_sensor(config[marker])
-            cg.add(getattr(bat, f"set_{marker}")(sens))
+        if marker_config := config.get(marker):
+            sens = await sensor.new_sensor(marker_config)
+            cg.add(getattr(bat, f"set_{marker}_sensor")(sens))
 
     cg.add(paren.register_listener(bat))

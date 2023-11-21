@@ -7,14 +7,15 @@ from .. import (
     CONF_PYLONTECH_ID,
     PYLONTECH_COMPONENT_SCHEMA,
     CONF_BATTERY,
-    CONF_BASE_STATE,
-    CONF_VOLTAGE_STATE,
-    CONF_CURRENT_STATE,
-    CONF_TEMPERATURE_STATE,
     pylontech_ns,
 )
 
 PylontechTextSensor = pylontech_ns.class_("PylontechTextSensor", cg.Component)
+
+CONF_BASE_STATE = "base_state"
+CONF_VOLTAGE_STATE = "voltage_state"
+CONF_CURRENT_STATE = "current_state"
+CONF_TEMPERATURE_STATE = "temperature_state"
 
 MARKERS: list[str] = [
     CONF_BASE_STATE,
@@ -25,8 +26,7 @@ MARKERS: list[str] = [
 
 CONFIG_SCHEMA = PYLONTECH_COMPONENT_SCHEMA.extend(
     {cv.GenerateID(): cv.declare_id(PylontechTextSensor)}
-    | {cv.Optional(marker): text_sensor.text_sensor_schema() for marker in MARKERS}
-)
+).extend({cv.Optional(marker): text_sensor.text_sensor_schema() for marker in MARKERS})
 
 
 async def to_code(config):
@@ -34,9 +34,8 @@ async def to_code(config):
     bat = cg.new_Pvariable(config[CONF_ID], config[CONF_BATTERY])
 
     for marker in MARKERS:
-        if marker in config:
-            conf = config[marker]
-            var = await text_sensor.new_text_sensor(conf)
-            cg.add(getattr(bat, f"set_{marker}")(var))
+        if marker_config := config.get(marker):
+            var = await text_sensor.new_text_sensor(marker_config)
+            cg.add(getattr(bat, f"set_{marker}_text_sensor")(var))
 
     cg.add(paren.register_listener(bat))

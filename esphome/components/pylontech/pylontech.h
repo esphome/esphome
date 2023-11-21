@@ -4,30 +4,12 @@
 #include "esphome/core/defines.h"
 #include "esphome/components/uart/uart.h"
 
-#ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
-#endif
-#ifdef USE_TEXT_SENSOR
-#include "esphome/components/text_sensor/text_sensor.h"
-#endif
-
 namespace esphome {
 namespace pylontech {
 
 static const uint8_t NUM_BUFFERS = 20;
 static const uint8_t TEXT_SENSOR_MAX_LEN = 8;
 
-#define PYLONTECH_ENTITY_(type, name) \
- protected: \
-  type *name##_{}; /* NOLINT */ \
-\
- public: \
-  void set_##name(type *name) { /* NOLINT */ \
-    this->name##_ = name; \
-  }
-
-#define PYLONTECH_SENSOR(name) PYLONTECH_ENTITY_(sensor::Sensor, name)
-#define PYLONTECH_TEXT_SENSOR(name) PYLONTECH_ENTITY_(text_sensor::TextSensor, name)
 
 class PylontechListener {
  public:
