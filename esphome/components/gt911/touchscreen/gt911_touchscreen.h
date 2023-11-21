@@ -14,6 +14,11 @@ struct Store {
   static void gpio_intr(Store *store);
 };
 
+class GT911ButtonListener {
+ public:
+  virtual void update_button(uint8_t index, bool state) = 0;
+};
+
 class GT911Touchscreen : public touchscreen::Touchscreen, public Component, public i2c::I2CDevice {
  public:
   void setup() override;
@@ -21,10 +26,12 @@ class GT911Touchscreen : public touchscreen::Touchscreen, public Component, publ
   void dump_config() override;
 
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
+  void register_button_listener(GT911ButtonListener *listener) { this->button_listeners_.push_back(listener); }
 
  protected:
   InternalGPIOPin *interrupt_pin_;
   Store store_;
+  std::vector<GT911ButtonListener *> button_listeners_;
 };
 
 }  // namespace gt911

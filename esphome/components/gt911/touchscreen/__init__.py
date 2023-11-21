@@ -3,12 +3,11 @@ import esphome.config_validation as cv
 
 from esphome import pins
 from esphome.components import i2c, touchscreen
+from .. import gt911_ns
 from esphome.const import CONF_INTERRUPT_PIN, CONF_ID
 
-CODEOWNERS = ["@jesserockz"]
-DEPENDENCIES = ["i2c"]
 
-gt911_ns = cg.esphome_ns.namespace("gt911")
+GT911ButtonListener = gt911_ns.class_("GT911ButtonListener")
 GT911Touchscreen = gt911_ns.class_(
     "GT911Touchscreen",
     touchscreen.Touchscreen,

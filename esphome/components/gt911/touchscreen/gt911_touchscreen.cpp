@@ -11,6 +11,7 @@ static const char *const TAG = "gt911.touchscreen";
 static const uint8_t GET_TOUCH_STATE[2] = {0x81, 0x4E};
 static const uint8_t CLEAR_TOUCH_STATE[3] = {0x81, 0x4E, 0x00};
 static const uint8_t GET_TOUCHES[2] = {0x81, 0x4F};
+static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
 
 #define ERROR_CHECK(err) \
   if ((err) != i2c::ERROR_OK) { \
@@ -19,7 +20,9 @@ static const uint8_t GET_TOUCHES[2] = {0x81, 0x4F};
     return; \
   }
 
-void IRAM_ATTR HOT Store::gpio_intr(Store *store) { store->available = true; }
+void IRAM_ATTR HOT Store::gpio_intr(Store *store) {
+  store->available = true;
+}
 
 void GT911Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up GT911 Touchscreen...");
@@ -39,7 +42,7 @@ void GT911Touchscreen::loop() {
   i2c::ErrorCode err;
   touchscreen::TouchPoint tp;
   uint8_t touch_state = 0;
-  uint8_t data[7][8];  // 8 bytes each for max 7 points
+  uint8_t data[MAX_TOUCHES + 1][8];  // 8 bytes each for each point, plus extra space for the key byte
 
   if (!this->store_.available)
     return;
@@ -54,15 +57,16 @@ void GT911Touchscreen::loop() {
   if ((touch_state & 0x80) == 0)
     return;
   uint8_t num_of_touches = touch_state & 0x07;
-  if (num_of_touches == 0) {
+  bool has_key = (touch_state & 0x10) != 0;
+  if (num_of_touches == 0)
     this->send_release_();
+  if (num_of_touches > MAX_TOUCHES) // should never happen
     return;
-  }
 
   err = this->write(GET_TOUCHES, sizeof(GET_TOUCHES), false);
   ERROR_CHECK(err);
-  // num_of_touches is guaranteed to be 1..7
-  err = this->read(data[0], sizeof(data[0]) * num_of_touches);
+  // num_of_touches is guaranteed to be 0..5. Also read the key byte
+  err = this->read(data[0], sizeof(data[0]) * num_of_touches + 1);
   ERROR_CHECK(err);
 
   for (uint8_t i = 0; i != num_of_touches; i++) {
@@ -89,6 +93,11 @@ void GT911Touchscreen::loop() {
         break;
     }
     this->defer([this, tp]() { this->send_touch_(tp); });
+  }
+  auto keys = data[num_of_touches][0];
+  for (size_t i = 0 ; i != 4 ; i++) {
+    for (auto *listener : this->button_listeners_)
+      listener->update_button(i, (keys & (1 << i)) != 0);
   }
 }
 
