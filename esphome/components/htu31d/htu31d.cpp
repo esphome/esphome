@@ -15,7 +15,32 @@
 namespace esphome {
 namespace htu31d {
 
+/** Logging prefix */
 static const char *const TAG = "htu31d";
+
+/** Default I2C address for the HTU31D. */
+static const uint8_t HTU31D_DEFAULT_I2CADDR = 0x40;
+
+/** Read temperature and humidity. */
+static const uint8_t HTU31D_READTEMPHUM = 0x00;
+
+/** Start a conversion! */
+static const uint8_t HTU31D_CONVERSION = 0x40;
+
+/** Read serial number command. */
+static const uint8_t HTU31D_READSERIAL = 0x0A;
+
+/** Enable heater */
+static const uint8_t HTU31D_HEATERON = 0x04;
+
+/** Disable heater */
+static const uint8_t HTU31D_HEATEROFF = 0x02;
+
+/** Reset command. */
+static const uint8_t HTU31D_RESET = 0x1E;
+
+/** Diagnostics command. */
+static const uint8_t HTU31D_DIAGNOSTICS = 0x08;
 
 /**
  * Resets the sensor and ensures that the devices serial number can be read over
