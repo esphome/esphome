@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_PRIORITY,
     CONF_GROUP,
     CONF_TRIGGER_ID,
+    CONF_ON_TURN_OFF,
 )
 
 from esphome.core import coroutine_with_priority
@@ -31,7 +32,6 @@ CONF_TRIGGER_LIST = {
     "on_mgtt_disconnected": True,
     "on_custom_status": False,
 }
-CONF_ON_TURN_OFF = "on_turn_off"
 
 
 def trigger_setup(Single):

@@ -75,14 +75,12 @@ template<typename... Ts> class StatusAction : public Action<Ts...> {
 
   void play(Ts... x) override {
     if (false) {
-
     } else {
-
     }
   }
 
  protected:
-    StatusTrigger *trigger_;
+  StatusTrigger *trigger_;
 };
 
 }  // namespace status_indicator
