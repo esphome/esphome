@@ -37,6 +37,8 @@ from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
 from .core import DASHBOARD
+from .entries import EntryState, entry_state_to_bool
+from .util.file import write_file
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
 
@@ -269,14 +271,15 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
     ) -> list[str]:
         """Build the command to run."""
         dashboard = DASHBOARD
+        entries = dashboard.entries
         configuration = json_message["configuration"]
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
         if (
             port == "OTA"
             and (mdns := dashboard.mdns_status)
-            and (host_name := mdns.filename_to_host_name_thread_safe(configuration))
-            and (address := await mdns.async_resolve_host(host_name))
+            and (entry := entries.get(config_file))
+            and (address := await mdns.async_resolve_host(entry.name))
         ):
             port = address
 
@@ -315,7 +318,9 @@ class EsphomeRenameHandler(EsphomeCommandWebSocket):
             return
 
         # Remove the old ping result from the cache
-        DASHBOARD.ping_result.pop(self.old_name, None)
+        entries = DASHBOARD.entries
+        if entry := entries.get(self.old_name):
+            entries.async_set_state(entry, EntryState.UNKNOWN)
 
 
 class EsphomeUploadHandler(EsphomePortCommandWebSocket):
@@ -521,9 +526,19 @@ class DownloadListRequestHandler(BaseHandler):
 
 
 class DownloadBinaryRequestHandler(BaseHandler):
+    def _load_file(self, path: str, compressed: bool) -> bytes:
+        """Load a file from disk and compress it if requested."""
+        with open(path, "rb") as f:
+            data = f.read()
+            if compressed:
+                return gzip.compress(data, 9)
+            return data
+
     @authenticated
     @bind_config
-    async def get(self, configuration=None):
+    async def get(self, configuration: str | None = None):
+        """Download a binary file."""
+        loop = asyncio.get_running_loop()
         compressed = self.get_argument("compressed", "0") == "1"
 
         storage_path = ext_storage_path(configuration)
@@ -580,11 +595,8 @@ class DownloadBinaryRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        with open(path, "rb") as f:
-            data = f.read()
-            if compressed:
-                data = gzip.compress(data, 9)
-            self.write(data)
+        data = await loop.run_in_executor(None, self._load_file, path, compressed)
+        self.write(data)
 
         self.finish()
 
@@ -609,22 +621,7 @@ class ListDevicesHandler(BaseHandler):
         self.write(
             json.dumps(
                 {
-                    "configured": [
-                        {
-                            "name": entry.name,
-                            "friendly_name": entry.friendly_name,
-                            "configuration": entry.filename,
-                            "loaded_integrations": entry.loaded_integrations,
-                            "deployed_version": entry.update_old,
-                            "current_version": entry.update_new,
-                            "path": entry.path,
-                            "comment": entry.comment,
-                            "address": entry.address,
-                            "web_port": entry.web_port,
-                            "target_platform": entry.target_platform,
-                        }
-                        for entry in entries
-                    ],
+                    "configured": [entry.to_dict() for entry in entries],
                     "importable": [
                         {
                             "name": res.device_name,
@@ -728,7 +725,15 @@ class PingRequestHandler(BaseHandler):
         if settings.status_use_mqtt:
             dashboard.mqtt_ping_request.set()
         self.set_header("content-type", "application/json")
-        self.write(json.dumps(dashboard.ping_result))
+
+        self.write(
+            json.dumps(
+                {
+                    entry.filename: entry_state_to_bool(entry.state)
+                    for entry in dashboard.entries.async_all()
+                }
+            )
+        )
 
 
 class InfoRequestHandler(BaseHandler):
@@ -750,19 +755,35 @@ class InfoRequestHandler(BaseHandler):
 class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
-    def get(self, configuration=None):
+    async def get(self, configuration: str | None = None):
+        """Get the content of a file."""
+        loop = asyncio.get_running_loop()
         filename = settings.rel_path(configuration)
-        content = ""
-        if os.path.isfile(filename):
-            with open(file=filename, encoding="utf-8") as f:
-                content = f.read()
+        content = await loop.run_in_executor(None, self._read_file, filename)
         self.write(content)
+
+    def _read_file(self, filename: str) -> bytes:
+        """Read a file and return the content as bytes."""
+        with open(file=filename, encoding="utf-8") as f:
+            return f.read()
+
+    def _write_file(self, filename: str, content: bytes) -> None:
+        """Write a file with the given content."""
+        write_file(filename, content)
 
     @authenticated
     @bind_config
-    def post(self, configuration=None):
-        with open(file=settings.rel_path(configuration), mode="wb") as f:
-            f.write(self.request.body)
+    async def post(self, configuration: str | None = None):
+        """Write the content of a file."""
+        loop = asyncio.get_running_loop()
+        config_file = settings.rel_path(configuration)
+        await loop.run_in_executor(
+            None, self._write_file, config_file, self.request.body
+        )
+        # Ensure the StorageJSON is updated as well
+        await async_run_system_command(
+            [*DASHBOARD_COMMAND, "compile", "--only-generate", config_file]
+        )
         self.set_status(200)
 
 
@@ -784,9 +805,6 @@ class DeleteRequestHandler(BaseHandler):
             build_folder = os.path.join(settings.config_dir, name)
             if build_folder is not None:
                 shutil.rmtree(build_folder, os.path.join(trash_path, name))
-
-        # Remove the old ping result from the cache
-        DASHBOARD.ping_result.pop(configuration, None)
 
 
 class UndoDeleteRequestHandler(BaseHandler):

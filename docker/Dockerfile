@@ -48,6 +48,8 @@ RUN \
           libfreetype-dev=2.12.1+dfsg-5 \
           libssl-dev=3.0.11-1~deb12u2 \
           libffi-dev=3.4.4-1 \
+          libopenjp2-7=2.5.0-2 \
+          libtiff6=4.5.0-6 \
           cargo=0.66.0+ds1-1 \
           pkg-config=1.8.1-1 \
           gcc-arm-linux-gnueabihf=4:12.2.0-3; \
@@ -68,7 +70,7 @@ ENV \
 # See: https://unix.stackexchange.com/questions/553743/correct-way-to-add-lib-ld-linux-so-3-in-debian
 RUN \
     if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
-        ln -s /lib/arm-linux-gnueabihf/ld-linux.so.3 /lib/ld-linux.so.3; \
+        ln -s /lib/arm-linux-gnueabihf/ld-linux-armhf.so.3 /lib/ld-linux.so.3; \
     fi
 
 RUN \
