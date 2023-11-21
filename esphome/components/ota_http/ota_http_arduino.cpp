@@ -97,7 +97,7 @@ int OtaHttpArduino::http_init() {
   this->body_length_ = (size_t) this->client_.getSize();
   ESP_LOGD(TAG, "firmware is %d bytes length.", this->body_length_);
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_RP2040)
   this->stream_ptr_ = std::unique_ptr<WiFiClient>(this->client_.getStreamPtr());
 #endif
 
