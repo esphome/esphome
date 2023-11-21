@@ -26,8 +26,8 @@ ENS160Component = ens160_ns.class_(
     "ENS160Component", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor
 )
 
-CONF_COMPENSATION = "compensation"
 CONF_AQI = "aqi"
+CONF_COMPENSATION = "compensation"
 UNIT_INDEX = "index"
 
 CONFIG_SCHEMA = (
