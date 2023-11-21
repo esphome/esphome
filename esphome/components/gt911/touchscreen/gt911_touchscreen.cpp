@@ -94,8 +94,8 @@ void GT911Touchscreen::loop() {
         tp.y = this->display_width_ - x;
         break;
       case touchscreen::ROTATE_180_DEGREES:
-        tp.x = this->display_width_ - y;
-        tp.y = this->display_height_ - x;
+        tp.x = this->display_width_ - x;
+        tp.y = this->display_height_ - y;
         break;
       case touchscreen::ROTATE_270_DEGREES:
         tp.x = this->display_height_ - y;
@@ -115,6 +115,7 @@ void GT911Touchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "GT911 Touchscreen:");
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
+  ESP_LOGCONFIG(TAG, "  Rotation: %d", (int) this->rotation_);
 }
 
 }  // namespace gt911
