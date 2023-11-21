@@ -73,9 +73,15 @@ void HDMICEC::loop() {
     auto frame_str = bytes_to_string(frame);
     ESP_LOGD(TAG, "frame received: %s", frame_str.c_str());
 
-    uint8_t opcode = frame[1];
     std::vector<uint8_t> data(frame.begin() + 1, frame.end());
 
+    bool handled = try_builtin_handler_(src_addr, dest_addr, data);
+    if (handled) {
+      // opcode handled internally ; skip triggers
+      continue;
+    }
+
+    uint8_t opcode = data[0];
     for (auto trigger : message_triggers_) {
       bool can_trigger = (
         (!trigger->source_.has_value()      || (trigger->source_ == src_addr)) &&
@@ -90,6 +96,58 @@ void HDMICEC::loop() {
       }
     }
   }
+}
+
+bool HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data) {
+  if (data.empty()) {
+    return false;
+  }
+
+  bool is_broadcast = (destination == 0xF);
+  if (is_broadcast) {
+    return false;
+  }
+
+  uint8_t opcode = data[0];
+  switch (opcode) {
+    // "Get CEC Version" request
+    case 0x9F: {
+      // reply with "CEC Version" (0x9E)
+      send(address_, source, {0x9E, 0x04});
+      return true;
+    }
+
+    // "Give Device Power Status" request
+    case 0x8F: {
+      // reply with "Report Power Status" (0x90)
+      send(address_, source, {0x90, 0x00}); // parameter set to "On"
+      break;
+    }
+
+    // TODO handle "Give OSD Name"
+    case 0x46: {
+      // TODO add "OSD Name" option to component configuration
+      // TODO reply with "Set OSD Name" (0x47)
+      break;
+    }
+
+    // TODO handle "Give Physical Address" request
+    case 0x83: {
+      // TODO add "Device Type" option to component configuration
+      // TODO reply with "Report Physical Address" (0x84)
+      break;
+    }
+
+    // "Abort"
+    case 0xFF: {
+      // reply with "Feature Abort" (0x00)
+      send(address_, source, {0x00, opcode, 0x00});
+      return true;
+    }
+  }
+
+
+  return false;
 }
 
 bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes) {
