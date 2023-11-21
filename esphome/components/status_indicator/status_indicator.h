@@ -70,14 +70,14 @@ template<typename... Ts> class StatusAction : public Action<Ts...>, public Paren
  public:
   void set_state(bool state) { this->state_ = state; }
   void set_trigger(StatusTrigger *trigger) { this->trigger_ = trigger; }
-  void set_group(std::string group) {this->group_ = std::move(std::move(group)); }
+  void set_group(std::string group) { this->group_ = std::move(std::move(group)); }
 
   void play(Ts... x) override {
     if (this->state_) {
       if (this->trigger_ != nullptr) {
         this->parent_->push_trigger(this->trigger_);
       }
-    } else if (this->group_ !="") {
+    } else if (this->group_ != "") {
       this->parent_->pop_trigger(this->group_);
     } else if (this->trigger_ != nullptr) {
       this->parent_->pop_trigger(this->trigger_, false);
