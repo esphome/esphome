@@ -71,7 +71,10 @@ void PulseMeterSensor::loop() {
       // Running and initial states can timeout
       case MeterState::INITIAL:
       case MeterState::RUNNING: {
-        if (time_since_valid_edge_us > this->timeout_us_) {
+        // time_since_valid_edge_us is the time not since the last edge, but since the one before
+        // This is because the data structs are swapped
+        // So we have to compare against the double timeout value
+        if (time_since_valid_edge_us > this->timeout_us_ * 2) {
           this->meter_state_ = MeterState::TIMED_OUT;
           ESP_LOGD(TAG, "No pulse detected for %" PRIu32 "s, assuming 0 pulses/min",
                    time_since_valid_edge_us / 1000000);
