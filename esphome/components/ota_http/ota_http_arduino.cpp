@@ -54,6 +54,9 @@ int OtaHttpArduino::http_init() {
   ESP_LOGD(TAG, "Trying to connect to %s", pref_.url);
 
   bool status = false;
+#ifdef USE_RP2040
+  this->client_.setInsecure();
+#endif
 #if defined(USE_ESP32) || defined(USE_RP2040)
   status = this->client_.begin(pref_.url);
 #endif
