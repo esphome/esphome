@@ -1,6 +1,5 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
-import esphome.final_validate as fv
 
 from esphome.const import (
     CONF_ID,
@@ -60,8 +59,8 @@ IsRunningCondition = voice_assistant_ns.class_(
 )
 
 
-def final_validate(config):
-    if CONF_SPEAKER not in fv.full_config.get() and (
+def tts_stream_validate(config):
+    if CONF_SPEAKER not in config and (
         CONF_ON_TTS_STREAM_START in config or CONF_ON_TTS_STREAM_END in config
     ):
         raise cv.Invalid(
@@ -127,9 +126,8 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    tts_stream_validate,
 )
-
-FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
 
 
 async def to_code(config):
