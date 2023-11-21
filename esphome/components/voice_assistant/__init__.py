@@ -66,9 +66,7 @@ CONFIG_SCHEMA = cv.All(
                 media_player.MediaPlayer
             ),
             cv.Optional(CONF_USE_WAKE_WORD, default=False): cv.boolean,
-            cv.Optional(CONF_VAD_THRESHOLD): cv.All(
-                cv.uint8_t
-            ),
+            cv.Optional(CONF_VAD_THRESHOLD): cv.All(cv.uint8_t),
             cv.Optional(CONF_NOISE_SUPPRESSION_LEVEL, default=0): cv.int_range(0, 4),
             cv.Optional(CONF_AUTO_GAIN, default="0dBFS"): cv.All(
                 cv.float_with_unit("decibel full scale", "(dBFS|dbfs|DBFS)"),

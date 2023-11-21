@@ -17,7 +17,7 @@ static const char *const TAG = "voice_assistant";
 
 static const size_t SAMPLE_RATE_HZ = 16000;
 static const size_t INPUT_BUFFER_SIZE = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
-static const size_t BUFFER_SIZE = 500 * SAMPLE_RATE_HZ / 1000;      // 0.5s
+static const size_t BUFFER_SIZE = 500 * SAMPLE_RATE_HZ / 1000;       // 0.5s
 static const size_t SEND_BUFFER_SIZE = INPUT_BUFFER_SIZE * sizeof(int16_t);
 static const size_t RECEIVE_SIZE = 1024;
 static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
@@ -143,8 +143,7 @@ void VoiceAssistant::loop() {
         if (this->use_wake_word_) {
           xStreamBufferReset(this->stream_buffer_);
           this->set_state_(State::START_MICROPHONE, State::WAIT_FOR_VAD);
-        } else
-        {
+        } else {
           this->set_state_(State::START_PIPELINE, State::START_MICROPHONE);
         }
       } else {
@@ -192,7 +191,7 @@ void VoiceAssistant::loop() {
         }
         uint16_t rms = sqrt(sum / num_samples);
         if (this->noise_floor_ == 0) {
-          this->noise_floor_ = rms; // initialize
+          this->noise_floor_ = rms;  // initialize
         }
 
         float snr = 20.0 * log10f((float) rms / this->noise_floor_);
@@ -461,8 +460,7 @@ void VoiceAssistant::request_start(bool continuous, bool silence_detection) {
     if (this->use_wake_word_) {
       xStreamBufferReset(this->stream_buffer_);
       this->set_state_(State::START_MICROPHONE, State::WAIT_FOR_VAD);
-    } else
-    {
+    } else {
       this->set_state_(State::START_PIPELINE, State::START_MICROPHONE);
     }
   }
@@ -602,8 +600,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
           xStreamBufferReset(this->stream_buffer_);
           // No need to stop the microphone since we didn't use the speaker
           this->set_state_(State::WAIT_FOR_VAD, State::WAITING_FOR_VAD);
-        } else
-        {
+        } else {
           this->set_state_(State::IDLE, State::IDLE);
         }
       }
