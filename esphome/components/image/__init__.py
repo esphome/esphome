@@ -59,11 +59,48 @@ def _compute_local_icon_path(value) -> Path:
     return base_dir / f"{value[CONF_ICON]}.svg"
 
 
-def _compute_local_image_path(config) -> Path:
+def compute_image_file_type(filepath) -> str:
+    if filepath.suffix == ".svg":
+        _LOGGER.warning("compute_image_file_type: is svg %s", filepath)
+        return ".svg"
+    from PIL import Image
+
+    img = Image.open(filepath)
+    file_name = img.filename
+    file_extension = img.format.lower()
+    _LOGGER.warning("compute_local_file_type: %s %s", file_name, file_extension)
+    return "." + file_extension
+
+
+def move_file(filepath, new_filepath):
+    _LOGGER.warning("move_file: %s to %s", filepath, new_filepath)
+    import os
+
+    new_filepath.parent.mkdir(parents=True, exist_ok=True)
+    os.rename(filepath, new_filepath)
+
+
+def delete_file(filepath):
+    _LOGGER.warning("delete_file: %s", filepath)
+    import os
+
+    os.remove(filepath)
+
+
+def _compute_local_image_path(config) -> (Path, str):
     url = config[CONF_URL]
-    file_name, file_type = external_files.get_file_info_from_url(url)
+    file_name, file_type, temp = external_files.get_file_info_from_url(url)
+    if temp:
+        file_type = compute_image_file_type(temp)
+        base_dir = external_files.compute_local_file_dir(file_name, DOMAIN)
+        path = base_dir / f"{file_name}{file_type}"
+        if external_files.has_remote_file_changed(url, path):
+            move_file(temp, path)
+        else:
+            delete_file(temp)
+        return path, file_name
     base_dir = external_files.compute_local_file_dir(file_name, DOMAIN)
-    return base_dir / f"{file_name}{file_type}"
+    return base_dir / f"{file_name}{file_type}", file_name
 
 
 def download_mdi(value):
@@ -86,14 +123,20 @@ def download_mdi(value):
 
 def download_image(value):
     url = value[CONF_URL]
-    path = _compute_local_image_path(value)
+    path, image_id = _compute_local_image_path(value)
 
     if not external_files.has_remote_file_changed(url, path):
+        _LOGGER.info("Remote file has not changed %s", url)
         return value
 
-    image_id, _ = external_files.get_file_info_from_url(url)
+    # image_id, _ = path.name.split(".", 1)
 
-    _LOGGER.info("Downloading %s image from %s to %s", image_id, url, path)
+    _LOGGER.warning(
+        "Remote file has changed, downloading %s image from %s to %s",
+        image_id,
+        url,
+        path,
+    )
 
     try:
         req = requests.get(url, timeout=IMAGE_DOWNLOAD_TIMEOUT)
@@ -283,7 +326,7 @@ async def to_code(config):
         path = _compute_local_icon_path(conf_file).as_posix()
 
     elif conf_file[CONF_SOURCE] == SOURCE_WEB:
-        path = _compute_local_image_path(conf_file).as_posix()
+        path = _compute_local_image_path(conf_file)[0].as_posix()
 
     try:
         resize = config.get(CONF_RESIZE)
