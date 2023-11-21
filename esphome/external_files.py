@@ -85,12 +85,11 @@ def get_file_info_from_content_disposition(r):
     cd = r.headers.get(CONTENT_DISPOSITION)
     if not cd:
         return None
-    _LOGGER.warning("content disposition=%s", cd)
+    _LOGGER.debug("content disposition=%s", cd)
     match = re.search(FILE_NAME_REGEX, cd)
-    _LOGGER.warning("match=%s", match)
     if match:
         file_name = match.group(1) or match.group(2) or match.group(3)
-        _LOGGER.warning("file_name=%s", file_name)
+        _LOGGER.debug("file_name=%s", file_name)
         file_base_name, file_extension = os.path.splitext(file_name)
         return file_base_name, file_extension
     return None
