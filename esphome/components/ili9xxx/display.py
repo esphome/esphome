@@ -66,6 +66,7 @@ COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
 CONF_INVERT_DISPLAY = "invert_display"
+CONF_INVERT_COLORS = "invert_colors"
 CONF_MIRROR_X = "mirror_x"
 CONF_MIRROR_Y = "mirror_y"
 CONF_SWAP_XY = "swap_xy"
@@ -160,7 +161,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
                 cv.file_
             ),
-            cv.Optional(CONF_INVERT_DISPLAY): cv.boolean,
+            cv.Optional(CONF_INVERT_DISPLAY): cv.invalid(
+                "invert_display is deprecated - use invert_colors "
+            ),
+            cv.Optional(CONF_INVERT_COLORS): cv.boolean,
             cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
             cv.Optional(CONF_ROTATION): cv.Any(
                 validate_rotation,
@@ -256,5 +260,5 @@ async def to_code(config):
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_palette(prog_arr))
 
-    if CONF_INVERT_DISPLAY in config:
-        cg.add(var.invert_display(config[CONF_INVERT_DISPLAY]))
+    if CONF_INVERT_COLORS in config:
+        cg.add(var.invert_colors(config[CONF_INVERT_COLORS]))

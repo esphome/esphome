@@ -28,8 +28,8 @@ class ILI9XXXDisplay : public PollingComponent,
                                              spi::CLOCK_PHASE_LEADING, ILI9XXXDisplay_DATA_RATE> {
  public:
   ILI9XXXDisplay() = default;
-  ILI9XXXDisplay(uint8_t const *init_sequence, int16_t width, int16_t height, bool invert_display)
-      : init_sequence_{init_sequence}, width_{width}, height_{height}, pre_invertdisplay_{invert_display} {
+  ILI9XXXDisplay(uint8_t const *init_sequence, int16_t width, int16_t height, bool invert_colors)
+      : init_sequence_{init_sequence}, width_{width}, height_{height}, pre_invertcolors_{invert_colors} {
     uint8_t cmd, num_args, bits;
     const uint8_t *addr = init_sequence;
     while ((cmd = *addr++) != 0) {
@@ -59,7 +59,7 @@ class ILI9XXXDisplay : public PollingComponent,
     this->offset_x_ = offset_x;
     this->offset_y_ = offset_y;
   }
-  void invert_display(bool invert);
+  void invert_colors(bool invert);
   void command(uint8_t value);
   void data(uint8_t value);
   void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes);
@@ -85,7 +85,6 @@ class ILI9XXXDisplay : public PollingComponent,
   void display_();
   void init_lcd_();
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t x2, uint16_t y2);
-  void invert_display_(bool invert);
   void reset_();
 
   uint8_t const *init_sequence_{};
@@ -117,7 +116,7 @@ class ILI9XXXDisplay : public PollingComponent,
   bool prossing_update_ = false;
   bool need_update_ = false;
   bool is_18bitdisplay_ = false;
-  bool pre_invertdisplay_ = false;
+  bool pre_invertcolors_ = false;
   display::ColorOrder color_order_{};
   bool swap_xy_{};
   bool mirror_x_{};

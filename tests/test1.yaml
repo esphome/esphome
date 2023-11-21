@@ -1554,6 +1554,8 @@ sensor:
       memory_address: 0x7d
       name: Adres sensor
 
+psram:
+
 esp32_touch:
   setup_mode: false
   iir_filter: 10ms
@@ -2992,6 +2994,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ili9xxx
+    invert_colors: true
     dimensions: 320x240
     rotation:
       swap_xy: true
