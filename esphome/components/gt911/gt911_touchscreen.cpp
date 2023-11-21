@@ -34,13 +34,13 @@ void GT911Touchscreen::setup() {
     return;
   }
 
+  this->store_.available = true;  // trigger read on first loop()
   this->interrupt_pin_->attach_interrupt(Store::gpio_intr, &this->store_, gpio::INTERRUPT_FALLING_EDGE);
+
 }
 
 void GT911Touchscreen::loop() {
   if (!this->store_.available) {
-    for (auto *listener : this->touch_listeners_)
-      listener->release();
     return;
   }
 
