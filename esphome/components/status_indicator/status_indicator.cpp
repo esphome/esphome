@@ -2,6 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#ifdef USE_ETHERNET
+#include "esphome/components/ethernet/ethernet_component.h"
+#endif
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
 #endif
