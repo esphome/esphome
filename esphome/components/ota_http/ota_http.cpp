@@ -56,15 +56,22 @@ void OtaHttpComponent::flash() {
 
   global_preferences->sync();
 
-  uint32_t update_start_time = millis();
-  uint8_t buf[this->http_recv_buffer_ + 1];
-  int error_code = 0;
-  uint32_t last_progress = 0;
-  esphome::md5::MD5Digest md5_receive;
-  std::unique_ptr<char[]> md5_receive_str(new char[33]);
+#ifdef OTA_HTTP_ONLY_AT_BOOT
+  if (pref_.ota_http_state != OTA_HTTP_STATE_SAFE_MODE) {
+    ESP_LOGI(TAG, "Rebotting before flashing new firmware.");
+    App.safe_reboot();
+  }
+#endif
 
-  if (!this->http_init()) {
-    return;
+    uint32_t update_start_time = millis();
+    uint8_t buf[this->http_recv_buffer_ + 1];
+    int error_code = 0;
+    uint32_t last_progress = 0;
+    esphome::md5::MD5Digest md5_receive;
+    std::unique_ptr<char[]> md5_receive_str(new char[33]);
+
+    if (!this->http_init()) {
+      return;
   }
 
   // we will compute md5 on the fly

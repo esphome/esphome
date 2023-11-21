@@ -80,7 +80,7 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
                 cv.only_on_esp8266, cv.boolean
             ),
-            cv.Optional(CONF_SAFE_MODE, default=False): cv.boolean,
+            cv.Optional(CONF_SAFE_MODE, default="fallback"): cv.Any(cv.boolean, "fallback"), # cv.enum(SAFE_MODE_STATES, upper=True),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
@@ -117,6 +117,8 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     if config[CONF_SAFE_MODE]:
+        if config[CONF_SAFE_MODE] is True:
+            cg.add_define("OTA_HTTP_ONLY_AT_BOOT")
         cg.add(var.check_upgrade())
 
 
