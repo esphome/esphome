@@ -19,9 +19,7 @@ static const uint8_t GET_TOUCHES[2] = {0x81, 0x4F};
     return; \
   }
 
-void IRAM_ATTR HOT Store::gpio_intr(Store *store) {
-  store->available = true;
-}
+void IRAM_ATTR HOT Store::gpio_intr(Store *store) { store->available = true; }
 
 void GT911Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up GT911 Touchscreen...");
@@ -41,7 +39,7 @@ void GT911Touchscreen::loop() {
   i2c::ErrorCode err;
   touchscreen::TouchPoint tp;
   uint8_t touch_state = 0;
-  uint8_t data[7][8]; // 8 bytes each for max 7 points
+  uint8_t data[7][8];  // 8 bytes each for max 7 points
 
   if (!this->store_.available)
     return;
