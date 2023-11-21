@@ -24,6 +24,7 @@ class GT911Touchscreen : public touchscreen::Touchscreen, public Component, publ
   void setup() override;
   void loop() override;
   void dump_config() override;
+  void set_rotation(touchscreen::TouchRotation rotation) { this->rotation_ = rotation; }
 
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   void register_button_listener(GT911ButtonListener *listener) { this->button_listeners_.push_back(listener); }
