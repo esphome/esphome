@@ -2,6 +2,8 @@
 
 #include "remote_base.h"
 
+#include <vector>
+
 namespace esphome {
 namespace remote_base {
 

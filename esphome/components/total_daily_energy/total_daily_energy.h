@@ -37,7 +37,6 @@ class TotalDailyEnergy : public sensor::Sensor, public Component {
   TotalDailyEnergyMethod method_;
   uint16_t last_day_of_year_{};
   uint32_t last_update_{0};
-  uint32_t last_save_{0};
   bool restore_;
   float total_energy_{0.0f};
   float last_power_state_{0.0f};

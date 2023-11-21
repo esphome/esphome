@@ -4,6 +4,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
+#include <vector>
+
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
 #define HAS_PROTO_MESSAGE_DUMP
 #endif

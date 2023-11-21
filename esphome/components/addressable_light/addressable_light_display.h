@@ -5,6 +5,8 @@
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/light/addressable_light.h"
 
+#include <vector>
+
 namespace esphome {
 namespace addressable_light {
 

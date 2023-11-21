@@ -1,4 +1,7 @@
 import logging
+import os
+
+from string import ascii_letters, digits
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -11,10 +14,12 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_RP2040,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority, EsphomeError
+from esphome.helpers import mkdir_p, write_file, copy_file_if_changed
 
-from .const import KEY_BOARD, KEY_RP2040, rp2040_ns
+from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
 
 # force import gpio to register pin schema
 from .gpio import rp2040_pin_to_code  # noqa
@@ -26,14 +31,27 @@ AUTO_LOAD = []
 
 def set_core_data(config):
     CORE.data[KEY_RP2040] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "rp2040"
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_RP2040
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
     CORE.data[KEY_RP2040][KEY_BOARD] = config[CONF_BOARD]
 
+    CORE.data[KEY_RP2040][KEY_PIO_FILES] = {}
+
     return config
+
+
+def get_download_types(storage_json):
+    return [
+        {
+            "title": "UF2 format",
+            "description": "For copying to RP2040 over USB.",
+            "file": "firmware.uf2",
+            "download": f"{storage_json.name}.uf2",
+        },
+    ]
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
@@ -56,19 +74,19 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 6, 2)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 6, 0)
 
 # The platformio/raspberrypi version to use for arduino frameworks
 #  - https://github.com/platformio/platform-raspberrypi/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/raspberrypi
-ARDUINO_PLATFORM_VERSION = cv.Version(1, 7, 0)
+ARDUINO_PLATFORM_VERSION = cv.Version(1, 10, 0)
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(2, 6, 2), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(2, 6, 2), None),
+        "dev": (cv.Version(3, 4, 0), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(3, 4, 0), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -102,7 +120,7 @@ def _parse_platform_version(value):
     try:
         # if platform version is a valid version constraint, prefix the default package
         cv.platformio_version_constraint(value)
-        return f"platformio/raspberrypi @ {value}"
+        return f"platformio/raspberrypi@{value}"
     except cv.Invalid:
         return value
 
@@ -135,6 +153,9 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     cg.add(rp2040_ns.setup_preferences())
 
+    # Allow LDF to properly discover dependency including those in preprocessor
+    # conditionals
+    cg.add_platformio_option("lib_ldf_mode", "chain+")
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_RP2040")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -148,7 +169,9 @@ async def to_code(config):
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     cg.add_platformio_option(
         "platform_packages",
-        [f"earlephilhower/framework-arduinopico @ {conf[CONF_SOURCE]}"],
+        [
+            f"earlephilhower/framework-arduinopico@{conf[CONF_SOURCE]}",
+        ],
     )
 
     cg.add_platformio_option("board_build.core", "earlephilhower")
@@ -159,3 +182,48 @@ async def to_code(config):
         "USE_ARDUINO_VERSION_CODE",
         cg.RawExpression(f"VERSION_CODE({ver.major}, {ver.minor}, {ver.patch})"),
     )
+
+
+def add_pio_file(component: str, key: str, data: str):
+    try:
+        cv.validate_id_name(key)
+    except cv.Invalid as e:
+        raise EsphomeError(
+            f"[{component}] Invalid PIO key: {key}. Allowed characters: [{ascii_letters}{digits}_]\nPlease report an issue https://github.com/esphome/issues"
+        ) from e
+    CORE.data[KEY_RP2040][KEY_PIO_FILES][key] = data
+
+
+def generate_pio_files() -> bool:
+    import shutil
+
+    shutil.rmtree(CORE.relative_build_path("src/pio"), ignore_errors=True)
+
+    includes: list[str] = []
+    files = CORE.data[KEY_RP2040][KEY_PIO_FILES]
+    if not files:
+        return False
+    for key, data in files.items():
+        pio_path = CORE.relative_build_path(f"src/pio/{key}.pio")
+        mkdir_p(os.path.dirname(pio_path))
+        write_file(pio_path, data)
+        includes.append(f"pio/{key}.pio.h")
+
+    write_file(
+        CORE.relative_build_path("src/pio_includes.h"),
+        "#pragma once\n" + "\n".join([f'#include "{include}"' for include in includes]),
+    )
+
+    dir = os.path.dirname(__file__)
+    build_pio_file = os.path.join(dir, "build_pio.py.script")
+    copy_file_if_changed(
+        build_pio_file,
+        CORE.relative_build_path("build_pio.py"),
+    )
+
+    return True
+
+
+# Called by writer.py
+def copy_files() -> bool:
+    return generate_pio_files()

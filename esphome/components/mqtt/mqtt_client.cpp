@@ -2,17 +2,25 @@
 
 #ifdef USE_MQTT
 
+#include <utility>
+#include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/components/network/util.h"
-#include <utility>
+#include "esphome/core/version.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
-#include "lwip/err.h"
 #include "lwip/dns.h"
+#include "lwip/err.h"
 #include "mqtt_component.h"
+
+#ifdef USE_API
+#include "esphome/components/api/api_server.h"
+#endif
+#ifdef USE_DASHBOARD_IMPORT
+#include "esphome/components/dashboard_import/dashboard_import.h"
+#endif
 
 namespace esphome {
 namespace mqtt {
@@ -58,9 +66,69 @@ void MQTTClientComponent::setup() {
   }
 #endif
 
+  if (this->is_discovery_enabled()) {
+    this->subscribe(
+        "esphome/discover", [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); },
+        2);
+
+    std::string topic = "esphome/ping/";
+    topic.append(App.get_name());
+    this->subscribe(
+        topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
+  }
+
   this->last_connected_ = millis();
   this->start_dnslookup_();
 }
+
+void MQTTClientComponent::send_device_info_() {
+  if (!this->is_connected() or !this->is_discovery_enabled()) {
+    return;
+  }
+  std::string topic = "esphome/discover/";
+  topic.append(App.get_name());
+
+  this->publish_json(
+      topic,
+      [](JsonObject root) {
+        auto ip = network::get_ip_address();
+        root["ip"] = ip.str();
+        root["name"] = App.get_name();
+#ifdef USE_API
+        root["port"] = api::global_api_server->get_port();
+#endif
+        root["version"] = ESPHOME_VERSION;
+        root["mac"] = get_mac_address();
+
+#ifdef USE_ESP8266
+        root["platform"] = "ESP8266";
+#endif
+#ifdef USE_ESP32
+        root["platform"] = "ESP32";
+#endif
+#ifdef USE_LIBRETINY
+        root["platform"] = lt_cpu_get_model_name();
+#endif
+
+        root["board"] = ESPHOME_BOARD;
+#if defined(USE_WIFI)
+        root["network"] = "wifi";
+#elif defined(USE_ETHERNET)
+        root["network"] = "ethernet";
+#endif
+
+#ifdef ESPHOME_PROJECT_NAME
+        root["project_name"] = ESPHOME_PROJECT_NAME;
+        root["project_version"] = ESPHOME_PROJECT_VERSION;
+#endif  // ESPHOME_PROJECT_NAME
+
+#ifdef USE_DASHBOARD_IMPORT
+        root["package_import_url"] = dashboard_import::get_package_import_url();
+#endif
+      },
+      2, this->discovery_info_.retain);
+}
+
 void MQTTClientComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT:");
   ESP_LOGCONFIG(TAG, "  Server Address: %s:%u (%s)", this->credentials_.address.c_str(), this->credentials_.port,
@@ -79,7 +147,7 @@ void MQTTClientComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Availability: '%s'", this->availability_.topic.c_str());
   }
 }
-bool MQTTClientComponent::can_proceed() { return this->is_connected(); }
+bool MQTTClientComponent::can_proceed() { return network::is_disabled() || this->is_connected(); }
 
 void MQTTClientComponent::start_dnslookup_() {
   for (auto &subscription : this->subscriptions_) {
@@ -91,7 +159,7 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
                                          MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
 #endif
@@ -103,12 +171,7 @@ void MQTTClientComponent::start_dnslookup_() {
     case ERR_OK: {
       // Got IP immediately
       this->dns_resolved_ = true;
-#ifdef USE_ESP32
-      this->ip_ = addr.u_addr.ip4.addr;
-#endif
-#ifdef USE_ESP8266
-      this->ip_ = addr.addr;
-#endif
+      this->ip_ = network::IPAddress(&addr);
       this->start_connect_();
       return;
     }
@@ -159,12 +222,7 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
   if (ipaddr == nullptr) {
     a_this->dns_resolve_error_ = true;
   } else {
-#ifdef USE_ESP32
-    a_this->ip_ = ipaddr->u_addr.ip4.addr;
-#endif
-#ifdef USE_ESP8266
-    a_this->ip_ = ipaddr->addr;
-#endif
+    a_this->ip_ = network::IPAddress(ipaddr);
     a_this->dns_resolved_ = true;
   }
 }
@@ -218,6 +276,7 @@ void MQTTClientComponent::check_connected() {
   delay(100);  // NOLINT
 
   this->resubscribe_subscriptions_();
+  this->send_device_info_();
 
   for (MQTTComponent *component : this->children_)
     component->schedule_resend_state();
@@ -486,8 +545,8 @@ static bool topic_match(const char *message, const char *subscription) {
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
 #ifdef USE_ESP8266
-  // on ESP8266, this is called in LWiP thread; some components do not like running
-  // in an ISR.
+  // on ESP8266, this is called in lwIP/AsyncTCP task; some components do not like running
+  // from a different task.
   this->defer([this, topic, payload]() {
 #endif
     for (auto &subscription : this->subscriptions_) {

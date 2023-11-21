@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
 
+#include <vector>
+
 namespace esphome {
 namespace custom {
 

@@ -1,5 +1,6 @@
 #include "fingerprint_grow.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace fingerprint_grow {
@@ -77,10 +78,12 @@ void FingerprintGrowComponent::finish_enrollment(uint8_t result) {
     this->enrollment_done_callback_.call(this->enrollment_slot_);
     this->get_fingerprint_count_();
   } else {
-    this->enrollment_failed_callback_.call(this->enrollment_slot_);
+    if (this->enrollment_slot_ != ENROLLMENT_SLOT_UNUSED) {
+      this->enrollment_failed_callback_.call(this->enrollment_slot_);
+    }
   }
   this->enrollment_image_ = 0;
-  this->enrollment_slot_ = 0;
+  this->enrollment_slot_ = ENROLLMENT_SLOT_UNUSED;
   if (this->enrolling_binary_sensor_ != nullptr) {
     this->enrolling_binary_sensor_->publish_state(false);
   }
@@ -95,7 +98,7 @@ void FingerprintGrowComponent::scan_and_match_() {
   }
   if (this->scan_image_(1) == OK) {
     this->waiting_removal_ = true;
-    this->data_ = {SEARCH, 0x01, 0x00, 0x00, (uint8_t)(this->capacity_ >> 8), (uint8_t)(this->capacity_ & 0xFF)};
+    this->data_ = {SEARCH, 0x01, 0x00, 0x00, (uint8_t) (this->capacity_ >> 8), (uint8_t) (this->capacity_ & 0xFF)};
     switch (this->send_command_()) {
       case OK: {
         ESP_LOGD(TAG, "Fingerprint matched");
@@ -171,7 +174,7 @@ uint8_t FingerprintGrowComponent::save_fingerprint_() {
   }
 
   ESP_LOGI(TAG, "Storing model");
-  this->data_ = {STORE, 0x01, (uint8_t)(this->enrollment_slot_ >> 8), (uint8_t)(this->enrollment_slot_ & 0xFF)};
+  this->data_ = {STORE, 0x01, (uint8_t) (this->enrollment_slot_ >> 8), (uint8_t) (this->enrollment_slot_ & 0xFF)};
   switch (this->send_command_()) {
     case OK:
       ESP_LOGI(TAG, "Stored model");
@@ -188,8 +191,8 @@ uint8_t FingerprintGrowComponent::save_fingerprint_() {
 
 bool FingerprintGrowComponent::check_password_() {
   ESP_LOGD(TAG, "Checking password");
-  this->data_ = {VERIFY_PASSWORD, (uint8_t)(this->password_ >> 24), (uint8_t)(this->password_ >> 16),
-                 (uint8_t)(this->password_ >> 8), (uint8_t)(this->password_ & 0xFF)};
+  this->data_ = {VERIFY_PASSWORD, (uint8_t) (this->password_ >> 24), (uint8_t) (this->password_ >> 16),
+                 (uint8_t) (this->password_ >> 8), (uint8_t) (this->password_ & 0xFF)};
   switch (this->send_command_()) {
     case OK:
       ESP_LOGD(TAG, "Password verified");
@@ -202,9 +205,9 @@ bool FingerprintGrowComponent::check_password_() {
 }
 
 bool FingerprintGrowComponent::set_password_() {
-  ESP_LOGI(TAG, "Setting new password: %d", this->new_password_);
-  this->data_ = {SET_PASSWORD, (uint8_t)(this->new_password_ >> 24), (uint8_t)(this->new_password_ >> 16),
-                 (uint8_t)(this->new_password_ >> 8), (uint8_t)(this->new_password_ & 0xFF)};
+  ESP_LOGI(TAG, "Setting new password: %" PRIu32, this->new_password_);
+  this->data_ = {SET_PASSWORD, (uint8_t) (this->new_password_ >> 24), (uint8_t) (this->new_password_ >> 16),
+                 (uint8_t) (this->new_password_ >> 8), (uint8_t) (this->new_password_ & 0xFF)};
   if (this->send_command_() == OK) {
     ESP_LOGI(TAG, "New password successfully set");
     ESP_LOGI(TAG, "Define the new password in your configuration and reflash now");
@@ -250,7 +253,7 @@ void FingerprintGrowComponent::get_fingerprint_count_() {
 
 void FingerprintGrowComponent::delete_fingerprint(uint16_t finger_id) {
   ESP_LOGI(TAG, "Deleting fingerprint in slot %d", finger_id);
-  this->data_ = {DELETE, (uint8_t)(finger_id >> 8), (uint8_t)(finger_id & 0xFF), 0x00, 0x01};
+  this->data_ = {DELETE, (uint8_t) (finger_id >> 8), (uint8_t) (finger_id & 0xFF), 0x00, 0x01};
   switch (this->send_command_()) {
     case OK:
       ESP_LOGI(TAG, "Deleted fingerprint");
@@ -320,8 +323,8 @@ void FingerprintGrowComponent::aura_led_control(uint8_t state, uint8_t speed, ui
 }
 
 uint8_t FingerprintGrowComponent::send_command_() {
-  this->write((uint8_t)(START_CODE >> 8));
-  this->write((uint8_t)(START_CODE & 0xFF));
+  this->write((uint8_t) (START_CODE >> 8));
+  this->write((uint8_t) (START_CODE & 0xFF));
   this->write(this->address_[0]);
   this->write(this->address_[1]);
   this->write(this->address_[2]);
@@ -329,8 +332,8 @@ uint8_t FingerprintGrowComponent::send_command_() {
   this->write(COMMAND);
 
   uint16_t wire_length = this->data_.size() + 2;
-  this->write((uint8_t)(wire_length >> 8));
-  this->write((uint8_t)(wire_length & 0xFF));
+  this->write((uint8_t) (wire_length >> 8));
+  this->write((uint8_t) (wire_length & 0xFF));
 
   uint16_t sum = ((wire_length) >> 8) + ((wire_length) &0xFF) + COMMAND;
   for (auto data : this->data_) {
@@ -338,8 +341,8 @@ uint8_t FingerprintGrowComponent::send_command_() {
     sum += data;
   }
 
-  this->write((uint8_t)(sum >> 8));
-  this->write((uint8_t)(sum & 0xFF));
+  this->write((uint8_t) (sum >> 8));
+  this->write((uint8_t) (sum & 0xFF));
 
   this->data_.clear();
 
@@ -354,11 +357,11 @@ uint8_t FingerprintGrowComponent::send_command_() {
     byte = this->read();
     switch (idx) {
       case 0:
-        if (byte != (uint8_t)(START_CODE >> 8))
+        if (byte != (uint8_t) (START_CODE >> 8))
           continue;
         break;
       case 1:
-        if (byte != (uint8_t)(START_CODE & 0xFF)) {
+        if (byte != (uint8_t) (START_CODE & 0xFF)) {
           idx = 0;
           continue;
         }

@@ -7,11 +7,10 @@
 #include <freertos/task.h>
 #include <esp_idf_version.h>
 #include <esp_task_wdt.h>
+#include <esp_timer.h>
 #include <soc/rtc.h>
 
-#if ESP_IDF_VERSION_MAJOR >= 4
 #include <hal/cpu_hal.h>
-#endif
 
 #ifdef USE_ARDUINO
 #include <esp32-hal.h>
@@ -23,7 +22,7 @@ void loop();
 namespace esphome {
 
 void IRAM_ATTR HOT yield() { vPortYield(); }
-uint32_t IRAM_ATTR HOT millis() { return (uint32_t)(esp_timer_get_time() / 1000ULL); }
+uint32_t IRAM_ATTR HOT millis() { return (uint32_t) (esp_timer_get_time() / 1000ULL); }
 void IRAM_ATTR HOT delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
 uint32_t IRAM_ATTR HOT micros() { return (uint32_t) esp_timer_get_time(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
@@ -54,15 +53,11 @@ void arch_init() {
 void IRAM_ATTR HOT arch_feed_wdt() { esp_task_wdt_reset(); }
 
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
-uint32_t arch_get_cpu_cycle_count() {
-#if ESP_IDF_VERSION_MAJOR >= 4
-  return cpu_hal_get_cycle_count();
+#if ESP_IDF_VERSION_MAJOR >= 5
+uint32_t arch_get_cpu_cycle_count() { return esp_cpu_get_cycle_count(); }
 #else
-  uint32_t ccount;
-  __asm__ __volatile__("esync; rsr %0,ccount" : "=a"(ccount));
-  return ccount;
+uint32_t arch_get_cpu_cycle_count() { return cpu_hal_get_cycle_count(); }
 #endif
-}
 uint32_t arch_get_cpu_freq_hz() { return rtc_clk_apb_freq_get(); }
 
 #ifdef USE_ESP_IDF

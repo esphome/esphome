@@ -7,6 +7,9 @@
 #include "esphome/components/nfc/nfc.h"
 #include "esphome/components/nfc/automation.h"
 
+#include <cinttypes>
+#include <vector>
+
 namespace esphome {
 namespace pn532 {
 
@@ -15,6 +18,7 @@ static const uint8_t PN532_COMMAND_SAMCONFIGURATION = 0x14;
 static const uint8_t PN532_COMMAND_RFCONFIGURATION = 0x32;
 static const uint8_t PN532_COMMAND_INDATAEXCHANGE = 0x40;
 static const uint8_t PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
+static const uint8_t PN532_COMMAND_POWERDOWN = 0x16;
 
 class PN532BinarySensor;
 
@@ -28,6 +32,7 @@ class PN532 : public PollingComponent {
   float get_setup_priority() const override;
 
   void loop() override;
+  void on_shutdown() override { powerdown(); }
 
   void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
@@ -43,6 +48,7 @@ class PN532 : public PollingComponent {
   void clean_mode();
   void format_mode();
   void write_mode(nfc::NdefMessage *message);
+  bool powerdown();
 
  protected:
   void turn_off_rf_();
@@ -69,14 +75,16 @@ class PN532 : public PollingComponent {
   bool write_mifare_classic_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
 
   std::unique_ptr<nfc::NfcTag> read_mifare_ultralight_tag_(std::vector<uint8_t> &uid);
-  bool read_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &data);
-  bool is_mifare_ultralight_formatted_();
+  bool read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, std::vector<uint8_t> &data);
+  bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_to_6);
   uint16_t read_mifare_ultralight_capacity_();
-  bool find_mifare_ultralight_ndef_(uint8_t &message_length, uint8_t &message_start_index);
+  bool find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
+                                    uint8_t &message_start_index);
   bool write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &write_data);
   bool write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
   bool clean_mifare_ultralight_();
 
+  bool updates_enabled_{true};
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;

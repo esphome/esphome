@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -11,7 +12,7 @@ enum NumberMode : uint8_t {
   NUMBER_MODE_SLIDER = 2,
 };
 
-class NumberTraits {
+class NumberTraits : public EntityBase_DeviceClass, public EntityBase_UnitOfMeasurement {
  public:
   // Set/get the number value boundaries.
   void set_min_value(float min_value) { min_value_ = min_value; }
@@ -23,11 +24,6 @@ class NumberTraits {
   void set_step(float step) { step_ = step; }
   float get_step() const { return step_; }
 
-  /// Manually set the unit of measurement.
-  void set_unit_of_measurement(const std::string &unit_of_measurement);
-  /// Get the unit of measurement, using the manual override if set.
-  std::string get_unit_of_measurement();
-
   // Set/get the frontend mode.
   void set_mode(NumberMode mode) { this->mode_ = mode; }
   NumberMode get_mode() const { return this->mode_; }
@@ -36,7 +32,6 @@ class NumberTraits {
   float min_value_ = NAN;
   float max_value_ = NAN;
   float step_ = NAN;
-  optional<std::string> unit_of_measurement_;  ///< Unit of measurement override
   NumberMode mode_{NUMBER_MODE_AUTO};
 };
 

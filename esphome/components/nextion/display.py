@@ -18,6 +18,7 @@ from .base_component import (
     CONF_TFT_URL,
     CONF_TOUCH_SLEEP_TIMEOUT,
     CONF_WAKE_UP_PAGE,
+    CONF_START_UP_PAGE,
     CONF_AUTO_WAKE_ON_TOUCH,
 )
 
@@ -35,7 +36,7 @@ CONFIG_SCHEMA = (
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(Nextion),
-            cv.Optional(CONF_TFT_URL): cv.All(cv.string, cv.only_with_arduino),
+            cv.Optional(CONF_TFT_URL): cv.url,
             cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
             cv.Optional(CONF_ON_SETUP): automation.validate_automation(
                 {
@@ -59,6 +60,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.int_range(min=3, max=65535),
             cv.Optional(CONF_WAKE_UP_PAGE): cv.positive_int,
+            cv.Optional(CONF_START_UP_PAGE): cv.positive_int,
             cv.Optional(CONF_AUTO_WAKE_ON_TOUCH, default=True): cv.boolean,
         }
     )
@@ -83,15 +85,20 @@ async def to_code(config):
     if CONF_TFT_URL in config:
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
-        if CORE.is_esp32:
+        if CORE.is_esp32 and CORE.using_arduino:
             cg.add_library("WiFiClientSecure", None)
             cg.add_library("HTTPClient", None)
+        elif CORE.is_esp8266 and CORE.using_arduino:
+            cg.add_library("ESP8266HTTPClient", None)
 
     if CONF_TOUCH_SLEEP_TIMEOUT in config:
         cg.add(var.set_touch_sleep_timeout_internal(config[CONF_TOUCH_SLEEP_TIMEOUT]))
 
     if CONF_WAKE_UP_PAGE in config:
         cg.add(var.set_wake_up_page_internal(config[CONF_WAKE_UP_PAGE]))
+
+    if CONF_START_UP_PAGE in config:
+        cg.add(var.set_start_up_page_internal(config[CONF_START_UP_PAGE]))
 
     if CONF_AUTO_WAKE_ON_TOUCH in config:
         cg.add(var.set_auto_wake_on_touch_internal(config[CONF_AUTO_WAKE_ON_TOUCH]))

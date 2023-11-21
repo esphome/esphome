@@ -30,6 +30,9 @@ void MDNSComponent::compile_records_() {
     service.service_type = "_esphomelib";
     service.proto = "_tcp";
     service.port = api::global_api_server->get_port();
+    if (!App.get_friendly_name().empty()) {
+      service.txt_records.push_back({"friendly_name", App.get_friendly_name()});
+    }
     service.txt_records.push_back({"version", ESPHOME_VERSION});
     service.txt_records.push_back({"mac", get_mac_address()});
     const char *platform = nullptr;
@@ -42,6 +45,9 @@ void MDNSComponent::compile_records_() {
 #ifdef USE_RP2040
     platform = "RP2040";
 #endif
+#ifdef USE_LIBRETINY
+    platform = lt_cpu_get_model_name();
+#endif
     if (platform != nullptr) {
       service.txt_records.push_back({"platform", platform});
     }
@@ -52,6 +58,10 @@ void MDNSComponent::compile_records_() {
     service.txt_records.push_back({"network", "wifi"});
 #elif defined(USE_ETHERNET)
     service.txt_records.push_back({"network", "ethernet"});
+#endif
+
+#ifdef USE_API_NOISE
+    service.txt_records.push_back({"api_encryption", "Noise_NNpsk0_25519_ChaChaPoly_SHA256"});
 #endif
 
 #ifdef ESPHOME_PROJECT_NAME
@@ -86,6 +96,8 @@ void MDNSComponent::compile_records_() {
     this->services_.push_back(service);
   }
 #endif
+
+  this->services_.insert(this->services_.end(), this->services_extra_.begin(), this->services_extra_.end());
 
   if (this->services_.empty()) {
     // Publish "http" service if not using native API

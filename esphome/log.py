@@ -71,6 +71,8 @@ def setup_log(
 ) -> None:
     import colorama
 
+    colorama.init()
+
     if debug:
         log_level = logging.DEBUG
         CORE.verbose = True
@@ -82,7 +84,6 @@ def setup_log(
 
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
-    colorama.init()
     logging.getLogger().handlers[0].setFormatter(
         ESPHomeLogFormatter(include_timestamp=include_timestamp)
     )

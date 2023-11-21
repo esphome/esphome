@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TYPE, CONF_UUID, CONF_TX_POWER
 from esphome.core import CORE, TimePeriod
 from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components import esp32_ble
 
 DEPENDENCIES = ["esp32"]
 CONFLICTS_WITH = ["esp32_ble_tracker"]
@@ -54,6 +55,8 @@ CONFIG_SCHEMA = cv.All(
     validate_config,
 )
 
+FINAL_VALIDATE_SCHEMA = esp32_ble.validate_variant
+
 
 async def to_code(config):
     uuid = config[CONF_UUID].hex
@@ -69,3 +72,4 @@ async def to_code(config):
 
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+        add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)

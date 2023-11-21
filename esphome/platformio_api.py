@@ -37,7 +37,6 @@ def patch_structhash():
         if not isdir(build_dir):
             makedirs(build_dir)
 
-    # pylint: disable=protected-access
     helpers.clean_build_dir = patched_clean_build_dir
     cli.clean_build_dir = patched_clean_build_dir
 
@@ -48,7 +47,7 @@ FILTER_PLATFORMIO_LINES = [
     r"CONFIGURATION: https://docs.platformio.org/.*",
     r"DEBUG: Current.*",
     r"LDF Modes:.*",
-    r"LDF: Library Dependency Finder -> http://bit.ly/configure-pio-ldf.*",
+    r"LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf.*",
     f"Looking for {IGNORE_LIB_WARNINGS} library in registry",
     f"Warning! Library `.*'{IGNORE_LIB_WARNINGS}.*` has not been found in PlatformIO Registry.",
     f"You can ignore this message, if `.*{IGNORE_LIB_WARNINGS}.*` is a built-in library.*",

@@ -208,6 +208,62 @@ static const uint8_t MCP_8MHZ_5KBPS_CFG2 = 0xBF;
 static const uint8_t MCP_8MHZ_5KBPS_CFG3 = 0x87;
 
 /*
+ *  Speed 12M
+ */
+
+static const uint8_t MCP_12MHZ_1000KBPS_CFG1 = 0x00;
+static const uint8_t MCP_12MHZ_1000KBPS_CFG2 = 0x88;
+static const uint8_t MCP_12MHZ_1000KBPS_CFG3 = 0x81;
+
+static const uint8_t MCP_12MHZ_500KBPS_CFG1 = 0x00;
+static const uint8_t MCP_12MHZ_500KBPS_CFG2 = 0x9B;
+static const uint8_t MCP_12MHZ_500KBPS_CFG3 = 0x82;
+
+static const uint8_t MCP_12MHZ_250KBPS_CFG1 = 0x01;
+static const uint8_t MCP_12MHZ_250KBPS_CFG2 = 0x9B;
+static const uint8_t MCP_12MHZ_250KBPS_CFG3 = 0x82;
+
+static const uint8_t MCP_12MHZ_200KBPS_CFG1 = 0x01;
+static const uint8_t MCP_12MHZ_200KBPS_CFG2 = 0xA4;
+static const uint8_t MCP_12MHZ_200KBPS_CFG3 = 0x83;
+
+static const uint8_t MCP_12MHZ_125KBPS_CFG1 = 0x03;
+static const uint8_t MCP_12MHZ_125KBPS_CFG2 = 0x9B;
+static const uint8_t MCP_12MHZ_125KBPS_CFG3 = 0x82;
+
+static const uint8_t MCP_12MHZ_100KBPS_CFG1 = 0x03;
+static const uint8_t MCP_12MHZ_100KBPS_CFG2 = 0xA4;
+static const uint8_t MCP_12MHZ_100KBPS_CFG3 = 0x83;
+
+static const uint8_t MCP_12MHZ_80KBPS_CFG1 = 0x04;
+static const uint8_t MCP_12MHZ_80KBPS_CFG2 = 0xA4;
+static const uint8_t MCP_12MHZ_80KBPS_CFG3 = 0x83;
+
+static const uint8_t MCP_12MHZ_50KBPS_CFG1 = 0x07;
+static const uint8_t MCP_12MHZ_50KBPS_CFG2 = 0xA4;
+static const uint8_t MCP_12MHZ_50KBPS_CFG3 = 0x83;
+
+static const uint8_t MCP_12MHZ_40KBPS_CFG1 = 0x09;
+static const uint8_t MCP_12MHZ_40KBPS_CFG2 = 0xA4;
+static const uint8_t MCP_12MHZ_40KBPS_CFG3 = 0x83;
+
+static const uint8_t MCP_12MHZ_33K3BPS_CFG1 = 0x08;
+static const uint8_t MCP_12MHZ_33K3BPS_CFG2 = 0xB6;
+static const uint8_t MCP_12MHZ_33K3BPS_CFG3 = 0x84;
+
+static const uint8_t MCP_12MHZ_20KBPS_CFG1 = 0x0E;
+static const uint8_t MCP_12MHZ_20KBPS_CFG2 = 0xB6;
+static const uint8_t MCP_12MHZ_20KBPS_CFG3 = 0x84;
+
+static const uint8_t MCP_12MHZ_10KBPS_CFG1 = 0x31;
+static const uint8_t MCP_12MHZ_10KBPS_CFG2 = 0x9B;
+static const uint8_t MCP_12MHZ_10KBPS_CFG3 = 0x82;
+
+static const uint8_t MCP_12MHZ_5KBPS_CFG1 = 0x3B;
+static const uint8_t MCP_12MHZ_5KBPS_CFG2 = 0xB6;
+static const uint8_t MCP_12MHZ_5KBPS_CFG3 = 0x84;
+
+/*
  *  speed 16M
  */
 static const uint8_t MCP_16MHZ_1000KBPS_CFG1 = 0x00;

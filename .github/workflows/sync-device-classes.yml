@@ -1,0 +1,48 @@
+---
+name: Synchronise Device Classes from Home Assistant
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "45 6 * * *"
+
+jobs:
+  sync:
+    name: Sync Device Classes
+    runs-on: ubuntu-latest
+    if: github.repository == 'esphome/esphome'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.1
+
+      - name: Checkout Home Assistant
+        uses: actions/checkout@v4.1.1
+        with:
+          repository: home-assistant/core
+          path: lib/home-assistant
+
+      - name: Setup Python
+        uses: actions/setup-python@v4.7.1
+        with:
+          python-version: 3.11
+
+      - name: Install Home Assistant
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e lib/home-assistant
+
+      - name: Sync
+        run: |
+          python ./script/sync-device_class.py
+
+      - name: Commit changes
+        uses: peter-evans/create-pull-request@v5.0.2
+        with:
+          commit-message: "Synchronise Device Classes from Home Assistant"
+          committer: esphomebot <esphome@nabucasa.com>
+          author: esphomebot <esphome@nabucasa.com>
+          branch: sync/device-classes
+          delete-branch: true
+          title: "Synchronise Device Classes from Home Assistant"
+          body-path: .github/PULL_REQUEST_TEMPLATE.md
+          token: ${{ secrets.DEVICE_CLASS_SYNC_TOKEN }}

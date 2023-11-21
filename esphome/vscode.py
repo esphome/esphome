@@ -1,13 +1,11 @@
 import json
 import os
 
-# pylint: disable=unused-import
+from typing import Optional
+
 from esphome.config import load_config, _format_vol_invalid, Config
 from esphome.core import CORE, DocumentRange
 import esphome.config_validation as cv
-
-# pylint: disable=unused-import, wrong-import-order
-from typing import Optional
 
 
 def _get_invalid_range(res: Config, invalid: cv.Invalid) -> Optional[DocumentRange]:

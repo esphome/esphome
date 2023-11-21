@@ -35,6 +35,10 @@ class DFPlayer : public uart::UARTDevice, public Component {
     this->ack_set_is_playing_ = true;
     this->send_cmd_(0x02);
   }
+  void play_mp3(uint16_t file) {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x12, file);
+  }
   void play_file(uint16_t file) {
     this->ack_set_is_playing_ = true;
     this->send_cmd_(0x03, file);
@@ -112,6 +116,16 @@ class DFPlayer : public uart::UARTDevice, public Component {
 
 DFPLAYER_SIMPLE_ACTION(NextAction, next)
 DFPLAYER_SIMPLE_ACTION(PreviousAction, previous)
+
+template<typename... Ts> class PlayMp3Action : public Action<Ts...>, public Parented<DFPlayer> {
+ public:
+  TEMPLATABLE_VALUE(uint16_t, file)
+
+  void play(Ts... x) override {
+    auto file = this->file_.value(x...);
+    this->parent_->play_mp3(file);
+  }
+};
 
 template<typename... Ts> class PlayFileAction : public Action<Ts...>, public Parented<DFPlayer> {
  public:

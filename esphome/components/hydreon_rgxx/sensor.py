@@ -6,8 +6,10 @@ from esphome.const import (
     CONF_MODEL,
     CONF_MOISTURE,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_PRECIPITATION_INTENSITY,
+    DEVICE_CLASS_PRECIPITATION,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
     ICON_THERMOMETER,
 )
@@ -23,12 +25,17 @@ CONF_EVENT_ACC = "event_acc"
 CONF_TOTAL_ACC = "total_acc"
 CONF_R_INT = "r_int"
 
+CONF_DISABLE_LED = "disable_led"
+
 RG_MODELS = {
     "RG_9": RGModel.RG9,
     "RG_15": RGModel.RG15,
-    # https://rainsensors.com/wp-content/uploads/sites/3/2020/07/rg-15_instructions_sw_1.000.pdf
-    # https://rainsensors.com/wp-content/uploads/sites/3/2021/03/2020.08.25-rg-9_instructions.pdf
-    # https://rainsensors.com/wp-content/uploads/sites/3/2021/03/2021.03.11-rg-9_instructions.pdf
+    # RG-15
+    # 1.000 - https://rainsensors.com/wp-content/uploads/sites/3/2020/07/rg-15_instructions_sw_1.000.pdf
+    # RG-9
+    # 1.000 - https://rainsensors.com/wp-content/uploads/sites/3/2021/03/2020.08.25-rg-9_instructions.pdf
+    # 1.100 - https://rainsensors.com/wp-content/uploads/sites/3/2021/03/2021.03.11-rg-9_instructions.pdf
+    # 1.200 - https://rainsensors.com/wp-content/uploads/sites/3/2022/03/2022.02.17-rev-1.200-rg-9_instructions.pdf
 }
 SUPPORTED_SENSORS = {
     CONF_ACC: ["RG_15"],
@@ -37,6 +44,7 @@ SUPPORTED_SENSORS = {
     CONF_R_INT: ["RG_15"],
     CONF_MOISTURE: ["RG_9"],
     CONF_TEMPERATURE: ["RG_9"],
+    CONF_DISABLE_LED: ["RG_9"],
 }
 PROTOCOL_NAMES = {
     CONF_MOISTURE: "R",
@@ -70,31 +78,31 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ACC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETERS,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
+                device_class=DEVICE_CLASS_PRECIPITATION,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_EVENT_ACC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETERS,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
+                device_class=DEVICE_CLASS_PRECIPITATION,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TOTAL_ACC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETERS,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                device_class=DEVICE_CLASS_PRECIPITATION,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_R_INT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETERS_PER_HOUR,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
+                device_class=DEVICE_CLASS_PRECIPITATION_INTENSITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_INTENSITY,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_HUMIDITY,
+                device_class=DEVICE_CLASS_PRECIPITATION_INTENSITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
@@ -103,6 +111,7 @@ CONFIG_SCHEMA = cv.All(
                 icon=ICON_THERMOMETER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_DISABLE_LED): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -130,3 +139,6 @@ async def to_code(config):
             cg.add(var.set_sensor(sens, i))
 
     cg.add(var.set_request_temperature(CONF_TEMPERATURE in config))
+
+    if CONF_DISABLE_LED in config:
+        cg.add(var.set_disable_led(config[CONF_DISABLE_LED]))

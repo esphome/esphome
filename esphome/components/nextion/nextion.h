@@ -1,25 +1,29 @@
 #pragma once
 
 #include <deque>
+#include <vector>
+
 #include "esphome/core/defines.h"
+#include "esphome/core/time.h"
+
 #include "esphome/components/uart/uart.h"
 #include "nextion_base.h"
 #include "nextion_component.h"
 #include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
+#ifdef ARDUINO
 #ifdef USE_ESP32
 #include <HTTPClient.h>
-#endif
+#endif  // USE_ESP32
 #ifdef USE_ESP8266
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#endif
-#endif
-
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
-#endif
+#endif  // USE_ESP8266
+#elif defined(USE_ESP_IDF)
+#include <esp_http_client.h>
+#endif  // ARDUINO vs ESP-IDF
+#endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome {
 namespace nextion {
@@ -316,13 +320,11 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Changes the font of the component named `textveiw`. Font IDs are set in the Nextion Editor.
    */
   void set_component_font(const char *component, uint8_t font_id) override;
-#ifdef USE_TIME
   /**
    * Send the current time to the nextion display.
    * @param time The time instance to send (get this with id(my_time).now() ).
    */
-  void set_nextion_rtc_time(time::ESPTime time);
-#endif
+  void set_nextion_rtc_time(ESPTime time);
 
   /**
    * Show the page with a given name.
@@ -336,6 +338,18 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Switches to the page named `main`. Pages are named in the Nextion Editor.
    */
   void goto_page(const char *page);
+  /**
+   * Show the page with a given id.
+   * @param page The id of the page.
+   *
+   * Example:
+   * ```cpp
+   * it.goto_page(2);
+   * ```
+   *
+   * Switches to the page named `main`. Pages are named in the Nextion Editor.
+   */
+  void goto_page(uint8_t page);
   /**
    * Hide a component.
    * @param component The component name.
@@ -608,6 +622,20 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void set_wake_up_page(uint8_t page_id = 255);
   /**
+   * Sets which page Nextion loads when connecting to ESPHome.
+   * @param page_id The page id, from 0 to the lage page in Nextion. Set 255 (not set to any existing page) to
+   * wakes up to current page.
+   *
+   * Example:
+   * ```cpp
+   * it.set_start_up_page(2);
+   * ```
+   *
+   * The display will go to page 2 when it establishes a connection to ESPHome.
+   */
+  void set_start_up_page(uint8_t page_id = 255);
+
+  /**
    * Sets if Nextion should auto-wake from sleep when touch press occurs.
    * @param auto_wake True or false. When auto_wake is true and Nextion is in sleep mode,
    * the first touch will only trigger the auto wake mode and not trigger a Touch Event.
@@ -625,6 +653,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param True or false. Sleep=true to enter sleep mode or sleep=false to exit sleep mode.
    */
   void sleep(bool sleep);
+  /**
+   * Sets Nextion Protocol Reparse mode between active or passive
+   * @param True or false.
+   * active_mode=true to enter active protocol reparse mode
+   * active_mode=false to enter passive protocol reparse mode.
+   */
+  void set_protocol_reparse_mode(bool active_mode);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -654,16 +689,18 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef USE_NEXTION_TFT_UPLOAD
   /**
-   * Set the tft file URL. https seems problamtic with arduino..
+   * Set the tft file URL. https seems problematic with arduino..
    */
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
 
 #endif
 
   /**
-   * Upload the tft file and softreset the Nextion
+   * Upload the tft file and soft reset Nextion
+   * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
-  void upload_tft();
+  bool upload_tft();
+
   void dump_config() override;
 
   /**
@@ -731,10 +768,12 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
     this->touch_sleep_timeout_ = touch_sleep_timeout;
   }
   void set_wake_up_page_internal(uint8_t wake_up_page) { this->wake_up_page_ = wake_up_page; }
+  void set_start_up_page_internal(uint8_t start_up_page) { this->start_up_page_ = start_up_page; }
   void set_auto_wake_on_touch_internal(bool auto_wake_on_touch) { this->auto_wake_on_touch_ = auto_wake_on_touch; }
 
  protected:
   std::deque<NextionQueue *> nextion_queue_;
+  std::deque<NextionQueue *> waveform_queue_;
   uint16_t recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag);
   void all_components_send_state_(bool force_update = false);
   uint64_t comok_sent_ = 0;
@@ -752,6 +791,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   bool is_updating_ = false;
   uint32_t touch_sleep_timeout_ = 0;
   int wake_up_page_ = -1;
+  int start_up_page_ = -1;
   bool auto_wake_on_touch_ = true;
 
   /**
@@ -775,22 +815,24 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
                                                  const std::string &variable_name_to_send,
                                                  const std::string &state_value, bool is_sleep_safe = false);
 
+  void check_pending_waveform_();
+
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP8266
   WiFiClient *wifi_client_{nullptr};
   BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
   WiFiClient *get_wifi_client_();
 #endif
-
+  int content_length_ = 0;
+  int tft_size_ = 0;
+#ifdef ARDUINO
   /**
    * will request chunk_size chunks from the web server
    * and send each to the nextion
-   * @param int contentLength Total size of the file
-   * @param uint32_t chunk_size
-   * @return true if success, false for failure.
+   * @param HTTPClient http HTTP client handler.
+   * @param int range_start Position of next byte to transfer.
+   * @return position of last byte transferred, -1 for failure.
    */
-  int content_length_ = 0;
-  int tft_size_ = 0;
   int upload_by_chunks_(HTTPClient *http, int range_start);
 
   bool upload_with_range_(uint32_t range_start, uint32_t range_end);
@@ -803,7 +845,30 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return true if success, false for failure.
    */
   bool upload_from_buffer_(const uint8_t *file_buf, size_t buf_size);
-  void upload_end_();
+  /**
+   * Ends the upload process, restart Nextion and, if successful,
+   * restarts ESP
+   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
+   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   */
+  bool upload_end_(bool successful);
+#elif defined(USE_ESP_IDF)
+  /**
+   * will request 4096 bytes chunks from the web server
+   * and send each to Nextion
+   * @param std::string url Full url for download.
+   * @param int range_start Position of next byte to transfer.
+   * @return position of last byte transferred, -1 for failure.
+   */
+  int upload_range(const std::string &url, int range_start);
+  /**
+   * Ends the upload process, restart Nextion and, if successful,
+   * restarts ESP
+   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
+   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   */
+  bool upload_end(bool successful);
+#endif  // ARDUINO vs ESP-IDF
 
 #endif  // USE_NEXTION_TFT_UPLOAD
 

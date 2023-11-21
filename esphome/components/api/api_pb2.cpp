@@ -3,9 +3,12 @@
 #include "api_pb2.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace api {
 
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::EntityCategory>(enums::EntityCategory value) {
   switch (value) {
     case enums::ENTITY_CATEGORY_NONE:
@@ -18,6 +21,8 @@ template<> const char *proto_enum_to_string<enums::EntityCategory>(enums::Entity
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::LegacyCoverState>(enums::LegacyCoverState value) {
   switch (value) {
     case enums::LEGACY_COVER_STATE_OPEN:
@@ -28,6 +33,8 @@ template<> const char *proto_enum_to_string<enums::LegacyCoverState>(enums::Lega
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::CoverOperation>(enums::CoverOperation value) {
   switch (value) {
     case enums::COVER_OPERATION_IDLE:
@@ -40,6 +47,8 @@ template<> const char *proto_enum_to_string<enums::CoverOperation>(enums::CoverO
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::LegacyCoverCommand>(enums::LegacyCoverCommand value) {
   switch (value) {
     case enums::LEGACY_COVER_COMMAND_OPEN:
@@ -52,6 +61,8 @@ template<> const char *proto_enum_to_string<enums::LegacyCoverCommand>(enums::Le
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::FanSpeed>(enums::FanSpeed value) {
   switch (value) {
     case enums::FAN_SPEED_LOW:
@@ -64,6 +75,8 @@ template<> const char *proto_enum_to_string<enums::FanSpeed>(enums::FanSpeed val
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::FanDirection>(enums::FanDirection value) {
   switch (value) {
     case enums::FAN_DIRECTION_FORWARD:
@@ -74,6 +87,8 @@ template<> const char *proto_enum_to_string<enums::FanDirection>(enums::FanDirec
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ColorMode>(enums::ColorMode value) {
   switch (value) {
     case enums::COLOR_MODE_UNKNOWN:
@@ -100,6 +115,8 @@ template<> const char *proto_enum_to_string<enums::ColorMode>(enums::ColorMode v
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::SensorStateClass value) {
   switch (value) {
     case enums::STATE_CLASS_NONE:
@@ -114,6 +131,8 @@ template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::Sens
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::SensorLastResetType>(enums::SensorLastResetType value) {
   switch (value) {
     case enums::LAST_RESET_NONE:
@@ -126,6 +145,8 @@ template<> const char *proto_enum_to_string<enums::SensorLastResetType>(enums::S
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel value) {
   switch (value) {
     case enums::LOG_LEVEL_NONE:
@@ -148,6 +169,8 @@ template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel val
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::ServiceArgType value) {
   switch (value) {
     case enums::SERVICE_ARG_TYPE_BOOL:
@@ -170,6 +193,8 @@ template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::Servic
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ClimateMode>(enums::ClimateMode value) {
   switch (value) {
     case enums::CLIMATE_MODE_OFF:
@@ -190,6 +215,8 @@ template<> const char *proto_enum_to_string<enums::ClimateMode>(enums::ClimateMo
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ClimateFanMode>(enums::ClimateFanMode value) {
   switch (value) {
     case enums::CLIMATE_FAN_ON:
@@ -210,10 +237,14 @@ template<> const char *proto_enum_to_string<enums::ClimateFanMode>(enums::Climat
       return "CLIMATE_FAN_FOCUS";
     case enums::CLIMATE_FAN_DIFFUSE:
       return "CLIMATE_FAN_DIFFUSE";
+    case enums::CLIMATE_FAN_QUIET:
+      return "CLIMATE_FAN_QUIET";
     default:
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ClimateSwingMode>(enums::ClimateSwingMode value) {
   switch (value) {
     case enums::CLIMATE_SWING_OFF:
@@ -228,6 +259,8 @@ template<> const char *proto_enum_to_string<enums::ClimateSwingMode>(enums::Clim
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::ClimateAction value) {
   switch (value) {
     case enums::CLIMATE_ACTION_OFF:
@@ -246,6 +279,8 @@ template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::Climate
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::ClimatePreset value) {
   switch (value) {
     case enums::CLIMATE_PRESET_NONE:
@@ -268,6 +303,8 @@ template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::Climate
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode value) {
   switch (value) {
     case enums::NUMBER_MODE_AUTO:
@@ -280,6 +317,8 @@ template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::LockState>(enums::LockState value) {
   switch (value) {
     case enums::LOCK_STATE_NONE:
@@ -298,6 +337,8 @@ template<> const char *proto_enum_to_string<enums::LockState>(enums::LockState v
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::LockCommand>(enums::LockCommand value) {
   switch (value) {
     case enums::LOCK_UNLOCK:
@@ -310,6 +351,8 @@ template<> const char *proto_enum_to_string<enums::LockCommand>(enums::LockComma
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::MediaPlayerState>(enums::MediaPlayerState value) {
   switch (value) {
     case enums::MEDIA_PLAYER_STATE_NONE:
@@ -324,6 +367,8 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerState>(enums::Medi
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::MediaPlayerCommand value) {
   switch (value) {
     case enums::MEDIA_PLAYER_COMMAND_PLAY:
@@ -340,6 +385,8 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::Me
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<>
 const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
   switch (value) {
@@ -351,10 +398,132 @@ const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::Bluet
       return "BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR";
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
       return "BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR";
+    case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE:
+      return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE";
+    case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE:
+      return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE";
+    case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE:
+      return "BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE";
     default:
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
+template<> const char *proto_enum_to_string<enums::VoiceAssistantRequestFlag>(enums::VoiceAssistantRequestFlag value) {
+  switch (value) {
+    case enums::VOICE_ASSISTANT_REQUEST_NONE:
+      return "VOICE_ASSISTANT_REQUEST_NONE";
+    case enums::VOICE_ASSISTANT_REQUEST_USE_VAD:
+      return "VOICE_ASSISTANT_REQUEST_USE_VAD";
+    case enums::VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD:
+      return "VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
+template<> const char *proto_enum_to_string<enums::VoiceAssistantEvent>(enums::VoiceAssistantEvent value) {
+  switch (value) {
+    case enums::VOICE_ASSISTANT_ERROR:
+      return "VOICE_ASSISTANT_ERROR";
+    case enums::VOICE_ASSISTANT_RUN_START:
+      return "VOICE_ASSISTANT_RUN_START";
+    case enums::VOICE_ASSISTANT_RUN_END:
+      return "VOICE_ASSISTANT_RUN_END";
+    case enums::VOICE_ASSISTANT_STT_START:
+      return "VOICE_ASSISTANT_STT_START";
+    case enums::VOICE_ASSISTANT_STT_END:
+      return "VOICE_ASSISTANT_STT_END";
+    case enums::VOICE_ASSISTANT_INTENT_START:
+      return "VOICE_ASSISTANT_INTENT_START";
+    case enums::VOICE_ASSISTANT_INTENT_END:
+      return "VOICE_ASSISTANT_INTENT_END";
+    case enums::VOICE_ASSISTANT_TTS_START:
+      return "VOICE_ASSISTANT_TTS_START";
+    case enums::VOICE_ASSISTANT_TTS_END:
+      return "VOICE_ASSISTANT_TTS_END";
+    case enums::VOICE_ASSISTANT_WAKE_WORD_START:
+      return "VOICE_ASSISTANT_WAKE_WORD_START";
+    case enums::VOICE_ASSISTANT_WAKE_WORD_END:
+      return "VOICE_ASSISTANT_WAKE_WORD_END";
+    case enums::VOICE_ASSISTANT_STT_VAD_START:
+      return "VOICE_ASSISTANT_STT_VAD_START";
+    case enums::VOICE_ASSISTANT_STT_VAD_END:
+      return "VOICE_ASSISTANT_STT_VAD_END";
+    case enums::VOICE_ASSISTANT_TTS_STREAM_START:
+      return "VOICE_ASSISTANT_TTS_STREAM_START";
+    case enums::VOICE_ASSISTANT_TTS_STREAM_END:
+      return "VOICE_ASSISTANT_TTS_STREAM_END";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
+template<> const char *proto_enum_to_string<enums::AlarmControlPanelState>(enums::AlarmControlPanelState value) {
+  switch (value) {
+    case enums::ALARM_STATE_DISARMED:
+      return "ALARM_STATE_DISARMED";
+    case enums::ALARM_STATE_ARMED_HOME:
+      return "ALARM_STATE_ARMED_HOME";
+    case enums::ALARM_STATE_ARMED_AWAY:
+      return "ALARM_STATE_ARMED_AWAY";
+    case enums::ALARM_STATE_ARMED_NIGHT:
+      return "ALARM_STATE_ARMED_NIGHT";
+    case enums::ALARM_STATE_ARMED_VACATION:
+      return "ALARM_STATE_ARMED_VACATION";
+    case enums::ALARM_STATE_ARMED_CUSTOM_BYPASS:
+      return "ALARM_STATE_ARMED_CUSTOM_BYPASS";
+    case enums::ALARM_STATE_PENDING:
+      return "ALARM_STATE_PENDING";
+    case enums::ALARM_STATE_ARMING:
+      return "ALARM_STATE_ARMING";
+    case enums::ALARM_STATE_DISARMING:
+      return "ALARM_STATE_DISARMING";
+    case enums::ALARM_STATE_TRIGGERED:
+      return "ALARM_STATE_TRIGGERED";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
+template<>
+const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::AlarmControlPanelStateCommand value) {
+  switch (value) {
+    case enums::ALARM_CONTROL_PANEL_DISARM:
+      return "ALARM_CONTROL_PANEL_DISARM";
+    case enums::ALARM_CONTROL_PANEL_ARM_AWAY:
+      return "ALARM_CONTROL_PANEL_ARM_AWAY";
+    case enums::ALARM_CONTROL_PANEL_ARM_HOME:
+      return "ALARM_CONTROL_PANEL_ARM_HOME";
+    case enums::ALARM_CONTROL_PANEL_ARM_NIGHT:
+      return "ALARM_CONTROL_PANEL_ARM_NIGHT";
+    case enums::ALARM_CONTROL_PANEL_ARM_VACATION:
+      return "ALARM_CONTROL_PANEL_ARM_VACATION";
+    case enums::ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS:
+      return "ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS";
+    case enums::ALARM_CONTROL_PANEL_TRIGGER:
+      return "ALARM_CONTROL_PANEL_TRIGGER";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
+template<> const char *proto_enum_to_string<enums::TextMode>(enums::TextMode value) {
+  switch (value) {
+    case enums::TEXT_MODE_TEXT:
+      return "TEXT_MODE_TEXT";
+    case enums::TEXT_MODE_PASSWORD:
+      return "TEXT_MODE_PASSWORD";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
 bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -393,12 +562,12 @@ void HelloRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  api_version_major: ");
-  sprintf(buffer, "%u", this->api_version_major);
+  sprintf(buffer, "%" PRIu32, this->api_version_major);
   out.append(buffer);
   out.append("\n");
 
   out.append("  api_version_minor: ");
-  sprintf(buffer, "%u", this->api_version_minor);
+  sprintf(buffer, "%" PRIu32, this->api_version_minor);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -443,12 +612,12 @@ void HelloResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("HelloResponse {\n");
   out.append("  api_version_major: ");
-  sprintf(buffer, "%u", this->api_version_major);
+  sprintf(buffer, "%" PRIu32, this->api_version_major);
   out.append(buffer);
   out.append("\n");
 
   out.append("  api_version_minor: ");
-  sprintf(buffer, "%u", this->api_version_minor);
+  sprintf(buffer, "%" PRIu32, this->api_version_minor);
   out.append(buffer);
   out.append("\n");
 
@@ -539,7 +708,15 @@ bool DeviceInfoResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return true;
     }
     case 11: {
-      this->bluetooth_proxy_version = value.as_uint32();
+      this->legacy_bluetooth_proxy_version = value.as_uint32();
+      return true;
+    }
+    case 15: {
+      this->bluetooth_proxy_feature_flags = value.as_uint32();
+      return true;
+    }
+    case 14: {
+      this->voice_assistant_version = value.as_uint32();
       return true;
     }
     default:
@@ -580,6 +757,14 @@ bool DeviceInfoResponse::decode_length(uint32_t field_id, ProtoLengthDelimited v
       this->manufacturer = value.as_string();
       return true;
     }
+    case 13: {
+      this->friendly_name = value.as_string();
+      return true;
+    }
+    case 16: {
+      this->suggested_area = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -595,8 +780,12 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(8, this->project_name);
   buffer.encode_string(9, this->project_version);
   buffer.encode_uint32(10, this->webserver_port);
-  buffer.encode_uint32(11, this->bluetooth_proxy_version);
+  buffer.encode_uint32(11, this->legacy_bluetooth_proxy_version);
+  buffer.encode_uint32(15, this->bluetooth_proxy_feature_flags);
   buffer.encode_string(12, this->manufacturer);
+  buffer.encode_string(13, this->friendly_name);
+  buffer.encode_uint32(14, this->voice_assistant_version);
+  buffer.encode_string(16, this->suggested_area);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
@@ -639,17 +828,35 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  webserver_port: ");
-  sprintf(buffer, "%u", this->webserver_port);
+  sprintf(buffer, "%" PRIu32, this->webserver_port);
   out.append(buffer);
   out.append("\n");
 
-  out.append("  bluetooth_proxy_version: ");
-  sprintf(buffer, "%u", this->bluetooth_proxy_version);
+  out.append("  legacy_bluetooth_proxy_version: ");
+  sprintf(buffer, "%" PRIu32, this->legacy_bluetooth_proxy_version);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  bluetooth_proxy_feature_flags: ");
+  sprintf(buffer, "%" PRIu32, this->bluetooth_proxy_feature_flags);
   out.append(buffer);
   out.append("\n");
 
   out.append("  manufacturer: ");
   out.append("'").append(this->manufacturer).append("'");
+  out.append("\n");
+
+  out.append("  friendly_name: ");
+  out.append("'").append(this->friendly_name).append("'");
+  out.append("\n");
+
+  out.append("  voice_assistant_version: ");
+  sprintf(buffer, "%" PRIu32, this->voice_assistant_version);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  suggested_area: ");
+  out.append("'").append(this->suggested_area).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -740,7 +947,7 @@ void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -808,7 +1015,7 @@ void BinarySensorStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("BinarySensorStateResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -842,6 +1049,10 @@ bool ListEntitiesCoverResponse::decode_varint(uint32_t field_id, ProtoVarInt val
     }
     case 11: {
       this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
+    case 12: {
+      this->supports_stop = value.as_bool();
       return true;
     }
     default:
@@ -896,6 +1107,7 @@ void ListEntitiesCoverResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(9, this->disabled_by_default);
   buffer.encode_string(10, this->icon);
   buffer.encode_enum<enums::EntityCategory>(11, this->entity_category);
+  buffer.encode_bool(12, this->supports_stop);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesCoverResponse::dump_to(std::string &out) const {
@@ -906,7 +1118,7 @@ void ListEntitiesCoverResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -944,6 +1156,10 @@ void ListEntitiesCoverResponse::dump_to(std::string &out) const {
 
   out.append("  entity_category: ");
   out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  out.append("  supports_stop: ");
+  out.append(YESNO(this->supports_stop));
   out.append("\n");
   out.append("}");
 }
@@ -992,7 +1208,7 @@ void CoverStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("CoverStateResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -1075,7 +1291,7 @@ void CoverCommandRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("CoverCommandRequest {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -1195,7 +1411,7 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -1220,7 +1436,7 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  supported_speed_count: ");
-  sprintf(buffer, "%d", this->supported_speed_count);
+  sprintf(buffer, "%" PRId32, this->supported_speed_count);
   out.append(buffer);
   out.append("\n");
 
@@ -1287,7 +1503,7 @@ void FanStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("FanStateResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -1308,7 +1524,7 @@ void FanStateResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  speed_level: ");
-  sprintf(buffer, "%d", this->speed_level);
+  sprintf(buffer, "%" PRId32, this->speed_level);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -1388,7 +1604,7 @@ void FanCommandRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("FanCommandRequest {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -1429,7 +1645,7 @@ void FanCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  speed_level: ");
-  sprintf(buffer, "%d", this->speed_level);
+  sprintf(buffer, "%" PRId32, this->speed_level);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -1543,7 +1759,7 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -1697,7 +1913,7 @@ void LightStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("LightStateResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -1920,7 +2136,7 @@ void LightCommandRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("LightCommandRequest {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -2018,7 +2234,7 @@ void LightCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  transition_length: ");
-  sprintf(buffer, "%u", this->transition_length);
+  sprintf(buffer, "%" PRIu32, this->transition_length);
   out.append(buffer);
   out.append("\n");
 
@@ -2027,7 +2243,7 @@ void LightCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  flash_length: ");
-  sprintf(buffer, "%u", this->flash_length);
+  sprintf(buffer, "%" PRIu32, this->flash_length);
   out.append(buffer);
   out.append("\n");
 
@@ -2135,7 +2351,7 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -2156,7 +2372,7 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  accuracy_decimals: ");
-  sprintf(buffer, "%d", this->accuracy_decimals);
+  sprintf(buffer, "%" PRId32, this->accuracy_decimals);
   out.append(buffer);
   out.append("\n");
 
@@ -2220,7 +2436,7 @@ void SensorStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("SensorStateResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -2309,7 +2525,7 @@ void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -2372,7 +2588,7 @@ void SwitchStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("SwitchStateResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -2411,7 +2627,7 @@ void SwitchCommandRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("SwitchCommandRequest {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -2485,7 +2701,7 @@ void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -2551,7 +2767,7 @@ void TextSensorStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("TextSensorStateResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -2858,7 +3074,7 @@ void GetTimeResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("GetTimeResponse {\n");
   out.append("  epoch_seconds: ");
-  sprintf(buffer, "%u", this->epoch_seconds);
+  sprintf(buffer, "%" PRIu32, this->epoch_seconds);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -2942,7 +3158,7 @@ void ListEntitiesServicesResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -3036,7 +3252,7 @@ void ExecuteServiceArgument::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  legacy_int: ");
-  sprintf(buffer, "%d", this->legacy_int);
+  sprintf(buffer, "%" PRId32, this->legacy_int);
   out.append(buffer);
   out.append("\n");
 
@@ -3050,7 +3266,7 @@ void ExecuteServiceArgument::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  int_: ");
-  sprintf(buffer, "%d", this->int_);
+  sprintf(buffer, "%" PRId32, this->int_);
   out.append(buffer);
   out.append("\n");
 
@@ -3062,7 +3278,7 @@ void ExecuteServiceArgument::dump_to(std::string &out) const {
 
   for (const auto &it : this->int_array) {
     out.append("  int_array: ");
-    sprintf(buffer, "%d", it);
+    sprintf(buffer, "%" PRId32, it);
     out.append(buffer);
     out.append("\n");
   }
@@ -3113,7 +3329,7 @@ void ExecuteServiceRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("ExecuteServiceRequest {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -3189,7 +3405,7 @@ void ListEntitiesCameraResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -3255,7 +3471,7 @@ void CameraImageResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("CameraImageResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -3392,7 +3608,11 @@ bool ListEntitiesClimateResponse::decode_32bit(uint32_t field_id, Proto32Bit val
       return true;
     }
     case 10: {
-      this->visual_temperature_step = value.as_float();
+      this->visual_target_temperature_step = value.as_float();
+      return true;
+    }
+    case 21: {
+      this->visual_current_temperature_step = value.as_float();
       return true;
     }
     default:
@@ -3411,7 +3631,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_float(8, this->visual_min_temperature);
   buffer.encode_float(9, this->visual_max_temperature);
-  buffer.encode_float(10, this->visual_temperature_step);
+  buffer.encode_float(10, this->visual_target_temperature_step);
   buffer.encode_bool(11, this->legacy_supports_away);
   buffer.encode_bool(12, this->supports_action);
   for (auto &it : this->supported_fan_modes) {
@@ -3432,6 +3652,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(18, this->disabled_by_default);
   buffer.encode_string(19, this->icon);
   buffer.encode_enum<enums::EntityCategory>(20, this->entity_category);
+  buffer.encode_float(21, this->visual_current_temperature_step);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
@@ -3442,7 +3663,7 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -3478,8 +3699,8 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  visual_temperature_step: ");
-  sprintf(buffer, "%g", this->visual_temperature_step);
+  out.append("  visual_target_temperature_step: ");
+  sprintf(buffer, "%g", this->visual_target_temperature_step);
   out.append(buffer);
   out.append("\n");
 
@@ -3532,6 +3753,11 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   out.append("  entity_category: ");
   out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
+
+  out.append("  visual_current_temperature_step: ");
+  sprintf(buffer, "%g", this->visual_current_temperature_step);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -3542,7 +3768,7 @@ bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return true;
     }
     case 7: {
-      this->legacy_away = value.as_bool();
+      this->unused_legacy_away = value.as_bool();
       return true;
     }
     case 8: {
@@ -3612,7 +3838,7 @@ void ClimateStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(4, this->target_temperature);
   buffer.encode_float(5, this->target_temperature_low);
   buffer.encode_float(6, this->target_temperature_high);
-  buffer.encode_bool(7, this->legacy_away);
+  buffer.encode_bool(7, this->unused_legacy_away);
   buffer.encode_enum<enums::ClimateAction>(8, this->action);
   buffer.encode_enum<enums::ClimateFanMode>(9, this->fan_mode);
   buffer.encode_enum<enums::ClimateSwingMode>(10, this->swing_mode);
@@ -3625,7 +3851,7 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("ClimateStateResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -3653,8 +3879,8 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  legacy_away: ");
-  out.append(YESNO(this->legacy_away));
+  out.append("  unused_legacy_away: ");
+  out.append(YESNO(this->unused_legacy_away));
   out.append("\n");
 
   out.append("  action: ");
@@ -3706,11 +3932,11 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
       return true;
     }
     case 10: {
-      this->has_legacy_away = value.as_bool();
+      this->unused_has_legacy_away = value.as_bool();
       return true;
     }
     case 11: {
-      this->legacy_away = value.as_bool();
+      this->unused_legacy_away = value.as_bool();
       return true;
     }
     case 12: {
@@ -3795,8 +4021,8 @@ void ClimateCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(7, this->target_temperature_low);
   buffer.encode_bool(8, this->has_target_temperature_high);
   buffer.encode_float(9, this->target_temperature_high);
-  buffer.encode_bool(10, this->has_legacy_away);
-  buffer.encode_bool(11, this->legacy_away);
+  buffer.encode_bool(10, this->unused_has_legacy_away);
+  buffer.encode_bool(11, this->unused_legacy_away);
   buffer.encode_bool(12, this->has_fan_mode);
   buffer.encode_enum<enums::ClimateFanMode>(13, this->fan_mode);
   buffer.encode_bool(14, this->has_swing_mode);
@@ -3813,7 +4039,7 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("ClimateCommandRequest {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -3852,12 +4078,12 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  has_legacy_away: ");
-  out.append(YESNO(this->has_legacy_away));
+  out.append("  unused_has_legacy_away: ");
+  out.append(YESNO(this->unused_has_legacy_away));
   out.append("\n");
 
-  out.append("  legacy_away: ");
-  out.append(YESNO(this->legacy_away));
+  out.append("  unused_legacy_away: ");
+  out.append(YESNO(this->unused_legacy_away));
   out.append("\n");
 
   out.append("  has_fan_mode: ");
@@ -3942,6 +4168,10 @@ bool ListEntitiesNumberResponse::decode_length(uint32_t field_id, ProtoLengthDel
       this->unit_of_measurement = value.as_string();
       return true;
     }
+    case 13: {
+      this->device_class = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -3981,6 +4211,7 @@ void ListEntitiesNumberResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
   buffer.encode_string(11, this->unit_of_measurement);
   buffer.encode_enum<enums::NumberMode>(12, this->mode);
+  buffer.encode_string(13, this->device_class);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesNumberResponse::dump_to(std::string &out) const {
@@ -3991,7 +4222,7 @@ void ListEntitiesNumberResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -4037,6 +4268,10 @@ void ListEntitiesNumberResponse::dump_to(std::string &out) const {
   out.append("  mode: ");
   out.append(proto_enum_to_string<enums::NumberMode>(this->mode));
   out.append("\n");
+
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class).append("'");
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -4074,7 +4309,7 @@ void NumberStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("NumberStateResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -4112,7 +4347,7 @@ void NumberCommandRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("NumberCommandRequest {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -4194,7 +4429,7 @@ void ListEntitiesSelectResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -4266,7 +4501,7 @@ void SelectStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("SelectStateResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -4309,7 +4544,7 @@ void SelectCommandRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("SelectCommandRequest {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -4403,7 +4638,7 @@ void ListEntitiesLockResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -4474,7 +4709,7 @@ void LockStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("LockStateResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -4529,7 +4764,7 @@ void LockCommandRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("LockCommandRequest {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -4616,7 +4851,7 @@ void ListEntitiesButtonResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -4662,7 +4897,7 @@ void ButtonCommandRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("ButtonCommandRequest {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -4737,7 +4972,7 @@ void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -4806,7 +5041,7 @@ void MediaPlayerStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("MediaPlayerStateResponse {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -4885,7 +5120,7 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("MediaPlayerCommandRequest {\n");
   out.append("  key: ");
-  sprintf(buffer, "%u", this->key);
+  sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
   out.append("\n");
 
@@ -4916,10 +5151,28 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
-void SubscribeBluetoothLEAdvertisementsRequest::encode(ProtoWriteBuffer buffer) const {}
+bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->flags = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void SubscribeBluetoothLEAdvertisementsRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint32(1, this->flags);
+}
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeBluetoothLEAdvertisementsRequest::dump_to(std::string &out) const {
-  out.append("SubscribeBluetoothLEAdvertisementsRequest {}");
+  __attribute__((unused)) char buffer[64];
+  out.append("SubscribeBluetoothLEAdvertisementsRequest {\n");
+  out.append("  flags: ");
+  sprintf(buffer, "%" PRIu32, this->flags);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
 }
 #endif
 bool BluetoothServiceData::decode_varint(uint32_t field_id, ProtoVarInt value) {
@@ -4963,7 +5216,7 @@ void BluetoothServiceData::dump_to(std::string &out) const {
 
   for (const auto &it : this->legacy_data) {
     out.append("  legacy_data: ");
-    sprintf(buffer, "%u", it);
+    sprintf(buffer, "%" PRIu32, it);
     out.append(buffer);
     out.append("\n");
   }
@@ -4982,6 +5235,10 @@ bool BluetoothLEAdvertisementResponse::decode_varint(uint32_t field_id, ProtoVar
     }
     case 3: {
       this->rssi = value.as_sint32();
+      return true;
+    }
+    case 7: {
+      this->address_type = value.as_uint32();
       return true;
     }
     default:
@@ -5023,6 +5280,7 @@ void BluetoothLEAdvertisementResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->manufacturer_data) {
     buffer.encode_message<BluetoothServiceData>(6, it, true);
   }
+  buffer.encode_uint32(7, this->address_type);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
@@ -5038,7 +5296,7 @@ void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  rssi: ");
-  sprintf(buffer, "%d", this->rssi);
+  sprintf(buffer, "%" PRId32, this->rssi);
   out.append(buffer);
   out.append("\n");
 
@@ -5059,6 +5317,97 @@ void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+
+  out.append("  address_type: ");
+  sprintf(buffer, "%" PRIu32, this->address_type);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothLERawAdvertisement::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->rssi = value.as_sint32();
+      return true;
+    }
+    case 3: {
+      this->address_type = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool BluetoothLERawAdvertisement::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 4: {
+      this->data = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothLERawAdvertisement::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_sint32(2, this->rssi);
+  buffer.encode_uint32(3, this->address_type);
+  buffer.encode_string(4, this->data);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothLERawAdvertisement::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothLERawAdvertisement {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  rssi: ");
+  sprintf(buffer, "%" PRId32, this->rssi);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  address_type: ");
+  sprintf(buffer, "%" PRIu32, this->address_type);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  data: ");
+  out.append("'").append(this->data).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothLERawAdvertisementsResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->advertisements.push_back(value.as_message<BluetoothLERawAdvertisement>());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer buffer) const {
+  for (auto &it : this->advertisements) {
+    buffer.encode_message<BluetoothLERawAdvertisement>(1, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothLERawAdvertisementsResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothLERawAdvertisementsResponse {\n");
+  for (const auto &it : this->advertisements) {
+    out.append("  advertisements: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
   out.append("}");
 }
 #endif
@@ -5072,6 +5421,14 @@ bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, ProtoVarInt value)
       this->request_type = value.as_enum<enums::BluetoothDeviceRequestType>();
       return true;
     }
+    case 3: {
+      this->has_address_type = value.as_bool();
+      return true;
+    }
+    case 4: {
+      this->address_type = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5079,6 +5436,8 @@ bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, ProtoVarInt value)
 void BluetoothDeviceRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_enum<enums::BluetoothDeviceRequestType>(2, this->request_type);
+  buffer.encode_bool(3, this->has_address_type);
+  buffer.encode_uint32(4, this->address_type);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothDeviceRequest::dump_to(std::string &out) const {
@@ -5091,6 +5450,15 @@ void BluetoothDeviceRequest::dump_to(std::string &out) const {
 
   out.append("  request_type: ");
   out.append(proto_enum_to_string<enums::BluetoothDeviceRequestType>(this->request_type));
+  out.append("\n");
+
+  out.append("  has_address_type: ");
+  out.append(YESNO(this->has_address_type));
+  out.append("\n");
+
+  out.append("  address_type: ");
+  sprintf(buffer, "%" PRIu32, this->address_type);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -5137,12 +5505,12 @@ void BluetoothDeviceConnectionResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  mtu: ");
-  sprintf(buffer, "%u", this->mtu);
+  sprintf(buffer, "%" PRIu32, this->mtu);
   out.append(buffer);
   out.append("\n");
 
   out.append("  error: ");
-  sprintf(buffer, "%d", this->error);
+  sprintf(buffer, "%" PRId32, this->error);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -5202,7 +5570,7 @@ void BluetoothGATTDescriptor::dump_to(std::string &out) const {
   }
 
   out.append("  handle: ");
-  sprintf(buffer, "%u", this->handle);
+  sprintf(buffer, "%" PRIu32, this->handle);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -5258,12 +5626,12 @@ void BluetoothGATTCharacteristic::dump_to(std::string &out) const {
   }
 
   out.append("  handle: ");
-  sprintf(buffer, "%u", this->handle);
+  sprintf(buffer, "%" PRIu32, this->handle);
   out.append(buffer);
   out.append("\n");
 
   out.append("  properties: ");
-  sprintf(buffer, "%u", this->properties);
+  sprintf(buffer, "%" PRIu32, this->properties);
   out.append(buffer);
   out.append("\n");
 
@@ -5320,7 +5688,7 @@ void BluetoothGATTService::dump_to(std::string &out) const {
   }
 
   out.append("  handle: ");
-  sprintf(buffer, "%u", this->handle);
+  sprintf(buffer, "%" PRIu32, this->handle);
   out.append(buffer);
   out.append("\n");
 
@@ -5427,7 +5795,7 @@ void BluetoothGATTReadRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  handle: ");
-  sprintf(buffer, "%u", this->handle);
+  sprintf(buffer, "%" PRIu32, this->handle);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -5472,7 +5840,7 @@ void BluetoothGATTReadResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  handle: ");
-  sprintf(buffer, "%u", this->handle);
+  sprintf(buffer, "%" PRIu32, this->handle);
   out.append(buffer);
   out.append("\n");
 
@@ -5526,7 +5894,7 @@ void BluetoothGATTWriteRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  handle: ");
-  sprintf(buffer, "%u", this->handle);
+  sprintf(buffer, "%" PRIu32, this->handle);
   out.append(buffer);
   out.append("\n");
 
@@ -5568,7 +5936,7 @@ void BluetoothGATTReadDescriptorRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  handle: ");
-  sprintf(buffer, "%u", this->handle);
+  sprintf(buffer, "%" PRIu32, this->handle);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -5613,7 +5981,7 @@ void BluetoothGATTWriteDescriptorRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  handle: ");
-  sprintf(buffer, "%u", this->handle);
+  sprintf(buffer, "%" PRIu32, this->handle);
   out.append(buffer);
   out.append("\n");
 
@@ -5656,7 +6024,7 @@ void BluetoothGATTNotifyRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  handle: ");
-  sprintf(buffer, "%u", this->handle);
+  sprintf(buffer, "%" PRIu32, this->handle);
   out.append(buffer);
   out.append("\n");
 
@@ -5705,7 +6073,7 @@ void BluetoothGATTNotifyDataResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  handle: ");
-  sprintf(buffer, "%u", this->handle);
+  sprintf(buffer, "%" PRIu32, this->handle);
   out.append(buffer);
   out.append("\n");
 
@@ -5744,12 +6112,12 @@ void BluetoothConnectionsFreeResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("BluetoothConnectionsFreeResponse {\n");
   out.append("  free: ");
-  sprintf(buffer, "%u", this->free);
+  sprintf(buffer, "%" PRIu32, this->free);
   out.append(buffer);
   out.append("\n");
 
   out.append("  limit: ");
-  sprintf(buffer, "%u", this->limit);
+  sprintf(buffer, "%" PRIu32, this->limit);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -5788,12 +6156,12 @@ void BluetoothGATTErrorResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  handle: ");
-  sprintf(buffer, "%u", this->handle);
+  sprintf(buffer, "%" PRIu32, this->handle);
   out.append(buffer);
   out.append("\n");
 
   out.append("  error: ");
-  sprintf(buffer, "%d", this->error);
+  sprintf(buffer, "%" PRId32, this->error);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -5827,7 +6195,7 @@ void BluetoothGATTWriteResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  handle: ");
-  sprintf(buffer, "%u", this->handle);
+  sprintf(buffer, "%" PRIu32, this->handle);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -5861,8 +6229,810 @@ void BluetoothGATTNotifyResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  handle: ");
-  sprintf(buffer, "%u", this->handle);
+  sprintf(buffer, "%" PRIu32, this->handle);
   out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothDevicePairingResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->paired = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->error = value.as_int32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothDevicePairingResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_bool(2, this->paired);
+  buffer.encode_int32(3, this->error);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothDevicePairingResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothDevicePairingResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  paired: ");
+  out.append(YESNO(this->paired));
+  out.append("\n");
+
+  out.append("  error: ");
+  sprintf(buffer, "%" PRId32, this->error);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothDeviceUnpairingResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->success = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->error = value.as_int32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothDeviceUnpairingResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_bool(2, this->success);
+  buffer.encode_int32(3, this->error);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothDeviceUnpairingResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothDeviceUnpairingResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  success: ");
+  out.append(YESNO(this->success));
+  out.append("\n");
+
+  out.append("  error: ");
+  sprintf(buffer, "%" PRId32, this->error);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+void UnsubscribeBluetoothLEAdvertisementsRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void UnsubscribeBluetoothLEAdvertisementsRequest::dump_to(std::string &out) const {
+  out.append("UnsubscribeBluetoothLEAdvertisementsRequest {}");
+}
+#endif
+bool BluetoothDeviceClearCacheResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->success = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->error = value.as_int32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothDeviceClearCacheResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_bool(2, this->success);
+  buffer.encode_int32(3, this->error);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothDeviceClearCacheResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothDeviceClearCacheResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  success: ");
+  out.append(YESNO(this->success));
+  out.append("\n");
+
+  out.append("  error: ");
+  sprintf(buffer, "%" PRId32, this->error);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool SubscribeVoiceAssistantRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->subscribe = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void SubscribeVoiceAssistantRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->subscribe); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void SubscribeVoiceAssistantRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("SubscribeVoiceAssistantRequest {\n");
+  out.append("  subscribe: ");
+  out.append(YESNO(this->subscribe));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool VoiceAssistantAudioSettings::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->noise_suppression_level = value.as_uint32();
+      return true;
+    }
+    case 2: {
+      this->auto_gain = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool VoiceAssistantAudioSettings::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 3: {
+      this->volume_multiplier = value.as_float();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantAudioSettings::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint32(1, this->noise_suppression_level);
+  buffer.encode_uint32(2, this->auto_gain);
+  buffer.encode_float(3, this->volume_multiplier);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantAudioSettings::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantAudioSettings {\n");
+  out.append("  noise_suppression_level: ");
+  sprintf(buffer, "%" PRIu32, this->noise_suppression_level);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  auto_gain: ");
+  sprintf(buffer, "%" PRIu32, this->auto_gain);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  volume_multiplier: ");
+  sprintf(buffer, "%g", this->volume_multiplier);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool VoiceAssistantRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->start = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->flags = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool VoiceAssistantRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->conversation_id = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->audio_settings = value.as_message<VoiceAssistantAudioSettings>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_bool(1, this->start);
+  buffer.encode_string(2, this->conversation_id);
+  buffer.encode_uint32(3, this->flags);
+  buffer.encode_message<VoiceAssistantAudioSettings>(4, this->audio_settings);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantRequest {\n");
+  out.append("  start: ");
+  out.append(YESNO(this->start));
+  out.append("\n");
+
+  out.append("  conversation_id: ");
+  out.append("'").append(this->conversation_id).append("'");
+  out.append("\n");
+
+  out.append("  flags: ");
+  sprintf(buffer, "%" PRIu32, this->flags);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  audio_settings: ");
+  this->audio_settings.dump_to(out);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool VoiceAssistantResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->port = value.as_uint32();
+      return true;
+    }
+    case 2: {
+      this->error = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint32(1, this->port);
+  buffer.encode_bool(2, this->error);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantResponse {\n");
+  out.append("  port: ");
+  sprintf(buffer, "%" PRIu32, this->port);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  error: ");
+  out.append(YESNO(this->error));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool VoiceAssistantEventData::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 2: {
+      this->value = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantEventData::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->name);
+  buffer.encode_string(2, this->value);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantEventData::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantEventData {\n");
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  value: ");
+  out.append("'").append(this->value).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool VoiceAssistantEventResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->event_type = value.as_enum<enums::VoiceAssistantEvent>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool VoiceAssistantEventResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->data.push_back(value.as_message<VoiceAssistantEventData>());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantEventResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_enum<enums::VoiceAssistantEvent>(1, this->event_type);
+  for (auto &it : this->data) {
+    buffer.encode_message<VoiceAssistantEventData>(2, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantEventResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantEventResponse {\n");
+  out.append("  event_type: ");
+  out.append(proto_enum_to_string<enums::VoiceAssistantEvent>(this->event_type));
+  out.append("\n");
+
+  for (const auto &it : this->data) {
+    out.append("  data: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+  out.append("}");
+}
+#endif
+bool ListEntitiesAlarmControlPanelResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 6: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    case 7: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
+    case 8: {
+      this->supported_features = value.as_uint32();
+      return true;
+    }
+    case 9: {
+      this->requires_code = value.as_bool();
+      return true;
+    }
+    case 10: {
+      this->requires_code_to_arm = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesAlarmControlPanelResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->object_id = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->unique_id = value.as_string();
+      return true;
+    }
+    case 5: {
+      this->icon = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesAlarmControlPanelResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ListEntitiesAlarmControlPanelResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+  buffer.encode_string(4, this->unique_id);
+  buffer.encode_string(5, this->icon);
+  buffer.encode_bool(6, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
+  buffer.encode_uint32(8, this->supported_features);
+  buffer.encode_bool(9, this->requires_code);
+  buffer.encode_bool(10, this->requires_code_to_arm);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ListEntitiesAlarmControlPanelResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ListEntitiesAlarmControlPanelResponse {\n");
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id).append("'");
+  out.append("\n");
+
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  unique_id: ");
+  out.append("'").append(this->unique_id).append("'");
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  out.append("  supported_features: ");
+  sprintf(buffer, "%" PRIu32, this->supported_features);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  requires_code: ");
+  out.append(YESNO(this->requires_code));
+  out.append("\n");
+
+  out.append("  requires_code_to_arm: ");
+  out.append(YESNO(this->requires_code_to_arm));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool AlarmControlPanelStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->state = value.as_enum<enums::AlarmControlPanelState>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool AlarmControlPanelStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void AlarmControlPanelStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_enum<enums::AlarmControlPanelState>(2, this->state);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void AlarmControlPanelStateResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("AlarmControlPanelStateResponse {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  state: ");
+  out.append(proto_enum_to_string<enums::AlarmControlPanelState>(this->state));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool AlarmControlPanelCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->command = value.as_enum<enums::AlarmControlPanelStateCommand>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool AlarmControlPanelCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 3: {
+      this->code = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool AlarmControlPanelCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void AlarmControlPanelCommandRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_enum<enums::AlarmControlPanelStateCommand>(2, this->command);
+  buffer.encode_string(3, this->code);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void AlarmControlPanelCommandRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("AlarmControlPanelCommandRequest {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  command: ");
+  out.append(proto_enum_to_string<enums::AlarmControlPanelStateCommand>(this->command));
+  out.append("\n");
+
+  out.append("  code: ");
+  out.append("'").append(this->code).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool ListEntitiesTextResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 6: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    case 7: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
+    case 8: {
+      this->min_length = value.as_uint32();
+      return true;
+    }
+    case 9: {
+      this->max_length = value.as_uint32();
+      return true;
+    }
+    case 11: {
+      this->mode = value.as_enum<enums::TextMode>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesTextResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->object_id = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->unique_id = value.as_string();
+      return true;
+    }
+    case 5: {
+      this->icon = value.as_string();
+      return true;
+    }
+    case 10: {
+      this->pattern = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesTextResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ListEntitiesTextResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+  buffer.encode_string(4, this->unique_id);
+  buffer.encode_string(5, this->icon);
+  buffer.encode_bool(6, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
+  buffer.encode_uint32(8, this->min_length);
+  buffer.encode_uint32(9, this->max_length);
+  buffer.encode_string(10, this->pattern);
+  buffer.encode_enum<enums::TextMode>(11, this->mode);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ListEntitiesTextResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ListEntitiesTextResponse {\n");
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id).append("'");
+  out.append("\n");
+
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  unique_id: ");
+  out.append("'").append(this->unique_id).append("'");
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  out.append("  min_length: ");
+  sprintf(buffer, "%" PRIu32, this->min_length);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  max_length: ");
+  sprintf(buffer, "%" PRIu32, this->max_length);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  pattern: ");
+  out.append("'").append(this->pattern).append("'");
+  out.append("\n");
+
+  out.append("  mode: ");
+  out.append(proto_enum_to_string<enums::TextMode>(this->mode));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool TextStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 3: {
+      this->missing_state = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool TextStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->state = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool TextStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void TextStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_string(2, this->state);
+  buffer.encode_bool(3, this->missing_state);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void TextStateResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("TextStateResponse {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  state: ");
+  out.append("'").append(this->state).append("'");
+  out.append("\n");
+
+  out.append("  missing_state: ");
+  out.append(YESNO(this->missing_state));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool TextCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->state = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool TextCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void TextCommandRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_string(2, this->state);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void TextCommandRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("TextCommandRequest {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  state: ");
+  out.append("'").append(this->state).append("'");
   out.append("\n");
   out.append("}");
 }

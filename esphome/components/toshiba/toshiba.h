@@ -22,7 +22,10 @@ const float TOSHIBA_RAC_PT1411HWRU_TEMP_F_MAX = 86.0;
 
 class ToshibaClimate : public climate_ir::ClimateIR {
  public:
-  ToshibaClimate() : climate_ir::ClimateIR(TOSHIBA_GENERIC_TEMP_C_MIN, TOSHIBA_GENERIC_TEMP_C_MAX, 1.0f) {}
+  ToshibaClimate()
+      : climate_ir::ClimateIR(TOSHIBA_GENERIC_TEMP_C_MIN, TOSHIBA_GENERIC_TEMP_C_MAX, 1.0f, true, true,
+                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
+                               climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_QUIET}) {}
 
   void setup() override;
   void set_model(Model model) { this->model_ = model; }
@@ -45,18 +48,6 @@ class ToshibaClimate : public climate_ir::ClimateIR {
   }
   float temperature_max_() {
     return (this->model_ == MODEL_GENERIC) ? TOSHIBA_GENERIC_TEMP_C_MAX : TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX;
-  }
-  bool toshiba_supports_dry_() {
-    return ((this->model_ == MODEL_RAC_PT1411HWRU_C) || (this->model_ == MODEL_RAC_PT1411HWRU_F));
-  }
-  bool toshiba_supports_fan_only_() {
-    return ((this->model_ == MODEL_RAC_PT1411HWRU_C) || (this->model_ == MODEL_RAC_PT1411HWRU_F));
-  }
-  std::set<climate::ClimateFanMode> toshiba_fan_modes_() {
-    return (this->model_ == MODEL_GENERIC)
-               ? std::set<climate::ClimateFanMode>{}
-               : std::set<climate::ClimateFanMode>{climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
-                                                   climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH};
   }
   std::set<climate::ClimateSwingMode> toshiba_swing_modes_() {
     return (this->model_ == MODEL_GENERIC)

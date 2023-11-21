@@ -5,6 +5,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
+#include <vector>
+
 namespace esphome {
 namespace pzemac {
 

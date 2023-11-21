@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cinttypes>
+#include <vector>
+
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -7,6 +10,7 @@
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
+#include "esphome/core/time.h"
 #endif
 
 namespace esphome {
@@ -53,6 +57,9 @@ enum class TuyaCommandType : uint8_t {
   DATAPOINT_QUERY = 0x08,
   WIFI_TEST = 0x0E,
   LOCAL_TIME_QUERY = 0x1C,
+  WIFI_RSSI = 0x24,
+  VACUUM_MAP_UPLOAD = 0x28,
+  GET_NETWORK_STATUS = 0x2B,
 };
 
 enum class TuyaInitState : uint8_t {
@@ -118,10 +125,13 @@ class Tuya : public Component, public uart::UARTDevice {
   void send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data);
   void set_status_pin_();
   void send_wifi_status_();
+  uint8_t get_wifi_status_code_();
+  uint8_t get_wifi_rssi_();
 
 #ifdef USE_TIME
   void send_local_time_();
   optional<time::RealTimeClock *> time_id_{};
+  bool time_sync_callback_registered_{false};
 #endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   bool init_failed_{false};

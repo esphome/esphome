@@ -13,6 +13,7 @@ import voluptuous as vol
 
 from esphome import core
 import esphome.codegen as cg
+from esphome.config_helpers import Extend
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
@@ -38,6 +39,11 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_TYPE,
+    CONF_REF,
+    CONF_URL,
+    CONF_PATH,
+    CONF_USERNAME,
+    CONF_PASSWORD,
     ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_NONE,
@@ -45,6 +51,12 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
+    TYPE_GIT,
+    TYPE_LOCAL,
+    VALID_SUBSTITUTIONS_CHARACTERS,
 )
 from esphome.core import (
     CORE,
@@ -54,6 +66,7 @@ from esphome.core import (
     TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
+    TimePeriodNanoseconds,
     TimePeriodSeconds,
     TimePeriodMinutes,
 )
@@ -70,6 +83,11 @@ from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
 _LOGGER = logging.getLogger(__name__)
+
+# pylint: disable=consider-using-f-string
+VARIABLE_PROG = re.compile(
+    "\\$([{0}]+|\\{{[{0}]*\\}})".format(VALID_SUBSTITUTIONS_CHARACTERS)
+)
 
 # pylint: disable=invalid-name
 
@@ -94,6 +112,7 @@ ROOT_CONFIG_PATH = object()
 
 RESERVED_IDS = [
     # C++ keywords http://en.cppreference.com/w/cpp/keyword
+    "alarm",
     "alignas",
     "alignof",
     "and",
@@ -110,6 +129,7 @@ RESERVED_IDS = [
     "char16_t",
     "char32_t",
     "class",
+    "clock",
     "compl",
     "concept",
     "const",
@@ -163,6 +183,7 @@ RESERVED_IDS = [
     "struct",
     "switch",
     "template",
+    "text",
     "this",
     "thread_local",
     "throw",
@@ -203,6 +224,9 @@ RESERVED_IDS = [
     "open",
     "setup",
     "loop",
+    "uart0",
+    "uart1",
+    "uart2",
 ]
 
 
@@ -254,6 +278,14 @@ def alphanumeric(value):
 
 def valid_name(value):
     value = string_strict(value)
+
+    if CORE.vscode:
+        # If the value is a substitution, it can't be validated until the substitution
+        # is actually made.
+        sub_match = VARIABLE_PROG.search(value)
+        if sub_match:
+            return value
+
     for c in value:
         if c not in ALLOWED_NAME_CHARS:
             raise Invalid(
@@ -436,6 +468,14 @@ def validate_id_name(value):
         raise Invalid(
             "Dashes are not supported in IDs, please use underscores instead."
         )
+
+    if CORE.vscode:
+        # If the value is a substitution, it can't be validated until the substitution
+        # is actually made
+        sub_match = VARIABLE_PROG.match(value)
+        if sub_match:
+            return value
+
     valid_chars = f"{ascii_letters + digits}_"
     for char in value:
         if char not in valid_chars:
@@ -490,6 +530,8 @@ def declare_id(type):
         if value is None:
             return core.ID(None, is_declaration=True, type=type)
 
+        if isinstance(value, Extend):
+            raise Invalid(f"Source for extension of ID '{value.value}' was not found.")
         return core.ID(validate_id_name(value), is_declaration=True, type=type)
 
     return validator
@@ -546,8 +588,9 @@ def only_with_framework(frameworks):
     return validator_
 
 
-only_on_esp32 = only_on("esp32")
-only_on_esp8266 = only_on("esp8266")
+only_on_esp32 = only_on(PLATFORM_ESP32)
+only_on_esp8266 = only_on(PLATFORM_ESP8266)
+only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework("arduino")
 only_with_esp_idf = only_with_framework("esp-idf")
 
@@ -676,6 +719,8 @@ def time_period_str_unit(value):
         raise Invalid("Expected string for time period with unit.")
 
     unit_to_kwarg = {
+        "ns": "nanoseconds",
+        "nanoseconds": "nanoseconds",
         "us": "microseconds",
         "microseconds": "microseconds",
         "ms": "milliseconds",
@@ -697,7 +742,10 @@ def time_period_str_unit(value):
         raise Invalid(f"Expected time period with unit, got {value}")
     kwarg = unit_to_kwarg[one_of(*unit_to_kwarg)(match.group(2))]
 
-    return TimePeriod(**{kwarg: float(match.group(1))})
+    try:
+        return TimePeriod(**{kwarg: float(match.group(1))})
+    except ValueError as e:
+        raise Invalid(e) from e
 
 
 def time_period_in_milliseconds_(value):
@@ -707,10 +755,18 @@ def time_period_in_milliseconds_(value):
 
 
 def time_period_in_microseconds_(value):
+    if value.nanoseconds is not None and value.nanoseconds != 0:
+        raise Invalid("Maximum precision is microseconds")
     return TimePeriodMicroseconds(**value.as_dict())
 
 
+def time_period_in_nanoseconds_(value):
+    return TimePeriodNanoseconds(**value.as_dict())
+
+
 def time_period_in_seconds_(value):
+    if value.nanoseconds is not None and value.nanoseconds != 0:
+        raise Invalid("Maximum precision is seconds")
     if value.microseconds is not None and value.microseconds != 0:
         raise Invalid("Maximum precision is seconds")
     if value.milliseconds is not None and value.milliseconds != 0:
@@ -719,6 +775,8 @@ def time_period_in_seconds_(value):
 
 
 def time_period_in_minutes_(value):
+    if value.nanoseconds is not None and value.nanoseconds != 0:
+        raise Invalid("Maximum precision is minutes")
     if value.microseconds is not None and value.microseconds != 0:
         raise Invalid("Maximum precision is minutes")
     if value.milliseconds is not None and value.milliseconds != 0:
@@ -744,6 +802,9 @@ positive_time_period_minutes = All(positive_time_period, time_period_in_minutes_
 time_period_microseconds = All(time_period, time_period_in_microseconds_)
 positive_time_period_microseconds = All(
     positive_time_period, time_period_in_microseconds_
+)
+positive_time_period_nanoseconds = All(
+    positive_time_period, time_period_in_nanoseconds_
 )
 positive_not_null_time_period = All(
     time_period, Range(min=TimePeriod(), min_included=False)
@@ -891,6 +952,27 @@ def temperature(value):
     raise err
 
 
+def temperature_delta(value):
+    err = None
+    try:
+        return _temperature_c(value)
+    except Invalid as orig_err:
+        err = orig_err
+
+    try:
+        return _temperature_k(value)
+    except Invalid:
+        pass
+
+    try:
+        fahrenheit = _temperature_f(value)
+        return fahrenheit * (5 / 9)
+    except Invalid:
+        pass
+
+    raise err
+
+
 _color_temperature_mireds = float_with_unit("Color Temperature", r"(mireds|Mireds)")
 _color_temperature_kelvin = float_with_unit("Color Temperature", r"(K|Kelvin)")
 
@@ -984,6 +1066,8 @@ def ipv4(value):
 
 def _valid_topic(value):
     """Validate that this is a valid topic name/filter."""
+    if value is None:  # Used to disable publishing and subscribing
+        return ""
     if isinstance(value, dict):
         raise Invalid("Can't use dictionary with topic")
     value = string(value)
@@ -1052,9 +1136,8 @@ def mqtt_qos(value):
 
 def requires_component(comp):
     """Validate that this option can only be specified when the component `comp` is loaded."""
-    # pylint: disable=unsupported-membership-test
+
     def validator(value):
-        # pylint: disable=unsupported-membership-test
         if comp not in CORE.loaded_integrations:
             raise Invalid(f"This option requires component {comp}")
         return value
@@ -1087,7 +1170,7 @@ def possibly_negative_percentage(value):
     if isinstance(value, str):
         try:
             if value.endswith("%"):
-                has_percent_sign = False
+                has_percent_sign = True
                 value = float(value[:-1].rstrip()) / 100.0
             else:
                 value = float(value)
@@ -1240,7 +1323,7 @@ def enum(mapping, **kwargs):
     return validator
 
 
-LAMBDA_ENTITY_ID_PROG = re.compile(r"id\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*\)")
+LAMBDA_ENTITY_ID_PROG = re.compile(r"\Wid\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*\)")
 
 
 def lambda_(value):
@@ -1442,6 +1525,9 @@ class SplitDefault(Optional):
         esp32_arduino=vol.UNDEFINED,
         esp32_idf=vol.UNDEFINED,
         rp2040=vol.UNDEFINED,
+        bk72xx=vol.UNDEFINED,
+        rtl87xx=vol.UNDEFINED,
+        host=vol.UNDEFINED,
     ):
         super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
@@ -1452,6 +1538,9 @@ class SplitDefault(Optional):
             esp32_idf if esp32 is vol.UNDEFINED else esp32
         )
         self._rp2040_default = vol.default_factory(rp2040)
+        self._bk72xx_default = vol.default_factory(bk72xx)
+        self._rtl87xx_default = vol.default_factory(rtl87xx)
+        self._host_default = vol.default_factory(host)
 
     @property
     def default(self):
@@ -1463,6 +1552,12 @@ class SplitDefault(Optional):
             return self._esp32_idf_default
         if CORE.is_rp2040:
             return self._rp2040_default
+        if CORE.is_bk72xx:
+            return self._bk72xx_default
+        if CORE.is_rtl87xx:
+            return self._rtl87xx_default
+        if CORE.is_host:
+            return self._host_default
         raise NotImplementedError
 
     @default.setter
@@ -1481,7 +1576,6 @@ class OnlyWith(Optional):
 
     @property
     def default(self):
-        # pylint: disable=unsupported-membership-test
         if self._component in CORE.loaded_integrations:
             return self._default
         return vol.UNDEFINED
@@ -1502,6 +1596,8 @@ def _entity_base_validator(config):
         config[CONF_NAME] = id.id
         config[CONF_INTERNAL] = True
         return config
+    if config[CONF_NAME] is None:
+        config[CONF_NAME] = ""
     return config
 
 
@@ -1561,6 +1657,23 @@ def validate_registry_entry(name, registry):
     return validator
 
 
+def none(value):
+    if value in ("none", "None"):
+        return None
+    if boolean(value) is False:
+        return None
+    raise Invalid("Must be none")
+
+
+def requires_friendly_name(message):
+    def validate(value):
+        if CORE.friendly_name is None:
+            raise Invalid(message)
+        return value
+
+    return validate
+
+
 def validate_registry(name, registry):
     return ensure_list(validate_registry_entry(name, registry))
 
@@ -1581,7 +1694,7 @@ def maybe_simple_value(*validators, **kwargs):
     return validate
 
 
-_ENTITY_CATEGORIES = {
+ENTITY_CATEGORIES = {
     ENTITY_CATEGORY_NONE: cg.EntityCategory.ENTITY_CATEGORY_NONE,
     ENTITY_CATEGORY_CONFIG: cg.EntityCategory.ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_DIAGNOSTIC: cg.EntityCategory.ENTITY_CATEGORY_DIAGNOSTIC,
@@ -1589,7 +1702,7 @@ _ENTITY_CATEGORIES = {
 
 
 def entity_category(value):
-    return enum(_ENTITY_CATEGORIES, lower=True)(value)
+    return enum(ENTITY_CATEGORIES, lower=True)(value)
 
 
 MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
@@ -1620,7 +1733,15 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
 
 ENTITY_BASE_SCHEMA = Schema(
     {
-        Optional(CONF_NAME): string,
+        Optional(CONF_NAME): Any(
+            All(
+                none,
+                requires_friendly_name(
+                    "Name cannot be None when esphome->friendly_name is not set!"
+                ),
+            ),
+            string,
+        ),
         Optional(CONF_INTERNAL): boolean,
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
         Optional(CONF_ICON): icon,
@@ -1679,7 +1800,7 @@ def source_refresh(value: str):
     if value.lower() == "always":
         return source_refresh("0s")
     if value.lower() == "never":
-        return source_refresh("1000y")
+        return source_refresh("365250d")
     return positive_time_period_seconds(value)
 
 
@@ -1818,3 +1939,59 @@ def suppress_invalid():
         yield
     except vol.Invalid:
         pass
+
+
+GIT_SCHEMA = {
+    Required(CONF_URL): url,
+    Optional(CONF_REF): git_ref,
+    Optional(CONF_USERNAME): string,
+    Optional(CONF_PASSWORD): string,
+}
+LOCAL_SCHEMA = {
+    Required(CONF_PATH): directory,
+}
+
+
+def validate_source_shorthand(value):
+    if not isinstance(value, str):
+        raise Invalid("Shorthand only for strings")
+    try:
+        return SOURCE_SCHEMA({CONF_TYPE: TYPE_LOCAL, CONF_PATH: value})
+    except Invalid:
+        pass
+    # Regex for GitHub repo name with optional branch/tag
+    # Note: git allows other branch/tag names as well, but never seen them used before
+    m = re.match(
+        r"github://(?:([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@([a-zA-Z0-9\-_.\./]+))?|pr#([0-9]+))",
+        value,
+    )
+    if m is None:
+        raise Invalid(
+            "Source is not a file system path, in expected github://username/name[@branch-or-tag] or github://pr#1234 format!"
+        )
+    if m.group(4):
+        conf = {
+            CONF_TYPE: TYPE_GIT,
+            CONF_URL: "https://github.com/esphome/esphome.git",
+            CONF_REF: f"pull/{m.group(4)}/head",
+        }
+    else:
+        conf = {
+            CONF_TYPE: TYPE_GIT,
+            CONF_URL: f"https://github.com/{m.group(1)}/{m.group(2)}.git",
+        }
+        if m.group(3):
+            conf[CONF_REF] = m.group(3)
+
+    return SOURCE_SCHEMA(conf)
+
+
+SOURCE_SCHEMA = Any(
+    validate_source_shorthand,
+    typed_schema(
+        {
+            TYPE_GIT: Schema(GIT_SCHEMA),
+            TYPE_LOCAL: Schema(LOCAL_SCHEMA),
+        }
+    ),
+)

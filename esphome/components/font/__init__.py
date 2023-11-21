@@ -3,11 +3,11 @@ from pathlib import Path
 import hashlib
 import os
 import re
+from packaging import version
 
 import requests
 
 from esphome import core
-from esphome.components import display
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.helpers import copy_file_if_changed
@@ -29,9 +29,11 @@ DOMAIN = "font"
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
 
-Font = display.display_ns.class_("Font")
-Glyph = display.display_ns.class_("Glyph")
-GlyphData = display.display_ns.struct("GlyphData")
+font_ns = cg.esphome_ns.namespace("font")
+
+Font = font_ns.class_("Font")
+Glyph = font_ns.class_("Glyph")
+GlyphData = font_ns.struct("GlyphData")
 
 
 def validate_glyphs(value):
@@ -65,13 +67,13 @@ def validate_pillow_installed(value):
     except ImportError as err:
         raise cv.Invalid(
             "Please install the pillow python package to use this feature. "
-            "(pip install pillow)"
+            '(pip install "pillow==10.0.1")'
         ) from err
 
-    if PIL.__version__[0] < "4":
+    if version.parse(PIL.__version__) != version.parse("10.0.1"):
         raise cv.Invalid(
-            "Please update your pillow installation to at least 4.0.x. "
-            "(pip install -U pillow)"
+            "Please update your pillow installation to 10.0.1. "
+            '(pip install "pillow==10.0.1")'
         )
 
     return value
@@ -91,10 +93,9 @@ def validate_truetype_file(value):
 
 
 def _compute_local_font_dir(name) -> Path:
-    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN
     h = hashlib.new("sha256")
     h.update(name.encode())
-    return base_dir / h.hexdigest()[:8]
+    return Path(CORE.data_dir) / DOMAIN / h.hexdigest()[:8]
 
 
 def _compute_gfonts_local_path(value) -> Path:
@@ -136,11 +137,10 @@ def validate_weight_name(value):
 
 
 def download_gfonts(value):
-    wght = value[CONF_WEIGHT]
-    if value[CONF_ITALIC]:
-        wght = f"1,{wght}"
-    name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}"
-    url = f"https://fonts.googleapis.com/css2?family={value[CONF_FAMILY]}:wght@{wght}"
+    name = (
+        f"{value[CONF_FAMILY]}:ital,wght@{int(value[CONF_ITALIC])},{value[CONF_WEIGHT]}"
+    )
+    url = f"https://fonts.googleapis.com/css2?family={name}"
 
     path = _compute_gfonts_local_path(value)
     if path.is_file():

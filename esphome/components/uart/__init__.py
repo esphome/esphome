@@ -42,6 +42,9 @@ ESP8266UartComponent = uart_ns.class_(
     "ESP8266UartComponent", UARTComponent, cg.Component
 )
 RP2040UartComponent = uart_ns.class_("RP2040UartComponent", UARTComponent, cg.Component)
+LibreTinyUARTComponent = uart_ns.class_(
+    "LibreTinyUARTComponent", UARTComponent, cg.Component
+)
 
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
@@ -92,6 +95,8 @@ def _uart_declare_type(value):
             return cv.declare_id(IDFUARTComponent)(value)
     if CORE.is_rp2040:
         return cv.declare_id(RP2040UartComponent)(value)
+    if CORE.is_libretiny:
+        return cv.declare_id(LibreTinyUARTComponent)(value)
     raise NotImplementedError
 
 
@@ -246,11 +251,14 @@ def final_validate_device_schema(
     baud_rate: Optional[int] = None,
     require_tx: bool = False,
     require_rx: bool = False,
+    data_bits: Optional[int] = None,
+    parity: Optional[str] = None,
+    stop_bits: Optional[int] = None,
 ):
     def validate_baud_rate(value):
         if value != baud_rate:
             raise cv.Invalid(
-                f"Component {name} required baud rate {baud_rate} for the uart bus"
+                f"Component {name} requires baud rate {baud_rate} for the uart bus"
             )
         return value
 
@@ -265,6 +273,27 @@ def final_validate_device_schema(
             return value
 
         return validator
+
+    def validate_data_bits(value):
+        if value != data_bits:
+            raise cv.Invalid(
+                f"Component {name} requires {data_bits} data bits for the uart bus"
+            )
+        return value
+
+    def validate_parity(value):
+        if value != parity:
+            raise cv.Invalid(
+                f"Component {name} requires parity {parity} for the uart bus"
+            )
+        return value
+
+    def validate_stop_bits(value):
+        if value != stop_bits:
+            raise cv.Invalid(
+                f"Component {name} requires {stop_bits} stop bits for the uart bus"
+            )
+        return value
 
     def validate_hub(hub_config):
         hub_schema = {}
@@ -288,6 +317,12 @@ def final_validate_device_schema(
             ] = validate_pin(CONF_RX_PIN, device)
         if baud_rate is not None:
             hub_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
+        if data_bits is not None:
+            hub_schema[cv.Required(CONF_DATA_BITS)] = validate_data_bits
+        if parity is not None:
+            hub_schema[cv.Required(CONF_PARITY)] = validate_parity
+        if stop_bits is not None:
+            hub_schema[cv.Required(CONF_STOP_BITS)] = validate_stop_bits
         return cv.Schema(hub_schema, extra=cv.ALLOW_EXTRA)(hub_config)
 
     return cv.Schema(
