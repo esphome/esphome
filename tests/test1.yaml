@@ -73,6 +73,10 @@ wifi:
   domain: .local
   reboot_timeout: 120s
   power_save_mode: light
+  on_connect:
+    - light.turn_on: ${roomname}_lights
+  on_disconnect:
+    - light.turn_off: ${roomname}_lights
 
 network:
   enable_ipv6: true
@@ -185,6 +189,7 @@ i2c:
   id: i2c_bus
 
 spi:
+  id: spi_bus
   clk_pin: GPIO21
   mosi_pin: GPIO22
   miso_pin: GPIO23
@@ -224,6 +229,12 @@ uart:
     tx_pin: 14
     rx_pin: 27
     baud_rate: 115200
+  - id: ld2420_uart
+    tx_pin: 17
+    rx_pin: 16
+    baud_rate: 115200
+    parity: NONE
+    stop_bits: 1
   - id: gcja5_uart
     rx_pin: GPIO10
     parity: EVEN
@@ -336,11 +347,23 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+micronova:
+  enable_rx_pin: 4
+  uart_id: uart_0
+
 dfrobot_sen0395:
   - id: mmwave
     uart_id: dfrobot_mmwave_uart
 
 sensor:
+  - platform: xgzp68xx
+    i2c_id: i2c_bus
+    temperature:
+      name: Pressure Temperature
+    pressure:
+      name: Differential pressure
+    k_value: 4096
+
   - platform: pmwcs3
     i2c_id: i2c_bus
     e25:
@@ -1441,6 +1464,9 @@ sensor:
       still_energy:
         name: g8 still energy
 
+  - platform: ld2420
+    moving_distance:
+      name: "Moving distance (cm)"
   - platform: sen21231
     name: "Person Sensor"
     i2c_id: i2c_bus
@@ -1509,6 +1535,24 @@ sensor:
     field_strength_z:
       name: "Magnet Z"
       id: magnet_z
+  - platform: micronova
+    room_temperature:
+      name: Room Temperature
+    fumes_temperature:
+      name: Fumes Temperature
+    water_temperature:
+      name: Water temperature
+    water_pressure:
+      name: Water pressure
+    stove_power:
+      name: Stove Power
+    fan_speed:
+      fan_rpm_offset: 240
+      name: Fan RPM
+    memory_address_sensor:
+      memory_location: 0x20
+      memory_address: 0x7d
+      name: Adres sensor
 
 esp32_touch:
   setup_mode: false
@@ -2148,6 +2192,20 @@ light:
             state += 1;
             if (state == 4)
               state = 0;
+      - pulse:
+          transition_length: 10s
+          update_interval: 20s
+          min_brightness: 10%
+          max_brightness: 90%
+      - pulse:
+          name: pulse2
+          transition_length:
+            on_length: 10s
+            off_length: 5s
+          update_interval: 15s
+          min_brightness: 10%
+          max_brightness: 90%
+
   - platform: rgb
     name: Living Room Lights
     id: ${roomname}_lights
@@ -2680,7 +2738,7 @@ switch:
   - platform: gpio
     name: "SN74HC595 Pin #0"
     pin:
-      sn74hc595: sn74hc595_hub
+      sn74hc595: sn74hc595_hub_2
       # Use pin number 0
       number: 0
       inverted: false
@@ -2696,6 +2754,9 @@ switch:
       name: "control ld2410 engineering mode"
     bluetooth:
       name: "control ld2410 bluetooth"
+  - platform: micronova
+    stove:
+      name: Stove on/off
 
 fan:
   - platform: binary
@@ -2989,6 +3050,9 @@ remote_receiver:
   on_coolix:
     then:
       delay: !lambda "return x.first + x.second;"
+  on_rc_switch:
+    then:
+      delay: !lambda "return uint32_t(x.code) + x.protocol;"
 
 status_led:
   pin: GPIO2
@@ -3182,6 +3246,7 @@ pcf8574:
 
 pca9554:
   - id: pca9554_hub
+    pin_count: 8
     address: 0x3F
     i2c_id: i2c_bus
 
@@ -3324,6 +3389,11 @@ sn74hc595:
     latch_pin: GPIO22
     oe_pin: GPIO32
     sr_count: 2
+  - id: sn74hc595_hub_2
+    latch_pin: GPIO22
+    oe_pin: GPIO32
+    sr_count: 2
+    spi_id: spi_bus
 
 rtttl:
   output: gpio_19
@@ -3331,7 +3401,12 @@ rtttl:
 canbus:
   - platform: mcp2515
     id: mcp2515_can
-    cs_pin: GPIO17
+    cs_pin:
+      pca9554: pca9554_hub
+      number: 7
+      mode:
+        output: true
+      inverted: true
     can_id: 4
     bit_rate: 50kbps
     on_frame:
@@ -3474,6 +3549,12 @@ number:
         name: g8 move threshold
       still_threshold:
         name: g8 still threshold
+  - platform: micronova
+    thermostat_temperature:
+      name: Micronova Thermostaat
+      step: 1
+    power_level:
+      name: Micronova Power level
 
 select:
   - platform: template
@@ -3604,10 +3685,20 @@ button:
     uart_id: uart_0
     name: UART button
     data: "Pressed\r\n"
+  - platform: micronova
+    custom_button:
+      name: Custom Micronova Button
+      memory_location: 0xA0
+      memory_address: 0x7D
+      memory_data: 0x0F
 
 ld2410:
   id: my_ld2410
   uart_id: ld2410_uart
+
+ld2420:
+  id: my_ld2420
+  uart_id: ld2420_uart
 
 lcd_menu:
   display_id: my_lcd_gpio
@@ -3708,3 +3799,4 @@ alarm_control_panel:
       then:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));
+

@@ -31,7 +31,7 @@ void VoiceAssistant::setup() {
 
   this->socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
   if (socket_ == nullptr) {
-    ESP_LOGW(TAG, "Could not create socket.");
+    ESP_LOGW(TAG, "Could not create socket");
     this->mark_failed();
     return;
   }
@@ -69,7 +69,7 @@ void VoiceAssistant::setup() {
     ExternalRAMAllocator<uint8_t> speaker_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
     this->speaker_buffer_ = speaker_allocator.allocate(SPEAKER_BUFFER_SIZE);
     if (this->speaker_buffer_ == nullptr) {
-      ESP_LOGW(TAG, "Could not allocate speaker buffer.");
+      ESP_LOGW(TAG, "Could not allocate speaker buffer");
       this->mark_failed();
       return;
     }
@@ -79,7 +79,7 @@ void VoiceAssistant::setup() {
   ExternalRAMAllocator<int16_t> allocator(ExternalRAMAllocator<int16_t>::ALLOW_FAILURE);
   this->input_buffer_ = allocator.allocate(INPUT_BUFFER_SIZE);
   if (this->input_buffer_ == nullptr) {
-    ESP_LOGW(TAG, "Could not allocate input buffer.");
+    ESP_LOGW(TAG, "Could not allocate input buffer");
     this->mark_failed();
     return;
   }
@@ -89,7 +89,7 @@ void VoiceAssistant::setup() {
 
   this->ring_buffer_ = rb_create(BUFFER_SIZE, sizeof(int16_t));
   if (this->ring_buffer_ == nullptr) {
-    ESP_LOGW(TAG, "Could not allocate ring buffer.");
+    ESP_LOGW(TAG, "Could not allocate ring buffer");
     this->mark_failed();
     return;
   }
@@ -98,7 +98,7 @@ void VoiceAssistant::setup() {
   ExternalRAMAllocator<uint8_t> send_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   this->send_buffer_ = send_allocator.allocate(SEND_BUFFER_SIZE);
   if (send_buffer_ == nullptr) {
-    ESP_LOGW(TAG, "Could not allocate send buffer.");
+    ESP_LOGW(TAG, "Could not allocate send buffer");
     this->mark_failed();
     return;
   }
@@ -221,8 +221,8 @@ void VoiceAssistant::loop() {
       msg.audio_settings = audio_settings;
 
       if (this->api_client_ == nullptr || !this->api_client_->send_voice_assistant_request(msg)) {
-        ESP_LOGW(TAG, "Could not request start.");
-        this->error_trigger_->trigger("not-connected", "Could not request start.");
+        ESP_LOGW(TAG, "Could not request start");
+        this->error_trigger_->trigger("not-connected", "Could not request start");
         this->continuous_ = false;
         this->set_state_(State::IDLE, State::IDLE);
         break;
@@ -280,7 +280,7 @@ void VoiceAssistant::loop() {
             this->speaker_buffer_size_ += len;
           }
         } else {
-          ESP_LOGW(TAG, "Receive buffer full.");
+          ESP_LOGW(TAG, "Receive buffer full");
         }
         if (this->speaker_buffer_size_ > 0) {
           size_t written = this->speaker_->play(this->speaker_buffer_, this->speaker_buffer_size_);
@@ -290,7 +290,7 @@ void VoiceAssistant::loop() {
             this->speaker_buffer_index_ -= written;
             this->set_timeout("speaker-timeout", 2000, [this]() { this->speaker_->stop(); });
           } else {
-            ESP_LOGW(TAG, "Speaker buffer full.");
+            ESP_LOGW(TAG, "Speaker buffer full");
           }
         }
         if (this->wait_for_stream_end_) {
@@ -513,7 +513,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     }
     case api::enums::VOICE_ASSISTANT_STT_START:
-      ESP_LOGD(TAG, "STT Started");
+      ESP_LOGD(TAG, "STT started");
       this->listening_trigger_->trigger();
       break;
     case api::enums::VOICE_ASSISTANT_STT_END: {
@@ -525,19 +525,24 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         }
       }
       if (text.empty()) {
-        ESP_LOGW(TAG, "No text in STT_END event.");
+        ESP_LOGW(TAG, "No text in STT_END event");
         return;
       }
       ESP_LOGD(TAG, "Speech recognised as: \"%s\"", text.c_str());
       this->stt_end_trigger_->trigger(text);
       break;
     }
+    case api::enums::VOICE_ASSISTANT_INTENT_START:
+      ESP_LOGD(TAG, "Intent started");
+      this->intent_start_trigger_->trigger();
+      break;
     case api::enums::VOICE_ASSISTANT_INTENT_END: {
       for (auto arg : msg.data) {
         if (arg.name == "conversation_id") {
           this->conversation_id_ = std::move(arg.value);
         }
       }
+      this->intent_end_trigger_->trigger();
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_START: {
@@ -548,7 +553,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         }
       }
       if (text.empty()) {
-        ESP_LOGW(TAG, "No text in TTS_START event.");
+        ESP_LOGW(TAG, "No text in TTS_START event");
         return;
       }
       ESP_LOGD(TAG, "Response: \"%s\"", text.c_str());
@@ -566,7 +571,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         }
       }
       if (url.empty()) {
-        ESP_LOGW(TAG, "No url in TTS_END event.");
+        ESP_LOGW(TAG, "No url in TTS_END event");
         return;
       }
       ESP_LOGD(TAG, "Response URL: \"%s\"", url.c_str());
@@ -610,6 +615,11 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       if (code == "wake-word-timeout" || code == "wake_word_detection_aborted") {
         // Don't change state here since either the "tts-end" or "run-end" events will do it.
         return;
+      } else if (code == "wake-provider-missing" || code == "wake-engine-missing") {
+        // Wake word is not set up or not ready on Home Assistant so stop and do not retry until user starts again.
+        this->request_stop();
+        this->error_trigger_->trigger(code, message);
+        return;
       }
       ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
       if (this->state_ != State::IDLE) {
@@ -629,6 +639,14 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->set_state_(State::RESPONSE_FINISHED, State::IDLE);
       break;
     }
+    case api::enums::VOICE_ASSISTANT_STT_VAD_START:
+      ESP_LOGD(TAG, "Starting STT by VAD");
+      this->stt_vad_start_trigger_->trigger();
+      break;
+    case api::enums::VOICE_ASSISTANT_STT_VAD_END:
+      ESP_LOGD(TAG, "STT by VAD end");
+      this->stt_vad_end_trigger_->trigger();
+      break;
     default:
       ESP_LOGD(TAG, "Unhandled event type: %d", msg.event_type);
       break;

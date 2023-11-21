@@ -17,6 +17,9 @@ esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/adc128s102/* @DeerMaximum
 esphome/components/addressable_light/* @justfalter
+esphome/components/ade7953/* @angelnu
+esphome/components/ade7953_i2c/* @angelnu
+esphome/components/ade7953_spi/* @angelnu
 esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_base/* @jeromelaban @kpfleming @ncareau
 esphome/components/airthings_wave_mini/* @ncareau
@@ -89,9 +92,9 @@ esphome/components/ektf2232/* @jesserockz
 esphome/components/emc2101/* @ellull
 esphome/components/ens210/* @itn3rd77
 esphome/components/esp32/* @esphome/core
-esphome/components/esp32_ble/* @jesserockz
+esphome/components/esp32_ble/* @Rapsssito @jesserockz
 esphome/components/esp32_ble_client/* @jesserockz
-esphome/components/esp32_ble_server/* @clydebarrow @jesserockz
+esphome/components/esp32_ble_server/* @Rapsssito @clydebarrow @jesserockz
 esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_improv/* @jesserockz
@@ -152,6 +155,7 @@ esphome/components/key_provider/* @ssieb
 esphome/components/kuntze/* @ssieb
 esphome/components/lcd_menu/* @numo68
 esphome/components/ld2410/* @regevbr @sebcaps
+esphome/components/ld2420/* @descipher
 esphome/components/ledc/* @OttoWinter
 esphome/components/libretiny/* @kuba2k2
 esphome/components/libretiny_pwm/* @kuba2k2
@@ -183,6 +187,7 @@ esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
 esphome/components/media_player/* @jesserockz
+esphome/components/micronova/* @jorre05
 esphome/components/microphone/* @jesserockz
 esphome/components/mics_4514/* @jesserockz
 esphome/components/midea/* @dudanov
@@ -217,7 +222,7 @@ esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pca6416a/* @Mat931
-esphome/components/pca9554/* @hwstar
+esphome/components/pca9554/* @clydebarrow @hwstar
 esphome/components/pcf85063/* @brogon
 esphome/components/pcf8563/* @KoenBreeman
 esphome/components/pid/* @OttoWinter
@@ -241,6 +246,7 @@ esphome/components/radon_eye_rd200/* @jeffeb3
 esphome/components/rc522/* @glmnet
 esphome/components/rc522_i2c/* @glmnet
 esphome/components/rc522_spi/* @glmnet
+esphome/components/resistance_sampler/* @jesserockz
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz
@@ -347,6 +353,7 @@ esphome/components/wiegand/* @ssieb
 esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/x9c/* @EtienneMD
+esphome/components/xgzp68xx/* @gcormier
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs

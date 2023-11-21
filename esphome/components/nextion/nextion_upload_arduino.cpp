@@ -1,5 +1,6 @@
 #include "nextion.h"
 
+#ifdef ARDUINO
 #ifdef USE_NEXTION_TFT_UPLOAD
 
 #include "esphome/core/application.h"
@@ -128,15 +129,15 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
   return range_end + 1;
 }
 
-void Nextion::upload_tft() {
+bool Nextion::upload_tft() {
   if (this->is_updating_) {
     ESP_LOGD(TAG, "Currently updating");
-    return;
+    return false;
   }
 
   if (!network::is_connected()) {
     ESP_LOGD(TAG, "network is not connected");
-    return;
+    return false;
   }
 
   this->is_updating_ = true;
@@ -164,7 +165,7 @@ void Nextion::upload_tft() {
     ESP_LOGD(TAG, "connection failed");
     ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
     allocator.deallocate(this->transfer_buffer_, this->transfer_buffer_size_);
-    return;
+    return false;
   } else {
     ESP_LOGD(TAG, "Connected");
   }
@@ -192,7 +193,7 @@ void Nextion::upload_tft() {
   }
 
   if ((code != 200 && code != 206) || tries > 5) {
-    this->upload_end_();
+    return this->upload_end_(false);
   }
 
   String content_range_string = http.header("Content-Range");
@@ -203,7 +204,7 @@ void Nextion::upload_tft() {
 
   if (this->content_length_ < 4096) {
     ESP_LOGE(TAG, "Failed to get file size");
-    this->upload_end_();
+    return this->upload_end_(false);
   }
 
   ESP_LOGD(TAG, "Updating Nextion %s...", this->device_model_.c_str());
@@ -246,7 +247,7 @@ void Nextion::upload_tft() {
     ESP_LOGD(TAG, "preparation for tft update done");
   } else {
     ESP_LOGD(TAG, "preparation for tft update failed %d \"%s\"", response[0], response.c_str());
-    this->upload_end_();
+    return this->upload_end_(false);
   }
 
   // Nextion wants 4096 bytes at a time. Make chunk_size a multiple of 4096
@@ -280,7 +281,7 @@ void Nextion::upload_tft() {
       this->transfer_buffer_ = allocator.allocate(chunk_size);
 
       if (!this->transfer_buffer_)
-        this->upload_end_();
+        return this->upload_end_(false);
     }
 
     this->transfer_buffer_size_ = chunk_size;
@@ -295,7 +296,7 @@ void Nextion::upload_tft() {
     result = this->upload_by_chunks_(&http, result);
     if (result < 0) {
       ESP_LOGD(TAG, "Error updating Nextion!");
-      this->upload_end_();
+      return this->upload_end_(false);
     }
     App.feed_wdt();
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
@@ -303,15 +304,19 @@ void Nextion::upload_tft() {
   }
   ESP_LOGD(TAG, "Successfully updated Nextion!");
 
-  this->upload_end_();
+  return this->upload_end_(true);
 }
 
-void Nextion::upload_end_() {
+bool Nextion::upload_end_(bool successful) {
+  this->is_updating_ = false;
   ESP_LOGD(TAG, "Restarting Nextion");
   this->soft_reset();
-  delay(1500);  // NOLINT
-  ESP_LOGD(TAG, "Restarting esphome");
-  ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
+  if (successful) {
+    delay(1500);  // NOLINT
+    ESP_LOGD(TAG, "Restarting esphome");
+    ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
+  }
+  return successful;
 }
 
 #ifdef USE_ESP8266
@@ -337,3 +342,4 @@ WiFiClient *Nextion::get_wifi_client_() {
 }  // namespace esphome
 
 #endif  // USE_NEXTION_TFT_UPLOAD
+#endif  // ARDUINO

@@ -100,13 +100,17 @@ class VoiceAssistant : public Component {
   void set_auto_gain(uint8_t auto_gain) { this->auto_gain_ = auto_gain; }
   void set_volume_multiplier(float volume_multiplier) { this->volume_multiplier_ = volume_multiplier; }
 
+  Trigger<> *get_intent_end_trigger() const { return this->intent_end_trigger_; }
+  Trigger<> *get_intent_start_trigger() const { return this->intent_start_trigger_; }
   Trigger<> *get_listening_trigger() const { return this->listening_trigger_; }
+  Trigger<> *get_end_trigger() const { return this->end_trigger_; }
   Trigger<> *get_start_trigger() const { return this->start_trigger_; }
+  Trigger<> *get_stt_vad_end_trigger() const { return this->stt_vad_end_trigger_; }
+  Trigger<> *get_stt_vad_start_trigger() const { return this->stt_vad_start_trigger_; }
   Trigger<> *get_wake_word_detected_trigger() const { return this->wake_word_detected_trigger_; }
   Trigger<std::string> *get_stt_end_trigger() const { return this->stt_end_trigger_; }
-  Trigger<std::string> *get_tts_start_trigger() const { return this->tts_start_trigger_; }
   Trigger<std::string> *get_tts_end_trigger() const { return this->tts_end_trigger_; }
-  Trigger<> *get_end_trigger() const { return this->end_trigger_; }
+  Trigger<std::string> *get_tts_start_trigger() const { return this->tts_start_trigger_; }
   Trigger<std::string, std::string> *get_error_trigger() const { return this->error_trigger_; }
 
   Trigger<> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
@@ -124,13 +128,17 @@ class VoiceAssistant : public Component {
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   struct sockaddr_storage dest_addr_;
 
+  Trigger<> *intent_end_trigger_ = new Trigger<>();
+  Trigger<> *intent_start_trigger_ = new Trigger<>();
   Trigger<> *listening_trigger_ = new Trigger<>();
+  Trigger<> *end_trigger_ = new Trigger<>();
   Trigger<> *start_trigger_ = new Trigger<>();
+  Trigger<> *stt_vad_start_trigger_ = new Trigger<>();
+  Trigger<> *stt_vad_end_trigger_ = new Trigger<>();
   Trigger<> *wake_word_detected_trigger_ = new Trigger<>();
   Trigger<std::string> *stt_end_trigger_ = new Trigger<std::string>();
-  Trigger<std::string> *tts_start_trigger_ = new Trigger<std::string>();
   Trigger<std::string> *tts_end_trigger_ = new Trigger<std::string>();
-  Trigger<> *end_trigger_ = new Trigger<>();
+  Trigger<std::string> *tts_start_trigger_ = new Trigger<std::string>();
   Trigger<std::string, std::string> *error_trigger_ = new Trigger<std::string, std::string>();
 
   Trigger<> *client_connected_trigger_ = new Trigger<>();
