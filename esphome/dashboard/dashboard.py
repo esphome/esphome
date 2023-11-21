@@ -973,6 +973,7 @@ class MDNSStatusThread(threading.Thread):
         self.host_name_to_filename: dict[str, str] = {}
         # This is a set of host names to track (i.e no_mdns = false)
         self.host_name_with_mdns_enabled: set[set] = set()
+        self.zc: EsphomeZeroconf | None = None
         self._refresh_hosts()
 
     def _refresh_hosts(self):
@@ -996,7 +997,14 @@ class MDNSStatusThread(threading.Thread):
             # If we just adopted/imported this host, we likely
             # already have a state for it, so we should make sure
             # to set it so the dashboard shows it as online
-            if name in host_mdns_state:
+            if self.zc and (
+                entry.loaded_integrations and "api" not in entry.loaded_integrations
+            ):
+                # No api available so we have to poll since
+                # the device won't respond to a request to ._esphomelib._tcp.local.
+                PING_RESULT[filename] = bool(self.zc.resolve_host(entry.name))
+            elif name in host_mdns_state:
+                # We already have a state for this host
                 PING_RESULT[filename] = host_mdns_state[name]
 
             # Make sure the mapping is up to date
@@ -1007,7 +1015,8 @@ class MDNSStatusThread(threading.Thread):
     def run(self):
         global IMPORT_RESULT
 
-        zc = EsphomeZeroconf()
+        self.zc = EsphomeZeroconf()
+        zc = self.zc
         host_mdns_state = self.host_mdns_state
         host_name_to_filename = self.host_name_to_filename
         host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
