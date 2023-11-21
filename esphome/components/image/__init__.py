@@ -51,6 +51,8 @@ SOURCE_LOCAL = "local"
 SOURCE_MDI = "mdi"
 SOURCE_WEB = "web"
 
+SVG_FILE_EXTENSIONS = [".svg", ".svgz"]
+
 Image_ = image_ns.class_("Image")
 
 
@@ -60,28 +62,20 @@ def _compute_local_icon_path(value) -> Path:
 
 
 def compute_image_file_type(filepath) -> str:
-    if filepath.suffix == ".svg":
-        _LOGGER.warning("compute_image_file_type: is svg %s", filepath)
-        return ".svg"
+    if SVG_FILE_EXTENSIONS.count(filepath.suffix) > 0:
+        _LOGGER.debug("compute_image_file_type: is %s %s", filepath.suffix, filepath)
+        return filepath.suffix
     from PIL import Image
 
     img = Image.open(filepath)
     file_name = img.filename
     file_extension = img.format.lower()
-    _LOGGER.warning("compute_local_file_type: %s %s", file_name, file_extension)
+    _LOGGER.debug("compute_local_file_type: %s %s", file_name, file_extension)
     return "." + file_extension
 
 
-def move_file(filepath, new_filepath):
-    _LOGGER.warning("move_file: %s to %s", filepath, new_filepath)
-    import os
-
-    new_filepath.parent.mkdir(parents=True, exist_ok=True)
-    os.rename(filepath, new_filepath)
-
-
 def delete_file(filepath):
-    _LOGGER.warning("delete_file: %s", filepath)
+    _LOGGER.debug("delete_file: %s", filepath)
     import os
 
     os.remove(filepath)
@@ -89,15 +83,12 @@ def delete_file(filepath):
 
 def _compute_local_image_path(config) -> (Path, str):
     url = config[CONF_URL]
-    file_name, file_type, temp = external_files.get_file_info_from_url(url)
-    if temp:
-        file_type = compute_image_file_type(temp)
+    file_name, file_type, temp_path = external_files.get_file_info_from_url(url)
+    if temp_path:
+        file_type = compute_image_file_type(temp_path)
         base_dir = external_files.compute_local_file_dir(file_name, DOMAIN)
         path = base_dir / f"{file_name}{file_type}"
-        if external_files.has_remote_file_changed(url, path):
-            move_file(temp, path)
-        else:
-            delete_file(temp)
+        delete_file(temp_path)
         return path, file_name
     base_dir = external_files.compute_local_file_dir(file_name, DOMAIN)
     return base_dir / f"{file_name}{file_type}", file_name
@@ -126,12 +117,10 @@ def download_image(value):
     path, image_id = _compute_local_image_path(value)
 
     if not external_files.has_remote_file_changed(url, path):
-        _LOGGER.info("Remote file has not changed %s", url)
+        _LOGGER.debug("Remote file has not changed %s", url)
         return value
 
-    # image_id, _ = path.name.split(".", 1)
-
-    _LOGGER.warning(
+    _LOGGER.info(
         "Remote file has changed, downloading %s image from %s to %s",
         image_id,
         url,

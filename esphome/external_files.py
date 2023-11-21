@@ -13,32 +13,30 @@ CODEOWNERS = ["@landonr"]
 
 NETWORK_TIMEOUT = 30
 
+IF_MODIFIED_SINCE = "If-Modified-Since"
+CACHE_CONTROL = "Cache-Control"
+CACHE_CONTROL_MAX_AGE = "max-age="
+CONTENT_DISPOSITION = "content-disposition"
+FILE_NAME_REGEX = 'filename="(.+)"'
+TEMP_DIR = "temp"
+
 
 def has_remote_file_changed(url, local_file_path):
-    # Check if the local file exists
     if os.path.exists(local_file_path):
-        _LOGGER.warning("has_remote_file_changed: File exists at %s", local_file_path)
+        _LOGGER.debug("has_remote_file_changed: File exists at %s", local_file_path)
         try:
-            # Get the local file's modification time
             local_modification_time = os.path.getmtime(local_file_path)
-
-            # Convert it to a format suitable for the "If-Modified-Since" header
-            # local_modification_time_str = datetime.utcfromtimestamp(
-            #     local_modification_time
-            # ).strftime("%a, %d %b %Y %H:%M:%S GMT")
-
             local_modification_time_str = datetime.utcfromtimestamp(
                 local_modification_time
             ).strftime("%a, %d %b %Y %H:%M:%S GMT")
 
-            # Send an HTTP GET request to the URL with the "If-Modified-Since" header
             headers = {
-                "If-Modified-Since": local_modification_time_str,
-                "Cache-Control": "max-age=3600",
+                IF_MODIFIED_SINCE: local_modification_time_str,
+                CACHE_CONTROL: CACHE_CONTROL_MAX_AGE + "3600",
             }
             response = requests.get(url, headers=headers, timeout=NETWORK_TIMEOUT)
 
-            _LOGGER.warning(
+            _LOGGER.debug(
                 "has_remote_file_changed: File %s, Local modified %s, response code %d",
                 local_file_path,
                 local_modification_time_str,
@@ -46,12 +44,12 @@ def has_remote_file_changed(url, local_file_path):
             )
 
             if response.status_code == 304:
-                _LOGGER.warning(
+                _LOGGER.debug(
                     "has_remote_file_changed: File not modified since %s",
                     local_modification_time_str,
                 )
                 return False
-            _LOGGER.warning("has_remote_file_changed: File modified")
+            _LOGGER.debug("has_remote_file_changed: File modified")
             return True
         except requests.exceptions.RequestException as e:
             raise cv.Invalid(
@@ -59,9 +57,7 @@ def has_remote_file_changed(url, local_file_path):
                 f"({e})"
             )
 
-    _LOGGER.warning(
-        "has_remote_file_changed: File doesnt exists at %s", local_file_path
-    )
+    _LOGGER.debug("has_remote_file_changed: File doesn't exists at %s", local_file_path)
     return True
 
 
@@ -83,11 +79,11 @@ def compute_local_file_dir(name: str, domain: str) -> Path:
     return Path(file_path)
 
 
-def get_filename_from_content_disposition(r):
-    cd = r.headers.get("content-disposition")
+def get_file_info_from_content_disposition(r):
+    cd = r.headers.get(CONTENT_DISPOSITION)
     if not cd:
         return None
-    fname = re.findall('filename="(.+)"', cd)
+    fname = re.findall(FILE_NAME_REGEX, cd)
     if len(fname) == 0:
         return None
     file_base_name, file_extension = os.path.splitext(fname[0])
@@ -104,15 +100,15 @@ def parse_file_info_from_url(url):
 
 
 def get_file_info_from_url(url):
-    _LOGGER.warning("get file info url %s", url)
+    _LOGGER.debug("get file info url %s", url)
     r = requests.get(url, allow_redirects=True, timeout=NETWORK_TIMEOUT)
     if r.status_code != 200:
         raise cv.Invalid(
             f"Could check {url} info, check if file exists " f"({r.status_code}"
         )
-    if "content-disposition" in r.headers:
-        file_base_name, file_extension = get_filename_from_content_disposition(r)
-        _LOGGER.warning(
+    if CONTENT_DISPOSITION in r.headers:
+        file_base_name, file_extension = get_file_info_from_content_disposition(r)
+        _LOGGER.debug(
             "file at url has content disposition %s %s",
             file_base_name,
             file_extension,
@@ -120,8 +116,8 @@ def get_file_info_from_url(url):
         return file_base_name, file_extension, None
     file_base_name, file_extension = parse_file_info_from_url(url)
     file_name = file_base_name + file_extension
-    temp_path = compute_local_file_dir(file_name, "temp")
-    _LOGGER.warning("get file info downloading to temp path %s", temp_path)
+    temp_path = compute_local_file_dir(file_name, TEMP_DIR)
+    _LOGGER.debug("get file info downloading to temp path %s", temp_path)
     with open(temp_path, "wb") as f:
         f.write(r.content)
     return file_base_name, file_extension, temp_path
