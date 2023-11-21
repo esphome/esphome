@@ -26,6 +26,7 @@ public:
   void set_address(uint8_t address) { address_ = address; }
   uint8_t address() { return address_; }
   void set_promiscuous_mode(bool promiscuous_mode) { promiscuous_mode_ = promiscuous_mode; }
+  void set_osd_name_bytes(const std::vector<uint8_t> &osd_name_bytes) { osd_name_bytes_ = osd_name_bytes; }
   void add_message_trigger(MessageTrigger *trigger) { message_triggers_.push_back(trigger); }
 
   bool send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes);
@@ -51,6 +52,7 @@ protected:
   ISRInternalGPIOPin isr_pin_;
   uint8_t address_;
   bool promiscuous_mode_;
+  std::vector<uint8_t> osd_name_bytes_;
   std::vector<MessageTrigger*> message_triggers_;
 
   uint32_t last_falling_edge_us_;

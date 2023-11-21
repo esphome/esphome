@@ -11,6 +11,7 @@ CODEOWNERS = ["@Palakis"]
 CONF_PIN = "pin"
 CONF_ADDRESS = "address"
 CONF_PROMISCUOUS_MODE = "promiscuous_mode"
+CONF_OSD_NAME = "osd_name"
 CONF_ON_MESSAGE = "on_message"
 
 CONF_SOURCE = "source"
@@ -23,6 +24,22 @@ def validate_data_array(value):
     if isinstance(value, list):
         return cv.Schema([cv.hex_uint8_t])(value)
     raise cv.Invalid("data must be a list of bytes")
+
+def validate_osd_name(value):
+    if not isinstance(value, str):
+        raise cv.Invalid("Must be a string")
+    if len(value) < 1:
+        raise cv.Invalid("Must be a non-empty string")
+    if len(value) > 14:
+        raise cv.Invalid("Must not be more than 14-characters long")
+    
+    for char in value:
+        if not 0x20 <= ord(char) < 0x7E:
+            raise cv.Invalid(
+                f"character '{char}' ({ord(char)}) is outside of the supported character range (0x20..0x7e)"
+            )
+
+    return value
 
 hdmi_cec_ns = cg.esphome_ns.namespace("hdmi_cec")
 HDMICEC = hdmi_cec_ns.class_(
@@ -41,6 +58,7 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
         cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
         cv.Required(CONF_ADDRESS): cv.int_range(min=0, max=15),
         cv.Optional(CONF_PROMISCUOUS_MODE, False): cv.boolean,
+        cv.Optional(CONF_OSD_NAME, "esphome"): validate_osd_name,
         cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MessageTrigger),
@@ -62,6 +80,11 @@ async def to_code(config):
 
     cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(var.set_promiscuous_mode(config[CONF_PROMISCUOUS_MODE]))
+
+    osd_name_bytes = bytes(config[CONF_OSD_NAME], 'ascii', 'ignore') # convert string to ascii bytes
+    osd_name_bytes = [x for x in osd_name_bytes] # convert byte array to int array
+    osd_name_bytes = cg.std_vector.template(cg.uint8)(osd_name_bytes)
+    cg.add(var.set_osd_name_bytes(osd_name_bytes))
 
     for conf in config.get(CONF_ON_MESSAGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

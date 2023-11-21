@@ -124,10 +124,12 @@ bool HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
       break;
     }
 
-    // TODO handle "Give OSD Name"
+    // "Give OSD Name" request
     case 0x46: {
-      // TODO add "OSD Name" option to component configuration
-      // TODO reply with "Set OSD Name" (0x47)
+      // reply with "Set OSD Name" (0x47)
+      std::vector<uint8_t> data = { 0x47 };
+      data.insert(data.end(), osd_name_bytes_.begin(), osd_name_bytes_.end());
+      send(address_, source, data);
       break;
     }
 
