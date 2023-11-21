@@ -24,6 +24,7 @@ static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
 void IRAM_ATTR HOT Store::gpio_intr(Store *store) { store->available = true; }
 
 void GT911Touchscreen::setup() {
+  i2c::ErrorCode err;
   ESP_LOGCONFIG(TAG, "Setting up GT911 Touchscreen...");
   // datasheet says NOT to use pullup/down on the int line.
   this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
@@ -31,11 +32,19 @@ void GT911Touchscreen::setup() {
 
   // check the configuration of the int line.
   uint8_t data;
-  this->write(GET_SWITCHES, 2);
-  this->read(&data, 1);
-  ESP_LOGD(TAG, "Read from switches: 0x%02X", data);
-  this->interrupt_pin_->attach_interrupt(Store::gpio_intr, &this->store_,
-                                         (data & 1) ? gpio::INTERRUPT_FALLING_EDGE : gpio::INTERRUPT_RISING_EDGE);
+  err = this->write(GET_SWITCHES, 2);
+  if (err == i2c::ERROR_OK) {
+    err = this->read(&data, 1);
+    if (err == i2c::ERROR_OK) {
+      ESP_LOGD(TAG, "Read from switches: 0x%02X", data);
+      this->interrupt_pin_->attach_interrupt(Store::gpio_intr, &this->store_,
+                                             (data & 1) ? gpio::INTERRUPT_FALLING_EDGE : gpio::INTERRUPT_RISING_EDGE);
+    }
+  }
+  if (err != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Failed to communicate!");
+    this->mark_failed();
+  }
 }
 
 void GT911Touchscreen::loop() {
