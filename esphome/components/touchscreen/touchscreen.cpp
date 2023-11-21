@@ -18,6 +18,11 @@ void Touchscreen::set_display(display::Display *display) {
   }
 }
 
+void Touchscreen::send_release_() {
+  for (auto *listener : this->touch_listeners_)
+    listener->release();
+}
+
 void Touchscreen::send_touch_(TouchPoint tp) {
   ESP_LOGV(TAG, "Touch (x=%d, y=%d)", tp.x, tp.y);
   this->touch_trigger_.trigger(tp);

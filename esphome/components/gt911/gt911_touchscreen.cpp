@@ -34,53 +34,43 @@ void GT911Touchscreen::setup() {
     return;
   }
 
-  this->store_.available = true;  // trigger read on first loop()
-  this->interrupt_pin_->attach_interrupt(Store::gpio_intr, &this->store_, gpio::INTERRUPT_FALLING_EDGE);
-
+  this->interrupt_pin_->attach_interrupt(Store::gpio_intr, &this->store_, gpio::INTERRUPT_RISING_EDGE);
 }
 
 void GT911Touchscreen::loop() {
-  if (!this->store_.available) {
-    return;
-  }
+  i2c::ErrorCode err;
+  touchscreen::TouchPoint tp;
+  uint8_t touch_state = 0;
+  uint8_t data[7][8]; // 8 bytes each for max 7 points
 
+  if (!this->store_.available)
+    return;
   this->store_.available = false;
 
-  uint8_t touch_state = 0;
-
-  i2c::ErrorCode err;
   err = this->write(GET_TOUCH_STATE, sizeof(GET_TOUCH_STATE), false);
   ERROR_CHECK(err);
   err = this->read(&touch_state, 1);
   ERROR_CHECK(err);
+  this->write(CLEAR_TOUCH_STATE, sizeof(CLEAR_TOUCH_STATE));
 
-  bool buffer_status = touch_state & 0x80;
+  if ((touch_state & 0x80) == 0)
+    return;
   uint8_t num_of_touches = touch_state & 0x07;
-  if (!buffer_status || num_of_touches == 0) {
-    for (auto *listener : this->touch_listeners_)
-      listener->release();
-    if (buffer_status) {
-      err = this->write(CLEAR_TOUCH_STATE, sizeof(CLEAR_TOUCH_STATE));
-      ERROR_CHECK(err);
-    }
+  if (num_of_touches == 0) {
+    this->send_release_();
     return;
   }
 
-  uint8_t data[num_of_touches << 3];
   err = this->write(GET_TOUCHES, sizeof(GET_TOUCHES), false);
   ERROR_CHECK(err);
-  err = this->read(data, sizeof(data));
+  // num_of_touches is guaranteed to be 1..7
+  err = this->read(data[0], sizeof(data[0]) * num_of_touches);
   ERROR_CHECK(err);
 
-  for (uint8_t i = 0; i < num_of_touches; i++) {
-    uint8_t *d = data + (i << 3);
-
-    touchscreen::TouchPoint tp;
-
-    tp.id = d[0];
-
-    uint16_t x = encode_uint16(d[2], d[1]);
-    uint16_t y = encode_uint16(d[4], d[3]);
+  for (uint8_t i = 0; i != num_of_touches; i++) {
+    tp.id = data[i][0];
+    uint16_t x = encode_uint16(data[i][2], data[i][1]);
+    uint16_t y = encode_uint16(data[i][4], data[i][3]);
 
     switch (this->rotation_) {
       case touchscreen::ROTATE_0_DEGREES:
@@ -102,9 +92,6 @@ void GT911Touchscreen::loop() {
     }
     this->defer([this, tp]() { this->send_touch_(tp); });
   }
-
-  err = this->write(CLEAR_TOUCH_STATE, sizeof(CLEAR_TOUCH_STATE));
-  ERROR_CHECK(err);
 }
 
 void GT911Touchscreen::dump_config() {
