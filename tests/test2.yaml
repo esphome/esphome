@@ -759,9 +759,11 @@ image:
   - id: web_tiff_image
     file: https://upload.wikimedia.org/wikipedia/commons/b/b6/SIPI_Jelly_Beans_4.1.07.tiff
     type: RGB24
+    resize: 48x48
   - id: web_redirect_image
     file: https://avatars.githubusercontent.com/u/3060199?s=48&v=4
     type: RGB24
+    resize: 48x48
 
   - id: mdi_alert
     file: mdi:alert-circle-outline
