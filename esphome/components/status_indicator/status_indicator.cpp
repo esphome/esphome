@@ -134,7 +134,7 @@ void StatusIndicator::loop() {
       status = "on_turn_off";
     }
     if (oldtrigger != this->current_trigger_) {
-      ESP_LOGI(TAG, "<>> Current trigger:%s->%s", status.c_str(), this->current_trigger_->get_name().c_str());
+      ESP_LOGI(TAG, "<>> %s->%s", status.c_str(), this->current_trigger_->get_name().c_str());
       this->current_trigger_->trigger();
     }
     this->current_status_ = status;
