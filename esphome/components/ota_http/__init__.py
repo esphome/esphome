@@ -80,7 +80,9 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
                 cv.only_on_esp8266, cv.boolean
             ),
-            cv.Optional(CONF_SAFE_MODE, default="fallback"): cv.Any(cv.boolean, "fallback"), # cv.enum(SAFE_MODE_STATES, upper=True),
+            cv.Optional(CONF_SAFE_MODE, default="fallback"): cv.Any(
+                cv.boolean, "fallback"
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(

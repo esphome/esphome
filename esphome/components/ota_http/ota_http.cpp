@@ -63,15 +63,14 @@ void OtaHttpComponent::flash() {
   }
 #endif
 
-    uint32_t update_start_time = millis();
-    uint8_t buf[this->http_recv_buffer_ + 1];
-    int error_code = 0;
-    uint32_t last_progress = 0;
-    esphome::md5::MD5Digest md5_receive;
-    std::unique_ptr<char[]> md5_receive_str(new char[33]);
-
-    if (!this->http_init()) {
-      return;
+  uint32_t update_start_time = millis();
+  uint8_t buf[this->http_recv_buffer_ + 1];
+  int error_code = 0;
+  uint32_t last_progress = 0;
+  esphome::md5::MD5Digest md5_receive;
+  std::unique_ptr<char[]> md5_receive_str(new char[33]);
+  if (!this->http_init()) {
+    return;
   }
 
   // we will compute md5 on the fly
