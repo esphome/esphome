@@ -124,7 +124,7 @@ void StatusIndicator::loop() {
   if (this->current_status_ != status) {
     StatusTrigger *oldtrigger = this->current_trigger_;
 
-    if (!status.empty() && this->triggers_.count(status)==1) {
+    if (!status.empty() && this->triggers_.count(status) == 1) {
       this->current_trigger_ = get_trigger(status);
     } else if (!this->stack_.empty()) {
       this->current_trigger_ = this->stack_.back();
@@ -164,13 +164,13 @@ void StatusIndicator::push_trigger(StatusTrigger *trigger) {
     if (trigger->get_priority() < st->get_priority()) {
       this->stack_.insert(i, trigger);
       this->current_status_ = "update me";
-  //    log_triggers_();
+      //  log_triggers_();
       return;
     }
   }
   this->stack_.push_back(trigger);
   this->current_status_ = "update me";
-//  log_triggers_();
+  //  log_triggers_();
 }
 
 void StatusIndicator::pop_trigger(StatusTrigger *trigger, bool incl_group) {
@@ -186,7 +186,7 @@ void StatusIndicator::pop_trigger(StatusTrigger *trigger, bool incl_group) {
       ++i;
     }
   }
-//  log_triggers_();
+  //  log_triggers_();
 }
 
 void StatusIndicator::pop_trigger(const std::string &group) {
@@ -201,7 +201,7 @@ void StatusIndicator::pop_trigger(const std::string &group) {
       ++i;
     }
   }
-  //log_triggers_();
+  //  log_triggers_();
 }
 
 void StatusIndicator::log_triggers_() {
