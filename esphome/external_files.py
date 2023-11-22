@@ -52,7 +52,7 @@ def has_remote_file_changed(url, local_file_path):
             return True
         except requests.exceptions.RequestException as e:
             raise cv.Invalid(
-                f"Could check if {url} has changed, please check if file exists "
+                f"Could not check if {url} has changed, please check if file exists "
                 f"({e})"
             )
 
@@ -121,7 +121,7 @@ def get_file_info_from_url(url):
     )
     if r.status_code != 200:
         raise cv.Invalid(
-            f"Could check {url} info, check if file exists " f"({r.status_code}"
+            f"Could not check {url} info, check if file exists " f"({r.status_code}"
         )
     if CONTENT_DISPOSITION in r.headers:
         file_base_name, file_extension = get_file_info_from_content_disposition(r)
