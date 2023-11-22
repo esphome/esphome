@@ -17,11 +17,20 @@ void WaveShareEPaper1in9I2C::setup() {
   this->init_screen_();
   this->write_lut_(LUT_5S);
   this->wait_for_idle_();
+  this->display();
 }
 
-void HOT WaveShareEPaper1in9I2C::update() {
+void WaveShareEPaper1in9I2C::update() {
   ESP_LOGV(TAG, "WaveShareEPaper1in9I2C::update Called...");
 
+  if (this->writer_.has_value()) {
+    (*this->writer_)(*this);
+  }
+
+  this->display();
+}
+
+void HOT WaveShareEPaper1in9I2C::display() {
   if (this->display_state_.is_changed()) {
     this->display_state_.flip();
 
@@ -96,12 +105,16 @@ void HOT WaveShareEPaper1in9I2C::update() {
 
     if (valid_temperature) {
       new_image[TEMPERATURE_DOT_INDEX] |= DOT_MASK;
-      new_image[INDICATORS_IDX] |= this->display_state_.is_celsius.current ? CHAR_CELSIUS : CHAR_FAHRENHEIT;
+      if (this->display_state_.display_temperature_unit.current) {
+        new_image[INDICATORS_IDX] |= this->display_state_.is_celsius.current ? CHAR_CELSIUS : CHAR_FAHRENHEIT;
+      }
     }
 
     if (valid_humidity) {
       new_image[HUMIDITY_DOT_IDX] |= DOT_MASK;
-      new_image[HUMIDITY_PERCENTAGE_IDX] |= PERCENT_MASK;
+      if (this->display_state_.display_percent.current) {
+        new_image[HUMIDITY_PERCENTAGE_IDX] |= PERCENT_MASK;
+      }
     }
 
     if (this->display_state_.low_power.current) {
@@ -256,12 +269,20 @@ void WaveShareEPaper1in9I2C::set_humidity(float humidity) {
   this->display_state_.humidity_x10.future = (int16_t) 10.0 * humidity;
 }
 
-void WaveShareEPaper1in9I2C::set_low_power_indicator(bool is_low_power) {
+void WaveShareEPaper1in9I2C::display_low_power_indicator(bool is_low_power) {
   this->display_state_.low_power.future = is_low_power;
 }
 
-void WaveShareEPaper1in9I2C::set_bluetooth_indicator(bool is_bluetooth) {
+void WaveShareEPaper1in9I2C::display_bluetooth_indicator(bool is_bluetooth) {
   this->display_state_.bluetooth.future = is_bluetooth;
+}
+
+void WaveShareEPaper1in9I2C::display_percent(bool display_percent) {
+  this->display_state_.display_percent.future = display_percent;
+}
+
+void WaveShareEPaper1in9I2C::display_temperature_unit(bool display_temperature_unit) {
+  this->display_state_.display_temperature_unit.future = display_temperature_unit;
 }
 
 void WaveShareEPaper1in9I2C::dump_config() {

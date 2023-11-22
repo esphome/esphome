@@ -573,6 +573,22 @@ display:
     wakeup_pin: GPIO1
     vcom_pin: GPIO1
 
+  - platform: waveshare_epaper_1in9_i2c
+    command_address: 0x3C
+    data_address: 0x3D
+    busy_pin: GPIO23
+    reset_pin: GPIO23
+    update_interval: 5s
+    full_update_every: 30
+    lambda: |-
+      static float value1 = 218.3;
+      it.display_low_power_indicator(true);
+      it.display_bluetooth_indicator(true);
+      it.display_temperature_unit(true);
+      it.display_percent(true);
+      it.set_temperature(value1);
+      it.set_humidity(value1);
+
 number:
   - platform: tuya
     id: tuya_number
@@ -814,10 +830,3 @@ max6956:
 xl9535:
   - id: xl9535_hub
     address: 0x20
-
-waveshare_epaper_1in9_i2c:
-  command_address: 0x3C
-  data_address: 0x3D
-  busy_pin: GPIO23
-  reset_pin: GPIO23
-  update_interval: 5s

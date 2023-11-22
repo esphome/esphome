@@ -9,7 +9,7 @@
 namespace esphome {
 namespace waveshare_epaper_1in9_i2c {
 
-template<typename T> struct VaueState {
+template<typename T> struct ValueState {
   T current;
   T future;
 
@@ -18,15 +18,18 @@ template<typename T> struct VaueState {
 };
 
 struct DisplayState {
-  VaueState<int16_t> temperature_x10{TEMPERATURE_X10_MAX + 1, TEMPERATURE_X10_MAX + 1};
-  VaueState<int16_t> humidity_x10{HUMIDITY_X10_MAX + 1, HUMIDITY_X10_MAX + 1};
-  VaueState<bool> low_power{false, false};
-  VaueState<bool> bluetooth{false, false};
-  VaueState<bool> is_celsius{true, true};
+  ValueState<int16_t> temperature_x10{TEMPERATURE_X10_MAX + 1, TEMPERATURE_X10_MAX + 1};
+  ValueState<int16_t> humidity_x10{HUMIDITY_X10_MAX + 1, HUMIDITY_X10_MAX + 1};
+  ValueState<bool> low_power{false, false};
+  ValueState<bool> bluetooth{false, false};
+  ValueState<bool> is_celsius{true, true};
+  ValueState<bool> display_percent{true, true};
+  ValueState<bool> display_temperature_unit{true, true};
 
   bool is_changed() {
     return this->temperature_x10.is_changed() || this->humidity_x10.is_changed() || this->low_power.is_changed() ||
-           this->bluetooth.is_changed() || this->is_celsius.is_changed();
+           this->bluetooth.is_changed() || this->is_celsius.is_changed() || this->display_percent.is_changed() ||
+           this->display_temperature_unit.is_changed();
   }
   void flip() {
     this->temperature_x10.flip();
@@ -34,15 +37,24 @@ struct DisplayState {
     this->low_power.flip();
     this->bluetooth.flip();
     this->is_celsius.flip();
+    this->display_percent.flip();
+    this->display_temperature_unit.flip();
   }
 };
 
+class WaveShareEPaper1in9I2C;
+
+using waveshare_epaper_1in9_i2c_writer_t = std::function<void(WaveShareEPaper1in9I2C &)>;
+
 class WaveShareEPaper1in9I2C : public PollingComponent {
  public:
+  void set_writer(waveshare_epaper_1in9_i2c_writer_t &&writer) { this->writer_ = writer; }
+
   void setup() override;
   void update() override;
+  void display();
 
-  float get_setup_priority() const override { return setup_priority::IO; };
+  float get_setup_priority() const override { return setup_priority::PROCESSOR; };
 
   void create_command_device(i2c::I2CBus *bus, uint8_t address) {
     this->command_device_.set_i2c_address(address);
@@ -66,8 +78,11 @@ class WaveShareEPaper1in9I2C : public PollingComponent {
 
   void set_humidity(float humidity);
 
-  void set_low_power_indicator(bool is_low_power);
-  void set_bluetooth_indicator(bool is_bluetooth);
+  void display_percent(bool display_percent);
+  void display_temperature_unit(bool display_temperature_unit);
+
+  void display_low_power_indicator(bool is_low_power);
+  void display_bluetooth_indicator(bool is_bluetooth);
 
   void apply_temperature_compensation();
   void dump_config() override;
@@ -88,6 +103,7 @@ class WaveShareEPaper1in9I2C : public PollingComponent {
   i2c::I2CDevice data_device_;
   GPIOPin *reset_pin_;
   GPIOPin *busy_pin_;
+  optional<waveshare_epaper_1in9_i2c_writer_t> writer_{};
 
   void init_screen_();
   void reset_screen_();
