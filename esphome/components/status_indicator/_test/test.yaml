@@ -11,9 +11,6 @@ logger:
 light:
   - platform: esp32_rmt_led_strip
     id: led
-    name: None
-    disabled_by_default: true
-    entity_category: config
     pin: GPIO27
     default_transition_length: 0s
     chipset: SK6812

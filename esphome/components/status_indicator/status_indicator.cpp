@@ -154,18 +154,18 @@ void StatusIndicator::push_trigger(StatusTrigger *trigger) {
   this->pop_trigger(trigger, true);
   ESP_LOGD(TAG, "Push ID: %s", trigger->get_info().c_str());
 
-    for (auto i = this->stack_.begin(); i != this->stack_.end(); ++i) {
-      StatusTrigger *st = *i;
-      if (trigger->get_priority() < st->get_priority()) {
-        this->stack_.insert(i, trigger);
-        this->current_status_ = "update me";
-        log_triggers_();
-        return;
-      }
+  for (auto i = this->stack_.begin(); i != this->stack_.end(); ++i) {
+    StatusTrigger *st = *i;
+    if (trigger->get_priority() < st->get_priority()) {
+      this->stack_.insert(i, trigger);
+      this->current_status_ = "update me";
+      log_triggers_();
+      return;
     }
-    this->stack_.push_back(trigger);
-    this->current_status_ = "update me";
-    log_triggers_();
+  }
+  this->stack_.push_back(trigger);
+  this->current_status_ = "update me";
+  log_triggers_();
 }
 
 void StatusIndicator::pop_trigger(StatusTrigger *trigger, bool incl_group) {
