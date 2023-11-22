@@ -17,7 +17,11 @@
 #ifdef USE_WIFI_WPA2_EAP
 #include <esp_wpa2.h>
 #endif
+
+#ifdef USE_WIFI_AP
 #include "dhcpserver/dhcpserver.h"
+#endif  // USE_WIFI_AP
+
 #include "lwip/err.h"
 #include "lwip/dns.h"
 
@@ -35,15 +39,19 @@ static const char *const TAG = "wifi_esp32";
 static EventGroupHandle_t s_wifi_event_group;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static QueueHandle_t s_event_queue;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static esp_netif_t *s_ap_netif = nullptr;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_started = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connected = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_got_ip = false;              // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_ap_started = false;              // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connect_not_found = false;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connect_error = false;       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connecting = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_wifi_started = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+#ifdef USE_WIFI_AP
+static esp_netif_t *s_ap_netif = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif                                     // USE_WIFI_AP
+
+static bool s_sta_started = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_got_ip = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_ap_started = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_wifi_started = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 struct IDFWiFiEvent {
   esp_event_base_t event_base;
@@ -159,7 +167,11 @@ void WiFiComponent::wifi_pre_setup_() {
   }
 
   s_sta_netif = esp_netif_create_default_wifi_sta();
+
+#ifdef USE_WIFI_AP
   s_ap_netif = esp_netif_create_default_wifi_ap();
+#endif  // USE_WIFI_AP
+
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   // cfg.nvs_enable = false;
   err = esp_wifi_init(&cfg);
@@ -674,6 +686,11 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       return;
     }
 
+    if (it.number == 0) {
+      // no results
+      return;
+    }
+
     uint16_t number = it.number;
     std::vector<wifi_ap_record_t> records(number);
     err = esp_wifi_scan_get_ap_records(&number, records.data());
@@ -761,6 +778,8 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   scan_done_ = false;
   return true;
 }
+
+#ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   esp_err_t err;
 
@@ -816,6 +835,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   return true;
 }
+
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   // enable AP
   if (!this->wifi_mode_({}, true))
@@ -853,6 +873,8 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
+#endif  // USE_WIFI_AP
+
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(s_sta_netif, &ip);

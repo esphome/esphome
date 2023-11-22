@@ -514,7 +514,7 @@ def command_clean(args, config):
 def command_dashboard(args):
     from esphome.dashboard import dashboard
 
-    return dashboard.start_web_server(args)
+    return dashboard.start_dashboard(args)
 
 
 def command_update_all(args):
