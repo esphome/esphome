@@ -205,7 +205,7 @@ void StatusIndicator::pop_trigger(const std::string &group) {
 }
 
 void StatusIndicator::log_triggers_() {
-  for (auto st : this->stack_) {
+  for (auto *st : this->stack_) {
     ESP_LOGD(TAG, "%s", st->get_info().c_str());
   }
   ESP_LOGD(TAG, "----------------------------- %d ----", this->stack_.size());
