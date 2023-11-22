@@ -51,6 +51,9 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   void set_identify_duration(uint32_t identify_duration) { this->identify_duration_ = identify_duration; }
   void set_authorized_duration(uint32_t authorized_duration) { this->authorized_duration_ = authorized_duration; }
 
+  void set_wifi_timeout(uint32_t wifi_timeout) { this->wifi_timeout_ = wifi_timeout; }
+  uint32_t get_wifi_timeout() const { return this->wifi_timeout_; }
+
  protected:
   bool should_start_{false};
   bool setup_complete_{false};
@@ -60,10 +63,12 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   uint32_t authorized_start_{0};
   uint32_t authorized_duration_;
 
+  uint32_t wifi_timeout_{};
+
   std::vector<uint8_t> incoming_data_;
   wifi::WiFiAP connecting_sta_;
 
-  std::shared_ptr<BLEService> service_;
+  BLEService *service_ = nullptr;
   BLECharacteristic *status_;
   BLECharacteristic *error_;
   BLECharacteristic *rpc_;

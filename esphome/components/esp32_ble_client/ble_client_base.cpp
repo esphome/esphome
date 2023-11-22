@@ -20,16 +20,21 @@ static const esp_bt_uuid_t NOTIFY_DESC_UUID = {
 void BLEClientBase::setup() {
   static uint8_t connection_index = 0;
   this->connection_index_ = connection_index++;
-
-  auto ret = esp_ble_gattc_app_register(this->app_id);
-  if (ret) {
-    ESP_LOGE(TAG, "gattc app register failed. app_id=%d code=%d", this->app_id, ret);
-    this->mark_failed();
-  }
-  this->set_state(espbt::ClientState::IDLE);
 }
 
 void BLEClientBase::loop() {
+  if (!esp32_ble::global_ble->is_active()) {
+    this->set_state(espbt::ClientState::INIT);
+    return;
+  }
+  if (this->state_ == espbt::ClientState::INIT) {
+    auto ret = esp_ble_gattc_app_register(this->app_id);
+    if (ret) {
+      ESP_LOGE(TAG, "gattc app register failed. app_id=%d code=%d", this->app_id, ret);
+      this->mark_failed();
+    }
+    this->set_state(espbt::ClientState::IDLE);
+  }
   // READY_TO_CONNECT means we have discovered the device
   // and the scanner has been stopped by the tracker.
   if (this->state_ == espbt::ClientState::READY_TO_CONNECT) {
