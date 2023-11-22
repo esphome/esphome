@@ -54,7 +54,12 @@ bool is_connected() {
 
 static const char *const TAG = "status_indicator";
 
-void StatusIndicator::dump_config() { ESP_LOGCONFIG(TAG, "Status Indicator:"); }
+void StatusIndicator::dump_config() {
+  ESP_LOGCONFIG(TAG, "Status Indicator supports:");
+  for (auto i = this->triggers_.begin(); i != this->triggers_.end(); i++) {
+    ESP_LOGCONFIG(TAG, " * %s: %s", i->first.c_str(), i->second->get_info().c_str());
+  }
+}
 void StatusIndicator::loop() {
   std::string status{""};
   if ((App.get_app_state() & STATUS_LED_ERROR) != 0u) {
@@ -118,18 +123,18 @@ void StatusIndicator::loop() {
   }
   if (this->current_status_ != status) {
     StatusTrigger *oldtrigger = this->current_trigger_;
-    if (!status.empty()) {
+
+    if (!status.empty() && this->triggers_.count(status)==1) {
       this->current_trigger_ = get_trigger(status);
-      if (this->current_trigger_ != nullptr) {
-        this->current_trigger_ = get_trigger("on_turn_off");
-      }
     } else if (!this->stack_.empty()) {
       this->current_trigger_ = this->stack_.back();
+      status = "on_custom_status";
     } else {
       this->current_trigger_ = get_trigger("on_turn_off");
+      status = "on_turn_off";
     }
     if (oldtrigger != this->current_trigger_) {
-      ESP_LOGD(TAG, "Current trigger: %s", this->current_trigger_->get_info().c_str());
+      ESP_LOGI(TAG, "<>> Current trigger:%s->%s", status.c_str(), this->current_trigger_->get_name().c_str());
       this->current_trigger_->trigger();
     }
     this->current_status_ = status;
@@ -159,13 +164,13 @@ void StatusIndicator::push_trigger(StatusTrigger *trigger) {
     if (trigger->get_priority() < st->get_priority()) {
       this->stack_.insert(i, trigger);
       this->current_status_ = "update me";
-      log_triggers_();
+  //    log_triggers_();
       return;
     }
   }
   this->stack_.push_back(trigger);
   this->current_status_ = "update me";
-  log_triggers_();
+//  log_triggers_();
 }
 
 void StatusIndicator::pop_trigger(StatusTrigger *trigger, bool incl_group) {
@@ -181,7 +186,7 @@ void StatusIndicator::pop_trigger(StatusTrigger *trigger, bool incl_group) {
       ++i;
     }
   }
-  log_triggers_();
+//  log_triggers_();
 }
 
 void StatusIndicator::pop_trigger(const std::string &group) {
@@ -196,7 +201,7 @@ void StatusIndicator::pop_trigger(const std::string &group) {
       ++i;
     }
   }
-  log_triggers_();
+  //log_triggers_();
 }
 
 void StatusIndicator::log_triggers_() {

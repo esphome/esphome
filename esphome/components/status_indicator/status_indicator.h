@@ -9,6 +9,7 @@
 namespace esphome {
 namespace status_indicator {
 class StatusTrigger;
+
 union StatusFlags {
   struct {
     int on_error : 1;
@@ -47,9 +48,10 @@ class StatusIndicator : public Component {
 class StatusTrigger : public Trigger<> {
  public:
   explicit StatusTrigger(StatusIndicator *parent, std::string group, uint32_t priority, std::string name)
-      : parent_(parent), group_(std::move(group)), priority_(priority), name_(std::move(name)) {}
+      : parent_(parent), name_(std::move(name)), group_(std::move(group)), priority_(priority) {}
   std::string get_group() { return this->group_; }
   uint32_t get_priority() { return this->priority_; }
+  std::string get_name() { return this->name_; }
   std::string get_info() { return this->name_ + " \t| " + this->group_ + " \t| " + std::to_string(this->priority_); }
 
  protected:

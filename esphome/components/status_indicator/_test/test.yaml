@@ -31,6 +31,9 @@ light:
           min_brightness: 50%
           max_brightness: 100%
 
+wifi:
+  ssid: LumenIOT24
+  password: Lum3nS0fT
 
 binary_sensor:
   - platform: gpio
@@ -64,7 +67,7 @@ status_indicator:
         green: 0%
         blue: 0%
         brightness: 100%
-        effect: Fast Pulse
+        effect: None
 
   on_app_warning:
     then:
@@ -74,7 +77,37 @@ status_indicator:
         green: 0%
         blue: 0%
         brightness: 100%
+        effect: Slow Pulse
+
+  on_wifi_ap_enabled:
+    then:
+    - light.turn_on:
+        id: led
+        red: 100%
+        green: 100%
+        blue: 50%
+        brightness: 100%
         effect: None
+
+  on_network_disconnected:
+    then:
+    - light.turn_on:
+        id: led
+        red: 100%
+        green: 0%
+        blue: 0%
+        brightness: 100%
+        effect: Fast Pulse
+
+  on_api_disconnected:
+    then:
+    - light.turn_on:
+        id: led
+        red: 100%
+        green: 100%
+        blue: 0%
+        brightness: 100%
+        effect: Fast Pulse
 
   on_custom_status:
     - trigger_id: custom_status1
@@ -109,3 +142,5 @@ status_indicator:
             blue: 50%
             brightness: 100%
             effect: Fast pulse
+        - delay: 10s
+        - status.pop: custom_status3
