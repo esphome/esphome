@@ -36,22 +36,25 @@ class StatusIndicator : public Component {
   void pop_trigger(const std::string &group);
 
  protected:
+  void log_triggers_();
   std::string current_status_{""};
   StatusTrigger *current_trigger_{nullptr};
   StatusFlags status_;
   std::map<std::string, StatusTrigger *> triggers_{};
-  std::vector<StatusTrigger *> custom_triggers_{};
+  std::vector<StatusTrigger *> stack_{};
 };
 
 class StatusTrigger : public Trigger<> {
  public:
-  explicit StatusTrigger(StatusIndicator *parent, std::string group, uint32_t priority)
-      : parent_(parent), group_(std::move(group)), priority_(priority) {}
+  explicit StatusTrigger(StatusIndicator *parent, std::string group, uint32_t priority, std::string name)
+      : parent_(parent), group_(std::move(group)), priority_(priority), name_(std::move(name)) {}
   std::string get_group() { return this->group_; }
   uint32_t get_priority() { return this->priority_; }
+  std::string get_info() { return this->name_ + " \t| " + this->group_ + " \t| " + std::to_string(this->priority_); }
 
  protected:
   StatusIndicator *parent_;
+  std::string name_;   /// Minimum length of click. 0 means no minimum.
   std::string group_;  /// Minimum length of click. 0 means no minimum.
   uint32_t priority_;  /// Maximum length of click. 0 means no maximum.
 };

@@ -77,6 +77,7 @@ async def add_trigger(var, conf, key):
         var,
         conf[CONF_GROUP],
         conf[CONF_PRIORITY],
+        conf[CONF_TRIGGER_ID].id,
     )
     await auto.build_automation(trigger, [], conf)
     if key is not None:

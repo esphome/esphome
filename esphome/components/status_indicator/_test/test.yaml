@@ -5,6 +5,8 @@ esphome:
 esp32:
   board: m5stack-atom
 
+logger:
+  level: DEBUG
 
 light:
   - platform: esp32_rmt_led_strip
@@ -43,15 +45,14 @@ binary_sensor:
     entity_category: diagnostic
     id: button
     on_press:
-      - status.push: custom_status
       - status.push: custom_status2
+      - status.push: custom_status3
+      - status.push: custom_status1
     on_release:
       - status.pop:
           group: "custom"
       - delay: 5s
-      - status.pop: custom_status
-
-
+      - status.pop: custom_status1
 
 status_indicator:
   on_turn_off: #Manditory
@@ -79,7 +80,8 @@ status_indicator:
         effect: None
 
   on_custom_status:
-    - trigger_id: custom_status
+    - trigger_id: custom_status1
+      priority: 1
       then:
         - light.turn_on:
             id: led
@@ -90,11 +92,23 @@ status_indicator:
             effect: None
     - trigger_id: custom_status2
       group: custom
+      priority: 3
       then:
         - light.turn_on:
             id: led
-            red: 0%
+            red: 50%
+            green: 0%
+            blue: 100%
+            brightness: 100%
+            effect: None
+    - trigger_id: custom_status3
+      group: custom1
+      priority: 1
+      then:
+        - light.turn_on:
+            id: led
+            red: 100%
             green: 100%
             blue: 50%
             brightness: 100%
-            effect: None
+            effect: Fast pulse

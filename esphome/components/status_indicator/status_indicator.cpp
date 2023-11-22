@@ -123,13 +123,15 @@ void StatusIndicator::loop() {
       if (this->current_trigger_ != nullptr) {
         this->current_trigger_ = get_trigger("on_turn_off");
       }
-    } else if (!this->custom_triggers_.empty()) {
-      this->current_trigger_ = this->custom_triggers_[0];
+    } else if (!this->stack_.empty()) {
+      this->current_trigger_ = this->stack_.back();
     } else {
       this->current_trigger_ = get_trigger("on_turn_off");
     }
-    if (oldtrigger != this->current_trigger_)
+    if (oldtrigger != this->current_trigger_) {
+      ESP_LOGD(TAG, "Current trigger: %s", this->current_trigger_->get_info().c_str());
       this->current_trigger_->trigger();
+    }
     this->current_status_ = status;
   }
 }
@@ -150,47 +152,59 @@ void StatusIndicator::set_trigger(const std::string &key, StatusTrigger *trigger
 
 void StatusIndicator::push_trigger(StatusTrigger *trigger) {
   this->pop_trigger(trigger, true);
-  uint32_t x = 0;
-  if (this->custom_triggers_.empty()) {
-    this->custom_triggers_.push_back(trigger);
-    this->current_status_ = "update me";
-  } else {
-    while (this->custom_triggers_.size() > x) {
-      if (trigger->get_priority() <= this->custom_triggers_[x]->get_priority()) {
-        this->custom_triggers_.insert(this->custom_triggers_.begin() + x, trigger);
+  ESP_LOGD(TAG, "Push ID: %s", trigger->get_info().c_str());
+
+    for (auto i = this->stack_.begin(); i != this->stack_.end(); ++i) {
+      StatusTrigger *st = *i;
+      if (trigger->get_priority() < st->get_priority()) {
+        this->stack_.insert(i, trigger);
         this->current_status_ = "update me";
-        break;
-      } else {
-        x++;
+        log_triggers_();
+        return;
       }
     }
-  }
+    this->stack_.push_back(trigger);
+    this->current_status_ = "update me";
+    log_triggers_();
 }
 
 void StatusIndicator::pop_trigger(StatusTrigger *trigger, bool incl_group) {
-  uint32_t x = 0;
-  while (this->custom_triggers_.size() > x) {
-    if ((incl_group && !trigger->get_group().empty() &&
-         trigger->get_group() == this->custom_triggers_[x]->get_group()) ||
-        (trigger == this->custom_triggers_[x])) {
-      this->custom_triggers_.erase(this->custom_triggers_.begin() + x);
+  incl_group = incl_group && !trigger->get_group().empty();
+  ESP_LOGD(TAG, "Pop by ID: %s || %s", trigger->get_info().c_str(), YESNO(incl_group));
+  std::string group = trigger->get_group();
+  for (auto i = this->stack_.begin(); i != this->stack_.end();) {
+    StatusTrigger *st = *i;
+    if ((incl_group && group == st->get_group()) || (trigger == st)) {
+      this->stack_.erase(i);
       this->current_status_ = "update me";
     } else {
-      x++;
+      ++i;
     }
   }
+  log_triggers_();
 }
 
 void StatusIndicator::pop_trigger(const std::string &group) {
-  uint32_t x = 0;
-  while (this->custom_triggers_.size() > x) {
-    if (group == this->custom_triggers_[x]->get_group()) {
-      this->custom_triggers_.erase(this->custom_triggers_.begin() + x);
+  ESP_LOGD(TAG, "Pop by group: %s", group.c_str());
+
+  for (auto i = this->stack_.begin(); i != this->stack_.end();) {
+    StatusTrigger *st = *i;
+    if (group == st->get_group()) {
+      this->stack_.erase(i);
       this->current_status_ = "update me";
     } else {
-      x++;
+      ++i;
     }
   }
+  log_triggers_();
+}
+
+void StatusIndicator::log_triggers_() {
+  for (auto i = this->stack_.begin(); i != this->stack_.end(); ++i) {
+    StatusTrigger *st = *i;
+    ESP_LOGD(TAG, "%s", st->get_info().c_str());
+  }
+  ESP_LOGD(TAG, "----------------------------- %d ----", this->stack_.size());
 }
 
 }  // namespace status_indicator
