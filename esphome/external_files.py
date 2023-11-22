@@ -7,6 +7,7 @@ import re
 import requests
 import esphome.config_validation as cv
 from esphome.core import CORE, TimePeriodSeconds
+from esphome.const import __version__
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@landonr"]
@@ -117,11 +118,11 @@ def get_file_info_from_url(url):
         url,
         allow_redirects=True,
         timeout=NETWORK_TIMEOUT,
-        headers={"User-agent": "esphome"},
+        headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
     )
     if r.status_code != 200:
         raise cv.Invalid(
-            f"Could not check {url} info, check if file exists " f"({r.status_code}"
+            f"Could not check {url} info, check if file exists ({r.status_code}"
         )
     if CONTENT_DISPOSITION in r.headers:
         file_base_name, file_extension = get_file_info_from_content_disposition(r)
