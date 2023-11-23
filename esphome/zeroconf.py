@@ -1,20 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Callable
 
-from zeroconf import (
-    IPVersion,
-    ServiceBrowser,
-    ServiceInfo,
-    ServiceStateChange,
-    Zeroconf,
-)
+from zeroconf import IPVersion, ServiceInfo, ServiceStateChange, Zeroconf
+from zeroconf.asyncio import AsyncServiceBrowser, AsyncServiceInfo, AsyncZeroconf
 
 from esphome.storage_json import StorageJSON, ext_storage_path
 
 _LOGGER = logging.getLogger(__name__)
+
+
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
 
 
 class HostResolver(ServiceInfo):
@@ -65,7 +64,7 @@ class DiscoveredImport:
     network: str
 
 
-class DashboardBrowser(ServiceBrowser):
+class DashboardBrowser(AsyncServiceBrowser):
     """A class to browse for ESPHome nodes."""
 
 
@@ -94,7 +93,28 @@ class DashboardImportDiscovery:
             # Ignore updates for devices that are not in the import state
             return
 
-        info = zeroconf.get_service_info(service_type, name)
+        info = AsyncServiceInfo(
+            service_type,
+            name,
+        )
+        if info.load_from_cache(zeroconf):
+            self._process_service_info(name, info)
+            return
+        task = asyncio.create_task(
+            self._async_process_service_info(zeroconf, info, service_type, name)
+        )
+        _BACKGROUND_TASKS.add(task)
+        task.add_done_callback(_BACKGROUND_TASKS.discard)
+
+    async def _async_process_service_info(
+        self, zeroconf: Zeroconf, info: AsyncServiceInfo, service_type: str, name: str
+    ) -> None:
+        """Process a service info."""
+        if await info.async_request(zeroconf):
+            self._process_service_info(name, info)
+
+    def _process_service_info(self, name: str, info: ServiceInfo) -> None:
+        """Process a service info."""
         _LOGGER.debug("-> resolved info: %s", info)
         if info is None:
             return
@@ -146,14 +166,34 @@ class DashboardImportDiscovery:
                 )
 
 
+def _make_host_resolver(host: str) -> HostResolver:
+    """Create a new HostResolver for the given host name."""
+    name = host.partition(".")[0]
+    info = HostResolver(
+        ESPHOME_SERVICE_TYPE, f"{name}.{ESPHOME_SERVICE_TYPE}", server=f"{name}.local."
+    )
+    return info
+
+
 class EsphomeZeroconf(Zeroconf):
     def resolve_host(self, host: str, timeout: float = 3.0) -> str | None:
         """Resolve a host name to an IP address."""
-        name = host.partition(".")[0]
-        info = HostResolver(ESPHOME_SERVICE_TYPE, f"{name}.{ESPHOME_SERVICE_TYPE}")
+        info = _make_host_resolver(host)
         if (
             info.load_from_cache(self)
             or (timeout and info.request(self, timeout * 1000))
+        ) and (addresses := info.ip_addresses_by_version(IPVersion.V4Only)):
+            return str(addresses[0])
+        return None
+
+
+class AsyncEsphomeZeroconf(AsyncZeroconf):
+    async def async_resolve_host(self, host: str, timeout: float = 3.0) -> str | None:
+        """Resolve a host name to an IP address."""
+        info = _make_host_resolver(host)
+        if (
+            info.load_from_cache(self.zeroconf)
+            or (timeout and await info.async_request(self.zeroconf, timeout * 1000))
         ) and (addresses := info.ip_addresses_by_version(IPVersion.V4Only)):
             return str(addresses[0])
         return None
