@@ -100,7 +100,7 @@ void ESPADFMicrophone::read_task(void *params) {
   i2s_stream_cfg_t i2s_cfg = {
       .type = AUDIO_STREAM_READER,
       .i2s_config = i2s_config,
-      .i2s_port = I2S_NUM_0,
+      .i2s_port = static_cast<i2s_port_t>(CODEC_ADC_I2S_PORT),
       .use_alc = false,
       .volume = 0,
       .out_rb_size = I2S_STREAM_RINGBUFFER_SIZE,
