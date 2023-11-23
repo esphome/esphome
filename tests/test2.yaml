@@ -718,6 +718,7 @@ stepper:
 
 interval:
   interval: 5s
+  startup_delay: 10s
   then:
     - logger.log: Interval Run
 
