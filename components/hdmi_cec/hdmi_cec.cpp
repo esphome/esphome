@@ -98,6 +98,39 @@ void HDMICEC::loop() {
   }
 }
 
+uint8_t logical_address_to_device_type(uint8_t logical_address) {
+  switch (logical_address) {
+    // "TV"
+    case 0x0:
+      return 0x00; // "TV"
+
+    // "Audio System"
+    case 0x5:
+      return 0x05; // "Audio System"
+
+    // "Recording 1"
+    case 0x1:
+    // "Recording 2"
+    case 0x2:
+    // "Recording 3"
+    case 0x9:
+      return 0x01; // "Recording Device"
+
+    // "Tuner 1"
+    case 0x3:
+    // "Tuner 2"
+    case 0x6:
+    // "Tuner 3"
+    case 0x7:
+    // "Tuner 4"
+    case 0xA:
+      return 0x03; // "Tuner"
+
+    default:
+      return 0x04; // "Playback Device"
+  }
+}
+
 bool HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data) {
   if (data.empty()) {
     return false;
@@ -133,10 +166,15 @@ bool HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
       break;
     }
 
-    // TODO handle "Give Physical Address" request
+    // "Give Physical Address" request
     case 0x83: {
-      // TODO add "Device Type" option to component configuration
-      // TODO reply with "Report Physical Address" (0x84)
+      // reply with "Report Physical Address" (0x84)
+      auto physical_address_bytes = decode_value(physical_address_);
+      std::vector<uint8_t> data = { 0x84 };
+      data.insert(data.end(), physical_address_bytes.begin(), physical_address_bytes.end());
+      // Device Type
+      data.push_back(logical_address_to_device_type(address_));
+      send(address_, source, data);
       break;
     }
 
