@@ -216,7 +216,6 @@ bool EmmetiClimate::parse_state_frame_(state curr_state) {
     this->mode = climate::CLIMATE_MODE_OFF;
   }
 
-
   this->publish_state();
   return true;
 }
