@@ -44,7 +44,8 @@ void HTU21DComponent::update() {
     return;
   }
 
-  this->set_timeout(50, [this]() {
+  // According to the datasheet sht21 temperature readings can take up to 85ms
+  this->set_timeout(85, [this]() {
     uint16_t raw_temperature;
     if (this->read(reinterpret_cast<uint8_t *>(&raw_temperature), 2) != i2c::ERROR_OK) {
       this->status_set_warning();
