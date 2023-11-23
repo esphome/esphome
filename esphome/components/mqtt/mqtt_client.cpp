@@ -147,7 +147,7 @@ void MQTTClientComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Availability: '%s'", this->availability_.topic.c_str());
   }
 }
-bool MQTTClientComponent::can_proceed() { return this->is_connected(); }
+bool MQTTClientComponent::can_proceed() { return network::is_disabled() || this->is_connected(); }
 
 void MQTTClientComponent::start_dnslookup_() {
   for (auto &subscription : this->subscriptions_) {
@@ -171,11 +171,7 @@ void MQTTClientComponent::start_dnslookup_() {
     case ERR_OK: {
       // Got IP immediately
       this->dns_resolved_ = true;
-#if LWIP_IPV6
-      this->ip_ = addr.u_addr.ip4.addr;
-#else
-      this->ip_ = addr.addr;
-#endif
+      this->ip_ = network::IPAddress(&addr);
       this->start_connect_();
       return;
     }
@@ -226,11 +222,7 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
   if (ipaddr == nullptr) {
     a_this->dns_resolve_error_ = true;
   } else {
-#if LWIP_IPV6
-    a_this->ip_ = ipaddr->u_addr.ip4.addr;
-#else
-    a_this->ip_ = ipaddr->addr;
-#endif
+    a_this->ip_ = network::IPAddress(ipaddr);
     a_this->dns_resolved_ = true;
   }
 }

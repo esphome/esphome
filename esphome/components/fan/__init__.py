@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_SPEED_LEVEL_STATE_TOPIC,
     CONF_SPEED_COMMAND_TOPIC,
     CONF_SPEED_STATE_TOPIC,
+    CONF_OFF_SPEED_CYCLE,
     CONF_ON_SPEED_SET,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
@@ -217,10 +218,22 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action("fan.cycle_speed", CycleSpeedAction, FAN_ACTION_SCHEMA)
+@automation.register_action(
+    "fan.cycle_speed",
+    CycleSpeedAction,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(Fan),
+            cv.Optional(CONF_OFF_SPEED_CYCLE, default=True): cv.boolean,
+        }
+    ),
+)
 async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_OFF_SPEED_CYCLE], args, bool)
+    cg.add(var.set_no_off_cycle(template_))
+    return var
 
 
 @automation.register_condition(
