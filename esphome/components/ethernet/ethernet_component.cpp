@@ -119,10 +119,10 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "ETH event handler register error");
   err = esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &EthernetComponent::got_ip_event_handler, nullptr);
   ESPHL_ERROR_CHECK(err, "GOT IP event handler register error");
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
   err = esp_event_handler_register(IP_EVENT, IP_EVENT_GOT_IP6, &EthernetComponent::got_ip6_event_handler, nullptr);
   ESPHL_ERROR_CHECK(err, "GOT IPv6 event handler register error");
-#endif /* ENABLE_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
 
   /* start Ethernet driver state machine */
   err = esp_eth_start(this->eth_handle_);
@@ -231,7 +231,7 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
   } else {
     addresses[0] = network::IPAddress(&ip.ip);
   }
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
   uint8_t count = 0;
   count = esp_netif_get_all_ip6(this->eth_netif_, if_ip6s);
@@ -239,7 +239,7 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
   for (int i = 0; i < count; i++) {
     addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
   }
-#endif /* ENABLE_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
 
   return addresses;
 }
@@ -277,14 +277,14 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   const esp_netif_ip_info_t *ip_info = &event->ip_info;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IP " IPSTR, IP2STR(&ip_info->ip));
   global_eth_component->got_ipv4_address_ = true;
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
   global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
 #else
   global_eth_component->connected_ = true;
-#endif
+#endif /* USE_NETWORK_IPV6 */
 }
 
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
 void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
                                               void *event_data) {
   ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
@@ -293,13 +293,13 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
   global_eth_component->connected_ =
       global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
 }
-#endif /* ENABLE_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
 
 void EthernetComponent::start_connect_() {
   global_eth_component->got_ipv4_address_ = false;
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
   global_eth_component->ipv6_count_ = 0;
-#endif
+#endif /* USE_NETWORK_IPV6 */
   this->connect_begin_ = millis();
   this->status_set_warning();
 
@@ -351,12 +351,12 @@ void EthernetComponent::start_connect_() {
     if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
       ESPHL_ERROR_CHECK(err, "DHCPC start error");
     }
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
     err = esp_netif_create_ip6_linklocal(this->eth_netif_);
     if (err != ESP_OK) {
       ESPHL_ERROR_CHECK(err, "Enable IPv6 link local failed");
     }
-#endif /* ENABLE_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
   }
 
   this->connect_begin_ = millis();
@@ -379,7 +379,7 @@ void EthernetComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2).str().c_str());
 
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
   uint8_t count = 0;
   count = esp_netif_get_all_ip6(this->eth_netif_, if_ip6s);
@@ -387,7 +387,7 @@ void EthernetComponent::dump_connect_params_() {
   for (int i = 0; i < count; i++) {
     ESP_LOGCONFIG(TAG, "  IPv6: " IPV6STR, IPV62STR(if_ip6s[i]));
   }
-#endif /* ENABLE_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
 
   esp_err_t err;
 

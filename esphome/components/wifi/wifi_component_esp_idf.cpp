@@ -63,9 +63,9 @@ struct IDFWiFiEvent {
     wifi_event_ap_probe_req_rx_t ap_probe_req_rx;
     wifi_event_bss_rssi_low_t bss_rssi_low;
     ip_event_got_ip_t ip_got_ip;
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
     ip_event_got_ip6_t ip_got_ip6;
-#endif /* ENABLE_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
     ip_event_ap_staipassigned_t ip_ap_staipassigned;
   } data;
 };
@@ -89,7 +89,7 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     memcpy(&event.data.sta_disconnected, event_data, sizeof(wifi_event_sta_disconnected_t));
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
     memcpy(&event.data.ip_got_ip, event_data, sizeof(ip_event_got_ip_t));
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_GOT_IP6) {
     memcpy(&event.data.ip_got_ip6, event_data, sizeof(ip_event_got_ip6_t));
 #endif
@@ -485,7 +485,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   } else {
     addresses[0] = network::IPAddress(&ip.ip);
   }
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
   uint8_t count = 0;
   count = esp_netif_get_all_ip6(s_sta_netif, if_ip6s);
@@ -493,7 +493,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   for (int i = 0; i < count; i++) {
     addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
   }
-#endif
+#endif /* USE_NETWORK_IPV6 */
   return addresses;
 }
 
@@ -529,7 +529,7 @@ const char *get_auth_mode_str(uint8_t mode) {
 std::string format_ip4_addr(const esp_ip4_addr_t &ip) { return str_snprintf(IPSTR, 15, IP2STR(&ip)); }
 #if LWIP_IPV6
 std::string format_ip6_addr(const esp_ip6_addr_t &ip) { return str_snprintf(IPV6STR, 39, IPV62STR(ip)); }
-#endif
+#endif /* LWIP_IPV6 */
 const char *get_disconnect_reason_str(uint8_t reason) {
   switch (reason) {
     case WIFI_REASON_AUTH_EXPIRE:
@@ -666,19 +666,19 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
     esp_netif_create_ip6_linklocal(s_sta_netif);
-#endif /* ENABLE_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
     ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip_info.ip).c_str(),
              format_ip4_addr(it.ip_info.gw).c_str());
     this->got_ipv4_address_ = true;
 
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
     ESP_LOGV(TAG, "Event: Got IPv6 address=%s", format_ip6_addr(it.ip6_info.ip).c_str());
     this->num_ipv6_addresses_++;
-#endif /* ENABLE_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_LOST_IP) {
     ESP_LOGV(TAG, "Event: Lost IP");
@@ -742,13 +742,13 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   if (s_sta_connected && this->got_ipv4_address_) {
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
     if (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT) {
       return WiFiSTAConnectStatus::CONNECTED;
     }
 #else
     return WiFiSTAConnectStatus::CONNECTED;
-#endif
+#endif /* USE_NETWORK_IPV6 */
   }
   if (s_sta_connect_error) {
     return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;

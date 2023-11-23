@@ -131,7 +131,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 // TODO: is this needed?
 #if LWIP_IPV6
   dns.type = IPADDR_TYPE_V4;
-#endif
+#endif /* LWIP_IPV6 */
   if (manual_ip->dns1.is_set()) {
     dns = manual_ip->dns1;
     dns_setserver(0, &dns);
@@ -171,7 +171,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   } else {
     addresses[2] = network::IPAddress(&ipv6);
   }
-#endif
+#endif /* LWIP_IPV6 */
 
   return addresses;
 }
@@ -464,9 +464,9 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       buf[it.ssid_len] = '\0';
       ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
                format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
       this->set_timeout(100, [] { WiFi.enableIpV6(); });
-#endif /* ENABLE_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
 
       break;
     }
@@ -519,14 +519,14 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip).c_str(),
                format_ip4_addr(it.gw).c_str());
       this->got_ipv4_address_ = true;
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
       s_sta_connecting = this->num_ipv6_addresses_ < USE_NETWORK_MIN_IPV6_ADDR_COUNT;
 #else
       s_sta_connecting = false;
-#endif
+#endif /* USE_NETWORK_IPV6 */
       break;
     }
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
       auto it = info.got_ip6.ip6_info;
       ESP_LOGV(TAG, "Got IPv6 address=" IPV6STR, IPV62STR(it.ip));
@@ -534,7 +534,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       s_sta_connecting = !(this->got_ipv4_address_ & (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT));
       break;
     }
-#endif /* ENABLE_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
     case ESPHOME_EVENT_ID_WIFI_STA_LOST_IP: {
       ESP_LOGV(TAG, "Event: Lost IP");
       this->got_ipv4_address_ = false;

@@ -388,9 +388,9 @@ class WiFiComponent : public Component {
 #endif
   bool enable_on_boot_;
   bool got_ipv4_address_{false};
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
-#endif
+#endif /* USE_NETWORK_IPV6 */
 
   Trigger<> *connect_trigger_{new Trigger<>()};
   Trigger<> *disconnect_trigger_{new Trigger<>()};

@@ -328,7 +328,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
   }
 
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
   bool connected = false;
   while (!connected) {
     uint8_t ipv6_addr_count = 0;
@@ -341,7 +341,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     delay(500);  // NOLINT
     connected = (ipv6_addr_count >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
   }
-#endif
+#endif /* USE_NETWORK_IPV6 */
 
   if (ap.get_channel().has_value()) {
     ret = wifi_set_channel(*ap.get_channel());
