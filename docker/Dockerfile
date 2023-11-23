@@ -38,6 +38,7 @@ RUN \
         openssh-client=1:9.2p1-2+deb12u1 \
         python3-cffi=1.15.1-5 \
         libcairo2=1.16.0-7 \
+        libmagic1=1:5.44-3 \
         patch=2.7.6-7; \
     if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
         apt-get install -y --no-install-recommends \

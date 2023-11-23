@@ -1,16 +1,23 @@
+from __future__ import annotations
+
 import logging
 
+import hashlib
 import io
 from pathlib import Path
 import re
 import requests
+from magic import Magic
+
+from PIL import Image
 
 from esphome import core
 from esphome.components import font
-from esphome import external_files, helpers
+from esphome import external_files
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
+    __version__,
     CONF_DITHER,
     CONF_FILE,
     CONF_ICON,
@@ -51,62 +58,44 @@ SOURCE_LOCAL = "local"
 SOURCE_MDI = "mdi"
 SOURCE_WEB = "web"
 
-SVG_FILE_EXTENSIONS = [".svg", ".svgz"]
 
 Image_ = image_ns.class_("Image")
 
 
-def _compute_local_icon_path(value) -> Path:
-    base_dir = external_files.compute_local_file_dir(value[CONF_ICON], DOMAIN) / "mdi"
+def _compute_local_icon_path(value: dict) -> Path:
+    base_dir = external_files.compute_local_file_dir(DOMAIN) / "mdi"
     return base_dir / f"{value[CONF_ICON]}.svg"
 
 
-def compute_image_file_type(filepath) -> str:
-    if SVG_FILE_EXTENSIONS.count(filepath.suffix) > 0:
-        _LOGGER.debug("compute_image_file_type: is %s %s", filepath.suffix, filepath)
-        return filepath.suffix
-    from PIL import Image
-
-    _LOGGER.debug("compute_local_file_type: file_path=%s ", filepath)
-    img = Image.open(filepath)
-    file_name = img.filename
-    file_extension = img.format.lower()
-    _LOGGER.debug(
-        "compute_local_file_type: file_name=%s file_path=%s", file_name, file_extension
-    )
-    return "." + file_extension
+def _compute_local_image_path(value: dict) -> Path:
+    url = value[CONF_URL]
+    h = hashlib.new("sha256")
+    h.update(url.encode())
+    key = h.hexdigest()[:8]
+    base_dir = external_files.compute_local_file_dir(DOMAIN)
+    return base_dir / key
 
 
-def _compute_local_image_path(config) -> (Path, str):
-    url = config[CONF_URL]
-    file_name, file_type, temp_path = external_files.get_file_info_from_url(url)
-    if temp_path:
-        file_type = compute_image_file_type(temp_path)
-        base_dir = external_files.compute_local_file_dir(file_name, DOMAIN)
-        path = base_dir / f"{file_name}{file_type}"
-        helpers.delete_file(temp_path)
-        return path, file_name
-    base_dir = external_files.compute_local_file_dir(file_name, DOMAIN)
-    return base_dir / f"{file_name}{file_type}", file_name
-
-
-def download_content(url, path, content_id):
+def download_content(url: str, path: Path) -> None:
     if not external_files.has_remote_file_changed(url, path):
         _LOGGER.debug("Remote file has not changed %s", url)
         return
 
     _LOGGER.debug(
-        "Remote file has changed, downloading %s from %s to %s",
-        content_id,
+        "Remote file has changed, downloading from %s to %s",
         url,
         path,
     )
 
     try:
-        req = requests.get(url, timeout=IMAGE_DOWNLOAD_TIMEOUT)
+        req = requests.get(
+            url,
+            timeout=IMAGE_DOWNLOAD_TIMEOUT,
+            headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
+        )
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
-        raise cv.Invalid(f"Could not download {content_id} from {url}: {e}")
+        raise cv.Invalid(f"Could not download from {url}: {e}")
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(req.content)
@@ -120,16 +109,16 @@ def download_mdi(value):
 
     url = f"https://raw.githubusercontent.com/Templarian/MaterialDesign/master/svg/{mdi_id}.svg"
 
-    download_content(url, path, mdi_id)
+    download_content(url, path)
 
     return value
 
 
 def download_image(value):
     url = value[CONF_URL]
-    path, image_id = _compute_local_image_path(value)
+    path = _compute_local_image_path(value)
 
-    download_content(url, path, image_id)
+    download_content(url, path)
 
     return value
 
@@ -276,9 +265,7 @@ IMAGE_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, IMAGE_SCHEMA)
 
 
-def load_svg_image(file: str, resize: tuple[int, int]):
-    from PIL import Image
-
+def load_svg_image(file: bytes, resize: tuple[int, int]):
     # This import is only needed in case of SVG images; adding it
     # to the top would force configurations not using SVG to also have it
     # installed for no reason.
@@ -287,19 +274,17 @@ def load_svg_image(file: str, resize: tuple[int, int]):
     if resize:
         req_width, req_height = resize
         svg_image = svg2png(
-            url=file,
+            file,
             output_width=req_width,
             output_height=req_height,
         )
     else:
-        svg_image = svg2png(url=file)
+        svg_image = svg2png(file)
 
     return Image.open(io.BytesIO(svg_image))
 
 
 async def to_code(config):
-    from PIL import Image
-
     conf_file = config[CONF_FILE]
 
     if conf_file[CONF_SOURCE] == SOURCE_LOCAL:
@@ -309,18 +294,23 @@ async def to_code(config):
         path = _compute_local_icon_path(conf_file).as_posix()
 
     elif conf_file[CONF_SOURCE] == SOURCE_WEB:
-        path = _compute_local_image_path(conf_file)[0].as_posix()
+        path = _compute_local_image_path(conf_file).as_posix()
 
     try:
-        resize = config.get(CONF_RESIZE)
-        if path.lower().endswith(".svg"):
-            image = load_svg_image(path, resize)
-        else:
-            image = Image.open(path)
-            if resize:
-                image.thumbnail(resize)
+        file_contents = open(path, "rb").read()
     except Exception as e:
         raise core.EsphomeError(f"Could not load image file {path}: {e}")
+
+    mime = Magic(mime=True)
+    file_type = mime.from_buffer(file_contents)
+
+    resize = config.get(CONF_RESIZE)
+    if "svg" in file_type:
+        image = load_svg_image(file_contents, resize)
+    else:
+        image = Image.open(io.BytesIO(file_contents))
+        if resize:
+            image.thumbnail(resize)
 
     width, height = image.size
 
