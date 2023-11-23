@@ -67,7 +67,7 @@ optional<NECData> NECProtocol::decode(RemoteReceiveData src) {
   return data;
 }
 void NECProtocol::dump(const NECData &data) {
-  ESP_LOGD(TAG, "Received NEC: address=0x%04X, command=0x%04X", data.address, data.command);
+  ESP_LOGI(TAG, "Received NEC: address=0x%04X, command=0x%04X", data.address, data.command);
 }
 
 }  // namespace remote_base

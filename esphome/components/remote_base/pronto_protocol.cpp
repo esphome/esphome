@@ -234,9 +234,9 @@ void ProntoProtocol::dump(const ProntoData &data) {
     first = data.data.substr(0, 229);
     rest = data.data.substr(230);
   }
-  ESP_LOGD(TAG, "Received Pronto: data=%s", first.c_str());
+  ESP_LOGI(TAG, "Received Pronto: data=%s", first.c_str());
   if (!rest.empty()) {
-    ESP_LOGD(TAG, "%s", rest.c_str());
+    ESP_LOGI(TAG, "%s", rest.c_str());
   }
 }
 

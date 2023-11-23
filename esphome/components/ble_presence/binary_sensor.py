@@ -74,8 +74,8 @@ async def to_code(config):
         ibeacon_uuid = esp32_ble_tracker.as_hex_array(str(ibeacon_uuid))
         cg.add(var.set_ibeacon_uuid(ibeacon_uuid))
 
-        if ibeacon_major := config.get(CONF_IBEACON_MAJOR):
+        if (ibeacon_major := config.get(CONF_IBEACON_MAJOR)) is not None:
             cg.add(var.set_ibeacon_major(ibeacon_major))
 
-        if ibeacon_minor := config.get(CONF_IBEACON_MINOR):
+        if (ibeacon_minor := config.get(CONF_IBEACON_MINOR)) is not None:
             cg.add(var.set_ibeacon_minor(ibeacon_minor))

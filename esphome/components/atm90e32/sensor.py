@@ -6,6 +6,9 @@ from esphome.const import (
     CONF_REACTIVE_POWER,
     CONF_VOLTAGE,
     CONF_CURRENT,
+    CONF_PHASE_A,
+    CONF_PHASE_B,
+    CONF_PHASE_C,
     CONF_POWER,
     CONF_POWER_FACTOR,
     CONF_FREQUENCY,
@@ -30,10 +33,6 @@ from esphome.const import (
     UNIT_VOLT_AMPS_REACTIVE,
     UNIT_WATT_HOURS,
 )
-
-CONF_PHASE_A = "phase_a"
-CONF_PHASE_B = "phase_b"
-CONF_PHASE_C = "phase_c"
 
 CONF_LINE_FREQUENCY = "line_frequency"
 CONF_CHIP_TEMPERATURE = "chip_temperature"
