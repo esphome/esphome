@@ -297,7 +297,8 @@ async def to_code(config):
         path = _compute_local_image_path(conf_file).as_posix()
 
     try:
-        file_contents = open(path, "rb").read()
+        with open(path, "rb") as f:
+            file_contents = f.read()
     except Exception as e:
         raise core.EsphomeError(f"Could not load image file {path}: {e}")
 
