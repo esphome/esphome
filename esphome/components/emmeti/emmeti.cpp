@@ -216,13 +216,6 @@ bool EmmetiClimate::parse_state_frame_(state curr_state) {
     this->mode = climate::CLIMATE_MODE_OFF;
   }
 
-  /** @brief TODO: read checksum */
-  /*if(this->check_checksum_(curr_state.checksum)){
-    this->publish_state();
-    ESP_LOGD(TAG, "Published state");
-    return true;
-  }
-  return false;*/
 
   this->publish_state();
   return true;
