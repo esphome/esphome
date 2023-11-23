@@ -316,50 +316,6 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (control_data != 0x250) {
     return false;
   }
-  /**
-   * @brief TODO: Read data after the long 20ms pause
-   *
-   */
-  /*
-  if(!data.expect_item(EMMETI_BIT_MARK, EMMETI_MESSAGE_SPACE)){
-    return false;
-  }
-
-  for (size_t pos = 0; pos < 4; pos++){
-    if (data.expect_item(EMMETI_BIT_MARK, EMMETI_ONE_SPACE)){
-      curr_state.fan_pos |= 1 << pos;
-    }else if(!data.expect_item(EMMETI_BIT_MARK, EMMETI_ZERO_SPACE)){
-      return false;
-    }
-  }
-
-  for (size_t pos = 0; pos < 4; pos++){
-    if (!data.expect_item(EMMETI_BIT_MARK, EMMETI_ZERO_SPACE)){
-      return false;
-    }
-  }
-
-  for (size_t pos = 0; pos < 2; pos++){
-    if (data.expect_item(EMMETI_BIT_MARK, EMMETI_ONE_SPACE)){
-      curr_state.th |= 1 << pos;
-    }else if(!data.expect_item(EMMETI_BIT_MARK, EMMETI_ZERO_SPACE)){
-      return false;
-    }
-  }
-
-  for (size_t pos = 0; pos < 18; pos++){
-    if (!data.expect_item(EMMETI_BIT_MARK, EMMETI_ZERO_SPACE)){
-      return false;
-    }
-  }
-
-  for (size_t pos = 0; pos < 4; pos++){
-    if (data.expect_item(EMMETI_BIT_MARK, EMMETI_ONE_SPACE)){
-      curr_state.checksum |= 1 << pos;
-    }else if(!data.expect_item(EMMETI_BIT_MARK, EMMETI_ZERO_SPACE)){
-      return false;
-    }
-  }*/
 
   return this->parse_state_frame_(curr_state);
 }
