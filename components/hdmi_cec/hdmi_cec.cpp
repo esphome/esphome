@@ -75,12 +75,8 @@ void HDMICEC::loop() {
 
     std::vector<uint8_t> data(frame.begin() + 1, frame.end());
 
-    bool handled = try_builtin_handler_(src_addr, dest_addr, data);
-    if (handled) {
-      // opcode handled internally ; skip triggers
-      continue;
-    }
-
+    // Process on_message triggers
+    bool handled_by_trigger = false;
     uint8_t opcode = data[0];
     for (auto trigger : message_triggers_) {
       bool can_trigger = (
@@ -93,7 +89,14 @@ void HDMICEC::loop() {
       );
       if (can_trigger) {
         trigger->trigger(src_addr, dest_addr, data);
+        handled_by_trigger = true;
       }
+    }
+
+    // If nothing in on_message handled this message, we try to run the built-in handlers
+    bool is_directly_addressed = (dest_addr != 0xF && dest_addr == address_);
+    if (is_directly_addressed && !handled_by_trigger) {
+      try_builtin_handler_(src_addr, dest_addr, data);
     }
   }
 }
@@ -131,14 +134,9 @@ uint8_t logical_address_to_device_type(uint8_t logical_address) {
   }
 }
 
-bool HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data) {
+void HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data) {
   if (data.empty()) {
-    return false;
-  }
-
-  bool is_broadcast = (destination == 0xF);
-  if (is_broadcast || destination != address_) {
-    return false;
+    return;
   }
 
   uint8_t opcode = data[0];
@@ -147,13 +145,13 @@ bool HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
     case 0x9F: {
       // reply with "CEC Version" (0x9E)
       send(address_, source, {0x9E, 0x04});
-      return true;
+      break;
     }
 
     // "Give Device Power Status" request
     case 0x8F: {
       // reply with "Report Power Status" (0x90)
-      send(address_, source, {0x90, 0x00}); // parameter set to "On"
+      send(address_, source, {0x90, 0x00}); // "On"
       break;
     }
 
@@ -178,16 +176,11 @@ bool HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
       break;
     }
 
-    // "Abort"
-    case 0xFF: {
-      // reply with "Feature Abort" (0x00)
+    // default case (no built-in handler + no on_message handler) => message not supported => send "Abort"
+    default:
       send(address_, source, {0x00, opcode, 0x00});
-      return true;
-    }
+      break;
   }
-
-
-  return false;
 }
 
 bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes) {
