@@ -132,8 +132,8 @@ void ESPADFSpeaker::player_task(void *params) {
 
   while (true) {
     if (xQueueReceive(this_speaker->buffer_queue_, &data_event, 0) != pdTRUE) {
-      if (millis() - last_received > 100) {
-        // No audio for 100ms, stop
+      if (millis() - last_received > 500) {
+        // No audio for 500ms, stop
         break;
       } else {
         continue;
