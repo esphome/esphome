@@ -836,6 +836,7 @@ climate:
   - platform: bang_bang
     name: Bang Bang Climate
     sensor: ha_hello_world
+    humidity_sensor: ha_hello_world
     default_target_temperature_low: 18°C
     default_target_temperature_high: 24°C
     idle_action:
@@ -850,6 +851,7 @@ climate:
   - platform: thermostat
     name: Thermostat Climate
     sensor: ha_hello_world
+    humidity_sensor: ha_hello_world
     preset:
       - name: Default Preset
         default_target_temperature_low: 18°C
@@ -937,6 +939,7 @@ climate:
     id: pid_climate
     name: PID Climate Controller
     sensor: ha_hello_world
+    humidity_sensor: ha_hello_world
     default_target_temperature: 21°C
     heat_output: my_slow_pwm
     control_parameters:
