@@ -1,3 +1,5 @@
+import logging
+
 import functools
 from pathlib import Path
 import os
@@ -6,7 +8,7 @@ from packaging import version
 import requests
 
 from esphome import core
-from esphome import external_files
+from esphome import external_files, helpers
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.helpers import copy_file_if_changed
@@ -25,6 +27,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, HexInt
 
+_LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "font"
 DEPENDENCIES = ["display"]
@@ -140,7 +143,7 @@ def get_font_name(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
         return f"{value[CONF_FAMILY]}:ital,wght@{int(value[CONF_ITALIC])},{value[CONF_WEIGHT]}"
     if value[CONF_TYPE] == TYPE_WEB:
-        file_name, _ = external_files.get_file_info_from_url(value[CONF_URL])
+        file_name, _, _ = external_files.get_file_info_from_url(value[CONF_URL])
         return file_name
     return None
 
@@ -150,12 +153,16 @@ def get_font_path(value):
         name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
         return external_files.compute_local_file_dir(name, DOMAIN) / "font.ttf"
     if value[CONF_TYPE] == TYPE_WEB:
-        file_name, file_extension = external_files.get_file_info_from_url(
+        file_name, file_extension, temp_path = external_files.get_file_info_from_url(
             value[CONF_URL]
         )
+        if temp_path is not None:
+            helpers.delete_file(temp_path)
+        _LOGGER.debug("get_font_path: file_name=%s", file_name)
         name = f"{file_name}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}"
         file_path = Path(external_files.compute_local_file_dir(name, DOMAIN))
         output_file_name = f"{file_name}{file_extension}"
+        _LOGGER.debug("get_font_path: file_path=%s", file_path / output_file_name)
         return file_path / output_file_name
     return None
 
