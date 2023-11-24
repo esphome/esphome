@@ -51,10 +51,12 @@ BASE_CONFIG_FRIENDLY = """esphome:
   friendly_name: {friendly_name}
 """
 
-LOGGER_API_CONFIG = """
+LOGGER_CONFIG = """
 # Enable logging
 logger:
+"""
 
+API_CONFIG = """
 # Enable Home Assistant API
 api:
 """
@@ -136,58 +138,61 @@ def wizard_file(**kwargs):
 
     config += HARDWARE_BASE_CONFIGS[kwargs["platform"]].format(**kwargs)
 
-    config += LOGGER_API_CONFIG
+    config += LOGGER_CONFIG
 
-    # Configure API
-    if "password" in kwargs:
-        config += f"  password: \"{kwargs['password']}\"\n"
-    if "api_encryption_key" in kwargs:
-        config += f"  encryption:\n    key: \"{kwargs['api_encryption_key']}\"\n"
+    if kwargs['board'] != 'rpipico':
+        config += API_CONFIG
 
-    # Configure OTA
-    config += "\nota:\n"
-    if "ota_password" in kwargs:
-        config += f"  password: \"{kwargs['ota_password']}\""
-    elif "password" in kwargs:
-        config += f"  password: \"{kwargs['password']}\""
+        # Configure API
+        if "password" in kwargs:
+            config += f"  password: \"{kwargs['password']}\"\n"
+        if "api_encryption_key" in kwargs:
+            config += f"  encryption:\n    key: \"{kwargs['api_encryption_key']}\"\n"
 
-    # Configuring wifi
-    config += "\n\nwifi:\n"
+        # Configure OTA
+        config += "\nota:\n"
+        if "ota_password" in kwargs:
+            config += f"  password: \"{kwargs['ota_password']}\""
+        elif "password" in kwargs:
+            config += f"  password: \"{kwargs['password']}\""
 
-    if "ssid" in kwargs:
-        if kwargs["ssid"].startswith("!secret"):
-            template = "  ssid: {ssid}\n  password: {psk}\n"
+        # Configuring wifi
+        config += "\n\nwifi:\n"
+
+        if "ssid" in kwargs:
+            if kwargs["ssid"].startswith("!secret"):
+                template = "  ssid: {ssid}\n  password: {psk}\n"
+            else:
+                template = """  ssid: "{ssid}"\n  password: "{psk}"\n"""
+            config += template.format(**kwargs)
         else:
-            template = """  ssid: "{ssid}"\n  password: "{psk}"\n"""
-        config += template.format(**kwargs)
-    else:
-        config += """  # ssid: "My SSID"
+            config += """  # ssid: "My SSID"
   # password: "mypassword"
 
   networks:
 """
 
-    # pylint: disable=consider-using-f-string
-    if kwargs["platform"] in ["ESP8266", "ESP32", "BK72XX", "RTL87XX"]:
-        config += """
+        # pylint: disable=consider-using-f-string
+        if kwargs["platform"] in ["ESP8266", "ESP32", "BK72XX", "RTL87XX"]:
+            config += """
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: "{fallback_name}"
     password: "{fallback_psk}"
 
 captive_portal:
-    """.format(
-            **kwargs
-        )
-    else:
-        config += """
+        """.format(
+                **kwargs
+            )
+        else:
+            config += """
   # Enable fallback hotspot in case wifi connection fails
   ap:
     ssid: "{fallback_name}"
     password: "{fallback_psk}"
-    """.format(
-            **kwargs
-        )
+        """.format(
+                **kwargs
+            )
 
     return config
 
