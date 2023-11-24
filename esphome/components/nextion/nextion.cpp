@@ -93,6 +93,12 @@ bool Nextion::check_connect_() {
     connect_info.push_back(response.substr(start, end - start));
   }
 
+  if (connect_info.size() > 0) {
+      for(int i = 0; i < connect_info.size(); ++i) {
+          ESP_LOGV(TAG, "Connect info %i: %s", i, connect_info[i].c_str());
+      }
+  }
+
   if (connect_info.size() == 7) {
     ESP_LOGN(TAG, "Received connect_info %zu", connect_info.size());
 
