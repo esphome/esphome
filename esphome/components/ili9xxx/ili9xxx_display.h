@@ -4,9 +4,6 @@
 #include "ili9xxx_defines.h"
 #include "ili9xxx_init.h"
 
-#ifdef USE_POWER_SUPPLY
-#include "esphome/components/power_supply/power_supply.h"
-#endif
 namespace esphome {
 namespace ili9xxx {
 

@@ -73,40 +73,10 @@ CONF_SWAP_XY = "swap_xy"
 CONF_COLOR_ORDER = "color_order"
 CONF_OFFSET_HEIGHT = "offset_height"
 CONF_OFFSET_WIDTH = "offset_width"
+CONF_TRANSFORM = "transform"
 
 
 def _validate(config):
-    if CONF_DIMENSIONS in config:
-        dimensions = config[CONF_DIMENSIONS]
-        if isinstance(dimensions, dict):
-            config.update(dimensions)
-        else:
-            (config[CONF_WIDTH], config[CONF_HEIGHT]) = dimensions
-            config[CONF_OFFSET_WIDTH] = 0
-            config[CONF_OFFSET_HEIGHT] = 0
-
-    if CONF_ROTATION in config:
-        rotation = config[CONF_ROTATION]
-        config[CONF_ROTATION] = 0
-        if isinstance(rotation, dict):
-            config.update(rotation)
-        elif rotation == 0:
-            config[CONF_SWAP_XY] = False
-            config[CONF_MIRROR_X] = False
-            config[CONF_MIRROR_Y] = False
-        elif rotation == 90:
-            config[CONF_SWAP_XY] = True
-            config[CONF_MIRROR_X] = True
-            config[CONF_MIRROR_Y] = False
-        elif rotation == 270:
-            config[CONF_SWAP_XY] = True
-            config[CONF_MIRROR_X] = False
-            config[CONF_MIRROR_Y] = True
-        elif rotation == 180:
-            config[CONF_SWAP_XY] = False
-            config[CONF_MIRROR_X] = True
-            config[CONF_MIRROR_Y] = True
-
     if config.get(CONF_COLOR_PALETTE) == "IMAGE_ADAPTIVE" and not config.get(
         CONF_COLOR_PALETTE_IMAGES
     ):
@@ -162,19 +132,17 @@ CONFIG_SCHEMA = cv.All(
                 cv.file_
             ),
             cv.Optional(CONF_INVERT_DISPLAY): cv.invalid(
-                "invert_display is deprecated - use invert_colors "
+                "'invert_display' has been replaced by 'invert_colors'"
             ),
             cv.Optional(CONF_INVERT_COLORS): cv.boolean,
             cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
-            cv.Optional(CONF_ROTATION): cv.Any(
-                validate_rotation,
-                cv.Schema(
-                    {
-                        cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
-                        cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
-                        cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
-                    }
-                ),
+            cv.Exclusive(CONF_ROTATION, CONF_ROTATION): validate_rotation,
+            cv.Exclusive(CONF_TRANSFORM, CONF_ROTATION): cv.Schema(
+                {
+                    cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
+                    cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+                    cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+                }
             ),
         }
     )
@@ -196,12 +164,11 @@ async def to_code(config):
     cg.add(var.set_dc_pin(dc))
     if CONF_COLOR_ORDER in config:
         cg.add(var.set_color_order(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
-    if CONF_SWAP_XY in config:
-        cg.add(var.set_swap_xy(config[CONF_SWAP_XY]))
-    if CONF_MIRROR_X in config:
-        cg.add(var.set_mirror_x(config[CONF_MIRROR_X]))
-    if CONF_MIRROR_Y in config:
-        cg.add(var.set_mirror_y(config[CONF_MIRROR_Y]))
+    if CONF_TRANSFORM in config:
+        transform = config[CONF_TRANSFORM]
+        cg.add(var.set_swap_xy(transform[CONF_SWAP_XY]))
+        cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))
+        cg.add(var.set_mirror_y(transform[CONF_MIRROR_Y]))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
@@ -214,8 +181,17 @@ async def to_code(config):
         cg.add(var.set_reset_pin(reset))
 
     if CONF_DIMENSIONS in config:
-        cg.add(var.set_dimensions(config[CONF_WIDTH], config[CONF_HEIGHT]))
-        cg.add(var.set_offsets(config[CONF_OFFSET_WIDTH], config[CONF_OFFSET_HEIGHT]))
+        dimensions = config[CONF_DIMENSIONS]
+        if isinstance(dimensions, dict):
+            cg.add(var.set_dimensions(dimensions[CONF_WIDTH], dimensions[CONF_HEIGHT]))
+            cg.add(
+                var.set_offsets(
+                    dimensions[CONF_OFFSET_WIDTH], dimensions[CONF_OFFSET_HEIGHT]
+                )
+            )
+        else:
+            (width, height) = dimensions
+            cg.add(var.set_dimensions(width, height))
 
     rhs = None
     if config[CONF_COLOR_PALETTE] == "GRAYSCALE":

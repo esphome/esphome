@@ -13,7 +13,6 @@ class PowerSupply : public Component {
   void set_pin(GPIOPin *pin) { pin_ = pin; }
   void set_enable_time(uint32_t enable_time) { enable_time_ = enable_time; }
   void set_keep_on_time(uint32_t keep_on_time) { keep_on_time_ = keep_on_time; }
-  void set_enable_at_startup(uint32_t enable_at_startup) { enable_at_startup_ = enable_at_startup; }
 
   /// Is this power supply currently on?
   bool is_enabled() const;
@@ -36,7 +35,7 @@ class PowerSupply : public Component {
 
  protected:
   GPIOPin *pin_;
-  bool enable_at_startup_{false};
+  bool enabled_{false};
   uint32_t enable_time_;
   uint32_t keep_on_time_;
   int16_t active_requests_{0};  // use signed integer to make catching negative requests easier.
