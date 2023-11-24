@@ -48,7 +48,6 @@ class NextionBase {
 
   bool is_sleeping() { return this->is_sleeping_; }
   bool is_setup() { return this->is_setup_; }
-  bool is_connected() { return get_is_connected_();}
   bool is_detected() { return this->is_detected_; }
 
  protected:
