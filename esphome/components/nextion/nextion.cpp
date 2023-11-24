@@ -128,15 +128,15 @@ void Nextion::dump_config() {
   ESP_LOGCONFIG(TAG, "  Wake On Touch:    %s", this->auto_wake_on_touch_ ? "True" : "False");
 
   if (this->touch_sleep_timeout_ != 0) {
-    ESP_LOGCONFIG(TAG, "  Touch Timeout:       %" PRIu32, this->touch_sleep_timeout_);
+    ESP_LOGCONFIG(TAG, "  Touch Timeout:    %" PRIu32, this->touch_sleep_timeout_);
   }
 
   if (this->wake_up_page_ != -1) {
-    ESP_LOGCONFIG(TAG, "  Wake Up Page :       %d", this->wake_up_page_);
+    ESP_LOGCONFIG(TAG, "  Wake Up Page:     %d", this->wake_up_page_);
   }
 
   if (this->start_up_page_ != -1) {
-    ESP_LOGCONFIG(TAG, "  Start Up Page :      %d", this->start_up_page_);
+    ESP_LOGCONFIG(TAG, "  Start Up Page:    %d", this->start_up_page_);
   }
 }
 
