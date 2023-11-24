@@ -1,3 +1,4 @@
+import hashlib
 import logging
 
 import functools
@@ -8,11 +9,12 @@ from packaging import version
 import requests
 
 from esphome import core
-from esphome import external_files, helpers
+from esphome import external_files
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.helpers import copy_file_if_changed
 from esphome.const import (
+    __version__,
     CONF_FAMILY,
     CONF_FILE,
     CONF_GLYPHS,
@@ -130,95 +132,68 @@ def validate_weight_name(value):
     return FONT_WEIGHTS[cv.one_of(*FONT_WEIGHTS, lower=True, space="-")(value)]
 
 
-def get_font_url(value):
-    if value[CONF_TYPE] == TYPE_GFONTS:
-        name = get_font_name(value)
-        return f"https://fonts.googleapis.com/css2?family={name}"
-    if value[CONF_TYPE] == TYPE_WEB:
-        return value[CONF_URL]
-    return None
+def _compute_local_font_path(value: dict) -> Path:
+    url = value[CONF_URL]
+    h = hashlib.new("sha256")
+    h.update(url.encode())
+    key = h.hexdigest()[:8]
+    base_dir = external_files.compute_local_file_dir(DOMAIN)
+    _LOGGER.debug("get_font_path: base_dir=%s", base_dir / key)
+    return base_dir / f"{key}.ttf"
 
 
-def get_font_name(value):
-    if value[CONF_TYPE] == TYPE_GFONTS:
-        return f"{value[CONF_FAMILY]}:ital,wght@{int(value[CONF_ITALIC])},{value[CONF_WEIGHT]}"
-    if value[CONF_TYPE] == TYPE_WEB:
-        file_name, _, _ = external_files.get_file_info_from_url(value[CONF_URL])
-        return file_name
-    return None
-
-
-def get_font_path(value):
+def get_font_path(value) -> Path:
     if value[CONF_TYPE] == TYPE_GFONTS:
         name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
-        return external_files.compute_local_file_dir(name, DOMAIN) / "font.ttf"
+        return external_files.compute_local_file_dir(DOMAIN) / f"{name}.ttf"
     if value[CONF_TYPE] == TYPE_WEB:
-        file_name, file_extension, temp_path = external_files.get_file_info_from_url(
-            value[CONF_URL]
-        )
-        if temp_path is not None:
-            helpers.delete_file(temp_path)
-        _LOGGER.debug("get_font_path: file_name=%s", file_name)
-        name = f"{file_name}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}"
-        file_path = Path(external_files.compute_local_file_dir(name, DOMAIN))
-        output_file_name = f"{file_name}{file_extension}"
-        _LOGGER.debug("get_font_path: file_path=%s", file_path / output_file_name)
-        return file_path / output_file_name
+        return _compute_local_font_path(value)
     return None
 
 
-def download_gfont_ttf(value, url):
-    try:
-        req = requests.get(url, timeout=external_files.NETWORK_TIMEOUT)
-        req.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise cv.Invalid(
-            f"Could not download font at {url}, please check the fonts exists "
-            f"at google fonts ({e})"
-        )
-    match = re.search(r"src:\s+url\((.+)\)\s+format\('truetype'\);", req.text)
-    name = get_font_name(value)
-    if match is None:
-        raise cv.Invalid(
-            f"Could not extract ttf file from gfonts response for {name}, "
-            f"please report this."
-        )
+def download_content(url: str, path: Path) -> None:
+    if not external_files.has_remote_file_changed(url, path):
+        _LOGGER.debug("Remote file has not changed %s", url)
+        return
 
-    ttf_url = match.group(1)
+    _LOGGER.debug(
+        "Remote file has changed, downloading from %s to %s",
+        url,
+        path,
+    )
+
     try:
-        req = requests.get(ttf_url, timeout=external_files.NETWORK_TIMEOUT)
+        req = requests.get(
+            url,
+            timeout=external_files.NETWORK_TIMEOUT,
+            headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
+        )
         req.raise_for_status()
-        return req.content
     except requests.exceptions.RequestException as e:
-        raise cv.Invalid(f"Could not download ttf file for {name} ({ttf_url}): {e}")
+        raise cv.Invalid(f"Could not download from {url}: {e}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(req.content)
+
+
+def download_gfont(value):
+    name = (
+        f"{value[CONF_FAMILY]}:ital,wght@{int(value[CONF_ITALIC])},{value[CONF_WEIGHT]}"
+    )
+    url = f"https://fonts.googleapis.com/css2?family={name}"
+    path = get_font_path(value)
+
+    download_content(url, path)
+    _LOGGER.debug("download_gfont: path=%s", path)
+    return value
 
 
 def download_web_font(value):
-    name = get_font_name(value)
-    url = get_font_url(value)
-    path = get_font_path(value)
+    url = value[CONF_URL]
+    path = get_font_path(value)  # Replace with logic to determine font path
 
-    if external_files.is_file_recent(
-        path, value[CONF_REFRESH]
-    ) or not external_files.has_remote_file_changed(url, path):
-        return value
-
-    if value[CONF_TYPE] == TYPE_WEB:
-        try:
-            req = requests.get(url, timeout=external_files.NETWORK_TIMEOUT)
-            req.raise_for_status()
-            path.parent.mkdir(exist_ok=True, parents=True)
-            path.write_bytes(req.content)
-        except requests.exceptions.RequestException as e:
-            raise cv.Invalid(
-                f"Could not download font for {name}, please check the fonts exists "
-                f"at google fonts ({e})"
-            )
-
-    elif value[CONF_TYPE] == TYPE_GFONTS:
-        content = download_gfont_ttf(value, url)
-        path.parent.mkdir(exist_ok=True, parents=True)
-        path.write_bytes(content)
+    download_content(url, path)
+    _LOGGER.debug("download_web_font: path=%s", path)
     return value
 
 
@@ -363,7 +338,6 @@ def convert_bitmap_to_pillow_font(filepath):
     from PIL import PcfFontFile, BdfFontFile
 
     local_bitmap_font_file = external_files.compute_local_file_dir(
-        filepath,
         DOMAIN,
     ) / os.path.basename(filepath)
 
