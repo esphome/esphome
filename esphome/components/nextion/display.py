@@ -15,6 +15,7 @@ from .base_component import (
     CONF_ON_WAKE,
     CONF_ON_SETUP,
     CONF_ON_PAGE,
+    CONF_ON_TOUCH,
     CONF_TFT_URL,
     CONF_TOUCH_SLEEP_TIMEOUT,
     CONF_WAKE_UP_PAGE,
@@ -31,6 +32,7 @@ SetupTrigger = nextion_ns.class_("SetupTrigger", automation.Trigger.template())
 SleepTrigger = nextion_ns.class_("SleepTrigger", automation.Trigger.template())
 WakeTrigger = nextion_ns.class_("WakeTrigger", automation.Trigger.template())
 PageTrigger = nextion_ns.class_("PageTrigger", automation.Trigger.template())
+TouchTrigger = nextion_ns.class_("TouchTrigger", automation.Trigger.template())
 
 CONFIG_SCHEMA = (
     display.BASIC_DISPLAY_SCHEMA.extend(
@@ -56,6 +58,11 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ON_PAGE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PageTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_TOUCH): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TouchTrigger),
                 }
             ),
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.int_range(min=3, max=65535),
@@ -120,3 +127,7 @@ async def to_code(config):
     for conf in config.get(CONF_ON_PAGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
+
+    for conf in config.get(CONF_ON_TOUCH, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(cg.uint8, "page_id"), (cg.uint8, "component_id"), (cg.bool_, "touch_event")], conf)
