@@ -45,7 +45,7 @@ service APIConnection {
   rpc lock_command (LockCommandRequest) returns (void) {}
   rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
 
-  rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
+  rpc subscribe_bluetooth_le_advertisements (SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
   rpc bluetooth_gatt_get_services(BluetoothGATTGetServicesRequest) returns (void) {}
   rpc bluetooth_gatt_read(BluetoothGATTReadRequest) returns (void) {}
@@ -855,6 +855,11 @@ message ListEntitiesClimateResponse {
   string icon = 19;
   EntityCategory entity_category = 20;
   float visual_current_temperature_step = 21;
+  bool supports_current_humidity = 22;
+  bool supports_target_humidity = 23;
+  float visual_min_humidity = 24;
+  float visual_max_humidity = 25;
+  bool supports_aux_heat = 26;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -875,6 +880,9 @@ message ClimateStateResponse {
   string custom_fan_mode = 11;
   ClimatePreset preset = 12;
   string custom_preset = 13;
+  float current_humidity = 14;
+  float target_humidity = 15;
+  bool aux_heat = 16;
 }
 message ClimateCommandRequest {
   option (id) = 48;
@@ -903,6 +911,10 @@ message ClimateCommandRequest {
   ClimatePreset preset = 19;
   bool has_custom_preset = 20;
   string custom_preset = 21;
+  bool has_target_humidity = 22;
+  float target_humidity = 23;
+  bool has_aux_heat = 24;
+  bool aux_heat = 25;
 }
 
 // ==================== NUMBER ====================
@@ -1033,7 +1045,7 @@ message LockStateResponse {
   option (ifdef) = "USE_LOCK";
   option (no_delay) = true;
   fixed32 key = 1;
-  LockState state = 2;
+  LockState  state = 2;
 }
 message LockCommandRequest {
   option (id) = 60;

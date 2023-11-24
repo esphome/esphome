@@ -979,6 +979,11 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   std::string icon{};
   enums::EntityCategory entity_category{};
   float visual_current_temperature_step{0.0f};
+  bool supports_current_humidity{false};
+  bool supports_target_humidity{false};
+  float visual_min_humidity{0.0f};
+  float visual_max_humidity{0.0f};
+  bool supports_aux_heat{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1004,6 +1009,9 @@ class ClimateStateResponse : public ProtoMessage {
   std::string custom_fan_mode{};
   enums::ClimatePreset preset{};
   std::string custom_preset{};
+  float current_humidity{0.0f};
+  float target_humidity{0.0f};
+  bool aux_heat{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1037,6 +1045,10 @@ class ClimateCommandRequest : public ProtoMessage {
   enums::ClimatePreset preset{};
   bool has_custom_preset{false};
   std::string custom_preset{};
+  bool has_target_humidity{false};
+  float target_humidity{0.0f};
+  bool has_aux_heat{false};
+  bool aux_heat{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
