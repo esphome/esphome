@@ -107,6 +107,10 @@ class VoiceAssistant : public Component {
   Trigger<> *get_start_trigger() const { return this->start_trigger_; }
   Trigger<> *get_stt_vad_end_trigger() const { return this->stt_vad_end_trigger_; }
   Trigger<> *get_stt_vad_start_trigger() const { return this->stt_vad_start_trigger_; }
+#ifdef USE_SPEAKER
+  Trigger<> *get_tts_stream_start_trigger() const { return this->tts_stream_start_trigger_; }
+  Trigger<> *get_tts_stream_end_trigger() const { return this->tts_stream_end_trigger_; }
+#endif
   Trigger<> *get_wake_word_detected_trigger() const { return this->wake_word_detected_trigger_; }
   Trigger<std::string> *get_stt_end_trigger() const { return this->stt_end_trigger_; }
   Trigger<std::string> *get_tts_end_trigger() const { return this->tts_end_trigger_; }
@@ -135,6 +139,10 @@ class VoiceAssistant : public Component {
   Trigger<> *start_trigger_ = new Trigger<>();
   Trigger<> *stt_vad_start_trigger_ = new Trigger<>();
   Trigger<> *stt_vad_end_trigger_ = new Trigger<>();
+#ifdef USE_SPEAKER
+  Trigger<> *tts_stream_start_trigger_ = new Trigger<>();
+  Trigger<> *tts_stream_end_trigger_ = new Trigger<>();
+#endif
   Trigger<> *wake_word_detected_trigger_ = new Trigger<>();
   Trigger<std::string> *stt_end_trigger_ = new Trigger<std::string>();
   Trigger<std::string> *tts_end_trigger_ = new Trigger<std::string>();
