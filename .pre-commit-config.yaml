@@ -2,8 +2,8 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
-  - repo: https://github.com/psf/black
-    rev: 23.7.0
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 23.11.0
     hooks:
       - id: black
         args:
@@ -11,7 +11,7 @@ repos:
           - --quiet
         files: ^((esphome|script|tests)/.+)?[^/]+\.py$
   - repo: https://github.com/PyCQA/flake8
-    rev: 6.0.0
+    rev: 6.1.0
     hooks:
       - id: flake8
         additional_dependencies:
@@ -27,7 +27,7 @@ repos:
           - --branch=release
           - --branch=beta
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.10.1
+    rev: v3.15.0
     hooks:
       - id: pyupgrade
         args: [--py39-plus]

@@ -57,6 +57,10 @@ KNOWN_FIRMWARE = {
         "https://github.com/jamesturton/shelly-dimmer-stm32/releases/download/v51.6/shelly-dimmer-stm32_v51.6.bin",
         "eda483e111c914723a33f5088f1397d5c0b19333db4a88dc965636b976c16c36",
     ),
+    "51.7": (
+        "https://github.com/jamesturton/shelly-dimmer-stm32/releases/download/v51.7/shelly-dimmer-stm32_v51.7.bin",
+        "7a20f1c967c469917368a79bc56498009045237080408cef7190743e08031889",
+    ),
 }
 
 
@@ -87,12 +91,7 @@ def get_firmware(value):
     url = value[CONF_URL]
 
     if CONF_SHA256 in value:  # we have a hash, enable caching
-        path = (
-            Path(CORE.config_dir)
-            / ".esphome"
-            / DOMAIN
-            / (value[CONF_SHA256] + "_fw_stm.bin")
-        )
+        path = Path(CORE.data_dir) / DOMAIN / (value[CONF_SHA256] + "_fw_stm.bin")
 
         if not path.is_file():
             firmware_data, dl_hash = dl(url)

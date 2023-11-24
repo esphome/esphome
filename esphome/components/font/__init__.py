@@ -67,18 +67,13 @@ def validate_pillow_installed(value):
     except ImportError as err:
         raise cv.Invalid(
             "Please install the pillow python package to use this feature. "
-            '(pip install pillow">4.0.0,<10.0.0")'
+            '(pip install "pillow==10.1.0")'
         ) from err
 
-    if version.parse(PIL.__version__) < version.parse("4.0.0"):
+    if version.parse(PIL.__version__) != version.parse("10.1.0"):
         raise cv.Invalid(
-            "Please update your pillow installation to at least 4.0.x. "
-            '(pip install pillow">4.0.0,<10.0.0")'
-        )
-    if version.parse(PIL.__version__) >= version.parse("10.0.0"):
-        raise cv.Invalid(
-            "Please downgrade your pillow installation to below 10.0.0. "
-            '(pip install pillow">4.0.0,<10.0.0")'
+            "Please update your pillow installation to 10.1.0. "
+            '(pip install "pillow==10.1.0")'
         )
 
     return value
@@ -98,10 +93,9 @@ def validate_truetype_file(value):
 
 
 def _compute_local_font_dir(name) -> Path:
-    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN
     h = hashlib.new("sha256")
     h.update(name.encode())
-    return base_dir / h.hexdigest()[:8]
+    return Path(CORE.data_dir) / DOMAIN / h.hexdigest()[:8]
 
 
 def _compute_gfonts_local_path(value) -> Path:
@@ -143,11 +137,10 @@ def validate_weight_name(value):
 
 
 def download_gfonts(value):
-    wght = value[CONF_WEIGHT]
-    if value[CONF_ITALIC]:
-        wght = f"1,{wght}"
-    name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}"
-    url = f"https://fonts.googleapis.com/css2?family={value[CONF_FAMILY]}:wght@{wght}"
+    name = (
+        f"{value[CONF_FAMILY]}:ital,wght@{int(value[CONF_ITALIC])},{value[CONF_WEIGHT]}"
+    )
+    url = f"https://fonts.googleapis.com/css2?family={name}"
 
     path = _compute_gfonts_local_path(value)
     if path.is_file():

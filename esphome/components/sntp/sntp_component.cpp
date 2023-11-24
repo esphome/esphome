@@ -1,7 +1,7 @@
 #include "sntp_component.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
 #include "lwip/apps/sntp.h"
 #ifdef USE_ESP_IDF
 #include "esp_sntp.h"
@@ -26,7 +26,7 @@ static const char *const TAG = "sntp";
 
 void SNTPComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SNTP...");
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   if (sntp_enabled()) {
     sntp_stop();
   }

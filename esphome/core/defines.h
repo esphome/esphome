@@ -37,17 +37,20 @@
 #define USE_OTA
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
+#define USE_OUTPUT
 #define USE_POWER_SUPPLY
 #define USE_QR_CODE
 #define USE_SELECT
 #define USE_SENSOR
 #define USE_STATUS_LED
 #define USE_SWITCH
+#define USE_TEXT
 #define USE_TEXT_SENSOR
 #define USE_TIME
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
 #define USE_WIFI
+#define USE_WIFI_AP
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
@@ -76,6 +79,7 @@
 #define USE_VOICE_ASSISTANT
 #define USE_MICROPHONE
 #define USE_SPEAKER
+#define USE_SPI
 
 #ifdef USE_ARDUINO
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(2, 0, 5)
@@ -95,6 +99,8 @@
 #define USE_HTTP_REQUEST_ESP8266_HTTPS
 #define USE_SOCKET_IMPL_LWIP_TCP
 
+#define USE_SPI
+
 // Dummy firmware payload for shelly_dimmer
 #define USE_SHD_FIRMWARE_MAJOR_VERSION 56
 #define USE_SHD_FIRMWARE_MINOR_VERSION 5
@@ -106,6 +112,11 @@
 #ifdef USE_RP2040
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 0)
 #define USE_SOCKET_IMPL_LWIP_TCP
+#define USE_SPI
+#endif
+
+#ifdef USE_LIBRETINY
+#define USE_SOCKET_IMPL_LWIP_SOCKETS
 #endif
 
 #ifdef USE_HOST
@@ -113,6 +124,6 @@
 #endif
 
 // Disabled feature flags
-//#define USE_BSEC  // Requires a library with proprietary license.
+// #define USE_BSEC  // Requires a library with proprietary license.
 
 #define USE_DASHBOARD_IMPORT

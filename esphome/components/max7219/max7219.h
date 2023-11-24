@@ -52,7 +52,8 @@ class MAX7219Component : public PollingComponent,
   void send_byte_(uint8_t a_register, uint8_t data);
   void send_to_all_(uint8_t a_register, uint8_t data);
 
-  uint8_t intensity_{15};  /// Intensity of the display from 0 to 15 (most)
+  uint8_t intensity_{15};     // Intensity of the display from 0 to 15 (most)
+  bool intensity_changed_{};  // True if we need to re-send the intensity
   uint8_t num_chips_{1};
   uint8_t *buffer_;
   bool reverse_{false};
