@@ -12,7 +12,7 @@ from esphome.zeroconf import (
 
 from ..const import SENTINEL
 from ..core import DASHBOARD
-from ..entries import bool_to_entry_state
+from ..entries import DashboardEntry, bool_to_entry_state
 
 
 class MDNSStatus:
@@ -37,14 +37,29 @@ class MDNSStatus:
         dashboard = DASHBOARD
         host_mdns_state = self.host_mdns_state
         entries = dashboard.entries
+        poll_names: dict[str, set[DashboardEntry]] = {}
         for entry in entries.async_all():
             if entry.no_mdns:
                 continue
             # If we just adopted/imported this host, we likely
             # already have a state for it, so we should make sure
             # to set it so the dashboard shows it as online
-            if (online := host_mdns_state.get(entry.name, SENTINEL)) != SENTINEL:
+            if entry.loaded_integrations and "api" not in entry.loaded_integrations:
+                # No api available so we have to poll since
+                # the device won't respond to a request to ._esphomelib._tcp.local.
+                poll_names.setdefault(entry.name, set()).add(entry)
+            elif (online := host_mdns_state.get(entry.name, SENTINEL)) != SENTINEL:
                 entries.async_set_state(entry, bool_to_entry_state(online))
+
+        if poll_names and self.aiozc:
+            results = await asyncio.gather(
+                *(self.aiozc.async_resolve_host(name) for name in poll_names)
+            )
+            for name, address in zip(poll_names, results):
+                result = bool(address)
+                host_mdns_state[name] = result
+                for entry in poll_names[name]:
+                    entries.async_set_state(entry, bool_to_entry_state(result))
 
     async def async_run(self) -> None:
         dashboard = DASHBOARD

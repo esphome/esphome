@@ -695,6 +695,11 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       return;
     }
 
+    if (it.number == 0) {
+      // no results
+      return;
+    }
+
     uint16_t number = it.number;
     std::vector<wifi_ap_record_t> records(number);
     err = esp_wifi_scan_get_ap_records(&number, records.data());
