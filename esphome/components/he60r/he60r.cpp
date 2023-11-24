@@ -264,7 +264,7 @@ void HE60rCover::recompute_position_() {
     auto diff = now - last_recompute_time_;
     auto delta = dir * diff / action_dur;
     this->position = clamp(delta + this->position, min_pos, max_pos);
-    ESP_LOGD(TAG, "Recompute %dms, dir=%f, action_dur=%d, delta=%f, pos=%f", (int) diff, dir, action_dur, delta,
+    ESP_LOGD(TAG, "Recompute %dms, dir=%f, action_dur=%f, delta=%f, pos=%f", (int) diff, dir, action_dur, delta,
              this->position);
     this->last_recompute_time_ = now;
     this->publish_state();

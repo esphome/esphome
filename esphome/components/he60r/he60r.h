@@ -34,7 +34,7 @@ class HE60rCover : public cover::Cover, public PollingComponent, public uart::UA
 
   uint32_t open_duration_{0};
   uint32_t close_duration_{0};
-  uint32_t toggles_needed_{0};
+  unsigned int toggles_needed_{0};
   cover::CoverOperation next_direction_{cover::COVER_OPERATION_IDLE};
   uint32_t max_duration_{UINT32_MAX};
   cover::CoverOperation last_command_{cover::COVER_OPERATION_IDLE};
