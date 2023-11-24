@@ -140,7 +140,7 @@ def wizard_file(**kwargs):
 
     config += LOGGER_CONFIG
 
-    if kwargs['board'] != 'rpipico':
+    if kwargs["board"] != "rpipico":
         config += API_CONFIG
 
         # Configure API
