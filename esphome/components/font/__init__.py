@@ -139,7 +139,7 @@ def _compute_local_font_path(value: dict) -> Path:
     key = h.hexdigest()[:8]
     base_dir = external_files.compute_local_file_dir(DOMAIN)
     _LOGGER.debug("get_font_path: base_dir=%s", base_dir / key)
-    return base_dir / f"{key}.ttf"
+    return base_dir / key
 
 
 def get_font_path(value) -> Path:
@@ -147,7 +147,7 @@ def get_font_path(value) -> Path:
         name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
         return external_files.compute_local_file_dir(DOMAIN) / f"{name}.ttf"
     if value[CONF_TYPE] == TYPE_WEB:
-        return _compute_local_font_path(value)
+        return _compute_local_font_path(value) / "font.ttf"
     return None
 
 
@@ -182,9 +182,27 @@ def download_gfont(value):
     )
     url = f"https://fonts.googleapis.com/css2?family={name}"
     path = get_font_path(value)
-
-    download_content(url, path)
     _LOGGER.debug("download_gfont: path=%s", path)
+
+    try:
+        req = requests.get(url, timeout=external_files.NETWORK_TIMEOUT)
+        req.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise cv.Invalid(
+            f"Could not download font at {url}, please check the fonts exists "
+            f"at google fonts ({e})"
+        )
+    match = re.search(r"src:\s+url\((.+)\)\s+format\('truetype'\);", req.text)
+    if match is None:
+        raise cv.Invalid(
+            f"Could not extract ttf file from gfonts response for {name}, "
+            f"please report this."
+        )
+
+    ttf_url = match.group(1)
+    _LOGGER.debug("download_gfont: ttf_url=%s", ttf_url)
+
+    download_content(ttf_url, path)
     return value
 
 
@@ -268,8 +286,10 @@ def _file_schema(value):
     if isinstance(value, str):
         return validate_file_shorthand(value)
     typed_schema = TYPED_FILE_SCHEMA(value)
-    if typed_schema[CONF_TYPE] == TYPE_WEB or typed_schema[CONF_TYPE] == TYPE_GFONTS:
+    if typed_schema[CONF_TYPE] == TYPE_WEB:
         download_web_font(typed_schema)
+    elif typed_schema[CONF_TYPE] == TYPE_GFONTS:
+        download_gfont(typed_schema)
     return typed_schema
 
 
