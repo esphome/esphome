@@ -41,7 +41,7 @@ uart:
     rx_pin: 3
     baud_rate: 9600
   - id: uart_2
-    tx_pin: 
+    tx_pin:
       number: 17
       inverted: true
     rx_pin: 16
