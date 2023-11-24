@@ -68,6 +68,7 @@ void LD2420Component::dump_config() {
   ESP_LOGCONFIG(TAG, "LD2420:");
   ESP_LOGCONFIG(TAG, "  Firmware Version : %7s", this->ld2420_firmware_ver_);
   ESP_LOGCONFIG(TAG, "LD2420 Number:");
+#ifdef USE_NUMBER
   LOG_NUMBER(TAG, "  Gate Timeout:", this->gate_timeout_number_);
   LOG_NUMBER(TAG, "  Gate Max Distance:", this->max_gate_distance_number_);
   LOG_NUMBER(TAG, "  Gate Min Distance:", this->min_gate_distance_number_);
@@ -76,10 +77,13 @@ void LD2420Component::dump_config() {
     LOG_NUMBER(TAG, "  Gate Move Threshold:", this->gate_move_threshold_numbers_[gate]);
     LOG_NUMBER(TAG, "  Gate Still Threshold::", this->gate_still_threshold_numbers_[gate]);
   }
+#endif
+#ifdef USE_BUTTON
   LOG_BUTTON(TAG, "  Apply Config:", this->apply_config_button_);
   LOG_BUTTON(TAG, "  Revert Edits:", this->revert_config_button_);
   LOG_BUTTON(TAG, "  Factory Reset:", this->factory_reset_button_);
   LOG_BUTTON(TAG, "  Restart Module:", this->restart_module_button_);
+#endif
   ESP_LOGCONFIG(TAG, "LD2420 Select:");
   LOG_SELECT(TAG, "  Operating Mode", this->operating_selector_);
   if (this->get_firmware_int_(ld2420_firmware_ver_) < CALIBRATE_VERSION_MIN) {
@@ -183,9 +187,11 @@ void LD2420Component::factory_reset_action() {
     return;
   }
   this->set_min_max_distances_timeout(FACTORY_MAX_GATE, FACTORY_MIN_GATE, FACTORY_TIMEOUT);
+#ifdef USE_NUMBER
   this->gate_timeout_number_->state = FACTORY_TIMEOUT;
   this->min_gate_distance_number_->state = FACTORY_MIN_GATE;
   this->max_gate_distance_number_->state = FACTORY_MAX_GATE;
+#endif
   for (uint8_t gate = 0; gate < LD2420_TOTAL_GATES; gate++) {
     this->new_config.move_thresh[gate] = FACTORY_MOVE_THRESH[gate];
     this->new_config.still_thresh[gate] = FACTORY_STILL_THRESH[gate];
