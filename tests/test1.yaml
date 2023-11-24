@@ -2996,7 +2996,7 @@ display:
   - platform: ili9xxx
     invert_colors: true
     dimensions: 320x240
-    rotation:
+    transform:
       swap_xy: true
       mirror_x: true
       mirror_y: false
