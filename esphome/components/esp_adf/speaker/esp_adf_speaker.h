@@ -29,6 +29,8 @@ class ESPADFSpeaker : public ESPADFPipeline, public speaker::Speaker, public Com
 
   size_t play(const uint8_t *data, size_t length) override;
 
+  bool has_buffered_data() const override;
+
  protected:
   void start_();
   void watch_();
