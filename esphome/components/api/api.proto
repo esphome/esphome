@@ -45,7 +45,7 @@ service APIConnection {
   rpc lock_command (LockCommandRequest) returns (void) {}
   rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
 
-  rpc subscribe_bluetooth_le_advertisements (SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
+  rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
   rpc bluetooth_gatt_get_services(BluetoothGATTGetServicesRequest) returns (void) {}
   rpc bluetooth_gatt_read(BluetoothGATTReadRequest) returns (void) {}
@@ -1045,7 +1045,7 @@ message LockStateResponse {
   option (ifdef) = "USE_LOCK";
   option (no_delay) = true;
   fixed32 key = 1;
-  LockState  state = 2;
+  LockState state = 2;
 }
 message LockCommandRequest {
   option (id) = 60;
