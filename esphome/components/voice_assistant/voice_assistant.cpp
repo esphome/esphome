@@ -632,11 +632,17 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     case api::enums::VOICE_ASSISTANT_TTS_STREAM_START: {
 #ifdef USE_SPEAKER
       this->wait_for_stream_end_ = true;
+      ESP_LOGD(TAG, "TTS stream start");
+      this->tts_stream_start_trigger_->trigger();
 #endif
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_STREAM_END: {
       this->set_state_(State::RESPONSE_FINISHED, State::IDLE);
+#ifdef USE_SPEAKER
+      ESP_LOGD(TAG, "TTS stream end");
+      this->tts_stream_end_trigger_->trigger();
+#endif
       break;
     }
     case api::enums::VOICE_ASSISTANT_STT_VAD_START:
