@@ -6,10 +6,8 @@ namespace esphome {
 namespace he60r {
 
 static const char *const TAG = "he60r.cover";
-static const uint8_t query_byte = 0x38;
-static const uint8_t toggle_byte = 0x30;
-static bool query_seen;
-static uint8_t counter;
+static const uint8_t QUERY_BYTE = 0x38;
+static const uint8_t TOGGLE_BYTE = 0x30;
 
 using namespace esphome::cover;
 
@@ -77,9 +75,9 @@ void HE60rCover::set_current_operation_(cover::CoverOperation operation) {
 
 void HE60rCover::process_rx_(uint8_t data) {
   ESP_LOGV(TAG, "Process RX data %X", data);
-  if (!query_seen) {
-    query_seen = data == query_byte;
-    if (!query_seen)
+  if (!this->query_seen_) {
+    this->query_seen_ = data == QUERY_BYTE;
+    if (!this->query_seen_)
       ESP_LOGD(TAG, "RX Byte %02X", data);
     return;
   }
@@ -129,16 +127,16 @@ void HE60rCover::process_rx_(uint8_t data) {
 
 void HE60rCover::update() {
   if (toggles_needed_ != 0) {
-    if ((counter++ & 0x3) == 0) {
+    if ((this->counter_++ & 0x3) == 0) {
       toggles_needed_--;
       ESP_LOGD(TAG, "Writing byte 0x30, still needed=%d", toggles_needed_);
-      this->write_byte(toggle_byte);
+      this->write_byte(TOGGLE_BYTE);
     } else {
-      this->write_byte(query_byte);
+      this->write_byte(QUERY_BYTE);
     }
   } else {
-    this->write_byte(query_byte);
-    counter = 0;
+    this->write_byte(QUERY_BYTE);
+    this->counter_ = 0;
   }
   if (this->current_operation != COVER_OPERATION_IDLE) {
     const uint32_t now = millis();
@@ -162,10 +160,11 @@ void HE60rCover::update() {
 void HE60rCover::loop() {
   uint8_t data;
 
-  while (this->available() > 0)
+  while (this->available() > 0) {
     if (this->read_byte(&data)) {
       this->process_rx_(data);
     }
+  }
 }
 
 void HE60rCover::control(const CoverCall &call) {
@@ -221,10 +220,11 @@ void HE60rCover::start_direction_(CoverOperation dir) {
     this->toggles_needed_ = 1;
   } else {
     // if stopped, but will go the wrong way, need 3 triggers.
-    if (this->current_operation == COVER_OPERATION_IDLE)
+    if (this->current_operation == COVER_OPERATION_IDLE) {
       this->toggles_needed_ = 3;
-    else
-      this->toggles_needed_ = 2;  // just stop and reverse
+    } else {
+      this->toggles_needed_ = 2;
+    }  // just stop and reverse
     // must be moving, but the wrong way
     ESP_LOGD(TAG, "'%s' - Reversing direction.", this->name_.c_str());
   }
@@ -255,8 +255,6 @@ void HE60rCover::recompute_position_() {
       action_dur = this->close_duration_;
       break;
     default:
-      dir = 0;
-      action_dur = 1;
       return;
   }
 

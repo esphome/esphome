@@ -41,6 +41,8 @@ class HE60rCover : public cover::Cover, public PollingComponent, public uart::UA
   uint32_t last_recompute_time_{0};
   uint32_t start_dir_time_{0};
   float target_position_{0};
+  bool query_seen_{};
+  uint8_t counter_{};
 };
 
 }  // namespace he60r
