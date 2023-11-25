@@ -41,12 +41,21 @@ OptolinkTextSensor = optolink_ns.class_(
 
 def check_address():
     def validator_(config):
-        address_needed = config[CONF_MODE] in ["MAP", "RAW"]
+        address_needed = config[CONF_MODE] in [
+            "MAP",
+            "RAW",
+            "DAY_SCHEDULE",
+            "DAY_SCHEDULE_SYNCHRONIZED",
+        ]
         address_defined = CONF_ADDRESS in config
         if address_needed and not address_defined:
-            raise cv.Invalid(f"{CONF_ADDRESS} is required in mode MAP or RAW")
+            raise cv.Invalid(
+                f"{CONF_ADDRESS} is required in mode MAP, RAW, DAY_SCHEDULE or DAY_SCHEDULE_SYNCHRONIZED"
+            )
         if not address_needed and address_defined:
-            raise cv.Invalid(f"{CONF_ADDRESS} is only allowed in mode MAP or RAW")
+            raise cv.Invalid(
+                f"{CONF_ADDRESS} is only allowed in mode MAP, RAW, DAY_SCHEDULE or DAY_SCHEDULE_SYNCHRONIZED"
+            )
         return config
 
     return validator_
