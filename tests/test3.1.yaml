@@ -243,6 +243,13 @@ sensor:
       name: "ADE7953 Reactive Power B"
     update_interval: 1s
 
+  - platform: ens160
+    eco2:
+      name: "ENS160 eCO2"
+    tvoc:
+      name: "ENS160 Total Volatile Organic Compounds"
+    aqi:
+      name: "ENS160 Air Quality Index"
   - platform: tmp102
     name: TMP102 Temperature
   - platform: hm3301
@@ -449,7 +456,6 @@ switch:
             speed: 255
             direction: BACKWARD
             id: test_motor
-
 
 custom_component:
   lambda: |-
@@ -658,7 +664,6 @@ mcp23017:
 mcp23008:
   id: mcp23008_hub
 
-
 light:
   - platform: hbridge
     name: Icicle Lights
@@ -682,7 +687,6 @@ ttp229_bsf:
     allow_other_uses: true
     number: D1
 
-
 display:
   - platform: max7219digit
     cs_pin:
@@ -695,7 +699,6 @@ display:
     id: my_matrix
     lambda: |-
       it.printdigit("hello");
-
 
 http_request:
   useragent: esphome/device

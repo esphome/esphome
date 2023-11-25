@@ -527,7 +527,6 @@ sensor:
       name: PZEMDC Power
     energy:
       name: PZEMDC Energy
-
   - platform: pmsx003
     uart_id: uart_9
     type: PMSX003
