@@ -116,14 +116,16 @@ class TestTimePeriod:
 
         assert actual == expected
 
-    def test_init__microseconds_with_fraction(self):
-        with pytest.raises(ValueError, match="Maximum precision is microseconds"):
-            core.TimePeriod(microseconds=1.1)
+    def test_init__nanoseconds_with_fraction(self):
+        with pytest.raises(ValueError, match="Maximum precision is nanoseconds"):
+            core.TimePeriod(nanoseconds=1.1)
 
     @pytest.mark.parametrize(
         "kwargs, expected",
         (
             ({}, "0s"),
+            ({"nanoseconds": 1}, "1ns"),
+            ({"nanoseconds": 1.0001}, "1ns"),
             ({"microseconds": 1}, "1us"),
             ({"microseconds": 1.0001}, "1us"),
             ({"milliseconds": 2}, "2ms"),

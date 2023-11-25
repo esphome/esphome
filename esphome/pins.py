@@ -11,10 +11,10 @@ from esphome.const import (
     CONF_PULLUP,
     CONF_IGNORE_STRAPPING_WARNING,
 )
-from esphome.util import SimpleRegistry
+from esphome.util import PinRegistry
 from esphome.core import CORE
 
-PIN_SCHEMA_REGISTRY = SimpleRegistry()
+PIN_SCHEMA_REGISTRY = PinRegistry()
 
 
 def _set_mode(value, default_mode):
