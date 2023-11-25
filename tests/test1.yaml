@@ -352,8 +352,6 @@ optolink:
   rx_pin: GPIO15
   tx_pin: GPIO16
   logger: true
-  device_info: Device Info
-  state: Component state
 
 micronova:
   enable_rx_pin: 4
@@ -3837,4 +3835,3 @@ alarm_control_panel:
       then:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));
-
