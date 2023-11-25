@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/defines.h"
 #ifdef USE_MDNS
 #include "esphome/components/mdns/mdns_component.h"
 #endif
