@@ -441,7 +441,7 @@ void Nextion::process_nextion_commands_() {
         for (auto *touch : this->touch_) {
           touch->process_touch(page_id, component_id, touch_event != 0);
         }
-        this->add_touch_callback_.call(page_id, component_id, touch_event != 0);
+        this->touch_callback_.call(page_id, component_id, touch_event != 0);
         break;
       }
       case 0x66: {  // Nextion initiated new page event return data.
