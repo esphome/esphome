@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_BRIGHTNESS,
     CONF_TRIGGER_ID,
+    CONF_ON_TOUCH,
 )
 from esphome.core import CORE
 from . import Nextion, nextion_ns, nextion_ref
@@ -15,7 +16,6 @@ from .base_component import (
     CONF_ON_WAKE,
     CONF_ON_SETUP,
     CONF_ON_PAGE,
-    CONF_ON_TOUCH,
     CONF_TFT_URL,
     CONF_TOUCH_SLEEP_TIMEOUT,
     CONF_WAKE_UP_PAGE,
@@ -130,4 +130,12 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_TOUCH, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.uint8, "page_id"), (cg.uint8, "component_id"), (cg.bool_, "touch_event")], conf)
+        await automation.build_automation(
+            trigger,
+            [
+                (cg.uint8, "page_id"),
+                (cg.uint8, "component_id"),
+                (cg.bool_, "touch_event"),
+            ],
+            conf,
+        )
