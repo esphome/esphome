@@ -11,8 +11,6 @@ from esphome.const import (
 he60r_ns = cg.esphome_ns.namespace("he60r")
 HE60rCover = he60r_ns.class_("HE60rCover", cover.Cover, cg.PollingComponent)
 
-CONF_DIRECTION_CHANGE_WAIT_TIME = "direction_change_wait_time"
-
 CONFIG_SCHEMA = (
     cover.COVER_SCHEMA.extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.polling_component_schema("300ms"))
