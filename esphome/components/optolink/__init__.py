@@ -1,7 +1,6 @@
 from esphome import core
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import text_sensor as ts
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DIV_RATIO,
@@ -9,7 +8,6 @@ from esphome.const import (
     CONF_LOGGER,
     CONF_PROTOCOL,
     CONF_RX_PIN,
-    CONF_STATE,
     CONF_TX_PIN,
     CONF_UPDATE_INTERVAL,
 )
@@ -24,14 +22,6 @@ optolink_ns = cg.esphome_ns.namespace("optolink")
 CONF_OPTOLINK_ID = "optolink_id"
 
 OptolinkComponent = optolink_ns.class_("Optolink", cg.Component)
-StateSensor = optolink_ns.class_(
-    "OptolinkStateSensor", ts.TextSensor, cg.PollingComponent
-)
-STATE_SENSOR_ID = "state_sensor_id"
-DeviceInfoSensor = optolink_ns.class_(
-    "OptolinkDeviceInfoSensor", ts.TextSensor, cg.PollingComponent
-)
-DEVICE_INFO_SENSOR_ID = "device_info_sensor_id"
 CONF_OPTOLINK_ID = "optolink_id"
 SENSOR_BASE_SCHEMA = cv.Schema(
     {
@@ -62,8 +52,6 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(OptolinkComponent),
-            cv.GenerateID(STATE_SENSOR_ID): cv.declare_id(StateSensor),
-            cv.GenerateID(DEVICE_INFO_SENSOR_ID): cv.declare_id(DeviceInfoSensor),
             cv.Required(CONF_PROTOCOL): cv.one_of("P300", "KW"),
             cv.Optional(CONF_RX_PIN): cv.All(
                 cv.only_on_esp32,
@@ -74,7 +62,6 @@ CONFIG_SCHEMA = cv.All(
                 pins.internal_gpio_output_pin_schema,
             ),
             cv.Optional(CONF_LOGGER, default=False): cv.boolean,
-            cv.Optional(CONF_STATE): cv.string,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
@@ -93,18 +80,6 @@ async def to_code(config):
 
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_logger_enabled(config[CONF_LOGGER]))
-
-    if CONF_STATE in config:
-        debugSensor = cg.new_Pvariable(config[STATE_SENSOR_ID], config[CONF_STATE], var)
-        await ts.register_text_sensor(
-            debugSensor,
-            {
-                "id": config[STATE_SENSOR_ID],
-                "name": config[CONF_STATE],
-                "disabled_by_default": "false",
-            },
-        )
-        await cg.register_component(debugSensor, config)
 
     if CORE.is_esp32:
         cg.add(var.set_rx_pin(config[CONF_RX_PIN]["number"]))
