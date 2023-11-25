@@ -3,6 +3,7 @@ from __future__ import annotations
 import hmac
 import os
 from pathlib import Path
+from typing import Any
 
 from esphome.core import CORE
 from esphome.helpers import get_bool_env
@@ -69,7 +70,8 @@ class DashboardSettings:
         # Compare password in constant running time (to prevent timing attacks)
         return hmac.compare_digest(self.password_hash, password_hash(password))
 
-    def rel_path(self, *args):
+    def rel_path(self, *args: Any) -> str:
+        """Return a path relative to the ESPHome config folder."""
         joined_path = os.path.join(self.config_dir, *args)
         # Raises ValueError if not relative to ESPHome config folder
         Path(joined_path).resolve().relative_to(self.absolute_config_dir)
