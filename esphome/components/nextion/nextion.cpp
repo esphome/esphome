@@ -93,7 +93,8 @@ bool Nextion::check_connect_() {
     connect_info.push_back(response.substr(start, end - start));
   }
 
-  if (connect_info.size() == 7) {
+  this->is_detected_ = (connect_info.size() == 7);
+  if (this->is_detected_) {
     ESP_LOGN(TAG, "Received connect_info %zu", connect_info.size());
 
     this->device_model_ = connect_info[2];

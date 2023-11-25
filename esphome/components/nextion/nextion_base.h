@@ -48,10 +48,12 @@ class NextionBase {
 
   bool is_sleeping() { return this->is_sleeping_; }
   bool is_setup() { return this->is_setup_; }
+  bool is_detected() { return this->is_detected_; }
 
  protected:
   bool is_setup_ = false;
   bool is_sleeping_ = false;
+  bool is_detected_ = false;
 };
 
 }  // namespace nextion
