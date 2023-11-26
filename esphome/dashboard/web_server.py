@@ -27,6 +27,7 @@ import tornado.process
 import tornado.queues
 import tornado.web
 import tornado.websocket
+import tornado.httputil
 import yaml
 from tornado.log import access_log
 
@@ -38,6 +39,7 @@ from esphome.yaml_util import FastestAvailableSafeLoader
 
 from .core import DASHBOARD
 from .entries import EntryState, entry_state_to_bool
+from .util.file import write_file
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
 
@@ -135,7 +137,15 @@ def websocket_method(name):
 
 @websocket_class
 class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
-    def __init__(self, application, request, **kwargs):
+    """Base class for ESPHome websocket commands."""
+
+    def __init__(
+        self,
+        application: tornado.web.Application,
+        request: tornado.httputil.HTTPServerRequest,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize the websocket."""
         super().__init__(application, request, **kwargs)
         self._proc = None
         self._queue = None
@@ -143,6 +153,12 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         # Windows doesn't support non-blocking pipes,
         # use Popen() with a reading thread instead
         self._use_popen = os.name == "nt"
+
+    def open(self, *args: str, **kwargs: str) -> None:
+        """Handle new WebSocket connection."""
+        # Ensure messages from the subprocess are sent immediately
+        # to avoid a 200-500ms delay when nodelay is not set.
+        self.set_nodelay(True)
 
     @authenticated
     async def on_message(  # pylint: disable=invalid-overridden-method
@@ -270,14 +286,15 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
     ) -> list[str]:
         """Build the command to run."""
         dashboard = DASHBOARD
+        entries = dashboard.entries
         configuration = json_message["configuration"]
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
         if (
             port == "OTA"
             and (mdns := dashboard.mdns_status)
-            and (host_name := mdns.get_path_to_host_name(config_file))
-            and (address := await mdns.async_resolve_host(host_name))
+            and (entry := entries.get(config_file))
+            and (address := await mdns.async_resolve_host(entry.name))
         ):
             port = address
 
@@ -524,9 +541,19 @@ class DownloadListRequestHandler(BaseHandler):
 
 
 class DownloadBinaryRequestHandler(BaseHandler):
+    def _load_file(self, path: str, compressed: bool) -> bytes:
+        """Load a file from disk and compress it if requested."""
+        with open(path, "rb") as f:
+            data = f.read()
+            if compressed:
+                return gzip.compress(data, 9)
+            return data
+
     @authenticated
     @bind_config
-    async def get(self, configuration=None):
+    async def get(self, configuration: str | None = None):
+        """Download a binary file."""
+        loop = asyncio.get_running_loop()
         compressed = self.get_argument("compressed", "0") == "1"
 
         storage_path = ext_storage_path(configuration)
@@ -583,11 +610,8 @@ class DownloadBinaryRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        with open(path, "rb") as f:
-            data = f.read()
-            if compressed:
-                data = gzip.compress(data, 9)
-            self.write(data)
+        data = await loop.run_in_executor(None, self._load_file, path, compressed)
+        self.write(data)
 
         self.finish()
 
@@ -746,19 +770,35 @@ class InfoRequestHandler(BaseHandler):
 class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
-    def get(self, configuration=None):
+    async def get(self, configuration: str | None = None):
+        """Get the content of a file."""
+        loop = asyncio.get_running_loop()
         filename = settings.rel_path(configuration)
-        content = ""
-        if os.path.isfile(filename):
-            with open(file=filename, encoding="utf-8") as f:
-                content = f.read()
+        content = await loop.run_in_executor(None, self._read_file, filename)
         self.write(content)
+
+    def _read_file(self, filename: str) -> bytes:
+        """Read a file and return the content as bytes."""
+        with open(file=filename, encoding="utf-8") as f:
+            return f.read()
+
+    def _write_file(self, filename: str, content: bytes) -> None:
+        """Write a file with the given content."""
+        write_file(filename, content)
 
     @authenticated
     @bind_config
-    def post(self, configuration=None):
-        with open(file=settings.rel_path(configuration), mode="wb") as f:
-            f.write(self.request.body)
+    async def post(self, configuration: str | None = None):
+        """Write the content of a file."""
+        loop = asyncio.get_running_loop()
+        config_file = settings.rel_path(configuration)
+        await loop.run_in_executor(
+            None, self._write_file, config_file, self.request.body
+        )
+        # Ensure the StorageJSON is updated as well
+        await async_run_system_command(
+            [*DASHBOARD_COMMAND, "compile", "--only-generate", config_file]
+        )
         self.set_status(200)
 
 
