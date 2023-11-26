@@ -36,7 +36,7 @@ class MDNSComponent : public Component {
 
   void add_extra_service(MDNSService service) { services_extra_.push_back(std::move(service)); }
 
-  network::IPAddress resolve(const std::string &servicename);
+  std::vector<network::IPAddress> resolve(const std::string &servicename);
 
   void on_shutdown() override;
 

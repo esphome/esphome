@@ -49,23 +49,35 @@ void MDNSComponent::setup() {
   }
 }
 
-network::IPAddress MDNSComponent::resolve(const std::string &servicename) {
-  network::IPAddress resolved;
+std::vector<network::IPAddress> MDNSComponent::resolve(const std::string &servicename) {
+  std::vector<network::IPAddress> resolved;
   mdns_result_t *results = nullptr;
-  esp_err_t err = mdns_query_ptr(servicename.c_str(), "_tcp", 3000, 20, &results);
+  mdns_ip_addr_t *a = nullptr;
+  esp_err_t err = mdns_query_ptr(("_" + servicename).c_str(), "_tcp", 3000, 20, &results);
   if (err) {
     ESP_LOGE(TAG, "Query Failed: %s", esp_err_to_name(err));
-    return network::IPAddress();
+    return {};
   }
   if (!results) {
     ESP_LOGW(TAG, "No results found!");
-    return network::IPAddress();
+    return {};
+  }
+  while (results) {
+    a = results->addr;
+    while (a) {
+      network::IPAddress ip_addr = network::IPAddress(&a->addr);
+      if (std::count(resolved.begin(), resolved.end(), ip_addr) == 0) {
+        resolved.push_back(ip_addr);
+      }
+      ESP_LOGVV(TAG, "Found MDS %s", ip_addr.str().c_str());
+      a = a->next;
+    }
+    results = results->next;
   }
 
-  resolved = network::IPAddress(&results->addr->addr);
   mdns_query_results_free(results);
 
-  return network::IPAddress(resolved);
+  return resolved;
 }
 
 void MDNSComponent::on_shutdown() {
