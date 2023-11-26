@@ -47,7 +47,7 @@ power_supply:
   - id: atx_power_supply
     enable_time: 20ms
     keep_on_time: 10s
-    enable_at_startup: true
+    enable_on_boot: true
     pin:
       number: 13
       inverted: true
