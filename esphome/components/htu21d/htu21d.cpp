@@ -59,7 +59,7 @@ void HTU21DComponent::update() {
 
     if (this->temperature_ != nullptr)
       this->temperature_->publish_state(temperature);
-    this->status_clear_warning(); // See bmp085.cpp
+    this->status_clear_warning();
 
     if (this->write(&HTU21D_REGISTER_HUMIDITY, 1) != i2c::ERROR_OK) {
       this->status_set_warning();
