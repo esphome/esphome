@@ -1,3 +1,4 @@
+#include <vector>
 #include "resolver.h"
 #include "lwip/dns.h"
 #include "esphome/core/log.h"
@@ -20,18 +21,23 @@ namespace network {
 static const char *const TAG = "resolver";
 
 Resolver::Resolver() { global_resolver = this; }
-Resolver::Resolver(std::map<std::string, network::IPAddress> hosts) : hosts_(std::move(hosts)) {
+Resolver::Resolver(std::multimap<std::string, network::IPAddress> hosts) : hosts_(std::move(hosts)) {
   global_resolver = this;
 }
-network::IPAddress Resolver::resolve(const std::string &hostname) {
+// TODO(HeMan): resolve needs to return multiple IP addresses
+std::vector<network::IPAddress> Resolver::resolve(const std::string &hostname) {
   if (this->hosts_.count(hostname) > 0) {
-    ESP_LOGVV(TAG, "Found %s in hosts section", hostname.c_str());
-    return this->hosts_[hostname];
+    std::vector<network::IPAddress> resolved;
+    for (auto a = hosts_.find(hostname); a != hosts_.end(); a++) {
+      resolved.push_back(a->second);
+      ESP_LOGVV(TAG, "Found %s in hosts section", hostname.c_str());
+    }
+    return resolved;
   }
 #ifdef USE_MDNS
   ESP_LOGV(TAG, "Looking for %s with mDNS", hostname.c_str());
-  network::IPAddress resolved_mdns = mdns::global_mdns->resolve(hostname);
-  if (resolved_mdns.is_set()) {
+  std::vector<network::IPAddress> resolved_mdns = mdns::global_mdns->resolve(hostname);
+  if (!resolved_mdns.empty()) {
     ESP_LOGVV(TAG, "Found %s in mDNS", hostname.c_str());
     return resolved_mdns;
   }
@@ -41,7 +47,7 @@ network::IPAddress Resolver::resolve(const std::string &hostname) {
   err_t err =
       dns_gethostbyname_addrtype(hostname.c_str(), &addr, Resolver::dns_found_callback, this, ESPHOME_DNS_ADDRTYPE);
   if (err == ERR_OK) {
-    return network::IPAddress(&addr);
+    return {network::IPAddress(&addr)};
   }
   this->connect_begin_ = millis();
   while (!this->dns_resolved_ && !this->dns_resolve_error_ && (millis() - this->connect_begin_ < 2000)) {
@@ -51,7 +57,7 @@ network::IPAddress Resolver::resolve(const std::string &hostname) {
         ESP_LOGVV(TAG, "Found %s in DNS", hostname.c_str());
         this->dns_resolved_ = true;
         this->ip_ = network::IPAddress(&addr);
-        return this->ip_;
+        return {this->ip_};
       }
       case ERR_INPROGRESS: {
         // wait for callback
@@ -73,7 +79,7 @@ network::IPAddress Resolver::resolve(const std::string &hostname) {
   if (!this->dns_resolved_) {
     ESP_LOGVV(TAG, "Not resolved");
   }
-  return this->ip_;
+  return {this->ip_};
 }
 
 void Resolver::dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {

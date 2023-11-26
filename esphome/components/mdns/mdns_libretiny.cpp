@@ -36,15 +36,8 @@ void MDNSComponent::setup() {
   }
 }
 
-/*
-  // Libre tiny doesn't have a "full" mDNS implementation
-  network::IPAddress MDNSComponent::resolve(const std::string &servicename) {
-  int n = MDNS.queryService(servicename.c_str(), "tcp");
-  if (n > 0) {
-    return network::IPAddress(MDNS.IP(0));
-  }
-  return network::IPAddress();
-}*/
+// Libre tiny doesn't have a "full" mDNS implementation
+std::vector<network::IPAddress> MDNSComponent::resolve(const std::string &servicename) { return {}; }
 
 void MDNSComponent::on_shutdown() {}
 
