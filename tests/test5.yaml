@@ -44,6 +44,7 @@ uart:
     tx_pin:
       allow_other_uses: true
       number: 17
+      inverted: true
     rx_pin:
       allow_other_uses: true
       number: 16
