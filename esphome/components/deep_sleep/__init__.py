@@ -199,9 +199,7 @@ WAKEUP_SINGLEPIN_SCHEMA = pins.internal_gpio_input_pin_schema
 WAKEUP_MULTIPIN_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_PIN): WAKEUP_SINGLEPIN_SCHEMA,
-        cv.Optional(CONF_WAKEUP_PIN_MODE): (
-            cv.enum(WAKEUP_PIN_MODES, upper=True)
-        ),
+        cv.Optional(CONF_WAKEUP_PIN_MODE): (cv.enum(WAKEUP_PIN_MODES, upper=True)),
     }
 )
 
