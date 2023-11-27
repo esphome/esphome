@@ -20,8 +20,8 @@ void XPT2046Component::setup() {
     this->irq_pin_->setup();
     this->attach_interrupt_(this->irq_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
-  spi_setup();
-  read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
+  this->spi_setup();
+  this->read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
 }
 
 void XPT2046Component::update_touches() {
