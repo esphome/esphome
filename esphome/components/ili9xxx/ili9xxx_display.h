@@ -19,8 +19,7 @@ enum ILI9XXXColorMode {
 #define ILI9XXXDisplay_DATA_RATE spi::DATA_RATE_40MHZ
 #endif  // ILI9XXXDisplay_DATA_RATE
 
-class ILI9XXXDisplay : public PollingComponent,
-                       public display::DisplayBuffer,
+class ILI9XXXDisplay : public display::DisplayBuffer,
                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                              spi::CLOCK_PHASE_LEADING, ILI9XXXDisplay_DATA_RATE> {
  public:
