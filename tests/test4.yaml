@@ -435,6 +435,10 @@ binary_sensor:
     y_max: 100
     on_press:
       - logger.log: Touched
+  - platform: gt911
+    id: touch_key_911
+    index: 0
+
 
   - platform: gpio
     name: MaxIn Pin 4
@@ -766,6 +770,10 @@ touchscreen:
       - logger.log:
           format: Touch at (%d, %d)
           args: [touch.x, touch.y]
+  - platform: gt911
+    interrupt_pin: GPIO3
+    display: inkplate_display
+
 
 i2s_audio:
   i2s_lrclk_pin: GPIO26
