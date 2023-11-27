@@ -18,15 +18,22 @@ namespace esphome {
 namespace wk2132 {
 
 /// @brief the max number of bytes we allow for transfer calls.
-/// It seems like if we try to transfer more than this value we
-/// are getting **error 6** from the i2c::I2CDevice
-constexpr size_t XFER_MAX_SIZE = 128;
+/// By default I²C bus allow a maximum transfer of 128 bytes
+/// but this can be changed by defining I2C_BUFFER_LENGTH.
+/// However there is a bug in Arduino framework that limit the
+/// maximum value to 255 (TODO check IDF framework)
+#if (I2C_BUFFER_LENGTH < 256)
+constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;
+#else  // until bug fixed in framework we limit size to 255
+constexpr size_t XFER_MAX_SIZE = 255;
+#endif
 
 /// @brief size of the internal wk2132 FIFO
 constexpr size_t FIFO_SIZE = 256;
 
 /// @brief size of the ring buffer
-constexpr size_t RING_BUFFER_SIZE = 256;
+/// @details We set the ring buffer to the same size as the XFER_MAX_SIZE
+constexpr size_t RING_BUFFER_SIZE = XFER_MAX_SIZE;
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief This is an helper class that provides a simple ring buffers
 /// that works as a FIFO
@@ -115,14 +122,11 @@ template<typename T, size_t SIZE> class RingBuffer {
 /// @{
 
 /// Global Control Register
-/// @code
-///  -------------------------------------------------------------------------
-///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
-///  -------------------------------------------------------------------------
-///  |   M1   |   M0   |              RESERVED             |  UT2EN |  UT1EN |
-///  -------------------------------------------------------------------------
-/// @endcode
-constexpr uint8_t REG_WK2132_GCR = 0x00;
+constexpr uint8_t REG_WK2132_GENA = 0x00;
+/// @brief Channel 1 clock enable bit (0: disable, 1: enable)
+constexpr uint8_t GENA_UT1EN = 1 << 0;
+/// @brief Channel 2 clock enable bit (0: disable, 1: enable)
+constexpr uint8_t GENA_UT2EN = 1 << 1;
 
 ///  Global UART reset register
 /// @code
@@ -133,6 +137,10 @@ constexpr uint8_t REG_WK2132_GCR = 0x00;
 ///  -------------------------------------------------------------------------
 /// @endcode
 constexpr uint8_t REG_WK2132_GRST = 0x01;
+/// @brief Channel 1 soft reset control bit (0: not reset, 1: reset)
+constexpr uint8_t UT1RST = 1 << 0;
+/// @brief Channel 2 soft reset control bit (0: not reset, 1: reset)
+constexpr uint8_t UT2RST = 1 << 1;
 
 /// Global master channel control register
 /// @code
@@ -421,7 +429,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   std::string name_;                         ///< name of entity
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////// /////////////////////////////////////////////////////////////
 /// @brief The UART channel class of a WK2132 I²C component.
 ///
 /// This class derives from the virtual @ref uart::UARTComponent class.

@@ -21,23 +21,22 @@ namespace wk2132 {
 
   - The WK2132Component class extends two ESPHome classes: esphome::Component
     and i2c::I2CDevice, adhering to the classic component class structure.
-  - Moving on, the WK2132Channel class holds significance, establishing an
-    aggregation relationship with WK2132Component. This implies that WK2132Component
-    acts as a container, housing one or two WK2132Channel instances.
-    Importantly, there exists a loose dependency, allowing WK2132Channel instances
-    to persist even if the associated WK2132Component is destroyed (an eventuality
-    that never occurs in ESPHome).
+  - The WK2132Channel class has an aggregation relationship with WK2132Component.
+    This implies that WK2132Component acts as a container, housing one or two
+    WK2132Channel instances.  It's important to note that this is a weak dependency,
+    allowing WK2132Channel instances to persist even if the associated WK2132Component
+    is destroyed (an eventuality that never occurs in ESPHome).
     @n Furthermore, the WK2132Channel class derives from the ESPHome uart::UARTComponent
-    class, featuring a composition relationship with the RingBuffer helper class.
+    class, and has a composition relationship with the RingBuffer helper class.
     Consequently, when a WK2132Channel instance is destroyed, the associated RingBuffer
-    instance is also dismantled.
-  - The final class integral to the WK2132 component is the helper class named RingBuffer.
+    instance is also destroyed.
+  - The final class integral to the WK2132 component is the helper RingBuffer class.
     This straightforward container implements FIFO functionality, enabling bytes to be
     pushed into one side and popped from the other in the order of entry.
 
   @section RingBuffer_ The RingBuffer template class
   The RingBuffer template class has it names implies implement a simple ring
-  buffer. Implementation is straight forward and not described in any details.
+  buffer. Implementation is classic and therefore not described in any details.
 
   @section WK2132Component_ The WK2132Component class
   The WK2132Component class primarily serves as a container for WK2132Channel instances.
@@ -164,9 +163,9 @@ namespace wk2132 {
 */
 
 static const char *const TAG = "wk2132";
-static const char *const REG_TO_STR_P0[] = {"GCR",  "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
+static const char *const REG_TO_STR_P0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
                                             "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
-static const char *const REG_TO_STR_P1[] = {"GCR",  "GRST", "GMUT",  "SPAGE", "BAUD1", "BAUD0", "PRES",
+static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "BAUD1", "BAUD0", "PRES",
                                             "RFTL", "TFTL", "_INV_", "_INV_", "_INV_", "_INV_"};
 
 /// @brief convert an int to binary representation as C++ std::string
@@ -298,14 +297,22 @@ void WK2132Channel::setup_channel_() {
   //
   // we first do the global register (common to both channel)
   //
-  uint8_t gcr;
-  this->parent_->read_wk2132_register_(REG_WK2132_GCR, 0, &gcr, 1);
-  (this->channel_ == 0) ? gcr |= 0x01 : gcr |= 0x02;  // enable channel 1 or 2
-  this->parent_->write_wk2132_register_(REG_WK2132_GCR, 0, &gcr, 1);
+  // uint8_t gena;
+  // this->parent_->read_wk2132_register_(REG_WK2132_GENA, 0, &gena, 1);
+  // (this->channel_ == 0) ? gena |= GENA_UT1EN : gena |= UT2EN;  // enable channel 1 or 2
+  // this->parent_->write_wk2132_register_(REG_WK2132_GENA, 0, &gena, 1);
+
+  // gena is acting as a proxy
+  i2c::I2CRegister gena = this->parent_->reg(REG_WK2132_GENA);
+  if (this->channel_ == 0)
+    gena |= GENA_UT1EN;
+  else
+    gena |= GENA_UT2EN;
+
   // software reset UART channels
   uint8_t grst = 0;
   this->parent_->read_wk2132_register_(REG_WK2132_GRST, 0, &grst, 1);
-  (this->channel_ == 0) ? grst |= 0x01 : grst |= 0x02;  // reset channel 1 or 2
+  (this->channel_ == 0) ? grst |= UT1RST : grst |= UT2RST;  // reset channel 1 or 2
   this->parent_->write_wk2132_register_(REG_WK2132_GRST, 0, &grst, 1);
 
   //
@@ -403,7 +410,7 @@ size_t WK2132Channel::rx_in_fifo_() {
   if (available == 0) {
     uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
     if (fsr & 0x8) {  // if RDAT bit is set we set available to 256
-      ESP_LOGVV(TAG, "rx_in_fifo full FSR=%s", I2CS(fsr));
+      ESP_LOGVV(TAG, "rx_in_fifo full because FSR=%s says so", I2CS(fsr));
       available = FIFO_SIZE;
     }
   }
@@ -419,7 +426,7 @@ bool WK2132Channel::peek_byte(uint8_t *buffer) {
 }
 
 int WK2132Channel::available() {
-  auto available = this->receive_buffer_.count();
+  size_t available = this->receive_buffer_.count();
   if (!available)
     available = xfer_fifo_to_buffer_();
   return available;
@@ -473,8 +480,8 @@ void WK2132Channel::flush() {
 }
 
 size_t WK2132Channel::xfer_fifo_to_buffer_() {
-  auto to_transfer = this->rx_in_fifo_();
-  auto free = this->receive_buffer_.free();
+  size_t to_transfer = this->rx_in_fifo_();
+  size_t free = this->receive_buffer_.free();
   if (to_transfer > XFER_MAX_SIZE)
     to_transfer = XFER_MAX_SIZE;
   if (to_transfer > free)
@@ -491,8 +498,9 @@ size_t WK2132Channel::xfer_fifo_to_buffer_() {
 
     for (size_t i = 0; i < to_transfer; i++)
       this->receive_buffer_.push(data[i]);
-  } else
+  } else {
     ESP_LOGVV(TAG, "xfer_fifo_to_buffer: nothing to to_transfer");
+  }
   return to_transfer;
 }
 
@@ -633,7 +641,7 @@ bool WK2132Channel::uart_receive_test_(char *message) {
   }
 
   status = this->read_array(&buffer[0], XFER_MAX_SIZE) && status;
-  for (int i = 0; i < XFER_MAX_SIZE; i++) {
+  for (size_t i = 0; i < XFER_MAX_SIZE; i++) {
     if (buffer[i] != i) {
       ESP_LOGE(TAG, "Read buffer contains error...");
       print_buffer(buffer);
