@@ -222,6 +222,11 @@ template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, pub
   bool check(Ts... x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
 };
 
+template<typename... Ts> class ConnectedCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
+ public:
+  bool check(Ts... x) override { return this->parent_->get_api_connection() != nullptr; }
+};
+
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace voice_assistant
