@@ -102,6 +102,10 @@ def is_authenticated(request_handler: BaseHandler) -> bool:
         return request_handler.request.headers.get("X-HA-Ingress", "NO") == "YES"
 
     if settings.using_auth:
+        _LOGGER.warning("Using auth")
+        _LOGGER.warning(
+            "Cookie: %s", request_handler.get_secure_cookie(AUTH_COOKIE_NAME)
+        )
         return (
             request_handler.get_secure_cookie(AUTH_COOKIE_NAME)
             == COOKIE_AUTHENTICATED_YES
