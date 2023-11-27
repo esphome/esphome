@@ -20,8 +20,8 @@ void XPT2046Component::setup() {
     this->irq_pin_->setup();
     this->attach_interrupt_(this->irq_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
-  spi_setup();
-  read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
+  this->spi_setup();
+  this->read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
 }
 
 void XPT2046Component::update_touches() {
@@ -73,7 +73,6 @@ void XPT2046Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Invert Y: %s", YESNO(this->invert_y_));
 
   ESP_LOGCONFIG(TAG, "  threshold: %d", this->threshold_);
-  // ESP_LOGCONFIG(TAG, "  Report interval: %u", this->report_millis_);
 
   LOG_UPDATE_INTERVAL(this);
 }
