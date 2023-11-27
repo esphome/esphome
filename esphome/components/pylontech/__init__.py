@@ -4,10 +4,10 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
+_LOGGER = logging.getLogger(__name__)
+
 CODEOWNERS = ["@functionpointer"]
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["sensor"]
-_LOGGER = logging.getLogger(__name__)
 MULTI_CONF = True
 
 CONF_PYLONTECH_ID = "pylontech_id"
