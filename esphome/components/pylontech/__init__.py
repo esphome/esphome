@@ -23,7 +23,7 @@ CV_NUM_BATTERIES = cv.int_range(1, 6)
 
 PYLONTECH_COMPONENT_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_PYLONTECH_ID): cv.use_id(PylontechComponent),
+        cv.GenerateID(CONF_PYLONTECH_ID): cv.use_id(PylontechComponent),
         cv.Required(CONF_BATTERY): CV_NUM_BATTERIES,
     }
 )
