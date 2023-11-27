@@ -115,7 +115,7 @@ class DeepSleepComponent : public Component {
   optional<Ext1Wakeup> ext1_wakeup_;
   optional<bool> touch_wakeup_;
   optional<WakeupCauseToRunDuration> wakeup_cause_to_run_duration_;
-  bool prepare_pin_(esphome::InternalGPIOPin * /*pin*/, WakeupPinMode /*pin_mode*/);
+  bool prepare_pin_(esphome::InternalGPIOPin * pin, WakeupPinMode pin_mode);
 #endif
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};
