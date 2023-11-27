@@ -539,8 +539,7 @@ class DownloadListRequestHandler(BaseHandler):
 
             downloads = libretiny_types(storage_json)
         else:
-            self.send_error(418)
-            return
+            raise ValueError(f"Unknown platform {platform}")
 
         self.set_status(200)
         self.set_header("content-type", "application/json")
