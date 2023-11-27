@@ -115,7 +115,6 @@ async def to_code(config):
     rhs = MODELS[config[CONF_MODEL]].new()
     var = cg.Pvariable(config[CONF_ID], rhs)
 
-    await cg.register_component(var, config)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
