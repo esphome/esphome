@@ -879,7 +879,7 @@ class LoginHandler(BaseHandler):
 
     async def post_ha_addon_login(self) -> None:
         loop = asyncio.get_running_loop()
-
+        _LOGGER.warning("Hass.io auth request")
         try:
             req = await loop.run_in_executor(None, self._make_supervisor_auth_request)
         except Exception as err:  # pylint: disable=broad-except
@@ -888,6 +888,7 @@ class LoginHandler(BaseHandler):
             self.render_login_page(error="Internal server error")
             return
 
+        _LOGGER.warning("request returned %s", req)
         _LOGGER.warning("Hass.io auth request returned %s", req.status_code)
         if req.status_code == 200:
             self._set_authenticated()
@@ -898,6 +899,7 @@ class LoginHandler(BaseHandler):
 
     def _set_authenticated(self) -> None:
         """Set the authenticated cookie."""
+        _LOGGER.warning("Setting authenticated cookie")
         self.set_secure_cookie("authenticated", COOKIE_AUTHENTICATED_YES)
 
     def post_native_login(self) -> None:
