@@ -156,11 +156,14 @@ class VoiceAssistant : public Component {
 
   microphone::Microphone *mic_{nullptr};
 #ifdef USE_SPEAKER
+  void write_speaker_();
   speaker::Speaker *speaker_{nullptr};
   uint8_t *speaker_buffer_;
   size_t speaker_buffer_index_{0};
   size_t speaker_buffer_size_{0};
+  size_t speaker_bytes_received_{0};
   bool wait_for_stream_end_{false};
+  bool stream_ended_{false};
 #endif
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
