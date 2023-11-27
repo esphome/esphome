@@ -96,13 +96,6 @@ def authenticated(func: T) -> T:
 
 def is_authenticated(handler: BaseHandler) -> bool:
     """Check if the request is authenticated."""
-    _LOGGER.warning(
-        "is_authenticated: %s on_ha_addon: %s using_auth: %s",
-        handler.request.uri,
-        settings.on_ha_addon,
-        settings.using_auth,
-    )
-
     if settings.on_ha_addon:
         # Handle ingress - disable auth on ingress port
         # X-HA-Ingress is automatically stripped on the non-ingress server in nginx
@@ -110,8 +103,6 @@ def is_authenticated(handler: BaseHandler) -> bool:
             return True
 
     if settings.using_auth:
-        _LOGGER.warning("Using auth")
-        _LOGGER.warning("Cookie: %s", handler.get_secure_cookie(AUTH_COOKIE_NAME))
         return handler.get_secure_cookie(AUTH_COOKIE_NAME) == COOKIE_AUTHENTICATED_YES
 
     return True
@@ -888,7 +879,6 @@ class LoginHandler(BaseHandler):
 
     async def post_ha_addon_login(self) -> None:
         loop = asyncio.get_running_loop()
-        _LOGGER.warning("Hass.io auth request")
         try:
             req = await loop.run_in_executor(None, self._make_supervisor_auth_request)
         except Exception as err:  # pylint: disable=broad-except
@@ -897,8 +887,6 @@ class LoginHandler(BaseHandler):
             self.render_login_page(error="Internal server error")
             return
 
-        _LOGGER.warning("request returned %s", req)
-        _LOGGER.warning("Hass.io auth request returned %s", req.status_code)
         if req.status_code == 200:
             self._set_authenticated()
             self.redirect("/")
@@ -908,7 +896,6 @@ class LoginHandler(BaseHandler):
 
     def _set_authenticated(self) -> None:
         """Set the authenticated cookie."""
-        _LOGGER.warning("Setting authenticated cookie")
         self.set_secure_cookie(AUTH_COOKIE_NAME, COOKIE_AUTHENTICATED_YES)
 
     def post_native_login(self) -> None:
