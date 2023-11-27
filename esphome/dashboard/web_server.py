@@ -96,6 +96,13 @@ def authenticated(func: T) -> T:
 
 def is_authenticated(request_handler: BaseHandler) -> bool:
     """Check if the request is authenticated."""
+    _LOGGER.warning(
+        "is_authenticated: %s on_ha_addon: %s using_auth: %s",
+        request_handler.request.uri,
+        settings.on_ha_addon,
+        settings.using_auth,
+    )
+
     if settings.on_ha_addon:
         # Handle ingress - disable auth on ingress port
         # X-HA-Ingress is automatically stripped on the non-ingress server in nginx
