@@ -80,20 +80,20 @@ void XPT2046Component::dump_config() {
 
 float XPT2046Component::get_setup_priority() const { return setup_priority::DATA; }
 
-int16_t XPT2046Component::best_two_avg(int16_t x, int16_t y, int16_t z) {  // NOLINT
-  int16_t da, db, dc;                                                      // NOLINT
+int16_t XPT2046Component::best_two_avg(int16_t value1, int16_t value2, int16_t value3) {
+  int16_t delta_a, delta_b, delta_c;
   int16_t reta = 0;
 
-  da = (x > y) ? x - y : y - x;
-  db = (x > z) ? x - z : z - x;
-  dc = (z > y) ? z - y : y - z;
+  delta_a = (value1 > value2) ? value1 - value2 : value2 - value1;
+  delta_b = (value1 > value3) ? value1 - value3 : value3 - value1;
+  delta_c = (value3 > value2) ? value3 - value2 : value2 - value3;
 
-  if (da <= db && da <= dc) {
-    reta = (x + y) >> 1;
-  } else if (db <= da && db <= dc) {
-    reta = (x + z) >> 1;
+  if (delta_a <= delta_b && delta_a <= delta_c) {
+    reta = (value1 + value2) >> 1;
+  } else if (delta_b <= delta_a && delta_b <= delta_c) {
+    reta = (value1 + value3) >> 1;
   } else {
-    reta = (y + z) >> 1;
+    reta = (value2 + value3) >> 1;
   }
 
   return reta;

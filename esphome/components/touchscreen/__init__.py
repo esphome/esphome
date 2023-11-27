@@ -43,7 +43,7 @@ def validate_rotation(value):
 
 TOUCHSCREEN_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
+        cv.GenerateID(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
         cv.Optional(CONF_DIMENSIONS): cv.dimensions,
         cv.Optional(CONF_ROTATION): validate_rotation,
         cv.Optional(CONF_SWAP_X_Y, default=False): cv.boolean,

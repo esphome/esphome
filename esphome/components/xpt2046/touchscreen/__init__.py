@@ -23,12 +23,6 @@ CONF_CALIBRATION_Y_MAX = "calibration_y_max"
 
 
 def validate_xpt2046(config):
-    if CONF_CALIBRATION_X_MAX not in config or CONF_CALIBRATION_X_MIN not in config:
-        raise cv.Invalid("Calibration X values missing")
-
-    if CONF_CALIBRATION_Y_MAX not in config or CONF_CALIBRATION_Y_MIN not in config:
-        raise cv.Invalid("Calibration y values missing")
-
     if (
         abs(
             cv.int_(config[CONF_CALIBRATION_X_MAX])
