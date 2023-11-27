@@ -1,11 +1,11 @@
-/// @file wk2132.cpp
+/// @file wk2132_i2c.cpp
 /// @author DrCoolzic
 /// @brief wk2132 classes implementation
 
-#include "wk2132.h"
+#include "wk2132_i2c.h"
 
 namespace esphome {
-namespace wk2132 {
+namespace wk2132_i2c {
 
 /*! @mainpage WK2132 source code documentation
   This page provides detailed information about the implementation of the
@@ -162,7 +162,7 @@ namespace wk2132 {
 
 */
 
-static const char *const TAG = "wk2132";
+static const char *const TAG = "wk2132_i2c";
 static const char *const REG_TO_STR_P0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
                                             "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
 static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "BAUD1", "BAUD0", "PRES",
@@ -658,5 +658,5 @@ bool WK2132Channel::uart_receive_test_(char *message) {
 /// @}
 #endif
 
-}  // namespace wk2132
+}  // namespace wk2132_i2c
 }  // namespace esphome

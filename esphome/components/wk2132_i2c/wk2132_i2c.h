@@ -1,4 +1,4 @@
-/// @file wk2132.h
+/// @file wk2132_i2c.h
 /// @author DrCoolZic
 /// @brief  wk2132 classes interface
 
@@ -14,8 +14,8 @@
 #define TEST_COMPONENT
 
 namespace esphome {
-/// @brief The wk2132 namespace
-namespace wk2132 {
+/// @brief The wk2132_i2c namespace
+namespace wk2132_i2c {
 
 /// @brief the max number of bytes we allow for transfer calls.
 /// By default I²C bus allow a maximum transfer of 128 bytes
@@ -593,5 +593,5 @@ class WK2132Channel : public uart::UARTComponent {
   std::string name_;         ///< name of the entity
 };
 
-}  // namespace wk2132
+}  // namespace wk2132_i2c
 }  // namespace esphome
