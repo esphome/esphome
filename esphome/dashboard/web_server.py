@@ -94,11 +94,11 @@ def authenticated(func: T) -> T:
     return decorator
 
 
-def is_authenticated(request_handler: BaseHandler) -> bool:
+def is_authenticated(handler: BaseHandler) -> bool:
     """Check if the request is authenticated."""
     _LOGGER.warning(
         "is_authenticated: %s on_ha_addon: %s using_auth: %s",
-        request_handler.request.uri,
+        handler.request.uri,
         settings.on_ha_addon,
         settings.using_auth,
     )
@@ -106,17 +106,13 @@ def is_authenticated(request_handler: BaseHandler) -> bool:
     if settings.on_ha_addon:
         # Handle ingress - disable auth on ingress port
         # X-HA-Ingress is automatically stripped on the non-ingress server in nginx
-        return request_handler.request.headers.get("X-HA-Ingress", "NO") == "YES"
+        if handler.request.headers.get("X-HA-Ingress", "NO") == "YES":
+            return True
 
     if settings.using_auth:
         _LOGGER.warning("Using auth")
-        _LOGGER.warning(
-            "Cookie: %s", request_handler.get_secure_cookie(AUTH_COOKIE_NAME)
-        )
-        return (
-            request_handler.get_secure_cookie(AUTH_COOKIE_NAME)
-            == COOKIE_AUTHENTICATED_YES
-        )
+        _LOGGER.warning("Cookie: %s", handler.get_secure_cookie(AUTH_COOKIE_NAME))
+        return handler.get_secure_cookie(AUTH_COOKIE_NAME) == COOKIE_AUTHENTICATED_YES
 
     return True
 
