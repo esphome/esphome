@@ -55,6 +55,8 @@ ENV_DEV = "ESPHOME_DASHBOARD_DEV"
 
 COOKIE_AUTHENTICATED_YES = b"yes"
 
+AUTH_COOKIE_NAME = "authenticated"
+
 
 settings = DASHBOARD.settings
 
@@ -101,7 +103,7 @@ def is_authenticated(request_handler: BaseHandler) -> bool:
 
     if settings.using_auth:
         return (
-            request_handler.get_secure_cookie("authenticated")
+            request_handler.get_secure_cookie(AUTH_COOKIE_NAME)
             == COOKIE_AUTHENTICATED_YES
         )
 
@@ -900,7 +902,7 @@ class LoginHandler(BaseHandler):
     def _set_authenticated(self) -> None:
         """Set the authenticated cookie."""
         _LOGGER.warning("Setting authenticated cookie")
-        self.set_secure_cookie("authenticated", COOKIE_AUTHENTICATED_YES)
+        self.set_secure_cookie(AUTH_COOKIE_NAME, COOKIE_AUTHENTICATED_YES)
 
     def post_native_login(self) -> None:
         username = self.get_argument("username", "")
@@ -925,7 +927,7 @@ class LoginHandler(BaseHandler):
 class LogoutHandler(BaseHandler):
     @authenticated
     def get(self) -> None:
-        self.clear_cookie("authenticated")
+        self.clear_cookie(AUTH_COOKIE_NAME)
         self.redirect("./login")
 
 
