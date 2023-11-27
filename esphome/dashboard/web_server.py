@@ -99,7 +99,8 @@ def is_authenticated(handler: BaseHandler) -> bool:
     if settings.on_ha_addon:
         # Handle ingress - disable auth on ingress port
         # X-HA-Ingress is automatically stripped on the non-ingress server in nginx
-        if handler.request.headers.get("X-HA-Ingress", "NO") == "YES":
+        header = handler.request.headers.get("X-HA-Ingress", "NO")
+        if str(header) == "YES":
             return True
 
     if settings.using_auth:
