@@ -53,8 +53,7 @@ _LOGGER = logging.getLogger(__name__)
 
 ENV_DEV = "ESPHOME_DASHBOARD_DEV"
 
-
-cookie_authenticated_yes = b"yes"
+COOKIE_AUTHENTICATED_YES = b"yes"
 
 
 settings = DASHBOARD.settings
@@ -103,7 +102,7 @@ def is_authenticated(request_handler: BaseHandler) -> bool:
     if settings.using_auth:
         return (
             request_handler.get_secure_cookie("authenticated")
-            == cookie_authenticated_yes
+            == COOKIE_AUTHENTICATED_YES
         )
 
     return True
@@ -889,6 +888,7 @@ class LoginHandler(BaseHandler):
             self.render_login_page(error="Internal server error")
             return
 
+        _LOGGER.warning("Hass.io auth request returned %s", req.status_code)
         if req.status_code == 200:
             self._set_authenticated()
             self.redirect("/")
@@ -898,7 +898,7 @@ class LoginHandler(BaseHandler):
 
     def _set_authenticated(self) -> None:
         """Set the authenticated cookie."""
-        self.set_secure_cookie("authenticated", cookie_authenticated_yes)
+        self.set_secure_cookie("authenticated", COOKIE_AUTHENTICATED_YES)
 
     def post_native_login(self) -> None:
         username = self.get_argument("username", "")
