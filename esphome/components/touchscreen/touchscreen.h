@@ -82,7 +82,7 @@ class Touchscreen : public PollingComponent {
 
   uint16_t get_width_() { return this->display_->get_width(); }
 
-  uint16_t get_height_() { return display_->get_height(); }
+  uint16_t get_height_() { return this->display_->get_height(); }
 
   TouchRotation get_rotation_() { return static_cast<TouchRotation>(this->display_->get_rotation()); }
   display::Display *display_{nullptr};
