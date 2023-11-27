@@ -176,7 +176,12 @@ void HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
       break;
     }
 
-    // default case (no built-in handler + no on_message handler) => message not supported => send "Abort"
+    // Ignore "Feature Abort" opcode responses
+    case 0x00:
+      // no-op
+      break;
+
+    // default case (no built-in handler + no on_message handler) => message not supported => send "Feature Abort"
     default:
       send(address_, source, {0x00, opcode, 0x00});
       break;
