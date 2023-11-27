@@ -19,7 +19,7 @@ static const uint32_t MIN_SIGNAL_FREE_TIME = (TOTAL_BIT_US * 7);
 static const size_t MAX_ATTEMPTS = 5;
 
 static const gpio::Flags INPUT_MODE_FLAGS = gpio::FLAG_INPUT | gpio::FLAG_PULLUP;
-static const gpio::Flags OUTPUT_MODE_FLAGS = gpio::FLAG_OUTPUT | gpio::FLAG_PULLUP;
+static const gpio::Flags OUTPUT_MODE_FLAGS = gpio::FLAG_OUTPUT;
 
 std::string bytes_to_string(std::vector<uint8_t> bytes) {
   std::string result;
