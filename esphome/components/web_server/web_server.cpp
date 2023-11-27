@@ -361,13 +361,14 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 }
 #elif USE_WEBSERVER_VERSION == 2
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
-  if(!request->hasParam("fallback")) {
+  if (!request->hasParam("fallback")) {
     AsyncWebServerResponse *response =
         request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
     // No gzip header here because the HTML file is so small
     request->send(response);
   } else {
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_FALLBACK_GZ, sizeof(INDEX_FALLBACK_GZ));
+    AsyncWebServerResponse *response =
+        request->beginResponse_P(200, "text/html", INDEX_FALLBACK_GZ, sizeof(INDEX_FALLBACK_GZ));
     response->addHeader("Content-Encoding", "gzip");
     request->send(response);
   }
@@ -535,7 +536,8 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool s
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
-    set_json_icon_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config);
+    set_json_icon_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value,
+                              start_config);
   });
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -554,7 +556,8 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
 void WebServer::on_fan_update(fan::Fan *obj) { this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state"); }
 std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {
-    set_json_icon_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state, start_config);
+    set_json_icon_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state,
+                              start_config);
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
@@ -780,7 +783,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
 std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {
     set_json_icon_state_value(root, obj, "cover-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN",
-                         obj->position, start_config);
+                              obj->position, start_config);
     root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
 
     if (obj->get_traits().get_supports_tilt())
