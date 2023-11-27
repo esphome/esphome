@@ -33,11 +33,9 @@ class TouchListener {
  public:
   virtual void touch(TouchPoint tp) {}
   virtual void touch(const TouchPoints_t &tpoints) {}
-  /* return true to update first touch position */
   virtual void update(const TouchPoints_t &tpoints) {}
   virtual void release() {}
 };
-// std::vector<Style> styles_{};
 
 enum TouchRotation {
   ROTATE_0_DEGREES = 0,
