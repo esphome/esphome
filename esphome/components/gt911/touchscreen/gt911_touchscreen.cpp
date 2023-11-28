@@ -49,7 +49,6 @@ void GT911Touchscreen::setup() {
 
 void GT911Touchscreen::update_touches() {
   i2c::ErrorCode err;
-  touchscreen::TouchPoint tp;
   uint8_t touch_state = 0;
   uint8_t data[MAX_TOUCHES + 1][8];  // 8 bytes each for each point, plus extra space for the key byte
 
@@ -59,7 +58,7 @@ void GT911Touchscreen::update_touches() {
   ERROR_CHECK(err);
   this->write(CLEAR_TOUCH_STATE, sizeof(CLEAR_TOUCH_STATE));
 
-  if (touch_state  == 0)
+  if ((touch_state & 0x80) == 0)
     return;
   uint8_t num_of_touches = touch_state & 0x07;
 
