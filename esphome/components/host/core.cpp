@@ -40,7 +40,7 @@ uint32_t IRAM_ATTR HOT micros() {
 }
 
 uint32_t IRAM_ATTR HOT nanos() {
-  // This will not give a resolution in nano seconds since 
+  // This will not give a resolution in nano seconds since
   // * 1/80 MHz gives an resolution of 12.5 nano seconds
   // * 1/160 MHz gives an resolution of 6.25 nano seconds
   // But... This is anyway better than micros secons and when creating bus timings this is essential
