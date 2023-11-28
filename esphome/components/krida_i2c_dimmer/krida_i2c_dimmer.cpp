@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 #include <cmath>
 
-const char* TAG = "krida_i2c_dimmer_c";
+const char *TAG = "krida_i2c_dimmer_c";
 
 namespace esphome {
 namespace krida_i2c_dimmer {
@@ -15,7 +15,7 @@ void KridaI2CDimmer::setup() {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
-  }      //Add code here as needed}
+  }
 }
 
 void KridaI2CDimmer::dump_config() {
