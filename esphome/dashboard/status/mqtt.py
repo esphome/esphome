@@ -8,6 +8,7 @@ import threading
 from esphome import mqtt
 
 from ..core import DASHBOARD
+from ..entries import EntryState
 
 
 class MqttStatusThread(threading.Thread):
@@ -16,22 +17,23 @@ class MqttStatusThread(threading.Thread):
     def run(self) -> None:
         """Run the status thread."""
         dashboard = DASHBOARD
-        entries = dashboard.entries.all()
+        entries = dashboard.entries
+        current_entries = entries.all()
 
         config = mqtt.config_from_env()
         topic = "esphome/discover/#"
 
         def on_message(client, userdata, msg):
-            nonlocal entries
+            nonlocal current_entries
 
             payload = msg.payload.decode(errors="backslashreplace")
             if len(payload) > 0:
                 data = json.loads(payload)
                 if "name" not in data:
                     return
-                for entry in entries:
+                for entry in current_entries:
                     if entry.name == data["name"]:
-                        dashboard.ping_result[entry.filename] = True
+                        entries.set_state(entry, EntryState.ONLINE)
                         return
 
         def on_connect(client, userdata, flags, return_code):
@@ -51,12 +53,11 @@ class MqttStatusThread(threading.Thread):
         client.loop_start()
 
         while not dashboard.stop_event.wait(2):
-            entries = dashboard.entries.all()
-
+            current_entries = entries.all()
             # will be set to true on on_message
-            for entry in entries:
+            for entry in current_entries:
                 if entry.no_mdns:
-                    dashboard.ping_result[entry.filename] = False
+                    entries.set_state(entry, EntryState.OFFLINE)
 
             client.publish("esphome/discover", None, retain=False)
             dashboard.mqtt_ping_request.wait()

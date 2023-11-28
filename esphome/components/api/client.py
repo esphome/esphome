@@ -8,7 +8,6 @@ from typing import Any
 from aioesphomeapi import APIClient
 from aioesphomeapi.api_pb2 import SubscribeLogsResponse
 from aioesphomeapi.log_runner import async_run
-from zeroconf.asyncio import AsyncZeroconf
 
 from esphome.const import CONF_KEY, CONF_PASSWORD, CONF_PORT, __version__
 from esphome.core import CORE
@@ -28,14 +27,12 @@ async def async_run_logs(config: dict[str, Any], address: str) -> None:
     if CONF_ENCRYPTION in conf:
         noise_psk = conf[CONF_ENCRYPTION][CONF_KEY]
     _LOGGER.info("Starting log output from %s using esphome API", address)
-    aiozc = AsyncZeroconf()
     cli = APIClient(
         address,
         port,
         password,
         client_info=f"ESPHome Logs {__version__}",
         noise_psk=noise_psk,
-        zeroconf_instance=aiozc.zeroconf,
     )
     dashboard = CORE.dashboard
 
@@ -48,12 +45,10 @@ async def async_run_logs(config: dict[str, Any], address: str) -> None:
             text = text.replace("\033", "\\033")
         print(f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}]{text}")
 
-    stop = await async_run(cli, on_log, aio_zeroconf_instance=aiozc, name=name)
+    stop = await async_run(cli, on_log, name=name)
     try:
-        while True:
-            await asyncio.sleep(60)
+        await asyncio.Event().wait()
     finally:
-        await aiozc.async_close()
         await stop()
 
 
