@@ -428,17 +428,16 @@ class WK2132Register {
   /// @return this object
   WK2132Register &operator|=(uint8_t value);
 
+  /// @brief cast operator
   operator uint8_t() const { return get(); }
-  // operator size_t() const {
-  //   ESP_LOGI("test", "converting");
-  //   return get();
-  // }
 
   /// @brief returns the register value
   /// @return the value
   uint8_t get() const;
 
-  void set(uint8_t *value);
+  /// @brief sets the register value
+  /// @param value to set
+  void set(uint8_t value);
 
  protected:
   friend class WK2132Component;
@@ -514,26 +513,10 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   friend class WK2132Channel;
   friend class WK2132Register;
 
-  /// @brief convert the register number into a string easier to understand
-  /// @param reg register value
-  /// @return name of the register
-  const char *reg_to_str_(int reg);  // for debug
-
-  /// @brief All write calls to I²C registers are done through this method
-  /// @param reg_address the register address
-  /// @param channel the channel number (0-1). Only significant for UART registers
-  /// @param buffer pointer to a buffer
-  /// @param length length of the buffer
-  /// @return the I²C error codes
-  void write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer, size_t length);
-
-  /// @brief All read calls to I²C registers are done through this method
-  /// @param reg_number the register number
-  /// @param channel the channel number. Only significant for UART registers
-  /// @param buffer the buffer pointer
-  /// @param length length of the buffer
-  /// @return the I²C error codes
-  uint8_t read_wk2132_register_(uint8_t reg_number, uint8_t channel, uint8_t *buffer, size_t length);
+  // /// @brief convert the register number into a string easier to understand
+  // /// @param reg register value
+  // /// @return name of the register
+  // const char *reg_to_str_(int reg);  // for debug
 
   uint32_t crystal_;                         ///< crystal value;
   uint8_t base_address_;                     ///< base address of I2C device

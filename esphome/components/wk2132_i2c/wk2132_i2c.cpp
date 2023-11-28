@@ -173,6 +173,9 @@ static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "B
 /// @return a std::string
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 
+// method to print registers as text: used in log messages ...
+const char *reg_to_str_(int reg, bool page1) { return page1 ? REG_TO_STR_P1[reg] : REG_TO_STR_P0[reg]; }
+
 /// Convert std::string to C string
 #define I2CS(val) (i2s(val).c_str())
 
@@ -224,70 +227,54 @@ const char *p2s(uart::UARTParityOptions parity) {
 // The WK2132Register methods
 ///////////////////////////////////////////////////////////////////////////////
 WK2132Register &WK2132Register::operator=(uint8_t value) {
-  this->parent_->write_wk2132_register_(this->register_, this->channel_, &value, 1);
+  set(value);
   return *this;
 }
 WK2132Register &WK2132Register::operator&=(uint8_t value) {
   value &= get();
-  this->parent_->write_wk2132_register_(this->register_, this->channel_, &value, 1);
+  set(value);
   return *this;
 }
 WK2132Register &WK2132Register::operator|=(uint8_t value) {
   value |= get();
-  this->parent_->write_wk2132_register_(this->register_, this->channel_, &value, 1);
+  set(value);
   return *this;
 }
 
 uint8_t WK2132Register::get() const {
   uint8_t value = 0x00;
-  this->parent_->read_wk2132_register_(this->register_, this->channel_, &value, 1);
+  // this->parent_->read_wk2132_register_(this->register_, this->channel_, &value, 1);
+  this->parent_->address_ = i2c_address(this->parent_->base_address_, this->channel_, 0);  // update the i2c bus address
+  auto error = this->parent_->read_register(this->register_, &value, 1);
+  if (error == i2c::ERROR_OK) {
+    this->parent_->status_clear_warning();
+    ESP_LOGVV(TAG, "WK2132Register::get @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
+              reg_to_str_(this->register_, this->parent_->page1_), this->channel_, &value, (int) error);
+  } else {  // error
+    this->parent_->status_set_warning();
+    ESP_LOGE(TAG, "WK2132Register::get @%02X r=%s, ch=%d b=%02X, length=%d I2C_code:%d", this->parent_->address_,
+             reg_to_str_(this->register_, this->parent_->page1_), this->channel_, &value, (int) error);
+  }
   return value;
 }
 
-void WK2132Register::set(uint8_t *value) {
-  this->parent_->read_wk2132_register_(this->register_, this->channel_, value, 1);
+void WK2132Register::set(uint8_t value) {
+  this->parent_->address_ = i2c_address(this->parent_->base_address_, this->channel_, 0);  // update the i2c bus
+  auto error = this->parent_->write_register(this->register_, &value, 1);
+  if (error == i2c::ERROR_OK) {
+    this->parent_->status_clear_warning();
+    ESP_LOGVV(TAG, "WK2132Register::set @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
+              reg_to_str_(this->register_, this->parent_->page1_), this->channel_, &value, (int) error);
+  } else {  // error
+    this->parent_->status_set_warning();
+    ESP_LOGE(TAG, "WK2132Register::set @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
+             reg_to_str_(this->register_, this->parent_->page1_), this->channel_, &value, (int) error);
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // The WK2132Component methods
 ///////////////////////////////////////////////////////////////////////////////
-// method to print registers as text: used in log messages ...
-const char *WK2132Component::reg_to_str_(int reg) { return this->page1_ ? REG_TO_STR_P1[reg] : REG_TO_STR_P0[reg]; }
-
-void WK2132Component::write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer,
-                                             size_t length) {
-  this->address_ = i2c_address(this->base_address_, channel, 0);  // update the I²C bus address
-  auto error = this->write_register(reg_number, buffer, length);  // write to the register
-  if (error == i2c::ERROR_OK) {
-    this->status_clear_warning();
-    ESP_LOGVV(TAG, "write_wk2132_register_ @%02X r=%s, ch=%d b=%02X, length=%d I2C_code:%d", this->address_,
-              this->reg_to_str_(reg_number), channel, *buffer, length, (int) error);
-  } else {  // error
-    this->status_set_warning();
-    ESP_LOGE(TAG, "write_wk2132_register_ @%02X r=%s, ch=%d b=%02X, length=%d I2C_code:%d", this->address_,
-             this->reg_to_str_(reg_number), channel, *buffer, length, (int) error);
-  }
-}
-
-uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t channel, uint8_t *buffer, size_t length) {
-  this->address_ = i2c_address(this->base_address_, channel, 0);  // update the i2c bus address
-  auto error = this->read_register(reg_number, buffer, length);
-  if (error == i2c::ERROR_OK) {
-    this->status_clear_warning();
-    ESP_LOGVV(TAG, "read_wk2132_register_ @%02X r=%s, ch=%d b=%02X, length=%d I2C_code:%d", this->address_,
-              this->reg_to_str_(reg_number), channel, *buffer, length, (int) error);
-  } else {  // error
-    this->status_set_warning();
-    ESP_LOGE(TAG, "read_wk2132_register_ @%02X r=%s, ch=%d b=%02X, length=%d I2C_code:%d", this->address_,
-             this->reg_to_str_(reg_number), channel, *buffer, length, (int) error);
-  }
-  return *buffer;
-}
-
-//
-// overloaded methods from Component
-//
-
 void WK2132Component::setup() {
   // before any manipulation we store the address to base_address_ for future use
   this->base_address_ = this->address_;
