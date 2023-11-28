@@ -36,7 +36,7 @@ void Touchscreen::loop() {
   }
 }
 
-void Touchscreen::set_raw_touch_posistion_(uint8_t id, int16_t x_raw, int16_t y_raw, int16_t z_raw) {
+void Touchscreen::set_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_raw, int16_t z_raw) {
   TouchPoint tp;
   uint16_t x, y;
   if (this->touches_.count(id) == 0) {

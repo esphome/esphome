@@ -74,7 +74,7 @@ void EKTF2232Touchscreen::update_touches() {
     uint8_t *d = raw + 1 + (i * 3);
     x_raw = (d[0] & 0xF0) << 4 | d[1];
     y_raw = (d[0] & 0x0F) << 8 | d[2];
-    this->set_raw_touch_posistion_(i, x_raw, y_raw);
+    this->set_raw_touch_position_(i, x_raw, y_raw);
   }
 }
 
