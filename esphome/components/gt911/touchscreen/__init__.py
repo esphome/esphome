@@ -11,7 +11,6 @@ GT911ButtonListener = gt911_ns.class_("GT911ButtonListener")
 GT911Touchscreen = gt911_ns.class_(
     "GT911Touchscreen",
     touchscreen.Touchscreen,
-    cg.Component,
     i2c.I2CDevice,
 )
 

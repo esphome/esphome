@@ -12,7 +12,6 @@ ft6336u_ns = cg.esphome_ns.namespace("ft63x6")
 FT63X6Touchscreen = ft6336u_ns.class_(
     "FT63X6Touchscreen",
     touchscreen.Touchscreen,
-    cg.Component,
     i2c.I2CDevice,
 )
 
