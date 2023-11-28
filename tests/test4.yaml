@@ -99,6 +99,12 @@ pipsolar:
   id: inverter0
   uart_id: uart115200
 
+pylontech:
+  - id: pylontech0
+    uart_id: uart115200
+  - id: pylontech1
+    uart_id: uart115200
+
 sx1509:
   - id: sx1509_hub
     address: 0x3E
@@ -113,6 +119,30 @@ dac7678:
   internal_reference: true
 
 sensor:
+  - platform: pylontech
+    pylontech_id: pylontech0
+    battery: 1
+    voltage:
+      id: pyl01_voltage
+    current:
+      id: pyl01_current
+    coulomb:
+      id: pyl01_soc
+    mos_temperature:
+      id: pyl01_mos_temperature
+  - platform: pylontech
+    pylontech_id: pylontech1
+    battery: 1
+    voltage:
+      id: pyl13_voltage
+    temperature_low:
+      id: pyl13_temperature_low
+    temperature_high:
+      id: pyl13_temperature_high
+    voltage_low:
+      id: pyl13_voltage_low
+    voltage_high:
+      id: pyl13_voltage_high
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
@@ -405,6 +435,10 @@ binary_sensor:
     y_max: 100
     on_press:
       - logger.log: Touched
+  - platform: gt911
+    id: touch_key_911
+    index: 0
+
 
   - platform: gpio
     name: MaxIn Pin 4
@@ -585,6 +619,17 @@ number:
     name: Tuya Number Copy
 
 text_sensor:
+  - platform: pylontech
+    pylontech_id: pylontech0
+    battery: 1
+    base_state:
+      id: pyl0_base_state
+    voltage_state:
+      id: pyl0_voltage_state
+    current_state:
+      id: pyl0_current_state
+    temperature_state:
+      id: pyl0_temperature_state
   - platform: pipsolar
     pipsolar_id: inverter0
     device_mode:
@@ -724,6 +769,10 @@ touchscreen:
       - logger.log:
           format: Touch at (%d, %d)
           args: [touch.x, touch.y]
+  - platform: gt911
+    interrupt_pin: GPIO3
+    display: inkplate_display
+
 
   - platform: ft63x6
     interrupt_pin: GPIO39
