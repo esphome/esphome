@@ -266,6 +266,8 @@ size_t ESPADFSpeaker::play(const uint8_t *data, size_t length) {
   return index;
 }
 
+bool ESPADFSpeaker::has_buffered_data() const { return uxQueueMessagesWaiting(this->buffer_queue_) > 0; }
+
 }  // namespace esp_adf
 }  // namespace esphome
 
