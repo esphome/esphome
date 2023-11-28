@@ -21,8 +21,6 @@ static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
     return; \
   }
 
-void IRAM_ATTR HOT Store::gpio_intr(Store *store) { store->available = true; }
-
 void GT911Touchscreen::setup() {
   i2c::ErrorCode err;
   ESP_LOGCONFIG(TAG, "Setting up GT911 Touchscreen...");
@@ -37,8 +35,8 @@ void GT911Touchscreen::setup() {
     err = this->read(&data, 1);
     if (err == i2c::ERROR_OK) {
       ESP_LOGD(TAG, "Read from switches: 0x%02X", data);
-      this->interrupt_pin_->attach_interrupt(Store::gpio_intr, &this->store_,
-                                             (data & 1) ? gpio::INTERRUPT_FALLING_EDGE : gpio::INTERRUPT_RISING_EDGE);
+      this->attach_interrupt_(this->interrupt_pin_,
+                              (data & 1) ? gpio::INTERRUPT_FALLING_EDGE : gpio::INTERRUPT_RISING_EDGE);
     }
   }
   if (err != i2c::ERROR_OK) {
@@ -49,15 +47,11 @@ void GT911Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "GT911 Touchscreen setup complete");
 }
 
-void GT911Touchscreen::loop() {
+void GT911Touchscreen::update_touches() {
   i2c::ErrorCode err;
   touchscreen::TouchPoint tp;
   uint8_t touch_state = 0;
   uint8_t data[MAX_TOUCHES + 1][8];  // 8 bytes each for each point, plus extra space for the key byte
-
-  if (!this->store_.available)
-    return;
-  this->store_.available = false;
 
   err = this->write(GET_TOUCH_STATE, sizeof(GET_TOUCH_STATE), false);
   ERROR_CHECK(err);
@@ -65,11 +59,10 @@ void GT911Touchscreen::loop() {
   ERROR_CHECK(err);
   this->write(CLEAR_TOUCH_STATE, sizeof(CLEAR_TOUCH_STATE));
 
-  if ((touch_state & 0x80) == 0)
+  if (touch_state  == 0)
     return;
   uint8_t num_of_touches = touch_state & 0x07;
-  if (num_of_touches == 0)
-    this->send_release_();
+
   if (num_of_touches > MAX_TOUCHES)  // should never happen
     return;
 
@@ -80,29 +73,10 @@ void GT911Touchscreen::loop() {
   ERROR_CHECK(err);
 
   for (uint8_t i = 0; i != num_of_touches; i++) {
-    tp.id = data[i][0];
+    uint16_t id = data[i][0];
     uint16_t x = encode_uint16(data[i][2], data[i][1]);
     uint16_t y = encode_uint16(data[i][4], data[i][3]);
-
-    switch (this->rotation_) {
-      case touchscreen::ROTATE_0_DEGREES:
-        tp.x = x;
-        tp.y = y;
-        break;
-      case touchscreen::ROTATE_90_DEGREES:
-        tp.x = y;
-        tp.y = this->display_width_ - x;
-        break;
-      case touchscreen::ROTATE_180_DEGREES:
-        tp.x = this->display_width_ - x;
-        tp.y = this->display_height_ - y;
-        break;
-      case touchscreen::ROTATE_270_DEGREES:
-        tp.x = this->display_height_ - y;
-        tp.y = x;
-        break;
-    }
-    this->defer([this, tp]() { this->send_touch_(tp); });
+    set_raw_touch_posistion_(id, x, y);
   }
   auto keys = data[num_of_touches][0];
   for (size_t i = 0; i != 4; i++) {
