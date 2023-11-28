@@ -522,8 +522,6 @@ class EsphomeCore:
         self.component_ids = set()
         # Whether ESPHome was started in verbose mode
         self.verbose = False
-        # Whether ESPHome was started in quiet mode
-        self.quiet = False
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY

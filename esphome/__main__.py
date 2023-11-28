@@ -389,8 +389,7 @@ def command_config(args, config):
         output = re.sub(
             r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[5m\2\\033[6m", output
         )
-    if not CORE.quiet:
-        safe_print(output)
+    safe_print(output)
     _LOGGER.info("Configuration is valid!")
     return 0
 

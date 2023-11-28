@@ -78,7 +78,6 @@ def setup_log(
         CORE.verbose = True
     elif quiet:
         log_level = logging.CRITICAL
-        CORE.quiet = True
     else:
         log_level = logging.INFO
     logging.basicConfig(level=log_level)
