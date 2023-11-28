@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 #include <cmath>
 
-const char *TAG = "krida_i2c_dimmer_c";
+const char *const TAG = "krida_i2c_dimmer_c";
 
 namespace esphome {
 namespace krida_i2c_dimmer {
