@@ -1554,6 +1554,8 @@ sensor:
       memory_address: 0x7d
       name: Adres sensor
 
+psram:
+
 esp32_touch:
   setup_mode: false
   iir_filter: 10ms
@@ -2992,6 +2994,12 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ili9xxx
+    invert_colors: true
+    dimensions: 320x240
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
     model: TFT 2.4
     cs_pin: GPIO5
     dc_pin: GPIO4
@@ -3000,6 +3008,11 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ili9xxx
+    dimensions:
+      width: 320
+      height: 240
+      offset_width: 20
+      offset_height: 10
     model: TFT 2.4
     cs_pin: GPIO5
     dc_pin: GPIO4
