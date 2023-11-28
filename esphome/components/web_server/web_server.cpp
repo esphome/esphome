@@ -27,6 +27,8 @@
 
 #ifdef USE_WEBSERVER_LOCAL
 #include "server_index.h"
+#elif (USE_WEBSERVER_VERSION == 2) && defined(USE_WEBSERVER_FALLBACK_WEBPAGE)
+#include "server_index_fallback.h"
 #endif
 
 namespace esphome {
@@ -359,6 +361,16 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 }
 #elif USE_WEBSERVER_VERSION == 2
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
+#ifdef USE_WEBSERVER_FALLBACK_WEBPAGE
+  if (request->hasParam("fallback")) {
+    AsyncWebServerResponse *response =
+        request->beginResponse_P(200, "text/html", INDEX_FALLBACK_GZ, sizeof(INDEX_FALLBACK_GZ));
+    response->addHeader("Content-Encoding", "gzip");
+    request->send(response);
+    return;
+  }
+#endif
+
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
   // No gzip header here because the HTML file is so small
