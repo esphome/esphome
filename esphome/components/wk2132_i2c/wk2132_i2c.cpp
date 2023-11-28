@@ -336,33 +336,30 @@ void WK2132Channel::setup_channel_() {
 }
 
 void WK2132Channel::reset_fifo_() {
-  // we reset and enable all fifo ... FCR => 0000 1111
-  uint8_t const fcr = 0b00001111;
-  this->parent_->write_wk2132_register_(REG_WK2132_FCR, this->channel_, &fcr, 1);
+  // we reset and enable all FIFO
+  this->channel_reg(REG_WK2132_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_TFRST;
 }
 
 void WK2132Channel::set_line_param_() {
   this->data_bits_ = 8;  // always 8 for WK2132
-  uint8_t lcr;
-  this->parent_->read_wk2132_register_(REG_WK2132_LCR, this->channel_, &lcr, 1);
-
+  WK2132Register lcr = this->channel_reg(REG_WK2132_LCR);
   lcr &= 0xF0;  // Clear the lower 4 bit of LCR
   if (this->stop_bits_ == 2)
-    lcr |= 0x01;                        // 0001
-  switch (this->parity_) {              // parity selection settings
-    case uart::UART_CONFIG_PARITY_ODD:  // odd parity
-      lcr |= 0x5 << 1;                  // 101x
+    lcr |= LCR_STPL;
+  switch (this->parity_) {  // parity selection settings
+    case uart::UART_CONFIG_PARITY_ODD:
+      lcr |= (LCR_PAEN | LCR_PAR_ODD);
       break;
-    case uart::UART_CONFIG_PARITY_EVEN:  // even parity
-      lcr |= 0x6 << 1;                   // 110x
+    case uart::UART_CONFIG_PARITY_EVEN:
+      lcr |= (LCR_PAEN | LCR_PAR_EVEN);
       break;
     default:
       break;  // no parity 000x
   }
-  this->parent_->write_wk2132_register_(REG_WK2132_LCR, this->channel_, &lcr, 1);
   ESP_LOGV(TAG, "    line config: %d data_bits, %d stop_bits, parity %s register [%s]", this->data_bits_,
-           this->stop_bits_, p2s(this->parity_), I2CS(lcr));
+           this->stop_bits_, p2s(this->parity_), I2CS(lcr.get()));
 }
+
 /// @details  documentation added to brief TODO for test purpose
 void WK2132Channel::set_baudrate_() {
   uint16_t const val_int = this->parent_->crystal_ / (this->baud_rate_ * 16) - 1;

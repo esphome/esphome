@@ -138,7 +138,7 @@ constexpr uint8_t GENA_C2EN = 1 << 1;
 /// @brief Channel 1 enable clock (0: disable, 1: enable)
 constexpr uint8_t GENA_C1EN = 1 << 0;
 
-/// @brief Global UART reset register
+/// @brief Global Reset Register
 /// @details @code
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
@@ -152,10 +152,10 @@ constexpr uint8_t GRST_C2RST = 1 << 1;
 /// @brief Channel 1 soft reset (0: not reset, 1: reset)
 constexpr uint8_t GRST_C1RST = 1 << 0;
 
-/// @brief Global master channel control register (not used)
+/// @brief Global Master channel control register (not used)
 constexpr uint8_t REG_WK2132_GMUT = 0x02;
 
-/// @brief Page register
+/// @brief Global Page register
 /// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
@@ -183,7 +183,7 @@ constexpr uint8_t REG_WK2132_GIFR = 0x11;
 /// This first group is defined when the Global register REG_WK2132_SPAGE is 0
 /// @{
 
-/// @brief Channel Serial Control Register
+/// @brief Serial Control Register
 /// @details @code
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
@@ -197,7 +197,7 @@ constexpr uint8_t SCR_TXEN = 1 << 1;
 /// @brief receiving control (0: enable, 1: disable)
 constexpr uint8_t SCR_RXEN = 1 << 0;
 
-/// @brief Channel Line Configuration Register:
+/// @brief Line Configuration Register:
 /// @details @code
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
@@ -219,8 +219,8 @@ constexpr uint8_t LCR_PAR_1 = 3 << 1;
 /// @brief Stop length (0: 1 bit, 1: 2 bits)
 constexpr uint8_t LCR_STPL = 1 << 0;
 
-/// Channel FIFO control register
-/// @code
+/// @brief FIFO Control Register
+/// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// -------------------------------------------------------------------------
@@ -228,9 +228,17 @@ constexpr uint8_t LCR_STPL = 1 << 0;
 /// -------------------------------------------------------------------------
 /// @endcode
 constexpr uint8_t REG_WK2132_FCR = 0x06;
+/// @brief Transmitter FIFO enable
+constexpr uint8_t FCR_TFEN = 1 << 3;
+/// @brief Receiver FIFO enable
+constexpr uint8_t FCR_RFEN = 1 << 2;
+/// @brief Transmitter FIFO reset
+constexpr uint8_t FCR_TFRST = 1 << 3;
+/// @brief Receiver FIFO reset
+constexpr uint8_t FCR_RFRST = 1 << 3;
 
-/// Serial interrupt enable register
-/// @code
+/// @brief Serial Interrupt Enable Register (not used)
+/// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// -------------------------------------------------------------------------
@@ -239,8 +247,8 @@ constexpr uint8_t REG_WK2132_FCR = 0x06;
 /// @endcode
 constexpr uint8_t REG_WK2132_SIER = 0x07;
 
-/// Serial interrupt flag register
-/// @code
+/// @brief Serial Interrupt Flag Register (not used)
+/// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// -------------------------------------------------------------------------
@@ -249,8 +257,8 @@ constexpr uint8_t REG_WK2132_SIER = 0x07;
 /// @endcode
 constexpr uint8_t REG_WK2132_SIFR = 0x08;
 
-/// Transmit FIFO count
-/// @code
+/// @brief Transmitter FIFO Count
+/// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// -------------------------------------------------------------------------
@@ -259,8 +267,8 @@ constexpr uint8_t REG_WK2132_SIFR = 0x08;
 /// @endcode
 constexpr uint8_t REG_WK2132_TFCNT = 0x09;
 
-/// Receive FIFO count
-/// @code
+/// @brief Receiver FIFO count
+/// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// -------------------------------------------------------------------------
@@ -269,12 +277,12 @@ constexpr uint8_t REG_WK2132_TFCNT = 0x09;
 /// @endcode
 constexpr uint8_t REG_WK2132_RFCNT = 0x0A;
 
-/// FIFO status register
-/// @code
+/// @brief FIFO Status Register
+/// @details @code
 /// * -------------------------------------------------------------------------
 /// * |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// * -------------------------------------------------------------------------
-/// * |  RFOE  |  RFBI  |  RFFE  |  RFPE  |  RDAT  |  TDAT  |  TFULL |  TBUSY |
+/// * |  RFOE  |  RFLB  |  RFFE  |  RFPE   | RFEMPT | TFEMPT | TFFULL |  TBUSY |
 /// * -------------------------------------------------------------------------
 /// @endcode
 /// @warning The received buffer can hold 256 bytes. However, as the RFCNT reg
@@ -287,9 +295,25 @@ constexpr uint8_t REG_WK2132_RFCNT = 0x0A;
 /// @n The same remark applies to the transmit buffer but here we have to check the
 /// TFULL flag. So if TFULL is set and TFCNT is 0 this should be interpreted as 256
 constexpr uint8_t REG_WK2132_FSR = 0x0B;
+/// @brief Receiver FIFO Overflow Error (0: no OE, 1: OE)
+constexpr uint8_t FSR_RFOE = 1 << 7;
+/// @brief Receiver FIFO Line Break (0: no LB, 1: LB)
+constexpr uint8_t FSR_RFLB = 1 << 6;
+/// @brief Receiver FIFO Frame Error (0: no FE, 1: FE)
+constexpr uint8_t FSR_RFFE = 1 << 5;
+/// @brief Receiver Parity Error (0: no PE, 1: PE)
+constexpr uint8_t FSR_RFPE = 1 << 4;
+/// @brief Receiver FIFO empty (0: empty, 1: not empty)
+constexpr uint8_t FSR_RFEMPT = 1 << 3;
+/// @brief Transmitter FIFO Empty (0: empty, 1: not empty)
+constexpr uint8_t FSR_TFEMPT = 1 << 2;
+/// @brief Transmitter FIFO full (0: not full, 1: full)
+constexpr uint8_t FSR_TFFULL = 1 << 1;
+/// @brief Transmitter busy (0 transmitter empty, 1: transmitter busy sending)
+constexpr uint8_t FSR_TBUSY = 1 << 0;
 
-/// Channel receiving line status register
-/// @code
+/// @brief Line Status Register (not used - using FIFO)
+/// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// -------------------------------------------------------------------------
@@ -298,15 +322,15 @@ constexpr uint8_t REG_WK2132_FSR = 0x0B;
 /// @endcode
 constexpr uint8_t REG_WK2132_LSR = 0x0C;
 
-/// FDA: sub-serial port FIFO data register
-/// @code
+/// @brief FIFO Data Register (not used - does not seems to work)
+/// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// -------------------------------------------------------------------------
 /// |                        DATA_READ or DATA_TO_WRITE                     |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_FDA = 0x0D;
+constexpr uint8_t REG_WK2132_FDAT = 0x0D;
 
 /// @}
 /// @defgroup cr_p1 Channel registers for SPAGE=1
@@ -314,8 +338,8 @@ constexpr uint8_t REG_WK2132_FDA = 0x0D;
 /// This second group is defined when the Global register REG_WK2132_SPAGE is 1
 /// @{
 
-/// Channel baud rate configuration register: high byte
-/// @code
+/// @brief Baud rate configuration register: high byte
+/// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// -------------------------------------------------------------------------
@@ -324,8 +348,8 @@ constexpr uint8_t REG_WK2132_FDA = 0x0D;
 /// @endcode
 constexpr uint8_t REG_WK2132_BRH = 0x04;
 
-/// Channel baud rate configuration register: low byte
-/// @code
+/// @brief Baud rate configuration register: low byte
+/// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// -------------------------------------------------------------------------
@@ -334,8 +358,8 @@ constexpr uint8_t REG_WK2132_BRH = 0x04;
 /// @endcode
 constexpr uint8_t REG_WK2132_BRL = 0x05;
 
-/// Channel baud rate configuration register decimal part
-/// @code
+/// @brief Baud rate configuration register decimal part
+/// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// -------------------------------------------------------------------------
@@ -344,8 +368,8 @@ constexpr uint8_t REG_WK2132_BRL = 0x05;
 /// @endcode
 constexpr uint8_t REG_WK2132_BRD = 0x06;
 
-/// Channel receive FIFO interrupt trigger configuration register
-/// @code
+/// @brief Receive FIFO Interrupt trigger configuration (not used)
+/// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// -------------------------------------------------------------------------
@@ -354,7 +378,7 @@ constexpr uint8_t REG_WK2132_BRD = 0x06;
 /// @endcode
 constexpr uint8_t REG_WK2132_RFI = 0x07;
 
-/// Channel transmit FIFO interrupt trigger configuration register
+/// @brief Transmit FIFO interrupt trigger configuration (not used)
 /// @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
