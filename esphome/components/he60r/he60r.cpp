@@ -181,10 +181,17 @@ void HE60rCover::control(const CoverCall &call) {
   }
 }
 
+/**
+ * Check if the cover has reached or passed the target position. This is used only
+ * for partial open/close requests - endstops are used for full open/close.
+ * @return True if the cover has reached or passed its target position. For full open/close target always return false.
+ */
 bool HE60rCover::is_at_target_() const {
-  // if initiated externally, current operation might be different from
-  // operation that was triggered, thus evaluate position against what was asked
-
+  // equality of floats is fraught with peril - this is reliable since the values are 0.0 or 1.0 which are
+  // exactly representable.
+  if (this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED)
+    return false;
+  // aiming for an intermediate position - exact comparison here will not work and we need to allow for overshoot
   switch (this->last_command_) {
     case COVER_OPERATION_OPENING:
       return this->position >= this->target_position_;
@@ -228,12 +235,6 @@ void HE60rCover::recompute_position_() {
   const uint32_t now = millis();
   float dir;
   float action_dur;
-  float min_pos = COVER_CLOSED + 0.01f;
-  float max_pos = COVER_OPEN - 0.01f;
-
-  // endstop sensors update position from their callbacks, and sets the fully open/close value
-  // If we have endstop, estimation never reaches the fully open/closed state.
-  // but if movement continues past corresponding endstop (inertia), keep the fully open/close state
 
   switch (this->current_operation) {
     case COVER_OPERATION_OPENING:
@@ -251,7 +252,8 @@ void HE60rCover::recompute_position_() {
   if (now > this->last_recompute_time_) {
     auto diff = now - last_recompute_time_;
     auto delta = dir * diff / action_dur;
-    this->position = clamp(delta + this->position, min_pos, max_pos);
+    // make sure our guesstimate never reaches full open or close.
+    this->position = clamp(delta + this->position, COVER_CLOSED + 0.01f, COVER_OPEN - 0.01f);
     ESP_LOGD(TAG, "Recompute %dms, dir=%f, action_dur=%f, delta=%f, pos=%f", (int) diff, dir, action_dur, delta,
              this->position);
     this->last_recompute_time_ = now;
