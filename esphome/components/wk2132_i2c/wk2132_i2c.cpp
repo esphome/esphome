@@ -229,12 +229,12 @@ WK2132Register &WK2132Register::operator=(uint8_t value) {
 }
 WK2132Register &WK2132Register::operator&=(uint8_t value) {
   value &= get();
-  this->parent_->write_register(this->register_, &value, 1);
+  this->parent_->write_wk2132_register_(this->register_, this->channel_, &value, 1);
   return *this;
 }
 WK2132Register &WK2132Register::operator|=(uint8_t value) {
   value |= get();
-  this->parent_->write_register(this->register_, &value, 1);
+  this->parent_->write_wk2132_register_(this->register_, this->channel_, &value, 1);
   return *this;
 }
 
@@ -242,6 +242,10 @@ uint8_t WK2132Register::get() const {
   uint8_t value = 0x00;
   this->parent_->read_wk2132_register_(this->register_, this->channel_, &value, 1);
   return value;
+}
+
+void WK2132Register::set(uint8_t *value) {
+  this->parent_->read_wk2132_register_(this->register_, this->channel_, value, 1);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -360,7 +364,6 @@ void WK2132Channel::set_line_param_() {
            this->stop_bits_, p2s(this->parity_), I2CS(lcr.get()));
 }
 
-/// @details  documentation added to brief TODO for test purpose
 void WK2132Channel::set_baudrate_() {
   uint16_t const val_int = this->parent_->crystal_ / (this->baud_rate_ * 16) - 1;
   uint16_t val_dec = (this->parent_->crystal_ % (this->baud_rate_ * 16)) / (this->baud_rate_ * 16);
@@ -370,29 +373,27 @@ void WK2132Channel::set_baudrate_() {
     val_dec /= 0x0A;
   uint8_t const baud_dec = (uint8_t) (val_dec);
 
-  uint8_t page = 1;  // switch to page 1
-  this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, this->channel_, &page, 1);
+  // switch to page 1
   this->parent_->page1_ = true;
-  this->parent_->write_wk2132_register_(REG_WK2132_BRH, this->channel_, &baud_high, 1);
-  this->parent_->write_wk2132_register_(REG_WK2132_BRL, this->channel_, &baud_low, 1);
-  this->parent_->write_wk2132_register_(REG_WK2132_BRD, this->channel_, &baud_dec, 1);
-  page = 0;  // switch back to page 0
-  this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, this->channel_, &page, 1);
+  this->channel_reg(REG_WK2132_SPAGE) = 1;
+  this->channel_reg(REG_WK2132_BRH) = baud_high;
+  this->channel_reg(REG_WK2132_BRL) = baud_low;
+  this->channel_reg(REG_WK2132_BRD) = baud_dec;
+  // switch back to page 0
   this->parent_->page1_ = false;
+  this->channel_reg(REG_WK2132_SPAGE) = 0;
 
   ESP_LOGV(TAG, "    Crystal=%d baudrate=%d => registers [%d %d %d]", this->parent_->crystal_, this->baud_rate_,
            baud_high, baud_low, baud_dec);
 }
 
-inline bool WK2132Channel::tx_fifo_is_not_empty_() {
-  return this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1) & 0x4;
-}
+inline bool WK2132Channel::tx_fifo_is_not_empty_() { return this->channel_reg(REG_WK2132_FSR) & FSR_TFEMPT; }
 
 size_t WK2132Channel::tx_in_fifo_() {
-  size_t tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);
+  size_t tfcnt = this->channel_reg(REG_WK2132_TFCNT);
   if (tfcnt == 0) {
-    uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
-    if (fsr & 0x02) {
+    uint8_t const fsr = this->channel_reg(REG_WK2132_FSR);
+    if (fsr & FSR_TFFULL) {
       ESP_LOGVV(TAG, "tx_in_fifo full FSR=%s", I2CS(fsr));
       tfcnt = FIFO_SIZE;
     }
@@ -404,10 +405,10 @@ size_t WK2132Channel::tx_in_fifo_() {
 /// @brief number of bytes in the receive fifo
 /// @return number of bytes
 size_t WK2132Channel::rx_in_fifo_() {
-  size_t available = this->parent_->read_wk2132_register_(REG_WK2132_RFCNT, this->channel_, &this->data_, 1);
+  size_t available = this->channel_reg(REG_WK2132_RFCNT);
   if (available == 0) {
-    uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
-    if (fsr & 0x8) {  // if RDAT bit is set we set available to 256
+    uint8_t const fsr = this->channel_reg(REG_WK2132_FSR);
+    if (fsr & FSR_RFEMPT) {  // if RFEMPT bit is set we set available to 256
       ESP_LOGVV(TAG, "rx_in_fifo full because FSR=%s says so", I2CS(fsr));
       available = FIFO_SIZE;
     }

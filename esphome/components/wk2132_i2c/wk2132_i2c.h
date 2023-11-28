@@ -428,12 +428,17 @@ class WK2132Register {
   /// @return this object
   WK2132Register &operator|=(uint8_t value);
 
-  /// @brief overloads the cast operator is used to return the register value
-  explicit operator uint8_t() const { return get(); }
+  operator uint8_t() const { return get(); }
+  // operator size_t() const {
+  //   ESP_LOGI("test", "converting");
+  //   return get();
+  // }
 
   /// @brief returns the register value
   /// @return the value
   uint8_t get() const;
+
+  void set(uint8_t *value);
 
  protected:
   friend class WK2132Component;
