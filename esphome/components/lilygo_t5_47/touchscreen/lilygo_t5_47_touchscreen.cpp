@@ -80,16 +80,11 @@ void LilygoT547Touchscreen::update_touches() {
     point = 1;
 
   uint16_t id, x_raw, y_raw;
-  for (int i = 0; i < point; i++) {
+  for (uint8_t i = 0; i < point; i++) {
     id = (buffer[i * 5] >> 4) & 0x0F;
-    // not sure what todo with this atm.
-    //    tp.state = buffer[i * 5] & 0x0F;
-    //    if (tp.state == 0x06)
-    //      tp.state = 0x07;
-
     y_raw = (uint16_t) ((buffer[i * 5 + 1] << 4) | ((buffer[i * 5 + 3] >> 4) & 0x0F));
     x_raw = (uint16_t) ((buffer[i * 5 + 2] << 4) | (buffer[i * 5 + 3] & 0x0F));
-    this->set_raw_touch_posistion_(id, x_raw, y_raw);
+    this->set_raw_touch_position_(id, x_raw, y_raw);
   }
 
   this->status_clear_warning();

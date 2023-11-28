@@ -30,22 +30,22 @@ void XPT2046Component::update_touches() {
 
   enable();
 
-  int16_t touch_pressure_1 = read_adc_(0xB1 /* touch_pressure_1 */);
-  int16_t touch_pressure_2 = read_adc_(0xC1 /* touch_pressure_2 */);
+  int16_t touch_pressure_1 = this->read_adc_(0xB1 /* touch_pressure_1 */);
+  int16_t touch_pressure_2 = this->read_adc_(0xC1 /* touch_pressure_2 */);
   ESP_LOGVV(TAG, "touch_pressure  %d, %d", touch_pressure_1, touch_pressure_2);
   z_raw = touch_pressure_1 + 0Xfff - touch_pressure_2;
 
   touch = (z_raw >= this->threshold_);
   if (touch) {
     read_adc_(0xD1 /* X */);  // dummy Y measure, 1st is always noisy
-    data[0] = read_adc_(0x91 /* Y */);
-    data[1] = read_adc_(0xD1 /* X */);  // make 3 x-y measurements
-    data[2] = read_adc_(0x91 /* Y */);
-    data[3] = read_adc_(0xD1 /* X */);
-    data[4] = read_adc_(0x91 /* Y */);
+    data[0] = this->read_adc_(0x91 /* Y */);
+    data[1] = this->read_adc_(0xD1 /* X */);  // make 3 x-y measurements
+    data[2] = this->read_adc_(0x91 /* Y */);
+    data[3] = this->read_adc_(0xD1 /* X */);
+    data[4] = this->read_adc_(0x91 /* Y */);
   }
 
-  data[5] = read_adc_(0xD0 /* X */);  // Last X touch power down
+  data[5] = this->read_adc_(0xD0 /* X */);  // Last X touch power down
 
   disable();
 
@@ -55,7 +55,7 @@ void XPT2046Component::update_touches() {
 
     ESP_LOGV(TAG, "Touchscreen Update [%d, %d], z = %d", x_raw, y_raw, z_raw);
 
-    set_raw_touch_posistion_(0, x_raw, y_raw, z_raw);
+    this->set_raw_touch_position_(0, x_raw, y_raw, z_raw);
   }
 }
 
@@ -101,10 +101,10 @@ int16_t XPT2046Component::best_two_avg(int16_t value1, int16_t value2, int16_t v
 int16_t XPT2046Component::read_adc_(uint8_t ctrl) {  // NOLINT
   uint8_t data[2];
 
-  write_byte(ctrl);
+  this->write_byte(ctrl);
   delay(1);
-  data[0] = read_byte();
-  data[1] = read_byte();
+  data[0] = this->read_byte();
+  data[1] = this->read_byte();
 
   return ((data[0] << 8) | data[1]) >> 3;
 }

@@ -3,7 +3,7 @@ import esphome.codegen as cg
 
 from esphome.components import display
 from esphome import automation
-from esphome.const import CONF_ON_TOUCH, CONF_ON_RELEASE, CONF_DIMENSIONS, CONF_ROTATION
+from esphome.const import CONF_ON_TOUCH, CONF_ON_RELEASE
 from esphome.core import coroutine_with_priority
 
 CODEOWNERS = ["@jesserockz", "@nielsnl68"]
@@ -23,30 +23,11 @@ TouchListener = touchscreen_ns.class_("TouchListener")
 CONF_DISPLAY = "display"
 CONF_TOUCHSCREEN_ID = "touchscreen_id"
 CONF_REPORT_INTERVAL = "report_interval"  # not used yet:
-CONF_SWAP_X_Y = "swap_x_y"
 CONF_ON_UPDATE = "on_update"
-
-DISPLAY_ROTATIONS = {
-    0: touchscreen_ns.ROTATE_0_DEGREES,
-    90: touchscreen_ns.ROTATE_90_DEGREES,
-    180: touchscreen_ns.ROTATE_180_DEGREES,
-    270: touchscreen_ns.ROTATE_2700_DEGREES,
-}
-
-
-def validate_rotation(value):
-    value = cv.string(value)
-    if value.endswith("°"):
-        value = value[:-1]
-    return cv.enum(DISPLAY_ROTATIONS, int=True)(value)
-
 
 TOUCHSCREEN_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
-        cv.Optional(CONF_DIMENSIONS): cv.dimensions,
-        cv.Optional(CONF_ROTATION): validate_rotation,
-        cv.Optional(CONF_SWAP_X_Y, default=False): cv.boolean,
         cv.Optional(CONF_ON_TOUCH): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_UPDATE): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_RELEASE): automation.validate_automation(single=True),
