@@ -15,9 +15,9 @@ namespace krida_i2c_dimmer {
     void set_channel(uint16_t register_address) { channel_address_ = register_address; }
     float get_setup_priority() const override { return esphome::setup_priority::BUS; } //Access I2C bus
     void setup() override;
-    void dump_config();
+    void dump_config() override;
 
-    void write_state(float state);
+    void write_state(float state) override;
   };
-}
-}
+}  // namespace krida_i2c_dimmer
+}  // namespace esphome

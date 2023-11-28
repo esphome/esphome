@@ -1,5 +1,7 @@
 #include "krida_i2c_dimmer.h"
+
 #include "esphome/core/log.h"
+#include <cmath>
 
 const char* TAG = "krida_i2c_dimmer_c";
 
@@ -25,10 +27,10 @@ void KridaI2CDimmer::dump_config() {
 }
 
 void KridaI2CDimmer::write_state(float state) {
-  const uint8_t value = trunc(100 - (state * 100));
+  const uint8_t value = std::trunc(100 - (state * 100));
   ESP_LOGI(TAG, "Updating dimmer value %i", value);
   this->write_register(channel_address_, &value, 1);
 }
 
-}
-}
+}  // namespace krida_i2c_dimmer
+}  // namespace esphome
