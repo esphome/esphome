@@ -289,6 +289,15 @@ void WK2132Component::setup() {
   this->base_address_ = this->address_;
   ESP_LOGCONFIG(TAG, "Setting up wk2132: %s with %d UARTs at @%02X ...", this->get_name(), this->children_.size(),
                 this->base_address_);
+
+  // enable both channels
+  this->component_reg(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
+  // reset channels
+  this->component_reg(REG_WK2132_GRST) = GRST_C1RST | GRST_C2RST;
+  // initialize the spage register to page 0
+  this->component_reg(REG_WK2132_SPAGE) = 0;
+  this->page1_ = false;
+
   // we setup our children
   for (auto *child : this->children_) {
     child->setup_channel_();
@@ -318,81 +327,18 @@ void WK2132Component::dump_config() {
 
 void WK2132Channel::setup_channel_() {
   ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s ...", this->parent_->get_name(), this->get_channel_name());
-
-  // *****
-  // this->set_i2c_address(this->channel_, fifo=0)
-
-  //
-  // we first do the global register (common to both channel)
-  //
-
-  // uint8_t gena;
-  // this->parent_->read_wk2132_register_(REG_WK2132_GENA, 0, &gena, 1);
-  // (this->channel_ == 0) ? gena |= GENA_UT1EN : gena |= UT2EN;  // enable channel 1 or 2
-  // this->parent_->write_wk2132_register_(REG_WK2132_GENA, 0, &gena, 1);
-
-  // enable channel
-  i2c::I2CRegister gena = this->parent_->reg(REG_WK2132_GENA);
-  (this->channel_ == 0) ? gena |= GENA_C1EN : gena |= GENA_C2EN;
-
-  // uint8_t grst = 0;
-  // this->parent_->read_wk2132_register_(REG_WK2132_GRST, 0, &grst, 1);
-  // (this->channel_ == 0) ? grst |= GRST_UT1RST : grst |= GRST_UT2RST;  // reset channel 1 or 2
-  // this->parent_->write_wk2132_register_(REG_WK2132_GRST, 0, &grst, 1);
-
-  // reset channels
-  i2c::I2CRegister grst = this->parent_->reg(REG_WK2132_GRST);
-  (this->channel_ == 0) ? grst |= GRST_C1RST : grst |= GRST_C2RST;
-
-  //
-  // now we do the register linked to a specific channel
-  //
-
-  // uint8_t const page = 0;
-  // this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, this->channel_, &page, 1);
-
-  // initialize the spage register to page 0
-  this->parent_->reg(REG_WK2132_SPAGE) = 0;
-  this->parent_->page1_ = false;
-
-  // we enable both channel
-  uint8_t const scr = 0x3;  // 0000 0011 enable receive and transmit
-  this->parent_->write_wk2132_register_(REG_WK2132_SCR, this->channel_, &scr, 1);
-
-  this->set_baudrate_();
-  this->set_line_param_();
+  // we enable transmit and receive on this channel
+  this->channel_reg(REG_WK2132_SCR) = SCR_RXEN | SCR_TXEN;
   this->reset_fifo_();
   this->receive_buffer_.clear();
+  this->set_line_param_();
+  this->set_baudrate_();
 }
 
 void WK2132Channel::reset_fifo_() {
   // we reset and enable all fifo ... FCR => 0000 1111
   uint8_t const fcr = 0b00001111;
   this->parent_->write_wk2132_register_(REG_WK2132_FCR, this->channel_, &fcr, 1);
-}
-
-/// @details  documentation added to brief TODO for test purpose
-void WK2132Channel::set_baudrate_() {
-  uint16_t const val_int = this->parent_->crystal_ / (this->baud_rate_ * 16) - 1;
-  uint16_t val_dec = (this->parent_->crystal_ % (this->baud_rate_ * 16)) / (this->baud_rate_ * 16);
-  uint8_t const baud_high = (uint8_t) (val_int >> 8);
-  uint8_t const baud_low = (uint8_t) (val_int & 0xFF);
-  while (val_dec > 0x0A)
-    val_dec /= 0x0A;
-  uint8_t const baud_dec = (uint8_t) (val_dec);
-
-  uint8_t page = 1;  // switch to page 1
-  this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, this->channel_, &page, 1);
-  this->parent_->page1_ = true;
-  this->parent_->write_wk2132_register_(REG_WK2132_BRH, this->channel_, &baud_high, 1);
-  this->parent_->write_wk2132_register_(REG_WK2132_BRL, this->channel_, &baud_low, 1);
-  this->parent_->write_wk2132_register_(REG_WK2132_BRD, this->channel_, &baud_dec, 1);
-  page = 0;  // switch back to page 0
-  this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, this->channel_, &page, 1);
-  this->parent_->page1_ = false;
-
-  ESP_LOGV(TAG, "    Crystal=%d baudrate=%d => registers [%d %d %d]", this->parent_->crystal_, this->baud_rate_,
-           baud_high, baud_low, baud_dec);
 }
 
 void WK2132Channel::set_line_param_() {
@@ -416,6 +362,29 @@ void WK2132Channel::set_line_param_() {
   this->parent_->write_wk2132_register_(REG_WK2132_LCR, this->channel_, &lcr, 1);
   ESP_LOGV(TAG, "    line config: %d data_bits, %d stop_bits, parity %s register [%s]", this->data_bits_,
            this->stop_bits_, p2s(this->parity_), I2CS(lcr));
+}
+/// @details  documentation added to brief TODO for test purpose
+void WK2132Channel::set_baudrate_() {
+  uint16_t const val_int = this->parent_->crystal_ / (this->baud_rate_ * 16) - 1;
+  uint16_t val_dec = (this->parent_->crystal_ % (this->baud_rate_ * 16)) / (this->baud_rate_ * 16);
+  uint8_t const baud_high = (uint8_t) (val_int >> 8);
+  uint8_t const baud_low = (uint8_t) (val_int & 0xFF);
+  while (val_dec > 0x0A)
+    val_dec /= 0x0A;
+  uint8_t const baud_dec = (uint8_t) (val_dec);
+
+  uint8_t page = 1;  // switch to page 1
+  this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, this->channel_, &page, 1);
+  this->parent_->page1_ = true;
+  this->parent_->write_wk2132_register_(REG_WK2132_BRH, this->channel_, &baud_high, 1);
+  this->parent_->write_wk2132_register_(REG_WK2132_BRL, this->channel_, &baud_low, 1);
+  this->parent_->write_wk2132_register_(REG_WK2132_BRD, this->channel_, &baud_dec, 1);
+  page = 0;  // switch back to page 0
+  this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, this->channel_, &page, 1);
+  this->parent_->page1_ = false;
+
+  ESP_LOGV(TAG, "    Crystal=%d baudrate=%d => registers [%d %d %d]", this->parent_->crystal_, this->baud_rate_,
+           baud_high, baud_low, baud_dec);
 }
 
 inline bool WK2132Channel::tx_fifo_is_not_empty_() {
