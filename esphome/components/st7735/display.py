@@ -69,7 +69,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def setup_st7735(var, config):
-    await cg.register_component(var, config)
     await display.register_display(var, config)
 
     if CONF_RESET_PIN in config:
