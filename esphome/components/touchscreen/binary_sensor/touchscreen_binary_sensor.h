@@ -1,10 +1,7 @@
 #pragma once
 
-#include "esphome/core/defines.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
-
 #include "esphome/components/display/display_buffer.h"
-
 #include "esphome/components/touchscreen/touchscreen.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
