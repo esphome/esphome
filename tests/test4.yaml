@@ -755,7 +755,6 @@ touchscreen:
     calibration_x_max: 280
     calibration_y_min: 340
     calibration_y_max: 3860
-    swap_x_y: false
     on_touch:
       - logger.log:
           format: Touch at (%d, %d)
