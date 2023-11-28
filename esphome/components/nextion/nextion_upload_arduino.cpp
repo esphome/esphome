@@ -143,7 +143,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
 
 bool Nextion::upload_tft() {
   ESP_LOGD(TAG, "Nextion TFT upload requested");
-  ESP_LOGD(TAG, "url: %s", this->tft_url_.c_str());
+  ESP_LOGD(TAG, "URL: %s", this->tft_url_.c_str());
 
   if (this->is_updating_) {
     ESP_LOGD(TAG, "Currently updating");
