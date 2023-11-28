@@ -75,7 +75,7 @@ void GT911Touchscreen::update_touches() {
     uint16_t id = data[i][0];
     uint16_t x = encode_uint16(data[i][2], data[i][1]);
     uint16_t y = encode_uint16(data[i][4], data[i][3]);
-    set_raw_touch_position_(id, x, y);
+    this->set_raw_touch_position_(id, x, y);
   }
   auto keys = data[num_of_touches][0];
   for (size_t i = 0; i != 4; i++) {
