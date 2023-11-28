@@ -88,7 +88,6 @@ void GT911Touchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "GT911 Touchscreen:");
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
-  ESP_LOGCONFIG(TAG, "  Rotation: %d", (int) this->rotation_);
 }
 
 }  // namespace gt911
