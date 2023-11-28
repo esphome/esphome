@@ -58,11 +58,11 @@ void GT911Touchscreen::update_touches() {
   ERROR_CHECK(err);
   this->write(CLEAR_TOUCH_STATE, sizeof(CLEAR_TOUCH_STATE));
 
-  if (touch_state == 0)
+  if ((touch_state & 0x80) == 0)
     return;
   uint8_t num_of_touches = touch_state & 0x07;
 
-  if (num_of_touches > MAX_TOUCHES)  // should never happen
+  if (num_of_touches == 0 || num_of_touches > MAX_TOUCHES)
     return;
 
   err = this->write(GET_TOUCHES, sizeof(GET_TOUCHES), false);
