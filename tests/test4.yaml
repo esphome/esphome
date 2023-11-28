@@ -58,6 +58,12 @@ uart:
     tx_pin: GPIO22
     rx_pin: GPIO23
     baud_rate: 9600
+  - id: uart_he60r
+    tx_pin: 22
+    rx_pin: 23
+    baud_rate: 1200
+    parity: EVEN
+
 
 ota:
   safe_mode: true
@@ -528,6 +534,13 @@ cover:
   - platform: copy
     source_id: tuya_cover
     name: Tuya Cover copy
+  - platform: he60r
+    uart_id: uart_he60r
+    id: garage_door
+    name: Garage Door
+    open_duration: 14s
+    close_duration: 14s
+
 
 display:
   - platform: addressable_light
