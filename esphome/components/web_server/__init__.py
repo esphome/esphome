@@ -28,7 +28,7 @@ from esphome.core import CORE, coroutine_with_priority
 
 AUTO_LOAD = ["json", "web_server_base"]
 
-CONF_FALLBACK_WEBPAGE = "fallback_webpage"
+CONF_LOCAL_FALLBACK = "local_fallback"
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
@@ -53,15 +53,15 @@ def validate_local(config):
     if config[CONF_VERSION] == 1:
         if CONF_LOCAL in config:
             raise cv.Invalid("'local' is not supported in version 1")
-        if CONF_FALLBACK_WEBPAGE in config:
-            raise cv.Invalid("'fallback_webpage' is not supported in version 1")
+        if CONF_LOCAL_FALLBACK in config:
+            raise cv.Invalid("'local_fallback' is not supported in version 1")
     if (
         CONF_LOCAL in config
         and config[CONF_LOCAL]
-        and CONF_FALLBACK_WEBPAGE in config
-        and config[CONF_FALLBACK_WEBPAGE]
+        and CONF_LOCAL_FALLBACK in config
+        and config[CONF_LOCAL_FALLBACK]
     ):
-        raise cv.Invalid("'local' and 'fallback_webpage' are not supported together.")
+        raise cv.Invalid("'local' and 'local_fallback' are not supported together.")
     return config
 
 
@@ -82,7 +82,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_JS_URL): cv.string,
             cv.Optional(CONF_JS_INCLUDE): cv.file_,
             cv.Optional(CONF_ENABLE_PRIVATE_NETWORK_ACCESS, default=True): cv.boolean,
-            cv.Optional(CONF_FALLBACK_WEBPAGE, default=False): cv.boolean,
+            cv.Optional(CONF_LOCAL_FALLBACK, default=False): cv.boolean,
             cv.Optional(CONF_AUTH): cv.Schema(
                 {
                     cv.Required(CONF_USERNAME): cv.All(
@@ -130,7 +130,7 @@ def build_index_html(config) -> str:
     html += "<esp-app></esp-app>"
     if config[CONF_JS_URL]:
         html += f'<script src="{config[CONF_JS_URL]}"></script>'
-    if CONF_FALLBACK_WEBPAGE in config and config[CONF_FALLBACK_WEBPAGE]:
+    if CONF_LOCAL_FALLBACK in config and config[CONF_LOCAL_FALLBACK]:
         html += (
             "<script>if(!window.source){window.location.search='?fallback';}</script>"
         )
@@ -195,5 +195,5 @@ async def to_code(config):
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
-    if CONF_FALLBACK_WEBPAGE in config and config[CONF_FALLBACK_WEBPAGE]:
-        cg.add_define("USE_WEBSERVER_FALLBACK_WEBPAGE")
+    if CONF_LOCAL_FALLBACK in config and config[CONF_LOCAL_FALLBACK]:
+        cg.add_define("USE_WEBSERVER_LOCAL_FALLBACK")
