@@ -109,8 +109,8 @@ esphome/components/factory_reset/* @anatoly-savchenkov
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
-esphome/components/ft63x6/* @gpambrozio
 esphome/components/fs3000/* @kahrendt
+esphome/components/ft63x6/* @gpambrozio
 esphome/components/gcja5/* @gcormier
 esphome/components/globals/* @esphome/core
 esphome/components/gp8403/* @jesserockz
