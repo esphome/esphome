@@ -36,6 +36,7 @@ namespace esphome {
 void yield();
 uint32_t millis();
 uint32_t micros();
+uint32_t nanos();
 void delay(uint32_t ms);
 void delayMicroseconds(uint32_t us);  // NOLINT(readability-identifier-naming)
 void __attribute__((noreturn)) arch_restart();

@@ -12,6 +12,7 @@
 namespace esphome {
 
 void IRAM_ATTR HOT yield() { ::sched_yield(); }
+
 uint32_t IRAM_ATTR HOT millis() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);
@@ -19,6 +20,7 @@ uint32_t IRAM_ATTR HOT millis() {
   uint32_t ms = round(spec.tv_nsec / 1e6);
   return ((uint32_t) seconds) * 1000U + ms;
 }
+
 void IRAM_ATTR HOT delay(uint32_t ms) {
   struct timespec ts;
   ts.tv_sec = ms / 1000;
@@ -28,6 +30,7 @@ void IRAM_ATTR HOT delay(uint32_t ms) {
     res = nanosleep(&ts, &ts);
   } while (res != 0 && errno == EINTR);
 }
+
 uint32_t IRAM_ATTR HOT micros() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);
@@ -35,6 +38,19 @@ uint32_t IRAM_ATTR HOT micros() {
   uint32_t us = round(spec.tv_nsec / 1e3);
   return ((uint32_t) seconds) * 1000000U + us;
 }
+
+uint32_t IRAM_ATTR HOT nanos() {
+  // This will not give a resolution in nano seconds since 
+  // * 1/80 MHz gives an resolution of 12.5 nano seconds
+  // * 1/160 MHz gives an resolution of 6.25 nano seconds
+  // But... This is anyway better than micros secons and when creating bus timings this is essential
+  struct timespec spec;
+  clock_gettime(CLOCK_MONOTONIC, &spec);
+  time_t seconds = spec.tv_sec;
+  uint32_t ns = spec.tv_nsec;
+  return ((uint32_t) seconds) * 1e9U + ns;
+}
+
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) {
   struct timespec ts;
   ts.tv_sec = us / 1000000U;
@@ -44,15 +60,19 @@ void IRAM_ATTR HOT delayMicroseconds(uint32_t us) {
     res = nanosleep(&ts, &ts);
   } while (res != 0 && errno == EINTR);
 }
+
 void arch_restart() { exit(0); }
+
 void arch_init() {
   // pass
 }
+
 void IRAM_ATTR HOT arch_feed_wdt() {
   // pass
 }
 
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
+
 uint32_t arch_get_cpu_cycle_count() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);
@@ -60,6 +80,7 @@ uint32_t arch_get_cpu_cycle_count() {
   uint32_t us = spec.tv_nsec;
   return ((uint32_t) seconds) * 1000000000U + us;
 }
+
 uint32_t arch_get_cpu_freq_hz() { return 1000000000U; }
 
 }  // namespace esphome
