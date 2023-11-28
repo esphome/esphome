@@ -221,6 +221,30 @@ const char *p2s(uart::UARTParityOptions parity) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// The WK2132Register methods
+///////////////////////////////////////////////////////////////////////////////
+WK2132Register &WK2132Register::operator=(uint8_t value) {
+  this->parent_->write_wk2132_register_(this->register_, this->channel_, &value, 1);
+  return *this;
+}
+WK2132Register &WK2132Register::operator&=(uint8_t value) {
+  value &= get();
+  this->parent_->write_register(this->register_, &value, 1);
+  return *this;
+}
+WK2132Register &WK2132Register::operator|=(uint8_t value) {
+  value |= get();
+  this->parent_->write_register(this->register_, &value, 1);
+  return *this;
+}
+
+uint8_t WK2132Register::get() const {
+  uint8_t value = 0x00;
+  this->parent_->read_wk2132_register_(this->register_, this->channel_, &value, 1);
+  return value;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // The WK2132Component methods
 ///////////////////////////////////////////////////////////////////////////////
 // method to print registers as text: used in log messages ...
@@ -309,7 +333,7 @@ void WK2132Channel::setup_channel_() {
 
   // enable channel
   i2c::I2CRegister gena = this->parent_->reg(REG_WK2132_GENA);
-  (this->channel_ == 0) ? gena |= GENA_S1EN : gena |= GENA_S2EN;
+  (this->channel_ == 0) ? gena |= GENA_C1EN : gena |= GENA_C2EN;
 
   // uint8_t grst = 0;
   // this->parent_->read_wk2132_register_(REG_WK2132_GRST, 0, &grst, 1);
@@ -318,7 +342,7 @@ void WK2132Channel::setup_channel_() {
 
   // reset channels
   i2c::I2CRegister grst = this->parent_->reg(REG_WK2132_GRST);
-  (this->channel_ == 0) ? grst |= GRST_S1RST : grst |= GRST_S2RST;
+  (this->channel_ == 0) ? grst |= GRST_C1RST : grst |= GRST_C2RST;
 
   //
   // now we do the register linked to a specific channel

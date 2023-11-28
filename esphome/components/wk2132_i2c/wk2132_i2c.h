@@ -1,6 +1,6 @@
 /// @file wk2132_i2c.h
 /// @author DrCoolZic
-/// @brief  wk2132 classes interface
+/// @brief  wk2132 classes declaration
 
 #pragma once
 #include <bitset>
@@ -129,28 +129,28 @@ template<typename T, size_t SIZE> class RingBuffer {
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 ///  -------------------------------------------------------------------------
-///  |   M0   |   M1   |                RSV                |  S2EN  |  S1EN  |
+///  |   M0   |   M1   |                RSV                |  C2EN  |  C1EN  |
 ///  -------------------------------------------------------------------------
 /// @endcode
 constexpr uint8_t REG_WK2132_GENA = 0x00;
 /// @brief Channel 2 enable clock (0: disable, 1: enable)
-constexpr uint8_t GENA_S2EN = 1 << 1;
+constexpr uint8_t GENA_C2EN = 1 << 1;
 /// @brief Channel 1 enable clock (0: disable, 1: enable)
-constexpr uint8_t GENA_S1EN = 1 << 0;
+constexpr uint8_t GENA_C1EN = 1 << 0;
 
 /// @brief Global UART reset register
 /// @details @code
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 ///  -------------------------------------------------------------------------
-///  |       RSV       | S2SLEEP| S1SLEEP|       RSV       |  S2RST |  S1RST |
+///  |       RSV       | C2SLEEP| C1SLEEP|       RSV       |  C2RST |  C1RST |
 ///  -------------------------------------------------------------------------
 /// @endcode
 constexpr uint8_t REG_WK2132_GRST = 0x01;
 /// @brief Channel 2 soft reset (0: not reset, 1: reset)
-constexpr uint8_t GRST_S2RST = 1 << 1;
+constexpr uint8_t GRST_C2RST = 1 << 1;
 /// @brief Channel 1 soft reset (0: not reset, 1: reset)
-constexpr uint8_t GRST_S1RST = 1 << 0;
+constexpr uint8_t GRST_C1RST = 1 << 0;
 
 /// @brief Global master channel control register (not used)
 constexpr uint8_t REG_WK2132_GMUT = 0x02;
@@ -376,7 +376,7 @@ class WK2132Component;  // forward declaration
 /// to give an **i2c_register_address** and all accesses are done at the same device address on the bus.
 /// On the WK2132 i2c_register_address = logical_register_address and what is changing is the
 /// device address on the bus. Therefore we have a base_address for global register, a different
-/// addresses for channel 1 and 2 register, and yet different adresses for FIFO access.
+/// addresses for channel 1 and 2 register, and yet different addresses for FIFO access.
 /// For that reason on top of saving the register address we also nedd to save the address
 /// of the device to use on the i2c bus to access this register.
 /// @n typical usage:
