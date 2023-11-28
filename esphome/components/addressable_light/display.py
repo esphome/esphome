@@ -45,7 +45,6 @@ async def to_code(config):
     cg.add(var.set_height(config[CONF_HEIGHT]))
     cg.add(var.set_light(wrapped_light))
 
-    await cg.register_component(var, config)
     await display.register_display(var, config)
 
     if pixel_mapper := config.get(CONF_PIXEL_MAPPER):
