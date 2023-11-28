@@ -23,6 +23,7 @@ void HE60rCover::setup() {
   }
   this->current_operation = COVER_OPERATION_IDLE;
   this->last_recompute_time_ = this->start_dir_time_ = millis();
+  this->set_interval(300, [this]() { this->update_(); });
 }
 
 CoverTraits HE60rCover::get_traits() {
@@ -39,12 +40,9 @@ void HE60rCover::dump_config() {
   this->check_uart_settings(1200, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
   ESP_LOGCONFIG(TAG, "  Open Duration: %.1fs", this->open_duration_ / 1e3f);
   ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
-  if (this->max_duration_ < UINT32_MAX) {
-    ESP_LOGCONFIG(TAG, "  Max Duration: %.1fs", this->max_duration_ / 1e3f);
-    auto restore = this->restore_state_();
-    if (restore.has_value())
-      ESP_LOGCONFIG(TAG, "  Saved position %d%%", (int) (restore->position * 100.f));
-  }
+  auto restore = this->restore_state_();
+  if (restore.has_value())
+    ESP_LOGCONFIG(TAG, "  Saved position %d%%", (int) (restore->position * 100.f));
 }
 
 void HE60rCover::endstop_reached_(CoverOperation operation) {
@@ -125,7 +123,7 @@ void HE60rCover::process_rx_(uint8_t data) {
   }
 }
 
-void HE60rCover::update() {
+void HE60rCover::update_() {
   if (toggles_needed_ != 0) {
     if ((this->counter_++ & 0x3) == 0) {
       toggles_needed_--;
@@ -139,18 +137,11 @@ void HE60rCover::update() {
     this->counter_ = 0;
   }
   if (this->current_operation != COVER_OPERATION_IDLE) {
-    const uint32_t now = millis();
-
-    // Recompute position unless idle
     this->recompute_position_();
 
-    // if we initiated the move, check if we reached position or max time
-    // (stoping from endstop sensor is handled in callback)
+    // if we initiated the move, check if we reached the target position
     if (this->last_command_ != COVER_OPERATION_IDLE) {
       if (this->is_at_target_()) {
-        this->start_direction_(COVER_OPERATION_IDLE);
-      } else if (now - this->start_dir_time_ > this->max_duration_) {
-        ESP_LOGW(TAG, "'%s' - Max duration reached. Stopping cover.", this->name_.c_str());
         this->start_direction_(COVER_OPERATION_IDLE);
       }
     }
@@ -168,7 +159,6 @@ void HE60rCover::loop() {
 }
 
 void HE60rCover::control(const CoverCall &call) {
-  // stop action logic
   if (call.get_stop()) {
     this->start_direction_(COVER_OPERATION_IDLE);
   } else if (call.get_toggle().has_value()) {
@@ -219,13 +209,13 @@ void HE60rCover::start_direction_(CoverOperation dir) {
     // either moving and needs to stop, or stopped and will move correctly on one trigger
     this->toggles_needed_ = 1;
   } else {
-    // if stopped, but will go the wrong way, need 3 triggers.
     if (this->current_operation == COVER_OPERATION_IDLE) {
+      // if stopped, but will go the wrong way, need 3 triggers.
       this->toggles_needed_ = 3;
     } else {
+      // just stop and reverse
       this->toggles_needed_ = 2;
-    }  // just stop and reverse
-    // must be moving, but the wrong way
+    }
     ESP_LOGD(TAG, "'%s' - Reversing direction.", this->name_.c_str());
   }
   this->start_dir_time_ = millis();

@@ -8,21 +8,20 @@
 namespace esphome {
 namespace he60r {
 
-class HE60rCover : public cover::Cover, public PollingComponent, public uart::UARTDevice {
+class HE60rCover : public cover::Cover, public Component, public uart::UARTDevice {
  public:
   void setup() override;
   void loop() override;
-  void update() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; };
 
   void set_open_duration(uint32_t duration) { this->open_duration_ = duration; }
   void set_close_duration(uint32_t duration) { this->close_duration_ = duration; }
-  void set_max_duration(uint32_t max_duration) { this->max_duration_ = max_duration; }
 
   cover::CoverTraits get_traits() override;
 
  protected:
+  void update_();
   void control(const cover::CoverCall &call) override;
   bool is_at_target_() const;
   void start_direction_(cover::CoverOperation dir);
@@ -36,7 +35,6 @@ class HE60rCover : public cover::Cover, public PollingComponent, public uart::UA
   uint32_t close_duration_{0};
   uint32_t toggles_needed_{0};
   cover::CoverOperation next_direction_{cover::COVER_OPERATION_IDLE};
-  uint32_t max_duration_{UINT32_MAX};
   cover::CoverOperation last_command_{cover::COVER_OPERATION_IDLE};
   uint32_t last_recompute_time_{0};
   uint32_t start_dir_time_{0};

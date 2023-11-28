@@ -5,15 +5,14 @@ from esphome.const import (
     CONF_CLOSE_DURATION,
     CONF_ID,
     CONF_OPEN_DURATION,
-    CONF_MAX_DURATION,
 )
 
 he60r_ns = cg.esphome_ns.namespace("he60r")
-HE60rCover = he60r_ns.class_("HE60rCover", cover.Cover, cg.PollingComponent)
+HE60rCover = he60r_ns.class_("HE60rCover", cover.Cover, cg.Component)
 
 CONFIG_SCHEMA = (
     cover.COVER_SCHEMA.extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.polling_component_schema("300ms"))
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(HE60rCover),
@@ -22,9 +21,6 @@ CONFIG_SCHEMA = (
             ): cv.positive_time_period_milliseconds,
             cv.Optional(
                 CONF_CLOSE_DURATION, default="15s"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(
-                CONF_MAX_DURATION, default="60s"
             ): cv.positive_time_period_milliseconds,
         }
     )
@@ -47,6 +43,5 @@ async def to_code(config):
     await cover.register_cover(var, config)
     await uart.register_uart_device(var, config)
 
-    cg.add(var.set_max_duration(config[CONF_MAX_DURATION]))
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
