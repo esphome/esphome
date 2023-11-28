@@ -171,16 +171,18 @@ class I2CDevice {
   /// @todo seems bad @bug
   ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len, bool stop = true);
 
-  //
-  // Compat APIs
-  //
+  ///
+  /// Compat APIs
+  /// All methods below seems to be here for compatibility reason
+  /// From what I have seen none of them bring any functionality.
+  /// Therefore they are not docummented and I would not recommend
+  /// to use them.
+  ///
 
-  /// @brief Same as read_register() but return bool. For compatibility
   bool read_bytes(uint8_t a_register, uint8_t *data, uint8_t len) {
     return read_register(a_register, data, len) == ERROR_OK;
   }
 
-  /// @brief same as read() but return bool. For compatibility
   bool read_bytes_raw(uint8_t *data, uint8_t len) { return read(data, len) == ERROR_OK; }
 
   template<size_t N> optional<std::array<uint8_t, N>> read_bytes(uint8_t a_register) {
@@ -234,8 +236,8 @@ class I2CDevice {
   bool write_byte_16(uint8_t a_register, uint16_t data) { return write_bytes_16(a_register, &data, 1); }
 
  protected:
-  uint8_t address_{0x00};
-  I2CBus *bus_{nullptr};
+  uint8_t address_{0x00};  ///< store the address of the device on the bus
+  I2CBus *bus_{nullptr};   ///< pointer to I2CBus instance
 };
 
 }  // namespace i2c

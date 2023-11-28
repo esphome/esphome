@@ -20,9 +20,11 @@ namespace wk2132_i2c {
 /// @brief the max number of bytes we allow for transfer calls.
 /// By default I²C bus allow a maximum transfer of 128 bytes
 /// but this can be changed by defining I2C_BUFFER_LENGTH.
-/// However there is a bug in Arduino framework that limit the
-/// maximum value to 255 (TODO check IDF framework)
-#if (I2C_BUFFER_LENGTH < 256)
+/// @bug However there is a bug in Arduino framework that limit the
+/// maximum value to 255. So until fixed we follow this limit
+/// @bug There is also a bug in i2c classes. Here we assume this
+/// bug is fixed
+#if (I2C_BUFFER_LENGTH < 256) && defined(USE_ESP32_FRAMEWORK_ARDUINO)
 constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;
 #else  // until bug fixed in framework we limit size to 255
 constexpr size_t XFER_MAX_SIZE = 255;
@@ -118,42 +120,43 @@ template<typename T, size_t SIZE> class RingBuffer {
 
 /// @defgroup wk2132_gr_ WK2132 Global Registers
 /// This topic groups all **Global Registers**: these registers are global to the
-/// the WK2132 chip i.e. independent of the UART channel used
+/// the WK2132 chip (i.e. independent of the UART channel used)
+/// @note only registers and parameters used have been documented
 /// @{
 
-/// Global Control Register
-constexpr uint8_t REG_WK2132_GENA = 0x00;
-/// @brief Channel 1 clock enable bit (0: disable, 1: enable)
-constexpr uint8_t GENA_UT1EN = 1 << 0;
-/// @brief Channel 2 clock enable bit (0: disable, 1: enable)
-constexpr uint8_t GENA_UT2EN = 1 << 1;
-
-///  Global UART reset register
-/// @code
+/// @brief Global Control Register
+/// @details @code
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 ///  -------------------------------------------------------------------------
-///  |       RSV       | UT2SLE | UT1SLE |       RSV       | UT2RST | UT1RST |
+///  |   M0   |   M1   |                RSV                |  S2EN  |  S1EN  |
+///  -------------------------------------------------------------------------
+/// @endcode
+constexpr uint8_t REG_WK2132_GENA = 0x00;
+/// @brief Channel 2 enable clock (0: disable, 1: enable)
+constexpr uint8_t GENA_S2EN = 1 << 1;
+/// @brief Channel 1 enable clock (0: disable, 1: enable)
+constexpr uint8_t GENA_S1EN = 1 << 0;
+
+/// @brief Global UART reset register
+/// @details @code
+///  -------------------------------------------------------------------------
+///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
+///  -------------------------------------------------------------------------
+///  |       RSV       | S2SLEEP| S1SLEEP|       RSV       |  S2RST |  S1RST |
 ///  -------------------------------------------------------------------------
 /// @endcode
 constexpr uint8_t REG_WK2132_GRST = 0x01;
-/// @brief Channel 1 soft reset control bit (0: not reset, 1: reset)
-constexpr uint8_t UT1RST = 1 << 0;
-/// @brief Channel 2 soft reset control bit (0: not reset, 1: reset)
-constexpr uint8_t UT2RST = 1 << 1;
+/// @brief Channel 2 soft reset (0: not reset, 1: reset)
+constexpr uint8_t GRST_S2RST = 1 << 1;
+/// @brief Channel 1 soft reset (0: not reset, 1: reset)
+constexpr uint8_t GRST_S1RST = 1 << 0;
 
-/// Global master channel control register
-/// @code
-/// -------------------------------------------------------------------------
-/// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
-/// -------------------------------------------------------------------------
-/// |       RSV       | SLEEP2 | SLEEP1 |       RSV       |  RST2  |  RST1  |
-/// -------------------------------------------------------------------------
-/// @endcode
+/// @brief Global master channel control register (not used)
 constexpr uint8_t REG_WK2132_GMUT = 0x02;
 
-/// Serial page register
-/// @code
+/// @brief Page register
+/// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// -------------------------------------------------------------------------
@@ -169,9 +172,10 @@ constexpr uint8_t REG_WK2132_GIR = 0x10;
 constexpr uint8_t REG_WK2132_GIFR = 0x11;
 
 /// @}
-/// @defgroup cr_ WK2132 Channel Registers
+/// @defgroup wk2132_cr_ WK2132 Channel Registers
 /// This topic groups all the **Channel Registers**: these registers are specific
-/// to the a channel i.e. each channel has its own set of registers
+/// to the a specific channel i.e. each channel has its own set of registers
+/// @note only registers and parameters used have been documented
 /// @{
 
 /// @defgroup cr_p0 Channel registers for SPAGE=0
@@ -179,8 +183,8 @@ constexpr uint8_t REG_WK2132_GIFR = 0x11;
 /// This first group is defined when the Global register REG_WK2132_SPAGE is 0
 /// @{
 
-/// Channel serial control register
-/// @code
+/// @brief Channel Serial Control Register
+/// @details @code
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 ///  -------------------------------------------------------------------------
@@ -188,16 +192,32 @@ constexpr uint8_t REG_WK2132_GIFR = 0x11;
 ///  -------------------------------------------------------------------------
 /// @endcode
 constexpr uint8_t REG_WK2132_SCR = 0x04;
+/// @brief transmission control (0: enable, 1: disable)
+constexpr uint8_t SCR_TXEN = 1 << 1;
+/// @brief receiving control (0: enable, 1: disable)
+constexpr uint8_t SCR_RXEN = 1 << 0;
 
-/// Channel line configuration register:
-/// @code
+/// @brief Channel Line Configuration Register:
+/// @details @code
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 ///  -------------------------------------------------------------------------
-///  |        RSV      |  BREAK |  IREN  |  PAEN  |      PAM        |  STPL  |
+///  |        RSV      |  BREAK |  IREN  |  PAEN  |      PARITY     |  STPL  |
 ///  -------------------------------------------------------------------------
 /// @endcode
 constexpr uint8_t REG_WK2132_LCR = 0x05;
+/// @brief Parity enable (0: no check, 1: check)
+constexpr uint8_t LCR_PAEN = 1 << 3;
+/// @brief Parity force 0
+constexpr uint8_t LCR_PAR_0 = 00 << 1;
+/// @brief Parity odd
+constexpr uint8_t LCR_PAR_ODD = 01 << 1;
+/// @brief Parity even
+constexpr uint8_t LCR_PAR_EVEN = 2 << 1;
+/// @brief Parity force 1
+constexpr uint8_t LCR_PAR_1 = 3 << 1;
+/// @brief Stop length (0: 1 bit, 1: 2 bits)
+constexpr uint8_t LCR_STPL = 1 << 0;
 
 /// Channel FIFO control register
 /// @code
@@ -347,6 +367,65 @@ constexpr uint8_t REG_WK2132_TFI = 0x08;
 /// @}
 /// @}
 
+class WK2132Component;  // forward declaration
+
+/// @brief This class defines *proxy registers* that act as proxies to WK2132 internal register
+/// @details This class is equivalent to thr i2c::I2CRegister class.
+/// The reason this class exists is because the WK2132 uses an unusual addressing mechanism.
+/// On a *standard* I2C device a **logical_register_address** is combined with the channel number
+/// to give an **i2c_register_address** and all accesses are done at the same device address on the bus.
+/// On the WK2132 i2c_register_address = logical_register_address and what is changing is the
+/// device address on the bus. Therefore we have a base_address for global register, a different
+/// addresses for channel 1 and 2 register, and yet different adresses for FIFO access.
+/// For that reason on top of saving the register address we also nedd to save the address
+/// of the device to use on the i2c bus to access this register.
+/// @n typical usage:
+/// @code
+/// WK2132Register reg_1 = this->register(ADDR_REGISTER_1); // declare
+/// reg_1 |= 0x01; // set bit
+/// reg_1 &= ~0x01; // reset bit
+/// reg_1 = 10; // Set value
+/// uint val = reg_1.get(); // get value
+/// @endcode
+class WK2132Register {
+ public:
+  /// @brief overloads the = operator. This is used to set a value in the register
+  /// @param value to be set
+  /// @return this object
+  WK2132Register &operator=(uint8_t value);
+
+  /// @brief overloads the compound &= operator. This is often used to reset bits in the register
+  /// @param value performs an & operation with value and store the result
+  /// @return this object
+  WK2132Register &operator&=(uint8_t value);
+
+  /// @brief overloads the compound |= operator. This is often used to set bits in the register
+  /// @param value performs an | operation with value and store the result
+  /// @return this object
+  WK2132Register &operator|=(uint8_t value);
+
+  /// @brief overloads the cast operator is used to return the register value
+  explicit operator uint8_t() const { return get(); }
+
+  /// @brief returns the register value
+  /// @return the value
+  uint8_t get() const;
+
+ protected:
+  friend class WK2132Component;
+  friend class WK2132Channel;
+
+  /// @brief protected ctor. Only friends can create an I2CRegister
+  /// @param parent our parent
+  /// @param a_register address of the i2c register
+  WK2132Register(WK2132Component *parent, uint8_t reg, uint8_t channel)
+      : parent_(parent), register_(reg), channel_(channel) {}
+
+  WK2132Component *parent_;  ///< parent we belongs to
+  uint8_t register_;         ///< the address of the register
+  uint8_t channel_;          ///< the channel for the register
+};
+
 class WK2132Channel;  // forward declaration
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -381,6 +460,11 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   /// @return the name
   const char *get_name() { return this->name_.c_str(); }
 
+  /// @brief call the WK2132Register ctor
+  /// @param a_register address of the register
+  /// @return an WK2132Register proxy to the register at a_address
+  WK2132Register component_reg(uint8_t a_register) { return {this, a_register, 0}; }
+
   //
   //  override virtual Component methods
   //
@@ -399,6 +483,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 
  protected:
   friend class WK2132Channel;
+  friend class WK2132Register;
 
   /// @brief convert the register number into a string easier to understand
   /// @param reg register value
@@ -468,6 +553,11 @@ class WK2132Channel : public uart::UARTComponent {
   /// @brief Get the channel name
   /// @return the name
   const char *get_channel_name() { return this->name_.c_str(); }
+
+  /// @brief call the WK2132Register ctor
+  /// @param a_register address of the register
+  /// @return an WK2132Register proxy to the register at a_address
+  WK2132Register channel_reg(uint8_t a_register) { return {this->parent_, a_register, this->channel_}; }
 
   //
   // we implement the virtual class from UARTComponent

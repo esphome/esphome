@@ -278,6 +278,7 @@ void WK2132Component::dump_config() {
     ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
   this->address_ = this->base_address_;  // we restore the base address before display
   LOG_I2C_DEVICE(this);
+
   for (auto *child : this->children_) {
     ESP_LOGCONFIG(TAG, "  UART %s:%s ...", this->get_name(), child->get_channel_name());
     ESP_LOGCONFIG(TAG, "    Baud rate: %d Bd", child->baud_rate_);
@@ -294,35 +295,42 @@ void WK2132Component::dump_config() {
 void WK2132Channel::setup_channel_() {
   ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s ...", this->parent_->get_name(), this->get_channel_name());
 
+  // *****
+  // this->set_i2c_address(this->channel_, fifo=0)
+
   //
   // we first do the global register (common to both channel)
   //
+
   // uint8_t gena;
   // this->parent_->read_wk2132_register_(REG_WK2132_GENA, 0, &gena, 1);
   // (this->channel_ == 0) ? gena |= GENA_UT1EN : gena |= UT2EN;  // enable channel 1 or 2
   // this->parent_->write_wk2132_register_(REG_WK2132_GENA, 0, &gena, 1);
 
-  // gena is acting as a proxy
+  // enable channel
   i2c::I2CRegister gena = this->parent_->reg(REG_WK2132_GENA);
-  if (this->channel_ == 0)
-    gena |= GENA_UT1EN;
-  else
-    gena |= GENA_UT2EN;
+  (this->channel_ == 0) ? gena |= GENA_S1EN : gena |= GENA_S2EN;
 
-  // software reset UART channels
-  uint8_t grst = 0;
-  this->parent_->read_wk2132_register_(REG_WK2132_GRST, 0, &grst, 1);
-  (this->channel_ == 0) ? grst |= UT1RST : grst |= UT2RST;  // reset channel 1 or 2
-  this->parent_->write_wk2132_register_(REG_WK2132_GRST, 0, &grst, 1);
+  // uint8_t grst = 0;
+  // this->parent_->read_wk2132_register_(REG_WK2132_GRST, 0, &grst, 1);
+  // (this->channel_ == 0) ? grst |= GRST_UT1RST : grst |= GRST_UT2RST;  // reset channel 1 or 2
+  // this->parent_->write_wk2132_register_(REG_WK2132_GRST, 0, &grst, 1);
+
+  // reset channels
+  i2c::I2CRegister grst = this->parent_->reg(REG_WK2132_GRST);
+  (this->channel_ == 0) ? grst |= GRST_S1RST : grst |= GRST_S2RST;
 
   //
   // now we do the register linked to a specific channel
   //
 
+  // uint8_t const page = 0;
+  // this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, this->channel_, &page, 1);
+
   // initialize the spage register to page 0
-  uint8_t const page = 0;
+  this->parent_->reg(REG_WK2132_SPAGE) = 0;
   this->parent_->page1_ = false;
-  this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, this->channel_, &page, 1);
+
   // we enable both channel
   uint8_t const scr = 0x3;  // 0000 0011 enable receive and transmit
   this->parent_->write_wk2132_register_(REG_WK2132_SCR, this->channel_, &scr, 1);
