@@ -15,7 +15,6 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(float, target_temperature_low)
   TEMPLATABLE_VALUE(float, target_temperature_high)
   TEMPLATABLE_VALUE(float, target_humidity)
-  TEMPLATABLE_VALUE(bool, aux_heat)
   TEMPLATABLE_VALUE(bool, away)
   TEMPLATABLE_VALUE(ClimateFanMode, fan_mode)
   TEMPLATABLE_VALUE(std::string, custom_fan_mode)
@@ -30,7 +29,6 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
     call.set_target_temperature_low(this->target_temperature_low_.optional_value(x...));
     call.set_target_temperature_high(this->target_temperature_high_.optional_value(x...));
     call.set_target_humidity(this->target_humidity_.optional_value(x...));
-    call.set_aux_heat(this->aux_heat_.optional_value(x...));
     if (away_.has_value()) {
       call.set_preset(away_.value(x...) ? CLIMATE_PRESET_AWAY : CLIMATE_PRESET_HOME);
     }

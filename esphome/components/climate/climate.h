@@ -68,10 +68,6 @@ class ClimateCall {
   ClimateCall &set_target_humidity(float target_humidity);
   /// Set the target humidity of the climate device.
   ClimateCall &set_target_humidity(optional<float> target_humidity);
-  /// Set the auxiliary heater of the climate device.
-  ClimateCall &set_aux_heat(bool aux_heat);
-  /// Set the auxiliary heater of the climate device.
-  ClimateCall &set_aux_heat(optional<bool> aux_heat);
   /// Set the fan mode of the climate device.
   ClimateCall &set_fan_mode(ClimateFanMode fan_mode);
   /// Set the fan mode of the climate device.
@@ -102,7 +98,6 @@ class ClimateCall {
   const optional<float> &get_target_temperature_low() const;
   const optional<float> &get_target_temperature_high() const;
   const optional<float> &get_target_humidity() const;
-  const optional<bool> &get_aux_heat() const;
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
   const optional<std::string> &get_custom_fan_mode() const;
@@ -118,7 +113,6 @@ class ClimateCall {
   optional<float> target_temperature_low_;
   optional<float> target_temperature_high_;
   optional<float> target_humidity_;
-  optional<bool> aux_heat_;
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
   optional<std::string> custom_fan_mode_;
@@ -149,7 +143,6 @@ struct ClimateDeviceRestoreState {
     };
   };
   float target_humidity;
-  bool aux_heat;
 
   /// Convert this struct to a climate call that can be performed.
   ClimateCall to_call(Climate *climate);
@@ -199,9 +192,6 @@ class Climate : public EntityBase {
 
   /// The target humidity of the climate device.
   float target_humidity;
-
-  /// The auxiliary heater state of the climate device.
-  bool aux_heat;
 
   /// The active fan mode of the climate device.
   optional<ClimateFanMode> fan_mode;

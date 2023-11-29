@@ -56,8 +56,6 @@ class ClimateTraits {
   void set_supports_target_humidity(bool supports_target_humidity) {
     supports_target_humidity_ = supports_target_humidity;
   }
-  bool get_supports_aux_heat() const { return supports_aux_heat_; }
-  void set_supports_aux_heat(bool supports_aux_heat) { supports_aux_heat_ = supports_aux_heat; }
   void set_supported_modes(std::set<ClimateMode> modes) { supported_modes_ = std::move(modes); }
   void add_supported_mode(ClimateMode mode) { supported_modes_.insert(mode); }
   ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead", "v1.20")
@@ -195,7 +193,6 @@ class ClimateTraits {
   bool supports_current_humidity_{false};
   bool supports_two_point_target_temperature_{false};
   bool supports_target_humidity_{false};
-  bool supports_aux_heat_{false};
   std::set<climate::ClimateMode> supported_modes_ = {climate::CLIMATE_MODE_OFF};
   bool supports_action_{false};
   std::set<climate::ClimateFanMode> supported_fan_modes_;

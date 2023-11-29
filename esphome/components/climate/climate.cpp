@@ -48,9 +48,6 @@ void ClimateCall::perform() {
   if (this->target_humidity_.has_value()) {
     ESP_LOGD(TAG, "  Target Humidity: %.0f", *this->target_humidity_);
   }
-  if (this->aux_heat_.has_value()) {
-    ESP_LOGD(TAG, "  Auxiliary Heater: %s", ONOFF(*this->aux_heat_));
-  }
   this->parent_->control(*this);
 }
 void ClimateCall::validate_() {
@@ -272,17 +269,12 @@ ClimateCall &ClimateCall::set_target_humidity(float target_humidity) {
   this->target_humidity_ = target_humidity;
   return *this;
 }
-ClimateCall &ClimateCall::set_aux_heat(bool aux_heat) {
-  this->aux_heat_ = aux_heat;
-  return *this;
-}
 
 const optional<ClimateMode> &ClimateCall::get_mode() const { return this->mode_; }
 const optional<float> &ClimateCall::get_target_temperature() const { return this->target_temperature_; }
 const optional<float> &ClimateCall::get_target_temperature_low() const { return this->target_temperature_low_; }
 const optional<float> &ClimateCall::get_target_temperature_high() const { return this->target_temperature_high_; }
 const optional<float> &ClimateCall::get_target_humidity() const { return this->target_humidity_; }
-const optional<bool> &ClimateCall::get_aux_heat() const { return this->aux_heat_; }
 const optional<ClimateFanMode> &ClimateCall::get_fan_mode() const { return this->fan_mode_; }
 const optional<std::string> &ClimateCall::get_custom_fan_mode() const { return this->custom_fan_mode_; }
 const optional<ClimatePreset> &ClimateCall::get_preset() const { return this->preset_; }
@@ -302,10 +294,6 @@ ClimateCall &ClimateCall::set_target_temperature(optional<float> target_temperat
 }
 ClimateCall &ClimateCall::set_target_humidity(optional<float> target_humidity) {
   this->target_humidity_ = target_humidity;
-  return *this;
-}
-ClimateCall &ClimateCall::set_aux_heat(optional<bool> aux_heat) {
-  this->aux_heat_ = aux_heat;
   return *this;
 }
 ClimateCall &ClimateCall::set_mode(optional<ClimateMode> mode) {
@@ -370,9 +358,6 @@ void Climate::save_state_() {
   }
   if (traits.get_supports_target_humidity()) {
     state.target_humidity = this->target_humidity;
-  }
-  if (traits.get_supports_aux_heat()) {
-    state.aux_heat = this->aux_heat;
   }
   if (traits.get_supports_fan_modes() && fan_mode.has_value()) {
     state.uses_custom_fan_mode = false;
@@ -445,9 +430,6 @@ void Climate::publish_state() {
   if (traits.get_supports_target_humidity()) {
     ESP_LOGD(TAG, "  Target Humidity: %.0f%%", this->target_humidity);
   }
-  if (traits.get_supports_aux_heat()) {
-    ESP_LOGD(TAG, "  Auxiliary Heater: %s", ONOFF(this->aux_heat));
-  }
 
   // Send state to frontend
   this->state_callback_.call(*this);
@@ -509,9 +491,6 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   if (traits.get_supports_target_humidity()) {
     call.set_target_humidity(this->target_humidity);
   }
-  if (traits.get_supports_aux_heat()) {
-    call.set_aux_heat(this->aux_heat);
-  }
   if (traits.get_supports_fan_modes() || !traits.get_supported_custom_fan_modes().empty()) {
     call.set_fan_mode(this->fan_mode);
   }
@@ -534,9 +513,6 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   }
   if (traits.get_supports_target_humidity()) {
     climate->target_humidity = this->target_humidity;
-  }
-  if (traits.get_supports_aux_heat()) {
-    climate->aux_heat = this->aux_heat;
   }
   if (traits.get_supports_fan_modes() && !this->uses_custom_fan_mode) {
     climate->fan_mode = this->fan_mode;
@@ -612,9 +588,6 @@ void Climate::dump_traits_(const char *tag) {
   }
   if (traits.get_supports_target_humidity()) {
     ESP_LOGCONFIG(tag, "  [x] Supports target humidity");
-  }
-  if (traits.get_supports_aux_heat()) {
-    ESP_LOGCONFIG(tag, "  [x] Supports auxiliary heater");
   }
   if (traits.get_supports_action()) {
     ESP_LOGCONFIG(tag, "  [x] Supports action");

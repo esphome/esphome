@@ -108,7 +108,6 @@ CLIMATE_SWING_MODES = {
 
 validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
-CONF_AUX_HEAT = "aux_heat"
 CONF_CURRENT_TEMPERATURE = "current_temperature"
 CONF_MIN_HUMIDITY = "min_humidity"
 CONF_MAX_HUMIDITY = "max_humidity"
@@ -392,7 +391,6 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
         cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
         cv.Optional(CONF_TARGET_HUMIDITY): cv.templatable(cv.percentage_int),
-        cv.Optional(CONF_AUX_HEAT): cv.templatable(cv.boolean),
         cv.Optional(CONF_AWAY): cv.invalid("Use preset instead"),
         cv.Exclusive(CONF_FAN_MODE, "fan_mode"): cv.templatable(
             validate_climate_fan_mode
@@ -432,9 +430,6 @@ async def climate_control_to_code(config, action_id, template_arg, args):
     if CONF_TARGET_HUMIDITY in config:
         template_ = await cg.templatable(config[CONF_TARGET_HUMIDITY], args, float)
         cg.add(var.set_target_humidity(template_))
-    if CONF_AUX_HEAT in config:
-        template_ = await cg.templatable(config[CONF_AUX_HEAT], args, bool)
-        cg.add(var.set_aux_heat(template_))
     if CONF_FAN_MODE in config:
         template_ = await cg.templatable(config[CONF_FAN_MODE], args, ClimateFanMode)
         cg.add(var.set_fan_mode(template_))

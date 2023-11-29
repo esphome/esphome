@@ -859,7 +859,6 @@ message ListEntitiesClimateResponse {
   bool supports_target_humidity = 23;
   float visual_min_humidity = 24;
   float visual_max_humidity = 25;
-  bool supports_aux_heat = 26;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -882,7 +881,6 @@ message ClimateStateResponse {
   string custom_preset = 13;
   float current_humidity = 14;
   float target_humidity = 15;
-  bool aux_heat = 16;
 }
 message ClimateCommandRequest {
   option (id) = 48;
@@ -913,8 +911,6 @@ message ClimateCommandRequest {
   string custom_preset = 21;
   bool has_target_humidity = 22;
   float target_humidity = 23;
-  bool has_aux_heat = 24;
-  bool aux_heat = 25;
 }
 
 // ==================== NUMBER ====================

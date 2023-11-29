@@ -558,8 +558,6 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
     resp.current_humidity = climate->current_humidity;
   if (traits.get_supports_target_humidity())
     resp.target_humidity = climate->target_humidity;
-  if (traits.get_supports_aux_heat())
-    resp.aux_heat = climate->aux_heat;
   return this->send_climate_state_response(resp);
 }
 bool APIConnection::send_climate_info(climate::Climate *climate) {
@@ -579,7 +577,6 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   msg.supports_current_humidity = traits.get_supports_current_humidity();
   msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
   msg.supports_target_humidity = traits.get_supports_target_humidity();
-  msg.supports_aux_heat = traits.get_supports_aux_heat();
 
   for (auto mode : traits.get_supported_modes())
     msg.supported_modes.push_back(static_cast<enums::ClimateMode>(mode));
@@ -622,8 +619,6 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
     call.set_target_temperature_high(msg.target_temperature_high);
   if (msg.has_target_humidity)
     call.set_target_humidity(msg.target_humidity);
-  if (msg.has_aux_heat)
-    call.set_aux_heat(msg.aux_heat);
   if (msg.has_fan_mode)
     call.set_fan_mode(static_cast<climate::ClimateFanMode>(msg.fan_mode));
   if (msg.has_custom_fan_mode)
