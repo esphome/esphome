@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_BRIGHTNESS,
     CONF_TRIGGER_ID,
+    CONF_ON_TOUCH,
 )
 from esphome.core import CORE
 from . import Nextion, nextion_ns, nextion_ref
@@ -31,12 +32,13 @@ SetupTrigger = nextion_ns.class_("SetupTrigger", automation.Trigger.template())
 SleepTrigger = nextion_ns.class_("SleepTrigger", automation.Trigger.template())
 WakeTrigger = nextion_ns.class_("WakeTrigger", automation.Trigger.template())
 PageTrigger = nextion_ns.class_("PageTrigger", automation.Trigger.template())
+TouchTrigger = nextion_ns.class_("TouchTrigger", automation.Trigger.template())
 
 CONFIG_SCHEMA = (
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(Nextion),
-            cv.Optional(CONF_TFT_URL): cv.All(cv.string, cv.only_with_arduino),
+            cv.Optional(CONF_TFT_URL): cv.url,
             cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
             cv.Optional(CONF_ON_SETUP): automation.validate_automation(
                 {
@@ -58,6 +60,11 @@ CONFIG_SCHEMA = (
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PageTrigger),
                 }
             ),
+            cv.Optional(CONF_ON_TOUCH): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TouchTrigger),
+                }
+            ),
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.int_range(min=3, max=65535),
             cv.Optional(CONF_WAKE_UP_PAGE): cv.positive_int,
             cv.Optional(CONF_START_UP_PAGE): cv.positive_int,
@@ -71,7 +78,6 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
     if CONF_BRIGHTNESS in config:
@@ -85,10 +91,10 @@ async def to_code(config):
     if CONF_TFT_URL in config:
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
-        if CORE.is_esp32:
+        if CORE.is_esp32 and CORE.using_arduino:
             cg.add_library("WiFiClientSecure", None)
             cg.add_library("HTTPClient", None)
-        if CORE.is_esp8266:
+        elif CORE.is_esp8266 and CORE.using_arduino:
             cg.add_library("ESP8266HTTPClient", None)
 
     if CONF_TOUCH_SLEEP_TIMEOUT in config:
@@ -120,3 +126,15 @@ async def to_code(config):
     for conf in config.get(CONF_ON_PAGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
+
+    for conf in config.get(CONF_ON_TOUCH, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger,
+            [
+                (cg.uint8, "page_id"),
+                (cg.uint8, "component_id"),
+                (cg.bool_, "touch_event"),
+            ],
+            conf,
+        )
