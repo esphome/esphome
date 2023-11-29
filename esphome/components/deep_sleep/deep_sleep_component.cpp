@@ -95,7 +95,7 @@ bool DeepSleepComponent::prepare_pin_(InternalGPIOPin *pin, WakeupPinMode pin_mo
     // Defer deep sleep until inactive
     if (!this->next_enter_deep_sleep_) {
       this->status_set_warning();
-      ESP_LOGW(TAG, "Waiting for pin_ to switch state to enter deep sleep...");
+      ESP_LOGW(TAG, "Waiting for %s to switch state to enter deep sleep...", pin->dump_summary().c_str());
     }
     this->next_enter_deep_sleep_ = true;
     return false;
