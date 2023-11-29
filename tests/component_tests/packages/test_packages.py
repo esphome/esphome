@@ -448,42 +448,6 @@ def test_multiple_package_list_remove_by_id():
     assert actual == expected
 
 
-def test_package_list_remove_by_missing_id():
-    """
-    Ensures that components with missing IDs are not merged.
-    """
-
-    config = {
-        CONF_PACKAGES: {
-            "sensors": {
-                CONF_SENSOR: [
-                    {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 42.0}]},
-                ]
-            }
-        },
-        CONF_SENSOR: [
-            {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 10.0}]},
-            {CONF_ID: Remove(TEST_SENSOR_ID_2)},
-        ],
-    }
-
-    expected = {
-        CONF_SENSOR: [
-            {
-                CONF_ID: TEST_SENSOR_ID_1,
-                CONF_FILTERS: [{CONF_MULTIPLY: 42.0}],
-            },
-            {
-                CONF_ID: TEST_SENSOR_ID_1,
-                CONF_FILTERS: [{CONF_MULTIPLY: 10.0}],
-            },
-        ]
-    }
-
-    actual = do_packages_pass(config)
-    assert actual == expected
-
-
 def test_package_dict_remove_by_id(basic_wifi, basic_esphome):
     """
     Ensures that components with missing IDs are removed from dict.
@@ -501,6 +465,48 @@ def test_package_dict_remove_by_id(basic_wifi, basic_esphome):
 
     expected = {
         CONF_ESPHOME: basic_esphome,
+    }
+
+    actual = do_packages_pass(config)
+    assert actual == expected
+
+
+def test_package_remove_by_missing_id():
+    """
+    Ensures that components with missing IDs are not merged.
+    """
+
+    config = {
+        CONF_PACKAGES: {
+            "sensors": {
+                CONF_SENSOR: [
+                    {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 42.0}]},
+                ]
+            }
+        },
+        "missing_key": Remove(),
+        CONF_SENSOR: [
+            {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 10.0}]},
+            {CONF_ID: Remove(TEST_SENSOR_ID_2), CONF_FILTERS: [{CONF_OFFSET: 146.0}]},
+        ],
+    }
+
+    expected = {
+        "missing_key": Remove(),
+        CONF_SENSOR: [
+            {
+                CONF_ID: TEST_SENSOR_ID_1,
+                CONF_FILTERS: [{CONF_MULTIPLY: 42.0}],
+            },
+            {
+                CONF_ID: TEST_SENSOR_ID_1,
+                CONF_FILTERS: [{CONF_MULTIPLY: 10.0}],
+            },
+            {
+                CONF_ID: Remove(TEST_SENSOR_ID_2),
+                CONF_FILTERS: [{CONF_OFFSET: 146.0}],
+            },
+        ],
     }
 
     actual = do_packages_pass(config)

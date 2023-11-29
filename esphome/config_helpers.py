@@ -64,7 +64,7 @@ def merge_config(full_old, full_new):
                 return new
             res = old.copy()
             for k, v in new.items():
-                if isinstance(v, Remove):
+                if isinstance(v, Remove) and k in old:
                     del res[k]
                 else:
                     res[k] = merge(old[k], v) if k in old else v
@@ -92,7 +92,7 @@ def merge_config(full_old, full_new):
                         new_id = new_id.value
                         if new_id in ids:
                             ids_to_delete.append(ids[new_id])
-                        continue
+                            continue
                     else:
                         ids[new_id] = len(res)
                 res.append(v)
