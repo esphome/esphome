@@ -1,3 +1,4 @@
+# PYTHON_ARGCOMPLETE_OK
 import argparse
 import functools
 import logging
@@ -6,6 +7,8 @@ import re
 import sys
 import time
 from datetime import datetime
+
+import argcomplete
 
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
@@ -511,7 +514,7 @@ def command_clean(args, config):
 def command_dashboard(args):
     from esphome.dashboard import dashboard
 
-    return dashboard.start_web_server(args)
+    return dashboard.start_dashboard(args)
 
 
 def command_update_all(args):
@@ -966,6 +969,7 @@ def parse_args(argv):
     # Finally, run the new-style parser again with the possibly swapped arguments,
     # and let it error out if the command is unparsable.
     parser.set_defaults(deprecated_argv_suggestion=deprecated_argv_suggestion)
+    argcomplete.autocomplete(parser)
     return parser.parse_args(arguments)
 
 

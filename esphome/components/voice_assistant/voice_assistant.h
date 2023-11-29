@@ -100,13 +100,21 @@ class VoiceAssistant : public Component {
   void set_auto_gain(uint8_t auto_gain) { this->auto_gain_ = auto_gain; }
   void set_volume_multiplier(float volume_multiplier) { this->volume_multiplier_ = volume_multiplier; }
 
+  Trigger<> *get_intent_end_trigger() const { return this->intent_end_trigger_; }
+  Trigger<> *get_intent_start_trigger() const { return this->intent_start_trigger_; }
   Trigger<> *get_listening_trigger() const { return this->listening_trigger_; }
+  Trigger<> *get_end_trigger() const { return this->end_trigger_; }
   Trigger<> *get_start_trigger() const { return this->start_trigger_; }
+  Trigger<> *get_stt_vad_end_trigger() const { return this->stt_vad_end_trigger_; }
+  Trigger<> *get_stt_vad_start_trigger() const { return this->stt_vad_start_trigger_; }
+#ifdef USE_SPEAKER
+  Trigger<> *get_tts_stream_start_trigger() const { return this->tts_stream_start_trigger_; }
+  Trigger<> *get_tts_stream_end_trigger() const { return this->tts_stream_end_trigger_; }
+#endif
   Trigger<> *get_wake_word_detected_trigger() const { return this->wake_word_detected_trigger_; }
   Trigger<std::string> *get_stt_end_trigger() const { return this->stt_end_trigger_; }
-  Trigger<std::string> *get_tts_start_trigger() const { return this->tts_start_trigger_; }
   Trigger<std::string> *get_tts_end_trigger() const { return this->tts_end_trigger_; }
-  Trigger<> *get_end_trigger() const { return this->end_trigger_; }
+  Trigger<std::string> *get_tts_start_trigger() const { return this->tts_start_trigger_; }
   Trigger<std::string, std::string> *get_error_trigger() const { return this->error_trigger_; }
 
   Trigger<> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
@@ -124,13 +132,21 @@ class VoiceAssistant : public Component {
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   struct sockaddr_storage dest_addr_;
 
+  Trigger<> *intent_end_trigger_ = new Trigger<>();
+  Trigger<> *intent_start_trigger_ = new Trigger<>();
   Trigger<> *listening_trigger_ = new Trigger<>();
+  Trigger<> *end_trigger_ = new Trigger<>();
   Trigger<> *start_trigger_ = new Trigger<>();
+  Trigger<> *stt_vad_start_trigger_ = new Trigger<>();
+  Trigger<> *stt_vad_end_trigger_ = new Trigger<>();
+#ifdef USE_SPEAKER
+  Trigger<> *tts_stream_start_trigger_ = new Trigger<>();
+  Trigger<> *tts_stream_end_trigger_ = new Trigger<>();
+#endif
   Trigger<> *wake_word_detected_trigger_ = new Trigger<>();
   Trigger<std::string> *stt_end_trigger_ = new Trigger<std::string>();
-  Trigger<std::string> *tts_start_trigger_ = new Trigger<std::string>();
   Trigger<std::string> *tts_end_trigger_ = new Trigger<std::string>();
-  Trigger<> *end_trigger_ = new Trigger<>();
+  Trigger<std::string> *tts_start_trigger_ = new Trigger<std::string>();
   Trigger<std::string, std::string> *error_trigger_ = new Trigger<std::string, std::string>();
 
   Trigger<> *client_connected_trigger_ = new Trigger<>();
@@ -140,11 +156,14 @@ class VoiceAssistant : public Component {
 
   microphone::Microphone *mic_{nullptr};
 #ifdef USE_SPEAKER
+  void write_speaker_();
   speaker::Speaker *speaker_{nullptr};
   uint8_t *speaker_buffer_;
   size_t speaker_buffer_index_{0};
   size_t speaker_buffer_size_{0};
+  size_t speaker_bytes_received_{0};
   bool wait_for_stream_end_{false};
+  bool stream_ended_{false};
 #endif
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
@@ -201,6 +220,11 @@ template<typename... Ts> class StopAction : public Action<Ts...>, public Parente
 template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
  public:
   bool check(Ts... x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
+};
+
+template<typename... Ts> class ConnectedCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
+ public:
+  bool check(Ts... x) override { return this->parent_->get_api_connection() != nullptr; }
 };
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

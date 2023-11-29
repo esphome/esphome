@@ -203,7 +203,6 @@ class SPIDelegate {
    * write a variable length data item, up to 16 bits.
    * @param data The data to send. Should be LSB-aligned (i.e. top bits will be discarded.)
    * @param num_bits The number of bits to send
-   * @return The data clocked in, or -1 on error
    */
   virtual void write(uint16_t data, size_t num_bits) {
     esph_log_e("spi_device", "variable length write not implemented");
