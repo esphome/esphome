@@ -217,7 +217,7 @@ void Wireguard::enable() {
 
 void Wireguard::disable() {
   this->enabled_ = false;
-  this->stop_connection_();
+  this->defer(std::bind(&Wireguard::stop_connection_, this));  // defer to avoid blocking running loop
   ESP_LOGI(TAG, "WireGuard disabled");
   this->publish_enabled_state();
 }
