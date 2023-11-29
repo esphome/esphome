@@ -44,6 +44,8 @@ binary_sensor:
   - platform: wireguard
     status:
       name: 'WireGuard Status'
+    enabled:
+      name: 'WireGuard Enabled'
 
 sensor:
   - platform: wireguard
