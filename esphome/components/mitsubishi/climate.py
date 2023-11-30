@@ -10,6 +10,7 @@ mitsubishi_ns = cg.esphome_ns.namespace("mitsubishi")
 MitsubishiClimate = mitsubishi_ns.class_("MitsubishiClimate", climate_ir.ClimateIR)
 
 CONF_SET_FAN_SPEEDS = "set_fan_speeds"
+CONF_MEDIUM_LOW = "medium_low"
 
 Setfanspeeds = mitsubishi_ns.enum("Setfanspeeds")
 SETFANSPEEDS = {
@@ -58,6 +59,7 @@ CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
             cv.Schema(
                 {
                     cv.Required(CONF_LOW): cv.enum(SETFANSPEEDS),
+                    cv.Optional(CONF_MEDIUM_LOW): cv.enum(SETFANSPEEDS),                    
                     cv.Required(CONF_MEDIUM): cv.enum(SETFANSPEEDS),
                     cv.Required(CONF_HIGH): cv.enum(SETFANSPEEDS),
                 }
@@ -80,6 +82,8 @@ async def to_code(config):
     if CONF_SET_FAN_SPEEDS in config:
         fan = config[CONF_SET_FAN_SPEEDS]
         cg.add(var.set_fan_low(fan[CONF_LOW]))
+        if CONF_MEDIUM_LOW in config:
+            cg.add(var.set_fan_medium_low(fan[CONF_MEDIUM_LOW]))        
         cg.add(var.set_fan_medium(fan[CONF_MEDIUM]))
         cg.add(var.set_fan_hi(fan[CONF_HIGH]))
 
