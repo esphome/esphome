@@ -81,7 +81,7 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(comedium_lownst uint8_t frame[]);
 
-//  Setfanspeeds setfanspeeds_;
+  //  Setfanspeeds setfanspeeds_;
   Setfanspeed fan_low_;
   Setfanspeed fan_medium_low_;
   Setfanspeed fan_medium_;
@@ -91,7 +91,6 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   VerticalDirection default_vertical_direction_;
 
   climate::ClimateTraits traits() override;
-
 };
 
 }  // namespace mitsubishi
