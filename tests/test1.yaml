@@ -2303,6 +2303,12 @@ climate:
     name: Yashima Climate
   - platform: mitsubishi
     name: Mitsubishi
+    set_fan_speeds:
+      low: "fan2"
+      medium: "fan3"
+      high: "fan4"
+    horizontal_default: "left"
+    vertical_default: "down"
   - platform: whirlpool
     name: Whirlpool Climate
   - platform: climate_ir_lg
