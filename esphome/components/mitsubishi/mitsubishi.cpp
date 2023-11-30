@@ -179,7 +179,7 @@ void MitsubishiClimate::transmit_state() {
   ESP_LOGD(TAG, "fan1: %02x fan2: %02x fan3: %02x", this->fan_low_, this->fan_medium_, this->fan_high_);
 
 
-  // Verical Vane
+  // Vertical Vane
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_VERTICAL:
     case climate::CLIMATE_SWING_BOTH:
