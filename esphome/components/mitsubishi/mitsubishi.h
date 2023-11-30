@@ -38,18 +38,32 @@ enum VerticalDirection {
   VERTICAL_DIRECTION_DOWN = 0x28,
 };
 
+/*enum CustomFanModes unit8 {
+  CLIMATE_FAN_MEDIUM_LOW = 0,
+  CLIMATE_FAN_MEDIUM_HIGH = 1,
+};
+*/
+
 class MitsubishiClimate : public climate_ir::ClimateIR {
  public:
   MitsubishiClimate()
-      : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, false,
-                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_FAN_HIGH},
-                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
-                               climate::CLIMATE_SWING_HORIZONTAL}) {}
+      : climate_ir::ClimateIR(
+        MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, false,{
+          climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, 
+          climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH
+        },
+        {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, 
+          climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL
+        }
+      ) {}
+
+  void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
+  void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
 
   void set_fan_low(Setfanspeed low) { this->fan_low_ = low; }
+  void set_fan_medium_low(Setfanspeed medium_low) { this->fan_medium_low_ = medium_low; }
   void set_fan_medium(Setfanspeed medium) { this->fan_medium_ = medium; }
-  void set_fan_hi(Setfanspeed high) { this->fan_hi_ = high; }
+  void set_fan_hi(Setfanspeed high) { this->fan_high_ = high; }
 
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
     this->default_horizontal_direction_ = horizontal_direction;
@@ -63,15 +77,19 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   void transmit_state() override;
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
-  bool parse_state_frame_(const uint8_t frame[]);
+  bool parse_state_frame_(comedium_lownst uint8_t frame[]);
 
-  // Setfanspeeds setfanspeeds_;
+//  Setfanspeeds setfanspeeds_;
   Setfanspeed fan_low_;
+  Setfanspeed fan_medium_low_;  
   Setfanspeed fan_medium_;
-  Setfanspeed fan_hi_;
+  Setfanspeed fan_high_;
 
   HorizontalDirection default_horizontal_direction_;
   VerticalDirection default_vertical_direction_;
+
+  climate::ClimateTraits traits() override;
+
 };
 
 }  // namespace mitsubishi

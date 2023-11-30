@@ -44,6 +44,36 @@ const uint8_t MITSUBISHI_BYTE04 = 0X00;
 const uint8_t MITSUBISHI_BYTE13 = 0X00;
 const uint8_t MITSUBISHI_BYTE16 = 0X00;
 
+// Custom Fan Modes
+const char *CLIMATE_FAN_MEDIUM_LOW = "medium_low";
+
+//CLIMATE_FAN_MEDIUM_HIGH = 1;
+
+climate::ClimateTraits MitsubishiClimate::traits() {
+  auto traits = climate::ClimateTraits();
+  traits.set_supports_action(false);
+  traits.set_visual_min_temperature(MITSUBISHI_TEMP_MIN);
+  traits.set_visual_max_temperature(MITSUBISHI_TEMP_MAX);
+  traits.set_visual_temperature_step(1.0f);
+    traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL, climate::CLIMATE_MODE_DRY});
+  if (this->supports_cool_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
+  if (this->supports_heat_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
+
+  //traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL, climate::CLIMATE_MODE_COOL,
+  //                            climate::CLIMATE_MODE_HEAT, climate::CLIMATE_MODE_DRY});
+  traits.set_supported_fan_modes({climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, 
+                              climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_AUTO});                              
+  if (this->fan_medium_low_)
+    traits.set_supported_custom_fan_modes({CLIMATE_FAN_MEDIUM_LOW});    
+
+  traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
+                              climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL});
+  return traits;
+}
+
+
 void MitsubishiClimate::transmit_state() {
   // Byte 0-4: Constant: 0x23, 0xCB, 0x26, 0x01, 0x00
   // Byte 5: On=0x20, Off: 0x00
@@ -56,7 +86,7 @@ void MitsubishiClimate::transmit_state() {
   // Byte 9: FAN/Vertical Vane/Switch To Auto
   //          FAN (Speed) bits 0,1,2
   //          Vertical Vane bits 3,4,5 (Auto = 0x00)
-  //          Switch To Auto bits 6,7
+  //          Switch To Auto bits 6,7 
   // Byte 10: CLOCK Current time as configured on remote (0x00=Not used)
   // Byte 11: END CLOCK Stop time of HVAC (0x00 for no setting)
   // Byte 12: START CLOCK Start time of HVAC (0x00 for no setting)
@@ -81,7 +111,6 @@ void MitsubishiClimate::transmit_state() {
     case climate::CLIMATE_MODE_COOL:
       remote_state[6] = MITSUBISHI_MODE_COOL;
       remote_state[8] = MITSUBISHI_MODE_A_COOL;
-      break;
     case climate::CLIMATE_MODE_HEAT_COOL:
       remote_state[6] = MITSUBISHI_MODE_AUTO;
       remote_state[8] = MITSUBISHI_MODE_A_AUTO;
@@ -112,11 +141,11 @@ void MitsubishiClimate::transmit_state() {
       break;
   }
 
-  ESP_LOGD(TAG, "default_horizontal_direction_: %02X", this->default_horizontal_direction_);
+  ESP_LOGD(TAG, "default_horizontal_direction_: %02X" ,this->default_horizontal_direction_);
 
   // Fan Speed & Vertical Vane
   // Fan First
-  switch (this->fan_mode.value()) {
+/*  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
       remote_state[9] = this->fan_low_;
       break;
@@ -124,15 +153,31 @@ void MitsubishiClimate::transmit_state() {
       remote_state[9] = this->fan_medium_;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      remote_state[9] = this->fan_hi_;
+      remote_state[9] = this->fan_high_;
       break;
     case climate::CLIMATE_FAN_AUTO:
-    default:
       remote_state[9] = MITSUBISHI_FAN_AUTO;
       break;
+    default:
+      if (this->custom_fan_mode.value() == CLIMATE_FAN_MEDIUM_LOW) 
+        remote_state[9] = this->fan_medium_low_;
   }
+*/
+  // Fan Speed & Vertical Vane
+  // Fan First
+  if (this->fan_mode.value() == climate::CLIMATE_FAN_LOW)
+    remote_state[9] = this->fan_low_;
+  else if (this->custom_fan_mode.value() == CLIMATE_FAN_MEDIUM_LOW) 
+    remote_state[9] = this->fan_medium_low_;
+  else if (this->fan_mode.value() == climate::CLIMATE_FAN_MEDIUM)
+    remote_state[9] = this->fan_medium_;  
+  else if (this->fan_mode.value() == climate::CLIMATE_FAN_HIGH)
+    remote_state[9] = this->fan_high_;
+  else
+    remote_state[9] = MITSUBISHI_FAN_AUTO;    
 
-  ESP_LOGD(TAG, "fan1: %02x fan2: %02x fan3: %02x", this->fan_low_, this->fan_medium_, this->fan_hi_);
+  ESP_LOGD(TAG, "fan1: %02x fan2: %02x fan3: %02x", this->fan_low_, this->fan_medium_, this->fan_high_);
+
 
   // Verical Vane
   switch (this->swing_mode) {
@@ -142,22 +187,22 @@ void MitsubishiClimate::transmit_state() {
       break;
     case climate::CLIMATE_SWING_OFF:
     default:
-      remote_state[9] = remote_state[9] | this->default_vertical_direction_ |
-                        MITSUBISHI_OTHERWISE;  // Off--> vertical default position
+      remote_state[9] = remote_state[9] | this->default_vertical_direction_ | MITSUBISHI_OTHERWISE;  // Off--> vertical default position
       break;
   }
 
-  ESP_LOGD(TAG, "default_vertical_direction_: %02X", this->default_vertical_direction_);
-  
+  ESP_LOGD(TAG, "default_vertical_direction_: %02X" ,this->default_vertical_direction_);
+
   // Checksum
   for (int i = 0; i < 17; i++) {
     remote_state[17] += remote_state[i];
   }
 
-  ESP_LOGV(TAG, "Sending: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X",
-           remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5],
-           remote_state[6], remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11],
-           remote_state[12], remote_state[13], remote_state[14], remote_state[15], remote_state[16], remote_state[17]);
+  ESP_LOGD(TAG, "sending: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X", 
+  remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], 
+  remote_state[5], remote_state[6], remote_state[7], remote_state[8], remote_state[9], 
+  remote_state[10], remote_state[11], remote_state[12], remote_state[13],remote_state[14], remote_state[15],
+  remote_state[16], remote_state[17]);
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
@@ -193,7 +238,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t state_frame[18] = {};
 
   if (!data.expect_item(MITSUBISHI_HEADER_MARK, MITSUBISHI_HEADER_SPACE)) {
-    ESP_LOGV(TAG, "Header fail");
+    ESP_LOGV(TAG, "Header fail")
     return false;
   }
 
@@ -210,10 +255,9 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
     state_frame[pos] = byte;
 
     // Check Header && Footer
-    if ((pos == 0 && byte != MITSUBISHI_BYTE00) || (pos == 1 && byte != MITSUBISHI_BYTE01) ||
-        (pos == 2 && byte != MITSUBISHI_BYTE02) || (pos == 3 && byte != MITSUBISHI_BYTE03) ||
-        (pos == 4 && byte != MITSUBISHI_BYTE04) || (pos == 13 && byte != MITSUBISHI_BYTE13) ||
-        (pos == 16 && byte != MITSUBISHI_BYTE16)) {
+    if ((pos == 0 && byte != MITSUBISHI_BYTE00) || (pos == 1 && byte != MITSUBISHI_BYTE01) || (pos == 2 && byte != MITSUBISHI_BYTE02) ||
+        (pos == 3 && byte != MITSUBISHI_BYTE03) || (pos == 4 && byte != MITSUBISHI_BYTE04) ||
+        (pos == 13 && byte != MITSUBISHI_BYTE13) || (pos == 16 && byte != MITSUBISHI_BYTE16)) {
       ESP_LOGV(TAG, "Bytes 0,1,2,3,4,13 or 16 fail - invalid value");
       return false;
     }
@@ -248,14 +292,17 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
   } else if (fan <= this->fan_low_) {
     this->fan_mode = climate::CLIMATE_FAN_LOW;
-  } else if (fan > this->fan_low_ && fan < this->fan_hi_) {
-    this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-  } else if (fan >= this->fan_hi_) {
-    this->fan_mode = climate::CLIMATE_FAN_HIGH;
+  } else if (fan == this->fan_medium_low_) {
+//    this->fan_mode = 10;
+//    this->fan_mode = CLIMATE_FAN_MEDIUM_LOW;    
+  } else if (fan == this->fan_medium_) {
+    this->fan_mode = climate::CLIMATE_FAN_MEDIUM;   
+  } else if (fan >= this->fan_high_){
+    this->fan_mode = climate::CLIMATE_FAN_HIGH;   
   }
 
   // Wide Vane
-  uint8_t wide_vane = state_frame[8] & 0xF0;  // Bits 4,5,6,7
+  uint8_t wide_vane = state_frame[8] & 0xF0; // Bits 4,5,6,7
   switch (wide_vane) {
     case MITSUBISHI_WIDE_VANE_SWING:
       this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
@@ -266,7 +313,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Vertical Vane
-  uint8_t vertical_vane = state_frame[9] & 0x38;  // Bits 3,4,5
+  uint8_t vertical_vane = state_frame[9] & 0x38; // Bits 3,4,5
   switch (vertical_vane) {
     case MITSUBISHI_VERTICAL_VANE_SWING:
       if (this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL) {
@@ -276,6 +323,12 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       }
       break;
   }
+
+  ESP_LOGV(TAG, "Receiving: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X", 
+  state_frame[0], state_frame[1], state_frame[2], state_frame[3], state_frame[4], 
+  state_frame[5], state_frame[6], state_frame[7], state_frame[8], state_frame[9], 
+  state_frame[10], state_frame[11], state_frame[12], state_frame[13],state_frame[14], state_frame[15],
+  state_frame[16], state_frame[17]);  
 
   this->publish_state();
   return true;
