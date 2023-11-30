@@ -52,7 +52,6 @@ LCD_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
 
 
 async def setup_lcd_display(var, config):
-    await cg.register_component(var, config)
     await display.register_display(var, config)
     cg.add(var.set_dimensions(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1]))
     if CONF_USER_CHARACTERS in config:

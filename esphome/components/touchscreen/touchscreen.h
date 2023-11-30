@@ -41,6 +41,7 @@ class Touchscreen {
  protected:
   /// Call this function to send touch points to the `on_touch` listener and the binary_sensors.
   void send_touch_(TouchPoint tp);
+  void send_release_();
 
   uint16_t display_width_;
   uint16_t display_height_;

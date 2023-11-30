@@ -12,7 +12,7 @@ enum SSD1351Model {
   SSD1351_MODEL_128_128,
 };
 
-class SSD1351 : public PollingComponent, public display::DisplayBuffer {
+class SSD1351 : public display::DisplayBuffer {
  public:
   void setup() override;
 

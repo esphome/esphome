@@ -357,6 +357,9 @@ def snake_case(value):
     return value.replace(" ", "_").lower()
 
 
+_DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9_]")
+
+
 def sanitize(value):
     """Same behaviour as `helpers.cpp` method `str_sanitize`."""
-    return re.sub("[^-_0-9a-zA-Z]", r"", value)
+    return _DISALLOWED_CHARS.sub("_", value)

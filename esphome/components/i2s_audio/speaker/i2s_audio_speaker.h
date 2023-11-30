@@ -56,6 +56,8 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
 
   size_t play(const uint8_t *data, size_t length) override;
 
+  bool has_buffered_data() const override;
+
  protected:
   void start_();
   // void stop_();

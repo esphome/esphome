@@ -262,7 +262,7 @@ class DashboardEntry:
         self.state = EntryState.UNKNOWN
         self._to_dict: dict[str, Any] | None = None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return the representation of this entry."""
         return (
             f"DashboardEntry(path={self.path} "

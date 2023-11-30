@@ -7,8 +7,7 @@
 namespace esphome {
 namespace waveshare_epaper {
 
-class WaveshareEPaper : public PollingComponent,
-                        public display::DisplayBuffer,
+class WaveshareEPaper : public display::DisplayBuffer,
                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                               spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
@@ -430,6 +429,8 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
     this->data(0xA5);
   }
 
+  void clear_screen();
+
  protected:
   int get_width_internal() override;
 
@@ -445,6 +446,8 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
       delay(200);  // NOLINT
     }
   };
+
+  void init_display_();
 };
 
 class WaveshareEPaper7P5InBC : public WaveshareEPaper {

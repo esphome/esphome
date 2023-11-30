@@ -148,7 +148,6 @@ async def to_code(config):
     else:
         raise NotImplementedError()
 
-    await cg.register_component(var, config)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
 

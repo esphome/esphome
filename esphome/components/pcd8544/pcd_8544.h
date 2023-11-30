@@ -7,8 +7,7 @@
 namespace esphome {
 namespace pcd8544 {
 
-class PCD8544 : public PollingComponent,
-                public display::DisplayBuffer,
+class PCD8544 : public display::DisplayBuffer,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
                                       spi::DATA_RATE_8MHZ> {
  public:

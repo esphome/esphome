@@ -278,10 +278,13 @@ std::string str_snake_case(const std::string &str) {
   return result;
 }
 std::string str_sanitize(const std::string &str) {
-  std::string out;
-  std::copy_if(str.begin(), str.end(), std::back_inserter(out), [](const char &c) {
-    return c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-  });
+  std::string out = str;
+  std::replace_if(
+      out.begin(), out.end(),
+      [](const char &c) {
+        return !(c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
+      },
+      '_');
   return out;
 }
 std::string str_snprintf(const char *fmt, size_t len, ...) {
