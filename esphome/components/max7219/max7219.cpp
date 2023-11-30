@@ -164,6 +164,10 @@ void MAX7219Component::send_to_all_(uint8_t a_register, uint8_t data) {
   this->disable();
 }
 void MAX7219Component::update() {
+  if (this->intensity_changed_) {
+    this->send_to_all_(MAX7219_REGISTER_INTENSITY, this->intensity_);
+    this->intensity_changed_ = false;
+  }
   for (uint8_t i = 0; i < this->num_chips_ * 8; i++)
     this->buffer_[i] = 0;
   if (this->writer_.has_value())
@@ -217,7 +221,13 @@ uint8_t MAX7219Component::printf(const char *format, ...) {
   return 0;
 }
 void MAX7219Component::set_writer(max7219_writer_t &&writer) { this->writer_ = writer; }
-void MAX7219Component::set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
+void MAX7219Component::set_intensity(uint8_t intensity) {
+  intensity &= 0xF;
+  if (intensity != this->intensity_) {
+    this->intensity_changed_ = true;
+    this->intensity_ = intensity;
+  }
+}
 void MAX7219Component::set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
 
 uint8_t MAX7219Component::strftime(uint8_t pos, const char *format, ESPTime time) {

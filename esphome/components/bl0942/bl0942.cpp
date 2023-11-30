@@ -1,5 +1,6 @@
 #include "bl0942.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace bl0942 {
@@ -104,8 +105,8 @@ void BL0942::received_package_(DataPacket *data) {
     frequency_sensor_->publish_state(frequency);
   }
 
-  ESP_LOGV(TAG, "BL0942: U %fV, I %fA, P %fW, Cnt %d, ∫P %fkWh, frequency %f°Hz, status 0x%08X", v_rms, i_rms, watt,
-           cf_cnt, total_energy_consumption, frequency, data->status);
+  ESP_LOGV(TAG, "BL0942: U %fV, I %fA, P %fW, Cnt %" PRId32 ", ∫P %fkWh, frequency %fHz, status 0x%08X", v_rms, i_rms,
+           watt, cf_cnt, total_energy_consumption, frequency, data->status);
 }
 
 void BL0942::dump_config() {  // NOLINT(readability-function-cognitive-complexity)

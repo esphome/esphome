@@ -48,6 +48,22 @@ template<typename... Ts> class NotCondition : public Condition<Ts...> {
   Condition<Ts...> *condition_;
 };
 
+template<typename... Ts> class XorCondition : public Condition<Ts...> {
+ public:
+  explicit XorCondition(const std::vector<Condition<Ts...> *> &conditions) : conditions_(conditions) {}
+  bool check(Ts... x) override {
+    size_t result = 0;
+    for (auto *condition : this->conditions_) {
+      result += condition->check(x...);
+    }
+
+    return result == 1;
+  }
+
+ protected:
+  std::vector<Condition<Ts...> *> conditions_;
+};
+
 template<typename... Ts> class LambdaCondition : public Condition<Ts...> {
  public:
   explicit LambdaCondition(std::function<bool(Ts...)> &&f) : f_(std::move(f)) {}

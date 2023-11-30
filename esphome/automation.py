@@ -141,6 +141,7 @@ AUTOMATION_SCHEMA = cv.Schema(
 AndCondition = cg.esphome_ns.class_("AndCondition", Condition)
 OrCondition = cg.esphome_ns.class_("OrCondition", Condition)
 NotCondition = cg.esphome_ns.class_("NotCondition", Condition)
+XorCondition = cg.esphome_ns.class_("XorCondition", Condition)
 
 
 @register_condition("and", AndCondition, validate_condition_list)
@@ -159,6 +160,12 @@ async def or_condition_to_code(config, condition_id, template_arg, args):
 async def not_condition_to_code(config, condition_id, template_arg, args):
     condition = await build_condition(config, template_arg, args)
     return cg.new_Pvariable(condition_id, template_arg, condition)
+
+
+@register_condition("xor", XorCondition, validate_condition_list)
+async def xor_condition_to_code(config, condition_id, template_arg, args):
+    conditions = await build_condition_list(config, template_arg, args)
+    return cg.new_Pvariable(condition_id, template_arg, conditions)
 
 
 @register_condition("lambda", LambdaCondition, cv.returning_lambda)
