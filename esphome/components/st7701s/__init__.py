@@ -95,7 +95,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VSYNC_PULSE_WIDTH, default=8): cv.int_,
             cv.Optional(CONF_VSYNC_BACK_PORCH, default=20): cv.int_,
             cv.Optional(CONF_VSYNC_FRONT_PORCH, default=10): cv.int_,
-            cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
             cv.Required(CONF_HEIGHT): cv.int_,
             cv.Required(CONF_WIDTH): cv.int_,
         }
@@ -128,13 +127,6 @@ async def to_code(config):
         reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
 
-    if CONF_BACKLIGHT_PIN in config and config[CONF_BACKLIGHT_PIN]:
-        bl = await cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
-        cg.add(var.set_backlight_pin(bl))
-
-    if CONF_POWER_SUPPLY in config:
-        ps = await cg.get_variable(config[CONF_POWER_SUPPLY])
-        cg.add(var.set_power_supply(ps))
     pin = await cg.gpio_pin_expression(config[CONF_DE_PIN])
     cg.add(var.set_de_pin(pin))
     pin = await cg.gpio_pin_expression(config[CONF_PCLK_PIN])

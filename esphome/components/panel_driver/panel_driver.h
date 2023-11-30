@@ -1,12 +1,14 @@
 #pragma once
+#include "esphome/core/component.h"
+
 
 namespace esphome {
 namespace panel_driver {
 
-class PanelDriver {
+class PanelDriver: esphome::Component {
 
  public:
-  virtual void draw_pixels_in_window() = 0;
+  virtual void draw_pixels_at() = 0;
 
 };
 
