@@ -3,7 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
-#ifdef USE_ARDUINO
+#ifdef defined(USE_ARDUINO) and defined(USE_WEBSERVER_OTA)
 #include <StreamString.h>
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
 #include <Update.h>
@@ -30,6 +30,7 @@ void WebServerBase::add_handler(AsyncWebHandler *handler) {
   }
 }
 
+#ifdef USE_WEBSERVER_OTA
 void report_ota_error() {
 #ifdef USE_ARDUINO
   StreamString ss;
@@ -114,6 +115,8 @@ void WebServerBase::add_ota_handler() {
   this->add_handler(new OTARequestHandler(this));  // NOLINT
 #endif
 }
+#endif
+
 float WebServerBase::get_setup_priority() const {
   // Before WiFi (captive portal)
   return setup_priority::WIFI + 2.0f;

@@ -113,7 +113,9 @@ std::string WebServer::get_config_json() {
   return json::build_json([this](JsonObject root) {
     root["title"] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
     root["comment"] = App.get_comment();
+#ifdef USE_WEBSERVER_OTA
     root["ota"] = this->allow_ota_;
+#endif
     root["log"] = this->expose_log_;
     root["lang"] = "en";
   });
@@ -140,8 +142,10 @@ void WebServer::setup() {
   this->base_->add_handler(&this->events_);
   this->base_->add_handler(this);
 
+#ifdef USE_WEBSERVER_OTA
   if (this->allow_ota_)
     this->base_->add_ota_handler();
+#endif
 
   this->set_interval(10000, [this]() { this->events_.send("", "ping", millis(), 30000); });
 }
@@ -338,11 +342,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
                   "REST API documentation.</p>"));
+#ifdef USE_WEBSERVER_OTA
   if (this->allow_ota_) {
     stream->print(
         F("<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
           "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
   }
+#endif
   stream->print(F("<h2>Debug Log</h2><pre id=\"log\"></pre>"));
 #ifdef USE_WEBSERVER_JS_INCLUDE
   if (this->js_include_ != nullptr) {
