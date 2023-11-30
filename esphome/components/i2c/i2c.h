@@ -13,7 +13,7 @@ namespace i2c {
 
 class I2CDevice;  // forward declaration
 
-/// @brief This class defines 'local 8 bits registers' that act as proxies to 'i2c remote device registers'
+/// @brief This class creates I2CRegister objects that act as proxies to registers on an I2C device
 /// @details A proxy is a structural design pattern that lets you provide a substitute for another object.
 /// Once you have define a local "proxy" register you can use the overriden operators as if you were doing
 /// operations remotely.
@@ -27,77 +27,56 @@ class I2CDevice;  // forward declaration
 /// @endcode
 class I2CRegister {
  public:
-  /// @brief overloads the = operator. This is used to set a value in the register
-  /// @param value to be set
-  /// @return this object
+  /// @brief overloads the = operator. This is used to set a value in the i2c register
+  /// @param value value to be set
+  /// @return pointer to current object
   I2CRegister &operator=(uint8_t value);
 
-  /// @brief overloads the compound &= operator. This is often used to reset bits in the register
-  /// @param value performs an & operation with value and store the result
-  /// @return this object
+  /// @brief overloads the compound &= operator. This is often used to reset bits in an i2c register
+  /// @param value for the & operation
+  /// @return pointer to current object
   I2CRegister &operator&=(uint8_t value);
 
   /// @brief overloads the compound |= operator. This is often used to set bits in the register
-  /// @param value performs an | operation with value and store the result
-  /// @return this object
+  /// @param value for the & operation
+  /// @return pointer to current object
   I2CRegister &operator|=(uint8_t value);
 
   /// @brief overloads the cast operator is used to return the register value
   explicit operator uint8_t() const { return get(); }
 
   /// @brief returns the register value
-  /// @return the value
+  /// @return the register value
   uint8_t get() const;
 
  protected:
   friend class I2CDevice;
 
-  /// @brief protected ctor. Only friends can create an I2CRegister
+  /// @brief protected constructor that store the owning object and the register address. Only friends can create an
+  /// I2CRegister
   /// @param parent our parent
   /// @param a_register address of the i2c register
   I2CRegister(I2CDevice *parent, uint8_t a_register) : parent_(parent), register_(a_register) {}
 
-  I2CDevice *parent_;  ///< parent we belongs to
+  I2CDevice *parent_;  ///< I2CDevice object pointer
   uint8_t register_;   ///< the address of the register
 };
 
-/// @brief This class defines 'local 16 bits registers' that act as proxies to 'i2c remote device registers'
-/// @details works exactly as I2CRegister but on 16 bits registers. For more information see the I2CRegister class.
 class I2CRegister16 {
  public:
-  /// @brief overloads the = operator. This is used to set a value in the register
-  /// @todo @bug wrong?
-  /// @param value to be set
-  /// @return this object
   I2CRegister16 &operator=(uint8_t value);
-
-  /// @brief overloads the compound &= operator. This is often used to reset bits in the register
-  /// @param value performs an & operation with value and store the result
-  /// @return this object
   I2CRegister16 &operator&=(uint8_t value);
-
-  /// @brief overloads the compound |= operator. This is often used to set bits in the register
-  /// @param value performs an | operation with value and store the result
-  /// @return this object
   I2CRegister16 &operator|=(uint8_t value);
-
-  /// @brief overloads the cast operator is used to return the register value
   explicit operator uint8_t() const { return get(); }
-
-  /// @brief returns the register value
-  /// @return the value
   uint8_t get() const;
 
  protected:
   friend class I2CDevice;
 
-  /// @brief protected ctor. Only friends can create an I2CRegister
-  /// @param parent our parent
-  /// @param a_register the register to work on
   I2CRegister16(I2CDevice *parent, uint16_t a_register) : parent_(parent), register_(a_register) {}
 
-  I2CDevice *parent_;  ///< parent we belongs to
-  uint16_t register_;  ///< the address of the register
+  I2CDevice *parent_;
+  uint16_t register_;
 };
 
 // like ntohs/htons but without including networking headers.
@@ -105,11 +84,11 @@ class I2CRegister16 {
 inline uint16_t i2ctohs(uint16_t i2cshort) { return convert_big_endian(i2cshort); }
 inline uint16_t htoi2cs(uint16_t hostshort) { return convert_big_endian(hostshort); }
 
-/// @brief This Class provides the methods to read and write bytes to/from an i2c device.
-/// it also keeps the address of the device as well as a pointer to the I2CBus used.
+/// @brief This Class provides the methods to read/write bytes from/to an i2c device.
+/// Keeps list of devices found on bus as well as a pointer to the I2CBus.
 class I2CDevice {
  public:
-  /// @brief we use the C++ default ctor
+  /// @brief we use the C++ default constructor
   I2CDevice() = default;
 
   /// @brief We store the address of the device on the bus
@@ -120,17 +99,13 @@ class I2CDevice {
   /// @param bus
   void set_i2c_bus(I2CBus *bus) { bus_ = bus; }
 
-  /// @brief call the I2CRegister ctor
+  /// @brief call the I2CRegister constructor
   /// @param a_register address of the register
-  /// @return an I2CRegister proxy to the register at a_address
+  /// @return an I2CRegister proxy object
   I2CRegister reg(uint8_t a_register) { return {this, a_register}; }
-
-  /// @brief @bug @todo seems not correct
-  /// @param a_register
-  /// @return
   I2CRegister16 reg16(uint16_t a_register) { return {this, a_register}; }
 
-  /// @brief read an array of bytes on the I2CBus
+  /// @brief read an array of bytes from the I2CBus
   /// @param data pointer to an array to store the bytes
   /// @param len length of the buffer = number of bytes to read
   /// @return an i2c::ErrorCode
@@ -145,12 +120,6 @@ class I2CDevice {
   /// @return an i2c::ErrorCode
   ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len, bool stop = true);
 
-  /// @brief  @todo @bug seems not correct
-  /// @param a_register
-  /// @param data
-  /// @param len
-  /// @param stop
-  /// @return
   ErrorCode read_register16(uint16_t a_register, uint8_t *data, size_t len, bool stop = true);
 
   /// @brief write an array of bytes on the I2CBus
@@ -168,14 +137,13 @@ class I2CDevice {
   /// @return an i2c::ErrorCode
   ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len, bool stop = true);
 
-  /// @todo seems bad @bug
   ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len, bool stop = true);
 
   ///
   /// Compat APIs
   /// All methods below seems to be here for compatibility reason
   /// From what I have seen none of them bring any functionality.
-  /// Therefore they are not docummented and I would not recommend
+  /// Therefore they are not documented and I would not recommend
   /// to use them.
   ///
 

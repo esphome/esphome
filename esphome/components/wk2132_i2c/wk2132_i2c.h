@@ -8,54 +8,48 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/uart/uart.h"
 
-/// when TEST_COMPONENT is define we include some auto-test functions
-/// This has been used to test the software during development but it
-/// can also be used to test if the component is working correctly.
+/// when TEST_COMPONENT is define we include some auto-test methods. Used to test the software during wk2132 development
+/// but can also be used in situ to test if the component is working correctly.
 #define TEST_COMPONENT
 
 namespace esphome {
-/// @brief The wk2132_i2c namespace
 namespace wk2132_i2c {
 
-/// @brief the max number of bytes we allow for transfer calls.
-/// By default I²C bus allow a maximum transfer of 128 bytes
-/// but this can be changed by defining I2C_BUFFER_LENGTH.
-/// @bug However there is a bug in Arduino framework that limit the
-/// maximum value to 255. So until fixed we follow this limit
-/// @bug There is also a bug in i2c classes. Here we assume this
-/// bug is fixed
-#if (I2C_BUFFER_LENGTH < 256) && defined(USE_ESP32_FRAMEWORK_ARDUINO)
-constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;
-#else  // until bug fixed in framework we limit size to 255
+/// @brief XFER_MAX_SIZE defines the max number of bytes we allow during one transfer. By default I2cBus defines a
+/// maximum transfer of 128 bytes but this can be changed by defining the macro I2C_BUFFER_LENGTH.
+/// @bug At the time of writing (Nov 2023) there is a bug in declaration of the i2c::I2CDevice::write() method.
+/// There is also a bug in the Arduino framework in the declaration of the TwoWire::requestFrom() method.
+/// These two bugs limit the XFER_MAX_SIZE to 255.
+#if (I2C_BUFFER_LENGTH > 255) && defined(USE_ESP32_FRAMEWORK_ARDUINO)
 constexpr size_t XFER_MAX_SIZE = 255;
+#else
+constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;
 #endif
 
-/// @brief size of the internal wk2132 FIFO
+/// @brief size of the internal WK2132 FIFO
 constexpr size_t FIFO_SIZE = 256;
 
 /// @brief size of the ring buffer
-/// @details We set the ring buffer to the same size as the XFER_MAX_SIZE
+/// @details We set the size of ring buffer to XFER_MAX_SIZE
 constexpr size_t RING_BUFFER_SIZE = XFER_MAX_SIZE;
-///////////////////////////////////////////////////////////////////////////////
-/// @brief This is an helper class that provides a simple ring buffers
-/// that works as a FIFO
-///
-/// This ring buffer is used to buffer the exchanges between the receiver
-/// HW fifo and the client. Usually to read characters from the line you first
-/// check how many bytes were received and then you read them all at once.
-/// But if you try to read the bytes one by one there is a potential problem.
-/// When the registers are located on the chip everything is fine but with a
-/// device like the wk2132 these registers are remote and therefore accessing
-/// them requires several transactions on the I²C bus which is relatively slow.
-/// As already described the solution is for the client to check the number of
-/// bytes available and read them all at once using the read_array() method.
-/// Unfortunately most client software I have reviewed are reading characters
-/// one at a time in a while loop which is extremely inefficient for remote
-/// registers. Therefore the solution I have chosen to elevate this problem
-/// is to store received bytes locally in a ring buffer as soon as we read one.
-/// With this solution the bytes are stored locally and therefore accessible
-/// very quickly when requested one by one without the need of extra bus transitions.
-///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief This is an helper class that provides a simple ring buffers that works as a FIFO
+/// @details This ring buffer is used to buffer the bytes received in the FIFO of the I2C device. The best way to read
+/// characters from the line, is to first check how many bytes were received and then read them all at once.
+/// Unfortunately on almost all the code I have reviewed the characters are read one by one in a while loop: check if
+/// bytes are available then read the next one until no more byte available. This is pretty inefficient for two reasons:
+/// - Fist you need to perform a test for each byte to read
+/// - and second you call the read byte method for each character.
+/// Assuming you need to read 100 bytes that results into 200 calls instead of 100. Where if you had followed the good
+/// practice this could be done in 2 calls (one to find the number of bytes available plus one to read all the bytes! If
+/// the registers you read are located on the micro-controller this is not too bad even if it roughly double the process
+/// time. But when the registers to check are located on the WK2132 device the performance can get pretty bad as each
+/// access to a register requires several cycles on the slow I2C bus. To fix this problem we could ask the users to
+/// rewrite their code to follow the good practice but this is not obviously not realistic.
+/// @n Therefore the solution I have implemented is to store the bytes received in the FIFO on a local ring buffer.
+/// The carefully crafted algorithm used reduces drastically the number of transactions on the i2c bus but more
+/// importantly it improve the performance as if the remote registers were located on the micro-controller
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template<typename T, size_t SIZE> class RingBuffer {
  public:
   /// @brief pushes an item at the tail of the fifo
@@ -112,11 +106,85 @@ template<typename T, size_t SIZE> class RingBuffer {
   void clear() { this->head_ = this->tail_ = this->count_ = 0; }
 
  private:
-  std::array<T, SIZE> rb_{0};  // the ring buffer
-  int head_{0};                // points to the next element to write
-  int tail_{0};                // points to the next element to read
-  size_t count_{0};            // count number of element in the buffer
+  std::array<T, SIZE> rb_{0};  ///< the ring buffer
+  int tail_{0};                ///< position of the next element to read
+  int head_{0};                ///< position of the next element to write
+  size_t count_{0};            ///< count number of element in the buffer
 };
+
+class WK2132Component;  // forward declaration
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief This helper class creates objects that act as proxies to WK2132 register
+/// @details This class is similar to thr i2c::I2CRegister class. The reason for this class to exist is due to the
+/// fact that the WK2132 uses a very unusual addressing mechanism:
+/// - On a *standard* I2C device the **logical_register_address** is usually combined with the **channel number** to
+///   generate an **i2c_register_address**. All accesses to the device are done through a unique address on the bus.
+/// - On the WK2132 **i2c_register_address** is always equal to **logical_register_address**. But the address used to
+///   access the device on the bus changes according to the channel or the FIFO. Therefore we use a **base_address** to
+///   access the global registers, a different addresses to access channel 1 or channel 2 registers, and yet other
+///   addresses to access the device's FIFO. For that reason we need to store the register address as well as the
+///   channel number for that register.
+/// @n For example If the base address is 0x70 we access channel 1 registers at 0x70, channel 1 FIFO at 0x71, channel 2
+/// registers at 0x72, Channel 2 FIFO at 0x73.
+/// @n typical usage of WK2132Register:
+/// @code
+///   WK2132Register reg_1 {&WK2132Component_1, ADDR_REGISTER_1, CHANNEL_NUM}  // declaration
+///   reg_1 |= 0x01; // set bit 0 of the wk2132 register
+///   reg_1 &= ~0x01; // reset bit 0 of the wk2132 register
+///   reg_1 = 10; // Set the value of wk2132 register
+///   uint val = reg_1; // get the value of wk2132 register
+/// @endcode
+/// @note The Wk2132Component class provides a WK2132Component::component_reg() method that call the WK2132Register()
+/// constructor with the right parameters. The WK2132Channel class provides the WK2132Channel::channel_reg() method for
+/// the same reason.
+class WK2132Register {
+ public:
+  /// @brief overloads the = operator. This is used to set a value into the wk2132 register
+  /// @param value to be set
+  /// @return this object
+  WK2132Register &operator=(uint8_t value);
+
+  /// @brief overloads the compound &= operator. This is often used to reset bits in the wk2132 register
+  /// @param value performs an & operation with value and store the result
+  /// @return this object
+  WK2132Register &operator&=(uint8_t value);
+
+  /// @brief overloads the compound |= operator. This is often used to set bits in the wk2132 register
+  /// @param value performs an | operation with value and store the result
+  /// @return this object
+  WK2132Register &operator|=(uint8_t value);
+
+  /// @brief cast operator return the content of the wk2132 register
+  operator uint8_t() const { return get(); }
+
+  /// @brief returns the value of the wk2132 register
+  /// @return the value of the wk2132 register
+  uint8_t get() const;
+
+  /// @brief sets the wk2132 register value
+  /// @param value to set
+  void set(uint8_t value);
+
+ protected:
+  friend class WK2132Component;
+  friend class WK2132Channel;
+
+  /// @brief protected constructor. Only friends can create an WK2132Register
+  /// @param parent our creator
+  /// @param reg address of the i2c register
+  /// @param channel the channel of this register
+  WK2132Register(WK2132Component *parent, uint8_t reg, uint8_t channel)
+      : parent_(parent), register_(reg), channel_(channel) {}
+
+  WK2132Component *parent_;  ///< pointer to our parent (aggregation)
+  uint8_t register_;         ///< the address of the register
+  uint8_t channel_;          ///< the channel of this register
+};
+
+////////////////////////////////////////////////////////////////////////////////////////
+/// Definition of the WK2132 registers
+////////////////////////////////////////////////////////////////////////////////////////
 
 /// @defgroup wk2132_gr_ WK2132 Global Registers
 /// This topic groups all **Global Registers**: these registers are global to the
@@ -304,9 +372,9 @@ constexpr uint8_t FSR_RFFE = 1 << 5;
 /// @brief Receiver Parity Error (0: no PE, 1: PE)
 constexpr uint8_t FSR_RFPE = 1 << 4;
 /// @brief Receiver FIFO empty (0: empty, 1: not empty)
-constexpr uint8_t FSR_RFEMPT = 1 << 3;
+constexpr uint8_t FSR_RFEMPTY = 1 << 3;
 /// @brief Transmitter FIFO Empty (0: empty, 1: not empty)
-constexpr uint8_t FSR_TFEMPT = 1 << 2;
+constexpr uint8_t FSR_TFEMPTY = 1 << 2;
 /// @brief Transmitter FIFO full (0: not full, 1: full)
 constexpr uint8_t FSR_TFFULL = 1 << 1;
 /// @brief Transmitter busy (0 transmitter empty, 1: transmitter busy sending)
@@ -391,85 +459,13 @@ constexpr uint8_t REG_WK2132_TFI = 0x08;
 /// @}
 /// @}
 
-class WK2132Component;  // forward declaration
-
-/// @brief This class defines *proxy registers* that act as proxies to WK2132 internal register
-/// @details This class is equivalent to thr i2c::I2CRegister class.
-/// The reason this class exists is because the WK2132 uses an unusual addressing mechanism.
-/// On a *standard* I2C device a **logical_register_address** is combined with the channel number
-/// to give an **i2c_register_address** and all accesses are done at the same device address on the bus.
-/// On the WK2132 i2c_register_address = logical_register_address and what is changing is the
-/// device address on the bus. Therefore we have a base_address for global register, a different
-/// addresses for channel 1 and 2 register, and yet different addresses for FIFO access.
-/// For that reason on top of saving the register address we also nedd to save the address
-/// of the device to use on the i2c bus to access this register.
-/// @n typical usage:
-/// @code
-/// WK2132Register reg_1 = this->register(ADDR_REGISTER_1); // declare
-/// reg_1 |= 0x01; // set bit
-/// reg_1 &= ~0x01; // reset bit
-/// reg_1 = 10; // Set value
-/// uint val = reg_1.get(); // get value
-/// @endcode
-class WK2132Register {
- public:
-  /// @brief overloads the = operator. This is used to set a value in the register
-  /// @param value to be set
-  /// @return this object
-  WK2132Register &operator=(uint8_t value);
-
-  /// @brief overloads the compound &= operator. This is often used to reset bits in the register
-  /// @param value performs an & operation with value and store the result
-  /// @return this object
-  WK2132Register &operator&=(uint8_t value);
-
-  /// @brief overloads the compound |= operator. This is often used to set bits in the register
-  /// @param value performs an | operation with value and store the result
-  /// @return this object
-  WK2132Register &operator|=(uint8_t value);
-
-  /// @brief cast operator
-  operator uint8_t() const { return get(); }
-
-  /// @brief returns the register value
-  /// @return the value
-  uint8_t get() const;
-
-  /// @brief sets the register value
-  /// @param value to set
-  void set(uint8_t value);
-
- protected:
-  friend class WK2132Component;
-  friend class WK2132Channel;
-
-  /// @brief protected ctor. Only friends can create an I2CRegister
-  /// @param parent our parent
-  /// @param a_register address of the i2c register
-  WK2132Register(WK2132Component *parent, uint8_t reg, uint8_t channel)
-      : parent_(parent), register_(reg), channel_(channel) {}
-
-  WK2132Component *parent_;  ///< parent we belongs to
-  uint8_t register_;         ///< the address of the register
-  uint8_t channel_;          ///< the channel for the register
-};
-
 class WK2132Channel;  // forward declaration
 
-///////////////////////////////////////////////////////////////////////////////
-/// @brief The WK2132 I²C component class
-///
-/// This class derives from two @ref esphome classes:
-/// - The @ref Virtual Component class: we redefine the @ref Component::setup(),
-///   @ref Component::dump_config() and @ref Component::get_setup_priority() methods
-/// - The @ref i2c::I2CDevice class. From which we use some methods
-///
-/// We have one related class :
-/// - The @ref WK2132Channel class that takes cares of the UART related methods
-///
-/// The image below shows some relationship between UART related classes
-///  @image html uart.png width=1024px
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////
+/// @brief The WK2132Component class stores the information global to the WK2132 component
+/// and provides methods to set/access this information.
+/// @details For more information please refer to @ref WK2132Component_
+////////////////////////////////////////////////////////////////////////////////////
 class WK2132Component : public Component, public i2c::I2CDevice {
  public:
   /// @brief store crystal frequency
@@ -488,7 +484,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   /// @return the name
   const char *get_name() { return this->name_.c_str(); }
 
-  /// @brief call the WK2132Register ctor
+  /// @brief call the WK2132Register constructor to create the proxy
   /// @param a_register address of the register
   /// @return an WK2132Register proxy to the register at a_address
   WK2132Register component_reg(uint8_t a_register) { return {this, a_register, 0}; }
@@ -503,8 +499,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 
   /// @brief Set the priority of the component
   /// @return the priority
-  ///
-  /// The priority is set just a bit  below setup_priority::BUS because we use
+  /// @details The priority is set just a bit  below setup_priority::BUS because we use
   /// the i2c bus (which has a priority of BUS) to communicate and the WK2132
   /// will be used by our client as if ir was a bus.
   float get_setup_priority() const override { return setup_priority::BUS - 0.1F; }
@@ -512,11 +507,6 @@ class WK2132Component : public Component, public i2c::I2CDevice {
  protected:
   friend class WK2132Channel;
   friend class WK2132Register;
-
-  // /// @brief convert the register number into a string easier to understand
-  // /// @param reg register value
-  // /// @return name of the register
-  // const char *reg_to_str_(int reg);  // for debug
 
   uint32_t crystal_;                         ///< crystal value;
   uint8_t base_address_;                     ///< base address of I2C device
@@ -526,25 +516,11 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   std::string name_;                         ///< name of entity
 };
 
-////////////////// /////////////////////////////////////////////////////////////
-/// @brief The UART channel class of a WK2132 I²C component.
-///
-/// This class derives from the virtual @ref uart::UARTComponent class.
-///
-/// Unfortunately I have not found **any documentation** about the
-/// uart::UARTDevice and uart::UARTComponent classes in @ref ESPHome.\n
-/// However it seems that both of them are based on equivalent classes in
-/// Arduino library.\n
-///
-/// Most of the interfaces provided by the Arduino Serial library are **poorly
-/// defined** and it seems that the API has even \b changed over time!\n
-/// The esphome::uart::UARTDevice class directly relates to the **Serial Class**
-/// in Arduino and that derives from **Stream class**.\n
-/// For compatibility reason (?) many helper methods are made available in
-/// ESPHome to read and write. Unfortunately in many cases these helpers
-/// are missing the critical status information and therefore are even
-/// more badly defined and more unsafe to use...\n
-///////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief The WK2132Channel class is used to implement all the virtual methods of the ESPHome uart::UARTComponent
+/// class.
+/// @details For more information see @ref WK2132Channel_
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class WK2132Channel : public uart::UARTComponent {
  public:
   /// @brief We belong to the parent WK2132Component
@@ -566,7 +542,7 @@ class WK2132Channel : public uart::UARTComponent {
   /// @return the name
   const char *get_channel_name() { return this->name_.c_str(); }
 
-  /// @brief call the WK2132Register ctor
+  /// @brief call the WK2132Register constructor
   /// @param a_register address of the register
   /// @return an WK2132Register proxy to the register at a_address
   WK2132Register channel_reg(uint8_t a_register) { return {this->parent_, a_register, this->channel_}; }
@@ -578,17 +554,12 @@ class WK2132Channel : public uart::UARTComponent {
   /// @brief Writes a specified number of bytes to a serial port
   /// @param buffer pointer to the buffer
   /// @param length number of bytes to write
-  ///
-  /// This method sends 'length' characters from the buffer to the serial line.
-  /// Unfortunately (unlike the Arduino equivalent) this method
-  /// does not return any flag and therefore it is not possible to know
-  /// if any/all bytes have been transmitted correctly. Another problem
-  /// is that it is not possible to know ahead of time how many bytes we
-  /// can safely send as there is no tx_available() method provided!
-  /// To avoid overrun when using the write method you can use the flush()
-  /// method to wait until the transmit fifo is empty.
-  ///
-  /// Typical usage could be:
+  /// @details This method sends 'length' characters from the buffer to the serial line. Unfortunately (unlike the
+  /// Arduino equivalent) this method does not return any flag and therefore it is not possible to know if any/all bytes
+  /// have been transmitted correctly. Another problem is that it is not possible to know ahead of time how many bytes
+  /// we can safely send as there is no tx_available() method provided! To avoid overrun when using the write method you
+  /// can use the flush() method to wait until the transmit fifo is empty.
+  /// @n Typical usage could be:
   /// @code
   ///   // ...
   ///   uint8_t buffer[128];
@@ -603,8 +574,7 @@ class WK2132Channel : public uart::UARTComponent {
   /// @param buffer buffer to store the bytes
   /// @param length number of bytes to read
   /// @return true if succeed, false otherwise
-  ///
-  /// Typical usage:
+  /// @details Typical usage:
   /// @code
   ///   // ...
   ///   auto length = available();
@@ -619,10 +589,8 @@ class WK2132Channel : public uart::UARTComponent {
   /// @brief Reads the first byte in FIFO without removing it
   /// @param buffer pointer to the byte
   /// @return true if succeed reading one byte, false if no character available
-  ///
-  /// This method returns the next byte from receiving buffer without
-  /// removing it from the internal fifo. It returns true if a character
-  /// is available and has been read, false otherwise.\n
+  /// @details This method returns the next byte from receiving buffer without removing it from the internal fifo. It
+  /// returns true if a character is available and has been read, false otherwise.\n
   bool peek_byte(uint8_t *buffer) override;
 
   /// @brief Returns the number of bytes in the receive buffer
@@ -630,11 +598,9 @@ class WK2132Channel : public uart::UARTComponent {
   int available() override;
 
   /// @brief Flush the output fifo.
-  ///
-  /// If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission
-  /// of outgoing serial data to complete. (Prior to Arduino 1.0, this the method was
-  /// removing any buffered incoming serial data.). **
-  /// Therefore we wait until all bytes are gone with a timeout of 100 ms
+  /// @details If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission of outgoing serial data
+  /// to complete. (Prior to Arduino 1.0, this the method was removing any buffered incoming serial data.). ** Therefore
+  /// we wait until all bytes are gone with a timeout of 100 ms
   void flush() override;
 
  protected:

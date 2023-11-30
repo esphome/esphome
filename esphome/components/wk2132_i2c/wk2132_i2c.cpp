@@ -8,158 +8,157 @@ namespace esphome {
 namespace wk2132_i2c {
 
 /*! @mainpage WK2132 source code documentation
-  This page provides detailed information about the implementation of the
-  WK2132Component in ESPHome. The WK2132Component utilizes two primary classes:
-  the WK2132Component class, the WK2132Channel class, along with the
-  RingBuffer helper class. Below, you'll find concise descriptions of these
-  three classes.
-  @n Before delving into these classes, let's explore their interactions
-  with the other ESPHome classes through the UML class diagram presented below:
-
-  <img src="WK2132 Class diagram.png" align="left" width="1024">
-  <div style="clear: both"></div>
-
-  - The WK2132Component class extends two ESPHome classes: esphome::Component
-    and i2c::I2CDevice, adhering to the classic component class structure.
-  - The WK2132Channel class has an aggregation relationship with WK2132Component.
-    This implies that WK2132Component acts as a container, housing one or two
-    WK2132Channel instances.  It's important to note that this is a weak dependency,
-    allowing WK2132Channel instances to persist even if the associated WK2132Component
-    is destroyed (an eventuality that never occurs in ESPHome).
-    @n Furthermore, the WK2132Channel class derives from the ESPHome uart::UARTComponent
-    class, and has a composition relationship with the RingBuffer helper class.
-    Consequently, when a WK2132Channel instance is destroyed, the associated RingBuffer
-    instance is also destroyed.
-  - The final class integral to the WK2132 component is the helper RingBuffer class.
-    This straightforward container implements FIFO functionality, enabling bytes to be
-    pushed into one side and popped from the other in the order of entry.
+ This documentation provides information about the implementation of the WK2132Component in ESPHome.
+ The WK2132Component utilizes two primary classes: the WK2132Component class, the WK2132Channel class,
+ along with the RingBuffer and WK2132Register helper classes. Below, you'll find short descriptions
+ of these three classes.
+ @n Before delving into these classes, let's explore the interactions of these classes with the other ESPHome classes
+ through the UML class diagram presented below:
+ <img src="WK2132 Class diagram.png" align="left" width="1024">
+ <div style="clear: both"></div>
 
   @section RingBuffer_ The RingBuffer template class
-  The RingBuffer template class has it names implies implement a simple ring
-  buffer. Implementation is classic and therefore not described in any details.
+The RingBuffer template class has it names implies implement a simple ring buffer helper class. This straightforward
+container implements FIFO functionality, enabling bytes to be pushed into one side and popped from the other in the
+order of entry. Implementation is classic and therefore not described in any details.
 
-  @section WK2132Component_ The WK2132Component class
-  The WK2132Component class primarily serves as a container for WK2132Channel instances.
-  Its main function involves maintaining a list of references to child instances
-  when they are added to the container. Additionally, this class holds essential
-  global information about the component, such as the connected crystal's frequency.
-  Furthermore, it plays a pivotal role in both the setup of the overall component
-  and the individual WK2132Channel instances.
-  @n The loop() method of this component is instrumental, facilitating the seamless
-  transfer of accumulated bytes from the receive FIFO into the ring buffer.
-  This process ensures quick access to the stored bytes, enhancing the overall
-  efficiency of the component.
+  @section WK2132Register_ The WK2132Register class
+The WK2132Register helper class creates objects that act as proxies to WK2132 register. This class is similar to thr
+i2c::I2CRegister class. The reason for this class to exist is due to the fact that the WK2132 uses a very unusual
+addressing mechanism:
+- On a *standard* I2C device the **logical_register_address** is usually combined with the **channel number** to
+  generate an **i2c_register_address**. All accesses to the device are done through a unique address on the bus.
+- On the WK2132 **i2c_register_address** is always equal to **logical_register_address**. But the address used to access
+the device on the bus changes according to the channel or the FIFO. Therefore we use a **base_address** to access the
+global registers, a different addresses to access channel 1 or channel 2 registers, and yet other addresses to access
+the device's FIFO. For that reason we need to store the register address as well as the channel number for that
+register.
+.
 
-  @section WK2132Channel_ The WK2132Channel class
-  The WK2132Channel class is used to implement the channels in the WK2132 component.
-  An individual instance of this class is created for each UART channel.
-  It meticulously implements all the virtual methods outlined in the ESPHome
-  uart::UARTComponent class. Regrettably, there is a notable absence of documentation
-  concerning the uart::UARTDevice and uart::UARTComponent classes within the ESPHome
-  reference. However, it appears that both classes draw inspiration from equivalent
-  Arduino classes.
-  @n This lack of documentation poses a challenge, as there is no comprehensive
-  resource for understanding these ESPHome classes. The situation is somewhat mitigated
-  by the fact that we can reference the Arduino library for similar methods.
-  Yet, this approach is not without its pitfalls, given the poorly defined interfaces
-  in the Arduino Serial library, which have **undergone many changes over time**.
-  @n It's worth noting that ESPHome provides several helper methods, possibly for
-  compatibility reasons. However, it's crucial to acknowledge that these helpers
-  often lack critical status information. Consequently, utilizing them may pose
-  increased risks compared to employing the original methods. Careful consideration
-  and caution are advised when working with these helper methods in @ref ESPHome.
+For example If the base address is 0x70 we access channel 1 registers at 0x70, channel 1 FIFO at 0x71, channel 2
+registers at 0x72, Channel 2 FIFO at 0x73.
+ @n typical usage of WK2132Register:
+ @code
+   WK2132Register reg_1 {&WK2132Component_1, ADDR_REGISTER_1, CHANNEL_NUM}  // declaration
+   reg_1 |= 0x01; // set bit 0 of the wk2132 register
+   reg_1 &= ~0x01; // reset bit 0 of the wk2132 register
+   reg_1 = 10; // Set the value of wk2132 register
+   uint val = reg_1; // get the value of wk2132 register
+ @endcode
+ @note The Wk2132Component class provides a WK2132Component::component_reg() method that call the WK2132Register()
+constructor with the right parameters. The WK2132Channel class provides the WK2132Channel::channel_reg() method for
+the same reason.
 
-  Lets first describe the optimum usage of these methods to get the best performance.
-  @n Usually UART are used to communicate with remote devices following this kind of protocol:
-    -# the initiator (the microcontroller) asks the remote device for information
-    by sending a specific command/control frame of a few dozen bytes.
-    -# in response the remote send back the information requested by the initiator as a frame
-    with often several hundred bytes
-    -# the requestor process the information received and prepare the frame for the next request.
-    -# and these steps repeat forever
+ @section WK2132Component_ The WK2132Component class
+The WK2132Component class stores the information global to the WK2132 component and provides methods to set/access
+this information. It also serves as a container for WK2132Channel instances. This is done by maintaining an array of
+references these WK2132Channel instances. This class derives from two ESPHome classes. The esphome::Component class and
+the i2c::I2CDevice class. This class override the esphome::Component::setup() and the esphome::Component::loop() methods
+called respectively to initialize the component and to perform task on a regular basis. The loop() method is used to
+facilitate the seamless transfer of accumulated bytes from the receive FIFO into the ring buffer. This process ensures
+quick access to the stored bytes, enhancing the overall efficiency of the component. It uses the read and write methods
+from the i2c::I2CDevice class to communicate through the i2c::I2CBus class with the WK2132 device.
 
-  With such protocol and the available uart::UARTComponent methods, the optimum sequence of calls
-  would look like this:
-  @code
-  constexpr size_t CMD_SIZE = 23;
-  constexpr size_t BUF_SIZE
-  uint8_t command_buffer[CMD_SIZE];
-  uint8_t receive_buffer[BUF_SIZE]
-  auto uart = new uart::UARTDevice();
-  // infinite loop to do requests and get responses
-  while (true) {
-    // prepare the command buffer
-    // ...
-    uart->flush();  // wait until the transmit FIFO is empty
-    uart->write_array(command_buffer, CMD_SIZE); // we send all bytes
-    int available = 0;
-    // loop until all bytes processed
-    while ((available = uart->available())) {
-      uart->read_array(receive_buffer, available);
-      // here we loop for all received bytes
-      for (for i = 0; i < available; i++) {
-        // here we process each byte received
-        // ...
-      }
-    }
-  }
-  @endcode
+ @section WK2132Channel_ The WK2132Channel class
+The WK2132Channel class is used to implement all the virtual methods of the ESPHome uart::UARTComponent class. An
+individual instance of this class is created for each UART channel. It has a link back to the WK2132Component object it
+belongs to as well as channel information. This class derives from the uart::UARTComponent class. It implements all
+virtual methods from this class. It collaborates through an aggregation with WK2132Component. This implies that
+WK2132Component acts as a container, housing one or two WK2132Channel instances. It's important to note that this is a
+weak dependency, allowing WK2132Channel instances to persist even if the associated WK2132Component is destroyed (an
+eventuality that never occurs in ESPHome). Furthermore, the WK2132Channel class derives from the ESPHome
+uart::UARTComponent class, it also has an association relationship with the RingBuffer and WK2132Register helper
+classes. Consequently, when a WK2132Channel instance is destroyed, the associated RingBuffer instance is also destroyed.
 
-  But unfortunately all the code that I have reviewed is not using this
-  kind of sequence. They actually look more like this:
-  @code
-  constexpr size_t CMD_SIZE = 23;
-  uint8_t command_buffer[CMD_SIZE];
-  auto uart = new uart::UARTDevice();
+ @note Regrettably, there is a notable absence of documentation concerning the uart::UARTDevice and uart::UARTComponent
+classes within the ESPHome reference. However, it appears that both classes draw inspiration from equivalent Arduino
+classes. This lack of documentation poses a challenge, as there is no comprehensive resource for understanding these
+ESPHome classes. The situation is somewhat mitigated by the fact that we can reference the Arduino library for similar
+methods. Yet, this approach is not without its pitfalls, given the poorly defined interfaces in the Arduino Serial
+library, which have **undergone many changes over time**.
+ @n It's worth noting that ESPHome provides several helper methods, possibly for compatibility reasons. However, it's
+crucial to acknowledge that these helpers often lack critical status information. Consequently, utilizing them may pose
+increased risks compared to employing the original methods. Careful consideration and caution are advised when working
+with these helper methods in @ref ESPHome.
 
-  // infinite loop to do requests and get responses
-  while (true) {
-    //
-    // prepare the command buffer
-    // ...
-    uart->write_array(command_buffer, CMD_SIZE);
-    uart->flush();  // we get rid of bytes still in UART FIFO just after write!
-    while (uart->available()) {
-      uint8_t byte = uart->read();
-      //
+Lets first describe the optimum usage of the read/write methods to get the best performance.
+ @n Usually UART are used to communicate with remote devices following this kind of protocol:
+-# the initiator (the micro-controller) asks the remote device for information by sending a specific command/control
+frame of a few dozen bytes.
+-# in response the remote send back the information requested by the initiator as a frame with often several hundred
+bytes
+-# the requestor process the information received and prepare the frame for the next request.
+-# and these steps repeat forever
+
+With such protocol and the available uart::UARTComponent methods, the optimum sequence of calls would look like this:
+ @code
+constexpr size_t CMD_SIZE = 23;
+constexpr size_t BUF_SIZE
+uint8_t command_buffer[CMD_SIZE];
+uint8_t receive_buffer[BUF_SIZE]
+auto uart = new uart::UARTDevice();
+// infinite loop to do requests and get responses
+while (true) {
+  // prepare the command buffer
+  // ...
+  uart->flush();  // wait until the transmit FIFO is empty
+  uart->write_array(command_buffer, CMD_SIZE); // we send all bytes
+  int available = 0;
+  // loop until all bytes processed
+  while ((available = uart->available())) {
+    uart->read_array(receive_buffer, available);
+    // here we loop for all received bytes
+    for (for i = 0; i < available; i++) {
       // here we process each byte received
       // ...
     }
   }
-  @endcode
+}
+ @endcode
 
- So what is \b wrong about this last code ?
-  -# using uart::UARTComponent::write_array() followed immediately by a
-    uart::UARTComponent::flush() method is asking the UART to wait for all bytes
-    in the fifo to be gone. And this can take a lot of time especially if the line
-    speed is low.
-    - With an optimum code, we reverse the call: we call the
-      uart::UARTComponent::flush() method first and the
-      uart::UARTComponent::write_array() method after. In most cases the flush()
-      method should return immediately because there is usually a lot of time spend
-      in processing the received bytes before we do the flush() in the next loop.
-  -# using uart::UARTComponent::available() just to test if received bytes are present
-    and following this test by reading one byte with uart::UARTComponent::read_array()
-    in a loop is very inefficient because it causes a lot of calls to the read() method.
-    If you are using an UART directly located on the micro-processor
-    this  is not so bad as the access time to the registers is fast. However if the
-    UART is located remotely and communicating through an I²C bus then
-    this becomes very problematic because this will induce a lot of transactions
-    on the bus to access the different registers all this for reading one byte.
-    - In an optimum code, we use the uart::UARTComponent::available() method to
-      find out how many bytes are available and we read them all with one call.
-      Proceeding like this could easily improve the speed by a factor of more than six.
+But unfortunately all the code that I have reviewed is not using this kind of sequence. They actually look more like
+this:
+  @code
+ constexpr size_t CMD_SIZE = 23;
+ uint8_t command_buffer[CMD_SIZE];
+ auto uart = new uart::UARTDevice();
+ // infinite loop to do requests and get responses
+ while (true) {
+   //
+   // prepare the command buffer
+   // ...
+   uart->write_array(command_buffer, CMD_SIZE);
+   uart->flush();  // we get rid of bytes still in UART FIFO just after write!
+   while (uart->available()) {
+     uint8_t byte = uart->read();
+     //
+     // here we process each byte received
+     // ...
+   }
+ }
+ @endcode
 
-  So what can we do to improve the efficiently of the WK2132 component
-  without asking the clients to rewrite their code? After testing the timings of
-  different strategies, I finally came up with the following solution:
-  I use a ring buffer to store locally the bytes received in the FIFO.
-  Therefore even if the client is reading bytes one by one the usage of a local
-  ring buffer minimize the number of transactions on the bus. The transfer of the
-  bytes from the FIFO to the buffer is performed whenever bytes are requested with
-  uart::UARTComponent::read_array() or uart::UARTComponent::available() and it is
-  also performed each time the esphome::Component::loop() method is executed.
+So what is \b wrong about this last code ?
+- using uart::UARTComponent::write_array() followed immediately by a uart::UARTComponent::flush() method forces to wait
+for all bytes in the fifo to be gone. And this can take a lot of time especially if the line speed is low. With an
+optimum code, we reverse the call: we call the uart::UARTComponent::flush() method first and the
+uart::UARTComponent::write_array() method after. In most cases the flush() method should return immediately because
+there is usually a lot of time spend in processing the received bytes before we do the flush() in the next loop.
+- using uart::UARTComponent::available() just to test if received bytes are present and following this test by reading
+one byte with uart::UARTComponent::read() in a loop is very inefficient because it causes a lot of calls to the read()
+method. If you are using an UART directly located on the micro-processor this is not too bad as the access time to the
+registers is fast. However if the UART is located remotely and communicating through an I²C bus then this becomes very
+problematic because this will induce a lot of transactions on the bus to access the different registers all this for
+reading one byte.
+- In an optimum code, we use the uart::UARTComponent::available() method to find out how many bytes are available and we
+read them all with one call. Proceeding like this could easily improve the speed by a factor of more than six.
 
+So what can we do to improve the efficiently of the WK2132 component without asking the clients to rewrite their code?
+After testing the timings of different strategies, I finally came up with the following solution: I use a ring buffer to
+store locally the bytes received in the FIFO. Therefore even if the client is reading bytes one by one the usage of a
+local ring buffer **minimize the number of transactions on the bus**. The transfer of the bytes from the FIFO to the
+buffer is performed whenever using uart::UARTComponent::read_array() or uart::UARTComponent::available() and it is also
+performed in advance each time the esphome::Component::loop() method is executed.
 */
 
 static const char *const TAG = "wk2132_i2c";
@@ -173,7 +172,7 @@ static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "B
 /// @return a std::string
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 
-// method to print registers as text: used in log messages ...
+// method to print a register value as text: used in the log messages ...
 const char *reg_to_str_(int reg, bool page1) { return page1 ? REG_TO_STR_P1[reg] : REG_TO_STR_P0[reg]; }
 
 /// Convert std::string to C string
@@ -243,17 +242,16 @@ WK2132Register &WK2132Register::operator|=(uint8_t value) {
 
 uint8_t WK2132Register::get() const {
   uint8_t value = 0x00;
-  // this->parent_->read_wk2132_register_(this->register_, this->channel_, &value, 1);
   this->parent_->address_ = i2c_address(this->parent_->base_address_, this->channel_, 0);  // update the i2c bus address
   auto error = this->parent_->read_register(this->register_, &value, 1);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
     ESP_LOGVV(TAG, "WK2132Register::get @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
-              reg_to_str_(this->register_, this->parent_->page1_), this->channel_, &value, (int) error);
+              reg_to_str_(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
   } else {  // error
     this->parent_->status_set_warning();
-    ESP_LOGE(TAG, "WK2132Register::get @%02X r=%s, ch=%d b=%02X, length=%d I2C_code:%d", this->parent_->address_,
-             reg_to_str_(this->register_, this->parent_->page1_), this->channel_, &value, (int) error);
+    ESP_LOGE(TAG, "WK2132Register::get @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
+             reg_to_str_(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
   }
   return value;
 }
@@ -264,11 +262,11 @@ void WK2132Register::set(uint8_t value) {
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
     ESP_LOGVV(TAG, "WK2132Register::set @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
-              reg_to_str_(this->register_, this->parent_->page1_), this->channel_, &value, (int) error);
+              reg_to_str_(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
   } else {  // error
     this->parent_->status_set_warning();
     ESP_LOGE(TAG, "WK2132Register::set @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
-             reg_to_str_(this->register_, this->parent_->page1_), this->channel_, &value, (int) error);
+             reg_to_str_(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
   }
 }
 
@@ -289,7 +287,7 @@ void WK2132Component::setup() {
   this->component_reg(REG_WK2132_SPAGE) = 0;
   this->page1_ = false;
 
-  // we setup our children
+  // we setup our children channels
   for (auto *child : this->children_) {
     child->setup_channel_();
   }
@@ -300,7 +298,7 @@ void WK2132Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
   if (test_mode_)
     ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
-  this->address_ = this->base_address_;  // we restore the base address before display
+  this->address_ = this->base_address_;  // we restore the base_address before display (less confusing)
   LOG_I2C_DEVICE(this);
 
   for (auto *child : this->children_) {
@@ -320,6 +318,7 @@ void WK2132Channel::setup_channel_() {
   ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s ...", this->parent_->get_name(), this->get_channel_name());
   // we enable transmit and receive on this channel
   this->channel_reg(REG_WK2132_SCR) = SCR_RXEN | SCR_TXEN;
+
   this->reset_fifo_();
   this->receive_buffer_.clear();
   this->set_line_param_();
@@ -332,9 +331,11 @@ void WK2132Channel::reset_fifo_() {
 }
 
 void WK2132Channel::set_line_param_() {
-  this->data_bits_ = 8;  // always 8 for WK2132
+  this->data_bits_ = 8;  // always equal to 8 for WK2132 (cant be changed)
+
+  // WK2132Register lcr{this->parent_, REG_WK2132_LCR, this->channel_};
   WK2132Register lcr = this->channel_reg(REG_WK2132_LCR);
-  lcr &= 0xF0;  // Clear the lower 4 bit of LCR
+  lcr &= 0xF0;  // we clear the lower 4 bit of LCR
   if (this->stop_bits_ == 2)
     lcr |= LCR_STPL;
   switch (this->parity_) {  // parity selection settings
@@ -374,7 +375,7 @@ void WK2132Channel::set_baudrate_() {
            baud_high, baud_low, baud_dec);
 }
 
-inline bool WK2132Channel::tx_fifo_is_not_empty_() { return this->channel_reg(REG_WK2132_FSR) & FSR_TFEMPT; }
+inline bool WK2132Channel::tx_fifo_is_not_empty_() { return this->channel_reg(REG_WK2132_FSR) & FSR_TFEMPTY; }
 
 size_t WK2132Channel::tx_in_fifo_() {
   size_t tfcnt = this->channel_reg(REG_WK2132_TFCNT);
@@ -395,7 +396,7 @@ size_t WK2132Channel::rx_in_fifo_() {
   size_t available = this->channel_reg(REG_WK2132_RFCNT);
   if (available == 0) {
     uint8_t const fsr = this->channel_reg(REG_WK2132_FSR);
-    if (fsr & FSR_RFEMPT) {  // if RFEMPT bit is set we set available to 256
+    if (fsr & FSR_RFEMPTY) {
       ESP_LOGVV(TAG, "rx_in_fifo full because FSR=%s says so", I2CS(fsr));
       available = FIFO_SIZE;
     }
