@@ -13,17 +13,17 @@
 namespace esphome {
 namespace st7701s {
 
-constexpr static const char *const TAG = "st7701s";
+constexpr static const char *const TAG = "panel_driver.st7701s";
 const uint8_t SW_RESET_CMD = 0x01;
-static uint16_t databuf[10000];
-class ST7701S : public Component,
-                public panel_driver::PanelDriver,
+const uint8_t SDIR_CMD = 0xC7;
+const uint8_t MADCTL_CMD = 0x36;
+
+class ST7701S : public panel_driver::PanelDriver,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                       spi::DATA_RATE_1MHZ> {
  public:
   void setup() override {
     this->spi_setup();
-
     esp_lcd_rgb_panel_config_t config{};
     config.flags.fb_in_psram = 1;
     config.num_fbs = 1;
@@ -44,7 +44,6 @@ class ST7701S : public Component,
     for (size_t i = 0; i != data_pin_count; i++) {
       config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
     }
-    esph_log_e(TAG, "data pin count %d", data_pin_count);
     config.data_width = data_pin_count;
     config.hsync_gpio_num = this->hsync_pin_->get_pin();
     config.vsync_gpio_num = this->vsync_pin_->get_pin();
@@ -57,26 +56,19 @@ class ST7701S : public Component,
     ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
     ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
     this->write_init_sequence();
-    memset(databuf, 0xFF, sizeof databuf);
-    err = esp_lcd_panel_draw_bitmap(this->handle_, 0, 440, 40, 480, databuf);
-    if (err != ESP_OK) {
-      esph_log_e(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
-    }
-    memset(databuf, 0x7F, sizeof databuf);
-    err = esp_lcd_panel_draw_bitmap(this->handle_, 50, 50, 90, 90, databuf);
-    if (err != ESP_OK) {
-      esph_log_e(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
-    }
-    memset(databuf, 0xF0, sizeof databuf);
-    err = esp_lcd_panel_draw_bitmap(this->handle_, 100, 100, 140, 140, databuf);
-    if (err != ESP_OK) {
-      esph_log_e(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
-    }
+    // will this work?
   }
 
-  void draw_pixels_in_window() override {}
+  void draw_pixels_at(size_t x, size_t y, size_t width, size_t height, const void *src_ptr) override {
+    auto err = esp_lcd_panel_draw_bitmap(this->handle_, x, y, width, height, src_ptr);
+    if (err != ESP_OK)
+      esph_log_e(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+  }
 
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  panel_driver::ColorMode get_color_mode() override { return this->color_mode_; }
+  void set_color_mode(panel_driver::ColorMode color_mode) { this->color_mode_ = color_mode; }
+  void set_invert_colors(bool invert_colors) { this->invert_colors = invert_colors; }
+
   void add_data_pin(InternalGPIOPin *data_pin, size_t index) { this->data_pins_[index] = data_pin; };
   void set_de_pin(InternalGPIOPin *de_pin) { this->de_pin_ = de_pin; }
   void set_pclk_pin(InternalGPIOPin *pclk_pin) { this->pclk_pin_ = pclk_pin; }
@@ -88,6 +80,7 @@ class ST7701S : public Component,
   void set_height(uint16_t height) { this->height_ = height; }
   void set_hsync_back_porch(uint16_t hsync_back_porch) { this->hsync_back_porch_ = hsync_back_porch; }
   void set_hsync_front_porch(uint16_t hsync_front_porch) { this->hsync_front_porch_ = hsync_front_porch; }
+  void set_hsync_pulse_width(uint16_t hsync_pulse_width) { this->hsync_pulse_width_ = hsync_pulse_width; }
   void set_vsync_pulse_width(uint16_t vsync_pulse_width) { this->vsync_pulse_width_ = vsync_pulse_width; }
   void set_vsync_back_porch(uint16_t vsync_back_porch) { this->vsync_back_porch_ = vsync_back_porch; }
   void set_vsync_front_porch(uint16_t vsync_front_porch) { this->vsync_front_porch_ = vsync_front_porch; }
@@ -132,6 +125,19 @@ class ST7701S : public Component,
       if (cmd == SW_RESET_CMD)
         delay(6);
     }
+    uint8_t val = 0;
+    if (this->color_mode_ == panel_driver::COLOR_MODE_BGR)
+      val = 0x08;
+    if (this->mirror_y_)
+      val |= 0x10;
+    this->write_command_(MADCTL_CMD);
+    this->write_data_(val);
+    val = 0;
+    if (this->mirror_x_)
+      val = 4;
+    this->write_command_(SDIR_CMD);
+    this->write_data_(val);
+    // don't know how to swap the axes at this time.
     this->set_timeout(120, [this] { this->write_command_(0x29); });
   }
 
@@ -150,8 +156,10 @@ class ST7701S : public Component,
   uint16_t vsync_front_porch_ = 10;
   std::vector<uint8_t> init_sequence_;
 
+  bool invert_colors{};
   uint16_t height_{0};
   uint16_t width_{0};
+  panel_driver::ColorMode color_mode_{panel_driver::COLOR_MODE_BGR};
 
   esp_lcd_panel_handle_t handle_{};
 };
