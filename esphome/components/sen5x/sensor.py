@@ -88,6 +88,15 @@ GAS_SENSOR = cv.Schema(
     }
 )
 
+
+def float_previously_pct(value):
+    if isinstance(value, str) and "%" in value:
+        raise cv.Invalid(
+            f"The value '{value}' is a percentage. Suggested value: {float(value.strip('%')) / 100}"
+        )
+    return value
+
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -151,7 +160,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
                 {
                     cv.Optional(CONF_OFFSET, default=0): cv.float_,
-                    cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.percentage,
+                    cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.All(
+                        float_previously_pct, cv.float_
+                    ),
                     cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_,
                 }
             ),

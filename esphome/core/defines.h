@@ -50,6 +50,7 @@
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
 #define USE_WIFI
+#define USE_WIFI_AP
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
