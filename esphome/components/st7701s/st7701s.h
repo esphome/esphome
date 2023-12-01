@@ -62,7 +62,6 @@ class ST7701S : public panel_driver::PanelDriver,
     auto err = esp_lcd_panel_draw_bitmap(this->handle_, x, y, x + width, y + height, src_ptr);
     if (err != ESP_OK)
       esph_log_e(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
-    //esp_lcd_rgb_panel_restart(this->handle_);
   }
 
   panel_driver::ColorMode get_color_mode() override { return this->color_mode_; }
