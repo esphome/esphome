@@ -1,15 +1,15 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 
-CODEOWNERS = ["@clydebarrow"]
-IS_PLATFORM_COMPONENT = True
-
 from esphome.const import (
     CONF_ID,
     CONF_DIMENSIONS,
     CONF_WIDTH,
     CONF_HEIGHT,
 )
+
+CODEOWNERS = ["@clydebarrow"]
+IS_PLATFORM_COMPONENT = True
 
 CONF_OFFSET_HEIGHT = "offset_height"
 CONF_OFFSET_WIDTH = "offset_width"
@@ -23,6 +23,7 @@ panel_driver_ns = cg.esphome_ns.namespace("panel_driver")
 PanelDriver = panel_driver_ns.class_("PanelDriver", cg.Component)
 PANEL_DRIVER_SCHEMA = cv.Schema(
     {
+        # cv.GenerateID(): cv.declare_id(PanelDriver),
         cv.Required(CONF_DIMENSIONS): cv.Schema(
             {
                 cv.Required(CONF_WIDTH): cv.int_,
@@ -43,7 +44,6 @@ PANEL_DRIVER_SCHEMA = cv.Schema(
 
 
 async def register_panel_driver(config, *args):
-    print(config[CONF_ID])
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await cg.register_component(var, config)
     dimensions = config[CONF_DIMENSIONS]

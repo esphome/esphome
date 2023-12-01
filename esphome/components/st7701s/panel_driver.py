@@ -2,11 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import spi, panel_driver
-from esphome.const import (
-    CONF_DC_PIN,
-    CONF_RESET_PIN,
-    CONF_OUTPUT,
-)
+from esphome.const import CONF_DC_PIN, CONF_RESET_PIN, CONF_OUTPUT
 
 from .init_sequences import ST7701S_INITS
 
@@ -31,7 +27,9 @@ CONF_INVERT_COLORS = "invert_colors"
 DEPENDENCIES = ["spi"]
 
 st7701s_ns = cg.esphome_ns.namespace("st7701s")
-ST7701S = st7701s_ns.class_("ST7701S", cg.Component, spi.SPIDevice)
+ST7701S = st7701s_ns.class_(
+    "ST7701S", panel_driver.PanelDriver, cg.Component, spi.SPIDevice
+)
 ColorMode = panel_driver.panel_driver_ns.enum("ColorMode")
 
 COLOR_MODES = {
@@ -69,34 +67,36 @@ def map_sequence(value):
 
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(ST7701S),
-            cv.Required(CONF_DATA_PINS): cv.All(
-                [DATA_PIN_SCHEMA],
-                cv.Length(min=16, max=16, msg="Exactly 16 data pins required"),
-            ),
-            cv.Optional(CONF_INIT_SEQUENCE, default=7): map_sequence,
-            cv.Optional(CONF_COLOR_MODE, default="BGR"): cv.one_of(
-                *COLOR_MODES, upper=True
-            ),
-            cv.Optional(CONF_INVERT_COLORS, default=False): cv.boolean,
-            cv.Required(CONF_DE_PIN): pins.internal_gpio_output_pin_schema,
-            cv.Required(CONF_PCLK_PIN): pins.internal_gpio_output_pin_schema,
-            cv.Required(CONF_HSYNC_PIN): pins.internal_gpio_output_pin_schema,
-            cv.Required(CONF_VSYNC_PIN): pins.internal_gpio_output_pin_schema,
-            cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_HSYNC_PULSE_WIDTH, default=10): cv.int_,
-            cv.Optional(CONF_HSYNC_BACK_PORCH, default=10): cv.int_,
-            cv.Optional(CONF_HSYNC_FRONT_PORCH, default=20): cv.int_,
-            cv.Optional(CONF_VSYNC_PULSE_WIDTH, default=10): cv.int_,
-            cv.Optional(CONF_VSYNC_BACK_PORCH, default=10): cv.int_,
-            cv.Optional(CONF_VSYNC_FRONT_PORCH, default=10): cv.int_,
-        }
-    )
-    .extend(panel_driver.PANEL_DRIVER_SCHEMA)
-    .extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6)),
+    panel_driver.PANEL_DRIVER_SCHEMA.extend(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(ST7701S),
+                cv.Required(CONF_DATA_PINS): cv.All(
+                    [DATA_PIN_SCHEMA],
+                    cv.Length(min=16, max=16, msg="Exactly 16 data pins required"),
+                ),
+                cv.Optional(CONF_INIT_SEQUENCE, default=7): map_sequence,
+                cv.Optional(CONF_COLOR_MODE, default="BGR"): cv.one_of(
+                    *COLOR_MODES, upper=True
+                ),
+                cv.Optional(CONF_INVERT_COLORS, default=False): cv.boolean,
+                cv.Required(CONF_DE_PIN): pins.internal_gpio_output_pin_schema,
+                cv.Required(CONF_PCLK_PIN): pins.internal_gpio_output_pin_schema,
+                cv.Required(CONF_HSYNC_PIN): pins.internal_gpio_output_pin_schema,
+                cv.Required(CONF_VSYNC_PIN): pins.internal_gpio_output_pin_schema,
+                cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+                cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
+                cv.Optional(CONF_HSYNC_PULSE_WIDTH, default=10): cv.int_,
+                cv.Optional(CONF_HSYNC_BACK_PORCH, default=10): cv.int_,
+                cv.Optional(CONF_HSYNC_FRONT_PORCH, default=20): cv.int_,
+                cv.Optional(CONF_VSYNC_PULSE_WIDTH, default=10): cv.int_,
+                cv.Optional(CONF_VSYNC_BACK_PORCH, default=10): cv.int_,
+                cv.Optional(CONF_VSYNC_FRONT_PORCH, default=10): cv.int_,
+            }
+        )
+        .extend(panel_driver.PANEL_DRIVER_SCHEMA)
+        .extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6))
+    ),
     cv.only_with_esp_idf,
 )
 

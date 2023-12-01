@@ -26,7 +26,7 @@ class ST7701S : public panel_driver::PanelDriver,
     this->spi_setup();
     esp_lcd_rgb_panel_config_t config{};
     config.flags.fb_in_psram = 1;
-    config.num_fbs = 1;
+    config.num_fbs = 2;
     config.timings.pclk_hz = 8 * 1000 * 1000;
     config.timings.h_res = this->width_;
     config.timings.v_res = this->height_;
@@ -36,7 +36,7 @@ class ST7701S : public panel_driver::PanelDriver,
     config.timings.vsync_pulse_width = this->vsync_pulse_width_;
     config.timings.vsync_back_porch = this->vsync_back_porch_;
     config.timings.vsync_front_porch = this->vsync_front_porch_;
-    config.timings.flags.pclk_active_neg = false;
+    config.timings.flags.pclk_active_neg = true;
     config.clk_src = LCD_CLK_SRC_PLL160M;
     config.sram_trans_align = 64;
     config.psram_trans_align = 64;
@@ -56,18 +56,18 @@ class ST7701S : public panel_driver::PanelDriver,
     ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
     ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
     this->write_init_sequence();
-    // will this work?
   }
 
   void draw_pixels_at(size_t x, size_t y, size_t width, size_t height, const void *src_ptr) override {
-    auto err = esp_lcd_panel_draw_bitmap(this->handle_, x, y, width, height, src_ptr);
+    auto err = esp_lcd_panel_draw_bitmap(this->handle_, x, y, x + width, y + height, src_ptr);
     if (err != ESP_OK)
       esph_log_e(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+    //esp_lcd_rgb_panel_restart(this->handle_);
   }
 
   panel_driver::ColorMode get_color_mode() override { return this->color_mode_; }
   void set_color_mode(panel_driver::ColorMode color_mode) { this->color_mode_ = color_mode; }
-  void set_invert_colors(bool invert_colors) { this->invert_colors = invert_colors; }
+  void set_invert_colors(bool invert_colors) { this->invert_colors_ = invert_colors; }
 
   void add_data_pin(InternalGPIOPin *data_pin, size_t index) { this->data_pins_[index] = data_pin; };
   void set_de_pin(InternalGPIOPin *de_pin) { this->de_pin_ = de_pin; }
@@ -156,9 +156,7 @@ class ST7701S : public panel_driver::PanelDriver,
   uint16_t vsync_front_porch_ = 10;
   std::vector<uint8_t> init_sequence_;
 
-  bool invert_colors{};
-  uint16_t height_{0};
-  uint16_t width_{0};
+  bool invert_colors_{};
   panel_driver::ColorMode color_mode_{panel_driver::COLOR_MODE_BGR};
 
   esp_lcd_panel_handle_t handle_{};
