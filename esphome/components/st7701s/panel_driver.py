@@ -5,6 +5,7 @@ from esphome.components import spi, panel_driver
 from esphome.const import CONF_DC_PIN, CONF_RESET_PIN, CONF_OUTPUT
 
 from .init_sequences import ST7701S_INITS
+from ..panel_driver import CONF_TRANSFORM, CONF_SWAP_XY
 
 CONF_INIT_SEQUENCE = "init_sequence"
 CONF_OFFSET_HEIGHT = "offset_height"
@@ -66,6 +67,14 @@ def map_sequence(value):
     return value
 
 
+def check_no_swap_xy(config):
+    if CONF_TRANSFORM in config and config[CONF_TRANSFORM][CONF_SWAP_XY]:
+        raise (cv.Invalid("X/Y swap not supported on st7701s"))
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = check_no_swap_xy
+
 CONFIG_SCHEMA = cv.All(
     panel_driver.PANEL_DRIVER_SCHEMA.extend(
         cv.Schema(
@@ -75,7 +84,7 @@ CONFIG_SCHEMA = cv.All(
                     [DATA_PIN_SCHEMA],
                     cv.Length(min=16, max=16, msg="Exactly 16 data pins required"),
                 ),
-                cv.Optional(CONF_INIT_SEQUENCE, default=7): map_sequence,
+                cv.Optional(CONF_INIT_SEQUENCE, default=1): map_sequence,
                 cv.Optional(CONF_COLOR_MODE, default="BGR"): cv.one_of(
                     *COLOR_MODES, upper=True
                 ),

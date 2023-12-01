@@ -15,8 +15,14 @@ namespace st7701s {
 
 constexpr static const char *const TAG = "panel_driver.st7701s";
 const uint8_t SW_RESET_CMD = 0x01;
+const uint8_t SLEEP_OUT = 0x11;
 const uint8_t SDIR_CMD = 0xC7;
 const uint8_t MADCTL_CMD = 0x36;
+const uint8_t INVERT_OFF = 0x20;
+const uint8_t INVERT_ON = 0x21;
+const uint8_t DISPLAY_ON = 0x29;
+const uint8_t CMD2_BKSEL = 0xFF;
+const uint8_t CMD2_BK0[5] = {0x77, 0x01, 0x00, 0x00, 0x10};
 
 class ST7701S : public panel_driver::PanelDriver,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
@@ -55,7 +61,7 @@ class ST7701S : public panel_driver::PanelDriver,
     }
     ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
     ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
-    this->write_init_sequence();
+    this->write_init_sequence_();
   }
 
   void draw_pixels_at(size_t x, size_t y, size_t width, size_t height, const void *src_ptr) override {
@@ -113,31 +119,37 @@ class ST7701S : public panel_driver::PanelDriver,
   /**
    * this relies upon the init sequence being well-formed, which is guaranteed by the Python init code.
    */
-  void write_init_sequence() {
+
+  void write_sequence_(uint8_t cmd, size_t len, const uint8_t *bytes) {
+    this->write_command_(cmd);
+    while (len-- != 0)
+      this->write_data_(*bytes++);
+  }
+
+  void write_init_sequence_() {
     for (size_t i = 0; i != this->init_sequence_.size();) {
       uint8_t cmd = this->init_sequence_[i++];
-      this->write_command_(cmd);
       size_t len = this->init_sequence_[i++];
+      this->write_sequence_(cmd, len, &this->init_sequence_[i]);
+      i += len;
       esph_log_v(TAG, "Command %X, %d bytes", cmd, len);
-      while (len-- != 0)
-        this->write_data_(this->init_sequence_[i++]);
       if (cmd == SW_RESET_CMD)
         delay(6);
     }
-    uint8_t val = 0;
-    if (this->color_mode_ == panel_driver::COLOR_MODE_BGR)
-      val = 0x08;
+    // st7701 does not appear to support axis swapping
+    this->write_sequence_(CMD2_BKSEL, sizeof(CMD2_BK0), CMD2_BK0);
+    this->write_command_(SDIR_CMD);  // this is in the BK0 command set
+    this->write_data_(this->mirror_x_ ? 0x04 : 0x00);
+    uint8_t val = this->color_mode_ == panel_driver::COLOR_MODE_BGR ? 0x80 : 0x00;
     if (this->mirror_y_)
       val |= 0x10;
     this->write_command_(MADCTL_CMD);
     this->write_data_(val);
-    val = 0;
-    if (this->mirror_x_)
-      val = 4;
-    this->write_command_(SDIR_CMD);
-    this->write_data_(val);
-    // don't know how to swap the axes at this time.
-    this->set_timeout(120, [this] { this->write_command_(0x29); });
+    this->write_command_(this->invert_colors_ ? INVERT_ON : INVERT_OFF);
+    this->set_timeout(120, [this] {
+      this->write_command_(SLEEP_OUT);
+      this->write_command_(DISPLAY_ON);
+    });
   }
 
   InternalGPIOPin *de_pin_{nullptr};
