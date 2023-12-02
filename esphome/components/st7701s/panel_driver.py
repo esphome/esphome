@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_RESET_PIN,
     CONF_OUTPUT,
     CONF_DATA_PINS,
+    CONF_COLOR_MODE,
 )
 
 from .init_sequences import ST7701S_INITS
@@ -24,7 +25,6 @@ CONF_HSYNC_FRONT_PORCH = "hsync_front_porch"
 CONF_VSYNC_PULSE_WIDTH = "vsync_pulse_width"
 CONF_VSYNC_BACK_PORCH = "vsync_back_porch"
 CONF_VSYNC_FRONT_PORCH = "vsync_front_porch"
-CONF_COLOR_MODE = "color_mode"
 CONF_INVERT_COLORS = "invert_colors"
 
 DEPENDENCIES = ["spi"]
