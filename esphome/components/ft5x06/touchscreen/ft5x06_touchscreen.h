@@ -32,15 +32,9 @@ enum FTCmd {
 
 static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
 
-class FT5x06ButtonListener {
- public:
-  virtual void update_button(uint8_t index, bool state) = 0;
-};
-
 class FT5x06Touchscreen : public touchscreen::Touchscreen, public Component, public i2c::I2CDevice {
  public:
   void set_rotation(touchscreen::TouchRotation rotation) { this->rotation_ = rotation; }
-  void register_button_listener(FT5x06ButtonListener *listener) { this->button_listeners_.push_back(listener); }
 
   void setup() override {
     i2c::ErrorCode err;
@@ -137,7 +131,6 @@ class FT5x06Touchscreen : public touchscreen::Touchscreen, public Component, pub
  protected:
   bool was_down_{};
   Store store_;
-  std::vector<FT5x06ButtonListener *> button_listeners_;
   VendorId vendor_id_{FT5X06_ID_UNKNOWN};
 };
 
