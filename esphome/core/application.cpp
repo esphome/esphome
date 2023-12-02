@@ -82,9 +82,7 @@ void Application::loop() {
   const uint32_t now = millis();
   const uint32_t elapsed = now - this->last_loop_;
 
-  if (HighFrequencyLoopRequester::is_high_frequency() || elapsed >= this->loop_interval_) {
-    yield();
-  } else {
+  if (!HighFrequencyLoopRequester::is_high_frequency() && elapsed < this->loop_interval_) {
     uint32_t delay_time = this->loop_interval_ - elapsed;
     uint32_t next_schedule = this->scheduler.next_schedule_in().value_or(delay_time);
     // next_schedule is max 0.5*delay_time
@@ -93,6 +91,7 @@ void Application::loop() {
     delay_time = std::min(next_schedule, delay_time);
     delay(delay_time);
   }
+
   this->last_loop_ = now;
 
   if (this->dump_config_at_ < this->components_.size()) {
