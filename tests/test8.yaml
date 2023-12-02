@@ -65,10 +65,14 @@ i2c:
 
 touchscreen:
   - platform: tt21100
+    id: tt21100_touchscreen
     interrupt_pin:
       number: GPIO3
       ignore_strapping_warning: true
     reset_pin: GPIO48
+  - platform: ft5x06
+    id: ft5x06_touchscreen
+    rotation: 180
 
 binary_sensor:
   - platform: tt21100
