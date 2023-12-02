@@ -139,8 +139,6 @@ void LD2410Component::send_command_(uint8_t command, const uint8_t *command_valu
   }
   // frame end bytes
   this->write_array(CMD_FRAME_END, 4);
-  // FIXME to remove
-  delay(50);  // NOLINT
 }
 
 void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
@@ -598,7 +596,6 @@ void LD2410Component::set_max_distances_timeout() {
                        0x00};
   this->set_config_mode_(true);
   this->send_command_(CMD_MAXDIST_DURATION, value, 18);
-  delay(50);  // NOLINT
   this->query_parameters_();
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
   this->set_config_mode_(false);
@@ -628,7 +625,6 @@ void LD2410Component::set_gate_threshold(uint8_t gate) {
                        0x01, 0x00, lowbyte(motion), highbyte(motion), 0x00, 0x00,
                        0x02, 0x00, lowbyte(still),  highbyte(still),  0x00, 0x00};
   this->send_command_(CMD_GATE_SENS, value, 18);
-  delay(50);  // NOLINT
   this->query_parameters_();
   this->set_config_mode_(false);
 }
@@ -665,7 +661,6 @@ void LD2410Component::set_light_out_control() {
   uint8_t out_pin_level = OUT_PIN_LEVEL_ENUM_TO_INT.at(this->out_pin_level_);
   uint8_t value[4] = {light_function, light_threshold, out_pin_level, 0x00};
   this->send_command_(CMD_SET_LIGHT_CONTROL, value, 4);
-  delay(50);  // NOLINT
   this->get_light_control_();
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
   this->set_config_mode_(false);
