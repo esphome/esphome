@@ -429,6 +429,8 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
     this->data(0xA5);
   }
 
+  void clear_screen();
+
  protected:
   int get_width_internal() override;
 
@@ -444,6 +446,8 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
       delay(200);  // NOLINT
     }
   };
+
+  void init_display_();
 };
 
 class WaveshareEPaper7P5InBC : public WaveshareEPaper {
