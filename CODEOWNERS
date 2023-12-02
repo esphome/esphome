@@ -24,6 +24,7 @@ esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_base/* @jeromelaban @kpfleming @ncareau
 esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban
+esphome/components/ajsr04m/* @tathamoddie
 esphome/components/alarm_control_panel/* @grahambrown11
 esphome/components/alpha3/* @jan-hofmeier
 esphome/components/am43/* @buxtronix
