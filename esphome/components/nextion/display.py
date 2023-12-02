@@ -108,13 +108,9 @@ async def to_code(config):
     if CONF_START_UP_PAGE in config:
         cg.add(var.set_start_up_page_internal(config[CONF_START_UP_PAGE]))
 
-    if CONF_AUTO_WAKE_ON_TOUCH in config:
-        cg.add(var.set_auto_wake_on_touch_internal(config[CONF_AUTO_WAKE_ON_TOUCH]))
+    cg.add(var.set_auto_wake_on_touch_internal(config[CONF_AUTO_WAKE_ON_TOUCH]))
 
-    if CONF_EXIT_REPARSE_ON_START in config:
-        cg.add(
-            var.set_exit_reparse_on_start_internal(config[CONF_EXIT_REPARSE_ON_START])
-        )
+    cg.add(var.set_exit_reparse_on_start_internal(config[CONF_EXIT_REPARSE_ON_START]))
 
     await display.register_display(var, config)
 
