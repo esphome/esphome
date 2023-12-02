@@ -1,0 +1,59 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run Dashboard",
+      "type": "shell",
+      "command": "${command:python.interpreterPath}",
+      "args": [
+        "-m",
+        "esphome",
+        "dashboard",
+        "config/"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "clang-tidy",
+      "type": "shell",
+      "command": "${command:python.interpreterPath}",
+      "args": [
+        "./script/clang-tidy"
+      ],
+      "problemMatcher": [
+        {
+          "owner": "clang-tidy",
+          "fileLocation": "absolute",
+          "pattern": [
+            {
+              "regexp": "^(.*):(\\d+):(\\d+):\\s+(error):\\s+(.*) \\[([a-z0-9,\\-]+)\\]\\s*$",
+              "file": 1,
+              "line": 2,
+              "column": 3,
+              "severity": 4,
+              "message": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Generate proto files",
+      "type": "shell",
+      "command": "${command:python.interpreterPath}",
+      "args": [
+        "./script/api_protobuf/api_protobuf.py"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "never",
+        "close": true,
+        "panel": "new"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

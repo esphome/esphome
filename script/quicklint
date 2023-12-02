@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+set -x
+
+script/ci-custom.py -c
+script/lint-python -c
+script/lint-cpp -c

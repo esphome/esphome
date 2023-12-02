@@ -1,0 +1,1 @@
+CODEOWNERS = ["@esphome/core", "@jsuanet"]

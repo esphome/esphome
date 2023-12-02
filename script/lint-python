@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+
+from helpers import (
+    styled,
+    print_error_for_file,
+    get_output,
+    get_err,
+    git_ls_files,
+    filter_changed,
+)
+import argparse
+import colorama
+import os
+import re
+import sys
+
+curfile = None
+
+
+def print_error(file, lineno, msg):
+    global curfile
+
+    if curfile != file:
+        print_error_for_file(file, None)
+        curfile = file
+
+    if lineno is not None:
+        print(f"{styled(colorama.Style.BRIGHT, f'{file}:{lineno}:')} {msg}")
+    else:
+        print(f"{styled(colorama.Style.BRIGHT, f'{file}:')} {msg}")
+
+
+def main():
+    colorama.init()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "files", nargs="*", default=[], help="files to be processed (regex on path)"
+    )
+    parser.add_argument(
+        "-c", "--changed", action="store_true", help="Only run on changed files"
+    )
+    parser.add_argument(
+        "-a",
+        "--apply",
+        action="store_true",
+        help="Apply changes to files where possible",
+    )
+    args = parser.parse_args()
+
+    files = []
+    for path in git_ls_files():
+        filetypes = (".py",)
+        ext = os.path.splitext(path)[1]
+        if ext in filetypes and path.startswith("esphome"):
+            path = os.path.relpath(path, os.getcwd())
+            files.append(path)
+    # Match against re
+    file_name_re = re.compile("|".join(args.files))
+    files = [p for p in files if file_name_re.search(p)]
+
+    if args.changed:
+        files = filter_changed(files)
+
+    files.sort()
+    if not files:
+        sys.exit(0)
+
+    errors = 0
+
+    cmd = ["black", "--verbose"] + ([] if args.apply else ["--check"]) + files
+    print("Running black...")
+    print()
+    log = get_err(*cmd)
+    for line in log.splitlines():
+        WOULD_REFORMAT = "would reformat"
+        if line.startswith(WOULD_REFORMAT):
+            file_ = line[len(WOULD_REFORMAT) + 1 :]
+            print_error(file_, None, "Please format this file with the black formatter")
+            errors += 1
+
+    cmd = ["flake8"] + files
+    print()
+    print("Running flake8...")
+    print()
+    log = get_output(*cmd)
+    for line in log.splitlines():
+        line = line.split(":", 4)
+        if len(line) < 4:
+            continue
+        file_ = line[0]
+        linno = line[1]
+        msg = (":".join(line[3:])).strip()
+        print_error(file_, linno, msg)
+        errors += 1
+
+    cmd = ["pylint", "-f", "parseable", "--persistent=n"] + files
+    print()
+    print("Running pylint...")
+    print()
+    log = get_output(*cmd)
+    for line in log.splitlines():
+        line = line.split(":", 3)
+        if len(line) < 3:
+            continue
+        file_ = line[0]
+        linno = line[1]
+        msg = (":".join(line[2:])).strip()
+        print_error(file_, linno, msg)
+        errors += 1
+
+    PYUPGRADE_TARGET = "--py39-plus"
+    cmd = ["pyupgrade", PYUPGRADE_TARGET] + files
+    print()
+    print("Running pyupgrade...")
+    print()
+    log = get_err(*cmd)
+    for line in log.splitlines():
+        REWRITING = "Rewriting"
+        if line.startswith(REWRITING):
+            file_ = line[len(REWRITING) + 1 :]
+            print_error(
+                file_, None, f"Please run pyupgrade {PYUPGRADE_TARGET} on this file"
+            )
+            errors += 1
+
+    sys.exit(errors)
+
+
+if __name__ == "__main__":
+    main()

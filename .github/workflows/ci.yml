@@ -1,0 +1,378 @@
+---
+name: CI
+
+# yamllint disable-line rule:truthy
+on:
+  push:
+    branches: [dev, beta, release]
+
+  pull_request:
+    paths:
+      - "**"
+      - "!.github/workflows/*.yml"
+      - ".github/workflows/ci.yml"
+  merge_group:
+
+permissions:
+  contents: read
+
+env:
+  DEFAULT_PYTHON: "3.9"
+  PYUPGRADE_TARGET: "--py39-plus"
+  CLANG_FORMAT_VERSION: "13.0.1"
+
+concurrency:
+  # yamllint disable-line rule:line-length
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  common:
+    name: Create common environment
+    runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.cache-key.outputs.key }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Generate cache-key
+        id: cache-key
+        run: echo key="${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
+      - name: Set up Python ${{ env.DEFAULT_PYTHON }}
+        id: python
+        uses: actions/setup-python@v4.7.1
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+      - name: Restore Python virtual environment
+        id: cache-venv
+        uses: actions/cache@v3.3.2
+        with:
+          path: venv
+          # yamllint disable-line rule:line-length
+          key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ steps.cache-key.outputs.key }}
+      - name: Create Python virtual environment
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: |
+          python -m venv venv
+          . venv/bin/activate
+          python --version
+          pip install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
+          pip install -e .
+
+  black:
+    name: Check black
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Run black
+        run: |
+          . venv/bin/activate
+          black --verbose esphome tests
+      - name: Suggested changes
+        run: script/ci-suggest-changes
+        if: always()
+
+  flake8:
+    name: Check flake8
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Run flake8
+        run: |
+          . venv/bin/activate
+          flake8 esphome
+      - name: Suggested changes
+        run: script/ci-suggest-changes
+        if: always()
+
+  pylint:
+    name: Check pylint
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Run pylint
+        run: |
+          . venv/bin/activate
+          pylint -f parseable --persistent=n esphome
+      - name: Suggested changes
+        run: script/ci-suggest-changes
+        if: always()
+
+  pyupgrade:
+    name: Check pyupgrade
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Run pyupgrade
+        run: |
+          . venv/bin/activate
+          pyupgrade ${{ env.PYUPGRADE_TARGET }} `find esphome -name "*.py" -type f`
+      - name: Suggested changes
+        run: script/ci-suggest-changes
+        if: always()
+
+  ci-custom:
+    name: Run script/ci-custom
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Register matcher
+        run: echo "::add-matcher::.github/workflows/matchers/ci-custom.json"
+      - name: Run script/ci-custom
+        run: |
+          . venv/bin/activate
+          script/ci-custom.py
+          script/build_codeowners.py --check
+
+  pytest:
+    name: Run pytest
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Register matcher
+        run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
+      - name: Run pytest
+        run: |
+          . venv/bin/activate
+          pytest -vv --tb=native tests
+
+  clang-format:
+    name: Check clang-format
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Install clang-format
+        run: |
+          . venv/bin/activate
+          pip install clang-format==${{ env.CLANG_FORMAT_VERSION }}
+      - name: Run clang-format
+        run: |
+          . venv/bin/activate
+          script/clang-format -i
+          git diff-index --quiet HEAD --
+      - name: Suggested changes
+        run: script/ci-suggest-changes
+        if: always()
+
+  compile-tests-list:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Find all YAML test files
+        id: set-matrix
+        run: echo "matrix=$(ls tests/test*.yaml | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
+
+  validate-tests:
+    name: Validate YAML test ${{ matrix.file }}
+    runs-on: ubuntu-latest
+    needs:
+      - common
+      - compile-tests-list
+    strategy:
+      fail-fast: false
+      matrix:
+        file: ${{ fromJson(needs.compile-tests-list.outputs.matrix) }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Run esphome config ${{ matrix.file }}
+        run: |
+          . venv/bin/activate
+          esphome config ${{ matrix.file }}
+
+  compile-tests:
+    name: Run YAML test ${{ matrix.file }}
+    runs-on: ubuntu-latest
+    needs:
+      - common
+      - black
+      - ci-custom
+      - clang-format
+      - flake8
+      - pylint
+      - pytest
+      - pyupgrade
+      - compile-tests-list
+      - validate-tests
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        file: ${{ fromJson(needs.compile-tests-list.outputs.matrix) }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Run esphome compile ${{ matrix.file }}
+        run: |
+          . venv/bin/activate
+          esphome compile ${{ matrix.file }}
+
+  clang-tidy:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    needs:
+      - common
+      - black
+      - ci-custom
+      - clang-format
+      - flake8
+      - pylint
+      - pytest
+      - pyupgrade
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP8266
+            options: --environment esp8266-arduino-tidy --grep USE_ESP8266
+            pio_cache_key: tidyesp8266
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 1/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 1
+            pio_cache_key: tidyesp32
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 2/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 2
+            pio_cache_key: tidyesp32
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 3/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 3
+            pio_cache_key: tidyesp32
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 4/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 4
+            pio_cache_key: tidyesp32
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 IDF
+            options: --environment esp32-idf-tidy --grep USE_ESP_IDF
+            pio_cache_key: tidyesp32-idf
+
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Cache platformio
+        uses: actions/cache@v3.3.2
+        with:
+          path: ~/.platformio
+          # yamllint disable-line rule:line-length
+          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Install clang-tidy
+        run: sudo apt-get install clang-tidy-14
+
+      - name: Register problem matchers
+        run: |
+          echo "::add-matcher::.github/workflows/matchers/gcc.json"
+          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+
+      - name: Run clang-tidy
+        run: |
+          . venv/bin/activate
+          script/clang-tidy --all-headers --fix ${{ matrix.options }}
+        env:
+          # Also cache libdeps, store them in a ~/.platformio subfolder
+          PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
+
+      - name: Suggested changes
+        run: script/ci-suggest-changes
+        # yamllint disable-line rule:line-length
+        if: always()
+
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs:
+      - common
+      - black
+      - ci-custom
+      - clang-format
+      - flake8
+      - pylint
+      - pytest
+      - pyupgrade
+      - compile-tests
+      - clang-tidy
+    if: always()
+    steps:
+      - name: Success
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: exit 0
+      - name: Failure
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1
