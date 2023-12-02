@@ -4,6 +4,7 @@
 #include "esphome/components/touchscreen/touchscreen.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace ft5x06 {
