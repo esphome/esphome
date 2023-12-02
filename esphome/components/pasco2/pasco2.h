@@ -31,12 +31,11 @@ class PASCO2Component : public PollingComponent, public i2c::I2CDevice {
   void set_automatic_self_calibration(bool asc) { enable_asc_ = asc; }
   void set_ambient_pressure_compensation(float pressure_in_hpa);
   void set_ambient_pressure_source(sensor::Sensor *pressure) { ambient_pressure_source_ = pressure; }
-  
 
   void set_co2_sensor(sensor::Sensor *co2) { co2_sensor_ = co2; }
   void set_measurement_mode(MeasurementMode mode) { measurement_mode_ = mode; }
   bool perform_forced_calibration(uint16_t current_co2_concentration);
-  
+
   void set_enable_pin(GPIOPin *enable) { this->enable_pin_ = enable; }
 
  protected:

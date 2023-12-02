@@ -29,20 +29,16 @@ MEASUREMENT_MODE_OPTIONS = {
     "single_shot": MeasurementMode.SINGLE_SHOT,
 }
 
-
 # Actions
 PerformForcedCalibrationAction = pasco2_ns.class_(
     "PerformForcedCalibrationAction", automation.Action
 )
 FactoryResetAction = pasco2_ns.class_("FactoryResetAction", automation.Action)
 
-
 CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
 CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE = "ambient_pressure_compensation_source"
 CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
 CONF_MEASUREMENT_MODE = "measurement_mode"
-
-
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -79,7 +75,6 @@ SETTING_MAP = {
     CONF_AMBIENT_PRESSURE_COMPENSATION: "set_ambient_pressure_compensation",
 }
 
-
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -101,9 +96,8 @@ async def to_code(config):
     if CONF_ENABLE_PIN in config:
         enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
         cg.add(var.set_enable_pin(enable))
-        
-    cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))
 
+    cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))
 
 PASCO2_ACTION_SCHEMA = maybe_simple_id(
     {
@@ -111,7 +105,6 @@ PASCO2_ACTION_SCHEMA = maybe_simple_id(
         cv.Required(CONF_VALUE): cv.templatable(cv.positive_int),
     }
 )
-
 
 @automation.register_action(
     "pasco2.perform_forced_calibration",

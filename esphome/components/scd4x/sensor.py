@@ -39,13 +39,11 @@ MEASUREMENT_MODE_OPTIONS = {
     "single_shot_rht_only": MeasurementMode.SINGLE_SHOT_RHT_ONLY,
 }
 
-
 # Actions
 PerformForcedCalibrationAction = scd4x_ns.class_(
     "PerformForcedCalibrationAction", automation.Action
 )
 FactoryResetAction = scd4x_ns.class_("FactoryResetAction", automation.Action)
-
 
 CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
 CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
@@ -53,7 +51,6 @@ CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE = "ambient_pressure_compensation_sourc
 CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
 CONF_MEASUREMENT_MODE = "measurement_mode"
 CONF_TEMPERATURE_OFFSET = "temperature_offset"
-
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -112,7 +109,6 @@ SETTING_MAP = {
     CONF_TEMPERATURE_OFFSET: "set_temperature_offset",
 }
 
-
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -133,14 +129,12 @@ async def to_code(config):
 
     cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))
 
-
 SCD4X_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(SCD4XComponent),
         cv.Required(CONF_VALUE): cv.templatable(cv.positive_int),
     }
 )
-
 
 @automation.register_action(
     "scd4x.perform_forced_calibration",
@@ -154,13 +148,11 @@ async def scd4x_frc_to_code(config, action_id, template_arg, args):
     cg.add(var.set_value(template_))
     return var
 
-
 SCD4X_RESET_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(SCD4XComponent),
     }
 )
-
 
 @automation.register_action(
     "scd4x.factory_reset", FactoryResetAction, SCD4X_RESET_ACTION_SCHEMA
