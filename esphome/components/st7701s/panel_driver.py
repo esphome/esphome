@@ -2,15 +2,17 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import spi, panel_driver
-from esphome.const import CONF_DC_PIN, CONF_RESET_PIN, CONF_OUTPUT
+from esphome.const import (
+    CONF_DC_PIN,
+    CONF_RESET_PIN,
+    CONF_OUTPUT,
+    CONF_DATA_PINS,
+)
 
 from .init_sequences import ST7701S_INITS
 from ..panel_driver import CONF_TRANSFORM, CONF_SWAP_XY
 
 CONF_INIT_SEQUENCE = "init_sequence"
-CONF_OFFSET_HEIGHT = "offset_height"
-CONF_OFFSET_WIDTH = "offset_width"
-CONF_DATA_PINS = "data_pins"
 CONF_DE_PIN = "de_pin"
 CONF_PCLK_PIN = "pclk_pin"
 CONF_HSYNC_PIN = "hsync_pin"

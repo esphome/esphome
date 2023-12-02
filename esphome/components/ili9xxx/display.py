@@ -17,6 +17,8 @@ from esphome.const import (
     CONF_WIDTH,
     CONF_HEIGHT,
     CONF_ROTATION,
+    CONF_OFFSET_HEIGHT,
+    CONF_OFFSET_WIDTH,
 )
 
 DEPENDENCIES = ["spi"]
@@ -71,8 +73,6 @@ CONF_MIRROR_X = "mirror_x"
 CONF_MIRROR_Y = "mirror_y"
 CONF_SWAP_XY = "swap_xy"
 CONF_COLOR_ORDER = "color_order"
-CONF_OFFSET_HEIGHT = "offset_height"
-CONF_OFFSET_WIDTH = "offset_width"
 CONF_TRANSFORM = "transform"
 
 

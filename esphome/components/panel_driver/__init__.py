@@ -6,18 +6,17 @@ from esphome.const import (
     CONF_DIMENSIONS,
     CONF_WIDTH,
     CONF_HEIGHT,
+    CONF_OFFSET_HEIGHT,
+    CONF_OFFSET_WIDTH,
 )
 
 CODEOWNERS = ["@clydebarrow"]
 IS_PLATFORM_COMPONENT = True
 
-CONF_OFFSET_HEIGHT = "offset_height"
-CONF_OFFSET_WIDTH = "offset_width"
 CONF_TRANSFORM = "transform"
 CONF_MIRROR_X = "mirror_x"
 CONF_MIRROR_Y = "mirror_y"
 CONF_SWAP_XY = "swap_xy"
-CONF_COLOR_MODE = "color_mode"
 
 panel_driver_ns = cg.esphome_ns.namespace("panel_driver")
 PanelDriver = panel_driver_ns.class_("PanelDriver", cg.Component)

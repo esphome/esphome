@@ -14,12 +14,12 @@ from esphome.const import (
     CONF_POWER_SUPPLY,
     CONF_ROTATION,
     CONF_CS_PIN,
+    CONF_OFFSET_HEIGHT,
+    CONF_OFFSET_WIDTH,
 )
 from . import st7789v_ns
 
 CONF_EIGHTBITCOLOR = "eightbitcolor"
-CONF_OFFSET_HEIGHT = "offset_height"
-CONF_OFFSET_WIDTH = "offset_width"
 
 CODEOWNERS = ["@kbx81"]
 
