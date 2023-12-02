@@ -13,6 +13,8 @@
 namespace esphome {
 namespace st7701s {
 
+#ifdef USE_ESP_IDF
+
 constexpr static const char *const TAG = "panel_driver.st7701s";
 const uint8_t SW_RESET_CMD = 0x01;
 const uint8_t SLEEP_OUT = 0x11;
@@ -173,5 +175,6 @@ class ST7701S : public panel_driver::PanelDriver,
   esp_lcd_panel_handle_t handle_{};
 };
 
+#endif
 }  // namespace st7701s
 }  // namespace esphome
