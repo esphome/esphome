@@ -38,7 +38,7 @@ class FT5x06Touchscreen : public touchscreen::Touchscreen, public Component, pub
 
   void setup() override {
     i2c::ErrorCode err;
-    ESP_LOGCONFIG(TAG, "Setting up FT5x06 Touchscreen...");
+    esph_log_config(TAG, "Setting up FT5x06 Touchscreen...");
     // wait 200ms after reset.
     this->set_timeout(200, [this] { this->continue_setup_(); });
   }
@@ -65,7 +65,7 @@ class FT5x06Touchscreen : public touchscreen::Touchscreen, public Component, pub
         this->mark_failed();
         return;
     }
-    ESP_LOGCONFIG(TAG, "FT5x06 Touchscreen setup complete");
+    esph_log_config(TAG, "FT5x06 Touchscreen setup complete");
   }
 
   void loop() override {
@@ -122,10 +122,10 @@ class FT5x06Touchscreen : public touchscreen::Touchscreen, public Component, pub
   }
 
   void dump_config() override {
-    ESP_LOGCONFIG(TAG, "FT5x06 Touchscreen:");
-    LOG_I2C_DEVICE(this);
-    ESP_LOGCONFIG(TAG, "  Rotation: %d", (int) this->rotation_);
-    ESP_LOGCONFIG(TAG, "  Vendor ID: 0x%X", (int) this->vendor_id_);
+    esph_log_config(TAG, "FT5x06 Touchscreen:");
+    esph_log_config(TAG, "  Address: 0x%02X", this->address_);
+    esph_log_config(TAG, "  Rotation: %d", (int) this->rotation_);
+    esph_log_config(TAG, "  Vendor ID: 0x%X", (int) this->vendor_id_);
   }
 
  protected:
