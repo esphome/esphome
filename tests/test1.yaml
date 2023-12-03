@@ -2792,6 +2792,7 @@ fan:
     oscillation_output: gpio_19
     direction_output: gpio_26
     preset_modes:
+      - name: Name Only
       - name: Speed Only
         speed: 10
       - name: Speed & Direction Only
@@ -2801,6 +2802,9 @@ fan:
         speed: 50
         oscillating: false
         direction: FORWARD
+    on_preset_set:
+      then:
+        - logger.log: Preset mode was changed!
   - platform: hbridge
     id: fan_hbridge_presets
     icon: mdi:weather-windy
@@ -2809,11 +2813,15 @@ fan:
     pin_a: pca_6
     pin_b: pca_7
     preset_modes:
+      - name: Name Only
       - name: Speed Only
         speed: 10
       - name: Speed & Direction Only
         speed: 100
         direction: REVERSE
+    on_preset_set:
+      then:
+        - logger.log: Preset mode was changed!
   - platform: bedjet
     name: My Bedjet fan
     bedjet_id: my_bedjet_client

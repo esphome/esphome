@@ -25,15 +25,12 @@ SpeedFan = speed_ns.class_("SpeedFan", cg.Component, fan.Fan)
 
 _PRESET_MODES_SCHEMA = cv.All(
     cv.ensure_list(
-        cv.All(
-            {
-                cv.Required(CONF_NAME): cv.string_strict,
-                cv.Optional(CONF_SPEED): cv.int_range(1),
-                cv.Optional(CONF_OSCILLATING): cv.boolean,
-                cv.Optional(CONF_DIRECTION): cv.enum(FAN_DIRECTION_ENUM, upper=True),
-            },
-            cv.has_at_least_one_key(CONF_SPEED, CONF_OSCILLATING, CONF_DIRECTION),
-        )
+        {
+            cv.Required(CONF_NAME): cv.string_strict,
+            cv.Optional(CONF_SPEED): cv.int_range(1),
+            cv.Optional(CONF_OSCILLATING): cv.boolean,
+            cv.Optional(CONF_DIRECTION): cv.enum(FAN_DIRECTION_ENUM, upper=True),
+        }
     ),
     cv.Length(min=1),
 )
