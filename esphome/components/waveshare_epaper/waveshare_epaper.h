@@ -7,7 +7,7 @@
 namespace esphome {
 namespace waveshare_epaper {
 
-class WaveshareEPaperBase : public display::DisplayBuffer,
+class WaveshareEPaper : public display::DisplayBuffer,
                             public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                   spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
@@ -34,6 +34,10 @@ class WaveshareEPaperBase : public display::DisplayBuffer,
 
   void on_safe_shutdown() override;
 
+  display::DisplayType get_display_type() override;
+
+  void fill(Color color) override;
+
  protected:
   bool wait_until_idle_();
 
@@ -50,8 +54,13 @@ class WaveshareEPaperBase : public display::DisplayBuffer,
 
   virtual int get_width_controller() { return this->get_width_internal(); };
 
-  virtual uint32_t get_buffer_length_() = 0;  // NOLINT(readability-identifier-naming)
+  virtual uint32_t get_buffer_length_();
   uint32_t reset_duration_{200};
+
+  // Return the list of colors supported by the device
+  virtual std::vector<Color> get_supported_colors() { return {display::COLOR_ON}; }
+
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
   void start_command_();
   void end_command_();
@@ -64,26 +73,9 @@ class WaveshareEPaperBase : public display::DisplayBuffer,
   virtual uint32_t idle_timeout_() { return 1000u; }  // NOLINT(readability-identifier-naming)
 };
 
-class WaveshareEPaper : public WaveshareEPaperBase {
+class WaveshareEPaperBWR : public WaveshareEPaper {
  public:
-  void fill(Color color) override;
-
-  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
-
- protected:
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
-  uint32_t get_buffer_length_() override;
-};
-
-class WaveshareEPaperBWR : public WaveshareEPaperBase {
- public:
-  void fill(Color color) override;
-
-  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
-
- protected:
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
-  uint32_t get_buffer_length_() override;
+  virtual std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
 };
 
 enum WaveshareEPaperTypeAModel {
@@ -791,6 +783,83 @@ class WaveshareEPaper13P3InK : public WaveshareEPaper {
   int get_height_internal() override;
 
   uint32_t idle_timeout_() override;
+
+};
+
+// Generic Waveshare e-paper component that
+// avoids using any blocking wait to be able to support
+// big screens that are slow to update
+class WaveshareEPaperPolled : public WaveshareEPaper {
+  // Will request a display refresh
+  void update() override;
+
+  // Will move the state machine one state at a time
+  // to refresh the display when requested by display()
+  void loop() override;
+
+  // Unused method from parent
+  void initialize() override {}
+
+protected:
+
+  // Below are display steps, called one after the other by loop()
+  // Just implement these to support a new device.
+  // Never sleep or wait in a step, the state machine will
+  // handle it.
+
+  // Just after reset, set the power mode and power the driver on
+  virtual void power_on() = 0;
+
+  // Send all the configuration required to display
+  virtual void configure() = 0;
+
+  // Send image data and refresh the display
+  virtual void display() = 0;
+
+  // Power off the driver
+  virtual void power_off() = 0;
+
+  // Set the screen to deep sleep
+  void deep_sleep() override = 0;
+
+private:
+  enum class State: uint8_t {
+    sleeping,
+    update_requested,
+    resetting,
+    initializing,
+    powering_on,
+    configuring,
+    displaying,
+    powering_off,
+  };
+
+  // Set the current state of the display
+  void set_state_(State state);
+
+  // Current state of the display
+  State state_{State::sleeping};
+  // Timestamp of last state changed, used to wait between states
+  uint32_t last_state_change_{0};
+};
+
+// 7.5 inches screen supporting black and red color with
+// a v3 label on the back. Called EDP_7in5b_V2 in WaveShare examples.
+class WaveshareEPaper7In5BV2 : public WaveshareEPaperPolled {
+ public:
+  void dump_config() override;
+
+  void power_on() override;
+  void configure() override;
+  void display() override;
+  void power_off() override;
+  void deep_sleep() override;
+
+  virtual std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
+
+ protected:
+  int get_width_internal() override { return 800; }
+  int get_height_internal() override { return 480; }
 };
 
 }  // namespace waveshare_epaper
