@@ -37,8 +37,6 @@ void Optolink::setup() {
 #elif defined(USE_ESP8266)
   VitoWiFi.setup(&Serial);
 #endif
-
-  // set_interval("Optolink_comm", 10000, std::bind(&Optolink::_comm, this));
 }
 
 void Optolink::loop() { VitoWiFi.loop(); }
