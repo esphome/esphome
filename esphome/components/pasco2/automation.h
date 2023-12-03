@@ -19,6 +19,5 @@ template<typename... Ts> class PerformForcedCalibrationAction : public Action<Ts
   TEMPLATABLE_VALUE(uint16_t, value)
 };
 
-
 }  // namespace pasco2
 }  // namespace esphome
