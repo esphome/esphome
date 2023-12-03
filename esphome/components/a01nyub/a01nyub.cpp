@@ -38,9 +38,7 @@ void A01nyubComponent::check_buffer_() {
   this->buffer_.clear();
 }
 
-void A01nyubComponent::dump_config() {
-  LOG_SENSOR("", "A01nyub Sensor", this);
-}
+void A01nyubComponent::dump_config() { LOG_SENSOR("", "A01nyub Sensor", this); }
 
 }  // namespace a01nyub
 }  // namespace esphome
