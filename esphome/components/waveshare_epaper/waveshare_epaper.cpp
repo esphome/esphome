@@ -169,16 +169,16 @@ void WaveshareEPaper::update() {
 }
 void WaveshareEPaper::fill(Color color) {
   uint32_t offset = 0;
-  for (const auto& buf_color: this->get_supported_colors()) {
+  for (const auto &buf_color : this->get_supported_colors()) {
     // A bit set to 1 means color is off
     uint8_t value = 0x00;
     if (color != buf_color) {
       value = 0xFF;
     }
     for (uint32_t i = 0; i < (this->get_width_internal() * this->get_height_internal()) / 8u; i++) {
-      this->buffer_[offset+i] = value;
+      this->buffer_[offset + i] = value;
     }
-    offset+= (this->get_width_internal() * this->get_height_internal()) / 8u;
+    offset += (this->get_width_internal() * this->get_height_internal()) / 8u;
   }
 }
 void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color) {
@@ -188,13 +188,13 @@ void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color
   const uint32_t pos = (x + y * this->get_width_controller()) / 8u;
   const uint8_t subpos = x & 0x07;
   uint32_t offset = 0;
-  for (const auto& buf_color: this->get_supported_colors()) {
+  for (const auto &buf_color : this->get_supported_colors()) {
     // A bit set to 1 means color is off
-    this->buffer_[offset+pos] &= ~(0x80 >> subpos);
+    this->buffer_[offset + pos] &= ~(0x80 >> subpos);
     if (color != buf_color) {
-      this->buffer_[offset+pos] |= 0x80 >> subpos;
+      this->buffer_[offset + pos] |= 0x80 >> subpos;
     }
-    offset+= (this->get_width_internal() * this->get_height_internal()) / 8u;
+    offset += (this->get_width_internal() * this->get_height_internal()) / 8u;
   }
 }
 
@@ -3138,7 +3138,7 @@ void WaveshareEPaper7In5BV2::power_on() {
 void WaveshareEPaper7In5BV2::configure() {
   // COMMAND PANEL SETTING
   this->command(0x00);
-  this->data(0x0F); // //KW-3f   KWR-2F	BWROTP 0f	BWOTP 1f
+  this->data(0x0F);  // KW-3f KWR-2F BWROTP 0f BWOTP 1f
   // COMMAND RESOLUTION SETTING
   this->command(0x61);
   this->data(0x03);
@@ -3167,14 +3167,14 @@ void HOT WaveshareEPaper7In5BV2::display() {
   uint32_t buf_len = this->get_buffer_length_();
   // COMMAND DATA START TRANSMISSION NEW DATA
   this->command(0x10);
-  for (uint32_t i = 0; i < buf_len/2; i++) {
+  for (uint32_t i = 0; i < buf_len / 2; i++) {
     this->data(this->buffer_[i]);
   }
   this->command(0x92);
 
   // COMMAND DATA START TRANSMISSION NEW DATA
   this->command(0x13);
-  for (uint32_t i = buf_len/2; i < buf_len; i++) {
+  for (uint32_t i = buf_len / 2; i < buf_len; i++) {
     this->data(~this->buffer_[i]);
   }
 
@@ -3183,11 +3183,11 @@ void HOT WaveshareEPaper7In5BV2::display() {
 }
 
 void WaveshareEPaper7In5BV2::power_off() {
-  this->command(0x02); // POWER OFF
+  this->command(0x02);  // POWER OFF
 }
 
 void WaveshareEPaper7In5BV2::deep_sleep() {
-  this->command(0x07); // SLEEP
+  this->command(0x07);  // SLEEP
   this->data(0xA5);
 }
 

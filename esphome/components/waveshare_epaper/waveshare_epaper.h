@@ -800,8 +800,7 @@ class WaveshareEPaperPolled : public WaveshareEPaper {
   // Unused method from parent
   void initialize() override {}
 
-protected:
-
+ protected:
   // Below are display steps, called one after the other by loop()
   // Just implement these to support a new device.
   // Never sleep or wait in a step, the state machine will
@@ -822,8 +821,8 @@ protected:
   // Set the screen to deep sleep
   void deep_sleep() override = 0;
 
-private:
-  enum class State: uint8_t {
+ private:
+  enum class State : uint8_t {
     sleeping,
     update_requested,
     resetting,
