@@ -19,7 +19,7 @@ enum ERRORCODE {
   FRC_FAILED,
   UNKNOWN
 };
-enum MeasurementMode { PERIODIC, LOW_POWER_PERIODIC, SINGLE_SHOT, SINGLE_SHOT_RHT_ONLY };
+enum MeasurementMode { PERIODIC, SINGLE_SHOT };
 
 class PASCO2Component : public PollingComponent, public i2c::I2CDevice {
  public:
