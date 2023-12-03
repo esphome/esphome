@@ -129,10 +129,18 @@ void WaveshareEPaper::update() {
   this->display();
 }
 void WaveshareEPaper::fill(Color color) {
-  // flip logic
-  const uint8_t fill = color.is_on() ? 0x00 : 0xFF;
-  for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
-    this->buffer_[i] = fill;
+  uint32_t offset = 0;
+  for (const auto& buf_color: this->get_supported_colors()) {
+    // A bit set to 1 means color is off
+    uint8_t value = 0x00;
+    if (color != buf_color) {
+      value = 0xFF;
+    }
+    for (uint32_t i = 0; i < (this->get_width_internal() * this->get_height_internal()) / 8u; i++) {
+      this->buffer_[offset+i] = value;
+    }
+    offset+= (this->get_width_internal() * this->get_height_internal()) / 8u;
+  }
 }
 void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
@@ -140,15 +148,18 @@ void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color
 
   const uint32_t pos = (x + y * this->get_width_controller()) / 8u;
   const uint8_t subpos = x & 0x07;
-  // flip logic
-  if (!color.is_on()) {
-    this->buffer_[pos] |= 0x80 >> subpos;
-  } else {
-    this->buffer_[pos] &= ~(0x80 >> subpos);
+  uint32_t offset = 0;
+  for (const auto& buf_color: this->get_supported_colors()) {
+    // A bit set to 1 means color is off
+    this->buffer_[offset+pos] &= ~(0x80 >> subpos);
+    if (color != buf_color) {
+      this->buffer_[offset+pos] |= 0x80 >> subpos;
+    }
+    offset+= (this->get_width_internal() * this->get_height_internal()) / 8u;
   }
 }
 uint32_t WaveshareEPaper::get_buffer_length_() {
-  return this->get_width_controller() * this->get_height_internal() / 8u;
+  return (this->get_width_controller() * this->get_height_internal() * this->get_supported_colors().size()) / 8u;
 }
 void WaveshareEPaper::start_command_() {
   this->dc_pin_->digital_write(false);
@@ -161,6 +172,13 @@ void WaveshareEPaper::start_data_() {
 }
 void WaveshareEPaper::end_data_() { this->disable(); }
 void WaveshareEPaper::on_safe_shutdown() { this->deep_sleep(); }
+display::DisplayType WaveshareEPaper::get_display_type() {
+  if (this->get_supported_colors().size() > 1) {
+    return display::DisplayType::DISPLAY_TYPE_BINARY;
+  } else {
+    return display::DisplayType::DISPLAY_TYPE_COLOR;
+  }
+}
 
 // ========================================================
 //                          Type A
@@ -2127,6 +2145,165 @@ void WaveshareEPaper2P13InDKE::dump_config() {
 
 void WaveshareEPaper2P13InDKE::set_full_update_every(uint32_t full_update_every) {
   this->full_update_every_ = full_update_every;
+}
+
+void WaveshareEPaperPolled::update() {
+  this->do_update_();
+  if (this->state_ == State::sleeping) {
+    this->set_state_(State::update_requested);
+  }
+}
+
+void WaveshareEPaperPolled::loop() {
+  switch (this->state_) {
+    case State::sleeping:
+      break;
+    case State::update_requested:
+      this->reset_pin_->digital_write(false);
+      this->set_state_(State::resetting);
+      break;
+    case State::resetting:
+      if (millis() - this->last_state_change_ >= this->reset_duration_) {
+        this->reset_pin_->digital_write(true);
+        this->set_state_(State::initializing);
+      }
+      break;
+    case State::initializing:
+      if (millis() - this->last_state_change_ >= 200) {
+        this->power_on();
+        this->set_state_(State::powering_on);
+      }
+      break;
+    case State::powering_on:
+      if (millis() - this->last_state_change_ >= 100 && (!this->busy_pin_ || !this->busy_pin_->digital_read())) {
+        this->configure();
+        this->set_state_(State::configuring);
+      }
+      break;
+    case State::configuring:
+      this->display();
+      this->set_state_(State::displaying);
+      break;
+    case State::displaying:
+      if (millis() - this->last_state_change_ >= 200 && (!this->busy_pin_ || !this->busy_pin_->digital_read())) {
+        this->power_off();
+        this->set_state_(State::powering_off);
+      }
+      break;
+    case State::powering_off:
+      if (!this->busy_pin_ || !this->busy_pin_->digital_read()) {
+        this->deep_sleep();
+        this->set_state_(State::sleeping);
+      }
+      break;
+  }
+}
+
+void WaveshareEPaperPolled::set_state_(State state) {
+  this->state_ = state;
+  this->last_state_change_ = millis();
+  switch (this->state_) {
+    case State::sleeping:
+      ESP_LOGD(TAG, "sleeping");
+      break;
+    case State::update_requested:
+      ESP_LOGD(TAG, "update_requested");
+      break;
+    case State::resetting:
+      ESP_LOGD(TAG, "resetting");
+      break;
+    case State::initializing:
+      ESP_LOGD(TAG, "initializing");
+      break;
+    case State::powering_on:
+      ESP_LOGD(TAG, "powering_on");
+      break;
+    case State::configuring:
+      ESP_LOGD(TAG, "configuring");
+      break;
+    case State::displaying:
+      ESP_LOGD(TAG, "displaying");
+      break;
+    case State::powering_off:
+      ESP_LOGD(TAG, "powering_off");
+      break;
+  }
+}
+
+void WaveshareEPaper7In5BV2::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5in V3 Black/Red");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+void WaveshareEPaper7In5BV2::power_on() {
+  // COMMAND POWER SETTING
+  this->command(0x01);
+  this->data(0x07);
+  this->data(0x17);
+  this->data(0x3F);
+  this->data(0x3F);
+  // POWER ON
+  this->command(0x04);
+}
+
+void WaveshareEPaper7In5BV2::configure() {
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0x0F); // //KW-3f   KWR-2F	BWROTP 0f	BWOTP 1f
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x03);
+  this->data(0x20);
+  this->data(0x01);
+  this->data(0xE0);
+  // COMMAND DUAL SPI MODE
+  this->command(0x15);
+  this->data(0x00);
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x11);
+  this->data(0x07);
+  // COMMAND TCON SETTING
+  this->command(0x60);
+  this->data(0x22);
+  // COMMAND RESOLUTION GATE SETTING
+  this->command(0x65);
+  this->data(0x00);
+  this->data(0x00);
+  this->data(0x00);
+  this->data(0x00);
+}
+
+void HOT WaveshareEPaper7In5BV2::display() {
+  uint32_t buf_len = this->get_buffer_length_();
+  // COMMAND DATA START TRANSMISSION NEW DATA
+  this->command(0x10);
+  for (uint32_t i = 0; i < buf_len/2; i++) {
+    this->data(this->buffer_[i]);
+  }
+  this->command(0x92);
+
+  // COMMAND DATA START TRANSMISSION NEW DATA
+  this->command(0x13);
+  for (uint32_t i = buf_len/2; i < buf_len; i++) {
+    this->data(~this->buffer_[i]);
+  }
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+}
+
+void WaveshareEPaper7In5BV2::power_off() {
+  this->command(0x02); // POWER OFF
+}
+
+void WaveshareEPaper7In5BV2::deep_sleep() {
+  this->command(0x07); // SLEEP
+  this->data(0xA5);
 }
 
 }  // namespace waveshare_epaper
