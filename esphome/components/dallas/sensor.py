@@ -24,7 +24,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(
         {
             cv.GenerateID(CONF_DALLAS_ID): cv.use_id(DallasComponent),
-            cv.Optional(CONF_ADDRESS): cv.hex_int,
+            cv.Optional(CONF_ADDRESS): cv.hex_uint64_t,
             cv.Optional(CONF_INDEX): cv.positive_int,
             cv.Optional(CONF_RESOLUTION, default=12): cv.int_range(min=9, max=12),
         }

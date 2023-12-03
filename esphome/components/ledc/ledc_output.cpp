@@ -17,7 +17,11 @@
 #define CLOCK_FREQUENCY 40e6f
 #endif
 #else
+#ifdef SOC_LEDC_SUPPORT_APB_CLOCK
 #define DEFAULT_CLK LEDC_USE_APB_CLK
+#else
+#define DEFAULT_CLK LEDC_AUTO_CLK
+#endif
 #endif
 
 static const uint8_t SETUP_ATTEMPT_COUNT_MAX = 5;

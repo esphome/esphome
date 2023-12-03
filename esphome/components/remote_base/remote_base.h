@@ -15,144 +15,63 @@
 namespace esphome {
 namespace remote_base {
 
+using RawTimings = std::vector<int32_t>;
+
 class RemoteTransmitData {
  public:
   void mark(uint32_t length) { this->data_.push_back(length); }
-
   void space(uint32_t length) { this->data_.push_back(-length); }
-
   void item(uint32_t mark, uint32_t space) {
     this->mark(mark);
     this->space(space);
   }
-
   void reserve(uint32_t len) { this->data_.reserve(len); }
-
   void set_carrier_frequency(uint32_t carrier_frequency) { this->carrier_frequency_ = carrier_frequency; }
-
   uint32_t get_carrier_frequency() const { return this->carrier_frequency_; }
-
-  const std::vector<int32_t> &get_data() const { return this->data_; }
-
-  void set_data(const std::vector<int32_t> &data) {
-    this->data_.clear();
-    this->data_.reserve(data.size());
-    for (auto dat : data)
-      this->data_.push_back(dat);
-  }
-
+  const RawTimings &get_data() const { return this->data_; }
+  void set_data(const RawTimings &data) { this->data_ = data; }
   void reset() {
     this->data_.clear();
     this->carrier_frequency_ = 0;
   }
 
-  std::vector<int32_t>::iterator begin() { return this->data_.begin(); }
-
-  std::vector<int32_t>::iterator end() { return this->data_.end(); }
-
  protected:
-  std::vector<int32_t> data_{};
+  RawTimings data_{};
   uint32_t carrier_frequency_{0};
 };
 
 class RemoteReceiveData {
  public:
-  RemoteReceiveData(std::vector<int32_t> *data, uint8_t tolerance) : data_(data), tolerance_(tolerance) {}
+  explicit RemoteReceiveData(const RawTimings &data, uint8_t tolerance)
+      : data_(data), index_(0), tolerance_(tolerance) {}
 
-  bool peek_mark(uint32_t length, uint32_t offset = 0) {
-    if (int32_t(this->index_ + offset) >= this->size())
-      return false;
-    int32_t value = this->peek(offset);
-    const int32_t lo = this->lower_bound_(length);
-    const int32_t hi = this->upper_bound_(length);
-    return value >= 0 && lo <= value && value <= hi;
+  const RawTimings &get_raw_data() const { return this->data_; }
+  uint32_t get_index() const { return index_; }
+  int32_t operator[](uint32_t index) const { return this->data_[index]; }
+  int32_t size() const { return this->data_.size(); }
+  bool is_valid(uint32_t offset) const { return this->index_ + offset < this->data_.size(); }
+  int32_t peek(uint32_t offset = 0) const { return this->data_[this->index_ + offset]; }
+  bool peek_mark(uint32_t length, uint32_t offset = 0) const;
+  bool peek_space(uint32_t length, uint32_t offset = 0) const;
+  bool peek_space_at_least(uint32_t length, uint32_t offset = 0) const;
+  bool peek_item(uint32_t mark, uint32_t space, uint32_t offset = 0) const {
+    return this->peek_space(space, offset + 1) && this->peek_mark(mark, offset);
   }
 
-  bool peek_space(uint32_t length, uint32_t offset = 0) {
-    if (int32_t(this->index_ + offset) >= this->size())
-      return false;
-    int32_t value = this->peek(offset);
-    const int32_t lo = this->lower_bound_(length);
-    const int32_t hi = this->upper_bound_(length);
-    return value <= 0 && lo <= -value && -value <= hi;
-  }
-
-  bool peek_space_at_least(uint32_t length, uint32_t offset = 0) {
-    if (int32_t(this->index_ + offset) >= this->size())
-      return false;
-    int32_t value = this->pos(this->index_ + offset);
-    const int32_t lo = this->lower_bound_(length);
-    return value <= 0 && lo <= -value;
-  }
-
-  bool peek_item(uint32_t mark, uint32_t space, uint32_t offset = 0) {
-    return this->peek_mark(mark, offset) && this->peek_space(space, offset + 1);
-  }
-
-  int32_t peek(uint32_t offset = 0) { return (*this)[this->index_ + offset]; }
-
+  bool expect_mark(uint32_t length);
+  bool expect_space(uint32_t length);
+  bool expect_item(uint32_t mark, uint32_t space);
+  bool expect_pulse_with_gap(uint32_t mark, uint32_t space);
   void advance(uint32_t amount = 1) { this->index_ += amount; }
-
-  bool expect_mark(uint32_t length) {
-    if (this->peek_mark(length)) {
-      this->advance();
-      return true;
-    }
-    return false;
-  }
-
-  bool expect_space(uint32_t length) {
-    if (this->peek_space(length)) {
-      this->advance();
-      return true;
-    }
-    return false;
-  }
-
-  bool expect_item(uint32_t mark, uint32_t space) {
-    if (this->peek_item(mark, space)) {
-      this->advance(2);
-      return true;
-    }
-    return false;
-  }
-
-  bool expect_pulse_with_gap(uint32_t mark, uint32_t space) {
-    if (this->peek_mark(mark, 0) && this->peek_space_at_least(space, 1)) {
-      this->advance(2);
-      return true;
-    }
-    return false;
-  }
-
-  uint32_t get_index() { return index_; }
-
   void reset() { this->index_ = 0; }
 
-  int32_t pos(uint32_t index) const { return (*this->data_)[index]; }
-
-  int32_t operator[](uint32_t index) const { return this->pos(index); }
-
-  int32_t size() const { return this->data_->size(); }
-
-  std::vector<int32_t> *get_raw_data() { return this->data_; }
-
  protected:
-  int32_t lower_bound_(uint32_t length) { return int32_t(100 - this->tolerance_) * length / 100U; }
-  int32_t upper_bound_(uint32_t length) { return int32_t(100 + this->tolerance_) * length / 100U; }
+  int32_t lower_bound_(uint32_t length) const { return int32_t(100 - this->tolerance_) * length / 100U; }
+  int32_t upper_bound_(uint32_t length) const { return int32_t(100 + this->tolerance_) * length / 100U; }
 
-  uint32_t index_{0};
-  std::vector<int32_t> *data_;
+  const RawTimings &data_;
+  uint32_t index_;
   uint8_t tolerance_;
-};
-
-template<typename T> class RemoteProtocol {
- public:
-  virtual void encode(RemoteTransmitData *dst, const T &data) = 0;
-
-  virtual optional<T> decode(RemoteReceiveData src) = 0;
-
-  virtual void dump(const T &data) = 0;
 };
 
 class RemoteComponentBase {
@@ -196,7 +115,6 @@ class RemoteTransmitterBase : public RemoteComponentBase {
     RemoteTransmitData *get_data() { return &this->parent_->temp_; }
     void set_send_times(uint32_t send_times) { send_times_ = send_times; }
     void set_send_wait(uint32_t send_wait) { send_wait_ = send_wait; }
-
     void perform() { this->parent_->send_(this->send_times_, this->send_wait_); }
 
    protected:
@@ -208,6 +126,14 @@ class RemoteTransmitterBase : public RemoteComponentBase {
   TransmitCall transmit() {
     this->temp_.reset();
     return TransmitCall(this);
+  }
+  template<typename Protocol>
+  void transmit(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
+    auto call = this->transmit();
+    Protocol().encode(call.get_data(), data);
+    call.set_send_times(send_times);
+    call.set_send_wait(send_wait);
+    call.perform();
   }
 
  protected:
@@ -234,51 +160,22 @@ class RemoteReceiverBase : public RemoteComponentBase {
  public:
   RemoteReceiverBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
   void register_listener(RemoteReceiverListener *listener) { this->listeners_.push_back(listener); }
-  void register_dumper(RemoteReceiverDumperBase *dumper) {
-    if (dumper->is_secondary()) {
-      this->secondary_dumpers_.push_back(dumper);
-    } else {
-      this->dumpers_.push_back(dumper);
-    }
-  }
+  void register_dumper(RemoteReceiverDumperBase *dumper);
   void set_tolerance(uint8_t tolerance) { tolerance_ = tolerance; }
 
  protected:
-  bool call_listeners_() {
-    bool success = false;
-    for (auto *listener : this->listeners_) {
-      auto data = RemoteReceiveData(&this->temp_, this->tolerance_);
-      if (listener->on_receive(data))
-        success = true;
-    }
-    return success;
-  }
-  void call_dumpers_() {
-    bool success = false;
-    for (auto *dumper : this->dumpers_) {
-      auto data = RemoteReceiveData(&this->temp_, this->tolerance_);
-      if (dumper->dump(data))
-        success = true;
-    }
-    if (!success) {
-      for (auto *dumper : this->secondary_dumpers_) {
-        auto data = RemoteReceiveData(&this->temp_, this->tolerance_);
-        dumper->dump(data);
-      }
-    }
-  }
+  void call_listeners_();
+  void call_dumpers_();
   void call_listeners_dumpers_() {
-    if (this->call_listeners_())
-      return;
-    // If a listener handled, then do not dump
+    this->call_listeners_();
     this->call_dumpers_();
   }
 
   std::vector<RemoteReceiverListener *> listeners_;
   std::vector<RemoteReceiverDumperBase *> dumpers_;
   std::vector<RemoteReceiverDumperBase *> secondary_dumpers_;
-  std::vector<int32_t> temp_;
-  uint8_t tolerance_{25};
+  RawTimings temp_;
+  uint8_t tolerance_;
 };
 
 class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensorInitiallyOff,
@@ -288,18 +185,20 @@ class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensorInitial
   explicit RemoteReceiverBinarySensorBase() {}
   void dump_config() override;
   virtual bool matches(RemoteReceiveData src) = 0;
-  bool on_receive(RemoteReceiveData src) override {
-    if (this->matches(src)) {
-      this->publish_state(true);
-      yield();
-      this->publish_state(false);
-      return true;
-    }
-    return false;
-  }
+  bool on_receive(RemoteReceiveData src) override;
 };
 
-template<typename T, typename D> class RemoteReceiverBinarySensor : public RemoteReceiverBinarySensorBase {
+/* TEMPLATES */
+
+template<typename T> class RemoteProtocol {
+ public:
+  using ProtocolData = T;
+  virtual void encode(RemoteTransmitData *dst, const ProtocolData &data) = 0;
+  virtual optional<ProtocolData> decode(RemoteReceiveData src) = 0;
+  virtual void dump(const ProtocolData &data) = 0;
+};
+
+template<typename T> class RemoteReceiverBinarySensor : public RemoteReceiverBinarySensorBase {
  public:
   RemoteReceiverBinarySensor() : RemoteReceiverBinarySensorBase() {}
 
@@ -311,13 +210,14 @@ template<typename T, typename D> class RemoteReceiverBinarySensor : public Remot
   }
 
  public:
-  void set_data(D data) { data_ = data; }
+  void set_data(typename T::ProtocolData data) { data_ = data; }
 
  protected:
-  D data_;
+  typename T::ProtocolData data_;
 };
 
-template<typename T, typename D> class RemoteReceiverTrigger : public Trigger<D>, public RemoteReceiverListener {
+template<typename T>
+class RemoteReceiverTrigger : public Trigger<typename T::ProtocolData>, public RemoteReceiverListener {
  protected:
   bool on_receive(RemoteReceiveData src) override {
     auto proto = T();
@@ -330,28 +230,36 @@ template<typename T, typename D> class RemoteReceiverTrigger : public Trigger<D>
   }
 };
 
-template<typename... Ts> class RemoteTransmitterActionBase : public Action<Ts...> {
+class RemoteTransmittable {
  public:
-  void set_parent(RemoteTransmitterBase *parent) { this->parent_ = parent; }
+  RemoteTransmittable() {}
+  RemoteTransmittable(RemoteTransmitterBase *transmitter) : transmitter_(transmitter) {}
+  void set_transmitter(RemoteTransmitterBase *transmitter) { this->transmitter_ = transmitter; }
 
-  TEMPLATABLE_VALUE(uint32_t, send_times);
-  TEMPLATABLE_VALUE(uint32_t, send_wait);
+ protected:
+  template<typename Protocol>
+  void transmit_(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
+    this->transmitter_->transmit<Protocol>(data, send_times, send_wait);
+  }
+  RemoteTransmitterBase *transmitter_;
+};
 
+template<typename... Ts> class RemoteTransmitterActionBase : public RemoteTransmittable, public Action<Ts...> {
+  TEMPLATABLE_VALUE(uint32_t, send_times)
+  TEMPLATABLE_VALUE(uint32_t, send_wait)
+
+ protected:
   void play(Ts... x) override {
-    auto call = this->parent_->transmit();
+    auto call = this->transmitter_->transmit();
     this->encode(call.get_data(), x...);
     call.set_send_times(this->send_times_.value_or(x..., 1));
     call.set_send_wait(this->send_wait_.value_or(x..., 0));
     call.perform();
   }
-
- protected:
   virtual void encode(RemoteTransmitData *dst, Ts... x) = 0;
-
-  RemoteTransmitterBase *parent_{};
 };
 
-template<typename T, typename D> class RemoteReceiverDumper : public RemoteReceiverDumperBase {
+template<typename T> class RemoteReceiverDumper : public RemoteReceiverDumperBase {
  public:
   bool dump(RemoteReceiveData src) override {
     auto proto = T();
@@ -364,9 +272,9 @@ template<typename T, typename D> class RemoteReceiverDumper : public RemoteRecei
 };
 
 #define DECLARE_REMOTE_PROTOCOL_(prefix) \
-  using prefix##BinarySensor = RemoteReceiverBinarySensor<prefix##Protocol, prefix##Data>; \
-  using prefix##Trigger = RemoteReceiverTrigger<prefix##Protocol, prefix##Data>; \
-  using prefix##Dumper = RemoteReceiverDumper<prefix##Protocol, prefix##Data>;
+  using prefix##BinarySensor = RemoteReceiverBinarySensor<prefix##Protocol>; \
+  using prefix##Trigger = RemoteReceiverTrigger<prefix##Protocol>; \
+  using prefix##Dumper = RemoteReceiverDumper<prefix##Protocol>;
 #define DECLARE_REMOTE_PROTOCOL(prefix) DECLARE_REMOTE_PROTOCOL_(prefix)
 
 }  // namespace remote_base

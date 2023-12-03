@@ -8,6 +8,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import (
     CONF_ARDUINO_VERSION,
+    CONF_AREA,
     CONF_BOARD,
     CONF_BOARD_FLASH_MODE,
     CONF_BUILD_PATH,
@@ -126,6 +127,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_NAME): cv.valid_name,
             cv.Optional(CONF_FRIENDLY_NAME, ""): cv.string,
+            cv.Optional(CONF_AREA, ""): cv.string,
             cv.Optional(CONF_COMMENT): cv.string,
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
@@ -198,8 +200,8 @@ def preload_core_config(config, result):
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
-        conf[CONF_BUILD_PATH] = f".esphome/build/{CORE.name}"
-    CORE.build_path = CORE.relative_config_path(conf[CONF_BUILD_PATH])
+        conf[CONF_BUILD_PATH] = f"build/{CORE.name}"
+    CORE.build_path = CORE.relative_internal_path(conf[CONF_BUILD_PATH])
 
     has_oldstyle = CONF_PLATFORM in conf
     newstyle_found = [key for key in TARGET_PLATFORMS if key in config]
@@ -350,6 +352,7 @@ async def to_code(config):
         cg.App.pre_setup(
             config[CONF_NAME],
             config[CONF_FRIENDLY_NAME],
+            config[CONF_AREA],
             config.get(CONF_COMMENT, ""),
             cg.RawExpression('__DATE__ ", " __TIME__'),
             config[CONF_NAME_ADD_MAC_SUFFIX],
@@ -380,7 +383,7 @@ async def to_code(config):
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
 
-    if CORE.using_arduino:
+    if CORE.using_arduino and not CORE.is_bk72xx:
         CORE.add_job(add_arduino_global_workaround)
 
     if config[CONF_INCLUDES]:

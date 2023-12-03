@@ -212,6 +212,7 @@ async def to_code(config):
     parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
     cg.add(parent.register_gap_event_handler(var))
     cg.add(parent.register_gattc_event_handler(var))
+    cg.add(parent.register_ble_status_event_handler(var))
     cg.add(var.set_parent(parent))
 
     params = config[CONF_SCAN_PARAMETERS]
@@ -263,6 +264,7 @@ async def to_code(config):
         # Match arduino CONFIG_BTU_TASK_STACK_SIZE
         # https://github.com/espressif/arduino-esp32/blob/fd72cf46ad6fc1a6de99c1d83ba8eba17d80a4ee/tools/sdk/esp32/sdkconfig#L1866
         add_idf_sdkconfig_option("CONFIG_BTU_TASK_STACK_SIZE", 8192)
+        add_idf_sdkconfig_option("CONFIG_BT_ACL_CONNECTIONS", 9)
 
     cg.add_define("USE_OTA_STATE_CALLBACK")  # To be notified when an OTA update starts
     cg.add_define("USE_ESP32_BLE_CLIENT")

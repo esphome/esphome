@@ -47,6 +47,42 @@ class AlarmControlPanel : public EntityBase {
    */
   void add_on_triggered_callback(std::function<void()> &&callback);
 
+  /** Add a callback for when the state of the alarm_control_panel chanes to arming
+   *
+   * @param callback The callback function
+   */
+  void add_on_arming_callback(std::function<void()> &&callback);
+
+  /** Add a callback for when the state of the alarm_control_panel changes to pending
+   *
+   * @param callback The callback function
+   */
+  void add_on_pending_callback(std::function<void()> &&callback);
+
+  /** Add a callback for when the state of the alarm_control_panel changes to armed_home
+   *
+   * @param callback The callback function
+   */
+  void add_on_armed_home_callback(std::function<void()> &&callback);
+
+  /** Add a callback for when the state of the alarm_control_panel changes to armed_night
+   *
+   * @param callback The callback function
+   */
+  void add_on_armed_night_callback(std::function<void()> &&callback);
+
+  /** Add a callback for when the state of the alarm_control_panel changes to armed_away
+   *
+   * @param callback The callback function
+   */
+  void add_on_armed_away_callback(std::function<void()> &&callback);
+
+  /** Add a callback for when the state of the alarm_control_panel changes to disarmed
+   *
+   * @param callback The callback function
+   */
+  void add_on_disarmed_callback(std::function<void()> &&callback);
+
   /** Add a callback for when the state of the alarm_control_panel clears from triggered
    *
    * @param callback The callback function
@@ -128,6 +164,18 @@ class AlarmControlPanel : public EntityBase {
   CallbackManager<void()> state_callback_{};
   // trigger callback
   CallbackManager<void()> triggered_callback_{};
+  // arming callback
+  CallbackManager<void()> arming_callback_{};
+  // pending callback
+  CallbackManager<void()> pending_callback_{};
+  // armed_home callback
+  CallbackManager<void()> armed_home_callback_{};
+  // armed_night callback
+  CallbackManager<void()> armed_night_callback_{};
+  // armed_away callback
+  CallbackManager<void()> armed_away_callback_{};
+  // disarmed callback
+  CallbackManager<void()> disarmed_callback_{};
   // clear callback
   CallbackManager<void()> cleared_callback_{};
 };

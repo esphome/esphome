@@ -216,7 +216,7 @@ void MQTTClimateComponent::setup() {
     });
   }
 
-  this->device_->add_on_state_callback([this]() { this->publish_state_(); });
+  this->device_->add_on_state_callback([this](Climate & /*unused*/) { this->publish_state_(); });
 }
 MQTTClimateComponent::MQTTClimateComponent(Climate *device) : device_(device) {}
 bool MQTTClimateComponent::send_initial_state() { return this->publish_state_(); }

@@ -3,6 +3,9 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_FIELD_STRENGTH_X,
+    CONF_FIELD_STRENGTH_Y,
+    CONF_FIELD_STRENGTH_Z,
     CONF_ID,
     CONF_OVERSAMPLING,
     CONF_RANGE,
@@ -18,9 +21,6 @@ DEPENDENCIES = ["i2c"]
 
 qmc5883l_ns = cg.esphome_ns.namespace("qmc5883l")
 
-CONF_FIELD_STRENGTH_X = "field_strength_x"
-CONF_FIELD_STRENGTH_Y = "field_strength_y"
-CONF_FIELD_STRENGTH_Z = "field_strength_z"
 CONF_HEADING = "heading"
 
 QMC5883LComponent = qmc5883l_ns.class_(

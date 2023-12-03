@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
+    CONF_IGNORE_STRAPPING_WARNING,
 )
 from esphome import pins
 from esphome.core import CORE
@@ -26,6 +27,8 @@ from .const import (
     VARIANT_ESP32C3,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C6,
     VARIANT_ESP32H2,
     esp32_ns,
 )
@@ -35,6 +38,8 @@ from .gpio_esp32 import esp32_validate_gpio_pin, esp32_validate_supports
 from .gpio_esp32_s2 import esp32_s2_validate_gpio_pin, esp32_s2_validate_supports
 from .gpio_esp32_c3 import esp32_c3_validate_gpio_pin, esp32_c3_validate_supports
 from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_supports
+from .gpio_esp32_c2 import esp32_c2_validate_gpio_pin, esp32_c2_validate_supports
+from .gpio_esp32_c6 import esp32_c6_validate_gpio_pin, esp32_c6_validate_supports
 from .gpio_esp32_h2 import esp32_h2_validate_gpio_pin, esp32_h2_validate_supports
 
 
@@ -94,6 +99,14 @@ _esp32_validations = {
     VARIANT_ESP32S3: ESP32ValidationFunctions(
         pin_validation=esp32_s3_validate_gpio_pin,
         usage_validation=esp32_s3_validate_supports,
+    ),
+    VARIANT_ESP32C2: ESP32ValidationFunctions(
+        pin_validation=esp32_c2_validate_gpio_pin,
+        usage_validation=esp32_c2_validate_supports,
+    ),
+    VARIANT_ESP32C6: ESP32ValidationFunctions(
+        pin_validation=esp32_c6_validate_gpio_pin,
+        usage_validation=esp32_c6_validate_supports,
     ),
     VARIANT_ESP32H2: ESP32ValidationFunctions(
         pin_validation=esp32_h2_validate_gpio_pin,
@@ -164,6 +177,7 @@ ESP32_PIN_SCHEMA = cv.All(
             }
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+        cv.Optional(CONF_IGNORE_STRAPPING_WARNING, default=False): cv.boolean,
         cv.Optional(CONF_DRIVE_STRENGTH, default="20mA"): cv.All(
             cv.float_with_unit("current", "mA", optional_unit=True),
             cv.enum(DRIVE_STRENGTHS),

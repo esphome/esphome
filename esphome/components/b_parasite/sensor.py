@@ -87,6 +87,6 @@ async def to_code(config):
         (CONF_MOISTURE, var.set_soil_moisture),
         (CONF_ILLUMINANCE, var.set_illuminance),
     ]:
-        if config_key in config:
-            sens = await sensor.new_sensor(config[config_key])
+        if sensor_config := config.get(config_key):
+            sens = await sensor.new_sensor(sensor_config)
             cg.add(setter(sens))

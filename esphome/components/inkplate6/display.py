@@ -48,6 +48,7 @@ MODELS = {
     "inkplate_6": InkplateModel.INKPLATE_6,
     "inkplate_10": InkplateModel.INKPLATE_10,
     "inkplate_6_plus": InkplateModel.INKPLATE_6_PLUS,
+    "inkplate_6_v2": InkplateModel.INKPLATE_6_V2,
 }
 
 CONFIG_SCHEMA = cv.All(
@@ -109,7 +110,6 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
-    await cg.register_component(var, config)
     await display.register_display(var, config)
     await i2c.register_i2c_device(var, config)
 

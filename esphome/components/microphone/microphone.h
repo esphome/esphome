@@ -20,8 +20,10 @@ class Microphone {
   void add_data_callback(std::function<void(const std::vector<int16_t> &)> &&data_callback) {
     this->data_callbacks_.add(std::move(data_callback));
   }
+  virtual size_t read(int16_t *buf, size_t len) = 0;
 
   bool is_running() const { return this->state_ == STATE_RUNNING; }
+  bool is_stopped() const { return this->state_ == STATE_STOPPED; }
 
  protected:
   State state_{STATE_STOPPED};

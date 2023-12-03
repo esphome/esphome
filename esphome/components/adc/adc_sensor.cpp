@@ -1,6 +1,6 @@
 #include "adc_sensor.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP8266
 #ifdef USE_ADC_SENSOR_VCC
@@ -12,6 +12,9 @@ ADC_MODE(ADC_VCC)
 #endif
 
 #ifdef USE_RP2040
+#ifdef CYW43_USES_VSYS_PIN
+#include "pico/cyw43_arch.h"
+#endif
 #include <hardware/adc.h>
 #endif
 
@@ -32,8 +35,8 @@ static const int32_t SOC_ADC_RTC_MAX_BITWIDTH = 12;
 #endif
 #endif
 
-static const int32_t ADC_MAX = (1 << SOC_ADC_RTC_MAX_BITWIDTH) - 1;    // 4095 (12 bit) or 8191 (13 bit)
-static const int32_t ADC_HALF = (1 << SOC_ADC_RTC_MAX_BITWIDTH) >> 1;  // 2048 (12 bit) or 4096 (13 bit)
+static const int ADC_MAX = (1 << SOC_ADC_RTC_MAX_BITWIDTH) - 1;    // 4095 (12 bit) or 8191 (13 bit)
+static const int ADC_HALF = (1 << SOC_ADC_RTC_MAX_BITWIDTH) >> 1;  // 2048 (12 bit) or 4096 (13 bit)
 #endif
 
 #ifdef USE_RP2040
@@ -59,7 +62,7 @@ extern "C"
   }
 
   // load characteristics for each attenuation
-  for (int32_t i = 0; i < (int32_t) ADC_ATTEN_MAX; i++) {
+  for (int32_t i = 0; i <= ADC_ATTEN_DB_11; i++) {
     auto adc_unit = channel1_ != ADC1_CHANNEL_MAX ? ADC_UNIT_1 : ADC_UNIT_2;
     auto cal_value = esp_adc_cal_characterize(adc_unit, (adc_atten_t) i, ADC_WIDTH_MAX_SOC_BITS,
                                               1100,  // default vref
@@ -92,13 +95,13 @@ extern "C"
 
 void ADCSensor::dump_config() {
   LOG_SENSOR("", "ADC Sensor", this);
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
 #ifdef USE_ADC_SENSOR_VCC
   ESP_LOGCONFIG(TAG, "  Pin: VCC");
 #else
   LOG_PIN("  Pin: ", pin_);
 #endif
-#endif  // USE_ESP8266
+#endif  // USE_ESP8266 || USE_LIBRETINY
 
 #ifdef USE_ESP32
   LOG_PIN("  Pin: ", pin_);
@@ -123,13 +126,19 @@ void ADCSensor::dump_config() {
     }
   }
 #endif  // USE_ESP32
+
 #ifdef USE_RP2040
   if (this->is_temperature_) {
     ESP_LOGCONFIG(TAG, "  Pin: Temperature");
   } else {
+#ifdef USE_ADC_SENSOR_VCC
+    ESP_LOGCONFIG(TAG, "  Pin: VCC");
+#else
     LOG_PIN("  Pin: ", pin_);
+#endif  // USE_ADC_SENSOR_VCC
   }
-#endif
+#endif  // USE_RP2040
+
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -157,7 +166,7 @@ float ADCSensor::sample() {
 #ifdef USE_ESP32
 float ADCSensor::sample() {
   if (!autorange_) {
-    int32_t raw = -1;
+    int raw = -1;
     if (channel1_ != ADC1_CHANNEL_MAX) {
       raw = adc1_get_raw(channel1_);
     } else if (channel2_ != ADC2_CHANNEL_MAX) {
@@ -174,7 +183,7 @@ float ADCSensor::sample() {
     return mv / 1000.0f;
   }
 
-  int32_t raw11 = ADC_MAX, raw6 = ADC_MAX, raw2 = ADC_MAX, raw0 = ADC_MAX;
+  int raw11 = ADC_MAX, raw6 = ADC_MAX, raw2 = ADC_MAX, raw0 = ADC_MAX;
 
   if (channel1_ != ADC1_CHANNEL_MAX) {
     adc1_config_channel_atten(channel1_, ADC_ATTEN_DB_11);
@@ -237,22 +246,53 @@ float ADCSensor::sample() {
     adc_set_temp_sensor_enabled(true);
     delay(1);
     adc_select_input(4);
+
+    int32_t raw = adc_read();
+    adc_set_temp_sensor_enabled(false);
+    if (this->output_raw_) {
+      return raw;
+    }
+    return raw * 3.3f / 4096.0f;
   } else {
     uint8_t pin = this->pin_->get_pin();
+#ifdef CYW43_USES_VSYS_PIN
+    if (pin == PICO_VSYS_PIN) {
+      // Measuring VSYS on Raspberry Pico W needs to be wrapped with
+      // `cyw43_thread_enter()`/`cyw43_thread_exit()` as discussed in
+      // https://github.com/raspberrypi/pico-sdk/issues/1222, since Wifi chip and
+      // VSYS ADC both share GPIO29
+      cyw43_thread_enter();
+    }
+#endif  // CYW43_USES_VSYS_PIN
+
     adc_gpio_init(pin);
     adc_select_input(pin - 26);
-  }
 
-  int32_t raw = adc_read();
-  if (this->is_temperature_) {
-    adc_set_temp_sensor_enabled(false);
+    int32_t raw = adc_read();
+
+#ifdef CYW43_USES_VSYS_PIN
+    if (pin == PICO_VSYS_PIN) {
+      cyw43_thread_exit();
+    }
+#endif  // CYW43_USES_VSYS_PIN
+
+    if (output_raw_) {
+      return raw;
+    }
+    float coeff = pin == PICO_VSYS_PIN ? 3.0 : 1.0;
+    return raw * 3.3f / 4096.0f * coeff;
   }
-  if (output_raw_) {
-    return raw;
-  }
-  return raw * 3.3f / 4096.0f;
 }
 #endif
+
+#ifdef USE_LIBRETINY
+float ADCSensor::sample() {
+  if (output_raw_) {
+    return analogRead(this->pin_->get_pin());  // NOLINT
+  }
+  return analogReadVoltage(this->pin_->get_pin()) / 1000.0f;  // NOLINT
+}
+#endif  // USE_LIBRETINY
 
 #ifdef USE_ESP8266
 std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }
