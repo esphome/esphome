@@ -3034,51 +3034,51 @@ void WaveshareEPaper13P3InK::dump_config() {
 
 void WaveshareEPaperPolled::update() {
   this->do_update_();
-  if (this->state_ == State::sleeping) {
-    this->set_state_(State::update_requested);
+  if (this->state_ == State::SLEEPING) {
+    this->set_state_(State::UPDATE_REQUESTED);
   }
 }
 
 void WaveshareEPaperPolled::loop() {
   switch (this->state_) {
-    case State::sleeping:
+    case State::SLEEPING:
       break;
-    case State::update_requested:
+    case State::UPDATE_REQUESTED:
       this->reset_pin_->digital_write(false);
-      this->set_state_(State::resetting);
+      this->set_state_(State::RESETTING);
       break;
-    case State::resetting:
+    case State::RESETTING:
       if (millis() - this->last_state_change_ >= this->reset_duration_) {
         this->reset_pin_->digital_write(true);
-        this->set_state_(State::initializing);
+        this->set_state_(State::INITIALIZING);
       }
       break;
-    case State::initializing:
+    case State::INITIALIZING:
       if (millis() - this->last_state_change_ >= 200) {
         this->power_on();
-        this->set_state_(State::powering_on);
+        this->set_state_(State::POWERING_ON);
       }
       break;
-    case State::powering_on:
+    case State::POWERING_ON:
       if (millis() - this->last_state_change_ >= 100 && (!this->busy_pin_ || !this->busy_pin_->digital_read())) {
         this->configure();
-        this->set_state_(State::configuring);
+        this->set_state_(State::CONFIGURING);
       }
       break;
-    case State::configuring:
+    case State::CONFIGURING:
       this->display();
-      this->set_state_(State::displaying);
+      this->set_state_(State::DISPLAYING);
       break;
-    case State::displaying:
+    case State::DISPLAYING:
       if (millis() - this->last_state_change_ >= 200 && (!this->busy_pin_ || !this->busy_pin_->digital_read())) {
         this->power_off();
-        this->set_state_(State::powering_off);
+        this->set_state_(State::POWERING_OFF);
       }
       break;
-    case State::powering_off:
+    case State::POWERING_OFF:
       if (!this->busy_pin_ || !this->busy_pin_->digital_read()) {
         this->deep_sleep();
-        this->set_state_(State::sleeping);
+        this->set_state_(State::SLEEPING);
       }
       break;
   }
@@ -3088,28 +3088,28 @@ void WaveshareEPaperPolled::set_state_(State state) {
   this->state_ = state;
   this->last_state_change_ = millis();
   switch (this->state_) {
-    case State::sleeping:
+    case State::SLEEPING:
       ESP_LOGD(TAG, "sleeping");
       break;
-    case State::update_requested:
+    case State::UPDATE_REQUESTED:
       ESP_LOGD(TAG, "update_requested");
       break;
-    case State::resetting:
+    case State::RESETTING:
       ESP_LOGD(TAG, "resetting");
       break;
-    case State::initializing:
+    case State::INITIALIZING:
       ESP_LOGD(TAG, "initializing");
       break;
-    case State::powering_on:
+    case State::POWERING_ON:
       ESP_LOGD(TAG, "powering_on");
       break;
-    case State::configuring:
+    case State::CONFIGURING:
       ESP_LOGD(TAG, "configuring");
       break;
-    case State::displaying:
+    case State::DISPLAYING:
       ESP_LOGD(TAG, "displaying");
       break;
-    case State::powering_off:
+    case State::POWERING_OFF:
       ESP_LOGD(TAG, "powering_off");
       break;
   }

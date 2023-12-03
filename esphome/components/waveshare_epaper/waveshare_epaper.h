@@ -813,7 +813,7 @@ class WaveshareEPaperPolled : public WaveshareEPaper {
   virtual void configure() = 0;
 
   // Send image data and refresh the display
-  virtual void display() = 0;
+  void display() override = 0;
 
   // Power off the driver
   virtual void power_off() = 0;
@@ -823,21 +823,21 @@ class WaveshareEPaperPolled : public WaveshareEPaper {
 
  private:
   enum class State : uint8_t {
-    sleeping,
-    update_requested,
-    resetting,
-    initializing,
-    powering_on,
-    configuring,
-    displaying,
-    powering_off,
+    SLEEPING,
+    UPDATE_REQUESTED,
+    RESETTING,
+    INITIALIZING,
+    POWERING_ON,
+    CONFIGURING,
+    DISPLAYING,
+    POWERING_OFF,
   };
 
   // Set the current state of the display
   void set_state_(State state);
 
   // Current state of the display
-  State state_{State::sleeping};
+  State state_{State::SLEEPING};
   // Timestamp of last state changed, used to wait between states
   uint32_t last_state_change_{0};
 };
@@ -854,7 +854,7 @@ class WaveshareEPaper7In5BV2 : public WaveshareEPaperPolled {
   void power_off() override;
   void deep_sleep() override;
 
-  virtual std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
+  std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
 
  protected:
   int get_width_internal() override { return 800; }
