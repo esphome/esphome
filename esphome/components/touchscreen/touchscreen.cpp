@@ -23,7 +23,6 @@ void Touchscreen::update() {
 
 void Touchscreen::loop() {
   if (this->store_.touched) {
-
     this->first_touch_ = this->touches_.empty();
     this->need_update_ = false;
     this->is_touched_ = false;
@@ -40,7 +39,7 @@ void Touchscreen::loop() {
     this->update_touches();
     if (this->skip_update_) {
       for (auto &i : this->touches_) {
-          i.second.state = -i.second.state;
+        i.second.state = -i.second.state;
       }
     } else {
       this->store_.touched = false;
@@ -95,7 +94,7 @@ void Touchscreen::send_touches_() {
   } else {
     TouchPoints_t touches;
     for (auto i : this->touches_) {
-        touches.push_back(i.second);
+      touches.push_back(i.second);
     }
     if (this->first_touch_) {
       TouchPoint tp = touches.front();
