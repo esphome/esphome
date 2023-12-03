@@ -1554,7 +1554,7 @@ sensor:
       memory_address: 0x7d
       name: Adres sensor
   - platform: pasco2
-    id: pasco2
+    id: my_pasco2
     co2:
       name: PASCO2 CO2
     update_interval: 15s
