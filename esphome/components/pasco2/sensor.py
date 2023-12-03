@@ -100,6 +100,7 @@ async def to_code(config):
 
     cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))
 
+
 PASCO2_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(PASCO2Component),
@@ -119,6 +120,7 @@ async def pasco2_frc_to_code(config, action_id, template_arg, args):
     template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
     cg.add(var.set_value(template_))
     return var
+
 
 PASCO2_RESET_ACTION_SCHEMA = maybe_simple_id(
     {
