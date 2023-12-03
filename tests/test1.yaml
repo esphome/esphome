@@ -3717,7 +3717,7 @@ button:
     on_press:
       - pasco2.perform_forced_calibration:
           value: 419
-          id: frc_pasco2
+          id: my_pasco2
 
 ld2410:
   id: my_ld2410
