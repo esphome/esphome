@@ -20,19 +20,32 @@ void Touchscreen::update() {
     this->store_.touched = true;
   }
 }
+
 void Touchscreen::loop() {
   if (this->store_.touched) {
-    this->store_.touched = false;
+
     this->first_touch_ = this->touches_.empty();
     this->need_update_ = false;
     this->is_touched_ = false;
+    this->skip_update_ = false;
     for (auto &i : this->touches_) {
-      i.second.state = 0;
+      if (i.second.state > 0) {
+        i.second.state = -i.second.state;
+      } else {
+        i.second.state = 0;
+      }
       i.second.x_prev = i.second.x;
       i.second.y_prev = i.second.y;
     }
     this->update_touches();
-    this->send_touches_();
+    if (this->skip_update_) {
+      for (auto &i : this->touches_) {
+          i.second.state = -i.second.state;
+      }
+    } else {
+      this->store_.touched = false;
+      this->send_touches_();
+    }
   }
 }
 
@@ -41,6 +54,7 @@ void Touchscreen::set_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
   uint16_t x, y;
   if (this->touches_.count(id) == 0) {
     tp.state = 1;
+    tp.id = id;
   } else {
     tp = this->touches_[id];
     tp.state = 2;
@@ -49,32 +63,16 @@ void Touchscreen::set_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
   tp.y_raw = y_raw;
   tp.z_raw = z_raw;
 
-  x = normalize(x_raw, this->x_raw_min_, this->x_raw_max_, this->invert_x_);
-  y = normalize(y_raw, this->y_raw_min_, this->y_raw_max_, this->invert_y_);
+  x = this->normalize_(x_raw, this->x_raw_min_, this->x_raw_max_, this->invert_x_);
+  y = this->normalize_(y_raw, this->y_raw_min_, this->y_raw_max_, this->invert_y_);
 
   if (this->swap_x_y_) {
     std::swap(x, y);
   }
 
-  switch (this->get_rotation_()) {
-    case ROTATE_0_DEGREES:
-      break;
-    case ROTATE_90_DEGREES:
-      std::swap(x, y);
-      y = 0xfff - y;
-      break;
-    case ROTATE_180_DEGREES:
-      x = 0xfff - x;
-      y = 0xfff - y;
-      break;
-    case ROTATE_270_DEGREES:
-      std::swap(x, y);
-      x = 0xfff - x;
-      break;
-  }
-
   tp.x = (uint16_t) ((int) x * this->get_width_() / 0xfff);
   tp.y = (uint16_t) ((int) y * this->get_height_() / 0xfff);
+
   if (tp.state == 1) {
     tp.x_org = tp.x;
     tp.y_org = tp.y;
@@ -97,9 +95,7 @@ void Touchscreen::send_touches_() {
   } else {
     TouchPoints_t touches;
     for (auto i : this->touches_) {
-      if (i.second.state != 0) {
         touches.push_back(i.second);
-      }
     }
     if (this->first_touch_) {
       TouchPoint tp = touches.front();
@@ -108,7 +104,7 @@ void Touchscreen::send_touches_() {
         listener->touch(tp);
         listener->touch(touches);
       }
-    } else {
+    } else if (this->need_update_) {
       this->update_trigger_.trigger(touches);
       for (auto *listener : this->touch_listeners_) {
         listener->update(touches);
@@ -117,7 +113,7 @@ void Touchscreen::send_touches_() {
   }
 }
 
-int16_t Touchscreen::normalize(int16_t val, int16_t min_val, int16_t max_val, bool inverted) {
+int16_t Touchscreen::normalize_(int16_t val, int16_t min_val, int16_t max_val, bool inverted) {
   int16_t ret;
 
   if (val <= min_val) {

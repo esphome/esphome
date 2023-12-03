@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display.h"
 
 #include "esphome/core/automation.h"
 #include "esphome/core/hal.h"
@@ -18,7 +18,7 @@ struct TouchPoint {
   uint16_t x_prev{0}, y_prev{0};
   uint16_t x_org{0}, y_org{0};
   uint16_t x{0}, y{0};
-  uint8_t state{0};
+  int8_t state{0};
 };
 
 using TouchPoints_t = std::vector<TouchPoint>;
@@ -37,26 +37,24 @@ class TouchListener {
   virtual void release() {}
 };
 
-enum TouchRotation {
-  ROTATE_0_DEGREES = 0,
-  ROTATE_90_DEGREES = 90,
-  ROTATE_180_DEGREES = 180,
-  ROTATE_270_DEGREES = 270,
-};
-
 class Touchscreen : public PollingComponent {
  public:
   void set_display(display::Display *display) { this->display_ = display; }
   display::Display *get_display() const { return this->display_; }
 
-  void set_swap_x_y(bool swap) { this->swap_x_y_ = swap; }
+  void set_mirror_x(bool invert_x) { this->invert_x_ = invert_x; }
+  void set_mirror_y(bool invert_y) { this->invert_y_ = invert_y; }
+  void set_swap_xy(bool swap) { this->swap_x_y_ = swap; }
+
   void set_calibration(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max) {
     this->x_raw_min_ = std::min(x_min, x_max);
     this->x_raw_max_ = std::max(x_min, x_max);
     this->y_raw_min_ = std::min(y_min, y_max);
     this->y_raw_max_ = std::max(y_min, y_max);
-    this->invert_x_ = (x_min > x_max);
-    this->invert_y_ = (y_min > y_max);
+    if (x_min > x_max)
+      this->invert_x_ = true;
+    if (y_min > y_max)
+      this->invert_y_ = true;
   }
 
   Trigger<TouchPoint, const TouchPoints_t &> *get_touch_trigger() { return &this->touch_trigger_; }
@@ -79,13 +77,12 @@ class Touchscreen : public PollingComponent {
 
   void send_touches_();
 
-  static int16_t normalize(int16_t val, int16_t min_val, int16_t max_val, bool inverted = false);
+  int16_t normalize_(int16_t val, int16_t min_val, int16_t max_val, bool inverted = false);
 
   uint16_t get_width_() { return this->display_->get_width(); }
 
   uint16_t get_height_() { return this->display_->get_height(); }
 
-  TouchRotation get_rotation_() { return static_cast<TouchRotation>(this->display_->get_rotation()); }
   display::Display *display_{nullptr};
 
   int16_t x_raw_min_{0}, x_raw_max_{0}, y_raw_min_{0}, y_raw_max_{0};
@@ -102,6 +99,7 @@ class Touchscreen : public PollingComponent {
   bool first_touch_{true};
   bool need_update_{false};
   bool is_touched_{false};
+  bool skip_update_{false};
 };
 
 }  // namespace touchscreen
