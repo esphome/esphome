@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <cinttypes>
 #include <ctime>
 #include <functional>
 
@@ -144,7 +145,7 @@ void Wireguard::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Peer Persistent Keepalive: %d%s", this->keepalive_,
                 (this->keepalive_ > 0 ? "s" : " (DISABLED)"));
-  ESP_LOGCONFIG(TAG, "  Reboot Timeout: %d%s", (this->reboot_timeout_ / 1000),
+  ESP_LOGCONFIG(TAG, "  Reboot Timeout: %" PRIu32 "%s", (this->reboot_timeout_ / 1000),
                 (this->reboot_timeout_ != 0 ? "s" : " (DISABLED)"));
   // be careful: if proceed_allowed_ is true, require connection is false
   ESP_LOGCONFIG(TAG, "  Require Connection to Proceed: %s", (this->proceed_allowed_ ? "NO" : "YES"));
@@ -287,7 +288,7 @@ void resume_wdt() {
 #if ESP_IDF_VERSION_MAJOR >= 5
   wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
   esp_task_wdt_reconfigure(&wdtc);
-  ESP_LOGV(TAG, "wdt resumed with %d ms timeout", wdtc.timeout_ms);
+  ESP_LOGV(TAG, "wdt resumed with %" PRIu32 " ms timeout", wdtc.timeout_ms);
 #else
   esp_task_wdt_init(CONFIG_ESP_TASK_WDT_TIMEOUT_S, false);
   ESP_LOGV(TAG, "wdt resumed with %d seconds timeout", CONFIG_ESP_TASK_WDT_TIMEOUT_S);

@@ -23,6 +23,14 @@ from esphome.core import (
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
 
+try:
+    from yaml import CSafeLoader as FastestAvailableSafeLoader
+except ImportError:
+    from yaml import (  # type: ignore[assignment]
+        SafeLoader as FastestAvailableSafeLoader,
+    )
+
+
 _LOGGER = logging.getLogger(__name__)
 
 # Mostly copied from Home Assistant because that code works fine and
@@ -89,7 +97,7 @@ def _add_data_ref(fn):
     return wrapped
 
 
-class ESPHomeLoader(yaml.SafeLoader):
+class ESPHomeLoader(FastestAvailableSafeLoader):
     """Loader class that keeps track of line numbers."""
 
     @_add_data_ref
