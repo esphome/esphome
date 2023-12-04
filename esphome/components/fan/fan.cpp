@@ -68,7 +68,7 @@ void FanCall::validate_() {
 
   if (!this->preset_mode_.empty()) {
     const auto &preset_modes = traits.supported_preset_modes();
-    if (std::find(preset_modes.begin(), preset_modes.end(), this->preset_mode_) == preset_modes.end()) {
+    if (preset_modes.find(this->preset_mode_) == preset_modes.end()) {
       ESP_LOGW(TAG, "'%s' - This fan does not support preset mode '%s'!", this->parent_.get_name().c_str(),
                this->preset_mode_.c_str());
       this->preset_mode_.clear();
