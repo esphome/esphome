@@ -6,9 +6,18 @@ from esphome.const import (
     CONF_DIMENSIONS,
     CONF_WIDTH,
     CONF_HEIGHT,
-    CONF_OFFSET_HEIGHT,
-    CONF_OFFSET_WIDTH,
 )
+
+# Temporary hack to allow this to be built using external_components:
+try:
+    from esphome.const import (
+        CONF_OFFSET_HEIGHT,
+        CONF_OFFSET_WIDTH,
+    )
+except ImportError:
+    CONF_OFFSET_HEIGHT = "offset_height"
+    CONF_OFFSET_WIDTH = "offset_width"
+
 
 CODEOWNERS = ["@clydebarrow"]
 IS_PLATFORM_COMPONENT = True
