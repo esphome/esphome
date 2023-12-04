@@ -2792,16 +2792,8 @@ fan:
     oscillation_output: gpio_19
     direction_output: gpio_26
     preset_modes:
-      - name: Name Only
-      - name: Speed Only
-        speed: 10
-      - name: Speed & Direction Only
-        speed: 100
-        direction: REVERSE
-      - name: All
-        speed: 50
-        oscillating: false
-        direction: FORWARD
+      - Preset 1
+      - Preset 2
     on_preset_set:
       then:
         - logger.log: Preset mode was changed!
@@ -2813,12 +2805,8 @@ fan:
     pin_a: pca_6
     pin_b: pca_7
     preset_modes:
-      - name: Name Only
-      - name: Speed Only
-        speed: 10
-      - name: Speed & Direction Only
-        speed: 100
-        direction: REVERSE
+      - Preset 1
+      - Preset 2
     on_preset_set:
       then:
         - logger.log: Preset mode was changed!
