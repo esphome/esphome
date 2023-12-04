@@ -149,7 +149,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
 
         if (height_left_to_use <= 0) {
           // Ran out of space -  this is our first item to draw
-          first_item_index = i + 1;
+          first_item_index = i;
           break;
         }
       }
