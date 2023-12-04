@@ -116,7 +116,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
     display::Rect item_dimensions = this->measure_item(display, item, bounds, selected);
 
     menu_dimensions.push_back(item_dimensions);
-    total_height += item_dimensions.h + y_padding;
+    total_height += item_dimensions.h + (i == 0 ? 0 : y_padding);
 
     if (total_height <= bounds->h) {
       number_items_fit_to_screen++;
