@@ -153,6 +153,11 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
           break;
         }
       }
+      // Dont't draw last item partially if it is the selected item
+      if (this->cursor_index_ == last_item_index && first_item_index < this->displayed_item_->items_size() - 1 &&
+          number_items_fit_to_screen <= (last_item_index - first_item_index)) {
+        first_item_index++;
+      }
     }
   }
 
