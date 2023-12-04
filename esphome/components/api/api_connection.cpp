@@ -309,7 +309,8 @@ bool APIConnection::send_fan_info(fan::Fan *fan) {
   msg.supports_speed = traits.supports_speed();
   msg.supports_direction = traits.supports_direction();
   msg.supported_speed_count = traits.supported_speed_count();
-  msg.supported_preset_modes = traits.supported_preset_modes();
+  for (auto const &preset : traits.supported_preset_modes())
+    msg.supported_preset_modes.push_back(preset);
   msg.disabled_by_default = fan->is_disabled_by_default();
   msg.icon = fan->get_icon();
   msg.entity_category = static_cast<enums::EntityCategory>(fan->get_entity_category());

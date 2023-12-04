@@ -87,7 +87,7 @@ FanCall FanRestoreState::to_call(Fan &fan) {
     // Use stored preset index to get preset name
     const auto &preset_modes = fan.get_traits().supported_preset_modes();
     if (this->preset_mode < preset_modes.size()) {
-      call.set_preset_mode(preset_modes[this->preset_mode]);
+      call.set_preset_mode(*std::next(preset_modes.begin(), this->preset_mode));
     }
   }
   return call;
@@ -102,7 +102,7 @@ void FanRestoreState::apply(Fan &fan) {
     // Use stored preset index to get preset name
     const auto &preset_modes = fan.get_traits().supported_preset_modes();
     if (this->preset_mode < preset_modes.size()) {
-      fan.preset_mode = preset_modes[this->preset_mode];
+      fan.preset_mode = *std::next(preset_modes.begin(), this->preset_mode);
     }
   }
   fan.publish_state();
@@ -177,7 +177,7 @@ void Fan::save_state_() {
   if (this->get_traits().supports_preset_modes() && !this->preset_mode.empty()) {
     const auto &preset_modes = this->get_traits().supported_preset_modes();
     // Store index of current preset mode
-    auto preset_iterator = std::find(preset_modes.begin(), preset_modes.end(), this->preset_mode);
+    auto preset_iterator = preset_modes.find(this->preset_mode);
     if (preset_iterator != preset_modes.end())
       state.preset_mode = std::distance(preset_modes.begin(), preset_iterator);
   }

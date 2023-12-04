@@ -1,6 +1,6 @@
 #pragma once
 
-#include <unordered_map>
+#include <set>
 
 #include "esphome/core/component.h"
 #include "esphome/components/output/binary_output.h"
@@ -17,8 +17,7 @@ class SpeedFan : public Component, public fan::Fan {
   void dump_config() override;
   void set_oscillating(output::BinaryOutput *oscillating) { this->oscillating_ = oscillating; }
   void set_direction(output::BinaryOutput *direction) { this->direction_ = direction; }
-  void add_preset_mode(const std::string &name, optional<int> speed, optional<bool> oscillating,
-                       optional<fan::FanDirection> direction);
+  void set_preset_modes(const std::set<std::string> &presets) { this->preset_modes_ = presets; }
   fan::FanTraits get_traits() override { return this->traits_; }
 
  protected:
@@ -30,7 +29,7 @@ class SpeedFan : public Component, public fan::Fan {
   output::BinaryOutput *direction_{nullptr};
   int speed_count_{};
   fan::FanTraits traits_;
-  std::unordered_map<std::string, const fan::FanCall> preset_modes_{};
+  std::set<std::string> preset_modes_{};
 };
 
 }  // namespace speed

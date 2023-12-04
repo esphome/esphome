@@ -22,7 +22,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_DIRECTION,
     CONF_RESTORE_MODE,
-    CONF_NAME,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -114,36 +113,37 @@ FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).exte
     }
 )
 
+_PRESET_MODES_SCHEMA = cv.All(
+    cv.ensure_list(cv.string_strict),
+    cv.Length(min=1),
+)
 
-def validate_preset_modes(schema: cv.Schema):
-    def _validator(value):
-        # Check against defined schema
-        value = schema(value)
 
-        # Ensure preset names are unique
-        errors = []
-        names = set()
-        for i, preset in enumerate(value):
-            name = preset[CONF_NAME]
-            # If name does not exist yet add it
-            if name not in names:
-                names.add(name)
-                continue
+def validate_preset_modes(value):
+    # Check against defined schema
+    value = _PRESET_MODES_SCHEMA(value)
 
-            # Otherwise it's an error
-            errors.append(
-                cv.Invalid(
-                    f"Found duplicate preset name '{name}'. Presets must have unique names.",
-                    [i],
-                )
+    # Ensure preset names are unique
+    errors = []
+    presets = set()
+    for i, preset in enumerate(value):
+        # If name does not exist yet add it
+        if preset not in presets:
+            presets.add(preset)
+            continue
+
+        # Otherwise it's an error
+        errors.append(
+            cv.Invalid(
+                f"Found duplicate preset name '{preset}'. Presets must have unique names.",
+                [i],
             )
+        )
 
-        if errors:
-            raise cv.MultipleInvalid(errors)
+    if errors:
+        raise cv.MultipleInvalid(errors)
 
-        return value
-
-    return _validator
+    return value
 
 
 async def setup_fan_core_(var, config):

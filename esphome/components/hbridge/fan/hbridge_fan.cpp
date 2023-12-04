@@ -36,13 +36,7 @@ void HBridgeFan::setup() {
 
   // Construct traits
   this->traits_ = fan::FanTraits(this->oscillating_ != nullptr, true, true, this->speed_count_);
-
-  // Add all presets to traits
-  std::vector<std::string> keys;
-  for (auto const &kv : this->preset_modes_)
-    keys.push_back(kv.first);
-
-  this->traits_.set_supported_preset_modes(keys);
+  this->traits_.set_supported_preset_modes(this->preset_modes_);
 }
 
 void HBridgeFan::dump_config() {
@@ -63,13 +57,7 @@ void HBridgeFan::control(const fan::FanCall &call) {
     this->oscillating = *call.get_oscillating();
   if (call.get_direction().has_value())
     this->direction = *call.get_direction();
-
-  // Recursively call the control function with the preset's stored FanCall if it's changed
-  const auto last_preset = this->preset_mode;
   this->preset_mode = call.get_preset_mode();
-
-  if (!this->preset_mode.empty() && this->preset_mode != last_preset)
-    return this->control(this->preset_modes_.at(this->preset_mode));
 
   this->write_state_();
   this->publish_state();
@@ -100,20 +88,6 @@ void HBridgeFan::write_state_() {
 
   if (this->oscillating_ != nullptr)
     this->oscillating_->set_state(this->oscillating);
-}
-
-void HBridgeFan::add_preset_mode(const std::string &name, optional<int> speed, optional<fan::FanDirection> direction) {
-  auto call = this->make_call();
-
-  call.set_preset_mode(name);
-
-  if (speed)
-    call.set_speed(*speed);
-
-  if (direction)
-    call.set_direction(static_cast<fan::FanDirection>(*direction));
-
-  this->preset_modes_.emplace(name, call);
 }
 
 }  // namespace hbridge
