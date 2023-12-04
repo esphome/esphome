@@ -113,9 +113,9 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 
   tcpip_adapter_ip_info_t info;
   memset(&info, 0, sizeof(info));
-  info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
-  info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
-  info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
+  info.ip = manual_ip->static_ip;
+  info.gw = manual_ip->gateway;
+  info.netmask = manual_ip->subnet;
 
   esp_err_t dhcp_stop_ret = tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA);
   if (dhcp_stop_ret != ESP_OK && dhcp_stop_ret != ESP_ERR_TCPIP_ADAPTER_DHCP_ALREADY_STOPPED) {
@@ -128,23 +128,16 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   }
 
   ip_addr_t dns;
+// TODO: is this needed?
 #if LWIP_IPV6
   dns.type = IPADDR_TYPE_V4;
 #endif
-  if (uint32_t(manual_ip->dns1) != 0) {
-#if LWIP_IPV6
-    dns.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns1);
-#else
-    dns.addr = static_cast<uint32_t>(manual_ip->dns1);
-#endif
+  if (manual_ip->dns1.is_set()) {
+    dns = manual_ip->dns1;
     dns_setserver(0, &dns);
   }
-  if (uint32_t(manual_ip->dns2) != 0) {
-#if LWIP_IPV6
-    dns.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns2);
-#else
-    dns.addr = static_cast<uint32_t>(manual_ip->dns2);
-#endif
+  if (manual_ip->dns2.is_set()) {
+    dns = manual_ip->dns2;
     dns_setserver(1, &dns);
   }
 
@@ -156,7 +149,7 @@ network::IPAddress WiFiComponent::wifi_sta_ip() {
     return {};
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
-  return {ip.ip.addr};
+  return network::IPAddress(&ip.ip);
 }
 
 bool WiFiComponent::wifi_apply_hostname_() {
@@ -203,12 +196,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // Units: AP beacon intervals. Defaults to 3 if set to 0.
   conf.sta.listen_interval = 0;
 
-#if ESP_IDF_VERSION_MAJOR >= 4
   // Protected Management Frame
   // Device will prefer to connect in PMF mode if other device also advertises PMF capability.
   conf.sta.pmf_cfg.capable = true;
   conf.sta.pmf_cfg.required = false;
-#endif
 
   // note, we do our own filtering
   // The minimum rssi to accept in the fast scan mode
@@ -220,7 +211,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   esp_err_t err;
   esp_wifi_get_config(WIFI_IF_STA, &current_conf);
 
-  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {
+  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {  // NOLINT
     err = esp_wifi_disconnect();
     if (err != ESP_OK) {
       ESP_LOGV(TAG, "esp_wifi_disconnect failed! %d", err);
@@ -314,11 +305,7 @@ const char *get_auth_mode_str(uint8_t mode) {
   }
 }
 
-#if ESP_IDF_VERSION_MAJOR >= 4
 using esphome_ip4_addr_t = esp_ip4_addr_t;
-#else
-using esphome_ip4_addr_t = ip4_addr_t;
-#endif
 
 std::string format_ip4_addr(const esphome_ip4_addr_t &ip) {
   char buf[20];
@@ -404,8 +391,6 @@ const char *get_disconnect_reason_str(uint8_t reason) {
   }
 }
 
-#if ESP_IDF_VERSION_MAJOR >= 4
-
 #define ESPHOME_EVENT_ID_WIFI_READY ARDUINO_EVENT_WIFI_READY
 #define ESPHOME_EVENT_ID_WIFI_SCAN_DONE ARDUINO_EVENT_WIFI_SCAN_DONE
 #define ESPHOME_EVENT_ID_WIFI_STA_START ARDUINO_EVENT_WIFI_STA_START
@@ -426,28 +411,6 @@ const char *get_disconnect_reason_str(uint8_t reason) {
 using esphome_wifi_event_id_t = arduino_event_id_t;
 using esphome_wifi_event_info_t = arduino_event_info_t;
 
-#else  // ESP_IDF_VERSION_MAJOR >= 4
-
-#define ESPHOME_EVENT_ID_WIFI_READY SYSTEM_EVENT_WIFI_READY
-#define ESPHOME_EVENT_ID_WIFI_SCAN_DONE SYSTEM_EVENT_SCAN_DONE
-#define ESPHOME_EVENT_ID_WIFI_STA_START SYSTEM_EVENT_STA_START
-#define ESPHOME_EVENT_ID_WIFI_STA_STOP SYSTEM_EVENT_STA_STOP
-#define ESPHOME_EVENT_ID_WIFI_STA_CONNECTED SYSTEM_EVENT_STA_CONNECTED
-#define ESPHOME_EVENT_ID_WIFI_STA_DISCONNECTED SYSTEM_EVENT_STA_DISCONNECTED
-#define ESPHOME_EVENT_ID_WIFI_STA_AUTHMODE_CHANGE SYSTEM_EVENT_STA_AUTHMODE_CHANGE
-#define ESPHOME_EVENT_ID_WIFI_STA_GOT_IP SYSTEM_EVENT_STA_GOT_IP
-#define ESPHOME_EVENT_ID_WIFI_STA_LOST_IP SYSTEM_EVENT_STA_LOST_IP
-#define ESPHOME_EVENT_ID_WIFI_AP_START SYSTEM_EVENT_AP_START
-#define ESPHOME_EVENT_ID_WIFI_AP_STOP SYSTEM_EVENT_AP_STOP
-#define ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED SYSTEM_EVENT_AP_STACONNECTED
-#define ESPHOME_EVENT_ID_WIFI_AP_STADISCONNECTED SYSTEM_EVENT_AP_STADISCONNECTED
-#define ESPHOME_EVENT_ID_WIFI_AP_STAIPASSIGNED SYSTEM_EVENT_AP_STAIPASSIGNED
-#define ESPHOME_EVENT_ID_WIFI_AP_PROBEREQRECVED SYSTEM_EVENT_AP_PROBEREQRECVED
-using esphome_wifi_event_id_t = system_event_id_t;
-using esphome_wifi_event_info_t = system_event_info_t;
-
-#endif  // !(ESP_IDF_VERSION_MAJOR >= 4)
-
 void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_wifi_event_info_t info) {
   switch (event) {
     case ESPHOME_EVENT_ID_WIFI_READY: {
@@ -455,11 +418,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_SCAN_DONE: {
-#if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_scan_done;
-#else
-      auto it = info.scan_done;
-#endif
       ESP_LOGV(TAG, "Event: WiFi Scan Done status=%u number=%u scan_id=%u", it.status, it.number, it.scan_id);
 
       this->wifi_scan_done_callback_();
@@ -475,25 +434,20 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_CONNECTED: {
-#if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_sta_connected;
-#else
-      auto it = info.connected;
-#endif
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
       ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
                format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
+#if ENABLE_IPV6
+      this->set_timeout(100, [] { WiFi.enableIpV6(); });
+#endif /* ENABLE_IPV6 */
 
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_DISCONNECTED: {
-#if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_sta_disconnected;
-#else
-      auto it = info.disconnected;
-#endif
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
@@ -519,11 +473,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_AUTHMODE_CHANGE: {
-#if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_sta_authmode_change;
-#else
-      auto it = info.auth_change;
-#endif
       ESP_LOGV(TAG, "Event: Authmode Change old=%s new=%s", get_auth_mode_str(it.old_mode),
                get_auth_mode_str(it.new_mode));
       // Mitigate CVE-2020-12638
@@ -547,6 +497,13 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       s_sta_connecting = false;
       break;
     }
+#if ENABLE_IPV6
+    case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
+      auto it = info.got_ip6.ip6_info;
+      ESP_LOGV(TAG, "Got IPv6 address=" IPV6STR, IPV62STR(it.ip));
+      break;
+    }
+#endif /* ENABLE_IPV6 */
     case ESPHOME_EVENT_ID_WIFI_STA_LOST_IP: {
       ESP_LOGV(TAG, "Event: Lost IP");
       break;
@@ -560,24 +517,14 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED: {
-#if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_sta_connected;
       auto &mac = it.bssid;
-#else
-      auto it = info.sta_connected;
-      auto &mac = it.mac;
-#endif
       ESP_LOGV(TAG, "Event: AP client connected MAC=%s", format_mac_addr(mac).c_str());
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STADISCONNECTED: {
-#if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_sta_disconnected;
       auto &mac = it.bssid;
-#else
-      auto it = info.sta_disconnected;
-      auto &mac = it.mac;
-#endif
       ESP_LOGV(TAG, "Event: AP client disconnected MAC=%s", format_mac_addr(mac).c_str());
       break;
     }
@@ -586,11 +533,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_PROBEREQRECVED: {
-#if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_ap_probereqrecved;
-#else
-      auto it = info.ap_probereqrecved;
-#endif
       ESP_LOGVV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
       break;
     }
@@ -654,6 +597,8 @@ void WiFiComponent::wifi_scan_done_callback_() {
   WiFi.scanDelete();
   this->scan_done_ = true;
 }
+
+#ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   esp_err_t err;
 
@@ -664,13 +609,13 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   tcpip_adapter_ip_info_t info;
   memset(&info, 0, sizeof(info));
   if (manual_ip.has_value()) {
-    info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
-    info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
-    info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
+    info.ip = manual_ip->static_ip;
+    info.gw = manual_ip->gateway;
+    info.netmask = manual_ip->subnet;
   } else {
-    info.ip.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
-    info.gw.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
-    info.netmask.addr = static_cast<uint32_t>(network::IPAddress(255, 255, 255, 0));
+    info.ip = network::IPAddress(192, 168, 4, 1);
+    info.gw = network::IPAddress(192, 168, 4, 1);
+    info.netmask = network::IPAddress(255, 255, 255, 0);
   }
   tcpip_adapter_dhcp_status_t dhcp_status;
   tcpip_adapter_dhcps_get_status(TCPIP_ADAPTER_IF_AP, &dhcp_status);
@@ -688,12 +633,12 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   dhcps_lease_t lease;
   lease.enable = true;
-  network::IPAddress start_address = info.ip.addr;
-  start_address[3] += 99;
-  lease.start_ip.addr = static_cast<uint32_t>(start_address);
+  network::IPAddress start_address = network::IPAddress(&info.ip);
+  start_address += 99;
+  lease.start_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());
-  start_address[3] += 100;
-  lease.end_ip.addr = static_cast<uint32_t>(start_address);
+  start_address += 100;
+  lease.end_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
   err = tcpip_adapter_dhcps_option(TCPIP_ADAPTER_OP_SET, TCPIP_ADAPTER_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
 
@@ -711,6 +656,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   return true;
 }
+
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   // enable AP
   if (!this->wifi_mode_({}, true))
@@ -732,10 +678,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     strncpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), sizeof(conf.ap.ssid));
   }
 
-#if ESP_IDF_VERSION_MAJOR >= 4
-  // pairwise cipher of SoftAP, group cipher will be derived using this.
   conf.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;
-#endif
 
   esp_err_t err = esp_wifi_set_config(WIFI_IF_AP, &conf);
   if (err != ESP_OK) {
@@ -752,11 +695,14 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
+
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip);
-  return {ip.ip.addr};
+  return network::IPAddress(&ip.ip);
 }
+#endif  // USE_WIFI_AP
+
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
 
 bssid_t WiFiComponent::wifi_bssid() {
@@ -771,9 +717,9 @@ bssid_t WiFiComponent::wifi_bssid() {
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
 int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
-network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
-network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
-network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
+network::IPAddress WiFiComponent::wifi_subnet_mask_() { return network::IPAddress(WiFi.subnetMask()); }
+network::IPAddress WiFiComponent::wifi_gateway_ip_() { return network::IPAddress(WiFi.gatewayIP()); }
+network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddress(WiFi.dnsIP(num)); }
 void WiFiComponent::wifi_loop_() {}
 
 }  // namespace wifi

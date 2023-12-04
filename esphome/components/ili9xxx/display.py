@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, pins
-from esphome.components import display, spi
+from esphome.components import display, spi, font
+from esphome.components.display import validate_rotation
 from esphome.core import CORE, HexInt
 from esphome.const import (
     CONF_COLOR_PALETTE,
@@ -13,7 +14,9 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_PIN,
     CONF_DIMENSIONS,
-    CONF_DATA_RATE,
+    CONF_WIDTH,
+    CONF_HEIGHT,
+    CONF_ROTATION,
 )
 
 DEPENDENCIES = ["spi"]
@@ -25,35 +28,52 @@ def AUTO_LOAD():
     return []
 
 
-CODEOWNERS = ["@nielsnl68"]
+CODEOWNERS = ["@nielsnl68", "@clydebarrow"]
 
-ili9XXX_ns = cg.esphome_ns.namespace("ili9xxx")
-ili9XXXSPI = ili9XXX_ns.class_(
+ili9xxx_ns = cg.esphome_ns.namespace("ili9xxx")
+ILI9XXXDisplay = ili9xxx_ns.class_(
     "ILI9XXXDisplay", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
 )
 
-ILI9XXXColorMode = ili9XXX_ns.enum("ILI9XXXColorMode")
+ILI9XXXColorMode = ili9xxx_ns.enum("ILI9XXXColorMode")
+ColorOrder = display.display_ns.enum("ColorMode")
 
 MODELS = {
-    "M5STACK": ili9XXX_ns.class_("ILI9XXXM5Stack", ili9XXXSPI),
-    "M5CORE": ili9XXX_ns.class_("ILI9XXXM5CORE", ili9XXXSPI),
-    "TFT_2.4": ili9XXX_ns.class_("ILI9XXXILI9341", ili9XXXSPI),
-    "TFT_2.4R": ili9XXX_ns.class_("ILI9XXXILI9342", ili9XXXSPI),
-    "ILI9341": ili9XXX_ns.class_("ILI9XXXILI9341", ili9XXXSPI),
-    "ILI9342": ili9XXX_ns.class_("ILI9XXXILI9342", ili9XXXSPI),
-    "ILI9481": ili9XXX_ns.class_("ILI9XXXILI9481", ili9XXXSPI),
-    "ILI9486": ili9XXX_ns.class_("ILI9XXXILI9486", ili9XXXSPI),
-    "ILI9488": ili9XXX_ns.class_("ILI9XXXILI9488", ili9XXXSPI),
-    "ILI9488_A": ili9XXX_ns.class_("ILI9XXXILI9488A", ili9XXXSPI),
-    "ST7796": ili9XXX_ns.class_("ILI9XXXST7796", ili9XXXSPI),
-    "S3BOX": ili9XXX_ns.class_("ILI9XXXS3Box", ili9XXXSPI),
-    "S3BOX_LITE": ili9XXX_ns.class_("ILI9XXXS3BoxLite", ili9XXXSPI),
+    "M5STACK": ili9xxx_ns.class_("ILI9XXXM5Stack", ILI9XXXDisplay),
+    "M5CORE": ili9xxx_ns.class_("ILI9XXXM5CORE", ILI9XXXDisplay),
+    "TFT_2.4": ili9xxx_ns.class_("ILI9XXXILI9341", ILI9XXXDisplay),
+    "TFT_2.4R": ili9xxx_ns.class_("ILI9XXXILI9342", ILI9XXXDisplay),
+    "ILI9341": ili9xxx_ns.class_("ILI9XXXILI9341", ILI9XXXDisplay),
+    "ILI9342": ili9xxx_ns.class_("ILI9XXXILI9342", ILI9XXXDisplay),
+    "ILI9481": ili9xxx_ns.class_("ILI9XXXILI9481", ILI9XXXDisplay),
+    "ILI9481-18": ili9xxx_ns.class_("ILI9XXXILI948118", ILI9XXXDisplay),
+    "ILI9486": ili9xxx_ns.class_("ILI9XXXILI9486", ILI9XXXDisplay),
+    "ILI9488": ili9xxx_ns.class_("ILI9XXXILI9488", ILI9XXXDisplay),
+    "ILI9488_A": ili9xxx_ns.class_("ILI9XXXILI9488A", ILI9XXXDisplay),
+    "ST7796": ili9xxx_ns.class_("ILI9XXXST7796", ILI9XXXDisplay),
+    "ST7789V": ili9xxx_ns.class_("ILI9XXXST7789V", ILI9XXXDisplay),
+    "S3BOX": ili9xxx_ns.class_("ILI9XXXS3Box", ILI9XXXDisplay),
+    "S3BOX_LITE": ili9xxx_ns.class_("ILI9XXXS3BoxLite", ILI9XXXDisplay),
+}
+
+COLOR_ORDERS = {
+    "RGB": ColorOrder.COLOR_ORDER_RGB,
+    "BGR": ColorOrder.COLOR_ORDER_BGR,
 }
 
 COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
 
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
+CONF_INVERT_DISPLAY = "invert_display"
+CONF_INVERT_COLORS = "invert_colors"
+CONF_MIRROR_X = "mirror_x"
+CONF_MIRROR_Y = "mirror_y"
+CONF_SWAP_XY = "swap_xy"
+CONF_COLOR_ORDER = "color_order"
+CONF_OFFSET_HEIGHT = "offset_height"
+CONF_OFFSET_WIDTH = "offset_width"
+CONF_TRANSFORM = "transform"
 
 
 def _validate(config):
@@ -76,6 +96,7 @@ def _validate(config):
         "TFT_2.4R",
         "ILI9341",
         "ILI9342",
+        "ST7789V",
     ]:
         raise cv.Invalid(
             "Provided model can't run on ESP8266. Use an ESP32 with PSRAM onboard"
@@ -84,11 +105,22 @@ def _validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
+    font.validate_pillow_installed,
     display.FULL_DISPLAY_SCHEMA.extend(
         {
-            cv.GenerateID(): cv.declare_id(ili9XXXSPI),
+            cv.GenerateID(): cv.declare_id(ILI9XXXDisplay),
             cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
-            cv.Optional(CONF_DIMENSIONS): cv.dimensions,
+            cv.Optional(CONF_DIMENSIONS): cv.Any(
+                cv.dimensions,
+                cv.Schema(
+                    {
+                        cv.Required(CONF_WIDTH): cv.int_,
+                        cv.Required(CONF_HEIGHT): cv.int_,
+                        cv.Optional(CONF_OFFSET_HEIGHT, default=0): cv.int_,
+                        cv.Optional(CONF_OFFSET_WIDTH, default=0): cv.int_,
+                    }
+                ),
+            ),
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_LED_PIN): cv.invalid(
@@ -99,11 +131,23 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
                 cv.file_
             ),
-            cv.Optional(CONF_DATA_RATE, default="40MHz"): spi.SPI_DATA_RATE_SCHEMA,
+            cv.Optional(CONF_INVERT_DISPLAY): cv.invalid(
+                "'invert_display' has been replaced by 'invert_colors'"
+            ),
+            cv.Optional(CONF_INVERT_COLORS): cv.boolean,
+            cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
+            cv.Exclusive(CONF_ROTATION, CONF_ROTATION): validate_rotation,
+            cv.Exclusive(CONF_TRANSFORM, CONF_ROTATION): cv.Schema(
+                {
+                    cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
+                    cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+                    cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+                }
+            ),
         }
     )
     .extend(cv.polling_component_schema("1s"))
-    .extend(spi.spi_device_schema(False)),
+    .extend(spi.spi_device_schema(False, "40MHz")),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
     _validate,
 )
@@ -113,11 +157,17 @@ async def to_code(config):
     rhs = MODELS[config[CONF_MODEL]].new()
     var = cg.Pvariable(config[CONF_ID], rhs)
 
-    await cg.register_component(var, config)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
+    if CONF_COLOR_ORDER in config:
+        cg.add(var.set_color_order(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
+    if CONF_TRANSFORM in config:
+        transform = config[CONF_TRANSFORM]
+        cg.add(var.set_swap_xy(transform[CONF_SWAP_XY]))
+        cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))
+        cg.add(var.set_mirror_y(transform[CONF_MIRROR_Y]))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
@@ -130,9 +180,17 @@ async def to_code(config):
         cg.add(var.set_reset_pin(reset))
 
     if CONF_DIMENSIONS in config:
-        cg.add(
-            var.set_dimentions(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1])
-        )
+        dimensions = config[CONF_DIMENSIONS]
+        if isinstance(dimensions, dict):
+            cg.add(var.set_dimensions(dimensions[CONF_WIDTH], dimensions[CONF_HEIGHT]))
+            cg.add(
+                var.set_offsets(
+                    dimensions[CONF_OFFSET_WIDTH], dimensions[CONF_OFFSET_HEIGHT]
+                )
+            )
+        else:
+            (width, height) = dimensions
+            cg.add(var.set_dimensions(width, height))
 
     rhs = None
     if config[CONF_COLOR_PALETTE] == "GRAYSCALE":
@@ -140,8 +198,6 @@ async def to_code(config):
         rhs = []
         for x in range(256):
             rhs.extend([HexInt(x), HexInt(x), HexInt(x)])
-        prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-        cg.add(var.set_palette(prog_arr))
     elif config[CONF_COLOR_PALETTE] == "IMAGE_ADAPTIVE":
         cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_8_INDEXED))
         from PIL import Image
@@ -165,7 +221,7 @@ async def to_code(config):
             x = x + i.width
 
         # reduce the colors on combined image to 256.
-        converted = ref_image.convert("P", palette=Image.ADAPTIVE, colors=256)
+        converted = ref_image.convert("P", palette=Image.Palette.ADAPTIVE, colors=256)
         # if you want to verify how the images look use
         # ref_image.save("ref_in.png")
         # converted.save("ref_out.png")
@@ -179,5 +235,5 @@ async def to_code(config):
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_palette(prog_arr))
 
-    spi_data_rate = str(spi.SPI_DATA_RATE_OPTIONS[config[CONF_DATA_RATE]])
-    cg.add_define("ILI9XXXDisplay_DATA_RATE", cg.RawExpression(spi_data_rate))
+    if CONF_INVERT_COLORS in config:
+        cg.add(var.invert_colors(config[CONF_INVERT_COLORS]))

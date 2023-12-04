@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ANALOG,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
@@ -75,8 +76,6 @@ def validate_supports(value):
         raise cv.Invalid("Only output mode is supported for Pico-w LED pin")
     return value
 
-
-CONF_ANALOG = "analog"
 
 RP2040_PIN_SCHEMA = cv.All(
     cv.Schema(

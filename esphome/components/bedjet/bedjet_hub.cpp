@@ -3,6 +3,7 @@
 #include "bedjet_hub.h"
 #include "bedjet_child.h"
 #include "bedjet_const.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace bedjet {
@@ -373,7 +374,7 @@ void BedJetHub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       if (this->last_notify_ == 0 || delta > MIN_NOTIFY_THROTTLE || this->force_refresh_) {
         // Set reentrant flag to prevent processing multiple packets.
         this->processing_ = true;
-        ESP_LOGVV(TAG, "[%s] Decoding packet: last=%d, delta=%d, force=%s", this->get_name().c_str(),
+        ESP_LOGVV(TAG, "[%s] Decoding packet: last=%" PRId32 ", delta=%" PRId32 ", force=%s", this->get_name().c_str(),
                   this->last_notify_, delta, this->force_refresh_ ? "y" : "n");
         bool needs_extra = this->codec_->decode_notify(param->notify.value, param->notify.value_len);
 
@@ -523,11 +524,11 @@ void BedJetHub::dispatch_status_() {
 
       ESP_LOGI(TAG, "[%s] Still waiting for first GATT notify event.", this->get_name().c_str());
     } else if (diff > NOTIFY_WARN_THRESHOLD) {
-      ESP_LOGW(TAG, "[%s] Last GATT notify was %d seconds ago.", this->get_name().c_str(), diff / 1000);
+      ESP_LOGW(TAG, "[%s] Last GATT notify was %" PRId32 " seconds ago.", this->get_name().c_str(), diff / 1000);
     }
 
     if (this->timeout_ > 0 && diff > this->timeout_ && this->parent()->enabled) {
-      ESP_LOGW(TAG, "[%s] Timed out after %d sec. Retrying...", this->get_name().c_str(), this->timeout_);
+      ESP_LOGW(TAG, "[%s] Timed out after %" PRId32 " sec. Retrying...", this->get_name().c_str(), this->timeout_);
       // set_enabled(false) will only close the connection if state != IDLE.
       this->parent()->set_state(espbt::ClientState::CONNECTING);
       this->parent()->set_enabled(false);

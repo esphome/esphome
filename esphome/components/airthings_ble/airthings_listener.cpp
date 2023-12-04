@@ -1,5 +1,6 @@
 #include "airthings_listener.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 #ifdef USE_ESP32
 
@@ -19,7 +20,7 @@ bool AirthingsListener::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
       sn |= ((uint32_t) it.data[2] << 16);
       sn |= ((uint32_t) it.data[3] << 24);
 
-      ESP_LOGD(TAG, "Found AirThings device Serial:%u (MAC: %s)", sn, device.address_str().c_str());
+      ESP_LOGD(TAG, "Found AirThings device Serial:%" PRIu32 " (MAC: %s)", sn, device.address_str().c_str());
       return true;
     }
   }

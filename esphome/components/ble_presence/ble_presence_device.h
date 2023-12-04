@@ -51,7 +51,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
     this->found_ = false;
   }
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
-    if (this->check_minimum_rssi_ && this->minimum_rssi_ <= device.get_rssi()) {
+    if (this->check_minimum_rssi_ && this->minimum_rssi_ > device.get_rssi()) {
       return false;
     }
     switch (this->match_by_) {

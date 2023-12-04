@@ -108,12 +108,13 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def setup_conf(config, key, hub):
-    if key in config:
-        conf = config[key]
-        sens = await sensor.new_sensor(conf)
+    if sensor_config := config.get(key):
+        sens = await sensor.new_sensor(sensor_config)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
-        if CONF_SAMPLE_RATE in conf:
-            cg.add(getattr(hub, f"set_{key}_sample_rate")(conf[CONF_SAMPLE_RATE]))
+        if CONF_SAMPLE_RATE in sensor_config:
+            cg.add(
+                getattr(hub, f"set_{key}_sample_rate")(sensor_config[CONF_SAMPLE_RATE])
+            )
 
 
 async def to_code(config):

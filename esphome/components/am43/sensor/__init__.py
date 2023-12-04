@@ -44,10 +44,10 @@ async def to_code(config):
     await cg.register_component(var, config)
     await ble_client.register_ble_node(var, config)
 
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
+    if battery_level_config := config.get(CONF_BATTERY_LEVEL):
+        sens = await sensor.new_sensor(battery_level_config)
         cg.add(var.set_battery(sens))
 
-    if CONF_ILLUMINANCE in config:
-        sens = await sensor.new_sensor(config[CONF_ILLUMINANCE])
+    if illuminance_config := config.get(CONF_ILLUMINANCE):
+        sens = await sensor.new_sensor(illuminance_config)
         cg.add(var.set_illuminance(sens))

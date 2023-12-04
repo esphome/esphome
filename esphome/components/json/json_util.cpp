@@ -29,6 +29,8 @@ std::string build_json(const json_build_t &f) {
   const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 #elif defined(USE_RP2040)
   const size_t free_heap = rp2040.getFreeHeap();
+#elif defined(USE_LIBRETINY)
+  const size_t free_heap = lt_heap_get_free();
 #endif
 
   size_t request_size = std::min(free_heap, (size_t) 512);
@@ -71,6 +73,8 @@ void parse_json(const std::string &data, const json_parse_t &f) {
   const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 #elif defined(USE_RP2040)
   const size_t free_heap = rp2040.getFreeHeap();
+#elif defined(USE_LIBRETINY)
+  const size_t free_heap = lt_heap_get_free();
 #endif
   bool pass = false;
   size_t request_size = std::min(free_heap, (size_t) (data.size() * 1.5));

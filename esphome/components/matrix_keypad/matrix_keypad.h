@@ -28,6 +28,7 @@ class MatrixKeypad : public key_provider::KeyProvider, public Component {
   void set_keys(std::string keys) { keys_ = std::move(keys); };
   void set_debounce_time(int debounce_time) { debounce_time_ = debounce_time; };
   void set_has_diodes(int has_diodes) { has_diodes_ = has_diodes; };
+  void set_has_pulldowns(int has_pulldowns) { has_pulldowns_ = has_pulldowns; };
 
   void register_listener(MatrixKeypadListener *listener);
 
@@ -37,6 +38,7 @@ class MatrixKeypad : public key_provider::KeyProvider, public Component {
   std::string keys_;
   int debounce_time_ = 0;
   bool has_diodes_{false};
+  bool has_pulldowns_{false};
   int pressed_key_ = -1;
 
   std::vector<MatrixKeypadListener *> listeners_{};

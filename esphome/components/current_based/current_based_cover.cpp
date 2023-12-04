@@ -38,7 +38,7 @@ void CurrentBasedCover::control(const CoverCall &call) {
   }
   if (call.get_position().has_value()) {
     auto pos = *call.get_position();
-    if (pos == this->position) {
+    if (fabsf(this->position - pos) < 0.01) {
       // already at target
     } else {
       auto op = pos < this->position ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
@@ -104,7 +104,8 @@ void CurrentBasedCover::loop() {
       ESP_LOGD(TAG, "'%s' - Close position reached. Took %.1fs.", this->name_.c_str(), dur);
       this->direction_idle_(COVER_CLOSED);
     }
-  } else if (now - this->start_dir_time_ > this->max_duration_) {
+  }
+  if (now - this->start_dir_time_ > this->max_duration_) {
     ESP_LOGD(TAG, "'%s' - Max duration reached. Stopping cover.", this->name_.c_str());
     this->direction_idle_();
   }

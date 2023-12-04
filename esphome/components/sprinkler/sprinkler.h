@@ -204,11 +204,11 @@ class SprinklerValveRunRequest {
 
 class Sprinkler : public Component {
  public:
+  Sprinkler();
+  Sprinkler(const std::string &name);
   void setup() override;
   void loop() override;
   void dump_config() override;
-
-  void set_name(const std::string &name) { this->name_ = name; }
 
   /// add a valve to the controller
   void add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControllerSwitch *enable_sw = nullptr);
