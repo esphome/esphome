@@ -130,7 +130,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
 
   int y_offset = bounds->y;
   int first_item_index = 0;
-  int last_item_index = this->displayed_item_->items_size();
+  int last_item_index = this->displayed_item_->items_size() - 1;
 
   if (number_items_fit_to_screen == 1) {
     // If only one item can fit to the bounds draw the current cursor item
@@ -139,11 +139,11 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
   } else {
     if (scroll_menu_items) {
       // Attempt to draw the item after the current item (+1 for equality check in the draw loop)
-      last_item_index = std::min(this->cursor_index_ + 2, last_item_index);
+      last_item_index = std::min(last_item_index, this->cursor_index_ + 1);
 
       // Go back through the measurements to determine how many prior items we can fit
       int height_left_to_use = bounds->h;
-      for (int i = last_item_index - 1; i >= 0; i--) {
+      for (int i = last_item_index; i >= 0; i--) {
         display::Rect item_dimensions = menu_dimensions[i];
         height_left_to_use -= (item_dimensions.h + y_padding);
 
@@ -159,7 +159,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
   display->start_clipping(*bounds);
 
   // Render the items into the view port
-  for (size_t i = first_item_index; i < last_item_index; i++) {
+  for (size_t i = first_item_index; i <= last_item_index; i++) {
     auto *item = this->displayed_item_->get_item(i);
     bool selected = i == this->cursor_index_;
     display::Rect dimensions = menu_dimensions.at(i);
