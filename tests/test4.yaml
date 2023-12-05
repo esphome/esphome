@@ -478,7 +478,7 @@ binary_sensor:
     name: MaxIn Pin 4
     pin:
       max6956: max6956_1
-      number: 2
+      number: 4
       mode:
         input: true
         pullup: true
