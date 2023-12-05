@@ -79,17 +79,16 @@ uart:
   - id: uart9600
     tx_pin:
       allow_other_uses: true
-      number: GPIO22
+      number: GPIO25
     rx_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO26
     baud_rate: 9600
   - id: uart_he60r
-    tx_pin: 22
-    rx_pin: 23
+    tx_pin: GPIO18
+    rx_pin: GPIO36
     baud_rate: 1200
     parity: EVEN
-
 
 ota:
   safe_mode: true
@@ -115,7 +114,7 @@ tuya:
   time_id: sntp_time
   uart_id: uart115200
   status_pin:
-    number: 14
+    number: GPIO5
     inverted: true
     allow_other_uses: true
 
@@ -479,7 +478,7 @@ binary_sensor:
     name: MaxIn Pin 4
     pin:
       max6956: max6956_1
-      number: 4
+      number: GPIO2
       mode:
         input: true
         pullup: true
@@ -489,7 +488,7 @@ binary_sensor:
     name: XL9535 Pin 0
     pin:
       xl9535: xl9535_hub
-      number: 0
+      number: GPIO0
       mode:
         input: true
       inverted: false
@@ -498,7 +497,7 @@ binary_sensor:
     name: XL9535 Pin 17
     pin:
       xl9535: xl9535_hub
-      number: 17
+      number: GPIO17
       mode:
         input: true
       inverted: false
