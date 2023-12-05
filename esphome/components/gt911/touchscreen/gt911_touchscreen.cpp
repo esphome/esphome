@@ -12,6 +12,7 @@ static const uint8_t GET_TOUCH_STATE[2] = {0x81, 0x4E};
 static const uint8_t CLEAR_TOUCH_STATE[3] = {0x81, 0x4E, 0x00};
 static const uint8_t GET_TOUCHES[2] = {0x81, 0x4F};
 static const uint8_t GET_SWITCHES[2] = {0x80, 0x4D};
+static const uint8_t GET_MAX_VALUES[2] = {0x80, 0x48};
 static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
 
 #define ERROR_CHECK(err) \
@@ -39,11 +40,23 @@ void GT911Touchscreen::setup() {
                               (data & 1) ? gpio::INTERRUPT_FALLING_EDGE : gpio::INTERRUPT_RISING_EDGE);
     }
   }
+  if (err == i2c::ERROR_OK) {
+    uint8_t data[4];
+    err = this->write(GET_MAX_VALUES, 2);
+    if (err == i2c::ERROR_OK) {
+      err = this->read(&data, 1);
+      if (err == i2c::ERROR_OK) {
+        this->x_raw_max_ = encode_uint16(data[0], data[1]);
+        this->y_raw_max_ = encode_uint16(data[2], data[3]);
+      }
+    }
+  }
   if (err != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Failed to communicate!");
     this->mark_failed();
     return;
   }
+
   ESP_LOGCONFIG(TAG, "GT911 Touchscreen setup complete");
 }
 
