@@ -33,7 +33,6 @@ SSD1322_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 
 
 async def setup_ssd1322(var, config):
-    await cg.register_component(var, config)
     await display.register_display(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
