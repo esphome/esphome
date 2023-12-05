@@ -132,7 +132,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
   int first_item_index = 0;
   int last_item_index = this->displayed_item_->items_size() - 1;
 
-  if (number_items_fit_to_screen == 1) {
+  if (number_items_fit_to_screen <= 1) {
     // If only one item can fit to the bounds draw the current cursor item
     last_item_index = std::min(last_item_index, this->cursor_index_ + 1);
     first_item_index = this->cursor_index_;
