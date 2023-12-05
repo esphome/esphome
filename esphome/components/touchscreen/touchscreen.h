@@ -32,7 +32,6 @@ struct TouchscreenInterupt {
 class TouchListener {
  public:
   virtual void touch(TouchPoint tp) {}
-  virtual void touch(const TouchPoints_t &tpoints) {}
   virtual void update(const TouchPoints_t &tpoints) {}
   virtual void release() {}
 };
