@@ -109,8 +109,9 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
   bool scroll_menu_items = false;
   std::vector<display::Rect> menu_dimensions;
   int number_items_fit_to_screen = 0;
+  const int max_item_index = this->displayed_item_->items_size() - 1;
 
-  for (size_t i = 0; i < this->displayed_item_->items_size(); i++) {
+  for (size_t i = 0; i <= max_item_index; i++) {
     auto *item = this->displayed_item_->get_item(i);
     bool selected = i == this->cursor_index_;
     display::Rect item_dimensions = this->measure_item(display, item, bounds, selected);
@@ -128,9 +129,9 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
     }
   }
 
-  int y_offset = bounds->y;
+  // Determine what items to draw
   int first_item_index = 0;
-  int last_item_index = this->displayed_item_->items_size() - 1;
+  int last_item_index = max_item_index;
 
   if (number_items_fit_to_screen <= 1) {
     // If only one item can fit to the bounds draw the current cursor item
@@ -153,21 +154,23 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
           break;
         }
       }
+      const int items_to_draw = last_item_index - first_item_index;
       // Dont't draw last item partially if it is the selected item
-      if (this->cursor_index_ == last_item_index && first_item_index < this->displayed_item_->items_size() - 1 &&
-          number_items_fit_to_screen <= (last_item_index - first_item_index)) {
+      if ((this->cursor_index_ == last_item_index) && (number_items_fit_to_screen <= items_to_draw) &&
+          (first_item_index < max_item_index)) {
         first_item_index++;
       }
     }
   }
 
+  // Render the items into the view port
   display->start_clipping(*bounds);
 
-  // Render the items into the view port
+  int y_offset = bounds->y;
   for (size_t i = first_item_index; i <= last_item_index; i++) {
     auto *item = this->displayed_item_->get_item(i);
     bool selected = i == this->cursor_index_;
-    display::Rect dimensions = menu_dimensions.at(i);
+    display::Rect dimensions = menu_dimensions[i];
 
     dimensions.y = y_offset;
     dimensions.x = bounds->x;
