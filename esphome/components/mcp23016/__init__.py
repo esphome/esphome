@@ -45,19 +45,15 @@ def validate_mode(value):
 
 
 CONF_MCP23016 = "mcp23016"
-MCP23016_PIN_SCHEMA = cv.All(
+MCP23016_PIN_SCHEMA = pins.gpio_base_schema(
+    MCP23016GPIOPin,
+    cv.int_range(min=0, max=15),
+    modes=[CONF_INPUT, CONF_OUTPUT],
+    mode_validator=validate_mode,
+    invertable=True,
+).extend(
     {
-        cv.GenerateID(): cv.declare_id(MCP23016GPIOPin),
         cv.Required(CONF_MCP23016): cv.use_id(MCP23016),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
-        cv.Optional(CONF_MODE, default={}): cv.All(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-            },
-            validate_mode,
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     }
 )
 
