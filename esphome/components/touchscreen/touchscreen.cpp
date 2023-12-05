@@ -43,7 +43,7 @@ void Touchscreen::loop() {
       }
     } else {
       this->store_.touched = false;
-      this->send_touches_();
+      this->defer([this]() { this->send_touches_(); });
     }
   }
 }
@@ -101,9 +101,9 @@ void Touchscreen::send_touches_() {
       this->touch_trigger_.trigger(tp, touches);
       for (auto *listener : this->touch_listeners_) {
         listener->touch(tp);
-        listener->touch(touches);
       }
-    } else if (this->need_update_) {
+    }
+    if (this->need_update_) {
       this->update_trigger_.trigger(touches);
       for (auto *listener : this->touch_listeners_) {
         listener->update(touches);
