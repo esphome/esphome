@@ -2,6 +2,7 @@
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace nextion {
@@ -129,15 +130,15 @@ void Nextion::dump_config() {
   ESP_LOGCONFIG(TAG, "  Wake On Touch:    %s", this->auto_wake_on_touch_ ? "True" : "False");
 
   if (this->touch_sleep_timeout_ != 0) {
-    ESP_LOGCONFIG(TAG, "  Touch Timeout:       %" PRIu32, this->touch_sleep_timeout_);
+    ESP_LOGCONFIG(TAG, "  Touch Timeout:    %" PRIu32, this->touch_sleep_timeout_);
   }
 
   if (this->wake_up_page_ != -1) {
-    ESP_LOGCONFIG(TAG, "  Wake Up Page :       %d", this->wake_up_page_);
+    ESP_LOGCONFIG(TAG, "  Wake Up Page:     %d", this->wake_up_page_);
   }
 
   if (this->start_up_page_ != -1) {
-    ESP_LOGCONFIG(TAG, "  Start Up Page :      %d", this->start_up_page_);
+    ESP_LOGCONFIG(TAG, "  Start Up Page:    %d", this->start_up_page_);
   }
 }
 
@@ -165,6 +166,10 @@ void Nextion::add_setup_state_callback(std::function<void()> &&callback) {
 
 void Nextion::add_new_page_callback(std::function<void(uint8_t)> &&callback) {
   this->page_callback_.add(std::move(callback));
+}
+
+void Nextion::add_touch_event_callback(std::function<void(uint8_t, uint8_t, bool)> &&callback) {
+  this->touch_callback_.add(std::move(callback));
 }
 
 void Nextion::update_all_components() {
@@ -440,6 +445,7 @@ void Nextion::process_nextion_commands_() {
         for (auto *touch : this->touch_) {
           touch->process_touch(page_id, component_id, touch_event != 0);
         }
+        this->touch_callback_.call(page_id, component_id, touch_event != 0);
         break;
       }
       case 0x66: {  // Nextion initiated new page event return data.

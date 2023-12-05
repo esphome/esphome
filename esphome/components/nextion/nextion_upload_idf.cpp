@@ -11,6 +11,7 @@
 
 #include <esp_heap_caps.h>
 #include <esp_http_client.h>
+#include <cinttypes>
 
 namespace esphome {
 namespace nextion {

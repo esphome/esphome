@@ -344,6 +344,7 @@ void VoiceAssistant::loop() {
   }
 }
 
+#ifdef USE_SPEAKER
 void VoiceAssistant::write_speaker_() {
   if (this->speaker_buffer_size_ > 0) {
     size_t written = this->speaker_->play(this->speaker_buffer_, this->speaker_buffer_size_);
@@ -357,6 +358,7 @@ void VoiceAssistant::write_speaker_() {
     }
   }
 }
+#endif
 
 void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscribe) {
   if (!subscribe) {
