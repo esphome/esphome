@@ -40,7 +40,7 @@ def validate(config):
 
     with cv.prepend_path(CONF_MIN_LENGTH):
         if config[CONF_MIN_LENGTH] > config[CONF_MAX_LENGTH]:
-            raise cv.Invalid("min_length must be less than max_length")
+            raise cv.Invalid("min_length must be less than or equal to max_length")
     return config
 
 
