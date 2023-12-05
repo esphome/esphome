@@ -7,11 +7,11 @@ namespace esphome {
 namespace mr24hpc1 {
 
 class ExistenceBoundarySelect : public select::Select, public Parented<mr24hpc1Component> {
-    public:
-        ExistenceBoundarySelect() = default;
+  public:
+    ExistenceBoundarySelect() = default;
 
-    protected:
-        void control(const std::string &value) override;
+  protected:
+    void control(const std::string &value) override;
 };
 
 }  // namespace mr24hpc1

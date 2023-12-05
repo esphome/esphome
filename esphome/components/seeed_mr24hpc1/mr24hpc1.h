@@ -45,60 +45,60 @@ namespace mr24hpc1 {
 
 enum
 {
-    FRAME_IDLE,
-    FRAME_HEADER2,
-    FRAME_CTL_WORLD,
-    FRAME_CMD_WORLD,
-    FRAME_DATA_LEN_H,
-    FRAME_DATA_LEN_L,
-    FRAME_DATA_BYTES,
-    FRAME_DATA_CRC,
-    FRAME_TAIL1,
-    FRAME_TAIL2,
+  FRAME_IDLE,
+  FRAME_HEADER2,
+  FRAME_CTL_WORLD,
+  FRAME_CMD_WORLD,
+  FRAME_DATA_LEN_H,
+  FRAME_DATA_LEN_L,
+  FRAME_DATA_BYTES,
+  FRAME_DATA_CRC,
+  FRAME_TAIL1,
+  FRAME_TAIL2,
 };
 
 enum
 {
-    STANDARD_FUNCTION_QUERY_PRODUCT_MODE = 0,
-    STANDARD_FUNCTION_QUERY_PRODUCT_ID,
-    STANDARD_FUNCTION_QUERY_FIRMWARE_VERSION,
-    STANDARD_FUNCTION_QUERY_HARDWARE_MODE,    // 以上是设备信息
-    STANDARD_FUNCTION_QUERY_SCENE_MODE,
-    STANDARD_FUNCTION_QUERY_SENSITIVITY,
-    STANDARD_FUNCTION_QUERY_UNMANNED_TIME,
-    // STANDARD_FUNCTION_QUERY_MOV_TARGET_DETECTION_MAX_DISTANCE,
-    // STANDARD_FUNCTION_QUERY_STATIC_TARGET_DETECTION_MAX_DISTANCE, // 以上是设置的参数
-    STANDARD_FUNCTION_QUERY_HUMAN_STATUS,
-    STANDARD_FUNCTION_QUERY_HUMAN_MOTION_INF,
-    // STANDARD_FUNCTION_QUERY_BODY_MOVE_PARAMETER,
-    STANDARD_FUNCTION_QUERY_KEEPAWAY_STATUS,
-    STANDARD_QUERY_CUSTOM_MODE,
-    STANDARD_FUNCTION_QUERY_HEARTBEAT_STATE,
-    STANDARD_FUNCTION_MAX,                      // 以上是基础功能信息
+  STANDARD_FUNCTION_QUERY_PRODUCT_MODE = 0,
+  STANDARD_FUNCTION_QUERY_PRODUCT_ID,
+  STANDARD_FUNCTION_QUERY_FIRMWARE_VERSION,
+  STANDARD_FUNCTION_QUERY_HARDWARE_MODE,  // Above is the equipment information
+  STANDARD_FUNCTION_QUERY_SCENE_MODE,
+  STANDARD_FUNCTION_QUERY_SENSITIVITY,
+  STANDARD_FUNCTION_QUERY_UNMANNED_TIME,
+  // STANDARD_FUNCTION_QUERY_MOV_TARGET_DETECTION_MAX_DISTANCE,
+  // STANDARD_FUNCTION_QUERY_STATIC_TARGET_DETECTION_MAX_DISTANCE, // These are the parameters of the setup
+  STANDARD_FUNCTION_QUERY_HUMAN_STATUS,
+  STANDARD_FUNCTION_QUERY_HUMAN_MOTION_INF,
+  // STANDARD_FUNCTION_QUERY_BODY_MOVE_PARAMETER,
+  STANDARD_FUNCTION_QUERY_KEEPAWAY_STATUS,
+  STANDARD_QUERY_CUSTOM_MODE,
+  STANDARD_FUNCTION_QUERY_HEARTBEAT_STATE,
+  STANDARD_FUNCTION_MAX,  // 以上是基础功能信息
 
-    CUSTOM_FUNCTION_QUERY_HUMAN_STATUS,
-    // CUSTOM_FUNCTION_QUERY_SPATIAL_STATIC_VALUE,
-    // CUSTOM_FUNCTION_QUERY_SPATIAL_MOTION_VALUE,
-    // CUSTOM_FUNCTION_QUERY_DISTANCE_OF_STATIC_OBJECT,
-    // CUSTOM_FUNCTION_QUERY_DISTANCE_OF_MOVING_OBJECT,
-    // CUSTOM_FUNCTION_QUERY_TARGET_MOVEMENT_SPEED,
-    
-    CUSTOM_FUNCTION_QUERY_EXISTENCE_BOUNDARY,
-    CUSTOM_FUNCTION_QUERY_MOTION_BOUNDARY,
-    CUSTOM_FUNCTION_QUERY_EXISTENCE_THRESHOLD,
-    CUSTOM_FUNCTION_QUERY_MOTION_THRESHOLD,
-    CUSTOM_FUNCTION_QUERY_MOTION_TRIGGER_TIME,
-    CUSTOM_FUNCTION_QUERY_MOTION_TO_REST_TIME,
-    CUSTOM_FUNCTION_QUERY_TIME_OF_ENTER_UNMANNED,
-    CUSTOM_FUNCTION_QUERY_HEARTBEAT_STATE,
-    CUSTOM_FUNCTION_MAX,
+  CUSTOM_FUNCTION_QUERY_HUMAN_STATUS,
+  // CUSTOM_FUNCTION_QUERY_SPATIAL_STATIC_VALUE,
+  // CUSTOM_FUNCTION_QUERY_SPATIAL_MOTION_VALUE,
+  // CUSTOM_FUNCTION_QUERY_DISTANCE_OF_STATIC_OBJECT,
+  // CUSTOM_FUNCTION_QUERY_DISTANCE_OF_MOVING_OBJECT,
+  // CUSTOM_FUNCTION_QUERY_TARGET_MOVEMENT_SPEED,
+  
+  CUSTOM_FUNCTION_QUERY_EXISTENCE_BOUNDARY,
+  CUSTOM_FUNCTION_QUERY_MOTION_BOUNDARY,
+  CUSTOM_FUNCTION_QUERY_EXISTENCE_THRESHOLD,
+  CUSTOM_FUNCTION_QUERY_MOTION_THRESHOLD,
+  CUSTOM_FUNCTION_QUERY_MOTION_TRIGGER_TIME,
+  CUSTOM_FUNCTION_QUERY_MOTION_TO_REST_TIME,
+  CUSTOM_FUNCTION_QUERY_TIME_OF_ENTER_UNMANNED,
+  CUSTOM_FUNCTION_QUERY_HEARTBEAT_STATE,
+  CUSTOM_FUNCTION_MAX,
 };
 
 enum
 {
-    OUTPUT_SWITCH_INIT,
-    OUTPUT_SWTICH_ON,
-    OUTPUT_SWTICH_OFF,
+  OUTPUT_SWITCH_INIT,
+  OUTPUT_SWTICH_ON,
+  OUTPUT_SWTICH_OFF,
 };
 
 static const std::map<std::string, uint8_t> SCENEMODE_ENUM_TO_INT{
@@ -151,7 +151,7 @@ static uint8_t sg_data_len = 0;
 static uint8_t sg_frame_buf[FRAME_BUF_MAX_SIZE] = {0};
 static uint8_t sg_frame_prase_buf[FRAME_BUF_MAX_SIZE] = {0};
 
-class mr24hpc1Component : public PollingComponent, public uart::UARTDevice {      // The class name must be the name defined by text_sensor.py
+class mr24hpc1Component : public PollingComponent, public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(heartbeat_state)
   SUB_TEXT_SENSOR(product_model)
@@ -198,66 +198,66 @@ class mr24hpc1Component : public PollingComponent, public uart::UARTDevice {    
 #endif
 
   private:
-    char c_product_mode[PRODUCT_BUF_MAX_SIZE + 1];
-    char c_product_id[PRODUCT_BUF_MAX_SIZE + 1];
-    char c_hardware_model[PRODUCT_BUF_MAX_SIZE + 1];
-    char c_firmware_version[PRODUCT_BUF_MAX_SIZE + 1];
+  char c_product_mode[PRODUCT_BUF_MAX_SIZE + 1];
+  char c_product_id[PRODUCT_BUF_MAX_SIZE + 1];
+  char c_hardware_model[PRODUCT_BUF_MAX_SIZE + 1];
+  char c_firmware_version[PRODUCT_BUF_MAX_SIZE + 1];
   public:
-    mr24hpc1Component() : PollingComponent(8000) {}  // The update() function is called every 8 seconds.
-    float get_setup_priority() const override { return esphome::setup_priority::LATE; }
-    void setup() override;
-    void update() override;
-    void dump_config() override;
-    void loop() override;
-    void R24_split_data_frame(uint8_t value);
-    void R24_parse_data_frame(uint8_t *data, uint8_t len);
-    void R24_frame_parse_open_underlying_information(uint8_t *data);
-    void R24_frame_parse_work_status(uint8_t *data);
-    void R24_frame_parse_product_Information(uint8_t *data);
-    void R24_frame_parse_human_information(uint8_t *data);
-    void send_query(uint8_t *query, size_t string_length);
+  mr24hpc1Component() : PollingComponent(8000) {}  // The update() function is called every 8 seconds.
+  float get_setup_priority() const override { return esphome::setup_priority::LATE; }
+  void setup() override;
+  void update() override;
+  void dump_config() override;
+  void loop() override;
+  void R24_split_data_frame(uint8_t value);
+  void R24_parse_data_frame(uint8_t *data, uint8_t len);
+  void R24_frame_parse_open_underlying_information(uint8_t *data);
+  void R24_frame_parse_work_status(uint8_t *data);
+  void R24_frame_parse_product_Information(uint8_t *data);
+  void R24_frame_parse_human_information(uint8_t *data);
+  void send_query(uint8_t *query, size_t string_length);
 
-    void get_heartbeat_packet(void);
-    void get_radar_output_information_switch(void);
-    void get_product_mode(void);
-    void get_product_id(void);
-    void get_hardware_model(void);
-    void get_firmware_version(void);
-    void get_human_status(void);
-    void get_human_motion_info(void);
-    void get_body_motion_params(void);
-    void get_keep_away(void);
-    void get_scene_mode(void);
-    void get_sensitivity(void);
-    void get_unmanned_time(void);
-    void get_custom_mode(void);
-    void get_existence_boundary(void);
-    void get_motion_boundary(void);
-    void get_spatial_static_value(void);
-    void get_spatial_motion_value(void);
-    void get_distance_of_static_object(void);
-    void get_distance_of_moving_object(void);
-    void get_target_movement_speed(void);
-    void get_existence_threshold(void);
-    void get_motion_threshold(void);
-    void get_motion_trigger_time(void);
-    void get_motion_to_rest_time(void);
-    void get_custom_unman_time(void);
+  void get_heartbeat_packet(void);
+  void get_radar_output_information_switch(void);
+  void get_product_mode(void);
+  void get_product_id(void);
+  void get_hardware_model(void);
+  void get_firmware_version(void);
+  void get_human_status(void);
+  void get_human_motion_info(void);
+  void get_body_motion_params(void);
+  void get_keep_away(void);
+  void get_scene_mode(void);
+  void get_sensitivity(void);
+  void get_unmanned_time(void);
+  void get_custom_mode(void);
+  void get_existence_boundary(void);
+  void get_motion_boundary(void);
+  void get_spatial_static_value(void);
+  void get_spatial_motion_value(void);
+  void get_distance_of_static_object(void);
+  void get_distance_of_moving_object(void);
+  void get_target_movement_speed(void);
+  void get_existence_threshold(void);
+  void get_motion_threshold(void);
+  void get_motion_trigger_time(void);
+  void get_motion_to_rest_time(void);
+  void get_custom_unman_time(void);
 
-    void set_scene_mode(const std::string &state);
-    void set_underlying_open_function(bool enable);
-    void set_sensitivity(uint8_t value);
-    void set_reset(void);
-    void set_unman_time(const std::string &time);
-    void set_custom_mode(uint8_t mode);
-    void set_custom_end_mode(void);
-    void set_existence_boundary(const std::string &value);
-    void set_motion_boundary(const std::string &value);
-    void set_existence_threshold(int value);
-    void set_motion_threshold(int value);
-    void set_motion_trigger_time(int value);
-    void set_motion_to_rest_time(int value);
-    void set_custom_unman_time(int value);
+  void set_scene_mode(const std::string &state);
+  void set_underlying_open_function(bool enable);
+  void set_sensitivity(uint8_t value);
+  void set_reset(void);
+  void set_unman_time(const std::string &time);
+  void set_custom_mode(uint8_t mode);
+  void set_custom_end_mode(void);
+  void set_existence_boundary(const std::string &value);
+  void set_motion_boundary(const std::string &value);
+  void set_existence_threshold(int value);
+  void set_motion_threshold(int value);
+  void set_motion_trigger_time(int value);
+  void set_motion_to_rest_time(int value);
+  void set_custom_unman_time(int value);
 };
 
 }  // namespace mr24hpc1

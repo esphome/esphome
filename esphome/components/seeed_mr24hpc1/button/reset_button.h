@@ -8,10 +8,10 @@ namespace mr24hpc1 {
 
 class ResetButton : public button::Button, public Parented<mr24hpc1Component> {
 public:
- ResetButton() = default;
+  ResetButton() = default;
 
 protected:
- void press_action() override;
+  void press_action() override;
 };
 
 }  // namespace mr24hpc1

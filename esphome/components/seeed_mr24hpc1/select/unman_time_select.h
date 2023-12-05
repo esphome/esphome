@@ -7,11 +7,11 @@ namespace esphome {
 namespace mr24hpc1 {
 
 class UnmanTimeSelect : public select::Select, public Parented<mr24hpc1Component> {
-    public:
-        UnmanTimeSelect() = default;
+  public:
+    UnmanTimeSelect() = default;
 
-    protected:
-        void control(const std::string &value) override;
+  protected:
+    void control(const std::string &value) override;
 };
 
 }  // namespace mr24hpc1

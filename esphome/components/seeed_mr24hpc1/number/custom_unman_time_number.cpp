@@ -3,9 +3,7 @@
 namespace esphome {
 namespace mr24hpc1 {
 
-void CustomUnmanTimeNumber::control(float value) {
-  this->parent_->set_custom_unman_time(value);
-}
+void CustomUnmanTimeNumber::control(float value) { this->parent_->set_custom_unman_time(value); }
 
 }  // namespace mr24hpc1
 }  // namespace esphome
