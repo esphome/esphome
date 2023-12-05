@@ -4,15 +4,16 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
 from . import CONF_MR24HPC1_ID, mr24hpc1Component
 
-CONF_HEARTBEAT = "heartbeat"
-CONF_PRODUCTMODEL = "productmodel"
-CONF_PRODUCTID = "productid"
-CONF_HARDWAREMODEL = "hardwaremodel"
-CONF_FIRWAREVERSION = "hardwareversion"
+CONF_HEARTBEAT = "heart_beat"
+CONF_PRODUCTMODEL = "product_model"
+CONF_PRODUCTID = "product_id"
+CONF_HARDWAREMODEL = "hardware_model"
+CONF_FIRWAREVERSION = "hardware_version"
 
-CONF_KEEPAWAY = "keepaway"
-CONF_MOTIONSTATUS = "motionstatus"
+CONF_KEEPAWAY = "keep_away"
+CONF_MOTIONSTATUS = "motion_status"
 
+CONF_CUSTOMMODEEND = "custom_mode_end"
 
 AUTO_LOAD = ["mr24hpc1"]
 
@@ -40,6 +41,9 @@ CONFIG_SCHEMA = {
     cv.Optional(CONF_MOTIONSTATUS): text_sensor.text_sensor_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon="mdi:human-greeting"
     ),
+    cv.Optional(CONF_CUSTOMMODEEND): text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon="mdi:account-check"
+    ),
 }
 
 
@@ -66,3 +70,6 @@ async def to_code(config):
     if motionstatus_config := config.get(CONF_MOTIONSTATUS):
         sens = await text_sensor.new_text_sensor(motionstatus_config)
         cg.add(mr24hpc1_component.set_motion_status_text_sensor(sens))
+    if custommodeend_config := config.get(CONF_CUSTOMMODEEND):
+        sens = await text_sensor.new_text_sensor(custommodeend_config)
+        cg.add(mr24hpc1_component.set_custom_mode_end_text_sensor(sens))

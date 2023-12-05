@@ -2,12 +2,12 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    DEVICE_CLASS_OCCUPANCY,
+    DEVICE_CLASS_OCCUPANCY,                       # https://github.com/limengdu/esphome/blob/17e1d4c2455997a0a15c875950be1942c6249d0d/esphome/const.py#L1006
 )
 from . import CONF_MR24HPC1_ID, mr24hpc1Component
 
 AUTO_LOAD = ["mr24hpc1"]
-CONF_SOMEONEEXIST = "someoneexist"
+CONF_SOMEONEEXIST = "someone_exist"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(mr24hpc1Component),
