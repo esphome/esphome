@@ -478,7 +478,7 @@ binary_sensor:
     name: MaxIn Pin 4
     pin:
       max6956: max6956_1
-      number: GPIO2
+      number: 2
       mode:
         input: true
         pullup: true
@@ -488,7 +488,7 @@ binary_sensor:
     name: XL9535 Pin 0
     pin:
       xl9535: xl9535_hub
-      number: GPIO0
+      number: 0
       mode:
         input: true
       inverted: false
@@ -497,7 +497,7 @@ binary_sensor:
     name: XL9535 Pin 17
     pin:
       xl9535: xl9535_hub
-      number: GPIO17
+      number: 17
       mode:
         input: true
       inverted: false
