@@ -85,8 +85,12 @@ uart:
       number: GPIO26
     baud_rate: 9600
   - id: uart_he60r
-    tx_pin: GPIO18
-    rx_pin: GPIO36
+    tx_pin:
+      number: GPIO18
+      allow_other_uses: true
+    rx_pin:
+      number: GPIO36
+      allow_other_uses: true
     baud_rate: 1200
     parity: EVEN
 
@@ -953,7 +957,6 @@ media_player:
       allow_other_uses: true
       number: GPIO25
     mute_pin:
-      allow_other_uses: true
       number: GPIO14
     on_state:
       - media_player.play:
