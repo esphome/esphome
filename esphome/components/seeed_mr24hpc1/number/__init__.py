@@ -69,43 +69,64 @@ async def to_code(config):
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
     if sensitivity_config := config.get(CONF_SENSITIVE):
         n = await number.new_number(
-            sensitivity_config, min_value=0, max_value=3, step=1,
+            sensitivity_config,
+            min_value=0,
+            max_value=3,
+            step=1,
         )
         await cg.register_parented(n, config[CONF_MR24HPC1_ID])
         cg.add(mr24hpc1_component.set_sensitivity_number(n))
     if custom_mode_config := config.get(CONF_CUSTOMMODE):
         n = await number.new_number(
-            custom_mode_config, min_value=0, max_value=4, step=1,
+            custom_mode_config,
+            min_value=0,
+            max_value=4,
+            step=1,
         )
         await cg.register_parented(n, config[CONF_MR24HPC1_ID])
         cg.add(mr24hpc1_component.set_custom_mode_number(n))
     if existence_threshold_config := config.get(CONF_EXISTENCETHRESHOLD):
         n = await number.new_number(
-            existence_threshold_config, min_value=0, max_value=250, step=1,
+            existence_threshold_config,
+            min_value=0,
+            max_value=250,
+            step=1,
         )
         await cg.register_parented(n, config[CONF_MR24HPC1_ID])
         cg.add(mr24hpc1_component.set_existence_threshold_number(n))
     if motion_threshold_config := config.get(CONF_MOTIONTHRESHOLD):
         n = await number.new_number(
-            motion_threshold_config, min_value=0, max_value=250, step=1,
+            motion_threshold_config,
+            min_value=0,
+            max_value=250,
+            step=1,
         )
         await cg.register_parented(n, config[CONF_MR24HPC1_ID])
         cg.add(mr24hpc1_component.set_motion_threshold_number(n))
     if motion_trigger_config := config.get(CONF_MOTIONTRIGGER):
         n = await number.new_number(
-            motion_trigger_config, min_value=0, max_value=150, step=1,
+            motion_trigger_config,
+            min_value=0,
+            max_value=150,
+            step=1,
         )
         await cg.register_parented(n, config[CONF_MR24HPC1_ID])
         cg.add(mr24hpc1_component.set_motion_trigger_number(n))
     if motion_to_rest_config := config.get(CONF_MOTION2REST):
         n = await number.new_number(
-            motion_to_rest_config, min_value=0, max_value=3000, step=1,
+            motion_to_rest_config,
+            min_value=0,
+            max_value=3000,
+            step=1,
         )
         await cg.register_parented(n, config[CONF_MR24HPC1_ID])
         cg.add(mr24hpc1_component.set_motion_to_rest_number(n))
     if custom_unman_time_config := config.get(CONF_CUSTOMUNMANTIME):
         n = await number.new_number(
-            custom_unman_time_config, min_value=0, max_value=3600, step=1,
+            custom_unman_time_config,
+            min_value=0,
+            max_value=3600,
+            step=1,
         )
         await cg.register_parented(n, config[CONF_MR24HPC1_ID])
         cg.add(mr24hpc1_component.set_custom_unman_time_number(n))

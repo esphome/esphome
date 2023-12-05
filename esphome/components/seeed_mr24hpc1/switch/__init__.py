@@ -7,7 +7,9 @@ from esphome.const import (
 )
 from .. import CONF_MR24HPC1_ID, mr24hpc1Component, mr24hpc1_ns
 
-UnderlyingOpenFuncSwitch = mr24hpc1_ns.class_("UnderlyOpenFunctionSwitch", switch.Switch)
+UnderlyingOpenFuncSwitch = mr24hpc1_ns.class_(
+    "UnderlyOpenFunctionSwitch", switch.Switch
+)
 
 CONF_UNDERLYING_FUNC = "underly_open_function"
 

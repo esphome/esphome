@@ -16,7 +16,7 @@ CONF_MOVEMENTSIGNS = "movement_signs"
 CONF_CUSTOMMOTIONDISTANCE = "custom_motion_distance"
 CONF_CUSTOMSPATIALSTATICVALUE = "custom_spatial_static_value"
 CONF_CUSTOMSPATIALMOTIONVALUE = "custom_spatial_motion_value"
-CONF_CUSTOMMOTIONSPEED =  "custom_motion_speed"
+CONF_CUSTOMMOTIONSPEED = "custom_motion_speed"
 
 CONF_CUSTOMMODENUM = "custom_mode_num"
 
@@ -27,7 +27,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_CUSTOMPRESENCEOFDETECTION): sensor.sensor_schema(
             device_class=DEVICE_CLASS_DISTANCE,
             unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,                   # Specify the number of decimal places
+            accuracy_decimals=2,  # Specify the number of decimal places
             icon="mdi:signal-distance-variant",
         ),
         cv.Optional(CONF_MOVEMENTSIGNS): sensor.sensor_schema(
