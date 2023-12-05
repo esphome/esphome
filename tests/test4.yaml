@@ -79,17 +79,20 @@ uart:
   - id: uart9600
     tx_pin:
       allow_other_uses: true
-      number: GPIO22
+      number: GPIO25
     rx_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO26
     baud_rate: 9600
   - id: uart_he60r
-    tx_pin: 22
-    rx_pin: 23
+    tx_pin:
+      number: GPIO18
+      allow_other_uses: true
+    rx_pin:
+      number: GPIO36
+      allow_other_uses: true
     baud_rate: 1200
     parity: EVEN
-
 
 ota:
   safe_mode: true
@@ -115,7 +118,7 @@ tuya:
   time_id: sntp_time
   uart_id: uart115200
   status_pin:
-    number: 14
+    number: GPIO5
     inverted: true
     allow_other_uses: true
 
@@ -954,7 +957,6 @@ media_player:
       allow_other_uses: true
       number: GPIO25
     mute_pin:
-      allow_other_uses: true
       number: GPIO14
     on_state:
       - media_player.play:
