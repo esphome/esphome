@@ -1,6 +1,7 @@
 #include "nextion.h"
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace nextion {
