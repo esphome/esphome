@@ -389,7 +389,8 @@ def command_config(args, config):
         output = re.sub(
             r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[5m\2\\033[6m", output
         )
-    safe_print(output)
+    if not CORE.quiet:
+        safe_print(output)
     _LOGGER.info("Configuration is valid!")
     return 0
 
@@ -514,7 +515,7 @@ def command_clean(args, config):
 def command_dashboard(args):
     from esphome.dashboard import dashboard
 
-    return dashboard.start_web_server(args)
+    return dashboard.start_dashboard(args)
 
 
 def command_update_all(args):
