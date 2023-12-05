@@ -164,7 +164,7 @@ void WiFiComponent::loop() {
 
 #ifdef USE_WIFI_AP
     if (this->has_ap() && !this->ap_setup_) {
-      if (now - this->last_connected_ > this->ap_timeout_) {
+      if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
         ESP_LOGI(TAG, "Starting fallback AP!");
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL

@@ -57,6 +57,9 @@ StopAction = voice_assistant_ns.class_(
 IsRunningCondition = voice_assistant_ns.class_(
     "IsRunningCondition", automation.Condition, cg.Parented.template(VoiceAssistant)
 )
+ConnectedCondition = voice_assistant_ns.class_(
+    "ConnectedCondition", automation.Condition, cg.Parented.template(VoiceAssistant)
+)
 
 
 def tts_stream_validate(config):
@@ -295,6 +298,15 @@ async def voice_assistant_stop_to_code(config, action_id, template_arg, args):
     "voice_assistant.is_running", IsRunningCondition, VOICE_ASSISTANT_ACTION_SCHEMA
 )
 async def voice_assistant_is_running_to_code(config, condition_id, template_arg, args):
+    var = cg.new_Pvariable(condition_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+@register_condition(
+    "voice_assistant.connected", ConnectedCondition, VOICE_ASSISTANT_ACTION_SCHEMA
+)
+async def voice_assistant_connected_to_code(config, condition_id, template_arg, args):
     var = cg.new_Pvariable(condition_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var

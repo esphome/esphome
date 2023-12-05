@@ -1329,6 +1329,7 @@ void WaveshareEPaper7P5InBV2::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+void WaveshareEPaper7P5InBV3::initialize() { this->init_display_(); }
 bool WaveshareEPaper7P5InBV3::wait_until_idle_() {
   if (this->busy_pin_ == nullptr) {
     return true;
@@ -1341,12 +1342,13 @@ bool WaveshareEPaper7P5InBV3::wait_until_idle_() {
       ESP_LOGI(TAG, "Timeout while displaying image!");
       return false;
     }
+    App.feed_wdt();
     delay(10);
   }
   delay(200);  // NOLINT
   return true;
 };
-void WaveshareEPaper7P5InBV3::initialize() {
+void WaveshareEPaper7P5InBV3::init_display_() {
   this->reset_();
 
   // COMMAND POWER SETTING
@@ -1402,8 +1404,6 @@ void WaveshareEPaper7P5InBV3::initialize() {
   this->data(0x00);
   this->data(0x00);
 
-  this->wait_until_idle_();
-
   uint8_t lut_vcom_7_i_n5_v2[] = {
       0x0, 0xF, 0xF, 0x0, 0x0, 0x1, 0x0, 0xF, 0x1, 0xF, 0x1, 0x2, 0x0, 0xF, 0xF, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0,
       0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
@@ -1449,24 +1449,26 @@ void WaveshareEPaper7P5InBV3::initialize() {
   this->command(0x24);  // LUTBB
   for (count = 0; count < 42; count++)
     this->data(lut_bb_7_i_n5_v2[count]);
-
-  this->command(0x10);
-  for (uint32_t i = 0; i < 800 * 480 / 8; i++) {
-    this->data(0xFF);
-  }
 };
 void HOT WaveshareEPaper7P5InBV3::display() {
+  this->init_display_();
   uint32_t buf_len = this->get_buffer_length_();
+
+  this->command(0x10);
+  for (uint32_t i = 0; i < buf_len; i++) {
+    this->data(0xFF);
+  }
 
   this->command(0x13);  // Start Transmission
   delay(2);
   for (uint32_t i = 0; i < buf_len; i++) {
-    this->data(~(this->buffer_[i]));
+    this->data(this->buffer_[i]);
   }
 
   this->command(0x12);  // Display Refresh
   delay(100);           // NOLINT
   this->wait_until_idle_();
+  this->deep_sleep();
 }
 int WaveshareEPaper7P5InBV3::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InBV3::get_height_internal() { return 480; }
