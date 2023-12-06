@@ -37,7 +37,7 @@ void HOT Display::line(int x1, int y1, int x2, int y2, Color color) {
 }
 
 void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                                    ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+                             ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
   uint32_t color_value;
   for (int y = 0; y != h; y++) {

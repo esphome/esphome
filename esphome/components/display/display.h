@@ -202,11 +202,11 @@ class Display : public PollingComponent {
    * The length of each source buffer line (stride) will be x_offset + w + x_pad.
    */
   virtual void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                                     ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad);
+                              ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad);
 
   /// Convenience overload for base case where the pixels are packed into the buffer with no gaps (e.g. suits LVGL.)
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                             ColorBitness bitness, bool big_endian) {
+                      ColorBitness bitness, bool big_endian) {
     this->draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, 0, 0, 0);
   }
 
