@@ -8,6 +8,11 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_DATA_PINS,
     CONF_ID,
+    CONF_DIMENSIONS,
+    CONF_WIDTH,
+    CONF_HEIGHT,
+    CONF_OFFSET_HEIGHT,
+    CONF_OFFSET_WIDTH,
 )
 
 from .init_sequences import ST7701S_INITS
@@ -34,9 +39,7 @@ CONF_INVERT_COLORS = "invert_colors"
 DEPENDENCIES = ["spi"]
 
 st7701s_ns = cg.esphome_ns.namespace("st7701s")
-ST7701S = st7701s_ns.class_(
-    "ST7701S", display.Display, cg.Component, spi.SPIDevice
-)
+ST7701S = st7701s_ns.class_("ST7701S", display.Display, cg.Component, spi.SPIDevice)
 ColorOrder = display.display_ns.enum("ColorMode")
 
 COLOR_ORDERS = {
@@ -78,6 +81,17 @@ CONFIG_SCHEMA = cv.All(
         cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(ST7701S),
+                cv.Required(CONF_DIMENSIONS): cv.Any(
+                    cv.dimensions,
+                    cv.Schema(
+                        {
+                            cv.Required(CONF_WIDTH): cv.int_,
+                            cv.Required(CONF_HEIGHT): cv.int_,
+                            cv.Optional(CONF_OFFSET_HEIGHT, default=0): cv.int_,
+                            cv.Optional(CONF_OFFSET_WIDTH, default=0): cv.int_,
+                        }
+                    ),
+                ),
                 cv.Optional(CONF_TRANSFORM): cv.Schema(
                     {
                         cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
@@ -89,7 +103,9 @@ CONFIG_SCHEMA = cv.All(
                     cv.Length(min=16, max=16, msg="Exactly 16 data pins required"),
                 ),
                 cv.Optional(CONF_INIT_SEQUENCE, default=1): map_sequence,
-                cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
+                cv.Optional(CONF_COLOR_ORDER): cv.one_of(
+                    *COLOR_ORDERS.keys(), upper=True
+                ),
                 cv.Optional(CONF_INVERT_COLORS, default=False): cv.boolean,
                 cv.Required(CONF_DE_PIN): pins.internal_gpio_output_pin_schema,
                 cv.Required(CONF_PCLK_PIN): pins.internal_gpio_output_pin_schema,
@@ -104,8 +120,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(CONF_VSYNC_BACK_PORCH, default=10): cv.int_,
                 cv.Optional(CONF_VSYNC_FRONT_PORCH, default=10): cv.int_,
             }
-        )
-        .extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6))
+        ).extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6))
     ),
     cv.only_with_esp_idf,
 )
@@ -142,6 +157,19 @@ async def to_code(config):
     if transform := config.get(CONF_TRANSFORM):
         cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))
         cg.add(var.set_mirror_y(transform[CONF_MIRROR_Y]))
+
+    if CONF_DIMENSIONS in config:
+        dimensions = config[CONF_DIMENSIONS]
+        if isinstance(dimensions, dict):
+            cg.add(var.set_dimensions(dimensions[CONF_WIDTH], dimensions[CONF_HEIGHT]))
+            cg.add(
+                var.set_offsets(
+                    dimensions[CONF_OFFSET_WIDTH], dimensions[CONF_OFFSET_HEIGHT]
+                )
+            )
+        else:
+            (width, height) = dimensions
+            cg.add(var.set_dimensions(width, height))
 
     pin = await cg.gpio_pin_expression(config[CONF_DE_PIN])
     cg.add(var.set_de_pin(pin))
