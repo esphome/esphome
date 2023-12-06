@@ -44,10 +44,10 @@ void GT911Touchscreen::setup() {
     uint8_t data[4];
     err = this->write(GET_MAX_VALUES, 2);
     if (err == i2c::ERROR_OK) {
-      err = this->read(&data, 1);
+      err = this->read(data, sizeof(data));
       if (err == i2c::ERROR_OK) {
-        this->x_raw_max_ = encode_uint16(data[0], data[1]);
-        this->y_raw_max_ = encode_uint16(data[2], data[3]);
+        this->x_raw_max_ = encode_uint16(data[1], data[0]);
+        this->y_raw_max_ = encode_uint16(data[3], data[2]);
       }
     }
   }
