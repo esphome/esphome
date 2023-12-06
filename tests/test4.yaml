@@ -62,8 +62,10 @@ spi:
     interface: hardware
   - id: spi_id_2
     clk_pin:
+      allow_other_uses: true
       number: GPIO32
     mosi_pin:
+      allow_other_uses: true
       number: GPIO33
     interface: hardware
 
@@ -462,7 +464,8 @@ binary_sensor:
     name: GPIO SX1509 test
     pin:
       sx1509: sx1509_hub
-      number: 3
+      number: gpio3
+      allow_other_uses: true
 
   - platform: touchscreen
     touchscreen_id: lilygo_touchscreen
@@ -482,7 +485,8 @@ binary_sensor:
     name: MaxIn Pin 4
     pin:
       max6956: max6956_1
-      number: 4
+      number: gpio4
+      allow_other_uses: true
       mode:
         input: true
         pullup: true
@@ -492,20 +496,20 @@ binary_sensor:
     name: XL9535 Pin 0
     pin:
       xl9535: xl9535_hub
-      number: 0
+      number: gpio0
       mode:
         input: true
       inverted: false
-
+      allow_other_uses: true
   - platform: gpio
     name: XL9535 Pin 17
     pin:
       xl9535: xl9535_hub
-      number: 17
+      number: gpio17
       mode:
         input: true
       inverted: false
-
+      allow_other_uses: true
 climate:
   - platform: tuya
     id: tuya_climate
@@ -677,53 +681,53 @@ display:
     update_interval: 60s
 
     display_data_1_pin:
-      number: 5
+      number: GPIO5
       allow_other_uses: true
     display_data_2_pin:
-      number: 18
+      number: GPIO18
       allow_other_uses: true
     display_data_3_pin:
-      number: 19
+      number: GPIO19
       allow_other_uses: true
     display_data_5_pin:
-      number: 25
+      number: GPIO25
       allow_other_uses: true
     display_data_4_pin:
-      number: 23
+      number: GPIO23
       allow_other_uses: true
     display_data_6_pin:
-      number: 26
+      number: GPIO26
       allow_other_uses: true
     display_data_7_pin:
-      number: 27
+      number: GPIO27
       allow_other_uses: true
     ckv_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     sph_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     gmod_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     gpio0_enable_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     oe_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     spv_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     powerup_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     wakeup_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     vcom_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
 
 number:
   - platform: tuya
@@ -816,21 +820,17 @@ esp32_camera:
       allow_other_uses: true
     - number: GPIO35
       allow_other_uses: true
-    -
-      number:  GPIO34
-    -
-      number:  GPIO5
+    - number:  GPIO34
       allow_other_uses: true
-    -
-      number:  GPIO39
-    -
-      number:  GPIO18
+    - number:  GPIO5
       allow_other_uses: true
-    -
-      number:  GPIO36
+    - number:  GPIO39
       allow_other_uses: true
-    -
-      number:  GPIO19
+    - number:  GPIO18
+      allow_other_uses: true
+    - number:  GPIO36
+      allow_other_uses: true
+    - number:  GPIO19
       allow_other_uses: true
   vsync_pin:
     allow_other_uses: true
@@ -906,9 +906,10 @@ touchscreen:
     spi_id: spi_id_2
     cs_pin:
       allow_other_uses: true
-      number: 17
+      number: GPIO17
     interrupt_pin:
-      number: 16
+      allow_other_uses: true
+      number: GPIO16
     display: inkplate_display
     update_interval: 50ms
     threshold: 400
@@ -932,13 +933,19 @@ touchscreen:
           format: Touch at (%d, %d)
           args: [touch.x, touch.y]
   - platform: gt911
-    interrupt_pin: GPIO3
+    interrupt_pin:
+      allow_other_uses: true
+      number: GPIO3
     display: inkplate_display
 
 
   - platform: ft63x6
-    interrupt_pin: GPIO39
-    reset_pin: GPIO5
+    interrupt_pin:
+      allow_other_uses: true
+      number: GPIO39
+    reset_pin:
+      allow_other_uses: true
+      number:  GPIO5
     display: inkplate_display
     on_touch:
       - logger.log:
@@ -965,6 +972,7 @@ media_player:
       number: GPIO25
     mute_pin:
       number: GPIO14
+      allow_other_uses: true
     on_state:
       - media_player.play:
       - media_player.play_media: http://localhost/media.mp3
