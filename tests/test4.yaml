@@ -820,11 +820,9 @@ esp32_camera:
     - number: GPIO35
       allow_other_uses: true
     - number:  GPIO34
-      allow_other_uses: true
     - number:  GPIO5
       allow_other_uses: true
     - number:  GPIO39
-      allow_other_uses: true
     - number:  GPIO18
       allow_other_uses: true
     - number:  GPIO36
