@@ -7,11 +7,11 @@ namespace esphome {
 namespace mr24hpc1 {
 
 class UnderlyOpenFunctionSwitch : public switch_::Switch, public Parented<mr24hpc1Component> {
- public:
-  UnderlyOpenFunctionSwitch() = default;
+  public:
+    UnderlyOpenFunctionSwitch() = default;
 
- protected:
-  void write_state(bool state) override;
+  protected:
+    void write_state(bool state) override;
 };
 
 }  // namespace mr24hpc1

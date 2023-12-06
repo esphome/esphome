@@ -7,11 +7,11 @@ namespace esphome {
 namespace mr24hpc1 {
 
 class ResetButton : public button::Button, public Parented<mr24hpc1Component> {
-public:
-  ResetButton() = default;
+  public:
+    ResetButton() = default;
 
-protected:
-  void press_action() override;
+  protected:
+    void press_action() override;
 };
 
 }  // namespace mr24hpc1
