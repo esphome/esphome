@@ -464,7 +464,7 @@ binary_sensor:
     name: GPIO SX1509 test
     pin:
       sx1509: sx1509_hub
-      number: gpio3
+      number: 3
       allow_other_uses: true
 
   - platform: touchscreen
@@ -485,7 +485,7 @@ binary_sensor:
     name: MaxIn Pin 4
     pin:
       max6956: max6956_1
-      number: gpio4
+      number: 4
       allow_other_uses: true
       mode:
         input: true
@@ -496,7 +496,7 @@ binary_sensor:
     name: XL9535 Pin 0
     pin:
       xl9535: xl9535_hub
-      number: gpio0
+      number: 0
       mode:
         input: true
       inverted: false
@@ -505,7 +505,7 @@ binary_sensor:
     name: XL9535 Pin 17
     pin:
       xl9535: xl9535_hub
-      number: gpio17
+      number: 17
       mode:
         input: true
       inverted: false
