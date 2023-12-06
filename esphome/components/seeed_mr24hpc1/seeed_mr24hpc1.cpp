@@ -479,20 +479,20 @@ void mr24hpc1Component::R24_frame_parse_open_underlying_information(uint8_t *dat
       this->motion_boundary_select_->publish_state(s_boundary_str[data[FRAME_DATA_INDEX] - 1]);
     }
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x0c) {
-    uint32_t motion_trigger_time = (uint32_t)(data[FRAME_DATA_INDEX] << 24) +
-                                    (uint32_t)(data[FRAME_DATA_INDEX + 1] << 16) +
-                                    (uint32_t)(data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
+    uint32_t motion_trigger_time = (uint32_t) (data[FRAME_DATA_INDEX] << 24) +
+                                   (uint32_t) (data[FRAME_DATA_INDEX + 1] << 16) +
+                                   (uint32_t) (data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
     this->motion_trigger_number_->publish_state(motion_trigger_time);
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x0d) {
-    uint32_t move_to_rest_time = (uint32_t)(data[FRAME_DATA_INDEX] << 24) +
-                                  (uint32_t)(data[FRAME_DATA_INDEX + 1] << 16) +
-                                  (uint32_t)(data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
+    uint32_t move_to_rest_time = (uint32_t) (data[FRAME_DATA_INDEX] << 24) +
+                                 (uint32_t) (data[FRAME_DATA_INDEX + 1] << 16) +
+                                 (uint32_t) (data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
     this->motion_to_rest_number_->publish_state(move_to_rest_time);
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x0e) {
-    uint32_t enter_unmanned_time = (uint32_t)(data[FRAME_DATA_INDEX] << 24) +
-                                    (uint32_t)(data[FRAME_DATA_INDEX + 1] << 16) +
-                                    (uint32_t)(data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
-    float custom_unmanned_time = enter_unmanned_time/1000;
+    uint32_t enter_unmanned_time = (uint32_t) (data[FRAME_DATA_INDEX] << 24) +
+                                   (uint32_t) (data[FRAME_DATA_INDEX + 1] << 16) +
+                                   (uint32_t) (data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
+    float custom_unmanned_time = enter_unmanned_time / 1000;
     this->custom_unman_time_number_->publish_state(custom_unmanned_time);
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x80) {
     if (data[FRAME_DATA_INDEX]) {
@@ -529,19 +529,19 @@ void mr24hpc1Component::R24_frame_parse_open_underlying_information(uint8_t *dat
       this->motion_boundary_select_->publish_state(s_boundary_str[data[FRAME_DATA_INDEX] - 1]);
     }
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x8c) {
-    uint32_t motion_trigger_time = (uint32_t)(data[FRAME_DATA_INDEX] << 24) +
-                                    (uint32_t)(data[FRAME_DATA_INDEX + 1] << 16) +
-                                    (uint32_t)(data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
+    uint32_t motion_trigger_time = (uint32_t) (data[FRAME_DATA_INDEX] << 24) +
+                                   (uint32_t) (data[FRAME_DATA_INDEX + 1] << 16) +
+                                   (uint32_t) (data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
     this->motion_trigger_number_->publish_state(motion_trigger_time);
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x8d) {
-    uint32_t move_to_rest_time = (uint32_t)(data[FRAME_DATA_INDEX] << 24) +
-                                  (uint32_t)(data[FRAME_DATA_INDEX + 1] << 16) +
-                                  (uint32_t)(data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
+    uint32_t move_to_rest_time = (uint32_t) (data[FRAME_DATA_INDEX] << 24) +
+                                 (uint32_t) (data[FRAME_DATA_INDEX + 1] << 16) +
+                                 (uint32_t) (data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
     this->motion_to_rest_number_->publish_state(move_to_rest_time);
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x8e) {
-    uint32_t enter_unmanned_time = (uint32_t)(data[FRAME_DATA_INDEX] << 24) +
-                                    (uint32_t)(data[FRAME_DATA_INDEX + 1] << 16) +
-                                    (uint32_t)(data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
+    uint32_t enter_unmanned_time = (uint32_t) (data[FRAME_DATA_INDEX] << 24) +
+                                   (uint32_t) (data[FRAME_DATA_INDEX + 1] << 16) +
+                                   (uint32_t) (data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
     float custom_unmanned_time = enter_unmanned_time / 1000;
     this->custom_unman_time_number_->publish_state(custom_unmanned_time);
   }
