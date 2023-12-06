@@ -62,10 +62,8 @@ spi:
     interface: hardware
   - id: spi_id_2
     clk_pin:
-      allow_other_uses: true
       number: GPIO32
     mosi_pin:
-      allow_other_uses: true
       number: GPIO33
     interface: hardware
 
