@@ -94,7 +94,7 @@ deep_sleep:
     touch_wakeup_reason: 15s
   sleep_duration: 50s
   wakeup_pin:
-    - pin: 
+    - pin:
         number: GPIO2
         allow_other_uses: true
       wakeup_pin_mode: INVERT_WAKEUP
