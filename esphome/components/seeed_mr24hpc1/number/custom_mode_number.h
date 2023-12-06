@@ -14,5 +14,5 @@ class CustomModeNumber : public number::Number, public Parented<mr24hpc1Componen
   void control(float value) override;
 };
 
-} // namespace seeed_mr24hpc1
-} // namespace esphome
+}  // namespace seeed_mr24hpc1
+}  // namespace esphome

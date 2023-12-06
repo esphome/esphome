@@ -14,5 +14,5 @@ class ResetButton : public button::Button, public Parented<mr24hpc1Component> {
   void press_action() override;
 };
 
-} // namespace seeed_mr24hpc1
-} // namespace esphome
+}  // namespace seeed_mr24hpc1
+}  // namespace esphome

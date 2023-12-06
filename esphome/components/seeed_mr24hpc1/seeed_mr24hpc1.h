@@ -43,8 +43,7 @@ static const uint8_t FRAME_CONTROL_WORD_INDEX = 2;
 static const uint8_t FRAME_COMMAND_WORD_INDEX = 3;
 static const uint8_t FRAME_DATA_INDEX = 6;
 
-enum
-{
+enum {
   FRAME_IDLE,
   FRAME_HEADER2,
   FRAME_CTL_WORLD,
@@ -57,8 +56,7 @@ enum
   FRAME_TAIL2,
 };
 
-enum
-{
+enum {
   STANDARD_FUNCTION_QUERY_PRODUCT_MODE = 0,
   STANDARD_FUNCTION_QUERY_PRODUCT_ID,
   STANDARD_FUNCTION_QUERY_FIRMWARE_VERSION,
@@ -94,53 +92,33 @@ enum
   CUSTOM_FUNCTION_MAX,
 };
 
-enum
-{
+enum {
   OUTPUT_SWITCH_INIT,
   OUTPUT_SWTICH_ON,
   OUTPUT_SWTICH_OFF,
 };
 
 static const std::map<std::string, uint8_t> SCENEMODE_ENUM_TO_INT{
-  {"None", 0x00},
-  {"Living Room", 0x01},
-  {"Bedroom", 0x02},
-  {"Washroom", 0x03},
-  {"Area Detection", 0x04}
+  {"None", 0x00}, {"Living Room", 0x01}, {"Bedroom", 0x02}, {"Washroom", 0x03}, {"Area Detection", 0x04}
 };
 
-static const std::map<std::string, uint8_t> UNMANDTIME_ENUM_TO_INT{
-  {"None", 0x00},
-  {"10s", 0x01},
-  {"30s", 0x02},
-  {"1min", 0x03},
-  {"2min", 0x04},
-  {"5min", 0x05},
-  {"10min", 0x06},
-  {"30min", 0x07},
-  {"60min", 0x08}
-};
+static const std::map<std::string, uint8_t> UNMANDTIME_ENUM_TO_INT{{"None", 0x00},  {"10s", 0x01},   {"30s", 0x02},
+                                                                   {"1min", 0x03},  {"2min", 0x04},  {"5min", 0x05},
+                                                                   {"10min", 0x06}, {"30min", 0x07}, {"60min", 0x08}};
 
 static const std::map<std::string, uint8_t> BOUNDARY_ENUM_TO_INT{
-  {"0.5m", 0x01},
-  {"1.0m", 0x02},
-  {"1.5m", 0x03},
-  {"2.0m", 0x04},
-  {"2.5m", 0x05},
-  {"3.0m", 0x06},
-  {"3.5m", 0x07},
-  {"4.0m", 0x08},
-  {"4.5m", 0x09},
-  {"5.0m", 0x0a},
+  {"0.5m", 0x01}, {"1.0m", 0x02}, {"1.5m", 0x03}, {"2.0m", 0x04}, {"2.5m", 0x05},
+  {"3.0m", 0x06}, {"3.5m", 0x07}, {"4.0m", 0x08}, {"4.5m", 0x09}, {"5.0m", 0x0a},
 };
 
-static const char* s_heartbeat_str[2] = {"Abnormal", "Normal"};
-static const char* s_scene_str[5] = {"None", "Living Room", "Bedroom", "Washroom", "Area Detection"};
+static const char *s_heartbeat_str[2] = {"Abnormal", "Normal"};
+static const char *s_scene_str[5] = {"None", "Living Room", "Bedroom", "Washroom", "Area Detection"};
 static bool s_someoneExists_str[2] = {false, true};
-static const char* s_motion_status_str[3] = {"None", "Motionless", "Active"};
-static const char* s_keep_away_str[3] = {"None", "Close", "Away"};
-static const char* s_unmanned_time_str[9] = {"None", "10s", "30s", "1min", "2min", "5min", "10min", "30min", "60min"};
-static const char* s_boundary_str[10] = {"0.5m", "1.0m", "1.5m", "2.0m", "2.5m", "3.0m", "3.5m", "4.0m", "4.5m", "5.0m"}; // uint: m
+static const char *s_motion_status_str[3] = {"None", "Motionless", "Active"};
+static const char *s_keep_away_str[3] = {"None", "Close", "Away"};
+static const char *s_unmanned_time_str[9] = {"None", "10s", "30s", "1min", "2min", "5min", "10min", "30min", "60min"};
+static const char *s_boundary_str[10] = {"0.5m", "1.0m", "1.5m", "2.0m", "2.5m",
+                                         "3.0m", "3.5m", "4.0m", "4.5m", "5.0m"};       // uint: m
 static float s_presence_of_detection_range_str[7] = {0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0};  // uint: m
 
 static uint8_t s_output_info_switch_flag = OUTPUT_SWITCH_INIT;
@@ -151,7 +129,8 @@ static uint8_t sg_data_len = 0;
 static uint8_t sg_frame_buf[FRAME_BUF_MAX_SIZE] = {0};
 static uint8_t sg_frame_prase_buf[FRAME_BUF_MAX_SIZE] = {0};
 
-class mr24hpc1Component : public PollingComponent, public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
+class mr24hpc1Component : public PollingComponent,
+                          public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(heartbeat_state)
   SUB_TEXT_SENSOR(product_model)
@@ -197,12 +176,13 @@ class mr24hpc1Component : public PollingComponent, public uart::UARTDevice {  //
   SUB_NUMBER(custom_unman_time)
 #endif
 
-  private:
+ private:
   char c_product_mode[PRODUCT_BUF_MAX_SIZE + 1];
   char c_product_id[PRODUCT_BUF_MAX_SIZE + 1];
   char c_hardware_model[PRODUCT_BUF_MAX_SIZE + 1];
   char c_firmware_version[PRODUCT_BUF_MAX_SIZE + 1];
-  public:
+
+ public:
   mr24hpc1Component() : PollingComponent(8000) {}  // The update() function is called every 8 seconds.
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }
   void setup() override;

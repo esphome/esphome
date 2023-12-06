@@ -14,5 +14,5 @@ class UnderlyOpenFunctionSwitch : public switch_::Switch, public Parented<mr24hp
   void write_state(bool state) override;
 };
 
-} // namespace seeed_mr24hpc1
-} // namespace esphome
+}  // namespace seeed_mr24hpc1
+}  // namespace esphome

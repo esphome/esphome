@@ -14,5 +14,5 @@ class MotionTriggerTimeNumber : public number::Number, public Parented<mr24hpc1C
   void control(float value) override;
 };
 
-} // namespace seeed_mr24hpc1
-} // namespace esphome
+}  // namespace seeed_mr24hpc1
+}  // namespace esphome

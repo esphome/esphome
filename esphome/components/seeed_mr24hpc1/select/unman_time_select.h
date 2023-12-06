@@ -14,5 +14,5 @@ class UnmanTimeSelect : public select::Select, public Parented<mr24hpc1Component
   void control(const std::string &value) override;
 };
 
-} // namespace seeed_mr24hpc1
-} // namespace esphome
+}  // namespace seeed_mr24hpc1
+}  // namespace esphome

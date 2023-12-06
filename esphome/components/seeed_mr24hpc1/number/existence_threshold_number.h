@@ -14,5 +14,5 @@ class ExistenceThresholdNumber : public number::Number, public Parented<mr24hpc1
   void control(float value) override;
 };
 
-} // namespace seeed_mr24hpc1
-} // namespace esphome
+}  // namespace seeed_mr24hpc1
+}  // namespace esphome
