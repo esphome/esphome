@@ -61,7 +61,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
-    if custompresenceofdetection_config := config.get(CONF_CUSTOM_PRESENCE_OF_DETECTION):
+    if custompresenceofdetection_config := config.get(
+        CONF_CUSTOM_PRESENCE_OF_DETECTION
+    ):
         sens = await sensor.new_sensor(custompresenceofdetection_config)
         cg.add(mr24hpc1_component.set_custom_presence_of_detection_sensor(sens))
     if movementsigns_config := config.get(CONF_MOVEMENT_SIGNS):
