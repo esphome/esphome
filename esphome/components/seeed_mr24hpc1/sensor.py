@@ -9,7 +9,7 @@ from esphome.const import (
 )
 from . import CONF_MR24HPC1_ID, mr24hpc1Component
 
-AUTO_LOAD = ["mr24hpc1"]
+AUTO_LOAD = ["seeed_mr24hpc1"]
 
 CONF_CUSTOMPRESENCEOFDETECTION = "custom_presence_of_detection"
 CONF_MOVEMENTSIGNS = "movement_signs"

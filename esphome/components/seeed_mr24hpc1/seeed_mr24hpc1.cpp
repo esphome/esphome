@@ -1,5 +1,5 @@
 #include "esphome/core/log.h"
-#include "mr24hpc1.h"
+#include "seeed_mr24hpc1.h"
 
 #include <utility>
 #ifdef USE_NUMBER
@@ -10,9 +10,9 @@
 #endif
 
 namespace esphome {
-namespace mr24hpc1 {
+namespace seeed_mr24hpc1 {
 
-static const char *TAG = "mr24hpc1";
+static const char *TAG = "seeed_mr24hpc1";
 int sg_start_query_data;
 bool check_dev_inf_sign;
 bool poll_time_base_func_check;
@@ -1094,5 +1094,5 @@ void mr24hpc1Component::set_custom_unman_time(int value) {
   this->get_custom_unman_time();
 }
 
-}  // namespace mr24hpc1
+}  // namespace seeed_mr24hpc1
 }  // namespace esphome

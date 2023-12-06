@@ -29,7 +29,7 @@
 #include <map>
 
 namespace esphome {
-namespace mr24hpc1 {
+namespace seeed_mr24hpc1 {
 
 #define FRAME_BUF_MAX_SIZE 128
 #define PRODUCT_BUF_MAX_SIZE 32
@@ -260,5 +260,5 @@ class mr24hpc1Component : public PollingComponent, public uart::UARTDevice {  //
   void set_custom_unman_time(int value);
 };
 
-}  // namespace mr24hpc1
+}  // namespace seeed_mr24hpc1
 }  // namespace esphome
