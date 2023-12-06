@@ -465,7 +465,7 @@ binary_sensor:
     pin:
       sx1509: sx1509_hub
       number: 3
-      allow_other_uses: true
+
 
   - platform: touchscreen
     touchscreen_id: lilygo_touchscreen
@@ -486,7 +486,7 @@ binary_sensor:
     pin:
       max6956: max6956_1
       number: 4
-      allow_other_uses: true
+
       mode:
         input: true
         pullup: true
@@ -500,7 +500,7 @@ binary_sensor:
       mode:
         input: true
       inverted: false
-      allow_other_uses: true
+
   - platform: gpio
     name: XL9535 Pin 17
     pin:
@@ -509,7 +509,8 @@ binary_sensor:
       mode:
         input: true
       inverted: false
-      allow_other_uses: true
+
+
 climate:
   - platform: tuya
     id: tuya_climate
