@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_HEIGHT,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
+    CONF_LAMBDA,
 )
 
 from .init_sequences import ST7701S_INITS
@@ -43,8 +44,8 @@ ST7701S = st7701s_ns.class_("ST7701S", display.Display, cg.Component, spi.SPIDev
 ColorOrder = display.display_ns.enum("ColorMode")
 
 COLOR_ORDERS = {
-    "RGB": ColorOrder.COLOR_MODE_RGB,
-    "BGR": ColorOrder.COLOR_MODE_BGR,
+    "RGB": ColorOrder.COLOR_ORDER_RGB,
+    "BGR": ColorOrder.COLOR_ORDER_BGR,
 }
 DATA_PIN_SCHEMA = pins.gpio_pin_schema(
     {
@@ -127,7 +128,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = config[CONF_ID]
+    var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
 
@@ -170,6 +171,12 @@ async def to_code(config):
         else:
             (width, height) = dimensions
             cg.add(var.set_dimensions(width, height))
+
+    if lamb := config.get(CONF_LAMBDA):
+        lambda_ = await cg.process_lambda(
+            lamb, [(display.DisplayRef, "it")], return_type=cg.void
+        )
+        cg.add(var.set_writer(lambda_))
 
     pin = await cg.gpio_pin_expression(config[CONF_DE_PIN])
     cg.add(var.set_de_pin(pin))

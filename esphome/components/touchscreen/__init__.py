@@ -24,7 +24,7 @@ CONF_TOUCHSCREEN_ID = "touchscreen_id"
 
 TOUCHSCREEN_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
+        cv.GenerateID(CONF_DISPLAY): cv.use_id(display.Display),
         cv.Optional(CONF_ON_TOUCH): automation.validate_automation(single=True),
     }
 )
