@@ -99,16 +99,15 @@ enum {
 };
 
 static const std::map<std::string, uint8_t> SCENEMODE_ENUM_TO_INT{
-  {"None", 0x00}, {"Living Room", 0x01}, {"Bedroom", 0x02}, {"Washroom", 0x03}, {"Area Detection", 0x04}
-};
+    {"None", 0x00}, {"Living Room", 0x01}, {"Bedroom", 0x02}, {"Washroom", 0x03}, {"Area Detection", 0x04}};
 
 static const std::map<std::string, uint8_t> UNMANDTIME_ENUM_TO_INT{{"None", 0x00},  {"10s", 0x01},   {"30s", 0x02},
                                                                    {"1min", 0x03},  {"2min", 0x04},  {"5min", 0x05},
                                                                    {"10min", 0x06}, {"30min", 0x07}, {"60min", 0x08}};
 
 static const std::map<std::string, uint8_t> BOUNDARY_ENUM_TO_INT{
-  {"0.5m", 0x01}, {"1.0m", 0x02}, {"1.5m", 0x03}, {"2.0m", 0x04}, {"2.5m", 0x05},
-  {"3.0m", 0x06}, {"3.5m", 0x07}, {"4.0m", 0x08}, {"4.5m", 0x09}, {"5.0m", 0x0a},
+    {"0.5m", 0x01}, {"1.0m", 0x02}, {"1.5m", 0x03}, {"2.0m", 0x04}, {"2.5m", 0x05},
+    {"3.0m", 0x06}, {"3.5m", 0x07}, {"4.0m", 0x08}, {"4.5m", 0x09}, {"5.0m", 0x0a},
 };
 
 static const char *s_heartbeat_str[2] = {"Abnormal", "Normal"};
