@@ -906,7 +906,6 @@ touchscreen:
       allow_other_uses: true
       number: GPIO17
     interrupt_pin:
-      allow_other_uses: true
       number: GPIO16
     display: inkplate_display
     update_interval: 50ms
