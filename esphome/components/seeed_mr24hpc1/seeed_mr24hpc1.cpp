@@ -504,10 +504,10 @@ void mr24hpc1Component::R24_frame_parse_open_underlying_information(uint8_t *dat
   {
       this->custom_presence_of_detection_sensor_->publish_state(s_presence_of_detection_range_str[data[FRAME_DATA_INDEX]]);
   }
-  else if (data[FRAME_COMMAND_WORD_INDEX] == 0x84) { 
+  else if (data[FRAME_COMMAND_WORD_INDEX] == 0x84) {
       this->custom_motion_distance_sensor_->publish_state(data[FRAME_DATA_INDEX] * 0.5f);
   }
-  else if (data[FRAME_COMMAND_WORD_INDEX] == 0x85) {  
+  else if (data[FRAME_COMMAND_WORD_INDEX] == 0x85) {
       this->custom_motion_speed_sensor_->publish_state((data[FRAME_DATA_INDEX] - 10) * 0.5f);
   }
   else if (data[FRAME_COMMAND_WORD_INDEX] == 0x86)

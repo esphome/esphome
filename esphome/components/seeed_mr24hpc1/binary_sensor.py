@@ -7,11 +7,11 @@ from esphome.const import (
 from . import CONF_MR24HPC1_ID, mr24hpc1Component
 
 AUTO_LOAD = ["seeed_mr24hpc1"]
-CONF_SOMEONEEXIST = "someone_exist"
+CONF_SOMEONE_EXIST = "someone_exist"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(mr24hpc1Component),
-    cv.Optional(CONF_SOMEONEEXIST): binary_sensor.binary_sensor_schema(
+    cv.Optional(CONF_SOMEONE_EXIST): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_OCCUPANCY, icon="mdi:motion-sensor"
     ),
 }
@@ -19,6 +19,6 @@ CONFIG_SCHEMA = {
 
 async def to_code(config):
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
-    if someoneexists_config := config.get(CONF_SOMEONEEXIST):
+    if someoneexists_config := config.get(CONF_SOMEONE_EXIST):
         sens = await binary_sensor.new_binary_sensor(someoneexists_config)
         cg.add(mr24hpc1_component.set_someoneExists_binary_sensor(sens))

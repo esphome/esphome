@@ -11,28 +11,28 @@ UnmanTimeSelect = mr24hpc1_ns.class_("UnmanTimeSelect", select.Select)
 ExistenceBoundarySelect = mr24hpc1_ns.class_("ExistenceBoundarySelect", select.Select)
 MotionBoundarySelect = mr24hpc1_ns.class_("MotionBoundarySelect", select.Select)
 
-CONF_SCENEMODE = "scene_mode"
-CONF_UNMANTIME = "unman_time"
-CONF_EXISTENCEBOUNDARY = "existence_boundary"
-CONF_MOTIONBOUNDARY = "motion_boundary"
+CONF_SCENE_MODE = "scene_mode"
+CONF_UNMAN_TIME = "unman_time"
+CONF_EXISTENCE_BOUNDARY = "existence_boundary"
+CONF_MOTION_BOUNDARY = "motion_boundary"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(mr24hpc1Component),
-    cv.Optional(CONF_SCENEMODE): select.select_schema(
+    cv.Optional(CONF_SCENE_MODE): select.select_schema(
         SceneModeSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon="mdi:hoop-house",
     ),
-    cv.Optional(CONF_UNMANTIME): select.select_schema(
+    cv.Optional(CONF_UNMAN_TIME): select.select_schema(
         UnmanTimeSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon="mdi:timeline-clock",
     ),
-    cv.Optional(CONF_EXISTENCEBOUNDARY): select.select_schema(
+    cv.Optional(CONF_EXISTENCE_BOUNDARY): select.select_schema(
         ExistenceBoundarySelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
     ),
-    cv.Optional(CONF_MOTIONBOUNDARY): select.select_schema(
+    cv.Optional(CONF_MOTION_BOUNDARY): select.select_schema(
         MotionBoundarySelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
     ),
@@ -41,14 +41,14 @@ CONFIG_SCHEMA = {
 
 async def to_code(config):
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
-    if scenemode_config := config.get(CONF_SCENEMODE):
+    if scenemode_config := config.get(CONF_SCENE_MODE):
         s = await select.new_select(
             scenemode_config,
             options=["None", "Living Room", "Bedroom", "Washroom", "Area Detection"],
         )
         await cg.register_parented(s, config[CONF_MR24HPC1_ID])
         cg.add(mr24hpc1_component.set_scene_mode_select(s))
-    if unmantime_config := config.get(CONF_UNMANTIME):
+    if unmantime_config := config.get(CONF_UNMAN_TIME):
         s = await select.new_select(
             unmantime_config,
             options=[
@@ -65,7 +65,7 @@ async def to_code(config):
         )
         await cg.register_parented(s, config[CONF_MR24HPC1_ID])
         cg.add(mr24hpc1_component.set_unman_time_select(s))
-    if existence_boundary_config := config.get(CONF_EXISTENCEBOUNDARY):
+    if existence_boundary_config := config.get(CONF_EXISTENCE_BOUNDARY):
         s = await select.new_select(
             existence_boundary_config,
             options=[
@@ -83,7 +83,7 @@ async def to_code(config):
         )
         await cg.register_parented(s, config[CONF_MR24HPC1_ID])
         cg.add(mr24hpc1_component.set_existence_boundary_select(s))
-    if motion_boundary_config := config.get(CONF_MOTIONBOUNDARY):
+    if motion_boundary_config := config.get(CONF_MOTION_BOUNDARY):
         s = await select.new_select(
             motion_boundary_config,
             options=[
