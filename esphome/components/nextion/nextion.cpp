@@ -130,8 +130,8 @@ void Nextion::dump_config() {
   ESP_LOGCONFIG(TAG, "  Firmware Version: %s", this->firmware_version_.c_str());
   ESP_LOGCONFIG(TAG, "  Serial Number:    %s", this->serial_number_.c_str());
   ESP_LOGCONFIG(TAG, "  Flash Size:       %s", this->flash_size_.c_str());
-  ESP_LOGCONFIG(TAG, "  Wake On Touch:    %s", this->auto_wake_on_touch_ ? "True" : "False");
-  ESP_LOGCONFIG(TAG, "  Exit reparse:     %s", this->exit_reparse_on_start_ ? "True" : "False");
+  ESP_LOGCONFIG(TAG, "  Wake On Touch:    %s", YESNO(this->auto_wake_on_touch_));
+  ESP_LOGCONFIG(TAG, "  Exit reparse:     %s", YESNO(this->exit_reparse_on_start_));
 
   if (this->touch_sleep_timeout_ != 0) {
     ESP_LOGCONFIG(TAG, "  Touch Timeout:    %" PRIu32, this->touch_sleep_timeout_);
