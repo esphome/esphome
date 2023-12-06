@@ -931,7 +931,6 @@ touchscreen:
           args: [touch.x, touch.y]
   - platform: gt911
     interrupt_pin:
-      allow_other_uses: true
       number: GPIO3
     display: inkplate_display
 
@@ -969,7 +968,6 @@ media_player:
       number: GPIO25
     mute_pin:
       number: GPIO14
-      allow_other_uses: true
     on_state:
       - media_player.play:
       - media_player.play_media: http://localhost/media.mp3
