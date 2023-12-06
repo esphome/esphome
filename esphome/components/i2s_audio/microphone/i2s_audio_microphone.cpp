@@ -37,6 +37,8 @@ void I2SAudioMicrophone::setup() {
 void I2SAudioMicrophone::start() {
   if (this->is_failed())
     return;
+  if (this->state_ == microphone::STATE_RUNNING)
+    return;  // Already running
   this->state_ = microphone::STATE_STARTING;
 }
 void I2SAudioMicrophone::start_() {

@@ -1,6 +1,8 @@
 #pragma once
 #include "esphome/core/helpers.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace ili9xxx {
 
@@ -283,6 +285,33 @@ static const uint8_t PROGMEM INITCMD_S3BOXLITE[] = {
                         0x2B, 0x43, 0x42, 0x3B, 0x16, 0x14,
                         0x17, 0x1B,
   ILI9XXX_SLPOUT  , 0x80,                // Exit Sleep
+  ILI9XXX_DISPON  , 0x80,                // Display on
+  0x00                                   // End of list
+};
+
+static const uint8_t PROGMEM INITCMD_ST7789V[] = {
+  ILI9XXX_SLPOUT  , 0x80,                // Exit Sleep
+  ILI9XXX_DISPON  , 0x80,                // Display on
+  ILI9XXX_MADCTL  , 1, 0x08,             // Memory Access Control, BGR
+  ILI9XXX_DFUNCTR, 2, 0x0A, 0x82,
+  ILI9XXX_PIXFMT  , 1, 0x55,
+  ILI9XXX_FRMCTR2, 5, 0x0C, 0x0C, 0x00, 0x33, 0x33,
+  ILI9XXX_ETMOD, 1, 0x35, 0xBB, 1, 0x28,
+  ILI9XXX_PWCTR1  , 1, 0x0C,             // Power control VRH[5:0]
+  ILI9XXX_PWCTR3  , 2, 0x01, 0xFF,
+  ILI9XXX_PWCTR4  , 1, 0x10,
+  ILI9XXX_PWCTR5  , 1, 0x20,
+  ILI9XXX_IFCTR  , 1, 0x0F,
+  ILI9XXX_PWSET, 2, 0xA4, 0xA1,
+  ILI9XXX_GMCTRP1 , 14,
+  0xd0, 0x00, 0x02, 0x07, 0x0a,
+  0x28, 0x32, 0x44, 0x42, 0x06, 0x0e,
+  0x12, 0x14, 0x17,
+  ILI9XXX_GMCTRN1 , 14,
+  0xd0, 0x00, 0x02, 0x07, 0x0a,
+  0x28, 0x31, 0x54, 0x47,
+  0x0e, 0x1c, 0x17, 0x1b,
+  0x1e,
   ILI9XXX_DISPON  , 0x80,                // Display on
   0x00                                   // End of list
 };

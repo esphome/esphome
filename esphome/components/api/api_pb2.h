@@ -184,6 +184,8 @@ enum VoiceAssistantEvent : uint32_t {
   VOICE_ASSISTANT_WAKE_WORD_END = 10,
   VOICE_ASSISTANT_STT_VAD_START = 11,
   VOICE_ASSISTANT_STT_VAD_END = 12,
+  VOICE_ASSISTANT_TTS_STREAM_START = 98,
+  VOICE_ASSISTANT_TTS_STREAM_END = 99,
 };
 enum AlarmControlPanelState : uint32_t {
   ALARM_STATE_DISARMED = 0,
@@ -205,6 +207,10 @@ enum AlarmControlPanelStateCommand : uint32_t {
   ALARM_CONTROL_PANEL_ARM_VACATION = 4,
   ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS = 5,
   ALARM_CONTROL_PANEL_TRIGGER = 6,
+};
+enum TextMode : uint32_t {
+  TEXT_MODE_TEXT = 0,
+  TEXT_MODE_PASSWORD = 1,
 };
 
 }  // namespace enums
@@ -322,6 +328,7 @@ class DeviceInfoResponse : public ProtoMessage {
   std::string manufacturer{};
   std::string friendly_name{};
   uint32_t voice_assistant_version{0};
+  std::string suggested_area{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1775,6 +1782,57 @@ class AlarmControlPanelCommandRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class ListEntitiesTextResponse : public ProtoMessage {
+ public:
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  std::string icon{};
+  bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
+  uint32_t min_length{0};
+  uint32_t max_length{0};
+  std::string pattern{};
+  enums::TextMode mode{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class TextStateResponse : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  std::string state{};
+  bool missing_state{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class TextCommandRequest : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  std::string state{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 
 }  // namespace api

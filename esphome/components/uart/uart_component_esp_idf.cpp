@@ -48,7 +48,11 @@ uart_config_t IDFUARTComponent::get_config_() {
   uart_config.parity = parity;
   uart_config.stop_bits = this->stop_bits_ == 1 ? UART_STOP_BITS_1 : UART_STOP_BITS_2;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+  uart_config.source_clk = UART_SCLK_DEFAULT;
+#else
   uart_config.source_clk = UART_SCLK_APB;
+#endif
   uart_config.rx_flow_ctrl_thresh = 122;
 
   return uart_config;
@@ -80,27 +84,8 @@ void IDFUARTComponent::setup() {
     return;
   }
 
-  err = uart_driver_install(this->uart_num_, /* UART RX ring buffer size. */ this->rx_buffer_size_,
-                            /* UART TX ring buffer size. If set to zero, driver will not use TX buffer, TX function will
-                               block task until all data have been sent out.*/
-                            0,
-                            /* UART event queue size/depth. */ 20, &(this->uart_event_queue_),
-                            /* Flags used to allocate the interrupt. */ 0);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
-
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
-
-  err = uart_set_pin(this->uart_num_, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_set_pin failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
 
   uint32_t invert = 0;
   if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
@@ -111,6 +96,25 @@ void IDFUARTComponent::setup() {
   err = uart_set_line_inverse(this->uart_num_, invert);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
+
+  err = uart_set_pin(this->uart_num_, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_pin failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
+
+  err = uart_driver_install(this->uart_num_, /* UART RX ring buffer size. */ this->rx_buffer_size_,
+                            /* UART TX ring buffer size. If set to zero, driver will not use TX buffer, TX function will
+                               block task until all data have been sent out.*/
+                            0,
+                            /* UART event queue size/depth. */ 20, &(this->uart_event_queue_),
+                            /* Flags used to allocate the interrupt. */ 0);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
