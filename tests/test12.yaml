@@ -80,10 +80,10 @@ pca9554:
     pin_count: 16
     address: 0x20
 
-panel_driver:
+display:
   - platform: st7701s
     spi_mode: MODE3
-    color_mode: RGB
+    color_order: RGB
     dimensions:
       width: 480
       height: 480
@@ -112,7 +112,7 @@ panel_driver:
       - 4
       - 5
       - 6
-      - 6
+      - 7
       - 8
       - 9
       - 10
@@ -122,6 +122,3 @@ panel_driver:
       - 14
       - 15
 
-display:
-  - platform: panel_driver
-    auto_clear_enabled: false
