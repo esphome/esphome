@@ -137,30 +137,6 @@ void ESPADFMicrophone::read_task(void *params) {
   };
   audio_element_handle_t filter = rsp_filter_init(&rsp_cfg);
 
-  algorithm_stream_cfg_t algo_cfg = {
-      .input_type = ALGORITHM_STREAM_INPUT_TYPE1,
-      .task_stack = 10 * 1024,
-      .task_prio = ALGORITHM_STREAM_TASK_PERIOD,
-      .task_core = ALGORITHM_STREAM_PINNED_TO_CORE,
-      .out_rb_size = ALGORITHM_STREAM_RINGBUFFER_SIZE,
-      .stack_in_ext = true,
-      .rec_linear_factor = 1,
-      .ref_linear_factor = 1,
-      .debug_input = false,
-      .swap_ch = false,
-      // .algo_mask = ALGORITHM_STREAM_USE_AGC,
-      // .algo_mask = (ALGORITHM_STREAM_USE_AEC | ALGORITHM_STREAM_USE_AGC | ALGORITHM_STREAM_USE_NS),
-      // .algo_mask = (ALGORITHM_STREAM_USE_AGC | ALGORITHM_STREAM_USE_NS),
-      .algo_mask = (ALGORITHM_STREAM_USE_AEC | ALGORITHM_STREAM_USE_NS),
-      // .algo_mask = (ALGORITHM_STREAM_USE_NS),
-      .sample_rate = 16000,
-      .mic_ch = 1,
-      .agc_gain = 10,
-      .aec_low_cost = false,
-  };
-
-  // audio_element_handle_t algo_stream = algo_stream_init(&algo_cfg);
-
   raw_stream_cfg_t raw_cfg = {
       .type = AUDIO_STREAM_READER,
       .out_rb_size = 8 * 1024,
@@ -169,15 +145,9 @@ void ESPADFMicrophone::read_task(void *params) {
 
   audio_pipeline_register(pipeline, i2s_stream_reader, "i2s");
   audio_pipeline_register(pipeline, filter, "filter");
-  // audio_pipeline_register(pipeline, algo_stream, "algo");
   audio_pipeline_register(pipeline, raw_read, "raw");
 
-  const char *link_tag[4] = {
-      "i2s",
-      "filter",
-      // "algo",
-      "raw",
-  };
+  const char *link_tag[3] = {"i2s", "filter", "raw"};
   audio_pipeline_link(pipeline, &link_tag[0], 3);
 
   audio_pipeline_run(pipeline);
