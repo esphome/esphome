@@ -92,3 +92,5 @@ async def to_code(config):
         )
 
     await display_menu_to_code(var, config)
+
+    cg.add_define("USE_GRAPHICAL_DISPLAY_MENU")
