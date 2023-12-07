@@ -115,7 +115,7 @@ static const char *const s_scene_str[5] = {"None", "Living Room", "Bedroom", "Wa
 static const bool s_someoneExists_str[2] = {false, true};
 static const char *const s_motion_status_str[3] = {"None", "Motionless", "Active"};
 static const char *const s_keep_away_str[3] = {"None", "Close", "Away"};
-static const char *const s_unmanned_time_str[9] = {"None", "10s", "30s", "1min", "2min",
+static const char *const s_unmanned_time_str[9] = {"None", "10s",   "30s",   "1min", "2min",
                                                    "5min", "10min", "30min", "60min"};
 static const char *const s_boundary_str[10] = {"0.5m", "1.0m", "1.5m", "2.0m", "2.5m",
                                                "3.0m", "3.5m", "4.0m", "4.5m", "5.0m"};       // uint: m
