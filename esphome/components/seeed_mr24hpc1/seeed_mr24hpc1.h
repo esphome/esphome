@@ -162,11 +162,20 @@ class MR24HPC1Component : public PollingComponent,
   SUB_NUMBER(custom_unman_time)
 #endif
 
- private:
+ protected:
   char c_product_mode_[PRODUCT_BUF_MAX_SIZE + 1];
   char c_product_id_[PRODUCT_BUF_MAX_SIZE + 1];
   char c_hardware_model_[PRODUCT_BUF_MAX_SIZE + 1];
   char c_firmware_version_[PRODUCT_BUF_MAX_SIZE + 1];
+  uint8_t s_output_info_switch_flag_;
+  uint8_t sg_recv_data_state_;
+  uint8_t sg_frame_len_;
+  uint8_t sg_data_len_;
+  uint8_t sg_frame_buf_[FRAME_BUF_MAX_SIZE];
+  uint8_t sg_frame_prase_buf_[FRAME_BUF_MAX_SIZE];
+  int sg_start_query_data_;
+  bool check_dev_inf_sign_;
+  bool poll_time_base_func_check_;
 
  public:
   MR24HPC1Component() : PollingComponent(8000) {}  // The update() function is called every 8 seconds.
