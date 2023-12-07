@@ -90,6 +90,7 @@ esphome/components/duty_time/* @dudanov
 esphome/components/ee895/* @Stock-M
 esphome/components/ektf2232/* @jesserockz
 esphome/components/emc2101/* @ellull
+esphome/components/ens160/* @vincentscode
 esphome/components/ens210/* @itn3rd77
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @Rapsssito @jesserockz
@@ -118,10 +119,12 @@ esphome/components/graph/* @synco
 esphome/components/gree/* @orestismers
 esphome/components/grove_tb6612fng/* @max246
 esphome/components/growatt_solar/* @leeuwte
+esphome/components/gt911/* @clydebarrow @jesserockz
 esphome/components/haier/* @paveldn
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
+esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/hm3301/* @freekode
@@ -239,6 +242,7 @@ esphome/components/preferences/* @esphome/core
 esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @TrentHouliston @cstaahl @stevebaxter
 esphome/components/pvvx_mithermometer/* @pasiz
+esphome/components/pylontech/* @functionpointer
 esphome/components/qmp6988/* @andrewpc
 esphome/components/qr_code/* @wjtje
 esphome/components/qwiic_pir/* @kahrendt
