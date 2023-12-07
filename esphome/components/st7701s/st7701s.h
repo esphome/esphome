@@ -158,7 +158,8 @@ class ST7701S : public display::Display,
         y = this->height_ - y - 1;
         break;
     }
-    auto pixel = display::ColorUtil::color_to_565(color);
+    auto pixel = convert_big_endian(display::ColorUtil::color_to_565(color));
+
     this->draw_pixels_at(x, y, 1, 1, (const uint8_t *) &pixel, display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565,
                          true, 0, 0, 0);
     App.feed_wdt();
