@@ -109,16 +109,13 @@ void MR24HPC1Component::loop() {
   }
 
   if ((s_output_info_switch_flag == OUTPUT_SWTICH_OFF) &&
-      (sg_start_query_data > CUSTOM_FUNCTION_QUERY_TIME_OF_ENTER_UNMANNED) &&
-      (!check_dev_inf_sign)) {
+      (sg_start_query_data > CUSTOM_FUNCTION_QUERY_TIME_OF_ENTER_UNMANNED) && (!check_dev_inf_sign)) {
     sg_start_query_data = STANDARD_FUNCTION_QUERY_SCENE_MODE;
   } else if ((s_output_info_switch_flag == OUTPUT_SWTICH_ON) &&
-             (sg_start_query_data < CUSTOM_FUNCTION_QUERY_EXISTENCE_BOUNDARY) &&
-             (!check_dev_inf_sign)) {
+             (sg_start_query_data < CUSTOM_FUNCTION_QUERY_EXISTENCE_BOUNDARY) && (!check_dev_inf_sign)) {
     sg_start_query_data = CUSTOM_FUNCTION_QUERY_EXISTENCE_BOUNDARY;
-  } else if (check_dev_inf_sign &&
-             (sg_start_query_data > STANDARD_FUNCTION_QUERY_HARDWARE_MODE)) {
-              // First time power up information polling
+  } else if (check_dev_inf_sign && (sg_start_query_data > STANDARD_FUNCTION_QUERY_HARDWARE_MODE)) {
+    // First time power up information polling
     sg_start_query_data = STANDARD_FUNCTION_QUERY_PRODUCT_MODE;
   }
 
@@ -233,14 +230,14 @@ void MR24HPC1Component::loop() {
         this->get_custom_unman_time();
         sg_start_query_data++;
         if (s_output_info_switch_flag == OUTPUT_SWTICH_OFF) {
-          poll_time_base_func_check = false;         // Avoiding high-speed polling that can cause the device to jam
+          poll_time_base_func_check = false;  // Avoiding high-speed polling that can cause the device to jam
         }
         break;
       case UNDERLY_FUNCTION_QUERY_HUMAN_STATUS:
         this->get_human_status();
         sg_start_query_data++;
         if (s_output_info_switch_flag == OUTPUT_SWTICH_ON) {
-          poll_time_base_func_check = false;         // Avoiding high-speed polling that can cause the device to jam
+          poll_time_base_func_check = false;  // Avoiding high-speed polling that can cause the device to jam
         }
         break;
       default:
