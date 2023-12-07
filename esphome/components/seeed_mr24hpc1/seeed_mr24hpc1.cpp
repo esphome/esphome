@@ -91,7 +91,7 @@ void MR24HPC1Component::setup() {
 // component callback function, which is called every time the loop is called
 void MR24HPC1Component::update() {
   this->get_radar_output_information_switch();  // Query the key status every so often
-  this->poll_time_base_func_check_ = true;             // Query the base functionality information at regular intervals
+  this->poll_time_base_func_check_ = true;  // Query the base functionality information at regular intervals
 }
 
 // main loop
