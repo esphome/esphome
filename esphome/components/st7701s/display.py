@@ -20,8 +20,7 @@ except ImportError:
     CONF_OFFSET_HEIGHT = "offset_height"
     CONF_OFFSET_WIDTH = "offset_width"
 
-
-from .init_sequences import ST7701S_INITS
+from .init_sequences import ST7701S_INITS, cmd
 
 CONF_MIRROR_X = "mirror_x"
 CONF_MIRROR_Y = "mirror_y"
@@ -69,16 +68,12 @@ def map_sequence(value):
     if not isinstance(value, list):
         value = cv.int_(value)
         value = cv.one_of(*ST7701S_INITS)(value)
-        value = ST7701S_INITS[value]
-    value = cv.ensure_list(cv.uint8_t)(value)
+        return ST7701S_INITS[value]
+    # value = cv.ensure_list(cv.uint8_t)(value)
     data_length = len(value)
-    i = 0
-    while i < data_length:
-        remaining = data_length - i
-        # Command byte is at value[i], length of data at value[i+1]
-        if remaining < 2 or value[i + 1] > remaining - 2:
-            raise cv.Invalid(f"Malformed initialisation sequence at index {i}")
-        i += 2 + value[i + 1]
+    if data_length == 0:
+        raise cv.Invalid("Empty sequence")
+    value = cmd(*value)
     return value
 
 
@@ -108,7 +103,9 @@ CONFIG_SCHEMA = cv.All(
                     [DATA_PIN_SCHEMA],
                     cv.Length(min=16, max=16, msg="Exactly 16 data pins required"),
                 ),
-                cv.Optional(CONF_INIT_SEQUENCE, default=1): map_sequence,
+                cv.Optional(CONF_INIT_SEQUENCE, default=1): cv.ensure_list(
+                    map_sequence
+                ),
                 cv.Optional(CONF_COLOR_ORDER): cv.one_of(
                     *COLOR_ORDERS.keys(), upper=True
                 ),
@@ -137,9 +134,12 @@ async def to_code(config):
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
 
+    sequence = []
+    for seq in config[CONF_INIT_SEQUENCE]:
+        sequence.extend(seq)
+    cg.add(var.set_init_sequence(sequence))
     cg.add(var.set_color_mode(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
-    cg.add(var.set_init_sequence(config[CONF_INIT_SEQUENCE]))
     cg.add(var.set_hsync_pulse_width(config[CONF_HSYNC_PULSE_WIDTH]))
     cg.add(var.set_hsync_back_porch(config[CONF_HSYNC_BACK_PORCH]))
     cg.add(var.set_hsync_front_porch(config[CONF_HSYNC_FRONT_PORCH]))
