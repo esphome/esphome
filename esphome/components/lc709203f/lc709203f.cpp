@@ -261,8 +261,8 @@ void LC709203FComponent::write16(uint8_t regAddress, uint16_t data) {
   uint8_t crcArray[5];
   crcArray[0] = 0x16;
   crcArray[1] = regAddress;
-  crcArray[2] = lowByte(data);
-  crcArray[3] = highByte(data);
+  crcArray[2] = static_cast<uint8_t>(data & 0xFF);       // Extract low byte
+  crcArray[3] = static_cast<uint8_t>((data >> 8) & 0xFF); // Extract high byte
   // Calculate crc of preceding four bytes and place in crcArray[4]
   crcArray[4] = crc8(crcArray, 4);
   // Device address

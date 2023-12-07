@@ -1,3 +1,4 @@
+#pragma once
 /*
  * File:          lc709203f.h
  * Addapted by:   J.G. Aguado
@@ -19,30 +20,27 @@
 namespace esphome {
 namespace lc709203f {
 
-#define LC709203F_I2C_ADDR 0x0B  // LC709203F default i2c address
+static const uint8_t LC709203F_I2C_ADDR = 0x0B  // LC709203F default i2c address
 
 // Registers per datasheet Table 6
 
-#define LC709203F_WO_BEFORE_RSOC 0x04  // Executes RSOC initialization with sampled maximum voltage when 0xAA55 is set
-#define LC709203F_RW_THERMISTORB 0x06  // Sets B−constant of the thermistor to be measured.
-#define LC709203F_WO_INITRSOC 0x07     // Executes RSOC initialization when 0xAA55 is set.
-#define LC709203F_RW_CELLTEMPERATURE \
-  0x08  // Read or Write Cell Temperature  For ESP32-Bar-Rev2 must write temperature, no thermistor on board
-#define LC709203F_RO_CELLVOLTAGE 0x09  // Read cell voltage
-#define LC709203F_RW_CURRENTDIRECTION \
-  0x0A  // Selects Auto/Charge/Discharge mode 0x0000: Auto mode, 0x0001: Charge mode, 0xFFFF: Discharge mode
-#define LC709203F_RW_APA 0x0B  // APA Register, Table 7
-#define LC709203F_RW_APTHERMISTOR \
-  0x0C                               // Sets a value to adjust temperature measurement delay timing. Defaults to0x001E
-#define LC709203F_RW_RSOC 0x0D       // Read cell indicator to empty in 1% steps
-#define LC709203F_RO_ITE 0x0F        // Read cell indicator to empty in 0.1% steps
-#define LC709203F_RO_ICVERSION 0x11  // Contains the ID number of the IC
-#define LC709203F_RW_PROFILE 0x12    // Adjusts the battery profile for nominal and fully charged voltages, see Table 8
-#define LC709203F_RW_ALARMRSOC 0x13  // Alarm on percent threshold
-#define LC709203F_RW_ALARMVOLT 0x14  // Alarm on voltage threshold
-#define LC709203F_RW_POWERMODE 0x15  // Sets sleep/power mode 0x0001: Operational mode 0x0002: Sleep mode
-#define LC709203F_RW_STATUSBIT 0x16  // Temperature method, 0x0000: I2C mode, 0x0001: Thermistor mode
-#define LC709203F_RO_CELLPROFILE 0x1A  // Displays battery profile code
+static const uint8_t LC709203F_WO_BEFORE_RSOC = 0x04  // Executes RSOC initialization with sampled maximum voltage when 0xAA55 is set
+static const uint8_t LC709203F_RW_THERMISTORB = 0x06  // Sets B−constant of the thermistor to be measured.
+static const uint8_t LC709203F_WO_INITRSOC = 0x07     // Executes RSOC initialization when = 0xAA55 is set.
+static const uint8_t LC709203F_RW_CELLTEMPERATURE = 0x08  // Read or Write Cell Temperature  For ESP32-Bar-Rev2 must write temperature, no thermistor on board
+static const uint8_t LC709203F_RO_CELLVOLTAGE = 0x09  // Read cell voltage
+static const uint8_t LC709203F_RW_CURRENTDIRECTION = 0x0A  // Selects Auto/Charge/Discharge mode = 0x0000: Auto mode, = 0x0001: Charge mode, = 0xFFFF: Discharge mode
+static const uint8_t LC709203F_RW_APA = 0x0B  // APA Register, Table 7
+static const uint8_t LC709203F_RW_APTHERMISTOR = 0x0C                               // Sets a value to adjust temperature measurement delay timing. Defaults to0x001E
+static const uint8_t LC709203F_RW_RSOC = 0x0D       // Read cell indicator to empty in 1% steps
+static const uint8_t LC709203F_RO_ITE = 0x0F        // Read cell indicator to empty in 0.1% steps
+static const uint8_t LC709203F_RO_ICVERSION = 0x11  // Contains the ID number of the IC
+static const uint8_t LC709203F_RW_PROFILE = 0x12    // Adjusts the battery profile for nominal and fully charged voltages, see Table 8
+static const uint8_t LC709203F_RW_ALARMRSOC = 0x13  // Alarm on percent threshold
+static const uint8_t LC709203F_RW_ALARMVOLT = 0x14  // Alarm on voltage threshold
+static const uint8_t LC709203F_RW_POWERMODE = 0x15  // Sets sleep/power mode = 0x0001: Operational mode = 0x0002: Sleep mode
+static const uint8_t LC709203F_RW_STATUSBIT = 0x16  // Temperature method, = 0x0000: I2C mode, = 0x0001: Thermistor mode
+static const uint8_t LC709203F_RO_CELLPROFILE = 0x1A  // Displays battery profile code
 
 // to remove warning static uint8_t crc8(uint8_t *data, int len);
 
