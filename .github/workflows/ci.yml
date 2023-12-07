@@ -387,6 +387,7 @@ jobs:
     needs:
       - common
       - list-components
+    if: ${{ needs.list-components.outputs.matrix != '[]' && needs.list-components.outputs.matrix != '' }}
     strategy:
       fail-fast: false
       max-parallel: 2
