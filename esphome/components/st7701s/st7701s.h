@@ -33,6 +33,7 @@ class ST7701S : public display::Display,
   void update() override { this->do_update_(); }
 
   void setup() override {
+    esph_log_config(TAG, "Setting up ST7701S");
     this->spi_setup();
     esp_lcd_rgb_panel_config_t config{};
     config.flags.fb_in_psram = 1;
@@ -55,6 +56,8 @@ class ST7701S : public display::Display,
       config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
     }
     config.data_width = data_pin_count;
+    config.bits_per_pixel = data_pin_count;
+    config.disp_gpio_num = -1;
     config.hsync_gpio_num = this->hsync_pin_->get_pin();
     config.vsync_gpio_num = this->vsync_pin_->get_pin();
     config.de_gpio_num = this->de_pin_->get_pin();
@@ -66,6 +69,7 @@ class ST7701S : public display::Display,
     ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
     ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
     this->write_init_sequence_();
+    esph_log_config(TAG, "ST7701S setup complete");
   }
 
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
@@ -73,8 +77,8 @@ class ST7701S : public display::Display,
     if (w <= 0 || h <= 0)
       return;
     // if color mapping or software rotation is required, pass the buck.
-    if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 ||
-        !big_endian) {
+    // note that endianness is not considered here - it is assumed to match!
+    if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565) {
       return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset,
                                               y_offset, x_pad);
     }
@@ -90,7 +94,7 @@ class ST7701S : public display::Display,
       auto stride = x_offset + w + x_pad;
       for (size_t y = 0; y != h; y++) {
         err = esp_lcd_panel_draw_bitmap(this->handle_, x_start, y + y_start, x_start + w, y + y_start + 1,
-                                        ptr + (y + y_offset) * stride + x_offset);
+                                        ptr + ((y + y_offset) * stride + x_offset) * 2);
         if (err != ESP_OK)
           break;
       }
@@ -208,11 +212,12 @@ class ST7701S : public display::Display,
     this->write_sequence_(CMD2_BKSEL, sizeof(CMD2_BK0), CMD2_BK0);
     this->write_command_(SDIR_CMD);  // this is in the BK0 command set
     this->write_data_(this->mirror_x_ ? 0x04 : 0x00);
-    uint8_t val = this->color_mode_ == display::COLOR_ORDER_BGR ? 0x80 : 0x00;
+    uint8_t val = this->color_mode_ == display::COLOR_ORDER_BGR ? 0x08 : 0x00;
     if (this->mirror_y_)
       val |= 0x10;
     this->write_command_(MADCTL_CMD);
     this->write_data_(val);
+    esph_log_d(TAG, "write MADCTL %X", val);
     this->write_command_(this->invert_colors_ ? INVERT_ON : INVERT_OFF);
     this->set_timeout(120, [this] {
       this->write_command_(SLEEP_OUT);
