@@ -6,7 +6,7 @@
 namespace esphome {
 namespace seeed_mr24hpc1 {
 
-class Motion2RestTimeNumber : public number::Number, public Parented<mr24hpc1Component> {
+class Motion2RestTimeNumber : public number::Number, public Parented<MR24HPC1Component> {
  public:
   Motion2RestTimeNumber() = default;
 

@@ -6,7 +6,7 @@
 namespace esphome {
 namespace seeed_mr24hpc1 {
 
-class UnderlyOpenFunctionSwitch : public switch_::Switch, public Parented<mr24hpc1Component> {
+class UnderlyOpenFunctionSwitch : public switch_::Switch, public Parented<MR24HPC1Component> {
  public:
   UnderlyOpenFunctionSwitch() = default;
 

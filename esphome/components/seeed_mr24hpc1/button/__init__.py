@@ -6,7 +6,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
-from .. import CONF_MR24HPC1_ID, mr24hpc1Component, mr24hpc1_ns
+from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
 
 ResetButton = mr24hpc1_ns.class_("ResetButton", button.Button)
 CustomSetEndButton = mr24hpc1_ns.class_("CustomSetEndButton", button.Button)
@@ -15,7 +15,7 @@ CONF_RESET = "reset"
 CONF_CUSTOM_SET_END = "custom_set_end"
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(mr24hpc1Component),
+    cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(MR24HPC1Component),
     cv.Optional(CONF_RESET): button.button_schema(
         ResetButton,
         device_class=DEVICE_CLASS_RESTART,

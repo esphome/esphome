@@ -13,9 +13,9 @@ MULTI_CONF = True
 # This line of code creates a new namespace called mr24hpc1_ns.
 # This namespace will be used as a prefix for all classes, functions and variables associated with the mr24hpc1_ns component, ensuring that they do not conflict with the names of other components.
 mr24hpc1_ns = cg.esphome_ns.namespace("seeed_mr24hpc1")
-# This mr24hpc1Component class will be a periodically polled UART device
-mr24hpc1Component = mr24hpc1_ns.class_(
-    "mr24hpc1Component", cg.PollingComponent, uart.UARTDevice
+# This MR24HPC1Component class will be a periodically polled UART device
+MR24HPC1Component = mr24hpc1_ns.class_(
+    "MR24HPC1Component", cg.PollingComponent, uart.UARTDevice
 )
 
 CONF_MR24HPC1_ID = "mr24hpc1_id"
@@ -23,7 +23,7 @@ CONF_MR24HPC1_ID = "mr24hpc1_id"
 # A base schema is created
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(mr24hpc1Component),
+        cv.GenerateID(): cv.declare_id(MR24HPC1Component),
     }
 )
 
@@ -57,6 +57,6 @@ async def to_code(config):
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
     {
-        cv.Required(CONF_ID): cv.use_id(mr24hpc1Component),
+        cv.Required(CONF_ID): cv.use_id(MR24HPC1Component),
     }
 )

@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
-from . import CONF_MR24HPC1_ID, mr24hpc1Component
+from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
 CONF_HEART_BEAT = "heart_beat"
 CONF_PRODUCT_MODEL = "product_model"
@@ -19,7 +19,7 @@ AUTO_LOAD = ["seeed_mr24hpc1"]
 
 # The entity category for read only diagnostic values, for example RSSI, uptime or MAC Address
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(mr24hpc1Component),
+    cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(MR24HPC1Component),
     cv.Optional(CONF_HEART_BEAT): text_sensor.text_sensor_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon="mdi:connection"
     ),

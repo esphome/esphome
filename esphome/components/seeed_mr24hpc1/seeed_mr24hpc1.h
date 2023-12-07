@@ -110,25 +110,17 @@ static const std::map<std::string, uint8_t> BOUNDARY_ENUM_TO_INT{
     {"3.0m", 0x06}, {"3.5m", 0x07}, {"4.0m", 0x08}, {"4.5m", 0x09}, {"5.0m", 0x0a},
 };
 
-static const char *s_heartbeat_str[2] = {"Abnormal", "Normal"};
-static const char *s_scene_str[5] = {"None", "Living Room", "Bedroom", "Washroom", "Area Detection"};
-static bool s_someoneExists_str[2] = {false, true};
-static const char *s_motion_status_str[3] = {"None", "Motionless", "Active"};
-static const char *s_keep_away_str[3] = {"None", "Close", "Away"};
-static const char *s_unmanned_time_str[9] = {"None", "10s", "30s", "1min", "2min", "5min", "10min", "30min", "60min"};
-static const char *s_boundary_str[10] = {"0.5m", "1.0m", "1.5m", "2.0m", "2.5m",
-                                         "3.0m", "3.5m", "4.0m", "4.5m", "5.0m"};       // uint: m
-static float s_presence_of_detection_range_str[7] = {0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0};  // uint: m
+static const char * const s_heartbeat_str[2] = {"Abnormal", "Normal"};
+static const char * const s_scene_str[5] = {"None", "Living Room", "Bedroom", "Washroom", "Area Detection"};
+static const bool s_someoneExists_str[2] = {false, true};
+static const char * const s_motion_status_str[3] = {"None", "Motionless", "Active"};
+static const char * const s_keep_away_str[3] = {"None", "Close", "Away"};
+static const char * const s_unmanned_time_str[9] = {"None", "10s", "30s", "1min", "2min", "5min", "10min", "30min", "60min"};
+static const char * const s_boundary_str[10] = {"0.5m", "1.0m", "1.5m", "2.0m", "2.5m",
+                                                "3.0m", "3.5m", "4.0m", "4.5m", "5.0m"};       // uint: m
+static const float s_presence_of_detection_range_str[7] = {0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0};  // uint: m
 
-static uint8_t s_output_info_switch_flag = OUTPUT_SWITCH_INIT;
-
-static uint8_t sg_recv_data_state = FRAME_IDLE;
-static uint8_t sg_frame_len = 0;
-static uint8_t sg_data_len = 0;
-static uint8_t sg_frame_buf[FRAME_BUF_MAX_SIZE] = {0};
-static uint8_t sg_frame_prase_buf[FRAME_BUF_MAX_SIZE] = {0};
-
-class mr24hpc1Component : public PollingComponent,
+class MR24HPC1Component : public PollingComponent,
                           public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(heartbeat_state)
@@ -176,60 +168,60 @@ class mr24hpc1Component : public PollingComponent,
 #endif
 
  private:
-  char c_product_mode[PRODUCT_BUF_MAX_SIZE + 1];
-  char c_product_id[PRODUCT_BUF_MAX_SIZE + 1];
-  char c_hardware_model[PRODUCT_BUF_MAX_SIZE + 1];
-  char c_firmware_version[PRODUCT_BUF_MAX_SIZE + 1];
+  char c_product_mode_[PRODUCT_BUF_MAX_SIZE + 1];
+  char c_product_id_[PRODUCT_BUF_MAX_SIZE + 1];
+  char c_hardware_model_[PRODUCT_BUF_MAX_SIZE + 1];
+  char c_firmware_version_[PRODUCT_BUF_MAX_SIZE + 1];
 
  public:
-  mr24hpc1Component() : PollingComponent(8000) {}  // The update() function is called every 8 seconds.
+  MR24HPC1Component() : PollingComponent(8000) {}  // The update() function is called every 8 seconds.
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }
   void setup() override;
   void update() override;
   void dump_config() override;
   void loop() override;
-  void R24_split_data_frame(uint8_t value);
-  void R24_parse_data_frame(uint8_t *data, uint8_t len);
-  void R24_frame_parse_open_underlying_information(uint8_t *data);
-  void R24_frame_parse_work_status(uint8_t *data);
-  void R24_frame_parse_product_Information(uint8_t *data);
-  void R24_frame_parse_human_information(uint8_t *data);
+  void r24_split_data_frame(uint8_t value);
+  void r24_parse_data_frame(uint8_t *data, uint8_t len);
+  void r24_frame_parse_open_underlying_information(uint8_t *data);
+  void r24_frame_parse_work_status(uint8_t *data);
+  void r24_frame_parse_product_information(uint8_t *data);
+  void r24_frame_parse_human_information(uint8_t *data);
   void send_query(uint8_t *query, size_t string_length);
 
-  void get_heartbeat_packet(void);
-  void get_radar_output_information_switch(void);
-  void get_product_mode(void);
-  void get_product_id(void);
-  void get_hardware_model(void);
-  void get_firmware_version(void);
-  void get_human_status(void);
-  void get_human_motion_info(void);
-  void get_body_motion_params(void);
-  void get_keep_away(void);
-  void get_scene_mode(void);
-  void get_sensitivity(void);
-  void get_unmanned_time(void);
-  void get_custom_mode(void);
-  void get_existence_boundary(void);
-  void get_motion_boundary(void);
-  void get_spatial_static_value(void);
-  void get_spatial_motion_value(void);
-  void get_distance_of_static_object(void);
-  void get_distance_of_moving_object(void);
-  void get_target_movement_speed(void);
-  void get_existence_threshold(void);
-  void get_motion_threshold(void);
-  void get_motion_trigger_time(void);
-  void get_motion_to_rest_time(void);
-  void get_custom_unman_time(void);
+  void get_heartbeat_packet();
+  void get_radar_output_information_switch();
+  void get_product_mode();
+  void get_product_id();
+  void get_hardware_model();
+  void get_firmware_version();
+  void get_human_status();
+  void get_human_motion_info();
+  void get_body_motion_params();
+  void get_keep_away();
+  void get_scene_mode();
+  void get_sensitivity();
+  void get_unmanned_time();
+  void get_custom_mode();
+  void get_existence_boundary();
+  void get_motion_boundary();
+  void get_spatial_static_value();
+  void get_spatial_motion_value();
+  void get_distance_of_static_object();
+  void get_distance_of_moving_object();
+  void get_target_movement_speed();
+  void get_existence_threshold();
+  void get_motion_threshold();
+  void get_motion_trigger_time();
+  void get_motion_to_rest_time();
+  void get_custom_unman_time();
 
   void set_scene_mode(const std::string &state);
   void set_underlying_open_function(bool enable);
   void set_sensitivity(uint8_t value);
-  void set_reset(void);
+  void set_reset();
   void set_unman_time(const std::string &time);
   void set_custom_mode(uint8_t mode);
-  void set_custom_end_mode(void);
+  void set_custom_end_mode();
   void set_existence_boundary(const std::string &value);
   void set_motion_boundary(const std::string &value);
   void set_existence_threshold(int value);

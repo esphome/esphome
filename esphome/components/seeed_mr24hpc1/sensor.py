@@ -7,7 +7,7 @@ from esphome.const import (
     DEVICE_CLASS_SPEED,
     UNIT_METER,
 )
-from . import CONF_MR24HPC1_ID, mr24hpc1Component
+from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
 AUTO_LOAD = ["seeed_mr24hpc1"]
 
@@ -23,7 +23,7 @@ CONF_CUSTOM_MODE_NUM = "custom_mode_num"
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(mr24hpc1Component),
+        cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(MR24HPC1Component),
         cv.Optional(CONF_CUSTOM_PRESENCE_OF_DETECTION): sensor.sensor_schema(
             device_class=DEVICE_CLASS_DISTANCE,
             unit_of_measurement=UNIT_METER,

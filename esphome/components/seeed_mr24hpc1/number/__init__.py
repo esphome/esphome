@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
 )
-from .. import CONF_MR24HPC1_ID, mr24hpc1Component, mr24hpc1_ns
+from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
 
 SensitivityNumber = mr24hpc1_ns.class_("SensitivityNumber", number.Number)
 CustomModeNumber = mr24hpc1_ns.class_("CustomModeNumber", number.Number)
@@ -24,7 +24,7 @@ CONF_CUSTOM_UNMAN_TIME = "custom_unman_time"
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(mr24hpc1Component),
+        cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(MR24HPC1Component),
         cv.Optional(CONF_SENSITIVITY): number.number_schema(
             SensitivityNumber,
             entity_category=ENTITY_CATEGORY_CONFIG,

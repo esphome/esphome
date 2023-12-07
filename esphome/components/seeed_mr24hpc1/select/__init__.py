@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
 )
-from .. import CONF_MR24HPC1_ID, mr24hpc1Component, mr24hpc1_ns
+from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
 
 SceneModeSelect = mr24hpc1_ns.class_("SceneModeSelect", select.Select)
 UnmanTimeSelect = mr24hpc1_ns.class_("UnmanTimeSelect", select.Select)
@@ -17,7 +17,7 @@ CONF_EXISTENCE_BOUNDARY = "existence_boundary"
 CONF_MOTION_BOUNDARY = "motion_boundary"
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(mr24hpc1Component),
+    cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(MR24HPC1Component),
     cv.Optional(CONF_SCENE_MODE): select.select_schema(
         SceneModeSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,

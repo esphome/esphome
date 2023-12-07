@@ -5,7 +5,7 @@ from esphome.const import (
     DEVICE_CLASS_SWITCH,
     ENTITY_CATEGORY_CONFIG,
 )
-from .. import CONF_MR24HPC1_ID, mr24hpc1Component, mr24hpc1_ns
+from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
 
 UnderlyingOpenFuncSwitch = mr24hpc1_ns.class_(
     "UnderlyOpenFunctionSwitch", switch.Switch
@@ -14,7 +14,7 @@ UnderlyingOpenFuncSwitch = mr24hpc1_ns.class_(
 CONF_UNDERLY_OPEN_FUNCTION = "underly_open_function"
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(mr24hpc1Component),
+    cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(MR24HPC1Component),
     cv.Optional(CONF_UNDERLY_OPEN_FUNCTION): switch.switch_schema(
         UnderlyingOpenFuncSwitch,
         device_class=DEVICE_CLASS_SWITCH,

@@ -6,7 +6,7 @@
 namespace esphome {
 namespace seeed_mr24hpc1 {
 
-class ResetButton : public button::Button, public Parented<mr24hpc1Component> {
+class ResetButton : public button::Button, public Parented<MR24HPC1Component> {
  public:
   ResetButton() = default;
 
