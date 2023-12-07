@@ -11,10 +11,15 @@ from esphome.const import (
     CONF_DIMENSIONS,
     CONF_WIDTH,
     CONF_HEIGHT,
-    CONF_OFFSET_HEIGHT,
-    CONF_OFFSET_WIDTH,
     CONF_LAMBDA,
 )
+
+try:
+    from esphome.const import CONF_OFFSET_HEIGHT, CONF_OFFSET_WIDTH
+except ImportError:
+    CONF_OFFSET_HEIGHT = "offset_height"
+    CONF_OFFSET_WIDTH = "offset_width"
+
 
 from .init_sequences import ST7701S_INITS
 
