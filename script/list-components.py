@@ -10,7 +10,7 @@ from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 
 
 def filter_component_files(str):
-    return str.startswith("esphome/components/")
+    return str.startswith("esphome/components/") | str.startswith("tests/components/")
 
 
 def extract_component_names_array_from_files_array(files):
