@@ -37,16 +37,15 @@ start_esphome() {
   esphome -s component_name $target_component -s test_name $test_name -s target_platform $target_platform $esphome_command $component_test_file
 }
 
-# Find all test yaml files in components.
-# - `./esphome/components/[target_component]/_test/[test_name].[target_platform].yaml`
-# - `./esphome/components/[target_component]/_test/[test_name].*.yaml`
-# - `./esphome/components/[target_component]/_test/[test_name].yaml`
-for f in ./esphome/components/$target_component/_test/*.yaml; do
+# Find all test yaml files.
+# - `./tests/components/[target_component]/[test_name].[target_platform].yaml`
+# - `./tests/components/[target_component]/[test_name].*.yaml`
+for f in ./tests/components/$target_component/*.*.yaml; do
   [ -f "$f" ] || continue
   IFS='/' read -r -a folder_name <<< "$f"
   target_component="${folder_name[3]}"
 
-  IFS='.' read -r -a file_name <<< "${folder_name[5]}"
+  IFS='.' read -r -a file_name <<< "${folder_name[4]}"
   test_name="${file_name[0]}"
   target_platform="${file_name[1]}"
   file_name_parts=${#file_name[@]}

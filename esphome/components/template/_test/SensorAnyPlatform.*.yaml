@@ -1,3 +1,0 @@
-sensor:
-  - platform: template
-    name: "Template Sensor"
