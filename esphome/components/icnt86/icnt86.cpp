@@ -6,34 +6,12 @@ namespace icnt86 {
 
 static const char *const TAG = "icnt86";
 
-static const uint8_t MAX_BUTTONS = 4;
-static const uint8_t MAX_TOUCH_POINTS = 5;
-static const uint8_t MAX_DATA_LEN = (7 + MAX_TOUCH_POINTS * 10);  // 7 Header + (Points * 10 data bytes)
+uint8_t old_X = 0;
+uint8_t old_Y = 0;
 
 #define UBYTE uint8_t
 #define UWORD uint16_t
 #define UDOUBLE uint32_t
-
-struct ICNT86ButtonReport {
-  uint16_t length;     // Always 14 (0x000E)
-  uint8_t report_id;   // Always 0x03
-  uint16_t timestamp;  // Number in units of 100 us
-  uint8_t btn_value;   // Only use bit 0..3
-  uint16_t btn_signal[MAX_BUTTONS];
-} __attribute__((packed));
-
-struct ICNT86TouchRecord {
-  uint8_t : 5;
-  uint8_t touch_type : 3;
-  uint8_t tip : 1;
-  uint8_t event_id : 2;
-  uint8_t touch_id : 5;
-  uint16_t x;
-  uint16_t y;
-  uint8_t pressure;
-  uint16_t major_axis_length;
-  uint8_t orientation;
-} __attribute__((packed));
 
 void ICNT86TouchscreenStore::gpio_intr(ICNT86TouchscreenStore *store) { store->touch = true; }
 
@@ -91,7 +69,6 @@ void ICNT86Touchscreen::loop() {
       touch_count = 0;
       for (auto *listener : this->touch_listeners_)
         listener->release();
-
       return;
     }
     this->ICNT_Read_(0x1002, buf, touch_count * 7);
@@ -103,6 +80,10 @@ void ICNT86Touchscreen::loop() {
       UWORD P = buf[5 + 7 * i];
       UWORD TouchEvenid = buf[6 + 7 * i];
 
+      if (old_X == X || old_Y == Y) {
+        continue;
+      }
+
       TouchPoint tp;
       switch (this->rotation_) {
         case ROTATE_0_DEGREES:
@@ -111,8 +92,8 @@ void ICNT86Touchscreen::loop() {
           tp.y = Y;
           break;
         case ROTATE_90_DEGREES:
-          tp.x = Y;
-          tp.y = X;
+          tp.x = X;
+          tp.y = Y;
           break;
         case ROTATE_180_DEGREES:
           tp.x = Y;
