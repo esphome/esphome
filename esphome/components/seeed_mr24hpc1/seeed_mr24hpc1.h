@@ -64,22 +64,12 @@ enum {
   STANDARD_FUNCTION_QUERY_SCENE_MODE,
   STANDARD_FUNCTION_QUERY_SENSITIVITY,
   STANDARD_FUNCTION_QUERY_UNMANNED_TIME,
-  // STANDARD_FUNCTION_QUERY_MOV_TARGET_DETECTION_MAX_DISTANCE,
-  // STANDARD_FUNCTION_QUERY_STATIC_TARGET_DETECTION_MAX_DISTANCE, // These are the parameters of the setup
   STANDARD_FUNCTION_QUERY_HUMAN_STATUS,
   STANDARD_FUNCTION_QUERY_HUMAN_MOTION_INF,
   // STANDARD_FUNCTION_QUERY_BODY_MOVE_PARAMETER,
   STANDARD_FUNCTION_QUERY_KEEPAWAY_STATUS,
   STANDARD_QUERY_CUSTOM_MODE,
-  STANDARD_FUNCTION_QUERY_HEARTBEAT_STATE,
-  STANDARD_FUNCTION_MAX,  // 以上是基础功能信息
-
-  CUSTOM_FUNCTION_QUERY_HUMAN_STATUS,
-  // CUSTOM_FUNCTION_QUERY_SPATIAL_STATIC_VALUE,
-  // CUSTOM_FUNCTION_QUERY_SPATIAL_MOTION_VALUE,
-  // CUSTOM_FUNCTION_QUERY_DISTANCE_OF_STATIC_OBJECT,
-  // CUSTOM_FUNCTION_QUERY_DISTANCE_OF_MOVING_OBJECT,
-  // CUSTOM_FUNCTION_QUERY_TARGET_MOVEMENT_SPEED,
+  STANDARD_FUNCTION_QUERY_HEARTBEAT_STATE,  // Above is the basic function
 
   CUSTOM_FUNCTION_QUERY_EXISTENCE_BOUNDARY,
   CUSTOM_FUNCTION_QUERY_MOTION_BOUNDARY,
@@ -88,8 +78,13 @@ enum {
   CUSTOM_FUNCTION_QUERY_MOTION_TRIGGER_TIME,
   CUSTOM_FUNCTION_QUERY_MOTION_TO_REST_TIME,
   CUSTOM_FUNCTION_QUERY_TIME_OF_ENTER_UNMANNED,
-  CUSTOM_FUNCTION_QUERY_HEARTBEAT_STATE,
-  CUSTOM_FUNCTION_MAX,
+
+  UNDERLY_FUNCTION_QUERY_HUMAN_STATUS,
+  // UNDERLY_FUNCTION_QUERY_SPATIAL_STATIC_VALUE,
+  // UNDERLY_FUNCTION_QUERY_SPATIAL_MOTION_VALUE,
+  // UNDERLY_FUNCTION_QUERY_DISTANCE_OF_STATIC_OBJECT,
+  // UNDERLY_FUNCTION_QUERY_DISTANCE_OF_MOVING_OBJECT,
+  // UNDERLY_FUNCTION_QUERY_TARGET_MOVEMENT_SPEED,
 };
 
 enum {
@@ -110,16 +105,15 @@ static const std::map<std::string, uint8_t> BOUNDARY_ENUM_TO_INT{
     {"3.0m", 0x06}, {"3.5m", 0x07}, {"4.0m", 0x08}, {"4.5m", 0x09}, {"5.0m", 0x0a},
 };
 
-static const char *const s_heartbeat_str[2] = {"Abnormal", "Normal"};
-static const char *const s_scene_str[5] = {"None", "Living Room", "Bedroom", "Washroom", "Area Detection"};
-static const bool s_someoneExists_str[2] = {false, true};
-static const char *const s_motion_status_str[3] = {"None", "Motionless", "Active"};
-static const char *const s_keep_away_str[3] = {"None", "Close", "Away"};
-static const char *const s_unmanned_time_str[9] = {"None", "10s",   "30s",   "1min", "2min",
+static const char *const S_SCENE_STR[5] = {"None", "Living Room", "Bedroom", "Washroom", "Area Detection"};
+static const bool S_SOMEONE_EXISTS_STR[2] = {false, true};
+static const char *const S_MOTION_STATUS_STR[3] = {"None", "Motionless", "Active"};
+static const char *const S_KEEP_AWAY_STR[3] = {"None", "Close", "Away"};
+static const char *const S_UNMANNED_TIME_STR[9] = {"None", "10s",   "30s",   "1min", "2min",
                                                    "5min", "10min", "30min", "60min"};
-static const char *const s_boundary_str[10] = {"0.5m", "1.0m", "1.5m", "2.0m", "2.5m",
+static const char *const S_BOUNDARY_STR[10] = {"0.5m", "1.0m", "1.5m", "2.0m", "2.5m",
                                                "3.0m", "3.5m", "4.0m", "4.5m", "5.0m"};       // uint: m
-static const float s_presence_of_detection_range_str[7] = {0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0};  // uint: m
+static const float S_PRESENCE_OF_DETECTION_RANGE_STR[7] = {0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0};  // uint: m
 
 class MR24HPC1Component : public PollingComponent,
                           public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
