@@ -237,8 +237,8 @@ void Logger::pre_setup() {
         Serial1.begin(this->baud_rate_);
 #else
 #if ARDUINO_USB_CDC_ON_BOOT
-        this->hw_serial_ = &Serial0;
-        Serial0.begin(this->baud_rate_);
+        this->hw_serial_ = &Serial;
+        Serial.begin(this->baud_rate_);
 #else
         this->hw_serial_ = &Serial;
         Serial.begin(this->baud_rate_);
@@ -284,8 +284,8 @@ void Logger::pre_setup() {
 #endif  // USE_ESP32_VARIANT_ESP32C3
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #if ARDUINO_USB_CDC_ON_BOOT
-        this->hw_serial_ = &USBSerial;
-        USBSerial.begin(this->baud_rate_);
+        this->hw_serial_ = &Serial;
+        Serial.begin(this->baud_rate_);
 #else
         this->hw_serial_ = &Serial;
         Serial.begin(this->baud_rate_);
