@@ -39,7 +39,7 @@ void Touchscreen::loop() {
     this->update_touches();
     if (this->skip_update_) {
       for (auto &i : this->touches_) {
-        tp.second.state = tp.second.state & - STATE_RELEASING;
+        tp.second.state = tp.second.state & -STATE_RELEASING;
       }
     } else {
       this->store_.touched = false;
