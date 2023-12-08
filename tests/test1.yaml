@@ -3486,17 +3486,17 @@ teleinfo:
   update_interval: 60s
   historical_mode: true
 
-wk2132:
-  - id: wk2132_0
+wk2132_i2c:
+  - id: wk2132_id_0
     address: 0x70
     i2c_id: i2c_bus
     uart:
-      - uart_id: uart_id_wk2132_0_0
+      - uart_id: uart_id_0
         channel: 0
         baud_rate: 115200
         stop_bits: 1
         parity: none
-      - uart_id: uart_id_wk2132_0_1
+      - uart_id: uart_id_1
         channel: 1
         baud_rate: 19200
 
@@ -3813,4 +3813,3 @@ alarm_control_panel:
       then:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));
-
