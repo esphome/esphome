@@ -33,7 +33,7 @@ CONF_TRANSFORM = "transform"
 
 TOUCHSCREEN_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
+        cv.GenerateID(CONF_DISPLAY): cv.use_id(display.Display),
         cv.Optional(CONF_TRANSFORM): cv.Schema(
             {
                 cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
