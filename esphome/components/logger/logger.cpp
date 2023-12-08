@@ -284,11 +284,11 @@ void Logger::pre_setup() {
 #endif  // USE_ESP32_VARIANT_ESP32C3
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #if ARDUINO_USB_CDC_ON_BOOT
-        this->hw_serial_ = &Serial;
-        Serial.begin(this->baud_rate_);
-#else
         this->hw_serial_ = &USBSerial;
         USBSerial.begin(this->baud_rate_);
+#else
+        this->hw_serial_ = &Serial;
+        Serial.begin(this->baud_rate_);
 #endif  // ARDUINO_USB_CDC_ON_BOOT
         USB.begin();
 #endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
@@ -422,7 +422,6 @@ const char *const UART_SELECTIONS[] = {
     "UART2",
 #endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARINT_ESP32C6 && !USE_ESP32_VARIANT_ESP32S2 &&
         // !USE_ESP32_VARIANT_ESP32S3 && !USE_ESP32_VARIANT_ESP32H2
-#if defined(USE_ESP_IDF)
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
     "USB_CDC",
 #endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
