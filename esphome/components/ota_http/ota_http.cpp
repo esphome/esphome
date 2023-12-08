@@ -58,7 +58,7 @@ void OtaHttpComponent::flash() {
 
 #ifdef OTA_HTTP_ONLY_AT_BOOT
   if (pref_.ota_http_state != OTA_HTTP_STATE_SAFE_MODE) {
-    ESP_LOGI(TAG, "Rebotting before flashing new firmware.");
+    ESP_LOGI(TAG, "Rebooting before flashing new firmware.");
     App.safe_reboot();
   }
 #endif
