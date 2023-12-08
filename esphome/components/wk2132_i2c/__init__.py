@@ -17,7 +17,7 @@ wk2132_ns = cg.esphome_ns.namespace("wk2132_i2c")
 WK2132Component = wk2132_ns.class_("WK2132Component", cg.Component, i2c.I2CDevice)
 WK2132Channel = wk2132_ns.class_("WK2132Channel", uart.UARTComponent)
 
-CONF_WK2132 = "wk2132_i2c"
+CONF_WK2132_I2C = "wk2132_i2c"
 MULTI_CONF = True
 CONF_STOP_BITS = "stop_bits"
 CONF_PARITY = "parity"
