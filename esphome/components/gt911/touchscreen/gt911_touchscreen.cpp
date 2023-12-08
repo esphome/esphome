@@ -39,10 +39,6 @@ void GT911Touchscreen::setup() {
         this->interrupt_pin_->setup();
         this->attach_interrupt_(this->interrupt_pin_,
                                 (data[0] & 1) ? gpio::INTERRUPT_FALLING_EDGE : gpio::INTERRUPT_RISING_EDGE);
-      } else {
-        // no interrupt pin so fall back to polling. 16ms is the same as the default loop time, no method to
-        // get the current loop time, unfortunately.
-        this->set_interval(16, [this] { this->store_.touched = true; });
       }
     }
   }
