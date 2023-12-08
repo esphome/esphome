@@ -256,7 +256,7 @@ static uint8_t crc8(uint8_t *data, int len) {
 
 // writes a 16-bit word (d) to register pointer regAddress
 // when selecting a register pointer to read from, data = 0
-void LC709203FComponent::write16_(uint8_t reg_address, uint16_t data) {
+void LC709203FComponent::write16(uint8_t reg_address, uint16_t data) {
   // Setup array to hold bytes to send including CRC-8
   uint8_t crc_array[5];
   crc_array[0] = 0x16;
@@ -278,7 +278,7 @@ void LC709203FComponent::write16_(uint8_t reg_address, uint16_t data) {
   Wire.endTransmission();
 }
 
-int16_t LC709203FComponent::read16_(uint8_t reg_address) {
+int16_t LC709203FComponent::read16(uint8_t reg_address) {
   int16_t data = 0;
   Wire.beginTransmission(i2c_address);
   Wire.write(reg_address);

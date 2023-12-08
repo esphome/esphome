@@ -11,7 +11,7 @@
  */
 
 #ifndef _LC709203F_H
-#define _LC709203F_H
+#define LC709203F_H
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
@@ -52,35 +52,35 @@ static const uint8_t LC709203F_RO_CELLPROFILE = 0x1A;  // Displays battery profi
 // to remove warning static uint8_t crc8(uint8_t *data, int len);
 
 /*!  Approx cell capacity Table 7 */
-typedef enum {
+using lc709203_adjustment_t = enum {
   LC709203F_APA_100MAH = 0x08,
   LC709203F_APA_200MAH = 0x0B,
   LC709203F_APA_500MAH = 0x10,
   LC709203F_APA_1000MAH = 0x19,
   LC709203F_APA_2000MAH = 0x2D,
   LC709203F_APA_3000MAH = 0x36,
-} lc709203_adjustment_t;
+};
 
 /*!  Cell profile */
-typedef enum {
+using lc709203_cell_profile_t = enum {
   LC709203_NOM3p7_Charge4p2 = 1,
   LC709203_NOM3p8_Charge4p35 = 3,
   LC709203_NOM3p8_Charge4p35_Less500mAh = 6,
   LC709203_ICR18650_SAMSUNG = 5,
   LC709203_ICR18650_PANASONIC = 4
-} lc709203_cell_profile_t;
+};
 
 /*!  Cell temperature source */
-typedef enum {
+using lc709203_tempmode_t = enum {
   LC709203F_TEMPERATURE_I2C = 0x0000,
   LC709203F_TEMPERATURE_THERMISTOR = 0x0001,
-} lc709203_tempmode_t;
+};
 
 /*!  Chip power state */
-typedef enum {
+using lc709203_powermode_t = enum {
   LC709203F_POWER_OPERATE = 0x0001,
   LC709203F_POWER_SLEEP = 0x0002,
-} lc709203_powermode_t;
+};
 
 /*!
  *    @brief  Class that stores state and functions for interacting with
@@ -89,44 +89,44 @@ typedef enum {
 // class LC709203F {
 class LC709203FComponent : public PollingComponent, public i2c::I2CDevice {
  public:
-  bool begin(void);
-  void initRSOC(void);
+  bool begin();
+  void init_rsoc();
 
-  void setPowerMode(lc709203_powermode_t t);
-  void setCellCapacity(lc709203_adjustment_t apa);
-  void setCellProfile(lc709203_cell_profile_t t);
+  void set_power_mode(lc709203_powermode_t t);
+  void set_cell_capacity(lc709203_adjustment_t apa);
+  void set_cell_profile(lc709203_cell_profile_t t);
 
-  uint16_t getICversion(void);
-  uint16_t cellVoltage_mV(void);
-  uint16_t cellRemainingPercent10(void);  // Remaining capacity in increments of 0.1% as integer
-  uint16_t cellStateOfCharge(void);       // In increments of 1% as integer
+  uint16_t get_i_cversion();
+  uint16_t cell_voltage_m_v();
+  uint16_t cell_remaining_percent10();  // Remaining capacity in increments of 0.1% as integer
+  uint16_t cell_state_of_charge();       // In increments of 1% as integer
 
-  uint16_t getThermistorBeta(void);
-  void setThermistorB(uint16_t beta);
+  uint16_t get_thermistor_beta();
+  void set_thermistor_b(uint16_t beta);
 
-  void setTemperatureMode(lc709203_tempmode_t t);
-  uint16_t getCellTemperature(void);
-  void setAlarmRSOC(uint8_t percent);
-  void setAlarmVoltage(float voltage);
+  void set_temperature_mode(lc709203_tempmode_t t);
+  uint16_t get_cell_temperature();
+  void set_alarm_rsoc(uint8_t percent);
+  void set_alarm_voltage(float voltage);
 
   //  added to align with esphome
-  void set_cellVoltage_sensor(sensor::Sensor *cellVoltage) { cellVoltage_ = cellVoltage; }
-  void set_cellRemPercent_sensor(sensor::Sensor *cellRemPercent) { cellRemPercent_ = cellRemPercent; }
+  void set_cell_voltage_sensor(sensor::Sensor *cell_voltage) { cell_voltage_ = cell_voltage; }
+  void set_cell_rem_percent_sensor(sensor::Sensor *cell_rem_percent) { cell_rem_percent_ = cell_rem_percent; }
   void set_icversion_sensor(sensor::Sensor *icversion) { icversion_ = icversion; }
-  void set_cellCharge_sensor(sensor::Sensor *cellCharge) { cellCharge_ = cellCharge; }
+  void set_cell_charge_sensor(sensor::Sensor *cell_charge) { cell_charge_ = cell_charge; }
   void setup() override;
   void update() override;
   void dump_config() override;
 
  protected:
-  void write16(uint8_t regAddress, uint16_t data);
-  int16_t read16(uint8_t regAddress);
+  void write16_(uint8_t reg_address, uint16_t data);
+  int16_t read16_(uint8_t reg_address);
 
   // added for esphome
-  sensor::Sensor *cellVoltage_;
-  sensor::Sensor *cellRemPercent_;
+  sensor::Sensor *cell_voltage_;
+  sensor::Sensor *cell_rem_percent_;
   sensor::Sensor *icversion_;
-  sensor::Sensor *cellCharge_;
+  sensor::Sensor *cell_charge_;
 };
 
 }  // namespace lc709203f
