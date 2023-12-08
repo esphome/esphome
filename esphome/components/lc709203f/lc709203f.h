@@ -63,9 +63,9 @@ using lc709203_adjustment_t = enum {
 
 /*!  Cell profile */
 using lc709203_cell_profile_t = enum {
-  LC709203_NOM3p7_Charge4p2 = 1,
-  LC709203_NOM3p8_Charge4p35 = 3,
-  LC709203_NOM3p8_Charge4p35_Less500mAh = 6,
+  L_C709203_NO_M3P7_CHARGE4P2 = 1,
+  L_C709203_NO_M3P8_CHARGE4P35 = 3,
+  L_C709203_NO_M3P8_CHARGE4P35_LESS500M_AH = 6,
   LC709203_ICR18650_SAMSUNG = 5,
   LC709203_ICR18650_PANASONIC = 4
 };
