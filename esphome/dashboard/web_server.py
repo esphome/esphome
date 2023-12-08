@@ -13,13 +13,15 @@ import secrets
 import shutil
 import subprocess
 import threading
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 import tornado
 import tornado.concurrent
 import tornado.gen
 import tornado.httpserver
+import tornado.httputil
 import tornado.ioloop
 import tornado.iostream
 import tornado.netutil
@@ -29,6 +31,7 @@ import tornado.web
 import tornado.websocket
 import yaml
 from tornado.log import access_log
+from yaml.nodes import Node
 
 from esphome import const, platformio_api, yaml_util
 from esphome.helpers import get_bool_env, mkdir_p
@@ -42,18 +45,23 @@ from .util.file import write_file
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
 
+if TYPE_CHECKING:
+    from requests import Response
+
+
 _LOGGER = logging.getLogger(__name__)
 
 ENV_DEV = "ESPHOME_DASHBOARD_DEV"
 
+COOKIE_AUTHENTICATED_YES = b"yes"
 
-cookie_authenticated_yes = b"yes"
+AUTH_COOKIE_NAME = "authenticated"
 
 
 settings = DASHBOARD.settings
 
 
-def template_args():
+def template_args() -> dict[str, Any]:
     version = const.__version__
     if "b" in version:
         docs_link = "https://beta.esphome.io/"
@@ -72,9 +80,12 @@ def template_args():
     }
 
 
-def authenticated(func):
+T = TypeVar("T", bound=Callable[..., Any])
+
+
+def authenticated(func: T) -> T:
     @functools.wraps(func)
-    def decorator(self, *args, **kwargs):
+    def decorator(self, *args: Any, **kwargs: Any):
         if not is_authenticated(self):
             self.redirect("./login")
             return None
@@ -83,18 +94,18 @@ def authenticated(func):
     return decorator
 
 
-def is_authenticated(request_handler):
+def is_authenticated(handler: BaseHandler) -> bool:
+    """Check if the request is authenticated."""
     if settings.on_ha_addon:
         # Handle ingress - disable auth on ingress port
         # X-HA-Ingress is automatically stripped on the non-ingress server in nginx
-        header = request_handler.request.headers.get("X-HA-Ingress", "NO")
+        header = handler.request.headers.get("X-HA-Ingress", "NO")
         if str(header) == "YES":
             return True
+
     if settings.using_auth:
-        return (
-            request_handler.get_secure_cookie("authenticated")
-            == cookie_authenticated_yes
-        )
+        return handler.get_secure_cookie(AUTH_COOKIE_NAME) == COOKIE_AUTHENTICATED_YES
+
     return True
 
 
@@ -136,7 +147,15 @@ def websocket_method(name):
 
 @websocket_class
 class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
-    def __init__(self, application, request, **kwargs):
+    """Base class for ESPHome websocket commands."""
+
+    def __init__(
+        self,
+        application: tornado.web.Application,
+        request: tornado.httputil.HTTPServerRequest,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize the websocket."""
         super().__init__(application, request, **kwargs)
         self._proc = None
         self._queue = None
@@ -144,6 +163,12 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         # Windows doesn't support non-blocking pipes,
         # use Popen() with a reading thread instead
         self._use_popen = os.name == "nt"
+
+    def open(self, *args: str, **kwargs: str) -> None:
+        """Handle new WebSocket connection."""
+        # Ensure messages from the subprocess are sent immediately
+        # to avoid a 200-500ms delay when nodelay is not set.
+        self.set_nodelay(True)
 
     @authenticated
     async def on_message(  # pylint: disable=invalid-overridden-method
@@ -194,7 +219,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         tornado.ioloop.IOLoop.current().spawn_callback(self._redirect_stdout)
 
     @property
-    def is_process_active(self):
+    def is_process_active(self) -> bool:
         return self._proc is not None and self._proc.returncode is None
 
     @websocket_method("stdin")
@@ -383,7 +408,7 @@ class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
 
 class SerialPortRequestHandler(BaseHandler):
     @authenticated
-    async def get(self):
+    async def get(self) -> None:
         ports = await asyncio.get_running_loop().run_in_executor(None, get_serial_ports)
         data = []
         for port in ports:
@@ -403,7 +428,7 @@ class SerialPortRequestHandler(BaseHandler):
 
 class WizardRequestHandler(BaseHandler):
     @authenticated
-    def post(self):
+    def post(self) -> None:
         from esphome import wizard
 
         kwargs = {
@@ -434,7 +459,7 @@ class WizardRequestHandler(BaseHandler):
 
 class ImportRequestHandler(BaseHandler):
     @authenticated
-    def post(self):
+    def post(self) -> None:
         from esphome.components.dashboard_import import import_config
 
         dashboard = DASHBOARD
@@ -489,7 +514,7 @@ class ImportRequestHandler(BaseHandler):
 class DownloadListRequestHandler(BaseHandler):
     @authenticated
     @bind_config
-    def get(self, configuration=None):
+    def get(self, configuration: str | None = None) -> None:
         storage_path = ext_storage_path(configuration)
         storage_json = StorageJSON.load(storage_path)
         if storage_json is None:
@@ -497,26 +522,29 @@ class DownloadListRequestHandler(BaseHandler):
             return
 
         from esphome.components.esp32 import VARIANTS as ESP32_VARIANTS
-        from esphome.components.esp32 import get_download_types as esp32_types
-        from esphome.components.esp8266 import get_download_types as esp8266_types
-        from esphome.components.libretiny import get_download_types as libretiny_types
-        from esphome.components.rp2040 import get_download_types as rp2040_types
 
         downloads = []
-        platform = storage_json.target_platform.lower()
+        platform: str = storage_json.target_platform.lower()
         if platform == const.PLATFORM_RP2040:
+            from esphome.components.rp2040 import get_download_types as rp2040_types
+
             downloads = rp2040_types(storage_json)
         elif platform == const.PLATFORM_ESP8266:
+            from esphome.components.esp8266 import get_download_types as esp8266_types
+
             downloads = esp8266_types(storage_json)
         elif platform.upper() in ESP32_VARIANTS:
+            from esphome.components.esp32 import get_download_types as esp32_types
+
             downloads = esp32_types(storage_json)
-        elif platform == const.PLATFORM_BK72XX:
-            downloads = libretiny_types(storage_json)
-        elif platform == const.PLATFORM_RTL87XX:
+        elif platform in (const.PLATFORM_RTL87XX, const.PLATFORM_BK72XX):
+            from esphome.components.libretiny import (
+                get_download_types as libretiny_types,
+            )
+
             downloads = libretiny_types(storage_json)
         else:
-            self.send_error(418)
-            return
+            raise ValueError(f"Unknown platform {platform}")
 
         self.set_status(200)
         self.set_header("content-type", "application/json")
@@ -536,7 +564,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
     @authenticated
     @bind_config
-    async def get(self, configuration: str | None = None):
+    async def get(self, configuration: str | None = None) -> None:
         """Download a binary file."""
         loop = asyncio.get_running_loop()
         compressed = self.get_argument("compressed", "0") == "1"
@@ -603,7 +631,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
 class EsphomeVersionHandler(BaseHandler):
     @authenticated
-    def get(self):
+    def get(self) -> None:
         self.set_header("Content-Type", "application/json")
         self.write(json.dumps({"version": const.__version__}))
         self.finish()
@@ -611,7 +639,7 @@ class EsphomeVersionHandler(BaseHandler):
 
 class ListDevicesHandler(BaseHandler):
     @authenticated
-    async def get(self):
+    async def get(self) -> None:
         dashboard = DASHBOARD
         await dashboard.entries.async_request_update_entries()
         entries = dashboard.entries.async_all()
@@ -641,7 +669,7 @@ class ListDevicesHandler(BaseHandler):
 
 class MainRequestHandler(BaseHandler):
     @authenticated
-    def get(self):
+    def get(self) -> None:
         begin = bool(self.get_argument("begin", False))
 
         self.render(
@@ -654,7 +682,7 @@ class MainRequestHandler(BaseHandler):
 
 class PrometheusServiceDiscoveryHandler(BaseHandler):
     @authenticated
-    async def get(self):
+    async def get(self) -> None:
         dashboard = DASHBOARD
         await dashboard.entries.async_request_update_entries()
         entries = dashboard.entries.async_all()
@@ -683,29 +711,34 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
 
 class BoardsRequestHandler(BaseHandler):
     @authenticated
-    def get(self, platform: str):
-        from esphome.components.bk72xx.boards import BOARDS as BK72XX_BOARDS
-        from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
-        from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
-        from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
-        from esphome.components.rtl87xx.boards import BOARDS as RTL87XX_BOARDS
-
-        platform_to_boards = {
-            const.PLATFORM_ESP32: ESP32_BOARDS,
-            const.PLATFORM_ESP8266: ESP8266_BOARDS,
-            const.PLATFORM_RP2040: RP2040_BOARDS,
-            const.PLATFORM_BK72XX: BK72XX_BOARDS,
-            const.PLATFORM_RTL87XX: RTL87XX_BOARDS,
-        }
+    def get(self, platform: str) -> None:
         # filter all ESP32 variants by requested platform
         if platform.startswith("esp32"):
+            from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
+
             boards = {
                 k: v
-                for k, v in platform_to_boards[const.PLATFORM_ESP32].items()
+                for k, v in ESP32_BOARDS.items()
                 if v[const.KEY_VARIANT] == platform.upper()
             }
+        elif platform == const.PLATFORM_ESP8266:
+            from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
+
+            boards = ESP8266_BOARDS
+        elif platform == const.PLATFORM_RP2040:
+            from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
+
+            boards = RP2040_BOARDS
+        elif platform == const.PLATFORM_BK72XX:
+            from esphome.components.bk72xx.boards import BOARDS as BK72XX_BOARDS
+
+            boards = BK72XX_BOARDS
+        elif platform == const.PLATFORM_RTL87XX:
+            from esphome.components.rtl87xx.boards import BOARDS as RTL87XX_BOARDS
+
+            boards = RTL87XX_BOARDS
         else:
-            boards = platform_to_boards[platform]
+            raise ValueError(f"Unknown platform {platform}")
 
         # map to a {board_name: board_title} dict
         platform_boards = {key: val[const.KEY_NAME] for key, val in boards.items()}
@@ -719,7 +752,7 @@ class BoardsRequestHandler(BaseHandler):
 
 class PingRequestHandler(BaseHandler):
     @authenticated
-    def get(self):
+    def get(self) -> None:
         dashboard = DASHBOARD
         dashboard.ping_request.set()
         if settings.status_use_mqtt:
@@ -739,7 +772,7 @@ class PingRequestHandler(BaseHandler):
 class InfoRequestHandler(BaseHandler):
     @authenticated
     @bind_config
-    async def get(self, configuration=None):
+    async def get(self, configuration: str | None = None) -> None:
         yaml_path = settings.rel_path(configuration)
         dashboard = DASHBOARD
         entry = dashboard.entries.get(yaml_path)
@@ -755,7 +788,7 @@ class InfoRequestHandler(BaseHandler):
 class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
-    async def get(self, configuration: str | None = None):
+    async def get(self, configuration: str | None = None) -> None:
         """Get the content of a file."""
         loop = asyncio.get_running_loop()
         filename = settings.rel_path(configuration)
@@ -773,7 +806,7 @@ class EditRequestHandler(BaseHandler):
 
     @authenticated
     @bind_config
-    async def post(self, configuration: str | None = None):
+    async def post(self, configuration: str | None = None) -> None:
         """Write the content of a file."""
         loop = asyncio.get_running_loop()
         config_file = settings.rel_path(configuration)
@@ -790,7 +823,7 @@ class EditRequestHandler(BaseHandler):
 class DeleteRequestHandler(BaseHandler):
     @authenticated
     @bind_config
-    def post(self, configuration=None):
+    def post(self, configuration: str | None = None) -> None:
         config_file = settings.rel_path(configuration)
         storage_path = ext_storage_path(configuration)
 
@@ -810,20 +843,20 @@ class DeleteRequestHandler(BaseHandler):
 class UndoDeleteRequestHandler(BaseHandler):
     @authenticated
     @bind_config
-    def post(self, configuration=None):
+    def post(self, configuration: str | None = None) -> None:
         config_file = settings.rel_path(configuration)
         trash_path = trash_storage_path()
         shutil.move(os.path.join(trash_path, configuration), config_file)
 
 
 class LoginHandler(BaseHandler):
-    def get(self):
+    def get(self) -> None:
         if is_authenticated(self):
             self.redirect("./")
         else:
             self.render_login_page()
 
-    def render_login_page(self, error=None):
+    def render_login_page(self, error: str | None = None) -> None:
         self.render(
             "login.template.html",
             error=error,
@@ -832,38 +865,45 @@ class LoginHandler(BaseHandler):
             **template_args(),
         )
 
-    def post_ha_addon_login(self):
+    def _make_supervisor_auth_request(self) -> Response:
+        """Make a request to the supervisor auth endpoint."""
         import requests
 
-        headers = {
-            "X-Supervisor-Token": os.getenv("SUPERVISOR_TOKEN"),
-        }
-
+        headers = {"X-Supervisor-Token": os.getenv("SUPERVISOR_TOKEN")}
         data = {
             "username": self.get_argument("username", ""),
             "password": self.get_argument("password", ""),
         }
+        return requests.post(
+            "http://supervisor/auth", headers=headers, json=data, timeout=30
+        )
+
+    async def post_ha_addon_login(self) -> None:
+        loop = asyncio.get_running_loop()
         try:
-            req = requests.post(
-                "http://supervisor/auth", headers=headers, json=data, timeout=30
-            )
-            if req.status_code == 200:
-                self.set_secure_cookie("authenticated", cookie_authenticated_yes)
-                self.redirect("/")
-                return
+            req = await loop.run_in_executor(None, self._make_supervisor_auth_request)
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.warning("Error during Hass.io auth request: %s", err)
             self.set_status(500)
             self.render_login_page(error="Internal server error")
             return
+
+        if req.status_code == 200:
+            self._set_authenticated()
+            self.redirect("/")
+            return
         self.set_status(401)
         self.render_login_page(error="Invalid username or password")
 
-    def post_native_login(self):
+    def _set_authenticated(self) -> None:
+        """Set the authenticated cookie."""
+        self.set_secure_cookie(AUTH_COOKIE_NAME, COOKIE_AUTHENTICATED_YES)
+
+    def post_native_login(self) -> None:
         username = self.get_argument("username", "")
         password = self.get_argument("password", "")
         if settings.check_password(username, password):
-            self.set_secure_cookie("authenticated", cookie_authenticated_yes)
+            self._set_authenticated()
             self.redirect("./")
             return
         error_str = (
@@ -872,23 +912,23 @@ class LoginHandler(BaseHandler):
         self.set_status(401)
         self.render_login_page(error=error_str)
 
-    def post(self):
+    async def post(self):
         if settings.using_ha_addon_auth:
-            self.post_ha_addon_login()
+            await self.post_ha_addon_login()
         else:
             self.post_native_login()
 
 
 class LogoutHandler(BaseHandler):
     @authenticated
-    def get(self):
-        self.clear_cookie("authenticated")
+    def get(self) -> None:
+        self.clear_cookie(AUTH_COOKIE_NAME)
         self.redirect("./login")
 
 
 class SecretKeysRequestHandler(BaseHandler):
     @authenticated
-    def get(self):
+    def get(self) -> None:
         filename = None
 
         for secret_filename in const.SECRETS_FILES:
@@ -908,10 +948,10 @@ class SecretKeysRequestHandler(BaseHandler):
 
 
 class SafeLoaderIgnoreUnknown(FastestAvailableSafeLoader):
-    def ignore_unknown(self, node):
+    def ignore_unknown(self, node: Node) -> str:
         return f"{node.tag} {node.value}"
 
-    def construct_yaml_binary(self, node) -> str:
+    def construct_yaml_binary(self, node: Node) -> str:
         return super().construct_yaml_binary(node).decode("ascii")
 
 
@@ -924,7 +964,7 @@ SafeLoaderIgnoreUnknown.add_constructor(
 class JsonConfigRequestHandler(BaseHandler):
     @authenticated
     @bind_config
-    async def get(self, configuration=None):
+    async def get(self, configuration: str | None = None) -> None:
         filename = settings.rel_path(configuration)
         if not os.path.isfile(filename):
             self.send_error(404)
@@ -944,7 +984,7 @@ class JsonConfigRequestHandler(BaseHandler):
         self.finish()
 
 
-def get_base_frontend_path():
+def get_base_frontend_path() -> str:
     if ENV_DEV not in os.environ:
         import esphome_dashboard
 
@@ -958,12 +998,12 @@ def get_base_frontend_path():
     return os.path.abspath(os.path.join(os.getcwd(), static_path, "esphome_dashboard"))
 
 
-def get_static_path(*args):
+def get_static_path(*args: Iterable[str]) -> str:
     return os.path.join(get_base_frontend_path(), "static", *args)
 
 
 @functools.cache
-def get_static_file_url(name):
+def get_static_file_url(name: str) -> str:
     base = f"./static/{name}"
 
     if ENV_DEV in os.environ:
@@ -982,7 +1022,7 @@ def get_static_file_url(name):
 
 
 def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
-    def log_function(handler):
+    def log_function(handler: tornado.web.RequestHandler) -> None:
         if handler.get_status() < 400:
             log_method = access_log.info
 
