@@ -25,23 +25,28 @@ static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
 void GT911Touchscreen::setup() {
   i2c::ErrorCode err;
   ESP_LOGCONFIG(TAG, "Setting up GT911 Touchscreen...");
-  // datasheet says NOT to use pullup/down on the int line.
-  this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
-  this->interrupt_pin_->setup();
 
   // check the configuration of the int line.
-  uint8_t data;
+  uint8_t data[4];
   err = this->write(GET_SWITCHES, 2);
   if (err == i2c::ERROR_OK) {
-    err = this->read(&data, 1);
+    err = this->read(data, 1);
     if (err == i2c::ERROR_OK) {
-      ESP_LOGD(TAG, "Read from switches: 0x%02X", data);
-      this->attach_interrupt_(this->interrupt_pin_,
-                              (data & 1) ? gpio::INTERRUPT_FALLING_EDGE : gpio::INTERRUPT_RISING_EDGE);
+      ESP_LOGD(TAG, "Read from switches: 0x%02X", data[0]);
+      if (this->interrupt_pin_ != nullptr) {
+        // datasheet says NOT to use pullup/down on the int line.
+        this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
+        this->interrupt_pin_->setup();
+        this->attach_interrupt_(this->interrupt_pin_,
+                                (data[0] & 1) ? gpio::INTERRUPT_FALLING_EDGE : gpio::INTERRUPT_RISING_EDGE);
+      } else {
+        // no interrupt pin so fall back to polling. 16ms is the same as the default loop time, no method to
+        // get the current loop time, unfortunately.
+        this->set_interval(16, [this] { this->store_.touched = true; });
+      }
     }
   }
   if (err == i2c::ERROR_OK) {
-    uint8_t data[4];
     err = this->write(GET_MAX_VALUES, 2);
     if (err == i2c::ERROR_OK) {
       err = this->read(data, sizeof(data));

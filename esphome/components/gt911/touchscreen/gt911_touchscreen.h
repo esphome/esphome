@@ -24,7 +24,7 @@ class GT911Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice 
  protected:
   void update_touches() override;
 
-  InternalGPIOPin *interrupt_pin_;
+  InternalGPIOPin *interrupt_pin_{};
   std::vector<GT911ButtonListener *> button_listeners_;
 };
 
