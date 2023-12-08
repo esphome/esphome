@@ -27,19 +27,19 @@ void Touchscreen::loop() {
     this->need_update_ = false;
     this->is_touched_ = false;
     this->skip_update_ = false;
-    for (auto &i : this->touches_) {
-      if (i.second.state > 0) {
-        i.second.state = -i.second.state;
+    for (auto &tp : this->touches_) {
+      if (tp.second.state == STATE_PRESSED || tp.second.state == STATE_UPDATED) {
+        tp.second.state = tp.second.state | STATE_RELEASING;
       } else {
-        i.second.state = 0;
+        tp.second.state = STATE_RELAESED;
       }
-      i.second.x_prev = i.second.x;
-      i.second.y_prev = i.second.y;
+      tp.second.x_prev = tp.second.x;
+      tp.second.y_prev = tp.second.y;
     }
     this->update_touches();
     if (this->skip_update_) {
       for (auto &i : this->touches_) {
-        i.second.state = -i.second.state;
+        tp.second.state = tp.second.state & - STATE_RELEASING;
       }
     } else {
       this->store_.touched = false;
@@ -52,11 +52,11 @@ void Touchscreen::set_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
   TouchPoint tp;
   uint16_t x, y;
   if (this->touches_.count(id) == 0) {
-    tp.state = 1;
+    tp.state = STATE_PRESSED;
     tp.id = id;
   } else {
     tp = this->touches_[id];
-    tp.state = 2;
+    tp.state = STATE_UPDATED;
   }
   tp.x_raw = x_raw;
   tp.y_raw = y_raw;
@@ -72,7 +72,7 @@ void Touchscreen::set_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
   tp.x = (uint16_t) ((int) x * this->get_width_() / 0x1000);
   tp.y = (uint16_t) ((int) y * this->get_height_() / 0x1000);
 
-  if (tp.state == 1) {
+  if (tp.state == STATE_PRESSED) {
     tp.x_org = tp.x;
     tp.y_org = tp.y;
   }
@@ -93,8 +93,8 @@ void Touchscreen::send_touches_() {
     this->touches_.clear();
   } else {
     TouchPoints_t touches;
-    for (auto i : this->touches_) {
-      touches.push_back(i.second);
+    for (auto tp : this->touches_) {
+      touches.push_back(tp.second);
     }
     if (this->first_touch_) {
       TouchPoint tp = touches.front();

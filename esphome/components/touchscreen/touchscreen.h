@@ -12,6 +12,11 @@
 namespace esphome {
 namespace touchscreen {
 
+static const uint8_t STATE_RELAESED = 0x00;
+static const uint8_t STATE_PRESSED = 0x01;
+static const uint8_t STATE_UPDATED = 0x02;
+static const uint8_t STATE_RELEASING = 0x04;
+
 struct TouchPoint {
   uint8_t id;
   int16_t x_raw{0}, y_raw{0}, z_raw{0};
