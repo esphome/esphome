@@ -65,27 +65,9 @@ class FT5x06Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
         this->mark_failed();
         return;
     }
-    if (!this->set_mode_(FT5X06_TEST_MODE))
-      return;
-    if (!this->err_check_(this->read_register(FT5X06_ORIGIN_REG, data, 4), "Read origin"))
-      return;
-    auto x_org= encode_uint16(data[0], data[1]);
-    auto y_org =  encode_uint16(data[2], data[3]);
-    esph_log_d(TAG, "Read x_org/y_org %d/%d", x_org, y_org);
-    if (!this->err_check_(this->read_register(FT5X06_RESOLUTION_REG, data, 4), "Read resolution"))
-      return;
-    this->x_raw_max_ = encode_uint16(data[0], data[1]);
-    this->y_raw_max_ = encode_uint16(data[2], data[3]);
-    esph_log_d(TAG, "Read max_x/max_y %d/%d", this->x_raw_max_, this->y_raw_max_);
-    if (!this->err_check_(this->read_register(03, data, 2), "Read row/col"))
-      return;
-    esph_log_d(TAG, "Read row/col %d/%d", data[0], data[1]);
-    if (!this->set_mode_(FT5X06_OP_MODE))
-      return;
-    if (this->x_raw_max_ == -1) {
-      this->x_raw_max_ = this->display_->get_width();
-      this->y_raw_max_ = this->display_->get_height();
-    }
+    // reading the chip registers to get max x/y does not seem to work.
+    this->x_raw_max_ = this->display_->get_width();
+    this->y_raw_max_ = this->display_->get_height();
     esph_log_config(TAG, "FT5x06 Touchscreen setup complete");
   }
 
