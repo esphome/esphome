@@ -49,6 +49,7 @@ void GT911Touchscreen::setup() {
       if (err == i2c::ERROR_OK) {
         this->x_raw_max_ = encode_uint16(data[1], data[0]);
         this->y_raw_max_ = encode_uint16(data[3], data[2]);
+        esph_log_d(TAG, "Read max_x/max_y %d/%d", this->x_raw_max_, this->y_raw_max_);
       }
     }
   }
