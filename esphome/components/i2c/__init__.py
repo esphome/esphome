@@ -39,8 +39,9 @@ def _bus_declare_type(value):
     raise NotImplementedError
 
 
-pin_with_input_and_output_support = pins.internal_gpio_pin_number(
-    {CONF_OUTPUT: True, CONF_INPUT: True}
+pin_with_input_and_output_support = cv.All(
+    pins.internal_gpio_pin_number({CONF_INPUT: True}),
+    pins.internal_gpio_pin_number({CONF_OUTPUT: True}),
 )
 
 
