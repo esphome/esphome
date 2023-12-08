@@ -1652,5 +1652,5 @@ def haier_dumper(var, config):
 @register_action("haier", HaierAction, HAIER_SCHEMA)
 async def haier_action(var, config, args):
     vec_ = cg.std_vector.template(cg.uint8)
-    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
+    template_ = await cg.templatable(config[CONF_CODE], args, vec_)
     cg.add(var.set_code(template_))
