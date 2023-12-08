@@ -69,8 +69,8 @@ void Touchscreen::set_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
     std::swap(x, y);
   }
 
-  tp.x = (uint16_t) ((int) x * this->get_width_() / 0xfff);
-  tp.y = (uint16_t) ((int) y * this->get_height_() / 0xfff);
+  tp.x = (uint16_t) ((int) x * this->get_width_() / 0x1000);
+  tp.y = (uint16_t) ((int) y * this->get_height_() / 0x1000);
 
   if (tp.state == 1) {
     tp.x_org = tp.x;
