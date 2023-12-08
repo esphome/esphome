@@ -57,9 +57,6 @@ bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t
   return write_register(a_register, reinterpret_cast<const uint8_t *>(temp.get()), len * 2) == ERROR_OK;
 }
 
-//
-// The I2CRegister methods
-//
 I2CRegister &I2CRegister::operator=(uint8_t value) {
   this->parent_->write_register(this->register_, &value, 1);
   return *this;
@@ -74,15 +71,13 @@ I2CRegister &I2CRegister::operator|=(uint8_t value) {
   this->parent_->write_register(this->register_, &value, 1);
   return *this;
 }
+
 uint8_t I2CRegister::get() const {
   uint8_t value = 0x00;
   this->parent_->read_register(this->register_, &value, 1);
   return value;
 }
 
-//
-// The I2CRegister methods
-//
 I2CRegister16 &I2CRegister16::operator=(uint8_t value) {
   this->parent_->write_register16(this->register_, &value, 1);
   return *this;
