@@ -99,7 +99,7 @@ class LC709203FComponent : public PollingComponent, public i2c::I2CDevice {
   uint16_t get_i_cversion();
   uint16_t cell_voltage_m_v();
   uint16_t cell_remaining_percent10();  // Remaining capacity in increments of 0.1% as integer
-  uint16_t cell_state_of_charge();       // In increments of 1% as integer
+  uint16_t cell_state_of_charge();      // In increments of 1% as integer
 
   uint16_t get_thermistor_beta();
   void set_thermistor_b(uint16_t beta);
