@@ -54,7 +54,9 @@ power_supply:
 
 i2c:
   sda: 21
-  scl: 22
+  scl:
+    number: 22
+    allow_other_uses: true
   scan: true
   frequency: 100kHz
   setup_priority: -100
@@ -86,7 +88,9 @@ light:
   - platform: fastled_clockless
     id: addr1
     chipset: WS2811
-    pin: GPIO23
+    pin:
+      allow_other_uses: true
+      number: GPIO23
     num_leds: 60
     rgb_order: BRG
     max_refresh_rate: 20ms
@@ -168,8 +172,12 @@ light:
   - platform: fastled_spi
     id: addr2
     chipset: WS2801
-    data_pin: GPIO23
-    clock_pin: GPIO22
+    data_pin:
+      allow_other_uses: true
+      number: GPIO23
+    clock_pin:
+      number: GPIO22
+      allow_other_uses: true
     data_rate: 2MHz
     num_leds: 60
     rgb_order: BRG
@@ -190,7 +198,9 @@ light:
     variant: SK6812
     method: ESP32_I2S_0
     num_leds: 60
-    pin: GPIO23
+    pin:
+      allow_other_uses: true
+      number: GPIO23
   - platform: partition
     name: Partition Light
     segments:
