@@ -246,11 +246,11 @@ uint8_t WK2132Register::get() const {
   auto error = this->parent_->read_register(this->register_, &value, 1);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
-    ESP_LOGVV(TAG, "WK2132Register::get @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
+    ESP_LOGVV(TAG, "WK2132Register::get() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
               reg_to_str(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
   } else {  // error
     this->parent_->status_set_warning();
-    ESP_LOGE(TAG, "WK2132Register::get @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
+    ESP_LOGE(TAG, "WK2132Register::get() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
              reg_to_str(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
   }
   return value;
@@ -261,11 +261,11 @@ void WK2132Register::set(uint8_t value) {
   auto error = this->parent_->write_register(this->register_, &value, 1);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
-    ESP_LOGVV(TAG, "WK2132Register::set @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
+    ESP_LOGVV(TAG, "WK2132Register::set() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
               reg_to_str(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
   } else {  // error
     this->parent_->status_set_warning();
-    ESP_LOGE(TAG, "WK2132Register::set @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
+    ESP_LOGE(TAG, "WK2132Register::set() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
              reg_to_str(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
   }
 }

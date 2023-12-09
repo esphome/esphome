@@ -7,6 +7,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/uart/uart.h"
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO)
+#include "Wire.h"
+#endif
 
 /// when TEST_COMPONENT is define we include some auto-test methods. Used to test the software during wk2132 development
 /// but can also be used in situ to test if the component is working correctly.
@@ -14,22 +17,22 @@
 
 namespace esphome {
 namespace wk2132_i2c {
-
-// /// @brief XFER_MAX_SIZE defines the max number of bytes we allow during one transfer. By default I2cBus defines a
-// /// maximum transfer of 128 bytes but this can be changed by defining the macro I2C_BUFFER_LENGTH.
-// /// @bug At the time of writing (Nov 2023) there is a bug in declaration of the i2c::I2CDevice::write() method.
-// /// There is also a bug in the Arduino framework in the declaration of the TwoWire::requestFrom() method.
-// /// These two bugs limit the XFER_MAX_SIZE to 255.
-// #if (I2C_BUFFER_LENGTH > 255) && defined(USE_ESP32_FRAMEWORK_ARDUINO)
-// constexpr size_t XFER_MAX_SIZE = 255;
-// #else
-// #if defined(I2C_BUFFER_LENGTH)
-// constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;
-// #else
-// constexpr size_t XFER_MAX_SIZE = 128;  // 8266
-// #endif
-// #endif
-constexpr size_t XFER_MAX_SIZE = 255;  // TODO check I2C_BUFFER_LENGTH - diff framework diff arch
+/// @brief XFER_MAX_SIZE defines the maximum number of bytes we allow during one transfer.
+/// When using the Arduino framework the default maximum transfer is 128 bytes. But this can be changed by defining the
+/// macro I2C_BUFFER_LENGTH during compilation. When using the ESP-IDF Framework the maximum transfer length is 256.
+/// @bug At the time of writing (Nov 2023) there is a bug in declaration of the i2c::I2CDevice::write() method that
+/// limit the write of a maximum of 255 bytes. There is also a bug in the Arduino framework in the
+/// TwoWire::requestFrom() method that limits the number of bytes we can read to 255.
+/// For these reasons we limit the XFER_MAX_SIZE to 255.
+#if defined(USE_ESP8266)
+constexpr size_t XFER_MAX_SIZE = 128;  // ESP8266
+#elif defined(USE_ESP32_FRAMEWORK_ESP_IDF)
+constexpr size_t XFER_MAX_SIZE = 255;  // ESP32 & FRAMEWORK_ESP_IDF
+#elif I2C_BUFFER_LENGTH < 256
+constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;  // ESP32 & FRAMEWORK_ARDUINO
+#else
+constexpr size_t XFER_MAX_SIZE = 255;  // ESP32 & FRAMEWORK_ARDUINO too big
+#endif
 
 /// @brief size of the internal WK2132 FIFO
 constexpr size_t FIFO_SIZE = 256;
