@@ -327,7 +327,7 @@ void WK2132Channel::setup_channel_() {
 
 void WK2132Channel::reset_fifo_() {
   // we reset and enable all FIFO
-  this->channel_reg(REG_WK2132_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_TFRST;
+  this->channel_reg(REG_WK2132_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
 }
 
 void WK2132Channel::set_line_param_() {
