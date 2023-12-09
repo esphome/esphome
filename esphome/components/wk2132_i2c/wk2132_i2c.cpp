@@ -173,7 +173,7 @@ static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "B
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 
 // method to print a register value as text: used in the log messages ...
-const char *reg_to_str_(int reg, bool page1) { return page1 ? REG_TO_STR_P1[reg] : REG_TO_STR_P0[reg]; }
+const char *reg_to_str(int reg, bool page1) { return page1 ? REG_TO_STR_P1[reg] : REG_TO_STR_P0[reg]; }
 
 /// Convert std::string to C string
 #define I2CS(val) (i2s(val).c_str())
@@ -247,11 +247,11 @@ uint8_t WK2132Register::get() const {
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
     ESP_LOGVV(TAG, "WK2132Register::get @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
-              reg_to_str_(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
+              reg_to_str(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
   } else {  // error
     this->parent_->status_set_warning();
     ESP_LOGE(TAG, "WK2132Register::get @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
-             reg_to_str_(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
+             reg_to_str(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
   }
   return value;
 }
@@ -262,11 +262,11 @@ void WK2132Register::set(uint8_t value) {
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
     ESP_LOGVV(TAG, "WK2132Register::set @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
-              reg_to_str_(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
+              reg_to_str(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
   } else {  // error
     this->parent_->status_set_warning();
     ESP_LOGE(TAG, "WK2132Register::set @%02X r=%s, ch=%d b=%02X, I2C_code:%d", this->parent_->address_,
-             reg_to_str_(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
+             reg_to_str(this->register_, this->parent_->page1_), this->channel_, value, (int) error);
   }
 }
 
