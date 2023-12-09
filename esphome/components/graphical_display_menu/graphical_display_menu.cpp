@@ -109,14 +109,15 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
   bool scroll_menu_items = false;
   std::vector<display::Rect> menu_dimensions;
   int number_items_fit_to_screen = 0;
+  const int max_item_index = this->displayed_item_->items_size() - 1;
 
-  for (size_t i = 0; i < this->displayed_item_->items_size(); i++) {
-    auto *item = this->displayed_item_->get_item(i);
-    bool selected = i == this->cursor_index_;
-    display::Rect item_dimensions = this->measure_item(display, item, bounds, selected);
+  for (size_t i = 0; i <= max_item_index; i++) {
+    const auto *item = this->displayed_item_->get_item(i);
+    const bool selected = i == this->cursor_index_;
+    const display::Rect item_dimensions = this->measure_item(display, item, bounds, selected);
 
     menu_dimensions.push_back(item_dimensions);
-    total_height += item_dimensions.h + y_padding;
+    total_height += item_dimensions.h + (i == 0 ? 0 : y_padding);
 
     if (total_height <= bounds->h) {
       number_items_fit_to_screen++;
@@ -128,41 +129,48 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
     }
   }
 
-  int y_offset = bounds->y;
+  // Determine what items to draw
   int first_item_index = 0;
-  int last_item_index = this->displayed_item_->items_size();
+  int last_item_index = max_item_index;
 
-  if (number_items_fit_to_screen == 1) {
+  if (number_items_fit_to_screen <= 1) {
     // If only one item can fit to the bounds draw the current cursor item
     last_item_index = std::min(last_item_index, this->cursor_index_ + 1);
     first_item_index = this->cursor_index_;
   } else {
     if (scroll_menu_items) {
       // Attempt to draw the item after the current item (+1 for equality check in the draw loop)
-      last_item_index = std::min(this->cursor_index_ + 2, last_item_index);
+      last_item_index = std::min(last_item_index, this->cursor_index_ + 1);
 
       // Go back through the measurements to determine how many prior items we can fit
       int height_left_to_use = bounds->h;
-      for (int i = last_item_index - 1; i >= 0; i--) {
-        display::Rect item_dimensions = menu_dimensions[i];
+      for (int i = last_item_index; i >= 0; i--) {
+        const display::Rect item_dimensions = menu_dimensions[i];
         height_left_to_use -= (item_dimensions.h + y_padding);
 
         if (height_left_to_use <= 0) {
           // Ran out of space -  this is our first item to draw
-          first_item_index = i + 1;
+          first_item_index = i;
           break;
         }
+      }
+      const int items_to_draw = last_item_index - first_item_index;
+      // Dont't draw last item partially if it is the selected item
+      if ((this->cursor_index_ == last_item_index) && (number_items_fit_to_screen <= items_to_draw) &&
+          (first_item_index < max_item_index)) {
+        first_item_index++;
       }
     }
   }
 
+  // Render the items into the view port
   display->start_clipping(*bounds);
 
-  // Render the items into the view port
-  for (size_t i = first_item_index; i < last_item_index; i++) {
-    auto *item = this->displayed_item_->get_item(i);
-    bool selected = i == this->cursor_index_;
-    display::Rect dimensions = menu_dimensions.at(i);
+  int y_offset = bounds->y;
+  for (size_t i = first_item_index; i <= last_item_index; i++) {
+    const auto *item = this->displayed_item_->get_item(i);
+    const bool selected = i == this->cursor_index_;
+    display::Rect dimensions = menu_dimensions[i];
 
     dimensions.y = y_offset;
     dimensions.x = bounds->x;
@@ -175,7 +183,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
 }
 
 display::Rect GraphicalDisplayMenu::measure_item(display::Display *display, const display_menu_base::MenuItem *item,
-                                                 const display::Rect *bounds, bool selected) {
+                                                 const display::Rect *bounds, const bool selected) {
   display::Rect dimensions(0, 0, 0, 0);
 
   if (selected) {
@@ -204,9 +212,9 @@ display::Rect GraphicalDisplayMenu::measure_item(display::Display *display, cons
 }
 
 inline void GraphicalDisplayMenu::draw_item(display::Display *display, const display_menu_base::MenuItem *item,
-                                            const display::Rect *bounds, bool selected) {
-  auto background_color = selected ? this->foreground_color_ : this->background_color_;
-  auto foreground_color = selected ? this->background_color_ : this->foreground_color_;
+                                            const display::Rect *bounds, const bool selected) {
+  const auto background_color = selected ? this->foreground_color_ : this->background_color_;
+  const auto foreground_color = selected ? this->background_color_ : this->foreground_color_;
 
   // int background_width = std::max(bounds->width, available_width);
   int background_width = bounds->w;
@@ -224,7 +232,7 @@ inline void GraphicalDisplayMenu::draw_item(display::Display *display, const dis
   display->print(bounds->x, bounds->y, this->font_, foreground_color, display::TextAlign::TOP_LEFT, label.c_str());
 }
 
-void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) {
+void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, const uint8_t row, const bool selected) {
   ESP_LOGE(TAG, "draw_item(MenuItem *item, uint8_t row, bool selected) called. The graphical_display_menu specific "
                 "draw_item should be called.");
 }
