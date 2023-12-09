@@ -601,6 +601,59 @@ void WaveshareEPaper2P7In::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+void WaveshareEPaper2P7InV2::initialize() {
+  this->reset_();
+  this->wait_until_idle_();
+
+  this->command(0x12);  // SWRESET
+  this->wait_until_idle_();
+
+  // SET WINDOWS
+  // XRAM_START_AND_END_POSITION
+  this->command(0x44);
+  this->data(0x00);
+  this->data(((get_width_internal() - 1) >> 3) & 0xFF);
+  // YRAM_START_AND_END_POSITION
+  this->command(0x45);
+  this->data(0x00);
+  this->data(0x00);
+  this->data((get_height_internal() - 1) & 0xFF);
+  this->data(((get_height_internal() - 1) >> 8) & 0xFF);
+
+  // SET CURSOR
+  // XRAM_ADDRESS
+  this->command(0x4E);
+  this->data(0x00);
+  // YRAM_ADDRESS
+  this->command(0x4F);
+  this->data(0x00);
+  this->data(0x00);
+
+  this->command(0x11);  // data entry mode
+  this->data(0x03);
+}
+void HOT WaveshareEPaper2P7InV2::display() {
+  this->command(0x24);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x22);
+  this->data(0xF7);
+  this->command(0x20);
+}
+int WaveshareEPaper2P7InV2::get_width_internal() { return 176; }
+int WaveshareEPaper2P7InV2::get_height_internal() { return 264; }
+void WaveshareEPaper2P7InV2::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.7in V2");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 // ========================================================
 //               2.90in Type B (LUT from OTP)
 // Datasheet:
