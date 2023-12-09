@@ -6,7 +6,13 @@ import argparse
 from helpers import git_ls_files, changed_files
 from esphome.loader import get_component, get_platform
 from esphome.core import CORE
-from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+from esphome.const import (
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+)
 
 
 def filter_component_files(str):
@@ -24,13 +30,28 @@ def extract_component_names_array_from_files_array(files):
     return components
 
 
+def add_item_to_components_graph(components_graph, parent, child):
+    if not parent.startswith("__") and parent != child:
+        if parent not in components_graph:
+            components_graph[parent] = []
+        if child not in components_graph[parent]:
+            components_graph[parent].append(child)
+
+
 def create_components_graph():
     # The root directory of the repo
     root = Path(__file__).parent.parent
     components_dir = root / "esphome" / "components"
     # Fake some directory so that get_component works
     CORE.config_path = str(root)
-    CORE.data[KEY_CORE] = {KEY_TARGET_FRAMEWORK: None, KEY_TARGET_PLATFORM: None}
+    # Various configuration to capture different outcomes used by `AUTO_LOAD` function.
+    TARGET_CONFIGURATIONS = [
+        {KEY_TARGET_FRAMEWORK: None, KEY_TARGET_PLATFORM: None},
+        {KEY_TARGET_FRAMEWORK: "arduino", KEY_TARGET_PLATFORM: None},
+        {KEY_TARGET_FRAMEWORK: "esp-idf", KEY_TARGET_PLATFORM: None},
+        {KEY_TARGET_FRAMEWORK: None, KEY_TARGET_PLATFORM: PLATFORM_ESP32},
+    ]
+    CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
 
     components_graph = {}
 
@@ -48,18 +69,14 @@ def create_components_graph():
             sys.exit(1)
 
         for dependency in comp.dependencies:
-            if dependency != name:
-                if dependency not in components_graph:
-                    components_graph[dependency] = []
-                if name not in components_graph[dependency]:
-                    components_graph[dependency].append(name)
+            add_item_to_components_graph(components_graph, dependency, name)
 
-        for auto_load in comp.auto_load:
-            if auto_load != name:
-                if auto_load not in components_graph:
-                    components_graph[auto_load] = []
-                if name not in components_graph[auto_load]:
-                    components_graph[auto_load].append(name)
+        for target_config in TARGET_CONFIGURATIONS:
+            CORE.data[KEY_CORE] = target_config
+            for auto_load in comp.auto_load:
+                add_item_to_components_graph(components_graph, auto_load, name)
+        # restore config
+        CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
 
         for platform_path in path.iterdir():
             platform_name = platform_path.stem
@@ -67,25 +84,17 @@ def create_components_graph():
             if platform is None:
                 continue
 
-            if platform_name != name:
-                if platform_name not in components_graph:
-                    components_graph[platform_name] = []
-                if name not in components_graph[platform_name]:
-                    components_graph[platform_name].append(name)
+            add_item_to_components_graph(components_graph, platform_name, name)
 
             for dependency in platform.dependencies:
-                if dependency != name:
-                    if dependency not in components_graph:
-                        components_graph[dependency] = []
-                    if name not in components_graph[dependency]:
-                        components_graph[dependency].append(name)
+                add_item_to_components_graph(components_graph, dependency, name)
 
-            for auto_load in platform.auto_load:
-                if auto_load != name:
-                    if auto_load not in components_graph:
-                        components_graph[auto_load] = []
-                    if name not in components_graph[auto_load]:
-                        components_graph[auto_load].append(name)
+            for target_config in TARGET_CONFIGURATIONS:
+                CORE.data[KEY_CORE] = target_config
+                for auto_load in platform.auto_load:
+                    add_item_to_components_graph(components_graph, auto_load, name)
+            # restore config
+            CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
 
     return components_graph
 
