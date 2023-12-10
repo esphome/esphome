@@ -71,9 +71,7 @@ class Touchscreen : public PollingComponent {
 
   optional<TouchPoint> get_touch() {
     if (!this->touches_.empty()) {
-      for (auto i : this->touches_) {
-        return i.second;
-      }
+      return this->touches_.begin().second;
     }
     return {};
   }
