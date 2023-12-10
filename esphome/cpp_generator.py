@@ -17,6 +17,7 @@ from esphome.core import (
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
     TimePeriodMinutes,
+    TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
@@ -351,6 +352,8 @@ def safe_exp(obj: SafeExpType) -> Expression:
         return IntLiteral(obj)
     if isinstance(obj, float):
         return FloatLiteral(obj)
+    if isinstance(obj, TimePeriodNanoseconds):
+        return IntLiteral(int(obj.total_nanoseconds))
     if isinstance(obj, TimePeriodMicroseconds):
         return IntLiteral(int(obj.total_microseconds))
     if isinstance(obj, TimePeriodMilliseconds):
@@ -663,7 +666,11 @@ async def process_lambda(
     :param return_type: The return type of the lambda.
     :return: The generated lambda expression.
     """
-    from esphome.components.globals import GlobalsComponent, RestoringGlobalsComponent
+    from esphome.components.globals import (
+        GlobalsComponent,
+        RestoringGlobalsComponent,
+        RestoringGlobalStringComponent,
+    )
 
     if value is None:
         return
@@ -676,6 +683,7 @@ async def process_lambda(
             and (
                 full_id.type.inherits_from(GlobalsComponent)
                 or full_id.type.inherits_from(RestoringGlobalsComponent)
+                or full_id.type.inherits_from(RestoringGlobalStringComponent)
             )
         ):
             parts[i * 3 + 1] = var.value()

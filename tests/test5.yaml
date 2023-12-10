@@ -22,28 +22,47 @@ wifi:
         gateway: 192.168.1.1
         subnet: 255.255.255.0
 
+network:
+  enable_ipv6: true
+
 api:
 
 ota:
 
 logger:
 
+debug:
+
+psram:
+
 uart:
-  - id: uart1
+  - id: uart_1
     tx_pin: 1
     rx_pin: 3
     baud_rate: 9600
-  - id: uart2
-    tx_pin: 17
-    rx_pin: 16
+  - id: uart_2
+    tx_pin:
+      allow_other_uses: true
+      number: 17
+      inverted: true
+    rx_pin:
+      allow_other_uses: true
+      number: 16
     baud_rate: 19200
 
 i2c:
+  sda:
+    allow_other_uses: true
+    number: 21
+  scl:
+    number: 22
   frequency: 100khz
 
 modbus:
-  uart_id: uart1
-  flow_control_pin: 5
+  uart_id: uart_1
+  flow_control_pin:
+    allow_other_uses: true
+    number: 5
   id: mod_bus1
 
 modbus_controller:
@@ -57,6 +76,7 @@ mqtt:
   discovery: true
   discovery_prefix: homeassistant
   idf_send_async: false
+  log_topic:
   on_message:
     topic: testing/sensor/testing_sensor/state
     qos: 0
@@ -67,7 +87,7 @@ mqtt:
       # yamllint enable rule:line-length
 
 vbus:
-  - uart_id: uart2
+  - uart_id: uart_2
 
 binary_sensor:
   - platform: gpio
@@ -204,9 +224,21 @@ binary_sensor:
         lambda: return x[0] & 1;
 
 tlc5947:
-  data_pin: GPIO12
-  clock_pin: GPIO14
-  lat_pin: GPIO15
+  data_pin:
+    number: GPIO12
+    allow_other_uses: true
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO14
+  lat_pin:
+    allow_other_uses: true
+    number: GPIO15
+
+gp8403:
+  - id: gp8403_5v
+    voltage: 5V
+  - id: gp8403_10v
+    voltage: 10V
 
 output:
   - platform: gpio
@@ -244,6 +276,15 @@ output:
   - platform: tm1638
     id: Led7
     led: 7
+
+  - platform: gp8403
+    id: gp8403_output_0
+    gp8403_id: gp8403_5v
+    channel: 0
+  - platform: gp8403
+    gp8403_id: gp8403_10v
+    id: gp8403_output_1
+    channel: 1
 
 demo:
 
@@ -373,8 +414,15 @@ select:
       "Three": 3
 
 sensor:
+  - platform: adc
+    id: adc_sensor_p32
+    name: ADC pin 32
+    pin: 32
+    attenuation: 11db
+    update_interval: 1s
   - platform: internal_temperature
     name: Internal Temperature
+    state_topic:
   - platform: selec_meter
     total_active_energy:
       name: SelecEM2M Total Active Energy
@@ -422,7 +470,7 @@ sensor:
     value_type: U_WORD
 
   - platform: t6615
-    uart_id: uart2
+    uart_id: uart_2
     co2:
       name: CO2 Sensor
 
@@ -474,6 +522,7 @@ sensor:
       offset: 0
       normalized_offset_slope: 0
       time_constant: 0
+    auto_cleaning_interval: 604800s
     acceleration_mode: low
     store_baseline: true
     address: 0x69
@@ -509,6 +558,16 @@ sensor:
     time:
       name: System Time
 
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Heap Max Block"
+    loop_time:
+      name: "Loop Time"
+    psram:
+      name: "PSRAM Free"
+
   - platform: vbus
     model: custom
     command: 0x100
@@ -532,6 +591,13 @@ script:
           count: 5
           then:
             - logger.log: looping!
+
+  - id: zero_repeat_test
+    then:
+      - repeat:
+          count: !lambda "return 0;"
+          then:
+            - logger.log: shouldn't see mee!
 
 switch:
   - platform: modbus_controller
@@ -564,7 +630,9 @@ switch:
 display:
   - platform: tm1638
     id: primarydisplay
-    stb_pin: 5 #TM1638 STB
+    stb_pin:
+      allow_other_uses: true
+      number: 5 #TM1638 STB
     clk_pin: 18 #TM1638 CLK
     dio_pin: 23 #TM1638 DIO
     update_interval: 5s
@@ -574,6 +642,7 @@ display:
 
 time:
   - platform: pcf85063
+  - platform: pcf8563
 
 text_sensor:
   - platform: ezo_pmp
@@ -608,8 +677,12 @@ text_sensor:
 
 sn74hc165:
   id: sn74hc165_hub
-  data_pin: GPIO12
-  clock_pin: GPIO14
+  data_pin:
+    allow_other_uses: true
+    number: GPIO12
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO14
   load_pin: GPIO27
   clock_inhibit_pin: GPIO26
   sr_count: 4
@@ -617,15 +690,43 @@ sn74hc165:
 matrix_keypad:
   id: keypad
   rows:
-    - pin: 21
+    - pin:
+        allow_other_uses: true
+        number: 21
     - pin: 19
   columns:
-    - pin: 17
-    - pin: 16
+    - pin:
+        allow_other_uses: true
+        number: 17
+    - pin:
+        allow_other_uses: true
+        number: 16
   keys: "1234"
+  has_pulldowns: true
 
 key_collector:
   - id: reader
     source_id: keypad
     min_length: 4
     max_length: 4
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: led_strip
+    pin: 13
+    num_leds: 60
+    rmt_channel: 6
+    rgb_order: GRB
+    chipset: ws2812
+  - platform: esp32_rmt_led_strip
+    id: led_strip2
+    pin:
+      allow_other_uses: true
+      number: 15
+    num_leds: 60
+    rmt_channel: 2
+    rgb_order: RGB
+    bit0_high: 100us
+    bit0_low: 100us
+    bit1_high: 100us
+    bit1_low: 100us

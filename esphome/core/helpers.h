@@ -17,7 +17,7 @@
 #if defined(USE_ESP32)
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
-#elif defined(USE_RP2040)
+#elif defined(USE_LIBRETINY)
 #include <FreeRTOS.h>
 #include <semphr.h>
 #endif
@@ -158,7 +158,10 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
 uint8_t crc8(uint8_t *data, uint8_t len);
 
 /// Calculate a CRC-16 checksum of \p data with size \p len.
-uint16_t crc16(const uint8_t *data, uint8_t len);
+uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc = 0xffff, uint16_t reverse_poly = 0xa001,
+               bool refin = false, bool refout = false);
+uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc = 0, uint16_t poly = 0x1021, bool refin = false,
+                 bool refout = false);
 
 /// Calculate a FNV-1 hash of \p str.
 uint32_t fnv1_hash(const std::string &str);
@@ -398,6 +401,9 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::stri
   val = convert_big_endian(val);
   return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
 }
+template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &data) {
+  return format_hex(data.data(), data.size());
+}
 
 /// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
 std::string format_hex_pretty(const uint8_t *data, size_t length);
@@ -475,6 +481,7 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
     for (auto &cb : this->callbacks_)
       cb(args...);
   }
+  size_t size() const { return this->callbacks_.size(); }
 
   /// Call all callbacks in this manager.
   void operator()(Ts... args) { call(args...); }
@@ -539,7 +546,7 @@ class Mutex {
   Mutex &operator=(const Mutex &) = delete;
 
  private:
-#if defined(USE_ESP32) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   SemaphoreHandle_t handle_;
 #endif
 };
@@ -550,7 +557,7 @@ class Mutex {
  */
 class LockGuard {
  public:
-  LockGuard(Mutex &mutex) : mutex_{mutex} { mutex_.lock(); }
+  LockGuard(Mutex &mutex) : mutex_(mutex) { mutex_.lock(); }
   ~LockGuard() { mutex_.unlock(); }
 
  private:

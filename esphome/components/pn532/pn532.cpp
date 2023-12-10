@@ -19,9 +19,12 @@ void PN532::setup() {
 
   // Get version data
   if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
-    ESP_LOGE(TAG, "Error sending version command");
-    this->mark_failed();
-    return;
+    ESP_LOGW(TAG, "Error sending version command, trying again...");
+    if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
+      ESP_LOGE(TAG, "Error sending version command");
+      this->mark_failed();
+      return;
+    }
   }
 
   std::vector<uint8_t> version_data;
@@ -78,7 +81,32 @@ void PN532::setup() {
   this->turn_off_rf_();
 }
 
+bool PN532::powerdown() {
+  updates_enabled_ = false;
+  requested_read_ = false;
+  ESP_LOGI(TAG, "Powering down PN532");
+  if (!this->write_command_({PN532_COMMAND_POWERDOWN, 0b10100000})) {  // enable i2c,spi wakeup
+    ESP_LOGE(TAG, "Error writing powerdown command to PN532");
+    return false;
+  }
+  std::vector<uint8_t> response;
+  if (!this->read_response(PN532_COMMAND_POWERDOWN, response)) {
+    ESP_LOGE(TAG, "Error reading PN532 powerdown response");
+    return false;
+  }
+  if (response[0] != 0x00) {
+    ESP_LOGE(TAG, "Error on PN532 powerdown: %02x", response[0]);
+    return false;
+  }
+  ESP_LOGV(TAG, "Powerdown successful");
+  delay(1);
+  return true;
+}
+
 void PN532::update() {
+  if (!updates_enabled_)
+    return;
+
   for (auto *obj : this->binary_sensors_)
     obj->on_scan_end();
 
@@ -99,8 +127,18 @@ void PN532::loop() {
   if (!this->requested_read_)
     return;
 
+  auto ready = this->read_ready_(false);
+  if (ready == WOULDBLOCK)
+    return;
+
+  bool success = false;
   std::vector<uint8_t> read;
-  bool success = this->read_response(PN532_COMMAND_INLISTPASSIVETARGET, read);
+
+  if (ready == READY) {
+    success = this->read_response(PN532_COMMAND_INLISTPASSIVETARGET, read);
+  } else {
+    this->send_ack_();  // abort still running InListPassiveTarget
+  }
 
   this->requested_read_ = false;
 
@@ -258,10 +296,56 @@ bool PN532::read_ack_() {
   return matches;
 }
 
+void PN532::send_ack_() {
+  ESP_LOGV(TAG, "Sending ACK for abort");
+  this->write_data({0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00});
+  delay(10);
+}
 void PN532::send_nack_() {
   ESP_LOGV(TAG, "Sending NACK for retransmit");
   this->write_data({0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00});
   delay(10);
+}
+
+enum PN532ReadReady PN532::read_ready_(bool block) {
+  if (this->rd_ready_ == READY) {
+    if (block) {
+      this->rd_start_time_ = 0;
+      this->rd_ready_ = WOULDBLOCK;
+    }
+    return READY;
+  }
+
+  if (!this->rd_start_time_) {
+    this->rd_start_time_ = millis();
+  }
+
+  while (true) {
+    if (this->is_read_ready()) {
+      this->rd_ready_ = READY;
+      break;
+    }
+
+    if (millis() - this->rd_start_time_ > 100) {
+      ESP_LOGV(TAG, "Timed out waiting for readiness from PN532!");
+      this->rd_ready_ = TIMEOUT;
+      break;
+    }
+
+    if (!block) {
+      this->rd_ready_ = WOULDBLOCK;
+      break;
+    }
+
+    yield();
+  }
+
+  auto rdy = this->rd_ready_;
+  if (block || rdy == TIMEOUT) {
+    this->rd_start_time_ = 0;
+    this->rd_ready_ = WOULDBLOCK;
+  }
+  return rdy;
 }
 
 void PN532::turn_off_rf_() {

@@ -20,8 +20,7 @@ void SPISSD1331::setup() {
 }
 void SPISSD1331::dump_config() {
   LOG_DISPLAY("", "SPI SSD1331", this);
-  if (this->cs_)
-    LOG_PIN("  CS Pin: ", this->cs_);
+  LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  Initial Brightness: %.2f", this->brightness_);

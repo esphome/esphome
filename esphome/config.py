@@ -7,10 +7,11 @@ import re
 from typing import Optional, Union
 
 from contextlib import contextmanager
+import contextvars
 
 import voluptuous as vol
 
-from esphome import core, yaml_util, loader
+from esphome import core, yaml_util, loader, pins
 import esphome.core.config as core_config
 from esphome.const import (
     CONF_ESPHOME,
@@ -25,7 +26,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
-from esphome.config_helpers import Extend
+from esphome.config_helpers import Extend, Remove
 from esphome.loader import get_component, get_platform, ComponentManifest
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
@@ -53,6 +54,7 @@ def iter_components(config):
 
 
 ConfigPath = list[Union[str, int]]
+path_context = contextvars.ContextVar("Config path")
 
 
 def _path_begins_with(path: ConfigPath, other: ConfigPath) -> bool:
@@ -343,6 +345,12 @@ class LoadValidationStep(ConfigValidationStep):
                         path + [CONF_ID],
                     )
                     continue
+                if isinstance(p_id, Remove):
+                    result.add_str_error(
+                        f"Source for removal of ID '{p_id.value}' was not found.",
+                        path + [CONF_ID],
+                    )
+                    continue
                 result.add_str_error("No platform specified! See 'platform' key.", path)
                 continue
             # Remove temp output path and construct new one
@@ -489,6 +497,7 @@ class SchemaValidationStep(ConfigValidationStep):
     def run(self, result: Config) -> None:
         if self.comp.config_schema is None:
             return
+        token = path_context.set(self.path)
         with result.catch_error(self.path):
             if self.comp.is_platform:
                 # Remove 'platform' key for validation
@@ -507,6 +516,7 @@ class SchemaValidationStep(ConfigValidationStep):
                 validated = schema(self.conf)
                 result.set_by_path(self.path, validated)
 
+        path_context.reset(token)
         result.add_validation_step(FinalValidateValidationStep(self.path, self.comp))
 
 
@@ -630,6 +640,35 @@ class IDPassValidationStep(ConfigValidationStep):
                             )
 
 
+class RemoveReferenceValidationStep(ConfigValidationStep):
+    """
+    Make sure all !remove references have been removed from the config.
+    Any left overs mean the merge step couldn't find corresponding previously existing id/key
+    """
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            # If result already has errors, skip this step
+            return
+
+        def recursive_check_remove_tag(config: Config, path: ConfigPath = None):
+            path = path or []
+
+            if isinstance(config, Remove):
+                result.add_str_error(
+                    f"Source for removal at '{'->'.join([str(p) for p in path])}' was not found.",
+                    path,
+                )
+            elif isinstance(config, list):
+                for i, item in enumerate(config):
+                    recursive_check_remove_tag(item, path + [i])
+            elif isinstance(config, dict):
+                for key, value in config.items():
+                    recursive_check_remove_tag(value, path + [key])
+
+        recursive_check_remove_tag(result)
+
+
 class FinalValidateValidationStep(ConfigValidationStep):
     """Run final_validate_schema for all components."""
 
@@ -645,16 +684,29 @@ class FinalValidateValidationStep(ConfigValidationStep):
             # If result already has errors, skip this step
             return
 
-        if self.comp.final_validate_schema is None:
-            return
-
         token = fv.full_config.set(result)
 
         conf = result.get_nested_item(self.path)
         with result.catch_error(self.path):
-            self.comp.final_validate_schema(conf)
+            if self.comp.final_validate_schema is not None:
+                self.comp.final_validate_schema(conf)
 
         fv.full_config.reset(token)
+
+
+class PinUseValidationCheck(ConfigValidationStep):
+    """Check for pin reuse"""
+
+    priority = -30  # Should happen after component final validations
+
+    def __init__(self) -> None:
+        pass
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            # If result already has errors, skip this step
+            return
+        pins.PIN_SCHEMA_REGISTRY.final_validate(result)
 
 
 def validate_config(config, command_line_substitutions) -> Config:
@@ -752,6 +804,9 @@ def validate_config(config, command_line_substitutions) -> Config:
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
     result.add_validation_step(IDPassValidationStep())
+    result.add_validation_step(PinUseValidationCheck())
+
+    result.add_validation_step(RemoveReferenceValidationStep())
 
     result.run_validation_steps()
 

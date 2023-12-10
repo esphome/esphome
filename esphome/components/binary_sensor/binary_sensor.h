@@ -34,7 +34,7 @@ namespace binary_sensor {
  * The sub classes should notify the front-end of new states via the publish_state() method which
  * handles inverted inputs for you.
  */
-class BinarySensor : public EntityBase {
+class BinarySensor : public EntityBase, public EntityBase_DeviceClass {
  public:
   explicit BinarySensor();
 
@@ -60,12 +60,6 @@ class BinarySensor : public EntityBase {
   /// The current reported state of the binary sensor.
   bool state;
 
-  /// Manually set the Home Assistant device class (see binary_sensor::device_class)
-  void set_device_class(const std::string &device_class);
-
-  /// Get the device class for this binary sensor, using the manual override if specified.
-  std::string get_device_class();
-
   void add_filter(Filter *filter);
   void add_filters(const std::vector<Filter *> &filters);
 
@@ -82,7 +76,6 @@ class BinarySensor : public EntityBase {
 
  protected:
   CallbackManager<void(bool)> state_callback_{};
-  optional<std::string> device_class_{};  ///< Stores the override of the device class
   Filter *filter_list_{nullptr};
   bool has_state_{false};
   bool publish_initial_state_{false};

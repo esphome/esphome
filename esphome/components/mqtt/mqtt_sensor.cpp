@@ -1,3 +1,4 @@
+#include <cinttypes>
 #include "mqtt_sensor.h"
 #include "esphome/core/log.h"
 
@@ -26,7 +27,7 @@ void MQTTSensorComponent::setup() {
 void MQTTSensorComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Sensor '%s':", this->sensor_->get_name().c_str());
   if (this->get_expire_after() > 0) {
-    ESP_LOGCONFIG(TAG, "  Expire After: %us", this->get_expire_after() / 1000);
+    ESP_LOGCONFIG(TAG, "  Expire After: %" PRIu32 "s", this->get_expire_after() / 1000);
   }
   LOG_MQTT_COMPONENT(true, false)
 }

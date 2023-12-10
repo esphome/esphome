@@ -1,5 +1,5 @@
 #include "graph.h"
-#include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -56,7 +56,7 @@ void GraphTrace::init(Graph *g) {
   this->data_.set_update_time_ms(g->get_duration() * 1000 / g->get_width());
 }
 
-void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
+void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
   /// Plot border
   if (this->border_) {
     buff->horizontal_line(x_offset, y_offset, this->width_, color);
@@ -122,11 +122,18 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
   }
 
   // Adjust limits to nice y_per_div boundaries
-  int yn = int(ymin / y_per_div);
-  int ym = int(ymax / y_per_div) + int(1 * (fmodf(ymax, y_per_div) != 0));
-  ymin = yn * y_per_div;
-  ymax = ym * y_per_div;
-  yrange = ymax - ymin;
+  int yn = 0;
+  int ym = 1;
+  if (!std::isnan(ymin) && !std::isnan(ymax)) {
+    yn = (int) floorf(ymin / y_per_div);
+    ym = (int) ceilf(ymax / y_per_div);
+    if (yn == ym) {
+      ym++;
+    }
+    ymin = yn * y_per_div;
+    ymax = ym * y_per_div;
+    yrange = ymax - ymin;
+  }
 
   /// Draw grid
   if (!std::isnan(this->gridspacing_y_)) {
@@ -296,7 +303,7 @@ void GraphLegend::init(Graph *g) {
   }
 }
 
-void Graph::draw_legend(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
+void Graph::draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
   if (!legend_)
     return;
 

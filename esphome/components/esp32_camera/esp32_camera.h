@@ -29,6 +29,14 @@ enum ESP32CameraFrameSize {
   ESP32_CAMERA_SIZE_1024X768,   // XGA
   ESP32_CAMERA_SIZE_1280X1024,  // SXGA
   ESP32_CAMERA_SIZE_1600X1200,  // UXGA
+  ESP32_CAMERA_SIZE_1920X1080,  // FHD
+  ESP32_CAMERA_SIZE_720X1280,   // PHD
+  ESP32_CAMERA_SIZE_864X1536,   // P3MP
+  ESP32_CAMERA_SIZE_2048X1536,  // QXGA
+  ESP32_CAMERA_SIZE_2560X1440,  // QHD
+  ESP32_CAMERA_SIZE_2560X1600,  // WQXGA
+  ESP32_CAMERA_SIZE_1080X1920,  // PFHD
+  ESP32_CAMERA_SIZE_2560X1920,  // QSXGA
 };
 
 enum ESP32AgcGainCeiling {
@@ -95,7 +103,6 @@ class CameraImageReader {
 /* ---------------- ESP32Camera class ---------------- */
 class ESP32Camera : public Component, public EntityBase {
  public:
-  ESP32Camera(const std::string &name);
   ESP32Camera();
 
   /* setters */

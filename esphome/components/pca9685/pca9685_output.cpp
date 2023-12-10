@@ -29,13 +29,10 @@ void PCA9685Output::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PCA9685OutputComponent...");
 
   ESP_LOGV(TAG, "  Resetting devices...");
-  uint8_t address_tmp = this->address_;
-  this->set_i2c_address(0x00);
   if (!this->write_bytes(PCA9685_REGISTER_SOFTWARE_RESET, nullptr, 0)) {
     this->mark_failed();
     return;
   }
-  this->set_i2c_address(address_tmp);
 
   if (!this->write_byte(PCA9685_REGISTER_MODE1, PCA9685_MODE1_RESTART | PCA9685_MODE1_AUTOINC)) {
     this->mark_failed();

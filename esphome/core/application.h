@@ -39,6 +39,9 @@
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
+#ifdef USE_TEXT
+#include "esphome/components/text/text.h"
+#endif
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
@@ -48,13 +51,16 @@
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
+#ifdef USE_ALARM_CONTROL_PANEL
+#include "esphome/components/alarm_control_panel/alarm_control_panel.h"
+#endif
 
 namespace esphome {
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, const std::string &comment,
-                 const char *compilation_time, bool name_add_mac_suffix) {
+  void pre_setup(const std::string &name, const std::string &friendly_name, const std::string &area,
+                 const char *comment, const char *compilation_time, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
@@ -68,6 +74,7 @@ class Application {
       this->name_ = name;
       this->friendly_name_ = friendly_name;
     }
+    this->area_ = area;
     this->comment_ = comment;
     this->compilation_time_ = compilation_time;
   }
@@ -114,6 +121,10 @@ class Application {
   void register_number(number::Number *number) { this->numbers_.push_back(number); }
 #endif
 
+#ifdef USE_TEXT
+  void register_text(text::Text *text) { this->texts_.push_back(text); }
+#endif
+
 #ifdef USE_SELECT
   void register_select(select::Select *select) { this->selects_.push_back(select); }
 #endif
@@ -124,6 +135,12 @@ class Application {
 
 #ifdef USE_MEDIA_PLAYER
   void register_media_player(media_player::MediaPlayer *media_player) { this->media_players_.push_back(media_player); }
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+  void register_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+    this->alarm_control_panels_.push_back(a_alarm_control_panel);
+  }
 #endif
 
   /// Register the component in this Application instance.
@@ -144,12 +161,16 @@ class Application {
 
   /// Get the friendly name of this Application set by pre_setup().
   const std::string &get_friendly_name() const { return this->friendly_name_; }
+
+  /// Get the area of this Application set by pre_setup().
+  const std::string &get_area() const { return this->area_; }
+
   /// Get the comment of this Application set by pre_setup().
-  const std::string &get_comment() const { return this->comment_; }
+  std::string get_comment() const { return this->comment_; }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
-  const std::string &get_compilation_time() const { return this->compilation_time_; }
+  std::string get_compilation_time() const { return this->compilation_time_; }
 
   /** Set the target interval with which to run the loop() calls.
    * If the loop() method takes longer than the target interval, ESPHome won't
@@ -268,6 +289,15 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_TEXT
+  const std::vector<text::Text *> &get_texts() { return this->texts_; }
+  text::Text *get_text_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->texts_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 #ifdef USE_SELECT
   const std::vector<select::Select *> &get_selects() { return this->selects_; }
   select::Select *get_select_by_key(uint32_t key, bool include_internal = false) {
@@ -290,6 +320,18 @@ class Application {
   const std::vector<media_player::MediaPlayer *> &get_media_players() { return this->media_players_; }
   media_player::MediaPlayer *get_media_player_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->media_players_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+  const std::vector<alarm_control_panel::AlarmControlPanel *> &get_alarm_control_panels() {
+    return this->alarm_control_panels_;
+  }
+  alarm_control_panel::AlarmControlPanel *get_alarm_control_panel_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->alarm_control_panels_)
       if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
@@ -343,17 +385,24 @@ class Application {
 #ifdef USE_SELECT
   std::vector<select::Select *> selects_{};
 #endif
+#ifdef USE_TEXT
+  std::vector<text::Text *> texts_{};
+#endif
 #ifdef USE_LOCK
   std::vector<lock::Lock *> locks_{};
 #endif
 #ifdef USE_MEDIA_PLAYER
   std::vector<media_player::MediaPlayer *> media_players_{};
 #endif
+#ifdef USE_ALARM_CONTROL_PANEL
+  std::vector<alarm_control_panel::AlarmControlPanel *> alarm_control_panels_{};
+#endif
 
   std::string name_;
   std::string friendly_name_;
-  std::string comment_;
-  std::string compilation_time_;
+  std::string area_;
+  const char *comment_{nullptr};
+  const char *compilation_time_{nullptr};
   bool name_add_mac_suffix_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};

@@ -13,6 +13,12 @@ __pycache__/
 # Intellij Idea
 .idea
 
+# Eclipse
+.project
+.cproject
+.pydevproject
+.settings/
+
 # Vim
 *.swp
 
@@ -130,3 +136,5 @@ sdkconfig.*
 !sdkconfig.defaults
 
 .tests/
+
+/components

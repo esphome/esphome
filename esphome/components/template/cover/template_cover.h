@@ -26,6 +26,7 @@ class TemplateCover : public cover::Cover, public Component {
   void set_optimistic(bool optimistic);
   void set_assumed_state(bool assumed_state);
   void set_tilt_lambda(std::function<optional<float>()> &&tilt_f);
+  void set_has_stop(bool has_stop);
   void set_has_position(bool has_position);
   void set_has_tilt(bool has_tilt);
   void set_restore_mode(TemplateCoverRestoreMode restore_mode) { restore_mode_ = restore_mode; }
@@ -48,6 +49,7 @@ class TemplateCover : public cover::Cover, public Component {
   bool optimistic_{false};
   Trigger<> *open_trigger_;
   Trigger<> *close_trigger_;
+  bool has_stop_{false};
   Trigger<> *stop_trigger_;
   Trigger<> *prev_command_trigger_{nullptr};
   Trigger<float> *position_trigger_;

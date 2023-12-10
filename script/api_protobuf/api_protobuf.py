@@ -4,7 +4,7 @@
 It's pretty crappy spaghetti code, but it works.
 
 you need to install protobuf-compiler:
-running protc --version should return
+running protoc --version should return
 libprotoc 3.6.1
 
 then run this script with python3 and the files
@@ -18,6 +18,7 @@ will be generated, they still need to be formatted
 """
 
 import re
+import os
 from pathlib import Path
 from textwrap import dedent
 from subprocess import call
@@ -262,7 +263,7 @@ class Int32Type(TypeInfo):
     encode_func = "encode_int32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%d", {name});\n'
+        o = f'sprintf(buffer, "%" PRId32, {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -288,7 +289,7 @@ class Fixed32Type(TypeInfo):
     encode_func = "encode_fixed32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%u", {name});\n'
+        o = f'sprintf(buffer, "%" PRIu32, {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -370,7 +371,7 @@ class UInt32Type(TypeInfo):
     encode_func = "encode_uint32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%u", {name});\n'
+        o = f'sprintf(buffer, "%" PRIu32, {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -404,7 +405,7 @@ class SFixed32Type(TypeInfo):
     encode_func = "encode_sfixed32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%d", {name});\n'
+        o = f'sprintf(buffer, "%" PRId32, {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -430,7 +431,7 @@ class SInt32Type(TypeInfo):
     encode_func = "encode_sint32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%d", {name});\n'
+        o = f'sprintf(buffer, "%" PRId32, {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -700,6 +701,8 @@ cpp += """\
 #include "api_pb2.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace api {
 
@@ -944,3 +947,19 @@ with open(root / "api_pb2_service.cpp", "w") as f:
     f.write(cpp)
 
 prot.unlink()
+
+try:
+    import clang_format
+
+    def exec_clang_format(path):
+        clang_format_path = os.path.join(
+            os.path.dirname(clang_format.__file__), "data", "bin", "clang-format"
+        )
+        call([clang_format_path, "-i", path])
+
+    exec_clang_format(root / "api_pb2_service.h")
+    exec_clang_format(root / "api_pb2_service.cpp")
+    exec_clang_format(root / "api_pb2.h")
+    exec_clang_format(root / "api_pb2.cpp")
+except ImportError:
+    pass

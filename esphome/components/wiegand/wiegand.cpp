@@ -102,6 +102,16 @@ void Wiegand::loop() {
       uint8_t key = KEYS[value];
       this->send_key_(key);
     }
+  } else if (count == 8) {
+    if ((value ^ 0xf0) >> 4 == (value & 0xf)) {
+      value &= 0xf;
+      for (auto *trigger : this->key_triggers_)
+        trigger->trigger(value);
+      if (value < 12) {
+        uint8_t key = KEYS[value];
+        this->send_key_(key);
+      }
+    }
   } else {
     ESP_LOGD(TAG, "received unknown %d-bit value: %llx", count, value);
   }

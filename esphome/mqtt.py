@@ -4,6 +4,7 @@ import logging
 import ssl
 import sys
 import time
+import json
 
 import paho.mqtt.client as mqtt
 
@@ -24,15 +25,45 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.log import color, Fore
 from esphome.util import safe_print
+from esphome.helpers import get_str_env, get_int_env
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def initialize(config, subscriptions, on_message, username, password, client_id):
-    def on_connect(client, userdata, flags, return_code):
+def config_from_env():
+    config = {
+        CONF_MQTT: {
+            CONF_USERNAME: get_str_env("ESPHOME_DASHBOARD_MQTT_USERNAME"),
+            CONF_PASSWORD: get_str_env("ESPHOME_DASHBOARD_MQTT_PASSWORD"),
+            CONF_BROKER: get_str_env("ESPHOME_DASHBOARD_MQTT_BROKER"),
+            CONF_PORT: get_int_env("ESPHOME_DASHBOARD_MQTT_PORT", 1883),
+        },
+    }
+    return config
+
+
+def initialize(
+    config, subscriptions, on_message, on_connect, username, password, client_id
+):
+    client = prepare(
+        config, subscriptions, on_message, on_connect, username, password, client_id
+    )
+    try:
+        client.loop_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+def prepare(
+    config, subscriptions, on_message, on_connect, username, password, client_id
+):
+    def on_connect_(client, userdata, flags, return_code):
         _LOGGER.info("Connected to MQTT broker!")
         for topic in subscriptions:
             client.subscribe(topic)
+        if on_connect is not None:
+            on_connect(client, userdata, flags, return_code)
 
     def on_disconnect(client, userdata, result_code):
         if result_code == 0:
@@ -57,7 +88,7 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
             tries += 1
 
     client = mqtt.Client(client_id or "")
-    client.on_connect = on_connect
+    client.on_connect = on_connect_
     client.on_message = on_message
     client.on_disconnect = on_disconnect
     if username is None:
@@ -89,11 +120,88 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
     except OSError as err:
         raise EsphomeError(f"Cannot connect to MQTT broker: {err}") from err
 
-    try:
-        client.loop_forever()
-    except KeyboardInterrupt:
-        pass
-    return 0
+    return client
+
+
+def show_discover(config, username=None, password=None, client_id=None):
+    topic = "esphome/discover/#"
+    _LOGGER.info("Starting log output from %s", topic)
+
+    def on_message(client, userdata, msg):
+        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        payload = msg.payload.decode(errors="backslashreplace")
+        if len(payload) > 0:
+            message = time_ + " " + payload
+            safe_print(message)
+
+    def on_connect(client, userdata, flags, return_code):
+        _LOGGER.info("Send discover via MQTT broker")
+        client.publish("esphome/discover", None, retain=False)
+
+    return initialize(
+        config, [topic], on_message, on_connect, username, password, client_id
+    )
+
+
+def get_esphome_device_ip(
+    config, username=None, password=None, client_id=None, timeout=25
+):
+    if CONF_MQTT not in config:
+        raise EsphomeError(
+            "Cannot discover IP via MQTT as the config does not include the mqtt: "
+            "component"
+        )
+    if CONF_ESPHOME not in config or CONF_NAME not in config[CONF_ESPHOME]:
+        raise EsphomeError(
+            "Cannot discover IP via MQTT as the config does not include the device name: "
+            "component"
+        )
+
+    dev_name = config[CONF_ESPHOME][CONF_NAME]
+    dev_ip = None
+
+    topic = "esphome/discover/" + dev_name
+    _LOGGER.info("Starting looking for IP in topic %s", topic)
+
+    def on_message(client, userdata, msg):
+        nonlocal dev_ip
+        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        payload = msg.payload.decode(errors="backslashreplace")
+        if len(payload) > 0:
+            message = time_ + " " + payload
+            _LOGGER.debug(message)
+
+            data = json.loads(payload)
+            if "name" not in data or data["name"] != dev_name:
+                _LOGGER.Warn("Wrong device answer")
+                return
+
+            if "ip" in data:
+                dev_ip = data["ip"]
+                client.disconnect()
+
+    def on_connect(client, userdata, flags, return_code):
+        topic = "esphome/ping/" + dev_name
+        _LOGGER.info("Send discover via MQTT broker topic: %s", topic)
+        client.publish(topic, None, retain=False)
+
+    mqtt_client = prepare(
+        config, [topic], on_message, on_connect, username, password, client_id
+    )
+
+    mqtt_client.loop_start()
+    while timeout > 0:
+        if dev_ip is not None:
+            break
+        timeout -= 0.250
+        time.sleep(0.250)
+    mqtt_client.loop_stop()
+
+    if dev_ip is None:
+        raise EsphomeError("Failed to find IP via MQTT")
+
+    _LOGGER.info("Found IP: %s", dev_ip)
+    return dev_ip
 
 
 def show_logs(config, topic=None, username=None, password=None, client_id=None):
@@ -118,7 +226,7 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
         message = time_ + payload
         safe_print(message)
 
-    return initialize(config, [topic], on_message, username, password, client_id)
+    return initialize(config, [topic], on_message, None, username, password, client_id)
 
 
 def clear_topic(config, topic, username=None, password=None, client_id=None):
@@ -142,7 +250,7 @@ def clear_topic(config, topic, username=None, password=None, client_id=None):
             return
         client.publish(msg.topic, None, retain=True)
 
-    return initialize(config, [topic], on_message, username, password, client_id)
+    return initialize(config, [topic], on_message, None, username, password, client_id)
 
 
 # From marvinroger/async-mqtt-client -> scripts/get-fingerprint/get-fingerprint.py

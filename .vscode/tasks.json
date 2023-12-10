@@ -2,15 +2,24 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "run",
+      "label": "Run Dashboard",
       "type": "shell",
-      "command": "python3 -m esphome dashboard config/",
+      "command": "${command:python.interpreterPath}",
+      "args": [
+        "-m",
+        "esphome",
+        "dashboard",
+        "config/"
+      ],
       "problemMatcher": []
     },
     {
       "label": "clang-tidy",
       "type": "shell",
-      "command": "./script/clang-tidy",
+      "command": "${command:python.interpreterPath}",
+      "args": [
+        "./script/clang-tidy"
+      ],
       "problemMatcher": [
         {
           "owner": "clang-tidy",
@@ -27,6 +36,24 @@
           ]
         }
       ]
+    },
+    {
+      "label": "Generate proto files",
+      "type": "shell",
+      "command": "${command:python.interpreterPath}",
+      "args": [
+        "./script/api_protobuf/api_protobuf.py"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "never",
+        "close": true,
+        "panel": "new"
+      },
+      "problemMatcher": []
     }
   ]
 }

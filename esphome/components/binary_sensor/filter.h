@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -29,38 +30,40 @@ class Filter {
 
 class DelayedOnOffFilter : public Filter, public Component {
  public:
-  explicit DelayedOnOffFilter(uint32_t delay);
-
   optional<bool> new_value(bool value, bool is_initial) override;
 
   float get_setup_priority() const override;
 
+  template<typename T> void set_on_delay(T delay) { this->on_delay_ = delay; }
+  template<typename T> void set_off_delay(T delay) { this->off_delay_ = delay; }
+
  protected:
-  uint32_t delay_;
+  TemplatableValue<uint32_t> on_delay_{};
+  TemplatableValue<uint32_t> off_delay_{};
 };
 
 class DelayedOnFilter : public Filter, public Component {
  public:
-  explicit DelayedOnFilter(uint32_t delay);
-
   optional<bool> new_value(bool value, bool is_initial) override;
 
   float get_setup_priority() const override;
 
+  template<typename T> void set_delay(T delay) { this->delay_ = delay; }
+
  protected:
-  uint32_t delay_;
+  TemplatableValue<uint32_t> delay_{};
 };
 
 class DelayedOffFilter : public Filter, public Component {
  public:
-  explicit DelayedOffFilter(uint32_t delay);
-
   optional<bool> new_value(bool value, bool is_initial) override;
 
   float get_setup_priority() const override;
 
+  template<typename T> void set_delay(T delay) { this->delay_ = delay; }
+
  protected:
-  uint32_t delay_;
+  TemplatableValue<uint32_t> delay_{};
 };
 
 class InvertFilter : public Filter {
@@ -103,14 +106,6 @@ class LambdaFilter : public Filter {
 
  protected:
   std::function<optional<bool>(bool)> f_;
-};
-
-class UniqueFilter : public Filter {
- public:
-  optional<bool> new_value(bool value, bool is_initial) override;
-
- protected:
-  optional<bool> last_value_{};
 };
 
 }  // namespace binary_sensor

@@ -287,7 +287,7 @@ void TCS34725Component::update() {
     }
 
     // calculate register value from timing
-    uint8_t regval_atime = (uint8_t)(256.f - integration_time_next / 2.4f);
+    uint8_t regval_atime = (uint8_t) (256.f - integration_time_next / 2.4f);
     ESP_LOGD(TAG, "Integration time: %.1fms, ideal: %.1fms regval_new %d Gain: %.f Clear channel raw: %d  gain reg: %d",
              this->integration_time_, integration_time_next, regval_atime, this->gain_, raw_c, this->gain_reg_);
 

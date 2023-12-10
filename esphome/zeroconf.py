@@ -1,117 +1,48 @@
-import socket
-import threading
-import time
-from typing import Optional
+from __future__ import annotations
+
+import asyncio
 import logging
 from dataclasses import dataclass
+from typing import Callable
 
-from zeroconf import (
-    DNSAddress,
-    DNSOutgoing,
-    DNSRecord,
-    DNSQuestion,
-    RecordUpdateListener,
-    Zeroconf,
-    ServiceBrowser,
-    ServiceStateChange,
-    current_time_millis,
-)
+from zeroconf import IPVersion, ServiceInfo, ServiceStateChange, Zeroconf
+from zeroconf.asyncio import AsyncServiceBrowser, AsyncServiceInfo, AsyncZeroconf
 
-_CLASS_IN = 1
-_FLAGS_QR_QUERY = 0x0000  # query
-_TYPE_A = 1
+from esphome.storage_json import StorageJSON, ext_storage_path
+
 _LOGGER = logging.getLogger(__name__)
 
 
-class HostResolver(RecordUpdateListener):
-    def __init__(self, name: str):
-        self.name = name
-        self.address: Optional[bytes] = None
-
-    def update_record(self, zc: Zeroconf, now: float, record: DNSRecord) -> None:
-        if record is None:
-            return
-        if record.type == _TYPE_A:
-            assert isinstance(record, DNSAddress)
-            if record.name == self.name:
-                self.address = record.address
-
-    def request(self, zc: Zeroconf, timeout: float) -> bool:
-        now = time.time()
-        delay = 0.2
-        next_ = now + delay
-        last = now + timeout
-
-        try:
-            zc.add_listener(self, None)
-            while self.address is None:
-                if last <= now:
-                    # Timeout
-                    return False
-                if next_ <= now:
-                    out = DNSOutgoing(_FLAGS_QR_QUERY)
-                    out.add_question(DNSQuestion(self.name, _TYPE_A, _CLASS_IN))
-                    zc.send(out)
-                    next_ = now + delay
-                    delay *= 2
-
-                time.sleep(min(next_, last) - now)
-                now = time.time()
-        finally:
-            zc.remove_listener(self)
-
-        return True
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
 
 
-class DashboardStatus(threading.Thread):
-    PING_AFTER = 15 * 1000  # Send new mDNS request after 15 seconds
-    OFFLINE_AFTER = PING_AFTER * 2  # Offline if no mDNS response after 30 seconds
+class HostResolver(ServiceInfo):
+    """Resolve a host name to an IP address."""
 
-    def __init__(self, zc: Zeroconf, on_update) -> None:
-        threading.Thread.__init__(self)
-        self.zc = zc
-        self.query_hosts: set[str] = set()
-        self.key_to_host: dict[str, str] = {}
-        self.stop_event = threading.Event()
-        self.query_event = threading.Event()
+    @property
+    def _is_complete(self) -> bool:
+        """The ServiceInfo has all expected properties."""
+        return bool(self._ipv4_addresses)
+
+
+class DashboardStatus:
+    def __init__(self, on_update: Callable[[dict[str, bool | None], []]]) -> None:
+        """Initialize the dashboard status."""
         self.on_update = on_update
 
-    def request_query(self, hosts: dict[str, str]) -> None:
-        self.query_hosts = set(hosts.values())
-        self.key_to_host = hosts
-        self.query_event.set()
-
-    def stop(self) -> None:
-        self.stop_event.set()
-        self.query_event.set()
-
-    def host_status(self, key: str) -> bool:
-        entries = self.zc.cache.entries_with_name(key)
-        if not entries:
-            return False
-        now = current_time_millis()
-
-        return any(
-            (entry.created + DashboardStatus.OFFLINE_AFTER) >= now for entry in entries
-        )
-
-    def run(self) -> None:
-        while not self.stop_event.is_set():
-            self.on_update(
-                {key: self.host_status(host) for key, host in self.key_to_host.items()}
-            )
-            now = current_time_millis()
-            for host in self.query_hosts:
-                entries = self.zc.cache.entries_with_name(host)
-                if not entries or all(
-                    (entry.created + DashboardStatus.PING_AFTER) <= now
-                    for entry in entries
-                ):
-                    out = DNSOutgoing(_FLAGS_QR_QUERY)
-                    out.add_question(DNSQuestion(host, _TYPE_A, _CLASS_IN))
-                    self.zc.send(out)
-            self.query_event.wait()
-            self.query_event.clear()
+    def browser_callback(
+        self,
+        zeroconf: Zeroconf,
+        service_type: str,
+        name: str,
+        state_change: ServiceStateChange,
+    ) -> None:
+        """Handle a service update."""
+        short_name = name.partition(".")[0]
+        if state_change == ServiceStateChange.Removed:
+            self.on_update({short_name: False})
+        elif state_change in (ServiceStateChange.Updated, ServiceStateChange.Added):
+            self.on_update({short_name: True})
 
 
 ESPHOME_SERVICE_TYPE = "_esphomelib._tcp.local."
@@ -120,11 +51,12 @@ TXT_RECORD_PROJECT_NAME = b"project_name"
 TXT_RECORD_PROJECT_VERSION = b"project_version"
 TXT_RECORD_NETWORK = b"network"
 TXT_RECORD_FRIENDLY_NAME = b"friendly_name"
+TXT_RECORD_VERSION = b"version"
 
 
 @dataclass
 class DiscoveredImport:
-    friendly_name: Optional[str]
+    friendly_name: str | None
     device_name: str
     package_import_url: str
     project_name: str
@@ -132,15 +64,15 @@ class DiscoveredImport:
     network: str
 
 
+class DashboardBrowser(AsyncServiceBrowser):
+    """A class to browse for ESPHome nodes."""
+
+
 class DashboardImportDiscovery:
-    def __init__(self, zc: Zeroconf) -> None:
-        self.zc = zc
-        self.service_browser = ServiceBrowser(
-            self.zc, ESPHOME_SERVICE_TYPE, [self._on_update]
-        )
+    def __init__(self) -> None:
         self.import_state: dict[str, DiscoveredImport] = {}
 
-    def _on_update(
+    def browser_callback(
         self,
         zeroconf: Zeroconf,
         service_type: str,
@@ -153,8 +85,6 @@ class DashboardImportDiscovery:
             name,
             state_change,
         )
-        if service_type != ESPHOME_SERVICE_TYPE:
-            return
         if state_change == ServiceStateChange.Removed:
             self.import_state.pop(name, None)
             return
@@ -163,7 +93,28 @@ class DashboardImportDiscovery:
             # Ignore updates for devices that are not in the import state
             return
 
-        info = zeroconf.get_service_info(service_type, name)
+        info = AsyncServiceInfo(
+            service_type,
+            name,
+        )
+        if info.load_from_cache(zeroconf):
+            self._process_service_info(name, info)
+            return
+        task = asyncio.create_task(
+            self._async_process_service_info(zeroconf, info, service_type, name)
+        )
+        _BACKGROUND_TASKS.add(task)
+        task.add_done_callback(_BACKGROUND_TASKS.discard)
+
+    async def _async_process_service_info(
+        self, zeroconf: Zeroconf, info: AsyncServiceInfo, service_type: str, name: str
+    ) -> None:
+        """Process a service info."""
+        if await info.async_request(zeroconf):
+            self._process_service_info(name, info)
+
+    def _process_service_info(self, name: str, info: ServiceInfo) -> None:
+        """Process a service info."""
         _LOGGER.debug("-> resolved info: %s", info)
         if info is None:
             return
@@ -175,6 +126,10 @@ class DashboardImportDiscovery:
         ]
         if any(key not in info.properties for key in required_keys):
             # Not a dashboard import device
+            version = info.properties.get(TXT_RECORD_VERSION)
+            if version is not None:
+                version = version.decode()
+                self.update_device_mdns(node_name, version)
             return
 
         import_url = info.properties[TXT_RECORD_PACKAGE_IMPORT_URL].decode()
@@ -194,13 +149,51 @@ class DashboardImportDiscovery:
             network=network,
         )
 
-    def cancel(self) -> None:
-        self.service_browser.cancel()
+    def update_device_mdns(self, node_name: str, version: str):
+        storage_path = ext_storage_path(node_name + ".yaml")
+        storage_json = StorageJSON.load(storage_path)
+
+        if storage_json is not None:
+            storage_version = storage_json.esphome_version
+            if version != storage_version:
+                storage_json.esphome_version = version
+                storage_json.save(storage_path)
+                _LOGGER.info(
+                    "Updated %s with mdns version %s (was %s)",
+                    node_name,
+                    version,
+                    storage_version,
+                )
+
+
+def _make_host_resolver(host: str) -> HostResolver:
+    """Create a new HostResolver for the given host name."""
+    name = host.partition(".")[0]
+    info = HostResolver(
+        ESPHOME_SERVICE_TYPE, f"{name}.{ESPHOME_SERVICE_TYPE}", server=f"{name}.local."
+    )
+    return info
 
 
 class EsphomeZeroconf(Zeroconf):
-    def resolve_host(self, host: str, timeout=3.0):
-        info = HostResolver(host)
-        if info.request(self, timeout):
-            return socket.inet_ntoa(info.address)
+    def resolve_host(self, host: str, timeout: float = 3.0) -> str | None:
+        """Resolve a host name to an IP address."""
+        info = _make_host_resolver(host)
+        if (
+            info.load_from_cache(self)
+            or (timeout and info.request(self, timeout * 1000))
+        ) and (addresses := info.ip_addresses_by_version(IPVersion.V4Only)):
+            return str(addresses[0])
+        return None
+
+
+class AsyncEsphomeZeroconf(AsyncZeroconf):
+    async def async_resolve_host(self, host: str, timeout: float = 3.0) -> str | None:
+        """Resolve a host name to an IP address."""
+        info = _make_host_resolver(host)
+        if (
+            info.load_from_cache(self.zeroconf)
+            or (timeout and await info.async_request(self.zeroconf, timeout * 1000))
+        ) and (addresses := info.ip_addresses_by_version(IPVersion.V4Only)):
+            return str(addresses[0])
         return None

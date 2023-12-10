@@ -17,6 +17,9 @@
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp32-hal-log.h>
 #endif
+#ifdef USE_LIBRETINY
+#include <lt_logger.h>
+#endif
 
 namespace esphome {
 
@@ -167,7 +170,7 @@ struct LogString;
 #include <pgmspace.h>
 
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 0)
-#define LOG_STR_ARG(s) ((PGM_P)(s))
+#define LOG_STR_ARG(s) ((PGM_P) (s))
 #else
 // Pre-Arduino 2.5, we can't pass a PSTR() to printf(). Emulate support by copying the message to a
 // local buffer first. String length is limited to 63 characters.
@@ -176,7 +179,7 @@ struct LogString;
   ({ \
     char __buf[64]; \
     __buf[63] = '\0'; \
-    strncpy_P(__buf, (PGM_P)(s), 63); \
+    strncpy_P(__buf, (PGM_P) (s), 63); \
     __buf; \
   })
 #endif

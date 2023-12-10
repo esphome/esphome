@@ -18,6 +18,8 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_EVENT,
     CONF_TAG,
+    CONF_ON_CLIENT_CONNECTED,
+    CONF_ON_CLIENT_DISCONNECTED,
 )
 from esphome.core import coroutine_with_priority
 
@@ -87,6 +89,12 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Required(CONF_KEY): validate_encryption_key,
             }
         ),
+        cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
+            single=True
+        ),
+        cv.Optional(CONF_ON_CLIENT_DISCONNECTED): automation.validate_automation(
+            single=True
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -116,9 +124,22 @@ async def to_code(config):
         cg.add(var.register_user_service(trigger))
         await automation.build_automation(trigger, func_args, conf)
 
-    if CONF_ENCRYPTION in config:
-        conf = config[CONF_ENCRYPTION]
-        decoded = base64.b64decode(conf[CONF_KEY])
+    if CONF_ON_CLIENT_CONNECTED in config:
+        await automation.build_automation(
+            var.get_client_connected_trigger(),
+            [(cg.std_string, "client_info"), (cg.std_string, "client_address")],
+            config[CONF_ON_CLIENT_CONNECTED],
+        )
+
+    if CONF_ON_CLIENT_DISCONNECTED in config:
+        await automation.build_automation(
+            var.get_client_disconnected_trigger(),
+            [(cg.std_string, "client_info"), (cg.std_string, "client_address")],
+            config[CONF_ON_CLIENT_DISCONNECTED],
+        )
+
+    if encryption_config := config.get(CONF_ENCRYPTION):
+        decoded = base64.b64decode(encryption_config[CONF_KEY])
         cg.add(var.set_noise_psk(list(decoded)))
         cg.add_define("USE_API_NOISE")
         cg.add_library("esphome/noise-c", "0.1.4")

@@ -1,6 +1,6 @@
 #include "bme680.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace bme680 {
@@ -275,8 +275,8 @@ uint8_t BME680Component::calc_heater_resistance_(uint16_t temperature) {
   var3 = var1 + (var2 / 2);
   var4 = (var3 / (res_heat_range + 4));
   var5 = (131 * res_heat_val) + 65536;
-  heatr_res_x100 = (int32_t)(((var4 / var5) - 250) * 34);
-  heatr_res = (uint8_t)((heatr_res_x100 + 50) / 100);
+  heatr_res_x100 = (int32_t) (((var4 / var5) - 250) * 34);
+  heatr_res = (uint8_t) ((heatr_res_x100 + 50) / 100);
 
   return heatr_res;
 }
@@ -316,7 +316,7 @@ void BME680Component::read_data_() {
   uint32_t raw_temperature = (uint32_t(data[5]) << 12) | (uint32_t(data[6]) << 4) | (uint32_t(data[7]) >> 4);
   uint32_t raw_pressure = (uint32_t(data[2]) << 12) | (uint32_t(data[3]) << 4) | (uint32_t(data[4]) >> 4);
   uint32_t raw_humidity = (uint32_t(data[8]) << 8) | uint32_t(data[9]);
-  uint16_t raw_gas = (uint16_t)((uint32_t) data[13] * 4 | (((uint32_t) data[14]) / 64));
+  uint16_t raw_gas = (uint16_t) ((uint32_t) data[13] * 4 | (((uint32_t) data[14]) / 64));
   uint8_t gas_range = data[14] & 0x0F;
 
   float temperature = this->calc_temperature_(raw_temperature);

@@ -15,6 +15,7 @@
 #include <freertos/FreeRTOSConfig.h>
 #include <freertos/task.h>
 #include <nvs_flash.h>
+#include <cinttypes>
 
 #ifdef USE_OTA
 #include "esphome/components/ota/ota_component.h"
@@ -33,17 +34,6 @@ namespace esp32_ble_tracker {
 static const char *const TAG = "esp32_ble_tracker";
 
 ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
-  uint64_t u = 0;
-  u |= uint64_t(address[0] & 0xFF) << 40;
-  u |= uint64_t(address[1] & 0xFF) << 32;
-  u |= uint64_t(address[2] & 0xFF) << 24;
-  u |= uint64_t(address[3] & 0xFF) << 16;
-  u |= uint64_t(address[4] & 0xFF) << 8;
-  u |= uint64_t(address[5] & 0xFF) << 0;
-  return u;
-}
 
 float ESP32BLETracker::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
@@ -74,17 +64,19 @@ void ESP32BLETracker::setup() {
     }
   });
 #endif
-
-  if (this->scan_continuous_) {
-    if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
-      this->start_scan_(true);
-    } else {
-      ESP_LOGW(TAG, "Cannot start scan!");
-    }
-  }
 }
 
 void ESP32BLETracker::loop() {
+  if (!this->parent_->is_active()) {
+    this->ble_was_disabled_ = true;
+    return;
+  } else if (this->ble_was_disabled_) {
+    this->ble_was_disabled_ = false;
+    // If the BLE stack was disabled, we need to start the scan again.
+    if (this->scan_continuous_) {
+      this->start_scan();
+    }
+  }
   int connecting = 0;
   int discovered = 0;
   int searching = 0;
@@ -114,10 +106,20 @@ void ESP32BLETracker::loop() {
     if (this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
         xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
       uint32_t index = this->scan_result_index_;
-      if (index) {
-        if (index >= ESP32BLETracker::SCAN_RESULT_BUFFER_SIZE) {
-          ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
+      if (index >= ESP32BLETracker::SCAN_RESULT_BUFFER_SIZE) {
+        ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
+      }
+
+      if (this->raw_advertisements_) {
+        for (auto *listener : this->listeners_) {
+          listener->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
         }
+        for (auto *client : this->clients_) {
+          client->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
+        }
+      }
+
+      if (this->parse_advertisements_) {
         for (size_t i = 0; i < index; i++) {
           ESPBTDevice device;
           device.parse_scan_rst(this->scan_result_buffer_[i]);
@@ -141,8 +143,8 @@ void ESP32BLETracker::loop() {
             this->print_bt_device_info(device);
           }
         }
-        this->scan_result_index_ = 0;
       }
+      this->scan_result_index_ = 0;
       xSemaphoreGive(this->scan_result_lock_);
     }
 
@@ -182,8 +184,7 @@ void ESP32BLETracker::loop() {
         xSemaphoreGive(this->scan_end_lock_);
       } else {
         ESP_LOGD(TAG, "Stopping scan after failure...");
-        esp_ble_gap_stop_scanning();
-        this->cancel_timeout("scan");
+        this->stop_scan_();
       }
       if (this->scan_start_failed_) {
         ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
@@ -212,8 +213,7 @@ void ESP32BLETracker::loop() {
           client->set_state(ClientState::READY_TO_CONNECT);
         } else {
           ESP_LOGD(TAG, "Pausing scan to make connection...");
-          esp_ble_gap_stop_scanning();
-          this->cancel_timeout("scan");
+          this->stop_scan_();
         }
         break;
       }
@@ -232,11 +232,31 @@ void ESP32BLETracker::start_scan() {
 void ESP32BLETracker::stop_scan() {
   ESP_LOGD(TAG, "Stopping scan.");
   this->scan_continuous_ = false;
-  esp_ble_gap_stop_scanning();
+  this->stop_scan_();
+}
+
+void ESP32BLETracker::ble_before_disabled_event_handler() {
+  this->stop_scan_();
+  xSemaphoreGive(this->scan_end_lock_);
+}
+
+void ESP32BLETracker::stop_scan_() {
   this->cancel_timeout("scan");
+  if (this->scanner_idle_) {
+    return;
+  }
+  esp_err_t err = esp_ble_gap_stop_scanning();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_stop_scanning failed: %d", err);
+    return;
+  }
 }
 
 void ESP32BLETracker::start_scan_(bool first) {
+  if (!this->parent_->is_active()) {
+    ESP_LOGW(TAG, "Cannot start scan while ESP32BLE is disabled.");
+    return;
+  }
   // The lock must be held when calling this function.
   if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
     ESP_LOGE(TAG, "start_scan called without holding scan_end_lock_");
@@ -249,15 +269,23 @@ void ESP32BLETracker::start_scan_(bool first) {
       listener->on_scan_end();
   }
   this->already_discovered_.clear();
-  this->scanner_idle_ = false;
   this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
   this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
   this->scan_params_.scan_interval = this->scan_interval_;
   this->scan_params_.scan_window = this->scan_window_;
 
-  esp_ble_gap_set_scan_params(&this->scan_params_);
-  esp_ble_gap_start_scanning(this->scan_duration_);
+  esp_err_t err = esp_ble_gap_set_scan_params(&this->scan_params_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_set_scan_params failed: %d", err);
+    return;
+  }
+  err = esp_ble_gap_start_scanning(this->scan_duration_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_start_scanning failed: %d", err);
+    return;
+  }
+  this->scanner_idle_ = false;
 
   this->set_timeout("scan", this->scan_duration_ * 2000, []() {
     ESP_LOGE(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
@@ -285,6 +313,32 @@ void ESP32BLETracker::end_of_scan_() {
 void ESP32BLETracker::register_client(ESPBTClient *client) {
   client->app_id = ++this->app_id_;
   this->clients_.push_back(client);
+  this->recalculate_advertisement_parser_types();
+}
+
+void ESP32BLETracker::register_listener(ESPBTDeviceListener *listener) {
+  listener->set_parent(this);
+  this->listeners_.push_back(listener);
+  this->recalculate_advertisement_parser_types();
+}
+
+void ESP32BLETracker::recalculate_advertisement_parser_types() {
+  this->raw_advertisements_ = false;
+  this->parse_advertisements_ = false;
+  for (auto *listener : this->listeners_) {
+    if (listener->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
+      this->parse_advertisements_ = true;
+    } else {
+      this->raw_advertisements_ = true;
+    }
+  }
+  for (auto *client : this->clients_) {
+    if (client->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
+      this->parse_advertisements_ = true;
+    } else {
+      this->raw_advertisements_ = true;
+    }
+  }
 }
 
 void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
@@ -585,11 +639,11 @@ std::string ESPBTDevice::address_str() const {
            this->address_[3], this->address_[4], this->address_[5]);
   return mac;
 }
-uint64_t ESPBTDevice::address_uint64() const { return ble_addr_to_uint64(this->address_); }
+uint64_t ESPBTDevice::address_uint64() const { return esp32_ble::ble_addr_to_uint64(this->address_); }
 
 void ESP32BLETracker::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Tracker:");
-  ESP_LOGCONFIG(TAG, "  Scan Duration: %u s", this->scan_duration_);
+  ESP_LOGCONFIG(TAG, "  Scan Duration: %" PRIu32 " s", this->scan_duration_);
   ESP_LOGCONFIG(TAG, "  Scan Interval: %.1f ms", this->scan_interval_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Window: %.1f ms", this->scan_window_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Type: %s", this->scan_active_ ? "ACTIVE" : "PASSIVE");

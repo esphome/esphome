@@ -591,11 +591,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
             cv.Optional(
                 CONF_SET_POINT_MINIMUM_DIFFERENTIAL, default=0.5
-            ): cv.temperature,
-            cv.Optional(CONF_COOL_DEADBAND, default=0.5): cv.temperature,
-            cv.Optional(CONF_COOL_OVERRUN, default=0.5): cv.temperature,
-            cv.Optional(CONF_HEAT_DEADBAND, default=0.5): cv.temperature,
-            cv.Optional(CONF_HEAT_OVERRUN, default=0.5): cv.temperature,
+            ): cv.temperature_delta,
+            cv.Optional(CONF_COOL_DEADBAND, default=0.5): cv.temperature_delta,
+            cv.Optional(CONF_COOL_OVERRUN, default=0.5): cv.temperature_delta,
+            cv.Optional(CONF_HEAT_DEADBAND, default=0.5): cv.temperature_delta,
+            cv.Optional(CONF_HEAT_OVERRUN, default=0.5): cv.temperature_delta,
             cv.Optional(CONF_MAX_COOLING_RUN_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_MAX_HEATING_RUN_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_MIN_COOLING_OFF_TIME): cv.positive_time_period_seconds,
@@ -608,8 +608,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MIN_HEATING_OFF_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_MIN_HEATING_RUN_TIME): cv.positive_time_period_seconds,
             cv.Required(CONF_MIN_IDLE_TIME): cv.positive_time_period_seconds,
-            cv.Optional(CONF_SUPPLEMENTAL_COOLING_DELTA): cv.temperature,
-            cv.Optional(CONF_SUPPLEMENTAL_HEATING_DELTA): cv.temperature,
+            cv.Optional(CONF_SUPPLEMENTAL_COOLING_DELTA): cv.temperature_delta,
+            cv.Optional(CONF_SUPPLEMENTAL_HEATING_DELTA): cv.temperature_delta,
             cv.Optional(
                 CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER, default=False
             ): cv.boolean,
