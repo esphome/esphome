@@ -18,6 +18,9 @@ void Touchscreen::attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::Int
 void Touchscreen::update() {
   if (!this->store_.init) {
     this->store_.touched = true;
+  } else {
+    // no need to poll if we have interrupts.
+    this->stop_poller();
   }
 }
 
