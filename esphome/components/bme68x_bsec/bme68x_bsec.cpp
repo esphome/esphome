@@ -20,7 +20,7 @@ void BME68XBSECComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BME68X via BSEC...");
   BME68XBSECComponent::instance = this;
 
-  this->bsec_status_ = bsec_init();
+  this->bsec_status_ = bsec_init_m(&this->bsec_instance_);
   if (this->bsec_status_ != BSEC_OK) {
     this->mark_failed();
     return;
@@ -57,12 +57,12 @@ void BME68XBSECComponent::setup() {
 
 void BME68XBSECComponent::set_config_(const uint8_t *config, uint32_t len) {
   if (len > BSEC_MAX_PROPERTY_BLOB_SIZE) {
-    ESP_LOGE(TAG, "Configuration is too larger than BSEC_MAX_PROPERTY_BLOB_SIZE");
+    ESP_LOGE(TAG, "Configuration is larger than BSEC_MAX_PROPERTY_BLOB_SIZE");
     this->mark_failed();
     return;
   }
   uint8_t work_buffer[BSEC_MAX_PROPERTY_BLOB_SIZE];
-  this->bsec_status_ = bsec_set_configuration(config, len, work_buffer, sizeof(work_buffer));
+  this->bsec_status_ = bsec_set_configuration_m(&this->bsec_instance_, config, len, work_buffer, sizeof(work_buffer));
 }
 
 float BME68XBSECComponent::calc_sensor_sample_rate_(SampleRate sample_rate) {
@@ -126,15 +126,15 @@ void BME68XBSECComponent::update_subscription_() {
 
   bsec_sensor_configuration_t sensor_settings[BSEC_MAX_PHYSICAL_SENSOR];
   uint8_t num_sensor_settings = BSEC_MAX_PHYSICAL_SENSOR;
-  this->bsec_status_ =
-      bsec_update_subscription(virtual_sensors, num_virtual_sensors, sensor_settings, &num_sensor_settings);
+  this->bsec_status_ = bsec_update_subscription_m(&this->bsec_instance_, virtual_sensors, num_virtual_sensors,
+                                                  sensor_settings, &num_sensor_settings);
 }
 
 void BME68XBSECComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "BME68X via BSEC:");
 
   bsec_version_t version;
-  bsec_get_version(&version);
+  bsec_get_version_m(&this->bsec_instance_, &version);
   ESP_LOGCONFIG(TAG, "  BSEC Version: %d.%d.%d.%d", version.major, version.minor, version.major_bugfix,
                 version.minor_bugfix);
 
@@ -198,7 +198,7 @@ void BME68XBSECComponent::run_() {
   ESP_LOGV(TAG, "Performing sensor run");
 
   struct bme68x_conf bme68x_conf;
-  this->bsec_status_ = bsec_sensor_control(curr_time_ns, &bsec_settings);
+  this->bsec_status_ = bsec_sensor_control_m(&this->bsec_instance_, curr_time_ns, &bsec_settings);
   if (this->bsec_status_ < BSEC_OK) {
     ESP_LOGW(TAG, "Failed to fetch sensor control settings (BSEC Error Code %d)", this->bsec_status_);
     return;
@@ -357,7 +357,7 @@ void BME68XBSECComponent::read_(int64_t trigger_time_ns) {
 
     bsec_output_t outputs[BSEC_NUMBER_OUTPUTS];
     uint8_t num_outputs = BSEC_NUMBER_OUTPUTS;
-    this->bsec_status_ = bsec_do_steps(inputs, num_inputs, outputs, &num_outputs);
+    this->bsec_status_ = bsec_do_steps_m(&this->bsec_instance_, inputs, num_inputs, outputs, &num_outputs);
     if (this->bsec_status_ != BSEC_OK) {
       ESP_LOGW(TAG, "BSEC failed to process signals (BSEC Error Code %d)", this->bsec_status_);
       return;
@@ -470,7 +470,8 @@ void BME68XBSECComponent::load_state_() {
   if (this->bsec_state_.load(&state)) {
     ESP_LOGV(TAG, "Loading state");
     uint8_t work_buffer[BSEC_MAX_WORKBUFFER_SIZE];
-    this->bsec_status_ = bsec_set_state(state, BSEC_MAX_STATE_BLOB_SIZE, work_buffer, sizeof(work_buffer));
+    this->bsec_status_ =
+        bsec_set_state_m(&this->bsec_instance_, state, BSEC_MAX_STATE_BLOB_SIZE, work_buffer, sizeof(work_buffer));
     if (this->bsec_status_ != BSEC_OK) {
       ESP_LOGW(TAG, "Failed to load state (BSEC Error Code %d)", this->bsec_status_);
     }
@@ -489,8 +490,8 @@ void BME68XBSECComponent::save_state_(uint8_t accuracy) {
   uint8_t work_buffer[BSEC_MAX_STATE_BLOB_SIZE];
   uint32_t num_serialized_state = BSEC_MAX_STATE_BLOB_SIZE;
 
-  this->bsec_status_ =
-      bsec_get_state(0, state, BSEC_MAX_STATE_BLOB_SIZE, work_buffer, BSEC_MAX_STATE_BLOB_SIZE, &num_serialized_state);
+  this->bsec_status_ = bsec_get_state_m(&this->bsec_instance_, 0, state, BSEC_MAX_STATE_BLOB_SIZE, work_buffer,
+                                        BSEC_MAX_STATE_BLOB_SIZE, &num_serialized_state);
   if (this->bsec_status_ != BSEC_OK) {
     ESP_LOGW(TAG, "Failed fetch state for save (BSEC Error Code %d)", this->bsec_status_);
     return;
