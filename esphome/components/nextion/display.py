@@ -21,6 +21,7 @@ from .base_component import (
     CONF_WAKE_UP_PAGE,
     CONF_START_UP_PAGE,
     CONF_AUTO_WAKE_ON_TOUCH,
+    CONF_EXIT_REPARSE_ON_START,
 )
 
 CODEOWNERS = ["@senexcrenshaw"]
@@ -69,6 +70,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_WAKE_UP_PAGE): cv.positive_int,
             cv.Optional(CONF_START_UP_PAGE): cv.positive_int,
             cv.Optional(CONF_AUTO_WAKE_ON_TOUCH, default=True): cv.boolean,
+            cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -106,8 +108,9 @@ async def to_code(config):
     if CONF_START_UP_PAGE in config:
         cg.add(var.set_start_up_page_internal(config[CONF_START_UP_PAGE]))
 
-    if CONF_AUTO_WAKE_ON_TOUCH in config:
-        cg.add(var.set_auto_wake_on_touch_internal(config[CONF_AUTO_WAKE_ON_TOUCH]))
+    cg.add(var.set_auto_wake_on_touch_internal(config[CONF_AUTO_WAKE_ON_TOUCH]))
+
+    cg.add(var.set_exit_reparse_on_start_internal(config[CONF_EXIT_REPARSE_ON_START]))
 
     await display.register_display(var, config)
 
