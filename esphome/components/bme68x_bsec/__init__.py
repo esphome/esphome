@@ -1,7 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
-from esphome.const import CONF_ID, CONF_TEMPERATURE_OFFSET
+from esphome.const import CONF_ID  # , CONF_TEMPERATURE_OFFSET
+
+# TODO: move CONF_TEMPERATURE_OFFSET to global consts
 
 CODEOWNERS = ["@neffs"]
 DEPENDENCIES = ["i2c"]
@@ -12,6 +14,8 @@ CONF_IAQ_MODE = "iaq_mode"
 CONF_SAMPLE_RATE = "sample_rate"
 CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 CONF_BSEC_CONFIGURATION = "bsec_configuration"
+CONF_TEMPERATURE_OFFSET = "temperature_offset"
+CONF_IAQ_ACCURACY = "iaq_accuracy"  # TODO: move to global consts
 
 bme68x_bsec_ns = cg.esphome_ns.namespace("bme68x_bsec")
 

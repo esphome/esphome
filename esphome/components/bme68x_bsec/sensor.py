@@ -4,7 +4,7 @@ from esphome.components import sensor
 from esphome.const import (
     CONF_GAS_RESISTANCE,
     CONF_HUMIDITY,
-    CONF_IAQ_ACCURACY,
+    #    CONF_IAQ_ACCURACY,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
@@ -26,6 +26,7 @@ from . import (
     CONF_BME68X_BSEC_ID,
     CONF_SAMPLE_RATE,
     SAMPLE_RATE_OPTIONS,
+    CONF_IAQ_ACCURACY,  # TODO
 )
 
 DEPENDENCIES = ["bme68x_bsec"]

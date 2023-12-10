@@ -1,7 +1,11 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor
-from esphome.const import CONF_IAQ_ACCURACY
+
+# from esphome.const import CONF_IAQ_ACCURACY
+from . import CONF_IAQ_ACCURACY
+
+# TODO: move to global consts
 from . import BME68xBSECComponent, CONF_BME68X_BSEC_ID
 
 DEPENDENCIES = ["bme68x_bsec"]
