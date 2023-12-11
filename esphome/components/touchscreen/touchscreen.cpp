@@ -100,7 +100,7 @@ void Touchscreen::send_touches_() {
       touches.push_back(tp.second);
     }
     if (this->first_touch_) {
-      TouchPoint tp = this->touches_.begin().second;
+      TouchPoint tp = this->touches_.begin()->second;
       this->touch_trigger_.trigger(tp, touches);
       for (auto *listener : this->touch_listeners_) {
         listener->touch(tp);

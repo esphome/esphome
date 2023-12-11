@@ -69,7 +69,7 @@ class Touchscreen : public PollingComponent {
 
   virtual void update_touches() = 0;
 
-  optional<TouchPoint> get_touch() { return this->touches_.begin().second; }
+  optional<TouchPoint> get_touch() { return this->touches_.begin()->second; }
 
   optional<TouchPoints_t> get_touches() {
     if (!this->touches_.empty()) {
