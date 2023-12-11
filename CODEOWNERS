@@ -110,6 +110,7 @@ esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/fs3000/* @kahrendt
+esphome/components/ft5x06/* @clydebarrow
 esphome/components/ft63x6/* @gpambrozio
 esphome/components/gcja5/* @gcormier
 esphome/components/globals/* @esphome/core
@@ -262,6 +263,7 @@ esphome/components/rtl87xx/* @kuba2k2
 esphome/components/rtttl/* @glmnet
 esphome/components/safe_mode/* @jsuanet @paulmonigatti
 esphome/components/scd4x/* @martgras @sjtrny
+esphome/components/screen/* @clydebarrow
 esphome/components/script/* @esphome/core
 esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/sdp3x/* @Azimath

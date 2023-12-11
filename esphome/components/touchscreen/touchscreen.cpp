@@ -18,6 +18,9 @@ void Touchscreen::attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::Int
 void Touchscreen::update() {
   if (!this->store_.init) {
     this->store_.touched = true;
+  } else {
+    // no need to poll if we have interrupts.
+    this->stop_poller();
   }
 }
 
@@ -97,7 +100,7 @@ void Touchscreen::send_touches_() {
       touches.push_back(tp.second);
     }
     if (this->first_touch_) {
-      TouchPoint tp = touches.front();
+      TouchPoint tp = this->touches_.begin().second;
       this->touch_trigger_.trigger(tp, touches);
       for (auto *listener : this->touch_listeners_) {
         listener->touch(tp);
