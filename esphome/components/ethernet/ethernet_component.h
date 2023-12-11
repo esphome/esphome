@@ -23,6 +23,9 @@ enum EthernetType {
   ETHERNET_TYPE_JL1101,
   ETHERNET_TYPE_KSZ8081,
   ETHERNET_TYPE_KSZ8081RNA,
+#if ESP_IDF_VERSION_MAJOR >= 5
+  ETHERNET_TYPE_LAN867X,
+#endif
 };
 
 struct ManualIP {
@@ -101,6 +104,10 @@ class EthernetComponent : public Component {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
+
+#if ESP_IDF_VERSION_MAJOR >= 5
+extern "C" esp_eth_phy_t *esp_eth_phy_new_lan867x(const eth_phy_config_t *config);
+#endif
 
 }  // namespace ethernet
 }  // namespace esphome

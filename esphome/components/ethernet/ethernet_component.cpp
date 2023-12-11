@@ -69,6 +69,12 @@ void EthernetComponent::setup() {
       this->phy_ = esp_eth_phy_new_lan87xx(&phy_config);
       break;
     }
+#if ESP_IDF_VERSION_MAJOR >= 5
+    case ETHERNET_TYPE_LAN867X: {
+      this->phy_ = esp_eth_phy_new_lan867x(&phy_config);
+      break;
+    }
+#endif
     case ETHERNET_TYPE_RTL8201: {
       this->phy_ = esp_eth_phy_new_rtl8201(&phy_config);
       break;
@@ -102,6 +108,8 @@ void EthernetComponent::setup() {
 
   esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(mac, this->phy_);
   this->eth_handle_ = nullptr;
+
+  ESP_LOGCONFIG(TAG, "Setting up Ethernet... pre install driver");
   err = esp_eth_driver_install(&eth_config, &this->eth_handle_);
   ESPHL_ERROR_CHECK(err, "ETH driver install error");
 
@@ -189,6 +197,12 @@ void EthernetComponent::dump_config() {
     case ETHERNET_TYPE_LAN8720:
       eth_type = "LAN8720";
       break;
+
+#if ESP_IDF_VERSION_MAJOR >= 5
+    case ETHERNET_TYPE_LAN867X:
+      eth_type = "LAN867X";
+      break;
+#endif
 
     case ETHERNET_TYPE_RTL8201:
       eth_type = "RTL8201";
