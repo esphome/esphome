@@ -184,5 +184,5 @@ class RPI_DPI_RGB : public display::Display {
 };
 
 #endif
-}  // namespace st7701s
+}  // namespace rpi_dpi_rgb
 }  // namespace esphome

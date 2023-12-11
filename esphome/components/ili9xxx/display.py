@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
+    CONF_INVERT_COLORS,
 )
 
 DEPENDENCIES = ["spi"]
@@ -72,7 +73,6 @@ COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
 CONF_INVERT_DISPLAY = "invert_display"
-CONF_INVERT_COLORS = "invert_colors"
 CONF_MIRROR_X = "mirror_x"
 CONF_MIRROR_Y = "mirror_y"
 CONF_SWAP_XY = "swap_xy"

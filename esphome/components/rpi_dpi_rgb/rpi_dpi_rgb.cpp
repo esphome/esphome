@@ -18,5 +18,5 @@ void RPI_DPI_RGB::dump_config() {
     ESP_LOGCONFIG(TAG, "  Data pin %d: %s", i, (this->data_pins_[i])->dump_summary().c_str());
 }
 
-}  // namespace st7701s
+}  // namespace rpi_dpi_rgb
 }  // namespace esphome

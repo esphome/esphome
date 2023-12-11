@@ -14,11 +14,13 @@ from esphome.const import (
     CONF_LAMBDA,
 )
 
+# Temporary work-around
 try:
-    from esphome.const import CONF_OFFSET_HEIGHT, CONF_OFFSET_WIDTH
+    from esphome.const import CONF_OFFSET_HEIGHT, CONF_OFFSET_WIDTH, CONF_INVERT_COLORS
 except ImportError:
     CONF_OFFSET_HEIGHT = "offset_height"
     CONF_OFFSET_WIDTH = "offset_width"
+    CONF_INVERT_COLORS = "invert_colors"
 
 CONF_MIRROR_X = "mirror_x"
 CONF_MIRROR_Y = "mirror_y"
@@ -37,7 +39,6 @@ CONF_VSYNC_FRONT_PORCH = "vsync_front_porch"
 CONF_VSYNC_PULSE_WIDTH = "vsync_pulse_width"
 CONF_VSYNC_BACK_PORCH = "vsync_back_porch"
 CONF_PCLK_FREQUENCY = "pclk_frequency"
-CONF_INVERT_COLORS = "invert_colors"
 
 rpi_dpi_rgb_ns = cg.esphome_ns.namespace("rpi_dpi_rgb")
 RPI_DPI_RGB = rpi_dpi_rgb_ns.class_("RPI_DPI_RGB", display.Display, cg.Component)
