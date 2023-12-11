@@ -3,6 +3,7 @@
 //
 #pragma once
 
+#ifdef USE_ESP_IDF
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
@@ -14,8 +15,6 @@
 
 namespace esphome {
 namespace rpi_dpi_rgb {
-
-#ifdef USE_ESP_IDF
 
 constexpr static const char *const TAG = "rpi_dpi_rgb";
 
@@ -182,6 +181,6 @@ class RPI_DPI_RGB : public display::Display {
   esp_lcd_panel_handle_t handle_{};
 };
 
-#endif
 }  // namespace rpi_dpi_rgb
 }  // namespace esphome
+#endif

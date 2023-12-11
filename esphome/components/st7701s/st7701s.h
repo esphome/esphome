@@ -3,6 +3,7 @@
 //
 #pragma once
 
+#ifdef USE_ESP_IDF
 #include "esphome/core/component.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
@@ -12,8 +13,6 @@
 
 namespace esphome {
 namespace st7701s {
-
-#ifdef USE_ESP_IDF
 
 constexpr static const char *const TAG = "panel_driver.st7701s";
 const uint8_t SW_RESET_CMD = 0x01;
@@ -253,6 +252,6 @@ class ST7701S : public display::Display,
   esp_lcd_panel_handle_t handle_{};
 };
 
-#endif
 }  // namespace st7701s
 }  // namespace esphome
+#endif
