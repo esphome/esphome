@@ -68,9 +68,15 @@ void MR24HPC1Component::dump_config() {
 void MR24HPC1Component::setup() {
   ESP_LOGCONFIG(TAG, "uart_settings is 115200");
   this->check_uart_settings(115200);
-  this->custom_mode_number_->publish_state(0);  // Zero out the custom mode
-  this->custom_mode_num_sensor_->publish_state(0);
-  this->custom_mode_end_text_sensor_->publish_state("Not in custom mode");
+  if (this->custom_mode_number_ != nullptr) {
+    this->custom_mode_number_->publish_state(0);  // Zero out the custom mode
+  }
+  if (this->custom_mode_num_sensor_ != nullptr) {
+    this->custom_mode_num_sensor_->publish_state(0);
+  }
+  if (this->custom_mode_end_text_sensor_ != nullptr) {
+    this->custom_mode_end_text_sensor_->publish_state("Not in custom mode");
+  }
   this->set_custom_end_mode();
   this->poll_time_base_func_check_ = true;
   this->check_dev_inf_sign_ = true;
@@ -355,40 +361,40 @@ void MR24HPC1Component::r24_frame_parse_product_information(uint8_t *data) {
   uint8_t product_len = 0;
   if (data[FRAME_COMMAND_WORD_INDEX] == 0xA1) {
     product_len = data[FRAME_COMMAND_WORD_INDEX + 1] * 256 + data[FRAME_COMMAND_WORD_INDEX + 2];
-    if (product_len < PRODUCT_BUF_MAX_SIZE) {
+    if ((this->product_model_text_sensor_ != nullptr) && (product_len < PRODUCT_BUF_MAX_SIZE)) {
       memset(this->c_product_mode_, 0, PRODUCT_BUF_MAX_SIZE);
       memcpy(this->c_product_mode_, &data[FRAME_DATA_INDEX], product_len);
       this->product_model_text_sensor_->publish_state(this->c_product_mode_);
     } else {
-      ESP_LOGD(TAG, "Reply: get product_mode length too long!");
+      ESP_LOGD(TAG, "Reply: get product_mode error!");
     }
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0xA2) {
     product_len = data[FRAME_COMMAND_WORD_INDEX + 1] * 256 + data[FRAME_COMMAND_WORD_INDEX + 2];
-    if (product_len < PRODUCT_BUF_MAX_SIZE) {
+    if ((this->product_id_text_sensor_ != nullptr) && (product_len < PRODUCT_BUF_MAX_SIZE)) {
       memset(this->c_product_id_, 0, PRODUCT_BUF_MAX_SIZE);
       memcpy(this->c_product_id_, &data[FRAME_DATA_INDEX], product_len);
       this->product_id_text_sensor_->publish_state(this->c_product_id_);
     } else {
-      ESP_LOGD(TAG, "Reply: get productId length too long!");
+      ESP_LOGD(TAG, "Reply: get productId error!");
     }
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0xA3) {
     product_len = data[FRAME_COMMAND_WORD_INDEX + 1] * 256 + data[FRAME_COMMAND_WORD_INDEX + 2];
-    if (product_len < PRODUCT_BUF_MAX_SIZE) {
+    if ((this->hardware_model_text_sensor_ != nullptr) && (product_len < PRODUCT_BUF_MAX_SIZE)) {
       memset(this->c_hardware_model_, 0, PRODUCT_BUF_MAX_SIZE);
       memcpy(this->c_hardware_model_, &data[FRAME_DATA_INDEX], product_len);
       this->hardware_model_text_sensor_->publish_state(this->c_hardware_model_);
       ESP_LOGD(TAG, "Reply: get hardware_model :%s", this->c_hardware_model_);
     } else {
-      ESP_LOGD(TAG, "Reply: get hardwareModel length too long!");
+      ESP_LOGD(TAG, "Reply: get hardwareModel error!");
     }
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0xA4) {
     product_len = data[FRAME_COMMAND_WORD_INDEX + 1] * 256 + data[FRAME_COMMAND_WORD_INDEX + 2];
-    if (product_len < PRODUCT_BUF_MAX_SIZE) {
+    if ((this->firware_version_text_sensor_ != nullptr) && (product_len < PRODUCT_BUF_MAX_SIZE)) {
       memset(this->c_firmware_version_, 0, PRODUCT_BUF_MAX_SIZE);
       memcpy(this->c_firmware_version_, &data[FRAME_DATA_INDEX], product_len);
       this->firware_version_text_sensor_->publish_state(this->c_firmware_version_);
     } else {
-      ESP_LOGD(TAG, "Reply: get firmwareVersion length too long!");
+      ESP_LOGD(TAG, "Reply: get firmwareVersion error!");
     }
   }
 }
@@ -396,49 +402,69 @@ void MR24HPC1Component::r24_frame_parse_product_information(uint8_t *data) {
 // Parsing the underlying open parameters
 void MR24HPC1Component::r24_frame_parse_open_underlying_information(uint8_t *data) {
   if (data[FRAME_COMMAND_WORD_INDEX] == 0x00) {
-    this->underly_open_function_switch_->publish_state(
-        data[FRAME_DATA_INDEX]);  // Underlying Open Parameter Switch Status Updates
+    if (this->underly_open_function_switch_ != nullptr) {
+      this->underly_open_function_switch_->publish_state(
+          data[FRAME_DATA_INDEX]);  // Underlying Open Parameter Switch Status Updates
+    }
     if (data[FRAME_DATA_INDEX]) {
       this->s_output_info_switch_flag_ = OUTPUT_SWTICH_ON;
     } else {
       this->s_output_info_switch_flag_ = OUTPUT_SWTICH_OFF;
     }
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x01) {
-    this->custom_spatial_static_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-    this->custom_presence_of_detection_sensor_->publish_state(data[FRAME_DATA_INDEX + 1] * 0.5f);
-    this->custom_spatial_motion_value_sensor_->publish_state(data[FRAME_DATA_INDEX + 2]);
-    this->custom_motion_distance_sensor_->publish_state(data[FRAME_DATA_INDEX + 3] * 0.5f);
-    this->custom_motion_speed_sensor_->publish_state((data[FRAME_DATA_INDEX + 4] - 10) * 0.5f);
+    if (this->custom_spatial_static_value_sensor_ != nullptr) {
+      this->custom_spatial_static_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
+    }
+    if (this->custom_presence_of_detection_sensor_ != nullptr) {
+      this->custom_presence_of_detection_sensor_->publish_state(data[FRAME_DATA_INDEX + 1] * 0.5f);
+    }
+    if (this->custom_spatial_motion_value_sensor_ != nullptr) {
+      this->custom_spatial_motion_value_sensor_->publish_state(data[FRAME_DATA_INDEX + 2]);
+    }
+    if (this->custom_motion_distance_sensor_ != nullptr) {
+      this->custom_motion_distance_sensor_->publish_state(data[FRAME_DATA_INDEX + 3] * 0.5f);
+    }
+    if (this->custom_motion_speed_sensor_ != nullptr) {
+      this->custom_motion_speed_sensor_->publish_state((data[FRAME_DATA_INDEX + 4] - 10) * 0.5f);
+    }
   } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x06) || (data[FRAME_COMMAND_WORD_INDEX] == 0x86)) {
     // none:0x00  close_to:0x01  far_away:0x02
-    if (data[FRAME_DATA_INDEX] < 3) {
+    if ((this->keep_away_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < 3)) {
       this->keep_away_text_sensor_->publish_state(S_KEEP_AWAY_STR[data[FRAME_DATA_INDEX]]);
     }
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x07) || (data[FRAME_COMMAND_WORD_INDEX] == 0x87)) {
+  } else if ((this->movementSigns_sensor_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x07) ||
+             (data[FRAME_COMMAND_WORD_INDEX] == 0x87))) {
     this->movementSigns_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x08) || (data[FRAME_COMMAND_WORD_INDEX] == 0x88)) {
+  } else if ((this->existence_threshold_number_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x08) ||
+             (data[FRAME_COMMAND_WORD_INDEX] == 0x88))) {
     this->existence_threshold_number_->publish_state(data[FRAME_DATA_INDEX]);
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x09) || (data[FRAME_COMMAND_WORD_INDEX] == 0x89)) {
+  } else if ((this->motion_threshold_number_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x09) ||
+             (data[FRAME_COMMAND_WORD_INDEX] == 0x89))) {
     this->motion_threshold_number_->publish_state(data[FRAME_DATA_INDEX]);
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x0a) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8a)) {
+  } else if ((this->existence_boundary_select_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x0a) ||
+             (data[FRAME_COMMAND_WORD_INDEX] == 0x8a))) {
     if (this->existence_boundary_select_->has_index(data[FRAME_DATA_INDEX] - 1)) {
       this->existence_boundary_select_->publish_state(S_BOUNDARY_STR[data[FRAME_DATA_INDEX] - 1]);
     }
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x0b) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8b)) {
+  } else if ((this->motion_boundary_select_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x0b) ||
+             (data[FRAME_COMMAND_WORD_INDEX] == 0x8b))) {
     if (this->motion_boundary_select_->has_index(data[FRAME_DATA_INDEX] - 1)) {
       this->motion_boundary_select_->publish_state(S_BOUNDARY_STR[data[FRAME_DATA_INDEX] - 1]);
     }
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x0c) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8c)) {
+  } else if ((this->motion_trigger_number_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x0c) ||
+             (data[FRAME_COMMAND_WORD_INDEX] == 0x8c))) {
     uint32_t motion_trigger_time = (uint32_t) (data[FRAME_DATA_INDEX] << 24) +
                                    (uint32_t) (data[FRAME_DATA_INDEX + 1] << 16) +
                                    (uint32_t) (data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
     this->motion_trigger_number_->publish_state(motion_trigger_time);
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x0d) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8d)) {
+  } else if ((this->motion_to_rest_number_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x0d) ||
+             (data[FRAME_COMMAND_WORD_INDEX] == 0x8d))) {
     uint32_t move_to_rest_time = (uint32_t) (data[FRAME_DATA_INDEX] << 24) +
                                  (uint32_t) (data[FRAME_DATA_INDEX + 1] << 16) +
                                  (uint32_t) (data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
     this->motion_to_rest_number_->publish_state(move_to_rest_time);
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x0e) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8e)) {
+  } else if ((this->custom_unman_time_number_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x0e) ||
+             (data[FRAME_COMMAND_WORD_INDEX] == 0x8e))) {
     uint32_t enter_unmanned_time = (uint32_t) (data[FRAME_DATA_INDEX] << 24) +
                                    (uint32_t) (data[FRAME_DATA_INDEX + 1] << 16) +
                                    (uint32_t) (data[FRAME_DATA_INDEX + 2] << 8) + data[FRAME_DATA_INDEX + 3];
@@ -450,17 +476,19 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information(uint8_t *dat
     } else {
       this->s_output_info_switch_flag_ = OUTPUT_SWTICH_OFF;
     }
-    this->underly_open_function_switch_->publish_state(data[FRAME_DATA_INDEX]);
-  } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x81) {
+    if (this->underly_open_function_switch_ != nullptr) {
+      this->underly_open_function_switch_->publish_state(data[FRAME_DATA_INDEX]);
+    }
+  } else if ((this->custom_spatial_static_value_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x81)) {
     this->custom_spatial_static_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-  } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x82) {
+  } else if ((this->custom_spatial_motion_value_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x82)) {
     this->custom_spatial_motion_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-  } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x83) {
+  } else if ((this->custom_presence_of_detection_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x83)) {
     this->custom_presence_of_detection_sensor_->publish_state(
         S_PRESENCE_OF_DETECTION_RANGE_STR[data[FRAME_DATA_INDEX]]);
-  } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x84) {
+  } else if ((this->custom_motion_distance_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x84)) {
     this->custom_motion_distance_sensor_->publish_state(data[FRAME_DATA_INDEX] * 0.5f);
-  } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x85) {
+  } else if ((this->custom_motion_speed_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x85)) {
     this->custom_motion_speed_sensor_->publish_state((data[FRAME_DATA_INDEX] - 10) * 0.5f);
   }
 }
@@ -468,12 +496,13 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information(uint8_t *dat
 void MR24HPC1Component::r24_parse_data_frame(uint8_t *data, uint8_t len) {
   switch (data[FRAME_CONTROL_WORD_INDEX]) {
     case 0x01: {
-      if (data[FRAME_COMMAND_WORD_INDEX] == 0x01) {
+      if ((this->heartbeat_state_text_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x01)) {
         this->heartbeat_state_text_sensor_->publish_state("Equipment Normal");
       } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x02) {
         ESP_LOGD(TAG, "Reply: query reset packet");
-      } else
+      } else if (this->heartbeat_state_text_sensor_ != nullptr) {
         this->heartbeat_state_text_sensor_->publish_state("Equipment Abnormal");
+      }
     } break;
     case 0x02: {
       this->r24_frame_parse_product_information(data);
@@ -497,54 +526,73 @@ void MR24HPC1Component::r24_frame_parse_work_status(uint8_t *data) {
   if (data[FRAME_COMMAND_WORD_INDEX] == 0x01) {
     ESP_LOGD(TAG, "Reply: get radar init status 0x%02X", data[FRAME_DATA_INDEX]);
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x07) {
-    if (this->scene_mode_select_->has_index(data[FRAME_DATA_INDEX])) {
+    if ((this->scene_mode_select_ != nullptr) && (this->scene_mode_select_->has_index(data[FRAME_DATA_INDEX]))) {
       this->scene_mode_select_->publish_state(S_SCENE_STR[data[FRAME_DATA_INDEX]]);
     } else {
       ESP_LOGD(TAG, "Select has index offset %d Error", data[FRAME_DATA_INDEX]);
     }
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x08) || (data[FRAME_COMMAND_WORD_INDEX] == 0x88)) {
+  } else if ((this->sensitivity_number_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x08) ||
+             (data[FRAME_COMMAND_WORD_INDEX] == 0x88))) {
     // 1-3
     this->sensitivity_number_->publish_state(data[FRAME_DATA_INDEX]);
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x09) {
     // 1-4
-    this->custom_mode_num_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-    this->custom_mode_number_->publish_state(0);
-    this->custom_mode_end_text_sensor_->publish_state("Setup in progress...");
+    if (this->custom_mode_num_sensor_ != nullptr) {
+      this->custom_mode_num_sensor_->publish_state(data[FRAME_DATA_INDEX]);
+    }
+    if (this->custom_mode_number_ != nullptr) {
+      this->custom_mode_number_->publish_state(0);
+    }
+    if (this->custom_mode_end_text_sensor_ != nullptr) {
+      this->custom_mode_end_text_sensor_->publish_state("Setup in progress...");
+    }
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x81) {
     ESP_LOGD(TAG, "Reply: get radar init status 0x%02X", data[FRAME_DATA_INDEX]);
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x87) {
-    if (this->scene_mode_select_->has_index(data[FRAME_DATA_INDEX])) {
+    if ((this->scene_mode_select_ != nullptr) && (this->scene_mode_select_->has_index(data[FRAME_DATA_INDEX]))) {
       this->scene_mode_select_->publish_state(S_SCENE_STR[data[FRAME_DATA_INDEX]]);
     } else {
       ESP_LOGD(TAG, "Select has index offset %d Error", data[FRAME_DATA_INDEX]);
     }
-  } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x0A) {
+  } else if ((this->custom_mode_end_text_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x0A)) {
     this->custom_mode_end_text_sensor_->publish_state("Set Success!");
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x89) {
-    if (data[FRAME_DATA_INDEX] == 0)
-      this->custom_mode_end_text_sensor_->publish_state("Not in custom mode");
-    this->custom_mode_number_->publish_state(0);
-    this->custom_mode_num_sensor_->publish_state(data[FRAME_DATA_INDEX]);
+    if (data[FRAME_DATA_INDEX] == 0) {
+      if (this->custom_mode_end_text_sensor_ != nullptr) {
+        this->custom_mode_end_text_sensor_->publish_state("Not in custom mode");
+      }
+      if (this->custom_mode_number_ != nullptr) {
+        this->custom_mode_number_->publish_state(0);
+      }
+      if (this->custom_mode_num_sensor_ != nullptr) {
+        this->custom_mode_num_sensor_->publish_state(data[FRAME_DATA_INDEX]);
+      }
+    }
   } else {
     ESP_LOGD(TAG, "[%s] No found COMMAND_WORD(%02X) in Frame", __FUNCTION__, data[FRAME_COMMAND_WORD_INDEX]);
   }
 }
 
 void MR24HPC1Component::r24_frame_parse_human_information(uint8_t *data) {
-  if ((data[FRAME_COMMAND_WORD_INDEX] == 0x01) || (data[FRAME_COMMAND_WORD_INDEX] == 0x81)) {
+  if ((this->someoneExists_binary_sensor_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x01) ||
+      (data[FRAME_COMMAND_WORD_INDEX] == 0x81))) {
     this->someoneExists_binary_sensor_->publish_state(S_SOMEONE_EXISTS_STR[data[FRAME_DATA_INDEX]]);
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x02) || (data[FRAME_COMMAND_WORD_INDEX] == 0x82)) {
+  } else if ((this->motion_status_text_sensor_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x02) ||
+             (data[FRAME_COMMAND_WORD_INDEX] == 0x82))) {
     if (data[FRAME_DATA_INDEX] < 3) {
       this->motion_status_text_sensor_->publish_state(S_MOTION_STATUS_STR[data[FRAME_DATA_INDEX]]);
     }
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x03) || (data[FRAME_COMMAND_WORD_INDEX] == 0x83)) {
+  } else if ((this->movementSigns_sensor_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x03) ||
+             (data[FRAME_COMMAND_WORD_INDEX] == 0x83))) {
     this->movementSigns_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x0A) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8A)) {
+  } else if ((this->unman_time_select_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x0A) ||
+             (data[FRAME_COMMAND_WORD_INDEX] == 0x8A))) {
     // none:0x00  1s:0x01 30s:0x02 1min:0x03 2min:0x04 5min:0x05 10min:0x06 30min:0x07 1hour:0x08
     if (data[FRAME_DATA_INDEX] < 9) {
       this->unman_time_select_->publish_state(S_UNMANNED_TIME_STR[data[FRAME_DATA_INDEX]]);
     }
-  } else if ((data[FRAME_COMMAND_WORD_INDEX] == 0x0B) || (data[FRAME_COMMAND_WORD_INDEX] == 0x8B)) {
+  } else if ((this->keep_away_text_sensor_ != nullptr) && ((data[FRAME_COMMAND_WORD_INDEX] == 0x0B) ||
+             (data[FRAME_COMMAND_WORD_INDEX] == 0x8B))) {
     // none:0x00  close_to:0x01  far_away:0x02
     if (data[FRAME_DATA_INDEX] < 3) {
       this->keep_away_text_sensor_->publish_state(S_KEEP_AWAY_STR[data[FRAME_DATA_INDEX]]);
@@ -767,13 +815,27 @@ void MR24HPC1Component::set_underlying_open_function(bool enable) {
   } else {
     send_query(underlyswitch_off, sizeof(underlyswitch_off));
   }
-  this->keep_away_text_sensor_->publish_state("");
-  this->motion_status_text_sensor_->publish_state("");
-  this->custom_spatial_static_value_sensor_->publish_state(0.0f);
-  this->custom_spatial_motion_value_sensor_->publish_state(0.0f);
-  this->custom_motion_distance_sensor_->publish_state(0.0f);
-  this->custom_presence_of_detection_sensor_->publish_state(0.0f);
-  this->custom_motion_speed_sensor_->publish_state(0.0f);
+  if (this->keep_away_text_sensor_ != nullptr) {
+    this->keep_away_text_sensor_->publish_state("");
+  }
+  if (this->motion_status_text_sensor_ != nullptr) {
+    this->motion_status_text_sensor_->publish_state("");
+  }
+  if (this->custom_spatial_static_value_sensor_ != nullptr) {
+    this->custom_spatial_static_value_sensor_->publish_state(0.0f);
+  }
+  if (this->custom_spatial_motion_value_sensor_ != nullptr) {
+    this->custom_spatial_motion_value_sensor_->publish_state(0.0f);
+  }
+  if (this->custom_motion_distance_sensor_ != nullptr) {
+    this->custom_motion_distance_sensor_->publish_state(0.0f);
+  }
+  if (this->custom_presence_of_detection_sensor_ != nullptr) {
+    this->custom_presence_of_detection_sensor_->publish_state(0.0f);
+  }
+  if (this->custom_motion_speed_sensor_ != nullptr) {
+    this->custom_motion_speed_sensor_->publish_state(0.0f);
+  }
 }
 
 void MR24HPC1Component::set_scene_mode(const std::string &state) {
@@ -782,8 +844,12 @@ void MR24HPC1Component::set_scene_mode(const std::string &state) {
   uint8_t send_data[10] = {0x53, 0x59, 0x05, 0x07, 0x00, 0x01, cmd_value, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
   this->send_query(send_data, send_data_len);
-  this->custom_mode_number_->publish_state(0);
-  this->custom_mode_num_sensor_->publish_state(0);
+  if (this->custom_mode_number_ != nullptr) {
+    this->custom_mode_number_->publish_state(0);
+  }
+  if (this->custom_mode_num_sensor_ != nullptr) {
+    this->custom_mode_num_sensor_->publish_state(0);
+  }
   this->get_scene_mode();
   this->get_sensitivity();
   this->get_custom_mode();
@@ -824,9 +890,13 @@ void MR24HPC1Component::set_unman_time(const std::string &time) {
 }
 
 void MR24HPC1Component::set_custom_mode(uint8_t mode) {
-  if (mode == 0)
+  if (mode == 0) {
     this->set_custom_end_mode();  // Equivalent to end setting
-  this->custom_mode_number_->publish_state(0);
+    if (this->custom_mode_number_ != nullptr) {
+      this->custom_mode_number_->publish_state(0);
+    }
+    return;
+  }
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x05, 0x09, 0x00, 0x01, mode, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
@@ -847,8 +917,12 @@ void MR24HPC1Component::set_custom_end_mode() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x05, 0x0a, 0x00, 0x01, 0x0F, 0xCB, 0x54, 0x43};
   this->send_query(send_data, send_data_len);
-  this->custom_mode_number_->publish_state(0);  // Clear setpoints
-  this->custom_mode_num_sensor_->publish_state(0);
+  if (this->custom_mode_number_ != nullptr) {
+    this->custom_mode_number_->publish_state(0);  // Clear setpoints
+  }
+  if (this->custom_mode_num_sensor_ != nullptr) {
+    this->custom_mode_num_sensor_->publish_state(0);
+  }
   this->get_existence_boundary();
   this->get_motion_boundary();
   this->get_existence_threshold();
