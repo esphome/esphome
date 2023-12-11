@@ -79,8 +79,19 @@ void Application::loop() {
   }
   this->app_state_ = new_app_state;
 
-  const uint32_t now = millis();
-  const uint32_t elapsed = now - this->last_loop_;
+  if (this->dump_config_at_ < this->components_.size()) {
+    if (this->dump_config_at_ == 0) {
+      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_);
+#ifdef ESPHOME_PROJECT_NAME
+      ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
+#endif
+    }
+
+    this->components_[this->dump_config_at_]->call_dump_config();
+    this->dump_config_at_++;
+  }
+
+  const uint32_t elapsed = millis() - this->last_loop_;
   uint32_t delay_time = 1;  // minimum delay due to tasks at prio 0
 
   if (!HighFrequencyLoopRequester::is_high_frequency() && elapsed < this->loop_interval_) {
@@ -93,19 +104,7 @@ void Application::loop() {
   }
   delay(delay_time);
 
-  this->last_loop_ = now;
-
-  if (this->dump_config_at_ < this->components_.size()) {
-    if (this->dump_config_at_ == 0) {
-      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_);
-#ifdef ESPHOME_PROJECT_NAME
-      ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
-#endif
-    }
-
-    this->components_[this->dump_config_at_]->call_dump_config();
-    this->dump_config_at_++;
-  }
+  this->last_loop_ = millis();
 }
 
 void IRAM_ATTR HOT Application::feed_wdt() {
