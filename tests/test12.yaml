@@ -1,6 +1,6 @@
 substitutions:
-  name: "seeedstudio-mmwave-kit-test"
-  friendly_name: "SeeedStudio mmWave Kit Test"
+  name: "seeed-mr24hpc1-test"
+  friendly_name: "Seeed MR24HPC1 Test"
 
 esphome:
   name: "${name}"
