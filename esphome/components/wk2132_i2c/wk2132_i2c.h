@@ -358,18 +358,18 @@ constexpr uint8_t REG_WK2132_RFCNT = 0x0A;
 /// * -------------------------------------------------------------------------
 /// * |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// * -------------------------------------------------------------------------
-/// * |  RFOE  |  RFLB  |  RFFE  |  RFPE   | RFEMPT | TFEMPT | TFFULL |  TBUSY |
+/// * |  RFOE  |  RFLB  |  RFFE  |  RFPE   |RFEMPTY|TFEMPTY| TFFULL |  TBUSY |
 /// * -------------------------------------------------------------------------
 /// @endcode
 /// @warning The received buffer can hold 256 bytes. However, as the RFCNT reg
 /// is 8 bits, in this case the value 256 is reported as 0 ! Therefore the RFCNT
 /// count can be zero when there is 0 byte **or** 256 bytes in the buffer. If we
-/// have RXDAT = 1 and RFCNT = 0 it should be interpreted as 256 bytes in the FIFO.
+/// have RFEMPTY = 1 and RFCNT = 0 it should be interpreted as 256 bytes in the FIFO.
 /// @note Note that in case of overflow the RFOE goes to one **but** as soon as you read
 /// the FSR this bit is cleared. Therefore Overflow can be read only once even if
 /// still in overflow.
 /// @n The same remark applies to the transmit buffer but here we have to check the
-/// TFULL flag. So if TFULL is set and TFCNT is 0 this should be interpreted as 256
+/// TFFULL flag. So if TFFULL is set and TFCNT is 0 this should be interpreted as 256
 constexpr uint8_t REG_WK2132_FSR = 0x0B;
 /// @brief Receiver FIFO Overflow Error (0: no OE, 1: OE)
 constexpr uint8_t FSR_RFOE = 1 << 7;
@@ -385,7 +385,7 @@ constexpr uint8_t FSR_RFEMPTY = 1 << 3;
 constexpr uint8_t FSR_TFEMPTY = 1 << 2;
 /// @brief Transmitter FIFO full (0: not full, 1: full)
 constexpr uint8_t FSR_TFFULL = 1 << 1;
-/// @brief Transmitter busy (0 transmitter empty, 1: transmitter busy sending)
+/// @brief Transmitter busy (0 nothing to transmit, 1: transmitter busy sending)
 constexpr uint8_t FSR_TBUSY = 1 << 0;
 
 /// @brief Line Status Register (not used - using FIFO)
