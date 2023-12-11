@@ -81,16 +81,17 @@ void Application::loop() {
 
   const uint32_t now = millis();
   const uint32_t elapsed = now - this->last_loop_;
+  uint32_t delay_time = 1;  // minimum delay due to tasks at prio 0
 
   if (!HighFrequencyLoopRequester::is_high_frequency() && elapsed < this->loop_interval_) {
-    uint32_t delay_time = this->loop_interval_ - elapsed;
+    delay_time = this->loop_interval_ - elapsed;
     uint32_t next_schedule = this->scheduler.next_schedule_in().value_or(delay_time);
     // next_schedule is max 0.5*delay_time
     // otherwise interval=0 schedules result in constant looping with almost no sleep
     next_schedule = std::max(next_schedule, delay_time / 2);
     delay_time = std::min(next_schedule, delay_time);
-    delay(delay_time);
   }
+  delay(delay_time);
 
   this->last_loop_ = now;
 
