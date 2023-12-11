@@ -1656,6 +1656,21 @@ sensor:
       memory_location: 0x20
       memory_address: 0x7d
       name: Adres sensor
+  - platform: seeed_mr24hpc1
+    custom_presence_of_detection:
+      name: "Static Distance"
+    movement_signs:
+      name: "Body Movement Parameter"
+    custom_motion_distance:
+      name: "Motion Distance"
+    custom_spatial_static_value:
+      name: "Existence Energy"
+    custom_spatial_motion_value:
+      name: "Motion Energy"
+    custom_motion_speed:
+      name: "Motion Speed"
+    custom_mode_num:
+      name: "Current Custom Mode"
 
 psram:
 
@@ -1985,6 +2000,9 @@ binary_sensor:
   - platform: dfrobot_sen0395
     id: mmwave_detected_uart
     dfrobot_sen0395_id: mmwave
+  - platform: seeed_mr24hpc1
+    someone_exist:
+      name: "Presence Information"
 
 pca9685:
   frequency: 500
@@ -2919,6 +2937,9 @@ switch:
   - platform: micronova
     stove:
       name: Stove on/off
+  - platform: seeed_mr24hpc1
+    underly_open_function:
+      name: Underlying Open Function Info Output Switch
 
 fan:
   - platform: binary
@@ -3671,6 +3692,23 @@ text_sensor:
       name: "presenece sensor version"
     mac_address:
       name: "presenece sensor mac address"
+  - platform: seeed_mr24hpc1
+    heart_beat:
+      name: "Heartbeat"
+    product_model:
+      name: "Product Model"
+    product_id:
+      name: "Product ID"
+    hardware_model:
+      name: "Hardware Model"
+    hardware_version:
+      name: "Hardware Version"
+    keep_away:
+      name: "Active Reporting Of Proximity"
+    motion_status:
+      name: "Motion Information"
+    custom_mode_end:
+      name: "Custom Mode Status"
 
 sn74hc595:
   - id: sn74hc595_hub
@@ -3861,6 +3899,21 @@ number:
       step: 1
     power_level:
       name: Micronova Power level
+  - platform: seeed_mr24hpc1
+    sensitivity:
+      name: "Sensitivity"
+    custom_mode:
+      name: "Custom Mode"
+    existence_threshold:
+      name: "Existence Energy Threshold"
+    motion_threshold:
+      name: "Motion Energy Threshold"
+    motion_trigger:
+      name: "Motion Trigger Time"
+    motion_to_rest:
+      name: "Motion To Rest Time"
+    custom_unman_time:
+      name: "Time For Entering No Person State (Underlying Open Function)"
 
 select:
   - platform: template
@@ -3883,6 +3936,15 @@ select:
       name: light function
     out_pin_level:
       name: out ping level
+  - platform: seeed_mr24hpc1
+    scene_mode:
+      name: "Scene"
+    unman_time:
+      name: "Time For Entering No Person State (Standard Function)"
+    existence_boundary:
+      name: "Existence Boundary"
+    motion_boundary:
+      name: "Motion Boundary"
 
 qr_code:
   - id: homepage_qr
@@ -3997,6 +4059,11 @@ button:
       memory_location: 0xA0
       memory_address: 0x7D
       memory_data: 0x0F
+  - platform: seeed_mr24hpc1
+    reset:
+      name: "Module Reset"
+    custom_set_end:
+      name: "End Of Custom Mode Settings"
 
 ld2410:
   id: my_ld2410
@@ -4109,84 +4176,3 @@ alarm_control_panel:
 seeed_mr24hpc1:
   id: my_seeed_mr24hpc1
   uart_id: seeed_mr24hpc1_uart
-
-text_sensor:
-  - platform: seeed_mr24hpc1
-    heart_beat:
-      name: "Heartbeat"
-    product_model:
-      name: "Product Model"
-    product_id:
-      name: "Product ID"
-    hardware_model:
-      name: "Hardware Model"
-    hardware_version:
-      name: "Hardware Version"
-    keep_away:
-      name: "Active Reporting Of Proximity"
-    motion_status:
-      name: "Motion Information"
-    custom_mode_end:
-      name: "Custom Mode Status"
-
-binary_sensor:
-  - platform: seeed_mr24hpc1
-    someone_exist:
-      name: "Presence Information"
-
-sensor:
-  - platform: seeed_mr24hpc1
-    custom_presence_of_detection:
-      name: "Static Distance"
-    movement_signs:
-      name: "Body Movement Parameter"
-    custom_motion_distance:
-      name: "Motion Distance"
-    custom_spatial_static_value:
-      name: "Existence Energy"
-    custom_spatial_motion_value:
-      name: "Motion Energy"
-    custom_motion_speed:
-      name: "Motion Speed"
-    custom_mode_num:
-      name: "Current Custom Mode"
-
-switch:
-  - platform: seeed_mr24hpc1
-    underly_open_function:
-      name: Underlying Open Function Info Output Switch
-
-button:
-  - platform: seeed_mr24hpc1
-    reset:
-      name: "Module Reset"
-    custom_set_end:
-      name: "End Of Custom Mode Settings"
-
-select:
-  - platform: seeed_mr24hpc1
-    scene_mode:
-      name: "Scene"
-    unman_time:
-      name: "Time For Entering No Person State (Standard Function)"
-    existence_boundary:
-      name: "Existence Boundary"
-    motion_boundary:
-      name: "Motion Boundary"
-
-number:
-  - platform: seeed_mr24hpc1
-    sensitivity:
-      name: "Sensitivity"
-    custom_mode:
-      name: "Custom Mode"
-    existence_threshold:
-      name: "Existence Energy Threshold"
-    motion_threshold:
-      name: "Motion Energy Threshold"
-    motion_trigger:
-      name: "Motion Trigger Time"
-    motion_to_rest:
-      name: "Motion To Rest Time"
-    custom_unman_time:
-      name: "Time For Entering No Person State (Underlying Open Function)"
