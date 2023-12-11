@@ -155,7 +155,6 @@ class RPI_DPI_RGB : public display::Display {
   }
 
  protected:
-
   InternalGPIOPin *de_pin_{nullptr};
   InternalGPIOPin *pclk_pin_{nullptr};
   InternalGPIOPin *hsync_pin_{nullptr};
