@@ -1141,10 +1141,12 @@ sensor:
           value: !lambda "return -1;"
     on_clockwise:
       - logger.log: Clockwise
-      - display_menu.down:
+      - display_menu.down: test_lcd_menu
+      - display_menu.down: test_graphical_display_menu
     on_anticlockwise:
       - logger.log: Anticlockwise
-      - display_menu.up:
+      - display_menu.up: test_lcd_menu
+      - display_menu.up: test_graphical_display_menu
   - platform: pulse_width
     name: Pulse Width
     pin:
@@ -1781,13 +1783,22 @@ binary_sensor:
     on_press:
       - if:
           condition:
-            display_menu.is_active:
+            display_menu.is_active: test_lcd_menu
           then:
-            - display_menu.enter:
+            - display_menu.enter: test_lcd_menu
           else:
-            - display_menu.left:
-            - display_menu.right:
-            - display_menu.show:
+            - display_menu.left: test_lcd_menu
+            - display_menu.right: test_lcd_menu
+            - display_menu.show: test_lcd_menu
+      - if:
+          condition:
+            display_menu.is_active: test_graphical_display_menu
+          then:
+            - display_menu.enter: test_graphical_display_menu
+          else:
+            - display_menu.left: test_graphical_display_menu
+            - display_menu.right: test_graphical_display_menu
+            - display_menu.show: test_graphical_display_menu
   - platform: template
     name: Garage Door Open
     id: garage_door
@@ -2933,6 +2944,33 @@ fan:
     on_speed_set:
       then:
         - logger.log: Fan speed was changed!
+  - platform: speed
+    id: fan_speed_presets
+    icon: mdi:weather-windy
+    output: pca_6
+    speed_count: 10
+    name: Speed Fan w/ Presets
+    oscillation_output: gpio_19
+    direction_output: gpio_26
+    preset_modes:
+      - Preset 1
+      - Preset 2
+    on_preset_set:
+      then:
+        - logger.log: Preset mode was changed!
+  - platform: hbridge
+    id: fan_hbridge_presets
+    icon: mdi:weather-windy
+    speed_count: 4
+    name: H-bridge Fan w/ Presets
+    pin_a: pca_6
+    pin_b: pca_7
+    preset_modes:
+      - Preset 1
+      - Preset 2
+    on_preset_set:
+      then:
+        - logger.log: Preset mode was changed!
   - platform: bedjet
     name: My Bedjet fan
     bedjet_id: my_bedjet_client
@@ -3204,6 +3242,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7735
+    id: st7735_display
     model: INITR_BLACKTAB
     cs_pin:
       allow_other_uses: true
@@ -3997,6 +4036,7 @@ ld2420:
   uart_id: ld2420_uart
 
 lcd_menu:
+  id: test_lcd_menu
   display_id: my_lcd_gpio
   mark_back: 0x5e
   mark_selected: 0x3e
@@ -4028,7 +4068,7 @@ lcd_menu:
               text: Show Main
               on_value:
                 then:
-                  - display_menu.show_main:
+                  - display_menu.show_main: test_lcd_menu
     - type: select
       text: Enum Item
       immediate_edit: true
@@ -4058,7 +4098,7 @@ lcd_menu:
       text: Hide
       on_value:
         then:
-          - display_menu.hide:
+          - display_menu.hide: test_lcd_menu
     - type: switch
       text: Switch
       switch: my_switch
@@ -4078,6 +4118,91 @@ lcd_menu:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
 
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
+
+graphical_display_menu:
+  id: test_graphical_display_menu
+  display: st7735_display
+  font: roboto
+  active: false
+  mode: rotary
+  on_enter:
+    then:
+      lambda: 'ESP_LOGI("graphical_display_menu", "root enter");'
+  on_leave:
+    then:
+      lambda: 'ESP_LOGI("graphical_display_menu", "root leave");'
+  items:
+    - type: back
+      text: 'Back'
+    - type: label
+    - type: menu
+      text: 'Submenu 1'
+      items:
+        - type: back
+          text: 'Back'
+        - type: menu
+          text: 'Submenu 21'
+          items:
+            - type: back
+              text: 'Back'
+            - type: command
+              text: 'Show Main'
+              on_value:
+                then:
+                  - display_menu.show_main: test_graphical_display_menu
+    - type: select
+      text: 'Enum Item'
+      immediate_edit: true
+      select: test_select
+      on_enter:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "select enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_leave:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "select leave: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "select value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+    - type: number
+      text: 'Number'
+      number: test_number
+      on_enter:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "number enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_leave:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "number leave: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+    - type: command
+      text: 'Hide'
+      on_value:
+        then:
+          - display_menu.hide: test_graphical_display_menu
+    - type: switch
+      text: 'Switch'
+      switch: my_switch
+      on_text: 'Bright'
+      off_text: 'Dark'
+      immediate_edit: false
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "switch value: %s", it->get_value_text().c_str());'
+    - type: custom
+      text: !lambda 'return "Custom";'
+      value_lambda: 'return "Val";'
+      on_next:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "custom next: %s", it->get_text().c_str());'
+      on_prev:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "custom prev: %s", it->get_text().c_str());'
+
 alarm_control_panel:
   - platform: template
     id: alarmcontrolpanel1
@@ -4095,4 +4220,3 @@ alarm_control_panel:
       then:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));
-
