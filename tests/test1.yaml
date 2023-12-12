@@ -3395,7 +3395,7 @@ pn7150_i2c:
   i2c_id: i2c_bus
   irq_pin:
     allow_other_uses: true
-    number: GPIO35
+    number: GPIO32
   ven_pin:
     allow_other_uses: true
     number: GPIO16
