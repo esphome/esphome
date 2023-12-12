@@ -877,9 +877,10 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   /**
    * Upload the tft file and soft reset Nextion
+   * @param baud_rate The baud rate to be used for the TFT transfer
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
-  bool upload_tft();
+  bool upload_tft(uint32_t baud_rate = this->parent_->baud_rate_);
 
   void dump_config() override;
 
