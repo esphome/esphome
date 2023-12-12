@@ -306,7 +306,8 @@ class SPIBus {
 
   SPIBus(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) : clk_pin_(clk), sdo_pin_(sdo), sdi_pin_(sdi) {}
 
-  virtual SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin) {
+  virtual SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+                                    uint8_t command_bits = 0, uint8_t address_bits = 0) {
     return new SPIDelegateBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
   }
 
@@ -331,6 +332,7 @@ class SPIComponent : public Component {
   void set_miso(GPIOPin *sdi) { this->sdi_pin_ = sdi; }
 
   void set_mosi(GPIOPin *sdo) { this->sdo_pin_ = sdo; }
+  void set_data_pins(std::vector<InternalGPIOPin *> pin) { this->data_pins_ = pin; }
 
   void set_interface(SPIInterface interface) {
     this->interface_ = interface;
@@ -348,13 +350,16 @@ class SPIComponent : public Component {
   GPIOPin *clk_pin_{nullptr};
   GPIOPin *sdi_pin_{nullptr};
   GPIOPin *sdo_pin_{nullptr};
+  std::vector<InternalGPIOPin *> data_pins_{};
+
   SPIInterface interface_{};
   bool using_hw_{false};
   const char *interface_name_{nullptr};
   SPIBus *spi_bus_{};
   std::map<SPIClient *, SPIDelegate *> devices_;
 
-  static SPIBus *get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi);
+  static SPIBus *get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
+                         std::vector<InternalGPIOPin *> data_pins);
 };
 
 /**
@@ -423,6 +428,8 @@ class SPIDevice : public SPIClient {
   void read_array(uint8_t *data, size_t length) { return this->delegate_->read_array(data, length); }
 
   void write(uint16_t data, size_t num_bits) { this->delegate_->write(data, num_bits); };
+
+  void write_cmd_addr_data(uint32_t cmd, uint32_t address, const uint8_t *data, size_t length);
 
   void write_byte(uint8_t data) { this->delegate_->write_array(&data, 1); }
 

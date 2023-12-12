@@ -70,6 +70,7 @@ CONF_SPI_MODE = "spi_mode"
 CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
+CONF_DATA_PINS = "data_pins"
 
 # RP2040 SPI pin assignments are complicated. Refer to https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
 
@@ -226,9 +227,11 @@ def validate_spi_config(config):
                 spi[CONF_INTERFACE_INDEX] = index
                 available.remove(index)
         if CONF_INTERFACE_INDEX in spi and not validate_hw_pins(
-            spi, spi[CONF_INTERFACE_INDEX]
+                spi, spi[CONF_INTERFACE_INDEX]
         ):
             raise cv.Invalid("Invalid pin selections for hardware SPI interface")
+        if CONF_DATA_PINS in spi and CONF_INTERFACE_INDEX not in spi:
+            raise cv.Invalid("Quad mode requires a hardware interface")
 
     return config
 
@@ -249,13 +252,27 @@ def get_spi_interface(index):
     return "new SPIClass(HSPI)"
 
 
+def check_bus_config(config):
+    is_1_bit = CONF_MOSI_PIN in config or CONF_MISO_PIN in config
+    data_pins = config.get(CONF_DATA_PINS)
+    if not is_1_bit and not data_pins:
+        raise cv.Invalid("Either mosi/miso pins, or 4 data pins required")
+    if is_1_bit and data_pins:
+        raise cv.Invalid("May specify mosi/miso, or data pins but not both")
+    if data_pins:
+        if len(data_pins) != 4:
+            raise cv.Invalid("Must specify 4 data pins")
+        return cv.only_with_esp_idf(config)
+    return config
+
+
 SPI_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SPIComponent),
-            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_DATA_PINS): cv.ensure_list(pins.gpio_output_pin_schema),
             cv.Optional(CONF_FORCE_SW, default=False): cv.boolean,
             cv.Optional(CONF_INTERFACE, default="any"): cv.one_of(
                 *sum(get_hw_interface_list(), ["software", "hardware", "any"]),
@@ -263,7 +280,7 @@ SPI_SCHEMA = cv.All(
             ),
         }
     ),
-    cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
+    check_bus_config,
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
 )
 
@@ -280,17 +297,19 @@ async def to_code(configs):
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
         await cg.register_component(var, spi)
-
         clk = await cg.gpio_pin_expression(spi[CONF_CLK_PIN])
         cg.add(var.set_clk(clk))
-        if CONF_MISO_PIN in spi:
-            miso = await cg.gpio_pin_expression(spi[CONF_MISO_PIN])
-            cg.add(var.set_miso(miso))
-        if CONF_MOSI_PIN in spi:
-            mosi = await cg.gpio_pin_expression(spi[CONF_MOSI_PIN])
-            cg.add(var.set_mosi(mosi))
-        if CONF_INTERFACE_INDEX in spi:
-            index = spi[CONF_INTERFACE_INDEX]
+        if miso := spi.get(CONF_MISO_PIN):
+            cg.add(var.set_miso(await cg.gpio_pin_expression(miso)))
+        if mosi := spi.get(CONF_MOSI_PIN):
+            cg.add(var.set_mosi(await cg.gpio_pin_expression(mosi)))
+        if data_pins := spi.get(CONF_DATA_PINS):
+            vec = cg.std_vector.template(cg.InternalGPIOPin)
+            for pin in data_pins:
+                gpio = await cg.gpio_pin_expression(pin)
+                cg.add(vec.push_back(gpio))
+            cg.add(var.set_data_pins(vec))
+        if index := spi.get(CONF_INTERFACE):
             cg.add(var.set_interface(cg.RawExpression(get_spi_interface(index))))
             cg.add(
                 var.set_interface_name(
@@ -305,7 +324,7 @@ async def to_code(configs):
 
 
 def spi_device_schema(
-    cs_pin_required=True, default_data_rate=cv.UNDEFINED, default_mode=cv.UNDEFINED
+        cs_pin_required=True, default_data_rate=cv.UNDEFINED, default_mode=cv.UNDEFINED
 ):
     """Create a schema for an SPI device.
     :param cs_pin_required: If true, make the CS_PIN required in the config.

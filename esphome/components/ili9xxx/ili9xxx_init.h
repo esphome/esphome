@@ -316,6 +316,17 @@ static const uint8_t PROGMEM INITCMD_ST7789V[] = {
   0x00                                   // End of list
 };
 
+static const uint8_t INITCMD_RM67162[] = {
+    0xFE, 1, 0x00, // PAGE
+    0x11, 0x80,
+    0x36, 1, 0,
+    0x3A, 1, 0x55, // 16 bits/pixel
+    //0x51, 1, 0x00, // display brightness
+    0x29, 0x80,
+    0x51, 1, 0xFF, // display brightness
+    0x00
+};
+
 // clang-format on
 }  // namespace ili9xxx
 }  // namespace esphome

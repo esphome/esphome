@@ -11,7 +11,7 @@ static const size_t MAX_TRANSFER_SIZE = 4092;  // dictated by ESP-IDF API.
 class SPIDelegateHw : public SPIDelegate {
  public:
   SPIDelegateHw(SPIInterface channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
-                bool write_only)
+                bool write_only, uint8_t command_bits = 0, uint8_t address_bits = 0)
       : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel), write_only_(write_only) {
     spi_device_interface_config_t config = {};
     config.mode = static_cast<uint8_t>(mode);
@@ -21,6 +21,8 @@ class SPIDelegateHw : public SPIDelegate {
     config.queue_size = 1;
     config.pre_cb = nullptr;
     config.post_cb = nullptr;
+    config.command_bits = command_bits;
+    config.address_bits = address_bits;
     if (bit_order == BIT_ORDER_LSB_FIRST)
       config.flags |= SPI_DEVICE_BIT_LSBFIRST;
     if (write_only)
@@ -104,6 +106,31 @@ class SPIDelegateHw : public SPIDelegate {
     }
   }
 
+  void write_cmd_addr_data(uint32_t cmd, uint32_t address, const uint8_t *data, size_t length) {
+    if (length >= MAX_TRANSFER_SIZE) {
+      ESP_LOGE(TAG, "Data buffer too long");
+      return;
+    }
+    spi_transaction_t desc = {};
+    desc.flags = SPI_TRANS_MULTILINE_ADDR | SPI_TRANS_MULTILINE_CMD;
+    desc.rxlength = 0;
+    desc.cmd = cmd;
+    desc.addr = address;
+    if (data != nullptr) {
+      desc.length = length * 8;
+      desc.tx_buffer = data;
+    } else {
+      desc.length = 0;
+    }
+    esp_err_t err = spi_device_polling_start(this->handle_, &desc, portMAX_DELAY);
+    if (err == ESP_OK) {
+      err = spi_device_polling_end(this->handle_, portMAX_DELAY);
+    }
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Transmit failed - err %X", err);
+    }
+  }
+
   void transfer(uint8_t *ptr, size_t length) override { this->transfer(ptr, ptr, length); }
 
   uint8_t transfer(uint8_t data) override {
@@ -142,22 +169,32 @@ class SPIDelegateHw : public SPIDelegate {
 
 class SPIBusHw : public SPIBus {
  public:
-  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel) : SPIBus(clk, sdo, sdi), channel_(channel) {
+  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel, std::vector<InternalGPIOPin *> data_pins)
+      : SPIBus(clk, sdo, sdi), channel_(channel) {
     spi_bus_config_t buscfg = {};
-    buscfg.mosi_io_num = Utility::get_pin_no(sdo);
-    buscfg.miso_io_num = Utility::get_pin_no(sdi);
     buscfg.sclk_io_num = Utility::get_pin_no(clk);
-    buscfg.quadwp_io_num = -1;
-    buscfg.quadhd_io_num = -1;
+    if (data_pins.empty()) {
+      buscfg.mosi_io_num = Utility::get_pin_no(sdo);
+      buscfg.miso_io_num = Utility::get_pin_no(sdi);
+      buscfg.quadwp_io_num = -1;
+      buscfg.quadhd_io_num = -1;
+    } else {
+      buscfg.data0_io_num = Utility::get_pin_no(data_pins[0]);
+      buscfg.data1_io_num = Utility::get_pin_no(data_pins[1]);
+      buscfg.data2_io_num = Utility::get_pin_no(data_pins[2]);
+      buscfg.data3_io_num = Utility::get_pin_no(data_pins[3]);
+    }
     buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
+    buscfg.flags = SPICOMMON_BUSFLAG_MASTER;
     auto err = spi_bus_initialize(channel, &buscfg, SPI_DMA_CH_AUTO);
     if (err != ESP_OK)
       ESP_LOGE(TAG, "Bus init failed - err %X", err);
   }
 
-  SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin) override {
+  SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+                            uint8_t command_bits = 0, uint8_t address_bits = 0) override {
     return new SPIDelegateHw(this->channel_, data_rate, bit_order, mode, cs_pin,
-                             Utility::get_pin_no(this->sdi_pin_) == -1);
+                             Utility::get_pin_no(this->sdi_pin_) == -1, command_bits, address_bits);
   }
 
  protected:
@@ -166,8 +203,9 @@ class SPIBusHw : public SPIBus {
   bool is_hw() override { return true; }
 };
 
-SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
-  return new SPIBusHw(clk, sdo, sdi, interface);
+SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
+                              std::vector<InternalGPIOPin *> data_pins) {
+  return new SPIBusHw(clk, sdo, sdi, interface, data_pins);
 }
 
 #endif

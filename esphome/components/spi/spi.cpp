@@ -49,7 +49,7 @@ void SPIComponent::setup() {
   }
 
   if (this->using_hw_) {
-    this->spi_bus_ = SPIComponent::get_bus(this->interface_, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
+    this->spi_bus_ = SPIComponent::get_bus(this->interface_, this->clk_pin_, this->sdo_pin_, this->sdi_pin_, this->data_pins_);
     if (this->spi_bus_ == nullptr) {
       ESP_LOGE(TAG, "Unable to allocate SPI interface");
       this->mark_failed();
