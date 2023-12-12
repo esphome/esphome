@@ -35,6 +35,7 @@ from esphome.core import coroutine_with_priority, CORE
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
+QuadSPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 SPIDevice = spi_ns.class_("SPIDevice")
 SPIDataRate = spi_ns.enum("SPIDataRate")
 SPIMode = spi_ns.enum("SPIMode")
@@ -280,12 +281,28 @@ SPI_SCHEMA = cv.All(
             ),
         }
     ),
-    check_bus_config,
+    cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
 )
 
+SPI_QUAD_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(QuadSPIComponent),
+            cv.Required(CONF_DATA_PINS): cv.All(
+                cv.ensure_list(pins.gpio_output_pin_schema),
+                cv.Length(min=4, max=4)
+            ),
+        }
+    ),
+    cv.only_with_esp_idf,
+)
+
 CONFIG_SCHEMA = cv.All(
-    cv.ensure_list(SPI_SCHEMA),
+    cv.Any(
+        cv.ensure_list(SPI_SCHEMA),
+        cv.ensure_list(SPI_QUAD_SCHEMA),
+    ),
     validate_spi_config,
 )
 
@@ -324,7 +341,7 @@ async def to_code(configs):
 
 
 def spi_device_schema(
-        cs_pin_required=True, default_data_rate=cv.UNDEFINED, default_mode=cv.UNDEFINED
+        cs_pin_required=True, default_data_rate=cv.UNDEFINED, default_mode=cv.UNDEFINED, quad=False,
 ):
     """Create a schema for an SPI device.
     :param cs_pin_required: If true, make the CS_PIN required in the config.
@@ -332,7 +349,7 @@ def spi_device_schema(
     :return: The SPI device schema, `extend` this in your config schema.
     """
     schema = {
-        cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
+        cv.GenerateID(CONF_SPI_ID): cv.use_id(QuadSPIComponent if quad else SPIComponent),
         cv.Optional(CONF_DATA_RATE, default=default_data_rate): SPI_DATA_RATE_SCHEMA,
         cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(
             SPI_MODE_OPTIONS, upper=True
