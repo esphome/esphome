@@ -3395,19 +3395,33 @@ pn532_i2c:
 pn7160_i2c:
   id: nfcc_pn7160_i2c
   i2c_id: i2c_bus
-  dwl_req_pin: GPIO17
-  irq_pin: GPIO35
-  ven_pin: GPIO16
+  dwl_req_pin:
+    allow_other_uses: true
+    number: GPIO17
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO35
+  ven_pin:
+    allow_other_uses: true
+    number: GPIO16
   wkup_req_pin: GPIO21
   emulation_message: https://www.home-assistant.io/tag/pulse_ce
   tag_ttl: 1000ms
 
 pn7160_spi:
   id: nfcc_pn7160_spi
-  cs_pin: GPIO15
-  dwl_req_pin: GPIO17
-  irq_pin: GPIO35
-  ven_pin: GPIO16
+  cs_pin:
+    number: GPIO15
+    allow_other_uses: true
+  dwl_req_pin:
+    allow_other_uses: true
+    number: GPIO17
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO35
+  ven_pin:
+    allow_other_uses: true
+    number: GPIO16
   wkup_req_pin: GPIO21
   emulation_message: https://www.home-assistant.io/tag/pulse_ce
   tag_ttl: 1000ms
