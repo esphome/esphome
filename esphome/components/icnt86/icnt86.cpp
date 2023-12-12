@@ -44,6 +44,8 @@ void ICNT86Touchscreen::setup() {
 
 void ICNT86Touchscreen::loop() {
   if (!this->store_.touch) {
+          for (auto *listener : this->touch_listeners_)
+        listener->release();
     return;
   }
   ESP_LOGD(TAG, "touch");
@@ -62,6 +64,8 @@ void ICNT86Touchscreen::loop() {
   if (buf[0] == 0x00) {  // No new touch
     this->ICNT_Write_(0x1001, mask, 1);
     delay(1);
+    for (auto *listener : this->touch_listeners_)
+      listener->release();
     return;
   } else {
     if (touch_count > 5 || touch_count < 1) {
