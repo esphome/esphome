@@ -365,6 +365,7 @@ message ListEntitiesFanResponse {
   bool disabled_by_default = 9;
   string icon = 10;
   EntityCategory entity_category = 11;
+  repeated string supported_preset_modes = 12;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
@@ -387,6 +388,7 @@ message FanStateResponse {
   FanSpeed speed = 4 [deprecated = true];
   FanDirection direction = 5;
   int32 speed_level = 6;
+  string preset_mode = 7;
 }
 message FanCommandRequest {
   option (id) = 31;
@@ -405,6 +407,8 @@ message FanCommandRequest {
   FanDirection direction = 9;
   bool has_speed_level = 10;
   int32 speed_level = 11;
+  bool has_preset_mode = 12;
+  string preset_mode = 13;
 }
 
 // ==================== LIGHT ====================
