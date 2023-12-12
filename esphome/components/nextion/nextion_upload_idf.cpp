@@ -217,7 +217,7 @@ bool Nextion::upload_tft(uint32_t baud_rate) {
   this->send_command_(command);
 
   if (baud_rate != original_baud_rate) {
-    this->parent_->set_baud_rate_(baud_rate);
+    this->parent_->set_baud_rate(baud_rate);
     this->parent_->load_settings();
   }
 
@@ -274,7 +274,7 @@ bool Nextion::upload_end(bool successful) {
   }
   // Reset UART to it's original baud rate
   if (this->parent_->get_baud_rate() != original_baud_rate) {
-    this->parent_->set_baud_rate_(original_baud_rate);
+    this->parent_->set_baud_rate(original_baud_rate);
     this->parent_->load_settings();
   }
   return successful;
