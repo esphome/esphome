@@ -84,6 +84,14 @@ uart:
       allow_other_uses: true
       number: GPIO26
     baud_rate: 9600
+  - id: uart_a02yyuw
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO22
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO23
+    baud_rate: 9600
   - id: uart_he60r
     tx_pin:
       number: GPIO18
@@ -357,6 +365,11 @@ sensor:
     name: "a01nyub Distance"
     uart_id: uart9600
     state_topic: "esphome/sensor/a01nyub_sensor/state"
+  - platform: a02yyuw
+    id: a02yyuw_sensor
+    name: "a02yyuw Distance"
+    uart_id: uart_a02yyuw
+    state_topic: "esphome/sensor/a02yyuw_sensor/state"
 
 #
 # platform sensor.apds9960 requires component apds9960
