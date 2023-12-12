@@ -1,5 +1,6 @@
 #include "cse7766.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace cse7766 {
@@ -162,7 +163,7 @@ void CSE7766Component::update() {
     if (counts != 0) {
       const auto avg = acc / counts;
 
-      ESP_LOGV(TAG, "Got %s_acc=%.2f %s_counts=%d %s=%.1f", name, acc, name, counts, name, avg);
+      ESP_LOGV(TAG, "Got %s_acc=%.2f %s_counts=%" PRIu32 " %s=%.1f", name, acc, name, counts, name, avg);
 
       if (sensor != nullptr) {
         sensor->publish_state(avg);
@@ -178,7 +179,8 @@ void CSE7766Component::update() {
   publish_state("power", this->power_sensor_, this->power_acc_, this->power_counts_);
 
   if (this->energy_total_counts_ != 0) {
-    ESP_LOGV(TAG, "Got energy_total=%.2f energy_total_counts=%d", this->energy_total_, this->energy_total_counts_);
+    ESP_LOGV(TAG, "Got energy_total=%.2f energy_total_counts=%" PRIu32, this->energy_total_,
+             this->energy_total_counts_);
 
     if (this->energy_sensor_ != nullptr) {
       this->energy_sensor_->publish_state(this->energy_total_);
