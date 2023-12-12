@@ -16,7 +16,7 @@
 namespace esphome {
 namespace nextion {
 static const char *const TAG = "nextion.upload.arduino";
-uint32_t original_baud_rate = this->parent_->get_baud_rate();
+uint32_t original_baud_rate;
 
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
