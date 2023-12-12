@@ -125,11 +125,13 @@ void ESP32ArduinoUARTComponent::load_settings(bool dump_config) {
   this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, invert);
   if (dump_config) {
     ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->uart_num_);
-    dump_config();
+    dump_config_();
   }
 }
 
-void ESP32ArduinoUARTComponent::dump_config() {
+void ESP32ArduinoUARTComponent::dump_config() { dump_config_(); }
+
+void ESP32ArduinoUARTComponent::dump_config_() {
   ESP_LOGCONFIG(TAG, "UART Bus %d:", this->number_);
   LOG_PIN("  TX Pin: ", tx_pin_);
   LOG_PIN("  RX Pin: ", rx_pin_);

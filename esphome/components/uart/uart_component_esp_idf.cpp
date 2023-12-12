@@ -131,13 +131,14 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   } else if (dump_config) {
     ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->uart_num_);
-    dump_config();
+    dump_config_();
   }
 }
 
-void IDFUARTComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "UART Bus:");
-  ESP_LOGCONFIG(TAG, "  Number: %u", this->uart_num_);
+void IDFUARTComponent::dump_config() { dump_config_(); }
+
+void IDFUARTComponent::dump_config_() {
+  ESP_LOGCONFIG(TAG, "UART Bus %u:", this->uart_num_);
   LOG_PIN("  TX Pin: ", tx_pin_);
   LOG_PIN("  RX Pin: ", rx_pin_);
   if (this->rx_pin_ != nullptr) {
