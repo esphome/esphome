@@ -375,16 +375,16 @@ void WK2132Channel::set_baudrate_() {
            baud_high, baud_low, baud_dec);
 }
 
-inline bool WK2132Channel::tx_fifo_is_not_empty_() { return this->channel_reg(REG_WK2132_FSR) & FSR_TFEMPTY; }
+inline bool WK2132Channel::tx_fifo_is_not_empty_() { return this->channel_reg(REG_WK2132_FSR) & FSR_TFDAT; }
 
 size_t WK2132Channel::tx_in_fifo_() {
-  size_t tfcnt;
-  uint8_t const fsr = this->channel_reg(REG_WK2132_FSR);
-  if (fsr & FSR_TFFULL) {
-    ESP_LOGVV(TAG, "transmit fifo full (FSR=%s)", I2CS(fsr));
-    tfcnt = FIFO_SIZE;
-  } else {
-    tfcnt = this->channel_reg(REG_WK2132_TFCNT);
+  size_t tfcnt = this->channel_reg(REG_WK2132_TFCNT);
+  if (tfcnt == 0) {
+    uint8_t const fsr = this->channel_reg(REG_WK2132_FSR);
+    if (fsr & FSR_TFFULL) {
+      ESP_LOGVV(TAG, "tx_in_fifo full FSR=%s", I2CS(fsr));
+      tfcnt = FIFO_SIZE;
+    }
   }
   ESP_LOGVV(TAG, "tx_in_fifo %d", tfcnt);
   return tfcnt;
@@ -393,15 +393,30 @@ size_t WK2132Channel::tx_in_fifo_() {
 /// @brief number of bytes in the receive fifo
 /// @return number of bytes
 size_t WK2132Channel::rx_in_fifo_() {
-  size_t available;
-  uint8_t fsr = this->channel_reg(REG_WK2132_FSR);
-  if (fsr & FSR_RFEMPTY) {
-    ESP_LOGVV(TAG, "receive fifo full (FSR=%s)", I2CS(fsr));
-    available = FIFO_SIZE;
-  } else {
-    available = this->channel_reg(REG_WK2132_RFCNT);
+  size_t available = this->channel_reg(REG_WK2132_RFCNT);
+  uint8_t const fsr = this->channel_reg(REG_WK2132_FSR);
+  if (fsr & (FSR_RFOE | FSR_RFLB | FSR_RFFE | FSR_RFPE)) {
+    if (fsr & FSR_RFOE)
+      ESP_LOGE(TAG, "Receive data overflow FSR=%s", I2CS(fsr));
+    if (fsr & FSR_RFLB)
+      ESP_LOGE(TAG, "Receive line break FSR=%s", I2CS(fsr));
+    if (fsr & FSR_RFFE)
+      ESP_LOGE(TAG, "Receive frame error FSR=%s", I2CS(fsr));
+    if (fsr & FSR_RFPE)
+      ESP_LOGE(TAG, "Receive parity error FSR=%s", I2CS(fsr));
   }
-  ESP_LOGVV(TAG, "rx_in_fifo %d", available);
+  if ((available == 0) && (fsr & FSR_RFDAT)) {
+    // here we should be very careful because we can have something like this:
+    // -  at time t0 we read RFCNT=0 because nothing yet received
+    // -  at time t0+delta we might read FIFO not empty because one byte has just been received
+    // -  so to be sure we need to do another read of RFCNT. If still zero -> buffer full
+    available = this->channel_reg(REG_WK2132_RFCNT);
+    if (available == 0) {  // still zero ?
+      ESP_LOGVV(TAG, "rx_in_fifo full FSR=%s", I2CS(fsr));
+      available = FIFO_SIZE;
+    }
+  }
+  ESP_LOGVV(TAG, "rx_in_fifo bytes=%d status=%s", available, I2CS(fsr));
   return available;
 }
 
