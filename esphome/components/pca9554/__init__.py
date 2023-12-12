@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_OUTPUT,
 )
-from esphome.core import CORE, ID
 
 CODEOWNERS = ["@hwstar", "@clydebarrow"]
 DEPENDENCIES = ["i2c"]
@@ -53,46 +52,27 @@ def validate_mode(value):
     return value
 
 
-def validate_pin(config):
-    pca_id = config[CONF_PCA9554].id
-
-    # when pin config validation is performed, the entire YAML has been read, but depending on the component order,
-    # the pca9554 component may not yet have been processed, so its id property could be either the original string,
-    # or an ID object.
-    def matcher(p):
-        id = p[CONF_ID]
-        if isinstance(id, ID):
-            return id.id == pca_id
-        return id == pca_id
-
-    pca = list(filter(matcher, CORE.raw_config[CONF_PCA9554]))
-    if not pca:
-        raise cv.Invalid(f"No pca9554 component found with id matching {pca_id}")
-    count = pca[0][CONF_PIN_COUNT]
-    if config[CONF_NUMBER] >= count:
-        raise cv.Invalid(f"Pin number must be in range 0-{count - 1}")
-    return config
-
-
-PCA9554_PIN_SCHEMA = cv.All(
+PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
+    PCA9554GPIOPin,
+    cv.int_range(min=0, max=15),
+    modes=[CONF_INPUT, CONF_OUTPUT],
+    mode_validator=validate_mode,
+).extend(
     {
-        cv.GenerateID(): cv.declare_id(PCA9554GPIOPin),
         cv.Required(CONF_PCA9554): cv.use_id(PCA9554Component),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
-        cv.Optional(CONF_MODE, default={}): cv.All(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-            },
-            validate_mode,
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-    },
-    validate_pin,
+    }
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("pca9554", PCA9554_PIN_SCHEMA)
+def pca9554_pin_final_validate(pin_config, parent_config):
+    count = parent_config[CONF_PIN_COUNT]
+    if pin_config[CONF_NUMBER] >= count:
+        raise cv.Invalid(f"Pin number must be in range 0-{count - 1}")
+
+
+@pins.PIN_SCHEMA_REGISTRY.register(
+    CONF_PCA9554, PCA9554_PIN_SCHEMA, pca9554_pin_final_validate
+)
 async def pca9554_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_PCA9554])

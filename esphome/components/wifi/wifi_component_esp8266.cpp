@@ -230,8 +230,8 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   struct station_config conf {};
   memset(&conf, 0, sizeof(conf));
-  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid) - 1);
-  strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password) - 1);
+  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid));
+  strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password));
 
   if (ap.get_bssid().has_value()) {
     conf.bssid_set = 1;
@@ -688,6 +688,8 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
   }
   this->scan_done_ = true;
 }
+
+#ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   // enable AP
   if (!this->wifi_mode_({}, true))
@@ -753,13 +755,14 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   return true;
 }
+
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   // enable AP
   if (!this->wifi_mode_({}, true))
     return false;
 
   struct softap_config conf {};
-  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid) - 1);
+  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid));
   conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
   conf.channel = ap.get_channel().value_or(1);
   conf.ssid_hidden = ap.get_hidden();
@@ -771,7 +774,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     *conf.password = 0;
   } else {
     conf.authmode = AUTH_WPA2_PSK;
-    strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password) - 1);
+    strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password));
   }
 
   ETS_UART_INTR_DISABLE();
@@ -790,11 +793,14 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
+
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   struct ip_info ip {};
   wifi_get_ip_info(SOFTAP_IF, &ip);
   return network::IPAddress(&ip.ip);
 }
+#endif  // USE_WIFI_AP
+
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
   uint8_t *raw_bssid = WiFi.BSSID();
