@@ -265,8 +265,12 @@ uart:
     baud_rate: 9600
   - id: uponor_uart
     baud_rate: 19200
-    tx_pin: GPIO17
-    rx_pin: GPIO16
+    tx_pin:
+      allow_other_uses: true
+      number: 17
+    rx_pin:
+      allow_other_uses: true
+      number: 16
 
 ota:
   safe_mode: true
