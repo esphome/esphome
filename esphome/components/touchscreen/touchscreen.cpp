@@ -7,10 +7,10 @@ namespace touchscreen {
 
 static const char *const TAG = "touchscreen";
 
-void TouchscreenInterupt::gpio_intr(TouchscreenInterupt *store) { store->touched = true; }
+void TouchscreenInterrupt::gpio_intr(TouchscreenInterrupt *store) { store->touched = true; }
 
 void Touchscreen::attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::InterruptType type) {
-  irq_pin->attach_interrupt(TouchscreenInterupt::gpio_intr, &this->store_, type);
+  irq_pin->attach_interrupt(TouchscreenInterrupt::gpio_intr, &this->store_, type);
   this->store_.init = true;
   this->store_.touched = false;
 }
@@ -34,7 +34,7 @@ void Touchscreen::loop() {
       if (tp.second.state == STATE_PRESSED || tp.second.state == STATE_UPDATED) {
         tp.second.state = tp.second.state | STATE_RELEASING;
       } else {
-        tp.second.state = STATE_RELAESED;
+        tp.second.state = STATE_RELEASED;
       }
       tp.second.x_prev = tp.second.x;
       tp.second.y_prev = tp.second.y;

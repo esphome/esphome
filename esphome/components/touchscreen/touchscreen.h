@@ -12,7 +12,7 @@
 namespace esphome {
 namespace touchscreen {
 
-static const uint8_t STATE_RELAESED = 0x00;
+static const uint8_t STATE_RELEASED = 0x00;
 static const uint8_t STATE_PRESSED = 0x01;
 static const uint8_t STATE_UPDATED = 0x02;
 static const uint8_t STATE_RELEASING = 0x04;
@@ -28,10 +28,10 @@ struct TouchPoint {
 
 using TouchPoints_t = std::vector<TouchPoint>;
 
-struct TouchscreenInterupt {
+struct TouchscreenInterrupt {
   volatile bool touched{true};
   bool init{false};
-  static void gpio_intr(TouchscreenInterupt *store);
+  static void gpio_intr(TouchscreenInterrupt *store);
 };
 
 class TouchListener {
@@ -108,7 +108,7 @@ class Touchscreen : public PollingComponent {
   std::vector<TouchListener *> touch_listeners_;
 
   std::map<uint8_t, TouchPoint> touches_;
-  TouchscreenInterupt store_;
+  TouchscreenInterrupt store_;
 
   bool first_touch_{true};
   bool need_update_{false};
