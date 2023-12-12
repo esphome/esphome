@@ -3393,8 +3393,12 @@ pn532_i2c:
 
 pn7150_i2c:
   i2c_id: i2c_bus
-  irq_pin: GPIO35
-  ven_pin: GPIO16
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO35
+  ven_pin:
+    allow_other_uses: true
+    number: GPIO16
 
 rdm6300:
   uart_id: uart_0
