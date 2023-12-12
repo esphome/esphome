@@ -60,6 +60,11 @@ class DisplayMenuComponent : public Component {
     update();
   }
 
+  virtual void on_before_show(){};
+  virtual void on_after_show(){};
+  virtual void on_before_hide(){};
+  virtual void on_after_hide(){};
+
   uint8_t rows_;
   bool active_;
   MenuMode mode_;

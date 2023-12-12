@@ -160,6 +160,8 @@ struct ClimateDeviceRestoreState {
  */
 class Climate : public EntityBase {
  public:
+  Climate() {}
+
   /// The active mode of the climate device.
   ClimateMode mode{CLIMATE_MODE_OFF};
   /// The active state of the climate device.
@@ -172,9 +174,9 @@ class Climate : public EntityBase {
     float target_temperature;
     struct {
       /// The minimum target temperature of the climate device, for climate devices with split target temperature.
-      float target_temperature_low;
+      float target_temperature_low{NAN};
       /// The maximum target temperature of the climate device, for climate devices with split target temperature.
-      float target_temperature_high;
+      float target_temperature_high{NAN};
     };
   };
 
