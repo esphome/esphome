@@ -1,14 +1,14 @@
-pylint==2.17.6
+pylint==3.0.3
 flake8==6.1.0  # also change in .pre-commit-config.yaml when updating
-black==23.9.1  # also change in .pre-commit-config.yaml when updating
-pyupgrade==3.10.1  # also change in .pre-commit-config.yaml when updating
+black==23.12.0  # also change in .pre-commit-config.yaml when updating
+pyupgrade==3.15.0  # also change in .pre-commit-config.yaml when updating
 pre-commit
 
 # Unit tests
-pytest==7.4.2
+pytest==7.4.3
 pytest-cov==4.1.0
-pytest-mock==3.11.1
-pytest-asyncio==0.21.1
+pytest-mock==3.12.0
+pytest-asyncio==0.23.2
 asyncmock==0.4.2
 hypothesis==5.49.0
 

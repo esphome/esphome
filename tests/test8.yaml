@@ -54,10 +54,13 @@ spi_device:
 
 display:
   - platform: ili9xxx
+    id: displ8
     model: ili9342
     cs_pin: GPIO5
     dc_pin: GPIO4
-    reset_pin: GPIO48
+    reset_pin:
+      number: GPIO48
+      allow_other_uses: true
 
 i2c:
   scl: GPIO18
@@ -65,8 +68,14 @@ i2c:
 
 touchscreen:
   - platform: tt21100
-    interrupt_pin: GPIO3
-    reset_pin: GPIO48
+    display: displ8
+    interrupt_pin:
+      number: GPIO3
+      ignore_strapping_warning: true
+      allow_other_uses: false
+    reset_pin:
+      number: GPIO48
+      allow_other_uses: true
 
 binary_sensor:
   - platform: tt21100

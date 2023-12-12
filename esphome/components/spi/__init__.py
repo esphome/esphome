@@ -25,6 +25,10 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_PLATFORM,
     KEY_VARIANT,
+    CONF_DATA_RATE,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
 )
 from esphome.core import coroutine_with_priority, CORE
 
@@ -33,6 +37,7 @@ spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 SPIDevice = spi_ns.class_("SPIDevice")
 SPIDataRate = spi_ns.enum("SPIDataRate")
+SPIMode = spi_ns.enum("SPIMode")
 
 SPI_DATA_RATE_OPTIONS = {
     80e6: SPIDataRate.DATA_RATE_80MHZ,
@@ -50,6 +55,18 @@ SPI_DATA_RATE_OPTIONS = {
 }
 SPI_DATA_RATE_SCHEMA = cv.All(cv.frequency, cv.enum(SPI_DATA_RATE_OPTIONS))
 
+SPI_MODE_OPTIONS = {
+    "MODE0": SPIMode.MODE0,
+    "MODE1": SPIMode.MODE1,
+    "MODE2": SPIMode.MODE2,
+    "MODE3": SPIMode.MODE3,
+    0: SPIMode.MODE0,
+    1: SPIMode.MODE1,
+    2: SPIMode.MODE2,
+    3: SPIMode.MODE3,
+}
+
+CONF_SPI_MODE = "spi_mode"
 CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
@@ -88,9 +105,9 @@ def get_target_variant():
 # The returned value is a list of lists of names
 def get_hw_interface_list():
     target_platform = get_target_platform()
-    if target_platform == "esp8266":
+    if target_platform == PLATFORM_ESP8266:
         return [["spi", "hspi"]]
-    if target_platform == "esp32":
+    if target_platform == PLATFORM_ESP32:
         if get_target_variant() in [
             VARIANT_ESP32C2,
             VARIANT_ESP32C3,
@@ -99,7 +116,7 @@ def get_hw_interface_list():
         ]:
             return [["spi", "spi2"]]
         return [["spi", "spi2"], ["spi3"]]
-    if target_platform == "rp2040":
+    if target_platform == PLATFORM_RP2040:
         return [["spi"], ["spi1"]]
     return []
 
@@ -136,17 +153,17 @@ def validate_hw_pins(spi, index=-1):
         sdi_pin_no = sdi_pin[CONF_NUMBER]
 
     target_platform = get_target_platform()
-    if target_platform == "esp8266":
+    if target_platform == PLATFORM_ESP8266:
         if clk_pin_no == 6:
             return sdo_pin_no in (-1, 8) and sdi_pin_no in (-1, 7)
         if clk_pin_no == 14:
             return sdo_pin_no in (-1, 13) and sdi_pin_no in (-1, 12)
         return False
 
-    if target_platform == "esp32":
+    if target_platform == PLATFORM_ESP32:
         return clk_pin_no >= 0
 
-    if target_platform == "rp2040":
+    if target_platform == PLATFORM_RP2040:
         pin_set = (
             list(filter(lambda s: clk_pin_no in s[CONF_CLK_PIN], RP_SPI_PINSETS))[0]
             if index == -1
@@ -222,7 +239,7 @@ def get_spi_interface(index):
         return ["SPI2_HOST", "SPI3_HOST"][index]
     # Arduino code follows
     platform = get_target_platform()
-    if platform == "rp2040":
+    if platform == PLATFORM_RP2040:
         return ["&SPI", "&SPI1"][index]
     if index == 0:
         return "&SPI"
@@ -247,7 +264,7 @@ SPI_SCHEMA = cv.All(
         }
     ),
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
-    cv.only_on(["esp32", "esp8266", "rp2040"]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -258,6 +275,7 @@ CONFIG_SCHEMA = cv.All(
 
 @coroutine_with_priority(1.0)
 async def to_code(configs):
+    cg.add_define("USE_SPI")
     cg.add_global(spi_ns.using)
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
@@ -286,13 +304,20 @@ async def to_code(configs):
         cg.add_library("SPI", None)
 
 
-def spi_device_schema(cs_pin_required=True):
+def spi_device_schema(
+    cs_pin_required=True, default_data_rate=cv.UNDEFINED, default_mode=cv.UNDEFINED
+):
     """Create a schema for an SPI device.
     :param cs_pin_required: If true, make the CS_PIN required in the config.
+    :param default_data_rate: Optional data_rate to use as default
     :return: The SPI device schema, `extend` this in your config schema.
     """
     schema = {
         cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
+        cv.Optional(CONF_DATA_RATE, default=default_data_rate): SPI_DATA_RATE_SCHEMA,
+        cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(
+            SPI_MODE_OPTIONS, upper=True
+        ),
     }
     if cs_pin_required:
         schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
@@ -307,6 +332,10 @@ async def register_spi_device(var, config):
     if CONF_CS_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_CS_PIN])
         cg.add(var.set_cs_pin(pin))
+    if CONF_DATA_RATE in config:
+        cg.add(var.set_data_rate(config[CONF_DATA_RATE]))
+    if CONF_SPI_MODE in config:
+        cg.add(var.set_mode(config[CONF_SPI_MODE]))
 
 
 def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso: bool):
