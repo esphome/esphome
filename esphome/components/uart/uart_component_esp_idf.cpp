@@ -122,6 +122,19 @@ void IDFUARTComponent::setup() {
   xSemaphoreGive(this->lock_);
 }
 
+void IDFUARTComponent::load_settings(bool dump_config) {
+  uart_config_t uart_config = this->get_config_();
+  esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  } else if (dump_config) {
+    ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->uart_num_);
+    dump_config();
+  }
+}
+
 void IDFUARTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus:");
   ESP_LOGCONFIG(TAG, "  Number: %u", this->uart_num_);
