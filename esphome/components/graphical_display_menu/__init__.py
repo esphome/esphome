@@ -59,30 +59,30 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if CONF_DISPLAY in config:
-        drawing_display = await cg.get_variable(config[CONF_DISPLAY])
+    if display_config := config.get(CONF_DISPLAY):
+        drawing_display = await cg.get_variable(display_config)
         cg.add(var.set_display(drawing_display))
 
     menu_font = await cg.get_variable(config[CONF_FONT])
     cg.add(var.set_font(menu_font))
 
-    if CONF_MENU_ITEM_VALUE in config:
-        if isinstance(config[CONF_MENU_ITEM_VALUE], core.Lambda):
+    if (menu_item_value_config := config.get(CONF_MENU_ITEM_VALUE, None)) is not None:
+        if isinstance(menu_item_value_config, core.Lambda):
             template_ = await cg.templatable(
-                config[CONF_MENU_ITEM_VALUE],
+                menu_item_value_config,
                 [(MenuItemValueArgumentsConstPtr, "it")],
                 cg.std_string,
             )
             cg.add(var.set_menu_item_value(template_))
         else:
-            cg.add(var.set_menu_item_value(config[CONF_MENU_ITEM_VALUE]))
+            cg.add(var.set_menu_item_value(menu_item_value_config))
 
-    if CONF_FOREGROUND_COLOR in config:
-        foreground_color = await cg.get_variable(config[CONF_FOREGROUND_COLOR])
+    if foreground_color_config := config.get(CONF_FOREGROUND_COLOR):
+        foreground_color = await cg.get_variable(foreground_color_config)
         cg.add(var.set_foreground_color(foreground_color))
 
-    if CONF_BACKGROUND_COLOR in config:
-        background_color = await cg.get_variable(config[CONF_BACKGROUND_COLOR])
+    if background_color_config := config.get(CONF_BACKGROUND_COLOR):
+        background_color = await cg.get_variable(background_color_config)
         cg.add(var.set_background_color(background_color))
 
     for conf in config.get(CONF_ON_REDRAW, []):
