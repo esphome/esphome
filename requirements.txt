@@ -10,7 +10,7 @@ platformio==6.1.11  # When updating platformio, also update Dockerfile
 esptool==4.6.2
 click==8.1.7
 esphome-dashboard==20231107.0
-aioesphomeapi==20.0.0
+aioesphomeapi==20.1.0
 zeroconf==0.128.4
 python-magic==0.4.27
 
