@@ -135,7 +135,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   }
 }
 
-void IDFUARTComponent::dump_config() { dump_config_(); }
+void IDFUARTComponent::dump_config() { this->dump_config_(); }
 
 void IDFUARTComponent::dump_config_() {
   ESP_LOGCONFIG(TAG, "UART Bus %u:", this->uart_num_);
