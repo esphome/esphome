@@ -60,10 +60,12 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
     root[MQTT_TEMPERATURE_STATE_TOPIC] = this->get_target_temperature_state_topic();
   }
 
-  // target_humidity_command_topic
-  root[MQTT_TARGET_HUMIDITY_COMMAND_TOPIC] = this->get_target_humidity_command_topic();
-  // target_humidity_state_topic
-  root[MQTT_TARGET_HUMIDITY_STATE_TOPIC] = this->get_target_humidity_state_topic();
+  if (traits.get_supports_target_humidity()) {
+    // target_humidity_command_topic
+    root[MQTT_TARGET_HUMIDITY_COMMAND_TOPIC] = this->get_target_humidity_command_topic();
+    // target_humidity_state_topic
+    root[MQTT_TARGET_HUMIDITY_STATE_TOPIC] = this->get_target_humidity_state_topic();
+  }
 
   // min_temp
   root[MQTT_MIN_TEMP] = traits.get_visual_min_temperature();
