@@ -193,11 +193,6 @@ def validate_spi_config(config):
     available = list(range(len(get_hw_interface_list())))
     for spi in config:
         interface = spi[CONF_INTERFACE]
-        if spi[CONF_FORCE_SW]:
-            if interface == "any":
-                spi[CONF_INTERFACE] = interface = "software"
-            elif interface != "software":
-                raise cv.Invalid("force_sw is deprecated - use interface: software")
         if interface == "software":
             pass
         elif interface == "any":
@@ -228,7 +223,7 @@ def validate_spi_config(config):
                 spi[CONF_INTERFACE_INDEX] = index
                 available.remove(index)
         if CONF_INTERFACE_INDEX in spi and not validate_hw_pins(
-                spi, spi[CONF_INTERFACE_INDEX]
+            spi, spi[CONF_INTERFACE_INDEX]
         ):
             raise cv.Invalid("Invalid pin selections for hardware SPI interface")
         if CONF_DATA_PINS in spi and CONF_INTERFACE_INDEX not in spi:
@@ -271,10 +266,13 @@ SPI_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SPIComponent),
+            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_DATA_PINS): cv.ensure_list(pins.gpio_output_pin_schema),
-            cv.Optional(CONF_FORCE_SW, default=False): cv.boolean,
+            cv.Optional(CONF_FORCE_SW): cv.invalid(
+                "force_sw is deprecated - use interface: software"
+            ),
             cv.Optional(CONF_INTERFACE, default="any"): cv.one_of(
                 *sum(get_hw_interface_list(), ["software", "hardware", "any"]),
                 lower=True,
@@ -289,19 +287,27 @@ SPI_QUAD_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(QuadSPIComponent),
-            cv.Required(CONF_DATA_PINS): cv.All(
-                cv.ensure_list(pins.gpio_output_pin_schema),
-                cv.Length(min=4, max=4)
+            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_DATA_PINS): cv.All(
+                cv.ensure_list(pins.gpio_output_pin_schema), cv.Length(min=4, max=4)
+            ),
+            cv.Optional(CONF_INTERFACE, default="hardware"): cv.one_of(
+                *sum(get_hw_interface_list(), ["hardware"]),
+                lower=True,
             ),
         }
     ),
+    cv.has_at_least_one_key(CONF_DATA_PINS),
     cv.only_with_esp_idf,
 )
 
 CONFIG_SCHEMA = cv.All(
-    cv.Any(
-        cv.ensure_list(SPI_SCHEMA),
-        cv.ensure_list(SPI_QUAD_SCHEMA),
+    cv.ensure_list(
+        cv.Any(
+            # Order is important. SPI_SCHEMA is the default.
+            SPI_SCHEMA,
+            SPI_QUAD_SCHEMA,
+        ),
     ),
     validate_spi_config,
 )
@@ -341,7 +347,10 @@ async def to_code(configs):
 
 
 def spi_device_schema(
-        cs_pin_required=True, default_data_rate=cv.UNDEFINED, default_mode=cv.UNDEFINED, quad=False,
+    cs_pin_required=True,
+    default_data_rate=cv.UNDEFINED,
+    default_mode=cv.UNDEFINED,
+    quad=False,
 ):
     """Create a schema for an SPI device.
     :param cs_pin_required: If true, make the CS_PIN required in the config.
@@ -349,7 +358,9 @@ def spi_device_schema(
     :return: The SPI device schema, `extend` this in your config schema.
     """
     schema = {
-        cv.GenerateID(CONF_SPI_ID): cv.use_id(QuadSPIComponent if quad else SPIComponent),
+        cv.GenerateID(CONF_SPI_ID): cv.use_id(
+            QuadSPIComponent if quad else SPIComponent
+        ),
         cv.Optional(CONF_DATA_RATE, default=default_data_rate): SPI_DATA_RATE_SCHEMA,
         cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(
             SPI_MODE_OPTIONS, upper=True
