@@ -120,26 +120,14 @@ PN7150_SCHEMA = cv.Schema(
     SetEmulationMessageAction,
     SET_MESSAGE_ACTION_SCHEMA,
 )
-async def pn7150_set_emulation_message_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
-    cg.add(var.set_message(template_))
-    template_ = await cg.templatable(
-        config[CONF_INCLUDE_ANDROID_APP_RECORD], args, cg.bool_
-    )
-    cg.add(var.set_include_android_app_record(template_))
-    return var
-
-
 @automation.register_action(
     "tag.set_write_message",
     SetWriteMessageAction,
     SET_MESSAGE_ACTION_SCHEMA,
 )
-async def pn7150_set_write_message_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+async def pn7150_set_message_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
     cg.add(var.set_message(template_))
     template_ = await cg.templatable(
@@ -168,8 +156,9 @@ async def pn7150_set_write_message_to_code(config, action_id, template_arg, args
     "tag.set_write_mode", SetWriteModeAction, SIMPLE_ACTION_SCHEMA
 )
 async def pn7150_simple_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 async def setup_pn7150(var, config):
@@ -181,8 +170,8 @@ async def setup_pn7150(var, config):
     pin = await cg.gpio_pin_expression(config[CONF_VEN_PIN])
     cg.add(var.set_ven_pin(pin))
 
-    if CONF_EMULATION_MESSAGE in config:
-        cg.add(var.set_tag_emulation_message(config[CONF_EMULATION_MESSAGE]))
+    if emulation_message_config := config.get(CONF_EMULATION_MESSAGE):
+        cg.add(var.set_tag_emulation_message(emulation_message_config))
         cg.add(var.set_tag_emulation_on())
 
     if CONF_TAG_TTL in config:

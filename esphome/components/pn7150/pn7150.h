@@ -15,7 +15,7 @@
 namespace esphome {
 namespace pn7150 {
 
-static const uint16_t NFCC_DEFAULT_TIMEOUT = 5;
+static const uint16_t NFCC_DEFAULT_TIMEOUT = 10;
 static const uint16_t NFCC_INIT_TIMEOUT = 50;
 static const uint16_t NFCC_TAG_WRITE_TIMEOUT = 15;
 
