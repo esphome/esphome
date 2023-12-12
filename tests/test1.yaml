@@ -3422,7 +3422,9 @@ pn7160_spi:
   ven_pin:
     allow_other_uses: true
     number: GPIO16
-  wkup_req_pin: GPIO21
+  wkup_req_pin:
+    allow_other_uses: true
+    number: GPIO21
   emulation_message: https://www.home-assistant.io/tag/pulse_ce
   tag_ttl: 1000ms
 
