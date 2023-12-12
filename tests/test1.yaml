@@ -3414,7 +3414,6 @@ pn7160_spi:
   id: nfcc_pn7160_spi
   cs_pin:
     number: GPIO15
-    allow_other_uses: true
   dwl_req_pin:
     allow_other_uses: true
     number: GPIO17
