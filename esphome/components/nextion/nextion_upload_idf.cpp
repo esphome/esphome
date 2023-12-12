@@ -130,10 +130,12 @@ int Nextion::upload_range(const std::string &url, int range_start) {
 
 bool Nextion::upload_tft(uint32_t baud_rate) {
   ESP_LOGD(TAG, "Nextion TFT upload requested");
+  original_baud_rate = this->parent_->get_baud_rate();
+  if (baud_rate == 0) {
+    baud_rate = original_baud_rate;
+  }
   ESP_LOGD(TAG, "Baud rate: %" PRIu32, baud_rate);
   ESP_LOGD(TAG, "URL:       %s", this->tft_url_.c_str());
-
-  original_baud_rate = this->parent_->get_baud_rate();
 
   if (this->is_updating_) {
     ESP_LOGW(TAG, "Currently updating");

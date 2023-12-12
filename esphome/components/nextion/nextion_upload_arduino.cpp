@@ -144,10 +144,12 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
 
 bool Nextion::upload_tft(uint32_t baud_rate) {
   ESP_LOGD(TAG, "Nextion TFT upload requested");
+  original_baud_rate = this->parent_->get_baud_rate();
+  if (baud_rate == 0) {
+    baud_rate = original_baud_rate;
+  }
   ESP_LOGD(TAG, "Baud rate: %u", baud_rate);
   ESP_LOGD(TAG, "URL:       %s", this->tft_url_.c_str());
-
-  original_baud_rate = this->parent_->get_baud_rate();
 
   if (this->is_updating_) {
     ESP_LOGD(TAG, "Currently updating");
