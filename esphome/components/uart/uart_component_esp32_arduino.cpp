@@ -124,7 +124,7 @@ void ESP32ArduinoUARTComponent::load_settings(bool dump_config) {
   this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
   this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, invert);
   if (dump_config) {
-    ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->uart_num_);
+    ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->number_);
     dump_config_();
   }
 }
