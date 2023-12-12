@@ -79,6 +79,24 @@ void Application::loop() {
   }
   this->app_state_ = new_app_state;
 
+  const uint32_t now = millis();
+
+  if (HighFrequencyLoopRequester::is_high_frequency()) {
+    yield();
+  } else {
+    uint32_t delay_time = this->loop_interval_;
+    if (now - this->last_loop_ < this->loop_interval_)
+      delay_time = this->loop_interval_ - (now - this->last_loop_);
+
+    uint32_t next_schedule = this->scheduler.next_schedule_in().value_or(delay_time);
+    // next_schedule is max 0.5*delay_time
+    // otherwise interval=0 schedules result in constant looping with almost no sleep
+    next_schedule = std::max(next_schedule, delay_time / 2);
+    delay_time = std::min(next_schedule, delay_time);
+    delay(delay_time);
+  }
+  this->last_loop_ = now;
+
   if (this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
       ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_);
@@ -90,21 +108,6 @@ void Application::loop() {
     this->components_[this->dump_config_at_]->call_dump_config();
     this->dump_config_at_++;
   }
-
-  const uint32_t elapsed = millis() - this->last_loop_;
-  uint32_t delay_time = 1;  // minimum delay due to tasks at prio 0
-
-  if (!HighFrequencyLoopRequester::is_high_frequency() && elapsed < this->loop_interval_) {
-    delay_time = this->loop_interval_ - elapsed;
-    uint32_t next_schedule = this->scheduler.next_schedule_in().value_or(delay_time);
-    // next_schedule is max 0.5*delay_time
-    // otherwise interval=0 schedules result in constant looping with almost no sleep
-    next_schedule = std::max(next_schedule, delay_time / 2);
-    delay_time = std::min(next_schedule, delay_time);
-  }
-  delay(delay_time);
-
-  this->last_loop_ = millis();
 }
 
 void IRAM_ATTR HOT Application::feed_wdt() {
