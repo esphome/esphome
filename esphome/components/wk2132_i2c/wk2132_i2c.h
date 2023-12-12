@@ -358,13 +358,13 @@ constexpr uint8_t REG_WK2132_RFCNT = 0x0A;
 /// * -------------------------------------------------------------------------
 /// * |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
 /// * -------------------------------------------------------------------------
-/// * |  RFOE  |  RFLB  |  RFFE  |  RFPE   |RFEMPTY|TFEMPTY| TFFULL |  TBUSY |
+/// * |  RFOE  |  RFLB  |  RFFE  |  RFPE  | RFDAT  | TFDAT  | TFFULL |  TBUSY |
 /// * -------------------------------------------------------------------------
 /// @endcode
 /// @warning The received buffer can hold 256 bytes. However, as the RFCNT reg
 /// is 8 bits, in this case the value 256 is reported as 0 ! Therefore the RFCNT
 /// count can be zero when there is 0 byte **or** 256 bytes in the buffer. If we
-/// have RFEMPTY = 1 and RFCNT = 0 it should be interpreted as 256 bytes in the FIFO.
+/// have RFDAT = 1 and RFCNT = 0 it should be interpreted as 256 bytes in the FIFO.
 /// @note Note that in case of overflow the RFOE goes to one **but** as soon as you read
 /// the FSR this bit is cleared. Therefore Overflow can be read only once even if
 /// still in overflow.
@@ -379,10 +379,10 @@ constexpr uint8_t FSR_RFLB = 1 << 6;
 constexpr uint8_t FSR_RFFE = 1 << 5;
 /// @brief Receiver Parity Error (0: no PE, 1: PE)
 constexpr uint8_t FSR_RFPE = 1 << 4;
-/// @brief Receiver FIFO empty (0: empty, 1: not empty)
-constexpr uint8_t FSR_RFEMPTY = 1 << 3;
-/// @brief Transmitter FIFO Empty (0: empty, 1: not empty)
-constexpr uint8_t FSR_TFEMPTY = 1 << 2;
+/// @brief Receiver FIFO count (0: empty, 1: not empty)
+constexpr uint8_t FSR_RFDAT = 1 << 3;
+/// @brief Transmitter FIFO count (0: empty, 1: not empty)
+constexpr uint8_t FSR_TFDAT = 1 << 2;
 /// @brief Transmitter FIFO full (0: not full, 1: full)
 constexpr uint8_t FSR_TFFULL = 1 << 1;
 /// @brief Transmitter busy (0 nothing to transmit, 1: transmitter busy sending)
