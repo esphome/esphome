@@ -816,6 +816,19 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void set_auto_wake_on_touch(bool auto_wake);
   /**
+   * Sets if Nextion should exit the active reparse mode before the "connect" command is sent
+   * @param exit_reparse True or false. When exit_reparse is true, the exit reparse command
+   * will be sent before requesting the connection from Nextion.
+   *
+   * Example:
+   * ```cpp
+   * it.set_exit_reparse_on_start(true);
+   * ```
+   *
+   * The display will be requested to leave active reparse mode before setup.
+   */
+  void set_exit_reparse_on_start(bool exit_reparse);
+  /**
    * Sets Nextion mode between sleep and awake
    * @param True or false. Sleep=true to enter sleep mode or sleep=false to exit sleep mode.
    */
@@ -943,6 +956,9 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void set_wake_up_page_internal(uint8_t wake_up_page) { this->wake_up_page_ = wake_up_page; }
   void set_start_up_page_internal(uint8_t start_up_page) { this->start_up_page_ = start_up_page; }
   void set_auto_wake_on_touch_internal(bool auto_wake_on_touch) { this->auto_wake_on_touch_ = auto_wake_on_touch; }
+  void set_exit_reparse_on_start_internal(bool exit_reparse_on_start) {
+    this->exit_reparse_on_start_ = exit_reparse_on_start;
+  }
 
  protected:
   std::deque<NextionQueue *> nextion_queue_;
@@ -966,6 +982,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   int wake_up_page_ = -1;
   int start_up_page_ = -1;
   bool auto_wake_on_touch_ = true;
+  bool exit_reparse_on_start_ = false;
 
   /**
    * Manually send a raw command to the display and don't wait for an acknowledgement packet.

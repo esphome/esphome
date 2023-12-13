@@ -2,6 +2,7 @@
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace nextion {
@@ -47,6 +48,9 @@ bool Nextion::check_connect_() {
 
     this->ignore_is_setup_ = true;
     this->send_command_("boguscommand=0");  // bogus command. needed sometimes after updating
+    if (this->exit_reparse_on_start_) {
+      this->send_command_("DRAKJHSUYDGBNCJHGJKSHBDN");
+    }
     this->send_command_("connect");
 
     this->comok_sent_ = millis();
@@ -126,7 +130,8 @@ void Nextion::dump_config() {
   ESP_LOGCONFIG(TAG, "  Firmware Version: %s", this->firmware_version_.c_str());
   ESP_LOGCONFIG(TAG, "  Serial Number:    %s", this->serial_number_.c_str());
   ESP_LOGCONFIG(TAG, "  Flash Size:       %s", this->flash_size_.c_str());
-  ESP_LOGCONFIG(TAG, "  Wake On Touch:    %s", this->auto_wake_on_touch_ ? "True" : "False");
+  ESP_LOGCONFIG(TAG, "  Wake On Touch:    %s", YESNO(this->auto_wake_on_touch_));
+  ESP_LOGCONFIG(TAG, "  Exit reparse:     %s", YESNO(this->exit_reparse_on_start_));
 
   if (this->touch_sleep_timeout_ != 0) {
     ESP_LOGCONFIG(TAG, "  Touch Timeout:    %" PRIu32, this->touch_sleep_timeout_);
@@ -247,6 +252,7 @@ void Nextion::loop() {
     }
 
     this->set_auto_wake_on_touch(this->auto_wake_on_touch_);
+    this->set_exit_reparse_on_start(this->exit_reparse_on_start_);
 
     if (this->touch_sleep_timeout_ != 0) {
       this->set_touch_sleep_timeout(this->touch_sleep_timeout_);

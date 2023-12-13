@@ -10,7 +10,7 @@ import yaml
 import yaml.constructor
 
 from esphome import core
-from esphome.config_helpers import read_config_file, Extend
+from esphome.config_helpers import read_config_file, Extend, Remove
 from esphome.core import (
     EsphomeError,
     IPAddress,
@@ -362,6 +362,10 @@ class ESPHomeLoader(FastestAvailableSafeLoader):
     def construct_extend(self, node):
         return Extend(str(node.value))
 
+    @_add_data_ref
+    def construct_remove(self, node):
+        return Remove(str(node.value))
+
 
 ESPHomeLoader.add_constructor("tag:yaml.org,2002:int", ESPHomeLoader.construct_yaml_int)
 ESPHomeLoader.add_constructor(
@@ -394,6 +398,7 @@ ESPHomeLoader.add_constructor(
 ESPHomeLoader.add_constructor("!lambda", ESPHomeLoader.construct_lambda)
 ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
 ESPHomeLoader.add_constructor("!extend", ESPHomeLoader.construct_extend)
+ESPHomeLoader.add_constructor("!remove", ESPHomeLoader.construct_remove)
 
 
 def load_yaml(fname, clear_secrets=True):

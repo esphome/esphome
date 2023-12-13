@@ -335,8 +335,8 @@ void ESP32Camera::set_idle_update_interval(uint32_t idle_update_interval) {
 }
 
 /* ---------------- public API (specific) ---------------- */
-void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&f) {
-  this->new_image_callback_.add(std::move(f));
+void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&callback) {
+  this->new_image_callback_.add(std::move(callback));
 }
 void ESP32Camera::add_stream_start_callback(std::function<void()> &&callback) {
   this->stream_start_callback_.add(std::move(callback));

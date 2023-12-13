@@ -32,7 +32,11 @@ CODEOWNERS = ["@nielsnl68", "@clydebarrow"]
 
 ili9xxx_ns = cg.esphome_ns.namespace("ili9xxx")
 ILI9XXXDisplay = ili9xxx_ns.class_(
-    "ILI9XXXDisplay", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
+    "ILI9XXXDisplay",
+    cg.PollingComponent,
+    spi.SPIDevice,
+    display.Display,
+    display.DisplayBuffer,
 )
 
 ILI9XXXColorMode = ili9xxx_ns.enum("ILI9XXXColorMode")

@@ -44,9 +44,17 @@ class ClimateTraits {
   void set_supports_current_temperature(bool supports_current_temperature) {
     supports_current_temperature_ = supports_current_temperature;
   }
+  bool get_supports_current_humidity() const { return supports_current_humidity_; }
+  void set_supports_current_humidity(bool supports_current_humidity) {
+    supports_current_humidity_ = supports_current_humidity;
+  }
   bool get_supports_two_point_target_temperature() const { return supports_two_point_target_temperature_; }
   void set_supports_two_point_target_temperature(bool supports_two_point_target_temperature) {
     supports_two_point_target_temperature_ = supports_two_point_target_temperature;
+  }
+  bool get_supports_target_humidity() const { return supports_target_humidity_; }
+  void set_supports_target_humidity(bool supports_target_humidity) {
+    supports_target_humidity_ = supports_target_humidity;
   }
   void set_supported_modes(std::set<ClimateMode> modes) { supported_modes_ = std::move(modes); }
   void add_supported_mode(ClimateMode mode) { supported_modes_.insert(mode); }
@@ -153,6 +161,11 @@ class ClimateTraits {
   int8_t get_target_temperature_accuracy_decimals() const;
   int8_t get_current_temperature_accuracy_decimals() const;
 
+  float get_visual_min_humidity() const { return visual_min_humidity_; }
+  void set_visual_min_humidity(float visual_min_humidity) { visual_min_humidity_ = visual_min_humidity; }
+  float get_visual_max_humidity() const { return visual_max_humidity_; }
+  void set_visual_max_humidity(float visual_max_humidity) { visual_max_humidity_ = visual_max_humidity; }
+
  protected:
   void set_mode_support_(climate::ClimateMode mode, bool supported) {
     if (supported) {
@@ -177,7 +190,9 @@ class ClimateTraits {
   }
 
   bool supports_current_temperature_{false};
+  bool supports_current_humidity_{false};
   bool supports_two_point_target_temperature_{false};
+  bool supports_target_humidity_{false};
   std::set<climate::ClimateMode> supported_modes_ = {climate::CLIMATE_MODE_OFF};
   bool supports_action_{false};
   std::set<climate::ClimateFanMode> supported_fan_modes_;
@@ -190,6 +205,8 @@ class ClimateTraits {
   float visual_max_temperature_{30};
   float visual_target_temperature_step_{0.1};
   float visual_current_temperature_step_{0.1};
+  float visual_min_humidity_{30};
+  float visual_max_humidity_{99};
 };
 
 }  // namespace climate

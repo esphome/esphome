@@ -30,13 +30,24 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
     const uint8_t *addr = init_sequence;
     while ((cmd = *addr++) != 0) {
       num_args = *addr++ & 0x7F;
-      if (cmd == ILI9XXX_MADCTL) {
-        bits = *addr;
-        this->swap_xy_ = (bits & MADCTL_MV) != 0;
-        this->mirror_x_ = (bits & MADCTL_MX) != 0;
-        this->mirror_y_ = (bits & MADCTL_MY) != 0;
-        this->color_order_ = (bits & MADCTL_BGR) ? display::COLOR_ORDER_BGR : display::COLOR_ORDER_RGB;
-        break;
+      bits = *addr;
+      switch (cmd) {
+        case ILI9XXX_MADCTL: {
+          this->swap_xy_ = (bits & MADCTL_MV) != 0;
+          this->mirror_x_ = (bits & MADCTL_MX) != 0;
+          this->mirror_y_ = (bits & MADCTL_MY) != 0;
+          this->color_order_ = (bits & MADCTL_BGR) ? display::COLOR_ORDER_BGR : display::COLOR_ORDER_RGB;
+          break;
+        }
+
+        case ILI9XXX_PIXFMT: {
+          if ((bits & 0xF) == 6)
+            this->is_18bitdisplay_ = true;
+          break;
+        }
+
+        default:
+          break;
       }
       addr += num_args;
     }

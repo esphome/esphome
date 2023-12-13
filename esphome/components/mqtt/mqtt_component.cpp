@@ -76,7 +76,11 @@ bool MQTTComponent::send_discovery_() {
         this->send_discovery(root, config);
 
         // Fields from EntityBase
-        root[MQTT_NAME] = this->friendly_name();
+        if (this->get_entity()->has_own_name()) {
+          root[MQTT_NAME] = this->friendly_name();
+        } else {
+          root[MQTT_NAME] = "";
+        }
         if (this->is_disabled_by_default())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
         if (!this->get_icon().empty())

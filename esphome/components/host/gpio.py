@@ -17,9 +17,7 @@ import esphome.codegen as cg
 
 from .const import host_ns
 
-
 _LOGGER = logging.getLogger(__name__)
-
 
 HostGPIOPin = host_ns.class_("HostGPIOPin", cg.InternalGPIOPin)
 
@@ -45,21 +43,10 @@ def validate_gpio_pin(value):
     return _translate_pin(value)
 
 
-HOST_PIN_SCHEMA = cv.All(
-    {
-        cv.GenerateID(): cv.declare_id(HostGPIOPin),
-        cv.Required(CONF_NUMBER): validate_gpio_pin,
-        cv.Optional(CONF_MODE, default={}): cv.Schema(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OPEN_DRAIN, default=False): cv.boolean,
-                cv.Optional(CONF_PULLUP, default=False): cv.boolean,
-                cv.Optional(CONF_PULLDOWN, default=False): cv.boolean,
-            }
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-    },
+HOST_PIN_SCHEMA = pins.gpio_base_schema(
+    HostGPIOPin,
+    validate_gpio_pin,
+    modes=[CONF_INPUT, CONF_OUTPUT, CONF_OPEN_DRAIN, CONF_PULLUP, CONF_PULLDOWN],
 )
 
 
