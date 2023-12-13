@@ -462,7 +462,7 @@ async def to_code(config):
 
     add_extra_script(
         "post",
-        "post_build2.py",
+        "post_build.py",
         os.path.join(os.path.dirname(__file__), "post_build.py.script"),
     )
 
