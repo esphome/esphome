@@ -3611,6 +3611,14 @@ bool ListEntitiesClimateResponse::decode_varint(uint32_t field_id, ProtoVarInt v
       this->entity_category = value.as_enum<enums::EntityCategory>();
       return true;
     }
+    case 22: {
+      this->supports_current_humidity = value.as_bool();
+      return true;
+    }
+    case 23: {
+      this->supports_target_humidity = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -3667,6 +3675,14 @@ bool ListEntitiesClimateResponse::decode_32bit(uint32_t field_id, Proto32Bit val
       this->visual_current_temperature_step = value.as_float();
       return true;
     }
+    case 24: {
+      this->visual_min_humidity = value.as_float();
+      return true;
+    }
+    case 25: {
+      this->visual_max_humidity = value.as_float();
+      return true;
+    }
     default:
       return false;
   }
@@ -3705,6 +3721,10 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(19, this->icon);
   buffer.encode_enum<enums::EntityCategory>(20, this->entity_category);
   buffer.encode_float(21, this->visual_current_temperature_step);
+  buffer.encode_bool(22, this->supports_current_humidity);
+  buffer.encode_bool(23, this->supports_target_humidity);
+  buffer.encode_float(24, this->visual_min_humidity);
+  buffer.encode_float(25, this->visual_max_humidity);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
@@ -3810,7 +3830,24 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%g", this->visual_current_temperature_step);
   out.append(buffer);
   out.append("\n");
-  out.append("}");
+
+  out.append("  supports_current_humidity: ");
+  out.append(YESNO(this->supports_current_humidity));
+  out.append("\n");
+
+  out.append("  supports_target_humidity: ");
+  out.append(YESNO(this->supports_target_humidity));
+  out.append("\n");
+
+  out.append("  visual_min_humidity: ");
+  sprintf(buffer, "%g", this->visual_min_humidity);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  visual_max_humidity: ");
+  sprintf(buffer, "%g", this->visual_max_humidity);
+  out.append(buffer);
+  out.append("\n");
 }
 #endif
 bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
@@ -3879,6 +3916,14 @@ bool ClimateStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->target_temperature_high = value.as_float();
       return true;
     }
+    case 14: {
+      this->current_humidity = value.as_float();
+      return true;
+    }
+    case 15: {
+      this->target_humidity = value.as_float();
+      return true;
+    }
     default:
       return false;
   }
@@ -3897,6 +3942,8 @@ void ClimateStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(11, this->custom_fan_mode);
   buffer.encode_enum<enums::ClimatePreset>(12, this->preset);
   buffer.encode_string(13, this->custom_preset);
+  buffer.encode_float(14, this->current_humidity);
+  buffer.encode_float(15, this->target_humidity);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ClimateStateResponse::dump_to(std::string &out) const {
@@ -3958,7 +4005,16 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   out.append("  custom_preset: ");
   out.append("'").append(this->custom_preset).append("'");
   out.append("\n");
-  out.append("}");
+
+  out.append("  current_humidity: ");
+  sprintf(buffer, "%g", this->current_humidity);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  target_humidity: ");
+  sprintf(buffer, "%g", this->target_humidity);
+  out.append(buffer);
+  out.append("\n");
 }
 #endif
 bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
@@ -4023,6 +4079,10 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
       this->has_custom_preset = value.as_bool();
       return true;
     }
+    case 22: {
+      this->has_target_humidity = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -4059,6 +4119,10 @@ bool ClimateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->target_temperature_high = value.as_float();
       return true;
     }
+    case 23: {
+      this->target_humidity = value.as_float();
+      return true;
+    }
     default:
       return false;
   }
@@ -4085,6 +4149,8 @@ void ClimateCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::ClimatePreset>(19, this->preset);
   buffer.encode_bool(20, this->has_custom_preset);
   buffer.encode_string(21, this->custom_preset);
+  buffer.encode_bool(22, this->has_target_humidity);
+  buffer.encode_float(23, this->target_humidity);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ClimateCommandRequest::dump_to(std::string &out) const {
@@ -4176,6 +4242,15 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
 
   out.append("  custom_preset: ");
   out.append("'").append(this->custom_preset).append("'");
+  out.append("\n");
+
+  out.append("  has_target_humidity: ");
+  out.append(YESNO(this->has_target_humidity));
+  out.append("\n");
+
+  out.append("  target_humidity: ");
+  sprintf(buffer, "%g", this->target_humidity);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
