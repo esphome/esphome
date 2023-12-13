@@ -97,7 +97,7 @@ UART_SELECTION_LIBRETINY = {
     COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
 }
 
-ESP_ARDUINO_USB_UARTS = [USB_CDC]
+ESP_ARDUINO_UNSUPPORTED_USB_UARTS = [USB_SERIAL_JTAG]
 
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
@@ -124,7 +124,7 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 def uart_selection(value):
     if CORE.is_esp32:
-        if value.upper() not in ESP_ARDUINO_USB_UARTS and not CORE.using_arduino:
+        if CORE.using_arduino and value.upper() in ESP_ARDUINO_UNSUPPORTED_USB_UARTS:
             raise cv.Invalid(f"Arduino framework does not support {value}.")
         variant = get_esp32_variant()
         if variant in UART_SELECTION_ESP32:
