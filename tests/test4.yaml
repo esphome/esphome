@@ -558,7 +558,7 @@ light:
     id: led_matrix_32x8
     name: led_matrix_32x8
     chipset: WS2812B
-    pin:
+    data_pin:
       allow_other_uses: true
       number: GPIO15
     num_leds: 256
