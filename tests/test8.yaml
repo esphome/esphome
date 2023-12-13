@@ -54,6 +54,7 @@ spi_device:
 
 display:
   - platform: ili9xxx
+    id: displ8
     model: ili9342
     cs_pin: GPIO5
     dc_pin: GPIO4
@@ -67,6 +68,7 @@ i2c:
 
 touchscreen:
   - platform: tt21100
+    display: displ8
     interrupt_pin:
       number: GPIO3
       ignore_strapping_warning: true
