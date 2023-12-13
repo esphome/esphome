@@ -110,7 +110,7 @@ void ESP32ArduinoUARTComponent::setup() {
     this->hw_serial_ = new HardwareSerial(next_uart_num++);  // NOLINT(cppcoreguidelines-owning-memory)
   }
 
-  load_settings(false);
+  this->load_settings(false);
 }
 
 void ESP32ArduinoUARTComponent::load_settings(bool dump_config) {
