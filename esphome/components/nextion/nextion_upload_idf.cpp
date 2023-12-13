@@ -217,7 +217,7 @@ bool Nextion::upload_tft(uint32_t baud_rate) {
 
   if (baud_rate != this->original_baud_rate_) {
     this->parent_->set_baud_rate(baud_rate);
-    this->parent_->load_settings();
+    this->load_settings();
   }
 
   App.feed_wdt();
@@ -274,7 +274,7 @@ bool Nextion::upload_end(bool successful) {
   // Reset UART to it's original baud rate
   if (this->parent_->get_baud_rate() != this->original_baud_rate_) {
     this->parent_->set_baud_rate(this->original_baud_rate_);
-    this->parent_->load_settings();
+    this->load_settings();
   }
   return successful;
 }
