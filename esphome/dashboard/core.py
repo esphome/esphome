@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from functools import partial
+from typing import TYPE_CHECKING, Any, Callable
 
 from ..zeroconf import DiscoveredImport
 from .entries import DashboardEntries
@@ -12,16 +14,55 @@ from .settings import DashboardSettings
 if TYPE_CHECKING:
     from .status.mdns import MDNSStatus
 
+
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class Event:
+    """Dashboard Event."""
+
+    event_type: str
+    data: dict[str, Any]
+
+
+class EventBus:
+    """Dashboard event bus."""
+
+    def __init__(self) -> None:
+        """Initialize the Dashboard event bus."""
+        self._listeners: dict[str, set[Callable[[Event], None]]] = {}
+
+    def async_add_listener(
+        self, event_type: str, listener: Callable[[Event], None]
+    ) -> Callable[[], None]:
+        """Add a listener to the event bus."""
+        self._listeners.setdefault(event_type, set()).add(listener)
+        return partial(self._async_remove_listener, event_type, listener)
+
+    def _async_remove_listener(
+        self, event_type: str, listener: Callable[[Event], None]
+    ) -> None:
+        """Remove a listener from the event bus."""
+        self._listeners[event_type].discard(listener)
+
+    def async_fire(self, event_type: str, event_data: dict[str, Any]) -> None:
+        """Fire an event."""
+        event = Event(event_type, event_data)
+
+        _LOGGER.debug("Firing event: %s", event)
+
+        for listener in self._listeners.get(event_type, set()):
+            listener(event)
 
 
 class ESPHomeDashboard:
     """Class that represents the dashboard."""
 
     __slots__ = (
+        "bus",
         "entries",
         "loop",
-        "ping_result",
         "import_result",
         "stop_event",
         "ping_request",
@@ -32,9 +73,9 @@ class ESPHomeDashboard:
 
     def __init__(self) -> None:
         """Initialize the ESPHomeDashboard."""
+        self.bus = EventBus()
         self.entries: DashboardEntries | None = None
         self.loop: asyncio.AbstractEventLoop | None = None
-        self.ping_result: dict[str, bool | None] = {}
         self.import_result: dict[str, DiscoveredImport] = {}
         self.stop_event = threading.Event()
         self.ping_request: asyncio.Event | None = None
@@ -46,7 +87,7 @@ class ESPHomeDashboard:
         """Setup the dashboard."""
         self.loop = asyncio.get_running_loop()
         self.ping_request = asyncio.Event()
-        self.entries = DashboardEntries(self.settings.config_dir)
+        self.entries = DashboardEntries(self)
 
     async def async_run(self) -> None:
         """Run the dashboard."""

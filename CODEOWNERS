@@ -12,6 +12,7 @@ esphome/core/* @esphome/core
 
 # Integrations
 esphome/components/a01nyub/* @MrSuicideParrot
+esphome/components/a02yyuw/* @TH-Braemer
 esphome/components/absolute_humidity/* @DAVe3283
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
@@ -88,8 +89,9 @@ esphome/components/ds1307/* @badbadc0ffee
 esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/duty_time/* @dudanov
 esphome/components/ee895/* @Stock-M
-esphome/components/ektf2232/* @jesserockz
+esphome/components/ektf2232/touchscreen/* @jesserockz
 esphome/components/emc2101/* @ellull
+esphome/components/ens160/* @vincentscode
 esphome/components/ens210/* @itn3rd77
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @Rapsssito @jesserockz
@@ -110,19 +112,24 @@ esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/fs3000/* @kahrendt
+esphome/components/ft5x06/* @clydebarrow
+esphome/components/ft63x6/* @gpambrozio
 esphome/components/gcja5/* @gcormier
 esphome/components/globals/* @esphome/core
 esphome/components/gp8403/* @jesserockz
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
+esphome/components/graphical_display_menu/* @MrMDavidson
 esphome/components/gree/* @orestismers
 esphome/components/grove_tb6612fng/* @max246
 esphome/components/growatt_solar/* @leeuwte
+esphome/components/gt911/* @clydebarrow @jesserockz
 esphome/components/haier/* @paveldn
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
+esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/hm3301/* @freekode
@@ -239,6 +246,7 @@ esphome/components/preferences/* @esphome/core
 esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @TrentHouliston @cstaahl @stevebaxter
 esphome/components/pvvx_mithermometer/* @pasiz
+esphome/components/pylontech/* @functionpointer
 esphome/components/qmp6988/* @andrewpc
 esphome/components/qr_code/* @wjtje
 esphome/components/qwiic_pir/* @kahrendt
@@ -327,7 +335,7 @@ esphome/components/tmp1075/* @sybrenstuvel
 esphome/components/tmp117/* @Azimath
 esphome/components/tof10120/* @wstrzalka
 esphome/components/toshiba/* @kbx81
-esphome/components/touchscreen/* @jesserockz
+esphome/components/touchscreen/* @jesserockz @nielsnl68
 esphome/components/tsl2591/* @wjcarpenter
 esphome/components/tt21100/* @kroimon
 esphome/components/tuya/binary_sensor/* @jesserockz
@@ -360,6 +368,6 @@ esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
 esphome/components/xiaomi_rtcgq02lm/* @jesserockz
 esphome/components/xl9535/* @mreditor97
-esphome/components/xpt2046/* @nielsnl68 @numo68
+esphome/components/xpt2046/touchscreen/* @nielsnl68 @numo68
 esphome/components/zhlt01/* @cfeenstra1024
 esphome/components/zio_ultrasonic/* @kahrendt

@@ -3,23 +3,26 @@ from typing import Union, Optional
 from pathlib import Path
 import logging
 import os
+import esphome.final_validate as fv
 
 from esphome.helpers import copy_file_if_changed, write_file_if_changed, mkdir_p
 from esphome.const import (
+    CONF_ADVANCED,
     CONF_BOARD,
     CONF_COMPONENTS,
+    CONF_ESPHOME,
     CONF_FRAMEWORK,
+    CONF_IGNORE_EFUSE_MAC_CRC,
     CONF_NAME,
+    CONF_PATH,
+    CONF_PLATFORMIO_OPTIONS,
+    CONF_REF,
+    CONF_REFRESH,
     CONF_SOURCE,
     CONF_TYPE,
+    CONF_URL,
     CONF_VARIANT,
     CONF_VERSION,
-    CONF_ADVANCED,
-    CONF_REFRESH,
-    CONF_PATH,
-    CONF_URL,
-    CONF_REF,
-    CONF_IGNORE_EFUSE_MAC_CRC,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_NAME,
@@ -327,6 +330,32 @@ def _detect_variant(value):
     return value
 
 
+def final_validate(config):
+    if CONF_PLATFORMIO_OPTIONS not in fv.full_config.get()[CONF_ESPHOME]:
+        return config
+
+    pio_flash_size_key = "board_upload.flash_size"
+    pio_partitions_key = "board_build.partitions"
+    if (
+        CONF_PARTITIONS in config
+        and pio_partitions_key
+        in fv.full_config.get()[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS]
+    ):
+        raise cv.Invalid(
+            f"Do not specify '{pio_partitions_key}' in '{CONF_PLATFORMIO_OPTIONS}' with '{CONF_PARTITIONS}' in esp32"
+        )
+
+    if (
+        pio_flash_size_key
+        in fv.full_config.get()[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS]
+    ):
+        raise cv.Invalid(
+            f"Please specify {CONF_FLASH_SIZE} within esp32 configuration only"
+        )
+
+    return config
+
+
 CONF_PLATFORM_VERSION = "platform_version"
 
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
@@ -387,6 +416,7 @@ FRAMEWORK_SCHEMA = cv.typed_schema(
 
 
 FLASH_SIZES = [
+    "2MB",
     "4MB",
     "8MB",
     "16MB",
@@ -394,6 +424,7 @@ FLASH_SIZES = [
 ]
 
 CONF_FLASH_SIZE = "flash_size"
+CONF_PARTITIONS = "partitions"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -401,6 +432,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLASH_SIZE, default="4MB"): cv.one_of(
                 *FLASH_SIZES, upper=True
             ),
+            cv.Optional(CONF_PARTITIONS): cv.file_,
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
         }
@@ -408,6 +440,9 @@ CONFIG_SCHEMA = cv.All(
     _detect_variant,
     set_core_data,
 )
+
+
+FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
 
 
 async def to_code(config):
@@ -427,7 +462,7 @@ async def to_code(config):
 
     add_extra_script(
         "post",
-        "post_build2.py",
+        "post_build.py",
         os.path.join(os.path.dirname(__file__), "post_build.py.script"),
     )
 
@@ -463,6 +498,10 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
 
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
+        if CONF_PARTITIONS in config:
+            add_extra_build_file(
+                "partitions.csv", CORE.relative_config_path(config[CONF_PARTITIONS])
+            )
 
         for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
             add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
@@ -507,7 +546,10 @@ async def to_code(config):
             [f"platformio/framework-arduinoespressif32@{conf[CONF_SOURCE]}"],
         )
 
-        cg.add_platformio_option("board_build.partitions", "partitions.csv")
+        if CONF_PARTITIONS in config:
+            cg.add_platformio_option("board_build.partitions", config[CONF_PARTITIONS])
+        else:
+            cg.add_platformio_option("board_build.partitions", "partitions.csv")
 
         cg.add_define(
             "USE_ARDUINO_VERSION_CODE",
@@ -518,6 +560,7 @@ async def to_code(config):
 
 
 APP_PARTITION_SIZES = {
+    "2MB": 0x0C0000,  # 768 KB
     "4MB": 0x1C0000,  # 1792 KB
     "8MB": 0x3C0000,  # 3840 KB
     "16MB": 0x7C0000,  # 7936 KB
@@ -597,20 +640,22 @@ def _write_sdkconfig():
 # Called by writer.py
 def copy_files():
     if CORE.using_arduino:
-        write_file_if_changed(
-            CORE.relative_build_path("partitions.csv"),
-            get_arduino_partition_csv(
-                CORE.platformio_options.get("board_upload.flash_size")
-            ),
-        )
+        if "partitions.csv" not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
+            write_file_if_changed(
+                CORE.relative_build_path("partitions.csv"),
+                get_arduino_partition_csv(
+                    CORE.platformio_options.get("board_upload.flash_size")
+                ),
+            )
     if CORE.using_esp_idf:
         _write_sdkconfig()
-        write_file_if_changed(
-            CORE.relative_build_path("partitions.csv"),
-            get_idf_partition_csv(
-                CORE.platformio_options.get("board_upload.flash_size")
-            ),
-        )
+        if "partitions.csv" not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
+            write_file_if_changed(
+                CORE.relative_build_path("partitions.csv"),
+                get_idf_partition_csv(
+                    CORE.platformio_options.get("board_upload.flash_size")
+                ),
+            )
         # IDF build scripts look for version string to put in the build.
         # However, if the build path does not have an initialized git repo,
         # and no version.txt file exists, the CMake script fails for some setups.
