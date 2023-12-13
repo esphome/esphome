@@ -57,7 +57,7 @@ class AddressableLambdaLightEffect : public AddressableLightEffect {
   void start() override { this->initial_run_ = true; }
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
-    if (now - this->last_run_ >= this->update_interval_) {
+    if (now - this->last_run_ >= this->update_interval_ || this->initial_run_) {
       this->last_run_ = now;
       this->f_(it, current_color, this->initial_run_);
       this->initial_run_ = false;
