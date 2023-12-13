@@ -12,7 +12,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
 )
-from esphome import pins
+from esphome import pins, core
 from esphome.const import (
     CONF_CLK_PIN,
     CONF_ID,
@@ -35,7 +35,7 @@ from esphome.core import coroutine_with_priority, CORE
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
-QuadSPIComponent = spi_ns.class_("SPIComponent", cg.Component)
+QuadSPIComponent = spi_ns.class_("QuadSPIComponent", cg.Component)
 SPIDevice = spi_ns.class_("SPIDevice")
 SPIDataRate = spi_ns.enum("SPIDataRate")
 SPIMode = spi_ns.enum("SPIMode")
@@ -192,6 +192,7 @@ def get_hw_spi(config, available):
 def validate_spi_config(config):
     available = list(range(len(get_hw_interface_list())))
     for spi in config:
+        spi[CONF_CLK_PIN] = pins.gpio_output_pin_schema(spi[CONF_CLK_PIN])
         interface = spi[CONF_INTERFACE]
         if interface == "software":
             pass
@@ -266,10 +267,9 @@ SPI_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SPIComponent),
-            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CONF_CLK_PIN): cv.int_,
             cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_DATA_PINS): cv.ensure_list(pins.gpio_output_pin_schema),
             cv.Optional(CONF_FORCE_SW): cv.invalid(
                 "force_sw is deprecated - use interface: software"
             ),
@@ -287,7 +287,7 @@ SPI_QUAD_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(QuadSPIComponent),
-            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CONF_CLK_PIN): cv.int_,
             cv.Optional(CONF_DATA_PINS): cv.All(
                 cv.ensure_list(pins.gpio_output_pin_schema), cv.Length(min=4, max=4)
             ),
@@ -327,23 +327,24 @@ async def to_code(configs):
         if mosi := spi.get(CONF_MOSI_PIN):
             cg.add(var.set_mosi(await cg.gpio_pin_expression(mosi)))
         if data_pins := spi.get(CONF_DATA_PINS):
-            vec = cg.std_vector.template(cg.InternalGPIOPin)
+            vec_type = cg.std_vector.template(cg.InternalGPIOPin.operator("ptr"))
+            vec_id = cg.new_variable(
+                core.ID(f"{spi[CONF_ID]}_{CONF_DATA_PINS}", type=vec_type), rhs=None
+            )
             for pin in data_pins:
                 gpio = await cg.gpio_pin_expression(pin)
-                cg.add(vec.push_back(gpio))
-            cg.add(var.set_data_pins(vec))
-        if index := spi.get(CONF_INTERFACE):
+                cg.add(vec_id.push_back(gpio))
+            cg.add(var.set_data_pins(vec_id))
+        if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
             cg.add(var.set_interface(cg.RawExpression(get_spi_interface(index))))
-            cg.add(
-                var.set_interface_name(
-                    re.sub(
-                        r"\W", "", get_spi_interface(index).replace("new SPIClass", "")
-                    )
-                )
+        cg.add(
+            var.set_interface_name(
+                re.sub(r"\W", "", get_spi_interface(index).replace("new SPIClass", ""))
             )
+        )
 
-    if CORE.using_arduino:
-        cg.add_library("SPI", None)
+        if CORE.using_arduino:
+            cg.add_library("SPI", None)
 
 
 def spi_device_schema(
@@ -355,6 +356,8 @@ def spi_device_schema(
     """Create a schema for an SPI device.
     :param cs_pin_required: If true, make the CS_PIN required in the config.
     :param default_data_rate: Optional data_rate to use as default
+    :param default_mode Optional. The default SPI mode to use.
+    :param quad If set, will require an SPI component configured as quad data bits.
     :return: The SPI device schema, `extend` this in your config schema.
     """
     schema = {

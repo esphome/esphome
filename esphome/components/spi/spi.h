@@ -208,6 +208,10 @@ class SPIDelegate {
     esph_log_e("spi_device", "variable length write not implemented");
   }
 
+  virtual void write_cmd_addr_data(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address,
+                                   const uint8_t *data, size_t length, uint8_t bus_width) {
+    esph_log_e("spi_device", "write_cmd_addr_data not implemented");
+  }
   // write 16 bits
   virtual void write16(uint16_t data) {
     if (this->bit_order_ == BIT_ORDER_MSB_FIRST) {
@@ -306,8 +310,7 @@ class SPIBus {
 
   SPIBus(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) : clk_pin_(clk), sdo_pin_(sdo), sdi_pin_(sdi) {}
 
-  virtual SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
-                                    uint8_t command_bits = 0, uint8_t address_bits = 0) {
+  virtual SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin) {
     return new SPIDelegateBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
   }
 
@@ -362,6 +365,7 @@ class SPIComponent : public Component {
                          std::vector<InternalGPIOPin *> data_pins);
 };
 
+using QuadSPIComponent = SPIComponent;
 /**
  * Base class for SPIDevice, un-templated.
  */
@@ -429,7 +433,10 @@ class SPIDevice : public SPIClient {
 
   void write(uint16_t data, size_t num_bits) { this->delegate_->write(data, num_bits); };
 
-  void write_cmd_addr_data(uint32_t cmd, uint32_t address, const uint8_t *data, size_t length);
+  void write_cmd_addr_data(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address, const uint8_t *data,
+                           size_t length, uint8_t bus_width = 1) {
+    this->delegate_->write_cmd_addr_data(cmd_bits, cmd, addr_bits, address, data, length, bus_width);
+  }
 
   void write_byte(uint8_t data) { this->delegate_->write_array(&data, 1); }
 

@@ -11,7 +11,7 @@ static const size_t MAX_TRANSFER_SIZE = 4092;  // dictated by ESP-IDF API.
 class SPIDelegateHw : public SPIDelegate {
  public:
   SPIDelegateHw(SPIInterface channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
-                bool write_only, uint8_t command_bits = 0, uint8_t address_bits = 0)
+                bool write_only)
       : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel), write_only_(write_only) {
     spi_device_interface_config_t config = {};
     config.mode = static_cast<uint8_t>(mode);
@@ -21,8 +21,6 @@ class SPIDelegateHw : public SPIDelegate {
     config.queue_size = 1;
     config.pre_cb = nullptr;
     config.post_cb = nullptr;
-    config.command_bits = command_bits;
-    config.address_bits = address_bits;
     if (bit_order == BIT_ORDER_LSB_FIRST)
       config.flags |= SPI_DEVICE_BIT_LSBFIRST;
     if (write_only)
@@ -106,23 +104,41 @@ class SPIDelegateHw : public SPIDelegate {
     }
   }
 
-  void write_cmd_addr_data(uint32_t cmd, uint32_t address, const uint8_t *data, size_t length) {
+  /**
+   * Write command, address and data
+   * @param cmd_bits Number of bits to write in the command phase
+   * @param cmd The command value to write
+   * @param addr_bits Number of bits to write in addr phase
+   * @param address Address data
+   * @param data Remaining data bytes
+   * @param length Number of data bytes
+   */
+  void write_cmd_addr_data(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address, const uint8_t *data,
+                           size_t length, uint8_t bus_width) override {
     if (length >= MAX_TRANSFER_SIZE) {
       ESP_LOGE(TAG, "Data buffer too long");
       return;
     }
-    spi_transaction_t desc = {};
-    desc.flags = SPI_TRANS_MULTILINE_ADDR | SPI_TRANS_MULTILINE_CMD;
-    desc.rxlength = 0;
-    desc.cmd = cmd;
-    desc.addr = address;
+    //ESP_LOGD(TAG, "Write command %X/%d, addr %X/%d, data %d", cmd, cmd_bits, address, addr_bits, length);
+    spi_transaction_ext_t desc = {};
+    desc.base.flags = SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_DUMMY;
+    if (bus_width == 4)
+      desc.base.flags |= SPI_TRANS_MODE_QIO;
+    else if (bus_width == 8)
+      desc.base.flags |= SPI_TRANS_MODE_OCT;
+    desc.command_bits = cmd_bits;
+    desc.address_bits = addr_bits;
+    desc.dummy_bits = 0;
+    desc.base.rxlength = 0;
+    desc.base.cmd = cmd;
+    desc.base.addr = address;
     if (data != nullptr) {
-      desc.length = length * 8;
-      desc.tx_buffer = data;
+      desc.base.length = length * 8;
+      desc.base.tx_buffer = data;
     } else {
-      desc.length = 0;
+      desc.base.length = 0;
     }
-    esp_err_t err = spi_device_polling_start(this->handle_, &desc, portMAX_DELAY);
+    esp_err_t err = spi_device_polling_start(this->handle_, (spi_transaction_t *) &desc, portMAX_DELAY);
     if (err == ESP_OK) {
       err = spi_device_polling_end(this->handle_, portMAX_DELAY);
     }
@@ -183,18 +199,21 @@ class SPIBusHw : public SPIBus {
       buscfg.data1_io_num = Utility::get_pin_no(data_pins[1]);
       buscfg.data2_io_num = Utility::get_pin_no(data_pins[2]);
       buscfg.data3_io_num = Utility::get_pin_no(data_pins[3]);
+      buscfg.data4_io_num = -1;
+      buscfg.data5_io_num = -1;
+      buscfg.data6_io_num = -1;
+      buscfg.data7_io_num = -1;
     }
     buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
-    buscfg.flags = SPICOMMON_BUSFLAG_MASTER;
+    buscfg.flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_QUAD;
     auto err = spi_bus_initialize(channel, &buscfg, SPI_DMA_CH_AUTO);
     if (err != ESP_OK)
       ESP_LOGE(TAG, "Bus init failed - err %X", err);
   }
 
-  SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
-                            uint8_t command_bits = 0, uint8_t address_bits = 0) override {
+  SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin) override {
     return new SPIDelegateHw(this->channel_, data_rate, bit_order, mode, cs_pin,
-                             Utility::get_pin_no(this->sdi_pin_) == -1, command_bits, address_bits);
+                             Utility::get_pin_no(this->sdi_pin_) == -1);
   }
 
  protected:

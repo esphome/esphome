@@ -518,25 +518,30 @@ def with_local_variable(
     CORE.add(RawStatement("}"))  # output closing curly brace
 
 
-def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
-    """Declare and define a new variable, not pointer type, in the code generation.
+def new_variable(
+    id_: ID, rhs: SafeExpType | None, type_: "MockObj" = None
+) -> "MockObj":
+    """Declare and define a new global variable, not pointer type, in the code generation.
+       If a valid rhs is provided, this will be assigned to the variable, otherwise it will
+       be defined with default initialisation.
 
     :param id_: The ID used to declare the variable.
-    :param rhs: The expression to place on the right hand side of the assignment.
+    :param rhs: The optional expression to place on the right hand side of an assignment to the variable.
     :param type_: Manually define a type for the variable, only use this when it's not possible
       to do so during config validation phase (for example because of template arguments).
 
     :returns The new variable as a MockObj.
     """
     assert isinstance(id_, ID)
-    rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
     if type_ is not None:
         id_.type = type_
     decl = VariableDeclarationExpression(id_.type, "", id_)
     CORE.add_global(decl)
-    assignment = AssignmentExpression(None, "", id_, rhs)
-    CORE.add(assignment)
+    if rhs is not None:
+        rhs = safe_exp(rhs)
+        assignment = AssignmentExpression(None, "", id_, rhs)
+        CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
 
