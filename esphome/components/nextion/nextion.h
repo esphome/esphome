@@ -1093,6 +1093,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   uint8_t *transfer_buffer_{nullptr};
   size_t transfer_buffer_size_;
   bool upload_first_chunk_sent_ = false;
+  uint32_t original_baud_rate_;
 #endif
 
 #ifdef NEXTION_PROTOCOL_LOG

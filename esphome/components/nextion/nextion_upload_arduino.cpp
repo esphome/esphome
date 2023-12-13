@@ -16,7 +16,6 @@
 namespace esphome {
 namespace nextion {
 static const char *const TAG = "nextion.upload.arduino";
-uint32_t original_baud_rate;
 
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
@@ -144,9 +143,9 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
 
 bool Nextion::upload_tft(uint32_t baud_rate) {
   ESP_LOGD(TAG, "Nextion TFT upload requested");
-  original_baud_rate = this->parent_->get_baud_rate();
+  this->original_baud_rate_ = this->parent_->get_baud_rate();
   if (baud_rate == 0) {
-    baud_rate = original_baud_rate;
+    baud_rate = this->original_baud_rate_;
   }
   ESP_LOGD(TAG, "Baud rate: %u", baud_rate);
   ESP_LOGD(TAG, "URL:       %s", this->tft_url_.c_str());
@@ -251,7 +250,7 @@ bool Nextion::upload_tft(uint32_t baud_rate) {
 
   this->send_command_(command);
 
-  if (baud_rate != original_baud_rate) {
+  if (baud_rate != this->original_baud_rate_) {
     this->parent_->set_baud_rate(baud_rate);
     this->parent_->load_settings();
   }
@@ -345,8 +344,8 @@ bool Nextion::upload_end_(bool successful) {
     ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
   }
   // Reset UART to it's original baud rate
-  if (this->parent_->get_baud_rate() != original_baud_rate) {
-    this->parent_->set_baud_rate(original_baud_rate);
+  if (this->parent_->get_baud_rate() != this->original_baud_rate_) {
+    this->parent_->set_baud_rate(this->original_baud_rate_);
     this->parent_->load_settings();
   }
   return successful;
