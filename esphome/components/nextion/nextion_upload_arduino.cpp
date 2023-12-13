@@ -143,14 +143,15 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
 
 bool Nextion::upload_tft(uint32_t baud_rate) {
   ESP_LOGD(TAG, "Nextion TFT upload requested");
+#ifdef USE_ESP32  // Change UART not yet supported for ESP8266
   this->original_baud_rate_ = this->parent_->get_baud_rate();
   if (baud_rate == 0) {
     baud_rate = this->original_baud_rate_;
   }
-#ifdef USE_ESP8266  // Change UART not yet supported for ESP8266
-  baud_rate = this->original_baud_rate_;
-#endif  // USE_ESP8266
   ESP_LOGD(TAG, "Baud rate: %u", baud_rate);
+#else
+  ESP_LOGD(TAG, "Baud rate: %u", this->parent_->get_baud_rate());
+#endif  // USE_ESP32
   ESP_LOGD(TAG, "URL:       %s", this->tft_url_.c_str());
 
   if (this->is_updating_) {
@@ -243,7 +244,11 @@ bool Nextion::upload_tft(uint32_t baud_rate) {
   // Tells the Nextion the content length of the tft file and baud rate it will be sent at
   // Once the Nextion accepts the command it will wait until the file is successfully uploaded
   // If it fails for any reason a power cycle of the display will be needed
+#ifdef USE_ESP32  // Change UART not yet supported for ESP8266
   sprintf(command, "whmi-wris %d,%d,1", this->content_length_, baud_rate);
+#else
+  sprintf(command, "whmi-wris %d,%d,1", this->content_length_, this->parent_->get_baud_rate());
+#endif  // USE_ESP32
 
   // Clear serial receive buffer
   uint8_t d;
