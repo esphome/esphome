@@ -26,7 +26,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
-from esphome.config_helpers import Extend
+from esphome.config_helpers import Extend, Remove
 from esphome.loader import get_component, get_platform, ComponentManifest
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
@@ -111,7 +111,12 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             last_root = max(
                 i for i, v in enumerate(error.path) if v is cv.ROOT_CONFIG_PATH
             )
-            error.path = error.path[last_root + 1 :]
+            # can't change the path so re-create the error
+            error = vol.Invalid(
+                message=error.error_message,
+                path=error.path[last_root + 1 :],
+                error_type=error.error_type,
+            )
         self.errors.append(error)
 
     def add_validation_step(self, step: "ConfigValidationStep"):
@@ -342,6 +347,12 @@ class LoadValidationStep(ConfigValidationStep):
                 if isinstance(p_id, Extend):
                     result.add_str_error(
                         f"Source for extension of ID '{p_id.value}' was not found.",
+                        path + [CONF_ID],
+                    )
+                    continue
+                if isinstance(p_id, Remove):
+                    result.add_str_error(
+                        f"Source for removal of ID '{p_id.value}' was not found.",
                         path + [CONF_ID],
                     )
                     continue
@@ -634,6 +645,35 @@ class IDPassValidationStep(ConfigValidationStep):
                             )
 
 
+class RemoveReferenceValidationStep(ConfigValidationStep):
+    """
+    Make sure all !remove references have been removed from the config.
+    Any left overs mean the merge step couldn't find corresponding previously existing id/key
+    """
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            # If result already has errors, skip this step
+            return
+
+        def recursive_check_remove_tag(config: Config, path: ConfigPath = None):
+            path = path or []
+
+            if isinstance(config, Remove):
+                result.add_str_error(
+                    f"Source for removal at '{'->'.join([str(p) for p in path])}' was not found.",
+                    path,
+                )
+            elif isinstance(config, list):
+                for i, item in enumerate(config):
+                    recursive_check_remove_tag(item, path + [i])
+            elif isinstance(config, dict):
+                for key, value in config.items():
+                    recursive_check_remove_tag(value, path + [key])
+
+        recursive_check_remove_tag(result)
+
+
 class FinalValidateValidationStep(ConfigValidationStep):
     """Run final_validate_schema for all components."""
 
@@ -770,6 +810,8 @@ def validate_config(config, command_line_substitutions) -> Config:
         result.add_validation_step(LoadValidationStep(domain, conf))
     result.add_validation_step(IDPassValidationStep())
     result.add_validation_step(PinUseValidationCheck())
+
+    result.add_validation_step(RemoveReferenceValidationStep())
 
     result.run_validation_steps()
 
