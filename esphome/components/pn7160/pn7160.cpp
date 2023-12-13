@@ -22,10 +22,6 @@ void PN7160::setup() {
     this->wkup_req_pin_->setup();
   }
 
-  for (auto *bs : this->binary_sensors_) {
-    bs->publish_initial_state(false);
-  }
-
   this->nci_fsm_transition_();  // kick off reset & init processes
 }
 
@@ -38,10 +34,6 @@ void PN7160::dump_config() {
   LOG_PIN("  VEN pin: ", this->ven_pin_);
   if (this->wkup_req_pin_ != nullptr) {
     LOG_PIN("  WKUP_REQ pin: ", this->wkup_req_pin_);
-  }
-
-  for (auto *child : this->binary_sensors_) {
-    LOG_BINARY_SENSOR("  ", "Tag", child);
   }
 }
 
@@ -599,9 +591,6 @@ void PN7160::erase_tag_(const uint8_t tag_index) {
     for (auto *trigger : this->triggers_ontagremoved_) {
       trigger->process(this->discovered_endpoint_[tag_index].tag);
     }
-    for (auto *bs : this->binary_sensors_) {
-      bs->tag_off(*this->discovered_endpoint_[tag_index].tag);
-    }
     ESP_LOGI(TAG, "Tag %s removed", nfc::format_uid(this->discovered_endpoint_[tag_index].tag->get_uid()).c_str());
     this->discovered_endpoint_.erase(this->discovered_endpoint_.begin() + tag_index);
   }
@@ -916,9 +905,6 @@ void PN7160::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
           for (auto *trigger : this->triggers_ontag_) {
             trigger->process(working_endpoint.tag);
           }
-          for (auto *bs : this->binary_sensors_) {
-            bs->tag_on(*working_endpoint.tag);
-          }
           working_endpoint.trig_called = true;
           break;
         }
@@ -1169,88 +1155,6 @@ uint8_t PN7160::wait_for_irq_(uint16_t timeout, bool pin_state) {
   }
   ESP_LOGW(TAG, "Timed out waiting for IRQ state");
   return nfc::STATUS_FAILED;
-}
-
-void PN7160BinarySensor::set_ndef_match_string(const std::string &str) {
-  this->match_string_ = str;
-  this->match_tag_name_ = false;
-}
-
-void PN7160BinarySensor::set_tag_name(const std::string &str) {
-  this->match_string_ = str;
-  this->match_tag_name_ = true;
-}
-
-void PN7160BinarySensor::set_uid(const std::vector<uint8_t> &uid) { this->uid_ = uid; }
-
-bool PN7160BinarySensor::tag_match_ndef_string(const std::shared_ptr<esphome::nfc::NdefMessage> &msg) {
-  for (const auto &record : msg->get_records()) {
-    if (record->get_payload().find(this->match_string_) != std::string::npos) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool PN7160BinarySensor::tag_match_tag_name(const std::shared_ptr<esphome::nfc::NdefMessage> &msg) {
-  for (const auto &record : msg->get_records()) {
-    if (record->get_payload().find(nfc::HA_TAG_ID_PREFIX) != std::string::npos) {
-      auto rec_substr = record->get_payload().substr(sizeof(nfc::HA_TAG_ID_PREFIX) - 1);
-      if (rec_substr.find(this->match_string_) != std::string::npos) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-bool PN7160BinarySensor::tag_match_uid(const std::vector<uint8_t> &data) {
-  if (data.size() != this->uid_.size()) {
-    return false;
-  }
-
-  for (size_t i = 0; i < data.size(); i++) {
-    if (data[i] != this->uid_[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-
-void PN7160BinarySensor::tag_off(nfc::NfcTag &tag) {
-  if (!this->match_string_.empty() && tag.has_ndef_message()) {
-    if (this->match_tag_name_) {
-      if (this->tag_match_tag_name(tag.get_ndef_message())) {
-        this->publish_state(false);
-      }
-    } else {
-      if (this->tag_match_ndef_string(tag.get_ndef_message())) {
-        this->publish_state(false);
-      }
-    }
-    return;
-  }
-  if (!this->uid_.empty() && this->tag_match_uid(tag.get_uid())) {
-    this->publish_state(false);
-  }
-}
-
-void PN7160BinarySensor::tag_on(nfc::NfcTag &tag) {
-  if (!this->match_string_.empty() && tag.has_ndef_message()) {
-    if (this->match_tag_name_) {
-      if (this->tag_match_tag_name(tag.get_ndef_message())) {
-        this->publish_state(true);
-      }
-    } else {
-      if (this->tag_match_ndef_string(tag.get_ndef_message())) {
-        this->publish_state(true);
-      }
-    }
-    return;
-  }
-  if (!this->uid_.empty() && this->tag_match_uid(tag.get_uid())) {
-    this->publish_state(true);
-  }
 }
 
 }  // namespace pn7160
