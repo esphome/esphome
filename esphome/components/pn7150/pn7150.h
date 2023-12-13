@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/nfc/automation.h"
 #include "esphome/components/nfc/nci_core.h"
 #include "esphome/components/nfc/nci_message.h"
@@ -143,25 +142,6 @@ struct DiscoveredEndpoint {
   bool trig_called;
 };
 
-class PN7150BinarySensor : public binary_sensor::BinarySensor {
- public:
-  void set_ndef_match_string(const std::string &str);
-  void set_tag_name(const std::string &str);
-  void set_uid(const std::vector<uint8_t> &uid);
-
-  bool tag_match_ndef_string(const std::shared_ptr<esphome::nfc::NdefMessage> &msg);
-  bool tag_match_tag_name(const std::shared_ptr<esphome::nfc::NdefMessage> &msg);
-  bool tag_match_uid(const std::vector<uint8_t> &data);
-
-  void tag_off(nfc::NfcTag &tag);
-  void tag_on(nfc::NfcTag &tag);
-
- protected:
-  bool match_tag_name_{false};
-  std::string match_string_;
-  std::vector<uint8_t> uid_;
-};
-
 class PN7150 : public Component {
  public:
   void setup() override;
@@ -184,7 +164,6 @@ class PN7150 : public Component {
   void set_polling_on();
   bool polling_enabled() { return this->polling_enabled_; }
 
-  void register_tag(PN7150BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
   void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
@@ -309,7 +288,6 @@ class PN7150 : public Component {
   std::shared_ptr<nfc::NdefMessage> card_emulation_message_;
   std::shared_ptr<nfc::NdefMessage> next_task_message_to_write_;
 
-  std::vector<PN7150BinarySensor *> binary_sensors_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
 };
