@@ -104,7 +104,6 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   uint16_t x_high_{0};
   uint16_t y_high_{0};
   const uint8_t *palette_;
-  size_t init_repeat_count_{0};
 
   ILI9XXXColorMode buffer_color_mode_{BITS_16};
 
@@ -205,13 +204,6 @@ class ILI9XXXS3Box : public ILI9XXXDisplay {
 class ILI9XXXS3BoxLite : public ILI9XXXDisplay {
  public:
   ILI9XXXS3BoxLite() : ILI9XXXDisplay(INITCMD_S3BOXLITE, 320, 240, true) {}
-};
-
-class ILI9XXXRM67162 : public ILI9XXXDisplay {
- public:
-  ILI9XXXRM67162() : ILI9XXXDisplay(INITCMD_RM67162, 240, 536, false) {
-    this->init_repeat_count_ = 2;
-  }
 };
 
 }  // namespace ili9xxx

@@ -58,7 +58,6 @@ MODELS = {
     "ST7789V": ili9xxx_ns.class_("ILI9XXXST7789V", ILI9XXXDisplay),
     "S3BOX": ili9xxx_ns.class_("ILI9XXXS3Box", ILI9XXXDisplay),
     "S3BOX_LITE": ili9xxx_ns.class_("ILI9XXXS3BoxLite", ILI9XXXDisplay),
-    "RM67162": ili9xxx_ns.class_("ILI9XXXRM67162", ILI9XXXDisplay),
 }
 
 COLOR_ORDERS = {

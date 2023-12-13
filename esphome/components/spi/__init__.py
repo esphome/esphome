@@ -192,6 +192,7 @@ def get_hw_spi(config, available):
 def validate_spi_config(config):
     available = list(range(len(get_hw_interface_list())))
     for spi in config:
+        # map pin number to schema
         spi[CONF_CLK_PIN] = pins.gpio_output_pin_schema(spi[CONF_CLK_PIN])
         interface = spi[CONF_INTERFACE]
         if interface == "software":
@@ -267,6 +268,8 @@ SPI_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SPIComponent),
+            # Do not use a schema here, as that will trigger a pin reuse error due to duplication of the
+            # clock pin in the standard and quad schemas.
             cv.Required(CONF_CLK_PIN): cv.int_,
             cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
@@ -288,6 +291,8 @@ SPI_QUAD_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(QuadSPIComponent),
             cv.Required(CONF_CLK_PIN): cv.int_,
+            # Optional is used here so that the error messages when no pins are defined
+            # relates to the standard schema, not this.
             cv.Optional(CONF_DATA_PINS): cv.All(
                 cv.ensure_list(pins.gpio_output_pin_schema), cv.Length(min=4, max=4)
             ),
@@ -302,9 +307,9 @@ SPI_QUAD_SCHEMA = cv.All(
 )
 
 CONFIG_SCHEMA = cv.All(
+    # Order is important. SPI_SCHEMA is the default.
     cv.ensure_list(
         cv.Any(
-            # Order is important. SPI_SCHEMA is the default.
             SPI_SCHEMA,
             SPI_QUAD_SCHEMA,
         ),
