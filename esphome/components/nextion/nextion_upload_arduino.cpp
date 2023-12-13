@@ -256,7 +256,7 @@ bool Nextion::upload_tft(uint32_t baud_rate) {
 #ifdef USE_ESP32  // Change baud rate not yet available for ESP8266
   if (baud_rate != this->original_baud_rate_) {
     this->parent_->set_baud_rate(baud_rate);
-    this->load_settings();
+    this->parent_->load_settings();
   }
 #endif  // USE_ESP32
 
@@ -353,7 +353,7 @@ bool Nextion::upload_end_(bool successful) {
   // Reset UART to it's original baud rate
   if (this->parent_->get_baud_rate() != this->original_baud_rate_) {
     this->parent_->set_baud_rate(this->original_baud_rate_);
-    this->load_settings();
+    this->parent_->load_settings();
   }
 #endif  // USE_ESP32
   return successful;

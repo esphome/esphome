@@ -62,6 +62,7 @@ class UARTComponent {
   UARTParityOptions get_parity() const { return this->parity_; }
   void set_baud_rate(uint32_t baud_rate) { baud_rate_ = baud_rate; }
   uint32_t get_baud_rate() const { return baud_rate_; }
+  virtual void load_settings(bool dump_config) = 0;
 
 #ifdef USE_UART_DEBUGGER
   void add_debug_callback(std::function<void(UARTDirection, uint8_t)> &&callback) {
