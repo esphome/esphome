@@ -147,6 +147,10 @@ bool Nextion::upload_tft(uint32_t baud_rate) {
   if (baud_rate == 0) {
     baud_rate = this->original_baud_rate_;
   }
+  // Change UART not yet supported for ESP8266
+  #ifdef USE_ESP8266
+  baud_rate = this->original_baud_rate_;
+  #endif  // USE_ESP8266
   ESP_LOGD(TAG, "Baud rate: %u", baud_rate);
   ESP_LOGD(TAG, "URL:       %s", this->tft_url_.c_str());
 
@@ -250,10 +254,13 @@ bool Nextion::upload_tft(uint32_t baud_rate) {
 
   this->send_command_(command);
 
+  // Change baud rate not yet available for ESP8266
+  #ifdef USE_ESP32
   if (baud_rate != this->original_baud_rate_) {
     this->parent_->set_baud_rate(baud_rate);
     this->parent_->load_settings();
   }
+  #endif  // USE_ESP32
 
   App.feed_wdt();
 
@@ -343,11 +350,14 @@ bool Nextion::upload_end_(bool successful) {
     ESP_LOGD(TAG, "Restarting esphome");
     ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
   }
+  // Change baud rate not yet available for ESP8266
+  #ifdef USE_ESP32
   // Reset UART to it's original baud rate
   if (this->parent_->get_baud_rate() != this->original_baud_rate_) {
     this->parent_->set_baud_rate(this->original_baud_rate_);
     this->parent_->load_settings();
   }
+  #endif  // USE_ESP32
   return successful;
 }
 
