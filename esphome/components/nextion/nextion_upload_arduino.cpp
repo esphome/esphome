@@ -269,7 +269,7 @@ bool Nextion::upload_tft(uint32_t baud_rate) {
 
   std::string response;
   ESP_LOGD(TAG, "Waiting for upgrade response");
-  this->recv_ret_string_(response, 2000, true);  // This can take some time to return
+  this->recv_ret_string_(response, 5000, true);  // This can take some time to return
 
   // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
   ESP_LOGD(TAG, "Upgrade response is [%s] - %zu bytes",
