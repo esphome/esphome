@@ -11,9 +11,6 @@
 #if defined(USE_ESP8266) || defined(USE_ESP32)
 #include <HardwareSerial.h>
 #endif  // USE_ESP8266 || USE_ESP32
-#if defined(USE_ESP32) && (defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3))
-#include <USB.h>
-#endif  // USE_ESP32 && (USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3)
 #ifdef USE_RP2040
 #include <HardwareSerial.h>
 #include <SerialUSB.h>
