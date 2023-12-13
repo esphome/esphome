@@ -39,7 +39,11 @@ CONF_VCOM_PIN = "vcom_pin"
 
 inkplate6_ns = cg.esphome_ns.namespace("inkplate6")
 Inkplate6 = inkplate6_ns.class_(
-    "Inkplate6", cg.PollingComponent, i2c.I2CDevice, display.DisplayBuffer
+    "Inkplate6",
+    cg.PollingComponent,
+    i2c.I2CDevice,
+    display.Display,
+    display.DisplayBuffer,
 )
 
 InkplateModel = inkplate6_ns.enum("InkplateModel")
@@ -110,7 +114,6 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
-    await cg.register_component(var, config)
     await display.register_display(var, config)
     await i2c.register_i2c_device(var, config)
 
