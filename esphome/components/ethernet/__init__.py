@@ -30,15 +30,33 @@ CONF_POWER_PIN = "power_pin"
 EthernetType = ethernet_ns.enum("EthernetType")
 ETHERNET_TYPES = {
     "LAN8720": EthernetType.ETHERNET_TYPE_LAN8720,
-    "TLK110": EthernetType.ETHERNET_TYPE_TLK110,
+    "RTL8201": EthernetType.ETHERNET_TYPE_RTL8201,
+    "DP83848": EthernetType.ETHERNET_TYPE_DP83848,
+    "IP101": EthernetType.ETHERNET_TYPE_IP101,
+    "JL1101": EthernetType.ETHERNET_TYPE_JL1101,
+    "KSZ8081": EthernetType.ETHERNET_TYPE_KSZ8081,
+    "KSZ8081RNA": EthernetType.ETHERNET_TYPE_KSZ8081RNA,
 }
 
-eth_clock_mode_t = cg.global_ns.enum("eth_clock_mode_t")
+emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
+emac_rmii_clock_gpio_t = cg.global_ns.enum("emac_rmii_clock_gpio_t")
 CLK_MODES = {
-    "GPIO0_IN": eth_clock_mode_t.ETH_CLOCK_GPIO0_IN,
-    "GPIO0_OUT": eth_clock_mode_t.ETH_CLOCK_GPIO0_OUT,
-    "GPIO16_OUT": eth_clock_mode_t.ETH_CLOCK_GPIO16_OUT,
-    "GPIO17_OUT": eth_clock_mode_t.ETH_CLOCK_GPIO17_OUT,
+    "GPIO0_IN": (
+        emac_rmii_clock_mode_t.EMAC_CLK_EXT_IN,
+        emac_rmii_clock_gpio_t.EMAC_CLK_IN_GPIO,
+    ),
+    "GPIO0_OUT": (
+        emac_rmii_clock_mode_t.EMAC_CLK_OUT,
+        emac_rmii_clock_gpio_t.EMAC_APPL_CLK_OUT_GPIO,
+    ),
+    "GPIO16_OUT": (
+        emac_rmii_clock_mode_t.EMAC_CLK_OUT,
+        emac_rmii_clock_gpio_t.EMAC_CLK_OUT_GPIO,
+    ),
+    "GPIO17_OUT": (
+        emac_rmii_clock_mode_t.EMAC_CLK_OUT,
+        emac_rmii_clock_gpio_t.EMAC_CLK_OUT_180_GPIO,
+    ),
 }
 
 
@@ -77,7 +95,7 @@ CONFIG_SCHEMA = cv.All(
                 CLK_MODES, upper=True, space="_"
             ),
             cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
-            cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
@@ -88,7 +106,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate,
-    cv.only_with_arduino,
 )
 
 
@@ -112,17 +129,16 @@ async def to_code(config):
     cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
     cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
     cg.add(var.set_type(config[CONF_TYPE]))
-    cg.add(var.set_clk_mode(CLK_MODES[config[CONF_CLK_MODE]]))
+    cg.add(var.set_clk_mode(*CLK_MODES[config[CONF_CLK_MODE]]))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     if CONF_POWER_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_POWER_PIN])
-        cg.add(var.set_power_pin(pin))
+        cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
 
     if CONF_MANUAL_IP in config:
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
     cg.add_define("USE_ETHERNET")
 
-    if CORE.is_esp32:
+    if CORE.using_arduino:
         cg.add_library("WiFi", None)

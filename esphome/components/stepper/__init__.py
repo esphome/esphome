@@ -14,7 +14,6 @@ from esphome.core import CORE, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
-# pylint: disable=invalid-name
 stepper_ns = cg.esphome_ns.namespace("stepper")
 Stepper = stepper_ns.class_("Stepper")
 

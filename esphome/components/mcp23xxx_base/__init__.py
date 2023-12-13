@@ -19,7 +19,6 @@ CODEOWNERS = ["@jesserockz"]
 mcp23xxx_base_ns = cg.esphome_ns.namespace("mcp23xxx_base")
 MCP23XXXBase = mcp23xxx_base_ns.class_("MCP23XXXBase", cg.Component)
 MCP23XXXGPIOPin = mcp23xxx_base_ns.class_("MCP23XXXGPIOPin", cg.GPIOPin)
-MCP23XXXGPIOMode = mcp23xxx_base_ns.enum("MCP23XXXGPIOMode")
 MCP23XXXInterruptMode = mcp23xxx_base_ns.enum("MCP23XXXInterruptMode")
 
 MCP23XXX_INTERRUPT_MODES = {
@@ -27,12 +26,6 @@ MCP23XXX_INTERRUPT_MODES = {
     "CHANGE": MCP23XXXInterruptMode.MCP23XXX_CHANGE,
     "RISING": MCP23XXXInterruptMode.MCP23XXX_RISING,
     "FALLING": MCP23XXXInterruptMode.MCP23XXX_FALLING,
-}
-
-MCP23XXX_GPIO_MODES = {
-    "INPUT": MCP23XXXGPIOMode.MCP23XXX_INPUT,
-    "INPUT_PULLUP": MCP23XXXGPIOMode.MCP23XXX_INPUT_PULLUP,
-    "OUTPUT": MCP23XXXGPIOMode.MCP23XXX_OUTPUT,
 }
 
 MCP23XXX_CONFIG_SCHEMA = cv.Schema(
@@ -61,20 +54,16 @@ def validate_mode(value):
 
 
 CONF_MCP23XXX = "mcp23xxx"
-MCP23XXX_PIN_SCHEMA = cv.All(
+
+MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
+    MCP23XXXGPIOPin,
+    cv.int_range(min=0, max=15),
+    modes=[CONF_INPUT, CONF_OUTPUT, CONF_PULLUP],
+    mode_validator=validate_mode,
+    invertable=True,
+).extend(
     {
-        cv.GenerateID(): cv.declare_id(MCP23XXXGPIOPin),
         cv.Required(CONF_MCP23XXX): cv.use_id(MCP23XXXBase),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
-        cv.Optional(CONF_MODE, default={}): cv.All(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_PULLUP, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-            },
-            validate_mode,
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
         cv.Optional(CONF_INTERRUPT, default="NO_INTERRUPT"): cv.enum(
             MCP23XXX_INTERRUPT_MODES, upper=True
         ),
@@ -95,20 +84,3 @@ async def mcp23xxx_pin_to_code(config):
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
     cg.add(var.set_interrupt_mode(config[CONF_INTERRUPT]))
     return var
-
-
-# BEGIN Removed pin schemas below to show error in configuration
-# TODO remove in 2022.5.0
-
-for id in ["mcp23008", "mcp23s08", "mcp23017", "mcp23s17"]:
-    invalid_schema = cv.invalid(
-        f"'{id}:' has been removed from the pin schema in 1.17.0, please use 'mcp23xxx:'"
-    )
-
-    # pylint: disable=cell-var-from-loop
-    @pins.PIN_SCHEMA_REGISTRY.register(id, invalid_schema)
-    def pin_to_code(config):
-        pass
-
-
-# END Removed pin schemas

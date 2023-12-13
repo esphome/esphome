@@ -31,9 +31,9 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    switch.SWITCH_SCHEMA.extend(
+    switch.switch_schema(TemplateSwitch)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(TemplateSwitch),
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
@@ -43,17 +43,19 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(
                 single=True
             ),
-            cv.Optional(CONF_RESTORE_STATE, default=False): cv.boolean,
+            cv.Optional(CONF_RESTORE_STATE): cv.invalid(
+                "The restore_state option has been removed in 2023.7.0. Use the restore_mode option instead"
+            ),
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     validate,
 )
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await switch.new_switch(config)
     await cg.register_component(var, config)
-    await switch.register_switch(var, config)
 
     if CONF_LAMBDA in config:
         template_ = await cg.process_lambda(
@@ -70,7 +72,6 @@ async def to_code(config):
         )
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
-    cg.add(var.set_restore_state(config[CONF_RESTORE_STATE]))
 
 
 @automation.register_action(

@@ -14,6 +14,14 @@
 #include <esp_heap_caps.h>
 #endif
 
+#if defined(USE_ESP32)
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#elif defined(USE_LIBRETINY)
+#include <FreeRTOS.h>
+#include <semphr.h>
+#endif
+
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
 #define ALWAYS_INLINE __attribute__((always_inline))
@@ -148,6 +156,12 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
 
 /// Calculate a CRC-8 checksum of \p data with size \p len.
 uint8_t crc8(uint8_t *data, uint8_t len);
+
+/// Calculate a CRC-16 checksum of \p data with size \p len.
+uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc = 0xffff, uint16_t reverse_poly = 0xa001,
+               bool refin = false, bool refout = false);
+uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc = 0, uint16_t poly = 0x1021, bool refin = false,
+                 bool refout = false);
 
 /// Calculate a FNV-1 hash of \p str.
 uint32_t fnv1_hash(const std::string &str);
@@ -387,6 +401,9 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::stri
   val = convert_big_endian(val);
   return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
 }
+template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &data) {
+  return format_hex(data.data(), data.size());
+}
 
 /// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
 std::string format_hex_pretty(const uint8_t *data, size_t length);
@@ -414,6 +431,9 @@ ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const ch
 
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
+
+/// Derive accuracy in decimals from an increment step.
+int8_t step_to_accuracy_decimals(float step);
 
 ///@}
 
@@ -461,6 +481,7 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
     for (auto &cb : this->callbacks_)
       cb(args...);
   }
+  size_t size() const { return this->callbacks_.size(); }
 
   /// Call all callbacks in this manager.
   void operator()(Ts... args) { call(args...); }
@@ -510,6 +531,39 @@ template<typename T> class Parented {
 /// @name System APIs
 ///@{
 
+/** Mutex implementation, with API based on the unavailable std::mutex.
+ *
+ * @note This mutex is non-recursive, so take care not to try to obtain the mutex while it is already taken.
+ */
+class Mutex {
+ public:
+  Mutex();
+  Mutex(const Mutex &) = delete;
+  void lock();
+  bool try_lock();
+  void unlock();
+
+  Mutex &operator=(const Mutex &) = delete;
+
+ private:
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  SemaphoreHandle_t handle_;
+#endif
+};
+
+/** Helper class that wraps a mutex with a RAII-style API.
+ *
+ * This behaves like std::lock_guard: as long as the object is alive, the mutex is held.
+ */
+class LockGuard {
+ public:
+  LockGuard(Mutex &mutex) : mutex_(mutex) { mutex_.lock(); }
+  ~LockGuard() { mutex_.unlock(); }
+
+ private:
+  Mutex &mutex_;
+};
+
 /** Helper class to disable interrupts.
  *
  * This behaves like std::lock_guard: as long as the object is alive, all interrupts are disabled.
@@ -536,8 +590,8 @@ class InterruptLock {
   ~InterruptLock();
 
  protected:
-#ifdef USE_ESP8266
-  uint32_t xt_state_;
+#if defined(USE_ESP8266) || defined(USE_RP2040)
+  uint32_t state_;
 #endif
 };
 
@@ -562,7 +616,7 @@ class HighFrequencyLoopRequester {
 };
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
-void get_mac_address_raw(uint8_t *mac);
+void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
 
 /// Get the device MAC address as a string, in lowercase hex notation.
 std::string get_mac_address();
@@ -606,7 +660,7 @@ template<class T> class ExternalRAMAllocator {
     size_t size = n * sizeof(T);
     T *ptr = nullptr;
 #ifdef USE_ESP32
-    ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM));
+    ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
 #endif
     if (ptr == nullptr && (this->flags_ & Flags::REFUSE_INTERNAL) == 0)
       ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)

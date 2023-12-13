@@ -4,6 +4,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
+#include <vector>
+
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
 #define HAS_PROTO_MESSAGE_DUMP
 #endif
@@ -70,7 +72,7 @@ class ProtoVarInt {
     }
   }
   void encode(std::vector<uint8_t> &out) {
-    uint32_t val = this->value_;
+    uint64_t val = this->value_;
     if (val <= 0x7F) {
       out.push_back(val);
       return;

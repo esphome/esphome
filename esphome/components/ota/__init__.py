@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_REBOOT_TIMEOUT,
     CONF_SAFE_MODE,
     CONF_TRIGGER_ID,
+    CONF_OTA,
+    KEY_PAST_SAFE_MODE,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -39,7 +41,14 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(OTAComponent),
         cv.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
-        cv.SplitDefault(CONF_PORT, esp8266=8266, esp32=3232): cv.port,
+        cv.SplitDefault(
+            CONF_PORT,
+            esp8266=8266,
+            esp32=3232,
+            rp2040=2040,
+            bk72xx=8892,
+            rtl87xx=8892,
+        ): cv.port,
         cv.Optional(CONF_PASSWORD): cv.string,
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="5min"
@@ -76,8 +85,11 @@ CONFIG_SCHEMA = cv.Schema(
 
 @coroutine_with_priority(50.0)
 async def to_code(config):
+    CORE.data[CONF_OTA] = {}
+
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))
+    cg.add_define("USE_OTA")
     if CONF_PASSWORD in config:
         cg.add(var.set_auth_password(config[CONF_PASSWORD]))
         cg.add_define("USE_OTA_PASSWORD")
@@ -89,9 +101,13 @@ async def to_code(config):
             config[CONF_NUM_ATTEMPTS], config[CONF_REBOOT_TIMEOUT]
         )
         cg.add(RawExpression(f"if ({condition}) return"))
+        CORE.data[CONF_OTA][KEY_PAST_SAFE_MODE] = True
 
     if CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("Update", None)
+
+    if CORE.is_rp2040 and CORE.using_arduino:
+        cg.add_library("Updater", None)
 
     use_state_callback = False
     for conf in config.get(CONF_ON_STATE_CHANGE, []):
@@ -112,7 +128,7 @@ async def to_code(config):
         use_state_callback = True
     for conf in config.get(CONF_ON_ERROR, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(int, "x")], conf)
+        await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
         use_state_callback = True
     if use_state_callback:
         cg.add_define("USE_OTA_STATE_CALLBACK")

@@ -1,22 +1,28 @@
 #pragma once
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/network/ip_address.h"
 
+#ifdef USE_ESP32
+
 #include "esp_eth.h"
-#include <esp_wifi.h>
-#include <WiFiType.h>
-#include <WiFi.h>
+#include "esp_eth_mac.h"
+#include "esp_netif.h"
 
 namespace esphome {
 namespace ethernet {
 
 enum EthernetType {
-  ETHERNET_TYPE_LAN8720 = 0,
-  ETHERNET_TYPE_TLK110,
+  ETHERNET_TYPE_UNKNOWN = 0,
+  ETHERNET_TYPE_LAN8720,
+  ETHERNET_TYPE_RTL8201,
+  ETHERNET_TYPE_DP83848,
+  ETHERNET_TYPE_IP101,
+  ETHERNET_TYPE_JL1101,
+  ETHERNET_TYPE_KSZ8081,
+  ETHERNET_TYPE_KSZ8081RNA,
 };
 
 struct ManualIP {
@@ -41,49 +47,62 @@ class EthernetComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override;
   bool can_proceed() override;
+  void on_shutdown() override { powerdown(); }
   bool is_connected();
 
   void set_phy_addr(uint8_t phy_addr);
-  void set_power_pin(GPIOPin *power_pin);
+  void set_power_pin(int power_pin);
   void set_mdc_pin(uint8_t mdc_pin);
   void set_mdio_pin(uint8_t mdio_pin);
   void set_type(EthernetType type);
-  void set_clk_mode(eth_clock_mode_t clk_mode);
+  void set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_clock_gpio_t clk_gpio);
   void set_manual_ip(const ManualIP &manual_ip);
 
   network::IPAddress get_ip_address();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
+  bool powerdown();
 
  protected:
-  void on_wifi_event_(system_event_id_t event, system_event_info_t info);
+  static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+  static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+#if LWIP_IPV6
+  static void got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+#endif /* LWIP_IPV6 */
+
   void start_connect_();
   void dump_connect_params_();
-
-  static void eth_phy_config_gpio();
-  static void eth_phy_power_enable(bool enable);
+  /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
+  void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
 
   std::string use_address_;
   uint8_t phy_addr_{0};
-  GPIOPin *power_pin_{nullptr};
+  int power_pin_{-1};
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
-  EthernetType type_{ETHERNET_TYPE_LAN8720};
-  eth_clock_mode_t clk_mode_{ETH_CLOCK_GPIO0_IN};
+  EthernetType type_{ETHERNET_TYPE_UNKNOWN};
+  emac_rmii_clock_mode_t clk_mode_{EMAC_CLK_EXT_IN};
+  emac_rmii_clock_gpio_t clk_gpio_{EMAC_CLK_IN_GPIO};
   optional<ManualIP> manual_ip_{};
 
   bool started_{false};
   bool connected_{false};
+#if LWIP_IPV6
+  bool got_ipv6_{false};
+  uint8_t ipv6_count_{0};
+#endif /* LWIP_IPV6 */
   EthernetComponentState state_{EthernetComponentState::STOPPED};
   uint32_t connect_begin_;
-  eth_config_t eth_config_;
-  eth_phy_power_enable_func orig_power_enable_fun_;
+  esp_netif_t *eth_netif_{nullptr};
+  esp_eth_handle_t eth_handle_;
+  esp_eth_phy_t *phy_{nullptr};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
+extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 
 }  // namespace ethernet
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32

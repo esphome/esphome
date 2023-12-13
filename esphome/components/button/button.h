@@ -15,15 +15,19 @@ namespace button {
     } \
   }
 
+#define SUB_BUTTON(name) \
+ protected: \
+  button::Button *name##_button_{nullptr}; \
+\
+ public: \
+  void set_##name##_button(button::Button *button) { this->name##_button_ = button; }
+
 /** Base class for all buttons.
  *
  * A button is just a momentary switch that does not have a state, only a trigger.
  */
-class Button : public EntityBase {
+class Button : public EntityBase, public EntityBase_DeviceClass {
  public:
-  explicit Button();
-  explicit Button(const std::string &name);
-
   /** Press this button. This is called by the front-end.
    *
    * For implementing buttons, please override press_action.
@@ -36,19 +40,12 @@ class Button : public EntityBase {
    */
   void add_on_press_callback(std::function<void()> &&callback);
 
-  /// Set the Home Assistant device class (see button::device_class).
-  void set_device_class(const std::string &device_class);
-
-  /// Get the device class for this button.
-  std::string get_device_class();
-
  protected:
   /** You should implement this virtual method if you want to create your own button.
    */
   virtual void press_action() = 0;
 
   CallbackManager<void()> press_callback_{};
-  std::string device_class_{};
 };
 
 }  // namespace button

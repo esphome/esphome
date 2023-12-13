@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
+#include <vector>
+
 namespace esphome {
 namespace modbus {
 
@@ -28,19 +30,19 @@ class Modbus : public uart::UARTDevice, public Component {
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
   uint8_t waiting_for_response{0};
   void set_send_wait_time(uint16_t time_in_ms) { send_wait_time_ = time_in_ms; }
+  void set_disable_crc(bool disable_crc) { disable_crc_ = disable_crc; }
 
  protected:
   GPIOPin *flow_control_pin_{nullptr};
 
   bool parse_modbus_byte_(uint8_t byte);
   uint16_t send_wait_time_{250};
+  bool disable_crc_;
   std::vector<uint8_t> rx_buffer_;
   uint32_t last_modbus_byte_{0};
   uint32_t last_send_{0};
   std::vector<ModbusDevice *> devices_;
 };
-
-uint16_t crc16(const uint8_t *data, uint8_t len);
 
 class ModbusDevice {
  public:

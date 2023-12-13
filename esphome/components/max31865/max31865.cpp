@@ -2,6 +2,7 @@
 
 #include "esphome/core/log.h"
 #include <cmath>
+#include <cinttypes>
 
 namespace esphome {
 namespace max31865 {
@@ -45,14 +46,15 @@ void MAX31865Sensor::update() {
     config = this->read_register_(CONFIGURATION_REG);
     fault_detect_time = micros() - start_time;
     if ((fault_detect_time >= 6000) && (config & 0b00001100)) {
-      ESP_LOGE(TAG, "Fault detection incomplete (0x%02X) after %uμs (datasheet spec is 600μs max)! Aborting read.",
+      ESP_LOGE(TAG,
+               "Fault detection incomplete (0x%02X) after %" PRIu32 "μs (datasheet spec is 600μs max)! Aborting read.",
                config, fault_detect_time);
       this->publish_state(NAN);
       this->status_set_error();
       return;
     }
   } while (config & 0b00001100);
-  ESP_LOGV(TAG, "Fault detection completed in %uμs.", fault_detect_time);
+  ESP_LOGV(TAG, "Fault detection completed in %" PRIu32 "μs.", fault_detect_time);
 
   // Start 1-shot conversion
   this->write_config_(0b11100000, 0b10100000);

@@ -29,6 +29,7 @@ extern const float PROCESSOR;
 extern const float BLUETOOTH;
 extern const float AFTER_BLUETOOTH;
 extern const float WIFI;
+extern const float ETHERNET;
 /// For components that should be initialized after WiFi and before API is connected.
 extern const float BEFORE_CONNECTION;
 /// For components that should be initialized after WiFi is connected.
@@ -118,6 +119,8 @@ class Component {
 
   bool is_failed();
 
+  bool is_ready();
+
   virtual bool can_proceed();
 
   bool status_has_warning();
@@ -184,26 +187,39 @@ class Component {
 
   /** Set an retry function with a unique name. Empty name means no cancelling possible.
    *
-   * This will call f. If f returns RetryResult::RETRY f is called again after initial_wait_time ms.
-   * f should return RetryResult::DONE if no repeat is required. The initial wait time will be increased
-   * by backoff_increase_factor for each iteration. Default is doubling the time between iterations
-   * Can be cancelled via cancel_retry().
+   * This will call the retry function f on the next scheduler loop. f should return RetryResult::DONE if
+   * it is successful and no repeat is required. Otherwise, returning RetryResult::RETRY will call f
+   * again in the future.
+   *
+   * The first retry of f happens after `initial_wait_time` milliseconds. The delay between retries is
+   * increased by multipling by `backoff_increase_factor` each time. If no backoff_increase_factor is
+   * supplied (default = 1.0), the wait time will stay constant.
+   *
+   * The retry function f needs to accept a single argument: the number of attempts remaining. On the
+   * final retry of f, this value will be 0.
+   *
+   * This retry function can also be cancelled by name via cancel_retry().
    *
    * IMPORTANT: Do not rely on this having correct timing. This is only called from
    * loop() and therefore can be significantly delayed.
    *
+   * REMARK: It is an error to supply a negative or zero `backoff_increase_factor`, and 1.0 will be used instead.
+   *
+   * REMARK: The interval between retries is stored into a `uint32_t`, so this doesn't behave correctly
+   * if `initial_wait_time * (backoff_increase_factor ** (max_attempts - 2))` overflows.
+   *
    * @param name The identifier for this retry function.
    * @param initial_wait_time The time in ms before f is called again
-   * @param max_attempts The maximum number of retries
+   * @param max_attempts The maximum number of executions
    * @param f The function (or lambda) that should be called
-   * @param backoff_increase_factor time between retries is increased by this factor on every retry
+   * @param backoff_increase_factor time between retries is multiplied by this factor on every retry after the first
    * @see cancel_retry()
    */
-  void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,  // NOLINT
-                 std::function<RetryResult()> &&f, float backoff_increase_factor = 1.0f);    // NOLINT
+  void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,       // NOLINT
+                 std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
 
-  void set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult()> &&f,  // NOLINT
-                 float backoff_increase_factor = 1.0f);                                               // NOLINT
+  void set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,  // NOLINT
+                 float backoff_increase_factor = 1.0f);                                                      // NOLINT
 
   /** Cancel a retry function.
    *
@@ -254,7 +270,7 @@ class Component {
 
   uint32_t component_state_{0x0000};  ///< State of this component.
   float setup_priority_override_{NAN};
-  const char *component_source_ = nullptr;
+  const char *component_source_{nullptr};
 };
 
 /** This class simplifies creating components that periodically check a state.
@@ -291,6 +307,12 @@ class PollingComponent : public Component {
 
   /// Get the update interval in ms of this sensor
   virtual uint32_t get_update_interval() const;
+
+  // Start the poller, used for component.suspend
+  void start_poller();
+
+  // Stop the poller, used for component.suspend
+  void stop_poller();
 
  protected:
   uint32_t update_interval_;

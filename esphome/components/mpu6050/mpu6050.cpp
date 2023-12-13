@@ -23,7 +23,8 @@ const float GRAVITY_EARTH = 9.80665f;
 void MPU6050Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MPU6050...");
   uint8_t who_am_i;
-  if (!this->read_byte(MPU6050_REGISTER_WHO_AM_I, &who_am_i) || who_am_i != 0x68) {
+  if (!this->read_byte(MPU6050_REGISTER_WHO_AM_I, &who_am_i) ||
+      (who_am_i != 0x68 && who_am_i != 0x70 && who_am_i != 0x98)) {
     this->mark_failed();
     return;
   }
@@ -76,7 +77,7 @@ void MPU6050Component::setup() {
   accel_config &= 0b11100111;
   accel_config |= (MPU6050_RANGE_2G << 3);
   ESP_LOGV(TAG, "    Output accel_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_config));
-  if (!this->write_byte(MPU6050_REGISTER_GYRO_CONFIG, gyro_config)) {
+  if (!this->write_byte(MPU6050_REGISTER_ACCEL_CONFIG, accel_config)) {
     this->mark_failed();
     return;
   }

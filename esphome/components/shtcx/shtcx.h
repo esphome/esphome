@@ -26,8 +26,8 @@ class SHTCXComponent : public PollingComponent, public sensirion_common::Sensiri
  protected:
   SHTCXType type_;
   uint16_t sensor_id_;
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *humidity_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
 };
 
 }  // namespace shtcx

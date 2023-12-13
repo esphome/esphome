@@ -6,10 +6,12 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+
 #include <list>
 #include <map>
-#include <utility>
 #include <memory>
+#include <utility>
+#include <vector>
 
 #ifdef USE_ESP32
 #include <HTTPClient.h>
@@ -29,7 +31,10 @@ struct Header {
   const char *value;
 };
 
-class HttpRequestResponseTrigger;
+class HttpRequestResponseTrigger : public Trigger<int32_t, uint32_t> {
+ public:
+  void process(int32_t status_code, uint32_t duration_ms) { this->trigger(status_code, duration_ms); }
+};
 
 class HttpRequestComponent : public Component {
  public:
@@ -75,8 +80,6 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, url)
   TEMPLATABLE_VALUE(const char *, method)
   TEMPLATABLE_VALUE(std::string, body)
-  TEMPLATABLE_VALUE(const char *, useragent)
-  TEMPLATABLE_VALUE(uint16_t, timeout)
 
   void add_header(const char *key, TemplatableValue<const char *, Ts...> value) { this->headers_.insert({key, value}); }
 
@@ -100,25 +103,18 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       auto f = std::bind(&HttpRequestSendAction<Ts...>::encode_json_func_, this, x..., std::placeholders::_1);
       this->parent_->set_body(json::build_json(f));
     }
-    if (this->useragent_.has_value()) {
-      this->parent_->set_useragent(this->useragent_.value(x...));
+    std::list<Header> headers;
+    for (const auto &item : this->headers_) {
+      auto val = item.second;
+      Header header;
+      header.name = item.first;
+      header.value = val.value(x...);
+      headers.push_back(header);
     }
-    if (this->timeout_.has_value()) {
-      this->parent_->set_timeout(this->timeout_.value(x...));
-    }
-    if (!this->headers_.empty()) {
-      std::list<Header> headers;
-      for (const auto &item : this->headers_) {
-        auto val = item.second;
-        Header header;
-        header.name = item.first;
-        header.value = val.value(x...);
-        headers.push_back(header);
-      }
-      this->parent_->set_headers(headers);
-    }
+    this->parent_->set_headers(headers);
     this->parent_->send(this->response_triggers_);
     this->parent_->close();
+    this->parent_->set_body("");
   }
 
  protected:
@@ -134,11 +130,6 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};
   std::vector<HttpRequestResponseTrigger *> response_triggers_;
-};
-
-class HttpRequestResponseTrigger : public Trigger<int> {
- public:
-  void process(int status_code) { this->trigger(status_code); }
 };
 
 }  // namespace http_request

@@ -23,7 +23,6 @@ class SenseAirComponent : public PollingComponent, public uart::UARTDevice {
   void abc_disable();
 
  protected:
-  uint16_t senseair_checksum_(uint8_t *ptr, uint8_t length);
   bool senseair_write_command_(const uint8_t *command, uint8_t *response, uint8_t response_length);
 
   sensor::Sensor *co2_sensor_{nullptr};

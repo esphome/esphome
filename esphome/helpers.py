@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from typing import Union
 import tempfile
+from urllib.parse import urlparse
+import re
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ def indent(text, padding="  "):
 
 # From https://stackoverflow.com/a/14945195/8924614
 def cpp_string_escape(string, encoding="utf-8"):
-    def _should_escape(byte):  # type: (int) -> bool
+    def _should_escape(byte: int) -> bool:
         if not 32 <= byte < 127:
             return True
         if byte in (ord("\\"), ord('"')):
@@ -134,14 +136,30 @@ def resolve_ip_address(host):
             errs.append(str(err))
 
     try:
-        return socket.gethostbyname(host)
+        host_url = host if (urlparse(host).scheme != "") else "http://" + host
+        return socket.gethostbyname(urlparse(host_url).hostname)
     except OSError as err:
         errs.append(str(err))
         raise EsphomeError(f"Error resolving IP address: {', '.join(errs)}") from err
 
 
 def get_bool_env(var, default=False):
-    return bool(os.getenv(var, default))
+    value = os.getenv(var, default)
+    if isinstance(value, str):
+        value = value.lower()
+        if value in ["1", "true"]:
+            return True
+        if value in ["0", "false"]:
+            return False
+    return bool(value)
+
+
+def get_str_env(var, default=None):
+    return str(os.getenv(var, default))
+
+
+def get_int_env(var, default=0):
+    return int(os.getenv(var, default))
 
 
 def is_ha_addon():
@@ -332,3 +350,16 @@ def add_class_to_obj(value, cls):
             if type(value) is type_:  # pylint: disable=unidiomatic-typecheck
                 return add_class_to_obj(func(value), cls)
         raise
+
+
+def snake_case(value):
+    """Same behaviour as `helpers.cpp` method `str_snake_case`."""
+    return value.replace(" ", "_").lower()
+
+
+_DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9_]")
+
+
+def sanitize(value):
+    """Same behaviour as `helpers.cpp` method `str_sanitize`."""
+    return _DISALLOWED_CHARS.sub("_", value)

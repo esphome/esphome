@@ -4,6 +4,8 @@
 #include "esphome/core/helpers.h"
 #include "ndef_record.h"
 
+#include <vector>
+
 namespace esphome {
 namespace nfc {
 

@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
+#include <vector>
+
 namespace esphome {
 namespace teleinfo {
 /*

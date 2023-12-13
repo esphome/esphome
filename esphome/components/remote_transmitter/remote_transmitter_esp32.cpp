@@ -113,6 +113,10 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     this->rmt_temp_.push_back(rmt_item);
   }
 
+  if ((this->rmt_temp_.data() == nullptr) || this->rmt_temp_.empty()) {
+    ESP_LOGE(TAG, "Empty data");
+    return;
+  }
   for (uint32_t i = 0; i < send_times; i++) {
     esp_err_t error = rmt_write_items(this->channel_, this->rmt_temp_.data(), this->rmt_temp_.size(), true);
     if (error != ESP_OK) {

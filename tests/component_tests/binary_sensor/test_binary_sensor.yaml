@@ -1,3 +1,4 @@
+---
 esphome:
   name: test
   platform: ESP8266
@@ -6,13 +7,13 @@ esphome:
 binary_sensor:
   - platform: gpio
     id: bs_1
-    name: "test bs1"
+    name: test bs1
     internal: true
     pin:
       number: D0
   - platform: gpio
     id: bs_2
-    name: "test bs2"
+    name: test bs2
     internal: false
     pin:
       number: D1

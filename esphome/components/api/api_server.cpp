@@ -1,13 +1,13 @@
 #include "api_server.h"
+#include <cerrno>
 #include "api_connection.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/version.h"
-#include "esphome/core/hal.h"
-#include "esphome/components/network/util.h"
-#include <cerrno>
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -45,7 +45,7 @@ void APIServer::setup() {
 
   struct sockaddr_storage server;
 
-  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), htons(this->port_));
+  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
   if (sl == 0) {
     ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
     this->mark_failed();
@@ -111,6 +111,7 @@ void APIServer::loop() {
                                 [](const std::unique_ptr<APIConnection> &conn) { return !conn->remove_; });
   // print disconnection messages
   for (auto it = new_end; it != this->clients_.end(); ++it) {
+    this->client_disconnected_trigger_->trigger((*it)->client_info_, (*it)->client_peername_);
     ESP_LOGV(TAG, "Removing connection to %s", (*it)->client_info_.c_str());
   }
   // resize vector
@@ -254,6 +255,15 @@ void APIServer::on_number_update(number::Number *obj, float state) {
 }
 #endif
 
+#ifdef USE_TEXT
+void APIServer::on_text_update(text::Text *obj, const std::string &state) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_text_state(obj, state);
+}
+#endif
+
 #ifdef USE_SELECT
 void APIServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   if (obj->is_internal())
@@ -291,6 +301,7 @@ void APIServer::send_homeassistant_service_call(const HomeassistantServiceRespon
     client->send_homeassistant_service_call(call);
   }
 }
+
 APIServer::APIServer() { global_api_server = this; }
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(std::string)> f) {
@@ -320,6 +331,15 @@ void APIServer::on_shutdown() {
   }
   delay(10);
 }
+
+#ifdef USE_ALARM_CONTROL_PANEL
+void APIServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_alarm_control_panel_state(obj);
+}
+#endif
 
 }  // namespace api
 }  // namespace esphome

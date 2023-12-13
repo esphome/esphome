@@ -53,6 +53,7 @@ enum SensorStateClass : uint32_t {
   STATE_CLASS_NONE = 0,
   STATE_CLASS_MEASUREMENT = 1,
   STATE_CLASS_TOTAL_INCREASING = 2,
+  STATE_CLASS_TOTAL = 3,
 };
 enum SensorLastResetType : uint32_t {
   LAST_RESET_NONE = 0,
@@ -98,6 +99,7 @@ enum ClimateFanMode : uint32_t {
   CLIMATE_FAN_MIDDLE = 6,
   CLIMATE_FAN_FOCUS = 7,
   CLIMATE_FAN_DIFFUSE = 8,
+  CLIMATE_FAN_QUIET = 9,
 };
 enum ClimateSwingMode : uint32_t {
   CLIMATE_SWING_OFF = 0,
@@ -154,12 +156,70 @@ enum MediaPlayerCommand : uint32_t {
   MEDIA_PLAYER_COMMAND_MUTE = 3,
   MEDIA_PLAYER_COMMAND_UNMUTE = 4,
 };
+enum BluetoothDeviceRequestType : uint32_t {
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0,
+  BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT = 1,
+  BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR = 2,
+  BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR = 3,
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE = 4,
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE = 5,
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE = 6,
+};
+enum VoiceAssistantRequestFlag : uint32_t {
+  VOICE_ASSISTANT_REQUEST_NONE = 0,
+  VOICE_ASSISTANT_REQUEST_USE_VAD = 1,
+  VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD = 2,
+};
+enum VoiceAssistantEvent : uint32_t {
+  VOICE_ASSISTANT_ERROR = 0,
+  VOICE_ASSISTANT_RUN_START = 1,
+  VOICE_ASSISTANT_RUN_END = 2,
+  VOICE_ASSISTANT_STT_START = 3,
+  VOICE_ASSISTANT_STT_END = 4,
+  VOICE_ASSISTANT_INTENT_START = 5,
+  VOICE_ASSISTANT_INTENT_END = 6,
+  VOICE_ASSISTANT_TTS_START = 7,
+  VOICE_ASSISTANT_TTS_END = 8,
+  VOICE_ASSISTANT_WAKE_WORD_START = 9,
+  VOICE_ASSISTANT_WAKE_WORD_END = 10,
+  VOICE_ASSISTANT_STT_VAD_START = 11,
+  VOICE_ASSISTANT_STT_VAD_END = 12,
+  VOICE_ASSISTANT_TTS_STREAM_START = 98,
+  VOICE_ASSISTANT_TTS_STREAM_END = 99,
+};
+enum AlarmControlPanelState : uint32_t {
+  ALARM_STATE_DISARMED = 0,
+  ALARM_STATE_ARMED_HOME = 1,
+  ALARM_STATE_ARMED_AWAY = 2,
+  ALARM_STATE_ARMED_NIGHT = 3,
+  ALARM_STATE_ARMED_VACATION = 4,
+  ALARM_STATE_ARMED_CUSTOM_BYPASS = 5,
+  ALARM_STATE_PENDING = 6,
+  ALARM_STATE_ARMING = 7,
+  ALARM_STATE_DISARMING = 8,
+  ALARM_STATE_TRIGGERED = 9,
+};
+enum AlarmControlPanelStateCommand : uint32_t {
+  ALARM_CONTROL_PANEL_DISARM = 0,
+  ALARM_CONTROL_PANEL_ARM_AWAY = 1,
+  ALARM_CONTROL_PANEL_ARM_HOME = 2,
+  ALARM_CONTROL_PANEL_ARM_NIGHT = 3,
+  ALARM_CONTROL_PANEL_ARM_VACATION = 4,
+  ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS = 5,
+  ALARM_CONTROL_PANEL_TRIGGER = 6,
+};
+enum TextMode : uint32_t {
+  TEXT_MODE_TEXT = 0,
+  TEXT_MODE_PASSWORD = 1,
+};
 
 }  // namespace enums
 
 class HelloRequest : public ProtoMessage {
  public:
   std::string client_info{};
+  uint32_t api_version_major{0};
+  uint32_t api_version_minor{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -167,6 +227,7 @@ class HelloRequest : public ProtoMessage {
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class HelloResponse : public ProtoMessage {
  public:
@@ -262,6 +323,12 @@ class DeviceInfoResponse : public ProtoMessage {
   std::string project_name{};
   std::string project_version{};
   uint32_t webserver_port{0};
+  uint32_t legacy_bluetooth_proxy_version{0};
+  uint32_t bluetooth_proxy_feature_flags{0};
+  std::string manufacturer{};
+  std::string friendly_name{};
+  uint32_t voice_assistant_version{0};
+  std::string suggested_area{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -346,6 +413,7 @@ class ListEntitiesCoverResponse : public ProtoMessage {
   bool disabled_by_default{false};
   std::string icon{};
   enums::EntityCategory entity_category{};
+  bool supports_stop{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -404,6 +472,7 @@ class ListEntitiesFanResponse : public ProtoMessage {
   bool disabled_by_default{false};
   std::string icon{};
   enums::EntityCategory entity_category{};
+  std::vector<std::string> supported_preset_modes{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -422,6 +491,7 @@ class FanStateResponse : public ProtoMessage {
   enums::FanSpeed speed{};
   enums::FanDirection direction{};
   int32_t speed_level{0};
+  std::string preset_mode{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -429,6 +499,7 @@ class FanStateResponse : public ProtoMessage {
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class FanCommandRequest : public ProtoMessage {
@@ -444,6 +515,8 @@ class FanCommandRequest : public ProtoMessage {
   enums::FanDirection direction{};
   bool has_speed_level{false};
   int32_t speed_level{0};
+  bool has_preset_mode{false};
+  std::string preset_mode{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -451,6 +524,7 @@ class FanCommandRequest : public ProtoMessage {
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesLightResponse : public ProtoMessage {
@@ -899,7 +973,7 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   std::vector<enums::ClimateMode> supported_modes{};
   float visual_min_temperature{0.0f};
   float visual_max_temperature{0.0f};
-  float visual_temperature_step{0.0f};
+  float visual_target_temperature_step{0.0f};
   bool legacy_supports_away{false};
   bool supports_action{false};
   std::vector<enums::ClimateFanMode> supported_fan_modes{};
@@ -910,6 +984,11 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   bool disabled_by_default{false};
   std::string icon{};
   enums::EntityCategory entity_category{};
+  float visual_current_temperature_step{0.0f};
+  bool supports_current_humidity{false};
+  bool supports_target_humidity{false};
+  float visual_min_humidity{0.0f};
+  float visual_max_humidity{0.0f};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -928,13 +1007,15 @@ class ClimateStateResponse : public ProtoMessage {
   float target_temperature{0.0f};
   float target_temperature_low{0.0f};
   float target_temperature_high{0.0f};
-  bool legacy_away{false};
+  bool unused_legacy_away{false};
   enums::ClimateAction action{};
   enums::ClimateFanMode fan_mode{};
   enums::ClimateSwingMode swing_mode{};
   std::string custom_fan_mode{};
   enums::ClimatePreset preset{};
   std::string custom_preset{};
+  float current_humidity{0.0f};
+  float target_humidity{0.0f};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -956,8 +1037,8 @@ class ClimateCommandRequest : public ProtoMessage {
   float target_temperature_low{0.0f};
   bool has_target_temperature_high{false};
   float target_temperature_high{0.0f};
-  bool has_legacy_away{false};
-  bool legacy_away{false};
+  bool unused_has_legacy_away{false};
+  bool unused_legacy_away{false};
   bool has_fan_mode{false};
   enums::ClimateFanMode fan_mode{};
   bool has_swing_mode{false};
@@ -968,6 +1049,8 @@ class ClimateCommandRequest : public ProtoMessage {
   enums::ClimatePreset preset{};
   bool has_custom_preset{false};
   std::string custom_preset{};
+  bool has_target_humidity{false};
+  float target_humidity{0.0f};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -992,6 +1075,7 @@ class ListEntitiesNumberResponse : public ProtoMessage {
   enums::EntityCategory entity_category{};
   std::string unit_of_measurement{};
   enums::NumberMode mode{};
+  std::string device_class{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1212,6 +1296,557 @@ class MediaPlayerCommandRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class SubscribeBluetoothLEAdvertisementsRequest : public ProtoMessage {
+ public:
+  uint32_t flags{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothServiceData : public ProtoMessage {
+ public:
+  std::string uuid{};
+  std::vector<uint32_t> legacy_data{};
+  std::string data{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothLEAdvertisementResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  std::string name{};
+  int32_t rssi{0};
+  std::vector<std::string> service_uuids{};
+  std::vector<BluetoothServiceData> service_data{};
+  std::vector<BluetoothServiceData> manufacturer_data{};
+  uint32_t address_type{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothLERawAdvertisement : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  int32_t rssi{0};
+  uint32_t address_type{0};
+  std::string data{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothLERawAdvertisementsResponse : public ProtoMessage {
+ public:
+  std::vector<BluetoothLERawAdvertisement> advertisements{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class BluetoothDeviceRequest : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  enums::BluetoothDeviceRequestType request_type{};
+  bool has_address_type{false};
+  uint32_t address_type{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothDeviceConnectionResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  bool connected{false};
+  uint32_t mtu{0};
+  int32_t error{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTGetServicesRequest : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTDescriptor : public ProtoMessage {
+ public:
+  std::vector<uint64_t> uuid{};
+  uint32_t handle{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTCharacteristic : public ProtoMessage {
+ public:
+  std::vector<uint64_t> uuid{};
+  uint32_t handle{0};
+  uint32_t properties{0};
+  std::vector<BluetoothGATTDescriptor> descriptors{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTService : public ProtoMessage {
+ public:
+  std::vector<uint64_t> uuid{};
+  uint32_t handle{0};
+  std::vector<BluetoothGATTCharacteristic> characteristics{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTGetServicesResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  std::vector<BluetoothGATTService> services{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTGetServicesDoneResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTReadRequest : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTReadResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  std::string data{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTWriteRequest : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  bool response{false};
+  std::string data{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTReadDescriptorRequest : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTWriteDescriptorRequest : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  std::string data{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTNotifyRequest : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  bool enable{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTNotifyDataResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  std::string data{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class SubscribeBluetoothConnectionsFreeRequest : public ProtoMessage {
+ public:
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+class BluetoothConnectionsFreeResponse : public ProtoMessage {
+ public:
+  uint32_t free{0};
+  uint32_t limit{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTErrorResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  int32_t error{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTWriteResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTNotifyResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothDevicePairingResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  bool paired{false};
+  int32_t error{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothDeviceUnpairingResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  bool success{false};
+  int32_t error{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class UnsubscribeBluetoothLEAdvertisementsRequest : public ProtoMessage {
+ public:
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+class BluetoothDeviceClearCacheResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  bool success{false};
+  int32_t error{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class SubscribeVoiceAssistantRequest : public ProtoMessage {
+ public:
+  bool subscribe{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class VoiceAssistantAudioSettings : public ProtoMessage {
+ public:
+  uint32_t noise_suppression_level{0};
+  uint32_t auto_gain{0};
+  float volume_multiplier{0.0f};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class VoiceAssistantRequest : public ProtoMessage {
+ public:
+  bool start{false};
+  std::string conversation_id{};
+  uint32_t flags{0};
+  VoiceAssistantAudioSettings audio_settings{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class VoiceAssistantResponse : public ProtoMessage {
+ public:
+  uint32_t port{0};
+  bool error{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class VoiceAssistantEventData : public ProtoMessage {
+ public:
+  std::string name{};
+  std::string value{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class VoiceAssistantEventResponse : public ProtoMessage {
+ public:
+  enums::VoiceAssistantEvent event_type{};
+  std::vector<VoiceAssistantEventData> data{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class ListEntitiesAlarmControlPanelResponse : public ProtoMessage {
+ public:
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  std::string icon{};
+  bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
+  uint32_t supported_features{0};
+  bool requires_code{false};
+  bool requires_code_to_arm{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class AlarmControlPanelStateResponse : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  enums::AlarmControlPanelState state{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class AlarmControlPanelCommandRequest : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  enums::AlarmControlPanelStateCommand command{};
+  std::string code{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class ListEntitiesTextResponse : public ProtoMessage {
+ public:
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  std::string icon{};
+  bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
+  uint32_t min_length{0};
+  uint32_t max_length{0};
+  std::string pattern{};
+  enums::TextMode mode{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class TextStateResponse : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  std::string state{};
+  bool missing_state{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class TextCommandRequest : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  std::string state{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 
 }  // namespace api

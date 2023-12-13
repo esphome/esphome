@@ -6,15 +6,18 @@ from esphome.const import (
     CONF_BATTERY_VOLTAGE,
     CONF_MAC_ADDRESS,
     CONF_HUMIDITY,
+    CONF_SIGNAL_STRENGTH,
     CONF_TEMPERATURE,
     CONF_ID,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_DECIBEL_MILLIWATT,
     UNIT_PERCENT,
     UNIT_VOLT,
 )
@@ -59,6 +62,13 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
+            cv.Optional(CONF_SIGNAL_STRENGTH): sensor.sensor_schema(
+                unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
@@ -85,3 +95,6 @@ async def to_code(config):
     if CONF_BATTERY_VOLTAGE in config:
         sens = await sensor.new_sensor(config[CONF_BATTERY_VOLTAGE])
         cg.add(var.set_battery_voltage(sens))
+    if CONF_SIGNAL_STRENGTH in config:
+        sens = await sensor.new_sensor(config[CONF_SIGNAL_STRENGTH])
+        cg.add(var.set_signal_strength(sens))

@@ -50,13 +50,19 @@ void Controller::setup_controller(bool include_internal) {
 #ifdef USE_CLIMATE
   for (auto *obj : App.get_climates()) {
     if (include_internal || !obj->is_internal())
-      obj->add_on_state_callback([this, obj]() { this->on_climate_update(obj); });
+      obj->add_on_state_callback([this, obj](climate::Climate & /*unused*/) { this->on_climate_update(obj); });
   }
 #endif
 #ifdef USE_NUMBER
   for (auto *obj : App.get_numbers()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj](float state) { this->on_number_update(obj, state); });
+  }
+#endif
+#ifdef USE_TEXT
+  for (auto *obj : App.get_texts()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj](const std::string &state) { this->on_text_update(obj, state); });
   }
 #endif
 #ifdef USE_SELECT
@@ -77,6 +83,12 @@ void Controller::setup_controller(bool include_internal) {
   for (auto *obj : App.get_media_players()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_media_player_update(obj); });
+  }
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+  for (auto *obj : App.get_alarm_control_panels()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj]() { this->on_alarm_control_panel_update(obj); });
   }
 #endif
 }

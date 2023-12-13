@@ -23,6 +23,17 @@ bool is_connected() {
     return wifi::global_wifi_component->is_connected();
 #endif
 
+#ifdef USE_HOST
+  return true;  // Assume its connected
+#endif
+  return false;
+}
+
+bool is_disabled() {
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component != nullptr)
+    return wifi::global_wifi_component->is_disabled();
+#endif
   return false;
 }
 

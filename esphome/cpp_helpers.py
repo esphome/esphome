@@ -9,14 +9,18 @@ from esphome.const import (
     CONF_SETUP_PRIORITY,
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
+    CONF_OTA,
+    CONF_SAFE_MODE,
+    KEY_PAST_SAFE_MODE,
 )
 
-# pylint: disable=unused-import
 from esphome.core import coroutine, ID, CORE
-from esphome.types import ConfigType
+from esphome.coroutine import FakeAwaitable
+from esphome.types import ConfigType, ConfigFragmentType
 from esphome.cpp_generator import add, get_variable
 from esphome.cpp_types import App
 from esphome.util import Registry, RegistryEntry
+from esphome.helpers import snake_case, sanitize
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,7 +35,7 @@ async def gpio_pin_expression(conf):
         return None
     from esphome import pins
 
-    for key, (func, _) in pins.PIN_SCHEMA_REGISTRY.items():
+    for key, (func, _, _) in pins.PIN_SCHEMA_REGISTRY.items():
         if key in conf:
             return await coroutine(func)(conf)
     return await coroutine(pins.PIN_SCHEMA_REGISTRY[CORE.target_platform][0])(conf)
@@ -98,6 +102,10 @@ async def register_parented(var, value):
 async def setup_entity(var, config):
     """Set up generic properties of an Entity"""
     add(var.set_name(config[CONF_NAME]))
+    if not config[CONF_NAME]:
+        add(var.set_object_id(sanitize(snake_case(CORE.friendly_name))))
+    else:
+        add(var.set_object_id(sanitize(snake_case(config[CONF_NAME]))))
     add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         add(var.set_internal(config[CONF_INTERNAL]))
@@ -107,8 +115,10 @@ async def setup_entity(var, config):
         add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
 
 
-def extract_registry_entry_config(registry, full_config):
-    # type: (Registry, ConfigType) -> RegistryEntry
+def extract_registry_entry_config(
+    registry: Registry,
+    full_config: ConfigType,
+) -> tuple[RegistryEntry, ConfigFragmentType]:
     key, config = next((k, v) for k, v in full_config.items() if k in registry)
     return registry[key], config
 
@@ -126,3 +136,19 @@ async def build_registry_list(registry, config):
         action = await build_registry_entry(registry, conf)
         actions.append(action)
     return actions
+
+
+async def past_safe_mode():
+    safe_mode_enabled = (
+        CONF_OTA in CORE.config and CORE.config[CONF_OTA][CONF_SAFE_MODE]
+    )
+    if not safe_mode_enabled:
+        return
+
+    def _safe_mode_generator():
+        while True:
+            if CORE.data.get(CONF_OTA, {}).get(KEY_PAST_SAFE_MODE, False):
+                return
+            yield
+
+    return await FakeAwaitable(_safe_mode_generator())

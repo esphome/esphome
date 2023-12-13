@@ -5,6 +5,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/text_sensor/filter.h"
 
+#include <vector>
+
 namespace esphome {
 namespace text_sensor {
 
@@ -19,11 +21,15 @@ namespace text_sensor {
     } \
   }
 
+#define SUB_TEXT_SENSOR(name) \
+ protected: \
+  text_sensor::TextSensor *name##_text_sensor_{nullptr}; \
+\
+ public: \
+  void set_##name##_text_sensor(text_sensor::TextSensor *text_sensor) { this->name##_text_sensor_ = text_sensor; }
+
 class TextSensor : public EntityBase {
  public:
-  explicit TextSensor();
-  explicit TextSensor(const std::string &name);
-
   /// Getter-syntax for .state.
   std::string get_state() const;
   /// Getter-syntax for .raw_state
@@ -52,6 +58,10 @@ class TextSensor : public EntityBase {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
+  /** Override this method to set the unique ID of this sensor.
+   *
+   * @deprecated Do not use for new sensors, a suitable unique ID is automatically generated (2023.4).
+   */
   virtual std::string unique_id();
 
   bool has_state();

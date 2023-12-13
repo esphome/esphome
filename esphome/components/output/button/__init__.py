@@ -6,13 +6,16 @@ from .. import output_ns
 
 OutputButton = output_ns.class_("OutputButton", button.Button, cg.Component)
 
-CONFIG_SCHEMA = button.BUTTON_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(OutputButton),
-        cv.Required(CONF_OUTPUT): cv.use_id(output.BinaryOutput),
-        cv.Required(CONF_DURATION): cv.positive_time_period_milliseconds,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    button.button_schema(OutputButton)
+    .extend(
+        {
+            cv.Required(CONF_OUTPUT): cv.use_id(output.BinaryOutput),
+            cv.Required(CONF_DURATION): cv.positive_time_period_milliseconds,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):

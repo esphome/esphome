@@ -45,10 +45,10 @@ class QMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   QMC5883LDatarate datarate_{QMC5883L_DATARATE_10_HZ};
   QMC5883LRange range_{QMC5883L_RANGE_200_UT};
   QMC5883LOversampling oversampling_{QMC5883L_SAMPLING_512};
-  sensor::Sensor *x_sensor_;
-  sensor::Sensor *y_sensor_;
-  sensor::Sensor *z_sensor_;
-  sensor::Sensor *heading_sensor_;
+  sensor::Sensor *x_sensor_{nullptr};
+  sensor::Sensor *y_sensor_{nullptr};
+  sensor::Sensor *z_sensor_{nullptr};
+  sensor::Sensor *heading_sensor_{nullptr};
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,

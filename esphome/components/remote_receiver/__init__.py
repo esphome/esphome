@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_TOLERANCE,
     CONF_MEMORY_BLOCKS,
 )
-from esphome.core import CORE
+from esphome.core import CORE, TimePeriod
 
 AUTO_LOAD = ["remote_base"]
 remote_receiver_ns = cg.esphome_ns.namespace("remote_receiver")
@@ -31,11 +31,16 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 cv.percentage_int, cv.Range(min=0)
             ),
             cv.SplitDefault(
-                CONF_BUFFER_SIZE, esp32="10000b", esp8266="1000b"
+                CONF_BUFFER_SIZE,
+                esp32="10000b",
+                esp8266="1000b",
+                bk72xx="1000b",
+                rtl87xx="1000b",
             ): cv.validate_bytes,
-            cv.Optional(
-                CONF_FILTER, default="50us"
-            ): cv.positive_time_period_microseconds,
+            cv.Optional(CONF_FILTER, default="50us"): cv.All(
+                cv.positive_time_period_microseconds,
+                cv.Range(max=TimePeriod(microseconds=255)),
+            ),
             cv.Optional(
                 CONF_IDLE, default="10ms"
             ): cv.positive_time_period_microseconds,
@@ -56,7 +61,9 @@ async def to_code(config):
     for dumper in dumpers:
         cg.add(var.register_dumper(dumper))
 
-    await remote_base.build_triggers(config)
+    triggers = await remote_base.build_triggers(config)
+    for trigger in triggers:
+        cg.add(var.register_listener(trigger))
     await cg.register_component(var, config)
 
     cg.add(var.set_tolerance(config[CONF_TOLERANCE]))

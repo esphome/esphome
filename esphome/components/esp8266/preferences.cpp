@@ -5,12 +5,14 @@ extern "C" {
 #include "spi_flash.h"
 }
 
-#include "preferences.h"
-#include <cstring>
-#include "esphome/core/preferences.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/defines.h"
+#include "esphome/core/preferences.h"
+#include "preferences.h"
+
+#include <cstring>
+#include <vector>
 
 namespace esphome {
 namespace esp8266 {
@@ -243,15 +245,32 @@ class ESP8266Preferences : public ESPPreferences {
       }
     }
     if (erase_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGV(TAG, "Erase ESP8266 flash failed!");
+      ESP_LOGE(TAG, "Erase ESP8266 flash failed!");
       return false;
     }
     if (write_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGV(TAG, "Write ESP8266 flash failed!");
+      ESP_LOGE(TAG, "Write ESP8266 flash failed!");
       return false;
     }
 
     s_flash_dirty = false;
+    return true;
+  }
+
+  bool reset() override {
+    ESP_LOGD(TAG, "Cleaning up preferences in flash...");
+    SpiFlashOpResult erase_res;
+    {
+      InterruptLock lock;
+      erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
+    }
+    if (erase_res != SPI_FLASH_RESULT_OK) {
+      ESP_LOGE(TAG, "Erase ESP8266 flash failed!");
+      return false;
+    }
+
+    // Protect flash from writing till restart
+    s_prevent_write = true;
     return true;
   }
 };

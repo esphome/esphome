@@ -80,13 +80,13 @@ async def to_code(config):
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
-    for (config_key, setter) in [
+    for config_key, setter in [
         (CONF_TEMPERATURE, var.set_temperature),
         (CONF_HUMIDITY, var.set_humidity),
         (CONF_BATTERY_VOLTAGE, var.set_battery_voltage),
         (CONF_MOISTURE, var.set_soil_moisture),
         (CONF_ILLUMINANCE, var.set_illuminance),
     ]:
-        if config_key in config:
-            sens = await sensor.new_sensor(config[config_key])
+        if sensor_config := config.get(config_key):
+            sens = await sensor.new_sensor(sensor_config)
             cg.add(setter(sens))

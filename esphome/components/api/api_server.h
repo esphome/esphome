@@ -1,16 +1,19 @@
 #pragma once
 
+#include "api_noise_context.h"
+#include "api_pb2.h"
+#include "api_pb2_service.h"
+#include "esphome/components/socket/socket.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
-#include "esphome/components/socket/socket.h"
-#include "api_pb2.h"
-#include "api_pb2_service.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
 #include "user_services.h"
-#include "api_noise_context.h"
+
+#include <vector>
 
 namespace esphome {
 namespace api {
@@ -63,6 +66,9 @@ class APIServer : public Component, public Controller {
 #ifdef USE_NUMBER
   void on_number_update(number::Number *obj, float state) override;
 #endif
+#ifdef USE_TEXT
+  void on_text_update(text::Text *obj, const std::string &state) override;
+#endif
 #ifdef USE_SELECT
   void on_select_update(select::Select *obj, const std::string &state, size_t index) override;
 #endif
@@ -78,6 +84,10 @@ class APIServer : public Component, public Controller {
   void request_time();
 #endif
 
+#ifdef USE_ALARM_CONTROL_PANEL
+  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
+#endif
+
   bool is_connected() const;
 
   struct HomeAssistantStateSubscription {
@@ -91,6 +101,11 @@ class APIServer : public Component, public Controller {
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 
+  Trigger<std::string, std::string> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
+  Trigger<std::string, std::string> *get_client_disconnected_trigger() const {
+    return this->client_disconnected_trigger_;
+  }
+
  protected:
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   uint16_t port_{6053};
@@ -100,6 +115,8 @@ class APIServer : public Component, public Controller {
   std::string password_;
   std::vector<HomeAssistantStateSubscription> state_subs_;
   std::vector<UserServiceDescriptor *> user_services_;
+  Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<std::string, std::string> *client_disconnected_trigger_ = new Trigger<std::string, std::string>();
 
 #ifdef USE_API_NOISE
   std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();

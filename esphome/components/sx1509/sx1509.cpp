@@ -42,6 +42,9 @@ void SX1509Component::dump_config() {
 
 void SX1509Component::loop() {
   if (this->has_keypad_) {
+    if (millis() - this->last_loop_timestamp_ < min_loop_period_)
+      return;
+    this->last_loop_timestamp_ = millis();
     uint16_t key_data = this->read_key_data();
     for (auto *binary_sensor : this->keypad_binary_sensors_)
       binary_sensor->process(key_data);
@@ -65,31 +68,20 @@ void SX1509Component::digital_write(uint8_t pin, bool bit_value) {
     uint16_t temp_reg_data = 0;
     this->read_byte_16(REG_DATA_B, &temp_reg_data);
     if (bit_value) {
-      temp_reg_data |= (1 << pin);
+      output_state_ |= (1 << pin);  // set bit in shadow register
     } else {
-      temp_reg_data &= ~(1 << pin);
+      output_state_ &= ~(1 << pin);  // reset bit shadow register
+    }
+    for (uint16_t b = 0x8000; b; b >>= 1) {
+      if ((~ddr_mask_) & b) {  // transfer bits of outputs, but don't mess with inputs
+        if (output_state_ & b) {
+          temp_reg_data |= b;
+        } else {
+          temp_reg_data &= ~b;
+        }
+      }
     }
     this->write_byte_16(REG_DATA_B, temp_reg_data);
-  } else {
-    // Otherwise the pin is an input, pull-up/down
-    uint16_t temp_pullup = 0;
-    this->read_byte_16(REG_PULL_UP_B, &temp_pullup);
-    uint16_t temp_pull_down = 0;
-    this->read_byte_16(REG_PULL_DOWN_B, &temp_pull_down);
-
-    if (bit_value) {
-      // if HIGH, do pull-up, disable pull-down
-      temp_pullup |= (1 << pin);
-      temp_pull_down &= ~(1 << pin);
-      this->write_byte_16(REG_PULL_UP_B, temp_pullup);
-      this->write_byte_16(REG_PULL_DOWN_B, temp_pull_down);
-    } else {
-      // If LOW do pull-down, disable pull-up
-      temp_pull_down |= (1 << pin);
-      temp_pullup &= ~(1 << pin);
-      this->write_byte_16(REG_PULL_UP_B, temp_pullup);
-      this->write_byte_16(REG_PULL_DOWN_B, temp_pull_down);
-    }
   }
 }
 
@@ -99,11 +91,28 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     this->ddr_mask_ &= ~(1 << pin);
   } else {
     this->ddr_mask_ |= (1 << pin);
+
+    uint16_t temp_pullup;
+    this->read_byte_16(REG_PULL_UP_B, &temp_pullup);
+    uint16_t temp_pulldown;
+    this->read_byte_16(REG_PULL_DOWN_B, &temp_pulldown);
+
+    if (flags & gpio::FLAG_PULLUP) {
+      temp_pullup |= (1 << pin);
+    } else {
+      temp_pullup &= ~(1 << pin);
+    }
+
+    if (flags & gpio::FLAG_PULLDOWN) {
+      temp_pulldown |= (1 << pin);
+    } else {
+      temp_pulldown &= ~(1 << pin);
+    }
+
+    this->write_byte_16(REG_PULL_UP_B, temp_pullup);
+    this->write_byte_16(REG_PULL_DOWN_B, temp_pulldown);
   }
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
-
-  if (flags & gpio::FLAG_PULLUP)
-    digital_write(pin, true);
 }
 
 void SX1509Component::setup_led_driver(uint8_t pin) {
@@ -113,10 +122,6 @@ void SX1509Component::setup_led_driver(uint8_t pin) {
   this->read_byte_16(REG_INPUT_DISABLE_B, &temp_word);
   temp_word |= (1 << pin);
   this->write_byte_16(REG_INPUT_DISABLE_B, temp_word);
-
-  this->read_byte_16(REG_PULL_UP_B, &temp_word);
-  temp_word &= ~(1 << pin);
-  this->write_byte_16(REG_PULL_UP_B, temp_word);
 
   this->ddr_mask_ &= ~(1 << pin);  // 0=output
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
@@ -138,6 +143,7 @@ void SX1509Component::setup_led_driver(uint8_t pin) {
 
   this->read_byte_16(REG_DATA_B, &temp_word);
   temp_word &= ~(1 << pin);
+  output_state_ &= ~(1 << pin);
   this->write_byte_16(REG_DATA_B, temp_word);
 }
 

@@ -17,11 +17,7 @@ CODEOWNERS = ["@senexcrenshaw"]
 NextionSwitch = nextion_ns.class_("NextionSwitch", switch.Switch, cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.All(
-    switch.SWITCH_SCHEMA.extend(
-        {
-            cv.GenerateID(): cv.declare_id(NextionSwitch),
-        }
-    )
+    switch.switch_schema(NextionSwitch)
     .extend(CONFIG_SWITCH_COMPONENT_SCHEMA)
     .extend(cv.polling_component_schema("never")),
     cv.has_exactly_one_key(CONF_COMPONENT_NAME, CONF_VARIABLE_NAME),

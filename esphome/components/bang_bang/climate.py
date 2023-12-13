@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_DEFAULT_TARGET_TEMPERATURE_HIGH,
     CONF_DEFAULT_TARGET_TEMPERATURE_LOW,
     CONF_HEAT_ACTION,
+    CONF_HUMIDITY_SENSOR,
     CONF_ID,
     CONF_IDLE_ACTION,
     CONF_SENSOR,
@@ -22,6 +23,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(BangBangClimate),
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
             cv.Required(CONF_IDLE_ACTION): automation.validate_automation(single=True),
@@ -47,6 +49,10 @@ async def to_code(config):
     sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_sensor(sens))
 
+    if CONF_HUMIDITY_SENSOR in config:
+        sens = await cg.get_variable(config[CONF_HUMIDITY_SENSOR])
+        cg.add(var.set_humidity_sensor(sens))
+
     normal_config = BangBangClimateTargetTempConfig(
         config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
         config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],
@@ -57,19 +63,18 @@ async def to_code(config):
         var.get_idle_trigger(), [], config[CONF_IDLE_ACTION]
     )
 
-    if CONF_COOL_ACTION in config:
+    if cool_action_config := config.get(CONF_COOL_ACTION):
         await automation.build_automation(
-            var.get_cool_trigger(), [], config[CONF_COOL_ACTION]
+            var.get_cool_trigger(), [], cool_action_config
         )
         cg.add(var.set_supports_cool(True))
-    if CONF_HEAT_ACTION in config:
+    if heat_action_config := config.get(CONF_HEAT_ACTION):
         await automation.build_automation(
-            var.get_heat_trigger(), [], config[CONF_HEAT_ACTION]
+            var.get_heat_trigger(), [], heat_action_config
         )
         cg.add(var.set_supports_heat(True))
 
-    if CONF_AWAY_CONFIG in config:
-        away = config[CONF_AWAY_CONFIG]
+    if away := config.get(CONF_AWAY_CONFIG):
         away_config = BangBangClimateTargetTempConfig(
             away[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
             away[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],

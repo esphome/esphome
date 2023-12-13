@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace power_supply {
 
@@ -11,6 +13,7 @@ class PowerSupply : public Component {
   void set_pin(GPIOPin *pin) { pin_ = pin; }
   void set_enable_time(uint32_t enable_time) { enable_time_ = enable_time; }
   void set_keep_on_time(uint32_t keep_on_time) { keep_on_time_ = keep_on_time; }
+  void set_enable_on_boot(bool enable_on_boot) { enable_on_boot_ = enable_on_boot; }
 
   /// Is this power supply currently on?
   bool is_enabled() const;
@@ -33,7 +36,7 @@ class PowerSupply : public Component {
 
  protected:
   GPIOPin *pin_;
-  bool enabled_{false};
+  bool enable_on_boot_{false};
   uint32_t enable_time_;
   uint32_t keep_on_time_;
   int16_t active_requests_{0};  // use signed integer to make catching negative requests easier.

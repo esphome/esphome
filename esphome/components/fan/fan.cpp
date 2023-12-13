@@ -20,17 +20,24 @@ const LogString *fan_direction_to_string(FanDirection direction) {
 void FanCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting:", this->parent_.get_name().c_str());
   this->validate_();
-  if (this->binary_state_.has_value())
+  if (this->binary_state_.has_value()) {
     ESP_LOGD(TAG, "  State: %s", ONOFF(*this->binary_state_));
-  if (this->oscillating_.has_value())
+  }
+  if (this->oscillating_.has_value()) {
     ESP_LOGD(TAG, "  Oscillating: %s", YESNO(*this->oscillating_));
-  if (this->speed_.has_value())
+  }
+  if (this->speed_.has_value()) {
     ESP_LOGD(TAG, "  Speed: %d", *this->speed_);
-  if (this->direction_.has_value())
+  }
+  if (this->direction_.has_value()) {
     ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(*this->direction_)));
-
+  }
+  if (!this->preset_mode_.empty()) {
+    ESP_LOGD(TAG, "  Preset Mode: %s", this->preset_mode_.c_str());
+  }
   this->parent_.control(*this);
 }
+
 void FanCall::validate_() {
   auto traits = this->parent_.get_traits();
 
@@ -58,6 +65,15 @@ void FanCall::validate_() {
     ESP_LOGW(TAG, "'%s' - This fan does not support directions!", this->parent_.get_name().c_str());
     this->direction_.reset();
   }
+
+  if (!this->preset_mode_.empty()) {
+    const auto &preset_modes = traits.supported_preset_modes();
+    if (preset_modes.find(this->preset_mode_) == preset_modes.end()) {
+      ESP_LOGW(TAG, "'%s' - This fan does not support preset mode '%s'!", this->parent_.get_name().c_str(),
+               this->preset_mode_.c_str());
+      this->preset_mode_.clear();
+    }
+  }
 }
 
 FanCall FanRestoreState::to_call(Fan &fan) {
@@ -66,6 +82,14 @@ FanCall FanRestoreState::to_call(Fan &fan) {
   call.set_oscillating(this->oscillating);
   call.set_speed(this->speed);
   call.set_direction(this->direction);
+
+  if (fan.get_traits().supports_preset_modes()) {
+    // Use stored preset index to get preset name
+    const auto &preset_modes = fan.get_traits().supported_preset_modes();
+    if (this->preset_mode < preset_modes.size()) {
+      call.set_preset_mode(*std::next(preset_modes.begin(), this->preset_mode));
+    }
+  }
   return call;
 }
 void FanRestoreState::apply(Fan &fan) {
@@ -73,11 +97,16 @@ void FanRestoreState::apply(Fan &fan) {
   fan.oscillating = this->oscillating;
   fan.speed = this->speed;
   fan.direction = this->direction;
+
+  if (fan.get_traits().supports_preset_modes()) {
+    // Use stored preset index to get preset name
+    const auto &preset_modes = fan.get_traits().supported_preset_modes();
+    if (this->preset_mode < preset_modes.size()) {
+      fan.preset_mode = *std::next(preset_modes.begin(), this->preset_mode);
+    }
+  }
   fan.publish_state();
 }
-
-Fan::Fan() : EntityBase("") {}
-Fan::Fan(const std::string &name) : EntityBase(name) {}
 
 FanCall Fan::turn_on() { return this->make_call().set_state(true); }
 FanCall Fan::turn_off() { return this->make_call().set_state(false); }
@@ -90,13 +119,18 @@ void Fan::publish_state() {
 
   ESP_LOGD(TAG, "'%s' - Sending state:", this->name_.c_str());
   ESP_LOGD(TAG, "  State: %s", ONOFF(this->state));
-  if (traits.supports_speed())
+  if (traits.supports_speed()) {
     ESP_LOGD(TAG, "  Speed: %d", this->speed);
-  if (traits.supports_oscillation())
+  }
+  if (traits.supports_oscillation()) {
     ESP_LOGD(TAG, "  Oscillating: %s", YESNO(this->oscillating));
-  if (traits.supports_direction())
+  }
+  if (traits.supports_direction()) {
     ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(this->direction)));
-
+  }
+  if (traits.supports_preset_modes() && !this->preset_mode.empty()) {
+    ESP_LOGD(TAG, "  Preset Mode: %s", this->preset_mode.c_str());
+  }
   this->state_callback_.call();
   this->save_state_();
 }
@@ -139,18 +173,36 @@ void Fan::save_state_() {
   state.oscillating = this->oscillating;
   state.speed = this->speed;
   state.direction = this->direction;
+
+  if (this->get_traits().supports_preset_modes() && !this->preset_mode.empty()) {
+    const auto &preset_modes = this->get_traits().supported_preset_modes();
+    // Store index of current preset mode
+    auto preset_iterator = preset_modes.find(this->preset_mode);
+    if (preset_iterator != preset_modes.end())
+      state.preset_mode = std::distance(preset_modes.begin(), preset_iterator);
+  }
+
   this->rtc_.save(&state);
 }
 
 void Fan::dump_traits_(const char *tag, const char *prefix) {
-  if (this->get_traits().supports_speed()) {
+  auto traits = this->get_traits();
+
+  if (traits.supports_speed()) {
     ESP_LOGCONFIG(tag, "%s  Speed: YES", prefix);
-    ESP_LOGCONFIG(tag, "%s  Speed count: %d", prefix, this->get_traits().supported_speed_count());
+    ESP_LOGCONFIG(tag, "%s  Speed count: %d", prefix, traits.supported_speed_count());
   }
-  if (this->get_traits().supports_oscillation())
+  if (traits.supports_oscillation()) {
     ESP_LOGCONFIG(tag, "%s  Oscillation: YES", prefix);
-  if (this->get_traits().supports_direction())
+  }
+  if (traits.supports_direction()) {
     ESP_LOGCONFIG(tag, "%s  Direction: YES", prefix);
+  }
+  if (traits.supports_preset_modes()) {
+    ESP_LOGCONFIG(tag, "%s  Supported presets:", prefix);
+    for (const std::string &s : traits.supported_preset_modes())
+      ESP_LOGCONFIG(tag, "%s    - %s", prefix, s.c_str());
+  }
 }
 
 }  // namespace fan

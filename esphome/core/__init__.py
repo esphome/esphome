@@ -2,25 +2,32 @@ import logging
 import math
 import os
 import re
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from esphome.const import (
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_USE_ADDRESS,
     CONF_ETHERNET,
+    CONF_WEB_SERVER,
     CONF_WIFI,
     CONF_PORT,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
+    PLATFORM_RP2040,
+    PLATFORM_HOST,
 )
 from esphome.coroutine import FakeAwaitable as _FakeAwaitable
 from esphome.coroutine import FakeEventLoop as _FakeEventLoop
 
 # pylint: disable=unused-import
 from esphome.coroutine import coroutine, coroutine_with_priority  # noqa
-from esphome.helpers import ensure_unique_string, is_ha_addon
+from esphome.helpers import ensure_unique_string, get_str_env, is_ha_addon
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
@@ -80,6 +87,7 @@ def is_approximately_integer(value):
 class TimePeriod:
     def __init__(
         self,
+        nanoseconds=None,
         microseconds=None,
         milliseconds=None,
         seconds=None,
@@ -129,13 +137,23 @@ class TimePeriod:
 
         if microseconds is not None:
             if not is_approximately_integer(microseconds):
-                raise ValueError("Maximum precision is microseconds")
+                frac_microseconds, microseconds = math.modf(microseconds)
+                nanoseconds = (nanoseconds or 0) + frac_microseconds * 1000
             self.microseconds = int(round(microseconds))
         else:
             self.microseconds = None
 
+        if nanoseconds is not None:
+            if not is_approximately_integer(nanoseconds):
+                raise ValueError("Maximum precision is nanoseconds")
+            self.nanoseconds = int(round(nanoseconds))
+        else:
+            self.nanoseconds = None
+
     def as_dict(self):
         out = OrderedDict()
+        if self.nanoseconds is not None:
+            out["nanoseconds"] = self.nanoseconds
         if self.microseconds is not None:
             out["microseconds"] = self.microseconds
         if self.milliseconds is not None:
@@ -151,6 +169,8 @@ class TimePeriod:
         return out
 
     def __str__(self):
+        if self.nanoseconds is not None:
+            return f"{self.total_nanoseconds}ns"
         if self.microseconds is not None:
             return f"{self.total_microseconds}us"
         if self.milliseconds is not None:
@@ -166,7 +186,11 @@ class TimePeriod:
         return "0s"
 
     def __repr__(self):
-        return f"TimePeriod<{self.total_microseconds}>"
+        return f"TimePeriod<{self.total_nanoseconds}ns>"
+
+    @property
+    def total_nanoseconds(self):
+        return self.total_microseconds * 1000 + (self.nanoseconds or 0)
 
     @property
     def total_microseconds(self):
@@ -194,33 +218,37 @@ class TimePeriod:
 
     def __eq__(self, other):
         if isinstance(other, TimePeriod):
-            return self.total_microseconds == other.total_microseconds
+            return self.total_nanoseconds == other.total_nanoseconds
         return NotImplemented
 
     def __ne__(self, other):
         if isinstance(other, TimePeriod):
-            return self.total_microseconds != other.total_microseconds
+            return self.total_nanoseconds != other.total_nanoseconds
         return NotImplemented
 
     def __lt__(self, other):
         if isinstance(other, TimePeriod):
-            return self.total_microseconds < other.total_microseconds
+            return self.total_nanoseconds < other.total_nanoseconds
         return NotImplemented
 
     def __gt__(self, other):
         if isinstance(other, TimePeriod):
-            return self.total_microseconds > other.total_microseconds
+            return self.total_nanoseconds > other.total_nanoseconds
         return NotImplemented
 
     def __le__(self, other):
         if isinstance(other, TimePeriod):
-            return self.total_microseconds <= other.total_microseconds
+            return self.total_nanoseconds <= other.total_nanoseconds
         return NotImplemented
 
     def __ge__(self, other):
         if isinstance(other, TimePeriod):
-            return self.total_microseconds >= other.total_microseconds
+            return self.total_nanoseconds >= other.total_nanoseconds
         return NotImplemented
+
+
+class TimePeriodNanoseconds(TimePeriod):
+    pass
 
 
 class TimePeriodMicroseconds(TimePeriod):
@@ -408,6 +436,9 @@ class Define:
             return self.as_tuple == other.as_tuple
         return NotImplemented
 
+    def __str__(self):
+        return f"{self.name}={self.value}"
+
 
 class Library:
     def __init__(self, name, version, repository=None):
@@ -442,7 +473,7 @@ class Library:
         return NotImplemented
 
 
-# pylint: disable=too-many-instance-attributes,too-many-public-methods
+# pylint: disable=too-many-public-methods
 class EsphomeCore:
     def __init__(self):
         # True if command is run from dashboard
@@ -452,6 +483,10 @@ class EsphomeCore:
         self.ace = False
         # The name of the node
         self.name: Optional[str] = None
+        # The friendly name of the node
+        self.friendly_name: Optional[str] = None
+        # The area / zone of the node
+        self.area: Optional[str] = None
         # Additional data components can store temporary data in
         # The first key to this dict should always be the integration name
         self.data = {}
@@ -468,29 +503,35 @@ class EsphomeCore:
         # Task counter for pending tasks
         self.task_counter = 0
         # The variable cache, for each ID this holds a MockObj of the variable obj
-        self.variables: Dict[str, "MockObj"] = {}
+        self.variables: dict[str, "MockObj"] = {}
         # A list of statements that go in the main setup() block
-        self.main_statements: List["Statement"] = []
+        self.main_statements: list["Statement"] = []
         # A list of statements to insert in the global block (includes and global variables)
-        self.global_statements: List["Statement"] = []
+        self.global_statements: list["Statement"] = []
         # A set of platformio libraries to add to the project
-        self.libraries: List[Library] = []
+        self.libraries: list[Library] = []
         # A set of build flags to set in the platformio project
-        self.build_flags: Set[str] = set()
+        self.build_flags: set[str] = set()
         # A set of defines to set for the compile process in esphome/core/defines.h
-        self.defines: Set["Define"] = set()
+        self.defines: set["Define"] = set()
         # A map of all platformio options to apply
-        self.platformio_options: Dict[str, Union[str, List[str]]] = {}
+        self.platformio_options: dict[str, Union[str, list[str]]] = {}
         # A set of strings of names of loaded integrations, used to find namespace ID conflicts
         self.loaded_integrations = set()
         # A set of component IDs to track what Component subclasses are declared
         self.component_ids = set()
         # Whether ESPHome was started in verbose mode
         self.verbose = False
+        # Whether ESPHome was started in quiet mode
+        self.quiet = False
 
     def reset(self):
+        from esphome.pins import PIN_SCHEMA_REGISTRY
+
         self.dashboard = False
         self.name = None
+        self.friendly_name = None
+        self.area = None
         self.data = {}
         self.config_path = None
         self.build_path = None
@@ -506,13 +547,14 @@ class EsphomeCore:
         self.platformio_options = {}
         self.loaded_integrations = set()
         self.component_ids = set()
+        PIN_SCHEMA_REGISTRY.reset()
 
     @property
     def address(self) -> Optional[str]:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        if "wifi" in self.config:
+        if CONF_WIFI in self.config:
             return self.config[CONF_WIFI][CONF_USE_ADDRESS]
 
         if CONF_ETHERNET in self.config:
@@ -525,9 +567,9 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        if "web_server" in self.config:
+        if CONF_WEB_SERVER in self.config:
             try:
-                return self.config["web_server"][CONF_PORT]
+                return self.config[CONF_WEB_SERVER][CONF_PORT]
             except KeyError:
                 return 80
 
@@ -548,19 +590,25 @@ class EsphomeCore:
         return os.path.dirname(self.config_path)
 
     @property
+    def data_dir(self):
+        if is_ha_addon():
+            return os.path.join("/data")
+        if "ESPHOME_DATA_DIR" in os.environ:
+            return get_str_env("ESPHOME_DATA_DIR", None)
+        return self.relative_config_path(".esphome")
+
+    @property
     def config_filename(self):
         return os.path.basename(self.config_path)
 
     def relative_config_path(self, *path):
-        # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.config_dir, path_)
 
     def relative_internal_path(self, *path: str) -> str:
-        return self.relative_config_path(".esphome", *path)
+        return os.path.join(self.data_dir, *path)
 
     def relative_build_path(self, *path):
-        # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.build_path, path_)
 
@@ -568,17 +616,15 @@ class EsphomeCore:
         return self.relative_build_path("src", *path)
 
     def relative_pioenvs_path(self, *path):
-        if is_ha_addon():
-            return os.path.join("/data", self.name, ".pioenvs", *path)
         return self.relative_build_path(".pioenvs", *path)
 
     def relative_piolibdeps_path(self, *path):
-        if is_ha_addon():
-            return os.path.join("/data", self.name, ".piolibdeps", *path)
         return self.relative_build_path(".piolibdeps", *path)
 
     @property
     def firmware_bin(self):
+        if self.is_libretiny:
+            return self.relative_pioenvs_path(self.name, "firmware.uf2")
         return self.relative_pioenvs_path(self.name, "firmware.bin")
 
     @property
@@ -587,11 +633,31 @@ class EsphomeCore:
 
     @property
     def is_esp8266(self):
-        return self.target_platform == "esp8266"
+        return self.target_platform == PLATFORM_ESP8266
 
     @property
     def is_esp32(self):
-        return self.target_platform == "esp32"
+        return self.target_platform == PLATFORM_ESP32
+
+    @property
+    def is_rp2040(self):
+        return self.target_platform == PLATFORM_RP2040
+
+    @property
+    def is_bk72xx(self):
+        return self.target_platform == PLATFORM_BK72XX
+
+    @property
+    def is_rtl87xx(self):
+        return self.target_platform == PLATFORM_RTL87XX
+
+    @property
+    def is_libretiny(self):
+        return self.is_bk72xx or self.is_rtl87xx
+
+    @property
+    def is_host(self):
+        return self.target_platform == PLATFORM_HOST
 
     @property
     def target_framework(self):
@@ -647,7 +713,15 @@ class EsphomeCore:
                 f"Library {library} must be instance of Library, not {type(library)}"
             )
         for other in self.libraries[:]:
-            if other.name != library.name or other.name is None or library.name is None:
+            if other.name is None or library.name is None:
+                continue
+            library_name = (
+                library.name if "/" not in library.name else library.name.split("/")[1]
+            )
+            other_name = (
+                other.name if "/" not in other.name else other.name.split("/")[1]
+            )
+            if other_name != library_name:
                 continue
             if other.repository is not None:
                 if library.repository is None or other.repository == library.repository:
@@ -700,7 +774,7 @@ class EsphomeCore:
         _LOGGER.debug("Adding define: %s", define)
         return define
 
-    def add_platformio_option(self, key: str, value: Union[str, List[str]]) -> None:
+    def add_platformio_option(self, key: str, value: Union[str, list[str]]) -> None:
         new_val = value
         old_val = self.platformio_options.get(key)
         if isinstance(old_val, list):
@@ -733,7 +807,7 @@ class EsphomeCore:
             _LOGGER.debug("Waiting for variable %s", id)
             yield
 
-    async def get_variable_with_full_id(self, id: ID) -> Tuple[ID, "MockObj"]:
+    async def get_variable_with_full_id(self, id: ID) -> tuple[ID, "MockObj"]:
         if not isinstance(id, ID):
             raise ValueError(f"ID {id!r} must be of type ID!")
         return await _FakeAwaitable(self._get_variable_with_full_id_generator(id))

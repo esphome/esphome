@@ -23,9 +23,13 @@ class IDFUARTComponent : public UARTComponent, public Component {
   int available() override;
   void flush() override;
 
+  uint8_t get_hw_serial_number() { return this->uart_num_; }
+  QueueHandle_t *get_uart_event_queue() { return &this->uart_event_queue_; }
+
  protected:
   void check_logger_conflict() override;
   uart_port_t uart_num_;
+  QueueHandle_t uart_event_queue_;
   uart_config_t get_config_();
   SemaphoreHandle_t lock_;
 

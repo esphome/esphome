@@ -12,60 +12,29 @@ std::string state_class_to_string(StateClass state_class) {
       return "measurement";
     case STATE_CLASS_TOTAL_INCREASING:
       return "total_increasing";
+    case STATE_CLASS_TOTAL:
+      return "total";
     case STATE_CLASS_NONE:
     default:
       return "";
   }
 }
 
-Sensor::Sensor(const std::string &name) : EntityBase(name), state(NAN), raw_state(NAN) {}
-Sensor::Sensor() : Sensor("") {}
-
-std::string Sensor::get_unit_of_measurement() {
-  if (this->unit_of_measurement_.has_value())
-    return *this->unit_of_measurement_;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return this->unit_of_measurement();
-#pragma GCC diagnostic pop
-}
-void Sensor::set_unit_of_measurement(const std::string &unit_of_measurement) {
-  this->unit_of_measurement_ = unit_of_measurement;
-}
-std::string Sensor::unit_of_measurement() { return ""; }
+Sensor::Sensor() : state(NAN), raw_state(NAN) {}
 
 int8_t Sensor::get_accuracy_decimals() {
   if (this->accuracy_decimals_.has_value())
     return *this->accuracy_decimals_;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return this->accuracy_decimals();
-#pragma GCC diagnostic pop
+  return 0;
 }
 void Sensor::set_accuracy_decimals(int8_t accuracy_decimals) { this->accuracy_decimals_ = accuracy_decimals; }
-int8_t Sensor::accuracy_decimals() { return 0; }
-
-std::string Sensor::get_device_class() {
-  if (this->device_class_.has_value())
-    return *this->device_class_;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return this->device_class();
-#pragma GCC diagnostic pop
-}
-void Sensor::set_device_class(const std::string &device_class) { this->device_class_ = device_class; }
-std::string Sensor::device_class() { return ""; }
 
 void Sensor::set_state_class(StateClass state_class) { this->state_class_ = state_class; }
 StateClass Sensor::get_state_class() {
   if (this->state_class_.has_value())
     return *this->state_class_;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return this->state_class();
-#pragma GCC diagnostic pop
+  return StateClass::STATE_CLASS_NONE;
 }
-StateClass Sensor::state_class() { return StateClass::STATE_CLASS_NONE; }
 
 void Sensor::publish_state(float state) {
   this->raw_state = state;

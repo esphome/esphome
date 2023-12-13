@@ -4,6 +4,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esp_one_wire.h"
 
+#include <vector>
+
 namespace esphome {
 namespace dallas {
 

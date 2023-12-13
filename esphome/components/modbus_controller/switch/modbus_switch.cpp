@@ -7,9 +7,15 @@ namespace modbus_controller {
 static const char *const TAG = "modbus_controller.switch";
 
 void ModbusSwitch::setup() {
-  // value isn't required
-  // without it we crash on save
-  this->get_initial_state();
+  optional<bool> initial_state = Switch::get_initial_state_with_restore_mode();
+  if (initial_state.has_value()) {
+    // if it has a value, restore_mode is not "DISABLED", therefore act on the switch:
+    if (initial_state.value()) {
+      this->turn_on();
+    } else {
+      this->turn_off();
+    }
+  }
 }
 void ModbusSwitch::dump_config() { LOG_SWITCH(TAG, "Modbus Controller Switch", this); }
 

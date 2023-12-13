@@ -39,6 +39,8 @@ class CSE7766Component : public PollingComponent, public uart::UARTDevice {
   uint32_t voltage_counts_{0};
   uint32_t current_counts_{0};
   uint32_t power_counts_{0};
+  // Setting this to 1 means it will always publish 0 once at startup
+  uint32_t energy_total_counts_{1};
 };
 
 }  // namespace cse7766

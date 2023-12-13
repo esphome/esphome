@@ -74,7 +74,7 @@ void ST7920::goto_xy_(uint16_t x, uint16_t y) {
 
 void HOT ST7920::write_display_data() {
   uint8_t i, j, b;
-  for (j = 0; j < (uint8_t)(this->get_height_internal() / 2); j++) {
+  for (j = 0; j < (uint8_t) (this->get_height_internal() / 2); j++) {
     this->goto_xy_(0, j);
     this->enable();
     for (i = 0; i < 16; i++) {  // 16 bytes from line #0+

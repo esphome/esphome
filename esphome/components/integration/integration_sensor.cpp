@@ -23,6 +23,8 @@ void IntegrationSensor::setup() {
 }
 void IntegrationSensor::dump_config() { LOG_SENSOR("", "Integration Sensor", this); }
 void IntegrationSensor::process_sensor_value_(float value) {
+  if (std::isnan(value))
+    return;
   const uint32_t now = millis();
   const double old_value = this->last_value_;
   const double new_value = value;

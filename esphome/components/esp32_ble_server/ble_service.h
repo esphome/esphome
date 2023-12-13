@@ -3,13 +3,15 @@
 #include "ble_characteristic.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
 
+#include <vector>
+
 #ifdef USE_ESP32
 
+#include <esp_bt_defs.h>
 #include <esp_gap_ble_api.h>
 #include <esp_gatt_defs.h>
 #include <esp_gattc_api.h>
 #include <esp_gatts_api.h>
-#include <esp_bt_defs.h>
 
 namespace esphome {
 namespace esp32_ble_server {
@@ -20,7 +22,7 @@ using namespace esp32_ble;
 
 class BLEService {
  public:
-  BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id);
+  BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bool advertise);
   ~BLEService();
   BLECharacteristic *get_characteristic(ESPBTUUID uuid);
   BLECharacteristic *get_characteristic(uint16_t uuid);
@@ -36,6 +38,7 @@ class BLEService {
   BLEServer *get_server() { return this->server_; }
 
   void do_create(BLEServer *server);
+  void do_delete();
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
   void start();
@@ -46,6 +49,7 @@ class BLEService {
 
   bool is_running() { return this->running_state_ == RUNNING; }
   bool is_starting() { return this->running_state_ == STARTING; }
+  bool is_deleted() { return this->init_state_ == DELETED; }
 
  protected:
   std::vector<BLECharacteristic *> characteristics_;
@@ -56,8 +60,11 @@ class BLEService {
   uint16_t num_handles_;
   uint16_t handle_{0xFFFF};
   uint8_t inst_id_;
+  bool advertise_{false};
+  bool should_start_{false};
 
   bool do_create_characteristics_();
+  void stop_();
 
   enum InitState : uint8_t {
     FAILED = 0x00,
@@ -65,6 +72,8 @@ class BLEService {
     CREATING,
     CREATING_DEPENDENTS,
     CREATED,
+    DELETING,
+    DELETED,
   } init_state_{INIT};
 
   enum RunningState : uint8_t {

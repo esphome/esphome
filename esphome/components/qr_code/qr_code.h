@@ -9,13 +9,13 @@
 namespace esphome {
 // forward declare DisplayBuffer
 namespace display {
-class DisplayBuffer;
+class Display;
 }  // namespace display
 
 namespace qr_code {
 class QrCode : public Component {
  public:
-  void draw(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color, int scale);
+  void draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color, int scale);
 
   void dump_config() override;
 

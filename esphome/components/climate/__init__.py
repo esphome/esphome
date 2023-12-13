@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_AWAY,
     CONF_AWAY_COMMAND_TOPIC,
     CONF_AWAY_STATE_TOPIC,
+    CONF_CURRENT_HUMIDITY_STATE_TOPIC,
     CONF_CURRENT_TEMPERATURE_STATE_TOPIC,
     CONF_CUSTOM_FAN_MODE,
     CONF_CUSTOM_PRESET,
@@ -20,11 +21,16 @@ from esphome.const import (
     CONF_MODE,
     CONF_MODE_COMMAND_TOPIC,
     CONF_MODE_STATE_TOPIC,
+    CONF_ON_CONTROL,
     CONF_ON_STATE,
     CONF_PRESET,
+    CONF_PRESET_COMMAND_TOPIC,
+    CONF_PRESET_STATE_TOPIC,
     CONF_SWING_MODE,
     CONF_SWING_MODE_COMMAND_TOPIC,
     CONF_SWING_MODE_STATE_TOPIC,
+    CONF_TARGET_HUMIDITY_COMMAND_TOPIC,
+    CONF_TARGET_HUMIDITY_STATE_TOPIC,
     CONF_TARGET_TEMPERATURE,
     CONF_TARGET_TEMPERATURE_COMMAND_TOPIC,
     CONF_TARGET_TEMPERATURE_STATE_TOPIC,
@@ -73,6 +79,7 @@ CLIMATE_FAN_MODES = {
     "MIDDLE": ClimateFanMode.CLIMATE_FAN_MIDDLE,
     "FOCUS": ClimateFanMode.CLIMATE_FAN_FOCUS,
     "DIFFUSE": ClimateFanMode.CLIMATE_FAN_DIFFUSE,
+    "QUIET": ClimateFanMode.CLIMATE_FAN_QUIET,
 }
 
 validate_climate_fan_mode = cv.enum(CLIMATE_FAN_MODES, upper=True)
@@ -101,9 +108,47 @@ CLIMATE_SWING_MODES = {
 
 validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
+CONF_CURRENT_TEMPERATURE = "current_temperature"
+CONF_MIN_HUMIDITY = "min_humidity"
+CONF_MAX_HUMIDITY = "max_humidity"
+CONF_TARGET_HUMIDITY = "target_humidity"
+
+visual_temperature = cv.float_with_unit(
+    "visual_temperature", "(°C|° C|°|C|° K|° K|K|°F|° F|F)?"
+)
+
+
+def single_visual_temperature(value):
+    if isinstance(value, dict):
+        return value
+
+    value = visual_temperature(value)
+    return VISUAL_TEMPERATURE_STEP_SCHEMA(
+        {
+            CONF_TARGET_TEMPERATURE: value,
+            CONF_CURRENT_TEMPERATURE: value,
+        }
+    )
+
+
 # Actions
 ControlAction = climate_ns.class_("ControlAction", automation.Action)
-StateTrigger = climate_ns.class_("StateTrigger", automation.Trigger.template())
+StateTrigger = climate_ns.class_(
+    "StateTrigger", automation.Trigger.template(Climate.operator("ref"))
+)
+ControlTrigger = climate_ns.class_(
+    "ControlTrigger", automation.Trigger.template(ClimateCall.operator("ref"))
+)
+
+VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Any(
+    single_visual_temperature,
+    cv.Schema(
+        {
+            cv.Required(CONF_TARGET_TEMPERATURE): visual_temperature,
+            cv.Required(CONF_CURRENT_TEMPERATURE): visual_temperature,
+        }
+    ),
+)
 
 CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
@@ -113,7 +158,9 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
             {
                 cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
                 cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
-                cv.Optional(CONF_TEMPERATURE_STEP): cv.temperature,
+                cv.Optional(CONF_TEMPERATURE_STEP): VISUAL_TEMPERATURE_STEP_SCHEMA,
+                cv.Optional(CONF_MIN_HUMIDITY): cv.percentage_int,
+                cv.Optional(CONF_MAX_HUMIDITY): cv.percentage_int,
             }
         ),
         cv.Optional(CONF_ACTION_STATE_TOPIC): cv.All(
@@ -128,6 +175,9 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
         cv.Optional(CONF_CURRENT_TEMPERATURE_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
+        cv.Optional(CONF_CURRENT_HUMIDITY_STATE_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
         cv.Optional(CONF_FAN_MODE_COMMAND_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
@@ -138,6 +188,12 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
             cv.requires_component("mqtt"), cv.publish_topic
         ),
         cv.Optional(CONF_MODE_STATE_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_PRESET_COMMAND_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_PRESET_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
         cv.Optional(CONF_SWING_MODE_COMMAND_TOPIC): cv.All(
@@ -164,6 +220,17 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
         cv.Optional(CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
+        cv.Optional(CONF_TARGET_HUMIDITY_COMMAND_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_TARGET_HUMIDITY_STATE_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_ON_CONTROL): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ControlTrigger),
+            }
+        ),
         cv.Optional(CONF_ON_STATE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
@@ -182,7 +249,16 @@ async def setup_climate_core_(var, config):
     if CONF_MAX_TEMPERATURE in visual:
         cg.add(var.set_visual_max_temperature_override(visual[CONF_MAX_TEMPERATURE]))
     if CONF_TEMPERATURE_STEP in visual:
-        cg.add(var.set_visual_temperature_step_override(visual[CONF_TEMPERATURE_STEP]))
+        cg.add(
+            var.set_visual_temperature_step_override(
+                visual[CONF_TEMPERATURE_STEP][CONF_TARGET_TEMPERATURE],
+                visual[CONF_TEMPERATURE_STEP][CONF_CURRENT_TEMPERATURE],
+            )
+        )
+    if CONF_MIN_HUMIDITY in visual:
+        cg.add(var.set_visual_min_humidity_override(visual[CONF_MIN_HUMIDITY]))
+    if CONF_MAX_HUMIDITY in visual:
+        cg.add(var.set_visual_max_humidity_override(visual[CONF_MAX_HUMIDITY]))
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
@@ -200,6 +276,12 @@ async def setup_climate_core_(var, config):
                     config[CONF_CURRENT_TEMPERATURE_STATE_TOPIC]
                 )
             )
+        if CONF_CURRENT_HUMIDITY_STATE_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_current_humidity_state_topic(
+                    config[CONF_CURRENT_HUMIDITY_STATE_TOPIC]
+                )
+            )
         if CONF_FAN_MODE_COMMAND_TOPIC in config:
             cg.add(
                 mqtt_.set_custom_fan_mode_command_topic(
@@ -214,7 +296,12 @@ async def setup_climate_core_(var, config):
             cg.add(mqtt_.set_custom_mode_command_topic(config[CONF_MODE_COMMAND_TOPIC]))
         if CONF_MODE_STATE_TOPIC in config:
             cg.add(mqtt_.set_custom_mode_state_topic(config[CONF_MODE_STATE_TOPIC]))
-
+        if CONF_PRESET_COMMAND_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_preset_command_topic(config[CONF_PRESET_COMMAND_TOPIC])
+            )
+        if CONF_PRESET_STATE_TOPIC in config:
+            cg.add(mqtt_.set_custom_preset_state_topic(config[CONF_PRESET_STATE_TOPIC]))
         if CONF_SWING_MODE_COMMAND_TOPIC in config:
             cg.add(
                 mqtt_.set_custom_swing_mode_command_topic(
@@ -263,10 +350,30 @@ async def setup_climate_core_(var, config):
                     config[CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC]
                 )
             )
+        if CONF_TARGET_HUMIDITY_COMMAND_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_target_humidity_command_topic(
+                    config[CONF_TARGET_HUMIDITY_COMMAND_TOPIC]
+                )
+            )
+        if CONF_TARGET_HUMIDITY_STATE_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_target_humidity_state_topic(
+                    config[CONF_TARGET_HUMIDITY_STATE_TOPIC]
+                )
+            )
 
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(
+            trigger, [(Climate.operator("ref"), "x")], conf
+        )
+
+    for conf in config.get(CONF_ON_CONTROL, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger, [(ClimateCall.operator("ref"), "x")], conf
+        )
 
 
 async def register_climate(var, config):
@@ -283,7 +390,8 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
         cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
         cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
-        cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
+        cv.Optional(CONF_TARGET_HUMIDITY): cv.templatable(cv.percentage_int),
+        cv.Optional(CONF_AWAY): cv.invalid("Use preset instead"),
         cv.Exclusive(CONF_FAN_MODE, "fan_mode"): cv.templatable(
             validate_climate_fan_mode
         ),
@@ -319,9 +427,9 @@ async def climate_control_to_code(config, action_id, template_arg, args):
             config[CONF_TARGET_TEMPERATURE_HIGH], args, float
         )
         cg.add(var.set_target_temperature_high(template_))
-    if CONF_AWAY in config:
-        template_ = await cg.templatable(config[CONF_AWAY], args, bool)
-        cg.add(var.set_away(template_))
+    if CONF_TARGET_HUMIDITY in config:
+        template_ = await cg.templatable(config[CONF_TARGET_HUMIDITY], args, float)
+        cg.add(var.set_target_humidity(template_))
     if CONF_FAN_MODE in config:
         template_ = await cg.templatable(config[CONF_FAN_MODE], args, ClimateFanMode)
         cg.add(var.set_fan_mode(template_))

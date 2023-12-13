@@ -45,19 +45,18 @@ async def to_code(config):
     cg.add(var.set_height(config[CONF_HEIGHT]))
     cg.add(var.set_light(wrapped_light))
 
-    await cg.register_component(var, config)
     await display.register_display(var, config)
 
-    if CONF_PIXEL_MAPPER in config:
+    if pixel_mapper := config.get(CONF_PIXEL_MAPPER):
         pixel_mapper_template_ = await cg.process_lambda(
-            config[CONF_PIXEL_MAPPER],
+            pixel_mapper,
             [(int, "x"), (int, "y")],
             return_type=cg.int_,
         )
         cg.add(var.set_pixel_mapper(pixel_mapper_template_))
 
-    if CONF_LAMBDA in config:
+    if lambda_config := config.get(CONF_LAMBDA):
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
+            lambda_config, [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))

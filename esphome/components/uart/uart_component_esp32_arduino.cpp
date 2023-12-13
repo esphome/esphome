@@ -86,10 +86,27 @@ void ESP32ArduinoUARTComponent::setup() {
   is_default_tx = tx_pin_ == nullptr || tx_pin_->get_pin() == 1;
   is_default_rx = rx_pin_ == nullptr || rx_pin_->get_pin() == 3;
 #endif
-  if (is_default_tx && is_default_rx) {
+  static uint8_t next_uart_num = 0;
+  if (is_default_tx && is_default_rx && next_uart_num == 0) {
     this->hw_serial_ = &Serial;
+    next_uart_num++;
   } else {
-    static uint8_t next_uart_num = 1;
+#ifdef USE_LOGGER
+    // The logger doesn't use this UART component, instead it targets the UARTs
+    // directly (i.e. Serial/Serial0, Serial1, and Serial2). If the logger is
+    // enabled, skip the UART that it is configured to use.
+    if (logger::global_logger->get_baud_rate() > 0 && logger::global_logger->get_uart() == next_uart_num) {
+      next_uart_num++;
+    }
+#endif  // USE_LOGGER
+
+    if (next_uart_num >= UART_NUM_MAX) {
+      ESP_LOGW(TAG, "Maximum number of UART components created already.");
+      this->mark_failed();
+      return;
+    }
+
+    this->number_ = next_uart_num;
     this->hw_serial_ = new HardwareSerial(next_uart_num++);  // NOLINT(cppcoreguidelines-owning-memory)
   }
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
@@ -99,12 +116,12 @@ void ESP32ArduinoUARTComponent::setup() {
     invert = true;
   if (rx_pin_ != nullptr && rx_pin_->is_inverted())
     invert = true;
-  this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, invert);
   this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
+  this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, invert);
 }
 
 void ESP32ArduinoUARTComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "UART Bus:");
+  ESP_LOGCONFIG(TAG, "UART Bus %d:", this->number_);
   LOG_PIN("  TX Pin: ", tx_pin_);
   LOG_PIN("  RX Pin: ", rx_pin_);
   if (this->rx_pin_ != nullptr) {

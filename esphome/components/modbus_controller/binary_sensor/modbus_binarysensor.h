@@ -4,13 +4,15 @@
 #include "esphome/components/modbus_controller/modbus_controller.h"
 #include "esphome/core/component.h"
 
+#include <vector>
+
 namespace esphome {
 namespace modbus_controller {
 
 class ModbusBinarySensor : public Component, public binary_sensor::BinarySensor, public SensorItem {
  public:
   ModbusBinarySensor(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
-                     uint8_t skip_updates, bool force_new_range) {
+                     uint16_t skip_updates, bool force_new_range) {
     this->register_type = register_type;
     this->start_address = start_address;
     this->offset = offset;

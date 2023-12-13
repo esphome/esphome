@@ -21,7 +21,7 @@ void PsramComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Available: %s", YESNO(available));
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 1, 0)
   if (available) {
-    ESP_LOGCONFIG(TAG, "  Size: %d MB", heap_caps_get_total_size(MALLOC_CAP_SPIRAM) / 1024 / 1024);
+    ESP_LOGCONFIG(TAG, "  Size: %d KB", heap_caps_get_total_size(MALLOC_CAP_SPIRAM) / 1024);
   }
 #endif
 }
