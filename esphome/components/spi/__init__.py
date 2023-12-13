@@ -29,6 +29,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    CONF_ALLOW_OTHER_USES,
 )
 from esphome.core import coroutine_with_priority, CORE
 
@@ -264,13 +265,21 @@ def check_bus_config(config):
     return config
 
 
+# Do not use a pin schema for the number, as that will trigger a pin reuse error due to duplication of the
+# clock pin in the standard and quad schemas.
+clk_pin_validator = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_NUMBER): cv.Any(cv.int_, cv.string),
+        cv.Optional(CONF_ALLOW_OTHER_USES): cv.boolean,
+    },
+    key=CONF_NUMBER,
+)
+
 SPI_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SPIComponent),
-            # Do not use a schema here, as that will trigger a pin reuse error due to duplication of the
-            # clock pin in the standard and quad schemas.
-            cv.Required(CONF_CLK_PIN): cv.int_,
+            cv.Required(CONF_CLK_PIN): clk_pin_validator,
             cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_FORCE_SW): cv.invalid(
@@ -290,7 +299,7 @@ SPI_QUAD_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(QuadSPIComponent),
-            cv.Required(CONF_CLK_PIN): cv.int_,
+            cv.Required(CONF_CLK_PIN): clk_pin_validator,
             # Optional is used here so that the error messages when no pins are defined
             # relates to the standard schema, not this.
             cv.Optional(CONF_DATA_PINS): cv.All(
