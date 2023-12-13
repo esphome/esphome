@@ -203,7 +203,9 @@ def write_platformio_project():
     write_platformio_ini(content)
 
 
-DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
+DEFINES_H_FORMAT = (
+    ESPHOME_H_FORMAT
+) = """\
 #pragma once
 #include "esphome/core/macros.h"
 {}
