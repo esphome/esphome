@@ -260,6 +260,10 @@ async def to_code(config):
     if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
         cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
 
+    if CORE.using_arduino:
+        if config[CONF_HARDWARE_UART] == USB_CDC:
+            cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=1")
+
     if CORE.using_esp_idf:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
