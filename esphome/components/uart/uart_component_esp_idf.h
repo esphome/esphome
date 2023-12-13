@@ -38,7 +38,7 @@ class IDFUARTComponent : public UARTComponent, public Component {
    *
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
-  void load_settings(bool dump_config = true) override;
+  void load_settings(bool dump_config) override;
 
  protected:
   void check_logger_conflict() override;
