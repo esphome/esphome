@@ -3388,6 +3388,15 @@ pn532_spi:
 pn532_i2c:
   i2c_id: i2c_bus
 
+pn7150_i2c:
+  i2c_id: i2c_bus
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO32
+  ven_pin:
+    allow_other_uses: true
+    number: GPIO16
+
 pn7160_i2c:
   id: nfcc_pn7160_i2c
   i2c_id: i2c_bus
