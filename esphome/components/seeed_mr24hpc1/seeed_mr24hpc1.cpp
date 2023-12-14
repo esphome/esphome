@@ -614,7 +614,7 @@ static void show_frame_data(const uint8_t *data, int len) {
 // Sending data frames
 void MR24HPC1Component::send_query(uint8_t *query, size_t string_length) {
   this->write_array(query, string_length);
-  show_frame_data(query, i);
+  this->show_frame_data(query, i);
 }
 
 // Send Heartbeat Packet Command
