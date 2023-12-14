@@ -189,6 +189,7 @@ class SPIBusHw : public SPIBus {
       : SPIBus(clk, sdo, sdi), channel_(channel) {
     spi_bus_config_t buscfg = {};
     buscfg.sclk_io_num = Utility::get_pin_no(clk);
+    buscfg.flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_SCLK;
     if (data_pins.empty()) {
       buscfg.mosi_io_num = Utility::get_pin_no(sdo);
       buscfg.miso_io_num = Utility::get_pin_no(sdi);
@@ -203,9 +204,9 @@ class SPIBusHw : public SPIBus {
       buscfg.data5_io_num = -1;
       buscfg.data6_io_num = -1;
       buscfg.data7_io_num = -1;
+      buscfg.flags |= SPICOMMON_BUSFLAG_QUAD;
     }
     buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
-    buscfg.flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_QUAD;
     auto err = spi_bus_initialize(channel, &buscfg, SPI_DMA_CH_AUTO);
     if (err != ESP_OK)
       ESP_LOGE(TAG, "Bus init failed - err %X", err);
