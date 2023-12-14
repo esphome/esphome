@@ -111,7 +111,12 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             last_root = max(
                 i for i, v in enumerate(error.path) if v is cv.ROOT_CONFIG_PATH
             )
-            error.path = error.path[last_root + 1 :]
+            # can't change the path so re-create the error
+            error = vol.Invalid(
+                message=error.error_message,
+                path=error.path[last_root + 1 :],
+                error_type=error.error_type,
+            )
         self.errors.append(error)
 
     def add_validation_step(self, step: "ConfigValidationStep"):
