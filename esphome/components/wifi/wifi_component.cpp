@@ -81,7 +81,7 @@ void WiFiComponent::start() {
 
     if (this->fast_connect_) {
       this->selected_ap_ = this->sta_[0];
-      this->load_fast_connect_settings();
+      this->load_fast_connect_settings_();
       this->start_connecting(this->selected_ap_, false);
     } else {
       this->start_scanning();
@@ -610,7 +610,7 @@ void WiFiComponent::check_connecting_finished() {
     this->num_retried_ = 0;
 
     if (this->fast_connect_) {
-      this->save_fast_connect_settings();
+      this->save_fast_connect_settings_();
     }
 
     return;
@@ -714,7 +714,7 @@ bool WiFiComponent::is_esp32_improv_active_() {
 #endif
 }
 
-void WiFiComponent::load_fast_connect_settings() {
+void WiFiComponent::load_fast_connect_settings_() {
   SavedWifiFastConnectSettings fast_connect_save{};
 
   if (this->fast_connect_pref_.load(&fast_connect_save)) {
@@ -727,7 +727,7 @@ void WiFiComponent::load_fast_connect_settings() {
   }
 }
 
-void WiFiComponent::save_fast_connect_settings() {
+void WiFiComponent::save_fast_connect_settings_() {
   bssid_t bssid = wifi_bssid();
   uint8_t channel = wifi_channel_();
 

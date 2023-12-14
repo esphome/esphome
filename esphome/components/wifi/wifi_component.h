@@ -339,8 +339,8 @@ class WiFiComponent : public Component {
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
 
-  void load_fast_connect_settings();
-  void save_fast_connect_settings();
+  void load_fast_connect_settings_();
+  void save_fast_connect_settings_();
 
 #ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
