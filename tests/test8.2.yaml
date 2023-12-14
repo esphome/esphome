@@ -1,4 +1,4 @@
-# Tests for ESP32-S3 boards - IDf
+# Tests for ESP32-C3 boards - IDf
 ---
 wifi:
   ssid: "ssid"
