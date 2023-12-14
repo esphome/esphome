@@ -719,7 +719,7 @@ void WiFiComponent::load_fast_connect_settings() {
 
   if (this->fast_connect_pref_.load(&fast_connect_save)) {
     bssid_t bssid{};
-    std::copy(fast_connect_save.bssid, fast_connect_save.bssid+6, bssid.begin());
+    std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
     this->selected_ap_.set_bssid(bssid);
     this->selected_ap_.set_channel(fast_connect_save.channel);
 
