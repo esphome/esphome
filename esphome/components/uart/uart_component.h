@@ -70,7 +70,7 @@ class UARTComponent {
   // Pure virtual method to return the number of bytes available for reading.
   // @return Number of available bytes.
   virtual int available() = 0;
-  
+
   // Pure virtual method to block until all bytes have been written to the UART bus.
   virtual void flush() = 0;
 
@@ -123,7 +123,7 @@ class UARTComponent {
   uint32_t get_baud_rate() const { return baud_rate_; }
 
 #ifdef USE_ESP32
- /**
+  /**
    * Load the UART settings.
    * @param dump_config If true (default), output the new settings to logs; otherwise, change settings quietly.
    *
@@ -136,7 +136,7 @@ class UARTComponent {
    */
   virtual void load_settings(bool dump_config) = 0;
 
- /**
+  /**
    * Load the UART settings.
    *
    * Example:
