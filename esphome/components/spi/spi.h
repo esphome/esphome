@@ -363,7 +363,7 @@ class SPIComponent : public Component {
   std::map<SPIClient *, SPIDelegate *> devices_;
 
   static SPIBus *get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
-                         const std::vector<InternalGPIOPin *>& data_pins);
+                         const std::vector<InternalGPIOPin *> &data_pins);
 };
 
 using QuadSPIComponent = SPIComponent;

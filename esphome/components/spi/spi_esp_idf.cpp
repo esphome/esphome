@@ -127,7 +127,7 @@ class SPIDelegateHw : public SPIDelegate {
       desc.base.flags |= SPI_TRANS_MODE_QIO;
     } else if (bus_width == 8) {
       desc.base.flags |= SPI_TRANS_MODE_OCT;
-}
+    }
     desc.command_bits = cmd_bits;
     desc.address_bits = addr_bits;
     desc.dummy_bits = 0;
