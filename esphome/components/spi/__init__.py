@@ -30,6 +30,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
     CONF_ALLOW_OTHER_USES,
+    CONF_DATA_PINS,
 )
 from esphome.core import coroutine_with_priority, CORE
 
@@ -72,7 +73,6 @@ CONF_SPI_MODE = "spi_mode"
 CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
-CONF_DATA_PINS = "data_pins"
 
 # RP2040 SPI pin assignments are complicated. Refer to https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
 
