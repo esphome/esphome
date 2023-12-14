@@ -519,7 +519,7 @@ def with_local_variable(
 
 
 def new_variable(
-    id_: ID, rhs: SafeExpType | None, type_: "MockObj" = None
+    id_: ID, rhs: Optional[SafeExpType], type_: "MockObj" = None
 ) -> "MockObj":
     """Declare and define a new global variable, not pointer type, in the code generation.
        If a valid rhs is provided, this will be assigned to the variable, otherwise it will
