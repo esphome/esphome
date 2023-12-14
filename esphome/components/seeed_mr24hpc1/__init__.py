@@ -20,17 +20,13 @@ MR24HPC1Component = mr24hpc1_ns.class_(
 
 CONF_MR24HPC1_ID = "mr24hpc1_id"
 
-# A base schema is created
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(MR24HPC1Component),
-    }
-)
-
-# This code extends the current CONFIG_SCHEMA by adding all the configuration parameters for the UART device and components.
-# This means that in the YAML configuration file, the user can use these parameters to configure this component.
-CONFIG_SCHEMA = cv.All(
-    CONFIG_SCHEMA.extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(MR24HPC1Component),
+        }
+    )
+    .extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
 )
 
 # A verification mode was created to verify the configuration parameters of a UART device named "seeed_mr24hpc1".
