@@ -11,7 +11,7 @@ CustomModeNumber = mr24hpc1_ns.class_("CustomModeNumber", number.Number)
 ExistenceThresholdNumber = mr24hpc1_ns.class_("ExistenceThresholdNumber", number.Number)
 MotionThresholdNumber = mr24hpc1_ns.class_("MotionThresholdNumber", number.Number)
 MotionTriggerTimeNumber = mr24hpc1_ns.class_("MotionTriggerTimeNumber", number.Number)
-Motion2RestTimeNumber = mr24hpc1_ns.class_("Motion2RestTimeNumber", number.Number)
+MotionToRestTimeNumber = mr24hpc1_ns.class_("MotionToRestTimeNumber", number.Number)
 CustomUnmanTimeNumber = mr24hpc1_ns.class_("CustomUnmanTimeNumber", number.Number)
 
 CONF_SENSITIVITY = "sensitivity"
