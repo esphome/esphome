@@ -251,20 +251,6 @@ def get_spi_interface(index):
     return "new SPIClass(HSPI)"
 
 
-def check_bus_config(config):
-    is_1_bit = CONF_MOSI_PIN in config or CONF_MISO_PIN in config
-    data_pins = config.get(CONF_DATA_PINS)
-    if not is_1_bit and not data_pins:
-        raise cv.Invalid("Either mosi/miso pins, or 4 data pins required")
-    if is_1_bit and data_pins:
-        raise cv.Invalid("May specify mosi/miso, or data pins but not both")
-    if data_pins:
-        if len(data_pins) != 4:
-            raise cv.Invalid("Must specify 4 data pins")
-        return cv.only_with_esp_idf(config)
-    return config
-
-
 # Do not use a pin schema for the number, as that will trigger a pin reuse error due to duplication of the
 # clock pin in the standard and quad schemas.
 clk_pin_validator = cv.maybe_simple_value(
