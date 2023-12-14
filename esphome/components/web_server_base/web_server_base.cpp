@@ -3,7 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
-#ifdef defined(USE_ARDUINO) and defined(USE_WEBSERVER_OTA)
+#if defined(USE_ARDUINO) and defined(USE_WEBSERVER_OTA)
 #include <StreamString.h>
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
 #include <Update.h>
