@@ -132,7 +132,7 @@ class MR24HPC1Component : public PollingComponent,
 #endif
 #ifdef USE_SENSOR
   SUB_SENSOR(custom_presence_of_detection)
-  SUB_SENSOR(movementSigns)
+  SUB_SENSOR(movement_signs)
   SUB_SENSOR(custom_motion_distance)
   SUB_SENSOR(custom_spatial_static_value)
   SUB_SENSOR(custom_spatial_motion_value)
