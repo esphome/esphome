@@ -3388,6 +3388,52 @@ pn532_spi:
 pn532_i2c:
   i2c_id: i2c_bus
 
+pn7150_i2c:
+  i2c_id: i2c_bus
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO32
+  ven_pin:
+    allow_other_uses: true
+    number: GPIO16
+
+pn7160_i2c:
+  id: nfcc_pn7160_i2c
+  i2c_id: i2c_bus
+  dwl_req_pin:
+    allow_other_uses: true
+    number: GPIO17
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO35
+  ven_pin:
+    allow_other_uses: true
+    number: GPIO16
+  wkup_req_pin:
+    allow_other_uses: true
+    number: GPIO21
+  emulation_message: https://www.home-assistant.io/tag/pulse_ce
+  tag_ttl: 1000ms
+
+pn7160_spi:
+  id: nfcc_pn7160_spi
+  cs_pin:
+    number: GPIO15
+  dwl_req_pin:
+    allow_other_uses: true
+    number: GPIO17
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO35
+  ven_pin:
+    allow_other_uses: true
+    number: GPIO16
+  wkup_req_pin:
+    allow_other_uses: true
+    number: GPIO21
+  emulation_message: https://www.home-assistant.io/tag/pulse_ce
+  tag_ttl: 1000ms
+
 rdm6300:
   uart_id: uart_0
 

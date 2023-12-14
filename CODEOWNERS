@@ -240,6 +240,11 @@ esphome/components/pmwcs3/* @SeByDocKy
 esphome/components/pn532/* @OttoWinter @jesserockz
 esphome/components/pn532_i2c/* @OttoWinter @jesserockz
 esphome/components/pn532_spi/* @OttoWinter @jesserockz
+esphome/components/pn7150/* @jesserockz @kbx81
+esphome/components/pn7150_i2c/* @jesserockz @kbx81
+esphome/components/pn7160/* @jesserockz @kbx81
+esphome/components/pn7160_i2c/* @jesserockz @kbx81
+esphome/components/pn7160_spi/* @jesserockz @kbx81
 esphome/components/power_supply/* @esphome/core
 esphome/components/preferences/* @esphome/core
 esphome/components/psram/* @esphome/core
