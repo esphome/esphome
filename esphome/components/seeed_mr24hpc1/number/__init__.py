@@ -74,7 +74,7 @@ async def to_code(config):
             max_value=3,
             step=1,
         )
-        await cg.register_parented(n, config[CONF_MR24HPC1_ID])
+        await cg.register_parented(n, mr24hpc1_component)
         cg.add(mr24hpc1_component.set_sensitivity_number(n))
     if custom_mode_config := config.get(CONF_CUSTOM_MODE):
         n = await number.new_number(
