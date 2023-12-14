@@ -306,7 +306,8 @@ CONFIG_SCHEMA = cv.All(
         cv.Any(
             SPI_SCHEMA,
             SPI_QUAD_SCHEMA,
-            msg="Standard SPI requires mosi_pin and/or miso_pin; quad SPI requires data_pins only. A clock pin is always required",
+            msg="Standard SPI requires mosi_pin and/or miso_pin; quad SPI requires data_pins only."
+            + " A clock pin is always required",
         ),
     ),
     validate_spi_config,
