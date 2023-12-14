@@ -288,7 +288,7 @@ SPI_QUAD_SCHEMA = cv.All(
             cv.Required(CONF_CLK_PIN): clk_pin_validator,
             # Optional is used here so that the error messages when no pins are defined
             # relates to the standard schema, not this.
-            cv.Optional(CONF_DATA_PINS): cv.All(
+            cv.Required(CONF_DATA_PINS): cv.All(
                 cv.ensure_list(pins.gpio_output_pin_schema), cv.Length(min=4, max=4)
             ),
             cv.Optional(CONF_INTERFACE, default="hardware"): cv.one_of(
@@ -297,7 +297,6 @@ SPI_QUAD_SCHEMA = cv.All(
             ),
         }
     ),
-    cv.has_at_least_one_key(CONF_DATA_PINS),
     cv.only_with_esp_idf,
 )
 
