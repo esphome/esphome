@@ -112,6 +112,7 @@ class SPIDelegateHw : public SPIDelegate {
    * @param address Address data
    * @param data Remaining data bytes
    * @param length Number of data bytes
+   * @param bus_width The number of data lines to use
    */
   void write_cmd_addr_data(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address, const uint8_t *data,
                            size_t length, uint8_t bus_width) override {
@@ -119,7 +120,6 @@ class SPIDelegateHw : public SPIDelegate {
       ESP_LOGE(TAG, "Data buffer too long");
       return;
     }
-    //ESP_LOGD(TAG, "Write command %X/%d, addr %X/%d, data %d", cmd, cmd_bits, address, addr_bits, length);
     spi_transaction_ext_t desc = {};
     desc.base.flags = SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_DUMMY;
     if (bus_width == 4)
