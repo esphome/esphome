@@ -51,8 +51,3 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
 
-CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
-    {
-        cv.Required(CONF_ID): cv.use_id(MR24HPC1Component),
-    }
-)
