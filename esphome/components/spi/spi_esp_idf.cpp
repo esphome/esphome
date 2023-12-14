@@ -227,7 +227,7 @@ class SPIBusHw : public SPIBus {
 
 SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
                               const std::vector<InternalGPIOPin *> &data_pins) {
-  return new SPIBusHw(clk, sdo, sdi, interface, std::move(data_pins));
+  return new SPIBusHw(clk, sdo, sdi, interface, data_pins);
 }
 
 #endif
