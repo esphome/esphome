@@ -228,7 +228,7 @@ class MR24HPC1Component : public PollingComponent,
   void set_custom_end_mode();
   void set_existence_boundary(const std::string &value);
   void set_motion_boundary(const std::string &value);
-  void set_existence_threshold(int value);
+  void set_existence_threshold(uint8_t value);
   void set_motion_threshold(int value);
   void set_motion_trigger_time(int value);
   void set_motion_to_rest_time(int value);
