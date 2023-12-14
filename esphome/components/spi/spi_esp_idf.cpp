@@ -135,9 +135,9 @@ class SPIDelegateHw : public SPIDelegate {
     desc.base.cmd = cmd;
     desc.base.addr = address;
     do {
-      size_t chunk_size = std::min(length * 8, MAX_TRANSFER_SIZE);
+      size_t chunk_size = std::min(length, MAX_TRANSFER_SIZE);
       if (data != nullptr && chunk_size != 0) {
-        desc.base.length = chunk_size;
+        desc.base.length = chunk_size * 8;
         desc.base.tx_buffer = data;
         length -= chunk_size;
         data += chunk_size;
