@@ -173,6 +173,7 @@ CONFIG_SCHEMA = cv.All(
                 esp32=UART0,
                 esp32_s2=USB_CDC,
                 esp32_s3_idf=USB_SERIAL_JTAG,
+                esp32_c3_idf=USB_SERIAL_JTAG,
                 esp32_s3_arduino=USB_CDC,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
