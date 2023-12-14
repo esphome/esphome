@@ -1518,6 +1518,13 @@ class GenerateID(Optional):
         super().__init__(key, default=lambda: None)
 
 
+def _get_priority_default(*args):
+    for arg in args:
+        if arg is not vol.UNDEFINED:
+            return arg
+    return vol.UNDEFINED
+
+
 class SplitDefault(Optional):
     """Mark this key to have a split default for ESP8266/ESP32."""
 
@@ -1542,30 +1549,22 @@ class SplitDefault(Optional):
         super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
         self._esp32_arduino_default = vol.default_factory(
-            esp32_arduino if esp32 is vol.UNDEFINED else esp32
+            _get_priority_default(esp32, esp32_arduino)
         )
         self._esp32_idf_default = vol.default_factory(
-            esp32_idf if esp32 is vol.UNDEFINED else esp32
+            _get_priority_default(esp32, esp32_idf)
         )
         self._esp32_s2_arduino_default = vol.default_factory(
-            (esp32_s2_arduino if esp32 is vol.UNDEFINED else esp32)
-            if esp32_s2 is vol.UNDEFINED
-            else esp32_s2
+            _get_priority_default(esp32_s2, esp32, esp32_s2_arduino, esp32_arduino)
         )
         self._esp32_s2_idf_default = vol.default_factory(
-            (esp32_s2_idf if esp32 is vol.UNDEFINED else esp32)
-            if esp32_s2 is vol.UNDEFINED
-            else esp32_s2
+            _get_priority_default(esp32_s2, esp32, esp32_s2_idf, esp32_idf)
         )
         self._esp32_s3_arduino_default = vol.default_factory(
-            (esp32_s3_arduino if esp32 is vol.UNDEFINED else esp32)
-            if esp32_s3 is vol.UNDEFINED
-            else esp32_s3
+            _get_priority_default(esp32_s3, esp32, esp32_s3_arduino, esp32_arduino)
         )
         self._esp32_s3_idf_default = vol.default_factory(
-            (esp32_s3_idf if esp32 is vol.UNDEFINED else esp32)
-            if esp32_s3 is vol.UNDEFINED
-            else esp32_s3
+            _get_priority_default(esp32_s3, esp32, esp32_s3_idf, esp32_idf)
         )
         self._rp2040_default = vol.default_factory(rp2040)
         self._bk72xx_default = vol.default_factory(bk72xx)
