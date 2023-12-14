@@ -19,7 +19,7 @@ static const char *const TAG = "seeed_mr24hpc1";
 void MR24HPC1Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MR24HPC1:");
 #ifdef USE_TEXT_SENSOR
-  LOG_TEXT_SENSOR(" ", "HeartbeatTextSensor", this->heartbeat_state_text_sensor_);
+  LOG_TEXT_SENSOR(" ", "Heartbeat Text Sensor", this->heartbeat_state_text_sensor_);
   LOG_TEXT_SENSOR(" ", "ProductModelTextSensor", this->product_model_text_sensor_);
   LOG_TEXT_SENSOR(" ", "ProductIDTextSensor", this->product_id_text_sensor_);
   LOG_TEXT_SENSOR(" ", "HardwareModelTextSensor", this->hardware_model_text_sensor_);
