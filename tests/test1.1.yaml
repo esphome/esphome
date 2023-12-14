@@ -38,7 +38,7 @@ uart:
     rx_buffer_size: 1024
   - id: uart_ld2450
     tx_pin: 18
-    rx_pin: 23
+    rx_pin: 19
     baud_rate: 256000
     parity: NONE
     stop_bits: 1
