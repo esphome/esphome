@@ -30,6 +30,7 @@ void UponorSmatrixClimate::loop() {
 climate::ClimateTraits UponorSmatrixClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
+  traits.set_supports_current_humidity(true);
   traits.set_supported_modes({climate::CLIMATE_MODE_HEAT});
   traits.set_supports_action(true);
   traits.set_supported_presets({climate::CLIMATE_PRESET_ECO});
@@ -88,6 +89,8 @@ void UponorSmatrixClimate::on_device_data(const UponorSmatrixData *data, size_t 
       case UPONOR_ID_ROOM_TEMP:
         this->current_temperature = raw_to_celsius(data[i].value);
         break;
+      case UPONOR_ID_HUMIDITY:
+        this->current_humidity = data[i].value & 0x00FF;
     }
   }
 
