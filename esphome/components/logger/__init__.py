@@ -124,8 +124,6 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 def uart_selection(value):
     if CORE.is_esp32:
-        if value.upper() in ESP_IDF_UARTS and not CORE.using_esp_idf:
-            raise cv.Invalid(f"Only esp-idf framework supports {value}.")
         variant = get_esp32_variant()
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
