@@ -317,6 +317,8 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(configs):
     cg.add_define("USE_SPI")
     cg.add_global(spi_ns.using)
+    if CORE.using_arduino:
+        cg.add_library("SPI", None)
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
         await cg.register_component(var, spi)
@@ -336,15 +338,13 @@ async def to_code(configs):
                 cg.add(vec_id.push_back(gpio))
             cg.add(var.set_data_pins(vec_id))
         if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
-            cg.add(var.set_interface(cg.RawExpression(get_spi_interface(index))))
-        cg.add(
-            var.set_interface_name(
-                re.sub(r"\W", "", get_spi_interface(index).replace("new SPIClass", ""))
+            interface = get_spi_interface(index)
+            cg.add(var.set_interface(cg.RawExpression(interface)))
+            cg.add(
+                var.set_interface_name(
+                    re.sub(r"\W", "", interface.replace("new SPIClass", ""))
+                )
             )
-        )
-
-        if CORE.using_arduino:
-            cg.add_library("SPI", None)
 
 
 def spi_device_schema(
