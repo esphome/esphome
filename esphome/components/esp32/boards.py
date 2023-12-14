@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .const import VARIANT_ESP32, VARIANT_ESP32S2, VARIANT_ESP32C3, VARIANT_ESP32S3
 
 ESP32_BASE_PINS = {

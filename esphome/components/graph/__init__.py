@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome.components.font import Font
 from esphome.components import sensor, color
 import esphome.config_validation as cv

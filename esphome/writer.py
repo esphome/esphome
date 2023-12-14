@@ -1,8 +1,8 @@
+from __future__ import annotations
 import logging
 import os
 import re
 from pathlib import Path
-from typing import Union
 
 from esphome.config import iter_components
 from esphome.const import (
@@ -123,7 +123,7 @@ def update_storage_json():
     new.save(path)
 
 
-def format_ini(data: dict[str, Union[str, list[str]]]) -> str:
+def format_ini(data: dict[str, str | list[str]]) -> str:
     content = ""
     for key, value in sorted(data.items()):
         if isinstance(value, list):

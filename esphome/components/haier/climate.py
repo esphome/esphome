@@ -1,4 +1,5 @@
-﻿import logging
+﻿from __future__ import annotations
+import logging
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv

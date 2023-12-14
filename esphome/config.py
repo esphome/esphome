@@ -1,10 +1,11 @@
+from __future__ import annotations
 import abc
 import functools
 import heapq
 import logging
 import re
 
-from typing import Optional, Union
+from typing import Union
 
 from contextlib import contextmanager
 import contextvars
@@ -65,7 +66,7 @@ def _path_begins_with(path: ConfigPath, other: ConfigPath) -> bool:
 
 @functools.total_ordering
 class _ValidationStepTask:
-    def __init__(self, priority: float, id_number: int, step: "ConfigValidationStep"):
+    def __init__(self, priority: float, id_number: int, step: ConfigValidationStep):
         self.priority = priority
         self.id_number = id_number
         self.step = step
@@ -119,7 +120,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             )
         self.errors.append(error)
 
-    def add_validation_step(self, step: "ConfigValidationStep"):
+    def add_validation_step(self, step: ConfigValidationStep):
         id_num = self._validation_tasks_id
         self._validation_tasks_id += 1
         heapq.heappush(
@@ -161,7 +162,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             conf = conf[key]
         conf[path[-1]] = value
 
-    def get_error_for_path(self, path: ConfigPath) -> Optional[vol.Invalid]:
+    def get_error_for_path(self, path: ConfigPath) -> vol.Invalid | None:
         for err in self.errors:
             if self.get_deepest_path(err.path) == path:
                 self.errors.remove(err)
@@ -170,7 +171,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
 
     def get_deepest_document_range_for_path(
         self, path: ConfigPath, get_key: bool = False
-    ) -> Optional[ESPHomeDataBase]:
+    ) -> ESPHomeDataBase | None:
         data = self
         doc_range = None
         for index, path_item in enumerate(path):

@@ -1,4 +1,6 @@
 """This helper module tracks commonly used types in the esphome python codebase."""
+from __future__ import annotations
+
 from typing import Union
 
 from esphome.core import ID, Lambda, EsphomeCore

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import esphome.final_validate as fv
 
 from esphome.const import CONF_ID

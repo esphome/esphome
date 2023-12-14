@@ -1,6 +1,6 @@
+from __future__ import annotations
 from dataclasses import dataclass
 import json
-from typing import Union
 from pathlib import Path
 
 import logging
@@ -73,7 +73,7 @@ FILTER_PLATFORMIO_LINES = [
 ]
 
 
-def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
+def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
     os.environ.setdefault(
@@ -93,7 +93,7 @@ def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
     return run_external_command(platformio.__main__.main, *cmd, **kwargs)
 
 
-def run_platformio_cli_run(config, verbose, *args, **kwargs) -> Union[str, int]:
+def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
     command = ["run", "-d", CORE.build_path]
     if verbose:
         command += ["-v"]
@@ -152,7 +152,7 @@ def _load_idedata(config):
 KEY_IDEDATA = "idedata"
 
 
-def get_idedata(config) -> "IDEData":
+def get_idedata(config) -> IDEData:
     if KEY_IDEDATA in CORE.data[KEY_CORE]:
         return CORE.data[KEY_CORE][KEY_IDEDATA]
     idedata = IDEData(_load_idedata(config))

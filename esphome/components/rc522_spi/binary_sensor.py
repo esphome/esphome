@@ -1,3 +1,4 @@
+from __future__ import annotations
 import esphome.components.rc522.binary_sensor as rc522_binary_sensor
 
 DEPENDENCIES = ["rc522"]

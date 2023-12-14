@@ -1,6 +1,6 @@
+from __future__ import annotations
 import logging
 from importlib import resources
-from typing import Optional
 
 import tzlocal
 
@@ -41,7 +41,7 @@ ESPTime = time_ns.struct("ESPTime")
 TimeHasTimeCondition = time_ns.class_("TimeHasTimeCondition", Condition)
 
 
-def _load_tzdata(iana_key: str) -> Optional[bytes]:
+def _load_tzdata(iana_key: str) -> bytes | None:
     # From https://tzdata.readthedocs.io/en/latest/#examples
     try:
         package_loc, resource = iana_key.rsplit("/", 1)

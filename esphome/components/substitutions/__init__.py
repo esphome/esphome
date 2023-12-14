@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import esphome.config_validation as cv

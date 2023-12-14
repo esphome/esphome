@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome.components import binary_sensor, remote_base
 
 DEPENDENCIES = ["remote_receiver"]

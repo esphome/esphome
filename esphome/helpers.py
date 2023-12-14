@@ -1,10 +1,10 @@
+from __future__ import annotations
 import codecs
 from contextlib import suppress
 
 import logging
 import os
 from pathlib import Path
-from typing import Union
 import tempfile
 from urllib.parse import urlparse
 import re
@@ -186,7 +186,7 @@ def read_file(path):
         raise EsphomeError(f"Error reading file {path}: {err}") from err
 
 
-def _write_file(path: Union[Path, str], text: Union[str, bytes]):
+def _write_file(path: Path | str, text: str | bytes):
     """Atomically writes `text` to the given path.
 
     Automatically creates all parent directories.
@@ -219,7 +219,7 @@ def _write_file(path: Union[Path, str], text: Union[str, bytes]):
                 _LOGGER.error("Write file cleanup failed: %s", err)
 
 
-def write_file(path: Union[Path, str], text: str):
+def write_file(path: Path | str, text: str):
     try:
         _write_file(path, text)
     except OSError as err:
@@ -228,7 +228,7 @@ def write_file(path: Union[Path, str], text: str):
         raise EsphomeError(f"Could not write file at {path}") from err
 
 
-def write_file_if_changed(path: Union[Path, str], text: str) -> bool:
+def write_file_if_changed(path: Path | str, text: str) -> bool:
     """Write text to the given path, but not if the contents match already.
 
     Returns true if the file was changed.

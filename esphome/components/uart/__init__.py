@@ -1,4 +1,4 @@
-from typing import Optional
+from __future__ import annotations
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -249,12 +249,12 @@ KEY_UART_DEVICES = "uart_devices"
 def final_validate_device_schema(
     name: str,
     *,
-    baud_rate: Optional[int] = None,
+    baud_rate: int | None = None,
     require_tx: bool = False,
     require_rx: bool = False,
-    data_bits: Optional[int] = None,
-    parity: Optional[str] = None,
-    stop_bits: Optional[int] = None,
+    data_bits: int | None = None,
+    parity: str | None = None,
+    stop_bits: int | None = None,
 ):
     def validate_baud_rate(value):
         if value != baud_rate:

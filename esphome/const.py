@@ -1,4 +1,6 @@
 """Constants used by esphome."""
+from __future__ import annotations
+
 
 __version__ = "2024.1.0-dev"
 

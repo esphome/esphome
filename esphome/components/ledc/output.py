@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome import pins, automation
 from esphome.components import output
 import esphome.config_validation as cv

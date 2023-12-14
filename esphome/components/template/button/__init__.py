@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome.components import button
 
 from .. import template_ns

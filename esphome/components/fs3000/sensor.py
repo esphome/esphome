@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # initially based off of TMP117 component
 
 import esphome.codegen as cg

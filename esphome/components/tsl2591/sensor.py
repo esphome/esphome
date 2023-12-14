@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # Credit where due....
 # I put a certain amount of work into this, but a lot of ESPHome integration is
 # "look for other examples and see what they do" programming-by-example. Here are

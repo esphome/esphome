@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass
 
 import esphome.codegen as cg

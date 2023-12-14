@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # PYTHON_ARGCOMPLETE_OK
 import argparse
 import functools

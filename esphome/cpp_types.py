@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome.cpp_generator import MockObj
 
 global_ns = MockObj("", "")

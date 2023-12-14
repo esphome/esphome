@@ -1,3 +1,4 @@
+from __future__ import annotations
 import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.const import CONF_ID, ICON_FLASH, UNIT_WATT_HOURS

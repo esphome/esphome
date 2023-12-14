@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome.cpp_generator import RawExpression
 import esphome.codegen as cg
 import esphome.config_validation as cv

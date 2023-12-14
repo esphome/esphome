@@ -1,3 +1,4 @@
+from __future__ import annotations
 import hashlib
 
 from esphome import config_validation as cv, automation

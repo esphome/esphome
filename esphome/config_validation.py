@@ -1,5 +1,5 @@
 """Helpers for config validation using voluptuous."""
-
+from __future__ import annotations
 from dataclasses import dataclass
 import logging
 import os
@@ -1818,7 +1818,7 @@ class Version:
         return f"{self.major}.{self.minor}.{self.patch}"
 
     @classmethod
-    def parse(cls, value: str) -> "Version":
+    def parse(cls, value: str) -> Version:
         match = re.match(r"^(\d+).(\d+).(\d+)-?\w*$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")

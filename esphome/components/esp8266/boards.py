@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 FLASH_SIZE_1_MB = 2**20
 FLASH_SIZE_512_KB = FLASH_SIZE_1_MB // 2
 FLASH_SIZE_2_MB = 2 * FLASH_SIZE_1_MB

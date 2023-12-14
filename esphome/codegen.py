@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # Base file for all codegen-related imports
 # All integrations should have a line in the import section like this
 #

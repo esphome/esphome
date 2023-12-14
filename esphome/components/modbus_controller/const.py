@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 CONF_BITMASK = "bitmask"
 CONF_BYTE_OFFSET = "byte_offset"
 CONF_COMMAND_THROTTLE = "command_throttle"

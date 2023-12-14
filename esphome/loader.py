@@ -1,5 +1,6 @@
+from __future__ import annotations
 import logging
-from typing import Callable, Optional, Any, ContextManager
+from typing import Callable, Any, ContextManager
 from types import ModuleType
 import importlib
 import importlib.util
@@ -50,7 +51,7 @@ class ComponentManifest:
         return getattr(self.module, "IS_PLATFORM_COMPONENT", False)
 
     @property
-    def config_schema(self) -> Optional[Any]:
+    def config_schema(self) -> Any | None:
         return getattr(self.module, "CONFIG_SCHEMA", None)
 
     @property
@@ -58,7 +59,7 @@ class ComponentManifest:
         return getattr(self.module, "MULTI_CONF", False)
 
     @property
-    def to_code(self) -> Optional[Callable[[Any], None]]:
+    def to_code(self) -> Callable[[Any], None] | None:
         return getattr(self.module, "to_code", None)
 
     @property
@@ -81,7 +82,7 @@ class ComponentManifest:
         return getattr(self.module, "CODEOWNERS", [])
 
     @property
-    def final_validate_schema(self) -> Optional[Callable[[ConfigType], None]]:
+    def final_validate_schema(self) -> Callable[[ConfigType], None] | None:
         """Components can declare a `FINAL_VALIDATE_SCHEMA` cv.Schema that gets called
         after the main validation. In that function checks across components can be made.
 
@@ -109,7 +110,7 @@ class ComponentManifest:
 
 class ComponentMetaFinder(importlib.abc.MetaPathFinder):
     def __init__(
-        self, components_path: Path, allowed_components: Optional[list[str]] = None
+        self, components_path: Path, allowed_components: list[str] | None = None
     ) -> None:
         self._allowed_components = allowed_components
         self._finders = []
@@ -120,7 +121,7 @@ class ComponentMetaFinder(importlib.abc.MetaPathFinder):
                 continue
             self._finders.append(finder)
 
-    def find_spec(self, fullname: str, path: Optional[list[str]], target=None):
+    def find_spec(self, fullname: str, path: list[str] | None, target=None):
         if not fullname.startswith("esphome.components."):
             return None
         parts = fullname.split(".")
@@ -147,7 +148,7 @@ def clear_component_meta_finders():
 
 
 def install_meta_finder(
-    components_path: Path, allowed_components: Optional[list[str]] = None
+    components_path: Path, allowed_components: list[str] | None = None
 ):
     sys.meta_path.insert(0, ComponentMetaFinder(components_path, allowed_components))
 

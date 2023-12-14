@@ -1,20 +1,20 @@
+from __future__ import annotations
 import json
 import os
 
-from typing import Optional
 
 from esphome.config import load_config, _format_vol_invalid, Config
 from esphome.core import CORE, DocumentRange
 import esphome.config_validation as cv
 
 
-def _get_invalid_range(res: Config, invalid: cv.Invalid) -> Optional[DocumentRange]:
+def _get_invalid_range(res: Config, invalid: cv.Invalid) -> DocumentRange | None:
     return res.get_deepest_document_range_for_path(
         invalid.path, invalid.error_message == "extra keys not allowed"
     )
 
 
-def _dump_range(range: Optional[DocumentRange]) -> Optional[dict]:
+def _dump_range(range: DocumentRange | None) -> dict | None:
     if range is None:
         return None
     return {

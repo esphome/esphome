@@ -1,8 +1,9 @@
+from __future__ import annotations
 import logging
 import math
 import os
 import re
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 from esphome.const import (
     CONF_COMMENT,
@@ -333,7 +334,7 @@ class ID:
         else:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
-        self.type: Optional["MockObjClass"] = type
+        self.type: MockObjClass | None = type
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
@@ -482,20 +483,20 @@ class EsphomeCore:
         self.vscode = False
         self.ace = False
         # The name of the node
-        self.name: Optional[str] = None
+        self.name: str | None = None
         # The friendly name of the node
-        self.friendly_name: Optional[str] = None
+        self.friendly_name: str | None = None
         # The area / zone of the node
-        self.area: Optional[str] = None
+        self.area: str | None = None
         # Additional data components can store temporary data in
         # The first key to this dict should always be the integration name
         self.data = {}
         # The relative path to the configuration YAML
-        self.config_path: Optional[str] = None
+        self.config_path: str | None = None
         # The relative path to where all build files are stored
-        self.build_path: Optional[str] = None
+        self.build_path: str | None = None
         # The validated configuration, this is None until the config has been validated
-        self.config: Optional["ConfigType"] = None
+        self.config: ConfigType | None = None
         # The pending tasks in the task queue (mostly for C++ generation)
         # This is a priority queue (with heapq)
         # Each item is a tuple of form: (-priority, unique number, task)
@@ -503,19 +504,19 @@ class EsphomeCore:
         # Task counter for pending tasks
         self.task_counter = 0
         # The variable cache, for each ID this holds a MockObj of the variable obj
-        self.variables: dict[str, "MockObj"] = {}
+        self.variables: dict[str, MockObj] = {}
         # A list of statements that go in the main setup() block
-        self.main_statements: list["Statement"] = []
+        self.main_statements: list[Statement] = []
         # A list of statements to insert in the global block (includes and global variables)
-        self.global_statements: list["Statement"] = []
+        self.global_statements: list[Statement] = []
         # A set of platformio libraries to add to the project
         self.libraries: list[Library] = []
         # A set of build flags to set in the platformio project
         self.build_flags: set[str] = set()
         # A set of defines to set for the compile process in esphome/core/defines.h
-        self.defines: set["Define"] = set()
+        self.defines: set[Define] = set()
         # A map of all platformio options to apply
-        self.platformio_options: dict[str, Union[str, list[str]]] = {}
+        self.platformio_options: dict[str, str | list[str]] = {}
         # A set of strings of names of loaded integrations, used to find namespace ID conflicts
         self.loaded_integrations = set()
         # A set of component IDs to track what Component subclasses are declared
@@ -550,7 +551,7 @@ class EsphomeCore:
         PIN_SCHEMA_REGISTRY.reset()
 
     @property
-    def address(self) -> Optional[str]:
+    def address(self) -> str | None:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
@@ -563,7 +564,7 @@ class EsphomeCore:
         return None
 
     @property
-    def web_port(self) -> Optional[int]:
+    def web_port(self) -> int | None:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
@@ -576,7 +577,7 @@ class EsphomeCore:
         return None
 
     @property
-    def comment(self) -> Optional[str]:
+    def comment(self) -> str | None:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
@@ -774,7 +775,7 @@ class EsphomeCore:
         _LOGGER.debug("Adding define: %s", define)
         return define
 
-    def add_platformio_option(self, key: str, value: Union[str, list[str]]) -> None:
+    def add_platformio_option(self, key: str, value: str | list[str]) -> None:
         new_val = value
         old_val = self.platformio_options.get(key)
         if isinstance(old_val, list):
@@ -790,7 +791,7 @@ class EsphomeCore:
                 _LOGGER.debug("Waiting for variable %s (%r)", id, id)
                 yield
 
-    async def get_variable(self, id) -> "MockObj":
+    async def get_variable(self, id) -> MockObj:
         if not isinstance(id, ID):
             raise ValueError(f"ID {id!r} must be of type ID!")
         # Fast path, check if already registered without awaiting
@@ -807,7 +808,7 @@ class EsphomeCore:
             _LOGGER.debug("Waiting for variable %s", id)
             yield
 
-    async def get_variable_with_full_id(self, id: ID) -> tuple[ID, "MockObj"]:
+    async def get_variable_with_full_id(self, id: ID) -> tuple[ID, MockObj]:
         if not isinstance(id, ID):
             raise ValueError(f"ID {id!r} must be of type ID!")
         return await _FakeAwaitable(self._get_variable_with_full_id_generator(id))

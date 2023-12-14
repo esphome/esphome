@@ -1,3 +1,4 @@
+from __future__ import annotations
 import math
 import esphome.codegen as cg
 import esphome.config_validation as cv

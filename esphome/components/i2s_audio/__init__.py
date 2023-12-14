@@ -1,3 +1,4 @@
+from __future__ import annotations
 import esphome.config_validation as cv
 import esphome.final_validate as fv
 import esphome.codegen as cg

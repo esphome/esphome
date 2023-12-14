@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,

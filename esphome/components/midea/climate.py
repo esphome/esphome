@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome.core import coroutine
 from esphome import automation
 from esphome.components import climate, sensor, uart, remote_transmitter

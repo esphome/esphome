@@ -1,3 +1,4 @@
+from __future__ import annotations
 from string import ascii_letters, digits
 import esphome.config_validation as cv
 import esphome.codegen as cg

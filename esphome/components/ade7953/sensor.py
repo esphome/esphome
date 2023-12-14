@@ -1,3 +1,4 @@
+from __future__ import annotations
 import esphome.config_validation as cv
 
 CONFIG_SCHEMA = CONFIG_SCHEMA = cv.invalid(

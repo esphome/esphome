@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome.components.atm90e32.sensor import CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C
 import esphome.codegen as cg
 import esphome.config_validation as cv

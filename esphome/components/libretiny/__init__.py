@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 import logging
 from os.path import dirname, isfile, join

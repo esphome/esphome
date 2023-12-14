@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome import automation, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg

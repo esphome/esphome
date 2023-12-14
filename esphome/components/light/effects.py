@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 import esphome.codegen as cg
 import esphome.config_validation as cv

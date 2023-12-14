@@ -7,6 +7,7 @@ These decorators should not modify at all what the functions
 originally do.
 However there is a property to further disable decorator
 impact."""
+from __future__ import annotations
 
 
 # This is set to true by script/build_language_schema.py

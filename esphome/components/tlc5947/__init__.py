@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # this component is for the "TLC5947 24-Channel, 12-Bit PWM LED Driver" [https://www.ti.com/lit/ds/symlink/tlc5947.pdf],
 # which is used e.g. on [https://www.adafruit.com/product/1429]. The code is based on the components sm2135 and sm26716.
 

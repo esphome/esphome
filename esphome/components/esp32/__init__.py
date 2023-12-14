@@ -1,5 +1,6 @@
+from __future__ import annotations
 from dataclasses import dataclass
-from typing import Union, Optional
+from typing import Union
 from pathlib import Path
 import logging
 import os
@@ -155,8 +156,8 @@ def add_idf_component(
     ref: str = None,
     path: str = None,
     refresh: TimePeriod = None,
-    components: Optional[list[str]] = None,
-    submodules: Optional[list[str]] = None,
+    components: list[str] | None = None,
+    submodules: list[str] | None = None,
 ):
     """Add an esp-idf component to the project."""
     if not CORE.using_esp_idf:

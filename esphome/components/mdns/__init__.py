@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome.const import (
     CONF_ID,
     CONF_PORT,

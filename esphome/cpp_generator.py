@@ -1,9 +1,10 @@
+from __future__ import annotations
 import abc
 import inspect
 import math
 import re
 from collections.abc import Generator, Sequence
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Union
 
 from esphome.core import (
     CORE,
@@ -90,7 +91,7 @@ class VariableDeclarationExpression(Expression):
 class ExpressionList(Expression):
     __slots__ = ("args",)
 
-    def __init__(self, *args: Optional[SafeExpType]):
+    def __init__(self, *args: SafeExpType | None):
         # Remove every None on end
         args = list(args)
         while args and args[-1] is None:
@@ -139,7 +140,7 @@ class CallExpression(Expression):
 class StructInitializer(Expression):
     __slots__ = ("base", "args")
 
-    def __init__(self, base: Expression, *args: tuple[str, Optional[SafeExpType]]):
+    def __init__(self, base: Expression, *args: tuple[str, SafeExpType | None]):
         self.base = base
         # TODO: args is always a Tuple, is this check required?
         if not isinstance(args, OrderedDict):
@@ -197,9 +198,7 @@ class ParameterExpression(Expression):
 class ParameterListExpression(Expression):
     __slots__ = ("parameters",)
 
-    def __init__(
-        self, *parameters: Union[ParameterExpression, tuple[SafeExpType, str]]
-    ):
+    def __init__(self, *parameters: ParameterExpression | tuple[SafeExpType, str]):
         self.parameters = []
         for parameter in parameters:
             if not isinstance(parameter, ParameterExpression):
@@ -443,7 +442,7 @@ class StaticConstAssignmentExpression(AssignmentExpression):
         return f"static const {self.type} {self.name}[] = {self.rhs}"
 
 
-def progmem_array(id_, rhs) -> "MockObj":
+def progmem_array(id_, rhs) -> MockObj:
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
     assignment = ProgmemAssignmentExpression(id_.type, id_, rhs)
@@ -452,7 +451,7 @@ def progmem_array(id_, rhs) -> "MockObj":
     return obj
 
 
-def static_const_array(id_, rhs) -> "MockObj":
+def static_const_array(id_, rhs) -> MockObj:
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
     assignment = StaticConstAssignmentExpression(id_.type, id_, rhs)
@@ -461,7 +460,7 @@ def static_const_array(id_, rhs) -> "MockObj":
     return obj
 
 
-def statement(expression: Union[Expression, Statement]) -> Statement:
+def statement(expression: Expression | Statement) -> Statement:
     """Convert expression into a statement unless is already a statement."""
     if isinstance(expression, Statement):
         return expression
@@ -469,8 +468,8 @@ def statement(expression: Union[Expression, Statement]) -> Statement:
 
 
 def variable(
-    id_: ID, rhs: SafeExpType, type_: "MockObj" = None, register=True
-) -> "MockObj":
+    id_: ID, rhs: SafeExpType, type_: MockObj = None, register=True
+) -> MockObj:
     """Declare a new variable, not pointer type, in the code generation.
 
     :param id_: The ID used to declare the variable.
@@ -493,7 +492,7 @@ def variable(
 
 
 def with_local_variable(
-    id_: ID, rhs: SafeExpType, callback: Callable[["MockObj"], None], *args
+    id_: ID, rhs: SafeExpType, callback: Callable[[MockObj], None], *args
 ) -> None:
     """Declare a new variable, not pointer type, in the code generation, within a scoped block
     The variable is only usable within the callback
@@ -518,7 +517,7 @@ def with_local_variable(
     CORE.add(RawStatement("}"))  # output closing curly brace
 
 
-def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
+def new_variable(id_: ID, rhs: SafeExpType, type_: MockObj = None) -> MockObj:
     """Declare and define a new variable, not pointer type, in the code generation.
 
     :param id_: The ID used to declare the variable.
@@ -541,7 +540,7 @@ def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj
     return obj
 
 
-def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
+def Pvariable(id_: ID, rhs: SafeExpType, type_: MockObj = None) -> MockObj:
     """Declare a new pointer variable in the code generation.
 
     :param id_: The ID used to declare the variable.
@@ -580,7 +579,7 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> Pvariable:
     return Pvariable(id_, rhs)
 
 
-def add(expression: Union[Expression, Statement]):
+def add(expression: Expression | Statement):
     """Add an expression to the codegen section.
 
     After this is called, the given given expression will
@@ -589,12 +588,12 @@ def add(expression: Union[Expression, Statement]):
     CORE.add(expression)
 
 
-def add_global(expression: Union[SafeExpType, Statement]):
+def add_global(expression: SafeExpType | Statement):
     """Add an expression to the codegen global storage (above setup())."""
     CORE.add_global(expression)
 
 
-def add_library(name: str, version: Optional[str], repository: Optional[str] = None):
+def add_library(name: str, version: str | None, repository: str | None = None):
     """Add a library to the codegen library storage.
 
     :param name: The name of the library (for example 'AsyncTCP')
@@ -619,11 +618,11 @@ def add_define(name: str, value: SafeExpType = None):
         CORE.add_define(Define(name, safe_exp(value)))
 
 
-def add_platformio_option(key: str, value: Union[str, list[str]]):
+def add_platformio_option(key: str, value: str | list[str]):
     CORE.add_platformio_option(key, value)
 
 
-async def get_variable(id_: ID) -> "MockObj":
+async def get_variable(id_: ID) -> MockObj:
     """
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
@@ -636,7 +635,7 @@ async def get_variable(id_: ID) -> "MockObj":
     return await CORE.get_variable(id_)
 
 
-async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
+async def get_variable_with_full_id(id_: ID) -> tuple[ID, MockObj]:
     """
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
@@ -711,7 +710,7 @@ def is_template(value):
 async def templatable(
     value: Any,
     args: list[tuple[SafeExpType, str]],
-    output_type: Optional[SafeExpType],
+    output_type: SafeExpType | None,
     to_exp: Any = None,
 ):
     """Generate code for a templatable config option.
@@ -746,7 +745,7 @@ class MockObj(Expression):
         self.base = base
         self.op = op
 
-    def __getattr__(self, attr: str) -> "MockObj":
+    def __getattr__(self, attr: str) -> MockObj:
         # prevent python dunder methods being replaced by mock objects
         if attr.startswith("__"):
             raise AttributeError()
@@ -758,7 +757,7 @@ class MockObj(Expression):
             attr = attr[1:]
         return MockObj(f"{self.base}{self.op}{attr}", next_op)
 
-    def __call__(self, *args: SafeExpType) -> "MockObj":
+    def __call__(self, *args: SafeExpType) -> MockObj:
         call = CallExpression(self.base, *args)
         return MockObj(call, self.op)
 
@@ -769,14 +768,14 @@ class MockObj(Expression):
         return f"MockObj<{str(self.base)}>"
 
     @property
-    def _(self) -> "MockObj":
+    def _(self) -> MockObj:
         return MockObj(f"{self.base}{self.op}")
 
     @property
-    def new(self) -> "MockObj":
+    def new(self) -> MockObj:
         return MockObj(f"new {self.base}", "->")
 
-    def template(self, *args: SafeExpType) -> "MockObj":
+    def template(self, *args: SafeExpType) -> MockObj:
         """Apply template parameters to this object."""
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
             args = TemplateArguments(*args)
@@ -784,20 +783,20 @@ class MockObj(Expression):
             args = args[0]
         return MockObj(f"{self.base}{args}")
 
-    def namespace(self, name: str) -> "MockObj":
+    def namespace(self, name: str) -> MockObj:
         return MockObj(f"{self._}{name}", "::")
 
-    def class_(self, name: str, *parents: "MockObjClass") -> "MockObjClass":
+    def class_(self, name: str, *parents: MockObjClass) -> MockObjClass:
         op = "" if self.op == "" else "::"
         return MockObjClass(f"{self.base}{op}{name}", ".", parents=parents)
 
-    def struct(self, name: str) -> "MockObjClass":
+    def struct(self, name: str) -> MockObjClass:
         return self.class_(name)
 
-    def enum(self, name: str, is_class: bool = False) -> "MockObj":
+    def enum(self, name: str, is_class: bool = False) -> MockObj:
         return MockObjEnum(enum=name, is_class=is_class, base=self.base, op=self.op)
 
-    def operator(self, name: str) -> "MockObj":
+    def operator(self, name: str) -> MockObj:
         """Various other operations.
 
         Named operator because it's a C++ keyword and can't occur in valid code.
@@ -813,170 +812,170 @@ class MockObj(Expression):
         raise ValueError("Expected one of ref, ptr, const_ptr, const.")
 
     @property
-    def using(self) -> "MockObj":
+    def using(self) -> MockObj:
         assert self.op == "::"
         return MockObj(f"using namespace {self.base}")
 
-    def __getitem__(self, item: Union[str, Expression]) -> "MockObj":
+    def __getitem__(self, item: str | Expression) -> MockObj:
         next_op = "."
         if isinstance(item, str) and item.startswith("P"):
             item = item[1:]
             next_op = "->"
         return MockObj(f"{self.base}[{item}]", next_op)
 
-    def __lt__(self, other: SafeExpType) -> "MockObj":
+    def __lt__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "<", other)
         return MockObj(op)
 
-    def __le__(self, other: SafeExpType) -> "MockObj":
+    def __le__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "<=", other)
         return MockObj(op)
 
-    def __eq__(self, other: SafeExpType) -> "MockObj":
+    def __eq__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "==", other)
         return MockObj(op)
 
-    def __ne__(self, other: SafeExpType) -> "MockObj":
+    def __ne__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "!=", other)
         return MockObj(op)
 
-    def __gt__(self, other: SafeExpType) -> "MockObj":
+    def __gt__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, ">", other)
         return MockObj(op)
 
-    def __ge__(self, other: SafeExpType) -> "MockObj":
+    def __ge__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, ">=", other)
         return MockObj(op)
 
-    def __add__(self, other: SafeExpType) -> "MockObj":
+    def __add__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "+", other)
         return MockObj(op)
 
-    def __sub__(self, other: SafeExpType) -> "MockObj":
+    def __sub__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "-", other)
         return MockObj(op)
 
-    def __mul__(self, other: SafeExpType) -> "MockObj":
+    def __mul__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "*", other)
         return MockObj(op)
 
-    def __truediv__(self, other: SafeExpType) -> "MockObj":
+    def __truediv__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "/", other)
         return MockObj(op)
 
-    def __mod__(self, other: SafeExpType) -> "MockObj":
+    def __mod__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "%", other)
         return MockObj(op)
 
-    def __lshift__(self, other: SafeExpType) -> "MockObj":
+    def __lshift__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "<<", other)
         return MockObj(op)
 
-    def __rshift__(self, other: SafeExpType) -> "MockObj":
+    def __rshift__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, ">>", other)
         return MockObj(op)
 
-    def __and__(self, other: SafeExpType) -> "MockObj":
+    def __and__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "&", other)
         return MockObj(op)
 
-    def __xor__(self, other: SafeExpType) -> "MockObj":
+    def __xor__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "^", other)
         return MockObj(op)
 
-    def __or__(self, other: SafeExpType) -> "MockObj":
+    def __or__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "|", other)
         return MockObj(op)
 
-    def __radd__(self, other: SafeExpType) -> "MockObj":
+    def __radd__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(other, "+", self)
         return MockObj(op)
 
-    def __rsub__(self, other: SafeExpType) -> "MockObj":
+    def __rsub__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(other, "-", self)
         return MockObj(op)
 
-    def __rmul__(self, other: SafeExpType) -> "MockObj":
+    def __rmul__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(other, "*", self)
         return MockObj(op)
 
-    def __rtruediv__(self, other: SafeExpType) -> "MockObj":
+    def __rtruediv__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(other, "/", self)
         return MockObj(op)
 
-    def __rmod__(self, other: SafeExpType) -> "MockObj":
+    def __rmod__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(other, "%", self)
         return MockObj(op)
 
-    def __rlshift__(self, other: SafeExpType) -> "MockObj":
+    def __rlshift__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(other, "<<", self)
         return MockObj(op)
 
-    def __rrshift__(self, other: SafeExpType) -> "MockObj":
+    def __rrshift__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(other, ">>", self)
         return MockObj(op)
 
-    def __rand__(self, other: SafeExpType) -> "MockObj":
+    def __rand__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(other, "&", self)
         return MockObj(op)
 
-    def __rxor__(self, other: SafeExpType) -> "MockObj":
+    def __rxor__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(other, "^", self)
         return MockObj(op)
 
-    def __ror__(self, other: SafeExpType) -> "MockObj":
+    def __ror__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(other, "|", self)
         return MockObj(op)
 
-    def __iadd__(self, other: SafeExpType) -> "MockObj":
+    def __iadd__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "+=", other)
         return MockObj(op)
 
-    def __isub__(self, other: SafeExpType) -> "MockObj":
+    def __isub__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "-=", other)
         return MockObj(op)
 
-    def __imul__(self, other: SafeExpType) -> "MockObj":
+    def __imul__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "*=", other)
         return MockObj(op)
 
-    def __itruediv__(self, other: SafeExpType) -> "MockObj":
+    def __itruediv__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "/=", other)
         return MockObj(op)
 
-    def __imod__(self, other: SafeExpType) -> "MockObj":
+    def __imod__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "%=", other)
         return MockObj(op)
 
-    def __ilshift__(self, other: SafeExpType) -> "MockObj":
+    def __ilshift__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "<<=", other)
         return MockObj(op)
 
-    def __irshift__(self, other: SafeExpType) -> "MockObj":
+    def __irshift__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, ">>=", other)
         return MockObj(op)
 
-    def __iand__(self, other: SafeExpType) -> "MockObj":
+    def __iand__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "&=", other)
         return MockObj(op)
 
-    def __ixor__(self, other: SafeExpType) -> "MockObj":
+    def __ixor__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "^=", other)
         return MockObj(op)
 
-    def __ior__(self, other: SafeExpType) -> "MockObj":
+    def __ior__(self, other: SafeExpType) -> MockObj:
         op = BinOpExpression(self, "|=", other)
         return MockObj(op)
 
-    def __neg__(self) -> "MockObj":
+    def __neg__(self) -> MockObj:
         op = UnaryOpExpression("-", self)
         return MockObj(op)
 
-    def __pos__(self) -> "MockObj":
+    def __pos__(self) -> MockObj:
         op = UnaryOpExpression("+", self)
         return MockObj(op)
 
-    def __invert__(self) -> "MockObj":
+    def __invert__(self) -> MockObj:
         op = UnaryOpExpression("~", self)
         return MockObj(op)
 
@@ -1013,7 +1012,7 @@ class MockObjClass(MockObj):
             # pylint: disable=protected-access
             self._parents += paren._parents
 
-    def inherits_from(self, other: "MockObjClass") -> bool:
+    def inherits_from(self, other: MockObjClass) -> bool:
         if str(self) == str(other):
             return True
         for parent in self._parents:
@@ -1021,7 +1020,7 @@ class MockObjClass(MockObj):
                 return True
         return False
 
-    def template(self, *args: SafeExpType) -> "MockObjClass":
+    def template(self, *args: SafeExpType) -> MockObjClass:
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
             args = TemplateArguments(*args)
         else:

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome.components import time
 from esphome import automation
 from esphome import pins

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 CHIP_DOTSTAR = "dotstar"
 CHIP_WS2801 = "ws2801"
 CHIP_WS2811 = "ws2811"

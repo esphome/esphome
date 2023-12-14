@@ -1,7 +1,7 @@
+from __future__ import annotations
 import base64
 import secrets
 from pathlib import Path
-from typing import Optional
 
 import requests
 
@@ -83,7 +83,7 @@ async def to_code(config):
 def import_config(
     path: str,
     name: str,
-    friendly_name: Optional[str],
+    friendly_name: str | None,
     project_name: str,
     import_url: str,
     network: str = CONF_WIFI,

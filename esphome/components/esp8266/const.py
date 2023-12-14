@@ -1,3 +1,4 @@
+from __future__ import annotations
 import esphome.codegen as cg
 
 KEY_ESP8266 = "esp8266"

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import urllib.parse as urlparse
 
 import esphome.codegen as cg

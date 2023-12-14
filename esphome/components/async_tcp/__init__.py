@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # Dummy integration to allow relying on AsyncTCP
 import esphome.codegen as cg
 import esphome.config_validation as cv

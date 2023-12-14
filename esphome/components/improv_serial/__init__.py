@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome.components import improv_base
 from esphome.components.esp32 import get_esp32_variant
 from esphome.components.esp32.const import (

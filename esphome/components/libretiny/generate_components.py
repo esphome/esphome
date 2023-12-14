@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # Copyright (c) Kuba Szczodrzyński 2023-06-01.
 
 # pylint: skip-file

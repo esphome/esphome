@@ -1,3 +1,4 @@
+from __future__ import annotations
 from esphome import config_validation as cv
 from esphome import codegen as cg
 from esphome.const import CONF_BLUE, CONF_GREEN, CONF_ID, CONF_RED, CONF_WHITE

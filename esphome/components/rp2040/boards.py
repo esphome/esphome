@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 RP2040_BASE_PINS = {}
 
 RP2040_BOARD_PINS = {
