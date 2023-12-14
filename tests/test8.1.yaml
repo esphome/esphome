@@ -26,10 +26,10 @@ spi:
     clk_pin:
       number:  GPIO7
       allow_other_uses: false
-    #mosi_pin: GPIO6
+    mosi_pin: GPIO6
     interface: any
   - id: quad_spi
-    clk_pin: 47
+    #clk_pin: 47
     data_pins:
       -
         number: 40
