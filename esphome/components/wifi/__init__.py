@@ -296,12 +296,12 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=8.5, max=20.5)
             ),
-            cv.SplitDefault(CONF_ENABLE_BTM, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
-            ),
-            cv.SplitDefault(CONF_ENABLE_RRM, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
-            ),
+            cv.SplitDefault(
+                CONF_ENABLE_BTM, esp32_idf=False, esp32_s2_idf=False, esp32_s3_idf=False
+            ): cv.All(cv.boolean, cv.only_with_esp_idf),
+            cv.SplitDefault(
+                CONF_ENABLE_RRM, esp32_idf=False, esp32_s2_idf=False, esp32_s3_idf=False
+            ): cv.All(cv.boolean, cv.only_with_esp_idf),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional("enable_mdns"): cv.invalid(
                 "This option has been removed. Please use the [disabled] option under the "
