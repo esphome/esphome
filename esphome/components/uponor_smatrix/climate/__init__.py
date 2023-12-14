@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import climate
 from esphome.const import CONF_ID
 
-from . import (
+from .. import (
     uponor_smatrix_ns,
     UponorSmatrixDevice,
     UPONOR_SMATRIX_DEVICE_SCHEMA,

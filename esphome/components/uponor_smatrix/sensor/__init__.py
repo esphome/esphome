@@ -13,7 +13,7 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
-from . import (
+from .. import (
     uponor_smatrix_ns,
     UponorSmatrixDevice,
     UPONOR_SMATRIX_DEVICE_SCHEMA,
