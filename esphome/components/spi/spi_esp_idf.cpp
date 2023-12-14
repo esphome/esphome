@@ -1,4 +1,5 @@
 #include "spi.h"
+#include <utility>
 #include <vector>
 
 namespace esphome {
@@ -122,10 +123,11 @@ class SPIDelegateHw : public SPIDelegate {
     }
     spi_transaction_ext_t desc = {};
     desc.base.flags = SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_DUMMY;
-    if (bus_width == 4)
+    if (bus_width == 4) {
       desc.base.flags |= SPI_TRANS_MODE_QIO;
-    else if (bus_width == 8)
+    } else if (bus_width == 8) {
       desc.base.flags |= SPI_TRANS_MODE_OCT;
+}
     desc.command_bits = cmd_bits;
     desc.address_bits = addr_bits;
     desc.dummy_bits = 0;
@@ -225,7 +227,7 @@ class SPIBusHw : public SPIBus {
 
 SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
                               std::vector<InternalGPIOPin *> data_pins) {
-  return new SPIBusHw(clk, sdo, sdi, interface, data_pins);
+  return new SPIBusHw(clk, sdo, sdi, interface, std::move(data_pins));
 }
 
 #endif

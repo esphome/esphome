@@ -1,11 +1,12 @@
 #pragma once
 
+#include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
-#include <vector>
 #include <map>
+#include <utility>
+#include <vector>
 
 #ifdef USE_ARDUINO
 
@@ -335,7 +336,7 @@ class SPIComponent : public Component {
   void set_miso(GPIOPin *sdi) { this->sdi_pin_ = sdi; }
 
   void set_mosi(GPIOPin *sdo) { this->sdo_pin_ = sdo; }
-  void set_data_pins(std::vector<InternalGPIOPin *> pin) { this->data_pins_ = pin; }
+  void set_data_pins(std::vector<InternalGPIOPin *> pins) { this->data_pins_ = std::move(pins); }
 
   void set_interface(SPIInterface interface) {
     this->interface_ = interface;
@@ -362,7 +363,7 @@ class SPIComponent : public Component {
   std::map<SPIClient *, SPIDelegate *> devices_;
 
   static SPIBus *get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
-                         std::vector<InternalGPIOPin *> data_pins);
+                         const std::vector<InternalGPIOPin *>& data_pins);
 };
 
 using QuadSPIComponent = SPIComponent;
