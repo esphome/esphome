@@ -479,7 +479,7 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
     if (obj->get_object_id() != match.id)
       continue;
 
-    if (request->method() == HTTP_GET) {
+    if (request->method() == HTTP_GET && match.method.empty()) {
       std::string data = this->switch_json(obj, obj->state, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
@@ -510,7 +510,7 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
   for (button::Button *obj : App.get_buttons()) {
     if (obj->get_object_id() != match.id)
       continue;
-    if (request->method() == HTTP_POST && match.method == "press") {
+    if (match.method == "press") {
       this->schedule_([obj]() { obj->press(); });
       request->send(200);
       return;
@@ -563,7 +563,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
     if (obj->get_object_id() != match.id)
       continue;
 
-    if (request->method() == HTTP_GET) {
+    if (request->method() == HTTP_GET && match.method.empty()) {
       std::string data = this->fan_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
@@ -621,7 +621,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
     if (obj->get_object_id() != match.id)
       continue;
 
-    if (request->method() == HTTP_GET) {
+    if (request->method() == HTTP_GET && match.method.empty()) {
       std::string data = this->light_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
@@ -727,7 +727,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
     if (obj->get_object_id() != match.id)
       continue;
 
-    if (request->method() == HTTP_GET) {
+    if (request->method() == HTTP_GET && match.method.empty()) {
       std::string data = this->cover_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
       continue;
@@ -792,7 +792,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
     if (obj->get_object_id() != match.id)
       continue;
 
-    if (request->method() == HTTP_GET) {
+    if (request->method() == HTTP_GET && match.method.empty()) {
       std::string data = this->number_json(obj, obj->state, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
       return;
@@ -848,7 +848,7 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
     if (obj->get_object_id() != match.id)
       continue;
 
-    if (request->method() == HTTP_GET) {
+    if (request->method() == HTTP_GET && match.method.empty()) {
       std::string data = this->text_json(obj, obj->state, DETAIL_STATE);
       request->send(200, "text/json", data.c_str());
       return;
@@ -899,7 +899,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
     if (obj->get_object_id() != match.id)
       continue;
 
-    if (request->method() == HTTP_GET) {
+    if (request->method() == HTTP_GET && match.method.empty()) {
       auto detail = DETAIL_STATE;
       auto *param = request->getParam("detail");
       if (param && param->value() == "all") {
@@ -954,7 +954,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     if (obj->get_object_id() != match.id)
       continue;
 
-    if (request->method() == HTTP_GET) {
+    if (request->method() == HTTP_GET && match.method.empty()) {
       std::string data = this->climate_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
       return;
@@ -1100,7 +1100,7 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
     if (obj->get_object_id() != match.id)
       continue;
 
-    if (request->method() == HTTP_GET) {
+    if (request->method() == HTTP_GET && match.method.empty()) {
       std::string data = this->lock_json(obj, obj->state, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
     } else if (match.method == "lock") {
@@ -1139,7 +1139,7 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
     if (obj->get_object_id() != match.id)
       continue;
 
-    if (request->method() == HTTP_GET) {
+    if (request->method() == HTTP_GET && match.method.empty()) {
       std::string data = this->alarm_control_panel_json(obj, obj->get_state(), DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
       return;
@@ -1189,7 +1189,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_BUTTON
-  if (request->method() == HTTP_POST && match.domain == "button")
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "button")
     return true;
 #endif
 
