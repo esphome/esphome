@@ -46,16 +46,19 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_KILOWATT_HOURS,
             accuracy_decimals=3,
             device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("energy_delivered_tariff3"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOWATT_HOURS,
             accuracy_decimals=3,
             device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("energy_delivered_tariff4"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOWATT_HOURS,
             accuracy_decimals=3,
             device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("energy_returned_lux"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOWATT_HOURS,
