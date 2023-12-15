@@ -263,6 +263,11 @@ uart:
     rx_pin: GPIO10
     parity: EVEN
     baud_rate: 9600
+  - id: sen0231_uart
+    rx_pin:
+      allow_other_uses: true
+      number: 27
+    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -1326,6 +1331,11 @@ sensor:
     id: sen0321_ozone
     update_interval: 10s
     i2c_id: i2c_bus
+  - platform: sen0231
+    name: Workshop Formaldehyde Sensor
+    id: sen0231_formaldehyde
+    update_interval: 10s
+    uart_id: sen0231_uart
   - platform: sgp30
     eco2:
       name: Workshop eCO2
