@@ -25,6 +25,7 @@ class ATM90E32Component : public PollingComponent,
   void set_current_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].current_sensor_ = obj; }
   void set_power_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].power_sensor_ = obj; }
   void set_reactive_power_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].reactive_power_sensor_ = obj; }
+  void set_apparent_power_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].apparent_power_sensor_ = obj; }
   void set_forward_active_energy_sensor(int phase, sensor::Sensor *obj) {
     this->phase_[phase].forward_active_energy_sensor_ = obj;
   }
@@ -32,9 +33,13 @@ class ATM90E32Component : public PollingComponent,
     this->phase_[phase].reverse_active_energy_sensor_ = obj;
   }
   void set_power_factor_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].power_factor_sensor_ = obj; }
+  void set_phase_angle_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].phase_angle_sensor_ = obj; }
+  void set_harmonic_active_power_sensor(int phase, sensor::Sensor *obj) {
+    this->phase_[phase].harmonic_active_power_sensor_ = obj;
+  }
+  void set_peak_current_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].peak_current_sensor_ = obj; }
   void set_volt_gain(int phase, uint16_t gain) { this->phase_[phase].voltage_gain_ = gain; }
   void set_ct_gain(int phase, uint16_t gain) { this->phase_[phase].ct_gain_ = gain; }
-
   void set_freq_sensor(sensor::Sensor *freq_sensor) { freq_sensor_ = freq_sensor; }
   void set_chip_temperature_sensor(sensor::Sensor *chip_temperature_sensor) {
     chip_temperature_sensor_ = chip_temperature_sensor;
@@ -58,6 +63,9 @@ class ATM90E32Component : public PollingComponent,
   float get_local_phase_power_factor_(uint8_t /*phase*/);
   float get_local_phase_forward_active_energy_(uint8_t /*phase*/);
   float get_local_phase_reverse_active_energy_(uint8_t /*phase*/);
+  float get_local_phase_angle_(uint8_t /*phase*/);
+  float get_local_phase_harmonic_active_power_(uint8_t /*phase*/);
+  float get_local_phase_peak_current_(uint8_t /*phase*/);
   float get_phase_voltage_(uint8_t /*phase*/);
   float get_phase_voltage_avg_(uint8_t /*phase*/);
   float get_phase_current_(uint8_t /*phase*/);
@@ -67,10 +75,15 @@ class ATM90E32Component : public PollingComponent,
   float get_phase_power_factor_(uint8_t /*phase*/);
   float get_phase_forward_active_energy_(uint8_t /*phase*/);
   float get_phase_reverse_active_energy_(uint8_t /*phase*/);
+  float get_phase_angle_(uint8_t /*phase*/);
+  float get_phase_harmonic_active_power_(uint8_t /*phase*/);
+  float get_phase_peak_current_(uint8_t /*phase*/);
   float get_frequency_();
   float get_chip_temperature_();
   bool get_publish_interval_flag_() { return publish_interval_flag_; };
   void set_publish_interval_flag_(bool flag) { publish_interval_flag_ = flag; };
+  bool get_peak_current_abs_() { return peak_current_abs_; };
+  void set_peak_current_abs_(bool flag) { peak_current_abs_ = flag; };
 
   struct ATM90E32Phase {
     uint16_t voltage_gain_{7305};
@@ -84,13 +97,20 @@ class ATM90E32Component : public PollingComponent,
     float power_factor_{0};
     float forward_active_energy_{0};
     float reverse_active_energy_{0};
+    float phase_angle_{0};
+    float harmonic_active_power_{0};
+    float peak_current_{0};
     sensor::Sensor *voltage_sensor_{nullptr};
     sensor::Sensor *current_sensor_{nullptr};
     sensor::Sensor *power_sensor_{nullptr};
     sensor::Sensor *reactive_power_sensor_{nullptr};
+    sensor::Sensor *apparent_power_sensor_{nullptr};
     sensor::Sensor *power_factor_sensor_{nullptr};
     sensor::Sensor *forward_active_energy_sensor_{nullptr};
     sensor::Sensor *reverse_active_energy_sensor_{nullptr};
+    sensor::Sensor *phase_angle_sensor_{nullptr};
+    sensor::Sensor *harmonic_active_power_sensor_{nullptr};
+    sensor::Sensor *peak_current_sensor_{nullptr};
     uint32_t cumulative_forward_active_energy_{0};
     uint32_t cumulative_reverse_active_energy_{0};
   } phase_[3];
@@ -101,6 +121,7 @@ class ATM90E32Component : public PollingComponent,
   int line_freq_{60};
   int current_phases_{3};
   bool publish_interval_flag_{true};
+  bool peak_current_abs_{true};
 };
 
 }  // namespace atm90e32
