@@ -17,7 +17,6 @@ using namespace touchscreen;
 struct ICNT86TouchscreenStore {
   volatile bool touch;
   ISRInternalGPIOPin pin;
-
   static void gpio_intr(ICNT86TouchscreenStore *store);
 };
 
@@ -38,11 +37,14 @@ class ICNT86Touchscreen : public Touchscreen, public Component, public i2c::I2CD
   void ICNT_Write_(UWORD Reg, char *Data, UBYTE len);
   void I2C_Read_Byte_(UWORD Reg, char *Data, UBYTE len);
   void ICNT_ReadVersion_();
+  void reset_touch_sensor_();
 
   ICNT86TouchscreenStore store_;
 
   InternalGPIOPin *interrupt_pin_;
   GPIOPin *reset_pin_{nullptr};
+
+
 };
 
 }  // namespace icnt86
