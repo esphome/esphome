@@ -794,7 +794,7 @@ sensor:
     update_interval: 15s
     current_resistor: 0.001 ohm
     voltage_divider: 2351
-    change_mode_every: 16
+    change_mode_every: "never"
     initial_mode: VOLTAGE
     model: hlw8012
   - platform: total_daily_energy
