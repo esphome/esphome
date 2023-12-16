@@ -30,7 +30,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
         cv.GenerateID(CONF_NETWORK_ID): cv.declare_id(Resolver),
-        cv.Optional(CONF_HOSTSFILE): cv.string,
+        cv.Optional(CONF_HOSTSFILE): cv.file_,
         cv.Optional(CONF_HOSTS): cv.ensure_list(
             cv.Schema(
                 {
