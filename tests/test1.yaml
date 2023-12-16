@@ -87,6 +87,7 @@ network:
       ip_address: 10.20.18.33
     - name: ipv6.example.com
       ip_address: 2001:db8:4455:6677::32
+  hostsfile: hosts
 
 mdns:
   disabled: false

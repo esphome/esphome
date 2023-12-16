@@ -55,7 +55,9 @@ async def to_code(config):
             for host in config[CONF_HOSTS]
         ]
     if CONF_HOSTSFILE in config:
-        with open(config[CONF_HOSTSFILE], encoding="utf-8") as f:
+        with open(
+            CORE.relative_config_path(config[CONF_HOSTSFILE]), encoding="utf-8"
+        ) as f:
             for line in f.readlines():
                 if line.startswith("#"):
                     continue
