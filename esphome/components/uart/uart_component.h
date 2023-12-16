@@ -63,8 +63,8 @@ class UARTComponent {
   void set_baud_rate(uint32_t baud_rate) { baud_rate_ = baud_rate; }
   uint32_t get_baud_rate() const { return baud_rate_; }
 #ifdef USE_ESP32
-  virtual void load_settings() = 0;
-  virtual void load_settings(bool dump_config) = 0;
+  virtual void load_settings(){};
+  virtual void load_settings(bool dump_config){};
 #endif  // USE_ESP32
 
 #ifdef USE_UART_DEBUGGER
