@@ -6,6 +6,7 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.const import (
     CONF_ENABLE_IPV6,
     CONF_HOSTS,
+    CONF_HOSTSFILE,
     CONF_IP_ADDRESS,
     CONF_NAME,
 )
@@ -22,6 +23,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_NETWORK_ID): cv.declare_id(Resolver),
         cv.Optional(CONF_ENABLE_IPV6, default=False): cv.boolean,
+        cv.Optional(CONF_HOSTSFILE): cv.string,
         cv.Optional(CONF_HOSTS): cv.ensure_list(
             cv.Schema(
                 {
@@ -35,13 +37,25 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
+    hosts = []
     if CONF_HOSTS in config:
         hosts = [
             (host[CONF_NAME], IPAddress(host[CONF_IP_ADDRESS]))
             for host in config[CONF_HOSTS]
         ]
-    else:
-        hosts = []
+    if CONF_HOSTSFILE in config:
+        with open(config[CONF_HOSTSFILE], encoding="utf-8") as f:
+            for line in f.readlines():
+                if line.startswith("#"):
+                    continue
+                if line == "":
+                    continue
+                hostline = line.split()
+                if len(hostline) == 2:
+                    hosts.append((hostline[1], IPAddress(hostline[0])))
+                elif len(hostline) > 2:
+                    for host in hostline[1:]:
+                        hosts.append((host, IPAddress(hostline[0])))
 
     map_ = cg.std_ns.class_("multimap").template(cg.std_string, IPAddress)
     cg.new_Pvariable(config[CONF_NETWORK_ID], map_(hosts))
