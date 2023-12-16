@@ -59,9 +59,9 @@ class I2CBus {
   /// @details This is a pure virtual method that must be implemented in a subclass.
   virtual ErrorCode readv(uint8_t address, ReadBuffer *buffers, size_t count) = 0;
 
-  // virtual ErrorCode write(uint8_t address, const uint8_t *buffer, size_t len) {
-  //   return write(address, buffer, len, true);
-  // }
+  virtual ErrorCode write(uint8_t address, const uint8_t *buffer, size_t len) {
+    return write(address, buffer, len, true);
+  }
 
   /// @brief Creates a WriteBuffer and calls the writev() method to send the bytes from this buffer
   /// @param address address of the I²C component on the i2c bus
@@ -70,16 +70,16 @@ class I2CBus {
   /// @param stop true or false: True will send a stop message, releasing the bus after
   /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
-  virtual ErrorCode write(uint8_t address, const uint8_t *buffer, size_t length, bool stop = true) {
+  virtual ErrorCode write(uint8_t address, const uint8_t *buffer, size_t length, bool stop) {
     WriteBuffer buf;
     buf.data = buffer;
     buf.len = length;
     return writev(address, &buf, 1, stop);
   }
 
-  // virtual ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
-  //   return writev(address, buffers, cnt, true);
-  // }
+  virtual ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
+    return writev(address, buffers, cnt, true);
+  }
 
   /// @brief This virtual method writes bytes to an I2CBus from an array of WriteBuffer.
   /// @param address address of the I²C component on the i2c bus
@@ -89,7 +89,7 @@ class I2CBus {
   /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
   /// @details This is a pure virtual method that must be implemented in the subclass.
-  virtual ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t count, bool stop = true) = 0;
+  virtual ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t count, bool stop) = 0;
 
  protected:
   /// @brief Scans the I2C bus for devices. Devices presence is kept in an array of std::pair
