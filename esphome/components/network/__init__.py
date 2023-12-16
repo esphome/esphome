@@ -23,7 +23,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_NETWORK_ID): cv.declare_id(Resolver),
         cv.Optional(CONF_ENABLE_IPV6, default=False): cv.boolean,
-        cv.Optional(CONF_HOSTSFILE): cv.string,
+        cv.Optional(CONF_HOSTSFILE): cv.file_,
         cv.Optional(CONF_HOSTS): cv.ensure_list(
             cv.Schema(
                 {
