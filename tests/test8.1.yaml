@@ -51,6 +51,10 @@ i2c:
   sda: GPIO8
 
 touchscreen:
+  - platform: cst816
+    id: my_touchscreen
+    interrupt_pin:
+      number: 21
   - platform: tt21100
     display: displ8
     interrupt_pin:
