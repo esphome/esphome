@@ -40,7 +40,7 @@ struct WriteBuffer {
 class I2CBus {
  public:
   /// @brief Creates a ReadBuffer and calls the virtual readv() method to read bytes into this buffer
-  /// @param address address of the slave component on the i2c bus
+  /// @param address address of the I²C component on the i2c bus
   /// @param buffer pointer to an array of bytes that will be used to store the data received
   /// @param length length of the buffer = number of bytes to read
   /// @return an i2c::ErrorCode
@@ -52,7 +52,7 @@ class I2CBus {
   }
 
   /// @brief This virtual method reads bytes from an I2CBus into an array of ReadBuffer.
-  /// @param address address of the slave component on the i2c bus
+  /// @param address address of the I²C component on the i2c bus
   /// @param buffers pointer to an array of ReadBuffer
   /// @param count number of ReadBuffer to read
   /// @return an i2c::ErrorCode
@@ -64,7 +64,7 @@ class I2CBus {
   // }
 
   /// @brief Creates a WriteBuffer and calls the writev() method to send the bytes from this buffer
-  /// @param address address of the slave component on the i2c bus
+  /// @param address address of the I²C component on the i2c bus
   /// @param buffer pointer to an array of bytes that contains the data to be sent
   /// @param length length of the buffer = number of bytes to write
   /// @param stop true or false: True will send a stop message, releasing the bus after
@@ -82,7 +82,7 @@ class I2CBus {
   // }
 
   /// @brief This virtual method writes bytes to an I2CBus from an array of WriteBuffer.
-  /// @param address address of the slave component on the i2c bus
+  /// @param address address of the I²C component on the i2c bus
   /// @param buffers pointer to an array of WriteBuffer
   /// @param count number of WriteBuffer to write
   /// @param stop true or false: True will send a stop message, releasing the bus after

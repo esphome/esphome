@@ -37,12 +37,12 @@ class I2CRegister {
   /// @return pointer to current object
   I2CRegister &operator=(uint8_t value);
 
-  /// @brief overloads the compound &= operator. This allows to reset specific bit(s) of an I²C register
+  /// @brief overloads the compound &= operator. This allows to reset specific bits of an I²C register
   /// @param value used for the & operation
   /// @return pointer to current object
   I2CRegister &operator&=(uint8_t value);
 
-  /// @brief overloads the compound |= operator. This allows to set specific bit(s) of an I²C register
+  /// @brief overloads the compound |= operator. This allows to set specific bits of an I²C register
   /// @param value used for the & operation
   /// @return pointer to current object
   I2CRegister &operator|=(uint8_t value);
@@ -73,7 +73,7 @@ class I2CRegister {
 /// @details
 /// @n typical usage:
 /// @code
-// constexpr uint16_t X16_BIT_ADDR_REGISTER_1 = 0x1234;
+/// constexpr uint16_t X16_BIT_ADDR_REGISTER_1 = 0x1234;
 /// i2c::I2CRegister16 reg_1 = this->reg16(X16_BIT_ADDR_REGISTER_1); // declare
 /// reg_1 |= 0x01; // set bit
 /// reg_1 &= ~0x01; // reset bit
@@ -92,12 +92,12 @@ class I2CRegister16 {
   /// @return pointer to current object
   I2CRegister16 &operator=(uint8_t value);
 
-  /// @brief overloads the compound &= operator. This allows to reset specific bit(s) of an I²C register
+  /// @brief overloads the compound &= operator. This allows to reset specific bits of an I²C register
   /// @param value used for the & operation
   /// @return pointer to current object
   I2CRegister16 &operator&=(uint8_t value);
 
-  /// @brief overloads the compound |= operator. This allows to set bit(s) of an I²C register
+  /// @brief overloads the compound |= operator. This allows to set bits of an I²C register
   /// @param value used for the & operation
   /// @return pointer to current object
   I2CRegister16 &operator|=(uint8_t value);
