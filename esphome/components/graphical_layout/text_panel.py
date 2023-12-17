@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-from esphome.components import font, color
 from esphome.const import CONF_ID
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")

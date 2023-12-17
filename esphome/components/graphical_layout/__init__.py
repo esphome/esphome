@@ -23,6 +23,7 @@ CONF_ITEM_TYPE = "type"
 
 BASE_ITEM_SCHEMA = cv.Schema({})
 
+
 def item_type_schema(value):
     return ITEM_TYPE_SCHEMA(value)
 
@@ -32,7 +33,9 @@ ITEM_TYPE_SCHEMA = cv.typed_schema(
         text_panel.CONF_TYPE: BASE_ITEM_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(text_panel.TextPanel),
-                cv.Optional(text_panel.CONF_ITEM_PADDING, default=0): cv.templatable(cv.int_),
+                cv.Optional(text_panel.CONF_ITEM_PADDING, default=0): cv.templatable(
+                    cv.int_
+                ),
                 cv.Required(text_panel.CONF_FONT): cv.use_id(font.Font),
                 cv.Optional(text_panel.CONF_FOREGROUND_COLOR): cv.use_id(
                     color.ColorStruct
@@ -64,7 +67,7 @@ ITEM_TYPE_SCHEMA = cv.typed_schema(
                     cv.ensure_list(item_type_schema), cv.Length(min=1)
                 ),
             }
-        )
+        ),
     }
 )
 

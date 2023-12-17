@@ -3,7 +3,6 @@
 #include "esphome/components/display/display.h"
 #include "esphome/core/log.h"
 
-
 namespace esphome {
 namespace graphical_layout {
 
