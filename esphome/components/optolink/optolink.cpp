@@ -25,7 +25,7 @@ void Optolink::comm_() {
 }
 
 void Optolink::setup() {
-  ESP_LOGI("Optolink", "setup");
+  ESP_LOGI(TAG, "setup");
 
   if (logger_enabled_) {
     VitoWiFi.setLogger(this);
@@ -39,37 +39,54 @@ void Optolink::setup() {
 #endif
 }
 
-void Optolink::loop() { VitoWiFi.loop(); }
+void Optolink::loop() {
+  ESP_LOGD(TAG, "queue size: %d", VitoWiFi.queueSize());
+  VitoWiFi.loop();
+}
 
-void Optolink::set_error(const char *format, ...) {
+void Optolink::set_state(const char *format, ...) {
   va_list args;
   va_start(args, format);
   char buffer[128];
   std::vsnprintf(buffer, sizeof(buffer), format, args);
   va_end(args);
 
-  error_ = buffer;
+  state_ = buffer;
 }
 
-void Optolink::read_value(IDatapoint *datapoint) {
+bool Optolink::read_value(IDatapoint *datapoint) {
   if (datapoint != nullptr) {
-    ESP_LOGI("Optolink", "requesting value of datapoint %s", datapoint->getName());
-    VitoWiFi.readDatapoint(*datapoint);
+    ESP_LOGI(TAG, "requesting value of datapoint %s", datapoint->getName());
+    if (!VitoWiFi.readDatapoint(*datapoint)) {
+      ESP_LOGE(TAG, "read request rejected due to queue overload - queue size: %d", VitoWiFi.queueSize());
+      for (auto dp : datapoint->getCollection()) {
+        ESP_LOGD(TAG, "queued datapoint: %s", dp->getName());
+      }
+      return false;
+    }
   }
+  return true;
 }
 
-void Optolink::write_value(IDatapoint *datapoint, DPValue dp_value) {
+bool Optolink::write_value(IDatapoint *datapoint, DPValue dp_value) {
   if (datapoint != nullptr) {
     char buffer[64];
     dp_value.getString(buffer, sizeof(buffer));
-    ESP_LOGI("Optolink", "sending value %s to datapoint %s", buffer, datapoint->getName());
-    VitoWiFi.writeDatapoint(*datapoint, dp_value);
+    ESP_LOGI(TAG, "sending value %s of datapoint %s", buffer, datapoint->getName());
+    if (!VitoWiFi.writeDatapoint(*datapoint, dp_value)) {
+      ESP_LOGE(TAG, "write request rejected due to queue overload - queue size: %d", VitoWiFi.queueSize());
+      for (auto dp : datapoint->getCollection()) {
+        ESP_LOGE(TAG, "queued dp: %s", dp->getName());
+      }
+      return false;
+    }
   }
+  return true;
 }
 
 size_t Optolink::write(uint8_t ch) {
   if (ch == '\n') {
-    ESP_LOGD("VitoWifi", "%s", log_buffer_.c_str());
+    ESP_LOGD(TAG, "VitoWiFi: %s", log_buffer_.c_str());
     log_buffer_.clear();
   } else {
     log_buffer_.push_back(ch);

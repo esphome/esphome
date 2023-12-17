@@ -14,7 +14,7 @@ from esphome.const import (
 from esphome.core import CORE
 
 CODEOWNERS = ["@j0ta29"]
-DEPENDENCIES = ["text_sensor"]
+DEPENDENCIES = []
 AUTO_LOAD = []
 MULTI_CONF = False
 
@@ -72,7 +72,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    cg.add_library("VitoWiFi", "1.0.2")
+    cg.add_library("VitoWiFi", "1.1.2")
 
     cg.add_define(
         "VITOWIFI_PROTOCOL", cg.RawExpression(f"Optolink{config[CONF_PROTOCOL]}")

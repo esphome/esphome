@@ -3,7 +3,6 @@
 #ifdef USE_ARDUINO
 
 #include "esphome/core/component.h"
-#include "esphome/components/text_sensor/text_sensor.h"
 #include "VitoWiFi.h"
 
 namespace esphome {
@@ -11,7 +10,7 @@ namespace optolink {
 
 class Optolink : public esphome::Component, public Print {
  protected:
-  std::string error_ = "OK";
+  std::string state_ = "OK";
   std::string log_buffer_;
   bool logger_enabled_ = false;
   int rx_pin_;
@@ -30,11 +29,11 @@ class Optolink : public esphome::Component, public Print {
   void set_rx_pin(int rx_pin) { rx_pin_ = rx_pin; }
   void set_tx_pin(int tx_pin) { tx_pin_ = tx_pin; }
 
-  void write_value(IDatapoint *datapoint, DPValue dp_value);
-  void read_value(IDatapoint *datapoint);
+  bool write_value(IDatapoint *datapoint, DPValue dp_value);
+  bool read_value(IDatapoint *datapoint);
 
-  void set_error(const char *format, ...);
-  std::string get_error() { return error_; }
+  void set_state(const char *format, ...);
+  std::string get_state() { return state_; }
 };
 
 }  // namespace optolink
