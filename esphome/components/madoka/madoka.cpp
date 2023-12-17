@@ -10,9 +10,7 @@ using namespace esphome::climate;
 
 void Madoka::dump_config() { LOG_CLIMATE(TAG, "Daikin Madoka Climate Controller", this); }
 
-void Madoka::setup() {
-  this->receive_semaphore_ = xSemaphoreCreateMutex();
-}
+void Madoka::setup() { this->receive_semaphore_ = xSemaphoreCreateMutex(); }
 
 void Madoka::loop() {
   chunk chk = {};
@@ -77,8 +75,8 @@ void Madoka::control(const ClimateCall &call) {
     uint16_t target_low = *call.get_target_temperature_low() * 128;
     uint16_t target_high = *call.get_target_temperature_high() * 128;
     this->query(0x4040,
-                message({0x20, 0x02, (uint8_t)((target_high >> 8) & 0xFF), (uint8_t)(target_high & 0xFF), 0x21, 0x02,
-                         (uint8_t)((target_low >> 8) & 0xFF), (uint8_t)(target_low & 0xFF)}),
+                message({0x20, 0x02, (uint8_t) ((target_high >> 8) & 0xFF), (uint8_t) (target_high & 0xFF), 0x21, 0x02,
+                         (uint8_t) ((target_low >> 8) & 0xFF), (uint8_t) (target_low & 0xFF)}),
                 400);
   }
   if (call.get_fan_mode().has_value()) {
@@ -237,7 +235,7 @@ void Madoka::process_incoming_chunk(chunk chk) {
 std::vector<chunk> Madoka::split_payload(message msg) {
   std::vector<chunk> result;
   size_t len = msg.size();
-  result.push_back(chunk({0x00, (uint8_t)(len + 1)}));
+  result.push_back(chunk({0x00, (uint8_t) (len + 1)}));
   result[0].insert(result[0].end(), msg.begin(), min(msg.begin() + (MAX_CHUNK_SIZE - 2), msg.end()));
   int i = 0;
   for (i = 1; i < len / (MAX_CHUNK_SIZE - 1); i++) {  // from second to second-last
@@ -252,7 +250,7 @@ std::vector<chunk> Madoka::split_payload(message msg) {
 }
 
 message Madoka::prepare_message(uint16_t cmd, message args) {
-  message result({0x00, (uint8_t)((cmd >> 8) & 0xFF), (uint8_t)(cmd & 0xFF)});
+  message result({0x00, (uint8_t) ((cmd >> 8) & 0xFF), (uint8_t) (cmd & 0xFF)});
   result.insert(result.end(), args.begin(), args.end());
   return result;
 }
@@ -268,14 +266,13 @@ void Madoka::query(uint16_t cmd, message args, int t_d) {
   for (auto chk : chunks) {
     esp_err_t status;
     for (int j = 0; j < BLE_SEND_MAX_RETRIES; j++) {
-      status =
-          esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->wwr_handle_,
-                                    chk.size(), &chk[0], ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+      status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->wwr_handle_,
+                                        chk.size(), &chk[0], ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
       if (!status) {
         break;
       }
-      ESP_LOGD(TAG, "[%s] esp_ble_gattc_write_char failed (%d of %d), status=%d",
-                this->parent_->address_str().c_str(), j + 1, BLE_SEND_MAX_RETRIES, status);
+      ESP_LOGD(TAG, "[%s] esp_ble_gattc_write_char failed (%d of %d), status=%d", this->parent_->address_str().c_str(),
+               j + 1, BLE_SEND_MAX_RETRIES, status);
     }
     if (status) {
       ESP_LOGE(TAG, "[%s] Command could not be sent, last status=%d", this->parent_->address_str().c_str(), status);
@@ -364,10 +361,10 @@ void Madoka::parse_cb(message msg) {
       while (i < message_size) {
         uint8_t argument_id = msg[i++];
         uint8_t len = msg[i++];
-        if (this->cur_status_.mode  == 1) {}
-        else if (argument_id == 0x21 && len == 1 && this->cur_status_.mode == 4) {
+        if (this->cur_status_.mode == 1) {
+        } else if (argument_id == 0x21 && len == 1 && this->cur_status_.mode == 4) {
           fan_mode = msg[i];
-        } else if (argument_id == 0x20 && len == 1){
+        } else if (argument_id == 0x20 && len == 1) {
           fan_mode = msg[i];
         }
         i += len;
