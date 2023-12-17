@@ -17,6 +17,7 @@ using namespace touchscreen;
 struct ICNT86TouchscreenStore {
   volatile bool touch;
   ISRInternalGPIOPin pin;
+  uint8_t touch_count;
   static void gpio_intr(ICNT86TouchscreenStore *store);
 };
 
