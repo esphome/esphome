@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import climate, ble_client
 from esphome.const import CONF_ID
 
-CODEOWNERS = ["@petapton"]
+CODEOWNERS = ["@Petapton"]
 DEPENDENCIES = ["ble_client"]
 
 madoka_ns = cg.esphome_ns.namespace("madoka")
