@@ -895,16 +895,19 @@ METRIC_SUFFIXES = {
 
 
 def float_with_unit(quantity, regex_suffix, optional_unit=False):
-    pattern = re.compile(
-        f"^([-+]?[0-9]*\\.?[0-9]*)\\s*(\\w*?){regex_suffix}$", re.UNICODE
-    )
+    unit_regex = f"\\s*(\\w*?){regex_suffix}"
 
-    def validator(value):
+    unit_pattern = re.compile(f"^{unit_regex}$", re.UNICODE)
+
+    pattern = re.compile(f"^([-+]?[0-9]*\\.?[0-9]*){unit_regex}$", re.UNICODE)
+
+    def validator(value, to=None):
         if optional_unit:
             try:
                 return float_(value)
             except Invalid:
                 pass
+
         match = pattern.match(string(value))
 
         if match is None:
@@ -915,6 +918,15 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
             raise Invalid(f"Invalid {quantity} suffix {match.group(2)}")
 
         multiplier = METRIC_SUFFIXES[match.group(2)]
+
+        if to is not None:
+            unit_match = unit_pattern.match(string(to))
+
+            if unit_match is None:
+                raise Invalid(f"Invalid conversion suffix {unit_match.group(1)}")
+
+            multiplier /= METRIC_SUFFIXES[unit_match.group(1)]
+
         return mantissa * multiplier
 
     return validator
@@ -932,6 +944,10 @@ _temperature_k = float_with_unit("temperature", "(° K|° K|K)?")
 _temperature_f = float_with_unit("temperature", "(°F|° F|F)?")
 decibel = float_with_unit("decibel", "(dB|dBm|db|dbm)", optional_unit=True)
 pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
+
+
+def to_unit(value):
+    print(value)
 
 
 def temperature(value):
