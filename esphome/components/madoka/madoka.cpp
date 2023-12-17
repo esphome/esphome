@@ -157,9 +157,7 @@ void Madoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
         break;
       }
       chunk chk = chunk(param->notify.value, param->notify.value + param->notify.value_len);
-      // ESP_LOGD(TAG, "Start process_incoming_chunk");
       this->process_incoming_chunk(chk);
-      // ESP_LOGD(TAG, "End process_incoming_chunk");
       break;
     }
     default:
@@ -193,25 +191,25 @@ void Madoka::process_incoming_chunk(chunk chk) {
     this->parse_cb(stripped);
     return;
   }
-  if (this->chunks.count(chunk_id)) {
+  if (this->chunks_.count(chunk_id)) {
     ESP_LOGE(TAG, "Another packet with the same chunk ID is already in the buffer.");
     ESP_LOGD(TAG, "Chunk ID: %d.", chunk_id);
     return;
   }
-  this->chunks[chunk_id] = chk;
+  this->chunks_[chunk_id] = chk;
 
-  if (this->chunks.size() != this->chunks.rbegin()->first + 1) {
+  if (this->chunks_.size() != this->chunks_.rbegin()->first + 1) {
     ESP_LOGW(TAG, "Buffer is missing packets");
     return;
   }
 
   message msg;
-  int lim = this->chunks.size();
+  int lim = this->chunks_.size();
   for (int i = 0; i < lim; i++) {
-    msg.insert(msg.end(), this->chunks[i].begin() + 1, this->chunks[i].end());
+    msg.insert(msg.end(), this->chunks_[i].begin() + 1, this->chunks_[i].end());
   }
   if (validate_buffer(msg)) {
-    this->chunks.clear();
+    this->chunks_.clear();
     this->parse_cb(msg);
   }
 }
@@ -273,26 +271,26 @@ void Madoka::query(uint16_t cmd, message args, int t_d) {
 }
 
 void Madoka::parse_cb(message msg) {
-  uint16_t f_id = msg[2] << 8 | msg[3];
+  uint16_t function_id = msg[2] << 8 | msg[3];
   uint8_t i = 4;
-  uint8_t sz = msg.size();
+  uint8_t message_size = msg.size();
 
-  switch (f_id) {
+  switch (function_id) {
     case 0x0020:
-      while (i < sz) {
-        uint8_t a_id = msg[i++];
+      while (i < message_size) {
+        uint8_t argument_id = msg[i++];
         uint8_t len = msg[i++];
-        if (a_id == 0x20) {
+        if (argument_id == 0x20) {
           message val(msg.begin() + i, msg.begin() + i + len);
           this->cur_status_.status = val[0];
         }
         i += len;
       }
     case 0x0030:
-      while (i < sz) {
-        uint8_t a_id = msg[i++];
+      while (i < message_size) {
+        uint8_t argument_id = msg[i++];
         uint8_t len = msg[i++];
-        if (a_id == 0x20) {
+        if (argument_id == 0x20) {
           message val(msg.begin() + i, msg.begin() + i + len);
           this->cur_status_.mode = val[0];
         }
@@ -301,7 +299,7 @@ void Madoka::parse_cb(message msg) {
     default:
       break;
   }
-  switch (f_id) {
+  switch (function_id) {
     case 0x0020:
     case 0x0030:
       // ESP_LOGI(TAG, "status: %d, mode: %d", this->cur_status_.status, this->cur_status_.mode);
@@ -328,10 +326,10 @@ void Madoka::parse_cb(message msg) {
       }
       break;
     case 0x0040:
-      while (i < sz) {
-        uint8_t a_id = msg[i++];
+      while (i < message_size) {
+        uint8_t argument_id = msg[i++];
         uint8_t len = msg[i++];
-        switch (a_id) {
+        switch (argument_id) {
           case 0x20: {
             message val(msg.begin() + i, msg.begin() + i + len);
             this->target_temperature_high = (float) (val[0] << 8 | val[1]) / 128;
@@ -348,13 +346,13 @@ void Madoka::parse_cb(message msg) {
       break;
     case 0x0050: {
       uint8_t fan_mode = 255;
-      while (i < sz) {
-        uint8_t a_id = msg[i++];
+      while (i < message_size) {
+        uint8_t argument_id = msg[i++];
         uint8_t len = msg[i++];
         if (this->cur_status_.mode  == 1) {}
-        else if (a_id == 0x21 && len == 1 && this->cur_status_.mode == 4) {
+        else if (argument_id == 0x21 && len == 1 && this->cur_status_.mode == 4) {
           fan_mode = msg[i];
-        } else if (a_id == 0x20 && len == 1){
+        } else if (argument_id == 0x20 && len == 1){
           fan_mode = msg[i];
         }
         i += len;
@@ -379,10 +377,10 @@ void Madoka::parse_cb(message msg) {
       break;
     }
     case 0x0110:
-      while (i < sz) {
-        uint8_t a_id = msg[i++];
+      while (i < message_size) {
+        uint8_t argument_id = msg[i++];
         uint8_t len = msg[i++];
-        if (a_id == 0x40) {
+        if (argument_id == 0x40) {
           message val(msg.begin() + i, msg.begin() + i + len);
           this->current_temperature = val[0];
         }

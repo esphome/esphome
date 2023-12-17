@@ -54,7 +54,7 @@ namespace espbt = esphome::esp32_ble_tracker;
 
 class Madoka : public climate::Climate, public esphome::ble_client::BLEClientNode, public PollingComponent {
  protected:
-  std::map<uint8_t, chunk> chunks = {};
+  std::map<uint8_t, chunk> chunks_ = {};
   uint16_t notify_handle_;
   uint16_t wwr_handle_;
   SemaphoreHandle_t query_semaphore_ = NULL;
