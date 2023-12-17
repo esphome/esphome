@@ -334,6 +334,35 @@ bool Display::clip(int x, int y) {
     return false;
   return true;
 }
+
+void Display::set_local_coordinates_relative_to_current(int x_offset, int y_offset) {
+  Point p(0, 0);
+  if (!this->local_coordinate_.empty()) {
+    p = this->local_coordinate_.back();
+  }
+  p.x += x_offset;
+  p.y += y_offset;
+
+  this->local_coordinate_.push_back(p);
+
+}
+void Display::pop_local_coordinates() {
+  if (this->local_coordinate_.empty()) {
+    ESP_LOGE(TAG, "pop_local_coordinates: No local coordinates set");
+  } else {
+    this->local_coordinate_.pop_back();
+  }
+}
+
+Point Display::get_local_coordinates() {
+  Point p(0, 0);
+  if (!this->local_coordinate_.empty()) {
+    p = this->local_coordinate_.back();
+  }
+
+  return p;
+}
+
 bool Display::clamp_x_(int x, int w, int &min_x, int &max_x) {
   min_x = std::max(x, 0);
   max_x = std::min(x + w, this->get_width());
