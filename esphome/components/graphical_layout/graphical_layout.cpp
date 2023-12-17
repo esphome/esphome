@@ -19,7 +19,7 @@ void RootLayoutComponent::dump_config() {
 void RootLayoutComponent::render_at(display::Display *display, int x, int y) {
   display->set_local_coordinate(x, y);
 
-  display::Rect layout _rect = this->layout_root_->measure_item(display);
+  display::Rect layout_rect = this->layout_root_->measure_item(display);
   display::Rect clipping_rect = display::Rect(x, y, layout_rect.w, layout_rect.h);
 
   // TODO: Should clipping be relative to local?
@@ -29,7 +29,7 @@ void RootLayoutComponent::render_at(display::Display *display, int x, int y) {
   this->layout_root_->render(display, layout_rect);
 
   display->pop_local_coordinates();
-  display->shrink_clipping(clipping_rect);   
+  display->shrink_clipping(clipping_rect);
 }
 
 }  // namespace graphical_layout

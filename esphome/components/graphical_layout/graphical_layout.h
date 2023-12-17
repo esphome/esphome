@@ -27,7 +27,7 @@ public:
    * param[in] y: y coorindate to render at
    */
   void render_at(display::Display *display, int x, int y);
-  
+
   void set_layout_root(LayoutItem *layout) { this->layout_root_ = layout; };
 
 protected:
