@@ -2,12 +2,15 @@
 
 #include <string>
 #include <vector>
+#include <queue>
 #include <map>
 
 #include "esphome/core/component.h"
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/climate/climate.h"
+
+// #define USE_ESP32
 
 #ifdef USE_ESP32
 
@@ -54,10 +57,12 @@ namespace espbt = esphome::esp32_ble_tracker;
 
 class Madoka : public climate::Climate, public esphome::ble_client::BLEClientNode, public PollingComponent {
  protected:
-  std::map<uint8_t, chunk> chunks_ = {};
+  bool should_update_ = false;
+  std::queue<chunk> received_chunks_ = {};
+  std::map<uint8_t, chunk> pending_chunks_ = {};
   uint16_t notify_handle_;
   uint16_t wwr_handle_;
-  SemaphoreHandle_t query_semaphore_ = NULL;
+  SemaphoreHandle_t receive_semaphore_ = NULL;
   status cur_status_;
 
   std::vector<chunk> split_payload(message msg);

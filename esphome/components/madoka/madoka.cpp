@@ -10,9 +10,27 @@ using namespace esphome::climate;
 
 void Madoka::dump_config() { LOG_CLIMATE(TAG, "Daikin Madoka Climate Controller", this); }
 
-void Madoka::setup() { this->query_semaphore_ = xSemaphoreCreateRecursiveMutex(); }
+void Madoka::setup() {
+  this->receive_semaphore_ = xSemaphoreCreateMutex();
+}
 
-void Madoka::loop() {}
+void Madoka::loop() {
+  chunk chk = {};
+  if (xSemaphoreTake(this->receive_semaphore_, 0L)) {
+    if (this->received_chunks_.size() > 0) {
+      chk = this->received_chunks_.front();
+      this->received_chunks_.pop();
+    }
+    xSemaphoreGive(this->receive_semaphore_);
+    if (chk.size() > 0) {
+      this->process_incoming_chunk(chk);
+    }
+  }
+  if (this->should_update_) {
+    this->should_update_ = false;
+    this->update();
+  }
+}
 
 void Madoka::control(const ClimateCall &call) {
   if (this->node_state != espbt::ClientState::ESTABLISHED)
@@ -49,7 +67,7 @@ void Madoka::control(const ClimateCall &call) {
         ESP_LOGW(TAG, "Unsupported mode: %d", mode);
         break;
     }
-    ESP_LOGI(TAG, "status: %d, mode: %d", status_, mode_);
+    ESP_LOGD(TAG, "status: %d, mode: %d", status_, mode_);
     if (mode_ != 255) {
       this->query(0x4030, message({0x20, 0x01, (uint8_t) mode_}), 600);
     }
@@ -87,7 +105,7 @@ void Madoka::control(const ClimateCall &call) {
       this->query(0x4050, message({0x20, 0x01, (uint8_t) fan_mode_, 0x21, 0x01, (uint8_t) fan_mode_}), 200);
     }
   }
-  this->update();
+  this->should_update_ = true;
 }
 
 void Madoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
@@ -157,7 +175,9 @@ void Madoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
         break;
       }
       chunk chk = chunk(param->notify.value, param->notify.value + param->notify.value_len);
-      this->process_incoming_chunk(chk);
+      xSemaphoreTake(this->receive_semaphore_, portMAX_DELAY);
+      this->received_chunks_.push(chk);
+      xSemaphoreGive(this->receive_semaphore_);
       break;
     }
     default:
@@ -174,7 +194,7 @@ void Madoka::update() {
 
   std::vector<uint16_t> all_cmds({0x0020, 0x0030, 0x0040, 0x0050, 0x0110});
   for (auto cmd : all_cmds) {
-    this->query(cmd, message({0x00, 0x00}), 200);
+    this->query(cmd, message({0x00, 0x00}), 50);
   }
 }
 
@@ -191,25 +211,25 @@ void Madoka::process_incoming_chunk(chunk chk) {
     this->parse_cb(stripped);
     return;
   }
-  if (this->chunks_.count(chunk_id)) {
+  if (this->pending_chunks_.count(chunk_id)) {
     ESP_LOGE(TAG, "Another packet with the same chunk ID is already in the buffer.");
     ESP_LOGD(TAG, "Chunk ID: %d.", chunk_id);
     return;
   }
-  this->chunks_[chunk_id] = chk;
+  this->pending_chunks_[chunk_id] = chk;
 
-  if (this->chunks_.size() != this->chunks_.rbegin()->first + 1) {
+  if (this->pending_chunks_.size() != this->pending_chunks_.rbegin()->first + 1) {
     ESP_LOGW(TAG, "Buffer is missing packets");
     return;
   }
 
   message msg;
-  int lim = this->chunks_.size();
+  int lim = this->pending_chunks_.size();
   for (int i = 0; i < lim; i++) {
-    msg.insert(msg.end(), this->chunks_[i].begin() + 1, this->chunks_[i].end());
+    msg.insert(msg.end(), this->pending_chunks_[i].begin() + 1, this->pending_chunks_[i].end());
   }
   if (validate_buffer(msg)) {
-    this->chunks_.clear();
+    this->pending_chunks_.clear();
     this->parse_cb(msg);
   }
 }
@@ -240,34 +260,29 @@ message Madoka::prepare_message(uint16_t cmd, message args) {
 void Madoka::query(uint16_t cmd, message args, int t_d) {
   message payload = this->prepare_message(cmd, args);
 
-  while (!xSemaphoreTakeRecursive(this->query_semaphore_, portMAX_DELAY)) {
-    delay(10);
-  }
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     return;
-  } else {
-    std::vector<chunk> chunks = this->split_payload(payload);
+  }
+  std::vector<chunk> chunks = this->split_payload(payload);
 
-    for (auto chk : chunks) {
-      esp_err_t status;
-      for (int j = 0; j < BLE_SEND_MAX_RETRIES; j++) {
-        status =
-            esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->wwr_handle_,
-                                     chk.size(), &chk[0], ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-        if (!status) {
-          break;
-        }
-        ESP_LOGD(TAG, "[%s] esp_ble_gattc_write_char failed (%d of %d), status=%d",
-                 this->parent_->address_str().c_str(), j + 1, BLE_SEND_MAX_RETRIES, status);
+  for (auto chk : chunks) {
+    esp_err_t status;
+    for (int j = 0; j < BLE_SEND_MAX_RETRIES; j++) {
+      status =
+          esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->wwr_handle_,
+                                    chk.size(), &chk[0], ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+      if (!status) {
+        break;
       }
-      if (status) {
-        ESP_LOGE(TAG, "[%s] Command could not be sent, last status=%d", this->parent_->address_str().c_str(), status);
-        return;
-      }
+      ESP_LOGD(TAG, "[%s] esp_ble_gattc_write_char failed (%d of %d), status=%d",
+                this->parent_->address_str().c_str(), j + 1, BLE_SEND_MAX_RETRIES, status);
+    }
+    if (status) {
+      ESP_LOGE(TAG, "[%s] Command could not be sent, last status=%d", this->parent_->address_str().c_str(), status);
+      return;
     }
   }
   delay(t_d);
-  xSemaphoreGiveRecursive(this->query_semaphore_);
 }
 
 void Madoka::parse_cb(message msg) {
