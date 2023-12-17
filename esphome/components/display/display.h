@@ -18,6 +18,10 @@
 #include "esphome/components/qr_code/qr_code.h"
 #endif
 
+#ifdef USE_GRAPHICAL_DISPLAY_MENU
+#include "esphome/components/graphical_display_menu/graphical_display_menu.h"
+#endif
+
 #ifdef USE_GRAPHICAL_LAYOUT
 #include "esphome/components/graphical_layout/graphical_layout.h"
 #endif
@@ -396,6 +400,17 @@ class Display : public PollingComponent {
    */
   void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on = COLOR_ON, int scale = 1);
 #endif
+
+#ifdef USE_GRAPHICAL_DISPLAY_MENU
+  /**
+   * @param x The x coordinate of the upper left corner
+   * @param y The y coordinate of the upper left corner
+   * @param menu The GraphicalDisplayMenu to draw
+   * @param width Width of the menu
+   * @param height Height of the menu
+   */
+  void menu(int x, int y, graphical_display_menu::GraphicalDisplayMenu *menu, int width, int height);
+#endif  // USE_GRAPHICAL_DISPLAY_MENU
 
 #ifdef USE_GRAPHICAL_LAYOUT
   /** Draw the graphical layout with the top corner at [x,y]
