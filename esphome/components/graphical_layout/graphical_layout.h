@@ -16,7 +16,7 @@ namespace graphical_layout {
 
 /** Component used for rendering the layout*/
 class RootLayoutComponent : public Component {
-public:
+ public:
   void setup() override;
   void dump_config() override;
 
@@ -30,7 +30,7 @@ public:
 
   void set_layout_root(LayoutItem *layout) { this->layout_root_ = layout; };
 
-protected:
+ protected:
   LayoutItem *layout_root_{nullptr};
 };
 

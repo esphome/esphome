@@ -419,7 +419,7 @@ class Display : public PollingComponent {
    * @param y The y coordinate of the upper left corner
    * @param layout The graphical layout to render
    *
-  */
+   */
   void render_layout(int x, int y, graphical_layout::RootLayoutComponent *layout);
 #endif
 
@@ -516,7 +516,7 @@ class Display : public PollingComponent {
    *
    * @param[in] x: x coordinate as the new local. Absolute to the displays underlying 0
    * @param[in] y: y coordinate as the new local. Absolute to the displays underlying 0
-  */
+   */
   void set_local_coordinate(int x, int y) { this->local_coordinate_.push_back(Point(x, y)); };
 
   /** Changes the local coordinates to be to be (x_local + x_offset, y_local + y_offset)
@@ -525,11 +525,11 @@ class Display : public PollingComponent {
    *
    * @param[in] x_offset: x offset from the current local. Relative to the local x
    * @param[in] y_offset: y offset from the current local. Relative to the local y
-  */
+   */
   void set_local_coordinates_relative_to_current(int x_offset, int y_offset);
 
   /** Removes the most recent local coordinate system from use
-  */
+   */
   void pop_local_coordinates();
 
   /** Gets the current local coordinates in the displays absolute coordinate system

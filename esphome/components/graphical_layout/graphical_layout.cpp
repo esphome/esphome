@@ -8,8 +8,7 @@ namespace graphical_layout {
 
 static const char *const TAG = "rootlayoutcomponent";
 
-void RootLayoutComponent::setup() {
-}
+void RootLayoutComponent::setup() {}
 
 void RootLayoutComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Graphical Layout");

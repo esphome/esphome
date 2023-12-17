@@ -3,7 +3,6 @@
 #include "esphome/components/graphical_layout/graphical_layout.h"
 #include "esphome/components/font/font.h"
 
-
 namespace esphome {
 namespace graphical_layout {
 
@@ -22,7 +21,6 @@ class TextPanel : public LayoutItem {
   void set_font(display::BaseFont *font) { this->font_ = font; };
   void set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; };
   void set_background_color(Color background_color) { this->background_color_ = background_color; };
-
 
  protected:
   int item_padding_{0};

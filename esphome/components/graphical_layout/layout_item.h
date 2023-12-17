@@ -4,14 +4,13 @@ namespace esphome {
 namespace display {
 class Display;
 class Rect;
-}
+}  // namespace display
 
 namespace graphical_layout {
 
 /** LayoutItem is the base from which all items derive from*/
 class LayoutItem {
  public:
-
   /** Measures the item as it would be drawn on the display and returns the bounds for it
    *
    * param[in] display: Display that will be used for rendering. May be used to help with calculations
