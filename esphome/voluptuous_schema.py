@@ -203,6 +203,11 @@ class _Schema(vol.Schema):
         self._extra_schemas.append(validator)
         return self
 
+    def prepend_extra(self, validator):
+        validator = _Schema(validator)
+        self._extra_schemas.insert(0, validator)
+        return self
+
     @schema_extractor_extended
     def extend(self, *schemas, **kwargs):
         extra = kwargs.pop("extra", None)

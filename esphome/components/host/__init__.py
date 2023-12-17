@@ -3,6 +3,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_HOST,
 )
 from esphome.core import CORE
 import esphome.config_validation as cv
@@ -20,7 +21,7 @@ AUTO_LOAD = ["network"]
 
 def set_core_data(config):
     CORE.data[KEY_HOST] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "host"
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_HOST
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "host"
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version(1, 0, 0)
     return config

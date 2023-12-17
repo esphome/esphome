@@ -53,8 +53,8 @@ uint8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data) {
 }
 
 bool decode_mifare_classic_tlv(std::vector<uint8_t> &data, uint32_t &message_length, uint8_t &message_start_index) {
-  uint8_t i = get_mifare_classic_ndef_start_index(data);
-  if (i < 0 || data[i] != 0x03) {
+  auto i = get_mifare_classic_ndef_start_index(data);
+  if (data[i] != 0x03) {
     ESP_LOGE(TAG, "Error, Can't decode message length.");
     return false;
   }

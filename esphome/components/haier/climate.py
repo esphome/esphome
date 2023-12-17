@@ -38,16 +38,20 @@ PROTOCOL_MIN_TEMPERATURE = 16.0
 PROTOCOL_MAX_TEMPERATURE = 30.0
 PROTOCOL_TARGET_TEMPERATURE_STEP = 1.0
 PROTOCOL_CURRENT_TEMPERATURE_STEP = 0.5
+PROTOCOL_CONTROL_PACKET_SIZE = 10
 
 CODEOWNERS = ["@paveldn"]
 AUTO_LOAD = ["sensor"]
 DEPENDENCIES = ["climate", "uart"]
-CONF_WIFI_SIGNAL = "wifi_signal"
+CONF_ALTERNATIVE_SWING_CONTROL = "alternative_swing_control"
 CONF_ANSWER_TIMEOUT = "answer_timeout"
+CONF_CONTROL_METHOD = "control_method"
+CONF_CONTROL_PACKET_SIZE = "control_packet_size"
 CONF_DISPLAY = "display"
+CONF_HORIZONTAL_AIRFLOW = "horizontal_airflow"
 CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
 CONF_VERTICAL_AIRFLOW = "vertical_airflow"
-CONF_HORIZONTAL_AIRFLOW = "horizontal_airflow"
+CONF_WIFI_SIGNAL = "wifi_signal"
 
 PROTOCOL_HON = "HON"
 PROTOCOL_SMARTAIR2 = "SMARTAIR2"
@@ -107,6 +111,13 @@ SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS = {
     "SLEEP": ClimatePreset.CLIMATE_PRESET_SLEEP,
 }
 
+HonControlMethod = haier_ns.enum("HonControlMethod", True)
+SUPPORTED_HON_CONTROL_METHODS = {
+    "MONITOR_ONLY": HonControlMethod.MONITOR_ONLY,
+    "SET_GROUP_PARAMETERS": HonControlMethod.SET_GROUP_PARAMETERS,
+    "SET_SINGLE_PARAMETER": HonControlMethod.SET_SINGLE_PARAMETER,
+}
+
 
 def validate_visual(config):
     if CONF_VISUAL in config:
@@ -136,12 +147,10 @@ def validate_visual(config):
                     f"Configured visual temperature step {temp_step} is wrong, it should be a multiple of 0.5"
                 )
         else:
-            config[CONF_VISUAL][CONF_TEMPERATURE_STEP] = (
-                {
-                    CONF_TARGET_TEMPERATURE: PROTOCOL_TARGET_TEMPERATURE_STEP,
-                    CONF_CURRENT_TEMPERATURE: PROTOCOL_CURRENT_TEMPERATURE_STEP,
-                },
-            )
+            config[CONF_VISUAL][CONF_TEMPERATURE_STEP] = {
+                CONF_TARGET_TEMPERATURE: PROTOCOL_TARGET_TEMPERATURE_STEP,
+                CONF_CURRENT_TEMPERATURE: PROTOCOL_CURRENT_TEMPERATURE_STEP,
+            }
     else:
         config[CONF_VISUAL] = {
             CONF_MIN_TEMPERATURE: PROTOCOL_MIN_TEMPERATURE,
@@ -187,6 +196,9 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.GenerateID(): cv.declare_id(Smartair2Climate),
                     cv.Optional(
+                        CONF_ALTERNATIVE_SWING_CONTROL, default=False
+                    ): cv.boolean,
+                    cv.Optional(
                         CONF_SUPPORTED_PRESETS,
                         default=list(
                             SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS.keys()
@@ -199,7 +211,15 @@ CONFIG_SCHEMA = cv.All(
             PROTOCOL_HON: BASE_CONFIG_SCHEMA.extend(
                 {
                     cv.GenerateID(): cv.declare_id(HonClimate),
+                    cv.Optional(
+                        CONF_CONTROL_METHOD, default="SET_GROUP_PARAMETERS"
+                    ): cv.ensure_list(
+                        cv.enum(SUPPORTED_HON_CONTROL_METHODS, upper=True)
+                    ),
                     cv.Optional(CONF_BEEPER, default=True): cv.boolean,
+                    cv.Optional(
+                        CONF_CONTROL_PACKET_SIZE, default=PROTOCOL_CONTROL_PACKET_SIZE
+                    ): cv.int_range(min=PROTOCOL_CONTROL_PACKET_SIZE, max=50),
                     cv.Optional(
                         CONF_SUPPORTED_PRESETS,
                         default=list(SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS.keys()),
@@ -410,6 +430,8 @@ async def to_code(config):
     await climate.register_climate(var, config)
 
     cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
+    if CONF_CONTROL_METHOD in config:
+        cg.add(var.set_control_method(config[CONF_CONTROL_METHOD]))
     if CONF_BEEPER in config:
         cg.add(var.set_beeper_state(config[CONF_BEEPER]))
     if CONF_DISPLAY in config:
@@ -425,5 +447,15 @@ async def to_code(config):
         cg.add(var.set_supported_presets(config[CONF_SUPPORTED_PRESETS]))
     if CONF_ANSWER_TIMEOUT in config:
         cg.add(var.set_answer_timeout(config[CONF_ANSWER_TIMEOUT]))
+    if CONF_ALTERNATIVE_SWING_CONTROL in config:
+        cg.add(
+            var.set_alternative_swing_control(config[CONF_ALTERNATIVE_SWING_CONTROL])
+        )
+    if CONF_CONTROL_PACKET_SIZE in config:
+        cg.add(
+            var.set_extra_control_packet_bytes_size(
+                config[CONF_CONTROL_PACKET_SIZE] - PROTOCOL_CONTROL_PACKET_SIZE
+            )
+        )
     # https://github.com/paveldn/HaierProtocol
-    cg.add_library("pavlodn/HaierProtocol", "0.9.20")
+    cg.add_library("pavlodn/HaierProtocol", "0.9.24")

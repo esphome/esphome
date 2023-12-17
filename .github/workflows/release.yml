@@ -19,7 +19,7 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - name: Get tag
         id: tag
         # yamllint disable rule:line-length
@@ -43,9 +43,9 @@ jobs:
     if: github.repository == 'esphome/esphome' && github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5.0.0
         with:
           python-version: "3.x"
       - name: Set up python environment
@@ -63,49 +63,117 @@ jobs:
         run: twine upload dist/*
 
   deploy-docker:
-    name: Build and publish ESPHome ${{ matrix.image.title}}
+    name: Build ESPHome ${{ matrix.platform }}
     if: github.repository == 'esphome/esphome'
     permissions:
       contents: read
       packages: write
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.image.title == 'lint' }}
     needs: [init]
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm/v7
+          - linux/arm64
+    steps:
+      - uses: actions/checkout@v4.1.1
+      - name: Set up Python
+        uses: actions/setup-python@v5.0.0
+        with:
+          python-version: "3.9"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.0.0
+      - name: Set up QEMU
+        if: matrix.platform != 'linux/amd64'
+        uses: docker/setup-qemu-action@v3.0.0
+
+      - name: Log in to docker hub
+        uses: docker/login-action@v3.0.0
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Log in to the GitHub container registry
+        uses: docker/login-action@v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build docker
+        uses: ./.github/actions/build-image
+        with:
+          platform: ${{ matrix.platform }}
+          target: docker
+          baseimg: docker
+          suffix: ""
+          version: ${{ needs.init.outputs.tag }}
+
+      - name: Build ha-addon
+        uses: ./.github/actions/build-image
+        with:
+          platform: ${{ matrix.platform }}
+          target: hassio
+          baseimg: hassio
+          suffix: "hassio"
+          version: ${{ needs.init.outputs.tag }}
+
+      - name: Build lint
+        uses: ./.github/actions/build-image
+        with:
+          platform: ${{ matrix.platform }}
+          target: lint
+          baseimg: docker
+          suffix: lint
+          version: ${{ needs.init.outputs.tag }}
+
+  deploy-manifest:
+    name: Publish ESPHome ${{ matrix.image.title }} to ${{ matrix.registry }}
+    runs-on: ubuntu-latest
+    needs:
+      - init
+      - deploy-docker
+    if: github.repository == 'esphome/esphome'
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
         image:
           - title: "ha-addon"
-            suffix: "hassio"
             target: "hassio"
-            baseimg: "hassio"
+            suffix: "hassio"
           - title: "docker"
-            suffix: ""
             target: "docker"
-            baseimg: "docker"
+            suffix: ""
           - title: "lint"
-            suffix: "lint"
             target: "lint"
-            baseimg: "docker"
+            suffix: "lint"
+        registry:
+          - ghcr
+          - dockerhub
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4.1.1
+      - name: Download digests
+        uses: actions/download-artifact@v3.0.2
         with:
-          python-version: "3.9"
-
+          name: digests-${{ matrix.image.target }}-${{ matrix.registry }}
+          path: /tmp/digests
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-buildx-action@v3.0.0
 
       - name: Log in to docker hub
-        uses: docker/login-action@v2
+        if: matrix.registry == 'dockerhub'
+        uses: docker/login-action@v3.0.0
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Log in to the GitHub container registry
-        uses: docker/login-action@v2
+        if: matrix.registry == 'ghcr'
+        uses: docker/login-action@v3.0.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -114,34 +182,28 @@ jobs:
       - name: Generate short tags
         id: tags
         run: |
-          docker/generate_tags.py \
+          output=$(docker/generate_tags.py \
             --tag "${{ needs.init.outputs.tag }}" \
-            --suffix "${{ matrix.image.suffix }}"
+            --suffix "${{ matrix.image.suffix }}" \
+            --registry "${{ matrix.registry }}")
+          echo $output
+          for l in $output; do
+            echo $l >> $GITHUB_OUTPUT
+          done
 
-      - name: Build and push
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ./docker/Dockerfile
-          platforms: linux/amd64,linux/arm/v7,linux/arm64
-          target: ${{ matrix.image.target }}
-          push: true
-          # yamllint disable rule:line-length
-          cache-from: type=registry,ref=ghcr.io/${{ steps.tags.outputs.image }}:cache-${{ steps.tags.outputs.channel }}
-          cache-to: type=registry,ref=ghcr.io/${{ steps.tags.outputs.image }}:cache-${{ steps.tags.outputs.channel }},mode=max
-          # yamllint enable rule:line-length
-          tags: ${{ steps.tags.outputs.tags }}
-          build-args: |
-            BASEIMGTYPE=${{ matrix.image.baseimg }}
-            BUILD_VERSION=${{ needs.init.outputs.tag }}
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -Rcnr 'inputs | . / "," | map("-t " + .) | join(" ")' <<< "${{ steps.tags.outputs.tags}}") \
+            $(printf '${{ steps.tags.outputs.image }}@sha256:%s ' *)
 
   deploy-ha-addon-repo:
     if: github.repository == 'esphome/esphome' && github.event_name == 'release'
     runs-on: ubuntu-latest
-    needs: [deploy-docker]
+    needs: [deploy-manifest]
     steps:
       - name: Trigger Workflow
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7.0.1
         with:
           github-token: ${{ secrets.DEPLOY_HA_ADDON_REPO_TOKEN }}
           script: |

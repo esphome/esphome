@@ -1,17 +1,21 @@
 #pragma once
 
+#include "esphome/components/network/ip_address.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/network/ip_address.h"
 
 #include <string>
 #include <vector>
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#include <esp_wifi.h>
+#include <WiFi.h>
 #include <WiFiType.h>
+#include <esp_wifi.h>
+#endif
+
+#ifdef USE_LIBRETINY
 #include <WiFi.h>
 #endif
 
@@ -190,6 +194,7 @@ class WiFiComponent : public Component {
   void add_sta(const WiFiAP &ap);
   void clear_sta();
 
+#ifdef USE_WIFI_AP
   /** Setup an Access Point that should be created if no connection to a station can be made.
    *
    * This can also be used without set_sta(). Then the AP will always be active.
@@ -199,6 +204,7 @@ class WiFiComponent : public Component {
    */
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
+#endif  // USE_WIFI_AP
 
   void enable();
   void disable();
@@ -290,9 +296,16 @@ class WiFiComponent : public Component {
 
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
+  Trigger<> *get_connect_trigger() const { return this->connect_trigger_; };
+  Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; };
+
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
+
+#ifdef USE_WIFI_AP
   void setup_ap_config_();
+#endif  // USE_WIFI_AP
+
   void print_connect_params_();
 
   void wifi_loop_();
@@ -306,8 +319,12 @@ class WiFiComponent : public Component {
   void wifi_pre_setup_();
   WiFiSTAConnectStatus wifi_sta_connect_status_();
   bool wifi_scan_start_(bool passive);
+
+#ifdef USE_WIFI_AP
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
+#endif  // USE_WIFI_AP
+
   bool wifi_disconnect_();
   int32_t wifi_channel_();
   network::IPAddress wifi_subnet_mask_();
@@ -336,6 +353,11 @@ class WiFiComponent : public Component {
   void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
 #endif
 
+#ifdef USE_LIBRETINY
+  void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
+  void wifi_scan_done_callback_();
+#endif
+
   std::string use_address_;
   std::vector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
@@ -345,6 +367,7 @@ class WiFiComponent : public Component {
   bool has_ap_{false};
   WiFiAP ap_;
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
+  bool handled_connected_state_{false};
   uint32_t action_started_;
   uint8_t num_retried_{0};
   uint32_t last_connected_{0};
@@ -364,6 +387,9 @@ class WiFiComponent : public Component {
   bool rrm_{false};
 #endif
   bool enable_on_boot_;
+
+  Trigger<> *connect_trigger_{new Trigger<>()};
+  Trigger<> *disconnect_trigger_{new Trigger<>()};
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

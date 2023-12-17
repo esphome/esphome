@@ -26,14 +26,14 @@ void TemplateAlarmControlPanel::dump_config() {
   ESP_LOGCONFIG(TAG, "  Number of Codes: %u", this->codes_.size());
   if (!this->codes_.empty())
     ESP_LOGCONFIG(TAG, "  Requires Code To Arm: %s", YESNO(this->requires_code_to_arm_));
-  ESP_LOGCONFIG(TAG, "  Arming Away Time: %us", (this->arming_away_time_ / 1000));
+  ESP_LOGCONFIG(TAG, "  Arming Away Time: %" PRIu32 "s", (this->arming_away_time_ / 1000));
   if (this->arming_home_time_ != 0)
-    ESP_LOGCONFIG(TAG, "  Arming Home Time: %us", (this->arming_home_time_ / 1000));
+    ESP_LOGCONFIG(TAG, "  Arming Home Time: %" PRIu32 "s", (this->arming_home_time_ / 1000));
   if (this->arming_night_time_ != 0)
-    ESP_LOGCONFIG(TAG, "  Arming Night Time: %us", (this->arming_night_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Pending Time: %us", (this->pending_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Trigger Time: %us", (this->trigger_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Supported Features: %u", this->get_supported_features());
+    ESP_LOGCONFIG(TAG, "  Arming Night Time: %" PRIu32 "s", (this->arming_night_time_ / 1000));
+  ESP_LOGCONFIG(TAG, "  Pending Time: %" PRIu32 "s", (this->pending_time_ / 1000));
+  ESP_LOGCONFIG(TAG, "  Trigger Time: %" PRIu32 "s", (this->trigger_time_ / 1000));
+  ESP_LOGCONFIG(TAG, "  Supported Features: %" PRIu32, this->get_supported_features());
 #ifdef USE_BINARY_SENSOR
   for (auto sensor_pair : this->sensor_map_) {
     ESP_LOGCONFIG(TAG, "  Binary Sesnsor:");

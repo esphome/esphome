@@ -61,6 +61,7 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   uint16_t ddr_mask_ = 0x00;
   uint16_t input_mask_ = 0x00;
   uint16_t port_mask_ = 0x00;
+  uint16_t output_state_ = 0x00;
   bool has_keypad_ = false;
   uint8_t rows_ = 0;
   uint8_t cols_ = 0;

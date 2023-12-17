@@ -35,7 +35,7 @@ def run_git_command(cmd, cwd=None) -> str:
 
 
 def _compute_destination_path(key: str, domain: str) -> Path:
-    base_dir = Path(CORE.config_dir) / ".esphome" / domain
+    base_dir = Path(CORE.data_dir) / domain
     h = hashlib.new("sha256")
     h.update(key.encode())
     return base_dir / h.hexdigest()[:8]

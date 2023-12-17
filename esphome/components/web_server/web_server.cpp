@@ -34,6 +34,13 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+static const char *const HEADER_PNA_NAME = "Private-Network-Access-Name";
+static const char *const HEADER_PNA_ID = "Private-Network-Access-ID";
+static const char *const HEADER_CORS_REQ_PNA = "Access-Control-Request-Private-Network";
+static const char *const HEADER_CORS_ALLOW_PNA = "Access-Control-Allow-Private-Network";
+#endif
+
 #if USE_WEBSERVER_VERSION == 1
 void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
                const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
@@ -264,6 +271,32 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   }
 #endif
 
+#ifdef USE_TEXT
+  for (auto *obj : App.get_texts()) {
+    if (this->include_internal_ || !obj->is_internal()) {
+      write_row(stream, obj, "text", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+        text::Text *text = (text::Text *) obj;
+        auto mode = (int) text->traits.get_mode();
+        stream.print(R"(<input type=")");
+        if (mode == 2) {
+          stream.print(R"(password)");
+        } else {  // default
+          stream.print(R"(text)");
+        }
+        stream.print(R"(" minlength=")");
+        stream.print(text->traits.get_min_length());
+        stream.print(R"(" maxlength=")");
+        stream.print(text->traits.get_max_length());
+        stream.print(R"(" pattern=")");
+        stream.print(text->traits.get_pattern().c_str());
+        stream.print(R"(" value=")");
+        stream.print(text->state.c_str());
+        stream.print(R"("/>)");
+      });
+    }
+  }
+#endif
+
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects()) {
     if (this->include_internal_ || !obj->is_internal()) {
@@ -328,6 +361,18 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
+  // No gzip header here because the HTML file is so small
+  request->send(response);
+}
+#endif
+
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
+  AsyncWebServerResponse *response = request->beginResponse(200, "");
+  response->addHeader(HEADER_CORS_ALLOW_PNA, "true");
+  response->addHeader(HEADER_PNA_NAME, App.get_name().c_str());
+  std::string mac = get_mac_address_pretty();
+  response->addHeader(HEADER_PNA_ID, mac.c_str());
   request->send(response);
 }
 #endif
@@ -336,6 +381,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/css", ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
+  response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
 #endif
@@ -344,6 +390,7 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/javascript", ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
+  response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
 #endif
@@ -792,6 +839,57 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 }
 #endif
 
+#ifdef USE_TEXT
+void WebServer::on_text_update(text::Text *obj, const std::string &state) {
+  this->events_.send(this->text_json(obj, state, DETAIL_STATE).c_str(), "state");
+}
+void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_texts()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->text_json(obj, obj->state, DETAIL_STATE);
+      request->send(200, "text/json", data.c_str());
+      return;
+    }
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+    if (request->hasParam("value")) {
+      String value = request->getParam("value")->value();
+      call.set_value(value.c_str());
+    }
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+std::string WebServer::text_json(text::Text *obj, const std::string &value, JsonDetail start_config) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
+    set_json_id(root, obj, "text-" + obj->get_object_id(), start_config);
+    if (start_config == DETAIL_ALL) {
+      root["mode"] = (int) obj->traits.get_mode();
+    }
+    root["min_length"] = obj->traits.get_min_length();
+    root["max_length"] = obj->traits.get_max_length();
+    root["pattern"] = obj->traits.get_pattern();
+    if (obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD) {
+      root["state"] = "********";
+    } else {
+      root["state"] = value;
+    }
+    root["value"] = value;
+  });
+}
+#endif
+
 #ifdef USE_SELECT
 void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   this->events_.send(this->select_json(obj, state, DETAIL_STATE).c_str(), "state");
@@ -802,7 +900,12 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
       continue;
 
     if (request->method() == HTTP_GET) {
-      std::string data = this->select_json(obj, obj->state, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->select_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1060,6 +1163,18 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+  if (request->method() == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA)) {
+#ifdef USE_ARDUINO
+    // Header needs to be added to interesting header list for it to not be
+    // nuked by the time we handle the request later.
+    // Only required in Arduino framework.
+    request->addInterestingHeader(HEADER_CORS_REQ_PNA);
+#endif
+    return true;
+  }
+#endif
+
   UrlMatch match = match_url(request->url().c_str(), true);
   if (!match.valid)
     return false;
@@ -1108,6 +1223,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_TEXT
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "text")
+    return true;
+#endif
+
 #ifdef USE_SELECT
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "select")
     return true;
@@ -1146,6 +1266,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   if (request->url() == "/0.js") {
     this->handle_js_request(request);
+    return;
+  }
+#endif
+
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+  if (request->method() == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA)) {
+    this->handle_pna_cors_request(request);
     return;
   }
 #endif
@@ -1210,6 +1337,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_NUMBER
   if (match.domain == "number") {
     this->handle_number_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_TEXT
+  if (match.domain == "text") {
+    this->handle_text_request(request, match);
     return;
   }
 #endif

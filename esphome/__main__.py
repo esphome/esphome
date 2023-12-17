@@ -1,3 +1,4 @@
+# PYTHON_ARGCOMPLETE_OK
 import argparse
 import functools
 import logging
@@ -6,6 +7,8 @@ import re
 import sys
 import time
 from datetime import datetime
+
+import argcomplete
 
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
@@ -26,6 +29,8 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
     CONF_SUBSTITUTIONS,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -83,6 +88,8 @@ def choose_upload_log_host(
     options = []
     for port in get_serial_ports():
         options.append((f"{port.path} ({port.description})", port.path))
+    if default == "SERIAL":
+        return choose_prompt(options, purpose=purpose)
     if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
         options.append((f"Over The Air ({CORE.address})", CORE.address))
         if default == "OTA":
@@ -216,14 +223,16 @@ def compile_program(args, config):
     return 0 if idedata is not None else 1
 
 
-def upload_using_esptool(config, port):
+def upload_using_esptool(config, port, file):
     from esphome import platformio_api
 
     first_baudrate = config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
         "upload_speed", 460800
     )
 
-    def run_esptool(baud_rate):
+    if file is not None:
+        flash_images = [platformio_api.FlashImage(path=file, offset="0x0")]
+    else:
         idedata = platformio_api.get_idedata(config)
 
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
@@ -234,12 +243,13 @@ def upload_using_esptool(config, port):
             *idedata.extra_flash_images,
         ]
 
-        mcu = "esp8266"
-        if CORE.is_esp32:
-            from esphome.components.esp32 import get_esp32_variant
+    mcu = "esp8266"
+    if CORE.is_esp32:
+        from esphome.components.esp32 import get_esp32_variant
 
-            mcu = get_esp32_variant().lower()
+        mcu = get_esp32_variant().lower()
 
+    def run_esptool(baud_rate):
         cmd = [
             "esptool.py",
             "--before",
@@ -278,20 +288,26 @@ def upload_using_esptool(config, port):
     return run_esptool(115200)
 
 
+def upload_using_platformio(config, port):
+    from esphome import platformio_api
+
+    upload_args = ["-t", "upload", "-t", "nobuild"]
+    if port is not None:
+        upload_args += ["--upload-port", port]
+    return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+
+
 def upload_program(config, args, host):
     if get_port_type(host) == "SERIAL":
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
-            return upload_using_esptool(config, host)
+            file = getattr(args, "file", None)
+            return upload_using_esptool(config, host, file)
 
         if CORE.target_platform in (PLATFORM_RP2040):
-            from esphome import platformio_api
+            return upload_using_platformio(config, args.device)
 
-            upload_args = ["-t", "upload"]
-            if args.device is not None:
-                upload_args += ["--upload-port", args.device]
-            return platformio_api.run_platformio_cli_run(
-                config, CORE.verbose, *upload_args
-            )
+        if CORE.target_platform in (PLATFORM_BK72XX, PLATFORM_RTL87XX):
+            return upload_using_platformio(config, host)
 
         return 1  # Unknown target platform
 
@@ -371,9 +387,10 @@ def command_config(args, config):
     # add the console decoration so the front-end can hide the secrets
     if not args.show_secrets:
         output = re.sub(
-            r"(password|key|psk|ssid)\:\s(.*)", r"\1: \\033[5m\2\\033[6m", output
+            r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[5m\2\\033[6m", output
         )
-    safe_print(output)
+    if not CORE.quiet:
+        safe_print(output)
     _LOGGER.info("Configuration is valid!")
     return 0
 
@@ -498,7 +515,7 @@ def command_clean(args, config):
 def command_dashboard(args):
     from esphome.dashboard import dashboard
 
-    return dashboard.start_web_server(args)
+    return dashboard.start_dashboard(args)
 
 
 def command_update_all(args):
@@ -953,6 +970,7 @@ def parse_args(argv):
     # Finally, run the new-style parser again with the possibly swapped arguments,
     # and let it error out if the command is unparsable.
     parser.set_defaults(deprecated_argv_suggestion=deprecated_argv_suggestion)
+    argcomplete.autocomplete(parser)
     return parser.parse_args(arguments)
 
 

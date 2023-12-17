@@ -21,19 +21,38 @@ wifi:
   ssid: "MySSID"
   password: "password1"
 
+network:
+  enable_ipv6: true
+
+web_server:
+  port: 80
+  version: 2
+
 i2c:
-  sda: 4
-  scl: 5
+  sda:
+    allow_other_uses: true
+    number: 4
+  scl:
+    allow_other_uses: true
+    number: 5
   scan: false
 
 spi:
-  clk_pin: GPIO12
-  mosi_pin: GPIO13
-  miso_pin: GPIO14
+  clk_pin:
+    allow_other_uses: true
+    number: GPIO12
+  mosi_pin:
+    allow_other_uses: true
+    number: GPIO13
+  miso_pin:
+    allow_other_uses: true
+    number: GPIO14
 
 ota:
 
 logger:
+
+debug:
 
 sensor:
   - platform: apds9960
@@ -43,7 +62,9 @@ sensor:
     name: VL53L0x Distance
     address: 0x29
     update_interval: 60s
-    enable_pin: GPIO13
+    enable_pin:
+      allow_other_uses: true
+      number: GPIO13
     timeout: 200us
   - platform: apds9960
     type: clear
@@ -160,8 +181,10 @@ sensor:
       - id: custom_sensor
         name: Custom Sensor
 
-  - platform: ade7953
-    irq_pin: GPIO16
+  - platform: ade7953_i2c
+    irq_pin:
+      allow_other_uses: true
+      number: GPIO16
     voltage:
       name: ADE7953 Voltage
       id: ade7953_voltage
@@ -171,13 +194,62 @@ sensor:
     current_b:
       name: ADE7953 Current B
       id: ade7953_current_b
+    power_factor_a:
+      name: "ADE7953 Power Factor A"
+    power_factor_b:
+      name: "ADE7953 Power Factor B"
+    apparent_power_a:
+      name: "ADE7953 Apparent Power A"
+    apparent_power_b:
+      name: "ADE7953 Apparent Power B"
     active_power_a:
       name: ADE7953 Active Power A
-      id: ade7953_active_power_a
     active_power_b:
       name: ADE7953 Active Power B
-      id: ade7953_active_power_b
+    reactive_power_a:
+      name: "ADE7953 Reactive Power A"
+    reactive_power_b:
+      name: "ADE7953 Reactive Power B"
+    update_interval: 1s
 
+  - platform: ade7953_spi
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO04
+    irq_pin:
+      allow_other_uses: true
+      number: GPIO16
+    voltage:
+      name: ADE7953 Voltage
+    current_a:
+      name: ADE7953 Current A
+    current_b:
+      name: ADE7953 Current B
+    power_factor_a:
+      name: "ADE7953 Power Factor A"
+    power_factor_b:
+      name: "ADE7953 Power Factor B"
+    apparent_power_a:
+      name: "ADE7953 Apparent Power A"
+    apparent_power_b:
+      name: "ADE7953 Apparent Power B"
+    active_power_a:
+      name: ADE7953 Active Power A
+    active_power_b:
+      name: ADE7953 Active Power B
+    reactive_power_a:
+      name: "ADE7953 Reactive Power A"
+    reactive_power_b:
+      name: "ADE7953 Reactive Power B"
+    update_interval: 1s
+
+  - platform: ens160
+    eco2:
+      name: "ENS160 eCO2"
+    tvoc:
+      name: "ENS160 Total Volatile Organic Compounds"
+    aqi:
+      name: "ENS160 Air Quality Index"
   - platform: tmp102
     name: TMP102 Temperature
   - platform: hm3301
@@ -306,8 +378,12 @@ text_sensor:
         name: Custom Text Sensor
 
 sm2135:
-  data_pin: GPIO12
-  clock_pin: GPIO14
+  data_pin:
+    allow_other_uses: true
+    number: GPIO12
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO14
   rgb_current: 20mA
   cw_current: 60mA
 
@@ -325,6 +401,7 @@ switch:
     pin:
       mcp23xxx: mcp23017_hub
       number: 0
+      allow_other_uses: true
       mode: OUTPUT
     interlock: &interlock [gpio_switch1, gpio_switch2, gpio_switch3]
   - platform: gpio
@@ -332,11 +409,14 @@ switch:
     pin:
       mcp23xxx: mcp23008_hub
       number: 0
+      allow_other_uses: true
       mode: OUTPUT
     interlock: *interlock
   - platform: gpio
     id: gpio_switch3
-    pin: GPIO1
+    pin:
+      allow_other_uses: true
+      number: GPIO1
     interlock: *interlock
   - platform: custom
     lambda: |-
@@ -377,7 +457,6 @@ switch:
             direction: BACKWARD
             id: test_motor
 
-
 custom_component:
   lambda: |-
     auto s = new CustomComponent();
@@ -387,10 +466,18 @@ custom_component:
 stepper:
   - platform: uln2003
     id: my_stepper
-    pin_a: GPIO12
-    pin_b: GPIO13
-    pin_c: GPIO14
-    pin_d: GPIO15
+    pin_a:
+      allow_other_uses: true
+      number: GPIO12
+    pin_b:
+      allow_other_uses: true
+      number: GPIO13
+    pin_c:
+      allow_other_uses: true
+      number: GPIO14
+    pin_d:
+      allow_other_uses: true
+      number: GPIO15
     sleep_when_done: false
     step_mode: HALF_STEP
     max_speed: 250 steps/s
@@ -398,8 +485,12 @@ stepper:
     deceleration: inf
   - platform: a4988
     id: my_stepper2
-    step_pin: GPIO1
-    dir_pin: GPIO2
+    step_pin:
+      allow_other_uses: true
+      number: GPIO1
+    dir_pin:
+      allow_other_uses: true
+      number: GPIO2
     max_speed: 0.1 steps/s
     acceleration: 10 steps/s^2
     deceleration: 10 steps/s^2
@@ -503,11 +594,14 @@ cover:
 output:
   - platform: esp8266_pwm
     id: out
-    pin: D3
+    pin:
+      number: D3
     frequency: 50Hz
   - platform: esp8266_pwm
     id: out2
-    pin: D4
+    pin:
+      allow_other_uses: true
+      number: D4
   - platform: custom
     type: binary
     lambda: |-
@@ -519,7 +613,9 @@ output:
   - platform: sigma_delta_output
     id: sddac
     update_interval: 60s
-    pin: D4
+    pin:
+      allow_other_uses: true
+      number: D4
     turn_on_action:
       then:
         - logger.log: "Turned on"
@@ -540,7 +636,9 @@ output:
     outputs:
       - id: custom_float
   - platform: slow_pwm
-    pin: GPIO5
+    pin:
+      allow_other_uses: true
+      number: GPIO5
     id: my_slow_pwm
     period: 15s
     restart_cycle_on_state_change: false
@@ -566,7 +664,6 @@ mcp23017:
 mcp23008:
   id: mcp23008_hub
 
-
 light:
   - platform: hbridge
     name: Icicle Lights
@@ -583,13 +680,18 @@ servo:
 ttp229_lsf:
 
 ttp229_bsf:
-  sdo_pin: D2
-  scl_pin: D1
-
+  sdo_pin:
+    allow_other_uses: true
+    number: D2
+  scl_pin:
+    allow_other_uses: true
+    number: D1
 
 display:
   - platform: max7219digit
-    cs_pin: GPIO15
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO15
     num_chips: 4
     rotate_chip: 0
     intensity: 10
@@ -597,7 +699,6 @@ display:
     id: my_matrix
     lambda: |-
       it.printdigit("hello");
-
 
 http_request:
   useragent: esphome/device
@@ -616,10 +717,20 @@ button:
     name: Restart Button (Factory Default Settings)
 
 cd74hc4067:
-  pin_s0: GPIO12
-  pin_s1: GPIO13
-  pin_s2: GPIO14
-  pin_s3: GPIO15
+  pin_s0:
+    allow_other_uses: true
+    number: GPIO12
+  pin_s1:
+    allow_other_uses: true
+    number: GPIO13
+  pin_s2:
+    allow_other_uses: true
+    number: GPIO14
+  pin_s3:
+    allow_other_uses: true
+    number: GPIO15
 
 adc128s102:
-  cs_pin: GPIO12
+  cs_pin:
+    allow_other_uses: true
+    number: GPIO12
