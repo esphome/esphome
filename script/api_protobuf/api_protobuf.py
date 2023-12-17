@@ -4,7 +4,7 @@
 It's pretty crappy spaghetti code, but it works.
 
 you need to install protobuf-compiler:
-running protc --version should return
+running protoc --version should return
 libprotoc 3.6.1
 
 then run this script with python3 and the files
@@ -263,7 +263,7 @@ class Int32Type(TypeInfo):
     encode_func = "encode_int32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%d", {name});\n'
+        o = f'sprintf(buffer, "%" PRId32, {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -289,7 +289,7 @@ class Fixed32Type(TypeInfo):
     encode_func = "encode_fixed32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%u", {name});\n'
+        o = f'sprintf(buffer, "%" PRIu32, {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -371,7 +371,7 @@ class UInt32Type(TypeInfo):
     encode_func = "encode_uint32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%u", {name});\n'
+        o = f'sprintf(buffer, "%" PRIu32, {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -405,7 +405,7 @@ class SFixed32Type(TypeInfo):
     encode_func = "encode_sfixed32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%d", {name});\n'
+        o = f'sprintf(buffer, "%" PRId32, {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -431,7 +431,7 @@ class SInt32Type(TypeInfo):
     encode_func = "encode_sint32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%d", {name});\n'
+        o = f'sprintf(buffer, "%" PRId32, {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -700,6 +700,8 @@ cpp = file_header
 cpp += """\
 #include "api_pb2.h"
 #include "esphome/core/log.h"
+
+#include <cinttypes>
 
 namespace esphome {
 namespace api {
