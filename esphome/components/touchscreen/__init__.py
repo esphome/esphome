@@ -33,7 +33,7 @@ CONF_TRANSFORM = "transform"
 
 TOUCHSCREEN_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_DISPLAY): cv.use_id(display.Display),
+        cv.GenerateID(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
         cv.Optional(CONF_TRANSFORM): cv.Schema(
             {
                 cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
@@ -49,7 +49,6 @@ TOUCHSCREEN_SCHEMA = cv.Schema(
 
 
 async def register_touchscreen(var, config):
-    await cg.register_component(var, config)
 
     disp = await cg.get_variable(config[CONF_DISPLAY])
     cg.add(var.set_display(disp))

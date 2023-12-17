@@ -10,45 +10,24 @@ static const char *const TAG = "icnt86";
 #define UWORD uint16_t
 #define UDOUBLE uint32_t
 
-void ICNT86TouchscreenStore::gpio_intr(ICNT86TouchscreenStore *store) { store->touch = true; }
-
-float ICNT86Touchscreen::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
-
 void ICNT86Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up icnt86 Touchscreen...");
 
   // Register interrupt pin
   this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->interrupt_pin_->setup();
-  this->store_.pin = this->interrupt_pin_->to_isr();
-  this->interrupt_pin_->attach_interrupt(ICNT86TouchscreenStore::gpio_intr, &this->store_,
-                                         gpio::INTERRUPT_FALLING_EDGE);
+  this->attach_interrupt_(interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
 
   // Perform reset if necessary
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_();
   }
-
-  // Update display dimensions if they were updated during display setup
-  this->display_width_ = this->display_->get_width();
-  this->display_height_ = this->display_->get_height();
-  this->rotation_ = static_cast<TouchRotation>(this->display_->get_rotation());
-
   // Trigger initial read to activate the interrupt
-  this->store_.touch = true;
+  this->store_.touched = true;
 }
 
-void ICNT86Touchscreen::loop() {
-  if (!this->store_.touch) {
-    for (auto *listener : this->touch_listeners_)
-      listener->release();
-    return;
-  }
-  ESP_LOGD(TAG, "touch");
-
-  this->store_.touch = false;
-
+void ICNT86Touchscreen::update_touches() {
   char buf[100];
   char mask[1] = {0x00};
   // Read report length
@@ -56,47 +35,22 @@ void ICNT86Touchscreen::loop() {
 
   this->ICNT_Read_(0x1001, buf, 1);
   uint8_t touch_count = buf[0];
-  ESP_LOGD(TAG, "Touch count: %d", touch_count);
 
-  if (buf[0] == 0x00 || (touch_count > 5 || touch_count < 1)) {  // No new touch
-    this->reset_touch_sensor_();
+  if (touch_count == 0x00 || (touch_count > 5 || touch_count < 1)) {  // No new touch
     return;
   } else {
     this->ICNT_Read_(0x1002, buf, touch_count * 7);
     this->ICNT_Write_(0x1001, mask, 1);
+    ESP_LOGD(TAG, "Touch count: %d", touch_count);
 
     for (UBYTE i = 0; i < touch_count; i++) {
       UWORD X = ((UWORD) buf[2 + 7 * i] << 8) + buf[1 + 7 * i];
       UWORD Y = ((UWORD) buf[4 + 7 * i] << 8) + buf[3 + 7 * i];
       UWORD P = buf[5 + 7 * i];
       UWORD TouchEvenid = buf[6 + 7 * i];
+            ESP_LOGD(TAG, "Touch x: %d, y: %d, p: %d", X, Y, P);
 
-      TouchPoint tp;
-      switch (this->rotation_) {
-        case ROTATE_0_DEGREES:
-          // Origin is top right, so mirror X by default
-          tp.x = Y;
-          tp.y = X;
-          break;
-        case ROTATE_90_DEGREES:
-          tp.x = X;
-          tp.y = Y;
-          break;
-        case ROTATE_180_DEGREES:
-          tp.x = this->display_width_ - Y;
-          tp.y = this->display_height_ - X;
-          break;
-        case ROTATE_270_DEGREES:
-          tp.x = this->display_height_ - X;
-          tp.y = this->display_width_ - Y;
-          break;
-      }
-      tp.id = TouchEvenid;
-      tp.state = P;
-
-      ESP_LOGD(TAG, "Touch x: %d, y: %d, p: %d", tp.x, tp.y, P);
-
-      this->defer([this, tp]() { this->send_touch_(tp); });
+      this->set_raw_touch_position_(TouchEvenid, X, Y, P);
     }
   }
 }
@@ -123,14 +77,6 @@ void ICNT86Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-}
-
-void ICNT86Touchscreen::reset_touch_sensor_() {
-  this->ICNT_Write_(0x1001, mask, 1);
-  touch_count = 0;
-  for (auto *listener : this->touch_listeners_)
-    listener->release();
-  return;
 }
 
 void ICNT86Touchscreen::ICNT_Read_(UWORD Reg, char *Data, UBYTE len) { this->I2C_Read_Byte_(Reg, Data, len); }
