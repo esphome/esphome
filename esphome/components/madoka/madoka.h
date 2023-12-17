@@ -21,8 +21,8 @@ namespace madoka {
 
 static const char *TAG = "madoka";
 
-typedef std::vector<uint8_t> chunk;
-typedef std::vector<uint8_t> message;
+using chunk = std::vector<uint8_t>;
+using message = std::vector<uint8_t>;
 
 struct setpoint {
   uint16_t cooling;
@@ -86,6 +86,12 @@ class Madoka : public climate::Climate, public esphome::ble_client::BLEClientNod
         climate::CLIMATE_MODE_HEAT,
         climate::CLIMATE_MODE_FAN_ONLY,
         climate::CLIMATE_MODE_DRY,
+    });
+    traits.set_supported_fan_modes({
+        climate::CLIMATE_FAN_LOW,
+        climate::CLIMATE_FAN_MEDIUM,
+        climate::CLIMATE_FAN_HIGH,
+        climate::CLIMATE_FAN_AUTO,
     });
     traits.set_visual_min_temperature(16);
     traits.set_visual_max_temperature(32);

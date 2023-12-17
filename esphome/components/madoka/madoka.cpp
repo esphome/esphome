@@ -63,6 +63,30 @@ void Madoka::control(const ClimateCall &call) {
                          (uint8_t)((target_low >> 8) & 0xFF), (uint8_t)(target_low & 0xFF)}),
                 400);
   }
+  if (call.get_fan_mode().has_value()) {
+    uint8_t fan_mode = call.get_fan_mode().value();
+    uint8_t fan_mode_ = 255;
+    switch (fan_mode) {
+      case climate::CLIMATE_FAN_AUTO:
+        fan_mode_ = 0;
+        break;
+      case climate::CLIMATE_FAN_LOW:
+        fan_mode_ = 1;
+        break;
+      case climate::CLIMATE_FAN_MEDIUM:
+        fan_mode_ = 3;
+        break;
+      case climate::CLIMATE_FAN_HIGH:
+        fan_mode_ = 5;
+        break;
+      default:
+        ESP_LOGW(TAG, "Unsupported fan mode: %d", fan_mode);
+        break;
+    }
+    if (fan_mode_ != 255) {
+      this->query(0x4050, message({0x20, 0x01, (uint8_t) fan_mode_, 0x21, 0x01, (uint8_t) fan_mode_}), 200);
+    }
+  }
   this->update();
 }
 
@@ -150,7 +174,7 @@ void Madoka::update() {
     return;
   }
 
-  std::vector<uint16_t> all_cmds({0x0020, 0x0030, 0x0040, 0x0110});
+  std::vector<uint16_t> all_cmds({0x0020, 0x0030, 0x0040, 0x0050, 0x0110});
   for (auto cmd : all_cmds) {
     this->query(cmd, message({0x00, 0x00}), 200);
   }
@@ -322,8 +346,38 @@ void Madoka::parse_cb(message msg) {
         i += len;
       }
       break;
-    case 0x0050:
+    case 0x0050: {
+      uint8_t fan_mode = 255;
+      while (i < sz) {
+        uint8_t a_id = msg[i++];
+        uint8_t len = msg[i++];
+        if (this->cur_status_.mode  == 1) {}
+        else if (a_id == 0x21 && len == 1 && this->cur_status_.mode == 4) {
+          fan_mode = msg[i];
+        } else if (a_id == 0x20 && len == 1){
+          fan_mode = msg[i];
+        }
+        i += len;
+      }
+      switch (fan_mode) {
+        case 0:
+          this->fan_mode = climate::CLIMATE_FAN_AUTO;
+          break;
+        case 1:
+          this->fan_mode = climate::CLIMATE_FAN_LOW;
+          break;
+        case 2:
+        case 3:
+        case 4:
+          this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+          break;
+        case 5:
+          this->fan_mode = climate::CLIMATE_FAN_HIGH;
+        default:
+          break;
+      }
       break;
+    }
     case 0x0110:
       while (i < sz) {
         uint8_t a_id = msg[i++];
