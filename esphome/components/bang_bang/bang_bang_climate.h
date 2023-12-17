@@ -24,6 +24,7 @@ class BangBangClimate : public climate::Climate, public Component {
   void dump_config() override;
 
   void set_sensor(sensor::Sensor *sensor);
+  void set_humidity_sensor(sensor::Sensor *humidity_sensor);
   Trigger<> *get_idle_trigger() const;
   Trigger<> *get_cool_trigger() const;
   void set_supports_cool(bool supports_cool);
@@ -48,6 +49,9 @@ class BangBangClimate : public climate::Climate, public Component {
 
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
+  /// The sensor used for getting the current humidity
+  sensor::Sensor *humidity_sensor_{nullptr};
+
   /** The trigger to call when the controller should switch to idle mode.
    *
    * In idle mode, the controller is assumed to have both heating and cooling disabled.
