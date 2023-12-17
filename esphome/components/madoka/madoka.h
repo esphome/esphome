@@ -16,7 +16,7 @@
 
 #include <esp_gattc_api.h>
 
-#define MAX_CHUNK_SIZE 20
+static const uint8_t MAX_CHUNK_SIZE = 20;
 static const uint8_t BLE_SEND_MAX_RETRIES = 5;
 
 namespace esphome {
