@@ -10,7 +10,7 @@ namespace esphome {
 namespace display {
 class Display;
 class Rect;
-}
+}  // namespace display
 
 namespace graphical_layout {
 
@@ -21,11 +21,11 @@ public:
   void dump_config() override;
 
   /** Render the graphical layout to the screen
-   * 
+   *
    * param[in] display: Display that will be rendered to
    * param[in] x: x coordinate to render at
    * param[in] y: y coorindate to render at
-  */
+   */
   void render_at(display::Display *display, int x, int y);
   
   void set_layout_root(LayoutItem *layout) { this->layout_root_ = layout; };

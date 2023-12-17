@@ -14,15 +14,13 @@ namespace graphical_layout {
  *  It does not define what or how child items get used just that they exist for the item
 */
 class ContainerLayoutItem : public LayoutItem {
-  public:
+ public:
 
-    /** Adds an item to this container */
-    void add_item(LayoutItem *child) {
-      this->children_.push_back(child);
-    }
+  /** Adds an item to this container */
+  void add_item(LayoutItem *child) { this->children_.push_back(child); }
 
-  protected:
-    std::vector<LayoutItem *> children_;
+ protected:
+  std::vector<LayoutItem *> children_;
 };
 
 }

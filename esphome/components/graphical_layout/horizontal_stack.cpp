@@ -7,7 +7,7 @@
 namespace esphome {
 namespace graphical_layout {
 
-static const char*TAG = "horizontalstack";
+static const char *TAG = "horizontalstack";
 
 void HorizontalStack::dump_config(int indent_depth, int additional_level_depth) {
   ESP_LOGCONFIG(TAG, "%*sItem Padding: %i", indent_depth, "", this->item_padding_);
@@ -47,5 +47,5 @@ void HorizontalStack::render(display::Display *display, display::Rect bounds) {
   }
 }
 
-}
-}
+}  // namespace graphical_layout
+}  // namespace esphome

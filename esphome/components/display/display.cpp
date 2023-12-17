@@ -174,10 +174,10 @@ void Display::menu(int x, int y, graphical_display_menu::GraphicalDisplayMenu *m
 #endif  // USE_GRAPHICAL_DISPLAY_MENU
 
 #ifdef USE_GRAPHICAL_LAYOUT
-  void Display::render_layout(int x, int y, graphical_layout::RootLayoutComponent *layout) {
-    display::Rect b2(x, y, 100, 100);
-    layout->render_at(this, x, y);
-  }
+void Display::render_layout(int x, int y, graphical_layout::RootLayoutComponent *layout) {
+  display::Rect b2(x, y, 100, 100);
+  layout->render_at(this, x, y);
+}
 #endif
 
 void Display::get_text_bounds(int x, int y, const char *text, BaseFont *font, TextAlign align, int *x1, int *y1,
@@ -358,7 +358,6 @@ void Display::set_local_coordinates_relative_to_current(int x_offset, int y_offs
   p.y += y_offset;
 
   this->local_coordinate_.push_back(p);
-
 }
 void Display::pop_local_coordinates() {
   if (this->local_coordinate_.empty()) {

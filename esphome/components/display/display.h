@@ -414,11 +414,11 @@ class Display : public PollingComponent {
 
 #ifdef USE_GRAPHICAL_LAYOUT
   /** Draw the graphical layout with the top corner at [x,y]
-   * 
+   *
    * @param x The x coordinate of the upper left corner
    * @param y The y coordinate of the upper left corner
    * @param layout The graphical layout to render
-   * 
+   *
   */
   void render_layout(int x, int y, graphical_layout::RootLayoutComponent *layout);
 #endif
@@ -513,16 +513,16 @@ class Display : public PollingComponent {
 
   /** Changes the local coordinates to be relative to (x, y). After calling a pixel
    *  drawn at (10, 20) would be drawn to the screen at (x + 10, y + 20)
-   * 
+   *
    * @param[in] x: x coordinate as the new local. Absolute to the displays underlying 0
    * @param[in] y: y coordinate as the new local. Absolute to the displays underlying 0
   */
   void set_local_coordinate(int x, int y) { this->local_coordinate_.push_back(Point(x, y)); };
 
   /** Changes the local coordinates to be to be (x_local + x_offset, y_local + y_offset)
-   *  After calling a pixel drawn at (10, 20) would be drawn to the screen at 
+   *  After calling a pixel drawn at (10, 20) would be drawn to the screen at
    *  (x_local + x_offset + 10, y_local + y_offset + 20)
-   * 
+   *
    * @param[in] x_offset: x offset from the current local. Relative to the local x
    * @param[in] y_offset: y offset from the current local. Relative to the local y
   */
@@ -533,7 +533,7 @@ class Display : public PollingComponent {
   void pop_local_coordinates();
 
   /** Gets the current local coordinates in the displays absolute coordinate system
-  */
+   */
   Point get_local_coordinates();
 
   /** Clears all the local coordinate systems and revers to the displays absolute coordinate

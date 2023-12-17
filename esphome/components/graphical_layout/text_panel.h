@@ -12,7 +12,7 @@ const Color COLOR_OFF(0, 0, 0, 0);
 
 /** The TextPanel is a UI item that renders a single line of text to a display */
 class TextPanel : public LayoutItem {
-public:
+ public:
   const display::Rect measure_item(display::Display *display);
   void render(display::Display *display, display::Rect bounds);
   void dump_config(int indent_depth, int additional_level_depth);
@@ -24,7 +24,7 @@ public:
   void set_background_color(Color background_color) { this->background_color_ = background_color; };
 
 
-protected:
+ protected:
   int item_padding_{0};
   std::string text_{};
   display::BaseFont *font_{nullptr};
@@ -32,5 +32,5 @@ protected:
   Color background_color_{COLOR_OFF};
 };
 
-}
-}
+}  // namespace graphical_layout
+}  // namespace esphome

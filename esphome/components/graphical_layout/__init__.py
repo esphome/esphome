@@ -2,9 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import font, color
 from esphome.const import CONF_ID
-from esphome.components.graphical_layout import horizontal_stack
-from esphome.components.graphical_layout import vertical_stack
-from esphome.components.graphical_layout import text_panel
+from . import horizontal_stack
+from . import vertical_stack
+from . import text_panel
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 RootLayoutComponent = graphical_layout_ns.class_("RootLayoutComponent", cg.Component)
