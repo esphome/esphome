@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
@@ -20,7 +19,9 @@ async def config_to_layout_item(item_config, child_item_builder):
     for child_item_config in item_config[CONF_ITEMS]:
         child_item_type = child_item_config[CONF_ITEM_TYPE]
         if child_item_type in child_item_builder:
-            child_item_var = await child_item_builder[child_item_type](child_item_config, child_item_builder)
+            child_item_var = await child_item_builder[child_item_type](
+                child_item_config, child_item_builder
+            )
             cg.add(var.add_item(child_item_var))
         else:
             raise f"Do not know how to build type {child_item_type}"
