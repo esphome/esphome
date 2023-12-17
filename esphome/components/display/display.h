@@ -18,6 +18,10 @@
 #include "esphome/components/qr_code/qr_code.h"
 #endif
 
+#ifdef USE_GRAPHICAL_LAYOUT
+#include "esphome/components/graphical_layout/graphical_layout.h"
+#endif
+
 namespace esphome {
 namespace display {
 
@@ -391,6 +395,17 @@ class Display : public PollingComponent {
    * @param color_on The color to replace in binary images for the on bits.
    */
   void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on = COLOR_ON, int scale = 1);
+#endif
+
+#ifdef USE_GRAPHICAL_LAYOUT
+  /** Draw the graphical layout with the top corner at [x,y]
+   * 
+   * @param x The x coordinate of the upper left corner
+   * @param y The y coordinate of the upper left corner
+   * @param layout The graphical layout to render
+   * 
+  */
+  void render_layout(int x, int y, graphical_layout::RootLayoutComponent *layout);
 #endif
 
   /** Get the text bounds of the given string.

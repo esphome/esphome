@@ -166,6 +166,13 @@ void Display::qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on, in
 }
 #endif  // USE_QR_CODE
 
+#ifdef USE_GRAPHICAL_LAYOUT
+  void Display::render_layout(int x, int y, graphical_layout::RootLayoutComponent *layout) {
+    display::Rect b2(x, y, 100, 100);
+    layout->render_at(this, x, y);
+  }
+#endif
+
 void Display::get_text_bounds(int x, int y, const char *text, BaseFont *font, TextAlign align, int *x1, int *y1,
                               int *width, int *height) {
   int x_offset, baseline;
