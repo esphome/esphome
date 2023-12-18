@@ -72,7 +72,7 @@ class ST7567 : public display::DisplayBuffer {
   int get_width_internal() override;
   size_t get_buffer_length_();
 
-  int get_offset_x() { return flip_x_ ? 4 : 0; };
+  int get_offset_x_() { return flip_x_ ? 4 : 0; };
 
   const char *model_str_();
 
