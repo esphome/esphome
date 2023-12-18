@@ -69,7 +69,7 @@ std::vector<network::IPAddress> MDNSComponent::resolve(const std::string &servic
       if (std::count(resolved.begin(), resolved.end(), ip_addr) == 0) {
         resolved.push_back(ip_addr);
       }
-      ESP_LOGVV(TAG, "Found MDS %s", ip_addr.str().c_str());
+      ESP_LOGVV(TAG, "Found mDNS %s", ip_addr.str().c_str());
       a = a->next;
     }
     results = results->next;
