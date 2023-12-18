@@ -112,7 +112,7 @@ void HOT ST7567::draw_absolute_pixel_internal(int x, int y, Color color) {
   // but only first 128 pixels from each line are shown on screen
   // if screen got flipped horizontally then it shows last 128 pixels,
   // so we need to write x coordinate starting from column 4, not column 0
-  x += this->get_offset_x();
+  x += this->get_offset_x_();
 
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     ESP_LOGW(TAG, "Position out of area: %dx%d", x, y);
