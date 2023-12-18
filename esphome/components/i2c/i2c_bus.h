@@ -42,12 +42,12 @@ class I2CBus {
   /// @brief Creates a ReadBuffer and calls the virtual readv() method to read bytes into this buffer
   /// @param address address of the I²C component on the i2c bus
   /// @param buffer pointer to an array of bytes that will be used to store the data received
-  /// @param length length of the buffer = number of bytes to read
+  /// @param len length of the buffer = number of bytes to read
   /// @return an i2c::ErrorCode
-  virtual ErrorCode read(uint8_t address, uint8_t *buffer, size_t length) {
+  virtual ErrorCode read(uint8_t address, uint8_t *buffer, size_t len) {
     ReadBuffer buf;
     buf.data = buffer;
-    buf.len = length;
+    buf.len = len;
     return readv(address, &buf, 1);
   }
 
@@ -66,14 +66,14 @@ class I2CBus {
   /// @brief Creates a WriteBuffer and calls the writev() method to send the bytes from this buffer
   /// @param address address of the I²C component on the i2c bus
   /// @param buffer pointer to an array of bytes that contains the data to be sent
-  /// @param length length of the buffer = number of bytes to write
+  /// @param len length of the buffer = number of bytes to write
   /// @param stop true or false: True will send a stop message, releasing the bus after
   /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
-  virtual ErrorCode write(uint8_t address, const uint8_t *buffer, size_t length, bool stop) {
+  virtual ErrorCode write(uint8_t address, const uint8_t *buffer, size_t len, bool stop) {
     WriteBuffer buf;
     buf.data = buffer;
-    buf.len = length;
+    buf.len = len;
     return writev(address, &buf, 1, stop);
   }
 
