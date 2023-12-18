@@ -1,6 +1,7 @@
 #include "nextion.h"
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace nextion {
@@ -52,6 +53,7 @@ void Nextion::set_protocol_reparse_mode(bool active_mode) {
   this->write_str("connect");
   this->write_array(to_send, sizeof(to_send));
 }
+void Nextion::set_exit_reparse_on_start(bool exit_reparse) { this->exit_reparse_on_start_ = exit_reparse; }
 
 // Set Colors - Background
 void Nextion::set_component_background_color(const char *component, uint16_t color) {

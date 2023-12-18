@@ -1,4 +1,4 @@
-voluptuous==0.13.1
+voluptuous==0.14.1
 PyYAML==6.0.1
 paho-mqtt==1.6.1
 colorama==0.4.6
@@ -10,8 +10,8 @@ platformio==6.1.11  # When updating platformio, also update Dockerfile
 esptool==4.6.2
 click==8.1.7
 esphome-dashboard==20231107.0
-aioesphomeapi==19.2.1
-zeroconf==0.127.0
+aioesphomeapi==21.0.0
+zeroconf==0.130.0
 python-magic==0.4.27
 
 # esp-idf requires this, but doesn't bundle it by default
