@@ -134,7 +134,7 @@ class UARTComponent {
    *
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
-  virtual void load_settings(bool dump_config) = 0;
+  virtual void load_settings(bool dump_config){};
 
   /**
    * Load the UART settings.
@@ -146,7 +146,7 @@ class UARTComponent {
    *
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
-  virtual void load_settings() = 0;
+  virtual void load_settings(){};
 #endif  // USE_ESP32
 
 #ifdef USE_UART_DEBUGGER
