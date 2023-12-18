@@ -27,8 +27,8 @@ namespace wk2132_i2c {
 #if defined(USE_ESP8266)
 constexpr size_t XFER_MAX_SIZE = 128;  // ESP8266
 #elif defined(USE_ESP32_FRAMEWORK_ESP_IDF)
-constexpr size_t XFER_MAX_SIZE = 255;  // ESP32 & FRAMEWORK_ESP_IDF (TODO should be changed to 256 when bug fixed)
-#elif I2C_BUFFER_LENGTH < 256
+constexpr size_t XFER_MAX_SIZE = 256;  // ESP32 & FRAMEWORK_ESP_IDF
+#elif I2C_BUFFER_LENGTH < 256  // Here we have USE_ESP32_FRAMEWORK_ARDUINO
 constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;  // ESP32 & FRAMEWORK_ARDUINO
 #else
 constexpr size_t XFER_MAX_SIZE = 255;  // ESP32 & FRAMEWORK_ARDUINO we limit to 255 because Arduino' framework error

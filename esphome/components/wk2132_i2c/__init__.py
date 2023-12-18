@@ -61,6 +61,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    cg.add_build_flag("-DI2C_BUFFER_LENGTH=255")
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_name(str(config[CONF_ID])))
     cg.add(var.set_crystal(config[CONF_CRYSTAL]))
