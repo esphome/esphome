@@ -61,12 +61,8 @@ async def to_code(config):
             for line in f.readlines():
                 if line.startswith("#"):
                     continue
-                if line == "":
-                    continue
                 hostline = line.split()
-                if len(hostline) == 2:
-                    hosts.append((hostline[1], IPAddress(hostline[0])))
-                elif len(hostline) > 2:
+                if len(hostline) >= 2:
                     for host in hostline[1:]:
                         hosts.append((host, IPAddress(hostline[0])))
 
