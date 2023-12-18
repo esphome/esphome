@@ -49,6 +49,7 @@ TOUCHSCREEN_SCHEMA = cv.Schema(
 
 
 async def register_touchscreen(var, config):
+    await cg.register_component(var, config)
 
     disp = await cg.get_variable(config[CONF_DISPLAY])
     cg.add(var.set_display(disp))
