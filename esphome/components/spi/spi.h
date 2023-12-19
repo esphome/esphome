@@ -199,6 +199,15 @@ class SPIDelegate {
       rxbuf[i] = this->transfer(txbuf[i]);
   }
 
+  /**
+   * write a variable length data item, up to 16 bits.
+   * @param data The data to send. Should be LSB-aligned (i.e. top bits will be discarded.)
+   * @param num_bits The number of bits to send
+   */
+  virtual void write(uint16_t data, size_t num_bits) {
+    esph_log_e("spi_device", "variable length write not implemented");
+  }
+
   // write 16 bits
   virtual void write16(uint16_t data) {
     if (this->bit_order_ == BIT_ORDER_MSB_FIRST) {
@@ -270,6 +279,10 @@ class SPIDelegateBitBash : public SPIDelegate {
 
   uint8_t transfer(uint8_t data) override;
 
+  void write(uint16_t data, size_t num_bits) override;
+
+  void write16(uint16_t data) override { this->write(data, 16); };
+
  protected:
   GPIOPin *clk_pin_;
   GPIOPin *sdo_pin_;
@@ -284,6 +297,7 @@ class SPIDelegateBitBash : public SPIDelegate {
       continue;
     this->last_transition_ += this->wait_cycle_;
   }
+  uint16_t transfer_(uint16_t data, size_t num_bits);
 };
 
 class SPIBus {
@@ -407,6 +421,8 @@ class SPIDevice : public SPIClient {
   uint8_t read_byte() { return this->delegate_->transfer(0); }
 
   void read_array(uint8_t *data, size_t length) { return this->delegate_->read_array(data, length); }
+
+  void write(uint16_t data, size_t num_bits) { this->delegate_->write(data, num_bits); };
 
   void write_byte(uint8_t data) { this->delegate_->write_array(&data, 1); }
 
