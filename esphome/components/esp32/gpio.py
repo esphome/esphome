@@ -4,16 +4,14 @@ import logging
 
 from esphome.const import (
     CONF_ID,
-    CONF_INPUT,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OPEN_DRAIN,
     CONF_OUTPUT,
-    CONF_PULLDOWN,
-    CONF_PULLUP,
     CONF_IGNORE_PIN_VALIDATION_ERROR,
     CONF_IGNORE_STRAPPING_WARNING,
+    PLATFORM_ESP32,
 )
 from esphome import pins
 from esphome.core import CORE
@@ -35,7 +33,6 @@ from .const import (
     esp32_ns,
 )
 
-
 from .gpio_esp32 import esp32_validate_gpio_pin, esp32_validate_supports
 from .gpio_esp32_s2 import esp32_s2_validate_gpio_pin, esp32_s2_validate_supports
 from .gpio_esp32_c3 import esp32_c3_validate_gpio_pin, esp32_c3_validate_supports
@@ -43,7 +40,6 @@ from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_support
 from .gpio_esp32_c2 import esp32_c2_validate_gpio_pin, esp32_c2_validate_supports
 from .gpio_esp32_c6 import esp32_c6_validate_gpio_pin, esp32_c6_validate_supports
 from .gpio_esp32_h2 import esp32_h2_validate_gpio_pin, esp32_h2_validate_supports
-
 
 ESP32InternalGPIOPin = esp32_ns.class_("ESP32InternalGPIOPin", cg.InternalGPIOPin)
 
@@ -120,7 +116,7 @@ _esp32_validations = {
 }
 
 
-def verify_and_translate_pin(value):
+def validate_gpio_pin(value):
     value = _translate_pin(value)
     board = CORE.data[KEY_ESP32][KEY_BOARD]
     board_pins = boards.ESP32_BOARD_PINS.get(board, {})
@@ -135,24 +131,6 @@ def verify_and_translate_pin(value):
     variant = CORE.data[KEY_ESP32][KEY_VARIANT]
     if variant not in _esp32_validations:
         raise cv.Invalid(f"Unsupported ESP32 variant {variant}")
-
-    return value
-
-
-def validate_config(value):
-    mode = value[CONF_MODE]
-    is_output = mode[CONF_OUTPUT]
-    is_open_drain = mode[CONF_OPEN_DRAIN]
-    variant = CORE.data[KEY_ESP32][KEY_VARIANT]
-    if variant not in _esp32_validations:
-        raise cv.Invalid(f"Unsupported ESP32 variant {variant}")
-
-    if is_open_drain and not is_output:
-        raise cv.Invalid(
-            "Open-drain only works with output mode", [CONF_MODE, CONF_OPEN_DRAIN]
-        )
-
-    value = _esp32_validations[variant].usage_validation(value)
 
     ignore_pin_validation_warning = value[CONF_IGNORE_PIN_VALIDATION_ERROR]
     try:
@@ -172,6 +150,23 @@ def validate_config(value):
         if ignore_pin_validation_warning:
             raise cv.Invalid(f"GPIO{value[CONF_NUMBER]} is not a reserved pin")
 
+    return _esp32_validations[variant].pin_validation(value)
+
+
+def validate_supports(value):
+    mode = value[CONF_MODE]
+    is_output = mode[CONF_OUTPUT]
+    is_open_drain = mode[CONF_OPEN_DRAIN]
+    variant = CORE.data[KEY_ESP32][KEY_VARIANT]
+    if variant not in _esp32_validations:
+        raise cv.Invalid(f"Unsupported ESP32 variant {variant}")
+
+    if is_open_drain and not is_output:
+        raise cv.Invalid(
+            "Open-drain only works with output mode", [CONF_MODE, CONF_OPEN_DRAIN]
+        )
+
+    value = _esp32_validations[variant].usage_validation(value)
     return value
 
 
@@ -185,34 +180,23 @@ DRIVE_STRENGTHS = {
 }
 gpio_num_t = cg.global_ns.enum("gpio_num_t")
 
-
 CONF_DRIVE_STRENGTH = "drive_strength"
+
 ESP32_PIN_SCHEMA = cv.All(
-    {
-        cv.GenerateID(): cv.declare_id(ESP32InternalGPIOPin),
-        cv.Required(CONF_NUMBER): verify_and_translate_pin,
-        cv.Optional(CONF_MODE, default={}): cv.Schema(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OPEN_DRAIN, default=False): cv.boolean,
-                cv.Optional(CONF_PULLUP, default=False): cv.boolean,
-                cv.Optional(CONF_PULLDOWN, default=False): cv.boolean,
-            }
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-        cv.Optional(CONF_IGNORE_STRAPPING_WARNING, default=False): cv.boolean,
-        cv.Optional(CONF_IGNORE_PIN_VALIDATION_ERROR, default=False): cv.boolean,
-        cv.Optional(CONF_DRIVE_STRENGTH, default="20mA"): cv.All(
-            cv.float_with_unit("current", "mA", optional_unit=True),
-            cv.enum(DRIVE_STRENGTHS),
-        ),
-    },
-    validate_config,
+    pins.gpio_base_schema(ESP32InternalGPIOPin, validate_gpio_pin).extend(
+        {
+            cv.Optional(CONF_IGNORE_STRAPPING_WARNING, default=False): cv.boolean,
+            cv.Optional(CONF_DRIVE_STRENGTH, default="20mA"): cv.All(
+                cv.float_with_unit("current", "mA", optional_unit=True),
+                cv.enum(DRIVE_STRENGTHS),
+            ),
+        }
+    ),
+    validate_supports,
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("esp32", ESP32_PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register(PLATFORM_ESP32, ESP32_PIN_SCHEMA)
 async def esp32_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]

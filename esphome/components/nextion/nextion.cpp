@@ -2,6 +2,7 @@
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace nextion {
@@ -47,6 +48,9 @@ bool Nextion::check_connect_() {
 
     this->ignore_is_setup_ = true;
     this->send_command_("boguscommand=0");  // bogus command. needed sometimes after updating
+    if (this->exit_reparse_on_start_) {
+      this->send_command_("DRAKJHSUYDGBNCJHGJKSHBDN");
+    }
     this->send_command_("connect");
 
     this->comok_sent_ = millis();
@@ -93,7 +97,8 @@ bool Nextion::check_connect_() {
     connect_info.push_back(response.substr(start, end - start));
   }
 
-  if (connect_info.size() == 7) {
+  this->is_detected_ = (connect_info.size() == 7);
+  if (this->is_detected_) {
     ESP_LOGN(TAG, "Received connect_info %zu", connect_info.size());
 
     this->device_model_ = connect_info[2];
@@ -125,18 +130,19 @@ void Nextion::dump_config() {
   ESP_LOGCONFIG(TAG, "  Firmware Version: %s", this->firmware_version_.c_str());
   ESP_LOGCONFIG(TAG, "  Serial Number:    %s", this->serial_number_.c_str());
   ESP_LOGCONFIG(TAG, "  Flash Size:       %s", this->flash_size_.c_str());
-  ESP_LOGCONFIG(TAG, "  Wake On Touch:    %s", this->auto_wake_on_touch_ ? "True" : "False");
+  ESP_LOGCONFIG(TAG, "  Wake On Touch:    %s", YESNO(this->auto_wake_on_touch_));
+  ESP_LOGCONFIG(TAG, "  Exit reparse:     %s", YESNO(this->exit_reparse_on_start_));
 
   if (this->touch_sleep_timeout_ != 0) {
-    ESP_LOGCONFIG(TAG, "  Touch Timeout:       %" PRIu32, this->touch_sleep_timeout_);
+    ESP_LOGCONFIG(TAG, "  Touch Timeout:    %" PRIu32, this->touch_sleep_timeout_);
   }
 
   if (this->wake_up_page_ != -1) {
-    ESP_LOGCONFIG(TAG, "  Wake Up Page :       %d", this->wake_up_page_);
+    ESP_LOGCONFIG(TAG, "  Wake Up Page:     %d", this->wake_up_page_);
   }
 
   if (this->start_up_page_ != -1) {
-    ESP_LOGCONFIG(TAG, "  Start Up Page :      %d", this->start_up_page_);
+    ESP_LOGCONFIG(TAG, "  Start Up Page:    %d", this->start_up_page_);
   }
 }
 
@@ -164,6 +170,10 @@ void Nextion::add_setup_state_callback(std::function<void()> &&callback) {
 
 void Nextion::add_new_page_callback(std::function<void(uint8_t)> &&callback) {
   this->page_callback_.add(std::move(callback));
+}
+
+void Nextion::add_touch_event_callback(std::function<void(uint8_t, uint8_t, bool)> &&callback) {
+  this->touch_callback_.add(std::move(callback));
 }
 
 void Nextion::update_all_components() {
@@ -242,6 +252,7 @@ void Nextion::loop() {
     }
 
     this->set_auto_wake_on_touch(this->auto_wake_on_touch_);
+    this->set_exit_reparse_on_start(this->exit_reparse_on_start_);
 
     if (this->touch_sleep_timeout_ != 0) {
       this->set_touch_sleep_timeout(this->touch_sleep_timeout_);
@@ -432,11 +443,14 @@ void Nextion::process_nextion_commands_() {
         uint8_t page_id = to_process[0];
         uint8_t component_id = to_process[1];
         uint8_t touch_event = to_process[2];  // 0 -> release, 1 -> press
-        ESP_LOGD(TAG, "Got touch page=%u component=%u type=%s", page_id, component_id,
-                 touch_event ? "PRESS" : "RELEASE");
+        ESP_LOGD(TAG, "Got touch event:");
+        ESP_LOGD(TAG, "  page_id:      %u", page_id);
+        ESP_LOGD(TAG, "  component_id: %u", component_id);
+        ESP_LOGD(TAG, "  event type:   %s", touch_event ? "PRESS" : "RELEASE");
         for (auto *touch : this->touch_) {
           touch->process_touch(page_id, component_id, touch_event != 0);
         }
+        this->touch_callback_.call(page_id, component_id, touch_event != 0);
         break;
       }
       case 0x66: {  // Nextion initiated new page event return data.
@@ -447,7 +461,7 @@ void Nextion::process_nextion_commands_() {
         }
 
         uint8_t page_id = to_process[0];
-        ESP_LOGD(TAG, "Got new page=%u", page_id);
+        ESP_LOGD(TAG, "Got new page: %u", page_id);
         this->page_callback_.call(page_id);
         break;
       }
@@ -465,7 +479,10 @@ void Nextion::process_nextion_commands_() {
         uint16_t x = (uint16_t(to_process[0]) << 8) | to_process[1];
         uint16_t y = (uint16_t(to_process[2]) << 8) | to_process[3];
         uint8_t touch_event = to_process[4];  // 0 -> release, 1 -> press
-        ESP_LOGD(TAG, "Got touch at x=%u y=%u type=%s", x, y, touch_event ? "PRESS" : "RELEASE");
+        ESP_LOGD(TAG, "Got touch event:");
+        ESP_LOGD(TAG, "  x:    %u", x);
+        ESP_LOGD(TAG, "  y:    %u", y);
+        ESP_LOGD(TAG, "  type: %s", touch_event ? "PRESS" : "RELEASE");
         break;
       }
 
@@ -587,7 +604,9 @@ void Nextion::process_nextion_commands_() {
         variable_name = to_process.substr(0, index);
         ++index;
 
-        ESP_LOGN(TAG, "Got Switch variable_name=%s value=%d", variable_name.c_str(), to_process[0] != 0);
+        ESP_LOGN(TAG, "Got Switch:");
+        ESP_LOGN(TAG, "  variable_name: %s", variable_name.c_str());
+        ESP_LOGN(TAG, "  value:         %d", to_process[0] != 0);
 
         for (auto *switchtype : this->switchtype_) {
           switchtype->process_bool(variable_name, to_process[index] != 0);
@@ -618,7 +637,9 @@ void Nextion::process_nextion_commands_() {
           value += to_process[i + index + 1] << (8 * i);
         }
 
-        ESP_LOGN(TAG, "Got sensor variable_name=%s value=%d", variable_name.c_str(), value);
+        ESP_LOGN(TAG, "Got sensor:");
+        ESP_LOGN(TAG, "  variable_name: %s", variable_name.c_str());
+        ESP_LOGN(TAG, "  value:         %d", value);
 
         for (auto *sensor : this->sensortype_) {
           sensor->process_sensor(variable_name, value);
@@ -650,7 +671,9 @@ void Nextion::process_nextion_commands_() {
 
         text_value = to_process.substr(index);
 
-        ESP_LOGN(TAG, "Got Text Sensor variable_name=%s value=%s", variable_name.c_str(), text_value.c_str());
+        ESP_LOGN(TAG, "Got Text Sensor:");
+        ESP_LOGN(TAG, "  variable_name: %s", variable_name.c_str());
+        ESP_LOGN(TAG, "  value:         %s", text_value.c_str());
 
         // NextionTextSensorResponseQueue *nq = new NextionTextSensorResponseQueue;
         // nq->variable_name = variable_name;
@@ -681,7 +704,9 @@ void Nextion::process_nextion_commands_() {
         variable_name = to_process.substr(0, index);
         ++index;
 
-        ESP_LOGN(TAG, "Got Binary Sensor variable_name=%s value=%d", variable_name.c_str(), to_process[index] != 0);
+        ESP_LOGN(TAG, "Got Binary Sensor:");
+        ESP_LOGN(TAG, "  variable_name: %s", variable_name.c_str());
+        ESP_LOGN(TAG, "  value:         %d", to_process[index] != 0);
 
         for (auto *binarysensortype : this->binarysensortype_) {
           binarysensortype->process_bool(&variable_name[0], to_process[index] != 0);
@@ -771,7 +796,10 @@ void Nextion::set_nextion_sensor_state(int queue_type, const std::string &name, 
 }
 
 void Nextion::set_nextion_sensor_state(NextionQueueType queue_type, const std::string &name, float state) {
-  ESP_LOGN(TAG, "Received state for variable %s, state %lf for queue type %d", name.c_str(), state, queue_type);
+  ESP_LOGN(TAG, "Received state:");
+  ESP_LOGN(TAG, "  variable:   %s", name.c_str());
+  ESP_LOGN(TAG, "  state:      %lf", state);
+  ESP_LOGN(TAG, "  queue type: %d", queue_type);
 
   switch (queue_type) {
     case NextionQueueType::SENSOR: {
@@ -808,7 +836,9 @@ void Nextion::set_nextion_sensor_state(NextionQueueType queue_type, const std::s
 }
 
 void Nextion::set_nextion_text_state(const std::string &name, const std::string &state) {
-  ESP_LOGD(TAG, "Received state for variable %s, state %s", name.c_str(), state.c_str());
+  ESP_LOGD(TAG, "Received state:");
+  ESP_LOGD(TAG, "  variable: %s", name.c_str());
+  ESP_LOGD(TAG, "  state:    %s", state.c_str());
 
   for (auto *sensor : this->textsensortype_) {
     if (name == sensor->get_variable_name()) {

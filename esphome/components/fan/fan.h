@@ -72,6 +72,11 @@ class FanCall {
     return *this;
   }
   optional<FanDirection> get_direction() const { return this->direction_; }
+  FanCall &set_preset_mode(const std::string &preset_mode) {
+    this->preset_mode_ = preset_mode;
+    return *this;
+  }
+  std::string get_preset_mode() const { return this->preset_mode_; }
 
   void perform();
 
@@ -83,6 +88,7 @@ class FanCall {
   optional<bool> oscillating_;
   optional<int> speed_;
   optional<FanDirection> direction_{};
+  std::string preset_mode_{};
 };
 
 struct FanRestoreState {
@@ -90,6 +96,7 @@ struct FanRestoreState {
   int speed;
   bool oscillating;
   FanDirection direction;
+  uint8_t preset_mode;
 
   /// Convert this struct to a fan call that can be performed.
   FanCall to_call(Fan &fan);
@@ -107,6 +114,8 @@ class Fan : public EntityBase {
   int speed{0};
   /// The current direction of the fan
   FanDirection direction{FanDirection::FORWARD};
+  // The current preset mode of the fan
+  std::string preset_mode{};
 
   FanCall turn_on();
   FanCall turn_off();

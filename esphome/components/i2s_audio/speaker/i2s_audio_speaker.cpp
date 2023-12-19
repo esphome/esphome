@@ -29,7 +29,7 @@ void I2SAudioSpeaker::start_() {
   }
   this->state_ = speaker::STATE_RUNNING;
 
-  xTaskCreate(I2SAudioSpeaker::player_task, "speaker_task", 8192, (void *) this, 0, &this->player_task_handle_);
+  xTaskCreate(I2SAudioSpeaker::player_task, "speaker_task", 8192, (void *) this, 1, &this->player_task_handle_);
 }
 
 void I2SAudioSpeaker::player_task(void *params) {
@@ -219,6 +219,8 @@ size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length) {
   }
   return index;
 }
+
+bool I2SAudioSpeaker::has_buffered_data() const { return uxQueueMessagesWaiting(this->buffer_queue_) > 0; }
 
 }  // namespace i2s_audio
 }  // namespace esphome
