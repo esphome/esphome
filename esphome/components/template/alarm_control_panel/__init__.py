@@ -70,7 +70,7 @@ def validate_config(config):
 
 def validate_sensors(config):
     for sensor in config["binary_sensors"]:
-        if sensor["trigger_mode"] not in SensorTypes:
+        if sensor[CONF_TRIGGER_MODE] not in SensorTypes:
             valid_trigger_modes = ", ".join(SensorTypes)
             raise cv.Invalid(
                 f"Invalid trigger mode: \"{sensor['trigger_mode']}\". Must be one of: {valid_trigger_modes}"

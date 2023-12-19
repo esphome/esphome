@@ -41,7 +41,7 @@ using SensorDataStore = struct SensorDataStore { bool last_chime_state; };
 
 using SensorInfo = struct SensorInfo {
   uint16_t flags;
-  uint16_t type;
+  AlarmSensorType type;
   uint8_t store_index;
 };
 

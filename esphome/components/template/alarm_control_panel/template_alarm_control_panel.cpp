@@ -52,15 +52,13 @@ void TemplateAlarmControlPanel::dump_config() {
     ESP_LOGCONFIG(TAG, "    Chime mode: %s", TRUEFALSE(sensor_info.second.flags & BINARY_SENSOR_MODE_CHIME));
     const char *sensor_type;
     switch (sensor_info.second.type) {
-      case 0:
-        sensor_type = "delayed";
-        break;
-      case 1:
+      case ALARM_SENSOR_TYPE_INSTANT:
         sensor_type = "instant";
         break;
-      case 2:
+      case ALARM_SENSOR_TYPE_INTERIOR_FOLLOWER:
         sensor_type = "delayed_follower";
         break;
+      case ALARM_SENSOR_TYPE_DELAYED:
       default:
         sensor_type = "delayed";
     }
@@ -184,9 +182,10 @@ void TemplateAlarmControlPanel::loop() {
       this->publish_state(ACP_STATE_TRIGGERED);
     } else if (delayed_sensor_not_ready) {
       // Delayed sensors
-      this->publish_state(((this->pending_time_ > 0) && (this->current_state_ != ACP_STATE_TRIGGERED))
-                              ? ACP_STATE_PENDING
-                              : ACP_STATE_TRIGGERED);
+      if((this->pending_time_ > 0) && (this->current_state_ != ACP_STATE_TRIGGERED))
+        this->publish_state(ACP_STATE_PENDING);
+      else
+        this->publish_state(ACP_STATE_TRIGGERED);
     }
   } else if (future_state != this->current_state_) {
     this->publish_state(future_state);
