@@ -12,7 +12,7 @@ from esphome.const import (
 )
 from esphome.core import TimePeriod
 from esphome.components import esp32
-from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32 import get_esp32_variant, gpio
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32S2,
@@ -150,6 +150,7 @@ TOUCH_PAD_WATERPROOF_SHIELD_DRIVER = {
 
 
 def validate_touch_pad(value):
+    value = gpio.gpio_pin_number_validator(value)
     variant = get_esp32_variant()
     if variant not in TOUCH_PADS:
         raise cv.Invalid(f"ESP32 variant {variant} does not support touch pads.")

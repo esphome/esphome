@@ -206,13 +206,6 @@ ESP32_PIN_SCHEMA = cv.All(
 )
 
 
-def validate_entire_gpio_pin(number_validator):
-    def validate(config):
-        return config
-
-    return validate
-
-
 @pins.PIN_SCHEMA_REGISTRY.register(PLATFORM_ESP32, ESP32_PIN_SCHEMA)
 async def esp32_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
