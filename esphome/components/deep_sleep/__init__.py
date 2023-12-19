@@ -127,9 +127,9 @@ def validate_pin_number(value):
 def validate_config(config):
     if CORE.is_esp32:
         if get_esp32_variant() == VARIANT_ESP32C3 and CONF_ESP32_EXT1_WAKEUP in config:
-            raise cv.Invalid("ESP32-C3 does not support wakeup from touch.")
-        if get_esp32_variant() == VARIANT_ESP32C3 and CONF_TOUCH_WAKEUP in config:
             raise cv.Invalid("ESP32-C3 does not support wakeup from ext1")
+        if get_esp32_variant() == VARIANT_ESP32C3 and CONF_TOUCH_WAKEUP in config:
+            raise cv.Invalid("ESP32-C3 does not support wakeup from touch.")
         if (
             CONF_WAKEUP_PIN in config
             and isinstance(config[CONF_WAKEUP_PIN], list)
