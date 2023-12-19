@@ -182,7 +182,7 @@ void TemplateAlarmControlPanel::loop() {
       this->publish_state(ACP_STATE_TRIGGERED);
     } else if (delayed_sensor_not_ready) {
       // Delayed sensors
-      if((this->pending_time_ > 0) && (this->current_state_ != ACP_STATE_TRIGGERED))
+      if ((this->pending_time_ > 0) && (this->current_state_ != ACP_STATE_TRIGGERED))
         this->publish_state(ACP_STATE_PENDING);
       else
         this->publish_state(ACP_STATE_TRIGGERED);
