@@ -44,7 +44,6 @@ light:
     entity_category: diagnostic
     restore_mode: ALWAYS_OFF
 
-
 spi:
   id: spi_id_1
   clk_pin: GPIO7
@@ -78,7 +77,7 @@ output:
     pin:
       # This pin is reserved on the ESP32S3!
       number: 26
-      ignore_pin_validation_warning: true
+      ignore_pin_validation_error: true
 
 touchscreen:
   - platform: tt21100

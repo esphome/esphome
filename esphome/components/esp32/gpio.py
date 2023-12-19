@@ -116,7 +116,7 @@ _esp32_validations = {
 }
 
 
-def validate_gpio_pin(value):
+def gpio_pin_number_validator(value):
     value = _translate_pin(value)
     board = CORE.data[KEY_ESP32][KEY_BOARD]
     board_pins = boards.ESP32_BOARD_PINS.get(board, {})
@@ -132,25 +132,33 @@ def validate_gpio_pin(value):
     if variant not in _esp32_validations:
         raise cv.Invalid(f"Unsupported ESP32 variant {variant}")
 
-    ignore_pin_validation_warning = value[CONF_IGNORE_PIN_VALIDATION_ERROR]
+    return value
+
+
+def validate_gpio_pin(pin):
+    variant = CORE.data[KEY_ESP32][KEY_VARIANT]
+    if variant not in _esp32_validations:
+        raise cv.Invalid(f"Unsupported ESP32 variant {variant}")
+
+    ignore_pin_validation_warning = pin[CONF_IGNORE_PIN_VALIDATION_ERROR]
     try:
-        value[CONF_NUMBER] = _esp32_validations[variant].pin_validation(
-            value[CONF_NUMBER]
-        )
+        pin[CONF_NUMBER] = _esp32_validations[variant].pin_validation(pin[CONF_NUMBER])
     except cv.Invalid as exc:
         if not ignore_pin_validation_warning:
             raise
 
         _LOGGER.warning(
-            "Ignoring validation error on pin %d; error: %s", value[CONF_NUMBER], exc
+            "Ignoring validation error on pin %d; error: %s",
+            pin[CONF_NUMBER],
+            exc,
         )
     else:
         # Throw an exception if used for a pin that would not have resulted
         # in a validation error anyway!
         if ignore_pin_validation_warning:
-            raise cv.Invalid(f"GPIO{value[CONF_NUMBER]} is not a reserved pin")
+            raise cv.Invalid(f"GPIO{pin[CONF_NUMBER]} is not a reserved pin")
 
-    return _esp32_validations[variant].pin_validation(value)
+    return pin
 
 
 def validate_supports(value):
@@ -183,8 +191,9 @@ gpio_num_t = cg.global_ns.enum("gpio_num_t")
 CONF_DRIVE_STRENGTH = "drive_strength"
 
 ESP32_PIN_SCHEMA = cv.All(
-    pins.gpio_base_schema(ESP32InternalGPIOPin, validate_gpio_pin).extend(
+    pins.gpio_base_schema(ESP32InternalGPIOPin, gpio_pin_number_validator).extend(
         {
+            cv.Optional(CONF_IGNORE_PIN_VALIDATION_ERROR, default=False): cv.boolean,
             cv.Optional(CONF_IGNORE_STRAPPING_WARNING, default=False): cv.boolean,
             cv.Optional(CONF_DRIVE_STRENGTH, default="20mA"): cv.All(
                 cv.float_with_unit("current", "mA", optional_unit=True),
@@ -192,8 +201,16 @@ ESP32_PIN_SCHEMA = cv.All(
             ),
         }
     ),
+    validate_gpio_pin,
     validate_supports,
 )
+
+
+def validate_entire_gpio_pin(number_validator):
+    def validate(config):
+        return config
+
+    return validate
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(PLATFORM_ESP32, ESP32_PIN_SCHEMA)
