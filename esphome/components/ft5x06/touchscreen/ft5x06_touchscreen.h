@@ -94,7 +94,7 @@ class FT5x06Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
 
       esph_log_d(TAG, "Read %X status, id: %d, pos %d/%d", status, id, x, y);
       if (status == 0 || status == 2) {
-        this->set_raw_touch_position_(id, x, y);
+        this->add_raw_touch_position_(id, x, y);
       }
     }
   }

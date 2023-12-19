@@ -87,7 +87,7 @@ class Touchscreen : public PollingComponent {
 
   void attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::InterruptType type);
 
-  void set_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_raw, int16_t z_raw = 0);
+  void add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_raw, int16_t z_raw = 0);
 
   void send_touches_();
 
