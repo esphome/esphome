@@ -68,7 +68,7 @@ class CST816Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
     if (x > this->x_raw_max_) {
       this->update_button_state_(true);
     } else {
-      this->set_raw_touch_position_(0, x, y);
+      this->add_raw_touch_position_(0, x, y);
     }
   }
 
