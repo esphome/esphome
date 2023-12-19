@@ -2,6 +2,7 @@ from esphome.core import CORE
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome import helpers
 
 from esphome.const import (
     CONF_ENABLE_IPV6,
@@ -43,6 +44,17 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
+def parse_hosts_line(line):
+    hosts = []
+    if line.startswith("#"):
+        return hosts
+    hostline = line.split()
+    if len(hostline) >= 2:
+        for host in hostline[1:]:
+            hosts.append((host, IPAddress(hostline[0])))
+    return hosts
+
+
 async def to_code(config):
     if CONF_ENABLE_IPV6 in config:
         cg.add_define("USE_NETWORK_IPV6", config[CONF_ENABLE_IPV6])
@@ -55,16 +67,9 @@ async def to_code(config):
             for host in config[CONF_HOSTS]
         ]
     if CONF_HOSTSFILE in config:
-        with open(
-            CORE.relative_config_path(config[CONF_HOSTSFILE]), encoding="utf-8"
-        ) as f:
-            for line in f.readlines():
-                if line.startswith("#"):
-                    continue
-                hostline = line.split()
-                if len(hostline) >= 2:
-                    for host in hostline[1:]:
-                        hosts.append((host, IPAddress(hostline[0])))
+        hostsfile = helpers.read_file(CORE.relative_config_path(config[CONF_HOSTSFILE]))
+        for line in hostsfile.splitlines():
+            hosts.extend(parse_hosts_line(line))
 
     map_ = cg.std_ns.class_("multimap").template(cg.std_string, IPAddress)
     cg.new_Pvariable(config[CONF_NETWORK_ID], map_(hosts))
