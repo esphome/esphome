@@ -65,7 +65,7 @@ class VEML3235Sensor : public sensor::Sensor, public PollingComponent, public i2
   void setup() override;
   void dump_config() override;
   void update() override { this->publish_state(this->read_lx_()); }
-  float get_setup_priority() const { return setup_priority::DATA; }
+  float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Used by ESPHome framework. Does NOT actually set the value on the device.
   void set_auto_gain(bool auto_gain) { this->auto_gain_ = auto_gain; }
