@@ -163,6 +163,62 @@ enum class SubcommandsControl : uint16_t {
                                   // content: all values like in status packet)
 };
 
+const std::string HON_ALARM_MESSAGES[] = {
+    "Outdoor module failure",
+    "Outdoor defrost sensor failure",
+    "Outdoor compressor exhaust sensor failure",
+    "Outdoor EEPROM abnormality",
+    "Indoor coil sensor failure",
+    "Indoor-outdoor communication failure",
+    "Power supply overvoltage protection",
+    "Communication failure between panel and indoor unit",
+    "Outdoor compressor overheat protection",
+    "Outdoor environmental sensor abnormality",
+    "Full water protection",
+    "Indoor EEPROM failure",
+    "Outdoor out air sensor failure",
+    "CBD and module communication failure",
+    "Indoor DC fan failure",
+    "Outdoor DC fan failure",
+    "Door switch failure",
+    "Dust filter needs cleaning reminder",
+    "Water shortage protection",
+    "Humidity sensor failure",
+    "Indoor temperature sensor failure",
+    "Manipulator limit failure",
+    "Indoor PM2.5 sensor failure",
+    "Outdoor PM2.5 sensor failure",
+    "Indoor heating overload/high load alarm",
+    "Outdoor AC current protection",
+    "Outdoor compressor operation abnormality",
+    "Outdoor DC current protection",
+    "Outdoor no-load failure",
+    "CT current abnormality",
+    "Indoor cooling freeze protection",
+    "High and low pressure protection",
+    "Compressor out air temperature is too high",
+    "Outdoor evaporator sensor failure",
+    "Outdoor cooling overload",
+    "Water pump drainage failure",
+    "Three-phase power supply failure",
+    "Four-way valve failure",
+    "External alarm/scraper flow switch failure",
+    "Temperature cutoff protection alarm",
+    "Different mode operation failure",
+    "Electronic expansion valve failure",
+    "Dual heat source sensor Tw failure",
+    "Communication failure with the wired controller",
+    "Indoor unit address duplication failure",
+    "50Hz zero crossing failure",
+    "Outdoor unit failure",
+    "Formaldehyde sensor failure",
+    "VOC sensor failure",
+    "CO2 sensor failure",
+    "Firewall failure",
+};
+
+constexpr size_t HON_ALARM_COUNT = sizeof(HON_ALARM_MESSAGES) / sizeof(HON_ALARM_MESSAGES[0]);
+
 }  // namespace hon_protocol
 }  // namespace haier
 }  // namespace esphome
