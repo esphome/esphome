@@ -57,8 +57,8 @@ CONFIG_SCHEMA = (
                 DIGITAL_GAINS, upper=True
             ),
             cv.Optional(CONF_AUTO_GAIN, default="true"): cv.boolean,
-            cv.Optional(CONF_AUTO_GAIN_THRESHOLD_HIGH, default=0.9): cv.float_,
-            cv.Optional(CONF_AUTO_GAIN_THRESHOLD_LOW, default=0.2): cv.float_,
+            cv.Optional(CONF_AUTO_GAIN_THRESHOLD_HIGH, default="90%"): cv.percentage,
+            cv.Optional(CONF_AUTO_GAIN_THRESHOLD_LOW, default="20%"): cv.percentage,
             cv.Optional(CONF_GAIN, default="1X"): cv.enum(GAINS, upper=True),
             cv.Optional(CONF_INTEGRATION_TIME, default="50ms"): cv.All(
                 cv.positive_time_period_milliseconds,
