@@ -237,8 +237,8 @@ void Logger::pre_setup() {
         Serial1.begin(this->baud_rate_);
 #else
 #if ARDUINO_USB_CDC_ON_BOOT
-        this->hw_serial_ = &Serial;
-        Serial.begin(this->baud_rate_);
+        this->hw_serial_ = &Serial0;
+        Serial0.begin(this->baud_rate_);
 #else
         this->hw_serial_ = &Serial;
         Serial.begin(this->baud_rate_);
