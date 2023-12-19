@@ -16,7 +16,7 @@ static const char *const TAG = "template.alarm_control_panel";
 TemplateAlarmControlPanel::TemplateAlarmControlPanel(){};
 
 #ifdef USE_BINARY_SENSOR
-void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, uint16_t flags, uint16_t type) {
+void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, uint16_t flags, AlarmSensorType type) {
   // Save the flags and type. Assign a store index for the per sensor data type.
   SensorDataStore sd;
   sd.last_chime_state = false;
