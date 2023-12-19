@@ -167,6 +167,25 @@ void WaveshareEPaper::on_safe_shutdown() { this->deep_sleep(); }
 // ========================================================
 
 void WaveshareEPaperTypeA::initialize() {
+  // Achieve display intialization
+  this->init_display_();
+  // If a reset pin is configured, eligible displays can be set to deep sleep
+  // between updates, as recommended by the hardware provider
+  if (this->reset_pin_ != nullptr) {
+    switch (this->model_) {
+      // More models can be added here to enable deep sleep if eligible
+      case WAVESHARE_EPAPER_1_54_IN:
+      case WAVESHARE_EPAPER_1_54_IN_V2:
+        this->deep_sleep_between_updates_ = true;
+        ESP_LOGI(TAG, "Set the display to deep sleep");
+        this->deep_sleep();
+        break;
+      default:
+        break;
+    }
+  }
+}
+void WaveshareEPaperTypeA::init_display_() {
   if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
     this->reset_pin_->digital_write(false);
     delay(10);
@@ -260,6 +279,13 @@ void WaveshareEPaperTypeA::dump_config() {
 void HOT WaveshareEPaperTypeA::display() {
   bool full_update = this->at_update_ == 0;
   bool prev_full_update = this->at_update_ == 1;
+
+  if (this->deep_sleep_between_updates_) {
+    ESP_LOGI(TAG, "Wake up the display");
+    this->reset_();
+    this->wait_until_idle_();
+    this->init_display_();
+  }
 
   if (!this->wait_until_idle_()) {
     this->status_set_warning();
@@ -384,6 +410,11 @@ void HOT WaveshareEPaperTypeA::display() {
   this->command(0xFF);
 
   this->status_clear_warning();
+
+  if (this->deep_sleep_between_updates_) {
+    ESP_LOGI(TAG, "Set the display back to deep sleep");
+    this->deep_sleep();
+  }
 }
 int WaveshareEPaperTypeA::get_width_internal() {
   switch (this->model_) {
@@ -445,6 +476,8 @@ void WaveshareEPaperTypeA::set_full_update_every(uint32_t full_update_every) {
 
 uint32_t WaveshareEPaperTypeA::idle_timeout_() {
   switch (this->model_) {
+    case WAVESHARE_EPAPER_1_54_IN:
+    case WAVESHARE_EPAPER_1_54_IN_V2:
     case TTGO_EPAPER_2_13_IN_B1:
       return 2500;
     default:
