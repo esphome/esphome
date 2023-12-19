@@ -63,7 +63,8 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
    * @param sensor The BinarySensor instance.
    * @param ignore_when_home if this should be ignored when armed_home mode
    */
-  void add_sensor(binary_sensor::BinarySensor *sensor, uint16_t flags = 0, AlarmSensorType type = ALARM_SENSOR_TYPE_DELAYED);
+  void add_sensor(binary_sensor::BinarySensor *sensor, uint16_t flags = 0,
+   AlarmSensorType type = ALARM_SENSOR_TYPE_DELAYED);
 #endif
 
   /** add a code
