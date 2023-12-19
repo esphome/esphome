@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from . import horizontal_stack
 from . import vertical_stack
 from . import text_panel
+from . import display_rendering_panel
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 RootLayoutComponent = graphical_layout_ns.class_("RootLayoutComponent", cg.Component)
@@ -68,6 +69,14 @@ ITEM_TYPE_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
+        display_rendering_panel.CONF_TYPE: BASE_ITEM_SCHEMA.extend(
+          {
+              cv.GenerateID(): cv.declare_id(display_rendering_panel.DisplayRenderingPanel),
+              cv.Required(display_rendering_panel.CONF_WIDTH): cv.templatable(cv.int_range(min=1)),
+              cv.Required(display_rendering_panel.CONF_HEIGHT): cv.templatable(cv.int_range(min=1)),
+              cv.Required(display_rendering_panel.CONF_LAMBDA): cv.lambda_,
+          }  
+        ),
     }
 )
 
@@ -75,6 +84,7 @@ CODE_GENERATORS = {
     text_panel.CONF_TYPE: text_panel.config_to_layout_item,
     horizontal_stack.CONF_TYPE: horizontal_stack.config_to_layout_item,
     vertical_stack.CONF_TYPE: vertical_stack.config_to_layout_item,
+    display_rendering_panel.CONF_TYPE: display_rendering_panel.config_to_layout_item,
 }
 
 CONFIG_SCHEMA = cv.Schema(
