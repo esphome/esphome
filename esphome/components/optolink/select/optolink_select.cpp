@@ -2,7 +2,6 @@
 
 #include "optolink_select.h"
 #include "../optolink.h"
-#include "VitoWiFi.h"
 
 namespace esphome {
 namespace optolink {

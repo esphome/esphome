@@ -3,9 +3,8 @@
 #ifdef USE_ARDUINO
 
 #include "esphome/components/number/number.h"
-#include "../datapoint_component.h"
 #include "../optolink.h"
-#include "VitoWiFi.h"
+#include "../datapoint_component.h"
 
 namespace esphome {
 namespace optolink {
@@ -21,9 +20,9 @@ class OptolinkNumber : public DatapointComponent, public esphome::number::Number
 
   const StringRef &get_component_name() override { return get_name(); }
   void datapoint_value_changed(float state) override { publish_state(state); };
-  void datapoint_value_changed(uint8_t state) override { publish_state(state); };
-  void datapoint_value_changed(uint16_t state) override { publish_state(state); };
-  void datapoint_value_changed(uint32_t state) override { publish_state(state); };
+  void datapoint_value_changed(uint8_t state) override;
+  void datapoint_value_changed(uint16_t state) override;
+  void datapoint_value_changed(uint32_t state) override;
 };
 
 }  // namespace optolink

@@ -5,7 +5,6 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "../optolink.h"
 #include "../datapoint_component.h"
-#include "VitoWiFi.h"
 
 namespace esphome {
 namespace optolink {

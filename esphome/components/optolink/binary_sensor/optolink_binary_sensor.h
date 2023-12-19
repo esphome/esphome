@@ -5,7 +5,6 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "../optolink.h"
 #include "../datapoint_component.h"
-#include "VitoWiFi.h"
 
 namespace esphome {
 namespace optolink {

@@ -3,7 +3,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "optolink.h"
-#include "VitoWiFi.h"
 
 #if defined(VITOWIFI_PROTOCOL)
 // NOLINTNEXTLINE
@@ -40,7 +39,7 @@ void Optolink::setup() {
 }
 
 void Optolink::loop() {
-  ESP_LOGD(TAG, "queue size: %d", VitoWiFi.queueSize());
+  // ESP_LOGD(TAG, "queue size: %d", VitoWiFi.queueSize());
   VitoWiFi.loop();
 }
 

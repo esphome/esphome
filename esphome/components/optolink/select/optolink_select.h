@@ -2,11 +2,10 @@
 
 #ifdef USE_ARDUINO
 
-#include <map>
 #include "esphome/components/select/select.h"
 #include "../optolink.h"
 #include "../datapoint_component.h"
-#include "VitoWiFi.h"
+#include <map>
 
 namespace esphome {
 namespace optolink {

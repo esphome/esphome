@@ -3,9 +3,8 @@
 #ifdef USE_ARDUINO
 
 #include "esphome/components/switch/switch.h"
-#include "../datapoint_component.h"
 #include "../optolink.h"
-#include "VitoWiFi.h"
+#include "../datapoint_component.h"
 
 namespace esphome {
 namespace optolink {
