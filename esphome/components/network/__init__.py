@@ -1,9 +1,9 @@
-from esphome.core import CORE
+from __future__ import annotations
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome import helpers
-
+from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.const import (
     CONF_ENABLE_IPV6,
     CONF_MIN_IPV6_ADDR_COUNT,
@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_IP_ADDRESS,
     CONF_NAME,
 )
+from esphome.core import CORE
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
@@ -44,14 +45,17 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def parse_hosts_line(line):
-    hosts = []
-    if line.startswith("#"):
-        return hosts
-    hostline = line.split()
-    if len(hostline) >= 2:
-        for host in hostline[1:]:
-            hosts.append((host, IPAddress(hostline[0])))
+def parse_hosts_file(hosts_contents: str) -> list[tuple[str, IPAddress]]:
+    """Parse a hosts file"""
+    hosts: list[tuple[str, IPAddress]] = []
+    for line in hosts_contents.splitlines():
+        if line.startswith("#"):
+            continue
+        split_line = line.split()
+        if len(split_line) < 2:
+            continue
+        ip_address: IPAddress = IPAddress(split_line[0])
+        hosts.extend([(host, ip_address) for host in split_line[1:]])
     return hosts
 
 
@@ -67,9 +71,10 @@ async def to_code(config):
             for host in config[CONF_HOSTS]
         ]
     if CONF_HOSTSFILE in config:
-        hostsfile = helpers.read_file(CORE.relative_config_path(config[CONF_HOSTSFILE]))
-        for line in hostsfile.splitlines():
-            hosts.extend(parse_hosts_line(line))
+        hosts_contents = helpers.read_file(
+            CORE.relative_config_path(config[CONF_HOSTSFILE])
+        )
+        hosts.extend(parse_hosts_file(hosts_contents))
 
     map_ = cg.std_ns.class_("multimap").template(cg.std_string, IPAddress)
     cg.new_Pvariable(config[CONF_NETWORK_ID], map_(hosts))
