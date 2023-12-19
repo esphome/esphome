@@ -93,6 +93,14 @@ def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
     return run_external_command(platformio.__main__.main, *cmd, **kwargs)
 
 
+def run_platformio_cli_test(config, verbose, *args, **kwargs) -> Union[str, int]:
+    command = ["test", "-d", CORE.build_path]
+    if verbose:
+        command += ["-v"]
+    command += list(args)
+    return run_platformio_cli(*command, **kwargs)
+
+
 def run_platformio_cli_run(config, verbose, *args, **kwargs) -> Union[str, int]:
     command = ["run", "-d", CORE.build_path]
     if verbose:

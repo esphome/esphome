@@ -19,6 +19,7 @@ from esphome.helpers import (
     walk_files,
     copy_file_if_changed,
     get_bool_env,
+    remove_empty_folders,
 )
 from esphome.storage_json import StorageJSON, storage_path
 from esphome import loader
@@ -37,6 +38,8 @@ CPP_BASE_FORMAT = (
 """,
     """"
 
+#ifndef PIO_UNIT_TESTING
+
 void setup() {
   """,
     """
@@ -46,6 +49,9 @@ void setup() {
 void loop() {
   App.loop();
 }
+
+#endif // PIO_UNIT_TESTING
+
 """,
 )
 
@@ -228,6 +234,90 @@ run.
 For modifying esphome's core files, please use a development esphome install,
 the custom_components folder or the external_components feature.
 """
+
+
+def copy_test_tree():
+    test_source_files: list[loader.FileResource] = []
+    source_files: list[loader.FileResource] = []
+    for name, component, _ in iter_components(CORE.config):
+        if component:
+            if name.startswith("test."):
+                test_source_files += component.resources
+            else:
+                source_files += component.resources
+    test_source_files_map = {
+        # Convert string `esphome.components.<ComponentName>.test` -> `esphome/components/<ComponentName>/test_esphome_components_<ComponentName>/<ResourcenName>`
+        Path(
+            x.package.removesuffix(".test").replace(".", "/")
+            + "/test_"
+            + x.package.removesuffix(".test").replace(".", "_")
+            + "/"
+            + x.resource
+        ): x
+        for x in test_source_files
+    }
+    source_files_map = {
+        # Convert string `esphome.components.<ComponentName>` -> `esphome/components/<ComponentName>/<ResourcenName>`
+        Path(x.package.replace(".", "/") + "/" + x.resource): x
+        for x in source_files
+    }
+    test_source_files_map |= source_files_map
+
+    # Convert to list and sort
+    source_files_l = list(source_files_map.items())
+    source_files_l.sort()
+
+    # Build #include list for esphome.h
+    include_l = []
+    for target, _ in source_files_l:
+        if target.suffix in HEADER_FILE_EXTENSIONS:
+            include_l.append(f'#include "{target}"')
+    include_l.append("")
+    include_s = "\n".join(include_l)
+
+    test_source_files_copy = test_source_files_map.copy()
+    ignore_targets = [Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET)]
+    for t in ignore_targets:
+        test_source_files_copy.pop(t)
+
+    for fname in walk_files(CORE.relative_test_path()):
+        p = Path(fname)
+        if p.suffix not in SOURCE_FILE_EXTENSIONS:
+            # Not a source file, ignore
+            continue
+        # Transform path to target path name
+        target = p.relative_to(CORE.relative_test_path())
+        if target in ignore_targets:
+            # Ignore defines.h, will be dealt with later
+            continue
+        if target not in test_source_files_copy:
+            # Source file removed, delete target
+            p.unlink()
+        else:
+            src_file = test_source_files_copy.pop(target)
+            with src_file.path() as src_path:
+                copy_file_if_changed(src_path, p)
+
+    # Now copy new files
+    for target, src_file in test_source_files_copy.items():
+        dst_path = CORE.relative_test_path(*target.parts)
+        with src_file.path() as src_path:
+            copy_file_if_changed(src_path, dst_path)
+
+    # Delete empty folders to avoid PlatformIO complain about `Nothing to build.`.
+    remove_empty_folders(CORE.relative_test_path())
+
+    # Finally copy defines
+    write_file_if_changed(
+        CORE.relative_test_path("esphome", "core", "defines.h"), generate_defines_h()
+    )
+    write_file_if_changed(CORE.relative_build_path("README.txt"), ESPHOME_README_TXT)
+    write_file_if_changed(
+        CORE.relative_test_path("esphome.h"), ESPHOME_H_FORMAT.format(include_s)
+    )
+    write_file_if_changed(
+        CORE.relative_test_path("esphome", "core", "version.h"), generate_version_h()
+    )
 
 
 def copy_src_tree():

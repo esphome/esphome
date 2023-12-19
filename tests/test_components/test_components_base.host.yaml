@@ -1,0 +1,8 @@
+esphome:
+  name: componenttesthost
+  friendly_name: $component_name
+
+host:
+
+test:
+  - platform: $component_name
