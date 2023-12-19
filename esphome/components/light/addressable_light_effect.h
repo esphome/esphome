@@ -152,7 +152,6 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
   uint32_t add_led_interval_{};
   size_t leds_added_{0};
   bool reverse_{};
-  bool gradient_{};
 };
 
 class AddressableScanEffect : public AddressableLightEffect {

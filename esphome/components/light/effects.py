@@ -386,8 +386,8 @@ async def addressable_rainbow_effect_to_code(config, effect_id):
                 cv.Optional(CONF_BLUE, default=1.0): cv.percentage,
                 cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
                 cv.Optional(CONF_RANDOM, default=False): cv.boolean,
-                cv.Optional(CONF_NUM_LEDS): cv.All(cv.uint32_t, cv.Range(min=1)),
-                cv.Optional(CONF_GRADIENT): cv.boolean,
+                cv.Required(CONF_NUM_LEDS): cv.All(cv.uint32_t, cv.Range(min=1)),
+                cv.Optional(CONF_GRADIENT, default=False): cv.boolean,
             }
         ),
         cv.Optional(
@@ -401,11 +401,7 @@ async def addressable_color_wipe_effect_to_code(config, effect_id):
     cg.add(var.set_add_led_interval(config[CONF_ADD_LED_INTERVAL]))
     cg.add(var.set_reverse(config[CONF_REVERSE]))
     colors = []
-    num_leds = 1
-    gradient = False
     for color in config.get(CONF_COLORS, []):
-        num_leds = color.get(CONF_NUM_LEDS, num_leds)
-        gradient = color.get(CONF_GRADIENT, gradient)
         colors.append(
             cg.StructInitializer(
                 AddressableColorWipeEffectColor,
@@ -414,8 +410,8 @@ async def addressable_color_wipe_effect_to_code(config, effect_id):
                 ("b", int(round(color[CONF_BLUE] * 255))),
                 ("w", int(round(color[CONF_WHITE] * 255))),
                 ("random", color[CONF_RANDOM]),
-                ("num_leds", num_leds),
-                ("gradient", gradient),
+                ("num_leds", color[CONF_NUM_LEDS]),
+                ("gradient", color[CONF_GRADIENT]),
             )
         )
     cg.add(var.set_colors(colors))
