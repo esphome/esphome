@@ -18,9 +18,7 @@ const display::Rect DisplayRenderingPanel::measure_item(display::Display *displa
   return display::Rect(0, 0, this->width_, this->width_);
 }
 
-void DisplayRenderingPanel::render(display::Display *display, display::Rect bounds) {
-  this->lambda_(*display);
-}
+void DisplayRenderingPanel::render(display::Display *display, display::Rect bounds) { this->lambda_(*display); }
 
 }  // namespace graphical_layout
 }  // namespace esphome

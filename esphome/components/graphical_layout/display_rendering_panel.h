@@ -10,7 +10,7 @@ namespace graphical_layout {
 using display_writer_t = std::function<void(display::Display &)>;
 
 /** The DisplayRenderingPanel is a UI item that renders a custom lambda to the display whilst
- * participating in the layout process 
+ * participating in the layout process
  */
 class DisplayRenderingPanel : public LayoutItem {
  public:

@@ -70,12 +70,18 @@ ITEM_TYPE_SCHEMA = cv.typed_schema(
             }
         ),
         display_rendering_panel.CONF_TYPE: BASE_ITEM_SCHEMA.extend(
-          {
-              cv.GenerateID(): cv.declare_id(display_rendering_panel.DisplayRenderingPanel),
-              cv.Required(display_rendering_panel.CONF_WIDTH): cv.templatable(cv.int_range(min=1)),
-              cv.Required(display_rendering_panel.CONF_HEIGHT): cv.templatable(cv.int_range(min=1)),
-              cv.Required(display_rendering_panel.CONF_LAMBDA): cv.lambda_,
-          }  
+            {
+                cv.GenerateID(): cv.declare_id(
+                    display_rendering_panel.DisplayRenderingPanel
+                ),
+                cv.Required(display_rendering_panel.CONF_WIDTH): cv.templatable(
+                    cv.int_range(min=1)
+                ),
+                cv.Required(display_rendering_panel.CONF_HEIGHT): cv.templatable(
+                    cv.int_range(min=1)
+                ),
+                cv.Required(display_rendering_panel.CONF_LAMBDA): cv.lambda_,
+            }
         ),
     }
 )

@@ -10,6 +10,7 @@ CONF_HEIGHT = "height"
 CONF_WIDTH = "width"
 CONF_LAMBDA = "lambda"
 
+
 async def config_to_layout_item(item_config, child_item_builder):
     var = cg.new_Pvariable(item_config[CONF_ID])
 
@@ -20,7 +21,7 @@ async def config_to_layout_item(item_config, child_item_builder):
     cg.add(var.set_height(height))
 
     lambda_ = await cg.process_lambda(
-      item_config[CONF_LAMBDA], [(DisplayRef, "it")], return_type=cg.void
+        item_config[CONF_LAMBDA], [(DisplayRef, "it")], return_type=cg.void
     )
     cg.add(var.set_lambda(lambda_))
 
