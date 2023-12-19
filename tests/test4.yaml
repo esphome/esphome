@@ -573,6 +573,7 @@ display:
     wakeup_pin: GPIO1
     vcom_pin: GPIO1
   - platform: waveshare_epaper
+    spi_id: spi_id_1
     cs_pin: GPIO23
     dc_pin: GPIO23
     busy_pin: GPIO23
