@@ -1667,7 +1667,6 @@ binary_sensor:
       mcp23xxx: mcp23s08_hub
       # Use pin number 1
       number: 1
-      allow_other_uses: true
       # One of INPUT or INPUT_PULLUP
       mode: INPUT_PULLUP
       inverted: false
@@ -2149,7 +2148,6 @@ output:
     pin:
       mcp23xxx: mcp23017_hub
       number: 0
-      allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -2157,7 +2155,6 @@ output:
     pin:
       mcp23xxx: mcp23008_hub
       number: 0
-      allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -2597,7 +2594,6 @@ switch:
       mcp23xxx: mcp23s08_hub
       # Use pin number 0
       number: 0
-      allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
