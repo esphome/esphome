@@ -71,20 +71,24 @@ class RemoteReceiveData {
   void reset() { this->index_ = 0; }
 
   void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) {
-    tolerance_ = tolerance;
-    tolerance_mode_ = tolerance_mode;
+    this->tolerance_ = tolerance;
+    this->tolerance_mode_ = tolerance_mode;
   }
   uint32_t get_tolerance() { return tolerance_; }
-  ToleranceMode get_tolerance_mode() { return tolerance_mode_; }
+  ToleranceMode get_tolerance_mode() { return this->tolerance_mode_; }
 
  protected:
   int32_t lower_bound_(uint32_t length) const {
-    return (tolerance_mode_ == TOLERANCE_MODE_TIME) ? int32_t(length - this->tolerance_)
-                                                    : int32_t(100 - this->tolerance_) * length / 100U;
+    if (this->tolerance_mode_ == TOLERANCE_MODE_TIME)
+      return int32_t(length - this->tolerance_);
+    else if (this->tolerance_mode_ == TOLERANCE_MODE_PERCENTAGE)
+      return int32_t(100 - this->tolerance_) * length / 100U;
   }
   int32_t upper_bound_(uint32_t length) const {
-    return (tolerance_mode_ == TOLERANCE_MODE_TIME) ? int32_t(length + this->tolerance_)
-                                                    : int32_t(100 + this->tolerance_) * length / 100U;
+    if (this->tolerance_mode_ == TOLERANCE_MODE_TIME)
+      return int32_t(length + this->tolerance_);
+    else if (this->tolerance_mode_ == TOLERANCE_MODE_PERCENTAGE)
+      return int32_t(100 + this->tolerance_) * length / 100U;
   }
 
   const RawTimings &data_;
