@@ -39,7 +39,7 @@ CHIP_MODES = {
 
 max7219_ns = cg.esphome_ns.namespace("max7219digit")
 MAX7219Component = max7219_ns.class_(
-    "MAX7219Component", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
+    "MAX7219Component", spi.SPIDevice, display.DisplayBuffer, cg.PollingComponent
 )
 MAX7219ComponentRef = MAX7219Component.operator("ref")
 
@@ -78,7 +78,6 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
     await display.register_display(var, config)
 
