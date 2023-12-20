@@ -10,11 +10,17 @@ substitutions:
 
 ethernet:
   type: LAN8720
-  mdc_pin: GPIO23
-  mdio_pin: GPIO25
+  mdc_pin:
+    allow_other_uses: true
+    number: GPIO23
+  mdio_pin:
+    allow_other_uses: true
+    number: GPIO25
   clk_mode: GPIO0_IN
   phy_addr: 0
-  power_pin: GPIO25
+  power_pin:
+    allow_other_uses: true
+    number: GPIO25
   manual_ip:
     static_ip: 192.168.178.56
     gateway: 192.168.178.1
@@ -24,33 +30,77 @@ ethernet:
 network:
   enable_ipv6: true
 
+mqtt:
+  broker: test.mosquitto.org
+  port: 1883
+  discovery: true
+  discovery_prefix: homeassistant
+  topic_prefix:
+
 api:
 
 i2c:
-  sda: 21
-  scl: 22
+  sda:
+    allow_other_uses: true
+    number: 21
+  scl:
+    allow_other_uses: true
+    number: 22
   scan: false
 
 spi:
-- id: spi_id_1
-  clk_pin: GPIO21
-  mosi_pin: GPIO22
-  miso_pin: GPIO23
-  interface: hardware
-- id: spi_id_2
-  clk_pin: GPIO32
-  mosi_pin: GPIO33
-  interface: hardware
+  - id: spi_id_1
+    clk_pin:
+      allow_other_uses: true
+      number: GPIO21
+    mosi_pin:
+      allow_other_uses: true
+      number: GPIO22
+    miso_pin:
+      allow_other_uses: true
+      number: GPIO23
+    interface: hardware
+  - id: spi_id_2
+    clk_pin:
+      number: GPIO32
+    mosi_pin:
+      number: GPIO33
+    interface: hardware
 
 uart:
   - id: uart115200
-    tx_pin: GPIO22
-    rx_pin: GPIO23
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO22
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO23
     baud_rate: 115200
   - id: uart9600
-    tx_pin: GPIO22
-    rx_pin: GPIO23
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO25
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO26
     baud_rate: 9600
+  - id: uart_a02yyuw
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO22
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO23
+    baud_rate: 9600
+  - id: uart_he60r
+    tx_pin:
+      number: GPIO18
+      allow_other_uses: true
+    rx_pin:
+      number: GPIO36
+      allow_other_uses: true
+    baud_rate: 1200
+    parity: EVEN
 
 ota:
   safe_mode: true
@@ -76,8 +126,9 @@ tuya:
   time_id: sntp_time
   uart_id: uart115200
   status_pin:
-    number: 14
+    number: GPIO5
     inverted: true
+    allow_other_uses: true
 
 select:
   - platform: tuya
@@ -92,13 +143,21 @@ pipsolar:
   id: inverter0
   uart_id: uart115200
 
+pylontech:
+  - id: pylontech0
+    uart_id: uart115200
+  - id: pylontech1
+    uart_id: uart115200
+
 sx1509:
   - id: sx1509_hub
     address: 0x3E
 
 mcp3204:
   spi_id: spi_id_1
-  cs_pin: GPIO23
+  cs_pin:
+    allow_other_uses: true
+    number: GPIO23
 
 dac7678:
   address: 0x4A
@@ -106,6 +165,30 @@ dac7678:
   internal_reference: true
 
 sensor:
+  - platform: pylontech
+    pylontech_id: pylontech0
+    battery: 1
+    voltage:
+      id: pyl01_voltage
+    current:
+      id: pyl01_current
+    coulomb:
+      id: pyl01_soc
+    mos_temperature:
+      id: pyl01_mos_temperature
+  - platform: pylontech
+    pylontech_id: pylontech1
+    battery: 1
+    voltage:
+      id: pyl13_voltage
+    temperature_low:
+      id: pyl13_temperature_low
+    temperature_high:
+      id: pyl13_temperature_high
+    voltage_low:
+      id: pyl13_voltage_low
+    voltage_high:
+      id: pyl13_voltage_high
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
@@ -281,6 +364,12 @@ sensor:
     id: a01nyub_sensor
     name: "a01nyub Distance"
     uart_id: uart9600
+    state_topic: "esphome/sensor/a01nyub_sensor/state"
+  - platform: a02yyuw
+    id: a02yyuw_sensor
+    name: "a02yyuw Distance"
+    uart_id: uart_a02yyuw
+    state_topic: "esphome/sensor/a02yyuw_sensor/state"
 
 #
 # platform sensor.apds9960 requires component apds9960
@@ -388,6 +477,7 @@ binary_sensor:
       sx1509: sx1509_hub
       number: 3
 
+
   - platform: touchscreen
     touchscreen_id: lilygo_touchscreen
     id: touch_key1
@@ -397,12 +487,17 @@ binary_sensor:
     y_max: 100
     on_press:
       - logger.log: Touched
+  - platform: gt911
+    id: touch_key_911
+    index: 0
+
 
   - platform: gpio
     name: MaxIn Pin 4
     pin:
       max6956: max6956_1
       number: 4
+
       mode:
         input: true
         pullup: true
@@ -416,6 +511,16 @@ binary_sensor:
       mode:
         input: true
       inverted: false
+
+  - platform: gpio
+    name: XL9535 Pin 17
+    pin:
+      xl9535: xl9535_hub
+      number: 17
+      mode:
+        input: true
+      inverted: false
+
 
 climate:
   - platform: tuya
@@ -453,7 +558,9 @@ light:
     id: led_matrix_32x8
     name: led_matrix_32x8
     chipset: WS2812B
-    pin: GPIO15
+    pin:
+      allow_other_uses: true
+      number: GPIO15
     num_leds: 256
     rgb_order: GRB
     default_transition_length: 0s
@@ -477,6 +584,13 @@ cover:
   - platform: copy
     source_id: tuya_cover
     name: Tuya Cover copy
+  - platform: he60r
+    uart_id: uart_he60r
+    id: garage_door
+    name: Garage Door
+    open_duration: 14s
+    close_duration: 14s
+
 
 display:
   - platform: addressable_light
@@ -497,25 +611,43 @@ display:
       it.rectangle(1, 1, it.get_width()-2, it.get_height()-2, green);
       it.rectangle(2, 2, it.get_width()-4, it.get_height()-4, blue);
       it.rectangle(3, 3, it.get_width()-6, it.get_height()-6, red);
+      auto touch = id(ft63_touchscreen)->get_touch();
+      if (touch)  { ESP_LOGD("touch", "%d/%d", touch.value().x, touch.value().y); }
     rotation: 0°
     update_interval: 16ms
 
   - platform: waveshare_epaper
     spi_id: spi_id_1
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    busy_pin: GPIO23
-    reset_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     model: 2.13in-ttgo-b1
     full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
     spi_id: spi_id_1
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    busy_pin: GPIO23
-    reset_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     model: 2.90in
     full_update_every: 30
     reset_duration: 200ms
@@ -523,20 +655,36 @@ display:
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
     spi_id: spi_id_1
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    busy_pin: GPIO23
-    reset_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     model: 2.90inv2
     full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
     spi_id: spi_id_1
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    busy_pin: GPIO23
-    reset_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     model: 1.54in-m5coreink-m09
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
@@ -546,15 +694,54 @@ display:
     partial_updating: false
     update_interval: 60s
 
-    ckv_pin: GPIO1
-    sph_pin: GPIO1
-    gmod_pin: GPIO1
-    gpio0_enable_pin: GPIO1
-    oe_pin: GPIO1
-    spv_pin: GPIO1
-    powerup_pin: GPIO1
-    wakeup_pin: GPIO1
-    vcom_pin: GPIO1
+    display_data_1_pin:
+      number: GPIO5
+      allow_other_uses: true
+    display_data_2_pin:
+      number: GPIO18
+      allow_other_uses: true
+    display_data_3_pin:
+      number: GPIO19
+      allow_other_uses: true
+    display_data_5_pin:
+      number: GPIO25
+      allow_other_uses: true
+    display_data_4_pin:
+      number: GPIO23
+      allow_other_uses: true
+    display_data_6_pin:
+      number: GPIO26
+      allow_other_uses: true
+    display_data_7_pin:
+      number: GPIO27
+      allow_other_uses: true
+    ckv_pin:
+      number: GPIO1
+      allow_other_uses: true
+    sph_pin:
+      number: GPIO1
+      allow_other_uses: true
+    gmod_pin:
+      number: GPIO1
+      allow_other_uses: true
+    gpio0_enable_pin:
+      number: GPIO1
+      allow_other_uses: true
+    oe_pin:
+      number: GPIO1
+      allow_other_uses: true
+    spv_pin:
+      number: GPIO1
+      allow_other_uses: true
+    powerup_pin:
+      number: GPIO1
+      allow_other_uses: true
+    wakeup_pin:
+      number: GPIO1
+      allow_other_uses: true
+    vcom_pin:
+      number: GPIO1
+      allow_other_uses: true
 
 number:
   - platform: tuya
@@ -568,6 +755,17 @@ number:
     name: Tuya Number Copy
 
 text_sensor:
+  - platform: pylontech
+    pylontech_id: pylontech0
+    battery: 1
+    base_state:
+      id: pyl0_base_state
+    voltage_state:
+      id: pyl0_voltage_state
+    current_state:
+      id: pyl0_current_state
+    temperature_state:
+      id: pyl0_temperature_state
   - platform: pipsolar
     pipsolar_id: inverter0
     device_mode:
@@ -631,20 +829,55 @@ output:
     id: dac7678_1_ch7
 esp32_camera:
   name: ESP-32 Camera
-  data_pins: [GPIO17, GPIO35, GPIO34, GPIO5, GPIO39, GPIO18, GPIO36, GPIO19]
-  vsync_pin: GPIO22
-  href_pin: GPIO26
-  pixel_clock_pin: GPIO21
+  data_pins:
+    - number: GPIO17
+      allow_other_uses: true
+    - number: GPIO35
+      allow_other_uses: true
+    - number:  GPIO34
+    - number:  GPIO5
+      allow_other_uses: true
+    - number:  GPIO39
+      allow_other_uses: true
+    - number:  GPIO18
+      allow_other_uses: true
+    - number:  GPIO36
+      allow_other_uses: true
+    - number:  GPIO19
+      allow_other_uses: true
+  vsync_pin:
+    allow_other_uses: true
+    number: GPIO22
+  href_pin:
+    allow_other_uses: true
+    number: GPIO26
+  pixel_clock_pin:
+    allow_other_uses: true
+    number: GPIO21
   external_clock:
-    pin: GPIO27
+    pin:
+      allow_other_uses: true
+      number: GPIO27
     frequency: 20MHz
   i2c_pins:
-    sda: GPIO25
-    scl: GPIO23
-  reset_pin: GPIO15
-  power_down_pin: GPIO1
+    sda:
+      allow_other_uses: true
+      number: GPIO25
+    scl:
+      allow_other_uses: true
+      number: GPIO23
+  reset_pin:
+    allow_other_uses: true
+    number: GPIO15
+  power_down_pin:
+    allow_other_uses: true
+    number: GPIO1
   resolution: 640x480
   jpeg_quality: 10
+  on_image:
+    then:
+    - lambda: |-
+        ESP_LOGD("main", "image len=%d, data=%c", image.length, image.data[0]);
 
 esp32_camera_web_server:
   - port: 8080
@@ -673,8 +906,12 @@ button:
 
 touchscreen:
   - platform: ektf2232
-    interrupt_pin: GPIO36
-    rts_pin: GPIO5
+    interrupt_pin:
+      allow_other_uses: true
+      number: GPIO36
+    rts_pin:
+      allow_other_uses: true
+      number: GPIO5
     display: inkplate_display
     on_touch:
       - logger.log:
@@ -684,17 +921,18 @@ touchscreen:
   - platform: xpt2046
     id: xpt_touchscreen
     spi_id: spi_id_2
-    cs_pin: 17
-    interrupt_pin: 16
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO17
+    interrupt_pin:
+      number: GPIO16
     display: inkplate_display
     update_interval: 50ms
-    report_interval: 1s
     threshold: 400
     calibration_x_min: 3860
     calibration_x_max: 280
     calibration_y_min: 340
     calibration_y_max: 3860
-    swap_x_y: false
     on_touch:
       - logger.log:
           format: Touch at (%d, %d)
@@ -702,7 +940,28 @@ touchscreen:
 
   - platform: lilygo_t5_47
     id: lilygo_touchscreen
-    interrupt_pin: GPIO36
+    interrupt_pin:
+      allow_other_uses: true
+      number: GPIO36
+    display: inkplate_display
+    on_touch:
+      - logger.log:
+          format: Touch at (%d, %d)
+          args: [touch.x, touch.y]
+  - platform: gt911
+    interrupt_pin:
+      number: GPIO3
+    display: inkplate_display
+
+
+  - platform: ft63x6
+    id: ft63_touchscreen
+    interrupt_pin:
+      allow_other_uses: true
+      number: GPIO39
+    reset_pin:
+      allow_other_uses: true
+      number:  GPIO5
     display: inkplate_display
     on_touch:
       - logger.log:
@@ -710,16 +969,25 @@ touchscreen:
           args: [touch.x, touch.y]
 
 i2s_audio:
-  i2s_lrclk_pin: GPIO26
-  i2s_bclk_pin: GPIO27
-  i2s_mclk_pin: GPIO25
+  i2s_lrclk_pin:
+    allow_other_uses: true
+    number: GPIO26
+  i2s_bclk_pin:
+    allow_other_uses: true
+    number: GPIO27
+  i2s_mclk_pin:
+    allow_other_uses: true
+    number: GPIO25
 
 media_player:
   - platform: i2s_audio
     name: None
     dac_type: external
-    i2s_dout_pin: GPIO25
-    mute_pin: GPIO14
+    i2s_dout_pin:
+      allow_other_uses: true
+      number: GPIO25
+    mute_pin:
+      number: GPIO14
     on_state:
       - media_player.play:
       - media_player.play_media: http://localhost/media.mp3
@@ -748,12 +1016,16 @@ prometheus:
 microphone:
   - platform: i2s_audio
     id: mic_id_adc
-    adc_pin: GPIO35
+    adc_pin:
+      allow_other_uses: true
+      number: GPIO35
     adc_type: internal
 
   - platform: i2s_audio
     id: mic_id_external
-    i2s_din_pin: GPIO23
+    i2s_din_pin:
+      allow_other_uses: true
+      number: GPIO23
     adc_type: external
     pdm: false
 
@@ -761,9 +1033,10 @@ speaker:
   - platform: i2s_audio
     id: speaker_id
     dac_type: external
-    i2s_dout_pin: GPIO25
+    i2s_dout_pin:
+      allow_other_uses: true
+      number: GPIO25
     mode: mono
-
 
 voice_assistant:
   microphone: mic_id_external

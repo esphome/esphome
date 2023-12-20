@@ -138,9 +138,12 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     return {};
   }
 
-  ESP_LOGVV(TAG, "Decode Drayton: %d, %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", src.size(),
-            src.peek(0), src.peek(1), src.peek(2), src.peek(3), src.peek(4), src.peek(5), src.peek(6), src.peek(7),
-            src.peek(8), src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14),
+  ESP_LOGVV(TAG,
+            "Decode Drayton: %" PRId32 ", %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
+            " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
+            " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 "",
+            src.size(), src.peek(0), src.peek(1), src.peek(2), src.peek(3), src.peek(4), src.peek(5), src.peek(6),
+            src.peek(7), src.peek(8), src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14),
             src.peek(15), src.peek(16), src.peek(17), src.peek(18), src.peek(19));
 
   // If first preamble item is a space, skip it
@@ -150,7 +153,8 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
 
   // Look for sync pulse, after. If sucessful index points to space of sync symbol
   for (uint16_t preamble = 0; preamble <= NBITS_PREAMBLE * 2; preamble += 2) {
-    ESP_LOGVV(TAG, "Decode Drayton: preamble %d  %d %d", preamble, src.peek(preamble), src.peek(preamble + 1));
+    ESP_LOGVV(TAG, "Decode Drayton: preamble %d  %" PRId32 " %" PRId32, preamble, src.peek(preamble),
+              src.peek(preamble + 1));
     if (src.peek_mark(2 * BIT_TIME_US, preamble) &&
         (src.peek_space(2 * BIT_TIME_US, preamble + 1) || src.peek_space(3 * BIT_TIME_US, preamble + 1))) {
       src.advance(preamble + 1);
@@ -177,7 +181,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
   // if there is no transition at the start of the bit period, then the transition in the middle of
   // the previous bit period.
   while (--bit >= 1) {
-    ESP_LOGVV(TAG, "Decode Drayton: Data, %2d %08x", bit, out_data);
+    ESP_LOGVV(TAG, "Decode Drayton: Data, %2d %08" PRIx32, bit, out_data);
     if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
         (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
       out_data |= 0 << bit;
@@ -185,7 +189,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
                (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) {
       out_data |= 1 << bit;
     } else {
-      ESP_LOGVV(TAG, "Decode Drayton: Fail 2, %2d %08x", bit, out_data);
+      ESP_LOGVV(TAG, "Decode Drayton: Fail 2, %2d %08" PRIx32, bit, out_data);
       return {};
     }
   }
