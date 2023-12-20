@@ -1,5 +1,6 @@
 #include "fingerprint_grow.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace fingerprint_grow {
@@ -204,7 +205,7 @@ bool FingerprintGrowComponent::check_password_() {
 }
 
 bool FingerprintGrowComponent::set_password_() {
-  ESP_LOGI(TAG, "Setting new password: %d", this->new_password_);
+  ESP_LOGI(TAG, "Setting new password: %" PRIu32, this->new_password_);
   this->data_ = {SET_PASSWORD, (uint8_t) (this->new_password_ >> 24), (uint8_t) (this->new_password_ >> 16),
                  (uint8_t) (this->new_password_ >> 8), (uint8_t) (this->new_password_ & 0xFF)};
   if (this->send_command_() == OK) {

@@ -458,7 +458,7 @@ def lint_no_removed_in_idf_conversions(fname, match):
 
 
 @lint_re_check(
-    r"[^\w\d]byte\s+[\w\d]+\s*=",
+    r"[^\w\d]byte +[\w\d]+\s*=",
     include=cpp_include,
     exclude={
         "esphome/components/tuya/tuya.h",
@@ -617,6 +617,7 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/lock/lock.h",
         "esphome/components/mqtt/mqtt_component.h",
         "esphome/components/number/number.h",
+        "esphome/components/text/text.h",
         "esphome/components/output/binary_output.h",
         "esphome/components/output/float_output.h",
         "esphome/components/nextion/nextion_base.h",

@@ -32,6 +32,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S3,
     VARIANT_ESP32C2,
     VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
 )
 from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
 from esphome.components.libretiny.const import (
@@ -86,6 +87,7 @@ UART_SELECTION_ESP32 = {
     VARIANT_ESP32C3: [UART0, UART1, USB_SERIAL_JTAG],
     VARIANT_ESP32C2: [UART0, UART1],
     VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
@@ -95,7 +97,7 @@ UART_SELECTION_LIBRETINY = {
     COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
 }
 
-ESP_IDF_UARTS = [USB_CDC, USB_SERIAL_JTAG]
+ESP_ARDUINO_UNSUPPORTED_USB_UARTS = [USB_SERIAL_JTAG]
 
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
@@ -122,8 +124,8 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 def uart_selection(value):
     if CORE.is_esp32:
-        if value.upper() in ESP_IDF_UARTS and not CORE.using_esp_idf:
-            raise cv.Invalid(f"Only esp-idf framework supports {value}.")
+        if CORE.using_arduino and value.upper() in ESP_ARDUINO_UNSUPPORTED_USB_UARTS:
+            raise cv.Invalid(f"Arduino framework does not support {value}.")
         variant = get_esp32_variant()
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
@@ -169,6 +171,10 @@ CONFIG_SCHEMA = cv.All(
                 CONF_HARDWARE_UART,
                 esp8266=UART0,
                 esp32=UART0,
+                esp32_s2=USB_CDC,
+                esp32_s3_idf=USB_SERIAL_JTAG,
+                esp32_c3_idf=USB_SERIAL_JTAG,
+                esp32_s3_arduino=USB_CDC,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
                 rtl87xx=DEFAULT,
@@ -255,6 +261,10 @@ async def to_code(config):
         cg.add_build_flag("-DENABLE_I2C_DEBUG_BUFFER")
     if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
         cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
+
+    if CORE.using_arduino:
+        if config[CONF_HARDWARE_UART] == USB_CDC:
+            cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=1")
 
     if CORE.using_esp_idf:
         if config[CONF_HARDWARE_UART] == USB_CDC:

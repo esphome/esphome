@@ -1,6 +1,7 @@
 #include "atm90e32.h"
 #include "atm90e32_reg.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace atm90e32 {
@@ -173,7 +174,7 @@ uint16_t ATM90E32Component::read16_(uint16_t a_register) {
   this->disable();
 
   output = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
-  ESP_LOGVV(TAG, "read16_ 0x%04X output 0x%04X", a_register, output);
+  ESP_LOGVV(TAG, "read16_ 0x%04" PRIX16 " output 0x%04" PRIX16, a_register, output);
   return output;
 }
 
@@ -182,8 +183,10 @@ int ATM90E32Component::read32_(uint16_t addr_h, uint16_t addr_l) {
   uint16_t val_l = this->read16_(addr_l);
   int32_t val = (val_h << 16) | val_l;
 
-  ESP_LOGVV(TAG, "read32_ addr_h 0x%04X val_h 0x%04X addr_l 0x%04X val_l 0x%04X = %d", addr_h, val_h, addr_l, val_l,
-            val);
+  ESP_LOGVV(TAG,
+            "read32_ addr_h 0x%04" PRIX16 " val_h 0x%04" PRIX16 " addr_l 0x%04" PRIX16 " val_l 0x%04" PRIX16
+            " = %" PRId32,
+            addr_h, val_h, addr_l, val_l, val);
 
   return val;
 }
@@ -192,7 +195,7 @@ void ATM90E32Component::write16_(uint16_t a_register, uint16_t val) {
   uint8_t addrh = (a_register >> 8) & 0x03;
   uint8_t addrl = (a_register & 0xFF);
 
-  ESP_LOGVV(TAG, "write16_ 0x%04X val 0x%04X", a_register, val);
+  ESP_LOGVV(TAG, "write16_ 0x%04" PRIX16 " val 0x%04" PRIX16, a_register, val);
   this->enable();
   delayMicroseconds(10);
   this->write_byte(addrh);
