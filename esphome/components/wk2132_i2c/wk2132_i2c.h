@@ -11,24 +11,30 @@
 #include "Wire.h"
 #endif
 
-/// when TEST_COMPONENT is define we include some auto-test methods. Used to test the software during wk2132 development
-/// but can also be used in situ to test if the component is working correctly.
-#define TEST_COMPONENT
+/// When TEST_COMPONENT is defined we include some auto-test methods. Used to test the software during wk2132
+/// development but can also be used in situ to test if the component is working correctly. In production we do not set
+/// it you can add it by using the following lines in you configuration file:
+/// @code
+/// esphome:
+///   name: test-wk2132-i2c-arduino
+///   platformio_options:
+///     build_flags:
+///       - -DTEST_COMPONENT
+
+// #define TEST_COMPONENT
 
 namespace esphome {
 namespace wk2132_i2c {
 /// @brief XFER_MAX_SIZE defines the maximum number of bytes we allow during one transfer.
 /// When using the Arduino framework the default maximum transfer is 128 bytes. But this can be changed by defining the
 /// macro I2C_BUFFER_LENGTH during compilation. When using the ESP-IDF Framework the maximum transfer length is 256.
-/// @bug At the time of writing (Nov 2023) there is a bug in declaration of the i2c::I2CDevice::write() method that
-/// limit the write of a maximum of 255 bytes. There is also a bug in the Arduino framework in the
-/// TwoWire::requestFrom() method that limits the number of bytes we can read to 255.
-/// For these reasons we limit the XFER_MAX_SIZE to 255.
+/// @bug At the time of writing (Dec 2023) there is a bug in the Arduino framework in the TwoWire::requestFrom() method
+/// that limits the number of bytes we can read to 255. For this reasons we limit the XFER_MAX_SIZE to 255.
 #if defined(USE_ESP8266)
 constexpr size_t XFER_MAX_SIZE = 128;  // ESP8266
 #elif defined(USE_ESP32_FRAMEWORK_ESP_IDF)
 constexpr size_t XFER_MAX_SIZE = 256;  // ESP32 & FRAMEWORK_ESP_IDF
-#elif I2C_BUFFER_LENGTH < 256  // Here we have USE_ESP32_FRAMEWORK_ARDUINO
+#elif I2C_BUFFER_LENGTH < 256  // Here we are using an USE_ESP32_FRAMEWORK_ARDUINO
 constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;  // ESP32 & FRAMEWORK_ARDUINO
 #else
 constexpr size_t XFER_MAX_SIZE = 255;  // ESP32 & FRAMEWORK_ARDUINO we limit to 255 because Arduino' framework error
@@ -40,6 +46,7 @@ constexpr size_t FIFO_SIZE = 256;
 /// @brief size of the ring buffer
 /// @details We set the size of ring buffer to XFER_MAX_SIZE
 constexpr size_t RING_BUFFER_SIZE = XFER_MAX_SIZE;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief This is an helper class that provides a simple ring buffers that works as a FIFO
 /// @details This ring buffer is used to buffer the bytes received in the FIFO of the I2C device. The best way to read
