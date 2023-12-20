@@ -1,14 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_TYPE
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 HorizontalStack = graphical_layout_ns.class_("HorizontalStack")
 
 CONF_ITEM_PADDING = "item_padding"
-CONF_TYPE = "horizontal_stack"
+CONF_HORIZONTAL_STACK = "horizontal_stack"
 CONF_ITEMS = "items"
-CONF_TYPE_KEY = "type"
 
 
 def get_config_schema(base_item_schema, item_type_schema):
@@ -30,7 +29,7 @@ async def config_to_layout_item(item_config, child_item_builder):
         cg.add(var.set_item_padding(item_padding_config))
 
     for child_item_config in item_config[CONF_ITEMS]:
-        child_item_type = child_item_config[CONF_TYPE_KEY]
+        child_item_type = child_item_config[CONF_TYPE]
         if child_item_type in child_item_builder:
             child_item_var = await child_item_builder[child_item_type](
                 child_item_config, child_item_builder

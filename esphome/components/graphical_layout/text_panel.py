@@ -7,7 +7,7 @@ graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 TextPanel = graphical_layout_ns.class_("TextPanel")
 
 CONF_ITEM_PADDING = "item_padding"
-CONF_TYPE = "text_panel"
+CONF_TEXT_PANEL = "text_panel"
 CONF_FONT = "font"
 CONF_FOREGROUND_COLOR = "foreground_color"
 CONF_BACKGROUND_COLOR = "background_color"
@@ -18,9 +18,7 @@ def get_config_schema(base_item_schema, item_type_schema):
     return base_item_schema.extend(
         {
             cv.GenerateID(): cv.declare_id(TextPanel),
-            cv.Optional(CONF_ITEM_PADDING, default=0): cv.templatable(
-                cv.int_
-            ),
+            cv.Optional(CONF_ITEM_PADDING, default=0): cv.templatable(cv.int_),
             cv.Required(CONF_FONT): cv.use_id(font.Font),
             cv.Optional(CONF_FOREGROUND_COLOR): cv.use_id(color.ColorStruct),
             cv.Optional(CONF_BACKGROUND_COLOR): cv.use_id(color.ColorStruct),

@@ -28,26 +28,26 @@ def item_type_schema(value):
 
 ITEM_TYPE_SCHEMA = cv.typed_schema(
     {
-        text_panel.CONF_TYPE: text_panel.get_config_schema(
+        text_panel.CONF_TEXT_PANEL: text_panel.get_config_schema(
             BASE_ITEM_SCHEMA, item_type_schema
         ),
-        horizontal_stack.CONF_TYPE: horizontal_stack.get_config_schema(
+        horizontal_stack.CONF_HORIZONTAL_STACK: horizontal_stack.get_config_schema(
             BASE_ITEM_SCHEMA, item_type_schema
         ),
-        vertical_stack.CONF_TYPE: vertical_stack.get_config_schema(
+        vertical_stack.CONF_VERTICAL_STACK: vertical_stack.get_config_schema(
             BASE_ITEM_SCHEMA, item_type_schema
         ),
-        display_rendering_panel.CONF_TYPE: display_rendering_panel.get_config_schema(
+        display_rendering_panel.CONF_DISPLAY_RENDERING_PANEL: display_rendering_panel.get_config_schema(
             BASE_ITEM_SCHEMA, item_type_schema
         ),
     }
 )
 
 CODE_GENERATORS = {
-    text_panel.CONF_TYPE: text_panel.config_to_layout_item,
-    horizontal_stack.CONF_TYPE: horizontal_stack.config_to_layout_item,
-    vertical_stack.CONF_TYPE: vertical_stack.config_to_layout_item,
-    display_rendering_panel.CONF_TYPE: display_rendering_panel.config_to_layout_item,
+    text_panel.CONF_TEXT_PANEL: text_panel.config_to_layout_item,
+    horizontal_stack.CONF_HORIZONTAL_STACK: horizontal_stack.config_to_layout_item,
+    vertical_stack.CONF_VERTICAL_STACK: vertical_stack.config_to_layout_item,
+    display_rendering_panel.CONF_DISPLAY_RENDERING_PANEL: display_rendering_panel.config_to_layout_item,
 }
 
 CONFIG_SCHEMA = cv.Schema(

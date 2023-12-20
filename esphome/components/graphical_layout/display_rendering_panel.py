@@ -6,7 +6,7 @@ from esphome.components.display import DisplayRef
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 DisplayRenderingPanel = graphical_layout_ns.class_("DisplayRenderingPanel")
 
-CONF_TYPE = "display_rendering_panel"
+CONF_DISPLAY_RENDERING_PANEL = "display_rendering_panel"
 
 
 def get_config_schema(base_item_schema, item_type_schema):
