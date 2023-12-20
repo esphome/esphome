@@ -181,8 +181,8 @@ class RemoteReceiverBase : public RemoteComponentBase {
   void register_listener(RemoteReceiverListener *listener) { this->listeners_.push_back(listener); }
   void register_dumper(RemoteReceiverDumperBase *dumper);
   void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) {
-    tolerance_ = tolerance;
-    tolerance_mode_ = tolerance_mode;
+    this->tolerance_ = tolerance;
+    this->tolerance_mode_ = tolerance_mode;
   }
 
  protected:
