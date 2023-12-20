@@ -120,10 +120,6 @@
 #define USE_SOCKET_IMPL_LWIP_SOCKETS
 #endif
 
-#ifdef USE_LIBRETINY
-#define USE_SOCKET_IMPL_LWIP_SOCKETS
-#endif
-
 #ifdef USE_HOST
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #endif
