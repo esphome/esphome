@@ -166,13 +166,13 @@ class MR24HPC1Component : public Component,
   bool poll_time_base_func_check_;
 
   void update_();
-  void r24_split_data_frame(uint8_t value);
-  void r24_parse_data_frame(uint8_t *data, uint8_t len);
-  void r24_frame_parse_open_underlying_information(uint8_t *data);
-  void r24_frame_parse_work_status(uint8_t *data);
-  void r24_frame_parse_product_information(uint8_t *data);
-  void r24_frame_parse_human_information(uint8_t *data);
-  void send_query(uint8_t *query, size_t string_length);
+  void r24_split_data_frame_(uint8_t value);
+  void r24_parse_data_frame_(uint8_t *data, uint8_t len);
+  void r24_frame_parse_open_underlying_information_(uint8_t *data);
+  void r24_frame_parse_work_status_(uint8_t *data);
+  void r24_frame_parse_product_information_(uint8_t *data);
+  void r24_frame_parse_human_information_(uint8_t *data);
+  void send_query_(uint8_t *query, size_t string_length);
 
  public:
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }

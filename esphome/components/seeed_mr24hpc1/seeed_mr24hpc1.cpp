@@ -110,7 +110,7 @@ void MR24HPC1Component::loop() {
   // Is there data on the serial port
   while (this->available()) {
     this->read_byte(&byte);
-    this->r24_split_data_frame(byte);  // split data frame
+    this->r24_split_data_frame_(byte);  // split data frame
   }
 
   if ((this->s_output_info_switch_flag_ == OUTPUT_SWTICH_OFF) &&
@@ -263,7 +263,7 @@ static int get_frame_check_status(uint8_t *data, int len) {
 }
 
 // split data frame
-void MR24HPC1Component::r24_split_data_frame(uint8_t value) {
+void MR24HPC1Component::r24_split_data_frame_(uint8_t value) {
   switch (this->sg_recv_data_state_) {
     case FRAME_IDLE:  // starting value
       if (FRAME_HEADER1_VALUE == value) {
@@ -338,7 +338,7 @@ void MR24HPC1Component::r24_split_data_frame(uint8_t value) {
         this->sg_frame_buf_[this->sg_frame_len_++] = FRAME_TAIL2_VALUE;
         memcpy(this->sg_frame_prase_buf_, this->sg_frame_buf_, this->sg_frame_len_);
         if (get_frame_check_status(this->sg_frame_prase_buf_, this->sg_frame_len_)) {
-          this->r24_parse_data_frame(this->sg_frame_prase_buf_, this->sg_frame_len_);
+          this->r24_parse_data_frame_(this->sg_frame_prase_buf_, this->sg_frame_len_);
         } else {
           ESP_LOGD(TAG, "frame check failer!");
         }
@@ -357,7 +357,7 @@ void MR24HPC1Component::r24_split_data_frame(uint8_t value) {
 }
 
 // Parses data frames related to product information
-void MR24HPC1Component::r24_frame_parse_product_information(uint8_t *data) {
+void MR24HPC1Component::r24_frame_parse_product_information_(uint8_t *data) {
   uint8_t product_len = 0;
   if (data[FRAME_COMMAND_WORD_INDEX] == 0xA1) {
     product_len = data[FRAME_COMMAND_WORD_INDEX + 1] * 256 + data[FRAME_COMMAND_WORD_INDEX + 2];
@@ -400,7 +400,7 @@ void MR24HPC1Component::r24_frame_parse_product_information(uint8_t *data) {
 }
 
 // Parsing the underlying open parameters
-void MR24HPC1Component::r24_frame_parse_open_underlying_information(uint8_t *data) {
+void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *data) {
   if (data[FRAME_COMMAND_WORD_INDEX] == 0x00) {
     if (this->underly_open_function_switch_ != nullptr) {
       this->underly_open_function_switch_->publish_state(
@@ -493,7 +493,7 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information(uint8_t *dat
   }
 }
 
-void MR24HPC1Component::r24_parse_data_frame(uint8_t *data, uint8_t len) {
+void MR24HPC1Component::r24_parse_data_frame_(uint8_t *data, uint8_t len) {
   switch (data[FRAME_CONTROL_WORD_INDEX]) {
     case 0x01: {
       if ((this->heartbeat_state_text_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x01)) {
@@ -505,16 +505,16 @@ void MR24HPC1Component::r24_parse_data_frame(uint8_t *data, uint8_t len) {
       }
     } break;
     case 0x02: {
-      this->r24_frame_parse_product_information(data);
+      this->r24_frame_parse_product_information_(data);
     } break;
     case 0x05: {
-      this->r24_frame_parse_work_status(data);
+      this->r24_frame_parse_work_status_(data);
     } break;
     case 0x08: {
-      this->r24_frame_parse_open_underlying_information(data);
+      this->r24_frame_parse_open_underlying_information_(data);
     } break;
     case 0x80: {
-      this->r24_frame_parse_human_information(data);
+      this->r24_frame_parse_human_information_(data);
     } break;
     default:
       ESP_LOGD(TAG, "control world:0x%02X not found", data[FRAME_CONTROL_WORD_INDEX]);
@@ -522,7 +522,7 @@ void MR24HPC1Component::r24_parse_data_frame(uint8_t *data, uint8_t len) {
   }
 }
 
-void MR24HPC1Component::r24_frame_parse_work_status(uint8_t *data) {
+void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
   if (data[FRAME_COMMAND_WORD_INDEX] == 0x01) {
     ESP_LOGD(TAG, "Reply: get radar init status 0x%02X", data[FRAME_DATA_INDEX]);
   } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x07) {
@@ -577,7 +577,7 @@ void MR24HPC1Component::r24_frame_parse_work_status(uint8_t *data) {
   }
 }
 
-void MR24HPC1Component::r24_frame_parse_human_information(uint8_t *data) {
+void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
   if ((this->has_target_binary_sensor_ != nullptr) &&
       ((data[FRAME_COMMAND_WORD_INDEX] == 0x01) || (data[FRAME_COMMAND_WORD_INDEX] == 0x81))) {
     this->has_target_binary_sensor_->publish_state(S_SOMEONE_EXISTS_STR[data[FRAME_DATA_INDEX]]);
@@ -607,14 +607,14 @@ void MR24HPC1Component::r24_frame_parse_human_information(uint8_t *data) {
 }
 
 // Sending data frames
-void MR24HPC1Component::send_query(uint8_t *query, size_t string_length) { this->write_array(query, string_length); }
+void MR24HPC1Component::send_query_(uint8_t *query, size_t string_length) { this->write_array(query, string_length); }
 
 // Send Heartbeat Packet Command
 void MR24HPC1Component::get_heartbeat_packet() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x01, 0x01, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 // Issuance of the underlying open parameter query command
@@ -622,7 +622,7 @@ void MR24HPC1Component::get_radar_output_information_switch() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x80, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 // Issuance of product model orders
@@ -630,7 +630,7 @@ void MR24HPC1Component::get_product_mode() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x02, 0xA1, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 // Issuing the Get Product ID command
@@ -638,7 +638,7 @@ void MR24HPC1Component::get_product_id() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x02, 0xA2, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 // Issuing hardware model commands
@@ -646,7 +646,7 @@ void MR24HPC1Component::get_hardware_model() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x02, 0xA3, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 // Issuing software version commands
@@ -654,147 +654,147 @@ void MR24HPC1Component::get_firmware_version() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x02, 0xA4, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_human_status() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x80, 0x81, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_human_motion_info() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x80, 0x82, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_body_motion_params() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x80, 0x83, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_keep_away() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x80, 0x8B, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_scene_mode() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x05, 0x87, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_sensitivity() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x05, 0x88, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_unmanned_time() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x80, 0x8a, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_custom_mode() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x05, 0x89, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_existence_boundary() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x8A, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_motion_boundary() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x8B, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_spatial_static_value() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x81, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_spatial_motion_value() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x82, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_distance_of_static_object() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x83, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_distance_of_moving_object() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x84, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_target_movement_speed() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x85, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_existence_threshold() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x88, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_motion_threshold() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x89, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_motion_trigger_time() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x8C, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_motion_to_rest_time() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x8D, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 void MR24HPC1Component::get_custom_unman_time() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x8E, 0x00, 0x01, 0x0F, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
 }
 
 // Logic of setting: After setting, query whether the setting is successful or not!
@@ -803,9 +803,9 @@ void MR24HPC1Component::set_underlying_open_function(bool enable) {
   uint8_t underlyswitch_on[] = {0x53, 0x59, 0x08, 0x00, 0x00, 0x01, 0x01, 0xB6, 0x54, 0x43};
   uint8_t underlyswitch_off[] = {0x53, 0x59, 0x08, 0x00, 0x00, 0x01, 0x00, 0xB5, 0x54, 0x43};
   if (enable) {
-    send_query(underlyswitch_on, sizeof(underlyswitch_on));
+    send_query_(underlyswitch_on, sizeof(underlyswitch_on));
   } else {
-    send_query(underlyswitch_off, sizeof(underlyswitch_off));
+    send_query_(underlyswitch_off, sizeof(underlyswitch_off));
   }
   if (this->keep_away_text_sensor_ != nullptr) {
     this->keep_away_text_sensor_->publish_state("");
@@ -834,7 +834,7 @@ void MR24HPC1Component::set_scene_mode(uint8_t value) {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x05, 0x07, 0x00, 0x01, static_cast<uint8_t>(value), 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
   if (this->custom_mode_number_ != nullptr) {
     this->custom_mode_number_->publish_state(0);
   }
@@ -859,7 +859,7 @@ void MR24HPC1Component::set_sensitivity(uint8_t value) {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x05, 0x08, 0x00, 0x01, value, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
   this->get_scene_mode();
   this->get_sensitivity();
 }
@@ -867,7 +867,7 @@ void MR24HPC1Component::set_sensitivity(uint8_t value) {
 void MR24HPC1Component::set_restart() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x01, 0x02, 0x00, 0x01, 0x0F, 0xBF, 0x54, 0x43};
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
   this->check_dev_inf_sign_ = true;
 }
 
@@ -875,7 +875,7 @@ void MR24HPC1Component::set_unman_time(uint8_t value) {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x80, 0x0a, 0x00, 0x01, static_cast<uint8_t>(value), 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
   this->get_unmanned_time();
 }
 
@@ -890,7 +890,7 @@ void MR24HPC1Component::set_custom_mode(uint8_t mode) {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x05, 0x09, 0x00, 0x01, mode, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
   this->get_existence_boundary();
   this->get_motion_boundary();
   this->get_existence_threshold();
@@ -906,7 +906,7 @@ void MR24HPC1Component::set_custom_mode(uint8_t mode) {
 void MR24HPC1Component::set_custom_end_mode() {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x05, 0x0a, 0x00, 0x01, 0x0F, 0xCB, 0x54, 0x43};
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
   if (this->custom_mode_number_ != nullptr) {
     this->custom_mode_number_->publish_state(0);  // Clear setpoints
   }
@@ -928,7 +928,7 @@ void MR24HPC1Component::set_existence_boundary(uint8_t value) {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x0A, 0x00, 0x01, static_cast<uint8_t>(value + 1), 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
   this->get_existence_boundary();
 }
 
@@ -938,7 +938,7 @@ void MR24HPC1Component::set_motion_boundary(uint8_t value) {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x0B, 0x00, 0x01, static_cast<uint8_t>(value + 1), 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
   this->get_motion_boundary();
 }
 
@@ -948,7 +948,7 @@ void MR24HPC1Component::set_existence_threshold(int value) {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x08, 0x00, 0x01, (uint8_t) value, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
   this->get_existence_threshold();
 }
 
@@ -958,7 +958,7 @@ void MR24HPC1Component::set_motion_threshold(int value) {
   uint8_t send_data_len = 10;
   uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x09, 0x00, 0x01, (uint8_t) value, 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
   this->get_motion_threshold();
 }
 
@@ -974,7 +974,7 @@ void MR24HPC1Component::set_motion_trigger_time(int value) {
       0x53, 0x59, 0x08, 0x0C, 0x00, 0x04, (uint8_t) h24_num, (uint8_t) h16_num, (uint8_t) h8_num, (uint8_t) l8_num,
       0x00, 0x54, 0x43};
   send_data[10] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
   this->get_motion_trigger_time();
 }
 
@@ -990,7 +990,7 @@ void MR24HPC1Component::set_motion_to_rest_time(int value) {
       0x53, 0x59, 0x08, 0x0D, 0x00, 0x04, (uint8_t) h24_num, (uint8_t) h16_num, (uint8_t) h8_num, (uint8_t) l8_num,
       0x00, 0x54, 0x43};
   send_data[10] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
   this->get_motion_to_rest_time();
 }
 
@@ -1007,7 +1007,7 @@ void MR24HPC1Component::set_custom_unman_time(int value) {
       0x53, 0x59, 0x08, 0x0E, 0x00, 0x04, (uint8_t) h24_num, (uint8_t) h16_num, (uint8_t) h8_num, (uint8_t) l8_num,
       0x00, 0x54, 0x43};
   send_data[10] = get_frame_crc_sum(send_data, send_data_len);
-  this->send_query(send_data, send_data_len);
+  this->send_query_(send_data, send_data_len);
   this->get_custom_unman_time();
 }
 
