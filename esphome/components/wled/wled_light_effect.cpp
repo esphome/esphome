@@ -62,7 +62,6 @@ void WLEDLightEffect::apply(light::AddressableLight &it, const Color &current_co
       ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
       return;
     }
-    server.ss_family = AF_INET;
 
     err = this->socket_->bind((struct sockaddr *) &server, sizeof(server));
     if (err != 0) {
