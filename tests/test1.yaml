@@ -2001,7 +2001,7 @@ binary_sensor:
     id: mmwave_detected_uart
     dfrobot_sen0395_id: mmwave
   - platform: seeed_mr24hpc1
-    someone_exist:
+    has_target:
       name: "Presence Information"
 
 pca9685:
@@ -4060,8 +4060,8 @@ button:
       memory_address: 0x7D
       memory_data: 0x0F
   - platform: seeed_mr24hpc1
-    reset:
-      name: "Module Reset"
+    restart:
+      name: "Module Restart"
     custom_set_end:
       name: "End Of Custom Mode Settings"
 
