@@ -28,7 +28,8 @@ class PinRegistry(dict):
     def get_count(self, key, id, number):
         """
         Get the number of places a given pin is used.
-        :param key: The ID of the defining component
+        :param key: The key of the registered pin schema.
+        :param id: The ID of the defining component
         :param number: The pin number
         :return: The number of places the pin is used.
         """
