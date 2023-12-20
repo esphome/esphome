@@ -72,7 +72,11 @@ class SPIDelegateHw : public SPIDelegate {
       desc.rxlength = this->write_only_ ? 0 : partial * 8;
       desc.tx_buffer = txbuf;
       desc.rx_buffer = rxbuf;
-      esp_err_t const err = spi_device_transmit(this->handle_, &desc);
+      // polling is used as it has about 10% less overhead than queuing an interrupt transfer
+      esp_err_t err = spi_device_polling_start(this->handle_, &desc, portMAX_DELAY);
+      if (err == ESP_OK) {
+        err = spi_device_polling_end(this->handle_, portMAX_DELAY);
+      }
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "Transmit failed - err %X", err);
         break;
@@ -85,6 +89,21 @@ class SPIDelegateHw : public SPIDelegate {
     }
   }
 
+  void write(uint16_t data, size_t num_bits) override {
+    spi_transaction_ext_t desc = {};
+    desc.command_bits = num_bits;
+    desc.base.flags = SPI_TRANS_VARIABLE_CMD;
+    desc.base.cmd = data;
+    esp_err_t err = spi_device_polling_start(this->handle_, (spi_transaction_t *) &desc, portMAX_DELAY);
+    if (err == ESP_OK) {
+      err = spi_device_polling_end(this->handle_, portMAX_DELAY);
+    }
+
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Transmit failed - err %X", err);
+    }
+  }
+
   void transfer(uint8_t *ptr, size_t length) override { this->transfer(ptr, ptr, length); }
 
   uint8_t transfer(uint8_t data) override {
@@ -93,14 +112,7 @@ class SPIDelegateHw : public SPIDelegate {
     return rxbuf;
   }
 
-  void write16(uint16_t data) override {
-    if (this->bit_order_ == BIT_ORDER_MSB_FIRST) {
-      uint16_t txbuf = SPI_SWAP_DATA_TX(data, 16);
-      this->transfer((uint8_t *) &txbuf, nullptr, 2);
-    } else {
-      this->transfer((uint8_t *) &data, nullptr, 2);
-    }
-  }
+  void write16(uint16_t data) override { this->write(data, 16); }
 
   void write_array(const uint8_t *ptr, size_t length) override { this->transfer(ptr, nullptr, length); }
 

@@ -44,16 +44,19 @@ network:
 e131:
 
 power_supply:
-  id: atx_power_supply
-  enable_time: 20ms
-  keep_on_time: 10s
-  pin:
-    number: 13
-    inverted: true
+  - id: atx_power_supply
+    enable_time: 20ms
+    keep_on_time: 10s
+    enable_on_boot: true
+    pin:
+      number: 13
+      inverted: true
 
 i2c:
   sda: 21
-  scl: 22
+  scl:
+    number: 22
+    allow_other_uses: true
   scan: true
   frequency: 100kHz
   setup_priority: -100
@@ -85,7 +88,9 @@ light:
   - platform: fastled_clockless
     id: addr1
     chipset: WS2811
-    pin: GPIO23
+    pin:
+      allow_other_uses: true
+      number: GPIO23
     num_leds: 60
     rgb_order: BRG
     max_refresh_rate: 20ms
@@ -167,8 +172,12 @@ light:
   - platform: fastled_spi
     id: addr2
     chipset: WS2801
-    data_pin: GPIO23
-    clock_pin: GPIO22
+    data_pin:
+      allow_other_uses: true
+      number: GPIO23
+    clock_pin:
+      number: GPIO22
+      allow_other_uses: true
     data_rate: 2MHz
     num_leds: 60
     rgb_order: BRG
@@ -189,7 +198,9 @@ light:
     variant: SK6812
     method: ESP32_I2S_0
     num_leds: 60
-    pin: GPIO23
+    pin:
+      allow_other_uses: true
+      number: GPIO23
   - platform: partition
     name: Partition Light
     segments:
@@ -203,3 +214,19 @@ light:
         from: 20
         to: 25
       - single_light_id: ${roomname}_lights
+
+canbus:
+  - platform: esp32_can
+    id: esp32_internal_can
+    rx_pin: GPIO04
+    tx_pin: GPIO05
+    can_id: 4
+    bit_rate: 50kbps
+
+button:
+  - platform: template
+    name: Canbus Actions
+    on_press:
+      - canbus.send: "abc"
+      - canbus.send: [0, 1, 2]
+      - canbus.send: !lambda return {0, 1, 2};

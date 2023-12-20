@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_FROM,
     CONF_ICON,
     CONF_ID,
+    CONF_IGNORE_OUT_OF_RANGE,
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
@@ -688,6 +689,7 @@ CLAMP_SCHEMA = cv.All(
         {
             cv.Optional(CONF_MIN_VALUE, default="NaN"): cv.float_,
             cv.Optional(CONF_MAX_VALUE, default="NaN"): cv.float_,
+            cv.Optional(CONF_IGNORE_OUT_OF_RANGE, default=False): cv.boolean,
         }
     ),
     validate_clamp,
@@ -700,6 +702,7 @@ async def clamp_filter_to_code(config, filter_id):
         filter_id,
         config[CONF_MIN_VALUE],
         config[CONF_MAX_VALUE],
+        config[CONF_IGNORE_OUT_OF_RANGE],
     )
 
 

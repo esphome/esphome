@@ -17,6 +17,7 @@ from esphome.core import (
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
     TimePeriodMinutes,
+    TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
@@ -351,6 +352,8 @@ def safe_exp(obj: SafeExpType) -> Expression:
         return IntLiteral(obj)
     if isinstance(obj, float):
         return FloatLiteral(obj)
+    if isinstance(obj, TimePeriodNanoseconds):
+        return IntLiteral(int(obj.total_nanoseconds))
     if isinstance(obj, TimePeriodMicroseconds):
         return IntLiteral(int(obj.total_microseconds))
     if isinstance(obj, TimePeriodMilliseconds):
