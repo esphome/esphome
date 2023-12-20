@@ -35,6 +35,7 @@ from esphome.const import (
     CONF_HEAT_DEADBAND,
     CONF_HEAT_MODE,
     CONF_HEAT_OVERRUN,
+    CONF_HUMIDITY_SENSOR,
     CONF_ID,
     CONF_IDLE_ACTION,
     CONF_MAX_COOLING_RUN_TIME,
@@ -519,6 +520,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ThermostatClimate),
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_IDLE_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_COOL_ACTION): automation.validate_automation(single=True),
             cv.Optional(
@@ -657,6 +659,10 @@ async def to_code(config):
         )
     )
     cg.add(var.set_sensor(sens))
+
+    if CONF_HUMIDITY_SENSOR in config:
+        sens = await cg.get_variable(config[CONF_HUMIDITY_SENSOR])
+        cg.add(var.set_humidity_sensor(sens))
 
     cg.add(var.set_cool_deadband(config[CONF_COOL_DEADBAND]))
     cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))

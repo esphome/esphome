@@ -117,7 +117,7 @@ class AsyncWebServerRequest {
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebServerResponse *beginResponse(int code, const char *content_type) {
     auto *res = new AsyncWebServerResponseEmpty(this);  // NOLINT(cppcoreguidelines-owning-memory)
-    this->init_response_(res, 200, content_type);
+    this->init_response_(res, code, content_type);
     return res;
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -157,6 +157,8 @@ class AsyncWebServerRequest {
 
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  bool hasHeader(const char *name) const;
 
  protected:
   httpd_req_t *req_;
@@ -254,6 +256,7 @@ class AsyncEventSource : public AsyncWebHandler {
 
 class DefaultHeaders {
   friend class AsyncWebServerRequest;
+  friend class AsyncEventSourceResponse;
 
  public:
   // NOLINTNEXTLINE(readability-identifier-naming)

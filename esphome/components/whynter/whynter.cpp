@@ -118,7 +118,7 @@ bool Whynter::on_receive(remote_base::RemoteReceiveData data) {
     }
   }
 
-  ESP_LOGD(TAG, "Decoded 0x%02X", remote_state);
+  ESP_LOGD(TAG, "Decoded 0x%02" PRIX32, remote_state);
   if ((remote_state & COMMAND_MASK) != COMMAND_CODE)
     return false;
   if ((remote_state & POWER_MASK) != POWER_MASK) {
@@ -156,7 +156,7 @@ bool Whynter::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 void Whynter::transmit_(uint32_t value) {
-  ESP_LOGD(TAG, "Sending whynter code: 0x%02X", value);
+  ESP_LOGD(TAG, "Sending Whynter code: 0x%02" PRIX32, value);
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
