@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
 from esphome.const import CONF_ID
-from esphome.automation import maybe_simple_id
 
 DEPENDENCIES = ["uart"]
 # is the code owner of the relevant code base
@@ -26,7 +25,8 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(MR24HPC1Component),
         }
     )
-    .extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 # This code extends the current CONFIG_SCHEMA by adding all the configuration parameters for the UART device and components.

@@ -179,7 +179,7 @@ class MR24HPC1Component : public Component,
   void setup() override;
   void dump_config() override;
   void loop() override;
-  
+
   void get_heartbeat_packet();
   void get_radar_output_information_switch();
   void get_product_mode();
