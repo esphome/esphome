@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import font, color
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_TYPE
 from . import horizontal_stack
 from . import vertical_stack
 from . import text_panel
@@ -18,9 +17,7 @@ AUTO_LOAD = ["display"]
 
 MULTI_CONF = True
 
-CONF_ITEMS = "items"
 CONF_LAYOUT = "layout"
-CONF_ITEM_TYPE = "type"
 
 BASE_ITEM_SCHEMA = cv.Schema({})
 
@@ -31,57 +28,17 @@ def item_type_schema(value):
 
 ITEM_TYPE_SCHEMA = cv.typed_schema(
     {
-        text_panel.CONF_TYPE: BASE_ITEM_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(text_panel.TextPanel),
-                cv.Optional(text_panel.CONF_ITEM_PADDING, default=0): cv.templatable(
-                    cv.int_
-                ),
-                cv.Required(text_panel.CONF_FONT): cv.use_id(font.Font),
-                cv.Optional(text_panel.CONF_FOREGROUND_COLOR): cv.use_id(
-                    color.ColorStruct
-                ),
-                cv.Optional(text_panel.CONF_BACKGROUND_COLOR): cv.use_id(
-                    color.ColorStruct
-                ),
-                cv.Required(text_panel.CONF_TEXT): cv.templatable(cv.string),
-            }
+        text_panel.CONF_TYPE: text_panel.get_config_schema(
+            BASE_ITEM_SCHEMA, item_type_schema
         ),
-        horizontal_stack.CONF_TYPE: BASE_ITEM_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(horizontal_stack.HorizontalStack),
-                cv.Optional(
-                    horizontal_stack.CONF_ITEM_PADDING, default=0
-                ): cv.templatable(cv.int_),
-                cv.Required(CONF_ITEMS): cv.All(
-                    cv.ensure_list(item_type_schema), cv.Length(min=1)
-                ),
-            }
+        horizontal_stack.CONF_TYPE: horizontal_stack.get_config_schema(
+            BASE_ITEM_SCHEMA, item_type_schema
         ),
-        vertical_stack.CONF_TYPE: BASE_ITEM_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(vertical_stack.VerticalStack),
-                cv.Optional(
-                    vertical_stack.CONF_ITEM_PADDING, default=0
-                ): cv.templatable(cv.int_),
-                cv.Required(CONF_ITEMS): cv.All(
-                    cv.ensure_list(item_type_schema), cv.Length(min=1)
-                ),
-            }
+        vertical_stack.CONF_TYPE: vertical_stack.get_config_schema(
+            BASE_ITEM_SCHEMA, item_type_schema
         ),
-        display_rendering_panel.CONF_TYPE: BASE_ITEM_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(
-                    display_rendering_panel.DisplayRenderingPanel
-                ),
-                cv.Required(display_rendering_panel.CONF_WIDTH): cv.templatable(
-                    cv.int_range(min=1)
-                ),
-                cv.Required(display_rendering_panel.CONF_HEIGHT): cv.templatable(
-                    cv.int_range(min=1)
-                ),
-                cv.Required(display_rendering_panel.CONF_LAMBDA): cv.lambda_,
-            }
+        display_rendering_panel.CONF_TYPE: display_rendering_panel.get_config_schema(
+            BASE_ITEM_SCHEMA, item_type_schema
         ),
     }
 )
@@ -106,7 +63,7 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     layout_config = config[CONF_LAYOUT]
-    layout_type = layout_config[CONF_ITEM_TYPE]
+    layout_type = layout_config[CONF_TYPE]
     if layout_type in CODE_GENERATORS:
         layout_var = await CODE_GENERATORS[layout_type](layout_config, CODE_GENERATORS)
         cg.add(var.set_layout_root(layout_var))
