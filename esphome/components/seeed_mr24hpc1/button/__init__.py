@@ -8,16 +8,16 @@ from esphome.const import (
 )
 from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
 
-ResetButton = mr24hpc1_ns.class_("ResetButton", button.Button)
+RestartButton = mr24hpc1_ns.class_("RestartButton", button.Button)
 CustomSetEndButton = mr24hpc1_ns.class_("CustomSetEndButton", button.Button)
 
-CONF_RESET = "reset"
+CONF_RESTART = "restart"
 CONF_CUSTOM_SET_END = "custom_set_end"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(MR24HPC1Component),
-    cv.Optional(CONF_RESET): button.button_schema(
-        ResetButton,
+    cv.Optional(CONF_RESTART): button.button_schema(
+        RestartButton,
         device_class=DEVICE_CLASS_RESTART,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_RESTART_ALERT,
@@ -32,10 +32,10 @@ CONFIG_SCHEMA = {
 
 async def to_code(config):
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
-    if reset_config := config.get(CONF_RESET):
-        b = await button.new_button(reset_config)
+    if restart_config := config.get(CONF_RESTART):
+        b = await button.new_button(restart_config)
         await cg.register_parented(b, config[CONF_MR24HPC1_ID])
-        cg.add(mr24hpc1_component.set_reset_button(b))
+        cg.add(mr24hpc1_component.set_restart_button(b))
     if custom_set_end_config := config.get(CONF_CUSTOM_SET_END):
         b = await button.new_button(custom_set_end_config)
         await cg.register_parented(b, config[CONF_MR24HPC1_ID])

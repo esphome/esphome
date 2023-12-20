@@ -66,7 +66,7 @@ enum {
   STANDARD_FUNCTION_QUERY_UNMANNED_TIME,
   STANDARD_FUNCTION_QUERY_HUMAN_STATUS,
   STANDARD_FUNCTION_QUERY_HUMAN_MOTION_INF,
-  // STANDARD_FUNCTION_QUERY_BODY_MOVE_PARAMETER,
+  STANDARD_FUNCTION_QUERY_BODY_MOVE_PARAMETER,
   STANDARD_FUNCTION_QUERY_KEEPAWAY_STATUS,
   STANDARD_QUERY_CUSTOM_MODE,
   STANDARD_FUNCTION_QUERY_HEARTBEAT_STATE,  // Above is the basic function
@@ -80,29 +80,17 @@ enum {
   CUSTOM_FUNCTION_QUERY_TIME_OF_ENTER_UNMANNED,
 
   UNDERLY_FUNCTION_QUERY_HUMAN_STATUS,
-  // UNDERLY_FUNCTION_QUERY_SPATIAL_STATIC_VALUE,
-  // UNDERLY_FUNCTION_QUERY_SPATIAL_MOTION_VALUE,
-  // UNDERLY_FUNCTION_QUERY_DISTANCE_OF_STATIC_OBJECT,
-  // UNDERLY_FUNCTION_QUERY_DISTANCE_OF_MOVING_OBJECT,
-  // UNDERLY_FUNCTION_QUERY_TARGET_MOVEMENT_SPEED,
+  UNDERLY_FUNCTION_QUERY_SPATIAL_STATIC_VALUE,
+  UNDERLY_FUNCTION_QUERY_SPATIAL_MOTION_VALUE,
+  UNDERLY_FUNCTION_QUERY_DISTANCE_OF_STATIC_OBJECT,
+  UNDERLY_FUNCTION_QUERY_DISTANCE_OF_MOVING_OBJECT,
+  UNDERLY_FUNCTION_QUERY_TARGET_MOVEMENT_SPEED,
 };
 
 enum {
   OUTPUT_SWITCH_INIT,
   OUTPUT_SWTICH_ON,
   OUTPUT_SWTICH_OFF,
-};
-
-static const std::map<std::string, uint8_t> SCENEMODE_ENUM_TO_INT{
-    {"None", 0x00}, {"Living Room", 0x01}, {"Bedroom", 0x02}, {"Washroom", 0x03}, {"Area Detection", 0x04}};
-
-static const std::map<std::string, uint8_t> UNMANDTIME_ENUM_TO_INT{{"None", 0x00},  {"10s", 0x01},   {"30s", 0x02},
-                                                                   {"1min", 0x03},  {"2min", 0x04},  {"5min", 0x05},
-                                                                   {"10min", 0x06}, {"30min", 0x07}, {"60min", 0x08}};
-
-static const std::map<std::string, uint8_t> BOUNDARY_ENUM_TO_INT{
-    {"0.5m", 0x01}, {"1.0m", 0x02}, {"1.5m", 0x03}, {"2.0m", 0x04}, {"2.5m", 0x05},
-    {"3.0m", 0x06}, {"3.5m", 0x07}, {"4.0m", 0x08}, {"4.5m", 0x09}, {"5.0m", 0x0a},
 };
 
 static const char *const S_SCENE_STR[5] = {"None", "Living Room", "Bedroom", "Washroom", "Area Detection"};
@@ -115,7 +103,7 @@ static const char *const S_BOUNDARY_STR[10] = {"0.5m", "1.0m", "1.5m", "2.0m", "
                                                "3.0m", "3.5m", "4.0m", "4.5m", "5.0m"};       // uint: m
 static const float S_PRESENCE_OF_DETECTION_RANGE_STR[7] = {0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0};  // uint: m
 
-class MR24HPC1Component : public PollingComponent,
+class MR24HPC1Component : public Component,
                           public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(heartbeat_state)
@@ -128,7 +116,7 @@ class MR24HPC1Component : public PollingComponent,
   SUB_TEXT_SENSOR(custom_mode_end)
 #endif
 #ifdef USE_BINARY_SENSOR
-  SUB_BINARY_SENSOR(someoneExists)
+  SUB_BINARY_SENSOR(has_target)
 #endif
 #ifdef USE_SENSOR
   SUB_SENSOR(custom_presence_of_detection)
@@ -143,7 +131,7 @@ class MR24HPC1Component : public PollingComponent,
   SUB_SWITCH(underly_open_function)
 #endif
 #ifdef USE_BUTTON
-  SUB_BUTTON(reset)
+  SUB_BUTTON(restart)
   SUB_BUTTON(custom_set_end)
 #endif
 #ifdef USE_SELECT
@@ -177,12 +165,7 @@ class MR24HPC1Component : public PollingComponent,
   bool check_dev_inf_sign_;
   bool poll_time_base_func_check_;
 
- public:
-  float get_setup_priority() const override { return esphome::setup_priority::LATE; }
-  void setup() override;
-  void update() override;
-  void dump_config() override;
-  void loop() override;
+  void update_();
   void r24_split_data_frame(uint8_t value);
   void r24_parse_data_frame(uint8_t *data, uint8_t len);
   void r24_frame_parse_open_underlying_information(uint8_t *data);
@@ -191,6 +174,12 @@ class MR24HPC1Component : public PollingComponent,
   void r24_frame_parse_human_information(uint8_t *data);
   void send_query(uint8_t *query, size_t string_length);
 
+ public:
+  float get_setup_priority() const override { return esphome::setup_priority::LATE; }
+  void setup() override;
+  void dump_config() override;
+  void loop() override;
+  
   void get_heartbeat_packet();
   void get_radar_output_information_switch();
   void get_product_mode();
@@ -218,16 +207,16 @@ class MR24HPC1Component : public PollingComponent,
   void get_motion_to_rest_time();
   void get_custom_unman_time();
 
-  void set_scene_mode(const std::string &state);
+  void set_scene_mode(uint8_t value);
   void set_underlying_open_function(bool enable);
   void set_sensitivity(uint8_t value);
-  void set_reset();
-  void set_unman_time(const std::string &time);
+  void set_restart();
+  void set_unman_time(uint8_t value);
   void set_custom_mode(uint8_t mode);
   void set_custom_end_mode();
-  void set_existence_boundary(const std::string &value);
-  void set_motion_boundary(const std::string &value);
-  void set_existence_threshold(uint8_t value);
+  void set_existence_boundary(uint8_t value);
+  void set_motion_boundary(uint8_t value);
+  void set_existence_threshold(int value);
   void set_motion_threshold(int value);
   void set_motion_trigger_time(int value);
   void set_motion_to_rest_time(int value);

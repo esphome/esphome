@@ -11,7 +11,7 @@ CONF_HAS_TARGET = "has_target"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(MR24HPC1Component),
-    cv.Optional(CONF_SOMEONE_EXIST): binary_sensor.binary_sensor_schema(
+    cv.Optional(CONF_HAS_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_OCCUPANCY, icon="mdi:motion-sensor"
     ),
 }
@@ -19,6 +19,6 @@ CONFIG_SCHEMA = {
 
 async def to_code(config):
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
-    if someoneexists_config := config.get(CONF_SOMEONE_EXIST):
-        sens = await binary_sensor.new_binary_sensor(someoneexists_config)
-        cg.add(mr24hpc1_component.set_someoneExists_binary_sensor(sens))
+    if has_target_config := config.get(CONF_HAS_TARGET):
+        sens = await binary_sensor.new_binary_sensor(has_target_config)
+        cg.add(mr24hpc1_component.set_has_target_binary_sensor(sens))
