@@ -1,15 +1,11 @@
 import esphome.codegen as cg
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_WIDTH, CONF_HEIGHT, CONF_LAMBDA
 from esphome.components.display import DisplayRef
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 DisplayRenderingPanel = graphical_layout_ns.class_("DisplayRenderingPanel")
 
 CONF_TYPE = "display_rendering_panel"
-CONF_HEIGHT = "height"
-CONF_WIDTH = "width"
-CONF_LAMBDA = "lambda"
-
 
 async def config_to_layout_item(item_config, child_item_builder):
     var = cg.new_Pvariable(item_config[CONF_ID])
