@@ -1,7 +1,7 @@
 #!/bin/bash
-
 set -e
 # set -x
+apt update && apt upgrade -y && apt install python3.9-venv
 
 mkdir -p config
 script/setup

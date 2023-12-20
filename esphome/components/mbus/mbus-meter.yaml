@@ -1,0 +1,17 @@
+esphome:
+  name: "mbus-meter"
+
+# esp8266:
+#   board: d1_mini
+
+esp32:
+  board: esp32doit-devkit-v1
+
+# Enable logging
+logger:
+  level: DEBUG
+
+# api: !include _api.yaml
+# ota: !include _ota.yaml
+# wifi: !include _wifi.yaml
+mbus:
