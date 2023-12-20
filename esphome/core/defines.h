@@ -44,11 +44,14 @@
 #define USE_SENSOR
 #define USE_STATUS_LED
 #define USE_SWITCH
+#define USE_TEXT
 #define USE_TEXT_SENSOR
 #define USE_TIME
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
 #define USE_WIFI
+#define USE_WIFI_AP
+#define USE_GRAPHICAL_DISPLAY_MENU
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
@@ -77,6 +80,7 @@
 #define USE_VOICE_ASSISTANT
 #define USE_MICROPHONE
 #define USE_SPEAKER
+#define USE_SPI
 
 #ifdef USE_ARDUINO
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(2, 0, 5)
@@ -96,9 +100,7 @@
 #define USE_HTTP_REQUEST_ESP8266_HTTPS
 #define USE_SOCKET_IMPL_LWIP_TCP
 
-#ifdef USE_LIBRETINY
-#define USE_SOCKET_IMPL_LWIP_SOCKETS
-#endif
+#define USE_SPI
 
 // Dummy firmware payload for shelly_dimmer
 #define USE_SHD_FIRMWARE_MAJOR_VERSION 56
@@ -111,6 +113,11 @@
 #ifdef USE_RP2040
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 0)
 #define USE_SOCKET_IMPL_LWIP_TCP
+#define USE_SPI
+#endif
+
+#ifdef USE_LIBRETINY
+#define USE_SOCKET_IMPL_LWIP_SOCKETS
 #endif
 
 #ifdef USE_HOST

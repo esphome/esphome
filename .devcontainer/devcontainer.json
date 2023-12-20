@@ -1,17 +1,13 @@
 {
   "name": "ESPHome Dev",
   "image": "ghcr.io/esphome/esphome-lint:dev",
-  "postCreateCommand": [
-    "script/devcontainer-post-create"
-  ],
+  "postCreateCommand": ["script/devcontainer-post-create"],
   "containerEnv": {
-    "DEVCONTAINER": "1"
+    "DEVCONTAINER": "1",
+    "PIP_BREAK_SYSTEM_PACKAGES": "1",
+    "PIP_ROOT_USER_ACTION": "ignore"
   },
-  "runArgs": [
-    "--privileged",
-    "-e",
-    "ESPHOME_DASHBOARD_USE_PING=1"
-  ],
+  "runArgs": ["--privileged", "-e", "ESPHOME_DASHBOARD_USE_PING=1"],
   "appPort": 6052,
   "customizations": {
     "vscode": {
@@ -24,7 +20,7 @@
         // cpp
         "ms-vscode.cpptools",
         // editorconfig
-        "editorconfig.editorconfig",
+        "editorconfig.editorconfig"
       ],
       "settings": {
         "python.languageServer": "Pylance",
@@ -41,6 +37,7 @@
           "!secret scalar",
           "!lambda scalar",
           "!extend scalar",
+          "!remove scalar",
           "!include_dir_named scalar",
           "!include_dir_list scalar",
           "!include_dir_merge_list scalar",
