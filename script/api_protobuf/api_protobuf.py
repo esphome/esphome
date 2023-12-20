@@ -4,7 +4,7 @@
 It's pretty crappy spaghetti code, but it works.
 
 you need to install protobuf-compiler:
-running protc --version should return
+running protoc --version should return
 libprotoc 3.6.1
 
 then run this script with python3 and the files

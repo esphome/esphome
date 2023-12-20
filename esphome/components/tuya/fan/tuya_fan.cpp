@@ -9,13 +9,20 @@ static const char *const TAG = "tuya.fan";
 void TuyaFan::setup() {
   if (this->speed_id_.has_value()) {
     this->parent_->register_listener(*this->speed_id_, [this](const TuyaDatapoint &datapoint) {
-      ESP_LOGV(TAG, "MCU reported speed of: %d", datapoint.value_enum);
-      if (datapoint.value_enum >= this->speed_count_) {
-        ESP_LOGE(TAG, "Speed has invalid value %d", datapoint.value_enum);
-      } else {
-        this->speed = datapoint.value_enum + 1;
+      if (datapoint.type == TuyaDatapointType::ENUM) {
+        ESP_LOGV(TAG, "MCU reported speed of: %d", datapoint.value_enum);
+        if (datapoint.value_enum >= this->speed_count_) {
+          ESP_LOGE(TAG, "Speed has invalid value %d", datapoint.value_enum);
+        } else {
+          this->speed = datapoint.value_enum + 1;
+          this->publish_state();
+        }
+      } else if (datapoint.type == TuyaDatapointType::INTEGER) {
+        ESP_LOGV(TAG, "MCU reported speed of: %d", datapoint.value_int);
+        this->speed = datapoint.value_int;
         this->publish_state();
       }
+      this->speed_type_ = datapoint.type;
     });
   }
   if (this->switch_id_.has_value()) {
@@ -80,7 +87,11 @@ void TuyaFan::control(const fan::FanCall &call) {
     this->parent_->set_enum_datapoint_value(*this->direction_id_, enable);
   }
   if (this->speed_id_.has_value() && call.get_speed().has_value()) {
-    this->parent_->set_enum_datapoint_value(*this->speed_id_, *call.get_speed() - 1);
+    if (this->speed_type_ == TuyaDatapointType::ENUM) {
+      this->parent_->set_enum_datapoint_value(*this->speed_id_, *call.get_speed() - 1);
+    } else if (this->speed_type_ == TuyaDatapointType::INTEGER) {
+      this->parent_->set_integer_datapoint_value(*this->speed_id_, *call.get_speed());
+    }
   }
 }
 

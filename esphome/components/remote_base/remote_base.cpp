@@ -1,6 +1,8 @@
 #include "remote_base.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace remote_base {
 
@@ -125,7 +127,7 @@ void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
   const auto &vec = this->temp_.get_data();
   char buffer[256];
   uint32_t buffer_offset = 0;
-  buffer_offset += sprintf(buffer, "Sending times=%u wait=%ums: ", send_times, send_wait);
+  buffer_offset += sprintf(buffer, "Sending times=%" PRIu32 " wait=%" PRIu32 "ms: ", send_times, send_wait);
 
   for (size_t i = 0; i < vec.size(); i++) {
     const int32_t value = vec[i];
@@ -133,9 +135,9 @@ void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
     int written;
 
     if (i + 1 < vec.size()) {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%d, ", value);
+      written = snprintf(buffer + buffer_offset, remaining_length, "%" PRId32 ", ", value);
     } else {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%d", value);
+      written = snprintf(buffer + buffer_offset, remaining_length, "%" PRId32, value);
     }
 
     if (written < 0 || written >= int(remaining_length)) {
@@ -145,9 +147,9 @@ void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
       buffer_offset = 0;
       written = sprintf(buffer, "  ");
       if (i + 1 < vec.size()) {
-        written += sprintf(buffer + written, "%d, ", value);
+        written += sprintf(buffer + written, "%" PRId32 ", ", value);
       } else {
-        written += sprintf(buffer + written, "%d", value);
+        written += sprintf(buffer + written, "%" PRId32, value);
       }
     }
 
