@@ -23,7 +23,7 @@ static const uint8_t CONFIG_REG_G_BIT = 3;
 
 // Other important constants
 //
-static const uint16_t DEVICE_ID = 0x0035;
+static const uint8_t DEVICE_ID = 0x35;
 static const uint16_t SHUTDOWN_BITS = 0x0018;
 
 // Base multiplier value for lux computation

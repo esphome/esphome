@@ -1,4 +1,5 @@
 #include "veml3235.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -59,7 +60,7 @@ float VEML3235Sensor::read_lx_() {
   this->status_clear_warning();
 
   float als_raw_value_multiplier = LUX_MULTIPLIER_BASE;
-  uint16_t als_raw_value = als_regs[1] << 8 | als_regs[0];
+  uint16_t als_raw_value = encode_uint16(als_regs[1], als_regs[0]);
   // determine multiplier value based on gains and integration time
   if (this->digital_gain_ == VEML3235_DIGITAL_GAIN_1X) {
     als_raw_value_multiplier *= 2;

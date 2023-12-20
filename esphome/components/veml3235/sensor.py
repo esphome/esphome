@@ -56,7 +56,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_DIGITAL_GAIN, default="1X"): cv.enum(
                 DIGITAL_GAINS, upper=True
             ),
-            cv.Optional(CONF_AUTO_GAIN, default="true"): cv.boolean,
+            cv.Optional(CONF_AUTO_GAIN, default=True): cv.boolean,
             cv.Optional(CONF_AUTO_GAIN_THRESHOLD_HIGH, default="90%"): cv.percentage,
             cv.Optional(CONF_AUTO_GAIN_THRESHOLD_LOW, default="20%"): cv.percentage,
             cv.Optional(CONF_GAIN, default="1X"): cv.enum(GAINS, upper=True),
