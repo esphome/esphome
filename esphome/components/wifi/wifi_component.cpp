@@ -82,6 +82,7 @@ void WiFiComponent::start() {
     } else {
       this->start_scanning();
     }
+#ifdef USE_WIFI_AP
   } else if (this->has_ap()) {
     this->setup_ap_config_();
     if (this->output_power_.has_value() && !this->wifi_apply_output_power_(*this->output_power_)) {
@@ -94,6 +95,7 @@ void WiFiComponent::start() {
       captive_portal::global_captive_portal->start();
     }
 #endif
+#endif  // USE_WIFI_AP
   }
 #ifdef USE_IMPROV
   if (!this->has_sta() && esp32_improv::global_improv_component != nullptr) {
@@ -109,6 +111,15 @@ void WiFiComponent::loop() {
   const uint32_t now = millis();
 
   if (this->has_sta()) {
+    if (this->is_connected() != this->handled_connected_state_) {
+      if (this->handled_connected_state_) {
+        this->disconnect_trigger_->trigger();
+      } else {
+        this->connect_trigger_->trigger();
+      }
+      this->handled_connected_state_ = this->is_connected();
+    }
+
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning();
@@ -151,8 +162,9 @@ void WiFiComponent::loop() {
         return;
     }
 
+#ifdef USE_WIFI_AP
     if (this->has_ap() && !this->ap_setup_) {
-      if (now - this->last_connected_ > this->ap_timeout_) {
+      if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
         ESP_LOGI(TAG, "Starting fallback AP!");
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
@@ -161,6 +173,7 @@ void WiFiComponent::loop() {
 #endif
       }
     }
+#endif  // USE_WIFI_AP
 
 #ifdef USE_IMPROV
     if (esp32_improv::global_improv_component != nullptr && !esp32_improv::global_improv_component->is_active()) {
@@ -190,11 +203,16 @@ void WiFiComponent::set_fast_connect(bool fast_connect) { this->fast_connect_ = 
 void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
 void WiFiComponent::set_rrm(bool rrm) { this->rrm_ = rrm; }
 #endif
+
 network::IPAddress WiFiComponent::get_ip_address() {
   if (this->has_sta())
     return this->wifi_sta_ip();
+
+#ifdef USE_WIFI_AP
   if (this->has_ap())
     return this->wifi_soft_ap_ip();
+#endif  // USE_WIFI_AP
+
   return {};
 }
 network::IPAddress WiFiComponent::get_dns_address(int num) {
@@ -209,6 +227,8 @@ std::string WiFiComponent::get_use_address() const {
   return this->use_address_;
 }
 void WiFiComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+
+#ifdef USE_WIFI_AP
 void WiFiComponent::setup_ap_config_() {
   this->wifi_mode_({}, true);
 
@@ -246,13 +266,16 @@ void WiFiComponent::setup_ap_config_() {
   }
 }
 
-float WiFiComponent::get_loop_priority() const {
-  return 10.0f;  // before other loop components
-}
 void WiFiComponent::set_ap(const WiFiAP &ap) {
   this->ap_ = ap;
   this->has_ap_ = true;
 }
+#endif  // USE_WIFI_AP
+
+float WiFiComponent::get_loop_priority() const {
+  return 10.0f;  // before other loop components
+}
+
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
 void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->clear_sta();
@@ -380,6 +403,10 @@ void WiFiComponent::print_connect_params_() {
   bssid_t bssid = wifi_bssid();
 
   ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
+  if (this->is_disabled()) {
+    ESP_LOGCONFIG(TAG, "  WiFi is disabled!");
+    return;
+  }
   ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), wifi_ssid().c_str());
   ESP_LOGCONFIG(TAG, "  IP Address: %s", wifi_sta_ip().str().c_str());
   ESP_LOGCONFIG(TAG, "  BSSID: " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X"), bssid[0], bssid[1], bssid[2], bssid[3],

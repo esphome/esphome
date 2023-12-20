@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import binary_sensor
 from esphome.const import (
+    CONF_COMMAND_REPEATS,
     CONF_DATA,
     CONF_TRIGGER_ID,
     CONF_NBITS,
@@ -52,8 +53,9 @@ RemoteReceiverTrigger = ns.class_(
     "RemoteReceiverTrigger", automation.Trigger, RemoteReceiverListener
 )
 RemoteTransmitterDumper = ns.class_("RemoteTransmitterDumper")
+RemoteTransmittable = ns.class_("RemoteTransmittable")
 RemoteTransmitterActionBase = ns.class_(
-    "RemoteTransmitterActionBase", automation.Action
+    "RemoteTransmitterActionBase", RemoteTransmittable, automation.Action
 )
 RemoteReceiverBase = ns.class_("RemoteReceiverBase")
 RemoteTransmitterBase = ns.class_("RemoteTransmitterBase")
@@ -68,9 +70,28 @@ def templatize(value):
     return cv.Schema(ret)
 
 
+REMOTE_LISTENER_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_RECEIVER_ID): cv.use_id(RemoteReceiverBase),
+    }
+)
+
+
+REMOTE_TRANSMITTABLE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(RemoteTransmitterBase),
+    }
+)
+
+
 async def register_listener(var, config):
     receiver = await cg.get_variable(config[CONF_RECEIVER_ID])
     cg.add(receiver.register_listener(var))
+
+
+async def register_transmittable(var, config):
+    transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
+    cg.add(var.set_transmitter(transmitter_))
 
 
 def register_binary_sensor(name, type, schema):
@@ -129,10 +150,9 @@ def validate_repeat(value):
 
 BASE_REMOTE_TRANSMITTER_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(RemoteTransmitterBase),
         cv.Optional(CONF_REPEAT): validate_repeat,
     }
-)
+).extend(REMOTE_TRANSMITTABLE_SCHEMA)
 
 
 def register_action(name, type_, schema):
@@ -143,9 +163,8 @@ def register_action(name, type_, schema):
 
     def decorator(func):
         async def new_func(config, action_id, template_arg, args):
-            transmitter = await cg.get_variable(config[CONF_TRANSMITTER_ID])
             var = cg.new_Pvariable(action_id, template_arg)
-            cg.add(var.set_parent(transmitter))
+            await register_transmittable(var, config)
             if CONF_REPEAT in config:
                 conf = config[CONF_REPEAT]
                 template_ = await cg.templatable(conf[CONF_TIMES], args, cg.uint32)
@@ -240,6 +259,55 @@ async def build_dumpers(config):
         dumper = await cg.build_registry_entry(DUMPER_REGISTRY, conf)
         dumpers.append(dumper)
     return dumpers
+
+
+# ByronSX
+(
+    ByronSXData,
+    ByronSXBinarySensor,
+    ByronSXTrigger,
+    ByronSXAction,
+    ByronSXDumper,
+) = declare_protocol("ByronSX")
+BYRONSX_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFF)),
+        cv.Optional(CONF_COMMAND, default=0x10): cv.All(
+            cv.hex_int, cv.one_of(1, 2, 3, 5, 6, 9, 0xD, 0xE, 0x10, int=True)
+        ),
+    }
+)
+
+
+@register_binary_sensor("byronsx", ByronSXBinarySensor, BYRONSX_SCHEMA)
+def byronsx_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                ByronSXData,
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("byronsx", ByronSXTrigger, ByronSXData)
+def byronsx_trigger(var, config):
+    pass
+
+
+@register_dumper("byronsx", ByronSXDumper)
+def byronsx_dumper(var, config):
+    pass
+
+
+@register_action("byronsx", ByronSXAction, BYRONSX_SCHEMA)
+async def byronsx_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
 
 
 # CanalSat
@@ -571,6 +639,7 @@ NEC_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
         cv.Required(CONF_COMMAND): cv.hex_uint16_t,
+        cv.Optional(CONF_COMMAND_REPEATS, default=1): cv.uint16_t,
     }
 )
 
@@ -583,6 +652,7 @@ def nec_binary_sensor(var, config):
                 NECData,
                 ("address", config[CONF_ADDRESS]),
                 ("command", config[CONF_COMMAND]),
+                ("command_repeats", config[CONF_COMMAND_REPEATS]),
             )
         )
     )
@@ -604,6 +674,8 @@ async def nec_action(var, config, args):
     cg.add(var.set_address(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint16)
     cg.add(var.set_command(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint16)
+    cg.add(var.set_command_repeats(template_))
 
 
 # Pioneer
@@ -1490,7 +1562,7 @@ MIDEA_SCHEMA = cv.Schema(
 
 @register_binary_sensor("midea", MideaBinarySensor, MIDEA_SCHEMA)
 def midea_binary_sensor(var, config):
-    cg.add(var.set_code(config[CONF_CODE]))
+    cg.add(var.set_data(config[CONF_CODE]))
 
 
 @register_trigger("midea", MideaTrigger, MideaData)
