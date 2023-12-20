@@ -83,12 +83,14 @@ class RemoteReceiveData {
       return int32_t(length - this->tolerance_);
     else if (this->tolerance_mode_ == TOLERANCE_MODE_PERCENTAGE)
       return int32_t(100 - this->tolerance_) * length / 100U;
+    return 0;
   }
   int32_t upper_bound_(uint32_t length) const {
     if (this->tolerance_mode_ == TOLERANCE_MODE_TIME)
       return int32_t(length + this->tolerance_);
     else if (this->tolerance_mode_ == TOLERANCE_MODE_PERCENTAGE)
       return int32_t(100 + this->tolerance_) * length / 100U;
+    return 0;
   }
 
   const RawTimings &data_;
