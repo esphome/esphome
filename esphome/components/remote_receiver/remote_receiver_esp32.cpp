@@ -62,9 +62,9 @@ void RemoteReceiverComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Channel: %d", this->channel_);
   ESP_LOGCONFIG(TAG, "  RMT memory blocks: %d", this->mem_block_num_);
   ESP_LOGCONFIG(TAG, "  Clock divider: %u", this->clock_divider_);
-  ESP_LOGCONFIG(TAG, "  Tolerance: %u%s", this->tolerance_,
+  ESP_LOGCONFIG(TAG, "  Tolerance: %" PRIu32 "%s", this->tolerance_,
                 (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? " us" : "%");
-  ESP_LOGCONFIG(TAG, "  Filter out pulses shorter than: %u us", this->filter_us_);
+  ESP_LOGCONFIG(TAG, "  Filter out pulses shorter than: %" PRIu32 " us", this->filter_us_);
   ESP_LOGCONFIG(TAG, "  Signal is done after %" PRIu32 " us of no changes", this->idle_us_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Configuring RMT driver failed: %s", esp_err_to_name(this->error_code_));
