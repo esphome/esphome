@@ -55,7 +55,7 @@ void TemplateAlarmControlPanel::dump_config() {
       case ALARM_SENSOR_TYPE_INSTANT:
         sensor_type = "instant";
         break;
-      case ALARM_SENSOR_TYPE_INTERIOR_FOLLOWER:
+      case ALARM_SENSOR_TYPE_DELAYED_FOLLOWER:
         sensor_type = "delayed_follower";
         break;
       case ALARM_SENSOR_TYPE_DELAYED:
@@ -151,7 +151,7 @@ void TemplateAlarmControlPanel::loop() {
         break;
       }
       // If sensor type is of type interior follower
-      if (sensor_info.second.type == ALARM_SENSOR_TYPE_INTERIOR_FOLLOWER) {
+      if (sensor_info.second.type == ALARM_SENSOR_TYPE_DELAYED_FOLLOWER) {
         // Look to see if we are in the pending state
         if (this->current_state_ == ACP_STATE_PENDING) {
           delayed_sensor_not_ready = true;
