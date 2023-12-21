@@ -49,7 +49,7 @@ void TR502MSVProtocol::encode(RemoteTransmitData *dst, const TR502MSVData &data)
 
   dst->mark(BIT_ONE_MARK_US);
 
-  uint32_t d = data.get_raw();
+  uint32_t d = data.raw;
   for (uint32_t mask = 1; mask; mask = (mask << 1) & 0x0fffff) {
     if (d & mask) {
       dst->space(BIT_ONE_SPACE_US);
@@ -74,7 +74,7 @@ optional<TR502MSVData> TR502MSVProtocol::decode(RemoteReceiveData src) {
     }
     src.advance(2);
   }
-  out.set_raw(d);
+  out.raw = d;
   if (out.calc_cs() != out.checksum) {
     return {};
   }

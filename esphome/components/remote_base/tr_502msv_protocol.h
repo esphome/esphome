@@ -22,23 +22,18 @@ enum Commands : uint8_t {
 };
 
 struct TR502MSVData {
-  uint16_t group;
-  uint8_t device;
-  uint8_t command;
-  uint8_t checksum;
+  union {
+    struct {
+      uint16_t group : 12;
+      uint8_t device : 3;
+      uint8_t command : 2;
+      uint8_t _reserved : 1;
+      uint8_t checksum : 2;
+    } __attribute__((packed));
+    uint32_t raw;
+  };
 
-  bool operator==(const TR502MSVData &rhs) const { return this->get_raw() == rhs.get_raw(); }
-
-  uint32_t get_raw() const {
-    return (group & 0xfff) | ((device & 0x7) << 12) | ((command & 0x3) << 15) | ((checksum & 0x3) << 18);
-  }
-
-  void set_raw(uint32_t data) {
-    group = (data & 0xfff);
-    device = ((data >> 12) & 0x7);
-    command = ((data >> 15) & 0x3);
-    checksum = ((data >> 18) & 0x3);
-  }
+  bool operator==(const TR502MSVData &rhs) const { return this->raw == rhs.raw; }
 
   std::string device_string() const;
   std::string command_string() const;
