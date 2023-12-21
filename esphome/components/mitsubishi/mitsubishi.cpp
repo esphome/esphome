@@ -55,11 +55,19 @@ climate::ClimateTraits MitsubishiClimate::traits() {
   traits.set_visual_min_temperature(MITSUBISHI_TEMP_MIN);
   traits.set_visual_max_temperature(MITSUBISHI_TEMP_MAX);
   traits.set_visual_temperature_step(1.0f);
-  traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL});
+  traits.set_supported_modes({climate::CLIMATE_MODE_OFF});
 
-  if (this->supports_heat_ || this->operating_mode_ >= MITSUBISHI_OP_MODE_AHC) {
+  if (this->supports_cool_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
+  if (this->supports_heat_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
+
+  if (this->operating_mode_ != MITSUBISHI_OP_MODE_AH)
+    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
+  if (this->operating_mode_ >= MITSUBISHI_OP_MODE_AHC) {
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
+    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
   }
   if (this->supports_dry_ || this->operating_mode_ >= MITSUBISHI_OP_MODE_ADHC)
     traits.add_supported_mode(climate::CLIMATE_MODE_DRY);
@@ -71,7 +79,7 @@ climate::ClimateTraits MitsubishiClimate::traits() {
       {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH});
   if (this->fan_mode_ == MITSUBISHI_FAN_Q4L)
     traits.add_supported_fan_mode(climate::CLIMATE_FAN_QUIET);
-  if (this->fan_mode_ == MITSUBISHI_FAN_5L || this->fan_mode_ == MITSUBISHI_FAN_Q4L)
+  if (/*this->fan_mode_ == MITSUBISHI_FAN_5L ||*/ this->fan_mode_ == MITSUBISHI_FAN_Q4L)
     traits.add_supported_fan_mode(climate::CLIMATE_FAN_MIDDLE);  // Shouldn't be used for this but it helps
 
   traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
@@ -331,19 +339,21 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   // Fan
   uint8_t fan = state_frame[9] & 0x07;  //(Bit 0,1,2 = Speed)
-  if (fan == MITSUBISHI_FAN_AUTO) {
-    this->fan_mode = climate::CLIMATE_FAN_AUTO;
-  } else if (fan == 1) {
-    this->fan_mode = climate::CLIMATE_FAN_LOW;
-  } else if (fan == 2) {
-    this->fan_mode = climate::CLIMATE_FAN_MIDDLE;
-  } else if (fan == 3) {
-    this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-  } else if (fan == 4) {
-    this->fan_mode = climate::CLIMATE_FAN_HIGH;
-  } else if (fan == 5) {
-    this->fan_mode = this->fan_mode_ == MITSUBISHI_FAN_5L ? climate::CLIMATE_FAN_HIGH : climate::CLIMATE_FAN_QUIET;
-  }
+  // Map of Climate fan mode to this device expected value
+  // For 3Level: Low = 1, Medium = 2, High = 3
+  // For 4Level: Low = 1, Middle = 2, Medium = 3, High = 4
+  // For 5Level: Low = 1, Middle = 2, Medium = 3, High = 4
+  // For 4Level + Quiet: Low = 1, Middle = 2, Medium = 3, High = 4, Quiet = 5
+  climate::ClimateFanMode modes_mapping[8] = {
+      climate::CLIMATE_FAN_AUTO,
+      climate::CLIMATE_FAN_LOW,
+      this->fan_mode_ == MITSUBISHI_FAN_3L ? climate::CLIMATE_FAN_MEDIUM : climate::CLIMATE_FAN_MIDDLE,
+      this->fan_mode_ == MITSUBISHI_FAN_3L ? climate::CLIMATE_FAN_HIGH : climate::CLIMATE_FAN_MEDIUM,
+      climate::CLIMATE_FAN_HIGH,
+      climate::CLIMATE_FAN_QUIET,
+      climate::CLIMATE_FAN_AUTO,
+      climate::CLIMATE_FAN_AUTO};
+  this->fan_mode = modes_mapping[fan];
 
   // Wide Vane
   uint8_t wide_vane = state_frame[8] & 0xF0;  // Bits 4,5,6,7

@@ -16,15 +16,16 @@ enum SetFanMode {
   MITSUBISHI_FAN_3L = 0,  // 3 levels + auto
   MITSUBISHI_FAN_4L,      // 4 levels + auto
   MITSUBISHI_FAN_Q4L,     // Quiet + 4 levels + auto
-  MITSUBISHI_FAN_5L,      // 5 levels + auto
+  //  MITSUBISHI_FAN_5L,      // 5 levels + auto
 };
 
 // Supported Operating mode
 enum SetOperatingMode {
   MITSUBISHI_OP_MODE_AC = -1,    // Auto + Cool
-  MITSUBISHI_OP_MODE_AHC = 0,    // Auto + Heat + Cool
-  MITSUBISHI_OP_MODE_ADHC = 1,   // Auto + Dry + Heat + Cool
-  MITSUBISHI_OP_MODE_ADFHC = 2,  // Auto + Dry + Fan + Heat + Cool
+  MITSUBISHI_OP_MODE_AH = 0,     // Auto + Heat
+  MITSUBISHI_OP_MODE_AHC = 1,    // Auto + Heat + Cool
+  MITSUBISHI_OP_MODE_ADHC = 2,   // Auto + Dry + Heat + Cool
+  MITSUBISHI_OP_MODE_ADFHC = 3,  // Auto + Dry + Fan + Heat + Cool
 };
 
 // Enum to represent horizontal directios
