@@ -401,6 +401,8 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
     (root)["name"] = (obj)->get_name(); \
     (root)["icon"] = (obj)->get_icon(); \
     (root)["entity_category"] = (obj)->get_entity_category(); \
+    if ((obj)->is_disabled_by_default()) \
+      (root)["is_disabled_by_default"] = (obj)->is_disabled_by_default(); \
   }
 
 #define set_json_value(root, obj, sensor, value, start_config) \
@@ -435,7 +437,8 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
     }
     set_json_icon_state_value(root, obj, "sensor-" + obj->get_object_id(), state, value, start_config);
     if (start_config == DETAIL_ALL) {
-      root["uom"] = obj->get_unit_of_measurement();
+      if (!obj->get_unit_of_measurement().empty())
+        root["uom"] = obj->get_unit_of_measurement();
     }
   });
 }
@@ -827,7 +830,8 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       root["max_value"] = obj->traits.get_max_value();
       root["step"] = obj->traits.get_step();
       root["mode"] = (int) obj->traits.get_mode();
-      root["uom"] = obj->traits.get_unit_of_measurement();
+      if (!obj->traits.get_unit_of_measurement().empty())
+        root["uom"] = obj->traits.get_unit_of_measurement();
     }
     if (std::isnan(value)) {
       root["value"] = "\"NaN\"";
