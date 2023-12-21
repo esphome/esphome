@@ -324,7 +324,9 @@ ads1115:
 
 as5600:
   i2c_id: i2c_bus
-  dir_pin: GPIO27
+  dir_pin:
+    number: 27
+    allow_other_uses: true
   direction: clockwise
   start_position: 90deg
   range: 180deg
@@ -570,13 +572,13 @@ sensor:
   - platform: as5600
     name: AS5600 Position
     raw_position:
-        name: AS5600 Raw Position
+      name: AS5600 Raw Position
     gain:
-        name: AS5600 Gain
+      name: AS5600 Gain
     magnitude:
-        name: AS5600 Magnitude
+      name: AS5600 Magnitude
     status:
-        name: AS5600 Status
+      name: AS5600 Status
   - platform: as7341
     update_interval: 15s
     gain: X8
@@ -2037,21 +2039,21 @@ my9231:
 
 sm2235:
   data_pin:
-      allow_other_uses: true
-      number: GPIO4
+    allow_other_uses: true
+    number: GPIO4
   clock_pin:
-      allow_other_uses: true
-      number: GPIO5
+    allow_other_uses: true
+    number: GPIO5
   max_power_color_channels: 9
   max_power_white_channels: 9
 
 sm2335:
   data_pin:
-      allow_other_uses: true
-      number: GPIO4
+    allow_other_uses: true
+    number: GPIO4
   clock_pin:
-      allow_other_uses: true
-      number: GPIO5
+    allow_other_uses: true
+    number: GPIO5
   max_power_color_channels: 9
   max_power_white_channels: 9
 
@@ -3040,17 +3042,13 @@ display:
     id: my_lcd_gpio
     dimensions: 18x4
     data_pins:
-      -
-        allow_other_uses: true
+      - allow_other_uses: true
         number: GPIO19
-      -
-        allow_other_uses: true
+      - allow_other_uses: true
         number: GPIO21
-      -
-        allow_other_uses: true
+      - allow_other_uses: true
         number: GPIO22
-      -
-        allow_other_uses: true
+      - allow_other_uses: true
         number: GPIO23
     enable_pin:
       allow_other_uses: true
@@ -4201,25 +4199,25 @@ graphical_display_menu:
       lambda: 'ESP_LOGI("graphical_display_menu", "root leave");'
   items:
     - type: back
-      text: 'Back'
+      text: "Back"
     - type: label
     - type: menu
-      text: 'Submenu 1'
+      text: "Submenu 1"
       items:
         - type: back
-          text: 'Back'
+          text: "Back"
         - type: menu
-          text: 'Submenu 21'
+          text: "Submenu 21"
           items:
             - type: back
-              text: 'Back'
+              text: "Back"
             - type: command
-              text: 'Show Main'
+              text: "Show Main"
               on_value:
                 then:
                   - display_menu.show_main: test_graphical_display_menu
     - type: select
-      text: 'Enum Item'
+      text: "Enum Item"
       immediate_edit: true
       select: test_select
       on_enter:
@@ -4232,7 +4230,7 @@ graphical_display_menu:
         then:
           lambda: 'ESP_LOGI("graphical_display_menu", "select value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: number
-      text: 'Number'
+      text: "Number"
       number: test_number
       on_enter:
         then:
@@ -4244,15 +4242,15 @@ graphical_display_menu:
         then:
           lambda: 'ESP_LOGI("graphical_display_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: command
-      text: 'Hide'
+      text: "Hide"
       on_value:
         then:
           - display_menu.hide: test_graphical_display_menu
     - type: switch
-      text: 'Switch'
+      text: "Switch"
       switch: my_switch
-      on_text: 'Bright'
-      off_text: 'Dark'
+      on_text: "Bright"
+      off_text: "Dark"
       immediate_edit: false
       on_value:
         then:
