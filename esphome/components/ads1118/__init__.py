@@ -5,10 +5,9 @@ from esphome.const import CONF_ID
 
 CODEOWNERS = ["@solomondg1"]
 DEPENDENCIES = ["spi"]
-AUTO_LOAD = ["sensor", "voltage_sampler"]
 MULTI_CONF = True
 
-CONF_ADS1118 = "ads1118"
+CONF_ADS1118_ID = "ads1118_id"
 
 ads1118_ns = cg.esphome_ns.namespace("ads1118")
 ADS1118 = ads1118_ns.class_("ADS1118", cg.Component, spi.SPIDevice)

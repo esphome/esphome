@@ -12,8 +12,9 @@ from esphome.const import (
     CONF_ID,
     CONF_TYPE,
 )
-from . import ads1118_ns, ADS1118
+from .. import ads1118_ns, ADS1118, CONF_ADS1118_ID
 
+AUTO_LOAD = ["voltage_sampler"]
 DEPENDENCIES = ["ads1118"]
 
 ADS1118Multiplexer = ads1118_ns.enum("ADS1118Multiplexer")
@@ -39,19 +40,14 @@ GAIN = {
 }
 
 
-def validate_gain(value):
-    if isinstance(value, float):
-        value = f"{value:0.03f}"
-    elif not isinstance(value, str):
-        raise cv.Invalid(f'invalid gain "{value}"')
-
-    return cv.enum(GAIN)(value)
-
-
 ADS1118Sensor = ads1118_ns.class_(
-    "ADS1118Sensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
+    "ADS1118Sensor",
+    cg.PollingComponent,
+    sensor.Sensor,
+    voltage_sampler.VoltageSampler,
+    cg.Parented.template(ADS1118),
 )
-CONF_ADS1118_ID = "ads1118_id"
+
 TYPE_ADC = "adc"
 TYPE_TEMPERATURE = "temperature"
 
@@ -68,7 +64,7 @@ CONFIG_SCHEMA = cv.typed_schema(
             {
                 cv.GenerateID(CONF_ADS1118_ID): cv.use_id(ADS1118),
                 cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space="_"),
-                cv.Required(CONF_GAIN): validate_gain,
+                cv.Required(CONF_GAIN): cv.enum(GAIN, string=True),
             }
         )
         .extend(cv.polling_component_schema("60s")),
@@ -91,16 +87,12 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_ADS1118_ID])
-    var = cg.new_Pvariable(config[CONF_ID], parent)
+    var = await sensor.new_sensor(config[CONF_ID])
     await cg.register_component(var, config)
+    await cg.register_parented(var, config[CONF_ADS1118_ID])
 
     if config[CONF_TYPE] == TYPE_ADC:
-        await sensor.register_sensor(var, config)
         cg.add(var.set_multiplexer(config[CONF_MULTIPLEXER]))
         cg.add(var.set_gain(config[CONF_GAIN]))
-        cg.add(parent.register_sensor(var))
     if config[CONF_TYPE] == TYPE_TEMPERATURE:
-        await sensor.register_sensor(var, config)
         cg.add(var.set_temperature_mode(True))
-        cg.add(parent.register_sensor(var))

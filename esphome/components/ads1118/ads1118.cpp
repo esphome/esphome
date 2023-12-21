@@ -48,27 +48,21 @@ void ADS1118::setup() {
 void ADS1118::dump_config() {
   ESP_LOGCONFIG(TAG, "ADS1118:");
   LOG_PIN("  CS Pin:", this->cs_);
-
-  for (auto *sensor : this->sensors_) {
-    LOG_SENSOR("  ", "Sensor", sensor);
-    ESP_LOGCONFIG(TAG, "    Multiplexer: %u", sensor->get_multiplexer());
-    ESP_LOGCONFIG(TAG, "    Gain: %u", sensor->get_gain());
-  }
 }
 
-float ADS1118::request_measurement(ADS1118Sensor *sensor) {
+float ADS1118::request_measurement(ADS1118Multiplexer multiplexer, ADS1118Gain gain, bool temperature_mode) {
   uint16_t temp_config = this->config_;
   // Multiplexer
   //        0bxBBBxxxxxxxxxxxx
   temp_config &= 0b1000111111111111;
-  temp_config |= (sensor->get_multiplexer() & 0b111) << 12;
+  temp_config |= (multiplexer & 0b111) << 12;
 
   // Gain
   //        0bxxxxBBBxxxxxxxxx
   temp_config &= 0b1111000111111111;
-  temp_config |= (sensor->get_gain() & 0b111) << 9;
+  temp_config |= (gain & 0b111) << 9;
 
-  if (sensor->get_temperature_mode()) {
+  if (temperature_mode) {
     // Set temperature sensor mode
     //        0bxxxxxxxxxxx1xxxx
     temp_config |= 0b0000000000010000;
@@ -88,22 +82,20 @@ float ADS1118::request_measurement(ADS1118Sensor *sensor) {
   // about 1.2 ms with 860 samples per second
   delay(2);
 
-  uint16_t raw_conversion = 0;
   this->enable();
   uint8_t adc_first_byte = this->read_byte();
   uint8_t adc_second_byte = this->read_byte();
   this->disable();
-  raw_conversion |= adc_first_byte << 8;
-  raw_conversion |= adc_second_byte;
+  uint16_t raw_conversion = encode_uint16(adc_first_byte, adc_second_byte);
 
   auto signed_conversion = static_cast<int16_t>(raw_conversion);
 
-  if (sensor->get_temperature_mode()) {
+  if (temperature_mode) {
     return (signed_conversion >> 2) * 0.03125f;
   } else {
     float millivolts;
     float divider = 32768.0f;
-    switch (sensor->get_gain()) {
+    switch (gain) {
       case ADS1118_GAIN_6P144:
         millivolts = (signed_conversion * 6144) / divider;
         break;
@@ -127,15 +119,6 @@ float ADS1118::request_measurement(ADS1118Sensor *sensor) {
     }
 
     return millivolts / 1e3f;
-  }
-}
-
-float ADS1118Sensor::sample() { return this->parent_->request_measurement(this); }
-void ADS1118Sensor::update() {
-  float v = this->parent_->request_measurement(this);
-  if (!std::isnan(v)) {
-    ESP_LOGD(TAG, "'%s': Got Voltage=%fV", this->get_name().c_str(), v);
-    this->publish_state(v);
   }
 }
 
