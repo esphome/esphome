@@ -16,15 +16,15 @@ void ST7567::display_init_() {
   ESP_LOGD(TAG, "Initializing ST7567 display...");
 
   this->command(ST7567_BIAS_9);
-  this->command(this->flip_x_ ? ST7567_SEG_REVERSE : ST7567_SEG_NORMAL);
-  this->command(this->flip_y_ ? ST7567_COM_NORMAL : ST7567_COM_REMAP);
+  this->command(this->mirror_x_ ? ST7567_SEG_REVERSE : ST7567_SEG_NORMAL);
+  this->command(this->mirror_y_ ? ST7567_COM_NORMAL : ST7567_COM_REMAP);
   this->command(ST7567_POWER_CTL | 0x4);
   this->command(ST7567_POWER_CTL | 0x6);
   this->command(ST7567_POWER_CTL | 0x7);
 
   //********Adjust display brightness********
   // this->command(0x25);  // 0x20-0x27 is the internal Rb/Ra resistance
-  //                 // adjustment setting of V5 voltage RR=4.5V
+  //                       // adjustment setting of V5 voltage RR=4.5V
   this->set_brightness(this->brightness_);
   this->set_contrast(this->contrast_);
 
@@ -98,26 +98,25 @@ void ST7567::set_scroll(uint8_t line) {
   this->command(esphome::st7567_base::ST7567_SET_START_LINE + this->start_line_);
 }
 
-// 128x64, but memory size 132x64, line starts from 0, but if flipped then from 131, not 127
-int ST7567::get_width_internal() { return 128 + 4; }
+int ST7567::get_width_internal() { return 128; }
 
 int ST7567::get_height_internal() { return 64; }
 
+// 128x64, but memory size 132x64, line starts from 0, but if mirrored then it starts from 131, not 127
 size_t ST7567::get_buffer_length_() {
-  return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
+  return size_t(this->get_width_internal() + 4) * size_t(this->get_height_internal()) / 8u;
 }
 
 void HOT ST7567::draw_absolute_pixel_internal(int x, int y, Color color) {
+  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
+    return;
+  }
+
   // ST7567A has built-in RAM with 132x65 bit capacity which stores the display data.
   // but only first 128 pixels from each line are shown on screen
   // if screen got flipped horizontally then it shows last 128 pixels,
   // so we need to write x coordinate starting from column 4, not column 0
   x += this->get_offset_x_();
-
-  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
-    ESP_LOGW(TAG, "Position out of area: %dx%d", x, y);
-    return;
-  }
 
   uint16_t pos = x + (y / 8) * this->get_width_internal();
   uint8_t subpos = y & 0x07;

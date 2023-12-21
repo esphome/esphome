@@ -24,8 +24,8 @@ void I2CST7567::dump_config() {
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  Flip X: %s", YESNO(this->flip_x_));
-  ESP_LOGCONFIG(TAG, "  Flip Y: %s", YESNO(this->flip_y_));
+  ESP_LOGCONFIG(TAG, "  Mirror X: %s", YESNO(this->mirror_x_));
+  ESP_LOGCONFIG(TAG, "  Mirror Y: %s", YESNO(this->mirror_y_));
   ESP_LOGCONFIG(TAG, "  Inverted Color: %s", YESNO(this->invert_));
   LOG_UPDATE_INTERVAL(this);
 

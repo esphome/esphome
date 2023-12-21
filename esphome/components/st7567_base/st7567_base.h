@@ -16,9 +16,9 @@ static const uint8_t ST7567_DISPLAY_OFF = 0xAE;  // Display OFF. All SEGs/COMs o
 static const uint8_t ST7567_SET_START_LINE = 0x40;
 static const uint8_t ST7567_POWER_CTL = 0x28;
 static const uint8_t ST7567_SEG_NORMAL = 0xA0;       //
-static const uint8_t ST7567_SEG_REVERSE = 0xA1;      // flip horizontal
+static const uint8_t ST7567_SEG_REVERSE = 0xA1;      // mirror X axis (horizontal)
 static const uint8_t ST7567_COM_NORMAL = 0xC0;       //
-static const uint8_t ST7567_COM_REMAP = 0xC8;        // flip vertical
+static const uint8_t ST7567_COM_REMAP = 0xC8;        // mirror Y axis (vertical)
 static const uint8_t ST7567_DISPLAY_NORMAL = 0xA4;   // display ram content
 static const uint8_t ST7567_DISPLAY_ALL_ON = 0xA5;   // all pixels on
 static const uint8_t ST7567_INVERT_OFF = 0xA6;       // normal pixels
@@ -40,8 +40,8 @@ class ST7567 : public display::DisplayBuffer {
   void update() override;
 
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
-  void init_flip_x(bool flip_x) { this->flip_x_ = flip_x; }
-  void init_flip_y(bool flip_y) { this->flip_y_ = flip_y; }
+  void init_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
+  void init_mirror_y(bool mirror_y) { this->mirror_y_ = mirror_y; }
   void init_invert(bool invert) { this->invert_ = invert; }
   void set_invert(bool invert);
 
@@ -72,7 +72,7 @@ class ST7567 : public display::DisplayBuffer {
   int get_width_internal() override;
   size_t get_buffer_length_();
 
-  int get_offset_x_() { return flip_x_ ? 4 : 0; };
+  int get_offset_x_() { return mirror_x_ ? 4 : 0; };
 
   const char *model_str_();
 
@@ -82,8 +82,8 @@ class ST7567 : public display::DisplayBuffer {
   // float brightness_{1.0};
   uint8_t contrast_{27};
   uint8_t brightness_{5};
-  bool flip_x_{true};
-  bool flip_y_{true};
+  bool mirror_x_{true};
+  bool mirror_y_{true};
   bool invert_{false};
   bool all_pixels_on_{false};
   uint8_t start_line_{0};
