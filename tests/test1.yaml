@@ -322,6 +322,18 @@ ads1115:
   address: 0x48
   i2c_id: i2c_bus
 
+as5600:
+  i2c_id: i2c_bus
+  dir_pin: GPIO27
+  direction: clockwise
+  start_position: 90deg
+  range: 180deg
+  watchdog: true
+  power_mode: low1
+  hysteresis: lsb1
+  slow_filter: 8x
+  fast_filter: lsb6
+
 dallas:
   pin:
     allow_other_uses: true
@@ -555,6 +567,16 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: as5600
+    name: AS5600 Position
+    raw_position:
+        name: AS5600 Raw Position
+    gain:
+        name: AS5600 Gain
+    magnitude:
+        name: AS5600 Magnitude
+    status:
+        name: AS5600 Status
   - platform: as7341
     update_interval: 15s
     gain: X8
