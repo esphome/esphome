@@ -797,8 +797,11 @@ class EditRequestHandler(BaseHandler):
 
     def _read_file(self, filename: str) -> bytes:
         """Read a file and return the content as bytes."""
-        with open(file=filename, encoding="utf-8") as f:
-            return f.read()
+        try:
+            with open(file=filename, encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            return ''
 
     def _write_file(self, filename: str, content: bytes) -> None:
         """Write a file with the given content."""
