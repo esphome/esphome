@@ -119,8 +119,8 @@ class VirtualWireBinarySensor : public RemoteReceiverBinarySensorBase {
   VirtualWireData data_;
 };
 
-using VirtualWireTrigger = RemoteReceiverTrigger<VirtualWireProtocol, VirtualWireData>;
-using VirtualWireDumper = RemoteReceiverDumper<VirtualWireProtocol, VirtualWireData>;
+using VirtualWireTrigger = RemoteReceiverTrigger<VirtualWireProtocol>;
+using VirtualWireDumper = RemoteReceiverDumper<VirtualWireProtocol>;
 
 template<typename... Ts> class VirtualWireAction : public RemoteTransmitterActionBase<Ts...> {
  public:
