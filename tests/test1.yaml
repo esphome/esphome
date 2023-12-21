@@ -294,6 +294,9 @@ ads1115:
   address: 0x48
   i2c_id: i2c_bus
 
+ads1118:
+  spi_id: spi_bus
+
 dallas:
   pin: GPIO23
 
@@ -512,6 +515,14 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: ads1118
+    name: ads1118 adc
+    multiplexer: A0_A1
+    gain: 1.024
+    type: adc
+  - platform: ads1118
+    name: ads1118 temperature
+    type: temperature
   - platform: as7341
     update_interval: 15s
     gain: X8
@@ -3796,4 +3807,3 @@ alarm_control_panel:
       then:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));
-
