@@ -25,7 +25,7 @@ esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_base/* @jeromelaban @kpfleming @ncareau
 esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban
-esphome/components/alarm_control_panel/* @grahambrown11
+esphome/components/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/alpha3/* @jan-hofmeier
 esphome/components/am43/* @buxtronix
 esphome/components/am43/cover/* @buxtronix
@@ -34,6 +34,8 @@ esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
 esphome/components/api/* @OttoWinter
+esphome/components/as5600/* @ammmze
+esphome/components/as5600/sensor/* @ammmze
 esphome/components/as7341/* @mrgnr
 esphome/components/async_tcp/* @OttoWinter
 esphome/components/atc_mithermometer/* @ahpohl
@@ -240,6 +242,11 @@ esphome/components/pmwcs3/* @SeByDocKy
 esphome/components/pn532/* @OttoWinter @jesserockz
 esphome/components/pn532_i2c/* @OttoWinter @jesserockz
 esphome/components/pn532_spi/* @OttoWinter @jesserockz
+esphome/components/pn7150/* @jesserockz @kbx81
+esphome/components/pn7150_i2c/* @jesserockz @kbx81
+esphome/components/pn7160/* @jesserockz @kbx81
+esphome/components/pn7160_i2c/* @jesserockz @kbx81
+esphome/components/pn7160_spi/* @jesserockz @kbx81
 esphome/components/power_supply/* @esphome/core
 esphome/components/preferences/* @esphome/core
 esphome/components/psram/* @esphome/core
@@ -320,7 +327,7 @@ esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tcl112/* @glmnet
 esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax
-esphome/components/template/alarm_control_panel/* @grahambrown11
+esphome/components/template/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
