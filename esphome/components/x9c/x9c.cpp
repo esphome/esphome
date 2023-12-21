@@ -29,6 +29,7 @@ void X9cOutput::trim_value(int change_amount) {
 
   delayMicroseconds(100);  // Let value settle
 
+  this->inc_pin_->digital_write(false);
   this->cs_pin_->digital_write(true);  // Deselect chip safely (no save)
 }
 
