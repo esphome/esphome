@@ -324,6 +324,9 @@ ads1115:
 
 ads1118:
   spi_id: spi_bus
+  cs_pin:
+    allow_other_uses: true
+    number: GPIO12
 
 as5600:
   i2c_id: i2c_bus
