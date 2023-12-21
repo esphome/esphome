@@ -1,5 +1,6 @@
 #include "my9231.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace my9231 {
@@ -51,7 +52,11 @@ void MY9231OutputComponent::setup() {
       MY9231_CMD_SCATTER_APDM | MY9231_CMD_FREQUENCY_DIVIDE_1 | MY9231_CMD_REACTION_FAST | MY9231_CMD_ONE_SHOT_DISABLE;
   ESP_LOGV(TAG, "  Command: 0x%02X", command);
 
-  this->init_chips_(command);
+  {
+    InterruptLock lock;
+    this->send_dcki_pulses_(32 * this->num_chips_);
+    this->init_chips_(command);
+  }
   ESP_LOGV(TAG, "  Chips initialized.");
 }
 void MY9231OutputComponent::dump_config() {
@@ -66,11 +71,14 @@ void MY9231OutputComponent::loop() {
   if (!this->update_)
     return;
 
-  for (auto pwm_amount : this->pwm_amounts_) {
-    this->write_word_(pwm_amount, this->bit_depth_);
+  {
+    InterruptLock lock;
+    for (auto pwm_amount : this->pwm_amounts_) {
+      this->write_word_(pwm_amount, this->bit_depth_);
+    }
+    // Send 8 DI pulses. After 8 falling edges, the duty data are store.
+    this->send_di_pulses_(8);
   }
-  // Send 8 DI pulses. After 8 falling edges, the duty data are store.
-  this->send_di_pulses_(8);
   this->update_ = false;
 }
 void MY9231OutputComponent::set_channel_value_(uint8_t channel, uint16_t value) {
@@ -92,6 +100,7 @@ void MY9231OutputComponent::init_chips_(uint8_t command) {
   // Send 16 DI pulse. After 14 falling edges, the command data are
   // stored and after 16 falling edges the duty mode is activated.
   this->send_di_pulses_(16);
+  delayMicroseconds(12);
 }
 void MY9231OutputComponent::write_word_(uint16_t value, uint8_t bits) {
   for (uint8_t i = bits; i > 0; i--) {
@@ -104,6 +113,13 @@ void MY9231OutputComponent::send_di_pulses_(uint8_t count) {
   for (uint8_t i = 0; i < count; i++) {
     this->pin_di_->digital_write(true);
     this->pin_di_->digital_write(false);
+  }
+}
+void MY9231OutputComponent::send_dcki_pulses_(uint8_t count) {
+  delayMicroseconds(12);
+  for (uint8_t i = 0; i < count; i++) {
+    this->pin_dcki_->digital_write(true);
+    this->pin_dcki_->digital_write(false);
   }
 }
 

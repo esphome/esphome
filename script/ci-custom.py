@@ -458,7 +458,7 @@ def lint_no_removed_in_idf_conversions(fname, match):
 
 
 @lint_re_check(
-    r"[^\w\d]byte\s+[\w\d]+\s*=",
+    r"[^\w\d]byte +[\w\d]+\s*=",
     include=cpp_include,
     exclude={
         "esphome/components/tuya/tuya.h",

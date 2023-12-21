@@ -1,6 +1,8 @@
 #include "remote_base.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace remote_base {
 

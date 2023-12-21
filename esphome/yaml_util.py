@@ -10,7 +10,7 @@ import yaml
 import yaml.constructor
 
 from esphome import core
-from esphome.config_helpers import read_config_file, Extend
+from esphome.config_helpers import read_config_file, Extend, Remove
 from esphome.core import (
     EsphomeError,
     IPAddress,
@@ -22,6 +22,14 @@ from esphome.core import (
 )
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
+
+try:
+    from yaml import CSafeLoader as FastestAvailableSafeLoader
+except ImportError:
+    from yaml import (  # type: ignore[assignment]
+        SafeLoader as FastestAvailableSafeLoader,
+    )
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -89,7 +97,7 @@ def _add_data_ref(fn):
     return wrapped
 
 
-class ESPHomeLoader(yaml.SafeLoader):
+class ESPHomeLoader(FastestAvailableSafeLoader):
     """Loader class that keeps track of line numbers."""
 
     @_add_data_ref
@@ -274,7 +282,7 @@ class ESPHomeLoader(yaml.SafeLoader):
             return file, vars
 
         def substitute_vars(config, vars):
-            from esphome.const import CONF_SUBSTITUTIONS
+            from esphome.const import CONF_SUBSTITUTIONS, CONF_DEFAULTS
             from esphome.components import substitutions
 
             org_subs = None
@@ -286,7 +294,15 @@ class ESPHomeLoader(yaml.SafeLoader):
             elif CONF_SUBSTITUTIONS in result:
                 org_subs = result.pop(CONF_SUBSTITUTIONS)
 
+            defaults = {}
+            if CONF_DEFAULTS in result:
+                defaults = result.pop(CONF_DEFAULTS)
+
             result[CONF_SUBSTITUTIONS] = vars
+            for k, v in defaults.items():
+                if k not in result[CONF_SUBSTITUTIONS]:
+                    result[CONF_SUBSTITUTIONS][k] = v
+
             # Ignore missing vars that refer to the top level substitutions
             substitutions.do_substitution_pass(result, None, ignore_missing=True)
             result.pop(CONF_SUBSTITUTIONS)
@@ -354,6 +370,10 @@ class ESPHomeLoader(yaml.SafeLoader):
     def construct_extend(self, node):
         return Extend(str(node.value))
 
+    @_add_data_ref
+    def construct_remove(self, node):
+        return Remove(str(node.value))
+
 
 ESPHomeLoader.add_constructor("tag:yaml.org,2002:int", ESPHomeLoader.construct_yaml_int)
 ESPHomeLoader.add_constructor(
@@ -386,6 +406,7 @@ ESPHomeLoader.add_constructor(
 ESPHomeLoader.add_constructor("!lambda", ESPHomeLoader.construct_lambda)
 ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
 ESPHomeLoader.add_constructor("!extend", ESPHomeLoader.construct_extend)
+ESPHomeLoader.add_constructor("!remove", ESPHomeLoader.construct_remove)
 
 
 def load_yaml(fname, clear_secrets=True):
