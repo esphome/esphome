@@ -330,7 +330,9 @@ ads1118:
 
 as5600:
   i2c_id: i2c_bus
-  dir_pin: GPIO27
+  dir_pin:
+    number: 27
+    allow_other_uses: true
   direction: clockwise
   start_position: 90deg
   range: 180deg
