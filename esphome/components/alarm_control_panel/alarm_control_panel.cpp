@@ -96,6 +96,14 @@ void AlarmControlPanel::add_on_cleared_callback(std::function<void()> &&callback
   this->cleared_callback_.add(std::move(callback));
 }
 
+void AlarmControlPanel::add_on_chime_callback(std::function<void()> &&callback) {
+  this->chime_callback_.add(std::move(callback));
+}
+
+void AlarmControlPanel::add_on_ready_callback(std::function<void()> &&callback) {
+  this->ready_callback_.add(std::move(callback));
+}
+
 void AlarmControlPanel::arm_away(optional<std::string> code) {
   auto call = this->make_call();
   call.arm_away();
