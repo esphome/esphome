@@ -757,6 +757,13 @@ binary_sensor:
     entity_id: binary_sensor.hello_world
     id: ha_hello_world_binary
 
+  - platform: remote_receiver
+    id: remote_1_on
+    tr_502msv:
+      group: 0xABC
+      device: 1
+      command: turn_on
+
   - platform: fingerprint_grow
     name: Fingerprint Enrolling
   - platform: nextion
