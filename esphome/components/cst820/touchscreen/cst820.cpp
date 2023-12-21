@@ -1,4 +1,4 @@
-#include "cst860.h"
+#include "cst820.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
@@ -7,27 +7,39 @@
 #include <cinttypes>
 
 namespace esphome {
-namespace cst860 {
+namespace cst820 {
 
-static const char *const TAG = "cst860";
+static const char *const TAG = "cst820";
 
-void CST860TouchscreenStore::gpio_intr(CST860TouchscreenStore *store) { store->touch = true; }
+void CST820TouchscreenStore::gpio_intr(CST820TouchscreenStore *store) { store->touch = true; }
 
-void CST860Component::setup() {
+void CST820Touchscreen::setup() {
   static const uint8_t power[] = {0xFF};
   write_register(0xFE, power, sizeof(power));  // Disable automatic entry into low power mode
+  // Update display dimensions if they were updated during display setup
+  this->x_raw_min_ = 0;
+  this->y_raw_min_ = 0;
+  if (this->swap_x_y_) {
+    this->x_raw_max_ = this->get_height_();
+    this->y_raw_max_ = this->get_width_();
+  } else {
+    this->x_raw_max_ = this->get_width_();
+    this->y_raw_max_ = this->get_height_();
+  };
 }
 
-void CST860Component::loop() {
+/*
+void CST820Touchscreen::loop() {
   if ((this->irq_pin_ != nullptr) && (this->store_.touch || this->touched)) {
     this->store_.touch = false;
     check_touch_();
   }
 }
 
-void CST860Component::update() { check_touch_(); }
+void CST820Touchscreen::update() { check_touch_(); }
+*/
 
-void CST860Component::check_touch_() {
+void CST820Touchscreen::update_touches() {
   uint32_t now = millis();
   uint8_t fingerindex;
   uint8_t gesture;
@@ -45,7 +57,7 @@ void CST860Component::check_touch_() {
     };
     return;
   };
-  ESP_LOGD(TAG, "Fingerindex: %i", fingerindex);
+  // ESP_LOGD(TAG, "Fingerindex: %i", fingerindex);
 
   uint8_t data[4];
   err = read_register(0x03, data, 4);
@@ -55,15 +67,11 @@ void CST860Component::check_touch_() {
   };
 
   u_int16_t x, y;
-  if (this->swap_x_y_) {
-    y = (((data[0] & 0x0f) << 8) | data[1]);
-    x = (((data[2] & 0x0f) << 8) | data[3]);
-  } else {
-    x = (((data[0] & 0x0f) << 8) | data[1]);
-    y = (((data[2] & 0x0f) << 8) | data[3]);
-  }
+  x = (((data[0] & 0x0f) << 8) | data[1]);
+  y = (((data[2] & 0x0f) << 8) | data[3]);
 
-  TouchPoint touchpoint;
+  set_raw_touch_position_(0, x, y);
+  /*TouchPoint touchpoint;
   if (!this->invert_x_) {
     touchpoint.x = x;
   } else {
@@ -82,31 +90,21 @@ void CST860Component::check_touch_() {
     this->last_pos_ms_ = now;
   };
 
-  ESP_LOGD(TAG, "Touching at [%d, %d]", x, y);  //, touchpoint.x, touchpoint.y);
+  ESP_LOGD(TAG, "Touching at [%d, %d]", x, y); */ //, touchpoint.x, touchpoint.y);
 }
 
-void CST860Component::set_calibration(int16_t x_max, int16_t y_max, bool invert_x, bool invert_y) {  // NOLINT
-  this->x_raw_max_ = x_max;
-  this->y_raw_max_ = y_max;
-  this->invert_x_ = invert_x;
-  this->invert_y_ = invert_y;
+
+void CST820Touchscreen::dump_config() {
+  ESP_LOGCONFIG(TAG, "CST820:");
+  LOG_I2C_DEVICE(this);
+
+  // LOG_PIN("  IRQ Pin: ", this->irq_pin_);
+
+
+  //#LOG_UPDATE_INTERVAL(this);
 }
 
-void CST860Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "CST860:");
+float CST820Touchscreen::get_setup_priority() const { return setup_priority::DATA; }
 
-  LOG_PIN("  IRQ Pin: ", this->irq_pin_);
-  ESP_LOGCONFIG(TAG, "  X max: %d", this->x_raw_max_);
-  ESP_LOGCONFIG(TAG, "  Y max: %d", this->y_raw_max_);
-
-  ESP_LOGCONFIG(TAG, "  Swap X/Y: %s", YESNO(this->swap_x_y_));
-
-  ESP_LOGCONFIG(TAG, "  Report interval: %" PRIu32, this->report_millis_);
-
-  LOG_UPDATE_INTERVAL(this);
-}
-
-float CST860Component::get_setup_priority() const { return setup_priority::DATA; }
-
-}  // namespace cst860
+}  // namespace cst820
 }  // namespace esphome
