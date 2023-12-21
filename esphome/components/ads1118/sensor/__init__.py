@@ -9,7 +9,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_VOLT,
-    CONF_ID,
     CONF_TYPE,
 )
 from .. import ads1118_ns, ADS1118, CONF_ADS1118_ID
@@ -87,7 +86,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 
 async def to_code(config):
-    var = await sensor.new_sensor(config[CONF_ID])
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_ADS1118_ID])
 
