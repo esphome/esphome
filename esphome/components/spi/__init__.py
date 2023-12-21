@@ -286,8 +286,6 @@ SPI_QUAD_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(QuadSPIComponent),
             cv.Required(CONF_CLK_PIN): clk_pin_validator,
-            # Optional is used here so that the error messages when no pins are defined
-            # relates to the standard schema, not this.
             cv.Required(CONF_DATA_PINS): cv.All(
                 cv.ensure_list(pins.gpio_output_pin_schema), cv.Length(min=4, max=4)
             ),
