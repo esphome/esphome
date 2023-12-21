@@ -801,7 +801,7 @@ class EditRequestHandler(BaseHandler):
             with open(file=filename, encoding="utf-8") as f:
                 return f.read()
         except FileNotFoundError:
-            return ''
+            return ""
 
     def _write_file(self, filename: str, content: bytes) -> None:
         """Write a file with the given content."""
