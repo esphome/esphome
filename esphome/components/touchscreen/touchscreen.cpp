@@ -48,7 +48,7 @@ void Touchscreen::loop() {
       this->store_.touched = false;
       this->defer([this]() { this->send_touches_(); });
     }
-  } else if (this->touches_.size() > 0) {
+  } else if (!this->touches_.empty()) {
     // Found active touches without `touched` interrupt/event. Start expire/timeout process.
     bool call_send_touches = false;
     bool all_touches_state_released = true;
