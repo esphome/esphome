@@ -20,7 +20,7 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
       uint8_t sensor = 0;
       for (auto &ip : ips) {
         if (ip.is_set()) {
-          if (ip_sensors_[sensor]) {
+          if (ip_sensors_[sensor] != nullptr) {
             this->ip_sensors_[sensor]->publish_state(ip.str());
             sensor++;
           }
