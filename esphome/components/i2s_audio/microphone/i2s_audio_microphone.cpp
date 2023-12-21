@@ -37,6 +37,8 @@ void I2SAudioMicrophone::setup() {
 void I2SAudioMicrophone::start() {
   if (this->is_failed())
     return;
+  if (this->state_ == microphone::STATE_RUNNING)
+    return;  // Already running
   this->state_ = microphone::STATE_STARTING;
 }
 void I2SAudioMicrophone::start_() {
@@ -66,8 +68,9 @@ void I2SAudioMicrophone::start_() {
 
     i2s_set_adc_mode(ADC_UNIT_1, this->adc_channel_);
     i2s_adc_enable(this->parent_->get_port());
-  } else {
+  } else
 #endif
+  {
     if (this->pdm_)
       config.mode = (i2s_mode_t) (config.mode | I2S_MODE_PDM);
 
@@ -77,9 +80,7 @@ void I2SAudioMicrophone::start_() {
     pin_config.data_in_num = this->din_pin_;
 
     i2s_set_pin(this->parent_->get_port(), &pin_config);
-#if SOC_I2S_SUPPORTS_ADC
   }
-#endif
   this->state_ = microphone::STATE_RUNNING;
   this->high_freq_.start();
 }
@@ -107,6 +108,10 @@ size_t I2SAudioMicrophone::read(int16_t *buf, size_t len) {
   esp_err_t err = i2s_read(this->parent_->get_port(), buf, len, &bytes_read, (100 / portTICK_PERIOD_MS));
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Error reading from I2S microphone: %s", esp_err_to_name(err));
+    this->status_set_warning();
+    return 0;
+  }
+  if (bytes_read == 0) {
     this->status_set_warning();
     return 0;
   }

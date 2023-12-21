@@ -4,8 +4,7 @@ name: Synchronise Device Classes from Home Assistant
 on:
   workflow_dispatch:
   schedule:
-    - cron: '45 6 * * *'
-
+    - cron: "45 6 * * *"
 
 jobs:
   sync:
@@ -14,16 +13,16 @@ jobs:
     if: github.repository == 'esphome/esphome'
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4.1.1
 
       - name: Checkout Home Assistant
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4.1.1
         with:
           repository: home-assistant/core
           path: lib/home-assistant
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5.0.0
         with:
           python-version: 3.11
 
@@ -37,7 +36,7 @@ jobs:
           python ./script/sync-device_class.py
 
       - name: Commit changes
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v5.0.2
         with:
           commit-message: "Synchronise Device Classes from Home Assistant"
           committer: esphomebot <esphome@nabucasa.com>

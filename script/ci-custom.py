@@ -458,7 +458,7 @@ def lint_no_removed_in_idf_conversions(fname, match):
 
 
 @lint_re_check(
-    r"[^\w\d]byte\s+[\w\d]+\s*=",
+    r"[^\w\d]byte +[\w\d]+\s*=",
     include=cpp_include,
     exclude={
         "esphome/components/tuya/tuya.h",
@@ -512,7 +512,10 @@ def relative_py_search_text(fname, content):
 @lint_content_find_check(
     relative_py_search_text,
     include=["esphome/components/*.py"],
-    exclude=["esphome/components/web_server/__init__.py"],
+    exclude=[
+        "esphome/components/libretiny/generate_components.py",
+        "esphome/components/web_server/__init__.py",
+    ],
 )
 def lint_relative_py_import(fname):
     return (
@@ -536,6 +539,7 @@ def lint_relative_py_import(fname):
         "esphome/components/esp32/core.cpp",
         "esphome/components/esp8266/core.cpp",
         "esphome/components/rp2040/core.cpp",
+        "esphome/components/libretiny/core.cpp",
         "esphome/components/host/core.cpp",
     ],
 )
@@ -613,6 +617,7 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/lock/lock.h",
         "esphome/components/mqtt/mqtt_component.h",
         "esphome/components/number/number.h",
+        "esphome/components/text/text.h",
         "esphome/components/output/binary_output.h",
         "esphome/components/output/float_output.h",
         "esphome/components/nextion/nextion_base.h",

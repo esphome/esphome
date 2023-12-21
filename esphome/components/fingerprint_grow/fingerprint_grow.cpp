@@ -1,5 +1,6 @@
 #include "fingerprint_grow.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace fingerprint_grow {
@@ -133,12 +134,14 @@ uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
     case NO_FINGER:
       if (this->sensing_pin_ != nullptr) {
         ESP_LOGD(TAG, "No finger");
+        this->finger_scan_invalid_callback_.call();
       } else {
         ESP_LOGV(TAG, "No finger");
       }
       return this->data_[0];
     case IMAGE_FAIL:
       ESP_LOGE(TAG, "Imaging error");
+      this->finger_scan_invalid_callback_.call();
     default:
       return this->data_[0];
   }
@@ -151,10 +154,12 @@ uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
       break;
     case IMAGE_MESS:
       ESP_LOGE(TAG, "Image too messy");
+      this->finger_scan_invalid_callback_.call();
       break;
     case FEATURE_FAIL:
     case INVALID_IMAGE:
       ESP_LOGE(TAG, "Could not find fingerprint features");
+      this->finger_scan_invalid_callback_.call();
       break;
   }
   return this->data_[0];
@@ -204,7 +209,7 @@ bool FingerprintGrowComponent::check_password_() {
 }
 
 bool FingerprintGrowComponent::set_password_() {
-  ESP_LOGI(TAG, "Setting new password: %d", this->new_password_);
+  ESP_LOGI(TAG, "Setting new password: %" PRIu32, this->new_password_);
   this->data_ = {SET_PASSWORD, (uint8_t) (this->new_password_ >> 24), (uint8_t) (this->new_password_ >> 16),
                  (uint8_t) (this->new_password_ >> 8), (uint8_t) (this->new_password_ & 0xFF)};
   if (this->send_command_() == OK) {

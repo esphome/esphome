@@ -5,21 +5,37 @@ esphome:
   board: nodemcu-32s
   build_path: build/test2
 
+globals:
+  - id: my_global_string
+    type: std::string
+    restore_value: yes
+    max_restore_data_length: 70
+    initial_value: '"DefaultValue"'
+
 substitutions:
   devicename: test2
 
 ethernet:
   type: LAN8720
-  mdc_pin: GPIO23
-  mdio_pin: GPIO25
+  mdc_pin:
+    allow_other_uses: true
+    number: GPIO23
+  mdio_pin:
+    allow_other_uses: true
+    number: GPIO25
   clk_mode: GPIO0_IN
   phy_addr: 0
-  power_pin: GPIO25
+  power_pin:
+    allow_other_uses: true
+    number: GPIO25
   manual_ip:
     static_ip: 192.168.178.56
     gateway: 192.168.178.1
     subnet: 255.255.255.0
   domain: .local
+
+network:
+  enable_ipv6: true
 
 mdns:
   disabled: true
@@ -27,18 +43,32 @@ mdns:
 api:
 
 i2c:
-  sda: 21
-  scl: 22
+  sda:
+    allow_other_uses: true
+    number: 21
+  scl:
+    allow_other_uses: true
+    number: 22
   scan: false
 
 spi:
-  clk_pin: GPIO21
-  mosi_pin: GPIO22
-  miso_pin: GPIO23
+  clk_pin:
+    allow_other_uses: true
+    number: GPIO21
+  mosi_pin:
+    allow_other_uses: true
+    number: GPIO22
+  miso_pin:
+    allow_other_uses: true
+    number: GPIO23
 
 uart:
-  tx_pin: GPIO22
-  rx_pin: GPIO23
+  tx_pin:
+    allow_other_uses: true
+    number: GPIO22
+  rx_pin:
+    allow_other_uses: true
+    number: GPIO23
   baud_rate: 115200
   # Specifically added for testing debug with no after: definition.
   debug:
@@ -55,27 +85,37 @@ ota:
 logger:
   level: DEBUG
 
+debug:
+
 deep_sleep:
   run_duration:
     default: 20s
     gpio_wakeup_reason: 10s
     touch_wakeup_reason: 15s
   sleep_duration: 50s
-  wakeup_pin: GPIO2
+  wakeup_pin:
+    allow_other_uses: true
+    number: GPIO2
   wakeup_pin_mode: INVERT_WAKEUP
 
 as3935_i2c:
-  irq_pin: GPIO12
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO12
 
 mcp3008:
   - id: mcp3008_hub
-    cs_pin: GPIO12
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO12
 
 output:
   - platform: ac_dimmer
     id: dimmer1
     gate_pin: GPIO5
-    zero_cross_pin: GPIO12
+    zero_cross_pin:
+      allow_other_uses: true
+      number: GPIO12
 
 sensor:
   - platform: homeassistant
@@ -522,7 +562,9 @@ binary_sensor:
       name: Mi Motion Sensor 2 Button
   - platform: gpio
     id: gpio_set_retry_test
-    pin: GPIO9
+    pin:
+      allow_other_uses: true
+      number: GPIO9
     on_press:
       then:
         - lambda: |-
@@ -589,7 +631,9 @@ xiaomi_rtcgq02lm:
     bindkey: "48403ebe2d385db8d0c187f81e62cb64"
 
 status_led:
-  pin: GPIO2
+  pin:
+    allow_other_uses: true
+    number: GPIO2
 
 text_sensor:
   - platform: version
@@ -692,9 +736,13 @@ script:
 stepper:
   - platform: uln2003
     id: my_stepper
-    pin_a: GPIO23
+    pin_a:
+      allow_other_uses: true
+      number: GPIO23
     pin_b: GPIO27
-    pin_c: GPIO25
+    pin_c:
+      allow_other_uses: true
+      number: GPIO25
     pin_d: GPIO26
     sleep_when_done: false
     step_mode: HALF_STEP
@@ -706,10 +754,22 @@ stepper:
 
 interval:
   interval: 5s
+  startup_delay: 10s
   then:
     - logger.log: Interval Run
 
 display:
+  - platform: st7789v
+    model: LILYGO_T-EMBED_170X320
+    spi_mode: mode0
+    height: 320
+    width: 170
+    offset_height: 35
+    offset_width: 0
+    dc_pin: GPIO13
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO9
 
 image:
   - id: binary_image
@@ -731,6 +791,18 @@ image:
     file: pnglogo.png
     type: RGB565
     use_transparency: no
+  - id: web_svg_image
+    file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
+    resize: 256x48
+    type: TRANSPARENT_BINARY
+  - id: web_tiff_image
+    file: https://upload.wikimedia.org/wikipedia/commons/b/b6/SIPI_Jelly_Beans_4.1.07.tiff
+    type: RGB24
+    resize: 48x48
+  - id: web_redirect_image
+    file: https://avatars.githubusercontent.com/u/3060199?s=48&v=4
+    type: RGB24
+    resize: 48x48
 
   - id: mdi_alert
     file: mdi:alert-circle-outline
@@ -738,6 +810,11 @@ image:
   - id: another_alert_icon
     file: mdi:alert-outline
     type: BINARY
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
 
 graph:
   - id: my_graph
@@ -769,7 +846,23 @@ switch:
           value: !lambda |-
             return {0x13, 0x37};
 
-
 esp32_ble_server:
   id: ble
   manufacturer_data: [0x72, 0x4, 0x00, 0x23]
+
+text:
+  - platform: template
+    name: My Text
+    id: my_text
+    min_length: 0
+    max_length: 20
+    mode: text
+    pattern: "[a-z]+"
+    optimistic: true
+    restore_value: true
+    initial_value: "Hello World"
+  - platform: copy
+    name: My Text Copy
+    id: my_text_copy
+    source_id: my_text
+    mode: password
