@@ -58,8 +58,7 @@ class Hob2HoodProtocol : public RemoteProtocol<Hob2HoodData> {
   bool expect_data_(RemoteReceiveData &src, const std::vector<int8_t> &data);
 };
 
-using Hob2HoodTrigger = RemoteReceiverTrigger<Hob2HoodProtocol, Hob2HoodData>;
-using Hob2HoodDumper = RemoteReceiverDumper<Hob2HoodProtocol, Hob2HoodData>;
+using Hob2HoodTrigger = RemoteReceiverTrigger<Hob2HoodProtocol>;
 
 class Hob2HoodBinarySensor : public RemoteReceiverBinarySensorBase {
  public:
