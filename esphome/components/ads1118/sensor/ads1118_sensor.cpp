@@ -1,12 +1,14 @@
 #include "ads1118_sensor.h"
 
+#include "esphome/core/log.h"
+
 namespace esphome {
 namespace ads1118 {
 
 static const char *const TAG = "ads1118.sensor";
 
 void ADS1118Sensor::dump_config() {
-  LOG_SENSOR("  ", "Sensor", this);
+  LOG_SENSOR("  ", "ADS1118 Sensor", this);
   ESP_LOGCONFIG(TAG, "    Multiplexer: %u", this->multiplexer_);
   ESP_LOGCONFIG(TAG, "    Gain: %u", this->gain_);
 }
