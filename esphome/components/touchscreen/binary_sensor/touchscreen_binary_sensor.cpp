@@ -14,11 +14,10 @@ void TouchscreenBinarySensor::touch(TouchPoint tp) {
   if (this->page_ != nullptr) {
     touched &= this->page_ == this->parent_->get_display()->get_active_page();
   }
-
   if (touched) {
     this->publish_state(true);
   } else {
-    release();
+    this->release();
   }
 }
 
