@@ -41,7 +41,7 @@ CONFIG_SCHEMA = cv.Schema(
         .extend(cv.polling_component_schema("1s"))
         .extend(
             {
-                cv.Optional(f"a{x}"): text_sensor.text_sensor_schema(
+                cv.Optional(f"address_{x}"): text_sensor.text_sensor_schema(
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 )
                 for x in range(5)
@@ -82,7 +82,7 @@ async def to_code(config):
     if conf := config.get(CONF_IP_ADDRESS):
         wifi_info = await text_sensor.new_text_sensor(config[CONF_IP_ADDRESS])
         await cg.register_component(wifi_info, config[CONF_IP_ADDRESS])
-        for i in range(5):
-            if sensor_conf := conf.get(f"a{i}"):
+        for x in range(5):
+            if sensor_conf := conf.get(f"address_{x}"):
                 sens = await text_sensor.new_text_sensor(sensor_conf)
-                cg.add(wifi_info.add_ip_sensors(i, sens))
+                cg.add(wifi_info.add_ip_sensors(x, sens))
