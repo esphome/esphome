@@ -82,7 +82,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_JS_URL): cv.string,
             cv.Optional(CONF_JS_INCLUDE): cv.file_,
             cv.Optional(CONF_ENABLE_PRIVATE_NETWORK_ACCESS, default=True): cv.boolean,
-            cv.Optional(CONF_LOCAL_FALLBACK, default=False): cv.boolean,
+            cv.Optional(CONF_LOCAL_FALLBACK): cv.boolean,
             cv.Optional(CONF_AUTH): cv.Schema(
                 {
                     cv.Required(CONF_USERNAME): cv.All(
