@@ -434,6 +434,9 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
         state += " " + obj->get_unit_of_measurement();
     }
     set_json_icon_state_value(root, obj, "sensor-" + obj->get_object_id(), state, value, start_config);
+    if (start_config == DETAIL_ALL) {
+      root["uom"] = obj->get_unit_of_measurement();
+    }
   });
 }
 #endif
@@ -824,6 +827,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       root["max_value"] = obj->traits.get_max_value();
       root["step"] = obj->traits.get_step();
       root["mode"] = (int) obj->traits.get_mode();
+      root["uom"] = obj->traits.get_unit_of_measurement();
     }
     if (std::isnan(value)) {
       root["value"] = "\"NaN\"";
