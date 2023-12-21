@@ -167,8 +167,8 @@ class ABBWelcomeBinarySensor : public RemoteReceiverBinarySensorBase {
   ABBWelcomeData data_;
 };
 
-using ABBWelcomeTrigger = RemoteReceiverTrigger<ABBWelcomeProtocol, ABBWelcomeData>;
-using ABBWelcomeDumper = RemoteReceiverDumper<ABBWelcomeProtocol, ABBWelcomeData>;
+using ABBWelcomeTrigger = RemoteReceiverTrigger<ABBWelcomeProtocol>;
+using ABBWelcomeDumper = RemoteReceiverDumper<ABBWelcomeProtocol>;
 
 template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterActionBase<Ts...> {
   TEMPLATABLE_VALUE(uint16_t, source_address)
