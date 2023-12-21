@@ -59,6 +59,7 @@ class Hob2HoodProtocol : public RemoteProtocol<Hob2HoodData> {
 };
 
 using Hob2HoodTrigger = RemoteReceiverTrigger<Hob2HoodProtocol>;
+using Hob2HoodDumper = RemoteReceiverDumper<Hob2HoodProtocol>;
 
 class Hob2HoodBinarySensor : public RemoteReceiverBinarySensorBase {
  public:
