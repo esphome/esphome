@@ -3,7 +3,7 @@ import esphome.codegen as cg
 
 from esphome.components import display
 from esphome import automation
-from esphome.const import CONF_ON_TOUCH, CONF_ON_RELEASE
+from esphome.const import CONF_ON_TOUCH, CONF_ON_RELEASE, CONF_CALIBRATION
 from esphome.core import coroutine_with_priority
 
 CODEOWNERS = ["@jesserockz", "@nielsnl68"]
@@ -30,7 +30,6 @@ CONF_MIRROR_Y = "mirror_y"
 CONF_SWAP_XY = "swap_xy"
 CONF_TRANSFORM = "transform"
 
-CONF_CALIBRATION = "calibration"
 CONF_X_MIN = "x_min"
 CONF_X_MAX = "x_max"
 CONF_Y_MIN = "y_min"

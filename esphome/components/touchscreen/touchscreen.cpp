@@ -64,8 +64,7 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
   tp.x_raw = x_raw;
   tp.y_raw = y_raw;
   tp.z_raw = z_raw;
-  if (this->x_raw_max_ != this->x_raw_min_ and
-      this->y_raw_max_ != this->y_raw_min_) {
+  if (this->x_raw_max_ != this->x_raw_min_ and this->y_raw_max_ != this->y_raw_min_) {
     x = this->normalize_(x_raw, this->x_raw_min_, this->x_raw_max_, this->invert_x_);
     y = this->normalize_(y_raw, this->y_raw_min_, this->y_raw_max_, this->invert_y_);
 
