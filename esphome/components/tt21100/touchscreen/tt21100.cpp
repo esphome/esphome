@@ -109,7 +109,7 @@ void TT21100Touchscreen::update_touches() {
                  i, touch->touch_type, touch->tip, touch->event_id, touch->touch_id, touch->x, touch->y,
                  touch->pressure, touch->major_axis_length, touch->orientation);
 
-        this->set_raw_touch_position_(touch->tip, touch->x, touch->y, touch->pressure);
+        this->add_raw_touch_position_(touch->tip, touch->x, touch->y, touch->pressure);
       }
     }
   }
