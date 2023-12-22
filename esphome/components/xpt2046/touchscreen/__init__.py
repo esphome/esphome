@@ -22,7 +22,7 @@ CONF_CALIBRATION_Y_MIN = "calibration_y_min"
 CONF_CALIBRATION_Y_MAX = "calibration_y_max"
 
 
-def validate_xpt2046(config):
+def validate_calibration(config):
     if (
         abs(
             cv.int_(config[CONF_CALIBRATION_X_MAX])
@@ -52,23 +52,32 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(CONF_INTERRUPT_PIN): cv.All(
                     pins.internal_gpio_input_pin_schema
                 ),
-                cv.Optional(CONF_CALIBRATION_X_MIN, default=0): cv.int_range(
-                    min=0, max=4095
-                ),
-                cv.Optional(CONF_CALIBRATION_X_MAX, default=4095): cv.int_range(
-                    min=0, max=4095
-                ),
-                cv.Optional(CONF_CALIBRATION_Y_MIN, default=0): cv.int_range(
-                    min=0, max=4095
-                ),
-                cv.Optional(CONF_CALIBRATION_Y_MAX, default=4095): cv.int_range(
-                    min=0, max=4095
-                ),
                 cv.Optional(CONF_THRESHOLD, default=400): cv.int_range(min=0, max=4095),
+                cv.Optional(
+                    touchscreen.CONF_CALIBRATION
+                ): touchscreen.calibration_schema(4095),
+                cv.Optional(CONF_CALIBRATION_X_MIN): cv.invalid(
+                    "Deprecated: use the new Calibration variable"
+                ),
+                cv.Optional(CONF_CALIBRATION_X_MAX): cv.invalid(
+                    "Deprecated: use the new Calibration variable"
+                ),
+                cv.Optional(CONF_CALIBRATION_Y_MIN): cv.invalid(
+                    "Deprecated: use the new Calibration variable"
+                ),
+                cv.Optional(CONF_CALIBRATION_Y_MAX): cv.invalid(
+                    "Deprecated: use the new Calibration variable"
+                ),
+                cv.Optional(CONF_CALIBRATION_Y_MAX): cv.invalid(
+                    "Deprecated: use the new Calibration variable"
+                ),
+                cv.Optional("report_interval"): cv.invalid(
+                    "Deprecated: use the update_interval variable"
+                ),
             },
         )
     ).extend(spi.spi_device_schema()),
-    validate_xpt2046,
+    validate_calibration,
 )
 
 
@@ -78,15 +87,6 @@ async def to_code(config):
     await spi.register_spi_device(var, config)
 
     cg.add(var.set_threshold(config[CONF_THRESHOLD]))
-
-    cg.add(
-        var.set_calibration(
-            config[CONF_CALIBRATION_X_MIN],
-            config[CONF_CALIBRATION_X_MAX],
-            config[CONF_CALIBRATION_Y_MIN],
-            config[CONF_CALIBRATION_Y_MAX],
-        )
-    )
 
     if CONF_INTERRUPT_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN])

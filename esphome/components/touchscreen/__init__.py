@@ -30,6 +30,51 @@ CONF_MIRROR_Y = "mirror_y"
 CONF_SWAP_XY = "swap_xy"
 CONF_TRANSFORM = "transform"
 
+CONF_CALIBRATION = "calibration"
+CONF_X_MIN = "x_min"
+CONF_X_MAX = "x_max"
+CONF_Y_MIN = "y_min"
+CONF_Y_MAX = "y_max"
+
+
+def validate_calibration(config):
+    if CONF_CALIBRATION in config:
+        if (
+            cv.int_(config[CONF_CALIBRATION][CONF_X_MIN]) != 0
+            and cv.int_(config[CONF_CALIBRATION][CONF_X_MAX]) != 0
+            and abs(
+                cv.int_(config[CONF_CALIBRATION][CONF_X_MIN])
+                - cv.int_(config[CONF_CALIBRATION][CONF_X_MAX])
+            )
+            < 10
+        ):
+            raise cv.Invalid("Calibration X values difference must be more then 10")
+
+        if (
+            cv.int_(config[CONF_CALIBRATION][CONF_Y_MIN]) != 0
+            and cv.int_(config[CONF_CALIBRATION][CONF_Y_MAX]) != 0
+            and abs(
+                cv.int_(config[CONF_CALIBRATION][CONF_Y_MIN])
+                - cv.int_(config[CONF_CALIBRATION][CONF_Y_MAX])
+            )
+            < 10
+        ):
+            raise cv.Invalid("Calibration Y values difference must be more then 10")
+
+    return config
+
+
+def calibration_schema(max):
+    return cv.Schema(
+        {
+            cv.Optional(CONF_X_MIN, default=0): cv.int_range(min=0, max=4095),
+            cv.Optional(CONF_X_MAX, default=max): cv.int_range(min=0, max=4095),
+            cv.Optional(CONF_Y_MIN, default=0): cv.int_range(min=0, max=4095),
+            cv.Optional(CONF_Y_MAX, default=max): cv.int_range(min=0, max=4095),
+        },
+        validate_calibration,
+    )
+
 
 TOUCHSCREEN_SCHEMA = cv.Schema(
     {
@@ -41,6 +86,7 @@ TOUCHSCREEN_SCHEMA = cv.Schema(
                 cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
             }
         ),
+        cv.Optional(CONF_CALIBRATION): calibration_schema(0),
         cv.Optional(CONF_ON_TOUCH): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_UPDATE): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_RELEASE): automation.validate_automation(single=True),
@@ -59,6 +105,16 @@ async def register_touchscreen(var, config):
         cg.add(var.set_swap_xy(transform[CONF_SWAP_XY]))
         cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))
         cg.add(var.set_mirror_y(transform[CONF_MIRROR_Y]))
+
+    if CONF_CALIBRATION in config:
+        cg.add(
+            var.set_calibration(
+                config[CONF_CALIBRATION][CONF_X_MIN],
+                config[CONF_CALIBRATION][CONF_X_MAX],
+                config[CONF_CALIBRATION][CONF_Y_MIN],
+                config[CONF_CALIBRATION][CONF_Y_MAX],
+            )
+        )
 
     if CONF_ON_TOUCH in config:
         await automation.build_automation(

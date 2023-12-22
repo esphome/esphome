@@ -175,9 +175,13 @@ class Display : public PollingComponent {
   void clear();
 
   /// Get the width of the image in pixels with rotation applied.
-  virtual int get_width() = 0;
+  virtual int get_width() { return this->get_width_internal(); }
+
   /// Get the height of the image in pixels with rotation applied.
-  virtual int get_height() = 0;
+  virtual int get_height() { return this->get_height_internal(); }
+
+  virtual int get_height_internal() = 0;
+  virtual int get_width_internal() = 0;
 
   /// Set a single pixel at the specified coordinates to default color.
   inline void draw_pixel_at(int x, int y) { this->draw_pixel_at(x, y, COLOR_ON); }
@@ -201,7 +205,8 @@ class Display : public PollingComponent {
   /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
   void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
 
-  /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
+  /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given
+  /// color.
   void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON);
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
@@ -510,7 +515,7 @@ class Display : public PollingComponent {
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
-};
+    };
 
 class DisplayPage {
  public:
@@ -584,5 +589,5 @@ class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> 
   DisplayPage *to_{nullptr};
 };
 
-}  // namespace display
+  }  // namespace display
 }  // namespace esphome

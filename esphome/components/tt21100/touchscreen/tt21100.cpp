@@ -62,8 +62,14 @@ void TT21100Touchscreen::setup() {
   }
 
   // Update display dimensions if they were updated during display setup
-  this->x_raw_max_ = this->get_width_();
-  this->y_raw_max_ = this->get_height_();
+  if (this->display_ != nullptr) {
+    if (this->x_raw_max_ == this->x_raw_min_) {
+      this->x_raw_max_ = this->display_->get_width_internal();
+    }
+    if (this->y_raw_max_ == this->y_raw_min_) {
+      this->y_raw_max_ = this->display_->get_height_internal();
+    }
+  }
 }
 
 void TT21100Touchscreen::update_touches() {
