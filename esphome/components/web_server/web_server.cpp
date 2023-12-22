@@ -406,10 +406,12 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   }
 
 #define set_json_value(root, obj, sensor, value, start_config) \
-  set_json_id((root), (obj), sensor, start_config)(root)["value"] = value;
+  set_json_id((root), (obj), sensor, start_config); \
+  (root)["value"] = value;
 
 #define set_json_icon_state_value(root, obj, sensor, state, value, start_config) \
-  set_json_value(root, obj, sensor, value, start_config)(root)["state"] = state;
+  set_json_value(root, obj, sensor, value, start_config); \
+  (root)["state"] = state;
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
