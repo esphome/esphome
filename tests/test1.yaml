@@ -1732,6 +1732,8 @@ binary_sensor:
       - delayed_on_off: !lambda "return 10;"
       - delayed_on: !lambda "return 1000;"
       - delayed_off: !lambda "return 0;"
+      - settle: 40ms
+      - settle: !lambda "return 10;"
     on_press:
       then:
         - lambda: >-
