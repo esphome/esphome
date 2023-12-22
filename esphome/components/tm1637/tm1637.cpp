@@ -138,6 +138,7 @@ void TM1637Display::dump_config() {
   ESP_LOGCONFIG(TAG, "TM1637:");
   ESP_LOGCONFIG(TAG, "  Intensity: %d", this->intensity_);
   ESP_LOGCONFIG(TAG, "  Inverted: %d", this->inverted_);
+  ESP_LOGCONFIG(TAG, "  Reversed: %d", this->reversed_);
   ESP_LOGCONFIG(TAG, "  Length: %d", this->length_);
   LOG_PIN("  CLK Pin: ", this->clk_pin_);
   LOG_PIN("  DIO Pin: ", this->dio_pin_);
@@ -209,6 +210,23 @@ void TM1637Display::display() {
   // Write ADDR CMD + first digit address
   this->start_();
   this->send_byte_(TM1637_CMD_ADDR);
+
+  if (this->reversed_) {
+    uint8_t revbuf_[6] = {0};
+
+    // Reverse character order first half
+    for (int8_t i = 2; i >= 0;  i--) {
+    revbuf_[2-i] = this->buffer_[i];
+    }
+
+    // Reverse character order second half
+    for (int8_t i = 2; i >= 0;  i--) {
+      revbuf_[5-i] = this->buffer_[3+i];
+    }
+
+    // Writeback
+    memcpy(this->buffer_, revbuf_, 6);
+  }
 
   // Write the data bytes
   if (this->inverted_) {
