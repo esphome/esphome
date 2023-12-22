@@ -301,7 +301,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
         if (
-            port == "OTA"
+            port == "OTA"  # pylint: disable=too-many-boolean-expressions
             and (mdns := dashboard.mdns_status)
             and (entry := entries.get(config_file))
             and entry.loaded_integrations
