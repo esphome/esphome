@@ -80,6 +80,8 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
     tp.y_org = tp.y;
   }
 
+  ESP_LOGD(TAG, "Touch info, x_raw: %d, y_raw: %d, p: %d, x: %d, y: %d", x_raw, y_raw, z_raw, tp.x, tp.y);
+
   this->touches_[id] = tp;
 
   this->is_touched_ = true;
@@ -116,19 +118,27 @@ void Touchscreen::send_touches_() {
 }
 
 int16_t Touchscreen::normalize_(int16_t val, int16_t min_val, int16_t max_val, bool inverted) {
+
   int16_t ret;
 
+//only normalize when min and max value are specified
+if(min_val && max_val)
+{
   if (val <= min_val) {
     ret = 0;
   } else if (val >= max_val) {
     ret = 0xfff;
   } else {
-    ret = (int16_t) ((int) 0xfff * (val - min_val) / (max_val - min_val));
+      ret = (int16_t) ((int) 0xfff * (val - min_val) / (max_val - min_val));
+    }
   }
+  else
+  {
+    ret = val;
+  }
+    ret = (inverted) ? 0xfff - ret : ret;
 
-  ret = (inverted) ? 0xfff - ret : ret;
-
-  return ret;
+    return ret;
 }
 
 }  // namespace touchscreen
