@@ -87,5 +87,7 @@ class MediaPlayer : public EntityBase {
   virtual void control(const MediaPlayerCall &call) = 0;
 
   CallbackManager<void()> state_callback_{};
+};
+
 }  // namespace media_player
 }  // namespace esphome
