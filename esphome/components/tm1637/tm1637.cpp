@@ -215,13 +215,13 @@ void TM1637Display::display() {
     uint8_t revbuf_[6] = {0};
 
     // Reverse character order first half
-    for (int8_t i = 2; i >= 0;  i--) {
-    revbuf_[2-i] = this->buffer_[i];
+    for (int8_t i = 2; i >= 0; i--) {
+      revbuf_[2 - i] = this->buffer_[i];
     }
 
     // Reverse character order second half
-    for (int8_t i = 2; i >= 0;  i--) {
-      revbuf_[5-i] = this->buffer_[3+i];
+    for (int8_t i = 2; i >= 0; i--) {
+      revbuf_[5 - i] = this->buffer_[3 + i];
     }
 
     // Writeback
