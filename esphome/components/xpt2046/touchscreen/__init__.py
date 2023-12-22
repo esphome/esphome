@@ -21,29 +21,6 @@ CONF_CALIBRATION_X_MAX = "calibration_x_max"
 CONF_CALIBRATION_Y_MIN = "calibration_y_min"
 CONF_CALIBRATION_Y_MAX = "calibration_y_max"
 
-
-def validate_calibration(config):
-    if (
-        abs(
-            cv.int_(config[CONF_CALIBRATION_X_MAX])
-            - cv.int_(config[CONF_CALIBRATION_X_MIN])
-        )
-        < 1000
-    ):
-        raise cv.Invalid("Calibration X values difference < 1000")
-
-    if (
-        abs(
-            cv.int_(config[CONF_CALIBRATION_Y_MAX])
-            - cv.int_(config[CONF_CALIBRATION_Y_MIN])
-        )
-        < 1000
-    ):
-        raise cv.Invalid("Calibration Y values difference < 1000")
-
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     touchscreen.TOUCHSCREEN_SCHEMA.extend(
         cv.Schema(
@@ -77,7 +54,6 @@ CONFIG_SCHEMA = cv.All(
             },
         )
     ).extend(spi.spi_device_schema()),
-    validate_calibration,
 )
 
 
