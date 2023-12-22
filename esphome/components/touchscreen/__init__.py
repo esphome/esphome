@@ -4,6 +4,7 @@ import esphome.codegen as cg
 from esphome.components import display
 from esphome import automation
 from esphome.const import (
+    CONF_CALIBRATION,
     CONF_ON_TOUCH,
     CONF_ON_RELEASE,
     CONF_MIRROR_X,
@@ -33,7 +34,6 @@ CONF_REPORT_INTERVAL = "report_interval"  # not used yet:
 CONF_ON_UPDATE = "on_update"
 CONF_TOUCH_TIMEOUT = "touch_timeout"
 
-CONF_CALIBRATION = "calibration"
 CONF_X_MIN = "x_min"
 CONF_X_MAX = "x_max"
 CONF_Y_MIN = "y_min"
