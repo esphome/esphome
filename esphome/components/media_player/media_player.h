@@ -3,10 +3,6 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 
-#ifdef USE_SPEAKER
-#include "esphome/components/speaker/speaker.h"
-#endif
-
 namespace esphome {
 namespace media_player {
 
@@ -74,9 +70,6 @@ class MediaPlayer : public EntityBase {
  public:
   MediaPlayerState state{MEDIA_PLAYER_STATE_NONE};
   float volume{1.0f};
-#ifdef USE_SPEAKER
-  void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
-#endif
 
   MediaPlayerCall make_call() { return MediaPlayerCall(this); }
 
@@ -94,10 +87,5 @@ class MediaPlayer : public EntityBase {
   virtual void control(const MediaPlayerCall &call) = 0;
 
   CallbackManager<void()> state_callback_{};
-#ifdef USE_SPEAKER
-  speaker::Speaker *speaker_;
-#endif
-};
-
 }  // namespace media_player
 }  // namespace esphome
