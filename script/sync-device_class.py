@@ -2,12 +2,15 @@
 
 import re
 
+# pylint: disable=import-error
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.button import ButtonDeviceClass
 from homeassistant.components.cover import CoverDeviceClass
 from homeassistant.components.number import NumberDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.components.switch import SwitchDeviceClass
+
+# pylint: enable=import-error
 
 BLOCKLIST = (
     # requires special support on HA side
