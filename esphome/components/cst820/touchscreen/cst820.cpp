@@ -32,14 +32,14 @@ void CST820Touchscreen::setup() {
   // Update display dimensions if they were updated during display setup
   this->x_raw_min_ = 0;
   this->y_raw_min_ = 0;
-     if (this->display_ != nullptr) {
-      if (this->x_raw_max_ == this->x_raw_min_) {
-        this->x_raw_max_ = this->display_->get_width_internal();
-      }
-      if (this->y_raw_max_ == this->y_raw_min_) {
-        this->y_raw_max_ = this->display_->get_height_internal();
-      }
+  if (this->display_ != nullptr) {
+    if (this->x_raw_max_ == this->x_raw_min_) {
+      this->x_raw_max_ = this->display_->get_width_internal();
     }
+    if (this->y_raw_max_ == this->y_raw_min_) {
+      this->y_raw_max_ = this->display_->get_height_internal();
+    }
+  }
 }
 
 void CST820Touchscreen::update_touches() {
@@ -78,10 +78,8 @@ void CST820Touchscreen::dump_config() {
 
   // LOG_PIN("  IRQ Pin: ", this->irq_pin_);
 
-
   //#LOG_UPDATE_INTERVAL(this);
 }
-
 
 }  // namespace cst820
 }  // namespace esphome
