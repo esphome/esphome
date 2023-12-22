@@ -807,6 +807,7 @@ class EditRequestHandler(BaseHandler):
             if configuration in const.SECRETS_FILES:
                 return ""
             self.set_status(404)
+            return None
 
     def _write_file(self, filename: str, content: bytes) -> None:
         """Write a file with the given content."""
