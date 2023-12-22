@@ -212,20 +212,20 @@ void TM1637Display::display() {
   this->send_byte_(TM1637_CMD_ADDR);
 
   if (this->reversed_) {
-    uint8_t revbuf_[6] = {0};
+    uint8_t revbuf[6] = {0};
 
     // Reverse character order first half
     for (int8_t i = 2; i >= 0; i--) {
-      revbuf_[2 - i] = this->buffer_[i];
+      revbuf[2 - i] = this->buffer_[i];
     }
 
     // Reverse character order second half
     for (int8_t i = 2; i >= 0; i--) {
-      revbuf_[5 - i] = this->buffer_[3 + i];
+      revbuf[5 - i] = this->buffer_[3 + i];
     }
 
     // Writeback
-    memcpy(this->buffer_, revbuf_, 6);
+    memcpy(this->buffer_, revbuf, 6);
   }
 
   // Write the data bytes
