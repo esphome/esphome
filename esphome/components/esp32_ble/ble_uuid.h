@@ -32,9 +32,9 @@ class ESPBTUUID {
   bool operator==(const ESPBTUUID &uuid) const;
   bool operator!=(const ESPBTUUID &uuid) const { return !(*this == uuid); }
 
-  esp_bt_uuid_t get_uuid();
+  esp_bt_uuid_t get_uuid() const;
 
-  std::string to_string();
+  std::string to_string() const;
 
  protected:
   esp_bt_uuid_t uuid_;

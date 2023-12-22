@@ -61,9 +61,10 @@ solve_registry = []
 
 
 def get_component_names():
+    # pylint: disable-next=redefined-outer-name,reimported
     from esphome.loader import CORE_COMPONENTS_PATH
 
-    component_names = ["esphome", "sensor"]
+    component_names = ["esphome", "sensor", "esp32", "esp8266"]
 
     for d in os.listdir(CORE_COMPONENTS_PATH):
         if not d.startswith("__") and os.path.isdir(
@@ -82,6 +83,13 @@ def load_components():
         components[domain] = get_component(domain)
 
 
+# pylint: disable=wrong-import-position
+from esphome.const import CONF_TYPE, KEY_CORE
+from esphome.core import CORE
+
+# pylint: enable=wrong-import-position
+
+CORE.data[KEY_CORE] = {}
 load_components()
 
 # Import esphome after loading components (so schema is tracked)
@@ -91,7 +99,6 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome import pins
 from esphome.components import remote_base
-from esphome.const import CONF_TYPE
 from esphome.loader import get_platform, CORE_COMPONENTS_PATH
 from esphome.helpers import write_file_if_changed
 from esphome.util import Registry
@@ -107,6 +114,13 @@ def write_file(name, obj):
         json_str = json.dumps(obj, separators=(",", ":"))
     write_file_if_changed(full_path, json_str)
     print(f"Wrote {full_path}")
+
+
+def delete_extra_files(keep_names):
+    for d in os.listdir(args.output_path):
+        if d.endswith(".json") and d[:-5] not in keep_names:
+            os.remove(os.path.join(args.output_path, d))
+            print(f"Deleted {d}")
 
 
 def register_module_schemas(key, module, manifest=None):
@@ -150,7 +164,7 @@ def module_schemas(module):
     schemas = {}
     for m_attr_name in dir(module):
         m_attr_obj = getattr(module, m_attr_name)
-        if isConvertibleSchema(m_attr_obj):
+        if is_convertible_schema(m_attr_obj):
             schemas[module_str.find(m_attr_name)] = [m_attr_name, m_attr_obj]
 
     for pos in sorted(schemas.keys()):
@@ -240,25 +254,34 @@ def do_pins():
         pins_providers.append(pin_registry)
 
 
+def setBoards(obj, boards):
+    obj[S_TYPE] = "enum"
+    obj["values"] = {}
+    for k, v in boards.items():
+        obj["values"][k] = {"docs": v["name"]}
+
+
 def do_esp32():
     import esphome.components.esp32.boards as esp32_boards
 
-    setEnum(
+    setBoards(
         output["esp32"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]["board"],
-        list(esp32_boards.BOARD_TO_VARIANT.keys()),
+        esp32_boards.BOARDS,
     )
 
 
 def do_esp8266():
     import esphome.components.esp8266.boards as esp8266_boards
 
-    setEnum(
+    setBoards(
         output["esp8266"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]["board"],
-        list(esp8266_boards.ESP8266_BOARD_PINS.keys()),
+        esp8266_boards.BOARDS,
     )
 
 
 def fix_remote_receiver():
+    if "remote_receiver.binary_sensor" not in output:
+        return
     remote_receiver_schema = output["remote_receiver.binary_sensor"]["schemas"]
     remote_receiver_schema["CONFIG_SCHEMA"] = {
         "type": "schema",
@@ -275,12 +298,50 @@ def fix_remote_receiver():
 
 
 def fix_script():
+    if "script" not in output:
+        return
     output["script"][S_SCHEMAS][S_CONFIG_SCHEMA][S_TYPE] = S_SCHEMA
     config_schema = output["script"][S_SCHEMAS][S_CONFIG_SCHEMA]
     config_schema[S_SCHEMA][S_CONFIG_VARS]["id"]["id_type"] = {
         "class": "script::Script"
     }
     config_schema["is_list"] = True
+
+
+def fix_font():
+    if "font" not in output:
+        return
+    output["font"][S_SCHEMAS]["FILE_SCHEMA"] = output["font"][S_SCHEMAS].pop(
+        "TYPED_FILE_SCHEMA"
+    )
+
+
+def fix_menu():
+    if "display_menu_base" not in output:
+        return
+    # # Menu has a recursive schema which is not kept properly
+    schemas = output["display_menu_base"][S_SCHEMAS]
+    # 1. Move items to a new schema
+    schemas["MENU_TYPES"] = {
+        S_TYPE: S_SCHEMA,
+        S_SCHEMA: {
+            S_CONFIG_VARS: {
+                "items": schemas["DISPLAY_MENU_BASE_SCHEMA"][S_SCHEMA][S_CONFIG_VARS][
+                    "items"
+                ]
+            }
+        },
+    }
+    # 2. Remove items from the base schema
+    schemas["DISPLAY_MENU_BASE_SCHEMA"][S_SCHEMA][S_CONFIG_VARS].pop("items")
+    # 3. Add extends to this
+    schemas["DISPLAY_MENU_BASE_SCHEMA"][S_SCHEMA][S_EXTENDS].append(
+        "display_menu_base.MENU_TYPES"
+    )
+    # 4. Configure menu items inside as recursive
+    menu = schemas["MENU_TYPES"][S_SCHEMA][S_CONFIG_VARS]["items"]["types"]["menu"]
+    menu[S_CONFIG_VARS].pop("items")
+    menu[S_EXTENDS] = ["display_menu_base.MENU_TYPES"]
 
 
 def get_logger_tags():
@@ -304,6 +365,8 @@ def get_logger_tags():
 
 
 def add_logger_tags():
+    if "logger" not in output or "schemas" not in output["logger"]:
+        return
     tags = get_logger_tags()
     logs = output["logger"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"][
         "logs"
@@ -403,6 +466,14 @@ def merge(source, destination):
     return destination
 
 
+def is_platform_schema(schema_name):
+    # added mostly because of schema_name == "microphone.MICROPHONE_SCHEMA"
+    # and "alarm_control_panel"
+    # which is shrunk because there is only one component of the schema (i2s_audio)
+    component = schema_name.split(".")[0]
+    return component in components and components[component].is_platform_component
+
+
 def shrink():
     """Shrink the extending schemas which has just an end type, e.g. at this point
     ota / port is type schema with extended pointing to core.port, this should instead be
@@ -428,7 +499,7 @@ def shrink():
                         add_referenced_recursive(referenced_schemas, vvv, [k, kv, kvv])
 
         for x, paths in referenced_schemas.items():
-            if len(paths) == 1:
+            if len(paths) == 1 and not is_platform_schema(x):
                 key_s = get_str_path_schema(x)
                 arr_s = get_arr_path_schema(paths[0])
                 # key_s |= arr_s
@@ -468,6 +539,10 @@ def shrink():
         elif not key_s:
             for target in paths:
                 target_s = get_arr_path_schema(target)
+                if S_SCHEMA not in target_s:
+                    # an empty schema like speaker.SPEAKER_SCHEMA
+                    target_s[S_EXTENDS].remove(x)
+                    continue
                 assert target_s[S_SCHEMA][S_EXTENDS] == [x]
                 target_s.pop(S_SCHEMA)
                 target_s.pop(S_TYPE)  # undefined
@@ -481,10 +556,11 @@ def shrink():
             s = f"{domain}.{schema_name}"
             if (
                 not s.endswith("." + S_CONFIG_SCHEMA)
-                and s not in referenced_schemas.keys()
+                and s not in referenced_schemas
+                and not is_platform_schema(s)
             ):
                 print(f"Removing {s}")
-                output[domain][S_SCHEMAS].pop(schema_name)
+                domain_schemas[S_SCHEMAS].pop(schema_name)
 
 
 def build_schema():
@@ -492,7 +568,7 @@ def build_schema():
 
     # check esphome was not loaded globally (IDE auto imports)
     if len(ejs.extended_schemas) == 0:
-        raise Exception(
+        raise LookupError(
             "no data collected. Did you globally import an ESPHome component?"
         )
 
@@ -563,8 +639,10 @@ def build_schema():
     do_esp32()
     fix_remote_receiver()
     fix_script()
+    fix_font()
     add_logger_tags()
     shrink()
+    fix_menu()
 
     # aggregate components, so all component info is in same file, otherwise we have dallas.json, dallas.sensor.json, etc.
     data = {}
@@ -584,17 +662,13 @@ def build_schema():
 
     for c, s in data.items():
         write_file(c, s)
+    delete_extra_files(data.keys())
 
 
-def setEnum(obj, items):
-    obj[S_TYPE] = "enum"
-    obj["values"] = items
-
-
-def isConvertibleSchema(schema):
+def is_convertible_schema(schema):
     if schema is None:
         return False
-    if isinstance(schema, (cv.Schema, cv.All)):
+    if isinstance(schema, (cv.Schema, cv.All, cv.Any)):
         return True
     if repr(schema) in ejs.hidden_schemas:
         return True
@@ -613,24 +687,27 @@ def isConvertibleSchema(schema):
 
 def convert_config(schema, path):
     converted = {}
-    convert_1(schema, converted, path)
+    convert(schema, converted, path)
     return converted
 
 
-def convert_1(schema, config_var, path):
+def convert(schema, config_var, path):
     """config_var can be a config_var or a schema: both are dicts
     config_var has a S_TYPE property, if this is S_SCHEMA, then it has a S_SCHEMA property
     schema does not have a type property, schema can have optionally both S_CONFIG_VARS and S_EXTENDS
     """
     repr_schema = repr(schema)
 
+    if path.startswith("ads1115.sensor") and path.endswith("gain"):
+        print(path)
+
     if repr_schema in known_schemas:
         schema_info = known_schemas[(repr_schema)]
-        for (schema_instance, name) in schema_info:
+        for schema_instance, name in schema_info:
             if schema_instance is schema:
                 assert S_CONFIG_VARS not in config_var
                 assert S_EXTENDS not in config_var
-                if not S_TYPE in config_var:
+                if S_TYPE not in config_var:
                     config_var[S_TYPE] = S_SCHEMA
                 # assert config_var[S_TYPE] == S_SCHEMA
 
@@ -638,7 +715,7 @@ def convert_1(schema, config_var, path):
                     config_var[S_SCHEMA] = {}
                 if S_EXTENDS not in config_var[S_SCHEMA]:
                     config_var[S_SCHEMA][S_EXTENDS] = [name]
-                else:
+                elif name not in config_var[S_SCHEMA][S_EXTENDS]:
                     config_var[S_SCHEMA][S_EXTENDS].append(name)
                 return
 
@@ -652,25 +729,25 @@ def convert_1(schema, config_var, path):
             return
 
         assert len(extended) == 2
-        convert_1(extended[0], config_var, path + "/extL")
-        convert_1(extended[1], config_var, path + "/extR")
+        convert(extended[0], config_var, path + "/extL")
+        convert(extended[1], config_var, path + "/extR")
         return
 
     if isinstance(schema, cv.All):
         i = 0
         for inner in schema.validators:
             i = i + 1
-            convert_1(inner, config_var, path + f"/val {i}")
+            convert(inner, config_var, path + f"/val {i}")
         return
 
     if hasattr(schema, "validators"):
         i = 0
         for inner in schema.validators:
             i = i + 1
-            convert_1(inner, config_var, path + f"/val {i}")
+            convert(inner, config_var, path + f"/val {i}")
 
     if isinstance(schema, cv.Schema):
-        convert_1(schema.schema, config_var, path + "/all")
+        convert(schema.schema, config_var, path + "/all")
         return
 
     if isinstance(schema, dict):
@@ -680,7 +757,7 @@ def convert_1(schema, config_var, path):
     if repr_schema in ejs.list_schemas:
         config_var["is_list"] = True
         items_schema = ejs.list_schemas[repr_schema][0]
-        convert_1(items_schema, config_var, path + "/list")
+        convert(items_schema, config_var, path + "/list")
         return
 
     if DUMP_RAW:
@@ -692,9 +769,9 @@ def convert_1(schema, config_var, path):
     elif schema == automation.validate_potentially_and_condition:
         config_var[S_TYPE] = "registry"
         config_var["registry"] = "condition"
-    elif schema == cv.int_ or schema == cv.int_range:
+    elif schema in (cv.int_, cv.int_range):
         config_var[S_TYPE] = "integer"
-    elif schema == cv.string or schema == cv.string_strict or schema == cv.valid_name:
+    elif schema in (cv.string, cv.string_strict, cv.valid_name):
         config_var[S_TYPE] = "string"
 
     elif isinstance(schema, vol.Schema):
@@ -706,6 +783,7 @@ def convert_1(schema, config_var, path):
         config_var |= pin_validators[repr_schema]
         config_var[S_TYPE] = "pin"
 
+    # pylint: disable-next=too-many-nested-blocks
     elif repr_schema in ejs.hidden_schemas:
         schema_type = ejs.hidden_schemas[repr_schema]
 
@@ -714,10 +792,10 @@ def convert_1(schema, config_var, path):
         # enums, e.g. esp32/variant
         if schema_type == "one_of":
             config_var[S_TYPE] = "enum"
-            config_var["values"] = list(data)
+            config_var["values"] = dict.fromkeys(list(data))
         elif schema_type == "enum":
             config_var[S_TYPE] = "enum"
-            config_var["values"] = list(data.keys())
+            config_var["values"] = dict.fromkeys(list(data.keys()))
         elif schema_type == "maybe":
             config_var[S_TYPE] = S_SCHEMA
             config_var["maybe"] = data[1]
@@ -758,13 +836,13 @@ def convert_1(schema, config_var, path):
             config_var["filter"] = data[0]
         elif schema_type == "templatable":
             config_var["templatable"] = True
-            convert_1(data, config_var, path + "/templat")
+            convert(data, config_var, path + "/templat")
         elif schema_type == "triggers":
             # remote base
-            convert_1(data, config_var, path + "/trigger")
+            convert(data, config_var, path + "/trigger")
         elif schema_type == "sensor":
             schema = data
-            convert_1(data, config_var, path + "/trigger")
+            convert(data, config_var, path + "/trigger")
         elif schema_type == "declare_id":
             # pylint: disable=protected-access
             parents = data._parents
@@ -796,10 +874,13 @@ def convert_1(schema, config_var, path):
                     config_var["use_id_type"] = str(data.base)
                     config_var[S_TYPE] = "use_id"
         else:
-            raise Exception("Unknown extracted schema type")
+            raise TypeError("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":
-        if path == "i2c/CONFIG_SCHEMA/extL/all/id":
-            config_var["id_type"] = {"class": "i2c::I2CBus", "parents": ["Component"]}
+        if path.startswith("i2c/CONFIG_SCHEMA/") and path.endswith("/id"):
+            config_var["id_type"] = {
+                "class": "i2c::I2CBus",
+                "parents": ["Component"],
+            }
         elif path == "uart/CONFIG_SCHEMA/val 1/extL/all/id":
             config_var["id_type"] = {
                 "class": "uart::UARTComponent",
@@ -808,7 +889,7 @@ def convert_1(schema, config_var, path):
         elif path == "pins/esp32/val 1/id":
             config_var["id_type"] = "pin"
         else:
-            raise Exception("Cannot determine id_type for " + path)
+            raise TypeError("Cannot determine id_type for " + path)
 
     elif repr_schema in ejs.registry_schemas:
         solve_registry.append((ejs.registry_schemas[repr_schema], config_var))
@@ -829,6 +910,9 @@ def convert_1(schema, config_var, path):
 
     if DUMP_PATH:
         config_var["path"] = path
+    if S_TYPE not in config_var:
+        pass
+        # print(path)
 
 
 def get_overridden_config(key, converted):
@@ -869,11 +953,7 @@ def convert_keys(converted, schema, path):
             result["key"] = "GeneratedID"
         elif isinstance(k, cv.Required):
             result["key"] = "Required"
-        elif (
-            isinstance(k, cv.Optional)
-            or isinstance(k, cv.Inclusive)
-            or isinstance(k, cv.Exclusive)
-        ):
+        elif isinstance(k, (cv.Optional, cv.Inclusive, cv.Exclusive)):
             result["key"] = "Optional"
         else:
             converted["key"] = "String"
@@ -894,7 +974,7 @@ def convert_keys(converted, schema, path):
                 result["default"] = str(default_value)
 
         # Do value
-        convert_1(v, result, path + f"/{str(k)}")
+        convert(v, result, path + f"/{str(k)}")
         if "schema" not in converted:
             converted[S_TYPE] = "schema"
             converted["schema"] = {S_CONFIG_VARS: {}}

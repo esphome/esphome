@@ -613,8 +613,9 @@ stm32_unique_ptr stm32_init(uart::UARTDevice *stream, const uint8_t flags, const
         }
     }
   }
-  if (new_cmds)
+  if (new_cmds) {
     ESP_LOGD(TAG, ")");
+  }
   if (stm32_get_ack(stm) != STM32_ERR_OK) {
     return make_stm32_with_deletor(nullptr);
   }
@@ -1061,4 +1062,5 @@ stm32_err_t stm32_crc_wrapper(const stm32_unique_ptr &stm, uint32_t address, uin
 
 }  // namespace shelly_dimmer
 }  // namespace esphome
-#endif
+
+#endif  // USE_SHD_FIRMWARE_DATA

@@ -1,0 +1,47 @@
+"""
+Custom pioasm compiler script for platformio.
+(c) 2022 by P.Z.
+
+Sourced 2023/06/23 from https://gist.github.com/hexeguitar/f4533bc697c956ac1245b6843e2ef438
+
+Modified by jesserockz 2023/06/23
+"""
+
+from os.path import join
+import glob
+import sys
+
+import subprocess
+
+# pylint: disable=E0602
+Import("env")  # noqa
+
+from SCons.Script import ARGUMENTS
+
+
+platform = env.PioPlatform()
+PROJ_SRC = env["PROJECT_SRC_DIR"]
+PIO_FILES = glob.glob(join(PROJ_SRC, "**", "*.pio"), recursive=True)
+
+verbose = bool(int(ARGUMENTS.get("PIOVERBOSE", "0")))
+
+
+if PIO_FILES:
+    if verbose:
+        print("==============================================")
+        print("PIO ASSEMBLY COMPILER")
+    try:
+        PIOASM_DIR = platform.get_package_dir("tool-pioasm-rp2040-earlephilhower")
+    except:
+        print("tool-pioasm-rp2040-earlephilhower not supported on your system!")
+        sys.exit()
+
+    PIOASM_EXE = join(PIOASM_DIR, "pioasm")
+    if verbose:
+        print("PIO files found:")
+    for filename in PIO_FILES:
+        if verbose:
+            print(f"  {filename}")
+        subprocess.run([PIOASM_EXE, "-o", "c-sdk", filename, f"{filename}.h"])
+    if verbose:
+        print("==============================================")

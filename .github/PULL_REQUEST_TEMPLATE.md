@@ -1,6 +1,6 @@
 # What does this implement/fix?
 
-Quick description and explanation of changes
+<!-- Quick description and explanation of changes -->
 
 ## Types of changes
 
@@ -18,6 +18,9 @@ Quick description and explanation of changes
 - [ ] ESP32
 - [ ] ESP32 IDF
 - [ ] ESP8266
+- [ ] RP2040
+- [ ] BK72xx
+- [ ] RTL87xx
 
 ## Example entry for `config.yaml`:
 <!--

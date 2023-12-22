@@ -5,6 +5,7 @@
 #include <queue>
 #include <utility>
 #include <map>
+#include <vector>
 
 namespace esphome {
 namespace text_sensor {

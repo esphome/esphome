@@ -65,7 +65,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   PIPSOLAR_SENSOR(battery_charging_current, QPIGS, int)
   PIPSOLAR_SENSOR(battery_capacity_percent, QPIGS, int)
   PIPSOLAR_SENSOR(inverter_heat_sink_temperature, QPIGS, int)
-  PIPSOLAR_SENSOR(pv_input_current_for_battery, QPIGS, int)
+  PIPSOLAR_SENSOR(pv_input_current_for_battery, QPIGS, float)
   PIPSOLAR_SENSOR(pv_input_voltage, QPIGS, float)
   PIPSOLAR_SENSOR(battery_voltage_scc, QPIGS, float)
   PIPSOLAR_SENSOR(battery_discharge_current, QPIGS, int)
@@ -193,7 +193,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   void empty_uart_buffer_();
   uint8_t check_incoming_crc_();
   uint8_t check_incoming_length_(uint8_t length);
-  uint16_t cal_crc_half_(uint8_t *msg, uint8_t len);
+  uint16_t pipsolar_crc_(uint8_t *msg, uint8_t len);
   uint8_t send_next_command_();
   void send_next_poll_();
   void queue_command_(const char *command, uint8_t length);

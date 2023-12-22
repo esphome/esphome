@@ -1,6 +1,7 @@
 #pragma once
 
 #include <utility>
+#include <vector>
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"

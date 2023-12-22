@@ -60,7 +60,7 @@ LIGHT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).ex
     {
         cv.GenerateID(): cv.declare_id(LightState),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTJSONLightComponent),
-        cv.Optional(CONF_RESTORE_MODE, default="restore_default_off"): cv.enum(
+        cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
             RESTORE_MODES, upper=True, space="_"
         ),
         cv.Optional(CONF_ON_TURN_ON): auto.validate_automation(

@@ -19,7 +19,7 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - name: Get tag
         id: tag
         # yamllint disable rule:line-length
@@ -30,8 +30,12 @@ jobs:
             TAG=$(cat esphome/const.py | sed -n -E "s/^__version__\s+=\s+\"(.+)\"$/\1/p")
             today="$(date --utc '+%Y%m%d')"
             TAG="${TAG}${today}"
+            BRANCH=${GITHUB_REF#refs/heads/}
+            if [[ "$BRANCH" != "dev" ]]; then
+              TAG="${TAG}-${BRANCH}"
+            fi
           fi
-          echo "::set-output name=tag::${TAG}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
         # yamllint enable rule:line-length
 
   deploy-pypi:
@@ -39,15 +43,17 @@ jobs:
     if: github.repository == 'esphome/esphome' && github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5.0.0
         with:
           python-version: "3.x"
       - name: Set up python environment
+        env:
+          ESPHOME_NO_VENV: 1
         run: |
           script/setup
-          pip install setuptools wheel twine
+          pip install twine
       - name: Build
         run: python setup.py sdist bdist_wheel
       - name: Upload
@@ -57,7 +63,7 @@ jobs:
         run: twine upload dist/*
 
   deploy-docker:
-    name: Build and publish docker containers
+    name: Build ESPHome ${{ matrix.platform }}
     if: github.repository == 'esphome/esphome'
     permissions:
       contents: read
@@ -65,96 +71,149 @@ jobs:
     runs-on: ubuntu-latest
     needs: [init]
     strategy:
+      fail-fast: false
       matrix:
-        arch: [amd64, armv7, aarch64]
-        build_type: ["ha-addon", "docker", "lint"]
+        platform:
+          - linux/amd64
+          - linux/arm/v7
+          - linux/arm64
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5.0.0
         with:
           python-version: "3.9"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3.0.0
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        if: matrix.platform != 'linux/amd64'
+        uses: docker/setup-qemu-action@v3.0.0
 
       - name: Log in to docker hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3.0.0
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Log in to the GitHub container registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3.0.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        run: |
-          docker/build.py \
-            --tag "${{ needs.init.outputs.tag }}" \
-            --arch "${{ matrix.arch }}" \
-            --build-type "${{ matrix.build_type }}" \
-            build \
-            --push
+      - name: Build docker
+        uses: ./.github/actions/build-image
+        with:
+          platform: ${{ matrix.platform }}
+          target: docker
+          baseimg: docker
+          suffix: ""
+          version: ${{ needs.init.outputs.tag }}
 
-  deploy-docker-manifest:
+      - name: Build ha-addon
+        uses: ./.github/actions/build-image
+        with:
+          platform: ${{ matrix.platform }}
+          target: hassio
+          baseimg: hassio
+          suffix: "hassio"
+          version: ${{ needs.init.outputs.tag }}
+
+      - name: Build lint
+        uses: ./.github/actions/build-image
+        with:
+          platform: ${{ matrix.platform }}
+          target: lint
+          baseimg: docker
+          suffix: lint
+          version: ${{ needs.init.outputs.tag }}
+
+  deploy-manifest:
+    name: Publish ESPHome ${{ matrix.image.title }} to ${{ matrix.registry }}
+    runs-on: ubuntu-latest
+    needs:
+      - init
+      - deploy-docker
     if: github.repository == 'esphome/esphome'
     permissions:
       contents: read
       packages: write
-    runs-on: ubuntu-latest
-    needs: [init, deploy-docker]
     strategy:
+      fail-fast: false
       matrix:
-        build_type: ["ha-addon", "docker", "lint"]
+        image:
+          - title: "ha-addon"
+            target: "hassio"
+            suffix: "hassio"
+          - title: "docker"
+            target: "docker"
+            suffix: ""
+          - title: "lint"
+            target: "lint"
+            suffix: "lint"
+        registry:
+          - ghcr
+          - dockerhub
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4.1.1
+      - name: Download digests
+        uses: actions/download-artifact@v3.0.2
         with:
-          python-version: "3.9"
-      - name: Enable experimental manifest support
-        run: |
-          mkdir -p ~/.docker
-          echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
+          name: digests-${{ matrix.image.target }}-${{ matrix.registry }}
+          path: /tmp/digests
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.0.0
 
       - name: Log in to docker hub
-        uses: docker/login-action@v2
+        if: matrix.registry == 'dockerhub'
+        uses: docker/login-action@v3.0.0
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Log in to the GitHub container registry
-        uses: docker/login-action@v2
+        if: matrix.registry == 'ghcr'
+        uses: docker/login-action@v3.0.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run manifest
+      - name: Generate short tags
+        id: tags
         run: |
-          docker/build.py \
+          output=$(docker/generate_tags.py \
             --tag "${{ needs.init.outputs.tag }}" \
-            --build-type "${{ matrix.build_type }}" \
-            manifest
+            --suffix "${{ matrix.image.suffix }}" \
+            --registry "${{ matrix.registry }}")
+          echo $output
+          for l in $output; do
+            echo $l >> $GITHUB_OUTPUT
+          done
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -Rcnr 'inputs | . / "," | map("-t " + .) | join(" ")' <<< "${{ steps.tags.outputs.tags}}") \
+            $(printf '${{ steps.tags.outputs.image }}@sha256:%s ' *)
 
   deploy-ha-addon-repo:
     if: github.repository == 'esphome/esphome' && github.event_name == 'release'
     runs-on: ubuntu-latest
-    needs: [deploy-docker]
+    needs: [deploy-manifest]
     steps:
-      - env:
-          TOKEN: ${{ secrets.DEPLOY_HA_ADDON_REPO_TOKEN }}
-        # yamllint disable rule:line-length
-        run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          curl \
-            -u ":$TOKEN" \
-            -X POST \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/esphome/home-assistant-addon/actions/workflows/bump-version.yml/dispatches \
-            -d "{\"ref\":\"main\",\"inputs\":{\"version\":\"$TAG\"}}"
-        # yamllint enable rule:line-length
+      - name: Trigger Workflow
+        uses: actions/github-script@v7.0.1
+        with:
+          github-token: ${{ secrets.DEPLOY_HA_ADDON_REPO_TOKEN }}
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: "esphome",
+              repo: "home-assistant-addon",
+              workflow_id: "bump-version.yml",
+              ref: "main",
+              inputs: {
+                version: "${{ github.event.release.tag_name }}",
+                content: ${{ toJSON(github.event.release.body) }}
+              }
+            })

@@ -1,5 +1,6 @@
 #include "thermostat_climate.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace thermostat {
@@ -25,6 +26,15 @@ void ThermostatClimate::setup() {
     this->publish_state();
   });
   this->current_temperature = this->sensor_->state;
+
+  // register for humidity values and get initial state
+  if (this->humidity_sensor_ != nullptr) {
+    this->humidity_sensor_->add_on_state_callback([this](float state) {
+      this->current_humidity = state;
+      this->publish_state();
+    });
+    this->current_humidity = this->humidity_sensor_->state;
+  }
 
   auto use_default_preset = true;
 
@@ -216,6 +226,9 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
 climate::ClimateTraits ThermostatClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
+  if (this->humidity_sensor_ != nullptr)
+    traits.set_supports_current_humidity(true);
+
   if (supports_auto_)
     traits.add_supported_mode(climate::CLIMATE_MODE_AUTO);
   if (supports_heat_cool_)
@@ -247,6 +260,8 @@ climate::ClimateTraits ThermostatClimate::traits() {
     traits.add_supported_fan_mode(climate::CLIMATE_FAN_FOCUS);
   if (supports_fan_mode_diffuse_)
     traits.add_supported_fan_mode(climate::CLIMATE_FAN_DIFFUSE);
+  if (supports_fan_mode_quiet_)
+    traits.add_supported_fan_mode(climate::CLIMATE_FAN_QUIET);
 
   if (supports_swing_mode_both_)
     traits.add_supported_swing_mode(climate::CLIMATE_SWING_BOTH);
@@ -593,6 +608,10 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bo
       case climate::CLIMATE_FAN_DIFFUSE:
         trig = this->fan_mode_diffuse_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_DIFFUSE mode");
+        break;
+      case climate::CLIMATE_FAN_QUIET:
+        trig = this->fan_mode_quiet_trigger_;
+        ESP_LOGVV(TAG, "Switching to FAN_QUIET mode");
         break;
       default:
         // we cannot report an invalid mode back to HA (even if it asked for one)
@@ -980,6 +999,7 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       assert(trig != nullptr);
+      this->preset = preset;
       trig->trigger();
 
       this->refresh();
@@ -1004,6 +1024,7 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       assert(trig != nullptr);
+      this->custom_preset = custom_preset;
       trig->trigger();
 
       this->refresh();
@@ -1093,6 +1114,7 @@ ThermostatClimate::ThermostatClimate()
       fan_mode_middle_trigger_(new Trigger<>()),
       fan_mode_focus_trigger_(new Trigger<>()),
       fan_mode_diffuse_trigger_(new Trigger<>()),
+      fan_mode_quiet_trigger_(new Trigger<>()),
       swing_mode_both_trigger_(new Trigger<>()),
       swing_mode_off_trigger_(new Trigger<>()),
       swing_mode_horizontal_trigger_(new Trigger<>()),
@@ -1159,6 +1181,9 @@ void ThermostatClimate::set_idle_minimum_time_in_sec(uint32_t time) {
       1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
 }
 void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
+void ThermostatClimate::set_humidity_sensor(sensor::Sensor *humidity_sensor) {
+  this->humidity_sensor_ = humidity_sensor;
+}
 void ThermostatClimate::set_use_startup_delay(bool use_startup_delay) { this->use_startup_delay_ = use_startup_delay; }
 void ThermostatClimate::set_supports_heat_cool(bool supports_heat_cool) {
   this->supports_heat_cool_ = supports_heat_cool;
@@ -1208,6 +1233,9 @@ void ThermostatClimate::set_supports_fan_mode_focus(bool supports_fan_mode_focus
 void ThermostatClimate::set_supports_fan_mode_diffuse(bool supports_fan_mode_diffuse) {
   this->supports_fan_mode_diffuse_ = supports_fan_mode_diffuse;
 }
+void ThermostatClimate::set_supports_fan_mode_quiet(bool supports_fan_mode_quiet) {
+  this->supports_fan_mode_quiet_ = supports_fan_mode_quiet;
+}
 void ThermostatClimate::set_supports_swing_mode_both(bool supports_swing_mode_both) {
   this->supports_swing_mode_both_ = supports_swing_mode_both;
 }
@@ -1250,6 +1278,7 @@ Trigger<> *ThermostatClimate::get_fan_mode_high_trigger() const { return this->f
 Trigger<> *ThermostatClimate::get_fan_mode_middle_trigger() const { return this->fan_mode_middle_trigger_; }
 Trigger<> *ThermostatClimate::get_fan_mode_focus_trigger() const { return this->fan_mode_focus_trigger_; }
 Trigger<> *ThermostatClimate::get_fan_mode_diffuse_trigger() const { return this->fan_mode_diffuse_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_quiet_trigger() const { return this->fan_mode_quiet_trigger_; }
 Trigger<> *ThermostatClimate::get_swing_mode_both_trigger() const { return this->swing_mode_both_trigger_; }
 Trigger<> *ThermostatClimate::get_swing_mode_off_trigger() const { return this->swing_mode_off_trigger_; }
 Trigger<> *ThermostatClimate::get_swing_mode_horizontal_trigger() const { return this->swing_mode_horizontal_trigger_; }
@@ -1270,11 +1299,13 @@ void ThermostatClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "    Overrun: %.1f°C", this->cooling_overrun_);
     if ((this->supplemental_cool_delta_ > 0) || (this->timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) > 0)) {
       ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_cool_delta_);
-      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us",
+      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %" PRIu32 "s",
                     this->timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) / 1000);
     }
-    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", this->timer_duration_(thermostat::TIMER_COOLING_OFF) / 1000);
-    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", this->timer_duration_(thermostat::TIMER_COOLING_ON) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_COOLING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_COOLING_ON) / 1000);
   }
   if (this->supports_heat_) {
     ESP_LOGCONFIG(TAG, "  Heating Parameters:");
@@ -1282,23 +1313,28 @@ void ThermostatClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "    Overrun: %.1f°C", this->heating_overrun_);
     if ((this->supplemental_heat_delta_ > 0) || (this->timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) > 0)) {
       ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_heat_delta_);
-      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us",
+      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %" PRIu32 "s",
                     this->timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) / 1000);
     }
-    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", this->timer_duration_(thermostat::TIMER_HEATING_OFF) / 1000);
-    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", this->timer_duration_(thermostat::TIMER_HEATING_ON) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_HEATING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_HEATING_ON) / 1000);
   }
   if (this->supports_fan_only_) {
-    ESP_LOGCONFIG(TAG, "  Fanning Minimum Off Time: %us", this->timer_duration_(thermostat::TIMER_FANNING_OFF) / 1000);
-    ESP_LOGCONFIG(TAG, "  Fanning Minimum Run Time: %us", this->timer_duration_(thermostat::TIMER_FANNING_ON) / 1000);
+    ESP_LOGCONFIG(TAG, "  Fanning Minimum Off Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_FANNING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "  Fanning Minimum Run Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::TIMER_FANNING_ON) / 1000);
   }
   if (this->supports_fan_mode_on_ || this->supports_fan_mode_off_ || this->supports_fan_mode_auto_ ||
       this->supports_fan_mode_low_ || this->supports_fan_mode_medium_ || this->supports_fan_mode_high_ ||
-      this->supports_fan_mode_middle_ || this->supports_fan_mode_focus_ || this->supports_fan_mode_diffuse_) {
-    ESP_LOGCONFIG(TAG, "  Minimum Fan Mode Switching Time: %us",
+      this->supports_fan_mode_middle_ || this->supports_fan_mode_focus_ || this->supports_fan_mode_diffuse_ ||
+      this->supports_fan_mode_quiet_) {
+    ESP_LOGCONFIG(TAG, "  Minimum Fan Mode Switching Time: %" PRIu32 "s",
                   this->timer_duration_(thermostat::TIMER_FAN_MODE) / 1000);
   }
-  ESP_LOGCONFIG(TAG, "  Minimum Idle Time: %us", this->timer_[thermostat::TIMER_IDLE_ON].time / 1000);
+  ESP_LOGCONFIG(TAG, "  Minimum Idle Time: %" PRIu32 "s", this->timer_[thermostat::TIMER_IDLE_ON].time / 1000);
   ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));
   ESP_LOGCONFIG(TAG, "  Supports HEAT/COOL: %s", YESNO(this->supports_heat_cool_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
@@ -1307,10 +1343,12 @@ void ThermostatClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY_ACTION_USES_FAN_MODE_TIMER: %s",
                 YESNO(this->supports_fan_only_action_uses_fan_mode_timer_));
   ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY_COOLING: %s", YESNO(this->supports_fan_only_cooling_));
-  if (this->supports_cool_)
+  if (this->supports_cool_) {
     ESP_LOGCONFIG(TAG, "  Supports FAN_WITH_COOLING: %s", YESNO(this->supports_fan_with_cooling_));
-  if (this->supports_heat_)
+  }
+  if (this->supports_heat_) {
     ESP_LOGCONFIG(TAG, "  Supports FAN_WITH_HEATING: %s", YESNO(this->supports_fan_with_heating_));
+  }
   ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE ON: %s", YESNO(this->supports_fan_mode_on_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE OFF: %s", YESNO(this->supports_fan_mode_off_));
@@ -1321,6 +1359,7 @@ void ThermostatClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE MIDDLE: %s", YESNO(this->supports_fan_mode_middle_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE FOCUS: %s", YESNO(this->supports_fan_mode_focus_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE DIFFUSE: %s", YESNO(this->supports_fan_mode_diffuse_));
+  ESP_LOGCONFIG(TAG, "  Supports FAN MODE QUIET: %s", YESNO(this->supports_fan_mode_quiet_));
   ESP_LOGCONFIG(TAG, "  Supports SWING MODE BOTH: %s", YESNO(this->supports_swing_mode_both_));
   ESP_LOGCONFIG(TAG, "  Supports SWING MODE OFF: %s", YESNO(this->supports_swing_mode_off_));
   ESP_LOGCONFIG(TAG, "  Supports SWING MODE HORIZONTAL: %s", YESNO(this->supports_swing_mode_horizontal_));

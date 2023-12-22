@@ -156,6 +156,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
     case STATE_SEND_USSD1:
       this->send_cmd_("AT+CUSD=1, \"" + this->ussd_ + "\"");
       this->state_ = STATE_SEND_USSD2;
+      this->expect_ack_ = true;
       break;
     case STATE_SEND_USSD2:
       ESP_LOGD(TAG, "SendUssd2: '%s'", message.c_str());
@@ -196,8 +197,9 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       //           "+CREG: -,-" means not registered ok
       bool registered = message.compare(0, 6, "+CREG:") == 0 && (message[9] == '1' || message[9] == '5');
       if (registered) {
-        if (!this->registered_)
+        if (!this->registered_) {
           ESP_LOGD(TAG, "Registered OK");
+        }
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
       } else {

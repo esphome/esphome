@@ -42,13 +42,18 @@ void SCD30Component::setup() {
   ESP_LOGD(TAG, "SCD30 Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
            uint16_t(raw_firmware_version[0] & 0xFF));
 
-  if (this->temperature_offset_ != 0) {
-    if (!this->write_command(SCD30_CMD_TEMPERATURE_OFFSET, (uint16_t)(temperature_offset_ * 100.0))) {
-      ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset.");
-      this->error_code_ = MEASUREMENT_INIT_FAILED;
-      this->mark_failed();
-      return;
-    }
+  uint16_t temp_offset;
+  if (this->temperature_offset_ > 0) {
+    temp_offset = (this->temperature_offset_ * 100);
+  } else {
+    temp_offset = 0;
+  }
+
+  if (!this->write_command(SCD30_CMD_TEMPERATURE_OFFSET, temp_offset)) {
+    ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return;
   }
 #ifdef USE_ESP32
   // According ESP32 clock stretching is typically 30ms and up to 150ms "due to
@@ -200,6 +205,28 @@ bool SCD30Component::is_data_ready_() {
     return false;
   }
   return is_data_ready == 1;
+}
+
+bool SCD30Component::force_recalibration_with_reference(uint16_t co2_reference) {
+  ESP_LOGD(TAG, "Performing CO2 force recalibration with reference %dppm.", co2_reference);
+  if (this->write_command(SCD30_CMD_FORCED_CALIBRATION, co2_reference)) {
+    ESP_LOGD(TAG, "Force recalibration complete.");
+    return true;
+  } else {
+    ESP_LOGE(TAG, "Failed to force recalibration with reference.");
+    this->error_code_ = FORCE_RECALIBRATION_FAILED;
+    this->status_set_warning();
+    return false;
+  }
+}
+
+uint16_t SCD30Component::get_forced_calibration_reference() {
+  uint16_t forced_calibration_reference;
+  // Get current CO2 calibration
+  if (!this->get_register(SCD30_CMD_FORCED_CALIBRATION, forced_calibration_reference)) {
+    ESP_LOGE(TAG, "Unable to read forced calibration reference.");
+  }
+  return forced_calibration_reference;
 }
 
 }  // namespace scd30

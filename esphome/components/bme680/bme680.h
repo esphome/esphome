@@ -59,11 +59,11 @@ struct BME680CalibrationData {
   int8_t gh3;
 
   uint8_t res_heat_range;
-  uint8_t res_heat_val;
-  uint8_t range_sw_err;
+  int8_t res_heat_val;
+  int8_t range_sw_err;
 
   float tfine;
-  uint8_t ambient_temperature;
+  int8_t ambient_temperature;
 };
 
 class BME680Component : public PollingComponent, public i2c::I2CDevice {
@@ -117,7 +117,7 @@ class BME680Component : public PollingComponent, public i2c::I2CDevice {
   /// Calculate the relative humidity in % using the provided raw ADC value.
   float calc_humidity_(uint16_t raw_humidity);
   /// Calculate the gas resistance in Ω using the provided raw ADC value.
-  uint32_t calc_gas_resistance_(uint16_t raw_gas, uint8_t range);
+  float calc_gas_resistance_(uint16_t raw_gas, uint8_t range);
   /// Calculate how long the sensor will take until we can retrieve data.
   uint32_t calc_meas_duration_();
 

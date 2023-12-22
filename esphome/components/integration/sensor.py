@@ -48,20 +48,23 @@ def inherit_accuracy_decimals(decimals, config):
     return decimals + 2
 
 
-CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(IntegrationSensor),
-        cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
-        cv.Required(CONF_TIME_UNIT): cv.enum(INTEGRATION_TIMES, lower=True),
-        cv.Optional(CONF_INTEGRATION_METHOD, default="trapezoid"): cv.enum(
-            INTEGRATION_METHODS, lower=True
-        ),
-        cv.Optional(CONF_RESTORE, default=False): cv.boolean,
-        cv.Optional("min_save_interval"): cv.invalid(
-            "min_save_interval was removed in 2022.8.0. Please use the `preferences` -> `flash_write_interval` to adjust."
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(IntegrationSensor)
+    .extend(
+        {
+            cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_TIME_UNIT): cv.enum(INTEGRATION_TIMES, lower=True),
+            cv.Optional(CONF_INTEGRATION_METHOD, default="trapezoid"): cv.enum(
+                INTEGRATION_METHODS, lower=True
+            ),
+            cv.Optional(CONF_RESTORE, default=False): cv.boolean,
+            cv.Optional("min_save_interval"): cv.invalid(
+                "min_save_interval was removed in 2022.8.0. Please use the `preferences` -> `flash_write_interval` to adjust."
+            ),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(

@@ -8,6 +8,7 @@ from esphome.const import (
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_WATER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
@@ -235,6 +236,36 @@ CONFIG_SCHEMA = cv.Schema(
             accuracy_decimals=3,
             device_class=DEVICE_CLASS_GAS,
             state_class=STATE_CLASS_TOTAL_INCREASING,
+        ),
+        cv.Optional("water_delivered"): sensor.sensor_schema(
+            unit_of_measurement=UNIT_CUBIC_METER,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_WATER,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
+        ),
+        cv.Optional(
+            "active_energy_import_current_average_demand"
+        ): sensor.sensor_schema(
+            unit_of_measurement=UNIT_KILOWATT,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(
+            "active_energy_import_maximum_demand_running_month"
+        ): sensor.sensor_schema(
+            unit_of_measurement=UNIT_KILOWATT,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(
+            "active_energy_import_maximum_demand_last_13_months"
+        ): sensor.sensor_schema(
+            unit_of_measurement=UNIT_KILOWATT,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)

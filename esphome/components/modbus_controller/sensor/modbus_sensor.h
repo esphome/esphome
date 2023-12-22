@@ -4,13 +4,15 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
+#include <vector>
+
 namespace esphome {
 namespace modbus_controller {
 
 class ModbusSensor : public Component, public sensor::Sensor, public SensorItem {
  public:
   ModbusSensor(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
-               SensorValueType value_type, int register_count, uint8_t skip_updates, bool force_new_range) {
+               SensorValueType value_type, int register_count, uint16_t skip_updates, bool force_new_range) {
     this->register_type = register_type;
     this->start_address = start_address;
     this->offset = offset;

@@ -52,25 +52,26 @@ enum class ColorMode : uint8_t {
   /// Only on/off control.
   ON_OFF = (uint8_t) ColorCapability::ON_OFF,
   /// Dimmable light.
-  BRIGHTNESS = (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS),
+  BRIGHTNESS = (uint8_t) (ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS),
   /// White output only (use only if the light also has another color mode such as RGB).
-  WHITE = (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::WHITE),
+  WHITE = (uint8_t) (ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::WHITE),
   /// Controllable color temperature output.
   COLOR_TEMPERATURE =
-      (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::COLOR_TEMPERATURE),
+      (uint8_t) (ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::COLOR_TEMPERATURE),
   /// Cold and warm white output with individually controllable brightness.
-  COLD_WARM_WHITE = (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::COLD_WARM_WHITE),
+  COLD_WARM_WHITE =
+      (uint8_t) (ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::COLD_WARM_WHITE),
   /// RGB color output.
-  RGB = (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB),
+  RGB = (uint8_t) (ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB),
   /// RGB color output and a separate white output.
   RGB_WHITE =
-      (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB | ColorCapability::WHITE),
+      (uint8_t) (ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB | ColorCapability::WHITE),
   /// RGB color output and a separate white output with controllable color temperature.
-  RGB_COLOR_TEMPERATURE = (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB |
-                                    ColorCapability::WHITE | ColorCapability::COLOR_TEMPERATURE),
+  RGB_COLOR_TEMPERATURE = (uint8_t) (ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB |
+                                     ColorCapability::WHITE | ColorCapability::COLOR_TEMPERATURE),
   /// RGB color output, and separate cold and warm white outputs.
-  RGB_COLD_WARM_WHITE = (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB |
-                                  ColorCapability::COLD_WARM_WHITE),
+  RGB_COLD_WARM_WHITE = (uint8_t) (ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB |
+                                   ColorCapability::COLD_WARM_WHITE),
 };
 
 /// Helper class to allow bitwise operations on ColorMode with ColorCapability

@@ -29,8 +29,9 @@ void DAC7678Output::setup() {
     ESP_LOGE(TAG, "Reset failed");
     this->mark_failed();
     return;
-  } else
+  } else {
     ESP_LOGV(TAG, "Reset succeeded");
+  }
 
   delayMicroseconds(1000);
 
@@ -40,16 +41,18 @@ void DAC7678Output::setup() {
       ESP_LOGE(TAG, "Set internal reference failed");
       this->mark_failed();
       return;
-    } else
+    } else {
       ESP_LOGV(TAG, "Internal reference enabled");
+    }
   }
 }
 
 void DAC7678Output::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Setting up DAC7678 failed!");
-  } else
+  } else {
     ESP_LOGCONFIG(TAG, "DAC7678 initialised");
+  }
 }
 
 void DAC7678Output::register_channel(DAC7678Channel *channel) {

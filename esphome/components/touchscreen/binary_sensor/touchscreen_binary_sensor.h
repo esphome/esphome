@@ -14,7 +14,7 @@ class TouchscreenBinarySensor : public binary_sensor::BinarySensor,
                                 public TouchListener,
                                 public Parented<Touchscreen> {
  public:
-  void setup() override { this->parent_->register_listener(this); }
+  void setup() override;
 
   /// Set the touch screen area where the button will detect the touch.
   void set_area(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max) {

@@ -22,28 +22,47 @@ wifi:
         gateway: 192.168.1.1
         subnet: 255.255.255.0
 
+network:
+  enable_ipv6: true
+
 api:
 
 ota:
 
 logger:
 
+debug:
+
+psram:
+
 uart:
-  - id: uart1
+  - id: uart_1
     tx_pin: 1
     rx_pin: 3
     baud_rate: 9600
-  - id: uart2
-    tx_pin: 17
-    rx_pin: 16
+  - id: uart_2
+    tx_pin:
+      allow_other_uses: true
+      number: 17
+      inverted: true
+    rx_pin:
+      allow_other_uses: true
+      number: 16
     baud_rate: 19200
 
 i2c:
+  sda:
+    allow_other_uses: true
+    number: 21
+  scl:
+    number: 22
   frequency: 100khz
 
 modbus:
-  uart_id: uart1
-  flow_control_pin: 5
+  uart_id: uart_1
+  flow_control_pin:
+    allow_other_uses: true
+    number: 5
   id: mod_bus1
 
 modbus_controller:
@@ -57,6 +76,7 @@ mqtt:
   discovery: true
   discovery_prefix: homeassistant
   idf_send_async: false
+  log_topic:
   on_message:
     topic: testing/sensor/testing_sensor/state
     qos: 0
@@ -65,6 +85,9 @@ mqtt:
       - lambda: |-
           ESP_LOGD("Mqtt Test", "testing/sensor/testing_sensor/state=[%s]", x.c_str());
       # yamllint enable rule:line-length
+
+vbus:
+  - uart_id: uart_2
 
 binary_sensor:
   - platform: gpio
@@ -77,7 +100,7 @@ binary_sensor:
     id: modbus_binsensortest
     register_type: read
     address: 0x3200
-    bitmask: 0x80  # (bit 8)
+    bitmask: 0x80 # (bit 8)
     lambda: "return x;"
 
   - platform: tm1638
@@ -162,13 +185,60 @@ binary_sensor:
       then:
         - output.turn_off: Led7
 
+  - platform: gpio
+    id: sn74hc165_pin_0
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 0
 
+  - platform: ezo_pmp
+    pump_state:
+      name: "Pump State"
+    is_paused:
+      name: "Is Paused"
 
+  - platform: matrix_keypad
+    keypad_id: keypad
+    id: key4
+    row: 1
+    col: 1
+  - platform: matrix_keypad
+    id: key1
+    key: 1
+
+  - platform: vbus
+    model: deltasol_bs_plus
+    relay2:
+      name: Relay 2 On
+    sensor1_error:
+      name: Sensor 1 Error
+
+  - platform: vbus
+    model: custom
+    command: 0x100
+    source: 0x1234
+    dest: 0x10
+    binary_sensors:
+      - id: vcustom_b
+        name: VBus Custom Binary Sensor
+        lambda: return x[0] & 1;
 
 tlc5947:
-  data_pin: GPIO12
-  clock_pin: GPIO14
-  lat_pin: GPIO15
+  data_pin:
+    number: GPIO12
+    allow_other_uses: true
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO14
+  lat_pin:
+    allow_other_uses: true
+    number: GPIO15
+
+gp8403:
+  - id: gp8403_5v
+    voltage: 5V
+  - id: gp8403_10v
+    voltage: 10V
 
 output:
   - platform: gpio
@@ -207,6 +277,15 @@ output:
     id: Led7
     led: 7
 
+  - platform: gp8403
+    id: gp8403_output_0
+    gp8403_id: gp8403_5v
+    channel: 0
+  - platform: gp8403
+    gp8403_id: gp8403_10v
+    id: gp8403_output_1
+    channel: 1
+
 demo:
 
 esp32_ble:
@@ -220,6 +299,10 @@ esp32_improv:
   authorized_duration: 1min
   status_indicator: built_in_led
 
+ezo_pmp:
+  id: hcl_pump
+  update_interval: 1s
+
 number:
   - platform: template
     name: My template number
@@ -230,6 +313,7 @@ number:
     step: 5
     unit_of_measurement: "%"
     mode: slider
+    device_class: humidity
     on_value:
       - logger.log:
           format: Number changed to %f
@@ -330,6 +414,15 @@ select:
       "Three": 3
 
 sensor:
+  - platform: adc
+    id: adc_sensor_p32
+    name: ADC pin 32
+    pin: 32
+    attenuation: 11db
+    update_interval: 1s
+  - platform: internal_temperature
+    name: Internal Temperature
+    state_topic:
   - platform: selec_meter
     total_active_energy:
       name: SelecEM2M Total Active Energy
@@ -377,7 +470,7 @@ sensor:
     value_type: U_WORD
 
   - platform: t6615
-    uart_id: uart2
+    uart_id: uart_2
     co2:
       name: CO2 Sensor
 
@@ -429,16 +522,67 @@ sensor:
       offset: 0
       normalized_offset_slope: 0
       time_constant: 0
+    auto_cleaning_interval: 604800s
     acceleration_mode: low
     store_baseline: true
     address: 0x69
-
   - platform: mcp9600
     thermocouple_type: K
     hot_junction:
       name: Thermocouple Temperature
     cold_junction:
       name: Ambient Temperature
+
+  - platform: ezo_pmp
+    current_volume_dosed:
+      name: Current Volume Dosed
+    total_volume_dosed:
+      name: Total Volume Dosed
+    absolute_total_volume_dosed:
+      name: Absolute Total Volume Dosed
+    pump_voltage:
+      name: Pump Voltage
+    last_volume_requested:
+      name: Last Volume Requested
+    max_flow_rate:
+      name: Max Flow Rate
+
+  - platform: vbus
+    model: deltasol c
+    temperature_3:
+      name: Temperature 3
+    operating_hours_1:
+      name: Operating Hours 1
+    heat_quantity:
+      name: Heat Quantity
+    time:
+      name: System Time
+
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Heap Max Block"
+    loop_time:
+      name: "Loop Time"
+    psram:
+      name: "PSRAM Free"
+
+  - platform: vbus
+    model: custom
+    command: 0x100
+    source: 0x1234
+    dest: 0x10
+    sensors:
+      - id: vcustom
+        name: VBus Custom Sensor
+        lambda: return x[0] / 10.0;
+
+  - platform: kuntze
+    ph:
+      name: Kuntze pH
+    temperature:
+      name: Kuntze temperature
 
 script:
   - id: automation_test
@@ -447,6 +591,13 @@ script:
           count: 5
           then:
             - logger.log: looping!
+
+  - id: zero_repeat_test
+    then:
+      - repeat:
+          count: !lambda "return 0;"
+          then:
+            - logger.log: shouldn't see mee!
 
 switch:
   - platform: modbus_controller
@@ -479,7 +630,9 @@ switch:
 display:
   - platform: tm1638
     id: primarydisplay
-    stb_pin: 5 #TM1638 STB
+    stb_pin:
+      allow_other_uses: true
+      number: 5 #TM1638 STB
     clk_pin: 18 #TM1638 CLK
     dio_pin: 23 #TM1638 DIO
     update_interval: 5s
@@ -487,3 +640,93 @@ display:
     lambda: |-
       it.print("81818181");
 
+time:
+  - platform: pcf85063
+  - platform: pcf8563
+
+text_sensor:
+  - platform: ezo_pmp
+    dosing_mode:
+      name: Dosing Mode
+    calibration_status:
+      name: Calibration Status
+      on_value:
+        - ezo_pmp.dose_volume:
+            id: hcl_pump
+            volume: 10
+        - ezo_pmp.dose_volume_over_time:
+            id: hcl_pump
+            volume: 10
+            duration: 2
+        - ezo_pmp.dose_with_constant_flow_rate:
+            id: hcl_pump
+            volume_per_minute: 10
+            duration: 2
+        - ezo_pmp.set_calibration_volume:
+            id: hcl_pump
+            volume: 10
+        - ezo_pmp.find: hcl_pump
+        - ezo_pmp.dose_continuously: hcl_pump
+        - ezo_pmp.clear_total_volume_dosed: hcl_pump
+        - ezo_pmp.clear_calibration: hcl_pump
+        - ezo_pmp.pause_dosing: hcl_pump
+        - ezo_pmp.stop_dosing: hcl_pump
+        - ezo_pmp.arbitrary_command:
+            id: hcl_pump
+            command: D,?
+
+sn74hc165:
+  id: sn74hc165_hub
+  data_pin:
+    allow_other_uses: true
+    number: GPIO12
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO14
+  load_pin: GPIO27
+  clock_inhibit_pin: GPIO26
+  sr_count: 4
+
+matrix_keypad:
+  id: keypad
+  rows:
+    - pin:
+        allow_other_uses: true
+        number: 21
+    - pin: 19
+  columns:
+    - pin:
+        allow_other_uses: true
+        number: 17
+    - pin:
+        allow_other_uses: true
+        number: 16
+  keys: "1234"
+  has_pulldowns: true
+
+key_collector:
+  - id: reader
+    source_id: keypad
+    min_length: 4
+    max_length: 4
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: led_strip
+    pin: 13
+    num_leds: 60
+    rmt_channel: 6
+    rgb_order: GRB
+    chipset: ws2812
+  - platform: esp32_rmt_led_strip
+    id: led_strip2
+    pin:
+      allow_other_uses: true
+      number: 15
+    num_leds: 60
+    rmt_channel: 2
+    rgb_order: RGB
+    bit0_high: 100us
+    bit0_low: 100us
+    bit1_high: 100us
+    bit1_low: 100us

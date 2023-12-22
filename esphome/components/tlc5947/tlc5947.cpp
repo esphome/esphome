@@ -27,8 +27,7 @@ void TLC5947::dump_config() {
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
   LOG_PIN("  LAT Pin: ", this->lat_pin_);
-  if (this->outenable_pin_ != nullptr)
-    LOG_PIN("  OE Pin: ", this->outenable_pin_);
+  LOG_PIN("  OE Pin: ", this->outenable_pin_);
   ESP_LOGCONFIG(TAG, "  Number of chips: %u", this->num_chips_);
 }
 

@@ -2,34 +2,27 @@ import abc
 import inspect
 import math
 import re
-from esphome.yaml_util import ESPHomeDataBase
-
-# pylint: disable=unused-import, wrong-import-order
-from typing import (
-    Any,
-    Callable,
-    Optional,
-    Union,
-)
 from collections.abc import Generator, Sequence
+from typing import Any, Callable, Optional, Union
 
-from esphome.core import (  # noqa
+from esphome.core import (
     CORE,
-    HexInt,
     ID,
+    Define,
+    EnumValue,
+    HexInt,
     Lambda,
+    Library,
     TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
     TimePeriodMinutes,
+    TimePeriodNanoseconds,
     TimePeriodSeconds,
-    coroutine,
-    Library,
-    Define,
-    EnumValue,
 )
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 from esphome.util import OrderedDict
+from esphome.yaml_util import ESPHomeDataBase
 
 
 class Expression(abc.ABC):
@@ -182,10 +175,9 @@ class ArrayInitializer(Expression):
         if not self.args:
             return "{}"
         if self.multiline:
-            cpp = "{\n"
-            for arg in self.args:
-                cpp += f"  {arg},\n"
-            cpp += "}"
+            cpp = "{\n  "
+            cpp += ",\n  ".join(str(arg) for arg in self.args)
+            cpp += ",\n}"
         else:
             cpp = f"{{{', '.join(str(arg) for arg in self.args)}}}"
         return cpp
@@ -360,6 +352,8 @@ def safe_exp(obj: SafeExpType) -> Expression:
         return IntLiteral(obj)
     if isinstance(obj, float):
         return FloatLiteral(obj)
+    if isinstance(obj, TimePeriodNanoseconds):
+        return IntLiteral(int(obj.total_nanoseconds))
     if isinstance(obj, TimePeriodMicroseconds):
         return IntLiteral(int(obj.total_microseconds))
     if isinstance(obj, TimePeriodMilliseconds):
@@ -672,7 +666,11 @@ async def process_lambda(
     :param return_type: The return type of the lambda.
     :return: The generated lambda expression.
     """
-    from esphome.components.globals import GlobalsComponent, RestoringGlobalsComponent
+    from esphome.components.globals import (
+        GlobalsComponent,
+        RestoringGlobalsComponent,
+        RestoringGlobalStringComponent,
+    )
 
     if value is None:
         return
@@ -685,6 +683,7 @@ async def process_lambda(
             and (
                 full_id.type.inherits_from(GlobalsComponent)
                 or full_id.type.inherits_from(RestoringGlobalsComponent)
+                or full_id.type.inherits_from(RestoringGlobalStringComponent)
             )
         ):
             parts[i * 3 + 1] = var.value()

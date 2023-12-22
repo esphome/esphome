@@ -1,9 +1,10 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
 #include <queue>
 #include <utility>
+#include <vector>
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace sensor {
@@ -99,6 +100,24 @@ class MedianFilter : public Filter {
   size_t send_every_;
   size_t send_at_;
   size_t window_size_;
+};
+
+/** Simple skip filter.
+ *
+ * Skips the first N values, then passes everything else.
+ */
+class SkipInitialFilter : public Filter {
+ public:
+  /** Construct a SkipInitialFilter.
+   *
+   * @param num_to_ignore How many values to ignore before the filter becomes a no-op.
+   */
+  explicit SkipInitialFilter(size_t num_to_ignore);
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  size_t num_to_ignore_;
 };
 
 /** Simple min filter.
@@ -294,6 +313,20 @@ class ThrottleFilter : public Filter {
   uint32_t min_time_between_inputs_;
 };
 
+class TimeoutFilter : public Filter, public Component {
+ public:
+  explicit TimeoutFilter(uint32_t time_period, float new_value);
+  void set_value(float new_value) { this->value_ = new_value; }
+
+  optional<float> new_value(float value) override;
+
+  float get_setup_priority() const override;
+
+ protected:
+  uint32_t time_period_;
+  float value_;
+};
+
 class DebounceFilter : public Filter, public Component {
  public:
   explicit DebounceFilter(uint32_t time_period);
@@ -324,12 +357,14 @@ class HeartbeatFilter : public Filter, public Component {
 
 class DeltaFilter : public Filter {
  public:
-  explicit DeltaFilter(float min_delta);
+  explicit DeltaFilter(float delta, bool percentage_mode);
 
   optional<float> new_value(float value) override;
 
  protected:
-  float min_delta_;
+  float delta_;
+  float current_delta_;
+  bool percentage_mode_;
   float last_value_{NAN};
 };
 
@@ -357,12 +392,12 @@ class OrFilter : public Filter {
 
 class CalibrateLinearFilter : public Filter {
  public:
-  CalibrateLinearFilter(float slope, float bias);
+  CalibrateLinearFilter(std::vector<std::array<float, 3>> linear_functions)
+      : linear_functions_(std::move(linear_functions)) {}
   optional<float> new_value(float value) override;
 
  protected:
-  float slope_;
-  float bias_;
+  std::vector<std::array<float, 3>> linear_functions_;
 };
 
 class CalibratePolynomialFilter : public Filter {
@@ -372,6 +407,26 @@ class CalibratePolynomialFilter : public Filter {
 
  protected:
   std::vector<float> coefficients_;
+};
+
+class ClampFilter : public Filter {
+ public:
+  ClampFilter(float min, float max, bool ignore_out_of_range);
+  optional<float> new_value(float value) override;
+
+ protected:
+  float min_{NAN};
+  float max_{NAN};
+  bool ignore_out_of_range_;
+};
+
+class RoundFilter : public Filter {
+ public:
+  explicit RoundFilter(uint8_t precision);
+  optional<float> new_value(float value) override;
+
+ protected:
+  uint8_t precision_;
 };
 
 }  // namespace sensor

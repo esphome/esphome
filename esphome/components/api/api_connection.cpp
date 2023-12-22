@@ -1,5 +1,7 @@
 #include "api_connection.h"
 #include <cerrno>
+#include <cinttypes>
+#include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
@@ -15,6 +17,9 @@
 #ifdef USE_BLUETOOTH_PROXY
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
 #endif
+#ifdef USE_VOICE_ASSISTANT
+#include "esphome/components/voice_assistant/voice_assistant.h"
+#endif
 
 namespace esphome {
 namespace api {
@@ -27,9 +32,9 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
   this->proto_write_buffer_.reserve(64);
 
 #if defined(USE_API_PLAINTEXT)
-  helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
+  this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
 #elif defined(USE_API_NOISE)
-  helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
+  this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
 #else
 #error "No frame helper defined"
 #endif
@@ -37,14 +42,29 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
 void APIConnection::start() {
   this->last_traffic_ = millis();
 
-  APIError err = helper_->init();
+  APIError err = this->helper_->init();
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Helper init failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+    ESP_LOGW(TAG, "%s: Helper init failed: %s errno=%d", this->client_combined_info_.c_str(), api_error_to_str(err),
+             errno);
     return;
   }
-  client_info_ = helper_->getpeername();
-  helper_->set_log_info(client_info_);
+  this->client_info_ = helper_->getpeername();
+  this->client_peername_ = this->client_info_;
+  this->helper_->set_log_info(this->client_info_);
+}
+
+APIConnection::~APIConnection() {
+#ifdef USE_BLUETOOTH_PROXY
+  if (bluetooth_proxy::global_bluetooth_proxy->get_api_connection() == this) {
+    bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
+  }
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  if (voice_assistant::global_voice_assistant->get_api_connection() == this) {
+    voice_assistant::global_voice_assistant->client_subscription(this, false);
+  }
+#endif
 }
 
 void APIConnection::loop() {
@@ -55,7 +75,7 @@ void APIConnection::loop() {
     // when network is disconnected force disconnect immediately
     // don't wait for timeout
     this->on_fatal_error();
-    ESP_LOGW(TAG, "%s: Network unavailable, disconnecting", client_info_.c_str());
+    ESP_LOGW(TAG, "%s: Network unavailable, disconnecting", this->client_combined_info_.c_str());
     return;
   }
   if (this->next_close_) {
@@ -65,24 +85,26 @@ void APIConnection::loop() {
     return;
   }
 
-  APIError err = helper_->loop();
+  APIError err = this->helper_->loop();
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", this->client_combined_info_.c_str(),
+             api_error_to_str(err), errno);
     return;
   }
   ReadPacketBuffer buffer;
-  err = helper_->read_packet(&buffer);
+  err = this->helper_->read_packet(&buffer);
   if (err == APIError::WOULD_BLOCK) {
     // pass
   } else if (err != APIError::OK) {
     on_fatal_error();
     if (err == APIError::SOCKET_READ_FAILED && errno == ECONNRESET) {
-      ESP_LOGW(TAG, "%s: Connection reset", client_info_.c_str());
+      ESP_LOGW(TAG, "%s: Connection reset", this->client_combined_info_.c_str());
     } else if (err == APIError::CONNECTION_CLOSED) {
-      ESP_LOGW(TAG, "%s: Connection closed", client_info_.c_str());
+      ESP_LOGW(TAG, "%s: Connection closed", this->client_combined_info_.c_str());
     } else {
-      ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+      ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", this->client_combined_info_.c_str(), api_error_to_str(err),
+               errno);
     }
     return;
   } else {
@@ -96,18 +118,34 @@ void APIConnection::loop() {
   this->list_entities_iterator_.advance();
   this->initial_state_iterator_.advance();
 
-  const uint32_t keepalive = 60000;
+  static uint32_t keepalive = 60000;
+  static uint8_t max_ping_retries = 60;
+  static uint16_t ping_retry_interval = 1000;
   const uint32_t now = millis();
   if (this->sent_ping_) {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > (keepalive * 5) / 2) {
       on_fatal_error();
-      ESP_LOGW(TAG, "%s didn't respond to ping request in time. Disconnecting...", this->client_info_.c_str());
+      ESP_LOGW(TAG, "%s didn't respond to ping request in time. Disconnecting...", this->client_combined_info_.c_str());
     }
-  } else if (now - this->last_traffic_ > keepalive) {
+  } else if (now - this->last_traffic_ > keepalive && now > this->next_ping_retry_) {
     ESP_LOGVV(TAG, "Sending keepalive PING...");
-    this->sent_ping_ = true;
-    this->send_ping_request(PingRequest());
+    this->sent_ping_ = this->send_ping_request(PingRequest());
+    if (!this->sent_ping_) {
+      this->next_ping_retry_ = now + ping_retry_interval;
+      this->ping_retries_++;
+      if (this->ping_retries_ >= max_ping_retries) {
+        on_fatal_error();
+        ESP_LOGE(TAG, "%s: Sending keepalive failed %d time(s). Disconnecting...", this->client_combined_info_.c_str(),
+                 this->ping_retries_);
+      } else if (this->ping_retries_ >= 10) {
+        ESP_LOGW(TAG, "%s: Sending keepalive failed %d time(s), will retry in %d ms",
+                 this->client_combined_info_.c_str(), this->ping_retries_, ping_retry_interval);
+      } else {
+        ESP_LOGD(TAG, "%s: Sending keepalive failed %d time(s), will retry in %d ms",
+                 this->client_combined_info_.c_str(), this->ping_retries_, ping_retry_interval);
+      }
+    }
   }
 
 #ifdef USE_ESP32_CAMERA
@@ -156,7 +194,7 @@ DisconnectResponse APIConnection::disconnect(const DisconnectRequest &msg) {
   // remote initiated disconnect_client
   // don't close yet, we still need to send the disconnect response
   // close will happen on next loop
-  ESP_LOGD(TAG, "%s requested disconnected", client_info_.c_str());
+  ESP_LOGD(TAG, "%s requested disconnected", this->client_combined_info_.c_str());
   this->next_close_ = true;
   DisconnectResponse resp;
   return resp;
@@ -180,7 +218,8 @@ bool APIConnection::send_binary_sensor_info(binary_sensor::BinarySensor *binary_
   ListEntitiesBinarySensorResponse msg;
   msg.object_id = binary_sensor->get_object_id();
   msg.key = binary_sensor->get_object_id_hash();
-  msg.name = binary_sensor->get_name();
+  if (binary_sensor->has_own_name())
+    msg.name = binary_sensor->get_name();
   msg.unique_id = get_default_unique_id("binary_sensor", binary_sensor);
   msg.device_class = binary_sensor->get_device_class();
   msg.is_status_binary_sensor = binary_sensor->is_status_binary_sensor();
@@ -212,11 +251,13 @@ bool APIConnection::send_cover_info(cover::Cover *cover) {
   ListEntitiesCoverResponse msg;
   msg.key = cover->get_object_id_hash();
   msg.object_id = cover->get_object_id();
-  msg.name = cover->get_name();
+  if (cover->has_own_name())
+    msg.name = cover->get_name();
   msg.unique_id = get_default_unique_id("cover", cover);
   msg.assumed_state = traits.get_is_assumed_state();
   msg.supports_position = traits.get_supports_position();
   msg.supports_tilt = traits.get_supports_tilt();
+  msg.supports_stop = traits.get_supports_stop();
   msg.device_class = cover->get_device_class();
   msg.disabled_by_default = cover->is_disabled_by_default();
   msg.icon = cover->get_icon();
@@ -268,6 +309,8 @@ bool APIConnection::send_fan_state(fan::Fan *fan) {
   }
   if (traits.supports_direction())
     resp.direction = static_cast<enums::FanDirection>(fan->direction);
+  if (traits.supports_preset_modes())
+    resp.preset_mode = fan->preset_mode;
   return this->send_fan_state_response(resp);
 }
 bool APIConnection::send_fan_info(fan::Fan *fan) {
@@ -275,12 +318,15 @@ bool APIConnection::send_fan_info(fan::Fan *fan) {
   ListEntitiesFanResponse msg;
   msg.key = fan->get_object_id_hash();
   msg.object_id = fan->get_object_id();
-  msg.name = fan->get_name();
+  if (fan->has_own_name())
+    msg.name = fan->get_name();
   msg.unique_id = get_default_unique_id("fan", fan);
   msg.supports_oscillation = traits.supports_oscillation();
   msg.supports_speed = traits.supports_speed();
   msg.supports_direction = traits.supports_direction();
   msg.supported_speed_count = traits.supported_speed_count();
+  for (auto const &preset : traits.supported_preset_modes())
+    msg.supported_preset_modes.push_back(preset);
   msg.disabled_by_default = fan->is_disabled_by_default();
   msg.icon = fan->get_icon();
   msg.entity_category = static_cast<enums::EntityCategory>(fan->get_entity_category());
@@ -302,6 +348,8 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
   }
   if (msg.has_direction)
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));
+  if (msg.has_preset_mode)
+    call.set_preset_mode(msg.preset_mode);
   call.perform();
 }
 #endif
@@ -337,7 +385,8 @@ bool APIConnection::send_light_info(light::LightState *light) {
   ListEntitiesLightResponse msg;
   msg.key = light->get_object_id_hash();
   msg.object_id = light->get_object_id();
-  msg.name = light->get_name();
+  if (light->has_own_name())
+    msg.name = light->get_name();
   msg.unique_id = get_default_unique_id("light", light);
 
   msg.disabled_by_default = light->is_disabled_by_default();
@@ -418,7 +467,8 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   ListEntitiesSensorResponse msg;
   msg.key = sensor->get_object_id_hash();
   msg.object_id = sensor->get_object_id();
-  msg.name = sensor->get_name();
+  if (sensor->has_own_name())
+    msg.name = sensor->get_name();
   msg.unique_id = sensor->unique_id();
   if (msg.unique_id.empty())
     msg.unique_id = get_default_unique_id("sensor", sensor);
@@ -448,7 +498,8 @@ bool APIConnection::send_switch_info(switch_::Switch *a_switch) {
   ListEntitiesSwitchResponse msg;
   msg.key = a_switch->get_object_id_hash();
   msg.object_id = a_switch->get_object_id();
-  msg.name = a_switch->get_name();
+  if (a_switch->has_own_name())
+    msg.name = a_switch->get_name();
   msg.unique_id = get_default_unique_id("switch", a_switch);
   msg.icon = a_switch->get_icon();
   msg.assumed_state = a_switch->assumed_state();
@@ -520,12 +571,15 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
     resp.custom_fan_mode = climate->custom_fan_mode.value();
   if (traits.get_supports_presets() && climate->preset.has_value()) {
     resp.preset = static_cast<enums::ClimatePreset>(climate->preset.value());
-    resp.legacy_away = resp.preset == enums::CLIMATE_PRESET_AWAY;
   }
   if (!traits.get_supported_custom_presets().empty() && climate->custom_preset.has_value())
     resp.custom_preset = climate->custom_preset.value();
   if (traits.get_supports_swing_modes())
     resp.swing_mode = static_cast<enums::ClimateSwingMode>(climate->swing_mode);
+  if (traits.get_supports_current_humidity())
+    resp.current_humidity = climate->current_humidity;
+  if (traits.get_supports_target_humidity())
+    resp.target_humidity = climate->target_humidity;
   return this->send_climate_state_response(resp);
 }
 bool APIConnection::send_climate_info(climate::Climate *climate) {
@@ -533,7 +587,8 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   ListEntitiesClimateResponse msg;
   msg.key = climate->get_object_id_hash();
   msg.object_id = climate->get_object_id();
-  msg.name = climate->get_name();
+  if (climate->has_own_name())
+    msg.name = climate->get_name();
   msg.unique_id = get_default_unique_id("climate", climate);
 
   msg.disabled_by_default = climate->is_disabled_by_default();
@@ -541,14 +596,20 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   msg.entity_category = static_cast<enums::EntityCategory>(climate->get_entity_category());
 
   msg.supports_current_temperature = traits.get_supports_current_temperature();
+  msg.supports_current_humidity = traits.get_supports_current_humidity();
   msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
+  msg.supports_target_humidity = traits.get_supports_target_humidity();
 
   for (auto mode : traits.get_supported_modes())
     msg.supported_modes.push_back(static_cast<enums::ClimateMode>(mode));
 
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
-  msg.visual_temperature_step = traits.get_visual_temperature_step();
+  msg.visual_target_temperature_step = traits.get_visual_target_temperature_step();
+  msg.visual_current_temperature_step = traits.get_visual_current_temperature_step();
+  msg.visual_min_humidity = traits.get_visual_min_humidity();
+  msg.visual_max_humidity = traits.get_visual_max_humidity();
+
   msg.legacy_supports_away = traits.supports_preset(climate::CLIMATE_PRESET_AWAY);
   msg.supports_action = traits.get_supports_action();
 
@@ -578,8 +639,8 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
     call.set_target_temperature_low(msg.target_temperature_low);
   if (msg.has_target_temperature_high)
     call.set_target_temperature_high(msg.target_temperature_high);
-  if (msg.has_legacy_away)
-    call.set_preset(msg.legacy_away ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_HOME);
+  if (msg.has_target_humidity)
+    call.set_target_humidity(msg.target_humidity);
   if (msg.has_fan_mode)
     call.set_fan_mode(static_cast<climate::ClimateFanMode>(msg.fan_mode));
   if (msg.has_custom_fan_mode)
@@ -609,13 +670,15 @@ bool APIConnection::send_number_info(number::Number *number) {
   ListEntitiesNumberResponse msg;
   msg.key = number->get_object_id_hash();
   msg.object_id = number->get_object_id();
-  msg.name = number->get_name();
+  if (number->has_own_name())
+    msg.name = number->get_name();
   msg.unique_id = get_default_unique_id("number", number);
   msg.icon = number->get_icon();
   msg.disabled_by_default = number->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(number->get_entity_category());
   msg.unit_of_measurement = number->traits.get_unit_of_measurement();
   msg.mode = static_cast<enums::NumberMode>(number->traits.get_mode());
+  msg.device_class = number->traits.get_device_class();
 
   msg.min_value = number->traits.get_min_value();
   msg.max_value = number->traits.get_max_value();
@@ -629,6 +692,44 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
     return;
 
   auto call = number->make_call();
+  call.set_value(msg.state);
+  call.perform();
+}
+#endif
+
+#ifdef USE_TEXT
+bool APIConnection::send_text_state(text::Text *text, std::string state) {
+  if (!this->state_subscription_)
+    return false;
+
+  TextStateResponse resp{};
+  resp.key = text->get_object_id_hash();
+  resp.state = std::move(state);
+  resp.missing_state = !text->has_state();
+  return this->send_text_state_response(resp);
+}
+bool APIConnection::send_text_info(text::Text *text) {
+  ListEntitiesTextResponse msg;
+  msg.key = text->get_object_id_hash();
+  msg.object_id = text->get_object_id();
+  msg.name = text->get_name();
+  msg.icon = text->get_icon();
+  msg.disabled_by_default = text->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(text->get_entity_category());
+  msg.mode = static_cast<enums::TextMode>(text->traits.get_mode());
+
+  msg.min_length = text->traits.get_min_length();
+  msg.max_length = text->traits.get_max_length();
+  msg.pattern = text->traits.get_pattern();
+
+  return this->send_list_entities_text_response(msg);
+}
+void APIConnection::text_command(const TextCommandRequest &msg) {
+  text::Text *text = App.get_text_by_key(msg.key);
+  if (text == nullptr)
+    return;
+
+  auto call = text->make_call();
   call.set_value(msg.state);
   call.perform();
 }
@@ -649,7 +750,8 @@ bool APIConnection::send_select_info(select::Select *select) {
   ListEntitiesSelectResponse msg;
   msg.key = select->get_object_id_hash();
   msg.object_id = select->get_object_id();
-  msg.name = select->get_name();
+  if (select->has_own_name())
+    msg.name = select->get_name();
   msg.unique_id = get_default_unique_id("select", select);
   msg.icon = select->get_icon();
   msg.disabled_by_default = select->is_disabled_by_default();
@@ -676,7 +778,8 @@ bool APIConnection::send_button_info(button::Button *button) {
   ListEntitiesButtonResponse msg;
   msg.key = button->get_object_id_hash();
   msg.object_id = button->get_object_id();
-  msg.name = button->get_name();
+  if (button->has_own_name())
+    msg.name = button->get_name();
   msg.unique_id = get_default_unique_id("button", button);
   msg.icon = button->get_icon();
   msg.disabled_by_default = button->is_disabled_by_default();
@@ -707,7 +810,8 @@ bool APIConnection::send_lock_info(lock::Lock *a_lock) {
   ListEntitiesLockResponse msg;
   msg.key = a_lock->get_object_id_hash();
   msg.object_id = a_lock->get_object_id();
-  msg.name = a_lock->get_name();
+  if (a_lock->has_own_name())
+    msg.name = a_lock->get_name();
   msg.unique_id = get_default_unique_id("lock", a_lock);
   msg.icon = a_lock->get_icon();
   msg.assumed_state = a_lock->traits.get_assumed_state();
@@ -752,7 +856,8 @@ bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_play
   ListEntitiesMediaPlayerResponse msg;
   msg.key = media_player->get_object_id_hash();
   msg.object_id = media_player->get_object_id();
-  msg.name = media_player->get_name();
+  if (media_player->has_own_name())
+    msg.name = media_player->get_name();
   msg.unique_id = get_default_unique_id("media_player", media_player);
   msg.icon = media_player->get_icon();
   msg.disabled_by_default = media_player->is_disabled_by_default();
@@ -796,7 +901,8 @@ bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
   ListEntitiesCameraResponse msg;
   msg.key = camera->get_object_id_hash();
   msg.object_id = camera->get_object_id();
-  msg.name = camera->get_name();
+  if (camera->has_own_name())
+    msg.name = camera->get_name();
   msg.unique_id = get_default_unique_id("camera", camera);
   msg.disabled_by_default = camera->is_disabled_by_default();
   msg.icon = camera->get_icon();
@@ -827,9 +933,13 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
 #endif
 
 #ifdef USE_BLUETOOTH_PROXY
+void APIConnection::subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->subscribe_api_connection(this, msg.flags);
+}
+void APIConnection::unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
+}
 bool APIConnection::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg) {
-  if (!this->bluetooth_le_advertisement_subscription_)
-    return false;
   if (this->client_api_version_major_ < 1 || this->client_api_version_minor_ < 7) {
     BluetoothLEAdvertisementResponse resp = msg;
     for (auto &service : resp.service_data) {
@@ -876,6 +986,98 @@ BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_
 }
 #endif
 
+#ifdef USE_VOICE_ASSISTANT
+void APIConnection::subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe);
+  }
+}
+void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    if (msg.error) {
+      voice_assistant::global_voice_assistant->failed_to_start();
+      return;
+    }
+    struct sockaddr_storage storage;
+    socklen_t len = sizeof(storage);
+    this->helper_->getpeername((struct sockaddr *) &storage, &len);
+    voice_assistant::global_voice_assistant->start_streaming(&storage, msg.port);
+  }
+};
+void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_event(msg);
+  }
+}
+
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+bool APIConnection::send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+  if (!this->state_subscription_)
+    return false;
+
+  AlarmControlPanelStateResponse resp{};
+  resp.key = a_alarm_control_panel->get_object_id_hash();
+  resp.state = static_cast<enums::AlarmControlPanelState>(a_alarm_control_panel->get_state());
+  return this->send_alarm_control_panel_state_response(resp);
+}
+bool APIConnection::send_alarm_control_panel_info(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+  ListEntitiesAlarmControlPanelResponse msg;
+  msg.key = a_alarm_control_panel->get_object_id_hash();
+  msg.object_id = a_alarm_control_panel->get_object_id();
+  msg.name = a_alarm_control_panel->get_name();
+  msg.unique_id = get_default_unique_id("alarm_control_panel", a_alarm_control_panel);
+  msg.icon = a_alarm_control_panel->get_icon();
+  msg.disabled_by_default = a_alarm_control_panel->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(a_alarm_control_panel->get_entity_category());
+  msg.supported_features = a_alarm_control_panel->get_supported_features();
+  msg.requires_code = a_alarm_control_panel->get_requires_code();
+  msg.requires_code_to_arm = a_alarm_control_panel->get_requires_code_to_arm();
+  return this->send_list_entities_alarm_control_panel_response(msg);
+}
+void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) {
+  alarm_control_panel::AlarmControlPanel *a_alarm_control_panel = App.get_alarm_control_panel_by_key(msg.key);
+  if (a_alarm_control_panel == nullptr)
+    return;
+
+  auto call = a_alarm_control_panel->make_call();
+  switch (msg.command) {
+    case enums::ALARM_CONTROL_PANEL_DISARM:
+      call.disarm();
+      break;
+    case enums::ALARM_CONTROL_PANEL_ARM_AWAY:
+      call.arm_away();
+      break;
+    case enums::ALARM_CONTROL_PANEL_ARM_HOME:
+      call.arm_home();
+      break;
+    case enums::ALARM_CONTROL_PANEL_ARM_NIGHT:
+      call.arm_night();
+      break;
+    case enums::ALARM_CONTROL_PANEL_ARM_VACATION:
+      call.arm_vacation();
+      break;
+    case enums::ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS:
+      call.arm_custom_bypass();
+      break;
+    case enums::ALARM_CONTROL_PANEL_TRIGGER:
+      call.pending();
+      break;
+  }
+  call.set_code(msg.code);
+  call.perform();
+}
+#endif
+
 bool APIConnection::send_log_message(int level, const char *tag, const char *line) {
   if (this->log_subscription_ < level)
     return false;
@@ -891,16 +1093,18 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
 }
 
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
-  this->client_info_ = msg.client_info + " (" + this->helper_->getpeername() + ")";
-  this->helper_->set_log_info(client_info_);
+  this->client_info_ = msg.client_info;
+  this->client_peername_ = this->helper_->getpeername();
+  this->client_combined_info_ = this->client_info_ + " (" + this->client_peername_ + ")";
+  this->helper_->set_log_info(this->client_combined_info_);
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
-  ESP_LOGV(TAG, "Hello from client: '%s' | API Version %d.%d", this->client_info_.c_str(),
-           this->client_api_version_major_, this->client_api_version_minor_);
+  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->client_info_.c_str(),
+           this->client_peername_.c_str(), this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 7;
+  resp.api_version_minor = 9;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   resp.name = App.get_name();
 
@@ -914,9 +1118,9 @@ ConnectResponse APIConnection::connect(const ConnectRequest &msg) {
   // bool invalid_password = 1;
   resp.invalid_password = !correct;
   if (correct) {
-    ESP_LOGD(TAG, "%s: Connected successfully", this->client_info_.c_str());
+    ESP_LOGD(TAG, "%s: Connected successfully", this->client_combined_info_.c_str());
     this->connection_state_ = ConnectionState::AUTHENTICATED;
-
+    this->parent_->get_client_connected_trigger()->trigger(this->client_info_, this->client_peername_);
 #ifdef USE_HOMEASSISTANT_TIME
     if (homeassistant::global_homeassistant_time != nullptr) {
       this->send_time_request();
@@ -929,9 +1133,22 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   DeviceInfoResponse resp{};
   resp.uses_password = this->parent_->uses_password();
   resp.name = App.get_name();
+  resp.friendly_name = App.get_friendly_name();
+  resp.suggested_area = App.get_area();
   resp.mac_address = get_mac_address_pretty();
   resp.esphome_version = ESPHOME_VERSION;
   resp.compilation_time = App.get_compilation_time();
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  resp.manufacturer = "Espressif";
+#elif defined(USE_RP2040)
+  resp.manufacturer = "Raspberry Pi";
+#elif defined(USE_BK72XX)
+  resp.manufacturer = "Beken";
+#elif defined(USE_RTL87XX)
+  resp.manufacturer = "Realtek";
+#elif defined(USE_HOST)
+  resp.manufacturer = "Host";
+#endif
   resp.model = ESPHOME_BOARD;
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
@@ -944,7 +1161,11 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  resp.bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->has_active() ? 2 : 1;
+  resp.legacy_bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->get_legacy_version();
+  resp.bluetooth_proxy_feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  resp.voice_assistant_version = voice_assistant::global_voice_assistant->get_version();
 #endif
   return resp;
 }
@@ -974,10 +1195,11 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
     return false;
   if (!this->helper_->can_write_without_blocking()) {
     delay(0);
-    APIError err = helper_->loop();
+    APIError err = this->helper_->loop();
     if (err != APIError::OK) {
       on_fatal_error();
-      ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+      ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", this->client_combined_info_.c_str(),
+               api_error_to_str(err), errno);
       return false;
     }
     if (!this->helper_->can_write_without_blocking()) {
@@ -996,9 +1218,10 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
   if (err != APIError::OK) {
     on_fatal_error();
     if (err == APIError::SOCKET_WRITE_FAILED && errno == ECONNRESET) {
-      ESP_LOGW(TAG, "%s: Connection reset", client_info_.c_str());
+      ESP_LOGW(TAG, "%s: Connection reset", this->client_combined_info_.c_str());
     } else {
-      ESP_LOGW(TAG, "%s: Packet write failed %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+      ESP_LOGW(TAG, "%s: Packet write failed %s errno=%d", this->client_combined_info_.c_str(), api_error_to_str(err),
+               errno);
     }
     return false;
   }
@@ -1007,11 +1230,11 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
 }
 void APIConnection::on_unauthenticated_access() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s: tried to access without authentication.", this->client_info_.c_str());
+  ESP_LOGD(TAG, "%s: tried to access without authentication.", this->client_combined_info_.c_str());
 }
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s: tried to access without full connection.", this->client_info_.c_str());
+  ESP_LOGD(TAG, "%s: tried to access without full connection.", this->client_combined_info_.c_str());
 }
 void APIConnection::on_fatal_error() {
   this->helper_->close();

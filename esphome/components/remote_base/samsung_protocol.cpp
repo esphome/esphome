@@ -58,7 +58,7 @@ optional<SamsungData> SamsungProtocol::decode(RemoteReceiveData src) {
   return out;
 }
 void SamsungProtocol::dump(const SamsungData &data) {
-  ESP_LOGD(TAG, "Received Samsung: data=0x%" PRIX64 ", nbits=%d", data.data, data.nbits);
+  ESP_LOGI(TAG, "Received Samsung: data=0x%" PRIX64 ", nbits=%d", data.data, data.nbits);
 }
 
 }  // namespace remote_base
