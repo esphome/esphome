@@ -6,9 +6,7 @@ namespace esphome {
 namespace remote_base {
 
 struct ElectraRC3Data {
-  
-  union 
-  {
+  union {
     uint64_t q_word;
     struct {
       uint64_t zeros1 : 1;
@@ -25,11 +23,8 @@ struct ElectraRC3Data {
       uint64_t power : 1;
     };
   };
-  
-  ElectraRC3Data() : q_word(0)
-  {
-    ones1 = 1;
-  }
+
+  ElectraRC3Data() : q_word(0) { ones1 = 1; }
 
   bool operator==(const ElectraRC3Data &rhs) const { return (q_word == rhs.q_word); }
 };

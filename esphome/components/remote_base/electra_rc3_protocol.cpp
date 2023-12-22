@@ -19,15 +19,13 @@ void ElectraRC3Protocol::encode(RemoteTransmitData *dst, const ElectraRC3Data &d
   dst->set_carrier_frequency(ELECTRA_RC3_FREQ);
 
   for (uint8_t i = 0; i < ELECTRA_RC3_RETEATS; ++i) {
-
     // Encode header
     dst->mark(ELECTRA_RC3_HEADER_MARK);
     uint16_t next_value = ELECTRA_RC3_HEADER_SPACE;
     bool is_next_space = true;
 
     // Encode Data
-    for (int bit_index = ELECTRA_RC3_NUM_BITS - 1; bit_index >= 0; --bit_index)
-    {
+    for (int bit_index = ELECTRA_RC3_NUM_BITS - 1; bit_index >= 0; --bit_index) {
       uint8_t bit = (data.q_word >> bit_index) & 1;
 
       if (is_next_space) {
@@ -71,7 +69,9 @@ optional<ElectraRC3Data> ElectraRC3Protocol::decode(RemoteReceiveData src) {
 }
 
 void ElectraRC3Protocol::dump(const ElectraRC3Data &data) {
-  ESP_LOGD(ELECTRA_RC3_TAG, "Received Electra RC3: power = 0x%X, mode = 0x%X, fan = 0x%X, swing = 0x%X, ifeel = 0x%X, temperature = 0x%X, sleep = 0x%X", 
+  ESP_LOGD(ELECTRA_RC3_TAG,
+           "Received Electra RC3: power = 0x%X, mode = 0x%X, fan = 0x%X, swing = 0x%X, ifeel = 0x%X, temperature = "
+           "0x%X, sleep = 0x%X",
            data.power, data.mode, data.fan, data.swing, data.ifeel, data.temperature, data.sleep);
 }
 
