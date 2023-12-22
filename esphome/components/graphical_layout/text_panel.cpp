@@ -13,7 +13,7 @@ void TextPanel::dump_config(int indent_depth, int additional_level_depth) {
   ESP_LOGCONFIG(TAG, "%*sText: %s", indent_depth, "", this->text_.c_str());
 }
 
-const display::Rect TextPanel::measure_item(display::Display *display) {
+display::Rect TextPanel::measure_item(display::Display *display) {
   int x1;
   int y1;
   int width;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/components/graphical_layout/graphical_layout.h"
 #include "esphome/components/font/font.h"
 
@@ -14,13 +16,13 @@ using display_writer_t = std::function<void(display::Display &)>;
  */
 class DisplayRenderingPanel : public LayoutItem {
  public:
-  const display::Rect measure_item(display::Display *display);
-  void render(display::Display *display, display::Rect bounds);
-  void dump_config(int indent_depth, int additional_level_depth);
+  display::Rect measure_item(display::Display *display) override;
+  void render(display::Display *display, display::Rect bounds) override;
+  void dump_config(int indent_depth, int additional_level_depth) override;
 
   void set_width(int width) { this->width_ = width; };
   void set_height(int height) { this->height_ = height; };
-  void set_lambda(display_writer_t lambda) { this->lambda_ = lambda; };
+  void set_lambda(display_writer_t lambda) { this->lambda_ = std::move(lambda); };
 
  protected:
   int width_{0};

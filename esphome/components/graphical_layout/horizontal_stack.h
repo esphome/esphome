@@ -11,10 +11,10 @@ namespace graphical_layout {
  */
 class HorizontalStack : public ContainerLayoutItem {
  public:
-  const display::Rect measure_item(display::Display *display);
-  void render(display::Display *display, display::Rect bounds);
+  display::Rect measure_item(display::Display *display) override;
+  void render(display::Display *display, display::Rect bounds) override;
+  void dump_config(int indent_depth, int additional_level_depth) override;
 
-  void dump_config(int indent_depth, int additional_level_depth);
   void set_item_padding(int item_padding) { this->item_padding_ = item_padding; };
 
  protected:

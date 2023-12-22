@@ -517,7 +517,7 @@ class Display : public PollingComponent {
    * @param[in] x: x coordinate as the new local. Absolute to the displays underlying 0
    * @param[in] y: y coordinate as the new local. Absolute to the displays underlying 0
    */
-  void set_local_coordinate(int x, int y) { this->local_coordinate_.push_back(Point(x, y)); };
+  void set_local_coordinate(int x, int y) { this->local_coordinate_.emplace_back(x, y); };
 
   /** Changes the local coordinates to be to be (x_local + x_offset, y_local + y_offset)
    *  After calling a pixel drawn at (10, 20) would be drawn to the screen at

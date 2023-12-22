@@ -14,7 +14,7 @@ void DisplayRenderingPanel::dump_config(int indent_depth, int additional_level_d
   ESP_LOGCONFIG(TAG, "%*sHas drawing lambda: %s", indent_depth, "", YESNO(this->lambda_ != nullptr));
 }
 
-const display::Rect DisplayRenderingPanel::measure_item(display::Display *display) {
+display::Rect DisplayRenderingPanel::measure_item(display::Display *display) {
   return display::Rect(0, 0, this->width_, this->width_);
 }
 

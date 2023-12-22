@@ -18,7 +18,7 @@ void HorizontalStack::dump_config(int indent_depth, int additional_level_depth) 
   }
 }
 
-const display::Rect HorizontalStack::measure_item(display::Display *display) {
+display::Rect HorizontalStack::measure_item(display::Display *display) {
   display::Rect rect(this->item_padding_, 0, 0, 0);
 
   for (LayoutItem *child : this->children_) {

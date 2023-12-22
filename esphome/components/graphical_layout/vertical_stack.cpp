@@ -18,7 +18,7 @@ void VerticalStack::dump_config(int indent_depth, int additional_level_depth) {
   }
 }
 
-const display::Rect VerticalStack::measure_item(display::Display *display) {
+display::Rect VerticalStack::measure_item(display::Display *display) {
   display::Rect rect(0, this->item_padding_, 0, 0);
 
   for (LayoutItem *child : this->children_) {

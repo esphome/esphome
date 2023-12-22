@@ -15,7 +15,7 @@ class LayoutItem {
    *
    * param[in] display: Display that will be used for rendering. May be used to help with calculations
    */
-  virtual const display::Rect measure_item(display::Display *display) = 0;
+  virtual display::Rect measure_item(display::Display *display) = 0;
 
   /** Perform the rendering of the item to the display
    *
