@@ -32,13 +32,14 @@ void CST820Touchscreen::setup() {
   // Update display dimensions if they were updated during display setup
   this->x_raw_min_ = 0;
   this->y_raw_min_ = 0;
-  if (this->swap_x_y_) {
-    this->x_raw_max_ = this->get_height_();
-    this->y_raw_max_ = this->get_width_();
-  } else {
-    this->x_raw_max_ = this->get_width_();
-    this->y_raw_max_ = this->get_height_();
-  };
+     if (this->display_ != nullptr) {
+      if (this->x_raw_max_ == this->x_raw_min_) {
+        this->x_raw_max_ = this->display_->get_width_internal();
+      }
+      if (this->y_raw_max_ == this->y_raw_min_) {
+        this->y_raw_max_ = this->display_->get_height_internal();
+      }
+    }
 }
 
 void CST820Touchscreen::update_touches() {
@@ -67,7 +68,7 @@ void CST820Touchscreen::update_touches() {
   x = (((data[0] & 0x0f) << 8) | data[1]);
   y = (((data[2] & 0x0f) << 8) | data[3]);
 
-  set_raw_touch_position_(0, x, y);
+  add_raw_touch_position_(fingerindex, x, y);
 }
 
 
@@ -81,7 +82,6 @@ void CST820Touchscreen::dump_config() {
   //#LOG_UPDATE_INTERVAL(this);
 }
 
-float CST820Touchscreen::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace cst820
 }  // namespace esphome

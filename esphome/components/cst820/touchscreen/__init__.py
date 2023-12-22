@@ -32,8 +32,7 @@ CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(CST820Component),
         },
-    )
-    .extend(i2c.i2c_device_schema(0x15)),
+    ).extend(i2c.i2c_device_schema(0x15)),
 ).add_extra(validate_cst820)
 
 

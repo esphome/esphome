@@ -74,7 +74,7 @@ esphome/components/copy/* @OttoWinter
 esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
-esphome/components/cst860/* @dirkjankrijnders
+esphome/components/cst820/* @dirkjankrijnders
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/current_based/* @djwmarcx
 esphome/components/dac7678/* @NickB1
