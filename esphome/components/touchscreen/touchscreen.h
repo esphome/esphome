@@ -24,7 +24,6 @@ struct TouchPoint {
   uint16_t x_org{0}, y_org{0};
   uint16_t x{0}, y{0};
   int8_t state{0};
-  uint8_t release_counter;
 };
 
 using TouchPoints_t = std::vector<TouchPoint>;

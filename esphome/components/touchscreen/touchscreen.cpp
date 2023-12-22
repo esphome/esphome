@@ -47,29 +47,9 @@ void Touchscreen::loop() {
     } else {
       this->store_.touched = false;
       this->defer([this]() { this->send_touches_(); });
-    }
-  } else if (!this->touches_.empty()) {
-    // Found active touches without `touched` interrupt/event. Start expire/timeout process.
-    bool call_send_touches = false;
-    bool all_touches_state_released = true;
-    for (auto &tp : this->touches_) {
-      if (tp.second.state == STATE_PRESSED || tp.second.state == STATE_UPDATED) {
-        all_touches_state_released = false;
-        tp.second.release_counter++;
-      } else {
-        tp.second.state = STATE_RELEASED;
-        call_send_touches = true;
-      }
-      if (tp.second.release_counter == 5) {
-        // I made 5 loop (5*~50ms = >250ms) without `touched` active. Assume touch is expired.
-        tp.second.state = tp.second.state | STATE_RELEASING;
-        call_send_touches = true;
-      }
-    }
-    if (call_send_touches) {
-      this->need_update_ = false;
-      this->is_touched_ = !all_touches_state_released;
-      this->defer([this]() { this->send_touches_(); });
+      // Simulate a touch after 250ms. This will reset any existing timeout operation.
+      // This is to detect touch release.
+      this->set_timeout(TAG, 250, [this]() { this->store_.touched = true; });
     }
   }
 }
@@ -102,7 +82,6 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
     tp.x_org = tp.x;
     tp.y_org = tp.y;
   }
-  tp.release_counter = 0;
 
   this->touches_[id] = tp;
 
