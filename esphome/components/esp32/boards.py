@@ -133,6 +133,10 @@ ESP32_BOARD_PINS = {
         "BUTTON": 0,
         "SWITCH": 0,
     },
+    "airm2m_core_esp32c3": {
+        "LED1_BUILTIN": 12,
+        "LED2_BUILTIN": 13,
+    },
     "alksesp32": {
         "A0": 32,
         "A1": 33,
