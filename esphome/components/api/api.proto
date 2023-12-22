@@ -365,6 +365,7 @@ message ListEntitiesFanResponse {
   bool disabled_by_default = 9;
   string icon = 10;
   EntityCategory entity_category = 11;
+  repeated string supported_preset_modes = 12;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
@@ -387,6 +388,7 @@ message FanStateResponse {
   FanSpeed speed = 4 [deprecated = true];
   FanDirection direction = 5;
   int32 speed_level = 6;
+  string preset_mode = 7;
 }
 message FanCommandRequest {
   option (id) = 31;
@@ -405,6 +407,8 @@ message FanCommandRequest {
   FanDirection direction = 9;
   bool has_speed_level = 10;
   int32 speed_level = 11;
+  bool has_preset_mode = 12;
+  string preset_mode = 13;
 }
 
 // ==================== LIGHT ====================
@@ -855,6 +859,10 @@ message ListEntitiesClimateResponse {
   string icon = 19;
   EntityCategory entity_category = 20;
   float visual_current_temperature_step = 21;
+  bool supports_current_humidity = 22;
+  bool supports_target_humidity = 23;
+  float visual_min_humidity = 24;
+  float visual_max_humidity = 25;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -875,6 +883,8 @@ message ClimateStateResponse {
   string custom_fan_mode = 11;
   ClimatePreset preset = 12;
   string custom_preset = 13;
+  float current_humidity = 14;
+  float target_humidity = 15;
 }
 message ClimateCommandRequest {
   option (id) = 48;
@@ -903,6 +913,8 @@ message ClimateCommandRequest {
   ClimatePreset preset = 19;
   bool has_custom_preset = 20;
   string custom_preset = 21;
+  bool has_target_humidity = 22;
+  float target_humidity = 23;
 }
 
 // ==================== NUMBER ====================

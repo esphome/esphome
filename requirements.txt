@@ -7,11 +7,11 @@ tzlocal==5.2    # from time
 tzdata>=2021.1  # from time
 pyserial==3.5
 platformio==6.1.11  # When updating platformio, also update Dockerfile
-esptool==4.6.2
+esptool==4.7.0
 click==8.1.7
 esphome-dashboard==20231107.0
-aioesphomeapi==19.3.0
-zeroconf==0.128.0
+aioesphomeapi==21.0.1
+zeroconf==0.131.0
 python-magic==0.4.27
 
 # esp-idf requires this, but doesn't bundle it by default

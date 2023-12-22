@@ -15,16 +15,12 @@ static const uint8_t GET_X_RES[4] = {0x53, 0x60, 0x00, 0x00};
 static const uint8_t GET_Y_RES[4] = {0x53, 0x63, 0x00, 0x00};
 static const uint8_t GET_POWER_STATE_CMD[4] = {0x53, 0x50, 0x00, 0x01};
 
-void EKTF2232TouchscreenStore::gpio_intr(EKTF2232TouchscreenStore *store) { store->touch = true; }
-
 void EKTF2232Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up EKT2232 Touchscreen...");
   this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->interrupt_pin_->setup();
 
-  this->store_.pin = this->interrupt_pin_->to_isr();
-  this->interrupt_pin_->attach_interrupt(EKTF2232TouchscreenStore::gpio_intr, &this->store_,
-                                         gpio::INTERRUPT_FALLING_EDGE);
+  this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
 
   this->rts_pin_->setup();
 
@@ -45,7 +41,7 @@ void EKTF2232Touchscreen::setup() {
     this->mark_failed();
     return;
   }
-  this->x_resolution_ = ((received[2])) | ((received[3] & 0xf0) << 4);
+  this->x_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
 
   this->write(GET_Y_RES, 4);
   if (this->read(received, 4)) {
@@ -54,19 +50,14 @@ void EKTF2232Touchscreen::setup() {
     this->mark_failed();
     return;
   }
-  this->y_resolution_ = ((received[2])) | ((received[3] & 0xf0) << 4);
-  this->store_.touch = false;
+  this->y_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
 
   this->set_power_state(true);
 }
 
-void EKTF2232Touchscreen::loop() {
-  if (!this->store_.touch)
-    return;
-  this->store_.touch = false;
-
+void EKTF2232Touchscreen::update_touches() {
   uint8_t touch_count = 0;
-  std::vector<TouchPoint> touches;
+  int16_t x_raw, y_raw;
 
   uint8_t raw[8];
   this->read(raw, 8);
@@ -75,45 +66,15 @@ void EKTF2232Touchscreen::loop() {
       touch_count++;
   }
 
-  if (touch_count == 0) {
-    for (auto *listener : this->touch_listeners_)
-      listener->release();
-    return;
-  }
-
   touch_count = std::min<uint8_t>(touch_count, 2);
 
   ESP_LOGV(TAG, "Touch count: %d", touch_count);
 
   for (int i = 0; i < touch_count; i++) {
     uint8_t *d = raw + 1 + (i * 3);
-    uint32_t raw_x = (d[0] & 0xF0) << 4 | d[1];
-    uint32_t raw_y = (d[0] & 0x0F) << 8 | d[2];
-
-    raw_x = raw_x * this->display_height_ - 1;
-    raw_y = raw_y * this->display_width_ - 1;
-
-    TouchPoint tp;
-    switch (this->rotation_) {
-      case ROTATE_0_DEGREES:
-        tp.y = raw_x / this->x_resolution_;
-        tp.x = this->display_width_ - 1 - (raw_y / this->y_resolution_);
-        break;
-      case ROTATE_90_DEGREES:
-        tp.x = raw_x / this->x_resolution_;
-        tp.y = raw_y / this->y_resolution_;
-        break;
-      case ROTATE_180_DEGREES:
-        tp.y = this->display_height_ - 1 - (raw_x / this->x_resolution_);
-        tp.x = raw_y / this->y_resolution_;
-        break;
-      case ROTATE_270_DEGREES:
-        tp.x = this->display_height_ - 1 - (raw_x / this->x_resolution_);
-        tp.y = this->display_width_ - 1 - (raw_y / this->y_resolution_);
-        break;
-    }
-
-    this->defer([this, tp]() { this->send_touch_(tp); });
+    x_raw = (d[0] & 0xF0) << 4 | d[1];
+    y_raw = (d[0] & 0x0F) << 8 | d[2];
+    this->add_raw_touch_position_(i, x_raw, y_raw);
   }
 }
 
@@ -126,7 +87,7 @@ void EKTF2232Touchscreen::set_power_state(bool enable) {
 bool EKTF2232Touchscreen::get_power_state() {
   uint8_t received[4];
   this->write(GET_POWER_STATE_CMD, 4);
-  this->store_.touch = false;
+  this->store_.touched = false;
   this->read(received, 4);
   return (received[1] >> 3) & 1;
 }
@@ -145,14 +106,14 @@ bool EKTF2232Touchscreen::soft_reset_() {
 
   uint8_t received[4];
   uint16_t timeout = 1000;
-  while (!this->store_.touch && timeout > 0) {
+  while (!this->store_.touched && timeout > 0) {
     delay(1);
     timeout--;
   }
   if (timeout > 0)
-    this->store_.touch = true;
+    this->store_.touched = true;
   this->read(received, 4);
-  this->store_.touch = false;
+  this->store_.touched = false;
 
   return !memcmp(received, HELLO, 4);
 }
