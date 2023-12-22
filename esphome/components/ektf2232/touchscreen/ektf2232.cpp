@@ -55,9 +55,8 @@ void EKTF2232Touchscreen::setup() {
     }
     this->y_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
   }
-  
   this->set_power_state(true);
-  }
+}
 
 void EKTF2232Touchscreen::update_touches() {
   uint8_t touch_count = 0;

@@ -515,7 +515,7 @@ class Display : public PollingComponent {
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
-    };
+};
 
 class DisplayPage {
  public:
@@ -589,5 +589,5 @@ class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> 
   DisplayPage *to_{nullptr};
 };
 
-  }  // namespace display
+}  // namespace display
 }  // namespace esphome
