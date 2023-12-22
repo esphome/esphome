@@ -38,23 +38,24 @@ CONF_Y_MAX = "y_max"
 
 def validate_calibration(config):
     if CONF_CALIBRATION in config:
+        calibration_config = config[CONF_CALIBRATION]
         if (
-            cv.int_(config[CONF_CALIBRATION][CONF_X_MIN]) != 0
-            and cv.int_(config[CONF_CALIBRATION][CONF_X_MAX]) != 0
+            cv.int_([CONF_X_MIN]) != 0
+            and cv.int_(calibration_config[CONF_X_MAX]) != 0
             and abs(
-                cv.int_(config[CONF_CALIBRATION][CONF_X_MIN])
-                - cv.int_(config[CONF_CALIBRATION][CONF_X_MAX])
+                cv.int_(calibration_config[CONF_X_MIN])
+                - cv.int_(calibration_config[CONF_X_MAX])
             )
             < 10
         ):
             raise cv.Invalid("Calibration X values difference must be more then 10")
 
         if (
-            cv.int_(config[CONF_CALIBRATION][CONF_Y_MIN]) != 0
-            and cv.int_(config[CONF_CALIBRATION][CONF_Y_MAX]) != 0
+            cv.int_(calibration_config[CONF_Y_MIN]) != 0
+            and cv.int_(calibration_config[CONF_Y_MAX]) != 0
             and abs(
-                cv.int_(config[CONF_CALIBRATION][CONF_Y_MIN])
-                - cv.int_(config[CONF_CALIBRATION][CONF_Y_MAX])
+                cv.int_(calibration_config[CONF_Y_MIN])
+                - cv.int_(calibration_config[CONF_Y_MAX])
             )
             < 10
         ):
@@ -63,13 +64,17 @@ def validate_calibration(config):
     return config
 
 
-def calibration_schema(max):
+def calibration_schema(default_max_values):
     return cv.Schema(
         {
             cv.Optional(CONF_X_MIN, default=0): cv.int_range(min=0, max=4095),
-            cv.Optional(CONF_X_MAX, default=max): cv.int_range(min=0, max=4095),
+            cv.Optional(CONF_X_MAX, default=default_max_values): cv.int_range(
+                min=0, max=4095
+            ),
             cv.Optional(CONF_Y_MIN, default=0): cv.int_range(min=0, max=4095),
-            cv.Optional(CONF_Y_MAX, default=max): cv.int_range(min=0, max=4095),
+            cv.Optional(CONF_Y_MAX, default=default_max_values): cv.int_range(
+                min=0, max=4095
+            ),
         },
         validate_calibration,
     )
@@ -106,12 +111,13 @@ async def register_touchscreen(var, config):
         cg.add(var.set_mirror_y(transform[CONF_MIRROR_Y]))
 
     if CONF_CALIBRATION in config:
+        calibration_config = config[CONF_CALIBRATION]
         cg.add(
             var.set_calibration(
-                config[CONF_CALIBRATION][CONF_X_MIN],
-                config[CONF_CALIBRATION][CONF_X_MAX],
-                config[CONF_CALIBRATION][CONF_Y_MIN],
-                config[CONF_CALIBRATION][CONF_Y_MAX],
+                calibration_config[CONF_X_MIN],
+                calibration_config[CONF_X_MAX],
+                calibration_config[CONF_Y_MIN],
+                calibration_config[CONF_Y_MAX],
             )
         )
 

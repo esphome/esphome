@@ -15,7 +15,6 @@ XPT2046Component = XPT2046_ns.class_(
     spi.SPIDevice,
 )
 
-
 CONF_CALIBRATION_X_MIN = "calibration_x_min"
 CONF_CALIBRATION_X_MAX = "calibration_x_max"
 CONF_CALIBRATION_Y_MIN = "calibration_y_min"
@@ -34,22 +33,22 @@ CONFIG_SCHEMA = cv.All(
                     touchscreen.CONF_CALIBRATION
                 ): touchscreen.calibration_schema(4095),
                 cv.Optional(CONF_CALIBRATION_X_MIN): cv.invalid(
-                    "Deprecated: use the new Calibration variable"
+                    "Deprecated: use the new 'calibration' configuration variable"
                 ),
                 cv.Optional(CONF_CALIBRATION_X_MAX): cv.invalid(
-                    "Deprecated: use the new Calibration variable"
+                    "Deprecated: use the new 'calibration' configuration variable"
                 ),
                 cv.Optional(CONF_CALIBRATION_Y_MIN): cv.invalid(
-                    "Deprecated: use the new Calibration variable"
+                    "Deprecated: use the new 'calibration' configuration variable"
                 ),
                 cv.Optional(CONF_CALIBRATION_Y_MAX): cv.invalid(
-                    "Deprecated: use the new Calibration variable"
+                    "Deprecated: use the new 'calibration' configuration variable"
                 ),
                 cv.Optional(CONF_CALIBRATION_Y_MAX): cv.invalid(
-                    "Deprecated: use the new Calibration variable"
+                    "Deprecated: use the new 'calibration' configuration variable"
                 ),
                 cv.Optional("report_interval"): cv.invalid(
-                    "Deprecated: use the update_interval variable"
+                    "Deprecated: use the 'update_interval' configuration variable"
                 ),
             },
         )
