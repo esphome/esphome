@@ -14,8 +14,8 @@ const Color COLOR_OFF(0, 0, 0, 0);
 /** The TextPanel is a UI item that renders a single line of text to a display */
 class TextPanel : public LayoutItem {
  public:
-  display::Rect measure_item(display::Display *display) override;
-  void render(display::Display *display, display::Rect bounds) override;
+  display::Rect measure_item_internal(display::Display *display) override;
+  void render_internal(display::Display *display, display::Rect bounds) override;
   void dump_config(int indent_depth, int additional_level_depth) override;
 
   void set_item_padding(int item_padding) { this->item_padding_ = item_padding; };

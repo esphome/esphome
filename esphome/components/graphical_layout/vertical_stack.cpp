@@ -7,7 +7,7 @@
 namespace esphome {
 namespace graphical_layout {
 
-static const char *TAG = "verticalstack";
+static const char *const TAG = "verticalstack";
 
 void VerticalStack::dump_config(int indent_depth, int additional_level_depth) {
   ESP_LOGCONFIG(TAG, "%*sItem Padding: %i", indent_depth, "", this->item_padding_);
@@ -18,7 +18,7 @@ void VerticalStack::dump_config(int indent_depth, int additional_level_depth) {
   }
 }
 
-display::Rect VerticalStack::measure_item(display::Display *display) {
+display::Rect VerticalStack::measure_item_internal(display::Display *display) {
   display::Rect rect(0, this->item_padding_, 0, 0);
 
   for (LayoutItem *child : this->children_) {
@@ -33,7 +33,7 @@ display::Rect VerticalStack::measure_item(display::Display *display) {
   return rect;
 }
 
-void VerticalStack::render(display::Display *display, display::Rect bounds) {
+void VerticalStack::render_internal(display::Display *display, display::Rect bounds) {
   int height_offset = this->item_padding_;
 
   for (LayoutItem *item : this->children_) {

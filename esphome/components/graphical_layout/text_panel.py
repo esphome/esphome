@@ -27,8 +27,8 @@ def get_config_schema(base_item_schema, item_type_schema):
     )
 
 
-async def config_to_layout_item(item_config, child_item_builder):
-    var = cg.new_Pvariable(item_config[CONF_ID])
+async def config_to_layout_item(pvariable_builder, item_config, child_item_builder):
+    var = await pvariable_builder(item_config)
 
     if item_padding_config := item_config[CONF_ITEM_PADDING]:
         cg.add(var.set_item_padding(item_padding_config))

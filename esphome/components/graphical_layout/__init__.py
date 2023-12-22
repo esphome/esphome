@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TYPE
+from esphome.components import color
 from . import horizontal_stack
 from . import vertical_stack
 from . import text_panel
@@ -18,8 +19,19 @@ AUTO_LOAD = ["display"]
 MULTI_CONF = True
 
 CONF_LAYOUT = "layout"
+CONF_MARGIN = "margin"
+CONF_PADDING = "padding"
+CONF_BORDER = "border"
+CONF_BORDER_COLOR = "border_color"
 
-BASE_ITEM_SCHEMA = cv.Schema({})
+BASE_ITEM_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_MARGIN, default=0): cv.templatable(cv.int_range(min=0)),
+        cv.Optional(CONF_BORDER, default=0): cv.templatable(cv.int_range(min=0)),
+        cv.Optional(CONF_BORDER_COLOR): cv.use_id(color.ColorStruct),
+        cv.Optional(CONF_PADDING, default=0): cv.templatable(cv.int_range(min=0)),
+    }
+)
 
 
 def item_type_schema(value):
@@ -58,6 +70,25 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+async def build_layout_item_pvariable(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+
+    margin = await cg.templatable(config[CONF_MARGIN], args=[], output_type=int)
+    cg.add(var.set_margin(margin))
+
+    border = await cg.templatable(config[CONF_BORDER], args=[], output_type=int)
+    cg.add(var.set_border(border))
+
+    if border_color_config := config.get(CONF_BORDER_COLOR):
+        border_color = await cg.get_variable(border_color_config)
+        cg.add(var.set_border_color(border_color))
+
+    padding = await cg.templatable(config[CONF_PADDING], args=[], output_type=int)
+    cg.add(var.set_margin(padding))
+
+    return var
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -65,7 +96,9 @@ async def to_code(config):
     layout_config = config[CONF_LAYOUT]
     layout_type = layout_config[CONF_TYPE]
     if layout_type in CODE_GENERATORS:
-        layout_var = await CODE_GENERATORS[layout_type](layout_config, CODE_GENERATORS)
+        layout_var = await CODE_GENERATORS[layout_type](
+            build_layout_item_pvariable, layout_config, CODE_GENERATORS
+        )
         cg.add(var.set_layout_root(layout_var))
     else:
         raise f"Do not know how to build type {layout_type}"
