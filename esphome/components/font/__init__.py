@@ -138,15 +138,15 @@ def _compute_local_font_path(value: dict) -> Path:
     h.update(url.encode())
     key = h.hexdigest()[:8]
     base_dir = external_files.compute_local_file_dir(DOMAIN)
-    _LOGGER.debug("get_font_path: base_dir=%s", base_dir / key)
+    _LOGGER.debug("_compute_local_font_path: base_dir=%s", base_dir / key)
     return base_dir / key
 
 
-def get_font_path(value) -> Path:
-    if value[CONF_TYPE] == TYPE_GFONTS:
+def get_font_path(value, type) -> Path:
+    if type == TYPE_GFONTS:
         name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
         return external_files.compute_local_file_dir(DOMAIN) / f"{name}.ttf"
-    if value[CONF_TYPE] == TYPE_WEB:
+    if type == TYPE_WEB:
         return _compute_local_font_path(value) / "font.ttf"
     return None
 
@@ -181,7 +181,7 @@ def download_gfont(value):
         f"{value[CONF_FAMILY]}:ital,wght@{int(value[CONF_ITALIC])},{value[CONF_WEIGHT]}"
     )
     url = f"https://fonts.googleapis.com/css2?family={name}"
-    path = get_font_path(value)
+    path = get_font_path(value, TYPE_GFONTS)
     _LOGGER.debug("download_gfont: path=%s", path)
 
     try:
@@ -208,7 +208,7 @@ def download_gfont(value):
 
 def download_web_font(value):
     url = value[CONF_URL]
-    path = get_font_path(value)
+    path = get_font_path(value, TYPE_WEB)
 
     download_content(url, path)
     _LOGGER.debug("download_web_font: path=%s", path)
@@ -227,18 +227,22 @@ EXTERNAL_FONT_SCHEMA = cv.Schema(
 
 CONF_DOWNLOAD = "download"
 
-GFONTS_SCHEMA = EXTERNAL_FONT_SCHEMA.extend(
-    {
-        cv.Required(CONF_FAMILY): cv.string_strict,
-        cv.Optional(CONF_DOWNLOAD): download_gfont,
-    }
-).extend(EXTERNAL_FONT_SCHEMA)
+GFONTS_SCHEMA = cv.All(
+    EXTERNAL_FONT_SCHEMA.extend(
+        {
+            cv.Required(CONF_FAMILY): cv.string_strict,
+        }
+    ),
+    download_gfont,
+)
 
-WEB_FONT_SCHEMA = EXTERNAL_FONT_SCHEMA.extend(
-    {
-        cv.Required(CONF_URL): cv.string_strict,
-        cv.Optional(CONF_DOWNLOAD): download_web_font,
-    }
+WEB_FONT_SCHEMA = cv.All(
+    EXTERNAL_FONT_SCHEMA.extend(
+        {
+            cv.Required(CONF_URL): cv.string_strict,
+        }
+    ),
+    download_web_font,
 )
 
 
@@ -423,7 +427,7 @@ async def to_code(config):
         path = CORE.relative_config_path(conf[CONF_PATH])
         font = load_ttf_font(path, config[CONF_SIZE])
     elif conf[CONF_TYPE] == TYPE_GFONTS or conf[CONF_TYPE] == TYPE_WEB:
-        path = get_font_path(conf)
+        path = get_font_path(conf, conf[CONF_TYPE])
         font = load_ttf_font(path, config[CONF_SIZE])
     else:
         raise core.EsphomeError(f"Could not load font: unknown type: {conf[CONF_TYPE]}")
