@@ -792,20 +792,21 @@ class EditRequestHandler(BaseHandler):
         """Get the content of a file."""
         loop = asyncio.get_running_loop()
         filename = settings.rel_path(configuration)
-        content = await loop.run_in_executor(None, self._read_file, filename)
-        if content:
+        content = await loop.run_in_executor(
+            None, self._read_file, filename, configuration
+        )
+        if content is not None:
             self.write(content)
 
-    def _read_file(self, filename: str) -> bytes | None:
+    def _read_file(self, filename: str, configuration: str) -> bytes | None:
         """Read a file and return the content as bytes."""
         try:
             with open(file=filename, encoding="utf-8") as f:
                 return f.read()
         except FileNotFoundError:
-            if filename in const.SECRETS_FILES:
+            if configuration in const.SECRETS_FILES:
                 return ""
             self.set_status(404)
-            return None
 
     def _write_file(self, filename: str, content: bytes) -> None:
         """Write a file with the given content."""
