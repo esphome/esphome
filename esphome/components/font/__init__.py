@@ -208,7 +208,7 @@ def download_gfont(value):
 
 def download_web_font(value):
     url = value[CONF_URL]
-    path = get_font_path(value)  # Replace with logic to determine font path
+    path = get_font_path(value)
 
     download_content(url, path)
     _LOGGER.debug("download_web_font: path=%s", path)
@@ -225,11 +225,21 @@ EXTERNAL_FONT_SCHEMA = cv.Schema(
     }
 )
 
-GFONTS_SCHEMA = EXTERNAL_FONT_SCHEMA.extend(
-    {cv.Required(CONF_FAMILY): cv.string_strict}
-)
+CONF_DOWNLOAD = "download"
 
-WEB_FONT_SCHEMA = EXTERNAL_FONT_SCHEMA.extend({cv.Required(CONF_URL): cv.string_strict})
+GFONTS_SCHEMA = EXTERNAL_FONT_SCHEMA.extend(
+    {
+        cv.Required(CONF_FAMILY): cv.string_strict,
+        cv.Optional(CONF_DOWNLOAD): download_gfont,
+    }
+).extend(EXTERNAL_FONT_SCHEMA)
+
+WEB_FONT_SCHEMA = EXTERNAL_FONT_SCHEMA.extend(
+    {
+        cv.Required(CONF_URL): cv.string_strict,
+        cv.Optional(CONF_DOWNLOAD): download_web_font,
+    }
+)
 
 
 def validate_file_shorthand(value):
@@ -286,10 +296,6 @@ def _file_schema(value):
     if isinstance(value, str):
         return validate_file_shorthand(value)
     typed_schema = TYPED_FILE_SCHEMA(value)
-    if typed_schema[CONF_TYPE] == TYPE_WEB:
-        download_web_font(typed_schema)
-    elif typed_schema[CONF_TYPE] == TYPE_GFONTS:
-        download_gfont(typed_schema)
     return typed_schema
 
 
