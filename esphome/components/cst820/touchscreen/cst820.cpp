@@ -23,7 +23,7 @@ void CST820Touchscreen::setup() {
   // Read chip firmware version
   uint8_t firmware_version;
   err = read_register(REG_CST820_FIRMWAREVERSION, &firmware_version, 1);
-  
+
   ESP_LOGI("cst820", "Found chip id: %d, firmware version: %d", chip_id, firmware_version);
 
   uint8_t irq;
@@ -51,9 +51,9 @@ void CST820Touchscreen::update_touches() {
     ESP_LOGD("TAG", "Reg 0x2 Error: %i", err);
     return;
   }
-  if (fingerindex == 0) 
+  if (fingerindex == 0)
     return;
-  
+
   // ESP_LOGD(TAG, "Fingerindex: %i", fingerindex);
 
   uint8_t data[4];

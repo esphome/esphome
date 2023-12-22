@@ -33,9 +33,8 @@ CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
             cv.GenerateID(): cv.declare_id(CST820Component),
         },
     )
-    #.extend(cv.polling_component_schema("50ms"))
     .extend(i2c.i2c_device_schema(0x15)),
-)#.add_extra(validate_cst820)
+).add_extra(validate_cst820)
 
 
 async def to_code(config):
