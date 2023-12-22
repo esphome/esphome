@@ -301,11 +301,16 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
         if (
-            port == "OTA"
+            port == "OTA"  # pylint: disable=too-many-boolean-expressions
             and (mdns := dashboard.mdns_status)
             and (entry := entries.get(config_file))
+            and entry.loaded_integrations
+            and "api" in entry.loaded_integrations
             and (address := await mdns.async_resolve_host(entry.name))
         ):
+            # Use the IP address if available but only
+            # if the API is loaded and the device is online
+            # since MQTT logging will not work otherwise
             port = address
 
         return [
