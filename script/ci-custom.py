@@ -702,8 +702,8 @@ def main():
             print(f" - '{name}' took {dur:.2f}s total (ran on {invocations} files)")
         print(f"Total time measured: {sum(x[0] for x in lint_times):.2f}s")
 
-    sys.exit(len(errors))
+    return len(errors)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
