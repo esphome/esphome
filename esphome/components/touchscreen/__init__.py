@@ -33,30 +33,68 @@ CONF_REPORT_INTERVAL = "report_interval"  # not used yet:
 CONF_ON_UPDATE = "on_update"
 CONF_TOUCH_TIMEOUT = "touch_timeout"
 
+CONF_CALIBRATION = "calibration"
+CONF_X_MIN = "x_min"
+CONF_X_MAX = "x_max"
+CONF_Y_MIN = "y_min"
+CONF_Y_MAX = "y_max"
 
-def touchscreen_schema(default_touch_timeout):
+
+def validate_calibration(config):
+    if CONF_CALIBRATION in config:
+        if (
+            cv.int_(config[CONF_CALIBRATION][CONF_X_MIN]) != 0
+            and cv.int_(config[CONF_CALIBRATION][CONF_X_MAX]) != 0
+            and abs(
+                cv.int_(config[CONF_CALIBRATION][CONF_X_MIN])
+                - cv.int_(config[CONF_CALIBRATION][CONF_X_MAX])
+            )
+            < 10
+        ):
+            raise cv.Invalid("Calibration X values difference must be more then 10")
+
+        if (
+            cv.int_(config[CONF_CALIBRATION][CONF_Y_MIN]) != 0
+            and cv.int_(config[CONF_CALIBRATION][CONF_Y_MAX]) != 0
+            and abs(
+                cv.int_(config[CONF_CALIBRATION][CONF_Y_MIN])
+                - cv.int_(config[CONF_CALIBRATION][CONF_Y_MAX])
+            )
+            < 10
+        ):
+            raise cv.Invalid("Calibration Y values difference must be more then 10")
+
+    return config
+
+
+def calibration_schema(max):
     return cv.Schema(
         {
-            cv.GenerateID(CONF_DISPLAY): cv.use_id(display.Display),
-            cv.Optional(CONF_TRANSFORM): cv.Schema(
-                {
-                    cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
-                    cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
-                    cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
-                }
-            ),
-            cv.Optional(CONF_TOUCH_TIMEOUT, default=default_touch_timeout): cv.All(
-                cv.positive_time_period_milliseconds,
-                cv.Range(max=cv.TimePeriod(milliseconds=65535)),
-            ),
-            cv.Optional(CONF_ON_TOUCH): automation.validate_automation(single=True),
-            cv.Optional(CONF_ON_UPDATE): automation.validate_automation(single=True),
-            cv.Optional(CONF_ON_RELEASE): automation.validate_automation(single=True),
-        }
-    ).extend(cv.polling_component_schema("50ms"))
+            cv.Optional(CONF_X_MIN, default=0): cv.int_range(min=0, max=4095),
+            cv.Optional(CONF_X_MAX, default=max): cv.int_range(min=0, max=4095),
+            cv.Optional(CONF_Y_MIN, default=0): cv.int_range(min=0, max=4095),
+            cv.Optional(CONF_Y_MAX, default=max): cv.int_range(min=0, max=4095),
+        },
+        validate_calibration,
+    )
 
 
-TOUCHSCREEN_SCHEMA = touchscreen_schema(cv.UNDEFINED)
+TOUCHSCREEN_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_DISPLAY): cv.use_id(display.Display),
+        cv.Optional(CONF_TRANSFORM): cv.Schema(
+            {
+                cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
+                cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+                cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+            }
+        ),
+        cv.Optional(CONF_CALIBRATION): calibration_schema(0),
+        cv.Optional(CONF_ON_TOUCH): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_UPDATE): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_RELEASE): automation.validate_automation(single=True),
+    }
+).extend(cv.polling_component_schema("50ms"))
 
 
 async def register_touchscreen(var, config):
@@ -73,6 +111,16 @@ async def register_touchscreen(var, config):
         cg.add(var.set_swap_xy(transform[CONF_SWAP_XY]))
         cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))
         cg.add(var.set_mirror_y(transform[CONF_MIRROR_Y]))
+
+    if CONF_CALIBRATION in config:
+        cg.add(
+            var.set_calibration(
+                config[CONF_CALIBRATION][CONF_X_MIN],
+                config[CONF_CALIBRATION][CONF_X_MAX],
+                config[CONF_CALIBRATION][CONF_Y_MIN],
+                config[CONF_CALIBRATION][CONF_Y_MAX],
+            )
+        )
 
     if CONF_ON_TOUCH in config:
         await automation.build_automation(
