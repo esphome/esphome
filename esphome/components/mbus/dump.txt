@@ -1,0 +1,277 @@
+# Bus Scan primary Address
+mbus-serial-scan -d -b 2400 /dev/ttyACM0
+
+0 [2023-12-22 07:16:12Z] SEND (005): 10 40 00 40 16
+[2023-12-22 07:16:12Z] RECV (001): E5
+Found a M-Bus device at address 0
+1 [2023-12-22 07:16:12Z] SEND (005): 10 40 01 41 16
+2 [2023-12-22 07:16:13Z] SEND (005): 10 40 02 42 16
+3 [2023-12-22 07:16:13Z] SEND (005): 10 40 03 43 16
+4 [2023-12-22 07:16:13Z] SEND (005): 10 40 04 44 16
+5 [2023-12-22 07:16:13Z] SEND (005): 10 40 05 45 16
+6 [2023-12-22 07:16:14Z] SEND (005): 10 40 06 46 16
+7 [2023-12-22 07:16:14Z] SEND (005): 10 40 07 47 16
+8 [2023-12-22 07:16:14Z] SEND (005): 10 40 08 48 16
+9 [2023-12-22 07:16:15Z] SEND (005): 10 40 09 49 16
+10 [2023-12-22 07:16:15Z] SEND (005): 10 40 0A 4A 16
+11 [2023-12-22 07:16:15Z] SEND (005): 10 40 0B 4B 16
+12 [2023-12-22 07:16:16Z] SEND (005): 10 40 0C 4C 16
+13 [2023-12-22 07:16:16Z] SEND (005): 10 40 0D 4D 16
+14 [2023-12-22 07:16:16Z] SEND (005): 10 40 0E 4E 16
+15 [2023-12-22 07:16:17Z] SEND (005): 10 40 0F 4F 16
+16 [2023-12-22 07:16:17Z] SEND (005): 10 40 10 50 16
+17 [2023-12-22 07:16:17Z] SEND (005): 10 40 11 51 16
+18 [2023-12-22 07:16:18Z] SEND (005): 10 40 12 52 16
+19 [2023-12-22 07:16:18Z] SEND (005): 10 40 13 53 16
+20 [2023-12-22 07:16:18Z] SEND (005): 10 40 14 54 16
+
+# Bus Scan secondary address
+mbus-serial-scan-secondary -d -b 2400 /dev/ttyACM0
+
+init_slaves: debug: sending init frame #1
+[2023-12-22 07:21:16Z] SEND (005): 10 40 FD 3D 16
+init_slaves: debug: sending init frame #2
+[2023-12-22 07:21:17Z] SEND (005): 10 40 FF 3F 16
+[2023-12-22 07:21:17Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 0F FF FF FF FF CA 16
+[2023-12-22 07:21:17Z] RECV (001): E5
+[2023-12-22 07:21:17Z] SEND (005): 10 5B FD 58 16
+[2023-12-22 07:21:19Z] RECV (236): 68 E6 E6 68 08 00 72 66 42 25 00 42 04 20 02 04 20 00 00 0E 84 00 32 23 00 00 00 00 8E 10 84 00 32 23 00 00 00 00 8E 20 84 00 00 00 00 00 00 00 8E 30 84 00 00 00 00 00 00 00 8E 80 10 84 00 00 00 00 00 00 00 8E 40 84 00 00 00 00 00 00 00 8E 50 84 00 00 00 00 00 00 00 8E 60 84 00 00 00 00 00 00 00 8E 70 84 00 00 00 00 00 00 00 8E C0 10 84 00 00 00 00 00 00 00 01 FF 93 00 01 04 FF A0 15 00 00 00 00 04 FF A1 15 00 00 00 00 04 FF A2 15 00 00 00 00 04 FF A3 15 00 00 00 00 07 FF A6 00 00 00 00 00 00 00 00 00 07 FF A7 00 06 00 00 00 00 00 00 00 07 FF A8 00 00 00 00 00 00 00 00 00 07 FF A9 00 00 00 00 00 00 00 00 00 0D FD 8E 00 07 30 2E 31 32 2E 31 42 0D FF AA 00 0B 30 30 31 2D 33 31 33 20 33 32 42 1F 04 16
+Found a device on secondary address 0025426642042002 [using address mask 0FFFFFFFFFFFFFFF]
+[2023-12-22 07:21:19Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 1F FF FF FF FF DA 16
+[2023-12-22 07:21:19Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 1F FF FF FF FF DA 16
+[2023-12-22 07:21:20Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 2F FF FF FF FF EA 16
+[2023-12-22 07:21:20Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 2F FF FF FF FF EA 16
+[2023-12-22 07:21:20Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 3F FF FF FF FF FA 16
+[2023-12-22 07:21:20Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 3F FF FF FF FF FA 16
+[2023-12-22 07:21:21Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 4F FF FF FF FF 0A 16
+[2023-12-22 07:21:21Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 4F FF FF FF FF 0A 16
+[2023-12-22 07:21:21Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 5F FF FF FF FF 1A 16
+[2023-12-22 07:21:22Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 5F FF FF FF FF 1A 16
+[2023-12-22 07:21:22Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 6F FF FF FF FF 2A 16
+[2023-12-22 07:21:22Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 6F FF FF FF FF 2A 16
+[2023-12-22 07:21:23Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 7F FF FF FF FF 3A 16
+[2023-12-22 07:21:23Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 7F FF FF FF FF 3A 16
+[2023-12-22 07:21:23Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 8F FF FF FF FF 4A 16
+[2023-12-22 07:21:24Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 8F FF FF FF FF 4A 16
+[2023-12-22 07:21:24Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 9F FF FF FF FF 5A 16
+[2023-12-22 07:21:24Z] SEND (017): 68 0B 0B 68 73 FD 52 FF FF FF 9F FF FF FF FF 5A 16
+
+
+# Request Data with secondary address
+mbus-serial-request-data -d -b 2400 /dev/ttyACM0 0025426642042002
+init_slaves: debug: sending init frame #1
+[2023-12-22 07:23:13Z] SEND (005): 10 40 FD 3D 16
+init_slaves: debug: sending init frame #2
+[2023-12-22 07:23:13Z] SEND (005): 10 40 FD 3D 16
+[2023-12-22 07:23:14Z] SEND (017): 68 0B 0B 68 73 FD 52 66 42 25 00 42 04 20 02 F7 16
+[2023-12-22 07:23:14Z] RECV (001): E5
+[2023-12-22 07:23:14Z] SEND (005): 10 5B FD 58 16
+[2023-12-22 07:23:15Z] RECV (236): 68 E6 E6 68 08 00 72 66 42 25 00 42 04 20 02 05 20 00 00 0E 84 00 33 23 00 00 00 00 8E 10 84 00 33 23 00 00 00 00 8E 20 84 00 00 00 00 00 00 00 8E 30 84 00 00 00 00 00 00 00 8E 80 10 84 00 00 00 00 00 00 00 8E 40 84 00 00 00 00 00 00 00 8E 50 84 00 00 00 00 00 00 00 8E 60 84 00 00 00 00 00 00 00 8E 70 84 00 00 00 00 00 00 00 8E C0 10 84 00 00 00 00 00 00 00 01 FF 93 00 01 04 FF A0 15 00 00 00 00 04 FF A1 15 00 00 00 00 04 FF A2 15 00 00 00 00 04 FF A3 15 00 00 00 00 07 FF A6 00 00 00 00 00 00 00 00 00 07 FF A7 00 06 00 00 00 00 00 00 00 07 FF A8 00 00 00 00 00 00 00 00 00 07 FF A9 00 00 00 00 00 00 00 00 00 0D FD 8E 00 07 30 2E 31 32 2E 31 42 0D FF AA 00 0B 30 30 31 2D 33 31 33 20 33 32 42 1F 07 16
+mbus_frame_print: Dumping M-Bus frame [type 4, 236 bytes]: 68 E6 E6 68 08 00 72 66 42 25 00 42 04 20 02 05 20 00 00 0E 84 00 33 23 00 00 00 00 8E 10 84 00 33 23 00 00 00 00 8E 20 84 00 00 00 00 00 00 00 8E 30 84 00 00 00 00 00 00 00 8E 80 10 84 00 00 00 00 00 00 00 8E 40 84 00 00 00 00 00 00 00 8E 50 84 00 00 00 00 00 00 00 8E 60 84 00 00 00 00 00 00 00 8E 70 84 00 00 00 00 00 00 00 8E C0 10 84 00 00 00 00 00 00 00 01 FF 93 00 01 04 FF A0 15 00 00 00 00 04 FF A1 15 00 00 00 00 04 FF A2 15 00 00 00 00 04 FF A3 15 00 00 00 00 07 FF A6 00 00 00 00 00 00 00 00 00 07 FF A7 00 06 00 00 00 00 00 00 00 07 FF A8 00 00 00 00 00 00 00 00 00 07 FF A9 00 00 00 00 00 00 00 00 00 0D FD 8E 00 07 30 2E 31 32 2E 31 42 0D FF AA 00 0B 30 30 31 2D 33 31 33 20 33 32 42 1F 07 16
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<MBusData>
+
+    <SlaveInformation>
+        <Id>254266</Id>
+        <Manufacturer>ABB</Manufacturer>
+        <Version>32</Version>
+        <ProductName></ProductName>
+        <Medium>Electricity</Medium>
+        <AccessNumber>5</AccessNumber>
+        <Status>20</Status>
+        <Signature>0000</Signature>
+    </SlaveInformation>
+
+    <DataRecord id="0">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Unit>Energy (10 Wh)</Unit>
+        <Value>2333</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="1">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Tariff>1</Tariff>
+        <Device>0</Device>
+        <Unit>Energy (10 Wh)</Unit>
+        <Value>2333</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="2">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Tariff>2</Tariff>
+        <Device>0</Device>
+        <Unit>Energy (10 Wh)</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="3">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Tariff>3</Tariff>
+        <Device>0</Device>
+        <Unit>Energy (10 Wh)</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="4">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Tariff>4</Tariff>
+        <Device>0</Device>
+        <Unit>Energy (10 Wh)</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="5">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Tariff>0</Tariff>
+        <Device>1</Device>
+        <Unit>Energy (10 Wh)</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="6">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Tariff>1</Tariff>
+        <Device>1</Device>
+        <Unit>Energy (10 Wh)</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="7">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Tariff>2</Tariff>
+        <Device>1</Device>
+        <Unit>Energy (10 Wh)</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="8">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Tariff>3</Tariff>
+        <Device>1</Device>
+        <Unit>Energy (10 Wh)</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="9">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Tariff>4</Tariff>
+        <Device>1</Device>
+        <Unit>Energy (10 Wh)</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="10">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Unit>Manufacturer specific</Unit>
+        <Value>1</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="11">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Unit>Manufacturer specific</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="12">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Unit>Manufacturer specific</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="13">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Unit>Manufacturer specific</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="14">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Unit>Manufacturer specific</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="15">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Unit>Manufacturer specific</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="16">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Unit>Manufacturer specific</Unit>
+        <Value>6</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="17">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Unit>Manufacturer specific</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="18">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Unit>Manufacturer specific</Unit>
+        <Value>0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="19">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Unit>Firmware version</Unit>
+        <Value>B1.21.0</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="20">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Unit>Manufacturer specific</Unit>
+        <Value>B23 313-100</Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+    <DataRecord id="21">
+        <Function>More records follow</Function>
+        <Value></Value>
+        <Timestamp>2023-12-22T07:23:15Z</Timestamp>
+    </DataRecord>
+
+</MBusData>

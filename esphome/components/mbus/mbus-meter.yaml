@@ -1,3 +1,7 @@
+substitutions:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+
 esphome:
   name: "mbus-meter"
 
@@ -9,9 +13,24 @@ esp32:
 
 # Enable logging
 logger:
-  level: DEBUG
+  level: VERBOSE
 
 # api: !include _api.yaml
 # ota: !include _ota.yaml
 # wifi: !include _wifi.yaml
+
+uart:
+  baud_rate: 2400
+  data_bits: 8
+  id: m_bus
+  parity: EVEN
+  rx_pin: ${rx_pin}
+  stop_bits: 1
+  tx_pin: ${tx_pin}
+  # debug:
+  #   direction: BOTH
+  #   dummy_receiver: false
+  #   after:
+  #     bytes: 1
+
 mbus:
