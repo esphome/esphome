@@ -138,6 +138,9 @@ void APIConnection::loop() {
         on_fatal_error();
         ESP_LOGE(TAG, "%s: Sending keepalive failed %d time(s). Disconnecting...", this->client_combined_info_.c_str(),
                  this->ping_retries_);
+      } else if (this->ping_retries_ >= 10) {
+        ESP_LOGW(TAG, "%s: Sending keepalive failed %d time(s), will retry in %d ms",
+                 this->client_combined_info_.c_str(), this->ping_retries_, ping_retry_interval);
       } else {
         ESP_LOGD(TAG, "%s: Sending keepalive failed %d time(s), will retry in %d ms",
                  this->client_combined_info_.c_str(), this->ping_retries_, ping_retry_interval);
