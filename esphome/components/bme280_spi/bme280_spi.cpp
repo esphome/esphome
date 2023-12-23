@@ -56,8 +56,8 @@ bool BME280SPIComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t le
 bool BME280SPIComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
   this->enable();
   this->delegate_->transfer(set_bit(a_register, 7));
-  data[1] = this->delegate_->transfer(0);
-  data[0] = this->delegate_->transfer(0);
+  ((uint8_t *) data)[1] = this->delegate_->transfer(0);
+  ((uint8_t *) data)[0] = this->delegate_->transfer(0);
   this->disable();
   return true;
 }
