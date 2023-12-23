@@ -19,4 +19,4 @@ jobs:
       - name: Check out code from GitHub
         uses: actions/checkout@v4.1.1
       - name: Run yamllint
-        uses: frenck/action-yamllint@v1.4.1
+        uses: frenck/action-yamllint@v1.4.2
