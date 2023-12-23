@@ -93,6 +93,7 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
 
 void Touchscreen::send_touches_() {
   if (!this->is_touched_) {
+    this->cancel_timeout(TAG);
     this->release_trigger_.trigger();
     for (auto *listener : this->touch_listeners_)
       listener->release();
