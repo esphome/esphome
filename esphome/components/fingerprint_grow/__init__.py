@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_ON_FINGER_SCAN_MATCHED,
     CONF_ON_FINGER_SCAN_UNMATCHED,
     CONF_ON_FINGER_SCAN_MISPLACED,
+    CONF_ON_FINGER_SCAN_INVALID,
     CONF_PASSWORD,
     CONF_SENSING_PIN,
     CONF_SPEED,
@@ -50,6 +51,10 @@ FingerScanUnmatchedTrigger = fingerprint_grow_ns.class_(
 
 FingerScanMisplacedTrigger = fingerprint_grow_ns.class_(
     "FingerScanMisplacedTrigger", automation.Trigger.template()
+)
+
+FingerScanInvalidTrigger = fingerprint_grow_ns.class_(
+    "FingerScanInvalidTrigger", automation.Trigger.template()
 )
 
 EnrollmentScanTrigger = fingerprint_grow_ns.class_(
@@ -132,6 +137,13 @@ CONFIG_SCHEMA = (
                     ),
                 }
             ),
+            cv.Optional(CONF_ON_FINGER_SCAN_INVALID): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        FingerScanInvalidTrigger
+                    ),
+                }
+            ),
             cv.Optional(CONF_ON_ENROLLMENT_SCAN): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -191,6 +203,10 @@ async def to_code(config):
         await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_FINGER_SCAN_MISPLACED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_FINGER_SCAN_INVALID, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 

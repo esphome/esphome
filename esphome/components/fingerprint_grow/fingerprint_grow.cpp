@@ -146,6 +146,7 @@ uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
       return send_result;
     case IMAGE_FAIL:
       ESP_LOGE(TAG, "Imaging error");
+      this->finger_scan_invalid_callback_.call();
       return send_result;
     default:
       ESP_LOGD(TAG, "Unknown Scan Error: %d", send_result);
@@ -154,19 +155,22 @@ uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
 
   ESP_LOGD(TAG, "Processing image %d", buffer);
   this->data_ = {IMAGE_2_TZ, buffer};
-  switch (this->send_command_()) {
+  send_result = this->send_command_();
+  switch (send_result) {
     case OK:
       ESP_LOGI(TAG, "Processed image %d", buffer);
       break;
     case IMAGE_MESS:
       ESP_LOGE(TAG, "Image too messy");
+      this->finger_scan_invalid_callback_.call();
       break;
     case FEATURE_FAIL:
     case INVALID_IMAGE:
       ESP_LOGE(TAG, "Could not find fingerprint features");
+      this->finger_scan_invalid_callback_.call();
       break;
   }
-  return this->data_[0];
+  return send_result;
 }
 
 uint8_t FingerprintGrowComponent::save_fingerprint_() {
