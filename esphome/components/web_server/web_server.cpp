@@ -113,7 +113,9 @@ std::string WebServer::get_config_json() {
   return json::build_json([this](JsonObject root) {
     root["title"] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
     root["comment"] = App.get_comment();
+#ifdef USE_WEBSERVER_OTA
     root["ota"] = this->allow_ota_;
+#endif
     root["log"] = this->expose_log_;
     root["lang"] = "en";
   });
@@ -140,8 +142,10 @@ void WebServer::setup() {
   this->base_->add_handler(&this->events_);
   this->base_->add_handler(this);
 
+#ifdef USE_WEBSERVER_OTA
   if (this->allow_ota_)
     this->base_->add_ota_handler();
+#endif
 
   this->set_interval(10000, [this]() { this->events_.send("", "ping", millis(), 30000); });
 }
@@ -338,11 +342,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
                   "REST API documentation.</p>"));
+#ifdef USE_WEBSERVER_OTA
   if (this->allow_ota_) {
     stream->print(
         F("<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
           "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
   }
+#endif
   stream->print(F("<h2>Debug Log</h2><pre id=\"log\"></pre>"));
 #ifdef USE_WEBSERVER_JS_INCLUDE
   if (this->js_include_ != nullptr) {
@@ -397,19 +403,17 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 
 #define set_json_id(root, obj, sensor, start_config) \
   (root)["id"] = sensor; \
-  if (((start_config) == DETAIL_ALL)) \
-    (root)["name"] = (obj)->get_name();
+  if (((start_config) == DETAIL_ALL)) { \
+    (root)["name"] = (obj)->get_name(); \
+    (root)["icon"] = (obj)->get_icon(); \
+    (root)["entity_category"] = (obj)->get_entity_category(); \
+  }
 
 #define set_json_value(root, obj, sensor, value, start_config) \
   set_json_id((root), (obj), sensor, start_config)(root)["value"] = value;
 
-#define set_json_state_value(root, obj, sensor, state, value, start_config) \
-  set_json_value(root, obj, sensor, value, start_config)(root)["state"] = state;
-
 #define set_json_icon_state_value(root, obj, sensor, state, value, start_config) \
-  set_json_value(root, obj, sensor, value, start_config)(root)["state"] = state; \
-  if (((start_config) == DETAIL_ALL)) \
-    (root)["icon"] = (obj)->get_icon();
+  set_json_value(root, obj, sensor, value, start_config)(root)["state"] = state;
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
@@ -529,7 +533,8 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool s
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
-    set_json_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config);
+    set_json_icon_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value,
+                              start_config);
   });
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -548,7 +553,8 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
 void WebServer::on_fan_update(fan::Fan *obj) { this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state"); }
 std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {
-    set_json_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state, start_config);
+    set_json_icon_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state,
+                              start_config);
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
@@ -773,8 +779,8 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
 }
 std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {
-    set_json_state_value(root, obj, "cover-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN",
-                         obj->position, start_config);
+    set_json_icon_state_value(root, obj, "cover-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN",
+                              obj->position, start_config);
     root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
 
     if (obj->get_traits().get_supports_tilt())
@@ -930,7 +936,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 }
 std::string WebServer::select_json(select::Select *obj, const std::string &value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
-    set_json_state_value(root, obj, "select-" + obj->get_object_id(), value, value, start_config);
+    set_json_icon_state_value(root, obj, "select-" + obj->get_object_id(), value, value, start_config);
     if (start_config == DETAIL_ALL) {
       JsonArray opt = root.createNestedArray("option");
       for (auto &option : obj->traits.get_options()) {

@@ -92,11 +92,13 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    * @param include_internal Whether internal components should be displayed.
    */
   void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
+#ifdef USE_WEBSERVER_OTA
   /** Set whether or not the webserver should expose the OTA form and handler.
    *
    * @param allow_ota.
    */
   void set_allow_ota(bool allow_ota) { this->allow_ota_ = allow_ota; }
+#endif
   /** Set whether or not the webserver should expose the Log.
    *
    * @param expose_log.
@@ -293,7 +295,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const char *js_include_{nullptr};
 #endif
   bool include_internal_{false};
+#ifdef USE_WEBSERVER_OTA
   bool allow_ota_{true};
+#endif
   bool expose_log_{true};
 #ifdef USE_ESP32
   std::deque<std::function<void()>> to_schedule_;

@@ -24,10 +24,12 @@ class MiddlewareHandler : public AsyncWebHandler {
 
   bool canHandle(AsyncWebServerRequest *request) override { return next_->canHandle(request); }
   void handleRequest(AsyncWebServerRequest *request) override { next_->handleRequest(request); }
+#ifdef USE_WEBSERVER_OTA
   void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
                     bool final) override {
     next_->handleUpload(request, filename, index, data, len, final);
   }
+#endif
   void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override {
     next_->handleBody(request, data, len, index, total);
   }
@@ -124,6 +126,7 @@ class WebServerBase : public Component {
   internal::Credentials credentials_;
 };
 
+#ifdef USE_WEBSERVER_OTA
 class OTARequestHandler : public AsyncWebHandler {
  public:
   OTARequestHandler(WebServerBase *parent) : parent_(parent) {}
@@ -141,6 +144,7 @@ class OTARequestHandler : public AsyncWebHandler {
   uint32_t ota_read_length_{0};
   WebServerBase *parent_;
 };
+#endif
 
 }  // namespace web_server_base
 }  // namespace esphome
