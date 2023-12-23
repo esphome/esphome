@@ -1,9 +1,10 @@
-import colorama
+import json
 import os.path
 import re
 import subprocess
-import json
 from pathlib import Path
+
+import colorama
 
 root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
 basepath = os.path.join(root_path, "esphome")
@@ -44,7 +45,7 @@ def build_all_include():
     content = "\n".join(headers)
     p = Path(temp_header_file)
     p.parent.mkdir(exist_ok=True)
-    p.write_text(content)
+    p.write_text(content, encoding="utf-8")
 
 
 def walk_files(path):
@@ -54,14 +55,14 @@ def walk_files(path):
 
 
 def get_output(*args):
-    proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    output, err = proc.communicate()
+    with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+        output, _ = proc.communicate()
     return output.decode("utf-8")
 
 
 def get_err(*args):
-    proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    output, err = proc.communicate()
+    with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+        _, err = proc.communicate()
     return err.decode("utf-8")
 
 
@@ -78,7 +79,7 @@ def changed_files():
             merge_base = splitlines_no_ends(get_output(*command))[0]
             break
         # pylint: disable=bare-except
-        except:
+        except:  # noqa: E722
             pass
     else:
         raise ValueError("Git not configured")
@@ -103,7 +104,7 @@ def filter_changed(files):
 def filter_grep(files, value):
     matched = []
     for file in files:
-        with open(file) as handle:
+        with open(file, encoding="utf-8") as handle:
             contents = handle.read()
         if value in contents:
             matched.append(file)
@@ -114,8 +115,8 @@ def git_ls_files(patterns=None):
     command = ["git", "ls-files", "-s"]
     if patterns is not None:
         command.extend(patterns)
-    proc = subprocess.Popen(command, stdout=subprocess.PIPE)
-    output, err = proc.communicate()
+    with subprocess.Popen(command, stdout=subprocess.PIPE) as proc:
+        output, _ = proc.communicate()
     lines = [x.split() for x in output.decode("utf-8").splitlines()]
     return {s[3].strip(): int(s[0]) for s in lines}
 

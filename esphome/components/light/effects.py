@@ -58,6 +58,7 @@ from .types import (
 
 CONF_ADD_LED_INTERVAL = "add_led_interval"
 CONF_REVERSE = "reverse"
+CONF_GRADIENT = "gradient"
 CONF_MOVE_INTERVAL = "move_interval"
 CONF_SCAN_WIDTH = "scan_width"
 CONF_TWINKLE_PROBABILITY = "twinkle_probability"
@@ -386,6 +387,7 @@ async def addressable_rainbow_effect_to_code(config, effect_id):
                 cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
                 cv.Optional(CONF_RANDOM, default=False): cv.boolean,
                 cv.Required(CONF_NUM_LEDS): cv.All(cv.uint32_t, cv.Range(min=1)),
+                cv.Optional(CONF_GRADIENT, default=False): cv.boolean,
             }
         ),
         cv.Optional(
@@ -409,6 +411,7 @@ async def addressable_color_wipe_effect_to_code(config, effect_id):
                 ("w", int(round(color[CONF_WHITE] * 255))),
                 ("random", color[CONF_RANDOM]),
                 ("num_leds", color[CONF_NUM_LEDS]),
+                ("gradient", color[CONF_GRADIENT]),
             )
         )
     cg.add(var.set_colors(colors))
