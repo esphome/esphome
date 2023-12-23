@@ -6,8 +6,8 @@
 namespace esphome {
 namespace electra_rc3_ir {
 
-//using climate::ClimateMode;
-//using climate::ClimateFanMode;
+// using climate::ClimateMode;
+// using climate::ClimateFanMode;
 using remote_base::ElectraRC3Data;
 
 static const char *const TAG = "electra_rc3_ir.climate";
