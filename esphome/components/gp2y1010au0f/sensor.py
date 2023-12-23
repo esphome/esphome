@@ -35,7 +35,7 @@ CONFIG_SCHEMA = (
         {
             cv.Required(CONF_SENSOR): cv.use_id(voltage_sampler.VoltageSampler),
             cv.Optional(CONF_ADC_VOLTAGE_OFFSET, default=0.0): cv.float_,
-            cv.Optional(CONF_ADC_VOLTAGE_MULTIPLIER, default=3.3): cv.float_,
+            cv.Optional(CONF_ADC_VOLTAGE_MULTIPLIER, default=1.0): cv.float_,
             cv.Required(CONF_OUTPUT): cv.use_id(output.BinaryOutput),
         }
     )
