@@ -70,6 +70,9 @@ void TT21100Touchscreen::setup() {
       this->y_raw_max_ = this->display_->get_height_internal();
     }
   }
+
+  // Trigger initial read to activate the interrupt
+  this->store_.touched = true;
 }
 
 void TT21100Touchscreen::update_touches() {
