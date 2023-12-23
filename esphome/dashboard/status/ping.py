@@ -1,20 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-import os
+import logging
 from typing import cast
+
+from icmplib import Host, SocketPermissionError, async_ping
 
 from ..core import DASHBOARD
 from ..entries import DashboardEntry, bool_to_entry_state
 from ..util.itertools import chunked
-from ..util.subprocess import async_system_command_status
 
 
-async def _async_ping_host(host: str) -> bool:
-    """Ping a host."""
-    return await async_system_command_status(
-        ["ping", "-n" if os.name == "nt" else "-c", "1", host]
-    )
+_LOGGER = logging.getLogger(__name__)
 
 
 class PingStatus:
@@ -27,6 +24,10 @@ class PingStatus:
         """Run the ping status."""
         dashboard = DASHBOARD
         entries = dashboard.entries
+        privileged = await _can_use_icmp_lib_with_privilege()
+        if privileged is None:
+            _LOGGER.warning("Cannot use icmplib because privileges are insufficient")
+            return
 
         while not dashboard.stop_event.is_set():
             # Only ping if the dashboard is open
@@ -35,15 +36,43 @@ class PingStatus:
             to_ping: list[DashboardEntry] = [
                 entry for entry in current_entries if entry.address is not None
             ]
-            for ping_group in chunked(to_ping, 16):
+            # icmplib defaults to 50 pings at a time
+            for ping_group in chunked(to_ping, 50):
                 ping_group = cast(list[DashboardEntry], ping_group)
                 results = await asyncio.gather(
-                    *(_async_ping_host(entry.address) for entry in ping_group),
+                    *(
+                        async_ping(entry.address, privileged=privileged)
+                        for entry in ping_group
+                    ),
                     return_exceptions=True,
                 )
                 for entry, result in zip(ping_group, results):
                     if isinstance(result, Exception):
-                        result = False
+                        ping_result = False
                     elif isinstance(result, BaseException):
                         raise result
-                    entries.async_set_state(entry, bool_to_entry_state(result))
+                    else:
+                        host: Host = result
+                        ping_result = host.is_alive
+                    entries.async_set_state(entry, bool_to_entry_state(ping_result))
+
+
+async def _can_use_icmp_lib_with_privilege() -> None | bool:
+    """Verify we can create a raw socket."""
+    try:
+        await async_ping("127.0.0.1", count=0, timeout=0, privileged=True)
+    except SocketPermissionError:
+        try:
+            await async_ping("127.0.0.1", count=0, timeout=0, privileged=False)
+        except SocketPermissionError:
+            _LOGGER.debug(
+                "Cannot use icmplib because privileges are insufficient to create the"
+                " socket"
+            )
+            return None
+
+        _LOGGER.debug("Using icmplib in privileged=False mode")
+        return False
+
+    _LOGGER.debug("Using icmplib in privileged=True mode")
+    return True
