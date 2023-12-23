@@ -13,19 +13,19 @@ using remote_base::ElectraRC3Data;
 static const char *const TAG = "electra_rc3_ir.climate";
 
 using ElectraRC3Mode = enum ElectraRC3Mode {
-  ElectraRC3ModeCool = 0b001,
-  ElectraRC3ModeHeat = 0b010,
-  ElectraRC3ModeAuto = 0b011,
-  ElectraRC3ModeDry = 0b100,
-  ElectraRC3ModeFan = 0b101,
-  ElectraRC3ModeOff = 0b111
+  ELECTRA_RC3_MODE_COOL = 0b001,
+  ELECTRA_RC3_MODE_HEAT = 0b010,
+  ELECTRA_RC3_MODE_AUTO = 0b011,
+  ELECTRA_RC3_MODE_DRY = 0b100,
+  ELECTRA_RC3_MODE_FAN = 0b101,
+  ELECTRA_RC3_MODE_OFF = 0b111
 };
 
 using ElectraRC3Fan = enum ElectraRC3Fan {
-  ElectraRC3FanLow = 0b00,
-  ElectraRC3FanMedium = 0b01,
-  ElectraRC3FanHigh = 0b10,
-  ElectraRC3FanAuto = 0b11
+  ELECTRA_RC3_FAN_LOW = 0b00,
+  ELECTRA_RC3_FAN_MEDIUM = 0b01,
+  ELECTRA_RC3_FAN_HIGH = 0b10,
+  ELECTRA_RC3_FAN_AUTO = 0b11
 };
 
 // void ElectraRC3IR::control(const climate::ClimateCall &call) {
@@ -42,38 +42,38 @@ void ElectraRC3IR::transmit_state() {
 
   switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
-      data.fan = ElectraRC3Fan::ElectraRC3FanLow;
+      data.fan = ElectraRC3Fan::ELECTRA_RC3_FAN_LOW;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      data.fan = ElectraRC3Fan::ElectraRC3FanMedium;
+      data.fan = ElectraRC3Fan::ELECTRA_RC3_FAN_MEDIUM;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      data.fan = ElectraRC3Fan::ElectraRC3FanHigh;
+      data.fan = ElectraRC3Fan::ELECTRA_RC3_FAN_HIGH;
       break;
     default:
-      data.fan = ElectraRC3Fan::ElectraRC3FanAuto;
+      data.fan = ElectraRC3Fan::ELECTRA_RC3_FAN_AUTO;
       break;
   }
 
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
-      data.mode = ElectraRC3Mode::ElectraRC3ModeCool;
+      data.mode = ElectraRC3Mode::ELECTRA_RC3_MODE_COOL;
       break;
     case climate::CLIMATE_MODE_HEAT:
-      data.mode = ElectraRC3Mode::ElectraRC3ModeHeat;
+      data.mode = ElectraRC3Mode::ELECTRA_RC3_MODE_HEAT;
       break;
     case climate::CLIMATE_MODE_AUTO:
-      data.mode = ElectraRC3Mode::ElectraRC3ModeAuto;
+      data.mode = ElectraRC3Mode::ELECTRA_RC3_MODE_AUTO;
       break;
     case climate::CLIMATE_MODE_DRY:
-      data.mode = ElectraRC3Mode::ElectraRC3ModeDry;
+      data.mode = ElectraRC3Mode::ELECTRA_RC3_MODE_DRY;
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      data.mode = ElectraRC3Mode::ElectraRC3ModeFan;
+      data.mode = ElectraRC3Mode::ELECTRA_RC3_MODE_FAN;
       break;
     case climate::CLIMATE_MODE_OFF:
     default:
-      data.mode = ElectraRC3Mode::ElectraRC3ModeOff;
+      data.mode = ElectraRC3Mode::ELECTRA_RC3_MODE_OFF;
       break;
   }
 
