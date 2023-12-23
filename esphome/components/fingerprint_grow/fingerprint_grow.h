@@ -129,7 +129,7 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   }
   void add_on_finger_scan_misplaced_callback(std::function<void()> callback) {
     this->finger_scan_misplaced_callback_.add(std::move(callback));
-  }  
+  }
   void add_on_finger_scan_invalid_callback(std::function<void()> callback) {
     this->finger_scan_invalid_callback_.add(std::move(callback));
   }

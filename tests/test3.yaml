@@ -1260,7 +1260,7 @@ fingerprint_grow:
   new_password: 0xA65B9840
   on_finger_scan_start:
     - homeassistant.event:
-        event: esphome.${device_name}_fingerprint_grow_finger_scan_start  
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_start
   on_finger_scan_invalid:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_finger_scan_invalid

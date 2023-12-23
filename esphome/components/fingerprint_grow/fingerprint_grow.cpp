@@ -15,7 +15,7 @@ void FingerprintGrowComponent::update() {
     return;
   }
 
-  if (has_sensing_pin_) {
+  if (this->has_sensing_pin_) {
     if (sensing_pin_->digital_read()) {
       ESP_LOGV(TAG, "No touch sensing");
       this->waiting_removal_ = false;
@@ -26,7 +26,7 @@ void FingerprintGrowComponent::update() {
   }
 
   if (this->waiting_removal_) {
-    if ((!has_sensing_pin_) && (scan_image_(1) == NO_FINGER)) {
+    if ((!this->has_sensing_pin_) && (scan_image_(1) == NO_FINGER)) {
       ESP_LOGD(TAG, "Finger removed");
       this->waiting_removal_ = false;
     }
@@ -53,7 +53,7 @@ void FingerprintGrowComponent::update() {
 
 void FingerprintGrowComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Grow Fingerprint Reader...");
-  has_sensing_pin_ = (sensing_pin_ != nullptr);
+  this->has_sensing_pin_ = (this->sensing_pin_ != nullptr);
   if (this->check_password_()) {
     if (this->new_password_ != -1) {
       if (this->set_password_())
@@ -94,7 +94,7 @@ void FingerprintGrowComponent::finish_enrollment(uint8_t result) {
 }
 
 void FingerprintGrowComponent::scan_and_match_() {
-  if (has_sensing_pin_) {
+  if (this->has_sensing_pin_) {
     ESP_LOGD(TAG, "Scan and match");
   } else {
     ESP_LOGV(TAG, "Scan and match");
@@ -125,18 +125,18 @@ void FingerprintGrowComponent::scan_and_match_() {
 }
 
 uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
-  if (has_sensing_pin_) {
+  if (this->has_sensing_pin_) {
     ESP_LOGD(TAG, "Getting image %d", buffer);
   } else {
     ESP_LOGV(TAG, "Getting image %d", buffer);
   }
   this->data_ = {GET_IMAGE};
-  uint8_t send_result = send_command_();
+  uint8_t send_result = this->send_command_();
   switch (send_result) {
     case OK:
       break;
     case NO_FINGER:
-      if (has_sensing_pin_) {
+      if (this->has_sensing_pin_) {
         waiting_removal_ = true;
         ESP_LOGD(TAG, "Finger Misplaced");
         finger_scan_misplaced_callback_.call();
@@ -439,8 +439,8 @@ uint8_t FingerprintGrowComponent::send_command_() {
 
 void FingerprintGrowComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "GROW_FINGERPRINT_READER:");
-  ESP_LOGCONFIG(TAG, "  System Identifier Code: 0x%.4X", system_identifier_code_);
-  ESP_LOGCONFIG(TAG, "  Touch Sensing Pin: %s", has_sensing_pin_ ? sensing_pin_->dump_summary().c_str() : "None");
+  ESP_LOGCONFIG(TAG, "  System Identifier Code: 0x%.4X", this->system_identifier_code_);
+  ESP_LOGCONFIG(TAG, "  Touch Sensing Pin: %s", this->has_sensing_pin_ ? sensing_pin_->dump_summary().c_str() : "None");
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Fingerprint Count", fingerprint_count_sensor_);
   ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint16_t) fingerprint_count_sensor_->get_state());
