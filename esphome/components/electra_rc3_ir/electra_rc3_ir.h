@@ -27,7 +27,7 @@ class ElectraRC3IR : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
  private:
-  climate::ClimateMode current_mode{climate::ClimateMode::CLIMATE_MODE_OFF};
+  climate::ClimateMode current_mode_{climate::ClimateMode::CLIMATE_MODE_OFF};
 };
 
 }  // namespace electra_rc3_ir

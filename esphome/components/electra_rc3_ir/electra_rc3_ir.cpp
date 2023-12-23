@@ -6,27 +6,27 @@
 namespace esphome {
 namespace electra_rc3_ir {
 
-using climate::ClimateMode;
-using climate::ClimateFanMode;
+//using climate::ClimateMode;
+//using climate::ClimateFanMode;
 using remote_base::ElectraRC3Data;
 
 static const char *const TAG = "electra_rc3_ir.climate";
 
-typedef enum ElectraRC3Mode {
+using ElectraRC3Mode = enum ElectraRC3Mode {
   ElectraRC3ModeCool = 0b001,
   ElectraRC3ModeHeat = 0b010,
   ElectraRC3ModeAuto = 0b011,
   ElectraRC3ModeDry = 0b100,
   ElectraRC3ModeFan = 0b101,
   ElectraRC3ModeOff = 0b111
-} ElectraRC3Mode;
+};
 
-typedef enum ElectraRC3Fan {
+using ElectraRC3Fan = enum ElectraRC3Fan {
   ElectraRC3FanLow = 0b00,
   ElectraRC3FanMedium = 0b01,
   ElectraRC3FanHigh = 0b10,
   ElectraRC3FanAuto = 0b11
-} ElectraRC3Fan;
+};
 
 // void ElectraRC3IR::control(const climate::ClimateCall &call) {
 //   // swing and preset resets after unit powered off
@@ -78,9 +78,9 @@ void ElectraRC3IR::transmit_state() {
   }
 
   if (climate::CLIMATE_MODE_OFF != this->mode) {
-    data.power = (climate::CLIMATE_MODE_OFF == this->current_mode) ? 1 : 0;
+    data.power = (climate::CLIMATE_MODE_OFF == this->current_mode_) ? 1 : 0;
   }
-  this->current_mode = this->mode;
+  this->current_mode_ = this->mode;
 
   auto temp = (uint8_t) roundf(this->target_temperature);
 
