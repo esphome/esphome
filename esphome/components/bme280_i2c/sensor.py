@@ -5,7 +5,7 @@ from ..bme280_base.sensor import to_code as to_code_base, cv, CONFIG_SCHEMA_BASE
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["bme280_base"]
 
-bme280_ns = cg.esphome_ns.namespace("bme280")
+bme280_ns = cg.esphome_ns.namespace("bme280_i2c")
 BME280I2CComponent = bme280_ns.class_(
     "BME280I2CComponent", cg.PollingComponent, i2c.I2CDevice
 )

@@ -1,12 +1,12 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "bme280.h"
+#include "bme280_i2c.h"
 #include "esphome/components/i2c/i2c.h"
 #include "../bme280_base/bme280_base.h"
 
 namespace esphome {
-namespace bme280 {
+namespace bme280_i2c {
 
 bool BME280I2CComponent::read_byte(uint8_t a_register, uint8_t *data) {
   return I2CDevice::read_byte(a_register, data);
@@ -26,5 +26,5 @@ void BME280I2CComponent::dump_config() {
   BME280Component::dump_config();
 }
 
-}  // namespace bme280
+}  // namespace bme280_i2c
 }  // namespace esphome

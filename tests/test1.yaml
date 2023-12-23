@@ -688,7 +688,7 @@ sensor:
     update_interval: 30s
     mode: low_power
     i2c_id: i2c_bus
-  - platform: bme280
+  - platform: bme280_i2c
     temperature:
       name: Outside Temperature
       oversampling: 16x
