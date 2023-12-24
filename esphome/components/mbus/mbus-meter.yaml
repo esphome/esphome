@@ -27,10 +27,5 @@ uart:
   rx_pin: ${rx_pin}
   stop_bits: 1
   tx_pin: ${tx_pin}
-  # debug:
-  #   direction: BOTH
-  #   dummy_receiver: false
-  #   after:
-  #     bytes: 1
 
 mbus:
