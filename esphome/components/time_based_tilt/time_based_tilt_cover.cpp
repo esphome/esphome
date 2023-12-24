@@ -197,6 +197,7 @@ CoverTraits TimeBasedTiltCover::get_traits() {
   traits.set_supports_position(true);
   traits.set_supports_tilt(this->tilt_close_duration_ !=0 && this->tilt_open_duration_ !=0);
   traits.set_supports_toggle(true);
+  traits.set_supports_stop(true);
   traits.set_is_assumed_state(this->assumed_state_);
   return traits;
 }
