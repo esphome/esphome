@@ -177,6 +177,18 @@ jobs:
           - ubuntu-latest
           - macOS-latest
           - windows-latest
+        exclude:
+          # Minimize CI resource usage
+          # by only running the latest Python version
+          # on Windows and macOS
+          - python-version: "3.10"
+            os: windows-latest
+          - python-version: "3.9"
+            os: windows-latest
+          - python-version: "3.10"
+            os: macOS-latest
+          - python-version: "3.9"
+            os: macOS-latest            
     runs-on: ${{ matrix.os }}
     needs:
       - common
