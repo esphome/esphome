@@ -194,12 +194,12 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           venv\Scripts\Activate.ps1
-          pytest -vv --tb=native tests
+          pytest -vv --cov-report=xml --tb=native tests
       - name: Run pytest
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
         run: |
           . venv/bin/activate
-          pytest -vv --tb=native tests          
+          pytest -vv --cov-report=xml --tb=native tests          
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
