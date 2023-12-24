@@ -44,9 +44,7 @@ void SPIST7567::command(uint8_t value) {
 }
 
 void HOT SPIST7567::write_display_data() {
-  ESP_LOGD(TAG, "write_display_data()");
-
-  this->command(esphome::st7567_base::ST7567_SET_START_LINE);
+  this->command(esphome::st7567_base::ST7567_SET_START_LINE + this->start_line_);
   for (uint8_t y = 0; y < (uint8_t) this->get_height_internal() / 8; y++) {
     this->dc_pin_->digital_write(false);
     this->command(esphome::st7567_base::ST7567_PAGE_ADDR + y);  // Set Page

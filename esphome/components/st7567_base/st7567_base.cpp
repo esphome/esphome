@@ -14,7 +14,13 @@ void ST7567::setup() {
 
 void ST7567::display_init_() {
   ESP_LOGD(TAG, "Initializing ST7567 display...");
+  this->display_init_registers_();
+  this->clear();
+  this->write_display_data();
+  this->command(ST7567_DISPLAY_ON);
+}
 
+void ST7567::display_init_registers_() {
   this->command(ST7567_BIAS_9);
   this->command(this->mirror_x_ ? ST7567_SEG_REVERSE : ST7567_SEG_NORMAL);
   this->command(this->mirror_y_ ? ST7567_COM_NORMAL : ST7567_COM_REMAP);
@@ -22,9 +28,6 @@ void ST7567::display_init_() {
   this->command(ST7567_POWER_CTL | 0x6);
   this->command(ST7567_POWER_CTL | 0x7);
 
-  //********Adjust display brightness********
-  // this->command(0x25);  // 0x20-0x27 is the internal Rb/Ra resistance
-  //                       // adjustment setting of V5 voltage RR=4.5V
   this->set_brightness(this->brightness_);
   this->set_contrast(this->contrast_);
 
@@ -35,22 +38,32 @@ void ST7567::display_init_() {
   this->command(ST7567_POWER_ON);
 
   this->command(ST7567_SCAN_START_LINE);
-  this->command(ST7567_DISPLAY_NORMAL);
+  this->command(ST7567_PIXELS_NORMAL | this->all_pixels_on_);
+}
 
-  this->clear();
-  this->write_display_data();
+void ST7567::display_sw_refresh_() {
+  ESP_LOGD(TAG, "Performing refresh sequence...");
+  this->command(ST7567_SW_REFRESH);
+  this->display_init_registers_();
+}
 
-  this->command(ST7567_DISPLAY_ON);
+void ST7567::request_refresh() {
+  // as per datasheet: It is recommended to use the refresh sequence regularly in a specified interval.
+  this->refresh_requested_ = true;
 }
 
 void ST7567::update() {
   this->do_update_();
+  if (this->refresh_requested_) {
+    this->refresh_requested_ = false;
+    this->display_sw_refresh_();
+  }
   this->write_display_data();
 }
 
 void ST7567::set_all_pixels_on(bool enable) {
   this->all_pixels_on_ = enable;
-  this->command(ST7567_DISPLAY_NORMAL | this->all_pixels_on_);
+  this->command(ST7567_PIXELS_NORMAL | this->all_pixels_on_);
 }
 
 void ST7567::set_invert(bool invert) {
@@ -93,10 +106,7 @@ void ST7567::turn_off() {
   this->is_on_ = false;
 }
 
-void ST7567::set_scroll(uint8_t line) {
-  this->start_line_ = line % this->get_height_internal();
-  this->command(esphome::st7567_base::ST7567_SET_START_LINE + this->start_line_);
-}
+void ST7567::set_scroll(uint8_t line) { this->start_line_ = line % this->get_height_internal(); }
 
 int ST7567::get_width_internal() { return 128; }
 
@@ -141,6 +151,7 @@ void ST7567::init_reset_() {
     this->reset_pin_->digital_write(true);
   }
 }
+
 const char *ST7567::model_str_() { return "ST7567 128x64"; }
 
 }  // namespace st7567_base

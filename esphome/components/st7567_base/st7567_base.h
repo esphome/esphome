@@ -19,8 +19,8 @@ static const uint8_t ST7567_SEG_NORMAL = 0xA0;       //
 static const uint8_t ST7567_SEG_REVERSE = 0xA1;      // mirror X axis (horizontal)
 static const uint8_t ST7567_COM_NORMAL = 0xC0;       //
 static const uint8_t ST7567_COM_REMAP = 0xC8;        // mirror Y axis (vertical)
-static const uint8_t ST7567_DISPLAY_NORMAL = 0xA4;   // display ram content
-static const uint8_t ST7567_DISPLAY_ALL_ON = 0xA5;   // all pixels on
+static const uint8_t ST7567_PIXELS_NORMAL = 0xA4;    // display ram content
+static const uint8_t ST7567_PIXELS_ALL_ON = 0xA5;    // all pixels on
 static const uint8_t ST7567_INVERT_OFF = 0xA6;       // normal pixels
 static const uint8_t ST7567_INVERT_ON = 0xA7;        // inverted pixels
 static const uint8_t ST7567_SCAN_START_LINE = 0x40;  // scrolling = 0x40 + (0..63)
@@ -32,6 +32,7 @@ static const uint8_t ST7567_CONTRAST = 0x80;  // 0x80 + (0..31)
 static const uint8_t ST7567_SET_EV_CMD = 0x81;
 static const uint8_t ST7567_SET_EV_PARAM = 0x00;
 static const uint8_t ST7567_RESISTOR_RATIO = 0x20;
+static const uint8_t ST7567_SW_REFRESH = 0xE2;
 
 class ST7567 : public display::DisplayBuffer {
  public:
@@ -54,6 +55,9 @@ class ST7567 : public display::DisplayBuffer {
   void turn_on();
   void turn_off();
 
+  void request_refresh();  // from datasheet: It is recommended to use the refresh sequence regularly in a specified
+                           // interval.
+
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
   void fill(Color color) override;
 
@@ -65,6 +69,8 @@ class ST7567 : public display::DisplayBuffer {
 
   void init_reset_();
   void display_init_();
+  void display_init_registers_();
+  void display_sw_refresh_();
 
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
@@ -87,6 +93,7 @@ class ST7567 : public display::DisplayBuffer {
   bool invert_{false};
   bool all_pixels_on_{false};
   uint8_t start_line_{0};
+  bool refresh_requested_{false};
 };
 
 }  // namespace st7567_base
