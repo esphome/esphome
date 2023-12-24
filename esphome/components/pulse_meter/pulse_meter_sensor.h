@@ -66,11 +66,13 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   union FilterState {
     /// Filter state for edge mode
     struct Edge {
+      Edge() {}
       uint32_t last_sent_edge_us_ = 0;
     };
     Edge edge_;
     /// Filter state for pulse mode
     struct Pulse {
+      Pulse() {}
       uint32_t last_intr_ = 0;
       bool latched_ = false;
       bool last_pin_val_ = false;
