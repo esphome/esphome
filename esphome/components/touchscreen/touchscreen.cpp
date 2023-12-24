@@ -47,9 +47,11 @@ void Touchscreen::loop() {
     } else {
       this->store_.touched = false;
       this->defer([this]() { this->send_touches_(); });
-      // Simulate a touch after 250ms. This will reset any existing timeout operation.
-      // This is to detect touch release.
-      this->set_timeout(TAG, 250, [this]() { this->store_.touched = true; });
+      if (this->touch_timeout_ > 0) {
+        // Simulate a touch after <this->touch_timeout_> ms. This will reset any existing timeout operation.
+        // This is to detect touch release.
+        this->set_timeout(TAG, this->touch_timeout_, [this]() { this->store_.touched = true; });
+      }
     }
   }
 }
@@ -93,7 +95,9 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
 
 void Touchscreen::send_touches_() {
   if (!this->is_touched_) {
-    this->cancel_timeout(TAG);
+    if (this->touch_timeout_ > 0) {
+      this->cancel_timeout(TAG);
+    }
     this->release_trigger_.trigger();
     for (auto *listener : this->touch_listeners_)
       listener->release();
