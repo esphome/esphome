@@ -50,7 +50,7 @@ RUN \
           libssl-dev=3.0.11-1~deb12u2 \
           libffi-dev=3.4.4-1 \
           libopenjp2-7=2.5.0-2 \
-          libtiff6=4.5.0-6 \
+          libtiff6=4.5.0-6+deb12u1 \
           cargo=0.66.0+ds1-1 \
           pkg-config=1.8.1-1 \
           gcc-arm-linux-gnueabihf=4:12.2.0-3; \
