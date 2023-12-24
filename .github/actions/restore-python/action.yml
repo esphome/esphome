@@ -41,7 +41,7 @@ runs:
       shell: bash
       run: |
         python -m venv venv
-        venv\Scripts\Activate.ps1
+        .\Scripts\activate
         python --version
         pip install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
         pip install -e .

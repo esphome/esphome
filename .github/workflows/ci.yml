@@ -193,7 +193,7 @@ jobs:
       - name: Run pytest
         if: matrix.os == 'windows-latest'
         run: |
-          venv\Scripts\Activate.ps1
+          .\Scripts\activate
           pytest -vv --cov-report=xml --tb=native tests
       - name: Run pytest
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
