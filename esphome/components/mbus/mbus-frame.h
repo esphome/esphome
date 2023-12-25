@@ -8,27 +8,6 @@ namespace mbus {
 
 #define MBUS_FRAME_DATA_LENGTH 252
 
-//
-// Frame start/stop bits
-//
-#define MBUS_FRAME_ACK_START 0xE5
-#define MBUS_FRAME_SHORT_START 0x10
-#define MBUS_FRAME_CONTROL_START 0x68
-#define MBUS_FRAME_LONG_START 0x68
-#define MBUS_FRAME_STOP 0x16
-
-//
-// Frame base sizes
-//
-
-class MBusFrameBaseSize {
- public:
-  static const uint8_t ACK_SIZE = 1;
-  static const uint8_t SHORT_SIZE = 5;
-  static const uint8_t CONTROL_SIZE = 9;
-  static const uint8_t LONG_SIZE = 9;
-};
-
 enum MBusFrameType {
   MBUS_FRAME_TYPE_ACK = 0x01,
   MBUS_FRAME_TYPE_SHORT = 0x02,
@@ -77,7 +56,7 @@ class MBusFrame {
 
   // mbus_frame_data frame_data;
 
-  void *next;  // pointer to next mbus_frame for multi-telegram replies
+  // void *next;  // pointer to next mbus_frame for multi-telegram replies
 
   MBusFrame(MBusFrameType frame_type);
   static uint8_t serialize(MBusFrame &frame, std::vector<uint8_t> &buffer);

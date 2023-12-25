@@ -3,33 +3,40 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "mbus-frame.h"
+#include "mbus-protocol-handler.h"
 
 namespace esphome {
 namespace mbus {
 
-#define MBUS_RX_TIMEOUT 100
-
 class MBus : public uart::UARTDevice, public Component {
  public:
-  MBus() = default;
-
   void setup() override;
-
   void loop() override;
-
   void dump_config() override;
-
   float get_setup_priority() const override;
+
+  MBus() {
+    this->_serialAdapter = new SerialAdapter(this);
+    this->_protocol_handler = new MBusProtocolHandler(this->_serialAdapter);
+  }
+  ~MBus() {
+    if (this->_serialAdapter != nullptr) {
+      delete this->_serialAdapter;
+      this->_serialAdapter = nullptr;
+    }
+    if (this->_protocol_handler != nullptr) {
+      delete this->_protocol_handler;
+      this->_protocol_handler = nullptr;
+    }
+  }
 
  protected:
   void scan_primary_addresses();
-  uint8_t scan_primary_address(uint8_t primary_address);
+  int8_t scan_primary_address(uint8_t primary_address);
 
-  uint8_t send(MBusFrame &frame);
-  std::vector<uint8_t> rx_buffer;
-  bool _waiting_for_response{false};
-  uint32_t last_send_time{0};
-  uint32_t start_time{0};
+  MBusProtocolHandler *_protocol_handler{nullptr};
+  SerialAdapter *_serialAdapter{nullptr};
+  uint32_t _start_time{0};
 };
 
 }  // namespace mbus

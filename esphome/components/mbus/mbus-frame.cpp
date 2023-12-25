@@ -1,5 +1,6 @@
-#include "mbus-frame.h"
 #include "esphome/core/log.h"
+#include "mbus-frame.h"
+#include "mbus-frame-meta.h"
 
 namespace esphome {
 namespace mbus {
@@ -10,25 +11,24 @@ MBusFrame::MBusFrame(MBusFrameType frame_type) {
   this->frame_type = frame_type;
   switch (frame_type) {
     case MBUS_FRAME_TYPE_ACK:
-      this->start = MBUS_FRAME_ACK_START;
-      this->length = 0;
+      this->start = MBusFrameDefinition::ACK_FRAME.start_bit;
       break;
 
     case MBUS_FRAME_TYPE_SHORT:
-      this->start = MBUS_FRAME_SHORT_START;
-      this->length = 0;
-      this->stop = MBUS_FRAME_STOP;
+      this->start = MBusFrameDefinition::SHORT_FRAME.start_bit;
+      this->stop = MBusFrameDefinition::SHORT_FRAME.stop_bit;
       break;
 
     case MBUS_FRAME_TYPE_CONTROL:
-      this->start = MBUS_FRAME_CONTROL_START;
-      this->length = 3;
-      this->stop = MBUS_FRAME_STOP;
+      this->start = MBusFrameDefinition::CONTROL_FRAME.start_bit;
+      this->length = MBusFrameDefinition::CONTROL_FRAME.lenght;
+      this->stop = MBusFrameDefinition::CONTROL_FRAME.stop_bit;
       break;
 
     case MBUS_FRAME_TYPE_LONG:
-      this->start = MBUS_FRAME_LONG_START;
-      this->stop = MBUS_FRAME_STOP;
+      this->start = MBusFrameDefinition::LONG_FRAME.start_bit;
+      this->length = MBusFrameDefinition::LONG_FRAME.lenght;
+      this->stop = MBusFrameDefinition::LONG_FRAME.stop_bit;
       break;
   }
 }
@@ -42,9 +42,9 @@ uint8_t MBusFrame::serialize(MBusFrame &frame, std::vector<uint8_t> &buffer) {
   switch (frame.frame_type) {
     case MBUS_FRAME_TYPE_ACK:
 
-      if (buffer_size < MBusFrameBaseSize::ACK_SIZE) {
+      if (buffer_size < MBusFrameDefinition::ACK_FRAME.base_frame_size) {
         ESP_LOGE(TAG, "serialize(): buffer size to low. Buffer size = %d ACK Frame Size = %d", buffer_size,
-                 MBusFrameBaseSize::ACK_SIZE);
+                 MBusFrameDefinition::ACK_FRAME.base_frame_size);
         return -1;
       }
 
@@ -53,9 +53,9 @@ uint8_t MBusFrame::serialize(MBusFrame &frame, std::vector<uint8_t> &buffer) {
 
     case MBUS_FRAME_TYPE_SHORT:
 
-      if (buffer_size < MBusFrameBaseSize::SHORT_SIZE) {
+      if (buffer_size < MBusFrameDefinition::SHORT_FRAME.base_frame_size) {
         ESP_LOGE(TAG, "serialize(): buffer size to low. Buffer size = %d SHORT Frame Size = %d", buffer_size,
-                 MBusFrameBaseSize::SHORT_SIZE);
+                 MBusFrameDefinition::SHORT_FRAME.base_frame_size);
         return -1;
       }
 
@@ -69,9 +69,9 @@ uint8_t MBusFrame::serialize(MBusFrame &frame, std::vector<uint8_t> &buffer) {
 
     case MBUS_FRAME_TYPE_CONTROL:
 
-      if (buffer_size < MBusFrameBaseSize::CONTROL_SIZE) {
+      if (buffer_size < MBusFrameDefinition::CONTROL_FRAME.base_frame_size) {
         ESP_LOGE(TAG, "serialize(): buffer size to low. Buffer size = %d CONTROL Frame Size = %d", buffer_size,
-                 MBusFrameBaseSize::CONTROL_SIZE);
+                 MBusFrameDefinition::CONTROL_FRAME.base_frame_size);
         return -1;
       }
 
