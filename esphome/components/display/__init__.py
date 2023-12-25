@@ -18,8 +18,8 @@ from esphome.core import coroutine_with_priority
 IS_PLATFORM_COMPONENT = True
 
 display_ns = cg.esphome_ns.namespace("display")
-Display = display_ns.class_("Display")
-DisplayBuffer = display_ns.class_("DisplayBuffer")
+Display = display_ns.class_("Display", cg.PollingComponent)
+DisplayBuffer = display_ns.class_("DisplayBuffer", Display)
 DisplayPage = display_ns.class_("DisplayPage")
 DisplayPagePtr = DisplayPage.operator("ptr")
 DisplayRef = Display.operator("ref")
@@ -58,7 +58,7 @@ BASIC_DISPLAY_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_LAMBDA): cv.lambda_,
     }
-)
+).extend(cv.polling_component_schema("1s"))
 
 FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
     {
@@ -116,6 +116,7 @@ async def setup_display_core_(var, config):
 
 
 async def register_display(var, config):
+    await cg.register_component(var, config)
     await setup_display_core_(var, config)
 
 

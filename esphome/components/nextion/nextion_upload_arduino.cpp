@@ -15,7 +15,7 @@
 
 namespace esphome {
 namespace nextion {
-static const char *const TAG = "nextion_upload";
+static const char *const TAG = "nextion.upload.arduino";
 
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
@@ -41,7 +41,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
   http->setRedirectLimit(3);
 #endif
-#endif
+#endif  // USE_ESP8266
 
   char range_header[64];
   sprintf(range_header, "bytes=%d-%d", range_start, range_end);
@@ -62,6 +62,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
     ++tries;
     if (!begin_status) {
       ESP_LOGD(TAG, "upload_by_chunks_: connection failed");
+      delay(500);  // NOLINT
       continue;
     }
 
@@ -84,10 +85,10 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
 
   std::string recv_string;
   size_t size = 0;
-  int sent = 0;
+  int fetched = 0;
   int range = range_end - range_start;
 
-  while (sent < range) {
+  while (fetched < range) {
     size = http->getStreamPtr()->available();
     if (!size) {
       App.feed_wdt();
@@ -95,28 +96,38 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
       continue;
     }
     int c = http->getStreamPtr()->readBytes(
-        &this->transfer_buffer_[sent], ((size > this->transfer_buffer_size_) ? this->transfer_buffer_size_ : size));
-    sent += c;
+        &this->transfer_buffer_[fetched], ((size > this->transfer_buffer_size_) ? this->transfer_buffer_size_ : size));
+    fetched += c;
   }
   http->end();
-  ESP_LOGN(TAG, "this->content_length_ %d sent %d", this->content_length_, sent);
+  ESP_LOGN(TAG, "Fetched %d of %d bytes", fetched, this->content_length_);
+
+  // upload fetched segments to the display in 4KB chunks
+  int write_len;
   for (int i = 0; i < range; i += 4096) {
-    this->write_array(&this->transfer_buffer_[i], 4096);
-    this->content_length_ -= 4096;
-    ESP_LOGN(TAG, "this->content_length_ %d range %d range_end %d range_start %d", this->content_length_, range,
-             range_end, range_start);
+    App.feed_wdt();
+    write_len = this->content_length_ < 4096 ? this->content_length_ : 4096;
+    this->write_array(&this->transfer_buffer_[i], write_len);
+    this->content_length_ -= write_len;
+    ESP_LOGD(TAG, "Uploaded %0.2f %%; %d bytes remaining",
+             100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_);
 
     if (!this->upload_first_chunk_sent_) {
       this->upload_first_chunk_sent_ = true;
       delay(500);  // NOLINT
-      App.feed_wdt();
     }
 
-    this->recv_ret_string_(recv_string, 2048, true);
-    if (recv_string[0] == 0x08) {
+    this->recv_ret_string_(recv_string, 4096, true);
+    if (recv_string[0] != 0x05) {  // 0x05 == "ok"
+      ESP_LOGD(TAG, "recv_string [%s]",
+               format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
+    }
+
+    // handle partial upload request
+    if (recv_string[0] == 0x08 && recv_string.size() == 5) {
       uint32_t result = 0;
-      for (int i = 0; i < 4; ++i) {
-        result += static_cast<uint8_t>(recv_string[i + 1]) << (8 * i);
+      for (int j = 0; j < 4; ++j) {
+        result += static_cast<uint8_t>(recv_string[j + 1]) << (8 * j);
       }
       if (result > 0) {
         ESP_LOGD(TAG, "Nextion reported new range %d", result);
@@ -126,10 +137,14 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
     }
     recv_string.clear();
   }
+
   return range_end + 1;
 }
 
 bool Nextion::upload_tft() {
+  ESP_LOGD(TAG, "Nextion TFT upload requested");
+  ESP_LOGD(TAG, "URL: %s", this->tft_url_.c_str());
+
   if (this->is_updating_) {
     ESP_LOGD(TAG, "Currently updating");
     return false;
@@ -162,7 +177,7 @@ bool Nextion::upload_tft() {
 
   if (!begin_status) {
     this->is_updating_ = false;
-    ESP_LOGD(TAG, "connection failed");
+    ESP_LOGD(TAG, "Connection failed");
     ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
     allocator.deallocate(this->transfer_buffer_, this->transfer_buffer_size_);
     return false;
@@ -237,7 +252,9 @@ bool Nextion::upload_tft() {
   this->recv_ret_string_(response, 2000, true);  // This can take some time to return
 
   // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
-  ESP_LOGD(TAG, "Upgrade response is %s %zu", response.c_str(), response.length());
+  ESP_LOGD(TAG, "Upgrade response is [%s] - %zu bytes",
+           format_hex_pretty(reinterpret_cast<const uint8_t *>(response.data()), response.size()).c_str(),
+           response.length());
 
   for (size_t i = 0; i < response.length(); i++) {
     ESP_LOGD(TAG, "Available %d : 0x%02X", i, response[i]);
@@ -256,17 +273,17 @@ bool Nextion::upload_tft() {
   if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) > 0) {
     chunk_size = this->content_length_;
   } else {
-    if (ESP.getFreeHeap() > 40960) {  // 32K to keep on hand
-      int chunk = int((ESP.getFreeHeap() - 32768) / 4096);
-      chunk_size = chunk * 4096;
+    if (ESP.getFreeHeap() > 81920) {  // Ensure some FreeHeap to other things and limit chunk size
+      chunk_size = ESP.getFreeHeap() - 65536;
+      chunk_size = int(chunk_size / 4096) * 4096;
       chunk_size = chunk_size > 65536 ? 65536 : chunk_size;
-    } else if (ESP.getFreeHeap() < 10240) {
+    } else if (ESP.getFreeHeap() < 32768) {
       chunk_size = 4096;
     }
   }
 #else
   // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-  uint32_t chunk_size = ESP.getFreeHeap() < 10240 ? 4096 : 8192;
+  uint32_t chunk_size = ESP.getFreeHeap() < 16384 ? 4096 : 8192;
 #endif
 
   if (this->transfer_buffer_ == nullptr) {
