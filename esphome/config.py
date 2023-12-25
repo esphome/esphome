@@ -15,6 +15,7 @@ from esphome import core, yaml_util, loader, pins
 import esphome.core.config as core_config
 from esphome.const import (
     CONF_ESPHOME,
+    CONF_EXTENSIONS,
     CONF_ID,
     CONF_PLATFORM,
     CONF_PACKAGES,
@@ -778,6 +779,8 @@ def validate_config(config, command_line_substitutions) -> Config:
     except vol.Invalid as err:
         result.add_error(err)
 
+    CORE.raw_config = config
+
     # 1.2. Load external_components
     if CONF_EXTERNAL_COMPONENTS in config:
         from esphome.components.external_components import do_external_components_pass
@@ -789,6 +792,20 @@ def validate_config(config, command_line_substitutions) -> Config:
             result.update(config)
             result.add_error(err)
             return result
+
+    # 2. Process object extensions
+    if CONF_EXTENSIONS in config:
+        from esphome.components.extensions import do_extensions_pass
+
+        result.add_output_path([CONF_EXTENSIONS], CONF_EXTENSIONS)
+        try:
+            config = do_extensions_pass(config)
+        except vol.Invalid as err:
+            result.update(config)
+            result.add_error(err)
+            return result
+
+    CORE.raw_config = config
 
     if "esphomeyaml" in config:
         _LOGGER.warning(
