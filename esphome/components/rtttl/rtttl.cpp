@@ -281,9 +281,9 @@ void Rtttl::loop() {
     this->samples_sent_ = 0;
     this->samples_gap_ = 0;
     this->samples_per_wave_ = 0;
-    this->samples_count_ = (this->sample_rate_ * this->note_duration_) / 1000;  //(ms);
+    this->samples_count_ = (this->sample_rate_ * this->note_duration_) / 1600;  //(ms);
     if (need_note_gap) {
-      this->samples_gap_ = (this->sample_rate_ * DOUBLE_NOTE_GAP_MS) / 1000;  //(ms);
+      this->samples_gap_ = (this->sample_rate_ * DOUBLE_NOTE_GAP_MS) / 1600;  //(ms);
     }
     if (this->output_freq_ != 0) {
       this->samples_per_wave_ = (this->sample_rate_ << 10) / this->output_freq_;
