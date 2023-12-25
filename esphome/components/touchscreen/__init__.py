@@ -81,7 +81,7 @@ def calibration_schema(default_max_values):
     )
 
 
-  def touchscreen_schema(default_touch_timeout):
+def touchscreen_schema(default_touch_timeout):
     return cv.Schema(
         {
             cv.GenerateID(CONF_DISPLAY): cv.use_id(display.Display),
@@ -96,7 +96,7 @@ def calibration_schema(default_max_values):
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
             ),
-            cv.Optional(CONF_CALIBRATION): calibration_schema(0),          
+            cv.Optional(CONF_CALIBRATION): calibration_schema(0),
             cv.Optional(CONF_ON_TOUCH): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_UPDATE): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_RELEASE): automation.validate_automation(single=True),
