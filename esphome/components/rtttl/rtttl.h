@@ -15,7 +15,7 @@ namespace esphome {
 namespace rtttl {
 
 #ifdef USE_SPEAKER
-static const size_t SAMPLE_BUFFER_SIZE = 256;
+static const size_t SAMPLE_BUFFER_SIZE = 512;
 
 struct SpeakerSample {
   int16_t left{0};
