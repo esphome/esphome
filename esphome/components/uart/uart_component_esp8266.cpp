@@ -105,8 +105,8 @@ void ESP8266UartComponent::load_settings(bool dump_config) {
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
   } else {
-    this->sw_serial_->setup(this->tx_pin_, this->rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_, this->parity_,
-                            this->rx_buffer_size_);
+    this->sw_serial_->setup(this->tx_pin_, this->rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_,
+                            this->parity_, this->rx_buffer_size_);
   }
   if (dump_config) {
     ESP_LOGCONFIG(TAG, "UART bus was reloaded.");
