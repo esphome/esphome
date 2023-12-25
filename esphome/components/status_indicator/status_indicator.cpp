@@ -68,21 +68,8 @@ void StatusIndicator::loop() {
   } else if (this->status_.on_error == 1) {
     status = "on_clear_app_error";
     this->status_.on_error = 0;
-  } else if ((App.get_app_state() & STATUS_LED_WARNING) != 0u) {
-    status = "on_app_warning";
-    this->status_.on_warning = 1;
-  } else if (this->status_.on_warning == 1) {
-    status = "on_clear_app_warning";
-    this->status_.on_warning = 0;
   }
-  if (this->current_trigger_ != nullptr) {
-    if (this->current_trigger_->is_action_running()) {
-      if (status.empty()) {
-        return;
-      }
-      this->current_trigger_->stop_action();
-    }
-  }
+
   if (has_network()) {
 #ifdef USE_WIFI
     if (status.empty() && wifi::global_wifi_component->is_ap_enabled()) {
@@ -121,7 +108,18 @@ void StatusIndicator::loop() {
     }
 #endif
   }
+  if (status.empty() && (App.get_app_state() & STATUS_LED_WARNING) != 0u) {
+    status = "on_app_warning";
+    this->status_.on_warning = 1;
+  } else if (this->status_.on_warning == 1) {
+    status = "on_clear_app_warning";
+    this->status_.on_warning = 0;
+  }
+
   if (this->current_status_ != status) {
+    if (this->current_trigger_ != nullptr and this->current_trigger_->is_action_running() and !status.empty()) {
+      this->current_trigger_->stop_action();
+    }
     StatusTrigger *oldtrigger = this->current_trigger_;
 
     if (!status.empty() && this->triggers_.count(status) == 1) {
