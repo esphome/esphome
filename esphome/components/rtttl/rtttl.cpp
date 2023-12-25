@@ -144,7 +144,6 @@ void Rtttl::loop() {
         } else {
           sample[x].left = 0;
           sample[x].right = 0;
-          rem = 0.0;
         }
 
         if (x >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
@@ -289,7 +288,7 @@ void Rtttl::loop() {
       this->samples_per_wave_ = (this->sample_rate_ << 10) / this->output_freq_;
 
       // make sure there is enough samples to add a full last sinus.
-      uint16_t devision = floor((this->samples_count_ << 10) / this->samples_per_wave_) + 1;
+      uint16_t devision = ((this->samples_count_ << 10) / this->samples_per_wave_) + 1;
       uint16_t x = this->samples_count_;
       this->samples_count_ = (devision * this->samples_per_wave_);
       ESP_LOGD(TAG, "play time old: %d div: %d new: %d %d", x, devision, this->samples_count_, this->samples_per_wave_);
