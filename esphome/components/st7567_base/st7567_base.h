@@ -43,13 +43,13 @@ class ST7567 : public display::DisplayBuffer {
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void init_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
   void init_mirror_y(bool mirror_y) { this->mirror_y_ = mirror_y; }
-  void init_invert(bool invert) { this->invert_ = invert; }
-  void set_invert(bool invert);
+  void init_invert_colors(bool invert_colors) { this->invert_colors_ = invert_colors; }
 
-  void set_contrast(uint8_t val);    // 0..63, 27-30 normal
-  void set_brightness(uint8_t val);  // 0..7, 5 normal
-  void set_all_pixels_on(bool enable);
-  void set_scroll(uint8_t line);
+  void set_invert_colors(bool invert_colors);  // inversion of screen colors
+  void set_contrast(uint8_t val);              // 0..63, 27-30 normal
+  void set_brightness(uint8_t val);            // 0..7, 5 normal
+  void set_all_pixels_on(bool enable);         // turn on all pixels, this doesn't affect RAM
+  void set_scroll(uint8_t line);               // set display start line: for screen scrolling w/o affecting RAM
 
   bool is_on();
   void turn_on();
@@ -90,7 +90,7 @@ class ST7567 : public display::DisplayBuffer {
   uint8_t brightness_{5};
   bool mirror_x_{true};
   bool mirror_y_{true};
-  bool invert_{false};
+  bool invert_colors_{false};
   bool all_pixels_on_{false};
   uint8_t start_line_{0};
   bool refresh_requested_{false};

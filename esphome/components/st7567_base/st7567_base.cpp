@@ -31,7 +31,7 @@ void ST7567::display_init_registers_() {
   this->set_brightness(this->brightness_);
   this->set_contrast(this->contrast_);
 
-  this->command(ST7567_INVERT_OFF | this->invert_);
+  this->command(ST7567_INVERT_OFF | this->invert_colors_);
 
   this->command(ST7567_BOOSTER_ON);
   this->command(ST7567_REGULATOR_ON);
@@ -66,9 +66,9 @@ void ST7567::set_all_pixels_on(bool enable) {
   this->command(ST7567_PIXELS_NORMAL | this->all_pixels_on_);
 }
 
-void ST7567::set_invert(bool invert) {
-  this->invert_ = invert;
-  this->command(ST7567_INVERT_OFF | this->invert_);
+void ST7567::set_invert_colors(bool invert_colors) {
+  this->invert_colors_ = invert_colors;
+  this->command(ST7567_INVERT_OFF | this->invert_colors_);
 }
 
 void ST7567::set_contrast(uint8_t val) {

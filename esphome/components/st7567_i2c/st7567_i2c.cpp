@@ -26,7 +26,7 @@ void I2CST7567::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  Mirror X: %s", YESNO(this->mirror_x_));
   ESP_LOGCONFIG(TAG, "  Mirror Y: %s", YESNO(this->mirror_y_));
-  ESP_LOGCONFIG(TAG, "  Inverted Color: %s", YESNO(this->invert_));
+  ESP_LOGCONFIG(TAG, "  Invert Colors: %s", YESNO(this->invert_colors_));
   LOG_UPDATE_INTERVAL(this);
 
   if (this->error_code_ == COMMUNICATION_FAILED) {
