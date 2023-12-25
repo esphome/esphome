@@ -255,7 +255,7 @@ void Rtttl::loop() {
     // Add small silence gap between same note
     this->output_freq_ = freq;
 
-    ESP_LOGVV(TAG, "playing note: %d for %dms", note, this->note_duration_);
+    ESP_LOGI(TAG, "playing note: %d for %dms", note, this->note_duration_);
   } else {
     ESP_LOGVV(TAG, "waiting: %dms", this->note_duration_);
     this->output_freq_ = 0;
@@ -290,8 +290,9 @@ void Rtttl::loop() {
       this->samples_per_wave_ = (this->sample_rate_ << 10) / this->output_freq_;
 
       // make sure there is enough samples to add a full last sinus.
-      uint16_t devision = this->samples_count_ / this->samples_per_wave_;
-      this->samples_count_ = (devision + 1) * this->samples_per_wave_;
+      uint16_t devision = this->samples_count_ / this->samples_per_wave_, x = this->samples_count_;
+      this->samples_count_ = (devision) * this->samples_per_wave_;
+      ESP_LOGI(TAG, "play time old: %d div: %d new: ", x, devision, this->samples_count_);
     }
     // Convert from frequency in Hz to high and low samples in fixed point
   }
