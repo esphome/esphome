@@ -136,7 +136,7 @@ void Rtttl::loop() {
         if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note//
           rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
 
-          int16_t val = 32768 * sin(deg2rad(rem));
+          int16_t val = 49152 * sin(deg2rad(rem));
 
           sample[x].left = val;
           sample[x].right = val;
@@ -292,8 +292,7 @@ void Rtttl::loop() {
       uint16_t devision = floor((this->samples_count_ << 10) / this->samples_per_wave_) + 1;
       uint16_t x = this->samples_count_;
       this->samples_count_ = (devision * this->samples_per_wave_);
-      ESP_LOGD(TAG, "play time old: %d div: %d new: %d %d", x, devision, this->samples_count_,
-               this->samples_per_wave_);
+      ESP_LOGD(TAG, "play time old: %d div: %d new: %d %d", x, devision, this->samples_count_, this->samples_per_wave_);
       this->samples_count_ = this->samples_count_ >> 10;
     }
     // Convert from frequency in Hz to high and low samples in fixed point
