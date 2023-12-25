@@ -122,12 +122,6 @@ void HOT ST7567::draw_absolute_pixel_internal(int x, int y, Color color) {
     return;
   }
 
-  // ST7567A has built-in RAM with 132x65 bit capacity which stores the display data.
-  // but only first 128 pixels from each line are shown on screen
-  // if screen got flipped horizontally then it shows last 128 pixels,
-  // so we need to write x coordinate starting from column 4, not column 0
-  x += this->get_offset_x_();
-
   uint16_t pos = x + (y / 8) * this->get_width_internal();
   uint8_t subpos = y & 0x07;
   if (color.is_on()) {
