@@ -31,6 +31,13 @@ class Rtttl : public Component {
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
 #endif
+  void set_gain(double gain) {
+    if (gain < 0.1)
+      gain = 0.1;
+    if (gain > 1)
+      gain = 1;
+    this->gain_ = gain;
+  }
   void play(std::string rtttl);
   void stop();
   void dump_config() override;
@@ -60,6 +67,7 @@ class Rtttl : public Component {
   uint16_t note_duration_;
 
   uint32_t output_freq_;
+  double gain_{0.5};
 
 #ifdef USE_OUTPUT
   output::FloatOutput *output_;
@@ -74,6 +82,7 @@ class Rtttl : public Component {
   int samples_sent_{0};
   int samples_count_{0};
   int samples_gap_{0};
+
 #endif
 
   CallbackManager<void()> on_finished_playback_callback_;

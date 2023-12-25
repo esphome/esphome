@@ -136,7 +136,7 @@ void Rtttl::loop() {
         if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note//
           rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
 
-          int16_t val = 32768 * sin(deg2rad(rem));
+          int16_t val = (49152/this->gain_) * sin(deg2rad(rem));
 
           sample[x].left = val;
           sample[x].right = val;
@@ -270,7 +270,7 @@ void Rtttl::loop() {
     }
     if (this->output_freq_ != 0) {
       this->output_->update_frequency(this->output_freq_);
-      this->output_->set_level(0.5);
+      this->output_->set_level(this->gain_);
     } else {
       this->output_->set_level(0.0);
     }
