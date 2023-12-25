@@ -136,7 +136,7 @@ void Rtttl::loop() {
         if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note//
           rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
 
-          int16_t val = 65536 * sin(deg2rad(rem));
+          int16_t val = 32768 * sin(deg2rad(rem));
 
           sample[x].left = val;
           sample[x].right = val;
@@ -292,7 +292,7 @@ void Rtttl::loop() {
       // make sure there is enough samples to add a full last sinus.
       uint16_t devision = this->samples_count_ / this->samples_per_wave_, x = this->samples_count_;
       this->samples_count_ = (devision) * this->samples_per_wave_;
-      ESP_LOGI(TAG, "play time old: %d div: %d new: ", x, devision, this->samples_count_);
+      ESP_LOGD(TAG, "play time old: %d div: %d new: ", x, devision, this->samples_count_);
     }
     // Convert from frequency in Hz to high and low samples in fixed point
   }
