@@ -10,6 +10,7 @@ namespace mbus {
 
 class MBus : public uart::UARTDevice, public Component {
  public:
+  static const uint8_t PRIMARY_ADDRESS_MAX = 250;
   void setup() override;
   void loop() override;
   void dump_config() override;

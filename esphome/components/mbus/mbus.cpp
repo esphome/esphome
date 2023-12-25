@@ -27,7 +27,7 @@ void MBus::dump_config() {
 
 float MBus::get_setup_priority() const {
   // After UART bus
-  return setup_priority::BUS - 1.0f;
+  return setup_priority::LATE;
 }
 
 void MBus::scan_primary_addresses() {
@@ -38,7 +38,7 @@ void MBus::scan_primary_addresses() {
     return;
   }
 
-  if (address > 250) {
+  if (address > PRIMARY_ADDRESS_MAX) {
     primary_scan_finished = true;
     return;
   }
@@ -67,7 +67,7 @@ int8_t MBus::scan_primary_address(uint8_t primary_address) {
     ESP_LOGVV(TAG, "Ping primary address= %d. Received=%d", primary_address, rx_status);
 
     // received complete frame
-    if (rx_status == 1) {
+    if (rx_status == 1 && this->_protocol_handler->is_ack_resonse()) {
       ESP_LOGI(TAG, "Device found at primary address = %d", primary_address);
       scan_state = 0;
       return 1;
