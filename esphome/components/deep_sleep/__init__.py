@@ -31,6 +31,8 @@ from esphome.components.esp32.const import (
 )
 from esphome.core import CORE
 
+MULTIPIN_DEVICES = [VARIANT_ESP32C3, VARIANT_ESP32C2]
+
 WAKEUP_PINS = {
     VARIANT_ESP32: [
         0,
@@ -126,10 +128,10 @@ def validate_pin_number(value):
 
 def validate_config(config):
     if CORE.is_esp32:
-        if get_esp32_variant() == VARIANT_ESP32C3 and CONF_ESP32_EXT1_WAKEUP in config:
-            raise cv.Invalid("ESP32-C3 does not support wakeup from ext1")
-        if get_esp32_variant() == VARIANT_ESP32C3 and CONF_TOUCH_WAKEUP in config:
-            raise cv.Invalid("ESP32-C3 does not support wakeup from touch.")
+        if get_esp32_variant() in MULTIPIN_DEVICES and CONF_ESP32_EXT1_WAKEUP in config:
+            raise cv.Invalid("Your device does not support wakeup from ext1")
+        if get_esp32_variant() in MULTIPIN_DEVICES and CONF_TOUCH_WAKEUP in config:
+            raise cv.Invalid("Your device does not support wakeup from touch.")
         if CONF_WAKEUP_PIN in config and (
             (not isinstance(config[CONF_WAKEUP_PIN], list))
             or (
@@ -153,7 +155,10 @@ def validate_config(config):
             config = config.copy()
             config[CONF_WAKEUP_PIN] = []
 
-        if len(config[CONF_WAKEUP_PIN]) > 1 and get_esp32_variant() != VARIANT_ESP32C3:
+        if (
+            len(config[CONF_WAKEUP_PIN]) > 1
+            and get_esp32_variant() not in MULTIPIN_DEVICES
+        ):
             raise cv.Invalid("Your board only supports wake from a single pin")
         if len(config[CONF_WAKEUP_PIN]) > 1 and CONF_WAKEUP_PIN_MODE in config:
             raise cv.Invalid(

@@ -78,7 +78,7 @@ float DeepSleepComponent::get_loop_priority() const {
 void DeepSleepComponent::set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
 
 #if defined(USE_ESP32)
-#if !defined(USE_ESP32_VARIANT_ESP32C3)
+#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C2)
 
 void DeepSleepComponent::set_ext1_wakeup(Ext1Wakeup ext1_wakeup) { this->ext1_wakeup_ = ext1_wakeup; }
 
@@ -104,7 +104,7 @@ bool DeepSleepComponent::prepare_pin_(InternalGPIOPin *pin, WakeupPinMode pin_mo
   if (pin_mode == WAKEUP_PIN_MODE_INVERT_WAKEUP && pin->digital_read()) {
     level = !level;
   }
-#if !defined(USE_ESP32_VARIANT_ESP32C3)
+#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C2)
   esp_sleep_enable_ext0_wakeup(gpio_num_t(pin->get_pin()), level);
 #else
   esp_deep_sleep_enable_gpio_wakeup(1 << pin->get_pin(), static_cast<esp_deepsleep_gpio_wake_up_mode_t>(level));
@@ -138,7 +138,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 #if defined(USE_ESP32)
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
-#if !defined(USE_ESP32_VARIANT_ESP32C3)
+#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C2)
   if (this->ext1_wakeup_.has_value()) {
     esp_sleep_enable_ext1_wakeup(this->ext1_wakeup_->mask, this->ext1_wakeup_->wakeup_mode);
   }
