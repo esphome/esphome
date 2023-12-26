@@ -53,7 +53,7 @@ class LayoutItem {
 
   /** Measures the internal size of the item this should only be the portion drawn exclusive
    * of any padding or margins
-   * 
+   *
    * param[in] display: Display that will be used for rendering. May be used to help with calculations
   */
   virtual display::Rect measure_item_internal(display::Display *display) = 0;
@@ -69,7 +69,7 @@ class LayoutItem {
 
   /** Performs the rendering of the item internals of the item exclusive of any padding or margins
    * (or rather, after they've already been handled by render)
-   * 
+   *
    * param[in] display: Display to render to
    * param[in] bounds: Size of the area drawing should be constrained to
   */

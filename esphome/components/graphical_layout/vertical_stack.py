@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TYPE
+from esphome.const import CONF_TYPE
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 VerticalStack = graphical_layout_ns.class_("VerticalStack")
@@ -17,6 +17,7 @@ HORIZONTAL_CHILD_ALIGN = {
     "RIGHT": HorizontalChildAlign.RIGHT,
     "STRETCH_TO_FIT_WIDTH": HorizontalChildAlign.STRETCH_TO_FIT_WIDTH,
 }
+
 
 def get_config_schema(base_item_schema, item_type_schema):
     return base_item_schema.extend(

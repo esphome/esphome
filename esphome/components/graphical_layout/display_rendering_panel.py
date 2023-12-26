@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_WIDTH, CONF_HEIGHT, CONF_LAMBDA
+from esphome.const import CONF_WIDTH, CONF_HEIGHT, CONF_LAMBDA
 from esphome.components.display import DisplayRef
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")

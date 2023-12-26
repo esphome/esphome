@@ -39,7 +39,7 @@ void LayoutItem::render(display::Display *display, display::Rect bounds) {
   }
 
   // Padding
-  display->set_local_coordinates_relative_to_current(this->border_ + this->padding_, this->border_ + this->padding_);   
+  display->set_local_coordinates_relative_to_current(this->border_ + this->padding_, this->border_ + this->padding_);
   int margin_border_padding_offset = (this->margin_ + this->border_ + this->padding_) * 2;
   display::Rect internal_bounds(0, 0, bounds.w - margin_border_padding_offset, bounds.h - margin_border_padding_offset);
 

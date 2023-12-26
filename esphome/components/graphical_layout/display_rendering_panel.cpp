@@ -18,7 +18,9 @@ display::Rect DisplayRenderingPanel::measure_item_internal(display::Display *dis
   return display::Rect(0, 0, this->width_, this->height_);
 }
 
-void DisplayRenderingPanel::render_internal(display::Display *display, display::Rect bounds) { this->lambda_(*display); }
+void DisplayRenderingPanel::render_internal(display::Display *display, display::Rect bounds) {
+  this->lambda_(*display);
+}
 
 }  // namespace graphical_layout
 }  // namespace esphome

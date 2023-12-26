@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TYPE
+from esphome.const import CONF_TYPE
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 HorizontalStack = graphical_layout_ns.class_("HorizontalStack")

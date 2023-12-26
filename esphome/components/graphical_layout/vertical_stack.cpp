@@ -11,7 +11,7 @@ static const char *const TAG = "verticalstack";
 
 void VerticalStack::dump_config(int indent_depth, int additional_level_depth) {
   ESP_LOGCONFIG(TAG, "%*sItem Padding: %i", indent_depth, "", this->item_padding_);
-  ESP_LOGCONFIG(TAG, "%*sChild alignment: %i", indent_depth, "", (int)this->child_align_);
+  ESP_LOGCONFIG(TAG, "%*sChild alignment: %i", indent_depth, "", (int) this->child_align_);
   ESP_LOGCONFIG(TAG, "%*sChildren: %i", indent_depth, "", this->children_.size());
 
   for (LayoutItem *child : this->children_) {
