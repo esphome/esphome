@@ -19,7 +19,7 @@ display::Rect DisplayRenderingPanel::measure_item_internal(display::Display *dis
 }
 
 void DisplayRenderingPanel::render_internal(display::Display *display, display::Rect bounds) {
-  this->lambda_(*display);
+  this->lambda_(*display, bounds);
 }
 
 }  // namespace graphical_layout

@@ -1,9 +1,10 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_WIDTH, CONF_HEIGHT, CONF_LAMBDA
-from esphome.components.display import DisplayRef
+from esphome.components.display import display_ns, DisplayRef
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
+Rect = display_ns.class_("Rect")
 DisplayRenderingPanel = graphical_layout_ns.class_("DisplayRenderingPanel")
 
 CONF_DISPLAY_RENDERING_PANEL = "display_rendering_panel"
@@ -26,11 +27,15 @@ async def config_to_layout_item(pvariable_builder, item_config, child_item_build
     width = await cg.templatable(item_config[CONF_WIDTH], args=[], output_type=cg.int_)
     cg.add(var.set_width(width))
 
-    height = await cg.templatable(item_config[CONF_HEIGHT], args=[], output_type=cg.int_)
+    height = await cg.templatable(
+        item_config[CONF_HEIGHT], args=[], output_type=cg.int_
+    )
     cg.add(var.set_height(height))
 
     lambda_ = await cg.process_lambda(
-        item_config[CONF_LAMBDA], [(DisplayRef, "it")], return_type=cg.void
+        item_config[CONF_LAMBDA],
+        [(DisplayRef, "it"), (Rect, "bounds")],
+        return_type=cg.void,
     )
     cg.add(var.set_lambda(lambda_))
 

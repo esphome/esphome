@@ -9,8 +9,7 @@
 namespace esphome {
 namespace graphical_layout {
 
-/* See display.h for original declaration */
-using display_writer_t = std::function<void(display::Display &)>;
+using display_panel_writer_t = std::function<void(display::Display &, display::Rect)>;
 
 /** The DisplayRenderingPanel is a UI item that renders a custom lambda to the display whilst
  * participating in the layout process
@@ -23,12 +22,12 @@ class DisplayRenderingPanel : public LayoutItem {
 
   template<typename V> void set_width(V width) { this->width_ = width; };
   template<typename V> void set_height(V height) { this->height_ = height; };
-  void set_lambda(display_writer_t lambda) { this->lambda_ = std::move(lambda); };
+  void set_lambda(display_panel_writer_t lambda) { this->lambda_ = std::move(lambda); };
 
  protected:
   TemplatableValue<int> width_{0};
   TemplatableValue<int> height_{0};
-  display_writer_t lambda_{nullptr};
+  display_panel_writer_t lambda_{nullptr};
 };
 
 }  // namespace graphical_layout
