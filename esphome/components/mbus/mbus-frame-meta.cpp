@@ -1,4 +1,3 @@
-#pragma once
 #include "mbus-frame-meta.h"
 
 namespace esphome {

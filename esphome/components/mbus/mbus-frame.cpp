@@ -1,11 +1,13 @@
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
+
 #include "mbus-frame.h"
 #include "mbus-frame-meta.h"
 
 namespace esphome {
 namespace mbus {
 
-static const char *const TAG = "mbus-protocol";
+static const char *const TAG = "mbus-frame";
 
 MBusFrame::MBusFrame(MBusFrameType frame_type) {
   this->frame_type = frame_type;
@@ -33,6 +35,19 @@ MBusFrame::MBusFrame(MBusFrameType frame_type) {
   }
 }
 
+MBusFrame::MBusFrame(MBusFrame &frame) {
+  this->address = frame.address;
+  this->control = frame.control;
+  this->control_information = frame.control_information;
+  this->frame_type = frame.frame_type;
+  this->start = frame.start;
+  this->stop = frame.stop;
+  this->length = frame.length;
+
+  this->data.reserve(frame.data.size());
+  this->data.insert(this->data.begin(), frame.data.begin(), frame.data.end());
+}
+
 uint8_t MBusFrame::serialize(MBusFrame &frame, std::vector<uint8_t> &buffer) {
   frame.length = calc_length(frame);
   frame.checksum = calc_checksum(frame);
@@ -41,7 +56,6 @@ uint8_t MBusFrame::serialize(MBusFrame &frame, std::vector<uint8_t> &buffer) {
   uint8_t index = 0;
   switch (frame.frame_type) {
     case MBUS_FRAME_TYPE_ACK:
-
       if (buffer_size < MBusFrameDefinition::ACK_FRAME.base_frame_size) {
         ESP_LOGE(TAG, "serialize(): buffer size to low. Buffer size = %d ACK Frame Size = %d", buffer_size,
                  MBusFrameDefinition::ACK_FRAME.base_frame_size);
@@ -52,7 +66,6 @@ uint8_t MBusFrame::serialize(MBusFrame &frame, std::vector<uint8_t> &buffer) {
       return 0;
 
     case MBUS_FRAME_TYPE_SHORT:
-
       if (buffer_size < MBusFrameDefinition::SHORT_FRAME.base_frame_size) {
         ESP_LOGE(TAG, "serialize(): buffer size to low. Buffer size = %d SHORT Frame Size = %d", buffer_size,
                  MBusFrameDefinition::SHORT_FRAME.base_frame_size);
@@ -68,7 +81,6 @@ uint8_t MBusFrame::serialize(MBusFrame &frame, std::vector<uint8_t> &buffer) {
       return 0;
 
     case MBUS_FRAME_TYPE_CONTROL:
-
       if (buffer_size < MBusFrameDefinition::CONTROL_FRAME.base_frame_size) {
         ESP_LOGE(TAG, "serialize(): buffer size to low. Buffer size = %d CONTROL Frame Size = %d", buffer_size,
                  MBusFrameDefinition::CONTROL_FRAME.base_frame_size);
@@ -88,32 +100,32 @@ uint8_t MBusFrame::serialize(MBusFrame &frame, std::vector<uint8_t> &buffer) {
       return 0;
 
     case MBUS_FRAME_TYPE_LONG:
+      auto frame_size = MBusFrameDefinition::LONG_FRAME.base_frame_size + frame.data.size();
+      if (buffer_size < frame_size) {
+        ESP_LOGE(TAG, "serialize(): buffer size to low. Buffer size = %d LONG Frame Size = %d", buffer_size,
+                 frame_size);
+        return -1;
+      }
 
-      // if (buffer_size < frame.data_size + MBusFrameBaseSize::LONG_SIZE) {
-      //   return -4;
-      // }
+      buffer[index++] = frame.start;
+      buffer[index++] = frame.length;
+      buffer[index++] = frame.length;
+      buffer[index++] = frame.start;
+      buffer[index++] = frame.control;
+      buffer[index++] = frame.address;
+      buffer[index++] = frame.control_information;
 
-      // data[offset++] = frame.start1;
-      // data[offset++] = frame.length1;
-      // data[offset++] = frame.length2;
-      // data[offset++] = frame.start2;
+      for (auto data_i = 0; data_i < frame.data.size(); data_i++) {
+        buffer[index++] = frame.data[data_i];
+      }
 
-      // data[offset++] = frame.control;
-      // data[offset++] = frame.address;
-      // data[offset++] = frame.control_information;
+      buffer[index++] = frame.checksum;
+      buffer[index++] = frame.stop;
 
-      // for (i = 0; i < frame.data_size; i++) {
-      //   data[offset++] = frame.data[i];
-      // }
-
-      // data[offset++] = frame.checksum;
-      // data[offset++] = frame.stop;
-
-      return -2;
-
-    default:
-      return -2;
+      return 0;
   }
+
+  return -2;  // Not supported Frame Type
 }
 
 uint8_t MBusFrame::calc_length(MBusFrame &frame) {
@@ -149,23 +161,71 @@ uint8_t MBusFrame::calc_checksum(MBusFrame &frame) {
       checksum += frame.control_information;
       break;
 
-      // case MBUS_FRAME_TYPE_LONG:
+    case MBUS_FRAME_TYPE_LONG:
+      checksum = frame.control;
+      checksum += frame.address;
+      checksum += frame.control_information;
 
-      //   checksum = frame.control;
-      //   checksum += frame.address;
-      //   checksum += frame.control_information;
+      for (auto i = 0; i < frame.data.size(); i++) {
+        checksum += frame.data[i];
+      }
 
-      //   for (size_t i = 0; i < frame.data_size; i++) {
-      //     checksum += frame.data[i];
-      //   }
-
-      //   break;
+      break;
 
     default:
       checksum = 0;
   }
 
   return checksum;
+}
+
+void MBusFrame::dump() {
+  ESP_LOGV(TAG, "MBusFrame");
+  switch (this->frame_type) {
+    case MBusFrameType::MBUS_FRAME_TYPE_ACK:
+      ESP_LOGV(TAG, "\tframe_type = ACK");
+      break;
+    case MBusFrameType::MBUS_FRAME_TYPE_SHORT:
+      ESP_LOGV(TAG, "\tframe_type = SHORT");
+      break;
+    case MBusFrameType::MBUS_FRAME_TYPE_CONTROL:
+      ESP_LOGV(TAG, "\tframe_type = CONTROL");
+      break;
+    case MBusFrameType::MBUS_FRAME_TYPE_LONG:
+      ESP_LOGV(TAG, "\tframe_type = LONG");
+      break;
+    default:
+      ESP_LOGV(TAG, "\tunknown frame type = %d", this->frame_type);
+      break;
+  }
+
+  switch (this->frame_type) {
+    case MBusFrameType::MBUS_FRAME_TYPE_SHORT:
+      ESP_LOGV(TAG, "\tstart = 0x%x", this->start);
+      ESP_LOGV(TAG, "\tcontrol = 0x%x", this->control);
+      ESP_LOGV(TAG, "\taddress = 0x%x", this->address);
+      ESP_LOGV(TAG, "\tstop = 0x%x", this->stop);
+      return;
+
+    case MBusFrameType::MBUS_FRAME_TYPE_CONTROL:
+      ESP_LOGV(TAG, "\tstart = 0x%x", this->start);
+      ESP_LOGV(TAG, "\tcontrol = 0x%x", this->control);
+      ESP_LOGV(TAG, "\taddress = 0x%x", this->address);
+      ESP_LOGV(TAG, "\tcontrol information = 0x%x", this->control_information);
+      ESP_LOGV(TAG, "\tstop = 0x%x", this->stop);
+      return;
+
+    case MBusFrameType::MBUS_FRAME_TYPE_LONG:
+      ESP_LOGV(TAG, "\tstart = 0x%x", this->start);
+      ESP_LOGV(TAG, "\tcontrol = 0x%x", this->control);
+      ESP_LOGV(TAG, "\taddress = 0x%x", this->address);
+      ESP_LOGV(TAG, "\tcontrol information = 0x%x", this->control_information);
+      ESP_LOGV(TAG, "\tdata = %s", format_hex_pretty(this->data).c_str());
+      ESP_LOGV(TAG, "\tstop = 0x%x", this->stop);
+      return;
+  }
+
+  ESP_LOGV(TAG, "\tunknown frame type");
 }
 
 }  // namespace mbus

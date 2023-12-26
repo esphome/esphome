@@ -6,66 +6,76 @@
 
 namespace esphome {
 namespace mbus {
+
 static const char *const TAG = "mbus-protocol";
 
-int8_t SerialAdapter::send(std::vector<uint8_t> &payload) {
-  this->_uart->write_array(payload);
-  this->_uart->flush();
-  return 0;
+void MBusProtocolHandler::register_command(MBusFrame &command,
+                                           void (*response_handler)(MBusCommand *command, const MBusFrame &response),
+                                           uint8_t data) {
+  MBusCommand *cmd = new MBusCommand(command, response_handler, data, this);
+  this->_commands.push_back(cmd);
 }
 
-int8_t SerialAdapter::receive(std::vector<uint8_t> &payload) {
-  if (this->_uart->available() <= 0) {
-    return -1;
+void MBusProtocolHandler::loop() {
+  auto now = millis();
+  ESP_LOGVV(TAG, "loop. _waiting_for_response = %d, _timestamp = %d, now = %d", this->_waiting_for_response,
+            this->_timestamp, now);
+
+  if (!this->_waiting_for_response && this->_commands.size() > 0) {
+    auto frame = this->_commands.front()->command;
+    this->send(*frame);
+    this->_waiting_for_response = true;
+    this->_timestamp = now;
+    delay(10);
+    return;
   }
 
-  uint8_t byte = 0;
-  this->_uart->read_byte(&byte);
-  payload.push_back(byte);
+  if (this->_waiting_for_response) {
+    if ((now - this->_timestamp) > this->rx_timeout) {
+      ESP_LOGV(TAG, "M-Bus data: Timeout");
 
-  if (byte == MBusFrameDefinition::ACK_FRAME.start_bit) {
-    // ACK_FRAME recevied
-    return 1;
-  }
+      auto command = this->_commands.front();
+      delete command;
+      this->_commands.pop_front();
 
-  if (byte == MBusFrameDefinition::SHORT_FRAME.start_bit) {
-    // start of short frame
-    payload.clear();
-    return 0;
-  }
-  if (byte == MBusFrameDefinition::SHORT_FRAME.stop_bit) {
-    // end of short frame
-    return 1;
-  }
+      this->_waiting_for_response = false;
+      this->_timestamp = 0;
+      this->_rx_buffer.clear();
 
-  if (byte == MBusFrameDefinition::CONTROL_FRAME.start_bit) {
-    // start of control frame
-    payload.clear();
-    return 0;
-  }
-  if (byte == MBusFrameDefinition::CONTROL_FRAME.stop_bit) {
-    // end of control frame
-    return 1;
-  }
+      return;  // rx timeout
+    }
 
-  if (byte == MBusFrameDefinition::LONG_FRAME.start_bit) {
-    // start of control frame
-    payload.clear();
-    return 0;
-  }
-  if (byte == MBusFrameDefinition::LONG_FRAME.stop_bit) {
-    // end of control frame
-    return 1;
-  }
+    auto rx_status = this->receive();
+    if (rx_status == 1) {
+      auto command = this->_commands.front();
 
-  return 0;
-}
+      if (command->response_handler != nullptr) {
+        MBusFrame frame(MBusFrameType::MBUS_FRAME_TYPE_ACK);
+        command->response_handler(command, frame);
+      }
 
-bool MBusProtocolHandler::is_ack_resonse() {
-  return this->_rx_buffer.size() == 1 && this->_rx_buffer[0] == MBusFrameDefinition::ACK_FRAME.start_bit;
+      delete command;
+      this->_commands.pop_front();
+
+      this->_waiting_for_response = false;
+      this->_timestamp = 0;
+      this->_rx_buffer.clear();
+      return;
+    }
+
+    if (rx_status == 0) {
+      this->_timestamp = now;
+      delay(10);
+      return;
+    }
+
+    delay(100);
+  }
 }
 
 int8_t MBusProtocolHandler::send(MBusFrame &frame) {
+  frame.dump();
+
   uint8_t payload_size = 0;
   switch (frame.frame_type) {
     case MBUS_FRAME_TYPE_ACK:
@@ -78,7 +88,7 @@ int8_t MBusProtocolHandler::send(MBusFrame &frame) {
       payload_size = MBusFrameDefinition::CONTROL_FRAME.base_frame_size;
       break;
     case MBUS_FRAME_TYPE_LONG:
-      payload_size = MBusFrameDefinition::LONG_FRAME.base_frame_size;
+      payload_size = MBusFrameDefinition::LONG_FRAME.base_frame_size + frame.data.size();
       break;
   }
 
@@ -96,20 +106,11 @@ int8_t MBusProtocolHandler::send(MBusFrame &frame) {
 
 /// @return 0 if more data needed, 1 if frame is completed, -1 if response timed out
 int8_t MBusProtocolHandler::receive() {
-  auto now = millis();
-  if (now - this->_timestamp > this->rx_timeout) {
-    ESP_LOGV(TAG, "Receive mbus data: Timeout");
-    this->_rx_buffer.clear();
-    this->_timestamp = 0;
-    return -1;  // rx timeout
-  }
-
   auto rx_status = this->_networkAdapter->receive(this->_rx_buffer);
 
   if (rx_status == 0) {
     // received data -> set timestamp
     ESP_LOGVV(TAG, "Receive mbus data: Byte = %d.", this->_rx_buffer[this->_rx_buffer.size() - 1]);
-    this->_timestamp = now;
     return 0;
   }
 
@@ -126,6 +127,8 @@ int8_t MBusProtocolHandler::receive() {
 
   return 0;
 }
+
+MBusFrame *MBusProtocolHandler::parse() {}
 
 }  // namespace mbus
 }  // namespace esphome

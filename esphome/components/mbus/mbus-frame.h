@@ -15,29 +15,6 @@ enum MBusFrameType {
   MBUS_FRAME_TYPE_LONG = 0x04,
 };
 
-class MBusControlCodes {
- public:
-  // MBUS_CONTROL_MASK_DIR_S2M = 0x00,
-  // MBUS_CONTROL_FIELD_F0 = 0x01,
-  // MBUS_CONTROL_FIELD_F1 = 0x02,
-  // MBUS_CONTROL_FIELD_F2 = 0x03,
-  // MBUS_CONTROL_FIELD_F3 = 0x04,
-  // MBUS_CONTROL_FIELD_DFC = 0x05,
-  // MBUS_CONTROL_FIELD_FCV = 0x05,
-  // MBUS_CONTROL_FIELD_ACD = 0x06,
-  // MBUS_CONTROL_FIELD_FCB = 0x06,
-  // MBUS_CONTROL_FIELD_DIRECTION = 0x07,
-  // MBUS_CONTROL_MASK_DFC = 0x10,
-  // MBUS_CONTROL_MASK_FCV = 0x10,
-  // MBUS_CONTROL_MASK_ACD = 0x20,
-  // MBUS_CONTROL_MASK_FCB = 0x20,
-  static const uint8_t SND_NKE = 0x40;
-  static const uint8_t SND_UD = 0x53;
-  static const uint8_t REQ_UD1 = 0x5A;
-  static const uint8_t REQ_UD2 = 0x5B;
-  static const uint8_t RSP_UD = 0x08;
-};
-
 class MBusFrame {
  public:
   uint8_t start;
@@ -47,21 +24,20 @@ class MBusFrame {
   uint8_t address;
   uint8_t checksum;
   uint8_t stop;
-
-  // unsigned char data[MBUS_FRAME_DATA_LENGTH];
-  // size_t data_size;
+  std::vector<uint8_t> data;
 
   MBusFrameType frame_type;
-  // time_t timestamp;
-
-  // mbus_frame_data frame_data;
 
   // void *next;  // pointer to next mbus_frame for multi-telegram replies
 
   MBusFrame(MBusFrameType frame_type);
+  MBusFrame(MBusFrame &frame);
+
   static uint8_t serialize(MBusFrame &frame, std::vector<uint8_t> &buffer);
   static uint8_t calc_length(MBusFrame &frame);
   static uint8_t calc_checksum(MBusFrame &frame);
+
+  void dump();
 };
 
 }  // namespace mbus

@@ -4,12 +4,27 @@
 namespace esphome {
 namespace mbus {
 
-#define MBUS_FRAME_DATA_LENGTH 252
+class MBusAddresses {
+ public:
+  static const uint8_t NETWORK_LAYER = 0xFD;
+  static const uint8_t TEST_ADDRESS = 0xFE;
+  static const uint8_t BROADCAST = 0xFF;
+};
 
-//
-// Frame start/stop bits
-//
+class MBusControlCodes {
+ public:
+  static const uint8_t SND_NKE = 0x40;
+  static const uint8_t SND_UD_SLAVE = 0x53;
+  static const uint8_t SND_UD_MASTER = 0x73;
+  static const uint8_t REQ_UD1 = 0x5A;
+  static const uint8_t REQ_UD2 = 0x5B;
+  static const uint8_t RSP_UD = 0x08;
+};
 
+class MBusControlInformationCodes {
+ public:
+  static const uint8_t SELECTION_OF_SLAVES = 0x56;
+};
 class MBusFrameMeta {
  public:
   const uint8_t start_bit;

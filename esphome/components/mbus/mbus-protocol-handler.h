@@ -1,43 +1,60 @@
 #pragma once
+
 #include <vector>
+#include <deque>
 #include "stdint.h"
-#include "esphome/core/hal.h"
+
 #include "mbus-frame.h"
+#include "network-adapter.h"
 
 namespace esphome {
 namespace mbus {
 
-class INetworkAdapter {
- public:
-  virtual int8_t send(std::vector<uint8_t> &payload) = 0;
-  virtual int8_t receive(std::vector<uint8_t> &payload) = 0;
-};
-
-class SerialAdapter : public INetworkAdapter {
- public:
-  int8_t send(std::vector<uint8_t> &payload) override;
-  int8_t receive(std::vector<uint8_t> &payload) override;
-
-  SerialAdapter(uart::UARTDevice *uart) : _uart(uart) {}
-
- protected:
-  uart::UARTDevice *_uart;
-};
-
+class MBusCommand;
 class MBusProtocolHandler {
  public:
-  static const uint32_t rx_timeout{1000};
+  static const uint32_t rx_timeout{500};
 
-  int8_t receive();
-  int8_t send(MBusFrame &frame);
+  void loop();
+  void register_command(MBusFrame &command, void (*response_handler)(MBusCommand *command, const MBusFrame &response),
+                        uint8_t data = 0);
 
-  bool is_ack_resonse();
   MBusProtocolHandler(INetworkAdapter *networkAdapter) : _networkAdapter(networkAdapter) {}
 
  protected:
+  int8_t receive();
+  int8_t send(MBusFrame &frame);
+  MBusFrame *parse();
+
   INetworkAdapter *_networkAdapter;
   std::vector<uint8_t> _rx_buffer;
+  std::deque<MBusCommand *> _commands;
+
   uint32_t _timestamp{0};
+  bool _waiting_for_response{false};
+};
+
+class MBusCommand {
+ public:
+  MBusFrame *command{nullptr};
+  MBusProtocolHandler *protocol_handler{nullptr};
+  uint8_t data{0};
+  void (*response_handler)(MBusCommand *command, const MBusFrame &response){nullptr};
+
+  MBusCommand(MBusFrame &_command, void (*_response_handler)(MBusCommand *command, const MBusFrame &response),
+              uint8_t _data, MBusProtocolHandler *_protocol_handler) {
+    this->command = new MBusFrame(_command);
+    this->response_handler = _response_handler;
+    this->data = _data;
+    this->protocol_handler = _protocol_handler;
+  }
+
+  ~MBusCommand() {
+    if (this->command != nullptr) {
+      delete this->command;
+      this->command = nullptr;
+    }
+  }
 };
 
 }  // namespace mbus
