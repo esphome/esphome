@@ -19,7 +19,6 @@ class TextPanel : public LayoutItem {
   void render_internal(display::Display *display, display::Rect bounds) override;
   void dump_config(int indent_depth, int additional_level_depth) override;
 
-  void set_item_padding(int item_padding) { this->item_padding_ = item_padding; };
   template<typename V> void set_text(V text) { this->text_ = text; };
   void set_font(display::BaseFont *font) { this->font_ = font; };
   void set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; };
@@ -27,7 +26,6 @@ class TextPanel : public LayoutItem {
   void set_text_align(display::TextAlign text_align) { this->text_align_ = text_align; };
 
  protected:
-  int item_padding_{0};
   TemplatableValue<std::string> text_{};
   display::BaseFont *font_{nullptr};
   display::TextAlign text_align_{display::TextAlign::TOP_LEFT};
