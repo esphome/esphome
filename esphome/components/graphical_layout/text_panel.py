@@ -31,6 +31,7 @@ TEXT_ALIGN = {
     "BOTTOM_RIGHT": TextAlign.BOTTOM_RIGHT,
 }
 
+
 def get_config_schema(base_item_schema, item_type_schema):
     return base_item_schema.extend(
         {
@@ -40,7 +41,7 @@ def get_config_schema(base_item_schema, item_type_schema):
             cv.Optional(CONF_FOREGROUND_COLOR): cv.use_id(color.ColorStruct),
             cv.Optional(CONF_BACKGROUND_COLOR): cv.use_id(color.ColorStruct),
             cv.Required(CONF_TEXT): cv.templatable(cv.string),
-            cv.Optional(CONF_TEXT_ALIGN): cv.enum(TEXT_ALIGN, upper=True)
+            cv.Optional(CONF_TEXT_ALIGN): cv.enum(TEXT_ALIGN, upper=True),
         }
     )
 
