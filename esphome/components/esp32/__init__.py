@@ -462,7 +462,7 @@ async def to_code(config):
 
     add_extra_script(
         "post",
-        "post_build2.py",
+        "post_build.py",
         os.path.join(os.path.dirname(__file__), "post_build.py.script"),
     )
 
@@ -497,10 +497,11 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
         add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
 
+        cg.add_platformio_option("board_build.partitions", "partitions.csv")
         if CONF_PARTITIONS in config:
-            cg.add_platformio_option("board_build.partitions", config[CONF_PARTITIONS])
-        else:
-            cg.add_platformio_option("board_build.partitions", "partitions.csv")
+            add_extra_build_file(
+                "partitions.csv", CORE.relative_config_path(config[CONF_PARTITIONS])
+            )
 
         for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
             add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
@@ -639,20 +640,22 @@ def _write_sdkconfig():
 # Called by writer.py
 def copy_files():
     if CORE.using_arduino:
-        write_file_if_changed(
-            CORE.relative_build_path("partitions.csv"),
-            get_arduino_partition_csv(
-                CORE.platformio_options.get("board_upload.flash_size")
-            ),
-        )
+        if "partitions.csv" not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
+            write_file_if_changed(
+                CORE.relative_build_path("partitions.csv"),
+                get_arduino_partition_csv(
+                    CORE.platformio_options.get("board_upload.flash_size")
+                ),
+            )
     if CORE.using_esp_idf:
         _write_sdkconfig()
-        write_file_if_changed(
-            CORE.relative_build_path("partitions.csv"),
-            get_idf_partition_csv(
-                CORE.platformio_options.get("board_upload.flash_size")
-            ),
-        )
+        if "partitions.csv" not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
+            write_file_if_changed(
+                CORE.relative_build_path("partitions.csv"),
+                get_idf_partition_csv(
+                    CORE.platformio_options.get("board_upload.flash_size")
+                ),
+            )
         # IDF build scripts look for version string to put in the build.
         # However, if the build path does not have an initialized git repo,
         # and no version.txt file exists, the CMake script fails for some setups.

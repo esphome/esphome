@@ -41,6 +41,17 @@ _LOGGER = logging.getLogger(__name__)
 def iter_components(config):
     for domain, conf in config.items():
         component = get_component(domain)
+        yield domain, component
+        if component.is_platform_component:
+            for p_config in conf:
+                p_name = f"{domain}.{p_config[CONF_PLATFORM]}"
+                platform = get_platform(domain, p_config[CONF_PLATFORM])
+                yield p_name, platform
+
+
+def iter_component_configs(config):
+    for domain, conf in config.items():
+        component = get_component(domain)
         if component.multi_conf:
             for conf_ in conf:
                 yield domain, component, conf_
@@ -111,7 +122,12 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             last_root = max(
                 i for i, v in enumerate(error.path) if v is cv.ROOT_CONFIG_PATH
             )
-            error.path = error.path[last_root + 1 :]
+            # can't change the path so re-create the error
+            error = vol.Invalid(
+                message=error.error_message,
+                path=error.path[last_root + 1 :],
+                error_type=error.error_type,
+            )
         self.errors.append(error)
 
     def add_validation_step(self, step: "ConfigValidationStep"):
@@ -298,8 +314,14 @@ class LoadValidationStep(ConfigValidationStep):
             # Ignore top-level keys starting with a dot
             return
         result.add_output_path([self.domain], self.domain)
-        result[self.domain] = self.conf
         component = get_component(self.domain)
+        if (
+            component is not None
+            and component.multi_conf_no_default
+            and isinstance(self.conf, core.AutoLoad)
+        ):
+            self.conf = []
+        result[self.domain] = self.conf
         path = [self.domain]
         if component is None:
             result.add_str_error(f"Component not found: {self.domain}", path)
@@ -419,7 +441,10 @@ class MetadataValidationStep(ConfigValidationStep):
 
     def run(self, result: Config) -> None:
         if self.conf is None:
-            result[self.domain] = self.conf = {}
+            if self.comp.multi_conf and self.comp.multi_conf_no_default:
+                result[self.domain] = self.conf = []
+            else:
+                result[self.domain] = self.conf = {}
 
         success = True
         for dependency in self.comp.dependencies:

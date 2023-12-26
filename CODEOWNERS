@@ -12,6 +12,7 @@ esphome/core/* @esphome/core
 
 # Integrations
 esphome/components/a01nyub/* @MrSuicideParrot
+esphome/components/a02yyuw/* @TH-Braemer
 esphome/components/absolute_humidity/* @DAVe3283
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
@@ -24,7 +25,7 @@ esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_base/* @jeromelaban @kpfleming @ncareau
 esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban
-esphome/components/alarm_control_panel/* @grahambrown11
+esphome/components/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/alpha3/* @jan-hofmeier
 esphome/components/am43/* @buxtronix
 esphome/components/am43/cover/* @buxtronix
@@ -33,6 +34,8 @@ esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
 esphome/components/api/* @OttoWinter
+esphome/components/as5600/* @ammmze
+esphome/components/as5600/sensor/* @ammmze
 esphome/components/as7341/* @mrgnr
 esphome/components/async_tcp/* @OttoWinter
 esphome/components/atc_mithermometer/* @ahpohl
@@ -88,7 +91,7 @@ esphome/components/ds1307/* @badbadc0ffee
 esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/duty_time/* @dudanov
 esphome/components/ee895/* @Stock-M
-esphome/components/ektf2232/* @jesserockz
+esphome/components/ektf2232/touchscreen/* @jesserockz
 esphome/components/emc2101/* @ellull
 esphome/components/ens160/* @vincentscode
 esphome/components/ens210/* @itn3rd77
@@ -110,12 +113,15 @@ esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/fs3000/* @kahrendt
+esphome/components/ft5x06/* @clydebarrow
+esphome/components/ft63x6/* @gpambrozio
 esphome/components/gcja5/* @gcormier
 esphome/components/globals/* @esphome/core
 esphome/components/gp8403/* @jesserockz
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
+esphome/components/graphical_display_menu/* @MrMDavidson
 esphome/components/gree/* @orestismers
 esphome/components/grove_tb6612fng/* @max246
 esphome/components/growatt_solar/* @leeuwte
@@ -236,6 +242,11 @@ esphome/components/pmwcs3/* @SeByDocKy
 esphome/components/pn532/* @OttoWinter @jesserockz
 esphome/components/pn532_i2c/* @OttoWinter @jesserockz
 esphome/components/pn532_spi/* @OttoWinter @jesserockz
+esphome/components/pn7150/* @jesserockz @kbx81
+esphome/components/pn7150_i2c/* @jesserockz @kbx81
+esphome/components/pn7160/* @jesserockz @kbx81
+esphome/components/pn7160_i2c/* @jesserockz @kbx81
+esphome/components/pn7160_spi/* @jesserockz @kbx81
 esphome/components/power_supply/* @esphome/core
 esphome/components/preferences/* @esphome/core
 esphome/components/psram/* @esphome/core
@@ -316,7 +327,7 @@ esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tcl112/* @glmnet
 esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax
-esphome/components/template/alarm_control_panel/* @grahambrown11
+esphome/components/template/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
@@ -330,7 +341,7 @@ esphome/components/tmp1075/* @sybrenstuvel
 esphome/components/tmp117/* @Azimath
 esphome/components/tof10120/* @wstrzalka
 esphome/components/toshiba/* @kbx81
-esphome/components/touchscreen/* @jesserockz
+esphome/components/touchscreen/* @jesserockz @nielsnl68
 esphome/components/tsl2591/* @wjcarpenter
 esphome/components/tt21100/* @kroimon
 esphome/components/tuya/binary_sensor/* @jesserockz
@@ -363,6 +374,6 @@ esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
 esphome/components/xiaomi_rtcgq02lm/* @jesserockz
 esphome/components/xl9535/* @mreditor97
-esphome/components/xpt2046/* @nielsnl68 @numo68
+esphome/components/xpt2046/touchscreen/* @nielsnl68 @numo68
 esphome/components/zhlt01/* @cfeenstra1024
 esphome/components/zio_ultrasonic/* @kahrendt

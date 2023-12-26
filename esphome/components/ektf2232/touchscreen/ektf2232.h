@@ -9,19 +9,11 @@
 namespace esphome {
 namespace ektf2232 {
 
-struct EKTF2232TouchscreenStore {
-  volatile bool touch;
-  ISRInternalGPIOPin pin;
-
-  static void gpio_intr(EKTF2232TouchscreenStore *store);
-};
-
 using namespace touchscreen;
 
-class EKTF2232Touchscreen : public Touchscreen, public Component, public i2c::I2CDevice {
+class EKTF2232Touchscreen : public Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
-  void loop() override;
   void dump_config() override;
 
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
@@ -33,12 +25,10 @@ class EKTF2232Touchscreen : public Touchscreen, public Component, public i2c::I2
  protected:
   void hard_reset_();
   bool soft_reset_();
+  void update_touches() override;
 
   InternalGPIOPin *interrupt_pin_;
   GPIOPin *rts_pin_;
-  EKTF2232TouchscreenStore store_;
-  uint16_t x_resolution_;
-  uint16_t y_resolution_;
 };
 
 }  // namespace ektf2232
