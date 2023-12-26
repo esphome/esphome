@@ -23,10 +23,10 @@ def get_config_schema(base_item_schema, item_type_schema):
 async def config_to_layout_item(pvariable_builder, item_config, child_item_builder):
     var = await pvariable_builder(item_config)
 
-    width = await cg.templatable(item_config[CONF_WIDTH], args=[], output_type=int)
+    width = await cg.templatable(item_config[CONF_WIDTH], args=[], output_type=cg.int_)
     cg.add(var.set_width(width))
 
-    height = await cg.templatable(item_config[CONF_HEIGHT], args=[], output_type=int)
+    height = await cg.templatable(item_config[CONF_HEIGHT], args=[], output_type=cg.int_)
     cg.add(var.set_height(height))
 
     lambda_ = await cg.process_lambda(

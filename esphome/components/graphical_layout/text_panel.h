@@ -4,6 +4,7 @@
 
 #include "esphome/components/graphical_layout/graphical_layout.h"
 #include "esphome/components/font/font.h"
+#include "esphome/core/automation.h"
 
 namespace esphome {
 namespace graphical_layout {
@@ -19,7 +20,7 @@ class TextPanel : public LayoutItem {
   void dump_config(int indent_depth, int additional_level_depth) override;
 
   void set_item_padding(int item_padding) { this->item_padding_ = item_padding; };
-  void set_text(std::string text) { this->text_ = std::move(text); };
+  template<typename V> void set_text(V text) { this->text_ = text; };
   void set_font(display::BaseFont *font) { this->font_ = font; };
   void set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; };
   void set_background_color(Color background_color) { this->background_color_ = background_color; };
@@ -27,7 +28,7 @@ class TextPanel : public LayoutItem {
 
  protected:
   int item_padding_{0};
-  std::string text_{};
+  TemplatableValue<std::string> text_{};
   display::BaseFont *font_{nullptr};
   display::TextAlign text_align_{display::TextAlign::TOP_LEFT};
   Color foreground_color_{COLOR_ON};

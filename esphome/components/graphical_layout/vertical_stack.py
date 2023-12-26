@@ -23,7 +23,7 @@ def get_config_schema(base_item_schema, item_type_schema):
     return base_item_schema.extend(
         {
             cv.GenerateID(): cv.declare_id(VerticalStack),
-            cv.Optional(CONF_ITEM_PADDING, default=0): cv.templatable(cv.int_),
+            cv.Optional(CONF_ITEM_PADDING, default=0): cv.int_,
             cv.Required(CONF_ITEMS): cv.All(
                 cv.ensure_list(item_type_schema), cv.Length(min=1)
             ),

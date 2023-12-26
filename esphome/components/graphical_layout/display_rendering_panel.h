@@ -4,6 +4,7 @@
 
 #include "esphome/components/graphical_layout/graphical_layout.h"
 #include "esphome/components/font/font.h"
+#include "esphome/core/automation.h"
 
 namespace esphome {
 namespace graphical_layout {
@@ -20,13 +21,13 @@ class DisplayRenderingPanel : public LayoutItem {
   void render_internal(display::Display *display, display::Rect bounds) override;
   void dump_config(int indent_depth, int additional_level_depth) override;
 
-  void set_width(int width) { this->width_ = width; };
-  void set_height(int height) { this->height_ = height; };
+  template<typename V> void set_width(V width) { this->width_ = width; };
+  template<typename V> void set_height(V height) { this->height_ = height; };
   void set_lambda(display_writer_t lambda) { this->lambda_ = std::move(lambda); };
 
  protected:
-  int width_{0};
-  int height_{0};
+  TemplatableValue<int> width_{0};
+  TemplatableValue<int> height_{0};
   display_writer_t lambda_{nullptr};
 };
 

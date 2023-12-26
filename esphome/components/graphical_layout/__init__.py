@@ -25,10 +25,10 @@ CONF_BORDER_COLOR = "border_color"
 
 BASE_ITEM_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_MARGIN, default=0): cv.templatable(cv.int_range(min=0)),
-        cv.Optional(CONF_BORDER, default=0): cv.templatable(cv.int_range(min=0)),
+        cv.Optional(CONF_MARGIN, default=0): cv.int_range(min=0),
+        cv.Optional(CONF_BORDER, default=0): cv.int_range(min=0),
         cv.Optional(CONF_BORDER_COLOR): cv.use_id(color.ColorStruct),
-        cv.Optional(CONF_PADDING, default=0): cv.templatable(cv.int_range(min=0)),
+        cv.Optional(CONF_PADDING, default=0): cv.int_range(min=0),
     }
 )
 

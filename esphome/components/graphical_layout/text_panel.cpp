@@ -13,7 +13,8 @@ static const int TEXT_ALIGN_Y_MASK =
     (int) display::TextAlign::BOTTOM | (int) display::TextAlign::BASELINE | (int) display::TextAlign::CENTER_VERTICAL;
 
 void TextPanel::dump_config(int indent_depth, int additional_level_depth) {
-  ESP_LOGCONFIG(TAG, "%*sText: %s", indent_depth, "", this->text_.c_str());
+  std::string text = this->text_.value();
+  ESP_LOGCONFIG(TAG, "%*sText: %s", indent_depth, "", text.c_str());
 }
 
 display::Rect TextPanel::measure_item_internal(display::Display *display) {
@@ -21,14 +22,16 @@ display::Rect TextPanel::measure_item_internal(display::Display *display) {
   int y1;
   int width;
   int height;
-  display->get_text_bounds(0, 0, this->text_.c_str(), this->font_, this->text_align_, &x1, &y1, &width, &height);
+  std::string text = this->text_.value();
+  display->get_text_bounds(0, 0, text.c_str(), this->font_, this->text_align_, &x1, &y1, &width, &height);
   return display::Rect(0, 0, width, height);
 }
 
 void TextPanel::render_internal(display::Display *display, display::Rect bounds) {
   int width, height, x_offset, baseline;
 
-  this->font_->measure(this->text_.c_str(), &width, &x_offset, &baseline, &height);
+  std::string text = this->text_.value();
+  this->font_->measure(text.c_str(), &width, &x_offset, &baseline, &height);
 
   const auto x_align = display::TextAlign(int(this->text_align_) & TEXT_ALIGN_X_MASK);
   const auto y_align = display::TextAlign(int(this->text_align_) & TEXT_ALIGN_Y_MASK);
@@ -73,7 +76,7 @@ void TextPanel::render_internal(display::Display *display, display::Rect bounds)
   }
 
   auto rendered_alignment = display::TextAlign::TOP_LEFT;
-  display->print(bounds.x, bounds.y, this->font_, this->foreground_color_, rendered_alignment, this->text_.c_str());
+  display->print(bounds.x, bounds.y, this->font_, this->foreground_color_, rendered_alignment, text.c_str());
 }
 
 }  // namespace graphical_layout
