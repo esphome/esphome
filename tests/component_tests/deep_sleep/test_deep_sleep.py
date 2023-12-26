@@ -38,6 +38,11 @@ def test_deep_sleep_run_duration_dictionary(generate_main):
     main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep2.yaml")
 
     assert (
+        "esp32_esp32internalgpiopin = new esp32::ESP32InternalGPIOPin();\n"
+        "esp32_esp32internalgpiopin->set_pin(::GPIO_NUM_2);"
+    ) in main_cpp
+
+    assert (
         "deepsleep->set_run_duration(deep_sleep::WakeupCauseToRunDuration{\n"
         "    .default_cause = 10000,\n"
         "    .touch_cause = 10000,\n"
@@ -51,7 +56,6 @@ def test_deep_sleep_single_perpin_definition(generate_main):
     When deep sleep is configured with single per pin wakeup_pin_mode, it should work even on non-multi-wake-pin devices
     """
     main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep2.yaml")
-    print(main_cpp)
 
     assert (
         "esp32_esp32internalgpiopin = new esp32::ESP32InternalGPIOPin();\n"
@@ -103,7 +107,5 @@ def test_deep_sleep_multi_pin_definition_on_unsupported(generate_main):
     """
     with pytest.raises(AttributeError):
         with pytest.raises(cv.Invalid) as excinfo:
-            main_cpp = generate_main(
-                "tests/component_tests/deep_sleep/test_deep_sleep4.yaml"
-            )
+            generate_main("tests/component_tests/deep_sleep/test_deep_sleep4.yaml")
         assert "Your board only supports wake from a single pin" in str(excinfo.value)
