@@ -16,7 +16,7 @@ DEPENDENCIES = ["i2c"]
 
 honeywell_hih_ns = cg.esphome_ns.namespace("honeywell_hih_i2c")
 HONEYWELLHIComponent = honeywell_hih_ns.class_(
-    "HONEYWELLHIComponent", cg.PollingComponent, i2c.I2CDevice
+    "HoneywellHIComponent", cg.PollingComponent, i2c.I2CDevice
 )
 
 CONFIG_SCHEMA = (
@@ -47,10 +47,10 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+    if temperature_config := config.get(CONF_TEMPERATURE):
+        sens = await sensor.new_sensor(temperature_config)
         cg.add(var.set_temperature_sensor(sens))
 
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
+    if humidity_config := config.get(CONF_HUMIDITY):
+        sens = await sensor.new_sensor(humidity_config)
         cg.add(var.set_humidity_sensor(sens))

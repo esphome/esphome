@@ -8,12 +8,12 @@
 namespace esphome {
 namespace honeywell_hih_i2c {
 
-static const char *const TAG = "honeywell_hih";
+static const char *const TAG = "honeywell_hih.i2c";
 
-static const uint8_t RESQUEST_CMD[1] = {0x00};  // Measurement Request Format
-static const uint16_t MAX_COUNT = 0x3FFE;       // 2^14 - 2
+static const uint8_t REQUEST_CMD[1] = {0x00};  // Measurement Request Format
+static const uint16_t MAX_COUNT = 0x3FFE;      // 2^14 - 2
 
-void HONEYWELLHIComponent::read_sensor_data_() {
+void HoneywellHIComponent::read_sensor_data_() {
   uint8_t data[4];
 
   if (this->read(data, sizeof(data)) != i2c::ERROR_OK) {
@@ -35,8 +35,8 @@ void HONEYWELLHIComponent::read_sensor_data_() {
     this->humidity_sensor_->publish_state(humidity);
 }
 
-void HONEYWELLHIComponent::start_measurement_() {
-  if (this->write(RESQUEST_CMD, sizeof(RESQUEST_CMD)) != i2c::ERROR_OK) {
+void HoneywellHIComponent::start_measurement_() {
+  if (this->write(REQUEST_CMD, sizeof(REQUEST_CMD)) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with Honeywell HIH failed!");
     this->mark_failed();
     return;
@@ -45,7 +45,7 @@ void HONEYWELLHIComponent::start_measurement_() {
   this->measurement_running_ = true;
 }
 
-bool HONEYWELLHIComponent::is_measurement_ready_() {
+bool HoneywellHIComponent::is_measurement_ready_() {
   uint8_t data[1];
 
   if (this->read(data, sizeof(data)) != i2c::ERROR_OK) {
@@ -58,13 +58,13 @@ bool HONEYWELLHIComponent::is_measurement_ready_() {
   return ((data[0] & 0xC0) == 0x00);
 }
 
-void HONEYWELLHIComponent::measurement_timeout_() {
+void HoneywellHIComponent::measurement_timeout_() {
   ESP_LOGE(TAG, "Honeywell HIH Timeout!");
   this->measurement_running_ = false;
   this->mark_failed();
 }
 
-void HONEYWELLHIComponent::update() {
+void HoneywellHIComponent::update() {
   ESP_LOGV(TAG, "Update Honeywell HIH Sensor");
 
   this->start_measurement_();
@@ -72,7 +72,7 @@ void HONEYWELLHIComponent::update() {
   this->set_timeout("meas_timeout", 100, [this] { this->measurement_timeout_(); });
 }
 
-void HONEYWELLHIComponent::loop() {
+void HoneywellHIComponent::loop() {
   if (this->measurement_running_ && this->is_measurement_ready_()) {
     this->measurement_running_ = false;
     this->cancel_timeout("meas_timeout");
@@ -80,7 +80,7 @@ void HONEYWELLHIComponent::loop() {
   }
 }
 
-void HONEYWELLHIComponent::dump_config() {
+void HoneywellHIComponent::dump_config() {
   ESP_LOGD(TAG, "Honeywell HIH:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
@@ -91,7 +91,7 @@ void HONEYWELLHIComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-float HONEYWELLHIComponent::get_setup_priority() const { return setup_priority::DATA; }
+float HoneywellHIComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace honeywell_hih_i2c
 }  // namespace esphome
