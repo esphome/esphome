@@ -55,7 +55,7 @@ class LayoutItem {
    * of any padding or margins
    *
    * param[in] display: Display that will be used for rendering. May be used to help with calculations
-  */
+   */
   virtual display::Rect measure_item_internal(display::Display *display) = 0;
 
   /** Perform the rendering of the item to the display accounting for the margin and padding of the
@@ -72,11 +72,11 @@ class LayoutItem {
    *
    * param[in] display: Display to render to
    * param[in] bounds: Size of the area drawing should be constrained to
-  */
+   */
   virtual void render_internal(display::Display *display, display::Rect bounds) = 0;
 
   /** Dump the items config to aid the user
-   * 
+   *
    * param[in] indent_depth: Depth to indent the config
    * param[in] additional_level_depth: If children require their config to be dumped you increment
    *  their indent_depth before calling it

@@ -55,6 +55,5 @@ void LayoutItem::render(display::Display *display, display::Rect bounds) {
   display->pop_local_coordinates();
 }
 
-
 }  // namespace graphical_layout
 }  // namespace esphome

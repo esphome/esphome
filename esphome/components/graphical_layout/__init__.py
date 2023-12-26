@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TYPE
+from esphome.const import CONF_ID, CONF_TYPE, CONF_BORDER
 from esphome.components import color
 from . import horizontal_stack
 from . import vertical_stack
@@ -21,7 +21,6 @@ MULTI_CONF = True
 CONF_LAYOUT = "layout"
 CONF_MARGIN = "margin"
 CONF_PADDING = "padding"
-CONF_BORDER = "border"
 CONF_BORDER_COLOR = "border_color"
 
 BASE_ITEM_SCHEMA = cv.Schema(
