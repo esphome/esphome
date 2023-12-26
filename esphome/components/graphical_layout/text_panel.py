@@ -1,4 +1,3 @@
-from esphome import core
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import font, color
@@ -64,7 +63,9 @@ async def config_to_layout_item(pvariable_builder, item_config, child_item_build
         background_color = await cg.get_variable(background_color_config)
         cg.add(var.set_background_color(background_color))
 
-    text = await cg.templatable(item_config[CONF_TEXT], args=[], output_type=cg.std_string)
+    text = await cg.templatable(
+        item_config[CONF_TEXT], args=[], output_type=cg.std_string
+    )
     cg.add(var.set_text(text))
 
     if text_align := item_config.get(CONF_TEXT_ALIGN):
