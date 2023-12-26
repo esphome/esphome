@@ -1,9 +1,11 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import font, color
+from esphome.components.display import display_ns
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 TextPanel = graphical_layout_ns.class_("TextPanel")
+TextAlign = display_ns.enum("TextAlign", is_class=True)
 
 CONF_ITEM_PADDING = "item_padding"
 CONF_TEXT_PANEL = "text_panel"
@@ -11,7 +13,23 @@ CONF_FONT = "font"
 CONF_FOREGROUND_COLOR = "foreground_color"
 CONF_BACKGROUND_COLOR = "background_color"
 CONF_TEXT = "text"
+CONF_TEXT_ALIGN = "text_align"
 
+
+TEXT_ALIGN = {
+    "TOP_LEFT": TextAlign.TOP_LEFT,
+    "TOP_CENTER": TextAlign.TOP_CENTER,
+    "TOP_RIGHT": TextAlign.TOP_RIGHT,
+    "CENTER_LEFT": TextAlign.CENTER_LEFT,
+    "CENTER": TextAlign.CENTER,
+    "CENTER_RIGHT": TextAlign.CENTER_RIGHT,
+    "BASELINE_LEFT": TextAlign.BASELINE_LEFT,
+    "BASELINE_CENTER": TextAlign.BASELINE_CENTER,
+    "BASELINE_RIGHT": TextAlign.BASELINE_RIGHT,
+    "BOTTOM_LEFT": TextAlign.BOTTOM_LEFT,
+    "BOTTOM_CENTER": TextAlign.BOTTOM_CENTER,
+    "BOTTOM_RIGHT": TextAlign.BOTTOM_RIGHT,
+}
 
 def get_config_schema(base_item_schema, item_type_schema):
     return base_item_schema.extend(
@@ -22,6 +40,7 @@ def get_config_schema(base_item_schema, item_type_schema):
             cv.Optional(CONF_FOREGROUND_COLOR): cv.use_id(color.ColorStruct),
             cv.Optional(CONF_BACKGROUND_COLOR): cv.use_id(color.ColorStruct),
             cv.Required(CONF_TEXT): cv.templatable(cv.string),
+            cv.Optional(CONF_TEXT_ALIGN): cv.enum(TEXT_ALIGN, upper=True)
         }
     )
 
@@ -45,5 +64,8 @@ async def config_to_layout_item(pvariable_builder, item_config, child_item_build
 
     text = await cg.templatable(item_config[CONF_TEXT], args=[], output_type=str)
     cg.add(var.set_text(text))
+
+    if text_align := item_config.get(CONF_TEXT_ALIGN):
+        cg.add(var.set_text_align(text_align))
 
     return var

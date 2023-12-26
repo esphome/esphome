@@ -23,11 +23,13 @@ class TextPanel : public LayoutItem {
   void set_font(display::BaseFont *font) { this->font_ = font; };
   void set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; };
   void set_background_color(Color background_color) { this->background_color_ = background_color; };
+  void set_text_align(display::TextAlign text_align) { this->text_align_ = text_align; };
 
  protected:
   int item_padding_{0};
   std::string text_{};
   display::BaseFont *font_{nullptr};
+  display::TextAlign text_align_{display::TextAlign::TOP_LEFT};
   Color foreground_color_{COLOR_ON};
   Color background_color_{COLOR_OFF};
 };
