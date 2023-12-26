@@ -11,6 +11,7 @@ static const char *const TAG = "verticalstack";
 
 void VerticalStack::dump_config(int indent_depth, int additional_level_depth) {
   ESP_LOGCONFIG(TAG, "%*sItem Padding: %i", indent_depth, "", this->item_padding_);
+  ESP_LOGCONFIG(TAG, "%*sChild alignment: %i", indent_depth, "", (int)this->child_align_);
   ESP_LOGCONFIG(TAG, "%*sChildren: %i", indent_depth, "", this->children_.size());
 
   for (LayoutItem *child : this->children_) {
@@ -38,9 +39,38 @@ void VerticalStack::render_internal(display::Display *display, display::Rect bou
 
   for (LayoutItem *item : this->children_) {
     display::Rect measure = item->measure_item(display);
+    bool align_altered_local_coordinates = false;
+
+    switch (this->child_align_) {
+      case HorizontalChildAlign::CENTER_HORIZONTAL: {
+        align_altered_local_coordinates = true;
+        int adjustment = (bounds.w - measure.w) / 2;
+        display->set_local_coordinates_relative_to_current(adjustment, 0);
+        break;
+      }
+      case HorizontalChildAlign::RIGHT: {
+        align_altered_local_coordinates = true;
+        display->set_local_coordinates_relative_to_current(bounds.w - measure.w, 0);
+        break;
+      }
+      case HorizontalChildAlign::STRETCH_TO_FIT_WIDTH: {
+        // Items always get the same width as the widest item
+        measure.w = bounds.w;
+        break;
+      }
+      case HorizontalChildAlign::LEFT:
+      default: {
+        // No action
+        break;
+      }
+    }
 
     display->set_local_coordinates_relative_to_current(this->item_padding_, height_offset);
     item->render(display, measure);
+    if (align_altered_local_coordinates) {
+      // Additional pop of local coords due to alignment
+      display->pop_local_coordinates();
+    }
     display->pop_local_coordinates();
     height_offset += measure.h + this->item_padding_;
   }

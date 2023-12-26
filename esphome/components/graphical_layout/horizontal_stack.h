@@ -16,9 +16,11 @@ class HorizontalStack : public ContainerLayoutItem {
   void dump_config(int indent_depth, int additional_level_depth) override;
 
   void set_item_padding(int item_padding) { this->item_padding_ = item_padding; };
+  void set_child_align(VerticalChildAlign child_align) { this->child_align_ = child_align; };
 
  protected:
   int item_padding_{0};
+  VerticalChildAlign child_align_{VerticalChildAlign::TOP};
 };
 
 }  // namespace graphical_layout

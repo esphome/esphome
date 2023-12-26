@@ -10,6 +10,36 @@ class Rect;
 
 namespace graphical_layout {
 
+/* HorizontalChildAlign is used to control alignment of children horizontally */
+enum class HorizontalChildAlign {
+  /* Aligns all children to the left of their available width */
+  LEFT = 0x00,
+
+  /* Aligns all children to the center of the available width */
+  CENTER_HORIZONTAL = 0x01,
+
+  /* Aligns all children to the right of the available width */
+  RIGHT = 0x02,
+
+  /* Regardless of the requested size of a child they will be given the entire width of their parent */
+  STRETCH_TO_FIT_WIDTH = 0x03
+};
+
+/* VerticalChildAlign is used to control alignment of children vertically */
+enum class VerticalChildAlign {
+  /* Aligns all children to the top of the available height */
+  TOP = 0x00,
+
+  /* Aligns all children with the center of the available height */
+  CENTER_VERTICAL = 0x01,
+
+  /* Aligns all children to the bottom of the available height*/
+  BOTTOM = 0x02,
+
+  /* Regardless of the requested size of a child they will be given the entire height of their parent */
+  STRETCH_TO_FIT_HEIGHT = 0x03
+};
+
 /** LayoutItem is the base from which all items derive from*/
 class LayoutItem {
  public:
