@@ -301,11 +301,16 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
         if (
-            port == "OTA"
+            port == "OTA"  # pylint: disable=too-many-boolean-expressions
             and (mdns := dashboard.mdns_status)
             and (entry := entries.get(config_file))
+            and entry.loaded_integrations
+            and "api" in entry.loaded_integrations
             and (address := await mdns.async_resolve_host(entry.name))
         ):
+            # Use the IP address if available but only
+            # if the API is loaded and the device is online
+            # since MQTT logging will not work otherwise
             port = address
 
         return [
@@ -792,13 +797,22 @@ class EditRequestHandler(BaseHandler):
         """Get the content of a file."""
         loop = asyncio.get_running_loop()
         filename = settings.rel_path(configuration)
-        content = await loop.run_in_executor(None, self._read_file, filename)
-        self.write(content)
+        content = await loop.run_in_executor(
+            None, self._read_file, filename, configuration
+        )
+        if content is not None:
+            self.write(content)
 
-    def _read_file(self, filename: str) -> bytes:
+    def _read_file(self, filename: str, configuration: str) -> bytes | None:
         """Read a file and return the content as bytes."""
-        with open(file=filename, encoding="utf-8") as f:
-            return f.read()
+        try:
+            with open(file=filename, encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            if configuration in const.SECRETS_FILES:
+                return ""
+            self.set_status(404)
+            return None
 
     def _write_file(self, filename: str, content: bytes) -> None:
         """Write a file with the given content."""
