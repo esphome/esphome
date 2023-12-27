@@ -336,7 +336,7 @@ class SPIComponent : public Component {
   void set_miso(GPIOPin *sdi) { this->sdi_pin_ = sdi; }
 
   void set_mosi(GPIOPin *sdo) { this->sdo_pin_ = sdo; }
-  void set_data_pins(std::vector<InternalGPIOPin *> pins) { this->data_pins_ = std::move(pins); }
+  void set_data_pins(std::vector<uint8_t> pins) { this->data_pins_ = std::move(pins); }
 
   void set_interface(SPIInterface interface) {
     this->interface_ = interface;
@@ -354,7 +354,7 @@ class SPIComponent : public Component {
   GPIOPin *clk_pin_{nullptr};
   GPIOPin *sdi_pin_{nullptr};
   GPIOPin *sdo_pin_{nullptr};
-  std::vector<InternalGPIOPin *> data_pins_{};
+  std::vector<uint8_t> data_pins_{};
 
   SPIInterface interface_{};
   bool using_hw_{false};
@@ -363,7 +363,7 @@ class SPIComponent : public Component {
   std::map<SPIClient *, SPIDelegate *> devices_;
 
   static SPIBus *get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
-                         const std::vector<InternalGPIOPin *> &data_pins);
+                         const std::vector<uint8_t> &data_pins);
 };
 
 using QuadSPIComponent = SPIComponent;

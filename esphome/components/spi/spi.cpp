@@ -70,7 +70,7 @@ void SPIComponent::dump_config() {
   LOG_PIN("  SDI Pin: ", this->sdi_pin_)
   LOG_PIN("  SDO Pin: ", this->sdo_pin_)
   for (size_t i = 0; i != this->data_pins_.size(); i++) {
-    ESP_LOGCONFIG(TAG, "  Data pin %u: %s", i, this->data_pins_[i]->dump_summary().c_str());
+    ESP_LOGCONFIG(TAG, "  Data pin %u: GPIO%d", i, this->data_pins_[i]);
   }
   if (this->spi_bus_->is_hw()) {
     ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", this->interface_name_);

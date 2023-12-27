@@ -287,7 +287,8 @@ SPI_QUAD_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(QuadSPIComponent),
             cv.Required(CONF_CLK_PIN): clk_pin_validator,
             cv.Required(CONF_DATA_PINS): cv.All(
-                cv.ensure_list(pins.gpio_output_pin_schema), cv.Length(min=4, max=4)
+                cv.ensure_list(pins.internal_gpio_output_pin_number),
+                cv.Length(min=4, max=4),
             ),
             cv.Optional(CONF_INTERFACE, default="hardware"): cv.one_of(
                 *sum(get_hw_interface_list(), ["hardware"]),
@@ -328,13 +329,12 @@ async def to_code(configs):
         if mosi := spi.get(CONF_MOSI_PIN):
             cg.add(var.set_mosi(await cg.gpio_pin_expression(mosi)))
         if data_pins := spi.get(CONF_DATA_PINS):
-            vec_type = cg.std_vector.template(cg.InternalGPIOPin.operator("ptr"))
+            vec_type = cg.std_vector.template(cg.uint8)
             vec_id = cg.new_variable(
                 core.ID(f"{spi[CONF_ID]}_{CONF_DATA_PINS}", type=vec_type), rhs=None
             )
             for pin in data_pins:
-                gpio = await cg.gpio_pin_expression(pin)
-                cg.add(vec_id.push_back(gpio))
+                cg.add(vec_id.push_back(pin))
             cg.add(var.set_data_pins(vec_id))
         if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
             interface = get_spi_interface(index)

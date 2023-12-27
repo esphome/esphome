@@ -1,5 +1,4 @@
 #include "spi.h"
-#include <utility>
 #include <vector>
 
 namespace esphome {
@@ -197,7 +196,7 @@ class SPIDelegateHw : public SPIDelegate {
 
 class SPIBusHw : public SPIBus {
  public:
-  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel, std::vector<InternalGPIOPin *> data_pins)
+  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel, std::vector<uint8_t> data_pins)
       : SPIBus(clk, sdo, sdi), channel_(channel) {
     spi_bus_config_t buscfg = {};
     buscfg.sclk_io_num = Utility::get_pin_no(clk);
@@ -208,10 +207,10 @@ class SPIBusHw : public SPIBus {
       buscfg.quadwp_io_num = -1;
       buscfg.quadhd_io_num = -1;
     } else {
-      buscfg.data0_io_num = Utility::get_pin_no(data_pins[0]);
-      buscfg.data1_io_num = Utility::get_pin_no(data_pins[1]);
-      buscfg.data2_io_num = Utility::get_pin_no(data_pins[2]);
-      buscfg.data3_io_num = Utility::get_pin_no(data_pins[3]);
+      buscfg.data0_io_num = data_pins[0];
+      buscfg.data1_io_num = data_pins[1];
+      buscfg.data2_io_num = data_pins[2];
+      buscfg.data3_io_num = data_pins[3];
       buscfg.data4_io_num = -1;
       buscfg.data5_io_num = -1;
       buscfg.data6_io_num = -1;
@@ -236,7 +235,7 @@ class SPIBusHw : public SPIBus {
 };
 
 SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
-                              const std::vector<InternalGPIOPin *> &data_pins) {
+                              const std::vector<uint8_t> &data_pins) {
   return new SPIBusHw(clk, sdo, sdi, interface, data_pins);
 }
 
