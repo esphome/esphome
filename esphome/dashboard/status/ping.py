@@ -36,17 +36,30 @@ class PingStatus:
             to_ping: list[DashboardEntry] = [
                 entry for entry in current_entries if entry.address is not None
             ]
-            # icmplib defaults to 50 pings at a time
-            for ping_group in chunked(to_ping, 50):
+            # Try to do 20 at a time
+            for ping_group in chunked(to_ping, 20):
                 ping_group = cast(list[DashboardEntry], ping_group)
+                dns_results = await asyncio.gather(
+                    *(
+                        dashboard.dns_cache.async_resolve(entry.address)
+                        for entry in ping_group
+                    ),
+                )
+                entries_with_addresses: dict[DashboardEntry, list[str]] = {}
+                for entry, result in zip(ping_group, dns_results):
+                    if result is None:
+                        entries.async_set_state(entry, None)
+                        continue
+                    entries_with_addresses[entry] = result
+
                 results = await asyncio.gather(
                     *(
-                        async_ping(entry.address, privileged=privileged)
-                        for entry in ping_group
+                        async_ping(addresses[0], privileged=privileged)
+                        for entry, addresses in entries_with_addresses.items()
                     ),
                     return_exceptions=True,
                 )
-                for entry, result in zip(ping_group, results):
+                for entry, result in zip(entries_with_addresses, results):
                     if isinstance(result, Exception):
                         ping_result = False
                     elif isinstance(result, BaseException):

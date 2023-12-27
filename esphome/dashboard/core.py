@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from ..zeroconf import DiscoveredImport
 from .entries import DashboardEntries
 from .settings import DashboardSettings
+from .dns import DNSCache
 
 if TYPE_CHECKING:
     from .status.mdns import MDNSStatus
@@ -81,7 +82,8 @@ class ESPHomeDashboard:
         self.ping_request: asyncio.Event | None = None
         self.mqtt_ping_request = threading.Event()
         self.mdns_status: MDNSStatus | None = None
-        self.settings: DashboardSettings = DashboardSettings()
+        self.settings = DashboardSettings()
+        self.dns_cache = DNSCache()
 
     async def async_setup(self) -> None:
         """Setup the dashboard."""
