@@ -50,7 +50,7 @@ class WaveshareEPaper : public display::DisplayBuffer,
       this->reset_pin_->digital_write(false);
       delay(reset_duration_);  // NOLINT
       this->reset_pin_->digital_write(true);
-      delay(20);  // NOLINT
+      delay(20);
     }
   }
 
