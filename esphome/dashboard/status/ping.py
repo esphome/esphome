@@ -60,9 +60,6 @@ class PingStatus:
                         raise result
                     entries_with_addresses[entry] = result
 
-            _LOGGER.warning(
-                "Pinging entries with addresses: %s", entries_with_addresses
-            )
             # Ping all entries with valid addresses
             for ping_group in chunked(entries_with_addresses.items(), GROUP_SIZE):
                 entry_addresses = cast(tuple[DashboardEntry, list[str]], ping_group)
