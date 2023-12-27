@@ -7,9 +7,8 @@ from typing import cast
 from icmplib import Host, SocketPermissionError, async_ping
 
 from ..core import DASHBOARD
-from ..entries import DashboardEntry, bool_to_entry_state, EntryState
+from ..entries import DashboardEntry, EntryState, bool_to_entry_state
 from ..util.itertools import chunked
-
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,41 +30,41 @@ class PingStatus:
 
         while not dashboard.stop_event.is_set():
             # Only ping if the dashboard is open
-            _LOGGER.warning("Waiting for ping request")
             await dashboard.ping_request.wait()
-            _LOGGER.warning("Pinging all entries")
             current_entries = dashboard.entries.async_all()
             to_ping: list[DashboardEntry] = [
                 entry for entry in current_entries if entry.address is not None
             ]
-            # Try to do 20 at a time
-            for ping_group in chunked(to_ping, 20):
+            # Try to do 24 at a time
+            for ping_group in chunked(to_ping, 24):
                 ping_group = cast(list[DashboardEntry], ping_group)
-                _LOGGER.warning("Pinging group %s", ping_group)
                 dns_results = await asyncio.gather(
                     *(
                         dashboard.dns_cache.async_resolve(entry.address)
                         for entry in ping_group
                     ),
+                    return_exceptions=True,
                 )
-                _LOGGER.warning("DNS results %s", dns_results)
+
                 entries_with_addresses: dict[DashboardEntry, list[str]] = {}
                 for entry, result in zip(ping_group, dns_results):
-                    if result is None:
+                    if isinstance(result, Exception):
                         entries.async_set_state(entry, EntryState.UNKNOWN)
                         continue
+                    if isinstance(result, BaseException):
+                        raise result
                     entries_with_addresses[entry] = result
 
-                _LOGGER.warning("Pinging addresses %s", entries_with_addresses)
+                if not entries_with_addresses:
+                    continue
 
                 results = await asyncio.gather(
                     *(
                         async_ping(addresses[0], privileged=privileged)
-                        for entry, addresses in entries_with_addresses.items()
+                        for addresses in entries_with_addresses.values()
                     ),
                     return_exceptions=True,
                 )
-                _LOGGER.warning("Ping results %s", results)
 
                 for entry, result in zip(entries_with_addresses, results):
                     if isinstance(result, Exception):

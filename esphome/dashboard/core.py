@@ -8,9 +8,9 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, Callable
 
 from ..zeroconf import DiscoveredImport
+from .dns import DNSCache
 from .entries import DashboardEntries
 from .settings import DashboardSettings
-from .dns import DNSCache
 
 if TYPE_CHECKING:
     from .status.mdns import MDNSStatus
