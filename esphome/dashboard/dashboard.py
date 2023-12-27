@@ -14,13 +14,12 @@ from typing import Any
 from esphome.storage_json import EsphomeStorageJSON, esphome_storage_path
 
 from .core import DASHBOARD
+from .const import MAX_EXECUTOR_WORKERS
 from .web_server import make_app, start_web_server
 
 ENV_DEV = "ESPHOME_DASHBOARD_DEV"
 
 settings = DASHBOARD.settings
-
-MAX_EXECUTOR_WORKERS = 48
 
 
 def can_use_pidfd() -> bool:

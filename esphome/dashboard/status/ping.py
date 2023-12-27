@@ -9,8 +9,11 @@ from icmplib import Host, SocketPermissionError, async_ping
 from ..core import DASHBOARD
 from ..entries import DashboardEntry, EntryState, bool_to_entry_state
 from ..util.itertools import chunked
+from ..const import MAX_EXECUTOR_WORKERS
 
 _LOGGER = logging.getLogger(__name__)
+
+GROUP_SIZE = int(MAX_EXECUTOR_WORKERS / 2)
 
 
 class PingStatus:
@@ -35,8 +38,10 @@ class PingStatus:
             to_ping: list[DashboardEntry] = [
                 entry for entry in current_entries if entry.address is not None
             ]
-            # Try to do 24 at a time
-            for ping_group in chunked(to_ping, 24):
+
+            # Resolve DNS for all entries
+            entries_with_addresses: dict[DashboardEntry, list[str]] = {}
+            for ping_group in chunked(to_ping, GROUP_SIZE):
                 ping_group = cast(list[DashboardEntry], ping_group)
                 dns_results = await asyncio.gather(
                     *(
@@ -46,7 +51,6 @@ class PingStatus:
                     return_exceptions=True,
                 )
 
-                entries_with_addresses: dict[DashboardEntry, list[str]] = {}
                 for entry, result in zip(ping_group, dns_results):
                     if isinstance(result, Exception):
                         entries.async_set_state(entry, EntryState.UNKNOWN)
@@ -55,18 +59,19 @@ class PingStatus:
                         raise result
                     entries_with_addresses[entry] = result
 
-                if not entries_with_addresses:
-                    continue
+            # Ping all entries with valid addresses
+            for ping_group in chunked(entries_with_addresses.items(), GROUP_SIZE):
+                entry_addresses = cast(tuple[DashboardEntry, list[str]], ping_group)
 
                 results = await asyncio.gather(
                     *(
                         async_ping(addresses[0], privileged=privileged)
-                        for addresses in entries_with_addresses.values()
+                        for _, addresses in entry_addresses
                     ),
                     return_exceptions=True,
                 )
 
-                for entry, result in zip(entries_with_addresses, results):
+                for entry_addresses, result in zip(entry_addresses, results):
                     if isinstance(result, Exception):
                         ping_result = False
                     elif isinstance(result, BaseException):
@@ -74,6 +79,7 @@ class PingStatus:
                     else:
                         host: Host = result
                         ping_result = host.is_alive
+                    entry, _ = entry_addresses
                     entries.async_set_state(entry, bool_to_entry_state(ping_result))
 
 
