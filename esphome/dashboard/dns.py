@@ -3,6 +3,23 @@ from __future__ import annotations
 import time
 
 from icmplib import NameLookupError, async_resolve
+import asyncio
+
+import sys
+
+if sys.version_info >= (3, 11):
+    import asyncio as async_timeout
+else:
+    import async_timeout
+
+
+async def _async_resolve_wrapper(hostname: str) -> list[str] | None:
+    """Wrap the icmplib async_resolve function."""
+    try:
+        async with async_timeout.timeout(2):
+            return await async_resolve(hostname)
+    except (asyncio.TimeoutError, NameLookupError):
+        return None
 
 
 class DNSCache:
@@ -21,11 +38,6 @@ class DNSCache:
                 return addresses
 
         expires = time.monotonic() + self._ttl
-        try:
-            addresses = await async_resolve(hostname)
-        except NameLookupError:
-            self._cache[hostname] = (expires, None)
-            return None
-
+        addresses = await _async_resolve_wrapper(hostname)
         self._cache[hostname] = (expires, addresses)
         return addresses
