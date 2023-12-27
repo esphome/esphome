@@ -14,6 +14,17 @@ from .util.password import password_hash
 class DashboardSettings:
     """Settings for the dashboard."""
 
+    __slots__ = (
+        "config_dir",
+        "password_hash",
+        "username",
+        "using_password",
+        "on_ha_addon",
+        "cookie_secret",
+        "absolute_config_dir",
+        "verbose",
+    )
+
     def __init__(self) -> None:
         """Initialize the dashboard settings."""
         self.config_dir: str = ""
@@ -23,6 +34,7 @@ class DashboardSettings:
         self.on_ha_addon: bool = False
         self.cookie_secret: str | None = None
         self.absolute_config_dir: Path | None = None
+        self.verbose: bool = False
 
     def parse_args(self, args: Any) -> None:
         """Parse the arguments."""

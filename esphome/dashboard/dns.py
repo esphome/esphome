@@ -6,15 +6,15 @@ import sys
 from icmplib import NameLookupError, async_resolve
 
 if sys.version_info >= (3, 11):
-    import asyncio as async_timeout
+    from asyncio import timeout as async_timeout
 else:
-    import async_timeout
+    from async_timeout import timeout as async_timeout
 
 
 async def _async_resolve_wrapper(hostname: str) -> list[str] | Exception:
     """Wrap the icmplib async_resolve function."""
     try:
-        async with async_timeout.timeout(2):
+        async with async_timeout(2):
             return await async_resolve(hostname)
     except (asyncio.TimeoutError, NameLookupError, UnicodeError) as ex:
         return ex
