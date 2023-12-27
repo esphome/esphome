@@ -70,6 +70,7 @@ class ESPHomeDashboard:
         "mqtt_ping_request",
         "mdns_status",
         "settings",
+        "dns_cache",
     )
 
     def __init__(self) -> None:
