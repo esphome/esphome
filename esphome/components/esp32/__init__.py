@@ -226,18 +226,18 @@ ARDUINO_PLATFORM_VERSION = cv.Version(5, 4, 0)
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 5)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 6)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ESP_IDF_PLATFORM_VERSION = cv.Version(5, 4, 0)
+ESP_IDF_PLATFORM_VERSION = cv.Version(6, 5, 0)
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
         "dev": (cv.Version(2, 1, 0), "https://github.com/espressif/arduino-esp32.git"),
-        "latest": (cv.Version(2, 0, 9), None),
+        "latest": (cv.Version(2, 0, 14), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -271,8 +271,8 @@ def _arduino_check_versions(value):
 def _esp_idf_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(5, 1, 0), "https://github.com/espressif/esp-idf.git"),
-        "latest": (cv.Version(5, 1, 0), None),
+        "dev": (cv.Version(5, 1, 2), "https://github.com/espressif/esp-idf.git"),
+        "latest": (cv.Version(5, 1, 2), None),
         "recommended": (RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION, None),
     }
 
