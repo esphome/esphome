@@ -3259,6 +3259,25 @@ display:
       inverted: true
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7567_i2c
+    id: st7735_display_i2c
+    address: 0x3F
+    i2c_id: i2c_bus
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7567_spi
+    id: st7735_display_spi
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO16
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7735
     id: st7735_display
     model: INITR_BLACKTAB
