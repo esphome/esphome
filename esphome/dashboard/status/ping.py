@@ -6,10 +6,10 @@ from typing import cast
 
 from icmplib import Host, SocketPermissionError, async_ping
 
+from ..const import MAX_EXECUTOR_WORKERS
 from ..core import DASHBOARD
 from ..entries import DashboardEntry, EntryState, bool_to_entry_state
 from ..util.itertools import chunked
-from ..const import MAX_EXECUTOR_WORKERS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +59,9 @@ class PingStatus:
                         raise result
                     entries_with_addresses[entry] = result
 
+            _LOGGER.warning(
+                "Pinging entries with addresses: %s", entries_with_addresses
+            )
             # Ping all entries with valid addresses
             for ping_group in chunked(entries_with_addresses.items(), GROUP_SIZE):
                 entry_addresses = cast(tuple[DashboardEntry, list[str]], ping_group)
