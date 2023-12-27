@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import cast
 
 from icmplib import Host, SocketPermissionError, async_ping
@@ -44,9 +45,10 @@ class PingStatus:
             entries_with_addresses: dict[DashboardEntry, list[str]] = {}
             for ping_group in chunked(to_ping, GROUP_SIZE):
                 ping_group = cast(list[DashboardEntry], ping_group)
+                now_monotonic = time.monotonic()
                 dns_results = await asyncio.gather(
                     *(
-                        dashboard.dns_cache.async_resolve(entry.address)
+                        dashboard.dns_cache.async_resolve(entry.address, now_monotonic)
                         for entry in ping_group
                     ),
                     return_exceptions=True,

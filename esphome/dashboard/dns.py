@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import sys
-import time
 
 from icmplib import NameLookupError, async_resolve
 
@@ -29,14 +28,16 @@ class DNSCache:
         self._cache: dict[str, tuple[float, list[str] | Exception]] = {}
         self._ttl = ttl
 
-    async def async_resolve(self, hostname: str) -> list[str] | Exception:
+    async def async_resolve(
+        self, hostname: str, now_monotonic: float
+    ) -> list[str] | Exception:
         """Resolve a hostname to a list of IP address."""
         if expire_time_addresses := self._cache.get(hostname):
             expire_time, addresses = expire_time_addresses
-            if expire_time > time.monotonic():
+            if expire_time > now_monotonic:
                 return addresses
 
-        expires = time.monotonic() + self._ttl
+        expires = now_monotonic + self._ttl
         addresses = await _async_resolve_wrapper(hostname)
         self._cache[hostname] = (expires, addresses)
         return addresses
