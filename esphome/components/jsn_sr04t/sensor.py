@@ -5,7 +5,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
     ICON_ARROW_EXPAND_VERTICAL,
-    DEVICE_CLASS_DISTANCE,
 )
 
 CODEOWNERS = ["@Mafus1"]
