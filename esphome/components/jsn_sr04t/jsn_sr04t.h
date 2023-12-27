@@ -23,5 +23,5 @@ class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public
   std::vector<uint8_t> buffer_;
 };
 
-}  // namespace a01nyub
+}  // namespace jsn_sr04t
 }  // namespace esphome

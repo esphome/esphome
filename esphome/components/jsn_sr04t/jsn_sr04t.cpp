@@ -10,7 +10,7 @@ namespace jsn_sr04t {
 static const char *const TAG = "jsn_sr04t.sensor";
 
 void Jsnsr04tComponent::update() {
-  this->write_byte(0x55); // request read out
+  this->write_byte(0x55);
   ESP_LOGV(TAG, "Request read out from sensor");
 
   while (this->available() > 0) {
