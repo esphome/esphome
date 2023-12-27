@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import socket
+import threading
+import traceback
+from asyncio import events
 from concurrent.futures import ThreadPoolExecutor
+from time import monotonic
+from typing import Any
 
 from esphome.storage_json import EsphomeStorageJSON, esphome_storage_path
-import threading
+
 from .core import DASHBOARD
 from .web_server import make_app, start_web_server
-from time import monotonic
-from asyncio import events
 
 ENV_DEV = "ESPHOME_DASHBOARD_DEV"
 
@@ -68,6 +72,8 @@ class DashboardEventLoopPolicy(asyncio.DefaultEventLoopPolicy):
     def new_event_loop(self) -> asyncio.AbstractEventLoop:
         """Get the event loop."""
         loop: asyncio.AbstractEventLoop = super().new_event_loop()
+        loop.set_exception_handler(_async_loop_exception_handler)
+
         if self.debug:
             loop.set_debug(True)
 
@@ -80,6 +86,30 @@ class DashboardEventLoopPolicy(asyncio.DefaultEventLoopPolicy):
         # method and its roughly 10%+ of all the call time in base_events.py
         loop.time = monotonic  # type: ignore[method-assign]
         return loop
+
+
+def _async_loop_exception_handler(_: Any, context: dict[str, Any]) -> None:
+    """Handle all exception inside the core loop."""
+    kwargs = {}
+    if exception := context.get("exception"):
+        kwargs["exc_info"] = (type(exception), exception, exception.__traceback__)
+
+    logger = logging.getLogger(__package__)
+    if source_traceback := context.get("source_traceback"):
+        stack_summary = "".join(traceback.format_list(source_traceback))
+        logger.error(
+            "Error doing job: %s: %s",
+            context["message"],
+            stack_summary,
+            **kwargs,  # type: ignore[arg-type]
+        )
+        return
+
+    logger.error(
+        "Error doing job: %s",
+        context["message"],
+        **kwargs,  # type: ignore[arg-type]
+    )
 
 
 def start_dashboard(args) -> None:

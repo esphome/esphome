@@ -31,9 +31,9 @@ class PingStatus:
 
         while not dashboard.stop_event.is_set():
             # Only ping if the dashboard is open
-            _LOGGER.debug("Waiting for ping request")
+            _LOGGER.warning("Waiting for ping request")
             await dashboard.ping_request.wait()
-            _LOGGER.debug("Pinging all entries")
+            _LOGGER.warning("Pinging all entries")
             current_entries = dashboard.entries.async_all()
             to_ping: list[DashboardEntry] = [
                 entry for entry in current_entries if entry.address is not None
@@ -41,13 +41,14 @@ class PingStatus:
             # Try to do 20 at a time
             for ping_group in chunked(to_ping, 20):
                 ping_group = cast(list[DashboardEntry], ping_group)
-                _LOGGER.debug("Pinging group %s", ping_group)
+                _LOGGER.warning("Pinging group %s", ping_group)
                 dns_results = await asyncio.gather(
                     *(
                         dashboard.dns_cache.async_resolve(entry.address)
                         for entry in ping_group
                     ),
                 )
+                _LOGGER.warning("DNS results %s", dns_results)
                 entries_with_addresses: dict[DashboardEntry, list[str]] = {}
                 for entry, result in zip(ping_group, dns_results):
                     if result is None:
@@ -55,7 +56,7 @@ class PingStatus:
                         continue
                     entries_with_addresses[entry] = result
 
-                _LOGGER.debug("Pinging addresses %s", entries_with_addresses)
+                _LOGGER.warning("Pinging addresses %s", entries_with_addresses)
 
                 results = await asyncio.gather(
                     *(
@@ -64,7 +65,7 @@ class PingStatus:
                     ),
                     return_exceptions=True,
                 )
-                _LOGGER.debug("Ping results %s", results)
+                _LOGGER.warning("Ping results %s", results)
 
                 for entry, result in zip(entries_with_addresses, results):
                     if isinstance(result, Exception):
