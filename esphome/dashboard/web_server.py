@@ -317,7 +317,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
             elif (
                 entry.address
                 and (
-                    address_list := dashboard.dns_cache.async_resolve(
+                    address_list := await dashboard.dns_cache.async_resolve(
                         entry.address, time.monotonic()
                     )
                 )
