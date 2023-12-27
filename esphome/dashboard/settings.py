@@ -35,7 +35,7 @@ class DashboardSettings:
             self.password_hash = password_hash(password)
         self.config_dir = args.configuration
         self.absolute_config_dir = Path(self.config_dir).resolve()
-        self.debug = args.debug
+        self.verbose = args.verbose
         CORE.config_path = os.path.join(self.config_dir, ".")
 
     @property

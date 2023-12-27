@@ -94,7 +94,7 @@ def start_dashboard(args) -> None:
             storage.save(path)
         settings.cookie_secret = storage.cookie_secret
 
-    asyncio.set_event_loop_policy(DashboardEventLoopPolicy(settings.debug))
+    asyncio.set_event_loop_policy(DashboardEventLoopPolicy(settings.verbose))
 
     try:
         asyncio.run(async_start(args))
