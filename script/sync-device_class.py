@@ -2,12 +2,15 @@
 
 import re
 
+# pylint: disable=import-error
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.button import ButtonDeviceClass
 from homeassistant.components.cover import CoverDeviceClass
 from homeassistant.components.number import NumberDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.components.switch import SwitchDeviceClass
+
+# pylint: enable=import-error
 
 BLOCKLIST = (
     # requires special support on HA side
@@ -25,10 +28,10 @@ DOMAINS = {
 
 
 def sub(path, pattern, repl):
-    with open(path) as handle:
+    with open(path, encoding="utf-8") as handle:
         content = handle.read()
     content = re.sub(pattern, repl, content, flags=re.MULTILINE)
-    with open(path, "w") as handle:
+    with open(path, "w", encoding="utf-8") as handle:
         handle.write(content)
 
 
