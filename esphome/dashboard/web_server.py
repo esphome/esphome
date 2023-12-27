@@ -9,6 +9,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 import secrets
 import shutil
 import subprocess
@@ -315,7 +316,11 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
                 port = address
             elif (
                 entry.address
-                and (address_list := dashboard.dns_cache.async_resolve(entry.address))
+                and (
+                    address_list := dashboard.dns_cache.async_resolve(
+                        entry.address, time.monotonic()
+                    )
+                )
                 and not isinstance(address_list, Exception)
             ):
                 # If mdns is not available, try to use the DNS cache
