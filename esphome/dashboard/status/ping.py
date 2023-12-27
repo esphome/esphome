@@ -48,7 +48,7 @@ class PingStatus:
                 entries_with_addresses: dict[DashboardEntry, list[str]] = {}
                 for entry, result in zip(ping_group, dns_results):
                     if result is None:
-                        entries.async_set_state(entry, None)
+                        entries.async_set_state(entry, False)
                         continue
                     entries_with_addresses[entry] = result
 
