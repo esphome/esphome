@@ -15,6 +15,7 @@ class DashboardSettings:
     """Settings for the dashboard."""
 
     def __init__(self) -> None:
+        """Initialize the dashboard settings."""
         self.config_dir: str = ""
         self.password_hash: str = ""
         self.username: str = ""
@@ -24,6 +25,7 @@ class DashboardSettings:
         self.absolute_config_dir: Path | None = None
 
     def parse_args(self, args: Any) -> None:
+        """Parse the arguments."""
         self.on_ha_addon: bool = args.ha_addon
         password = args.password or os.getenv("PASSWORD") or ""
         if not self.on_ha_addon:
@@ -33,6 +35,7 @@ class DashboardSettings:
             self.password_hash = password_hash(password)
         self.config_dir = args.configuration
         self.absolute_config_dir = Path(self.config_dir).resolve()
+        self.debug = args.debug
         CORE.config_path = os.path.join(self.config_dir, ".")
 
     @property

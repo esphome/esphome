@@ -3,15 +3,83 @@ from __future__ import annotations
 import asyncio
 import os
 import socket
+from concurrent.futures import ThreadPoolExecutor
 
 from esphome.storage_json import EsphomeStorageJSON, esphome_storage_path
-
+import threading
 from .core import DASHBOARD
 from .web_server import make_app, start_web_server
+from time import monotonic
+from asyncio import events
 
 ENV_DEV = "ESPHOME_DASHBOARD_DEV"
 
 settings = DASHBOARD.settings
+
+MAX_EXECUTOR_WORKERS = 48
+
+
+def can_use_pidfd() -> bool:
+    """Check if pidfd_open is available.
+
+    Back ported from cpython 3.12
+    """
+    if not hasattr(os, "pidfd_open"):
+        return False
+    try:
+        pid = os.getpid()
+        os.close(os.pidfd_open(pid, 0))
+    except OSError:
+        # blocked by security policy like SECCOMP
+        return False
+    return True
+
+
+class DashboardEventLoopPolicy(asyncio.DefaultEventLoopPolicy):
+    """Event loop policy for Home Assistant."""
+
+    def __init__(self, debug: bool) -> None:
+        """Init the event loop policy."""
+        super().__init__()
+        self.debug = debug
+        self._watcher: asyncio.AbstractChildWatcher | None = None
+
+    def _init_watcher(self) -> None:
+        """Initialize the watcher for child processes.
+
+        Back ported from cpython 3.12
+        """
+        with events._lock:  # type: ignore[attr-defined] # pylint: disable=protected-access
+            if self._watcher is None:  # pragma: no branch
+                if can_use_pidfd():
+                    self._watcher = asyncio.PidfdChildWatcher()
+                else:
+                    self._watcher = asyncio.ThreadedChildWatcher()
+                if threading.current_thread() is threading.main_thread():
+                    self._watcher.attach_loop(
+                        self._local._loop  # type: ignore[attr-defined] # pylint: disable=protected-access
+                    )
+
+    @property
+    def loop_name(self) -> str:
+        """Return name of the loop."""
+        return self._loop_factory.__name__  # type: ignore[no-any-return,attr-defined]
+
+    def new_event_loop(self) -> asyncio.AbstractEventLoop:
+        """Get the event loop."""
+        loop: asyncio.AbstractEventLoop = super().new_event_loop()
+        if self.debug:
+            loop.set_debug(True)
+
+        executor = ThreadPoolExecutor(
+            thread_name_prefix="SyncWorker", max_workers=MAX_EXECUTOR_WORKERS
+        )
+        loop.set_default_executor(executor)
+        # bind the built-in time.monotonic directly as loop.time to avoid the
+        # overhead of the additional method call since its the most called loop
+        # method and its roughly 10%+ of all the call time in base_events.py
+        loop.time = monotonic  # type: ignore[method-assign]
+        return loop
 
 
 def start_dashboard(args) -> None:
@@ -25,6 +93,8 @@ def start_dashboard(args) -> None:
             storage = EsphomeStorageJSON.get_default()
             storage.save(path)
         settings.cookie_secret = storage.cookie_secret
+
+    asyncio.set_event_loop_policy(DashboardEventLoopPolicy(settings.debug))
 
     try:
         asyncio.run(async_start(args))
