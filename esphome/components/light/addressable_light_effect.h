@@ -39,8 +39,15 @@ class AddressableLightEffect : public LightEffect {
   void stop() override { this->get_addressable_()->set_effect_active(false); }
   virtual void apply(AddressableLight &it, const Color &current_color) = 0;
   void apply() override {
-    // not using any color correction etc. that will be handled by the addressable layer through ESPColorCorrection
-    Color current_color = color_from_light_color_values(this->state_->remote_values);
+    // not using any color correction etc. that will be handled by the addressable layer through
+    // ESPColorCorrection
+    Color current_color{};
+    if (this->state_->remote_values.get_color_mode() & ColorCapability::WHITE) {
+      // this is to support lights that support only RGB or White separately
+      current_color = Color{0, 0, 0, to_uint8_scale(this->state_->remote_values.get_brightness())};
+    } else {
+      current_color = color_from_light_color_values(this->state_->remote_values);
+    }
     this->apply(*this->get_addressable_(), current_color);
   }
 
