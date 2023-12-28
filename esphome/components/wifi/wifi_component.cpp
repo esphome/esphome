@@ -27,6 +27,10 @@
 #include "esphome/components/esp32_improv/esp32_improv_component.h"
 #endif
 
+#ifdef USE_SMARTCONFIG
+#include "esphome/components/smartconfig/smartconfig_component.h"
+#endif
+
 namespace esphome {
 namespace wifi {
 
@@ -101,6 +105,12 @@ void WiFiComponent::start() {
   if (!this->has_sta() && esp32_improv::global_improv_component != nullptr) {
     if (this->wifi_mode_(true, {}))
       esp32_improv::global_improv_component->start();
+  }
+#endif
+#ifdef USE_SMARTCONFIG
+  if (!this->has_sta() && smartconfig::global_smartconfig_component != nullptr) {
+    if (this->wifi_mode_(true, {}))
+      smartconfig::global_smartconfig_component->config();
   }
 #endif
   this->wifi_apply_hostname_();
@@ -183,6 +193,11 @@ void WiFiComponent::loop() {
       }
     }
 
+#endif
+#ifdef USE_SMARTCONFIG
+    if ((smartconfig::global_smartconfig_component != nullptr) && (!this->is_connected())) {
+      this->wifi_mode_(true, {});
+    }
 #endif
 
     if (!this->has_ap() && this->reboot_timeout_ != 0) {

@@ -31,6 +31,10 @@
 #include "esphome/core/application.h"
 #include "esphome/core/util.h"
 
+#ifdef USE_SMARTCONFIG
+#include "esphome/components/smartconfig/smartconfig_component.h"
+#endif
+
 namespace esphome {
 namespace wifi {
 
@@ -615,6 +619,10 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_started = true;
     // re-apply power save mode
     wifi_apply_power_save_();
+#ifdef USE_SMARTCONFIG
+    if (!this->has_sta())
+      smartconfig::global_smartconfig_component->start();
+#endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_STOP) {
     ESP_LOGV(TAG, "Event: WiFi STA stop");

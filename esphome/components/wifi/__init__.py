@@ -164,7 +164,8 @@ def final_validate(config):
     has_ap = CONF_AP in config
     has_improv = "esp32_improv" in fv.full_config.get()
     has_improv_serial = "improv_serial" in fv.full_config.get()
-    if not (has_sta or has_ap or has_improv or has_improv_serial):
+    has_smartconfig = "smartconfig" in fv.full_config.get()
+    if not (has_sta or has_ap or has_improv or has_improv_serial or has_smartconfig):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create."
         )
