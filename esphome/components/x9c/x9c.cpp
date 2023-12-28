@@ -1,5 +1,6 @@
 #include "x9c.h"
 #include "esphome/core/log.h"
+#include <math.h>
 
 namespace esphome {
 namespace x9c {
@@ -55,7 +56,7 @@ void X9cOutput::setup() {
 }
 
 void X9cOutput::write_state(float state) {
-  this->trim_value((int) ((state - this->pot_value_) * 100));
+  this->trim_value((int) round((state - this->pot_value_) * 100));
   this->pot_value_ = state;
 }
 
