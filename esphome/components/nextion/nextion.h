@@ -959,6 +959,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void set_exit_reparse_on_start_internal(bool exit_reparse_on_start) {
     this->exit_reparse_on_start_ = exit_reparse_on_start;
   }
+  size_t queue_size() { return this->nextion_queue_.size(); }
 
  protected:
   std::deque<NextionQueue *> nextion_queue_;
