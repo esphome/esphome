@@ -125,8 +125,9 @@ class ST7789V : public display::DisplayBuffer,
   void set_offset_height(uint32_t offset_height) { this->offset_height_ = offset_height; }
   void set_offset_width(uint16_t offset_width) { this->offset_width_ = offset_width; }
   
-  // Aggiunte per l'inversione delle coordinate
+  // Invert_X
   void set_invert_x(bool invert_x) { this->invert_x_ = invert_x; }
+  // Invert_Y
   void set_invert_y(bool invert_y) { this->invert_y_ = invert_y; }
 
   // ========== INTERNAL METHODS ==========
@@ -154,7 +155,7 @@ class ST7789V : public display::DisplayBuffer,
   uint16_t offset_height_{0};
   uint16_t offset_width_{0};
 
-  // Variabili per l'inversione delle coordinate
+  // inversions
   bool invert_x_{false};
   bool invert_y_{false};
 
