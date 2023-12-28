@@ -768,7 +768,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * Draws a QR code with a Wi-Fi network credentials starting at the given coordinates (25,25).
    */
-  void qrcode(int x1, int y1, const char *content, int size = 200, uint16_t background_color = 65535, uint16_t foreground_color = 0, int logo_pic = -1, uint8_t border_width = 8);
+  void qrcode(int x1, int y1, const char *content, int size = 200, uint16_t background_color = 65535,
+              uint16_t foreground_color = 0, int logo_pic = -1, uint8_t border_width = 8);
   /**
    * Draws a QR code in the screen
    * @param x1 The top left x coordinate to start the QR code.
@@ -787,9 +788,11 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * it.qrcode(25, 25, "WIFI:S:MySSID;T:WPA;P:MyPassW0rd;;", 150, blue, red);
    * ```
    *
-   * Draws a QR code with a Wi-Fi network credentials starting at the given coordinates (25,25) with size of 150px in red on a blue background.
+   * Draws a QR code with a Wi-Fi network credentials starting at the given coordinates (25,25) with size of 150px in
+   * red on a blue background.
    */
-  void qrcode(int x1, int y1, const char *content, int size = 200, Color background_color = Color(255, 255, 255), Color foreground_color = Color(0, 0, 0), int logo_pic = -1, uint8_t border_width = 8);
+  void qrcode(int x1, int y1, const char *content, int size, Color background_color = Color(255, 255, 255),
+              Color foreground_color = Color(0, 0, 0), int logo_pic = -1, uint8_t border_width = 8);
 
   /** Set the brightness of the backlight.
    *
