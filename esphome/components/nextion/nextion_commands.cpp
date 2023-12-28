@@ -294,6 +294,18 @@ void Nextion::filled_circle(int center_x, int center_y, int radius, Color color)
                                             display::ColorUtil::color_to_565(color));
 }
 
+void qrcode(int x1, int y1, const char *content, int size = 200, uint16_t background_color = 65535, uint16_t foreground_color = 0,
+            int logo_pic = -1, uint8_t border_width = 8) {
+  this->add_no_result_to_queue_with_printf_("qrcode", "qrcode %d,%d,%d,%d,%d,%d,%d,\"%s\"", x1, y1, size, background_color,
+                                            foreground_color, logo_pic, border_width, content);
+}
+
+void qrcode(int x1, int y1, const char *content, int size = 200, Color background_color = Color(255, 255, 255),
+            Color foreground_color = Color(0, 0, 0), int logo_pic = -1, uint8_t border_width = 8) {
+  this->add_no_result_to_queue_with_printf_("qrcode", "qrcode %d,%d,%d,%d,%d,%d,%d,\"%s\"", x1, y1, size, display::ColorUtil::color_to_565(background_color),
+                                            display::ColorUtil::color_to_565(foreground_color), logo_pic, border_width, content);
+}
+
 void Nextion::set_nextion_rtc_time(ESPTime time) {
   this->add_no_result_to_queue_with_printf_("rtc0", "rtc0=%u", time.year);
   this->add_no_result_to_queue_with_printf_("rtc1", "rtc1=%u", time.month);
