@@ -293,6 +293,14 @@ void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
+// X Y Inversions
+  if (this->invert_x_) {
+    x = this->get_width_internal() - 1 - x;
+  }
+  if (this->invert_y_) {
+    y = this->get_height_internal() - 1 - y;
+  }
+
   if (this->eightbitcolor_) {
     auto color332 = display::ColorUtil::color_to_332(color);
     uint32_t pos = (x + y * this->get_width_internal());

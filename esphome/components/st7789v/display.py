@@ -20,6 +20,8 @@ from . import st7789v_ns
 CONF_EIGHTBITCOLOR = "eightbitcolor"
 CONF_OFFSET_HEIGHT = "offset_height"
 CONF_OFFSET_WIDTH = "offset_width"
+CONF_INVERT_X = 'invert_x'
+CONF_INVERT_Y = 'invert_y'
 
 CODEOWNERS = ["@kbx81"]
 
@@ -161,6 +163,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_WIDTH): cv.int_,
             cv.Optional(CONF_OFFSET_HEIGHT): cv.int_,
             cv.Optional(CONF_OFFSET_WIDTH): cv.int_,
+            cv.Optional(CONF_INVERT_X, default=False): cv.boolean,
+            cv.Optional(CONF_INVERT_Y, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -172,6 +176,10 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
+    if CONF_INVERT_X in config:
+        cg.add(var.set_invert_x(config[CONF_INVERT_X]))
+    if CONF_INVERT_Y in config:
+        cg.add(var.set_invert_y(config[CONF_INVERT_Y]))
     await spi.register_spi_device(var, config)
 
     cg.add(var.set_model_str(config[CONF_MODEL]))
