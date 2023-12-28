@@ -40,20 +40,11 @@ class WK2132RegisterI2C : public wk2132::WK2132Register {
 ////////////////////////////////////////////////////////////////////////////////////
 class WK2132ComponentI2C : public wk2132::WK2132Component, public i2c::I2CDevice {
  public:
-  wk2132::WK2132Register &component_reg(uint8_t reg) override {
-    WK2132RegisterI2C w = WK2132RegisterI2C(this, reg, 0, 0);
-    return w;
-  }
+  wk2132::WK2132Register const &component_reg(uint8_t reg) override { return {this, reg, 0, 0}; }
 
-  wk2132::WK2132Register &channel_reg(uint8_t reg, uint8_t channel) override {
-    WK2132RegisterI2C w = WK2132RegisterI2C(this, reg, channel, 0);
-    return w;
-  }
+  wk2132::WK2132Register const &channel_reg(uint8_t reg, uint8_t channel) { return {this, reg, channel, 0}; }
 
-  wk2132::WK2132Register &channel_fifo(uint8_t channel) override {
-    WK2132RegisterI2C w = WK2132RegisterI2C(this, 0, channel, 1);
-    return w;
-  }
+  wk2132::WK2132Register const &channel_fifo(uint8_t channel) { return {this, 0, channel, 1}; }
 
   void setup() override;
   void dump_config() override;

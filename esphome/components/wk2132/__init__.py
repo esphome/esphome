@@ -4,7 +4,7 @@ from esphome.components import uart
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_CHANNEL,
-    CONF_ID,
+    # CONF_ID,
     CONF_UART_ID,
 )
 
@@ -77,10 +77,6 @@ WK2132_SCHEMA = cv.Schema(
 
 async def register_wk2132(var, config):
     """Register an wk2132 device with the given config."""
-    await cg.register_component(var, config)
-    cg.add_build_flag("-DI2C_BUFFER_LENGTH=255")
-    var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_name(str(config[CONF_ID])))
     cg.add(var.set_crystal(config[CONF_CRYSTAL]))
     cg.add(var.set_test_mode(config[CONF_TEST_MODE]))
     await cg.register_component(var, config)

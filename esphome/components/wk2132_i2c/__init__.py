@@ -8,6 +8,7 @@ DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["wk2132"]
 MULTI_CONF = True
 
+
 wk2132_ns = cg.esphome_ns.namespace("wk2132_i2c")
 WK2132ComponentI2C = wk2132_ns.class_(
     "WK2132ComponentI2C", wk2132.WK2132Component, i2c.I2CDevice
@@ -24,5 +25,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add_build_flag("-DI2C_BUFFER_LENGTH=255")
+    cg.add(var.set_name(str(config[CONF_ID])))
     await wk2132.register_wk2132(var, config)
     await i2c.register_i2c_device(var, config)

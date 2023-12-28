@@ -522,20 +522,20 @@ class WK2132Component : public Component {
   /// @param reg address of the register
   /// @return a WK2132Register proxy
   /// @details (global) registers used at the component level do not care of channel
-  virtual WK2132Register &component_reg(uint8_t reg) = 0;
+  virtual const WK2132Register &component_reg(uint8_t reg) = 0;
 
   /// @brief call the WK2132Register constructor to create the proxy at channel level
   /// @param reg address of the register
   /// @param channel the channel number (0-1)
   /// @return a WK2132Register proxy
   /// @details registers used at the channel level use the channel number
-  virtual WK2132Register &channel_reg(uint8_t reg, uint8_t channel) = 0;
+  virtual const WK2132Register &channel_reg(uint8_t reg, uint8_t channel) = 0;
 
   /// @brief call the WK2132Register constructor to create the proxy for fifo transfer
   /// @param channel channel number
   /// @return a WK2132Register proxy
   /// @details fifo transfer only need to know the channel number
-  virtual WK2132Register &channel_fifo(uint8_t channel) = 0;
+  virtual const WK2132Register &channel_fifo(uint8_t channel) = 0;
 
   uint32_t crystal_;                         ///< crystal value;
   int test_mode_;                            ///< test mode value (0 -> no tests)
@@ -573,11 +573,11 @@ class WK2132Channel : public uart::UARTComponent {
   /// @brief call the WK2132Register constructor
   /// @param reg address of the register
   /// @return an WK2132Register proxy to access the register
-  WK2132Register &channel_reg(uint8_t reg) { return this->parent_->channel_reg(reg, channel_); }
+  WK2132Register const &channel_reg(uint8_t reg) { return this->parent_->channel_reg(reg, channel_); }
 
   /// @brief call the WK2132Register constructor
   /// @return an WK2132Register proxy to access the fifo
-  WK2132Register &channel_fifo(void) { return this->parent_->channel_fifo(channel_); }
+  WK2132Register const &channel_fifo(void) { return this->parent_->channel_fifo(channel_); }
 
   /// @brief Setup the channel
   void setup_channel_();
