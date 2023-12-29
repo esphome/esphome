@@ -9,6 +9,7 @@
 #include "esphome/core/color.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/time.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_GRAPH
 #include "esphome/components/graph/graph.h"
@@ -630,6 +631,8 @@ class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> 
   DisplayPage *from_{nullptr};
   DisplayPage *to_{nullptr};
 };
+
+const LogString *text_align_to_string(TextAlign textalign);
 
 }  // namespace display
 }  // namespace esphome
