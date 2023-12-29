@@ -134,12 +134,14 @@ uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
     case NO_FINGER:
       if (this->sensing_pin_ != nullptr) {
         ESP_LOGD(TAG, "No finger");
+        this->finger_scan_invalid_callback_.call();
       } else {
         ESP_LOGV(TAG, "No finger");
       }
       return this->data_[0];
     case IMAGE_FAIL:
       ESP_LOGE(TAG, "Imaging error");
+      this->finger_scan_invalid_callback_.call();
     default:
       return this->data_[0];
   }
@@ -152,10 +154,12 @@ uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
       break;
     case IMAGE_MESS:
       ESP_LOGE(TAG, "Image too messy");
+      this->finger_scan_invalid_callback_.call();
       break;
     case FEATURE_FAIL:
     case INVALID_IMAGE:
       ESP_LOGE(TAG, "Could not find fingerprint features");
+      this->finger_scan_invalid_callback_.call();
       break;
   }
   return this->data_[0];

@@ -319,7 +319,7 @@ void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeo
 #ifdef USE_HOMEASSISTANT_TIME
 void APIServer::request_time() {
   for (auto &client : this->clients_) {
-    if (!client->remove_ && client->connection_state_ == APIConnection::ConnectionState::CONNECTED)
+    if (!client->remove_ && client->is_authenticated())
       client->send_time_request();
   }
 }

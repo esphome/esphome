@@ -42,6 +42,34 @@ ESP32_BASE_PINS = {
 }
 
 ESP32_BOARD_PINS = {
+    "adafruit_feather_esp32_v2": {
+        "A0": 26,
+        "A1": 25,
+        "A2": 34,
+        "A3": 39,
+        "A4": 36,
+        "A5": 4,
+        "SCK": 5,
+        "MOSI": 19,
+        "MISO": 21,
+        "RX": 7,
+        "TX": 8,
+        "D37": 37,
+        "LED": 13,
+        "LED_BUILTIN": 13,
+        "D12": 12,
+        "D27": 27,
+        "D33": 33,
+        "D15": 15,
+        "D32": 32,
+        "D14": 14,
+        "SCL": 20,
+        "SDA": 22,
+        "BUTTON": 38,
+        "NEOPIXEL": 0,
+        "PIN_NEOPIXEL": 0,
+        "NEOPIXEL_POWER": 2,
+    },
     "adafruit_feather_esp32s2_tft": {
         "BUTTON": 0,
         "A0": 18,
@@ -132,6 +160,10 @@ ESP32_BOARD_PINS = {
         "NEOPIXEL_POWER": 8,
         "BUTTON": 0,
         "SWITCH": 0,
+    },
+    "airm2m_core_esp32c3": {
+        "LED1_BUILTIN": 12,
+        "LED2_BUILTIN": 13,
     },
     "alksesp32": {
         "A0": 32,

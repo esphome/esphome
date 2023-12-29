@@ -55,7 +55,7 @@ void XPT2046Component::update_touches() {
 
     ESP_LOGV(TAG, "Touchscreen Update [%d, %d], z = %d", x_raw, y_raw, z_raw);
 
-    this->set_raw_touch_position_(0, x_raw, y_raw, z_raw);
+    this->add_raw_touch_position_(0, x_raw, y_raw, z_raw);
   }
 }
 

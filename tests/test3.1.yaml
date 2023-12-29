@@ -401,7 +401,6 @@ switch:
     pin:
       mcp23xxx: mcp23017_hub
       number: 0
-      allow_other_uses: true
       mode: OUTPUT
     interlock: &interlock [gpio_switch1, gpio_switch2, gpio_switch3]
   - platform: gpio
@@ -409,7 +408,6 @@ switch:
     pin:
       mcp23xxx: mcp23008_hub
       number: 0
-      allow_other_uses: true
       mode: OUTPUT
     interlock: *interlock
   - platform: gpio

@@ -3848,6 +3848,7 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%g", this->visual_max_humidity);
   out.append(buffer);
   out.append("\n");
+  out.append("}");
 }
 #endif
 bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
@@ -4015,6 +4016,7 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%g", this->target_humidity);
   out.append(buffer);
   out.append("\n");
+  out.append("}");
 }
 #endif
 bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {

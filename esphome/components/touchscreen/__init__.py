@@ -3,7 +3,14 @@ import esphome.codegen as cg
 
 from esphome.components import display
 from esphome import automation
-from esphome.const import CONF_ON_TOUCH, CONF_ON_RELEASE
+from esphome.const import (
+    CONF_ON_TOUCH,
+    CONF_ON_RELEASE,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_SWAP_XY,
+    CONF_TRANSFORM,
+)
 from esphome.core import coroutine_with_priority
 
 CODEOWNERS = ["@jesserockz", "@nielsnl68"]
@@ -24,28 +31,32 @@ CONF_DISPLAY = "display"
 CONF_TOUCHSCREEN_ID = "touchscreen_id"
 CONF_REPORT_INTERVAL = "report_interval"  # not used yet:
 CONF_ON_UPDATE = "on_update"
-
-CONF_MIRROR_X = "mirror_x"
-CONF_MIRROR_Y = "mirror_y"
-CONF_SWAP_XY = "swap_xy"
-CONF_TRANSFORM = "transform"
+CONF_TOUCH_TIMEOUT = "touch_timeout"
 
 
-TOUCHSCREEN_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_DISPLAY): cv.use_id(display.Display),
-        cv.Optional(CONF_TRANSFORM): cv.Schema(
-            {
-                cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
-                cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
-                cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
-            }
-        ),
-        cv.Optional(CONF_ON_TOUCH): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_UPDATE): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_RELEASE): automation.validate_automation(single=True),
-    }
-).extend(cv.polling_component_schema("50ms"))
+def touchscreen_schema(default_touch_timeout):
+    return cv.Schema(
+        {
+            cv.GenerateID(CONF_DISPLAY): cv.use_id(display.Display),
+            cv.Optional(CONF_TRANSFORM): cv.Schema(
+                {
+                    cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
+                    cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+                    cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+                }
+            ),
+            cv.Optional(CONF_TOUCH_TIMEOUT, default=default_touch_timeout): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=cv.TimePeriod(milliseconds=65535)),
+            ),
+            cv.Optional(CONF_ON_TOUCH): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_UPDATE): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_RELEASE): automation.validate_automation(single=True),
+        }
+    ).extend(cv.polling_component_schema("50ms"))
+
+
+TOUCHSCREEN_SCHEMA = touchscreen_schema(cv.UNDEFINED)
 
 
 async def register_touchscreen(var, config):
@@ -53,6 +64,9 @@ async def register_touchscreen(var, config):
 
     disp = await cg.get_variable(config[CONF_DISPLAY])
     cg.add(var.set_display(disp))
+
+    if CONF_TOUCH_TIMEOUT in config:
+        cg.add(var.set_touch_timeout(config[CONF_TOUCH_TIMEOUT]))
 
     if CONF_TRANSFORM in config:
         transform = config[CONF_TRANSFORM]

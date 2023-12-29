@@ -96,7 +96,7 @@ void HLW8012Component::update() {
     this->energy_sensor_->publish_state(energy);
   }
 
-  if (this->change_mode_at_++ == this->change_mode_every_) {
+  if (this->change_mode_every_ != 0 && this->change_mode_at_++ == this->change_mode_every_) {
     this->current_mode_ = !this->current_mode_;
     ESP_LOGV(TAG, "Changing mode to %s mode", this->current_mode_ ? "CURRENT" : "VOLTAGE");
     this->change_mode_at_ = 0;

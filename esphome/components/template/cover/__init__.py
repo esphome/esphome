@@ -31,6 +31,7 @@ RESTORE_MODES = {
 }
 
 CONF_HAS_POSITION = "has_position"
+CONF_TOGGLE_ACTION = "toggle_action"
 
 CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
     {
@@ -44,6 +45,7 @@ CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
         cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
         cv.Optional(CONF_TILT_ACTION): automation.validate_automation(single=True),
         cv.Optional(CONF_TILT_LAMBDA): cv.returning_lambda,
+        cv.Optional(CONF_TOGGLE_ACTION): automation.validate_automation(single=True),
         cv.Optional(CONF_POSITION_ACTION): automation.validate_automation(single=True),
         cv.Optional(CONF_RESTORE_MODE, default="RESTORE"): cv.enum(
             RESTORE_MODES, upper=True
@@ -74,6 +76,11 @@ async def to_code(config):
             var.get_stop_trigger(), [], config[CONF_STOP_ACTION]
         )
         cg.add(var.set_has_stop(True))
+    if CONF_TOGGLE_ACTION in config:
+        await automation.build_automation(
+            var.get_toggle_trigger(), [], config[CONF_TOGGLE_ACTION]
+        )
+        cg.add(var.set_has_toggle(True))
     if CONF_TILT_ACTION in config:
         await automation.build_automation(
             var.get_tilt_trigger(), [(float, "tilt")], config[CONF_TILT_ACTION]

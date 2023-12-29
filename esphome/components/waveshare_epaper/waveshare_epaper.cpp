@@ -167,6 +167,25 @@ void WaveshareEPaper::on_safe_shutdown() { this->deep_sleep(); }
 // ========================================================
 
 void WaveshareEPaperTypeA::initialize() {
+  // Achieve display intialization
+  this->init_display_();
+  // If a reset pin is configured, eligible displays can be set to deep sleep
+  // between updates, as recommended by the hardware provider
+  if (this->reset_pin_ != nullptr) {
+    switch (this->model_) {
+      // More models can be added here to enable deep sleep if eligible
+      case WAVESHARE_EPAPER_1_54_IN:
+      case WAVESHARE_EPAPER_1_54_IN_V2:
+        this->deep_sleep_between_updates_ = true;
+        ESP_LOGI(TAG, "Set the display to deep sleep");
+        this->deep_sleep();
+        break;
+      default:
+        break;
+    }
+  }
+}
+void WaveshareEPaperTypeA::init_display_() {
   if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
     this->reset_pin_->digital_write(false);
     delay(10);
@@ -260,6 +279,13 @@ void WaveshareEPaperTypeA::dump_config() {
 void HOT WaveshareEPaperTypeA::display() {
   bool full_update = this->at_update_ == 0;
   bool prev_full_update = this->at_update_ == 1;
+
+  if (this->deep_sleep_between_updates_) {
+    ESP_LOGI(TAG, "Wake up the display");
+    this->reset_();
+    this->wait_until_idle_();
+    this->init_display_();
+  }
 
   if (!this->wait_until_idle_()) {
     this->status_set_warning();
@@ -384,6 +410,11 @@ void HOT WaveshareEPaperTypeA::display() {
   this->command(0xFF);
 
   this->status_clear_warning();
+
+  if (this->deep_sleep_between_updates_) {
+    ESP_LOGI(TAG, "Set the display back to deep sleep");
+    this->deep_sleep();
+  }
 }
 int WaveshareEPaperTypeA::get_width_internal() {
   switch (this->model_) {
@@ -445,6 +476,8 @@ void WaveshareEPaperTypeA::set_full_update_every(uint32_t full_update_every) {
 
 uint32_t WaveshareEPaperTypeA::idle_timeout_() {
   switch (this->model_) {
+    case WAVESHARE_EPAPER_1_54_IN:
+    case WAVESHARE_EPAPER_1_54_IN_V2:
     case TTGO_EPAPER_2_13_IN_B1:
       return 2500;
     default:
@@ -601,6 +634,59 @@ void WaveshareEPaper2P7In::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+void WaveshareEPaper2P7InV2::initialize() {
+  this->reset_();
+  this->wait_until_idle_();
+
+  this->command(0x12);  // SWRESET
+  this->wait_until_idle_();
+
+  // SET WINDOWS
+  // XRAM_START_AND_END_POSITION
+  this->command(0x44);
+  this->data(0x00);
+  this->data(((get_width_internal() - 1) >> 3) & 0xFF);
+  // YRAM_START_AND_END_POSITION
+  this->command(0x45);
+  this->data(0x00);
+  this->data(0x00);
+  this->data((get_height_internal() - 1) & 0xFF);
+  this->data(((get_height_internal() - 1) >> 8) & 0xFF);
+
+  // SET CURSOR
+  // XRAM_ADDRESS
+  this->command(0x4E);
+  this->data(0x00);
+  // YRAM_ADDRESS
+  this->command(0x4F);
+  this->data(0x00);
+  this->data(0x00);
+
+  this->command(0x11);  // data entry mode
+  this->data(0x03);
+}
+void HOT WaveshareEPaper2P7InV2::display() {
+  this->command(0x24);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x22);
+  this->data(0xF7);
+  this->command(0x20);
+}
+int WaveshareEPaper2P7InV2::get_width_internal() { return 176; }
+int WaveshareEPaper2P7InV2::get_height_internal() { return 264; }
+void WaveshareEPaper2P7InV2::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.7in V2");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 // ========================================================
 //               2.90in Type B (LUT from OTP)
 // Datasheet:
@@ -674,6 +760,75 @@ int WaveshareEPaper2P9InB::get_height_internal() { return 296; }
 void WaveshareEPaper2P9InB::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 2.9in (B)");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+// ========================================================
+//               2.90in Type B (LUT from OTP)
+// Datasheet:
+//  - https://files.waveshare.com/upload/a/af/2.9inch-e-paper-b-v3-specification.pdf
+// ========================================================
+
+void WaveshareEPaper2P9InBV3::initialize() {
+  // from https://github.com/waveshareteam/e-Paper/blob/master/Arduino/epd2in9b_V3/epd2in9b_V3.cpp
+  this->reset_();
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0x0F);
+  this->data(0x89);
+
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x80);
+  this->data(0x01);
+  this->data(0x28);
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x77);
+}
+void HOT WaveshareEPaper2P9InBV3::display() {
+  // COMMAND DATA START TRANSMISSION 1 (B/W data)
+  this->command(0x10);
+  delay(2);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+  this->command(0x92);
+  delay(2);
+
+  // COMMAND DATA START TRANSMISSION 2 (RED data)
+  this->command(0x13);
+  delay(2);
+  this->start_data_();
+  for (size_t i = 0; i < this->get_buffer_length_(); i++)
+    this->write_byte(0xFF);
+  this->end_data_();
+  this->command(0x92);
+  delay(2);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  delay(2);
+  this->wait_until_idle_();
+
+  // COMMAND POWER OFF
+  // NOTE: power off < deep sleep
+  this->command(0x02);
+}
+int WaveshareEPaper2P9InBV3::get_width_internal() { return 128; }
+int WaveshareEPaper2P9InBV3::get_height_internal() { return 296; }
+void WaveshareEPaper2P9InBV3::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.9in (B) V3");
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);

@@ -31,6 +31,7 @@ class PingStatus:
         while not dashboard.stop_event.is_set():
             # Only ping if the dashboard is open
             await dashboard.ping_request.wait()
+            dashboard.ping_request.clear()
             current_entries = dashboard.entries.async_all()
             to_ping: list[DashboardEntry] = [
                 entry for entry in current_entries if entry.address is not None
