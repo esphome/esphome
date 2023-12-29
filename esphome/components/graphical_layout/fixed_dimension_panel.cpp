@@ -12,6 +12,7 @@ static const char *const TAG = "fixeddimensionpanel";
 void FixedDimensionPanel::dump_config(int indent_depth, int additional_level_depth) {
   ESP_LOGCONFIG(TAG, "%*sWidth: %i (Will use display width: %s)", indent_depth, "", this->width_.value(), YESNO(this->width_.value() < 1));
   ESP_LOGCONFIG(TAG, "%*sHeight: %i (Will use display height: %s)", indent_depth, "", this->height_.value(), YESNO(this->height_.value() < 1));
+  ESP_LOGCONFIG(TAG, "%*sHas Child: %s", indent_depth, "", YESNO(this->child_ != nullptr));
   this->child_->dump_config(indent_depth + additional_level_depth, additional_level_depth);
 }
 
@@ -23,6 +24,9 @@ display::Rect FixedDimensionPanel::measure_item_internal(display::Display *displ
   if (rect.h < 1) {
     rect.h = display->get_height();
   }
+  // Call measure_child just so they can do any measurements
+  this->child_->measure_item(display);
+
   return rect;
 }
 
