@@ -12,22 +12,17 @@ from esphome.const import (
     CONF_WIDTH,
     CONF_HEIGHT,
     CONF_LAMBDA,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_COLOR_ORDER,
+    CONF_TRANSFORM,
+    CONF_OFFSET_HEIGHT,
+    CONF_OFFSET_WIDTH,
+    CONF_INVERT_COLORS,
 )
-
-try:
-    from esphome.const import CONF_OFFSET_HEIGHT, CONF_OFFSET_WIDTH, CONF_INVERT_COLORS
-except ImportError:
-    CONF_OFFSET_HEIGHT = "offset_height"
-    CONF_OFFSET_WIDTH = "offset_width"
-    CONF_INVERT_COLORS = "invert_colors"
 
 from .init_sequences import ST7701S_INITS, cmd
 
-CONF_MIRROR_X = "mirror_x"
-CONF_MIRROR_Y = "mirror_y"
-CONF_SWAP_XY = "swap_xy"
-CONF_COLOR_ORDER = "color_order"
-CONF_TRANSFORM = "transform"
 CONF_INIT_SEQUENCE = "init_sequence"
 CONF_DE_PIN = "de_pin"
 CONF_PCLK_PIN = "pclk_pin"
