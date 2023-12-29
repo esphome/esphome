@@ -7,6 +7,7 @@ from . import vertical_stack
 from . import text_panel
 from . import display_rendering_panel
 from . import fixed_dimension_panel
+from . import text_run_panel
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 RootLayoutComponent = graphical_layout_ns.class_("RootLayoutComponent", cg.Component)
@@ -55,6 +56,9 @@ ITEM_TYPE_SCHEMA = cv.typed_schema(
         fixed_dimension_panel.CONF_FIXED_DIMENSION_PANEL: fixed_dimension_panel.get_config_schema(
             BASE_ITEM_SCHEMA, item_type_schema
         ),
+        text_run_panel.CONF_TEXT_RUN_PANEL: text_run_panel.get_config_schema(
+            BASE_ITEM_SCHEMA, item_type_schema
+        ),
     }
 )
 
@@ -64,6 +68,7 @@ CODE_GENERATORS = {
     vertical_stack.CONF_VERTICAL_STACK: vertical_stack.config_to_layout_item,
     display_rendering_panel.CONF_DISPLAY_RENDERING_PANEL: display_rendering_panel.config_to_layout_item,
     fixed_dimension_panel.CONF_FIXED_DIMENSION_PANEL: fixed_dimension_panel.config_to_layout_item,
+    text_run_panel.CONF_TEXT_RUN_PANEL: text_run_panel.config_to_layout_item,
 }
 
 CONFIG_SCHEMA = cv.Schema(
@@ -105,7 +110,6 @@ async def to_code(config):
         )
         cg.add(var.set_layout_root(layout_var))
     else:
-        err = f"Do not know how to build type {layout_type}"
         raise RuntimeError(f"Do not know how to build type {layout_type}")
 
     cg.add_define("USE_GRAPHICAL_LAYOUT")
