@@ -13,6 +13,7 @@ class FixedDimensionPanel : public LayoutItem {
   display::Rect measure_item_internal(display::Display *display) override;
   void render_internal(display::Display *display, display::Rect bounds) override;
   void dump_config(int indent_depth, int additional_level_depth) override;
+  void setup_complete() override { this->child_->setup_complete(); }
 
   void set_child(LayoutItem *child) { this->child_ = child; };
   template<typename V> void set_width(V width) { this->width_ = width; };

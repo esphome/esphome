@@ -18,6 +18,12 @@ class ContainerLayoutItem : public LayoutItem {
   /** Adds an item to this container */
   void add_item(LayoutItem *child) { this->children_.push_back(child); }
 
+  void setup_complete() override {
+    for (LayoutItem *child : this->children_) {
+      child->setup_complete();
+    }
+  }
+
  protected:
   std::vector<LayoutItem *> children_;
 };
