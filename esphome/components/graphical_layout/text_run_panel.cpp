@@ -7,7 +7,6 @@
 namespace esphome {
 namespace graphical_layout {
 
-
 static const char *const TAG = "textrunpanel";
 static const int TEXT_ALIGN_X_MASK = (int) display::TextAlign::RIGHT | (int) display::TextAlign::CENTER_HORIZONTAL;
 static const int TEXT_ALIGN_Y_MASK =
