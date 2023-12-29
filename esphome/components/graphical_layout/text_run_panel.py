@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import font, color
 from esphome.components.display import display_ns
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID#, CONF_FOREGROUND_COLOR, CONF_BACKGROUND_COLOR
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 TextRunPanel = graphical_layout_ns.class_("TextRunPanel")
@@ -11,15 +11,12 @@ TextRun = graphical_layout_ns.class_("TextRun")
 
 CONF_TEXT_RUN_PANEL = "text_run_panel"
 CONF_FONT = "font"
-CONF_FOREGROUND_COLOR = "foreground_color"
-CONF_BACKGROUND_COLOR = "background_color"
 CONF_TEXT = "text"
 CONF_TEXT_ALIGN = "text_align"
 CONF_MAX_WIDTH = "max_width"
 CONF_MIN_WIDTH = "min_width"
 CONF_RUNS = "runs"
 CONF_DEBUG_OUTLINE_RUNS = "debug_outline_runs"
-
 
 TEXT_ALIGN = {
     "TOP_LEFT": TextAlign.TOP_LEFT,

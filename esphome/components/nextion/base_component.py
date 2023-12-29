@@ -4,6 +4,8 @@ import esphome.codegen as cg
 from esphome.components import color
 from esphome.const import (
     CONF_VISIBLE,
+    CONF_FOREGROUND_COLOR,
+    CONF_BACKGROUND_COLOR,
 )
 from . import CONF_NEXTION_ID
 from . import Nextion
@@ -24,9 +26,7 @@ CONF_WAKE_UP_PAGE = "wake_up_page"
 CONF_START_UP_PAGE = "start_up_page"
 CONF_AUTO_WAKE_ON_TOUCH = "auto_wake_on_touch"
 CONF_WAVE_MAX_LENGTH = "wave_max_length"
-CONF_BACKGROUND_COLOR = "background_color"
 CONF_BACKGROUND_PRESSED_COLOR = "background_pressed_color"
-CONF_FOREGROUND_COLOR = "foreground_color"
 CONF_FOREGROUND_PRESSED_COLOR = "foreground_pressed_color"
 CONF_FONT_ID = "font_id"
 CONF_EXIT_REPARSE_ON_START = "exit_reparse_on_start"

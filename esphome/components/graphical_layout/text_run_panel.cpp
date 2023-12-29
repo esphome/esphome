@@ -48,7 +48,7 @@ void TextRunPanel::render_internal(display::Display *display, display::Rect boun
                                 calculated->run->background_color_);
     }
     display->print(calculated->bounds.x, calculated->bounds.y, calculated->run->font_,
-                   calculated->run->foreground_color_, display::TextAlign::TOP_LEFT, calculated->text_.c_str()
+                   calculated->run->foreground_color_, display::TextAlign::TOP_LEFT, calculated->text_.c_str());
   }
 
   if (this->debug_outline_runs_) {
@@ -232,8 +232,9 @@ void TextRunPanel::apply_alignment_to_layout(CalculatedLayout *calculated_layout
 
       switch (y_align) {
         case display::TextAlign::BOTTOM: {
-          y_adjustment =  max_line_height - run->bounds.h;
-          ESP_LOGVV(TAG, "Will adjust line %i by %i y-pixels (%i vs %i)", i, y_adjustment, max_line_height, run->bounds.h);
+          y_adjustment = max_line_height - run->bounds.h;
+          ESP_LOGVV(TAG, "Will adjust line %i by %i y-pixels (%i vs %i)", i, y_adjustment, max_line_height,
+                    run->bounds.h);
           break;
         }
         case display::TextAlign::CENTER_VERTICAL: {

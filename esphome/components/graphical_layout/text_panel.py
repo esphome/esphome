@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import font, color
 from esphome.components.display import display_ns
+# from esphome.const import CONF_FOREGROUND_COLOR, CONF_BACKGROUND_COLOR
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 TextPanel = graphical_layout_ns.class_("TextPanel")
@@ -9,8 +10,6 @@ TextAlign = display_ns.enum("TextAlign", is_class=True)
 
 CONF_TEXT_PANEL = "text_panel"
 CONF_FONT = "font"
-CONF_FOREGROUND_COLOR = "foreground_color"
-CONF_BACKGROUND_COLOR = "background_color"
 CONF_TEXT = "text"
 CONF_TEXT_ALIGN = "text_align"
 

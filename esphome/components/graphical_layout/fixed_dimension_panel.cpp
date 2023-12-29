@@ -10,9 +10,9 @@ namespace graphical_layout {
 static const char *const TAG = "fixeddimensionpanel";
 
 void FixedDimensionPanel::dump_config(int indent_depth, int additional_level_depth) {
- ESP_LOGCONFIG(TAG, "%*sWidth: %i (Will use display width: %s)", indent_depth, "", this->width_.value(),
+  ESP_LOGCONFIG(TAG, "%*sWidth: %i (Will use display width: %s)", indent_depth, "", this->width_.value(),
                 YESNO(this->width_.value() < 1));
-+  ESP_LOGCONFIG(TAG, "%*sHeight: %i (Will use display height: %s)", indent_depth, "", this->height_.value(),
+  ESP_LOGCONFIG(TAG, "%*sHeight: %i (Will use display height: %s)", indent_depth, "", this->height_.value(),
                 YESNO(this->height_.value() < 1));
   this->child_->dump_config(indent_depth + additional_level_depth, additional_level_depth);
 }
