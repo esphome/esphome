@@ -358,8 +358,10 @@ esp32_ble_tracker:
 ble_client:
   - mac_address: AA:BB:CC:DD:EE:FF
     id: ble_foo
+    auto_connect: true
   - mac_address: 11:22:33:44:55:66
     id: ble_blah
+    auto_connect: false
     on_connect:
       then:
         - switch.turn_on: ble1_status
@@ -3026,6 +3028,16 @@ interval:
               page_id: page1
           then:
             - logger.log: Seeing page 1
+  - interval: 60min
+    then:
+      - ble_client.connect: ble_blah
+      - ble_client.ble_write:
+          id: ble_blah
+          service_uuid: EBE0CCB0-7A0A-4B0C-8A1A-6FF2997DA3A6
+          characteristic_uuid: EBE0CCB7-7A0A-4B0C-8A1A-6FF2997DA3A6
+          value: !lambda |-
+            return {1, 0};
+      - ble_client.disconnect: ble_blah
 
 color:
   - id: kbx_red
@@ -3257,6 +3269,25 @@ display:
       allow_other_uses: true
       number: GPIO23
       inverted: true
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7567_i2c
+    id: st7735_display_i2c
+    address: 0x3F
+    i2c_id: i2c_bus
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7567_spi
+    id: st7735_display_spi
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO16
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7735

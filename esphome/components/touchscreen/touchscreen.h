@@ -46,6 +46,7 @@ class Touchscreen : public PollingComponent {
   void set_display(display::Display *display) { this->display_ = display; }
   display::Display *get_display() const { return this->display_; }
 
+  void set_touch_timeout(uint16_t val) { this->touch_timeout_ = val; }
   void set_mirror_x(bool invert_x) { this->invert_x_ = invert_x; }
   void set_mirror_y(bool invert_y) { this->invert_y_ = invert_y; }
   void set_swap_xy(bool swap) { this->swap_x_y_ = swap; }
@@ -100,6 +101,7 @@ class Touchscreen : public PollingComponent {
   display::Display *display_{nullptr};
 
   int16_t x_raw_min_{0}, x_raw_max_{0}, y_raw_min_{0}, y_raw_max_{0};
+  uint16_t touch_timeout_{0};
   bool invert_x_{false}, invert_y_{false}, swap_x_y_{false};
 
   Trigger<TouchPoint, const TouchPoints_t &> touch_trigger_;
