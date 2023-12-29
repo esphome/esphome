@@ -29,6 +29,7 @@ class WK2132RegisterI2C : public wk2132::WK2132Register {
   // friend class WK2132Channel;
   friend WK2132ComponentI2C;
 
+  // using WK2132Register::WK2132Register;
   WK2132RegisterI2C(wk2132::WK2132Component *parent, uint8_t reg, uint8_t channel, uint8_t fifo)
       : WK2132Register(parent, reg, channel, fifo) {}
 };
@@ -40,11 +41,20 @@ class WK2132RegisterI2C : public wk2132::WK2132Register {
 ////////////////////////////////////////////////////////////////////////////////////
 class WK2132ComponentI2C : public wk2132::WK2132Component, public i2c::I2CDevice {
  public:
-  wk2132::WK2132Register const &component_reg(uint8_t reg) override { return {this, reg, 0, 0}; }
+  std::unique_ptr<wk2132::WK2132Register> global_reg_ptr(uint8_t reg) override {
+    std::unique_ptr<wk2132::WK2132Register> r(new WK2132RegisterI2C{this, reg, 0, 0});
+    return r;
+  }
 
-  wk2132::WK2132Register const &channel_reg(uint8_t reg, uint8_t channel) { return {this, reg, channel, 0}; }
+  std::unique_ptr<wk2132::WK2132Register> channel_reg_ptr(uint8_t reg, uint8_t channel) {
+    std::unique_ptr<wk2132::WK2132Register> r(new WK2132RegisterI2C{this, reg, channel, 0});
+    return r;
+  }
 
-  wk2132::WK2132Register const &channel_fifo(uint8_t channel) { return {this, 0, channel, 1}; }
+  std::unique_ptr<wk2132::WK2132Register> fifo_reg_ptr(uint8_t channel) {
+    std::unique_ptr<wk2132::WK2132Register> r(new WK2132RegisterI2C{this, 0, channel, 1});
+    return r;
+  }
 
   void setup() override;
   void dump_config() override;

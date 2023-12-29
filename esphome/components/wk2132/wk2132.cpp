@@ -277,7 +277,7 @@ WK2132Register &WK2132Register::operator|=(uint8_t value) {
 void WK2132Channel::setup_channel_() {
   ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s ...", this->parent_->get_name(), this->get_channel_name());
   // we enable transmit and receive on this channel
-  this->channel_reg(REG_WK2132_SCR) = SCR_RXEN | SCR_TXEN;
+  *this->channel_reg_ptr(REG_WK2132_SCR) = SCR_RXEN | SCR_TXEN;
 
   this->reset_fifo_();
   this->receive_buffer_.clear();
@@ -295,14 +295,14 @@ void WK2132Channel::dump_channel_() {
 
 void WK2132Channel::reset_fifo_() {
   // we reset and enable all FIFO
-  this->channel_reg(REG_WK2132_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
+  *this->channel_reg_ptr(REG_WK2132_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
 }
 
 void WK2132Channel::set_line_param_() {
   this->data_bits_ = 8;  // always equal to 8 for WK2132 (cant be changed)
 
   // WK2132Register lcr{this->parent_, REG_WK2132_LCR, this->channel_};
-  WK2132Register &lcr = this->channel_reg(REG_WK2132_LCR);
+  WK2132Register &lcr = *this->channel_reg_ptr(REG_WK2132_LCR);
   lcr &= 0xF0;  // we clear the lower 4 bit of LCR
   if (this->stop_bits_ == 2)
     lcr |= LCR_STPL;
@@ -331,24 +331,24 @@ void WK2132Channel::set_baudrate_() {
 
   // switch to page 1
   this->parent_->page1_ = true;
-  this->channel_reg(REG_WK2132_SPAGE) = 1;
-  this->channel_reg(REG_WK2132_BRH) = baud_high;
-  this->channel_reg(REG_WK2132_BRL) = baud_low;
-  this->channel_reg(REG_WK2132_BRD) = baud_dec;
+  *this->channel_reg_ptr(REG_WK2132_SPAGE) = 1;
+  *this->channel_reg_ptr(REG_WK2132_BRH) = baud_high;
+  *this->channel_reg_ptr(REG_WK2132_BRL) = baud_low;
+  *this->channel_reg_ptr(REG_WK2132_BRD) = baud_dec;
   // switch back to page 0
   this->parent_->page1_ = false;
-  this->channel_reg(REG_WK2132_SPAGE) = 0;
+  *this->channel_reg_ptr(REG_WK2132_SPAGE) = 0;
 
   ESP_LOGV(TAG, "    Crystal=%d baudrate=%d => registers [%d %d %d]", this->parent_->crystal_, this->baud_rate_,
            baud_high, baud_low, baud_dec);
 }
 
-inline bool WK2132Channel::tx_fifo_is_not_empty_() { return this->channel_reg(REG_WK2132_FSR) & FSR_TFDAT; }
+inline bool WK2132Channel::tx_fifo_is_not_empty_() { return *this->channel_reg_ptr(REG_WK2132_FSR) & FSR_TFDAT; }
 
 size_t WK2132Channel::tx_in_fifo_() {
-  size_t tfcnt = this->channel_reg(REG_WK2132_TFCNT);
+  size_t tfcnt = *this->channel_reg_ptr(REG_WK2132_TFCNT);
   if (tfcnt == 0) {
-    uint8_t const fsr = this->channel_reg(REG_WK2132_FSR);
+    uint8_t const fsr = *this->channel_reg_ptr(REG_WK2132_FSR);
     if (fsr & FSR_TFFULL) {
       ESP_LOGVV(TAG, "tx_in_fifo full FSR=%s", I2CS(fsr));
       tfcnt = FIFO_SIZE;
@@ -361,8 +361,8 @@ size_t WK2132Channel::tx_in_fifo_() {
 /// @brief number of bytes in the receive fifo
 /// @return number of bytes
 size_t WK2132Channel::rx_in_fifo_() {
-  size_t available = this->channel_reg(REG_WK2132_RFCNT);
-  uint8_t const fsr = this->channel_reg(REG_WK2132_FSR);
+  size_t available = *this->channel_reg_ptr(REG_WK2132_RFCNT);
+  uint8_t const fsr = *this->channel_reg_ptr(REG_WK2132_FSR);
   if (fsr & (FSR_RFOE | FSR_RFLB | FSR_RFFE | FSR_RFPE)) {
     if (fsr & FSR_RFOE)
       ESP_LOGE(TAG, "Receive data overflow FSR=%s", I2CS(fsr));
@@ -378,7 +378,7 @@ size_t WK2132Channel::rx_in_fifo_() {
     // -  at time t0 we read RFCNT=0 because nothing yet received
     // -  at time t0+delta we might read FIFO not empty because one byte has just been received
     // -  so to be sure we need to do another read of RFCNT. If still zero -> buffer full
-    available = this->channel_reg(REG_WK2132_RFCNT);
+    available = *this->channel_reg_ptr(REG_WK2132_RFCNT);
     if (available == 0) {  // still zero ?
       ESP_LOGVV(TAG, "rx_in_fifo full FSR=%s", I2CS(fsr));
       available = FIFO_SIZE;
@@ -424,7 +424,7 @@ void WK2132Channel::write_array(const uint8_t *buffer, size_t length) {
     ESP_LOGE(TAG, "Write_array: invalid call - requested %d bytes max size %d ...", length, XFER_MAX_SIZE);
     length = XFER_MAX_SIZE;
   }
-  this->channel_fifo().set_array(buffer, length);
+  this->fifo_reg_ptr()->set_array(buffer, length);
 }
 
 void WK2132Channel::flush() {
@@ -447,7 +447,7 @@ size_t WK2132Channel::xfer_fifo_to_buffer_() {
     to_transfer = free;  // we'll do the rest next time
   if (to_transfer) {
     uint8_t data[to_transfer];
-    this->channel_fifo().get_array(data, to_transfer);
+    this->fifo_reg_ptr()->get_array(data, to_transfer);
     for (size_t i = 0; i < to_transfer; i++)
       this->receive_buffer_.push(data[i]);
   } else {
