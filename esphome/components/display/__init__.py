@@ -18,8 +18,8 @@ from esphome.core import coroutine_with_priority
 IS_PLATFORM_COMPONENT = True
 
 display_ns = cg.esphome_ns.namespace("display")
-Display = display_ns.class_("Display")
-DisplayBuffer = display_ns.class_("DisplayBuffer")
+Display = display_ns.class_("Display", cg.PollingComponent)
+DisplayBuffer = display_ns.class_("DisplayBuffer", Display)
 DisplayPage = display_ns.class_("DisplayPage")
 DisplayPagePtr = DisplayPage.operator("ptr")
 DisplayRef = Display.operator("ref")
