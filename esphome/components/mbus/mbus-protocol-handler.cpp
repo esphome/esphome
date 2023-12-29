@@ -12,8 +12,8 @@ static const char *const TAG = "mbus-protocol";
 
 void MBusProtocolHandler::register_command(MBusFrame &command,
                                            void (*response_handler)(MBusCommand *command, const MBusFrame &response),
-                                           uint8_t data, uint32_t delay) {
-  MBusCommand *cmd = new MBusCommand(command, response_handler, data, this, delay);
+                                           uint8_t data, uint32_t delay, bool wait_for_response) {
+  MBusCommand *cmd = new MBusCommand(command, response_handler, data, this, delay, wait_for_response);
   this->_commands.push_back(cmd);
 }
 
@@ -24,7 +24,7 @@ void MBusProtocolHandler::loop() {
 
   if (!this->_waiting_for_response && this->_commands.size()) {
     auto cmd = this->_commands.front();
-    if ((now - cmd->create) < cmd->delay) {
+    if ((now - cmd->created) < cmd->delay) {
       return;
     }
 
@@ -36,17 +36,29 @@ void MBusProtocolHandler::loop() {
   }
 
   if (this->_waiting_for_response) {
+    auto command = this->_commands.front();
+
+    if (!command->wait_for_response) {
+      delay(25);
+
+      if (command->response_handler != nullptr) {
+        auto frame = MBusFrameFactory::create_empty_frame();
+        command->response_handler(command, *frame);
+      }
+
+      delete_first_command();
+      return;
+    }
+
     if ((now - this->_timestamp) > this->rx_timeout) {
       ESP_LOGV(TAG, "M-Bus data: Timeout");
 
-      auto command = this->_commands.front();
-      delete command;
-      this->_commands.pop_front();
+      if (command->response_handler != nullptr) {
+        auto frame = MBusFrameFactory::create_empty_frame();
+        command->response_handler(command, *frame);
+      }
 
-      this->_waiting_for_response = false;
-      this->_timestamp = 0;
-      this->_rx_buffer.clear();
-
+      delete_first_command();
       return;  // rx timeout
     }
 
@@ -54,19 +66,12 @@ void MBusProtocolHandler::loop() {
 
     // Stop Bit received
     if (rx_status == 1) {
-      auto command = this->_commands.front();
-
       if (command->response_handler != nullptr) {
         auto frame = this->parse_response();
         command->response_handler(command, *frame);
       }
 
-      delete command;
-      this->_commands.pop_front();
-
-      this->_waiting_for_response = false;
-      this->_timestamp = 0;
-      this->_rx_buffer.clear();
+      delete_first_command();
       return;
     }
 
@@ -77,8 +82,19 @@ void MBusProtocolHandler::loop() {
       return;
     }
 
-    delay(100);
+    delay(25);
   }
+}
+
+void MBusProtocolHandler::delete_first_command() {
+  auto command = this->_commands.front();
+
+  delete command;
+  this->_commands.pop_front();
+
+  this->_waiting_for_response = false;
+  this->_timestamp = 0;
+  this->_rx_buffer.clear();
 }
 
 int8_t MBusProtocolHandler::send(MBusFrame &frame) {
@@ -137,7 +153,7 @@ int8_t MBusProtocolHandler::receive() {
 
 std::unique_ptr<MBusFrame> MBusProtocolHandler::parse_response() {
   if (this->_rx_buffer.size() == 1 && this->_rx_buffer.at(0) == MBusFrameDefinition::ACK_FRAME.start_bit) {
-    return MBusFrameFactory::CreateACKFrame();
+    return MBusFrameFactory::create_ack_frame();
   }
 
   return nullptr;

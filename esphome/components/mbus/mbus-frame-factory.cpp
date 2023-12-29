@@ -6,14 +6,21 @@
 namespace esphome {
 namespace mbus {
 
-std::unique_ptr<MBusFrame> MBusFrameFactory::CreateACKFrame() {
+std::unique_ptr<MBusFrame> MBusFrameFactory::create_empty_frame() {
+  auto frame = new MBusFrame(MBUS_FRAME_TYPE_EMPTY);
+
+  std::unique_ptr<MBusFrame> frame_ptr(frame);
+  return frame_ptr;
+}
+
+std::unique_ptr<MBusFrame> MBusFrameFactory::create_ack_frame() {
   auto frame = new MBusFrame(MBUS_FRAME_TYPE_ACK);
 
   std::unique_ptr<MBusFrame> frame_ptr(frame);
   return frame_ptr;
 }
 
-std::unique_ptr<MBusFrame> MBusFrameFactory::CreateNKEFrame(uint8_t primary_address) {
+std::unique_ptr<MBusFrame> MBusFrameFactory::create_nke_frame(uint8_t primary_address) {
   auto frame = new MBusFrame(MBUS_FRAME_TYPE_SHORT);
 
   frame->control = MBusControlCodes::SND_NKE;
@@ -23,7 +30,7 @@ std::unique_ptr<MBusFrame> MBusFrameFactory::CreateNKEFrame(uint8_t primary_addr
   return frame_ptr;
 }
 
-std::unique_ptr<MBusFrame> MBusFrameFactory::CreateSlaveSelect(std::vector<uint8_t> mask) {
+std::unique_ptr<MBusFrame> MBusFrameFactory::create_slave_select(std::vector<uint8_t> mask) {
   assert(mask.size() == 8);
 
   auto frame = new MBusFrame(MBUS_FRAME_TYPE_LONG);

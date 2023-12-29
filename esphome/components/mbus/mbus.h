@@ -32,12 +32,11 @@ class MBus : public uart::UARTDevice, public Component {
   }
 
  protected:
-  void scan_primary_addresses();
+  void start_scan_primary_addresses();
   static void scan_primary_addresses_response_handler(MBusCommand *command, const MBusFrame &response);
-  // int8_t scan_primary_address(uint8_t primary_address);
-  // int8_t init_slaves();
-  // int8_t scan_slaves();
-  // void scan_secondary_adresses();
+
+  static void start_scan_secondary_addresses();
+  static void scan_secondary_addresses_response_handler(MBusCommand *command, const MBusFrame &response);
 
   MBusProtocolHandler *_protocol_handler{nullptr};
   SerialAdapter *_serialAdapter{nullptr};
