@@ -8,7 +8,6 @@ DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["wk2132"]
 MULTI_CONF = True
 
-
 wk2132_ns = cg.esphome_ns.namespace("wk2132_i2c")
 WK2132ComponentI2C = wk2132_ns.class_(
     "WK2132ComponentI2C", wk2132.WK2132Component, i2c.I2CDevice
@@ -19,7 +18,8 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(WK2132ComponentI2C),
         }
-    ).extend(i2c.i2c_device_schema(0x2C))
+    ).extend(i2c.i2c_device_schema(0x2C)),
+    wk2132.post_check_conf_wk2132,
 )
 
 

@@ -151,14 +151,6 @@ performed in advance each time the esphome::Component::loop() method is executed
 
 static const char *const TAG = "wk2132";
 
-// static const char *const REG_TO_STR_P0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
-//                                             "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
-// static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "BAUD1", "BAUD0", "PRES",
-//                                             "RFTL", "TFTL", "_INV_", "_INV_", "_INV_", "_INV_"};
-
-// // method to print a register value as text: used in the log messages ...
-// const char *reg_to_str(int reg, bool page1) { return page1 ? REG_TO_STR_P1[reg] : REG_TO_STR_P0[reg]; }
-
 /// @brief convert an int to binary representation as C++ std::string
 /// @param val integer to convert
 /// @return a std::string
@@ -174,24 +166,6 @@ uint32_t elapsed_us(uint32_t &last_time) {
   last_time = micros();
   return e;
 };
-
-// /// @brief Computes the I²C bus's address used to access the component
-// /// @param base_address the base address of the component - set by the A1 A0 pins
-// /// @param channel (0-3) the UART channel
-// /// @param fifo (0-1) 0 = access to internal register, 1 = direct access to fifo
-// /// @return the i2c address to use
-// inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, uint8_t fifo) {
-//   // the address of the device is:
-//   // +----+----+----+----+----+----+----+----+
-//   // |  0 | A1 | A0 |  1 |  0 | C1 | C0 |  F |
-//   // +----+----+----+----+----+----+----+----+
-//   // where:
-//   // - A1,A0 is the address read from A1,A0 switch
-//   // - C1,C0 is the channel number (in practice only 00 or 01)
-//   // - F is: 0 when accessing register, one when accessing FIFO
-//   uint8_t const addr = base_address | channel << 1 | fifo;
-//   return addr;
-// }
 
 /// @brief Converts the parity enum value to a C string
 /// @param parity enum
@@ -233,52 +207,74 @@ WK2132Register &WK2132Register::operator|=(uint8_t value) {
 ///////////////////////////////////////////////////////////////////////////////
 // The WK2132Component methods
 ///////////////////////////////////////////////////////////////////////////////
-// void WK2132Component::setup() {
-//   // before any manipulation we store the address to base_address_ for future use
-//   this->base_address_ = this->address_;
-//   ESP_LOGCONFIG(TAG, "Setting up wk2132: %s with %d UARTs at @%02X ...", this->get_name(), this->children_.size(),
-//                 this->base_address_);
+void WK2132Component::loop() {
+  if (this->component_state_ & (COMPONENT_STATE_MASK != COMPONENT_STATE_LOOP))
+    return;
 
-//   // enable both channels
-//   this->component_reg(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
-//   // reset channels
-//   this->component_reg(REG_WK2132_GRST) = GRST_C1RST | GRST_C2RST;
-//   // initialize the spage register to page 0
-//   this->component_reg(REG_WK2132_SPAGE) = 0;
-//   this->page1_ = false;
+  static uint32_t loop_time = 0;
+  static uint32_t loop_count = 0;
+  uint32_t time = 0;
 
-//   // we setup our children channels
-//   for (auto *child : this->children_) {
-//     child->setup_channel_();
-//   }
-// }
+  if (test_mode_) {
+    ESP_LOGI(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count++, this->get_name(),
+             millis() - loop_time);
+  }
+  loop_time = millis();
 
-// void WK2132Component::dump_config() {
-//   ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
-//   ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
-//   if (test_mode_)
-//     ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
-//   this->address_ = this->base_address_;  // we restore the base_address before display (less confusing)
-//   LOG_I2C_DEVICE(this);
+  // If there are some bytes in the receive FIFO we transfers them to the ring buffers
+  elapsed_us(time);  // set time to now
+  size_t transferred = 0;
+  for (auto *child : this->children_) {
+    // we look if some characters has been received in the fifo
+    transferred += child->xfer_fifo_to_buffer_();
+  }
+  if ((test_mode_ > 0) && (transferred > 0))
+    ESP_LOGI(TAG, "transferred %d bytes from fifo to buffer - execution time %d µs...", transferred, elapsed_us(time));
 
-//   for (auto *child : this->children_) {
-//     ESP_LOGCONFIG(TAG, "  UART %s:%s ...", this->get_name(), child->get_channel_name());
-//     ESP_LOGCONFIG(TAG, "    Baud rate: %d Bd", child->baud_rate_);
-//     ESP_LOGCONFIG(TAG, "    Data bits: %d", child->data_bits_);
-//     ESP_LOGCONFIG(TAG, "    Stop bits: %d", child->stop_bits_);
-//     ESP_LOGCONFIG(TAG, "    Parity: %s", p2s(child->parity_));
-//   }
-// }
+#ifdef TEST_COMPONENT
+  if (test_mode_ == 1) {  // test component in loop back
+    char message[64];
+    elapsed_us(time);  // set time to now
+    for (auto *child : this->children_) {
+      snprintf(message, sizeof(message), "%s:%s", this->get_name(), child->get_channel_name());
+      child->uart_send_test_(message);
+      uint32_t const start_time = millis();
+      while (child->tx_fifo_is_not_empty_()) {  // wait until buffer empty
+        if (millis() - start_time > 100) {
+          ESP_LOGE(TAG, "Timed out flushing - %d bytes in buffer...", child->tx_in_fifo_());
+          break;
+        }
+        yield();  // reschedule our thread to avoid blocking
+      }
+      bool status = child->uart_receive_test_(message);
+      ESP_LOGI(TAG, "Test %s => send/received %d bytes %s - execution time %d µs...", message, XFER_MAX_SIZE,
+               status ? "correctly" : "with error", elapsed_us(time));
+    }
+  }
+
+  if (this->test_mode_ == 2) {  // test component in echo mode
+    for (auto *child : this->children_) {
+      uint8_t data = 0;
+      if (child->available()) {
+        child->read_byte(&data);
+        ESP_LOGI(TAG, "echo mode: read -> send %02X", data);
+        child->write_byte(data);
+      }
+    }
+  }
+#endif
+
+  if (this->test_mode_)
+    ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // The WK2132Channel methods
 ///////////////////////////////////////////////////////////////////////////////
-
 void WK2132Channel::setup_channel_() {
   ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s ...", this->parent_->get_name(), this->get_channel_name());
   // we enable transmit and receive on this channel
   *this->channel_reg_ptr(REG_WK2132_SCR) = SCR_RXEN | SCR_TXEN;
-
   this->reset_fifo_();
   this->receive_buffer_.clear();
   this->set_line_param_();
@@ -300,8 +296,6 @@ void WK2132Channel::reset_fifo_() {
 
 void WK2132Channel::set_line_param_() {
   this->data_bits_ = 8;  // always equal to 8 for WK2132 (cant be changed)
-
-  // WK2132Register lcr{this->parent_, REG_WK2132_LCR, this->channel_};
   WK2132Register &lcr = *this->channel_reg_ptr(REG_WK2132_LCR);
   lcr &= 0xF0;  // we clear the lower 4 bit of LCR
   if (this->stop_bits_ == 2)
@@ -329,14 +323,12 @@ void WK2132Channel::set_baudrate_() {
     val_dec /= 0x0A;
   uint8_t const baud_dec = (uint8_t) (val_dec);
 
-  // switch to page 1
-  this->parent_->page1_ = true;
+  this->parent_->page1_ = true;  // switch to page 1
   *this->channel_reg_ptr(REG_WK2132_SPAGE) = 1;
   *this->channel_reg_ptr(REG_WK2132_BRH) = baud_high;
   *this->channel_reg_ptr(REG_WK2132_BRL) = baud_low;
   *this->channel_reg_ptr(REG_WK2132_BRD) = baud_dec;
-  // switch back to page 0
-  this->parent_->page1_ = false;
+  this->parent_->page1_ = false;  // switch back to page 0
   *this->channel_reg_ptr(REG_WK2132_SPAGE) = 0;
 
   ESP_LOGV(TAG, "    Crystal=%d baudrate=%d => registers [%d %d %d]", this->parent_->crystal_, this->baud_rate_,
@@ -358,8 +350,6 @@ size_t WK2132Channel::tx_in_fifo_() {
   return tfcnt;
 }
 
-/// @brief number of bytes in the receive fifo
-/// @return number of bytes
 size_t WK2132Channel::rx_in_fifo_() {
   size_t available = *this->channel_reg_ptr(REG_WK2132_RFCNT);
   uint8_t const fsr = *this->channel_reg_ptr(REG_WK2132_FSR);
@@ -424,7 +414,7 @@ void WK2132Channel::write_array(const uint8_t *buffer, size_t length) {
     ESP_LOGE(TAG, "Write_array: invalid call - requested %d bytes max size %d ...", length, XFER_MAX_SIZE);
     length = XFER_MAX_SIZE;
   }
-  this->fifo_reg_ptr()->set_array(buffer, length);
+  this->fifo_reg_ptr()->write_array(buffer, length);
 }
 
 void WK2132Channel::flush() {
@@ -447,74 +437,13 @@ size_t WK2132Channel::xfer_fifo_to_buffer_() {
     to_transfer = free;  // we'll do the rest next time
   if (to_transfer) {
     uint8_t data[to_transfer];
-    this->fifo_reg_ptr()->get_array(data, to_transfer);
+    this->fifo_reg_ptr()->read_array(data, to_transfer);
     for (size_t i = 0; i < to_transfer; i++)
       this->receive_buffer_.push(data[i]);
   } else {
     ESP_LOGVV(TAG, "xfer_fifo_to_buffer: nothing to to_transfer");
   }
   return to_transfer;
-}
-
-void WK2132Component::loop() {
-  if (this->component_state_ & (COMPONENT_STATE_MASK != COMPONENT_STATE_LOOP))
-    return;
-
-  static uint32_t loop_time = 0;
-  static uint32_t loop_count = 0;
-  uint32_t time = 0;
-
-  if (test_mode_) {
-    ESP_LOGI(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count++, this->get_name(),
-             millis() - loop_time);
-  }
-  loop_time = millis();
-
-  // If there are some bytes in the receive FIFO we transfers them to the ring buffers
-  elapsed_us(time);  // set time to now
-  size_t transferred = 0;
-  for (auto *child : this->children_) {
-    // we look if some characters has been received in the fifo
-    transferred += child->xfer_fifo_to_buffer_();
-  }
-  if ((test_mode_ > 0) && (transferred > 0))
-    ESP_LOGI(TAG, "transferred %d bytes from fifo to buffer - execution time %d µs...", transferred, elapsed_us(time));
-
-#ifdef TEST_COMPONENT
-  if (test_mode_ == 1) {  // test component in loop back
-    char message[64];
-    elapsed_us(time);  // set time to now
-    for (auto *child : this->children_) {
-      snprintf(message, sizeof(message), "%s:%s", this->get_name(), child->get_channel_name());
-      child->uart_send_test_(message);
-      uint32_t const start_time = millis();
-      while (child->tx_fifo_is_not_empty_()) {  // wait until buffer empty
-        if (millis() - start_time > 100) {
-          ESP_LOGE(TAG, "Timed out flushing - %d bytes in buffer...", child->tx_in_fifo_());
-          break;
-        }
-        yield();  // reschedule our thread to avoid blocking
-      }
-      bool status = child->uart_receive_test_(message);
-      ESP_LOGI(TAG, "Test %s => send/received %d bytes %s - execution time %d µs...", message, XFER_MAX_SIZE,
-               status ? "correctly" : "with error", elapsed_us(time));
-    }
-  }
-
-  if (this->test_mode_ == 2) {  // test component in echo mode
-    for (auto *child : this->children_) {
-      uint8_t data = 0;
-      if (child->available()) {
-        child->read_byte(&data);
-        ESP_LOGI(TAG, "echo mode: read -> send %02X", data);
-        child->write_byte(data);
-      }
-    }
-  }
-#endif
-
-  if (this->test_mode_)
-    ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 }
 
 ///

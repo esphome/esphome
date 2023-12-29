@@ -4,7 +4,6 @@ from esphome.components import uart
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_CHANNEL,
-    # CONF_ID,
     CONF_UART_ID,
 )
 
@@ -23,36 +22,13 @@ WK2132Component = wk2132_ns.class_("WK2132Component", cg.Component)
 WK2132Channel = wk2132_ns.class_("WK2132Channel", uart.UARTComponent)
 
 
-# def check_conf(value):
-#     if (
-#         len(value[CONF_UART]) > 1
-#         and value[CONF_UART][0][CONF_CHANNEL] == value[CONF_UART][1][CONF_CHANNEL]
-#     ):
-#         raise cv.Invalid("Duplicate channel number")
-#     return value
-
-
-# WK2132_SCHEMA = cv.All(
-#     cv.Schema(
-#         {
-#             cv.GenerateID(): cv.declare_id(WK2132Component),
-#             cv.Optional(CONF_CRYSTAL, default=14745600): cv.int_,
-#             cv.Optional(CONF_TEST_MODE, default=0): cv.int_,
-#             cv.Required(CONF_UART): cv.ensure_list(
-#                 {
-#                     cv.Required(CONF_UART_ID): cv.declare_id(WK2132Channel),
-#                     cv.Optional(CONF_CHANNEL, default=0): cv.int_range(min=0, max=1),
-#                     cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
-#                     cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
-#                     cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
-#                         uart.UART_PARITY_OPTIONS, upper=True
-#                     ),
-#                 }
-#             ),
-#         }
-#     ).extend(cv.COMPONENT_SCHEMA),
-#     check_conf,
-# )
+def post_check_conf_wk2132(value):
+    if (
+        len(value[CONF_UART]) > 1
+        and value[CONF_UART][0][CONF_CHANNEL] == value[CONF_UART][1][CONF_CHANNEL]
+    ):
+        raise cv.Invalid("Duplicate channel number")
+    return value
 
 
 WK2132_SCHEMA = cv.Schema(

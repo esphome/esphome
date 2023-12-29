@@ -6,7 +6,6 @@
 #include <bitset>
 #include <memory>
 #include "esphome/core/component.h"
-// #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/uart/uart.h"
 #if defined(USE_ESP32_FRAMEWORK_ARDUINO)
 #include "Wire.h"
@@ -21,18 +20,19 @@
 ///   platformio_options:
 ///     build_flags:
 ///       - -DTEST_COMPONENT
-
-#define TEST_COMPONENT
+// #define TEST_COMPONENT
 
 namespace esphome {
 namespace wk2132 {
 /// @brief XFER_MAX_SIZE defines the maximum number of bytes we allow during one transfer.
-/// When using the Arduino framework the default maximum transfer is 128 bytes. But this can be changed by defining the
-/// macro I2C_BUFFER_LENGTH during compilation. When using the ESP-IDF Framework the maximum transfer length is 256.
+/// When using the Arduino framework by default the maximum number of bytes that can be transferred is 128 bytes. But
+/// this can be changed by defining the macro I2C_BUFFER_LENGTH during compilation. In fact the __init__.py file take
+/// care of that when analyzing the Yaml configuration. When using the ESP-IDF Framework the maximum number of bytes
+/// that can be transferred is 256 bytes.
 /// @bug At the time of writing (Dec 2023) there is a bug in the Arduino framework in the TwoWire::requestFrom() method
 /// that limits the number of bytes we can read to 255. For this reasons we limit the XFER_MAX_SIZE to 255.
 #if defined(USE_ESP8266)
-constexpr size_t XFER_MAX_SIZE = 128;  // ESP8266
+constexpr size_t XFER_MAX_SIZE = 128;  // ESP8266 to be checked
 #elif defined(USE_ESP32_FRAMEWORK_ESP_IDF)
 constexpr size_t XFER_MAX_SIZE = 256;  // ESP32 & FRAMEWORK_ESP_IDF
 #elif I2C_BUFFER_LENGTH < 256  // Here we are using an USE_ESP32_FRAMEWORK_ARDUINO
@@ -132,11 +132,10 @@ class WK2132Component;  // forward declaration
 class WK2132ComponentI2C;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief This helper class creates objects that act as proxies to access WK2132 register
+/// @brief This helper class creates Register objects that act as proxies to access WK2132 register
 /// @details This is a pure virtual (interface) class that provides all the necessary access to registers while hiding
-/// the actual implementation. In the case of the wk2132 the access to the registers can be made through an I²C bus in
-/// the case of the wk2132_i2c component our through an SPI bus in the case of the wk2132_spi component. Derived classes
-/// will actually performs the specific bus operations.
+/// the actual implementation. This allow the wk2132 component to accesses the registers independently of the actual
+/// bus. The derived classes will actually performs the specific bus operations dependant of the bus used.
 /// @n typical usage of WK2132Register:
 /// @code
 ///   WK2132Register reg_1 {&WK2132Component, ADDR_REGISTER, CHANNEL_NUM, FIFO}  // declaration
@@ -185,12 +184,12 @@ class WK2132Register {
   /// @brief read an array of bytes (normally used for fifo access)
   /// @param data pointer to data buffer
   /// @param length number of bytes to read
-  virtual void get_array(uint8_t *data, size_t length) = 0;
+  virtual void read_array(uint8_t *data, size_t length) const = 0;
 
   /// @brief write an array of bytes (normally used for fifo access)
   /// @param data pointer to data buffer
   /// @param length number of bytes to write
-  virtual void set_array(const uint8_t *data, size_t length) = 0;
+  virtual void write_array(const uint8_t *data, size_t length) = 0;
 
  protected:
   WK2132Component *const parent_;  ///< pointer to our parent (aggregation)
@@ -501,12 +500,7 @@ class WK2132Component : public Component {
   /// @return the name
   const char *get_name() { return this->name_.c_str(); }
 
-  //
-  //  override virtual Component methods
-  //
-
-  // void setup() override;
-  // void dump_config() override;
+  /// @brief override the Component loop()
   void loop() override;
 
   /// @brief Get the priority of the component
@@ -647,22 +641,6 @@ class WK2132Channel : public uart::UARTComponent {
   /// @brief this cannot happen with external uart therefore we do nothing
   void check_logger_conflict() override {}
 
-#ifdef TEST_COMPONENT
-  /// @defgroup test_ Test component information
-  /// This group contains information about the test of the component
-  /// @{
-
-  /// @brief Test the write_array() method
-  /// @param message to display
-  void uart_send_test_(char *message);
-
-  /// @brief Test the read_array() method
-  /// @param message to display
-  /// @return true if success
-  bool uart_receive_test_(char *message);
-  /// @}
-#endif
-
   /// @brief reset the wk2132 internal FIFO
   void reset_fifo_();
 
@@ -680,13 +658,29 @@ class WK2132Channel : public uart::UARTComponent {
   /// @return the number of bytes in the fifo
   size_t tx_in_fifo_();
 
-  /// @brief test if transmit buffer is not empty in the status register
+  /// @brief test if transmit buffer is not empty in the status register (optimization)
   /// @return true if not empty
   bool tx_fifo_is_not_empty_();
 
   /// @brief transfer bytes from the wk2132 internal FIFO to the buffer (if any)
   /// @return number of bytes transferred
   size_t xfer_fifo_to_buffer_();
+
+#ifdef TEST_COMPONENT
+  /// @defgroup test_ Test component information
+  /// This group contains information about the test of the component
+  /// @{
+
+  /// @brief Test the write_array() method
+  /// @param message to display
+  void uart_send_test_(char *message);
+
+  /// @brief Test the read_array() method
+  /// @param message to display
+  /// @return true if success
+  bool uart_receive_test_(char *message);
+  /// @}
+#endif
 
   /// @brief the buffer where we store temporarily the bytes received
   RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
