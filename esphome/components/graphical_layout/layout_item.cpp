@@ -55,5 +55,35 @@ void LayoutItem::render(display::Display *display, display::Rect bounds) {
   display->pop_local_coordinates();
 }
 
+const LogString *horizontal_child_align_to_string(HorizontalChildAlign align) {
+  switch (align) {
+    case HorizontalChildAlign::LEFT:
+      return LOG_STR("LEFT");
+    case HorizontalChildAlign::CENTER_HORIZONTAL:
+      return LOG_STR("CENTER_HORIZONTAL");
+    case HorizontalChildAlign::RIGHT:
+      return LOG_STR("RIGHT");
+    case HorizontalChildAlign::STRETCH_TO_FIT_WIDTH:
+      return LOG_STR("STRETCH_TO_FIT_WIDTH");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
+
+const LogString *vertical_child_align_to_string(VerticalChildAlign align){ 
+  switch (align) {
+    case VerticalChildAlign::TOP:
+      return LOG_STR("TOP");
+    case VerticalChildAlign::CENTER_VERTICAL:
+      return LOG_STR("CENTER_VERTICAL");
+    case VerticalChildAlign::BOTTOM:
+      return LOG_STR("BOTTOM");
+    case VerticalChildAlign::STRETCH_TO_FIT_HEIGHT:
+      return LOG_STR("STRETCH_TO_FIT_HEIGHT");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
+
 }  // namespace graphical_layout
 }  // namespace esphome

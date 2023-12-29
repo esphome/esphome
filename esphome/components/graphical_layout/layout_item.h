@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/color.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace display {
@@ -99,6 +100,9 @@ class LayoutItem {
   int border_{0};
   Color border_color_{Color(0, 0, 0, 0)};
 };
+
+const LogString *horizontal_child_align_to_string(HorizontalChildAlign align);
+const LogString *vertical_child_align_to_string(VerticalChildAlign align);
 
 }  // namespace graphical_layout
 }  // namespace esphome
