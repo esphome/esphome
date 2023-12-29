@@ -7,10 +7,13 @@
 #include "esphome/core/automation.h"
 
 namespace esphome {
-namespace graphical_layout {
+namespace display {
 
-const Color COLOR_ON(255, 255, 255, 255);
-const Color COLOR_OFF(0, 0, 0, 0);
+extern const Color COLOR_ON;
+extern const Color COLOR_OFF;
+
+}  // namespace display
+namespace graphical_layout {
 
 /** The TextPanel is a UI item that renders a single line of text to a display */
 class TextPanel : public LayoutItem {
@@ -29,8 +32,8 @@ class TextPanel : public LayoutItem {
   TemplatableValue<std::string> text_{};
   display::BaseFont *font_{nullptr};
   display::TextAlign text_align_{display::TextAlign::TOP_LEFT};
-  Color foreground_color_{COLOR_ON};
-  Color background_color_{COLOR_OFF};
+  Color foreground_color_{display::COLOR_ON};
+  Color background_color_{display::COLOR_OFF};
 };
 
 }  // namespace graphical_layout
