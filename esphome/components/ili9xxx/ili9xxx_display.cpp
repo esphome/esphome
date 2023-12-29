@@ -282,8 +282,11 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
                                     int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0)
     return;
-  // if color mapping or software rotation is required, pass the buck.
-  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || !big_endian) {
+  // if color mapping or software rotation is required, hand this off to the parent implementation. This will
+  // do color conversion pixel-by-pixel into the buffer and draw it later. If this is happening the user has not
+  // configured the renderer well.
+  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || !big_endian ||
+      this->is_18bitdisplay_) {
     return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                             x_pad);
   }
