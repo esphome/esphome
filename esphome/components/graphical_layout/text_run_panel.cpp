@@ -34,7 +34,8 @@ void TextRunPanel::setup_complete() {
 }
 
 display::Rect TextRunPanel::measure_item_internal(display::Display *display) {
-  CalculatedLayout calculated = this->determine_layout(display, display::Rect(0, 0, this->max_width_, display->get_height()), true);
+  CalculatedLayout calculated =
+      this->determine_layout(display, display::Rect(0, 0, this->max_width_, display->get_height()), true);
   return calculated.bounds;
 }
 
@@ -43,9 +44,11 @@ void TextRunPanel::render_internal(display::Display *display, display::Rect boun
 
   for (auto calculated : layout.runs) {
     if (calculated->run->background_color_ != display::COLOR_OFF) {
-      display->filled_rectangle(calculated->bounds.x, calculated->bounds.y, calculated->bounds.w, calculated->bounds.h, calculated->run->background_color_);
+      display->filled_rectangle(calculated->bounds.x, calculated->bounds.y, calculated->bounds.w, calculated->bounds.h,
+                                calculated->run->background_color_);
     }
-    display->print(calculated->bounds.x, calculated->bounds.y, calculated->run->font_, calculated->run->foreground_color_, display::TextAlign::TOP_LEFT, calculated->text_.c_str()); 
+    display->print(calculated->bounds.x, calculated->bounds.y, calculated->run->font_,
+                   calculated->run->foreground_color_, display::TextAlign::TOP_LEFT, calculated->text_.c_str()
   }
 
   if (this->debug_outline_runs_) {
@@ -78,9 +81,9 @@ CalculatedLayout TextRunPanel::determine_layout(display::Display *display, displ
 
     if ((x_offset + width) < bounds.w) {
       // Item fits on the current line
-      auto calculated = std::make_shared<CalculatedTextRun>(run, text, display::Rect(x_offset, y_offset, width, height), baseline, line_number);
+      auto calculated = std::make_shared<CalculatedTextRun>(run, text, display::Rect(x_offset, y_offset, width, height),
+                                                            baseline, line_number);
       calculated_layout.runs.push_back(calculated);
-
 
       x_offset += width;
       widest_line = std::max(widest_line, x_offset);
@@ -97,7 +100,7 @@ CalculatedLayout TextRunPanel::determine_layout(display::Display *display, displ
     std::string partial_line;
     for (int i = 0; i < text.size(); i++) {
       can_wrap_at_args.offset = i;
-      can_wrap_at_args.character =  text.at(i);
+      can_wrap_at_args.character = text.at(i);
 
       bool can_wrap = this->can_wrap_at_character_.value(&can_wrap_at_args);
       if (can_wrap) {
@@ -110,7 +113,8 @@ CalculatedLayout TextRunPanel::determine_layout(display::Display *display, displ
           // Item fits on the current line
           current_line_max_height = std::max(current_line_max_height, height);
 
-          auto calculated = std::make_shared<CalculatedTextRun>(run, partial_line, display::Rect(x_offset, y_offset, width, height), baseline, line_number);
+          auto calculated = std::make_shared<CalculatedTextRun>(
+              run, partial_line, display::Rect(x_offset, y_offset, width, height), baseline, line_number);
           calculated_layout.runs.push_back(calculated);
 
           x_offset += width;
@@ -137,12 +141,14 @@ CalculatedLayout TextRunPanel::determine_layout(display::Display *display, displ
     if (partial_line.length() > 0) {
       // Remaining text
       run->font_->measure(partial_line.c_str(), &width, &x1, &baseline, &height);
-      
+
       current_line_max_height = std::max(height, current_line_max_height);
 
-      ESP_LOGVV(TAG, "'%s' is remaining after character break checks. Rendering to (%i, %i)", partial_line.c_str(), x_offset, y_offset);
+      ESP_LOGVV(TAG, "'%s' is remaining after character break checks. Rendering to (%i, %i)", partial_line.c_str(),
+                x_offset, y_offset);
 
-      auto calculated = std::make_shared<CalculatedTextRun>(run, partial_line, display::Rect(x_offset, y_offset, width, height), baseline, line_number);
+      auto calculated = std::make_shared<CalculatedTextRun>(
+          run, partial_line, display::Rect(x_offset, y_offset, width, height), baseline, line_number);
       calculated_layout.runs.push_back(calculated);
 
       x_offset += width;
@@ -162,53 +168,84 @@ CalculatedLayout TextRunPanel::determine_layout(display::Display *display, displ
     this->apply_alignment_to_layout(&calculated_layout);
   }
 
-  ESP_LOGV(TAG, "Measured layout is (%i, %i) (%i lines)", calculated_layout.bounds.w, calculated_layout.bounds.h, calculated_layout.line_count);
+  ESP_LOGV(TAG, "Measured layout is (%i, %i) (%i lines)", calculated_layout.bounds.w, calculated_layout.bounds.h,
+           calculated_layout.line_count);
 
   return calculated_layout;
 }
 
 void TextRunPanel::apply_alignment_to_layout(CalculatedLayout *calculated_layout) {
-    const auto x_align = display::TextAlign(int(this->text_align_) & TEXT_ALIGN_X_MASK);
-    const auto y_align = display::TextAlign(int(this->text_align_) & TEXT_ALIGN_Y_MASK);
+  const auto x_align = display::TextAlign(int(this->text_align_) & TEXT_ALIGN_X_MASK);
+  const auto y_align = display::TextAlign(int(this->text_align_) & TEXT_ALIGN_Y_MASK);
 
-    ESP_LOGVV(TAG, "We have %i lines to apply alignment to!", calculated_layout->line_count);
+  ESP_LOGVV(TAG, "We have %i lines to apply alignment to!", calculated_layout->line_count);
 
-    int total_y_offset = 0;
+  int total_y_offset = 0;
 
-    for (int i = 0; i < calculated_layout->line_count; i++) {
-      std::vector<std::shared_ptr<CalculatedTextRun>> line_runs;
+  for (int i = 0; i < calculated_layout->line_count; i++) {
+    std::vector<std::shared_ptr<CalculatedTextRun>> line_runs;
 
-      // Get all the runs for the current line
-      for (auto run : calculated_layout->runs) {
-        if (run->line_number_ == i) {
-          line_runs.push_back(run);
-        }
+    // Get all the runs for the current line
+    for (auto run : calculated_layout->runs) {
+      if (run->line_number_ == i) {
+        line_runs.push_back(run);
       }
+    }
 
-      ESP_LOGVV(TAG, "Found %i runs on line %i", line_runs.size(), i);
+    ESP_LOGVV(TAG, "Found %i runs on line %i", line_runs.size(), i);
 
-      int16_t total_line_width = 0;
-      int16_t max_line_height = 0;
-      int16_t max_baseline = 0;
-      for (auto run : line_runs) {
-        total_line_width += run->bounds.w;
-        max_line_height = std::max(run->bounds.h, max_line_height);
-        max_baseline = std::max(run->baseline, max_baseline);
+    int16_t total_line_width = 0;
+    int16_t max_line_height = 0;
+    int16_t max_baseline = 0;
+    for (auto run : line_runs) {
+      total_line_width += run->bounds.w;
+      max_line_height = std::max(run->bounds.h, max_line_height);
+      max_baseline = std::max(run->baseline, max_baseline);
+    }
+
+    ESP_LOGVV(TAG, "Line %i totals (%i, %i) pixels of (%i, %i)", i, total_line_width, max_line_height,
+              calculated_layout->bounds.w, calculated_layout->bounds.h)
+
+    int x_adjustment = 0;
+    int y_adjustment = 0;
+    switch (x_align) {
+      case display::TextAlign::RIGHT: {
+        x_adjustment = calculated_layout->bounds.w - total_line_width;
+        ESP_LOGVV(TAG, "Will adjust line %i by %i x-pixels", i, x_adjustment);
+        break;
       }
+      case display::TextAlign::CENTER_HORIZONTAL: {
+        x_adjustment = (calculated_layout->bounds.w - total_line_width) / 2;
+        ESP_LOGVV(TAG, "Will adjust line %i by %i x-pixels", i, x_adjustment);
+        break;
+      }
+      default: {
+        break;
+      }
+    }
 
-      ESP_LOGVV(TAG, "Line %i totals (%i, %i) pixels of (%i, %i)", i, total_line_width, max_line_height, calculated_layout->bounds.w, calculated_layout->bounds.h);
+    int max_line_y_adjustment = 0;
+    for (auto run : line_runs) {
+      ESP_LOGVV(TAG, "Adjusting '%s' from (%i, %i) to (%i, %i)", run->text_.c_str(), run->bounds.x, run->bounds.y,
+                run->bounds.x + x_adjustment, run->bounds.y + y_adjustment);
+      run->bounds.x += x_adjustment;
 
-      int x_adjustment = 0;
-      int y_adjustment = 0;
-      switch (x_align) {
-        case display::TextAlign::RIGHT: {
-          x_adjustment = calculated_layout->bounds.w - total_line_width;
-          ESP_LOGVV(TAG, "Will adjust line %i by %i x-pixels", i, x_adjustment);
+      switch (y_align) {
+        case display::TextAlign::BOTTOM: {
+          y_adjustment =  max_line_height - run->bounds.h;
+          ESP_LOGVV(TAG, "Will adjust line %i by %i y-pixels (%i vs %i)", i, y_adjustment, max_line_height, run->bounds.h);
           break;
         }
-        case display::TextAlign::CENTER_HORIZONTAL: {
-          x_adjustment = (calculated_layout->bounds.w - total_line_width) / 2;
-          ESP_LOGVV(TAG, "Will adjust line %i by %i x-pixels", i, x_adjustment);
+        case display::TextAlign::CENTER_VERTICAL: {
+          y_adjustment = (max_line_height - run->bounds.h) / 2;
+          ESP_LOGVV(TAG, "Will adjust line %i by %i y-pixels", i, y_adjustment);
+          break;
+        }
+        case display::TextAlign::BASELINE: {
+          // Adjust this run based on its difference from the maximum baseline in the line
+          y_adjustment = max_baseline - run->baseline;
+          ESP_LOGVV(TAG, "Will adjust '%s' by %i y-pixels (ML: %i, H: %i, BL: %i)", run->text_.c_str(), y_adjustment,
+                    max_line_height, run->bounds.h, run->baseline);
           break;
         }
         default: {
@@ -216,41 +253,14 @@ void TextRunPanel::apply_alignment_to_layout(CalculatedLayout *calculated_layout
         }
       }
 
-      int max_line_y_adjustment = 0;
-      for (auto run : line_runs) {
-        ESP_LOGVV(TAG, "Adjusting '%s' from (%i, %i) to (%i, %i)", run->text_.c_str(), run->bounds.x, run->bounds.y, run->bounds.x + x_adjustment, run->bounds.y + y_adjustment);
-        run->bounds.x += x_adjustment;
-
-        switch (y_align) {
-          case display::TextAlign::BOTTOM: {
-            y_adjustment =  max_line_height - run->bounds.h;
-            ESP_LOGVV(TAG, "Will adjust line %i by %i y-pixels (%i vs %i)", i, y_adjustment, max_line_height, run->bounds.h);
-            break;
-          }
-          case display::TextAlign::CENTER_VERTICAL: {
-            y_adjustment = (max_line_height - run->bounds.h) / 2;
-            ESP_LOGVV(TAG, "Will adjust line %i by %i y-pixels", i, y_adjustment);
-            break;
-          }
-          case display::TextAlign::BASELINE: {
-            // Adjust this run based on its difference from the maximum baseline in the line
-           y_adjustment = max_baseline - run->baseline;
-            ESP_LOGVV(TAG, "Will adjust '%s' by %i y-pixels (ML: %i, H: %i, BL: %i)", run->text_.c_str(), y_adjustment, max_line_height, run->bounds.h, run->baseline);
-            break;
-          }
-          default: {
-            break;
-          }
-        }
-
-        run->bounds.y += y_adjustment + total_y_offset;
-        max_line_y_adjustment = std::max(max_line_y_adjustment, y_adjustment);
-      }
-
-      total_y_offset += max_line_y_adjustment;
+      run->bounds.y += y_adjustment + total_y_offset;
+      max_line_y_adjustment = std::max(max_line_y_adjustment, y_adjustment);
     }
 
-    calculated_layout->bounds.h += total_y_offset;
+    total_y_offset += max_line_y_adjustment;
+  }
+
+  calculated_layout->bounds.h += total_y_offset;
 }
 
 bool TextRunPanel::default_can_wrap_at_character(CanWrapAtCharacterArguments *args) {

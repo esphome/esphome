@@ -70,7 +70,7 @@ const LogString *horizontal_child_align_to_string(HorizontalChildAlign align) {
   }
 }
 
-const LogString *vertical_child_align_to_string(VerticalChildAlign align){ 
+const LogString *vertical_child_align_to_string(VerticalChildAlign align) { 
   switch (align) {
     case VerticalChildAlign::TOP:
       return LOG_STR("TOP");

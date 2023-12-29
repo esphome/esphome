@@ -9,6 +9,7 @@ namespace graphical_layout {
 static const char *const TAG = "rootlayoutcomponent";
 
 void RootLayoutComponent::setup() {
+  ESP_LOGD(TAG, "Calling setup_complete on layout_root");
   this->layout_root_->setup_complete();
 }
 

@@ -12,7 +12,7 @@ namespace display {
 extern const Color COLOR_ON;
 extern const Color COLOR_OFF;
 
-} // namespace display
+}  // namespace display
 namespace graphical_layout {
 
 class TextRunPanel;

@@ -87,7 +87,7 @@ class LayoutItem {
   /** Called once all setup has been completed (i.e. after code generation and all your set_ methods
    * have been called). Can be used to finalise any configuration
    */
-  virtual void setup_complete() {};
+  virtual void setup_complete(){};
 
   void set_margin(int margin) { this->margin_ = margin; };
   void set_padding(int padding) { this->padding_ = padding; };

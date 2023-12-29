@@ -1,4 +1,3 @@
-from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import font, color
@@ -19,6 +18,7 @@ CONF_TEXT_ALIGN = "text_align"
 CONF_MAX_WIDTH = "max_width"
 CONF_MIN_WIDTH = "min_width"
 CONF_RUNS = "runs"
+CONF_DEBUG_OUTLINE_RUNS = "debug_outline_runs"
 
 
 TEXT_ALIGN = {
