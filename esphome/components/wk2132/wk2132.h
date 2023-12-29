@@ -184,12 +184,12 @@ class WK2132Register {
   /// @brief read an array of bytes (normally used for fifo access)
   /// @param data pointer to data buffer
   /// @param length number of bytes to read
-  virtual void read_array(uint8_t *data, size_t length) const = 0;
+  virtual void read_fifo(uint8_t *data, size_t length) const = 0;
 
   /// @brief write an array of bytes (normally used for fifo access)
   /// @param data pointer to data buffer
   /// @param length number of bytes to write
-  virtual void write_array(const uint8_t *data, size_t length) = 0;
+  virtual void write_fifo(const uint8_t *data, size_t length) = 0;
 
  protected:
   WK2132Component *const parent_;  ///< pointer to our parent (aggregation)

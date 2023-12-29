@@ -56,6 +56,21 @@ uint8_t WK2132RegisterI2C::get() const {
   return value;
 }
 
+void WK2132RegisterI2C::read_fifo(uint8_t *data, size_t length) const {
+  WK2132ComponentI2C *rcp = static_cast<WK2132ComponentI2C *>(this->parent_);
+  rcp->address_ = i2c_address(rcp->base_address_, this->channel_, this->fifo_);  // fifo flag is set
+  auto error = rcp->read(data, length);
+  if (error == i2c::ERROR_OK) {
+    this->parent_->status_clear_warning();
+    ESP_LOGVV(TAG, "WK2132Register::read_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", rcp->address_,
+              reg_to_str(this->register_, rcp->page1_), this->channel_, length, (int) error);
+  } else {  // error
+    this->parent_->status_set_warning();
+    ESP_LOGE(TAG, "WK2132Register::read_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", rcp->address_,
+             reg_to_str(this->register_, rcp->page1_), this->channel_, length, (int) error);
+  }
+}
+
 void WK2132RegisterI2C::set(uint8_t value) {
   WK2132ComponentI2C *rcp = static_cast<WK2132ComponentI2C *>(this->parent_);
   rcp->address_ = i2c_address(rcp->base_address_, this->channel_, this->fifo_);  // update the i2c bus
@@ -71,32 +86,17 @@ void WK2132RegisterI2C::set(uint8_t value) {
   }
 }
 
-void WK2132RegisterI2C::read_array(uint8_t *data, size_t length) const {
-  WK2132ComponentI2C *rcp = static_cast<WK2132ComponentI2C *>(this->parent_);
-  rcp->address_ = i2c_address(rcp->base_address_, this->channel_, this->fifo_);  // fifo flag is set
-  auto error = rcp->read(data, length);
-  if (error == i2c::ERROR_OK) {
-    this->parent_->status_clear_warning();
-    ESP_LOGVV(TAG, "WK2132Register::read_array() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", rcp->address_,
-              reg_to_str(this->register_, rcp->page1_), this->channel_, length, (int) error);
-  } else {  // error
-    this->parent_->status_set_warning();
-    ESP_LOGE(TAG, "WK2132Register::read_array() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", rcp->address_,
-             reg_to_str(this->register_, rcp->page1_), this->channel_, length, (int) error);
-  }
-}
-
-void WK2132RegisterI2C::write_array(const uint8_t *data, size_t length) {
+void WK2132RegisterI2C::write_fifo(const uint8_t *data, size_t length) {
   WK2132ComponentI2C *rcp = static_cast<WK2132ComponentI2C *>(this->parent_);
   rcp->address_ = i2c_address(rcp->base_address_, this->channel_, this->fifo_);  // set fifo flag
   auto error = rcp->write(data, length);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
-    ESP_LOGVV(TAG, "WK2132Register::write_array() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", rcp->address_,
+    ESP_LOGVV(TAG, "WK2132Register::write_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", rcp->address_,
               reg_to_str(this->register_, rcp->page1_), this->channel_, length, (int) error);
   } else {  // error
     this->parent_->status_set_warning();
-    ESP_LOGE(TAG, "WK2132Register::write_array() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", rcp->address_,
+    ESP_LOGE(TAG, "WK2132Register::write_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", rcp->address_,
              reg_to_str(this->register_, rcp->page1_), this->channel_, length, (int) error);
   }
 }
