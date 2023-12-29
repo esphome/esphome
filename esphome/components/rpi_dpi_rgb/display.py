@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_WIDTH,
     CONF_HEIGHT,
     CONF_LAMBDA,
+    CONF_COLOR_ORDER,
 )
 
 # Temporary work-around
@@ -22,11 +23,6 @@ except ImportError:
     CONF_OFFSET_WIDTH = "offset_width"
     CONF_INVERT_COLORS = "invert_colors"
 
-CONF_MIRROR_X = "mirror_x"
-CONF_MIRROR_Y = "mirror_y"
-CONF_SWAP_XY = "swap_xy"
-CONF_COLOR_ORDER = "color_order"
-CONF_TRANSFORM = "transform"
 CONF_DE_PIN = "de_pin"
 CONF_PCLK_PIN = "pclk_pin"
 CONF_HSYNC_PIN = "hsync_pin"
@@ -70,12 +66,6 @@ CONFIG_SCHEMA = cv.All(
                             cv.Optional(CONF_OFFSET_WIDTH, default=0): cv.int_,
                         }
                     ),
-                ),
-                cv.Optional(CONF_TRANSFORM): cv.Schema(
-                    {
-                        cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
-                        cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
-                    }
                 ),
                 cv.Optional(CONF_PCLK_FREQUENCY, default="16MHz"): cv.All(
                     cv.frequency, cv.Range(min=4e6, max=16e6)
@@ -132,10 +122,6 @@ async def to_code(config):
     if reset_pin := config.get(CONF_RESET_PIN):
         reset = await cg.gpio_pin_expression(reset_pin)
         cg.add(var.set_reset_pin(reset))
-
-    if transform := config.get(CONF_TRANSFORM):
-        cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))
-        cg.add(var.set_mirror_y(transform[CONF_MIRROR_Y]))
 
     if CONF_DIMENSIONS in config:
         dimensions = config[CONF_DIMENSIONS]

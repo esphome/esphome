@@ -115,8 +115,6 @@ class RPI_DPI_RGB : public display::Display {
   void set_vsync_pulse_width(uint16_t vsync_pulse_width) { this->vsync_pulse_width_ = vsync_pulse_width; }
   void set_vsync_back_porch(uint16_t vsync_back_porch) { this->vsync_back_porch_ = vsync_back_porch; }
   void set_vsync_front_porch(uint16_t vsync_front_porch) { this->vsync_front_porch_ = vsync_front_porch; }
-  void set_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
-  void set_mirror_y(bool mirror_y) { this->mirror_y_ = mirror_y; }
   void set_pclk_speed(uint32_t pclk_speed) { this->pclk_speed_ = pclk_speed; }
   void set_offsets(int16_t offset_x, int16_t offset_y) {
     this->offset_x_ = offset_x;
@@ -175,8 +173,6 @@ class RPI_DPI_RGB : public display::Display {
   size_t height_{};
   int16_t offset_x_{0};
   int16_t offset_y_{0};
-  bool mirror_x_{};
-  bool mirror_y_{};
 
   esp_lcd_panel_handle_t handle_{};
 };
