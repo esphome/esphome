@@ -6,6 +6,13 @@
 namespace esphome {
 namespace mbus {
 
+std::unique_ptr<MBusFrame> MBusFrameFactory::CreateACKFrame() {
+  auto frame = new MBusFrame(MBUS_FRAME_TYPE_ACK);
+
+  std::unique_ptr<MBusFrame> frame_ptr(frame);
+  return frame_ptr;
+}
+
 std::unique_ptr<MBusFrame> MBusFrameFactory::CreateNKEFrame(uint8_t primary_address) {
   auto frame = new MBusFrame(MBUS_FRAME_TYPE_SHORT);
 

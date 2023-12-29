@@ -41,7 +41,6 @@ class MBus : public uart::UARTDevice, public Component {
 
   MBusProtocolHandler *_protocol_handler{nullptr};
   SerialAdapter *_serialAdapter{nullptr};
-  uint32_t _start_time{0};
 };
 
 }  // namespace mbus

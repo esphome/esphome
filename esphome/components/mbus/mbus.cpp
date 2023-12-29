@@ -20,41 +20,37 @@ float MBus::get_setup_priority() const {
   return setup_priority::LATE;
 }
 
-void MBus::setup() { this->_start_time = millis(); }
+void MBus::setup() { scan_primary_addresses(); }
 
-void MBus::loop() {
-  uint32_t now = millis();
-  if (now - this->_start_time > 1000) {
-    scan_primary_addresses();
-    // scan_secondary_adresses();
-  }
-
-  this->_protocol_handler->loop();
-}
+void MBus::loop() { this->_protocol_handler->loop(); }
 
 void MBus::scan_primary_addresses() {
   static bool primary_scan_finished = false;
   if (primary_scan_finished) {
     return;
   }
-  ESP_LOGV(TAG, "scan_primary_addresses()");
+
+  ESP_LOGV(TAG, "scan_primary_addresses: 0");
   primary_scan_finished = true;
 
   // MBus spec states to send REQ_UD2 but sending init-frame is much faster
   // see Chapter 7.3 Searching for Installed Slaves -> Primary Addresses
   auto scan_primary_command = MBusFrameFactory::CreateNKEFrame(0);
-  this->_protocol_handler->register_command(*scan_primary_command, scan_primary_addresses_response_handler, 0);
+  this->_protocol_handler->register_command(*scan_primary_command, scan_primary_addresses_response_handler, 0, 1000);
 }
 
 void MBus::scan_primary_addresses_response_handler(MBusCommand *command, const MBusFrame &response) {
   auto address = command->data;
-  ESP_LOGD(TAG, "Ping primary response address = %d.", address);
+  if (response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
+    ESP_LOGD(TAG, "Found mbus slave with primary address = %d.", address);
+  }
 
   address++;
   if (address > PRIMARY_ADDRESS_MAX) {
     return;
   }
 
+  ESP_LOGV(TAG, "scan_primary_addresses: %d", address);
   auto scan_primary_command = MBusFrameFactory::CreateNKEFrame(address);
   command->protocol_handler->register_command(*scan_primary_command, scan_primary_addresses_response_handler, address);
 }

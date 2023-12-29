@@ -3,6 +3,7 @@
 
 #include "mbus-protocol-handler.h"
 #include "mbus-frame-meta.h"
+#include "mbus-frame-factory.h"
 
 namespace esphome {
 namespace mbus {
@@ -11,19 +12,23 @@ static const char *const TAG = "mbus-protocol";
 
 void MBusProtocolHandler::register_command(MBusFrame &command,
                                            void (*response_handler)(MBusCommand *command, const MBusFrame &response),
-                                           uint8_t data) {
-  MBusCommand *cmd = new MBusCommand(command, response_handler, data, this);
+                                           uint8_t data, uint32_t delay) {
+  MBusCommand *cmd = new MBusCommand(command, response_handler, data, this, delay);
   this->_commands.push_back(cmd);
 }
 
 void MBusProtocolHandler::loop() {
   auto now = millis();
-  ESP_LOGVV(TAG, "loop. _waiting_for_response = %d, _timestamp = %d, now = %d", this->_waiting_for_response,
-            this->_timestamp, now);
+  ESP_LOGVV(TAG, "loop. _waiting_for_response = %d, _timestamp = %d, now = %d, timed out: %d",
+            this->_waiting_for_response, this->_timestamp, now, (now - this->_timestamp) > this->rx_timeout);
 
-  if (!this->_waiting_for_response && this->_commands.size() > 0) {
-    auto frame = this->_commands.front()->command;
-    this->send(*frame);
+  if (!this->_waiting_for_response && this->_commands.size()) {
+    auto cmd = this->_commands.front();
+    if ((now - cmd->create) < cmd->delay) {
+      return;
+    }
+
+    this->send(*cmd->command);
     this->_waiting_for_response = true;
     this->_timestamp = now;
     delay(10);
@@ -46,12 +51,14 @@ void MBusProtocolHandler::loop() {
     }
 
     auto rx_status = this->receive();
+
+    // Stop Bit received
     if (rx_status == 1) {
       auto command = this->_commands.front();
 
       if (command->response_handler != nullptr) {
-        MBusFrame frame(MBusFrameType::MBUS_FRAME_TYPE_ACK);
-        command->response_handler(command, frame);
+        auto frame = this->parse_response();
+        command->response_handler(command, *frame);
       }
 
       delete command;
@@ -63,6 +70,7 @@ void MBusProtocolHandler::loop() {
       return;
     }
 
+    // Partial Data received
     if (rx_status == 0) {
       this->_timestamp = now;
       delay(10);
@@ -109,26 +117,31 @@ int8_t MBusProtocolHandler::receive() {
   auto rx_status = this->_networkAdapter->receive(this->_rx_buffer);
 
   if (rx_status == 0) {
-    // received data -> set timestamp
     ESP_LOGVV(TAG, "Receive mbus data: Byte = %d.", this->_rx_buffer[this->_rx_buffer.size() - 1]);
     return 0;
   }
 
   if (rx_status == -1) {
     // no data received. Try next loop.
-    return 0;
+    return -1;
   }
 
   if (rx_status == 1) {
     // End of Frame received.
-    ESP_LOGD(TAG, "Received mbus data: %s", format_hex_pretty(this->_rx_buffer).c_str());
+    ESP_LOGV(TAG, "Received mbus data: %s", format_hex_pretty(this->_rx_buffer).c_str());
     return 1;
   }
 
   return 0;
 }
 
-MBusFrame *MBusProtocolHandler::parse() {}
+std::unique_ptr<MBusFrame> MBusProtocolHandler::parse_response() {
+  if (this->_rx_buffer.size() == 1 && this->_rx_buffer.at(0) == MBusFrameDefinition::ACK_FRAME.start_bit) {
+    return MBusFrameFactory::CreateACKFrame();
+  }
+
+  return nullptr;
+}
 
 }  // namespace mbus
 }  // namespace esphome

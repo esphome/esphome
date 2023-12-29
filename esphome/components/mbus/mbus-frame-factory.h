@@ -8,6 +8,7 @@ namespace mbus {
 
 class MBusFrameFactory {
  public:
+  static std::unique_ptr<MBusFrame> CreateACKFrame();
   static std::unique_ptr<MBusFrame> CreateNKEFrame(uint8_t primary_address);
   static std::unique_ptr<MBusFrame> CreateSlaveSelect(std::vector<uint8_t> mask);
 };
