@@ -1024,6 +1024,7 @@ climate:
     name: Haier AC
     uart_id: uart_12
     wifi_signal: true
+    answer_timeout: 200ms
     beeper: true
     outdoor_temperature:
       name: Haier AC outdoor temperature
