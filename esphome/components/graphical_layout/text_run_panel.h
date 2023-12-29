@@ -21,7 +21,7 @@ struct CanWrapAtCharacterArguments {
   CanWrapAtCharacterArguments(const TextRunPanel *panel, int offset, std::string string, char character) {
     this->panel = panel;
     this->offset = offset;
-    this->string = string;
+    this->string = std::move(string);
     this->character = character;
   }
 
@@ -34,7 +34,7 @@ struct CanWrapAtCharacterArguments {
 class TextRun {
  public:
   TextRun(TemplatableValue<std::string> text, display::BaseFont *font) {
-    this->text_ = text;
+    this->text_ = std::move(text);
     this->font_ = font;
   }
 
@@ -51,7 +51,7 @@ class CalculatedTextRun {
  public:
   CalculatedTextRun(TextRun *run, std::string text, display::Rect bounds, int16_t baseline, int16_t line_number) {
     this->run = run;
-    this->text_ = text;
+    this->text_ = std::move(text);
     this->bounds = bounds;
     this->baseline = baseline;
     this->line_number_ = line_number;
