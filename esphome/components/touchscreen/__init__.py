@@ -3,7 +3,14 @@ import esphome.codegen as cg
 
 from esphome.components import display
 from esphome import automation
-from esphome.const import CONF_ON_TOUCH, CONF_ON_RELEASE
+from esphome.const import (
+    CONF_ON_TOUCH,
+    CONF_ON_RELEASE,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_SWAP_XY,
+    CONF_TRANSFORM,
+)
 from esphome.core import coroutine_with_priority
 
 CODEOWNERS = ["@jesserockz", "@nielsnl68"]
@@ -25,11 +32,6 @@ CONF_TOUCHSCREEN_ID = "touchscreen_id"
 CONF_REPORT_INTERVAL = "report_interval"  # not used yet:
 CONF_ON_UPDATE = "on_update"
 CONF_TOUCH_TIMEOUT = "touch_timeout"
-
-CONF_MIRROR_X = "mirror_x"
-CONF_MIRROR_Y = "mirror_y"
-CONF_SWAP_XY = "swap_xy"
-CONF_TRANSFORM = "transform"
 
 
 def touchscreen_schema(default_touch_timeout):
