@@ -10,6 +10,7 @@ namespace graphical_layout {
 static const char *const TAG = "displayrenderingpanel";
 
 void DisplayRenderingPanel::dump_config(int indent_depth, int additional_level_depth) {
+  this->dump_config_base_properties(TAG, indent_depth);
   ESP_LOGCONFIG(TAG, "%*sDimensions: %ix%i", indent_depth, "", this->width_.value(), this->height_.value());
   ESP_LOGCONFIG(TAG, "%*sHas drawing lambda: %s", indent_depth, "", YESNO(this->lambda_ != nullptr));
 }

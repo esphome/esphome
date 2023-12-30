@@ -13,6 +13,7 @@ static const int TEXT_ALIGN_Y_MASK =
     (int) display::TextAlign::BOTTOM | (int) display::TextAlign::BASELINE | (int) display::TextAlign::CENTER_VERTICAL;
 
 void TextRunPanel::dump_config(int indent_depth, int additional_level_depth) {
+  this->dump_config_base_properties(TAG, indent_depth);
   ESP_LOGCONFIG(TAG, "%*sMin Width: %i", indent_depth, "", this->min_width_);
   ESP_LOGCONFIG(TAG, "%*sMax Width: %i", indent_depth, "", this->max_width_);
   ESP_LOGCONFIG(TAG, "%*sText Align: %s", indent_depth, "",

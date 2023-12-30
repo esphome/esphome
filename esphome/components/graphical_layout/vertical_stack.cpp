@@ -10,6 +10,7 @@ namespace graphical_layout {
 static const char *const TAG = "verticalstack";
 
 void VerticalStack::dump_config(int indent_depth, int additional_level_depth) {
+  this->dump_config_base_properties(TAG, indent_depth);
   ESP_LOGCONFIG(TAG, "%*sItem Padding: %i", indent_depth, "", this->item_padding_);
   ESP_LOGCONFIG(TAG, "%*sChild alignment: %s", indent_depth, "",
                 LOG_STR_ARG(horizontal_child_align_to_string(this->child_align_)));

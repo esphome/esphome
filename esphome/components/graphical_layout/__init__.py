@@ -93,7 +93,7 @@ async def build_layout_item_pvariable(config):
         cg.add(var.set_border_color(border_color))
 
     padding = await cg.templatable(config[CONF_PADDING], args=[], output_type=int)
-    cg.add(var.set_margin(padding))
+    cg.add(var.set_padding(padding))
 
     return var
 

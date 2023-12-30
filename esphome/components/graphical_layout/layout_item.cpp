@@ -55,6 +55,14 @@ void LayoutItem::render(display::Display *display, display::Rect bounds) {
   display->pop_local_coordinates();
 }
 
+void LayoutItem::dump_config_base_properties(const char *tag, int indent_depth) {
+  ESP_LOGCONFIG(tag, "%*sMargin: %i", indent_depth, "", this->margin_);
+  ESP_LOGCONFIG(tag, "%*sBorder: %i", indent_depth, "", this->border_);
+  ESP_LOGCONFIG(tag, "%*sBorder Color: (R: %i, G: %i, B: %i)", indent_depth, "", this->border_color_.r,
+                this->border_color_.g, this->border_color_.b);
+  ESP_LOGCONFIG(tag, "%*sPadding: %i", indent_depth, "", this->padding_);
+}
+
 const LogString *horizontal_child_align_to_string(HorizontalChildAlign align) {
   switch (align) {
     case HorizontalChildAlign::LEFT:

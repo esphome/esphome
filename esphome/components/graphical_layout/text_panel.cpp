@@ -13,6 +13,7 @@ static const int TEXT_ALIGN_Y_MASK =
     (int) display::TextAlign::BOTTOM | (int) display::TextAlign::BASELINE | (int) display::TextAlign::CENTER_VERTICAL;
 
 void TextPanel::dump_config(int indent_depth, int additional_level_depth) {
+  this->dump_config_base_properties(TAG, indent_depth);
   std::string text = this->text_.value();
   ESP_LOGCONFIG(TAG, "%*sText Align: %s", indent_depth, "",
                 LOG_STR_ARG(display::text_align_to_string(this->text_align_)));

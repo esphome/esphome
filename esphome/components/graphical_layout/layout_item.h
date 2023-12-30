@@ -84,6 +84,13 @@ class LayoutItem {
    */
   virtual void dump_config(int indent_depth, int additional_level_depth) = 0;
 
+  /** Dumps the base properties of the LayoutItem. Should be called by implementors dump_config()
+   * 
+   * param[in] tag: Tag to pass to ESP_LOGCONFIG
+   * param[in] indent_depth: Depth to indent the config
+   */
+  void dump_config_base_properties(const char *tag, int indent_depth);
+
   /** Called once all setup has been completed (i.e. after code generation and all your set_ methods
    * have been called). Can be used to finalise any configuration
    */
