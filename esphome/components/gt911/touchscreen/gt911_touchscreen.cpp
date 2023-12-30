@@ -79,9 +79,6 @@ void GT911Touchscreen::update_touches() {
     return;
   }
 
-  if (num_of_touches == 0)
-    return;
-
   err = this->write(GET_TOUCHES, sizeof(GET_TOUCHES), false);
   ERROR_CHECK(err);
   // num_of_touches is guaranteed to be 0..5. Also read the key data
