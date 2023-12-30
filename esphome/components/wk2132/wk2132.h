@@ -7,9 +7,6 @@
 #include <memory>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO)
-#include "Wire.h"
-#endif
 
 /// When TEST_COMPONENT is defined we include some auto-test methods. Used to test the software during wk2132
 /// development but can also be used in situ to test if the component is working correctly. In production we do not set
@@ -130,6 +127,7 @@ template<typename T, size_t SIZE> class RingBuffer {
 
 class WK2132Component;  // forward declaration
 class WK2132ComponentI2C;
+class WK2132ComponentI2S;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief This helper class creates Register objects that act as proxies to access WK2132 register
@@ -637,6 +635,7 @@ class WK2132Channel : public uart::UARTComponent {
  protected:
   friend class WK2132Component;
   friend class WK2132ComponentI2C;
+  friend class WK2132ComponentSPI;
 
   /// @brief this cannot happen with external uart therefore we do nothing
   void check_logger_conflict() override {}
