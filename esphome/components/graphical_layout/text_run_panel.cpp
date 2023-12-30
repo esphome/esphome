@@ -41,7 +41,7 @@ display::Rect TextRunPanel::measure_item_internal(display::Display *display) {
 void TextRunPanel::render_internal(display::Display *display, display::Rect bounds) {
   CalculatedLayout layout = this->determine_layout(display, bounds, true);
 
-  for (const auto& calculated : layout.runs) {
+  for (const auto &calculated : layout.runs) {
     if (calculated->run->background_color_ != display::COLOR_OFF) {
       display->filled_rectangle(calculated->bounds.x, calculated->bounds.y, calculated->bounds.w, calculated->bounds.h,
                                 calculated->run->background_color_);
@@ -52,7 +52,7 @@ void TextRunPanel::render_internal(display::Display *display, display::Rect boun
 
   if (this->debug_outline_runs_) {
     ESP_LOGD(TAG, "Outlining character runs");
-    for (const auto& calculated : layout.runs) {
+    for (const auto &calculated : layout.runs) {
       display->rectangle(calculated->bounds.x, calculated->bounds.y, calculated->bounds.w, calculated->bounds.h);
     }
   }
@@ -185,7 +185,7 @@ void TextRunPanel::apply_alignment_to_layout(CalculatedLayout *calculated_layout
     std::vector<std::shared_ptr<CalculatedTextRun>> line_runs;
 
     // Get all the runs for the current line
-    for (const auto& run : calculated_layout->runs) {
+    for (const auto &run : calculated_layout->runs) {
       if (run->line_number_ == i) {
         line_runs.push_back(run);
       }
@@ -224,7 +224,7 @@ void TextRunPanel::apply_alignment_to_layout(CalculatedLayout *calculated_layout
     }
 
     int max_line_y_adjustment = 0;
-    for (const auto& run : line_runs) {
+    for (const auto &run : line_runs) {
       ESP_LOGVV(TAG, "Adjusting '%s' from (%i, %i) to (%i, %i)", run->text_.c_str(), run->bounds.x, run->bounds.y,
                 run->bounds.x + x_adjustment, run->bounds.y + y_adjustment);
       run->bounds.x += x_adjustment;

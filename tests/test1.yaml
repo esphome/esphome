@@ -4351,7 +4351,8 @@ graphical_layout:
             lambda: |-
               it.filled_circle(25, 25, 10);
           - type: text_run_panel
-            texT_align: BASELINE_CENTER
+            text_align: BASELINE_CENTER
+            max_width: 100
             runs:
               - font: roboto
                 text: Hello
