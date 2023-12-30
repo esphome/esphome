@@ -7,12 +7,6 @@
 #include "esphome/core/automation.h"
 
 namespace esphome {
-namespace display {
-
-extern const Color COLOR_ON;
-extern const Color COLOR_OFF;
-
-}  // namespace display
 namespace graphical_layout {
 
 /** The TextPanel is a UI item that renders a single line of text to a display */

@@ -15,7 +15,7 @@ static const int TEXT_ALIGN_Y_MASK =
 void TextRunPanel::dump_config(int indent_depth, int additional_level_depth) {
   ESP_LOGCONFIG(TAG, "%*sMin Width: %i", indent_depth, "", this->min_width_);
   ESP_LOGCONFIG(TAG, "%*sMax Width: %i", indent_depth, "", this->max_width_);
-  ESP_LOGCONFIG(TAG, "%*sText Align: %s", indent_depth, "", display::text_align_to_string(this->text_align_));
+  ESP_LOGCONFIG(TAG, "%*sText Align: %s", indent_depth, "", LOG_STR_ARG(display::text_align_to_string(this->text_align_)));
   ESP_LOGCONFIG(TAG, "%*sText Runs: %i", indent_depth, "", this->text_runs_.size());
   for (TextRun *run : this->text_runs_) {
     std::string text = run->text_.value();
@@ -70,7 +70,6 @@ CalculatedLayout TextRunPanel::determine_layout(display::Display *display, displ
 
   for (TextRun *run : this->text_runs_) {
     int x1;
-    int y1;
     int width;
     int height;
     int baseline;
