@@ -31,6 +31,10 @@ enum RegType { REG = 0, FIFO = 1 };         ///< Register or FIFO
 /// +------+------+------+------+------+------+------+------+
 /// | FIFO | R/W  |    C1-C0    |           A3-A0           |
 /// +------+------+-------------+---------------------------+
+/// FIFO: 0 = register, 1 = FIFO
+/// R/W: 0 = write, 1 = read
+/// C1-C0: Channel (0-1)
+/// A3-A0: Address (0-F)
 inline static uint8_t command_byte(TransferType transfer_type, uint8_t reg, uint8_t channel, RegType fifo) {
   return (fifo << 7 | transfer_type << 6 | channel << 4 | reg << 0);
 }
@@ -98,6 +102,7 @@ void WK2132ComponentSPI::setup() {
   using namespace wk2132;
   ESP_LOGCONFIG(TAG, "Setting up wk2132_spi: %s with %d UARTs at @%02X ...", this->get_name(), this->children_.size(),
                 this->base_address_);
+  this->spi_setup();
 
   // enable both channels
   this->global_reg_(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
