@@ -196,7 +196,7 @@ void TextRunPanel::apply_alignment_to_layout(CalculatedLayout *calculated_layout
     int16_t total_line_width = 0;
     int16_t max_line_height = 0;
     int16_t max_baseline = 0;
-    for (auto run : line_runs) {
+    for (const auto &run : line_runs) {
       total_line_width += run->bounds.w;
       max_line_height = std::max(run->bounds.h, max_line_height);
       max_baseline = std::max(run->baseline, max_baseline);
