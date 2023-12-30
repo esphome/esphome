@@ -21,8 +21,8 @@ class WK2132RegisterI2C : public wk2132::WK2132Register {
 
  protected:
   friend WK2132ComponentI2C;
-  WK2132RegisterI2C(wk2132::WK2132Component *parent, uint8_t reg, uint8_t channel, uint8_t fifo)
-      : WK2132Register(parent, reg, channel, fifo) {}
+  WK2132RegisterI2C(wk2132::WK2132Component *parent, uint8_t reg, uint8_t channel)
+      : WK2132Register(parent, reg, channel) {}
 };
 
 // class WK2132Channel;  // forward declaration
@@ -32,19 +32,20 @@ class WK2132RegisterI2C : public wk2132::WK2132Register {
 ////////////////////////////////////////////////////////////////////////////////////
 class WK2132ComponentI2C : public wk2132::WK2132Component, public i2c::I2CDevice {
  public:
-  std::unique_ptr<wk2132::WK2132Register> global_reg_ptr(uint8_t reg) override {
-    std::unique_ptr<wk2132::WK2132Register> r(new WK2132RegisterI2C{this, reg, 0, 0});
-    return r;
+  wk2132::WK2132Register &global_reg_(uint8_t reg) override {
+    reg_i2c_.register_ = reg;
+    return reg_i2c_;
   }
 
-  std::unique_ptr<wk2132::WK2132Register> channel_reg_ptr(uint8_t reg, uint8_t channel) {
-    std::unique_ptr<wk2132::WK2132Register> r(new WK2132RegisterI2C{this, reg, channel, 0});
-    return r;
+  wk2132::WK2132Register &channel_reg_(uint8_t reg, uint8_t channel) override {
+    reg_i2c_.register_ = reg;
+    reg_i2c_.channel_ = channel;
+    return reg_i2c_;
   }
 
-  std::unique_ptr<wk2132::WK2132Register> fifo_reg_ptr(uint8_t channel) {
-    std::unique_ptr<wk2132::WK2132Register> r(new WK2132RegisterI2C{this, 0, channel, 1});
-    return r;
+  wk2132::WK2132Register &fifo_reg_(uint8_t channel) override {
+    reg_i2c_.channel_ = channel;
+    return reg_i2c_;
   }
 
   //
@@ -55,7 +56,8 @@ class WK2132ComponentI2C : public wk2132::WK2132Component, public i2c::I2CDevice
 
  protected:
   friend WK2132RegisterI2C;
-  uint8_t base_address_;  ///< base address of I2C device
+  uint8_t base_address_;                   ///< base address of I2C device
+  WK2132RegisterI2C reg_i2c_{this, 0, 0};  ///< store the current register
 };
 
 }  // namespace wk2132_i2c

@@ -34,9 +34,13 @@ class WK2132ComponentSPI : public wk2132::WK2132Component,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
-  std::unique_ptr<wk2132::WK2132Register> global_reg_ptr(uint8_t reg) override {
-    std::unique_ptr<wk2132::WK2132Register> r(new WK2132RegisterSPI{this, reg, 0, 0});
-    return r;
+  // std::unique_ptr<wk2132::WK2132Register> global_reg_ptr(uint8_t reg) override {
+  //   std::unique_ptr<wk2132::WK2132Register> r(new WK2132RegisterSPI{this, reg, 0, 0});
+  //   return r;
+  // }
+  wk2132::WK2132Register &global_reg(uint8_t reg) override {
+    registerI2C_.register_ = reg;
+    return registerI2C_;
   }
 
   std::unique_ptr<wk2132::WK2132Register> channel_reg_ptr(uint8_t reg, uint8_t channel) {
@@ -58,6 +62,7 @@ class WK2132ComponentSPI : public wk2132::WK2132Component,
  protected:
   friend WK2132RegisterSPI;
   uint8_t base_address_;  ///< base address of I2C device
+  WK2132RegisterSPI registerI2C_;
 };
 
 }  // namespace wk2132_spi

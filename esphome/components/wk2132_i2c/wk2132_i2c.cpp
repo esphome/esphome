@@ -42,7 +42,7 @@ inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, uint8_t fifo) 
 uint8_t WK2132RegisterI2C::get() const {
   uint8_t value = 0x00;
   WK2132ComponentI2C *rcp = static_cast<WK2132ComponentI2C *>(this->parent_);
-  rcp->address_ = i2c_address(rcp->base_address_, this->channel_, this->fifo_);  // update the i2c bus address
+  rcp->address_ = i2c_address(rcp->base_address_, this->channel_, 0);  // update the i2c bus address
   auto error = rcp->read_register(this->register_, &value, 1);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
@@ -58,7 +58,7 @@ uint8_t WK2132RegisterI2C::get() const {
 
 void WK2132RegisterI2C::read_fifo(uint8_t *data, size_t length) const {
   WK2132ComponentI2C *rcp = static_cast<WK2132ComponentI2C *>(this->parent_);
-  rcp->address_ = i2c_address(rcp->base_address_, this->channel_, this->fifo_);  // fifo flag is set
+  rcp->address_ = i2c_address(rcp->base_address_, this->channel_, 0);  // fifo flag is set
   auto error = rcp->read(data, length);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
@@ -73,7 +73,7 @@ void WK2132RegisterI2C::read_fifo(uint8_t *data, size_t length) const {
 
 void WK2132RegisterI2C::set(uint8_t value) {
   WK2132ComponentI2C *rcp = static_cast<WK2132ComponentI2C *>(this->parent_);
-  rcp->address_ = i2c_address(rcp->base_address_, this->channel_, this->fifo_);  // update the i2c bus
+  rcp->address_ = i2c_address(rcp->base_address_, this->channel_, 1);  // update the i2c bus
   auto error = rcp->write_register(this->register_, &value, 1);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
@@ -88,7 +88,7 @@ void WK2132RegisterI2C::set(uint8_t value) {
 
 void WK2132RegisterI2C::write_fifo(const uint8_t *data, size_t length) {
   WK2132ComponentI2C *rcp = static_cast<WK2132ComponentI2C *>(this->parent_);
-  rcp->address_ = i2c_address(rcp->base_address_, this->channel_, this->fifo_);  // set fifo flag
+  rcp->address_ = i2c_address(rcp->base_address_, this->channel_, 1);  // set fifo flag
   auto error = rcp->write(data, length);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
@@ -112,15 +112,15 @@ void WK2132ComponentI2C::setup() {
                 this->base_address_);
 
   // enable both channels
-  *this->global_reg_ptr(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
+  this->global_reg_(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
   // reset channels
-  *this->global_reg_ptr(REG_WK2132_GRST) = GRST_C1RST | GRST_C2RST;
+  this->global_reg_(REG_WK2132_GRST) = GRST_C1RST | GRST_C2RST;
   // initialize the spage register to page 0
-  *this->global_reg_ptr(REG_WK2132_SPAGE) = 0;
+  this->global_reg_(REG_WK2132_SPAGE) = 0;
   this->page1_ = false;
 
   // we setup our children channels
-  for (auto *child : this->children_) {
+  for (WK2132Channel *child : this->children_) {
     child->setup_channel_();
   }
 }

@@ -149,8 +149,8 @@ class WK2132Register {
   /// @param reg address of the i2c register
   /// @param channel the channel of this register
   /// @param fifo 0 for register transfer, 1 for fifo transfer
-  WK2132Register(WK2132Component *const parent, uint8_t reg, uint8_t channel, uint8_t fifo)
-      : parent_(parent), register_(reg), channel_(channel), fifo_(fifo) {}
+  WK2132Register(WK2132Component *const parent, uint8_t reg, uint8_t channel)
+      : parent_(parent), register_(reg), channel_(channel) {}
   virtual ~WK2132Register() {}
 
   /// @brief overloads the = operator. This is used to set a value into the wk2132 register
@@ -193,7 +193,6 @@ class WK2132Register {
   WK2132Component *const parent_;  ///< pointer to our parent (aggregation)
   uint8_t register_;               ///< address of the register
   uint8_t channel_;                ///< channel for this register
-  uint8_t fifo_;                   ///< 1 = fifo, 0 = register
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -514,19 +513,19 @@ class WK2132Component : public Component {
 
   /// @brief Factory method to create a Register object for accessing a global register
   /// @param reg address of the register
-  /// @return a WK2132Register smart pointer
-  virtual std::unique_ptr<WK2132Register> global_reg_ptr(uint8_t reg) = 0;
+  /// @return a reference to WK2132Register
+  virtual WK2132Register &global_reg_(uint8_t reg) = 0;
 
   /// @brief Factory method to create a Register object for accessing a channel register
   /// @param reg address of the register
   /// @param channel the channel number (0-1)
-  /// @return a WK2132Register smart pointer
-  virtual std::unique_ptr<WK2132Register> channel_reg_ptr(uint8_t reg, uint8_t channel) = 0;
+  /// @return a reference to WK2132Register
+  virtual WK2132Register &channel_reg_(uint8_t reg, uint8_t channel) = 0;
 
   /// @brief Factory method to create a Register object for accessing the FIFO
   /// @param channel channel number
-  /// @return a WK2132Register smart pointer
-  virtual std::unique_ptr<WK2132Register> fifo_reg_ptr(uint8_t channel) = 0;
+  /// @return a reference to WK2132Register
+  virtual WK2132Register &fifo_reg_(uint8_t channel) = 0;
 
   uint32_t crystal_;                         ///< crystal value;
   int test_mode_;                            ///< test mode value (0 -> no tests)
@@ -561,20 +560,21 @@ class WK2132Channel : public uart::UARTComponent {
   /// @return the name
   const char *get_channel_name() { return this->name_.c_str(); }
 
-  /// @brief Factory method to create a Register object for accessing a register on current channel
-  /// @param reg address of the register
-  /// @return an WK2132Register pointer
-  std::unique_ptr<WK2132Register> channel_reg_ptr(uint8_t reg) { return this->parent_->channel_reg_ptr(reg, channel_); }
-
-  /// @brief Factory method to create a Register object for accessing the FIFO on current channel
-  /// @return an WK2132Register proxy to access the fifo
-  std::unique_ptr<WK2132Register> fifo_reg_ptr(void) { return this->parent_->fifo_reg_ptr(channel_); }
-
   /// @brief Setup the channel
   void setup_channel_();
 
   /// @brief dump channel information
   void dump_channel_();
+
+ protected:
+  /// @brief Factory method to create a Register object for accessing a register on current channel
+  /// @param reg address of the register
+  /// @return a reference to WK2132Register
+  WK2132Register &channel_reg_(uint8_t reg) { return this->parent_->channel_reg_(reg, channel_); }
+
+  /// @brief Factory method to create a Register object for accessing the FIFO on current channel
+  /// @return a reference to WK2132Register
+  WK2132Register &fifo_reg_(void) { return this->parent_->fifo_reg_(channel_); }
 
   //
   // we implement the virtual class from UARTComponent
