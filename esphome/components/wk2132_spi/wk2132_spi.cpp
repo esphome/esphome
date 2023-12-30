@@ -19,6 +19,7 @@ static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "B
 const char *reg_to_str(int reg, bool page1) { return page1 ? REG_TO_STR_P1[reg] : REG_TO_STR_P0[reg]; }
 
 enum TransferType { WRITE = 0, READ = 1 };  ///< Read or Write transfer
+enum RegType { REG = 0, FIFO = 1 };         ///< Register or FIFO
 
 /// @brief Computes the SPI command byte
 /// @param transfer_type read or write command
@@ -30,7 +31,7 @@ enum TransferType { WRITE = 0, READ = 1 };  ///< Read or Write transfer
 /// +------+------+------+------+------+------+------+------+
 /// | FIFO | R/W  |    C1-C0    |           A3-A0           |
 /// +------+------+-------------+---------------------------+
-inline static uint8_t command_byte(TransferType transfer_type, uint8_t reg, uint8_t channel, uint8_t fifo) {
+inline static uint8_t command_byte(TransferType transfer_type, uint8_t reg, uint8_t channel, RegType fifo) {
   return (fifo << 7 | transfer_type << 6 | channel << 4 | reg << 0);
 }
 
@@ -47,7 +48,7 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 uint8_t WK2132RegisterSPI::get() const {
   uint8_t value = 0x00;
   WK2132ComponentSPI *rcp = static_cast<WK2132ComponentSPI *>(this->parent_);
-  auto command = command_byte(READ, this->register_, this->channel_, 0);
+  auto command = command_byte(READ, this->register_, this->channel_, REG);
   rcp->enable();
   rcp->write_byte(command);
   rcp->read_array(&value, 1);
@@ -59,7 +60,7 @@ uint8_t WK2132RegisterSPI::get() const {
 
 void WK2132RegisterSPI::read_fifo(uint8_t *data, size_t length) const {
   WK2132ComponentSPI *rcp = static_cast<WK2132ComponentSPI *>(this->parent_);
-  auto command = command_byte(READ, this->register_, this->channel_, 1);
+  auto command = command_byte(READ, this->register_, this->channel_, FIFO);
   rcp->enable();
   rcp->write_byte(command);
   rcp->read_array(data, length);
@@ -70,7 +71,7 @@ void WK2132RegisterSPI::read_fifo(uint8_t *data, size_t length) const {
 
 void WK2132RegisterSPI::set(uint8_t value) {
   WK2132ComponentSPI *rcp = static_cast<WK2132ComponentSPI *>(this->parent_);
-  auto command = command_byte(WRITE, this->register_, this->channel_, 1);
+  auto command = command_byte(WRITE, this->register_, this->channel_, REG);
   rcp->enable();
   rcp->write_byte(command);
   rcp->write_array(&value, 1);
@@ -81,7 +82,7 @@ void WK2132RegisterSPI::set(uint8_t value) {
 
 void WK2132RegisterSPI::write_fifo(const uint8_t *data, size_t length) {
   WK2132ComponentSPI *rcp = static_cast<WK2132ComponentSPI *>(this->parent_);
-  auto command = command_byte(READ, this->register_, this->channel_, 1);
+  auto command = command_byte(READ, this->register_, this->channel_, FIFO);
   rcp->enable();
   rcp->write_byte(command);
   rcp->write_array(data, length);
@@ -99,11 +100,11 @@ void WK2132ComponentSPI::setup() {
                 this->base_address_);
 
   // enable both channels
-  *this->global_reg_ptr(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
+  this->global_reg_(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
   // reset channels
-  *this->global_reg_ptr(REG_WK2132_GRST) = GRST_C1RST | GRST_C2RST;
+  this->global_reg_(REG_WK2132_GRST) = GRST_C1RST | GRST_C2RST;
   // initialize the spage register to page 0
-  *this->global_reg_ptr(REG_WK2132_SPAGE) = 0;
+  this->global_reg_(REG_WK2132_SPAGE) = 0;
   this->page1_ = false;
 
   // we setup our children channels

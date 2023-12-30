@@ -21,8 +21,8 @@ class WK2132RegisterSPI : public wk2132::WK2132Register {
 
  protected:
   friend WK2132ComponentSPI;
-  WK2132RegisterSPI(wk2132::WK2132Component *parent, uint8_t reg, uint8_t channel, uint8_t fifo)
-      : WK2132Register(parent, reg, channel, fifo) {}
+  WK2132RegisterSPI(wk2132::WK2132Component *parent, uint8_t reg, uint8_t channel)
+      : WK2132Register(parent, reg, channel) {}
 };
 
 // class WK2132Channel;  // forward declaration
@@ -34,23 +34,20 @@ class WK2132ComponentSPI : public wk2132::WK2132Component,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
-  // std::unique_ptr<wk2132::WK2132Register> global_reg_ptr(uint8_t reg) override {
-  //   std::unique_ptr<wk2132::WK2132Register> r(new WK2132RegisterSPI{this, reg, 0, 0});
-  //   return r;
-  // }
-  wk2132::WK2132Register &global_reg(uint8_t reg) override {
-    registerI2C_.register_ = reg;
-    return registerI2C_;
+  wk2132::WK2132Register &global_reg_(uint8_t reg) override {
+    reg_spi_.register_ = reg;
+    return reg_spi_;
   }
 
-  std::unique_ptr<wk2132::WK2132Register> channel_reg_ptr(uint8_t reg, uint8_t channel) {
-    std::unique_ptr<wk2132::WK2132Register> r(new WK2132RegisterSPI{this, reg, channel, 0});
-    return r;
+  wk2132::WK2132Register &channel_reg_(uint8_t reg, uint8_t channel) override {
+    reg_spi_.register_ = reg;
+    reg_spi_.channel_ = channel;
+    return reg_spi_;
   }
 
-  std::unique_ptr<wk2132::WK2132Register> fifo_reg_ptr(uint8_t channel) {
-    std::unique_ptr<wk2132::WK2132Register> r(new WK2132RegisterSPI{this, 0, channel, 1});
-    return r;
+  wk2132::WK2132Register &fifo_reg_(uint8_t channel) override {
+    reg_spi_.channel_ = channel;
+    return reg_spi_;
   }
 
   //
@@ -61,8 +58,8 @@ class WK2132ComponentSPI : public wk2132::WK2132Component,
 
  protected:
   friend WK2132RegisterSPI;
-  uint8_t base_address_;  ///< base address of I2C device
-  WK2132RegisterSPI registerI2C_;
+  uint8_t base_address_;                   ///< base address of I2C device
+  WK2132RegisterSPI reg_spi_{this, 0, 0};  ///< store the current register
 };
 
 }  // namespace wk2132_spi
