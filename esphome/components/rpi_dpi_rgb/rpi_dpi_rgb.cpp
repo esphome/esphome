@@ -1,6 +1,4 @@
-//
-// Created by Clyde Stubbs on 29/10/2023.
-//
+#ifdef USE_ESP_IDF
 #include "rpi_dpi_rgb.h"
 #include "esphome/core/log.h"
 
@@ -20,3 +18,5 @@ void RPI_DPI_RGB::dump_config() {
 
 }  // namespace rpi_dpi_rgb
 }  // namespace esphome
+
+#endif  // USE_ESP_IDF

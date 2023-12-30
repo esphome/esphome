@@ -179,4 +179,4 @@ class RPI_DPI_RGB : public display::Display {
 
 }  // namespace rpi_dpi_rgb
 }  // namespace esphome
-#endif
+#endif  // USE_ESP_IDF
