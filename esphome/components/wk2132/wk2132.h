@@ -481,6 +481,9 @@ class WK2132Channel;  // forward declaration
 ////////////////////////////////////////////////////////////////////////////////////
 class WK2132Component : public Component {
  public:
+  /// @brief virtual destructor
+  virtual ~WK2132Component() {}
+
   /// @brief store crystal frequency
   /// @param crystal frequency
   void set_crystal(uint32_t crystal) { this->crystal_ = crystal; }
