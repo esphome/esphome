@@ -65,9 +65,7 @@ struct Dimension {
   inline int16_t vertical() const { return this->top + this->bottom; };
 
   /* Returns true if any value is set to a non-zero value*/
-  inline bool any() const {
-    return this->left > 0 || this->top > 0 || this->right > 0 || this->bottom > 0;
-  };
+  inline bool any() const { return this->left > 0 || this->top > 0 || this->right > 0 || this->bottom > 0; };
 
   /* Returns true if all dimensions are equal to the value */
   inline bool equals(int16_t value) const {
