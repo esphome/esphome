@@ -28,7 +28,7 @@ void TextRunPanel::dump_config(int indent_depth, int additional_level_depth) {
 void TextRunPanel::setup_complete() {
   if (!this->can_wrap_at_character_.has_value()) {
     ESP_LOGD(TAG, "No custom can_wrap_at_character provided. Will use default implementation");
-    this->can_wrap_at_character_ = [this](CanWrapAtCharacterArguments *args) {
+    this->can_wrap_at_character_ = [this](const CanWrapAtCharacterArguments &args) {
       return this->default_can_wrap_at_character(args);
     };
   }
@@ -102,7 +102,7 @@ CalculatedLayout TextRunPanel::determine_layout(display::Display *display, displ
       can_wrap_at_args.offset = i;
       can_wrap_at_args.character = text.at(i);
 
-      bool can_wrap = this->can_wrap_at_character_.value(&can_wrap_at_args);
+      bool can_wrap = this->can_wrap_at_character_.value(can_wrap_at_args);
       if (can_wrap) {
         ESP_LOGVV(TAG, "Can break at '%c'. String is '%s'", can_wrap_at_args.character, partial_line.c_str());
 
@@ -264,8 +264,8 @@ void TextRunPanel::apply_alignment_to_layout(CalculatedLayout *calculated_layout
   calculated_layout->bounds.h += total_y_offset;
 }
 
-bool TextRunPanel::default_can_wrap_at_character(CanWrapAtCharacterArguments *args) {
-  switch (args->character) {
+bool TextRunPanel::default_can_wrap_at_character(const CanWrapAtCharacterArguments &args) {
+  switch (args.character) {
     case ' ':
     case '\t':
     case '\n':

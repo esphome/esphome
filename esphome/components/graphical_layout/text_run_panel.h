@@ -37,8 +37,8 @@ class TextRun {
 
   TemplatableValue<std::string> text_{};
   display::BaseFont *font_{nullptr};
-  Color foreground_color_{display::COLOR_ON};
-  Color background_color_{display::COLOR_OFF};
+  Color foreground_color_{COLOR_ON};
+  Color background_color_{COLOR_OFF};
 };
 
 class CalculatedTextRun {
@@ -72,7 +72,7 @@ class TextRunPanel : public LayoutItem {
   void dump_config(int indent_depth, int additional_level_depth) override;
   void setup_complete() override;
 
-  bool default_can_wrap_at_character(CanWrapAtCharacterArguments *args);
+  bool default_can_wrap_at_character(const CanWrapAtCharacterArguments &args);
 
   CalculatedLayout determine_layout(display::Display *display, display::Rect bounds, bool apply_alignment);
   void apply_alignment_to_layout(CalculatedLayout *layout);
@@ -92,7 +92,7 @@ class TextRunPanel : public LayoutItem {
   display::TextAlign text_align_{display::TextAlign::TOP_LEFT};
   int min_width_{0};
   int max_width_{0};
-  TemplatableValue<bool, CanWrapAtCharacterArguments *> can_wrap_at_character_{};
+  TemplatableValue<bool, const CanWrapAtCharacterArguments &> can_wrap_at_character_{};
   bool debug_outline_runs_{false};
 };
 

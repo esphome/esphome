@@ -8,6 +8,10 @@ graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 TextRunPanel = graphical_layout_ns.class_("TextRunPanel")
 TextAlign = display_ns.enum("TextAlign", is_class=True)
 TextRun = graphical_layout_ns.class_("TextRun")
+CanWrapAtCharacterArguments = graphical_layout_ns.struct("CanWrapAtCharacterArguments")
+CanWrapAtCharacterArgumentsConstRef = CanWrapAtCharacterArguments.operator(
+    "const"
+).operator("ref")
 
 CONF_TEXT_RUN_PANEL = "text_run_panel"
 CONF_FONT = "font"
@@ -16,6 +20,7 @@ CONF_TEXT_ALIGN = "text_align"
 CONF_MAX_WIDTH = "max_width"
 CONF_MIN_WIDTH = "min_width"
 CONF_RUNS = "runs"
+CONF_CAN_WRAP_AT_CHARACTER = "can_wrap_at_character"
 CONF_DEBUG_OUTLINE_RUNS = "debug_outline_runs"
 
 TEXT_ALIGN = {
@@ -51,6 +56,7 @@ def get_config_schema(base_item_schema, item_type_schema):
             cv.Optional(CONF_TEXT_ALIGN): cv.enum(TEXT_ALIGN, upper=True),
             cv.Required(CONF_MAX_WIDTH): cv.int_range(min=0),
             cv.Optional(CONF_MIN_WIDTH, default=0): cv.int_range(min=0),
+            cv.Optional(CONF_CAN_WRAP_AT_CHARACTER): cv.returning_lambda,
             cv.Optional(CONF_DEBUG_OUTLINE_RUNS, default=False): cv.boolean,
             cv.Required(CONF_RUNS): cv.All(
                 cv.ensure_list(RUN_SCHEMA), cv.Length(min=1)
@@ -70,6 +76,14 @@ async def config_to_layout_item(pvariable_builder, item_config, child_item_build
 
     if text_align := item_config.get(CONF_TEXT_ALIGN):
         cg.add(var.set_text_align(text_align))
+
+    if can_wrap_at_character_config := item_config.get(CONF_CAN_WRAP_AT_CHARACTER):
+        can_wrap_at_character = await cg.process_lambda(
+            can_wrap_at_character_config,
+            [(CanWrapAtCharacterArgumentsConstRef, "args")],
+            return_type=cg.bool_,
+        )
+        cg.add(var.set_can_wrap_at(can_wrap_at_character))
 
     debug_outline_runs = item_config[CONF_DEBUG_OUTLINE_RUNS]
     if debug_outline_runs:
