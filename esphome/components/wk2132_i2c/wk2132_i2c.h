@@ -21,11 +21,9 @@ class WK2132RegisterI2C : public wk2132::WK2132Register {
 
  protected:
   friend WK2132ComponentI2C;
-  WK2132RegisterI2C(wk2132::WK2132Component *parent, uint8_t reg, uint8_t channel)
-      : WK2132Register(parent, reg, channel) {}
+  WK2132RegisterI2C(wk2132::WK2132Component *const comp, uint8_t reg, uint8_t channel)
+      : WK2132Register(comp, reg, channel) {}
 };
-
-// class WK2132Channel;  // forward declaration
 
 ////////////////////////////////////////////////////////////////////////////////////
 // class WK2132ComponentI2C

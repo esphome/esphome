@@ -14,6 +14,9 @@ class WK2132ComponentSPI;
 
 class WK2132RegisterSPI : public wk2132::WK2132Register {
  public:
+  //
+  // implements WK2132Register virtual methods
+  //
   uint8_t get() const override;
   void set(uint8_t value) override;
   void read_fifo(uint8_t *data, size_t length) const override;
@@ -21,15 +24,18 @@ class WK2132RegisterSPI : public wk2132::WK2132Register {
 
  protected:
   friend WK2132ComponentSPI;
-  WK2132RegisterSPI(wk2132::WK2132Component *parent, uint8_t reg, uint8_t channel)
-      : WK2132Register(parent, reg, channel) {}
+  /// @brief ctor
+  /// @param comp component we belongs to
+  /// @param reg proxied register
+  /// @param channel associated channel
+  WK2132RegisterSPI(wk2132::WK2132Component *comp, uint8_t reg, uint8_t channel) : WK2132Register(comp, reg, channel) {}
 };
-
-// class WK2132Channel;  // forward declaration
 
 ////////////////////////////////////////////////////////////////////////////////////
 // class WK2132ComponentSPI
 ////////////////////////////////////////////////////////////////////////////////////
+
+/// @brief WK2132Component using SPI bus
 class WK2132ComponentSPI : public wk2132::WK2132Component,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
@@ -46,6 +52,7 @@ class WK2132ComponentSPI : public wk2132::WK2132Component,
   }
 
   wk2132::WK2132Register &fifo_reg_(uint8_t channel) override {
+    // reg_spi_.register_ = 0;
     reg_spi_.channel_ = channel;
     return reg_spi_;
   }
@@ -58,7 +65,6 @@ class WK2132ComponentSPI : public wk2132::WK2132Component,
 
  protected:
   friend WK2132RegisterSPI;
-  uint8_t base_address_;                   ///< base address of I2C device
   WK2132RegisterSPI reg_spi_{this, 0, 0};  ///< store the current register
 };
 

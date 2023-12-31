@@ -149,8 +149,8 @@ class WK2132Register {
   /// @param reg address of the i2c register
   /// @param channel the channel of this register
   /// @param fifo 0 for register transfer, 1 for fifo transfer
-  WK2132Register(WK2132Component *const parent, uint8_t reg, uint8_t channel)
-      : parent_(parent), register_(reg), channel_(channel) {}
+  WK2132Register(WK2132Component *const comp, uint8_t reg, uint8_t channel)
+      : comp_(comp), register_(reg), channel_(channel) {}
   virtual ~WK2132Register() {}
 
   /// @brief overloads the = operator. This is used to set a value into the wk2132 register
@@ -190,9 +190,9 @@ class WK2132Register {
   virtual void write_fifo(const uint8_t *data, size_t length) = 0;
 
  protected:
-  WK2132Component *const parent_;  ///< pointer to our parent (aggregation)
-  uint8_t register_;               ///< address of the register
-  uint8_t channel_;                ///< channel for this register
+  WK2132Component *const comp_;  ///< pointer to our parent (aggregation)
+  uint8_t register_;             ///< address of the register
+  uint8_t channel_;              ///< channel for this register
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
