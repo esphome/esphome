@@ -45,7 +45,7 @@ enum class VerticalChildAlign {
 };
 
 struct Dimension {
-  Dimension() {};
+  Dimension(){};
   Dimension(int16_t padding) {
     this->left = padding;
     this->top = padding;
@@ -58,21 +58,20 @@ struct Dimension {
     this->right = right;
     this->bottom = bottom;
   }
-  
+
   /* Gets the total padding for the horizontal direction (left + right) */
   inline int16_t horizontal() const { return this->left + this->right; };
   /* Gets the total padding for the vertical direction (top + bottom) */
   inline int16_t vertical() const { return this->top + this->bottom; };
 
   /* Returns true if any value is set to a non-zero value*/
-  inline bool any() const { 
-    return this->left > 0 || this->top > 0 || this->right > 0 || this->bottom > 0; 
+  inline bool any() const {
+    return this->left > 0 || this->top > 0 || this->right > 0 || this->bottom > 0;
   };
 
   /* Returns true if all dimensions are equal to the value */
   inline bool equals(int16_t value) const {
-    return this->left == value && this->top == value && this->right == value
-           && this->bottom == value;
+    return this->left == value && this->top == value && this->right == value && this->bottom == value;
   }
 
   int16_t left{0};
@@ -137,19 +136,15 @@ class LayoutItem {
   virtual void setup_complete(){};
 
   void set_margin(int margin) { this->margin_ = Dimension(margin); };
-  void set_margin(int left, int top, int right, int bottom) {
-    this->margin_ = Dimension(left, top, right, bottom);
-  }
+  void set_margin(int left, int top, int right, int bottom) { this->margin_ = Dimension(left, top, right, bottom); }
+
   void set_padding(int padding) { this->padding_ = Dimension(padding); };
-  void set_padding(int left, int top, int right, int bottom) {
-    this->padding_ = Dimension(left, top, right, bottom);
-  }
+  void set_padding(int left, int top, int right, int bottom) { this->padding_ = Dimension(left, top, right, bottom); }
+
   void set_border(int border) { this->border_ = Dimension(border); };
-  void set_border(int left, int top, int right, int bottom) {
-    this->border_ = Dimension(left, top, right, bottom);
-  }
+  void set_border(int left, int top, int right, int bottom) { this->border_ = Dimension(left, top, right, bottom); }
+
   void set_border_color(Color color) { this->border_color_ = color; };
-  
 
  protected:
   Dimension margin_{};
