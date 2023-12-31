@@ -18,7 +18,7 @@ void FixedDimensionPanel::dump_config(int indent_depth, int additional_level_dep
     ESP_LOGCONFIG(TAG, "%*sWidth: %i", indent_depth, "", this->width_.value());
   }
 
-if (this->height_.value() < 0) {
+  if (this->height_.value() < 0) {
     ESP_LOGCONFIG(TAG, "%*sHeight: UNSET (Will use %s's height)", indent_depth, "",
                   this->unset_height_uses_display_height_ ? "DISPLAY" : "CHILD");
   } else {

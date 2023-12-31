@@ -1,9 +1,9 @@
 #pragma once
 
 #include "esphome/core/color.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
-struct LogString;
 namespace display {
 class Display;
 class Rect;
@@ -86,7 +86,7 @@ class LayoutItem {
 
   /** Dumps the base properties of the LayoutItem. Should be called by implementors dump_config()
    *
-   * param[in] tag: Tag to pass to ESP_LOGCONFIG
+   * param[in] tag: Tag to pass to the LOGCONFIG method
    * param[in] indent_depth: Depth to indent the config
    */
   void dump_config_base_properties(const char *tag, int indent_depth);
