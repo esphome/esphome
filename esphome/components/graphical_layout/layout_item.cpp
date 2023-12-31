@@ -8,6 +8,9 @@ namespace graphical_layout {
 
 static const char *const TAG = "layoutitem";
 
+const Color COLOR_OFF(0, 0, 0, 0);
+const Color COLOR_ON(255, 255, 255, 255);
+
 display::Rect LayoutItem::measure_item(display::Display *display) {
   display::Rect inner_size = this->measure_item_internal(display);
   int margin_border_padding = this->margin_ + this->border_ + this->padding_;

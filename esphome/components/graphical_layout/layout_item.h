@@ -11,6 +11,9 @@ class Rect;
 
 namespace graphical_layout {
 
+extern const Color COLOR_ON;
+extern const Color COLOR_OFF;
+
 /* HorizontalChildAlign is used to control alignment of children horizontally */
 enum class HorizontalChildAlign {
   /* Aligns all children to the left of their available width */
@@ -105,7 +108,7 @@ class LayoutItem {
   int margin_{0};
   int padding_{0};
   int border_{0};
-  Color border_color_{Color::BLACK};
+  Color border_color_{COLOR_ON};
 };
 
 const LogString *horizontal_child_align_to_string(HorizontalChildAlign align);

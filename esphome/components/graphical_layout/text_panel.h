@@ -26,8 +26,8 @@ class TextPanel : public LayoutItem {
   TemplatableValue<std::string> text_{};
   display::BaseFont *font_{nullptr};
   display::TextAlign text_align_{display::TextAlign::TOP_LEFT};
-  Color foreground_color_{display::COLOR_ON};
-  Color background_color_{display::COLOR_OFF};
+  Color foreground_color_{COLOR_ON};
+  Color background_color_{COLOR_OFF};
 };
 
 }  // namespace graphical_layout
