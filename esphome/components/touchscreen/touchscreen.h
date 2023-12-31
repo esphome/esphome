@@ -82,6 +82,7 @@ class Touchscreen : public PollingComponent {
 
   void update() override;
   void loop() override;
+  void call_setup() override;
 
  protected:
   /// Call this function to send touch points to the `on_touch` listener and the binary_sensors.
@@ -94,13 +95,11 @@ class Touchscreen : public PollingComponent {
 
   int16_t normalize_(int16_t val, int16_t min_val, int16_t max_val, bool inverted = false);
 
-  uint16_t get_width_() { return this->display_->get_width(); }
-
-  uint16_t get_height_() { return this->display_->get_height(); }
-
   display::Display *display_{nullptr};
 
   int16_t x_raw_min_{0}, x_raw_max_{0}, y_raw_min_{0}, y_raw_max_{0};
+  int16_t display_width_{0}, display_height_{0};
+
   uint16_t touch_timeout_{0};
   bool invert_x_{false}, invert_y_{false}, swap_x_y_{false};
 

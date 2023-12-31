@@ -15,6 +15,14 @@ void Touchscreen::attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::Int
   this->store_.touched = false;
 }
 
+void Touchscreen::call_setup() {
+  if (this->display_ != nullptr) {
+    this->display_width_ = this->display_->get_native_width();
+    this->display_height_ = this->display_->get_native_height();
+  }
+  this->setup();
+}
+
 void Touchscreen::update() {
   if (!this->store_.init) {
     this->store_.touched = true;
@@ -77,8 +85,8 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
       std::swap(x, y);
     }
 
-    tp.x = (uint16_t) ((int) x * this->get_width_() / 0x1000);
-    tp.y = (uint16_t) ((int) y * this->get_height_() / 0x1000);
+    tp.x = (uint16_t) ((int) x * this->display_width_ / 0x1000);
+    tp.y = (uint16_t) ((int) y * this->display_height_ / 0x1000);
   }
   if (tp.state == STATE_PRESSED) {
     tp.x_org = tp.x;

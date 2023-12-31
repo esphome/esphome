@@ -174,14 +174,15 @@ class Display : public PollingComponent {
   /// Clear the entire screen by filling it with OFF pixels.
   void clear();
 
-  /// Get the width of the image in pixels with rotation applied.
+  /// Get the calculated width of the display in pixels with rotation applied.
   virtual int get_width() { return this->get_width_internal(); }
-
-  /// Get the height of the image in pixels with rotation applied.
+  /// Get the calculated height of the display in pixels with rotation applied.
   virtual int get_height() { return this->get_height_internal(); }
 
-  virtual int get_height_internal() = 0;
-  virtual int get_width_internal() = 0;
+  /// Get the native (original) width of the display in pixels.
+  int get_native_width() { return this->get_width_internal(); }
+  /// Get the native (original) height of the display in pixels.
+  int get_native_height() { return this->get_height_internal(); }
 
   /// Set a single pixel at the specified coordinates to default color.
   inline void draw_pixel_at(int x, int y) { this->draw_pixel_at(x, y, COLOR_ON); }
@@ -507,6 +508,9 @@ class Display : public PollingComponent {
 
   void do_update_();
   void clear_clipping_();
+
+  virtual int get_height_internal() = 0;
+  virtual int get_width_internal() = 0;
 
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};
