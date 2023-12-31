@@ -35,7 +35,7 @@ class MBus : public uart::UARTDevice, public Component {
   void start_scan_primary_addresses();
   static void scan_primary_addresses_response_handler(MBusCommand *command, const MBusFrame &response);
 
-  static void start_scan_secondary_addresses();
+  static void start_scan_secondary_addresses(MBusCommand *command);
   static void scan_secondary_addresses_response_handler(MBusCommand *command, const MBusFrame &response);
 
   MBusProtocolHandler *_protocol_handler{nullptr};

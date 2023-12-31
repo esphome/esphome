@@ -135,8 +135,9 @@ uint8_t MBusFrame::calc_length(MBusFrame &frame) {
     case MBUS_FRAME_TYPE_CONTROL:
       return frame.length;
 
-    // case MBUS_FRAME_TYPE_LONG:
-    //   return frame.data_size + 3;
+    case MBUS_FRAME_TYPE_LONG:
+      return frame.data.size() + frame.length;
+
     default:
       return 0;
   }
@@ -201,31 +202,47 @@ void MBusFrame::dump() {
 
   switch (this->frame_type) {
     case MBusFrameType::MBUS_FRAME_TYPE_SHORT:
-      ESP_LOGV(TAG, "\tstart = 0x%x", this->start);
-      ESP_LOGV(TAG, "\tcontrol = 0x%x", this->control);
-      ESP_LOGV(TAG, "\taddress = 0x%x", this->address);
-      ESP_LOGV(TAG, "\tstop = 0x%x", this->stop);
+      ESP_LOGV(TAG, "\tstart = 0x%.2X", this->start);
+      ESP_LOGV(TAG, "\tcontrol = 0x%.2X", this->control);
+      ESP_LOGV(TAG, "\taddress = 0x%.2X", this->address);
+      ESP_LOGV(TAG, "\tstop = 0x%.2X", this->stop);
       return;
 
     case MBusFrameType::MBUS_FRAME_TYPE_CONTROL:
-      ESP_LOGV(TAG, "\tstart = 0x%x", this->start);
-      ESP_LOGV(TAG, "\tcontrol = 0x%x", this->control);
-      ESP_LOGV(TAG, "\taddress = 0x%x", this->address);
-      ESP_LOGV(TAG, "\tcontrol information = 0x%x", this->control_information);
-      ESP_LOGV(TAG, "\tstop = 0x%x", this->stop);
+      ESP_LOGV(TAG, "\tstart = 0x%.2X", this->start);
+      ESP_LOGV(TAG, "\tcontrol = 0x%.2X", this->control);
+      ESP_LOGV(TAG, "\taddress = 0x%.2X", this->address);
+      ESP_LOGV(TAG, "\tcontrol information = 0x%.2X", this->control_information);
+      ESP_LOGV(TAG, "\tstop = 0x%.2X", this->stop);
       return;
 
     case MBusFrameType::MBUS_FRAME_TYPE_LONG:
-      ESP_LOGV(TAG, "\tstart = 0x%x", this->start);
-      ESP_LOGV(TAG, "\tcontrol = 0x%x", this->control);
-      ESP_LOGV(TAG, "\taddress = 0x%x", this->address);
-      ESP_LOGV(TAG, "\tcontrol information = 0x%x", this->control_information);
+      ESP_LOGV(TAG, "\tstart = 0x%.2X", this->start);
+      ESP_LOGV(TAG, "\tcontrol = 0x%.2X", this->control);
+      ESP_LOGV(TAG, "\taddress = 0x%.2X", this->address);
+      ESP_LOGV(TAG, "\tcontrol information = 0x%.2X", this->control_information);
       ESP_LOGV(TAG, "\tdata = %s", format_hex_pretty(this->data).c_str());
-      ESP_LOGV(TAG, "\tstop = 0x%x", this->stop);
+      ESP_LOGV(TAG, "\tstop = 0x%.2X", this->stop);
+      if (this->variable_data) {
+        this->variable_data->dump();
+      }
       return;
   }
 
   ESP_LOGV(TAG, "\tunknown frame type");
+}
+
+void MBusDataVariable::dump() {
+  ESP_LOGV(TAG, "\tVariable Data:");
+  ESP_LOGV(TAG, "\t Header:");
+  auto header = this->header;
+  ESP_LOGV(TAG, "\t  id = %d", header.id);
+  ESP_LOGV(TAG, "\t  manufacturer = %s", header.manufacturer.c_str());
+  ESP_LOGV(TAG, "\t  version = 0x%.2X", header.version);
+  ESP_LOGV(TAG, "\t  medium = 0x%.2X", header.medium);
+  ESP_LOGV(TAG, "\t  access no = 0x%.2X", header.access_no);
+  ESP_LOGV(TAG, "\t  status = 0x%.2X", header.status);
+  ESP_LOGV(TAG, "\t  signature = %s", format_hex_pretty(header.signature, 2).c_str());
 }
 
 }  // namespace mbus

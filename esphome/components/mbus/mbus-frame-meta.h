@@ -23,7 +23,8 @@ class MBusControlCodes {
 
 class MBusControlInformationCodes {
  public:
-  static const uint8_t SELECTION_OF_SLAVES = 0x56;
+  static const uint8_t SELECTION_OF_SLAVES_MODE1 = 0x52;
+  static const uint8_t VARIABLE_DATA_RESPONSE_MODE1 = 0x72;
 };
 class MBusFrameMeta {
  public:
@@ -38,6 +39,7 @@ class MBusFrameMeta {
 
 class MBusFrameDefinition {
  public:
+  static const uint8_t MAX_DATA_LENGTH{252};
   static const MBusFrameMeta ACK_FRAME;
   static const MBusFrameMeta SHORT_FRAME;
   static const MBusFrameMeta CONTROL_FRAME;

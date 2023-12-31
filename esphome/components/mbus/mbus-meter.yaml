@@ -13,6 +13,7 @@ esp32:
 
 # Enable logging
 logger:
+  tx_buffer_size: 1024
   level: VERBOSE
   # level: VERY_VERBOSE
 

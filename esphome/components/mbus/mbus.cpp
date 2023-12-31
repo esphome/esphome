@@ -41,7 +41,7 @@ void MBus::scan_primary_addresses_response_handler(MBusCommand *command, const M
 
   address++;
   if (address > PRIMARY_ADDRESS_MAX) {
-    start_scan_secondary_addresses();
+    start_scan_secondary_addresses(command);
     return;
   }
 
@@ -50,9 +50,37 @@ void MBus::scan_primary_addresses_response_handler(MBusCommand *command, const M
   command->protocol_handler->register_command(*scan_primary_command, scan_primary_addresses_response_handler, address);
 }
 
-void MBus::start_scan_secondary_addresses() { ESP_LOGV(TAG, "start_scan_secondary_addresses"); }
+void MBus::start_scan_secondary_addresses(MBusCommand *command) {
+  ESP_LOGV(TAG, "start_scan_secondary_addresses");
 
-void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const MBusFrame &response) {}
+  // init slaves command
+  auto init_slaves_command = MBusFrameFactory::create_nke_frame(MBusAddresses::NETWORK_LAYER);
+  command->protocol_handler->register_command(*init_slaves_command, scan_secondary_addresses_response_handler, 0, 0,
+                                              false);
+}
+
+void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const MBusFrame &response) {
+  ESP_LOGV(TAG, "scan_secondary_addresses_response_handler. data = %d", command->data);
+
+  // init slaves command response
+  if (command->data == 0) {
+    ESP_LOGV(TAG, "send slave select command:");
+    std::vector<uint8_t> mask{0xFF, 0xFF, 0xFF, 0x0F, 0xFF, 0xFF, 0xFF, 0xFF};
+    auto slave_select_command = MBusFrameFactory::create_slave_select(mask);
+    command->protocol_handler->register_command(*slave_select_command, scan_secondary_addresses_response_handler, 1);
+    return;
+  }
+
+  if (command->data == 1 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
+    ESP_LOGV(TAG, "send REQ_UD2 command:");
+    auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
+    command->protocol_handler->register_command(*req_ud2_command, scan_secondary_addresses_response_handler, 2);
+    return;
+  }
+
+  if (command->data == 2) {
+  }
+}
 
 // void MBus::scan_secondary_adresses() {
 //   init_slaves();

@@ -15,7 +15,7 @@ namespace mbus {
 class MBusCommand;
 class MBusProtocolHandler {
  public:
-  static const uint32_t rx_timeout{500};
+  static const uint32_t rx_timeout{1000};
 
   void loop();
   void register_command(MBusFrame &command, void (*response_handler)(MBusCommand *command, const MBusFrame &response),
@@ -24,9 +24,18 @@ class MBusProtocolHandler {
   MBusProtocolHandler(INetworkAdapter *networkAdapter) : _networkAdapter(networkAdapter) {}
 
  protected:
+  // Communication
   int8_t receive();
   int8_t send(MBusFrame &frame);
+
+  // Parsing
   std::unique_ptr<MBusFrame> parse_response();
+  std::unique_ptr<MBusDataVariable> parse_variable_data_response(std::vector<uint8_t> data);
+  uint64_t decode_bcd_hex(std::vector<uint8_t> &bcd_data);
+  std::string decode_manufacturer(uint8_t byte1, uint8_t byte2);
+  uint8_t decode_int(std::vector<uint8_t> &data, int16_t *value);
+
+  // Helper
   void delete_first_command();
 
   INetworkAdapter *_networkAdapter;
