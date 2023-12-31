@@ -1,9 +1,9 @@
 #pragma once
 
 #include "esphome/core/color.h"
-#include "esphome/core/log.h"
 
 namespace esphome {
+struct LogString;
 namespace display {
 class Display;
 class Rect;
@@ -85,7 +85,7 @@ class LayoutItem {
   virtual void dump_config(int indent_depth, int additional_level_depth) = 0;
 
   /** Dumps the base properties of the LayoutItem. Should be called by implementors dump_config()
-   * 
+   *
    * param[in] tag: Tag to pass to ESP_LOGCONFIG
    * param[in] indent_depth: Depth to indent the config
    */
@@ -105,7 +105,7 @@ class LayoutItem {
   int margin_{0};
   int padding_{0};
   int border_{0};
-  Color border_color_{Color(0, 0, 0, 0)};
+  Color border_color_{Color::BLACK};
 };
 
 const LogString *horizontal_child_align_to_string(HorizontalChildAlign align);

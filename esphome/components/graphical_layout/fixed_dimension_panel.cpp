@@ -12,14 +12,14 @@ static const char *const TAG = "fixeddimensionpanel";
 void FixedDimensionPanel::dump_config(int indent_depth, int additional_level_depth) {
   this->dump_config_base_properties(TAG, indent_depth);
   if (this->width_.value() < 0) {
-    ESP_LOGCONFIG(TAG, "%*sWidth: UNSET (Will use %s's width)", indent_depth, "", 
+    ESP_LOGCONFIG(TAG, "%*sWidth: UNSET (Will use %s's width)", indent_depth, "",
                   this->unset_width_uses_display_width_ ? "DISPLAY" : "CHILD");
   } else {
     ESP_LOGCONFIG(TAG, "%*sWidth: %i", indent_depth, "", this->width_.value());
   }
 
 if (this->height_.value() < 0) {
-    ESP_LOGCONFIG(TAG, "%*sHeight: UNSET (Will use %s's height)", indent_depth, "", 
+    ESP_LOGCONFIG(TAG, "%*sHeight: UNSET (Will use %s's height)", indent_depth, "",
                   this->unset_height_uses_display_height_ ? "DISPLAY" : "CHILD");
   } else {
     ESP_LOGCONFIG(TAG, "%*sHeight: %i", indent_depth, "", this->height_.value());

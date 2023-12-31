@@ -19,12 +19,8 @@ class FixedDimensionPanel : public LayoutItem {
   template<typename V> void set_width(V width) { this->width_ = width; };
   template<typename V> void set_height(V height) { this->height_ = height; }
 
-  void set_unset_width_uses_display_width(bool use_display) { 
-    this->unset_width_uses_display_width_ = use_display; 
-  }
-  void set_unset_height_uses_display_height(bool use_display) {
-    this->unset_height_uses_display_height_ = use_display;
-  }
+  void set_unset_width_uses_display_width(bool use_display) { this->unset_width_uses_display_width_ = use_display; }
+  void set_unset_height_uses_display_height(bool use_display) { this->unset_height_uses_display_height_ = use_display; }
 
  protected:
   LayoutItem *child_{nullptr};
