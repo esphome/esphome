@@ -37,7 +37,7 @@ display::Rect FixedDimensionPanel::measure_item_internal(display::Display *displ
     if (this->unset_width_uses_display_width_) {
       rect.w = display->get_width();
       // We need to account for our own padding + margin + border
-      rect.w -= (this->margin_ + this->border_ + this->padding_) * 2;
+      rect.w -= this->margin_.horizontal() + this->border_.horizontal() + this->padding_.horizontal();
     } else {
       rect.w = child_size.w;
     }
@@ -47,7 +47,7 @@ display::Rect FixedDimensionPanel::measure_item_internal(display::Display *displ
     if (this->unset_height_uses_display_height_) {
       rect.h = display->get_height();
       // We need to account for our own padding + margin + border
-      rect.h -= (this->margin_ + this->border_ + this->padding_) * 2;
+      rect.h -= this->margin_.vertical() + this->border_.vertical() + this->padding_.vertical();
     } else {
       rect.h = child_size.h;
     }

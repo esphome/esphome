@@ -13,38 +13,43 @@ const Color COLOR_ON(255, 255, 255, 255);
 
 display::Rect LayoutItem::measure_item(display::Display *display) {
   display::Rect inner_size = this->measure_item_internal(display);
-  int margin_border_padding = this->margin_ + this->border_ + this->padding_;
-
-  return display::Rect(0, 0, (margin_border_padding * 2) + inner_size.w, (margin_border_padding * 2) + inner_size.h);
+  return display::Rect(0, 0, this->margin_.horizontal() + this->border_.horizontal() + this->padding_.horizontal() + inner_size.w, this->margin_.vertical() + this->border_.vertical() + this->padding_.vertical() + inner_size.h);
 }
 
 void LayoutItem::render(display::Display *display, display::Rect bounds) {
   // Margin
-  display->set_local_coordinates_relative_to_current(this->margin_, this->margin_);
+  display->set_local_coordinates_relative_to_current(this->margin_.left, this->margin_.top);
 
   // Border
-  if (this->border_ > 0) {
-    display::Rect border_bounds(0, 0, bounds.w - (this->margin_ * 2), bounds.h - (this->margin_ * 2));
-    if (this->border_ == 1) {
+  if (this->border_.any()) {
+    display::Rect border_bounds(0, 0, bounds.w - this->margin_.horizontal(), bounds.h - this->margin_.vertical());
+    if (this->border_.equals(1)) {
       // Single pixel border use the native function
       display->rectangle(0, 0, border_bounds.w, border_bounds.h, this->border_color_);
     } else {
       // Thicker border need to do mutiple filled rects
-      // Top rectangle
-      display->filled_rectangle(border_bounds.x, border_bounds.y, border_bounds.w, this->border_);
-      // Bottom rectangle
-      display->filled_rectangle(border_bounds.x, border_bounds.h - this->border_, border_bounds.w, this->border_);
-      // Left rectangle
-      display->filled_rectangle(border_bounds.x, border_bounds.y, this->border_, border_bounds.h);
-      // Right rectangle
-      display->filled_rectangle(border_bounds.w - this->border_, border_bounds.y, this->border_, border_bounds.h);
+      // Top Rectangle
+      if (this->border_.top > 0) {
+        display->filled_rectangle(border_bounds.x, border_bounds.y, border_bounds.w, this->border_.top);
+      }
+      // Left Rectangle
+      if (this->border_.left > 0) {
+        display->filled_rectangle(border_bounds.x, border_bounds.y + this->border_.top, this->border_.left, border_bounds.h - this->border_.bottom - this->border_.top);
+      }
+      // Bottom Rectangle
+      if (this->border_.bottom > 0) {
+        display->filled_rectangle(border_bounds.x, border_bounds.h - this->border_.bottom, border_bounds.w, this->border_.bottom);
+      }
+      // Right Rectangle
+      if (this->border_.right > 0) {
+        display->filled_rectangle(border_bounds.w - this->border_.right, border_bounds.y + this->border_.top, this->border_.right, border_bounds.h - this->border_.bottom - this->border_.top);
+      }
     }
   }
 
   // Padding
-  display->set_local_coordinates_relative_to_current(this->border_ + this->padding_, this->border_ + this->padding_);
-  int margin_border_padding_offset = (this->margin_ + this->border_ + this->padding_) * 2;
-  display::Rect internal_bounds(0, 0, bounds.w - margin_border_padding_offset, bounds.h - margin_border_padding_offset);
+  display->set_local_coordinates_relative_to_current(this->border_.left + this->padding_.left, this->border_.top + this->padding_.top);
+  display::Rect internal_bounds(0, 0, bounds.w - this->margin_.horizontal() - this->border_.horizontal() - this->padding_.horizontal(), bounds.h - this->margin_.vertical() - this->border_.vertical() - this->padding_.vertical());
 
   // Rendering
   this->render_internal(display, internal_bounds);
@@ -59,11 +64,14 @@ void LayoutItem::render(display::Display *display, display::Rect bounds) {
 }
 
 void LayoutItem::dump_config_base_properties(const char *tag, int indent_depth) {
-  ESP_LOGCONFIG(tag, "%*sMargin: %i", indent_depth, "", this->margin_);
-  ESP_LOGCONFIG(tag, "%*sBorder: %i", indent_depth, "", this->border_);
+  ESP_LOGCONFIG(tag, "%*sMargin: : (L: %i, T: %i, R: %i, B: %i)", indent_depth, "", this->margin_.left,
+                this->margin_.top, this->margin_.right, this->margin_.bottom);
+  ESP_LOGCONFIG(tag, "%*sBorder: (L: %i, T: %i, R: %i, B: %i)", indent_depth, "", this->border_.left,
+                this->border_.top, this->border_.right, this->border_.bottom);
   ESP_LOGCONFIG(tag, "%*sBorder Color: (R: %i, G: %i, B: %i)", indent_depth, "", this->border_color_.r,
                 this->border_color_.g, this->border_color_.b);
-  ESP_LOGCONFIG(tag, "%*sPadding: %i", indent_depth, "", this->padding_);
+  ESP_LOGCONFIG(tag, "%*sPadding: : (L: %i, T: %i, R: %i, B: %i)", indent_depth, "", this->padding_.left,
+                this->padding_.top, this->padding_.right, this->padding_.bottom);
 }
 
 const LogString *horizontal_child_align_to_string(HorizontalChildAlign align) {

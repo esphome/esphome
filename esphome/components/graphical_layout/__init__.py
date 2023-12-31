@@ -24,13 +24,32 @@ CONF_LAYOUT = "layout"
 CONF_MARGIN = "margin"
 CONF_PADDING = "padding"
 CONF_BORDER_COLOR = "border_color"
+CONF_LEFT = "left"
+CONF_TOP = "top"
+CONF_RIGHT = "right"
+CONF_BOTTOM = "bottom"
+
+DIMENSION_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_LEFT, default=0): cv.int_range(min=0),
+        cv.Optional(CONF_TOP, default=0): cv.int_range(min=0),
+        cv.Optional(CONF_RIGHT, default=0): cv.int_range(min=0),
+        cv.Optional(CONF_BOTTOM, default=0): cv.int_range(min=0),
+    }
+)
 
 BASE_ITEM_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_MARGIN, default=0): cv.int_range(min=0),
-        cv.Optional(CONF_BORDER, default=0): cv.int_range(min=0),
+        cv.Optional(CONF_MARGIN, default=0): cv.Any(
+            DIMENSION_SCHEMA, cv.int_range(min=0)
+        ),
+        cv.Optional(CONF_BORDER, default=0): cv.Any(
+            DIMENSION_SCHEMA, cv.int_range(min=0)
+        ),
         cv.Optional(CONF_BORDER_COLOR): cv.use_id(color.ColorStruct),
-        cv.Optional(CONF_PADDING, default=0): cv.int_range(min=0),
+        cv.Optional(CONF_PADDING, default=0): cv.Any(
+            DIMENSION_SCHEMA, cv.int_range(min=0)
+        ),
     }
 )
 
@@ -79,21 +98,51 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+async def extract_dimension_expression(value_config, individual_set, single_set):
+    if value_config is not None:
+        if not isinstance(value_config, int):
+            # Handle individual dimensions
+            left = value_config.get(CONF_LEFT)
+            top = value_config.get(CONF_TOP)
+            right = value_config.get(CONF_RIGHT)
+            bottom = value_config.get(CONF_BOTTOM)
+
+            individual_set(left, top, right, bottom)
+        else:
+            template = await cg.templatable(value_config, args=[], output_type=int)
+            single_set(template)
+
+
 async def build_layout_item_pvariable(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
-    margin = await cg.templatable(config[CONF_MARGIN], args=[], output_type=int)
-    cg.add(var.set_margin(margin))
+    await extract_dimension_expression(
+        config.get(CONF_MARGIN),
+        lambda left, top, right, bottom: cg.add(
+            var.set_margin(left, top, right, bottom)
+        ),
+        lambda margin: cg.add(var.set_margin(margin)),
+    )
 
-    border = await cg.templatable(config[CONF_BORDER], args=[], output_type=int)
-    cg.add(var.set_border(border))
+    await extract_dimension_expression(
+        config.get(CONF_BORDER),
+        lambda left, top, right, bottom: cg.add(
+            var.set_border(left, top, right, bottom)
+        ),
+        lambda border: cg.add(var.set_border(border)),
+    )
+
+    await extract_dimension_expression(
+        config.get(CONF_PADDING),
+        lambda left, top, right, bottom: cg.add(
+            var.set_padding(left, top, right, bottom)
+        ),
+        lambda padding: cg.add(var.set_padding(padding)),
+    )
 
     if border_color_config := config.get(CONF_BORDER_COLOR):
         border_color = await cg.get_variable(border_color_config)
         cg.add(var.set_border_color(border_color))
-
-    padding = await cg.templatable(config[CONF_PADDING], args=[], output_type=int)
-    cg.add(var.set_padding(padding))
 
     return var
 
