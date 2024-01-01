@@ -17,6 +17,27 @@ void HydreonRGxxComponent::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Connection with hydreon_rgxx failed!");
   }
+
+  if (model_ == RG9) {
+    ESP_LOGCONFIG(TAG, "  Model: RG9");
+    ESP_LOGCONFIG(TAG, "  Disable Led: %s", TRUEFALSE(this->disable_led_));
+  } else {
+    ESP_LOGCONFIG(TAG,"  Model: RG15"); 
+    if (force_units_ == FORCE_MM) {
+        ESP_LOGCONFIG(TAG,"  Force Units: millimeter");
+    } else if (force_units_ == FORCE_INCH) {
+        ESP_LOGCONFIG(TAG,"  Force Units: inch");
+    } else {
+        ESP_LOGD(TAG,"  Units: DIP switch 1 position");
+    }
+    if (force_resolution_ == FORCE_LOW) {
+        ESP_LOGCONFIG(TAG,"  Force Resolution: low");
+    } else if (force_resolution_ == FORCE_HIGH) {
+        ESP_LOGCONFIG(TAG,"  Force Resolution: high");
+    } else {
+        ESP_LOGD(TAG,"  Resolution: DIP switch 2 position");
+    }
+  }
   LOG_UPDATE_INTERVAL(this);
 
   int i = 0;
@@ -25,14 +46,26 @@ void HydreonRGxxComponent::dump_config() {
     LOG_SENSOR("  ", #s, this->sensors_[i - 1]); \
   }
   HYDREON_RGXX_PROTOCOL_LIST(HYDREON_RGXX_LOG_SENSOR, );
-
-  if (this->model_ == RG9) {
-    ESP_LOGCONFIG(TAG, "disable_led: %s", TRUEFALSE(this->disable_led_));
-  }
 }
 
 void HydreonRGxxComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up hydreon_rgxx...");
+
+  if (model_ == RG15) {
+    if (force_resolution_== FORCE_LOW) {
+      strcat(rgxx_setup_,"L\n");
+    }
+    if (force_resolution_ == FORCE_HIGH) {
+      strcat(rgxx_setup_,"H\n");
+    }
+    if (force_units_ == FORCE_MM) {
+      strcat(rgxx_setup_,"M\n");
+    }
+    if (force_units_ == FORCE_INCH) {
+      strcat(rgxx_setup_,"I\n");
+    } 
+  }
+
   while (this->available() != 0) {
     this->read();
   }
@@ -192,13 +225,9 @@ void HydreonRGxxComponent::process_line_() {
     this->no_response_count_ = 0;
     ESP_LOGI(TAG, "Boot detected: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
 
-    if (this->model_ == RG15) {
-      this->write_str("P\nH\nM\n");  // set sensor to (P)polling mode, (H)high res mode, (M)metric mode
-    }
+    this->write_str(rgxx_setup_);  // set sensor to (P)polling mode plus if RG15 resolution and units if forced
 
     if (this->model_ == RG9) {
-      this->write_str("P\n");  // set sensor to (P)polling mode
-
       if (this->disable_led_) {
         this->write_str("D 1\n");  // set sensor (D 1)rain detection LED disabled
       } else {

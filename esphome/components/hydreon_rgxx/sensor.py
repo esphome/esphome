@@ -14,7 +14,7 @@ from esphome.const import (
     ICON_THERMOMETER,
 )
 
-from . import RGModel, HydreonRGxxComponent
+from . import RGModel, RG15ForceResolution, RG15ForceUnits, HydreonRGxxComponent
 
 UNIT_INTENSITY = "intensity"
 UNIT_MILLIMETERS = "mm"
@@ -26,6 +26,8 @@ CONF_TOTAL_ACC = "total_acc"
 CONF_R_INT = "r_int"
 
 CONF_DISABLE_LED = "disable_led"
+CONF_FORCE_UNITS= "force_units"
+CONF_FORCE_RESOLUTION = "force_resolution";
 
 RG_MODELS = {
     "RG_9": RGModel.RG9,
@@ -37,6 +39,19 @@ RG_MODELS = {
     # 1.100 - https://rainsensors.com/wp-content/uploads/sites/3/2021/03/2021.03.11-rg-9_instructions.pdf
     # 1.200 - https://rainsensors.com/wp-content/uploads/sites/3/2022/03/2022.02.17-rev-1.200-rg-9_instructions.pdf
 }
+
+RG15_FORCE_UNITS = {
+    "dip1": RG15ForceUnits.USE_DIP1,
+    "mm": RG15ForceUnits.FORCE_MM,
+    "inch": RG15ForceUnits.FORCE_INCH, 
+}
+
+RG15_FORCE_RESOLUTION = {
+    "dip2": RG15ForceResolution.USE_DIP2,
+    "low": RG15ForceResolution.FORCE_LOW,
+    "high": RG15ForceResolution.FORCE_HIGH, 
+}
+
 SUPPORTED_SENSORS = {
     CONF_ACC: ["RG_15"],
     CONF_EVENT_ACC: ["RG_15"],
@@ -74,6 +89,12 @@ CONFIG_SCHEMA = cv.All(
                 RG_MODELS,
                 upper=True,
                 space="_",
+            ),
+            cv.Optional(CONF_FORCE_UNITS, default="dip1"): cv.enum(
+                RG15_FORCE_UNITS, upper=False
+            ),
+            cv.Optional(CONF_FORCE_RESOLUTION, default="dip2"): cv.enum(
+                RG15_FORCE_RESOLUTION, upper=False
             ),
             cv.Optional(CONF_ACC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETERS,
@@ -138,7 +159,13 @@ async def to_code(config):
             sens = await sensor.new_sensor(config[conf])
             cg.add(var.set_sensor(sens, i))
 
+    cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_request_temperature(CONF_TEMPERATURE in config))
 
+    if CONF_FORCE_UNITS in config:
+        cg.add(var.set_units(config[CONF_FORCE_UNITS]))
+    if CONF_FORCE_RESOLUTION in config:
+        cg.add(var.set_resolution(config[CONF_FORCE_RESOLUTION]))
+    
     if CONF_DISABLE_LED in config:
         cg.add(var.set_disable_led(config[CONF_DISABLE_LED]))
