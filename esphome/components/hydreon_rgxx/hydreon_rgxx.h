@@ -95,7 +95,7 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   // by default use DIP switchs for units and resolution - only applies to RG15
   RG15ForceUnits force_units_ = USE_DIP1;
   RG15ForceResolution force_resolution_ = USE_DIP2;
-  
+
   int sw_version_ = 0;
   bool too_cold_ = false;
   bool lens_bad_ = false;
