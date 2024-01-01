@@ -104,6 +104,16 @@ void WK2132ComponentSPI::setup() {
   using namespace wk2132;
   ESP_LOGCONFIG(TAG, "Setting up wk2132_spi: %s with %d UARTs...", this->get_name(), this->children_.size());
   this->spi_setup();
+  delay(10);
+
+  this->enable();
+  this->write_byte(0x55);
+  this->transfer_byte(0xAA);
+  this->delegate_->transfer(0x55);
+  uint8_t data[] = {0x55, 0xAA};
+  this->write_array(data, 2);
+  this->transfer_array(data, 2);
+  this->disable();
 
   // enable both channels
   this->global_reg_(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
