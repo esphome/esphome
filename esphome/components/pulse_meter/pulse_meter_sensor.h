@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 
 #include <cinttypes>
+#include <variant>
 
 namespace esphome {
 namespace pulse_meter {
@@ -63,23 +64,21 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
 
   // Only use these variables in the ISR
   ISRInternalGPIOPin isr_pin_;
-  union FilterState {
-    /// Filter state for edge mode
-    struct Edge {
-      Edge() {}
-      uint32_t last_sent_edge_us_ = 0;
-    };
-    Edge edge_;
-    /// Filter state for pulse mode
-    struct Pulse {
-      Pulse() {}
-      uint32_t last_intr_ = 0;
-      bool latched_ = false;
-      bool last_pin_val_ = false;
-    };
-    Pulse pulse_;
+
+  /// Filter state for edge mode
+  struct EdgeState {
+    uint32_t last_sent_edge_us_ = 0;
   };
-  FilterState filter_state_;
+
+  /// Filter state for pulse mode
+  struct PulseState {
+    PulseState(bool initial_pin_val) : last_pin_val_(initial_pin_val), latched_(initial_pin_val) {}
+    uint32_t last_intr_ = 0;
+    bool latched_ = false;
+    bool last_pin_val_ = false;
+  };
+
+  std::variant<std::monostate, EdgeState, PulseState> filter_state_{};
 };
 
 }  // namespace pulse_meter
