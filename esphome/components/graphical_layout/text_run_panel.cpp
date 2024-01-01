@@ -41,6 +41,8 @@ display::Rect TextRunPanel::measure_item_internal(display::Display *display) {
 }
 
 void TextRunPanel::render_internal(display::Display *display, display::Rect bounds) {
+  ESP_LOGD(TAG, "Rendering to (%i, %i)", bounds.w, bounds.h);
+
   CalculatedLayout layout = this->determine_layout(display, bounds, true);
 
   for (const auto &calculated : layout.runs) {
@@ -79,7 +81,7 @@ CalculatedLayout TextRunPanel::determine_layout(display::Display *display, displ
 
     run->font_->measure(text.c_str(), &width, &x1, &baseline, &height);
 
-    if ((x_offset + width) < bounds.w) {
+    if ((x_offset + width) <= bounds.w) {
       // Item fits on the current line
       auto calculated = std::make_shared<CalculatedTextRun>(run, text, display::Rect(x_offset, y_offset, width, height),
                                                             baseline, line_number);
@@ -97,30 +99,30 @@ CalculatedLayout TextRunPanel::determine_layout(display::Display *display, displ
 
     // Item extends beyond our desired bounds - need to add word by word
     CanWrapAtCharacterArguments can_wrap_at_args(this, 0, text, ' ');
-    std::string partial_line;
+    std::string partial_run;
     for (int i = 0; i < text.size(); i++) {
       can_wrap_at_args.offset = i;
       can_wrap_at_args.character = text.at(i);
 
       bool can_wrap = this->can_wrap_at_character_.value(can_wrap_at_args);
       if (can_wrap) {
-        ESP_LOGVV(TAG, "Can break at '%c'. String is '%s'", can_wrap_at_args.character, partial_line.c_str());
+        ESP_LOGVV(TAG, "Can break at '%c'. String is '%s'", can_wrap_at_args.character, partial_run.c_str());
 
-        run->font_->measure(partial_line.c_str(), &width, &x1, &baseline, &height);
-        if ((x_offset + width) < bounds.w) {
+        run->font_->measure(partial_run.c_str(), &width, &x1, &baseline, &height);
+        if ((x_offset + width) <= bounds.w) {
           ESP_LOGVV(TAG, "... Fits! (%i, %i)", x_offset, y_offset);
 
           // Item fits on the current line
           current_line_max_height = std::max(current_line_max_height, height);
 
           auto calculated = std::make_shared<CalculatedTextRun>(
-              run, partial_line, display::Rect(x_offset, y_offset, width, height), baseline, line_number);
+              run, partial_run, display::Rect(x_offset, y_offset, width, height), baseline, line_number);
           calculated_layout.runs.push_back(calculated);
 
           x_offset += width;
           widest_line = std::max(widest_line, x_offset);
 
-          partial_line = can_wrap_at_args.character;
+          partial_run = can_wrap_at_args.character;
           continue;
         }
 
@@ -131,24 +133,23 @@ CalculatedLayout TextRunPanel::determine_layout(display::Display *display, displ
         y_offset += current_line_max_height;
         line_number++;
         current_line_max_height = height;
-        partial_line += can_wrap_at_args.character;
+        partial_run += can_wrap_at_args.character;
         continue;
       }
 
-      partial_line += can_wrap_at_args.character;
+      partial_run += can_wrap_at_args.character;
     }
 
-    if (partial_line.length() > 0) {
+    if (partial_run.length() > 0) {
       // Remaining text
-      run->font_->measure(partial_line.c_str(), &width, &x1, &baseline, &height);
+      run->font_->measure(partial_run.c_str(), &width, &x1, &baseline, &height);
 
       current_line_max_height = std::max(height, current_line_max_height);
-
-      ESP_LOGVV(TAG, "'%s' is remaining after character break checks. Rendering to (%i, %i)", partial_line.c_str(),
+      ESP_LOGVV(TAG, "'%s' is remaining after character break checks. Rendering to (%i, %i)", partial_run.c_str(),
                 x_offset, y_offset);
 
       auto calculated = std::make_shared<CalculatedTextRun>(
-          run, partial_line, display::Rect(x_offset, y_offset, width, height), baseline, line_number);
+          run, partial_run, display::Rect(x_offset, y_offset, width, height), baseline, line_number);
       calculated_layout.runs.push_back(calculated);
 
       x_offset += width;
