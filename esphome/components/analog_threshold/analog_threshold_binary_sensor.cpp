@@ -7,27 +7,21 @@ namespace analog_threshold {
 static const char *const TAG = "analog_threshold.binary_sensor";
 
 void AnalogThresholdBinarySensor::setup() {
-  float sensor_value = this->sensor_->get_state();
-
-  // TRUE state is defined to be when sensor is >= threshold
-  // so when undefined sensor value initialize to FALSE
-  if (std::isnan(sensor_value)) {
-    this->publish_initial_state(false);
-  } else {
-    this->publish_initial_state(sensor_value >= (this->lower_threshold_ + this->upper_threshold_) / 2.0f);
-  }
-}
-
-void AnalogThresholdBinarySensor::set_sensor(sensor::Sensor *analog_sensor) {
-  this->sensor_ = analog_sensor;
-
   this->sensor_->add_on_state_callback([this](float sensor_value) {
     // if there is an invalid sensor reading, ignore the change and keep the current state
     if (!std::isnan(sensor_value)) {
-      this->publish_state(sensor_value >= (this->state ? this->lower_threshold_ : this->upper_threshold_));
+      bool threshold_value = sensor_value >= (this->state ? this->lower_threshold_ : this->upper_threshold_);
+      if (this->has_state()) {
+        // This is not the initial state.
+        this->publish_state(threshold_value);
+      } else {
+        this->publish_initial_state(threshold_value);
+      }
     }
   });
 }
+
+void AnalogThresholdBinarySensor::set_sensor(sensor::Sensor *analog_sensor) { this->sensor_ = analog_sensor; }
 
 void AnalogThresholdBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "Analog Threshold Binary Sensor", this);
