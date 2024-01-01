@@ -50,7 +50,7 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
 #endif
   void set_model(RGModel model) { model_ = model; }
 
-  //only applicable to RG15
+  // only applicable to RG15
   void set_units(RG15ForceUnits force_units) { force_units_ = force_units; }
   void set_resolution(RG15ForceResolution force_resolution) { force_resolution_ = force_resolution; }
 
@@ -88,7 +88,7 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   std::string buffer_;
 
   // same command for RG9 and RG15(if units and resolution are not forced ie use DIP switches)
-  char rgxx_setup_[10] ="P\n";
+  char rgxx_setup_[10] = "P\n";
 
   RGModel model_ = RG9;
 
