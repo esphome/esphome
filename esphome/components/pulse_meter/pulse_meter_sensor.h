@@ -69,16 +69,15 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   struct EdgeState {
     uint32_t last_sent_edge_us_ = 0;
   };
+  EdgeState edge_state_{};
 
   /// Filter state for pulse mode
   struct PulseState {
-    PulseState(bool initial_pin_val) : last_pin_val_(initial_pin_val), latched_(initial_pin_val) {}
     uint32_t last_intr_ = 0;
     bool latched_ = false;
     bool last_pin_val_ = false;
   };
-
-  std::variant<std::monostate, EdgeState, PulseState> filter_state_{};
+  PulseState pulse_state_{};
 };
 
 }  // namespace pulse_meter

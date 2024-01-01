@@ -22,11 +22,11 @@ void PulseMeterSensor::setup() {
   this->last_processed_edge_us_ = micros();
 
   if (this->filter_mode_ == FILTER_EDGE) {
-    this->filter_state_ = EdgeState{};
     this->pin_->attach_interrupt(PulseMeterSensor::edge_intr, this, gpio::INTERRUPT_RISING_EDGE);
   } else if (this->filter_mode_ == FILTER_PULSE) {
     // Set the pin value to the current value to avoid a false edge
-    this->filter_state_ = PulseState(this->isr_pin_.digital_read());
+    this->pulse_state_.last_pin_val_ = this->isr_pin_.digital_read();
+    this->pulse_state_.latched_ = this->pulse_state_.last_pin_val_;
     this->pin_->attach_interrupt(PulseMeterSensor::pulse_intr, this, gpio::INTERRUPT_ANY_EDGE);
   }
 }
@@ -120,7 +120,7 @@ void IRAM_ATTR PulseMeterSensor::edge_intr(PulseMeterSensor *sensor) {
   // This is an interrupt handler - we can't call any virtual method from this method
   // Get the current time before we do anything else so the measurements are consistent
   const uint32_t now = micros();
-  auto &state = std::get<EdgeState>(sensor->filter_state_);
+  auto &state = sensor->edge_state_;
   auto &set = *sensor->set_;
 
   if ((now - state.last_sent_edge_us_) >= sensor->filter_us_) {
@@ -136,7 +136,7 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
   // Get the current time before we do anything else so the measurements are consistent
   const uint32_t now = micros();
   const bool pin_val = sensor->isr_pin_.digital_read();
-  auto &state = std::get<PulseState>(sensor->filter_state_);
+  auto &state = sensor->pulse_state_;
   auto &set = *sensor->set_;
 
   // Filter length has passed since the last interrupt
