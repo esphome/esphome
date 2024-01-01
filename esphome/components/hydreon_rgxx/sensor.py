@@ -43,13 +43,13 @@ RG_MODELS = {
 RG15_FORCE_UNITS = {
     "dip1": RG15ForceUnits.USE_DIP1,
     "mm": RG15ForceUnits.FORCE_MM,
-    "inch": RG15ForceUnits.FORCE_INCH, 
+    "inch": RG15ForceUnits.FORCE_INCH,
 }
 
 RG15_FORCE_RESOLUTION = {
     "dip2": RG15ForceResolution.USE_DIP2,
     "low": RG15ForceResolution.FORCE_LOW,
-    "high": RG15ForceResolution.FORCE_HIGH, 
+    "high": RG15ForceResolution.FORCE_HIGH,
 }
 
 SUPPORTED_SENSORS = {
@@ -166,6 +166,6 @@ async def to_code(config):
         cg.add(var.set_units(config[CONF_FORCE_UNITS]))
     if CONF_FORCE_RESOLUTION in config:
         cg.add(var.set_resolution(config[CONF_FORCE_RESOLUTION]))
-    
+
     if CONF_DISABLE_LED in config:
         cg.add(var.set_disable_led(config[CONF_DISABLE_LED]))

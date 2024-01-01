@@ -22,7 +22,7 @@ void HydreonRGxxComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Model: RG9");
     ESP_LOGCONFIG(TAG, "  Disable Led: %s", TRUEFALSE(this->disable_led_));
   } else {
-    ESP_LOGCONFIG(TAG,"  Model: RG15"); 
+    ESP_LOGCONFIG(TAG,"  Model: RG15");
     if (force_units_ == FORCE_MM) {
         ESP_LOGCONFIG(TAG,"  Force Units: millimeter");
     } else if (force_units_ == FORCE_INCH) {
@@ -63,7 +63,7 @@ void HydreonRGxxComponent::setup() {
     }
     if (force_units_ == FORCE_INCH) {
       strcat(rgxx_setup_,"I\n");
-    } 
+    }
   }
 
   while (this->available() != 0) {
