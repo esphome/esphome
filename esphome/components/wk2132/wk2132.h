@@ -517,18 +517,18 @@ class WK2132Component : public Component {
   /// @brief Factory method to create a Register object for accessing a global register
   /// @param reg address of the register
   /// @return a reference to WK2132Register
-  virtual WK2132Register &global_reg_(uint8_t reg) = 0;
+  virtual WK2132Register &global_reg(uint8_t reg) = 0;
 
   /// @brief Factory method to create a Register object for accessing a channel register
   /// @param reg address of the register
   /// @param channel the channel number (0-1)
   /// @return a reference to WK2132Register
-  virtual WK2132Register &channel_reg_(uint8_t reg, uint8_t channel) = 0;
+  virtual WK2132Register &channel_reg(uint8_t reg, uint8_t channel) = 0;
 
   /// @brief Factory method to create a Register object for accessing the FIFO
   /// @param channel channel number
   /// @return a reference to WK2132Register
-  virtual WK2132Register &fifo_reg_(uint8_t channel) = 0;
+  virtual WK2132Register &fifo_reg(uint8_t channel) = 0;
 
   uint32_t crystal_;                         ///< crystal value;
   int test_mode_;                            ///< test mode value (0 -> no tests)
@@ -564,20 +564,10 @@ class WK2132Channel : public uart::UARTComponent {
   const char *get_channel_name() { return this->name_.c_str(); }
 
   /// @brief Setup the channel
-  void setup_channel_();
+  void setup_channel();
 
   /// @brief dump channel information
-  void dump_channel_();
-
- protected:
-  /// @brief Factory method to create a Register object for accessing a register on current channel
-  /// @param reg address of the register
-  /// @return a reference to WK2132Register
-  WK2132Register &channel_reg_(uint8_t reg) { return this->parent_->channel_reg_(reg, channel_); }
-
-  /// @brief Factory method to create a Register object for accessing the FIFO on current channel
-  /// @return a reference to WK2132Register
-  WK2132Register &fifo_reg_(void) { return this->parent_->fifo_reg_(channel_); }
+  void dump_channel();
 
   //
   // we implement the virtual class from UARTComponent
@@ -642,6 +632,15 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief this cannot happen with external uart therefore we do nothing
   void check_logger_conflict() override {}
+
+  /// @brief Factory method to create a Register object for accessing a register on current channel
+  /// @param reg address of the register
+  /// @return a reference to WK2132Register
+  WK2132Register &channel_reg_(uint8_t reg) { return this->parent_->channel_reg(reg, channel_); }
+
+  /// @brief Factory method to create a Register object for accessing the FIFO on current channel
+  /// @return a reference to WK2132Register
+  WK2132Register &fifo_reg_() { return this->parent_->fifo_reg(channel_); }
 
   /// @brief reset the wk2132 internal FIFO
   void reset_fifo_();

@@ -271,7 +271,7 @@ void WK2132Component::loop() {
 ///////////////////////////////////////////////////////////////////////////////
 // The WK2132Channel methods
 ///////////////////////////////////////////////////////////////////////////////
-void WK2132Channel::setup_channel_() {
+void WK2132Channel::setup_channel() {
   ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s ...", this->parent_->get_name(), this->get_channel_name());
   // we enable transmit and receive on this channel
   this->channel_reg_(REG_WK2132_SCR) = SCR_RXEN | SCR_TXEN;
@@ -281,7 +281,7 @@ void WK2132Channel::setup_channel_() {
   this->set_baudrate_();
 }
 
-void WK2132Channel::dump_channel_() {
+void WK2132Channel::dump_channel() {
   ESP_LOGCONFIG(TAG, "  UART %s ...", this->get_channel_name());
   ESP_LOGCONFIG(TAG, "    Baud rate: %d Bd", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "    Data bits: %d", this->data_bits_);

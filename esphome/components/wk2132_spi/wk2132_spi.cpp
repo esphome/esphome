@@ -116,16 +116,16 @@ void WK2132ComponentSPI::setup() {
   this->disable();
 
   // enable both channels
-  this->global_reg_(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
+  this->global_reg(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
   // reset channels
-  this->global_reg_(REG_WK2132_GRST) = GRST_C1RST | GRST_C2RST;
+  this->global_reg(REG_WK2132_GRST) = GRST_C1RST | GRST_C2RST;
   // initialize the spage register to page 0
-  this->global_reg_(REG_WK2132_SPAGE) = 0;
+  this->global_reg(REG_WK2132_SPAGE) = 0;
   this->page1_ = false;
 
   // we setup our children channels
   for (auto *child : this->children_) {
-    child->setup_channel_();
+    child->setup_channel();
   }
 }
 
@@ -137,7 +137,7 @@ void WK2132ComponentSPI::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
 
   for (auto *child : this->children_) {
-    child->dump_channel_();
+    child->dump_channel();
   }
 }
 
