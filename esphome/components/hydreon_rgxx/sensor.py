@@ -26,8 +26,8 @@ CONF_TOTAL_ACC = "total_acc"
 CONF_R_INT = "r_int"
 
 CONF_DISABLE_LED = "disable_led"
-CONF_FORCE_UNITS= "force_units"
-CONF_FORCE_RESOLUTION = "force_resolution";
+CONF_FORCE_UNITS = "force_units"
+CONF_FORCE_RESOLUTION = "force_resolution"
 
 RG_MODELS = {
     "RG_9": RGModel.RG9,
