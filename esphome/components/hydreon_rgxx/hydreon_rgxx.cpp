@@ -53,16 +53,16 @@ void HydreonRGxxComponent::setup() {
 
   if (model_ == RG15) {
     if (force_resolution_ == FORCE_LOW) {
-      strcat(rgxx_setup_, "L\n");
+      strncat(rgxx_setup_, "L\n", 3);
     }
     if (force_resolution_ == FORCE_HIGH) {
-      strcat(rgxx_setup_, "H\n");
+      strncat(rgxx_setup_, "H\n", 3);
     }
     if (force_units_ == FORCE_MM) {
-      strcat(rgxx_setup_, "M\n");
+      strncat(rgxx_setup_, "M\n", 3);
     }
     if (force_units_ == FORCE_INCH) {
-      strcat(rgxx_setup_, "I\n");
+      strncat(rgxx_setup_, "I\n", 3);
     }
   }
 
