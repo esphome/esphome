@@ -110,7 +110,8 @@ void Touchscreen::send_touches_() {
   } else {
     TouchPoints_t touches;
     for (auto tp : this->touches_) {
-      touches.push_back(tp.second);
+      if (tp.second.state == STATE_PRESSED || tp.second.state == STATE_UPDATED)
+        touches.push_back(tp.second);
     }
     if (this->first_touch_) {
       TouchPoint tp = this->touches_.begin()->second;
