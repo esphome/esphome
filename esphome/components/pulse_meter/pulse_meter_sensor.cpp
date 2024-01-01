@@ -7,6 +7,13 @@ namespace pulse_meter {
 
 static const char *const TAG = "pulse_meter";
 
+void PulseMeterSensor::set_total_pulses(uint32_t pulses) {
+  this->total_pulses_ = pulses;
+  if (this->total_sensor_ != nullptr) {
+    this->total_sensor_->publish_state(this->total_pulses_);
+  }
+}
+
 void PulseMeterSensor::setup() {
   this->pin_->setup();
   this->isr_pin_ = pin_->to_isr();
@@ -63,12 +70,12 @@ void PulseMeterSensor::loop() {
     const uint32_t pulse_width_us = now - this->last_processed_edge_us_;
 
     switch (this->meter_state_) {
-        // Running and initial states can timeout
+      // Running and initial states can timeout
       case MeterState::INITIAL:
       case MeterState::RUNNING: {
         if (pulse_width_us > this->timeout_us_) {
           this->meter_state_ = MeterState::TIMED_OUT;
-          ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", pulse_width_us / 1000000);
+          ESP_LOGD(TAG, "No pulse detected for %" PRIu32 "s, assuming 0 pulses/min", pulse_width_us / 1000000);
           this->publish_state(0.0f);
         } else if (this->fade_mode_ && this->meter_state_ == MeterState::RUNNING &&
                    (pulse_width_us >= this->last_pulse_width_us_ * 2)) {
@@ -90,11 +97,12 @@ void PulseMeterSensor::dump_config() {
   LOG_SENSOR("", "Pulse Meter", this);
   LOG_PIN("  Pin: ", this->pin_);
   if (this->filter_mode_ == FILTER_EDGE) {
-    ESP_LOGCONFIG(TAG, "  Filtering rising edges less than %u µs apart", this->filter_us_);
+    ESP_LOGCONFIG(TAG, "  Filtering rising edges less than %" PRIu32 " µs apart", this->filter_us_);
   } else {
-    ESP_LOGCONFIG(TAG, "  Filtering pulses shorter than %u µs", this->filter_us_);
+    ESP_LOGCONFIG(TAG, "  Filtering pulses shorter than %" PRIu32 " µs", this->filter_us_);
   }
-  ESP_LOGCONFIG(TAG, "  Assuming 0 pulses/min after not receiving a pulse for %us", this->timeout_us_ / 1000000);
+  ESP_LOGCONFIG(TAG, "  Assuming 0 pulses/min after not receiving a pulse for %" PRIu32 "s",
+                this->timeout_us_ / 1000000);
 }
 
 void IRAM_ATTR PulseMeterSensor::edge_intr(PulseMeterSensor *sensor) {

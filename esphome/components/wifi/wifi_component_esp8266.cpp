@@ -688,6 +688,8 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
   }
   this->scan_done_ = true;
 }
+
+#ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   // enable AP
   if (!this->wifi_mode_({}, true))
@@ -753,6 +755,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   return true;
 }
+
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   // enable AP
   if (!this->wifi_mode_({}, true))
@@ -790,11 +793,14 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
+
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   struct ip_info ip {};
   wifi_get_ip_info(SOFTAP_IF, &ip);
   return network::IPAddress(&ip.ip);
 }
+#endif  // USE_WIFI_AP
+
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
   uint8_t *raw_bssid = WiFi.BSSID();

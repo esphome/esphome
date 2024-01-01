@@ -44,16 +44,42 @@ uart:
     rx_pin: 3
     baud_rate: 9600
   - id: uart_2
-    tx_pin: 17
-    rx_pin: 16
+    tx_pin:
+      allow_other_uses: true
+      number: 17
+    rx_pin:
+      allow_other_uses: true
+      number: 16
     baud_rate: 19200
 
 i2c:
+  sda:
+    number: 21
+    allow_other_uses: true
   frequency: 100khz
+
+spi:
+  - id: spi_1
+    clk_pin:
+      allow_other_uses: true
+      number: 12
+    mosi_pin:
+      allow_other_uses: true
+      number: 13
+    miso_pin:
+      allow_other_uses: true
+      number: 14
+  - id: spi_2
+    clk_pin:
+      allow_other_uses: true
+      number: 32
+    mosi_pin: 33
 
 modbus:
   uart_id: uart_1
-  flow_control_pin: 5
+  flow_control_pin:
+    allow_other_uses: true
+    number: 5
   id: mod_bus1
 
 modbus_controller:
@@ -104,6 +130,12 @@ binary_sensor:
     on_release:
       then:
         - switch.turn_off: Led0
+        - if:
+            condition: ble.enabled
+            then:
+              - ble.disable:
+            else:
+              - ble.enable:
 
   - platform: tm1638
     id: Button1
@@ -214,9 +246,15 @@ binary_sensor:
         lambda: return x[0] & 1;
 
 tlc5947:
-  data_pin: GPIO12
-  clock_pin: GPIO14
-  lat_pin: GPIO15
+  data_pin:
+    allow_other_uses: true
+    number: GPIO12
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO14
+  lat_pin:
+    allow_other_uses: true
+    number: GPIO15
 
 gp8403:
   - id: gp8403_5v
@@ -273,6 +311,7 @@ output:
 demo:
 
 esp32_ble:
+  enable_on_boot: false
 
 esp32_ble_server:
   manufacturer: ESPHome
@@ -401,7 +440,9 @@ sensor:
   - platform: adc
     id: adc_sensor_p32
     name: ADC pin 32
-    pin: 32
+    pin:
+      allow_other_uses: true
+      number: 32
     attenuation: 11db
     update_interval: 1s
   - platform: internal_temperature
@@ -567,6 +608,64 @@ sensor:
     temperature:
       name: Kuntze temperature
 
+  - platform: ade7953_i2c
+    irq_pin:
+      allow_other_uses: true
+      number: 16
+    voltage:
+      name: ADE7953 Voltage
+    current_a:
+      name: ADE7953 Current A
+    current_b:
+      name: ADE7953 Current B
+    power_factor_a:
+      name: "ADE7953 Power Factor A"
+    power_factor_b:
+      name: "ADE7953 Power Factor B"
+    apparent_power_a:
+      name: "ADE7953 Apparent Power A"
+    apparent_power_b:
+      name: "ADE7953 Apparent Power B"
+    active_power_a:
+      name: ADE7953 Active Power A
+    active_power_b:
+      name: ADE7953 Active Power B
+    reactive_power_a:
+      name: "ADE7953 Reactive Power A"
+    reactive_power_b:
+      name: "ADE7953 Reactive Power B"
+    update_interval: 1s
+
+  - platform: ade7953_spi
+    spi_id: spi_1
+    cs_pin: 04
+    irq_pin:
+      allow_other_uses: true
+      number: 16
+    voltage:
+      name: ADE7953 Voltage
+    current_a:
+      name: ADE7953 Current A
+    current_b:
+      name: ADE7953 Current B
+    power_factor_a:
+      name: "ADE7953 Power Factor A"
+    power_factor_b:
+      name: "ADE7953 Power Factor B"
+    apparent_power_a:
+      name: "ADE7953 Apparent Power A"
+    apparent_power_b:
+      name: "ADE7953 Apparent Power B"
+    active_power_a:
+      name: ADE7953 Active Power A
+    active_power_b:
+      name: ADE7953 Active Power B
+    reactive_power_a:
+      name: "ADE7953 Reactive Power A"
+    reactive_power_b:
+      name: "ADE7953 Reactive Power B"
+    update_interval: 1s
+
 script:
   - id: automation_test
     then:
@@ -613,7 +712,9 @@ switch:
 display:
   - platform: tm1638
     id: primarydisplay
-    stb_pin: 5 #TM1638 STB
+    stb_pin:
+      allow_other_uses: true
+      number: 5 #TM1638 STB
     clk_pin: 18 #TM1638 CLK
     dio_pin: 23 #TM1638 DIO
     update_interval: 5s
@@ -658,20 +759,32 @@ text_sensor:
 
 sn74hc165:
   id: sn74hc165_hub
-  data_pin: GPIO12
-  clock_pin: GPIO14
-  load_pin: GPIO27
-  clock_inhibit_pin: GPIO26
+  data_pin:
+    allow_other_uses: true
+    number: GPIO12
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO14
+  load_pin:
+    number: GPIO27
+  clock_inhibit_pin:
+    number: GPIO26
   sr_count: 4
 
 matrix_keypad:
   id: keypad
   rows:
-    - pin: 21
+    - pin:
+        allow_other_uses: true
+        number: 21
     - pin: 19
   columns:
-    - pin: 17
-    - pin: 16
+    - pin:
+        allow_other_uses: true
+        number: 17
+    - pin:
+        allow_other_uses: true
+        number: 16
   keys: "1234"
 
 key_collector:
@@ -683,14 +796,18 @@ key_collector:
 light:
   - platform: esp32_rmt_led_strip
     id: led_strip
-    pin: 13
+    pin:
+      allow_other_uses: true
+      number: 13
     num_leds: 60
     rmt_channel: 6
     rgb_order: GRB
     chipset: ws2812
   - platform: esp32_rmt_led_strip
     id: led_strip2
-    pin: 15
+    pin:
+      allow_other_uses: true
+      number: 15
     num_leds: 60
     rmt_channel: 2
     rgb_order: RGB

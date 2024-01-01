@@ -1,6 +1,7 @@
 #include "tof10120_sensor.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include <cinttypes>
 
 // Very basic support for TOF10120 distance sensor
 
@@ -44,7 +45,7 @@ void TOF10120Sensor::update() {
   }
 
   uint32_t distance_mm = (data[0] << 8) | data[1];
-  ESP_LOGI(TAG, "Data read: %dmm", distance_mm);
+  ESP_LOGI(TAG, "Data read: %" PRIu32 "mm", distance_mm);
 
   if (distance_mm == TOF10120_OUT_OF_RANGE_VALUE) {
     ESP_LOGW(TAG, "Distance measurement out of range");

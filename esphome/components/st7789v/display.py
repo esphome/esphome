@@ -14,12 +14,12 @@ from esphome.const import (
     CONF_POWER_SUPPLY,
     CONF_ROTATION,
     CONF_CS_PIN,
+    CONF_OFFSET_HEIGHT,
+    CONF_OFFSET_WIDTH,
 )
 from . import st7789v_ns
 
 CONF_EIGHTBITCOLOR = "eightbitcolor"
-CONF_OFFSET_HEIGHT = "offset_height"
-CONF_OFFSET_WIDTH = "offset_width"
 
 CODEOWNERS = ["@kbx81"]
 
@@ -97,6 +97,19 @@ MODELS = {
             CONF_BACKLIGHT_PIN: "GPIO15",
         }
     ),
+    "WAVESHARE_1.47IN_172X320": model_spec(
+        presets={
+            CONF_HEIGHT: 320,
+            CONF_WIDTH: 172,
+            CONF_OFFSET_HEIGHT: 34,
+            CONF_OFFSET_WIDTH: 0,
+            CONF_ROTATION: 90,
+            CONF_CS_PIN: "GPIO21",
+            CONF_DC_PIN: "GPIO22",
+            CONF_RESET_PIN: "GPIO23",
+            CONF_BACKLIGHT_PIN: "GPIO4",
+        }
+    ),
     "CUSTOM": model_spec(),
 }
 
@@ -138,7 +151,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MODEL): cv.one_of(*MODELS.keys(), upper=True, space="_"),
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_BACKLIGHT_PIN): cv.Any(
+                cv.boolean,
+                pins.gpio_output_pin_schema,
+            ),
             cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
             cv.Optional(CONF_EIGHTBITCOLOR, default=False): cv.boolean,
             cv.Optional(CONF_HEIGHT): cv.int_,
@@ -155,7 +171,6 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
 
@@ -174,7 +189,7 @@ async def to_code(config):
     reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
     cg.add(var.set_reset_pin(reset))
 
-    if CONF_BACKLIGHT_PIN in config:
+    if CONF_BACKLIGHT_PIN in config and config[CONF_BACKLIGHT_PIN]:
         bl = await cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
         cg.add(var.set_backlight_pin(bl))
 

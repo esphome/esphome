@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 import re
-import os
 import argparse
-import json
 
 CHANNEL_DEV = "dev"
 CHANNEL_BETA = "beta"
 CHANNEL_RELEASE = "release"
+
+GHCR = "ghcr"
+DOCKERHUB = "dockerhub"
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -21,21 +22,31 @@ parser.add_argument(
     required=True,
     help="The suffix of the tag.",
 )
+parser.add_argument(
+    "--registry",
+    type=str,
+    choices=[GHCR, DOCKERHUB],
+    required=False,
+    action="append",
+    help="The registry to build tags for.",
+)
 
 
 def main():
     args = parser.parse_args()
 
     # detect channel from tag
-    match = re.match(r"^(\d+\.\d+)(?:\.\d+)?(b\d+)?$", args.tag)
+    match = re.match(r"^(\d+\.\d+)(?:\.\d+)(?:(b\d+)|(-dev\d+))?$", args.tag)
     major_minor_version = None
-    if match is None:
+    if match is None:  # eg 2023.12.0-dev20231109-testbranch
+        channel = None  # Ran with custom tag for a branch etc
+    elif match.group(3) is not None:  # eg 2023.12.0-dev20231109
         channel = CHANNEL_DEV
-    elif match.group(2) is None:
+    elif match.group(2) is not None:  # eg 2023.12.0b1
+        channel = CHANNEL_BETA
+    else:  # eg 2023.12.0
         major_minor_version = match.group(1)
         channel = CHANNEL_RELEASE
-    else:
-        channel = CHANNEL_BETA
 
     tags_to_push = [args.tag]
     if channel == CHANNEL_DEV:
@@ -53,15 +64,28 @@ def main():
 
     suffix = f"-{args.suffix}" if args.suffix else ""
 
-    with open(os.environ["GITHUB_OUTPUT"], "w") as f:
-        print(f"channel={channel}", file=f)
-        print(f"image=esphome/esphome{suffix}", file=f)
-        full_tags = []
+    image_name = f"esphome/esphome{suffix}"
 
-        for tag in tags_to_push:
-            full_tags += [f"ghcr.io/esphome/esphome{suffix}:{tag}"]
-            full_tags += [f"esphome/esphome{suffix}:{tag}"]
-        print(f"tags={','.join(full_tags)}", file=f)
+    print(f"channel={channel}")
+
+    if args.registry is None:
+        args.registry = [GHCR, DOCKERHUB]
+    elif len(args.registry) == 1:
+        if GHCR in args.registry:
+            print(f"image=ghcr.io/{image_name}")
+        if DOCKERHUB in args.registry:
+            print(f"image=docker.io/{image_name}")
+
+    print(f"image_name={image_name}")
+
+    full_tags = []
+
+    for tag in tags_to_push:
+        if GHCR in args.registry:
+            full_tags += [f"ghcr.io/{image_name}:{tag}"]
+        if DOCKERHUB in args.registry:
+            full_tags += [f"docker.io/{image_name}:{tag}"]
+    print(f"tags={','.join(full_tags)}")
 
 
 if __name__ == "__main__":
