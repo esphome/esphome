@@ -28,11 +28,12 @@ void Touchscreen::loop() {
   if (this->store_.touched) {
     this->first_touch_ = this->touches_.empty();
     this->need_update_ = false;
+    this->was_touched_ = this->is_touched_;
     this->is_touched_ = false;
     this->skip_update_ = false;
     for (auto &tp : this->touches_) {
       if (tp.second.state == STATE_PRESSED || tp.second.state == STATE_UPDATED) {
-        tp.second.state = tp.second.state | STATE_RELEASING;
+        tp.second.state |= STATE_RELEASING;
       } else {
         tp.second.state = STATE_RELEASED;
       }
@@ -42,8 +43,9 @@ void Touchscreen::loop() {
     this->update_touches();
     if (this->skip_update_) {
       for (auto &tp : this->touches_) {
-        tp.second.state = tp.second.state & -STATE_RELEASING;
+        tp.second.state &= ~STATE_RELEASING;
       }
+      this->is_touched_ = this->was_touched_;
     } else {
       this->store_.touched = false;
       this->defer([this]() { this->send_touches_(); });
@@ -98,10 +100,13 @@ void Touchscreen::send_touches_() {
     if (this->touch_timeout_ > 0) {
       this->cancel_timeout(TAG);
     }
-    this->release_trigger_.trigger();
-    for (auto *listener : this->touch_listeners_)
-      listener->release();
-    this->touches_.clear();
+    if (this->was_touched_) {
+      this->release_trigger_.trigger();
+      for (auto *listener : this->touch_listeners_)
+        listener->release();
+      this->touches_.clear();
+      this->was_touched_ = false;
+    }
   } else {
     TouchPoints_t touches;
     for (auto tp : this->touches_) {
