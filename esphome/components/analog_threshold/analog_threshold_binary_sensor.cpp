@@ -7,29 +7,30 @@ namespace analog_threshold {
 static const char *const TAG = "analog_threshold.binary_sensor";
 
 void AnalogThresholdBinarySensor::setup() {
-  float sensor_value = this->sensor_->get_state();
-
-  // TRUE state is defined to be when sensor is >= threshold
-  // so when undefined sensor value initialize to FALSE
-  if (std::isnan(sensor_value)) {
-    this->publish_initial_state(false);
-  } else {
-    this->publish_initial_state(sensor_value >=
-                                (this->lower_threshold_.value() + this->upper_threshold_.value()) / 2.0f);
-  }
-}
-
-void AnalogThresholdBinarySensor::set_sensor(sensor::Sensor *analog_sensor) {
-  this->sensor_ = analog_sensor;
-
   this->sensor_->add_on_state_callback([this](float sensor_value) {
-    // if there is an invalid sensor reading, ignore the change and keep the current state
-    if (!std::isnan(sensor_value)) {
-      this->publish_state(sensor_value >=
-                          (this->state ? this->lower_threshold_.value() : this->upper_threshold_.value()));
+    if (std::isnan(sensor_value)) {
+      // If there is an invalid sensor reading, ignore the change and keep the current state.
+      // As an alternative, we could call this->invalidate_state() here, but that would be
+      // a breaking change without a config option to enable it.
+      return;
     }
+
+    float threshold;
+    if (!this->has_state()) {
+      // No prior state, use the midpoint of the thresholds.
+      threshold = (this->lower_threshold_.value() + this->upper_threshold_.value()) / 2.0f;
+    } else if (this->state) {
+      // Currently TRUE, use lower_threshold for comparison.
+      threshold = this->lower_threshold_.value();
+    } else {
+      // Currently FALSE, use upper_threshold for comparison.
+      threshold = this->upper_threshold_.value();
+    }
+    this->publish_state(sensor_value >= threshold);
   });
 }
+
+void AnalogThresholdBinarySensor::set_sensor(sensor::Sensor *analog_sensor) { this->sensor_ = analog_sensor; }
 
 void AnalogThresholdBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "Analog Threshold Binary Sensor", this);
