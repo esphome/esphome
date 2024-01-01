@@ -221,7 +221,7 @@ RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 0, 14)
 # The platformio/espressif32 version to use for arduino frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ARDUINO_PLATFORM_VERSION = cv.Version(6, 5, 0)
+ARDUINO_PLATFORM_VERSION = cv.Version(5, 4, 0)
 
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
@@ -230,7 +230,7 @@ RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 6)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ESP_IDF_PLATFORM_VERSION = cv.Version(6, 5, 0)
+ESP_IDF_PLATFORM_VERSION = cv.Version(5, 4, 0)
 
 
 def _arduino_check_versions(value):
