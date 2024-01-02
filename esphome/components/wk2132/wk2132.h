@@ -169,15 +169,15 @@ class WK2132Register {
   WK2132Register &operator|=(uint8_t value);
 
   /// @brief cast operator that returns the content of the wk2132 register
-  operator uint8_t() const { return get(); }
+  operator uint8_t() const { return read_reg(); }
 
   /// @brief returns the value of the wk2132 register
   /// @return the value of the wk2132 register
-  virtual uint8_t get() const = 0;
+  virtual uint8_t read_reg() const = 0;
 
-  /// @brief sets the wk2132 register value
+  /// @brief write the wk2132 register value
   /// @param value to set
-  virtual void set(uint8_t value) = 0;
+  virtual void write_reg(uint8_t value) = 0;
 
   /// @brief read an array of bytes (normally used for fifo access)
   /// @param data pointer to data buffer

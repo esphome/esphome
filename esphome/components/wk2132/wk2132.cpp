@@ -188,19 +188,19 @@ const char *p2s(uart::UARTParityOptions parity) {
 // The WK2132Register methods
 ///////////////////////////////////////////////////////////////////////////////
 WK2132Register &WK2132Register::operator=(uint8_t value) {
-  set(value);
+  write_reg(value);
   return *this;
 }
 
 WK2132Register &WK2132Register::operator&=(uint8_t value) {
-  value &= get();
-  set(value);
+  value &= read_reg();
+  write_reg(value);
   return *this;
 }
 
 WK2132Register &WK2132Register::operator|=(uint8_t value) {
-  value |= get();
-  set(value);
+  value |= read_reg();
+  write_reg(value);
   return *this;
 }
 
@@ -311,7 +311,7 @@ void WK2132Channel::set_line_param_() {
       break;  // no parity 000x
   }
   ESP_LOGV(TAG, "    line config: %d data_bits, %d stop_bits, parity %s register [%s]", this->data_bits_,
-           this->stop_bits_, p2s(this->parity_), I2CS(lcr.get()));
+           this->stop_bits_, p2s(this->parity_), I2CS(lcr.read_reg()));
 }
 
 void WK2132Channel::set_baudrate_() {

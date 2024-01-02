@@ -49,7 +49,7 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 ///////////////////////////////////////////////////////////////////////////////
 // The WK2132Register methods
 ///////////////////////////////////////////////////////////////////////////////
-uint8_t WK2132RegisterSPI::get() const {
+uint8_t WK2132RegisterSPI::read_reg() const {
   uint8_t value = 0x00;
   WK2132ComponentSPI *spi_comp = static_cast<WK2132ComponentSPI *>(this->comp_);
   auto command = command_byte(READ_CMD, REG, this->register_, this->channel_);
@@ -57,7 +57,7 @@ uint8_t WK2132RegisterSPI::get() const {
   spi_comp->write_byte(command);
   spi_comp->read_array(&value, 1);
   spi_comp->disable();
-  ESP_LOGVV(TAG, "Register::get() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(command), command,
+  ESP_LOGVV(TAG, "Register::read_reg() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(command), command,
             reg_to_str(this->register_, spi_comp->page1_), this->register_, this->channel_, value);
   return value;
 }
@@ -74,14 +74,14 @@ void WK2132RegisterSPI::read_fifo(uint8_t *data, size_t length) const {
             format_hex_pretty(data, length).c_str());
 }
 
-void WK2132RegisterSPI::set(uint8_t value) {
+void WK2132RegisterSPI::write_reg(uint8_t value) {
   WK2132ComponentSPI *spi_comp = static_cast<WK2132ComponentSPI *>(this->comp_);
   auto command = command_byte(WRITE_CMD, REG, this->register_, this->channel_);
   spi_comp->enable();
   spi_comp->write_byte(command);
   spi_comp->write_array(&value, 1);
   spi_comp->disable();
-  ESP_LOGVV(TAG, "Register::set() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(command), command,
+  ESP_LOGVV(TAG, "Register::write_reg() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(command), command,
             reg_to_str(this->register_, spi_comp->page1_), this->register_, this->channel_, value);
 }
 
@@ -104,16 +104,16 @@ void WK2132ComponentSPI::setup() {
   using namespace wk2132;
   ESP_LOGCONFIG(TAG, "Setting up wk2132_spi: %s with %d UARTs...", this->get_name(), this->children_.size());
   this->spi_setup();
-  delay(10);
+  // delay(10);
 
-  this->enable();
-  this->write_byte(0x55);
-  this->transfer_byte(0xAA);
-  this->delegate_->transfer(0x55);
-  uint8_t data[] = {0x55, 0xAA};
-  this->write_array(data, 2);
-  this->transfer_array(data, 2);
-  this->disable();
+  // this->enable();
+  // this->write_byte(0x55);
+  // this->transfer_byte(0xAA);
+  // this->delegate_->transfer(0x55);
+  // uint8_t data[] = {0x55, 0xAA};
+  // this->write_array(data, 2);
+  // this->transfer_array(data, 2);
+  // this->disable();
 
   // enable both channels
   this->global_reg(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
