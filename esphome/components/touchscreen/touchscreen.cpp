@@ -108,6 +108,7 @@ void Touchscreen::send_touches_() {
       this->touches_.clear();
       for (auto *listener : this->touch_listeners_) {
         listener->update(touches);
+      }
       this->was_touched_ = false;
     }
   } else {

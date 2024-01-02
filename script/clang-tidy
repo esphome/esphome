@@ -25,6 +25,39 @@ import sys
 import tempfile
 import threading
 
+def get_binary(name, version):
+    clang_binary = f"{name}-{version}"
+    try:
+        result = subprocess.check_output([clang_binary, '-version'])
+        if result.returncode == 0:
+            return clang_binary
+    except Exception:
+        pass
+    clang_binary = name
+    try:
+        result = subprocess.run([clang_binary, '-version'], text=True, capture_output=True)
+        if result.returncode == 0 and (f"version {version}") in result.stdout:
+            return clang_binary
+        print(f"did not find version {version} in output: {result.stdout}")
+    except Exception as ex:
+        print(ex)
+        pass
+
+    print(
+        f"""
+        Oops. It looks like {name} is not installed.
+
+        Please confirm you can run "{name} -version" or "{name}-{version} -version"
+        in your terminal and install
+        {name} (v{version}) if necessary.
+
+        Note you can also upload your code as a pull request on GitHub and see the CI check
+        output to apply {name}
+        """
+    )
+    sys.exit()
+ 
+
 
 def clang_options(idedata):
     cmd = []
@@ -113,7 +146,7 @@ def clang_options(idedata):
 def run_tidy(args, options, tmpdir, queue, lock, failed_files):
     while True:
         path = queue.get()
-        invocation = ["clang-tidy-14"]
+        invocation = [get_binary("clang-tidy", 14)]
 
         if tmpdir is not None:
             invocation.append("--export-fixes")
@@ -192,22 +225,6 @@ def main():
         help="create a dummy file that checks all headers",
     )
     args = parser.parse_args()
-
-    try:
-        get_output("clang-tidy-14", "-version")
-    except:
-        print(
-            """
-        Oops. It looks like clang-tidy-14 is not installed.
-
-        Please check you can run "clang-tidy-14 -version" in your terminal and install
-        clang-tidy (v14) if necessary.
-
-        Note you can also upload your code as a pull request on GitHub and see the CI check
-        output to apply clang-tidy.
-        """
-        )
-        return 1
 
     idedata = load_idedata(args.environment)
     options = clang_options(idedata)

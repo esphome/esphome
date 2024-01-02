@@ -13,11 +13,43 @@ import sys
 import threading
 
 
+
+def get_binary(name, version):
+    clang_binary = f"{name}-{version}"
+    try:
+        result = subprocess.check_output([clang_binary, '-version'])
+        if result.returncode == 0:
+            return clang_binary
+    except Exception:
+        pass
+    clang_binary = name
+    try:
+        result = subprocess.run([clang_binary, '-version'], text=True, capture_output=True)
+        if result.returncode == 0 and (f"version {version}") in result.stdout:
+            return clang_binary
+    except Exception as ex:
+        pass
+
+    print(
+        f"""
+        Oops. It looks like {name} is not installed.
+
+        Please confirm you can run "{name} -version" or "{name}-{version} -version"
+        in your terminal and install
+        {name} (v{version}) if necessary.
+
+        Note you can also upload your code as a pull request on GitHub and see the CI check
+        output to apply {name}
+        """
+    )
+    sys.exit()
+ 
+
 def run_format(args, queue, lock, failed_files):
     """Takes filenames out of queue and runs clang-format on them."""
     while True:
         path = queue.get()
-        invocation = ["clang-format-13"]
+        invocation = [get_binary("clang-format", 13)]
         if args.inplace:
             invocation.append("-i")
         else:
@@ -57,22 +89,6 @@ def main():
         "-c", "--changed", action="store_true", help="only run on changed files"
     )
     args = parser.parse_args()
-
-    try:
-        get_output("clang-format-13", "-version")
-    except:
-        print(
-            """
-        Oops. It looks like clang-format is not installed. 
-        
-        Please check you can run "clang-format-13 -version" in your terminal and install
-        clang-format (v13) if necessary.
-        
-        Note you can also upload your code as a pull request on GitHub and see the CI check
-        output to apply clang-format.
-        """
-        )
-        return 1
 
     files = []
     for path in git_ls_files(["*.cpp", "*.h", "*.tcc"]):
