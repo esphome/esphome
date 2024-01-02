@@ -105,6 +105,9 @@ void Touchscreen::send_touches_() {
       for (auto *listener : this->touch_listeners_)
         listener->release();
       this->touches_.clear();
+      TouchPoints_t touches;
+      for (auto *listener : this->touch_listeners_) {
+        listener->update(touches);
       this->was_touched_ = false;
     }
   } else {
