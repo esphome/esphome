@@ -84,6 +84,14 @@ uart:
       allow_other_uses: true
       number: GPIO26
     baud_rate: 9600
+  - id: uart_a02yyuw
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO22
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO23
+    baud_rate: 9600
   - id: uart_he60r
     tx_pin:
       number: GPIO18
@@ -357,6 +365,11 @@ sensor:
     name: "a01nyub Distance"
     uart_id: uart9600
     state_topic: "esphome/sensor/a01nyub_sensor/state"
+  - platform: a02yyuw
+    id: a02yyuw_sensor
+    name: "a02yyuw Distance"
+    uart_id: uart_a02yyuw
+    state_topic: "esphome/sensor/a02yyuw_sensor/state"
 
 #
 # platform sensor.apds9960 requires component apds9960
@@ -464,6 +477,7 @@ binary_sensor:
       sx1509: sx1509_hub
       number: 3
 
+
   - platform: touchscreen
     touchscreen_id: lilygo_touchscreen
     id: touch_key1
@@ -483,6 +497,7 @@ binary_sensor:
     pin:
       max6956: max6956_1
       number: 4
+
       mode:
         input: true
         pullup: true
@@ -505,6 +520,7 @@ binary_sensor:
       mode:
         input: true
       inverted: false
+
 
 climate:
   - platform: tuya
@@ -595,6 +611,8 @@ display:
       it.rectangle(1, 1, it.get_width()-2, it.get_height()-2, green);
       it.rectangle(2, 2, it.get_width()-4, it.get_height()-4, blue);
       it.rectangle(3, 3, it.get_width()-6, it.get_height()-6, red);
+      auto touch = id(ft63_touchscreen)->get_touch();
+      if (touch)  { ESP_LOGD("touch", "%d/%d", touch.value().x, touch.value().y); }
     rotation: 0°
     update_interval: 16ms
 
@@ -677,53 +695,53 @@ display:
     update_interval: 60s
 
     display_data_1_pin:
-      number: 5
+      number: GPIO5
       allow_other_uses: true
     display_data_2_pin:
-      number: 18
+      number: GPIO18
       allow_other_uses: true
     display_data_3_pin:
-      number: 19
+      number: GPIO19
       allow_other_uses: true
     display_data_5_pin:
-      number: 25
+      number: GPIO25
       allow_other_uses: true
     display_data_4_pin:
-      number: 23
+      number: GPIO23
       allow_other_uses: true
     display_data_6_pin:
-      number: 26
+      number: GPIO26
       allow_other_uses: true
     display_data_7_pin:
-      number: 27
+      number: GPIO27
       allow_other_uses: true
     ckv_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     sph_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     gmod_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     gpio0_enable_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     oe_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     spv_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     powerup_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     wakeup_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
     vcom_pin:
-      allow_other_uses: true
       number: GPIO1
+      allow_other_uses: true
 
 number:
   - platform: tuya
@@ -816,21 +834,16 @@ esp32_camera:
       allow_other_uses: true
     - number: GPIO35
       allow_other_uses: true
-    -
-      number:  GPIO34
-    -
-      number:  GPIO5
+    - number:  GPIO34
+    - number:  GPIO5
       allow_other_uses: true
-    -
-      number:  GPIO39
-    -
-      number:  GPIO18
+    - number:  GPIO39
       allow_other_uses: true
-    -
-      number:  GPIO36
+    - number:  GPIO18
       allow_other_uses: true
-    -
-      number:  GPIO19
+    - number:  GPIO36
+      allow_other_uses: true
+    - number:  GPIO19
       allow_other_uses: true
   vsync_pin:
     allow_other_uses: true
@@ -861,6 +874,10 @@ esp32_camera:
     number: GPIO1
   resolution: 640x480
   jpeg_quality: 10
+  on_image:
+    then:
+    - lambda: |-
+        ESP_LOGD("main", "image len=%d, data=%c", image.length, image.data[0]);
 
 esp32_camera_web_server:
   - port: 8080
@@ -906,18 +923,16 @@ touchscreen:
     spi_id: spi_id_2
     cs_pin:
       allow_other_uses: true
-      number: 17
+      number: GPIO17
     interrupt_pin:
-      number: 16
+      number: GPIO16
     display: inkplate_display
     update_interval: 50ms
-    report_interval: 1s
     threshold: 400
     calibration_x_min: 3860
     calibration_x_max: 280
     calibration_y_min: 340
     calibration_y_max: 3860
-    swap_x_y: false
     on_touch:
       - logger.log:
           format: Touch at (%d, %d)
@@ -934,9 +949,24 @@ touchscreen:
           format: Touch at (%d, %d)
           args: [touch.x, touch.y]
   - platform: gt911
-    interrupt_pin: GPIO3
+    interrupt_pin:
+      number: GPIO3
     display: inkplate_display
 
+
+  - platform: ft63x6
+    id: ft63_touchscreen
+    interrupt_pin:
+      allow_other_uses: true
+      number: GPIO39
+    reset_pin:
+      allow_other_uses: true
+      number:  GPIO5
+    display: inkplate_display
+    on_touch:
+      - logger.log:
+          format: Touch at (%d, %d)
+          args: [touch.x, touch.y]
 
 i2s_audio:
   i2s_lrclk_pin:
