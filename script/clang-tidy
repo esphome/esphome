@@ -112,6 +112,8 @@ def clang_options(idedata):
     return cmd
 
 
+pids = set()
+
 def run_tidy(executable, args, options, tmpdir, queue, lock, failed_files):
     while True:
         path = queue.get()
@@ -256,7 +258,10 @@ def main():
         print("Ctrl-C detected, goodbye.")
         if tmpdir:
             shutil.rmtree(tmpdir)
-        return 2
+        # Kill subprocesses (and ourselves!)
+        # No simple, clean alternative appears to be available.
+        os.kill(0, 9)
+        return 2    # Will not execute.
 
     if args.fix and failed_files:
         print("Applying fixes ...")

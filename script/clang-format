@@ -106,7 +106,10 @@ def main():
     except KeyboardInterrupt:
         print()
         print("Ctrl-C detected, goodbye.")
-        return 2
+        # Kill subprocesses (and ourselves!)
+        # No simple, clean alternative appears to be available.
+        os.kill(0, 9)
+        return 2    # Will not execute.
 
     return len(failed_files)
 
