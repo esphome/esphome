@@ -1388,6 +1388,13 @@ sensor:
     object:
       name: Object
       emissivity: 1.0
+  - platform: mlx90615
+    i2c_id: i2c_bus
+    ambient:
+      name: Ambient
+    object:
+      name: Object
+      emissivity: 1.0
   - platform: mpl3115a2
     i2c_id: i2c_bus
     temperature:
