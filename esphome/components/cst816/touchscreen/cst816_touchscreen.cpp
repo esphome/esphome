@@ -13,6 +13,9 @@ void CST816Touchscreen::dump_config() {
     case CST816S_CHIP_ID:
       name = "CST816S";
       break;
+    case CST816D_CHIP_ID:
+      name = "CST816D";
+      break;
     case CST716_CHIP_ID:
       name = "CST716";
       break;
