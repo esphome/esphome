@@ -250,13 +250,13 @@ def main():
         task_queue.join()
 
     except FileNotFoundError as ex:
-        pass
+        return 1
     except KeyboardInterrupt:
         print()
         print("Ctrl-C detected, goodbye.")
         if tmpdir:
             shutil.rmtree(tmpdir)
-        os.kill(0, 9)
+        return 2
 
     if args.fix and failed_files:
         print("Applying fixes ...")
@@ -266,8 +266,8 @@ def main():
             print("Error applying fixes.\n", file=sys.stderr)
             raise
 
-    sys.exit(len(failed_files))
+    return len(failed_files)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

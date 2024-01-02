@@ -23,5 +23,3 @@ pyparsing >= 3.0
 
 # For autocompletion
 argcomplete>=2.0.0
-clang-tidy==14.0.6
-clang-format==13.0.1

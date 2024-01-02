@@ -102,14 +102,14 @@ def main():
         task_queue.join()
 
     except FileNotFoundError as ex:
-        pass
+        return 1
     except KeyboardInterrupt:
         print()
         print("Ctrl-C detected, goodbye.")
-        os.kill(0, 9)
+        return 2
 
-    sys.exit(len(failed_files))
+    return len(failed_files)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

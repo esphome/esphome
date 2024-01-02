@@ -170,23 +170,22 @@ def get_binary(name: str, version: str) -> str:
         )
         if result.returncode == 0 and (f"version {version}") in result.stdout:
             return binary_file
-        print(f"did not find version {version} in output: {result.stdout}")
+        raise FileNotFoundError(f"{name} not found")
+
     except FileNotFoundError as ex:
-        pass
+        print(
+            f"""
+            Oops. It looks like {name} is not installed. It should be available under venv/bin
+            and in PATH after running in turn:
+              script/setup
+              source venv/bin/activate.
 
-    print(
-        f"""
-        Oops. It looks like {name} is not installed. It should be available under venv/bin
-        and in PATH after running in turn:
-          script/setup
-          source venv/bin/activate.
+            Please confirm you can run "{name} -version" or "{name}-{version} -version"
+            in your terminal and install
+            {name} (v{version}) if necessary.
 
-        Please confirm you can run "{name} -version" or "{name}-{version} -version"
-        in your terminal and install
-        {name} (v{version}) if necessary.
-
-        Note you can also upload your code as a pull request on GitHub and see the CI check
-        output to apply {name}
-        """
-    )
-    raise FileNotFoundError(f"{name} not found")
+            Note you can also upload your code as a pull request on GitHub and see the CI check
+            output to apply {name}
+            """
+        )
+        raise

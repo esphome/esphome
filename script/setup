@@ -22,3 +22,7 @@ pip3 install --no-use-pep517 -e .
 pre-commit install
 
 script/platformio_install_deps.py platformio.ini --libraries --tools --platforms
+
+echo
+echo
+echo "Virtual environment created; source venv/bin/activate to use it"

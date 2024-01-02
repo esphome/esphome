@@ -13,3 +13,4 @@ asyncmock==0.4.2
 hypothesis==5.49.0
 
 clang-format==13.0.1 ; platform_machine != 'armv7l'
+clang-tidy==14.0.6 ; platform_machine != 'armv7l'
