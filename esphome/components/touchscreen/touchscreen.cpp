@@ -96,6 +96,7 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
 }
 
 void Touchscreen::send_touches_() {
+  TouchPoints_t touches;
   if (!this->is_touched_) {
     if (this->touch_timeout_ > 0) {
       this->cancel_timeout(TAG);
@@ -105,13 +106,11 @@ void Touchscreen::send_touches_() {
       for (auto *listener : this->touch_listeners_)
         listener->release();
       this->touches_.clear();
-      TouchPoints_t touches;
       for (auto *listener : this->touch_listeners_) {
         listener->update(touches);
       this->was_touched_ = false;
     }
   } else {
-    TouchPoints_t touches;
     for (auto tp : this->touches_) {
       if (tp.second.state == STATE_PRESSED || tp.second.state == STATE_UPDATED)
         touches.push_back(tp.second);
