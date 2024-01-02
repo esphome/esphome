@@ -11,6 +11,7 @@ from helpers import (
     load_idedata,
     root_path,
     basepath,
+    get_binary,
 )
 import argparse
 import click
@@ -25,41 +26,6 @@ import sys
 import tempfile
 import threading
 
-def get_binary(name, version):
-    clang_binary = f"{name}-{version}"
-    try:
-        result = subprocess.check_output([clang_binary, '-version'])
-        if result.returncode == 0:
-            return clang_binary
-    except Exception:
-        pass
-    clang_binary = name
-    try:
-        result = subprocess.run([clang_binary, '-version'], text=True, capture_output=True)
-        if result.returncode == 0 and (f"version {version}") in result.stdout:
-            return clang_binary
-        print(f"did not find version {version} in output: {result.stdout}")
-    except Exception as ex:
-        print(ex)
-        pass
-
-    print(
-        f"""
-        Oops. It looks like {name} is not installed. It will be available under venv/bin
-        and in PATH after running in turn:
-          script/setup
-          source venv/bin/activate.
-
-        Please confirm you can run "{name} -version" or "{name}-{version} -version"
-        in your terminal and install
-        {name} (v{version}) if necessary.
-
-        Note you can also upload your code as a pull request on GitHub and see the CI check
-        output to apply {name}
-        """
-    )
-    sys.exit()
- 
 
 
 def clang_options(idedata):
@@ -146,10 +112,10 @@ def clang_options(idedata):
     return cmd
 
 
-def run_tidy(args, options, tmpdir, queue, lock, failed_files):
+def run_tidy(executable, args, options, tmpdir, queue, lock, failed_files):
     while True:
         path = queue.get()
-        invocation = [get_binary("clang-tidy", 14)]
+        invocation = [executable]
 
         if tmpdir is not None:
             invocation.append("--export-fixes")
@@ -262,12 +228,13 @@ def main():
 
     failed_files = []
     try:
+        executable = get_binary("clang-tidy", 14)
         task_queue = queue.Queue(args.jobs)
         lock = threading.Lock()
         for _ in range(args.jobs):
             t = threading.Thread(
                 target=run_tidy,
-                args=(args, options, tmpdir, task_queue, lock, failed_files),
+                args=(executable, args, options, tmpdir, task_queue, lock, failed_files),
             )
             t.daemon = True
             t.start()
@@ -282,6 +249,8 @@ def main():
         # Wait for all threads to be done.
         task_queue.join()
 
+    except FileNotFoundError as ex:
+        pass
     except KeyboardInterrupt:
         print()
         print("Ctrl-C detected, goodbye.")
