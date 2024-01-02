@@ -19,8 +19,8 @@ void TextRunPanel::dump_config(int indent_depth, int additional_level_depth) {
   ESP_LOGCONFIG(TAG, "%*sText Align: %s", indent_depth, "",
                 LOG_STR_ARG(display::text_align_to_string(this->text_align_)));
   ESP_LOGCONFIG(TAG, "%*sText Runs: %i", indent_depth, "", this->text_runs_.size());
-  for (TextRun *run : this->text_runs_) {
-    std::string text = run->text_.value();
+  for (TextRunBase *run : this->text_runs_) {
+    std::string text = run->get_text();
     ESP_LOGCONFIG(TAG, "%*sText: %s", indent_depth + additional_level_depth, "", text.c_str());
   }
 }
@@ -72,12 +72,12 @@ CalculatedLayout TextRunPanel::determine_layout(display::Display *display, displ
   int widest_line = 0;
   int line_number = 0;
 
-  for (TextRun *run : this->text_runs_) {
+  for (TextRunBase *run : this->text_runs_) {
     int x1;
     int width;
     int height;
     int baseline;
-    std::string text = run->text_.value();
+    std::string text = run->get_text();
 
     run->font_->measure(text.c_str(), &width, &x1, &baseline, &height);
 

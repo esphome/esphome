@@ -1,13 +1,16 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import font, color
+from esphome.components import font, color, sensor, text_sensor
 from esphome.components.display import display_ns
-from esphome.const import CONF_ID, CONF_FOREGROUND_COLOR, CONF_BACKGROUND_COLOR
+from esphome.const import CONF_ID, CONF_FOREGROUND_COLOR, CONF_BACKGROUND_COLOR, CONF_SENSOR
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 TextRunPanel = graphical_layout_ns.class_("TextRunPanel")
 TextAlign = display_ns.enum("TextAlign", is_class=True)
-TextRun = graphical_layout_ns.class_("TextRun")
+TextRunBase = graphical_layout_ns.class_("TextRunBase")
+TextRun = graphical_layout_ns.class_("TextRun", TextRunBase)
+SensorTextRun = graphical_layout_ns.class_("SensorTextRun", TextRunBase)
+TextSensorTextRun = graphical_layout_ns.class_("TextSensorTextRun", TextRunBase)
 CanWrapAtCharacterArguments = graphical_layout_ns.struct("CanWrapAtCharacterArguments")
 CanWrapAtCharacterArgumentsConstRef = CanWrapAtCharacterArguments.operator(
     "const"
@@ -22,6 +25,8 @@ CONF_MIN_WIDTH = "min_width"
 CONF_RUNS = "runs"
 CONF_CAN_WRAP_AT_CHARACTER = "can_wrap_at_character"
 CONF_DEBUG_OUTLINE_RUNS = "debug_outline_runs"
+CONF_TEXT_SENSOR = "text_sensor"
+CONF_TEXT_FORMATTER = "text_formatter"
 
 TEXT_ALIGN = {
     "TOP_LEFT": TextAlign.TOP_LEFT,
@@ -38,14 +43,42 @@ TEXT_ALIGN = {
     "BOTTOM_RIGHT": TextAlign.BOTTOM_RIGHT,
 }
 
-RUN_SCHEMA = cv.Schema(
+BASE_RUN_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(TextRun),
         cv.Required(CONF_FONT): cv.use_id(font.Font),
         cv.Optional(CONF_FOREGROUND_COLOR): cv.use_id(color.ColorStruct),
         cv.Optional(CONF_BACKGROUND_COLOR): cv.use_id(color.ColorStruct),
-        cv.Required(CONF_TEXT): cv.templatable(cv.string),
     }
+)
+
+SENSOR_TEXT_RUN_SCHEMA = BASE_RUN_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(SensorTextRun),
+        cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
+        cv.Optional(CONF_TEXT_FORMATTER): cv.returning_lambda,
+    }
+)
+
+TEXT_RUN_SCHEMA = BASE_RUN_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(TextRun),
+        cv.Required(CONF_TEXT): cv.templatable(cv.string),
+        cv.Optional(CONF_TEXT_FORMATTER): cv.returning_lambda,
+    }
+)
+
+TEXT_SENSOR_TEXT_RUN_SCHEMA = BASE_RUN_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(TextSensorTextRun),
+        cv.Required(CONF_TEXT_SENSOR): cv.use_id(text_sensor.TextSensor),
+        cv.Optional(CONF_TEXT_FORMATTER): cv.returning_lambda,
+    }
+)
+
+RUN_SCHEMA = cv.Any(
+    SENSOR_TEXT_RUN_SCHEMA,
+    TEXT_RUN_SCHEMA,
+    TEXT_SENSOR_TEXT_RUN_SCHEMA,
 )
 
 
@@ -90,12 +123,27 @@ async def config_to_layout_item(pvariable_builder, item_config, child_item_build
         cg.add(var.set_debug_outline_runs(debug_outline_runs))
 
     for run_config in item_config[CONF_RUNS]:
-        run_text = await cg.templatable(
-            run_config[CONF_TEXT], args=[], output_type=cg.std_string
-        )
+        run = None
         run_font = await cg.get_variable(run_config[CONF_FONT])
+        if run_sensor_config := run_config.get(CONF_SENSOR):
+            sens = await cg.get_variable(run_sensor_config)
+            run = cg.new_Pvariable(run_config[CONF_ID], sens, run_font)
+        elif run_text_sensor_config := run_config.get(CONF_TEXT_SENSOR):
+            text_sens = await cg.get_variable(run_text_sensor_config)
+            run = cg.new_Pvariable(run_config[CONF_ID], text_sens, run_font)
+        else:
+            run_text = await cg.templatable(
+                run_config[CONF_TEXT], args=[], output_type=cg.std_string
+            )
+            run = cg.new_Pvariable(run_config[CONF_ID], run_text, run_font)
 
-        run = cg.new_Pvariable(run_config[CONF_ID], run_text, run_font)
+        if run_text_formatter_config := run_config.get(CONF_TEXT_FORMATTER):
+            run_text_formatter = await cg.process_lambda(
+                run_text_formatter_config,
+                [(cg.std_string, "it")],
+                return_type=cg.std_string,
+            )
+            cg.add(run.set_text_formatter(run_text_formatter))
 
         if run_background_color_config := run_config.get(CONF_BACKGROUND_COLOR):
             run_background_color = await cg.get_variable(run_background_color_config)
