@@ -45,7 +45,10 @@ def get_binary(name, version):
 
     print(
         f"""
-        Oops. It looks like {name} is not installed.
+        Oops. It looks like {name} is not installed. It will be available under venv/bin
+        and in PATH after running in turn:
+          script/setup
+          source venv/bin/activate.
 
         Please confirm you can run "{name} -version" or "{name}-{version} -version"
         in your terminal and install
