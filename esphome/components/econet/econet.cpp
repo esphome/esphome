@@ -293,7 +293,7 @@ void Econet::parse_message_(bool is_tx) {
 // For TEXT it's some predefined number of bytes depending on the requested object padded with trailing whitespace.
 // For ENUM_TEXT it's 1 byte for the enum value, followed by one byte for the length of the enum text, and finally
 // followed by the bytes of the enum text padded with trailing whitespace.
-void Econet::handle_response_(EconetDatapointID datapoint_id, const uint8_t *p, uint8_t len) {
+void Econet::handle_response_(const EconetDatapointID &datapoint_id, const uint8_t *p, uint8_t len) {
   EconetDatapointType item_type = EconetDatapointType(p[0] & 0x7F);
   switch (item_type) {
     case EconetDatapointType::FLOAT: {
@@ -534,11 +534,11 @@ void Econet::set_enum_datapoint_value(const std::string &datapoint_id, uint8_t v
                        EconetDatapoint{.type = EconetDatapointType::ENUM_TEXT, .value_enum = value});
 }
 
-void Econet::set_datapoint_(EconetDatapointID datapoint_id, const EconetDatapoint &value) {
-  if (datapoint_id.address == 0) {
-    datapoint_id.address = dst_adr_;
-  }
+void Econet::set_datapoint_(const EconetDatapointID &datapoint_id, const EconetDatapoint &value) {
   auto specific = datapoint_id;
+  if (specific.address == 0) {
+    specific.address = dst_adr_;
+  }
   auto any = EconetDatapointID{.name = datapoint_id.name, .address = 0};
   bool send_specific = true;
   bool send_any = true;
@@ -571,7 +571,7 @@ void Econet::set_datapoint_(EconetDatapointID datapoint_id, const EconetDatapoin
   }
 }
 
-void Econet::send_datapoint_(EconetDatapointID datapoint_id, const EconetDatapoint &value) {
+void Econet::send_datapoint_(const EconetDatapointID &datapoint_id, const EconetDatapoint &value) {
   auto specific = EconetDatapointID{.name = datapoint_id.name, .address = datapoint_id.address};
   auto any = EconetDatapointID{.name = datapoint_id.name, .address = 0};
   bool send_specific = true;
