@@ -35,11 +35,7 @@ inline bool operator==(const EconetDatapointID &lhs, const EconetDatapointID &rh
   return lhs.name == rhs.name && lhs.address == rhs.address;
 }
 inline bool operator<(const EconetDatapointID &lhs, const EconetDatapointID &rhs) {
-  if ((lhs.name < rhs.name) || ((lhs.name == rhs.name) && (lhs.address < rhs.address))) {
-    return true;
-  } else {
-    return false;
-  }
+  return (lhs.name < rhs.name) || ((lhs.name == rhs.name) && (lhs.address < rhs.address));
 }
 
 enum class EconetDatapointType : uint8_t {
@@ -118,9 +114,9 @@ class Econet : public Component, public uart::UARTDevice {
                          const std::function<void(EconetDatapoint)> &func, bool is_raw_datapoint = false,
                          uint32_t src_adr = 0);
 
-  void homeassistant_read(std::string datapoint_id, uint32_t address = 0);
-  void homeassistant_write(std::string datapoint_id, uint8_t value);
-  void homeassistant_write(std::string datapoint_id, float value);
+  void homeassistant_read(const std::string &datapoint_id, uint32_t address = 0);
+  void homeassistant_write(const std::string &datapoint_id, uint8_t value);
+  void homeassistant_write(const std::string &datapoint_id, float value);
 
  protected:
   uint32_t update_interval_millis_{30000};

@@ -181,12 +181,12 @@ void EconetClimate::setup() {
                    datapoint.value_string.c_str());
           follow_schedule_ = datapoint.value_enum > 0;
           if (follow_schedule_.value()) {
-            if (fan_mode_ != "") {
+            if (!fan_mode_.empty()) {
               set_custom_fan_mode_(fan_mode_);
               publish_state();
             }
           } else {
-            if (fan_mode_no_schedule_ != "") {
+            if (!fan_mode_no_schedule_.empty()) {
               set_custom_fan_mode_(fan_mode_no_schedule_);
               publish_state();
             }
