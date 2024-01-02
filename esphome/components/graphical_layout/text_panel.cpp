@@ -3,6 +3,8 @@
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/rect.h"
 #include "esphome/core/log.h"
+#include <iomanip>
+#include <sstream>
 
 namespace esphome {
 namespace graphical_layout {
@@ -14,10 +16,47 @@ static const int TEXT_ALIGN_Y_MASK =
 
 void TextPanel::dump_config(int indent_depth, int additional_level_depth) {
   this->dump_config_base_properties(TAG, indent_depth);
-  std::string text = this->text_.value();
+  std::string text = this->text_input_.value();
   ESP_LOGCONFIG(TAG, "%*sText Align: %s", indent_depth, "",
                 LOG_STR_ARG(display::text_align_to_string(this->text_align_)));
   ESP_LOGCONFIG(TAG, "%*sText: %s", indent_depth, "", text.c_str());
+  if (this->sensor_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "%*sSensor: %s", indent_depth, "", this->sensor_->get_name());
+  }
+  if (this->text_sensor_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "%*sText Sensor: %s", indent_depth, "", this->text_sensor_->get_name());
+  }
+  ESP_LOGCONFIG(TAG, "%*sHas Text Formatter: %s", indent_depth, "", YESNO(!this->text_formatter_.has_value()));
+}
+
+void TextPanel::setup_complete() {
+  if (!this->text_formatter_.has_value()) {
+    this->text_formatter_ = [this](const std::string string) {
+      return string;
+    };
+  }
+
+  if (this->sensor_ != nullptr) {
+    // Need to setup the text callback for the sensor
+    this->text_ = [this]() {
+      std::stringstream stream;
+      stream << std::fixed << std::setprecision(this->sensor_->get_accuracy_decimals()) << this->sensor_->get_state();
+      return this->text_formatter_.value(stream.str());
+    };
+  }
+
+  if (this->text_sensor_ != nullptr) {
+    // Need to setup the text callback to the TextSensor
+    this->text_ = [this]() {
+      return this->text_formatter_.value(this->text_sensor_->get_state());
+    };
+  }
+
+  if (this->text_input_.has_value()) {
+    this->text_ = [this]() {
+      return this->text_formatter_.value(this->text_input_.value());
+    };
+  }
 }
 
 display::Rect TextPanel::measure_item_internal(display::Display *display) {
