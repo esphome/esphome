@@ -155,7 +155,7 @@ def load_idedata(environment):
     return data
 
 
-def get_binary(name, version):
+def get_binary(name: str, version: str) -> str:
     binary_file = f"{name}-{version}"
     try:
         result = subprocess.check_output([binary_file, "-version"])
