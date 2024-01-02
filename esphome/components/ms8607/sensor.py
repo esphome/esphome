@@ -62,16 +62,16 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+    if temperature_config := config.get(CONF_TEMPERATURE):
+        sens = await sensor.new_sensor(temperature_config)
         cg.add(var.set_temperature_sensor(sens))
 
-    if CONF_PRESSURE in config:
-        sens = await sensor.new_sensor(config[CONF_PRESSURE])
+    if pressure_config := config.get(CONF_PRESSURE):
+        sens = await sensor.new_sensor(pressure_config)
         cg.add(var.set_pressure_sensor(sens))
 
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
+    if humidity_config := config.get(CONF_HUMIDITY):
+        sens = await sensor.new_sensor(humidity_config)
         cg.add(var.set_humidity_sensor(sens))
         # C++ class creates the I2CDevice object, using I2C bus already provided to the object
-        cg.add(var.set_humidity_sensor_address(config[CONF_HUMIDITY][CONF_ADDRESS]))
+        cg.add(var.set_humidity_sensor_address(humidity_config[CONF_ADDRESS]))
