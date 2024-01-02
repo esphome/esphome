@@ -7,8 +7,6 @@ namespace kamstrup_kmp {
 
 static const char *const TAG = "kamstrup_kmp";
 
-void KamstrupKMPComponent::setup() {}
-
 void KamstrupKMPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "kamstrup_kmp:");
   if (this->is_failed()) {
@@ -16,33 +14,13 @@ void KamstrupKMPComponent::dump_config() {
   }
   LOG_UPDATE_INTERVAL(this);
 
-  if (this->heat_energy_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Heat Energy", this->heat_energy_sensor_);
-  }
-
-  if (this->power_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Power", this->power_sensor_);
-  }
-
-  if (this->temp1_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Temperature 1", this->temp1_sensor_);
-  }
-
-  if (this->temp2_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Temperature 2", this->temp2_sensor_);
-  }
-
-  if (this->temp_diff_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Temperature Difference", this->temp_diff_sensor_);
-  }
-
-  if (this->flow_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Flow", this->flow_sensor_);
-  }
-
-  if (this->volume_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Volume", this->volume_sensor_);
-  }
+  LOG_SENSOR("  ", "Heat Energy", this->heat_energy_sensor_);
+  LOG_SENSOR("  ", "Power", this->power_sensor_);
+  LOG_SENSOR("  ", "Temperature 1", this->temp1_sensor_);
+  LOG_SENSOR("  ", "Temperature 2", this->temp2_sensor_);
+  LOG_SENSOR("  ", "Temperature Difference", this->temp_diff_sensor_);
+  LOG_SENSOR("  ", "Flow", this->flow_sensor_);
+  LOG_SENSOR("  ", "Volume", this->volume_sensor_);
 
   for (int i = 0; i < this->custom_sensors_.size(); i++) {
     LOG_SENSOR("  ", "Custom Sensor", this->custom_sensors_[i]);
@@ -56,35 +34,43 @@ float KamstrupKMPComponent::get_setup_priority() const { return setup_priority::
 
 void KamstrupKMPComponent::update() {
   if (this->heat_energy_sensor_ != nullptr) {
-    this->send_command_(CMD_HEAT_ENERGY);
+    this->command_queue_.push(CMD_HEAT_ENERGY);
   }
 
   if (this->power_sensor_ != nullptr) {
-    this->send_command_(CMD_POWER);
+    this->command_queue_.push(CMD_POWER);
   }
 
   if (this->temp1_sensor_ != nullptr) {
-    this->send_command_(CMD_TEMP1);
+    this->command_queue_.push(CMD_TEMP1);
   }
 
   if (this->temp2_sensor_ != nullptr) {
-    this->send_command_(CMD_TEMP2);
+    this->command_queue_.push(CMD_TEMP2);
   }
 
   if (this->temp_diff_sensor_ != nullptr) {
-    this->send_command_(CMD_TEMP_DIFF);
+    this->command_queue_.push(CMD_TEMP_DIFF);
   }
 
   if (this->flow_sensor_ != nullptr) {
-    this->send_command_(CMD_FLOW);
+    this->command_queue_.push(CMD_FLOW);
   }
 
   if (this->volume_sensor_ != nullptr) {
-    this->send_command_(CMD_VOLUME);
+    this->command_queue_.push(CMD_VOLUME);
   }
 
   for (uint16_t custom_command : this->custom_commands_) {
-    this->send_command_(custom_command);
+    this->command_queue_.push(custom_command);
+  }
+}
+
+void KamstrupKMPComponent::loop() {
+  if (!this->command_queue_.empty()) {
+    uint16_t command = this->command_queue_.front();
+    this->send_command_(command);
+    this->command_queue_.pop();
   }
 }
 

@@ -82,10 +82,10 @@ class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
   void set_temp_diff_sensor(sensor::Sensor *sensor) { this->temp_diff_sensor_ = sensor; }
   void set_flow_sensor(sensor::Sensor *sensor) { this->flow_sensor_ = sensor; }
   void set_volume_sensor(sensor::Sensor *sensor) { this->volume_sensor_ = sensor; }
-  void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
+  void loop() override;
   void add_custom_sensor(sensor::Sensor *sensor, uint16_t command) {
     this->custom_sensors_.push_back(sensor);
     this->custom_commands_.push_back(command);
@@ -104,6 +104,9 @@ class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
   // Custom sensors and commands
   std::vector<sensor::Sensor *> custom_sensors_;
   std::vector<uint16_t> custom_commands_;
+
+  // Command queue
+  std::queue<uint16_t> command_queue_;
 
   // Methods
 
