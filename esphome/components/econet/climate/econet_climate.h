@@ -26,6 +26,10 @@ class EconetClimate : public climate::Climate, public Component, public EconetCl
   void set_mode_id(const std::string &mode_id) { mode_id_ = mode_id; }
   void set_custom_preset_id(const std::string &custom_preset_id) { custom_preset_id_ = custom_preset_id; }
   void set_custom_fan_mode_id(const std::string &custom_fan_mode_id) { custom_fan_mode_id_ = custom_fan_mode_id; }
+  void set_custom_fan_mode_no_schedule_id(const std::string &custom_fan_mode_no_schedule_id) {
+    custom_fan_mode_no_schedule_id_ = custom_fan_mode_no_schedule_id;
+  }
+  void set_follow_schedule_id(const std::string &follow_schedule_id) { follow_schedule_id_ = follow_schedule_id; }
   void set_modes(const std::vector<uint8_t> &keys, const std::vector<climate::ClimateMode> &values) {
     std::transform(keys.begin(), keys.end(), values.begin(), std::inserter(modes_, modes_.end()),
                    [](uint8_t k, climate::ClimateMode v) { return std::make_pair(k, v); });
@@ -38,6 +42,10 @@ class EconetClimate : public climate::Climate, public Component, public EconetCl
     std::transform(keys.begin(), keys.end(), values.begin(), std::inserter(custom_fan_modes_, custom_fan_modes_.end()),
                    [](uint8_t k, const std::string &v) { return std::make_pair(k, v); });
   }
+  void set_current_humidity_id(const std::string &current_humidity_id) { current_humidity_id_ = current_humidity_id; }
+  void set_target_dehumidification_level_id(const std::string &target_dehumidification_level_id) {
+    target_dehumidification_level_id_ = target_dehumidification_level_id;
+  }
 
  protected:
   std::string current_temperature_id_{""};
@@ -47,9 +55,16 @@ class EconetClimate : public climate::Climate, public Component, public EconetCl
   std::string mode_id_{""};
   std::string custom_preset_id_{""};
   std::string custom_fan_mode_id_{""};
+  std::string custom_fan_mode_no_schedule_id_{""};
+  std::string follow_schedule_id_{""};
+  optional<bool> follow_schedule_;
+  std::string fan_mode_{""};
+  std::string fan_mode_no_schedule_{""};
   std::map<uint8_t, climate::ClimateMode> modes_;
   std::map<uint8_t, std::string> custom_presets_;
   std::map<uint8_t, std::string> custom_fan_modes_;
+  std::string current_humidity_id_{""};
+  std::string target_dehumidification_level_id_{""};
   void control(const climate::ClimateCall &call) override;
   climate::ClimateTraits traits() override;
 };

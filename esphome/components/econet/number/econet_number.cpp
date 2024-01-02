@@ -8,7 +8,8 @@ static const char *const TAG = "econet.number";
 
 void EconetNumber::setup() {
   this->parent_->register_listener(
-      this->number_id_, this->request_mod_, this->request_once_, [this](const EconetDatapoint &datapoint) {
+      this->number_id_, this->request_mod_, this->request_once_,
+      [this](const EconetDatapoint &datapoint) {
         if (datapoint.type == EconetDatapointType::FLOAT) {
           ESP_LOGV(TAG, "MCU reported number %s is: %f", this->number_id_.c_str(), datapoint.value_float);
           this->publish_state(datapoint.value_float);
@@ -17,15 +18,16 @@ void EconetNumber::setup() {
           this->publish_state(datapoint.value_enum);
         }
         this->type_ = datapoint.type;
-      });
+      },
+      false, this->src_adr_);
 }
 
 void EconetNumber::control(float value) {
   ESP_LOGV(TAG, "Setting number %s: %f", this->number_id_.c_str(), value);
   if (this->type_ == EconetDatapointType::FLOAT) {
-    this->parent_->set_float_datapoint_value(this->number_id_, value);
+    this->parent_->set_float_datapoint_value(this->number_id_, value, this->src_adr_);
   } else if (this->type_ == EconetDatapointType::ENUM_TEXT) {
-    this->parent_->set_enum_datapoint_value(this->number_id_, value);
+    this->parent_->set_enum_datapoint_value(this->number_id_, value, this->src_adr_);
   }
   this->publish_state(value);
 }
