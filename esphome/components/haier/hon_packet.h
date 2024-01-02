@@ -35,6 +35,20 @@ enum class ConditioningMode : uint8_t {
   FAN = 0x06
 };
 
+enum class DataParameters : uint8_t {
+  AC_POWER = 0x01,
+  SET_POINT = 0x02,
+  AC_MODE = 0x04,
+  FAN_MODE = 0x05,
+  USE_FAHRENHEIT = 0x07,
+  TEN_DEGREE = 0x0A,
+  HEALTH_MODE = 0x0B,
+  BEEPER_STATUS = 0x16,
+  LOCK_REMOTE = 0x17,
+  QUIET_MODE = 0x19,
+  FAST_MODE = 0x1A,
+};
+
 enum class SpecialMode : uint8_t { NONE = 0x00, ELDERLY = 0x01, CHILDREN = 0x02, PREGNANT = 0x03 };
 
 enum class FanMode : uint8_t { FAN_HIGH = 0x01, FAN_MID = 0x02, FAN_LOW = 0x03, FAN_AUTO = 0x05 };
@@ -124,11 +138,7 @@ struct HaierPacketSensors {
   uint16_t co2_value;  // CO2 value (0 PPM -  10000 PPM, 1 PPM step)
 };
 
-struct HaierStatus {
-  uint16_t subcommand;
-  HaierPacketControl control;
-  HaierPacketSensors sensors;
-};
+constexpr size_t HAIER_STATUS_FRAME_SIZE = 2 + sizeof(HaierPacketControl) + sizeof(HaierPacketSensors);
 
 struct DeviceVersionAnswer {
   char protocol_version[8];
@@ -138,76 +148,6 @@ struct DeviceVersionAnswer {
   uint8_t : 8;
   char device_name[8];
   uint8_t functions[2];
-};
-
-// In this section comments:
-//  - module is the ESP32 control module (communication module in Haier protocol document)
-//  - device is the conditioner control board (network appliances in Haier protocol document)
-enum class FrameType : uint8_t {
-  CONTROL = 0x01,  // Requests or sets one or multiple parameters (module <-> device, required)
-  STATUS = 0x02,   // Contains one or multiple parameters values, usually answer to control frame (module <-> device,
-                   // required)
-  INVALID = 0x03,  // Communication error indication (module <-> device, required)
-  ALARM_STATUS = 0x04,  // Alarm status report (module <-> device, interactive, required)
-  CONFIRM = 0x05,  // Acknowledgment, usually used to confirm reception of frame if there is no special answer (module
-                   // <-> device, required)
-  REPORT = 0x06,   // Report frame (module <-> device, interactive, required)
-  STOP_FAULT_ALARM = 0x09,             // Stop fault alarm frame (module -> device, interactive, required)
-  SYSTEM_DOWNLINK = 0x11,              // System downlink frame (module -> device, optional)
-  DEVICE_UPLINK = 0x12,                // Device uplink frame (module <- device , interactive, optional)
-  SYSTEM_QUERY = 0x13,                 // System query frame (module -> device, optional)
-  SYSTEM_QUERY_RESPONSE = 0x14,        // System query response frame (module <- device , optional)
-  DEVICE_QUERY = 0x15,                 // Device query frame (module <- device, optional)
-  DEVICE_QUERY_RESPONSE = 0x16,        // Device query response frame (module -> device, optional)
-  GROUP_COMMAND = 0x60,                // Group command frame (module -> device, interactive, optional)
-  GET_DEVICE_VERSION = 0x61,           // Requests device version (module -> device, required)
-  GET_DEVICE_VERSION_RESPONSE = 0x62,  // Device version answer (module <- device, required_
-  GET_ALL_ADDRESSES = 0x67,            // Requests all devices addresses (module -> device, interactive, optional)
-  GET_ALL_ADDRESSES_RESPONSE =
-      0x68,  // Answer to request of all devices addresses (module <- device , interactive, optional)
-  HANDSET_CHANGE_NOTIFICATION = 0x69,  // Handset change notification frame (module <- device , interactive, optional)
-  GET_DEVICE_ID = 0x70,                // Requests Device ID (module -> device, required)
-  GET_DEVICE_ID_RESPONSE = 0x71,       // Response to device ID request (module <- device , required)
-  GET_ALARM_STATUS = 0x73,             // Alarm status request (module -> device, required)
-  GET_ALARM_STATUS_RESPONSE = 0x74,    // Response to alarm status request (module <- device, required)
-  GET_DEVICE_CONFIGURATION = 0x7C,     // Requests device configuration (module -> device, interactive, required)
-  GET_DEVICE_CONFIGURATION_RESPONSE =
-      0x7D,  // Response to device configuration request (module <- device, interactive, required)
-  DOWNLINK_TRANSPARENT_TRANSMISSION = 0x8C,  // Downlink transparent transmission (proxy data Haier cloud -> device)
-                                             // (module -> device, interactive, optional)
-  UPLINK_TRANSPARENT_TRANSMISSION = 0x8D,  // Uplink transparent transmission (proxy data device -> Haier cloud) (module
-                                           // <- device, interactive, optional)
-  START_DEVICE_UPGRADE = 0xE1,             // Initiate device OTA upgrade (module -> device, OTA required)
-  START_DEVICE_UPGRADE_RESPONSE = 0xE2,  // Response to initiate device upgrade command (module <- device, OTA required)
-  GET_FIRMWARE_CONTENT = 0xE5,           // Requests to send firmware (module <- device, OTA required)
-  GET_FIRMWARE_CONTENT_RESPONSE =
-      0xE6,                 // Response to send firmware request (module -> device, OTA required) (multipacket?)
-  CHANGE_BAUD_RATE = 0xE7,  // Requests to change port baud rate (module <- device, OTA required)
-  CHANGE_BAUD_RATE_RESPONSE = 0xE8,    // Response to change port baud rate request (module -> device, OTA required)
-  GET_SUBBOARD_INFO = 0xE9,            // Requests subboard information (module -> device, required)
-  GET_SUBBOARD_INFO_RESPONSE = 0xEA,   // Response to subboard information request (module <- device, required)
-  GET_HARDWARE_INFO = 0xEB,            // Requests information about device and subboard (module -> device, required)
-  GET_HARDWARE_INFO_RESPONSE = 0xEC,   // Response to hardware information request (module <- device, required)
-  GET_UPGRADE_RESULT = 0xED,           // Requests result of the firmware update (module <- device, OTA required)
-  GET_UPGRADE_RESULT_RESPONSE = 0xEF,  // Response to firmware update results request (module -> device, OTA required)
-  GET_NETWORK_STATUS = 0xF0,           // Requests network status (module <- device, interactive, optional)
-  GET_NETWORK_STATUS_RESPONSE = 0xF1,  // Response to network status request (module -> device, interactive, optional)
-  START_WIFI_CONFIGURATION = 0xF2,     // Starts WiFi configuration procedure (module <- device, interactive, required)
-  START_WIFI_CONFIGURATION_RESPONSE =
-      0xF3,  // Response to start WiFi configuration request (module -> device, interactive, required)
-  STOP_WIFI_CONFIGURATION = 0xF4,  // Stop WiFi configuration procedure (module <- device, interactive, required)
-  STOP_WIFI_CONFIGURATION_RESPONSE =
-      0xF5,  // Response to stop WiFi configuration request (module -> device, interactive, required)
-  REPORT_NETWORK_STATUS = 0xF7,  // Reports network status (module -> device, required)
-  CLEAR_CONFIGURATION = 0xF8,    // Request to clear module configuration (module <- device, interactive, optional)
-  BIG_DATA_REPORT_CONFIGURATION =
-      0xFA,  // Configuration for autoreport device full status (module -> device, interactive, optional)
-  BIG_DATA_REPORT_CONFIGURATION_RESPONSE =
-      0xFB,  // Response to set big data configuration (module <- device, interactive, optional)
-  GET_MANAGEMENT_INFORMATION = 0xFC,  // Request management information from device (module -> device, required)
-  GET_MANAGEMENT_INFORMATION_RESPONSE =
-      0xFD,        // Response to management information request (module <- device, required)
-  WAKE_UP = 0xFE,  // Request to wake up (module <-> device, optional)
 };
 
 enum class SubcommandsControl : uint16_t {
@@ -222,6 +162,62 @@ enum class SubcommandsControl : uint16_t {
                                   // the only group mentioned in document is 1) and return all user data (packet
                                   // content: all values like in status packet)
 };
+
+const std::string HON_ALARM_MESSAGES[] = {
+    "Outdoor module failure",
+    "Outdoor defrost sensor failure",
+    "Outdoor compressor exhaust sensor failure",
+    "Outdoor EEPROM abnormality",
+    "Indoor coil sensor failure",
+    "Indoor-outdoor communication failure",
+    "Power supply overvoltage protection",
+    "Communication failure between panel and indoor unit",
+    "Outdoor compressor overheat protection",
+    "Outdoor environmental sensor abnormality",
+    "Full water protection",
+    "Indoor EEPROM failure",
+    "Outdoor out air sensor failure",
+    "CBD and module communication failure",
+    "Indoor DC fan failure",
+    "Outdoor DC fan failure",
+    "Door switch failure",
+    "Dust filter needs cleaning reminder",
+    "Water shortage protection",
+    "Humidity sensor failure",
+    "Indoor temperature sensor failure",
+    "Manipulator limit failure",
+    "Indoor PM2.5 sensor failure",
+    "Outdoor PM2.5 sensor failure",
+    "Indoor heating overload/high load alarm",
+    "Outdoor AC current protection",
+    "Outdoor compressor operation abnormality",
+    "Outdoor DC current protection",
+    "Outdoor no-load failure",
+    "CT current abnormality",
+    "Indoor cooling freeze protection",
+    "High and low pressure protection",
+    "Compressor out air temperature is too high",
+    "Outdoor evaporator sensor failure",
+    "Outdoor cooling overload",
+    "Water pump drainage failure",
+    "Three-phase power supply failure",
+    "Four-way valve failure",
+    "External alarm/scraper flow switch failure",
+    "Temperature cutoff protection alarm",
+    "Different mode operation failure",
+    "Electronic expansion valve failure",
+    "Dual heat source sensor Tw failure",
+    "Communication failure with the wired controller",
+    "Indoor unit address duplication failure",
+    "50Hz zero crossing failure",
+    "Outdoor unit failure",
+    "Formaldehyde sensor failure",
+    "VOC sensor failure",
+    "CO2 sensor failure",
+    "Firewall failure",
+};
+
+constexpr size_t HON_ALARM_COUNT = sizeof(HON_ALARM_MESSAGES) / sizeof(HON_ALARM_MESSAGES[0]);
 
 }  // namespace hon_protocol
 }  // namespace haier

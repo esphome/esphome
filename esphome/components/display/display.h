@@ -8,6 +8,7 @@
 #include "esphome/core/color.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/time.h"
+#include "display_color_utils.h"
 
 #ifdef USE_GRAPH
 #include "esphome/components/graph/graph.h"
@@ -15,6 +16,10 @@
 
 #ifdef USE_QR_CODE
 #include "esphome/components/qr_code/qr_code.h"
+#endif
+
+#ifdef USE_GRAPHICAL_DISPLAY_MENU
+#include "esphome/components/graphical_display_menu/graphical_display_menu.h"
 #endif
 
 namespace esphome {
@@ -163,7 +168,7 @@ class BaseFont {
   virtual void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) = 0;
 };
 
-class Display {
+class Display : public PollingComponent {
  public:
   /// Fill the entire screen with the given color.
   virtual void fill(Color color);
@@ -180,6 +185,34 @@ class Display {
 
   /// Set a single pixel at the specified coordinates to the given color.
   virtual void draw_pixel_at(int x, int y, Color color) = 0;
+
+  /** Given an array of pixels encoded in the nominated format, draw these into the display's buffer.
+   * The naive implementation here will work in all cases, but can be overridden by sub-classes
+   * in order to optimise the procedure.
+   * The parameters describe a rectangular block of pixels, potentially within a larger buffer.
+   *
+   * \param x_start The starting destination x position
+   * \param y_start The starting destination y position
+   * \param w the width of the pixel block
+   * \param h the height of the pixel block
+   * \param ptr A pointer to the start of the data to be copied
+   * \param order The ordering of the colors
+   * \param bitness Defines the number of bits and their format for each pixel
+   * \param big_endian True if 16 bit values are stored big-endian
+   * \param x_offset The initial x-offset into the source buffer.
+   * \param y_offset The initial y-offset into the source buffer.
+   * \param x_pad How many pixels are in each line after the end of the pixels to be copied.
+   *
+   * The length of each source buffer line (stride) will be x_offset + w + x_pad.
+   */
+  virtual void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                              ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad);
+
+  /// Convenience overload for base case where the pixels are packed into the buffer with no gaps (e.g. suits LVGL.)
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                      ColorBitness bitness, bool big_endian) {
+    this->draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, 0, 0, 0);
+  }
 
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
   void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON);
@@ -391,6 +424,17 @@ class Display {
    */
   void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on = COLOR_ON, int scale = 1);
 #endif
+
+#ifdef USE_GRAPHICAL_DISPLAY_MENU
+  /**
+   * @param x The x coordinate of the upper left corner
+   * @param y The y coordinate of the upper left corner
+   * @param menu The GraphicalDisplayMenu to draw
+   * @param width Width of the menu
+   * @param height Height of the menu
+   */
+  void menu(int x, int y, graphical_display_menu::GraphicalDisplayMenu *menu, int width, int height);
+#endif  // USE_GRAPHICAL_DISPLAY_MENU
 
   /** Get the text bounds of the given string.
    *
