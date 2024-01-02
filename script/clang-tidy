@@ -47,7 +47,7 @@ def get_binary(name, version):
         f"""
         Oops. It looks like {name} is not installed.
 
-        Please check you can run "{name} -version" or "{name}-{version} -version"
+        Please confirm you can run "{name} -version" or "{name}-{version} -version"
         in your terminal and install
         {name} (v{version}) if necessary.
 
