@@ -76,12 +76,12 @@ void MS8607Component::setup() {
   this->set_retry(
       "reset", 5, 3,
       [this](const uint8_t remaining_setup_attempts) {
-        ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X", this->address_, this->humidity_sensor_address_);
+        ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X", this->address_, this->humidity_device_->get_address());
         // I believe sending the reset command to both addresses is preferable to
         // skipping humidity if PT fails for some reason.
         // However, only consider the reset successful if they both ACK
         bool const pt_successful = this->write_bytes(MS8607_PT_CMD_RESET, nullptr, 0);
-        bool const h_successful = this->humidity_i2c_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
+        bool const h_successful = this->humidity_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
 
         if (!(pt_successful && h_successful)) {
           ESP_LOGE(TAG, "Resetting I2C devices failed");
@@ -136,9 +136,8 @@ void MS8607Component::update() {
 void MS8607Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MS8607:");
   LOG_I2C_DEVICE(this);
-  // LOG_I2C_DEVICE doesn't work for humidity, the `address_` is protected. Log using this object's
-  // saved value for the address.
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->humidity_sensor_address_);
+  // LOG_I2C_DEVICE doesn't work for humidity, the `address_` is protected. Log using get_address()
+  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->humidity_device_->get_address());
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with MS8607 failed.");
     switch (this->error_code_) {
@@ -167,13 +166,6 @@ void MS8607Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-}
-
-void MS8607Component::set_humidity_sensor_address(uint8_t address) {
-  this->humidity_sensor_address_ = address;
-  this->humidity_i2c_device_ = make_unique<I2CDevice>();
-  this->humidity_i2c_device_->set_i2c_bus(this->bus_);
-  this->humidity_i2c_device_->set_i2c_address(address);
 }
 
 bool MS8607Component::read_calibration_values_from_prom_() {
@@ -252,7 +244,7 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
 }
 
 /**
- * @brief Calculates CRC value for the provided humitity (+ status bits) value
+ * @brief Calculates CRC value for the provided humidity (+ status bits) value
  *
  * CRC-8 check comes from other MS8607 libraries on github. I did not find it in the datasheet,
  * and it differs from the crc8 implementation that's already part of esphome.
@@ -325,7 +317,7 @@ void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
 }
 
 void MS8607Component::request_read_humidity_(float temperature_float) {
-  if (!this->humidity_i2c_device_->write_bytes(MS8607_CMD_H_MEASURE_NO_HOLD, nullptr, 0)) {
+  if (!this->humidity_device_->write_bytes(MS8607_CMD_H_MEASURE_NO_HOLD, nullptr, 0)) {
     ESP_LOGW(TAG, "Request to measure humidity failed");
     this->status_set_warning();
     return;
@@ -338,7 +330,7 @@ void MS8607Component::request_read_humidity_(float temperature_float) {
 
 void MS8607Component::read_humidity_(float temperature_float) {
   uint8_t bytes[3];
-  if (!this->humidity_i2c_device_->read_bytes_raw(bytes, 3)) {
+  if (!this->humidity_device_->read_bytes_raw(bytes, 3)) {
     ESP_LOGW(TAG, "Failed to read the measured humidity value");
     this->status_set_warning();
     return;

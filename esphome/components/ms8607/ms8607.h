@@ -8,6 +8,15 @@ namespace esphome {
 namespace ms8607 {
 
 /**
+ Class for I2CDevice used to communicate with the Humidity sensor
+ on the chip. See MS8607Component instead
+ */
+class MS8607HumidityDevice : public i2c::I2CDevice {
+  public:
+    uint8_t get_address() { return address_; }
+};
+
+/**
  Temperature, pressure, and humidity sensor.
 
  By default, the MS8607 measures sensors at the highest resolution.
@@ -33,8 +42,7 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
-  /// Creates `humidity_i2c_device_` using the provided `address`
-  void set_humidity_sensor_address(uint8_t address);
+  void set_humidity_device(MS8607HumidityDevice *humidity_device) { humidity_device_ = humidity_device; }
 
  protected:
   /**
@@ -62,15 +70,13 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pressure_sensor_;
   sensor::Sensor *humidity_sensor_;
 
-  /** Secondary I2C address for the humidity sensor, and an I2CDevice object to communicate with it.
+  /** I2CDevice object to communicate with secondary I2C address for the humidity sensor
    *
-   * Uses the same I2C bus & settings as `this` object, since the MS8607 only has one set of pins. This
-   * I2CDevice object is an implementation detail of the Component. The esphome configuration only
-   * cares what the I2C address of the humidity sensor is. (Default is 0x40)
+   * The MS8607 only has one set of I2C pins, despite using two different addresses.
+   *
+   * Default address for humidity is 0x40
    */
-  std::unique_ptr<i2c::I2CDevice> humidity_i2c_device_;
-  /// I2C address for the humidity sensor
-  uint8_t humidity_sensor_address_;
+  MS8607HumidityDevice *humidity_device_;
 
   /// This device's pressure & temperature calibration values, read from PROM
   struct CalibrationValues {
