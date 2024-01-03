@@ -27,22 +27,22 @@ static const char *TAG = "madoka";
 using chunk = std::vector<uint8_t>;
 using message = std::vector<uint8_t>;
 
-struct setpoint {
+struct Setpoint {
   uint16_t cooling;
   uint16_t heating;
 };
 
-struct fan_speed {
+struct FanSpeed {
   uint8_t cooling;
   uint8_t heating;
 };
 
-struct sensor_reading {
+struct SensorReading {
   uint8_t indoor;
   uint8_t outdoor;
 };
 
-struct status {
+struct Status {
   bool status;
   uint8_t mode;
 };
@@ -62,14 +62,14 @@ class Madoka : public climate::Climate, public esphome::ble_client::BLEClientNod
   std::map<uint8_t, chunk> pending_chunks_ = {};
   uint16_t notify_handle_;
   uint16_t wwr_handle_;
-  SemaphoreHandle_t receive_semaphore_ = NULL;
-  status cur_status_;
+  SemaphoreHandle_t receive_semaphore_ = nullptr;
+  Status cur_status_;
 
-  std::vector<chunk> split_payload(message msg);
-  message prepare_message(uint16_t cmd, message args);
-  void query(uint16_t cmd, message args, int t_d);
-  void parse_cb(message msg);
-  void process_incoming_chunk(chunk chk);
+  std::vector<chunk> split_payload_(message msg);
+  message prepare_message_(uint16_t cmd, message args);
+  void query_(uint16_t cmd, message args, int t_d);
+  void parse_cb_(message msg);
+  void process_incoming_chunk_(chunk chk);
 
   void control(const climate::ClimateCall &call) override;
 

@@ -1,5 +1,7 @@
 #include "madoka.h"
+
 #include "esphome/core/log.h"
+#include <utility>
 
 #ifdef USE_ESP32
 
@@ -15,13 +17,13 @@ void Madoka::setup() { this->receive_semaphore_ = xSemaphoreCreateMutex(); }
 void Madoka::loop() {
   chunk chk = {};
   if (xSemaphoreTake(this->receive_semaphore_, 0L)) {
-    if (this->received_chunks_.size() > 0) {
+    if (!this->received_chunks_.empty()) {
       chk = this->received_chunks_.front();
       this->received_chunks_.pop();
     }
     xSemaphoreGive(this->receive_semaphore_);
-    if (chk.size() > 0) {
-      this->process_incoming_chunk(chk);
+    if (!chk.empty()) {
+      this->process_incoming_chunk_(chk);
     }
   }
   if (this->should_update_) {
@@ -36,71 +38,71 @@ void Madoka::control(const ClimateCall &call) {
   if (call.get_mode().has_value()) {
     ClimateMode mode = *call.get_mode();
     std::vector<chunk> pkt;
-    uint8_t mode_ = 255, status_ = 0;
+    uint8_t mode_out = 255, status_out = 0;
     switch (mode) {
       case climate::CLIMATE_MODE_OFF:
-        status_ = 0;
+        status_out = 0;
         break;
       case climate::CLIMATE_MODE_HEAT_COOL:
-        status_ = 1;
-        mode_ = 2;
+        status_out = 1;
+        mode_out = 2;
         break;
       case climate::CLIMATE_MODE_COOL:
-        status_ = 1;
-        mode_ = 3;
+        status_out = 1;
+        mode_out = 3;
         break;
       case climate::CLIMATE_MODE_HEAT:
-        status_ = 1;
-        mode_ = 4;
+        status_out = 1;
+        mode_out = 4;
         break;
       case climate::CLIMATE_MODE_FAN_ONLY:
-        status_ = 1;
-        mode_ = 0;
+        status_out = 1;
+        mode_out = 0;
         break;
       case climate::CLIMATE_MODE_DRY:
-        status_ = 1;
-        mode_ = 1;
+        status_out = 1;
+        mode_out = 1;
         break;
       default:
         ESP_LOGW(TAG, "Unsupported mode: %d", mode);
         break;
     }
-    ESP_LOGD(TAG, "status: %d, mode: %d", status_, mode_);
-    if (mode_ != 255) {
-      this->query(0x4030, message({0x20, 0x01, (uint8_t) mode_}), 600);
+    ESP_LOGD(TAG, "status: %d, mode: %d", status_out, mode_out);
+    if (mode_out != 255) {
+      this->query_(0x4030, message({0x20, 0x01, (uint8_t) mode_out}), 600);
     }
-    this->query(0x4020, message({0x20, 0x01, (uint8_t) status_}), 200);
+    this->query_(0x4020, message({0x20, 0x01, (uint8_t) status_out}), 200);
   }
   if (call.get_target_temperature_low().has_value() && call.get_target_temperature_high().has_value()) {
     uint16_t target_low = *call.get_target_temperature_low() * 128;
     uint16_t target_high = *call.get_target_temperature_high() * 128;
-    this->query(0x4040,
+    this->query_(0x4040,
                 message({0x20, 0x02, (uint8_t) ((target_high >> 8) & 0xFF), (uint8_t) (target_high & 0xFF), 0x21, 0x02,
                          (uint8_t) ((target_low >> 8) & 0xFF), (uint8_t) (target_low & 0xFF)}),
                 400);
   }
   if (call.get_fan_mode().has_value()) {
     uint8_t fan_mode = call.get_fan_mode().value();
-    uint8_t fan_mode_ = 255;
+    uint8_t fan_mode_out = 255;
     switch (fan_mode) {
       case climate::CLIMATE_FAN_AUTO:
-        fan_mode_ = 0;
+        fan_mode_out = 0;
         break;
       case climate::CLIMATE_FAN_LOW:
-        fan_mode_ = 1;
+        fan_mode_out = 1;
         break;
       case climate::CLIMATE_FAN_MEDIUM:
-        fan_mode_ = 3;
+        fan_mode_out = 3;
         break;
       case climate::CLIMATE_FAN_HIGH:
-        fan_mode_ = 5;
+        fan_mode_out = 5;
         break;
       default:
         ESP_LOGW(TAG, "Unsupported fan mode: %d", fan_mode);
         break;
     }
-    if (fan_mode_ != 255) {
-      this->query(0x4050, message({0x20, 0x01, (uint8_t) fan_mode_, 0x21, 0x01, (uint8_t) fan_mode_}), 200);
+    if (fan_mode_out != 255) {
+      this->query_(0x4050, message({0x20, 0x01, (uint8_t) fan_mode_out, 0x21, 0x01, (uint8_t) fan_mode_out}), 200);
     }
   }
   this->should_update_ = true;
@@ -120,8 +122,8 @@ void Madoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_para
         ESP_LOGE(TAG, "Authentication failed, status: 0x%x", param->ble_security.auth_cmpl.fail_reason);
         break;
       }
-      auto nfy = this->parent_->get_characteristic(MADOKA_SERVICE_UUID, NOTIFY_CHARACTERISTIC_UUID);
-      auto wwr = this->parent_->get_characteristic(MADOKA_SERVICE_UUID, WWR_CHARACTERISTIC_UUID);
+      auto *nfy = this->parent_->get_characteristic(MADOKA_SERVICE_UUID, NOTIFY_CHARACTERISTIC_UUID);
+      auto *wwr = this->parent_->get_characteristic(MADOKA_SERVICE_UUID, WWR_CHARACTERISTIC_UUID);
       if (nfy == nullptr || wwr == nullptr) {
         ESP_LOGW(TAG, "[%s] No control service found at device, not a Daikin Madoka..?", this->get_name().c_str());
         break;
@@ -192,13 +194,13 @@ void Madoka::update() {
 
   std::vector<uint16_t> all_cmds({0x0020, 0x0030, 0x0040, 0x0050, 0x0110});
   for (auto cmd : all_cmds) {
-    this->query(cmd, message({0x00, 0x00}), 50);
+    this->query_(cmd, message({0x00, 0x00}), 50);
   }
 }
 
 bool validate_buffer(message buffer) { return buffer[0] == buffer.size(); }
 
-void Madoka::process_incoming_chunk(chunk chk) {
+void Madoka::process_incoming_chunk_(chunk chk) {
   if (chk.size() < 2) {
     ESP_LOGI(TAG, "Chunk discarded: invalid length.");
     return;
@@ -206,7 +208,7 @@ void Madoka::process_incoming_chunk(chunk chk) {
   uint8_t chunk_id = chk[0];
   message stripped(chk.begin() + 1, chk.end());
   if (chunk_id == 0 && validate_buffer(stripped)) {
-    this->parse_cb(stripped);
+    this->parse_cb_(stripped);
     return;
   }
   if (this->pending_chunks_.count(chunk_id)) {
@@ -228,40 +230,39 @@ void Madoka::process_incoming_chunk(chunk chk) {
   }
   if (validate_buffer(msg)) {
     this->pending_chunks_.clear();
-    this->parse_cb(msg);
+    this->parse_cb_(msg);
   }
 }
 
-std::vector<chunk> Madoka::split_payload(message msg) {
+std::vector<chunk> Madoka::split_payload_(message msg) {
   std::vector<chunk> result;
   size_t len = msg.size();
   result.push_back(chunk({0x00, (uint8_t) (len + 1)}));
   result[0].insert(result[0].end(), msg.begin(), min(msg.begin() + (MAX_CHUNK_SIZE - 2), msg.end()));
   int i = 0;
   for (i = 1; i < len / (MAX_CHUNK_SIZE - 1); i++) {  // from second to second-last
-    result.push_back(
-        chunk(msg.begin() + ((MAX_CHUNK_SIZE - 1) * i - 1), msg.begin() + ((MAX_CHUNK_SIZE - 1) * (i + 1) - 1)));
+    result.emplace_back(msg.begin() + ((MAX_CHUNK_SIZE - 1) * i - 1), msg.begin() + ((MAX_CHUNK_SIZE - 1) * (i + 1) - 1));
   }
   if (len > 18) {
     i++;
-    result.push_back(chunk(msg.begin() + ((MAX_CHUNK_SIZE - 1) * i), msg.end()));
+    result.emplace_back(msg.begin() + ((MAX_CHUNK_SIZE - 1) * i), msg.end());
   }
   return result;
 }
 
-message Madoka::prepare_message(uint16_t cmd, message args) {
+message Madoka::prepare_message_(uint16_t cmd, message args) {
   message result({0x00, (uint8_t) ((cmd >> 8) & 0xFF), (uint8_t) (cmd & 0xFF)});
   result.insert(result.end(), args.begin(), args.end());
   return result;
 }
 
-void Madoka::query(uint16_t cmd, message args, int t_d) {
-  message payload = this->prepare_message(cmd, args);
+void Madoka::query_(uint16_t cmd, message args, int t_d) {
+  message payload = this->prepare_message_(cmd, std::move(args));
 
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     return;
   }
-  std::vector<chunk> chunks = this->split_payload(payload);
+  std::vector<chunk> chunks = this->split_payload_(payload);
 
   for (auto chk : chunks) {
     esp_err_t status;
@@ -282,7 +283,7 @@ void Madoka::query(uint16_t cmd, message args, int t_d) {
   delay(t_d);
 }
 
-void Madoka::parse_cb(message msg) {
+void Madoka::parse_cb_(message msg) {
   uint16_t function_id = msg[2] << 8 | msg[3];
   uint8_t i = 4;
   uint8_t message_size = msg.size();
