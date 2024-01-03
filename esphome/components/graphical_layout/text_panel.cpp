@@ -21,10 +21,10 @@ void TextPanel::dump_config(int indent_depth, int additional_level_depth) {
                 LOG_STR_ARG(display::text_align_to_string(this->text_align_)));
   ESP_LOGCONFIG(TAG, "%*sText: %s", indent_depth, "", text.c_str());
   if (this->sensor_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "%*sSensor: %s", indent_depth, "", this->sensor_->get_name());
+    ESP_LOGCONFIG(TAG, "%*sSensor: %s", indent_depth, "", this->sensor_->get_name().c_str());
   }
   if (this->text_sensor_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "%*sText Sensor: %s", indent_depth, "", this->text_sensor_->get_name());
+    ESP_LOGCONFIG(TAG, "%*sText Sensor: %s", indent_depth, "", this->text_sensor_->get_name().c_str());
   }
   ESP_LOGCONFIG(TAG, "%*sHas Text Formatter: %s", indent_depth, "", YESNO(!this->text_formatter_.has_value()));
 }
