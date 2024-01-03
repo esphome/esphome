@@ -270,6 +270,16 @@ font:
     id: roboto
     size: 20
 
+color:
+  - id: layout_black
+    red: 100%
+    green: 100%
+    blue: 100%
+  - id: layout_white
+    red: 0%
+    green: 0%
+    blue: 0%
+
 graphical_layout:
   id: test_graphical_layout
   layout:
