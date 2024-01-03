@@ -265,6 +265,11 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
 
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
+
 graphical_layout:
   id: test_graphical_layout
   layout:
