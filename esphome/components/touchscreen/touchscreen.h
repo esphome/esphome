@@ -68,7 +68,7 @@ class Touchscreen : public PollingComponent {
 
   void register_listener(TouchListener *listener) { this->touch_listeners_.push_back(listener); }
 
-  virtual void update_touches() = 0;
+
 
   optional<TouchPoint> get_touch() { return this->touches_.begin()->second; }
 
@@ -90,6 +90,8 @@ class Touchscreen : public PollingComponent {
   void attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::InterruptType type);
 
   void add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_raw, int16_t z_raw = 0);
+
+  virtual void update_touches() = 0;
 
   void send_touches_();
 
