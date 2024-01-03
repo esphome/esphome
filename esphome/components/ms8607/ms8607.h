@@ -12,8 +12,8 @@ namespace ms8607 {
  on the chip. See MS8607Component instead
  */
 class MS8607HumidityDevice : public i2c::I2CDevice {
-  public:
-    uint8_t get_address() { return address_; }
+ public:
+  uint8_t get_address() { return address_; }
 };
 
 /**

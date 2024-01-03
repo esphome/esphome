@@ -76,7 +76,8 @@ void MS8607Component::setup() {
   this->set_retry(
       "reset", 5, 3,
       [this](const uint8_t remaining_setup_attempts) {
-        ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X", this->address_, this->humidity_device_->get_address());
+        ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X", this->address_,
+                 this->humidity_device_->get_address());
         // I believe sending the reset command to both addresses is preferable to
         // skipping humidity if PT fails for some reason.
         // However, only consider the reset successful if they both ACK
