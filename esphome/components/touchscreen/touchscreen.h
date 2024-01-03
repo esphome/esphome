@@ -68,8 +68,6 @@ class Touchscreen : public PollingComponent {
 
   void register_listener(TouchListener *listener) { this->touch_listeners_.push_back(listener); }
 
-
-
   optional<TouchPoint> get_touch() { return this->touches_.begin()->second; }
 
   TouchPoints_t get_touches() {

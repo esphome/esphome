@@ -10,7 +10,7 @@ from esphome.const import (
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_SWAP_XY,
-    CONF_TRANSFORM, 
+    CONF_TRANSFORM,
     CONF_CALIBRATION,
 )
 
