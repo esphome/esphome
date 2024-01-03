@@ -56,7 +56,7 @@ uint8_t WK2132RegisterSPI::read_reg() const {
   spi_delegate->transfer(buf, 2);
   spi_delegate->end_transaction();
   ESP_LOGVV(TAG, "Register::read_reg() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(buf[0]), buf[0],
-            reg_to_str(this->register_, this->comp_->page1_), this->register_, this->channel_, buf[1]);
+            reg_to_str(this->register_, this->comp_->page1()), this->register_, this->channel_, buf[1]);
   return buf[1];
 }
 
@@ -67,7 +67,7 @@ void WK2132RegisterSPI::read_fifo(uint8_t *data, size_t length) const {
   spi_delegate->transfer(&cmd, 1);
   spi_delegate->transfer(data, length);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%hhu", I2CS(cmd), cmd, this->register_, this->channel_,
+  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%hhu", I2CS(cmd), cmd, this->channel_,
             format_hex_pretty(data, length).c_str());
 }
 
@@ -78,7 +78,7 @@ void WK2132RegisterSPI::write_reg(uint8_t value) {
   spi_delegate->transfer(buf, 2);
   spi_delegate->end_transaction();
   ESP_LOGVV(TAG, "Register::write_reg() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(buf[0]), buf[0],
-            reg_to_str(this->register_, this->comp_->page1_), this->register_, this->channel_, value);
+            reg_to_str(this->register_, this->comp_->page1()), this->register_, this->channel_, value);
 }
 
 void WK2132RegisterSPI::write_fifo(uint8_t *data, size_t length) {
@@ -88,7 +88,7 @@ void WK2132RegisterSPI::write_fifo(uint8_t *data, size_t length) {
   spi_delegate->transfer(&cmd, 1);
   spi_delegate->transfer(data, length);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%hhu", I2CS(cmd), cmd, this->register_, this->channel_,
+  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%hhu", I2CS(cmd), cmd, this->channel_,
             format_hex_pretty(data, length).c_str());
 }
 
@@ -100,11 +100,11 @@ void WK2132ComponentSPI::setup() {
   ESP_LOGCONFIG(TAG, "Setting up wk2132_spi: %s with %d UARTs...", this->get_name(), this->children_.size());
   this->spi_setup();
   // enable both channels
-  this->reg(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
+  this->reg(REG_WK2132_GENA, 0) = GENA_C1EN | GENA_C2EN;
   // reset channels
-  this->reg(REG_WK2132_GRST) = GRST_C1RST | GRST_C2RST;
+  this->reg(REG_WK2132_GRST, 0) = GRST_C1RST | GRST_C2RST;
   // initialize the spage register to page 0
-  this->reg(REG_WK2132_SPAGE) = 0;
+  this->reg(REG_WK2132_SPAGE, 0) = 0;
   this->page1_ = false;
 
   // we setup our children channels

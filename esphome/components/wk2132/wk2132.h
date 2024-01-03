@@ -7,6 +7,9 @@
 #include <memory>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO)
+#include "Wire.h"
+#endif
 
 /// When TEST_COMPONENT is defined we include some auto-test methods. Used to test the software during wk2132
 /// development but can also be used in situ to test if the component is working correctly. In production we do not set
@@ -510,10 +513,11 @@ class WK2132Component : public Component {
   /// therefore it is seen by our client almost as if it was a bus.
   float get_setup_priority() const override { return setup_priority::BUS - 0.1F; }
 
+  bool page1() { return page1_; }
+
  protected:
   friend class WK2132Channel;
   friend class WK2132Reg;
-  friend class WK2132RegisterSPI;
 
   /// @brief Factory method to create a Register object
   /// @param reg address of the register

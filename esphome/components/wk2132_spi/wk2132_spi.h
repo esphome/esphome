@@ -40,7 +40,7 @@ class WK2132ComponentSPI : public wk2132::WK2132Component,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
-  wk2132::WK2132Reg &reg(uint8_t reg, uint8_t channel = 0) override {
+  wk2132::WK2132Reg &reg(uint8_t reg, uint8_t channel) override {
     reg_spi_.register_ = reg & 0x0F;
     reg_spi_.channel_ = channel & 0x01;
     return reg_spi_;
