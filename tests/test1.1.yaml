@@ -62,6 +62,18 @@ i2c:
   setup_priority: -100
   id: i2c_bus
 
+spi:
+  id: spi_bus
+  clk_pin:
+    allow_other_uses: true
+    number: GPIO21
+  mosi_pin:
+    allow_other_uses: true
+    number: GPIO22
+  miso_pin:
+    allow_other_uses: true
+    number: GPIO23
+
 pca9685:
   frequency: 500
   address: 0x0
