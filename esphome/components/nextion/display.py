@@ -99,8 +99,12 @@ async def to_code(config):
             cg.add_library("HTTPClient", None)
         elif CORE.is_esp32 and CORE.using_esp_idf:
             esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
-            esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True)
-            esp32.add_idf_sdkconfig_option("CONFIG_ESP_HTTP_CLIENT_ENABLE_HTTP_REDIRECT", True)
+            esp32.add_idf_sdkconfig_option(
+                "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True
+            )
+            esp32.add_idf_sdkconfig_option(
+                "CONFIG_ESP_HTTP_CLIENT_ENABLE_HTTP_REDIRECT", True
+            )
         elif CORE.is_esp8266 and CORE.using_arduino:
             cg.add_library("ESP8266HTTPClient", None)
 
