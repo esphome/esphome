@@ -230,3 +230,65 @@ button:
       - canbus.send: "abc"
       - canbus.send: [0, 1, 2]
       - canbus.send: !lambda return {0, 1, 2};
+
+display:
+  - platform: ili9xxx
+    invert_colors: true
+    dimensions: 320x240
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
+    model: TFT 2.4
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO4
+    color_palette: GRAYSCALE
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO22
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+
+graphical_layout:
+  id: test_graphical_layout
+  layout:
+    type: horizontal_stack
+    child_align: stretch_to_fit_height
+    items:
+      - type: fixed_dimension_panel
+        width: 100
+        height: 100
+        border: 1
+        child:
+          type: text_panel
+          text: "Simple text panel"
+          font: roboto
+      - type: vertical_stack
+        item_padding: 1
+        margin: 1
+        padding: 1
+        border: 1
+        border_color: layout_black
+        items:
+          - type: display_rendering_panel
+            height: 50
+            width: 50
+            lambda: |-
+              it.filled_circle(25, 25, 10);
+          - type: text_run_panel
+            text_align: baseline_center
+            max_width: 100
+            runs:
+              - font: roboto
+                text: Hello
+              - font: roboto
+                text: World
+                background_color: layout_black
+                foreground_color: layout_white
+              - font: roboto
+                text: !lambda |-
+                  return "Dynamic text";
