@@ -153,3 +153,39 @@ def load_idedata(environment):
 
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
     return data
+
+
+def get_binary(name: str, version: str) -> str:
+    binary_file = f"{name}-{version}"
+    try:
+        result = subprocess.check_output([binary_file, "-version"])
+        if result.returncode == 0:
+            return binary_file
+    except Exception:
+        pass
+    binary_file = name
+    try:
+        result = subprocess.run(
+            [binary_file, "-version"], text=True, capture_output=True
+        )
+        if result.returncode == 0 and (f"version {version}") in result.stdout:
+            return binary_file
+        raise FileNotFoundError(f"{name} not found")
+
+    except FileNotFoundError as ex:
+        print(
+            f"""
+            Oops. It looks like {name} is not installed. It should be available under venv/bin
+            and in PATH after running in turn:
+              script/setup
+              source venv/bin/activate.
+
+            Please confirm you can run "{name} -version" or "{name}-{version} -version"
+            in your terminal and install
+            {name} (v{version}) if necessary.
+
+            Note you can also upload your code as a pull request on GitHub and see the CI check
+            output to apply {name}
+            """
+        )
+        raise
