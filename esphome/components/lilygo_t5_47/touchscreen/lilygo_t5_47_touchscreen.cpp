@@ -40,10 +40,10 @@ void LilygoT547Touchscreen::setup() {
   this->write_register(POWER_REGISTER, WAKEUP_CMD, 1);
   if (this->display_ != nullptr) {
     if (this->x_raw_max_ == this->x_raw_min_) {
-      this->x_raw_max_ = this->display_->get_width_internal();
+      this->x_raw_max_ = this->display_->get_native_width();
     }
     if (this->y_raw_max_ == this->y_raw_min_) {
-      this->y_raw_max_ = this->display_->get_height_internal();
+      this->x_raw_max_ = this->display_->get_native_height();
     }
   }
 }
