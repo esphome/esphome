@@ -31,9 +31,7 @@ void TextPanel::dump_config(int indent_depth, int additional_level_depth) {
 
 void TextPanel::setup_complete() {
   if (!this->text_formatter_.has_value()) {
-    this->text_formatter_ = [this](const std::string string) {
-      return string;
-    };
+    this->text_formatter_ = [this](const std::string string) { return string; };
   }
 
   if (this->sensor_ != nullptr) {
@@ -47,15 +45,11 @@ void TextPanel::setup_complete() {
 
   if (this->text_sensor_ != nullptr) {
     // Need to setup the text callback to the TextSensor
-    this->text_ = [this]() {
-      return this->text_formatter_.value(this->text_sensor_->get_state());
-    };
+    this->text_ = [this]() { return this->text_formatter_.value(this->text_sensor_->get_state()); };
   }
 
   if (this->text_input_.has_value()) {
-    this->text_ = [this]() {
-      return this->text_formatter_.value(this->text_input_.value());
-    };
+    this->text_ = [this]() { return this->text_formatter_.value(this->text_input_.value()); };
   }
 }
 

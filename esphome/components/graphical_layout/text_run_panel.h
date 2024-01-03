@@ -31,14 +31,12 @@ struct CanWrapAtCharacterArguments {
 
 class TextRunBase {
  public:
-  TextRunBase(display::BaseFont *font) {
-    this->font_ = font;
-  }
+  TextRunBase(display::BaseFont *font) { this->font_ = font; }
+
 
   void set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; }
   void set_background_color(Color background_color) { this->background_color_ = background_color; }
   virtual std::string get_text() = 0;
-
 
   display::BaseFont *font_{nullptr};
   Color foreground_color_{COLOR_ON};
@@ -67,19 +65,15 @@ class TextRun : public TextRunBase, public FormattableTextRun {
     this->text_ = std::move(text);
   }
 
-  std::string get_text() override {
-    return this->format_text(text_.value());
-  }
+  std::string get_text() override { return this->format_text(text_.value()); }
 
  protected:
   TemplatableValue<std::string> text_{};
 };
 
 class SensorTextRun : public TextRunBase, public FormattableTextRun {
-  public:
-    SensorTextRun(sensor::Sensor *sensor, display::BaseFont *font) : TextRunBase(font) {
-      this->sensor_ = sensor;
-    }
+ public:
+  SensorTextRun(sensor::Sensor *sensor, display::BaseFont *font) : TextRunBase(font) { this->sensor_ = sensor; }
 
   std::string get_text() override {
     std::stringstream stream;
@@ -97,9 +91,8 @@ class TextSensorTextRun : public TextRunBase, public FormattableTextRun {
     this->text_sensor_ = text_sensor;
   }
 
-  std::string get_text() override {
-    return this->format_text(this->text_sensor_->get_state());
-  }
+  std::string get_text() override { return this->format_text(this->text_sensor_->get_state()); }
+
 
  protected:
   text_sensor::TextSensor *text_sensor_{nullptr};

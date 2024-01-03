@@ -2,7 +2,12 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import font, color, sensor, text_sensor
 from esphome.components.display import display_ns
-from esphome.const import CONF_ID, CONF_FOREGROUND_COLOR, CONF_BACKGROUND_COLOR, CONF_SENSOR
+from esphome.const import (
+    CONF_ID,
+    CONF_FOREGROUND_COLOR,
+    CONF_BACKGROUND_COLOR,
+    CONF_SENSOR,
+)
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 TextRunPanel = graphical_layout_ns.class_("TextRunPanel")
