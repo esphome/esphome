@@ -257,7 +257,7 @@ display:
       number: GPIO5
     dc_pin:
       allow_other_uses: true
-      number: GPIO8
+      number: GPIO19
     color_palette: GRAYSCALE
     reset_pin:
       allow_other_uses: true
