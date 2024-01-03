@@ -92,13 +92,20 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   void display() override;
 
   void deep_sleep() override {
-    if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2 || this->model_ == WAVESHARE_EPAPER_1_54_IN_V2) {
-      // COMMAND DEEP SLEEP MODE
-      this->command(0x10);
-      this->data(0x01);
-    } else {
-      // COMMAND DEEP SLEEP MODE
-      this->command(0x10);
+    switch (this->model_) {
+      // Models with specific deep sleep command and data
+      case WAVESHARE_EPAPER_1_54_IN:
+      case WAVESHARE_EPAPER_1_54_IN_V2:
+      case WAVESHARE_EPAPER_2_9_IN_V2:
+        // COMMAND DEEP SLEEP MODE
+        this->command(0x10);
+        this->data(0x01);
+        break;
+      // Other models default to simple deep sleep command
+      default:
+        // COMMAND DEEP SLEEP
+        this->command(0x10);
+        break;
     }
     this->wait_until_idle_();
   }
@@ -107,6 +114,8 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
 
  protected:
   void write_lut_(const uint8_t *lut, uint8_t size);
+
+  void init_display_();
 
   int get_width_internal() override;
 
@@ -118,6 +127,8 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   uint32_t at_update_{0};
   WaveshareEPaperTypeAModel model_;
   uint32_t idle_timeout_() override;
+
+  bool deep_sleep_between_updates_{false};
 };
 
 enum WaveshareEPaperTypeBModel {
@@ -142,6 +153,22 @@ class WaveshareEPaper2P7In : public WaveshareEPaper {
     this->command(0x07);
     this->data(0xA5);  // check byte
   }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
+class WaveshareEPaper2P7InV2 : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override { ; }
 
  protected:
   int get_width_internal() override;
@@ -210,6 +237,26 @@ class GDEW0154M09 : public WaveshareEPaper {
 };
 
 class WaveshareEPaper2P9InB : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);  // check byte
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
+class WaveshareEPaper2P9InBV3 : public WaveshareEPaper {
  public:
   void initialize() override;
 
