@@ -20,7 +20,7 @@ class WK2132RegI2C : public wk2132::WK2132Reg {
   uint8_t read_reg() const override;
   void write_reg(uint8_t value) override;
   void read_fifo(uint8_t *data, size_t length) const override;
-  void write_fifo(const uint8_t *data, size_t length) override;
+  void write_fifo(uint8_t *data, size_t length) override;
 
  protected:
   friend WK2132ComponentI2C;

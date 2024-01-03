@@ -81,12 +81,12 @@ void WK2132RegisterSPI::write_reg(uint8_t value) {
             reg_to_str(this->register_, this->comp_->page1_), this->register_, this->channel_, value);
 }
 
-void WK2132RegisterSPI::write_fifo(const uint8_t *data, size_t length) {
+void WK2132RegisterSPI::write_fifo(uint8_t *data, size_t length) {
   auto *spi_delegate = static_cast<WK2132ComponentSPI *>(this->comp_)->delegate_;
   uint8_t cmd = cmd_byte(WRITE_CMD, FIFO, this->register_, this->channel_);
   spi_delegate->begin_transaction();
   spi_delegate->transfer(&cmd, 1);
-  spi_delegate->transfer(const_cast<uint8_t *>(data), length);
+  spi_delegate->transfer(data, length);
   spi_delegate->end_transaction();
   ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%s", I2CS(cmd), cmd, this->register_, this->channel_,
             format_hex_pretty(data, length).c_str());

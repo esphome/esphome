@@ -87,7 +87,7 @@ void WK2132RegI2C::write_reg(uint8_t value) {
   }
 }
 
-void WK2132RegI2C::write_fifo(const uint8_t *data, size_t length) {
+void WK2132RegI2C::write_fifo(uint8_t *data, size_t length) {
   WK2132ComponentI2C *comp_i2c = static_cast<WK2132ComponentI2C *>(this->comp_);
   comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, FIFO);  // set fifo flag
   auto error = comp_i2c->write(data, length);

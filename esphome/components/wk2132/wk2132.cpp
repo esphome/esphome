@@ -414,7 +414,7 @@ void WK2132Channel::write_array(const uint8_t *buffer, size_t length) {
     ESP_LOGE(TAG, "Write_array: invalid call - requested %d bytes max size %d ...", length, XFER_MAX_SIZE);
     length = XFER_MAX_SIZE;
   }
-  this->reg_(0).write_fifo(buffer, length);
+  this->reg_(0).write_fifo(const_cast<uint8_t *>(buffer), length);
 }
 
 void WK2132Channel::flush() {

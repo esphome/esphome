@@ -187,7 +187,7 @@ class WK2132Reg {
   /// @brief write an array of bytes to the transmitter fifo
   /// @param data pointer to data buffer
   /// @param length number of bytes to write
-  virtual void write_fifo(const uint8_t *data, size_t length) = 0;
+  virtual void write_fifo(uint8_t *data, size_t length) = 0;
 
  protected:
   WK2132Component *const comp_;  ///< pointer to our parent (aggregation)
