@@ -116,6 +116,7 @@ class Touchscreen : public PollingComponent {
   bool first_touch_{true};
   bool need_update_{false};
   bool is_touched_{false};
+  bool was_touched_{false};
   bool skip_update_{false};
 };
 

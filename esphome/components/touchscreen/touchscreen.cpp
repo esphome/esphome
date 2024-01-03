@@ -36,6 +36,7 @@ void Touchscreen::loop() {
   if (this->store_.touched) {
     this->first_touch_ = this->touches_.empty();
     this->need_update_ = false;
+    this->was_touched_ = this->is_touched_;
     this->is_touched_ = false;
     this->skip_update_ = false;
     for (auto &tp : this->touches_) {
@@ -102,30 +103,35 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
 }
 
 void Touchscreen::send_touches_() {
+  TouchPoints_t touches;
+  for (auto tp : this->touches_) {
+    ESP_LOGV(TAG, "Touch status: %d/%d: raw:(%4d, %4d) calc:(%4d, %4d)", tp.second.id, tp.second.state, tp.second.x_raw,
+             tp.second.y_raw, tp.second.x, tp.second.y);
+    touches.push_back(tp.second);
+  }
+  if (this->need_update_ || (!this->is_touched_ && this->was_touched_)) {
+    this->update_trigger_.trigger(touches);
+    for (auto *listener : this->touch_listeners_) {
+      listener->update(touches);
+    }
+  }
   if (!this->is_touched_) {
-    if (this->touch_timeout_ > 0) {
-      this->cancel_timeout(TAG);
+    if (this->was_touched_) {
+      if (this->touch_timeout_ > 0) {
+        this->cancel_timeout(TAG);
+      }
+      this->release_trigger_.trigger();
+      for (auto *listener : this->touch_listeners_)
+        listener->release();
+      this->touches_.clear();
+      this->was_touched_ = false;
     }
-    this->release_trigger_.trigger();
-    for (auto *listener : this->touch_listeners_)
-      listener->release();
-    this->touches_.clear();
   } else {
-    TouchPoints_t touches;
-    for (auto tp : this->touches_) {
-      touches.push_back(tp.second);
-    }
     if (this->first_touch_) {
       TouchPoint tp = this->touches_.begin()->second;
       this->touch_trigger_.trigger(tp, touches);
       for (auto *listener : this->touch_listeners_) {
         listener->touch(tp);
-      }
-    }
-    if (this->need_update_) {
-      this->update_trigger_.trigger(touches);
-      for (auto *listener : this->touch_listeners_) {
-        listener->update(touches);
       }
     }
   }
