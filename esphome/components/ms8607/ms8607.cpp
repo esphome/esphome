@@ -74,7 +74,7 @@ void MS8607Component::setup() {
   // I do not know why the device sometimes NACKs the reset command, but
   // try 3 times in case it's a transitory issue on this boot
   this->set_retry(
-      "reset", 1, 3,
+      "reset", 5, 3,
       [this](const uint8_t remaining_setup_attempts) {
         ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X", this->address_, this->humidity_sensor_address_);
         // I believe sending the reset command to both addresses is preferable to
@@ -118,7 +118,7 @@ void MS8607Component::setup() {
 
         return RetryResult::DONE;
       },
-      5.0f);  // executes at 1ms, 5ms, 25ms
+      5.0f);  // executes at now, +5ms, +25ms
 }
 
 void MS8607Component::update() {
