@@ -180,6 +180,13 @@ void PulseCounterSensor::update() {
     ESP_LOGD(TAG, "'%s': Total : %" PRIu32 " pulses", this->get_name().c_str(), current_total_);
     this->total_sensor_->publish_state(current_total_);
   }
+
+  if (this->binary_sensor_ != nullptr) {
+    bool level = this->storage_.pin->digital_read();
+    ESP_LOGD(TAG, "'%s': Sending state %s", this->get_name().c_str(), ONOFF(level));
+    this->binary_sensor_->publish_state(level);
+  }
+
   this->last_time_ = now;
 }
 
