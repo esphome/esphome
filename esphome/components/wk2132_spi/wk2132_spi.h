@@ -12,10 +12,10 @@ namespace wk2132_spi {
 
 class WK2132ComponentSPI;
 
-class WK2132RegisterSPI : public wk2132::WK2132Register {
+class WK2132RegisterSPI : public wk2132::WK2132Reg {
  public:
   //
-  // implements WK2132Register virtual methods
+  // implements WK2132Reg virtual methods
   //
   uint8_t read_reg() const override;
   void write_reg(uint8_t value) override;
@@ -28,7 +28,7 @@ class WK2132RegisterSPI : public wk2132::WK2132Register {
   /// @param comp component we belongs to
   /// @param reg proxied register
   /// @param channel associated channel
-  WK2132RegisterSPI(wk2132::WK2132Component *comp, uint8_t reg, uint8_t channel) : WK2132Register(comp, reg, channel) {}
+  WK2132RegisterSPI(wk2132::WK2132Component *comp, uint8_t reg, uint8_t channel) : WK2132Reg(comp, reg, channel) {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -40,20 +40,9 @@ class WK2132ComponentSPI : public wk2132::WK2132Component,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
-  wk2132::WK2132Register &global_reg(uint8_t reg) override {
-    reg_spi_.register_ = reg;
-    return reg_spi_;
-  }
-
-  wk2132::WK2132Register &channel_reg(uint8_t reg, uint8_t channel) override {
-    reg_spi_.register_ = reg;
-    reg_spi_.channel_ = channel;
-    return reg_spi_;
-  }
-
-  wk2132::WK2132Register &fifo_reg(uint8_t channel) override {
-    // reg_spi_.register_ = 0;
-    reg_spi_.channel_ = channel;
+  wk2132::WK2132Reg &reg(uint8_t reg, uint8_t channel = 0) override {
+    reg_spi_.register_ = reg & 0x0F;
+    reg_spi_.channel_ = channel & 0x01;
     return reg_spi_;
   }
 

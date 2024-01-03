@@ -127,64 +127,64 @@ template<typename T, size_t SIZE> class RingBuffer {
 
 class WK2132Component;  // forward declaration
 class WK2132ComponentI2C;
-class WK2132ComponentI2S;
+class WK2132ComponentSPI;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief This helper class creates Register objects that act as proxies to access WK2132 register
 /// @details This is a pure virtual (interface) class that provides all the necessary access to registers while hiding
 /// the actual implementation. This allow the wk2132 component to accesses the registers independently of the actual
 /// bus. The derived classes will actually performs the specific bus operations dependant of the bus used.
-/// @n typical usage of WK2132Register:
+/// @n typical usage of WK2132Reg:
 /// @code
-///   WK2132Register reg_1 {&WK2132Component, ADDR_REGISTER, CHANNEL_NUM, FIFO}  // declaration
+///   WK2132Reg reg_1 {&WK2132Component, ADDR_REGISTER, CHANNEL_NUM, FIFO}  // declaration
 ///   reg_1 |= 0x01;    // set bit 0 of the wk2132 register
 ///   reg_1 &= ~0x01;   // reset bit 0 of the wk2132 register
 ///   reg_1 = 10;       // Set the value of wk2132 register
 ///   uint val = reg_1; // get the value of wk2132 register
 /// @endcode
-class WK2132Register {
+class WK2132Reg {
  public:
-  /// @brief WK2132Register constructor.
+  /// @brief WK2132Reg constructor.
   /// @param parent our creator
   /// @param reg address of the i2c register
   /// @param channel the channel of this register
   /// @param fifo 0 for register transfer, 1 for fifo transfer
-  WK2132Register(WK2132Component *const comp, uint8_t reg, uint8_t channel)
+  WK2132Reg(WK2132Component *const comp, uint8_t reg, uint8_t channel)
       : comp_(comp), register_(reg), channel_(channel) {}
-  virtual ~WK2132Register() {}
+  virtual ~WK2132Reg() {}
 
   /// @brief overloads the = operator. This is used to set a value into the wk2132 register
   /// @param value to be set
   /// @return this object
-  WK2132Register &operator=(uint8_t value);
+  WK2132Reg &operator=(uint8_t value);
 
   /// @brief overloads the compound &= operator. This is often used to reset bits in the wk2132 register
   /// @param value performs an & operation with value and store the result
   /// @return this object
-  WK2132Register &operator&=(uint8_t value);
+  WK2132Reg &operator&=(uint8_t value);
 
   /// @brief overloads the compound |= operator. This is often used to set bits in the wk2132 register
   /// @param value performs an | operation with value and store the result
   /// @return this object
-  WK2132Register &operator|=(uint8_t value);
+  WK2132Reg &operator|=(uint8_t value);
 
   /// @brief cast operator that returns the content of the wk2132 register
   operator uint8_t() const { return read_reg(); }
 
-  /// @brief returns the value of the wk2132 register
+  /// @brief reads the wk2132 register
   /// @return the value of the wk2132 register
   virtual uint8_t read_reg() const = 0;
 
-  /// @brief write the wk2132 register value
-  /// @param value to set
+  /// @brief writes the wk2132 register
+  /// @param value to write in the register
   virtual void write_reg(uint8_t value) = 0;
 
-  /// @brief read an array of bytes (normally used for fifo access)
+  /// @brief read an array of bytes from the receiver fifo
   /// @param data pointer to data buffer
   /// @param length number of bytes to read
   virtual void read_fifo(uint8_t *data, size_t length) const = 0;
 
-  /// @brief write an array of bytes (normally used for fifo access)
+  /// @brief write an array of bytes to the transmitter fifo
   /// @param data pointer to data buffer
   /// @param length number of bytes to write
   virtual void write_fifo(const uint8_t *data, size_t length) = 0;
@@ -512,23 +512,14 @@ class WK2132Component : public Component {
 
  protected:
   friend class WK2132Channel;
-  friend class WK2132Register;
+  friend class WK2132Reg;
+  friend class WK2132RegisterSPI;
 
-  /// @brief Factory method to create a Register object for accessing a global register
+  /// @brief Factory method to create a Register object
   /// @param reg address of the register
-  /// @return a reference to WK2132Register
-  virtual WK2132Register &global_reg(uint8_t reg) = 0;
-
-  /// @brief Factory method to create a Register object for accessing a channel register
-  /// @param reg address of the register
-  /// @param channel the channel number (0-1)
-  /// @return a reference to WK2132Register
-  virtual WK2132Register &channel_reg(uint8_t reg, uint8_t channel) = 0;
-
-  /// @brief Factory method to create a Register object for accessing the FIFO
-  /// @param channel channel number
-  /// @return a reference to WK2132Register
-  virtual WK2132Register &fifo_reg(uint8_t channel) = 0;
+  /// @param channel channel associated with this register
+  /// @return a reference to WK2132Reg
+  virtual WK2132Reg &reg(uint8_t reg, uint8_t channel) = 0;
 
   uint32_t crystal_;                         ///< crystal value;
   int test_mode_;                            ///< test mode value (0 -> no tests)
@@ -635,12 +626,8 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief Factory method to create a Register object for accessing a register on current channel
   /// @param reg address of the register
-  /// @return a reference to WK2132Register
-  WK2132Register &channel_reg_(uint8_t reg) { return this->parent_->channel_reg(reg, channel_); }
-
-  /// @brief Factory method to create a Register object for accessing the FIFO on current channel
-  /// @return a reference to WK2132Register
-  WK2132Register &fifo_reg_() { return this->parent_->fifo_reg(channel_); }
+  /// @return a reference to WK2132Reg
+  WK2132Reg &reg_(uint8_t reg) { return this->parent_->reg(reg, channel_); }
 
   /// @brief reset the wk2132 internal FIFO
   void reset_fifo_();

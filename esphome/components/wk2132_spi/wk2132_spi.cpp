@@ -35,7 +35,7 @@ enum RegType { REG = 0, FIFO = 1 };            ///< Register or FIFO
 /// R/W: 0 = write, 1 = read
 /// C1-C0: Channel (0-1)
 /// A3-A0: Address (0-F)
-inline static uint8_t command_byte(CmdType transfer_type, RegType fifo, uint8_t reg, uint8_t channel) {
+inline static uint8_t cmd_byte(CmdType transfer_type, RegType fifo, uint8_t reg, uint8_t channel) {
   return (fifo << 7 | transfer_type << 6 | channel << 4 | reg << 0);
 }
 
@@ -47,53 +47,48 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 #define I2CS(val) (i2s(val).c_str())
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WK2132Register methods
+// The WK2132Reg methods
 ///////////////////////////////////////////////////////////////////////////////
 uint8_t WK2132RegisterSPI::read_reg() const {
-  uint8_t value = 0x00;
-  WK2132ComponentSPI *spi_comp = static_cast<WK2132ComponentSPI *>(this->comp_);
-  auto command = command_byte(READ_CMD, REG, this->register_, this->channel_);
-  spi_comp->enable();
-  spi_comp->write_byte(command);
-  spi_comp->read_array(&value, 1);
-  spi_comp->disable();
-  ESP_LOGVV(TAG, "Register::read_reg() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(command), command,
-            reg_to_str(this->register_, spi_comp->page1_), this->register_, this->channel_, value);
-  return value;
+  auto *spi_delegate = static_cast<WK2132ComponentSPI *>(this->comp_)->delegate_;
+  uint8_t buf[2]{cmd_byte(READ_CMD, REG, this->register_, this->channel_)};
+  spi_delegate->begin_transaction();
+  spi_delegate->transfer(buf, 2);
+  spi_delegate->end_transaction();
+  ESP_LOGVV(TAG, "Register::read_reg() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(buf[0]), buf[0],
+            reg_to_str(this->register_, this->comp_->page1_), this->register_, this->channel_, buf[1]);
+  return buf[1];
 }
 
 void WK2132RegisterSPI::read_fifo(uint8_t *data, size_t length) const {
-  WK2132ComponentSPI *spi_comp = static_cast<WK2132ComponentSPI *>(this->comp_);
-  auto command = command_byte(READ_CMD, FIFO, this->register_, this->channel_);
-  spi_comp->enable();
-  spi_comp->write_byte(command);
-  spi_comp->read_array(data, length);
-  spi_comp->disable();
-  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%s", I2CS(command), command,
-            reg_to_str(this->register_, spi_comp->page1_), this->register_, this->channel_,
+  auto *spi_delegate = static_cast<WK2132ComponentSPI *>(this->comp_)->delegate_;
+  uint8_t cmd = cmd_byte(READ_CMD, FIFO, this->register_, this->channel_);
+  spi_delegate->begin_transaction();
+  spi_delegate->transfer(&cmd, 1);
+  spi_delegate->transfer(data, length);
+  spi_delegate->end_transaction();
+  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%s", I2CS(cmd), cmd, this->register_, this->channel_,
             format_hex_pretty(data, length).c_str());
 }
 
 void WK2132RegisterSPI::write_reg(uint8_t value) {
-  WK2132ComponentSPI *spi_comp = static_cast<WK2132ComponentSPI *>(this->comp_);
-  auto command = command_byte(WRITE_CMD, REG, this->register_, this->channel_);
-  spi_comp->enable();
-  spi_comp->write_byte(command);
-  spi_comp->write_array(&value, 1);
-  spi_comp->disable();
-  ESP_LOGVV(TAG, "Register::write_reg() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(command), command,
-            reg_to_str(this->register_, spi_comp->page1_), this->register_, this->channel_, value);
+  auto *spi_delegate = static_cast<WK2132ComponentSPI *>(this->comp_)->delegate_;
+  uint8_t buf[2]{cmd_byte(WRITE_CMD, REG, this->register_, this->channel_), value};
+  spi_delegate->begin_transaction();
+  spi_delegate->transfer(buf, 2);
+  spi_delegate->end_transaction();
+  ESP_LOGVV(TAG, "Register::write_reg() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(buf[0]), buf[0],
+            reg_to_str(this->register_, this->comp_->page1_), this->register_, this->channel_, value);
 }
 
 void WK2132RegisterSPI::write_fifo(const uint8_t *data, size_t length) {
-  WK2132ComponentSPI *spi_comp = static_cast<WK2132ComponentSPI *>(this->comp_);
-  auto command = command_byte(WRITE_CMD, FIFO, this->register_, this->channel_);
-  spi_comp->enable();
-  spi_comp->write_byte(command);
-  spi_comp->write_array(data, length);
-  spi_comp->disable();
-  ESP_LOGVV(TAG, "Register::write_fifo() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%s", I2CS(command), command,
-            reg_to_str(this->register_, spi_comp->page1_), this->register_, this->channel_,
+  auto *spi_delegate = static_cast<WK2132ComponentSPI *>(this->comp_)->delegate_;
+  uint8_t cmd = cmd_byte(WRITE_CMD, FIFO, this->register_, this->channel_);
+  spi_delegate->begin_transaction();
+  spi_delegate->transfer(&cmd, 1);
+  spi_delegate->transfer(const_cast<uint8_t *>(data), length);
+  spi_delegate->end_transaction();
+  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%s", I2CS(cmd), cmd, this->register_, this->channel_,
             format_hex_pretty(data, length).c_str());
 }
 
@@ -104,23 +99,12 @@ void WK2132ComponentSPI::setup() {
   using namespace wk2132;
   ESP_LOGCONFIG(TAG, "Setting up wk2132_spi: %s with %d UARTs...", this->get_name(), this->children_.size());
   this->spi_setup();
-  // delay(10);
-
-  // this->enable();
-  // this->write_byte(0x55);
-  // this->transfer_byte(0xAA);
-  // this->delegate_->transfer(0x55);
-  // uint8_t data[] = {0x55, 0xAA};
-  // this->write_array(data, 2);
-  // this->transfer_array(data, 2);
-  // this->disable();
-
   // enable both channels
-  this->global_reg(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
+  this->reg(REG_WK2132_GENA) = GENA_C1EN | GENA_C2EN;
   // reset channels
-  this->global_reg(REG_WK2132_GRST) = GRST_C1RST | GRST_C2RST;
+  this->reg(REG_WK2132_GRST) = GRST_C1RST | GRST_C2RST;
   // initialize the spage register to page 0
-  this->global_reg(REG_WK2132_SPAGE) = 0;
+  this->reg(REG_WK2132_SPAGE) = 0;
   this->page1_ = false;
 
   // we setup our children channels

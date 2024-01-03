@@ -12,7 +12,10 @@ namespace wk2132_i2c {
 
 class WK2132ComponentI2C;
 
-class WK2132RegisterI2C : public wk2132::WK2132Register {
+////////////////////////////////////////////////////////////////////////////////////
+// class WK2132ComponentI2C
+////////////////////////////////////////////////////////////////////////////////////
+class WK2132RegI2C : public wk2132::WK2132Reg {
  public:
   uint8_t read_reg() const override;
   void write_reg(uint8_t value) override;
@@ -21,8 +24,7 @@ class WK2132RegisterI2C : public wk2132::WK2132Register {
 
  protected:
   friend WK2132ComponentI2C;
-  WK2132RegisterI2C(wk2132::WK2132Component *const comp, uint8_t reg, uint8_t channel)
-      : WK2132Register(comp, reg, channel) {}
+  WK2132RegI2C(wk2132::WK2132Component *const comp, uint8_t reg, uint8_t channel) : WK2132Reg(comp, reg, channel) {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -30,19 +32,9 @@ class WK2132RegisterI2C : public wk2132::WK2132Register {
 ////////////////////////////////////////////////////////////////////////////////////
 class WK2132ComponentI2C : public wk2132::WK2132Component, public i2c::I2CDevice {
  public:
-  wk2132::WK2132Register &global_reg(uint8_t reg) override {
-    reg_i2c_.register_ = reg;
-    return reg_i2c_;
-  }
-
-  wk2132::WK2132Register &channel_reg(uint8_t reg, uint8_t channel) override {
-    reg_i2c_.register_ = reg;
-    reg_i2c_.channel_ = channel;
-    return reg_i2c_;
-  }
-
-  wk2132::WK2132Register &fifo_reg(uint8_t channel) override {
-    reg_i2c_.channel_ = channel;
+  wk2132::WK2132Reg &reg(uint8_t reg, uint8_t channel = 0) override {
+    reg_i2c_.register_ = reg & 0x0F;
+    reg_i2c_.channel_ = channel & 0x01;
     return reg_i2c_;
   }
 
@@ -53,9 +45,9 @@ class WK2132ComponentI2C : public wk2132::WK2132Component, public i2c::I2CDevice
   void dump_config() override;
 
  protected:
-  friend WK2132RegisterI2C;
-  uint8_t base_address_;                   ///< base address of I2C device
-  WK2132RegisterI2C reg_i2c_{this, 0, 0};  ///< store the current register
+  friend WK2132RegI2C;
+  uint8_t base_address_;              ///< base address of I2C device
+  WK2132RegI2C reg_i2c_{this, 0, 0};  ///< store the current register
 };
 
 }  // namespace wk2132_i2c
