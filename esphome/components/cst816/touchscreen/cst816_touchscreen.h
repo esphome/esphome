@@ -24,6 +24,7 @@ static const uint8_t CST816_REG_SLEEP = 0xE5;
 static const uint8_t CST816_REG_IRQ_CTL = 0xFA;
 static const uint8_t CST816_IRQ_EN_MOTION = 0x70;
 
+static const uint8_t CST820_CHIP_ID = 0xB7;
 static const uint8_t CST816S_CHIP_ID = 0xB4;
 static const uint8_t CST816D_CHIP_ID = 0xB6;
 static const uint8_t CST816T_CHIP_ID = 0xB5;
@@ -91,6 +92,7 @@ class CST816Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
       return;
     }
     switch (this->chip_id_) {
+      case CST820_CHIP_ID:
       case CST716_CHIP_ID:
       case CST816S_CHIP_ID:
       case CST816D_CHIP_ID:

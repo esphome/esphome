@@ -10,6 +10,9 @@ void CST816Touchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   const char *name;
   switch (this->chip_id_) {
+    case CST820_CHIP_ID:
+      name = "CST820";
+      break;
     case CST816S_CHIP_ID:
       name = "CST816S";
       break;
