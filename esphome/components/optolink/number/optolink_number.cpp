@@ -23,7 +23,7 @@ void OptolinkNumber::datapoint_value_changed(uint8_t state) {
   if (traits.get_min_value() >= 0) {
     publish_state(state);
   } else {
-    publish_state((sint8_t) state);
+    publish_state((int8_t) state);
   }
 };
 
@@ -31,7 +31,7 @@ void OptolinkNumber::datapoint_value_changed(uint16_t state) {
   if (traits.get_min_value() >= 0) {
     publish_state(state);
   } else {
-    publish_state((sint16_t) state);
+    publish_state((int16_t) state);
   }
 };
 
@@ -39,7 +39,7 @@ void OptolinkNumber::datapoint_value_changed(uint32_t state) {
   if (traits.get_min_value() >= 0) {
     publish_state(state);
   } else {
-    publish_state((sint32_t) state);
+    publish_state((int32_t) state);
   }
 };
 
