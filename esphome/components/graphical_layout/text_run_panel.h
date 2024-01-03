@@ -33,7 +33,6 @@ class TextRunBase {
  public:
   TextRunBase(display::BaseFont *font) { this->font_ = font; }
 
-
   void set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; }
   void set_background_color(Color background_color) { this->background_color_ = background_color; }
   virtual std::string get_text() = 0;
@@ -92,7 +91,6 @@ class TextSensorTextRun : public TextRunBase, public FormattableTextRun {
   }
 
   std::string get_text() override { return this->format_text(this->text_sensor_->get_state()); }
-
 
  protected:
   text_sensor::TextSensor *text_sensor_{nullptr};
