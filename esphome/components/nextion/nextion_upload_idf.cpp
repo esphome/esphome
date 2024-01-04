@@ -37,6 +37,9 @@ int Nextion::upload_range(const std::string &url, int range_start) {
   esp_http_client_config_t config = {
       .url = url.c_str(),
       .cert_pem = nullptr,
+      .timeout_ms = 15000,
+      .disable_auto_redirect = false,
+      .max_redirection_count = 10,
   };
   esp_http_client_handle_t client = esp_http_client_init(&config);
 
@@ -151,6 +154,8 @@ bool Nextion::upload_tft() {
       .cert_pem = nullptr,
       .method = HTTP_METHOD_HEAD,
       .timeout_ms = 15000,
+      .disable_auto_redirect = false,
+      .max_redirection_count = 10,
   };
 
   // Initialize the HTTP client with the configuration
