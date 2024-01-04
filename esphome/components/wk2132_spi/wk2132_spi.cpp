@@ -67,7 +67,7 @@ void WK2132RegisterSPI::read_fifo(uint8_t *data, size_t length) const {
   spi_delegate->transfer(&cmd, 1);
   spi_delegate->transfer(data, length);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%hhu", I2CS(cmd), cmd, this->channel_,
+  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%s", I2CS(cmd), cmd, this->channel_,
             format_hex_pretty(data, length).c_str());
 }
 
@@ -88,7 +88,7 @@ void WK2132RegisterSPI::write_fifo(uint8_t *data, size_t length) {
   spi_delegate->transfer(&cmd, 1);
   spi_delegate->transfer(data, length);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%hhu", I2CS(cmd), cmd, this->channel_,
+  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%s", I2CS(cmd), cmd, this->channel_,
             format_hex_pretty(data, length).c_str());
 }
 
