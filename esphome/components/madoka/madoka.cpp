@@ -77,9 +77,9 @@ void Madoka::control(const ClimateCall &call) {
     uint16_t target_low = *call.get_target_temperature_low() * 128;
     uint16_t target_high = *call.get_target_temperature_high() * 128;
     this->query_(0x4040,
-                message({0x20, 0x02, (uint8_t) ((target_high >> 8) & 0xFF), (uint8_t) (target_high & 0xFF), 0x21, 0x02,
-                         (uint8_t) ((target_low >> 8) & 0xFF), (uint8_t) (target_low & 0xFF)}),
-                400);
+                 message({0x20, 0x02, (uint8_t) ((target_high >> 8) & 0xFF), (uint8_t) (target_high & 0xFF), 0x21, 0x02,
+                          (uint8_t) ((target_low >> 8) & 0xFF), (uint8_t) (target_low & 0xFF)}),
+                 400);
   }
   if (call.get_fan_mode().has_value()) {
     uint8_t fan_mode = call.get_fan_mode().value();
@@ -241,7 +241,8 @@ std::vector<chunk> Madoka::split_payload_(message msg) {
   result[0].insert(result[0].end(), msg.begin(), min(msg.begin() + (MAX_CHUNK_SIZE - 2), msg.end()));
   int i = 0;
   for (i = 1; i < len / (MAX_CHUNK_SIZE - 1); i++) {  // from second to second-last
-    result.emplace_back(msg.begin() + ((MAX_CHUNK_SIZE - 1) * i - 1), msg.begin() + ((MAX_CHUNK_SIZE - 1) * (i + 1) - 1));
+    result.emplace_back(msg.begin() + ((MAX_CHUNK_SIZE - 1) * i - 1),
+                        msg.begin() + ((MAX_CHUNK_SIZE - 1) * (i + 1) - 1));
   }
   if (len > 18) {
     i++;
