@@ -322,6 +322,20 @@ ads1115:
   address: 0x48
   i2c_id: i2c_bus
 
+as5600:
+  i2c_id: i2c_bus
+  dir_pin:
+    number: 27
+    allow_other_uses: true
+  direction: clockwise
+  start_position: 90deg
+  range: 180deg
+  watchdog: true
+  power_mode: low1
+  hysteresis: lsb1
+  slow_filter: 8x
+  fast_filter: lsb6
+
 dallas:
   pin:
     allow_other_uses: true
@@ -344,8 +358,10 @@ esp32_ble_tracker:
 ble_client:
   - mac_address: AA:BB:CC:DD:EE:FF
     id: ble_foo
+    auto_connect: true
   - mac_address: 11:22:33:44:55:66
     id: ble_blah
+    auto_connect: false
     on_connect:
       then:
         - switch.turn_on: ble1_status
@@ -555,6 +571,16 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: as5600
+    name: AS5600 Position
+    raw_position:
+      name: AS5600 Raw Position
+    gain:
+      name: AS5600 Gain
+    magnitude:
+      name: AS5600 Magnitude
+    status:
+      name: AS5600 Status
   - platform: as7341
     update_interval: 15s
     gain: X8
@@ -794,7 +820,7 @@ sensor:
     update_interval: 15s
     current_resistor: 0.001 ohm
     voltage_divider: 2351
-    change_mode_every: 16
+    change_mode_every: "never"
     initial_mode: VOLTAGE
     model: hlw8012
   - platform: total_daily_energy
@@ -1667,7 +1693,6 @@ binary_sensor:
       mcp23xxx: mcp23s08_hub
       # Use pin number 1
       number: 1
-      allow_other_uses: true
       # One of INPUT or INPUT_PULLUP
       mode: INPUT_PULLUP
       inverted: false
@@ -1709,6 +1734,8 @@ binary_sensor:
       - delayed_on_off: !lambda "return 10;"
       - delayed_on: !lambda "return 1000;"
       - delayed_off: !lambda "return 0;"
+      - settle: 40ms
+      - settle: !lambda "return 10;"
     on_press:
       then:
         - lambda: >-
@@ -2016,21 +2043,21 @@ my9231:
 
 sm2235:
   data_pin:
-      allow_other_uses: true
-      number: GPIO4
+    allow_other_uses: true
+    number: GPIO4
   clock_pin:
-      allow_other_uses: true
-      number: GPIO5
+    allow_other_uses: true
+    number: GPIO5
   max_power_color_channels: 9
   max_power_white_channels: 9
 
 sm2335:
   data_pin:
-      allow_other_uses: true
-      number: GPIO4
+    allow_other_uses: true
+    number: GPIO4
   clock_pin:
-      allow_other_uses: true
-      number: GPIO5
+    allow_other_uses: true
+    number: GPIO5
   max_power_color_channels: 9
   max_power_white_channels: 9
 
@@ -2149,7 +2176,6 @@ output:
     pin:
       mcp23xxx: mcp23017_hub
       number: 0
-      allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -2157,7 +2183,6 @@ output:
     pin:
       mcp23xxx: mcp23008_hub
       number: 0
-      allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -2603,7 +2628,6 @@ switch:
       mcp23xxx: mcp23s08_hub
       # Use pin number 0
       number: 0
-      allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -3010,6 +3034,16 @@ interval:
               page_id: page1
           then:
             - logger.log: Seeing page 1
+  - interval: 60min
+    then:
+      - ble_client.connect: ble_blah
+      - ble_client.ble_write:
+          id: ble_blah
+          service_uuid: EBE0CCB0-7A0A-4B0C-8A1A-6FF2997DA3A6
+          characteristic_uuid: EBE0CCB7-7A0A-4B0C-8A1A-6FF2997DA3A6
+          value: !lambda |-
+            return {1, 0};
+      - ble_client.disconnect: ble_blah
 
 color:
   - id: kbx_red
@@ -3028,17 +3062,13 @@ display:
     id: my_lcd_gpio
     dimensions: 18x4
     data_pins:
-      -
-        allow_other_uses: true
+      - allow_other_uses: true
         number: GPIO19
-      -
-        allow_other_uses: true
+      - allow_other_uses: true
         number: GPIO21
-      -
-        allow_other_uses: true
+      - allow_other_uses: true
         number: GPIO22
-      -
-        allow_other_uses: true
+      - allow_other_uses: true
         number: GPIO23
     enable_pin:
       allow_other_uses: true
@@ -3245,6 +3275,25 @@ display:
       allow_other_uses: true
       number: GPIO23
       inverted: true
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7567_i2c
+    id: st7735_display_i2c
+    address: 0x3F
+    i2c_id: i2c_bus
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7567_spi
+    id: st7735_display_spi
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO16
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7735
@@ -4189,25 +4238,25 @@ graphical_display_menu:
       lambda: 'ESP_LOGI("graphical_display_menu", "root leave");'
   items:
     - type: back
-      text: 'Back'
+      text: "Back"
     - type: label
     - type: menu
-      text: 'Submenu 1'
+      text: "Submenu 1"
       items:
         - type: back
-          text: 'Back'
+          text: "Back"
         - type: menu
-          text: 'Submenu 21'
+          text: "Submenu 21"
           items:
             - type: back
-              text: 'Back'
+              text: "Back"
             - type: command
-              text: 'Show Main'
+              text: "Show Main"
               on_value:
                 then:
                   - display_menu.show_main: test_graphical_display_menu
     - type: select
-      text: 'Enum Item'
+      text: "Enum Item"
       immediate_edit: true
       select: test_select
       on_enter:
@@ -4220,7 +4269,7 @@ graphical_display_menu:
         then:
           lambda: 'ESP_LOGI("graphical_display_menu", "select value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: number
-      text: 'Number'
+      text: "Number"
       number: test_number
       on_enter:
         then:
@@ -4232,15 +4281,15 @@ graphical_display_menu:
         then:
           lambda: 'ESP_LOGI("graphical_display_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: command
-      text: 'Hide'
+      text: "Hide"
       on_value:
         then:
           - display_menu.hide: test_graphical_display_menu
     - type: switch
-      text: 'Switch'
+      text: "Switch"
       switch: my_switch
-      on_text: 'Bright'
-      off_text: 'Dark'
+      on_text: "Bright"
+      off_text: "Dark"
       immediate_edit: false
       on_value:
         then:
