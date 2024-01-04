@@ -35,6 +35,41 @@ void HOT Display::line(int x1, int y1, int x2, int y2, Color color) {
     }
   }
 }
+
+void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                             ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+  size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
+  uint32_t color_value;
+  for (int y = 0; y != h; y++) {
+    size_t source_idx = (y_offset + y) * line_stride + x_offset;
+    size_t source_idx_mod;
+    for (int x = 0; x != w; x++, source_idx++) {
+      switch (bitness) {
+        default:
+          color_value = ptr[source_idx];
+          break;
+        case COLOR_BITNESS_565:
+          source_idx_mod = source_idx * 2;
+          if (big_endian) {
+            color_value = (ptr[source_idx_mod] << 8) + ptr[source_idx_mod + 1];
+          } else {
+            color_value = ptr[source_idx_mod] + (ptr[source_idx_mod + 1] << 8);
+          }
+          break;
+        case COLOR_BITNESS_888:
+          source_idx_mod = source_idx * 3;
+          if (big_endian) {
+            color_value = (ptr[source_idx_mod + 0] << 16) + (ptr[source_idx_mod + 1] << 8) + ptr[source_idx_mod + 2];
+          } else {
+            color_value = ptr[source_idx_mod + 0] + (ptr[source_idx_mod + 1] << 8) + (ptr[source_idx_mod + 2] << 16);
+          }
+          break;
+      }
+      this->draw_pixel_at(x + x_start, y + y_start, ColorUtil::to_color(color_value, order, bitness));
+    }
+  }
+}
+
 void HOT Display::horizontal_line(int x, int y, int width, Color color) {
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = x; i < x + width; i++)
@@ -165,6 +200,13 @@ void Display::qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on, in
   qr_code->draw(this, x, y, color_on, scale);
 }
 #endif  // USE_QR_CODE
+
+#ifdef USE_GRAPHICAL_DISPLAY_MENU
+void Display::menu(int x, int y, graphical_display_menu::GraphicalDisplayMenu *menu, int width, int height) {
+  Rect rect(x, y, width, height);
+  menu->draw(this, &rect);
+}
+#endif  // USE_GRAPHICAL_DISPLAY_MENU
 
 void Display::get_text_bounds(int x, int y, const char *text, BaseFont *font, TextAlign align, int *x1, int *y1,
                               int *width, int *height) {

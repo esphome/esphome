@@ -1,17 +1,18 @@
-voluptuous==0.13.1
+voluptuous==0.14.1
 PyYAML==6.0.1
 paho-mqtt==1.6.1
 colorama==0.4.6
-tornado==6.3.3
-tzlocal==5.0.1    # from time
+tornado==6.4
+tzlocal==5.2    # from time
 tzdata>=2021.1  # from time
 pyserial==3.5
 platformio==6.1.11  # When updating platformio, also update Dockerfile
-esptool==4.6.2
+esptool==4.7.0
 click==8.1.7
-esphome-dashboard==20230904.0
-aioesphomeapi==15.0.0
-zeroconf==0.115.1
+esphome-dashboard==20231107.0
+aioesphomeapi==21.0.1
+zeroconf==0.131.0
+python-magic==0.4.27
 
 # esp-idf requires this, but doesn't bundle it by default
 # https://github.com/espressif/esp-idf/blob/220590d599e134d7a5e7f1e683cc4550349ffbf8/requirements.txt#L24
@@ -19,3 +20,6 @@ kconfiglib==13.7.1
 
 # esp-idf >= 5.0 requires this
 pyparsing >= 3.0
+
+# For autocompletion
+argcomplete>=2.0.0

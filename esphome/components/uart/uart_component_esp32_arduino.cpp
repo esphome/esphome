@@ -88,7 +88,11 @@ void ESP32ArduinoUARTComponent::setup() {
 #endif
   static uint8_t next_uart_num = 0;
   if (is_default_tx && is_default_rx && next_uart_num == 0) {
+#if ARDUINO_USB_CDC_ON_BOOT
+    this->hw_serial_ = &Serial0;
+#else
     this->hw_serial_ = &Serial;
+#endif
     next_uart_num++;
   } else {
 #ifdef USE_LOGGER
@@ -109,6 +113,11 @@ void ESP32ArduinoUARTComponent::setup() {
     this->number_ = next_uart_num;
     this->hw_serial_ = new HardwareSerial(next_uart_num++);  // NOLINT(cppcoreguidelines-owning-memory)
   }
+
+  this->load_settings(false);
+}
+
+void ESP32ArduinoUARTComponent::load_settings(bool dump_config) {
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
   bool invert = false;
@@ -118,6 +127,10 @@ void ESP32ArduinoUARTComponent::setup() {
     invert = true;
   this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
   this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, invert);
+  if (dump_config) {
+    ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->number_);
+    this->dump_config();
+  }
 }
 
 void ESP32ArduinoUARTComponent::dump_config() {
