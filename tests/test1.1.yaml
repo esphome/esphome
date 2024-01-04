@@ -233,7 +233,9 @@ canbus:
   - platform: esp32_can
     id: esp32_internal_can
     rx_pin: GPIO04
-    tx_pin: GPIO05
+    tx_pin:
+      number: GPIO05
+      allow_other_uses: true
     can_id: 4
     bit_rate: 50kbps
 
