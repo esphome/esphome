@@ -24,7 +24,7 @@ int Nextion::upload_range(const std::string &url, int range_start) {
   ESP_LOGVV(TAG, "url: %s", url.c_str());
   uint range_size = this->tft_size_ - range_start;
   ESP_LOGVV(TAG, "tft_size_: %i", this->tft_size_);
-  ESP_LOGV(TAG, "Available heap: %u", esp_get_free_heap_size());
+  ESP_LOGV(TAG, "Available heap: %lu", esp_get_free_heap_size());
   int range_end = (range_start == 0) ? std::min(this->tft_size_, 16383) : this->tft_size_;
   if (range_size <= 0 or range_end <= range_start) {
     ESP_LOGE(TAG, "Invalid range");
@@ -155,7 +155,7 @@ bool Nextion::upload_tft() {
 
   // Initialize the HTTP client with the configuration
   ESP_LOGV(TAG, "Initializing HTTP client");
-  ESP_LOGV(TAG, "Available heap: %u", esp_get_free_heap_size());
+  ESP_LOGV(TAG, "Available heap: %lu", esp_get_free_heap_size());
   esp_http_client_handle_t http = esp_http_client_init(&config);
   if (!http) {
     ESP_LOGE(TAG, "Failed to initialize HTTP client.");
@@ -164,7 +164,7 @@ bool Nextion::upload_tft() {
 
   // Perform the HTTP request
   ESP_LOGV(TAG, "Check if the client could connect");
-  ESP_LOGV(TAG, "Available heap: %u", esp_get_free_heap_size());
+  ESP_LOGV(TAG, "Available heap: %lu", esp_get_free_heap_size());
   esp_err_t err = esp_http_client_perform(http);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "HTTP request failed: %s", esp_err_to_name(err));
