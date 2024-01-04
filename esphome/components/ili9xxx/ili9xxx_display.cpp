@@ -276,6 +276,35 @@ void ILI9XXXDisplay::display_() {
   this->y_high_ = 0;
 }
 
+// note that this bypasses the buffer and writes directly to the display.
+void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                    display::ColorOrder order, display::ColorBitness bitness, bool big_endian,
+                                    int x_offset, int y_offset, int x_pad) {
+  if (w <= 0 || h <= 0)
+    return;
+  // if color mapping or software rotation is required, hand this off to the parent implementation. This will
+  // do color conversion pixel-by-pixel into the buffer and draw it later. If this is happening the user has not
+  // configured the renderer well.
+  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || !big_endian ||
+      this->is_18bitdisplay_) {
+    return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
+                                            x_pad);
+  }
+  this->enable();
+  this->set_addr_window_(x_start, y_start, x_start + w - 1, y_start + h - 1);
+  // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.
+  if (x_offset == 0 && x_pad == 0 && y_offset == 0) {
+    // we could deal here with a non-zero y_offset, but if x_offset is zero, y_offset probably will be so don't bother
+    this->write_array(ptr, w * h * 2);
+  } else {
+    auto stride = x_offset + w + x_pad;
+    for (size_t y = 0; y != h; y++) {
+      this->write_array(ptr + (y + y_offset) * stride + x_offset, w * 2);
+    }
+  }
+  this->disable();
+}
+
 // should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
 // values per bit is huge
 uint32_t ILI9XXXDisplay::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal(); }

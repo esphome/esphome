@@ -282,7 +282,7 @@ class ESPHomeLoader(FastestAvailableSafeLoader):
             return file, vars
 
         def substitute_vars(config, vars):
-            from esphome.const import CONF_SUBSTITUTIONS
+            from esphome.const import CONF_SUBSTITUTIONS, CONF_DEFAULTS
             from esphome.components import substitutions
 
             org_subs = None
@@ -294,7 +294,15 @@ class ESPHomeLoader(FastestAvailableSafeLoader):
             elif CONF_SUBSTITUTIONS in result:
                 org_subs = result.pop(CONF_SUBSTITUTIONS)
 
+            defaults = {}
+            if CONF_DEFAULTS in result:
+                defaults = result.pop(CONF_DEFAULTS)
+
             result[CONF_SUBSTITUTIONS] = vars
+            for k, v in defaults.items():
+                if k not in result[CONF_SUBSTITUTIONS]:
+                    result[CONF_SUBSTITUTIONS][k] = v
+
             # Ignore missing vars that refer to the top level substitutions
             substitutions.do_substitution_pass(result, None, ignore_missing=True)
             result.pop(CONF_SUBSTITUTIONS)
