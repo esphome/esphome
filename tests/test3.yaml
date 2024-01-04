@@ -1024,13 +1024,16 @@ climate:
     name: Haier AC
     uart_id: uart_12
     wifi_signal: true
+    answer_timeout: 200ms
     beeper: true
     outdoor_temperature:
-      name:  Haier AC outdoor temperature
+      name: Haier AC outdoor temperature
     visual:
       min_temperature: 16 °C
       max_temperature: 30 °C
-      temperature_step: 1 °C
+      temperature_step:
+        target_temperature: 1
+        current_temperature: 0.5
     supported_modes:
     - 'OFF'
     - HEAT_COOL
@@ -1043,6 +1046,23 @@ climate:
     - VERTICAL
     - HORIZONTAL
     - BOTH
+    supported_presets:
+    - AWAY
+    - BOOST
+    - ECO
+    - SLEEP
+    on_alarm_start:
+      then:
+        - logger.log:
+            level: DEBUG
+            format: "Alarm activated. Code: %d. Message: \"%s\""
+            args: [ code, message]
+    on_alarm_end:
+      then:
+        - logger.log:
+            level: DEBUG
+            format: "Alarm deactivated. Code: %d. Message: \"%s\""
+            args: [ code, message]
 
 sprinkler:
   - id: yard_sprinkler_ctrlr
@@ -1238,6 +1258,9 @@ fingerprint_grow:
     number: 4
   password: 0x12FE37DC
   new_password: 0xA65B9840
+  on_finger_scan_invalid:
+    - homeassistant.event:
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_invalid
   on_finger_scan_matched:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_finger_scan_matched
