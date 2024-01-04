@@ -53,7 +53,9 @@ power_supply:
       inverted: true
 
 i2c:
-  sda: 21
+  sda: 
+    number: 21
+    allow_other_uses: true
   scl:
     number: 22
     allow_other_uses: true
