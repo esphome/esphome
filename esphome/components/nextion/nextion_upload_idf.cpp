@@ -37,7 +37,6 @@ int Nextion::upload_range(const std::string &url, int range_start) {
   esp_http_client_config_t config = {
       .url = url.c_str(),
       .cert_pem = nullptr,
-      .timeout_ms = 15000,
       .disable_auto_redirect = false,
       .max_redirection_count = 10,
   };
