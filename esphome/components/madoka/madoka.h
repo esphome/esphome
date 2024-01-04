@@ -22,7 +22,7 @@ static const uint8_t BLE_SEND_MAX_RETRIES = 5;
 namespace esphome {
 namespace madoka {
 
-static const char *TAG = "madoka";
+static const char *const TAG = "madoka";
 
 using chunk = std::vector<uint8_t>;
 using message = std::vector<uint8_t>;
