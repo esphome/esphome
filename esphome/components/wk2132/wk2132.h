@@ -35,11 +35,14 @@ namespace wk2132 {
 #if defined(USE_ESP8266)
 constexpr size_t XFER_MAX_SIZE = 128;  // ESP8266 to be checked
 
-#elif defined(USE_ESP32_FRAMEWORK_ESP_IDF)                     // ESP32 and framework IDF
+#elif defined(USE_ESP32_FRAMEWORK_ESP_IDF)  // ESP32 and framework IDF
 constexpr size_t XFER_MAX_SIZE = 256;
 
 // ESP32 and framework Arduino
-#elif defined(I2C_BUFFER_LENGTH) && (I2C_BUFFER_LENGTH < 256)  // Here we are using an USE_ESP32_FRAMEWORK_ARDUINO
+#if !defined(I2C_BUFFER_LENGTH)             // this is only to make clang-tidy Arduino 4/4 happy
+constexpr size_t I2C_BUFFER_LENGTH = 255;
+#endif
+#elif I2C_BUFFER_LENGTH < 256  // Here we are using an USE_ESP32_FRAMEWORK_ARDUINO
 constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;  // ESP32 & FRAMEWORK_ARDUINO
 #else
 constexpr size_t XFER_MAX_SIZE = 255;  // ESP32 & FRAMEWORK_ARDUINO we limit to 255 because Arduino' framework error
