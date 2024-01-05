@@ -23,7 +23,6 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
-AUTO_LOAD = ["xiaomi_ble"]
 
 xiaomi_hhccjcy10_ns = cg.esphome_ns.namespace("xiaomi_hhccjcy10")
 XiaomiHHCCJCY10 = xiaomi_hhccjcy10_ns.class_(
@@ -80,18 +79,18 @@ async def to_code(config):
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+    if temperature_config := config.get(CONF_TEMPERATURE):
+        sens = await sensor.new_sensor(temperature_config)
         cg.add(var.set_temperature(sens))
-    if CONF_MOISTURE in config:
-        sens = await sensor.new_sensor(config[CONF_MOISTURE])
+    if moisture_config := config.get(CONF_MOISTURE):
+        sens = await sensor.new_sensor(moisture_config)
         cg.add(var.set_moisture(sens))
-    if CONF_ILLUMINANCE in config:
-        sens = await sensor.new_sensor(config[CONF_ILLUMINANCE])
+    if illuminance_config := config.get(CONF_ILLUMINANCE):
+        sens = await sensor.new_sensor(illuminance_config)
         cg.add(var.set_illuminance(sens))
-    if CONF_CONDUCTIVITY in config:
-        sens = await sensor.new_sensor(config[CONF_CONDUCTIVITY])
+    if conductivity_config := config.get(CONF_CONDUCTIVITY):
+        sens = await sensor.new_sensor(conductivity_config)
         cg.add(var.set_conductivity(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
+    if battery_level_config := config.get(CONF_BATTERY_LEVEL):
+        sens = await sensor.new_sensor(battery_level_config)
         cg.add(var.set_battery_level(sens))
