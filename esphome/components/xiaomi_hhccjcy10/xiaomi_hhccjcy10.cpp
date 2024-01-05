@@ -40,20 +40,20 @@ bool XiaomiHHCCJCY10::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
       const int16_t temperature = encode_uint16(data[1], data[2]);
       this->temperature_->publish_state((float) temperature / 10.0f);
     }
-    
+
     if (this->moisture_ != nullptr)
       this->moisture_->publish_state(data[0]);
-    
+
     if (this->conductivity_ != nullptr) {
       const uint16_t conductivity = encode_uint16(data[7], data[8]);
       this->conductivity_->publish_state((float) conductivity);
     }
-    
+
     if (this->illuminance_ != nullptr) {
       const uint32_t illuminance = encode_uint24(data[3], data[4], data[5]);
       this->illuminance_->publish_state((float) illuminance);
     }
-    
+
     if (this->battery_level_ != nullptr)
       this->battery_level_->publish_state(data[6]);
     success = true;
