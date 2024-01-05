@@ -36,7 +36,7 @@ constexpr size_t XFER_MAX_SIZE = 256;
 
 // here we are using the framework Arduino
 #if !defined(I2C_BUFFER_LENGTH)  // this is only to make clang-tidy Arduino 4/4 happy
-#define I2C_BUFFER_LENGTH 255
+constexpr size_t I2C_BUFFER_LENGTH = 255;
 #endif
 #elif I2C_BUFFER_LENGTH < 256  // Here we are using an USE_ESP32_FRAMEWORK_ARDUINO
 constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;  // ESP32 & FRAMEWORK_ARDUINO
