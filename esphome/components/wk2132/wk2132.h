@@ -31,11 +31,15 @@ namespace wk2132 {
 /// that can be transferred is 256 bytes.
 /// @bug At the time of writing (Dec 2023) there is a bug in the Arduino framework in the TwoWire::requestFrom() method
 /// that limits the number of bytes we can read to 255. For this reasons we limit the XFER_MAX_SIZE to 255.
-#if defined(USE_ESP32_FRAMEWORK_ESP_IDF)  // we use the framwork ESP-IDF
+
+#if defined(USE_ESP8266)
+constexpr size_t XFER_MAX_SIZE = 128;  // ESP8266 to be checked
+
+#elif defined(USE_ESP32_FRAMEWORK_ESP_IDF)  // ESP32 and framework IDF
 constexpr size_t XFER_MAX_SIZE = 256;
 
-// here we are using the framework Arduino
-#if !defined(I2C_BUFFER_LENGTH)  // this is only to make clang-tidy Arduino 4/4 happy
+// ESP32 and framework Arduino
+#if !defined(I2C_BUFFER_LENGTH)             // this is only to make clang-tidy Arduino 4/4 happy
 constexpr size_t I2C_BUFFER_LENGTH = 255;
 #endif
 #elif I2C_BUFFER_LENGTH < 256  // Here we are using an USE_ESP32_FRAMEWORK_ARDUINO
