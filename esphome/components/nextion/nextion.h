@@ -960,6 +960,21 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
     this->exit_reparse_on_start_ = exit_reparse_on_start;
   }
 
+  /**
+   * @brief Retrieves the number of commands pending in the Nextion command queue.
+   *
+   * This function returns the current count of commands that have been queued but not yet processed
+   * for the Nextion display. The Nextion command queue is used to store commands that are sent to
+   * the Nextion display for various operations like updating the display, changing interface elements,
+   * or other interactive features. A larger queue size might indicate a higher processing time or potential
+   * delays in command execution. This function is useful for monitoring the command flow and managing
+   * the execution efficiency of the Nextion display interface.
+   *
+   * @return size_t The number of commands currently in the Nextion queue. This count includes all commands
+   *                that have been added to the queue and are awaiting processing.
+   */
+  size_t queue_size() { return this->nextion_queue_.size(); }
+
  protected:
   std::deque<NextionQueue *> nextion_queue_;
   std::deque<NextionQueue *> waveform_queue_;
