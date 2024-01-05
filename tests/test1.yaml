@@ -740,6 +740,10 @@ sensor:
     update_interval: 15s
     iir_filter: 16x
     i2c_id: i2c_bus
+  - platform: cdm7160
+    i2c_id: i2c_bus
+    co2:
+      name: CDM7160 CO2 Value
   - platform: dallas
     address: 0x1C0000031EDD2A28
     name: Living Room Temperature
