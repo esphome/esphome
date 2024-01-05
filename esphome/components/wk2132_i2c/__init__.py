@@ -26,6 +26,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add_build_flag("-DI2C_BUFFER_LENGTH=255")
+    cg.add_define("I2C_COMPILE")  # add to defines.h
     cg.add(var.set_name(str(config[CONF_ID])))
     await wk2132.register_wk2132(var, config)
     await i2c.register_i2c_device(var, config)

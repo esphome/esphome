@@ -7,7 +7,7 @@
 #include <memory>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO)
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) && defined(I2C_COMPILE)
 #include "Wire.h"
 #endif
 
