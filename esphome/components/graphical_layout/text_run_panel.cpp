@@ -134,10 +134,8 @@ void TextRunPanel::apply_alignment_to_lines_(std::vector<std::shared_ptr<LineInf
   const auto y_align = display::TextAlign(int(this->text_align_) & TEXT_ALIGN_Y_MASK);
 
   int16_t max_line_width = 0;
-  int16_t total_height = 0;
   for (const auto &line : lines) {
     max_line_width = std::max(line->total_width, max_line_width);
-    total_height += line->max_height;
   }
 
   int total_y_adjustment = 0;
