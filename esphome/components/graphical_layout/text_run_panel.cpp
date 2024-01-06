@@ -36,14 +36,14 @@ void TextRunPanel::setup_complete() {
 
 display::Rect TextRunPanel::measure_item_internal(display::Display *display) {
   CalculatedLayout calculated =
-      this->determine_layout(display, display::Rect(0, 0, this->max_width_, display->get_height()), true);
+      this->determine_layout_(display, display::Rect(0, 0, this->max_width_, display->get_height()), true);
   return calculated.bounds;
 }
 
 void TextRunPanel::render_internal(display::Display *display, display::Rect bounds) {
   ESP_LOGD(TAG, "Rendering to (%i, %i)", bounds.w, bounds.h);
 
-  CalculatedLayout layout = this->determine_layout(display, bounds, true);
+  CalculatedLayout layout = this->determine_layout_(display, bounds, true);
 
   for (const auto &calculated : layout.runs) {
     if (calculated->run->background_color_ != display::COLOR_OFF) {
@@ -62,7 +62,7 @@ void TextRunPanel::render_internal(display::Display *display, display::Rect boun
   }
 }
 
-std::vector<std::shared_ptr<CalculatedTextRun>> TextRunPanel::split_runs_into_words() {
+std::vector<std::shared_ptr<CalculatedTextRun>> TextRunPanel::split_runs_into_words_() {
   std::vector<std::shared_ptr<CalculatedTextRun>> runs;
 
   for (TextRunBase *run : this->text_runs_) {
@@ -94,7 +94,7 @@ std::vector<std::shared_ptr<CalculatedTextRun>> TextRunPanel::split_runs_into_wo
   return runs;
 }
 
-std::vector<std::shared_ptr<LineInfo>> TextRunPanel::fit_words_to_bounds(
+std::vector<std::shared_ptr<LineInfo>> TextRunPanel::fit_words_to_bounds_(
     const std::vector<std::shared_ptr<CalculatedTextRun>> &runs, display::Rect bounds) {
   int x_offset = 0;
   int y_offset = 0;
@@ -104,8 +104,7 @@ std::vector<std::shared_ptr<LineInfo>> TextRunPanel::fit_words_to_bounds(
   auto current_line = std::make_shared<LineInfo>(current_line_number);
   lines.push_back(current_line);
 
-  for (int i = 0; i < runs.size(); i++) {
-    const auto &run = runs.at(i);
+  for (const auto &run : runs) {
     if (run->bounds.w + x_offset > bounds.w) {
       // Overflows the current line create a new line
       x_offset = 0;
@@ -129,7 +128,7 @@ std::vector<std::shared_ptr<LineInfo>> TextRunPanel::fit_words_to_bounds(
   return lines;
 }
 
-void TextRunPanel::apply_alignment_to_lines(std::vector<std::shared_ptr<LineInfo>> &lines,
+void TextRunPanel::apply_alignment_to_lines_(std::vector<std::shared_ptr<LineInfo>> &lines,
                                             display::TextAlign alignment) {
   const auto x_align = display::TextAlign(int(this->text_align_) & TEXT_ALIGN_X_MASK);
   const auto y_align = display::TextAlign(int(this->text_align_) & TEXT_ALIGN_Y_MASK);
@@ -193,10 +192,10 @@ void TextRunPanel::apply_alignment_to_lines(std::vector<std::shared_ptr<LineInfo
   }
 }
 
-CalculatedLayout TextRunPanel::determine_layout(display::Display *display, display::Rect bounds, bool apply_alignment) {
-  std::vector<std::shared_ptr<CalculatedTextRun>> runs = this->split_runs_into_words();
-  std::vector<std::shared_ptr<LineInfo>> lines = this->fit_words_to_bounds(runs, bounds);
-  this->apply_alignment_to_lines(lines, this->text_align_);
+CalculatedLayout TextRunPanel::determine_layout_(display::Display *display, display::Rect bounds, bool apply_alignment) {
+  std::vector<std::shared_ptr<CalculatedTextRun>> runs = this->split_runs_into_words_();
+  std::vector<std::shared_ptr<LineInfo>> lines = this->fit_words_to_bounds_(runs, bounds);
+  this->apply_alignment_to_lines_(lines, this->text_align_);
 
   CalculatedLayout layout;
   layout.runs = runs;

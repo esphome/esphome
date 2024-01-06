@@ -131,7 +131,7 @@ class LineInfo {
  public:
   LineInfo(int line_number) { this->line_number = line_number; }
 
-  void add_run(std::shared_ptr<CalculatedTextRun> run) {
+  void add_run(const std::shared_ptr<CalculatedTextRun> &run) {
     this->total_width += run->bounds.w;
     this->max_height = std::max(this->max_height, run->bounds.h);
     this->max_baseline = std::max(this->max_baseline, run->baseline);
@@ -166,11 +166,11 @@ class TextRunPanel : public LayoutItem {
   void set_debug_outline_runs(bool debug_outline_runs) { this->debug_outline_runs_ = debug_outline_runs; };
 
  protected:
-  CalculatedLayout determine_layout(display::Display *display, display::Rect bounds, bool apply_alignment);
-  std::vector<std::shared_ptr<CalculatedTextRun>> split_runs_into_words();
-  std::vector<std::shared_ptr<LineInfo>> fit_words_to_bounds(
+  CalculatedLayout determine_layout_(display::Display *display, display::Rect bounds, bool apply_alignment);
+  std::vector<std::shared_ptr<CalculatedTextRun>> split_runs_into_words_();
+  std::vector<std::shared_ptr<LineInfo>> fit_words_to_bounds_(
       const std::vector<std::shared_ptr<CalculatedTextRun>> &runs, display::Rect bounds);
-  void apply_alignment_to_lines(std::vector<std::shared_ptr<LineInfo>> &lines, display::TextAlign alignment);
+  void apply_alignment_to_lines_(std::vector<std::shared_ptr<LineInfo>> &lines, display::TextAlign alignment);
 
   std::vector<TextRunBase *> text_runs_;
   display::TextAlign text_align_{display::TextAlign::TOP_LEFT};
