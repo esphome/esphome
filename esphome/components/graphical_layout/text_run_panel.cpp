@@ -129,7 +129,7 @@ std::vector<std::shared_ptr<LineInfo>> TextRunPanel::fit_words_to_bounds_(
 }
 
 void TextRunPanel::apply_alignment_to_lines_(std::vector<std::shared_ptr<LineInfo>> &lines,
-                                            display::TextAlign alignment) {
+                                             display::TextAlign alignment) {
   const auto x_align = display::TextAlign(int(this->text_align_) & TEXT_ALIGN_X_MASK);
   const auto y_align = display::TextAlign(int(this->text_align_) & TEXT_ALIGN_Y_MASK);
 
@@ -192,7 +192,8 @@ void TextRunPanel::apply_alignment_to_lines_(std::vector<std::shared_ptr<LineInf
   }
 }
 
-CalculatedLayout TextRunPanel::determine_layout_(display::Display *display, display::Rect bounds, bool apply_alignment) {
+CalculatedLayout TextRunPanel::determine_layout_(display::Display *display, display::Rect bounds,
+                                                 bool apply_alignment) {
   std::vector<std::shared_ptr<CalculatedTextRun>> runs = this->split_runs_into_words_();
   std::vector<std::shared_ptr<LineInfo>> lines = this->fit_words_to_bounds_(runs, bounds);
   this->apply_alignment_to_lines_(lines, this->text_align_);
