@@ -98,25 +98,51 @@ class TextSensorTextRun : public TextRunBase, public FormattableTextRun {
 
 class CalculatedTextRun {
  public:
-  CalculatedTextRun(TextRunBase *run, std::string text, display::Rect bounds, int16_t baseline, int16_t line_number) {
+  CalculatedTextRun(TextRunBase *run, std::string text) {
     this->run = run;
-    this->text_ = std::move(text);
-    this->bounds = bounds;
-    this->baseline = baseline;
-    this->line_number_ = line_number;
+    this->text = std::move(text);
   }
 
-  std::string text_;
-  display::Rect bounds;
-  TextRunBase *run;
-  int16_t line_number_;
-  int16_t baseline;
+  void calculate_bounds() {
+    int x1;
+    int width;
+    int height;
+    int baseline;
+
+    this->run->font_->measure(this->text.c_str(), &width, &x1, &baseline, &height);
+
+    this->baseline = baseline;
+    this->bounds = display::Rect(0, 0, width, height);
+  }
+
+  std::string text{};
+  display::Rect bounds{};
+  TextRunBase *run{nullptr};
+  int16_t baseline{0};
 };
 
 struct CalculatedLayout {
   std::vector<std::shared_ptr<CalculatedTextRun>> runs;
   display::Rect bounds;
   int line_count;
+};
+
+class LineInfo {
+ public:
+  LineInfo(int line_number) { this->line_number = line_number; }
+
+  void add_run(std::shared_ptr<CalculatedTextRun> run) {
+    this->total_width += run->bounds.w;
+    this->max_height = std::max(this->max_height, run->bounds.h);
+    this->max_baseline = std::max(this->max_baseline, run->baseline);
+    this->runs.push_back(run);
+  }
+
+  std::vector<std::shared_ptr<CalculatedTextRun>> runs;
+  int16_t line_number{0};
+  int16_t max_height{0};
+  int16_t total_width{0};
+  int16_t max_baseline{0};
 };
 
 /** The TextRunPanel is a UI item that renders a multiple "runs" of text of independent styling to a display */
@@ -129,9 +155,6 @@ class TextRunPanel : public LayoutItem {
 
   bool default_can_wrap_at_character(const CanWrapAtCharacterArguments &args);
 
-  CalculatedLayout determine_layout(display::Display *display, display::Rect bounds, bool apply_alignment);
-  void apply_alignment_to_layout(CalculatedLayout *layout);
-
   template<typename V> void set_can_wrap_at(V can_wrap_at_character) {
     this->can_wrap_at_character_ = can_wrap_at_character;
   };
@@ -143,6 +166,12 @@ class TextRunPanel : public LayoutItem {
   void set_debug_outline_runs(bool debug_outline_runs) { this->debug_outline_runs_ = debug_outline_runs; };
 
  protected:
+  CalculatedLayout determine_layout(display::Display *display, display::Rect bounds, bool apply_alignment);
+  std::vector<std::shared_ptr<CalculatedTextRun>> split_runs_into_words();
+  std::vector<std::shared_ptr<LineInfo>> fit_words_to_bounds(
+      const std::vector<std::shared_ptr<CalculatedTextRun>> &runs, display::Rect bounds);
+  void apply_alignment_to_lines(std::vector<std::shared_ptr<LineInfo>> &lines, display::TextAlign alignment);
+
   std::vector<TextRunBase *> text_runs_;
   display::TextAlign text_align_{display::TextAlign::TOP_LEFT};
   int min_width_{0};
