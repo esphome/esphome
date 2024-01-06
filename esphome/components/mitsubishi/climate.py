@@ -13,7 +13,7 @@ CONF_SET_FAN_MODE = "set_fan_mode"
 SetFanMode = mitsubishi_ns.enum("SetFanMode")
 SETFANMODE = {
     "quiet_4levels": SetFanMode.MITSUBISHI_FAN_Q4L,
-#    "5levels": SetFanMode.MITSUBISHI_FAN_5L,
+    #    "5levels": SetFanMode.MITSUBISHI_FAN_5L,
     "4levels": SetFanMode.MITSUBISHI_FAN_4L,
     "3levels": SetFanMode.MITSUBISHI_FAN_3L,
 }
@@ -56,7 +56,7 @@ CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(MitsubishiClimate),
         cv.Optional(CONF_SET_FAN_MODE, default="3levels"): cv.enum(SETFANMODE),
-        cv.Optional(CONF_SET_SUPPORTED_MODE, default="auto_heat_cool"): cv.enum(
+        cv.Optional(CONF_SET_SUPPORTED_MODE, default="heat_cool"): cv.enum(
             SETSUPPORTEDMODE
         ),
         cv.Optional(CONF_HORIZONTAL_DEFAULT, default="middle"): cv.enum(
