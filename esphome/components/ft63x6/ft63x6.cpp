@@ -53,13 +53,13 @@ void FT63X6Touchscreen::update_touches() {
   uint8_t touch_id = this->read_touch_id_(FT63X6_ADDR_TOUCH1_ID);  // id1 = 0 or 1
   int16_t x = this->read_touch_coordinate_(FT63X6_ADDR_TOUCH1_X);
   int16_t y = this->read_touch_coordinate_(FT63X6_ADDR_TOUCH1_Y);
-  this->set_raw_touch_position_(touch_id, x, y);
+  this->add_raw_touch_position_(touch_id, x, y);
 
   if (touch_count >= 2) {
     touch_id = this->read_touch_id_(FT63X6_ADDR_TOUCH2_ID);  // id2 = 0 or 1(~id1 & 0x01)
     x = this->read_touch_coordinate_(FT63X6_ADDR_TOUCH2_X);
     y = this->read_touch_coordinate_(FT63X6_ADDR_TOUCH2_Y);
-    this->set_raw_touch_position_(touch_id, x, y);
+    this->add_raw_touch_position_(touch_id, x, y);
   }
 }
 

@@ -118,7 +118,9 @@ void APIConnection::loop() {
   this->list_entities_iterator_.advance();
   this->initial_state_iterator_.advance();
 
-  const uint32_t keepalive = 60000;
+  static uint32_t keepalive = 60000;
+  static uint8_t max_ping_retries = 60;
+  static uint16_t ping_retry_interval = 1000;
   const uint32_t now = millis();
   if (this->sent_ping_) {
     // Disconnect if not responded within 2.5*keepalive
@@ -126,10 +128,24 @@ void APIConnection::loop() {
       on_fatal_error();
       ESP_LOGW(TAG, "%s didn't respond to ping request in time. Disconnecting...", this->client_combined_info_.c_str());
     }
-  } else if (now - this->last_traffic_ > keepalive) {
+  } else if (now - this->last_traffic_ > keepalive && now > this->next_ping_retry_) {
     ESP_LOGVV(TAG, "Sending keepalive PING...");
-    this->sent_ping_ = true;
-    this->send_ping_request(PingRequest());
+    this->sent_ping_ = this->send_ping_request(PingRequest());
+    if (!this->sent_ping_) {
+      this->next_ping_retry_ = now + ping_retry_interval;
+      this->ping_retries_++;
+      if (this->ping_retries_ >= max_ping_retries) {
+        on_fatal_error();
+        ESP_LOGE(TAG, "%s: Sending keepalive failed %d time(s). Disconnecting...", this->client_combined_info_.c_str(),
+                 this->ping_retries_);
+      } else if (this->ping_retries_ >= 10) {
+        ESP_LOGW(TAG, "%s: Sending keepalive failed %d time(s), will retry in %d ms",
+                 this->client_combined_info_.c_str(), this->ping_retries_, ping_retry_interval);
+      } else {
+        ESP_LOGD(TAG, "%s: Sending keepalive failed %d time(s), will retry in %d ms",
+                 this->client_combined_info_.c_str(), this->ping_retries_, ping_retry_interval);
+      }
+    }
   }
 
 #ifdef USE_ESP32_CAMERA
