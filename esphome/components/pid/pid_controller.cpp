@@ -16,7 +16,7 @@ float PIDController::update(float setpoint, float process_value) {
 
   calculate_proportional_term_();
   calculate_integral_term_();
-  calculate_derivative_term_();
+  calculate_derivative_term_(setpoint);
 
   // u(t) := p(t) + i(t) + d(t)
   float output = proportional_term_ + integral_term_ + derivative_term_;
@@ -29,7 +29,7 @@ float PIDController::update(float setpoint, float process_value) {
 bool PIDController::in_deadband() {
   // return (fabs(error) < deadband_threshold);
   float err = -error_;
-  return ((err > 0 && err < threshold_high_) || (err < 0 && err > threshold_low_));
+  return (threshold_low_ < err && err < threshold_high_);
 }
 
 void PIDController::calculate_proportional_term_() {
@@ -69,13 +69,18 @@ void PIDController::calculate_integral_term_() {
   integral_term_ = accumulated_integral_;
 }
 
-void PIDController::calculate_derivative_term_() {
+void PIDController::calculate_derivative_term_(float setpoint) {
   // derivative_term_
   // d(t) := K_d * de(t)/dt
   float derivative = 0.0f;
-  if (dt_ != 0.0f)
+  if (dt_ != 0.0f) {
+    // remove changes to setpoint from error
+    if (!std::isnan(previous_setpoint_) && previous_setpoint_ != setpoint)
+      previous_error_ -= previous_setpoint_ - setpoint;
     derivative = (error_ - previous_error_) / dt_;
+  }
   previous_error_ = error_;
+  previous_setpoint_ = setpoint;
 
   // smooth the derivative samples
   derivative = weighted_average_(derivative_list_, derivative, derivative_samples_);

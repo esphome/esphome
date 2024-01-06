@@ -27,7 +27,7 @@ class ProntoProtocol : public RemoteProtocol<ProntoData> {
   std::string dump_digit_(uint8_t x);
   std::string dump_number_(uint16_t number, bool end = false);
   std::string dump_duration_(uint32_t duration, uint16_t timebase, bool end = false);
-  std::string compensate_and_dump_sequence_(std::vector<int32_t> *data, uint16_t timebase);
+  std::string compensate_and_dump_sequence_(const RawTimings &data, uint16_t timebase);
 
  public:
   void encode(RemoteTransmitData *dst, const ProntoData &data) override;

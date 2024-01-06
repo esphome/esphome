@@ -1,11 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
-
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
-#endif
+#include "esphome/core/time.h"
 
 #include "esphome/components/spi/spi.h"
 
@@ -46,19 +42,18 @@ class MAX7219Component : public PollingComponent,
   /// Print `str` at position 0.
   uint8_t print(const char *str);
 
-#ifdef USE_TIME
   /// Evaluate the strftime-format and print the result at the given position.
-  uint8_t strftime(uint8_t pos, const char *format, time::ESPTime time) __attribute__((format(strftime, 3, 0)));
+  uint8_t strftime(uint8_t pos, const char *format, ESPTime time) __attribute__((format(strftime, 3, 0)));
 
   /// Evaluate the strftime-format and print the result at position 0.
-  uint8_t strftime(const char *format, time::ESPTime time) __attribute__((format(strftime, 2, 0)));
-#endif
+  uint8_t strftime(const char *format, ESPTime time) __attribute__((format(strftime, 2, 0)));
 
  protected:
   void send_byte_(uint8_t a_register, uint8_t data);
   void send_to_all_(uint8_t a_register, uint8_t data);
 
-  uint8_t intensity_{15};  /// Intensity of the display from 0 to 15 (most)
+  uint8_t intensity_{15};     // Intensity of the display from 0 to 15 (most)
+  bool intensity_changed_{};  // True if we need to re-send the intensity
   uint8_t num_chips_{1};
   uint8_t *buffer_;
   bool reverse_{false};

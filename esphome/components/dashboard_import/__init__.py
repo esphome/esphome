@@ -1,3 +1,5 @@
+import base64
+import secrets
 from pathlib import Path
 from typing import Optional
 
@@ -5,9 +7,10 @@ import requests
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import git
 from esphome.components.packages import validate_source_shorthand
-from esphome.const import CONF_REF, CONF_WIFI
+from esphome.const import CONF_REF, CONF_WIFI, CONF_ESPHOME, CONF_PROJECT
 from esphome.wizard import wizard_file
 from esphome.yaml_util import dump
 
@@ -50,6 +53,17 @@ CONFIG_SCHEMA = cv.All(
     validate_full_url,
 )
 
+
+def _final_validate(config):
+    full_config = fv.full_config.get()[CONF_ESPHOME]
+    if CONF_PROJECT not in full_config:
+        raise cv.Invalid(
+            "Dashboard import requires the `esphome` -> `project` information to be provided."
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
 WIFI_CONFIG = """
 
 wifi:
@@ -73,6 +87,7 @@ def import_config(
     project_name: str,
     import_url: str,
     network: str = CONF_WIFI,
+    encryption: bool = False,
 ) -> None:
     p = Path(path)
 
@@ -80,15 +95,40 @@ def import_config(
         raise FileExistsError
 
     if project_name == "esphome.web":
+        if "esp32c3" in import_url:
+            board = "esp32-c3-devkitm-1"
+            platform = "ESP32"
+        elif "esp32s2" in import_url:
+            board = "esp32-s2-saola-1"
+            platform = "ESP32"
+        elif "esp32s3" in import_url:
+            board = "esp32-s3-devkitc-1"
+            platform = "ESP32"
+        elif "esp32" in import_url:
+            board = "esp32dev"
+            platform = "ESP32"
+        elif "esp8266" in import_url:
+            board = "esp01_1m"
+            platform = "ESP8266"
+        elif "pico-w" in import_url:
+            board = "pico-w"
+            platform = "RP2040"
+
+        kwargs = {
+            "name": name,
+            "friendly_name": friendly_name,
+            "platform": platform,
+            "board": board,
+            "ssid": "!secret wifi_ssid",
+            "psk": "!secret wifi_password",
+        }
+        if encryption:
+            noise_psk = secrets.token_bytes(32)
+            key = base64.b64encode(noise_psk).decode()
+            kwargs["api_encryption_key"] = key
+
         p.write_text(
-            wizard_file(
-                name=name,
-                friendly_name=friendly_name,
-                platform="ESP32" if "esp32" in import_url else "ESP8266",
-                board="esp32dev" if "esp32" in import_url else "esp01_1m",
-                ssid="!secret wifi_ssid",
-                psk="!secret wifi_password",
-            ),
+            wizard_file(**kwargs),
             encoding="utf8",
         )
     else:
@@ -115,6 +155,11 @@ def import_config(
                 "packages": {project_name: import_url},
                 "esphome": esphome_core,
             }
+            if encryption:
+                noise_psk = secrets.token_bytes(32)
+                key = base64.b64encode(noise_psk).decode()
+                config["api"] = {"encryption": {"key": key}}
+
             output = dump(config)
 
             if network == CONF_WIFI:

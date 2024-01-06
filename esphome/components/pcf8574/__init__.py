@@ -48,24 +48,20 @@ def validate_mode(value):
     return value
 
 
-PCF8574_PIN_SCHEMA = cv.All(
+PCF8574_PIN_SCHEMA = pins.gpio_base_schema(
+    PCF8574GPIOPin,
+    cv.int_range(min=0, max=17),
+    modes=[CONF_INPUT, CONF_OUTPUT],
+    mode_validator=validate_mode,
+    invertable=True,
+).extend(
     {
-        cv.GenerateID(): cv.declare_id(PCF8574GPIOPin),
         cv.Required(CONF_PCF8574): cv.use_id(PCF8574Component),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=17),
-        cv.Optional(CONF_MODE, default={}): cv.All(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-            },
-            validate_mode,
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     }
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("pcf8574", PCF8574_PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_PCF8574, PCF8574_PIN_SCHEMA)
 async def pcf8574_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_PCF8574])

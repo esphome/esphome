@@ -135,6 +135,10 @@ void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std:
   App.scheduler.set_retry(this, "", initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
 }
 bool Component::is_failed() { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
+bool Component::is_ready() {
+  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP ||
+         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
+}
 bool Component::can_proceed() { return true; }
 bool Component::status_has_warning() { return this->component_state_ & STATUS_LED_WARNING; }
 bool Component::status_has_error() { return this->component_state_ & STATUS_LED_ERROR; }
@@ -184,8 +188,18 @@ void PollingComponent::call_setup() {
   // Let the polling component subclass setup their HW.
   this->setup();
 
+  // init the poller
+  this->start_poller();
+}
+
+void PollingComponent::start_poller() {
   // Register interval.
   this->set_interval("update", this->get_update_interval(), [this]() { this->update(); });
+}
+
+void PollingComponent::stop_poller() {
+  // Clear the interval to suspend component
+  this->cancel_interval("update");
 }
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
@@ -197,8 +211,8 @@ WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {
   uint32_t now = millis();
   if (now - started_ > 50) {
     const char *src = component_ == nullptr ? "<null>" : component_->get_component_source();
-    ESP_LOGV(TAG, "Component %s took a long time for an operation (%.2f s).", src, (now - started_) / 1e3f);
-    ESP_LOGV(TAG, "Components should block for at most 20-30ms.");
+    ESP_LOGW(TAG, "Component %s took a long time for an operation (%.2f s).", src, (now - started_) / 1e3f);
+    ESP_LOGW(TAG, "Components should block for at most 20-30ms.");
     ;
   }
 }

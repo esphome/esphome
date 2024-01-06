@@ -2,6 +2,7 @@
 
 #include "gpio.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace esp32 {
@@ -74,7 +75,7 @@ void ESP32InternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpi
 
 std::string ESP32InternalGPIOPin::dump_summary() const {
   char buffer[32];
-  snprintf(buffer, sizeof(buffer), "GPIO%u", static_cast<uint32_t>(pin_));
+  snprintf(buffer, sizeof(buffer), "GPIO%" PRIu32, static_cast<uint32_t>(pin_));
   return buffer;
 }
 

@@ -58,6 +58,10 @@ class ComponentManifest:
         return getattr(self.module, "MULTI_CONF", False)
 
     @property
+    def multi_conf_no_default(self) -> bool:
+        return getattr(self.module, "MULTI_CONF_NO_DEFAULT", False)
+
+    @property
     def to_code(self) -> Optional[Callable[[Any], None]]:
         return getattr(self.module, "to_code", None)
 
@@ -71,7 +75,10 @@ class ComponentManifest:
 
     @property
     def auto_load(self) -> list[str]:
-        return getattr(self.module, "AUTO_LOAD", [])
+        al = getattr(self.module, "AUTO_LOAD", [])
+        if callable(al):
+            return al()
+        return al
 
     @property
     def codeowners(self) -> list[str]:
@@ -167,10 +174,10 @@ def _lookup_module(domain):
     except Exception:  # pylint: disable=broad-except
         _LOGGER.error("Unable to load component %s:", domain, exc_info=True)
         return None
-    else:
-        manif = ComponentManifest(module)
-        _COMPONENT_CACHE[domain] = manif
-        return manif
+
+    manif = ComponentManifest(module)
+    _COMPONENT_CACHE[domain] = manif
+    return manif
 
 
 def get_component(domain):

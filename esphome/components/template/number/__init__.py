@@ -11,14 +11,13 @@ from esphome.const import (
     CONF_OPTIMISTIC,
     CONF_RESTORE_VALUE,
     CONF_STEP,
+    CONF_SET_ACTION,
 )
 from .. import template_ns
 
 TemplateNumber = template_ns.class_(
     "TemplateNumber", number.Number, cg.PollingComponent
 )
-
-CONF_SET_ACTION = "set_action"
 
 
 def validate_min_max(config):
@@ -46,9 +45,9 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    number.NUMBER_SCHEMA.extend(
+    number.number_schema(TemplateNumber)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(TemplateNumber),
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
             cv.Required(CONF_STEP): cv.positive_float,
@@ -58,7 +57,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INITIAL_VALUE): cv.float_,
             cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
         }
-    ).extend(cv.polling_component_schema("60s")),
+    )
+    .extend(cv.polling_component_schema("60s")),
     validate_min_max,
     validate,
 )

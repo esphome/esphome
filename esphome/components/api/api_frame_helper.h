@@ -10,8 +10,8 @@
 #include "noise/protocol.h"
 #endif
 
-#include "esphome/components/socket/socket.h"
 #include "api_noise_context.h"
+#include "esphome/components/socket/socket.h"
 
 namespace esphome {
 namespace api {
@@ -67,6 +67,7 @@ class APIFrameHelper {
   virtual bool can_write_without_blocking() = 0;
   virtual APIError write_packet(uint16_t type, const uint8_t *data, size_t len) = 0;
   virtual std::string getpeername() = 0;
+  virtual int getpeername(struct sockaddr *addr, socklen_t *addrlen) = 0;
   virtual APIError close() = 0;
   virtual APIError shutdown(int how) = 0;
   // Give this helper a name for logging
@@ -84,7 +85,10 @@ class APINoiseFrameHelper : public APIFrameHelper {
   APIError read_packet(ReadPacketBuffer *buffer) override;
   bool can_write_without_blocking() override;
   APIError write_packet(uint16_t type, const uint8_t *payload, size_t len) override;
-  std::string getpeername() override { return socket_->getpeername(); }
+  std::string getpeername() override { return this->socket_->getpeername(); }
+  int getpeername(struct sockaddr *addr, socklen_t *addrlen) override {
+    return this->socket_->getpeername(addr, addrlen);
+  }
   APIError close() override;
   APIError shutdown(int how) override;
   // Give this helper a name for logging
@@ -144,7 +148,10 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
   APIError read_packet(ReadPacketBuffer *buffer) override;
   bool can_write_without_blocking() override;
   APIError write_packet(uint16_t type, const uint8_t *payload, size_t len) override;
-  std::string getpeername() override { return socket_->getpeername(); }
+  std::string getpeername() override { return this->socket_->getpeername(); }
+  int getpeername(struct sockaddr *addr, socklen_t *addrlen) override {
+    return this->socket_->getpeername(addr, addrlen);
+  }
   APIError close() override;
   APIError shutdown(int how) override;
   // Give this helper a name for logging

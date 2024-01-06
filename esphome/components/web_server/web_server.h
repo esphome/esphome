@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 #include "list_entities.h"
 
 #include "esphome/components/web_server_base/web_server_base.h"
@@ -14,6 +12,22 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #endif
+
+#if USE_WEBSERVER_VERSION == 2
+extern const uint8_t ESPHOME_WEBSERVER_INDEX_HTML[] PROGMEM;
+extern const size_t ESPHOME_WEBSERVER_INDEX_HTML_SIZE;
+#endif
+
+#ifdef USE_WEBSERVER_CSS_INCLUDE
+extern const uint8_t ESPHOME_WEBSERVER_CSS_INCLUDE[] PROGMEM;
+extern const size_t ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE;
+#endif
+
+#ifdef USE_WEBSERVER_JS_INCLUDE
+extern const uint8_t ESPHOME_WEBSERVER_JS_INCLUDE[] PROGMEM;
+extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
+#endif
+
 namespace esphome {
 namespace web_server {
 
@@ -40,6 +54,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
  public:
   WebServer(web_server_base::WebServerBase *base);
 
+#if USE_WEBSERVER_VERSION == 1
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
    * https://esphome.io/_static/webserver-v1.min.css
    *
@@ -47,24 +62,29 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_css_url(const char *css_url);
 
-  /** Set local path to the script that's embedded in the index page. Defaults to
-   *
-   * @param css_include Local path to web server script.
-   */
-  void set_css_include(const char *css_include);
-
   /** Set the URL to the script that's embedded in the index page. Defaults to
    * https://esphome.io/_static/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */
   void set_js_url(const char *js_url);
+#endif
 
+#ifdef USE_WEBSERVER_CSS_INCLUDE
+  /** Set local path to the script that's embedded in the index page. Defaults to
+   *
+   * @param css_include Local path to web server script.
+   */
+  void set_css_include(const char *css_include);
+#endif
+
+#ifdef USE_WEBSERVER_JS_INCLUDE
   /** Set local path to the script that's embedded in the index page. Defaults to
    *
    * @param js_include Local path to web server script.
    */
   void set_js_include(const char *js_include);
+#endif
 
   /** Determine whether internal components should be displayed on the web server.
    * Defaults to false.
@@ -77,6 +97,11 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    * @param allow_ota.
    */
   void set_allow_ota(bool allow_ota) { this->allow_ota_ = allow_ota; }
+  /** Set whether or not the webserver should expose the Log.
+   *
+   * @param expose_log.
+   */
+  void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -92,6 +117,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
 
+  /// Return the webserver configuration as JSON.
+  std::string get_config_json();
+
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   /// Handle included css request under '/0.css'.
   void handle_css_request(AsyncWebServerRequest *request);
@@ -100,6 +128,11 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   /// Handle included js request under '/0.js'.
   void handle_js_request(AsyncWebServerRequest *request);
+#endif
+
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+  // Handle Private Network Access CORS OPTIONS request
+  void handle_pna_cors_request(AsyncWebServerRequest *request);
 #endif
 
 #ifdef USE_SENSOR
@@ -188,6 +221,15 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string number_json(number::Number *obj, float value, JsonDetail start_config);
 #endif
 
+#ifdef USE_TEXT
+  void on_text_update(text::Text *obj, const std::string &state) override;
+  /// Handle a text input request under '/text/<id>'.
+  void handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the text state with its value as a JSON string.
+  std::string text_json(text::Text *obj, const std::string &value, JsonDetail start_config);
+#endif
+
 #ifdef USE_SELECT
   void on_select_update(select::Select *obj, const std::string &state, size_t index) override;
   /// Handle a select request under '/select/<id>'.
@@ -216,6 +258,17 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config);
 #endif
 
+#ifdef USE_ALARM_CONTROL_PANEL
+  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
+
+  /// Handle a alarm_control_panel request under '/alarm_control_panel/<id>'.
+  void handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the alarm_control_panel state with its value as a JSON string.
+  std::string alarm_control_panel_json(alarm_control_panel::AlarmControlPanel *obj,
+                                       alarm_control_panel::AlarmControlPanelState value, JsonDetail start_config);
+#endif
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.
@@ -229,12 +282,19 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
   ListEntitiesIterator entities_iterator_;
+#if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
-  const char *css_include_{nullptr};
   const char *js_url_{nullptr};
+#endif
+#ifdef USE_WEBSERVER_CSS_INCLUDE
+  const char *css_include_{nullptr};
+#endif
+#ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
+#endif
   bool include_internal_{false};
   bool allow_ota_{true};
+  bool expose_log_{true};
 #ifdef USE_ESP32
   std::deque<std::function<void()>> to_schedule_;
   SemaphoreHandle_t to_schedule_lock_;
@@ -243,5 +303,3 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
 }  // namespace web_server
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

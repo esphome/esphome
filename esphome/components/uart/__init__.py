@@ -42,6 +42,9 @@ ESP8266UartComponent = uart_ns.class_(
     "ESP8266UartComponent", UARTComponent, cg.Component
 )
 RP2040UartComponent = uart_ns.class_("RP2040UartComponent", UARTComponent, cg.Component)
+LibreTinyUARTComponent = uart_ns.class_(
+    "LibreTinyUARTComponent", UARTComponent, cg.Component
+)
 
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
@@ -72,12 +75,13 @@ def validate_rx_pin(value):
 def validate_invert_esp32(config):
     if (
         CORE.is_esp32
+        and CORE.using_arduino
         and CONF_TX_PIN in config
         and CONF_RX_PIN in config
         and config[CONF_TX_PIN][CONF_INVERTED] != config[CONF_RX_PIN][CONF_INVERTED]
     ):
         raise cv.Invalid(
-            "Different invert values for TX and RX pin are not (yet) supported for ESP32."
+            "Different invert values for TX and RX pin are not supported for ESP32 when using Arduino."
         )
     return config
 
@@ -92,6 +96,8 @@ def _uart_declare_type(value):
             return cv.declare_id(IDFUARTComponent)(value)
     if CORE.is_rp2040:
         return cv.declare_id(RP2040UartComponent)(value)
+    if CORE.is_libretiny:
+        return cv.declare_id(LibreTinyUARTComponent)(value)
     raise NotImplementedError
 
 
@@ -246,6 +252,7 @@ def final_validate_device_schema(
     baud_rate: Optional[int] = None,
     require_tx: bool = False,
     require_rx: bool = False,
+    data_bits: Optional[int] = None,
     parity: Optional[str] = None,
     stop_bits: Optional[int] = None,
 ):
@@ -268,6 +275,13 @@ def final_validate_device_schema(
 
         return validator
 
+    def validate_data_bits(value):
+        if value != data_bits:
+            raise cv.Invalid(
+                f"Component {name} requires {data_bits} data bits for the uart bus"
+            )
+        return value
+
     def validate_parity(value):
         if value != parity:
             raise cv.Invalid(
@@ -278,7 +292,7 @@ def final_validate_device_schema(
     def validate_stop_bits(value):
         if value != stop_bits:
             raise cv.Invalid(
-                f"Component {name} requires stop bits {stop_bits} for the uart bus"
+                f"Component {name} requires {stop_bits} stop bits for the uart bus"
             )
         return value
 
@@ -304,6 +318,8 @@ def final_validate_device_schema(
             ] = validate_pin(CONF_RX_PIN, device)
         if baud_rate is not None:
             hub_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
+        if data_bits is not None:
+            hub_schema[cv.Required(CONF_DATA_BITS)] = validate_data_bits
         if parity is not None:
             hub_schema[cv.Required(CONF_PARITY)] = validate_parity
         if stop_bits is not None:

@@ -7,7 +7,7 @@
 namespace esphome {
 namespace ssd1331_base {
 
-class SSD1331 : public PollingComponent, public display::DisplayBuffer {
+class SSD1331 : public display::DisplayBuffer {
  public:
   void setup() override;
 

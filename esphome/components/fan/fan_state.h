@@ -15,7 +15,6 @@ enum ESPDEPRECATED("LegacyFanDirection members are deprecated, use FanDirection 
 class ESPDEPRECATED("FanState is deprecated, use Fan instead.", "2022.2") FanState : public Fan, public Component {
  public:
   FanState() = default;
-  explicit FanState(const std::string &name) : Fan(name) {}
 
   /// Get the traits of this fan.
   FanTraits get_traits() override { return this->traits_; }

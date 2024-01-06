@@ -23,9 +23,28 @@ class IDFUARTComponent : public UARTComponent, public Component {
   int available() override;
   void flush() override;
 
+  uint8_t get_hw_serial_number() { return this->uart_num_; }
+  QueueHandle_t *get_uart_event_queue() { return &this->uart_event_queue_; }
+
+  /**
+   * Load the UART with the current settings.
+   * @param dump_config (Optional, default `true`): True for displaying new settings or
+   * false to change it quitely
+   *
+   * Example:
+   * ```cpp
+   * id(uart1).load_settings();
+   * ```
+   *
+   * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
+   */
+  void load_settings(bool dump_config) override;
+  void load_settings() override { this->load_settings(true); }
+
  protected:
   void check_logger_conflict() override;
   uart_port_t uart_num_;
+  QueueHandle_t uart_event_queue_;
   uart_config_t get_config_();
   SemaphoreHandle_t lock_;
 

@@ -66,59 +66,63 @@ CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield cover.register_cover(var, config)
+    await cg.register_component(var, config)
+    await cover.register_cover(var, config)
 
-    yield automation.build_automation(
+    await automation.build_automation(
         var.get_stop_trigger(), [], config[CONF_STOP_ACTION]
     )
 
     # OPEN
-    bin = yield cg.get_variable(config[CONF_OPEN_SENSOR])
+    bin = await cg.get_variable(config[CONF_OPEN_SENSOR])
     cg.add(var.set_open_sensor(bin))
     cg.add(
         var.set_open_moving_current_threshold(
             config[CONF_OPEN_MOVING_CURRENT_THRESHOLD]
         )
     )
-    if CONF_OPEN_OBSTACLE_CURRENT_THRESHOLD in config:
-        cg.add(
-            var.set_open_obstacle_current_threshold(
-                config[CONF_OPEN_OBSTACLE_CURRENT_THRESHOLD]
-            )
+    if (
+        open_obsticle_current_threshold := config.get(
+            CONF_OPEN_OBSTACLE_CURRENT_THRESHOLD
         )
+    ) is not None:
+        cg.add(var.set_open_obstacle_current_threshold(open_obsticle_current_threshold))
+
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
-    yield automation.build_automation(
+    await automation.build_automation(
         var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
     )
 
     # CLOSE
-    bin = yield cg.get_variable(config[CONF_CLOSE_SENSOR])
+    bin = await cg.get_variable(config[CONF_CLOSE_SENSOR])
     cg.add(var.set_close_sensor(bin))
     cg.add(
         var.set_close_moving_current_threshold(
             config[CONF_CLOSE_MOVING_CURRENT_THRESHOLD]
         )
     )
-    if CONF_CLOSE_OBSTACLE_CURRENT_THRESHOLD in config:
-        cg.add(
-            var.set_close_obstacle_current_threshold(
-                config[CONF_CLOSE_OBSTACLE_CURRENT_THRESHOLD]
-            )
+    if (
+        close_obsticle_current_threshold := config.get(
+            CONF_CLOSE_OBSTACLE_CURRENT_THRESHOLD
         )
+    ) is not None:
+        cg.add(
+            var.set_close_obstacle_current_threshold(close_obsticle_current_threshold)
+        )
+
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
-    yield automation.build_automation(
+    await automation.build_automation(
         var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]
     )
 
     cg.add(var.set_obstacle_rollback(config[CONF_OBSTACLE_ROLLBACK]))
-    if CONF_MAX_DURATION in config:
-        cg.add(var.set_max_duration(config[CONF_MAX_DURATION]))
+    if (max_duration := config.get(CONF_MAX_DURATION)) is not None:
+        cg.add(var.set_max_duration(max_duration))
     cg.add(var.set_malfunction_detection(config[CONF_MALFUNCTION_DETECTION]))
-    if CONF_MALFUNCTION_ACTION in config:
-        yield automation.build_automation(
-            var.get_malfunction_trigger(), [], config[CONF_MALFUNCTION_ACTION]
+    if malfunction_action := config.get(CONF_MALFUNCTION_ACTION):
+        await automation.build_automation(
+            var.get_malfunction_trigger(), [], malfunction_action
         )
     cg.add(var.set_start_sensing_delay(config[CONF_START_SENSING_DELAY]))

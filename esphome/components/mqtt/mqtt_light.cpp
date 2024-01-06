@@ -3,6 +3,7 @@
 
 #include "mqtt_const.h"
 
+#ifdef USE_JSON
 #ifdef USE_MQTT
 #ifdef USE_LIGHT
 
@@ -83,3 +84,4 @@ void MQTTJSONLightComponent::dump_config() {
 
 #endif
 #endif  // USE_MQTT
+#endif  // USE_JSON

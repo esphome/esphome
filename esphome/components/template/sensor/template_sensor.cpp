@@ -8,13 +8,12 @@ namespace template_ {
 static const char *const TAG = "template.sensor";
 
 void TemplateSensor::update() {
-  if (this->f_.has_value()) {
-    auto val = (*this->f_)();
-    if (val.has_value()) {
-      this->publish_state(*val);
-    }
-  } else if (!std::isnan(this->get_raw_state())) {
-    this->publish_state(this->get_raw_state());
+  if (!this->f_.has_value())
+    return;
+
+  auto val = (*this->f_)();
+  if (val.has_value()) {
+    this->publish_state(*val);
   }
 }
 float TemplateSensor::get_setup_priority() const { return setup_priority::HARDWARE; }

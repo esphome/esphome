@@ -41,9 +41,9 @@ DeviceInformationTrigger = ezo_ns.class_(
 LedTrigger = ezo_ns.class_("LedTrigger", automation.Trigger.template(cg.bool_))
 
 CONFIG_SCHEMA = (
-    sensor.SENSOR_SCHEMA.extend(
+    sensor.sensor_schema(EZOSensor)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(EZOSensor),
             cv.Optional(CONF_ON_CUSTOM): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CustomTrigger),

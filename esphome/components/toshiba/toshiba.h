@@ -25,7 +25,7 @@ class ToshibaClimate : public climate_ir::ClimateIR {
   ToshibaClimate()
       : climate_ir::ClimateIR(TOSHIBA_GENERIC_TEMP_C_MIN, TOSHIBA_GENERIC_TEMP_C_MAX, 1.0f, true, true,
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_FAN_HIGH}) {}
+                               climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_QUIET}) {}
 
   void setup() override;
   void set_model(Model model) { this->model_ = model; }

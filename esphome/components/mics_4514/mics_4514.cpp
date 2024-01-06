@@ -16,7 +16,7 @@ void MICS4514Component::setup() {
   uint8_t power_mode;
   this->read_register(POWER_MODE_REGISTER, &power_mode, 1);
   if (power_mode == 0x00) {
-    ESP_LOGCONFIG(TAG, "Waking up MICS 4514");
+    ESP_LOGCONFIG(TAG, "Waking up MICS 4514, sensors will have data after 3 minutes...");
     power_mode = 0x01;
     this->write_register(POWER_MODE_REGISTER, &power_mode, 1);
     delay(100);  // NOLINT

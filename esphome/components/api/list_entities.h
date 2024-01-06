@@ -46,6 +46,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_NUMBER
   bool on_number(number::Number *number) override;
 #endif
+#ifdef USE_TEXT
+  bool on_text(text::Text *text) override;
+#endif
 #ifdef USE_SELECT
   bool on_select(select::Select *select) override;
 #endif
@@ -54,6 +57,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #endif
 #ifdef USE_MEDIA_PLAYER
   bool on_media_player(media_player::MediaPlayer *media_player) override;
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+  bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) override;
 #endif
   bool on_end() override;
 

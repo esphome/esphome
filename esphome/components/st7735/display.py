@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_PAGES,
+    CONF_INVERT_COLORS,
 )
 from . import st7735_ns
 
@@ -23,7 +24,6 @@ CONF_ROW_START = "row_start"
 CONF_COL_START = "col_start"
 CONF_EIGHT_BIT_COLOR = "eight_bit_color"
 CONF_USE_BGR = "use_bgr"
-CONF_INVERT_COLORS = "invert_colors"
 
 SPIST7735 = st7735_ns.class_(
     "ST7735", cg.PollingComponent, display.DisplayBuffer, spi.SPIDevice
@@ -69,7 +69,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def setup_st7735(var, config):
-    await cg.register_component(var, config)
     await display.register_display(var, config)
 
     if CONF_RESET_PIN in config:
@@ -77,7 +76,7 @@ async def setup_st7735(var, config):
         cg.add(var.set_reset_pin(reset))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
+            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
 

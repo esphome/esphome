@@ -8,10 +8,10 @@
 
 namespace esphome {
 
-// forward declare DisplayBuffer
+// forward declare Display
 namespace display {
-class DisplayBuffer;
-class Font;
+class Display;
+class BaseFont;
 }  // namespace display
 
 namespace graph {
@@ -45,8 +45,8 @@ enum ValuePositionType {
 class GraphLegend {
  public:
   void init(Graph *g);
-  void set_name_font(display::Font *font) { this->font_label_ = font; }
-  void set_value_font(display::Font *font) { this->font_value_ = font; }
+  void set_name_font(display::BaseFont *font) { this->font_label_ = font; }
+  void set_value_font(display::BaseFont *font) { this->font_value_ = font; }
   void set_width(uint32_t width) { this->width_ = width; }
   void set_height(uint32_t height) { this->height_ = height; }
   void set_border(bool val) { this->border_ = val; }
@@ -63,8 +63,8 @@ class GraphLegend {
   ValuePositionType values_{VALUE_POSITION_TYPE_AUTO};
   bool units_{true};
   DirectionType direction_{DIRECTION_TYPE_AUTO};
-  display::Font *font_label_{nullptr};
-  display::Font *font_value_{nullptr};
+  display::BaseFont *font_label_{nullptr};
+  display::BaseFont *font_value_{nullptr};
   // Calculated values
   Graph *parent_{nullptr};
   //                      (x0)          (xs,ys)         (xs,ys)
@@ -133,8 +133,8 @@ class GraphTrace {
 
 class Graph : public Component {
  public:
-  void draw(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color);
-  void draw_legend(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color);
+  void draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color);
+  void draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color);
 
   void setup() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }

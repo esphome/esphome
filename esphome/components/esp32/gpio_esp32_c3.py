@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_NUMBER,
 )
 import esphome.config_validation as cv
+from esphome.pins import check_strapping_pin
 
 _ESP32C3_SPI_PSRAM_PINS = {
     12: "SPIHD",
@@ -28,13 +29,6 @@ def esp32_c3_validate_gpio_pin(value):
         raise cv.Invalid(
             f"This pin cannot be used on ESP32-C3s and is already used by the SPI/PSRAM interface (function: {_ESP32C3_SPI_PSRAM_PINS[value]})"
         )
-    if value in _ESP32C3_STRAPPING_PINS:
-        _LOGGER.warning(
-            "GPIO%d is a Strapping PIN and should be avoided.\n"
-            "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
-            "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
-            value,
-        )
 
     return value
 
@@ -50,4 +44,6 @@ def esp32_c3_validate_supports(value):
     if is_input:
         # All ESP32 pins support input mode
         pass
+
+    check_strapping_pin(value, _ESP32C3_STRAPPING_PINS, _LOGGER)
     return value

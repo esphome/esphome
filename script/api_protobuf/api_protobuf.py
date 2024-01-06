@@ -4,7 +4,7 @@
 It's pretty crappy spaghetti code, but it works.
 
 you need to install protobuf-compiler:
-running protc --version should return
+running protoc --version should return
 libprotoc 3.6.1
 
 then run this script with python3 and the files
@@ -17,27 +17,22 @@ then run this script with python3 and the files
 will be generated, they still need to be formatted
 """
 
+import os
 import re
+import sys
+from abc import ABC, abstractmethod
 from pathlib import Path
-from textwrap import dedent
 from subprocess import call
+from textwrap import dedent
 
 # Generate with
 # protoc --python_out=script/api_protobuf -I esphome/components/api/ api_options.proto
-
 import aioesphomeapi.api_options_pb2 as pb
 import google.protobuf.descriptor_pb2 as descriptor
 
-file_header = "// This file was automatically generated with a tool.\n"
-file_header += "// See scripts/api_protobuf/api_protobuf.py\n"
-
-cwd = Path(__file__).resolve().parent
-root = cwd.parent.parent / "esphome" / "components" / "api"
-prot = root / "api.protoc"
-call(["protoc", "-o", str(prot), "-I", str(root), "api.proto"])
-content = prot.read_bytes()
-
-d = descriptor.FileDescriptorSet.FromString(content)
+FILE_HEADER = """// This file was automatically generated with a tool.
+// See scripts/api_protobuf/api_protobuf.py
+"""
 
 
 def indent_list(text, padding="  "):
@@ -63,7 +58,7 @@ def camel_to_snake(name):
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
-class TypeInfo:
+class TypeInfo(ABC):
     def __init__(self, field):
         self._field = field
 
@@ -185,10 +180,12 @@ class TypeInfo:
     def dump_content(self):
         o = f'out.append("  {self.name}: ");\n'
         o += self.dump(f"this->{self.field_name}") + "\n"
-        o += f'out.append("\\n");\n'
+        o += 'out.append("\\n");\n'
         return o
 
-    dump = None
+    @abstractmethod
+    def dump(self, name: str):
+        pass
 
 
 TYPE_INFO = {}
@@ -211,7 +208,7 @@ class DoubleType(TypeInfo):
 
     def dump(self, name):
         o = f'sprintf(buffer, "%g", {name});\n'
-        o += f"out.append(buffer);"
+        o += "out.append(buffer);"
         return o
 
 
@@ -224,7 +221,7 @@ class FloatType(TypeInfo):
 
     def dump(self, name):
         o = f'sprintf(buffer, "%g", {name});\n'
-        o += f"out.append(buffer);"
+        o += "out.append(buffer);"
         return o
 
 
@@ -237,7 +234,7 @@ class Int64Type(TypeInfo):
 
     def dump(self, name):
         o = f'sprintf(buffer, "%lld", {name});\n'
-        o += f"out.append(buffer);"
+        o += "out.append(buffer);"
         return o
 
 
@@ -250,7 +247,7 @@ class UInt64Type(TypeInfo):
 
     def dump(self, name):
         o = f'sprintf(buffer, "%llu", {name});\n'
-        o += f"out.append(buffer);"
+        o += "out.append(buffer);"
         return o
 
 
@@ -262,8 +259,8 @@ class Int32Type(TypeInfo):
     encode_func = "encode_int32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%d", {name});\n'
-        o += f"out.append(buffer);"
+        o = f'sprintf(buffer, "%" PRId32, {name});\n'
+        o += "out.append(buffer);"
         return o
 
 
@@ -276,7 +273,7 @@ class Fixed64Type(TypeInfo):
 
     def dump(self, name):
         o = f'sprintf(buffer, "%llu", {name});\n'
-        o += f"out.append(buffer);"
+        o += "out.append(buffer);"
         return o
 
 
@@ -288,8 +285,8 @@ class Fixed32Type(TypeInfo):
     encode_func = "encode_fixed32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%u", {name});\n'
-        o += f"out.append(buffer);"
+        o = f'sprintf(buffer, "%" PRIu32, {name});\n'
+        o += "out.append(buffer);"
         return o
 
 
@@ -370,8 +367,8 @@ class UInt32Type(TypeInfo):
     encode_func = "encode_uint32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%u", {name});\n'
-        o += f"out.append(buffer);"
+        o = f'sprintf(buffer, "%" PRIu32, {name});\n'
+        o += "out.append(buffer);"
         return o
 
 
@@ -404,8 +401,8 @@ class SFixed32Type(TypeInfo):
     encode_func = "encode_sfixed32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%d", {name});\n'
-        o += f"out.append(buffer);"
+        o = f'sprintf(buffer, "%" PRId32, {name});\n'
+        o += "out.append(buffer);"
         return o
 
 
@@ -418,7 +415,7 @@ class SFixed64Type(TypeInfo):
 
     def dump(self, name):
         o = f'sprintf(buffer, "%lld", {name});\n'
-        o += f"out.append(buffer);"
+        o += "out.append(buffer);"
         return o
 
 
@@ -430,8 +427,8 @@ class SInt32Type(TypeInfo):
     encode_func = "encode_sint32"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%d", {name});\n'
-        o += f"out.append(buffer);"
+        o = f'sprintf(buffer, "%" PRId32, {name});\n'
+        o += "out.append(buffer);"
         return o
 
 
@@ -444,7 +441,7 @@ class SInt64Type(TypeInfo):
 
     def dump(self, name):
         o = f'sprintf(buffer, "%lld", {name});\n'
-        o += f"out.append(buffer);"
+        o += "out.append(buffer);"
         return o
 
 
@@ -526,7 +523,7 @@ class RepeatedTypeInfo(TypeInfo):
     def encode_content(self):
         o = f"for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
         o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
-        o += f"}}"
+        o += "}"
         return o
 
     @property
@@ -534,9 +531,12 @@ class RepeatedTypeInfo(TypeInfo):
         o = f'for (const auto {"" if self._ti_is_bool else "&"}it : this->{self.field_name}) {{\n'
         o += f'  out.append("  {self.name}: ");\n'
         o += indent(self._ti.dump("it")) + "\n"
-        o += f'  out.append("\\n");\n'
-        o += f"}}\n"
+        o += '  out.append("\\n");\n'
+        o += "}\n"
         return o
+
+    def dump(self, _: str):
+        pass
 
 
 def build_enum_type(desc):
@@ -546,17 +546,17 @@ def build_enum_type(desc):
         out += f"  {v.name} = {v.number},\n"
     out += "};\n"
 
-    cpp = f"#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+    cpp = "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     cpp += f"template<> const char *proto_enum_to_string<enums::{name}>(enums::{name} value) {{\n"
-    cpp += f"  switch (value) {{\n"
+    cpp += "  switch (value) {\n"
     for v in desc.value:
         cpp += f"    case enums::{v.name}:\n"
         cpp += f'      return "{v.name}";\n'
-    cpp += f"    default:\n"
-    cpp += f'      return "UNKNOWN";\n'
-    cpp += f"  }}\n"
-    cpp += f"}}\n"
-    cpp += f"#endif\n"
+    cpp += "    default:\n"
+    cpp += '      return "UNKNOWN";\n'
+    cpp += "  }\n"
+    cpp += "}\n"
+    cpp += "#endif\n"
 
     return out, cpp
 
@@ -651,10 +651,10 @@ def build_message_type(desc):
             o += f" {dump[0]} "
         else:
             o += "\n"
-            o += f"  __attribute__((unused)) char buffer[64];\n"
+            o += "  __attribute__((unused)) char buffer[64];\n"
             o += f'  out.append("{desc.name} {{\\n");\n'
             o += indent("\n".join(dump)) + "\n"
-            o += f'  out.append("}}");\n'
+            o += '  out.append("}");\n'
     else:
         o2 = f'out.append("{desc.name} {{}}");'
         if len(o) + len(o2) + 3 < 120:
@@ -663,9 +663,9 @@ def build_message_type(desc):
             o += "\n"
             o += f"  {o2}\n"
     o += "}\n"
-    cpp += f"#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+    cpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     cpp += o
-    cpp += f"#endif\n"
+    cpp += "#endif\n"
     prot = "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     prot += "void dump_to(std::string &out) const override;\n"
     prot += "#endif\n"
@@ -683,68 +683,11 @@ def build_message_type(desc):
     return out, cpp
 
 
-file = d.file[0]
-content = file_header
-content += """\
-#pragma once
-
-#include "proto.h"
-
-namespace esphome {
-namespace api {
-
-"""
-
-cpp = file_header
-cpp += """\
-#include "api_pb2.h"
-#include "esphome/core/log.h"
-
-namespace esphome {
-namespace api {
-
-"""
-
-content += "namespace enums {\n\n"
-
-for enum in file.enum_type:
-    s, c = build_enum_type(enum)
-    content += s
-    cpp += c
-
-content += "\n}  // namespace enums\n\n"
-
-mt = file.message_type
-
-for m in mt:
-    s, c = build_message_type(m)
-    content += s
-    cpp += c
-
-content += """\
-
-}  // namespace api
-}  // namespace esphome
-"""
-cpp += """\
-
-}  // namespace api
-}  // namespace esphome
-"""
-
-with open(root / "api_pb2.h", "w") as f:
-    f.write(content)
-
-with open(root / "api_pb2.cpp", "w") as f:
-    f.write(cpp)
-
 SOURCE_BOTH = 0
 SOURCE_SERVER = 1
 SOURCE_CLIENT = 2
 
 RECEIVE_CASES = {}
-
-class_name = "APIServerConnectionBase"
 
 ifdefs = {}
 
@@ -765,7 +708,6 @@ def build_service_message_type(mt):
 
     ifdef = get_opt(mt, pb.ifdef)
     log = get_opt(mt, pb.log, True)
-    nodelay = get_opt(mt, pb.no_delay, False)
     hout = ""
     cout = ""
 
@@ -778,14 +720,14 @@ def build_service_message_type(mt):
         # Generate send
         func = f"send_{snake}"
         hout += f"bool {func}(const {mt.name} &msg);\n"
-        cout += f"bool {class_name}::{func}(const {mt.name} &msg) {{\n"
+        cout += f"bool APIServerConnectionBase::{func}(const {mt.name} &msg) {{\n"
         if log:
-            cout += f"#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+            cout += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
             cout += f'  ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
-            cout += f"#endif\n"
+            cout += "#endif\n"
         # cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
         cout += f"  return this->send_message_<{mt.name}>(msg, {id_});\n"
-        cout += f"}}\n"
+        cout += "}\n"
     if source in (SOURCE_BOTH, SOURCE_CLIENT):
         # Generate receive
         func = f"on_{snake}"
@@ -794,153 +736,242 @@ def build_service_message_type(mt):
         if ifdef is not None:
             case += f"#ifdef {ifdef}\n"
         case += f"{mt.name} msg;\n"
-        case += f"msg.decode(msg_data, msg_size);\n"
+        case += "msg.decode(msg_data, msg_size);\n"
         if log:
-            case += f"#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+            case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
             case += f'ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
-            case += f"#endif\n"
+            case += "#endif\n"
         case += f"this->{func}(msg);\n"
         if ifdef is not None:
-            case += f"#endif\n"
+            case += "#endif\n"
         case += "break;"
         RECEIVE_CASES[id_] = case
 
     if ifdef is not None:
-        hout += f"#endif\n"
-        cout += f"#endif\n"
+        hout += "#endif\n"
+        cout += "#endif\n"
 
     return hout, cout
 
 
-hpp = file_header
-hpp += """\
-#pragma once
+def main():
+    cwd = Path(__file__).resolve().parent
+    root = cwd.parent.parent / "esphome" / "components" / "api"
+    prot_file = root / "api.protoc"
+    call(["protoc", "-o", str(prot_file), "-I", str(root), "api.proto"])
+    proto_content = prot_file.read_bytes()
 
-#include "api_pb2.h"
-#include "esphome/core/defines.h"
+    # pylint: disable-next=no-member
+    d = descriptor.FileDescriptorSet.FromString(proto_content)
 
-namespace esphome {
-namespace api {
+    file = d.file[0]
+    content = FILE_HEADER
+    content += """\
+    #pragma once
 
-"""
+    #include "proto.h"
 
-cpp = file_header
-cpp += """\
-#include "api_pb2_service.h"
-#include "esphome/core/log.h"
+    namespace esphome {
+    namespace api {
 
-namespace esphome {
-namespace api {
+    """
 
-static const char *const TAG = "api.service";
+    cpp = FILE_HEADER
+    cpp += """\
+    #include "api_pb2.h"
+    #include "esphome/core/log.h"
 
-"""
+    #include <cinttypes>
 
-hpp += f"class {class_name} : public ProtoService {{\n"
-hpp += " public:\n"
+    namespace esphome {
+    namespace api {
 
-for mt in file.message_type:
-    obj = build_service_message_type(mt)
-    if obj is None:
-        continue
-    hout, cout = obj
-    hpp += indent(hout) + "\n"
-    cpp += cout
+    """
 
-cases = list(RECEIVE_CASES.items())
-cases.sort()
-hpp += " protected:\n"
-hpp += f"  bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;\n"
-out = f"bool {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {{\n"
-out += f"  switch (msg_type) {{\n"
-for i, case in cases:
-    c = f"case {i}: {{\n"
-    c += indent(case) + "\n"
-    c += f"}}"
-    out += indent(c, "    ") + "\n"
-out += "    default:\n"
-out += "      return false;\n"
-out += "  }\n"
-out += "  return true;\n"
-out += "}\n"
-cpp += out
-hpp += "};\n"
+    content += "namespace enums {\n\n"
 
-serv = file.service[0]
-class_name = "APIServerConnection"
-hpp += "\n"
-hpp += f"class {class_name} : public {class_name}Base {{\n"
-hpp += " public:\n"
-hpp_protected = ""
-cpp += "\n"
+    for enum in file.enum_type:
+        s, c = build_enum_type(enum)
+        content += s
+        cpp += c
 
-m = serv.method[0]
-for m in serv.method:
-    func = m.name
-    inp = m.input_type[1:]
-    ret = m.output_type[1:]
-    is_void = ret == "void"
-    snake = camel_to_snake(inp)
-    on_func = f"on_{snake}"
-    needs_conn = get_opt(m, pb.needs_setup_connection, True)
-    needs_auth = get_opt(m, pb.needs_authentication, True)
+    content += "\n}  // namespace enums\n\n"
 
-    ifdef = ifdefs.get(inp, None)
+    mt = file.message_type
 
-    if ifdef is not None:
-        hpp += f"#ifdef {ifdef}\n"
-        hpp_protected += f"#ifdef {ifdef}\n"
-        cpp += f"#ifdef {ifdef}\n"
+    for m in mt:
+        s, c = build_message_type(m)
+        content += s
+        cpp += c
 
-    hpp_protected += f"  void {on_func}(const {inp} &msg) override;\n"
-    hpp += f"  virtual {ret} {func}(const {inp} &msg) = 0;\n"
-    cpp += f"void {class_name}::{on_func}(const {inp} &msg) {{\n"
-    body = ""
-    if needs_conn:
-        body += "if (!this->is_connection_setup()) {\n"
-        body += "  this->on_no_setup_connection();\n"
-        body += "  return;\n"
-        body += "}\n"
-    if needs_auth:
-        body += "if (!this->is_authenticated()) {\n"
-        body += "  this->on_unauthenticated_access();\n"
-        body += "  return;\n"
-        body += "}\n"
+    content += """\
 
-    if is_void:
-        body += f"this->{func}(msg);\n"
-    else:
-        body += f"{ret} ret = this->{func}(msg);\n"
-        ret_snake = camel_to_snake(ret)
-        body += f"if (!this->send_{ret_snake}(ret)) {{\n"
-        body += f"  this->on_fatal_error();\n"
-        body += "}\n"
-    cpp += indent(body) + "\n" + "}\n"
+    }  // namespace api
+    }  // namespace esphome
+    """
+    cpp += """\
 
-    if ifdef is not None:
-        hpp += f"#endif\n"
-        hpp_protected += f"#endif\n"
-        cpp += f"#endif\n"
+    }  // namespace api
+    }  // namespace esphome
+    """
 
-hpp += " protected:\n"
-hpp += hpp_protected
-hpp += "};\n"
+    with open(root / "api_pb2.h", "w", encoding="utf-8") as f:
+        f.write(content)
 
-hpp += """\
+    with open(root / "api_pb2.cpp", "w", encoding="utf-8") as f:
+        f.write(cpp)
 
-}  // namespace api
-}  // namespace esphome
-"""
-cpp += """\
+    hpp = FILE_HEADER
+    hpp += """\
+    #pragma once
 
-}  // namespace api
-}  // namespace esphome
-"""
+    #include "api_pb2.h"
+    #include "esphome/core/defines.h"
 
-with open(root / "api_pb2_service.h", "w") as f:
-    f.write(hpp)
+    namespace esphome {
+    namespace api {
 
-with open(root / "api_pb2_service.cpp", "w") as f:
-    f.write(cpp)
+    """
 
-prot.unlink()
+    cpp = FILE_HEADER
+    cpp += """\
+    #include "api_pb2_service.h"
+    #include "esphome/core/log.h"
+
+    namespace esphome {
+    namespace api {
+
+    static const char *const TAG = "api.service";
+
+    """
+
+    class_name = "APIServerConnectionBase"
+
+    hpp += f"class {class_name} : public ProtoService {{\n"
+    hpp += " public:\n"
+
+    for mt in file.message_type:
+        obj = build_service_message_type(mt)
+        if obj is None:
+            continue
+        hout, cout = obj
+        hpp += indent(hout) + "\n"
+        cpp += cout
+
+    cases = list(RECEIVE_CASES.items())
+    cases.sort()
+    hpp += " protected:\n"
+    hpp += "  bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;\n"
+    out = f"bool {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {{\n"
+    out += "  switch (msg_type) {\n"
+    for i, case in cases:
+        c = f"case {i}: {{\n"
+        c += indent(case) + "\n"
+        c += "}"
+        out += indent(c, "    ") + "\n"
+    out += "    default:\n"
+    out += "      return false;\n"
+    out += "  }\n"
+    out += "  return true;\n"
+    out += "}\n"
+    cpp += out
+    hpp += "};\n"
+
+    serv = file.service[0]
+    class_name = "APIServerConnection"
+    hpp += "\n"
+    hpp += f"class {class_name} : public {class_name}Base {{\n"
+    hpp += " public:\n"
+    hpp_protected = ""
+    cpp += "\n"
+
+    m = serv.method[0]
+    for m in serv.method:
+        func = m.name
+        inp = m.input_type[1:]
+        ret = m.output_type[1:]
+        is_void = ret == "void"
+        snake = camel_to_snake(inp)
+        on_func = f"on_{snake}"
+        needs_conn = get_opt(m, pb.needs_setup_connection, True)
+        needs_auth = get_opt(m, pb.needs_authentication, True)
+
+        ifdef = ifdefs.get(inp, None)
+
+        if ifdef is not None:
+            hpp += f"#ifdef {ifdef}\n"
+            hpp_protected += f"#ifdef {ifdef}\n"
+            cpp += f"#ifdef {ifdef}\n"
+
+        hpp_protected += f"  void {on_func}(const {inp} &msg) override;\n"
+        hpp += f"  virtual {ret} {func}(const {inp} &msg) = 0;\n"
+        cpp += f"void {class_name}::{on_func}(const {inp} &msg) {{\n"
+        body = ""
+        if needs_conn:
+            body += "if (!this->is_connection_setup()) {\n"
+            body += "  this->on_no_setup_connection();\n"
+            body += "  return;\n"
+            body += "}\n"
+        if needs_auth:
+            body += "if (!this->is_authenticated()) {\n"
+            body += "  this->on_unauthenticated_access();\n"
+            body += "  return;\n"
+            body += "}\n"
+
+        if is_void:
+            body += f"this->{func}(msg);\n"
+        else:
+            body += f"{ret} ret = this->{func}(msg);\n"
+            ret_snake = camel_to_snake(ret)
+            body += f"if (!this->send_{ret_snake}(ret)) {{\n"
+            body += "  this->on_fatal_error();\n"
+            body += "}\n"
+        cpp += indent(body) + "\n" + "}\n"
+
+        if ifdef is not None:
+            hpp += "#endif\n"
+            hpp_protected += "#endif\n"
+            cpp += "#endif\n"
+
+    hpp += " protected:\n"
+    hpp += hpp_protected
+    hpp += "};\n"
+
+    hpp += """\
+
+    }  // namespace api
+    }  // namespace esphome
+    """
+    cpp += """\
+
+    }  // namespace api
+    }  // namespace esphome
+    """
+
+    with open(root / "api_pb2_service.h", "w", encoding="utf-8") as f:
+        f.write(hpp)
+
+    with open(root / "api_pb2_service.cpp", "w", encoding="utf-8") as f:
+        f.write(cpp)
+
+    prot_file.unlink()
+
+    try:
+        import clang_format
+
+        def exec_clang_format(path):
+            clang_format_path = os.path.join(
+                os.path.dirname(clang_format.__file__), "data", "bin", "clang-format"
+            )
+            call([clang_format_path, "-i", path])
+
+        exec_clang_format(root / "api_pb2_service.h")
+        exec_clang_format(root / "api_pb2_service.cpp")
+        exec_clang_format(root / "api_pb2.h")
+        exec_clang_format(root / "api_pb2.cpp")
+    except ImportError:
+        pass
+
+
+if __name__ == "__main__":
+    sys.exit(main())
