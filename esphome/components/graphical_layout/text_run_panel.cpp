@@ -94,7 +94,8 @@ std::vector<std::shared_ptr<CalculatedTextRun>> TextRunPanel::split_runs_into_wo
   return runs;
 }
 
-std::vector<std::shared_ptr<LineInfo>> TextRunPanel::fit_words_to_bounds(const std::vector<std::shared_ptr<CalculatedTextRun>> &runs, display::Rect bounds) {
+std::vector<std::shared_ptr<LineInfo>> TextRunPanel::fit_words_to_bounds(
+    const std::vector<std::shared_ptr<CalculatedTextRun>> &runs, display::Rect bounds) {
   int x_offset = 0;
   int y_offset = 0;
   int current_line_number = 0;
@@ -119,7 +120,7 @@ std::vector<std::shared_ptr<LineInfo>> TextRunPanel::fit_words_to_bounds(const s
     // Fits on the line
     run->bounds.x = x_offset;
     run->bounds.y = y_offset;
-    
+
     current_line->add_run(run);
 
     x_offset += run->bounds.w;
@@ -128,7 +129,8 @@ std::vector<std::shared_ptr<LineInfo>> TextRunPanel::fit_words_to_bounds(const s
   return lines;
 }
 
-void TextRunPanel::apply_alignment_to_lines(std::vector<std::shared_ptr<LineInfo>> &lines, display::TextAlign alignment) {
+void TextRunPanel::apply_alignment_to_lines(std::vector<std::shared_ptr<LineInfo>> &lines,
+                                            display::TextAlign alignment) {
   const auto x_align = display::TextAlign(int(this->text_align_) & TEXT_ALIGN_X_MASK);
   const auto y_align = display::TextAlign(int(this->text_align_) & TEXT_ALIGN_Y_MASK);
 
@@ -149,7 +151,7 @@ void TextRunPanel::apply_alignment_to_lines(std::vector<std::shared_ptr<LineInfo
     switch (x_align) {
       case display::TextAlign::RIGHT: {
         x_adjustment = max_line_width - line->total_width;
-       break;
+        break;
       }
       case display::TextAlign::CENTER_HORIZONTAL: {
         x_adjustment = (max_line_width - line->total_width) / 2;
@@ -207,8 +209,9 @@ CalculatedLayout TextRunPanel::determine_layout(display::Display *display, displ
     layout.bounds.w = std::max(layout.bounds.w, line->total_width);
   }
   layout.bounds.h = y_offset;
-  
-  ESP_LOGD(TAG, "Text fits on %i lines and its bounds are (%i, %i)", layout.line_count, layout.bounds.w, layout.bounds.h);
+
+  ESP_LOGD(TAG, "Text fits on %i lines and its bounds are (%i, %i)", layout.line_count, layout.bounds.w,
+           layout.bounds.h);
 
   return layout;
 }
