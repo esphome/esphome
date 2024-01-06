@@ -1,13 +1,13 @@
-/// @file wk2132_i2c.cpp
+/// @file wk2168_i2c.cpp
 /// @author DrCoolzic
-/// @brief wk2132 classes implementation
+/// @brief wk2168 classes implementation
 
-#include "wk2132_i2c.h"
+#include "wk2168_i2c.h"
 
 namespace esphome {
-namespace wk2132_i2c {
+namespace wk2168_i2c {
 
-static const char *const TAG = "wk2132_i2c";
+static const char *const TAG = "wk2168_i2c";
 
 static const char *const REG_TO_STR_P0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
                                             "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
@@ -38,95 +38,95 @@ inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, RegType fifo) 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WK2132Reg methods
+// The WK2168Reg methods
 ///////////////////////////////////////////////////////////////////////////////
-uint8_t WK2132RegI2C::read_reg() const {
+uint8_t WK2168RegI2C::read_reg() const {
   uint8_t value = 0x00;
-  WK2132ComponentI2C *comp_i2c = static_cast<WK2132ComponentI2C *>(this->comp_);
+  WK2168ComponentI2C *comp_i2c = static_cast<WK2168ComponentI2C *>(this->comp_);
   comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, REG);  // update the i2c bus address
   auto error = comp_i2c->read_register(this->register_, &value, 1);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WK2132RegI2C::read_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
+    ESP_LOGVV(TAG, "WK2168RegI2C::read_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
               reg_to_str(this->register_, comp_i2c->page1_), this->channel_, value, (int) error);
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WK2132RegI2C::read_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
+    ESP_LOGE(TAG, "WK2168RegI2C::read_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, value, (int) error);
   }
   return value;
 }
 
-void WK2132RegI2C::read_fifo(uint8_t *data, size_t length) const {
-  WK2132ComponentI2C *comp_i2c = static_cast<WK2132ComponentI2C *>(this->comp_);
+void WK2168RegI2C::read_fifo(uint8_t *data, size_t length) const {
+  WK2168ComponentI2C *comp_i2c = static_cast<WK2168ComponentI2C *>(this->comp_);
   comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, FIFO);
   auto error = comp_i2c->read(data, length);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WK2132RegI2C::read_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
+    ESP_LOGVV(TAG, "WK2168RegI2C::read_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
               reg_to_str(this->register_, comp_i2c->page1_), this->channel_, length, (int) error);
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WK2132RegI2C::read_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
+    ESP_LOGE(TAG, "WK2168RegI2C::read_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, length, (int) error);
   }
 }
 
-void WK2132RegI2C::write_reg(uint8_t value) {
-  WK2132ComponentI2C *comp_i2c = static_cast<WK2132ComponentI2C *>(this->comp_);
+void WK2168RegI2C::write_reg(uint8_t value) {
+  WK2168ComponentI2C *comp_i2c = static_cast<WK2168ComponentI2C *>(this->comp_);
   comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, REG);  // update the i2c bus
   auto error = comp_i2c->write_register(this->register_, &value, 1);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WK2132Reg::write_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
+    ESP_LOGVV(TAG, "WK2168Reg::write_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
               reg_to_str(this->register_, comp_i2c->page1_), this->channel_, value, (int) error);
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WK2132Reg::write_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
+    ESP_LOGE(TAG, "WK2168Reg::write_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, value, (int) error);
   }
 }
 
-void WK2132RegI2C::write_fifo(uint8_t *data, size_t length) {
-  WK2132ComponentI2C *comp_i2c = static_cast<WK2132ComponentI2C *>(this->comp_);
+void WK2168RegI2C::write_fifo(uint8_t *data, size_t length) {
+  WK2168ComponentI2C *comp_i2c = static_cast<WK2168ComponentI2C *>(this->comp_);
   comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, FIFO);  // set fifo flag
   auto error = comp_i2c->write(data, length);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WK2132Reg::write_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
+    ESP_LOGVV(TAG, "WK2168Reg::write_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
               reg_to_str(this->register_, comp_i2c->page1_), this->channel_, length, (int) error);
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WK2132Reg::write_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
+    ESP_LOGE(TAG, "WK2168Reg::write_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, length, (int) error);
   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WK2132Component methods
+// The WK2168Component methods
 ///////////////////////////////////////////////////////////////////////////////
-void WK2132ComponentI2C::setup() {
-  using namespace wk2132;
+void WK2168ComponentI2C::setup() {
+  using namespace wk2168;
   // before any manipulation we store the address to base_address_ for future use
   this->base_address_ = this->address_;
-  ESP_LOGCONFIG(TAG, "Setting up wk2132_i2c: %s with %d UARTs at @%02X ...", this->get_name(), this->children_.size(),
+  ESP_LOGCONFIG(TAG, "Setting up wk2168_i2c: %s with %d UARTs at @%02X ...", this->get_name(), this->children_.size(),
                 this->base_address_);
 
   // enable both channels
-  this->reg(REG_WK2132_GENA, 0) = GENA_C1EN | GENA_C2EN;
+  this->reg(REG_WK2168_GENA, 0) = GENA_C1EN | GENA_C2EN;
   // reset channels
-  this->reg(REG_WK2132_GRST, 0) = GRST_C1RST | GRST_C2RST;
+  this->reg(REG_WK2168_GRST, 0) = GRST_C1RST | GRST_C2RST;
   // initialize the spage register to page 0
-  this->reg(REG_WK2132_SPAGE, 0) = 0;
+  this->reg(REG_WK2168_SPAGE, 0) = 0;
   this->page1_ = false;
 
   // we setup our children channels
-  for (WK2132Channel *child : this->children_) {
+  for (WK2168Channel *child : this->children_) {
     child->setup_channel();
   }
 }
 
-void WK2132ComponentI2C::dump_config() {
+void WK2168ComponentI2C::dump_config() {
   ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
   ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
   if (test_mode_)
@@ -139,5 +139,5 @@ void WK2132ComponentI2C::dump_config() {
   }
 }
 
-}  // namespace wk2132_i2c
+}  // namespace wk2168_i2c
 }  // namespace esphome

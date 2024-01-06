@@ -1,20 +1,20 @@
-/// @file wk2132.cpp
+/// @file wk2168.cpp
 /// @author DrCoolzic
-/// @brief wk2132 classes implementation
+/// @brief wk2168 classes implementation
 
-#include "wk2132.h"
+#include "wk2168.h"
 
 namespace esphome {
-namespace wk2132 {
+namespace wk2168 {
 
-/*! @mainpage WK2132 source code documentation
- This documentation provides information about the implementation of the WK2132Component in ESPHome.
- The WK2132Component utilizes two primary classes: the WK2132Component class, the WK2132Channel class,
- along with the RingBuffer and WK2132Reg helper classes. Below, you'll find short descriptions
+/*! @mainpage WK2168 source code documentation
+ This documentation provides information about the implementation of the WK2168Component in ESPHome.
+ The WK2168Component utilizes two primary classes: the WK2168Component class, the WK2168Channel class,
+ along with the RingBuffer and WK2168Reg helper classes. Below, you'll find short descriptions
  of these three classes.
  @n Before delving into these classes, let's explore the interactions of these classes with the other ESPHome classes
  through the UML class diagram presented below:
- <img src="WK2132 Class diagram.png" align="left" width="1024">
+ <img src="WK2168 Class diagram.png" align="left" width="1024">
  <div style="clear: both"></div>
 
   @section RingBuffer_ The RingBuffer template class
@@ -22,41 +22,41 @@ The RingBuffer template class has it names implies implement a simple ring buffe
 container implements FIFO functionality, enabling bytes to be pushed into one side and popped from the other in the
 order of entry. Implementation is classic and therefore not described in any details.
 
-  @section WK2132Register_ The WK2132Reg class
- The WK2132Reg helper class creates objects that act as proxies to WK2132 register.
+  @section WK2168Register_ The WK2168Reg class
+ The WK2168Reg helper class creates objects that act as proxies to WK2168 register.
  @details This is a pure virtual (interface) class that provides all the necessary access to registers while hiding
- the actual implementation. In the case of the wk2132 the access to the registers can be made through an I²C bus in
- the case of the wk2132_i2c component our through an SPI bus in the case of the wk2132_spi component. Derived classes
+ the actual implementation. In the case of the wk2168 the access to the registers can be made through an I²C bus in
+ the case of the wk2168_i2c component our through an SPI bus in the case of the wk2168_spi component. Derived classes
  will actually performs the specific bus operations.
- @n typical usage of WK2132Reg:
+ @n typical usage of WK2168Reg:
  @code
-   WK2132Reg reg_1 {&WK2132Component_1, ADDR_REGISTER_1, CHANNEL_NUM}  // declaration
-   reg_1 |= 0x01; // set bit 0 of the wk2132 register
-   reg_1 &= ~0x01; // reset bit 0 of the wk2132 register
-   reg_1 = 10; // Set the value of wk2132 register
-   uint val = reg_1; // get the value of wk2132 register
+   WK2168Reg reg_1 {&WK2168Component_1, ADDR_REGISTER_1, CHANNEL_NUM}  // declaration
+   reg_1 |= 0x01; // set bit 0 of the wk2168 register
+   reg_1 &= ~0x01; // reset bit 0 of the wk2168 register
+   reg_1 = 10; // Set the value of wk2168 register
+   uint val = reg_1; // get the value of wk2168 register
  @endcode
 
- @section WK2132Component_ The WK2132Component class
-The WK2132Component class stores the information global to the WK2132 component and provides methods to set/access
-this information. It also serves as a container for WK2132Channel instances. This is done by maintaining an array of
-references these WK2132Channel instances. This class derives from two ESPHome classes. The esphome::Component class and
+ @section WK2168Component_ The WK2168Component class
+The WK2168Component class stores the information global to the WK2168 component and provides methods to set/access
+this information. It also serves as a container for WK2168Channel instances. This is done by maintaining an array of
+references these WK2168Channel instances. This class derives from two ESPHome classes. The esphome::Component class and
 the i2c::I2CDevice class. This class override the esphome::Component::setup() and the esphome::Component::loop() methods
 called respectively to initialize the component and to perform task on a regular basis. The loop() method is used to
 facilitate the seamless transfer of accumulated bytes from the receive FIFO into the ring buffer. This process ensures
 quick access to the stored bytes, enhancing the overall efficiency of the component. It uses the read and write methods
-from the i2c::I2CDevice class to communicate through the i2c::I2CBus class with the WK2132 device.
+from the i2c::I2CDevice class to communicate through the i2c::I2CBus class with the WK2168 device.
 
- @section WK2132Channel_ The WK2132Channel class
-The WK2132Channel class is used to implement all the virtual methods of the ESPHome uart::UARTComponent class. An
-individual instance of this class is created for each UART channel. It has a link back to the WK2132Component object it
+ @section WK2168Channel_ The WK2168Channel class
+The WK2168Channel class is used to implement all the virtual methods of the ESPHome uart::UARTComponent class. An
+individual instance of this class is created for each UART channel. It has a link back to the WK2168Component object it
 belongs to as well as channel information. This class derives from the uart::UARTComponent class. It implements all
-virtual methods from this class. It collaborates through an aggregation with WK2132Component. This implies that
-WK2132Component acts as a container, housing one or two WK2132Channel instances. It's important to note that this is a
-weak dependency, allowing WK2132Channel instances to persist even if the associated WK2132Component is destroyed (an
-eventuality that never occurs in ESPHome). Furthermore, the WK2132Channel class derives from the ESPHome
-uart::UARTComponent class, it also has an association relationship with the RingBuffer and WK2132Reg helper
-classes. Consequently, when a WK2132Channel instance is destroyed, the associated RingBuffer instance is also destroyed.
+virtual methods from this class. It collaborates through an aggregation with WK2168Component. This implies that
+WK2168Component acts as a container, housing one or two WK2168Channel instances. It's important to note that this is a
+weak dependency, allowing WK2168Channel instances to persist even if the associated WK2168Component is destroyed (an
+eventuality that never occurs in ESPHome). Furthermore, the WK2168Channel class derives from the ESPHome
+uart::UARTComponent class, it also has an association relationship with the RingBuffer and WK2168Reg helper
+classes. Consequently, when a WK2168Channel instance is destroyed, the associated RingBuffer instance is also destroyed.
 
  @note Regrettably, there is a notable absence of documentation concerning the uart::UARTDevice and uart::UARTComponent
 classes within the ESPHome reference. However, it appears that both classes draw inspiration from equivalent Arduino
@@ -141,7 +141,7 @@ reading one byte.
 - In an optimum code, we use the uart::UARTComponent::available() method to find out how many bytes are available and we
 read them all with one call. Proceeding like this could easily improve the speed by a factor of more than six.
 
-So what can we do to improve the efficiently of the WK2132 component without asking the clients to rewrite their code?
+So what can we do to improve the efficiently of the WK2168 component without asking the clients to rewrite their code?
 After testing the timings of different strategies, I finally came up with the following solution: I use a ring buffer to
 store locally the bytes received in the FIFO. Therefore even if the client is reading bytes one by one the usage of a
 local ring buffer **minimize the number of transactions on the bus**. The transfer of the bytes from the FIFO to the
@@ -149,7 +149,7 @@ buffer is performed whenever using uart::UARTComponent::read_array() or uart::UA
 performed in advance each time the esphome::Component::loop() method is executed.
 */
 
-static const char *const TAG = "wk2132";
+static const char *const TAG = "wk2168";
 
 /// @brief convert an int to binary representation as C++ std::string
 /// @param val integer to convert
@@ -185,29 +185,29 @@ const char *p2s(uart::UARTParityOptions parity) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WK2132Reg methods
+// The WK2168Reg methods
 ///////////////////////////////////////////////////////////////////////////////
-WK2132Reg &WK2132Reg::operator=(uint8_t value) {
+WK2168Reg &WK2168Reg::operator=(uint8_t value) {
   write_reg(value);
   return *this;
 }
 
-WK2132Reg &WK2132Reg::operator&=(uint8_t value) {
+WK2168Reg &WK2168Reg::operator&=(uint8_t value) {
   value &= read_reg();
   write_reg(value);
   return *this;
 }
 
-WK2132Reg &WK2132Reg::operator|=(uint8_t value) {
+WK2168Reg &WK2168Reg::operator|=(uint8_t value) {
   value |= read_reg();
   write_reg(value);
   return *this;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WK2132Component methods
+// The WK2168Component methods
 ///////////////////////////////////////////////////////////////////////////////
-void WK2132Component::loop() {
+void WK2168Component::loop() {
   if (this->component_state_ & (COMPONENT_STATE_MASK != COMPONENT_STATE_LOOP))
     return;
 
@@ -269,19 +269,19 @@ void WK2132Component::loop() {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WK2132Channel methods
+// The WK2168Channel methods
 ///////////////////////////////////////////////////////////////////////////////
-void WK2132Channel::setup_channel() {
+void WK2168Channel::setup_channel() {
   ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s ...", this->parent_->get_name(), this->get_channel_name());
   // we enable transmit and receive on this channel
-  this->reg_(REG_WK2132_SCR) = SCR_RXEN | SCR_TXEN;
+  this->reg_(REG_WK2168_SCR) = SCR_RXEN | SCR_TXEN;
   this->reset_fifo_();
   this->receive_buffer_.clear();
   this->set_line_param_();
   this->set_baudrate_();
 }
 
-void WK2132Channel::dump_channel() {
+void WK2168Channel::dump_channel() {
   ESP_LOGCONFIG(TAG, "  UART %s ...", this->get_channel_name());
   ESP_LOGCONFIG(TAG, "    Baud rate: %d Bd", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "    Data bits: %d", this->data_bits_);
@@ -289,14 +289,14 @@ void WK2132Channel::dump_channel() {
   ESP_LOGCONFIG(TAG, "    Parity: %s", p2s(this->parity_));
 }
 
-void WK2132Channel::reset_fifo_() {
+void WK2168Channel::reset_fifo_() {
   // we reset and enable all FIFO
-  this->reg_(REG_WK2132_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
+  this->reg_(REG_WK2168_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
 }
 
-void WK2132Channel::set_line_param_() {
-  this->data_bits_ = 8;  // always equal to 8 for WK2132 (cant be changed)
-  WK2132Reg &lcr = this->reg_(REG_WK2132_LCR);
+void WK2168Channel::set_line_param_() {
+  this->data_bits_ = 8;  // always equal to 8 for WK2168 (cant be changed)
+  WK2168Reg &lcr = this->reg_(REG_WK2168_LCR);
   lcr &= 0xF0;  // we clear the lower 4 bit of LCR
   if (this->stop_bits_ == 2)
     lcr |= LCR_STPL;
@@ -314,7 +314,7 @@ void WK2132Channel::set_line_param_() {
            this->stop_bits_, p2s(this->parity_), I2CS(lcr.read_reg()));
 }
 
-void WK2132Channel::set_baudrate_() {
+void WK2168Channel::set_baudrate_() {
   uint16_t const val_int = this->parent_->crystal_ / (this->baud_rate_ * 16) - 1;
   uint16_t val_dec = (this->parent_->crystal_ % (this->baud_rate_ * 16)) / (this->baud_rate_ * 16);
   uint8_t const baud_high = (uint8_t) (val_int >> 8);
@@ -324,23 +324,23 @@ void WK2132Channel::set_baudrate_() {
   uint8_t const baud_dec = (uint8_t) (val_dec);
 
   this->parent_->page1_ = true;  // switch to page 1
-  this->reg_(REG_WK2132_SPAGE) = 1;
-  this->reg_(REG_WK2132_BRH) = baud_high;
-  this->reg_(REG_WK2132_BRL) = baud_low;
-  this->reg_(REG_WK2132_BRD) = baud_dec;
+  this->reg_(REG_WK2168_SPAGE) = 1;
+  this->reg_(REG_WK2168_BRH) = baud_high;
+  this->reg_(REG_WK2168_BRL) = baud_low;
+  this->reg_(REG_WK2168_BRD) = baud_dec;
   this->parent_->page1_ = false;  // switch back to page 0
-  this->reg_(REG_WK2132_SPAGE) = 0;
+  this->reg_(REG_WK2168_SPAGE) = 0;
 
   ESP_LOGV(TAG, "    Crystal=%d baudrate=%d => registers [%d %d %d]", this->parent_->crystal_, this->baud_rate_,
            baud_high, baud_low, baud_dec);
 }
 
-inline bool WK2132Channel::tx_fifo_is_not_empty_() { return this->reg_(REG_WK2132_FSR) & FSR_TFDAT; }
+inline bool WK2168Channel::tx_fifo_is_not_empty_() { return this->reg_(REG_WK2168_FSR) & FSR_TFDAT; }
 
-size_t WK2132Channel::tx_in_fifo_() {
-  size_t tfcnt = this->reg_(REG_WK2132_TFCNT);
+size_t WK2168Channel::tx_in_fifo_() {
+  size_t tfcnt = this->reg_(REG_WK2168_TFCNT);
   if (tfcnt == 0) {
-    uint8_t const fsr = this->reg_(REG_WK2132_FSR);
+    uint8_t const fsr = this->reg_(REG_WK2168_FSR);
     if (fsr & FSR_TFFULL) {
       ESP_LOGVV(TAG, "tx_in_fifo full FSR=%s", I2CS(fsr));
       tfcnt = FIFO_SIZE;
@@ -350,9 +350,9 @@ size_t WK2132Channel::tx_in_fifo_() {
   return tfcnt;
 }
 
-size_t WK2132Channel::rx_in_fifo_() {
-  size_t available = this->reg_(REG_WK2132_RFCNT);
-  uint8_t const fsr = this->reg_(REG_WK2132_FSR);
+size_t WK2168Channel::rx_in_fifo_() {
+  size_t available = this->reg_(REG_WK2168_RFCNT);
+  uint8_t const fsr = this->reg_(REG_WK2168_FSR);
   if (fsr & (FSR_RFOE | FSR_RFLB | FSR_RFFE | FSR_RFPE)) {
     if (fsr & FSR_RFOE)
       ESP_LOGE(TAG, "Receive data overflow FSR=%s", I2CS(fsr));
@@ -368,7 +368,7 @@ size_t WK2132Channel::rx_in_fifo_() {
     // -  at time t0 we read RFCNT=0 because nothing yet received
     // -  at time t0+delta we might read FIFO not empty because one byte has just been received
     // -  so to be sure we need to do another read of RFCNT. If still zero -> buffer full
-    available = this->reg_(REG_WK2132_RFCNT);
+    available = this->reg_(REG_WK2168_RFCNT);
     if (available == 0) {  // still zero ?
       ESP_LOGVV(TAG, "rx_in_fifo full FSR=%s", I2CS(fsr));
       available = FIFO_SIZE;
@@ -378,21 +378,21 @@ size_t WK2132Channel::rx_in_fifo_() {
   return available;
 }
 
-bool WK2132Channel::peek_byte(uint8_t *buffer) {
+bool WK2168Channel::peek_byte(uint8_t *buffer) {
   auto available = this->receive_buffer_.count();
   if (!available)
     xfer_fifo_to_buffer_();
   return this->receive_buffer_.peek(*buffer);
 }
 
-int WK2132Channel::available() {
+int WK2168Channel::available() {
   size_t available = this->receive_buffer_.count();
   if (!available)
     available = xfer_fifo_to_buffer_();
   return available;
 }
 
-bool WK2132Channel::read_array(uint8_t *buffer, size_t length) {
+bool WK2168Channel::read_array(uint8_t *buffer, size_t length) {
   bool status = true;
   auto available = this->receive_buffer_.count();
   if (length > available) {
@@ -409,7 +409,7 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t length) {
   return status;
 }
 
-void WK2132Channel::write_array(const uint8_t *buffer, size_t length) {
+void WK2168Channel::write_array(const uint8_t *buffer, size_t length) {
   if (length > XFER_MAX_SIZE) {
     ESP_LOGE(TAG, "Write_array: invalid call - requested %d bytes max size %d ...", length, XFER_MAX_SIZE);
     length = XFER_MAX_SIZE;
@@ -417,7 +417,7 @@ void WK2132Channel::write_array(const uint8_t *buffer, size_t length) {
   this->reg_(0).write_fifo(const_cast<uint8_t *>(buffer), length);
 }
 
-void WK2132Channel::flush() {
+void WK2168Channel::flush() {
   uint32_t const start_time = millis();
   while (this->tx_fifo_is_not_empty_()) {  // wait until buffer empty
     if (millis() - start_time > 100) {
@@ -428,7 +428,7 @@ void WK2132Channel::flush() {
   }
 }
 
-size_t WK2132Channel::xfer_fifo_to_buffer_() {
+size_t WK2168Channel::xfer_fifo_to_buffer_() {
   size_t to_transfer = this->rx_in_fifo_();
   size_t free = this->receive_buffer_.free();
   if (to_transfer > XFER_MAX_SIZE)
@@ -487,7 +487,7 @@ void print_buffer(std::vector<uint8_t> buffer) {
 }
 
 /// @brief test the write_array method
-void WK2132Channel::uart_send_test_(char *message) {
+void WK2168Channel::uart_send_test_(char *message) {
   auto start_exec = micros();
   std::vector<uint8_t> output_buffer(XFER_MAX_SIZE);
   generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
@@ -496,7 +496,7 @@ void WK2132Channel::uart_send_test_(char *message) {
 }
 
 /// @brief test read_array method
-bool WK2132Channel::uart_receive_test_(char *message) {
+bool WK2168Channel::uart_receive_test_(char *message) {
   auto start_exec = micros();
   bool status = true;
   size_t received;
@@ -539,5 +539,5 @@ bool WK2132Channel::uart_receive_test_(char *message) {
 /// @}
 #endif
 
-}  // namespace wk2132
+}  // namespace wk2168
 }  // namespace esphome

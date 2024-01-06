@@ -1,21 +1,21 @@
-/// @file wk2132_spi.h
+/// @file wk2168_spi.h
 /// @author DrCoolZic
-/// @brief  wk2132 classes declaration
+/// @brief  wk2168 classes declaration
 
 #pragma once
 #include <bitset>
 #include "esphome/components/spi/spi.h"
-#include "esphome/components/wk2132/wk2132.h"
+#include "esphome/components/wk2168/wk2168.h"
 
 namespace esphome {
-namespace wk2132_spi {
+namespace wk2168_spi {
 
-class WK2132ComponentSPI;
+class WK2168ComponentSPI;
 
-class WK2132RegisterSPI : public wk2132::WK2132Reg {
+class WK2168RegisterSPI : public wk2168::WK2168Reg {
  public:
   //
-  // implements WK2132Reg virtual methods
+  // implements WK2168Reg virtual methods
   //
   uint8_t read_reg() const override;
   void write_reg(uint8_t value) override;
@@ -23,24 +23,24 @@ class WK2132RegisterSPI : public wk2132::WK2132Reg {
   void write_fifo(uint8_t *data, size_t length) override;
 
  protected:
-  friend WK2132ComponentSPI;
+  friend WK2168ComponentSPI;
   /// @brief ctor
   /// @param comp component we belongs to
   /// @param reg proxied register
   /// @param channel associated channel
-  WK2132RegisterSPI(wk2132::WK2132Component *comp, uint8_t reg, uint8_t channel) : WK2132Reg(comp, reg, channel) {}
+  WK2168RegisterSPI(wk2168::WK2168Component *comp, uint8_t reg, uint8_t channel) : WK2168Reg(comp, reg, channel) {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
-// class WK2132ComponentSPI
+// class WK2168ComponentSPI
 ////////////////////////////////////////////////////////////////////////////////////
 
-/// @brief WK2132Component using SPI bus
-class WK2132ComponentSPI : public wk2132::WK2132Component,
+/// @brief WK2168Component using SPI bus
+class WK2168ComponentSPI : public wk2168::WK2168Component,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
-  wk2132::WK2132Reg &reg(uint8_t reg, uint8_t channel) override {
+  wk2168::WK2168Reg &reg(uint8_t reg, uint8_t channel) override {
     reg_spi_.register_ = reg & 0x0F;
     reg_spi_.channel_ = channel & 0x01;
     return reg_spi_;
@@ -53,9 +53,9 @@ class WK2132ComponentSPI : public wk2132::WK2132Component,
   void dump_config() override;
 
  protected:
-  friend WK2132RegisterSPI;
-  WK2132RegisterSPI reg_spi_{this, 0, 0};  ///< store the current register
+  friend WK2168RegisterSPI;
+  WK2168RegisterSPI reg_spi_{this, 0, 0};  ///< store the current register
 };
 
-}  // namespace wk2132_spi
+}  // namespace wk2168_spi
 }  // namespace esphome

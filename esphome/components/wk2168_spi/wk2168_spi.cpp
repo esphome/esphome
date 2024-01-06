@@ -1,14 +1,14 @@
-/// @file wk2132_spi.cpp
+/// @file wk2168_spi.cpp
 /// @author DrCoolzic
-/// @brief wk2132 classes implementation
+/// @brief wk2168 classes implementation
 
-#include "wk2132_spi.h"
-// #include "esphome/components/wk2132/wk2132.h"
+#include "wk2168_spi.h"
+// #include "esphome/components/wk2168/wk2168.h"
 
 namespace esphome {
-namespace wk2132_spi {
+namespace wk2168_spi {
 
-static const char *const TAG = "wk2132_spi";
+static const char *const TAG = "wk2168_spi";
 
 static const char *const REG_TO_STR_P0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
                                             "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
@@ -47,10 +47,10 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 #define I2CS(val) (i2s(val).c_str())
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WK2132Reg methods
+// The WK2168Reg methods
 ///////////////////////////////////////////////////////////////////////////////
-uint8_t WK2132RegisterSPI::read_reg() const {
-  auto *spi_delegate = static_cast<WK2132ComponentSPI *>(this->comp_)->delegate_;
+uint8_t WK2168RegisterSPI::read_reg() const {
+  auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
   uint8_t buf[2]{cmd_byte(READ_CMD, REG, this->register_, this->channel_)};
   spi_delegate->begin_transaction();
   spi_delegate->transfer(buf, 2);
@@ -60,8 +60,8 @@ uint8_t WK2132RegisterSPI::read_reg() const {
   return buf[1];
 }
 
-void WK2132RegisterSPI::read_fifo(uint8_t *data, size_t length) const {
-  auto *spi_delegate = static_cast<WK2132ComponentSPI *>(this->comp_)->delegate_;
+void WK2168RegisterSPI::read_fifo(uint8_t *data, size_t length) const {
+  auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
   uint8_t cmd = cmd_byte(READ_CMD, FIFO, this->register_, this->channel_);
   spi_delegate->begin_transaction();
   spi_delegate->transfer(&cmd, 1);
@@ -71,8 +71,8 @@ void WK2132RegisterSPI::read_fifo(uint8_t *data, size_t length) const {
             format_hex_pretty(data, length).c_str());
 }
 
-void WK2132RegisterSPI::write_reg(uint8_t value) {
-  auto *spi_delegate = static_cast<WK2132ComponentSPI *>(this->comp_)->delegate_;
+void WK2168RegisterSPI::write_reg(uint8_t value) {
+  auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
   uint8_t buf[2]{cmd_byte(WRITE_CMD, REG, this->register_, this->channel_), value};
   spi_delegate->begin_transaction();
   spi_delegate->transfer(buf, 2);
@@ -81,8 +81,8 @@ void WK2132RegisterSPI::write_reg(uint8_t value) {
             reg_to_str(this->register_, this->comp_->page1()), this->register_, this->channel_, value);
 }
 
-void WK2132RegisterSPI::write_fifo(uint8_t *data, size_t length) {
-  auto *spi_delegate = static_cast<WK2132ComponentSPI *>(this->comp_)->delegate_;
+void WK2168RegisterSPI::write_fifo(uint8_t *data, size_t length) {
+  auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
   uint8_t cmd = cmd_byte(WRITE_CMD, FIFO, this->register_, this->channel_);
   spi_delegate->begin_transaction();
   spi_delegate->transfer(&cmd, 1);
@@ -93,18 +93,18 @@ void WK2132RegisterSPI::write_fifo(uint8_t *data, size_t length) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WK2132Component methods
+// The WK2168Component methods
 ///////////////////////////////////////////////////////////////////////////////
-void WK2132ComponentSPI::setup() {
-  using namespace wk2132;
-  ESP_LOGCONFIG(TAG, "Setting up wk2132_spi: %s with %d UARTs...", this->get_name(), this->children_.size());
+void WK2168ComponentSPI::setup() {
+  using namespace wk2168;
+  ESP_LOGCONFIG(TAG, "Setting up wk2168_spi: %s with %d UARTs...", this->get_name(), this->children_.size());
   this->spi_setup();
   // enable both channels
-  this->reg(REG_WK2132_GENA, 0) = GENA_C1EN | GENA_C2EN;
+  this->reg(REG_WK2168_GENA, 0) = GENA_C1EN | GENA_C2EN;
   // reset channels
-  this->reg(REG_WK2132_GRST, 0) = GRST_C1RST | GRST_C2RST;
+  this->reg(REG_WK2168_GRST, 0) = GRST_C1RST | GRST_C2RST;
   // initialize the spage register to page 0
-  this->reg(REG_WK2132_SPAGE, 0) = 0;
+  this->reg(REG_WK2168_SPAGE, 0) = 0;
   this->page1_ = false;
 
   // we setup our children channels
@@ -113,7 +113,7 @@ void WK2132ComponentSPI::setup() {
   }
 }
 
-void WK2132ComponentSPI::dump_config() {
+void WK2168ComponentSPI::dump_config() {
   ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
   ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
   if (test_mode_)
@@ -125,5 +125,5 @@ void WK2132ComponentSPI::dump_config() {
   }
 }
 
-}  // namespace wk2132_spi
+}  // namespace wk2168_spi
 }  // namespace esphome

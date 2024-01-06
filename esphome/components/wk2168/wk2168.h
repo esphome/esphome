@@ -1,6 +1,6 @@
-/// @file wk2132.h
+/// @file wk2168.h
 /// @author DrCoolZic
-/// @brief  wk2132 classes declaration
+/// @brief  wk2168 classes declaration
 
 #pragma once
 #include <bitset>
@@ -11,19 +11,19 @@
 #include "Wire.h"
 #endif
 
-/// When TEST_COMPONENT is defined we include some auto-test methods. Used to test the software during wk2132
+/// When TEST_COMPONENT is defined we include some auto-test methods. Used to test the software during wk2168
 /// development but can also be used in situ to test if the component is working correctly. In production we do not set
 /// it you can add it by using the following lines in you configuration file:
 /// @code
 /// esphome:
-///   name: test-wk2132-i2c-arduino
+///   name: test-wk2168-i2c-arduino
 ///   platformio_options:
 ///     build_flags:
 ///       - -DTEST_COMPONENT
 // #define TEST_COMPONENT
 
 namespace esphome {
-namespace wk2132 {
+namespace wk2168 {
 /// @brief XFER_MAX_SIZE defines the maximum number of bytes we allow during one transfer.
 /// When using the Arduino framework by default the maximum number of bytes that can be transferred is 128 bytes. But
 /// this can be changed by defining the macro I2C_BUFFER_LENGTH during compilation. In fact the __init__.py file take
@@ -48,7 +48,7 @@ constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;  // ESP32 & FRAMEWORK_ARDUIN
 constexpr size_t XFER_MAX_SIZE = 255;  // ESP32 & FRAMEWORK_ARDUINO we limit to 255 because Arduino' framework error
 #endif
 
-/// @brief size of the internal WK2132 FIFO
+/// @brief size of the internal WK2168 FIFO
 constexpr size_t FIFO_SIZE = 256;
 
 /// @brief size of the ring buffer
@@ -66,7 +66,7 @@ constexpr size_t RING_BUFFER_SIZE = XFER_MAX_SIZE;
 /// Assuming you need to read 100 bytes that results into 200 calls instead of 100. Where if you had followed the good
 /// practice this could be done in 2 calls (one to find the number of bytes available plus one to read all the bytes! If
 /// the registers you read are located on the micro-controller this is not too bad even if it roughly double the process
-/// time. But when the registers to check are located on the WK2132 device the performance can get pretty bad as each
+/// time. But when the registers to check are located on the WK2168 device the performance can get pretty bad as each
 /// access to a register requires several cycles on the slow I2C bus. To fix this problem we could ask the users to
 /// rewrite their code to follow the good practice but this is not obviously not realistic.
 /// @n Therefore the solution I have implemented is to store the bytes received in the FIFO on a local ring buffer.
@@ -135,57 +135,57 @@ template<typename T, size_t SIZE> class RingBuffer {
   size_t count_{0};            ///< count number of element in the buffer
 };
 
-class WK2132Component;  // forward declaration
-class WK2132ComponentI2C;
-class WK2132ComponentSPI;
+class WK2168Component;  // forward declaration
+class WK2168ComponentI2C;
+class WK2168ComponentSPI;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief This helper class creates Register objects that act as proxies to access WK2132 register
+/// @brief This helper class creates Register objects that act as proxies to access WK2168 register
 /// @details This is a pure virtual (interface) class that provides all the necessary access to registers while hiding
-/// the actual implementation. This allow the wk2132 component to accesses the registers independently of the actual
+/// the actual implementation. This allow the wk2168 component to accesses the registers independently of the actual
 /// bus. The derived classes will actually performs the specific bus operations dependant of the bus used.
-/// @n typical usage of WK2132Reg:
+/// @n typical usage of WK2168Reg:
 /// @code
-///   WK2132Reg reg_1 {&WK2132Component, ADDR_REGISTER, CHANNEL_NUM, FIFO}  // declaration
-///   reg_1 |= 0x01;    // set bit 0 of the wk2132 register
-///   reg_1 &= ~0x01;   // reset bit 0 of the wk2132 register
-///   reg_1 = 10;       // Set the value of wk2132 register
-///   uint val = reg_1; // get the value of wk2132 register
+///   WK2168Reg reg_1 {&WK2168Component, ADDR_REGISTER, CHANNEL_NUM, FIFO}  // declaration
+///   reg_1 |= 0x01;    // set bit 0 of the wk2168 register
+///   reg_1 &= ~0x01;   // reset bit 0 of the wk2168 register
+///   reg_1 = 10;       // Set the value of wk2168 register
+///   uint val = reg_1; // get the value of wk2168 register
 /// @endcode
-class WK2132Reg {
+class WK2168Reg {
  public:
-  /// @brief WK2132Reg constructor.
+  /// @brief WK2168Reg constructor.
   /// @param parent our creator
   /// @param reg address of the i2c register
   /// @param channel the channel of this register
   /// @param fifo 0 for register transfer, 1 for fifo transfer
-  WK2132Reg(WK2132Component *const comp, uint8_t reg, uint8_t channel)
+  WK2168Reg(WK2168Component *const comp, uint8_t reg, uint8_t channel)
       : comp_(comp), register_(reg), channel_(channel) {}
-  virtual ~WK2132Reg() {}
+  virtual ~WK2168Reg() {}
 
-  /// @brief overloads the = operator. This is used to set a value into the wk2132 register
+  /// @brief overloads the = operator. This is used to set a value into the wk2168 register
   /// @param value to be set
   /// @return this object
-  WK2132Reg &operator=(uint8_t value);
+  WK2168Reg &operator=(uint8_t value);
 
-  /// @brief overloads the compound &= operator. This is often used to reset bits in the wk2132 register
+  /// @brief overloads the compound &= operator. This is often used to reset bits in the wk2168 register
   /// @param value performs an & operation with value and store the result
   /// @return this object
-  WK2132Reg &operator&=(uint8_t value);
+  WK2168Reg &operator&=(uint8_t value);
 
-  /// @brief overloads the compound |= operator. This is often used to set bits in the wk2132 register
+  /// @brief overloads the compound |= operator. This is often used to set bits in the wk2168 register
   /// @param value performs an | operation with value and store the result
   /// @return this object
-  WK2132Reg &operator|=(uint8_t value);
+  WK2168Reg &operator|=(uint8_t value);
 
-  /// @brief cast operator that returns the content of the wk2132 register
+  /// @brief cast operator that returns the content of the wk2168 register
   operator uint8_t() const { return read_reg(); }
 
-  /// @brief reads the wk2132 register
-  /// @return the value of the wk2132 register
+  /// @brief reads the wk2168 register
+  /// @return the value of the wk2168 register
   virtual uint8_t read_reg() const = 0;
 
-  /// @brief writes the wk2132 register
+  /// @brief writes the wk2168 register
   /// @param value to write in the register
   virtual void write_reg(uint8_t value) = 0;
 
@@ -200,18 +200,18 @@ class WK2132Reg {
   virtual void write_fifo(uint8_t *data, size_t length) = 0;
 
  protected:
-  WK2132Component *const comp_;  ///< pointer to our parent (aggregation)
+  WK2168Component *const comp_;  ///< pointer to our parent (aggregation)
   uint8_t register_;             ///< address of the register
   uint8_t channel_;              ///< channel for this register
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
-/// Definition of the WK2132 registers
+/// Definition of the WK2168 registers
 ////////////////////////////////////////////////////////////////////////////////////////
 
-/// @defgroup wk2132_gr_ WK2132 Global Registers
+/// @defgroup wk2168_gr_ WK2168 Global Registers
 /// This topic groups all **Global Registers**: these registers are global to the
-/// the WK2132 chip (i.e. independent of the UART channel used)
+/// the WK2168 chip (i.e. independent of the UART channel used)
 /// @note only registers and parameters used have been documented
 /// @{
 
@@ -223,7 +223,7 @@ class WK2132Reg {
 ///  |   M0   |   M1   |                RSV                |  C2EN  |  C1EN  |
 ///  -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_GENA = 0x00;
+constexpr uint8_t REG_WK2168_GENA = 0x00;
 /// @brief Channel 2 enable clock (0: disable, 1: enable)
 constexpr uint8_t GENA_C2EN = 1 << 1;
 /// @brief Channel 1 enable clock (0: disable, 1: enable)
@@ -237,14 +237,14 @@ constexpr uint8_t GENA_C1EN = 1 << 0;
 ///  |       RSV       | C2SLEEP| C1SLEEP|       RSV       |  C2RST |  C1RST |
 ///  -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_GRST = 0x01;
+constexpr uint8_t REG_WK2168_GRST = 0x01;
 /// @brief Channel 2 soft reset (0: not reset, 1: reset)
 constexpr uint8_t GRST_C2RST = 1 << 1;
 /// @brief Channel 1 soft reset (0: not reset, 1: reset)
 constexpr uint8_t GRST_C1RST = 1 << 0;
 
 /// @brief Global Master channel control register (not used)
-constexpr uint8_t REG_WK2132_GMUT = 0x02;
+constexpr uint8_t REG_WK2168_GMUT = 0x02;
 
 /// @brief Global Page register
 /// @details @code
@@ -254,16 +254,16 @@ constexpr uint8_t REG_WK2132_GMUT = 0x02;
 /// |                             RSV                              |  PAGE  |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_SPAGE = 0x03;
+constexpr uint8_t REG_WK2168_SPAGE = 0x03;
 
 /// Global interrupt register (not used)
-constexpr uint8_t REG_WK2132_GIR = 0x10;
+constexpr uint8_t REG_WK2168_GIR = 0x10;
 
 /// Global interrupt flag register (not used)
-constexpr uint8_t REG_WK2132_GIFR = 0x11;
+constexpr uint8_t REG_WK2168_GIFR = 0x11;
 
 /// @}
-/// @defgroup wk2132_cr_ WK2132 Channel Registers
+/// @defgroup wk2168_cr_ WK2168 Channel Registers
 /// This topic groups all the **Channel Registers**: these registers are specific
 /// to the a specific channel i.e. each channel has its own set of registers
 /// @note only registers and parameters used have been documented
@@ -271,7 +271,7 @@ constexpr uint8_t REG_WK2132_GIFR = 0x11;
 
 /// @defgroup cr_p0 Channel registers for SPAGE=0
 /// The channel registers are further splitted into two groups.
-/// This first group is defined when the Global register REG_WK2132_SPAGE is 0
+/// This first group is defined when the Global register REG_WK2168_SPAGE is 0
 /// @{
 
 /// @brief Serial Control Register
@@ -282,7 +282,7 @@ constexpr uint8_t REG_WK2132_GIFR = 0x11;
 ///  |                     RSV                    | SLEEPEN|  TXEN  |  RXEN  |
 ///  -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_SCR = 0x04;
+constexpr uint8_t REG_WK2168_SCR = 0x04;
 /// @brief transmission control (0: enable, 1: disable)
 constexpr uint8_t SCR_TXEN = 1 << 1;
 /// @brief receiving control (0: enable, 1: disable)
@@ -296,7 +296,7 @@ constexpr uint8_t SCR_RXEN = 1 << 0;
 ///  |        RSV      |  BREAK |  IREN  |  PAEN  |      PARITY     |  STPL  |
 ///  -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_LCR = 0x05;
+constexpr uint8_t REG_WK2168_LCR = 0x05;
 /// @brief Parity enable (0: no check, 1: check)
 constexpr uint8_t LCR_PAEN = 1 << 3;
 /// @brief Parity force 0
@@ -318,7 +318,7 @@ constexpr uint8_t LCR_STPL = 1 << 0;
 /// |      TFTRIG     |      RFTRIG     |  TFEN  |  RFEN  |  TFRST |  RFRST |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_FCR = 0x06;
+constexpr uint8_t REG_WK2168_FCR = 0x06;
 /// @brief Transmitter FIFO enable
 constexpr uint8_t FCR_TFEN = 1 << 3;
 /// @brief Receiver FIFO enable
@@ -336,7 +336,7 @@ constexpr uint8_t FCR_RFRST = 1 << 3;
 /// |FERR_IEN|            RSV           |TEMPTY_E|TTRIG_IE|RXOVT_EN|RFTRIG_E|
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_SIER = 0x07;
+constexpr uint8_t REG_WK2168_SIER = 0x07;
 
 /// @brief Serial Interrupt Flag Register (not used)
 /// @details @code
@@ -346,7 +346,7 @@ constexpr uint8_t REG_WK2132_SIER = 0x07;
 /// |      TFTRIG     |      RFTRIG     |  TFEN  |  RFEN  |  TFRST |  RFRST |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_SIFR = 0x08;
+constexpr uint8_t REG_WK2168_SIFR = 0x08;
 
 /// @brief Transmitter FIFO Count
 /// @details @code
@@ -356,7 +356,7 @@ constexpr uint8_t REG_WK2132_SIFR = 0x08;
 /// |                  NUMBER OF DATA IN TRANSMITTER FIFO                   |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_TFCNT = 0x09;
+constexpr uint8_t REG_WK2168_TFCNT = 0x09;
 
 /// @brief Receiver FIFO count
 /// @details @code
@@ -366,7 +366,7 @@ constexpr uint8_t REG_WK2132_TFCNT = 0x09;
 /// |                    NUMBER OF DATA IN RECEIVER FIFO                    |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_RFCNT = 0x0A;
+constexpr uint8_t REG_WK2168_RFCNT = 0x0A;
 
 /// @brief FIFO Status Register
 /// @details @code
@@ -385,7 +385,7 @@ constexpr uint8_t REG_WK2132_RFCNT = 0x0A;
 /// still in overflow.
 /// @n The same remark applies to the transmit buffer but here we have to check the
 /// TFFULL flag. So if TFFULL is set and TFCNT is 0 this should be interpreted as 256
-constexpr uint8_t REG_WK2132_FSR = 0x0B;
+constexpr uint8_t REG_WK2168_FSR = 0x0B;
 /// @brief Receiver FIFO Overflow Error (0: no OE, 1: OE)
 constexpr uint8_t FSR_RFOE = 1 << 7;
 /// @brief Receiver FIFO Line Break (0: no LB, 1: LB)
@@ -411,7 +411,7 @@ constexpr uint8_t FSR_TBUSY = 1 << 0;
 /// |                 RSV               |  OVLE  |  BRKE  | FRAMEE |  PAR_E |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_LSR = 0x0C;
+constexpr uint8_t REG_WK2168_LSR = 0x0C;
 
 /// @brief FIFO Data Register (not used - does not seems to work)
 /// @details @code
@@ -421,12 +421,12 @@ constexpr uint8_t REG_WK2132_LSR = 0x0C;
 /// |                        DATA_READ or DATA_TO_WRITE                     |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_FDAT = 0x0D;
+constexpr uint8_t REG_WK2168_FDAT = 0x0D;
 
 /// @}
 /// @defgroup cr_p1 Channel registers for SPAGE=1
 /// The channel registers are further splitted into two groups.
-/// This second group is defined when the Global register REG_WK2132_SPAGE is 1
+/// This second group is defined when the Global register REG_WK2168_SPAGE is 1
 /// @{
 
 /// @brief Baud rate configuration register: high byte
@@ -437,7 +437,7 @@ constexpr uint8_t REG_WK2132_FDAT = 0x0D;
 /// |                      High byte of the baud rate                       |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_BRH = 0x04;
+constexpr uint8_t REG_WK2168_BRH = 0x04;
 
 /// @brief Baud rate configuration register: low byte
 /// @details @code
@@ -447,7 +447,7 @@ constexpr uint8_t REG_WK2132_BRH = 0x04;
 /// |                       Low byte of the baud rate                       |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_BRL = 0x05;
+constexpr uint8_t REG_WK2168_BRL = 0x05;
 
 /// @brief Baud rate configuration register decimal part
 /// @details @code
@@ -457,7 +457,7 @@ constexpr uint8_t REG_WK2132_BRL = 0x05;
 /// |                      decimal part of the baud rate                    |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_BRD = 0x06;
+constexpr uint8_t REG_WK2168_BRD = 0x06;
 
 /// @brief Receive FIFO Interrupt trigger configuration (not used)
 /// @details @code
@@ -467,7 +467,7 @@ constexpr uint8_t REG_WK2132_BRD = 0x06;
 /// |                      Receive FIFO contact control                     |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_RFI = 0x07;
+constexpr uint8_t REG_WK2168_RFI = 0x07;
 
 /// @brief Transmit FIFO interrupt trigger configuration (not used)
 /// @code
@@ -477,22 +477,22 @@ constexpr uint8_t REG_WK2132_RFI = 0x07;
 /// |                       Send FIFO contact control                       |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2132_TFI = 0x08;
+constexpr uint8_t REG_WK2168_TFI = 0x08;
 
 /// @}
 /// @}
 
-class WK2132Channel;  // forward declaration
+class WK2168Channel;  // forward declaration
 
 ////////////////////////////////////////////////////////////////////////////////////
-/// @brief The WK2132Component class stores the information global to the WK2132 component
+/// @brief The WK2168Component class stores the information global to the WK2168 component
 /// and provides methods to set/access this information.
-/// @details For more information please refer to @ref WK2132Component_
+/// @details For more information please refer to @ref WK2168Component_
 ////////////////////////////////////////////////////////////////////////////////////
-class WK2132Component : public Component {
+class WK2168Component : public Component {
  public:
   /// @brief virtual destructor
-  virtual ~WK2132Component() {}
+  virtual ~WK2168Component() {}
 
   /// @brief store crystal frequency
   /// @param crystal frequency
@@ -516,39 +516,39 @@ class WK2132Component : public Component {
   /// @brief Get the priority of the component
   /// @return the priority
   /// @details The priority is set  below setup_priority::BUS because we use
-  /// the i2c bus (which has a priority of BUS) to communicate and the WK2132
+  /// the i2c bus (which has a priority of BUS) to communicate and the WK2168
   /// therefore it is seen by our client almost as if it was a bus.
   float get_setup_priority() const override { return setup_priority::BUS - 0.1F; }
 
   bool page1() { return page1_; }
 
  protected:
-  friend class WK2132Channel;
-  friend class WK2132Reg;
+  friend class WK2168Channel;
+  friend class WK2168Reg;
 
   /// @brief Factory method to create a Register object
   /// @param reg address of the register
   /// @param channel channel associated with this register
-  /// @return a reference to WK2132Reg
-  virtual WK2132Reg &reg(uint8_t reg, uint8_t channel) = 0;
+  /// @return a reference to WK2168Reg
+  virtual WK2168Reg &reg(uint8_t reg, uint8_t channel) = 0;
 
   uint32_t crystal_;                         ///< crystal value;
   int test_mode_;                            ///< test mode value (0 -> no tests)
   bool page1_{false};                        ///< set to true when in "page1 mode"
-  std::vector<WK2132Channel *> children_{};  ///< the list of WK2132Channel UART children
+  std::vector<WK2168Channel *> children_{};  ///< the list of WK2168Channel UART children
   std::string name_;                         ///< name of entity
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief The WK2132Channel class is used to implement all the virtual methods of the ESPHome uart::UARTComponent
+/// @brief The WK2168Channel class is used to implement all the virtual methods of the ESPHome uart::UARTComponent
 /// class.
-/// @details For more information see @ref WK2132Channel_
+/// @details For more information see @ref WK2168Channel_
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class WK2132Channel : public uart::UARTComponent {
+class WK2168Channel : public uart::UARTComponent {
  public:
-  /// @brief We belong to the parent WK2132Component
+  /// @brief We belong to the parent WK2168Component
   /// @param parent pointer to the component we belongs to
-  void set_parent(WK2132Component *parent) {
+  void set_parent(WK2168Component *parent) {
     this->parent_ = parent;
     this->parent_->children_.push_back(this);  // add ourself to the list (vector)
   }
@@ -628,19 +628,19 @@ class WK2132Channel : public uart::UARTComponent {
   void flush() override;
 
  protected:
-  friend class WK2132Component;
-  friend class WK2132ComponentI2C;
-  friend class WK2132ComponentSPI;
+  friend class WK2168Component;
+  friend class WK2168ComponentI2C;
+  friend class WK2168ComponentSPI;
 
   /// @brief this cannot happen with external uart therefore we do nothing
   void check_logger_conflict() override {}
 
   /// @brief Factory method to create a Register object for accessing a register on current channel
   /// @param reg address of the register
-  /// @return a reference to WK2132Reg
-  WK2132Reg &reg_(uint8_t reg) { return this->parent_->reg(reg, channel_); }
+  /// @return a reference to WK2168Reg
+  WK2168Reg &reg_(uint8_t reg) { return this->parent_->reg(reg, channel_); }
 
-  /// @brief reset the wk2132 internal FIFO
+  /// @brief reset the wk2168 internal FIFO
   void reset_fifo_();
 
   /// @brief set the line parameters
@@ -661,7 +661,7 @@ class WK2132Channel : public uart::UARTComponent {
   /// @return true if not empty
   bool tx_fifo_is_not_empty_();
 
-  /// @brief transfer bytes from the wk2132 internal FIFO to the buffer (if any)
+  /// @brief transfer bytes from the wk2168 internal FIFO to the buffer (if any)
   /// @return number of bytes transferred
   size_t xfer_fifo_to_buffer_();
 
@@ -683,11 +683,11 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief the buffer where we store temporarily the bytes received
   RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
-  WK2132Component *parent_;  ///< our WK2132component parent
+  WK2168Component *parent_;  ///< our WK2168component parent
   uint8_t channel_;          ///< our Channel number
   uint8_t data_;             ///< a one byte buffer for register read storage
   std::string name_;         ///< name of the entity
 };
 
-}  // namespace wk2132
+}  // namespace wk2168
 }  // namespace esphome
