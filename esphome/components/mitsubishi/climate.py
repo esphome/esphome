@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import climate_ir
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_LOW, CONF_MEDIUM, CONF_HIGH
 
 CODEOWNERS = ["@RubyBailey"]
 AUTO_LOAD = ["climate_ir"]

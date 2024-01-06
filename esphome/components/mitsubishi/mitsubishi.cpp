@@ -87,6 +87,7 @@ climate::ClimateTraits MitsubishiClimate::traits() {
 
   traits.set_supported_presets(
       {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST});
+
   return traits;
 }
 
@@ -102,7 +103,7 @@ void MitsubishiClimate::transmit_state() {
   // Byte 9: FAN/Vertical Vane/Switch To Auto
   //          FAN (Speed) bits 0,1,2
   //          Vertical Vane bits 3,4,5 (Auto = 0x00)
-  //          Switch To Auto bits 6,7 (6 is vert, 7 is horz)
+  //          Switch To Auto bits 6,7
   // Byte 10: CLOCK Current time as configured on remote (0x00=Not used)
   // Byte 11: END CLOCK Stop time of HVAC (0x00 for no setting)
   // Byte 12: START CLOCK Start time of HVAC (0x00 for no setting)
@@ -132,6 +133,9 @@ void MitsubishiClimate::transmit_state() {
       remote_state[6] = MITSUBISHI_MODE_COOL;
       remote_state[8] = MITSUBISHI_MODE_A_COOL;
       break;
+    case climate::CLIMATE_MODE_COOL:
+      remote_state[6] = MITSUBISHI_MODE_COOL;
+      remote_state[8] = MITSUBISHI_MODE_A_COOL;
     case climate::CLIMATE_MODE_HEAT_COOL:
       remote_state[6] = MITSUBISHI_MODE_AUTO;
       remote_state[8] = MITSUBISHI_MODE_A_AUTO;
