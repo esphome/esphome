@@ -98,7 +98,10 @@ optional<ABBWelcomeData> ABBWelcomeProtocol::decode(RemoteReceiveData src) {
         return {};
       }
       if (received_bytes == 2) {
-        length += std::min(static_cast<uint8_t>(data & 0x7f), MAX_DATA_LENGTH);
+        length += std::min(static_cast<uint8_t>(data & DATA_LENGTH_MASK), MAX_DATA_LENGTH);
+        if (data & 0x40) {
+          length += 2;
+        }
       }
       ESP_LOGVV(TAG, "Received Byte: 0x%02X", data);
       out[received_bytes] = data;

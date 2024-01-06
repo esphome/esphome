@@ -1672,15 +1672,17 @@ async def haier_action(var, config, args):
 
 CONF_SOURCE_ADDRESS = "source_address"
 CONF_DESTINATION_ADDRESS = "destination_address"
+CONF_THREE_BYTE_ADDRESS = "three_byte_address"
 CONF_MESSAGE_TYPE = "message_type"
 CONF_MESSAGE_ID = "message_id"
 CONF_RETRANSMISSION = "retransmission"
 
 ABB_WELCOME_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_SOURCE_ADDRESS): cv.hex_uint16_t,
-        cv.Required(CONF_DESTINATION_ADDRESS): cv.hex_uint16_t,
+        cv.Required(CONF_SOURCE_ADDRESS): cv.hex_uint32_t,
+        cv.Required(CONF_DESTINATION_ADDRESS): cv.hex_uint32_t,
         cv.Optional(CONF_RETRANSMISSION, default=False): cv.boolean,
+        cv.Optional(CONF_THREE_BYTE_ADDRESS, default=False): cv.boolean,
         cv.Required(CONF_MESSAGE_TYPE): cv.Any(cv.hex_uint8_t, cv.uint8_t),
         cv.Optional(CONF_MESSAGE_ID): cv.Any(cv.hex_uint8_t, cv.uint8_t),
         cv.Optional(CONF_DATA): cv.All(
@@ -1693,6 +1695,7 @@ ABB_WELCOME_SCHEMA = cv.Schema(
 
 @register_binary_sensor("abbwelcome", ABBWelcomeBinarySensor, ABB_WELCOME_SCHEMA)
 def abbwelcome_binary_sensor(var, config):
+    cg.add(var.set_three_byte_address(config[CONF_THREE_BYTE_ADDRESS]))
     cg.add(var.set_source_address(config[CONF_SOURCE_ADDRESS]))
     cg.add(var.set_destination_address(config[CONF_DESTINATION_ADDRESS]))
     cg.add(var.set_retransmission(config[CONF_RETRANSMISSION]))
@@ -1717,6 +1720,11 @@ def abbwelcome_dumper(var, config):
 
 @register_action("abbwelcome", ABBWelcomeAction, ABB_WELCOME_SCHEMA)
 async def abbwelcome_action(var, config, args):
+    cg.add(
+        var.set_three_byte_address(
+            await cg.templatable(config[CONF_THREE_BYTE_ADDRESS], args, cg.bool_)
+        )
+    )
     cg.add(
         var.set_source_address(
             await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint16)

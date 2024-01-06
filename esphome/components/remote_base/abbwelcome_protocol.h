@@ -10,7 +10,8 @@
 namespace esphome {
 namespace remote_base {
 
-static const uint8_t MAX_DATA_LENGTH = 7;  // 127
+static const uint8_t MAX_DATA_LENGTH = 15;
+static const uint8_t DATA_LENGTH_MASK = 0x3f;
 
 /*
 union {
@@ -18,8 +19,9 @@ union {
   struct {
     uint16_t sync;
     uint8_t retransmission : 1;
-    uint8_t unknown : 4;
-    uint8_t data_length : 3;
+    uint8_t three_byte_address : 1;
+    uint8_t unknown : 2;
+    uint8_t data_length : 4;
     uint8_t reply : 1;
     uint8_t message_type : 7;
     uint16_t destination_address;
@@ -40,10 +42,12 @@ class ABBWelcomeData {
   }
   // Make from initializer_list
   ABBWelcomeData(std::initializer_list<uint8_t> data) {
+    std::fill(std::begin(this->data_), std::end(this->data_), 0);
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
   // Make from vector
   ABBWelcomeData(const std::vector<uint8_t> &data) {
+    std::fill(std::begin(this->data_), std::end(this->data_), 0);
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
   // Default copy constructor
@@ -54,10 +58,12 @@ class ABBWelcomeData {
   uint8_t *data() { return this->data_.data(); }
   const uint8_t *data() const { return this->data_.data(); }
   uint8_t size() const {
-    return std::min(static_cast<uint8_t>(10 + (this->data_[2] & 0x7f)), static_cast<uint8_t>(this->data_.size()));
+    return std::min(static_cast<uint8_t>(6 + (2 * this->get_address_length()) + (this->data_[2] & DATA_LENGTH_MASK)),
+                    static_cast<uint8_t>(this->data_.size()));
   }
   bool is_valid() const {
-    return this->data_[0] == 0x55 && this->data_[1] == 0xff && ((this->data_[2] & 0x7f) <= MAX_DATA_LENGTH) &&
+    return this->data_[0] == 0x55 && this->data_[1] == 0xff &&
+           ((this->data_[2] & DATA_LENGTH_MASK) <= MAX_DATA_LENGTH) &&
            (this->data_[this->size() - 1] == this->calc_cs_());
   }
   void set_retransmission(bool retransmission) {
@@ -68,32 +74,68 @@ class ABBWelcomeData {
     }
   }
   bool get_retransmission() const { return this->data_[2] & 0x80; }
+  // set_three_byte_address must be called before set_source_address, set_destination_address, set_message_id and
+  // set_data!
+  void set_three_byte_address(bool three_byte_address) {
+    if (three_byte_address) {
+      this->data_[2] |= 0x40;
+    } else {
+      this->data_[2] &= 0xbf;
+    }
+  }
+  uint8_t get_three_byte_address() const { return (this->data_[2] & 0x40); }
+  uint8_t get_address_length() const { return this->get_three_byte_address() ? 3 : 2; }
   void set_message_type(uint8_t message_type) { this->data_[3] = message_type; }
   uint8_t get_message_type() const { return this->data_[3]; }
-  void set_destination_address(uint16_t address) {
-    this->data_[4] = address >> 8;
-    this->data_[5] = address & 0xff;
+  void set_destination_address(uint32_t address) {
+    if (this->get_address_length() == 2) {
+      this->data_[4] = (address >> 8) & 0xff;
+      this->data_[5] = address & 0xff;
+    } else {
+      this->data_[4] = (address >> 16) & 0xff;
+      this->data_[5] = (address >> 8) & 0xff;
+      this->data_[6] = address & 0xff;
+    }
   }
-  uint16_t get_destination_address() const { return (this->data_[4] << 8) + this->data_[5]; }
-  void set_source_address(uint16_t address) {
-    this->data_[6] = address >> 8;
-    this->data_[7] = address & 0xff;
+  uint32_t get_destination_address() const {
+    if (this->get_address_length() == 2) {
+      return (this->data_[4] << 8) + this->data_[5];
+    }
+    return (this->data_[4] << 16) + (this->data_[5] << 8) + this->data_[6];
   }
-  uint16_t get_source_address() const { return (this->data_[6] << 8) + this->data_[7]; }
-  void set_message_id(uint8_t message_id) { this->data_[8] = message_id; }
-  uint8_t get_message_id() const { return this->data_[8]; }
+  void set_source_address(uint32_t address) {
+    if (this->get_address_length() == 2) {
+      this->data_[6] = (address >> 8) & 0xff;
+      this->data_[7] = address & 0xff;
+    } else {
+      this->data_[7] = (address >> 16) & 0xff;
+      this->data_[8] = (address >> 8) & 0xff;
+      this->data_[9] = address & 0xff;
+    }
+  }
+  uint32_t get_source_address() const {
+    if (this->get_address_length() == 2) {
+      return (this->data_[6] << 8) + this->data_[7];
+    }
+    return (this->data_[7] << 16) + (this->data_[8] << 8) + this->data_[9];
+  }
+  void set_message_id(uint8_t message_id) { this->data_[4 + 2 * this->get_address_length()] = message_id; }
+  uint8_t get_message_id() const { return this->data_[4 + 2 * this->get_address_length()]; }
   void set_data(std::vector<uint8_t> data) {
     uint8_t size = std::min(MAX_DATA_LENGTH, static_cast<uint8_t>(data.size()));
-    this->data_[2] &= 0x80;
-    this->data_[2] |= (size & 0x7f);
+    this->data_[2] &= (0xff ^ DATA_LENGTH_MASK);
+    this->data_[2] |= (size & DATA_LENGTH_MASK);
     if (size)
-      std::copy_n(data.begin(), size, this->data_.begin() + 9);
+      std::copy_n(data.begin(), size, this->data_.begin() + 5 + 2 * this->get_address_length());
   }
   std::vector<uint8_t> get_data() const {
-    std::vector<uint8_t> data(this->data_.begin() + 9, this->data_.begin() + 9 + get_data_size());
+    std::vector<uint8_t> data(this->data_.begin() + 5 + 2 * this->get_address_length(),
+                              this->data_.begin() + 5 + 2 * this->get_address_length() + get_data_size());
     return data;
   }
-  uint8_t get_data_size() const { return std::min(MAX_DATA_LENGTH, static_cast<uint8_t>(this->data_[2] & 0x7f)); }
+  uint8_t get_data_size() const {
+    return std::min(MAX_DATA_LENGTH, static_cast<uint8_t>(this->data_[2] & DATA_LENGTH_MASK));
+  }
   void finalize() {
     if (this->auto_message_id && !this->get_retransmission() && !(this->data_[3] & 0x80)) {
       set_message_id(static_cast<uint8_t>(random_uint32()));
@@ -105,9 +147,9 @@ class ABBWelcomeData {
   std::string to_string(uint8_t max_print_bytes = 255) const {
     std::string info;
     if (this->is_valid()) {
-      info =
-          str_sprintf("[%04X %s %04X] Type: %02X", this->get_source_address(), this->get_retransmission() ? "»" : ">",
-                      this->get_destination_address(), this->get_message_type());
+      info = str_sprintf(this->get_three_byte_address() ? "[%06X %s %06X] Type: %02X" : "[%04X %s %04X] Type: %02X",
+                         this->get_source_address(), this->get_retransmission() ? "»" : ">",
+                         this->get_destination_address(), this->get_message_type());
       if (this->get_data_size())
         info += str_sprintf(", Data: %s", format_hex_pretty(this->get_data()).c_str());
     } else {
@@ -130,7 +172,7 @@ class ABBWelcomeData {
   const uint8_t &operator[](size_t idx) const { return this->data_[idx]; }
 
  protected:
-  std::array<uint8_t, 10 + MAX_DATA_LENGTH> data_;
+  std::array<uint8_t, 12 + MAX_DATA_LENGTH> data_;
   // Calculate checksum
   uint8_t calc_cs_() const;
 };
@@ -152,11 +194,12 @@ class ABBWelcomeBinarySensor : public RemoteReceiverBinarySensorBase {
     auto data = ABBWelcomeProtocol().decode(src);
     return data.has_value() && data.value() == this->data_;
   }
-  void set_source_address(const uint16_t source_address) { this->data_.set_source_address(source_address); }
-  void set_destination_address(const uint16_t destination_address) {
+  void set_source_address(const uint32_t source_address) { this->data_.set_source_address(source_address); }
+  void set_destination_address(const uint32_t destination_address) {
     this->data_.set_destination_address(destination_address);
   }
   void set_retransmission(const bool retransmission) { this->data_.set_retransmission(retransmission); }
+  void set_three_byte_address(const bool three_byte_address) { this->data_.set_three_byte_address(three_byte_address); }
   void set_message_type(const uint8_t message_type) { this->data_.set_message_type(message_type); }
   void set_message_id(const uint8_t message_id) { this->data_.set_message_id(message_id); }
   void set_auto_message_id(const bool auto_message_id) { this->data_.auto_message_id = auto_message_id; }
@@ -171,9 +214,10 @@ using ABBWelcomeTrigger = RemoteReceiverTrigger<ABBWelcomeProtocol>;
 using ABBWelcomeDumper = RemoteReceiverDumper<ABBWelcomeProtocol>;
 
 template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterActionBase<Ts...> {
-  TEMPLATABLE_VALUE(uint16_t, source_address)
-  TEMPLATABLE_VALUE(uint16_t, destination_address)
+  TEMPLATABLE_VALUE(uint32_t, source_address)
+  TEMPLATABLE_VALUE(uint32_t, destination_address)
   TEMPLATABLE_VALUE(bool, retransmission)
+  TEMPLATABLE_VALUE(bool, three_byte_address)
   TEMPLATABLE_VALUE(uint8_t, message_type)
   TEMPLATABLE_VALUE(uint8_t, message_id)
   TEMPLATABLE_VALUE(bool, auto_message_id)
@@ -184,6 +228,7 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
   }
   void encode(RemoteTransmitData *dst, Ts... x) override {
     ABBWelcomeData data;
+    data.set_three_byte_address(this->three_byte_address_.value(x...));
     data.set_source_address(this->source_address_.value(x...));
     data.set_destination_address(this->destination_address_.value(x...));
     data.set_retransmission(this->retransmission_.value(x...));
