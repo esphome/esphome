@@ -13,17 +13,19 @@ CONF_SET_FAN_MODE = "set_fan_mode"
 SetFanMode = mitsubishi_ns.enum("SetFanMode")
 SETFANMODE = {
     "quiet_4levels": SetFanMode.MITSUBISHI_FAN_Q4L,
-    "5levels": SetFanMode.MITSUBISHI_FAN_5L,
+#    "5levels": SetFanMode.MITSUBISHI_FAN_5L,
     "4levels": SetFanMode.MITSUBISHI_FAN_4L,
     "3levels": SetFanMode.MITSUBISHI_FAN_3L,
 }
 
-CONF_SET_OPERATING_MODE = "set_operating_mode"
-SetOperatingMode = mitsubishi_ns.enum("SetOperatingMode")
-SETOPERATINGMODE = {
-    "auto_heat_cool": SetOperatingMode.MITSUBISHI_OP_MODE_AHC,
-    "auto_dry_heat_cool": SetOperatingMode.MITSUBISHI_OP_MODE_ADHC,
-    "auto_dry_fan_heat_cool": SetOperatingMode.MITSUBISHI_OP_MODE_ADFHC,
+CONF_SET_SUPPORTED_MODE = "set_supported_mode"
+SetSupportedMode = mitsubishi_ns.enum("SetSupportedMode")
+SETSUPPORTEDMODE = {
+    "cool": SetSupportedMode.MITSUBISHI_OP_MODE_AC,
+    "heat": SetSupportedMode.MITSUBISHI_OP_MODE_AH,
+    "heat_cool": SetSupportedMode.MITSUBISHI_OP_MODE_AHC,
+    "dry_heat_cool": SetSupportedMode.MITSUBISHI_OP_MODE_ADHC,
+    "dry_fan_heat_cool": SetSupportedMode.MITSUBISHI_OP_MODE_ADFHC,
 }
 
 
@@ -53,9 +55,9 @@ VERTICAL_DIRECTIONS = {
 CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(MitsubishiClimate),
-        cv.Optional(CONF_SET_FAN_MODE, default="4levels"): cv.enum(SETFANMODE),
-        cv.Optional(CONF_SET_OPERATING_MODE, default="auto_heat_cool"): cv.enum(
-            SETOPERATINGMODE
+        cv.Optional(CONF_SET_FAN_MODE, default="3levels"): cv.enum(SETFANMODE),
+        cv.Optional(CONF_SET_SUPPORTED_MODE, default="auto_heat_cool"): cv.enum(
+            SETSUPPORTEDMODE
         ),
         cv.Optional(CONF_HORIZONTAL_DEFAULT, default="middle"): cv.enum(
             HORIZONTAL_DIRECTIONS
@@ -74,8 +76,8 @@ async def to_code(config):
     if CONF_SET_FAN_MODE in config:
         cg.add(var.set_fan_mode(config[CONF_SET_FAN_MODE]))
 
-    if CONF_SET_OPERATING_MODE in config:
-        cg.add(var.set_operating_mode(config[CONF_SET_OPERATING_MODE]))
+    if CONF_SET_SUPPORTED_MODE in config:
+        cg.add(var.set_supported_mode(config[CONF_SET_SUPPORTED_MODE]))
 
     if CONF_HORIZONTAL_DEFAULT in config:
         cg.add(var.set_horizontal_default(config[CONF_HORIZONTAL_DEFAULT]))
