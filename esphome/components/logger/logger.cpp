@@ -285,6 +285,7 @@ void Logger::pre_setup() {
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #if ARDUINO_USB_CDC_ON_BOOT
         this->hw_serial_ = &Serial;
+        Serial.setTxTimeoutMs(0);  // workaround for 2.0.9 crash when there's no data connection
         Serial.begin(this->baud_rate_);
 #else
         this->hw_serial_ = &Serial;
