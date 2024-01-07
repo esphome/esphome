@@ -55,11 +55,11 @@ uint8_t WK2168RegI2C::read_reg() const {
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
     ESP_LOGVV(TAG, "WK2168RegI2C::read_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
-              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, value, (int) error);
+              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, value, (int) error);
   } else {  // error
     this->comp_->status_set_warning();
     ESP_LOGE(TAG, "WK2168RegI2C::read_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
-             reg_to_str(this->register_, comp_i2c->page1_), this->channel_, value, (int) error);
+             reg_to_str(this->register_, comp_i2c->page1()), this->channel_, value, (int) error);
   }
   return value;
 }
@@ -71,11 +71,11 @@ void WK2168RegI2C::read_fifo(uint8_t *data, size_t length) const {
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
     ESP_LOGVV(TAG, "WK2168RegI2C::read_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
-              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, length, (int) error);
+              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, length, (int) error);
   } else {  // error
     this->comp_->status_set_warning();
     ESP_LOGE(TAG, "WK2168RegI2C::read_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
-             reg_to_str(this->register_, comp_i2c->page1_), this->channel_, length, (int) error);
+             reg_to_str(this->register_, comp_i2c->page1()), this->channel_, length, (int) error);
   }
 }
 
@@ -86,11 +86,11 @@ void WK2168RegI2C::write_reg(uint8_t value) {
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
     ESP_LOGVV(TAG, "WK2168Reg::write_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
-              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, value, (int) error);
+              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, value, (int) error);
   } else {  // error
     this->comp_->status_set_warning();
     ESP_LOGE(TAG, "WK2168Reg::write_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
-             reg_to_str(this->register_, comp_i2c->page1_), this->channel_, value, (int) error);
+             reg_to_str(this->register_, comp_i2c->page1()), this->channel_, value, (int) error);
   }
 }
 
@@ -101,11 +101,11 @@ void WK2168RegI2C::write_fifo(uint8_t *data, size_t length) {
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
     ESP_LOGVV(TAG, "WK2168Reg::write_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
-              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, length, (int) error);
+              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, length, (int) error);
   } else {  // error
     this->comp_->status_set_warning();
     ESP_LOGE(TAG, "WK2168Reg::write_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
-             reg_to_str(this->register_, comp_i2c->page1_), this->channel_, length, (int) error);
+             reg_to_str(this->register_, comp_i2c->page1()), this->channel_, length, (int) error);
   }
 }
 

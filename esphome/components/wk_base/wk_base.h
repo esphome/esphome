@@ -244,8 +244,12 @@ class WKBaseComponent : public Component {
   /// @return a reference to WKBaseRegister
   virtual WKBaseRegister &reg(uint8_t reg, uint8_t channel) = 0;
 
- private:
+ protected:
   friend class WKBaseChannel;
+  // friend class WKBaseRegister;
+  // friend class WK2168RegI2C;
+  // friend class WK2168ComponentI2C;
+  // friend class WK2168Component;
 
   /// @brief Get the priority of the component
   /// @return the priority
