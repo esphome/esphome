@@ -63,6 +63,7 @@ void TimeBasedTiltCover::loop() {
 
   const uint32_t now = millis();
 
+  // recalibrating in extreme postions
   if ( this->fsm_state_ == STATE_CALIBRATING ) {
     if ( now - this->last_recompute_time_ >= this->recalibration_time_ ) {
       this->fsm_state_ = STATE_STOPPING;
@@ -70,6 +71,7 @@ void TimeBasedTiltCover::loop() {
     return;
   }
 
+  // STOPPING - determining the direction of the last movement and the stopping time. Needed to support interlocking
   if ( this->fsm_state_ == STATE_STOPPING ) {
     this->stop_trigger_->trigger();
     if (this->current_operation != COVER_OPERATION_IDLE){
@@ -85,6 +87,7 @@ void TimeBasedTiltCover::loop() {
     return;
   }
 
+  // if the cover is not moving, check whether the new targets are set and if they are, compute move direction
   if ( this->fsm_state_ == STATE_IDLE &&  (this->target_position_ != TARGET_NONE || this->target_tilt_ != TARGET_NONE) ) {
 
     if (this->target_position_ != TARGET_NONE ) {
@@ -92,7 +95,7 @@ void TimeBasedTiltCover::loop() {
     } else {
       this->current_operation =  this->compute_direction(this->target_tilt_,this->tilt);
     }
-
+    // interlocking support
     if ( this->current_operation == this->interlocked_direction
                 && now - this->interlocked_time < this->interlock_wait_time_ ) return;
 
@@ -105,6 +108,7 @@ void TimeBasedTiltCover::loop() {
     return;
   }
 
+  //moving state
   if ( this->fsm_state_ == STATE_MOVING ) {
 
     auto travel_time = now - this->last_recompute_time_;
@@ -136,6 +140,7 @@ void TimeBasedTiltCover::loop() {
         this->target_tilt_ = TARGET_NONE;
         this->last_publish_time_= now;
 
+        // If the cover is in extreme positions, run recalibration
         if ( this->recalibration_time_ > 0 &&
               (((this->position == COVER_CLOSED && (tilt_time == 0 || this->tilt == COVER_CLOSED)) ||
                 (this->position == COVER_OPEN  && (tilt_time == 0 || this->tilt == COVER_OPEN)))))
@@ -172,6 +177,7 @@ void TimeBasedTiltCover::loop() {
       this->target_position_ = TARGET_NONE;
       this->last_publish_time_= now;
 
+      // If the cover is in extreme positions, run recalibration
       if ( this->recalibration_time_ > 0 &&
               (((this->position == COVER_CLOSED && (tilt_time == 0 || this->tilt == COVER_CLOSED)) ||
                 (this->position == COVER_OPEN  && (tilt_time == 0 || this->tilt == COVER_OPEN)))))
@@ -220,7 +226,7 @@ void TimeBasedTiltCover::control(const CoverCall &call) {
       this->target_position_ = pos;
       this->target_tilt_ = til;
 
-      if (this->fsm_state_ == STATE_MOVING) { //TODO: check direction also on tilting
+      if (this->fsm_state_ == STATE_MOVING) {
         auto direction = COVER_OPERATION_IDLE;
         if ( this->target_position_ != TARGET_NONE && this->target_position_ != this->position) {
           direction =  this->compute_direction(this->target_position_ , this->position );

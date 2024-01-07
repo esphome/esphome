@@ -12,6 +12,8 @@ from esphome.const import (
     CONF_ASSUMED_STATE,
 )
 
+CODEOWNERS = ["@klaudiusz223"]
+
 time_based_tilt_ns = cg.esphome_ns.namespace("time_based_tilt")
 TimeBasedTiltCover = time_based_tilt_ns.class_(
     "TimeBasedTiltCover", cover.Cover, cg.Component
