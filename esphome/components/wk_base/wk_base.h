@@ -8,7 +8,7 @@
 #include <memory>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
-#include "wk_def.h"
+#include "wk_reg_def.h"
 
 #if defined(USE_ESP32_FRAMEWORK_ARDUINO) && defined(I2C_COMPILE)
 #include "Wire.h"
@@ -142,9 +142,9 @@ class WKBaseI2C;
 class WKBaseSPI;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief This helper class creates WKBaseRegister objects that act as proxies to access remote register
+/// @brief Creates WKBaseRegister objects that act as proxies to access remote register
 /// @details This is a pure virtual (interface) class that provides all the necessary access to registers while hiding
-/// the actual implementation. This allow the wk_base component to accesses the registers independently of the actual
+/// the actual implementation. This allow the WKBase component to accesses the registers independently of the actual
 /// bus (I2C, SPI). The derived classes will actually performs the specific bus operations dependant of the bus used.
 /// @n typical usage of WKBaseRegister:
 /// @code
@@ -209,7 +209,8 @@ class WKBaseRegister {
 class WKBaseChannel;  // forward declaration
 ////////////////////////////////////////////////////////////////////////////////////
 /// @brief The WKBaseComponent class stores the information global to the WK component
-/// and provides methods to set/access this information.
+/// and provides methods to set/access this information. It is also the container of
+/// the WKBaseChannel children objects.
 ////////////////////////////////////////////////////////////////////////////////////
 class WKBaseComponent : public Component {
  public:
@@ -237,18 +238,21 @@ class WKBaseComponent : public Component {
 
   bool page1() { return page1_; }
 
+  /// @brief Factory method to create a Register object
+  /// @param reg address of the register
+  /// @param channel channel associated with this register
+  /// @return a reference to WKBaseRegister
+  virtual WKBaseRegister &reg(uint8_t reg, uint8_t channel) = 0;
+
+ private:
+  friend class WKBaseChannel;
+
   /// @brief Get the priority of the component
   /// @return the priority
   /// @details The priority is set  below setup_priority::BUS because we use
   /// the i2c bus (which has a priority of BUS) to communicate and the WK2168
   /// therefore it is seen by our client almost as if it was a bus.
   float get_setup_priority() const override { return setup_priority::BUS - 0.1F; }
-
-  /// @brief Factory method to create a Register object
-  /// @param reg address of the register
-  /// @param channel channel associated with this register
-  /// @return a reference to WKBaseRegister
-  virtual WKBaseRegister &reg(uint8_t reg, uint8_t channel) = 0;
 
   uint32_t crystal_;                         ///< crystal value;
   int test_mode_;                            ///< test mode value (0 -> no tests)
@@ -259,11 +263,12 @@ class WKBaseComponent : public Component {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief The WKBaseChannel class is used to implement all the virtual methods of the ESPHome
-/// uart::UARTComponent virtual class. This is done independently of the actual derived component.
+/// uart::UARTComponent virtual class. This allow to share these methods to the different implementation
+/// of the WK family component: wk2132_i2c, wk2132_spi, wk2168_i2c, wk2168_spi at the time of writing
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 class WKBaseChannel : public uart::UARTComponent {
  public:
-  /// @brief We belong to the parent WKBaseComponent
+  /// @brief We belongs to this WKBaseComponent
   /// @param parent pointer to the component we belongs to
   void set_parent(WKBaseComponent *parent) {
     this->parent_ = parent;
@@ -289,7 +294,7 @@ class WKBaseChannel : public uart::UARTComponent {
   void virtual dump_channel();
 
   //
-  // we implement the virtual class from UARTComponent
+  // we implements/overrides the virtual class from UARTComponent
   //
 
   /// @brief Writes a specified number of bytes to a serial port
@@ -346,13 +351,11 @@ class WKBaseChannel : public uart::UARTComponent {
 
  protected:
   friend class WKBaseComponent;
-  // friend class WKBaseI2C;
-  // friend class WKBaseSPI;
 
   /// @brief this cannot happen with external uart therefore we do nothing
   void check_logger_conflict() override {}
 
-  /// @brief Factory method to create a Register object for accessing a register on current channel
+  /// @brief Factory method to create a WKBaseRegister proxy object
   /// @param reg address of the register
   /// @return a reference to WKBaseRegister
   WKBaseRegister &reg_(uint8_t reg) { return this->parent_->reg(reg, channel_); }

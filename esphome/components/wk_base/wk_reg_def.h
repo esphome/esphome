@@ -1,12 +1,9 @@
 /// @file wk_def.h
 /// @author DrCoolZic
-/// @brief  WK family registers definition. (based on WK2168)
+/// @brief  WK family registers definition. (WK2168 / WK2132)
 
 #pragma once
 #include "stdint.h"
-
-// https://www.sekorm.com/doc/2135291.html
-// https://www.sekorm.com/product/176364.html
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /// Definition of the WK2168 registers
