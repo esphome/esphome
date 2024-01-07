@@ -9,13 +9,20 @@ namespace wk2168_i2c {
 
 static const char *const TAG = "wk2168_i2c";
 
-static const char *const REG_TO_STR_P0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
-                                            "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
-static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "BAUD1", "BAUD0", "PRES",
-                                            "RFTL", "TFTL", "_INV_", "_INV_", "_INV_", "_INV_"};
+static const char *const REG_TO_STR_P0[16] = {"GENA", "GRST",  "GMUT",  "SPAGE", "SCR", "LCR",  "FCR",  "SIER",
+                                              "SIFR", "TFCNT", "RFCNT", "FSR",   "LSR", "FDAT", "FWCR", "RS485"};
+static const char *const REG_TO_STR_P1[16] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL",
+                                              "TFTL", "FWTH", "FWTL", "XON1",  "XOFF1", "SADR",  "SAEN", "RTSDLY"};
 
 // method to print a register value as text: used in the log messages ...
-const char *reg_to_str(int reg, bool page1) { return page1 ? REG_TO_STR_P1[reg] : REG_TO_STR_P0[reg]; }
+const char *reg_to_str(int reg, bool page1) {
+  if (reg == WKREG_GPDAT)
+    return "GPDAT";
+  else if (reg == WKREG_GPDIR)
+    return "GPDIR";
+  else
+    return page1 ? REG_TO_STR_P1[reg & 0x0F] : REG_TO_STR_P0[reg & 0x0F];
+}
 
 enum RegType { REG = 0, FIFO = 1 };  ///< Register or FIFO
 
@@ -113,15 +120,15 @@ void WK2168ComponentI2C::setup() {
                 this->base_address_);
 
   // enable both channels
-  this->reg(REG_WK2168_GENA, 0) = GENA_C1EN | GENA_C2EN;
+  this->reg(WKREG_GENA, 0) = GENA_C1EN | GENA_C2EN | GENA_C3EN | GENA_C4EN;
   // reset channels
-  this->reg(REG_WK2168_GRST, 0) = GRST_C1RST | GRST_C2RST;
+  this->reg(WKREG_GRST, 0) = GRST_C1RST | GRST_C2RST | GRST_C3RST | GRST_C4RST;
   // initialize the spage register to page 0
-  this->reg(REG_WK2168_SPAGE, 0) = 0;
+  this->reg(WKREG_SPAGE, 0) = 0;
   this->page1_ = false;
 
   // we setup our children channels
-  for (WK2168Channel *child : this->children_) {
+  for (auto *child : this->children_) {
     child->setup_channel();
   }
 }

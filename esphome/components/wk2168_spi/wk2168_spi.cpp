@@ -10,13 +10,20 @@ namespace wk2168_spi {
 
 static const char *const TAG = "wk2168_spi";
 
-static const char *const REG_TO_STR_P0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
-                                            "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
-static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "BAUD1", "BAUD0", "PRES",
-                                            "RFTL", "TFTL", "_INV_", "_INV_", "_INV_", "_INV_"};
+static const char *const REG_TO_STR_P0[16] = {"GENA", "GRST",  "GMUT",  "SPAGE", "SCR", "LCR",  "FCR",  "SIER",
+                                              "SIFR", "TFCNT", "RFCNT", "FSR",   "LSR", "FDAT", "FWCR", "RS485"};
+static const char *const REG_TO_STR_P1[16] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL",
+                                              "TFTL", "FWTH", "FWTL", "XON1",  "XOFF1", "SADR",  "SAEN", "RTSDLY"};
 
 // method to print a register value as text: used in the log messages ...
-const char *reg_to_str(int reg, bool page1) { return page1 ? REG_TO_STR_P1[reg] : REG_TO_STR_P0[reg]; }
+const char *reg_to_str(int reg, bool page1) {
+  if (reg == WKREG_GPDAT)
+    return "GPDAT";
+  else if (reg == WKREG_GPDIR)
+    return "GPDIR";
+  else
+    return page1 ? REG_TO_STR_P1[reg & 0x0F] : REG_TO_STR_P0[reg & 0x0F];
+}
 
 enum CmdType { WRITE_CMD = 0, READ_CMD = 1 };  ///< Read or Write transfer
 enum RegType { REG = 0, FIFO = 1 };            ///< Register or FIFO
@@ -49,7 +56,7 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 ///////////////////////////////////////////////////////////////////////////////
 // The WK2168Reg methods
 ///////////////////////////////////////////////////////////////////////////////
-uint8_t WK2168RegisterSPI::read_reg() const {
+uint8_t WK2168RegSPI::read_reg() const {
   auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
   uint8_t buf[2]{cmd_byte(READ_CMD, REG, this->register_, this->channel_)};
   spi_delegate->begin_transaction();
@@ -60,7 +67,7 @@ uint8_t WK2168RegisterSPI::read_reg() const {
   return buf[1];
 }
 
-void WK2168RegisterSPI::read_fifo(uint8_t *data, size_t length) const {
+void WK2168RegSPI::read_fifo(uint8_t *data, size_t length) const {
   auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
   uint8_t cmd = cmd_byte(READ_CMD, FIFO, this->register_, this->channel_);
   spi_delegate->begin_transaction();
@@ -71,7 +78,7 @@ void WK2168RegisterSPI::read_fifo(uint8_t *data, size_t length) const {
             format_hex_pretty(data, length).c_str());
 }
 
-void WK2168RegisterSPI::write_reg(uint8_t value) {
+void WK2168RegSPI::write_reg(uint8_t value) {
   auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
   uint8_t buf[2]{cmd_byte(WRITE_CMD, REG, this->register_, this->channel_), value};
   spi_delegate->begin_transaction();
@@ -81,7 +88,7 @@ void WK2168RegisterSPI::write_reg(uint8_t value) {
             reg_to_str(this->register_, this->comp_->page1()), this->register_, this->channel_, value);
 }
 
-void WK2168RegisterSPI::write_fifo(uint8_t *data, size_t length) {
+void WK2168RegSPI::write_fifo(uint8_t *data, size_t length) {
   auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
   uint8_t cmd = cmd_byte(WRITE_CMD, FIFO, this->register_, this->channel_);
   spi_delegate->begin_transaction();
@@ -100,11 +107,11 @@ void WK2168ComponentSPI::setup() {
   ESP_LOGCONFIG(TAG, "Setting up wk2168_spi: %s with %d UARTs...", this->get_name(), this->children_.size());
   this->spi_setup();
   // enable both channels
-  this->reg(REG_WK2168_GENA, 0) = GENA_C1EN | GENA_C2EN;
+  this->reg(WKREG_GENA, 0) = GENA_C1EN | GENA_C2EN;
   // reset channels
-  this->reg(REG_WK2168_GRST, 0) = GRST_C1RST | GRST_C2RST;
+  this->reg(WKREG_GRST, 0) = GRST_C1RST | GRST_C2RST;
   // initialize the spage register to page 0
-  this->reg(REG_WK2168_SPAGE, 0) = 0;
+  this->reg(WKREG_SPAGE, 0) = 0;
   this->page1_ = false;
 
   // we setup our children channels

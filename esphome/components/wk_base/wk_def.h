@@ -1,9 +1,12 @@
-/// @file wk2168_def.h
+/// @file wk_def.h
 /// @author DrCoolZic
-/// @brief  WK2168 registers definition
+/// @brief  WK family registers definition. (based on WK2168)
 
 #pragma once
 #include "stdint.h"
+
+// https://www.sekorm.com/doc/2135291.html
+// https://www.sekorm.com/product/176364.html
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /// Definition of the WK2168 registers
@@ -28,7 +31,7 @@
 ///  -------------------------------------------------------------------------
 /// @endcode
 
-constexpr uint8_t REG_WK2168_GENA = 0x00;
+constexpr uint8_t WKREG_GENA = 0x00;
 
 /// @brief Channel 4 enable clock (0: disable, 1: enable)
 constexpr uint8_t GENA_C4EN = 1 << 3;
@@ -51,7 +54,7 @@ constexpr uint8_t GENA_C1EN = 1 << 0;
 ///  |    0   |    0   |    0   |    0   |    0   |    0   |    0   |    0   |  reset
 ///  -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2168_GRST = 0x01;
+constexpr uint8_t WKREG_GRST = 0x01;
 
 /// @brief Channel 4 soft reset (0: not reset, 1: reset)
 constexpr uint8_t GRST_C4RST = 1 << 3;
@@ -63,13 +66,13 @@ constexpr uint8_t GRST_C2RST = 1 << 1;
 constexpr uint8_t GRST_C1RST = 1 << 0;
 
 /// @brief Global Master channel control register (not used)
-constexpr uint8_t REG_WK2168_GMUT = 0x02;
+constexpr uint8_t WKREG_GMUT = 0x02;
 
 /// Global interrupt register (not used)
-constexpr uint8_t REG_WK2168_GIER = 0x10;
+constexpr uint8_t WKREG_GIER = 0x10;
 
 /// Global interrupt flag register (not used)
-constexpr uint8_t REG_WK2168_GIFR = 0x11;
+constexpr uint8_t WKREG_GIFR = 0x11;
 
 /// @brief Global GPIO direction register
 /// @details @code
@@ -83,9 +86,7 @@ constexpr uint8_t REG_WK2168_GIFR = 0x11;
 ///  |    0   |    0   |    0   |    0   |    0   |    0   |    0   |    0   |  reset
 ///  -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2168_GPDIR = 0x21;
-/// @brief GPIO Pin 0 Direction (0: input, 1: output)
-constexpr uint8_t GPDIR_PD0 = 1 << 0;
+constexpr uint8_t WKREG_GPDIR = 0x21;
 
 /// @brief Global GPIO data register
 /// @details @code
@@ -99,7 +100,7 @@ constexpr uint8_t GPDIR_PD0 = 1 << 0;
 ///  |    0   |    0   |    0   |    0   |    0   |    0   |    0   |    0   |  reset
 ///  -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2168_GPDAT = 0x31;
+constexpr uint8_t WKREG_GPDAT = 0x31;
 
 /// @brief Global Page register
 /// @details @code
@@ -113,7 +114,7 @@ constexpr uint8_t REG_WK2168_GPDAT = 0x31;
 ///  |    0   |    0   |    0   |    0   |    0   |    0   |    0   |    0   |  reset
 ///  -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2168_SPAGE = 0x03;
+constexpr uint8_t WKREG_SPAGE = 0x03;
 
 /// @}
 /// @defgroup wk2168_cr_ WK2168 Channel Registers
@@ -124,7 +125,7 @@ constexpr uint8_t REG_WK2168_SPAGE = 0x03;
 
 /// @defgroup cr_p0 Channel registers for SPAGE=0
 /// The channel registers are further splitted into two groups.
-/// This first group is defined when the Global register REG_WK2168_SPAGE is 0
+/// This first group is defined when the Global register WKREG_SPAGE is 0
 /// @{
 
 /// @brief Serial Control Register
@@ -139,7 +140,7 @@ constexpr uint8_t REG_WK2168_SPAGE = 0x03;
 ///  |    0   |    0   |    0   |    0   |    0   |    0   |    0   |    0   |  reset
 ///  -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2168_SCR = 0x04;
+constexpr uint8_t WKREG_SCR = 0x04;
 /// @brief transmission control (0: enable, 1: disable)
 constexpr uint8_t SCR_TXEN = 1 << 1;
 /// @brief receiving control (0: enable, 1: disable)
@@ -157,13 +158,13 @@ constexpr uint8_t SCR_RXEN = 1 << 0;
 ///  |    0   |    0   |    0   |    0   |    0   |    0   |    0   |    0   |  reset
 ///  -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2168_LCR = 0x05;
+constexpr uint8_t WKREG_LCR = 0x05;
 /// @brief Parity enable (0: no check, 1: check)
 constexpr uint8_t LCR_PAEN = 1 << 3;
 /// @brief Parity force 0
-constexpr uint8_t LCR_PAR_F0 = 00 << 1;
+constexpr uint8_t LCR_PAR_F0 = 0 << 1;
 /// @brief Parity odd
-constexpr uint8_t LCR_PAR_ODD = 01 << 1;
+constexpr uint8_t LCR_PAR_ODD = 1 << 1;
 /// @brief Parity even
 constexpr uint8_t LCR_PAR_EVEN = 2 << 1;
 /// @brief Parity force 1
@@ -183,7 +184,7 @@ constexpr uint8_t LCR_STPL = 1 << 0;
 ///  |    0   |    0   |    0   |    0   |    0   |    0   |    0   |    0   |  reset
 ///  -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2168_FCR = 0x06;
+constexpr uint8_t WKREG_FCR = 0x06;
 
 /// @brief Transmitter FIFO enable
 constexpr uint8_t FCR_TFEN = 1 << 3;
@@ -195,10 +196,10 @@ constexpr uint8_t FCR_TFRST = 1 << 3;
 constexpr uint8_t FCR_RFRST = 1 << 3;
 
 /// @brief Serial Interrupt Enable Register (not used)
-constexpr uint8_t REG_WK2168_SIER = 0x07;
+constexpr uint8_t WKREG_SIER = 0x07;
 
 /// @brief Serial Interrupt Flag Register (not used)
-constexpr uint8_t REG_WK2168_SIFR = 0x08;
+constexpr uint8_t WKREG_SIFR = 0x08;
 
 /// @brief Transmitter FIFO Count
 /// @details @code
@@ -208,7 +209,7 @@ constexpr uint8_t REG_WK2168_SIFR = 0x08;
 /// |                  NUMBER OF DATA IN TRANSMITTER FIFO                   |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2168_TFCNT = 0x09;
+constexpr uint8_t WKREG_TFCNT = 0x09;
 
 /// @brief Receiver FIFO count
 /// @details @code
@@ -218,7 +219,7 @@ constexpr uint8_t REG_WK2168_TFCNT = 0x09;
 /// |                    NUMBER OF DATA IN RECEIVER FIFO                    |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2168_RFCNT = 0x0A;
+constexpr uint8_t WKREG_RFCNT = 0x0A;
 
 /// @brief FIFO Status Register
 /// @details @code
@@ -241,7 +242,7 @@ constexpr uint8_t REG_WK2168_RFCNT = 0x0A;
 /// still in overflow.
 /// @n The same remark applies to the transmit buffer but here we have to check the
 /// TFFULL flag. So if TFFULL is set and TFCNT is 0 this should be interpreted as 256
-constexpr uint8_t REG_WK2168_FSR = 0x0B;
+constexpr uint8_t WKREG_FSR = 0x0B;
 /// @brief Receiver FIFO Overflow Error (0: no OE, 1: OE)
 constexpr uint8_t FSR_RFOE = 1 << 7;
 /// @brief Receiver FIFO Line Break (0: no LB, 1: LB)
@@ -271,7 +272,7 @@ constexpr uint8_t FSR_TBUSY = 1 << 0;
 /// |    0   |    0   |    0   |    0   |    0   |    0   |    0   |    0   |  reset
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2168_LSR = 0x0C;
+constexpr uint8_t WKREG_LSR = 0x0C;
 
 /// @brief current read byte Overflow Error (0: no OE, 1: OE)
 constexpr uint8_t LSR_OVLE = 1 << 3;
@@ -290,12 +291,12 @@ constexpr uint8_t LSR_PARE = 1 << 0;
 /// |                        DATA_READ or DATA_TO_WRITE                     |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2168_FDAT = 0x0D;
+constexpr uint8_t WKREG_FDAT = 0x0D;
 
 /// @}
 /// @defgroup cr_p1 Channel registers for SPAGE=1
 /// The channel registers are further splitted into two groups.
-/// This second group is defined when the Global register REG_WK2168_SPAGE is 1
+/// This second group is defined when the Global register WKREG_SPAGE is 1
 /// @{
 
 /// @brief Baud rate configuration register: high byte
@@ -306,7 +307,7 @@ constexpr uint8_t REG_WK2168_FDAT = 0x0D;
 /// |                      High byte of the baud rate                       |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2168_BRH = 0x04;
+constexpr uint8_t WKREG_BRH = 0x04;
 
 /// @brief Baud rate configuration register: low byte
 /// @details @code
@@ -316,37 +317,16 @@ constexpr uint8_t REG_WK2168_BRH = 0x04;
 /// |                       Low byte of the baud rate                       |
 /// -------------------------------------------------------------------------
 /// @endcode
-constexpr uint8_t REG_WK2168_BRL = 0x05;
+constexpr uint8_t WKREG_BRL = 0x05;
 
 /// @brief Baud rate configuration register decimal part
-/// @details @code
-/// -------------------------------------------------------------------------
-/// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
-/// -------------------------------------------------------------------------
-/// |                      decimal part of the baud rate                    |
-/// -------------------------------------------------------------------------
-/// @endcode
-constexpr uint8_t REG_WK2168_BRD = 0x06;
+constexpr uint8_t WKREG_BRD = 0x06;
 
 /// @brief Receive FIFO Interrupt trigger configuration (not used)
-/// @details @code
-/// -------------------------------------------------------------------------
-/// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
-/// -------------------------------------------------------------------------
-/// |                      Receive FIFO contact control                     |
-/// -------------------------------------------------------------------------
-/// @endcode
-constexpr uint8_t REG_WK2168_RFI = 0x07;
+constexpr uint8_t WKREG_RFI = 0x07;
 
 /// @brief Transmit FIFO interrupt trigger configuration (not used)
-/// @code
-/// -------------------------------------------------------------------------
-/// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
-/// -------------------------------------------------------------------------
-/// |                       Send FIFO contact control                       |
-/// -------------------------------------------------------------------------
-/// @endcode
-constexpr uint8_t REG_WK2168_TFI = 0x08;
+constexpr uint8_t WKREG_TFI = 0x08;
 
 /// @}
 /// @}

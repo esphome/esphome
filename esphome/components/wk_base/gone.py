@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import uart, wk_base
+from esphome.components import uart
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_CHANNEL,
@@ -8,7 +8,7 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@DrCoolZic"]
-AUTO_LOAD = ["uart", "wk_base"]
+AUTO_LOAD = ["uart"]
 
 MULTI_CONF = True
 CONF_STOP_BITS = "stop_bits"
@@ -17,12 +17,12 @@ CONF_CRYSTAL = "crystal"
 CONF_UART = "uart"
 CONF_TEST_MODE = "test_mode"
 
-wk2168_ns = cg.esphome_ns.namespace("wk2168")
-WK2168Component = wk2168_ns.class_("WK2168Component", cg.Component)
-WK2168Channel = wk2168_ns.class_("WK2168Channel", uart.UARTComponent)
+wk2132_ns = cg.esphome_ns.namespace("wk2132")
+WK2132Component = wk2132_ns.class_("WK2132Component", cg.Component)
+WK2132Channel = wk2132_ns.class_("WK2132Channel", uart.UARTComponent)
 
 
-def post_check_conf_wk2168(value):
+def post_check_conf_wk2132(value):
     if (
         len(value[CONF_UART]) > 1
         and value[CONF_UART][0][CONF_CHANNEL] == value[CONF_UART][1][CONF_CHANNEL]
@@ -31,14 +31,14 @@ def post_check_conf_wk2168(value):
     return value
 
 
-WK2168_SCHEMA = cv.Schema(
+WK2132_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(WK2168Component),
+        cv.GenerateID(): cv.declare_id(WK2132Component),
         cv.Optional(CONF_CRYSTAL, default=14745600): cv.int_,
         cv.Optional(CONF_TEST_MODE, default=0): cv.int_,
         cv.Required(CONF_UART): cv.ensure_list(
             {
-                cv.Required(CONF_UART_ID): cv.declare_id(WK2168Channel),
+                cv.Required(CONF_UART_ID): cv.declare_id(WK2132Channel),
                 cv.Optional(CONF_CHANNEL, default=0): cv.int_range(min=0, max=1),
                 cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
                 cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
@@ -51,8 +51,8 @@ WK2168_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def register_wk2168(var, config):
-    """Register an wk2168 device with the given config."""
+async def register_wk2132(var, config):
+    """Register an wk2132 device with the given config."""
     cg.add(var.set_crystal(config[CONF_CRYSTAL]))
     cg.add(var.set_test_mode(config[CONF_TEST_MODE]))
     await cg.register_component(var, config)

@@ -15,7 +15,7 @@ class WK2168ComponentI2C;
 ////////////////////////////////////////////////////////////////////////////////////
 // class WK2168ComponentI2C
 ////////////////////////////////////////////////////////////////////////////////////
-class WK2168RegI2C : public wk2168::WK2168Reg {
+class WK2168RegI2C : public wk_base::WKBaseRegister {
  public:
   uint8_t read_reg() const override;
   void write_reg(uint8_t value) override;
@@ -24,7 +24,8 @@ class WK2168RegI2C : public wk2168::WK2168Reg {
 
  protected:
   friend WK2168ComponentI2C;
-  WK2168RegI2C(wk2168::WK2168Component *const comp, uint8_t reg, uint8_t channel) : WK2168Reg(comp, reg, channel) {}
+  WK2168RegI2C(wk2168::WK2168Component *const comp, uint8_t reg, uint8_t channel)
+      : WKBaseRegister(comp, reg, channel) {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -32,7 +33,7 @@ class WK2168RegI2C : public wk2168::WK2168Reg {
 ////////////////////////////////////////////////////////////////////////////////////
 class WK2168ComponentI2C : public wk2168::WK2168Component, public i2c::I2CDevice {
  public:
-  wk2168::WK2168Reg &reg(uint8_t reg, uint8_t channel) override {
+  wk_base::WKBaseRegister &reg(uint8_t reg, uint8_t channel) override {
     reg_i2c_.register_ = reg & 0x0F;
     reg_i2c_.channel_ = channel & 0x01;
     return reg_i2c_;
