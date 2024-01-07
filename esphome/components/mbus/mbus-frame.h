@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <vector>
+#include <string>
 
 namespace esphome {
 namespace mbus {
@@ -45,6 +46,56 @@ class MBusFrame {
   void dump();
 };
 
+// MBus Data
+class MBusDataDifBit {
+ public:
+  static const uint8_t DIF_EXTENSION_BIT = 0x80;
+  static const uint8_t VIF_EXTENSION_BIT = 0x80;
+  static const uint8_t DIF_IDLE_FILLER = 0x2F;
+};
+
+// DIF (Data Information Field)
+// |   Bit 7   |    6    |    5       4    |  3     2     1     0 |
+// | Extension | LSB of  |  Function Field |  Data Field:         |
+// | Bit       | storage |                 |  Length and coding   |
+// |           | number  |                 |  of data             |
+//
+// DIFE (Data Information Field Extension)
+// |   Bit 7   |    6    |    5       4    |  3     2     1     0 |
+// | Extension | Device  |      Tariff     |    Storage Number    |
+// | Bit       |  Unit   |                 |                      |
+class MBusDataInformationBlock {
+ public:
+  uint8_t dif;
+  std::vector<uint8_t> dife;
+};
+
+// VIF (VAlue Information Field)
+// |   Bit 7   | 6      5       4       3       2       1      0  |
+// | Extension |                Unit and Multiplier               |
+// | Bit       |                                                  |
+class MBusValueInformationBlock {
+ public:
+  uint8_t vif;
+  std::vector<uint8_t> vife;
+};
+
+class MBusDataRecordHeader {
+ public:
+  MBusDataInformationBlock dib;
+  MBusValueInformationBlock vib;
+};
+
+class MBusDataRecord {
+ public:
+  MBusDataRecordHeader drh;
+  std::vector<uint8_t> data;
+
+  // time_t timestamp;
+
+  // void *next;
+};
+
 // Ident.Nr.   Manufr. Version Medium Access No. Status  Signature
 // 4 Byte BCD  2 Byte  1 Byte  1 Byte   1 Byte   1 Byte  2 Byte
 class MBusDataVariableHeader {
@@ -61,21 +112,27 @@ class MBusDataVariableHeader {
 class MBusDataVariable {
  public:
   MBusDataVariableHeader header;
-
-  // mbus_data_record *record;
-  // size_t nrecords;
-
-  std::vector<uint8_t> data;
-  // size_t data_len;
+  std::vector<MBusDataRecord> records;
 
   uint8_t more_records_follow;
 
   // are these needed/used?
-  // unsigned char mdh;
-  // unsigned char *mfg_data;
-  // size_t mfg_data_len;
+  // uint8_t mdh;
+  // std::vector<uint8_t> mfg_data;
 
   void dump();
+};
+
+// Ident.Nr.   Access No.  Status  Medium/Unit Counter 1   Counter 2
+// 4 Byte BCD   1 Byte     1 Byte     2 Byte    4 Byte      4 Byte
+class MBusDataFixed {
+ public:
+  uint64_t id;
+  uint8_t access_no;
+  uint8_t status;
+  uint16_t medium_unit;
+  uint64_t cnt1;
+  uint64_t cnt2;
 };
 
 }  // namespace mbus

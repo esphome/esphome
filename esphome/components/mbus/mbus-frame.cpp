@@ -235,14 +235,22 @@ void MBusFrame::dump() {
 void MBusDataVariable::dump() {
   ESP_LOGV(TAG, "\tVariable Data:");
   ESP_LOGV(TAG, "\t Header:");
-  auto header = this->header;
-  ESP_LOGV(TAG, "\t  id = %d", header.id);
-  ESP_LOGV(TAG, "\t  manufacturer = %s", header.manufacturer.c_str());
-  ESP_LOGV(TAG, "\t  version = 0x%.2X", header.version);
-  ESP_LOGV(TAG, "\t  medium = 0x%.2X", header.medium);
-  ESP_LOGV(TAG, "\t  access no = 0x%.2X", header.access_no);
-  ESP_LOGV(TAG, "\t  status = 0x%.2X", header.status);
-  ESP_LOGV(TAG, "\t  signature = %s", format_hex_pretty(header.signature, 2).c_str());
+  auto header = &this->header;
+  ESP_LOGV(TAG, "\t  id = %d", header->id);
+  ESP_LOGV(TAG, "\t  manufacturer = %s", header->manufacturer.c_str());
+  ESP_LOGV(TAG, "\t  version = 0x%.2X", header->version);
+  ESP_LOGV(TAG, "\t  medium = 0x%.2X", header->medium);
+  ESP_LOGV(TAG, "\t  access no = 0x%.2X", header->access_no);
+  ESP_LOGV(TAG, "\t  status = 0x%.2X", header->status);
+  ESP_LOGV(TAG, "\t  signature = %s", format_hex_pretty(header->signature, 2).c_str());
+  ESP_LOGV(TAG, "\t Records:");
+  auto records = &this->records;
+  for (auto it = records->begin(); it < records->end(); it++) {
+    ESP_LOGV(TAG, "\t  DIF: 0x%.2X", it->drh.dib.dif);
+    ESP_LOGV(TAG, "\t  DIFE: %s", format_hex_pretty(it->drh.dib.dife).c_str());
+    ESP_LOGV(TAG, "\t  VIF: 0x%.2X", it->drh.vib.vif);
+    ESP_LOGV(TAG, "\t  VIFE: %s", format_hex_pretty(it->drh.vib.vife).c_str());
+  }
 }
 
 }  // namespace mbus
