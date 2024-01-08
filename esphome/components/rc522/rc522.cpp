@@ -82,6 +82,21 @@ void RC522::initialize_() {
   pcd_write_register(T_MODE_REG, 0x80);  // TAuto=1; timer starts automatically at the end of the transmission in all
                                          // communication modes at all speeds
 
+  /*RxGain [2:0]
+  defines the receiver's signal voltage gain factor:
+  000 18 dB HEX = 0x00
+  001 23 dB HEX = 0x01
+  010 18 dB HEX = 0x02
+  011 23 dB HEX = 0x03
+  100 33 dB HEX = 0x04
+  101 38 dB HEX = 0x05
+  110 43 dB HEX = 0x06
+  111 48 dB HEX = 0x07
+  3 to 0 reserved - reserved for future use
+  */
+  pcd_write_register(RF_CFG_REG, ((6 & 0x07) << 4));  // antenna gain 48db
+  ESP_LOGI("loglogi", "antenna gain value -> %d", pcd_read_register(RF_CFG_REG));
+
   // TPreScaler = TModeReg[3..0]:TPrescalerReg, ie 0x0A9 = 169 => f_timer=40kHz, ie a timer period of 25μs.
   pcd_write_register(T_PRESCALER_REG, 0xA9);
   pcd_write_register(T_RELOAD_REG_H, 0x03);  // Reload timer with 0x3E8 = 1000, ie 25ms before timeout.
