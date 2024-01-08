@@ -1,7 +1,9 @@
 /// @file wk_base.h
 /// @author DrCoolZic
 /// @brief  wk_base classes declaration
-/// @details As of today used by wk2132_spi, wk2132_i2c, wk2168_spi, wk2168_i2c
+/// @details The classes declared in this file can be used by a family
+/// of Weikai UART bridge components.
+/// As of today used by wk2132_spi, wk2132_i2c, wk2168_spi, wk2168_i2c
 
 #pragma once
 #include <bitset>
@@ -28,14 +30,14 @@
 namespace esphome {
 namespace wk_base {
 
-/// @brief XFER_MAX_SIZE defines the maximum number of bytes we allow during one transfer.
+/// @brief XFER_MAX_SIZE defines the maximum number of bytes allowed during one transfer.
 /// - When using the Arduino framework by default the maximum number of bytes that can be transferred is 128 bytes. But
-///   this can be changed by defining the macro I2C_BUFFER_LENGTH during compilation. In fact the __init__.py file take
-///   care of that when analyzing the Yaml configuration.
-/// - When using the ESP-IDF Framework the maximum number of bytes that can be transferred is 256 bytes.
-/// @bug At the time of writing (Dec 2023) there is a bug in the Arduino framework in the TwoWire::requestFrom() method
-/// that limits the number of bytes we can read to 255. For this reasons we limit the XFER_MAX_SIZE to 255.
-/// - When we use an ESP8286 we limit the transfer to 128
+///   this can be changed by defining the macro I2C_BUFFER_LENGTH during compilation. This is done automatically by the
+///   __init__.py file when generating the code from the Yaml configuration file.
+/// - When using the ESP-IDF Framework the maximum number of bytes allowed during transfer is 256 bytes.
+/// @bug At the time of writing (Jan 2024) there is a bug in the Arduino framework in the TwoWire::requestFrom() method.
+/// This bug limits the number of bytes we can read to 255. For this reasons we limit the XFER_MAX_SIZE to 255.
+/// - When we use an ESP8286 CPU we limit the transfer to 128
 
 #if defined(USE_ESP8266)  // ESP8286
 constexpr size_t XFER_MAX_SIZE = 128;
@@ -73,7 +75,7 @@ constexpr size_t RING_BUFFER_SIZE = XFER_MAX_SIZE;
 /// the micro-controller this is acceptable (even if it roughly double the process time) because the registers can be
 /// accessed fast. But when the registers are located on a remote device accessing them requires several cycles on the
 /// slow bus. As it it not possible to fix this problem by asking users to rewrite their code, I have implemented this
-/// ring buffer baser solution that store the bytes received locally.
+/// ring buffer solution that store the bytes received locally.
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template<typename T, size_t SIZE> class RingBuffer {
  public:
@@ -142,10 +144,12 @@ class WKBaseI2C;
 class WKBaseSPI;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Creates WKBaseRegister objects that act as proxies to access remote register
-/// @details This is a pure virtual (interface) class that provides all the necessary access to registers while hiding
-/// the actual implementation. This allow the WKBase component to accesses the registers independently of the actual
-/// bus (I2C, SPI). The derived classes will actually performs the specific bus operations dependant of the bus used.
+/// @brief Used to create WKBaseRegister objects that act as proxies to access remote register independently of the
+/// bus type.
+/// @details This is an abstract interface class that provides many operations to access to registers while hiding
+/// the actual implementation. This allow to accesses the registers in the WKBase component abstract class independently
+/// of the actual bus (I2C, SPI). The derived classes will actually implements the specific bus operations dependant of
+/// the bus used.
 /// @n typical usage of WKBaseRegister:
 /// @code
 ///   WKBaseRegister reg_1 {&WKBaseComponent, ADDR_REGISTER, CHANNEL_NUM, FIFO}  // declaration
@@ -210,7 +214,8 @@ class WKBaseChannel;  // forward declaration
 ////////////////////////////////////////////////////////////////////////////////////
 /// @brief The WKBaseComponent class stores the information global to the WK component
 /// and provides methods to set/access this information. It is also the container of
-/// the WKBaseChannel children objects.
+/// the WKBaseChannel children objects. This class is derived from esphome::Component
+/// class.
 ////////////////////////////////////////////////////////////////////////////////////
 class WKBaseComponent : public Component {
  public:
@@ -246,10 +251,6 @@ class WKBaseComponent : public Component {
 
  protected:
   friend class WKBaseChannel;
-  // friend class WKBaseRegister;
-  // friend class WK2168RegI2C;
-  // friend class WK2168ComponentI2C;
-  // friend class WK2168Component;
 
   /// @brief Get the priority of the component
   /// @return the priority
@@ -267,8 +268,9 @@ class WKBaseComponent : public Component {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief The WKBaseChannel class is used to implement all the virtual methods of the ESPHome
-/// uart::UARTComponent virtual class. This allow to share these methods to the different implementation
-/// of the WK family component: wk2132_i2c, wk2132_spi, wk2168_i2c, wk2168_spi at the time of writing
+/// uart::UARTComponent virtual class. This class is common to the different members of the Weikai components family
+/// and therefore avoid code duplication. Currently this is used for the wk2132_i2c, wk2132_spi, wk2168_i2c, wk2168_spi
+/// components.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 class WKBaseChannel : public uart::UARTComponent {
  public:

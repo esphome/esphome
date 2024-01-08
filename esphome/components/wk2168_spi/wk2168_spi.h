@@ -10,8 +10,11 @@
 namespace esphome {
 namespace wk2168_spi {
 
+class WK2168GPIOPinSPI : public wk2168::WK2168GPIOPin {};
+class WK2168ComponentSPI;
+
 ////////////////////////////////////////////////////////////////////////////////////
-// class WK2168ComponentSPI
+// class WK2168RegSPI
 ////////////////////////////////////////////////////////////////////////////////////
 class WK2168RegSPI : public wk_base::WKBaseRegister {
  public:

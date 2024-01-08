@@ -55,9 +55,9 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 /// @brief measure the time elapsed between two calls
 /// @param last_time time of the previous call
 /// @return the elapsed time in microseconds
-uint32_t elapsed_us(uint32_t &last_time) {
-  uint32_t e = micros() - last_time;
-  last_time = micros();
+uint32_t elapsed_ms(uint32_t &last_time) {
+  uint32_t e = millis() - last_time;
+  last_time = millis();
   return e;
 };
 
@@ -116,33 +116,34 @@ void WKBaseComponent::loop() {
   loop_time = millis();
 
   // If there are some bytes in the receive FIFO we transfers them to the ring buffers
-  elapsed_us(time);  // set time to now
+  elapsed_ms(time);  // set time to now
   size_t transferred = 0;
   for (auto *child : this->children_) {
     // we look if some characters has been received in the fifo
     transferred += child->xfer_fifo_to_buffer_();
   }
   if ((test_mode_ > 0) && (transferred > 0))
-    ESP_LOGI(TAG, "transferred %d bytes from fifo to buffer - execution time %d µs...", transferred, elapsed_us(time));
+    ESP_LOGI(TAG, "we transferred %d bytes from fifo to buffer - execution time %d ms...", transferred,
+             elapsed_ms(time));
 
 #ifdef TEST_COMPONENT
-  if (test_mode_ == 1) {  // test component in loop back
+  if (test_mode_ == 1) {  // test component in loopback
     char message[64];
-    elapsed_us(time);  // set time to now
+    elapsed_ms(time);  // set time to now
     for (auto *child : this->children_) {
       snprintf(message, sizeof(message), "%s:%s", this->get_name(), child->get_channel_name());
       child->uart_send_test_(message);
       uint32_t const start_time = millis();
       while (child->tx_fifo_is_not_empty_()) {  // wait until buffer empty
         if (millis() - start_time > 100) {
-          ESP_LOGE(TAG, "Timed out flushing - %d bytes in buffer...", child->tx_in_fifo_());
+          ESP_LOGE(TAG, "Timed out while flushing - %d bytes left in buffer...", child->tx_in_fifo_());
           break;
         }
         yield();  // reschedule our thread to avoid blocking
       }
       bool status = child->uart_receive_test_(message);
-      ESP_LOGI(TAG, "Test %s => send/received %d bytes %s - execution time %d µs...", message, XFER_MAX_SIZE,
-               status ? "correctly" : "with error", elapsed_us(time));
+      ESP_LOGI(TAG, "Test %s => send/received %d bytes %s - execution time %d ms...", message, XFER_MAX_SIZE,
+               status ? "correctly" : "with error", elapsed_ms(time));
     }
   }
 
@@ -235,11 +236,11 @@ size_t WKBaseChannel::tx_in_fifo_() {
   if (tfcnt == 0) {
     uint8_t const fsr = this->reg_(WKREG_FSR);
     if (fsr & FSR_TFFULL) {
-      ESP_LOGVV(TAG, "tx_in_fifo full FSR=%s", I2CS(fsr));
+      ESP_LOGV(TAG, "tx FIFO full FSR=%s", I2CS(fsr));
       tfcnt = FIFO_SIZE;
     }
   }
-  ESP_LOGVV(TAG, "tx_in_fifo %d", tfcnt);
+  ESP_LOGVV(TAG, "tx FIFO contains %d bytes", tfcnt);
   return tfcnt;
 }
 
@@ -260,14 +261,14 @@ size_t WKBaseChannel::rx_in_fifo_() {
     // here we should be very careful because we can have something like this:
     // -  at time t0 we read RFCNT=0 because nothing yet received
     // -  at time t0+delta we might read FIFO not empty because one byte has just been received
-    // -  so to be sure we need to do another read of RFCNT. If still zero -> buffer full
+    // -  so to be sure we need to do another read of RFCNT and if it is still zero -> buffer full
     available = this->reg_(WKREG_RFCNT);
     if (available == 0) {  // still zero ?
-      ESP_LOGVV(TAG, "rx_in_fifo full FSR=%s", I2CS(fsr));
+      ESP_LOGV(TAG, "rx FIFO is full FSR=%s", I2CS(fsr));
       available = FIFO_SIZE;
     }
   }
-  ESP_LOGVV(TAG, "rx_in_fifo bytes=%d status=%s", available, I2CS(fsr));
+  ESP_LOGVV(TAG, "rx FIFO contain %d bytes - FSR status=%s", available, I2CS(fsr));
   return available;
 }
 
@@ -289,7 +290,7 @@ bool WKBaseChannel::read_array(uint8_t *buffer, size_t length) {
   bool status = true;
   auto available = this->receive_buffer_.count();
   if (length > available) {
-    ESP_LOGW(TAG, "read_array: buffer underflow requested %d bytes only %d available...", length, available);
+    ESP_LOGW(TAG, "read_array: buffer underflow requested %d bytes only %d bytes available...", length, available);
     length = available;
     status = false;
   }
@@ -304,7 +305,7 @@ bool WKBaseChannel::read_array(uint8_t *buffer, size_t length) {
 
 void WKBaseChannel::write_array(const uint8_t *buffer, size_t length) {
   if (length > XFER_MAX_SIZE) {
-    ESP_LOGE(TAG, "Write_array: invalid call - requested %d bytes max size %d ...", length, XFER_MAX_SIZE);
+    ESP_LOGE(TAG, "Write_array: invalid call - requested %d bytes but max size %d ...", length, XFER_MAX_SIZE);
     length = XFER_MAX_SIZE;
   }
   this->reg_(0).write_fifo(const_cast<uint8_t *>(buffer), length);
@@ -314,7 +315,7 @@ void WKBaseChannel::flush() {
   uint32_t const start_time = millis();
   while (this->tx_fifo_is_not_empty_()) {  // wait until buffer empty
     if (millis() - start_time > 100) {
-      ESP_LOGE(TAG, "flush: timed out - still %d bytes not sent...", this->tx_in_fifo_());
+      ESP_LOGE(TAG, "flush time out - still %d bytes not sent...", this->tx_in_fifo_());
       return;
     }
     yield();  // reschedule our thread to avoid blocking
