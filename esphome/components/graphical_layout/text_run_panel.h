@@ -9,6 +9,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/components/time/real_time_clock.h"
 
 namespace esphome {
 namespace graphical_layout {
@@ -64,7 +65,7 @@ class TextRun : public TextRunBase, public FormattableTextRun {
     this->text_ = std::move(text);
   }
 
-  std::string get_text() override { return this->format_text(text_.value()); }
+  std::string get_text() override { return this->format_text(this->text_.value()); }
 
  protected:
   TemplatableValue<std::string> text_{};
@@ -94,6 +95,33 @@ class TextSensorTextRun : public TextRunBase, public FormattableTextRun {
 
  protected:
   text_sensor::TextSensor *text_sensor_{nullptr};
+};
+
+class TimeTextRun : public TextRunBase, public FormattableTextRun {
+ public:
+  TimeTextRun(time::RealTimeClock *time, TemplatableValue<std::string> time_format, bool use_utc_time,
+              display::BaseFont *font)
+      : TextRunBase(font) {
+    this->time_ = time;
+    this->time_format_ = std::move(time_format);
+    this->use_utc_time_ = use_utc_time;
+  }
+
+  std::string get_text() override {
+    ESPTime time;
+    if (this->use_utc_time_) {
+      time = this->time_->utcnow();
+    } else {
+      time = this->time_->now();
+    }
+
+    return this->format_text(time.strftime(this->time_format_.value()));
+  }
+
+ protected:
+  time::RealTimeClock *time_{nullptr};
+  TemplatableValue<std::string> time_format_{""};
+  bool use_utc_time_{false};
 };
 
 class CalculatedTextRun {

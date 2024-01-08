@@ -1,8 +1,14 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import font, color, sensor, text_sensor
+from esphome.components import font, color, sensor, text_sensor, time
 from esphome.components.display import display_ns
-from esphome.const import CONF_FOREGROUND_COLOR, CONF_BACKGROUND_COLOR, CONF_SENSOR
+from esphome.const import (
+    CONF_FOREGROUND_COLOR,
+    CONF_BACKGROUND_COLOR,
+    CONF_SENSOR,
+    CONF_TIME_ID,
+)
+
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 TextPanel = graphical_layout_ns.class_("TextPanel")
@@ -14,6 +20,8 @@ CONF_TEXT = "text"
 CONF_TEXT_ALIGN = "text_align"
 CONF_TEXT_SENSOR = "text_sensor"
 CONF_TEXT_FORMATTER = "text_formatter"
+CONF_TIME_FORMAT = "time_format"
+CONF_USE_UTC_TIME = "use_utc_time"
 
 TEXT_ALIGN = {
     "TOP_LEFT": TextAlign.TOP_LEFT,
@@ -43,10 +51,15 @@ def get_config_schema(base_item_schema, item_type_schema):
                 cv.Optional(CONF_TEXT_ALIGN): cv.enum(TEXT_ALIGN, upper=True),
                 cv.Optional(CONF_SENSOR): cv.use_id(sensor.Sensor),
                 cv.Optional(CONF_TEXT_SENSOR): cv.use_id(text_sensor.TextSensor),
+                cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+                cv.Optional(CONF_TIME_FORMAT, default="%H:%M"): cv.templatable(
+                    cv.string
+                ),
+                cv.Optional(CONF_USE_UTC_TIME, default=False): cv.boolean,
                 cv.Optional(CONF_TEXT_FORMATTER): cv.returning_lambda,
             }
         ),
-        cv.has_exactly_one_key(CONF_TEXT, CONF_SENSOR, CONF_TEXT_SENSOR),
+        cv.has_exactly_one_key(CONF_TEXT, CONF_SENSOR, CONF_TEXT_SENSOR, CONF_TIME_ID),
     )
 
 
@@ -70,6 +83,15 @@ async def config_to_layout_item(pvariable_builder, item_config, child_item_build
     elif text_sensor_config := item_config.get(CONF_TEXT_SENSOR):
         text_sens = await cg.get_variable(text_sensor_config)
         cg.add(var.set_text_sensor(text_sens))
+    elif time_id_config := item_config.get(CONF_TIME_ID):
+        time_sens = await cg.get_variable(time_id_config)
+        time_format = await cg.templatable(
+            item_config[CONF_TIME_FORMAT], args=[], output_type=cg.std_string
+        )
+        use_utc_time = item_config[CONF_USE_UTC_TIME]
+        cg.add(var.set_time(time_sens))
+        cg.add(var.set_time_format(time_format))
+        cg.add(var.set_use_utc_time(use_utc_time))
     else:
         text = await cg.templatable(
             item_config[CONF_TEXT], args=[], output_type=cg.std_string

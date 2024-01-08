@@ -26,6 +26,11 @@ void TextPanel::dump_config(int indent_depth, int additional_level_depth) {
   if (this->text_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "%*sText Sensor: %s", indent_depth, "", this->text_sensor_->get_name().c_str());
   }
+  if (this->time_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "%*sTime: YES", indent_depth, "");
+    ESP_LOGCONFIG(TAG, "%*sUse UTC Time: %s", indent_depth, "", YESNO(this->use_utc_time_));
+    ESP_LOGCONFIG(TAG, "%*sTime Format: %s", indent_depth, "", this->time_format_.value().c_str());
+  }
   ESP_LOGCONFIG(TAG, "%*sHas Text Formatter: %s", indent_depth, "", YESNO(!this->text_formatter_.has_value()));
 }
 
@@ -46,6 +51,19 @@ void TextPanel::setup_complete() {
   if (this->text_sensor_ != nullptr) {
     // Need to setup the text callback to the TextSensor
     this->text_ = [this]() { return this->text_formatter_.value(this->text_sensor_->get_state()); };
+  }
+
+  if (this->time_ != nullptr) {
+    this->text_ = [this]() {
+      ESPTime time;
+      if (this->use_utc_time_) {
+        time = this->time_->utcnow();
+      } else {
+        time = this->time_->now();
+      }
+
+      return this->text_formatter_.value(time.strftime(this->time_format_.value()));
+    };
   }
 
   if (this->text_input_.has_value()) {

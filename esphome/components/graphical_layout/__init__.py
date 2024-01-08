@@ -16,7 +16,7 @@ ContainerLayoutItem = graphical_layout_ns.class_("ContainerLayoutItem", LayoutIt
 
 CODEOWNERS = ["@MrMDavidson"]
 
-AUTO_LOAD = ["display", "sensor", "text_sensor"]
+AUTO_LOAD = ["display", "sensor", "text_sensor", "time"]
 
 MULTI_CONF = True
 

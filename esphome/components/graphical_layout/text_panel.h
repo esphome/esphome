@@ -7,6 +7,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/components/time/real_time_clock.h"
 
 namespace esphome {
 namespace graphical_layout {
@@ -22,6 +23,9 @@ class TextPanel : public LayoutItem {
   template<typename V> void set_text(V text) { this->text_input_ = text; };
   void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; };
   void set_text_sensor(text_sensor::TextSensor *text_sensor) { this->text_sensor_ = text_sensor; };
+  void set_time(time::RealTimeClock *time) { this->time_ = time; };
+  void set_use_utc_time(bool use_utc_time) { this->use_utc_time_ = use_utc_time; };
+  template<typename V> void set_time_format(V time_format) { this->time_format_ = time_format; };
   template<typename V> void set_text_formatter(V text_formatter) { this->text_formatter_ = text_formatter; };
   void set_font(display::BaseFont *font) { this->font_ = font; };
   void set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; };
@@ -32,6 +36,9 @@ class TextPanel : public LayoutItem {
   TemplatableValue<std::string> text_{};
   sensor::Sensor *sensor_{nullptr};
   text_sensor::TextSensor *text_sensor_{nullptr};
+  time::RealTimeClock *time_{nullptr};
+  bool use_utc_time_{false};
+  TemplatableValue<std::string> time_format_{};
   TemplatableValue<std::string, const std::string> text_formatter_{};
   TemplatableValue<std::string> text_input_{};
   display::BaseFont *font_{nullptr};

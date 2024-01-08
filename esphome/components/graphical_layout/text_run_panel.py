@@ -1,12 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import font, color, sensor, text_sensor
+from esphome.components import font, color, sensor, text_sensor, time
 from esphome.components.display import display_ns
 from esphome.const import (
     CONF_ID,
     CONF_FOREGROUND_COLOR,
     CONF_BACKGROUND_COLOR,
     CONF_SENSOR,
+    CONF_TIME_ID,
 )
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
@@ -16,6 +17,7 @@ TextRunBase = graphical_layout_ns.class_("TextRunBase")
 TextRun = graphical_layout_ns.class_("TextRun", TextRunBase)
 SensorTextRun = graphical_layout_ns.class_("SensorTextRun", TextRunBase)
 TextSensorTextRun = graphical_layout_ns.class_("TextSensorTextRun", TextRunBase)
+TimeTextRun = graphical_layout_ns.class_("TimeTextRun", TextRunBase)
 CanWrapAtCharacterArguments = graphical_layout_ns.struct("CanWrapAtCharacterArguments")
 CanWrapAtCharacterArgumentsConstRef = CanWrapAtCharacterArguments.operator(
     "const"
@@ -32,6 +34,8 @@ CONF_CAN_WRAP_AT_CHARACTER = "can_wrap_at_character"
 CONF_DEBUG_OUTLINE_RUNS = "debug_outline_runs"
 CONF_TEXT_SENSOR = "text_sensor"
 CONF_TEXT_FORMATTER = "text_formatter"
+CONF_TIME_FORMAT = "time_format"
+CONF_USE_UTC_TIME = "use_utc_time"
 
 TEXT_ALIGN = {
     "TOP_LEFT": TextAlign.TOP_LEFT,
@@ -80,10 +84,21 @@ TEXT_SENSOR_TEXT_RUN_SCHEMA = BASE_RUN_SCHEMA.extend(
     }
 )
 
+TIME_TEXT_RUN_SCHEMA = BASE_RUN_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(TimeTextRun),
+        cv.Required(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+        cv.Optional(CONF_TIME_FORMAT, default="%H:%M"): cv.templatable(cv.string),
+        cv.Optional(CONF_USE_UTC_TIME, default=False): cv.boolean,
+        cv.Optional(CONF_TEXT_FORMATTER): cv.returning_lambda,
+    }
+)
+
 RUN_SCHEMA = cv.Any(
     SENSOR_TEXT_RUN_SCHEMA,
     TEXT_RUN_SCHEMA,
     TEXT_SENSOR_TEXT_RUN_SCHEMA,
+    TIME_TEXT_RUN_SCHEMA,
 )
 
 
@@ -136,6 +151,15 @@ async def config_to_layout_item(pvariable_builder, item_config, child_item_build
         elif run_text_sensor_config := run_config.get(CONF_TEXT_SENSOR):
             text_sens = await cg.get_variable(run_text_sensor_config)
             run = cg.new_Pvariable(run_config[CONF_ID], text_sens, run_font)
+        elif run_time_id_config := run_config.get(CONF_TIME_ID):
+            time_sens = await cg.get_variable(run_time_id_config)
+            time_format = await cg.templatable(
+                run_config[CONF_TIME_FORMAT], args=[], output_type=cg.std_string
+            )
+            use_utc_time = run_config[CONF_USE_UTC_TIME]
+            run = cg.new_Pvariable(
+                run_config[CONF_ID], time_sens, time_format, use_utc_time, run_font
+            )
         else:
             run_text = await cg.templatable(
                 run_config[CONF_TEXT], args=[], output_type=cg.std_string
