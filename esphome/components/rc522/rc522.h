@@ -6,6 +6,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
 #include <vector>
+#include <map>
 
 namespace esphome {
 namespace rc522 {
@@ -28,6 +29,7 @@ class RC522 : public PollingComponent {
   void register_ontagremoved_trigger(RC522Trigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
+  void set_gain(uint8_t gain) { this->gain_ = gain; }
 
  protected:
   // Return codes from the functions in this class. Remember to update GetStatusCodeName() if you add more.
@@ -238,6 +240,7 @@ class RC522 : public PollingComponent {
   uint8_t error_counter_ = 0;  // to reset if unresponsive
   uint8_t rx_align_;
   uint8_t *valid_bits_;
+  uint8_t gain_;
 
   GPIOPin *reset_pin_{nullptr};
   uint8_t reset_count_{0};
@@ -246,6 +249,17 @@ class RC522 : public PollingComponent {
   std::vector<RC522Trigger *> triggers_ontag_;
   std::vector<RC522Trigger *> triggers_ontagremoved_;
   std::vector<uint8_t> current_uid_;
+
+  std::map<u_int8_t, std::string> gain_decibels{
+    {0x08, "18 dB"},
+    {0x18, "23 dB"},
+    {0x28, "18 dB"},
+    {0x38, "23 dB"},
+    {0x48, "33 dB"},
+    {0x58, "38 dB"},
+    {0x68, "43 dB"},
+    {0x78, "48 dB"}
+  };
 
   enum RC522Error {
     NONE = 0,
