@@ -251,7 +251,7 @@ class RC522 : public PollingComponent {
   std::vector<uint8_t> current_uid_;
 
   std::map<u_int8_t, std::string> gain_decibels_{{0x08, "18 dB"}, {0x18, "23 dB"}, {0x28, "18 dB"}, {0x38, "23 dB"},
-                                                {0x48, "33 dB"}, {0x58, "38 dB"}, {0x68, "43 dB"}, {0x78, "48 dB"}};
+                                                 {0x48, "33 dB"}, {0x58, "38 dB"}, {0x68, "43 dB"}, {0x78, "48 dB"}};
 
   enum RC522Error {
     NONE = 0,
