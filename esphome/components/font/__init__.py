@@ -235,7 +235,7 @@ FILE_SCHEMA = cv.Schema(_file_schema)
 
 
 DEFAULT_GLYPHS = (
-    ' !"%()+=,-.:/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
+    ' !"%()+=,-.:/?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
 )
 CONF_RAW_GLYPH_ID = "raw_glyph_id"
 
