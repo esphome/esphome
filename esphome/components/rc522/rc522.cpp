@@ -86,7 +86,7 @@ void RC522::initialize_() {
   uint8_t gain_reg_value = ((gain_ & 0x07) << 4) | 0x08;
   pcd_write_register(RF_CFG_REG, gain_reg_value);
 
-  auto it = gain_decibels.find(gain_reg_value);
+  auto it = gain_decibels_.find(gain_reg_value);
   ESP_LOGCONFIG(TAG, "Gain Setting: %d == %s", this->gain_, it->second.c_str());
 
   // TPreScaler = TModeReg[3..0]:TPrescalerReg, ie 0x0A9 = 169 => f_timer=40kHz, ie a timer period of 25μs.
