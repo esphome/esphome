@@ -116,6 +116,8 @@ class GraphTrace {
   void set_line_type(enum LineType val) { this->line_type_ = val; }
   Color get_line_color() { return this->line_color_; }
   void set_line_color(Color val) { this->line_color_ = val; }
+  bool get_connected() { return this->connected_; }
+  void set_connected(bool connected) { this->connected_ = connected; }
   std::string get_name() { return name_; }
   const HistoryData *get_tracedata() { return &data_; }
 
@@ -125,6 +127,7 @@ class GraphTrace {
   uint8_t line_thickness_{3};
   enum LineType line_type_ { LINE_TYPE_SOLID };
   Color line_color_{COLOR_ON};
+  bool connected_{false};
   HistoryData data_;
 
   friend Graph;
