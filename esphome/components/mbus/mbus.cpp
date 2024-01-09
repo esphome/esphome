@@ -79,6 +79,12 @@ void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const
   }
 
   if (command->data == 2) {
+    if (response.variable_data == nullptr) {
+      return;
+    }
+
+    auto secondary_address = response.variable_data->header.get_secondary_address();
+    ESP_LOGD(TAG, "Found a device on secondary address %s.", secondary_address.c_str());
   }
 }
 

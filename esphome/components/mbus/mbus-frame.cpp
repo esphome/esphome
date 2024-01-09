@@ -3,6 +3,7 @@
 
 #include "mbus-frame.h"
 #include "mbus-frame-meta.h"
+#include "mbus-decoder.h"
 
 namespace esphome {
 namespace mbus {
@@ -180,6 +181,7 @@ uint8_t MBusFrame::calc_checksum(MBusFrame &frame) {
   return checksum;
 }
 
+// https://www.miller-alex.de/Mbus
 void MBusFrame::dump() {
   ESP_LOGV(TAG, "MBusFrame");
   switch (this->frame_type) {
@@ -235,22 +237,32 @@ void MBusFrame::dump() {
 void MBusDataVariable::dump() {
   ESP_LOGV(TAG, "\tVariable Data:");
   ESP_LOGV(TAG, "\t Header:");
+
   auto header = &this->header;
-  ESP_LOGV(TAG, "\t  id = %d", header->id);
-  ESP_LOGV(TAG, "\t  manufacturer = %s", header->manufacturer.c_str());
+  auto id = MBusDecoder::decode_bcd_hex(header->id);
+  ESP_LOGV(TAG, "\t  id = %s (%.4d)", format_hex_pretty(header->id, 4).c_str(), id);
+
+  auto manufacturer = MBusDecoder::decode_manufacturer(header->manufacturer);
+  ESP_LOGV(TAG, "\t  manufacturer = %s", manufacturer.c_str());
   ESP_LOGV(TAG, "\t  version = 0x%.2X", header->version);
-  ESP_LOGV(TAG, "\t  medium = 0x%.2X", header->medium);
+  auto medium = MBusDecoder::decode_medium(header->medium);
+  ESP_LOGV(TAG, "\t  medium = %s", medium.c_str());
   ESP_LOGV(TAG, "\t  access no = 0x%.2X", header->access_no);
   ESP_LOGV(TAG, "\t  status = 0x%.2X", header->status);
   ESP_LOGV(TAG, "\t  signature = %s", format_hex_pretty(header->signature, 2).c_str());
   ESP_LOGV(TAG, "\t Records:");
   auto records = &this->records;
   for (auto it = records->begin(); it < records->end(); it++) {
-    ESP_LOGV(TAG, "\t  DIF: 0x%.2X", it->drh.dib.dif);
-    ESP_LOGV(TAG, "\t  DIFE: %s", format_hex_pretty(it->drh.dib.dife).c_str());
-    ESP_LOGV(TAG, "\t  VIF: 0x%.2X", it->drh.vib.vif);
-    ESP_LOGV(TAG, "\t  VIFE: %s", format_hex_pretty(it->drh.vib.vife).c_str());
+    ESP_LOGV(TAG, "\t  DIF: 0x%.2X DIFE: %s VIF: 0x%.2X VIFE: %s Data: %s", it->drh.dib.dif,
+             format_hex_pretty(it->drh.dib.dife).c_str(), it->drh.vib.vif, format_hex_pretty(it->drh.vib.vife).c_str(),
+             format_hex_pretty(it->data).c_str());
   }
+}
+
+std::string MBusDataVariableHeader::get_secondary_address() {
+  auto id = MBusDecoder::decode_bcd_hex(this->id);
+  return str_snprintf("%08lX%02X%02X%02X%02X", 33, id, this->manufacturer[0], this->manufacturer[1], this->version,
+                      this->medium);
 }
 
 }  // namespace mbus

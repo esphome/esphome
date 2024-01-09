@@ -268,8 +268,12 @@ std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_respo
   // -----------------------------------------------------------------------------
   auto header = &response->header;
   std::vector<uint8_t> id(data.begin(), data.begin() + 4);
-  header->id = decode_bcd_hex(id);
-  header->manufacturer = decode_manufacturer(data[4], data[5]);
+  header->id[0] = data[0];
+  header->id[1] = data[1];
+  header->id[2] = data[2];
+  header->id[3] = data[3];
+  header->manufacturer[0] = data[4];
+  header->manufacturer[1] = data[5];
   header->version = data[6];
   header->medium = data[7];
   header->access_no = data[8];
@@ -292,29 +296,47 @@ std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_respo
       continue;
     }
 
+    // The manufacturer data header (MDH) is made up by the character 0Fh or 1Fh
+    // and indicates the beginning of the manufacturer specific part of the user data
+    // and should be omitted, if there is no manufacturer specific data
+    if ((*it & 0xFF) == MBusDataDifBit::DIF_MANUFACTURER_SPECIFIC ||
+        (*it & 0xFF) == MBusDataDifBit::DIF_MORE_RECORDS_FOLLOW) {
+      it++;
+      continue;
+    }
+
     MBusDataRecord record;
 
-    // DIB
-    record.drh.dib.dif = *it;
-    it++;
+    // DIF
+    //    Bit 7         6         5          4       3     2      1     0
+    // ----------------------------------------------------------------------
+    // | Extension | LSB of  |   Function Field  |   Data Field:            |
+    // |    Bit    | storage |                   | Lengh and coding of data |
+    // |           | Number  |                   |                          |
+    // ----------------------------------------------------------------------
 
+    record.drh.dib.dif = *it;
+    // Extension Bit of DIF / DIFE Frame set => next Frame is DIFE
     while (it < data.end() && (*it & MBusDataDifBit::DIF_EXTENSION_BIT)) {
-      record.drh.dib.dife.push_back(*it);
       it++;
+      record.drh.dib.dife.push_back(*it);
     }
+    it++;
 
     // VIB
     record.drh.vib.vif = *it;
-    it++;
+
+    // Extension Bit of VIF / VIFE Frame set => next Frame is VIFE
     while (it < data.end() && (*it & MBusDataDifBit::VIF_EXTENSION_BIT)) {
-      record.drh.dib.dife.push_back(*it);
       it++;
+      record.drh.vib.vife.push_back(*it);
     }
+    it++;
 
-    record.data.insert(record.data.begin(), it, data.end());
-    it = data.end();
+    auto data_len = get_dif_datalength(record.drh.dib.dif, it);
+    record.data.insert(record.data.begin(), it, it + data_len);
+    it = it + data_len;
 
-    auto data_len = get_dif_datalength(record.drh.dib.dif);
     response->records.push_back(record);
   }
 
@@ -322,7 +344,7 @@ std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_respo
   return response_ptr;
 }
 
-uint8_t MBusProtocolHandler::get_dif_datalength(const uint8_t dif) {
+int8_t MBusProtocolHandler::get_dif_datalength(const uint8_t dif, std::vector<uint8_t>::iterator &it) {
   static const uint8_t DIF_DATA_LENGTH_MASK = 0x0F;
   switch (dif & DIF_DATA_LENGTH_MASK) {
     case 0x0:
@@ -351,73 +373,40 @@ uint8_t MBusProtocolHandler::get_dif_datalength(const uint8_t dif) {
       return 3;
     case 0xC:
       return 4;
-    case 0xD:
+    case 0xD: {
       // variable data length,
       // data length stored in data field
+      uint8_t data_1 = *it;
+      it++;
+
+      if (data_1 <= 0xBF) {
+        // ASCII string with LVAR characters
+        return data_1;
+      } else if (data_1 >= 0xC0 && data_1 <= 0xCF) {
+        // positive BCD number with (LVAR - C0h) • 2 digits
+        return (data_1 - 0xC0) * 2;
+      } else if (data_1 >= 0xD0 && data_1 <= 0xDF) {
+        // negative BCD number with (LVAR - D0h) • 2 digits
+        (data_1 - 0xD0) * 2;
+      } else if (data_1 >= 0xE0 && data_1 <= 0xEF) {
+        // binary number with (LVAR - E0h) bytes
+        return data_1 - 0xE0;
+      } else if (data_1 >= 0xF0 && data_1 <= 0xFA) {
+        // floating point number with (LVAR - F0h) bytes [to be defined]
+        return data_1 - 0xF0;
+      }
+
+      ESP_LOGE(TAG, "get_dif_datalength(): invalid mask = %d", data_1);
       return 0;
+    }
     case 0xE:
       return 6;
     case 0xF:
       return 8;
     default:  // never reached
+      ESP_LOGE(TAG, "Invalid value for diff data length = %d", dif & DIF_DATA_LENGTH_MASK);
       return 0x0;
   }
-}
-
-uint64_t MBusProtocolHandler::decode_bcd_hex(std::vector<uint8_t> &bcd_data) {
-  uint64_t val = 0;
-  size_t i;
-
-  if (bcd_data.size() == 0) {
-    return -1;
-  }
-  for (i = bcd_data.size(); i > 0; i--) {
-    val = (val << 8) | bcd_data[i - 1];
-  }
-
-  return val;
-}
-
-std::string MBusProtocolHandler::decode_manufacturer(uint8_t byte1, uint8_t byte2) {
-  int16_t m_id;
-  std::vector<uint8_t> m_bytes{byte1, byte2};
-  decode_int(m_bytes, &m_id);
-
-  uint8_t m_str[4];
-  m_str[0] = (char) (((m_id >> 10) & 0x001F) + 64);
-  m_str[1] = (char) (((m_id >> 5) & 0x001F) + 64);
-  m_str[2] = (char) (((m_id) &0x001F) + 64);
-  m_str[3] = 0;
-
-  std::string manufacturer((char *) m_str);
-  return manufacturer;
-}
-
-uint8_t MBusProtocolHandler::decode_int(std::vector<uint8_t> &data, int16_t *value) {
-  size_t i;
-  int neg;
-  *value = 0;
-
-  auto data_size = data.size();
-  if (data_size < 1) {
-    return -1;
-  }
-
-  neg = data[data_size - 1] & 0x80;
-
-  for (i = data_size; i > 0; i--) {
-    if (neg) {
-      *value = (*value << 8) + (data[i - 1] ^ 0xFF);
-    } else {
-      *value = (*value << 8) + data[i - 1];
-    }
-  }
-
-  if (neg) {
-    *value = *value * -1 - 1;
-  }
-
-  return 0;
 }
 
 }  // namespace mbus

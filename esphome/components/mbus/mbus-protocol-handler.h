@@ -31,12 +31,7 @@ class MBusProtocolHandler {
   // Parsing
   std::unique_ptr<MBusFrame> parse_response();
   std::unique_ptr<MBusDataVariable> parse_variable_data_response(std::vector<uint8_t> data);
-  uint8_t get_dif_datalength(const uint8_t dif);
-
-  // Decoder
-  uint64_t decode_bcd_hex(std::vector<uint8_t> &bcd_data);
-  std::string decode_manufacturer(uint8_t byte1, uint8_t byte2);
-  uint8_t decode_int(std::vector<uint8_t> &data, int16_t *value);
+  int8_t get_dif_datalength(const uint8_t dif, std::vector<uint8_t>::iterator &it);
 
   // Helper
   void delete_first_command();

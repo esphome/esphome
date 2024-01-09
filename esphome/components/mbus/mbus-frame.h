@@ -52,6 +52,8 @@ class MBusDataDifBit {
   static const uint8_t DIF_EXTENSION_BIT = 0x80;
   static const uint8_t VIF_EXTENSION_BIT = 0x80;
   static const uint8_t DIF_IDLE_FILLER = 0x2F;
+  static const uint8_t DIF_MANUFACTURER_SPECIFIC = 0x0F;
+  static const uint8_t DIF_MORE_RECORDS_FOLLOW = 0x1F;
 };
 
 // DIF (Data Information Field)
@@ -100,13 +102,15 @@ class MBusDataRecord {
 // 4 Byte BCD  2 Byte  1 Byte  1 Byte   1 Byte   1 Byte  2 Byte
 class MBusDataVariableHeader {
  public:
-  uint64_t id;
-  std::string manufacturer;
+  uint8_t id[4];
+  uint8_t manufacturer[2];
   uint8_t version;
   uint8_t medium;
   uint8_t access_no;
   uint8_t status;
   uint8_t signature[2];
+
+  std::string get_secondary_address();
 };
 
 class MBusDataVariable {
@@ -114,25 +118,13 @@ class MBusDataVariable {
   MBusDataVariableHeader header;
   std::vector<MBusDataRecord> records;
 
-  uint8_t more_records_follow;
+  // uint8_t more_records_follow;
 
   // are these needed/used?
   // uint8_t mdh;
   // std::vector<uint8_t> mfg_data;
 
   void dump();
-};
-
-// Ident.Nr.   Access No.  Status  Medium/Unit Counter 1   Counter 2
-// 4 Byte BCD   1 Byte     1 Byte     2 Byte    4 Byte      4 Byte
-class MBusDataFixed {
- public:
-  uint64_t id;
-  uint8_t access_no;
-  uint8_t status;
-  uint16_t medium_unit;
-  uint64_t cnt1;
-  uint64_t cnt2;
 };
 
 }  // namespace mbus
