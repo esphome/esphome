@@ -87,7 +87,7 @@ esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
   std::string post_query;
   if (r->content_len > 0) {
     post_query.resize(r->content_len);
-    const int ret = httpd_req_recv(r, post_query.data(), post_query.size());
+    const int ret = httpd_req_recv(r, &post_query[0], r->content_len + 1);
     if (ret <= 0) {  // 0 return value indicates connection closed
       if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
         httpd_resp_send_err(r, HTTPD_408_REQ_TIMEOUT, nullptr);
