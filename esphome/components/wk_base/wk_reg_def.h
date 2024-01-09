@@ -3,7 +3,9 @@
 /// @brief  WK family registers definition: WK2168 / WK2132
 
 #pragma once
-#include "stdint.h"
+
+namespace esphome {
+namespace wk_base {
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /// Definition of the WK2168 registers
@@ -295,3 +297,5 @@ constexpr uint8_t WKREG_TFI = 0x08;
 
 /// @}
 /// @}
+}  // namespace wk_base
+}  // namespace esphome
