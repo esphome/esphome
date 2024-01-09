@@ -87,14 +87,13 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   int16_t no_response_count_ = 0;
   std::string buffer_;
 
-  // same command for RG9 and RG15(if units and resolution are not forced ie use DIP switches)
+  // same command for RG9 and RG15
   char rgxx_setup_[10] = "P\n";
 
   RGModel model_ = RG9;
 
-  // by default use DIP switchs for units and resolution - only applies to RG15
-  RG15ForceUnits force_units_ = USE_DIP1;
-  RG15ForceResolution force_resolution_ = USE_DIP2;
+  RG15ForceUnits force_units_ = FORCE_MM;
+  RG15ForceResolution force_resolution_ = FORCE_HIGH;
 
   int sw_version_ = 0;
   bool too_cold_ = false;

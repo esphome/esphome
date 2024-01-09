@@ -90,10 +90,10 @@ CONFIG_SCHEMA = cv.All(
                 upper=True,
                 space="_",
             ),
-            cv.Optional(CONF_FORCE_UNITS, default="dip1"): cv.enum(
+            cv.Optional(CONF_FORCE_UNITS, default="mm"): cv.enum(
                 RG15_FORCE_UNITS, upper=False
             ),
-            cv.Optional(CONF_FORCE_RESOLUTION, default="dip2"): cv.enum(
+            cv.Optional(CONF_FORCE_RESOLUTION, default="high"): cv.enum(
                 RG15_FORCE_RESOLUTION, upper=False
             ),
             cv.Optional(CONF_ACC): sensor.sensor_schema(

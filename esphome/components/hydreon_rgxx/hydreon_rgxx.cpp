@@ -24,16 +24,16 @@ void HydreonRGxxComponent::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Model: RG15");
     if (force_units_ == FORCE_MM) {
-      ESP_LOGCONFIG(TAG, "  Force Units: millimeter");
+      ESP_LOGCONFIG(TAG, "  Units: millimeter");
     } else if (force_units_ == FORCE_INCH) {
-      ESP_LOGCONFIG(TAG, "  Force Units: inch");
+      ESP_LOGCONFIG(TAG, "  Units: inch");
     } else {
       ESP_LOGD(TAG, "  Units: DIP switch 1 position");
     }
     if (force_resolution_ == FORCE_LOW) {
-      ESP_LOGCONFIG(TAG, "  Force Resolution: low");
+      ESP_LOGCONFIG(TAG, "  Resolution: low");
     } else if (force_resolution_ == FORCE_HIGH) {
-      ESP_LOGCONFIG(TAG, "  Force Resolution: high");
+      ESP_LOGCONFIG(TAG, "  Resolution: high");
     } else {
       ESP_LOGD(TAG, "  Resolution: DIP switch 2 position");
     }
