@@ -22,6 +22,7 @@ RESPONSE_BIN_MD5_OK = 67
 RESPONSE_RECEIVE_OK = 68
 RESPONSE_UPDATE_END_OK = 69
 RESPONSE_SUPPORTS_COMPRESSION = 70
+RESPONSE_CHUNK_OK = 71
 
 RESPONSE_ERROR_MAGIC = 128
 RESPONSE_ERROR_UPDATE_PREPARE = 129
@@ -38,6 +39,7 @@ RESPONSE_ERROR_MD5_MISMATCH = 139
 RESPONSE_ERROR_UNKNOWN = 255
 
 OTA_VERSION_1_0 = 1
+OTA_VERSION_1_1 = 2
 
 MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 
@@ -203,7 +205,7 @@ def perform_ota(
     send_check(sock, MAGIC_BYTES, "magic bytes")
 
     _, version = receive_exactly(sock, 2, "version", RESPONSE_OK)
-    if version != OTA_VERSION_1_0:
+    if version != OTA_VERSION_1_0 and version != OTA_VERSION_1_1:
         raise OTAError(f"Unsupported OTA version {version}")
 
     # Features
@@ -279,6 +281,8 @@ def perform_ota(
 
         try:
             sock.sendall(chunk)
+            if version >= OTA_VERSION_1_1:
+                receive_exactly(sock, 1, "chunk OK", RESPONSE_CHUNK_OK)
         except OSError as err:
             sys.stderr.write("\n")
             raise OTAError(f"Error sending data: {err}") from err

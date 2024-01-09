@@ -21,7 +21,7 @@ namespace ota {
 
 static const char *const TAG = "ota";
 
-static const uint8_t OTA_VERSION_1_0 = 1;
+static const uint8_t OTA_VERSION_1_1 = 2;
 
 OTAComponent *global_ota_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -168,7 +168,7 @@ void OTAComponent::handle_() {
 
   // Send OK and version - 2 bytes
   buf[0] = OTA_RESPONSE_OK;
-  buf[1] = OTA_VERSION_1_0;
+  buf[1] = OTA_VERSION_1_1;
   this->writeall_(buf, 2);
 
   backend = make_ota_backend();
@@ -312,6 +312,9 @@ void OTAComponent::handle_() {
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     total += read;
+    
+    buf[0] = OTA_RESPONSE_CHUNK_OK;
+    this->writeall_(buf, 1);
 
     uint32_t now = millis();
     if (now - last_progress > 1000) {
