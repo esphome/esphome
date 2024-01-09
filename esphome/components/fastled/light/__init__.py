@@ -88,18 +88,8 @@ def validate_gpio_output_pin_number(value):
     return pins.internal_gpio_output_pin_number(value)
 
 
-BASE_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
-    {
-        cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(FastLEDLightOutput),
-        cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
-        cv.Optional(CONF_RGB_ORDER): cv.one_of(*RGB_ORDERS, upper=True),
-        cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
-    }
-).extend(cv.COMPONENT_SCHEMA)
-
-
 CONFIG_SCHEMA = cv.All(
-    BASE_SCHEMA.extend(
+    light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(FastLEDLightOutput),
             cv.Required(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
@@ -111,7 +101,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CLOCK_PIN, default=-1): validate_gpio_output_pin_number,
             cv.Optional(CONF_DATA_RATE): cv.frequency,
         }
-    ),
+    ).extend(cv.COMPONENT_SCHEMA),
     _validate,
     cv.only_with_arduino,
 )
