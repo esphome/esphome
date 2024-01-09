@@ -78,7 +78,6 @@ void FT63X6Touchscreen::update_touches() {
     touch_id = data[FT63X6_ADDR_TOUCH1_ID] >> 4;  // id1 = 0 or 1
     x = encode_uint16(data[FT63X6_ADDR_TOUCH1_X] & 0x0F, data[FT63X6_ADDR_TOUCH1_X + 1]);
     y = encode_uint16(data[FT63X6_ADDR_TOUCH1_Y] & 0x0F, data[FT63X6_ADDR_TOUCH1_Y + 1]);
-    // ESP_LOGV(TAG, "Add Touch A: id:%3d (x:%4d, y:%4d) %x", touch_id, x, y, (data[0x03] >> 6) & 0x01);
     this->add_raw_touch_position_(touch_id, x, y);
   }
   if (((data[FT63X6_ADDR_TOUCH2_STATE] >> 6) & 0x01) == 0) {
