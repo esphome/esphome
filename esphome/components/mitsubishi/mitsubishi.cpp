@@ -79,7 +79,7 @@ climate::ClimateTraits MitsubishiClimate::traits() {
       {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH});
   if (this->fan_mode_ == MITSUBISHI_FAN_Q4L)
     traits.add_supported_fan_mode(climate::CLIMATE_FAN_QUIET);
-  if (/*this->fan_mode_ == MITSUBISHI_FAN_5L ||*/ this->fan_mode_ == MITSUBISHI_FAN_Q4L)
+  if (/*this->fan_mode_ == MITSUBISHI_FAN_5L ||*/ this->fan_mode_ >= MITSUBISHI_FAN_4L)
     traits.add_supported_fan_mode(climate::CLIMATE_FAN_MIDDLE);  // Shouldn't be used for this but it helps
 
   traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
