@@ -31,11 +31,11 @@ class Rtttl : public Component {
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
 #endif
-  void set_gain(double gain) {
-    if (gain < 0.1)
-      gain = 0.1;
-    if (gain > 1)
-      gain = 1;
+  void set_gain(float gain) {
+    if (gain < 0.1f)
+      gain = 0.1f;
+    if (gain > 1.0f)
+      gain = 1.0f;
     this->gain_ = gain;
   }
   void play(std::string rtttl);
