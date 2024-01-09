@@ -67,7 +67,7 @@ class Rtttl : public Component {
   uint16_t note_duration_;
 
   uint32_t output_freq_;
-  double gain_{0.5};
+  float gain_{0.5f};
 
 #ifdef USE_OUTPUT
   output::FloatOutput *output_;
