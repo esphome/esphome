@@ -122,9 +122,10 @@ void WKBaseComponent::loop() {
     // we look if some characters has been received in the fifo
     transferred += child->xfer_fifo_to_buffer_();
   }
-  if ((test_mode_ > 0) && (transferred > 0))
+  if ((test_mode_ > 0) && (transferred > 0)) {
     ESP_LOGI(TAG, "we transferred %d bytes from fifo to buffer - execution time %d ms...", transferred,
              elapsed_ms(time));
+  }
 
 #ifdef TEST_COMPONENT
   if (test_mode_ == 1) {  // test component in loopback
