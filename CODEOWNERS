@@ -369,7 +369,7 @@ esphome/components/whirlpool/* @glmnet
 esphome/components/whynter/* @aeonsablaze
 esphome/components/wiegand/* @ssieb
 esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard
-esphome/components/wk2132/* @DrCoolZic
+esphome/components/wk_base/* @DrCoolZic
 esphome/components/wk2132_i2c/* @DrCoolZic
 esphome/components/wk2132_spi/* @DrCoolZic
 esphome/components/wl_134/* @hobbypunk90
