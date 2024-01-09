@@ -166,7 +166,35 @@ jobs:
 
   pytest:
     name: Run pytest
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+        os:
+          - ubuntu-latest
+          - macOS-latest
+          - windows-latest
+        exclude:
+          # Minimize CI resource usage
+          # by only running the Python version
+          # version used for docker images on Windows and macOS
+          - python-version: "3.12"
+            os: windows-latest
+          - python-version: "3.10"
+            os: windows-latest
+          - python-version: "3.9"
+            os: windows-latest
+          - python-version: "3.12"
+            os: macOS-latest
+          - python-version: "3.10"
+            os: macOS-latest
+          - python-version: "3.9"
+            os: macOS-latest
+    runs-on: ${{ matrix.os }}
     needs:
       - common
     steps:
@@ -175,14 +203,24 @@ jobs:
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
+          python-version: ${{ matrix.python-version }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run pytest
+        if: matrix.os == 'windows-latest'
+        run: |
+          ./venv/Scripts/activate
+          pytest -vv --cov-report=xml --tb=native tests
+      - name: Run pytest
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
         run: |
           . venv/bin/activate
-          pytest -vv --tb=native tests
+          pytest -vv --cov-report=xml --tb=native tests
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   clang-format:
     name: Check clang-format
