@@ -46,17 +46,17 @@ float get_gain_coeff(Gain gain) {
   return GAIN_FLOAT[gain & 0b11];
 }
 
-const char *get_gain_str(Gain gain_) {
-  static const char *GAIN_STR[GAINS_COUNT] = {"x1", "x2", "x1/8", "x1/4"};
-  return GAIN_STR[gain_ & 0b11];
+const char *get_gain_str(Gain gain) {
+  static const char *gain_str[GAINS_COUNT] = {"1x", "2x", "1/8x", "1/4x"};
+  return gain_str[gain & 0b11];
 }
 
-float get_lux_resolution_(IntegrationTime time, Gain gain) {
+float get_lux_resolution(IntegrationTime time, Gain gain) {
   static const float MAX_GAIN = 2.0f;
   static const float MAX_ITIME_MS = 800.0f;
   static const float MAX_LX_RESOLUTION = 0.0036f;
   float res = (MAX_ITIME_MS / get_itime_ms(time)) * (MAX_GAIN / get_gain_coeff(gain)) * MAX_LX_RESOLUTION;
-  ESP_LOGD(TAG, "get_lux_resolution_(%d, %s) = %.4f ", get_itime_ms(time), get_gain_str(gain), res);
+  ESP_LOGD(TAG, "get_lux_resolution(%d, %s) = %.4f ", get_itime_ms(time), get_gain_str(gain), res);
 
   return res;
 }
@@ -77,10 +77,12 @@ void VEML7700Component::apply_lux_compensation_(Readings &data) {
   // This non-linearity is the same for all sensors, so a compensation formula can be applied
   // if this light level is exceeded"
 
-  if (data.als_lux > 1000.0f || data.actual_gain == Gain::X_1_8 || data.actual_gain == Gain::X_1_4)
+  if (data.als_lux > 1000.0f || data.actual_gain == Gain::X_1_8 || data.actual_gain == Gain::X_1_4) {
     data.als_lux = calculate_high_lux_compensation(data.als_lux);
-  if (data.white_lux > 1000.0f || data.actual_gain == Gain::X_1_8 || data.actual_gain == Gain::X_1_4)
+  }
+  if (data.white_lux > 1000.0f || data.actual_gain == Gain::X_1_8 || data.actual_gain == Gain::X_1_4) {
     data.white_lux = calculate_high_lux_compensation(data.white_lux);
+  }
   ESP_LOGD(TAG, "Lux compensation - ALS = %.1f lux, WHITE = %.1f lux", data.als_lux, data.white_lux);
 }
 
@@ -114,23 +116,29 @@ bool VEML7700Component::read_data_() {
   this->apply_lux_compensation_(data);
   this->apply_glass_attenuation_(data);
 
-  if (this->ambient_light_sensor_ != nullptr)
+  if (this->ambient_light_sensor_ != nullptr) {
     this->ambient_light_sensor_->publish_state(data.als_lux);
+  }
 
-  if (this->ambient_light_counts_sensor_ != nullptr)
+  if (this->ambient_light_counts_sensor_ != nullptr) {
     this->ambient_light_counts_sensor_->publish_state(data.als_counts);
+  }
 
-  if (this->white_sensor_ != nullptr)
+  if (this->white_sensor_ != nullptr) {
     this->white_sensor_->publish_state(data.white_lux);
+  }
 
-  if (this->white_counts_sensor_ != nullptr)
+  if (this->white_counts_sensor_ != nullptr) {
     this->white_counts_sensor_->publish_state(data.white_counts);
+  }
 
-  if (this->actual_gain_sensor_ != nullptr)
+  if (this->actual_gain_sensor_ != nullptr) {
     this->actual_gain_sensor_->publish_state(get_gain_coeff(data.actual_gain));
+  }
 
-  if (this->actual_integration_time_sensor_ != nullptr)
+  if (this->actual_integration_time_sensor_ != nullptr) {
     this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.actual_time));
+  }
 
   return true;
 }
@@ -145,7 +153,7 @@ ErrorCode VEML7700Component::read_data_manual_(Readings &data) {
     return err;
   }
 
-  float lux_resolution = get_lux_resolution_(this->integration_time_, this->gain_);
+  float lux_resolution = get_lux_resolution(this->integration_time_, this->gain_);
   data.als_lux = lux_resolution * (float) data.als_counts;
   data.white_lux = lux_resolution * (float) data.white_counts;
   data.actual_time = this->integration_time_;
@@ -171,8 +179,6 @@ ErrorCode VEML7700Component::read_data_automatic_(Readings &data) {
 
   IntegrationTime time_selected = times[time_idx];
   Gain gain_selected = gains[gain_idx];
-
-  bool luxCorrectionRequired = false;  // required for 1/8 + high intensity
 
   this->reconfigure_time_and_gain_(time_selected, gain_selected);
   this->read_device_counts_(data.als_counts, data.white_counts);
@@ -205,7 +211,7 @@ ErrorCode VEML7700Component::read_data_automatic_(Readings &data) {
       this->read_device_counts_(data.als_counts, data.white_counts);
     }
   }
-  float lux_resolution = get_lux_resolution_(time_selected, gain_selected);
+  float lux_resolution = get_lux_resolution(time_selected, gain_selected);
   data.als_lux = lux_resolution * (float) data.als_counts;
   data.white_lux = lux_resolution * (float) data.white_counts;
   data.actual_time = time_selected;

@@ -5,10 +5,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 
-using esphome::i2c::ErrorCode;
-
 namespace esphome {
 namespace veml7700 {
+
+using esphome::i2c::ErrorCode;
 
 // https://www.vishay.com/docs/84286/veml7700.pdf
 
@@ -22,6 +22,7 @@ enum CommandRegisters : uint8_t {
   CR_ALS_INT = 0x06      // R: ALS INT trigger event
 };
 
+#pragma pack(push)
 #pragma pack(1)
 //
 // VEML7700_CR_ALS_CONF_0 Register (0x00)
@@ -59,7 +60,7 @@ union PSMRegister {
   };
 };
 
-#pragma pack(0)
+#pragma pack(pop)
 
 // Sensor gain levels
 enum Gain : uint8_t {
@@ -124,7 +125,6 @@ class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
     float white_lux{0};
   };
 
- protected:
   ErrorCode configure_();
   ErrorCode reconfigure_time_and_gain_(IntegrationTime time, Gain gain);
 
