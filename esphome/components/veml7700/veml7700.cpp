@@ -308,20 +308,24 @@ void VEML7700Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Attenuation factor: %f", this->attenuation_factor_);
   LOG_UPDATE_INTERVAL(this);
 
-  if (this->ambient_light_sensor_ != nullptr)
+  if (this->ambient_light_sensor_ != nullptr) {
     LOG_SENSOR("  ", "ALS channel lux", this->ambient_light_sensor_);
-  if (this->ambient_light_sensor_ != nullptr)
+  }
+  if (this->ambient_light_sensor_ != nullptr) {
     LOG_SENSOR("  ", "ALS channel counts", this->ambient_light_counts_sensor_);
-  if (this->white_sensor_ != nullptr)
+  }
+  if (this->white_sensor_ != nullptr) {
     LOG_SENSOR("  ", "WHITE channel lux", this->white_sensor_);
-  if (this->white_counts_sensor_ != nullptr)
+  }
+  if (this->white_counts_sensor_ != nullptr) {
     LOG_SENSOR("  ", "WHITE channel counts", this->white_counts_sensor_);
-
-  if (this->actual_gain_sensor_ != nullptr)
+  }
+  if (this->actual_gain_sensor_ != nullptr) {
     LOG_SENSOR("  ", "Actual gain", this->actual_gain_sensor_);
-  if (this->actual_integration_time_sensor_ != nullptr)
+  }
+  if (this->actual_integration_time_sensor_ != nullptr) {
     LOG_SENSOR("  ", "Actual integration time", this->actual_integration_time_sensor_);
-
+  }
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with I2C VEML-7700 failed!");
   }
