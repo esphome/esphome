@@ -1370,6 +1370,21 @@ sensor:
       name: tsl2591 calculated_lux
       id: tsl2591_cl
     i2c_id: i2c_bus
+  - platform: veml7700
+    address: 0x10
+    ambient_light:
+      name: "Ambient light"
+    ambient_light_counts:
+      name: "Ambient light counts"
+    full_spectrum:
+      name: "Full spectrum"
+    full_spectrum_counts:
+      name: "Full spectrum counts"
+    actual_integration_time:
+      name: "Actual integration time"
+    actual_gain:
+      name: "Actual gain"
+    i2c_id: i2c_bus
   - platform: tee501
     name: Office Temperature 3
     address: 0x48
