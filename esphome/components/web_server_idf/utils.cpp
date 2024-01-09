@@ -48,7 +48,7 @@ optional<std::string> request_get_header(httpd_req_t *req, const char *name) {
     return {};
   }
 
-  return {std::move(str)};
+  return {str};
 }
 
 optional<std::string> request_get_url_query(httpd_req_t *req) {
@@ -66,7 +66,7 @@ optional<std::string> request_get_url_query(httpd_req_t *req) {
     return {};
   }
 
-  return {std::move(str)};
+  return {str};
 }
 
 optional<std::string> query_key_value(const std::string &query_url, const std::string &key) {
