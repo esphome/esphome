@@ -210,7 +210,6 @@ void Display::menu(int x, int y, graphical_display_menu::GraphicalDisplayMenu *m
 
 #ifdef USE_GRAPHICAL_LAYOUT
 void Display::render_layout(int x, int y, graphical_layout::RootLayoutComponent *layout) {
-  display::Rect b2(x, y, 100, 100);
   layout->render_at(this, x, y);
 }
 #endif
