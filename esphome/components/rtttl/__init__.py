@@ -39,7 +39,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_ID): cv.declare_id(Rtttl),
             cv.Optional(CONF_OUTPUT): cv.use_id(FloatOutput),
             cv.Optional(CONF_SPEAKER): cv.use_id(Speaker),
-            cv.Optional(CONF_GAIN, default="0.5"): cv.float_range(0.1, 1),
+            cv.Optional(CONF_GAIN, default="0.6"): cv.percentage,
             cv.Optional(CONF_ON_FINISHED_PLAYBACK): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
