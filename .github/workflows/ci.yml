@@ -183,13 +183,13 @@ jobs:
           # by only running the Python version
           # version used for docker images on Windows and macOS
           - python-version: "3.12"
-            os: windows-latest          
+            os: windows-latest
           - python-version: "3.10"
             os: windows-latest
           - python-version: "3.9"
             os: windows-latest
           - python-version: "3.12"
-            os: macOS-latest            
+            os: macOS-latest
           - python-version: "3.10"
             os: macOS-latest
           - python-version: "3.9"
