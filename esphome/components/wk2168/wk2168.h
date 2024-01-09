@@ -8,8 +8,6 @@
 namespace esphome {
 namespace wk2168 {
 
-class WK2168Channel : public wk_base::WKBaseChannel {};
-
 ////////////////////////////////////////////////////////////////////////////////////
 /// @brief The WK2168Component class stores the information global to the WK2168 component
 /// and provides methods to set/access this information.

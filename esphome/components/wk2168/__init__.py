@@ -18,8 +18,9 @@ CONF_UART = "uart"
 CONF_TEST_MODE = "test_mode"
 
 wk2168_ns = cg.esphome_ns.namespace("wk2168")
+wk_base_ns = cg.esphome_ns.namespace("wk_base")
 WK2168Component = wk2168_ns.class_("WK2168Component", cg.Component)
-WK2168Channel = wk2168_ns.class_("WK2168Channel", uart.UARTComponent)
+WKBaseChannel = wk_base_ns.class_("WKBaseChannel", uart.UARTComponent)
 
 
 def post_check_conf_wk2168(value):
@@ -42,7 +43,7 @@ WK2168_SCHEMA = cv.Schema(
         cv.Optional(CONF_TEST_MODE, default=0): cv.int_,
         cv.Required(CONF_UART): cv.ensure_list(
             {
-                cv.Required(CONF_UART_ID): cv.declare_id(WK2168Channel),
+                cv.Required(CONF_UART_ID): cv.declare_id(WKBaseChannel),
                 cv.Optional(CONF_CHANNEL, default=0): cv.int_range(min=0, max=3),
                 cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
                 cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
