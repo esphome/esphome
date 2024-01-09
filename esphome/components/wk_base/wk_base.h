@@ -391,6 +391,10 @@ class WKBaseChannel : public uart::UARTComponent {
   /// @return number of bytes transferred
   size_t xfer_fifo_to_buffer_();
 
+  /// @brief check if channel is alive
+  /// @return true if OK
+  bool virtual check_channel_down();
+
 #ifdef TEST_COMPONENT
   /// @defgroup test_ Test component information
   /// This group contains information about the test of the component

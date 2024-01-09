@@ -168,6 +168,10 @@ void WKBaseComponent::loop() {
 void WKBaseChannel::setup_channel() {
   ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s ...", this->parent_->get_name(), this->get_channel_name());
   // we enable transmit and receive on this channel
+  if (this->check_channel_down()) {
+    ESP_LOGCONFIG(TAG, "  Error channel %s not working...", this->get_channel_name());
+  }
+
   this->reg_(WKREG_SCR) = SCR_RXEN | SCR_TXEN;
   this->reset_fifo_();
   this->receive_buffer_.clear();
@@ -270,6 +274,24 @@ size_t WKBaseChannel::rx_in_fifo_() {
   }
   ESP_LOGVV(TAG, "rx FIFO contain %d bytes - FSR status=%s", available, I2CS(fsr));
   return available;
+}
+
+bool WKBaseChannel::check_channel_down() {
+  // to check if we channel is up we write to the LCR W/R register
+  WKBaseRegister &lcr = this->reg_(WKREG_LCR);
+  lcr = 0x3F;
+  uint8_t val = lcr;
+  if (val != 0x3F) {
+    ESP_LOGE(TAG, "R/W of LCR failed expected 0x3F received 0x%02X", val);
+    return true;
+  }
+  lcr = 0;
+  val = lcr;
+  if (val != 0x00) {
+    ESP_LOGE(TAG, "R/W of LCR failed expected 0x00 received 0x%02X", val);
+    return true;
+  }
+  return false;
 }
 
 bool WKBaseChannel::peek_byte(uint8_t *buffer) {
