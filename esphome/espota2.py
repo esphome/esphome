@@ -205,7 +205,7 @@ def perform_ota(
     send_check(sock, MAGIC_BYTES, "magic bytes")
 
     _, version = receive_exactly(sock, 2, "version", RESPONSE_OK)
-    if version != OTA_VERSION_1_0 and version != OTA_VERSION_1_1:
+    if version not in (OTA_VERSION_1_0, OTA_VERSION_1_1):
         raise OTAError(f"Unsupported OTA version {version}")
 
     # Features

@@ -312,7 +312,6 @@ void OTAComponent::handle_() {
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     total += read;
-    
     buf[0] = OTA_RESPONSE_CHUNK_OK;
     this->writeall_(buf, 1);
 
