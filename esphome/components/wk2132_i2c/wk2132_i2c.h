@@ -1,11 +1,11 @@
 /// @file wk2132_i2c.h
 /// @author DrCoolZic
-/// @brief  wk2132 classes declaration
+/// @brief  wk_base classes declaration
 
 #pragma once
 #include <bitset>
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/wk2132/wk2132.h"
+#include "esphome/components/wk_base/wk_base.h"
 
 namespace esphome {
 namespace wk2132_i2c {
@@ -15,7 +15,7 @@ class WK2132ComponentI2C;
 ////////////////////////////////////////////////////////////////////////////////////
 // class WK2132ComponentI2C
 ////////////////////////////////////////////////////////////////////////////////////
-class WK2132RegI2C : public wk2132::WK2132Reg {
+class WK2132RegI2C : public wk_base::WKBaseRegister {
  public:
   uint8_t read_reg() const override;
   void write_reg(uint8_t value) override;
@@ -24,15 +24,16 @@ class WK2132RegI2C : public wk2132::WK2132Reg {
 
  protected:
   friend WK2132ComponentI2C;
-  WK2132RegI2C(wk2132::WK2132Component *const comp, uint8_t reg, uint8_t channel) : WK2132Reg(comp, reg, channel) {}
+  WK2132RegI2C(wk_base::WKBaseComponent *const comp, uint8_t reg, uint8_t channel)
+      : WKBaseRegister(comp, reg, channel) {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
 // class WK2132ComponentI2C
 ////////////////////////////////////////////////////////////////////////////////////
-class WK2132ComponentI2C : public wk2132::WK2132Component, public i2c::I2CDevice {
+class WK2132ComponentI2C : public wk_base::WKBaseComponent, public i2c::I2CDevice {
  public:
-  wk2132::WK2132Reg &reg(uint8_t reg, uint8_t channel) override {
+  wk_base::WKBaseRegister &reg(uint8_t reg, uint8_t channel) override {
     reg_i2c_.register_ = reg & 0x0F;
     reg_i2c_.channel_ = channel & 0x01;
     return reg_i2c_;

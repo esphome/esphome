@@ -1,9 +1,9 @@
 /// @file wk2132_spi.cpp
 /// @author DrCoolzic
-/// @brief wk2132 classes implementation
+/// @brief wk_base classes implementation
 
 #include "wk2132_spi.h"
-// #include "esphome/components/wk2132/wk2132.h"
+// #include "esphome/components/wk_base/wk_base.h"
 
 namespace esphome {
 namespace wk2132_spi {
@@ -93,18 +93,18 @@ void WK2132RegisterSPI::write_fifo(uint8_t *data, size_t length) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WK2132Component methods
+// The WKBaseComponent methods
 ///////////////////////////////////////////////////////////////////////////////
 void WK2132ComponentSPI::setup() {
-  using namespace wk2132;
+  using namespace wk_base;
   ESP_LOGCONFIG(TAG, "Setting up wk2132_spi: %s with %d UARTs...", this->get_name(), this->children_.size());
   this->spi_setup();
   // enable both channels
-  this->reg(REG_WK2132_GENA, 0) = GENA_C1EN | GENA_C2EN;
+  this->reg(WKREG_GENA, 0) = GENA_C1EN | GENA_C2EN;
   // reset channels
-  this->reg(REG_WK2132_GRST, 0) = GRST_C1RST | GRST_C2RST;
+  this->reg(WKREG_GRST, 0) = GRST_C1RST | GRST_C2RST;
   // initialize the spage register to page 0
-  this->reg(REG_WK2132_SPAGE, 0) = 0;
+  this->reg(WKREG_SPAGE, 0) = 0;
   this->page1_ = false;
 
   // we setup our children channels
