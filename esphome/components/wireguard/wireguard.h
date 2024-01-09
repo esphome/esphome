@@ -29,8 +29,6 @@ namespace wireguard {
 /// Main Wireguard component class.
 class Wireguard : public PollingComponent {
  public:
-  Wireguard();
-
   void setup() override;
   void loop() override;
   void update() override;
@@ -148,31 +146,28 @@ void resume_wdt();
 /// Strip most part of the key only for secure printing
 std::string mask_key(const std::string &key);
 
-/// Global reference to Wireguard component to handle actions and conditions.
-extern Wireguard *global_wireguard;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 /// Condition to check if remote peer is online.
-template<typename... Ts> class WireguardPeerOnlineCondition : public Condition<Ts...> {
+template<typename... Ts> class WireguardPeerOnlineCondition : public Condition<Ts...>, public Parented<Wireguard> {
  public:
-  bool check(Ts... x) override { return global_wireguard->is_peer_up(); }
+  bool check(Ts... x) override { return this->parent_->is_peer_up(); }
 };
 
 /// Condition to check if Wireguard component is enabled.
-template<typename... Ts> class WireguardEnabledCondition : public Condition<Ts...> {
+template<typename... Ts> class WireguardEnabledCondition : public Condition<Ts...>, public Parented<Wireguard> {
  public:
-  bool check(Ts... x) override { return global_wireguard->is_enabled(); }
+  bool check(Ts... x) override { return this->parent_->is_enabled(); }
 };
 
 /// Action to enable Wireguard component.
-template<typename... Ts> class WireguardEnableAction : public Action<Ts...> {
+template<typename... Ts> class WireguardEnableAction : public Action<Ts...>, public Parented<Wireguard> {
  public:
-  void play(Ts... x) override { global_wireguard->enable(); }
+  void play(Ts... x) override { this->parent_->enable(); }
 };
 
 /// Action to disable Wireguard component.
-template<typename... Ts> class WireguardDisableAction : public Action<Ts...> {
+template<typename... Ts> class WireguardDisableAction : public Action<Ts...>, public Parented<Wireguard> {
  public:
-  void play(Ts... x) override { global_wireguard->disable(); }
+  void play(Ts... x) override { this->parent_->disable(); }
 };
 
 }  // namespace wireguard
