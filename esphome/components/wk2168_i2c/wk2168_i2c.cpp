@@ -7,6 +7,8 @@
 namespace esphome {
 namespace wk2168_i2c {
 
+using namespace wk_base;
+
 static const char *const TAG = "wk2168_i2c";
 
 static const char *const REG_TO_STR_P0[16] = {"GENA", "GRST",  "GMUT",  "SPAGE", "SCR", "LCR",  "FCR",  "SIER",
@@ -113,7 +115,6 @@ void WK2168RegI2C::write_fifo(uint8_t *data, size_t length) {
 // The WK2168Component methods
 ///////////////////////////////////////////////////////////////////////////////
 void WK2168ComponentI2C::setup() {
-  using namespace wk2168;
   // before any manipulation we store the address to base_address_ for future use
   this->base_address_ = this->address_;
   ESP_LOGCONFIG(TAG, "Setting up wk2168_i2c: %s with %d UARTs at @%02X ...", this->get_name(), this->children_.size(),

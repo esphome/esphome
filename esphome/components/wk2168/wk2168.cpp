@@ -7,6 +7,8 @@
 namespace esphome {
 namespace wk2168 {
 
+using namespace wk_base;
+
 static const char *const TAG = "wk2168";
 
 /// @brief convert an int to binary representation as C++ std::string

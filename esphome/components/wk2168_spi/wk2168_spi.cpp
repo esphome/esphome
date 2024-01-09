@@ -8,6 +8,8 @@
 namespace esphome {
 namespace wk2168_spi {
 
+using namespace wk_base;
+
 static const char *const TAG = "wk2168_spi";
 
 static const char *const REG_TO_STR_P0[16] = {"GENA", "GRST",  "GMUT",  "SPAGE", "SCR", "LCR",  "FCR",  "SIER",
