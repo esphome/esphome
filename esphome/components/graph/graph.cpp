@@ -183,10 +183,17 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
             }
           } else {
             int16_t mid_y = (y + prev_y + thick) / 2;
-            for (uint16_t t = prev_y + thick; t <= mid_y; t++)
-              buff->draw_pixel_at(x - 1, t, c);
-            for (uint16_t t = mid_y + 1; t < y + thick; t++)
-              buff->draw_pixel_at(x, t, c);
+            if (y > prev_y) {
+              for (uint16_t t = prev_y + thick; t <= mid_y; t++)
+                buff->draw_pixel_at(x + 1, t, c);
+              for (uint16_t t = mid_y + 1; t < y + thick; t++)
+                buff->draw_pixel_at(x, t, c);
+            } else {
+              for (uint16_t t = prev_y - 1; t >= mid_y; t--)
+                buff->draw_pixel_at(x + 1, t, c);
+              for (uint16_t t = mid_y - 1; t >= y; t--)
+                buff->draw_pixel_at(x, t, c);
+            }
           }
           prev_y = y;
         }
