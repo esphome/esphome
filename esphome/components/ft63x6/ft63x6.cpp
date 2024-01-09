@@ -69,7 +69,7 @@ void FT63X6Touchscreen::update_touches() {
   uint16_t touch_id, x, y;
 
   if (!this->read_bytes(0x00, (uint8_t *) data, 15)) {
-    esph_log_e(TAG, "Failed to read touch data");
+    ESP_LOGE(TAG, "Failed to read touch data");
     this->skip_update_ = true;
     return;
   }
