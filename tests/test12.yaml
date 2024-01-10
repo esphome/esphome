@@ -1,0 +1,38 @@
+---
+nrf52:
+  board: nrf52840
+
+esphome:
+  name: nrf52-test
+
+switch:
+  - platform: gpio
+    pin:
+      number: 15
+      inverted: true
+      mode:
+        output: true
+    id: gpio_15
+
+logger:
+
+interval:
+  - interval: 1sec
+    then:
+      - switch.toggle: gpio_15
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: 9
+      mode: INPUT_PULLUP
+
+    id: gpio_9
+
+sensor:
+  - platform: pulse_width
+    pin: P0.10
+    id: gpio_10
+    update_interval: 3s
+
+dfu:
