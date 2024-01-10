@@ -317,9 +317,18 @@ def upload_adafruit_nrfutil(config, port):
     from nordicsemi.dfu.dfu_transport_serial import DfuTransportSerial
     from nordicsemi.dfu.dfu_transport import DfuEvent
     from nordicsemi.dfu.dfu import Dfu
+    import serial
 
     idedata = platformio_api.get_idedata(config)
     dfu_package = str(Path(idedata.firmware_elf_path).with_suffix(".zip"))
+    ser = serial.Serial(port, 2400)
+    time.sleep(DfuTransportSerial.SERIAL_PORT_OPEN_WAIT_TIME)
+    ser.setDTR(True)
+    time.sleep(DfuTransportSerial.DTR_RESET_WAIT_TIME)
+    ser.close()
+
+    time.sleep(2)
+
     serial_backend = DfuTransportSerial(port)
     serial_backend.register_events_callback(DfuEvent.PROGRESS_EVENT, update_progress)
     dfu = Dfu(dfu_package, dfu_transport=serial_backend)
