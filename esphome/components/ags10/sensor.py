@@ -12,11 +12,11 @@ from esphome.const import (
     CONF_ADDRESS,
     CONF_TVOC,
     CONF_VERSION,
+    CONF_MODE,
+    CONF_VALUE,
 )
 
 CONF_RESISTANCE = "resistance"
-CONF_MODE = "mode"
-CONF_VALUE = "value"
 
 DEPENDENCIES = ["i2c"]
 
@@ -102,9 +102,7 @@ AGS10_SET_ZERO_POINT_ACTION_MODE = {
 AGS10_SET_ZERO_POINT_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.use_id(AGS10Component),
-        cv.Required(CONF_MODE): cv.enum(
-            AGS10_SET_ZERO_POINT_ACTION_MODE, upper=True
-        ),
+        cv.Required(CONF_MODE): cv.enum(AGS10_SET_ZERO_POINT_ACTION_MODE, upper=True),
         cv.Optional(CONF_VALUE, default=0xFFFF): cv.templatable(cv.uint16_t),
     },
 )
