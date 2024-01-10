@@ -21,7 +21,7 @@ namespace ota {
 
 static const char *const TAG = "ota";
 
-static const uint8_t OTA_VERSION_1_1 = 2;
+static const uint8_t OTA_VERSION_2_0 = 2;
 
 OTAComponent *global_ota_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -168,7 +168,7 @@ void OTAComponent::handle_() {
 
   // Send OK and version - 2 bytes
   buf[0] = OTA_RESPONSE_OK;
-  buf[1] = OTA_VERSION_1_1;
+  buf[1] = OTA_VERSION_2_0;
   this->writeall_(buf, 2);
 
   backend = make_ota_backend();
