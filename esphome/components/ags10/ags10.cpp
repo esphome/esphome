@@ -109,7 +109,7 @@ bool AGS10Component::set_zero_point_with_factory_defaults() { return this->set_z
 bool AGS10Component::set_zero_point_with_current_resistance() { return this->set_zero_point_with(ZP_CURRENT); }
 
 bool AGS10Component::set_zero_point_with(uint16_t value) {
-  std::array<uint8_t, 5> data{0x00, 0x0C, (uint8_t)((value>>8) & 0xFF), (uint8_t)(value & 0xFF), 0};
+  std::array<uint8_t, 5> data{0x00, 0x0C, (uint8_t) ((value >> 8) & 0xFF), (uint8_t) (value & 0xFF), 0};
   data[4] = calc_crc8_(data, 4);
   if (!this->write_bytes(REG_CALIBRATION, data)) {
     this->error_code_ = COMMUNICATION_FAILED;
@@ -117,9 +117,9 @@ bool AGS10Component::set_zero_point_with(uint16_t value) {
     ESP_LOGE(TAG, "unable to set zero-point calibration with 0x%02X", value);
     return false;
   }
-  if (value==ZP_CURRENT) {
+  if (value == ZP_CURRENT) {
     ESP_LOGI(TAG, "zero-point calibration has been set with current resistance");
-  } else if (value==ZP_DEFAULT) {
+  } else if (value == ZP_DEFAULT) {
     ESP_LOGI(TAG, "zero-point calibration has been reset to the factory defaults");
   } else {
     ESP_LOGI(TAG, "zero-point calibration has been set with 0x%02X", value);
@@ -174,14 +174,14 @@ optional<uint32_t> AGS10Component::read_resistance_() {
   return nullopt;
 }
 
-template<size_t N> optional<std::array<uint8_t,N>> AGS10Component::read_and_check_(uint8_t a_register) {
+template<size_t N> optional<std::array<uint8_t, N>> AGS10Component::read_and_check_(uint8_t a_register) {
   auto data = this->read_bytes<N>(a_register);
   if (!data.has_value()) {
     this->error_code_ = COMMUNICATION_FAILED;
     ESP_LOGE(TAG, "Reading AGS10 version failed!");
     return optional<std::array<uint8_t, N>>();
   }
-  auto len = N-1;
+  auto len = N - 1;
   auto res = *data;
   auto crcByte = res[len];
 
@@ -207,5 +207,5 @@ template<size_t N> uint8_t AGS10Component::calc_crc8_(std::array<uint8_t, N> dat
   }
   return crc;
 }
-}
-}
+}  // namespace ags10
+}  // namespace esphome

@@ -140,7 +140,7 @@ template<typename... Ts> class AGS10SetZeroPointAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(AGS10SetZeroPointActionMode, mode)
 
   void play(Ts... x) override {
-    switch(this->mode_.value(x...)){
+    switch (this->mode_.value(x...)) {
       case FACTORY_DEFAULT:
         this->parent_->set_zero_point_with_factory_defaults();
         break;
@@ -153,8 +153,8 @@ template<typename... Ts> class AGS10SetZeroPointAction : public Action<Ts...> {
     }
   }
 
-  protected:
-    AGS10Component *parent_;
-  };
-}
-}
+ protected:
+  AGS10Component *parent_;
+};
+}  // namespace ags10
+}  // namespace esphome
