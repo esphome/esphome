@@ -473,7 +473,7 @@ sensor:
     i2c_id: i2c_bus
     tvoc:
       name: AGS10 TVOC
-      update_interval: 60s
+    update_interval: 60s
 
 time:
   - platform: homeassistant
