@@ -10,12 +10,12 @@ void __wrap_tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
 
   // DTR = false is counted as disconnected
   if (!dtr) {
-    // touch2400 only with first CDC instance (Serial)
+    // touch1200 only with first CDC instance (Serial)
     if (itf == 0) {
       cdc_line_coding_t coding;
       tud_cdc_get_line_coding(&coding);
 
-      if (coding.bit_rate == 2400) {
+      if (coding.bit_rate == 1200) {
         goto_dfu = true;
       }
     }

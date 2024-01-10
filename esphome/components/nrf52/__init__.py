@@ -81,3 +81,6 @@ async def to_code(config):
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     # make sure that firmware.zip is created
     cg.add_platformio_option("board_upload.protocol", "nrfutil")
+    cg.add_platformio_option("board_upload.use_1200bps_touch", "true")
+    cg.add_platformio_option("board_upload.require_upload_port", "true")
+    cg.add_platformio_option("board_upload.wait_for_upload_port", "true")

@@ -23,6 +23,8 @@ void arch_init() {
 }
 void arch_feed_wdt() { /* TODO */ }
 
+void arch_restart() { /* TODO */ }
+
 void nrf52GetMacAddr(uint8_t *mac)
 {
     const uint8_t *src = (const uint8_t *)NRF_FICR->DEVICEADDR;
