@@ -18,21 +18,14 @@ CONF_RESISTANCE = "resistance"
 CONF_ZP_MODE = "mode"
 CONF_ZP_VALUE = "value"
 
-CODEOWNERS = ["@mak-42"]
 DEPENDENCIES = ["i2c"]
 
 ags10_ns = cg.esphome_ns.namespace("ags10")
-AGS10Component = ags10_ns.class_(
-    "AGS10Component", cg.PollingComponent, i2c.I2CDevice
-)
+AGS10Component = ags10_ns.class_("AGS10Component", cg.PollingComponent, i2c.I2CDevice)
 
-#Actions
-AGS10NewI2cAddressAction = ags10_ns.class_(
-    "AGS10NewI2cAddressAction", automation.Action
-)
-AGS10SetZeroPointAction = ags10_ns.class_(
-    "AGS10SetZeroPointAction", automation.Action
-)
+# Actions
+AGS10NewI2cAddressAction = ags10_ns.class_("AGS10NewI2cAddressAction", automation.Action)
+AGS10SetZeroPointAction = ags10_ns.class_("AGS10SetZeroPointAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -69,7 +62,7 @@ async def to_code(config):
     if version_config := config.get(CONF_VERSION):
         sens = await sensor.new_sensor(version_config)
         cg.add(var.set_version(sens))
-        
+
     if resistance_config := config.get(CONF_RESISTANCE):
         sens = await sensor.new_sensor(resistance_config)
         cg.add(var.set_resistance(sens))
@@ -82,6 +75,7 @@ AGS10_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
     },
     key=CONF_ADDRESS,
 )
+
 
 @automation.register_action(
     "ags10.new_i2c_address",
@@ -106,10 +100,13 @@ AGS10_SET_ZERO_POINT_ACTION_MODE = {
 AGS10_SET_ZERO_POINT_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.use_id(AGS10Component),
-        cv.Required(CONF_ZP_MODE): cv.enum(AGS10_SET_ZERO_POINT_ACTION_MODE, upper=True),
-        cv.Optional(CONF_ZP_VALUE, default=0xffff): cv.templatable(cv.uint16_t),
+        cv.Required(CONF_ZP_MODE): cv.enum(
+            AGS10_SET_ZERO_POINT_ACTION_MODE, upper=True
+        ),
+        cv.Optional(CONF_ZP_VALUE, default=0xFFFF): cv.templatable(cv.uint16_t),
     },
 )
+
 
 @automation.register_action(
     "ags10.set_zero_point",
