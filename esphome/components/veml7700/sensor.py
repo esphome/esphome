@@ -8,10 +8,12 @@ from esphome.const import (
     CONF_ACTUAL_GAIN,
     CONF_AUTO_MODE,
     CONF_FULL_SPECTRUM,
+    CONF_INFRARED,
     CONF_INTEGRATION_TIME,
     UNIT_LUX,
     UNIT_MILLISECOND,
     ICON_BRIGHTNESS_5,
+    ICON_BRIGHTNESS_6,
     ICON_TIMER,
     DEVICE_CLASS_ILLUMINANCE,
     STATE_CLASS_MEASUREMENT,
@@ -22,6 +24,7 @@ DEPENDENCIES = ["i2c"]
 
 UNIT_COUNTS = "#"
 ICON_GAIN = "mdi:multiplication"
+ICON_BRIGHTNESS_7 = "mdi:brightness-7"
 
 CONF_ACTUAL_INTEGRATION_TIME = "actual_integration_time"
 CONF_AMBIENT_LIGHT = "ambient_light"
@@ -37,10 +40,10 @@ VEML7700Component = veml7700_ns.class_(
 
 Gain = veml7700_ns.enum("Gain")
 GAINS = {
-    "1/8x": Gain.X_1_8,
-    "1/4x": Gain.X_1_4,
-    "1x": Gain.X_1,
-    "2x": Gain.X_2,
+    "1/8X": Gain.X_1_8,
+    "1/4X": Gain.X_1_4,
+    "1X": Gain.X_1,
+    "2X": Gain.X_2,
 }
 
 IntegrationTime = veml7700_ns.enum("IntegrationTime")
@@ -64,52 +67,59 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(VEML7700Component),
             cv.Optional(CONF_AUTO_MODE, default=True): cv.boolean,
+            cv.Optional(CONF_GAIN, default="1X"): cv.enum(GAINS, upper=True),
+            cv.Optional(
+                CONF_INTEGRATION_TIME, default="100ms"
+            ): validate_integration_time,
             cv.Optional(CONF_LUX_COMPENSATION, default=True): cv.boolean,
+            cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.float_range(
+                min=1.0
+            ),
             cv.Optional(CONF_AMBIENT_LIGHT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_LUX,
-                icon=ICON_BRIGHTNESS_5,
+                icon=ICON_BRIGHTNESS_6,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AMBIENT_LIGHT_COUNTS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_COUNTS,
-                icon=ICON_BRIGHTNESS_5,
+                icon=ICON_BRIGHTNESS_6,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_FULL_SPECTRUM): sensor.sensor_schema(
                 unit_of_measurement=UNIT_LUX,
-                icon=ICON_BRIGHTNESS_5,
+                icon=ICON_BRIGHTNESS_7,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_FULL_SPECTRUM_COUNTS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_COUNTS,
-                icon=ICON_BRIGHTNESS_5,
+                icon=ICON_BRIGHTNESS_7,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_GAIN, default="1x"): cv.enum(GAINS),
+            cv.Optional(CONF_INFRARED): sensor.sensor_schema(
+                unit_of_measurement=UNIT_LUX,
+                icon=ICON_BRIGHTNESS_5,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
             cv.Optional(CONF_ACTUAL_GAIN): sensor.sensor_schema(
                 icon=ICON_GAIN,
                 accuracy_decimals=3,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(
-                CONF_INTEGRATION_TIME, default="100ms"
-            ): validate_integration_time,
             cv.Optional(CONF_ACTUAL_INTEGRATION_TIME): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLISECOND,
                 icon=ICON_TIMER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.float_range(
-                min=1.0
             ),
         }
     )
@@ -118,8 +128,11 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_least_one_key(
         CONF_AMBIENT_LIGHT,
         CONF_FULL_SPECTRUM,
+        CONF_INFRARED,
         CONF_AMBIENT_LIGHT_COUNTS,
         CONF_FULL_SPECTRUM_COUNTS,
+        CONF_ACTUAL_GAIN,
+        CONF_ACTUAL_INTEGRATION_TIME,
     ),
 )
 
@@ -129,34 +142,32 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_AMBIENT_LIGHT in config:
-        conf = config[CONF_AMBIENT_LIGHT]
-        sens = await sensor.new_sensor(conf)
+    if als_config := config.get(CONF_AMBIENT_LIGHT):
+        sens = await sensor.new_sensor(als_config)
         cg.add(var.set_ambient_light_sensor(sens))
 
-    if CONF_AMBIENT_LIGHT_COUNTS in config:
-        conf = config[CONF_AMBIENT_LIGHT_COUNTS]
-        sens = await sensor.new_sensor(conf)
+    if als_cnt_config := config.get(CONF_AMBIENT_LIGHT_COUNTS):
+        sens = await sensor.new_sensor(als_cnt_config)
         cg.add(var.set_ambient_light_counts_sensor(sens))
 
-    if CONF_FULL_SPECTRUM in config:
-        conf = config[CONF_FULL_SPECTRUM]
-        sens = await sensor.new_sensor(conf)
+    if full_spect_config := config.get(CONF_FULL_SPECTRUM):
+        sens = await sensor.new_sensor(full_spect_config)
         cg.add(var.set_white_sensor(sens))
 
-    if CONF_FULL_SPECTRUM_COUNTS in config:
-        conf = config[CONF_FULL_SPECTRUM_COUNTS]
-        sens = await sensor.new_sensor(conf)
+    if full_spect_cnt_config := config.get(CONF_FULL_SPECTRUM_COUNTS):
+        sens = await sensor.new_sensor(full_spect_cnt_config)
         cg.add(var.set_white_counts_sensor(sens))
 
-    if CONF_ACTUAL_GAIN in config:
-        conf = config[CONF_ACTUAL_GAIN]
-        sens = await sensor.new_sensor(conf)
+    if infrared_config := config.get(CONF_INFRARED):
+        sens = await sensor.new_sensor(infrared_config)
+        cg.add(var.set_infrared_sensor(sens))
+
+    if act_gain_config := config.get(CONF_ACTUAL_GAIN):
+        sens = await sensor.new_sensor(act_gain_config)
         cg.add(var.set_actual_gain_sensor(sens))
 
-    if CONF_ACTUAL_INTEGRATION_TIME in config:
-        conf = config[CONF_ACTUAL_INTEGRATION_TIME]
-        sens = await sensor.new_sensor(conf)
+    if act_itime_config := config.get(CONF_ACTUAL_INTEGRATION_TIME):
+        sens = await sensor.new_sensor(act_itime_config)
         cg.add(var.set_actual_integration_time_sensor(sens))
 
     cg.add(var.set_enable_automatic_mode(config[CONF_AUTO_MODE]))

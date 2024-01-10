@@ -22,46 +22,6 @@ enum CommandRegisters : uint8_t {
   CR_ALS_INT = 0x06      // R: ALS INT trigger event
 };
 
-#pragma pack(push)
-#pragma pack(1)
-//
-// VEML7700_CR_ALS_CONF_0 Register (0x00)
-//
-union ConfigurationRegister {
-  uint16_t raw;
-  uint8_t raw_bytes[2];
-  struct {
-    bool ALS_SD : 1;       // ALS shut down setting: 0 = ALS power on, 1 = ALS shut
-                           // down
-    bool ALS_INT_EN : 1;   // ALS interrupt enable setting: 0 = ALS INT disable, 1
-                           // = ALS INT enable
-    bool reserved_2 : 1;   // 0
-    bool reserved_3 : 1;   // 0
-    uint8_t ALS_PERS : 2;  // 00 - 1, 01- 2, 10 - 4, 11 - 8
-    uint8_t ALS_IT : 4;    // ALS integration time setting
-    bool reserved_10 : 1;  // 0
-    uint8_t ALS_GAIN : 2;  // Gain selection
-    bool reserved_13 : 1;  // 0
-    bool reserved_14 : 1;  // 0
-    bool reserved_15 : 1;  // 0
-  };
-};
-
-//
-// Power Saving Mode: PSM Register (0x03)
-//
-union PSMRegister {
-  uint16_t raw;
-  uint8_t raw_bytes[2];
-  struct {
-    bool PSM_EN : 1;
-    uint8_t PSM : 2;
-    uint16_t reserved : 13;
-  };
-};
-
-#pragma pack(pop)
-
 // Sensor gain levels
 enum Gain : uint8_t {
   X_1 = 0,  // default
@@ -95,6 +55,46 @@ enum PSM : uint8_t {
   PSM_MODE_4 = 3,
 };
 
+#pragma pack(push)
+#pragma pack(1)
+//
+// VEML7700_CR_ALS_CONF_0 Register (0x00)
+//
+union ConfigurationRegister {
+  uint16_t raw;
+  uint8_t raw_bytes[2];
+  struct {
+    bool ALS_SD : 1;             // ALS shut down setting: 0 = ALS power on, 1 = ALS shut
+                                 // down
+    bool ALS_INT_EN : 1;         // ALS interrupt enable setting: 0 = ALS INT disable, 1
+                                 // = ALS INT enable
+    bool reserved_2 : 1;         // 0
+    bool reserved_3 : 1;         // 0
+    Persistence ALS_PERS : 2;    // 00 - 1, 01- 2, 10 - 4, 11 - 8
+    IntegrationTime ALS_IT : 4;  // ALS integration time setting
+    bool reserved_10 : 1;        // 0
+    Gain ALS_GAIN : 2;           // Gain selection
+    bool reserved_13 : 1;        // 0
+    bool reserved_14 : 1;        // 0
+    bool reserved_15 : 1;        // 0
+  };
+};
+
+//
+// Power Saving Mode: PSM Register (0x03)
+//
+union PSMRegister {
+  uint16_t raw;
+  uint8_t raw_bytes[2];
+  struct {
+    bool PSM_EN : 1;
+    uint8_t PSM : 2;
+    uint16_t reserved : 13;
+  };
+};
+
+#pragma pack(pop)
+
 class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
  public:
   float get_setup_priority() const override { return setup_priority::DATA; }
@@ -104,7 +104,7 @@ class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
 
   void set_gain(Gain gain) { this->gain_ = gain; }
   void set_integration_time(IntegrationTime time) { this->integration_time_ = time; }
-  void set_enable_automatic_mode(bool automatic_mode) { this->automatic_mode_ = automatic_mode; }
+  void set_enable_automatic_mode(bool enable) { this->automatic_mode_enabled_ = enable; }
   void set_enable_lux_compensation(bool enable) { this->lux_compensation_enabled_ = enable; }
   void set_attenuation_factor(float factor) { this->attenuation_factor_ = factor; }
 
@@ -112,6 +112,7 @@ class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
   void set_ambient_light_counts_sensor(sensor::Sensor *sensor) { this->ambient_light_counts_sensor_ = sensor; }
   void set_white_sensor(sensor::Sensor *sensor) { this->white_sensor_ = sensor; }
   void set_white_counts_sensor(sensor::Sensor *sensor) { this->white_counts_sensor_ = sensor; }
+  void set_infrared_sensor(sensor::Sensor *sensor) { this->fake_infrared_sensor_ = sensor; }
   void set_actual_gain_sensor(sensor::Sensor *sensor) { this->actual_gain_sensor_ = sensor; }
   void set_actual_integration_time_sensor(sensor::Sensor *sensor) { this->actual_integration_time_sensor_ = sensor; }
 
@@ -119,25 +120,31 @@ class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
   struct Readings {
     uint16_t als_counts{0};
     uint16_t white_counts{0};
+
     IntegrationTime actual_time{INTEGRATION_TIME_100MS};
     Gain actual_gain{X_1};
+
     float als_lux{0};
     float white_lux{0};
+    float fake_infrared_lux{0};
   };
 
   ErrorCode configure_();
   ErrorCode reconfigure_time_and_gain_(IntegrationTime time, Gain gain);
 
-  bool read_data_();
+  void read_data_();
+
   ErrorCode read_data_manual_(Readings &data);
   ErrorCode read_data_automatic_(Readings &data);
-  ErrorCode read_device_counts_(uint16_t &als_counts, uint16_t &white_counts);
+  ErrorCode read_sensor_output_(Readings &data);
+
+  void apply_lux_calculation_(Readings &data);
   void apply_lux_compensation_(Readings &data);
   void apply_glass_attenuation_(Readings &data);
 
-  bool reading_in_progress_{false};
+  bool reading_data_{false};
 
-  bool automatic_mode_{true};
+  bool automatic_mode_enabled_{true};
   bool lux_compensation_enabled_{true};
   Gain gain_{X_1};
   IntegrationTime integration_time_{INTEGRATION_TIME_100MS};
@@ -147,6 +154,8 @@ class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *ambient_light_counts_sensor_{nullptr};  // Raw counts
   sensor::Sensor *white_sensor_{nullptr};                 // Wide range 450-950 nm, lx
   sensor::Sensor *white_counts_sensor_{nullptr};          // Raw counts
+  sensor::Sensor *fake_infrared_sensor_{nullptr};         // Artificial. = WHITE lx - ALS lx.
+
   sensor::Sensor *actual_gain_sensor_{nullptr};
   sensor::Sensor *actual_integration_time_sensor_{nullptr};
 };
