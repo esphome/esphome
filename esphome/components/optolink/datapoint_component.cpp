@@ -272,9 +272,12 @@ void DatapointComponent::subscribe_hass(std::string entity_id, std::function<voi
       entity_id, optional<std::string>(), [this, entity_id](const std::string &state) {
         ESP_LOGD(TAG, "received schedule plan from HASS entity '%s': %s", entity_id.c_str(), state.c_str());
         for (auto &subscription : hass_subscriptions_) {
-          if (subscription.entity_id == entity_id) {
-            for (auto callback : subscription.callbacks) {
-              callback(state);
+          if (subscription.last_state != state) {
+            if (subscription.entity_id == entity_id) {
+              subscription.last_state = state;
+              for (auto callback : subscription.callbacks) {
+                callback(state);
+              }
             }
           }
         }

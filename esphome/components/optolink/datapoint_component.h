@@ -13,6 +13,7 @@ class Optolink;
 
 struct HassSubscription {
   std::string entity_id;
+  std::string last_state;
   std::vector<std::function<void(std::string)>> callbacks;
 };
 
