@@ -7,7 +7,7 @@
 namespace esphome {
 namespace optolink {
 
-static const char *const TAG = "datapoint_component";
+static const char *const TAG = "optolink.datapoint_component";
 static std::vector<HassSubscription> hass_subscriptions_;
 
 void DatapointComponent::setup_datapoint() {
@@ -133,8 +133,8 @@ void DatapointComponent::datapoint_read_request() {
       }
     } else {
       read_retries_++;
-      ESP_LOGW(TAG, "%d. read request for %s rejected - reduce update_interval!", read_retries_,
-               get_component_name().c_str());
+      ESP_LOGW(TAG, "%d. read request for %s rejected  due to outstanding running request - increase update_interval!",
+               read_retries_, get_component_name().c_str());
     }
   }
 }
@@ -178,7 +178,8 @@ void DatapointComponent::datapoint_write_request(DPValue dp_value) {
     if (optolink_->write_value(datapoint_, dp_value_outstanding)) {
       is_dp_value_writing_outstanding = false;
     } else {
-      ESP_LOGW(TAG, "write request for %s rejected - reduce update_interval!", get_component_name().c_str());
+      ESP_LOGW(TAG, "write request for %s rejected due to outstanding running request - increase update_interval!",
+               get_component_name().c_str());
       is_dp_value_writing_outstanding = true;
     }
   }
