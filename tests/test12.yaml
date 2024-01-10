@@ -36,3 +36,5 @@ sensor:
     update_interval: 3s
 
 dfu:
+
+beacon:
