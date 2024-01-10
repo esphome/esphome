@@ -468,6 +468,12 @@ sensor:
     name: Test Duty Time 2
     restore: false
     lambda: "return true;"
+  - platform: ags10
+    id: ags10_1
+    i2c_id: i2c_bus
+    tvoc:
+      name: AGS10 TVOC
+      update_interval: 60s
 
 time:
   - platform: homeassistant

@@ -88,8 +88,8 @@ void AGS10Component::dump_config() {
  * Sets new I2C address of AGS10.
  */
 bool AGS10Component::new_i2c_address(uint8_t newaddress) {
-  uint8_t revNewaddress = ~newaddress;
-  std::array<uint8_t, 5> data{newaddress, revNewaddress, newaddress, revNewaddress, 0};
+  uint8_t rev_newaddress = ~newaddress;
+  std::array<uint8_t, 5> data{newaddress, rev_newaddress, newaddress, rev_newaddress, 0};
   data[4] = calc_crc8_(data, 4);
   if (!this->write_bytes(REG_ADDRESS, data)) {
     this->error_code_ = COMMUNICATION_FAILED;
@@ -136,12 +136,12 @@ optional<uint32_t> AGS10Component::read_tvoc_() {
   }
 
   auto res = *data;
-  auto statusByte = res[0];
+  auto status_byte = res[0];
 
-  int units = statusByte & 0x0e;
-  int statusBit = statusByte & 0x01;
+  int units = status_byte & 0x0e;
+  int status_bit = status_byte & 0x01;
 
-  if (statusBit != 0) {
+  if (status_bit != 0) {
     this->error_code_ = ILLEGAL_STATUS;
     ESP_LOGW(TAG, "Reading AGS10 data failed: illegal status (not ready or sensor in pre-heat stage)!");
     return nullopt;
@@ -183,9 +183,9 @@ template<size_t N> optional<std::array<uint8_t, N>> AGS10Component::read_and_che
   }
   auto len = N - 1;
   auto res = *data;
-  auto crcByte = res[len];
+  auto crc_byte = res[len];
 
-  if (crcByte != calc_crc8_(res, len)) {
+  if (crc_byte != calc_crc8_(res, len)) {
     this->error_code_ = CRC_CHECK_FAILED;
     ESP_LOGE(TAG, "Reading AGS10 version failed: crc error!");
     return optional<std::array<uint8_t, N>>();
@@ -199,10 +199,11 @@ template<size_t N> uint8_t AGS10Component::calc_crc8_(std::array<uint8_t, N> dat
   for (byte1 = 0; byte1 < num; byte1++) {
     crc ^= (dat[byte1]);
     for (i = 0; i < 8; i++) {
-      if (crc & 0x80)
+      if (crc & 0x80) {
         crc = (crc << 1) ^ 0x31;
-      else
+      } else {
         crc = (crc << 1);
+      }
     }
   }
   return crc;
