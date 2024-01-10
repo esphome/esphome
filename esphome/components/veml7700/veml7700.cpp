@@ -8,7 +8,7 @@ namespace veml7700 {
 static const char *const TAG = "veml7700";
 static const size_t VEML_REG_SIZE = 2;
 
-template<class T> const T reduce_to_zero(const T &a, const T &b) { return (a > b) ? a - b : 0; }
+float reduce_to_zero(float a, float b) { return (a > b) ? (a - b) : 0; }
 
 uint16_t get_itime_ms(IntegrationTime time) {
   uint16_t ms = 0;
@@ -108,8 +108,6 @@ void VEML7700Component::apply_glass_attenuation_(Readings &data) {
 }
 
 ErrorCode VEML7700Component::read_sensor_output_(Readings &data) {
-  ConfigurationRegister config{0};
-
   auto als_err = this->read_register(CommandRegisters::CR_ALS, (uint8_t *) &data.als_counts, VEML_REG_SIZE, false);
   if (als_err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Error reading ALS register, err = %d", als_err);
@@ -193,9 +191,6 @@ ErrorCode VEML7700Component::read_data_automatic_(Readings &data) {
   uint8_t time_idx = 2;  // start from 100ms
   uint8_t gain_idx = 0;  // start from lowest gain of 1/8
 
-  auto time_selected = times[time_idx];
-  auto gain_selected = gains[gain_idx];
-
   // device already pre-configured in auto-mode in configure_() to 100ms and G 1/8
   // skip reconfiguration at first time
   auto err = this->read_sensor_output_(data);
@@ -213,11 +208,9 @@ ErrorCode VEML7700Component::read_data_automatic_(Readings &data) {
       } else {
         break;  // we've already at the max of gain and integration time
       }
-      time_selected = times[time_idx];
-      gain_selected = gains[gain_idx];
 
-      wait_for_device(time_selected, 3);
-      err = this->reconfigure_time_and_gain_(time_selected, gain_selected);
+      wait_for_device(times[time_idx], 3);
+      err = this->reconfigure_time_and_gain_(times[time_idx], gains[gain_idx]);
       if (err != i2c::ERROR_OK) {
         return err;
       }
@@ -230,10 +223,10 @@ ErrorCode VEML7700Component::read_data_automatic_(Readings &data) {
     // G = 1 = 1/8, correction needed for bright scenes, do it later
     while (data.als_counts > 10000 && time_idx > 0) {
       ESP_LOGD(TAG, "read_data_automatic_() - decrease integration time");
-      time_selected = times[--time_idx];
+      time_idx--;
 
-      wait_for_device(time_selected, 3);
-      err = this->reconfigure_time_and_gain_(time_selected, gain_selected);
+      wait_for_device(times[time_idx], 3);
+      err = this->reconfigure_time_and_gain_(times[time_idx], gains[gain_idx]);
       if (err != i2c::ERROR_OK) {
         return err;
       }
