@@ -1,5 +1,5 @@
 #include "binary_sensor.h"
-#include "esphome/components/nfc/nfc_helpers.h"
+#include "../nfc_helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
