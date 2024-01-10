@@ -25,7 +25,7 @@ namespace esphome {
 
 namespace logger {
 
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_NRF52)
 /** Enum for logging UART selection
  *
  * Advanced configuration (pin selection, etc) is not supported.
@@ -37,7 +37,9 @@ enum UARTSelection {
   UART_SELECTION_UART1,
   UART_SELECTION_UART2,
 #else
+#ifndef USE_NRF52
   UART_SELECTION_UART0 = 0,
+#endif
   UART_SELECTION_UART1,
 #if defined(USE_ESP32)
 #if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
@@ -58,7 +60,7 @@ enum UARTSelection {
 #ifdef USE_ESP8266
   UART_SELECTION_UART0_SWAP,
 #endif  // USE_ESP8266
-#ifdef USE_RP2040
+#if defined(USE_RP2040) || defined(USE_NRF52)
   UART_SELECTION_USB_CDC,
 #endif  // USE_RP2040
 #endif  // USE_LIBRETINY
@@ -78,7 +80,7 @@ class Logger : public Component {
 #ifdef USE_ESP_IDF
   uart_port_t get_uart_num() const { return uart_num_; }
 #endif
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_NRF52)
   void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
   /// Get the UART used by the logger.
   UARTSelection get_uart() const;
@@ -164,6 +166,9 @@ class Logger : public Component {
   int tx_buffer_size_{0};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
   UARTSelection uart_{UART_SELECTION_UART0};
+#endif
+#ifdef USE_NRF52
+  UARTSelection uart_{UART_SELECTION_USB_CDC};
 #endif
 #ifdef USE_LIBRETINY
   UARTSelection uart_{UART_SELECTION_DEFAULT};

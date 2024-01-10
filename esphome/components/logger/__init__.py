@@ -22,6 +22,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    PLATFORM_NRF52,
 )
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
@@ -101,6 +102,8 @@ ESP_ARDUINO_UNSUPPORTED_USB_UARTS = [USB_SERIAL_JTAG]
 
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
+UART_SELECTION_NRF52 = [USB_CDC]
+
 HARDWARE_UART_TO_UART_SELECTION = {
     UART0: logger_ns.UART_SELECTION_UART0,
     UART0_SWAP: logger_ns.UART_SELECTION_UART0_SWAP,
@@ -140,6 +143,8 @@ def uart_selection(value):
         component = get_libretiny_component()
         if component in UART_SELECTION_LIBRETINY:
             return cv.one_of(*UART_SELECTION_LIBRETINY[component], upper=True)(value)
+    if CORE.is_nrf52:
+        return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
     raise NotImplementedError
 
 
@@ -179,6 +184,7 @@ CONFIG_SCHEMA = cv.All(
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
                 rtl87xx=DEFAULT,
+                nrf52=USB_CDC,
             ): cv.All(
                 cv.only_on(
                     [
@@ -187,6 +193,7 @@ CONFIG_SCHEMA = cv.All(
                         PLATFORM_RP2040,
                         PLATFORM_BK72XX,
                         PLATFORM_RTL87XX,
+                        PLATFORM_NRF52,
                     ]
                 ),
                 uart_selection,
@@ -263,7 +270,7 @@ async def to_code(config):
     if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
         cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
 
-    if CORE.using_arduino:
+    if CORE.using_arduino and not CORE.is_nrf52:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=1")
             if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32C3:

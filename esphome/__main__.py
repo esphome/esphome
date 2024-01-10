@@ -35,6 +35,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
     SECRETS_FILES,
+    PLATFORM_NRF52,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.helpers import indent, is_ip_address
@@ -297,6 +298,38 @@ def upload_using_platformio(config, port):
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
 
+def update_progress(progress=0, done=False, log_message=""):
+    import click
+
+    del done, log_message  # Unused parameters
+    if progress == 0:
+        return
+
+    if progress % 40 == 0:
+        click.echo("#", nl=True)
+    else:
+        click.echo("#", nl=False)
+
+
+def upload_adafruit_nrfutil(config, port):
+    from esphome import platformio_api
+    from pathlib import Path
+    from nordicsemi.dfu.dfu_transport_serial import DfuTransportSerial
+    from nordicsemi.dfu.dfu_transport import DfuEvent
+    from nordicsemi.dfu.dfu import Dfu
+
+    idedata = platformio_api.get_idedata(config)
+    dfu_package = str(Path(idedata.firmware_elf_path).with_suffix(".zip"))
+    serial_backend = DfuTransportSerial(port)
+    serial_backend.register_events_callback(DfuEvent.PROGRESS_EVENT, update_progress)
+    dfu = Dfu(dfu_package, dfu_transport=serial_backend)
+
+    try:
+        dfu.dfu_send_images()
+    except Exception as e:
+        raise EsphomeError(f"Unable to send image: {e}")
+
+
 def upload_program(config, args, host):
     if get_port_type(host) == "SERIAL":
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
@@ -309,7 +342,10 @@ def upload_program(config, args, host):
         if CORE.target_platform in (PLATFORM_BK72XX, PLATFORM_RTL87XX):
             return upload_using_platformio(config, host)
 
-        return 1  # Unknown target platform
+        if CORE.target_platform in (PLATFORM_NRF52):
+            return upload_adafruit_nrfutil(config, host)
+
+        raise EsphomeError(f"Unknown target platform: {CORE.target_platform}")
 
     if CONF_OTA not in config:
         raise EsphomeError(

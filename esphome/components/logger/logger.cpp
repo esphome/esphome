@@ -26,6 +26,10 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_NRF52
+#include <Adafruit_TinyUSB.h> // for Serial
+#endif
+
 namespace esphome {
 namespace logger {
 
@@ -228,10 +232,11 @@ void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
 #ifdef USE_ARDUINO
     switch (this->uart_) {
+#ifndef USE_NRF52
       case UART_SELECTION_UART0:
 #ifdef USE_ESP8266
       case UART_SELECTION_UART0_SWAP:
-#endif
+#endif  // USE_ESP8266
 #ifdef USE_RP2040
         this->hw_serial_ = &Serial1;
         Serial1.begin(this->baud_rate_);
@@ -242,14 +247,15 @@ void Logger::pre_setup() {
 #else
         this->hw_serial_ = &Serial;
         Serial.begin(this->baud_rate_);
-#endif
-#endif
+#endif  // ARDUINO_USB_CDC_ON_BOOT
+#endif  // USE_RP2040
+#endif  // USE_NRF52
 #ifdef USE_ESP8266
         if (this->uart_ == UART_SELECTION_UART0_SWAP) {
           Serial.swap();
         }
         Serial.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
-#endif
+#endif  // USE_ESP8266
         break;
       case UART_SELECTION_UART1:
 #ifdef USE_RP2040
@@ -258,10 +264,10 @@ void Logger::pre_setup() {
 #else
         this->hw_serial_ = &Serial1;
         Serial1.begin(this->baud_rate_);
-#endif
+#endif  // USE_RP2040
 #ifdef USE_ESP8266
         Serial1.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
-#endif
+#endif  // USE_ESP8266
         break;
 #if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
     !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
@@ -290,7 +296,7 @@ void Logger::pre_setup() {
 #endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32C3
         break;
 #endif  // USE_ESP32 && (USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32C3)
-#ifdef USE_RP2040
+#if defined(USE_RP2040) || defined(USE_NRF52)
       case UART_SELECTION_USB_CDC:
         this->hw_serial_ = &Serial;
         Serial.begin(this->baud_rate_);
@@ -401,7 +407,7 @@ void Logger::set_log_level(const std::string &tag, int log_level) {
   this->log_levels_.push_back(LogLevelOverride{tag, log_level});
 }
 
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_NRF52)
 UARTSelection Logger::get_uart() const { return this->uart_; }
 #endif
 

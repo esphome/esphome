@@ -21,6 +21,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
     PLATFORM_RP2040,
     PLATFORM_HOST,
+    PLATFORM_NRF52,
 )
 from esphome.coroutine import FakeAwaitable as _FakeAwaitable
 from esphome.coroutine import FakeEventLoop as _FakeEventLoop
@@ -658,6 +659,10 @@ class EsphomeCore:
     @property
     def is_host(self):
         return self.target_platform == PLATFORM_HOST
+
+    @property
+    def is_nrf52(self):
+        return self.target_platform == PLATFORM_NRF52
 
     @property
     def target_framework(self):

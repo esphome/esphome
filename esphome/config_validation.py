@@ -1548,6 +1548,7 @@ class SplitDefault(Optional):
         bk72xx=vol.UNDEFINED,
         rtl87xx=vol.UNDEFINED,
         host=vol.UNDEFINED,
+        nrf52=vol.UNDEFINED,
     ):
         super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
@@ -1579,6 +1580,7 @@ class SplitDefault(Optional):
         self._bk72xx_default = vol.default_factory(bk72xx)
         self._rtl87xx_default = vol.default_factory(rtl87xx)
         self._host_default = vol.default_factory(host)
+        self._nrf52 = vol.default_factory(nrf52)
 
     @property
     def default(self):
@@ -1621,6 +1623,8 @@ class SplitDefault(Optional):
             return self._rtl87xx_default
         if CORE.is_host:
             return self._host_default
+        if CORE.is_nrf52:
+            return self._nrf52
         raise NotImplementedError
 
     @default.setter

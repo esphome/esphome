@@ -20,6 +20,8 @@
 #elif defined(USE_LIBRETINY)
 #include <FreeRTOS.h>
 #include <semphr.h>
+#elif defined(USE_NRF52)
+#include <Arduino.h>
 #endif
 
 #define HOT __attribute__((hot))
@@ -546,7 +548,7 @@ class Mutex {
   Mutex &operator=(const Mutex &) = delete;
 
  private:
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_NRF52)
   SemaphoreHandle_t handle_;
 #endif
 };
