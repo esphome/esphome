@@ -15,8 +15,8 @@ from esphome.const import (
 )
 
 CONF_RESISTANCE = "resistance"
-CONF_ZP_MODE = "mode"
-CONF_ZP_VALUE = "value"
+CONF_MODE = "mode"
+CONF_VALUE = "value"
 
 DEPENDENCIES = ["i2c"]
 
@@ -24,7 +24,9 @@ ags10_ns = cg.esphome_ns.namespace("ags10")
 AGS10Component = ags10_ns.class_("AGS10Component", cg.PollingComponent, i2c.I2CDevice)
 
 # Actions
-AGS10NewI2cAddressAction = ags10_ns.class_("AGS10NewI2cAddressAction", automation.Action)
+AGS10NewI2cAddressAction = ags10_ns.class_(
+    "AGS10NewI2cAddressAction", automation.Action
+)
 AGS10SetZeroPointAction = ags10_ns.class_("AGS10SetZeroPointAction", automation.Action)
 
 CONFIG_SCHEMA = (
@@ -100,10 +102,10 @@ AGS10_SET_ZERO_POINT_ACTION_MODE = {
 AGS10_SET_ZERO_POINT_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.use_id(AGS10Component),
-        cv.Required(CONF_ZP_MODE): cv.enum(
+        cv.Required(CONF_MODE): cv.enum(
             AGS10_SET_ZERO_POINT_ACTION_MODE, upper=True
         ),
-        cv.Optional(CONF_ZP_VALUE, default=0xFFFF): cv.templatable(cv.uint16_t),
+        cv.Optional(CONF_VALUE, default=0xFFFF): cv.templatable(cv.uint16_t),
     },
 )
 
@@ -116,7 +118,7 @@ AGS10_SET_ZERO_POINT_SCHEMA = cv.All(
 async def ags10setzeropoint_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, parent)
-    var.set_mode(await cg.templatable(config.get(CONF_ZP_MODE), args, enumerate))
-    if value := config.get(CONF_ZP_VALUE):
+    var.set_mode(await cg.templatable(config.get(CONF_MODE), args, enumerate))
+    if value := config.get(CONF_VALUE):
         cg.add(var.set_value(await cg.templatable(value, args, int)))
     return var
