@@ -26,7 +26,7 @@ void HydreonRGxxComponent::dump_config() {
       ESP_LOGCONFIG(TAG, "  Resolution: high");
     } else {
       ESP_LOGCONFIG(TAG, "  Resolution: low");
-    }  
+    }
   }
   LOG_UPDATE_INTERVAL(this);
 
