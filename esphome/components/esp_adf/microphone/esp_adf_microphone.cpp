@@ -177,15 +177,15 @@ void ESPADFMicrophone::read_task(void *params) {
       continue;
     }
 
-    event.type = TaskEventType::RUNNING;
-    event.err = bytes_read;
-    xQueueSend(this_mic->read_event_queue_, &event, 0);
-
     int available = rb_bytes_available(this_mic->ring_buffer_);
     if (available < bytes_read) {
       rb_read(this_mic->ring_buffer_, nullptr, bytes_read - available, 0);
     }
-    rb_write(this_mic->ring_buffer_, (char *) buffer, bytes_read, 0);
+    int written = rb_write(this_mic->ring_buffer_, (char *) buffer, bytes_read, 0);
+
+    event.type = TaskEventType::RUNNING;
+    event.err = written;
+    xQueueSend(this_mic->read_event_queue_, &event, 0);
   }
 
   allocator.deallocate(buffer, BUFFER_SIZE / sizeof(int16_t));
