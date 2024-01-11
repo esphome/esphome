@@ -22,6 +22,7 @@ namespace ota {
 static const char *const TAG = "ota";
 
 static const uint8_t OTA_VERSION_2_0 = 2;
+static constexpr u_int16_t OTA_BLOCK_SIZE = 8192;
 
 OTAComponent *global_ota_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -132,6 +133,7 @@ void OTAComponent::handle_() {
   uint8_t ota_features;
   std::unique_ptr<OTABackend> backend;
   (void) ota_features;
+  size_t size_acknowledged = 0;
 
   if (client_ == nullptr) {
     struct sockaddr_storage source_addr;
@@ -312,8 +314,11 @@ void OTAComponent::handle_() {
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     total += read;
-    buf[0] = OTA_RESPONSE_CHUNK_OK;
-    this->writeall_(buf, 1);
+    for (;size_acknowledged + OTA_BLOCK_SIZE <= total ||
+      total == ota_size && size_acknowledged < ota_size; size_acknowledged += OTA_BLOCK_SIZE) {
+      buf[0] = OTA_RESPONSE_CHUNK_OK;
+      this->writeall_(buf, 1);
+    }
 
     uint32_t now = millis();
     if (now - last_progress > 1000) {
