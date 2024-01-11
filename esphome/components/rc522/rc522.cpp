@@ -104,7 +104,7 @@ void RC522::initialize_() {
                                          // communication modes at all speeds
 
   pcd_write_register(RF_CFG_REG, gain_);
-  ESP_LOGI(TAG, "Gain Setting: %s", rc522_gain_to_string(this->gain_));
+  ESP_LOGI(TAG, "Gain Setting: %s", LOG_STR_ARG(rc522_gain_to_string(this->gain_)));
 
   // TPreScaler = TModeReg[3..0]:TPrescalerReg, ie 0x0A9 = 169 => f_timer=40kHz, ie a timer period of 25μs.
   pcd_write_register(T_PRESCALER_REG, 0xA9);
@@ -131,7 +131,7 @@ void RC522::dump_config() {
 
   LOG_PIN("  RESET Pin: ", this->reset_pin_);
 
-  ESP_LOGCONFIG(TAG, "Gain Setting: %s", rc522_gain_to_string(this->gain_));
+  ESP_LOGCONFIG(TAG, "Gain Setting: %s", LOG_STR_ARG(rc522_gain_to_string(this->gain_)));
 
   LOG_UPDATE_INTERVAL(this);
 
