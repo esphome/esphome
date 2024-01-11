@@ -164,7 +164,10 @@ void LTR303Component::configure_() {
 
 void LTR303Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up LTR-303/329");
-  delay(100);  // need to wait at least 100ms after power on to get ALS chip responsive
+
+  // As per datasheet we need to wait at least 100ms after power on to get ALS chip responsive
+  // It' only done once during setup phase
+  delay(100);  // NOLINT
   App.feed_wdt();
 
   this->reset_();
