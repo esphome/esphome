@@ -3491,7 +3491,7 @@ rc522_spi:
     allow_other_uses: true
     number: GPIO23
   update_interval: 1s
-  gain: 6
+  gain: 18dB
   on_tag:
     - lambda: |-
         ESP_LOGD("main", "Found tag %s", x.c_str());

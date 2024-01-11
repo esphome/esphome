@@ -21,6 +21,28 @@ RC522Trigger = rc522_ns.class_(
     "RC522Trigger", automation.Trigger.template(cg.std_string)
 )
 
+RC522Gain = rc522_ns.enum("RC522Gain")
+GAIN = {
+    "18dB": RC522Gain.RC522_GAIN_18DB,
+    "23dB": RC522Gain.RC522_GAIN_23DB,
+    "18dB_a": RC522Gain.RC522_GAIN_18DBA,
+    "23dB_a": RC522Gain.RC522_GAIN_23DBA,
+    "33dB": RC522Gain.RC522_GAIN_33DB,
+    "38dB": RC522Gain.RC522_GAIN_38DB,
+    "43dB": RC522Gain.RC522_GAIN_43DB,
+    "48dB": RC522Gain.RC522_GAIN_48DB,
+}
+
+
+def validate_gain(value):
+    if isinstance(value, int):
+        value = f"{value}dB"
+    elif not isinstance(value, str):
+        raise cv.Invalid(f'invalid gain "{value}"')
+
+    return cv.enum(GAIN)(value)
+
+
 RC522_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(RC522),
@@ -35,7 +57,7 @@ RC522_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RC522Trigger),
             }
         ),
-        cv.Optional(CONF_GAIN, default=4): cv.int_range(min=0, max=7),
+        cv.Optional(CONF_GAIN, default="38dB"): validate_gain,
     }
 ).extend(cv.polling_component_schema("1s"))
 

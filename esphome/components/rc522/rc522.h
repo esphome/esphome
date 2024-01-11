@@ -4,12 +4,28 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/core/log.h"
 
 #include <vector>
 #include <map>
 
 namespace esphome {
 namespace rc522 {
+
+// based on register bit descriptions in 9.3.3.6 Table 98. https://www.nxp.com/docs/en/data-sheet/MFRC522.pdf
+enum RC522Gain {
+  RC522_GAIN_18DB = 0b00000000,
+  RC522_GAIN_23DB = 0b00010000,
+  RC522_GAIN_18DBA = 0b00100000,
+  RC522_GAIN_23DBA = 0b00110000,
+  RC522_GAIN_33DB = 0b01000000,
+  RC522_GAIN_38DB = 0b01010000,
+  RC522_GAIN_43DB = 0b01100000,
+  RC522_GAIN_48DB = 0b01110000,
+};
+
+/// Convert the given Gain config value to a human-readable string.
+const LogString *rc522_gain_to_string(RC522Gain gain);
 
 class RC522BinarySensor;
 class RC522Trigger;
@@ -29,7 +45,7 @@ class RC522 : public PollingComponent {
   void register_ontagremoved_trigger(RC522Trigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
-  void set_gain(uint8_t gain) { this->gain_ = gain; }
+  void set_gain(RC522Gain gain) { this->gain_ = gain; }
 
  protected:
   // Return codes from the functions in this class. Remember to update GetStatusCodeName() if you add more.
@@ -240,7 +256,7 @@ class RC522 : public PollingComponent {
   uint8_t error_counter_ = 0;  // to reset if unresponsive
   uint8_t rx_align_;
   uint8_t *valid_bits_;
-  uint8_t gain_;
+  RC522Gain gain_;
 
   GPIOPin *reset_pin_{nullptr};
   uint8_t reset_count_{0};
@@ -249,9 +265,6 @@ class RC522 : public PollingComponent {
   std::vector<RC522Trigger *> triggers_ontag_;
   std::vector<RC522Trigger *> triggers_ontagremoved_;
   std::vector<uint8_t> current_uid_;
-
-  std::map<u_int8_t, std::string> gain_decibels_{{0x08, "18 dB"}, {0x18, "23 dB"}, {0x28, "18 dB"}, {0x38, "23 dB"},
-                                                 {0x48, "33 dB"}, {0x58, "38 dB"}, {0x68, "43 dB"}, {0x78, "48 dB"}};
 
   enum RC522Error {
     NONE = 0,

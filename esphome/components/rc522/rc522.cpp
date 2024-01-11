@@ -37,6 +37,27 @@ std::string format_uid(std::vector<uint8_t> &uid) {
   return std::string(buf);
 }
 
+const LogString *rc522_gain_to_string(RC522Gain gain) {
+  switch (gain) {
+    case RC522Gain::RC522_GAIN_18DB:
+    case RC522Gain::RC522_GAIN_18DBA:
+      return LOG_STR("18 decibels");
+    case RC522Gain::RC522_GAIN_23DB:
+    case RC522Gain::RC522_GAIN_23DBA:
+      return LOG_STR("23 decibels");
+    case RC522Gain::RC522_GAIN_33DB:
+      return LOG_STR("33 decibels");
+    case RC522Gain::RC522_GAIN_38DB:
+      return LOG_STR("38 decibels");
+    case RC522Gain::RC522_GAIN_43DB:
+      return LOG_STR("43 decibels");
+    case RC522Gain::RC522_GAIN_48DB:
+      return LOG_STR("48 decibels");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
+
 void RC522::setup() {
   state_ = STATE_SETUP;
   // Pull device out of power down / reset state.
@@ -82,12 +103,8 @@ void RC522::initialize_() {
   pcd_write_register(T_MODE_REG, 0x80);  // TAuto=1; timer starts automatically at the end of the transmission in all
                                          // communication modes at all speeds
 
-  // based on register bit descriptions in 9.3.3.6 Table 98. https://www.nxp.com/docs/en/data-sheet/MFRC522.pdf
-  uint8_t gain_reg_value = ((gain_ & 0x07) << 4) | 0x08;
-  pcd_write_register(RF_CFG_REG, gain_reg_value);
-
-  auto it = gain_decibels_.find(gain_reg_value);
-  ESP_LOGCONFIG(TAG, "Gain Setting: %d == %s", this->gain_, it->second.c_str());
+  pcd_write_register(RF_CFG_REG, gain_);
+  ESP_LOGI(TAG, "Gain Setting: %s", rc522_gain_to_string(this->gain_));
 
   // TPreScaler = TModeReg[3..0]:TPrescalerReg, ie 0x0A9 = 169 => f_timer=40kHz, ie a timer period of 25μs.
   pcd_write_register(T_PRESCALER_REG, 0xA9);
@@ -113,6 +130,8 @@ void RC522::dump_config() {
   }
 
   LOG_PIN("  RESET Pin: ", this->reset_pin_);
+
+  ESP_LOGCONFIG(TAG, "Gain Setting: %s", rc522_gain_to_string(this->gain_));
 
   LOG_UPDATE_INTERVAL(this);
 
