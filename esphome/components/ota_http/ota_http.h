@@ -23,7 +23,7 @@ static const char *const TAG = "ota_http";
 
 struct OtaHttpGlobalPrefType {
   int ota_http_state;
-  char url[128];
+  char url[256];
   bool verify_ssl;
 } PACKED;
 
