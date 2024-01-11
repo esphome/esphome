@@ -126,7 +126,6 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
 
   uint16_t channel0_{0};
   uint16_t channel1_{0};
-  float lux{0};
 
   Gain gain_{Gain::GAIN_1};
   IntegrationTime integration_time_{IntegrationTime::INTEGRATION_TIME_100MS};
