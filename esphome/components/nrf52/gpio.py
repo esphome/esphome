@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_MODE,
     CONF_INVERTED,
     CONF_NUMBER,
+    CONF_ANALOG,
 )
 
 nrf52_ns = cg.esphome_ns.namespace("nrf52")
@@ -44,6 +45,7 @@ NRF52_PIN_SCHEMA = cv.All(
     pins.gpio_base_schema(
         NRF52GPIOPin,
         validate_gpio_pin,
+        modes=pins.GPIO_STANDARD_MODES + (CONF_ANALOG,),
     ),
 )
 

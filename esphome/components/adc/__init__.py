@@ -193,4 +193,15 @@ def validate_adc_pin(value):
             {CONF_ANALOG: True, CONF_INPUT: True}, internal=True
         )(value)
 
+    if CORE.is_nrf52:
+        conf = pins.gpio_pin_schema(
+            {CONF_ANALOG: True, CONF_INPUT: True}, internal=True
+        )(value)
+        number = conf[CONF_NUMBER]
+        if number not in (2, 3, 4, 5, 28, 29, 30, 31):
+            raise cv.Invalid(
+                "nRF52840: Only pins 2, 3, 4, 5, 28, 29, 30 and 31 support ADC"
+            )
+        return conf
+
     raise NotImplementedError

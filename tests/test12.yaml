@@ -34,7 +34,12 @@ sensor:
     pin: P0.10
     id: gpio_10
     update_interval: 3s
+  - platform: adc
+    pin: P0.29
+    id: adc4
+    update_interval: 1s
 
 dfu:
 
 beacon:
+
