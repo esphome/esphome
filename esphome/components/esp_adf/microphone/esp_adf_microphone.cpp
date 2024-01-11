@@ -227,7 +227,7 @@ void ESPADFMicrophone::stop() {
 }
 
 size_t ESPADFMicrophone::read(int16_t *buf, size_t len) {
-  if (rb_bytes_available(this->ring_buffer_) == 0) {
+  if (rb_bytes_filled(this->ring_buffer_) == 0) {
     return 0;  // No data
   }
   int bytes_read = rb_read(this->ring_buffer_, (char *) buf, len, 0);
