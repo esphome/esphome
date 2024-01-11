@@ -314,8 +314,8 @@ void OTAComponent::handle_() {
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     total += read;
-    for (;size_acknowledged + OTA_BLOCK_SIZE <= total ||
-      (total == ota_size && size_acknowledged < ota_size); size_acknowledged += OTA_BLOCK_SIZE) {
+    for (; size_acknowledged + OTA_BLOCK_SIZE <= total || (total == ota_size && size_acknowledged < ota_size);
+         size_acknowledged += OTA_BLOCK_SIZE) {
       buf[0] = OTA_RESPONSE_CHUNK_OK;
       this->writeall_(buf, 1);
     }
