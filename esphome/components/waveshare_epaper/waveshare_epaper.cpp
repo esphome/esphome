@@ -1443,6 +1443,12 @@ void WaveshareEPaper7P5InBV2::initialize() {
   // COMMAND TCON SETTING
   this->command(0x60);
   this->data(0x22);
+
+  this->command(0x82);
+  this->data(0x08);
+  this->command(0x30);
+  this->data(0x06);
+
   // COMMAND RESOLUTION SETTING
   this->command(0x65);
   this->data(0x00);
