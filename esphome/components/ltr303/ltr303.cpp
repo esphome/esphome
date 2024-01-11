@@ -190,18 +190,10 @@ void LTR303Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Attenuation factor: %f", this->attenuation_factor_);
   LOG_UPDATE_INTERVAL(this);
 
-  if (this->infrared_counts_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "CH1 Infrared", this->infrared_counts_sensor_);
-  }
-  if (this->full_spectrum_counts_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "CH0 Visible + IR", this->full_spectrum_counts_sensor_);
-  }
-  if (this->actual_gain_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Actual gain", this->actual_gain_sensor_);
-  }
-  if (this->ambient_light_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Ambient light calculated lux", this->ambient_light_sensor_);
-  }
+  LOG_SENSOR("  ", "ALS calculated lux", this->ambient_light_sensor_);
+  LOG_SENSOR("  ", "CH1 Infrared counts", this->infrared_counts_sensor_);
+  LOG_SENSOR("  ", "CH0 Visible+IR counts", this->full_spectrum_counts_sensor_);
+  LOG_SENSOR("  ", "Actual gain", this->actual_gain_sensor_);
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with I2C LTR-303/329 failed!");
