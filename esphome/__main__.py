@@ -289,19 +289,11 @@ def upload_using_esptool(config, port, file):
     return run_esptool(115200)
 
 
-def upload_using_platformio(config, port):
+def upload_using_platformio(
+    config, port, upload_args=["-t", "upload", "-t", "nobuild"]
+):
     from esphome import platformio_api
 
-    upload_args = ["-t", "upload", "-t", "nobuild"]
-    if port is not None:
-        upload_args += ["--upload-port", port]
-    return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
-
-
-def nrf52_upload_using_platformio(config, port):
-    from esphome import platformio_api
-
-    upload_args = ["-t", "upload"]
     if port is not None:
         upload_args += ["--upload-port", port]
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
@@ -320,7 +312,7 @@ def upload_program(config, args, host):
             return upload_using_platformio(config, host)
 
         if CORE.target_platform in (PLATFORM_NRF52):
-            return nrf52_upload_using_platformio(config, host)
+            return upload_using_platformio(config, host, ["-t", "upload"])
 
         raise EsphomeError(f"Unknown target platform: {CORE.target_platform}")
 
