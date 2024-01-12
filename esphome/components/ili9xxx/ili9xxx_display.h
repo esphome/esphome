@@ -53,9 +53,9 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
       addr += num_args;
     }
   }
+  float get_setup_priority() const override;
 
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
-  float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_palette(const uint8_t *palette) { this->palette_ = palette; }
   void set_buffer_color_mode(ILI9XXXColorMode color_mode) { this->buffer_color_mode_ = color_mode; }
@@ -67,7 +67,10 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
     this->offset_x_ = offset_x;
     this->offset_y_ = offset_y;
   }
+  void set_18bit_mode(bool mode) { this->is_18bitdisplay_ = mode; };
+
   void invert_colors(bool invert);
+
   void command(uint8_t value);
   void data(uint8_t value);
   void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes);
