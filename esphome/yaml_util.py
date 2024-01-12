@@ -7,8 +7,7 @@ import logging
 import math
 import os
 import uuid
-from io import StringIO, TextIOWrapper
-from typing import Any, TextIO
+from typing import Any
 
 import yaml
 import yaml.constructor
@@ -425,9 +424,6 @@ def _load_yaml_internal(fname: str) -> Any:
     except EsphomeError:
         # Loading failed, so we now load with the Python loader which has more
         # readable exceptions
-        if isinstance(content, (StringIO, TextIO, TextIOWrapper)):
-            # Rewind the stream so we can try again
-            content.seek(0, 0)
         return _load_yaml_internal_with_type(ESPHomePurePythonLoader, fname, content)
 
 
