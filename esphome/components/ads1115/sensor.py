@@ -55,6 +55,7 @@ DATA_RATE = {
     "ADS1115_860_SPS": ADS1115DataRate.ADS1115_860_SPS,
 }
 
+
 def validate_gain(value):
     if isinstance(value, float):
         value = f"{value:0.03f}"
