@@ -100,7 +100,7 @@ def _add_data_ref(fn):
     return wrapped
 
 
-class ESPHomeLoaderMixIn:
+class ESPHomeLoaderMixin:
     """Loader class that keeps track of line numbers."""
 
     @_add_data_ref
@@ -378,11 +378,11 @@ class ESPHomeLoaderMixIn:
         return Remove(str(node.value))
 
 
-class ESPHomeLoader(ESPHomeLoaderMixIn, FastestAvailableSafeLoader):
+class ESPHomeLoader(ESPHomeLoaderMixin, FastestAvailableSafeLoader):
     """Loader class that keeps track of line numbers."""
 
 
-class ESPHomePurePythonLoader(ESPHomeLoaderMixIn, PurePythonLoader):
+class ESPHomePurePythonLoader(ESPHomeLoaderMixin, PurePythonLoader):
     """Loader class that keeps track of line numbers."""
 
 
