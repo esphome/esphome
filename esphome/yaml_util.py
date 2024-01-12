@@ -14,6 +14,11 @@ import yaml
 import yaml.constructor
 from yaml import SafeLoader as PurePythonLoader
 
+try:
+    from yaml import CSafeLoader as FastestAvailableSafeLoader
+except ImportError:
+    FastestAvailableSafeLoader = PurePythonLoader
+
 from esphome import core
 from esphome.config_helpers import Extend, Remove, read_config_file
 from esphome.core import (
@@ -27,12 +32,6 @@ from esphome.core import (
 )
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
-
-try:
-    from yaml import CSafeLoader as FastestAvailableSafeLoader
-except ImportError:
-    FastestAvailableSafeLoader = PurePythonLoader
-
 
 _LOGGER = logging.getLogger(__name__)
 
