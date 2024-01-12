@@ -376,11 +376,11 @@ class ESPHomeLoaderMixIn:
         return Remove(str(node.value))
 
 
-class ESPHomeLoader(FastestAvailableSafeLoader, ESPHomeLoaderMixIn):
+class ESPHomeLoader(ESPHomeLoaderMixIn, FastestAvailableSafeLoader):
     """Loader class that keeps track of line numbers."""
 
 
-class ESPHomePurePythonLoader(PurePythonLoader, ESPHomeLoaderMixIn):
+class ESPHomePurePythonLoader(ESPHomeLoaderMixIn, PurePythonLoader):
     """Loader class that keeps track of line numbers."""
 
 
