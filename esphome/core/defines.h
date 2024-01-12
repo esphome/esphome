@@ -52,6 +52,7 @@
 #define USE_WIFI
 #define USE_WIFI_AP
 #define USE_GRAPHICAL_DISPLAY_MENU
+#define USE_OTA_VERSION 1
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
