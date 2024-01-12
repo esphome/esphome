@@ -411,14 +411,14 @@ for loader in (ESPHomeLoader, ESPHomePurePythonLoader):
     loader.add_constructor("!remove", loader.construct_remove)
 
 
-def load_yaml(fname, clear_secrets=True):
+def load_yaml(fname: str, clear_secrets: bool = True) -> Any:
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
     return _load_yaml_internal(fname)
 
 
-def _load_yaml_internal(fname: str):
+def _load_yaml_internal(fname: str) -> Any:
     """Load a YAML file."""
     content = read_config_file(fname)
     try:
