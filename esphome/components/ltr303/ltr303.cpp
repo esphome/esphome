@@ -153,10 +153,8 @@ bool LTR303Component::data_ready_(Readings &data) {
   const uint32_t start = millis();
   while (true) {
     als_status.raw = this->reg(CommandRegisters::CR_ALS_STATUS).get();
-    //    ESP_LOGD(TAG, "LTR303_ALS_STATUS = 0x%02X", als_status.raw);
 
     if (als_status.new_data) {
-      //      ESP_LOGD(TAG, "New data is ready");
       break;
     }
     if (millis() - start > 100) {
@@ -260,7 +258,6 @@ void LTR303Component::configure_gain_(Gain gain) {
   ControlRegister als_ctrl{0};
   als_ctrl.active_mode = true;
   als_ctrl.gain = gain;
-//  ESP_LOGD(TAG, "Setting gain reg to 0x%02X", als_ctrl.raw);
   this->reg(CommandRegisters::CR_ALS_CTRL) = als_ctrl.raw;
   delay(10);
 }
@@ -269,7 +266,6 @@ void LTR303Component::configure_integration_time_(IntegrationTime time) {
   MeasurementRateRegister meas{0};
   meas.measurement_repeat_rate = this->repeat_rate_;
   meas.integration_time = time;
-//  ESP_LOGD(TAG, "Setting integration time and measurement repeat rate reg to 0x%02X", meas.raw);
   this->reg(CommandRegisters::CR_MEAS_RATE) = meas.raw;
   delay(10);
 }

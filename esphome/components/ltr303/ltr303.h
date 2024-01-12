@@ -33,7 +33,6 @@ enum Gain : uint8_t {
 };
 static const uint8_t GAINS_COUNT = 6;
 
-
 enum IntegrationTime : uint8_t {
   INTEGRATION_TIME_100MS = 0,  // default
   INTEGRATION_TIME_50MS = 1,
