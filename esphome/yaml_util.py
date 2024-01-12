@@ -386,29 +386,29 @@ class ESPHomePurePythonLoader(ESPHomeLoaderMixIn, PurePythonLoader):
     """Loader class that keeps track of line numbers."""
 
 
-for loader in (ESPHomeLoader, ESPHomePurePythonLoader):
-    loader.add_constructor("tag:yaml.org,2002:int", loader.construct_yaml_int)
-    loader.add_constructor("tag:yaml.org,2002:float", loader.construct_yaml_float)
-    loader.add_constructor("tag:yaml.org,2002:binary", loader.construct_yaml_binary)
-    loader.add_constructor("tag:yaml.org,2002:omap", loader.construct_yaml_omap)
-    loader.add_constructor("tag:yaml.org,2002:str", loader.construct_yaml_str)
-    loader.add_constructor("tag:yaml.org,2002:seq", loader.construct_yaml_seq)
-    loader.add_constructor("tag:yaml.org,2002:map", loader.construct_yaml_map)
-    loader.add_constructor("!env_var", loader.construct_env_var)
-    loader.add_constructor("!secret", loader.construct_secret)
-    loader.add_constructor("!include", loader.construct_include)
-    loader.add_constructor("!include_dir_list", loader.construct_include_dir_list)
-    loader.add_constructor(
-        "!include_dir_merge_list", loader.construct_include_dir_merge_list
+for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
+    _loader.add_constructor("tag:yaml.org,2002:int", _loader.construct_yaml_int)
+    _loader.add_constructor("tag:yaml.org,2002:float", _loader.construct_yaml_float)
+    _loader.add_constructor("tag:yaml.org,2002:binary", _loader.construct_yaml_binary)
+    _loader.add_constructor("tag:yaml.org,2002:omap", _loader.construct_yaml_omap)
+    _loader.add_constructor("tag:yaml.org,2002:str", _loader.construct_yaml_str)
+    _loader.add_constructor("tag:yaml.org,2002:seq", _loader.construct_yaml_seq)
+    _loader.add_constructor("tag:yaml.org,2002:map", _loader.construct_yaml_map)
+    _loader.add_constructor("!env_var", _loader.construct_env_var)
+    _loader.add_constructor("!secret", _loader.construct_secret)
+    _loader.add_constructor("!include", _loader.construct_include)
+    _loader.add_constructor("!include_dir_list", _loader.construct_include_dir_list)
+    _loader.add_constructor(
+        "!include_dir_merge_list", _loader.construct_include_dir_merge_list
     )
-    loader.add_constructor("!include_dir_named", loader.construct_include_dir_named)
-    loader.add_constructor(
-        "!include_dir_merge_named", loader.construct_include_dir_merge_named
+    _loader.add_constructor("!include_dir_named", _loader.construct_include_dir_named)
+    _loader.add_constructor(
+        "!include_dir_merge_named", _loader.construct_include_dir_merge_named
     )
-    loader.add_constructor("!lambda", loader.construct_lambda)
-    loader.add_constructor("!force", loader.construct_force)
-    loader.add_constructor("!extend", loader.construct_extend)
-    loader.add_constructor("!remove", loader.construct_remove)
+    _loader.add_constructor("!lambda", _loader.construct_lambda)
+    _loader.add_constructor("!force", _loader.construct_force)
+    _loader.add_constructor("!extend", _loader.construct_extend)
+    _loader.add_constructor("!remove", _loader.construct_remove)
 
 
 def load_yaml(fname: str, clear_secrets: bool = True) -> Any:
