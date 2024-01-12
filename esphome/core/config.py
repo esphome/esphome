@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import multiprocessing
 import os
@@ -18,11 +16,11 @@ from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
-    CONF_FRIENDLY_NAME,
     CONF_INCLUDES,
     CONF_LIBRARIES,
     CONF_MIN_VERSION,
     CONF_NAME,
+    CONF_FRIENDLY_NAME,
     CONF_ON_BOOT,
     CONF_ON_LOOP,
     CONF_ON_SHUTDOWN,
@@ -35,10 +33,10 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VERSION,
     KEY_CORE,
-    PLATFORM_ESP8266,
     TARGET_PLATFORMS,
+    PLATFORM_ESP8266,
+    __version__ as ESPHOME_VERSION,
 )
-from esphome.const import __version__ as ESPHOME_VERSION
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
 
