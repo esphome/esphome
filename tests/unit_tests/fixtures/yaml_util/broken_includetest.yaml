@@ -3,7 +3,7 @@ substitutions:
   name: original
 
 wifi: !include
-  file: includes/broken_included.yaml
+  file: includes/broken_included.yaml.txt
   vars:
     name: my_custom_ssid
 
