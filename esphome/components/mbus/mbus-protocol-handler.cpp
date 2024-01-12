@@ -12,8 +12,8 @@ static const char *const TAG = "mbus-protocol";
 
 void MBusProtocolHandler::register_command(MBusFrame &command,
                                            void (*response_handler)(MBusCommand *command, const MBusFrame &response),
-                                           uint8_t data, uint32_t delay, bool wait_for_response) {
-  MBusCommand *cmd = new MBusCommand(command, response_handler, data, this, delay, wait_for_response);
+                                           uint8_t step, uint32_t delay, bool wait_for_response) {
+  MBusCommand *cmd = new MBusCommand(command, response_handler, step, this->_mbus, delay, wait_for_response);
   this->_commands.push_back(cmd);
 }
 

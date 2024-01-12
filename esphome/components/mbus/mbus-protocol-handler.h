@@ -12,6 +12,7 @@
 namespace esphome {
 namespace mbus {
 
+class MBus;
 class MBusCommand;
 class MBusProtocolHandler {
  public:
@@ -19,9 +20,9 @@ class MBusProtocolHandler {
 
   void loop();
   void register_command(MBusFrame &command, void (*response_handler)(MBusCommand *command, const MBusFrame &response),
-                        uint8_t data = 0, uint32_t delay = 0, bool wait_for_response = true);
+                        uint8_t step, uint32_t delay = 0, bool wait_for_response = true);
 
-  MBusProtocolHandler(INetworkAdapter *networkAdapter) : _networkAdapter(networkAdapter) {}
+  MBusProtocolHandler(MBus *mbus, INetworkAdapter *networkAdapter) : _mbus(mbus), _networkAdapter(networkAdapter) {}
 
  protected:
   // Communication
@@ -36,7 +37,8 @@ class MBusProtocolHandler {
   // Helper
   void delete_first_command();
 
-  INetworkAdapter *_networkAdapter;
+  INetworkAdapter *_networkAdapter{nullptr};
+  MBus *_mbus{nullptr};
   std::vector<uint8_t> _rx_buffer;
   std::deque<MBusCommand *> _commands;
 
@@ -47,8 +49,8 @@ class MBusProtocolHandler {
 class MBusCommand {
  public:
   MBusFrame *command{nullptr};
-  MBusProtocolHandler *protocol_handler{nullptr};
-  uint8_t data{0};
+  MBus *mbus{nullptr};
+  uint8_t step{0};
   uint32_t created;
   uint32_t delay;
   bool wait_for_response;
@@ -56,12 +58,12 @@ class MBusCommand {
   void (*response_handler)(MBusCommand *command, const MBusFrame &response){nullptr};
 
   MBusCommand(MBusFrame &command, void (*response_handler)(MBusCommand *command, const MBusFrame &response),
-              uint8_t data, MBusProtocolHandler *protocol_handler, uint32_t delay, bool wait_for_response) {
+              uint8_t step, MBus *mbus, uint32_t delay, bool wait_for_response) {
     this->command = new MBusFrame(command);
     this->created = millis();
-    this->data = data;
+    this->step = step;
     this->delay = delay;
-    this->protocol_handler = protocol_handler;
+    this->mbus = mbus;
     this->response_handler = response_handler;
     this->wait_for_response = wait_for_response;
   }
