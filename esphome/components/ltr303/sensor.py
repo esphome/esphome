@@ -4,13 +4,16 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     CONF_ACTUAL_GAIN,
+    CONF_AUTO_MODE,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
     CONF_INTEGRATION_TIME,
     CONF_REPEAT,
     UNIT_LUX,
+    UNIT_MILLISECOND,
     ICON_BRIGHTNESS_5,
     ICON_BRIGHTNESS_6,
+    ICON_TIMER,
     DEVICE_CLASS_ILLUMINANCE,
     STATE_CLASS_MEASUREMENT,
 )
@@ -21,6 +24,7 @@ DEPENDENCIES = ["i2c"]
 UNIT_COUNTS = "#"
 ICON_GAIN = "mdi:multiplication"
 ICON_BRIGHTNESS_7 = "mdi:brightness-7"
+CONF_ACTUAL_INTEGRATION_TIME = "actual_integration_time"
 CONF_AMBIENT_LIGHT = "ambient_light"
 CONF_INFRARED_COUNTS = "infrared_counts"
 CONF_FULL_SPECTRUM_COUNTS = "full_spectrum_counts"
@@ -88,6 +92,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(LTR303Component),
+            cv.Optional(CONF_AUTO_MODE, default=True): cv.boolean,
             cv.Optional(CONF_GAIN, default="X1"): cv.enum(GAINS, upper=True),
             cv.Optional(
                 CONF_INTEGRATION_TIME, default="100ms"
@@ -123,6 +128,12 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_ACTUAL_INTEGRATION_TIME): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MILLISECOND,
+                icon=ICON_TIMER,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -132,6 +143,7 @@ CONFIG_SCHEMA = cv.All(
         CONF_INFRARED_COUNTS,
         CONF_FULL_SPECTRUM_COUNTS,
         CONF_ACTUAL_GAIN,
+        CONF_ACTUAL_INTEGRATION_TIME,
     ),
     validate_time_and_repeat_rate,
 )
@@ -158,6 +170,11 @@ async def to_code(config):
         sens = await sensor.new_sensor(act_gain_config)
         cg.add(var.set_actual_gain_sensor(sens))
 
+    if act_itime_config := config.get(CONF_ACTUAL_INTEGRATION_TIME):
+        sens = await sensor.new_sensor(act_itime_config)
+        cg.add(var.set_actual_integration_time_sensor(sens))
+
+    cg.add(var.set_enable_automatic_mode(config[CONF_AUTO_MODE]))
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_repeat_rate(config[CONF_REPEAT]))
