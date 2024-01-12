@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_GAIN,
     CONF_MULTIPLEXER,
     CONF_RESOLUTION,
+    CONF_DATA_RATE,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
@@ -42,6 +43,17 @@ RESOLUTION = {
     "12_BITS": ADS1115Resolution.ADS1015_12_BITS,
 }
 
+ADS1115DataRate = ads1115_ns.enum("ADS1115DataRate")
+DATA_RATE = {
+    "ADS1115_8_SPS": ADS1115DataRate.ADS1115_8_SPS,
+    "ADS1115_16_SPS": ADS1115DataRate.ADS1115_16_SPS,
+    "ADS1115_32_SPS": ADS1115DataRate.ADS1115_32_SPS,
+    "ADS1115_64_SPS": ADS1115DataRate.ADS1115_64_SPS,
+    "ADS1115_128_SPS": ADS1115DataRate.ADS1115_128_SPS,
+    "ADS1115_250_SPS": ADS1115DataRate.ADS1115_250_SPS,
+    "ADS1115_475_SPS": ADS1115DataRate.ADS1115_475_SPS,
+    "ADS1115_860_SPS": ADS1115DataRate.ADS1115_860_SPS,
+}
 
 def validate_gain(value):
     if isinstance(value, float):
@@ -73,6 +85,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_RESOLUTION, default="16_BITS"): cv.enum(
                 RESOLUTION, upper=True, space="_"
             ),
+            cv.Optional(CONF_DATA_RATE, default="ADS1115_860_SPS"): cv.enum(
+                DATA_RATE, upper=True, space="_"
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -88,5 +103,6 @@ async def to_code(config):
     cg.add(var.set_multiplexer(config[CONF_MULTIPLEXER]))
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_resolution(config[CONF_RESOLUTION]))
+    cg.add(var.set_data_rate(config[CONF_DATA_RATE]))
 
     cg.add(paren.register_sensor(var))

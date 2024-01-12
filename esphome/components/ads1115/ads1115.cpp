@@ -81,6 +81,7 @@ void ADS1115Component::dump_config() {
     ESP_LOGCONFIG(TAG, "    Multiplexer: %u", sensor->get_multiplexer());
     ESP_LOGCONFIG(TAG, "    Gain: %u", sensor->get_gain());
     ESP_LOGCONFIG(TAG, "    Resolution: %u", sensor->get_resolution());
+    ESP_LOGCONFIG(TAG, "    Data rate: %u", sensor->get_data_rate());
   }
 }
 float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
@@ -94,6 +95,11 @@ float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
   //        0bxxxxBBBxxxxxxxxx
   config &= 0b1111000111111111;
   config |= (sensor->get_gain() & 0b111) << 9;
+
+  // Set data rate
+  //        0bxxxxxxxxBBBxxxxx
+  config &= 0b1111111100011111;
+  config |= (sensor->get_data_rate() & 0b111) << 5;
 
   if (!this->continuous_mode_) {
     // Start conversion
@@ -116,7 +122,7 @@ float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
     if (!this->continuous_mode_) {
       uint32_t start = millis();
       while (this->read_byte_16(ADS1115_REGISTER_CONFIG, &config) && (config >> 15) == 0) {
-        if (millis() - start > 100) {
+        if (millis() - start > 200) {
           ESP_LOGW(TAG, "Reading ADS1115 timed out");
           this->status_set_warning();
           return NAN;
