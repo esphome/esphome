@@ -11,13 +11,21 @@ namespace mitsubishi {
 const uint8_t MITSUBISHI_TEMP_MIN = 16;  // Celsius
 const uint8_t MITSUBISHI_TEMP_MAX = 31;  // Celsius
 
-// Fan speeds
-enum Setfanspeed {
-  MITSUBISHI_FAN_1 = 0x01,
-  MITSUBISHI_FAN_2 = 0x02,
-  MITSUBISHI_FAN_3 = 0x03,
-  MITSUBISHI_FAN_4 = 0x04,
-  MITSUBISHI_FAN_5 = 0x05,
+// Fan mode
+enum SetFanMode {
+  MITSUBISHI_FAN_3L = 0,  // 3 levels + auto
+  MITSUBISHI_FAN_4L,      // 4 levels + auto
+  MITSUBISHI_FAN_Q4L,     // Quiet + 4 levels + auto
+  //  MITSUBISHI_FAN_5L,      // 5 levels + auto
+};
+
+// Supported Supported mode
+enum SetSupportedMode {
+  MITSUBISHI_OP_MODE_AC = -1,    // Auto + Cool
+  MITSUBISHI_OP_MODE_AH = 0,     // Auto + Heat
+  MITSUBISHI_OP_MODE_AHC = 1,    // Auto + Heat + Cool
+  MITSUBISHI_OP_MODE_ADHC = 2,   // Auto + Dry + Heat + Cool
+  MITSUBISHI_OP_MODE_ADFHC = 3,  // Auto + Dry + Fan + Heat + Cool
 };
 
 // Enum to represent horizontal directios
@@ -40,28 +48,24 @@ enum VerticalDirection {
   VERTICAL_DIRECTION_DOWN = 0x28,
 };
 
-/*enum CustomFanModes unit8 {
-  CLIMATE_FAN_MEDIUM_LOW = 0,
-  CLIMATE_FAN_MEDIUM_HIGH = 1,
-};
-*/
-
 class MitsubishiClimate : public climate_ir::ClimateIR {
  public:
   MitsubishiClimate()
-      : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, false,
-                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_FAN_HIGH},
-                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
-                               climate::CLIMATE_SWING_HORIZONTAL}) {}
+      : climate_ir::ClimateIR(
+            MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, true,
+            {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MIDDLE,
+             climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_QUIET},
+            {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
+             climate::CLIMATE_SWING_HORIZONTAL},
+            {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST}) {}
 
   void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
+  void set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
+  void set_supports_fan_only(bool supports_fan_only) { this->supports_fan_only_ = supports_fan_only; }
   void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
 
-  void set_fan_low(Setfanspeed low) { this->fan_low_ = low; }
-  void set_fan_medium_low(Setfanspeed medium_low) { this->fan_medium_low_ = medium_low; }
-  void set_fan_medium(Setfanspeed medium) { this->fan_medium_ = medium; }
-  void set_fan_hi(Setfanspeed high) { this->fan_high_ = high; }
+  void set_fan_mode(SetFanMode fan_mode) { this->fan_mode_ = fan_mode; }
+  void set_supported_mode(SetSupportedMode mode) { this->supported_mode_ = mode; }
 
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
     this->default_horizontal_direction_ = horizontal_direction;
@@ -75,13 +79,10 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   void transmit_state() override;
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
-  bool parse_state_frame_(comedium_lownst uint8_t frame[]);
+  bool parse_state_frame_(const uint8_t frame[]);
 
-  //  Setfanspeeds setfanspeeds_;
-  Setfanspeed fan_low_;
-  Setfanspeed fan_medium_low_;
-  Setfanspeed fan_medium_;
-  Setfanspeed fan_high_;
+  SetFanMode fan_mode_;
+  SetSupportedMode supported_mode_;
 
   HorizontalDirection default_horizontal_direction_;
   VerticalDirection default_vertical_direction_;

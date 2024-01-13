@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import climate_ir
-from esphome.const import CONF_ID, CONF_LOW, CONF_MEDIUM, CONF_HIGH
+from esphome.const import CONF_ID
 
 CODEOWNERS = ["@RubyBailey"]
 AUTO_LOAD = ["climate_ir"]
@@ -9,16 +9,23 @@ AUTO_LOAD = ["climate_ir"]
 mitsubishi_ns = cg.esphome_ns.namespace("mitsubishi")
 MitsubishiClimate = mitsubishi_ns.class_("MitsubishiClimate", climate_ir.ClimateIR)
 
-CONF_SET_FAN_SPEEDS = "set_fan_speeds"
-CONF_MEDIUM_LOW = "medium_low"
+CONF_SET_FAN_MODE = "set_fan_mode"
+SetFanMode = mitsubishi_ns.enum("SetFanMode")
+SETFANMODE = {
+    "quiet_4levels": SetFanMode.MITSUBISHI_FAN_Q4L,
+    #    "5levels": SetFanMode.MITSUBISHI_FAN_5L,
+    "4levels": SetFanMode.MITSUBISHI_FAN_4L,
+    "3levels": SetFanMode.MITSUBISHI_FAN_3L,
+}
 
-Setfanspeeds = mitsubishi_ns.enum("Setfanspeeds")
-SETFANSPEEDS = {
-    "fan1": Setfanspeeds.MITSUBISHI_FAN_1,
-    "fan2": Setfanspeeds.MITSUBISHI_FAN_2,
-    "fan3": Setfanspeeds.MITSUBISHI_FAN_3,
-    "fan4": Setfanspeeds.MITSUBISHI_FAN_4,
-    "fan5": Setfanspeeds.MITSUBISHI_FAN_5,
+CONF_SET_SUPPORTED_MODE = "set_supported_mode"
+SetSupportedMode = mitsubishi_ns.enum("SetSupportedMode")
+SETSUPPORTEDMODE = {
+    "cool": SetSupportedMode.MITSUBISHI_OP_MODE_AC,
+    "heat": SetSupportedMode.MITSUBISHI_OP_MODE_AH,
+    "heat_cool": SetSupportedMode.MITSUBISHI_OP_MODE_AHC,
+    "dry_heat_cool": SetSupportedMode.MITSUBISHI_OP_MODE_ADHC,
+    "dry_fan_heat_cool": SetSupportedMode.MITSUBISHI_OP_MODE_ADFHC,
 }
 
 
@@ -48,22 +55,9 @@ VERTICAL_DIRECTIONS = {
 CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(MitsubishiClimate),
-        cv.Optional(
-            CONF_SET_FAN_SPEEDS,
-            default={
-                CONF_LOW: "fan1",
-                CONF_MEDIUM: "fan2",
-                CONF_HIGH: "fan3",
-            },
-        ): cv.All(
-            cv.Schema(
-                {
-                    cv.Required(CONF_LOW): cv.enum(SETFANSPEEDS),
-                    cv.Optional(CONF_MEDIUM_LOW): cv.enum(SETFANSPEEDS),
-                    cv.Required(CONF_MEDIUM): cv.enum(SETFANSPEEDS),
-                    cv.Required(CONF_HIGH): cv.enum(SETFANSPEEDS),
-                }
-            ),
+        cv.Optional(CONF_SET_FAN_MODE, default="3levels"): cv.enum(SETFANMODE),
+        cv.Optional(CONF_SET_SUPPORTED_MODE, default="heat_cool"): cv.enum(
+            SETSUPPORTEDMODE
         ),
         cv.Optional(CONF_HORIZONTAL_DEFAULT, default="middle"): cv.enum(
             HORIZONTAL_DIRECTIONS
@@ -79,13 +73,11 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await climate_ir.register_climate_ir(var, config)
 
-    if CONF_SET_FAN_SPEEDS in config:
-        fan = config[CONF_SET_FAN_SPEEDS]
-        cg.add(var.set_fan_low(fan[CONF_LOW]))
-        if CONF_MEDIUM_LOW in config:
-            cg.add(var.set_fan_medium_low(fan[CONF_MEDIUM_LOW]))
-        cg.add(var.set_fan_medium(fan[CONF_MEDIUM]))
-        cg.add(var.set_fan_hi(fan[CONF_HIGH]))
+    if CONF_SET_FAN_MODE in config:
+        cg.add(var.set_fan_mode(config[CONF_SET_FAN_MODE]))
+
+    if CONF_SET_SUPPORTED_MODE in config:
+        cg.add(var.set_supported_mode(config[CONF_SET_SUPPORTED_MODE]))
 
     if CONF_HORIZONTAL_DEFAULT in config:
         cg.add(var.set_horizontal_default(config[CONF_HORIZONTAL_DEFAULT]))
