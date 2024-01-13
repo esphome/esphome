@@ -10,12 +10,16 @@ MBus = mbus_ns.class_("MBus", cg.Component)
 MULTI_CONF = True
 
 CONF_MBUS_SECONDARY_ADDRESS = "secondary_address"
+CONF_MBUS_DELAY = "delay"
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MBus),
             cv.Optional(CONF_MBUS_SECONDARY_ADDRESS, default=0): cv.hex_uint64_t,
+            cv.Optional(
+                CONF_MBUS_DELAY, default="1min"
+            ): cv.positive_time_period_seconds,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -30,3 +34,4 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     cg.add(var.set_secondary_address(config[CONF_MBUS_SECONDARY_ADDRESS]))
+    cg.add(var.set_delay(config[CONF_MBUS_DELAY]))

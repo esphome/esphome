@@ -1,5 +1,6 @@
 #include "mbus-frame-factory.h"
 #include "mbus-frame-meta.h"
+#include "mbus-decoder.h"
 
 #include "esphome/core/log.h"
 
@@ -34,15 +35,14 @@ std::unique_ptr<MBusFrame> MBusFrameFactory::create_req_ud2_frame() {
   return frame_ptr;
 }
 
-std::unique_ptr<MBusFrame> MBusFrameFactory::create_slave_select(std::vector<uint8_t> &mask) {
-  assert(mask.size() == 8);
-
+std::unique_ptr<MBusFrame> MBusFrameFactory::create_slave_select(uint64_t secondary_address) {
   auto frame = new MBusFrame(MBUS_FRAME_TYPE_LONG);
 
   frame->control = MBusControlCodes::SND_UD_MASTER;
   frame->address = MBusAddresses::NETWORK_LAYER;
   frame->control_information = MBusControlInformationCodes::SELECTION_OF_SLAVES_MODE1;
-  frame->data = mask;
+
+  MBusDecoder::encode_secondary_address(secondary_address, &(frame->data));
 
   std::unique_ptr<MBusFrame> frame_ptr(frame);
   return frame_ptr;

@@ -15,7 +15,8 @@ class MBus : public uart::UARTDevice, public Component {
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  void set_secondary_address(uint64_t secondary_address);
+  void set_secondary_address(uint64_t secondary_address) { this->secondary_address = secondary_address; };
+  void set_delay(uint16_t delay) { this->delay = delay; };
 
   MBus() {
     this->_serialAdapter = new SerialAdapter(this);
@@ -35,6 +36,7 @@ class MBus : public uart::UARTDevice, public Component {
  protected:
   uint64_t secondary_address = 0;
   uint8_t primary_address = 0;
+  uint16_t delay = 1;
 
   MBusProtocolHandler *_protocol_handler{nullptr};
   SerialAdapter *_serialAdapter{nullptr};
@@ -44,6 +46,9 @@ class MBus : public uart::UARTDevice, public Component {
 
   static void start_scan_secondary_addresses(MBus *mbus);
   static void scan_secondary_addresses_response_handler(MBusCommand *command, const MBusFrame &response);
+
+  static void start_reading_data(MBus *mbus);
+  static void reading_data_response_handler(MBusCommand *command, const MBusFrame &response);
 };
 
 }  // namespace mbus

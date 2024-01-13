@@ -11,6 +11,26 @@ esphome:
 esp32:
   board: esp32doit-devkit-v1
 
+# ---------------------------------------------------------------------------------------
+# debug component
+# debug:
+#   update_interval: 5s
+
+# text_sensor:
+#   - platform: debug
+#     reset_reason:
+#       name: "Reset Reason"
+
+# sensor:
+#   - platform: debug
+#     free:
+#       name: "Heap Free"
+#     block:
+#       name: "Heap Max Block"
+#     # loop_time:
+#     #   name: "Loop Time"
+# ---------------------------------------------------------------------------------------
+
 # Enable logging
 logger:
   tx_buffer_size: 1024
@@ -32,3 +52,4 @@ uart:
 
 mbus:
   # secondary_address: 0x0025426642042002
+  delay: "5s"

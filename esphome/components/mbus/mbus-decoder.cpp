@@ -5,7 +5,7 @@
 namespace esphome {
 namespace mbus {
 
-uint32_t MBusDecoder::decode_bcd_hex(uint8_t bcd_data[4]) {
+uint32_t MBusDecoder::decode_bcd_hex(const uint8_t bcd_data[4]) {
   uint64_t val = 0;
   size_t i;
 
@@ -16,7 +16,7 @@ uint32_t MBusDecoder::decode_bcd_hex(uint8_t bcd_data[4]) {
   return val;
 }
 
-std::string MBusDecoder::decode_manufacturer(uint8_t data[2]) {
+std::string MBusDecoder::decode_manufacturer(const uint8_t data[2]) {
   int16_t m_id = decode_int(data);
 
   uint8_t m_str[4];
@@ -29,7 +29,7 @@ std::string MBusDecoder::decode_manufacturer(uint8_t data[2]) {
   return manufacturer;
 }
 
-int16_t MBusDecoder::decode_int(uint8_t data[2]) {
+int16_t MBusDecoder::decode_int(const uint8_t data[2]) {
   int neg;
   uint16_t value = 0;
 
@@ -50,7 +50,7 @@ int16_t MBusDecoder::decode_int(uint8_t data[2]) {
   return value;
 }
 
-std::string MBusDecoder::decode_medium(uint8_t data) {
+std::string MBusDecoder::decode_medium(const uint8_t data) {
   switch (data) {
     case 0x00:
       return "Other";
@@ -153,58 +153,43 @@ std::string MBusDecoder::decode_medium(uint8_t data) {
     case 0xFF:
       return "Placeholder";
   }
-  // Medium Code bin Code hex
-  // Other 0000 0000 00
-  // Oil 0000 0001 01
-  // Electricity 0000 0010 02
-  // Gas 0000 0011 03
-  // Heat (Volume measured at return temperature: outlet) 0000 0100 04
-  // Steam 0000 0101 05
-  // Hot Water 0000 0110 06
-  // Water 0000 0111 07
-  // Heat Cost Allocator. 0000 1000 08
-  // Compressed Air 0000 1001 09
-  // Cooling load meter (Volume measured at return temperature: outlet) 0000 1010 0A
-  // Cooling load meter (Volume measured at flow temperature: inlet) ♣ 0000 1011 0B
-  // Heat (Volume measured at flow temperature: inlet) 0000 1100 0C
-  // Heat / Cooling load meter ♣ 0000 1101 OD
-  // Bus / System 0000 1110 0E
-  // Unknown Medium 0000 1111 0F
-  // Irrigation Water (Non Drinkable) 0001 0000 10
-  // Water data logger 0001 0001 11
-  // Gas data logger 0001 0010 12
-  // Gas converter 0001 0011 13
-  // Heat Value 0001 0100 14
-  // Hot Water (>=90°C) (Non Drinkable) 0001 0101 15
-  // Cold Water 0001 0110 16
-  // Dual Water 0001 0111 17
-  // Pressure 0001 1000 18
-  // A/D Converter 0001 1001 19
-  // Smoke detector 0001 1010 1A
-  // Room sensor (e.g. Temperature or Humidity) 0001 1011 1B
-  // Gas detector 0001 1100 1C
-  // Reserved for Sensors .......... 1D to 1F
-  // Breaker (Electricity) 0010 0000 20
-  // Valve (Gas or Water) 0010 0001 21
-  // Reserved for Switching Units .......... 22 to 24
-  // Customer Unit (Display) 0010 0101 25
-  // Reserved for End User Units .......... 26 to 27
-  // Waste Water (Non Drinkable) 0010 1000 28
-  // Waste 0010 1001 29
-  // Reserved for CO2 0010 1010 2A
-  // Reserved for environmental meter .......... 2B to 2F
-  // Service tool 0011 0000 30
-  // Gateway 0011 0001 31
-  // Unidirectional Repeater 0011 0010 32
-  // Bidirectional Repeater 0011 0011 33
-  // Reserved for System Units .......... 34 to 35
-  // Radio Control Unit (System Side) 0011 0110 36
-  // Radio Control Unit (Meter Side) 0011 0111 37
-  // Bus Control Unit (Meter Side) 0011 1000 38
-  // Reserved for System Units .......... 38 to 3F
-  // Reserved .......... 40 to FE
-  // Placeholder 1111 1111 FF
 }
 
+uint64_t MBusDecoder::decode_secondary_address(const uint8_t id[4], const uint8_t manufacturer[2],
+                                               const uint8_t version, const uint8_t medium) {
+  uint64_t secondary_address = id[3];
+  secondary_address = (secondary_address << 8) + id[2];
+  secondary_address = (secondary_address << 8) + id[1];
+  secondary_address = (secondary_address << 8) + id[0];
+  secondary_address = (secondary_address << 8) + manufacturer[0];
+  secondary_address = (secondary_address << 8) + manufacturer[1];
+  secondary_address = (secondary_address << 8) + version;
+  secondary_address = (secondary_address << 8) + medium;
+
+  return secondary_address;
+}
+
+void MBusDecoder::encode_secondary_address(const uint64_t secondary_address, std::vector<uint8_t> *data) {
+  uint8_t buffer[8];
+  // Secondary Address
+  // ID[4]
+  buffer[3] = (secondary_address >> 0x38) & 0xFF;
+  buffer[2] = (secondary_address >> 0x30) & 0xFF;
+  buffer[1] = (secondary_address >> 0x28) & 0xFF;
+  buffer[0] = (secondary_address >> 0x20) & 0xFF;
+
+  // manufacturer[2]
+  buffer[4] = (secondary_address >> 0x18) & 0xFF;
+  buffer[5] = (secondary_address >> 0x10) & 0xFF;
+  // version[1]
+  buffer[6] = (secondary_address >> 0x08) & 0xFF;
+  // medium[1]
+  buffer[7] = secondary_address & 0xFF;
+
+  data->clear();
+  auto buffer_size = sizeof(buffer);
+  data->reserve(buffer_size);
+  data->insert(data->begin(), buffer, buffer + buffer_size);
+}
 }  // namespace mbus
 }  // namespace esphome

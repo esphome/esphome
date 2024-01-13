@@ -43,7 +43,7 @@ class MBusFrame {
   static uint8_t calc_length(MBusFrame &frame);
   static uint8_t calc_checksum(MBusFrame &frame);
 
-  void dump();
+  void dump() const;
 };
 
 // MBus Data
@@ -109,8 +109,6 @@ class MBusDataVariableHeader {
   uint8_t access_no;
   uint8_t status;
   uint8_t signature[2];
-
-  std::string get_secondary_address();
 };
 
 class MBusDataVariable {
@@ -124,7 +122,7 @@ class MBusDataVariable {
   // uint8_t mdh;
   // std::vector<uint8_t> mfg_data;
 
-  void dump();
+  void dump() const;
 };
 
 }  // namespace mbus

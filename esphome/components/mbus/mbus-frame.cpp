@@ -182,7 +182,7 @@ uint8_t MBusFrame::calc_checksum(MBusFrame &frame) {
 }
 
 // https://www.miller-alex.de/Mbus
-void MBusFrame::dump() {
+void MBusFrame::dump() const {
   ESP_LOGV(TAG, "MBusFrame");
   switch (this->frame_type) {
     case MBusFrameType::MBUS_FRAME_TYPE_ACK:
@@ -203,6 +203,9 @@ void MBusFrame::dump() {
   }
 
   switch (this->frame_type) {
+    case MBusFrameType::MBUS_FRAME_TYPE_ACK:
+      return;
+
     case MBusFrameType::MBUS_FRAME_TYPE_SHORT:
       ESP_LOGV(TAG, "\tstart = 0x%.2X", this->start);
       ESP_LOGV(TAG, "\tcontrol = 0x%.2X", this->control);
@@ -234,7 +237,7 @@ void MBusFrame::dump() {
   ESP_LOGV(TAG, "\tunknown frame type");
 }
 
-void MBusDataVariable::dump() {
+void MBusDataVariable::dump() const {
   ESP_LOGV(TAG, "\tVariable Data:");
   ESP_LOGV(TAG, "\t Header:");
 
@@ -257,12 +260,6 @@ void MBusDataVariable::dump() {
              format_hex_pretty(it->drh.dib.dife).c_str(), it->drh.vib.vif, format_hex_pretty(it->drh.vib.vife).c_str(),
              format_hex_pretty(it->data).c_str());
   }
-}
-
-std::string MBusDataVariableHeader::get_secondary_address() {
-  auto id = MBusDecoder::decode_bcd_hex(this->id);
-  return str_snprintf("%08lX%02X%02X%02X%02X", 33, id, this->manufacturer[0], this->manufacturer[1], this->version,
-                      this->medium);
 }
 
 }  // namespace mbus
