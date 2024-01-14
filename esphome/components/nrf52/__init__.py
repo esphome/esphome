@@ -84,3 +84,6 @@ async def to_code(config):
     cg.add_platformio_option("board_upload.use_1200bps_touch", "true")
     cg.add_platformio_option("board_upload.require_upload_port", "true")
     cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
+    cg.add_build_flag("-DNRFX_WDT_ENABLED=1")
+    cg.add_build_flag("-DNRFX_WDT0_ENABLED=1")
+    cg.add_build_flag("-DNRFX_WDT_CONFIG_NO_IRQ=1")

@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "Adafruit_nRFCrypto.h"
+#include "nrfx_wdt.h"
 
 namespace esphome {
 
@@ -10,8 +11,24 @@ uint32_t millis() { return ::millis(); }
 void delay(uint32_t ms) { ::delay(ms); }
 uint32_t micros() { return ::micros(); }
 
+struct nrf5x_wdt_obj
+{
+    nrfx_wdt_t wdt;
+    nrfx_wdt_channel_id ch;
+};
+static nrfx_wdt_config_t nrf5x_wdt_cfg = NRFX_WDT_DEFAULT_CONFIG;
+
+static struct nrf5x_wdt_obj nrf5x_wdt = {
+    .wdt = NRFX_WDT_INSTANCE(0),
+};
+
 void arch_init() {
-	 nRFCrypto.begin();
+    //Configure WDT.
+    nrfx_wdt_init(&nrf5x_wdt.wdt, &nrf5x_wdt_cfg, nullptr);
+    nrfx_wdt_channel_alloc(&nrf5x_wdt.wdt, &nrf5x_wdt.ch);
+    nrfx_wdt_enable(&nrf5x_wdt.wdt);
+
+    nRFCrypto.begin();
     // Init random seed
     union seedParts {
         uint32_t seed32;
@@ -21,7 +38,9 @@ void arch_init() {
     randomSeed(seed.seed32);
 
 }
-void arch_feed_wdt() { /* TODO */ }
+void arch_feed_wdt() {
+    nrfx_wdt_feed(&nrf5x_wdt.wdt);
+}
 
 void arch_restart() { /* TODO */ }
 
