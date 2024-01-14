@@ -10,17 +10,18 @@
   "runArgs": [
     "--privileged",
     "-e",
-    "ESPHOME_DASHBOARD_USE_PING=1",
-    // use this to pass though local USB serial to the conatiner
-    "--device=/dev/ttyACM0"
+    "ESPHOME_DASHBOARD_USE_PING=1"
+    // uncomment and edit the path in order to pass though local USB serial to the conatiner
+    // , "--device=/dev/ttyACM0"
   ],
   "appPort": 6052,
-  // these expose external avahi to the container to support mdns
-  "mounts": [
-    "type=bind,source=/dev/bus/usb,target=/dev/bus/usb",
-    "type=bind,source=/var/run/dbus,target=/var/run/dbus",
-    "type=bind,source=/var/run/avahi-daemon/socket,target=/var/run/avahi-daemon/socket"
-  ],  
+  // if you are using avahi in the host device, uncomment these to allow the 
+  // devcontainer to find devices via mdns 
+  //"mounts": [
+  //  "type=bind,source=/dev/bus/usb,target=/dev/bus/usb",
+  //  "type=bind,source=/var/run/dbus,target=/var/run/dbus",
+  //  "type=bind,source=/var/run/avahi-daemon/socket,target=/var/run/avahi-daemon/socket"
+  //],  
   "customizations": {
     "vscode": {
       "extensions": [
