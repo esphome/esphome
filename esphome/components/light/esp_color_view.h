@@ -22,12 +22,13 @@ class ESPColorSettable {
   void set(const ESPHSVColor &color) { this->set_hsv(color); }
   void set_hsv(const ESPHSVColor &color) {
     Color rgb = color.to_rgb();
-    this->set_rgb(rgb.r, rgb.g, rgb.b);
+    this->set_rgbw(rgb.r, rgb.g, rgb.b, 0);
   }
   void set_rgb(uint8_t red, uint8_t green, uint8_t blue) {
     this->set_red(red);
     this->set_green(green);
     this->set_blue(blue);
+    this->set_white(0);
   }
   void set_rgbw(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) {
     this->set_rgb(red, green, blue);
