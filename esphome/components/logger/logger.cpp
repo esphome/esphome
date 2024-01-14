@@ -65,7 +65,6 @@ void Logger::write_header_(int level, const char *tag, int line) {
   const char *color = LOG_LEVEL_COLORS[level];
   const char *letter = LOG_LEVEL_LETTERS[level];
   void *current_task = xTaskGetCurrentTaskHandle();
-  SEGGER_RTT_printf(0," __VA_ARGS__\n");
   if (current_task == main_task) {
     this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);
   } else {
