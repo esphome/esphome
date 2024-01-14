@@ -174,7 +174,7 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
       if (!std::isnan(v) && (thick > 0)) {
         int16_t x = this->width_ - 1 - i + x_offset;
         uint8_t bit = 1 << ((i % (thick * LineType::PATTERN_LENGTH)) / thick);
-        bool b = (trace->get_line_type() & b) == b;
+        bool b = (trace->get_line_type() & bit) == bit;
         if (b) {
           int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - thick / 2 + y_offset;
           if (!connected || !has_prev || !prev_b || (abs(y - prev_y) <= thick)) {
