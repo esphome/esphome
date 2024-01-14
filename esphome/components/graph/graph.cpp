@@ -165,7 +165,7 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
   for (auto *trace : traces_) {
     Color c = trace->get_line_color();
     uint16_t thick = trace->get_line_thickness();
-    bool connected = trace->get_connected();
+    bool continuous = trace->get_continuous();
     bool has_prev = false;
     bool prev_b = false;
     int16_t prev_y = 0;
@@ -177,7 +177,7 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
         bool b = (trace->get_line_type() & bit) == bit;
         if (b) {
           int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - thick / 2 + y_offset;
-          if (!connected || !has_prev || !prev_b || (abs(y - prev_y) <= thick)) {
+          if (!continuous || !has_prev || !prev_b || (abs(y - prev_y) <= thick)) {
             for (uint16_t t = 0; t < thick; t++) {
               buff->draw_pixel_at(x, y + t, c);
             }
