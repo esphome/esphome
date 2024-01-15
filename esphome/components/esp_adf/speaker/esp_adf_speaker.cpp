@@ -24,7 +24,17 @@ void ESPADFSpeaker::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ESP ADF Speaker...");
 
   this->buffer_queue_ = xQueueCreate(BUFFER_COUNT, sizeof(DataEvent));
+  if (this->buffer_queue_ == nullptr) {
+    ESP_LOGW(TAG, "Could not allocate buffer queue.");
+    this->mark_failed();
+    return;
+  }
   this->event_queue_ = xQueueCreate(20, sizeof(TaskEvent));
+  if (this->event_queue_ == nullptr) {
+    ESP_LOGW(TAG, "Could not allocate event queue.");
+    this->mark_failed();
+    return;
+  }
 }
 
 void ESPADFSpeaker::start() { this->state_ = speaker::STATE_STARTING; }
@@ -246,6 +256,10 @@ void ESPADFSpeaker::loop() {
 }
 
 size_t ESPADFSpeaker::play(const uint8_t *data, size_t length) {
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "Failed to play audio, speaker is in failed state.");
+    return 0;
+  }
   if (this->state_ != speaker::STATE_RUNNING && this->state_ != speaker::STATE_STARTING) {
     this->start();
   }
