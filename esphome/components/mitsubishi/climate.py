@@ -18,6 +18,9 @@ SETFANMODE = {
     "3levels": SetFanMode.MITSUBISHI_FAN_3L,
 }
 
+CONF_SUPPORTS_DRY = "supports_dry"
+CONF_SUPPORTS_FAN_ONLY = "supports_fan_only"
+
 CONF_HORIZONTAL_DEFAULT = "horizontal_default"
 HorizontalDirections = mitsubishi_ns.enum("HorizontalDirections")
 HORIZONTAL_DIRECTIONS = {
@@ -45,6 +48,8 @@ CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(MitsubishiClimate),
         cv.Optional(CONF_SET_FAN_MODE, default="3levels"): cv.enum(SETFANMODE),
+        cv.Optional(CONF_SUPPORTS_DRY, default=False): cv.boolean,
+        cv.Optional(CONF_SUPPORTS_FAN_ONLY, default=False): cv.boolean,
         cv.Optional(CONF_HORIZONTAL_DEFAULT, default="middle"): cv.enum(
             HORIZONTAL_DIRECTIONS
         ),
@@ -61,6 +66,9 @@ async def to_code(config):
 
     if CONF_SET_FAN_MODE in config:
         cg.add(var.set_fan_mode(config[CONF_SET_FAN_MODE]))
+
+    cg.add(var.set_supports_dry(config[CONF_SUPPORTS_DRY]))
+    cg.add(var.set_supports_fan_only(config[CONF_SUPPORTS_FAN_ONLY]))
 
     if CONF_HORIZONTAL_DEFAULT in config:
         cg.add(var.set_horizontal_default(config[CONF_HORIZONTAL_DEFAULT]))
