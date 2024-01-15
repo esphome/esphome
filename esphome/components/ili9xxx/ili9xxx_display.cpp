@@ -34,9 +34,6 @@ void ILI9XXXDisplay::setup() {
     mad |= MADCTL_MY;
   this->send_command(ILI9XXX_MADCTL, &mad, 1);
 
-  mad = this->is_18bitdisplay_ ? 0x66 : 0x55;
-  this->send_command(ILI9XXX_PIXFMT, &mad, 1);
-
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
   this->x_high_ = 0;

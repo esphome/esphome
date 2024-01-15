@@ -66,7 +66,6 @@ MODELS = {
     "ST7789V": ili9xxx_ns.class_("ILI9XXXST7789V", ILI9XXXDisplay),
     "S3BOX": ili9xxx_ns.class_("ILI9XXXS3Box", ILI9XXXDisplay),
     "S3BOX_LITE": ili9xxx_ns.class_("ILI9XXXS3BoxLite", ILI9XXXDisplay),
-    "WSPICOLCD": ili9xxx_ns.class_("ILI9XXXWSPICOLCD", ILI9XXXDisplay),
 }
 
 COLOR_ORDERS = {
@@ -79,7 +78,6 @@ COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
 CONF_INVERT_DISPLAY = "invert_display"
-CONF_18BIT_MODE = "18bit_mode"
 
 
 def _validate(config):
@@ -141,7 +139,6 @@ CONFIG_SCHEMA = cv.All(
                 "'invert_display' has been replaced by 'invert_colors'"
             ),
             cv.Optional(CONF_INVERT_COLORS): cv.boolean,
-            cv.Optional(CONF_18BIT_MODE): cv.boolean,
             cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
             cv.Exclusive(CONF_ROTATION, CONF_ROTATION): validate_rotation,
             cv.Exclusive(CONF_TRANSFORM, CONF_ROTATION): cv.Schema(
@@ -244,6 +241,3 @@ async def to_code(config):
 
     if CONF_INVERT_COLORS in config:
         cg.add(var.invert_colors(config[CONF_INVERT_COLORS]))
-
-    if CONF_18BIT_MODE in config:
-        cg.add(var.set_18bit_mode(config[CONF_18BIT_MODE]))
