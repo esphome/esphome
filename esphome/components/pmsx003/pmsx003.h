@@ -61,6 +61,7 @@ class PMSX003Component : public uart::UARTDevice, public Component {
   optional<bool> check_byte_();
   void parse_data_();
   void send_command_(uint8_t cmd, uint16_t data);
+  int16_t get_16_bit_int_(uint8_t start_index);
   uint16_t get_16_bit_uint_(uint8_t start_index);
 
   uint8_t data_[64];
