@@ -13,7 +13,7 @@ namespace esp32_rmt_led_strip {
 
 static const char *const TAG = "esp32_rmt_led_strip";
 
-static const uint32_t RMT_CLK_FREQ = 80'000'000;
+static const uint32_t RMT_CLK_FREQ = 80000000;
 
 static const uint8_t RMT_CLK_DIV = 2;
 
