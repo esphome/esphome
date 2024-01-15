@@ -2501,7 +2501,10 @@ climate:
   - platform: mitsubishi
     name: Mitsubishi
     set_fan_mode: "quiet_4levels"
-    set_supported_mode: "dry_fan_heat_cool"
+    supports_cool: False
+    supports_heat: False
+    supports_fan_only: True
+    supports_dry: True
     horizontal_default: "left"
     vertical_default: "down"
   - platform: whirlpool
