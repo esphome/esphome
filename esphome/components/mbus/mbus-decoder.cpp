@@ -5,7 +5,59 @@
 namespace esphome {
 namespace mbus {
 
-uint32_t MBusDecoder::decode_bcd_hex(const uint8_t bcd_data[4]) {
+int64_t MBusDecoder::decode_int(const std::vector<uint8_t> &data) {
+  auto size = data.size();
+
+  size_t i;
+  uint8_t neg;
+  int64_t value = 0;
+
+  if (size == 0) {
+    return 0;
+  }
+
+  neg = data[size - 1] & 0x80;
+
+  for (i = size; i > 0; i--) {
+    if (neg) {
+      value = (value << 8) + (data[i - 1] ^ 0xFF);
+    } else {
+      value = (value << 8) + data[i - 1];
+    }
+  }
+
+  if (neg) {
+    value = (value * -1) - 1;
+  }
+
+  return value;
+}
+
+uint64_t MBusDecoder::decode_bcd_int(const std::vector<uint8_t> &data) {
+  auto size = data.size();
+
+  uint64_t value = 0;
+  size_t i;
+
+  for (i = size; i > 0; i--) {
+    value = (value * 10);
+
+    if (data[i - 1] >> 4 < 0xA) {
+      value += ((data[i - 1] >> 4) & 0xF);
+    }
+
+    value = (value * 10) + (data[i - 1] & 0xF);
+  }
+
+  // hex code Fh in the MSD position signals a negative BCD number
+  if (data[size - 1] >> 4 == 0xF) {
+    value *= -1;
+  }
+
+  return value;
+}
+
+uint32_t MBusDecoder::decode_bcd_uint32(const uint8_t bcd_data[4]) {
   uint64_t val = 0;
   size_t i;
 
@@ -17,7 +69,7 @@ uint32_t MBusDecoder::decode_bcd_hex(const uint8_t bcd_data[4]) {
 }
 
 std::string MBusDecoder::decode_manufacturer(const uint8_t data[2]) {
-  int16_t m_id = decode_int(data);
+  int16_t m_id = decode_int16(data);
 
   uint8_t m_str[4];
   m_str[0] = (char) (((m_id >> 10) & 0x001F) + 64);
@@ -29,7 +81,7 @@ std::string MBusDecoder::decode_manufacturer(const uint8_t data[2]) {
   return manufacturer;
 }
 
-int16_t MBusDecoder::decode_int(const uint8_t data[2]) {
+int16_t MBusDecoder::decode_int16(const uint8_t data[2]) {
   int neg;
   uint16_t value = 0;
 
@@ -153,6 +205,8 @@ std::string MBusDecoder::decode_medium(const uint8_t data) {
     case 0xFF:
       return "Placeholder";
   }
+
+  return "unknown medium";
 }
 
 uint64_t MBusDecoder::decode_secondary_address(const uint8_t id[4], const uint8_t manufacturer[2],

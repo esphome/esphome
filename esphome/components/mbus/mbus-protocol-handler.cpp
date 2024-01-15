@@ -291,7 +291,7 @@ std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_respo
 
   auto it = data.begin() + 12;
   while (it < data.end()) {
-    if ((*it & 0xFF) == MBusDataDifBit::DIF_IDLE_FILLER) {
+    if ((*it & 0xFF) == MBusDataDifMask::IDLE_FILLER) {
       it++;
       continue;
     }
@@ -299,8 +299,8 @@ std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_respo
     // The manufacturer data header (MDH) is made up by the character 0Fh or 1Fh
     // and indicates the beginning of the manufacturer specific part of the user data
     // and should be omitted, if there is no manufacturer specific data
-    if ((*it & 0xFF) == MBusDataDifBit::DIF_MANUFACTURER_SPECIFIC ||
-        (*it & 0xFF) == MBusDataDifBit::DIF_MORE_RECORDS_FOLLOW) {
+    if ((*it & 0xFF) == MBusDataDifMask::MANUFACTURER_SPECIFIC ||
+        (*it & 0xFF) == MBusDataDifMask::MORE_RECORDS_FOLLOW) {
       it++;
       continue;
     }
@@ -317,7 +317,7 @@ std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_respo
 
     record.drh.dib.dif = *it;
     // Extension Bit of DIF / DIFE Frame set => next Frame is DIFE
-    while (it < data.end() && (*it & MBusDataDifBit::DIF_EXTENSION_BIT)) {
+    while (it < data.end() && (*it & MBusDataDifMask::EXTENSION_BIT)) {
       it++;
       record.drh.dib.dife.push_back(*it);
     }
@@ -327,7 +327,7 @@ std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_respo
     record.drh.vib.vif = *it;
 
     // Extension Bit of VIF / VIFE Frame set => next Frame is VIFE
-    while (it < data.end() && (*it & MBusDataDifBit::VIF_EXTENSION_BIT)) {
+    while (it < data.end() && (*it & MBusDataVifMask::EXTENSION_BIT)) {
       it++;
       record.drh.vib.vife.push_back(*it);
     }

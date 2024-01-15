@@ -242,8 +242,8 @@ void MBusDataVariable::dump() const {
   ESP_LOGV(TAG, "\t Header:");
 
   auto header = &this->header;
-  auto id = MBusDecoder::decode_bcd_hex(header->id);
-  ESP_LOGV(TAG, "\t  id = %s (%.4d)", format_hex_pretty(header->id, 4).c_str(), id);
+  auto id = MBusDecoder::decode_bcd_uint32(header->id);
+  ESP_LOGV(TAG, "\t  id = %s (0x%.8X)", format_hex_pretty(header->id, 4).c_str(), id);
 
   auto manufacturer = MBusDecoder::decode_manufacturer(header->manufacturer);
   ESP_LOGV(TAG, "\t  manufacturer = %s", manufacturer.c_str());
@@ -254,12 +254,289 @@ void MBusDataVariable::dump() const {
   ESP_LOGV(TAG, "\t  status = 0x%.2X", header->status);
   ESP_LOGV(TAG, "\t  signature = %s", format_hex_pretty(header->signature, 2).c_str());
   ESP_LOGV(TAG, "\t Records:");
+
   auto records = &this->records;
-  for (auto it = records->begin(); it < records->end(); it++) {
-    ESP_LOGV(TAG, "\t  DIF: 0x%.2X DIFE: %s VIF: 0x%.2X VIFE: %s Data: %s", it->drh.dib.dif,
-             format_hex_pretty(it->drh.dib.dife).c_str(), it->drh.vib.vif, format_hex_pretty(it->drh.vib.vife).c_str(),
-             format_hex_pretty(it->data).c_str());
+  for (auto i = 0; i < records->size(); i++) {
+    auto record = records->at(i);
+    auto mbus_data = record.parse(i);
+    ESP_LOGV(TAG,
+             "\t  DIF: 0x%.2X DIFE: %s VIF: 0x%.2X VIFE: %s Data: %s. (ID: %d, Function: %s, Unit: %s, Tariff: %d, "
+             "Type: %s, %f)",
+             record.drh.dib.dif, format_hex_pretty(record.drh.dib.dife).c_str(), record.drh.vib.vif,
+             format_hex_pretty(record.drh.vib.vife).c_str(), format_hex_pretty(record.data).c_str(), mbus_data->id,
+             mbus_data->function.c_str(), mbus_data->unit.c_str(), mbus_data->tariff,
+             mbus_data->get_data_type_str().c_str(), mbus_data->value);
   }
+}
+
+std::unique_ptr<MBusValue> MBusDataRecord::parse(const uint8_t id) {
+  auto mbus_value = new MBusValue();
+
+  mbus_value->id = id;
+  mbus_value->tariff = parse_tariff(this);
+  mbus_value->function = parse_function(this);
+  mbus_value->unit = parse_unit(this);
+
+  auto data_type = parse_data_type(this);
+  mbus_value->data_type = data_type;
+  mbus_value->value = parse_value(this, data_type);
+
+  std::unique_ptr<MBusValue> value_ptr(mbus_value);
+  return value_ptr;
+}
+
+uint32_t MBusDataRecord::parse_tariff(const MBusDataRecord *record) {
+  int bit_index = 0;
+  long result = 0;
+  int i;
+
+  auto dife_size = record->drh.dib.dife.size();
+  if (record && (dife_size > 0)) {
+    for (i = 0; i < dife_size; i++) {
+      result |= ((record->drh.dib.dife[i] & MBusDataDifMask::TARIFF) >> 4) << bit_index;
+      bit_index += 2;
+    }
+
+    return result;
+  }
+
+  return -1;
+}
+
+std::string MBusDataRecord::parse_function(const MBusDataRecord *record) {
+  if (record) {
+    switch (record->drh.dib.dif & MBusDataDifMask::FUNCTION) {
+      case 0x00:
+        return "Instantaneous value";
+
+      case 0x10:
+        return "Maximum value";
+
+      case 0x20:
+        return "Minimum value";
+
+      case 0x30:
+        return "Value during error state";
+        break;
+
+      default:
+        return "unknown";
+    }
+  }
+
+  return "record is null";
+}
+
+std::string MBusDataRecord::parse_unit(const MBusDataRecord *record) {
+  auto vib = &(record->drh.vib);
+  auto vibe_size = vib->vife.size();
+  auto unit_and_multiplier = vib->vif & MBusDataVifMask::UNIT_AND_MULTIPLIER;
+  auto extension_bit = vib->vif & MBusDataVifMask::EXTENSION_BIT;
+
+  // Primary VIF
+  if (unit_and_multiplier >= 0 & unit_and_multiplier <= 0x7B) {
+    auto unit_mask = 0b01111000;
+    auto multiplier_mask = 0b00000111;
+
+    auto unit = (unit_and_multiplier & unit_mask) >> 3;
+    auto exponent = unit_and_multiplier & multiplier_mask;
+
+    switch (unit) {
+      case 0b0000:
+        return str_sprintf("Energy (10^%d Wh)", exponent - 3);
+      case 0b0001:
+        return str_sprintf("Energy (10^%d J)", exponent);
+      case 0b0010:
+        return str_sprintf("Volume (10^%d m^3)", exponent - 6);
+      case 0b0011:
+        return str_sprintf("Mass (10^%d kg)", exponent - 3);
+      case 0b0100: {
+        auto data_time_unit = parse_date_time_unit(exponent);
+        if ((exponent & 0b100) == 0) {
+          return str_sprintf("Time (%s)", data_time_unit.c_str());
+        }
+        return str_sprintf("Operating Time (%s)", data_time_unit.c_str());
+      }
+      case 0b0101:
+        return str_sprintf("Power (10^%d W)", exponent - 3);
+      case 0b0110:
+        return str_sprintf("Power (10^%d J/h)", exponent);
+      case 0b0111:
+        return str_sprintf("Volume Flow (10^%d m^3/h)", exponent - 6);
+      case 0b1000:
+        return str_sprintf("Volume Flow ext. (10^%d m^3/min)", exponent - 7);
+      case 0b1001:
+        return str_sprintf("Volume Flow ext (10^%d m^3/sec)", exponent - 9);
+      case 0b1010:
+        return str_sprintf("Mass Flow (10^%d kg/h)", exponent - 3);
+      case 0b1011: {
+        switch (exponent & 0b100) {
+          case 0b000:
+            return str_sprintf("Flow Temperatur (10^%d °C)", exponent - 3);
+          case 0b100:
+            return str_sprintf("Return Temperatur (10^%d °C)", exponent - 3);
+        }
+      }
+      case 0b1100: {
+        switch (exponent & 0b100) {
+          case 0b000:
+            return str_sprintf("Temperatur Difference (10^%d K)", exponent - 3);
+          case 0b100:
+            return str_sprintf("External Temperatur (10^%d °C)", exponent - 3);
+        }
+      }
+      case 0b1101: {
+        switch (exponent & 0b100) {
+          case 0b000:
+            return str_sprintf("Pressure (10^%d bar)", exponent - 3);
+          case 0b100:
+            return str_sprintf("Time Point (%s)", (exponent & 0b000) == 0 ? "Date" : "Date & Time");
+          case 0b110:
+            return "Units for H.C.A.";
+          case 0b111:
+            return "Reserved";
+        }
+      }
+      case 0b1110: {
+        auto data_time_unit = parse_date_time_unit(exponent);
+        switch (exponent & 0b100) {
+          case 0b000:
+            return str_sprintf("Averaging Duration (%s)", data_time_unit.c_str());
+          case 0b100:
+            return str_sprintf("Actuality Duration (%s)", data_time_unit.c_str());
+        }
+      }
+      case 0b1111:
+        ESP_LOGE(TAG, "Unsupported unit.");
+        return "";
+    }
+  }
+  // Plain-text VIF (VIF = 7Ch / FCh)
+  else if (unit_and_multiplier == 0x7C) {
+    ESP_LOGE(TAG, "Plain-text units not supported.");
+    return "";
+  }
+  // Any VIF: 7Eh / FEh
+  else if (unit_and_multiplier == 0x7E) {
+    ESP_LOGE(TAG, "Any units not supported.");
+    return "";
+  }
+  // Manufacturer specific: 7Fh / FFh
+  else if (unit_and_multiplier == 0x7F) {
+    return "Manufacturer specific";
+  }
+  return "";
+}
+
+std::string MBusDataRecord::parse_date_time_unit(const uint8_t exponent) {
+  switch (exponent) {
+    case 0b00:
+      return "seconds";
+    case 0b01:
+      return "minutes";
+    case 0b10:
+      return "hours";
+    case 0b11:
+      return "days";
+  }
+}
+
+MBusDataType MBusDataRecord::parse_data_type(const MBusDataRecord *record) {
+  // 6.3.2 Table 5
+  auto data_field = record->drh.dib.dif & MBusDataDifMask::DATA_CODING;
+  auto unit_and_multiplier = record->drh.vib.vif & MBusDataVifMask::UNIT_AND_MULTIPLIER;
+
+  switch (data_field) {
+    case 0x00:
+      return MBusDataType::NO_DATA;
+    case 0x01:
+      return MBusDataType::INT8;
+    case 0x02: {
+      // E110 1100  Time Point (date)
+      if (unit_and_multiplier & 0b01101100) {
+        return MBusDataType::DATE_16;
+      }
+      return MBusDataType::INT16;
+    }
+    case 0x03:
+      return MBusDataType::INT24;
+    case 0x04: {
+      // E110 1101  Time Point (date/time)
+      if (unit_and_multiplier & 0b01101101) {
+        return MBusDataType::DATE_TIME_32;
+      }
+      if (unit_and_multiplier == 0xFD) {
+        ESP_LOGE(TAG, "Linear VIF-Extension Data Type is not supported");
+        return MBusDataType::NO_DATA;
+      }
+      return MBusDataType::INT32;
+    }
+    case 0x05:
+      return MBusDataType::FLOAT;
+    case 0x06: {
+      // E110 1101  Time Point (date/time)
+      if (unit_and_multiplier & 0b01101101) {
+        return MBusDataType::DATE_TIME_48;
+      }
+      if (unit_and_multiplier == 0xFD) {
+        ESP_LOGE(TAG, "Linear VIF-Extension Data Type is not supported");
+        return MBusDataType::NO_DATA;
+      }
+      return MBusDataType::INT48;
+    }
+    case 0x07:
+      return MBusDataType::INT64;
+    case 0x08: {
+      ESP_LOGE(TAG, "Selection for Readout Data Type not supported");
+      return MBusDataType::NO_DATA;
+    }
+    case 0x09:
+      return MBusDataType::BCD_8;
+    case 0x0A:
+      return MBusDataType::BCD_16;
+    case 0x0B:
+      return MBusDataType::BCD_24;
+    case 0x0C:
+      return MBusDataType::BCD_32;
+    case 0x0D: {
+      ESP_LOGE(TAG, "Variable Length Data Type not supported");
+      return MBusDataType::NO_DATA;
+    }
+    case 0x0E:
+      return MBusDataType::BCD_48;
+    case 0x0F: {
+      ESP_LOGE(TAG, "Special Function Data Type not supported");
+      return MBusDataType::NO_DATA;
+    }
+  }
+
+  ESP_LOGE(TAG, "Unknow DIF Data Type %d", data_field);
+  return MBusDataType::NO_DATA;
+}
+
+float MBusDataRecord::parse_value(const MBusDataRecord *record, const MBusDataType &data_type) {
+  switch (data_type) {
+    case MBusDataType::BCD_8:
+      return (uint8_t) MBusDecoder::decode_bcd_int(record->data);
+    case MBusDataType::BCD_16:
+      return (uint16_t) MBusDecoder::decode_bcd_int(record->data);
+    case MBusDataType::BCD_24:
+      return (uint32_t) MBusDecoder::decode_bcd_int(record->data);
+    case MBusDataType::BCD_32:
+      return (uint32_t) MBusDecoder::decode_bcd_int(record->data);
+    case MBusDataType::BCD_48:
+      return (float) MBusDecoder::decode_bcd_int(record->data);
+    case MBusDataType::INT16:
+    case MBusDataType::INT24:
+    case MBusDataType::INT32:
+    case MBusDataType::INT64:
+    case MBusDataType::INT8:
+    case MBusDataType::FLOAT:
+    default:
+      ESP_LOGE(TAG, "Unsupported data type '%d'", data_type);
+      return 0;
+  }
+  return 0;
 }
 
 }  // namespace mbus

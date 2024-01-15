@@ -51,5 +51,5 @@ uart:
   tx_pin: ${tx_pin}
 
 mbus:
-  # secondary_address: 0x0025426642042002
+  secondary_address: 0x0025426642042002
   delay: "5s"
