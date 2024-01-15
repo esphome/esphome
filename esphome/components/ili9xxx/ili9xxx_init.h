@@ -316,28 +316,6 @@ static const uint8_t PROGMEM INITCMD_ST7789V[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_WSPICOLCD[] = {
-ILI9XXX_SLPOUT, 0x80,
-ILI9XXX_PIXFMT, 1, 0x66,
-ILI9XXX_PWCTR1, 2, 0x17, 0x15, // VRH1 VRH2 -ok
-ILI9XXX_PWCTR2, 1, 0x41, // VGH, VGL - ok
-ILI9XXX_PWCTR3, 1, 0x44,
-//ILI9XXX_VMCTR1, 4, 0x00, 0x00, 0x00, 0x00,
-ILI9XXX_VMCTR1, 3, 0x00, 0x12, 0x80, // nVM VCM_REG VCM_REG_EN - not ok?
-ILI9XXX_IFMODE, 1, 0x00, // -ok
-ILI9XXX_FRMCTR1, 1, 0xA0, // Frame rate = 60Hz -- seems to help the background! -ok
-ILI9XXX_INVCTR, 1, 0x02, // Display Inversion Control = 2dot - ok
-ILI9XXX_DFUNCTR, 2, 0x02, 0x02, // Nomal scan -ok
-ILI9XXX_ADJCTL3, 4, 0xA9, 0x51, 0x2C, 0x82, // Adjust Control 3
-ILI9XXX_GMCTRP1,15, 0x00, 0x03, 0x09, 0x08, 0x16, 0x0A, 0x3F, 0x78, 0x4C, 0x09, 0x0A, 0x08, 0x16, 0x1A, 0x0F,
-ILI9XXX_GMCTRN1,15, 0x00, 0x16, 0x19, 0x03, 0x0F, 0x05, 0x32, 0x45, 0x46, 0x04, 0x0E, 0x0D, 0x35, 0x37, 0x0F,
-
-ILI9XXX_INVON, 0x80,
-ILI9XXX_MADCTL, 1, 0x48,
-ILI9XXX_DISPON, 0x80,
-0x00 // End of list
-};
-
 // clang-format on
 }  // namespace ili9xxx
 }  // namespace esphome
