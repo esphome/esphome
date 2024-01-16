@@ -157,7 +157,7 @@ struct DiscoveredEndpoint {
   bool trig_called;
 };
 
-class PN7160 : public Component {
+class PN7160 : public nfc::Nfcc, public Component {
  public:
   void setup() override;
   void dump_config() override;
