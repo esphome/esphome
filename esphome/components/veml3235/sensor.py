@@ -62,7 +62,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_GAIN, default="1X"): cv.enum(GAINS, upper=True),
             cv.Optional(CONF_INTEGRATION_TIME, default="50ms"): cv.All(
                 cv.positive_time_period_milliseconds,
-                cv.one_of(*VEML3235_INTEGRATION_TIMES, lower=True),
+                cv.enum(VEML3235_INTEGRATION_TIMES, lower=True),
             ),
         }
     )
