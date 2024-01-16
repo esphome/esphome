@@ -230,7 +230,7 @@ void VoiceAssistant::loop() {
       break;  // State changed when udp server port received
     }
     case State::STREAMING_MICROPHONE: {
-      size_t bytes_read = this->read_microphone_();
+      this->read_microphone_();
       if (this->ring_buffer_->available() >= SEND_BUFFER_SIZE) {
         this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
         this->socket_->sendto(this->send_buffer_, SEND_BUFFER_SIZE, 0, (struct sockaddr *) &this->dest_addr_,
