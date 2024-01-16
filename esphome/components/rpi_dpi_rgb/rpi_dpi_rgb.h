@@ -27,7 +27,6 @@ class RPI_DPI_RGB : public display::Display {
     esp_lcd_rgb_panel_config_t config{};
     config.flags.fb_in_psram = 1;
     config.num_fbs = 2;
-    config.timings.pclk_hz = this->pclk_frequency_;
     config.timings.h_res = this->width_;
     config.timings.v_res = this->height_;
     config.timings.hsync_pulse_width = this->hsync_pulse_width_;
@@ -37,6 +36,7 @@ class RPI_DPI_RGB : public display::Display {
     config.timings.vsync_back_porch = this->vsync_back_porch_;
     config.timings.vsync_front_porch = this->vsync_front_porch_;
     config.timings.flags.pclk_active_neg = this->pclk_inverted_;
+    config.timings.pclk_hz = this->pclk_frequency_;
     config.clk_src = LCD_CLK_SRC_PLL160M;
     config.sram_trans_align = 64;
     config.psram_trans_align = 64;
@@ -167,9 +167,9 @@ class RPI_DPI_RGB : public display::Display {
   uint16_t vsync_pulse_width_ = 4;
   uint16_t vsync_back_porch_ = 8;
   uint32_t pclk_frequency_ = 16 * 1000 * 1000;
+  bool pclk_inverted_{true};
 
   bool invert_colors_{};
-  bool pclk_inverted_{true};
   display::ColorOrder color_mode_{display::COLOR_ORDER_BGR};
   size_t width_{};
   size_t height_{};

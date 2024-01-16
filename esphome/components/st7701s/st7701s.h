@@ -37,7 +37,6 @@ class ST7701S : public display::Display,
     esp_lcd_rgb_panel_config_t config{};
     config.flags.fb_in_psram = 1;
     config.num_fbs = 2;
-    config.timings.pclk_hz = 8 * 1000 * 1000;
     config.timings.h_res = this->width_;
     config.timings.v_res = this->height_;
     config.timings.hsync_pulse_width = this->hsync_pulse_width_;
@@ -46,7 +45,8 @@ class ST7701S : public display::Display,
     config.timings.vsync_pulse_width = this->vsync_pulse_width_;
     config.timings.vsync_back_porch = this->vsync_back_porch_;
     config.timings.vsync_front_porch = this->vsync_front_porch_;
-    config.timings.flags.pclk_active_neg = true;
+    config.timings.flags.pclk_active_neg = this->pclk_inverted_;
+    config.timings.pclk_hz = this->pclk_frequency_;
     config.clk_src = LCD_CLK_SRC_PLL160M;
     config.sram_trans_align = 64;
     config.psram_trans_align = 64;
@@ -114,6 +114,8 @@ class ST7701S : public display::Display,
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_width(uint16_t width) { this->width_ = width; }
+  void set_pclk_frequency(uint32_t pclk_frequency) { this->pclk_frequency_ = pclk_frequency; }
+  void set_pclk_inverted(bool inverted) { this->pclk_inverted_ = inverted; }
   void set_dimensions(uint16_t width, uint16_t height) {
     this->width_ = width;
     this->height_ = height;
@@ -239,6 +241,8 @@ class ST7701S : public display::Display,
   uint16_t vsync_back_porch_ = 10;
   uint16_t vsync_front_porch_ = 10;
   std::vector<uint8_t> init_sequence_;
+  uint32_t pclk_frequency_ = 16 * 1000 * 1000;
+  bool pclk_inverted_{true};
 
   bool invert_colors_{};
   display::ColorOrder color_mode_{display::COLOR_ORDER_BGR};

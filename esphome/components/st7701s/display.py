@@ -22,6 +22,10 @@ from esphome.const import (
 )
 
 from .init_sequences import ST7701S_INITS, cmd
+from ..rpi_dpi_rgb.display import (
+    CONF_PCLK_FREQUENCY,
+    CONF_PCLK_INVERTED,
+)
 
 CONF_INIT_SEQUENCE = "init_sequence"
 CONF_DE_PIN = "de_pin"
@@ -104,6 +108,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(CONF_COLOR_ORDER): cv.one_of(
                     *COLOR_ORDERS.keys(), upper=True
                 ),
+                cv.Optional(CONF_PCLK_FREQUENCY, default="16MHz"): cv.All(
+                    cv.frequency, cv.Range(min=4e6, max=30e6)
+                ),
+                cv.Optional(CONF_PCLK_INVERTED, default=True): cv.boolean,
                 cv.Optional(CONF_INVERT_COLORS, default=False): cv.boolean,
                 cv.Required(CONF_DE_PIN): pins.internal_gpio_output_pin_schema,
                 cv.Required(CONF_PCLK_PIN): pins.internal_gpio_output_pin_schema,
@@ -141,6 +149,8 @@ async def to_code(config):
     cg.add(var.set_vsync_pulse_width(config[CONF_VSYNC_PULSE_WIDTH]))
     cg.add(var.set_vsync_back_porch(config[CONF_VSYNC_BACK_PORCH]))
     cg.add(var.set_vsync_front_porch(config[CONF_VSYNC_FRONT_PORCH]))
+    cg.add(var.set_pclk_inverted(config[CONF_PCLK_INVERTED]))
+    cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY]))
     index = 0
     for pin in config[CONF_DATA_PINS]:
         data_pin = await cg.gpio_pin_expression(pin)
