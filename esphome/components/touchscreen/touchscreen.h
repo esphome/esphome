@@ -16,6 +16,7 @@ static const uint8_t STATE_RELEASED = 0x00;
 static const uint8_t STATE_PRESSED = 0x01;
 static const uint8_t STATE_UPDATED = 0x02;
 static const uint8_t STATE_RELEASING = 0x04;
+static const uint8_t STATE_CALIBRATE = 0x07;
 
 struct TouchPoint {
   uint8_t id;

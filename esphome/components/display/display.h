@@ -556,7 +556,6 @@ class Display : public PollingComponent {
   void filled_flat_side_triangle_(int x1, int y1, int x2, int y2, int x3, int y3, Color color);
   void sort_triangle_points_by_y_(int *x1, int *y1, int *x2, int *y2, int *x3, int *y3);
 
-
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};
   DisplayPage *page_{nullptr};

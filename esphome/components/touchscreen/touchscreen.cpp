@@ -41,7 +41,7 @@ void Touchscreen::loop() {
     this->skip_update_ = false;
     for (auto &tp : this->touches_) {
       if (tp.second.state == STATE_PRESSED || tp.second.state == STATE_UPDATED) {
-        tp.second.state = tp.second.state | STATE_RELEASING;
+        tp.second.state |= STATE_RELEASING;
       } else {
         tp.second.state = STATE_RELEASED;
       }
@@ -51,7 +51,7 @@ void Touchscreen::loop() {
     this->update_touches();
     if (this->skip_update_) {
       for (auto &tp : this->touches_) {
-        tp.second.state = tp.second.state & -STATE_RELEASING;
+        tp.second.state &= ~STATE_RELEASING;
       }
     } else {
       this->store_.touched = false;
@@ -88,6 +88,8 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
 
     tp.x = (uint16_t) ((int) x * this->display_width_ / 0x1000);
     tp.y = (uint16_t) ((int) y * this->display_height_ / 0x1000);
+  } else {
+    tp.state |= STATE_CALIBRATE;
   }
   if (tp.state == STATE_PRESSED) {
     tp.x_org = tp.x;
