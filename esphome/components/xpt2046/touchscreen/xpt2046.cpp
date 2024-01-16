@@ -32,7 +32,6 @@ void XPT2046Component::update_touches() {
 
   int16_t touch_pressure_1 = this->read_adc_(0xB1 /* touch_pressure_1 */);
   int16_t touch_pressure_2 = this->read_adc_(0xC1 /* touch_pressure_2 */);
-  ESP_LOGVV(TAG, "touch_pressure  %d, %d", touch_pressure_1, touch_pressure_2);
   z_raw = touch_pressure_1 + 0Xfff - touch_pressure_2;
 
   touch = (z_raw >= this->threshold_);
@@ -53,7 +52,7 @@ void XPT2046Component::update_touches() {
     x_raw = best_two_avg(data[1], data[3], data[5]);
     y_raw = best_two_avg(data[0], data[2], data[4]);
 
-    ESP_LOGV(TAG, "Touchscreen Update [%d, %d], z = %d", x_raw, y_raw, z_raw);
+    ESP_LOGD(TAG, "Touchscreen Update [%d, %d], z = %d", x_raw, y_raw, z_raw);
 
     this->add_raw_touch_position_(0, x_raw, y_raw, z_raw);
   }
