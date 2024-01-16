@@ -62,7 +62,10 @@ climate::ClimateTraits MitsubishiClimate::traits() {
   if (this->supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
 
-    if (this->supports_dry_)
+  if (this->supports_cool_ && this->supports_heat_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
+
+  if (this->supports_dry_)
     traits.add_supported_mode(climate::CLIMATE_MODE_DRY);
   if (this->supports_fan_only_)
     traits.add_supported_mode(climate::CLIMATE_MODE_FAN_ONLY);
@@ -115,10 +118,6 @@ void MitsubishiClimate::transmit_state() {
       remote_state[8] = MITSUBISHI_MODE_A_HEAT;
       break;
     case climate::CLIMATE_MODE_DRY:
-      if (this->supports_dry_) {
-        remote_state[5] = MITSUBISHI_OFF;  // Better safe than sorry
-        break;
-      }
       remote_state[6] = MITSUBISHI_MODE_DRY;
       remote_state[8] = MITSUBISHI_MODE_A_DRY;
       break;
@@ -131,10 +130,6 @@ void MitsubishiClimate::transmit_state() {
       remote_state[8] = MITSUBISHI_MODE_A_AUTO;
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      if (this->supports_fan_only_) {
-        remote_state[5] = MITSUBISHI_OFF;  // Better safe than sorry
-        break;
-      }
       remote_state[6] = MITSUBISHI_MODE_FAN_ONLY;
       remote_state[8] = MITSUBISHI_MODE_A_AUTO;
       break;
@@ -314,12 +309,20 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
         this->mode = climate::CLIMATE_MODE_HEAT;
         break;
       case MITSUBISHI_MODE_DRY:
+        if (!this->supports_dry_) {
+          this->mode = climate::CLIMATE_MODE_OFF;  // Better safe than sorry
+          break;
+        }
         this->mode = climate::CLIMATE_MODE_DRY;
         break;
       case MITSUBISHI_MODE_COOL:
         this->mode = climate::CLIMATE_MODE_COOL;
         break;
       case MITSUBISHI_MODE_FAN_ONLY:
+        if (!this->supports_fan_only_) {
+          this->mode = climate::CLIMATE_MODE_OFF;  // Better safe than sorry
+          break;
+        }
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
       case MITSUBISHI_MODE_AUTO:
