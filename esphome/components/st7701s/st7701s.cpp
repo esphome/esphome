@@ -5,7 +5,6 @@
 namespace esphome {
 namespace st7701s {
 
-#ifdef USE_ESP_IDF
 void ST7701S::dump_config() {
   ESP_LOGCONFIG("", "ST7701S RGB LCD");
   ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
