@@ -15,7 +15,7 @@
 namespace esphome {
 namespace st7701s {
 
-constexpr static const char *const TAG = "panel_driver.st7701s";
+constexpr static const char *const TAG = "display.st7701s";
 const uint8_t SW_RESET_CMD = 0x01;
 const uint8_t SLEEP_OUT = 0x11;
 const uint8_t SDIR_CMD = 0xC7;
