@@ -7,6 +7,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/ring_buffer.h"
 
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
@@ -22,8 +23,6 @@
 #ifdef USE_ESP_ADF
 #include <esp_vad.h>
 #endif
-
-#include <freertos/stream_buffer.h>
 
 namespace esphome {
 namespace voice_assistant {
@@ -181,7 +180,7 @@ class VoiceAssistant : public Component {
   uint8_t vad_threshold_{5};
   uint8_t vad_counter_{0};
 #endif
-  StreamBufferHandle_t ring_buffer_;
+  RingBuffer *ring_buffer_;
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;
