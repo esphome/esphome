@@ -227,7 +227,7 @@ esphome/components/nextion/binary_sensor/* @senexcrenshaw
 esphome/components/nextion/sensor/* @senexcrenshaw
 esphome/components/nextion/switch/* @senexcrenshaw
 esphome/components/nextion/text_sensor/* @senexcrenshaw
-esphome/components/nfc/* @jesserockz
+esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
 esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
