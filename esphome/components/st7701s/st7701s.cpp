@@ -1,6 +1,4 @@
-//
-// Created by Clyde Stubbs on 29/10/2023.
-//
+#ifdef USE_ESP32_VARIANT_ESP32S3
 #include "st7701s.h"
 #include "esphome/core/log.h"
 
@@ -21,7 +19,7 @@ void ST7701S::dump_config() {
     ESP_LOGCONFIG(TAG, "  Data pin %d: %s", i, (this->data_pins_[i])->dump_summary().c_str());
   ESP_LOGCONFIG(TAG, "  SPI Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 }
-#endif
 
 }  // namespace st7701s
 }  // namespace esphome
+#endif  // USE_ESP32_VARIANT_ESP32S3

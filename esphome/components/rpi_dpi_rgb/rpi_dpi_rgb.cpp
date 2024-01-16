@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32_VARIANT_ESP32S3
 #include "rpi_dpi_rgb.h"
 #include "esphome/core/log.h"
 
@@ -19,4 +19,4 @@ void RpiDpiRgb::dump_config() {
 }  // namespace rpi_dpi_rgb
 }  // namespace esphome
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32_VARIANT_ESP32S3
