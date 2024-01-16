@@ -4,10 +4,10 @@
 
 #include "../esp_adf.h"
 
-#include "esphome/components/microphone/microphone.h"
 #include "esphome/core/component.h"
+#include "esphome/core/ring_buffer.h"
 
-#include <ringbuf.h>
+#include "esphome/components/microphone/microphone.h"
 
 namespace esphome {
 namespace esp_adf {
@@ -29,7 +29,7 @@ class ESPADFMicrophone : public ESPADFPipeline, public microphone::Microphone, p
 
   static void read_task(void *params);
 
-  ringbuf_handle_t ring_buffer_;
+  RingBuffer *ring_buffer_;
 
   TaskHandle_t read_task_handle_{nullptr};
   QueueHandle_t read_event_queue_;

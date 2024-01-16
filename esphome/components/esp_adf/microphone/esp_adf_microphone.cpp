@@ -24,15 +24,27 @@ namespace esp_adf {
 static const char *const TAG = "esp_adf.microphone";
 
 void ESPADFMicrophone::setup() {
-  this->ring_buffer_ = rb_create(8000, sizeof(int16_t));
+  ESP_LOGCONFIG(TAG, "Setting up ESP ADF Microphone...");
+  this->ring_buffer_ = RingBuffer::create(8000 * sizeof(int16_t));
   if (this->ring_buffer_ == nullptr) {
-    ESP_LOGW(TAG, "Could not allocate ring buffer.");
+    ESP_LOGE(TAG, "Could not allocate ring buffer");
     this->mark_failed();
     return;
   }
 
   this->read_event_queue_ = xQueueCreate(20, sizeof(TaskEvent));
+  if (this->read_event_queue_ == nullptr) {
+    ESP_LOGW(TAG, "Could not allocate event queue");
+    this->mark_failed();
+    return;
+  }
   this->read_command_queue_ = xQueueCreate(20, sizeof(CommandEvent));
+  if (this->read_command_queue_ == nullptr) {
+    ESP_LOGW(TAG, "Could not allocate command queue");
+    this->mark_failed();
+    return;
+  }
+  ESP_LOGCONFIG(TAG, "Successfully set up ESP ADF Microphone");
 }
 
 void ESPADFMicrophone::start() {
@@ -177,11 +189,7 @@ void ESPADFMicrophone::read_task(void *params) {
       continue;
     }
 
-    int available = rb_bytes_available(this_mic->ring_buffer_);
-    if (available < bytes_read) {
-      rb_read(this_mic->ring_buffer_, nullptr, bytes_read - available, 0);
-    }
-    int written = rb_write(this_mic->ring_buffer_, (char *) buffer, bytes_read, 0);
+    size_t written = this_mic->ring_buffer_->write((void *) buffer, bytes_read);
 
     event.type = TaskEventType::RUNNING;
     event.err = written;
@@ -227,16 +235,17 @@ void ESPADFMicrophone::stop() {
 }
 
 size_t ESPADFMicrophone::read(int16_t *buf, size_t len) {
-  if (rb_bytes_filled(this->ring_buffer_) == 0) {
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "Microphone is failed, cannot read");
+    return 0;
+  }
+  if (this->ring_buffer_->available() == 0) {
     return 0;  // No data
   }
-  int bytes_read = rb_read(this->ring_buffer_, (char *) buf, len, 0);
+  size_t bytes_read = this->ring_buffer_->read((void *) buf, len);
 
-  if (bytes_read == -4 || bytes_read == -2 || bytes_read == 0) {
+  if (bytes_read == 0) {
     // No data in buffers to read.
-    return 0;
-  } else if (bytes_read < 0) {
-    ESP_LOGW(TAG, "Error reading from I2S microphone %s (%d)", esp_err_to_name(bytes_read), bytes_read);
     this->status_set_warning();
     return 0;
   }
