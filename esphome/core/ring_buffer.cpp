@@ -20,7 +20,7 @@ RingBuffer *RingBuffer::create(size_t len) {
     return nullptr;
   }
 
-  rb->handle_ = xStreamBufferCreateStatic(size, 0, rb->storage_, &rb->structure_);
+  rb->handle_ = xStreamBufferCreateStatic(len, 0, rb->storage_, &rb->structure_);
   return rb;
 }
 
