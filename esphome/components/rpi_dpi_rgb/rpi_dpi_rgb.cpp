@@ -6,7 +6,7 @@ namespace esphome {
 namespace rpi_dpi_rgb {
 
 void RPI_DPI_RGB::dump_config() {
-  ESP_LOGCONFIG("", "ST7701S RGB LCD");
+  ESP_LOGCONFIG("", "RPI_DDPI_RGB LCD");
   ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
   ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);

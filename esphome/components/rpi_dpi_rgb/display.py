@@ -35,6 +35,7 @@ CONF_VSYNC_FRONT_PORCH = "vsync_front_porch"
 CONF_VSYNC_PULSE_WIDTH = "vsync_pulse_width"
 CONF_VSYNC_BACK_PORCH = "vsync_back_porch"
 CONF_PCLK_FREQUENCY = "pclk_frequency"
+CONF_PCLK_INVERTED = "pclk_inverted"
 
 rpi_dpi_rgb_ns = cg.esphome_ns.namespace("rpi_dpi_rgb")
 RPI_DPI_RGB = rpi_dpi_rgb_ns.class_("RPI_DPI_RGB", display.Display, cg.Component)
@@ -68,8 +69,9 @@ CONFIG_SCHEMA = cv.All(
                     ),
                 ),
                 cv.Optional(CONF_PCLK_FREQUENCY, default="16MHz"): cv.All(
-                    cv.frequency, cv.Range(min=4e6, max=16e6)
+                    cv.frequency, cv.Range(min=4e6, max=30e6)
                 ),
+                cv.Optional(CONF_PCLK_INVERTED, default=True): cv.boolean,
                 cv.Required(CONF_DATA_PINS): cv.All(
                     [DATA_PIN_SCHEMA],
                     cv.Length(min=16, max=16, msg="Exactly 16 data pins required"),
@@ -109,6 +111,8 @@ async def to_code(config):
     cg.add(var.set_vsync_pulse_width(config[CONF_VSYNC_PULSE_WIDTH]))
     cg.add(var.set_vsync_back_porch(config[CONF_VSYNC_BACK_PORCH]))
     cg.add(var.set_vsync_front_porch(config[CONF_VSYNC_FRONT_PORCH]))
+    cg.add(var.set_pclk_inverted(config[CONF_PCLK_INVERTED]))
+    cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY]))
     index = 0
     for pin in config[CONF_DATA_PINS]:
         data_pin = await cg.gpio_pin_expression(pin)

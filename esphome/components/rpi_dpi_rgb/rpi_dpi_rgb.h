@@ -27,7 +27,7 @@ class RPI_DPI_RGB : public display::Display {
     esp_lcd_rgb_panel_config_t config{};
     config.flags.fb_in_psram = 1;
     config.num_fbs = 2;
-    config.timings.pclk_hz = this->pclk_speed_;
+    config.timings.pclk_hz = this->pclk_frequency_;
     config.timings.h_res = this->width_;
     config.timings.v_res = this->height_;
     config.timings.hsync_pulse_width = this->hsync_pulse_width_;
@@ -36,7 +36,7 @@ class RPI_DPI_RGB : public display::Display {
     config.timings.vsync_pulse_width = this->vsync_pulse_width_;
     config.timings.vsync_back_porch = this->vsync_back_porch_;
     config.timings.vsync_front_porch = this->vsync_front_porch_;
-    config.timings.flags.pclk_active_neg = true;
+    config.timings.flags.pclk_active_neg = this->pclk_inverted_;
     config.clk_src = LCD_CLK_SRC_PLL160M;
     config.sram_trans_align = 64;
     config.psram_trans_align = 64;
@@ -115,7 +115,8 @@ class RPI_DPI_RGB : public display::Display {
   void set_vsync_pulse_width(uint16_t vsync_pulse_width) { this->vsync_pulse_width_ = vsync_pulse_width; }
   void set_vsync_back_porch(uint16_t vsync_back_porch) { this->vsync_back_porch_ = vsync_back_porch; }
   void set_vsync_front_porch(uint16_t vsync_front_porch) { this->vsync_front_porch_ = vsync_front_porch; }
-  void set_pclk_speed(uint32_t pclk_speed) { this->pclk_speed_ = pclk_speed; }
+  void set_pclk_frequency(uint32_t pclk_frequency) { this->pclk_frequency_ = pclk_frequency; }
+  void set_pclk_inverted(bool inverted) { this->pclk_inverted_ = inverted; }
   void set_offsets(int16_t offset_x, int16_t offset_y) {
     this->offset_x_ = offset_x;
     this->offset_y_ = offset_y;
@@ -165,9 +166,10 @@ class RPI_DPI_RGB : public display::Display {
   uint16_t vsync_front_porch_ = 8;
   uint16_t vsync_pulse_width_ = 4;
   uint16_t vsync_back_porch_ = 8;
-  uint32_t pclk_speed_ = 16 * 1000 * 1000;
+  uint32_t pclk_frequency_ = 16 * 1000 * 1000;
 
   bool invert_colors_{};
+  bool pclk_inverted_{true};
   display::ColorOrder color_mode_{display::COLOR_ORDER_BGR};
   size_t width_{};
   size_t height_{};
