@@ -20,7 +20,7 @@ class RingBuffer {
 
   BaseType_t reset();
 
-  static RingBuffer *create(size_t len);
+  static std::unique_ptr<RingBuffer> create(size_t len);
 
  protected:
   StreamBufferHandle_t handle_;

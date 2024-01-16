@@ -9,10 +9,10 @@
 
 namespace esphome {
 
-static const char *TAG = "ring_buffer";
+static const char *const TAG = "ring_buffer";
 
-RingBuffer *RingBuffer::create(size_t len) {
-  RingBuffer *rb = new RingBuffer();
+std::unique_ptr<RingBuffer> RingBuffer::create(size_t len) {
+  std::unique_ptr<RingBuffer> rb = make_unique<RingBuffer>();
 
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   rb->storage_ = allocator.allocate(len);

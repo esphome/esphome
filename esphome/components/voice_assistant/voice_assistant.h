@@ -180,7 +180,7 @@ class VoiceAssistant : public Component {
   uint8_t vad_threshold_{5};
   uint8_t vad_counter_{0};
 #endif
-  RingBuffer *ring_buffer_;
+  std::unique_ptr<RingBuffer> ring_buffer_;
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;
