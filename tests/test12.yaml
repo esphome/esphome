@@ -12,9 +12,6 @@ esp32:
   variant: esp32s3
   framework:
     type: esp-idf
-# Required to get the latest RGB driver
-    platform_version: 6.4.0
-    version: 5.1.1
 # Required to achieve sufficient PSRAM bandwidth
     sdkconfig_options:
       CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: y

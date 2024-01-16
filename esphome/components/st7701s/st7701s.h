@@ -3,7 +3,8 @@
 //
 #pragma once
 
-#ifdef USE_ESP_IDF
+// only applicable on ESP32-S3
+#ifdef USE_ESP32_VARIANT_ESP32S3
 #include "esphome/core/component.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
@@ -36,7 +37,6 @@ class ST7701S : public display::Display,
     this->spi_setup();
     esp_lcd_rgb_panel_config_t config{};
     config.flags.fb_in_psram = 1;
-    config.num_fbs = 2;
     config.timings.h_res = this->width_;
     config.timings.v_res = this->height_;
     config.timings.hsync_pulse_width = this->hsync_pulse_width_;
@@ -55,7 +55,6 @@ class ST7701S : public display::Display,
       config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
     }
     config.data_width = data_pin_count;
-    config.bits_per_pixel = data_pin_count;
     config.disp_gpio_num = -1;
     config.hsync_gpio_num = this->hsync_pin_->get_pin();
     config.vsync_gpio_num = this->vsync_pin_->get_pin();
@@ -91,7 +90,7 @@ class ST7701S : public display::Display,
     } else {
       // draw line by line
       auto stride = x_offset + w + x_pad;
-      for (size_t y = 0; y != h; y++) {
+      for (int y = 0; y != h; y++) {
         err = esp_lcd_panel_draw_bitmap(this->handle_, x_start, y + y_start, x_start + w, y + y_start + 1,
                                         ptr + ((y + y_offset) * stride + x_offset) * 2);
         if (err != ESP_OK)
