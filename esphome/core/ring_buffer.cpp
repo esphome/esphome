@@ -11,16 +11,16 @@ namespace esphome {
 
 static const char *TAG = "ring_buffer";
 
-RingBuffer *RingBuffer::create(size_t size) {
+RingBuffer *RingBuffer::create(size_t len) {
   RingBuffer *rb = new RingBuffer();
 
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-  rb->storage = allocator.allocate(size);
-  if (rb->storage == nullptr) {
+  rb->storage_ = allocator.allocate(len);
+  if (rb->storage_ == nullptr) {
     return nullptr;
   }
 
-  rb->handle_ = xStreamBufferCreateStatic(size, 0, rb->storage, &rb->structure);
+  rb->handle_ = xStreamBufferCreateStatic(size, 0, rb->storage_, &rb->structure_);
   return rb;
 }
 
@@ -28,14 +28,14 @@ size_t RingBuffer::read(void *data, size_t size, TickType_t ticks_to_wait) {
   return xStreamBufferReceive(this->handle_, data, size, ticks_to_wait);
 }
 
-size_t RingBuffer::write(void *data, size_t size) {
+size_t RingBuffer::write(void *data, size_t len) {
   size_t free = this->free();
-  if (free < size) {
-    size_t needed = size - free;
+  if (free < len) {
+    size_t needed = len - free;
     uint8_t discard[needed];
     xStreamBufferReceive(this->handle_, discard, needed, 0);
   }
-  return xStreamBufferSend(this->handle_, data, size, 0);
+  return xStreamBufferSend(this->handle_, data, len, 0);
 }
 
 size_t RingBuffer::available() const { return xStreamBufferBytesAvailable(this->handle_); }

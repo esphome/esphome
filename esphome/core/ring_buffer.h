@@ -20,12 +20,12 @@ class RingBuffer {
 
   BaseType_t reset();
 
-  static RingBuffer *create(size_t size);
+  static RingBuffer *create(size_t len);
 
  protected:
   StreamBufferHandle_t handle_;
-  StaticStreamBuffer_t structure;
-  uint8_t *storage;
+  StaticStreamBuffer_t structure_;
+  uint8_t *storage_;
 };
 
 }  // namespace esphome
