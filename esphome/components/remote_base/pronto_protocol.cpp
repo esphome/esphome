@@ -227,16 +227,17 @@ optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
 }
 
 void ProntoProtocol::dump(const ProntoData &data) {
-  std::string first, rest;
-  if (data.data.size() < 230) {
-    first = data.data;
-  } else {
-    first = data.data.substr(0, 229);
-    rest = data.data.substr(230);
-  }
-  ESP_LOGI(TAG, "Received Pronto: data=%s", first.c_str());
-  if (!rest.empty()) {
-    ESP_LOGI(TAG, "%s", rest.c_str());
+  std::string rest;
+
+  rest = data.data;
+  ESP_LOGI(TAG, "Received Pronto: data=");
+  while (true) {
+    ESP_LOGI(TAG, "%s", rest.substr(0, 230).c_str());
+    if (rest.size() > 230) {
+      rest = rest.substr(230);
+    } else {
+      break;
+    }
   }
 }
 
