@@ -81,8 +81,4 @@ async def to_code(config):
     cg.add(var.set_auto_gain_threshold_low(config[CONF_AUTO_GAIN_THRESHOLD_LOW]))
     cg.add(var.set_digital_gain(DIGITAL_GAINS[config[CONF_DIGITAL_GAIN]]))
     cg.add(var.set_gain(GAINS[config[CONF_GAIN]]))
-    cg.add(
-        var.set_integration_time(
-            VEML3235_INTEGRATION_TIMES[config[CONF_INTEGRATION_TIME]]
-        )
-    )
+    cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))

@@ -42,7 +42,7 @@ bool VEML3235Sensor::refresh_config_reg(bool force_on) {
 
 float VEML3235Sensor::read_lx_() {
   if (!this->power_on_) {  // if off, turn on
-    if (!refresh_config_reg(true)) {
+    if (!this->refresh_config_reg(true)) {
       ESP_LOGW(TAG, "Turning on failed");
       this->status_set_warning();
       return NAN;
@@ -98,7 +98,7 @@ float VEML3235Sensor::read_lx_() {
   ESP_LOGD(TAG, "'%s': Illuminance = %.4flx", this->get_name().c_str(), lx);
 
   if (!this->power_on_) {  // turn off if required
-    if (!refresh_config_reg()) {
+    if (!this->refresh_config_reg()) {
       ESP_LOGW(TAG, "Turning off failed");
       this->status_set_warning();
     }
@@ -112,8 +112,8 @@ float VEML3235Sensor::read_lx_() {
 }
 
 void VEML3235Sensor::adjust_gain_(const uint16_t als_raw_value) {
-  if ((als_raw_value > UINT16_MAX * auto_gain_threshold_low_) &&
-      (als_raw_value < UINT16_MAX * auto_gain_threshold_high_)) {
+  if ((als_raw_value > UINT16_MAX * this->auto_gain_threshold_low_) &&
+      (als_raw_value < UINT16_MAX * this->auto_gain_threshold_high_)) {
     return;
   }
 
