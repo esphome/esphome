@@ -138,6 +138,7 @@ async def to_code(config):
             sens = await sensor.new_sensor(config[conf])
             cg.add(var.set_sensor(sens, i))
 
+    cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_request_temperature(CONF_TEMPERATURE in config))
 
     if CONF_DISABLE_LED in config:

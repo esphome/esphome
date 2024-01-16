@@ -9,6 +9,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 import secrets
 import shutil
 import subprocess
@@ -302,16 +303,28 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         port = json_message["port"]
         if (
             port == "OTA"  # pylint: disable=too-many-boolean-expressions
-            and (mdns := dashboard.mdns_status)
             and (entry := entries.get(config_file))
             and entry.loaded_integrations
             and "api" in entry.loaded_integrations
-            and (address := await mdns.async_resolve_host(entry.name))
         ):
-            # Use the IP address if available but only
-            # if the API is loaded and the device is online
-            # since MQTT logging will not work otherwise
-            port = address
+            if (mdns := dashboard.mdns_status) and (
+                address := await mdns.async_resolve_host(entry.name)
+            ):
+                # Use the IP address if available but only
+                # if the API is loaded and the device is online
+                # since MQTT logging will not work otherwise
+                port = address
+            elif (
+                entry.address
+                and (
+                    address_list := await dashboard.dns_cache.async_resolve(
+                        entry.address, time.monotonic()
+                    )
+                )
+                and not isinstance(address_list, Exception)
+            ):
+                # If mdns is not available, try to use the DNS cache
+                port = address_list[0]
 
         return [
             *DASHBOARD_COMMAND,

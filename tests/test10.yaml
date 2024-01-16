@@ -44,6 +44,8 @@ binary_sensor:
   - platform: wireguard
     status:
       name: 'WireGuard Status'
+    enabled:
+      name: 'WireGuard Enabled'
 
 sensor:
   - platform: wireguard
@@ -54,3 +56,26 @@ text_sensor:
   - platform: wireguard
     address:
       name: 'WireGuard Address'
+
+button:
+  - platform: template
+    name: 'Toggle WireGuard'
+    entity_category: config
+    on_press:
+      - if:
+          condition: wireguard.enabled
+          then:
+            - wireguard.disable:
+          else:
+            - wireguard.enable:
+
+  - platform: template
+    name: 'Log WireGuard status'
+    entity_category: config
+    on_press:
+      - if:
+          condition: wireguard.peer_online
+          then:
+            - logger.log: 'wireguard remote peer is online'
+          else:
+            - logger.log: 'wireguard remote peer is offline'

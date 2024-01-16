@@ -495,4 +495,4 @@ async def to_code(config):
             trigger, [(cg.uint8, "code"), (cg.const_char_ptr, "message")], conf
         )
     # https://github.com/paveldn/HaierProtocol
-    cg.add_library("pavlodn/HaierProtocol", "0.9.24")
+    cg.add_library("pavlodn/HaierProtocol", "0.9.25")

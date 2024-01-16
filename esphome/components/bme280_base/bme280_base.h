@@ -2,10 +2,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace bme280 {
+namespace bme280_base {
 
 /// Internal struct storing the calibration values of an BME280.
 struct BME280CalibrationData {
@@ -57,8 +56,8 @@ enum BME280IIRFilter {
   BME280_IIR_FILTER_16X = 0b100,
 };
 
-/// This class implements support for the BME280 Temperature+Pressure+Humidity i2c sensor.
-class BME280Component : public PollingComponent, public i2c::I2CDevice {
+/// This class implements support for the BME280 Temperature+Pressure+Humidity sensor.
+class BME280Component : public PollingComponent {
  public:
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
@@ -91,6 +90,11 @@ class BME280Component : public PollingComponent, public i2c::I2CDevice {
   uint16_t read_u16_le_(uint8_t a_register);
   int16_t read_s16_le_(uint8_t a_register);
 
+  virtual bool read_byte(uint8_t a_register, uint8_t *data) = 0;
+  virtual bool write_byte(uint8_t a_register, uint8_t data) = 0;
+  virtual bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
+  virtual bool read_byte_16(uint8_t a_register, uint16_t *data) = 0;
+
   BME280CalibrationData calibration_;
   BME280Oversampling temperature_oversampling_{BME280_OVERSAMPLING_16X};
   BME280Oversampling pressure_oversampling_{BME280_OVERSAMPLING_16X};
@@ -106,5 +110,5 @@ class BME280Component : public PollingComponent, public i2c::I2CDevice {
   } error_code_{NONE};
 };
 
-}  // namespace bme280
+}  // namespace bme280_base
 }  // namespace esphome

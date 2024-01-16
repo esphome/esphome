@@ -139,6 +139,9 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
     VARIANT_ESP32C3: {
         5: adc2_channel_t.ADC2_CHANNEL_0,
     },
+    VARIANT_ESP32C2: {},
+    VARIANT_ESP32C6: {},
+    VARIANT_ESP32H2: {},
 }
 
 

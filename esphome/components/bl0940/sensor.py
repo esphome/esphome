@@ -18,6 +18,7 @@ from esphome.const import (
     UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_WATT,
+    STATE_CLASS_TOTAL_INCREASING,
 )
 
 DEPENDENCIES = ["uart"]
@@ -54,6 +55,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_INTERNAL_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,

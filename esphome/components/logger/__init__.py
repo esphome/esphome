@@ -84,7 +84,7 @@ UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
     VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
     VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32C3: [UART0, UART1, USB_SERIAL_JTAG],
+    VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C2: [UART0, UART1],
     VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
@@ -172,9 +172,10 @@ CONFIG_SCHEMA = cv.All(
                 esp8266=UART0,
                 esp32=UART0,
                 esp32_s2=USB_CDC,
-                esp32_s3_idf=USB_SERIAL_JTAG,
-                esp32_c3_idf=USB_SERIAL_JTAG,
                 esp32_s3_arduino=USB_CDC,
+                esp32_s3_idf=USB_SERIAL_JTAG,
+                esp32_c3_arduino=USB_CDC,
+                esp32_c3_idf=USB_SERIAL_JTAG,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
                 rtl87xx=DEFAULT,
@@ -265,6 +266,8 @@ async def to_code(config):
     if CORE.using_arduino:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=1")
+            if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32C3:
+                cg.add_build_flag("-DARDUINO_USB_MODE=1")
 
     if CORE.using_esp_idf:
         if config[CONF_HARDWARE_UART] == USB_CDC:

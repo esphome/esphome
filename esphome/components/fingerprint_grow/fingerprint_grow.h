@@ -118,11 +118,17 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   void set_enrolling_binary_sensor(binary_sensor::BinarySensor *enrolling_binary_sensor) {
     this->enrolling_binary_sensor_ = enrolling_binary_sensor;
   }
+  void add_on_finger_scan_start_callback(std::function<void()> callback) {
+    this->finger_scan_start_callback_.add(std::move(callback));
+  }
   void add_on_finger_scan_matched_callback(std::function<void(uint16_t, uint16_t)> callback) {
     this->finger_scan_matched_callback_.add(std::move(callback));
   }
   void add_on_finger_scan_unmatched_callback(std::function<void()> callback) {
     this->finger_scan_unmatched_callback_.add(std::move(callback));
+  }
+  void add_on_finger_scan_misplaced_callback(std::function<void()> callback) {
+    this->finger_scan_misplaced_callback_.add(std::move(callback));
   }
   void add_on_finger_scan_invalid_callback(std::function<void()> callback) {
     this->finger_scan_invalid_callback_.add(std::move(callback));
@@ -166,8 +172,10 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   uint16_t enrollment_slot_ = ENROLLMENT_SLOT_UNUSED;
   uint8_t enrollment_buffers_ = 5;
   bool waiting_removal_ = false;
+  bool has_sensing_pin_ = false;
   uint32_t last_aura_led_control_ = 0;
   uint16_t last_aura_led_duration_ = 0;
+  uint16_t system_identifier_code_ = 0;
   sensor::Sensor *fingerprint_count_sensor_{nullptr};
   sensor::Sensor *status_sensor_{nullptr};
   sensor::Sensor *capacity_sensor_{nullptr};
@@ -176,11 +184,20 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   sensor::Sensor *last_confidence_sensor_{nullptr};
   binary_sensor::BinarySensor *enrolling_binary_sensor_{nullptr};
   CallbackManager<void()> finger_scan_invalid_callback_;
+  CallbackManager<void()> finger_scan_start_callback_;
   CallbackManager<void(uint16_t, uint16_t)> finger_scan_matched_callback_;
   CallbackManager<void()> finger_scan_unmatched_callback_;
+  CallbackManager<void()> finger_scan_misplaced_callback_;
   CallbackManager<void(uint8_t, uint16_t)> enrollment_scan_callback_;
   CallbackManager<void(uint16_t)> enrollment_done_callback_;
   CallbackManager<void(uint16_t)> enrollment_failed_callback_;
+};
+
+class FingerScanStartTrigger : public Trigger<> {
+ public:
+  explicit FingerScanStartTrigger(FingerprintGrowComponent *parent) {
+    parent->add_on_finger_scan_start_callback([this]() { this->trigger(); });
+  }
 };
 
 class FingerScanMatchedTrigger : public Trigger<uint16_t, uint16_t> {
@@ -195,6 +212,13 @@ class FingerScanUnmatchedTrigger : public Trigger<> {
  public:
   explicit FingerScanUnmatchedTrigger(FingerprintGrowComponent *parent) {
     parent->add_on_finger_scan_unmatched_callback([this]() { this->trigger(); });
+  }
+};
+
+class FingerScanMisplacedTrigger : public Trigger<> {
+ public:
+  explicit FingerScanMisplacedTrigger(FingerprintGrowComponent *parent) {
+    parent->add_on_finger_scan_misplaced_callback([this]() { this->trigger(); });
   }
 };
 

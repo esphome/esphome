@@ -8,6 +8,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, Callable
 
 from ..zeroconf import DiscoveredImport
+from .dns import DNSCache
 from .entries import DashboardEntries
 from .settings import DashboardSettings
 
@@ -69,6 +70,7 @@ class ESPHomeDashboard:
         "mqtt_ping_request",
         "mdns_status",
         "settings",
+        "dns_cache",
     )
 
     def __init__(self) -> None:
@@ -81,7 +83,8 @@ class ESPHomeDashboard:
         self.ping_request: asyncio.Event | None = None
         self.mqtt_ping_request = threading.Event()
         self.mdns_status: MDNSStatus | None = None
-        self.settings: DashboardSettings = DashboardSettings()
+        self.settings = DashboardSettings()
+        self.dns_cache = DNSCache()
 
     async def async_setup(self) -> None:
         """Setup the dashboard."""

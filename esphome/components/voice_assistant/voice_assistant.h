@@ -7,6 +7,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/ring_buffer.h"
 
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
@@ -21,7 +22,6 @@
 
 #ifdef USE_ESP_ADF
 #include <esp_vad.h>
-#include <ringbuf.h>
 #endif
 
 namespace esphome {
@@ -177,10 +177,10 @@ class VoiceAssistant : public Component {
 
 #ifdef USE_ESP_ADF
   vad_handle_t vad_instance_;
-  ringbuf_handle_t ring_buffer_;
   uint8_t vad_threshold_{5};
   uint8_t vad_counter_{0};
 #endif
+  std::unique_ptr<RingBuffer> ring_buffer_;
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;
