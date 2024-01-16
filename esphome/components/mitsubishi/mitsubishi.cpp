@@ -61,8 +61,10 @@ climate::ClimateTraits MitsubishiClimate::traits() {
     traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
   if (this->supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
+  if (this->supports_cool_ && this->supports_heat_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
 
-  if (this->supports_dry_)
+    if (this->supports_dry_)
     traits.add_supported_mode(climate::CLIMATE_MODE_DRY);
   if (this->supports_fan_only_)
     traits.add_supported_mode(climate::CLIMATE_MODE_FAN_ONLY);
