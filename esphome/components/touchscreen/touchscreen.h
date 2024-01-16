@@ -82,6 +82,14 @@ class Touchscreen : public PollingComponent {
   void update() override;
   void loop() override;
   void call_setup() override;
+  
+  // make user that the touchscreen is setup after the display is ready to run.
+  bool can_proceed() override {
+    if (this->display_ != nullptr) {
+      return this->display_->is_ready();
+    }
+    return PollingComponent::can_proceed();
+  }
 
  protected:
   /// Call this function to send touch points to the `on_touch` listener and the binary_sensors.
