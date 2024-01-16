@@ -1,6 +1,7 @@
 #pragma once
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display_color_utils.h"
 #include "ili9xxx_defines.h"
 #include "ili9xxx_init.h"
 
@@ -84,6 +85,8 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void setup() override;
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
