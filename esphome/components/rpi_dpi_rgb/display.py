@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display
 from esphome.const import (
-    CONF_DC_PIN,
     CONF_RESET_PIN,
     CONF_OUTPUT,
     CONF_DATA_PINS,
@@ -38,7 +37,7 @@ CONF_PCLK_FREQUENCY = "pclk_frequency"
 CONF_PCLK_INVERTED = "pclk_inverted"
 
 rpi_dpi_rgb_ns = cg.esphome_ns.namespace("rpi_dpi_rgb")
-RPI_DPI_RGB = rpi_dpi_rgb_ns.class_("RPI_DPI_RGB", display.Display, cg.Component)
+RPI_DPI_RGB = rpi_dpi_rgb_ns.class_("RpiDpiRgb", display.Display, cg.Component)
 ColorOrder = display.display_ns.enum("ColorMode")
 
 COLOR_ORDERS = {
@@ -85,7 +84,6 @@ CONFIG_SCHEMA = cv.All(
                 cv.Required(CONF_HSYNC_PIN): pins.internal_gpio_output_pin_schema,
                 cv.Required(CONF_VSYNC_PIN): pins.internal_gpio_output_pin_schema,
                 cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-                cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
                 cv.Optional(CONF_HSYNC_PULSE_WIDTH, default=10): cv.int_,
                 cv.Optional(CONF_HSYNC_BACK_PORCH, default=10): cv.int_,
                 cv.Optional(CONF_HSYNC_FRONT_PORCH, default=20): cv.int_,
@@ -118,10 +116,6 @@ async def to_code(config):
         data_pin = await cg.gpio_pin_expression(pin)
         cg.add(var.add_data_pin(data_pin, index))
         index += 1
-
-    if dc_pin := config.get(CONF_DC_PIN):
-        dc = await cg.gpio_pin_expression(dc_pin)
-        cg.add(var.set_dc_pin(dc))
 
     if reset_pin := config.get(CONF_RESET_PIN):
         reset = await cg.gpio_pin_expression(reset_pin)

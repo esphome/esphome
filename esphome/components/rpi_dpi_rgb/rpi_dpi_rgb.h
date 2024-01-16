@@ -18,7 +18,7 @@ namespace rpi_dpi_rgb {
 
 constexpr static const char *const TAG = "rpi_dpi_rgb";
 
-class RPI_DPI_RGB : public display::Display {
+class RpiDpiRgb : public display::Display {
  public:
   void update() override { this->do_update_(); }
 
@@ -100,7 +100,6 @@ class RPI_DPI_RGB : public display::Display {
   void set_pclk_pin(InternalGPIOPin *pclk_pin) { this->pclk_pin_ = pclk_pin; }
   void set_vsync_pin(InternalGPIOPin *vsync_pin) { this->vsync_pin_ = vsync_pin; }
   void set_hsync_pin(InternalGPIOPin *hsync_pin) { this->hsync_pin_ = hsync_pin; }
-  void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_width(uint16_t width) { this->width_ = width; }
   void set_dimensions(uint16_t width, uint16_t height) {
@@ -158,7 +157,6 @@ class RPI_DPI_RGB : public display::Display {
   InternalGPIOPin *hsync_pin_{nullptr};
   InternalGPIOPin *vsync_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
-  GPIOPin *dc_pin_{nullptr};
   InternalGPIOPin *data_pins_[16] = {};
   uint16_t hsync_front_porch_ = 8;
   uint16_t hsync_pulse_width_ = 4;
