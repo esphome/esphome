@@ -23,12 +23,19 @@ static const char *const TAG = "esp_adf.speaker";
 void ESPADFSpeaker::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ESP ADF Speaker...");
 
-  this->buffer_queue_ = xQueueCreate(BUFFER_COUNT, sizeof(DataEvent));
-  if (this->buffer_queue_ == nullptr) {
-    ESP_LOGW(TAG, "Could not allocate buffer queue.");
+  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+
+  this->buffer_queue_.storage = allocator.allocate(sizeof(StaticQueue_t) + (BUFFER_COUNT * sizeof(DataEvent)));
+  if (this->buffer_queue_.storage == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate buffer queue!");
     this->mark_failed();
     return;
   }
+
+  this->buffer_queue_.handle =
+      xQueueCreateStatic(BUFFER_COUNT, sizeof(DataEvent), this->buffer_queue_.storage + sizeof(StaticQueue_t),
+                         (StaticQueue_t *) (this->buffer_queue_.storage));
+
   this->event_queue_ = xQueueCreate(20, sizeof(TaskEvent));
   if (this->event_queue_ == nullptr) {
     ESP_LOGW(TAG, "Could not allocate event queue.");
@@ -141,7 +148,7 @@ void ESPADFSpeaker::player_task(void *params) {
   uint32_t last_received = millis();
 
   while (true) {
-    if (xQueueReceive(this_speaker->buffer_queue_, &data_event, 0) != pdTRUE) {
+    if (xQueueReceive(this_speaker->buffer_queue_.handle, &data_event, 0) != pdTRUE) {
       if (millis() - last_received > 500) {
         // No audio for 500ms, stop
         break;
@@ -151,7 +158,7 @@ void ESPADFSpeaker::player_task(void *params) {
     }
     if (data_event.stop) {
       // Stop signal from main thread
-      while (xQueueReceive(this_speaker->buffer_queue_, &data_event, 0) == pdTRUE) {
+      while (xQueueReceive(this_speaker->buffer_queue_.handle, &data_event, 0) == pdTRUE) {
         // Flush queue
       }
       break;
@@ -212,7 +219,7 @@ void ESPADFSpeaker::stop() {
   this->state_ = speaker::STATE_STOPPING;
   DataEvent data;
   data.stop = true;
-  xQueueSendToFront(this->buffer_queue_, &data, portMAX_DELAY);
+  xQueueSendToFront(this->buffer_queue_.handle, &data, portMAX_DELAY);
 }
 
 void ESPADFSpeaker::watch_() {
@@ -271,7 +278,7 @@ size_t ESPADFSpeaker::play(const uint8_t *data, size_t length) {
     size_t to_send_length = std::min(remaining, BUFFER_SIZE);
     event.len = to_send_length;
     memcpy(event.data, data + index, to_send_length);
-    if (xQueueSend(this->buffer_queue_, &event, 0) != pdTRUE) {
+    if (xQueueSend(this->buffer_queue_.handle, &event, 0) != pdTRUE) {
       return index;  // Queue full
     }
     remaining -= to_send_length;
@@ -280,7 +287,7 @@ size_t ESPADFSpeaker::play(const uint8_t *data, size_t length) {
   return index;
 }
 
-bool ESPADFSpeaker::has_buffered_data() const { return uxQueueMessagesWaiting(this->buffer_queue_) > 0; }
+bool ESPADFSpeaker::has_buffered_data() const { return uxQueueMessagesWaiting(this->buffer_queue_.handle) > 0; }
 
 }  // namespace esp_adf
 }  // namespace esphome

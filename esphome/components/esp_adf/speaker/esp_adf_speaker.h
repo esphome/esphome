@@ -38,7 +38,10 @@ class ESPADFSpeaker : public ESPADFPipeline, public speaker::Speaker, public Com
   static void player_task(void *params);
 
   TaskHandle_t player_task_handle_{nullptr};
-  QueueHandle_t buffer_queue_;
+  struct {
+    QueueHandle_t handle;
+    uint8_t *storage;
+  } buffer_queue_;
   QueueHandle_t event_queue_;
 };
 
