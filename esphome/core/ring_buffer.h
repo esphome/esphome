@@ -6,6 +6,7 @@
 #include <freertos/stream_buffer.h>
 
 #include <cinttypes>
+#include <memory>
 
 namespace esphome {
 
