@@ -29,7 +29,7 @@ class ESPADFMicrophone : public ESPADFPipeline, public microphone::Microphone, p
 
   static void read_task(void *params);
 
-  RingBuffer *ring_buffer_;
+  std::unique_ptr<RingBuffer> ring_buffer_;
 
   TaskHandle_t read_task_handle_{nullptr};
   QueueHandle_t read_event_queue_;
