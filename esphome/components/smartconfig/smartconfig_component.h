@@ -3,8 +3,6 @@
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/preferences.h"
-#include "esphome/core/log.h"
 
 #if defined(USE_ESP32) || defined(USE_ESP8266)
 
@@ -34,7 +32,7 @@ class SmartConfigComponent : public Component {
 
  protected:
   CallbackManager<void()> on_smartconfig_ready_;
-  SmartConfigState state_ {SmartConfigState::SC_IDLE};
+  SmartConfigState state_{SmartConfigState::SC_IDLE};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -42,12 +40,7 @@ extern SmartConfigComponent *global_smartconfig_component;
 
 class SmartConfigReadyTrigger : public Trigger<> {
  public:
-  explicit SmartConfigReadyTrigger(SmartConfigComponent *&sc_component) {
-    sc_component->add_on_ready([this]() {
-      ESP_LOGD("smartconfig", "add_on_ready Smartconfig ready");
-      this->trigger();
-    });
-  }
+  explicit SmartConfigReadyTrigger(SmartConfigComponent *&sc_component);
 };
 
 }  // namespace smartconfig

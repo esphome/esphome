@@ -19,6 +19,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
+#ifdef USE_SMARTCONFIG
+#include "esphome/components/smartconfig/smartconfig_component.h"
+#endif
+
 namespace esphome {
 namespace wifi {
 
@@ -427,6 +431,10 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     case ESPHOME_EVENT_ID_WIFI_STA_START: {
       ESP_LOGV(TAG, "Event: WiFi STA start");
       tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, App.get_name().c_str());
+#ifdef USE_SMARTCONFIG
+      if (!this->has_sta())
+        smartconfig::global_smartconfig_component->start();
+#endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_STOP: {

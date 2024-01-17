@@ -27,18 +27,19 @@ namespace smartconfig {
 #endif
 
 static const char *const TAG = "smartconfig";
-static wifi::WiFiAP connecting_sta_;
-static bool is_sc_ready {false};
+static wifi::WiFiAP connecting_sta_;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #ifdef USE_ESP32
-static EventGroupHandle_t sce_group = NULL;
+static EventGroupHandle_t sce_group = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static void smartconfig_event_handler(void *arg, esp_event_base_t event_base, int32_t event, void *event_data);
-static void smartconfig_got_ssid_pwd(void *data);
 #endif
 
 #ifdef USE_ESP8266
+static bool is_sc_ready{false};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static void smartconfig_done(sc_status status, void *pdata);
 #endif
+
+static void smartconfig_got_ssid_pwd(void *data);
 
 SmartConfigComponent::SmartConfigComponent() { global_smartconfig_component = this; }
 
@@ -63,7 +64,7 @@ void SmartConfigComponent::config() {
 
 void SmartConfigComponent::loop() {
 #if defined(USE_ESP32)
-  if (sce_group == NULL) {
+  if (sce_group == nullptr) {
     return;
   }
   EventBits_t xbits;
@@ -92,7 +93,8 @@ void SmartConfigComponent::loop() {
   if (is_sc_ready && (this->state_ != SmartConfigState::SC_READY)) {
     this->state_ = SmartConfigState::SC_READY;
     on_smartconfig_ready_.call();
-  } else if (!is_sc_ready && (this->state_ == SmartConfigState::SC_READY)) {
+  } else if (!is_sc_ready && (this->state_ == SmartConfigState::SC_READY) &&
+             wifi::global_wifi_component->is_connected()) {
     this->state_ = SmartConfigState::SC_DONE;
     this->set_timeout("save-wifi", 1000, [] {
       wifi::global_wifi_component->save_wifi_sta(connecting_sta_.get_ssid(), connecting_sta_.get_password());
@@ -140,9 +142,8 @@ static void smartconfig_got_ssid_pwd(void *data) {
 }
 
 #ifdef USE_ESP8266
-void smartconfig_done(sc_status status, void *pdata)
-{
-  switch(status) {
+void smartconfig_done(sc_status status, void *pdata) {
+  switch (status) {
     case SC_STATUS_WAIT:
       ESP_LOGD(TAG, "SC_STATUS_WAIT");
       break;
@@ -166,8 +167,15 @@ void smartconfig_done(sc_status status, void *pdata)
 }
 #endif
 
-SmartConfigComponent *global_smartconfig_component =
-    nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+SmartConfigComponent *global_smartconfig_component =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+    nullptr;
+
+SmartConfigReadyTrigger::SmartConfigReadyTrigger(SmartConfigComponent *&sc_component) {
+  sc_component->add_on_ready([this]() {
+    ESP_LOGD(TAG, "Smartconfig is ready");
+    this->trigger();
+  });
+}
 
 }  // namespace smartconfig
 }  // namespace esphome

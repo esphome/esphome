@@ -294,6 +294,7 @@ esphome/components/sm10bit_base/* @Cossid
 esphome/components/sm2135/* @BoukeHaarsma23 @dd32 @matika77
 esphome/components/sm2235/* @Cossid
 esphome/components/sm2335/* @Cossid
+esphome/components/smartconfig/* @vinhpn96
 esphome/components/sml/* @alengwenus
 esphome/components/smt100/* @piechade
 esphome/components/sn74hc165/* @jesserockz
