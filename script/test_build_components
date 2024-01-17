@@ -39,7 +39,7 @@ start_esphome() {
 
 # Find all test yaml files.
 # - `./tests/components/[target_component]/[test_name].[target_platform].yaml`
-# - `./tests/components/[target_component]/[test_name].*.yaml`
+# - `./tests/components/[target_component]/[test_name].all.yaml`
 for f in ./tests/components/$target_component/*.*.yaml; do
   [ -f "$f" ] || continue
   IFS='/' read -r -a folder_name <<< "$f"
@@ -50,7 +50,7 @@ for f in ./tests/components/$target_component/*.*.yaml; do
   target_platform="${file_name[1]}"
   file_name_parts=${#file_name[@]}
 
-  if [ "$target_platform" = "*" ] || [ $file_name_parts = 2 ]; then
+  if [ "$target_platform" = "all" ] || [ $file_name_parts = 2 ]; then
     # Test has *not* defined a specific target platform. Need to run tests for all possible target platforms.
     
     for target_platform_file in ./tests/test_build_components/build_components_base.*.yaml; do
