@@ -4159,6 +4159,20 @@ button:
       memory_location: 0xA0
       memory_address: 0x7D
       memory_data: 0x0F
+  - platform: template
+    name: Fan Turn On Action w/ Preset
+    on_press:
+      then:
+        - fan.turn_on:
+            id: fan_speed_presets
+            preset: Preset 1
+  - platform: template
+    name: Fan Turn On Action w/ Preset Template
+    on_press:
+      then:
+        - fan.turn_on:
+            id: fan_hbridge_presets
+            preset: !lambda 'return "Preset 2";'
 
 ld2410:
   id: my_ld2410
