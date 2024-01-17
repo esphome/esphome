@@ -67,13 +67,13 @@ def validate_pillow_installed(value):
     except ImportError as err:
         raise cv.Invalid(
             "Please install the pillow python package to use this feature. "
-            '(pip install "pillow==10.1.0")'
+            '(pip install "pillow==10.2.0")'
         ) from err
 
-    if version.parse(PIL.__version__) != version.parse("10.1.0"):
+    if version.parse(PIL.__version__) != version.parse("10.2.0"):
         raise cv.Invalid(
-            "Please update your pillow installation to 10.1.0. "
-            '(pip install "pillow==10.1.0")'
+            "Please update your pillow installation to 10.2.0. "
+            '(pip install "pillow==10.2.0")'
         )
 
     return value
@@ -235,7 +235,7 @@ FILE_SCHEMA = cv.Schema(_file_schema)
 
 
 DEFAULT_GLYPHS = (
-    ' !"%()+=,-.:/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
+    ' !"%()+=,-.:/?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
 )
 CONF_RAW_GLYPH_ID = "raw_glyph_id"
 

@@ -700,7 +700,7 @@ sensor:
     update_interval: 30s
     mode: low_power
     i2c_id: i2c_bus
-  - platform: bme280
+  - platform: bme280_i2c
     temperature:
       name: Outside Temperature
       oversampling: 16x
@@ -714,6 +714,21 @@ sensor:
     iir_filter: 16x
     update_interval: 15s
     i2c_id: i2c_bus
+  - platform: bme280_spi
+    temperature:
+      name: Outside Temperature
+      oversampling: 16x
+    pressure:
+      name: Outside Pressure
+      oversampling: none
+    humidity:
+      name: Outside Humidity
+      oversampling: 8x
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    iir_filter: 16x
+    update_interval: 15s
   - platform: bme680
     temperature:
       name: Outside Temperature
@@ -2041,6 +2056,18 @@ binary_sensor:
   - platform: seeed_mr24hpc1
     has_target:
       name: "Presence Information"
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    ndef_contains: pulse
+    name: MFC Tag 1
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    tag_id: pulse
+    name: MFC Tag 2
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    uid: 59-FC-AB-15
+    name: MFC Tag 3
 
 pca9685:
   frequency: 500
@@ -3469,6 +3496,7 @@ pn532_i2c:
   i2c_id: i2c_bus
 
 pn7150_i2c:
+  id: nfcc_pn7150_i2c
   i2c_id: i2c_bus
   irq_pin:
     allow_other_uses: true
