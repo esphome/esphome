@@ -10,7 +10,8 @@ from esphome.const import (
     CONF_BIRTH_MESSAGE,
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
-    CONF_CERTIFICATE,
+    CONF_CLIENT_CERTIFICATE,
+    CONF_CLIENT_CERTIFICATE_KEY,
     CONF_CLIENT_ID,
     CONF_COMMAND_TOPIC,
     CONF_COMMAND_RETAIN,
@@ -21,7 +22,6 @@ from esphome.const import (
     CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_ID,
     CONF_KEEPALIVE,
-    CONF_KEY,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
     CONF_ON_JSON_MESSAGE,
@@ -201,10 +201,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
                 cv.string, cv.only_with_esp_idf
             ),
-            cv.Inclusive(CONF_CERTIFICATE, "cert-key-pair"): cv.All(
+            cv.Inclusive(CONF_CLIENT_CERTIFICATE, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
             ),
-            cv.Inclusive(CONF_KEY, "cert-key-pair"): cv.All(
+            cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
             ),
             cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
@@ -386,9 +386,9 @@ async def to_code(config):
     if CONF_CERTIFICATE_AUTHORITY in config:
         cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
         cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
-        if CONF_CERTIFICATE in config:
-            cg.add(var.set_cl_certificate(config[CONF_CERTIFICATE]))
-            cg.add(var.set_cl_key(config[CONF_KEY]))
+        if CONF_CLIENT_CERTIFICATE in config:
+            cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
+            cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
 
         # prevent error -0x428e
         # See https://github.com/espressif/esp-idf/issues/139
