@@ -58,7 +58,6 @@ async def sc16is75x_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_WK2168])
     cg.add(var.set_parent(parent))
-
     num = config[CONF_NUMBER]
     cg.add(var.set_pin(num))
     cg.add(var.set_inverted(config[CONF_INVERTED]))

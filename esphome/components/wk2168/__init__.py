@@ -2,10 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart, wk_base
 from esphome.const import (
-    CONF_BAUD_RATE,
     CONF_CHANNEL,
-    CONF_UART_ID,
-    CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
     CONF_MODE,
@@ -25,7 +22,7 @@ CONF_TEST_MODE = "test_mode"
 
 
 def check_channel_wk2168(value):
-    """Check duplicate channels and 4 channels maximum"""
+    """Check duplicate channels number and maximum value (3 for wk2168)"""
     channel_uniq = []
     channel_dup = []
     for x in value[CONF_UART]:
@@ -51,7 +48,7 @@ def validate_pin_mode(value):
 
 WK2168_PIN_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=8),
+        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=7),
         cv.Optional(CONF_MODE, default={}): cv.All(
             {
                 cv.Optional(CONF_INPUT, default=False): cv.boolean,

@@ -45,7 +45,7 @@ WKBASE_SCHEMA = cv.Schema(
         cv.Required(CONF_UART): cv.ensure_list(
             {
                 cv.Required(CONF_UART_ID): cv.declare_id(WKBaseChannel),
-                cv.Optional(CONF_CHANNEL, default=0): cv.int_range(min=0, max=1),
+                cv.Optional(CONF_CHANNEL, default=0): cv.int_range(min=0, max=3),
                 cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
                 cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
                 cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
