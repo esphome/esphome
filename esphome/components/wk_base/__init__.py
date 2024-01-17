@@ -22,7 +22,7 @@ WKBaseComponent = wk_base_ns.class_("WKBaseComponent", cg.Component)
 WKBaseChannel = wk_base_ns.class_("WKBaseChannel", uart.UARTComponent)
 
 
-def post_check_conf_wk_base(value):
+def check_duplicate(value):
     channel_uniq = []
     channel_dup = []
     for x in value[CONF_UART]:
@@ -35,7 +35,7 @@ def post_check_conf_wk_base(value):
     return value
 
 
-WK2132_SCHEMA = cv.Schema(
+WKBASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(WKBaseComponent),
         cv.Optional(CONF_CRYSTAL, default=14745600): cv.int_,
