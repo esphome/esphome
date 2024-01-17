@@ -22,16 +22,22 @@ WKBaseComponent = wk_base_ns.class_("WKBaseComponent", cg.Component)
 WKBaseChannel = wk_base_ns.class_("WKBaseChannel", uart.UARTComponent)
 
 
-def post_check_conf_wk_base(value):
-    if (
-        len(value[CONF_UART]) > 1
-        and value[CONF_UART][0][CONF_CHANNEL] == value[CONF_UART][1][CONF_CHANNEL]
-    ):
-        raise cv.Invalid("Duplicate channel number")
+def check_channel_wk2132(value):
+    channel_uniq = []
+    channel_dup = []
+    for x in value[CONF_UART]:
+        if x[CONF_CHANNEL] > 1:
+            raise cv.Invalid(f"Invalid channel number: {x[CONF_CHANNEL]}")
+        if x[CONF_CHANNEL] not in channel_uniq:
+            channel_uniq.append(x[CONF_CHANNEL])
+        else:
+            channel_dup.append(x[CONF_CHANNEL])
+    if len(channel_dup) > 0:
+        raise cv.Invalid(f"Duplicate channel list: {channel_dup}")
     return value
 
 
-WK2132_SCHEMA = cv.Schema(
+WKBASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(WKBaseComponent),
         cv.Optional(CONF_CRYSTAL, default=14745600): cv.int_,
@@ -39,7 +45,7 @@ WK2132_SCHEMA = cv.Schema(
         cv.Required(CONF_UART): cv.ensure_list(
             {
                 cv.Required(CONF_UART_ID): cv.declare_id(WKBaseChannel),
-                cv.Optional(CONF_CHANNEL, default=0): cv.int_range(min=0, max=1),
+                cv.Optional(CONF_CHANNEL, default=0): cv.int_range(min=0, max=3),
                 cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
                 cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
                 cv.Optional(CONF_PARITY, default="NONE"): cv.enum(

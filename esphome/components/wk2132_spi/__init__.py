@@ -14,12 +14,12 @@ WK2132ComponentSPI = wk2132_spi_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    wk_base.WK2132_SCHEMA.extend(
+    wk_base.WKBASE_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(WK2132ComponentSPI),
         }
     ).extend(spi.spi_device_schema()),
-    wk_base.post_check_conf_wk_base,
+    wk_base.check_channel_wk2132,
 )
 
 

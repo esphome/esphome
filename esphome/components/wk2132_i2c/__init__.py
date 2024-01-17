@@ -14,12 +14,12 @@ WK2132ComponentI2C = wk2132_i2c_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    wk_base.WK2132_SCHEMA.extend(
+    wk_base.WKBASE_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(WK2132ComponentI2C),
         }
     ).extend(i2c.i2c_device_schema(0x2C)),
-    wk_base.post_check_conf_wk_base,
+    wk_base.check_channel_wk2132,
 )
 
 
