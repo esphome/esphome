@@ -37,6 +37,7 @@
 #define USE_OTA
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
+#define USE_OTA_VERSION 1
 #define USE_OUTPUT
 #define USE_POWER_SUPPLY
 #define USE_QR_CODE
@@ -52,7 +53,6 @@
 #define USE_WIFI
 #define USE_WIFI_AP
 #define USE_GRAPHICAL_DISPLAY_MENU
-#define USE_OTA_VERSION 1
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
