@@ -137,6 +137,38 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
+#define PI 3.1415926535897932384626433832795
+
+enum RegularPolygonType {
+  TRIGON = 3,
+  TRIANGLE = 3,
+  TETRAGON = 4,
+  QUADRILATERAL = 4,
+  PENTAGON = 5,
+  HEXAGON = 6,
+  HEPTAGON = 7,
+  OCTAGON = 8,
+  NONAGON = 9,
+  ENNEAGON = 9,
+  DECAGON = 10,
+  HENDECAGON = 11,
+  DODECAGON = 12,
+  TRIDECAGON = 13,
+  TETRADECAGON = 14,
+  PENTADECAGON = 15,
+  HEXADECAGON = 16,
+};
+
+enum RegularPolygonVariation {
+  VARIATION_POINTY_TOPPED = 0,
+  VARIATION_FLAT_TOPPED = 1,
+};
+
+enum RegularPolygonFilling {
+  FILLING_OUTLINE = 0,
+  FILLING_INTERNAL = 1,
+};
+
 class Display;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
@@ -241,6 +273,18 @@ class Display : public PollingComponent {
 
   /// Fill a triangle contained between the points [x1,y1], [x2,y2] and [x3,y3] with the given color.
   void filled_triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color = COLOR_ON);
+
+  /// Draw the outline of a regular polygon inscribed in the circle centered on [x1,y1] with the given radius and color.
+  /// Use the variation to switch between the flat-topped or the pointy-topped variation of the polygon.
+  /// Use the filling to switch between outlining or filling the polygon.
+  void regular_polygon(int x1, int y1, int radius, RegularPolygonType edges,
+                       RegularPolygonVariation variation = VARIATION_FLAT_TOPPED, Color color = COLOR_ON,
+                       RegularPolygonFilling filling = FILLING_OUTLINE);
+
+  /// Fill a regular polygon inscribed in the circle centered on [x1,y1] with the given radius and color.
+  /// Use the variation to switch between flat-topped and pointy-topped variation of the polygon.
+  void filled_regular_polygon(int x1, int y1, int radius, RegularPolygonType edges,
+                              RegularPolygonVariation variation = VARIATION_FLAT_TOPPED, Color color = COLOR_ON);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
