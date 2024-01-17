@@ -14,6 +14,7 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(bool, oscillating)
   TEMPLATABLE_VALUE(int, speed)
   TEMPLATABLE_VALUE(FanDirection, direction)
+  TEMPLATABLE_VALUE(std::string, preset_mode)
 
   void play(Ts... x) override {
     auto call = this->state_->turn_on();
@@ -25,6 +26,9 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
     }
     if (this->direction_.has_value()) {
       call.set_direction(this->direction_.value(x...));
+    }
+    if (this->preset_mode_.has_value()) {
+      call.set_preset_mode(this->preset_mode_.value(x...));
     }
     call.perform();
   }
