@@ -1370,6 +1370,16 @@ sensor:
       name: tsl2591 calculated_lux
       id: tsl2591_cl
     i2c_id: i2c_bus
+  - platform: veml3235
+    id: veml3235_sensor
+    name: VEML3235 Light Sensor
+    i2c_id: i2c_bus
+    auto_gain: true
+    auto_gain_threshold_high: 90%
+    auto_gain_threshold_low: 15%
+    digital_gain: 1X
+    gain: 1X
+    integration_time: 50ms
   - platform: tee501
     name: Office Temperature 3
     address: 0x48
