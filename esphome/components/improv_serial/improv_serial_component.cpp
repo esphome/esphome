@@ -52,7 +52,7 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
         size_t available;
         uart_get_buffered_data_len(this->uart_num_, &available);
         if (available) {
-          uart_read_bytes(this->uart_num_, &data, 1, 20 / portTICK_PERIOD_MS);
+          uart_read_bytes(this->uart_num_, &data, 1, 0);
           byte = data;
         }
       }
@@ -71,7 +71,7 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
 #endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3)
     case logger::UART_SELECTION_USB_SERIAL_JTAG: {
-      if (usb_serial_jtag_read_bytes((char *) &data, 1, 20 / portTICK_PERIOD_MS)) {
+      if (usb_serial_jtag_read_bytes((char *) &data, 1, 0)) {
         byte = data;
       }
       break;

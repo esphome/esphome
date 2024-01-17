@@ -14,6 +14,16 @@ void PIDClimate::setup() {
     this->update_pid_();
   });
   this->current_temperature = this->sensor_->state;
+
+  // register for humidity values and get initial state
+  if (this->humidity_sensor_ != nullptr) {
+    this->humidity_sensor_->add_on_state_callback([this](float state) {
+      this->current_humidity = state;
+      this->publish_state();
+    });
+    this->current_humidity = this->humidity_sensor_->state;
+  }
+
   // restore set points
   auto restore = this->restore_state_();
   if (restore.has_value()) {
@@ -46,6 +56,9 @@ climate::ClimateTraits PIDClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
   traits.set_supports_two_point_target_temperature(false);
+
+  if (this->humidity_sensor_ != nullptr)
+    traits.set_supports_current_humidity(true);
 
   traits.set_supported_modes({climate::CLIMATE_MODE_OFF});
   if (supports_cool_())

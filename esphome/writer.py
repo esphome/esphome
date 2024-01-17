@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import Union
 
-from esphome.config import iter_components
+from esphome.config import iter_components, iter_component_configs
 from esphome.const import (
     HEADER_FILE_EXTENSIONS,
     SOURCE_FILE_EXTENSIONS,
@@ -70,14 +70,14 @@ UPLOAD_SPEED_OVERRIDE = {
 
 def get_flags(key):
     flags = set()
-    for _, component, conf in iter_components(CORE.config):
+    for _, component, conf in iter_component_configs(CORE.config):
         flags |= getattr(component, key)(conf)
     return flags
 
 
 def get_include_text():
     include_text = '#include "esphome.h"\nusing namespace esphome;\n'
-    for _, component, conf in iter_components(CORE.config):
+    for _, component, conf in iter_component_configs(CORE.config):
         if not hasattr(component, "includes"):
             continue
         includes = component.includes
@@ -203,7 +203,9 @@ def write_platformio_project():
     write_platformio_ini(content)
 
 
-DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
+DEFINES_H_FORMAT = (
+    ESPHOME_H_FORMAT
+) = """\
 #pragma once
 #include "esphome/core/macros.h"
 {}
@@ -230,7 +232,7 @@ the custom_components folder or the external_components feature.
 
 def copy_src_tree():
     source_files: list[loader.FileResource] = []
-    for _, component, _ in iter_components(CORE.config):
+    for _, component in iter_components(CORE.config):
         source_files += component.resources
     source_files_map = {
         Path(x.package.replace(".", "/") + "/" + x.resource): x for x in source_files

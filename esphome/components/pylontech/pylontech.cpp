@@ -1,5 +1,6 @@
 #include "pylontech.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace pylontech {
@@ -34,26 +35,30 @@ void PylontechComponent::setup() {
 void PylontechComponent::update() { this->write_str("pwr\n"); }
 
 void PylontechComponent::loop() {
-  uint8_t data;
-
-  // pylontech sends a lot of data very suddenly
-  // we need to quickly put it all into our own buffer, otherwise the uart's buffer will overflow
-  while (this->available() > 0) {
-    if (this->read_byte(&data)) {
-      buffer_[buffer_index_write_] += (char) data;
-      if (buffer_[buffer_index_write_].back() == static_cast<char>(ASCII_LF) ||
-          buffer_[buffer_index_write_].length() >= MAX_DATA_LENGTH_BYTES) {
-        // complete line received
-        buffer_index_write_ = (buffer_index_write_ + 1) % NUM_BUFFERS;
+  if (this->available() > 0) {
+    // pylontech sends a lot of data very suddenly
+    // we need to quickly put it all into our own buffer, otherwise the uart's buffer will overflow
+    uint8_t data;
+    int recv = 0;
+    while (this->available() > 0) {
+      if (this->read_byte(&data)) {
+        buffer_[buffer_index_write_] += (char) data;
+        recv++;
+        if (buffer_[buffer_index_write_].back() == static_cast<char>(ASCII_LF) ||
+            buffer_[buffer_index_write_].length() >= MAX_DATA_LENGTH_BYTES) {
+          // complete line received
+          buffer_index_write_ = (buffer_index_write_ + 1) % NUM_BUFFERS;
+        }
       }
     }
-  }
-
-  // only process one line per call of loop() to not block esphome for too long
-  if (buffer_index_read_ != buffer_index_write_) {
-    this->process_line_(buffer_[buffer_index_read_]);
-    buffer_[buffer_index_read_].clear();
-    buffer_index_read_ = (buffer_index_read_ + 1) % NUM_BUFFERS;
+    ESP_LOGV(TAG, "received %d bytes", recv);
+  } else {
+    // only process one line per call of loop() to not block esphome for too long
+    if (buffer_index_read_ != buffer_index_write_) {
+      this->process_line_(buffer_[buffer_index_read_]);
+      buffer_[buffer_index_read_].clear();
+      buffer_index_read_ = (buffer_index_read_ + 1) % NUM_BUFFERS;
+    }
   }
 }
 
@@ -66,10 +71,11 @@ void PylontechComponent::process_line_(std::string &buffer) {
   // clang-format on
 
   PylontechListener::LineContents l{};
-  const int parsed = sscanf(                                                                                  // NOLINT
-      buffer.c_str(), "%d %d %d %d %d %d %d %d %7s %7s %7s %7s %d%% %*d-%*d-%*d %*d:%*d:%*d %*s %*s %d %*s",  // NOLINT
-      &l.bat_num, &l.volt, &l.curr, &l.tempr, &l.tlow, &l.thigh, &l.vlow, &l.vhigh, l.base_st, l.volt_st,     // NOLINT
-      l.curr_st, l.temp_st, &l.coulomb, &l.mostempr);                                                         // NOLINT
+  char mostempr_s[6];
+  const int parsed = sscanf(                                                                                   // NOLINT
+      buffer.c_str(), "%d %d %d %d %d %d %d %d %7s %7s %7s %7s %d%% %*d-%*d-%*d %*d:%*d:%*d %*s %*s %5s %*s",  // NOLINT
+      &l.bat_num, &l.volt, &l.curr, &l.tempr, &l.tlow, &l.thigh, &l.vlow, &l.vhigh, l.base_st, l.volt_st,      // NOLINT
+      l.curr_st, l.temp_st, &l.coulomb, mostempr_s);                                                           // NOLINT
 
   if (l.bat_num <= 0) {
     ESP_LOGD(TAG, "invalid bat_num in line %s", buffer.substr(0, buffer.size() - 2).c_str());
@@ -78,6 +84,13 @@ void PylontechComponent::process_line_(std::string &buffer) {
   if (parsed != 14) {
     ESP_LOGW(TAG, "invalid line: found only %d items in %s", parsed, buffer.substr(0, buffer.size() - 2).c_str());
     return;
+  }
+  auto mostempr_parsed = parse_number<int>(mostempr_s);
+  if (mostempr_parsed.has_value()) {
+    l.mostempr = mostempr_parsed.value();
+  } else {
+    l.mostempr = -300;
+    ESP_LOGW(TAG, "bat_num %d: received no mostempr", l.bat_num);
   }
 
   for (PylontechListener *listener : this->listeners_) {

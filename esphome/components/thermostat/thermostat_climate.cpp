@@ -27,6 +27,15 @@ void ThermostatClimate::setup() {
   });
   this->current_temperature = this->sensor_->state;
 
+  // register for humidity values and get initial state
+  if (this->humidity_sensor_ != nullptr) {
+    this->humidity_sensor_->add_on_state_callback([this](float state) {
+      this->current_humidity = state;
+      this->publish_state();
+    });
+    this->current_humidity = this->humidity_sensor_->state;
+  }
+
   auto use_default_preset = true;
 
   if (this->on_boot_restore_from_ == thermostat::OnBootRestoreFrom::MEMORY) {
@@ -217,6 +226,9 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
 climate::ClimateTraits ThermostatClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
+  if (this->humidity_sensor_ != nullptr)
+    traits.set_supports_current_humidity(true);
+
   if (supports_auto_)
     traits.add_supported_mode(climate::CLIMATE_MODE_AUTO);
   if (supports_heat_cool_)
@@ -1169,6 +1181,9 @@ void ThermostatClimate::set_idle_minimum_time_in_sec(uint32_t time) {
       1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
 }
 void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
+void ThermostatClimate::set_humidity_sensor(sensor::Sensor *humidity_sensor) {
+  this->humidity_sensor_ = humidity_sensor;
+}
 void ThermostatClimate::set_use_startup_delay(bool use_startup_delay) { this->use_startup_delay_ = use_startup_delay; }
 void ThermostatClimate::set_supports_heat_cool(bool supports_heat_cool) {
   this->supports_heat_cool_ = supports_heat_cool;

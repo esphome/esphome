@@ -13,7 +13,7 @@ def test_write_utf8_file(tmp_path: Path) -> None:
     assert tmp_path.joinpath("foo.txt").read_text() == "foo"
 
     with pytest.raises(OSError):
-        write_utf8_file(Path("/not-writable"), "bar")
+        write_utf8_file(Path("/dev/not-writable"), "bar")
 
 
 def test_write_file(tmp_path: Path) -> None:

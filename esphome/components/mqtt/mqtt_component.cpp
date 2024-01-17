@@ -34,13 +34,13 @@ std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) con
 
 std::string MQTTComponent::get_state_topic_() const {
   if (this->has_custom_state_topic_)
-    return this->custom_state_topic_;
+    return this->custom_state_topic_.str();
   return this->get_default_topic_for_("state");
 }
 
 std::string MQTTComponent::get_command_topic_() const {
   if (this->has_custom_command_topic_)
-    return this->custom_command_topic_;
+    return this->custom_command_topic_.str();
   return this->get_default_topic_for_("command");
 }
 
@@ -76,7 +76,11 @@ bool MQTTComponent::send_discovery_() {
         this->send_discovery(root, config);
 
         // Fields from EntityBase
-        root[MQTT_NAME] = this->friendly_name();
+        if (this->get_entity()->has_own_name()) {
+          root[MQTT_NAME] = this->friendly_name();
+        } else {
+          root[MQTT_NAME] = "";
+        }
         if (this->is_disabled_by_default())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
         if (!this->get_icon().empty())
@@ -176,12 +180,12 @@ MQTTComponent::MQTTComponent() = default;
 
 float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 void MQTTComponent::disable_discovery() { this->discovery_enabled_ = false; }
-void MQTTComponent::set_custom_state_topic(const std::string &custom_state_topic) {
-  this->custom_state_topic_ = custom_state_topic;
+void MQTTComponent::set_custom_state_topic(const char *custom_state_topic) {
+  this->custom_state_topic_ = StringRef(custom_state_topic);
   this->has_custom_state_topic_ = true;
 }
-void MQTTComponent::set_custom_command_topic(const std::string &custom_command_topic) {
-  this->custom_command_topic_ = custom_command_topic;
+void MQTTComponent::set_custom_command_topic(const char *custom_command_topic) {
+  this->custom_command_topic_ = StringRef(custom_command_topic);
   this->has_custom_command_topic_ = true;
 }
 void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }

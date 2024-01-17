@@ -44,8 +44,6 @@ struct TT21100TouchReport {
   TT21100TouchRecord touch_record[MAX_TOUCH_POINTS];
 } __attribute__((packed));
 
-void TT21100TouchscreenStore::gpio_intr(TT21100TouchscreenStore *store) { store->touch = true; }
-
 float TT21100Touchscreen::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 
 void TT21100Touchscreen::setup() {
@@ -54,9 +52,8 @@ void TT21100Touchscreen::setup() {
   // Register interrupt pin
   this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->interrupt_pin_->setup();
-  this->store_.pin = this->interrupt_pin_->to_isr();
-  this->interrupt_pin_->attach_interrupt(TT21100TouchscreenStore::gpio_intr, &this->store_,
-                                         gpio::INTERRUPT_FALLING_EDGE);
+
+  this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
 
   // Perform reset if necessary
   if (this->reset_pin_ != nullptr) {
@@ -65,19 +62,14 @@ void TT21100Touchscreen::setup() {
   }
 
   // Update display dimensions if they were updated during display setup
-  this->display_width_ = this->display_->get_width();
-  this->display_height_ = this->display_->get_height();
-  this->rotation_ = static_cast<TouchRotation>(this->display_->get_rotation());
+  this->x_raw_max_ = this->get_width_();
+  this->y_raw_max_ = this->get_height_();
 
   // Trigger initial read to activate the interrupt
-  this->store_.touch = true;
+  this->store_.touched = true;
 }
 
-void TT21100Touchscreen::loop() {
-  if (!this->store_.touch)
-    return;
-  this->store_.touch = false;
-
+void TT21100Touchscreen::update_touches() {
   // Read report length
   uint16_t data_len;
   this->read((uint8_t *) &data_len, sizeof(data_len));
@@ -111,12 +103,6 @@ void TT21100Touchscreen::loop() {
 
       uint8_t touch_count = (data_len - (sizeof(*report) - sizeof(report->touch_record))) / sizeof(TT21100TouchRecord);
 
-      if (touch_count == 0) {
-        for (auto *listener : this->touch_listeners_)
-          listener->release();
-        return;
-      }
-
       for (int i = 0; i < touch_count; i++) {
         auto *touch = &report->touch_record[i];
 
@@ -126,30 +112,7 @@ void TT21100Touchscreen::loop() {
                  i, touch->touch_type, touch->tip, touch->event_id, touch->touch_id, touch->x, touch->y,
                  touch->pressure, touch->major_axis_length, touch->orientation);
 
-        TouchPoint tp;
-        switch (this->rotation_) {
-          case ROTATE_0_DEGREES:
-            // Origin is top right, so mirror X by default
-            tp.x = this->display_width_ - touch->x;
-            tp.y = touch->y;
-            break;
-          case ROTATE_90_DEGREES:
-            tp.x = touch->y;
-            tp.y = touch->x;
-            break;
-          case ROTATE_180_DEGREES:
-            tp.x = touch->x;
-            tp.y = this->display_height_ - touch->y;
-            break;
-          case ROTATE_270_DEGREES:
-            tp.x = this->display_height_ - touch->y;
-            tp.y = this->display_width_ - touch->x;
-            break;
-        }
-        tp.id = touch->tip;
-        tp.state = touch->pressure;
-
-        this->defer([this, tp]() { this->send_touch_(tp); });
+        this->add_raw_touch_position_(touch->tip, touch->x, touch->y, touch->pressure);
       }
     }
   }

@@ -17,6 +17,14 @@ from esphome.const import (
     CONF_WIDTH,
     CONF_HEIGHT,
     CONF_ROTATION,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_SWAP_XY,
+    CONF_COLOR_ORDER,
+    CONF_OFFSET_HEIGHT,
+    CONF_OFFSET_WIDTH,
+    CONF_TRANSFORM,
+    CONF_INVERT_COLORS,
 )
 
 DEPENDENCIES = ["spi"]
@@ -32,7 +40,11 @@ CODEOWNERS = ["@nielsnl68", "@clydebarrow"]
 
 ili9xxx_ns = cg.esphome_ns.namespace("ili9xxx")
 ILI9XXXDisplay = ili9xxx_ns.class_(
-    "ILI9XXXDisplay", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
+    "ILI9XXXDisplay",
+    cg.PollingComponent,
+    spi.SPIDevice,
+    display.Display,
+    display.DisplayBuffer,
 )
 
 ILI9XXXColorMode = ili9xxx_ns.enum("ILI9XXXColorMode")
@@ -66,14 +78,6 @@ COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
 CONF_INVERT_DISPLAY = "invert_display"
-CONF_INVERT_COLORS = "invert_colors"
-CONF_MIRROR_X = "mirror_x"
-CONF_MIRROR_Y = "mirror_y"
-CONF_SWAP_XY = "swap_xy"
-CONF_COLOR_ORDER = "color_order"
-CONF_OFFSET_HEIGHT = "offset_height"
-CONF_OFFSET_WIDTH = "offset_width"
-CONF_TRANSFORM = "transform"
 
 
 def _validate(config):

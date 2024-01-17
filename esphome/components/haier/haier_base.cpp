@@ -25,13 +25,14 @@ const char *HaierClimateBase::phase_to_string_(ProtocolPhases phase) {
       "SENDING_INIT_1",
       "SENDING_INIT_2",
       "SENDING_FIRST_STATUS_REQUEST",
-      "SENDING_ALARM_STATUS_REQUEST",
+      "SENDING_FIRST_ALARM_STATUS_REQUEST",
       "IDLE",
       "SENDING_STATUS_REQUEST",
       "SENDING_UPDATE_SIGNAL_REQUEST",
       "SENDING_SIGNAL_LEVEL",
       "SENDING_CONTROL",
       "SENDING_ACTION_COMMAND",
+      "SENDING_ALARM_STATUS_REQUEST",
       "UNKNOWN"  // Should be the last!
   };
   static_assert(

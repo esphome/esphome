@@ -17,6 +17,12 @@ void HydreonRGxxComponent::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Connection with hydreon_rgxx failed!");
   }
+  if (model_ == RG9) {
+    ESP_LOGCONFIG(TAG, "  Model: RG9");
+    ESP_LOGCONFIG(TAG, "  Disable Led: %s", TRUEFALSE(this->disable_led_));
+  } else {
+    ESP_LOGCONFIG(TAG, "  Model: RG15");
+  }
   LOG_UPDATE_INTERVAL(this);
 
   int i = 0;
@@ -25,10 +31,6 @@ void HydreonRGxxComponent::dump_config() {
     LOG_SENSOR("  ", #s, this->sensors_[i - 1]); \
   }
   HYDREON_RGXX_PROTOCOL_LIST(HYDREON_RGXX_LOG_SENSOR, );
-
-  if (this->model_ == RG9) {
-    ESP_LOGCONFIG(TAG, "disable_led: %s", TRUEFALSE(this->disable_led_));
-  }
 }
 
 void HydreonRGxxComponent::setup() {

@@ -165,5 +165,23 @@ class FanSpeedSetTrigger : public Trigger<> {
   int last_speed_;
 };
 
+class FanPresetSetTrigger : public Trigger<> {
+ public:
+  FanPresetSetTrigger(Fan *state) {
+    state->add_on_state_callback([this, state]() {
+      auto preset_mode = state->preset_mode;
+      auto should_trigger = preset_mode != this->last_preset_mode_;
+      this->last_preset_mode_ = preset_mode;
+      if (should_trigger) {
+        this->trigger();
+      }
+    });
+    this->last_preset_mode_ = state->preset_mode;
+  }
+
+ protected:
+  std::string last_preset_mode_;
+};
+
 }  // namespace fan
 }  // namespace esphome

@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import binary_sensor
 from esphome.const import (
+    CONF_COMMAND_REPEATS,
     CONF_DATA,
     CONF_TRIGGER_ID,
     CONF_NBITS,
@@ -632,12 +633,69 @@ async def magiquest_action(var, config, args):
     cg.add(var.set_magnitude(template_))
 
 
+# Microchip HCS301 KeeLoq OOK
+(
+    KeeloqData,
+    KeeloqBinarySensor,
+    KeeloqTrigger,
+    KeeloqAction,
+    KeeloqDumper,
+) = declare_protocol("Keeloq")
+KEELOQ_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFFFFF)),
+        cv.Required(CONF_CODE): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFFFFFF)),
+        cv.Optional(CONF_COMMAND, default=0x10): cv.All(
+            cv.hex_int,
+            cv.Range(min=0, max=0x10),
+        ),
+        cv.Optional(CONF_LEVEL, default=False): cv.boolean,
+    }
+)
+
+
+@register_binary_sensor("keeloq", KeeloqBinarySensor, KEELOQ_SCHEMA)
+def Keeloq_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                KeeloqData,
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("keeloq", KeeloqTrigger, KeeloqData)
+def keeloq_trigger(var, config):
+    pass
+
+
+@register_dumper("keeloq", KeeloqDumper)
+def keeloq_dumper(var, config):
+    pass
+
+
+@register_action("keeloq", KeeloqAction, KEELOQ_SCHEMA)
+async def keeloq_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint32)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint32)
+    cg.add(var.set_encrypted(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
+    template_ = await cg.templatable(config[CONF_LEVEL], args, bool)
+    cg.add(var.set_vlow(template_))
+
+
 # NEC
 NECData, NECBinarySensor, NECTrigger, NECAction, NECDumper = declare_protocol("NEC")
 NEC_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
         cv.Required(CONF_COMMAND): cv.hex_uint16_t,
+        cv.Optional(CONF_COMMAND_REPEATS, default=1): cv.uint16_t,
     }
 )
 
@@ -650,6 +708,7 @@ def nec_binary_sensor(var, config):
                 NECData,
                 ("address", config[CONF_ADDRESS]),
                 ("command", config[CONF_COMMAND]),
+                ("command_repeats", config[CONF_COMMAND_REPEATS]),
             )
         )
     )
@@ -671,6 +730,8 @@ async def nec_action(var, config, args):
     cg.add(var.set_address(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint16)
     cg.add(var.set_command(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint16)
+    cg.add(var.set_command_repeats(template_))
 
 
 # Pioneer

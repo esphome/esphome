@@ -1,6 +1,7 @@
 #pragma once
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display_color_utils.h"
 #include "ili9xxx_defines.h"
 #include "ili9xxx_init.h"
 
@@ -30,13 +31,24 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
     const uint8_t *addr = init_sequence;
     while ((cmd = *addr++) != 0) {
       num_args = *addr++ & 0x7F;
-      if (cmd == ILI9XXX_MADCTL) {
-        bits = *addr;
-        this->swap_xy_ = (bits & MADCTL_MV) != 0;
-        this->mirror_x_ = (bits & MADCTL_MX) != 0;
-        this->mirror_y_ = (bits & MADCTL_MY) != 0;
-        this->color_order_ = (bits & MADCTL_BGR) ? display::COLOR_ORDER_BGR : display::COLOR_ORDER_RGB;
-        break;
+      bits = *addr;
+      switch (cmd) {
+        case ILI9XXX_MADCTL: {
+          this->swap_xy_ = (bits & MADCTL_MV) != 0;
+          this->mirror_x_ = (bits & MADCTL_MX) != 0;
+          this->mirror_y_ = (bits & MADCTL_MY) != 0;
+          this->color_order_ = (bits & MADCTL_BGR) ? display::COLOR_ORDER_BGR : display::COLOR_ORDER_RGB;
+          break;
+        }
+
+        case ILI9XXX_PIXFMT: {
+          if ((bits & 0xF) == 6)
+            this->is_18bitdisplay_ = true;
+          break;
+        }
+
+        default:
+          break;
       }
       addr += num_args;
     }
@@ -73,6 +85,8 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void setup() override;
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;

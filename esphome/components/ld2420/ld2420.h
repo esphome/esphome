@@ -255,12 +255,11 @@ class LD2420Component : public Component, public uart::UARTDevice {
 
   uint16_t gate_energy_[LD2420_TOTAL_GATES];
   CmdReplyT cmd_reply_;
-  uint32_t timeout_;
   uint32_t max_distance_gate_;
   uint32_t min_distance_gate_;
   uint16_t system_mode_{CMD_SYSTEM_MODE_ENERGY};
   bool cmd_active_{false};
-  char ld2420_firmware_ver_[8];
+  char ld2420_firmware_ver_[8]{"v0.0.0"};
   bool presence_{false};
   bool calibration_{false};
   uint16_t distance_{0};

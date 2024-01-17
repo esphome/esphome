@@ -12,6 +12,7 @@ TemplateCover::TemplateCover()
     : open_trigger_(new Trigger<>()),
       close_trigger_(new Trigger<>),
       stop_trigger_(new Trigger<>()),
+      toggle_trigger_(new Trigger<>()),
       position_trigger_(new Trigger<float>()),
       tilt_trigger_(new Trigger<float>()) {}
 void TemplateCover::setup() {
@@ -68,12 +69,19 @@ float TemplateCover::get_setup_priority() const { return setup_priority::HARDWAR
 Trigger<> *TemplateCover::get_open_trigger() const { return this->open_trigger_; }
 Trigger<> *TemplateCover::get_close_trigger() const { return this->close_trigger_; }
 Trigger<> *TemplateCover::get_stop_trigger() const { return this->stop_trigger_; }
+Trigger<> *TemplateCover::get_toggle_trigger() const { return this->toggle_trigger_; }
 void TemplateCover::dump_config() { LOG_COVER("", "Template Cover", this); }
 void TemplateCover::control(const CoverCall &call) {
   if (call.get_stop()) {
     this->stop_prev_trigger_();
     this->stop_trigger_->trigger();
     this->prev_command_trigger_ = this->stop_trigger_;
+    this->publish_state();
+  }
+  if (call.get_toggle().has_value()) {
+    this->stop_prev_trigger_();
+    this->toggle_trigger_->trigger();
+    this->prev_command_trigger_ = this->toggle_trigger_;
     this->publish_state();
   }
   if (call.get_position().has_value()) {
@@ -110,6 +118,7 @@ CoverTraits TemplateCover::get_traits() {
   auto traits = CoverTraits();
   traits.set_is_assumed_state(this->assumed_state_);
   traits.set_supports_stop(this->has_stop_);
+  traits.set_supports_toggle(this->has_toggle_);
   traits.set_supports_position(this->has_position_);
   traits.set_supports_tilt(this->has_tilt_);
   return traits;
@@ -118,6 +127,7 @@ Trigger<float> *TemplateCover::get_position_trigger() const { return this->posit
 Trigger<float> *TemplateCover::get_tilt_trigger() const { return this->tilt_trigger_; }
 void TemplateCover::set_tilt_lambda(std::function<optional<float>()> &&tilt_f) { this->tilt_f_ = tilt_f; }
 void TemplateCover::set_has_stop(bool has_stop) { this->has_stop_ = has_stop; }
+void TemplateCover::set_has_toggle(bool has_toggle) { this->has_toggle_ = has_toggle; }
 void TemplateCover::set_has_position(bool has_position) { this->has_position_ = has_position; }
 void TemplateCover::set_has_tilt(bool has_tilt) { this->has_tilt_ = has_tilt; }
 void TemplateCover::stop_prev_trigger_() {

@@ -12,7 +12,7 @@ import argcomplete
 
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
-from esphome.config import iter_components, read_config, strip_default_ids
+from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_BAUD_RATE,
@@ -196,7 +196,7 @@ def write_cpp(config):
 def generate_cpp_contents(config):
     _LOGGER.info("Generating C++ source...")
 
-    for name, component, conf in iter_components(CORE.config):
+    for name, component, conf in iter_component_configs(CORE.config):
         if component.to_code is not None:
             coro = wrap_to_code(name, component)
             CORE.add_job(coro, conf)
@@ -389,7 +389,8 @@ def command_config(args, config):
         output = re.sub(
             r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[5m\2\\033[6m", output
         )
-    safe_print(output)
+    if not CORE.quiet:
+        safe_print(output)
     _LOGGER.info("Configuration is valid!")
     return 0
 

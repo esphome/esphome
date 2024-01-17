@@ -54,20 +54,16 @@ def validate_mode(value):
 
 
 CONF_MCP23XXX = "mcp23xxx"
-MCP23XXX_PIN_SCHEMA = cv.All(
+
+MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
+    MCP23XXXGPIOPin,
+    cv.int_range(min=0, max=15),
+    modes=[CONF_INPUT, CONF_OUTPUT, CONF_PULLUP],
+    mode_validator=validate_mode,
+    invertable=True,
+).extend(
     {
-        cv.GenerateID(): cv.declare_id(MCP23XXXGPIOPin),
         cv.Required(CONF_MCP23XXX): cv.use_id(MCP23XXXBase),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
-        cv.Optional(CONF_MODE, default={}): cv.All(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_PULLUP, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-            },
-            validate_mode,
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
         cv.Optional(CONF_INTERRUPT, default="NO_INTERRUPT"): cv.enum(
             MCP23XXX_INTERRUPT_MODES, upper=True
         ),

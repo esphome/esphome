@@ -59,14 +59,14 @@ TYPES: dict[str, cv.Schema] = {
         device_class=DEVICE_CLASS_TEMPERATURE,
     ),
     CONF_VOLTAGE_LOW: sensor.sensor_schema(
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
+        unit_of_measurement=UNIT_VOLT,
+        accuracy_decimals=3,
+        device_class=DEVICE_CLASS_VOLTAGE,
     ),
     CONF_VOLTAGE_HIGH: sensor.sensor_schema(
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
+        unit_of_measurement=UNIT_VOLT,
+        accuracy_decimals=3,
+        device_class=DEVICE_CLASS_VOLTAGE,
     ),
     CONF_COULOMB: sensor.sensor_schema(
         unit_of_measurement=UNIT_PERCENT,

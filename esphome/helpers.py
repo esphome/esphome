@@ -357,7 +357,7 @@ def snake_case(value):
     return value.replace(" ", "_").lower()
 
 
-_DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9_]")
+_DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9-_]")
 
 
 def sanitize(value):

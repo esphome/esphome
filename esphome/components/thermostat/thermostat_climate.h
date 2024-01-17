@@ -81,6 +81,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_heating_minimum_run_time_in_sec(uint32_t time);
   void set_idle_minimum_time_in_sec(uint32_t time);
   void set_sensor(sensor::Sensor *sensor);
+  void set_humidity_sensor(sensor::Sensor *humidity_sensor);
   void set_use_startup_delay(bool use_startup_delay);
   void set_supports_auto(bool supports_auto);
   void set_supports_heat_cool(bool supports_heat_cool);
@@ -238,6 +239,8 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
+  /// The sensor used for getting the current humidity
+  sensor::Sensor *humidity_sensor_{nullptr};
 
   /// Whether the controller supports auto/cooling/drying/fanning/heating.
   ///
