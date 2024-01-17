@@ -316,10 +316,10 @@ void OTAComponent::handle_() {
     }
     total += read;
 #if USE_OTA_VERSION == 2
-    for (; size_acknowledged + OTA_BLOCK_SIZE <= total || (total == ota_size && size_acknowledged < ota_size);
-         size_acknowledged += OTA_BLOCK_SIZE) {
+    while (size_acknowledged + OTA_BLOCK_SIZE <= total || (total == ota_size && size_acknowledged < ota_size)) {
       buf[0] = OTA_RESPONSE_CHUNK_OK;
       this->writeall_(buf, 1);
+      size_acknowledged += OTA_BLOCK_SIZE;
     }
 #endif
 
