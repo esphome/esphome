@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import spi, wk2168
+from esphome.components import spi, wk2168, wk_base
 from esphome.const import (
     CONF_ID,
     CONF_INPUT,
@@ -19,19 +19,17 @@ CONF_WK2168 = "wk2168_spi"
 
 wk2168_ns = cg.esphome_ns.namespace("wk2168_spi")
 WK2168ComponentSPI = wk2168_ns.class_(
-    "WK2168ComponentSPI", wk2168.WK2168Component, spi.SPIDevice
+    "WK2168ComponentSPI", wk_base.WKBaseComponent, spi.SPIDevice
 )
 WK2168GPIOPinI2C = wk2168_ns.class_(
     "WK2168GPIOPinSPI", cg.GPIOPin, cg.Parented.template(WK2168ComponentSPI)
 )
 
 CONFIG_SCHEMA = cv.All(
-    wk2168.WK2168_SCHEMA.extend(
-        {
-            cv.GenerateID(): cv.declare_id(WK2168ComponentSPI),
-        }
+    wk_base.WK2132_SCHEMA.extend(
+        {cv.GenerateID(): cv.declare_id(WK2168ComponentSPI)}
     ).extend(spi.spi_device_schema()),
-    wk2168.post_check_conf_wk2168,
+    wk_base.post_check_conf_wk_base,
 )
 
 
@@ -43,28 +41,39 @@ async def to_code(config):
     await spi.register_spi_device(var, config)
 
 
-def validate_mode(value):
-    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_INPUT] and value[CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
-    return value
+# def validate_mode(value):
+#     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
+#         raise cv.Invalid("Mode must be either input or output")
+#     if value[CONF_INPUT] and value[CONF_OUTPUT]:
+#         raise cv.Invalid("Mode must be either input or output")
+#     return value
 
+
+# WK2168_PIN_SCHEMA = cv.All(
+#     {
+#         cv.GenerateID(): cv.declare_id(WK2168GPIOPinI2C),
+#         cv.Required(CONF_WK2168): cv.use_id(WK2168ComponentSPI),
+#         cv.Required(CONF_NUMBER): cv.int_range(min=0, max=8),
+#         cv.Optional(CONF_MODE, default={}): cv.All(
+#             {
+#                 cv.Optional(CONF_INPUT, default=False): cv.boolean,
+#                 cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
+#             },
+#             validate_mode,
+#         ),
+#         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+#     }
+# )
 
 WK2168_PIN_SCHEMA = cv.All(
-    {
-        cv.GenerateID(): cv.declare_id(WK2168GPIOPinI2C),
-        cv.Required(CONF_WK2168): cv.use_id(WK2168ComponentSPI),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=8),
-        cv.Optional(CONF_MODE, default={}): cv.All(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-            },
-            validate_mode,
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-    }
+    wk2168.WK2168_PIN_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(WK2168GPIOPinI2C),
+            cv.Required(CONF_WK2168): cv.use_id(WK2168ComponentSPI),
+        },
+    ),
+    # TODO
+    wk2168.validate_mode,
 )
 
 

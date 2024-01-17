@@ -23,11 +23,15 @@ WKBaseChannel = wk_base_ns.class_("WKBaseChannel", uart.UARTComponent)
 
 
 def post_check_conf_wk_base(value):
-    if (
-        len(value[CONF_UART]) > 1
-        and value[CONF_UART][0][CONF_CHANNEL] == value[CONF_UART][1][CONF_CHANNEL]
-    ):
-        raise cv.Invalid("Duplicate channel number")
+    channel_uniq = []
+    channel_dup = []
+    for x in value[CONF_UART]:
+        if x[CONF_CHANNEL] not in channel_uniq:
+            channel_uniq.append(x[CONF_CHANNEL])
+        else:
+            channel_dup.append(x[CONF_CHANNEL])
+    if len(channel_dup) > 0:
+        raise cv.Invalid(f"Duplicate channel list: {channel_dup}")
     return value
 
 
