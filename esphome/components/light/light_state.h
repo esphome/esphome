@@ -26,6 +26,7 @@ enum LightRestoreMode {
   LIGHT_RESTORE_INVERTED_DEFAULT_ON,
   LIGHT_RESTORE_AND_OFF,
   LIGHT_RESTORE_AND_ON,
+  LIGHT_RESTORE_DISABLED,
 };
 
 /** This class represents the communication layer between the front-end MQTT layer and the

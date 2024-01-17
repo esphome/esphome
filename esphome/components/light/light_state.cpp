@@ -79,6 +79,10 @@ void LightState::setup() {
     case LIGHT_ALWAYS_ON:
       recovered.state = true;
       break;
+    case LIGHT_RESTORE_DISABLED:
+      call.set_publish(false);
+      this->next_write_ = false;
+      return;
   }
 
   call.set_color_mode_if_supported(recovered.color_mode);
