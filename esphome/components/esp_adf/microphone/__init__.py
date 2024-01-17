@@ -28,6 +28,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_esp_idf,
+    cv.require_esphome_version(2023, 12, 7),
 )
 
 FINAL_VALIDATE_SCHEMA = final_validate_usable_board("microphone")
