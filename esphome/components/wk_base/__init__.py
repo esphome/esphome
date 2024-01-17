@@ -22,10 +22,12 @@ WKBaseComponent = wk_base_ns.class_("WKBaseComponent", cg.Component)
 WKBaseChannel = wk_base_ns.class_("WKBaseChannel", uart.UARTComponent)
 
 
-def check_duplicate(value):
+def check_channel_wk2132(value):
     channel_uniq = []
     channel_dup = []
     for x in value[CONF_UART]:
+        if x[CONF_CHANNEL] > 1:
+            raise cv.Invalid(f"Invalid channel number: {x[CONF_CHANNEL]}")
         if x[CONF_CHANNEL] not in channel_uniq:
             channel_uniq.append(x[CONF_CHANNEL])
         else:

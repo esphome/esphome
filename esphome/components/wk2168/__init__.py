@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_BAUD_RATE,
     CONF_CHANNEL,
     CONF_UART_ID,
+    CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
     CONF_MODE,
@@ -23,7 +24,24 @@ CONF_UART = "uart"
 CONF_TEST_MODE = "test_mode"
 
 
-def validate_mode(value):
+def check_channel_wk2168(value):
+    """Check duplicate channels and 4 channels maximum"""
+    channel_uniq = []
+    channel_dup = []
+    for x in value[CONF_UART]:
+        if x[CONF_CHANNEL] > 3:
+            raise cv.Invalid(f"Invalid channel number: {x[CONF_CHANNEL]}")
+        if x[CONF_CHANNEL] not in channel_uniq:
+            channel_uniq.append(x[CONF_CHANNEL])
+        else:
+            channel_dup.append(x[CONF_CHANNEL])
+    if len(channel_dup) > 0:
+        raise cv.Invalid(f"Duplicate channel list: {channel_dup}")
+    return value
+
+
+def validate_pin_mode(value):
+    """checks input/output mode inconsistency"""
     if not (value[CONF_MODE][CONF_INPUT] or value[CONF_MODE][CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_MODE][CONF_INPUT] and value[CONF_MODE][CONF_OUTPUT]:
