@@ -322,6 +322,20 @@ ads1115:
   address: 0x48
   i2c_id: i2c_bus
 
+as5600:
+  i2c_id: i2c_bus
+  dir_pin:
+    number: 27
+    allow_other_uses: true
+  direction: clockwise
+  start_position: 90deg
+  range: 180deg
+  watchdog: true
+  power_mode: low1
+  hysteresis: lsb1
+  slow_filter: 8x
+  fast_filter: lsb6
+
 dallas:
   pin:
     allow_other_uses: true
@@ -344,8 +358,10 @@ esp32_ble_tracker:
 ble_client:
   - mac_address: AA:BB:CC:DD:EE:FF
     id: ble_foo
+    auto_connect: true
   - mac_address: 11:22:33:44:55:66
     id: ble_blah
+    auto_connect: false
     on_connect:
       then:
         - switch.turn_on: ble1_status
@@ -555,6 +571,16 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: as5600
+    name: AS5600 Position
+    raw_position:
+      name: AS5600 Raw Position
+    gain:
+      name: AS5600 Gain
+    magnitude:
+      name: AS5600 Magnitude
+    status:
+      name: AS5600 Status
   - platform: as7341
     update_interval: 15s
     gain: X8
@@ -664,7 +690,7 @@ sensor:
     update_interval: 30s
     mode: low_power
     i2c_id: i2c_bus
-  - platform: bme280
+  - platform: bme280_i2c
     temperature:
       name: Outside Temperature
       oversampling: 16x
@@ -678,6 +704,21 @@ sensor:
     iir_filter: 16x
     update_interval: 15s
     i2c_id: i2c_bus
+  - platform: bme280_spi
+    temperature:
+      name: Outside Temperature
+      oversampling: 16x
+    pressure:
+      name: Outside Pressure
+      oversampling: none
+    humidity:
+      name: Outside Humidity
+      oversampling: 8x
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    iir_filter: 16x
+    update_interval: 15s
   - platform: bme680
     temperature:
       name: Outside Temperature
@@ -794,7 +835,7 @@ sensor:
     update_interval: 15s
     current_resistor: 0.001 ohm
     voltage_divider: 2351
-    change_mode_every: 16
+    change_mode_every: "never"
     initial_mode: VOLTAGE
     model: hlw8012
   - platform: total_daily_energy
@@ -820,6 +861,13 @@ sensor:
       name: HMC5883L Heading
     range: 130uT
     oversampling: 8x
+    update_interval: 15s
+    i2c_id: i2c_bus
+  - platform: honeywell_hih_i2c
+    temperature:
+      name: Living Room Temperature 7
+    humidity:
+      name: Living Room Humidity 7
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: honeywellabp
@@ -923,7 +971,8 @@ sensor:
       name: Internal Ttemperature
     update_interval: 15s
     i2c_id: i2c_bus
-  - platform: kalman_combinator
+  - platform: combination
+    type: kalman
     name: Kalman-filtered temperature
     process_std_dev: 0.00139
     sources:
@@ -932,6 +981,57 @@ sensor:
           return 0.4 + std::abs(x - 25) * 0.023;
       - source: scd4x_temperature
         error: 1.5
+  - platform: combination
+    type: linear
+    name: Linearly combined temperatures
+    sources:
+      - source: scd30_temperature
+        coeffecient: !lambda |-
+          return 0.4 + std::abs(x - 25) * 0.023;
+      - source: scd4x_temperature
+        coeffecient: 1.5
+  - platform: combination
+    type: max
+    name: Max of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: mean
+    name: Mean of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: median
+    name: Median of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: min
+    name: Min of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: most_recently_updated
+    name: Most recently updated of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: range
+    name: Range of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: sum
+    name: Sum of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
   - platform: htu21d
     temperature:
       name: Living Room Temperature 6
@@ -1141,10 +1241,12 @@ sensor:
           value: !lambda "return -1;"
     on_clockwise:
       - logger.log: Clockwise
-      - display_menu.down:
+      - display_menu.down: test_lcd_menu
+      - display_menu.down: test_graphical_display_menu
     on_anticlockwise:
       - logger.log: Anticlockwise
-      - display_menu.up:
+      - display_menu.up: test_lcd_menu
+      - display_menu.up: test_graphical_display_menu
   - platform: pulse_width
     name: Pulse Width
     pin:
@@ -1327,6 +1429,16 @@ sensor:
       name: tsl2591 calculated_lux
       id: tsl2591_cl
     i2c_id: i2c_bus
+  - platform: veml3235
+    id: veml3235_sensor
+    name: VEML3235 Light Sensor
+    i2c_id: i2c_bus
+    auto_gain: true
+    auto_gain_threshold_high: 90%
+    auto_gain_threshold_low: 15%
+    digital_gain: 1X
+    gain: 1X
+    integration_time: 50ms
   - platform: tee501
     name: Office Temperature 3
     address: 0x48
@@ -1665,7 +1777,6 @@ binary_sensor:
       mcp23xxx: mcp23s08_hub
       # Use pin number 1
       number: 1
-      allow_other_uses: true
       # One of INPUT or INPUT_PULLUP
       mode: INPUT_PULLUP
       inverted: false
@@ -1707,6 +1818,8 @@ binary_sensor:
       - delayed_on_off: !lambda "return 10;"
       - delayed_on: !lambda "return 1000;"
       - delayed_off: !lambda "return 0;"
+      - settle: 40ms
+      - settle: !lambda "return 10;"
     on_press:
       then:
         - lambda: >-
@@ -1781,13 +1894,22 @@ binary_sensor:
     on_press:
       - if:
           condition:
-            display_menu.is_active:
+            display_menu.is_active: test_lcd_menu
           then:
-            - display_menu.enter:
+            - display_menu.enter: test_lcd_menu
           else:
-            - display_menu.left:
-            - display_menu.right:
-            - display_menu.show:
+            - display_menu.left: test_lcd_menu
+            - display_menu.right: test_lcd_menu
+            - display_menu.show: test_lcd_menu
+      - if:
+          condition:
+            display_menu.is_active: test_graphical_display_menu
+          then:
+            - display_menu.enter: test_graphical_display_menu
+          else:
+            - display_menu.left: test_graphical_display_menu
+            - display_menu.right: test_graphical_display_menu
+            - display_menu.show: test_graphical_display_menu
   - platform: template
     name: Garage Door Open
     id: garage_door
@@ -1975,6 +2097,18 @@ binary_sensor:
   - platform: dfrobot_sen0395
     id: mmwave_detected_uart
     dfrobot_sen0395_id: mmwave
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    ndef_contains: pulse
+    name: MFC Tag 1
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    tag_id: pulse
+    name: MFC Tag 2
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    uid: 59-FC-AB-15
+    name: MFC Tag 3
 
 pca9685:
   frequency: 500
@@ -2005,21 +2139,21 @@ my9231:
 
 sm2235:
   data_pin:
-      allow_other_uses: true
-      number: GPIO4
+    allow_other_uses: true
+    number: GPIO4
   clock_pin:
-      allow_other_uses: true
-      number: GPIO5
+    allow_other_uses: true
+    number: GPIO5
   max_power_color_channels: 9
   max_power_white_channels: 9
 
 sm2335:
   data_pin:
-      allow_other_uses: true
-      number: GPIO4
+    allow_other_uses: true
+    number: GPIO4
   clock_pin:
-      allow_other_uses: true
-      number: GPIO5
+    allow_other_uses: true
+    number: GPIO5
   max_power_color_channels: 9
   max_power_white_channels: 9
 
@@ -2138,7 +2272,6 @@ output:
     pin:
       mcp23xxx: mcp23017_hub
       number: 0
-      allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -2146,7 +2279,6 @@ output:
     pin:
       mcp23xxx: mcp23008_hub
       number: 0
-      allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -2586,7 +2718,6 @@ switch:
       mcp23xxx: mcp23s08_hub
       # Use pin number 0
       number: 0
-      allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -2933,6 +3064,33 @@ fan:
     on_speed_set:
       then:
         - logger.log: Fan speed was changed!
+  - platform: speed
+    id: fan_speed_presets
+    icon: mdi:weather-windy
+    output: pca_6
+    speed_count: 10
+    name: Speed Fan w/ Presets
+    oscillation_output: gpio_19
+    direction_output: gpio_26
+    preset_modes:
+      - Preset 1
+      - Preset 2
+    on_preset_set:
+      then:
+        - logger.log: Preset mode was changed!
+  - platform: hbridge
+    id: fan_hbridge_presets
+    icon: mdi:weather-windy
+    speed_count: 4
+    name: H-bridge Fan w/ Presets
+    pin_a: pca_6
+    pin_b: pca_7
+    preset_modes:
+      - Preset 1
+      - Preset 2
+    on_preset_set:
+      then:
+        - logger.log: Preset mode was changed!
   - platform: bedjet
     name: My Bedjet fan
     bedjet_id: my_bedjet_client
@@ -2966,6 +3124,16 @@ interval:
               page_id: page1
           then:
             - logger.log: Seeing page 1
+  - interval: 60min
+    then:
+      - ble_client.connect: ble_blah
+      - ble_client.ble_write:
+          id: ble_blah
+          service_uuid: EBE0CCB0-7A0A-4B0C-8A1A-6FF2997DA3A6
+          characteristic_uuid: EBE0CCB7-7A0A-4B0C-8A1A-6FF2997DA3A6
+          value: !lambda |-
+            return {1, 0};
+      - ble_client.disconnect: ble_blah
 
 color:
   - id: kbx_red
@@ -2984,17 +3152,13 @@ display:
     id: my_lcd_gpio
     dimensions: 18x4
     data_pins:
-      -
-        allow_other_uses: true
+      - allow_other_uses: true
         number: GPIO19
-      -
-        allow_other_uses: true
+      - allow_other_uses: true
         number: GPIO21
-      -
-        allow_other_uses: true
+      - allow_other_uses: true
         number: GPIO22
-      -
-        allow_other_uses: true
+      - allow_other_uses: true
         number: GPIO23
     enable_pin:
       allow_other_uses: true
@@ -3203,7 +3367,27 @@ display:
       inverted: true
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7567_i2c
+    id: st7735_display_i2c
+    address: 0x3F
+    i2c_id: i2c_bus
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7567_spi
+    id: st7735_display_spi
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO16
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7735
+    id: st7735_display
     model: INITR_BLACKTAB
     cs_pin:
       allow_other_uses: true
@@ -3348,6 +3532,53 @@ pn532_spi:
 
 pn532_i2c:
   i2c_id: i2c_bus
+
+pn7150_i2c:
+  id: nfcc_pn7150_i2c
+  i2c_id: i2c_bus
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO32
+  ven_pin:
+    allow_other_uses: true
+    number: GPIO16
+
+pn7160_i2c:
+  id: nfcc_pn7160_i2c
+  i2c_id: i2c_bus
+  dwl_req_pin:
+    allow_other_uses: true
+    number: GPIO17
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO35
+  ven_pin:
+    allow_other_uses: true
+    number: GPIO16
+  wkup_req_pin:
+    allow_other_uses: true
+    number: GPIO21
+  emulation_message: https://www.home-assistant.io/tag/pulse_ce
+  tag_ttl: 1000ms
+
+pn7160_spi:
+  id: nfcc_pn7160_spi
+  cs_pin:
+    number: GPIO15
+  dwl_req_pin:
+    allow_other_uses: true
+    number: GPIO17
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO35
+  ven_pin:
+    allow_other_uses: true
+    number: GPIO16
+  wkup_req_pin:
+    allow_other_uses: true
+    number: GPIO21
+  emulation_message: https://www.home-assistant.io/tag/pulse_ce
+  tag_ttl: 1000ms
 
 rdm6300:
   uart_id: uart_0
@@ -3997,6 +4228,7 @@ ld2420:
   uart_id: ld2420_uart
 
 lcd_menu:
+  id: test_lcd_menu
   display_id: my_lcd_gpio
   mark_back: 0x5e
   mark_selected: 0x3e
@@ -4028,7 +4260,7 @@ lcd_menu:
               text: Show Main
               on_value:
                 then:
-                  - display_menu.show_main:
+                  - display_menu.show_main: test_lcd_menu
     - type: select
       text: Enum Item
       immediate_edit: true
@@ -4058,7 +4290,7 @@ lcd_menu:
       text: Hide
       on_value:
         then:
-          - display_menu.hide:
+          - display_menu.hide: test_lcd_menu
     - type: switch
       text: Switch
       switch: my_switch
@@ -4078,6 +4310,91 @@ lcd_menu:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
 
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
+
+graphical_display_menu:
+  id: test_graphical_display_menu
+  display: st7735_display
+  font: roboto
+  active: false
+  mode: rotary
+  on_enter:
+    then:
+      lambda: 'ESP_LOGI("graphical_display_menu", "root enter");'
+  on_leave:
+    then:
+      lambda: 'ESP_LOGI("graphical_display_menu", "root leave");'
+  items:
+    - type: back
+      text: "Back"
+    - type: label
+    - type: menu
+      text: "Submenu 1"
+      items:
+        - type: back
+          text: "Back"
+        - type: menu
+          text: "Submenu 21"
+          items:
+            - type: back
+              text: "Back"
+            - type: command
+              text: "Show Main"
+              on_value:
+                then:
+                  - display_menu.show_main: test_graphical_display_menu
+    - type: select
+      text: "Enum Item"
+      immediate_edit: true
+      select: test_select
+      on_enter:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "select enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_leave:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "select leave: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "select value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+    - type: number
+      text: "Number"
+      number: test_number
+      on_enter:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "number enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_leave:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "number leave: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+    - type: command
+      text: "Hide"
+      on_value:
+        then:
+          - display_menu.hide: test_graphical_display_menu
+    - type: switch
+      text: "Switch"
+      switch: my_switch
+      on_text: "Bright"
+      off_text: "Dark"
+      immediate_edit: false
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "switch value: %s", it->get_value_text().c_str());'
+    - type: custom
+      text: !lambda 'return "Custom";'
+      value_lambda: 'return "Val";'
+      on_next:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "custom next: %s", it->get_text().c_str());'
+      on_prev:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "custom prev: %s", it->get_text().c_str());'
+
 alarm_control_panel:
   - platform: template
     id: alarmcontrolpanel1
@@ -4095,4 +4412,3 @@ alarm_control_panel:
       then:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));
-

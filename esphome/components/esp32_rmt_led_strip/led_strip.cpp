@@ -13,6 +13,8 @@ namespace esp32_rmt_led_strip {
 
 static const char *const TAG = "esp32_rmt_led_strip";
 
+static const uint32_t RMT_CLK_FREQ = 80000000;
+
 static const uint8_t RMT_CLK_DIV = 2;
 
 void ESP32RMTLEDStripLightOutput::setup() {
@@ -65,7 +67,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
 
 void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high,
                                                  uint32_t bit1_low) {
-  float ratio = (float) APB_CLK_FREQ / RMT_CLK_DIV / 1e09f;
+  float ratio = (float) RMT_CLK_FREQ / RMT_CLK_DIV / 1e09f;
 
   // 0-bit
   this->bit0_.duration0 = (uint32_t) (ratio * bit0_high);

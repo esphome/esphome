@@ -899,6 +899,7 @@ climate:
   - platform: bang_bang
     name: Bang Bang Climate
     sensor: ha_hello_world
+    humidity_sensor: ha_hello_world
     default_target_temperature_low: 18°C
     default_target_temperature_high: 24°C
     idle_action:
@@ -913,6 +914,7 @@ climate:
   - platform: thermostat
     name: Thermostat Climate
     sensor: ha_hello_world
+    humidity_sensor: ha_hello_world
     preset:
       - name: Default Preset
         default_target_temperature_low: 18°C
@@ -1000,6 +1002,7 @@ climate:
     id: pid_climate
     name: PID Climate Controller
     sensor: ha_hello_world
+    humidity_sensor: ha_hello_world
     default_target_temperature: 21°C
     heat_output: my_slow_pwm
     control_parameters:
@@ -1021,13 +1024,16 @@ climate:
     name: Haier AC
     uart_id: uart_12
     wifi_signal: true
+    answer_timeout: 200ms
     beeper: true
     outdoor_temperature:
-      name:  Haier AC outdoor temperature
+      name: Haier AC outdoor temperature
     visual:
       min_temperature: 16 °C
       max_temperature: 30 °C
-      temperature_step: 1 °C
+      temperature_step:
+        target_temperature: 1
+        current_temperature: 0.5
     supported_modes:
     - 'OFF'
     - HEAT_COOL
@@ -1040,6 +1046,23 @@ climate:
     - VERTICAL
     - HORIZONTAL
     - BOTH
+    supported_presets:
+    - AWAY
+    - BOOST
+    - ECO
+    - SLEEP
+    on_alarm_start:
+      then:
+        - logger.log:
+            level: DEBUG
+            format: "Alarm activated. Code: %d. Message: \"%s\""
+            args: [ code, message]
+    on_alarm_end:
+      then:
+        - logger.log:
+            level: DEBUG
+            format: "Alarm deactivated. Code: %d. Message: \"%s\""
+            args: [ code, message]
 
 sprinkler:
   - id: yard_sprinkler_ctrlr
@@ -1235,6 +1258,12 @@ fingerprint_grow:
     number: 4
   password: 0x12FE37DC
   new_password: 0xA65B9840
+  on_finger_scan_start:
+    - homeassistant.event:
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_start
+  on_finger_scan_invalid:
+    - homeassistant.event:
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_invalid
   on_finger_scan_matched:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_finger_scan_matched
@@ -1244,6 +1273,9 @@ fingerprint_grow:
   on_finger_scan_unmatched:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_finger_scan_unmatched
+  on_finger_scan_misplaced:
+    - homeassistant.event:
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_misplaced
   on_enrollment_scan:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_enrollment_scan

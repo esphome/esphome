@@ -18,8 +18,8 @@ from esphome.core import coroutine_with_priority
 IS_PLATFORM_COMPONENT = True
 
 display_ns = cg.esphome_ns.namespace("display")
-Display = display_ns.class_("Display")
-DisplayBuffer = display_ns.class_("DisplayBuffer")
+Display = display_ns.class_("Display", cg.PollingComponent)
+DisplayBuffer = display_ns.class_("DisplayBuffer", Display)
 DisplayPage = display_ns.class_("DisplayPage")
 DisplayPagePtr = DisplayPage.operator("ptr")
 DisplayRef = Display.operator("ref")
@@ -145,7 +145,7 @@ async def display_page_show_to_code(config, action_id, template_arg, args):
     DisplayPageShowNextAction,
     maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.templatable(cv.use_id(DisplayBuffer)),
+            cv.Required(CONF_ID): cv.templatable(cv.use_id(Display)),
         }
     ),
 )
@@ -159,7 +159,7 @@ async def display_page_show_next_to_code(config, action_id, template_arg, args):
     DisplayPageShowPrevAction,
     maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.templatable(cv.use_id(DisplayBuffer)),
+            cv.Required(CONF_ID): cv.templatable(cv.use_id(Display)),
         }
     ),
 )
@@ -173,7 +173,7 @@ async def display_page_show_previous_to_code(config, action_id, template_arg, ar
     DisplayIsDisplayingPageCondition,
     cv.maybe_simple_value(
         {
-            cv.GenerateID(CONF_ID): cv.use_id(DisplayBuffer),
+            cv.GenerateID(CONF_ID): cv.use_id(Display),
             cv.Required(CONF_PAGE_ID): cv.use_id(DisplayPage),
         },
         key=CONF_PAGE_ID,

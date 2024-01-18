@@ -7,6 +7,10 @@ namespace x9c {
 static const char *const TAG = "x9c.output";
 
 void X9cOutput::trim_value(int change_amount) {
+  if (change_amount == 0) {
+    return;
+  }
+
   if (change_amount > 0) {  // Set change direction
     this->ud_pin_->digital_write(true);
   } else {

@@ -1,7 +1,7 @@
 import pytest
 
 from hypothesis import given
-from hypothesis.provisional import ip_addresses
+from hypothesis.strategies import ip_addresses
 
 from esphome import helpers
 
@@ -261,6 +261,7 @@ def test_snake_case(text, expected):
         ('!"§$%&/()=?foo_bar', "___________foo_bar"),
         ('foo_!"§$%&/()=?bar', "foo____________bar"),
         ('foo_bar!"§$%&/()=?', "foo_bar___________"),
+        ('foo-bar!"§$%&/()=?', "foo-bar___________"),
     ),
 )
 def test_sanitize(text, expected):
