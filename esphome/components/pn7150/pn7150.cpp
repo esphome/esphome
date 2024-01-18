@@ -566,6 +566,9 @@ void PN7150::erase_tag_(const uint8_t tag_index) {
     for (auto *trigger : this->triggers_ontagremoved_) {
       trigger->process(this->discovered_endpoint_[tag_index].tag);
     }
+    for (auto *listener : this->tag_listeners_) {
+      listener->tag_off(*this->discovered_endpoint_[tag_index].tag);
+    }
     ESP_LOGI(TAG, "Tag %s removed", nfc::format_uid(this->discovered_endpoint_[tag_index].tag->get_uid()).c_str());
     this->discovered_endpoint_.erase(this->discovered_endpoint_.begin() + tag_index);
   }
@@ -880,6 +883,9 @@ void PN7150::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
           }
           for (auto *trigger : this->triggers_ontag_) {
             trigger->process(working_endpoint.tag);
+          }
+          for (auto *listener : this->tag_listeners_) {
+            listener->tag_on(*working_endpoint.tag);
           }
           working_endpoint.trig_called = true;
           break;
