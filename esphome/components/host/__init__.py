@@ -6,6 +6,7 @@ from esphome.const import (
     PLATFORM_HOST,
 )
 from esphome.core import CORE
+from esphome.helpers import IS_MACOS
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
@@ -13,7 +14,6 @@ from .const import KEY_HOST
 
 # force import gpio to register pin schema
 from .gpio import host_pin_to_code  # noqa
-from esphome.helpers import IS_MACOS
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["network"]
