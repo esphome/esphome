@@ -117,7 +117,7 @@ struct IPAddress {
 #if LWIP_IPV6
       (((u8_t *) (&ip_addr_.u_addr.ip4))[3]) += increase;
 #else
-        (((u8_t *) (&ip_addr_.addr))[3]) += increase;
+      (((u8_t *) (&ip_addr_.addr))[3]) += increase;
 #endif /* LWIP_IPV6 */
     }
     return *this;
