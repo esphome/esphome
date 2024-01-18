@@ -49,7 +49,7 @@ void ABBWelcomeProtocol::encode(RemoteTransmitData *dst, const ABBWelcomeData &s
                           ((src[i] >> 4) & 1) - ((src[i] >> 5) & 1) - ((src[i] >> 6) & 1) - ((src[i] >> 7) & 1));
   }
   dst->reserve(reserve_count);
-  for (unsigned i = 0; i < src.size(); i++)
+  for (size_t i = 0; i < src.size(); i++)
     encode_byte_(dst, src[i]);
   ESP_LOGD(TAG, "Transmitting: %s", src.to_string().c_str());
 }
