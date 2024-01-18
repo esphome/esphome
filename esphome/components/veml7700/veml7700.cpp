@@ -85,7 +85,7 @@ void VEML7700Component::setup() {
     ESP_LOGW(TAG, "Sensor configuration failed");
     this->mark_failed();
   } else {
-    this->state_ = State::InitialSetupCompleted;
+    this->state_ = State::INITIAL_SETUP_COMPLETED;
   }
 }
 
@@ -115,10 +115,10 @@ void VEML7700Component::dump_config() {
 
 void VEML7700Component::update() {
   ESP_LOGD(TAG, "Updating");
-  if (this->is_ready() && this->state_ == State::Idle) {
+  if (this->is_ready() && this->state_ == State::IDLE) {
     ESP_LOGD(TAG, "Initiating new data collection");
 
-    this->state_ = this->automatic_mode_enabled_ ? State::CollectingDataAuto : State::CollectingData;
+    this->state_ = this->automatic_mode_enabled_ ? State::COLLECTING_DATA_AUTO : State::COLLECTING_DATA;
 
     this->readings_.als_counts = 0;
     this->readings_.white_counts = 0;
@@ -135,56 +135,56 @@ void VEML7700Component::update() {
 void VEML7700Component::loop() {
   ErrorCode err = i2c::ERROR_OK;
 
-  if (this->state_ == State::InitialSetupCompleted) {
+  if (this->state_ == State::INITIAL_SETUP_COMPLETED) {
     // Datasheet: 2.5 ms before the first measurement is needed, allowing for the correct start of the signal processor
     // and oscillator.
     // Reality: wait for couple integration times to have first samples captured
-    this->set_timeout(2 * this->integration_time_, [this]() { this->state_ = State::Idle; });
+    this->set_timeout(2 * this->integration_time_, [this]() { this->state_ = State::IDLE; });
   }
 
   if (this->is_ready()) {
     switch (this->state_) {
-      case State::CollectingData:
+      case State::COLLECTING_DATA:
         err = this->read_sensor_output_(this->readings_);
-        this->state_ = (err == i2c::ERROR_OK) ? State::DataCollected : State::Idle;
+        this->state_ = (err == i2c::ERROR_OK) ? State::DATA_COLLECTED : State::IDLE;
         break;
 
-      case State::CollectingDataAuto:  // Automatic mode - we start here to reconfigure device first
-      case State::DataCollected:
+      case State::COLLECTING_DATA_AUTO:  // Automatic mode - we start here to reconfigure device first
+      case State::DATA_COLLECTED:
         if (!this->are_adjustments_required_(this->readings_)) {
-          this->state_ = State::ReadyToPublishPart1;
+          this->state_ = State::READY_TO_PUBLISH_PART1;
         } else {
           // if sensitivity adjustment needed -
           // shutdown device to change config and wait one integration time period
-          this->state_ = State::AdjustmentInProgress;
+          this->state_ = State::ADJUSTMENT_IN_PROGRESS;
           err = this->reconfigure_time_and_gain_(this->readings_.actual_time, this->readings_.actual_gain, true);
           if (err == i2c::ERROR_OK) {
             this->set_timeout(1 * get_itime_ms(this->readings_.actual_time),
-                              [this]() { this->state_ = State::ReadyToApplyAdjustments; });
+                              [this]() { this->state_ = State::READY_TO_APPLY_ADJUSTMENTS; });
           } else {
-            this->state_ = State::Idle;
+            this->state_ = State::IDLE;
           }
         }
         break;
 
-      case State::AdjustmentInProgress:
+      case State::ADJUSTMENT_IN_PROGRESS:
         // nothing to be done, just waiting for the timeout
         break;
 
-      case State::ReadyToApplyAdjustments:
+      case State::READY_TO_APPLY_ADJUSTMENTS:
         // second stage of sensitivity adjustment - turn device back on
         // and wait 2-3 integration time periods to get good data samples
-        this->state_ = State::AdjustmentInProgress;
+        this->state_ = State::ADJUSTMENT_IN_PROGRESS;
         err = this->reconfigure_time_and_gain_(this->readings_.actual_time, this->readings_.actual_gain, false);
         if (err == i2c::ERROR_OK) {
           this->set_timeout(3 * get_itime_ms(this->readings_.actual_time),
-                            [this]() { this->state_ = State::CollectingData; });
+                            [this]() { this->state_ = State::COLLECTING_DATA; });
         } else {
-          this->state_ = State::Idle;
+          this->state_ = State::IDLE;
         }
         break;
 
-      case State::ReadyToPublishPart1:
+      case State::READY_TO_PUBLISH_PART1:
         this->status_clear_warning();
 
         this->apply_lux_calculation_(this->readings_);
@@ -193,13 +193,13 @@ void VEML7700Component::loop() {
 
         this->publish_data_part_1_(this->readings_);
 
-        this->state_ = State::ReadyToPublishPart2;
+        this->state_ = State::READY_TO_PUBLISH_PART2;
         break;
 
-      case State::ReadyToPublishPart2:
+      case State::READY_TO_PUBLISH_PART2:
         this->publish_data_part_2_(this->readings_);
 
-        this->state_ = State::Idle;
+        this->state_ = State::IDLE;
         break;
 
       default:
@@ -297,7 +297,7 @@ ErrorCode VEML7700Component::read_sensor_output_(Readings &data) {
 bool VEML7700Component::are_adjustments_required_(Readings &data) {
   // skip first sample in auto mode -
   // we need to reconfigure device after last measurement
-  if (this->state_ == State::CollectingDataAuto)
+  if (this->state_ == State::COLLECTING_DATA_AUTO)
     return true;
 
   if (!this->automatic_mode_enabled_)
@@ -307,29 +307,29 @@ bool VEML7700Component::are_adjustments_required_(Readings &data) {
   static constexpr uint16_t LOW_INTENSITY_THRESHOLD = 100;
   static constexpr uint16_t HIGH_INTENSITY_THRESHOLD = 10000;
 
-  static const IntegrationTime times[INTEGRATION_TIMES_COUNT] = {INTEGRATION_TIME_25MS,  INTEGRATION_TIME_50MS,
+  static const IntegrationTime TIMES[INTEGRATION_TIMES_COUNT] = {INTEGRATION_TIME_25MS,  INTEGRATION_TIME_50MS,
                                                                  INTEGRATION_TIME_100MS, INTEGRATION_TIME_200MS,
                                                                  INTEGRATION_TIME_400MS, INTEGRATION_TIME_800MS};
-  static const Gain gains[GAINS_COUNT] = {X_1_8, X_1_4, X_1, X_2};
+  static const Gain GAINS[GAINS_COUNT] = {X_1_8, X_1_4, X_1, X_2};
 
   if (data.als_counts <= LOW_INTENSITY_THRESHOLD) {
-    Gain next_gain = get_next(gains, data.actual_gain);
+    Gain next_gain = get_next(GAINS, data.actual_gain);
     if (next_gain != data.actual_gain) {
       data.actual_gain = next_gain;
       return true;
     }
-    IntegrationTime next_time = get_next(times, data.actual_time);
+    IntegrationTime next_time = get_next(TIMES, data.actual_time);
     if (next_time != data.actual_time) {
       data.actual_time = next_time;
       return true;
     }
   } else if (data.als_counts >= HIGH_INTENSITY_THRESHOLD) {
-    Gain prev_gain = get_prev(gains, data.actual_gain);
+    Gain prev_gain = get_prev(GAINS, data.actual_gain);
     if (prev_gain != data.actual_gain) {
       data.actual_gain = prev_gain;
       return true;
     }
-    IntegrationTime prev_time = get_prev(times, data.actual_time);
+    IntegrationTime prev_time = get_prev(TIMES, data.actual_time);
     if (prev_time != data.actual_time) {
       data.actual_time = prev_time;
       return true;

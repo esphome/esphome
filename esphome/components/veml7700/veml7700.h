@@ -129,18 +129,18 @@ class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
   // small steps in loop() to make sure we are not blocking execution
   //
   enum State : uint8_t {
-    NotInitialized = 0x0,
-    InitialSetupCompleted,
-    Idle,
-    CollectingData,
-    CollectingDataAuto,
-    DataCollected,
-    AdjustmentNeeded,
-    AdjustmentInProgress,
-    ReadyToApplyAdjustments,
-    ReadyToPublishPart1,
-    ReadyToPublishPart2
-  } state_{State::NotInitialized};
+    NOT_INITIALIZED,
+    INITIAL_SETUP_COMPLETED,
+    IDLE,
+    COLLECTING_DATA,
+    COLLECTING_DATA_AUTO,
+    DATA_COLLECTED,
+    ADJUSTMENT_NEEDED,
+    ADJUSTMENT_IN_PROGRESS,
+    READY_TO_APPLY_ADJUSTMENTS,
+    READY_TO_PUBLISH_PART1,
+    READY_TO_PUBLISH_PART2
+  } state_{State::NOT_INITIALIZED};
 
   //
   // Current measurements data
