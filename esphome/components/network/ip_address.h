@@ -14,7 +14,7 @@
 #include <IPAddress.h>
 #endif /* USE_ADRDUINO */
 
-#if USE_HOST
+#ifdef USE_HOST
 #include <arpa/inet.h>
 using ip_addr_t = in_addr;
 using ip4_addr_t = in_addr;
@@ -39,7 +39,7 @@ namespace network {
 
 struct IPAddress {
  public:
-#if USE_HOST
+#ifdef USE_HOST
   IPAddress() { ip_addr_.s_addr = 0; }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
     this->ip_addr_.s_addr = htonl((first << 24) | (second << 16) | (third << 8) | fourth);

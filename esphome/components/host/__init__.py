@@ -34,9 +34,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    cg.add_build_flag("-DUSE_HOST=1")
-    # cg.add_build_flag("-DNOISE_USE_LIBSODIUM=0")
-    # cg.add_build_flag("-DNOISE_USE_OPENSSL=1")
+    cg.add_build_flag("-DUSE_HOST")
     cg.add_build_flag("-std=c++17")
     cg.add_build_flag("-lsodium")
     cg.add_build_flag("-L/opt/homebrew/lib")
