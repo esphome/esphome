@@ -18,10 +18,10 @@ class SerialAdapter : public INetworkAdapter {
   int8_t send(std::vector<uint8_t> &payload) override;
   int8_t receive(std::vector<uint8_t> &payload) override;
 
-  SerialAdapter(uart::UARTDevice *uart) : _uart(uart) {}
+  SerialAdapter(uart::UARTDevice *uart) : uart_(uart) {}
 
  protected:
-  uart::UARTDevice *_uart;
+  uart::UARTDevice *uart_;
 };
 
 }  // namespace mbus

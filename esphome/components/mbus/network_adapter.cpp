@@ -1,26 +1,25 @@
+#include "network_adapter.h"
 #include "esphome/core/log.h"
-
-#include "network-adapter.h"
-#include "mbus-frame-meta.h"
+#include "esphome/components/mbus/mbus_frame_meta.h"
 
 namespace esphome {
 namespace mbus {
-static const char *const TAG = "mbus-serial-adapter";
+static const char *const TAG = "mbus_serial_adapter";
 
 int8_t SerialAdapter::send(std::vector<uint8_t> &payload) {
-  this->_uart->write_array(payload);
-  this->_uart->flush();
+  this->uart_->write_array(payload);
+  this->uart_->flush();
   return 0;
 }
 
 int8_t SerialAdapter::receive(std::vector<uint8_t> &payload) {
-  if (this->_uart->available() <= 0) {
+  if (this->uart_->available() <= 0) {
     return -1;
   }
 
   uint8_t byte = 0;
-  while (this->_uart->available()) {
-    this->_uart->read_byte(&byte);
+  while (this->uart_->available()) {
+    this->uart_->read_byte(&byte);
     payload.push_back(byte);
     ESP_LOGVV(TAG, "  <- 0x%X", byte);
 

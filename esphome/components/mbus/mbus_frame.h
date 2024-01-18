@@ -126,7 +126,7 @@ class MBusDataRecord {
   std::unique_ptr<MBusValue> parse(const uint8_t id);
   // void *next;
 
- private:
+ protected:
   uint32_t parse_tariff(const MBusDataRecord *record);
   std::string parse_function(const MBusDataRecord *record);
   std::string parse_unit(const MBusDataRecord *record);

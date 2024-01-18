@@ -1,9 +1,9 @@
+#include "mbus.h"
+#include "esphome/components/mbus/mbus_frame_factory.h"
+#include "esphome/components/mbus/mbus_frame_meta.h"
+#include "esphome/components/mbus/mbus_decoder.h"
 #include "esphome/core/log.h"
 
-#include "mbus.h"
-#include "mbus-frame-factory.h"
-#include "mbus-frame-meta.h"
-#include "mbus-decoder.h"
 namespace esphome {
 namespace mbus {
 
@@ -11,8 +11,14 @@ static const char *const TAG = "mbus";
 
 void MBus::dump_config() {
   ESP_LOGCONFIG(TAG, "MBus:");
-  ESP_LOGCONFIG(TAG, "  Secondary Address: 0x%.016llX", this->secondary_address);
-  ESP_LOGCONFIG(TAG, "  delay: %d", this->delay);
+  ESP_LOGCONFIG(TAG, "  Secondary Address: 0x%.016llX", this->secondary_address_);
+  ESP_LOGCONFIG(TAG, "  delay: %d", this->delay_);
+  ESP_LOGCONFIG(TAG, "  %d sensors configured", this->sensors_.size());
+  for (auto index = 0; index < this->sensors_.size(); index++) {
+    auto sensor = this->sensors_.at(index);
+    ESP_LOGCONFIG(TAG, "   %d. sensor: Data Index = %d, Factor = %f", index + 1, sensor->get_data_index(),
+                  sensor->get_factor());
+  }
 }
 
 float MBus::get_setup_priority() const {
@@ -21,42 +27,42 @@ float MBus::get_setup_priority() const {
 }
 
 void MBus::setup() {
-  if (this->secondary_address == 0) {
+  if (this->secondary_address_ == 0) {
     start_scan_primary_addresses(this);
   } else {
     start_reading_data(this);
   }
 }
 
-void MBus::loop() { this->_protocol_handler->loop(); }
+void MBus::loop() { this->protocol_handler_->loop(); }
 
 void MBus::start_scan_primary_addresses(MBus *mbus) {
-  ESP_LOGV(TAG, "start_scan_primary_addresses: %.2X", mbus->primary_address);
+  ESP_LOGV(TAG, "start_scan_primary_addresses: %.2X", mbus->primary_address_);
 
   // MBus spec states to send REQ_UD2 but sending init-frame is much faster
   // see Chapter 7.3 Searching for Installed Slaves -> Primary Addresses
-  auto scan_primary_command = MBusFrameFactory::create_nke_frame(mbus->primary_address);
-  mbus->_protocol_handler->register_command(*scan_primary_command, scan_primary_addresses_response_handler,
+  auto scan_primary_command = MBusFrameFactory::create_nke_frame(mbus->primary_address_);
+  mbus->protocol_handler_->register_command(*scan_primary_command, scan_primary_addresses_response_handler,
                                             /*step*/ 0, /*delay*/ 1000);
 }
 
 void MBus::scan_primary_addresses_response_handler(MBusCommand *command, const MBusFrame &response) {
   auto mbus = command->mbus;
   if (command->step == 0 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
-    ESP_LOGD(TAG, "Found mbus slave with primary address = %.2X.", mbus->primary_address);
+    ESP_LOGD(TAG, "Found mbus slave with primary address = %.2X.", mbus->primary_address_);
     start_scan_secondary_addresses(command->mbus);
     return;
   }
 
-  mbus->primary_address++;
-  if (mbus->primary_address > PRIMARY_ADDRESS_MAX) {
+  mbus->primary_address_++;
+  if (mbus->primary_address_ > PRIMARY_ADDRESS_MAX) {
     ESP_LOGE(TAG, "No Device with primary address found.");
     return;
   }
 
-  ESP_LOGV(TAG, "scan_primary_addresses: %.2X", mbus->primary_address);
-  auto scan_primary_command = MBusFrameFactory::create_nke_frame(mbus->primary_address);
-  mbus->_protocol_handler->register_command(*scan_primary_command, scan_primary_addresses_response_handler,
+  ESP_LOGV(TAG, "scan_primary_addresses: %.2X", mbus->primary_address_);
+  auto scan_primary_command = MBusFrameFactory::create_nke_frame(mbus->primary_address_);
+  mbus->protocol_handler_->register_command(*scan_primary_command, scan_primary_addresses_response_handler,
                                             /*step*/ 0, /*delay*/ 1000);
 }
 
@@ -65,7 +71,7 @@ void MBus::start_scan_secondary_addresses(MBus *mbus) {
 
   // init slaves command
   auto init_slaves_command = MBusFrameFactory::create_nke_frame(MBusAddresses::NETWORK_LAYER);
-  mbus->_protocol_handler->register_command(*init_slaves_command, scan_secondary_addresses_response_handler, /*step*/ 0,
+  mbus->protocol_handler_->register_command(*init_slaves_command, scan_secondary_addresses_response_handler, /*step*/ 0,
                                             /*delay*/ 0, /*wait_for_response*/ false);
 }
 
@@ -78,7 +84,7 @@ void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const
     ESP_LOGV(TAG, "send slave select command:");
     uint64_t mask = 0x0FFFFFFFFFFFFFFF;
     auto slave_select_command = MBusFrameFactory::create_slave_select(mask);
-    command->mbus->_protocol_handler->register_command(*slave_select_command, scan_secondary_addresses_response_handler,
+    command->mbus->protocol_handler_->register_command(*slave_select_command, scan_secondary_addresses_response_handler,
                                                        /*step*/ 1);
     return;
   }
@@ -87,7 +93,7 @@ void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const
   if (command->step == 1 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
     ESP_LOGV(TAG, "send REQ_UD2 command:");
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
-    command->mbus->_protocol_handler->register_command(*req_ud2_command, scan_secondary_addresses_response_handler,
+    command->mbus->protocol_handler_->register_command(*req_ud2_command, scan_secondary_addresses_response_handler,
                                                        /*step*/ 2);
     return;
   }
@@ -107,11 +113,11 @@ void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const
 }
 
 void MBus::start_reading_data(MBus *mbus) {
-  ESP_LOGV(TAG, "start_reading_data from secondary_address: 0x%.016llX", mbus->secondary_address);
+  ESP_LOGV(TAG, "start_reading_data from secondary_address: 0x%.016llX", mbus->secondary_address_);
 
   // init slaves command
   auto init_slaves_command = MBusFrameFactory::create_nke_frame(MBusAddresses::NETWORK_LAYER);
-  mbus->_protocol_handler->register_command(*init_slaves_command, reading_data_response_handler, /*step*/ 0,
+  mbus->protocol_handler_->register_command(*init_slaves_command, reading_data_response_handler, /*step*/ 0,
                                             /*delay*/ 1000, /*wait_for_response*/ false);
 }
 
@@ -122,8 +128,8 @@ void MBus::reading_data_response_handler(MBusCommand *command, const MBusFrame &
   // init slaves command response #1
   if (command->step == 0) {
     ESP_LOGV(TAG, "send slave select command:");
-    auto slave_select_command = MBusFrameFactory::create_slave_select(mbus->secondary_address);
-    command->mbus->_protocol_handler->register_command(*slave_select_command, reading_data_response_handler,
+    auto slave_select_command = MBusFrameFactory::create_slave_select(mbus->secondary_address_);
+    command->mbus->protocol_handler_->register_command(*slave_select_command, reading_data_response_handler,
                                                        /*step*/ 1);
     return;
   }
@@ -131,7 +137,7 @@ void MBus::reading_data_response_handler(MBusCommand *command, const MBusFrame &
   if (command->step == 1 && (response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK)) {
     ESP_LOGV(TAG, "send REQ_UD2 command:");
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
-    command->mbus->_protocol_handler->register_command(*req_ud2_command, reading_data_response_handler,
+    command->mbus->protocol_handler_->register_command(*req_ud2_command, reading_data_response_handler,
                                                        /*step*/ 2);
     return;
   }
@@ -140,15 +146,15 @@ void MBus::reading_data_response_handler(MBusCommand *command, const MBusFrame &
                              response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_LONG)) {
     ESP_LOGV(TAG, "send REQ_UD2 command:");
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
-    command->mbus->_protocol_handler->register_command(*req_ud2_command, reading_data_response_handler,
+    command->mbus->protocol_handler_->register_command(*req_ud2_command, reading_data_response_handler,
                                                        /*step*/ 3);
     return;
   }
 
   if (command->step == 3) {
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
-    command->mbus->_protocol_handler->register_command(*req_ud2_command, reading_data_response_handler,
-                                                       /*step*/ 3, /*delay*/ mbus->delay * 1000);
+    command->mbus->protocol_handler_->register_command(*req_ud2_command, reading_data_response_handler,
+                                                       /*step*/ 3, /*delay*/ mbus->delay_ * 1000);
     return;
   }
 

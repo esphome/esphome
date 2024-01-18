@@ -1,4 +1,4 @@
-#include "mbus-frame-meta.h"
+#include "mbus_frame_meta.h"
 
 namespace esphome {
 namespace mbus {

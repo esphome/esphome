@@ -1,21 +1,22 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
-from esphome.const import CONF_ID
 
-DEPENDENCIES = ["uart"]
+CODEOWNERS = ["@MarkusSchneider"]
+DEPENDENCIES = ["sensor", "uart"]
 
 mbus_ns = cg.esphome_ns.namespace("mbus")
 MBus = mbus_ns.class_("MBus", cg.Component)
-MULTI_CONF = True
+MULTI_CONF = False
 
+CONF_MBUS_ID = "mbus_id"
 CONF_MBUS_SECONDARY_ADDRESS = "secondary_address"
 CONF_MBUS_DELAY = "delay"
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(MBus),
+            cv.GenerateID(CONF_MBUS_ID): cv.declare_id(MBus),
             cv.Optional(CONF_MBUS_SECONDARY_ADDRESS, default=0): cv.hex_uint64_t,
             cv.Optional(
                 CONF_MBUS_DELAY, default="1min"
@@ -29,7 +30,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     cg.add_global(mbus_ns.using)
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(config[CONF_MBUS_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 

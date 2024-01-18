@@ -1,10 +1,11 @@
 #pragma once
 
-#include "esphome/core/component.h"
+#include "esphome/components/mbus/mbus_frame.h"
+#include "esphome/components/mbus/mbus_protocol_handler.h"
+#include "esphome/components/mbus_sensor/mbus_sensor.h"
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
-#include "mbus-frame.h"
-#include "mbus-protocol-handler.h"
-
+#include "esphome/core/component.h"
 namespace esphome {
 namespace mbus {
 
@@ -15,31 +16,33 @@ class MBus : public uart::UARTDevice, public Component {
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  void set_secondary_address(uint64_t secondary_address) { this->secondary_address = secondary_address; };
-  void set_delay(uint16_t delay) { this->delay = delay; };
+  void set_secondary_address(uint64_t secondary_address) { this->secondary_address_ = secondary_address; };
+  void set_delay(uint16_t delay) { this->delay_ = delay; };
+  void add_sensor(const mbus_sensor::MBusSensor *sensor) { this->sensors_.push_back(sensor); }
 
   MBus() {
-    this->_serialAdapter = new SerialAdapter(this);
-    this->_protocol_handler = new MBusProtocolHandler(this, this->_serialAdapter);
+    this->serialAdapter_ = new SerialAdapter(this);
+    this->protocol_handler_ = new MBusProtocolHandler(this, this->serialAdapter_);
   }
   ~MBus() {
-    if (this->_serialAdapter != nullptr) {
-      delete this->_serialAdapter;
-      this->_serialAdapter = nullptr;
+    if (this->serialAdapter_ != nullptr) {
+      delete this->serialAdapter_;
+      this->serialAdapter_ = nullptr;
     }
-    if (this->_protocol_handler != nullptr) {
-      delete this->_protocol_handler;
-      this->_protocol_handler = nullptr;
+    if (this->protocol_handler_ != nullptr) {
+      delete this->protocol_handler_;
+      this->protocol_handler_ = nullptr;
     }
   }
 
  protected:
-  uint64_t secondary_address = 0;
-  uint8_t primary_address = 0;
-  uint16_t delay = 1;
+  uint64_t secondary_address_ = 0;
+  uint8_t primary_address_ = 0;
+  uint16_t delay_ = 1;
 
-  MBusProtocolHandler *_protocol_handler{nullptr};
-  SerialAdapter *_serialAdapter{nullptr};
+  MBusProtocolHandler *protocol_handler_{nullptr};
+  SerialAdapter *serialAdapter_{nullptr};
+  std::vector<const mbus_sensor::MBusSensor *> sensors_;
 
   static void start_scan_primary_addresses(MBus *mbus);
   static void scan_primary_addresses_response_handler(MBusCommand *command, const MBusFrame &response);

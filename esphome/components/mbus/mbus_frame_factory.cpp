@@ -1,6 +1,7 @@
-#include "mbus-frame-factory.h"
-#include "mbus-frame-meta.h"
-#include "mbus-decoder.h"
+#include "mbus_frame_factory.h"
+
+#include "esphome/components/mbus/mbus_frame_meta.h"
+#include "esphome/components/mbus/mbus_decoder.h"
 
 #include "esphome/core/log.h"
 

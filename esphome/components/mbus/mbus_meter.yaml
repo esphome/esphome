@@ -53,3 +53,9 @@ uart:
 mbus:
   secondary_address: 0x0025426642042002
   delay: "5s"
+
+sensor:
+  - name: "A+"
+    platform: mbus_sensor
+    icon: "mdi:information"
+    data_index: 1

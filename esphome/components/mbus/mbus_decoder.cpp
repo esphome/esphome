@@ -1,4 +1,4 @@
-#include "mbus-decoder.h"
+#include "mbus_decoder.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
@@ -33,7 +33,7 @@ int64_t MBusDecoder::decode_int(const std::vector<uint8_t> &data) {
   return value;
 }
 
-uint64_t MBusDecoder::decode_bcd_int(const std::vector<uint8_t> &data) {
+int64_t MBusDecoder::decode_bcd_int(const std::vector<uint8_t> &data) {
   auto size = data.size();
 
   uint64_t value = 0;

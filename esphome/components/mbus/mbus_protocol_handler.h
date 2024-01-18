@@ -6,8 +6,8 @@
 
 #include "stdint.h"
 
-#include "mbus-frame.h"
-#include "network-adapter.h"
+#include "mbus_frame.h"
+#include "esphome/components/mbus/network_adapter.h"
 
 namespace esphome {
 namespace mbus {
@@ -22,7 +22,7 @@ class MBusProtocolHandler {
   void register_command(MBusFrame &command, void (*response_handler)(MBusCommand *command, const MBusFrame &response),
                         uint8_t step, uint32_t delay = 0, bool wait_for_response = true);
 
-  MBusProtocolHandler(MBus *mbus, INetworkAdapter *networkAdapter) : _mbus(mbus), _networkAdapter(networkAdapter) {}
+  MBusProtocolHandler(MBus *mbus, INetworkAdapter *networkAdapter) : mbus_(mbus), networkAdapter_(networkAdapter) {}
 
  protected:
   // Communication
@@ -37,13 +37,13 @@ class MBusProtocolHandler {
   // Helper
   void delete_first_command();
 
-  INetworkAdapter *_networkAdapter{nullptr};
-  MBus *_mbus{nullptr};
-  std::vector<uint8_t> _rx_buffer;
-  std::deque<MBusCommand *> _commands;
+  INetworkAdapter *networkAdapter_{nullptr};
+  MBus *mbus_{nullptr};
+  std::vector<uint8_t> rx_buffer_;
+  std::deque<MBusCommand *> commands_;
 
-  uint32_t _timestamp{0};
-  bool _waiting_for_response{false};
+  uint32_t timestamp_{0};
+  bool waiting_for_response_{false};
 };
 
 class MBusCommand {

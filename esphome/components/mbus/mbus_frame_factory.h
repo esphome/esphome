@@ -2,7 +2,7 @@
 #include <memory>
 #include <vector>
 
-#include "mbus-frame.h"
+#include "esphome/components/mbus/mbus_frame.h"
 
 namespace esphome {
 namespace mbus {

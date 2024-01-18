@@ -1,14 +1,14 @@
-#include "esphome/core/log.h"
+#include "mbus_frame.h"
+
+#include "esphome/components/mbus/mbus_frame_meta.h"
+#include "esphome/components/mbus/mbus_decoder.h"
+
 #include "esphome/core/helpers.h"
-
-#include "mbus-frame.h"
-#include "mbus-frame-meta.h"
-#include "mbus-decoder.h"
-
+#include "esphome/core/log.h"
 namespace esphome {
 namespace mbus {
 
-static const char *const TAG = "mbus-frame";
+static const char *const TAG = "mbus_frame";
 
 MBusFrame::MBusFrame(MBusFrameType frame_type) {
   this->frame_type = frame_type;
