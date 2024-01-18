@@ -10,7 +10,9 @@ namespace veml7700 {
 
 using esphome::i2c::ErrorCode;
 
-// https://www.vishay.com/docs/84286/veml7700.pdf
+//
+// Datasheet:  https://www.vishay.com/docs/84286/veml7700.pdf
+//
 
 enum CommandRegisters : uint8_t {
   CR_ALS_CONF_0 = 0x00,  // W: ALS gain, integration time, interrupt, and shutdown
@@ -22,9 +24,8 @@ enum CommandRegisters : uint8_t {
   CR_ALS_INT = 0x06      // R: ALS INT trigger event
 };
 
-// Sensor gain levels
 enum Gain : uint8_t {
-  X_1 = 0,  // default
+  X_1 = 0,
   X_2 = 1,
   X_1_8 = 2,
   X_1_4 = 3,
@@ -32,8 +33,8 @@ enum Gain : uint8_t {
 const uint8_t GAINS_COUNT = 4;
 
 enum IntegrationTime : uint8_t {
-  INTEGRATION_TIME_25MS = 0b1100,  // 12
-  INTEGRATION_TIME_50MS = 0b1000,  // 8
+  INTEGRATION_TIME_25MS = 0b1100,
+  INTEGRATION_TIME_50MS = 0b1000,
   INTEGRATION_TIME_100MS = 0b0000,
   INTEGRATION_TIME_200MS = 0b0001,
   INTEGRATION_TIME_400MS = 0b0010,
@@ -92,21 +93,27 @@ union PSMRegister {
     uint16_t reserved : 13;
   };
 };
-
 #pragma pack(pop)
 
 class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
  public:
+  //
+  // EspHome framework functions
+  //
   float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override;
+  void loop() override;
 
+  //
+  // Configuration setters
+  //
   void set_gain(Gain gain) { this->gain_ = gain; }
   void set_integration_time(IntegrationTime time) { this->integration_time_ = time; }
   void set_enable_automatic_mode(bool enable) { this->automatic_mode_enabled_ = enable; }
   void set_enable_lux_compensation(bool enable) { this->lux_compensation_enabled_ = enable; }
-  void set_attenuation_factor(float factor) { this->attenuation_factor_ = factor; }
+  void set_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
 
   void set_ambient_light_sensor(sensor::Sensor *sensor) { this->ambient_light_sensor_ = sensor; }
   void set_ambient_light_counts_sensor(sensor::Sensor *sensor) { this->ambient_light_counts_sensor_ = sensor; }
@@ -117,47 +124,74 @@ class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
   void set_actual_integration_time_sensor(sensor::Sensor *sensor) { this->actual_integration_time_sensor_ = sensor; }
 
  protected:
+  //
+  // Internal state machine, used to split all the actions into
+  // small steps in loop() to make sure we are not blocking execution
+  //
+  enum State : uint8_t {
+    NotInitialized = 0x0,
+    InitialSetupCompleted,
+    Idle,
+    CollectingData,
+    CollectingDataAuto,
+    DataCollected,
+    AdjustmentNeeded,
+    AdjustmentInProgress,
+    ReadyToApplyAdjustments,
+    ReadyToPublishPart1,
+    ReadyToPublishPart2
+  } state_{State::NotInitialized};
+
+  //
+  // Current measurements data
+  //
   struct Readings {
     uint16_t als_counts{0};
     uint16_t white_counts{0};
-
     IntegrationTime actual_time{INTEGRATION_TIME_100MS};
     Gain actual_gain{X_1};
-
     float als_lux{0};
     float white_lux{0};
     float fake_infrared_lux{0};
-  };
+    ErrorCode err{i2c::ERROR_OK};
+  } readings_;
 
+  //
+  // Device interaction
+  //
   ErrorCode configure_();
-  ErrorCode reconfigure_time_and_gain_(IntegrationTime time, Gain gain);
-
-  void read_data_();
-
-  ErrorCode read_data_manual_(Readings &data);
-  ErrorCode read_data_automatic_(Readings &data);
+  ErrorCode reconfigure_time_and_gain_(IntegrationTime time, Gain gain, bool shutdown);
   ErrorCode read_sensor_output_(Readings &data);
 
+  //
+  // Working with the data
+  //
+  bool are_adjustments_required_(Readings &data);
   void apply_lux_calculation_(Readings &data);
   void apply_lux_compensation_(Readings &data);
   void apply_glass_attenuation_(Readings &data);
+  void publish_data_part_1_(Readings &data);
+  void publish_data_part_2_(Readings &data);
 
-  bool reading_data_{false};
-
+  //
+  // Component configuration
+  //
   bool automatic_mode_enabled_{true};
   bool lux_compensation_enabled_{true};
-  Gain gain_{X_1};
+  float glass_attenuation_factor_{1.0};
   IntegrationTime integration_time_{INTEGRATION_TIME_100MS};
-  float attenuation_factor_{1.0};
+  Gain gain_{X_1};
 
-  sensor::Sensor *ambient_light_sensor_{nullptr};         // Human eye range 500-600 nm, lx
-  sensor::Sensor *ambient_light_counts_sensor_{nullptr};  // Raw counts
-  sensor::Sensor *white_sensor_{nullptr};                 // Wide range 450-950 nm, lx
-  sensor::Sensor *white_counts_sensor_{nullptr};          // Raw counts
-  sensor::Sensor *fake_infrared_sensor_{nullptr};         // Artificial. = WHITE lx - ALS lx.
-
-  sensor::Sensor *actual_gain_sensor_{nullptr};
-  sensor::Sensor *actual_integration_time_sensor_{nullptr};
+  //
+  //   Sensors for publishing data
+  //
+  sensor::Sensor *ambient_light_sensor_{nullptr};            // Human eye range 500-600 nm, lx
+  sensor::Sensor *ambient_light_counts_sensor_{nullptr};     // Raw counts
+  sensor::Sensor *white_sensor_{nullptr};                    // Wide range 450-950 nm, lx
+  sensor::Sensor *white_counts_sensor_{nullptr};             // Raw counts
+  sensor::Sensor *fake_infrared_sensor_{nullptr};            // Artificial. = WHITE lx - ALS lx.
+  sensor::Sensor *actual_gain_sensor_{nullptr};              // Actual gain multiplier for the measurement
+  sensor::Sensor *actual_integration_time_sensor_{nullptr};  // Actual integration time for the measurement
 };
 
 }  // namespace veml7700

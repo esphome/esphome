@@ -67,7 +67,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(VEML7700Component),
             cv.Optional(CONF_AUTO_MODE, default=True): cv.boolean,
-            cv.Optional(CONF_GAIN, default="1X"): cv.enum(GAINS, upper=True),
+            cv.Optional(CONF_GAIN, default="1/8X"): cv.enum(GAINS, upper=True),
             cv.Optional(
                 CONF_INTEGRATION_TIME, default="100ms"
             ): validate_integration_time,
@@ -174,4 +174,4 @@ async def to_code(config):
     cg.add(var.set_enable_lux_compensation(config[CONF_LUX_COMPENSATION]))
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
-    cg.add(var.set_attenuation_factor(config[CONF_GLASS_ATTENUATION_FACTOR]))
+    cg.add(var.set_glass_attenuation_factor(config[CONF_GLASS_ATTENUATION_FACTOR]))
