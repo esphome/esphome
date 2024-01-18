@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
+    CONF_ASSUMED_STATE,
 )
 from esphome.core import coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -54,7 +55,6 @@ RESTORE_MODES = {
     "RESTORE_INVERTED_DEFAULT_ON": LightRestoreMode.LIGHT_RESTORE_INVERTED_DEFAULT_ON,
     "RESTORE_AND_OFF": LightRestoreMode.LIGHT_RESTORE_AND_OFF,
     "RESTORE_AND_ON": LightRestoreMode.LIGHT_RESTORE_AND_ON,
-    "DISABLED": LightRestoreMode.LIGHT_RESTORE_DISABLED,
 }
 
 LIGHT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
@@ -79,6 +79,7 @@ LIGHT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).ex
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightStateTrigger),
             }
         ),
+        cv.Optional(CONF_ASSUMED_STATE): cv.boolean,
     }
 )
 
@@ -175,6 +176,9 @@ async def setup_light_core_(light_var, output_var, config):
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], light_var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if CONF_ASSUMED_STATE in config:
+        cg.add(light_var.set_assumed_state(config[CONF_ASSUMED_STATE]))
 
 
 async def register_light(output_var, config):

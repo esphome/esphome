@@ -79,10 +79,12 @@ void LightState::setup() {
     case LIGHT_ALWAYS_ON:
       recovered.state = true;
       break;
-    case LIGHT_RESTORE_DISABLED:
-      call.set_publish(false);
-      this->next_write_ = false;
-      return;
+  }
+
+  if (this->assumed_state_) {
+    call.set_publish(false);
+    // In assumed state mode we need to prevent the first run of the loop causing a write out
+    this->next_write_ = false;
   }
 
   call.set_color_mode_if_supported(recovered.color_mode);
@@ -217,6 +219,8 @@ void LightState::current_values_as_ct(float *color_temperature, float *white_bri
   this->current_values.as_ct(traits.get_min_mireds(), traits.get_max_mireds(), color_temperature, white_brightness,
                              this->gamma_correct_);
 }
+
+void LightState::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 
 void LightState::start_effect_(uint32_t effect_index) {
   this->stop_effect_();

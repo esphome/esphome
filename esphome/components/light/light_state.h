@@ -26,7 +26,6 @@ enum LightRestoreMode {
   LIGHT_RESTORE_INVERTED_DEFAULT_ON,
   LIGHT_RESTORE_AND_OFF,
   LIGHT_RESTORE_AND_ON,
-  LIGHT_RESTORE_DISABLED,
 };
 
 /** This class represents the communication layer between the front-end MQTT layer and the
@@ -145,6 +144,8 @@ class LightState : public EntityBase, public Component {
 
   void current_values_as_ct(float *color_temperature, float *white_brightness);
 
+  void set_assumed_state(bool assumed_state);
+
  protected:
   friend LightOutput;
   friend LightCall;
@@ -204,6 +205,8 @@ class LightState : public EntityBase, public Component {
   LightRestoreMode restore_mode_;
   /// List of effects for this light.
   std::vector<LightEffect *> effects_;
+  /// Whether the light's true state is not know.
+  bool assumed_state_{false};
 };
 
 }  // namespace light
