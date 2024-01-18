@@ -93,7 +93,7 @@ optional<ABBWelcomeData> ABBWelcomeProtocol::decode(RemoteReceiveData src) {
     uint8_t received_bytes = 2;
     for (; (received_bytes < length) && !done; received_bytes++) {
       uint8_t data = 0;
-      if (!decode_byte_(src, done, data)) {
+      if (!this->decode_byte_(src, done, data)) {
         ESP_LOGW(TAG, "Received incomplete packet: %s", out.to_string(received_bytes).c_str());
         return {};
       }
