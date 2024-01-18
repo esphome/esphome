@@ -98,10 +98,26 @@ void ESP8266UartComponent::setup() {
   }
 }
 
+void ESP8266UartComponent::load_settings(bool dump_config) {
+  ESP_LOGCONFIG(TAG, "Loading UART bus settings...");
+  if (this->hw_serial_ != nullptr) {
+    SerialConfig config = static_cast<SerialConfig>(get_config());
+    this->hw_serial_->begin(this->baud_rate_, config);
+    this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
+  } else {
+    this->sw_serial_->setup(this->tx_pin_, this->rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_,
+                            this->parity_, this->rx_buffer_size_);
+  }
+  if (dump_config) {
+    ESP_LOGCONFIG(TAG, "UART bus was reloaded.");
+    this->dump_config();
+  }
+}
+
 void ESP8266UartComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus:");
-  LOG_PIN("  TX Pin: ", tx_pin_);
-  LOG_PIN("  RX Pin: ", rx_pin_);
+  LOG_PIN("  TX Pin: ", this->tx_pin_);
+  LOG_PIN("  RX Pin: ", this->rx_pin_);
   if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);  // NOLINT
   }
