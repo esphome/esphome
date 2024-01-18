@@ -1443,6 +1443,12 @@ void WaveshareEPaper7P5InBV2::initialize() {
   // COMMAND TCON SETTING
   this->command(0x60);
   this->data(0x22);
+
+  this->command(0x82);
+  this->data(0x08);
+  this->command(0x30);
+  this->data(0x06);
+
   // COMMAND RESOLUTION SETTING
   this->command(0x65);
   this->data(0x00);
@@ -1472,6 +1478,7 @@ void HOT WaveshareEPaper7P5InBV2::display() {
   this->command(0x12);
   delay(100);  // NOLINT
   this->wait_until_idle_();
+  this->deep_sleep();
 }
 int WaveshareEPaper7P5InBV2::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InBV2::get_height_internal() { return 480; }
@@ -1617,7 +1624,7 @@ void HOT WaveshareEPaper7P5InBV3::display() {
   this->command(0x13);  // Start Transmission
   delay(2);
   for (uint32_t i = 0; i < buf_len; i++) {
-    this->data(this->buffer_[i]);
+    this->data(~this->buffer_[i]);
   }
 
   this->command(0x12);  // Display Refresh
