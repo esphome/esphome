@@ -1,0 +1,109 @@
+substitutions:
+  name: test-xpt2046
+  comment: test-xpt2046
+  project_version: "1"
+
+esphome:
+  name: ${name}
+  comment: "${name} - ${comment}"
+  friendly_name: "${comment}"
+
+  project:
+    name: ${name}.${comment}
+    version: ${project_version}
+
+  on_boot:
+    priority: -100
+    then:
+      - script.execute: my_script
+
+esp32:
+  board: lolin_s2_mini
+  framework:
+    type: arduino
+
+logger:
+  level: verbose
+  # hardware_uart: USB_CDC
+
+psram:
+
+spi:
+  clk_pin: 7
+  mosi_pin: 11
+  miso_pin: 9
+
+display:
+  - platform: ili9xxx
+    id: my_display
+    model: ili9341
+    cs_pin: 5
+    dc_pin: 12
+    reset_pin: 35
+    auto_clear_enabled: false
+    data_rate: 40MHz
+    dimensions: 320x240
+    update_interval: never
+    transform:
+      mirror_y: false
+      mirror_x: false
+      swap_xy: true
+
+
+touchscreen:
+  - platform: xpt2046
+    display: my_display
+    id: my_toucher
+    update_interval: 50ms
+    cs_pin: 18
+    #interrupt_pin: 16
+
+    threshold: 300
+    calibration:
+      x_min: 210
+      x_max: 3890
+      y_min: 170
+      y_max: 3730
+    transform:
+      mirror_x: false
+      mirror_y: true
+      swap_xy: true
+    on_touch:
+      then:
+        - light.turn_on: board_led
+        - script.execute: my_script
+    on_release:
+      then:
+        - light.turn_off: board_led
+
+
+  # Define a PWM output on the ESP32
+output:
+  - platform: ledc
+    pin: 16
+    id: gpio_17_backlight_pwm
+  - platform: ledc
+    pin: 15
+    id: gpio_15
+
+# Define a monochromatic, dimmable light for the backlight
+light:
+  - platform: monochromatic
+    output: gpio_17_backlight_pwm
+    name: Backlight
+    id: back_light
+    restore_mode: ALWAYS_ON
+
+  - platform: binary
+    output: gpio_15
+    id: board_led
+    internal: true
+    restore_mode: ALWAYS_OFF
+
+script:
+  - id: my_script
+    mode: restart
+    then:
+      - light.turn_on: back_light
+      - delay: 10min
+      - light.turn_off: back_light
