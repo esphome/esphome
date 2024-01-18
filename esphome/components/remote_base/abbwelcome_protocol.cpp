@@ -44,7 +44,7 @@ void ABBWelcomeProtocol::encode_byte_(RemoteTransmitData *dst, uint8_t data) con
 void ABBWelcomeProtocol::encode(RemoteTransmitData *dst, const ABBWelcomeData &src) {
   dst->set_carrier_frequency(0);
   uint32_t reserve_count = 0;
-  for (unsigned i = 0; i < src.size(); i++) {
+  for (size_t i = 0; i < src.size(); i++) {
     reserve_count += 2 * (9 - (src[i] & 1) - ((src[i] >> 1) & 1) - ((src[i] >> 2) & 1) - ((src[i] >> 3) & 1) -
                           ((src[i] >> 4) & 1) - ((src[i] >> 5) & 1) - ((src[i] >> 6) & 1) - ((src[i] >> 7) & 1));
   }
