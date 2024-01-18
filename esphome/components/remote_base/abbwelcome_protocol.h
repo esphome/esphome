@@ -130,7 +130,7 @@ class ABBWelcomeData {
   }
   std::vector<uint8_t> get_data() const {
     std::vector<uint8_t> data(this->data_.begin() + 5 + 2 * this->get_address_length(),
-                              this->data_.begin() + 5 + 2 * this->get_address_length() + get_data_size());
+                              this->data_.begin() + 5 + 2 * this->get_address_length() + this->get_data_size());
     return data;
   }
   uint8_t get_data_size() const {
@@ -138,7 +138,7 @@ class ABBWelcomeData {
   }
   void finalize() {
     if (this->auto_message_id && !this->get_retransmission() && !(this->data_[3] & 0x80)) {
-      set_message_id(static_cast<uint8_t>(random_uint32()));
+      this->set_message_id(static_cast<uint8_t>(random_uint32()));
     }
     this->data_[0] = 0x55;
     this->data_[1] = 0xff;
