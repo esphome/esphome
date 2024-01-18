@@ -12,7 +12,9 @@
 namespace esphome {
 namespace ota {
 
-OTAResponseTypes ArduinoESP8266OTABackend::begin(size_t image_size) {
+OTAResponseTypes ArduinoESP8266OTABackend::begin(OTAPartitionType bin_type, size_t &image_size) {
+  if (bin_type.type != OTA_BIN_APP)
+    return OTA_RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED;
   bool ret = Update.begin(image_size, U_FLASH);
   if (ret) {
     esp8266::preferences_prevent_write(true);

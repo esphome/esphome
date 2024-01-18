@@ -6,14 +6,27 @@ import io
 import logging
 import random
 import socket
+import struct
 import sys
 import time
 
+from dataclasses import dataclass
 from esphome.core import EsphomeError
 from esphome.helpers import is_ip_address, resolve_ip_address
 
+UPLOAD_TYPE_APP = 1
+UPLOAD_TYPE_BOOTLOADER = 2
+UPLOAD_TYPE_PARTITION_TABLE = 3
+UPLOAD_TYPE_PARTITION = 4
+
+COMMAND_WRITE = 1
+COMMAND_REBOOT = 2
+COMMAND_END = 3
+COMMAND_READ = 4
+
 RESPONSE_OK = 0
 RESPONSE_REQUEST_AUTH = 1
+RESPONSE_REQUEST_MD5 = 2
 
 RESPONSE_HEADER_OK = 64
 RESPONSE_AUTH_OK = 65
@@ -22,6 +35,9 @@ RESPONSE_BIN_MD5_OK = 67
 RESPONSE_RECEIVE_OK = 68
 RESPONSE_UPDATE_END_OK = 69
 RESPONSE_SUPPORTS_COMPRESSION = 70
+RESPONSE_SUPPORTS_EXTENDED = 71
+RESPONSE_READ_PREPARE_OK = (72,)
+RESPONSE_READ_END_OK = (73,)
 
 RESPONSE_ERROR_MAGIC = 128
 RESPONSE_ERROR_UPDATE_PREPARE = 129
@@ -35,13 +51,27 @@ RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE = 136
 RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE = 137
 RESPONSE_ERROR_NO_UPDATE_PARTITION = 138
 RESPONSE_ERROR_MD5_MISMATCH = 139
+RESPONSE_ERROR_RP2040_NOT_ENOUGH_SPACE = 140
+RESPONSE_ERROR_UNKNOWN_PARTITION_INFO_VERSION = 141
+RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED = 142
+RESPONSE_ERROR_ESP32_REGISTERING_PARTITION = 143
+RESPONSE_ERROR_PARTITION_NOT_FOUND = 144
+RESPONSE_ERROR_UNKNOWN_COMMAND = 145
+RESPONSE_ERROR_ABORT_OVERRIDE = 146
 RESPONSE_ERROR_UNKNOWN = 255
 
 OTA_VERSION_1_0 = 1
 
 MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 
+FEATURE_QUERY_SUPPORTS_COMPRESSION = 0x01
+FEATURE_QUERY_SUPPORTS_EXTENDED = 0x02
+
 FEATURE_SUPPORTS_COMPRESSION = 0x01
+FEATURE_SUPPORTS_WRITING_BOOTLOADER = 0x02
+FEATURE_SUPPORTS_WRITING_PARTITION_TABLE = 0x03
+FEATURE_SUPPORTS_WRITING_PARTITIONS = 0x04
+FEATURE_SUPPORTS_READING = 0x05
 
 
 UPLOAD_BLOCK_SIZE = 8192
@@ -50,9 +80,24 @@ UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
 _LOGGER = logging.getLogger(__name__)
 
 
+@dataclass
+class OTAPartitionType:
+    type: int
+
+    @dataclass
+    class partition:
+        """Partition information for flash"""
+
+        type: int = 0xFF
+        subtype: int = 0xFF
+        index: int = 0
+        label: str = ""
+
+
 class ProgressBar:
-    def __init__(self):
+    def __init__(self, prefix="Uploading"):
         self.last_progress = None
+        self.prefix = prefix
 
     def update(self, progress):
         bar_length = 60
@@ -65,7 +110,7 @@ class ProgressBar:
             return
         self.last_progress = new_progress
         block = int(round(bar_length * progress))
-        text = f"\rUploading: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
+        text = f"\r{self.prefix}: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
         sys.stderr.write(text)
         sys.stderr.flush()
 
@@ -169,6 +214,44 @@ def check_error(data, expect):
             "Error: Application MD5 code mismatch. Please try again "
             "or flash over USB with a good quality cable."
         )
+    if dat == RESPONSE_ERROR_RP2040_NOT_ENOUGH_SPACE:
+        raise OTAError(
+            "Error: The OTA partition on the RP2040 is too small. ESPHome needs to resize "
+            "this partition, please flash over USB."
+        )
+    if dat == RESPONSE_ERROR_UNKNOWN_PARTITION_INFO_VERSION:
+        raise OTAError(
+            "Error: The device firmware is too old and does not support this type of OTA. Try "
+            "to update first."
+        )
+    if dat == RESPONSE_ERROR_UNKNOWN_PARTITION_INFO_VERSION:
+        raise OTAError(
+            "Error: The device firmware is too old and does not support this type of OTA. Try "
+            "a regular OTA update first or flash over USB."
+        )
+    if dat == RESPONSE_ERROR_BIN_TYPE_NOT_SUPPORTED:
+        raise OTAError(
+            "Error: The device does not support flashing this type of partition. Check if the "
+            "framework and CPU you are using supports it."
+        )
+    if dat == RESPONSE_ERROR_ESP32_REGISTERING_PARTITION:
+        raise OTAError(
+            "Error: could not register partition before flashing. Try to reboot your device first"
+        )
+    if dat == RESPONSE_ERROR_PARTITION_NOT_FOUND:
+        raise OTAError(
+            "Error: could not find the custom partition to flash. Did you specify the right values?"
+        )
+    if dat == RESPONSE_ERROR_UNKNOWN_COMMAND:
+        raise OTAError(
+            "Error: device does not support the sent command. This means the device firmware is too "
+            "old and this CLI did not check the device features properly."
+        )
+    if dat == RESPONSE_ERROR_ABORT_OVERRIDE:
+        raise OTAError(
+            "Error: device aborted flash that would have overriden running partition. Check your "
+            "device log for more information."
+        )
     if dat == RESPONSE_ERROR_UNKNOWN:
         raise OTAError("Unknown error from ESP")
     if not isinstance(expect, (list, tuple)):
@@ -192,12 +275,14 @@ def send_check(sock, data, msg):
 
 
 def perform_ota(
-    sock: socket.socket, password: str, file_handle: io.IOBase, filename: str
+    sock: socket.socket,
+    password: str,
+    file_handle: io.IOBase,
+    bin_type,
+    filename: str,
+    no_reboot: bool,
+    is_upload: bool,
 ) -> None:
-    file_contents = file_handle.read()
-    file_size = len(file_contents)
-    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
-
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     send_check(sock, MAGIC_BYTES, "magic bytes")
@@ -206,17 +291,56 @@ def perform_ota(
     if version != OTA_VERSION_1_0:
         raise OTAError(f"Unsupported OTA version {version}")
 
-    # Features
-    send_check(sock, FEATURE_SUPPORTS_COMPRESSION, "features")
-    features = receive_exactly(
-        sock, 1, "features", [RESPONSE_HEADER_OK, RESPONSE_SUPPORTS_COMPRESSION]
+    # Query features
+    send_check(
+        sock,
+        FEATURE_QUERY_SUPPORTS_COMPRESSION + FEATURE_QUERY_SUPPORTS_EXTENDED,
+        "features",
+    )
+    features_reply = receive_exactly(
+        sock,
+        1,
+        "features",
+        [RESPONSE_HEADER_OK, RESPONSE_SUPPORTS_COMPRESSION, RESPONSE_SUPPORTS_EXTENDED],
     )[0]
 
-    if features == RESPONSE_SUPPORTS_COMPRESSION:
-        upload_contents = gzip.compress(file_contents, compresslevel=9)
-        _LOGGER.info("Compressed to %s bytes", len(upload_contents))
-    else:
-        upload_contents = file_contents
+    # Check feature reply and set features
+    features = []
+    if features_reply == RESPONSE_SUPPORTS_COMPRESSION:
+        features = [FEATURE_SUPPORTS_COMPRESSION]
+    if features_reply == RESPONSE_SUPPORTS_EXTENDED:
+        enabled_features = receive_exactly(sock, 1, "extended features legth", False)[0]
+        if enabled_features > 0:
+            features = receive_exactly(
+                sock, enabled_features, "extended features", False
+            )
+    _LOGGER.debug("Features: %s", features)
+
+    if (bin_type.type == UPLOAD_TYPE_BOOTLOADER) and (
+        FEATURE_SUPPORTS_WRITING_BOOTLOADER not in features
+    ):
+        raise OTAError(
+            "Transfering bootloader is not supported by remote device - upgrade the firmware first!"
+        )
+
+    if (bin_type.type == UPLOAD_TYPE_PARTITION_TABLE) and (
+        FEATURE_SUPPORTS_WRITING_PARTITION_TABLE not in features
+    ):
+        raise OTAError(
+            "Transfering partition table is not supported by remote device - upgrade the firmware first!"
+        )
+
+    if (bin_type.type == UPLOAD_TYPE_PARTITION) and (
+        FEATURE_SUPPORTS_WRITING_PARTITIONS not in features
+    ):
+        raise OTAError(
+            "Transfering partition is not supported by remote device - upgrade the firmware first!"
+        )
+
+    if (not is_upload) and (FEATURE_SUPPORTS_READING not in features):
+        raise OTAError(
+            "Reading firmware is not supported by remote device - upgrade the firmware first!"
+        )
 
     (auth,) = receive_exactly(
         sock, 1, "auth", [RESPONSE_REQUEST_AUTH, RESPONSE_AUTH_OK]
@@ -243,21 +367,75 @@ def perform_ota(
         send_check(sock, result, "auth result")
         receive_exactly(sock, 1, "auth result", RESPONSE_AUTH_OK)
 
-    upload_size = len(upload_contents)
-    upload_size_encoded = [
-        (upload_size >> 24) & 0xFF,
-        (upload_size >> 16) & 0xFF,
-        (upload_size >> 8) & 0xFF,
-        (upload_size >> 0) & 0xFF,
-    ]
-    send_check(sock, upload_size_encoded, "binary size")
-    receive_exactly(sock, 1, "binary size", RESPONSE_UPDATE_PREPARE_OK)
+    if is_upload:
+        file_contents = file_handle.read()
+        file_size = len(file_contents)
+        _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
 
-    upload_md5 = hashlib.md5(upload_contents).hexdigest()
-    _LOGGER.debug("MD5 of upload is %s", upload_md5)
+        if FEATURE_SUPPORTS_COMPRESSION in features:
+            transfer_contents = gzip.compress(file_contents, compresslevel=9)
+            _LOGGER.info("Compressed to %s bytes", len(transfer_contents))
+        else:
+            transfer_contents = file_contents
 
-    send_check(sock, upload_md5, "file checksum")
-    receive_exactly(sock, 1, "file checksum", RESPONSE_BIN_MD5_OK)
+        upload_size = len(transfer_contents)
+
+        send_check(sock, struct.pack("!B", COMMAND_WRITE), "write command")
+    else:
+        # Read
+        upload_size = 0
+        send_check(sock, struct.pack("!B", COMMAND_READ), "read command")
+
+    if features_reply == RESPONSE_SUPPORTS_EXTENDED:
+        # Send partition info
+        # - [ 0   ] version: 0x1
+        # - [ 1   ] bin type (if version >= 1)
+        # - [ 2- 5] bin length (if version >= 1)
+        # - [ 6   ] partition type - when bin type = partition (if version >= 1)
+        # - [ 7   ] partition subtype - when bin type = partition (if version >= 1)
+        # - [ 8   ] partition index - when bin type = partition (if version >= 1)
+        # - [16-31] partition label - when bin type = partition (if version >= 1)
+        version = 1
+        partition_label = bin_type.partition.label
+        assert len(partition_label) <= 15
+        partition_label_bytes = bytes(partition_label, "ascii") + b"\x00"
+        partition_info = struct.pack(
+            "!BBLBBB7x16s",
+            version,
+            bin_type.type,
+            upload_size,
+            bin_type.partition.type,
+            bin_type.partition.subtype,
+            bin_type.partition.index,
+            partition_label_bytes,
+        )
+        assert len(partition_info) == 32
+        _LOGGER.debug("Partition info: %s", list(partition_info))
+        send_check(sock, partition_info, "partition info")
+    else:
+        if bin_type.type != UPLOAD_TYPE_APP:
+            raise OTAError(
+                "Error: The device firmware is too old and does not support anything else beyond "
+                "the plain OTA. Try an update first."
+            )
+        upload_size_encoded = struct.pack("!L", upload_size)
+        send_check(sock, upload_size_encoded, "binary size")
+    if is_upload:
+        receive_exactly(sock, 1, "binary size", RESPONSE_UPDATE_PREPARE_OK)
+
+        upload_md5 = hashlib.md5(transfer_contents).hexdigest()
+        _LOGGER.debug("MD5 of upload is %s", upload_md5)
+
+        send_check(sock, upload_md5, "file checksum")
+        receive_exactly(sock, 1, "file checksum", RESPONSE_BIN_MD5_OK)
+    else:
+        # Read
+        read_prep_response = receive_exactly(
+            sock, 5, "file size for read", RESPONSE_READ_PREPARE_OK
+        )
+
+        file_size = struct.unpack("!BL", bytes(read_prep_response))[1]
+        _LOGGER.info("Downloading %s (%s bytes)", filename, file_size)
 
     # Disable nodelay for transfer
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
@@ -270,20 +448,32 @@ def perform_ota(
     start_time = time.perf_counter()
 
     offset = 0
-    progress = ProgressBar()
+    progress = ProgressBar("Uploading" if is_upload else "Downloading")
     while True:
-        chunk = upload_contents[offset : offset + UPLOAD_BLOCK_SIZE]
+        if is_upload:
+            chunk = transfer_contents[offset : offset + UPLOAD_BLOCK_SIZE]
+        else:
+            chunk_size = min(UPLOAD_BLOCK_SIZE, file_size - offset)
+            chunk = (
+                receive_exactly(sock, chunk_size, "receive firmware chunk", None)
+                if chunk_size > 0
+                else None
+            )
+
         if not chunk:
             break
         offset += len(chunk)
 
-        try:
-            sock.sendall(chunk)
-        except OSError as err:
-            sys.stderr.write("\n")
-            raise OTAError(f"Error sending data: {err}") from err
+        if is_upload:
+            try:
+                sock.sendall(chunk)
+            except OSError as err:
+                sys.stderr.write("\n")
+                raise OTAError(f"Error sending data: {err}") from err
+        else:
+            file_handle.write(bytes(chunk))
 
-        progress.update(offset / upload_size)
+        progress.update(offset / file_size)
     progress.done()
 
     # Enable nodelay for last checks
@@ -292,9 +482,23 @@ def perform_ota(
 
     _LOGGER.info("Upload took %.2f seconds, waiting for result...", duration)
 
-    receive_exactly(sock, 1, "receive OK", RESPONSE_RECEIVE_OK)
-    receive_exactly(sock, 1, "Update end", RESPONSE_UPDATE_END_OK)
-    send_check(sock, RESPONSE_OK, "end acknowledgement")
+    if is_upload:
+        receive_exactly(sock, 1, "receive OK", RESPONSE_RECEIVE_OK)
+        receive_exactly(sock, 1, "Update end", RESPONSE_UPDATE_END_OK)
+    else:
+        # End Read
+
+        file_handle.seek(0)
+        download_md5 = hashlib.md5(file_handle.read()).hexdigest()
+        _LOGGER.debug("MD5 of download is %s", download_md5)
+
+        send_check(sock, download_md5, "file checksum")
+        receive_exactly(sock, 1, "file checksum", RESPONSE_BIN_MD5_OK)
+
+    if no_reboot:
+        send_check(sock, COMMAND_END, "end without reboot")
+    else:
+        send_check(sock, COMMAND_REBOOT, "end with reboot")
 
     _LOGGER.info("OTA successful")
 
@@ -302,7 +506,9 @@ def perform_ota(
     time.sleep(1)
 
 
-def run_ota_impl_(remote_host, remote_port, password, filename):
+def run_ota_impl_(
+    remote_host, remote_port, password, bin_type, filename, no_reboot, is_upload
+):
     if is_ip_address(remote_host):
         _LOGGER.info("Connecting to %s", remote_host)
         ip = remote_host
@@ -331,9 +537,12 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
         _LOGGER.error("Connecting to %s:%s failed: %s", remote_host, remote_port, err)
         return 1
 
-    with open(filename, "rb") as file_handle:
+    open_mode = "rb" if is_upload else "wb+"
+    with open(filename, open_mode) as file_handle:
         try:
-            perform_ota(sock, password, file_handle, filename)
+            perform_ota(
+                sock, password, file_handle, bin_type, filename, no_reboot, is_upload
+            )
         except OTAError as err:
             _LOGGER.error(str(err))
             return 1
@@ -343,9 +552,21 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
     return 0
 
 
-def run_ota(remote_host, remote_port, password, filename):
+def run_ota(remote_host, remote_port, password, bin_type, filename, no_reboot):
     try:
-        return run_ota_impl_(remote_host, remote_port, password, filename)
+        return run_ota_impl_(
+            remote_host, remote_port, password, bin_type, filename, no_reboot, True
+        )
+    except OTAError as err:
+        _LOGGER.error(err)
+        return 1
+
+
+def download_ota(remote_host, remote_port, password, bin_type, filename):
+    try:
+        return run_ota_impl_(
+            remote_host, remote_port, password, bin_type, filename, True, False
+        )
     except OTAError as err:
         _LOGGER.error(err)
         return 1

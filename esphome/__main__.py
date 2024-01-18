@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import time
+import tempfile
 from datetime import datetime
 
 import argcomplete
@@ -334,10 +335,154 @@ def upload_program(config, args, host):
             config, args.username, args.password, args.client_id
         )
 
+    file_to_upload = CORE.firmware_bin
+    bin_type = espota2.OTAPartitionType
+    bin_type.type = espota2.UPLOAD_TYPE_APP
+    no_reboot = getattr(args, "no_reboot", False)
+    if getattr(args, "bootloader", False):
+        file_to_upload = CORE.bootloader_bin
+        bin_type.type = espota2.UPLOAD_TYPE_BOOTLOADER
+    if getattr(args, "partition_table", False):
+        file_to_upload = CORE.partition_table_bin
+        bin_type.type = espota2.UPLOAD_TYPE_PARTITION_TABLE
+    if getattr(args, "partition_type", None) is not None:
+        bin_type.partition.type = args.partition_type
+        bin_type.type = espota2.UPLOAD_TYPE_PARTITION
+    if getattr(args, "partition_subtype", None) is not None:
+        bin_type.partition.subtype = args.partition_subtype
+        bin_type.type = espota2.UPLOAD_TYPE_PARTITION
+    if getattr(args, "partition_label", None) is not None:
+        bin_type.partition.label = args.partition_label
+        bin_type.type = espota2.UPLOAD_TYPE_PARTITION
     if getattr(args, "file", None) is not None:
-        return espota2.run_ota(host, remote_port, password, args.file)
+        file_to_upload = args.file
 
-    return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
+    return espota2.run_ota(
+        host, remote_port, password, bin_type, file_to_upload, no_reboot
+    )
+
+
+def download_program(config, args):
+    if CONF_OTA not in config:
+        raise EsphomeError(
+            "Cannot download Over the Air as the config does not include the ota component"
+        )
+    if getattr(args, "file", None) is None:
+        raise EsphomeError("Missing required output file parameter")
+
+    from esphome import espota2
+
+    ota_conf = config[CONF_OTA]
+    host = CORE.address
+    remote_port = ota_conf[CONF_PORT]
+    password = ota_conf.get(CONF_PASSWORD, "")
+
+    bin_type = espota2.OTAPartitionType
+    bin_type.type = espota2.UPLOAD_TYPE_APP
+    if getattr(args, "bootloader", False):
+        bin_type.type = espota2.UPLOAD_TYPE_BOOTLOADER
+    if getattr(args, "partition_table", False):
+        bin_type.type = espota2.UPLOAD_TYPE_PARTITION_TABLE
+    if getattr(args, "partition_type", None) is not None:
+        bin_type.partition.type = args.partition_type
+        bin_type.type = espota2.UPLOAD_TYPE_PARTITION
+    if getattr(args, "partition_subtype", None) is not None:
+        bin_type.partition.subtype = args.partition_subtype
+        bin_type.type = espota2.UPLOAD_TYPE_PARTITION
+    if getattr(args, "partition_label", None) is not None:
+        bin_type.partition.label = args.partition_label
+        bin_type.type = espota2.UPLOAD_TYPE_PARTITION
+
+    return espota2.download_ota(host, remote_port, password, bin_type, args.file)
+
+
+def upload_factory_ota(config, args):
+    if CONF_OTA not in config:
+        raise EsphomeError(
+            "Cannot upload Over the Air as the config does not include the ota component"
+        )
+
+    from esphome import espota2
+
+    ota_conf = config[CONF_OTA]
+    host = CORE.address
+    remote_port = ota_conf[CONF_PORT]
+    password = ota_conf.get(CONF_PASSWORD, "")
+
+    if (
+        not is_ip_address(CORE.address)
+        and (get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED])
+        and CONF_MQTT in config
+    ):
+        from esphome import mqtt
+
+        host = mqtt.get_esphome_device_ip(
+            config, args.username, args.password, args.client_id
+        )
+
+    bin_type = espota2.OTAPartitionType
+
+    with tempfile.NamedTemporaryFile() as partition_table_backup:
+        _LOGGER.info("Creating a partition table backup.")
+        bin_type.type = espota2.UPLOAD_TYPE_PARTITION_TABLE
+        rc = espota2.download_ota(
+            host, remote_port, password, bin_type, partition_table_backup.name
+        )
+        if rc:
+            return rc
+
+        try:
+            # Partition table
+            file_to_upload = CORE.partition_table_bin
+            rc = espota2.run_ota(
+                host, remote_port, password, bin_type, file_to_upload, True
+            )
+            if rc:
+                raise EsphomeError(rc)
+
+            # Partition 0
+            file_to_upload = CORE.firmware_bin
+            bin_type.type = espota2.UPLOAD_TYPE_PARTITION
+            bin_type.partition.label = "app0"
+            rc = espota2.run_ota(
+                host, remote_port, password, bin_type, file_to_upload, True
+            )
+            if rc:
+                raise EsphomeError(rc)
+
+            # OTA data
+            file_to_upload = CORE.ota_data_initial_bin
+            bin_type.type = espota2.UPLOAD_TYPE_PARTITION
+            bin_type.partition.label = "otadata"
+            rc = espota2.run_ota(
+                host, remote_port, password, bin_type, file_to_upload, True
+            )
+            if rc:
+                raise EsphomeError(rc)
+
+            # Bootloader
+            file_to_upload = CORE.bootloader_bin
+            bin_type.type = espota2.UPLOAD_TYPE_BOOTLOADER
+            bin_type.partition.label = ""
+            rc = espota2.run_ota(
+                host, remote_port, password, bin_type, file_to_upload, False
+            )
+            return rc
+        except EsphomeError:
+            # Restore partition table
+            _LOGGER.info("Trying to restore the partition table backup ...")
+            file_to_upload = partition_table_backup.name
+            bin_type.type = espota2.UPLOAD_TYPE_PARTITION_TABLE
+            bin_type.partition.label = ""
+            restore_rc = espota2.run_ota(
+                host, remote_port, password, bin_type, file_to_upload, True
+            )
+            if restore_rc:
+                _LOGGER.error("Restore of the backup failed.")
+                return restore_rc
+
+            _LOGGER.warning("Restore of the backup partition table worked.")
+            return rc
 
 
 def show_logs(config, args, port):
@@ -430,6 +575,22 @@ def command_upload(args, config):
     if exit_code != 0:
         return exit_code
     _LOGGER.info("Successfully uploaded program.")
+    return 0
+
+
+def command_download(args, config):
+    exit_code = download_program(config, args)
+    if exit_code != 0:
+        return exit_code
+    _LOGGER.info("Successfully downloaded firmware.")
+    return 0
+
+
+def command_upload_factory_ota(args, config):
+    exit_code = upload_factory_ota(config, args)
+    if exit_code != 0:
+        return exit_code
+    _LOGGER.info("Successfully uploaded factory firmware.")
     return 0
 
 
@@ -679,6 +840,8 @@ POST_CONFIG_ACTIONS = {
     "config": command_config,
     "compile": command_compile,
     "upload": command_upload,
+    "download": command_download,
+    "upload-factory-ota": command_upload_factory_ota,
     "logs": command_logs,
     "run": command_run,
     "clean-mqtt": command_clean_mqtt,
@@ -760,6 +923,79 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--file",
         help="Manually specify the binary file to upload.",
+    )
+    parser_upload.add_argument(
+        "--bootloader",
+        help="Upload as bootloader",
+        action="store_true",
+    )
+    parser_upload.add_argument(
+        "--partition-table",
+        help="Upload as partition table",
+        action="store_true",
+    )
+    parser_upload.add_argument(
+        "--partition-type",
+        type=functools.partial(int, base=0),
+        help="Manually specify partition type to flash",
+    )
+    parser_upload.add_argument(
+        "--partition-subtype",
+        type=functools.partial(int, base=0),
+        help="Manually specify partition subtype to flash",
+    )
+    parser_upload.add_argument(
+        "--partition-label", type=str, help="Manually specify partition label to flash"
+    )
+    parser_upload.add_argument(
+        "--no-reboot",
+        help="Do not reboot after uploading",
+        action="store_true",
+    )
+
+    parser_download = subparsers.add_parser(
+        "download",
+        help="Validate the configuration and download the device firmware over the air.",
+    )
+    parser_download.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
+    parser_download.add_argument(
+        "--file",
+        help="Specify the binary file to download.",
+    )
+    parser_download.add_argument(
+        "--bootloader",
+        help="Download bootloader",
+        action="store_true",
+    )
+    parser_download.add_argument(
+        "--partition-table",
+        help="Download partition table",
+        action="store_true",
+    )
+    parser_download.add_argument(
+        "--partition-type",
+        type=functools.partial(int, base=0),
+        help="Manually specify partition type to download",
+    )
+    parser_download.add_argument(
+        "--partition-subtype",
+        type=functools.partial(int, base=0),
+        help="Manually specify partition subtype to download",
+    )
+    parser_download.add_argument(
+        "--partition-label",
+        type=str,
+        help="Manually specify partition label to download",
+    )
+
+    parser_upload_factory_ota = subparsers.add_parser(
+        "upload-factory-ota",
+        help="Validate the configuration and upload the latest factory binary over the air.",
+    )
+    parser_upload_factory_ota.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
     parser_logs = subparsers.add_parser(
@@ -935,6 +1171,8 @@ def parse_args(argv):
             "config",
             "compile",
             "upload",
+            "download",
+            "upload-factory-ota",
             "logs",
             "run",
             "clean-mqtt",
