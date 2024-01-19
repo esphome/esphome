@@ -35,7 +35,7 @@ class WaveshareEPaper : public display::DisplayBuffer,
 
   void on_safe_shutdown() override;
 
-  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
+  display::DisplayType get_display_type() override;
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
@@ -57,6 +57,9 @@ class WaveshareEPaper : public display::DisplayBuffer,
 
   uint32_t get_buffer_length_();
   uint32_t reset_duration_{200};
+
+  // Return the list of colors supported by the device
+  virtual std::vector<Color> get_supported_colors() { return {display::COLOR_ON}; }
 
   void start_command_();
   void end_command_();
@@ -612,6 +615,81 @@ class WaveshareEPaper2P13InDKE : public WaveshareEPaper {
 
   uint32_t full_update_every_{30};
   uint32_t at_update_{0};
+};
+
+// Generic Waveshare e-paper component that
+// avoids using any blocking wait to be able to support
+// big screens that are slow to update
+class WaveshareEPaperPolled : public WaveshareEPaper {
+  // Will request a display refresh
+  void update() override;
+
+  // Will move the state machine one state at a time
+  // to refresh the display when requested by display()
+  void loop() override;
+
+  // Unused method from parent
+  void initialize() override {}
+
+ protected:
+  // Below are display steps, called one after the other by loop()
+  // Just implement these to support a new device.
+  // Never sleep or wait in a step, the state machine will
+  // handle it.
+
+  // Just after reset, set the power mode and power the driver on
+  virtual void power_on() = 0;
+
+  // Send all the configuration required to display
+  virtual void configure() = 0;
+
+  // Send image data and refresh the display
+  void display() override = 0;
+
+  // Power off the driver
+  virtual void power_off() = 0;
+
+  // Set the screen to deep sleep
+  void deep_sleep() override = 0;
+
+ private:
+  enum class State : uint8_t {
+    SLEEPING,
+    UPDATE_REQUESTED,
+    RESETTING,
+    INITIALIZING,
+    POWERING_ON,
+    CONFIGURING,
+    DISPLAYING,
+    POWERING_OFF,
+  };
+
+  // Set the current state of the display
+  void set_state_(State state);
+
+  // Current state of the display
+  State state_{State::SLEEPING};
+  // Timestamp of last state changed, used to wait between states
+  uint32_t last_state_change_{0};
+};
+
+// 7.5 inches screen supporting black and red color with
+// a v3 label on the back. Called EDP_7in5b_V2 in WaveShare examples.
+class WaveshareEPaper7In5BV2 : public WaveshareEPaperPolled {
+ public:
+  void dump_config() override;
+
+  void power_on() override;
+  void configure() override;
+  void display() override;
+  void power_off() override;
+  void deep_sleep() override;
+
+  std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
+
+ protected:
+  int get_width_internal() override { return 800; }
+  int get_height_internal() override { return 480; }
 };
 
 }  // namespace waveshare_epaper
