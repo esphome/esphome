@@ -76,8 +76,8 @@ union ConfigurationRegister {
     bool reserved_13 : 1;        // 0
     bool reserved_14 : 1;        // 0
     bool reserved_15 : 1;        // 0
-  };
-} __attribute__((packed));
+  } __attribute__((packed));
+};
 
 //
 // Power Saving Mode: PSM Register (0x03)
@@ -89,8 +89,8 @@ union PSMRegister {
     bool PSM_EN : 1;
     uint8_t PSM : 2;
     uint16_t reserved : 13;
-  };
-} __attribute__((packed));
+  } __attribute__((packed));
+};
 
 class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
  public:
