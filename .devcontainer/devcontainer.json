@@ -15,13 +15,13 @@
     // , "--device=/dev/ttyACM0"
   ],
   "appPort": 6052,
-  // if you are using avahi in the host device, uncomment these to allow the 
-  // devcontainer to find devices via mdns 
+  // if you are using avahi in the host device, uncomment these to allow the
+  // devcontainer to find devices via mdns
   //"mounts": [
   //  "type=bind,source=/dev/bus/usb,target=/dev/bus/usb",
   //  "type=bind,source=/var/run/dbus,target=/var/run/dbus",
   //  "type=bind,source=/var/run/avahi-daemon/socket,target=/var/run/avahi-daemon/socket"
-  //],  
+  //],
   "customizations": {
     "vscode": {
       "extensions": [
