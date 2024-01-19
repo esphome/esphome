@@ -14,22 +14,19 @@ static const uint8_t MAX_DATA_LENGTH = 15;
 static const uint8_t DATA_LENGTH_MASK = 0x3f;
 
 /*
-union {
-  uint8_t raw_data[17];
-  struct {
-    uint16_t sync;
-    uint8_t retransmission : 1;
-    uint8_t three_byte_address : 1;
-    uint8_t unknown : 2;
-    uint8_t data_length : 4;
-    uint8_t reply : 1;
-    uint8_t message_type : 7;
-    uint16_t destination_address;
-    uint16_t source_address;
-    uint8_t message_id;
-    uint8_t data[8];
-  };
-};
+Message Format:
+  2 bytes:   Sync (0x55FF)
+  1 bit:     Retransmission flag (High means retransmission)
+  1 bit:     Address length flag (Low means 2 bytes, High means 3 bytes)
+  2 bits:    Unknown
+  4 bits:    Data length (in bytes)
+  1 bit:     Reply flag (High means this is a reply to a previous message with the same message type)
+  7 bits:    Message type
+  2-3 bytes: Destination address
+  2-3 bytes: Source address
+  1 byte:    Message ID (randomized, does not change for retransmissions)
+  0-? bytes: Data
+  1 byte:    Checksum
 */
 
 class ABBWelcomeData {
