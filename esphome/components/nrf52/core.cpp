@@ -16,6 +16,7 @@ struct nrf5x_wdt_obj
     nrfx_wdt_t wdt;
     nrfx_wdt_channel_id ch;
 };
+//TODO what value for watchdog?
 static nrfx_wdt_config_t nrf5x_wdt_cfg = NRFX_WDT_DEFAULT_CONFIG;
 
 static struct nrf5x_wdt_obj nrf5x_wdt = {
@@ -24,6 +25,7 @@ static struct nrf5x_wdt_obj nrf5x_wdt = {
 
 void arch_init() {
     //Configure WDT.
+    nrf5x_wdt_cfg.behaviour = NRF_WDT_BEHAVIOUR_PAUSE_SLEEP_HALT;
     nrfx_wdt_init(&nrf5x_wdt.wdt, &nrf5x_wdt_cfg, nullptr);
     nrfx_wdt_channel_alloc(&nrf5x_wdt.wdt, &nrf5x_wdt.ch);
     nrfx_wdt_enable(&nrf5x_wdt.wdt);
@@ -42,7 +44,9 @@ void arch_feed_wdt() {
     nrfx_wdt_feed(&nrf5x_wdt.wdt);
 }
 
-void arch_restart() { /* TODO */ }
+void arch_restart() {
+     NVIC_SystemReset();
+}
 
 void nrf52GetMacAddr(uint8_t *mac)
 {

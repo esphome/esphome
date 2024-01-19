@@ -14,6 +14,10 @@
 #include "esphome/core/time.h"
 #endif
 
+#ifdef USE_NRF52
+#include "deep_sleep_backend_nrf52.h"
+#endif
+
 #include <cinttypes>
 
 namespace esphome {
@@ -106,6 +110,8 @@ class DeepSleepComponent : public Component {
   // duration before entering deep sleep.
   optional<uint32_t> get_run_duration_() const;
 
+  void setup_deep_sleep_();
+
   optional<uint64_t> sleep_duration_;
 #ifdef USE_ESP32
   InternalGPIOPin *wakeup_pin_;
@@ -117,6 +123,9 @@ class DeepSleepComponent : public Component {
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};
   bool prevent_{false};
+#ifdef USE_NRF52
+  Nrf52DeepSleepBackend backend_;
+#endif
 };
 
 extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

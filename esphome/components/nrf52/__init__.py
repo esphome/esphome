@@ -1,3 +1,4 @@
+import os
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -12,6 +13,8 @@ from esphome.core import CORE, coroutine_with_priority
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa
+
+AUTO_LOAD = ["nrf52_nrfx"]
 
 
 def set_core_data(config):
@@ -84,6 +87,12 @@ async def to_code(config):
     cg.add_platformio_option("board_upload.use_1200bps_touch", "true")
     cg.add_platformio_option("board_upload.require_upload_port", "true")
     cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
+    # watchdog
     cg.add_build_flag("-DNRFX_WDT_ENABLED=1")
     cg.add_build_flag("-DNRFX_WDT0_ENABLED=1")
     cg.add_build_flag("-DNRFX_WDT_CONFIG_NO_IRQ=1")
+    # prevent setting up GPIO PINs
+    cg.add_platformio_option("board_build.variant", "nrf52840")
+    cg.add_platformio_option(
+        "board_build.variants_dir", os.path.dirname(os.path.realpath(__file__))
+    )

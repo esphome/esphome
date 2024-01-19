@@ -438,6 +438,7 @@ void DebugComponent::dump_config() {
 
 void DebugComponent::loop() {
   //TODO move to logger
+  //TOOD do not print when exit from deep sleep
   static bool d = false;
   if (d != Serial){
     if(false == d){
