@@ -17,7 +17,7 @@ static const char *const TAG = "voice_assistant";
 
 static const size_t SAMPLE_RATE_HZ = 16000;
 static const size_t INPUT_BUFFER_SIZE = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
-static const size_t BUFFER_SIZE = 1000 * SAMPLE_RATE_HZ / 1000;      // 1s
+static const size_t BUFFER_SIZE = 1024 * SAMPLE_RATE_HZ / 1000;
 static const size_t SEND_BUFFER_SIZE = INPUT_BUFFER_SIZE * sizeof(int16_t);
 static const size_t RECEIVE_SIZE = 1024;
 static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
@@ -231,10 +231,12 @@ void VoiceAssistant::loop() {
     }
     case State::STREAMING_MICROPHONE: {
       this->read_microphone_();
-      if (this->ring_buffer_->available() >= SEND_BUFFER_SIZE) {
-        this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
-        this->socket_->sendto(this->send_buffer_, SEND_BUFFER_SIZE, 0, (struct sockaddr *) &this->dest_addr_,
+      size_t available = this->ring_buffer_->available();
+      while (available >= SEND_BUFFER_SIZE) {
+        size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
+        this->socket_->sendto(this->send_buffer_, read_bytes, 0, (struct sockaddr *) &this->dest_addr_,
                               sizeof(this->dest_addr_));
+        available = this->ring_buffer_->available();
       }
 
       break;
