@@ -2277,12 +2277,10 @@ void HOT WaveshareEPaper2P13InDKE::display() {
     this->wait_until_idle_();
 
     // data must be sent again on partial update
-    delay(300);  // NOLINT
     this->command(0x24);
     this->start_data_();
     this->write_array(this->buffer_, this->get_buffer_length_());
     this->end_data_();
-    // delay(300);  // NOLINT
   }
 
   ESP_LOGI(TAG, "Completed e-paper update.");
