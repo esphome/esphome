@@ -58,8 +58,8 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await touchscreen.register_touchscreen(var, config)
     await spi.register_spi_device(var, config)
+    await touchscreen.register_touchscreen(var, config)
 
     cg.add(var.set_threshold(config[CONF_THRESHOLD]))
 

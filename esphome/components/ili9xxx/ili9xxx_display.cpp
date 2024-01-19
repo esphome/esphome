@@ -196,7 +196,7 @@ void ILI9XXXDisplay::display_() {
   uint8_t transfer_buffer[ILI9XXX_TRANSFER_BUFFER_SIZE];
   // check if something was displayed
   if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_)) {
-    ESP_LOGV(TAG, "Nothing to display");
+    ESP_LOGVV(TAG, "Nothing to display");
     return;
   }
 

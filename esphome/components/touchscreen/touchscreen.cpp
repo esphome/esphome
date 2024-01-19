@@ -21,7 +21,7 @@ void Touchscreen::call_setup() {
     this->display_width_ = this->display_->get_native_width();
     this->display_height_ = this->display_->get_native_height();
   }
-  this->setup();
+  PollingComponent::call_setup();
 }
 
 void Touchscreen::update() {
@@ -29,14 +29,14 @@ void Touchscreen::update() {
     this->store_.touched = true;
   } else {
     // no need to poll if we have interrupts.
-    ESP_LOGD(TAG, "Stop Touch Polling.");
+    ESP_LOGW(TAG, "Touch Polling Stopped !!!");
     this->stop_poller();
   }
 }
 
 void Touchscreen::loop() {
   if (this->store_.touched) {
-    ESP_LOGD(TAG, "Do Touch loop");
+    ESP_LOGVV(TAG, "<< Do Touch loop >>");
     this->first_touch_ = this->touches_.empty();
     this->need_update_ = false;
     this->was_touched_ = this->is_touched_;
