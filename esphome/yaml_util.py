@@ -1,35 +1,36 @@
+from __future__ import annotations
+
 import fnmatch
 import functools
 import inspect
 import logging
 import math
 import os
-
 import uuid
+from typing import Any
+
 import yaml
 import yaml.constructor
+from yaml import SafeLoader as PurePythonLoader
+
+try:
+    from yaml import CSafeLoader as FastestAvailableSafeLoader
+except ImportError:
+    FastestAvailableSafeLoader = PurePythonLoader
 
 from esphome import core
-from esphome.config_helpers import read_config_file, Extend, Remove
+from esphome.config_helpers import Extend, Remove, read_config_file
 from esphome.core import (
+    CORE,
+    DocumentRange,
     EsphomeError,
     IPAddress,
     Lambda,
     MACAddress,
     TimePeriod,
-    DocumentRange,
-    CORE,
 )
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
-
-try:
-    from yaml import CSafeLoader as FastestAvailableSafeLoader
-except ImportError:
-    from yaml import (  # type: ignore[assignment]
-        SafeLoader as FastestAvailableSafeLoader,
-    )
-
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ def _add_data_ref(fn):
     return wrapped
 
 
-class ESPHomeLoader(FastestAvailableSafeLoader):
+class ESPHomeLoaderMixin:
     """Loader class that keeps track of line numbers."""
 
     @_add_data_ref
@@ -282,8 +283,8 @@ class ESPHomeLoader(FastestAvailableSafeLoader):
             return file, vars
 
         def substitute_vars(config, vars):
-            from esphome.const import CONF_SUBSTITUTIONS, CONF_DEFAULTS
             from esphome.components import substitutions
+            from esphome.const import CONF_DEFAULTS, CONF_SUBSTITUTIONS
 
             org_subs = None
             result = config
@@ -375,50 +376,64 @@ class ESPHomeLoader(FastestAvailableSafeLoader):
         return Remove(str(node.value))
 
 
-ESPHomeLoader.add_constructor("tag:yaml.org,2002:int", ESPHomeLoader.construct_yaml_int)
-ESPHomeLoader.add_constructor(
-    "tag:yaml.org,2002:float", ESPHomeLoader.construct_yaml_float
-)
-ESPHomeLoader.add_constructor(
-    "tag:yaml.org,2002:binary", ESPHomeLoader.construct_yaml_binary
-)
-ESPHomeLoader.add_constructor(
-    "tag:yaml.org,2002:omap", ESPHomeLoader.construct_yaml_omap
-)
-ESPHomeLoader.add_constructor("tag:yaml.org,2002:str", ESPHomeLoader.construct_yaml_str)
-ESPHomeLoader.add_constructor("tag:yaml.org,2002:seq", ESPHomeLoader.construct_yaml_seq)
-ESPHomeLoader.add_constructor("tag:yaml.org,2002:map", ESPHomeLoader.construct_yaml_map)
-ESPHomeLoader.add_constructor("!env_var", ESPHomeLoader.construct_env_var)
-ESPHomeLoader.add_constructor("!secret", ESPHomeLoader.construct_secret)
-ESPHomeLoader.add_constructor("!include", ESPHomeLoader.construct_include)
-ESPHomeLoader.add_constructor(
-    "!include_dir_list", ESPHomeLoader.construct_include_dir_list
-)
-ESPHomeLoader.add_constructor(
-    "!include_dir_merge_list", ESPHomeLoader.construct_include_dir_merge_list
-)
-ESPHomeLoader.add_constructor(
-    "!include_dir_named", ESPHomeLoader.construct_include_dir_named
-)
-ESPHomeLoader.add_constructor(
-    "!include_dir_merge_named", ESPHomeLoader.construct_include_dir_merge_named
-)
-ESPHomeLoader.add_constructor("!lambda", ESPHomeLoader.construct_lambda)
-ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
-ESPHomeLoader.add_constructor("!extend", ESPHomeLoader.construct_extend)
-ESPHomeLoader.add_constructor("!remove", ESPHomeLoader.construct_remove)
+class ESPHomeLoader(ESPHomeLoaderMixin, FastestAvailableSafeLoader):
+    """Loader class that keeps track of line numbers."""
 
 
-def load_yaml(fname, clear_secrets=True):
+class ESPHomePurePythonLoader(ESPHomeLoaderMixin, PurePythonLoader):
+    """Loader class that keeps track of line numbers."""
+
+
+for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
+    _loader.add_constructor("tag:yaml.org,2002:int", _loader.construct_yaml_int)
+    _loader.add_constructor("tag:yaml.org,2002:float", _loader.construct_yaml_float)
+    _loader.add_constructor("tag:yaml.org,2002:binary", _loader.construct_yaml_binary)
+    _loader.add_constructor("tag:yaml.org,2002:omap", _loader.construct_yaml_omap)
+    _loader.add_constructor("tag:yaml.org,2002:str", _loader.construct_yaml_str)
+    _loader.add_constructor("tag:yaml.org,2002:seq", _loader.construct_yaml_seq)
+    _loader.add_constructor("tag:yaml.org,2002:map", _loader.construct_yaml_map)
+    _loader.add_constructor("!env_var", _loader.construct_env_var)
+    _loader.add_constructor("!secret", _loader.construct_secret)
+    _loader.add_constructor("!include", _loader.construct_include)
+    _loader.add_constructor("!include_dir_list", _loader.construct_include_dir_list)
+    _loader.add_constructor(
+        "!include_dir_merge_list", _loader.construct_include_dir_merge_list
+    )
+    _loader.add_constructor("!include_dir_named", _loader.construct_include_dir_named)
+    _loader.add_constructor(
+        "!include_dir_merge_named", _loader.construct_include_dir_merge_named
+    )
+    _loader.add_constructor("!lambda", _loader.construct_lambda)
+    _loader.add_constructor("!force", _loader.construct_force)
+    _loader.add_constructor("!extend", _loader.construct_extend)
+    _loader.add_constructor("!remove", _loader.construct_remove)
+
+
+def load_yaml(fname: str, clear_secrets: bool = True) -> Any:
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
     return _load_yaml_internal(fname)
 
 
-def _load_yaml_internal(fname):
+def _load_yaml_internal(fname: str) -> Any:
+    """Load a YAML file."""
     content = read_config_file(fname)
-    loader = ESPHomeLoader(content)
+    try:
+        return _load_yaml_internal_with_type(ESPHomeLoader, fname, content)
+    except EsphomeError:
+        # Loading failed, so we now load with the Python loader which has more
+        # readable exceptions
+        return _load_yaml_internal_with_type(ESPHomePurePythonLoader, fname, content)
+
+
+def _load_yaml_internal_with_type(
+    loader_type: type[ESPHomeLoader] | type[ESPHomePurePythonLoader],
+    fname: str,
+    content: str,
+) -> Any:
+    """Load a YAML file."""
+    loader = loader_type(content)
     loader.name = fname
     try:
         return loader.get_single_data() or OrderedDict()
