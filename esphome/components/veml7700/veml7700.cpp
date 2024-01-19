@@ -250,7 +250,7 @@ ErrorCode VEML7700Component::configure_() {
 }
 
 ErrorCode VEML7700Component::reconfigure_time_and_gain_(IntegrationTime time, Gain gain, bool shutdown) {
-  ESP_LOGD(TAG, "Reconfigure time and gain (%d ms, %s) %s)", get_itime_ms(time), get_gain_str(gain),
+  ESP_LOGD(TAG, "Reconfigure time and gain (%d ms, %s) %s", get_itime_ms(time), get_gain_str(gain),
            shutdown ? "Shutting down" : "Turning back on");
 
   ConfigurationRegister als_conf{0};
