@@ -693,7 +693,6 @@ display:
     greyscale: false
     partial_updating: false
     update_interval: 60s
-
     display_data_1_pin:
       number: GPIO5
       allow_other_uses: true
@@ -742,6 +741,24 @@ display:
     vcom_pin:
       number: GPIO1
       allow_other_uses: true
+  - platform: waveshare_epaper
+    spi_id: spi_id_1
+    cs_pin:
+      number: GPIO23
+      allow_other_uses: true
+    dc_pin:
+      number: GPIO23
+      allow_other_uses: true
+    busy_pin:
+      number: GPIO23
+      allow_other_uses: true
+    reset_pin:
+      number: GPIO23
+      allow_other_uses: true
+    model: 2.13inv3
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
 
 number:
   - platform: tuya
