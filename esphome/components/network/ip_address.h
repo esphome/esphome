@@ -3,12 +3,23 @@
 #include <string>
 #include <cstdio>
 #include <array>
+#include "esphome/core/macros.h"
+
+#if defined(USE_ESP_IDF) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
 #include <lwip/ip_addr.h>
+#endif
 
 #if USE_ARDUINO
 #include <Arduino.h>
 #include <IPAddress.h>
 #endif /* USE_ADRDUINO */
+
+#ifdef USE_HOST
+#include <arpa/inet.h>
+using ip_addr_t = in_addr;
+using ip4_addr_t = in_addr;
+#define ipaddr_aton(x, y) inet_aton((x), (y))
+#endif
 
 #if USE_ESP32_FRAMEWORK_ARDUINO
 #define arduino_ns Arduino_h
@@ -28,6 +39,14 @@ namespace network {
 
 struct IPAddress {
  public:
+#ifdef USE_HOST
+  IPAddress() { ip_addr_.s_addr = 0; }
+  IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
+    this->ip_addr_.s_addr = htonl((first << 24) | (second << 16) | (third << 8) | fourth);
+  }
+  IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
+  IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
+#else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
     IP_ADDR4(&ip_addr_, first, second, third, fourth);
@@ -103,6 +122,7 @@ struct IPAddress {
     }
     return *this;
   }
+#endif
 
  protected:
   ip_addr_t ip_addr_;

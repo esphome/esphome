@@ -1,5 +1,6 @@
 #include "cse7766.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace cse7766 {
@@ -112,8 +113,9 @@ void CSE7766Component::parse_data_() {
   bool have_voltage = adj & 0x40;
   if (have_voltage) {
     // voltage cycle of serial port outputted is a complete cycle;
-    this->voltage_acc_ += voltage_calib / float(voltage_cycle);
-    this->voltage_counts_ += 1;
+    float voltage = voltage_calib / float(voltage_cycle);
+    if (this->voltage_sensor_ != nullptr)
+      this->voltage_sensor_->publish_state(voltage);
   }
 
   bool have_power = adj & 0x10;
@@ -125,8 +127,8 @@ void CSE7766Component::parse_data_() {
     if (!power_cycle_exceeds_range) {
       power = power_calib / float(power_cycle);
     }
-    this->power_acc_ += power;
-    this->power_counts_ += 1;
+    if (this->power_sensor_ != nullptr)
+      this->power_sensor_->publish_state(power);
 
     uint32_t difference;
     if (this->cf_pulses_last_ == 0) {
@@ -140,7 +142,10 @@ void CSE7766Component::parse_data_() {
     }
     this->cf_pulses_last_ = cf_pulses;
     this->energy_total_ += difference * float(power_calib) / 1000000.0f / 3600.0f;
-    this->energy_total_counts_ += 1;
+    if (this->energy_sensor_ != nullptr)
+      this->energy_sensor_->publish_state(this->energy_total_);
+  } else if ((this->energy_sensor_ != nullptr) && !this->energy_sensor_->has_state()) {
+    this->energy_sensor_->publish_state(0);
   }
 
   if (adj & 0x20) {
@@ -149,41 +154,13 @@ void CSE7766Component::parse_data_() {
     if (have_voltage && !have_power) {
       // Testing has shown that when we have voltage and current but not power, that means the power is 0.
       // We report a power of 0, which in turn means we should report a current of 0.
-      this->power_counts_ += 1;
+      if (this->power_sensor_ != nullptr)
+        this->power_sensor_->publish_state(0);
     } else if (power != 0.0f) {
       current = current_calib / float(current_cycle);
     }
-    this->current_acc_ += current;
-    this->current_counts_ += 1;
-  }
-}
-void CSE7766Component::update() {
-  const auto publish_state = [](const char *name, sensor::Sensor *sensor, float &acc, uint32_t &counts) {
-    if (counts != 0) {
-      const auto avg = acc / counts;
-
-      ESP_LOGV(TAG, "Got %s_acc=%.2f %s_counts=%d %s=%.1f", name, acc, name, counts, name, avg);
-
-      if (sensor != nullptr) {
-        sensor->publish_state(avg);
-      }
-
-      acc = 0.0f;
-      counts = 0;
-    }
-  };
-
-  publish_state("voltage", this->voltage_sensor_, this->voltage_acc_, this->voltage_counts_);
-  publish_state("current", this->current_sensor_, this->current_acc_, this->current_counts_);
-  publish_state("power", this->power_sensor_, this->power_acc_, this->power_counts_);
-
-  if (this->energy_total_counts_ != 0) {
-    ESP_LOGV(TAG, "Got energy_total=%.2f energy_total_counts=%d", this->energy_total_, this->energy_total_counts_);
-
-    if (this->energy_sensor_ != nullptr) {
-      this->energy_sensor_->publish_state(this->energy_total_);
-    }
-    this->energy_total_counts_ = 0;
+    if (this->current_sensor_ != nullptr)
+      this->current_sensor_->publish_state(current);
   }
 }
 
@@ -194,7 +171,6 @@ uint32_t CSE7766Component::get_24_bit_uint_(uint8_t start_index) {
 
 void CSE7766Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CSE7766:");
-  LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);

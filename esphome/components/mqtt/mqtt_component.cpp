@@ -23,19 +23,24 @@ std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discove
 }
 
 std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) const {
-  return global_mqtt_client->get_topic_prefix() + "/" + this->component_type() + "/" + this->get_default_object_id_() +
-         "/" + suffix;
+  const std::string &topic_prefix = global_mqtt_client->get_topic_prefix();
+  if (topic_prefix.empty()) {
+    // If the topic_prefix is null, the default topic should be null
+    return "";
+  }
+
+  return topic_prefix + "/" + this->component_type() + "/" + this->get_default_object_id_() + "/" + suffix;
 }
 
 std::string MQTTComponent::get_state_topic_() const {
   if (this->has_custom_state_topic_)
-    return this->custom_state_topic_;
+    return this->custom_state_topic_.str();
   return this->get_default_topic_for_("state");
 }
 
 std::string MQTTComponent::get_command_topic_() const {
   if (this->has_custom_command_topic_)
-    return this->custom_command_topic_;
+    return this->custom_command_topic_.str();
   return this->get_default_topic_for_("command");
 }
 
@@ -71,7 +76,11 @@ bool MQTTComponent::send_discovery_() {
         this->send_discovery(root, config);
 
         // Fields from EntityBase
-        root[MQTT_NAME] = this->friendly_name();
+        if (this->get_entity()->has_own_name()) {
+          root[MQTT_NAME] = this->friendly_name();
+        } else {
+          root[MQTT_NAME] = "";
+        }
         if (this->is_disabled_by_default())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
         if (!this->get_icon().empty())
@@ -171,12 +180,12 @@ MQTTComponent::MQTTComponent() = default;
 
 float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 void MQTTComponent::disable_discovery() { this->discovery_enabled_ = false; }
-void MQTTComponent::set_custom_state_topic(const std::string &custom_state_topic) {
-  this->custom_state_topic_ = custom_state_topic;
+void MQTTComponent::set_custom_state_topic(const char *custom_state_topic) {
+  this->custom_state_topic_ = StringRef(custom_state_topic);
   this->has_custom_state_topic_ = true;
 }
-void MQTTComponent::set_custom_command_topic(const std::string &custom_command_topic) {
-  this->custom_command_topic_ = custom_command_topic;
+void MQTTComponent::set_custom_command_topic(const char *custom_command_topic) {
+  this->custom_command_topic_ = StringRef(custom_command_topic);
   this->has_custom_command_topic_ = true;
 }
 void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
@@ -245,17 +254,25 @@ std::string MQTTComponent::friendly_name() const { return this->get_entity()->ge
 std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
 bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
 bool MQTTComponent::is_internal() {
-  if ((this->get_state_topic_().empty()) || (this->get_command_topic_().empty())) {
-    // If both state_topic and command_topic are empty, then the entity is internal to mqtt
+  if (this->has_custom_state_topic_) {
+    // If the custom state_topic is null, return true as it is internal and should not publish
+    // else, return false, as it is explicitly set to a topic, so it is not internal and should publish
+    return this->get_state_topic_().empty();
+  }
+
+  if (this->has_custom_command_topic_) {
+    // If the custom command_topic is null, return true as it is internal and should not publish
+    // else, return false, as it is explicitly set to a topic, so it is not internal and should publish
+    return this->get_command_topic_().empty();
+  }
+
+  // No custom topics have been set
+  if (this->get_default_topic_for_("").empty()) {
+    // If the default topic prefix is null, then the component, by default, is internal and should not publish
     return true;
   }
 
-  if (this->has_custom_state_topic_ || this->has_custom_command_topic_) {
-    // If a custom state_topic or command_topic is set, then the entity is not internal to mqtt
-    return false;
-  }
-
-  // Use ESPHome's entity internal state
+  // Use ESPHome's component internal state if topic_prefix is not null with no custom state_topic or command_topic
   return this->get_entity()->is_internal();
 }
 

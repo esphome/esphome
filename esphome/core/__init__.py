@@ -87,6 +87,7 @@ def is_approximately_integer(value):
 class TimePeriod:
     def __init__(
         self,
+        nanoseconds=None,
         microseconds=None,
         milliseconds=None,
         seconds=None,
@@ -136,13 +137,23 @@ class TimePeriod:
 
         if microseconds is not None:
             if not is_approximately_integer(microseconds):
-                raise ValueError("Maximum precision is microseconds")
+                frac_microseconds, microseconds = math.modf(microseconds)
+                nanoseconds = (nanoseconds or 0) + frac_microseconds * 1000
             self.microseconds = int(round(microseconds))
         else:
             self.microseconds = None
 
+        if nanoseconds is not None:
+            if not is_approximately_integer(nanoseconds):
+                raise ValueError("Maximum precision is nanoseconds")
+            self.nanoseconds = int(round(nanoseconds))
+        else:
+            self.nanoseconds = None
+
     def as_dict(self):
         out = OrderedDict()
+        if self.nanoseconds is not None:
+            out["nanoseconds"] = self.nanoseconds
         if self.microseconds is not None:
             out["microseconds"] = self.microseconds
         if self.milliseconds is not None:
@@ -158,6 +169,8 @@ class TimePeriod:
         return out
 
     def __str__(self):
+        if self.nanoseconds is not None:
+            return f"{self.total_nanoseconds}ns"
         if self.microseconds is not None:
             return f"{self.total_microseconds}us"
         if self.milliseconds is not None:
@@ -173,7 +186,11 @@ class TimePeriod:
         return "0s"
 
     def __repr__(self):
-        return f"TimePeriod<{self.total_microseconds}>"
+        return f"TimePeriod<{self.total_nanoseconds}ns>"
+
+    @property
+    def total_nanoseconds(self):
+        return self.total_microseconds * 1000 + (self.nanoseconds or 0)
 
     @property
     def total_microseconds(self):
@@ -201,33 +218,37 @@ class TimePeriod:
 
     def __eq__(self, other):
         if isinstance(other, TimePeriod):
-            return self.total_microseconds == other.total_microseconds
+            return self.total_nanoseconds == other.total_nanoseconds
         return NotImplemented
 
     def __ne__(self, other):
         if isinstance(other, TimePeriod):
-            return self.total_microseconds != other.total_microseconds
+            return self.total_nanoseconds != other.total_nanoseconds
         return NotImplemented
 
     def __lt__(self, other):
         if isinstance(other, TimePeriod):
-            return self.total_microseconds < other.total_microseconds
+            return self.total_nanoseconds < other.total_nanoseconds
         return NotImplemented
 
     def __gt__(self, other):
         if isinstance(other, TimePeriod):
-            return self.total_microseconds > other.total_microseconds
+            return self.total_nanoseconds > other.total_nanoseconds
         return NotImplemented
 
     def __le__(self, other):
         if isinstance(other, TimePeriod):
-            return self.total_microseconds <= other.total_microseconds
+            return self.total_nanoseconds <= other.total_nanoseconds
         return NotImplemented
 
     def __ge__(self, other):
         if isinstance(other, TimePeriod):
-            return self.total_microseconds >= other.total_microseconds
+            return self.total_nanoseconds >= other.total_nanoseconds
         return NotImplemented
+
+
+class TimePeriodNanoseconds(TimePeriod):
+    pass
 
 
 class TimePeriodMicroseconds(TimePeriod):
@@ -501,8 +522,12 @@ class EsphomeCore:
         self.component_ids = set()
         # Whether ESPHome was started in verbose mode
         self.verbose = False
+        # Whether ESPHome was started in quiet mode
+        self.quiet = False
 
     def reset(self):
+        from esphome.pins import PIN_SCHEMA_REGISTRY
+
         self.dashboard = False
         self.name = None
         self.friendly_name = None
@@ -522,6 +547,7 @@ class EsphomeCore:
         self.platformio_options = {}
         self.loaded_integrations = set()
         self.component_ids = set()
+        PIN_SCHEMA_REGISTRY.reset()
 
     @property
     def address(self) -> Optional[str]:

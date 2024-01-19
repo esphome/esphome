@@ -1,18 +1,18 @@
 #pragma once
 
+#include "esphome/components/network/ip_address.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/network/ip_address.h"
 
 #include <string>
 #include <vector>
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#include <esp_wifi.h>
-#include <WiFiType.h>
 #include <WiFi.h>
+#include <WiFiType.h>
+#include <esp_wifi.h>
 #endif
 
 #ifdef USE_LIBRETINY
@@ -46,6 +46,11 @@ namespace wifi {
 struct SavedWifiSettings {
   char ssid[33];
   char password[65];
+} PACKED;  // NOLINT
+
+struct SavedWifiFastConnectSettings {
+  uint8_t bssid[6];
+  uint8_t channel;
 } PACKED;  // NOLINT
 
 enum WiFiComponentState {
@@ -194,6 +199,7 @@ class WiFiComponent : public Component {
   void add_sta(const WiFiAP &ap);
   void clear_sta();
 
+#ifdef USE_WIFI_AP
   /** Setup an Access Point that should be created if no connection to a station can be made.
    *
    * This can also be used without set_sta(). Then the AP will always be active.
@@ -203,6 +209,7 @@ class WiFiComponent : public Component {
    */
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
+#endif  // USE_WIFI_AP
 
   void enable();
   void disable();
@@ -294,9 +301,16 @@ class WiFiComponent : public Component {
 
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
+  Trigger<> *get_connect_trigger() const { return this->connect_trigger_; };
+  Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; };
+
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
+
+#ifdef USE_WIFI_AP
   void setup_ap_config_();
+#endif  // USE_WIFI_AP
+
   void print_connect_params_();
 
   void wifi_loop_();
@@ -310,8 +324,12 @@ class WiFiComponent : public Component {
   void wifi_pre_setup_();
   WiFiSTAConnectStatus wifi_sta_connect_status_();
   bool wifi_scan_start_(bool passive);
+
+#ifdef USE_WIFI_AP
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
+#endif  // USE_WIFI_AP
+
   bool wifi_disconnect_();
   int32_t wifi_channel_();
   network::IPAddress wifi_subnet_mask_();
@@ -320,6 +338,9 @@ class WiFiComponent : public Component {
 
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
+
+  void load_fast_connect_settings_();
+  void save_fast_connect_settings_();
 
 #ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
@@ -354,6 +375,7 @@ class WiFiComponent : public Component {
   bool has_ap_{false};
   WiFiAP ap_;
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
+  bool handled_connected_state_{false};
   uint32_t action_started_;
   uint8_t num_retried_{0};
   uint32_t last_connected_{0};
@@ -367,12 +389,16 @@ class WiFiComponent : public Component {
   optional<float> output_power_;
   bool passive_scan_{false};
   ESPPreferenceObject pref_;
+  ESPPreferenceObject fast_connect_pref_;
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT
   bool btm_{false};
   bool rrm_{false};
 #endif
   bool enable_on_boot_;
+
+  Trigger<> *connect_trigger_{new Trigger<>()};
+  Trigger<> *disconnect_trigger_{new Trigger<>()};
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

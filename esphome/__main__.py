@@ -1,3 +1,4 @@
+# PYTHON_ARGCOMPLETE_OK
 import argparse
 import functools
 import logging
@@ -7,9 +8,11 @@ import sys
 import time
 from datetime import datetime
 
+import argcomplete
+
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
-from esphome.config import iter_components, read_config, strip_default_ids
+from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_BAUD_RATE,
@@ -193,7 +196,7 @@ def write_cpp(config):
 def generate_cpp_contents(config):
     _LOGGER.info("Generating C++ source...")
 
-    for name, component, conf in iter_components(CORE.config):
+    for name, component, conf in iter_component_configs(CORE.config):
         if component.to_code is not None:
             coro = wrap_to_code(name, component)
             CORE.add_job(coro, conf)
@@ -386,7 +389,8 @@ def command_config(args, config):
         output = re.sub(
             r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[5m\2\\033[6m", output
         )
-    safe_print(output)
+    if not CORE.quiet:
+        safe_print(output)
     _LOGGER.info("Configuration is valid!")
     return 0
 
@@ -511,7 +515,7 @@ def command_clean(args, config):
 def command_dashboard(args):
     from esphome.dashboard import dashboard
 
-    return dashboard.start_web_server(args)
+    return dashboard.start_dashboard(args)
 
 
 def command_update_all(args):
@@ -966,6 +970,7 @@ def parse_args(argv):
     # Finally, run the new-style parser again with the possibly swapped arguments,
     # and let it error out if the command is unparsable.
     parser.set_defaults(deprecated_argv_suggestion=deprecated_argv_suggestion)
+    argcomplete.autocomplete(parser)
     return parser.parse_args(arguments)
 
 

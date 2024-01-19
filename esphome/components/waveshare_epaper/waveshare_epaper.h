@@ -7,8 +7,7 @@
 namespace esphome {
 namespace waveshare_epaper {
 
-class WaveshareEPaper : public PollingComponent,
-                        public display::DisplayBuffer,
+class WaveshareEPaper : public display::DisplayBuffer,
                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                               spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
@@ -20,6 +19,7 @@ class WaveshareEPaper : public PollingComponent,
 
   void command(uint8_t value);
   void data(uint8_t value);
+  void cmd_data(const uint8_t *data, size_t length);
 
   virtual void display() = 0;
   virtual void initialize() = 0;
@@ -50,7 +50,7 @@ class WaveshareEPaper : public PollingComponent,
       this->reset_pin_->digital_write(false);
       delay(reset_duration_);  // NOLINT
       this->reset_pin_->digital_write(true);
-      delay(200);  // NOLINT
+      delay(20);
     }
   }
 
@@ -93,13 +93,20 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   void display() override;
 
   void deep_sleep() override {
-    if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2 || this->model_ == WAVESHARE_EPAPER_1_54_IN_V2) {
-      // COMMAND DEEP SLEEP MODE
-      this->command(0x10);
-      this->data(0x01);
-    } else {
-      // COMMAND DEEP SLEEP MODE
-      this->command(0x10);
+    switch (this->model_) {
+      // Models with specific deep sleep command and data
+      case WAVESHARE_EPAPER_1_54_IN:
+      case WAVESHARE_EPAPER_1_54_IN_V2:
+      case WAVESHARE_EPAPER_2_9_IN_V2:
+        // COMMAND DEEP SLEEP MODE
+        this->command(0x10);
+        this->data(0x01);
+        break;
+      // Other models default to simple deep sleep command
+      default:
+        // COMMAND DEEP SLEEP
+        this->command(0x10);
+        break;
     }
     this->wait_until_idle_();
   }
@@ -108,6 +115,8 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
 
  protected:
   void write_lut_(const uint8_t *lut, uint8_t size);
+
+  void init_display_();
 
   int get_width_internal() override;
 
@@ -119,6 +128,8 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   uint32_t at_update_{0};
   WaveshareEPaperTypeAModel model_;
   uint32_t idle_timeout_() override;
+
+  bool deep_sleep_between_updates_{false};
 };
 
 enum WaveshareEPaperTypeBModel {
@@ -143,6 +154,22 @@ class WaveshareEPaper2P7In : public WaveshareEPaper {
     this->command(0x07);
     this->data(0xA5);  // check byte
   }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
+class WaveshareEPaper2P7InV2 : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override { ; }
 
  protected:
   int get_width_internal() override;
@@ -211,6 +238,26 @@ class GDEW0154M09 : public WaveshareEPaper {
 };
 
 class WaveshareEPaper2P9InB : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);  // check byte
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
+class WaveshareEPaper2P9InBV3 : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -430,6 +477,8 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
     this->data(0xA5);
   }
 
+  void clear_screen();
+
  protected:
   int get_width_internal() override;
 
@@ -445,6 +494,8 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
       delay(200);  // NOLINT
     }
   };
+
+  void init_display_();
 };
 
 class WaveshareEPaper7P5InBC : public WaveshareEPaper {
@@ -564,5 +615,39 @@ class WaveshareEPaper2P13InDKE : public WaveshareEPaper {
   uint32_t at_update_{0};
 };
 
+class WaveshareEPaper2P13InV3 : public WaveshareEPaper {
+ public:
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND POWER DOWN
+    this->command(0x10);
+    this->data(0x01);
+    // cannot wait until idle here, the device no longer responds
+  }
+
+  void set_full_update_every(uint32_t full_update_every);
+
+  void setup() override;
+  void initialize() override;
+
+ protected:
+  int get_width_internal() override;
+  int get_height_internal() override;
+  uint32_t idle_timeout_() override;
+
+  void write_buffer_(uint8_t cmd, int top, int bottom);
+  void set_window_(int t, int b);
+  void send_reset_();
+  void partial_update_();
+  void full_update_();
+
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
+  bool is_busy_{false};
+  void write_lut_(const uint8_t *lut);
+};
 }  // namespace waveshare_epaper
 }  // namespace esphome
