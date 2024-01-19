@@ -100,6 +100,17 @@ void ILI9XXXDisplay::dump_config() {
 }
 
 float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::HARDWARE; }
+int ILI9XXXDisplay::get_width() {
+  if (rotation_ == 0 && swap_xy_)
+    return height_;
+  return DisplayBuffer::get_width();
+}
+
+int ILI9XXXDisplay::get_height() {
+  if (rotation_ == 0 && swap_xy_)
+    return width_;
+  return DisplayBuffer::get_height();
+}
 
 void ILI9XXXDisplay::fill(Color color) {
   uint16_t new_color = 0;
