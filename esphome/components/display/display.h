@@ -164,9 +164,9 @@ enum RegularPolygonVariation {
   VARIATION_FLAT_TOPPED = 1,
 };
 
-enum RegularPolygonFilling {
-  FILLING_OUTLINE = 0,
-  FILLING_INTERNAL = 1,
+enum RegularPolygonDrawing {
+  DRAWING_OUTLINE = 0,
+  DRAWING_FILLED = 1,
 };
 
 class Display;
@@ -279,7 +279,7 @@ class Display : public PollingComponent {
   /// Use the filling to switch between outlining or filling the polygon.
   void regular_polygon(int x1, int y1, int radius, RegularPolygonType edges,
                        RegularPolygonVariation variation = VARIATION_FLAT_TOPPED, Color color = COLOR_ON,
-                       RegularPolygonFilling filling = FILLING_OUTLINE);
+                       RegularPolygonDrawing filling = DRAWING_OUTLINE);
 
   /// Fill a regular polygon inscribed in the circle centered on [x1,y1] with the given radius and color.
   /// Use the variation to switch between flat-topped and pointy-topped variation of the polygon.
