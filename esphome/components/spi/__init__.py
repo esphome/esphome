@@ -12,7 +12,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
 )
-from esphome import pins, core
+from esphome import pins
 from esphome.const import (
     CONF_CLK_PIN,
     CONF_ID,
@@ -329,13 +329,7 @@ async def to_code(configs):
         if mosi := spi.get(CONF_MOSI_PIN):
             cg.add(var.set_mosi(await cg.gpio_pin_expression(mosi)))
         if data_pins := spi.get(CONF_DATA_PINS):
-            vec_type = cg.std_vector.template(cg.uint8)
-            vec_id = cg.new_variable(
-                core.ID(f"{spi[CONF_ID]}_{CONF_DATA_PINS}", type=vec_type), rhs=None
-            )
-            for pin in data_pins:
-                cg.add(vec_id.push_back(pin))
-            cg.add(var.set_data_pins(vec_id))
+            cg.add(var.set_data_pins(data_pins))
         if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
             interface = get_spi_interface(index)
             cg.add(var.set_interface(cg.RawExpression(interface)))
