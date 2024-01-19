@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Parse parameter:
+# - `e` - Parameter for `esphome` command. Default `compile`. Common alternative is `config`.
+# - `c` - Component folder name to test. Default `*`.
+esphome_command="compile"
+target_component="*"
+while getopts e:c: flag
+do
+    case $flag in
+        e) esphome_command=${OPTARG};;
+        c) target_component=${OPTARG};;
+        \?) echo "Usage: $0 [-e <config|compile|clean>] [-c <string>]" 1>&2; exit 1;;
+    esac
+done
+
+cd "$(dirname "$0")/.."
+
+if ! [ -d "./tests/test_build_components/build" ]; then
+  mkdir ./tests/test_build_components/build
+fi
+
+start_esphome() {
+  # create dynamic yaml file in `build` folder.
+  # `./tests/test_build_components/build/[target_component].[test_name].[target_platform].yaml`
+  component_test_file="./tests/test_build_components/build/$target_component.$test_name.$target_platform.yaml"
+
+  cp $target_platform_file $component_test_file
+  sed -i "s!\$component_test_file!../../.$f!g" $component_test_file
+
+  # Start esphome process
+  echo "> [$target_component] [$test_name] [$target_platform]"
+  echo "esphome -s component_name $target_component -s test_name $test_name -s target_platform $target_platform $esphome_command $component_test_file"
+  # TODO: Validate escape of Command line substitution value
+  esphome -s component_name $target_component -s test_name $test_name -s target_platform $target_platform $esphome_command $component_test_file
+}
+
+# Find all test yaml files.
+# - `./tests/components/[target_component]/[test_name].[target_platform].yaml`
+# - `./tests/components/[target_component]/[test_name].all.yaml`
+for f in ./tests/components/$target_component/*.*.yaml; do
+  [ -f "$f" ] || continue
+  IFS='/' read -r -a folder_name <<< "$f"
+  target_component="${folder_name[3]}"
+
+  IFS='.' read -r -a file_name <<< "${folder_name[4]}"
+  test_name="${file_name[0]}"
+  target_platform="${file_name[1]}"
+  file_name_parts=${#file_name[@]}
+
+  if [ "$target_platform" = "all" ] || [ $file_name_parts = 2 ]; then
+    # Test has *not* defined a specific target platform. Need to run tests for all possible target platforms.
+    
+    for target_platform_file in ./tests/test_build_components/build_components_base.*.yaml; do
+      IFS='/' read -r -a folder_name <<< "$target_platform_file"
+      IFS='.' read -r -a file_name <<< "${folder_name[3]}"
+      target_platform="${file_name[1]}"
+
+      start_esphome
+    done
+
+  else
+    # Test has defined a specific target platform.
+  
+    # Validate we have a base test yaml for selected platform.
+    # The target_platform is sourced from the following location.
+    # 1. `./tests/test_build_components/build_components_base.[target_platform].yaml`
+    # 2. `./tests/test_build_components/build_components_base.[target_platform]-ard.yaml`
+    target_platform_file="./tests/test_build_components/build_components_base.$target_platform.yaml"
+    if ! [ -f "$target_platform_file" ]; then
+      # Try find arduino test framework as platform.
+      target_platform_ard="$target_platform-ard"
+      target_platform_file="./tests/test_build_components/build_components_base.$target_platform_ard.yaml"
+      if ! [ -f "$target_platform_file" ]; then
+        echo "No base test file [./tests/test_build_components/build_components_base.$target_platform.yaml, ./tests/build_components_base.$target_platform_ard.yaml] for component test [$f] found."
+        exit 1
+      fi
+      target_platform=$target_platform_ard
+    fi
+
+    start_esphome
+  fi
+done
