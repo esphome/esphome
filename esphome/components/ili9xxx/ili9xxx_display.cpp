@@ -33,6 +33,7 @@ void ILI9XXXDisplay::setup() {
   if (this->mirror_y_)
     mad |= MADCTL_MY;
   this->send_command(ILI9XXX_MADCTL, &mad, 1);
+  esph_log_d(TAG, "Wrote MADCTL 0x%02X", mad);
 
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
@@ -215,7 +216,6 @@ void ILI9XXXDisplay::display_() {
            this->x_low_, this->y_low_, this->x_high_, this->y_high_, w, h, this->buffer_color_mode_,
            this->is_18bitdisplay_, sw_time, mw_time);
   auto now = millis();
-  this->enable();
   if (this->buffer_color_mode_ == BITS_16 && !this->is_18bitdisplay_ && sw_time < mw_time) {
     // 16 bit mode maps directly to display format
     ESP_LOGV(TAG, "Doing single write of %d bytes", this->width_ * h * 2);
@@ -267,7 +267,7 @@ void ILI9XXXDisplay::display_() {
       this->write_array(transfer_buffer, idx);
     }
   }
-  this->disable();
+  this->end_data_();
   ESP_LOGV(TAG, "Data write took %dms", (unsigned) (millis() - now));
   // invalidate watermarks
   this->x_low_ = this->width_;
@@ -290,7 +290,6 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
     return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                             x_pad);
   }
-  this->enable();
   this->set_addr_window_(x_start, y_start, x_start + w - 1, y_start + h - 1);
   // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.
   if (x_offset == 0 && x_pad == 0 && y_offset == 0) {
@@ -302,7 +301,7 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
       this->write_array(ptr + (y + y_offset) * stride + x_offset, w * 2);
     }
   }
-  this->disable();
+  this->end_data_();
 }
 
 // should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
@@ -357,9 +356,9 @@ void ILI9XXXDisplay::end_data_() { this->disable(); }
 void ILI9XXXDisplay::reset_() {
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->digital_write(false);
-    delay(10);
+    delay(20);
     this->reset_pin_->digital_write(true);
-    delay(10);
+    delay(120);
   }
 }
 
@@ -369,7 +368,7 @@ void ILI9XXXDisplay::init_lcd_() {
   while ((cmd = *addr++) > 0) {
     x = *addr++;
     num_args = x & 0x7F;
-    send_command(cmd, addr, num_args);
+    this->send_command(cmd, addr, num_args);
     addr += num_args;
     if (x & 0x80)
       delay(150);  // NOLINT
@@ -377,24 +376,18 @@ void ILI9XXXDisplay::init_lcd_() {
 }
 
 // Tell the display controller where we want to draw pixels.
-// when called, the SPI should have already been enabled, only the D/C pin will be toggled here.
 void ILI9XXXDisplay::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
   uint8_t buf[4];
-  this->dc_pin_->digital_write(false);
-  this->write_byte(ILI9XXX_CASET);  // Column address set
   put16_be(buf, x1 + this->offset_x_);
   put16_be(buf + 2, x2 + this->offset_x_);
-  this->dc_pin_->digital_write(true);
-  this->write_array(buf, sizeof buf);
-  this->dc_pin_->digital_write(false);
-  this->write_byte(ILI9XXX_PASET);  // Row address set
+  esph_log_v(TAG, "set_addr_window X %02X,%02X,%02X,%02X ", buf[0], buf[1], buf[2], buf[3]);
+  this->send_command(ILI9XXX_CASET, buf, 4);  // Column address set
   put16_be(buf, y1 + this->offset_y_);
   put16_be(buf + 2, y2 + this->offset_y_);
-  this->dc_pin_->digital_write(true);
-  this->write_array(buf, sizeof buf);
-  this->dc_pin_->digital_write(false);
-  this->write_byte(ILI9XXX_RAMWR);  // Write to RAM
-  this->dc_pin_->digital_write(true);
+  esph_log_v(TAG, "set_addr_window Y %02X,%02X,%02X,%02X ", buf[0], buf[1], buf[2], buf[3]);
+  this->send_command(ILI9XXX_PASET, buf, 4);  // Page address set
+  this->command(ILI9XXX_RAMWR);  // Write to RAM
+  this->start_data_();
 }
 
 void ILI9XXXDisplay::invert_colors(bool invert) {
