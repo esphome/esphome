@@ -1723,11 +1723,11 @@ sensor:
   - platform: uponor_smatrix
     address: 0xDE13
     humidity:
-      name: "Thermostat Humidity Living Room"
+      name: Thermostat Humidity Living Room
     temperature:
-      name: "Thermostat Temperature Living Room"
+      name: Thermostat Temperature Living Room
     external_temperature:
-      name: "Thermostat Floor Temperature Living Room"
+      name: Thermostat Floor Temperature Living Room
 
 psram:
 
@@ -2647,7 +2647,7 @@ climate:
     name: ZH/LT-01 Climate
   - platform: uponor_smatrix
     address: 0xDE13
-    name: "Thermostat Living Room"
+    name: Thermostat Living Room
 
 script:
   - id: climate_custom

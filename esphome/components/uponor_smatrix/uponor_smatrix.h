@@ -94,7 +94,7 @@ class UponorSmatrixComponent : public uart::UARTDevice, public Component {
   uint32_t last_poll_start_;
 
 #ifdef USE_TIME
-  optional<time::RealTimeClock *> time_id_{};
+  time::RealTimeClock *time_id_{nullptr};
   uint16_t time_device_address_;
   bool send_time_requested_;
   bool do_send_time_();
@@ -103,7 +103,7 @@ class UponorSmatrixComponent : public uart::UARTDevice, public Component {
 
 class UponorSmatrixDevice : public Parented<UponorSmatrixComponent> {
  public:
-  void set_device_address(uint16_t address) { address_ = address; }
+  void set_device_address(uint16_t address) { this->address_ = address; }
 
   virtual void on_device_data(const UponorSmatrixData *data, size_t data_len) = 0;
   bool send(const UponorSmatrixData *data, size_t data_len) {

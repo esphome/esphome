@@ -37,6 +37,16 @@ CONFIG_SCHEMA = (
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "uponor_smatrix",
+    baud_rate=19200,
+    require_tx=True,
+    require_rx=True,
+    data_bits=8,
+    parity=None,
+    stop_bits=1,
+)
+
 # A schema to use for all Uponor Smatrix devices
 UPONOR_SMATRIX_DEVICE_SCHEMA = cv.Schema(
     {
