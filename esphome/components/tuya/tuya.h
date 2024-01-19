@@ -130,7 +130,7 @@ class Tuya : public Component, public uart::UARTDevice {
 
 #ifdef USE_TIME
   void send_local_time_();
-  time::RealTimeClock *time_id_{};
+  time::RealTimeClock *time_id_{nullptr};
   bool time_sync_callback_registered_{false};
 #endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
