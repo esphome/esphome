@@ -231,10 +231,12 @@ void VoiceAssistant::loop() {
     }
     case State::STREAMING_MICROPHONE: {
       this->read_microphone_();
-      if (this->ring_buffer_->available() >= SEND_BUFFER_SIZE) {
-        this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
-        this->socket_->sendto(this->send_buffer_, SEND_BUFFER_SIZE, 0, (struct sockaddr *) &this->dest_addr_,
+      size_t available = this->ring_buffer_->available();
+      while (available >= SEND_BUFFER_SIZE) {
+        size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
+        this->socket_->sendto(this->send_buffer_, read_bytes, 0, (struct sockaddr *) &this->dest_addr_,
                               sizeof(this->dest_addr_));
+        available = this->ring_buffer_->available();
       }
 
       break;
