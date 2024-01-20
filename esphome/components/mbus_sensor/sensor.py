@@ -11,8 +11,8 @@ DEPENDENCIES = ["mbus", "sensor"]
 mbus_sensor_ns = cg.esphome_ns.namespace("mbus_sensor")
 MBusSensor = mbus_sensor_ns.class_("MBusSensor", cg.Component, sensor.Sensor)
 
-CONF_MBUS_SENSOR_DATA_INDEX = "data_index"
-CONF_MBUS_SENSOR_FACTOR = "factor"
+CONF_DATA_INDEX = "data_index"
+CONF_FACTOR = "factor"
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(MBusSensor)
@@ -20,8 +20,8 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.GenerateID(CONF_MBUS_ID): cv.use_id(MBus),
-            cv.Required(CONF_MBUS_SENSOR_DATA_INDEX): cv.positive_int,
-            cv.Optional(CONF_MBUS_SENSOR_FACTOR, default=0.0): cv.positive_float,
+            cv.Required(CONF_DATA_INDEX): cv.positive_int,
+            cv.Optional(CONF_FACTOR, default=0.0): cv.positive_float,
         }
     )
 )
@@ -30,8 +30,8 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(
         config[CONF_ID],
-        config[CONF_MBUS_SENSOR_DATA_INDEX],
-        config[CONF_MBUS_SENSOR_FACTOR],
+        config[CONF_DATA_INDEX],
+        config[CONF_FACTOR],
     )
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)

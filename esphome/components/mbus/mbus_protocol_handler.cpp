@@ -1,9 +1,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-#include "esphome/components/mbus/mbus_protocol_handler.h"
-#include "esphome/components/mbus/mbus_frame_meta.h"
-#include "esphome/components/mbus/mbus_frame_factory.h"
+#include "mbus_frame_factory.h"
+#include "mbus_frame_meta.h"
+#include "mbus_protocol_handler.h"
 
 namespace esphome {
 namespace mbus {
