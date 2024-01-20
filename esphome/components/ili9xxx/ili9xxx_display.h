@@ -211,7 +211,7 @@ class ILI9XXXS3BoxLite : public ILI9XXXDisplay {
 
 class ILI9XXXCYDILI9342 : public ILI9XXXDisplay {
  public:
-  ILI9XXXCYDILI9342() : ILI9XXXDisplay(INITCMD_CYD_ILI9342, 240, 320, false) {}
+  ILI9XXXCYDILI9342() : ILI9XXXDisplay(INITCMD_CYD_ILI9342B, 240, 320, false) {}
 };
 
 }  // namespace ili9xxx

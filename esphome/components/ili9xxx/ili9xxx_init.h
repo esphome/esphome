@@ -349,6 +349,35 @@ static const uint8_t PROGMEM INITCMD_CYD_ILI9342[] = {
   0x00                                   // End of list
   };
 
+
+static const uint8_t PROGMEM INITCMD_CYD_ILI9342B[] = {
+    0xCF, 3, 0x00, 0xC1, 0x30,                                                                           // 3},
+    0xED, 4, 0x64, 0x03, 0x12, 0x81,                                                                     // 4},
+    0xE8, 3, 0x85, 0x00, 0x78,                                                                           // 3},
+    0xCB, 5, 0x39, 0x2C, 0x00, 0x34, 0x02,                                                               // 5},
+    0xF7, 1, 0x20,                                                                                       // 1},
+    0xEA, 2, 0x00, 0x00,                                                                                 // 2},
+    0xC0, 1, 0x10,                                                                                       // 1},
+    0xC1, 1, 0x00,                                                                                       // 1},
+    0xC5, 2, 0x30, 0x30,                                                                                 // 2,},
+    0xC7, 1, 0xB7,                                                                                       // 1},
+    0x3A, 1, 0x55,                                                                                       // 1},
+    0x36, 1, 0x08,                                                                                       // 1},
+    0xB1, 2, 0x00, 0x1a,                                                                                 // 2},
+    0xB6, 3, 0x08, 0x82, 0x27,                                                                           // 3},
+    0xF2, 1, 0x00,                                                                                       // 1},
+    0x26, 1, 0x01,                                                                                       // 1},
+    0xE0, 15, 0x0F, 0x2A, 0x28, 0x08, 0x0E, 0x08, 0x54, 0xA9, 0x43, 0x0A, 0x0F, 0x00, 0x00, 0x00, 0x00,  // 15},
+    0xE1, 15, 0x00, 0x15, 0x17, 0x07, 0x11, 0x06, 0x2B, 0x56, 0x3C, 0x05, 0x10, 0x0F, 0x3F, 0x3F, 0x0F,  // 15},
+    0x2B, 4, 0x00, 0x00, 0x01, 0x3F,                                                                     // 4},
+    0x2A, 4, 0x00, 0x00, 0x00, 0xEF,                                                                     // 4},
+    0x21, 0,                                                                                             // },
+    0x11, 0x80,
+    0x29, 0x80,
+    0x00
+};
+
 // clang-format on
 }  // namespace ili9xxx
 }  // namespace esphome
+
