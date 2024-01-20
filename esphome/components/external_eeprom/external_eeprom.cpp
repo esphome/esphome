@@ -151,7 +151,7 @@ uint32_t ExtEepromComponent::read_string_from_eeprom(uint32_t memaddr, std::stri
 /// @param memaddr is the location to write
 /// @param data_to_write contains the byte to be written
 void ExtEepromComponent::write8(uint32_t memaddr, uint8_t data_to_write) {
-  if (read8(memaddr) != data_to_write) { // Update only if data is new
+  if (read8(memaddr) != data_to_write) {  // Update only if data is new
     write(memaddr, &data_to_write, 1);
   }
 }
@@ -253,8 +253,7 @@ void ExtEepromComponent::write(uint32_t memaddr, uint8_t *data_to_write, uint16_
     p += amt_to_write;
     size -= amt_to_write;
     ESP_LOGVV(TAG, "After write size %d amt  %d add %d", size, amt_to_write, memaddr);
-    
-    delay(this->memory_page_write_time_ms_); /// Delay the amount of time to record a page
+    delay(this->memory_page_write_time_ms_);  /// Delay the amount of time to record a page
     }
 }
 
