@@ -149,12 +149,6 @@ class CalculatedTextRun {
   int16_t baseline{0};
 };
 
-struct CalculatedLayout {
-  std::vector<std::shared_ptr<CalculatedTextRun>> runs;
-  display::Rect bounds;
-  int line_count;
-};
-
 class LineInfo {
  public:
   LineInfo(int line_number) { this->line_number = line_number; }
@@ -171,6 +165,11 @@ class LineInfo {
   int16_t max_height{0};
   int16_t total_width{0};
   int16_t max_baseline{0};
+};
+
+struct CalculatedLayout {
+  std::vector<std::shared_ptr<LineInfo>> lines;
+  display::Rect bounds;
 };
 
 /** The TextRunPanel is a UI item that renders a multiple "runs" of text of independent styling to a display */
@@ -191,13 +190,15 @@ class TextRunPanel : public LayoutItem {
   void set_text_align(display::TextAlign text_align) { this->text_align_ = text_align; };
   void set_min_width(int min_width) { this->min_width_ = min_width; };
   void set_max_width(int max_width) { this->max_width_ = max_width; };
+  void set_draw_partial_lines(bool draw_partial_lines) { this->draw_partial_lines_ = draw_partial_lines; };
   void set_debug_outline_runs(bool debug_outline_runs) { this->debug_outline_runs_ = debug_outline_runs; };
 
  protected:
-  CalculatedLayout determine_layout_(display::Display *display, display::Rect bounds, bool apply_alignment);
+  CalculatedLayout determine_layout_(display::Display *display, display::Rect bounds, bool grow_beyond_bounds_height);
   std::vector<std::shared_ptr<CalculatedTextRun>> split_runs_into_words_();
   std::vector<std::shared_ptr<LineInfo>> fit_words_to_bounds_(
-      const std::vector<std::shared_ptr<CalculatedTextRun>> &runs, display::Rect bounds);
+      const std::vector<std::shared_ptr<CalculatedTextRun>> &runs, display::Rect bounds,
+      bool grow_beyond_bounds_height);
   void apply_alignment_to_lines_(std::vector<std::shared_ptr<LineInfo>> &lines, display::TextAlign alignment);
 
   std::vector<TextRunBase *> text_runs_;
@@ -205,6 +206,7 @@ class TextRunPanel : public LayoutItem {
   int min_width_{0};
   int max_width_{0};
   TemplatableValue<bool, const CanWrapAtCharacterArguments &> can_wrap_at_character_{};
+  bool draw_partial_lines_{false};
   bool debug_outline_runs_{false};
 };
 

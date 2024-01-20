@@ -36,6 +36,7 @@ CONF_TEXT_SENSOR = "text_sensor"
 CONF_TEXT_FORMATTER = "text_formatter"
 CONF_TIME_FORMAT = "time_format"
 CONF_USE_UTC_TIME = "use_utc_time"
+CONF_DRAW_PARTIAL_LINES = "draw_partial_lines"
 
 TEXT_ALIGN = {
     "TOP_LEFT": TextAlign.TOP_LEFT,
@@ -110,6 +111,7 @@ def get_config_schema(base_item_schema, item_type_schema):
             cv.Required(CONF_MAX_WIDTH): cv.int_range(min=0),
             cv.Optional(CONF_MIN_WIDTH, default=0): cv.int_range(min=0),
             cv.Optional(CONF_CAN_WRAP_AT_CHARACTER): cv.returning_lambda,
+            cv.Optional(CONF_DRAW_PARTIAL_LINES, default=False): cv.boolean,
             cv.Optional(CONF_DEBUG_OUTLINE_RUNS, default=False): cv.boolean,
             cv.Required(CONF_RUNS): cv.All(
                 cv.ensure_list(RUN_SCHEMA), cv.Length(min=1)
@@ -137,6 +139,9 @@ async def config_to_layout_item(pvariable_builder, item_config, child_item_build
             return_type=cg.bool_,
         )
         cg.add(var.set_can_wrap_at(can_wrap_at_character))
+
+    draw_partial_lines = item_config[CONF_DRAW_PARTIAL_LINES]
+    cg.add(var.set_draw_partial_lines(draw_partial_lines))
 
     debug_outline_runs = item_config[CONF_DEBUG_OUTLINE_RUNS]
     if debug_outline_runs:

@@ -1,4 +1,5 @@
 #include "text_run_panel.h"
+#include <memory>
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/rect.h"
@@ -18,6 +19,7 @@ void TextRunPanel::dump_config(int indent_depth, int additional_level_depth) {
   ESP_LOGCONFIG(TAG, "%*sMax Width: %i", indent_depth, "", this->max_width_);
   ESP_LOGCONFIG(TAG, "%*sText Align: %s", indent_depth, "",
                 LOG_STR_ARG(display::text_align_to_string(this->text_align_)));
+  ESP_LOGCONFIG(TAG, "%*sDraw Partial Lines: %s", indent_depth, "", YESNO(this->draw_partial_lines_));
   ESP_LOGCONFIG(TAG, "%*sText Runs: %i", indent_depth, "", this->text_runs_.size());
   for (TextRunBase *run : this->text_runs_) {
     std::string text = run->get_text();
@@ -43,23 +45,39 @@ display::Rect TextRunPanel::measure_item_internal(display::Display *display) {
 void TextRunPanel::render_internal(display::Display *display, display::Rect bounds) {
   ESP_LOGD(TAG, "Rendering to (%i, %i)", bounds.w, bounds.h);
 
-  CalculatedLayout layout = this->determine_layout_(display, bounds, true);
+  CalculatedLayout layout = this->determine_layout_(display, bounds, false);
+  int16_t y_offset = 0;
 
-  for (const auto &calculated : layout.runs) {
-    if (calculated->run->background_color_ != display::COLOR_OFF) {
-      display->filled_rectangle(calculated->bounds.x, calculated->bounds.y, calculated->bounds.w, calculated->bounds.h,
-                                calculated->run->background_color_);
+  display::Point offset = display->get_local_coordinates();
+  display::Rect clipping_rect = display::Rect(offset.x, offset.y, bounds.w, bounds.h);
+  display->start_clipping(clipping_rect);
+
+  for (const auto &line : layout.lines) {
+    if (!this->draw_partial_lines_ && ((y_offset + line->max_height) > bounds.h)) {
+      ESP_LOGD(TAG, "Line %i would partially render outside of the area, skipping", line->line_number);
+      continue;
     }
-    display->print(calculated->bounds.x, calculated->bounds.y, calculated->run->font_,
-                   calculated->run->foreground_color_, display::TextAlign::TOP_LEFT, calculated->text.c_str());
+
+    for (const auto &calculated : line->runs) {
+      if (calculated->run->background_color_ != display::COLOR_OFF) {
+        display->filled_rectangle(calculated->bounds.x, calculated->bounds.y, calculated->bounds.w,
+                                  calculated->bounds.h, calculated->run->background_color_);
+      }
+      display->print(calculated->bounds.x, calculated->bounds.y, calculated->run->font_,
+                     calculated->run->foreground_color_, display::TextAlign::TOP_LEFT, calculated->text.c_str());
+    }
+
+    if (this->debug_outline_runs_) {
+      ESP_LOGD(TAG, "Outlining character runs");
+      for (const auto &calculated : line->runs) {
+        display->rectangle(calculated->bounds.x, calculated->bounds.y, calculated->bounds.w, calculated->bounds.h);
+      }
+    }
+
+    y_offset += line->max_height;
   }
 
-  if (this->debug_outline_runs_) {
-    ESP_LOGD(TAG, "Outlining character runs");
-    for (const auto &calculated : layout.runs) {
-      display->rectangle(calculated->bounds.x, calculated->bounds.y, calculated->bounds.w, calculated->bounds.h);
-    }
-  }
+  display->end_clipping();
 }
 
 std::vector<std::shared_ptr<CalculatedTextRun>> TextRunPanel::split_runs_into_words_() {
@@ -95,7 +113,7 @@ std::vector<std::shared_ptr<CalculatedTextRun>> TextRunPanel::split_runs_into_wo
 }
 
 std::vector<std::shared_ptr<LineInfo>> TextRunPanel::fit_words_to_bounds_(
-    const std::vector<std::shared_ptr<CalculatedTextRun>> &runs, display::Rect bounds) {
+    const std::vector<std::shared_ptr<CalculatedTextRun>> &runs, display::Rect bounds, bool grow_beyond_bounds_height) {
   int x_offset = 0;
   int y_offset = 0;
   int current_line_number = 0;
@@ -114,6 +132,12 @@ std::vector<std::shared_ptr<LineInfo>> TextRunPanel::fit_words_to_bounds_(
       current_line = std::make_shared<LineInfo>(current_line_number);
 
       lines.push_back(current_line);
+
+      ESP_LOGD(TAG, "Line %i finishes at %i vs available of %i", current_line_number - 1, y_offset, bounds.h);
+      if (!grow_beyond_bounds_height && y_offset >= bounds.h) {
+        ESP_LOGD(TAG, "No more text can fit into the available height. Aborting");
+        break;
+      }
     }
 
     // Fits on the line
@@ -191,14 +215,13 @@ void TextRunPanel::apply_alignment_to_lines_(std::vector<std::shared_ptr<LineInf
 }
 
 CalculatedLayout TextRunPanel::determine_layout_(display::Display *display, display::Rect bounds,
-                                                 bool apply_alignment) {
+                                                 bool grow_beyond_bounds_height) {
   std::vector<std::shared_ptr<CalculatedTextRun>> runs = this->split_runs_into_words_();
-  std::vector<std::shared_ptr<LineInfo>> lines = this->fit_words_to_bounds_(runs, bounds);
+  std::vector<std::shared_ptr<LineInfo>> lines = this->fit_words_to_bounds_(runs, bounds, grow_beyond_bounds_height);
   this->apply_alignment_to_lines_(lines, this->text_align_);
 
   CalculatedLayout layout;
-  layout.runs = runs;
-  layout.line_count = lines.size();
+  layout.lines = lines;
 
   int y_offset = 0;
   layout.bounds = display::Rect(0, 0, 0, 0);
@@ -208,7 +231,7 @@ CalculatedLayout TextRunPanel::determine_layout_(display::Display *display, disp
   }
   layout.bounds.h = y_offset;
 
-  ESP_LOGD(TAG, "Text fits on %i lines and its bounds are (%i, %i)", layout.line_count, layout.bounds.w,
+  ESP_LOGD(TAG, "Text fits on %i lines and its bounds are (%i, %i)", layout.lines.size(), layout.bounds.w,
            layout.bounds.h);
 
   return layout;
