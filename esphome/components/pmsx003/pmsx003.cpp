@@ -279,7 +279,7 @@ void PMSX003Component::parse_data_() {
       // Note the pm particles 50um & 100um are not returned,
       // as PMS5003T uses those data values for temperature and humidity.
 
-      float temperature = this->get_16_bit_uint_(24) / 10.0f;
+      float temperature = (int16_t) this->get_16_bit_uint_(24) / 10.0f;
       float humidity = this->get_16_bit_uint_(26) / 10.0f;
 
       ESP_LOGD(TAG,
