@@ -347,7 +347,8 @@ static const uint8_t PROGMEM INITCMD_CYD_ILI9342[] = {
   0x2B, 4, 0x00, 0x00, 0x01, 0x3f,
   0x2A, 4, 0x00, 0x00, 0x00, 0xef,
   ILI9XXX_SLPOUT, //Exit Sleep
+};
 
-    // clang-format on
+// clang-format on
 }  // namespace ili9xxx
 }  // namespace esphome
