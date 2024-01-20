@@ -13,14 +13,14 @@
 namespace esphome {
 namespace ft63x6 {
 
-static const uint8_t FT63X6_ADDR_TOUCH_COUNT = 0x02;
-
-static const uint8_t FT63X6_ADDR_TOUCH1_ID = 0x05;
+static const uint8_t FT63X6_ADDR_TOUCH1_STATE = 0x03;
 static const uint8_t FT63X6_ADDR_TOUCH1_X = 0x03;
+static const uint8_t FT63X6_ADDR_TOUCH1_ID = 0x05;
 static const uint8_t FT63X6_ADDR_TOUCH1_Y = 0x05;
 
-static const uint8_t FT63X6_ADDR_TOUCH2_ID = 0x0B;
+static const uint8_t FT63X6_ADDR_TOUCH2_STATE = 0x09;
 static const uint8_t FT63X6_ADDR_TOUCH2_X = 0x09;
+static const uint8_t FT63X6_ADDR_TOUCH2_ID = 0x0B;
 static const uint8_t FT63X6_ADDR_TOUCH2_Y = 0x0B;
 
 static const char *const TAG = "FT63X6Touchscreen";
@@ -40,26 +40,11 @@ void FT63X6Touchscreen::setup() {
   this->hard_reset_();
 
   // Get touch resolution
-  this->x_raw_max_ = 320;
-  this->y_raw_max_ = 480;
-}
-
-void FT63X6Touchscreen::update_touches() {
-  int touch_count = this->read_touch_count_();
-  if (touch_count == 0) {
-    return;
+  if (this->x_raw_max_ == this->x_raw_min_) {
+    this->x_raw_max_ = 320;
   }
-
-  uint8_t touch_id = this->read_touch_id_(FT63X6_ADDR_TOUCH1_ID);  // id1 = 0 or 1
-  int16_t x = this->read_touch_coordinate_(FT63X6_ADDR_TOUCH1_X);
-  int16_t y = this->read_touch_coordinate_(FT63X6_ADDR_TOUCH1_Y);
-  this->add_raw_touch_position_(touch_id, x, y);
-
-  if (touch_count >= 2) {
-    touch_id = this->read_touch_id_(FT63X6_ADDR_TOUCH2_ID);  // id2 = 0 or 1(~id1 & 0x01)
-    x = this->read_touch_coordinate_(FT63X6_ADDR_TOUCH2_X);
-    y = this->read_touch_coordinate_(FT63X6_ADDR_TOUCH2_Y);
-    this->add_raw_touch_position_(touch_id, x, y);
+  if (this->y_raw_max_ == this->y_raw_min_) {
+    this->y_raw_max_ = 480;
   }
 }
 
@@ -76,23 +61,31 @@ void FT63X6Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
-uint8_t FT63X6Touchscreen::read_touch_count_() { return this->read_byte_(FT63X6_ADDR_TOUCH_COUNT); }
+void FT63X6Touchscreen::update_touches() {
+  uint8_t data[15];
+  uint16_t touch_id, x, y;
 
-// Touch functions
-uint16_t FT63X6Touchscreen::read_touch_coordinate_(uint8_t coordinate) {
-  uint8_t read_buf[2];
-  read_buf[0] = this->read_byte_(coordinate);
-  read_buf[1] = this->read_byte_(coordinate + 1);
-  return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
-}
-uint8_t FT63X6Touchscreen::read_touch_id_(uint8_t id_address) { return this->read_byte_(id_address) >> 4; }
+  if (!this->read_bytes(0x00, (uint8_t *) data, 15)) {
+    ESP_LOGE(TAG, "Failed to read touch data");
+    this->skip_update_ = true;
+    return;
+  }
 
-uint8_t FT63X6Touchscreen::read_byte_(uint8_t addr) {
-  uint8_t byte = 0;
-  this->read_byte(addr, &byte);
-  return byte;
+  if (((data[FT63X6_ADDR_TOUCH1_STATE] >> 6) & 0x01) == 0) {
+    touch_id = data[FT63X6_ADDR_TOUCH1_ID] >> 4;  // id1 = 0 or 1
+    x = encode_uint16(data[FT63X6_ADDR_TOUCH1_X] & 0x0F, data[FT63X6_ADDR_TOUCH1_X + 1]);
+    y = encode_uint16(data[FT63X6_ADDR_TOUCH1_Y] & 0x0F, data[FT63X6_ADDR_TOUCH1_Y + 1]);
+    this->add_raw_touch_position_(touch_id, x, y);
+  }
+  if (((data[FT63X6_ADDR_TOUCH2_STATE] >> 6) & 0x01) == 0) {
+    touch_id = data[FT63X6_ADDR_TOUCH2_ID] >> 4;  // id1 = 0 or 1
+    x = encode_uint16(data[FT63X6_ADDR_TOUCH2_X] & 0x0F, data[FT63X6_ADDR_TOUCH2_X + 1]);
+    y = encode_uint16(data[FT63X6_ADDR_TOUCH2_Y] & 0x0F, data[FT63X6_ADDR_TOUCH2_Y + 1]);
+    this->add_raw_touch_position_(touch_id, x, y);
+  }
 }
 
 }  // namespace ft63x6
