@@ -14,15 +14,16 @@ namespace mbus {
 
 class MBus;
 class MBusCommand;
+
 class MBusProtocolHandler {
  public:
   static const uint32_t rx_timeout{1000};
 
+  MBusProtocolHandler(MBus *mbus, INetworkAdapter *networkAdapter) : mbus_(mbus), networkAdapter_(networkAdapter) {}
+
   void loop();
   void register_command(MBusFrame &command, void (*response_handler)(MBusCommand *command, const MBusFrame &response),
                         uint8_t step, uint32_t delay = 0, bool wait_for_response = true);
-
-  MBusProtocolHandler(MBus *mbus, INetworkAdapter *networkAdapter) : mbus_(mbus), networkAdapter_(networkAdapter) {}
 
  protected:
   // Communication
@@ -51,9 +52,9 @@ class MBusCommand {
   MBusFrame *command{nullptr};
   MBus *mbus{nullptr};
   uint8_t step{0};
-  uint32_t created;
-  uint32_t delay;
-  bool wait_for_response;
+  uint32_t created{0};
+  uint32_t delay{0};
+  bool wait_for_response{false};
 
   void (*response_handler)(MBusCommand *command, const MBusFrame &response){nullptr};
 

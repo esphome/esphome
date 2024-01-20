@@ -28,10 +28,10 @@ class MBusControlInformationCodes {
 };
 class MBusFrameMeta {
  public:
-  const uint8_t start_bit;
-  const uint8_t stop_bit;
-  const uint8_t lenght;
-  const uint8_t base_frame_size;
+  const uint8_t start_bit{0};
+  const uint8_t stop_bit{0};
+  const uint8_t lenght{0};
+  const uint8_t base_frame_size{0};
 
   MBusFrameMeta(uint8_t _start_bit, uint8_t _stop_bit, uint8_t _length, uint8_t _base_frame_size)
       : start_bit(_start_bit), stop_bit(_stop_bit), lenght(_length), base_frame_size(_base_frame_size) {}

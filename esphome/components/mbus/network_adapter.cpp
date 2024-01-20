@@ -21,7 +21,7 @@ int8_t SerialAdapter::receive(std::vector<uint8_t> &payload) {
   while (this->uart_->available()) {
     this->uart_->read_byte(&byte);
     payload.push_back(byte);
-    ESP_LOGVV(TAG, "  <- 0x%X", byte);
+    ESP_LOGV(TAG, "  <- 0x%X", byte);
 
     if (byte == MBusFrameDefinition::ACK_FRAME.start_bit) {
       // ACK_FRAME recevied

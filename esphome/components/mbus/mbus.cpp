@@ -12,7 +12,7 @@ static const char *const TAG = "mbus";
 void MBus::dump_config() {
   ESP_LOGCONFIG(TAG, "MBus:");
   ESP_LOGCONFIG(TAG, "  Secondary Address: 0x%.016llX", this->secondary_address_);
-  ESP_LOGCONFIG(TAG, "  delay: %d", this->delay_);
+  ESP_LOGCONFIG(TAG, "  delay: %d", this->interval_);
   ESP_LOGCONFIG(TAG, "  %d sensors configured", this->sensors_.size());
   for (auto index = 0; index < this->sensors_.size(); index++) {
     auto sensor = this->sensors_.at(index);
@@ -47,7 +47,9 @@ void MBus::start_scan_primary_addresses(MBus *mbus) {
 }
 
 void MBus::scan_primary_addresses_response_handler(MBusCommand *command, const MBusFrame &response) {
+  auto now = millis();
   auto mbus = command->mbus;
+
   if (command->step == 0 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
     ESP_LOGD(TAG, "Found mbus slave with primary address = %.2X.", mbus->primary_address_);
     start_scan_secondary_addresses(command->mbus);
@@ -111,6 +113,7 @@ void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const
         MBusDecoder::decode_secondary_address(header.id, header.manufacturer, header.version, header.medium);
     // auto secondary_address = response.variable_data->header.get_secondary_address();
     ESP_LOGD(TAG, "Found a device on secondary address 0x%.016llX.", secondary_address);
+    response.dump();
   }
 }
 
@@ -124,7 +127,7 @@ void MBus::start_reading_data(MBus *mbus) {
 }
 
 void MBus::reading_data_response_handler(MBusCommand *command, const MBusFrame &response) {
-  ESP_LOGI(TAG, "reading_data_response_handler. step = %d, frame_type = %d", command->step, response.frame_type);
+  ESP_LOGV(TAG, "reading_data_response_handler. step = %d, frame_type = %d", command->step, response.frame_type);
 
   auto mbus = command->mbus;
   // select slave by secondary address
@@ -174,7 +177,7 @@ void MBus::reading_data_response_handler(MBusCommand *command, const MBusFrame &
     }
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
     mbus->protocol_handler_->register_command(*req_ud2_command, reading_data_response_handler,
-                                              /*step*/ 3, /*delay*/ mbus->delay_ * 1000);
+                                              /*step*/ 3, /*delay*/ mbus->interval_ * 1000);
 
     return;
   }

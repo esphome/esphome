@@ -44,17 +44,17 @@ class MBusValue;
 
 class MBusFrame {
  public:
-  uint8_t start;
-  uint8_t length;
-  uint8_t control;
-  uint8_t control_information;
-  uint8_t address;
-  uint8_t checksum;
-  uint8_t stop;
+  uint8_t start{0};
+  uint8_t length{0};
+  uint8_t control{0};
+  uint8_t control_information{0};
+  uint8_t address{0};
+  uint8_t checksum{0};
+  uint8_t stop{0};
   std::vector<uint8_t> data;
-  std::unique_ptr<MBusDataVariable> variable_data;
+  std::unique_ptr<MBusDataVariable> variable_data{nullptr};
 
-  MBusFrameType frame_type;
+  MBusFrameType frame_type{MBusFrameType::MBUS_FRAME_TYPE_EMPTY};
 
   // void *next;  // pointer to next mbus_frame for multi-telegram replies
 
@@ -66,6 +66,8 @@ class MBusFrame {
   static uint8_t calc_checksum(MBusFrame &frame);
 
   void dump() const;
+  void dump_frame() const;
+  void dump_frame_type() const;
 };
 
 // MBus Data
@@ -98,7 +100,7 @@ class MBusDataVifMask {
 // | Bit       |  Unit   |                 |                      |
 class MBusDataInformationBlock {
  public:
-  uint8_t dif;
+  uint8_t dif{0};
   std::vector<uint8_t> dife;
 };
 
@@ -108,7 +110,7 @@ class MBusDataInformationBlock {
 // | Bit       |                                                  |
 class MBusValueInformationBlock {
  public:
-  uint8_t vif;
+  uint8_t vif{0};
   std::vector<uint8_t> vife;
 };
 
@@ -139,13 +141,13 @@ class MBusDataRecord {
 // 4 Byte BCD  2 Byte  1 Byte  1 Byte   1 Byte   1 Byte  2 Byte
 class MBusDataVariableHeader {
  public:
-  uint8_t id[4];
-  uint8_t manufacturer[2];
-  uint8_t version;
-  uint8_t medium;
-  uint8_t access_no;
-  uint8_t status;
-  uint8_t signature[2];
+  uint8_t id[4]{0, 0, 0, 0};
+  uint8_t manufacturer[2]{0, 0};
+  uint8_t version{0};
+  uint8_t medium{0};
+  uint8_t access_no{0};
+  uint8_t status{0};
+  uint8_t signature[2]{0, 0};
 };
 
 class MBusDataVariable {
@@ -163,12 +165,12 @@ class MBusDataVariable {
 
 class MBusValue {
  public:
-  uint8_t id;
-  std::string function;
-  std::string unit;
-  float value;
-  uint8_t tariff;
-  MBusDataType data_type;
+  uint8_t id{0};
+  std::string function{""};
+  std::string unit{""};
+  float value{0.0};
+  uint8_t tariff{0};
+  MBusDataType data_type{MBusDataType::NO_DATA};
 
   std::string get_data_type_str() const {
     switch (this->data_type) {
@@ -209,6 +211,8 @@ class MBusValue {
       case 0x17:
         return "DATE_TIME_48";
     }
+
+    return "unknown data type";
   }
 };
 

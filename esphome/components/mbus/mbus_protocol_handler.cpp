@@ -29,7 +29,9 @@ void MBusProtocolHandler::loop() {
     }
 
     auto frame = cmd->command;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     frame->dump();
+#endif
     this->send(*frame);
 
     this->waiting_for_response_ = true;
@@ -72,7 +74,9 @@ void MBusProtocolHandler::loop() {
     if (rx_status == 1) {
       if (command->response_handler != nullptr) {
         auto frame = this->parse_response();
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
         frame->dump();
+#endif
         command->response_handler(command, *frame);
       }
 

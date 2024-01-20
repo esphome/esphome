@@ -20,7 +20,7 @@ void MBusSensor::publish(const std::unique_ptr<mbus::MBusValue> &value) {
   // // this->sensor_->raw_state = result;
   auto float_value = value->value;
   if (this->factor_ != 0) {
-    float_value *= this->factor_;
+    float_value /= this->factor_;
   }
 
   this->publish_state(float_value);

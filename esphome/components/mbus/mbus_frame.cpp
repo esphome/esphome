@@ -183,6 +183,11 @@ uint8_t MBusFrame::calc_checksum(MBusFrame &frame) {
 
 // https://www.miller-alex.de/Mbus
 void MBusFrame::dump() const {
+  dump_frame_type();
+  dump_frame();
+}
+
+void MBusFrame::dump_frame_type() const {
   ESP_LOGV(TAG, "MBusFrame");
   switch (this->frame_type) {
     case MBusFrameType::MBUS_FRAME_TYPE_ACK:
@@ -201,7 +206,9 @@ void MBusFrame::dump() const {
       ESP_LOGV(TAG, "\tunknown frame type = %d", this->frame_type);
       break;
   }
+}
 
+void MBusFrame::dump_frame() const {
   switch (this->frame_type) {
     case MBusFrameType::MBUS_FRAME_TYPE_ACK:
       return;
@@ -234,32 +241,32 @@ void MBusFrame::dump() const {
       return;
   }
 
-  ESP_LOGV(TAG, "\tunknown frame type");
+  ESP_LOGD(TAG, "\tunknown frame type");
 }
 
 void MBusDataVariable::dump() const {
-  ESP_LOGV(TAG, "\tVariable Data:");
-  ESP_LOGV(TAG, "\t Header:");
+  ESP_LOGD(TAG, "\tVariable Data:");
+  ESP_LOGD(TAG, "\t Header:");
 
   auto header = &this->header;
   auto id = MBusDecoder::decode_bcd_uint32(header->id);
-  ESP_LOGV(TAG, "\t  id = %s (0x%.8X)", format_hex_pretty(header->id, 4).c_str(), id);
+  ESP_LOGD(TAG, "\t  id = %s (0x%.8X)", format_hex_pretty(header->id, 4).c_str(), id);
 
   auto manufacturer = MBusDecoder::decode_manufacturer(header->manufacturer);
-  ESP_LOGV(TAG, "\t  manufacturer = %s", manufacturer.c_str());
-  ESP_LOGV(TAG, "\t  version = 0x%.2X", header->version);
+  ESP_LOGD(TAG, "\t  manufacturer = %s", manufacturer.c_str());
+  ESP_LOGD(TAG, "\t  version = 0x%.2X", header->version);
   auto medium = MBusDecoder::decode_medium(header->medium);
-  ESP_LOGV(TAG, "\t  medium = %s", medium.c_str());
-  ESP_LOGV(TAG, "\t  access no = 0x%.2X", header->access_no);
-  ESP_LOGV(TAG, "\t  status = 0x%.2X", header->status);
-  ESP_LOGV(TAG, "\t  signature = %s", format_hex_pretty(header->signature, 2).c_str());
-  ESP_LOGV(TAG, "\t Records:");
+  ESP_LOGD(TAG, "\t  medium = %s", medium.c_str());
+  ESP_LOGD(TAG, "\t  access no = 0x%.2X", header->access_no);
+  ESP_LOGD(TAG, "\t  status = 0x%.2X", header->status);
+  ESP_LOGD(TAG, "\t  signature = %s", format_hex_pretty(header->signature, 2).c_str());
+  ESP_LOGD(TAG, "\t Records:");
 
   auto records = &this->records;
   for (auto i = 0; i < records->size(); i++) {
     auto record = records->at(i);
     auto mbus_data = record.parse(i);
-    ESP_LOGV(TAG,
+    ESP_LOGD(TAG,
              "\t  DIF: 0x%.2X DIFE: %s VIF: 0x%.2X VIFE: %s Data: %s. (ID: %d, Function: %s, Unit: %s, Tariff: %d, "
              "Type: %s, %f)",
              record.drh.dib.dif, format_hex_pretty(record.drh.dib.dife).c_str(), record.drh.vib.vif,
@@ -406,18 +413,18 @@ std::string MBusDataRecord::parse_unit(const MBusDataRecord *record) {
         }
       }
       case 0b1111:
-        ESP_LOGE(TAG, "Unsupported unit.");
+        ESP_LOGV(TAG, "Unsupported unit.");
         return "";
     }
   }
   // Plain-text VIF (VIF = 7Ch / FCh)
   else if (unit_and_multiplier == 0x7C) {
-    ESP_LOGE(TAG, "Plain-text units not supported.");
+    ESP_LOGV(TAG, "Plain-text units not supported.");
     return "";
   }
   // Any VIF: 7Eh / FEh
   else if (unit_and_multiplier == 0x7E) {
-    ESP_LOGE(TAG, "Any units not supported.");
+    ESP_LOGV(TAG, "Any units not supported.");
     return "";
   }
   // Manufacturer specific: 7Fh / FFh
@@ -467,7 +474,7 @@ MBusDataType MBusDataRecord::parse_data_type(const MBusDataRecord *record) {
         return MBusDataType::DATE_TIME_32;
       }
       if (unit_and_multiplier == 0xFD) {
-        ESP_LOGE(TAG, "Linear VIF-Extension Data Type is not supported");
+        ESP_LOGV(TAG, "Linear VIF-Extension Data Type is not supported");
         return MBusDataType::NO_DATA;
       }
       return MBusDataType::INT32;
@@ -480,7 +487,7 @@ MBusDataType MBusDataRecord::parse_data_type(const MBusDataRecord *record) {
         return MBusDataType::DATE_TIME_48;
       }
       if (unit_and_multiplier == 0xFD) {
-        ESP_LOGE(TAG, "Linear VIF-Extension Data Type is not supported");
+        ESP_LOGV(TAG, "Linear VIF-Extension Data Type is not supported");
         return MBusDataType::NO_DATA;
       }
       return MBusDataType::INT48;
@@ -488,7 +495,7 @@ MBusDataType MBusDataRecord::parse_data_type(const MBusDataRecord *record) {
     case 0x07:
       return MBusDataType::INT64;
     case 0x08: {
-      ESP_LOGE(TAG, "Selection for Readout Data Type not supported");
+      ESP_LOGV(TAG, "Selection for Readout Data Type not supported");
       return MBusDataType::NO_DATA;
     }
     case 0x09:
@@ -506,12 +513,12 @@ MBusDataType MBusDataRecord::parse_data_type(const MBusDataRecord *record) {
     case 0x0E:
       return MBusDataType::BCD_48;
     case 0x0F: {
-      ESP_LOGE(TAG, "Special Function Data Type not supported");
+      ESP_LOGV(TAG, "Special Function Data Type not supported");
       return MBusDataType::NO_DATA;
     }
   }
 
-  ESP_LOGE(TAG, "Unknow DIF Data Type %d", data_field);
+  ESP_LOGV(TAG, "Unknow DIF Data Type %d", data_field);
   return MBusDataType::NO_DATA;
 }
 

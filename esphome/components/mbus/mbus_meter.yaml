@@ -11,15 +11,15 @@ esphome:
 esp32:
   board: esp32doit-devkit-v1
 
-wifi:
-  domain: ""
-  networks:
-    - ssid: "Vodafone-1ED4"
-      password: "ZzN9k4AdO1Xe"
+# wifi:
+#   domain: ""
+#   networks:
+#     - ssid: "Vodafone-1ED4"
+#       password: "ZzN9k4AdO1Xe"
 
-api:
-  encryption:
-    key: "tBrCD12THOrfDuVOS7egI8eJmJJGJChgV7ysqoBsFug="
+# api:
+#   encryption:
+#     key: "tBrCD12THOrfDuVOS7egI8eJmJJGJChgV7ysqoBsFug="
 
 # Enable logging
 logger:
@@ -43,30 +43,32 @@ uart:
 
 mbus:
   secondary_address: 0x0025426642042002
-  delay: "5s"
-
+  interval: "5s"
 # ---------------------------------------------------------------------------------------
 # debug component
-debug:
-  update_interval: 5s
+# debug:
+#   update_interval: 5s
 
-text_sensor:
-  - platform: debug
-    reset_reason:
-      name: "Reset Reason"
+# text_sensor:
+#   - platform: debug
+#     reset_reason:
+#       name: "Reset Reason"
 
 sensor:
-  - platform: debug
-    free:
-      name: "Heap Free"
-    block:
-      name: "Heap Max Block"
-    # loop_time:
-    #   name: "Loop Time"
+  # - platform: debug
+  #   free:
+  #     name: "Heap Free"
+  #   block:
+  #     name: "Heap Max Block"
+  # loop_time:
+  #   name: "Loop Time"
   # ---------------------------------------------------------------------------------------
   - platform: mbus_sensor
+    data_index: 0
+    factor: 10
     name: "Strom-OG-Verbrauch"
-    icon: "mdi:information"
-    data_index: 1
-    factor: 0.1
     accuracy_decimals: 1
+    device_class: power
+    icon: "mdi:flash"
+    state_class: measurement
+    unit_of_measurement: "Wh"
