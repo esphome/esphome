@@ -34,7 +34,7 @@ std::unique_ptr<MBusFrame> MBusFrameFactory::create_req_ud2_frame() {
   return frame;
 }
 
-std::unique_ptr<MBusFrame> MBusFrameFactory::create_slave_select(uint64_t secondary_address) {
+std::unique_ptr<MBusFrame> MBusFrameFactory::create_select_frame(uint64_t secondary_address) {
   auto frame = make_unique<MBusFrame>(MBUS_FRAME_TYPE_LONG);
 
   frame->control = MBusControlCodes::SND_UD_MASTER;

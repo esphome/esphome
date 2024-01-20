@@ -7,7 +7,7 @@
 namespace esphome {
 namespace mbus {
 
-#define MBUS_FRAME_DATA_LENGTH 252
+static const uint8_t MBUS_FRAME_DATA_LENGTH = 252;
 
 enum MBusFrameType {
   MBUS_FRAME_TYPE_EMPTY = 0x00,

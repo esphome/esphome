@@ -52,7 +52,7 @@ void MBus::scan_primary_addresses_response_handler(MBusCommand *command, const M
   auto mbus = command->mbus;
 
   if (command->step == 0 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
-    ESP_LOGD(TAG, "Found mbus slave with primary address = %.2X.", mbus->primary_address_);
+    ESP_LOGD(TAG, "Found mbus device with primary address = %.2X.", mbus->primary_address_);
     start_scan_secondary_addresses(command->mbus);
     return;
   }
@@ -72,9 +72,9 @@ void MBus::scan_primary_addresses_response_handler(MBusCommand *command, const M
 void MBus::start_scan_secondary_addresses(MBus *mbus) {
   ESP_LOGV(TAG, "start_scan_secondary_addresses");
 
-  // init slaves command
-  auto init_slaves_command = MBusFrameFactory::create_nke_frame(MBusAddresses::NETWORK_LAYER);
-  mbus->protocol_handler_->register_command(*init_slaves_command, scan_secondary_addresses_response_handler, /*step*/ 0,
+  // init command
+  auto init_command = MBusFrameFactory::create_nke_frame(MBusAddresses::NETWORK_LAYER);
+  mbus->protocol_handler_->register_command(*init_command, scan_secondary_addresses_response_handler, /*step*/ 0,
                                             /*delay*/ 0, /*wait_for_response*/ false);
 }
 
@@ -84,17 +84,17 @@ void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const
 
   auto mbus = command->mbus;
 
-  // init slaves command response
+  // init command response
   if (command->step == 0) {
-    ESP_LOGV(TAG, "send slave select command:");
+    ESP_LOGV(TAG, "send device select command:");
     uint64_t mask = 0x0FFFFFFFFFFFFFFF;
-    auto slave_select_command = MBusFrameFactory::create_slave_select(mask);
-    mbus->protocol_handler_->register_command(*slave_select_command, scan_secondary_addresses_response_handler,
+    auto device_select_command = MBusFrameFactory::create_select_frame(mask);
+    mbus->protocol_handler_->register_command(*device_select_command, scan_secondary_addresses_response_handler,
                                               /*step*/ 1);
     return;
   }
 
-  // init slaves OK -> send req_ud2 command
+  // init device OK -> send req_ud2 command
   if (command->step == 1 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
     ESP_LOGV(TAG, "send REQ_UD2 command:");
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
@@ -121,9 +121,9 @@ void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const
 void MBus::start_reading_data(MBus *mbus) {
   ESP_LOGV(TAG, "start_reading_data from secondary_address: 0x%.016llX", mbus->secondary_address_);
 
-  // init slaves command
-  auto init_slaves_command = MBusFrameFactory::create_nke_frame(MBusAddresses::NETWORK_LAYER);
-  mbus->protocol_handler_->register_command(*init_slaves_command, reading_data_response_handler, /*step*/ 0,
+  // init device command
+  auto init_device_command = MBusFrameFactory::create_nke_frame(MBusAddresses::NETWORK_LAYER);
+  mbus->protocol_handler_->register_command(*init_device_command, reading_data_response_handler, /*step*/ 0,
                                             /*delay*/ 1000, /*wait_for_response*/ false);
 }
 
@@ -131,11 +131,11 @@ void MBus::reading_data_response_handler(MBusCommand *command, const MBusFrame &
   ESP_LOGV(TAG, "reading_data_response_handler. step = %d, frame_type = %d", command->step, response.frame_type);
 
   auto mbus = command->mbus;
-  // select slave by secondary address
+  // select device by secondary address
   if (command->step == 0) {
-    ESP_LOGV(TAG, "send slave select command:");
-    auto slave_select_command = MBusFrameFactory::create_slave_select(mbus->secondary_address_);
-    mbus->protocol_handler_->register_command(*slave_select_command, reading_data_response_handler,
+    ESP_LOGV(TAG, "send device select command:");
+    auto device_select_command = MBusFrameFactory::create_select_frame(mbus->secondary_address_);
+    mbus->protocol_handler_->register_command(*device_select_command, reading_data_response_handler,
                                               /*step*/ 1);
     return;
   }

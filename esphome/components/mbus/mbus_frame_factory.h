@@ -13,7 +13,7 @@ class MBusFrameFactory {
   static std::unique_ptr<MBusFrame> create_empty_frame();
   static std::unique_ptr<MBusFrame> create_nke_frame(uint8_t primary_address);
   static std::unique_ptr<MBusFrame> create_req_ud2_frame();
-  static std::unique_ptr<MBusFrame> create_slave_select(uint64_t secondary_address);
+  static std::unique_ptr<MBusFrame> create_select_frame(uint64_t secondary_address);
 
   // response frames
   static std::unique_ptr<MBusFrame> create_ack_frame();
