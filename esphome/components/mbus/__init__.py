@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
+from esphome.const import CONF_INTERVAL
 
 CODEOWNERS = ["@MarkusSchneider"]
 DEPENDENCIES = ["uart"]
@@ -11,7 +12,6 @@ MULTI_CONF = False
 
 CONF_MBUS_ID = "mbus_id"
 CONF_SECONDARY_ADDRESS = "secondary_address"
-CONF_INTERVAL = "interval"
 
 CONFIG_SCHEMA = (
     cv.Schema(
