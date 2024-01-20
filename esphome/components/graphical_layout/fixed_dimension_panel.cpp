@@ -32,12 +32,15 @@ display::Rect FixedDimensionPanel::measure_item_internal(display::Display *displ
   // Call measure_child so they can do any measurements
   display::Rect child_size = this->child_->measure_item(display);
   display::Rect rect(0, 0, this->width_.value(), this->height_.value());
+  display::Point origin_in_global = display->get_local_coordinates();
 
   if (rect.w < 0) {
     if (this->unset_width_uses_display_width_) {
       rect.w = display->get_width();
       // We need to account for our own padding + margin + border
       rect.w -= this->margin_.horizontal() + this->border_.horizontal() + this->padding_.horizontal();
+      // Account for where we sit within the display
+      rect.w -= origin_in_global.x;
     } else {
       rect.w = child_size.w;
     }
@@ -48,6 +51,8 @@ display::Rect FixedDimensionPanel::measure_item_internal(display::Display *displ
       rect.h = display->get_height();
       // We need to account for our own padding + margin + border
       rect.h -= this->margin_.vertical() + this->border_.vertical() + this->padding_.vertical();
+      // Account for where we sit within the display
+      rect.h -= origin_in_global.y;
     } else {
       rect.h = child_size.h;
     }
