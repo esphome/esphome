@@ -120,7 +120,7 @@ void LTR303Component::loop() {
       break;
 
     case State::WAITING_FOR_DATA:
-      if (this->is_data_ready(this->readings_) == DataAvail::DATA_OK) {
+      if (this->is_data_ready_(this->readings_) == DataAvail::DATA_OK) {
         tries = 0;
         ESP_LOGD(TAG, "Reading sensor data having gain = %.0fx, time = %d ms",
                  get_gain_coeff(this->readings_.actual_gain), get_itime_ms(this->readings_.integration_time));
@@ -222,7 +222,7 @@ void LTR303Component::configure_integration_time_(IntegrationTime time) {
   delay(2);
 }
 
-DataAvail LTR303Component::is_data_ready(Readings &data) {
+DataAvail LTR303Component::is_data_ready_(Readings &data) {
   StatusRegister als_status{0};
 
   als_status.raw = this->reg(CommandRegisters::CR_ALS_STATUS).get();
