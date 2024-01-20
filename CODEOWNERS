@@ -108,6 +108,7 @@ esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/ethernet_info/* @gtjadsonsantos
 esphome/components/exposure_notifications/* @OttoWinter
+esphome/components/external_eeprom/* @pebblebed-tech
 esphome/components/ezo/* @ssieb
 esphome/components/ezo_pmp/* @carlos-sarmiento
 esphome/components/factory_reset/* @anatoly-savchenkov

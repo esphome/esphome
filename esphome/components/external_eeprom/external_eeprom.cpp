@@ -254,7 +254,7 @@ void ExtEepromComponent::write(uint32_t memaddr, uint8_t *data_to_write, uint16_
     size -= amt_to_write;
     ESP_LOGVV(TAG, "After write size %d amt  %d add %d", size, amt_to_write, memaddr);
     delay(this->memory_page_write_time_ms_);  /// Delay the amount of time to record a page
-    }
+  }
 }
 
 /// @brief Write a std::string to the device
