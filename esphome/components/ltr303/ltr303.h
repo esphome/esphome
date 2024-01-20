@@ -156,7 +156,7 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   void configure_reset_and_activate_();
   void configure_integration_time_(IntegrationTime time);
   void configure_gain_(Gain gain);
-  DataAvail is_data_ready(Readings &data);
+  DataAvail is_data_ready_(Readings &data);
   void read_sensor_data_(Readings &data);
   bool are_adjustments_required_(Readings &data);
   void apply_lux_calculation_(Readings &data);
