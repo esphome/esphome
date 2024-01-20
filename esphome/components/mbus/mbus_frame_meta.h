@@ -14,8 +14,8 @@ class MBusAddresses {
 class MBusControlCodes {
  public:
   static const uint8_t SND_NKE = 0x40;
-  static const uint8_t SND_UD_SLAVE = 0x53;
-  static const uint8_t SND_UD_MASTER = 0x73;
+  static const uint8_t SND_UD_DEVICE = 0x53;
+  static const uint8_t SND_UD_CONTROLLER = 0x73;
   static const uint8_t REQ_UD1 = 0x5A;
   static const uint8_t REQ_UD2 = 0x5B;
   static const uint8_t RSP_UD = 0x08;
@@ -23,7 +23,7 @@ class MBusControlCodes {
 
 class MBusControlInformationCodes {
  public:
-  static const uint8_t SELECTION_OF_SLAVES_MODE1 = 0x52;
+  static const uint8_t SELECTION_OF_DEVICES_MODE1 = 0x52;
   static const uint8_t VARIABLE_DATA_RESPONSE_MODE1 = 0x72;
 };
 class MBusFrameMeta {

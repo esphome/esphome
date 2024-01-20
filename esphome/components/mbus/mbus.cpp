@@ -41,7 +41,7 @@ void MBus::start_scan_primary_addresses(MBus *mbus) {
   ESP_LOGV(TAG, "start_scan_primary_addresses: %.2X", mbus->primary_address_);
 
   // MBus spec states to send REQ_UD2 but sending init-frame is much faster
-  // see Chapter 7.3 Searching for Installed Slaves -> Primary Addresses
+  // see Chapter 7.3 Primary Addresses
   auto scan_primary_command = MBusFrameFactory::create_nke_frame(mbus->primary_address_);
   mbus->protocol_handler_->register_command(*scan_primary_command, scan_primary_addresses_response_handler,
                                             /*step*/ 0, /*delay*/ 1000);
