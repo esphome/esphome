@@ -11,30 +11,21 @@ esphome:
 esp32:
   board: esp32doit-devkit-v1
 
-# ---------------------------------------------------------------------------------------
-# debug component
-# debug:
-#   update_interval: 5s
+wifi:
+  domain: ""
+  networks:
+    - ssid: "Vodafone-1ED4"
+      password: "ZzN9k4AdO1Xe"
 
-# text_sensor:
-#   - platform: debug
-#     reset_reason:
-#       name: "Reset Reason"
-
-# sensor:
-#   - platform: debug
-#     free:
-#       name: "Heap Free"
-#     block:
-#       name: "Heap Max Block"
-#     # loop_time:
-#     #   name: "Loop Time"
-# ---------------------------------------------------------------------------------------
+api:
+  encryption:
+    key: "tBrCD12THOrfDuVOS7egI8eJmJJGJChgV7ysqoBsFug="
 
 # Enable logging
 logger:
   tx_buffer_size: 1024
-  level: VERBOSE
+  level: DEBUG
+  # level: VERBOSE
   # level: VERY_VERBOSE
 
 # api: !include _api.yaml
@@ -54,8 +45,28 @@ mbus:
   secondary_address: 0x0025426642042002
   delay: "5s"
 
+# ---------------------------------------------------------------------------------------
+# debug component
+debug:
+  update_interval: 5s
+
+text_sensor:
+  - platform: debug
+    reset_reason:
+      name: "Reset Reason"
+
 sensor:
-  - name: "A+"
-    platform: mbus_sensor
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Heap Max Block"
+    # loop_time:
+    #   name: "Loop Time"
+  # ---------------------------------------------------------------------------------------
+  - platform: mbus_sensor
+    name: "Strom-OG-Verbrauch"
     icon: "mdi:information"
     data_index: 1
+    factor: 0.1
+    accuracy_decimals: 1

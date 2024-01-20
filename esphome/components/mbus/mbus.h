@@ -18,7 +18,7 @@ class MBus : public uart::UARTDevice, public Component {
   float get_setup_priority() const override;
   void set_secondary_address(uint64_t secondary_address) { this->secondary_address_ = secondary_address; };
   void set_delay(uint16_t delay) { this->delay_ = delay; };
-  void add_sensor(const mbus_sensor::MBusSensor *sensor) { this->sensors_.push_back(sensor); }
+  void add_sensor(mbus_sensor::MBusSensor *sensor) { this->sensors_.push_back(sensor); }
 
   MBus() {
     this->serialAdapter_ = new SerialAdapter(this);
@@ -42,7 +42,7 @@ class MBus : public uart::UARTDevice, public Component {
 
   MBusProtocolHandler *protocol_handler_{nullptr};
   SerialAdapter *serialAdapter_{nullptr};
-  std::vector<const mbus_sensor::MBusSensor *> sensors_;
+  std::vector<mbus_sensor::MBusSensor *> sensors_;
 
   static void start_scan_primary_addresses(MBus *mbus);
   static void scan_primary_addresses_response_handler(MBusCommand *command, const MBusFrame &response);

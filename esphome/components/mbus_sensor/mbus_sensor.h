@@ -13,7 +13,7 @@ class MBusSensor : public Component, public sensor::Sensor {
     this->factor_ = factor;
   }
 
-  // void publish(const mbus::MBusValue &value);
+  void publish(const std::unique_ptr<mbus::MBusValue> &value);
   int8_t get_data_index() const { return this->data_index_; };
   float get_factor() const { return this->factor_; };
 

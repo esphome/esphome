@@ -270,7 +270,7 @@ void MBusDataVariable::dump() const {
 }
 
 std::unique_ptr<MBusValue> MBusDataRecord::parse(const uint8_t id) {
-  auto mbus_value = new MBusValue();
+  auto mbus_value = make_unique<MBusValue>();
 
   mbus_value->id = id;
   mbus_value->tariff = parse_tariff(this);
@@ -281,8 +281,7 @@ std::unique_ptr<MBusValue> MBusDataRecord::parse(const uint8_t id) {
   mbus_value->data_type = data_type;
   mbus_value->value = parse_value(this, data_type);
 
-  std::unique_ptr<MBusValue> value_ptr(mbus_value);
-  return value_ptr;
+  return mbus_value;
 }
 
 uint32_t MBusDataRecord::parse_tariff(const MBusDataRecord *record) {
@@ -439,6 +438,8 @@ std::string MBusDataRecord::parse_date_time_unit(const uint8_t exponent) {
     case 0b11:
       return "days";
   }
+
+  return "";
 }
 
 MBusDataType MBusDataRecord::parse_data_type(const MBusDataRecord *record) {
@@ -499,7 +500,7 @@ MBusDataType MBusDataRecord::parse_data_type(const MBusDataRecord *record) {
     case 0x0C:
       return MBusDataType::BCD_32;
     case 0x0D: {
-      ESP_LOGE(TAG, "Variable Length Data Type not supported");
+      ESP_LOGV(TAG, "Variable Length Data Type not supported");
       return MBusDataType::NO_DATA;
     }
     case 0x0E:
@@ -533,7 +534,7 @@ float MBusDataRecord::parse_value(const MBusDataRecord *record, const MBusDataTy
     case MBusDataType::INT8:
     case MBusDataType::FLOAT:
     default:
-      ESP_LOGE(TAG, "Unsupported data type '%d'", data_type);
+      ESP_LOGV(TAG, "Unsupported data type '%d'", data_type);
       return 0;
   }
   return 0;

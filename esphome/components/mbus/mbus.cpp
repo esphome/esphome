@@ -79,13 +79,15 @@ void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const
   ESP_LOGV(TAG, "scan_secondary_addresses_response_handler. step = %d, frame_type = %d", command->step,
            response.frame_type);
 
+  auto mbus = command->mbus;
+
   // init slaves command response
   if (command->step == 0) {
     ESP_LOGV(TAG, "send slave select command:");
     uint64_t mask = 0x0FFFFFFFFFFFFFFF;
     auto slave_select_command = MBusFrameFactory::create_slave_select(mask);
-    command->mbus->protocol_handler_->register_command(*slave_select_command, scan_secondary_addresses_response_handler,
-                                                       /*step*/ 1);
+    mbus->protocol_handler_->register_command(*slave_select_command, scan_secondary_addresses_response_handler,
+                                              /*step*/ 1);
     return;
   }
 
@@ -93,8 +95,8 @@ void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const
   if (command->step == 1 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
     ESP_LOGV(TAG, "send REQ_UD2 command:");
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
-    command->mbus->protocol_handler_->register_command(*req_ud2_command, scan_secondary_addresses_response_handler,
-                                                       /*step*/ 2);
+    mbus->protocol_handler_->register_command(*req_ud2_command, scan_secondary_addresses_response_handler,
+                                              /*step*/ 2);
     return;
   }
 
@@ -125,36 +127,55 @@ void MBus::reading_data_response_handler(MBusCommand *command, const MBusFrame &
   ESP_LOGI(TAG, "reading_data_response_handler. step = %d, frame_type = %d", command->step, response.frame_type);
 
   auto mbus = command->mbus;
-  // init slaves command response #1
+  // select slave by secondary address
   if (command->step == 0) {
     ESP_LOGV(TAG, "send slave select command:");
     auto slave_select_command = MBusFrameFactory::create_slave_select(mbus->secondary_address_);
-    command->mbus->protocol_handler_->register_command(*slave_select_command, reading_data_response_handler,
-                                                       /*step*/ 1);
+    mbus->protocol_handler_->register_command(*slave_select_command, reading_data_response_handler,
+                                              /*step*/ 1);
     return;
   }
 
+  // create read data request #1
   if (command->step == 1 && (response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK)) {
-    ESP_LOGV(TAG, "send REQ_UD2 command:");
+    ESP_LOGV(TAG, "send REQ_UD2 command #1:");
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
-    command->mbus->protocol_handler_->register_command(*req_ud2_command, reading_data_response_handler,
-                                                       /*step*/ 2);
+    mbus->protocol_handler_->register_command(*req_ud2_command, reading_data_response_handler,
+                                              /*step*/ 2);
     return;
   }
 
+  // create read data request #2
   if (command->step == 2 && (response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK ||
                              response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_LONG)) {
-    ESP_LOGV(TAG, "send REQ_UD2 command:");
+    ESP_LOGV(TAG, "send REQ_UD2 command #2:");
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
-    command->mbus->protocol_handler_->register_command(*req_ud2_command, reading_data_response_handler,
-                                                       /*step*/ 3);
+    mbus->protocol_handler_->register_command(*req_ud2_command, reading_data_response_handler,
+                                              /*step*/ 3);
     return;
   }
 
+  // parse response and send read data request (loop)
   if (command->step == 3) {
+    if (response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_LONG && mbus->sensors_.size() > 0 &&
+        response.variable_data && response.variable_data->records.size() > 0) {
+      auto data_size = response.variable_data->records.size();
+      for (auto index = 0; index < mbus->sensors_.size(); index++) {
+        auto sensor = mbus->sensors_.at(index);
+        auto data_index = sensor->get_data_index();
+        if (data_index >= data_size) {
+          continue;
+        }
+
+        auto record = response.variable_data->records.at(data_index);
+        auto value = record.parse(data_index);
+        sensor->publish(value);
+      }
+    }
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
-    command->mbus->protocol_handler_->register_command(*req_ud2_command, reading_data_response_handler,
-                                                       /*step*/ 3, /*delay*/ mbus->delay_ * 1000);
+    mbus->protocol_handler_->register_command(*req_ud2_command, reading_data_response_handler,
+                                              /*step*/ 3, /*delay*/ mbus->delay_ * 1000);
+
     return;
   }
 
