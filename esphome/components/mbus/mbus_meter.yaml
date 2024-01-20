@@ -11,15 +11,15 @@ esphome:
 esp32:
   board: esp32doit-devkit-v1
 
-# wifi:
-#   domain: ""
-#   networks:
-#     - ssid: "Vodafone-1ED4"
-#       password: "ZzN9k4AdO1Xe"
+wifi:
+  domain: ""
+  networks:
+    - ssid: "Vodafone-1ED4"
+      password: "ZzN9k4AdO1Xe"
 
-# api:
-#   encryption:
-#     key: "tBrCD12THOrfDuVOS7egI8eJmJJGJChgV7ysqoBsFug="
+api:
+  encryption:
+    key: "tBrCD12THOrfDuVOS7egI8eJmJJGJChgV7ysqoBsFug="
 
 # Enable logging
 logger:

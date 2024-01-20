@@ -32,7 +32,7 @@ void MBusProtocolHandler::loop() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     frame->dump();
 #endif
-    this->send(*frame);
+    this->send_(*frame);
 
     this->waiting_for_response_ = true;
     this->timestamp_ = now;
@@ -52,11 +52,11 @@ void MBusProtocolHandler::loop() {
         command->response_handler(command, *frame);
       }
 
-      delete_first_command();
+      delete_first_command_();
       return;
     }
 
-    if ((now - this->timestamp_) > this->rx_timeout) {
+    if ((now - this->timestamp_) > this->RX_TIMEOUT) {
       ESP_LOGW(TAG, "M-Bus data: Timeout");
 
       if (command->response_handler != nullptr) {
@@ -64,23 +64,23 @@ void MBusProtocolHandler::loop() {
         command->response_handler(command, *frame);
       }
 
-      delete_first_command();
+      delete_first_command_();
       return;  // rx timeout
     }
 
-    auto rx_status = this->receive();
+    auto rx_status = this->receive_();
 
     // Stop Bit received
     if (rx_status == 1) {
       if (command->response_handler != nullptr) {
-        auto frame = this->parse_response();
+        auto frame = this->parse_response_();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
         frame->dump();
 #endif
         command->response_handler(command, *frame);
       }
 
-      delete_first_command();
+      delete_first_command_();
       return;
     }
 
@@ -95,7 +95,7 @@ void MBusProtocolHandler::loop() {
   }
 }
 
-void MBusProtocolHandler::delete_first_command() {
+void MBusProtocolHandler::delete_first_command_() {
   auto command = this->commands_.front();
 
   delete command;
@@ -106,7 +106,7 @@ void MBusProtocolHandler::delete_first_command() {
   this->rx_buffer_.clear();
 }
 
-int8_t MBusProtocolHandler::send(MBusFrame &frame) {
+int8_t MBusProtocolHandler::send_(MBusFrame &frame) {
   this->rx_buffer_.clear();
 
   uint8_t payload_size = 0;
@@ -138,7 +138,7 @@ int8_t MBusProtocolHandler::send(MBusFrame &frame) {
 }
 
 /// @return 0 if more data needed, 1 if frame is completed, -1 if response timed out
-int8_t MBusProtocolHandler::receive() {
+int8_t MBusProtocolHandler::receive_() {
   auto rx_status = this->networkAdapter_->receive(this->rx_buffer_);
 
   if (rx_status == 0) {
@@ -159,7 +159,7 @@ int8_t MBusProtocolHandler::receive() {
   return 0;
 }
 
-std::unique_ptr<MBusFrame> MBusProtocolHandler::parse_response() {
+std::unique_ptr<MBusFrame> MBusProtocolHandler::parse_response_() {
   if (this->rx_buffer_.size() <= 0) {
     return nullptr;
   }
@@ -244,7 +244,7 @@ std::unique_ptr<MBusFrame> MBusProtocolHandler::parse_response() {
         MBusFrameFactory::create_long_frame(this->rx_buffer_.at(4), this->rx_buffer_.at(5), this->rx_buffer_.at(6),
                                             data, this->rx_buffer_.at(this->rx_buffer_.size() - 2));
     if (frame->control_information == MBusControlInformationCodes::VARIABLE_DATA_RESPONSE_MODE1) {
-      frame->variable_data = parse_variable_data_response(frame->data);
+      frame->variable_data = parse_variable_data_response_(frame->data);
     }
 
     return frame;
@@ -257,7 +257,7 @@ std::unique_ptr<MBusFrame> MBusProtocolHandler::parse_response() {
 // | Fixed Data Header | Variable Data Blocks (Records) |  MDH   |  Mfg.specific data |
 // |     12 Byte       |        variable number         | 1 Byte |    variable number |
 // ------------------------------------------------------------------------------------
-std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_response(std::vector<uint8_t> data) {
+std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_response_(std::vector<uint8_t> data) {
   auto response = new MBusDataVariable();
   if (data.size() < 12) {
     ESP_LOGE(TAG, "Variable Data Header less than 12 byte: %d", data.size());
@@ -337,7 +337,7 @@ std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_respo
     }
     it++;
 
-    auto data_len = get_dif_datalength(record.drh.dib.dif, it);
+    auto data_len = get_dif_datalength_(record.drh.dib.dif, it);
     record.data.insert(record.data.begin(), it, it + data_len);
     it = it + data_len;
 
@@ -348,7 +348,7 @@ std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_respo
   return response_ptr;
 }
 
-int8_t MBusProtocolHandler::get_dif_datalength(const uint8_t dif, std::vector<uint8_t>::iterator &it) {
+int8_t MBusProtocolHandler::get_dif_datalength_(uint8_t dif, std::vector<uint8_t>::iterator &it) {
   static const uint8_t DIF_DATA_LENGTH_MASK = 0x0F;
   switch (dif & DIF_DATA_LENGTH_MASK) {
     case 0x0:

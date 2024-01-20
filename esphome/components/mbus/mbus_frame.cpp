@@ -281,18 +281,18 @@ std::unique_ptr<MBusValue> MBusDataRecord::parse(const uint8_t id) {
   auto mbus_value = make_unique<MBusValue>();
 
   mbus_value->id = id;
-  mbus_value->tariff = parse_tariff(this);
-  mbus_value->function = parse_function(this);
-  mbus_value->unit = parse_unit(this);
+  mbus_value->tariff = parse_tariff_(this);
+  mbus_value->function = parse_function_(this);
+  mbus_value->unit = parse_unit_(this);
 
-  auto data_type = parse_data_type(this);
+  auto data_type = parse_data_type_(this);
   mbus_value->data_type = data_type;
-  mbus_value->value = parse_value(this, data_type);
+  mbus_value->value = parse_value_(this, data_type);
 
   return mbus_value;
 }
 
-uint32_t MBusDataRecord::parse_tariff(const MBusDataRecord *record) {
+uint32_t MBusDataRecord::parse_tariff_(const MBusDataRecord *record) {
   int bit_index = 0;
   long result = 0;
   int i;
@@ -310,7 +310,7 @@ uint32_t MBusDataRecord::parse_tariff(const MBusDataRecord *record) {
   return -1;
 }
 
-std::string MBusDataRecord::parse_function(const MBusDataRecord *record) {
+std::string MBusDataRecord::parse_function_(const MBusDataRecord *record) {
   if (record) {
     switch (record->drh.dib.dif & MBusDataDifMask::FUNCTION) {
       case 0x00:
@@ -334,7 +334,7 @@ std::string MBusDataRecord::parse_function(const MBusDataRecord *record) {
   return "record is null";
 }
 
-std::string MBusDataRecord::parse_unit(const MBusDataRecord *record) {
+std::string MBusDataRecord::parse_unit_(const MBusDataRecord *record) {
   auto vib = &(record->drh.vib);
   auto vibe_size = vib->vife.size();
   auto unit_and_multiplier = vib->vif & MBusDataVifMask::UNIT_AND_MULTIPLIER;
@@ -358,7 +358,7 @@ std::string MBusDataRecord::parse_unit(const MBusDataRecord *record) {
       case 0b0011:
         return str_sprintf("Mass (10^%d kg)", exponent - 3);
       case 0b0100: {
-        auto data_time_unit = parse_date_time_unit(exponent);
+        auto data_time_unit = parse_date_time_unit_(exponent);
         if ((exponent & 0b100) == 0) {
           return str_sprintf("Time (%s)", data_time_unit.c_str());
         }
@@ -405,7 +405,7 @@ std::string MBusDataRecord::parse_unit(const MBusDataRecord *record) {
         }
       }
       case 0b1110: {
-        auto data_time_unit = parse_date_time_unit(exponent);
+        auto data_time_unit = parse_date_time_unit_(exponent);
         switch (exponent & 0b100) {
           case 0b000:
             return str_sprintf("Averaging Duration (%s)", data_time_unit.c_str());
@@ -435,7 +435,7 @@ std::string MBusDataRecord::parse_unit(const MBusDataRecord *record) {
   return "";
 }
 
-std::string MBusDataRecord::parse_date_time_unit(const uint8_t exponent) {
+std::string MBusDataRecord::parse_date_time_unit_(const uint8_t exponent) {
   switch (exponent) {
     case 0b00:
       return "seconds";
@@ -450,7 +450,7 @@ std::string MBusDataRecord::parse_date_time_unit(const uint8_t exponent) {
   return "";
 }
 
-MBusDataType MBusDataRecord::parse_data_type(const MBusDataRecord *record) {
+MBusDataType MBusDataRecord::parse_data_type_(const MBusDataRecord *record) {
   // 6.3.2 Table 5
   auto data_field = record->drh.dib.dif & MBusDataDifMask::DATA_CODING;
   auto unit_and_multiplier = record->drh.vib.vif & MBusDataVifMask::UNIT_AND_MULTIPLIER;
@@ -523,7 +523,7 @@ MBusDataType MBusDataRecord::parse_data_type(const MBusDataRecord *record) {
   return MBusDataType::NO_DATA;
 }
 
-float MBusDataRecord::parse_value(const MBusDataRecord *record, const MBusDataType &data_type) {
+float MBusDataRecord::parse_value_(const MBusDataRecord *record, const MBusDataType &data_type) {
   switch (data_type) {
     case MBusDataType::BCD_8:
       return (uint8_t) MBusDecoder::decode_bcd_int(record->data);

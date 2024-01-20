@@ -21,14 +21,14 @@ class MBus : public uart::UARTDevice, public Component {
   void add_sensor(MBusSensorBase *sensor) { this->sensors_.push_back(sensor); }
 
   MBus() {
-    this->serialAdapter_ = new SerialAdapter(this);
-    this->protocol_handler_ = new MBusProtocolHandler(this, this->serialAdapter_);
+    this->serial_adapter_ = new SerialAdapter(this);
+    this->protocol_handler_ = new MBusProtocolHandler(this, this->serial_adapter_);
   }
 
   ~MBus() {
-    if (this->serialAdapter_ != nullptr) {
-      delete this->serialAdapter_;
-      this->serialAdapter_ = nullptr;
+    if (this->serial_adapter_ != nullptr) {
+      delete this->serial_adapter_;
+      this->serial_adapter_ = nullptr;
     }
     if (this->protocol_handler_ != nullptr) {
       delete this->protocol_handler_;
@@ -42,7 +42,7 @@ class MBus : public uart::UARTDevice, public Component {
   uint16_t interval_{1};
 
   MBusProtocolHandler *protocol_handler_{nullptr};
-  SerialAdapter *serialAdapter_{nullptr};
+  SerialAdapter *serial_adapter_{nullptr};
   std::vector<MBusSensorBase *> sensors_;
 
   static void start_scan_primary_addresses(MBus *mbus);

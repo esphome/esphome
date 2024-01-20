@@ -125,16 +125,16 @@ class MBusDataRecord {
   MBusDataRecordHeader drh;
   std::vector<uint8_t> data;
 
-  std::unique_ptr<MBusValue> parse(const uint8_t id);
+  std::unique_ptr<MBusValue> parse(uint8_t id);
   // void *next;
 
  protected:
-  uint32_t parse_tariff(const MBusDataRecord *record);
-  std::string parse_function(const MBusDataRecord *record);
-  std::string parse_unit(const MBusDataRecord *record);
-  std::string parse_date_time_unit(const uint8_t exponent);
-  MBusDataType parse_data_type(const MBusDataRecord *record);
-  float parse_value(const MBusDataRecord *record, const MBusDataType &data_type);
+  uint32_t parse_tariff_(const MBusDataRecord *record);
+  std::string parse_function_(const MBusDataRecord *record);
+  std::string parse_unit_(const MBusDataRecord *record);
+  std::string parse_date_time_unit_(uint8_t exponent);
+  MBusDataType parse_data_type_(const MBusDataRecord *record);
+  float parse_value_(const MBusDataRecord *record, const MBusDataType &data_type);
 };
 
 // Ident.Nr.   Manufr. Version Medium Access No. Status  Signature

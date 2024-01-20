@@ -1,8 +1,8 @@
 #pragma once
 
-#include "stdint.h"
-#include <vector>
 #include "esphome/components/uart/uart.h"
+#include <cstdint>
+#include <vector>
 
 namespace esphome {
 namespace mbus {

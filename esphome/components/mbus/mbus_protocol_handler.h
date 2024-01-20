@@ -4,7 +4,7 @@
 #include <memory>
 #include <vector>
 
-#include "stdint.h"
+#include <cstdint>
 
 #include "mbus_frame.h"
 #include "esphome/components/mbus/network_adapter.h"
@@ -17,9 +17,9 @@ class MBusCommand;
 
 class MBusProtocolHandler {
  public:
-  static const uint32_t rx_timeout{1000};
+  static const uint32_t RX_TIMEOUT{1000};
 
-  MBusProtocolHandler(MBus *mbus, INetworkAdapter *networkAdapter) : mbus_(mbus), networkAdapter_(networkAdapter) {}
+  MBusProtocolHandler(MBus *mbus, INetworkAdapter *networkAdapter) : networkAdapter_(networkAdapter), mbus_(mbus) {}
 
   void loop();
   void register_command(MBusFrame &command, void (*response_handler)(MBusCommand *command, const MBusFrame &response),
@@ -27,16 +27,16 @@ class MBusProtocolHandler {
 
  protected:
   // Communication
-  int8_t receive();
-  int8_t send(MBusFrame &frame);
+  int8_t receive_();
+  int8_t send_(MBusFrame &frame);
 
   // Parsing
-  std::unique_ptr<MBusFrame> parse_response();
-  std::unique_ptr<MBusDataVariable> parse_variable_data_response(std::vector<uint8_t> data);
-  int8_t get_dif_datalength(const uint8_t dif, std::vector<uint8_t>::iterator &it);
+  std::unique_ptr<MBusFrame> parse_response_();
+  std::unique_ptr<MBusDataVariable> parse_variable_data_response_(std::vector<uint8_t> data);
+  int8_t get_dif_datalength_(uint8_t dif, std::vector<uint8_t>::iterator &it);
 
   // Helper
-  void delete_first_command();
+  void delete_first_command_();
 
   INetworkAdapter *networkAdapter_{nullptr};
   MBus *mbus_{nullptr};
