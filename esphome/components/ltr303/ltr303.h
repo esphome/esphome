@@ -54,8 +54,6 @@ enum MeasurementRepeatRate {
   REPEAT_RATE_2000MS = 5
 };
 
-#pragma pack(push)
-#pragma pack(1)
 //
 // ALS_CONTR Register (0x80)
 //
@@ -66,7 +64,7 @@ union ControlRegister {
     bool sw_reset : 1;
     Gain gain : 3;
     uint8_t reserved : 3;
-  };
+  } __attribute__((packed));
 };
 
 //
@@ -79,7 +77,7 @@ union MeasurementRateRegister {
     IntegrationTime integration_time : 3;
     bool reserved_6 : 1;
     bool reserved_7 : 1;
-  };
+  } __attribute__((packed));
 };
 
 //
@@ -94,21 +92,29 @@ union StatusRegister {
     bool reserved_3 : 1;
     Gain gain : 3;
     bool data_invalid : 1;
-  };
+  } __attribute__((packed));
 };
-#pragma pack(pop)
+
+enum DataAvail : uint8_t { NO_DATA, BAD_DATA, DATA_OK };
 
 class LTR303Component : public PollingComponent, public i2c::I2CDevice {
  public:
+  //
+  // EspHome framework functions
+  //
   float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override;
+  void loop() override;
 
+  //
+  // Configuration setters
+  //
   void set_gain(Gain gain) { this->gain_ = gain; }
   void set_integration_time(IntegrationTime time) { this->integration_time_ = time; }
   void set_repeat_rate(MeasurementRepeatRate rate) { this->repeat_rate_ = rate; }
-  void set_attenuation_factor(float factor) { this->attenuation_factor_ = factor; }
+  void set_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
   void set_enable_automatic_mode(bool enable) { this->automatic_mode_enabled_ = enable; }
 
   void set_ambient_light_sensor(sensor::Sensor *sensor) { this->ambient_light_sensor_ = sensor; }
@@ -118,42 +124,61 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   void set_actual_integration_time_sensor(sensor::Sensor *sensor) { this->actual_integration_time_sensor_ = sensor; }
 
  protected:
-  void reset_();
-  void activate_();
-  void configure_integration_time_(IntegrationTime time);
-  void configure_gain_(Gain gain);
+  //
+  // Internal state machine, used to split all the actions into
+  // small steps in loop() to make sure we are not blocking execution
+  //
+  enum State : uint8_t {
+    NOT_INITIALIZED,
+    DELAYED_SETUP,
+    IDLE,
+    WAITING_FOR_DATA,
+    COLLECTING_DATA_AUTO,
+    DATA_COLLECTED,
+    ADJUSTMENT_IN_PROGRESS,
+    READY_TO_PUBLISH
+  } state_{State::NOT_INITIALIZED};
 
-  bool read_data_();
-
+  //
+  // Current measurements data
+  //
   struct Readings {
     uint16_t ch0{0};
     uint16_t ch1{0};
-    Gain gain{Gain::GAIN_1};
+    Gain actual_gain{Gain::GAIN_1};
     IntegrationTime integration_time{IntegrationTime::INTEGRATION_TIME_100MS};
-  };
+    float lux{0.0f};
+  } readings_;
 
-  bool read_data_manual_(Readings &data);
-  bool read_data_automatic_(Readings &data);
-  bool read_sensor_data_(Readings &data);
-  bool data_ready_(Readings &data);
+  //
+  // Device interaction and data manipulation
+  //
+  void configure_reset_and_activate_();
+  void configure_integration_time_(IntegrationTime time);
+  void configure_gain_(Gain gain);
+  DataAvail is_data_ready(Readings &data);
+  void read_sensor_data_(Readings &data);
+  bool are_adjustments_required_(Readings &data);
+  void apply_lux_calculation_(Readings &data);
+  void publish_data_(Readings &data);
 
-  float calculate_lux_(Readings &data);
-
-  bool reading_data_{false};
+  //
+  // Component configuration
+  //
   bool automatic_mode_enabled_{true};
-
   Gain gain_{Gain::GAIN_1};
   IntegrationTime integration_time_{IntegrationTime::INTEGRATION_TIME_100MS};
   MeasurementRepeatRate repeat_rate_{MeasurementRepeatRate::REPEAT_RATE_500MS};
-  float attenuation_factor_{1.0};
+  float glass_attenuation_factor_{1.0};
 
+  //
+  //   Sensors for publishing data
+  //
   sensor::Sensor *infrared_counts_sensor_{nullptr};          // direct reading CH1, infrared only
   sensor::Sensor *full_spectrum_counts_sensor_{nullptr};     // direct reading CH0, infrared + visible light
   sensor::Sensor *ambient_light_sensor_{nullptr};            // calculated lux
   sensor::Sensor *actual_gain_sensor_{nullptr};              // actual gain of reading
   sensor::Sensor *actual_integration_time_sensor_{nullptr};  // actual integration time
-
-  //  enum ErrorCode { NONE = 0, COMMUNICATION_FAILED } error_code_{NONE};
 };
 
 }  // namespace ltr303
