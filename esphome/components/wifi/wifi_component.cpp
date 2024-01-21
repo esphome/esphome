@@ -55,6 +55,9 @@ void WiFiComponent::start() {
   uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
+  if (this->fast_connect_) {
+    this->fast_connect_pref_ = global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash, false);
+  }
 
   SavedWifiSettings save{};
   if (this->pref_.load(&save)) {
@@ -78,6 +81,7 @@ void WiFiComponent::start() {
 
     if (this->fast_connect_) {
       this->selected_ap_ = this->sta_[0];
+      this->load_fast_connect_settings_();
       this->start_connecting(this->selected_ap_, false);
     } else {
       this->start_scanning();
@@ -604,6 +608,11 @@ void WiFiComponent::check_connecting_finished() {
 
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
+
+    if (this->fast_connect_) {
+      this->save_fast_connect_settings_();
+    }
+
     return;
   }
 
@@ -703,6 +712,35 @@ bool WiFiComponent::is_esp32_improv_active_() {
 #else
   return false;
 #endif
+}
+
+void WiFiComponent::load_fast_connect_settings_() {
+  SavedWifiFastConnectSettings fast_connect_save{};
+
+  if (this->fast_connect_pref_.load(&fast_connect_save)) {
+    bssid_t bssid{};
+    std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
+    this->selected_ap_.set_bssid(bssid);
+    this->selected_ap_.set_channel(fast_connect_save.channel);
+
+    ESP_LOGD(TAG, "Loaded saved fast_connect wifi settings");
+  }
+}
+
+void WiFiComponent::save_fast_connect_settings_() {
+  bssid_t bssid = wifi_bssid();
+  uint8_t channel = wifi_channel_();
+
+  if (bssid != this->selected_ap_.get_bssid() || channel != this->selected_ap_.get_channel()) {
+    SavedWifiFastConnectSettings fast_connect_save{};
+
+    memcpy(fast_connect_save.bssid, bssid.data(), 6);
+    fast_connect_save.channel = channel;
+
+    this->fast_connect_pref_.save(&fast_connect_save);
+
+    ESP_LOGD(TAG, "Saved fast_connect wifi settings");
+  }
 }
 
 void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }

@@ -91,7 +91,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     delayMicroseconds(40);
   } else if (this->model_ == DHT_MODEL_DHT22_TYPE2) {
     delayMicroseconds(2000);
-  } else if (this->model_ == DHT_MODEL_AM2302) {
+  } else if (this->model_ == DHT_MODEL_AM2120 || this->model_ == DHT_MODEL_AM2302) {
     delayMicroseconds(1000);
   } else {
     delayMicroseconds(800);

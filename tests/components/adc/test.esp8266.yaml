@@ -1,0 +1,4 @@
+sensor:
+  - platform: adc
+    id: my_sensor
+    pin: VCC

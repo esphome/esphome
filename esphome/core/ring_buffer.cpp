@@ -15,17 +15,18 @@ std::unique_ptr<RingBuffer> RingBuffer::create(size_t len) {
   std::unique_ptr<RingBuffer> rb = make_unique<RingBuffer>();
 
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-  rb->storage_ = allocator.allocate(len);
+  rb->storage_ = allocator.allocate(len + 1);
   if (rb->storage_ == nullptr) {
     return nullptr;
   }
 
-  rb->handle_ = xStreamBufferCreateStatic(len, 0, rb->storage_, &rb->structure_);
+  rb->handle_ = xStreamBufferCreateStatic(len + 1, 0, rb->storage_, &rb->structure_);
+  ESP_LOGD(TAG, "Created ring buffer with size %u", len);
   return rb;
 }
 
-size_t RingBuffer::read(void *data, size_t size, TickType_t ticks_to_wait) {
-  return xStreamBufferReceive(this->handle_, data, size, ticks_to_wait);
+size_t RingBuffer::read(void *data, size_t len, TickType_t ticks_to_wait) {
+  return xStreamBufferReceive(this->handle_, data, len, ticks_to_wait);
 }
 
 size_t RingBuffer::write(void *data, size_t len) {

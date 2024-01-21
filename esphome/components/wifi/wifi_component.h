@@ -48,6 +48,11 @@ struct SavedWifiSettings {
   char password[65];
 } PACKED;  // NOLINT
 
+struct SavedWifiFastConnectSettings {
+  uint8_t bssid[6];
+  uint8_t channel;
+} PACKED;  // NOLINT
+
 enum WiFiComponentState {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
   WIFI_COMPONENT_STATE_OFF = 0,
@@ -334,6 +339,9 @@ class WiFiComponent : public Component {
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
 
+  void load_fast_connect_settings_();
+  void save_fast_connect_settings_();
+
 #ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
   void wifi_scan_done_callback_(void *arg, STATUS status);
@@ -381,6 +389,7 @@ class WiFiComponent : public Component {
   optional<float> output_power_;
   bool passive_scan_{false};
   ESPPreferenceObject pref_;
+  ESPPreferenceObject fast_connect_pref_;
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT
   bool btm_{false};

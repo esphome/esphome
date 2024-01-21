@@ -1,0 +1,127 @@
+sensor:
+  - platform: template
+    name: "Template Sensor"
+    id: template_sens
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return 42.0;
+      } else {
+        return 0.0;
+      }
+    update_interval: 60s
+
+esphome:
+  on_boot:
+    - sensor.template.publish:
+        id: template_sens
+        state: 42.0
+
+    # Templated
+    - sensor.template.publish:
+        id: template_sens
+        state: !lambda 'return 42.0;'
+
+binary_sensor:
+  - platform: template
+    id: some_binary_sensor
+    name: "Garage Door Open"
+    lambda: |-
+      if (id(template_sens).state > 30) {
+        // Garage Door is open.
+        return true;
+      } else {
+        // Garage Door is closed.
+        return false;
+      }
+
+output:
+  - platform: template
+    id: outputsplit
+    type: float
+    write_action:
+      - logger.log: "write_action"
+
+switch:
+  - platform: template
+    name: "Template Switch"
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+      - logger.log: "turn_on_action"
+    turn_off_action:
+      - logger.log: "turn_off_action"
+
+button:
+  - platform: template
+    name: "Template Button"
+    on_press:
+      - logger.log: Button Pressed
+
+cover:
+  - platform: template
+    name: "Template Cover"
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return COVER_OPEN;
+      } else {
+        return COVER_CLOSED;
+      }
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true
+
+number:
+  - platform: template
+    name: "Template number"
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+
+select:
+  - platform: template
+    name: "Template select"
+    optimistic: true
+    options:
+      - one
+      - two
+      - three
+    initial_option: two
+
+lock:
+  - platform: template
+    name: "Template Lock"
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return LOCK_STATE_LOCKED;
+      } else {
+        return LOCK_STATE_UNLOCKED;
+      }
+    lock_action:
+      - logger.log: lock_action
+    unlock_action:
+      - logger.log: unlock_action
+    open_action:
+      - logger.log: open_action
+
+text:
+  - platform: template
+    name: "Template text"
+    optimistic: true
+    min_length: 0
+    max_length: 100
+    mode: text
+
+alarm_control_panel:
+  - platform: template
+    name: Alarm Panel
+    codes:
+      - "1234"
