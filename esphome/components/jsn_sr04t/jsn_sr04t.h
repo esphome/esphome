@@ -15,6 +15,7 @@ class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public
 
   // ========== INTERNAL METHODS ==========
   void update() override;
+  void loop() override;
   void dump_config() override;
 
  protected:
