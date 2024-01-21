@@ -222,7 +222,6 @@ bool Nextion::upload_tft() {
   ESP_LOGVV(TAG, "Connection closed");
   ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
 
-
   if (tft_file_size < 4096) {
     ESP_LOGE(TAG, "File size check failed. Size: %zu", tft_file_size);
     return this->upload_end(false);
