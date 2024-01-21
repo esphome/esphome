@@ -11,7 +11,8 @@ namespace mbus {
 static const char *const TAG = "mbus_protocol";
 
 void MBusProtocolHandler::register_command(MBusFrame &command,
-                                           void (*response_handler)(MBusCommand *command, const MBusFrame &response),
+                                           void (*response_handler)(const MBusCommand &command,
+                                                                    const MBusFrame &response),
                                            uint8_t step, uint32_t delay, bool wait_for_response) {
   MBusCommand *cmd = new MBusCommand(command, response_handler, step, this->mbus_, delay, wait_for_response);
   this->commands_.push_back(cmd);
@@ -50,7 +51,7 @@ void MBusProtocolHandler::loop() {
 
       if (command->response_handler != nullptr) {
         auto frame = MBusFrameFactory::create_empty_frame();
-        command->response_handler(command, *frame);
+        command->response_handler(*command, *frame);
       }
 
       delete_first_command_();
@@ -62,7 +63,7 @@ void MBusProtocolHandler::loop() {
 
       if (command->response_handler != nullptr) {
         auto frame = MBusFrameFactory::create_empty_frame();
-        command->response_handler(command, *frame);
+        command->response_handler(*command, *frame);
       }
 
       delete_first_command_();
@@ -78,7 +79,7 @@ void MBusProtocolHandler::loop() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
         frame->dump();
 #endif
-        command->response_handler(command, *frame);
+        command->response_handler(*command, *frame);
       }
 
       delete_first_command_();

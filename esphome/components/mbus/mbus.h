@@ -20,39 +20,25 @@ class MBus : public uart::UARTDevice, public Component {
   void set_interval(uint16_t interval) { this->interval_ = interval; };
   void add_sensor(MBusSensorBase *sensor) { this->sensors_.push_back(sensor); }
 
-  MBus() {
-    this->serial_adapter_ = new SerialAdapter(this);
-    this->protocol_handler_ = new MBusProtocolHandler(this, this->serial_adapter_);
-  }
-
-  ~MBus() {
-    if (this->serial_adapter_ != nullptr) {
-      delete this->serial_adapter_;
-      this->serial_adapter_ = nullptr;
-    }
-    if (this->protocol_handler_ != nullptr) {
-      delete this->protocol_handler_;
-      this->protocol_handler_ = nullptr;
-    }
-  }
+  MBus() : serial_adapter_(SerialAdapter(this)), protocol_handler_(MBusProtocolHandler(this, &this->serial_adapter_)) {}
 
  protected:
   uint64_t secondary_address_{0};
   uint8_t primary_address_{0};
   uint16_t interval_{1};
 
-  MBusProtocolHandler *protocol_handler_{nullptr};
-  SerialAdapter *serial_adapter_{nullptr};
+  SerialAdapter serial_adapter_;
+  MBusProtocolHandler protocol_handler_;
   std::vector<MBusSensorBase *> sensors_;
 
-  static void start_scan_primary_addresses(MBus *mbus);
-  static void scan_primary_addresses_response_handler(MBusCommand *command, const MBusFrame &response);
+  static void start_scan_primary_addresses(MBus &mbus);
+  static void scan_primary_addresses_response_handler(const MBusCommand &command, const MBusFrame &response);
 
-  static void start_scan_secondary_addresses(MBus *mbus);
-  static void scan_secondary_addresses_response_handler(MBusCommand *command, const MBusFrame &response);
+  static void start_scan_secondary_addresses(MBus &mbus);
+  static void scan_secondary_addresses_response_handler(const MBusCommand &command, const MBusFrame &response);
 
-  static void start_reading_data(MBus *mbus);
-  static void reading_data_response_handler(MBusCommand *command, const MBusFrame &response);
+  static void start_reading_data(MBus &mbus);
+  static void reading_data_response_handler(const MBusCommand &command, const MBusFrame &response);
 };
 
 }  // namespace mbus

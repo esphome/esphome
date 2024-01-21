@@ -22,8 +22,9 @@ class MBusProtocolHandler {
   MBusProtocolHandler(MBus *mbus, INetworkAdapter *network_adapter) : network_adapter_(network_adapter), mbus_(mbus) {}
 
   void loop();
-  void register_command(MBusFrame &command, void (*response_handler)(MBusCommand *command, const MBusFrame &response),
-                        uint8_t step, uint32_t delay = 0, bool wait_for_response = true);
+  void register_command(MBusFrame &command,
+                        void (*response_handler)(const MBusCommand &command, const MBusFrame &response), uint8_t step,
+                        uint32_t delay = 0, bool wait_for_response = true);
 
  protected:
   // Communication
@@ -56,9 +57,9 @@ class MBusCommand {
   uint32_t delay{0};
   bool wait_for_response{false};
 
-  void (*response_handler)(MBusCommand *command, const MBusFrame &response){nullptr};
+  void (*response_handler)(const MBusCommand &command, const MBusFrame &response){nullptr};
 
-  MBusCommand(MBusFrame &command, void (*response_handler)(MBusCommand *command, const MBusFrame &response),
+  MBusCommand(MBusFrame &command, void (*response_handler)(const MBusCommand &command, const MBusFrame &response),
               uint8_t step, MBus *mbus, uint32_t delay, bool wait_for_response) {
     this->command = new MBusFrame(command);
     this->created = millis();

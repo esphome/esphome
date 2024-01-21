@@ -14,8 +14,8 @@ esp32:
 wifi:
   domain: ""
   networks:
-    - ssid: "Vodafone-1ED4"
-      password: "ZzN9k4AdO1Xe"
+    - ssid: "MAS_KG"
+      password: "5747541010852453"
 
 api:
   encryption:

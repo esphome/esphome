@@ -29,30 +29,30 @@ float MBus::get_setup_priority() const {
 
 void MBus::setup() {
   if (this->secondary_address_ == 0) {
-    start_scan_primary_addresses(this);
+    start_scan_primary_addresses(*this);
   } else {
-    start_reading_data(this);
+    start_reading_data(*this);
   }
 }
 
-void MBus::loop() { this->protocol_handler_->loop(); }
+void MBus::loop() { this->protocol_handler_.loop(); }
 
-void MBus::start_scan_primary_addresses(MBus *mbus) {
-  ESP_LOGV(TAG, "start_scan_primary_addresses: %.2X", mbus->primary_address_);
+void MBus::start_scan_primary_addresses(MBus &mbus) {
+  ESP_LOGV(TAG, "start_scan_primary_addresses: %.2X", mbus.primary_address_);
 
   // MBus spec states to send REQ_UD2 but sending init-frame is much faster
   // see Chapter 7.3 Primary Addresses
-  auto scan_primary_command = MBusFrameFactory::create_nke_frame(mbus->primary_address_);
-  mbus->protocol_handler_->register_command(*scan_primary_command, scan_primary_addresses_response_handler,
-                                            /*step*/ 0, /*delay*/ 1000);
+  auto scan_primary_command = MBusFrameFactory::create_nke_frame(mbus.primary_address_);
+  mbus.protocol_handler_.register_command(*scan_primary_command, scan_primary_addresses_response_handler,
+                                          /*step*/ 0, /*delay*/ 1000);
 }
 
-void MBus::scan_primary_addresses_response_handler(MBusCommand *command, const MBusFrame &response) {
-  auto *mbus = command->mbus;
+void MBus::scan_primary_addresses_response_handler(const MBusCommand &command, const MBusFrame &response) {
+  auto *mbus = command.mbus;
 
-  if (command->step == 0 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
+  if (command.step == 0 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
     ESP_LOGD(TAG, "Found mbus device with primary address = %.2X.", mbus->primary_address_);
-    start_scan_secondary_addresses(command->mbus);
+    start_scan_secondary_addresses(*mbus);
     return;
   }
 
@@ -64,46 +64,46 @@ void MBus::scan_primary_addresses_response_handler(MBusCommand *command, const M
 
   ESP_LOGV(TAG, "scan_primary_addresses: %.2X", mbus->primary_address_);
   auto scan_primary_command = MBusFrameFactory::create_nke_frame(mbus->primary_address_);
-  mbus->protocol_handler_->register_command(*scan_primary_command, scan_primary_addresses_response_handler,
-                                            /*step*/ 0, /*delay*/ 1000);
+  mbus->protocol_handler_.register_command(*scan_primary_command, scan_primary_addresses_response_handler,
+                                           /*step*/ 0, /*delay*/ 1000);
 }
 
-void MBus::start_scan_secondary_addresses(MBus *mbus) {
+void MBus::start_scan_secondary_addresses(MBus &mbus) {
   ESP_LOGV(TAG, "start_scan_secondary_addresses");
 
   // init command
   auto init_command = MBusFrameFactory::create_nke_frame(MBusAddresses::NETWORK_LAYER);
-  mbus->protocol_handler_->register_command(*init_command, scan_secondary_addresses_response_handler, /*step*/ 0,
-                                            /*delay*/ 0, /*wait_for_response*/ false);
+  mbus.protocol_handler_.register_command(*init_command, scan_secondary_addresses_response_handler, /*step*/ 0,
+                                          /*delay*/ 0, /*wait_for_response*/ false);
 }
 
-void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const MBusFrame &response) {
-  ESP_LOGV(TAG, "scan_secondary_addresses_response_handler. step = %d, frame_type = %d", command->step,
+void MBus::scan_secondary_addresses_response_handler(const MBusCommand &command, const MBusFrame &response) {
+  ESP_LOGV(TAG, "scan_secondary_addresses_response_handler. step = %d, frame_type = %d", command.step,
            response.frame_type);
 
-  auto *mbus = command->mbus;
+  auto *mbus = command.mbus;
 
   // init command response
-  if (command->step == 0) {
+  if (command.step == 0) {
     ESP_LOGV(TAG, "send device select command:");
     uint64_t mask = 0x0FFFFFFFFFFFFFFF;
     auto device_select_command = MBusFrameFactory::create_select_frame(mask);
-    mbus->protocol_handler_->register_command(*device_select_command, scan_secondary_addresses_response_handler,
-                                              /*step*/ 1);
+    mbus->protocol_handler_.register_command(*device_select_command, scan_secondary_addresses_response_handler,
+                                             /*step*/ 1);
     return;
   }
 
   // init device OK -> send req_ud2 command
-  if (command->step == 1 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
+  if (command.step == 1 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
     ESP_LOGV(TAG, "send REQ_UD2 command:");
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
-    mbus->protocol_handler_->register_command(*req_ud2_command, scan_secondary_addresses_response_handler,
-                                              /*step*/ 2);
+    mbus->protocol_handler_.register_command(*req_ud2_command, scan_secondary_addresses_response_handler,
+                                             /*step*/ 2);
     return;
   }
 
   // receive req_ud2
-  if (command->step == 2 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_LONG) {
+  if (command.step == 2 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_LONG) {
     if (response.variable_data == nullptr) {
       return;
     }
@@ -117,49 +117,49 @@ void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const
   }
 }
 
-void MBus::start_reading_data(MBus *mbus) {
-  ESP_LOGV(TAG, "start_reading_data from secondary_address: 0x%.016llX", mbus->secondary_address_);
+void MBus::start_reading_data(MBus &mbus) {
+  ESP_LOGV(TAG, "start_reading_data from secondary_address: 0x%.016llX", mbus.secondary_address_);
 
   // init device command
   auto init_device_command = MBusFrameFactory::create_nke_frame(MBusAddresses::NETWORK_LAYER);
-  mbus->protocol_handler_->register_command(*init_device_command, reading_data_response_handler, /*step*/ 0,
-                                            /*delay*/ 1000, /*wait_for_response*/ false);
+  mbus.protocol_handler_.register_command(*init_device_command, reading_data_response_handler, /*step*/ 0,
+                                          /*delay*/ 1000, /*wait_for_response*/ false);
 }
 
-void MBus::reading_data_response_handler(MBusCommand *command, const MBusFrame &response) {
-  ESP_LOGV(TAG, "reading_data_response_handler. step = %d, frame_type = %d", command->step, response.frame_type);
+void MBus::reading_data_response_handler(const MBusCommand &command, const MBusFrame &response) {
+  ESP_LOGV(TAG, "reading_data_response_handler. step = %d, frame_type = %d", command.step, response.frame_type);
 
-  auto *mbus = command->mbus;
+  auto *mbus = command.mbus;
   // select device by secondary address
-  if (command->step == 0) {
+  if (command.step == 0) {
     ESP_LOGV(TAG, "send device select command:");
     auto device_select_command = MBusFrameFactory::create_select_frame(mbus->secondary_address_);
-    mbus->protocol_handler_->register_command(*device_select_command, reading_data_response_handler,
-                                              /*step*/ 1);
+    mbus->protocol_handler_.register_command(*device_select_command, reading_data_response_handler,
+                                             /*step*/ 1);
     return;
   }
 
   // create read data request #1
-  if (command->step == 1 && (response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK)) {
+  if (command.step == 1 && (response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK)) {
     ESP_LOGV(TAG, "send REQ_UD2 command #1:");
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
-    mbus->protocol_handler_->register_command(*req_ud2_command, reading_data_response_handler,
-                                              /*step*/ 2);
+    mbus->protocol_handler_.register_command(*req_ud2_command, reading_data_response_handler,
+                                             /*step*/ 2);
     return;
   }
 
   // create read data request #2
-  if (command->step == 2 && (response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK ||
-                             response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_LONG)) {
+  if (command.step == 2 && (response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK ||
+                            response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_LONG)) {
     ESP_LOGV(TAG, "send REQ_UD2 command #2:");
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
-    mbus->protocol_handler_->register_command(*req_ud2_command, reading_data_response_handler,
-                                              /*step*/ 3);
+    mbus->protocol_handler_.register_command(*req_ud2_command, reading_data_response_handler,
+                                             /*step*/ 3);
     return;
   }
 
   // parse response and send read data request (loop)
-  if (command->step == 3) {
+  if (command.step == 3) {
     if (response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_LONG && !mbus->sensors_.empty() &&
         response.variable_data && !response.variable_data->records.empty()) {
       auto data_size = response.variable_data->records.size();
@@ -175,9 +175,8 @@ void MBus::reading_data_response_handler(MBusCommand *command, const MBusFrame &
       }
     }
     auto req_ud2_command = MBusFrameFactory::create_req_ud2_frame();
-    mbus->protocol_handler_->register_command(*req_ud2_command, reading_data_response_handler,
-                                              /*step*/ 3, /*delay*/ mbus->interval_ * 1000);
-
+    mbus->protocol_handler_.register_command(*req_ud2_command, reading_data_response_handler,
+                                             /*step*/ 3, /*delay*/ mbus->interval_ * 1000);
     return;
   }
 
