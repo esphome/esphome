@@ -18,6 +18,9 @@ void PulseMeterSensor::setup() {
   this->pin_->setup();
   this->isr_pin_ = pin_->to_isr();
 
+  // Set the pin value to the current value to avoid a false edge
+  this->last_pin_val_ = this->pin_->digital_read();
+
   // Set the last processed edge to now for the first timeout
   this->last_processed_edge_us_ = micros();
 
@@ -25,23 +28,36 @@ void PulseMeterSensor::setup() {
     this->pin_->attach_interrupt(PulseMeterSensor::edge_intr, this, gpio::INTERRUPT_RISING_EDGE);
   } else if (this->filter_mode_ == FILTER_PULSE) {
     // Set the pin value to the current value to avoid a false edge
-    this->pulse_state_.last_pin_val_ = this->isr_pin_.digital_read();
-    this->pulse_state_.latched_ = this->pulse_state_.last_pin_val_;
+    this->pulse_state_.latched_ = this->last_pin_val_;
     this->pin_->attach_interrupt(PulseMeterSensor::pulse_intr, this, gpio::INTERRUPT_ANY_EDGE);
   }
 }
 
 void PulseMeterSensor::loop() {
-  const uint32_t now = micros();
-
   // Reset the count in get before we pass it back to the ISR as set
   this->get_->count_ = 0;
 
-  // Swap out set and get to get the latest state from the ISR
-  // The ISR could interrupt on any of these lines and the results would be consistent
-  auto *temp = this->set_;
-  this->set_ = this->get_;
-  this->get_ = temp;
+  {
+    // Lock the interrupt so the interrupt code doesn't interfere with itself
+    InterruptLock lock;
+
+    // Sometimes ESP devices miss interrupts if the edge rises or falls too slowly.
+    // See https://github.com/espressif/arduino-esp32/issues/4172
+    // If the edges are rising too slowly it also implies that the pulse rate is slow.
+    // Therefore the update rate of the loop is likely fast enough to detect the edges.
+    // When the main loop detects an edge that the ISR didn't it will run the ISR functions directly.
+    bool current = this->pin_->digital_read();
+    if (this->filter_mode_ == FILTER_EDGE && current && !this->last_pin_val_) {
+      PulseMeterSensor::edge_intr(this);
+    } else if (this->filter_mode_ == FILTER_PULSE && current != this->last_pin_val_) {
+      PulseMeterSensor::pulse_intr(this);
+    }
+
+    // Swap out set and get to get the latest state from the ISR
+    std::swap(this->set_, this->get_);
+  }
+
+  const uint32_t now = micros();
 
   // If an edge was peeked, repay the debt
   if (this->peeked_edge_ && this->get_->count_ > 0) {
@@ -129,6 +145,9 @@ void IRAM_ATTR PulseMeterSensor::edge_intr(PulseMeterSensor *sensor) {
     set.last_rising_edge_us_ = now;
     set.count_++;
   }
+
+  // This ISR is bound to rising edges, so the pin is high
+  sensor->last_pin_val_ = true;
 }
 
 void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
@@ -142,9 +161,9 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
   // Filter length has passed since the last interrupt
   const bool length = now - state.last_intr_ >= sensor->filter_us_;
 
-  if (length && state.latched_ && !state.last_pin_val_) {  // Long enough low edge
+  if (length && state.latched_ && !sensor->last_pin_val_) {  // Long enough low edge
     state.latched_ = false;
-  } else if (length && !state.latched_ && state.last_pin_val_) {  // Long enough high edge
+  } else if (length && !state.latched_ && sensor->last_pin_val_) {  // Long enough high edge
     state.latched_ = true;
     set.last_detected_edge_us_ = state.last_intr_;
     set.count_++;
@@ -156,7 +175,7 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
   set.last_rising_edge_us_ = !state.latched_ && pin_val ? now : set.last_detected_edge_us_;
 
   state.last_intr_ = now;
-  state.last_pin_val_ = pin_val;
+  sensor->last_pin_val_ = pin_val;
 }
 
 }  // namespace pulse_meter
