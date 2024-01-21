@@ -2,6 +2,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 // Very basic support for JSN_SR04T V3.0 distance sensor in mode 2
 
 namespace esphome {
