@@ -24,8 +24,8 @@ api:
 # Enable logging
 logger:
   tx_buffer_size: 1024
-  # level: DEBUG
-  level: VERBOSE
+  level: DEBUG
+  # level: VERBOSE
   # level: VERY_VERBOSE
 
 # api: !include _api.yaml
@@ -46,22 +46,22 @@ mbus:
   interval: "5s"
 # ---------------------------------------------------------------------------------------
 # debug component
-# debug:
-#   update_interval: 5s
+debug:
+  update_interval: 5s
 
-# text_sensor:
-#   - platform: debug
-#     reset_reason:
-#       name: "Reset Reason"
+text_sensor:
+  - platform: debug
+    reset_reason:
+      name: "Reset Reason"
 
 sensor:
-  # - platform: debug
-  #   free:
-  #     name: "Heap Free"
-  #   block:
-  #     name: "Heap Max Block"
-  # loop_time:
-  #   name: "Loop Time"
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Heap Max Block"
+    loop_time:
+      name: "Loop Time"
   # ---------------------------------------------------------------------------------------
   - platform: mbus_sensor
     data_index: 0
