@@ -14,7 +14,8 @@ static const char *const TAG = "jsn_sr04t.sensor";
 void Jsnsr04tComponent::update() {
   this->write_byte(0x55);
   ESP_LOGV(TAG, "Request read out from sensor");
-
+}
+void Jsnsr04tComponent::loop() {
   while (this->available() > 0) {
     uint8_t data;
     this->read_byte(&data);
