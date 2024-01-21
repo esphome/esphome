@@ -14,7 +14,7 @@ void MBusProtocolHandler::register_command(MBusFrame &command,
                                            void (*response_handler)(const MBusCommand &command,
                                                                     const MBusFrame &response),
                                            uint8_t step, uint32_t delay, bool wait_for_response) {
-  MBusCommand *cmd = new MBusCommand(command, response_handler, step, this->mbus_, delay, wait_for_response);
+  auto cmd = std::make_shared<MBusCommand>(command, response_handler, step, this->mbus_, delay, wait_for_response);
   this->commands_.push_back(cmd);
 }
 
@@ -25,7 +25,7 @@ void MBusProtocolHandler::loop() {
             (now - this->timestamp_) > MBusProtocolHandler::RX_TIMEOUT);
 
   if (!this->waiting_for_response_ && !this->commands_.empty()) {
-    auto *cmd = this->commands_.front();
+    auto cmd = this->commands_.front();
     if ((now - cmd->created) < cmd->delay) {
       return;
     }
@@ -44,7 +44,7 @@ void MBusProtocolHandler::loop() {
   }
 
   if (this->waiting_for_response_) {
-    auto *command = this->commands_.front();
+    auto command = this->commands_.front();
 
     if (!command->wait_for_response) {
       delay(25);
@@ -98,9 +98,9 @@ void MBusProtocolHandler::loop() {
 }
 
 void MBusProtocolHandler::delete_first_command_() {
-  auto *command = this->commands_.front();
+  // auto *command = this->commands_.front();
+  // delete command;
 
-  delete command;
   this->commands_.pop_front();
 
   this->waiting_for_response_ = false;

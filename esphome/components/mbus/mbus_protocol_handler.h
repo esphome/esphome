@@ -42,7 +42,7 @@ class MBusProtocolHandler {
   INetworkAdapter *network_adapter_{nullptr};
   MBus *mbus_{nullptr};
   std::vector<uint8_t> rx_buffer_;
-  std::deque<MBusCommand *> commands_;
+  std::deque<std::shared_ptr<MBusCommand> > commands_;
 
   uint32_t timestamp_{0};
   bool waiting_for_response_{false};

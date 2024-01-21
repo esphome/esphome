@@ -24,8 +24,7 @@ api:
 # Enable logging
 logger:
   tx_buffer_size: 1024
-  level: DEBUG
-  # level: VERBOSE
+  # level: DEBUG
   # level: VERY_VERBOSE
 
 # api: !include _api.yaml
