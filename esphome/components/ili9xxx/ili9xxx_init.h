@@ -380,4 +380,3 @@ static const uint8_t PROGMEM INITCMD_CYD_ILI9342B[] = {
 // clang-format on
 }  // namespace ili9xxx
 }  // namespace esphome
-
