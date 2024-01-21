@@ -8,6 +8,7 @@
 
 #include "mbus_frame.h"
 #include "esphome/components/mbus/network_adapter.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mbus {
@@ -50,7 +51,7 @@ class MBusProtocolHandler {
 
 class MBusCommand {
  public:
-  MBusFrame *command{nullptr};
+  std::unique_ptr<MBusFrame> command{nullptr};
   MBus *mbus{nullptr};
   uint8_t step{0};
   uint32_t created{0};
@@ -61,7 +62,7 @@ class MBusCommand {
 
   MBusCommand(MBusFrame &command, void (*response_handler)(const MBusCommand &command, const MBusFrame &response),
               uint8_t step, MBus *mbus, uint32_t delay, bool wait_for_response) {
-    this->command = new MBusFrame(command);
+    this->command = make_unique<MBusFrame>(command);
     this->created = millis();
     this->step = step;
     this->delay = delay;
@@ -70,12 +71,12 @@ class MBusCommand {
     this->wait_for_response = wait_for_response;
   }
 
-  ~MBusCommand() {
-    if (this->command != nullptr) {
-      delete this->command;
-      this->command = nullptr;
-    }
-  }
+  // ~MBusCommand() {
+  //   if (this->command != nullptr) {
+  //     delete this->command;
+  //     this->command = nullptr;
+  //   }
+  // }
 };
 
 }  // namespace mbus

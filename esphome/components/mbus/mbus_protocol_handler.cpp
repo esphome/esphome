@@ -30,7 +30,7 @@ void MBusProtocolHandler::loop() {
       return;
     }
 
-    auto *frame = cmd->command;
+    auto frame = std::move(cmd->command);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     frame->dump();
 #endif
