@@ -48,7 +48,6 @@ void MBus::start_scan_primary_addresses(MBus *mbus) {
 }
 
 void MBus::scan_primary_addresses_response_handler(MBusCommand *command, const MBusFrame &response) {
-  auto now = millis();
   auto *mbus = command->mbus;
 
   if (command->step == 0 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
@@ -164,7 +163,7 @@ void MBus::reading_data_response_handler(MBusCommand *command, const MBusFrame &
     if (response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_LONG && !mbus->sensors_.empty() &&
         response.variable_data && !response.variable_data->records.empty()) {
       auto data_size = response.variable_data->records.size();
-      for (auto sensor : mbus->sensors_) {
+      for (auto *sensor : mbus->sensors_) {
         auto data_index = sensor->get_data_index();
         if (data_index >= data_size) {
           continue;

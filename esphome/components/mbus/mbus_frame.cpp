@@ -14,6 +14,9 @@ static const char *const TAG = "mbus_frame";
 MBusFrame::MBusFrame(MBusFrameType frame_type) {
   this->frame_type = frame_type;
   switch (frame_type) {
+    case MBUS_FRAME_TYPE_EMPTY:
+      break;
+
     case MBUS_FRAME_TYPE_ACK:
       this->start = MBusFrameDefinition::ACK_FRAME.start_bit;
       break;
@@ -57,6 +60,9 @@ uint8_t MBusFrame::serialize(MBusFrame &frame, std::vector<uint8_t> &buffer) {
 
   uint8_t index = 0;
   switch (frame.frame_type) {
+    case MBUS_FRAME_TYPE_EMPTY:
+      return 0;
+
     case MBUS_FRAME_TYPE_ACK:
       if (buffer_size < MBusFrameDefinition::ACK_FRAME.base_frame_size) {
         ESP_LOGE(TAG, "serialize(): buffer size to low. Buffer size = %d ACK Frame Size = %d", buffer_size,
@@ -191,6 +197,9 @@ void MBusFrame::dump() const {
 void MBusFrame::dump_frame_type() const {
   ESP_LOGV(TAG, "MBusFrame");
   switch (this->frame_type) {
+    case MBUS_FRAME_TYPE_EMPTY:
+      ESP_LOGV(TAG, "\tframe_type = EMTPY");
+      break;
     case MBusFrameType::MBUS_FRAME_TYPE_ACK:
       ESP_LOGV(TAG, "\tframe_type = ACK");
       break;
@@ -211,6 +220,7 @@ void MBusFrame::dump_frame_type() const {
 
 void MBusFrame::dump_frame() const {
   switch (this->frame_type) {
+    case MBusFrameType::MBUS_FRAME_TYPE_EMPTY:
     case MBusFrameType::MBUS_FRAME_TYPE_ACK:
       return;
 
@@ -293,9 +303,9 @@ std::unique_ptr<MBusValue> MBusDataRecord::parse(const uint8_t id) {
 }
 
 uint32_t MBusDataRecord::parse_tariff_(const MBusDataRecord *record) {
-  int bit_index = 0;
-  long result = 0;
-  int i;
+  int16_t bit_index = 0;
+  int32_t result = 0;
+  size_t i;
 
   auto dife_size = record->drh.dib.dife.size();
   if (record && (dife_size > 0)) {
@@ -336,9 +346,7 @@ std::string MBusDataRecord::parse_function_(const MBusDataRecord *record) {
 
 std::string MBusDataRecord::parse_unit_(const MBusDataRecord *record) {
   const auto *vib = &(record->drh.vib);
-  auto vibe_size = vib->vife.size();
   auto unit_and_multiplier = vib->vif & MBusDataVifMask::UNIT_AND_MULTIPLIER;
-  auto extension_bit = vib->vif & MBusDataVifMask::EXTENSION_BIT;
 
   // Primary VIF
   if (unit_and_multiplier >= 0 & unit_and_multiplier <= 0x7B) {
@@ -530,7 +538,6 @@ float MBusDataRecord::parse_value_(const MBusDataRecord *record, const MBusDataT
     case MBusDataType::BCD_16:
       return (uint16_t) MBusDecoder::decode_bcd_int(record->data);
     case MBusDataType::BCD_24:
-      return (uint32_t) MBusDecoder::decode_bcd_int(record->data);
     case MBusDataType::BCD_32:
       return (uint32_t) MBusDecoder::decode_bcd_int(record->data);
     case MBusDataType::BCD_48:

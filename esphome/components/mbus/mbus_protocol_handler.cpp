@@ -112,6 +112,9 @@ int8_t MBusProtocolHandler::send_(MBusFrame &frame) {
 
   uint8_t payload_size = 0;
   switch (frame.frame_type) {
+    case MBUS_FRAME_TYPE_EMPTY:
+      payload_size = 0;
+      break;
     case MBUS_FRAME_TYPE_ACK:
       payload_size = MBusFrameDefinition::ACK_FRAME.base_frame_size;
       break;
@@ -259,7 +262,7 @@ std::unique_ptr<MBusFrame> MBusProtocolHandler::parse_response_() {
 // |     12 Byte       |        variable number         | 1 Byte |    variable number |
 // ------------------------------------------------------------------------------------
 std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_response_(std::vector<uint8_t> data) {
-  auto *response = new MBusDataVariable();
+  auto response = make_unique<MBusDataVariable>();
   if (data.size() < 12) {
     ESP_LOGE(TAG, "Variable Data Header less than 12 byte: %d", data.size());
     return nullptr;
@@ -345,8 +348,7 @@ std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_respo
     response->records.push_back(record);
   }
 
-  std::unique_ptr<MBusDataVariable> response_ptr(response);
-  return response_ptr;
+  return response;
 }
 
 int8_t MBusProtocolHandler::get_dif_datalength_(uint8_t dif, std::vector<uint8_t>::iterator &it) {
@@ -363,7 +365,7 @@ int8_t MBusProtocolHandler::get_dif_datalength_(uint8_t dif, std::vector<uint8_t
     case 0x4:
       return 4;
     case 0x5:
-      return 4;
+      return 5;
     case 0x6:
       return 6;
     case 0x7:
@@ -392,7 +394,7 @@ int8_t MBusProtocolHandler::get_dif_datalength_(uint8_t dif, std::vector<uint8_t
         return (data_1 - 0xC0) * 2;
       } else if (data_1 >= 0xD0 && data_1 <= 0xDF) {
         // negative BCD number with (LVAR - D0h) • 2 digits
-        (data_1 - 0xD0) * 2;
+        return (data_1 - 0xD0) * 2;
       } else if (data_1 >= 0xE0 && data_1 <= 0xEF) {
         // binary number with (LVAR - E0h) bytes
         return data_1 - 0xE0;
