@@ -117,8 +117,8 @@ uint8_t MBusFrame::serialize(MBusFrame &frame, std::vector<uint8_t> &buffer) {
       buffer[index++] = frame.address;
       buffer[index++] = frame.control_information;
 
-      for (auto data_i = 0; data_i < frame.data.size(); data_i++) {
-        buffer[index++] = frame.data[data_i];
+      for (auto data : frame.data) {
+        buffer[index++] = data;
       }
 
       buffer[index++] = frame.checksum;
@@ -169,8 +169,8 @@ uint8_t MBusFrame::calc_checksum(MBusFrame &frame) {
       checksum += frame.address;
       checksum += frame.control_information;
 
-      for (auto i = 0; i < frame.data.size(); i++) {
-        checksum += frame.data[i];
+      for (auto data : frame.data) {
+        checksum += data;
       }
 
       break;
@@ -249,7 +249,7 @@ void MBusDataVariable::dump() const {
   ESP_LOGD(TAG, "\tVariable Data:");
   ESP_LOGD(TAG, "\t Header:");
 
-  auto header = &this->header;
+  const auto *header = &this->header;
   auto id = MBusDecoder::decode_bcd_uint32(header->id);
   ESP_LOGD(TAG, "\t  id = %s (0x%.8X)", format_hex_pretty(header->id, 4).c_str(), id);
 
@@ -263,7 +263,7 @@ void MBusDataVariable::dump() const {
   ESP_LOGD(TAG, "\t  signature = %s", format_hex_pretty(header->signature, 2).c_str());
   ESP_LOGD(TAG, "\t Records:");
 
-  auto records = &this->records;
+  const auto *records = &this->records;
   for (auto i = 0; i < records->size(); i++) {
     auto record = records->at(i);
     auto mbus_data = record.parse(i);
@@ -335,7 +335,7 @@ std::string MBusDataRecord::parse_function_(const MBusDataRecord *record) {
 }
 
 std::string MBusDataRecord::parse_unit_(const MBusDataRecord *record) {
-  auto vib = &(record->drh.vib);
+  const auto *vib = &(record->drh.vib);
   auto vibe_size = vib->vife.size();
   auto unit_and_multiplier = vib->vif & MBusDataVifMask::UNIT_AND_MULTIPLIER;
   auto extension_bit = vib->vif & MBusDataVifMask::EXTENSION_BIT;

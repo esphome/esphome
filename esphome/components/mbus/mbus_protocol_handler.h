@@ -19,7 +19,7 @@ class MBusProtocolHandler {
  public:
   static const uint32_t RX_TIMEOUT{1000};
 
-  MBusProtocolHandler(MBus *mbus, INetworkAdapter *networkAdapter) : networkAdapter_(networkAdapter), mbus_(mbus) {}
+  MBusProtocolHandler(MBus *mbus, INetworkAdapter *network_adapter) : network_adapter_(network_adapter), mbus_(mbus) {}
 
   void loop();
   void register_command(MBusFrame &command, void (*response_handler)(MBusCommand *command, const MBusFrame &response),
@@ -38,7 +38,7 @@ class MBusProtocolHandler {
   // Helper
   void delete_first_command_();
 
-  INetworkAdapter *networkAdapter_{nullptr};
+  INetworkAdapter *network_adapter_{nullptr};
   MBus *mbus_{nullptr};
   std::vector<uint8_t> rx_buffer_;
   std::deque<MBusCommand *> commands_;

@@ -16,7 +16,7 @@ void MBus::dump_config() {
   ESP_LOGCONFIG(TAG, "  delay: %d", this->interval_);
   ESP_LOGCONFIG(TAG, "  %d sensors configured", this->sensors_.size());
   for (auto index = 0; index < this->sensors_.size(); index++) {
-    auto sensor = this->sensors_.at(index);
+    auto *sensor = this->sensors_.at(index);
     ESP_LOGCONFIG(TAG, "   %d. sensor: Data Index = %d, Factor = %f", index + 1, sensor->get_data_index(),
                   sensor->get_factor());
   }
@@ -49,7 +49,7 @@ void MBus::start_scan_primary_addresses(MBus *mbus) {
 
 void MBus::scan_primary_addresses_response_handler(MBusCommand *command, const MBusFrame &response) {
   auto now = millis();
-  auto mbus = command->mbus;
+  auto *mbus = command->mbus;
 
   if (command->step == 0 && response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_ACK) {
     ESP_LOGD(TAG, "Found mbus device with primary address = %.2X.", mbus->primary_address_);
@@ -82,7 +82,7 @@ void MBus::scan_secondary_addresses_response_handler(MBusCommand *command, const
   ESP_LOGV(TAG, "scan_secondary_addresses_response_handler. step = %d, frame_type = %d", command->step,
            response.frame_type);
 
-  auto mbus = command->mbus;
+  auto *mbus = command->mbus;
 
   // init command response
   if (command->step == 0) {
@@ -130,7 +130,7 @@ void MBus::start_reading_data(MBus *mbus) {
 void MBus::reading_data_response_handler(MBusCommand *command, const MBusFrame &response) {
   ESP_LOGV(TAG, "reading_data_response_handler. step = %d, frame_type = %d", command->step, response.frame_type);
 
-  auto mbus = command->mbus;
+  auto *mbus = command->mbus;
   // select device by secondary address
   if (command->step == 0) {
     ESP_LOGV(TAG, "send device select command:");
@@ -161,11 +161,10 @@ void MBus::reading_data_response_handler(MBusCommand *command, const MBusFrame &
 
   // parse response and send read data request (loop)
   if (command->step == 3) {
-    if (response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_LONG && mbus->sensors_.size() > 0 &&
-        response.variable_data && response.variable_data->records.size() > 0) {
+    if (response.frame_type == MBusFrameType::MBUS_FRAME_TYPE_LONG && !mbus->sensors_.empty() &&
+        response.variable_data && !response.variable_data->records.empty()) {
       auto data_size = response.variable_data->records.size();
-      for (auto index = 0; index < mbus->sensors_.size(); index++) {
-        auto sensor = mbus->sensors_.at(index);
+      for (auto sensor : mbus->sensors_) {
         auto data_index = sensor->get_data_index();
         if (data_index >= data_size) {
           continue;

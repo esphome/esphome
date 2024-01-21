@@ -20,15 +20,16 @@ void MBusProtocolHandler::register_command(MBusFrame &command,
 void MBusProtocolHandler::loop() {
   auto now = millis();
   ESP_LOGVV(TAG, "loop. waiting_for_response_ = %d, timestamp_ = %d, now = %d, timed out: %d",
-            this->waiting_for_response_, this->timestamp_, now, (now - this->timestamp_) > this->rx_timeout);
+            this->waiting_for_response_, this->timestamp_, now,
+            (now - this->timestamp_) > MBusProtocolHandler::RX_TIMEOUT);
 
-  if (!this->waiting_for_response_ && this->commands_.size()) {
-    auto cmd = this->commands_.front();
+  if (!this->waiting_for_response_ && !this->commands_.empty()) {
+    auto *cmd = this->commands_.front();
     if ((now - cmd->created) < cmd->delay) {
       return;
     }
 
-    auto frame = cmd->command;
+    auto *frame = cmd->command;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     frame->dump();
 #endif
@@ -42,7 +43,7 @@ void MBusProtocolHandler::loop() {
   }
 
   if (this->waiting_for_response_) {
-    auto command = this->commands_.front();
+    auto *command = this->commands_.front();
 
     if (!command->wait_for_response) {
       delay(25);
@@ -56,7 +57,7 @@ void MBusProtocolHandler::loop() {
       return;
     }
 
-    if ((now - this->timestamp_) > this->RX_TIMEOUT) {
+    if ((now - this->timestamp_) > MBusProtocolHandler::RX_TIMEOUT) {
       ESP_LOGW(TAG, "M-Bus data: Timeout");
 
       if (command->response_handler != nullptr) {
@@ -96,7 +97,7 @@ void MBusProtocolHandler::loop() {
 }
 
 void MBusProtocolHandler::delete_first_command_() {
-  auto command = this->commands_.front();
+  auto *command = this->commands_.front();
 
   delete command;
   this->commands_.pop_front();
@@ -129,7 +130,7 @@ int8_t MBusProtocolHandler::send_(MBusFrame &frame) {
   MBusFrame::serialize(frame, payload);
 
   ESP_LOGV(TAG, "Send mbus data: %s", format_hex_pretty(payload).c_str());
-  this->networkAdapter_->send(payload);
+  this->network_adapter_->send(payload);
   this->timestamp_ = millis();
 
   payload.clear();
@@ -139,7 +140,7 @@ int8_t MBusProtocolHandler::send_(MBusFrame &frame) {
 
 /// @return 0 if more data needed, 1 if frame is completed, -1 if response timed out
 int8_t MBusProtocolHandler::receive_() {
-  auto rx_status = this->networkAdapter_->receive(this->rx_buffer_);
+  auto rx_status = this->network_adapter_->receive(this->rx_buffer_);
 
   if (rx_status == 0) {
     return 0;
@@ -160,7 +161,7 @@ int8_t MBusProtocolHandler::receive_() {
 }
 
 std::unique_ptr<MBusFrame> MBusProtocolHandler::parse_response_() {
-  if (this->rx_buffer_.size() <= 0) {
+  if (this->rx_buffer_.empty()) {
     return nullptr;
   }
 
@@ -258,7 +259,7 @@ std::unique_ptr<MBusFrame> MBusProtocolHandler::parse_response_() {
 // |     12 Byte       |        variable number         | 1 Byte |    variable number |
 // ------------------------------------------------------------------------------------
 std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_response_(std::vector<uint8_t> data) {
-  auto response = new MBusDataVariable();
+  auto *response = new MBusDataVariable();
   if (data.size() < 12) {
     ESP_LOGE(TAG, "Variable Data Header less than 12 byte: %d", data.size());
     return nullptr;
@@ -270,7 +271,7 @@ std::unique_ptr<MBusDataVariable> MBusProtocolHandler::parse_variable_data_respo
   // | 4 Byte BCD | 2 Byte  | 1 Byte  | 1 Byte | 1 Byte     | 1 Byte | 2 Byte    |
   // |    0..3    |  4..5   |    6    |   7    |     8      |    9   |  10.. 11  |
   // -----------------------------------------------------------------------------
-  auto header = &response->header;
+  auto *header = &response->header;
   std::vector<uint8_t> id(data.begin(), data.begin() + 4);
   header->id[0] = data[0];
   header->id[1] = data[1];
