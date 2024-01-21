@@ -141,6 +141,122 @@ void Display::filled_circle(int center_x, int center_y, int radius, Color color)
     }
   } while (dx <= 0);
 }
+void HOT Display::triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color) {
+  this->line(x1, y1, x2, y2, color);
+  this->line(x1, y1, x3, y3, color);
+  this->line(x2, y2, x3, y3, color);
+}
+void Display::sort_triangle_points_by_y_(int *x1, int *y1, int *x2, int *y2, int *x3, int *y3) {
+  if (*y1 > *y2) {
+    int x_temp = *x1, y_temp = *y1;
+    *x1 = *x2, *y1 = *y2;
+    *x2 = x_temp, *y2 = y_temp;
+  }
+  if (*y1 > *y3) {
+    int x_temp = *x1, y_temp = *y1;
+    *x1 = *x3, *y1 = *y3;
+    *x3 = x_temp, *y3 = y_temp;
+  }
+  if (*y2 > *y3) {
+    int x_temp = *x2, y_temp = *y2;
+    *x2 = *x3, *y2 = *y3;
+    *x3 = x_temp, *y3 = y_temp;
+  }
+}
+void Display::filled_flat_side_triangle_(int x1, int y1, int x2, int y2, int x3, int y3, Color color) {
+  // y2 must be equal to y3 (same horizontal line)
+
+  // Initialize Bresenham's algorithm for side 1
+  int s1_current_x = x1;
+  int s1_current_y = y1;
+  bool s1_axis_swap = false;
+  int s1_dx = abs(x2 - x1);
+  int s1_dy = abs(y2 - y1);
+  int s1_sign_x = ((x2 - x1) >= 0) ? 1 : -1;
+  int s1_sign_y = ((y2 - y1) >= 0) ? 1 : -1;
+  if (s1_dy > s1_dx) {  // swap values
+    int tmp = s1_dx;
+    s1_dx = s1_dy;
+    s1_dy = tmp;
+    s1_axis_swap = true;
+  }
+  int s1_error = 2 * s1_dy - s1_dx;
+
+  // Initialize Bresenham's algorithm for side 2
+  int s2_current_x = x1;
+  int s2_current_y = y1;
+  bool s2_axis_swap = false;
+  int s2_dx = abs(x3 - x1);
+  int s2_dy = abs(y3 - y1);
+  int s2_sign_x = ((x3 - x1) >= 0) ? 1 : -1;
+  int s2_sign_y = ((y3 - y1) >= 0) ? 1 : -1;
+  if (s2_dy > s2_dx) {  // swap values
+    int tmp = s2_dx;
+    s2_dx = s2_dy;
+    s2_dy = tmp;
+    s2_axis_swap = true;
+  }
+  int s2_error = 2 * s2_dy - s2_dx;
+
+  // Iterate on side 1 and allow side 2 to be processed to match the advance of the y-axis.
+  for (int i = 0; i <= s1_dx; i++) {
+    if (s1_current_x <= s2_current_x) {
+      this->horizontal_line(s1_current_x, s1_current_y, s2_current_x - s1_current_x + 1, color);
+    } else {
+      this->horizontal_line(s2_current_x, s2_current_y, s1_current_x - s2_current_x + 1, color);
+    }
+
+    // Bresenham's #1
+    // Side 1 s1_current_x and s1_current_y calculation
+    while (s1_error >= 0) {
+      if (s1_axis_swap) {
+        s1_current_x += s1_sign_x;
+      } else {
+        s1_current_y += s1_sign_y;
+      }
+      s1_error = s1_error - 2 * s1_dx;
+    }
+    if (s1_axis_swap) {
+      s1_current_y += s1_sign_y;
+    } else {
+      s1_current_x += s1_sign_x;
+    }
+    s1_error = s1_error + 2 * s1_dy;
+
+    // Bresenham's #2
+    // Side 2 s2_current_x and s2_current_y calculation
+    while (s2_current_y != s1_current_y) {
+      while (s2_error >= 0) {
+        if (s2_axis_swap) {
+          s2_current_x += s2_sign_x;
+        } else {
+          s2_current_y += s2_sign_y;
+        }
+        s2_error = s2_error - 2 * s2_dx;
+      }
+      if (s2_axis_swap) {
+        s2_current_y += s2_sign_y;
+      } else {
+        s2_current_x += s2_sign_x;
+      }
+      s2_error = s2_error + 2 * s2_dy;
+    }
+  }
+}
+void Display::filled_triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color) {
+  // Sort the three points by y-coordinate ascending, so [x1,y1] is the topmost point
+  this->sort_triangle_points_by_y_(&x1, &y1, &x2, &y2, &x3, &y3);
+
+  if (y2 == y3) {  // Check for special case of a bottom-flat triangle
+    this->filled_flat_side_triangle_(x1, y1, x2, y2, x3, y3, color);
+  } else if (y1 == y2) {  // Check for special case of a top-flat triangle
+    this->filled_flat_side_triangle_(x3, y3, x1, y1, x2, y2, color);
+  } else {  // General case: split the no-flat-side triangle in a top-flat triangle and bottom-flat triangle
+    int x_temp = (int) (x1 + ((float) (y2 - y1) / (float) (y3 - y1)) * (x3 - x1)), y_temp = y2;
+    this->filled_flat_side_triangle_(x1, y1, x2, y2, x_temp, y_temp, color);
+    this->filled_flat_side_triangle_(x3, y3, x2, y2, x_temp, y_temp, color);
+  }
+}
 
 void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text) {
   int x_start, y_start;
