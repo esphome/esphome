@@ -1,10 +1,10 @@
 #pragma once
 
 #ifdef USE_NRF52
-
-#include <Arduino.h>
 #include "esphome/core/hal.h"
-
+#ifdef USE_ZEPHYR
+struct device;
+#endif
 namespace esphome {
 namespace nrf52 {
 
@@ -14,7 +14,7 @@ class NRF52GPIOPin : public InternalGPIOPin {
   void set_inverted(bool inverted) { inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { flags_ = flags; }
 
-  void setup() override { pin_mode(flags_); }
+  void setup() override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
@@ -30,6 +30,9 @@ class NRF52GPIOPin : public InternalGPIOPin {
   uint8_t pin_;
   bool inverted_;
   gpio::Flags flags_;
+#ifdef USE_ZEPHYR
+  const device * gpio_ = nullptr;
+#endif
 };
 
 }  // namespace nrf52

@@ -1,9 +1,11 @@
 #ifdef USE_NRF52
+#ifdef USE_ARDUINO
 
 #include "gpio.h"
 #include "esphome/core/log.h"
 #include <functional>
 #include <vector>
+#include "Arduino.h"
 
 namespace esphome {
 namespace nrf52 {
@@ -77,6 +79,9 @@ void NRF52GPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::Inter
   irq_arg = arg;
   attachInterrupt(pin_, pin_irq, mode);
 }
+
+void NRF52GPIOPin::setup() { pin_mode(flags_); }
+
 void NRF52GPIOPin::pin_mode(gpio::Flags flags) {
   pinMode(pin_, flags_to_mode(flags, pin_));  // NOLINT
 }
@@ -109,4 +114,5 @@ bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
 
 }  // namespace esphome
 
+#endif
 #endif  // USE_NRF52

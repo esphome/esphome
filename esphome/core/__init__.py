@@ -676,6 +676,10 @@ class EsphomeCore:
     def using_esp_idf(self):
         return self.target_framework == "esp-idf"
 
+    @property
+    def using_zephyr(self):
+        return self.target_framework == "zephyr"
+
     def add_job(self, func, *args, **kwargs):
         self.event_loop.add_job(func, *args, **kwargs)
 

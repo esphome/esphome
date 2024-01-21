@@ -27,7 +27,9 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_NRF52
+#ifdef USE_ARDUINO
 #include <Adafruit_TinyUSB.h> // for Serial
+#endif
 #endif
 
 namespace esphome {
@@ -64,12 +66,16 @@ void Logger::write_header_(int level, const char *tag, int line) {
 
   const char *color = LOG_LEVEL_COLORS[level];
   const char *letter = LOG_LEVEL_LETTERS[level];
+#ifdef USE_ARDUINO
   void *current_task = xTaskGetCurrentTaskHandle();
   if (current_task == main_task) {
+#endif
     this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);
+#ifdef USE_ARDUINO
   } else {
     this->printf_to_buffer_("%s[%s][%s:%03u]%s[%s]%s: ", color, letter, tag, line, ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED), pcTaskGetName(current_task), color);
   }
+#endif
 }
 
 void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
@@ -230,7 +236,9 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
   // add 1 to buffer size for null terminator
   this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
+#ifdef USE_ARDUINO
   this->main_task = xTaskGetCurrentTaskHandle();
+#endif
 }
 
 #ifndef USE_LIBRETINY

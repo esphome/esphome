@@ -1,11 +1,10 @@
 #ifdef USE_NRF52
-
+#ifdef USE_ARDUINO
 #include <Arduino.h>
 #include "Adafruit_nRFCrypto.h"
 #include "nrfx_wdt.h"
 
 namespace esphome {
-
 void yield() { ::yield(); }
 uint32_t millis() { return ::millis(); }
 void delay(uint32_t ms) { ::delay(ms); }
@@ -58,7 +57,7 @@ void nrf52GetMacAddr(uint8_t *mac)
     mac[1] = src[4];
     mac[0] = src[5] | 0xc0; // MSB high two bits get set elsewhere in the bluetooth stack
 }
-
 }  // namespace esphome
 
+#endif
 #endif  // USE_RP2040

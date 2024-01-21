@@ -10,6 +10,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <strings.h>
 
 #if defined(USE_ESP8266)
 #include <osapi.h>
@@ -48,7 +49,9 @@
 #endif
 
 #ifdef USE_NRF52
+#ifdef USE_ARDUINO
 #include "Adafruit_nRFCrypto.h"
+#endif
 #include "esphome/components/nrf52/core.h"
 #endif
 
@@ -246,7 +249,11 @@ bool random_bytes(uint8_t *data, size_t len) {
   fclose(fp);
   return true;
 #elif defined(USE_NRF52)
+#ifdef USE_ARDUINO
   return nRFCrypto.Random.generate(data, len);
+#elif USE_ZEPHYR
+//TODO
+#endif
 #else
 #error "No random source available for this configuration."
 #endif
@@ -518,13 +525,14 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
 }
 
 // System APIs
-#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_HOST)
+#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_HOST) || defined(USE_NRF52)
 // ESP8266 doesn't have mutexes, but that shouldn't be an issue as it's single-core and non-preemptive OS.
 Mutex::Mutex() {}
 void Mutex::lock() {}
 bool Mutex::try_lock() { return true; }
 void Mutex::unlock() {}
-#elif defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_NRF52)
+//TODO
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY) /*|| defined(USE_NRF52)*/
 Mutex::Mutex() { handle_ = xSemaphoreCreateMutex(); }
 void Mutex::lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
 bool Mutex::try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
