@@ -370,6 +370,11 @@ sensor:
     name: "a02yyuw Distance"
     uart_id: uart_a02yyuw
     state_topic: "esphome/sensor/a02yyuw_sensor/state"
+  - platform: jsn_sr04t
+    id: jsn_sr04t_sensor
+    name: "jsn_sr04t Distance"
+    update_interval: 1s
+    state_topic: "esphome/sensor/jsn_sr04t_sensor/state"
 
 #
 # platform sensor.apds9960 requires component apds9960
