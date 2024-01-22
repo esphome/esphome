@@ -15,6 +15,7 @@ void Jsnsr04tComponent::update() {
   this->write_byte(0x55);
   ESP_LOGV(TAG, "Request read out from sensor");
 }
+
 void Jsnsr04tComponent::loop() {
   while (this->available() > 0) {
     uint8_t data;
@@ -35,7 +36,7 @@ void Jsnsr04tComponent::check_buffer_() {
   uint8_t checksum = this->buffer_[0] + this->buffer_[1] + this->buffer_[2];
   if (this->buffer_[3] == checksum) {
     uint16_t distance = encode_uint16(this->buffer_[1], this->buffer_[2]);
-    if (distance > 230) {
+    if (distance > 250) {
       float meters = distance / 1000.0f;
       ESP_LOGV(TAG, "Distance from sensor: %" PRIu32 "mm, %.3fm", distance, meters);
       this->publish_state(meters);
