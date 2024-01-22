@@ -166,7 +166,7 @@ int8_t MBusProtocolHandler::receive_() {
 
 std::unique_ptr<MBusFrame> MBusProtocolHandler::parse_response_() {
   if (this->rx_buffer_.empty()) {
-    return nullptr;
+    return MBusFrameFactory::create_empty_frame();
   }
 
   //     Single Character
@@ -254,7 +254,9 @@ std::unique_ptr<MBusFrame> MBusProtocolHandler::parse_response_() {
 
     return frame;
   }
-  return nullptr;
+
+  ESP_LOGE(TAG, "parse_response_(): ERROR 'invalid frame' %s", format_hex_pretty(this->rx_buffer_).c_str());
+  return MBusFrameFactory::create_empty_frame();
 }
 
 // variable data response

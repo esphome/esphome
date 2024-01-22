@@ -21,6 +21,9 @@ api:
   encryption:
     key: "tBrCD12THOrfDuVOS7egI8eJmJJGJChgV7ysqoBsFug="
 
+ota:
+  password: "OTA"
+
 # Enable logging
 logger:
   tx_buffer_size: 1024
