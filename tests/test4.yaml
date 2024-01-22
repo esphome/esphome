@@ -373,6 +373,7 @@ sensor:
   - platform: jsn_sr04t
     id: jsn_sr04t_sensor
     name: "jsn_sr04t Distance"
+    uart_id: uart9600
     update_interval: 1s
     state_topic: "esphome/sensor/jsn_sr04t_sensor/state"
 
