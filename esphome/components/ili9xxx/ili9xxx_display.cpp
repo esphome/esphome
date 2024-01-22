@@ -7,7 +7,6 @@
 namespace esphome {
 namespace ili9xxx {
 
-static const char *const TAG = "ili9xxx";
 static const uint16_t SPI_SETUP_US = 100;         // estimated fixed overhead in microseconds for an SPI write
 static const uint16_t SPI_MAX_BLOCK_SIZE = 4092;  // Max size of continuous SPI transfer
 
@@ -17,13 +16,7 @@ static inline void put16_be(uint8_t *buf, uint16_t value) {
   buf[1] = value;
 }
 
-void ILI9XXXDisplay::setup() {
-  ESP_LOGD(TAG, "Setting up ILI9xxx");
-
-  this->setup_pins_();
-  this->init_lcd_();
-
-  this->command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
+void ILI9XXXDisplay::set_madctl_() {
   // custom x/y transform and color order
   uint8_t mad = this->color_order_ == display::COLOR_ORDER_BGR ? MADCTL_BGR : MADCTL_RGB;
   if (this->swap_xy_)
@@ -32,9 +25,19 @@ void ILI9XXXDisplay::setup() {
     mad |= MADCTL_MX;
   if (this->mirror_y_)
     mad |= MADCTL_MY;
-  this->send_command(ILI9XXX_MADCTL, &mad, 1);
+  this->command(ILI9XXX_MADCTL);
+  this->data(mad);
   esph_log_d(TAG, "Wrote MADCTL 0x%02X", mad);
+}
 
+void ILI9XXXDisplay::setup() {
+  ESP_LOGD(TAG, "Setting up ILI9xxx");
+
+  this->setup_pins_();
+  this->init_lcd_();
+
+  this->set_madctl_();
+  this->command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
   this->x_high_ = 0;
@@ -90,6 +93,7 @@ void ILI9XXXDisplay::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  ESP_LOGCONFIG(TAG, "  Color order: %s", this->color_order_ == display::COLOR_ORDER_BGR ? "BGR" : "RGB");
   ESP_LOGCONFIG(TAG, "  Swap_xy: %s", YESNO(this->swap_xy_));
   ESP_LOGCONFIG(TAG, "  Mirror_x: %s", YESNO(this->mirror_x_));
   ESP_LOGCONFIG(TAG, "  Mirror_y: %s", YESNO(this->mirror_y_));
@@ -197,7 +201,6 @@ void ILI9XXXDisplay::display_() {
   uint8_t transfer_buffer[ILI9XXX_TRANSFER_BUFFER_SIZE];
   // check if something was displayed
   if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_)) {
-    ESP_LOGV(TAG, "Nothing to display");
     return;
   }
 
@@ -212,13 +215,13 @@ void ILI9XXXDisplay::display_() {
   size_t mw_time = (w * h * 16) / mhz + w * h * 2 / ILI9XXX_TRANSFER_BUFFER_SIZE * SPI_SETUP_US;
   ESP_LOGV(TAG,
            "Start display(xlow:%d, ylow:%d, xhigh:%d, yhigh:%d, width:%d, "
-           "height:%d, mode=%d, 18bit=%d, sw_time=%dus, mw_time=%dus)",
+           "height:%zu, mode=%d, 18bit=%d, sw_time=%zuus, mw_time=%zuus)",
            this->x_low_, this->y_low_, this->x_high_, this->y_high_, w, h, this->buffer_color_mode_,
            this->is_18bitdisplay_, sw_time, mw_time);
   auto now = millis();
   if (this->buffer_color_mode_ == BITS_16 && !this->is_18bitdisplay_ && sw_time < mw_time) {
     // 16 bit mode maps directly to display format
-    ESP_LOGV(TAG, "Doing single write of %d bytes", this->width_ * h * 2);
+    ESP_LOGV(TAG, "Doing single write of %zu bytes", this->width_ * h * 2);
     set_addr_window_(0, this->y_low_, this->width_ - 1, this->y_high_);
     this->write_array(this->buffer_ + this->y_low_ * this->width_ * 2, h * this->width_ * 2);
   } else {
@@ -327,20 +330,6 @@ void ILI9XXXDisplay::send_command(uint8_t command_byte, const uint8_t *data_byte
   this->end_data_();
 }
 
-uint8_t ILI9XXXDisplay::read_command(uint8_t command_byte, uint8_t index) {
-  uint8_t data = 0x10 + index;
-  this->send_command(0xD9, &data, 1);  // Set Index Register
-  uint8_t result;
-  this->start_command_();
-  this->write_byte(command_byte);
-  this->start_data_();
-  do {
-    result = this->read_byte();
-  } while (index--);
-  this->end_data_();
-  return result;
-}
-
 void ILI9XXXDisplay::start_command_() {
   this->dc_pin_->digital_write(false);
   this->enable();
@@ -358,7 +347,7 @@ void ILI9XXXDisplay::reset_() {
     this->reset_pin_->digital_write(false);
     delay(20);
     this->reset_pin_->digital_write(true);
-    delay(120);
+    delay(20);
   }
 }
 
@@ -377,15 +366,16 @@ void ILI9XXXDisplay::init_lcd_() {
 
 // Tell the display controller where we want to draw pixels.
 void ILI9XXXDisplay::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
-  uint8_t buf[4];
-  put16_be(buf, x1 + this->offset_x_);
-  put16_be(buf + 2, x2 + this->offset_x_);
-  esph_log_v(TAG, "set_addr_window X %02X,%02X,%02X,%02X ", buf[0], buf[1], buf[2], buf[3]);
-  this->send_command(ILI9XXX_CASET, buf, 4);  // Column address set
-  put16_be(buf, y1 + this->offset_y_);
-  put16_be(buf + 2, y2 + this->offset_y_);
-  esph_log_v(TAG, "set_addr_window Y %02X,%02X,%02X,%02X ", buf[0], buf[1], buf[2], buf[3]);
-  this->send_command(ILI9XXX_PASET, buf, 4);  // Page address set
+  this->command(ILI9XXX_CASET);
+  this->data(x1 >> 8);
+  this->data(x1 & 0xFF);
+  this->data(x2 >> 8);
+  this->data(x2 & 0xFF);
+  this->command(ILI9XXX_PASET);  // Page address set
+  this->data(y1 >> 8);
+  this->data(y1 & 0xFF);
+  this->data(y2 >> 8);
+  this->data(y2 & 0xFF);
   this->command(ILI9XXX_RAMWR);  // Write to RAM
   this->start_data_();
 }
