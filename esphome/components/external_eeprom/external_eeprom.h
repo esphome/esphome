@@ -69,7 +69,6 @@ class ExtEepromComponent : public i2c::I2CDevice, public Component {
   uint32_t memory_size_bytes_{0};
   uint8_t memory_page_size_bytes_{0};
   uint8_t memory_page_write_time_ms_{0};
-  bool poll_for_write_complete_{true};
   uint8_t i2c_buffer_size_{126};
 };
 
