@@ -67,7 +67,7 @@ class ExtEepromComponent : public i2c::I2CDevice, public Component {
   }
 
  private:
-  void write_block_(uint32_t memaddr, const uint8_t *obj, uint8_t size);
+  void write_block_(uint8_t deviceaddr, uint32_t memaddr, const uint8_t *obj, uint8_t size);
   uint32_t memory_size_bytes_{0};
   uint8_t memory_page_size_bytes_{0};
   uint8_t memory_page_write_time_ms_{0};

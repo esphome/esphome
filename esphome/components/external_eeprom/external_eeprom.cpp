@@ -113,16 +113,16 @@ void ExtEepromComponent::read(uint32_t memaddr, uint8_t *buff, uint16_t buffer_s
     i2c::ErrorCode ret;
     if (this->get_memory_size() > 2048) {
       uint8_t maddr[] = {(uint8_t) (memaddr >> 8), (uint8_t) (memaddr & 0xFF)};
-      ret = this->bus_->write(this->address_, maddr, 2, false);
+      ret = this->bus_->write(i2c_address, maddr, 2, false);
     } else {
       uint8_t maddr[] = {(uint8_t) (memaddr & 0xFF)};
-      ret = this->bus_->write(this->address_, maddr, 1, false);
+      ret = this->bus_->write(i2c_address, maddr, 1, false);
     }
     if (ret != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "Read raise this error %d on setting address", ret);
     }
     ESP_LOGVV(TAG, "Read - Done Set address, Ammount to read %d", amt_to_read);
-    ret = this->bus_->read(this->address_, p, amt_to_read);
+    ret = this->bus_->read(i2c_address, p, amt_to_read);
     if (ret != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "Read raised this error %d on reading data", ret);
     }
@@ -248,7 +248,7 @@ void ExtEepromComponent::write(uint32_t memaddr, uint8_t *data_to_write, uint16_
     }
 
     ESP_LOGVV(TAG, "Write block %d bytes to address %d", amt_to_write, memaddr);
-    this->write_block_(memaddr, p, amt_to_write);
+    this->write_block_(i2c_address, memaddr, p, amt_to_write);
     memaddr += amt_to_write;
     p += amt_to_write;
     size -= amt_to_write;
@@ -340,7 +340,7 @@ void ExtEepromComponent::set_i2c_buffer_size(uint8_t i2c_buffer_size) { i2c_buff
 uint8_t ExtEepromComponent::get_i2c_buffer_size() { return i2c_buffer_size_; }
 
 // private functions
-void ExtEepromComponent::write_block_(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
+void ExtEepromComponent::write_block_(uint8_t deviceaddr, uint32_t memaddr, const uint8_t *obj, uint8_t size) {
   i2c::WriteBuffer buff[2];
   i2c::ErrorCode ret;
   // Check if the device has two address bytes
