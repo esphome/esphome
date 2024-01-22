@@ -34,7 +34,7 @@ CONF_TAG_TTL = "tag_ttl"
 CONF_VEN_PIN = "ven_pin"
 
 pn7150_ns = cg.esphome_ns.namespace("pn7150")
-PN7150 = pn7150_ns.class_("PN7150", cg.Component)
+PN7150 = pn7150_ns.class_("PN7150", nfc.Nfcc, cg.Component)
 
 EmulationOffAction = pn7150_ns.class_("EmulationOffAction", automation.Action)
 EmulationOnAction = pn7150_ns.class_("EmulationOnAction", automation.Action)

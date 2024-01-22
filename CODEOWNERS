@@ -25,7 +25,7 @@ esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_base/* @jeromelaban @kpfleming @ncareau
 esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban
-esphome/components/alarm_control_panel/* @grahambrown11
+esphome/components/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/alpha3/* @jan-hofmeier
 esphome/components/am43/* @buxtronix
 esphome/components/am43/cover/* @buxtronix
@@ -34,6 +34,8 @@ esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
 esphome/components/api/* @OttoWinter
+esphome/components/as5600/* @ammmze
+esphome/components/as5600/sensor/* @ammmze
 esphome/components/as7341/* @mrgnr
 esphome/components/async_tcp/* @OttoWinter
 esphome/components/atc_mithermometer/* @ahpohl
@@ -50,8 +52,10 @@ esphome/components/bk72xx/* @kuba2k2
 esphome/components/bl0939/* @ziceva
 esphome/components/bl0940/* @tobias-
 esphome/components/bl0942/* @dbuezas
-esphome/components/ble_client/* @buxtronix
+esphome/components/ble_client/* @buxtronix @clydebarrow
 esphome/components/bluetooth_proxy/* @jesserockz
+esphome/components/bme280_base/* @esphome/core
+esphome/components/bme280_spi/* @apbodrov
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bmi160/* @flaviut
 esphome/components/bmp3xx/* @martgras
@@ -67,6 +71,7 @@ esphome/components/cd74hc4067/* @asoehlke
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/color_temperature/* @jesserockz
+esphome/components/combination/* @Cat-Ion @kahrendt
 esphome/components/coolix/* @glmnet
 esphome/components/copy/* @OttoWinter
 esphome/components/cover/* @esphome/core
@@ -133,6 +138,7 @@ esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/hm3301/* @freekode
 esphome/components/homeassistant/* @OttoWinter
+esphome/components/honeywell_hih_i2c/* @Benichou34
 esphome/components/honeywellabp/* @RubyBailey
 esphome/components/honeywellabp2_i2c/* @jpfaff
 esphome/components/host/* @esphome/core
@@ -156,7 +162,6 @@ esphome/components/integration/* @OttoWinter
 esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
 esphome/components/json/* @OttoWinter
-esphome/components/kalman_combinator/* @Cat-Ion
 esphome/components/key_collector/* @ssieb
 esphome/components/key_provider/* @ssieb
 esphome/components/kuntze/* @ssieb
@@ -223,7 +228,7 @@ esphome/components/nextion/binary_sensor/* @senexcrenshaw
 esphome/components/nextion/sensor/* @senexcrenshaw
 esphome/components/nextion/switch/* @senexcrenshaw
 esphome/components/nextion/text_sensor/* @senexcrenshaw
-esphome/components/nfc/* @jesserockz
+esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
 esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
@@ -314,6 +319,9 @@ esphome/components/ssd1331_base/* @kbx81
 esphome/components/ssd1331_spi/* @kbx81
 esphome/components/ssd1351_base/* @kbx81
 esphome/components/ssd1351_spi/* @kbx81
+esphome/components/st7567_base/* @latonita
+esphome/components/st7567_i2c/* @latonita
+esphome/components/st7567_spi/* @latonita
 esphome/components/st7735/* @SenexCrenshaw
 esphome/components/st7789v/* @kbx81
 esphome/components/st7920/* @marsjan155
@@ -325,7 +333,7 @@ esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tcl112/* @glmnet
 esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax
-esphome/components/template/alarm_control_panel/* @grahambrown11
+esphome/components/template/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
@@ -355,9 +363,11 @@ esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
 esphome/components/vbus/* @ssieb
+esphome/components/veml3235/* @kbx81
 esphome/components/version/* @esphome/core
 esphome/components/voice_assistant/* @jesserockz
 esphome/components/wake_on_lan/* @willwill2will54
+esphome/components/waveshare_epaper/* @clydebarrow
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/web_server_idf/* @dentra
 esphome/components/whirlpool/* @glmnet

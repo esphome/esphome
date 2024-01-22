@@ -64,7 +64,7 @@ class HaierClimateBase : public esphome::Component,
     SENDING_INIT_1 = 0,
     SENDING_INIT_2,
     SENDING_FIRST_STATUS_REQUEST,
-    SENDING_ALARM_STATUS_REQUEST,
+    SENDING_FIRST_ALARM_STATUS_REQUEST,
     // FUNCTIONAL STATE
     IDLE,
     SENDING_STATUS_REQUEST,
@@ -72,6 +72,7 @@ class HaierClimateBase : public esphome::Component,
     SENDING_SIGNAL_LEVEL,
     SENDING_CONTROL,
     SENDING_ACTION_COMMAND,
+    SENDING_ALARM_STATUS_REQUEST,
     NUM_PROTOCOL_PHASES
   };
   const char *phase_to_string_(ProtocolPhases phase);
