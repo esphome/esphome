@@ -101,6 +101,14 @@ uart:
       allow_other_uses: true
     baud_rate: 1200
     parity: EVEN
+  - id: uart_jsn_sr04t
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO10
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO9
+    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -373,7 +381,7 @@ sensor:
   - platform: jsn_sr04t
     id: jsn_sr04t_sensor
     name: "jsn_sr04t Distance"
-    uart_id: uart9600
+    uart_id: uart_jsn_sr04t
     update_interval: 1s
     state_topic: "esphome/sensor/jsn_sr04t_sensor/state"
 
