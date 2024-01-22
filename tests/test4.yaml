@@ -103,10 +103,10 @@ uart:
     parity: EVEN
   - id: uart_jsn_sr04t
     tx_pin:
-      allow_other_uses: true
+      allow_other_uses: false
       number: GPIO10
     rx_pin:
-      allow_other_uses: true
+      allow_other_uses: false
       number: GPIO9
     baud_rate: 9600
 
