@@ -18,8 +18,7 @@ class ExtEepromComponent : public i2c::I2CDevice, public Component {
   float get_setup_priority() const override { return setup_priority::BUS; }
 
   bool is_connected(uint8_t i2c_address = 255);
-  bool is_busy(uint8_t i2c_address = 255);
-
+  
   uint8_t read8(uint32_t memaddr);  // Read a single byte from address memaddr
   uint16_t read16(uint32_t memaddr);
   uint32_t read32(uint32_t memaddr);
