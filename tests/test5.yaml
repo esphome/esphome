@@ -730,3 +730,11 @@ light:
     bit0_low: 100us
     bit1_high: 100us
     bit1_low: 100us
+
+external_eeprom:
+  id: ext_eeprom_component_1
+  address: 0x57
+  ee_page_write_time: 5
+  ee_page_size: 32
+  ee_memory_size: 4096
+  i2c_buffer_size: 126
