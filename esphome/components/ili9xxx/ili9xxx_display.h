@@ -129,7 +129,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   bool need_update_ = false;
   bool is_18bitdisplay_ = false;
   bool pre_invertcolors_ = false;
-  display::ColorOrder color_order_{};
+  display::ColorOrder color_order_{display::COLOR_ORDER_BGR};
   bool swap_xy_{};
   bool mirror_x_{};
   bool mirror_y_{};
