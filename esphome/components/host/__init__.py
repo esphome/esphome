@@ -6,6 +6,7 @@ from esphome.const import (
     PLATFORM_HOST,
 )
 from esphome.core import CORE
+from esphome.helpers import IS_MACOS
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
@@ -13,7 +14,6 @@ from .const import KEY_HOST
 
 # force import gpio to register pin schema
 from .gpio import host_pin_to_code  # noqa
-
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["network"]
@@ -35,5 +35,9 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     cg.add_build_flag("-DUSE_HOST")
+    cg.add_build_flag("-std=c++17")
+    cg.add_build_flag("-lsodium")
+    if IS_MACOS:
+        cg.add_build_flag("-L/opt/homebrew/lib")
     cg.add_define("ESPHOME_BOARD", "host")
     cg.add_platformio_option("platform", "platformio/native")
