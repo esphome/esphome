@@ -16,7 +16,7 @@ static inline void put16_be(uint8_t *buf, uint16_t value) {
   buf[1] = value;
 }
 
-void ILI9XXXDisplay::set_madctl_() {
+void ILI9XXXDisplay::set_madctl() {
   // custom x/y transform and color order
   uint8_t mad = this->color_order_ == display::COLOR_ORDER_BGR ? MADCTL_BGR : MADCTL_RGB;
   if (this->swap_xy_)
@@ -36,7 +36,7 @@ void ILI9XXXDisplay::setup() {
   this->setup_pins_();
   this->init_lcd_();
 
-  this->set_madctl_();
+  this->set_madctl();
   this->command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;

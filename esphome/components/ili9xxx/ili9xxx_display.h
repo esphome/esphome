@@ -93,7 +93,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void setup_pins_();
 
-  virtual void set_madctl_();
+  virtual void set_madctl();
   void display_();
   void init_lcd_();
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t x2, uint16_t y2);
@@ -188,37 +188,37 @@ class ILI9XXXILI9488 : public ILI9XXXDisplay {
   ILI9XXXILI9488(const uint8_t *seq = INITCMD_ILI9488) : ILI9XXXDisplay(seq, 480, 320, true) {}
 
  protected:
-  void set_madctl_() override {
-    uint8_t MemoryAccessReg_Data = this->color_order_ == display::COLOR_ORDER_BGR ? MADCTL_BGR : MADCTL_RGB;
-    uint8_t DisFunReg_Data = 0x22;
+  void set_madctl() override {
+    uint8_t mad = this->color_order_ == display::COLOR_ORDER_BGR ? MADCTL_BGR : MADCTL_RGB;
+    uint8_t dfun = 0x22;
     this->width_ = 320;
     this->height_ = 480;
     if (!(this->swap_xy_ || this->mirror_x_ || this->mirror_y_)) {
       // no transforms
     } else if (this->mirror_y_ && this->mirror_x_) {
       // rotate 180
-      DisFunReg_Data = 0x42;
+      dfun = 0x42;
     } else if (this->swap_xy_) {
       this->width_ = 480;
       this->height_ = 320;
-      MemoryAccessReg_Data |= 0x20;
+      mad |= 0x20;
       if (this->mirror_x_) {
-        DisFunReg_Data = 0x02;
+        dfun = 0x02;
       } else {
-        DisFunReg_Data = 0x62;
+        dfun = 0x62;
       }
     }
     this->command(ILI9XXX_DFUNCTR);
     this->data(0);
-    this->data(DisFunReg_Data);
+    this->data(dfun);
     this->command(ILI9XXX_MADCTL);
-    this->data(MemoryAccessReg_Data);
+    this->data(mad);
   }
 };
 //-----------   Waveshare 3.5 Res Touch - ILI9488 interfaced via 16 bit shift register to parallel */
-class WAVESHARE_RES_3_5 : public ILI9XXXILI9488 {
+class WAVESHARERES35 : public ILI9XXXILI9488 {
  public:
-  WAVESHARE_RES_3_5() : ILI9XXXILI9488(INITCMD_WAVESHARE_RES_3_5) {}
+  WAVESHARERES35() : ILI9XXXILI9488(INITCMD_WAVESHARE_RES_3_5) {}
   void data(uint8_t value) override {
     this->start_data_();
     this->write_byte(0);
