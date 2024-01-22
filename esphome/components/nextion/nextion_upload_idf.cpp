@@ -264,8 +264,9 @@ bool Nextion::upload_tft() {
   this->recv_ret_string_(response, 5000, true);  // This can take some time to return
 
   // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
-  ESP_LOGD(TAG, "Upgrade response is [%s]",
-           format_hex_pretty(reinterpret_cast<const uint8_t *>(response.data()), response.size()).c_str());
+  ESP_LOGD(TAG, "Upgrade response is [%s] - %zu bytes",
+           format_hex_pretty(reinterpret_cast<const uint8_t *>(response.data()), response.size()).c_str(),
+           response.length());
   ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
 
   if (response.find(0x05) != std::string::npos) {
