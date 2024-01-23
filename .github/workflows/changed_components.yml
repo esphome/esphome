@@ -42,8 +42,6 @@ jobs:
               echo "}"
             ) >publish_data/changed_components.json
 
-        
-    
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
