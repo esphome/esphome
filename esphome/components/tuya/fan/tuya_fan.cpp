@@ -85,8 +85,8 @@ void TuyaFan::control(const fan::FanCall &call) {
   if (this->oscillation_id_.has_value() && call.get_oscillating().has_value()) {
     if (this->oscillation_type_ == TuyaDatapointType::ENUM) {
       this->parent_->set_enum_datapoint_value(*this->oscillation_id_, *call.get_oscillating());
-    } else if (this->speed_type_ == TuyaDatapointType::INTEGER) {
-      this->parent_->set_integer_datapoint_value(*this->oscillation_id_, *call.get_oscillating());
+    } else if (this->speed_type_ == TuyaDatapointType::BOOLEAN) {
+      this->parent_->set_boolean_datapoint_value(*this->oscillation_id_, *call.get_oscillating());
     }
   }
   if (this->direction_id_.has_value() && call.get_direction().has_value()) {
