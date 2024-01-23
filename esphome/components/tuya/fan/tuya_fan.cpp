@@ -34,7 +34,8 @@ void TuyaFan::setup() {
   }
   if (this->oscillation_id_.has_value()) {
     this->parent_->register_listener(*this->oscillation_id_, [this](const TuyaDatapoint &datapoint) {
-      //Whether data type is BOOL or ENUM, it will still be a 1 or a 0, so the functions below are valid in both scenarios
+      // Whether data type is BOOL or ENUM, it will still be a 1 or a 0, so the functions below are valid in both
+      // scenarios
       ESP_LOGV(TAG, "MCU reported oscillation is: %s", ONOFF(datapoint.value_bool));
       this->oscillating = datapoint.value_bool;
       this->publish_state();
