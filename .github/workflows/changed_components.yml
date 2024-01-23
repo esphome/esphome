@@ -23,23 +23,22 @@ concurrency:
 
 jobs:
   # Single deploy job since we're just deploying
-  publish-changed-component-list:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  create-component-list:
     runs-on: ubuntu-latest
     steps:
       - name: Check out release branch from GitHub
         uses: actions/checkout@v4.1.1
         with:
           ref: release
-          # Fetch enough history so `git merge-base refs/remotes/origin/dev HEAD` works.
           fetch-depth: 500
       - name: Find changed components
         run: |
             mkdir -p publish_data
-            ( echo "{ " 
-              git diff origin/dev origin/release --name-only | grep esphome/components | sed 's#esphome/components/##' | sed 's#/.*$##' | sort -u | sed '/.*/"&",' | sed '1,$-1s/$/,/'
+            ( echo '{ "changed_components": [ '
+              git diff origin/dev origin/release --name-only | grep esphome/components | sed 's#esphome/components/##' | sed 's#/.*$##' | sort -u | sed 's/.*/"&"/' | sed '$!s/$/,/'
+              echo "],"
+              now=`date -Iminutes`
+              echo '"last_updated": "'$now'"
               echo "}"
             ) >publish_data/changed_components.json
 
@@ -52,6 +51,13 @@ jobs:
         with:
           # Upload files
           path: 'publish_data'
+  publish-component-list:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: create-component-list
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
