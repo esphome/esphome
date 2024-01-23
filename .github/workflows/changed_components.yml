@@ -35,12 +35,18 @@ jobs:
         run: |
             git fetch origin dev
             git fetch origin release
+            git switch release
+            release_version=`grep '^__version__ ' esphome/const.py | sed 's/.*"\([^"]*\)"/\1/'`
+            git switch dev
+            dev_version=`grep '^__version__ ' esphome/const.py | sed 's/.*"\([^"]*\)"/\1/'`
             mkdir -p publish_data
             ( echo '{ "changed_components": [ '
               git diff origin/dev origin/release --name-only | grep esphome/components | sed 's#esphome/components/##' | sed 's#/.*$##' | sort -u | sed 's/.*/"&"/' | sed '$!s/$/,/'
               echo "],"
               now=`date -Iminutes`
-              echo '"last_updated":' \"$now\"
+              echo '"last_updated":' \"$now\",
+              echo '"release_version":' \"$release_version\",
+              echo '"dev_version":' \"$dev_version\"
               echo "}"
             ) >publish_data/changed_components.json
 
