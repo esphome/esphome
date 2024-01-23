@@ -18,6 +18,8 @@ from .gpio import host_pin_to_code  # noqa
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["network"]
 
+CONF_MAC_ADDR = "mac_addr"
+
 
 def set_core_data(config):
     CORE.data[KEY_HOST] = {}
@@ -28,13 +30,20 @@ def set_core_data(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema({}),
+    cv.Schema(
+        {
+            cv.Optional(CONF_MAC_ADDR, default="98:35:69:175:179:221]"): cv.mac_address,
+        }
+    ),
     set_core_data,
 )
 
 
 async def to_code(config):
     cg.add_build_flag("-DUSE_HOST")
+    mac_addr = "0x" + ",0x".join(f"{config[CONF_MAC_ADDR]}".split(":"))
+    print(mac_addr)
+    cg.add_build_flag(f"-DESPHOME_HOST_MAC_ADDR={mac_addr}")
     cg.add_build_flag("-std=c++17")
     cg.add_build_flag("-lsodium")
     if IS_MACOS:
