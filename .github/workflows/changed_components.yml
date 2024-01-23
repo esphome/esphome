@@ -1,5 +1,5 @@
 # Simple workflow for deploying static content to GitHub Pages
-name: Deploy static content to Pages
+name: List upcoming component changes
 
 on:
   schedule:
@@ -37,7 +37,7 @@ jobs:
           fetch-depth: 500
       - name: Find changed components
         run: |
-            mkdir -p changed_components
+            mkdir -p publish_data
             ( echo "{ " 
               git diff origin/dev origin/release --name-only | grep esphome/components | sed 's#esphome/components/##' | sed 's#/.*$##' | sort -u | sed '/.*/"&",' | sed '1,$-1s/$/,/'
               echo "}"
