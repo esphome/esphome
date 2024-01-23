@@ -22,10 +22,10 @@ from esphome.const import (
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_SWAP_XY,
+    CONF_COLOR_ORDER,
+    CONF_TRANSFORM,
 )
 
-CONF_COLOR_ORDER = "color_order"
-CONF_TRANSFORM = "transform"
 
 DEPENDENCIES = ["spi"]
 
