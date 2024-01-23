@@ -124,11 +124,47 @@ class TimeTextRun : public TextRunBase, public FormattableTextRun {
   bool use_utc_time_{false};
 };
 
+struct RunProperties {
+  bool is_white_space{false};
+
+  /**
+   * If false the run will be skipped
+   */
+  bool is_printable{false};
+
+  /*
+   * A run with this marked as true will not be printed when it appears at the start of a line. Useful for whitespace
+   */
+  bool suppress_at_start_of_line{false};
+
+  /*
+   * A run with this marked as true will not be printed when it appears at the end of a line. Useful for white space
+   */
+  bool suppress_at_end_of_line{false};
+
+  /**
+   * If true can allow the the line to end
+   */
+  bool can_wrap{false};
+
+  /**
+   * If true will force a new line
+   */
+  bool causes_new_line{false};
+
+  bool is_equivalent(const RunProperties &compare) {
+    return this->is_white_space == compare.is_white_space && this->is_printable == compare.is_printable &&
+           this->suppress_at_start_of_line == compare.suppress_at_start_of_line &&
+           this->suppress_at_end_of_line == compare.suppress_at_end_of_line && this->can_wrap == compare.can_wrap &&
+           this->causes_new_line == compare.causes_new_line;
+  }
+};
+
 class CalculatedTextRun {
  public:
-  CalculatedTextRun(TextRunBase *run, std::string text) {
+  CalculatedTextRun(TextRunBase *run, RunProperties run_properties) {
     this->run = run;
-    this->text = std::move(text);
+    this->run_properties = run_properties;
   }
 
   void calculate_bounds() {
@@ -147,6 +183,7 @@ class CalculatedTextRun {
   display::Rect bounds{};
   TextRunBase *run{nullptr};
   int16_t baseline{0};
+  RunProperties run_properties{};
 };
 
 class LineInfo {
@@ -160,6 +197,24 @@ class LineInfo {
     this->runs.push_back(run);
   }
 
+  void pop_last_run() { this->runs.pop_back(); }
+
+  void recalculate_line_measurements() {
+    int16_t total_width = 0;
+    int16_t max_height = 0;
+    int16_t max_baseline = 0;
+
+    for (const auto &run : this->runs) {
+      total_width += run->bounds.w;
+      max_height = std::max(max_height, run->bounds.h);
+      max_baseline = std::max(max_baseline, run->baseline);
+    }
+
+    this->total_width = total_width;
+    this->max_height = max_height;
+    this->max_baseline = max_baseline;
+  }
+
   std::vector<std::shared_ptr<CalculatedTextRun>> runs;
   int16_t line_number{0};
   int16_t max_height{0};
@@ -170,6 +225,11 @@ class LineInfo {
 struct CalculatedLayout {
   std::vector<std::shared_ptr<LineInfo>> lines;
   display::Rect bounds;
+};
+
+struct CharacterProperties : RunProperties {
+  char character{'\0'};
+  optional<std::string> replace_with{};
 };
 
 /** The TextRunPanel is a UI item that renders a multiple "runs" of text of independent styling to a display */
@@ -200,6 +260,7 @@ class TextRunPanel : public LayoutItem {
       const std::vector<std::shared_ptr<CalculatedTextRun>> &runs, display::Rect bounds,
       bool grow_beyond_bounds_height);
   void apply_alignment_to_lines_(std::vector<std::shared_ptr<LineInfo>> &lines, display::TextAlign alignment);
+  CharacterProperties get_character_properties_(char character);
 
   std::vector<TextRunBase *> text_runs_;
   display::TextAlign text_align_{display::TextAlign::TOP_LEFT};

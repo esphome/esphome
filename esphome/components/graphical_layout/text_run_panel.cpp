@@ -59,6 +59,9 @@ void TextRunPanel::render_internal(display::Display *display, display::Rect boun
     }
 
     for (const auto &calculated : line->runs) {
+      if (!calculated->run_properties.is_printable) {
+        continue;
+      }
       if (calculated->run->background_color_ != display::COLOR_OFF) {
         display->filled_rectangle(calculated->bounds.x, calculated->bounds.y, calculated->bounds.w,
                                   calculated->bounds.h, calculated->run->background_color_);
@@ -82,31 +85,37 @@ void TextRunPanel::render_internal(display::Display *display, display::Rect boun
 
 std::vector<std::shared_ptr<CalculatedTextRun>> TextRunPanel::split_runs_into_words_() {
   std::vector<std::shared_ptr<CalculatedTextRun>> runs;
-
   for (TextRunBase *run : this->text_runs_) {
     std::string text = run->get_text();
     CanWrapAtCharacterArguments can_wrap_at_args(this, 0, text, ' ');
 
-    int last_break = 0;
+    std::shared_ptr<CalculatedTextRun> current_text_run = nullptr;
     for (int i = 0; i < text.size(); i++) {
-      can_wrap_at_args.character = text.at(i);
+      char current_char = text.at(i);
+      CharacterProperties prop = this->get_character_properties_(current_char);
+      can_wrap_at_args.character = current_char;
       can_wrap_at_args.offset = i;
-      bool can_wrap = this->can_wrap_at_character_.value(can_wrap_at_args);
-      if (!can_wrap) {
-        continue;
+      prop.can_wrap = this->can_wrap_at_character_.value(can_wrap_at_args);
+
+      if ((current_text_run == nullptr) || (current_text_run->run_properties.is_equivalent(prop) == false)) {
+        current_text_run = std::make_shared<CalculatedTextRun>(run, prop);
+        runs.push_back(current_text_run);
       }
 
-      auto calculated = std::make_shared<CalculatedTextRun>(run, text.substr(last_break, i - last_break));
-      calculated->calculate_bounds();
-      runs.push_back(calculated);
-      last_break = i;
+      if (prop.is_printable) {
+        if (prop.replace_with.has_value()) {
+          ESP_LOGD(TAG, "Replacing '%c' (0x%x) with '%s'", current_char, current_char,
+                   prop.replace_with.value().c_str());
+          current_text_run->text.append(prop.replace_with.value());
+        } else {
+          current_text_run->text.push_back(current_char);
+        }
+      }
     }
+  }
 
-    if (last_break < text.size()) {
-      auto calculated = std::make_shared<CalculatedTextRun>(run, text.substr(last_break));
-      calculated->calculate_bounds();
-      runs.push_back(calculated);
-    }
+  for (const auto &run : runs) {
+    run->calculate_bounds();
   }
 
   return runs;
@@ -122,17 +131,35 @@ std::vector<std::shared_ptr<LineInfo>> TextRunPanel::fit_words_to_bounds_(
   auto current_line = std::make_shared<LineInfo>(current_line_number);
   lines.push_back(current_line);
 
+  bool is_first_run_of_line = true;
+
   for (const auto &run : runs) {
-    if (run->bounds.w + x_offset > bounds.w) {
+    if ((run->run_properties.causes_new_line) || (run->bounds.w + x_offset > bounds.w)) {
       // Overflows the current line create a new line
       x_offset = 0;
       y_offset += current_line->max_height;
+      is_first_run_of_line = true;
+
+      // Handle runs at the end of the line that want to be suppressed
+      std::shared_ptr<CalculatedTextRun> last_run_of_line = current_line->runs.back();
+      bool run_requires_recalculation = false;
+      while (last_run_of_line->run_properties.suppress_at_end_of_line) {
+        ESP_LOGD(TAG, "Suppressing run for '%s' as it's the end of a line", last_run_of_line->text.c_str());
+        current_line->pop_last_run();
+
+        last_run_of_line = current_line->runs.back();
+        run_requires_recalculation = true;
+      }
+      if (run_requires_recalculation) {
+        current_line->recalculate_line_measurements();
+      }
 
       current_line_number++;
       current_line = std::make_shared<LineInfo>(current_line_number);
 
       lines.push_back(current_line);
 
+      ESP_LOGD(TAG, "%i: Is New line: %s", current_line_number - 1, YESNO(run->run_properties.causes_new_line));
       ESP_LOGD(TAG, "Line %i finishes at %i vs available of %i", current_line_number - 1, y_offset, bounds.h);
       if (!grow_beyond_bounds_height && y_offset >= bounds.h) {
         ESP_LOGD(TAG, "No more text can fit into the available height. Aborting");
@@ -144,9 +171,15 @@ std::vector<std::shared_ptr<LineInfo>> TextRunPanel::fit_words_to_bounds_(
     run->bounds.x = x_offset;
     run->bounds.y = y_offset;
 
+    if (is_first_run_of_line && run->run_properties.suppress_at_start_of_line) {
+      ESP_LOGD(TAG, "Suppressing run for '%s' as it's the start of a line", run->text.c_str());
+      continue;
+    }
+
     current_line->add_run(run);
 
     x_offset += run->bounds.w;
+    is_first_run_of_line = false;
   }
 
   return lines;
@@ -235,6 +268,54 @@ CalculatedLayout TextRunPanel::determine_layout_(display::Display *display, disp
            layout.bounds.h);
 
   return layout;
+}
+
+inline CharacterProperties TextRunPanel::get_character_properties_(char character) {
+  CharacterProperties props;
+  props.character = character;
+
+  if (character == '\t') {
+    // Replace tabs with 4 spaces
+    props.replace_with = std::string("    ");
+    props.is_white_space = true;
+    props.is_printable = true;
+    props.suppress_at_end_of_line = false;
+    props.suppress_at_start_of_line = false;
+    return props;
+  }
+
+  // New line/Carriage Return are treated identically
+  if ((character == '\n') || (character == '\r')) {
+    props.is_white_space = true;
+    // Don't display anything instead control new line with the causes_new_line
+    props.replace_with = std::string("");
+    props.causes_new_line = true;
+    props.is_printable = false;
+
+    return props;
+  }
+
+  // ASCII table is non-printable below space
+  // 0x7f is the DEL character and the end of the normal ASCII set
+  if ((character < ' ') || (character >= 0x7f)) {
+    props.replace_with = std::string("");
+    props.is_printable = false;
+    return props;
+  }
+
+  if (character == ' ') {
+    // Ensure we don't print at the start/end of the line. Wrapping to the next line is space enough
+    props.suppress_at_end_of_line = true;
+    props.suppress_at_start_of_line = true;
+    props.is_printable = true;
+    props.is_white_space = true;
+    return props;
+  }
+
+  // Everything else should be printable
+  props.is_printable = true;
+
+  return props;
 }
 
 bool TextRunPanel::default_can_wrap_at_character(const CanWrapAtCharacterArguments &args) {
