@@ -38,7 +38,7 @@ jobs:
               git diff origin/dev origin/release --name-only | grep esphome/components | sed 's#esphome/components/##' | sed 's#/.*$##' | sort -u | sed 's/.*/"&"/' | sed '$!s/$/,/'
               echo "],"
               now=`date -Iminutes`
-              echo '"last_updated": "'$now'"
+              echo '"last_updated":' \"$now\"
               echo "}"
             ) >publish_data/changed_components.json
 
