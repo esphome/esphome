@@ -30,6 +30,7 @@ CONF_FOREGROUND_COLOR = "foreground_color"
 CONF_FOREGROUND_PRESSED_COLOR = "foreground_pressed_color"
 CONF_FONT_ID = "font_id"
 CONF_EXIT_REPARSE_ON_START = "exit_reparse_on_start"
+CONF_SOFT_RESET_ON_START = "soft_reset_on_start"
 
 
 def NextionName(value):

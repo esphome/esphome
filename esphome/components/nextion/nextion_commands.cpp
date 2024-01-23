@@ -54,6 +54,7 @@ void Nextion::set_protocol_reparse_mode(bool active_mode) {
   this->write_array(to_send, sizeof(to_send));
 }
 void Nextion::set_exit_reparse_on_start(bool exit_reparse) { this->exit_reparse_on_start_ = exit_reparse; }
+void Nextion::set_soft_reset_on_start(bool soft_reset) { this->soft_reset_on_start_ = soft_reset; }
 
 // Set Colors - Background
 void Nextion::set_component_background_color(const char *component, uint16_t color) {

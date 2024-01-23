@@ -873,6 +873,19 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void set_exit_reparse_on_start(bool exit_reparse);
   /**
+   * Sets if Nextion should execute a soft restart when this component is starting
+   * @param soft_reset True or false. When soft_reset is true (default), the Nextion
+   * will restart when this component is starting.
+   *
+   * Example:
+   * ```cpp
+   * it.set_soft_reset_on_start(false);
+   * ```
+   *
+   * The display will be skip the soft reset when starting.
+   */
+  void set_soft_reset_on_start(bool soft_reset);
+  /**
    * Sets Nextion mode between sleep and awake
    * @param True or false. Sleep=true to enter sleep mode or sleep=false to exit sleep mode.
    */
@@ -1003,6 +1016,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void set_exit_reparse_on_start_internal(bool exit_reparse_on_start) {
     this->exit_reparse_on_start_ = exit_reparse_on_start;
   }
+  void set_soft_reset_on_start_internal(bool soft_reset_on_start) { this->soft_reset_on_start_ = soft_reset_on_start; }
 
   /**
    * @brief Retrieves the number of commands pending in the Nextion command queue.
@@ -1042,6 +1056,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   int start_up_page_ = -1;
   bool auto_wake_on_touch_ = true;
   bool exit_reparse_on_start_ = false;
+  bool soft_reset_on_start_ = true;
 
   /**
    * Manually send a raw command to the display and don't wait for an acknowledgement packet.

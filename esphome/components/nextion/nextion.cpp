@@ -21,8 +21,10 @@ void Nextion::setup() {
   this->send_command_("sleep=0");
 
   // Reboot it
-  // this->send_command_("rest");
-
+  if (this->soft_reset_on_start_) {
+    this->send_command_("rest");
+  }
+  
   this->ignore_is_setup_ = false;
 }
 
@@ -132,6 +134,7 @@ void Nextion::dump_config() {
   ESP_LOGCONFIG(TAG, "  Flash Size:       %s", this->flash_size_.c_str());
   ESP_LOGCONFIG(TAG, "  Wake On Touch:    %s", YESNO(this->auto_wake_on_touch_));
   ESP_LOGCONFIG(TAG, "  Exit reparse:     %s", YESNO(this->exit_reparse_on_start_));
+  ESP_LOGCONFIG(TAG, "  Soft reset:       %s", YESNO(this->soft_reset_on_start_));
 
   if (this->touch_sleep_timeout_ != 0) {
     ESP_LOGCONFIG(TAG, "  Touch Timeout:    %" PRIu32, this->touch_sleep_timeout_);
@@ -253,6 +256,7 @@ void Nextion::loop() {
 
     this->set_auto_wake_on_touch(this->auto_wake_on_touch_);
     this->set_exit_reparse_on_start(this->exit_reparse_on_start_);
+    this->set_soft_reset_on_start(this->soft_reset_on_start_);
 
     if (this->touch_sleep_timeout_ != 0) {
       this->set_touch_sleep_timeout(this->touch_sleep_timeout_);

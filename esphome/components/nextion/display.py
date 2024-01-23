@@ -23,6 +23,7 @@ from .base_component import (
     CONF_START_UP_PAGE,
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_EXIT_REPARSE_ON_START,
+    CONF_SOFT_RESET_ON_START,
 )
 
 CODEOWNERS = ["@senexcrenshaw"]
@@ -72,6 +73,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_START_UP_PAGE): cv.positive_int,
             cv.Optional(CONF_AUTO_WAKE_ON_TOUCH, default=True): cv.boolean,
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
+            cv.Optional(CONF_SOFT_RESET_ON_START, default=True): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("5s"))
