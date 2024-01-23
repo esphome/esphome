@@ -1,7 +1,10 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import spi, display
+from esphome.components import (
+    spi,
+    display,
+)
 from esphome.const import (
     CONF_RESET_PIN,
     CONF_OUTPUT,
@@ -12,18 +15,15 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_BRIGHTNESS,
     CONF_ENABLE_PIN,
+    CONF_MODEL,
+    CONF_OFFSET_HEIGHT,
+    CONF_OFFSET_WIDTH,
+    CONF_INVERT_COLORS,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_SWAP_XY,
 )
 
-try:
-    from esphome.const import CONF_OFFSET_HEIGHT, CONF_OFFSET_WIDTH, CONF_INVERT_COLORS
-except ImportError:
-    CONF_OFFSET_HEIGHT = "offset_height"
-    CONF_OFFSET_WIDTH = "offset_width"
-    CONF_INVERT_COLORS = "invert_colors"
-
-CONF_MIRROR_X = "mirror_x"
-CONF_MIRROR_Y = "mirror_y"
-CONF_SWAP_XY = "swap_xy"
 CONF_COLOR_ORDER = "color_order"
 CONF_TRANSFORM = "transform"
 
@@ -31,9 +31,12 @@ DEPENDENCIES = ["spi"]
 
 qspi_amoled_ns = cg.esphome_ns.namespace("qspi_amoled")
 QSPI_AMOLED = qspi_amoled_ns.class_(
-    "QSPI_AMOLED", display.Display, display.DisplayBuffer, cg.Component, spi.SPIDevice
+    "QspiAmoLed", display.Display, display.DisplayBuffer, cg.Component, spi.SPIDevice
 )
 ColorOrder = display.display_ns.enum("ColorMode")
+Model = qspi_amoled_ns.enum("Model")
+
+MODELS = {"T4-S3": Model.T4_S3, "T-DISP-AMOLED": Model.T_DISP_AMOLED}
 
 COLOR_ORDERS = {
     "RGB": ColorOrder.COLOR_ORDER_RGB,
@@ -51,6 +54,7 @@ CONFIG_SCHEMA = cv.All(
         cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(QSPI_AMOLED),
+                cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True),
                 cv.Required(CONF_DIMENSIONS): cv.Any(
                     cv.dimensions,
                     cv.Schema(
@@ -100,6 +104,7 @@ async def to_code(config):
     cg.add(var.set_color_mode(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
     cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
+    cg.add(var.set_model(config[CONF_MODEL]))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = await cg.gpio_pin_expression(enable_pin)
         cg.add(var.set_enable_pin(enable))

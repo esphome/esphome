@@ -47,16 +47,16 @@ static inline void put16_be(uint8_t *buf, uint16_t value) {
   buf[1] = value;
 }
 
-enum QSPI_MODEL {
-  LILYGO_T4_S3,
-  LILYGO_T_DISP_AMOLED,
+enum Model {
+  T4_S3,
+  T_DISP_AMOLED,
 };
 
-class QSPI_AMOLED : public display::DisplayBuffer,
+class QspiAmoLed : public display::DisplayBuffer,
                     public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                           spi::DATA_RATE_1MHZ> {
  public:
-  void set_model(QSPI_MODEL model) { this->model_ = model; }
+  void set_model(Model model) { this->model_ = model; }
   void update() override {
     this->do_update_();
     int w = this->x_high_ - this->x_low_ + 1;
@@ -214,7 +214,7 @@ class QSPI_AMOLED : public display::DisplayBuffer,
   }
 
   void write_init_sequence_() {
-    if (this->model_ == LILYGO_T4_S3) {
+    if (this->model_ == T4_S3) {
       this->write_command_(PAGESEL, 0x20);
       this->write_command_(MIPI, 0x0A);
       this->write_command_(WRAM, 0x80);
@@ -289,7 +289,7 @@ class QSPI_AMOLED : public display::DisplayBuffer,
   bool mirror_x_{};
   bool mirror_y_{};
   uint8_t brightness_{0xD0};
-  QSPI_MODEL model_{LILYGO_T4_S3};
+  Model model_{T4_S3};
 
   esp_lcd_panel_handle_t handle_{};
 };

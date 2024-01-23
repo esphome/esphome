@@ -7,7 +7,7 @@
 namespace esphome {
 namespace qspi_amoled {
 
-void QSPI_AMOLED::dump_config() {
+void QspiAmoLed::dump_config() {
   ESP_LOGCONFIG("", "QSPI AMOLED");
   ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
   ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
