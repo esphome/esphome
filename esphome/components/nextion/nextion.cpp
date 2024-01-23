@@ -24,7 +24,7 @@ void Nextion::setup() {
   if (this->soft_reset_on_start_) {
     this->send_command_("rest");
   }
-  
+
   this->ignore_is_setup_ = false;
 }
 
