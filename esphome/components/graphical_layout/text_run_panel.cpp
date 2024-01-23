@@ -97,7 +97,7 @@ std::vector<std::shared_ptr<CalculatedTextRun>> TextRunPanel::split_runs_into_wo
       can_wrap_at_args.offset = i;
       prop.can_wrap = this->can_wrap_at_character_.value(can_wrap_at_args);
 
-      if ((current_text_run == nullptr) || (current_text_run->run_properties.is_equivalent(prop) == false)) {
+      if ((current_text_run == nullptr) || (!current_text_run->run_properties.is_equivalent(prop))) {
         current_text_run = std::make_shared<CalculatedTextRun>(run, prop);
         runs.push_back(current_text_run);
       }
