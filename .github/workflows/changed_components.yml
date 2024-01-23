@@ -33,6 +33,8 @@ jobs:
           fetch-depth: 500
       - name: Find changed components
         run: |
+            git fetch origin dev
+            git fetch origin release
             mkdir -p publish_data
             ( echo '{ "changed_components": [ '
               git diff origin/dev origin/release --name-only | grep esphome/components | sed 's#esphome/components/##' | sed 's#/.*$##' | sort -u | sed 's/.*/"&"/' | sed '$!s/$/,/'
