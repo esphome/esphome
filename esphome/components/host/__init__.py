@@ -42,7 +42,6 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     cg.add_build_flag("-DUSE_HOST")
     mac_addr = "0x" + ",0x".join(f"{config[CONF_MAC_ADDR]}".split(":"))
-    print(mac_addr)
     cg.add_build_flag(f"-DESPHOME_HOST_MAC_ADDR={mac_addr}")
     cg.add_build_flag("-std=c++17")
     cg.add_build_flag("-lsodium")
