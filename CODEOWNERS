@@ -183,6 +183,8 @@ esphome/components/max44009/* @berfenger
 esphome/components/max6956/* @looping40
 esphome/components/max7219digit/* @rspaargaren
 esphome/components/max9611/* @mckaymatthew
+esphome/components/mbus/* @MarkusSchneider
+esphome/components/mbus_sensor/* @MarkusSchneider
 esphome/components/mcp23008/* @jesserockz
 esphome/components/mcp23017/* @jesserockz
 esphome/components/mcp23s08/* @SenexCrenshaw @jesserockz
