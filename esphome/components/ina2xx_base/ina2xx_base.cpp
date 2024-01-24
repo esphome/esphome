@@ -337,7 +337,8 @@ bool INA2XX::read_shunt_voltage_mv_(float &volt_out) {
   if (ret)
     volt_out = (this->adc_range_ ? this->cfg_.v_shunt_lsb_range1 : this->cfg_.v_shunt_lsb_range0) * volt_reading;  // mV
 
-  ESP_LOGD(TAG, "read_shunt_voltage_mv_ ret=%s, reading_lsb=%f", OKFAILED(ret), volt_reading);
+  ESP_LOGD(TAG, "read_shunt_voltage_mv_ ret=%s, shunt_cal=%d, reading_lsb=%f", OKFAILED(ret), this->shunt_cal_,
+           volt_reading);
 
   return ret;
 }
@@ -512,7 +513,7 @@ bool INA2XX::read_unsigned_16_(uint8_t reg, uint16_t &out) {
 
 bool INA2XX::read_signed_40_(uint8_t reg, double &out) {
   uint64_t value = 0;
-  auto ret = this->read_unsigned_((uint8_t) RegisterMap::REG_CHARGE, 5, value);
+  auto ret = this->read_unsigned_(reg, 5, value);
   // Convert for 2's compliment and signed value
   if (value > 0x7FFFFFFFFFULL) {
     out = (double) (value - 0x10000000000ULL);
@@ -524,7 +525,7 @@ bool INA2XX::read_signed_40_(uint8_t reg, double &out) {
 
 bool INA2XX::read_signed_20_4_(uint8_t reg, float &out) {
   uint64_t value = 0;
-  auto ret = this->read_unsigned_((uint8_t) RegisterMap::REG_CHARGE, 3, value);
+  auto ret = this->read_unsigned_(reg, 3, value);
   // Remove reserved bits
   value = value >> 4;
   // Convert for 2's compliment and signed value
@@ -538,7 +539,7 @@ bool INA2XX::read_signed_20_4_(uint8_t reg, float &out) {
 
 bool INA2XX::read_signed_16_(uint8_t reg, float &out) {
   uint16_t value = 0;
-  auto ret = this->read_unsigned_16_((uint8_t) RegisterMap::REG_CHARGE, value);
+  auto ret = this->read_unsigned_16_(reg, value);
   // Convert for 2's compliment and signed value
   if (value > 0x7FFFU) {
     out = (float) (value - 0x10000U);
@@ -550,7 +551,7 @@ bool INA2XX::read_signed_16_(uint8_t reg, float &out) {
 
 bool INA2XX::read_signed_12_4_(uint8_t reg, float &out) {
   uint16_t value = 0;
-  auto ret = this->read_unsigned_16_((uint8_t) RegisterMap::REG_CHARGE, value);
+  auto ret = this->read_unsigned_16_(reg, value);
   // Remove reserved bits
   value = value >> 4;
   // Convert for 2's compliment and signed value
