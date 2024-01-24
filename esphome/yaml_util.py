@@ -7,8 +7,9 @@ import logging
 import math
 import os
 import uuid
-from typing import Any
 from io import TextIOWrapper
+from typing import Any
+
 import yaml
 import yaml.constructor
 from yaml import SafeLoader as PurePythonLoader
