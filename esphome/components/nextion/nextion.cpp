@@ -23,6 +23,8 @@ void Nextion::setup() {
   // Reboot it
   if (this->soft_reset_on_start_) {
     this->send_command_("rest");
+    ESP_LOGD(TAG, "Manually set Nextion report ready");
+    this->nextion_reports_is_setup_ = true;
   }
 
   this->ignore_is_setup_ = false;
