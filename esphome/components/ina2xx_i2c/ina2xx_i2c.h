@@ -13,11 +13,8 @@ class INA2XXI2C : public ina2xx_base::INA2XX, public i2c::I2CDevice {
   void dump_config() override;
 
  protected:
-  bool read_ina_register_(uint8_t a_register, uint8_t *data, size_t len) override;
-  bool write_ina_register_(uint8_t a_register, const uint8_t *data, size_t len) override;
-
- private:
-  typedef ina2xx_base::INA2XX super;
+  bool read_ina_register(uint8_t a_register, uint8_t *data, size_t len) override;
+  bool write_ina_register(uint8_t a_register, const uint8_t *data, size_t len) override;
 };
 
 }  // namespace ina2xx_i2c

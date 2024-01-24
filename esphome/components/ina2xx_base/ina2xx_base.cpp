@@ -61,8 +61,6 @@ void INA2XX::loop() {
   if (this->is_ready()) {
     switch (this->state_) {
       case State::NOT_INITIALIZED:
-        break;
-
       case State::IDLE:
         break;
 
@@ -70,7 +68,7 @@ void INA2XX::loop() {
         all_ok = true;
 
         if (this->shunt_voltage_sensor_ != nullptr) {
-          float shunt_voltage;
+          float shunt_voltage{0};
           all_ok &= this->read_shunt_voltage_mv_(shunt_voltage);
           this->shunt_voltage_sensor_->publish_state(shunt_voltage);
         }
@@ -79,7 +77,7 @@ void INA2XX::loop() {
 
       case State::DATA_COLLECTION_2:
         if (this->bus_voltage_sensor_ != nullptr) {
-          float bus_voltage;
+          float bus_voltage{0};
           all_ok &= this->read_bus_voltage_(bus_voltage);
           this->bus_voltage_sensor_->publish_state(bus_voltage);
         }
@@ -88,7 +86,7 @@ void INA2XX::loop() {
 
       case State::DATA_COLLECTION_3:
         if (this->die_temperature_sensor_ != nullptr) {
-          float die_temperature;
+          float die_temperature{0};
           all_ok &= this->read_die_temp_c_(die_temperature);
           this->die_temperature_sensor_->publish_state(die_temperature);
         }
@@ -97,7 +95,7 @@ void INA2XX::loop() {
 
       case State::DATA_COLLECTION_4:
         if (this->current_sensor_ != nullptr) {
-          float current;
+          float current{0};
           all_ok &= this->read_current_a_(current);
           this->current_sensor_->publish_state(current);
         }
@@ -106,7 +104,7 @@ void INA2XX::loop() {
 
       case State::DATA_COLLECTION_5:
         if (this->power_sensor_ != nullptr) {
-          float power;
+          float power{0};
           all_ok &= this->read_power_w_(power);
           this->power_sensor_->publish_state(power);
         }
@@ -119,7 +117,7 @@ void INA2XX::loop() {
             this->read_diagnostics_and_act_();
           }
           if (this->energy_sensor_ != nullptr) {
-            double energy;
+            double energy{0};
             all_ok &= this->read_energy_j_(energy);
             this->energy_sensor_->publish_state(energy);
           }
@@ -130,7 +128,7 @@ void INA2XX::loop() {
       case State::DATA_COLLECTION_7:
         if (this->ina_type_ == INAType::INA_228_229) {
           if (this->charge_sensor_ != nullptr) {
-            double coulombs;
+            double coulombs{0};
             all_ok &= this->read_charge_c_(coulombs);
             this->charge_sensor_->publish_state(coulombs);
           }
@@ -203,7 +201,7 @@ bool INA2XX::reset_config_() {
 }
 
 bool INA2XX::check_device_type_() {
-  constexpr uint16_t MANUFACTURER_TI = 0x5449;  // "TI"
+  constexpr uint16_t manufacturer_ti = 0x5449;  // "TI"
 
   uint16_t manufacturer_id{0}, dev_id{0}, rev_id{0};
   this->read_unsigned_16_(RegisterMap::REG_MANUFACTURER_ID, manufacturer_id);
@@ -215,7 +213,7 @@ bool INA2XX::check_device_type_() {
   dev_id >>= 4;
   ESP_LOGI(TAG, "Manufacturer: 0x%04X, Device ID: 0x%04X, Revision: %d", manufacturer_id, dev_id, rev_id);
 
-  if (manufacturer_id != MANUFACTURER_TI) {
+  if (manufacturer_id != manufacturer_ti) {
     ESP_LOGE(TAG, "Manufacturer ID doesn't match original 0x5449");
     return false;
   }
@@ -464,7 +462,7 @@ bool INA2XX::read_diagnostics_and_act_() {
 
 bool INA2XX::write_unsigned_16_(uint8_t reg, uint16_t val) {
   uint16_t data_out = byteswap(val);
-  auto ret = this->write_ina_register_(reg, (uint8_t *) &data_out, 2);
+  auto ret = this->write_ina_register(reg, (uint8_t *) &data_out, 2);
   if (!ret) {
     ESP_LOGD(TAG, "write_unsigned_16_ FAILED reg=0x%02X, val=0x%04X", reg, val);
   }
@@ -477,7 +475,7 @@ bool INA2XX::read_unsigned_(uint8_t reg, uint8_t reg_size, uint64_t &data_out) {
   if (reg_size > 5)
     return false;
 
-  auto ret = this->read_ina_register_(reg, rx_buf, reg_size);
+  auto ret = this->read_ina_register(reg, rx_buf, reg_size);
 
   // Combine bytes
   data_out = rx_buf[0];
@@ -491,7 +489,7 @@ bool INA2XX::read_unsigned_(uint8_t reg, uint8_t reg_size, uint64_t &data_out) {
 
 bool INA2XX::read_unsigned_16_(uint8_t reg, uint16_t &out) {
   uint16_t data_in{0};
-  auto ret = this->read_ina_register_(reg, (uint8_t *) &data_in, 2);
+  auto ret = this->read_ina_register(reg, (uint8_t *) &data_in, 2);
   out = byteswap(data_in);
   ESP_LOGD(TAG, "read_unsigned_16_ 0x%02X, ret= %s, val=0x%04X", reg, OKFAILED(ret), out);
   return ret;

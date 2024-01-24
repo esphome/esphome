@@ -229,8 +229,8 @@ class INA2XX : public PollingComponent {
   //
   // Interface-specific implementation
   //
-  virtual bool read_ina_register_(uint8_t a_register, uint8_t *data, size_t len) = 0;
-  virtual bool write_ina_register_(uint8_t a_register, const uint8_t *data, size_t len) = 0;
+  virtual bool read_ina_register(uint8_t a_register, uint8_t *data, size_t len) = 0;
+  virtual bool write_ina_register(uint8_t a_register, const uint8_t *data, size_t len) = 0;
 };
 }  // namespace ina2xx_base
 }  // namespace esphome

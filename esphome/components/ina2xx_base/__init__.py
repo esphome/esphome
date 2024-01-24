@@ -4,6 +4,7 @@ from esphome.components import sensor
 from esphome.const import (
     CONF_BUS_VOLTAGE,
     CONF_CURRENT,
+    CONF_ENERGY,
     CONF_MAX_CURRENT,
     CONF_POWER,
     CONF_SHUNT_RESISTANCE,
@@ -27,10 +28,8 @@ UNIT_JOULE = "J"
 UNIT_COULOMB = "C"
 UNIT_MILLIVOLT = "mV"
 
-
 CONF_ADC_RANGE = "adc_range"
 CONF_CHARGE = "charge"
-CONF_ENERGY = "energy"
 CONF_TEMPERATURE_COEFFICIENT = "temperature_coefficient"
 
 ina2xx_base_ns = cg.esphome_ns.namespace("ina2xx_base")

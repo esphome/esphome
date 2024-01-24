@@ -12,15 +12,15 @@ void INA2XXI2C::setup() {
     this->mark_failed();
     return;
   }
-  super::setup();
+  INA2XX::setup();
 }
 
 void INA2XXI2C::dump_config() {
-  super::dump_config();
+  INA2XX::dump_config();
   LOG_I2C_DEVICE(this);
 }
 
-bool INA2XXI2C::read_ina_register_(uint8_t a_register, uint8_t *data, size_t len) {
+bool INA2XXI2C::read_ina_register(uint8_t a_register, uint8_t *data, size_t len) {
   auto ret = this->read_register(a_register, data, len);
   if (ret != i2c::ERROR_OK) {
     ESP_LOGD(TAG, "read_ina_register_ failed. Reg=0x%02X Err=%d", a_register, ret);
@@ -28,7 +28,7 @@ bool INA2XXI2C::read_ina_register_(uint8_t a_register, uint8_t *data, size_t len
   return ret == i2c::ERROR_OK;
 }
 
-bool INA2XXI2C::write_ina_register_(uint8_t a_register, const uint8_t *data, size_t len) {
+bool INA2XXI2C::write_ina_register(uint8_t a_register, const uint8_t *data, size_t len) {
   auto ret = this->write_register(a_register, data, len);
   if (ret != i2c::ERROR_OK) {
     ESP_LOGD(TAG, "write_register failed. Reg=0x%02X Err=%d", a_register, ret);
