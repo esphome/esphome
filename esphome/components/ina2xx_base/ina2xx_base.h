@@ -109,37 +109,18 @@ union DiagnosticRegister {
   } __attribute__((packed));
 };
 
-enum INAType : uint8_t {
-  INA_20_BIT = 0,  // 228, 229
-  INA_16_BIT = 1   // 237, 238, 239
-};
-
-struct INAParams {
-  double vbus_lsb;
-  double vshunt_lsb_range0;
-  double vshunt_lst_range1;
-  double shunt_scale;
-  double lsb_divisor;
-  double die_temp_lsb;
-  double power_scale;
-  bool accumulators;
-  bool adc20bit;
-  bool die16bit;
-};
-
-const INAParams INA_MODELS[2] = {
-    {0.0001953125, 0.0003125, 0.000078125, 13107.2 * 1000000, 2 << 19, 0.0078125, 3.2, true, true, true},
-    {0.0031250000, 0.0050000, 0.001250000, 819.2 * 1000000, 2 << 15, 0.1250000, 0.2, false, false, false}};
-
 class INA2XX : public PollingComponent {
  public:
   void setup() override;
   float get_setup_priority() const override;
   void update() override;
+  void loop() override;
+  void dump_config() override;
 
   void set_shunt_resistance_ohm(float shunt_resistance_ohm) { shunt_resistance_ohm_ = shunt_resistance_ohm; }
   void set_max_current_a(float max_current_a) { max_current_a_ = max_current_a; }
   void set_adc_range(uint8_t range) { adc_range_ = (range == 0) ? AdcRange::ADC_RANGE_0 : AdcRange::ADC_RANGE_1; }
+  void set_shunt_tempco(uint16_t coeff) { shunt_tempco_ppm_c_ = coeff; }
 
   void set_shunt_voltage_sensor(sensor::Sensor *sensor) { shunt_voltage_sensor_ = sensor; }
   void set_bus_voltage_sensor(sensor::Sensor *sensor) { bus_voltage_sensor_ = sensor; }
@@ -153,35 +134,43 @@ class INA2XX : public PollingComponent {
 
  protected:
   bool reset_config_();
+  bool check_device_type_();
+  bool configure_adc_();
 
-  bool configure_shunt_(double max_current, double r_shunt);
+  bool configure_shunt_();
+  bool configure_shunt_tempco_();
   bool configure_adc_range_();
-  bool read_voltage_(double &volt_out);
-  bool read_current_(double &amps_out);
-  bool read_die_temp_(double &temp);
-  bool read_volt_shunt_mv_(double &volt_out);
-  bool read_power_(double &power_out);
-  bool read_energy_(double &joules_out);
-  bool read_charge_(double &coulombs_out);
+
+  bool read_shunt_voltage_mv_(float &volt_out);
+  bool read_bus_voltage_(float &volt_out);
+  bool read_die_temp_c_(float &temp);
+  bool read_current_a_(float &amps_out);
+  bool read_power_w_(float &power_out);
+  bool read_energy_j_(double &joules_out);
+  bool read_charge_c_(double &coulombs_out);
+
   bool read_diagnostics_and_act_();
 
-  uint64_t read_reg(uint8_t reg, uint8_t reg_size);
-
-  bool read_u16_(uint8_t reg, uint16_t &out);
-  bool read_u24_(uint8_t reg, uint32_t &out);
-
-  bool read_s20_4_(uint8_t reg, int32_t &out);
-  bool write_u16_(uint8_t reg, uint16_t val);
-
-  double shunt_resistance_ohm_;
-  double max_current_a_;
+  //
+  // User configuration
+  //
+  float shunt_resistance_ohm_;
+  float max_current_a_;
   AdcRange adc_range_{AdcRange::ADC_RANGE_0};
+  uint16_t shunt_tempco_ppm_c_{0};
+
+  //
+  // Calculated coefficients
+  //
   uint16_t shunt_cal_{0};
-  double current_lsb_{0};
+  float current_lsb_{0};
 
   uint32_t energy_overflows_count_{0};
   uint32_t charge_overflows_count_{0};
 
+  //
+  // Sensor objects
+  //
   sensor::Sensor *shunt_voltage_sensor_{nullptr};
   sensor::Sensor *bus_voltage_sensor_{nullptr};
   sensor::Sensor *die_temperature_sensor_{nullptr};
@@ -190,11 +179,58 @@ class INA2XX : public PollingComponent {
   sensor::Sensor *energy_sensor_{nullptr};
   sensor::Sensor *charge_sensor_{nullptr};
 
-  bool initialized{false};
+  //
+  // FSM states
+  //
+  enum class State : uint8_t {
+    NOT_INITIALIZED = 0x0,
+    IDLE,
+    DATA_COLLECTION_1,
+    DATA_COLLECTION_2,
+    DATA_COLLECTION_3,
+    DATA_COLLECTION_4,
+    DATA_COLLECTION_5,
+    DATA_COLLECTION_6,
+    DATA_COLLECTION_7,
+    DATA_COLLECTION_8,
+  } state_{State::NOT_INITIALIZED};
 
-  virtual bool read_2xx(uint8_t a_register, uint8_t *data, size_t len) = 0;
-  virtual bool write_2xx(uint8_t a_register, const uint8_t *data, size_t len) = 0;
+  //
+  // Device type
+  //
+  enum class INAType : uint8_t { UNKNOWN = 0, INA_228_229, INA_238_239, INA_237 } ina_type_{INAType::UNKNOWN};
+
+  //
+  // Device specific parameters
+  //
+  struct {
+    float vbus_lsb;
+    float v_shunt_lsb_range0;
+    float v_shunt_lsb_range1;
+    float shunt_cal_scale;
+    int8_t current_lsb_scale_factor;
+    float die_temp_lsb;
+    float power_coeff;
+    float energy_coeff;
+  } cfg_;
+
+  //
+  // Register read/write
+  //
+  bool write_unsigned_16_(uint8_t reg, uint16_t val);
+  bool read_unsigned_(uint8_t reg, uint8_t reg_size, uint64_t &data_out);
+  bool read_unsigned_16_(uint8_t reg, uint16_t &out);
+
+  bool read_signed_40_(uint8_t reg, double &out);
+  bool read_signed_20_4_(uint8_t reg, float &out);
+  bool read_signed_16_(uint8_t reg, float &out);
+  bool read_signed_12_4_(uint8_t reg, float &out);
+
+  //
+  // Interface-specific implementation
+  //
+  virtual bool read_ina_register_(uint8_t a_register, uint8_t *data, size_t len) = 0;
+  virtual bool write_ina_register_(uint8_t a_register, const uint8_t *data, size_t len) = 0;
 };
-
 }  // namespace ina2xx_base
 }  // namespace esphome
