@@ -8,7 +8,7 @@ import math
 import os
 import uuid
 from typing import Any
-
+from io import TextIOWrapper
 import yaml
 import yaml.constructor
 from yaml import SafeLoader as PurePythonLoader
@@ -437,7 +437,7 @@ def _load_yaml_internal(fname: str) -> Any:
 def _load_yaml_internal_with_type(
     loader_type: type[ESPHomeLoader] | type[ESPHomePurePythonLoader],
     fname: str,
-    content: str,
+    content: str | TextIOWrapper,
 ) -> Any:
     """Load a YAML file."""
     loader = loader_type(content)
