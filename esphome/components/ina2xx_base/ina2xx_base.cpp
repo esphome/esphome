@@ -167,6 +167,21 @@ void INA2XX::dump_config() {
   ESP_LOGCONFIG(TAG, "  CURRENT_LSB = %f", this->current_lsb_);
   ESP_LOGCONFIG(TAG, "  SHUNT_CAL = %d", this->shunt_cal_);
 
+  auto get_device_name = [](INAType typ) {
+    switch (typ) {
+      case INAType::INA_228_229:
+        return "INA228/229";
+      case INAType::INA_238_239:
+        return "INA238/239";
+      case INAType::INA_237:
+        return "INA237";
+      default:
+        return "UNKNOWN";
+    }
+  };
+
+  ESP_LOGCONFIG(TAG, "  Device is %s", get_device_name(this->ina_type_));
+
   LOG_SENSOR("  ", "Shunt Voltage", this->shunt_voltage_sensor_);
   LOG_SENSOR("  ", "Bus Voltage", this->bus_voltage_sensor_);
   LOG_SENSOR("  ", "Die Temperature", this->die_temperature_sensor_);
