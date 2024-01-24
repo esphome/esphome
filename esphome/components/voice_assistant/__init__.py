@@ -128,9 +128,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_TTS_STREAM_END): automation.validate_automation(
                 single=True
             ),
-            cv.Optional(CONF_ON_IDLE): automation.validate_automation(
-                single=True
-            ),
+            cv.Optional(CONF_ON_IDLE): automation.validate_automation(single=True),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     tts_stream_validate,
