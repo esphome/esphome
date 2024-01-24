@@ -437,7 +437,7 @@ def _load_yaml_internal(fname: str) -> Any:
 def _load_yaml_internal_with_type(
     loader_type: type[ESPHomeLoader] | type[ESPHomePurePythonLoader],
     fname: str,
-    content: str | TextIOWrapper,
+    content: TextIOWrapper,
 ) -> Any:
     """Load a YAML file."""
     loader = loader_type(content)
