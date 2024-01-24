@@ -7,6 +7,7 @@
 namespace esphome {
 namespace qspi_amoled {
 
+#ifdef USE_ESP_IDF
 void QspiAmoLed::dump_config() {
   ESP_LOGCONFIG("", "QSPI AMOLED");
   ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
@@ -19,5 +20,6 @@ void QspiAmoLed::dump_config() {
 #endif
 }
 
+#endif
 }  // namespace qspi_amoled
 }  // namespace esphome
