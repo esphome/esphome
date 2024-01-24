@@ -950,6 +950,45 @@ sensor:
     max_current: 3.2A
     update_interval: 15s
     i2c_id: i2c_bus
+  - platform: ina2xx_i2c
+    address: 0x40
+    shunt_resistance: 0.001130 ohm
+    max_current: 40 A
+    adc_range: 1
+    temperature_coefficient: 50
+    shunt_voltage:
+      name: "INA2xx Shunt Voltage"
+    bus_voltage:
+      name: "INA2xx Bus Voltage"
+    current:
+      name: "INA2xx Current"
+    power:
+      name: "INA2xx Power"
+    energy:
+      name: "INA2xx Energy"
+    charge:
+      name: "INA2xx Charge"
+    i2c_id: i2c_bus
+  - platform: ina2xx_spi
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    shunt_resistance: 0.001130 ohm
+    max_current: 40 A
+    adc_range: 1
+    temperature_coefficient: 50
+    shunt_voltage:
+      name: "INA2xx Shunt Voltage"
+    bus_voltage:
+      name: "INA2xx Bus Voltage"
+    current:
+      name: "INA2xx Current"
+    power:
+      name: "INA2xx Power"
+    energy:
+      name: "INA2xx Energy"
+    charge:
+      name: "INA2xx Charge"
   - platform: ina3221
     address: 0x40
     channel_1:
