@@ -59,12 +59,17 @@ void GDK101Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with GDK101 failed!");
   }
+#ifdef USE_SENSOR
   LOG_SENSOR("  ", "Firmware Version", this->fw_version_sensor_);
   LOG_SENSOR("  ", "Average Radaition Dose per 1 minute", this->rad_1m_sensor_);
   LOG_SENSOR("  ", "Average Radaition Dose per 10 minutes", this->rad_10m_sensor_);
   LOG_SENSOR("  ", "Status", this->status_sensor_);
   LOG_SENSOR("  ", "Measurement Time", this->meas_time_sensor_);
+#endif  // USE_SENSOR
+
+#ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Vibration Status", this->vibration_binary_sensor_);
+#endif  // USE_BINARY_SENSOR
 }
 
 float GDK101Component::get_setup_priority() const { return setup_priority::DATA; }
@@ -100,9 +105,11 @@ bool GDK101Component::read_dose_1m_(uint8_t *data) {
 
   const float dose = data[0] + (float) data[1] / 100;
 
+#ifdef USE_SENSOR
   if (this->rad_1m_sensor_ != nullptr) {
     this->rad_1m_sensor_->publish_state(dose);
   }
+#endif  // USE_SENSOR
 
   return true;
 }
@@ -115,9 +122,11 @@ bool GDK101Component::read_dose_10m_(uint8_t *data) {
 
   const float dose = data[0] + (float) data[1] / 100;
 
+#ifdef USE_SENSOR
   if (this->rad_10m_sensor_ != nullptr) {
     this->rad_10m_sensor_->publish_state(dose);
   }
+#endif  // USE_SENSOR
 
   return true;
 }
@@ -128,13 +137,17 @@ bool GDK101Component::read_status_(uint8_t *data) {
     return false;
   }
 
+#ifdef USE_SENSOR
   if (this->status_sensor_ != nullptr) {
     this->status_sensor_->publish_state(data[0]);
   }
+#endif  // USE_SENSOR
 
+#ifdef USE_BINARY_SENSOR
   if (this->vibration_binary_sensor_ != nullptr) {
     this->vibration_binary_sensor_->publish_state(data[1]);
   }
+#endif  // USE_BINARY_SENSOR
 
   return true;
 }
@@ -147,9 +160,12 @@ bool GDK101Component::read_fw_version_(uint8_t *data) {
 
   const float fw_version = data[0] + (float) data[1] / 10;
 
+#ifdef USE_SENSOR
   if (this->fw_version_sensor_ != nullptr) {
     this->fw_version_sensor_->publish_state(fw_version);
   }
+#endif  // USE_SENSOR
+
   return true;
 }
 
@@ -161,9 +177,11 @@ bool GDK101Component::read_measuring_time_(uint8_t *data) {
 
   const float meas_time = data[0] * 60 + data[1];
 
+#ifdef USE_SENSOR
   if (this->meas_time_sensor_ != nullptr) {
     this->meas_time_sensor_->publish_state(meas_time);
   }
+#endif  // USE_SENSOR
 
   return true;
 }
