@@ -5,6 +5,10 @@ from esphome.components import display
 from esphome.const import (
     CONF_LAMBDA,
     CONF_RESET_PIN,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_TRANSFORM,
+    CONF_INVERT_COLORS,
 )
 
 CODEOWNERS = ["@latonita"]
@@ -14,10 +18,6 @@ ST7567 = st7567_base_ns.class_("ST7567", cg.PollingComponent, display.DisplayBuf
 ST7567Model = st7567_base_ns.enum("ST7567Model")
 
 # todo in future: reuse following constants from const.py when they are released
-CONF_INVERT_COLORS = "invert_colors"
-CONF_TRANSFORM = "transform"
-CONF_MIRROR_X = "mirror_x"
-CONF_MIRROR_Y = "mirror_y"
 
 
 ST7567_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
