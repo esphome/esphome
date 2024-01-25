@@ -228,7 +228,7 @@ ErrorCode VEML7700Component::configure_() {
 
   als_conf.ALS_SD = true;
   ESP_LOGD(TAG, "Shutdown before config. ALS_CONF_0 to 0x%04X", als_conf.raw);
-  auto err = this->write_register(CommandRegisters::CR_ALS_CONF_0, als_conf.raw_bytes, VEML_REG_SIZE);
+  auto err = this->write_register((uint8_t) CommandRegisters::ALS_CONF_0, als_conf.raw_bytes, VEML_REG_SIZE);
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Failed to shutdown, I2C error %d", err);
     return err;
@@ -237,7 +237,7 @@ ErrorCode VEML7700Component::configure_() {
 
   als_conf.ALS_SD = false;
   ESP_LOGD(TAG, "Turning on. Setting ALS_CONF_0 to 0x%04X", als_conf.raw);
-  err = this->write_register(CommandRegisters::CR_ALS_CONF_0, als_conf.raw_bytes, VEML_REG_SIZE);
+  err = this->write_register((uint8_t) CommandRegisters::ALS_CONF_0, als_conf.raw_bytes, VEML_REG_SIZE);
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Failed to turn on, I2C error %d", err);
     return err;
@@ -247,7 +247,7 @@ ErrorCode VEML7700Component::configure_() {
   psm.PSM = PSM::PSM_MODE_1;
   psm.PSM_EN = false;
   ESP_LOGD(TAG, "Setting PSM to 0x%04X", psm.raw);
-  err = this->write_register(CommandRegisters::CR_PWR_SAVING, psm.raw_bytes, VEML_REG_SIZE);
+  err = this->write_register((uint8_t) CommandRegisters::PWR_SAVING, psm.raw_bytes, VEML_REG_SIZE);
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Failed to set PSM, I2C error %d", err);
     return err;
@@ -269,7 +269,7 @@ ErrorCode VEML7700Component::reconfigure_time_and_gain_(IntegrationTime time, Ga
   als_conf.ALS_PERS = Persistence::PERSISTENCE_1;
   als_conf.ALS_IT = time;
   als_conf.ALS_GAIN = gain;
-  auto err = this->write_register(CommandRegisters::CR_ALS_CONF_0, als_conf.raw_bytes, VEML_REG_SIZE);
+  auto err = this->write_register((uint8_t) CommandRegisters::ALS_CONF_0, als_conf.raw_bytes, VEML_REG_SIZE);
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "%s failed", shutdown ? "Shutdown" : "Turn on");
   }
@@ -278,18 +278,20 @@ ErrorCode VEML7700Component::reconfigure_time_and_gain_(IntegrationTime time, Ga
 }
 
 ErrorCode VEML7700Component::read_sensor_output_(Readings &data) {
-  auto als_err = this->read_register(CommandRegisters::CR_ALS, (uint8_t *) &data.als_counts, VEML_REG_SIZE, false);
+  auto als_err =
+      this->read_register((uint8_t) CommandRegisters::ALS, (uint8_t *) &data.als_counts, VEML_REG_SIZE, false);
   if (als_err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Error reading ALS register, err = %d", als_err);
   }
   auto white_err =
-      this->read_register(CommandRegisters::CR_WHITE, (uint8_t *) &data.white_counts, VEML_REG_SIZE, false);
+      this->read_register((uint8_t) CommandRegisters::WHITE, (uint8_t *) &data.white_counts, VEML_REG_SIZE, false);
   if (white_err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Error reading WHITE register, err = %d", white_err);
   }
 
   ConfigurationRegister conf{0};
-  auto err = this->read_register(CommandRegisters::CR_ALS_CONF_0, (uint8_t *) conf.raw_bytes, VEML_REG_SIZE, false);
+  auto err =
+      this->read_register((uint8_t) CommandRegisters::ALS_CONF_0, (uint8_t *) conf.raw_bytes, VEML_REG_SIZE, false);
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Error reading ALS_CONF_0 register, err = %d", white_err);
   }

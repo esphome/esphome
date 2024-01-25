@@ -11,17 +11,17 @@ namespace veml7700 {
 using esphome::i2c::ErrorCode;
 
 //
-// Datasheet:  https://www.vishay.com/docs/84286/veml7700.pdf
+// Datasheet: https://www.vishay.com/docs/84286/veml7700.pdf
 //
 
-enum CommandRegisters : uint8_t {
-  CR_ALS_CONF_0 = 0x00,  // W: ALS gain, integration time, interrupt, and shutdown
-  CR_ALS_WH = 0x01,      // W: ALS high threshold window setting
-  CR_ALS_WL = 0x02,      // W: ALS low threshold window setting
-  CR_PWR_SAVING = 0x03,  // W: Set (15 : 3) 0000 0000 0000 0b
-  CR_ALS = 0x04,         // R: MSB, LSB data of whole ALS 16 bits
-  CR_WHITE = 0x05,       // R: MSB, LSB data of whole WHITE 16 bits
-  CR_ALS_INT = 0x06      // R: ALS INT trigger event
+enum class CommandRegisters : uint8_t {
+  ALS_CONF_0 = 0x00,  // W: ALS gain, integration time, interrupt, and shutdown
+  ALS_WH = 0x01,      // W: ALS high threshold window setting
+  ALS_WL = 0x02,      // W: ALS low threshold window setting
+  PWR_SAVING = 0x03,  // W: Set (15 : 3) 0000 0000 0000 0b
+  ALS = 0x04,         // R: MSB, LSB data of whole ALS 16 bits
+  WHITE = 0x05,       // R: MSB, LSB data of whole WHITE 16 bits
+  ALS_INT = 0x06      // R: ALS INT trigger event
 };
 
 enum Gain : uint8_t {
