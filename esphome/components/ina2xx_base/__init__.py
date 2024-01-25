@@ -27,8 +27,8 @@ CODEOWNERS = ["@latonita"]
 
 CONF_ADC_RANGE = "adc_range"
 CONF_CHARGE = "charge"
-CONF_CHARGE_COULOMB = "charge_coulombs"
-CONF_ENERGY_JOULE = "energy_joules"
+CONF_CHARGE_COULOMBS = "charge_coulombs"
+CONF_ENERGY_JOULES = "energy_joules"
 CONF_TEMPERATURE_COEFFICIENT = "temperature_coefficient"
 UNIT_AMPERE_HOURS = "Ah"
 UNIT_JOULE = "J"
@@ -82,7 +82,7 @@ INA2XX_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_ENERGY,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_ENERGY_JOULE): sensor.sensor_schema(
+        cv.Optional(CONF_ENERGY_JOULES): sensor.sensor_schema(
             unit_of_measurement=UNIT_JOULE,
             accuracy_decimals=8,
             device_class=DEVICE_CLASS_ENERGY,
@@ -94,7 +94,7 @@ INA2XX_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_ENERGY,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_CHARGE_COULOMB): sensor.sensor_schema(
+        cv.Optional(CONF_CHARGE_COULOMBS): sensor.sensor_schema(
             unit_of_measurement=UNIT_COULOMB,
             accuracy_decimals=8,
             device_class=DEVICE_CLASS_ENERGY,
@@ -136,7 +136,7 @@ async def setup_ina2xx(var, config):
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_energy_sensor_wh(sens))
 
-    if conf := config.get(CONF_ENERGY_JOULE):
+    if conf := config.get(CONF_ENERGY_JOULES):
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_energy_sensor_j(sens))
 
@@ -144,6 +144,6 @@ async def setup_ina2xx(var, config):
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_charge_sensor_ah(sens))
 
-    if conf := config.get(CONF_CHARGE_COULOMB):
+    if conf := config.get(CONF_CHARGE_COULOMBS):
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_charge_sensor_c(sens))
