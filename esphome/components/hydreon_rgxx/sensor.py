@@ -83,7 +83,7 @@ CONFIG_SCHEMA = cv.All(
                 upper=True,
                 space="_",
             ),
-            cv.Optional(CONF_RESOLUTION, default="high"): cv.enum(
+            cv.Optional(CONF_RESOLUTION): cv.enum(
                 RG15_RESOLUTION, upper=False
             ),
             cv.Optional(CONF_ACC): sensor.sensor_schema(
