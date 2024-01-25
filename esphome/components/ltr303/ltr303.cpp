@@ -52,7 +52,7 @@ static uint16_t get_meas_time_ms(MeasurementRepeatRate rate) {
   return ALS_MEAS_RATE[rate & 0b111];
 }
 
-static float get_gain_coeff(Gain gain) {
+static float get_gain_coeff(AlsGain gain) {
   static const float ALS_GAIN[8] = {1, 2, 4, 8, 0, 0, 48, 96};
   return ALS_GAIN[gain & 0b111];
 }
@@ -178,14 +178,14 @@ void LTR303Component::configure_reset_and_activate_() {
 
   ControlRegister als_ctrl{0};
   als_ctrl.sw_reset = true;
-  this->reg((uint8_t) CommandRegisters::ALS_CTRL) = als_ctrl.raw;
+  this->reg((uint8_t) CommandRegisters::ALS_CONTR) = als_ctrl.raw;
   delay(2);
 
   uint8_t tries = MAX_TRIES;
   do {
     ESP_LOGD(TAG, "Waiting chip to reset");
     delay(2);
-    als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CTRL).get();
+    als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CONTR).get();
   } while (als_ctrl.sw_reset && tries--);  // while sw reset bit is on - keep waiting
 
   if (als_ctrl.sw_reset) {
@@ -197,14 +197,14 @@ void LTR303Component::configure_reset_and_activate_() {
   als_ctrl.gain = this->gain_;
 
   ESP_LOGD(TAG, "Setting active mode and gain reg 0x%02X", als_ctrl.raw);
-  this->reg((uint8_t) CommandRegisters::ALS_CTRL) = als_ctrl.raw;
+  this->reg((uint8_t) CommandRegisters::ALS_CONTR) = als_ctrl.raw;
   delay(5);
 
   tries = MAX_TRIES;
   do {
     ESP_LOGD(TAG, "Waiting for device to become active...");
     delay(2);
-    als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CTRL).get();
+    als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CONTR).get();
   } while (!als_ctrl.active_mode && tries--);  // while active mode is not set - keep waiting
 
   if (!als_ctrl.active_mode) {
@@ -212,11 +212,11 @@ void LTR303Component::configure_reset_and_activate_() {
   }
 }
 
-void LTR303Component::configure_gain_(Gain gain) {
+void LTR303Component::configure_gain_(AlsGain gain) {
   ControlRegister als_ctrl{0};
   als_ctrl.active_mode = true;
   als_ctrl.gain = gain;
-  this->reg((uint8_t) CommandRegisters::ALS_CTRL) = als_ctrl.raw;
+  this->reg((uint8_t) CommandRegisters::ALS_CONTR) = als_ctrl.raw;
   delay(2);
 }
 
@@ -229,10 +229,10 @@ void LTR303Component::configure_integration_time_(IntegrationTime time) {
 }
 
 DataAvail LTR303Component::is_data_ready_(Readings &data) {
-  StatusRegister als_status{0};
+  AlsPsStatusRegister als_status{0};
 
-  als_status.raw = this->reg((uint8_t) CommandRegisters::ALS_STATUS).get();
-  if (!als_status.new_data)
+  als_status.raw = this->reg((uint8_t) CommandRegisters::ALS_PS_STATUS).get();
+  if (!als_status.als_new_data)
     return DataAvail::NO_DATA;
 
   if (als_status.data_invalid) {
@@ -246,10 +246,10 @@ DataAvail LTR303Component::is_data_ready_(Readings &data) {
 }
 
 void LTR303Component::read_sensor_data_(Readings &data) {
-  uint8_t ch1_0 = this->reg((uint8_t) CommandRegisters::CH1_0).get();
-  uint8_t ch1_1 = this->reg((uint8_t) CommandRegisters::CH1_1).get();
-  uint8_t ch0_0 = this->reg((uint8_t) CommandRegisters::CH0_0).get();
-  uint8_t ch0_1 = this->reg((uint8_t) CommandRegisters::CH0_1).get();
+  uint8_t ch1_0 = this->reg((uint8_t) CommandRegisters::ALS_DATA_CH1_0).get();
+  uint8_t ch1_1 = this->reg((uint8_t) CommandRegisters::ALS_DATA_CH1_1).get();
+  uint8_t ch0_0 = this->reg((uint8_t) CommandRegisters::ALS_DATA_CH0_0).get();
+  uint8_t ch0_1 = this->reg((uint8_t) CommandRegisters::ALS_DATA_CH0_1).get();
   data.ch1 = encode_uint16(ch1_1, ch1_0);
   data.ch0 = encode_uint16(ch0_1, ch0_0);
 
@@ -265,13 +265,13 @@ bool LTR303Component::are_adjustments_required_(Readings &data) {
   // Recommended thresholds as per datasheet
   static const uint16_t LOW_INTENSITY_THRESHOLD = 1000;
   static const uint16_t HIGH_INTENSITY_THRESHOLD = 20000;
-  static const Gain GAINS[GAINS_COUNT] = {GAIN_1, GAIN_2, GAIN_4, GAIN_8, GAIN_48, GAIN_96};
+  static const AlsGain GAINS[GAINS_COUNT] = {GAIN_1, GAIN_2, GAIN_4, GAIN_8, GAIN_48, GAIN_96};
   static const IntegrationTime INT_TIMES[TIMES_COUNT] = {
       INTEGRATION_TIME_50MS,  INTEGRATION_TIME_100MS, INTEGRATION_TIME_150MS, INTEGRATION_TIME_200MS,
       INTEGRATION_TIME_250MS, INTEGRATION_TIME_300MS, INTEGRATION_TIME_350MS, INTEGRATION_TIME_400MS};
 
   if (data.ch0 <= LOW_INTENSITY_THRESHOLD) {
-    Gain next_gain = get_next(GAINS, data.actual_gain);
+    AlsGain next_gain = get_next(GAINS, data.actual_gain);
     if (next_gain != data.actual_gain) {
       data.actual_gain = next_gain;
       ESP_LOGD(TAG, "Low illuminance. Increasing gain.");
@@ -284,7 +284,7 @@ bool LTR303Component::are_adjustments_required_(Readings &data) {
       return true;
     }
   } else if (data.ch0 >= HIGH_INTENSITY_THRESHOLD) {
-    Gain prev_gain = get_prev(GAINS, data.actual_gain);
+    AlsGain prev_gain = get_prev(GAINS, data.actual_gain);
     if (prev_gain != data.actual_gain) {
       data.actual_gain = prev_gain;
       ESP_LOGD(TAG, "High illuminance. Decreasing gain.");
