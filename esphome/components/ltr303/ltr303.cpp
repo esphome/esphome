@@ -117,6 +117,7 @@ void LTR303Component::loop() {
       break;
 
     case State::IDLE:
+      // having fun, waiting for work
       break;
 
     case State::WAITING_FOR_DATA:
@@ -137,8 +138,8 @@ void LTR303Component::loop() {
       }
       break;
 
-    case COLLECTING_DATA_AUTO:
-    case DATA_COLLECTED:
+    case State::COLLECTING_DATA_AUTO:
+    case State::DATA_COLLECTED:
       if (this->state_ == State::COLLECTING_DATA_AUTO || this->are_adjustments_required_(this->readings_)) {
         this->state_ = State::ADJUSTMENT_IN_PROGRESS;
         ESP_LOGD(TAG, "Reconfiguring sensitivity");
@@ -158,9 +159,14 @@ void LTR303Component::loop() {
       break;
 
     case State::READY_TO_PUBLISH:
-      this->state_ = State::IDLE;
+      this->publish_data_part_1_(this->readings_);
+      this->state_ = State::KEEP_PUBLISHING;
+      break;
+
+    case State::KEEP_PUBLISHING:
+      this->publish_data_part_2_(this->readings_);
       this->status_clear_warning();
-      this->publish_data_(this->readings_);
+      this->state_ = State::IDLE;
       break;
 
     default:
@@ -336,7 +342,7 @@ void LTR303Component::apply_lux_calculation_(Readings &data) {
   data.lux = lux;
 }
 
-void LTR303Component::publish_data_(Readings &data) {
+void LTR303Component::publish_data_part_1_(Readings &data) {
   if (this->ambient_light_sensor_ != nullptr) {
     this->ambient_light_sensor_->publish_state(data.lux);
   }
@@ -346,6 +352,9 @@ void LTR303Component::publish_data_(Readings &data) {
   if (this->full_spectrum_counts_sensor_ != nullptr) {
     this->full_spectrum_counts_sensor_->publish_state(data.ch0);
   }
+}
+
+void LTR303Component::publish_data_part_2_(Readings &data) {
   if (this->actual_gain_sensor_ != nullptr) {
     this->actual_gain_sensor_->publish_state(get_gain_coeff(data.actual_gain));
   }

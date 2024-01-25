@@ -128,7 +128,7 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   // Internal state machine, used to split all the actions into
   // small steps in loop() to make sure we are not blocking execution
   //
-  enum State : uint8_t {
+  enum class State : uint8_t {
     NOT_INITIALIZED,
     DELAYED_SETUP,
     IDLE,
@@ -136,7 +136,8 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
     COLLECTING_DATA_AUTO,
     DATA_COLLECTED,
     ADJUSTMENT_IN_PROGRESS,
-    READY_TO_PUBLISH
+    READY_TO_PUBLISH,
+    KEEP_PUBLISHING
   } state_{State::NOT_INITIALIZED};
 
   //
@@ -160,7 +161,8 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   void read_sensor_data_(Readings &data);
   bool are_adjustments_required_(Readings &data);
   void apply_lux_calculation_(Readings &data);
-  void publish_data_(Readings &data);
+  void publish_data_part_1_(Readings &data);
+  void publish_data_part_2_(Readings &data);
 
   //
   // Component configuration
