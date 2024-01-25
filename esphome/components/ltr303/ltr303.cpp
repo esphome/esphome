@@ -178,14 +178,14 @@ void LTR303Component::configure_reset_and_activate_() {
 
   ControlRegister als_ctrl{0};
   als_ctrl.sw_reset = true;
-  this->reg(CommandRegisters::CR_ALS_CTRL) = als_ctrl.raw;
+  this->reg((uint8_t) CommandRegisters::ALS_CTRL) = als_ctrl.raw;
   delay(2);
 
   uint8_t tries = MAX_TRIES;
   do {
     ESP_LOGD(TAG, "Waiting chip to reset");
     delay(2);
-    als_ctrl.raw = this->reg(CommandRegisters::CR_ALS_CTRL).get();
+    als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CTRL).get();
   } while (als_ctrl.sw_reset && tries--);  // while sw reset bit is on - keep waiting
 
   if (als_ctrl.sw_reset) {
@@ -197,14 +197,14 @@ void LTR303Component::configure_reset_and_activate_() {
   als_ctrl.gain = this->gain_;
 
   ESP_LOGD(TAG, "Setting active mode and gain reg 0x%02X", als_ctrl.raw);
-  this->reg(CommandRegisters::CR_ALS_CTRL) = als_ctrl.raw;
+  this->reg((uint8_t) CommandRegisters::ALS_CTRL) = als_ctrl.raw;
   delay(5);
 
   tries = MAX_TRIES;
   do {
     ESP_LOGD(TAG, "Waiting for device to become active...");
     delay(2);
-    als_ctrl.raw = this->reg(CommandRegisters::CR_ALS_CTRL).get();
+    als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CTRL).get();
   } while (!als_ctrl.active_mode && tries--);  // while active mode is not set - keep waiting
 
   if (!als_ctrl.active_mode) {
@@ -216,7 +216,7 @@ void LTR303Component::configure_gain_(Gain gain) {
   ControlRegister als_ctrl{0};
   als_ctrl.active_mode = true;
   als_ctrl.gain = gain;
-  this->reg(CommandRegisters::CR_ALS_CTRL) = als_ctrl.raw;
+  this->reg((uint8_t) CommandRegisters::ALS_CTRL) = als_ctrl.raw;
   delay(2);
 }
 
@@ -224,14 +224,14 @@ void LTR303Component::configure_integration_time_(IntegrationTime time) {
   MeasurementRateRegister meas{0};
   meas.measurement_repeat_rate = this->repeat_rate_;
   meas.integration_time = time;
-  this->reg(CommandRegisters::CR_MEAS_RATE) = meas.raw;
+  this->reg((uint8_t) CommandRegisters::MEAS_RATE) = meas.raw;
   delay(2);
 }
 
 DataAvail LTR303Component::is_data_ready_(Readings &data) {
   StatusRegister als_status{0};
 
-  als_status.raw = this->reg(CommandRegisters::CR_ALS_STATUS).get();
+  als_status.raw = this->reg((uint8_t) CommandRegisters::ALS_STATUS).get();
   if (!als_status.new_data)
     return DataAvail::NO_DATA;
 
@@ -246,10 +246,10 @@ DataAvail LTR303Component::is_data_ready_(Readings &data) {
 }
 
 void LTR303Component::read_sensor_data_(Readings &data) {
-  uint8_t ch1_0 = this->reg(CommandRegisters::CR_CH1_0).get();
-  uint8_t ch1_1 = this->reg(CommandRegisters::CR_CH1_1).get();
-  uint8_t ch0_0 = this->reg(CommandRegisters::CR_CH0_0).get();
-  uint8_t ch0_1 = this->reg(CommandRegisters::CR_CH0_1).get();
+  uint8_t ch1_0 = this->reg((uint8_t) CommandRegisters::CH1_0).get();
+  uint8_t ch1_1 = this->reg((uint8_t) CommandRegisters::CH1_1).get();
+  uint8_t ch0_0 = this->reg((uint8_t) CommandRegisters::CH0_0).get();
+  uint8_t ch0_1 = this->reg((uint8_t) CommandRegisters::CH0_1).get();
   data.ch1 = encode_uint16(ch1_1, ch1_0);
   data.ch0 = encode_uint16(ch0_1, ch0_0);
 

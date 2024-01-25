@@ -10,16 +10,16 @@ namespace ltr303 {
 
 // https://www.mouser.com/datasheet/2/239/Lite-On_LTR-303ALS-01_DS_ver%201.1-1175269.pdf
 
-enum CommandRegisters : uint8_t {
-  CR_ALS_CTRL = 0x80,   // ALS operation mode control SW reset
-  CR_MEAS_RATE = 0x85,  // ALS measurement rate in active mode
-  CR_PART_ID = 0x86,    // Part Number ID and Revision ID
-  CR_MANU_ID = 0x87,    // Manufacturer ID
-  CR_CH1_0 = 0x88,      // ALS measurement CH1 data, lower byte - infrared only
-  CR_CH1_1 = 0x89,      // ALS measurement CH1 data, upper byte - infrared only
-  CR_CH0_0 = 0x8A,      // ALS measurement CH0 data, lower byte - visible + infrared
-  CR_CH0_1 = 0x8B,      // ALS measurement CH0 data, upper byte - visible + infrared
-  CR_ALS_STATUS = 0x8c  // ALS new data status
+enum class CommandRegisters : uint8_t {
+  ALS_CTRL = 0x80,   // ALS operation mode control SW reset
+  MEAS_RATE = 0x85,  // ALS measurement rate in active mode
+  PART_ID = 0x86,    // Part Number ID and Revision ID
+  MANU_ID = 0x87,    // Manufacturer ID
+  CH1_0 = 0x88,      // ALS measurement CH1 data, lower byte - infrared only
+  CH1_1 = 0x89,      // ALS measurement CH1 data, upper byte - infrared only
+  CH0_0 = 0x8A,      // ALS measurement CH0 data, lower byte - visible + infrared
+  CH0_1 = 0x8B,      // ALS measurement CH0 data, upper byte - visible + infrared
+  ALS_STATUS = 0x8c  // ALS new data status
 };
 
 // Sensor gain levels
