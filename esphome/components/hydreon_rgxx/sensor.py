@@ -44,12 +44,12 @@ RG15_RESOLUTION = {
     "high": RG15Resolution.FORCE_HIGH,
 }
 
-SUPPORTED_SENSORS = {
-    CONF_RESOLUTION: ["RG_15"],
+SUPPORTED_OPTIONS = {
     CONF_ACC: ["RG_15"],
     CONF_EVENT_ACC: ["RG_15"],
     CONF_TOTAL_ACC: ["RG_15"],
     CONF_R_INT: ["RG_15"],
+    CONF_RESOLUTION: ["RG_15"],
     CONF_MOISTURE: ["RG_9"],
     CONF_TEMPERATURE: ["RG_9"],
     CONF_DISABLE_LED: ["RG_9"],
@@ -65,7 +65,7 @@ PROTOCOL_NAMES = {
 
 
 def _validate(config):
-    for conf, models in SUPPORTED_SENSORS.items():
+    for conf, models in SUPPORTED_OPTIONS.items():
         if conf in config:
             if config[CONF_MODEL] not in models:
                 raise cv.Invalid(
