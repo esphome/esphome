@@ -8,6 +8,7 @@ namespace esphome {
 namespace gdk101 {
 
 static const char *const TAG = "gdk101";
+static const uint8_t NUMBER_OF_READ_RETRIES = 5;
 
 void GDK101Component::update() {
   uint8_t data[2];
@@ -40,24 +41,29 @@ void GDK101Component::setup() {
     this->mark_failed();
     return;
   }
-  // sensor should acknowledge the reset procedure
+  // sensor should acknowledge success of the reset procedure
   if (data[0] != 1) {
-    this->mark_failed();
-    return;
+    this->status_set_error();
   }
   delay(10);
   // read firmware version
   if (!this->read_fw_version_(data)) {
     this->status_set_warning();
-    return;
   }
 }
 
 void GDK101Component::dump_config() {
-  ESP_LOGD(TAG, "GDK101:");
+  ESP_LOGCONFIG(TAG, "GDK101:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with GDK101 failed!");
+  } else {
+    if (this->status_has_error()) {
+      ESP_LOGE(TAG, "Initial reset faild!");
+    }
+    if (this->status_has_warning()) {
+      ESP_LOGW(TAG, "Can't read Firmware Version");
+    }
   }
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Firmware Version", this->fw_version_sensor_);
@@ -75,7 +81,7 @@ void GDK101Component::dump_config() {
 float GDK101Component::get_setup_priority() const { return setup_priority::DATA; }
 
 bool GDK101Component::read_bytes_with_retry_(uint8_t a_register, uint8_t *data, uint8_t len) {
-  uint8_t retry = 5;
+  uint8_t retry = NUMBER_OF_READ_RETRIES;
   bool status = false;
   while (!status && retry) {
     status = this->read_bytes(a_register, data, len);
