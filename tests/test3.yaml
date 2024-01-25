@@ -409,6 +409,7 @@ sensor:
       name: hydreon_total_acc
     r_int:
       name: hydreon_r_int
+    resolution: low
 
   - platform: adc
     pin: VCC
