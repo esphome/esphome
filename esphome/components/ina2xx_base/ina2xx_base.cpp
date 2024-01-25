@@ -113,13 +113,17 @@ void INA2XX::loop() {
 
       case State::DATA_COLLECTION_6:
         if (this->ina_type_ == INAType::INA_228_229) {
-          if (this->energy_sensor_ != nullptr || this->charge_sensor_ != nullptr) {
+          if (this->energy_sensor_j_ != nullptr || this->energy_sensor_wh_ != nullptr ||
+              this->charge_sensor_c_ != nullptr || this->charge_sensor_ah_ != nullptr) {
             this->read_diagnostics_and_act_();
           }
-          if (this->energy_sensor_ != nullptr) {
-            double energy{0};
-            all_ok &= this->read_energy_j_(energy);
-            this->energy_sensor_->publish_state(energy);
+          if (this->energy_sensor_j_ != nullptr || this->energy_sensor_wh_ != nullptr) {
+            double energy_j{0}, energy_wh{0};
+            all_ok &= this->read_energy_(energy_j, energy_wh);
+            if (this->energy_sensor_j_ != nullptr)
+              this->energy_sensor_j_->publish_state(energy_j);
+            if (this->energy_sensor_wh_ != nullptr)
+              this->energy_sensor_wh_->publish_state(energy_wh);
           }
         }
         this->state_ = State::DATA_COLLECTION_7;
@@ -127,10 +131,13 @@ void INA2XX::loop() {
 
       case State::DATA_COLLECTION_7:
         if (this->ina_type_ == INAType::INA_228_229) {
-          if (this->charge_sensor_ != nullptr) {
-            double coulombs{0};
-            all_ok &= this->read_charge_c_(coulombs);
-            this->charge_sensor_->publish_state(coulombs);
+          if (this->charge_sensor_c_ != nullptr || this->charge_sensor_ah_ != nullptr) {
+            double charge_c{0}, charge_ah{0};
+            all_ok &= this->read_charge_(charge_c, charge_ah);
+            if (this->charge_sensor_c_ != nullptr)
+              this->charge_sensor_c_->publish_state(charge_c);
+            if (this->charge_sensor_ah_ != nullptr)
+              this->charge_sensor_ah_->publish_state(charge_ah);
           }
         }
         this->state_ = State::DATA_COLLECTION_8;
@@ -187,8 +194,13 @@ void INA2XX::dump_config() {
   LOG_SENSOR("  ", "Die Temperature", this->die_temperature_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
-  LOG_SENSOR("  ", "[INA228/229] Energy", this->energy_sensor_);
-  LOG_SENSOR("  ", "[INA228/229] Charge", this->charge_sensor_);
+
+  if (this->ina_type_ == INAType::INA_228_229) {
+    LOG_SENSOR("  ", "Energy J", this->energy_sensor_j_);
+    LOG_SENSOR("  ", "Energy Wh", this->energy_sensor_wh_);
+    LOG_SENSOR("  ", "Charge C", this->charge_sensor_c_);
+    LOG_SENSOR("  ", "Charge Ah", this->charge_sensor_ah_);
+  }
 }
 
 bool INA2XX::reset_energy_counters() {
@@ -416,7 +428,7 @@ bool INA2XX::read_power_w_(float &power_out) {
   return ret;
 }
 
-bool INA2XX::read_energy_j_(double &joules_out) {
+bool INA2XX::read_energy_(double &joules_out, double &watt_hours_out) {
   // Unsigned value
   //      228, 229 - 40bit
   // 237, 238, 239 - not available
@@ -430,13 +442,14 @@ bool INA2XX::read_energy_j_(double &joules_out) {
 
   ESP_LOGD(TAG, "read_energy_j_ ret=%s, reading_lsb=0x%" PRIX64 ", current_lsb=%f, overflow_cnt=%d", OKFAILED(ret),
            joules_reading, this->current_lsb_, this->energy_overflows_count_);
-  if (ret)
+  if (ret) {
     joules_out = this->cfg_.energy_coeff * this->current_lsb_ * (double) joules_reading + (double) previous_energy;
-
+    watt_hours_out = joules_out / 3600.0;
+  }
   return ret;
 }
 
-bool INA2XX::read_charge_c_(double &coulombs_out) {
+bool INA2XX::read_charge_(double &coulombs_out, double &amp_hours_out) {
   // Two's complement value
   //      228, 229 - 40bit
   // 237, 238, 239 - not available
@@ -452,9 +465,10 @@ bool INA2XX::read_charge_c_(double &coulombs_out) {
 
   ESP_LOGD(TAG, "read_charge_c_ ret=%d, curr_charge=%f + 39-bit overflow_cnt=%d", ret, coulombs_reading,
            this->charge_overflows_count_);
-  if (ret)
+  if (ret) {
     coulombs_out = this->current_lsb_ * (double) coulombs_reading + (double) previous_charge;
-
+    amp_hours_out = coulombs_out / 3600.0;
+  }
   return ret;
 }
 

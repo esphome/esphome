@@ -127,8 +127,10 @@ class INA2XX : public PollingComponent {
   void set_die_temperature_sensor(sensor::Sensor *sensor) { die_temperature_sensor_ = sensor; }
   void set_current_sensor(sensor::Sensor *sensor) { current_sensor_ = sensor; }
   void set_power_sensor(sensor::Sensor *sensor) { power_sensor_ = sensor; }
-  void set_energy_sensor(sensor::Sensor *sensor) { energy_sensor_ = sensor; }
-  void set_charge_sensor(sensor::Sensor *sensor) { charge_sensor_ = sensor; }
+  void set_energy_sensor_j(sensor::Sensor *sensor) { energy_sensor_j_ = sensor; }
+  void set_energy_sensor_wh(sensor::Sensor *sensor) { energy_sensor_wh_ = sensor; }
+  void set_charge_sensor_c(sensor::Sensor *sensor) { charge_sensor_c_ = sensor; }
+  void set_charge_sensor_ah(sensor::Sensor *sensor) { charge_sensor_ah_ = sensor; }
 
   bool reset_energy_counters();
 
@@ -146,8 +148,8 @@ class INA2XX : public PollingComponent {
   bool read_die_temp_c_(float &temp);
   bool read_current_a_(float &amps_out);
   bool read_power_w_(float &power_out);
-  bool read_energy_j_(double &joules_out);
-  bool read_charge_c_(double &coulombs_out);
+  bool read_energy_(double &joules_out, double &watt_hours_out);
+  bool read_charge_(double &coulombs_out, double &amp_hours_out);
 
   bool read_diagnostics_and_act_();
 
@@ -176,8 +178,10 @@ class INA2XX : public PollingComponent {
   sensor::Sensor *die_temperature_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
-  sensor::Sensor *energy_sensor_{nullptr};
-  sensor::Sensor *charge_sensor_{nullptr};
+  sensor::Sensor *energy_sensor_j_{nullptr};
+  sensor::Sensor *energy_sensor_wh_{nullptr};
+  sensor::Sensor *charge_sensor_c_{nullptr};
+  sensor::Sensor *charge_sensor_ah_{nullptr};
 
   //
   // FSM states
