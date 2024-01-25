@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_DISTANCE,
     UNIT_CENTIMETER,
+    UNIT_LUX,
     UNIT_PERCENT,
     CONF_LIGHT,
     DEVICE_CLASS_ILLUMINANCE,
@@ -48,6 +49,7 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_ILLUMINANCE,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             icon=ICON_LIGHTBULB,
+            unit_of_measurement=UNIT_LUX,
         ),
         cv.Optional(CONF_DETECTION_DISTANCE): sensor.sensor_schema(
             device_class=DEVICE_CLASS_DISTANCE,
