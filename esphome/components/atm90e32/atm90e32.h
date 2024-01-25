@@ -41,6 +41,7 @@ class ATM90E32Component : public PollingComponent,
   void set_volt_gain(int phase, uint16_t gain) { this->phase_[phase].voltage_gain_ = gain; }
   void set_ct_gain(int phase, uint16_t gain) { this->phase_[phase].ct_gain_ = gain; }
   void set_freq_sensor(sensor::Sensor *freq_sensor) { freq_sensor_ = freq_sensor; }
+  void set_peak_current_signed(bool flag) { peak_current_signed_ = flag; }
   void set_chip_temperature_sensor(sensor::Sensor *chip_temperature_sensor) {
     chip_temperature_sensor_ = chip_temperature_sensor;
   }
@@ -82,8 +83,6 @@ class ATM90E32Component : public PollingComponent,
   float get_chip_temperature_();
   bool get_publish_interval_flag_() { return publish_interval_flag_; };
   void set_publish_interval_flag_(bool flag) { publish_interval_flag_ = flag; };
-  bool get_peak_current_abs_() { return peak_current_abs_; };
-  void set_peak_current_abs_(bool flag) { peak_current_abs_ = flag; };
 
   struct ATM90E32Phase {
     uint16_t voltage_gain_{7305};
@@ -121,7 +120,7 @@ class ATM90E32Component : public PollingComponent,
   int line_freq_{60};
   int current_phases_{3};
   bool publish_interval_flag_{true};
-  bool peak_current_abs_{true};
+  bool peak_current_signed_{true};
 };
 
 }  // namespace atm90e32

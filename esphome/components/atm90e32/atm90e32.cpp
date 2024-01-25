@@ -398,11 +398,11 @@ float ATM90E32Component::get_phase_angle_(uint8_t phase) {
 }
 
 float ATM90E32Component::get_phase_peak_current_(uint8_t phase) {
-  int16_t val = this->read16_(ATM90E32_REGISTER_IPEAK + phase);
-  if (this->peak_current_abs_)
+  int16_t val = (float) this->read16_(ATM90E32_REGISTER_IPEAK + phase);
+  if (!this->peak_current_signed_)
     val = abs(val);
-  return (float) std::abs(val * this->phase_[phase].ct_gain_ /
-                          8192000.0);  // phase register * phase current gain value  / 1000 * 2^13
+  // phase register * phase current gain value  / 1000 * 2^13
+  return (float) (val * this->phase_[phase].ct_gain_ / 8192000.0);
 }
 
 float ATM90E32Component::get_frequency_() {

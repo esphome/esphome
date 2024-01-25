@@ -45,6 +45,7 @@ CONF_GAIN_VOLTAGE = "gain_voltage"
 CONF_GAIN_CT = "gain_ct"
 CONF_HARMONIC_POWER = "harmonic_power"
 CONF_PEAK_CURRENT = "peak_current"
+CONF_PEAK_CURRENT_SIGNED = "peak_current_signed"
 UNIT_DEG = "degrees"
 LINE_FREQS = {
     "50HZ": 50,
@@ -162,6 +163,7 @@ CONFIG_SCHEMA = (
                 CURRENT_PHASES, upper=True
             ),
             cv.Optional(CONF_GAIN_PGA, default="2X"): cv.enum(PGA_GAINS, upper=True),
+            cv.Optional(CONF_PEAK_CURRENT_SIGNED, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -224,3 +226,4 @@ async def to_code(config):
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_current_phases(config[CONF_CURRENT_PHASES]))
     cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))
+    cg.add(var.set_peak_current_signed(config[CONF_PEAK_CURRENT_SIGNED]))
