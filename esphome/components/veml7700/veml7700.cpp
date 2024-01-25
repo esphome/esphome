@@ -144,6 +144,10 @@ void VEML7700Component::loop() {
 
   if (this->is_ready()) {
     switch (this->state_) {
+      case State::IDLE:
+        // doing nothing, having best time
+        break;
+
       case State::COLLECTING_DATA:
         err = this->read_sensor_output_(this->readings_);
         this->state_ = (err == i2c::ERROR_OK) ? State::DATA_COLLECTED : State::IDLE;
@@ -152,7 +156,7 @@ void VEML7700Component::loop() {
       case State::COLLECTING_DATA_AUTO:  // Automatic mode - we start here to reconfigure device first
       case State::DATA_COLLECTED:
         if (!this->are_adjustments_required_(this->readings_)) {
-          this->state_ = State::READY_TO_PUBLISH_PART1;
+          this->state_ = State::READY_TO_PUBLISH_PART_1;
         } else {
           // if sensitivity adjustment needed -
           // shutdown device to change config and wait one integration time period
@@ -184,7 +188,7 @@ void VEML7700Component::loop() {
         }
         break;
 
-      case State::READY_TO_PUBLISH_PART1:
+      case State::READY_TO_PUBLISH_PART_1:
         this->status_clear_warning();
 
         this->apply_lux_calculation_(this->readings_);
@@ -192,13 +196,16 @@ void VEML7700Component::loop() {
         this->apply_glass_attenuation_(this->readings_);
 
         this->publish_data_part_1_(this->readings_);
-
-        this->state_ = State::READY_TO_PUBLISH_PART2;
+        this->state_ = State::READY_TO_PUBLISH_PART_2;
         break;
 
-      case State::READY_TO_PUBLISH_PART2:
+      case State::READY_TO_PUBLISH_PART_2:
         this->publish_data_part_2_(this->readings_);
+        this->state_ = State::READY_TO_PUBLISH_PART_3;
+        break;
 
+      case State::READY_TO_PUBLISH_PART_3:
+        this->publish_data_part_3_(this->readings_);
         this->state_ = State::IDLE;
         break;
 
@@ -403,18 +410,21 @@ void VEML7700Component::publish_data_part_1_(Readings &data) {
   if (this->white_sensor_ != nullptr) {
     this->white_sensor_->publish_state(data.white_lux);
   }
-  if (this->fake_infrared_sensor_ != nullptr) {
-    this->fake_infrared_sensor_->publish_state(data.fake_infrared_lux);
-  }
 }
 
 void VEML7700Component::publish_data_part_2_(Readings &data) {
+  if (this->fake_infrared_sensor_ != nullptr) {
+    this->fake_infrared_sensor_->publish_state(data.fake_infrared_lux);
+  }
   if (this->ambient_light_counts_sensor_ != nullptr) {
     this->ambient_light_counts_sensor_->publish_state(data.als_counts);
   }
   if (this->white_counts_sensor_ != nullptr) {
     this->white_counts_sensor_->publish_state(data.white_counts);
   }
+}
+
+void VEML7700Component::publish_data_part_3_(Readings &data) {
   if (this->actual_gain_sensor_ != nullptr) {
     this->actual_gain_sensor_->publish_state(get_gain_coeff(data.actual_gain));
   }
