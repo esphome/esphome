@@ -337,6 +337,7 @@ esphome/components/template/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
+esphome/components/time_based_tilt/* @klaudiusz223
 esphome/components/tlc5947/* @rnauber
 esphome/components/tm1621/* @Philippe12
 esphome/components/tm1637/* @glmnet
