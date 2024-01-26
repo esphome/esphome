@@ -7,6 +7,8 @@ namespace time_based_tilt {
 
 static const char *const TAG = "time_based_tilt.cover";
 
+const float TimeBasedTiltCover::TARGET_NONE = -1;
+
 using namespace esphome::cover;
 
 void TimeBasedTiltCover::dump_config() {

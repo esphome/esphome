@@ -50,7 +50,7 @@ class TimeBasedTiltCover : public cover::Cover, public Component {
   uint32_t inertia_open_time_;
   uint32_t inertia_close_time_;
 
-  const float TARGET_NONE{-1};
+  const static float TARGET_NONE;
   enum State : uint8_t {
     STATE_IDLE,
     STATE_MOVING,
