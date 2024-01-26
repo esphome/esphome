@@ -362,6 +362,7 @@ binary_sensor:
         - cover.toggle: time_based_cover
         - cover.toggle: endstop_cover
         - cover.toggle: current_based_cover
+        - cover.toggle: time_based_tilt_cover
 
 globals:
   - id: my_global_string
@@ -554,6 +555,23 @@ cover:
     close_action:
       - switch.turn_on: gpio_switch2
     close_duration: 4.5min
+  - platform: time_based_tilt
+    name: Time Based Cover with Tilt
+    id: time_based_tilt_cover
+    stop_action:
+      - switch.turn_on: gpio_switch1
+    open_action:
+      - switch.turn_on: gpio_switch1
+    open_duration: 5min
+    close_action:
+      - switch.turn_on: gpio_switch2
+    close_duration: 4.5min
+    inertia_open_time: 300 ms
+    tilt_open_duration: 930 ms
+    inertia_close_time: 250 ms
+    tilt_close_duration: 900 ms
+    interlock_wait_time: 500ms
+    recalibration_time: 2500ms
   - platform: current_based
     name: Current Based Cover
     id: current_based_cover
