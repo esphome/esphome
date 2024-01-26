@@ -4,6 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
+#include "esphome/core/automation.h"
 
 #include "ltr-definitions.h"
 
@@ -32,6 +33,9 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   void set_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
   void set_enable_automatic_mode(bool enable) { this->automatic_mode_enabled_ = enable; }
   void set_enable_proximity_mode(bool enable) { this->proximity_mode_enabled_ = enable; }
+  void set_proximity_high_threshold(uint16_t threshold) { this->proximity_threshold_high_ = threshold; }
+  void set_proximity_low_threshold(uint16_t threshold) { this->proximity_threshold_low_ = threshold; }
+  void set_proximity_cooldown_time_s(uint16_t time) { this->proximity_cooldown_time_s_ = time; }
 
   void set_ambient_light_sensor(sensor::Sensor *sensor) { this->ambient_light_sensor_ = sensor; }
   void set_full_spectrum_counts_sensor(sensor::Sensor *sensor) { this->full_spectrum_counts_sensor_ = sensor; }
@@ -93,17 +97,21 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
 
   void configure_ps_();
   uint16_t read_ps_data_();
-  uint16_t last_ps_data_{0xffff};
+  void check_and_trigger_ps_();
+  uint16_t last_ps_data_{0xfffe};
 
   //
   // Component configuration
   //
   bool automatic_mode_enabled_{true};
-  bool proximity_mode_enabled_{false};
   AlsGain gain_{AlsGain::GAIN_1};
   IntegrationTime integration_time_{IntegrationTime::INTEGRATION_TIME_100MS};
   MeasurementRepeatRate repeat_rate_{MeasurementRepeatRate::REPEAT_RATE_500MS};
   float glass_attenuation_factor_{1.0};
+  bool proximity_mode_enabled_{false};
+  uint16_t proximity_threshold_high_{0x0fff};
+  uint16_t proximity_threshold_low_{0x0000};
+  uint16_t proximity_cooldown_time_s_{0x0000};
 
   //
   //   Sensors for publishing data
@@ -121,7 +129,37 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
            this->actual_integration_time_sensor_ != nullptr;
   }
   bool is_any_ps_sensor_enabled_() const { return this->proximity_counts_sensor_ != nullptr; }
+
+  //
+  // Trigger section for the automations
+  //
+  friend class LTR303HighTrigger;
+  friend class LTR303LowTrigger;
+
+  CallbackManager<void()> on_high_trigger_callback_;
+  CallbackManager<void()> on_low_trigger_callback_;
+
+  void add_on_high_trigger_callback(std::function<void()> callback) {
+    this->on_high_trigger_callback_.add(std::move(callback));
+  }
+
+  void add_on_low_trigger_callback(std::function<void()> callback) {
+    this->on_low_trigger_callback_.add(std::move(callback));
+  }
 };
 
+class LTR303HighTrigger : public Trigger<> {
+ public:
+  explicit LTR303HighTrigger(LTR303Component *parent) {
+    parent->add_on_high_trigger_callback([this]() { this->trigger(); });
+  }
+};
+
+class LTR303LowTrigger : public Trigger<> {
+ public:
+  explicit LTR303LowTrigger(LTR303Component *parent) {
+    parent->add_on_low_trigger_callback([this]() { this->trigger(); });
+  }
+};
 }  // namespace ltr303
 }  // namespace esphome

@@ -70,6 +70,11 @@ void LTR303Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Integration time: %d ms", get_itime_ms(this->integration_time_));
   ESP_LOGCONFIG(TAG, "  Measurement repeat rate: %d ms", get_meas_time_ms(this->repeat_rate_));
   ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
+  ESP_LOGCONFIG(TAG, "  Proximity mode: %s", ONOFF(this->proximity_mode_enabled_));
+  ESP_LOGCONFIG(TAG, "  Proximity high threshold: %d", this->proximity_threshold_high_);
+  ESP_LOGCONFIG(TAG, "  Proximity low threshold: %d", this->proximity_threshold_low_);
+  ESP_LOGCONFIG(TAG, "  Proximity cooldown time: %d s", this->proximity_cooldown_time_s_);
+
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "ALS calculated lux", this->ambient_light_sensor_);
@@ -123,31 +128,7 @@ void LTR303Component::loop() {
     case State::IDLE:
       // having fun, waiting for work
       if (this->proximity_mode_enabled_) {
-        uint16_t ps_data = this->read_ps_data_();
-
-        static const uint16_t ps_distance_table[] = {790, 337, 195, 114, 78, 62, 50};
-        static uint8_t ps_distance = 0;
-        uint8_t distance = 0;
-
-        if (ps_data != this->last_ps_data_) {
-          this->last_ps_data_ = ps_data;
-          if (ps_data == 0xfff) {
-            distance = 0;
-          } else {
-            uint8_t i;
-            for (i = 0; i < 7; i++) {
-              if (ps_data > ps_distance_table[i]) {
-                distance = i;
-                break;
-              }
-            }
-            distance = i;
-          }
-          if (distance != ps_distance) {
-            ps_distance = distance;
-            ESP_LOGD(TAG, "Distance changed %d", distance);
-          }
-        }
+        check_and_trigger_ps_();
       }
       break;
 
@@ -202,6 +183,31 @@ void LTR303Component::loop() {
 
     default:
       break;
+  }
+}
+
+void LTR303Component::check_and_trigger_ps_() {
+  static uint32_t last_high_trigger_time_{0};
+  static uint32_t last_low_trigger_time_{0};
+  uint16_t ps_data = this->read_ps_data_();
+  uint32_t now = millis();
+
+  if (ps_data != this->last_ps_data_) {
+    this->last_ps_data_ = ps_data;
+    // Higher values - object is closer to sensor
+    if (ps_data > this->proximity_threshold_high_ &&
+        now - last_high_trigger_time_ >= this->proximity_cooldown_time_s_ * 1000) {
+      last_high_trigger_time_ = now;
+      ESP_LOGD(TAG, "Proximity high threshold triggered. Value = %d, Trigger level = %d", ps_data,
+               this->proximity_threshold_high_);
+      this->on_high_trigger_callback_.call();
+    } else if (ps_data < this->proximity_threshold_low_ &&
+               now - last_low_trigger_time_ >= this->proximity_cooldown_time_s_ * 1000) {
+      last_low_trigger_time_ = now;
+      ESP_LOGD(TAG, "Proximity low threshold triggered. Value = %d, Trigger level = %d", ps_data,
+               this->proximity_threshold_low_);
+      this->on_low_trigger_callback_.call();
+    }
   }
 }
 
