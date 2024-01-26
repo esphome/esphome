@@ -46,9 +46,9 @@ LTR303Component = ltr303_ns.class_(
     "LTR303Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-LTR303HighTrigger = ltr303_ns.class_("LTR303HighTrigger", automation.Trigger)
+LTR303HighTrigger = ltr303_ns.class_("LTR303HighTrigger", automation.Trigger.template())
 
-LTR303LowTrigger = ltr303_ns.class_("LTR303LowTrigger", automation.Trigger)
+LTR303LowTrigger = ltr303_ns.class_("LTR303LowTrigger", automation.Trigger.template())
 
 Gain = ltr303_ns.enum("Gain")
 GAINS = {
@@ -218,7 +218,7 @@ async def to_code(config):
         await automation.build_automation(trigger, [], prox_high_tr)
 
     for prox_low_tr in config.get(CONF_ON_LOW_THRESHOLD, []):
-        trigger = cg.new_Pvariable(prox_high_tr[CONF_TRIGGER_ID], var)
+        trigger = cg.new_Pvariable(prox_low_tr[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], prox_low_tr)
 
     cg.add(var.set_enable_automatic_mode(config[CONF_AUTO_MODE]))
