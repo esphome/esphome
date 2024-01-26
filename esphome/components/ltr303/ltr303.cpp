@@ -124,10 +124,29 @@ void LTR303Component::loop() {
       // having fun, waiting for work
       if (this->proximity_mode_enabled_) {
         uint16_t ps_data = this->read_ps_data_();
+
+        static const uint16_t ps_distance_table[] = {790, 337, 195, 114, 78, 62, 50};
+        static uint8_t ps_distance = 0;
+        uint8_t distance = 0;
+
         if (ps_data != this->last_ps_data_) {
           this->last_ps_data_ = ps_data;
-          if (this->proximity_counts_sensor_ != nullptr)
-            proximity_counts_sensor_->publish_state(ps_data);
+          if (ps_data == 0xfff) {
+            distance = 0;
+          } else {
+            uint8_t i;
+            for (i = 0; i < 7; i++) {
+              if (ps_data > ps_distance_table[i]) {
+                distance = i;
+                break;
+              }
+            }
+            distance = i;
+          }
+          if (distance != ps_distance) {
+            ps_distance = distance;
+            ESP_LOGD(TAG, "Distance changed %d", distance);
+          }
         }
       }
       break;
@@ -412,6 +431,9 @@ void LTR303Component::apply_lux_calculation_(Readings &data) {
 }
 
 void LTR303Component::publish_data_part_1_(Readings &data) {
+  if (this->proximity_counts_sensor_ != nullptr) {
+    this->proximity_counts_sensor_->publish_state(this->last_ps_data_);
+  }
   if (this->ambient_light_sensor_ != nullptr) {
     this->ambient_light_sensor_->publish_state(data.lux);
   }
