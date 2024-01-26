@@ -109,9 +109,9 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   MeasurementRepeatRate repeat_rate_{MeasurementRepeatRate::REPEAT_RATE_500MS};
   float glass_attenuation_factor_{1.0};
   bool proximity_mode_enabled_{false};
-  uint16_t proximity_threshold_high_{0x0fff};
+  uint16_t proximity_threshold_high_{0xffff};
   uint16_t proximity_threshold_low_{0x0000};
-  uint16_t proximity_cooldown_time_s_{0x0000};
+  uint16_t proximity_cooldown_time_s_{5};
 
   //
   //   Sensors for publishing data
