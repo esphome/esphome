@@ -91,7 +91,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     delayMicroseconds(40);
   } else if (this->model_ == DHT_MODEL_DHT22_TYPE2) {
     delayMicroseconds(2000);
-  } else if (this->model_ == DHT_MODEL_AM2302) {
+  } else if (this->model_ == DHT_MODEL_AM2120 || this->model_ == DHT_MODEL_AM2302) {
     delayMicroseconds(1000);
   } else {
     delayMicroseconds(800);
@@ -217,8 +217,12 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     uint16_t raw_humidity = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
     uint16_t raw_temperature = (uint16_t(data[2] & 0xFF) << 8) | (data[3] & 0xFF);
 
-    if (this->model_ != DHT_MODEL_DHT22_TYPE2 && (raw_temperature & 0x8000) != 0)
-      raw_temperature = ~(raw_temperature & 0x7FFF);
+    if (raw_temperature & 0x8000) {
+      if (!(raw_temperature & 0x4000))
+        raw_temperature = ~(raw_temperature & 0x7FFF);
+    } else if (raw_temperature & 0x800) {
+      raw_temperature |= 0xf000;
+    }
 
     if (raw_temperature == 1 && raw_humidity == 10) {
       if (report_errors) {
