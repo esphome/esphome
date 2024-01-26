@@ -6,9 +6,16 @@
 
 #pragma once
 
+#ifdef USE_ESP32
+#include "esp_idf_version.h"
+#if ESP_IDF_VERSION_MAJOR >= 5
+
+#include "esp_eth_driver.h"
 #include "esp_eth_phy.h"
 
 #ifdef __cplusplus
+namespace esphome {
+namespace ethernet {
 extern "C" {
 #endif
 
@@ -34,4 +41,9 @@ esp_eth_phy_t *esp_eth_phy_new_lan867x(const eth_phy_config_t *config);
 
 #ifdef __cplusplus
 }
+}
+}
 #endif
+
+#endif  // ESP_IDF_VERSION_MAJOR >= 5
+#endif  // USE_ESP32

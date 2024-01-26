@@ -3,13 +3,21 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+
+#ifdef USE_ESP32
+
+#include "esp_idf_version.h"
+#if ESP_IDF_VERSION_MAJOR >= 5
+
 #include <string.h>
 #include <stdlib.h>
 #include <sys/cdefs.h>
 #include "esp_log.h"
 #include "esp_check.h"
+
 #include "esp_eth_phy_802_3.h"
 #include "esp_eth_driver.h"
+
 #include "esp_eth_phy_lan867x.h"
 
 static const char *TAG = "lan867x";
@@ -280,3 +288,6 @@ err:
     }
     return ret;
 }
+
+#endif /* ESP_IDF_VERSION_MAJOR >= 5 */
+#endif /* USE_ESP32 */
