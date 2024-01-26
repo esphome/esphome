@@ -120,9 +120,9 @@ void WK2168ComponentI2C::setup() {
   ESP_LOGCONFIG(TAG, "Setting up wk2168_i2c: %s with %d UARTs at @%02X ...", this->get_name(), this->children_.size(),
                 this->base_address_);
 
-  // enable both channels
+  // enable all channels
   this->reg(WKREG_GENA, 0) = GENA_C1EN | GENA_C2EN | GENA_C3EN | GENA_C4EN;
-  // reset channels
+  // reset all channels
   this->reg(WKREG_GRST, 0) = GRST_C1RST | GRST_C2RST | GRST_C3RST | GRST_C4RST;
   // initialize the spage register to page 0
   this->reg(WKREG_SPAGE, 0) = 0;
