@@ -60,12 +60,13 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 ///////////////////////////////////////////////////////////////////////////////
 uint8_t WK2168RegSPI::read_reg() const {
   auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
-  uint8_t buf[2]{cmd_byte(READ_CMD, REG, this->register_, this->channel_)};
+  uint8_t cmd = cmd_byte(READ_CMD, REG, this->register_, this->channel_);
+  uint8_t buf[2]{cmd, 0};
   spi_delegate->begin_transaction();
   spi_delegate->transfer(buf, 2);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "Register::read_reg() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(buf[0]), buf[0],
-            reg_to_str(this->register_, this->comp_->page1()), this->register_, this->channel_, buf[1]);
+  ESP_LOGVV(TAG, "WK2168RegSPI::read_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2CS(cmd), cmd,
+            reg_to_str(this->register_, this->comp_->page1()), this->channel_, buf[1]);
   return buf[1];
 }
 
@@ -76,18 +77,20 @@ void WK2168RegSPI::read_fifo(uint8_t *data, size_t length) const {
   spi_delegate->transfer(&cmd, 1);
   spi_delegate->transfer(data, length);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%s", I2CS(cmd), cmd, this->channel_,
+  cmd = cmd_byte(READ_CMD, FIFO, this->register_, this->channel_);
+  ESP_LOGVV(TAG, "WK2168RegSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buf=%s", I2CS(cmd), cmd, this->channel_, length,
             format_hex_pretty(data, length).c_str());
 }
 
 void WK2168RegSPI::write_reg(uint8_t value) {
   auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
-  uint8_t buf[2]{cmd_byte(WRITE_CMD, REG, this->register_, this->channel_), value};
+  uint8_t cmd = cmd_byte(READ_CMD, REG, this->register_, this->channel_);
+  uint8_t buf[2]{cmd, 0};
   spi_delegate->begin_transaction();
   spi_delegate->transfer(buf, 2);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "Register::write_reg() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(buf[0]), buf[0],
-            reg_to_str(this->register_, this->comp_->page1()), this->register_, this->channel_, value);
+  ESP_LOGVV(TAG, "WK2168RegSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2CS(cmd), cmd,
+            reg_to_str(this->register_, this->comp_->page1()), this->channel_, value);
 }
 
 void WK2168RegSPI::write_fifo(uint8_t *data, size_t length) {
@@ -97,7 +100,8 @@ void WK2168RegSPI::write_fifo(uint8_t *data, size_t length) {
   spi_delegate->transfer(&cmd, 1);
   spi_delegate->transfer(data, length);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%s", I2CS(cmd), cmd, this->channel_,
+  cmd = cmd_byte(READ_CMD, FIFO, this->register_, this->channel_);
+  ESP_LOGVV(TAG, "WK2168RegSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buf=%s", I2CS(cmd), cmd, this->channel_, length,
             format_hex_pretty(data, length).c_str());
 }
 
