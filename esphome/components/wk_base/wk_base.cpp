@@ -136,8 +136,8 @@ void WKBaseComponent::loop() {
       child->uart_send_test_(message);
       uint32_t const start_time = millis();
       while (child->tx_fifo_is_not_empty_()) {  // wait until buffer empty
-        if (millis() - start_time > 100) {
-          ESP_LOGE(TAG, "Timed out while flushing - %d bytes left in buffer...", child->tx_in_fifo_());
+        if (millis() - start_time > 1000) {
+          ESP_LOGE(TAG, "timeout while flushing - %d bytes left in buffer...", child->tx_in_fifo_());
           break;
         }
         yield();  // reschedule our thread to avoid blocking
@@ -338,7 +338,7 @@ void WKBaseChannel::flush() {
   uint32_t const start_time = millis();
   while (this->tx_fifo_is_not_empty_()) {  // wait until buffer empty
     if (millis() - start_time > 100) {
-      ESP_LOGE(TAG, "flush time out - still %d bytes not sent...", this->tx_in_fifo_());
+      ESP_LOGW(TAG, "WARNING flush timeout - still %d bytes not sent after 200 ms...", this->tx_in_fifo_());
       return;
     }
     yield();  // reschedule our thread to avoid blocking
@@ -423,7 +423,7 @@ bool WKBaseChannel::uart_receive_test_(char *message) {
   uint32_t const start_time = millis();
   while (XFER_MAX_SIZE > (received = this->available())) {
     this->xfer_fifo_to_buffer_();
-    if (millis() - start_time > 100) {
+    if (millis() - start_time > 1000) {
       ESP_LOGE(TAG, "uart_receive_test_() timeout: only %d bytes received...", received);
       break;
     }
@@ -434,7 +434,6 @@ bool WKBaseChannel::uart_receive_test_(char *message) {
   this->peek_byte(&peek_value);
   if (peek_value != 0) {
     ESP_LOGE(TAG, "Peek first byte value error...");
-    print_buffer(buffer);
     status = false;
   }
 
