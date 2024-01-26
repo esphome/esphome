@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
@@ -9,6 +10,7 @@ from esphome.const import (
     CONF_GLASS_ATTENUATION_FACTOR,
     CONF_INTEGRATION_TIME,
     CONF_REPEAT,
+    CONF_TRIGGER_ID,
     UNIT_LUX,
     UNIT_MILLISECOND,
     ICON_BRIGHTNESS_5,
@@ -32,12 +34,21 @@ CONF_ENABLE_PROXIMITY = "enable_proximity"
 CONF_FULL_SPECTRUM_COUNTS = "full_spectrum_counts"
 CONF_INFRARED_COUNTS = "infrared_counts"
 CONF_PROXIMITY_COUNTS = "proximity_counts"
+CONF_PROXIMITY_HIGH_THRESHOLD = "proximity_high_threshold"
+CONF_PROXIMITY_LOW_THRESHOLD = "proximity_low_threshold"
+CONF_PROXIMITY_COOLDOWN = "proximity_cooldown"
+CONF_ON_HIGH_THRESHOLD = "on_high_threshold"
+CONF_ON_LOW_THRESHOLD = "on_low_threshold"
 
 ltr303_ns = cg.esphome_ns.namespace("ltr303")
 
 LTR303Component = ltr303_ns.class_(
     "LTR303Component", cg.PollingComponent, i2c.I2CDevice
 )
+
+LTR303HighTrigger = ltr303_ns.class_("LTR303HighTrigger", automation.Trigger)
+
+LTR303LowTrigger = ltr303_ns.class_("LTR303LowTrigger", automation.Trigger)
 
 Gain = ltr303_ns.enum("Gain")
 GAINS = {
@@ -97,7 +108,6 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(LTR303Component),
             cv.Optional(CONF_AUTO_MODE, default=True): cv.boolean,
-            cv.Optional(CONF_ENABLE_PROXIMITY, default=False): cv.boolean,
             cv.Optional(CONF_GAIN, default="1X"): cv.enum(GAINS, upper=True),
             cv.Optional(
                 CONF_INTEGRATION_TIME, default="100ms"
@@ -105,6 +115,26 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_REPEAT, default="500ms"): validate_repeat_rate,
             cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
+            ),
+            cv.Optional(CONF_ENABLE_PROXIMITY, default=False): cv.boolean,
+            cv.Optional(CONF_ON_HIGH_THRESHOLD): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LTR303HighTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_LOW_THRESHOLD): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LTR303LowTrigger),
+                }
+            ),
+            cv.Optional(
+                CONF_PROXIMITY_COOLDOWN, default="5s"
+            ): cv.positive_time_period_seconds,
+            cv.Optional(CONF_PROXIMITY_HIGH_THRESHOLD, default=65535): cv.int_range(
+                min=0, max=65535
+            ),
+            cv.Optional(CONF_PROXIMITY_LOW_THRESHOLD, default=0): cv.int_range(
+                min=0, max=65535
             ),
             cv.Optional(CONF_AMBIENT_LIGHT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_LUX,
@@ -183,9 +213,20 @@ async def to_code(config):
         sens = await sensor.new_sensor(prox_cnt_config)
         cg.add(var.set_proximity_counts_sensor(sens))
 
+    for prox_high_tr in config.get(CONF_ON_HIGH_THRESHOLD, []):
+        trigger = cg.new_Pvariable(prox_high_tr[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], prox_high_tr)
+
+    for prox_low_tr in config.get(CONF_ON_LOW_THRESHOLD, []):
+        trigger = cg.new_Pvariable(prox_high_tr[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], prox_low_tr)
+
     cg.add(var.set_enable_automatic_mode(config[CONF_AUTO_MODE]))
     cg.add(var.set_enable_proximity_mode(config[CONF_ENABLE_PROXIMITY]))
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_repeat_rate(config[CONF_REPEAT]))
     cg.add(var.set_glass_attenuation_factor(config[CONF_GLASS_ATTENUATION_FACTOR]))
+    cg.add(var.set_proximity_high_threshold(config[CONF_PROXIMITY_HIGH_THRESHOLD]))
+    cg.add(var.set_proximity_low_threshold(config[CONF_PROXIMITY_LOW_THRESHOLD]))
+    cg.add(var.set_proximity_cooldown_time_s(config[CONF_PROXIMITY_COOLDOWN]))
