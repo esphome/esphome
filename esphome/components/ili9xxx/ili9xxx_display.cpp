@@ -366,6 +366,10 @@ void ILI9XXXDisplay::init_lcd_() {
 
 // Tell the display controller where we want to draw pixels.
 void ILI9XXXDisplay::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
+  x1 += this->offset_x_;
+  x2 += this->offset_x_;
+  y1 += this->offset_y_;
+  y2 += this->offset_y_;
   this->command(ILI9XXX_CASET);
   this->data(x1 >> 8);
   this->data(x1 & 0xFF);
