@@ -56,6 +56,11 @@ enum PSM : uint8_t {
   PSM_MODE_4 = 3,
 };
 
+// The following section with bit-fields brings GCC compilation 'notes' about padding bytes due to bug in older GCC back
+// in 2009 "Packed bit-fields of type char were not properly bit-packed on many targets prior to GCC 4.4" Even more to
+// this - this message can't be disabled with "#pragma GCC diagnostic ignored" due to another bug which was only fixed
+// in GCC 13 in 2022 :) No actions required, it is just a note. The code is correct.
+
 //
 // VEML7700_CR_ALS_CONF_0 Register (0x00)
 //

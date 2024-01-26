@@ -114,9 +114,8 @@ void VEML7700Component::dump_config() {
 }
 
 void VEML7700Component::update() {
-  ESP_LOGD(TAG, "Updating");
   if (this->is_ready() && this->state_ == State::IDLE) {
-    ESP_LOGD(TAG, "Initiating new data collection");
+    ESP_LOGV(TAG, "Update: Initiating new data collection");
 
     this->state_ = this->automatic_mode_enabled_ ? State::COLLECTING_DATA_AUTO : State::COLLECTING_DATA;
 
@@ -128,7 +127,7 @@ void VEML7700Component::update() {
     this->readings_.white_lux = 0;
     this->readings_.fake_infrared_lux = 0;
   } else {
-    ESP_LOGD(TAG, "Component not ready yet");
+    ESP_LOGV(TAG, "Update: Component not ready yet");
   }
 }
 
@@ -218,7 +217,7 @@ void VEML7700Component::loop() {
 }
 
 ErrorCode VEML7700Component::configure_() {
-  ESP_LOGD(TAG, "Configure");
+  ESP_LOGV(TAG, "Configure");
 
   ConfigurationRegister als_conf{0};
   als_conf.ALS_INT_EN = false;
@@ -227,7 +226,7 @@ ErrorCode VEML7700Component::configure_() {
   als_conf.ALS_GAIN = this->gain_;
 
   als_conf.ALS_SD = true;
-  ESP_LOGD(TAG, "Shutdown before config. ALS_CONF_0 to 0x%04X", als_conf.raw);
+  ESP_LOGV(TAG, "Shutdown before config. ALS_CONF_0 to 0x%04X", als_conf.raw);
   auto err = this->write_register((uint8_t) CommandRegisters::ALS_CONF_0, als_conf.raw_bytes, VEML_REG_SIZE);
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Failed to shutdown, I2C error %d", err);
@@ -236,7 +235,7 @@ ErrorCode VEML7700Component::configure_() {
   delay(3);
 
   als_conf.ALS_SD = false;
-  ESP_LOGD(TAG, "Turning on. Setting ALS_CONF_0 to 0x%04X", als_conf.raw);
+  ESP_LOGV(TAG, "Turning on. Setting ALS_CONF_0 to 0x%04X", als_conf.raw);
   err = this->write_register((uint8_t) CommandRegisters::ALS_CONF_0, als_conf.raw_bytes, VEML_REG_SIZE);
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Failed to turn on, I2C error %d", err);
@@ -246,7 +245,7 @@ ErrorCode VEML7700Component::configure_() {
   PSMRegister psm{0};
   psm.PSM = PSM::PSM_MODE_1;
   psm.PSM_EN = false;
-  ESP_LOGD(TAG, "Setting PSM to 0x%04X", psm.raw);
+  ESP_LOGV(TAG, "Setting PSM to 0x%04X", psm.raw);
   err = this->write_register((uint8_t) CommandRegisters::PWR_SAVING, psm.raw_bytes, VEML_REG_SIZE);
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Failed to set PSM, I2C error %d", err);
@@ -257,7 +256,7 @@ ErrorCode VEML7700Component::configure_() {
 }
 
 ErrorCode VEML7700Component::reconfigure_time_and_gain_(IntegrationTime time, Gain gain, bool shutdown) {
-  ESP_LOGD(TAG, "Reconfigure time and gain (%d ms, %s) %s", get_itime_ms(time), get_gain_str(gain),
+  ESP_LOGV(TAG, "Reconfigure time and gain (%d ms, %s) %s", get_itime_ms(time), get_gain_str(gain),
            shutdown ? "Shutting down" : "Turning back on");
 
   ConfigurationRegister als_conf{0};
@@ -298,7 +297,7 @@ ErrorCode VEML7700Component::read_sensor_output_(Readings &data) {
   data.actual_time = conf.ALS_IT;
   data.actual_gain = conf.ALS_GAIN;
 
-  ESP_LOGD(TAG, "Data from sensors: ALS = %d, WHITE = %d, Gain = %s, Time = %d ms", data.als_counts, data.white_counts,
+  ESP_LOGV(TAG, "Data from sensors: ALS = %d, WHITE = %d, Gain = %s, Time = %d ms", data.als_counts, data.white_counts,
            get_gain_str(data.actual_gain), get_itime_ms(data.actual_time));
   return std::max(als_err, white_err);
 }
@@ -356,14 +355,14 @@ void VEML7700Component::apply_lux_calculation_(Readings &data) {
   static const float MAX_LX_RESOLUTION = 0.0036f;
   float lux_resolution = (MAX_ITIME_MS / (float) get_itime_ms(data.actual_time)) *
                          (MAX_GAIN / get_gain_coeff(data.actual_gain)) * MAX_LX_RESOLUTION;
-  ESP_LOGD(TAG, "Lux resolution for (%d, %s) = %.4f ", get_itime_ms(data.actual_time), get_gain_str(data.actual_gain),
+  ESP_LOGV(TAG, "Lux resolution for (%d, %s) = %.4f ", get_itime_ms(data.actual_time), get_gain_str(data.actual_gain),
            lux_resolution);
 
   data.als_lux = lux_resolution * (float) data.als_counts;
   data.white_lux = lux_resolution * (float) data.white_counts;
   data.fake_infrared_lux = reduce_to_zero(data.white_lux, data.als_lux);
 
-  ESP_LOGD(TAG, "%s mode - ALS = %.1f lx, WHITE = %.1f lx, FAKE_IR = %.1f lx",
+  ESP_LOGV(TAG, "%s mode - ALS = %.1f lx, WHITE = %.1f lx, FAKE_IR = %.1f lx",
            this->automatic_mode_enabled_ ? "Automatic" : "Manual", data.als_lux, data.white_lux,
            data.fake_infrared_lux);
 }
@@ -393,7 +392,7 @@ void VEML7700Component::apply_lux_compensation_(Readings &data) {
   compensate(data.white_lux);
   data.fake_infrared_lux = reduce_to_zero(data.white_lux, data.als_lux);
 
-  ESP_LOGD(TAG, "Lux compensation - ALS = %.1f lx, WHITE = %.1f lx, FAKE_IR = %.1f lx", data.als_lux, data.white_lux,
+  ESP_LOGV(TAG, "Lux compensation - ALS = %.1f lx, WHITE = %.1f lx, FAKE_IR = %.1f lx", data.als_lux, data.white_lux,
            data.fake_infrared_lux);
 }
 
@@ -401,7 +400,7 @@ void VEML7700Component::apply_glass_attenuation_(Readings &data) {
   data.als_lux *= this->glass_attenuation_factor_;
   data.white_lux *= this->glass_attenuation_factor_;
   data.fake_infrared_lux = reduce_to_zero(data.white_lux, data.als_lux);
-  ESP_LOGD(TAG, "Glass attenuation - ALS = %.1f lx, WHITE = %.1f lx, FAKE_IR = %.1f lx", data.als_lux, data.white_lux,
+  ESP_LOGV(TAG, "Glass attenuation - ALS = %.1f lx, WHITE = %.1f lx, FAKE_IR = %.1f lx", data.als_lux, data.white_lux,
            data.fake_infrared_lux);
 }
 
