@@ -40,7 +40,7 @@ class WK2168ComponentSPI : public wk2168::WK2168Component,
  public:
   wk_base::WKBaseRegister &reg(uint8_t reg, uint8_t channel) override {
     reg_spi_.register_ = reg & 0x0F;
-    reg_spi_.channel_ = channel & 0x01;
+    reg_spi_.channel_ = channel;
     return reg_spi_;
   }
 
