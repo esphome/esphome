@@ -6,14 +6,14 @@ namespace esphome {
 namespace ltr303 {
 
 enum class CommandRegisters : uint8_t {
-  ALS_CONTR = 0x80,         // ALS operation mode control SW reset
+  ALS_CONTR = 0x80,         // ALS operation mode control and SW reset
   PS_CONTR = 0x81,          // PS operation mode control
   PS_LED = 0x82,            // PS LED pulse frequency control
   PS_N_PULSES = 0x83,       // PS number of pulses control
   PS_MEAS_RATE = 0x84,      // PS measurement rate in active mode
   MEAS_RATE = 0x85,         // ALS measurement rate in active mode
   PART_ID = 0x86,           // Part Number ID and Revision ID
-  MANU_ID = 0x87,           // Manufacturer ID
+  MANUFAC_ID = 0x87,        // Manufacturer ID
   ALS_DATA_CH1_0 = 0x88,    // ALS measurement CH1 data, lower byte - infrared only
   ALS_DATA_CH1_1 = 0x89,    // ALS measurement CH1 data, upper byte - infrared only
   ALS_DATA_CH0_0 = 0x8A,    // ALS measurement CH0 data, lower byte - visible + infrared
@@ -132,7 +132,7 @@ enum PsMeasurementRate : uint8_t {
 //
 // ALS_CONTR Register (0x80)
 //
-union ControlRegister {
+union AlsControlRegister {
   uint8_t raw;
   struct {
     bool active_mode : 1;

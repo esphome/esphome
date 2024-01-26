@@ -15,6 +15,7 @@ from esphome.const import (
     ICON_BRIGHTNESS_6,
     ICON_TIMER,
     DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_DISTANCE,
     STATE_CLASS_MEASUREMENT,
 )
 
@@ -24,10 +25,13 @@ DEPENDENCIES = ["i2c"]
 UNIT_COUNTS = "#"
 ICON_GAIN = "mdi:multiplication"
 ICON_BRIGHTNESS_7 = "mdi:brightness-7"
+ICON_PROXIMITY = "mdi:hand-wave-outline"
 CONF_ACTUAL_INTEGRATION_TIME = "actual_integration_time"
 CONF_AMBIENT_LIGHT = "ambient_light"
-CONF_INFRARED_COUNTS = "infrared_counts"
+CONF_ENABLE_PROXIMITY = "enable_proximity"
 CONF_FULL_SPECTRUM_COUNTS = "full_spectrum_counts"
+CONF_INFRARED_COUNTS = "infrared_counts"
+CONF_PROXIMITY_COUNTS = "proximity_counts"
 
 ltr303_ns = cg.esphome_ns.namespace("ltr303")
 
@@ -93,6 +97,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(LTR303Component),
             cv.Optional(CONF_AUTO_MODE, default=True): cv.boolean,
+            cv.Optional(CONF_ENABLE_PROXIMITY, default=False): cv.boolean,
             cv.Optional(CONF_GAIN, default="1X"): cv.enum(GAINS, upper=True),
             cv.Optional(
                 CONF_INTEGRATION_TIME, default="100ms"
@@ -120,6 +125,13 @@ CONFIG_SCHEMA = cv.All(
                 icon=ICON_BRIGHTNESS_7,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PROXIMITY_COUNTS): sensor.sensor_schema(
+                unit_of_measurement=UNIT_COUNTS,
+                icon=ICON_PROXIMITY,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_DISTANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ACTUAL_GAIN): sensor.sensor_schema(
@@ -167,7 +179,12 @@ async def to_code(config):
         sens = await sensor.new_sensor(act_itime_config)
         cg.add(var.set_actual_integration_time_sensor(sens))
 
+    if prox_cnt_config := config.get(CONF_PROXIMITY_COUNTS):
+        sens = await sensor.new_sensor(prox_cnt_config)
+        cg.add(var.set_proximity_counts_sensor(sens))
+
     cg.add(var.set_enable_automatic_mode(config[CONF_AUTO_MODE]))
+    cg.add(var.set_enable_proximity_mode(config[CONF_ENABLE_PROXIMITY]))
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_repeat_rate(config[CONF_REPEAT]))

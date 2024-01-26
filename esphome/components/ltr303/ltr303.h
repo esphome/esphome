@@ -31,12 +31,14 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   void set_repeat_rate(MeasurementRepeatRate rate) { this->repeat_rate_ = rate; }
   void set_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
   void set_enable_automatic_mode(bool enable) { this->automatic_mode_enabled_ = enable; }
+  void set_enable_proximity_mode(bool enable) { this->proximity_mode_enabled_ = enable; }
 
   void set_ambient_light_sensor(sensor::Sensor *sensor) { this->ambient_light_sensor_ = sensor; }
   void set_full_spectrum_counts_sensor(sensor::Sensor *sensor) { this->full_spectrum_counts_sensor_ = sensor; }
   void set_infrared_counts_sensor(sensor::Sensor *sensor) { this->infrared_counts_sensor_ = sensor; }
   void set_actual_gain_sensor(sensor::Sensor *sensor) { this->actual_gain_sensor_ = sensor; }
   void set_actual_integration_time_sensor(sensor::Sensor *sensor) { this->actual_integration_time_sensor_ = sensor; }
+  void set_proximity_counts_sensor(sensor::Sensor *sensor) { this->proximity_counts_sensor_ = sensor; }
 
  protected:
   //
@@ -67,8 +69,18 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   } readings_;
 
   //
+  // LTR sensor type. 303/329 - als, 553 - als + proximity
+  enum class LtrType : uint8_t {
+    LtrUnknown = 0,
+    LtrAlsOnly,
+    LtrAlsAndProximity,
+    LtrProximityOnly
+  } ltr_type_{LtrType::LtrAlsOnly};
+
+  //
   // Device interaction and data manipulation
   //
+  bool identify_device_type_();
   void configure_reset_and_activate_();
   void configure_integration_time_(IntegrationTime time);
   void configure_gain_(AlsGain gain);
@@ -79,10 +91,15 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   void publish_data_part_1_(Readings &data);
   void publish_data_part_2_(Readings &data);
 
+  void configure_ps_();
+  uint16_t read_ps_data_();
+  uint16_t last_ps_data_{0xffff};
+
   //
   // Component configuration
   //
   bool automatic_mode_enabled_{true};
+  bool proximity_mode_enabled_{false};
   AlsGain gain_{AlsGain::GAIN_1};
   IntegrationTime integration_time_{IntegrationTime::INTEGRATION_TIME_100MS};
   MeasurementRepeatRate repeat_rate_{MeasurementRepeatRate::REPEAT_RATE_500MS};
@@ -96,6 +113,7 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *ambient_light_sensor_{nullptr};            // calculated lux
   sensor::Sensor *actual_gain_sensor_{nullptr};              // actual gain of reading
   sensor::Sensor *actual_integration_time_sensor_{nullptr};  // actual integration time
+  sensor::Sensor *proximity_counts_sensor_{nullptr};         // proximity sensor
 };
 
 }  // namespace ltr303
