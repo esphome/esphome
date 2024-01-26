@@ -114,6 +114,13 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *actual_gain_sensor_{nullptr};              // actual gain of reading
   sensor::Sensor *actual_integration_time_sensor_{nullptr};  // actual integration time
   sensor::Sensor *proximity_counts_sensor_{nullptr};         // proximity sensor
+
+  bool is_any_als_sensor_enabled_() const {
+    return this->ambient_light_sensor_ != nullptr || this->full_spectrum_counts_sensor_ != nullptr ||
+           this->infrared_counts_sensor_ != nullptr || this->actual_gain_sensor_ != nullptr ||
+           this->actual_integration_time_sensor_ != nullptr;
+  }
+  bool is_any_ps_sensor_enabled_() const { return this->proximity_counts_sensor_ != nullptr; }
 };
 
 }  // namespace ltr303
