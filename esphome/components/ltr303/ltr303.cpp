@@ -299,9 +299,9 @@ uint16_t LTR303Component::read_ps_data_() {
   ps_high.raw = this->reg((uint8_t) CommandRegisters::PS_DATA_1).get();
 
   uint16_t val = encode_uint16(ps_high.ps_data_high, ps_low);
-  ESP_LOGD(TAG, "Got sensor data: PS = %5d, Saturation flag = %d", val, ps_high.ps_saturation_flag);
+  //  ESP_LOGD(TAG, "Got sensor data: PS = %5d, Saturation flag = %d", val, ps_high.ps_saturation_flag);
   if (ps_high.ps_saturation_flag) {
-    return 0xfff;
+    return 0x7ff;  // full 11 bit range
   }
   return val;
 }
