@@ -20,68 +20,70 @@ waveshare_epaper_ns = cg.esphome_ns.namespace("waveshare_epaper")
 WaveshareEPaper = waveshare_epaper_ns.class_(
     "WaveshareEPaper", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
 )
+WaveshareEPaperBW = waveshare_epaper_ns.class_("WaveshareEPaperBW", WaveshareEPaper)
+WaveshareEPaperBWR = waveshare_epaper_ns.class_("WaveshareEPaperBWR", WaveshareEPaper)
 WaveshareEPaperTypeA = waveshare_epaper_ns.class_(
-    "WaveshareEPaperTypeA", WaveshareEPaper
+    "WaveshareEPaperTypeA", WaveshareEPaperBW
 )
 WaveshareEPaper2P7In = waveshare_epaper_ns.class_(
-    "WaveshareEPaper2P7In", WaveshareEPaper
+    "WaveshareEPaper2P7In", WaveshareEPaperBW
 )
 WaveshareEPaper2P7InB = waveshare_epaper_ns.class_(
-    "WaveshareEPaper2P7InB", WaveshareEPaper
+    "WaveshareEPaper2P7InB", WaveshareEPaperBWR
 )
 WaveshareEPaper2P7InBV2 = waveshare_epaper_ns.class_(
-    "WaveshareEPaper2P7InBV2", WaveshareEPaper
-
+    "WaveshareEPaper2P7InBV2", WaveshareEPaperBWR
+)
 WaveshareEPaper2P7InV2 = waveshare_epaper_ns.class_(
-    "WaveshareEPaper2P7InV2", WaveshareEPaper
+    "WaveshareEPaper2P7InV2", WaveshareEPaperBW
 )
 WaveshareEPaper2P9InB = waveshare_epaper_ns.class_(
-    "WaveshareEPaper2P9InB", WaveshareEPaper
+    "WaveshareEPaper2P9InB", WaveshareEPaperBW
 )
 WaveshareEPaper2P9InBV3 = waveshare_epaper_ns.class_(
-    "WaveshareEPaper2P9InBV3", WaveshareEPaper
+    "WaveshareEPaper2P9InBV3", WaveshareEPaperBW
 )
-GDEY029T94 = waveshare_epaper_ns.class_("GDEY029T94", WaveshareEPaper)
+GDEY029T94 = waveshare_epaper_ns.class_("GDEY029T94", WaveshareEPaperBW)
 WaveshareEPaper4P2In = waveshare_epaper_ns.class_(
-    "WaveshareEPaper4P2In", WaveshareEPaper
+    "WaveshareEPaper4P2In", WaveshareEPaperBW
 )
 WaveshareEPaper4P2InBV2 = waveshare_epaper_ns.class_(
-    "WaveshareEPaper4P2InBV2", WaveshareEPaper
+    "WaveshareEPaper4P2InBV2", WaveshareEPaperBW
 )
 WaveshareEPaper5P8In = waveshare_epaper_ns.class_(
-    "WaveshareEPaper5P8In", WaveshareEPaper
+    "WaveshareEPaper5P8In", WaveshareEPaperBW
 )
 WaveshareEPaper5P8InV2 = waveshare_epaper_ns.class_(
-    "WaveshareEPaper5P8InV2", WaveshareEPaper
+    "WaveshareEPaper5P8InV2", WaveshareEPaperBW
 )
 WaveshareEPaper7P5In = waveshare_epaper_ns.class_(
-    "WaveshareEPaper7P5In", WaveshareEPaper
+    "WaveshareEPaper7P5In", WaveshareEPaperBW
 )
 WaveshareEPaper7P5InBC = waveshare_epaper_ns.class_(
-    "WaveshareEPaper7P5InBC", WaveshareEPaper
+    "WaveshareEPaper7P5InBC", WaveshareEPaperBW
 )
 WaveshareEPaper7P5InBV2 = waveshare_epaper_ns.class_(
-    "WaveshareEPaper7P5InBV2", WaveshareEPaper
+    "WaveshareEPaper7P5InBV2", WaveshareEPaperBW
 )
 WaveshareEPaper7P5InBV3 = waveshare_epaper_ns.class_(
-    "WaveshareEPaper7P5InBV3", WaveshareEPaper
+    "WaveshareEPaper7P5InBV3", WaveshareEPaperBW
 )
 WaveshareEPaper7P5InV2 = waveshare_epaper_ns.class_(
-    "WaveshareEPaper7P5InV2", WaveshareEPaper
+    "WaveshareEPaper7P5InV2", WaveshareEPaperBW
 )
 WaveshareEPaper7P5InV2alt = waveshare_epaper_ns.class_(
-    "WaveshareEPaper7P5InV2alt", WaveshareEPaper
+    "WaveshareEPaper7P5InV2alt", WaveshareEPaperBW
 )
 WaveshareEPaper7P5InHDB = waveshare_epaper_ns.class_(
-    "WaveshareEPaper7P5InHDB", WaveshareEPaper
+    "WaveshareEPaper7P5InHDB", WaveshareEPaperBW
 )
 WaveshareEPaper2P13InDKE = waveshare_epaper_ns.class_(
-    "WaveshareEPaper2P13InDKE", WaveshareEPaper
+    "WaveshareEPaper2P13InDKE", WaveshareEPaperBW
 )
 WaveshareEPaper2P13InV3 = waveshare_epaper_ns.class_(
-    "WaveshareEPaper2P13InV3", WaveshareEPaper
+    "WaveshareEPaper2P13InV3", WaveshareEPaperBW
 )
-GDEW0154M09 = waveshare_epaper_ns.class_("GDEW0154M09", WaveshareEPaper)
+GDEW0154M09 = waveshare_epaper_ns.class_("GDEW0154M09", WaveshareEPaperBW)
 
 WaveshareEPaperTypeAModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeAModel")
 WaveshareEPaperTypeBModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeBModel")
