@@ -202,6 +202,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_INPUT_DATETIME
+    case IteratorState::INPUT_DATETIME:
+      if (this->at_ >= App.get_input_datetimes().size()) {
+        advance_platform = true;
+      } else {
+        auto *input_datetime = App.get_input_datetimes()[this->at_];
+        if (input_datetime->is_internal() && !this->include_internal_) {
+          success = true;
+          break;
+        } else {
+          success = this->on_input_datetime(input_datetime);
+        }
+      }
+      break;
+#endif
 #ifdef USE_TEXT
     case IteratorState::TEXT:
       if (this->at_ >= App.get_texts().size()) {

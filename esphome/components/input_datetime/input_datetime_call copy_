@@ -1,0 +1,148 @@
+#include "input_datetime_call.h"
+#include "esphome/core/log.h"
+#include "input_datetime.h"
+
+namespace esphome {
+namespace input_datetime {
+
+static const char *const TAG = "input_datetime";
+
+InputDatetimeCall &InputDatetimeCall::set_all(const ESPTime &value, bool has_date, bool has_time) 
+{
+  return this->with_operation(INPUT_DATETIME_OP_SET_ALL).with_values(value, has_date, has_time);
+}
+
+InputDatetimeCall &InputDatetimeCall::set_value(const ESPTime &value) 
+{
+  return this->with_operation(INPUT_DATETIME_OP_SET_DATETIME).with_value(value);
+}
+
+InputDatetimeCall &InputDatetimeCall::set_has_date(const bool has_date) 
+{
+  return this->with_has_date(has_date);
+}
+
+InputDatetimeCall &InputDatetimeCall::set_has_time(const bool has_time) 
+{
+  return this->with_has_time(has_time);
+}
+
+InputDatetimeCall &InputDatetimeCall::with_operation(InputDatetimeOperation operation) {
+  this->operation_ = operation;
+  return *this;
+}
+
+InputDatetimeCall &InputDatetimeCall::with_values(ESPTime value, bool has_date, bool has_time) {
+  this->value_ = value;
+  this->has_date_ = has_date;
+  this->has_time_ = has_time;
+  return *this;
+}
+
+InputDatetimeCall &InputDatetimeCall::with_value(ESPTime value) {
+  this->value_ = value;
+  return *this;
+}
+
+InputDatetimeCall &InputDatetimeCall::with_has_date(bool has_date) {
+  this->has_date_ = has_date;
+  return *this;
+}
+
+InputDatetimeCall &InputDatetimeCall::with_has_time(bool has_time) {
+  this->has_time_ = has_time;
+  return *this;
+}
+
+bool InputDatetimeCall::validate_all_() {
+  const auto *name = this->parent_->get_name().c_str();
+
+  if (!this->value_.has_value()) {
+    ESP_LOGW(TAG, "'%s' - No value set for InputDatetime", name);
+    return false;
+  }
+  if (!this->has_date_.has_value()) {
+    ESP_LOGW(TAG, "'%s' - No has_date set for InputDatetime", name);
+    return false;
+  }
+  if (!this->has_time_.has_value()) {
+    ESP_LOGW(TAG, "'%s' - No has_time set for InputDatetime", name);
+    return false;
+  }
+  return true;
+}
+
+void InputDatetimeCall::perform() 
+{
+  auto *parent = this->parent_;
+  const auto *name = parent->get_name().c_str();
+  const auto &traits = parent->traits;
+
+
+  ESPTime target_value{0};
+  bool target_has_date{0};
+  bool target_has_time{0};
+
+  //load stored values if there are any
+  if (this->value_.has_value()) {
+    target_value = value_.value();
+  }
+  if (this->has_date_.has_value()) {
+    target_has_date = has_date_.value();
+  }
+  if (this->has_time_.has_value()) {
+    target_has_time = has_time_.value();
+  }
+
+  switch (this->operation_)
+  {
+  case INPUT_DATETIME_OP_NONE:
+    ESP_LOGW(TAG, "'%s' - InputDatetime performed without selecting an operation", name);
+    return;
+
+  case INPUT_DATETIME_OP_SET_ALL:
+    ESP_LOGD("mydebug", "in INPUT_DATETIME_OP_SET_ALL");
+    if( !this->validate_all_() )
+      return;
+
+    ESP_LOGD(TAG, "'%s' - Setting InputDatetime value:%s , has_date: %s and has_time: %s", name,
+              target_value.strftime("%F %T").c_str(), this->has_date_.value(), this->has_time_.value());
+    target_value = this->value_.value();
+    target_has_date = this->has_date_.value();
+    target_has_time = this->has_time_.value();
+    break;
+  case INPUT_DATETIME_OP_SET_DATETIME:
+    if (!this->value_.has_value())
+      return ESP_LOGW(TAG, "'%s' - No value set for InputDatetime", name);
+    
+    target_value = this->value_.value();
+    ESP_LOGD(TAG, "'%s' - Setting InputDatetime value: %s", name, target_value.strftime("%F %T").c_str());
+    break;
+  case INPUT_DATETIME_OP_SET_HAS_DATE_AND_HAS_TIME:
+    if (!this->has_date_.has_value() || !this->has_time_.has_value() )
+      return ESP_LOGW(TAG, "'%s' - No has_date set for InputDatetime", name);
+
+    target_has_date = this->has_date_.value();
+    target_has_time = this->has_time_.value();
+    ESP_LOGD(TAG, "'%s' - Setting InputDatetime has_date: %s has time: %s", name, this->has_date_.value(), this->has_time_.value());
+    break;
+
+  case INPUT_DATETIME_OP_SET_ALL_SET_ONES:
+    if (this->has_date_.has_value() ) {
+      target_value = this->value_.value();
+    }
+    if (this->has_date_.has_value() ) {
+      target_has_date = this->has_date_.value();
+    }
+    if (this->has_time_.has_value() ) {
+      target_has_time = this->has_time_.value();
+    }
+
+    break;
+  }
+  
+  this->parent_->control(target_value, target_has_date, target_has_time);
+}
+
+}  // namespace input_datetime
+}  // namespace esphome

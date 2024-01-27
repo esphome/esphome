@@ -849,6 +849,63 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 }
 #endif
 
+#ifdef USE_INPUT_DATETIME
+void WebServer::on_input_datetime_update(input_datetime::InputDatetime *obj, ESPTime state) {
+  this->events_.send(this->input_datetime_json(obj, state, DETAIL_STATE).c_str(), "state");
+}
+void WebServer::handle_input_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_input_datetimes()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+    if (request->method() == HTTP_GET) {
+      std::string data = this->input_datetime_json(obj, obj->state, DETAIL_STATE);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (!request->hasParam("value") && !request->hasParam("has_date") && !request->hasParam("has_time")) {
+      request->send(409);
+      return;
+    }
+
+    ESPTime date_time{0};
+    bool has_date{0};
+    bool has_time{0};
+
+    if (request->hasParam("value")) {
+      std::string value = request->getParam("value")->value().c_str();
+      std::replace(value.begin(), value.end(), 'T', ' ');
+      call.set_value(value);
+    }
+
+    this->schedule_([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+std::string WebServer::input_datetime_json(input_datetime::InputDatetime *obj, ESPTime value, JsonDetail start_config) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
+    set_json_id(root, obj, "input_datetime-" + obj->get_object_id(), start_config);
+    if (start_config == DETAIL_ALL) {
+      root["mode"] = (int) obj->traits.get_mode();
+    }
+    std::string timeString = ((ESPTime) value).strftime(STRFTIME_FORMAT_FROM_OBJ(obj, true));
+    root["value"] = timeString;
+    root["state"] = timeString;
+    root["has_date"] = obj->has_date;
+    root["has_time"] = obj->has_time;
+  });
+}
+#endif  // USE_INPUT_DATETIME
+
 #ifdef USE_TEXT
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
   this->events_.send(this->text_json(obj, state, DETAIL_STATE).c_str(), "state");
@@ -1233,6 +1290,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_INPUT_DATETIME
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "input_datetime")
+    return true;
+#endif
+
 #ifdef USE_TEXT
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "text")
     return true;
@@ -1347,6 +1409,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_NUMBER
   if (match.domain == "number") {
     this->handle_number_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_INPUT_DATETIME
+  if (match.domain == "input_datetime") {
+    this->handle_input_datetime_request(request, match);
     return;
   }
 #endif

@@ -82,6 +82,14 @@ bool ListEntitiesIterator::on_number(number::Number *number) {
 }
 #endif
 
+#ifdef USE_INPUT_DATETIME
+bool ListEntitiesIterator::on_input_datetime(input_datetime::InputDatetime *input_datetime) {
+  this->web_server_->events_.send(
+      this->web_server_->input_datetime_json(input_datetime, input_datetime->state, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
 #ifdef USE_TEXT
 bool ListEntitiesIterator::on_text(text::Text *text) {
   this->web_server_->events_.send(this->web_server_->text_json(text, text->state, DETAIL_ALL).c_str(), "state");
