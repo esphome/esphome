@@ -28,10 +28,14 @@ enum class CommandRegisters : uint8_t {
   PS_THRES_LOW_1 = 0x93,    // PS interrupt lower threshold, upper byte
   PS_OFFSET_1 = 0x94,       // PS offset, upper byte
   PS_OFFSET_0 = 0x95,       // PS offset, lower byte
+                            // 0x96 - reserved
   ALS_THRES_UP_0 = 0x97,    // ALS interrupt upper threshold, lower byte
   ALS_THRES_UP_1 = 0x98,    // ALS interrupt upper threshold, upper byte
   ALS_THRES_LOW_0 = 0x99,   // ALS interrupt lower threshold, lower byte
   ALS_THRES_LOW_1 = 0x9A,   // ALS interrupt lower threshold, upper byte
+                            // 0x9B - reserved
+                            // 0x9C - reserved
+                            // 0x9D - reserved
   INTERRUPT_PERSIST = 0x9E  // Interrupt persistence filter
 };
 
@@ -150,7 +154,7 @@ union PsControlRegister {
   struct {
     bool ps_mode_xxx : 1;
     bool ps_mode_active : 1;
-    PsGain ps_gain : 2;
+    PsGain ps_gain : 2;  // only LTR-659/558
     bool reserved_4 : 1;
     bool ps_saturation_indicator_enable : 1;
     bool reserved_6 : 1;
