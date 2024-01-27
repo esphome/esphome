@@ -221,14 +221,11 @@ class INA2XX : public PollingComponent {
   //
   // Register read/write
   //
-  bool write_unsigned_16_(uint8_t reg, uint16_t val);
   bool read_unsigned_(uint8_t reg, uint8_t reg_size, uint64_t &data_out);
   bool read_unsigned_16_(uint8_t reg, uint16_t &out);
+  bool write_unsigned_16_(uint8_t reg, uint16_t val);
 
-  bool read_signed_40_(uint8_t reg, double &out);
-  bool read_signed_20_4_(uint8_t reg, float &out);
-  bool read_signed_16_(uint8_t reg, float &out);
-  bool read_signed_12_4_(uint8_t reg, float &out);
+  int64_t two_complement_(uint64_t value, uint8_t bits);
 
   //
   // Interface-specific implementation

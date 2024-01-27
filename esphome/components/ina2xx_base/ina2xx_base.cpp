@@ -339,15 +339,18 @@ bool INA2XX::read_shunt_voltage_mv_(float &volt_out) {
 
   bool ret{false};
   float volt_reading{0};
-
+  uint64_t raw{0};
   if (this->ina_type_ == INAType::INA_228_229) {
-    ret = this->read_signed_20_4_(RegisterMap::REG_VSHUNT, volt_reading);
+    ret = this->read_unsigned_(RegisterMap::REG_VSHUNT, 3, raw);
+    raw >>= 4;
+    volt_reading = this->two_complement_(raw, 20);
   } else {
-    ret = this->read_signed_16_(RegisterMap::REG_VSHUNT, volt_reading);
+    ret = this->read_unsigned_(RegisterMap::REG_VSHUNT, 2, raw);
+    volt_reading = this->two_complement_(raw, 16);
   }
 
   if (ret)
-    volt_out = (this->adc_range_ ? this->cfg_.v_shunt_lsb_range1 : this->cfg_.v_shunt_lsb_range0) * volt_reading;  // mV
+    volt_out = (this->adc_range_ ? this->cfg_.v_shunt_lsb_range1 : this->cfg_.v_shunt_lsb_range0) * volt_reading;
 
   ESP_LOGD(TAG, "read_shunt_voltage_mv_ ret=%s, shunt_cal=%d, reading_lsb=%f", OKFAILED(ret), this->shunt_cal_,
            volt_reading);
@@ -362,11 +365,14 @@ bool INA2XX::read_bus_voltage_(float &volt_out) {
 
   bool ret{false};
   float volt_reading{0};
-
+  uint64_t raw{0};
   if (this->ina_type_ == INAType::INA_228_229) {
-    ret = this->read_signed_20_4_(RegisterMap::REG_VBUS, volt_reading);
+    ret = this->read_unsigned_(RegisterMap::REG_VBUS, 3, raw);
+    raw >>= 4;
+    volt_reading = this->two_complement_(raw, 20);
   } else {
-    ret = this->read_signed_16_(RegisterMap::REG_VBUS, volt_reading);
+    ret = this->read_unsigned_(RegisterMap::REG_VBUS, 2, raw);
+    volt_reading = this->two_complement_(raw, 16);
   }
   if (ret)
     volt_out = this->cfg_.vbus_lsb * (float) volt_reading;
@@ -382,11 +388,15 @@ bool INA2XX::read_die_temp_c_(float &temp_out) {
 
   bool ret{false};
   float temp_reading{0};
+  uint64_t raw{0};
 
   if (this->ina_type_ == INAType::INA_228_229) {
-    ret = this->read_signed_16_(RegisterMap::REG_DIETEMP, temp_reading);
+    ret = this->read_unsigned_(RegisterMap::REG_DIETEMP, 2, raw);
+    temp_reading = this->two_complement_(raw, 16);
   } else {
-    ret = this->read_signed_12_4_(RegisterMap::REG_DIETEMP, temp_reading);
+    ret = this->read_unsigned_(RegisterMap::REG_DIETEMP, 2, raw);
+    raw >>= 4;
+    temp_reading = this->two_complement_(raw, 12);
   }
   if (ret)
     temp_out = this->cfg_.die_temp_lsb * (float) temp_reading;
@@ -401,11 +411,17 @@ bool INA2XX::read_current_a_(float &amps_out) {
   // 237, 238, 239 - 16bit
   bool ret{false};
   float amps_reading{0};
+  uint64_t raw{0};
+
   if (this->ina_type_ == INAType::INA_228_229) {
-    ret = this->read_signed_20_4_(RegisterMap::REG_CURRENT, amps_reading);
+    ret = this->read_unsigned_(RegisterMap::REG_CURRENT, 3, raw);
+    raw >>= 4;
+    amps_reading = this->two_complement_(raw, 20);
   } else {
-    ret = this->read_signed_16_(RegisterMap::REG_CURRENT, amps_reading);
+    ret = this->read_unsigned_(RegisterMap::REG_CURRENT, 2, raw);
+    amps_reading = this->two_complement_(raw, 16);
   }
+
   ESP_LOGD(TAG, "read_current_a_ ret=%s. current_lsb=%f. reading_lsb=%f", OKFAILED(ret), this->current_lsb_,
            amps_reading);
   if (ret)
@@ -461,7 +477,9 @@ bool INA2XX::read_charge_(double &coulombs_out, double &amp_hours_out) {
   // and what to do with this? datasheet doesnt tell us what if charge is negative
   uint64_t previous_charge = this->charge_overflows_count_ * (((uint64_t) 1) << 39);
   double coulombs_reading = 0;
-  auto ret = this->read_signed_40_((uint8_t) RegisterMap::REG_CHARGE, coulombs_reading);
+  uint64_t raw{0};
+  auto ret = this->read_unsigned_((uint8_t) RegisterMap::REG_CHARGE, 5, raw);
+  coulombs_reading = this->two_complement_(raw, 40);
 
   ESP_LOGD(TAG, "read_charge_c_ ret=%d, curr_charge=%f + 39-bit overflow_cnt=%d", ret, coulombs_reading,
            this->charge_overflows_count_);
@@ -525,56 +543,12 @@ bool INA2XX::read_unsigned_16_(uint8_t reg, uint16_t &out) {
   return ret;
 }
 
-bool INA2XX::read_signed_40_(uint8_t reg, double &out) {
-  uint64_t value = 0;
-  auto ret = this->read_unsigned_(reg, 5, value);
-  // Convert for 2's compliment and signed value
-  if (value > 0x7FFFFFFFFFULL) {
-    out = (double) (value - 0x10000000000ULL);
+int64_t INA2XX::two_complement_(uint64_t value, uint8_t bits) {
+  if (value > (1 << (bits - 1))) {
+    return (int64_t) (value - (1 << bits));
   } else {
-    out = (double) value;
+    return (int64_t) value;
   }
-  return ret;
-}
-
-bool INA2XX::read_signed_20_4_(uint8_t reg, float &out) {
-  uint64_t value = 0;
-  auto ret = this->read_unsigned_(reg, 3, value);
-  // Remove reserved bits
-  value = value >> 4;
-  // Convert for 2's compliment and signed value
-  if (value > 0x7FFFFULL) {
-    out = (float) (value - 0x100000ULL);
-  } else {
-    out = (float) value;
-  }
-  return ret;
-}
-
-bool INA2XX::read_signed_16_(uint8_t reg, float &out) {
-  uint16_t value = 0;
-  auto ret = this->read_unsigned_16_(reg, value);
-  // Convert for 2's compliment and signed value
-  if (value > 0x7FFFU) {
-    out = (float) (value - 0x10000U);
-  } else {
-    out = (float) value;
-  }
-  return ret;
-}
-
-bool INA2XX::read_signed_12_4_(uint8_t reg, float &out) {
-  uint16_t value = 0;
-  auto ret = this->read_unsigned_16_(reg, value);
-  // Remove reserved bits
-  value = value >> 4;
-  // Convert for 2's compliment and signed value
-  if (value > 0x7FFU) {
-    out = (float) (value - 0x1000U);
-  } else {
-    out = (float) value;
-  }
-  return ret;
 }
 }  // namespace ina2xx_base
 }  // namespace esphome
