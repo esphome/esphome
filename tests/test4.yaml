@@ -672,6 +672,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
+    spi_id: spi_id_1
     cs_pin:
       allow_other_uses: true
       number: GPIO23
@@ -688,6 +689,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
+    spi_id: spi_id_1
     cs_pin:
       allow_other_uses: true
       number: GPIO23
