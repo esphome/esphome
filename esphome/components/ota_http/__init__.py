@@ -16,7 +16,7 @@ from esphome.core import Lambda, CORE, coroutine_with_priority
 CODEOWNERS = ["@oarcher"]
 
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["md5"]
+AUTO_LOAD = ["md5", "ota"]
 
 ota_http_ns = cg.esphome_ns.namespace("ota_http")
 OtaHttpComponent = ota_http_ns.class_("OtaHttpComponent", cg.Component)
