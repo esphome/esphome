@@ -545,7 +545,7 @@ bool INA2XX::read_unsigned_16_(uint8_t reg, uint16_t &out) {
 
 int64_t INA2XX::two_complement_(uint64_t value, uint8_t bits) {
   if (value > (1ULL << (bits - 1))) {
-    return (int64_t) (value - (1 << bits));
+    return (int64_t) (value - (1ULL << bits));
   } else {
     return (int64_t) value;
   }
