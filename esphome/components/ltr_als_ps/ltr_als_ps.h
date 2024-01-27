@@ -6,14 +6,21 @@
 #include "esphome/core/optional.h"
 #include "esphome/core/automation.h"
 
-#include "ltr-definitions.h"
+#include "ltr_definitions.h"
 
 namespace esphome {
-namespace ltr303 {
+namespace ltr_als_ps {
 
 enum DataAvail : uint8_t { NO_DATA, BAD_DATA, DATA_OK };
 
-class LTR303Component : public PollingComponent, public i2c::I2CDevice {
+enum LtrType : uint8_t {
+  LtrTypeUnknown = 0,
+  LtrTypeAlsOnly = 1,
+  LtrTypePsOnly = 2,
+  LtrTypeAlsAndPs = 3,
+};
+
+class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
  public:
   //
   // EspHome framework functions
@@ -24,19 +31,27 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   void loop() override;
 
+  // Configuration setters : General
   //
-  // Configuration setters
-  //
-  void set_gain(AlsGain gain) { this->gain_ = gain; }
-  void set_integration_time(IntegrationTime time) { this->integration_time_ = time; }
-  void set_repeat_rate(MeasurementRepeatRate rate) { this->repeat_rate_ = rate; }
-  void set_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
-  void set_enable_automatic_mode(bool enable) { this->automatic_mode_enabled_ = enable; }
-  void set_enable_proximity_mode(bool enable) { this->proximity_mode_enabled_ = enable; }
-  void set_proximity_high_threshold(uint16_t threshold) { this->proximity_threshold_high_ = threshold; }
-  void set_proximity_low_threshold(uint16_t threshold) { this->proximity_threshold_low_ = threshold; }
-  void set_proximity_cooldown_time_s(uint16_t time) { this->proximity_cooldown_time_s_ = time; }
+  void set_ltr_type(LtrType type) { this->ltr_type_ = type; }
 
+  // Configuration setters : ALS
+  //
+  void set_als_auto_mode(bool enable) { this->automatic_mode_enabled_ = enable; }
+  void set_als_gain(AlsGain gain) { this->gain_ = gain; }
+  void set_als_integration_time(IntegrationTime time) { this->integration_time_ = time; }
+  void set_als_meas_repeat_rate(MeasurementRepeatRate rate) { this->repeat_rate_ = rate; }
+  void set_als_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
+
+  // Configuration setters : PS
+  //
+  void set_ps_high_threshold(uint16_t threshold) { this->ps_threshold_high_ = threshold; }
+  void set_ps_low_threshold(uint16_t threshold) { this->ps_threshold_low_ = threshold; }
+  void set_ps_cooldown_time_s(uint16_t time) { this->ps_cooldown_time_s_ = time; }
+  void set_ps_gain(PsGain gain) { this->ps_gain_ = gain; }
+
+  // Sensors setters
+  //
   void set_ambient_light_sensor(sensor::Sensor *sensor) { this->ambient_light_sensor_ = sensor; }
   void set_full_spectrum_counts_sensor(sensor::Sensor *sensor) { this->full_spectrum_counts_sensor_ = sensor; }
   void set_infrared_counts_sensor(sensor::Sensor *sensor) { this->infrared_counts_sensor_ = sensor; }
@@ -61,44 +76,46 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
     KEEP_PUBLISHING
   } state_{State::NOT_INITIALIZED};
 
+  LtrType ltr_type_{LtrType::LtrTypeAlsOnly};
+
   //
   // Current measurements data
   //
-  struct Readings {
+  struct AlsReadings {
     uint16_t ch0{0};
     uint16_t ch1{0};
     AlsGain actual_gain{AlsGain::GAIN_1};
     IntegrationTime integration_time{IntegrationTime::INTEGRATION_TIME_100MS};
     float lux{0.0f};
-  } readings_;
+  } als_readings_;
+  uint16_t ps_readings_{0xfffe};
 
-  //
-  // LTR sensor type. 303/329 - als, 553 - als + proximity
-  enum class LtrType : uint8_t {
-    LtrUnknown = 0,
-    LtrAlsOnly,
-    LtrAlsAndProximity,
-    LtrProximityOnly
-  } ltr_type_{LtrType::LtrAlsOnly};
+  inline const bool is_als_() const {
+    return this->ltr_type_ == LtrType::LtrTypeAlsOnly || this->ltr_type_ == LtrType::LtrTypeAlsAndPs;
+  }
+  inline const bool is_ps_() const {
+    return this->ltr_type_ == LtrType::LtrTypePsOnly || this->ltr_type_ == LtrType::LtrTypeAlsAndPs;
+  }
 
   //
   // Device interaction and data manipulation
   //
-  bool identify_device_type_();
+  bool check_part_number_();
+
   void configure_reset_and_activate_();
+
   void configure_integration_time_(IntegrationTime time);
   void configure_gain_(AlsGain gain);
-  DataAvail is_data_ready_(Readings &data);
-  void read_sensor_data_(Readings &data);
-  bool are_adjustments_required_(Readings &data);
-  void apply_lux_calculation_(Readings &data);
-  void publish_data_part_1_(Readings &data);
-  void publish_data_part_2_(Readings &data);
+  DataAvail is_als_data_ready_(AlsReadings &data);
+  void read_sensor_data_(AlsReadings &data);
+  bool are_adjustments_required_(AlsReadings &data);
+  void apply_lux_calculation_(AlsReadings &data);
+  void publish_data_part_1_(AlsReadings &data);
+  void publish_data_part_2_(AlsReadings &data);
 
   void configure_ps_();
   uint16_t read_ps_data_();
   void check_and_trigger_ps_();
-  uint16_t last_ps_data_{0xfffe};
 
   //
   // Component configuration
@@ -108,10 +125,11 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   IntegrationTime integration_time_{IntegrationTime::INTEGRATION_TIME_100MS};
   MeasurementRepeatRate repeat_rate_{MeasurementRepeatRate::REPEAT_RATE_500MS};
   float glass_attenuation_factor_{1.0};
-  bool proximity_mode_enabled_{false};
-  uint16_t proximity_threshold_high_{0xffff};
-  uint16_t proximity_threshold_low_{0x0000};
-  uint16_t proximity_cooldown_time_s_{5};
+
+  uint16_t ps_cooldown_time_s_{5};
+  PsGain ps_gain_{PsGain::PS_GAIN_16};
+  uint16_t ps_threshold_high_{0xffff};
+  uint16_t ps_threshold_low_{0x0000};
 
   //
   //   Sensors for publishing data
@@ -133,33 +151,33 @@ class LTR303Component : public PollingComponent, public i2c::I2CDevice {
   //
   // Trigger section for the automations
   //
-  friend class LTR303HighTrigger;
-  friend class LTR303LowTrigger;
+  friend class LTRPsHighTrigger;
+  friend class LTRPsLowTrigger;
 
-  CallbackManager<void()> on_high_trigger_callback_;
-  CallbackManager<void()> on_low_trigger_callback_;
+  CallbackManager<void()> on_ps_high_trigger_callback_;
+  CallbackManager<void()> on_ps_low_trigger_callback_;
 
-  void add_on_high_trigger_callback(std::function<void()> callback) {
-    this->on_high_trigger_callback_.add(std::move(callback));
+  void add_on_ps_high_trigger_callback(std::function<void()> callback) {
+    this->on_ps_high_trigger_callback_.add(std::move(callback));
   }
 
-  void add_on_low_trigger_callback(std::function<void()> callback) {
-    this->on_low_trigger_callback_.add(std::move(callback));
+  void add_on_ps_low_trigger_callback(std::function<void()> callback) {
+    this->on_ps_low_trigger_callback_.add(std::move(callback));
   }
 };
 
-class LTR303HighTrigger : public Trigger<> {
+class LTRPsHighTrigger : public Trigger<> {
  public:
-  explicit LTR303HighTrigger(LTR303Component *parent) {
-    parent->add_on_high_trigger_callback([this]() { this->trigger(); });
+  explicit LTRPsHighTrigger(LTRAlsPsComponent *parent) {
+    parent->add_on_ps_high_trigger_callback([this]() { this->trigger(); });
   }
 };
 
-class LTR303LowTrigger : public Trigger<> {
+class LTRPsLowTrigger : public Trigger<> {
  public:
-  explicit LTR303LowTrigger(LTR303Component *parent) {
-    parent->add_on_low_trigger_callback([this]() { this->trigger(); });
+  explicit LTRPsLowTrigger(LTRAlsPsComponent *parent) {
+    parent->add_on_ps_low_trigger_callback([this]() { this->trigger(); });
   }
 };
-}  // namespace ltr303
+}  // namespace ltr_als_ps
 }  // namespace esphome
