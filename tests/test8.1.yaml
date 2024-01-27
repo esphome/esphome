@@ -28,6 +28,15 @@ spi:
       allow_other_uses: false
     mosi_pin: GPIO6
     interface: any
+  - id: quad_spi
+    clk_pin: 47
+    data_pins:
+      -
+        number: 40
+        allow_other_uses: false
+      - 41
+      - 42
+      - 43
 
 spi_device:
   id: spidev
@@ -51,10 +60,6 @@ i2c:
   sda: GPIO8
 
 touchscreen:
-  - platform: cst816
-    id: my_touchscreen
-    interrupt_pin:
-      number: 21
   - platform: tt21100
     display: displ8
     interrupt_pin:

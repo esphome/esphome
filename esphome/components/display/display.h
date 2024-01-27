@@ -236,6 +236,12 @@ class Display : public PollingComponent {
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
   void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
 
+  /// Draw the outline of a triangle contained between the points [x1,y1], [x2,y2] and [x3,y3] with the given color.
+  void triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color = COLOR_ON);
+
+  /// Fill a triangle contained between the points [x1,y1], [x2,y2] and [x3,y3] with the given color.
+  void filled_triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color = COLOR_ON);
+
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
    * @param x The x coordinate of the text alignment anchor point.
@@ -531,6 +537,15 @@ class Display : public PollingComponent {
 
   void do_update_();
   void clear_clipping_();
+
+  /**
+   * This method fills a triangle using only integer variables by using a
+   * modified bresenham algorithm.
+   * It is mandatory that [x2,y2] and [x3,y3] lie on the same horizontal line,
+   * so y2 must be equal to y3.
+   */
+  void filled_flat_side_triangle_(int x1, int y1, int x2, int y2, int x3, int y3, Color color);
+  void sort_triangle_points_by_y_(int *x1, int *y1, int *x2, int *y2, int *x3, int *y3);
 
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};
