@@ -3,7 +3,7 @@
 #include <cstdint>
 
 namespace esphome {
-namespace ltr303 {
+namespace ltr_als_ps {
 
 enum class CommandRegisters : uint8_t {
   ALS_CONTR = 0x80,         // ALS operation mode control and SW reset
@@ -271,5 +271,5 @@ union InterruptPersistRegister {
   } __attribute__((packed));
 };
 
-}  // namespace ltr303
+}  // namespace ltr_als_ps
 }  // namespace esphome
