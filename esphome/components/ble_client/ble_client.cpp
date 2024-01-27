@@ -26,6 +26,7 @@ void BLEClient::loop() {
 void BLEClient::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Client:");
   ESP_LOGCONFIG(TAG, "  Address: %s", this->address_str().c_str());
+  ESP_LOGCONFIG(TAG, "  Auto-Connect: %s", TRUEFALSE(this->auto_connect_));
 }
 
 bool BLEClient::parse_device(const espbt::ESPBTDevice &device) {
@@ -37,31 +38,24 @@ bool BLEClient::parse_device(const espbt::ESPBTDevice &device) {
 void BLEClient::set_enabled(bool enabled) {
   if (enabled == this->enabled)
     return;
-  if (!enabled && this->state() != espbt::ClientState::IDLE) {
-    ESP_LOGI(TAG, "[%s] Disabling BLE client.", this->address_str().c_str());
-    auto ret = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
-    if (ret) {
-      ESP_LOGW(TAG, "esp_ble_gattc_close error, address=%s status=%d", this->address_str().c_str(), ret);
-    }
-  }
   this->enabled = enabled;
+  if (!enabled) {
+    ESP_LOGI(TAG, "[%s] Disabling BLE client.", this->address_str().c_str());
+    this->disconnect();
+  }
 }
 
 bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
                                     esp_ble_gattc_cb_param_t *param) {
-  bool all_established = this->all_nodes_established_();
-
   if (!BLEClientBase::gattc_event_handler(event, esp_gattc_if, param))
     return false;
 
   for (auto *node : this->nodes_)
     node->gattc_event_handler(event, esp_gattc_if, param);
 
-  // Delete characteristics after clients have used them to save RAM.
-  if (!all_established && this->all_nodes_established_()) {
-    for (auto &svc : this->services_)
-      delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
-    this->services_.clear();
+  if (!this->services_.empty() && this->all_nodes_established_()) {
+    this->release_services();
+    ESP_LOGD(TAG, "All clients established, services released");
   }
   return true;
 }

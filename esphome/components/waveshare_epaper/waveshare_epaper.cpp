@@ -109,8 +109,20 @@ void WaveshareEPaper::data(uint8_t value) {
   this->write_byte(value);
   this->end_data_();
 }
+
+// write a command followed by one or more bytes of data.
+// The command is the first byte, length is the total including cmd.
+void WaveshareEPaper::cmd_data(const uint8_t *c_data, size_t length) {
+  this->dc_pin_->digital_write(false);
+  this->enable();
+  this->write_byte(c_data[0]);
+  this->dc_pin_->digital_write(true);
+  this->write_array(c_data + 1, length - 1);
+  this->disable();
+}
+
 bool WaveshareEPaper::wait_until_idle_() {
-  if (this->busy_pin_ == nullptr) {
+  if (this->busy_pin_ == nullptr || !this->busy_pin_->digital_read()) {
     return true;
   }
 
@@ -120,7 +132,7 @@ bool WaveshareEPaper::wait_until_idle_() {
       ESP_LOGE(TAG, "Timeout while displaying image!");
       return false;
     }
-    delay(10);
+    delay(1);
   }
   return true;
 }
@@ -1443,6 +1455,12 @@ void WaveshareEPaper7P5InBV2::initialize() {
   // COMMAND TCON SETTING
   this->command(0x60);
   this->data(0x22);
+
+  this->command(0x82);
+  this->data(0x08);
+  this->command(0x30);
+  this->data(0x06);
+
   // COMMAND RESOLUTION SETTING
   this->command(0x65);
   this->data(0x00);
@@ -1472,6 +1490,7 @@ void HOT WaveshareEPaper7P5InBV2::display() {
   this->command(0x12);
   delay(100);  // NOLINT
   this->wait_until_idle_();
+  this->deep_sleep();
 }
 int WaveshareEPaper7P5InBV2::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InBV2::get_height_internal() { return 480; }
@@ -1617,7 +1636,7 @@ void HOT WaveshareEPaper7P5InBV3::display() {
   this->command(0x13);  // Start Transmission
   delay(2);
   for (uint32_t i = 0; i < buf_len; i++) {
-    this->data(this->buffer_[i]);
+    this->data(~this->buffer_[i]);
   }
 
   this->command(0x12);  // Display Refresh
@@ -2211,8 +2230,9 @@ void HOT WaveshareEPaper2P13InDKE::display() {
   } else {
     // set up partial update
     this->command(0x32);
-    for (uint8_t v : PART_UPDATE_LUT_TTGO_DKE)
-      this->data(v);
+    this->start_data_();
+    this->write_array(PART_UPDATE_LUT_TTGO_DKE, sizeof(PART_UPDATE_LUT_TTGO_DKE));
+    this->end_data_();
     this->command(0x3F);
     this->data(0x22);
 
@@ -2257,12 +2277,10 @@ void HOT WaveshareEPaper2P13InDKE::display() {
     this->wait_until_idle_();
 
     // data must be sent again on partial update
-    delay(300);  // NOLINT
     this->command(0x24);
     this->start_data_();
     this->write_array(this->buffer_, this->get_buffer_length_());
     this->end_data_();
-    delay(300);  // NOLINT
   }
 
   ESP_LOGI(TAG, "Completed e-paper update.");
@@ -2274,6 +2292,7 @@ uint32_t WaveshareEPaper2P13InDKE::idle_timeout_() { return 5000; }
 void WaveshareEPaper2P13InDKE::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 2.13inDKE");
+  LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
