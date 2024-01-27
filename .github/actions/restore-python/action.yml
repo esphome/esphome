@@ -17,12 +17,12 @@ runs:
   steps:
     - name: Set up Python ${{ inputs.python-version }}
       id: python
-      uses: actions/setup-python@v4.6.0
+      uses: actions/setup-python@v5.0.0
       with:
         python-version: ${{ inputs.python-version }}
     - name: Restore Python virtual environment
       id: cache-venv
-      uses: actions/cache/restore@v3.3.1
+      uses: actions/cache/restore@v3.3.2
       with:
         path: venv
         # yamllint disable-line rule:line-length

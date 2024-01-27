@@ -7,8 +7,7 @@
 namespace esphome {
 namespace waveshare_epaper {
 
-class WaveshareEPaper : public PollingComponent,
-                        public display::DisplayBuffer,
+class WaveshareEPaper : public display::DisplayBuffer,
                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                               spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
@@ -109,13 +108,20 @@ class WaveshareEPaperTypeA : public WaveshareEPaperBW {
   void display() override;
 
   void deep_sleep() override {
-    if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2 || this->model_ == WAVESHARE_EPAPER_1_54_IN_V2) {
-      // COMMAND DEEP SLEEP MODE
-      this->command(0x10);
-      this->data(0x01);
-    } else {
-      // COMMAND DEEP SLEEP MODE
-      this->command(0x10);
+    switch (this->model_) {
+      // Models with specific deep sleep command and data
+      case WAVESHARE_EPAPER_1_54_IN:
+      case WAVESHARE_EPAPER_1_54_IN_V2:
+      case WAVESHARE_EPAPER_2_9_IN_V2:
+        // COMMAND DEEP SLEEP MODE
+        this->command(0x10);
+        this->data(0x01);
+        break;
+      // Other models default to simple deep sleep command
+      default:
+        // COMMAND DEEP SLEEP
+        this->command(0x10);
+        break;
     }
     this->wait_until_idle_();
   }
@@ -124,6 +130,8 @@ class WaveshareEPaperTypeA : public WaveshareEPaperBW {
 
  protected:
   void write_lut_(const uint8_t *lut, uint8_t size);
+
+  void init_display_();
 
   int get_width_internal() override;
 
@@ -135,6 +143,8 @@ class WaveshareEPaperTypeA : public WaveshareEPaperBW {
   uint32_t at_update_{0};
   WaveshareEPaperTypeAModel model_;
   uint32_t idle_timeout_() override;
+
+  bool deep_sleep_between_updates_{false};
 };
 
 enum WaveshareEPaperTypeBModel {
@@ -230,6 +240,42 @@ class GDEY029T94 : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
+class WaveshareEPaper2P7InV2 : public WaveshareEPaperBW {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override { ; }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
+class GDEY029T94 : public WaveshareEPaperBW {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);  // check byte
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
 class GDEW0154M09 : public WaveshareEPaperBW {
  public:
   void initialize() override;
@@ -271,6 +317,26 @@ class GDEW0154M09 : public WaveshareEPaperBW {
 };
 
 class WaveshareEPaper2P9InB : public WaveshareEPaperBW {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);  // check byte
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
+class WaveshareEPaper2P9InBV3 : public WaveshareEPaperBW {
  public:
   void initialize() override;
 
@@ -490,6 +556,8 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaperBW {
     this->data(0xA5);
   }
 
+  void clear_screen();
+
  protected:
   int get_width_internal() override;
 
@@ -505,6 +573,8 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaperBW {
       delay(200);  // NOLINT
     }
   };
+
+  void init_display_();
 };
 
 class WaveshareEPaper7P5InBC : public WaveshareEPaperBW {
@@ -532,6 +602,8 @@ class WaveshareEPaper7P5InBC : public WaveshareEPaperBW {
 
 class WaveshareEPaper7P5InV2 : public WaveshareEPaperBW {
  public:
+  bool wait_until_idle_();
+
   void initialize() override;
 
   void display() override;
@@ -551,6 +623,8 @@ class WaveshareEPaper7P5InV2 : public WaveshareEPaperBW {
   int get_width_internal() override;
 
   int get_height_internal() override;
+
+  uint32_t idle_timeout_() override;
 };
 
 class WaveshareEPaper7P5InV2alt : public WaveshareEPaper7P5InV2 {

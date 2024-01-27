@@ -1,268 +1,120 @@
 #include "spi.h"
 #include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 
 namespace esphome {
 namespace spi {
 
-static const char *const TAG = "spi";
+const char *const TAG = "spi";
 
-void IRAM_ATTR HOT SPIComponent::disable() {
-#ifdef USE_SPI_ARDUINO_BACKEND
-  if (this->hw_spi_ != nullptr) {
-    this->hw_spi_->endTransaction();
+SPIDelegate *const SPIDelegate::NULL_DELEGATE =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+    new SPIDelegateDummy();
+// https://bugs.llvm.org/show_bug.cgi?id=48040
+
+bool SPIDelegate::is_ready() { return true; }
+
+GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
+                                           GPIOPin *cs_pin) {
+  if (this->devices_.count(device) != 0) {
+    ESP_LOGE(TAG, "SPI device already registered");
+    return this->devices_[device];
   }
-#endif  // USE_SPI_ARDUINO_BACKEND
-  if (this->active_cs_) {
-    this->active_cs_->digital_write(true);
-    this->active_cs_ = nullptr;
-  }
+  SPIDelegate *delegate = this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin);  // NOLINT
+  this->devices_[device] = delegate;
+  return delegate;
 }
+
+void SPIComponent::unregister_device(SPIClient *device) {
+  if (this->devices_.count(device) == 0) {
+    esph_log_e(TAG, "SPI device not registered");
+    return;
+  }
+  delete this->devices_[device];  // NOLINT
+  this->devices_.erase(device);
+}
+
 void SPIComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SPI bus...");
-  this->clk_->setup();
-  this->clk_->digital_write(true);
+  ESP_LOGD(TAG, "Setting up SPI bus...");
 
-#ifdef USE_SPI_ARDUINO_BACKEND
-  bool use_hw_spi = !this->force_sw_;
-  const bool has_miso = this->miso_ != nullptr;
-  const bool has_mosi = this->mosi_ != nullptr;
-  int8_t clk_pin = -1, miso_pin = -1, mosi_pin = -1;
-
-  if (!this->clk_->is_internal())
-    use_hw_spi = false;
-  if (has_miso && !miso_->is_internal())
-    use_hw_spi = false;
-  if (has_mosi && !mosi_->is_internal())
-    use_hw_spi = false;
-  if (use_hw_spi) {
-    auto *clk_internal = (InternalGPIOPin *) clk_;
-    auto *miso_internal = (InternalGPIOPin *) miso_;
-    auto *mosi_internal = (InternalGPIOPin *) mosi_;
-
-    if (clk_internal->is_inverted())
-      use_hw_spi = false;
-    if (has_miso && miso_internal->is_inverted())
-      use_hw_spi = false;
-    if (has_mosi && mosi_internal->is_inverted())
-      use_hw_spi = false;
-
-    if (use_hw_spi) {
-      clk_pin = clk_internal->get_pin();
-      miso_pin = has_miso ? miso_internal->get_pin() : -1;
-      mosi_pin = has_mosi ? mosi_internal->get_pin() : -1;
-    }
-  }
-#ifdef USE_ESP8266
-  if (!(clk_pin == 6 && miso_pin == 7 && mosi_pin == 8) &&
-      !(clk_pin == 14 && (!has_miso || miso_pin == 12) && (!has_mosi || mosi_pin == 13)))
-    use_hw_spi = false;
-
-  if (use_hw_spi) {
-    this->hw_spi_ = &SPI;
-    this->hw_spi_->pins(clk_pin, miso_pin, mosi_pin, 0);
-    this->hw_spi_->begin();
+  if (this->sdo_pin_ == nullptr)
+    this->sdo_pin_ = NullPin::NULL_PIN;
+  if (this->sdi_pin_ == nullptr)
+    this->sdi_pin_ = NullPin::NULL_PIN;
+  if (this->clk_pin_ == nullptr) {
+    ESP_LOGE(TAG, "No clock pin for SPI");
+    this->mark_failed();
     return;
   }
-#endif  // USE_ESP8266
-#ifdef USE_ESP32
-  static uint8_t spi_bus_num = 0;
-  if (spi_bus_num >= 2) {
-    use_hw_spi = false;
-  }
 
-  if (use_hw_spi) {
-    if (spi_bus_num == 0) {
-      this->hw_spi_ = &SPI;
-    } else {
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6)
-      this->hw_spi_ = new SPIClass(FSPI);  // NOLINT(cppcoreguidelines-owning-memory)
-#else
-      this->hw_spi_ = new SPIClass(HSPI);  // NOLINT(cppcoreguidelines-owning-memory)
-#endif  // USE_ESP32_VARIANT
+  if (this->using_hw_) {
+    this->spi_bus_ = SPIComponent::get_bus(this->interface_, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
+    if (this->spi_bus_ == nullptr) {
+      ESP_LOGE(TAG, "Unable to allocate SPI interface");
+      this->mark_failed();
     }
-    spi_bus_num++;
-    this->hw_spi_->begin(clk_pin, miso_pin, mosi_pin);
-    return;
-  }
-#endif  // USE_ESP32
-#ifdef USE_RP2040
-  static uint8_t spi_bus_num = 0;
-  if (spi_bus_num >= 2) {
-    use_hw_spi = false;
-  }
-  if (use_hw_spi) {
-    SPIClassRP2040 *spi;
-    if (spi_bus_num == 0) {
-      spi = &SPI;
-    } else {
-      spi = &SPI1;
-    }
-    spi_bus_num++;
-
-    if (miso_pin != -1)
-      spi->setRX(miso_pin);
-    if (mosi_pin != -1)
-      spi->setTX(mosi_pin);
-    spi->setSCK(clk_pin);
-    this->hw_spi_ = spi;
-    this->hw_spi_->begin();
-    return;
-  }
-#endif  // USE_RP2040
-#endif  // USE_SPI_ARDUINO_BACKEND
-
-  if (this->miso_ != nullptr) {
-    this->miso_->setup();
-  }
-  if (this->mosi_ != nullptr) {
-    this->mosi_->setup();
-    this->mosi_->digital_write(false);
+  } else {
+    this->spi_bus_ = new SPIBus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_);  // NOLINT
+    this->clk_pin_->setup();
+    this->clk_pin_->digital_write(true);
+    this->sdo_pin_->setup();
+    this->sdi_pin_->setup();
   }
 }
+
 void SPIComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SPI bus:");
-  LOG_PIN("  CLK Pin: ", this->clk_);
-  LOG_PIN("  MISO Pin: ", this->miso_);
-  LOG_PIN("  MOSI Pin: ", this->mosi_);
-#ifdef USE_SPI_ARDUINO_BACKEND
-  ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", YESNO(this->hw_spi_ != nullptr));
-#endif  // USE_SPI_ARDUINO_BACKEND
-}
-float SPIComponent::get_setup_priority() const { return setup_priority::BUS; }
-
-void SPIComponent::cycle_clock_(bool value) {
-  uint32_t start = arch_get_cpu_cycle_count();
-  while (start - arch_get_cpu_cycle_count() < this->wait_cycle_)
-    ;
-  this->clk_->digital_write(value);
-  start += this->wait_cycle_;
-  while (start - arch_get_cpu_cycle_count() < this->wait_cycle_)
-    ;
+  LOG_PIN("  CLK Pin: ", this->clk_pin_)
+  LOG_PIN("  SDI Pin: ", this->sdi_pin_)
+  LOG_PIN("  SDO Pin: ", this->sdo_pin_)
+  if (this->spi_bus_->is_hw()) {
+    ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", this->interface_name_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Using software SPI");
+  }
 }
 
-// NOLINTNEXTLINE
-#ifndef CLANG_TIDY
-#pragma GCC optimize("unroll-loops")
-// NOLINTNEXTLINE
-#pragma GCC optimize("O2")
-#endif  // CLANG_TIDY
+void SPIDelegateDummy::begin_transaction() { ESP_LOGE(TAG, "SPIDevice not initialised - did you call spi_setup()?"); }
 
-template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, bool READ, bool WRITE>
-uint8_t HOT SPIComponent::transfer_(uint8_t data) {
+uint8_t SPIDelegateBitBash::transfer(uint8_t data) { return this->transfer_(data, 8); }
+
+void SPIDelegateBitBash::write(uint16_t data, size_t num_bits) { this->transfer_(data, num_bits); }
+
+uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   // Clock starts out at idle level
-  this->clk_->digital_write(CLOCK_POLARITY);
+  this->clk_pin_->digital_write(clock_polarity_);
   uint8_t out_data = 0;
 
-  for (uint8_t i = 0; i < 8; i++) {
+  for (uint8_t i = 0; i != num_bits; i++) {
     uint8_t shift;
-    if (BIT_ORDER == BIT_ORDER_MSB_FIRST) {
-      shift = 7 - i;
+    if (bit_order_ == BIT_ORDER_MSB_FIRST) {
+      shift = num_bits - 1 - i;
     } else {
       shift = i;
     }
 
-    if (CLOCK_PHASE == CLOCK_PHASE_LEADING) {
+    if (clock_phase_ == CLOCK_PHASE_LEADING) {
       // sampling on leading edge
-      if (WRITE) {
-        this->mosi_->digital_write(data & (1 << shift));
-      }
-
-      // SAMPLE!
-      this->cycle_clock_(!CLOCK_POLARITY);
-
-      if (READ) {
-        out_data |= uint8_t(this->miso_->digital_read()) << shift;
-      }
-
-      this->cycle_clock_(CLOCK_POLARITY);
+      this->sdo_pin_->digital_write(data & (1 << shift));
+      this->cycle_clock_();
+      out_data |= uint16_t(this->sdi_pin_->digital_read()) << shift;
+      this->clk_pin_->digital_write(!this->clock_polarity_);
+      this->cycle_clock_();
+      this->clk_pin_->digital_write(this->clock_polarity_);
     } else {
       // sampling on trailing edge
-      this->cycle_clock_(!CLOCK_POLARITY);
-
-      if (WRITE) {
-        this->mosi_->digital_write(data & (1 << shift));
-      }
-
-      // SAMPLE!
-      this->cycle_clock_(CLOCK_POLARITY);
-
-      if (READ) {
-        out_data |= uint8_t(this->miso_->digital_read()) << shift;
-      }
+      this->cycle_clock_();
+      this->clk_pin_->digital_write(!this->clock_polarity_);
+      this->sdo_pin_->digital_write(data & (1 << shift));
+      this->cycle_clock_();
+      out_data |= uint16_t(this->sdi_pin_->digital_read()) << shift;
+      this->clk_pin_->digital_write(this->clock_polarity_);
     }
   }
-
   App.feed_wdt();
-
   return out_data;
 }
-
-// Generate with (py3):
-//
-// from itertools import product
-// bit_orders = ['BIT_ORDER_LSB_FIRST', 'BIT_ORDER_MSB_FIRST']
-// clock_pols = ['CLOCK_POLARITY_LOW', 'CLOCK_POLARITY_HIGH']
-// clock_phases = ['CLOCK_PHASE_LEADING', 'CLOCK_PHASE_TRAILING']
-// reads = [False, True]
-// writes = [False, True]
-// cpp_bool = {False: 'false', True: 'true'}
-// for b, cpol, cph, r, w in product(bit_orders, clock_pols, clock_phases, reads, writes):
-//     if not r and not w:
-//         continue
-//     print(f"template uint8_t SPIComponent::transfer_<{b}, {cpol}, {cph}, {cpp_bool[r]}, {cpp_bool[w]}>(uint8_t
-//     data);")
-
-template uint8_t SPIComponent::transfer_<BIT_ORDER_LSB_FIRST, CLOCK_POLARITY_LOW, CLOCK_PHASE_LEADING, false, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_LSB_FIRST, CLOCK_POLARITY_LOW, CLOCK_PHASE_LEADING, true, false>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_LSB_FIRST, CLOCK_POLARITY_LOW, CLOCK_PHASE_LEADING, true, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_LSB_FIRST, CLOCK_POLARITY_LOW, CLOCK_PHASE_TRAILING, false, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_LSB_FIRST, CLOCK_POLARITY_LOW, CLOCK_PHASE_TRAILING, true, false>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_LSB_FIRST, CLOCK_POLARITY_LOW, CLOCK_PHASE_TRAILING, true, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_LSB_FIRST, CLOCK_POLARITY_HIGH, CLOCK_PHASE_LEADING, false, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_LSB_FIRST, CLOCK_POLARITY_HIGH, CLOCK_PHASE_LEADING, true, false>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_LSB_FIRST, CLOCK_POLARITY_HIGH, CLOCK_PHASE_LEADING, true, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_LSB_FIRST, CLOCK_POLARITY_HIGH, CLOCK_PHASE_TRAILING, false, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_LSB_FIRST, CLOCK_POLARITY_HIGH, CLOCK_PHASE_TRAILING, true, false>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_LSB_FIRST, CLOCK_POLARITY_HIGH, CLOCK_PHASE_TRAILING, true, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_MSB_FIRST, CLOCK_POLARITY_LOW, CLOCK_PHASE_LEADING, false, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_MSB_FIRST, CLOCK_POLARITY_LOW, CLOCK_PHASE_LEADING, true, false>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_MSB_FIRST, CLOCK_POLARITY_LOW, CLOCK_PHASE_LEADING, true, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_MSB_FIRST, CLOCK_POLARITY_LOW, CLOCK_PHASE_TRAILING, false, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_MSB_FIRST, CLOCK_POLARITY_LOW, CLOCK_PHASE_TRAILING, true, false>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_MSB_FIRST, CLOCK_POLARITY_LOW, CLOCK_PHASE_TRAILING, true, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_MSB_FIRST, CLOCK_POLARITY_HIGH, CLOCK_PHASE_LEADING, false, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_MSB_FIRST, CLOCK_POLARITY_HIGH, CLOCK_PHASE_LEADING, true, false>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_MSB_FIRST, CLOCK_POLARITY_HIGH, CLOCK_PHASE_LEADING, true, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_MSB_FIRST, CLOCK_POLARITY_HIGH, CLOCK_PHASE_TRAILING, false, true>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_MSB_FIRST, CLOCK_POLARITY_HIGH, CLOCK_PHASE_TRAILING, true, false>(
-    uint8_t data);
-template uint8_t SPIComponent::transfer_<BIT_ORDER_MSB_FIRST, CLOCK_POLARITY_HIGH, CLOCK_PHASE_TRAILING, true, true>(
-    uint8_t data);
 
 }  // namespace spi
 }  // namespace esphome

@@ -31,9 +31,15 @@ WaveshareEPaper2P7InB = waveshare_epaper_ns.class_(
 )
 WaveshareEPaper2P7InBV2 = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P7InBV2", WaveshareEPaper
+
+WaveshareEPaper2P7InV2 = waveshare_epaper_ns.class_(
+    "WaveshareEPaper2P7InV2", WaveshareEPaper
 )
 WaveshareEPaper2P9InB = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P9InB", WaveshareEPaper
+)
+WaveshareEPaper2P9InBV3 = waveshare_epaper_ns.class_(
+    "WaveshareEPaper2P9InBV3", WaveshareEPaper
 )
 GDEY029T94 = waveshare_epaper_ns.class_("GDEY029T94", WaveshareEPaper)
 WaveshareEPaper4P2In = waveshare_epaper_ns.class_(
@@ -91,7 +97,9 @@ MODELS = {
     "2.70in": ("b", WaveshareEPaper2P7In),
     "2.70in-b": ("b", WaveshareEPaper2P7InB),
     "2.70in-bv2": ("b", WaveshareEPaper2P7InBV2),
+    "2.70inv2": ("b", WaveshareEPaper2P7InV2),
     "2.90in-b": ("b", WaveshareEPaper2P9InB),
+    "2.90in-bv3": ("b", WaveshareEPaper2P9InBV3),
     "4.20in": ("b", WaveshareEPaper4P2In),
     "4.20in-bv2": ("b", WaveshareEPaper4P2InBV2),
     "5.83in": ("b", WaveshareEPaper5P8In),
@@ -156,7 +164,6 @@ async def to_code(config):
     else:
         raise NotImplementedError()
 
-    await cg.register_component(var, config)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
 

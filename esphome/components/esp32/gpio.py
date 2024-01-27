@@ -3,14 +3,13 @@ from typing import Any
 
 from esphome.const import (
     CONF_ID,
-    CONF_INPUT,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OPEN_DRAIN,
     CONF_OUTPUT,
-    CONF_PULLDOWN,
-    CONF_PULLUP,
+    CONF_IGNORE_STRAPPING_WARNING,
+    PLATFORM_ESP32,
 )
 from esphome import pins
 from esphome.core import CORE
@@ -32,7 +31,6 @@ from .const import (
     esp32_ns,
 )
 
-
 from .gpio_esp32 import esp32_validate_gpio_pin, esp32_validate_supports
 from .gpio_esp32_s2 import esp32_s2_validate_gpio_pin, esp32_s2_validate_supports
 from .gpio_esp32_c3 import esp32_c3_validate_gpio_pin, esp32_c3_validate_supports
@@ -40,7 +38,6 @@ from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_support
 from .gpio_esp32_c2 import esp32_c2_validate_gpio_pin, esp32_c2_validate_supports
 from .gpio_esp32_c6 import esp32_c6_validate_gpio_pin, esp32_c6_validate_supports
 from .gpio_esp32_h2 import esp32_h2_validate_gpio_pin, esp32_h2_validate_supports
-
 
 ESP32InternalGPIOPin = esp32_ns.class_("ESP32InternalGPIOPin", cg.InternalGPIOPin)
 
@@ -160,32 +157,22 @@ DRIVE_STRENGTHS = {
 }
 gpio_num_t = cg.global_ns.enum("gpio_num_t")
 
-
 CONF_DRIVE_STRENGTH = "drive_strength"
 ESP32_PIN_SCHEMA = cv.All(
-    {
-        cv.GenerateID(): cv.declare_id(ESP32InternalGPIOPin),
-        cv.Required(CONF_NUMBER): validate_gpio_pin,
-        cv.Optional(CONF_MODE, default={}): cv.Schema(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OPEN_DRAIN, default=False): cv.boolean,
-                cv.Optional(CONF_PULLUP, default=False): cv.boolean,
-                cv.Optional(CONF_PULLDOWN, default=False): cv.boolean,
-            }
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-        cv.Optional(CONF_DRIVE_STRENGTH, default="20mA"): cv.All(
-            cv.float_with_unit("current", "mA", optional_unit=True),
-            cv.enum(DRIVE_STRENGTHS),
-        ),
-    },
+    pins.gpio_base_schema(ESP32InternalGPIOPin, validate_gpio_pin).extend(
+        {
+            cv.Optional(CONF_IGNORE_STRAPPING_WARNING, default=False): cv.boolean,
+            cv.Optional(CONF_DRIVE_STRENGTH, default="20mA"): cv.All(
+                cv.float_with_unit("current", "mA", optional_unit=True),
+                cv.enum(DRIVE_STRENGTHS),
+            ),
+        }
+    ),
     validate_supports,
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("esp32", ESP32_PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register(PLATFORM_ESP32, ESP32_PIN_SCHEMA)
 async def esp32_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]

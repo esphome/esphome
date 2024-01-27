@@ -1,6 +1,7 @@
 #include "nextion.h"
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace nextion {
@@ -10,15 +11,13 @@ static const char *const TAG = "nextion";
 void Nextion::soft_reset() { this->send_command_("rest"); }
 
 void Nextion::set_wake_up_page(uint8_t page_id) {
-  if (page_id > 255) {
-    ESP_LOGD(TAG, "Wake up page of bounds, range 0-255");
-    return;
-  }
   this->add_no_result_to_queue_with_set_internal_("wake_up_page", "wup", page_id, true);
 }
 
+void Nextion::set_start_up_page(uint8_t page_id) { this->start_up_page_ = page_id; }
+
 void Nextion::set_touch_sleep_timeout(uint16_t timeout) {
-  if (timeout < 3 || timeout > 65535) {
+  if (timeout < 3) {
     ESP_LOGD(TAG, "Sleep timeout out of bounds, range 3-65535");
     return;
   }
@@ -36,9 +35,29 @@ void Nextion::sleep(bool sleep) {
 }
 // End sleep safe commands
 
-// Set Colors
-void Nextion::set_component_background_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%d", component, color);
+// Protocol reparse mode
+void Nextion::set_protocol_reparse_mode(bool active_mode) {
+  const uint8_t to_send[3] = {0xFF, 0xFF, 0xFF};
+  if (active_mode) {  // Sets active protocol reparse mode
+    this->write_str(
+        "recmod=1");  // send_command_ cannot be used as Nextion might not be setup if incorrect reparse mode
+    this->write_array(to_send, sizeof(to_send));
+  } else {                                        // Sets passive protocol reparse mode
+    this->write_str("DRAKJHSUYDGBNCJHGJKSHBDN");  // To exit active reparse mode this sequence must be sent
+    this->write_array(to_send, sizeof(to_send));
+    this->write_str("recmod=0");  // Sending recmode=0 twice is recommended
+    this->write_array(to_send, sizeof(to_send));
+    this->write_str("recmod=0");
+    this->write_array(to_send, sizeof(to_send));
+  }
+  this->write_str("connect");
+  this->write_array(to_send, sizeof(to_send));
+}
+void Nextion::set_exit_reparse_on_start(bool exit_reparse) { this->exit_reparse_on_start_ = exit_reparse; }
+
+// Set Colors - Background
+void Nextion::set_component_background_color(const char *component, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%" PRIu16, component, color);
 }
 
 void Nextion::set_component_background_color(const char *component, const char *color) {
@@ -50,8 +69,10 @@ void Nextion::set_component_background_color(const char *component, Color color)
                                             display::ColorUtil::color_to_565(color));
 }
 
-void Nextion::set_component_pressed_background_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_background_color", "%s.bco2=%d", component, color);
+// Set Colors - Background (pressed)
+void Nextion::set_component_pressed_background_color(const char *component, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("set_component_pressed_background_color", "%s.bco2=%" PRIu16, component,
+                                            color);
 }
 
 void Nextion::set_component_pressed_background_color(const char *component, const char *color) {
@@ -63,16 +84,38 @@ void Nextion::set_component_pressed_background_color(const char *component, Colo
                                             display::ColorUtil::color_to_565(color));
 }
 
-void Nextion::set_component_pic(const char *component, uint8_t pic_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.pic=%d", component, pic_id);
+// Set Colors - Foreground
+void Nextion::set_component_foreground_color(const char *component, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("set_component_foreground_color", "%s.pco=%" PRIu16, component, color);
 }
 
-void Nextion::set_component_picc(const char *component, uint8_t pic_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.picc=%d", component, pic_id);
+void Nextion::set_component_foreground_color(const char *component, const char *color) {
+  this->add_no_result_to_queue_with_printf_("set_component_foreground_color", "%s.pco=%s", component, color);
 }
 
-void Nextion::set_component_font_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_font_color", "%s.pco=%d", component, color);
+void Nextion::set_component_foreground_color(const char *component, Color color) {
+  this->add_no_result_to_queue_with_printf_("set_component_foreground_color", "%s.pco=%d", component,
+                                            display::ColorUtil::color_to_565(color));
+}
+
+// Set Colors - Foreground (pressed)
+void Nextion::set_component_pressed_foreground_color(const char *component, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("set_component_pressed_foreground_color", "%s.pco2=%" PRIu16, component,
+                                            color);
+}
+
+void Nextion::set_component_pressed_foreground_color(const char *component, const char *color) {
+  this->add_no_result_to_queue_with_printf_("set_component_pressed_foreground_color", " %s.pco2=%s", component, color);
+}
+
+void Nextion::set_component_pressed_foreground_color(const char *component, Color color) {
+  this->add_no_result_to_queue_with_printf_("set_component_pressed_foreground_color", "%s.pco2=%d", component,
+                                            display::ColorUtil::color_to_565(color));
+}
+
+// Set Colors - Font
+void Nextion::set_component_font_color(const char *component, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("set_component_font_color", "%s.pco=%" PRIu16, component, color);
 }
 
 void Nextion::set_component_font_color(const char *component, const char *color) {
@@ -84,8 +127,9 @@ void Nextion::set_component_font_color(const char *component, Color color) {
                                             display::ColorUtil::color_to_565(color));
 }
 
-void Nextion::set_component_pressed_font_color(const char *component, uint32_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%d", component, color);
+// Set Colors - Font (pressed)
+void Nextion::set_component_pressed_font_color(const char *component, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%" PRIu16, component, color);
 }
 
 void Nextion::set_component_pressed_font_color(const char *component, const char *color) {
@@ -95,6 +139,15 @@ void Nextion::set_component_pressed_font_color(const char *component, const char
 void Nextion::set_component_pressed_font_color(const char *component, Color color) {
   this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%d", component,
                                             display::ColorUtil::color_to_565(color));
+}
+
+// Set picture
+void Nextion::set_component_pic(const char *component, uint8_t pic_id) {
+  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.pic=%d", component, pic_id);
+}
+
+void Nextion::set_component_picc(const char *component, uint8_t pic_id) {
+  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.picc=%d", component, pic_id);
 }
 
 void Nextion::set_component_text_printf(const char *component, const char *format, ...) {
@@ -109,6 +162,7 @@ void Nextion::set_component_text_printf(const char *component, const char *forma
 
 // General Nextion
 void Nextion::goto_page(const char *page) { this->add_no_result_to_queue_with_printf_("goto_page", "page %s", page); }
+void Nextion::goto_page(uint8_t page) { this->add_no_result_to_queue_with_printf_("goto_page", "page %i", page); }
 
 void Nextion::set_backlight_brightness(float brightness) {
   if (brightness < 0 || brightness > 1.0) {
@@ -174,6 +228,10 @@ void Nextion::display_picture(int picture_id, int x_start, int y_start) {
   this->add_no_result_to_queue_with_printf_("display_picture", "pic %d, %d, %d", x_start, y_start, picture_id);
 }
 
+void Nextion::fill_area(int x1, int y1, int width, int height, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("fill_area", "fill %d,%d,%d,%d,%" PRIu16, x1, y1, width, height, color);
+}
+
 void Nextion::fill_area(int x1, int y1, int width, int height, const char *color) {
   this->add_no_result_to_queue_with_printf_("fill_area", "fill %d,%d,%d,%d,%s", x1, y1, width, height, color);
 }
@@ -181,6 +239,10 @@ void Nextion::fill_area(int x1, int y1, int width, int height, const char *color
 void Nextion::fill_area(int x1, int y1, int width, int height, Color color) {
   this->add_no_result_to_queue_with_printf_("fill_area", "fill %d,%d,%d,%d,%d", x1, y1, width, height,
                                             display::ColorUtil::color_to_565(color));
+}
+
+void Nextion::line(int x1, int y1, int x2, int y2, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("line", "line %d,%d,%d,%d,%" PRIu16, x1, y1, x2, y2, color);
 }
 
 void Nextion::line(int x1, int y1, int x2, int y2, const char *color) {
@@ -192,6 +254,11 @@ void Nextion::line(int x1, int y1, int x2, int y2, Color color) {
                                             display::ColorUtil::color_to_565(color));
 }
 
+void Nextion::rectangle(int x1, int y1, int width, int height, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("draw", "draw %d,%d,%d,%d,%" PRIu16, x1, y1, x1 + width, y1 + height,
+                                            color);
+}
+
 void Nextion::rectangle(int x1, int y1, int width, int height, const char *color) {
   this->add_no_result_to_queue_with_printf_("draw", "draw %d,%d,%d,%d,%s", x1, y1, x1 + width, y1 + height, color);
 }
@@ -201,6 +268,10 @@ void Nextion::rectangle(int x1, int y1, int width, int height, Color color) {
                                             display::ColorUtil::color_to_565(color));
 }
 
+void Nextion::circle(int center_x, int center_y, int radius, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("cir", "cir %d,%d,%d,%" PRIu16, center_x, center_y, radius, color);
+}
+
 void Nextion::circle(int center_x, int center_y, int radius, const char *color) {
   this->add_no_result_to_queue_with_printf_("cir", "cir %d,%d,%d,%s", center_x, center_y, radius, color);
 }
@@ -208,6 +279,10 @@ void Nextion::circle(int center_x, int center_y, int radius, const char *color) 
 void Nextion::circle(int center_x, int center_y, int radius, Color color) {
   this->add_no_result_to_queue_with_printf_("cir", "cir %d,%d,%d,%d", center_x, center_y, radius,
                                             display::ColorUtil::color_to_565(color));
+}
+
+void Nextion::filled_circle(int center_x, int center_y, int radius, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("cirs", "cirs %d,%d,%d,%" PRIu16, center_x, center_y, radius, color);
 }
 
 void Nextion::filled_circle(int center_x, int center_y, int radius, const char *color) {
