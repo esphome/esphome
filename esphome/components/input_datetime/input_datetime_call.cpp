@@ -40,10 +40,7 @@ InputDatetimeCall &InputDatetimeCall::with_value(std::string value) {
              !HAS_DATETIME_STRING_TIME_ONLY(value)) {
     ESP_LOGW(TAG, "Time string was provided in the wrong format! Expected time only.");
   } else {
-    if (ESPTime::strptime(value, time))
-      this->value_ = time;
-    else
-      ESP_LOGW(TAG, "Time string was provided in the wrong format!");
+    this->value_ = value;
   }
   return *this;
 }
@@ -68,7 +65,7 @@ void InputDatetimeCall::perform() {
   const auto *name = parent->get_name().c_str();
   const auto &traits = parent->traits;
 
-  ESPTime target_value{0};
+  std::string target_value{0};
 
   // load stored values if there are any
   if (!this->value_.has_value()) {
@@ -86,8 +83,7 @@ void InputDatetimeCall::perform() {
                            : this->parent_->has_date                          ? "%F"
                            : this->parent_->has_time                          ? "%T"
                                                                               : "";
-      ESP_LOGD(TAG, "'%s' - Setting InputDatetime value: %s", name,
-               target_value.strftime(STRFTIME_FORMAT_FROM_OBJ(this->parent_, false)).c_str());
+      ESP_LOGD(TAG, "'%s' - Setting InputDatetime value: %s", name, target_value);
       break;
   }
 

@@ -697,6 +697,41 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_INPUT_DATETIME
+bool APIConnection::send_input_datetime_state(input_datetime::InputDatetime *input_datetime, std::string state) {
+  if (!this->state_subscription_)
+    return false;
+
+  InputDatetimeStateResponse resp{};
+  resp.key = input_datetime->get_object_id_hash();
+  resp.state = state;
+  resp.missing_state = !input_datetime->has_state();
+  return this->send_input_datetime_state_response(resp);
+}
+bool APIConnection::send_input_datetime_info(input_datetime::InputDatetime *input_datetime) {
+  ListEntitiesInputDatetimeResponse msg;
+  msg.key = input_datetime->get_object_id_hash();
+  msg.object_id = input_datetime->get_object_id();
+  if (input_datetime->has_own_name())
+    msg.name = input_datetime->get_name();
+  msg.unique_id = get_default_unique_id("input_datetime", input_datetime);
+  msg.icon = input_datetime->get_icon();
+  msg.disabled_by_default = input_datetime->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(input_datetime->get_entity_category());
+
+  return this->send_list_entities_input_datetime_response(msg);
+}
+void APIConnection::input_datetime_command(const InputDatetimeCommandRequest &msg) {
+  input_datetime::InputDatetime *input_datetime = App.get_input_datetime_by_key(msg.key);
+  if (input_datetime == nullptr)
+    return;
+
+  auto call = input_datetime->make_call();
+  call.set_value(msg.state);
+  call.perform();
+}
+#endif
+
 #ifdef USE_TEXT
 bool APIConnection::send_text_state(text::Text *text, std::string state) {
   if (!this->state_subscription_)

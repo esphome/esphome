@@ -38,15 +38,16 @@ class InputDatetime : public EntityBase {
   explicit InputDatetime();
 
  public:
-  ESPTime state;
+  ESPTime state_as_time;
+  std::string state;
   bool has_date;
   bool has_time;
 
-  void publish_state(ESPTime state);
+  void publish_state(std::string state);
 
   InputDatetimeCall make_call() { return InputDatetimeCall(this); }
 
-  void add_on_state_callback(std::function<void(ESPTime)> &&callback);
+  void add_on_state_callback(std::function<void(std::string)> &&callback);
 
   InputDatetimeTraits traits;
 
@@ -63,9 +64,9 @@ class InputDatetime : public EntityBase {
    *
    * @param value The value as validated by the InputDatetimeCall.
    */
-  virtual void control(ESPTime value) = 0;
+  virtual void control(std::string value) = 0;
 
-  CallbackManager<void(ESPTime)> state_callback_;
+  CallbackManager<void(std::string)> state_callback_;
   bool has_state_{false};
 };
 

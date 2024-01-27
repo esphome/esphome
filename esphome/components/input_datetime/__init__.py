@@ -193,7 +193,9 @@ def validate_input_datetime(config):
 INPUT_DATETIME_SCHEMA = (
     cv.Schema(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt.MQTTInputDatetimeComponent
+            ),
             cv.Optional(CONF_TIME_ID): cv.All(
                 cv.requires_component(CONF_TIME), cv.use_id(time.RealTimeClock)
             ),
@@ -249,6 +251,10 @@ async def setup_input_datetime_core_(input_datetime_var, config):
             await cg.register_component(trigger, conf)
             # await cg.register_component(trigger, conf)
             await automation.build_automation(trigger, [], conf)
+
+    if CONF_MQTT_ID in config:
+        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], input_datetime_var)
+        await mqtt.register_mqtt_component(mqtt_, config)
 
 
 async def register_input_datetime(var, config):

@@ -12,21 +12,25 @@ bool InputDatetimeOnTimeTrigger::matches(const ESPTime &time) {
   if (!time.is_valid() || (!this->inputDatetime_->has_date && !this->inputDatetime_->has_time))
     return false;
 
-  if (!this->inputDatetime_->has_date && time.hour == this->inputDatetime_->state.hour &&
-      time.minute == this->inputDatetime_->state.minute && time.second == this->inputDatetime_->state.second) {
+  if (!this->inputDatetime_->has_date && time.hour == this->inputDatetime_->state_as_time.hour &&
+      time.minute == this->inputDatetime_->state_as_time.minute &&
+      time.second == this->inputDatetime_->state_as_time.second) {
     return true;
   }
 
-  if (!this->inputDatetime_->has_time && time.year == this->inputDatetime_->state.year &&
-      time.day_of_month == this->inputDatetime_->state.day_of_month &&
-      time.month == this->inputDatetime_->state.month) {
+  if (!this->inputDatetime_->has_time && time.year == this->inputDatetime_->state_as_time.year &&
+      time.day_of_month == this->inputDatetime_->state_as_time.day_of_month &&
+      time.month == this->inputDatetime_->state_as_time.month) {
     return true;
   }
 
   if (this->inputDatetime_->has_time && this->inputDatetime_->has_date &&
-      time.year == this->inputDatetime_->state.year && time.day_of_month == this->inputDatetime_->state.day_of_month &&
-      time.month == this->inputDatetime_->state.month && time.hour == this->inputDatetime_->state.hour &&
-      time.minute == this->inputDatetime_->state.minute && time.second == this->inputDatetime_->state.second) {
+      time.year == this->inputDatetime_->state_as_time.year &&
+      time.day_of_month == this->inputDatetime_->state_as_time.day_of_month &&
+      time.month == this->inputDatetime_->state_as_time.month &&
+      time.hour == this->inputDatetime_->state_as_time.hour &&
+      time.minute == this->inputDatetime_->state_as_time.minute &&
+      time.second == this->inputDatetime_->state_as_time.second) {
     return true;
   }
 

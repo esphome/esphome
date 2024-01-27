@@ -264,6 +264,24 @@ bool APIServerConnectionBase::send_number_state_response(const NumberStateRespon
 #endif
 #ifdef USE_NUMBER
 #endif
+#ifdef USE_INPUT_DATETIME
+bool APIServerConnectionBase::send_list_entities_input_datetime_response(const ListEntitiesInputDatetimeResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_input_datetime_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesInputDatetimeResponse>(msg, 49);
+}
+#endif
+#ifdef USE_INPUT_DATETIME
+bool APIServerConnectionBase::send_input_datetime_state_response(const InputDatetimeStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_input_datetime_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<InputDatetimeStateResponse>(msg, 100);
+}
+#endif
+#ifdef USE_INPUT_DATETIME
+#endif
 #ifdef USE_SELECT
 bool APIServerConnectionBase::send_list_entities_select_response(const ListEntitiesSelectResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -736,6 +754,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 101: {
+#ifdef USE_INPUT_DATETIME
+      InputDatetimeCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_input_datetime_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_input_datetime_command_request(msg);
+#endif
+      break;
+    }
     case 54: {
 #ifdef USE_SELECT
       SelectCommandRequest msg;
@@ -1151,6 +1180,19 @@ void APIServerConnection::on_number_command_request(const NumberCommandRequest &
     return;
   }
   this->number_command(msg);
+}
+#endif
+#ifdef USE_INPUT_DATETIME
+void APIServerConnection::on_input_datetime_command_request(const InputDatetimeCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->input_datetime_command(msg);
 }
 #endif
 #ifdef USE_TEXT

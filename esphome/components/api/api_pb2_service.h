@@ -121,6 +121,15 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_NUMBER
   virtual void on_number_command_request(const NumberCommandRequest &value){};
 #endif
+#ifdef USE_INPUT_DATETIME
+  bool send_list_entities_input_datetime_response(const ListEntitiesInputDatetimeResponse &msg);
+#endif
+#ifdef USE_INPUT_DATETIME
+  bool send_input_datetime_state_response(const InputDatetimeStateResponse &msg);
+#endif
+#ifdef USE_INPUT_DATETIME
+  virtual void on_input_datetime_command_request(const InputDatetimeCommandRequest &value){};
+#endif
 #ifdef USE_SELECT
   bool send_list_entities_select_response(const ListEntitiesSelectResponse &msg);
 #endif
@@ -297,6 +306,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_NUMBER
   virtual void number_command(const NumberCommandRequest &msg) = 0;
 #endif
+#ifdef USE_INPUT_DATETIME
+  virtual void input_datetime_command(const InputDatetimeCommandRequest &msg) = 0;
+#endif
 #ifdef USE_TEXT
   virtual void text_command(const TextCommandRequest &msg) = 0;
 #endif
@@ -382,6 +394,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_NUMBER
   void on_number_command_request(const NumberCommandRequest &msg) override;
+#endif
+#ifdef USE_INPUT_DATETIME
+  void on_input_datetime_command_request(const InputDatetimeCommandRequest &msg) override;
 #endif
 #ifdef USE_TEXT
   void on_text_command_request(const TextCommandRequest &msg) override;
