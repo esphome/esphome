@@ -13,22 +13,22 @@ static const uint8_t NUMBER_OF_READ_RETRIES = 5;
 void GDK101Component::update() {
   uint8_t data[2];
   if (!this->read_dose_1m_(data)) {
-    this->status_set_warning();
+    this->status_set_error();
     return;
   }
 
   if (!this->read_dose_10m_(data)) {
-    this->status_set_warning();
+    this->status_set_error();
     return;
   }
 
   if (!this->read_status_(data)) {
-    this->status_set_warning();
+    this->status_set_error();
     return;
   }
 
   if (!this->read_measuring_time_(data)) {
-    this->status_set_warning();
+    this->status_set_error();
     return;
   }
 }
@@ -43,12 +43,12 @@ void GDK101Component::setup() {
   }
   // sensor should acknowledge success of the reset procedure
   if (data[0] != 1) {
-    this->status_set_error();
+    this->status_set_warning();
   }
   delay(10);
   // read firmware version
   if (!this->read_fw_version_(data)) {
-    this->status_set_warning();
+    this->status_set_error();
   }
 }
 
@@ -58,11 +58,11 @@ void GDK101Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with GDK101 failed!");
   } else {
-    if (this->status_has_error()) {
-      ESP_LOGE(TAG, "Initial reset faild!");
-    }
     if (this->status_has_warning()) {
-      ESP_LOGW(TAG, "Can't read Firmware Version");
+      ESP_LOGW(TAG, "Initial reset faild!");
+    }
+    if (this->status_has_error()) {
+      ESP_LOGE(TAG, "Data read failed!");
     }
   }
 #ifdef USE_SENSOR
@@ -96,7 +96,7 @@ bool GDK101Component::reset_sensor_(uint8_t *data) {
   // after a while we can send another reset command and read "0x01" as confirmation
   // Documentation not going in to such details unfortunately
   if (!this->read_bytes_with_retry_(GDK101_REG_RESET, data, 2)) {
-    ESP_LOGW(TAG, "Updating GDK101 failed!");
+    ESP_LOGE(TAG, "Updating GDK101 failed!");
     return false;
   }
 
@@ -105,7 +105,7 @@ bool GDK101Component::reset_sensor_(uint8_t *data) {
 
 bool GDK101Component::read_dose_1m_(uint8_t *data) {
   if (!this->read_bytes(GDK101_REG_READ_1MIN_AVG, data, 2)) {
-    ESP_LOGW(TAG, "Updating GDK101 failed!");
+    ESP_LOGE(TAG, "Updating GDK101 failed!");
     return false;
   }
 
@@ -122,7 +122,7 @@ bool GDK101Component::read_dose_1m_(uint8_t *data) {
 
 bool GDK101Component::read_dose_10m_(uint8_t *data) {
   if (!this->read_bytes(GDK101_REG_READ_10MIN_AVG, data, 2)) {
-    ESP_LOGW(TAG, "Updating GDK101 failed!");
+    ESP_LOGE(TAG, "Updating GDK101 failed!");
     return false;
   }
 
@@ -139,7 +139,7 @@ bool GDK101Component::read_dose_10m_(uint8_t *data) {
 
 bool GDK101Component::read_status_(uint8_t *data) {
   if (!this->read_bytes(GDK101_REG_READ_STATUS, data, 2)) {
-    ESP_LOGW(TAG, "Updating GDK101 failed!");
+    ESP_LOGE(TAG, "Updating GDK101 failed!");
     return false;
   }
 
@@ -160,7 +160,7 @@ bool GDK101Component::read_status_(uint8_t *data) {
 
 bool GDK101Component::read_fw_version_(uint8_t *data) {
   if (!this->read_bytes(GDK101_REG_READ_FIRMWARE, data, 2)) {
-    ESP_LOGW(TAG, "Updating GDK101 failed!");
+    ESP_LOGE(TAG, "Updating GDK101 failed!");
     return false;
   }
 
@@ -177,7 +177,7 @@ bool GDK101Component::read_fw_version_(uint8_t *data) {
 
 bool GDK101Component::read_measuring_time_(uint8_t *data) {
   if (!this->read_bytes(GDK101_REG_READ_MEASURING_TIME, data, 2)) {
-    ESP_LOGW(TAG, "Updating GDK101 failed!");
+    ESP_LOGE(TAG, "Updating GDK101 failed!");
     return false;
   }
 
