@@ -257,7 +257,6 @@ class WaveshareEPaper2P7InV2 : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
-
 class GDEW0154M09 : public WaveshareEPaperBW {
  public:
   void initialize() override;
