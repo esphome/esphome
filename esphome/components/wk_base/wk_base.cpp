@@ -136,7 +136,7 @@ void WKBaseComponent::loop() {
       child->uart_send_test_(message);
       uint32_t const start_time = millis();
       while (child->tx_fifo_is_not_empty_()) {  // wait until buffer empty
-        if (millis() - start_time > 1000) {
+        if (millis() - start_time > 1500) {
           ESP_LOGE(TAG, "timeout while flushing - %d bytes left in buffer...", child->tx_in_fifo_());
           break;
         }
@@ -386,19 +386,19 @@ class Increment {
   uint8_t i_;
 };
 
-/// @brief Hex converter to print/display a buffer in hexadecimal format (16 hex values / line).
+/// @brief Hex converter to print/display a buffer in hexadecimal format (32 hex values / line).
 /// @param buffer contains the values to display
 void print_buffer(std::vector<uint8_t> buffer) {
-  char hex_buffer[80];
-  hex_buffer[50] = 0;
+  char hex_buffer[100];
+  hex_buffer[(3 * 32) + 1] = 0;
   for (size_t i = 0; i < buffer.size(); i++) {
-    snprintf(&hex_buffer[3 * (i % 16)], sizeof(hex_buffer), "%02X ", buffer[i]);
-    if (i % 16 == 15)
+    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", buffer[i]);
+    if (i % 32 == 31)
       ESP_LOGI(TAG, "   %s", hex_buffer);
   }
-  if (buffer.size() % 16) {
+  if (buffer.size() % 32) {
     // null terminate if incomplete line
-    hex_buffer[3 * (buffer.size() % 16) + 2] = 0;
+    hex_buffer[3 * (buffer.size() % 32) + 1] = 0;
     ESP_LOGI(TAG, "   %s", hex_buffer);
   }
 }
@@ -423,7 +423,7 @@ bool WKBaseChannel::uart_receive_test_(char *message) {
   uint32_t const start_time = millis();
   while (XFER_MAX_SIZE > (received = this->available())) {
     this->xfer_fifo_to_buffer_();
-    if (millis() - start_time > 1000) {
+    if (millis() - start_time > 1500) {
       ESP_LOGE(TAG, "uart_receive_test_() timeout: only %d bytes received...", received);
       break;
     }
