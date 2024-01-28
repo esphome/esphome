@@ -84,7 +84,7 @@ void WK2168RegSPI::read_fifo(uint8_t *data, size_t length) const {
 
 void WK2168RegSPI::write_reg(uint8_t value) {
   auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
-  uint8_t cmd = cmd_byte(READ_CMD, REG, this->register_, this->channel_);
+  uint8_t cmd = cmd_byte(WRITE_CMD, REG, this->register_, this->channel_);
   uint8_t buf[2]{cmd, 0};
   spi_delegate->begin_transaction();
   spi_delegate->transfer(buf, 2);
