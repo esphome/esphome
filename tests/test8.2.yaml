@@ -54,9 +54,17 @@ touchscreen:
     display: displ8
     interrupt_pin:
       number: GPIO3
-      allow_other_uses: false
+      allow_other_uses: true
     reset_pin:
       number: GPIO20
+      allow_other_uses: true
+  - platform: cst226
+    interrupt_pin:
+      number: GPIO3
+      allow_other_uses: true
+    reset_pin:
+      number: GPIO20
+      allow_other_uses: true
 
 binary_sensor:
   - platform: tt21100
