@@ -93,18 +93,20 @@ void WK2168RegSPI::read_fifo(uint8_t *data, size_t length) const {
   spi_delegate->transfer(data, length);
   spi_delegate->end_transaction();
   cmd = cmd_byte(READ_CMD, FIFO, this->register_, this->channel_);
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   ESP_LOGVV(TAG, "WK2168RegSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2CS(cmd), cmd, this->channel_, length);
   print_buffer(data, length);
+#endif
 }
 
 void WK2168RegSPI::write_reg(uint8_t value) {
   auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
-  uint8_t cmd = cmd_byte(WRITE_CMD, REG, this->register_, this->channel_);
-  uint8_t buf[2]{cmd, 0};
+  uint8_t buf[2]{cmd_byte(WRITE_CMD, REG, this->register_, this->channel_), value};
+  uint8_t rbuf[2];
   spi_delegate->begin_transaction();
-  spi_delegate->transfer(buf, 2);
+  spi_delegate->transfer(buf, rbuf, 2);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "WK2168RegSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2CS(cmd), cmd,
+  ESP_LOGVV(TAG, "WK2168RegSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2CS(buf[0]), buf[0],
             reg_to_str(this->register_, this->comp_->page1()), this->channel_, value);
 }
 
@@ -115,9 +117,11 @@ void WK2168RegSPI::write_fifo(uint8_t *data, size_t length) {
   spi_delegate->transfer(&cmd, 1);
   spi_delegate->transfer(data, length);
   spi_delegate->end_transaction();
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   cmd = cmd_byte(READ_CMD, FIFO, this->register_, this->channel_);
   ESP_LOGVV(TAG, "WK2168RegSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2CS(cmd), cmd, this->channel_, length);
   print_buffer(data, length);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
