@@ -68,7 +68,7 @@ class CST226Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   bool can_proceed() override { return this->setup_complete_ || this->is_failed(); }
 
  protected:
-  bool read16(uint16_t addr, uint8_t *data, size_t len) {
+  bool read16_(uint16_t addr, uint8_t *data, size_t len) {
     if (this->read_register16(addr, data, len) != i2c::ERROR_OK) {
       esph_log_e(TAG, "Read data from 0x%04X failed", addr);
       this->mark_failed();
@@ -89,13 +89,13 @@ class CST226Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
       return;
     }
     delay(10);
-    if (this->read16(0xD204, buffer, 4)) {
+    if (this->read16_(0xD204, buffer, 4)) {
       uint16_t chip_id = buffer[2] + (buffer[3] << 8);
       uint16_t project_id = buffer[0] + (buffer[1] << 8);
       esph_log_config(TAG, "Chip ID %X, project ID %x", chip_id, project_id);
     }
     if (this->x_raw_max_ == 0 || this->y_raw_max_ == 0) {
-      if (this->read16(0xD1F8, buffer, 4)) {
+      if (this->read16_(0xD1F8, buffer, 4)) {
         this->x_raw_max_ = buffer[0] + (buffer[1] << 8);
         this->y_raw_max_ = buffer[2] + (buffer[3] << 8);
       }
