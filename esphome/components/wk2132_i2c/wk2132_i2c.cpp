@@ -80,8 +80,8 @@ void WK2132RegI2C::read_fifo(uint8_t *data, size_t length) const {
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-    ESP_LOGVV(TAG, "WK2132RegI2C::read_fifo() @%02X reg=%s ch=%d I2C_code:%d buffer", comp_i2c->address_,
-              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, length, (int) error);
+    ESP_LOGVV(TAG, "WK2132RegI2C::read_fifo() @%02X reg=%s ch=%d I2C_code:%d length%d buffer", comp_i2c->address_,
+              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, (int) error, length);
     print_buffer(data, length);
 #endif
   } else {  // error
