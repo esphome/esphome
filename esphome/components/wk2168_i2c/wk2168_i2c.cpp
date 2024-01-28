@@ -89,9 +89,11 @@ void WK2168RegI2C::read_fifo(uint8_t *data, size_t length) const {
   auto error = comp_i2c->read(data, length);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WK2168RegI2C::read_fifo() @%02X reg=N/A ch=%d I2C_code:%d len=%d buffer", comp_i2c->address_,
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+    ESP_LOGVV(TAG, "WK2168RegI2C::read_fifo() @%02X ch=%d I2C_code:%d len=%d buffer", comp_i2c->address_,
               this->channel_, (int) error, length);
     print_buffer(data, length);
+#endif
   } else {  // error
     this->comp_->status_set_warning();
     ESP_LOGE(TAG, "WK2168RegI2C::read_fifo() @%02X reg=N/A ch=%d I2C_code:%d len=%d buf=%02X...", comp_i2c->address_,
@@ -120,9 +122,11 @@ void WK2168RegI2C::write_fifo(uint8_t *data, size_t length) {
   auto error = comp_i2c->write(data, length);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WK2168Reg::write_fifo() @%02X reg=N/A, ch=%d I2C_code:%d len=%d buffer", comp_i2c->address_,
-              this->channel_, (int) error, length);
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+    ESP_LOGVV(TAG, "WK2168Reg::write_fifo() @%02X ch=%d I2C_code:%d len=%d buffer", comp_i2c->address_, this->channel_,
+              (int) error, length);
     print_buffer(data, length);
+#endif
   } else {  // error
     this->comp_->status_set_warning();
     ESP_LOGE(TAG, "WK2168Reg::write_fifo() @%02X reg=N/A, ch=%d I2C_code:%d len=%d, buf=%02X...", comp_i2c->address_,
