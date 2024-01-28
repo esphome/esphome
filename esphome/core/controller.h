@@ -83,7 +83,7 @@ class Controller {
   virtual void on_number_update(number::Number *obj, float state){};
 #endif
 #ifdef USE_INPUT_DATETIME
-  virtual void on_input_datetime_update(input_datetime::InputDatetime *obj, ESPTime state){};
+  virtual void on_input_datetime_update(input_datetime::InputDatetime *obj, std::string state){};
 #endif
 #ifdef USE_TEXT
   virtual void on_text_update(text::Text *obj, const std::string &state){};

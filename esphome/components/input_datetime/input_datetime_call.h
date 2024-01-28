@@ -39,7 +39,7 @@ class InputDatetimeCall {
  protected:
   InputDatetime *const parent_;
   InputDatetimeOperation operation_{INPUT_DATETIME_OP_NONE};
-  optional<ESPTime> value_;
+  optional<std::string> value_;
   optional<bool> has_date_;
   optional<bool> has_time_;
 };

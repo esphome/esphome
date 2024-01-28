@@ -850,7 +850,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 #endif
 
 #ifdef USE_INPUT_DATETIME
-void WebServer::on_input_datetime_update(input_datetime::InputDatetime *obj, ESPTime state) {
+void WebServer::on_input_datetime_update(input_datetime::InputDatetime *obj, std::string state) {
   this->events_.send(this->input_datetime_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_input_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -891,15 +891,21 @@ void WebServer::handle_input_datetime_request(AsyncWebServerRequest *request, co
   request->send(404);
 }
 
-std::string WebServer::input_datetime_json(input_datetime::InputDatetime *obj, ESPTime value, JsonDetail start_config) {
+std::string WebServer::input_datetime_json(input_datetime::InputDatetime *obj, std::string value,
+                                           JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_id(root, obj, "input_datetime-" + obj->get_object_id(), start_config);
     if (start_config == DETAIL_ALL) {
       root["mode"] = (int) obj->traits.get_mode();
     }
-    std::string timeString = ((ESPTime) value).strftime(STRFTIME_FORMAT_FROM_OBJ(obj, true));
-    root["value"] = timeString;
-    root["state"] = timeString;
+    std::string value_mut = value;
+    size_t position = value_mut.find(" ");
+    while (position != std::string::npos) {
+      value_mut.replace(position, 1, "T");
+      position = value_mut.find(" ", position + 1);
+    }
+    root["value"] = value_mut;
+    root["state"] = value_mut;
     root["has_date"] = obj->has_date;
     root["has_time"] = obj->has_time;
   });
