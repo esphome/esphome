@@ -77,11 +77,11 @@ void TimeBasedTiltCover::loop() {
   if (this->fsm_state_ == STATE_STOPPING) {
     this->stop_trigger_->trigger();
     if (this->current_operation != COVER_OPERATION_IDLE) {
-      this->interlocked_time = millis();
-      this->interlocked_direction =
+      this->interlocked_time_ = millis();
+      this->interlocked_direction_ =
           this->current_operation == COVER_OPERATION_CLOSING ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING;
     } else {
-      this->interlocked_direction = COVER_OPERATION_IDLE;
+      this->interlocked_direction_ = COVER_OPERATION_IDLE;
     }
     this->fsm_state_ = STATE_IDLE;
     this->last_operation_ = this->current_operation;
@@ -98,8 +98,8 @@ void TimeBasedTiltCover::loop() {
       this->current_operation = this->compute_direction(this->target_tilt_, this->tilt);
     }
     // interlocking support
-    if (this->current_operation == this->interlocked_direction &&
-        now - this->interlocked_time < this->interlock_wait_time_)
+    if (this->current_operation == this->interlocked_direction_ &&
+        now - this->interlocked_time_ < this->interlock_wait_time_)
       return;
 
     Trigger<> *trig = this->current_operation == COVER_OPERATION_CLOSING ? this->close_trigger_ : this->open_trigger_;
@@ -120,11 +120,11 @@ void TimeBasedTiltCover::loop() {
     auto inertia_time =
         this->current_operation == COVER_OPERATION_CLOSING ? this->inertia_close_time_ : this->inertia_open_time_;
 
-    if (inertia_time > 0 && this->inertia * dir_factor < 0.5f) {  // inertia before movement
+    if (inertia_time > 0 && this->inertia_ * dir_factor < 0.5f) {  // inertia before movement
       auto inertia_step = dir_factor * travel_time / inertia_time;
-      this->inertia += inertia_step;
-      auto rest = this->inertia - clamp(this->inertia, -0.5f, 0.5f);
-      this->inertia = clamp(this->inertia, -0.5f, 0.5f);
+      this->inertia_ += inertia_step;
+      auto rest = this->inertia_ - clamp(this->inertia_, -0.5f, 0.5f);
+      this->inertia_ = clamp(this->inertia_, -0.5f, 0.5f);
 
       if (!rest)
         return;                                        // the movement has not yet actually started

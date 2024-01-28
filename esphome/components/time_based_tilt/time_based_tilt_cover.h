@@ -59,13 +59,13 @@ class TimeBasedTiltCover : public cover::Cover, public Component {
   uint32_t last_publish_time_{0};
   float target_position_{TARGET_NONE};
   float target_tilt_{TARGET_NONE};
-  float inertia{0.0f};
+  float inertia_{0.0f};
   bool has_built_in_endstop_{false};
   bool assumed_state_{false};
   cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
   State fsm_state_{STATE_IDLE};
-  cover::CoverOperation interlocked_direction{cover::COVER_OPERATION_IDLE};
-  uint32_t interlocked_time{0};
+  cover::CoverOperation interlocked_direction_{cover::COVER_OPERATION_IDLE};
+  uint32_t interlocked_time_{0};
 };
 
 }  // namespace time_based_tilt
