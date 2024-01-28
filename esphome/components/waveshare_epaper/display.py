@@ -135,7 +135,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MODEL): cv.one_of(*MODELS, lower=True),
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,
+            cv.Optional(CONF_FULL_UPDATE_EVERY): cv.int_range(min=1, max=4294967295),
             cv.Optional(CONF_RESET_DURATION): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
