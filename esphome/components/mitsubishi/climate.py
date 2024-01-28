@@ -29,7 +29,7 @@ HORIZONTAL_DIRECTIONS = {
     "middle": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE,
     "middle-right": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE_RIGHT,
     "right": HorizontalDirections.HORIZONTAL_DIRECTION_RIGHT,
-    "split": HorizontalDirections.HORIZONTAL_DIRECTION_SPLIT,    
+    "split": HorizontalDirections.HORIZONTAL_DIRECTION_SPLIT,
 }
 
 CONF_VERTICAL_DEFAULT = "vertical_default"
