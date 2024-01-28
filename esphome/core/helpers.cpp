@@ -421,7 +421,7 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
 int8_t step_to_accuracy_decimals(float step) {
   // use printf %g to find number of digits based on temperature step
   char buf[32];
-  sprintf(buf, "%.5g", step);
+  snprintf(buf, sizeof buf, "%.5g", step);
 
   std::string str{buf};
   size_t dot_pos = str.find('.');

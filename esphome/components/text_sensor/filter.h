@@ -28,10 +28,10 @@ class Filter {
    * @param value The new value.
    * @return An optional string, the new value that should be pushed out.
    */
-  virtual optional<std::string> new_value(std::string value);
+  virtual optional<std::string> new_value(std::string value) = 0;
 
   /// Initialize this filter, please note this can be called more than once.
-  virtual void initialize(TextSensor *parent, Filter *next);
+  virtual void initialize(TextSensor *parent, Filter *next) = 0;
 
   void input(const std::string &value);
 
