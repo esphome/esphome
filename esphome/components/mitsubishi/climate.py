@@ -24,6 +24,12 @@ CONF_SUPPORTS_FAN_ONLY = "supports_fan_only"
 CONF_HORIZONTAL_DEFAULT = "horizontal_default"
 HorizontalDirections = mitsubishi_ns.enum("HorizontalDirections")
 HORIZONTAL_DIRECTIONS = {
+    "left": HorizontalDirections.HORIZONTAL_DIRECTION_LEFT,
+    "middle-left": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE_LEFT,
+    "middle": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE,
+    "middle-right": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE_RIGHT,
+    "right": HorizontalDirections.HORIZONTAL_DIRECTION_RIGHT,
+    "split": HorizontalDirections.HORIZONTAL_DIRECTION_SPLIT,    
 }
 
 CONF_VERTICAL_DEFAULT = "vertical_default"
