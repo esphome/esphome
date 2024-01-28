@@ -7,7 +7,9 @@ from esphome import automation
 from esphome.const import (
     CONF_ON_TOUCH,
     CONF_ON_RELEASE,
-    CONF_SWAP_XY,
+    # CONF_SWAP_XY,
+    # CONF_MIRROR_X,
+    # CONF_MIRROR_Y
     CONF_TRANSFORM,
     CONF_CALIBRATION,
 )
@@ -37,6 +39,7 @@ CONF_TOUCH_TIMEOUT = "touch_timeout"
 # added here so everone can use the PR.
 CONF_MIRROR_X = "mirror_x"
 CONF_MIRROR_Y = "mirror_y"
+CONF_SWAP_XY = "swap_xy"
 
 CONF_X_MIN = "x_min"
 CONF_X_MAX = "x_max"
