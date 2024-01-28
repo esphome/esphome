@@ -25,23 +25,8 @@ InputDatetimeCall &InputDatetimeCall::with_value(std::string value) {
   ESP_LOGD("mydebug", "HAS_DATETIME_STRING_TIME_ONLY: %d", HAS_DATETIME_STRING_TIME_ONLY(value));
   ESP_LOGD("mydebug", "HAS_DATETIME_STRING_DATE_ONLY: %d", HAS_DATETIME_STRING_DATE_ONLY(value));
   ESP_LOGD("mydebug", "HAS_DATETIME_STRING_DATE_AND_TIME: %d", HAS_DATETIME_STRING_DATE_AND_TIME(value));
-  if (!parent_->has_date && !parent_->has_time) {
-    ESP_LOGW(TAG, "Trying to set datetime value, but neither 'has_date' nor 'has_time' was set");
-  } else if (parent_->has_date && parent_->has_time &&
-             (HAS_DATETIME_STRING_DATE_ONLY(value) ||
-              HAS_DATETIME_STRING_TIME_ONLY(value) && !HAS_DATETIME_STRING_DATE_AND_TIME(value))) {
-    ESP_LOGW(TAG, "Time string was provided in the wrong format! Expected date and time.");
-  } else if (parent_->has_date && !parent_->has_time &&
-             (HAS_DATETIME_STRING_TIME_ONLY(value) ||
-              HAS_DATETIME_STRING_DATE_AND_TIME(value) && !HAS_DATETIME_STRING_DATE_ONLY(value))) {
-    ESP_LOGW(TAG, "Time string was provided in the wrong format! Expected date only.");
-  } else if (!parent_->has_date && parent_->has_time &&
-             (!HAS_DATETIME_STRING_DATE_ONLY(value) || HAS_DATETIME_STRING_DATE_AND_TIME(value)) &&
-             !HAS_DATETIME_STRING_TIME_ONLY(value)) {
-    ESP_LOGW(TAG, "Time string was provided in the wrong format! Expected time only.");
-  } else {
-    this->value_ = value;
-  }
+
+  this->value_ = value;
   return *this;
 }
 
@@ -78,6 +63,10 @@ void InputDatetimeCall::perform() {
       ESP_LOGW(TAG, "'%s' - InputDatetime performed without selecting an operation", name);
       return;
     case INPUT_DATETIME_OP_SET_VALUE:
+      if (!validate_datetime_string()) {
+        ESP_LOGW(TAG, "'%s' - InputDatetime performed without a valid value", name);
+        return;
+      }
       target_value = this->value_.value();
       std::string format = this->parent_->has_date && this->parent_->has_time ? "%F %T"
                            : this->parent_->has_date                          ? "%F"
@@ -88,6 +77,30 @@ void InputDatetimeCall::perform() {
   }
 
   this->parent_->control(target_value);
+}
+
+bool InputDatetimeCall::validate_datetime_string() {
+  std::string value = this->value_.value();
+  if (!parent_->has_date && !parent_->has_time) {
+    ESP_LOGW(TAG, "Trying to set datetime value, but neither 'has_date' nor 'has_time' was set");
+    return false;
+  } else if (parent_->has_date && parent_->has_time &&
+             (HAS_DATETIME_STRING_DATE_ONLY(value) ||
+              HAS_DATETIME_STRING_TIME_ONLY(value) && !HAS_DATETIME_STRING_DATE_AND_TIME(value))) {
+    ESP_LOGW(TAG, "Time string was provided in the wrong format! Expected date and time.");
+    return false;
+  } else if (parent_->has_date && !parent_->has_time &&
+             (HAS_DATETIME_STRING_TIME_ONLY(value) ||
+              HAS_DATETIME_STRING_DATE_AND_TIME(value) && !HAS_DATETIME_STRING_DATE_ONLY(value))) {
+    ESP_LOGW(TAG, "Time string was provided in the wrong format! Expected date only.");
+    return false;
+  } else if (!parent_->has_date && parent_->has_time &&
+             (!HAS_DATETIME_STRING_DATE_ONLY(value) || HAS_DATETIME_STRING_DATE_AND_TIME(value)) &&
+             !HAS_DATETIME_STRING_TIME_ONLY(value)) {
+    ESP_LOGW(TAG, "Time string was provided in the wrong format! Expected time only.");
+    return false;
+  }
+  return true;
 }
 
 }  // namespace input_datetime

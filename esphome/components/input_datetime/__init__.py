@@ -156,7 +156,7 @@ def valdiate_time_string(time_string: str, has_date: bool, has_time: bool):
 
 def validate_input_datetime(config):
     print(config)
-    if CONF_ON_TIME in config and not CONF_TIME_ID in config:
+    if CONF_ON_TIME in config and CONF_TIME_ID not in config:
         raise cv.Invalid(
             f"When using '{CONF_ON_TIME}' you need to provide '{CONF_TIME_ID}'."
         )

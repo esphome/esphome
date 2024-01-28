@@ -42,6 +42,8 @@ class InputDatetimeCall {
   optional<std::string> value_;
   optional<bool> has_date_;
   optional<bool> has_time_;
+
+  bool validate_datetime_string();
 };
 
 }  // namespace input_datetime

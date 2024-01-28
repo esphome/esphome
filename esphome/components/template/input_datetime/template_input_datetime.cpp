@@ -13,24 +13,24 @@ void TemplateInputDatetime::setup() {
   TemplateInputDatetimeRTCValue recovered{};
   if (!this->restore_value_) {
     ESP_LOGD("maydebug", "!restore_value_");
-    //recovered.value = this->initial_value_;
+    // recovered.value = this->initial_value_;
     recovered.has_date = this->has_date;
-    recovered.value = ESPTime{0};           //fix this!!! parse time from string
+    recovered.value = ESPTime{0};  // fix this!!! parse time from string
     recovered.has_time = this->has_time;
   } else {
     this->pref_ = global_preferences->make_preference<TemplateInputDatetimeRTCValue>(this->get_object_id_hash());
     if (!this->pref_.load(&recovered)) {
       ESP_LOGD("maydebug", "restore!");
 
-      //recovered.value = this->initial_value_;
-      recovered.value = ESPTime{0};           //fix this!!! parse time from string
+      // recovered.value = this->initial_value_;
+      recovered.value = ESPTime{0};  // fix this!!! parse time from string
       recovered.has_date = this->has_date;
       recovered.has_time = this->has_time;
     }
   }
-  //ESP_LOGD("mydebug", recovered.value.c_str());
-  //this->publish_state(recovered.value);
-  this->publish_state("00:00:00"); //fix me!!!!!!!!!!!!!!
+  // ESP_LOGD("mydebug", recovered.value.c_str());
+  // this->publish_state(recovered.value);
+  this->publish_state("00:00:00");  // fix me!!!!!!!!!!!!!!
 }
 
 void TemplateInputDatetime::update() {
@@ -73,9 +73,14 @@ void TemplateInputDatetime::control(std::string value) {
 
   if (this->restore_value_) {
     TemplateInputDatetimeRTCValue save{};
-    //save.value = value;
+    ESPTime time_to_save{0};
+    if (!ESPTime::strptime(value, time_to_save)) {
+      ESP_LOGVV(TAG, "");
+      return;
+    }
+    // save.value = value;
     save.has_date = has_date;
-    save.value = ESPTime{0}; // fix me!!!!!!!!!!!!!!!!!!!!!!!!!
+    save.value = ESPTime{0};  // fix me!!!!!!!!!!!!!!!!!!!!!!!!!
     save.has_time = has_time;
 
     this->pref_.save(&save);
