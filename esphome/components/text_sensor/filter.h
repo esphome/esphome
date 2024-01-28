@@ -31,7 +31,7 @@ class Filter {
   virtual optional<std::string> new_value(std::string value) = 0;
 
   /// Initialize this filter, please note this can be called more than once.
-  virtual void initialize(TextSensor *parent, Filter *next) = 0;
+  virtual void initialize(TextSensor *parent, Filter *next);
 
   void input(const std::string &value);
 
