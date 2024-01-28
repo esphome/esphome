@@ -10,7 +10,7 @@ from esphome.const import (
     # CONF_SWAP_XY,
     # CONF_MIRROR_X,
     # CONF_MIRROR_Y
-    CONF_TRANSFORM,
+    # CONF_TRANSFORM,
     CONF_CALIBRATION,
 )
 
@@ -37,6 +37,7 @@ CONF_ON_UPDATE = "on_update"
 CONF_TOUCH_TIMEOUT = "touch_timeout"
 
 # added here so everone can use the PR.
+CONF_TRANSFORM = "transform"
 CONF_MIRROR_X = "mirror_x"
 CONF_MIRROR_Y = "mirror_y"
 CONF_SWAP_XY = "swap_xy"
