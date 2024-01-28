@@ -31,7 +31,7 @@ enum RegType { REG = 0, FIFO = 1 };            ///< Register or FIFO
 
 /// @brief Computes the SPI command byte
 /// @param transfer_type read or write command
-/// @param reg the address of the register
+/// @param reg (0-15) the address of the register
 /// @param channel (0-3) the UART channel
 /// @param fifo (0-1) 0 = access to internal register, 1 = direct access to fifo
 /// @return the spi command byte
@@ -52,7 +52,7 @@ inline static uint8_t cmd_byte(CmdType transfer_type, RegType fifo, uint8_t reg,
 /// @return a std::string
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 /// Convert std::string to C string
-#define I2CS(val) (i2s(val).c_str())
+#define S2CS(val) (i2s(val).c_str())
 
 /// @brief Display a buffer in hexadecimal format (32 hex values / line).
 void print_buffer(const uint8_t *data, size_t length) {
@@ -80,7 +80,7 @@ uint8_t WK2168RegSPI::read_reg() const {
   spi_delegate->begin_transaction();
   spi_delegate->transfer(buf, 2);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "WK2168RegSPI::read_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2CS(cmd), cmd,
+  ESP_LOGVV(TAG, "WK2168RegSPI::read_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", S2CS(cmd), cmd,
             reg_to_str(this->register_, this->comp_->page1()), this->channel_, buf[1]);
   return buf[1];
 }
@@ -94,7 +94,7 @@ void WK2168RegSPI::read_fifo(uint8_t *data, size_t length) const {
   spi_delegate->end_transaction();
   cmd = cmd_byte(READ_CMD, FIFO, this->register_, this->channel_);
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  ESP_LOGVV(TAG, "WK2168RegSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2CS(cmd), cmd, this->channel_, length);
+  ESP_LOGVV(TAG, "WK2168RegSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", S2CS(cmd), cmd, this->channel_, length);
   print_buffer(data, length);
 #endif
 }
@@ -106,7 +106,7 @@ void WK2168RegSPI::write_reg(uint8_t value) {
   spi_delegate->begin_transaction();
   spi_delegate->transfer(buf, rbuf, 2);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "WK2168RegSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2CS(buf[0]), buf[0],
+  ESP_LOGVV(TAG, "WK2168RegSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", S2CS(buf[0]), buf[0],
             reg_to_str(this->register_, this->comp_->page1()), this->channel_, value);
 }
 
@@ -120,7 +120,7 @@ void WK2168RegSPI::write_fifo(uint8_t *data, size_t length) {
   spi_delegate->end_transaction();
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   cmd = cmd_byte(READ_CMD, FIFO, this->register_, this->channel_);
-  ESP_LOGVV(TAG, "WK2168RegSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2CS(cmd), cmd, this->channel_, length);
+  ESP_LOGVV(TAG, "WK2168RegSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", S2CS(cmd), cmd, this->channel_, length);
   print_buffer(data, length);
 #endif
 }
@@ -132,9 +132,9 @@ void WK2168ComponentSPI::setup() {
   using namespace wk2168;
   ESP_LOGCONFIG(TAG, "Setting up wk2168_spi: %s with %d UARTs...", this->get_name(), this->children_.size());
   this->spi_setup();
-  // enable both channels
+  // enable all channels
   this->reg(WKREG_GENA, 0) = GENA_C1EN | GENA_C2EN | GENA_C3EN | GENA_C4EN;
-  // reset channels
+  // reset all channels
   this->reg(WKREG_GRST, 0) = GRST_C1RST | GRST_C2RST | GRST_C3RST | GRST_C4RST;
   // initialize the spage register to page 0
   this->reg(WKREG_SPAGE, 0) = 0;

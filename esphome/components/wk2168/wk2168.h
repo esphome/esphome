@@ -13,9 +13,6 @@ namespace wk2168 {
 /// and provides methods to set/access this information.
 ////////////////////////////////////////////////////////////////////////////////////
 class WK2168Component : public wk_base::WKBaseComponent {
- public:
-  // bool page1() { return page1_; }
-
  protected:
   friend class WK2168GPIOPin;
 

@@ -16,7 +16,7 @@ static const char *const TAG = "wk2168";
 /// @return a std::string
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 /// Convert std::string to C string
-#define I2CS(val) (i2s(val).c_str())
+#define S2CS(val) (i2s(val).c_str())
 
 /// @brief measure the time elapsed between two calls
 /// @param last_time time of the previous call
@@ -33,13 +33,13 @@ uint32_t elapsed_us(uint32_t &last_time) {
 
 bool WK2168Component::read_pin_val_(uint8_t pin) {
   this->input_state_ = this->reg(WKREG_GPDAT, 0);
-  ESP_LOGVV(TAG, "reading input pin %d = %d in_state %s", pin, this->input_state_ & (1 << pin), I2CS(input_state_));
+  ESP_LOGVV(TAG, "reading input pin %d = %d in_state %s", pin, this->input_state_ & (1 << pin), S2CS(input_state_));
   return this->input_state_ & (1 << pin);
 }
 
 void WK2168Component::write_pin_val_(uint8_t pin, bool value) {
   value ? this->output_state_ |= (1 << pin) : this->output_state_ &= ~(1 << pin);
-  ESP_LOGVV(TAG, "writing output pin %d with %d out_state %s", pin, value, I2CS(this->output_state_));
+  ESP_LOGVV(TAG, "writing output pin %d with %d out_state %s", pin, value, S2CS(this->output_state_));
   this->reg(WKREG_GPDAT, 0) = this->output_state_;
 }
 
@@ -53,7 +53,7 @@ void WK2168Component::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
       ESP_LOGE(TAG, "pin %d direction invalid", pin);
     }
   }
-  ESP_LOGVV(TAG, "setting pin %d direction to %d pin_config=%s", pin, flags, I2CS(this->pin_config_));
+  ESP_LOGVV(TAG, "setting pin %d direction to %d pin_config=%s", pin, flags, S2CS(this->pin_config_));
   this->reg(WKREG_GPDIR, 0) = this->pin_config_;  // TODO check ~
 }
 
