@@ -37,6 +37,22 @@ inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, RegType fifo) 
   return addr;
 }
 
+/// @brief Display a buffer in hexadecimal format (32 hex values / line).
+void print_buffer(const uint8_t *data, size_t length) {
+  char hex_buffer[100];
+  hex_buffer[(3 * 32) + 1] = 0;
+  for (size_t i = 0; i < length; i++) {
+    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
+    if (i % 32 == 31)
+      ESP_LOGVV(TAG, "   %s", hex_buffer);
+  }
+  if (length % 32) {
+    // null terminate if incomplete line
+    hex_buffer[3 * (length % 32) + 2] = 0;
+    ESP_LOGVV(TAG, "   %s", hex_buffer);
+  }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // The WKBaseRegister methods
 ///////////////////////////////////////////////////////////////////////////////
@@ -47,11 +63,11 @@ uint8_t WK2132RegI2C::read_reg() const {
   auto error = comp_i2c->read_register(this->register_, &value, 1);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WK2132RegI2C::read_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
+    ESP_LOGVV(TAG, "WK2132RegI2C::read_reg() @%02X reg=%s ch=%d buf=%02X I2C_code:%d", comp_i2c->address_,
               reg_to_str(this->register_, comp_i2c->page1_), this->channel_, value, (int) error);
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WK2132RegI2C::read_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
+    ESP_LOGE(TAG, "WK2132RegI2C::read_reg() @%02X reg=%s ch=%d buf=%02X I2C_code:%d", comp_i2c->address_,
              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, value, (int) error);
   }
   return value;
@@ -63,12 +79,15 @@ void WK2132RegI2C::read_fifo(uint8_t *data, size_t length) const {
   auto error = comp_i2c->read(data, length);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WK2132RegI2C::read_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+    ESP_LOGVV(TAG, "WK2132RegI2C::read_fifo() @%02X reg=%s ch=%d I2C_code:%d buffer", comp_i2c->address_,
               reg_to_str(this->register_, comp_i2c->page1_), this->channel_, length, (int) error);
+    print_buffer(data, length);
+#endif
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WK2132RegI2C::read_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
-             reg_to_str(this->register_, comp_i2c->page1_), this->channel_, length, (int) error);
+    ESP_LOGE(TAG, "WK2132RegI2C::read_fifo() @%02X reg=%s ch=%d I2C_code:%d length=%d", comp_i2c->address_,
+             reg_to_str(this->register_, comp_i2c->page1_), this->channel_, (int) error, length);
   }
 }
 
@@ -78,11 +97,11 @@ void WK2132RegI2C::write_reg(uint8_t value) {
   auto error = comp_i2c->write_register(this->register_, &value, 1);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WKBaseRegister::write_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
+    ESP_LOGVV(TAG, "WKBaseRegister::write_reg() @%02X reg=%s ch=%d buf=%02X I2C_code:%d", comp_i2c->address_,
               reg_to_str(this->register_, comp_i2c->page1_), this->channel_, value, (int) error);
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WKBaseRegister::write_reg() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
+    ESP_LOGE(TAG, "WKBaseRegister::write_reg() @%02X reg=%s ch=%d buf=%02X I2C_code:%d", comp_i2c->address_,
              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, value, (int) error);
   }
 }
@@ -93,8 +112,11 @@ void WK2132RegI2C::write_fifo(uint8_t *data, size_t length) {
   auto error = comp_i2c->write(data, length);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WKBaseRegister::write_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,
-              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, length, (int) error);
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+    ESP_LOGVV(TAG, "WKBaseRegister::write_fifo() @%02X reg=%s ch=%d I2C_code:%d length=%d buffer", comp_i2c->address_,
+              reg_to_str(this->register_, comp_i2c->page1_), this->channel_, (int) error, length);
+    print_buffer(data, length);
+#endif
   } else {  // error
     this->comp_->status_set_warning();
     ESP_LOGE(TAG, "WKBaseRegister::write_fifo() @%02X r=%s, ch=%d b=%02X, I2C_code:%d", comp_i2c->address_,

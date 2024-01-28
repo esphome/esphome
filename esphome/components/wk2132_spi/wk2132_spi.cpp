@@ -46,16 +46,33 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 /// Convert std::string to C string
 #define I2CS(val) (i2s(val).c_str())
 
+/// @brief Display a buffer in hexadecimal format (32 hex values / line).
+void print_buffer(const uint8_t *data, size_t length) {
+  char hex_buffer[100];
+  hex_buffer[(3 * 32) + 1] = 0;
+  for (size_t i = 0; i < length; i++) {
+    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
+    if (i % 32 == 31)
+      ESP_LOGVV(TAG, "   %s", hex_buffer);
+  }
+  if (length % 32) {
+    // null terminate if incomplete line
+    hex_buffer[3 * (length % 32) + 2] = 0;
+    ESP_LOGVV(TAG, "   %s", hex_buffer);
+  }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // The WK2132Reg methods
 ///////////////////////////////////////////////////////////////////////////////
 uint8_t WK2132RegisterSPI::read_reg() const {
   auto *spi_delegate = static_cast<WK2132ComponentSPI *>(this->comp_)->delegate_;
-  uint8_t buf[2]{cmd_byte(READ_CMD, REG, this->register_, this->channel_)};
+  uint8_t cmd = cmd_byte(READ_CMD, REG, this->register_, this->channel_);
+  uint8_t buf[2]{cmd, 0};
   spi_delegate->begin_transaction();
   spi_delegate->transfer(buf, 2);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "Register::read_reg() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(buf[0]), buf[0],
+  ESP_LOGVV(TAG, "Register::read_reg() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(cmd), cmd,
             reg_to_str(this->register_, this->comp_->page1()), this->register_, this->channel_, buf[1]);
   return buf[1];
 }
@@ -63,19 +80,23 @@ uint8_t WK2132RegisterSPI::read_reg() const {
 void WK2132RegisterSPI::read_fifo(uint8_t *data, size_t length) const {
   auto *spi_delegate = static_cast<WK2132ComponentSPI *>(this->comp_)->delegate_;
   uint8_t cmd = cmd_byte(READ_CMD, FIFO, this->register_, this->channel_);
+  uint8_t buf[2]{cmd, 0};
   spi_delegate->begin_transaction();
-  spi_delegate->transfer(&cmd, 1);
+  spi_delegate->transfer(buf, 1);
   spi_delegate->transfer(data, length);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%s", I2CS(cmd), cmd, this->channel_,
-            format_hex_pretty(data, length).c_str());
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d length=%d buffer", I2CS(cmd), cmd, this->channel_, length);
+  print_buffer(data, length);
+#endif
 }
 
 void WK2132RegisterSPI::write_reg(uint8_t value) {
   auto *spi_delegate = static_cast<WK2132ComponentSPI *>(this->comp_)->delegate_;
   uint8_t buf[2]{cmd_byte(WRITE_CMD, REG, this->register_, this->channel_), value};
+  uint8_t rbuf[2];
   spi_delegate->begin_transaction();
-  spi_delegate->transfer(buf, 2);
+  spi_delegate->transfer(buf, rbuf, 2);
   spi_delegate->end_transaction();
   ESP_LOGVV(TAG, "Register::write_reg() cmd=%s(%02X) reg=%s(%02X) ch=%d buf=%02X", I2CS(buf[0]), buf[0],
             reg_to_str(this->register_, this->comp_->page1()), this->register_, this->channel_, value);
@@ -84,12 +105,17 @@ void WK2132RegisterSPI::write_reg(uint8_t value) {
 void WK2132RegisterSPI::write_fifo(uint8_t *data, size_t length) {
   auto *spi_delegate = static_cast<WK2132ComponentSPI *>(this->comp_)->delegate_;
   uint8_t cmd = cmd_byte(WRITE_CMD, FIFO, this->register_, this->channel_);
+  uint8_t save = cmd;
+  uint8_t rbuf[length];
   spi_delegate->begin_transaction();
   spi_delegate->transfer(&cmd, 1);
-  spi_delegate->transfer(data, length);
+  spi_delegate->transfer(data, rbuf, length);
   spi_delegate->end_transaction();
-  ESP_LOGVV(TAG, "Register::read_fifo() cmd=%s(%02X) ch=%d buf=%s", I2CS(cmd), cmd, this->channel_,
-            format_hex_pretty(data, length).c_str());
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+  ESP_LOGVV(TAG, "Register::write_fifo() cmd=%s(%02X) ch=%d length=%d buffer", I2CS(save), save, this->channel_,
+            length);
+  print_buffer(data, length);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
