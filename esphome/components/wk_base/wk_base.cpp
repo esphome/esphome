@@ -214,6 +214,11 @@ void WKBaseChannel::set_line_param_() {
 }
 
 void WKBaseChannel::set_baudrate_() {
+  if (this->baud_rate_ > this->parent_->crystal_ / 16) {
+    baud_rate_ = this->parent_->crystal_ / 16;
+    ESP_LOGE(TAG, " Requested baudrate too high for crystal %d was reduced to %d Bd", this->parent_->crystal_,
+             this->baud_rate_);
+  };
   uint16_t const val_int = this->parent_->crystal_ / (this->baud_rate_ * 16) - 1;
   uint16_t val_dec = (this->parent_->crystal_ % (this->baud_rate_ * 16)) / (this->baud_rate_ * 16);
   uint8_t const baud_high = (uint8_t) (val_int >> 8);
