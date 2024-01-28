@@ -113,9 +113,10 @@ void WK2168RegSPI::write_reg(uint8_t value) {
 void WK2168RegSPI::write_fifo(uint8_t *data, size_t length) {
   auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
   uint8_t cmd = cmd_byte(WRITE_CMD, FIFO, this->register_, this->channel_);
+  uint8_t rbuf[length];
   spi_delegate->begin_transaction();
   spi_delegate->transfer(&cmd, 1);
-  spi_delegate->transfer(data, length);
+  spi_delegate->transfer(data, rbuf, length);
   spi_delegate->end_transaction();
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   cmd = cmd_byte(READ_CMD, FIFO, this->register_, this->channel_);
