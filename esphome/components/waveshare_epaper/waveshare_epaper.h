@@ -675,7 +675,7 @@ class WaveshareEPaper2P13InDKE : public WaveshareEPaperBW {
   uint32_t at_update_{0};
 };
 
-class WaveshareEPaper2P13InV3 : public WaveshareEPaper {
+class WaveshareEPaper2P13InV3 : public WaveshareEPaperBW {
  public:
   void display() override;
 
