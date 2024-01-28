@@ -32,7 +32,7 @@ def set_core_data(config):
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_MAC_ADDR, default="98:35:69:175:179:221"): cv.mac_address,
+            cv.Optional(CONF_MAC_ADDR, default="98:35:69:ab:f6:79"): cv.mac_address,
         }
     ),
     set_core_data,
