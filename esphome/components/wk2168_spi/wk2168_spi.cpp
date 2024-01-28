@@ -3,7 +3,6 @@
 /// @brief wk2168 classes implementation
 
 #include "wk2168_spi.h"
-// #include "esphome/components/wk2168/wk2168.h"
 
 namespace esphome {
 namespace wk2168_spi {
@@ -55,6 +54,22 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 /// Convert std::string to C string
 #define I2CS(val) (i2s(val).c_str())
 
+/// @brief Display a buffer in hexadecimal format (32 hex values / line).
+void print_buffer(const uint8_t *data, size_t length) {
+  char hex_buffer[100];
+  hex_buffer[(3 * 32) + 1] = 0;
+  for (size_t i = 0; i < length; i++) {
+    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
+    if (i % 32 == 31)
+      ESP_LOGVV(TAG, "   %s", hex_buffer);
+  }
+  if (length % 32) {
+    // null terminate if incomplete line
+    hex_buffer[3 * (length % 32) + 2] = 0;
+    ESP_LOGVV(TAG, "   %s", hex_buffer);
+  }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // The WK2168Reg methods
 ///////////////////////////////////////////////////////////////////////////////
@@ -78,8 +93,8 @@ void WK2168RegSPI::read_fifo(uint8_t *data, size_t length) const {
   spi_delegate->transfer(data, length);
   spi_delegate->end_transaction();
   cmd = cmd_byte(READ_CMD, FIFO, this->register_, this->channel_);
-  ESP_LOGVV(TAG, "WK2168RegSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buf=%s", I2CS(cmd), cmd, this->channel_, length,
-            format_hex_pretty(data, length).c_str());
+  ESP_LOGVV(TAG, "WK2168RegSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2CS(cmd), cmd, this->channel_, length);
+  print_buffer(data, length);
 }
 
 void WK2168RegSPI::write_reg(uint8_t value) {
@@ -101,8 +116,8 @@ void WK2168RegSPI::write_fifo(uint8_t *data, size_t length) {
   spi_delegate->transfer(data, length);
   spi_delegate->end_transaction();
   cmd = cmd_byte(READ_CMD, FIFO, this->register_, this->channel_);
-  ESP_LOGVV(TAG, "WK2168RegSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buf=%s", I2CS(cmd), cmd, this->channel_, length,
-            format_hex_pretty(data, length).c_str());
+  ESP_LOGVV(TAG, "WK2168RegSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2CS(cmd), cmd, this->channel_, length);
+  print_buffer(data, length);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
