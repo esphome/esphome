@@ -71,6 +71,18 @@ class TextRun : public TextRunBase, public FormattableTextRun {
   TemplatableValue<std::string> text_{};
 };
 
+class ParagraphBreakTextRun : public TextRunBase {
+ public:
+  ParagraphBreakTextRun(size_t breaks, display::BaseFont *font) : TextRunBase(font) {
+    this->text_.append(breaks, '\n');
+  }
+
+  std::string get_text() override { return this->text_; }
+
+ protected:
+  std::string text_{""};
+};
+
 class SensorTextRun : public TextRunBase, public FormattableTextRun {
  public:
   SensorTextRun(sensor::Sensor *sensor, display::BaseFont *font) : TextRunBase(font) { this->sensor_ = sensor; }

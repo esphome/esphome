@@ -18,6 +18,7 @@ TextRun = graphical_layout_ns.class_("TextRun", TextRunBase)
 SensorTextRun = graphical_layout_ns.class_("SensorTextRun", TextRunBase)
 TextSensorTextRun = graphical_layout_ns.class_("TextSensorTextRun", TextRunBase)
 TimeTextRun = graphical_layout_ns.class_("TimeTextRun", TextRunBase)
+ParagraphBreakTextRun = graphical_layout_ns.class_("ParagraphBreakTextRun", TextRunBase)
 CanWrapAtCharacterArguments = graphical_layout_ns.struct("CanWrapAtCharacterArguments")
 CanWrapAtCharacterArgumentsConstRef = CanWrapAtCharacterArguments.operator(
     "const"
@@ -37,6 +38,7 @@ CONF_TEXT_FORMATTER = "text_formatter"
 CONF_TIME_FORMAT = "time_format"
 CONF_USE_UTC_TIME = "use_utc_time"
 CONF_DRAW_PARTIAL_LINES = "draw_partial_lines"
+CONF_PARAGRAPH_BREAK = "paragraph_break"
 
 TEXT_ALIGN = {
     "TOP_LEFT": TextAlign.TOP_LEFT,
@@ -95,11 +97,19 @@ TIME_TEXT_RUN_SCHEMA = BASE_RUN_SCHEMA.extend(
     }
 )
 
+PARAGRAPH_BREAK_TEXT_RUN_SCHEMA = BASE_RUN_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(ParagraphBreakTextRun),
+        cv.Optional(CONF_PARAGRAPH_BREAK, default=1): cv.int_range(min=1),
+    }
+)
+
 RUN_SCHEMA = cv.Any(
     SENSOR_TEXT_RUN_SCHEMA,
     TEXT_RUN_SCHEMA,
     TEXT_SENSOR_TEXT_RUN_SCHEMA,
     TIME_TEXT_RUN_SCHEMA,
+    PARAGRAPH_BREAK_TEXT_RUN_SCHEMA,
 )
 
 
@@ -164,6 +174,10 @@ async def config_to_layout_item(pvariable_builder, item_config, child_item_build
             use_utc_time = run_config[CONF_USE_UTC_TIME]
             run = cg.new_Pvariable(
                 run_config[CONF_ID], time_sens, time_format, use_utc_time, run_font
+            )
+        elif paragraph_break_config := run_config.get(CONF_PARAGRAPH_BREAK):
+            run = cg.new_Pvariable(
+                run_config[CONF_ID], paragraph_break_config, run_font
             )
         else:
             run_text = await cg.templatable(
