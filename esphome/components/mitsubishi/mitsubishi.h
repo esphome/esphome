@@ -19,15 +19,6 @@ enum SetFanMode {
   //  MITSUBISHI_FAN_5L,      // 5 levels + auto
 };
 
-// Supported Supported mode
-enum SetSupportedMode {
-  MITSUBISHI_OP_MODE_AC = -1,    // Auto + Cool
-  MITSUBISHI_OP_MODE_AH = 0,     // Auto + Heat
-  MITSUBISHI_OP_MODE_AHC = 1,    // Auto + Heat + Cool
-  MITSUBISHI_OP_MODE_ADHC = 2,   // Auto + Dry + Heat + Cool
-  MITSUBISHI_OP_MODE_ADFHC = 3,  // Auto + Dry + Fan + Heat + Cool
-};
-
 // Enum to represent horizontal directios
 enum HorizontalDirection {
   HORIZONTAL_DIRECTION_LEFT = 0x10,
@@ -65,7 +56,6 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
 
   void set_fan_mode(SetFanMode fan_mode) { this->fan_mode_ = fan_mode; }
-  void set_supported_mode(SetSupportedMode mode) { this->supported_mode_ = mode; }
 
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
     this->default_horizontal_direction_ = horizontal_direction;
@@ -82,7 +72,6 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   bool parse_state_frame_(const uint8_t frame[]);
 
   SetFanMode fan_mode_;
-  SetSupportedMode supported_mode_;
 
   HorizontalDirection default_horizontal_direction_;
   VerticalDirection default_vertical_direction_;
