@@ -13,7 +13,6 @@ void TemplateDatetime::setup() {
 
   std::string state{};
 
-  ESP_LOGD("maydebug", "loading initial value");
   state = this->initial_value_;
   has_date = HAS_DATETIME_STRING_DATE_ONLY(initial_value_) || HAS_DATETIME_STRING_DATE_AND_TIME(initial_value_);
   has_time = HAS_DATETIME_STRING_TIME_ONLY(initial_value_) || HAS_DATETIME_STRING_DATE_AND_TIME(initial_value_);
@@ -26,25 +25,15 @@ void TemplateDatetime::setup() {
     char temp[SZ];
     this->pref_ = global_preferences->make_preference<uint8_t[SZ]>(194434030U ^ this->get_object_id_hash());
     if (this->pref_.load(&temp)) {
-      state.assign(temp + 1, temp[SZ]);
+      state.assign(temp + 1, temp[0]);
     } else {
       ESP_LOGE(TAG, "'%s' - Could not load stored value!", this->get_name().c_str());
     }
-
-    // this->pref_ = global_preferences->make_preference<TemplateDatetimeRTCValue>(this->get_object_id_hash());
-    // if (!this->pref_.load(&recovered)) {
-    //   ESP_LOGD("maydebug", "loading saved value");
-
-    //   // recovered.value = this->initial_value_;
-    //   recovered.value = ESPTime{0};  // fix this!!! parse time from string
-    //   recovered.has_date = this->has_date;
-    //   recovered.has_time = this->has_time;
   }
   this->publish_state(state);  // fix me!!!!!!!!!!!!!!
 }
 
 void TemplateDatetime::update() {
-  ESP_LOGD(TAG, "Update");
   if (!this->f_.has_value())
     return;
 
@@ -68,15 +57,12 @@ void TemplateDatetime::control(std::string value) {
     this->publish_state(value);
 
   if (this->restore_value_) {
-    ESP_LOGE("mydebug", "saving pref");
-
     unsigned char temp[SZ];
     int size = this->state.size();
+    ESP_LOGD("mydebug", "value size: %d", size);
     memcpy(temp + 1, this->state.c_str(), size);
-    // SZ should be pre checked at the schema level, it can't go past the char range.
     temp[0] = ((unsigned char) size);
     this->pref_.save(&temp);
-    this->pref_.save(this->state.c_str());
   }
 }
 
