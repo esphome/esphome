@@ -19,21 +19,22 @@ namespace qspi_amoled {
 constexpr static const char *const TAG = "display.qspi_amoled";
 static const uint8_t SW_RESET_CMD = 0x01;
 static const uint8_t SLEEP_OUT = 0x11;
-static const uint8_t MADCTL_CMD = 0x36;
 static const uint8_t INVERT_OFF = 0x20;
 static const uint8_t INVERT_ON = 0x21;
+static const uint8_t ALL_ON = 0x23;
+static const uint8_t WRAM = 0x24;
+static const uint8_t MIPI = 0x26;
 static const uint8_t DISPLAY_ON = 0x29;
-static const uint8_t PIXFMT = 0x3A;
-static const uint8_t BRIGHTNESS = 0x51;
 static const uint8_t RASET = 0x2B;
 static const uint8_t CASET = 0x2A;
 static const uint8_t WDATA = 0x2C;
-static const uint8_t PAGESEL = 0xFE;
-static const uint8_t MIPI = 0x26;
-static const uint8_t WRAM = 0x24;
+static const uint8_t TEON = 0x35;
+static const uint8_t MADCTL_CMD = 0x36;
+static const uint8_t PIXFMT = 0x3A;
+static const uint8_t BRIGHTNESS = 0x51;
 static const uint8_t SWIRE1 = 0x5A;
 static const uint8_t SWIRE2 = 0x5B;
-static const uint8_t TEON = 0x35;
+static const uint8_t PAGESEL = 0xFE;
 
 static const uint8_t MADCTL_MY = 0x80;   ///< Bit 7 Bottom to top
 static const uint8_t MADCTL_MX = 0x40;   ///< Bit 6 Right to left
@@ -267,7 +268,7 @@ class QspiAmoLed : public display::DisplayBuffer,
     } else {
       this->write_cmd_addr_data(8, 0x32, 24, 0x2C00, nullptr, 0, 4);
       auto stride = x_offset + w + x_pad;
-      for (size_t y = 0; y != h; y++) {
+      for (int y = 0; y != h; y++) {
         this->write_cmd_addr_data(0, 0, 0, 0, ptr + ((y + y_offset) * stride + x_offset) * 2, w * 2, 4);
       }
     }
