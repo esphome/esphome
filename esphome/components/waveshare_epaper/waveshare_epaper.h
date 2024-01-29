@@ -50,7 +50,7 @@ class WaveshareEPaper : public display::DisplayBuffer,
 
   virtual int get_width_controller() { return this->get_width_internal(); };
 
-  virtual uint32_t get_buffer_length_() = 0;  // NOLINT
+  virtual uint32_t get_buffer_length_() = 0;
   uint32_t reset_duration_{200};
 
   void start_command_();
