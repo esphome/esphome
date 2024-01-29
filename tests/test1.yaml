@@ -863,6 +863,13 @@ sensor:
     oversampling: 8x
     update_interval: 15s
     i2c_id: i2c_bus
+  - platform: honeywell_hih_i2c
+    temperature:
+      name: Living Room Temperature 7
+    humidity:
+      name: Living Room Humidity 7
+    update_interval: 15s
+    i2c_id: i2c_bus
   - platform: honeywellabp
     pressure:
       name: Honeywell pressure
@@ -964,7 +971,8 @@ sensor:
       name: Internal Ttemperature
     update_interval: 15s
     i2c_id: i2c_bus
-  - platform: kalman_combinator
+  - platform: combination
+    type: kalman
     name: Kalman-filtered temperature
     process_std_dev: 0.00139
     sources:
@@ -973,6 +981,57 @@ sensor:
           return 0.4 + std::abs(x - 25) * 0.023;
       - source: scd4x_temperature
         error: 1.5
+  - platform: combination
+    type: linear
+    name: Linearly combined temperatures
+    sources:
+      - source: scd30_temperature
+        coeffecient: !lambda |-
+          return 0.4 + std::abs(x - 25) * 0.023;
+      - source: scd4x_temperature
+        coeffecient: 1.5
+  - platform: combination
+    type: max
+    name: Max of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: mean
+    name: Mean of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: median
+    name: Median of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: min
+    name: Min of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: most_recently_updated
+    name: Most recently updated of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: range
+    name: Range of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: sum
+    name: Sum of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
   - platform: htu21d
     temperature:
       name: Living Room Temperature 6
@@ -1370,6 +1429,16 @@ sensor:
       name: tsl2591 calculated_lux
       id: tsl2591_cl
     i2c_id: i2c_bus
+  - platform: veml3235
+    id: veml3235_sensor
+    name: VEML3235 Light Sensor
+    i2c_id: i2c_bus
+    auto_gain: true
+    auto_gain_threshold_high: 90%
+    auto_gain_threshold_low: 15%
+    digital_gain: 1X
+    gain: 1X
+    integration_time: 50ms
   - platform: tee501
     name: Office Temperature 3
     address: 0x48
@@ -2028,6 +2097,18 @@ binary_sensor:
   - platform: dfrobot_sen0395
     id: mmwave_detected_uart
     dfrobot_sen0395_id: mmwave
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    ndef_contains: pulse
+    name: MFC Tag 1
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    tag_id: pulse
+    name: MFC Tag 2
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    uid: 59-FC-AB-15
+    name: MFC Tag 3
 
 pca9685:
   frequency: 500
@@ -3453,6 +3534,7 @@ pn532_i2c:
   i2c_id: i2c_bus
 
 pn7150_i2c:
+  id: nfcc_pn7150_i2c
   i2c_id: i2c_bus
   irq_pin:
     allow_other_uses: true
