@@ -61,7 +61,7 @@ bool ListEntitiesIterator::on_number(number::Number *number) { return this->clie
 #endif
 
 #ifdef USE_NUMBER
-bool ListEntitiesIterator::on_input_datetime(input_datetime::InputDatetime *input_datetime) { return true; }
+bool ListEntitiesIterator::on_datetime(datetime::Datetime *datetime) { return true; }
 #endif
 
 #ifdef USE_TEXT

@@ -5,7 +5,7 @@
 #include <regex>
 
 namespace esphome {
-namespace input_datetime {
+namespace datetime {
 
 #define HAS_DATETIME_STRING_DATE_ONLY(value) std::regex_match(value, std::regex(R"(^\d{4}-\d{2}-\d{2}$)"))
 #define HAS_DATETIME_STRING_TIME_ONLY(value) std::regex_match(value, std::regex(R"(^\d{2}:\d{2}(:\d{2})?$)"))
@@ -20,31 +20,31 @@ struct ESPDatetime {
   bool has_time;
 };
 
-class InputDatetime;
+class Datetime;
 
-enum InputDatetimeOperation {
-  INPUT_DATETIME_OP_NONE,
-  INPUT_DATETIME_OP_SET_VALUE,
-  INPUT_DATETIME_OP_SET_HAS_DATE,
-  INPUT_DATETIME_OP_SET_HAS_TIME,
+enum DatetimeOperation {
+  DATETIME_OP_NONE,
+  DATETIME_OP_SET_VALUE,
+  DATETIME_OP_SET_HAS_DATE,
+  DATETIME_OP_SET_HAS_TIME,
 };
 
-class InputDatetimeCall {
+class DatetimeCall {
  public:
-  explicit InputDatetimeCall(InputDatetime *parent) : parent_(parent) {}
+  explicit DatetimeCall(Datetime *parent) : parent_(parent) {}
   void perform();
-  InputDatetimeCall &set_value(const std::string value);
+  DatetimeCall &set_value(const std::string value);
 
-  InputDatetimeCall &with_operation(InputDatetimeOperation operation);
-  InputDatetimeCall &with_value(std::string value);
+  DatetimeCall &with_operation(DatetimeOperation operation);
+  DatetimeCall &with_value(std::string value);
 
  protected:
-  InputDatetime *const parent_;
-  InputDatetimeOperation operation_{INPUT_DATETIME_OP_NONE};
+  Datetime *const parent_;
+  DatetimeOperation operation_{DATETIME_OP_NONE};
   optional<std::string> value_;
 
   bool validate_datetime_string(std::string value);
 };
 
-}  // namespace input_datetime
+}  // namespace datetime
 }  // namespace esphome

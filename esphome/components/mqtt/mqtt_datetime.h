@@ -3,21 +3,21 @@
 #include "esphome/core/defines.h"
 
 #ifdef USE_MQTT
-#ifdef USE_INPUT_DATETIME
+#ifdef USE_DATETIME
 
-#include "esphome/components/input_datetime/input_datetime.h"
+#include "esphome/components/datetime/datetime.h"
 #include "mqtt_component.h"
 
 namespace esphome {
 namespace mqtt {
 
-class MQTTInputDatetimeComponent : public mqtt::MQTTComponent {
+class MQTTDatetimeComponent : public mqtt::MQTTComponent {
  public:
-  /** Construct this MQTTInputDatetimeComponent instance with the provided friendly_name and input_datetime
+  /** Construct this MQTTDatetimeComponent instance with the provided friendly_name and datetime
    *
-   * @param input_datetime The input_datetime component.
+   * @param datetime The datetime component.
    */
-  explicit MQTTInputDatetimeComponent(input_datetime::InputDatetime *input_datetime);
+  explicit MQTTDatetimeComponent(datetime::Datetime *datetime);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -36,7 +36,7 @@ class MQTTInputDatetimeComponent : public mqtt::MQTTComponent {
   std::string component_type() const override;
   const EntityBase *get_entity() const override;
 
-  input_datetime::InputDatetime *input_datetime_;
+  datetime::Datetime *datetime_;
 };
 
 }  // namespace mqtt

@@ -42,8 +42,8 @@ bool InitialStateIterator::on_number(number::Number *number) {
   return this->client_->send_number_state(number, number->state);
 }
 #endif
-#ifdef USE_INPUT_DATETIME
-bool InitialStateIterator::on_input_datetime(input_datetime::InputDatetime *input_datetime) {
+#ifdef USE_DATETIME
+bool InitialStateIterator::on_datetime(datetime::Datetime *datetime) {
   return true;  // Just to get it working!
 }
 #endif

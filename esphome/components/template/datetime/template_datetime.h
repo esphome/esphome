@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/input_datetime/input_datetime.h"
+#include "esphome/components/datetime/datetime.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
@@ -8,13 +8,13 @@
 namespace esphome {
 namespace template_ {
 
-struct TemplateInputDatetimeRTCValue {
+struct TemplateDatetimeRTCValue {
   ESPTime value;
   bool has_date{false};
   bool has_time{false};
 };
 
-class TemplateInputDatetime : public input_datetime::InputDatetime, public PollingComponent {
+class TemplateDatetime : public datetime::Datetime, public PollingComponent {
  public:
   void set_template(std::function<optional<std::string>()> &&f) { this->f_ = f; }
 

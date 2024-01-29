@@ -1,13 +1,13 @@
-#include "template_input_datetime.h"
+#include "template_datetime.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace template_ {
 
-static const char *const TAG = "template.input_datetime";
+static const char *const TAG = "template.datetime";
 static const uint8_t SZ = 20;
 
-void TemplateInputDatetime::setup() {
+void TemplateDatetime::setup() {
   if (this->f_.has_value())
     return;
 
@@ -31,7 +31,7 @@ void TemplateInputDatetime::setup() {
       ESP_LOGE(TAG, "'%s' - Could not load stored value!", this->get_name().c_str());
     }
 
-    // this->pref_ = global_preferences->make_preference<TemplateInputDatetimeRTCValue>(this->get_object_id_hash());
+    // this->pref_ = global_preferences->make_preference<TemplateDatetimeRTCValue>(this->get_object_id_hash());
     // if (!this->pref_.load(&recovered)) {
     //   ESP_LOGD("maydebug", "loading saved value");
 
@@ -43,7 +43,7 @@ void TemplateInputDatetime::setup() {
   this->publish_state(state);  // fix me!!!!!!!!!!!!!!
 }
 
-void TemplateInputDatetime::update() {
+void TemplateDatetime::update() {
   ESP_LOGD(TAG, "Update");
   if (!this->f_.has_value())
     return;
@@ -63,7 +63,7 @@ void TemplateInputDatetime::update() {
   this->publish_state(state);
 }
 
-void TemplateInputDatetime::control(std::string value) {
+void TemplateDatetime::control(std::string value) {
   if (this->optimistic_)
     this->publish_state(value);
 
@@ -80,8 +80,8 @@ void TemplateInputDatetime::control(std::string value) {
   }
 }
 
-void TemplateInputDatetime::dump_config() {
-  LOG_INPUT_DATETIME("", "Template Input_Datetime", this);
+void TemplateDatetime::dump_config() {
+  LOG_DATETIME("", "Template Input_Datetime", this);
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
   LOG_UPDATE_INTERVAL(this);
 }

@@ -6,16 +6,16 @@
 #include "esphome/core/entity_base.h"
 
 #include "esphome/components/time/real_time_clock.h"
-#include "input_datetime_call.h"
-#include "input_datetime_traits.h"
+#include "datetime_call.h"
+#include "datetime_traits.h"
 
 #include <vector>
 #include <regex>
 
 namespace esphome {
-namespace input_datetime {
+namespace datetime {
 
-#define LOG_INPUT_DATETIME(prefix, type, obj) \
+#define LOG_DATETIME(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
     if (!(obj)->get_icon().empty()) { \
@@ -31,11 +31,11 @@ namespace input_datetime {
 
 // std::regex time_regex(R"(^(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(:\d{2})?)?|\d{2}:\d{2}(:\d{2})?)$)");
 
-class InputDatetimeTimeTrigger;
+class DatetimeTimeTrigger;
 
-class InputDatetime : public EntityBase {
+class Datetime : public EntityBase {
  public:
-  explicit InputDatetime();
+  explicit Datetime();
 
  public:
   ESPTime state_as_time;
@@ -45,24 +45,24 @@ class InputDatetime : public EntityBase {
 
   void publish_state(std::string state);
 
-  InputDatetimeCall make_call() { return InputDatetimeCall(this); }
+  DatetimeCall make_call() { return DatetimeCall(this); }
 
   void add_on_state_callback(std::function<void(std::string)> &&callback);
 
-  InputDatetimeTraits traits;
+  DatetimeTraits traits;
 
-  /// Return whether this inputDatetime has gotten a full state yet.
+  /// Return whether this Datetime has gotten a full state yet.
   bool has_state() const { return has_state_; }
 
  protected:
-  friend class InputDatetimeCall;
-  friend class InputDatetimeTimeTrigger;
+  friend class DatetimeCall;
+  friend class DatetimeTimeTrigger;
 
-  /** Set the value of the inputDatetime, this is a virtual method that each number integration must implement.
+  /** Set the value of the Datetime, this is a virtual method that each number integration must implement.
    *
-   * This method is called by the InputDatetimeCall.
+   * This method is called by the DatetimeCall.
    *
-   * @param value The value as validated by the InputDatetimeCall.
+   * @param value The value as validated by the DatetimeCall.
    */
   virtual void control(std::string) = 0;
 
@@ -70,23 +70,23 @@ class InputDatetime : public EntityBase {
   bool has_state_{false};
 };
 
-template<typename... Ts> class InputDatetimeHasTimeCondition : public Condition<Ts...> {
+template<typename... Ts> class DatetimeHasTimeCondition : public Condition<Ts...> {
  public:
-  InputDatetimeHasTimeCondition(InputDatetime *parent) : parent_(parent) {}
+  DatetimeHasTimeCondition(Datetime *parent) : parent_(parent) {}
   bool check(Ts... x) override { return this->parent_->has_state() && this->parent_->has_time; }
 
  protected:
-  InputDatetime *parent_;
+  Datetime *parent_;
 };
 
-template<typename... Ts> class InputDatetimeHasDateCondition : public Condition<Ts...> {
+template<typename... Ts> class DatetimeHasDateCondition : public Condition<Ts...> {
  public:
-  InputDatetimeHasDateCondition(InputDatetime *parent) : parent_(parent) {}
+  DatetimeHasDateCondition(Datetime *parent) : parent_(parent) {}
   bool check(Ts... x) override { return this->parent_->has_state() && this->parent_->has_date; }
 
  protected:
-  InputDatetime *parent_;
+  Datetime *parent_;
 };
 
-}  // namespace input_datetime
+}  // namespace datetime
 }  // namespace esphome

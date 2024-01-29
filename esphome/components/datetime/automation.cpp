@@ -3,41 +3,37 @@
 #include "automation.h"
 
 namespace esphome {
-namespace input_datetime {
+namespace datetime {
 
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
                                              // there has been a drastic time synchronization
 
-bool InputDatetimeOnTimeTrigger::matches(const ESPTime &time) {
-  if (!time.is_valid() || (!this->inputDatetime_->has_date && !this->inputDatetime_->has_time))
+bool DatetimeOnTimeTrigger::matches(const ESPTime &time) {
+  if (!time.is_valid() || (!this->Datetime_->has_date && !this->Datetime_->has_time))
     return false;
 
-  if (!this->inputDatetime_->has_date && time.hour == this->inputDatetime_->state_as_time.hour &&
-      time.minute == this->inputDatetime_->state_as_time.minute &&
-      time.second == this->inputDatetime_->state_as_time.second) {
+  if (!this->Datetime_->has_date && time.hour == this->Datetime_->state_as_time.hour &&
+      time.minute == this->Datetime_->state_as_time.minute && time.second == this->Datetime_->state_as_time.second) {
     return true;
   }
 
-  if (!this->inputDatetime_->has_time && time.year == this->inputDatetime_->state_as_time.year &&
-      time.day_of_month == this->inputDatetime_->state_as_time.day_of_month &&
-      time.month == this->inputDatetime_->state_as_time.month) {
+  if (!this->Datetime_->has_time && time.year == this->Datetime_->state_as_time.year &&
+      time.day_of_month == this->Datetime_->state_as_time.day_of_month &&
+      time.month == this->Datetime_->state_as_time.month) {
     return true;
   }
 
-  if (this->inputDatetime_->has_time && this->inputDatetime_->has_date &&
-      time.year == this->inputDatetime_->state_as_time.year &&
-      time.day_of_month == this->inputDatetime_->state_as_time.day_of_month &&
-      time.month == this->inputDatetime_->state_as_time.month &&
-      time.hour == this->inputDatetime_->state_as_time.hour &&
-      time.minute == this->inputDatetime_->state_as_time.minute &&
-      time.second == this->inputDatetime_->state_as_time.second) {
+  if (this->Datetime_->has_time && this->Datetime_->has_date && time.year == this->Datetime_->state_as_time.year &&
+      time.day_of_month == this->Datetime_->state_as_time.day_of_month &&
+      time.month == this->Datetime_->state_as_time.month && time.hour == this->Datetime_->state_as_time.hour &&
+      time.minute == this->Datetime_->state_as_time.minute && time.second == this->Datetime_->state_as_time.second) {
     return true;
   }
 
   return false;
 }
 
-void InputDatetimeOnTimeTrigger::loop() {
+void DatetimeOnTimeTrigger::loop() {
   ESPTime time = this->rtc_->now();
   if (!time.is_valid())
     return;
@@ -78,7 +74,7 @@ void InputDatetimeOnTimeTrigger::loop() {
     this->trigger();
 }
 
-float InputDatetimeOnTimeTrigger::get_setup_priority() const { return setup_priority::HARDWARE; }
+float DatetimeOnTimeTrigger::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace input_datetime
+}  // namespace datetime
 }  // namespace esphome

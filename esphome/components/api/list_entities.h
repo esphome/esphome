@@ -46,8 +46,8 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_NUMBER
   bool on_number(number::Number *number) override;
 #endif
-#ifdef USE_INPUT_DATETIME
-  bool on_input_datetime(input_datetime::InputDatetime *input_datetime) override;
+#ifdef USE_DATETIME
+  bool on_datetime(datetime::Datetime *datetime) override;
 #endif
 #ifdef USE_TEXT
   bool on_text(text::Text *text) override;

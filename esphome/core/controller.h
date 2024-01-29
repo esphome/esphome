@@ -31,8 +31,8 @@
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
-#ifdef USE_INPUT_DATETIME
-#include "esphome/components/input_datetime/input_datetime.h"
+#ifdef USE_DATETIME
+#include "esphome/components/datetime/datetime.h"
 #endif
 #ifdef USE_TEXT
 #include "esphome/components/text/text.h"
@@ -82,8 +82,8 @@ class Controller {
 #ifdef USE_NUMBER
   virtual void on_number_update(number::Number *obj, float state){};
 #endif
-#ifdef USE_INPUT_DATETIME
-  virtual void on_input_datetime_update(input_datetime::InputDatetime *obj, std::string state){};
+#ifdef USE_DATETIME
+  virtual void on_datetime_update(datetime::Datetime *obj, std::string state){};
 #endif
 #ifdef USE_TEXT
   virtual void on_text_update(text::Text *obj, const std::string &state){};

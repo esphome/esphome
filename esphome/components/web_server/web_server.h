@@ -221,13 +221,13 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string number_json(number::Number *obj, float value, JsonDetail start_config);
 #endif
 
-#ifdef USE_INPUT_DATETIME
-  void on_input_datetime_update(input_datetime::InputDatetime *obj, std::string state) override;
-  /// Handle a input_datetime request under '/input_datetime/<id>'.
-  void handle_input_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match);
+#ifdef USE_DATETIME
+  void on_datetime_update(datetime::Datetime *obj, std::string state) override;
+  /// Handle a datetime request under '/datetime/<id>'.
+  void handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  /// Dump the input_datetime state with its value as a JSON string.
-  std::string input_datetime_json(input_datetime::InputDatetime *obj, std::string value, JsonDetail start_config);
+  /// Dump the datetime state with its value as a JSON string.
+  std::string datetime_json(datetime::Datetime *obj, std::string value, JsonDetail start_config);
 #endif
 
 #ifdef USE_TEXT
