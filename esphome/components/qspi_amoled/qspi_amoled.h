@@ -48,13 +48,13 @@ static inline void put16_be(uint8_t *buf, uint16_t value) {
 }
 
 enum Model {
-  T4_S3,
-  T_DISP_AMOLED,
+  RM690B0,
+  RM67162,
 };
 
 class QspiAmoLed : public display::DisplayBuffer,
-                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                          spi::DATA_RATE_1MHZ> {
+                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                         spi::DATA_RATE_1MHZ> {
  public:
   void set_model(Model model) { this->model_ = model; }
   void update() override {
@@ -214,7 +214,7 @@ class QspiAmoLed : public display::DisplayBuffer,
   }
 
   void write_init_sequence_() {
-    if (this->model_ == T4_S3) {
+    if (this->model_ == RM690B0) {
       this->write_command_(PAGESEL, 0x20);
       this->write_command_(MIPI, 0x0A);
       this->write_command_(WRAM, 0x80);
@@ -235,11 +235,15 @@ class QspiAmoLed : public display::DisplayBuffer,
 
   void set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
     uint8_t buf[4];
-    put16_be(buf, x1 + this->offset_x_);
-    put16_be(buf + 2, x2 + this->offset_x_);
+    x1 += this->offset_x_;
+    x2 += this->offset_x_;
+    y1 += this->offset_y_;
+    y2 += this->offset_y_;
+    put16_be(buf, x1);
+    put16_be(buf + 2, x2);
     this->write_command_(CASET, buf, sizeof buf);
-    put16_be(buf, y1 + this->offset_y_);
-    put16_be(buf + 2, y2 + this->offset_y_);
+    put16_be(buf, y1);
+    put16_be(buf + 2, y2);
     this->write_command_(RASET, buf, sizeof buf);
   }
 
@@ -254,23 +258,22 @@ class QspiAmoLed : public display::DisplayBuffer,
       return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset,
                                               y_offset, x_pad);
     }
-    set_addr_window_(x_start, y_start, x_start + w - 1, y_start + h - 1);
+    this->set_addr_window_(x_start, y_start, x_start + w - 1, y_start + h - 1);
     this->enable();
-    this->write_cmd_addr_data(8, 0x32, 24, 0x2C00, nullptr, 0, 1);
-    size_t pos = (x_offset + y_offset * get_width_internal()) * 2;
-    if (x_offset == 0 && x_pad == 0) {
-      // can draw in one big chunk
-      this->write_cmd_addr_data(0, 0, 0, 0, ptr + pos, w * h * 2, 4);
+    // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.
+    if (x_offset == 0 && x_pad == 0 && y_offset == 0) {
+      // we could deal here with a non-zero y_offset, but if x_offset is zero, y_offset probably will be so don't bother
+      this->write_cmd_addr_data(8, 0x32, 24, 0x2C00, ptr, w * h * 2, 4);
     } else {
-      size_t bytes = w * 2;
-      size_t stride = this->get_width_internal() * 2;
-      for (size_t i = 0; i != h; i++) {
-        this->write_cmd_addr_data(0, 0, 0, 0, ptr + pos, bytes, 4);
-        pos += stride;
+      this->write_cmd_addr_data(8, 0x32, 24, 0x2C00, nullptr, 0, 4);
+      auto stride = x_offset + w + x_pad;
+      for (size_t y = 0; y != h; y++) {
+        this->write_cmd_addr_data(0, 0, 0, 0, ptr + ((y + y_offset) * stride + x_offset) * 2, w * 2, 4);
       }
     }
     this->disable();
   }
+
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *enable_pin_{nullptr};
   uint16_t x_low_{0};
@@ -289,7 +292,7 @@ class QspiAmoLed : public display::DisplayBuffer,
   bool mirror_x_{};
   bool mirror_y_{};
   uint8_t brightness_{0xD0};
-  Model model_{T4_S3};
+  Model model_{RM690B0};
 
   esp_lcd_panel_handle_t handle_{};
 };

@@ -36,7 +36,7 @@ QSPI_AMOLED = qspi_amoled_ns.class_(
 ColorOrder = display.display_ns.enum("ColorMode")
 Model = qspi_amoled_ns.enum("Model")
 
-MODELS = {"T4-S3": Model.T4_S3, "T-DISP-AMOLED": Model.T_DISP_AMOLED}
+MODELS = {"RM690B0": Model.RM690B0, "RM67162": Model.RM67162}
 
 COLOR_ORDERS = {
     "RGB": ColorOrder.COLOR_ORDER_RGB,
