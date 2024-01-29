@@ -7,7 +7,7 @@
 namespace esphome {
 namespace waveshare_epaper {
 
-class WaveshareEPaper : public display::DisplayBuffer,
+class WaveshareEPaperBase : public display::DisplayBuffer,
                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                               spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
@@ -64,7 +64,7 @@ class WaveshareEPaper : public display::DisplayBuffer,
   virtual uint32_t idle_timeout_() { return 1000u; }  // NOLINT(readability-identifier-naming)
 };
 
-class WaveshareEPaperBW : public WaveshareEPaper {
+class WaveshareEPaper : public WaveshareEPaperBase {
  public:
   void fill(Color color) override;
 
@@ -75,7 +75,7 @@ class WaveshareEPaperBW : public WaveshareEPaper {
   uint32_t get_buffer_length_() override;
 };
 
-class WaveshareEPaperBWR : public WaveshareEPaper {
+class WaveshareEPaperBWR : public WaveshareEPaperBase {
  public:
   void fill(Color color) override;
 
@@ -98,7 +98,7 @@ enum WaveshareEPaperTypeAModel {
   TTGO_EPAPER_2_13_IN_B74,
 };
 
-class WaveshareEPaperTypeA : public WaveshareEPaperBW {
+class WaveshareEPaperTypeA : public WaveshareEPaper {
  public:
   WaveshareEPaperTypeA(WaveshareEPaperTypeAModel model);
 
@@ -159,7 +159,7 @@ enum WaveshareEPaperTypeBModel {
   WAVESHARE_EPAPER_7_5_IN_B_V2,
 };
 
-class WaveshareEPaper2P7In : public WaveshareEPaperBW {
+class WaveshareEPaper2P7In : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -221,7 +221,7 @@ class WaveshareEPaper2P7InBV2 : public WaveshareEPaperBWR {
   int get_height_internal() override;
 };
 
-class GDEY029T94 : public WaveshareEPaperBW {
+class GDEY029T94 : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -241,7 +241,7 @@ class GDEY029T94 : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
-class WaveshareEPaper2P7InV2 : public WaveshareEPaperBW {
+class WaveshareEPaper2P7InV2 : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -257,7 +257,7 @@ class WaveshareEPaper2P7InV2 : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
-class GDEW0154M09 : public WaveshareEPaperBW {
+class GDEW0154M09 : public WaveshareEPaper {
  public:
   void initialize() override;
   void display() override;
@@ -297,7 +297,7 @@ class GDEW0154M09 : public WaveshareEPaperBW {
   void init_internal_();
 };
 
-class WaveshareEPaper2P9InB : public WaveshareEPaperBW {
+class WaveshareEPaper2P9InB : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -317,7 +317,7 @@ class WaveshareEPaper2P9InB : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
-class WaveshareEPaper2P9InBV3 : public WaveshareEPaperBW {
+class WaveshareEPaper2P9InBV3 : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -337,7 +337,7 @@ class WaveshareEPaper2P9InBV3 : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
-class WaveshareEPaper4P2In : public WaveshareEPaperBW {
+class WaveshareEPaper4P2In : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -380,7 +380,7 @@ class WaveshareEPaper4P2In : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
-class WaveshareEPaper4P2InBV2 : public WaveshareEPaperBW {
+class WaveshareEPaper4P2InBV2 : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -408,7 +408,7 @@ class WaveshareEPaper4P2InBV2 : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
-class WaveshareEPaper5P8In : public WaveshareEPaperBW {
+class WaveshareEPaper5P8In : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -431,7 +431,7 @@ class WaveshareEPaper5P8In : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
-class WaveshareEPaper5P8InV2 : public WaveshareEPaperBW {
+class WaveshareEPaper5P8InV2 : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -474,7 +474,7 @@ class WaveshareEPaper5P8InV2 : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
-class WaveshareEPaper7P5In : public WaveshareEPaperBW {
+class WaveshareEPaper7P5In : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -497,7 +497,7 @@ class WaveshareEPaper7P5In : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
-class WaveshareEPaper7P5InBV2 : public WaveshareEPaperBW {
+class WaveshareEPaper7P5InBV2 : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -520,7 +520,7 @@ class WaveshareEPaper7P5InBV2 : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
-class WaveshareEPaper7P5InBV3 : public WaveshareEPaperBW {
+class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
  public:
   bool wait_until_idle_();
 
@@ -558,7 +558,7 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaperBW {
   void init_display_();
 };
 
-class WaveshareEPaper7P5InBC : public WaveshareEPaperBW {
+class WaveshareEPaper7P5InBC : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -581,7 +581,7 @@ class WaveshareEPaper7P5InBC : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
-class WaveshareEPaper7P5InV2 : public WaveshareEPaperBW {
+class WaveshareEPaper7P5InV2 : public WaveshareEPaper {
  public:
   bool wait_until_idle_();
 
@@ -627,7 +627,7 @@ class WaveshareEPaper7P5InV2alt : public WaveshareEPaper7P5InV2 {
   };
 };
 
-class WaveshareEPaper7P5InHDB : public WaveshareEPaperBW {
+class WaveshareEPaper7P5InHDB : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -647,7 +647,7 @@ class WaveshareEPaper7P5InHDB : public WaveshareEPaperBW {
   int get_height_internal() override;
 };
 
-class WaveshareEPaper2P13InDKE : public WaveshareEPaperBW {
+class WaveshareEPaper2P13InDKE : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -675,7 +675,7 @@ class WaveshareEPaper2P13InDKE : public WaveshareEPaperBW {
   uint32_t at_update_{0};
 };
 
-class WaveshareEPaper2P13InV3 : public WaveshareEPaperBW {
+class WaveshareEPaper2P13InV3 : public WaveshareEPaper {
  public:
   void display() override;
 
