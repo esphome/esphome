@@ -83,7 +83,7 @@ static const uint8_t PARTIAL_UPDATE_LUT_TTGO_B1[LUT_SIZE_TTGO_B1] = {
     0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x0F, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-void WaveshareEPaper::setup_pins_() {
+void WaveshareEPaperBase::setup_pins_() {
   this->init_internal_(this->get_buffer_length_());
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
@@ -98,13 +98,13 @@ void WaveshareEPaper::setup_pins_() {
 
   this->reset_();
 }
-float WaveshareEPaper::get_setup_priority() const { return setup_priority::PROCESSOR; }
-void WaveshareEPaper::command(uint8_t value) {
+float WaveshareEPaperBase::get_setup_priority() const { return setup_priority::PROCESSOR; }
+void WaveshareEPaperBase::command(uint8_t value) {
   this->start_command_();
   this->write_byte(value);
   this->end_command_();
 }
-void WaveshareEPaper::data(uint8_t value) {
+void WaveshareEPaperBase::data(uint8_t value) {
   this->start_data_();
   this->write_byte(value);
   this->end_data_();
@@ -112,7 +112,7 @@ void WaveshareEPaper::data(uint8_t value) {
 
 // write a command followed by one or more bytes of data.
 // The command is the first byte, length is the total including cmd.
-void WaveshareEPaper::cmd_data(const uint8_t *c_data, size_t length) {
+void WaveshareEPaperBase::cmd_data(const uint8_t *c_data, size_t length) {
   this->dc_pin_->digital_write(false);
   this->enable();
   this->write_byte(c_data[0]);
@@ -121,7 +121,7 @@ void WaveshareEPaper::cmd_data(const uint8_t *c_data, size_t length) {
   this->disable();
 }
 
-bool WaveshareEPaper::wait_until_idle_() {
+bool WaveshareEPaperBase::wait_until_idle_() {
   if (this->busy_pin_ == nullptr || !this->busy_pin_->digital_read()) {
     return true;
   }
@@ -136,17 +136,17 @@ bool WaveshareEPaper::wait_until_idle_() {
   }
   return true;
 }
-void WaveshareEPaper::update() {
+void WaveshareEPaperBase::update() {
   this->do_update_();
   this->display();
 }
-void WaveshareEPaperBW::fill(Color color) {
+void WaveshareEPaper::fill(Color color) {
   // flip logic
   const uint8_t fill = color.is_on() ? 0x00 : 0xFF;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
-void HOT WaveshareEPaperBW::draw_absolute_pixel_internal(int x, int y, Color color) {
+void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
 
@@ -160,7 +160,7 @@ void HOT WaveshareEPaperBW::draw_absolute_pixel_internal(int x, int y, Color col
   }
 }
 
-uint32_t WaveshareEPaperBW::get_buffer_length_() {
+uint32_t WaveshareEPaper::get_buffer_length_() {
   return this->get_width_controller() * this->get_height_internal() / 8u;
 }  // just a black buffer
 uint32_t WaveshareEPaperBWR::get_buffer_length_() {
@@ -192,17 +192,17 @@ void HOT WaveshareEPaperBWR::draw_absolute_pixel_internal(int x, int y, Color co
   }
 }
 
-void WaveshareEPaper::start_command_() {
+void WaveshareEPaperBase::start_command_() {
   this->dc_pin_->digital_write(false);
   this->enable();
 }
-void WaveshareEPaper::end_command_() { this->disable(); }
-void WaveshareEPaper::start_data_() {
+void WaveshareEPaperBase::end_command_() { this->disable(); }
+void WaveshareEPaperBase::start_data_() {
   this->dc_pin_->digital_write(true);
   this->enable();
 }
-void WaveshareEPaper::end_data_() { this->disable(); }
-void WaveshareEPaper::on_safe_shutdown() { this->deep_sleep(); }
+void WaveshareEPaperBase::end_data_() { this->disable(); }
+void WaveshareEPaperBase::on_safe_shutdown() { this->deep_sleep(); }
 
 // ========================================================
 //                          Type A
@@ -523,7 +523,7 @@ uint32_t WaveshareEPaperTypeA::idle_timeout_() {
     case TTGO_EPAPER_2_13_IN_B1:
       return 2500;
     default:
-      return WaveshareEPaper::idle_timeout_();
+      return WaveshareEPaperBase::idle_timeout_();
   }
 }
 
