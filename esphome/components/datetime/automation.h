@@ -24,9 +24,9 @@ class DatetimeOnTimeTrigger : public Trigger<>, public Component {
   Datetime *Datetime_;
 };
 
-class DatetimeStateTrigger : public Trigger<std::string> {
+class DatetimeValueTrigger : public Trigger<std::string> {
  public:
-  explicit DatetimeStateTrigger(Datetime *parent) {
+  explicit DatetimeValueTrigger(Datetime *parent) {
     parent->add_on_state_callback([this](std::string value) { this->trigger(value); });
   }
 };
@@ -62,6 +62,32 @@ template<typename... Ts> class DatetimeOperationAction : public Action<Ts...> {
 
  protected:
   Datetime *Datetime_;
+};
+
+template<typename... Ts> class DatetimeHasDateCondition : public Condition<Ts...> {
+ public:
+  DatetimeHasDateCondition(Datetime *parent) : parent_(parent) {}
+
+  bool check(Ts... x) override {
+    const std::string state = this->parent_->state;
+    return HAS_DATETIME_STRING_DATE_AND_TIME(state) || HAS_DATETIME_STRING_DATE_ONLY(state);
+  }
+
+ protected:
+  Datetime *parent_;
+};
+
+template<typename... Ts> class DatetimeHasTimeCondition : public Condition<Ts...> {
+ public:
+  DatetimeHasTimeCondition(Datetime *parent) : parent_(parent) {}
+
+  bool check(Ts... x) override {
+    const std::string state = this->parent_->state;
+    return HAS_DATETIME_STRING_DATE_AND_TIME(state) || HAS_DATETIME_STRING_TIME_ONLY(state);
+  }
+
+ protected:
+  Datetime *parent_;
 };
 
 }  // namespace datetime

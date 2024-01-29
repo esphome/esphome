@@ -1,6 +1,5 @@
 #include "automation.h"
 #include "esphome/core/log.h"
-#include "automation.h"
 
 namespace esphome {
 namespace datetime {

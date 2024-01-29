@@ -70,23 +70,5 @@ class Datetime : public EntityBase {
   bool has_state_{false};
 };
 
-template<typename... Ts> class DatetimeHasTimeCondition : public Condition<Ts...> {
- public:
-  DatetimeHasTimeCondition(Datetime *parent) : parent_(parent) {}
-  bool check(Ts... x) override { return this->parent_->has_state() && this->parent_->has_time; }
-
- protected:
-  Datetime *parent_;
-};
-
-template<typename... Ts> class DatetimeHasDateCondition : public Condition<Ts...> {
- public:
-  DatetimeHasDateCondition(Datetime *parent) : parent_(parent) {}
-  bool check(Ts... x) override { return this->parent_->has_state() && this->parent_->has_date; }
-
- protected:
-  Datetime *parent_;
-};
-
 }  // namespace datetime
 }  // namespace esphome

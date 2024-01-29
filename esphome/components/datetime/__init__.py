@@ -39,14 +39,16 @@ IS_PLATFORM_COMPONENT = True
 
 datetime_ns = cg.esphome_ns.namespace("datetime")
 Datetime = datetime_ns.class_("Datetime", cg.EntityBase)
-DatetimeOnTimeTrigger = datetime_ns.class_(
-    "DatetimeOnTimeTrigger", automation.Trigger.template(), cg.Component
-)
+
 ESPTime = cg.esphome_ns.struct("ESPTime")
 
 # Triggers
-DatetimeStateTrigger = datetime_ns.class_(
-    "DatetimeStateTrigger",
+DatetimeOnTimeTrigger = datetime_ns.class_(
+    "DatetimeOnTimeTrigger", automation.Trigger.template(), cg.Component
+)
+
+DatetimeValueTrigger = datetime_ns.class_(
+    "DatetimeValueTrigger",
     automation.Trigger.template(ESPTime, cg.bool_, cg.bool_),
 )
 
@@ -54,8 +56,8 @@ DatetimeStateTrigger = datetime_ns.class_(
 DatetimeSetAction = datetime_ns.class_("DatetimeSetAction", automation.Action)
 
 # Conditions
-DatetimeHasTimeCondition = datetime_ns.class_("DatetimeHasTimeCondition", Condition)
 DatetimeHasDateCondition = datetime_ns.class_("DatetimeHasDateCondition", Condition)
+DatetimeHasTimeCondition = datetime_ns.class_("DatetimeHasTimeCondition", Condition)
 
 DatetimeMode = datetime_ns.enum("DatetimeMode")
 
@@ -94,50 +96,7 @@ def validate_datetime_string(value: str):
     return value
 
 
-def valdiate_time_string(time_string: str, has_date: bool, has_time: bool):
-    validate_datetime_string(time_string)
-
-    if not has_date and not has_time:
-        raise cv.Invalid(
-            "Trying to set datetime value, but neither 'has_date' nor 'has_time' was set"
-        )
-    elif (
-        has_date
-        and has_time
-        and (
-            has_datetime_string_date_only(time_string)
-            or has_datetime_string_time_only(time_string)
-        )
-    ):
-        raise cv.Invalid(
-            "Time string was provided in the wrong format! Expected date and time. '2024-05-28 16:45:15'"
-        )
-    elif (
-        has_date
-        and not has_time
-        and (
-            has_datetime_string_time_only(time_string)
-            or has_datetime_string_date_and_time(time_string)
-        )
-    ):
-        raise cv.Invalid(
-            "Time string was provided in the wrong format! Expected date only. '2024-05-28'"
-        )
-    elif (
-        not has_date
-        and has_time
-        and (
-            has_datetime_string_date_only(time_string)
-            or has_datetime_string_date_and_time(time_string)
-        )
-    ):
-        raise cv.Invalid(
-            "Time string was provided in the wrong format! Expected time only. '16:45:15' or '16:45'"
-        )
-
-
 def validate_datetime(config):
-    print(config)
     if CONF_ON_TIME in config and CONF_TIME_ID not in config:
         raise cv.Invalid(
             f"When using '{CONF_ON_TIME}' you need to provide '{CONF_TIME_ID}'."
@@ -179,7 +138,7 @@ DATETIME_SCHEMA = (
             ),
             cv.Optional(CONF_ON_VALUE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DatetimeStateTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DatetimeValueTrigger),
                 }
             ),
             cv.Optional(CONF_ON_TIME): automation.validate_automation(
@@ -207,7 +166,7 @@ async def setup_datetime_core_(datetime_var, config):
 
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], datetime_var)
-        await automation.build_automation(trigger, [(ESPTime, "x")], conf)
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
     if CONF_ON_TIME in config:
         time_var = await cg.get_variable(config[CONF_TIME_ID])
@@ -267,20 +226,6 @@ async def datetime_set_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_condition(
-    "datetime.has_time",
-    DatetimeHasTimeCondition,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(Datetime),
-        }
-    ),
-)
-async def datetime_has_time_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
-
-
-@automation.register_condition(
     "datetime.has_date",
     DatetimeHasDateCondition,
     cv.Schema(
@@ -290,5 +235,19 @@ async def datetime_has_time_to_code(config, condition_id, template_arg, args):
     ),
 )
 async def datetime_has_date_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)
+
+
+@automation.register_condition(
+    "datetime.has_time",
+    DatetimeHasTimeCondition,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(Datetime),
+        }
+    ),
+)
+async def datetime_has_time_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren)
