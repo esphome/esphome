@@ -53,6 +53,8 @@ void TemplateDatetime::update() {
 }
 
 void TemplateDatetime::control(std::string value) {
+  this->set_trigger_->trigger(value);
+
   if (this->optimistic_)
     this->publish_state(value);
 

@@ -125,7 +125,7 @@ class Application {
 #endif
 
 #ifdef USE_DATETIME
-  void DatetimeMode(datetime::Datetime *datetime) { this->datetimes_.push_back(datetime); }
+  void register_datetime(datetime::Datetime *datetime) { this->datetimes_.push_back(datetime); }
 #endif
 
 #ifdef USE_TEXT

@@ -74,7 +74,7 @@ async def to_code(config):
     if CONF_SET_ACTION in config:
         await automation.build_automation(
             datetime_var.get_set_trigger(),
-            [(datetime.ESPTime, "x")],
+            [(cg.std_string, "x")],
             config[CONF_SET_ACTION],
         )
 

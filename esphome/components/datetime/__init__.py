@@ -184,7 +184,7 @@ async def setup_datetime_core_(datetime_var, config):
 async def register_datetime(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.DatetimeMode(var))
+    cg.add(cg.App.register_datetime(var))
     await setup_datetime_core_(var, config)
 
 
