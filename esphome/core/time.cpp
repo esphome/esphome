@@ -64,7 +64,6 @@ std::string ESPTime::strftime(const std::string &format) {
 
 bool ESPTime::strptime(const std::string time_to_parse, ESPTime &esp_time) {
   std::regex time_regex(R"(^(\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?|\d{2}:\d{2}(:\d{2})?)$)");
-
   if (std::regex_match(time_to_parse, time_regex)) {
     esp_time.second = 0;
 

@@ -26,17 +26,16 @@ class TemplateInputDatetime : public input_datetime::InputDatetime, public Polli
   Trigger<ESPTime> *get_set_trigger() const { return set_trigger_; }
   void set_optimistic(bool optimistic) { optimistic_ = optimistic; }
 
-  void set_initial_value(std::string initial_value) {
-    initial_value_ = initial_value;
-  }
+  void set_initial_value(std::string initial_value) { initial_value_ = initial_value; }
   void set_has_date(bool initial_has_date) { has_date = initial_has_date; }
   void set_has_time(bool initial_has_time) { has_time = initial_has_time; }
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
 
  protected:
   void control(std::string) override;
+
   bool optimistic_{false};
-  std::string initial_value_{0};
+  std::string initial_value_{};
   bool restore_value_{false};
   Trigger<ESPTime> *set_trigger_ = new Trigger<ESPTime>();
   optional<std::function<optional<std::string>()>> f_;

@@ -14,6 +14,12 @@ namespace input_datetime {
 #define HAS_DATETIME_STRING_DATE_OR_TIME(value) \
   std::regex_match(value, std::regex(R"(^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?|\d{2}:\d{2}(:\d{2})?$)"))
 
+struct ESPDatetime {
+  ESPTime time;
+  bool has_date;
+  bool has_time;
+};
+
 class InputDatetime;
 
 enum InputDatetimeOperation {
@@ -28,22 +34,16 @@ class InputDatetimeCall {
   explicit InputDatetimeCall(InputDatetime *parent) : parent_(parent) {}
   void perform();
   InputDatetimeCall &set_value(const std::string value);
-  InputDatetimeCall &set_has_date(const bool has_date);
-  InputDatetimeCall &set_has_time(const bool has_time);
 
   InputDatetimeCall &with_operation(InputDatetimeOperation operation);
   InputDatetimeCall &with_value(std::string value);
-  InputDatetimeCall &with_has_date(bool has_date);
-  InputDatetimeCall &with_has_time(bool has_time);
 
  protected:
   InputDatetime *const parent_;
   InputDatetimeOperation operation_{INPUT_DATETIME_OP_NONE};
   optional<std::string> value_;
-  optional<bool> has_date_;
-  optional<bool> has_time_;
 
-  bool validate_datetime_string();
+  bool validate_datetime_string(std::string value);
 };
 
 }  // namespace input_datetime

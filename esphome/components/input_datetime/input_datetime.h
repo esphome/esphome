@@ -64,7 +64,7 @@ class InputDatetime : public EntityBase {
    *
    * @param value The value as validated by the InputDatetimeCall.
    */
-  virtual void control(std::string value) = 0;
+  virtual void control(std::string) = 0;
 
   CallbackManager<void(std::string)> state_callback_;
   bool has_state_{false};

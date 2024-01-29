@@ -108,7 +108,7 @@ def has_datetime_string_date_or_time(value):
 
 def validate_timedate_value(value: str):
     if not has_datetime_string_date_or_time(value):
-        raise cv.Invalid("Not a valid date: '{0}'.".format(value))
+        raise cv.Invalid("Not a valid datetime: '{0}'.".format(value) + " valid formats are '2024-05-28 16:45:15', '2024-05-28', '16:45:15', '16:45'")
     return value
 
 
@@ -162,11 +162,7 @@ def validate_input_datetime(config):
         )
 
     if CONF_INITIAL_VALUE in config:
-        valdiate_time_string(
-            config[CONF_INITIAL_VALUE], config[CONF_HAS_DATE], config[CONF_HAS_TIME]
-        )
-
-    cv.has_at_least_one_key([CONF_HAS_DATE, CONF_HAS_TIME])
+        validate_timedate_value(config[CONF_INITIAL_VALUE])
 
     return config
 
@@ -199,8 +195,6 @@ INPUT_DATETIME_SCHEMA = (
             cv.Optional(CONF_TIME_ID): cv.All(
                 cv.requires_component(CONF_TIME), cv.use_id(time.RealTimeClock)
             ),
-            cv.Optional(CONF_HAS_DATE, False): cv.boolean,
-            cv.Optional(CONF_HAS_TIME, False): cv.boolean,
             cv.Optional(CONF_ON_VALUE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
