@@ -185,6 +185,7 @@ void HOT WaveshareEPaperBWR::draw_absolute_pixel_internal(int x, int y, Color co
     this->buffer_[pos] &= ~(0x80 >> subpos);
   }
 
+  //draw red pixels only, if the color contains red only
   if (((color.red > 0) && (color.green == 0) && (color.blue == 0))) {
     this->buffer_[pos + buf_half_len] |= 0x80 >> subpos;
   } else {
@@ -898,8 +899,6 @@ void WaveshareEPaper2P7InB::dump_config() {
 //  - https://github.com/waveshare/e-Paper/blob/master/RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_2in7b_V2.c
 
 void WaveshareEPaper2P7InBV2::initialize() {
-  ESP_LOGI(TAG, "Start Eink init");
-
   this->reset_();
 
   this->wait_until_idle_();
@@ -935,14 +934,10 @@ void WaveshareEPaper2P7InBV2::initialize() {
   this->command(0x4F);
   this->data(0x00);
   this->data(0x00);
-
-  ESP_LOGI(TAG, "Done Eink init");
 }
+
 void HOT WaveshareEPaper2P7InBV2::display() {
   uint32_t buf_len = this->get_buffer_length_();
-
-  ESP_LOGI(TAG, "Refresh ... ");
-
   // COMMAND DATA START TRANSMISSION 1 (BLACK)
   this->command(0x24);
   delay(2);
@@ -962,11 +957,7 @@ void HOT WaveshareEPaper2P7InBV2::display() {
 
   this->command(0x20);
 
-  ESP_LOGI(TAG, "... wait_until_idle_() ... ");
-
   this->wait_until_idle_();
-
-  ESP_LOGI(TAG, "... done ");
 }
 int WaveshareEPaper2P7InBV2::get_width_internal() { return 176; }
 int WaveshareEPaper2P7InBV2::get_height_internal() { return 264; }
