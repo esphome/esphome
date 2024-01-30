@@ -5,7 +5,6 @@
 #include "esphome/core/time.h"
 #include "esphome/core/entity_base.h"
 
-#include "esphome/components/time/real_time_clock.h"
 #include "datetime_call.h"
 #include "datetime_traits.h"
 

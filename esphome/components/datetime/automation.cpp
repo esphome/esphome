@@ -4,6 +4,7 @@
 namespace esphome {
 namespace datetime {
 
+#ifdef USE_TIME
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
                                              // there has been a drastic time synchronization
 
@@ -74,6 +75,8 @@ void DatetimeOnTimeTrigger::loop() {
 }
 
 float DatetimeOnTimeTrigger::get_setup_priority() const { return setup_priority::HARDWARE; }
+
+#endif  // USE_TIME
 
 }  // namespace datetime
 }  // namespace esphome

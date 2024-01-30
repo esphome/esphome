@@ -8,7 +8,8 @@ namespace esphome {
 namespace datetime {
 
 static const char *const TAG = "input_datetime.automation";
-
+#ifdef USE_TIME
+#include "esphome/components/time/real_time_clock.h"
 class DatetimeOnTimeTrigger : public Trigger<>, public Component {
  public:
   explicit DatetimeOnTimeTrigger(Datetime *Datetime, time::RealTimeClock *rtc) : Datetime_(Datetime), rtc_(rtc) {}
@@ -23,6 +24,7 @@ class DatetimeOnTimeTrigger : public Trigger<>, public Component {
   optional<ESPTime> last_check_;
   Datetime *Datetime_;
 };
+#endif  // USE_TIME
 
 class DatetimeValueTrigger : public Trigger<std::string> {
  public:
