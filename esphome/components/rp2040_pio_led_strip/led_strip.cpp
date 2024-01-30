@@ -7,6 +7,7 @@
 
 #include <hardware/clocks.h>
 #include <hardware/pio.h>
+#include <hardware/dma.h>
 #include <pico/stdlib.h>
 
 namespace esphome {
@@ -34,6 +35,9 @@ void RP2040PIOLEDStripLightOutput::setup() {
     return;
   }
 
+
+  // Initialize the PIO program
+
   // Select PIO instance to use (0 or 1)
   this->pio_ = pio0;
   if (this->pio_ == nullptr) {
@@ -52,6 +56,33 @@ void RP2040PIOLEDStripLightOutput::setup() {
     this->mark_failed();
     return;
   }
+
+  // Initalize the DMA channel
+
+  this->dma_chan_ = dma_claim_unused_channel(true);
+  if (this->dma_chan_ < 0) {
+    ESP_LOGE(TAG, "Failed to claim DMA channel");
+    this->mark_failed();
+    return;
+  }
+
+  this->dma_config_ = dma_channel_get_default_config(this->dma_chan_);
+  channel_config_set_transfer_data_size(&this->dma_config_, DMA_SIZE_8); // 8 bit transfers (could be 32 but the pio program would need to be changed to handle junk data)
+  channel_config_set_read_increment(&this->dma_config_, true); // increment the read address
+  channel_config_set_write_increment(&this->dma_config_, false); // don't increment the write address
+  channel_config_set_dreq(&this->dma_config_, pio_get_dreq(this->pio_, this->sm_, true)); // set the DREQ to the state machine's TX FIFO
+
+  dma_channel_configure(this->dma_chan_, &this->dma_config_,
+                        &this->pio_->txf[this->sm_], // write to the state machine's TX FIFO
+                        this->buf_, // read from memory
+                        this->is_rgbw_ ? num_leds_ * 4 : num_leds_ * 3, // number of bytes to transfer
+                        false // don't start yet
+  );
+
+
+
+
+
   this->init_(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
 }
 
@@ -69,7 +100,8 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
   }
 
   // assemble bits in buffer to 32 bit words with ex for GBR: 0bGGGGGGGGRRRRRRRRBBBBBBBB00000000
-  for (int i = 0; i < this->num_leds_; i++) {
+  // however, the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
+  /*for (int i = 0; i < this->num_leds_; i++) {
     uint8_t multiplier = this->is_rgbw_ ? 4 : 3;
     uint8_t c1 = this->buf_[(i * multiplier) + 0];
     uint8_t c2 = this->buf_[(i * multiplier) + 1];
@@ -77,7 +109,8 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
     uint8_t w = this->is_rgbw_ ? this->buf_[(i * 4) + 3] : 0;
     uint32_t color = encode_uint32(c1, c2, c3, w);
     pio_sm_put_blocking(this->pio_, this->sm_, color);
-  }
+  }*/
+  dma_channel_transfer_to_buffer_now(this->dma_chan_, this->buf_, this->is_rgbw_ ? num_leds_ * 4 : num_leds_ * 3);
 }
 
 light::ESPColorView RP2040PIOLEDStripLightOutput::get_view_internal(int32_t index) const {

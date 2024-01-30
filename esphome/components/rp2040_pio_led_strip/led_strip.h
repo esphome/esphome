@@ -10,6 +10,7 @@
 #include "esphome/components/light/light_output.h"
 
 #include <hardware/pio.h>
+#include <hardware/dma.h>
 #include <hardware/structs/pio.h>
 #include <pico/stdio.h>
 
@@ -90,8 +91,11 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
   uint32_t num_leds_;
   bool is_rgbw_;
 
+
   pio_hw_t *pio_;
   uint sm_;
+  uint dma_chan_;
+  dma_channel_config dma_config_;
 
   RGBOrder rgb_order_{ORDER_RGB};
 
