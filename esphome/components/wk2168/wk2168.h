@@ -13,8 +13,15 @@ namespace wk2168 {
 /// and provides methods to set/access this information.
 ////////////////////////////////////////////////////////////////////////////////////
 class WK2168Component : public wk_base::WKBaseComponent {
+ public:
+  void loop() override;
+
  protected:
   friend class WK2168GPIOPin;
+#ifdef TEST_COMPONENT
+  void test_gpio_input_();
+  void test_gpio_output_();
+#endif
 
   /// Helper method to read the value of a pin.
   bool read_pin_val_(uint8_t pin);

@@ -71,7 +71,7 @@ void print_buffer(const uint8_t *data, size_t length) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WK2168Reg methods
+// The WK2168RegSPI methods
 ///////////////////////////////////////////////////////////////////////////////
 uint8_t WK2168RegSPI::read_reg() const {
   auto *spi_delegate = static_cast<WK2168ComponentSPI *>(this->comp_)->delegate_;
@@ -126,7 +126,7 @@ void WK2168RegSPI::write_fifo(uint8_t *data, size_t length) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WK2168Component methods
+// The WK2168ComponentSPI methods
 ///////////////////////////////////////////////////////////////////////////////
 void WK2168ComponentSPI::setup() {
   using namespace wk2168;
