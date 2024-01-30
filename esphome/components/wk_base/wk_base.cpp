@@ -102,7 +102,7 @@ WKBaseRegister &WKBaseRegister::operator|=(uint8_t value) {
 // The WKBaseComponent methods
 ///////////////////////////////////////////////////////////////////////////////
 void WKBaseComponent::loop() {
-  if (this->component_state_ & (COMPONENT_STATE_MASK != COMPONENT_STATE_LOOP))
+  if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP)
     return;
 
   static uint32_t loop_time = 0;
@@ -246,7 +246,7 @@ size_t WKBaseChannel::tx_in_fifo_() {
   if (tfcnt == 0) {
     uint8_t const fsr = this->reg_(WKREG_FSR);
     if (fsr & FSR_TFFULL) {
-      ESP_LOGV(TAG, "tx FIFO full FSR=%s", I2CS(fsr));
+      ESP_LOGVV(TAG, "tx FIFO full FSR=%s", I2CS(fsr));
       tfcnt = FIFO_SIZE;
     }
   }
