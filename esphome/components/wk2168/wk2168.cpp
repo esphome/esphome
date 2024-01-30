@@ -41,11 +41,11 @@ void WK2168Component::test_gpio_input_() {
     this->reg(WKREG_GPDIR, 0) = 0x00;
     ESP_LOGI(TAG, "initializing all pins to input mode");
     state = this->reg(WKREG_GPDAT, 0);
-    ESP_LOGI(TAG, "initial input state = %02X (%s)", state, S2CS(state));
+    ESP_LOGI(TAG, "initial input data state = %02X (%s)", state, S2CS(state));
   }
   value = this->reg(WKREG_GPDAT, 0);
   if (value != state) {
-    ESP_LOGI(TAG, "Input value changed from %02X to %02X (%s)", state, value, S2CS(value));
+    ESP_LOGI(TAG, "Input data changed from %02X to %02X (%s)", state, value, S2CS(value));
     state = value;
   }
 }
@@ -64,6 +64,7 @@ void WK2168Component::test_gpio_output_() {
   state = ~state;
   this->reg(WKREG_GPDAT, 0) = state;
   ESP_LOGI(TAG, "Flipping all outputs to %02X (%s)", state, S2CS(state));
+  delay(1000);
 }
 #endif
 
