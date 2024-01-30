@@ -66,5 +66,19 @@ bool mifare_classic_is_trailer_block(uint8_t block_num);
 
 uint32_t get_mifare_ultralight_buffer_size(uint32_t message_length);
 
+class NfcTagListener {
+ public:
+  virtual void tag_off(NfcTag &tag) {}
+  virtual void tag_on(NfcTag &tag) {}
+};
+
+class Nfcc {
+ public:
+  void register_listener(NfcTagListener *listener) { this->tag_listeners_.push_back(listener); }
+
+ protected:
+  std::vector<NfcTagListener *> tag_listeners_;
+};
+
 }  // namespace nfc
 }  // namespace esphome
