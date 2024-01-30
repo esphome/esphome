@@ -211,7 +211,11 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
   uint8_t indicator = rx_header_buf_[0];
   if (indicator != 0x01) {
     state_ = State::FAILED;
-    HELPER_LOG("Bad indicator byte %u", indicator);
+    if (indicator == 0x00) {
+      HELPER_LOG("Client requested plaintext, but only noise encryption is required");
+    } else {
+      HELPER_LOG("Bad indicator byte %u", indicator);
+    }
     return APIError::BAD_INDICATOR;
   }
 
@@ -818,7 +822,11 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
     // try parse header
     if (rx_header_buf_[0] != 0x00) {
       state_ = State::FAILED;
-      HELPER_LOG("Bad indicator byte %u", rx_header_buf_[0]);
+      if (rx_header_buf_[0] == 0x01) {
+        HELPER_LOG("Client requested noise encryption, but only plaintext is available");
+      } else {
+        HELPER_LOG("Bad indicator byte %u", rx_header_buf_[0]);
+      }
       return APIError::BAD_INDICATOR;
     }
 
