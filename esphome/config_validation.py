@@ -2004,15 +2004,19 @@ def suppress_invalid():
         pass
 
 
-GIT_SCHEMA = {
-    Required(CONF_URL): url,
-    Optional(CONF_REF): git_ref,
-    Optional(CONF_USERNAME): string,
-    Optional(CONF_PASSWORD): string,
-}
-LOCAL_SCHEMA = {
-    Required(CONF_PATH): directory,
-}
+GIT_SCHEMA = Schema(
+    {
+        Required(CONF_URL): url,
+        Optional(CONF_REF): git_ref,
+        Optional(CONF_USERNAME): string,
+        Optional(CONF_PASSWORD): string,
+    }
+)
+LOCAL_SCHEMA = Schema(
+    {
+        Required(CONF_PATH): directory,
+    }
+)
 
 
 def validate_source_shorthand(value):
@@ -2053,8 +2057,8 @@ SOURCE_SCHEMA = Any(
     validate_source_shorthand,
     typed_schema(
         {
-            TYPE_GIT: Schema(GIT_SCHEMA),
-            TYPE_LOCAL: Schema(LOCAL_SCHEMA),
+            TYPE_GIT: GIT_SCHEMA,
+            TYPE_LOCAL: LOCAL_SCHEMA,
         }
     ),
 )
