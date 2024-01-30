@@ -207,7 +207,7 @@ bool INA2XX::reset_energy_counters() {
   if (this->ina_type_ != INAType::INA_228_229) {
     return false;
   }
-  ESP_LOGD(TAG, "reset_energy_counters");
+  ESP_LOGV(TAG, "reset_energy_counters");
 
   ConfigurationRegister cfg{0};
   auto ret = this->read_unsigned_16_(RegisterMap::REG_CONFIG, cfg.raw_u16);
@@ -221,7 +221,7 @@ bool INA2XX::reset_energy_counters() {
 }
 
 bool INA2XX::reset_config_() {
-  ESP_LOGD(TAG, "Reset");
+  ESP_LOGV(TAG, "Reset");
   ConfigurationRegister cfg{0};
   cfg.RST = true;
   return this->write_unsigned_16_(RegisterMap::REG_CONFIG, cfg.raw_u16);
@@ -234,7 +234,7 @@ bool INA2XX::check_device_type_() {
   this->read_unsigned_16_(RegisterMap::REG_MANUFACTURER_ID, manufacturer_id);
   if (!this->read_unsigned_16_(RegisterMap::REG_DEVICE_ID, dev_id)) {
     dev_id = 0;
-    ESP_LOGD(TAG, "Can't read device ID");
+    ESP_LOGV(TAG, "Can't read device ID");
   };
   rev_id = dev_id & 0x0F;
   dev_id >>= 4;
@@ -284,7 +284,7 @@ bool INA2XX::check_device_type_() {
 }
 
 bool INA2XX::configure_adc_range_() {
-  ESP_LOGD(TAG, "Setting ADCRANGE = %d", (uint8_t) this->adc_range_);
+  ESP_LOGV(TAG, "Setting ADCRANGE = %d", (uint8_t) this->adc_range_);
   ConfigurationRegister cfg{0};
   auto ret = this->read_unsigned_16_(RegisterMap::REG_CONFIG, cfg.raw_u16);
   cfg.ADCRANGE = this->adc_range_;
@@ -297,10 +297,10 @@ bool INA2XX::configure_adc_() {
   bool ret{false};
   AdcConfigurationRegister adc_cfg{0};
   adc_cfg.MODE = 0x0F;  // Fh = Continuous bus voltage, shunt voltage and temperature
-  adc_cfg.VBUSCT = AdcSpeed::ADC_SPEED_1052US;
-  adc_cfg.VSHCT = AdcSpeed::ADC_SPEED_1052US;
-  adc_cfg.VTCT = AdcSpeed::ADC_SPEED_1052US;
-  adc_cfg.AVG = AdcSample::ADC_SAMPLE_1;
+  adc_cfg.VBUSCT = AdcSpeed::ADC_SPEED_4120US;
+  adc_cfg.VSHCT = AdcSpeed::ADC_SPEED_4120US;
+  adc_cfg.VTCT = AdcSpeed::ADC_SPEED_4120US;
+  adc_cfg.AVG = AdcSample::ADC_SAMPLE_128;
   ret = this->write_unsigned_16_(RegisterMap::REG_ADC_CONFIG, adc_cfg.raw_u16);
   return ret;
 }
@@ -316,8 +316,8 @@ bool INA2XX::configure_shunt_() {
     ESP_LOGW(TAG, "Shunt value too high");
   }
   this->shunt_cal_ &= 0x7FFF;
-  ESP_LOGD(TAG, "Given Rshunt=%f Ohm and Max_current=%.3f", shunt_resistance_ohm_, max_current_a_);
-  ESP_LOGD(TAG, "New CURRENT_LSB=%f, SHUNT_CAL=%u", this->current_lsb_, this->shunt_cal_);
+  ESP_LOGV(TAG, "Given Rshunt=%f Ohm and Max_current=%.3f", shunt_resistance_ohm_, max_current_a_);
+  ESP_LOGV(TAG, "New CURRENT_LSB=%f, SHUNT_CAL=%u", this->current_lsb_, this->shunt_cal_);
   return this->write_unsigned_16_(RegisterMap::REG_SHUNT_CAL, this->shunt_cal_);
 }
 
@@ -352,7 +352,7 @@ bool INA2XX::read_shunt_voltage_mv_(float &volt_out) {
   if (ret)
     volt_out = (this->adc_range_ ? this->cfg_.v_shunt_lsb_range1 : this->cfg_.v_shunt_lsb_range0) * volt_reading;
 
-  ESP_LOGD(TAG, "read_shunt_voltage_mv_ ret=%s, shunt_cal=%d, reading_lsb=%f", OKFAILED(ret), this->shunt_cal_,
+  ESP_LOGV(TAG, "read_shunt_voltage_mv_ ret=%s, shunt_cal=%d, reading_lsb=%f", OKFAILED(ret), this->shunt_cal_,
            volt_reading);
 
   return ret;
@@ -377,7 +377,7 @@ bool INA2XX::read_bus_voltage_(float &volt_out) {
   if (ret)
     volt_out = this->cfg_.vbus_lsb * (float) volt_reading;
 
-  ESP_LOGD(TAG, "read_bus_voltage_ ret=%s, reading_lsb=%f", OKFAILED(ret), volt_reading);
+  ESP_LOGV(TAG, "read_bus_voltage_ ret=%s, reading_lsb=%f", OKFAILED(ret), volt_reading);
   return ret;
 }
 
@@ -401,7 +401,7 @@ bool INA2XX::read_die_temp_c_(float &temp_out) {
   if (ret)
     temp_out = this->cfg_.die_temp_lsb * (float) temp_reading;
 
-  ESP_LOGD(TAG, "read_die_temp_c_ ret=%s, reading_lsb=%f", OKFAILED(ret), temp_reading);
+  ESP_LOGV(TAG, "read_die_temp_c_ ret=%s, reading_lsb=%f", OKFAILED(ret), temp_reading);
   return ret;
 }
 
@@ -422,7 +422,7 @@ bool INA2XX::read_current_a_(float &amps_out) {
     amps_reading = this->two_complement_(raw, 16);
   }
 
-  ESP_LOGD(TAG, "read_current_a_ ret=%s. current_lsb=%f. reading_lsb=%f", OKFAILED(ret), this->current_lsb_,
+  ESP_LOGV(TAG, "read_current_a_ ret=%s. current_lsb=%f. reading_lsb=%f", OKFAILED(ret), this->current_lsb_,
            amps_reading);
   if (ret)
     amps_out = this->current_lsb_ * (float) amps_reading;
@@ -437,7 +437,7 @@ bool INA2XX::read_power_w_(float &power_out) {
   uint64_t power_reading{0};
   auto ret = this->read_unsigned_((uint8_t) RegisterMap::REG_POWER, 3, power_reading);
 
-  ESP_LOGD(TAG, "read_power_w_ ret=%s, reading_lsb=%d", OKFAILED(ret), (uint32_t) power_reading);
+  ESP_LOGV(TAG, "read_power_w_ ret=%s, reading_lsb=%d", OKFAILED(ret), (uint32_t) power_reading);
   if (ret)
     power_out = this->cfg_.power_coeff * this->current_lsb_ * (float) power_reading;
 
@@ -456,7 +456,7 @@ bool INA2XX::read_energy_(double &joules_out, double &watt_hours_out) {
   uint64_t previous_energy = this->energy_overflows_count_ * (((uint64_t) 1) << 40);
   auto ret = this->read_unsigned_((uint8_t) RegisterMap::REG_ENERGY, 5, joules_reading);
 
-  ESP_LOGD(TAG, "read_energy_j_ ret=%s, reading_lsb=0x%" PRIX64 ", current_lsb=%f, overflow_cnt=%d", OKFAILED(ret),
+  ESP_LOGV(TAG, "read_energy_j_ ret=%s, reading_lsb=0x%" PRIX64 ", current_lsb=%f, overflow_cnt=%d", OKFAILED(ret),
            joules_reading, this->current_lsb_, this->energy_overflows_count_);
   if (ret) {
     joules_out = this->cfg_.energy_coeff * this->current_lsb_ * (double) joules_reading + (double) previous_energy;
@@ -481,7 +481,7 @@ bool INA2XX::read_charge_(double &coulombs_out, double &amp_hours_out) {
   auto ret = this->read_unsigned_((uint8_t) RegisterMap::REG_CHARGE, 5, raw);
   coulombs_reading = this->two_complement_(raw, 40);
 
-  ESP_LOGD(TAG, "read_charge_c_ ret=%d, curr_charge=%f + 39-bit overflow_cnt=%d", ret, coulombs_reading,
+  ESP_LOGV(TAG, "read_charge_c_ ret=%d, curr_charge=%f + 39-bit overflow_cnt=%d", ret, coulombs_reading,
            this->charge_overflows_count_);
   if (ret) {
     coulombs_out = this->current_lsb_ * (double) coulombs_reading + (double) previous_charge;
@@ -497,7 +497,7 @@ bool INA2XX::read_diagnostics_and_act_() {
 
   DiagnosticRegister diag{0};
   auto ret = this->read_unsigned_16_(RegisterMap::REG_DIAG_ALRT, diag.raw_u16);
-  ESP_LOGD(TAG, "read_diagnostics_and_act_ ret=%s, 0x%04X", OKFAILED(ret), diag.raw_u16);
+  ESP_LOGV(TAG, "read_diagnostics_and_act_ ret=%s, 0x%04X", OKFAILED(ret), diag.raw_u16);
 
   if (diag.ENERGYOF)
     this->energy_overflows_count_++;  // 40-bit overflow
@@ -512,7 +512,7 @@ bool INA2XX::write_unsigned_16_(uint8_t reg, uint16_t val) {
   uint16_t data_out = byteswap(val);
   auto ret = this->write_ina_register(reg, (uint8_t *) &data_out, 2);
   if (!ret) {
-    ESP_LOGD(TAG, "write_unsigned_16_ FAILED reg=0x%02X, val=0x%04X", reg, val);
+    ESP_LOGV(TAG, "write_unsigned_16_ FAILED reg=0x%02X, val=0x%04X", reg, val);
   }
   return ret;
 }
@@ -530,7 +530,7 @@ bool INA2XX::read_unsigned_(uint8_t reg, uint8_t reg_size, uint64_t &data_out) {
   for (uint8_t i = 1; i < reg_size; i++) {
     data_out = (data_out << 8) | rx_buf[i];
   }
-  ESP_LOGD(TAG, "read_unsigned_ reg=0x%02X, ret=%s, len=%d, val=0x%" PRIX64, reg, OKFAILED(ret), reg_size, data_out);
+  ESP_LOGV(TAG, "read_unsigned_ reg=0x%02X, ret=%s, len=%d, val=0x%" PRIX64, reg, OKFAILED(ret), reg_size, data_out);
 
   return ret;
 }
@@ -539,7 +539,7 @@ bool INA2XX::read_unsigned_16_(uint8_t reg, uint16_t &out) {
   uint16_t data_in{0};
   auto ret = this->read_ina_register(reg, (uint8_t *) &data_in, 2);
   out = byteswap(data_in);
-  ESP_LOGD(TAG, "read_unsigned_16_ 0x%02X, ret= %s, val=0x%04X", reg, OKFAILED(ret), out);
+  ESP_LOGV(TAG, "read_unsigned_16_ 0x%02X, ret= %s, val=0x%04X", reg, OKFAILED(ret), out);
   return ret;
 }
 
