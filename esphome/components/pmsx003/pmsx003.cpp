@@ -195,7 +195,7 @@ void PMSX003Component::send_command_(uint8_t cmd, uint16_t data) {
 void PMSX003Component::parse_data_() {
   switch (this->type_) {
     case PMSX003_TYPE_5003ST: {
-      float temperature = this->get_16_bit_uint_(30) / 10.0f;
+      float temperature = (int16_t) this->get_16_bit_uint_(30) / 10.0f;
       float humidity = this->get_16_bit_uint_(32) / 10.0f;
 
       ESP_LOGD(TAG, "Got Temperature: %.1f°C, Humidity: %.1f%%", temperature, humidity);
@@ -279,7 +279,7 @@ void PMSX003Component::parse_data_() {
       // Note the pm particles 50um & 100um are not returned,
       // as PMS5003T uses those data values for temperature and humidity.
 
-      float temperature = this->get_16_bit_uint_(24) / 10.0f;
+      float temperature = (int16_t) this->get_16_bit_uint_(24) / 10.0f;
       float humidity = this->get_16_bit_uint_(26) / 10.0f;
 
       ESP_LOGD(TAG,

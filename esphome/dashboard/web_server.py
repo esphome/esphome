@@ -9,6 +9,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 import secrets
 import shutil
 import subprocess
@@ -301,12 +302,29 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
         if (
-            port == "OTA"
-            and (mdns := dashboard.mdns_status)
+            port == "OTA"  # pylint: disable=too-many-boolean-expressions
             and (entry := entries.get(config_file))
-            and (address := await mdns.async_resolve_host(entry.name))
+            and entry.loaded_integrations
+            and "api" in entry.loaded_integrations
         ):
-            port = address
+            if (mdns := dashboard.mdns_status) and (
+                address := await mdns.async_resolve_host(entry.name)
+            ):
+                # Use the IP address if available but only
+                # if the API is loaded and the device is online
+                # since MQTT logging will not work otherwise
+                port = address
+            elif (
+                entry.address
+                and (
+                    address_list := await dashboard.dns_cache.async_resolve(
+                        entry.address, time.monotonic()
+                    )
+                )
+                and not isinstance(address_list, Exception)
+            ):
+                # If mdns is not available, try to use the DNS cache
+                port = address_list[0]
 
         return [
             *DASHBOARD_COMMAND,
@@ -792,13 +810,22 @@ class EditRequestHandler(BaseHandler):
         """Get the content of a file."""
         loop = asyncio.get_running_loop()
         filename = settings.rel_path(configuration)
-        content = await loop.run_in_executor(None, self._read_file, filename)
-        self.write(content)
+        content = await loop.run_in_executor(
+            None, self._read_file, filename, configuration
+        )
+        if content is not None:
+            self.write(content)
 
-    def _read_file(self, filename: str) -> bytes:
+    def _read_file(self, filename: str, configuration: str) -> bytes | None:
         """Read a file and return the content as bytes."""
-        with open(file=filename, encoding="utf-8") as f:
-            return f.read()
+        try:
+            with open(file=filename, encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            if configuration in const.SECRETS_FILES:
+                return ""
+            self.set_status(404)
+            return None
 
     def _write_file(self, filename: str, content: bytes) -> None:
         """Write a file with the given content."""
