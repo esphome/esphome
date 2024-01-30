@@ -116,6 +116,7 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   uint8_t read_config();
   void write_config(uint8_t cfg);
 
+  uint8_t is_busy();
   uint8_t wait_while_busy();
 
   void reset_hub();
@@ -164,15 +165,13 @@ class DS248xSensor : public sensor::Sensor {
   /// should this sensor be ignored during update?
   bool isIgnored();
 
-  virtual uint16_t millis_to_wait_for_conversion() const = 0;
-
   virtual bool setup_sensor() = 0;
 
   virtual bool update() = 0;
 
   virtual void add_conversion_commands(std::set<uint8_t> &commands) = 0;
 
-  bool read_scratch_pad();
+  bool read_scratch_pad(uint8_t page = 255);
 
   bool check_scratch_pad();
 
@@ -191,7 +190,7 @@ class DS248xSensor : public sensor::Sensor {
   };
 
   void select();
-  void selectChannel();
+  void select_channel();
   void write_to_wire(uint8_t data);
   bool reset_devices();
 };

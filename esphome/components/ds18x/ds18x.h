@@ -15,8 +15,6 @@ class DS18xTemperatureSensor : public DS248xSensor {
   uint8_t get_resolution() const;
   /// Set the resolution for this sensor.
   void set_resolution(uint8_t resolution);
-  /// Get the number of milliseconds we have to wait for the conversion phase.
-  uint16_t millis_to_wait_for_conversion() const;
   
   float get_temp_c();
   float get_value();

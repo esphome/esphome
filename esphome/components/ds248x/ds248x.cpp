@@ -177,10 +177,16 @@ void DS248xComponent::start_next_conversion() {
   convCmdsIter_++;
 
   this->set_interval(TAG, 50, [&] {
+    // TODO this waiting is not working, better use ms waiting or check sensor registers?
+    if ((is_busy() & DS248X_STATUS_BUSY) != 0) {
+      ESP_LOGD(TAG, "SBR tells 1W busy");
+      return;
+    } 
     this->write_command(DS248X_COMMAND_SINGLEBIT, 0x80); // generates read bit
-    delayMicroseconds(500); // wait for single bit command to complete
+    delay(1); // wait for single bit command to complete
     uint8_t status = 0;
     this->read(&status, 1);
+    ESP_LOGD(TAG, "conversion status: %02x", status);
     if ((status & 0x20) != 0) { // bit 5 SBR = Single Bit Result
       // if not busy anymore
       this->cancel_interval(TAG);
@@ -248,7 +254,7 @@ void DS248xComponent::write_config(uint8_t cfg) {
   }
 }
 
-uint8_t DS248xComponent::wait_while_busy() {
+uint8_t DS248xComponent::is_busy() {
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_SETREADPTR;
   cmd[1] = DS248X_POINTER_STATUS;
@@ -258,7 +264,22 @@ uint8_t DS248xComponent::wait_while_busy() {
   }
 
   uint8_t status;
-	for(int i=1000; i>0; i--) {
+  err = this->read(&status, sizeof(status));
+  if (err != esphome::i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "error reading SBR from Master: %d", err);
+
+  }
+  
+  return status;
+}
+
+uint8_t DS248xComponent::wait_while_busy() {
+  // this commands set read pointer and initially checks
+  uint8_t status = is_busy();
+  if ((status & DS248X_STATUS_BUSY) == 0) return status;
+
+  // continuous reads
+  for(int i=1000; i>0; i--) {
       auto err = this->read(&status, sizeof(status));
       if (err == esphome::i2c::ERROR_OK && !(status & DS248X_STATUS_BUSY))
         break;
@@ -494,11 +515,11 @@ optional<uint8_t> DS248xSensor::get_channel() { return channel_; }
 
 // proxies to friend class DS248xComponent
 void DS248xSensor::select() { this->parent_->select(*channel_, *address_); }
-void DS248xSensor::selectChannel() { this->parent_->select_channel(*channel_); }
+void DS248xSensor::select_channel() { this->parent_->select_channel(*channel_); }
 void DS248xSensor::write_to_wire(uint8_t data) { this->parent_->write_to_wire(data); }
 bool DS248xSensor::reset_devices() { return this->parent_->reset_devices(); }
 
-bool IRAM_ATTR DS248xSensor::read_scratch_pad() {
+bool IRAM_ATTR DS248xSensor::read_scratch_pad(uint8_t page) {
   this->parent_->select_channel(*this->channel_);
   
   bool result = this->parent_->reset_devices();
@@ -510,6 +531,9 @@ bool IRAM_ATTR DS248xSensor::read_scratch_pad() {
 
   this->parent_->select(*this->channel_, *this->address_);
   this->parent_->write_to_wire(DALLAS_COMMAND_READ_SCRATCH_PAD);
+  if (page < 255) {
+    this->parent_->write_to_wire(page);
+  }
 
   for (uint8_t &i : this->scratch_pad_) {
     i = this->parent_->read_from_wire();

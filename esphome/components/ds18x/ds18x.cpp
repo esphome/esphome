@@ -103,19 +103,6 @@ bool DS18xTemperatureSensor::setup_sensor() {
 uint8_t DS18xTemperatureSensor::get_resolution() const { return this->resolution_; }
 void DS18xTemperatureSensor::set_resolution(uint8_t resolution) { this->resolution_ = resolution; }
 
-uint16_t DS18xTemperatureSensor::millis_to_wait_for_conversion() const {
-  switch (this->resolution_) {
-    case 9:
-      return 94;
-    case 10:
-      return 188;
-    case 11:
-      return 375;
-    default:
-      return 750;
-  }
-}
-
 void DS18xTemperatureSensor::add_conversion_commands(std::set<uint8_t> &commands)
 {
   commands.insert(DALLAS_COMMAND_START_CONVERSION);
