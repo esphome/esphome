@@ -239,6 +239,7 @@ async def to_code(config):
     key = f"led_strip_{id}"
 
     if CONF_CHIPSET in config:
+        cg.add(var.set_chipset("CHIPSET_" + config[CONF_CHIPSET]))
         _LOGGER.info("Generating PIO assembly code")
         rp2040.add_pio_file(
             __name__,
@@ -253,6 +254,7 @@ async def to_code(config):
             ),
         )
     else:
+        cg.add(var.set_chipset("CHIPSET_CUSTOM"))
         _LOGGER.info("Generating custom PIO assembly code")
         rp2040.add_pio_file(
             __name__,

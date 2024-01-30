@@ -70,6 +70,7 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
   void set_program(const pio_program_t *program) { this->program_ = program; }
   void set_init_function(init_fn init) { this->init_ = init; }
 
+  void set_chipset(std::string chipset);
   void set_rgb_order(RGBOrder rgb_order) { this->rgb_order_ = rgb_order; }
   void clear_effect_data() override {
     for (int i = 0; i < this->size(); i++) {
@@ -97,12 +98,18 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
   dma_channel_config dma_config_;
 
   RGBOrder rgb_order_{ORDER_RGB};
+  uint8_t chipset_{0};
 
   uint32_t last_refresh_{0};
   float max_refresh_rate_;
 
   const pio_program_t *program_;
   init_fn init_;
+
+ private:
+  inline static int num_instance_[2];
+  inline static bool conf_count_[5];
+  inline static int chipset_offsets_[4];
 };
 
 }  // namespace rp2040_pio_led_strip

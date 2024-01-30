@@ -38,25 +38,44 @@ void RP2040PIOLEDStripLightOutput::setup() {
   // Initialize the PIO program
 
   // Select PIO instance to use (0 or 1)
-  this->pio_ = pio0;
   if (this->pio_ == nullptr) {
     ESP_LOGE(TAG, "Failed to claim PIO instance");
     this->mark_failed();
     return;
   }
 
-  // Load the assembled program into the PIO and get its location in the PIO's instruction memory
-  uint offset = pio_add_program(this->pio_, this->program_);
+  // if there are multiple strips, we can reuse the same PIO program and save space
+  // but there are only 4 state machines on each PIO so we can only have 4 strips per PIO
+  uint offset = 0;
+
+  if (num_instance_[this->pio_ == pio0 ? 0 : 1] > 4) {
+    ESP_LOGE(TAG, "Too many instances of PIO program");
+    this->mark_failed();
+    return;
+  }
+  // keep track of how many instances of the PIO program are running on each PIO
+  num_instance_[this->pio_ == pio0 ? 0 : 1]++;
+
+  // if there are multiple strips of the same chipset, we can reuse the same PIO program and save space
+  if (this->conf_count_[this->chipset_]) {
+    offset = chipset_offsets_[this->chipset_];
+  } else {
+    // Load the assembled program into the PIO and get its location in the PIO's instruction memory and save it
+    offset = pio_add_program(this->pio_, this->program_);
+    chipset_offsets_[this->chipset_] = offset;
+    conf_count_[this->chipset_] = true;
+  }
 
   // Configure the state machine's PIO, and start it
   this->sm_ = pio_claim_unused_sm(this->pio_, true);
   if (this->sm_ < 0) {
+    // in theory this code should never be reached
     ESP_LOGE(TAG, "Failed to claim PIO state machine");
     this->mark_failed();
     return;
   }
 
-  // Initalize the DMA channel
+  // Initalize the DMA channel (Note: There are 12 DMA channels and 8 state machines so we won't run out)
 
   this->dma_chan_ = dma_claim_unused_channel(true);
   if (this->dma_chan_ < 0) {
@@ -161,6 +180,20 @@ void RP2040PIOLEDStripLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "  RGBW: %s", YESNO(this->is_rgbw_));
   ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order_to_string(this->rgb_order_));
   ESP_LOGCONFIG(TAG, "  Max Refresh Rate: %f Hz", this->max_refresh_rate_);
+}
+
+void RP2040PIOLEDStripLightOutput::set_chipset(std::string chipset) {
+  if (strncmp(chipset.c_str(), "WS2812", 6) == 0) {
+    this->chipset_ = 0;
+  } else if (strncmp(chipset.c_str(), "WS2812B", 7) == 0) {
+    this->chipset_ = 1;
+  } else if (strncmp(chipset.c_str(), "SK6812", 6) == 0) {
+    this->chipset_ = 2;
+  } else if (strncmp(chipset.c_str(), "SM16703", 7) == 0) {
+    this->chipset_ = 3;
+  } else {
+    this->chipset_ = 4;
+  }
 }
 
 float RP2040PIOLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
