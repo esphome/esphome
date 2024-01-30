@@ -4,15 +4,18 @@
 #include <HardwareSerial.h>
 #include "esphome/core/helpers.h"
 #include "lora_e220.h"
+#include "esphome/components/uart/uart.h"
 
 namespace esphome {
 namespace ebyte_lora_e220 {
+
+static const char *const TAG = "ebyte_lora_e220";
 
 // there are 3 UART ports, we are going to be using 0, which is D6 and D7
 HardwareSerial LoraSerial(0);
 LoRa_E220 e220ttl(&LoraSerial, D2, D0, D1);  //  SERIAL AUX M0 M1
 
-class LoRaSensors : public text_sensor::TextSensor, public PollingComponent {
+class LoRaSensors : public text_sensor::TextSensor, public PollingComponent, public uart::UARTDevice {
  public:
   LoRaSensors() : PollingComponent(4000) {}
 
