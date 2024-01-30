@@ -1,10 +1,57 @@
 #include "dfu.h"
+#ifdef USE_NRF52
+#include <zephyr/device.h>
+#include <zephyr/drivers/uart.h>
+#include <zephyr/drivers/uart/cdc_acm.h>
+#endif
+#ifdef USE_ARRUINO
 #include <Arduino.h>
-#include <Adafruit_TinyUSB.h>  // for Serial
+#include <Adafruit_TinyUSB.h>
+#endif
 
-extern "C" {
+namespace esphome {
+namespace dfu {
 
 volatile bool goto_dfu = false;
+
+#define DFU_DBL_RESET_MEM 0x20007F7C
+#define DFU_DBL_RESET_MAGIC 0x5A1AD5  // SALADS
+uint32_t *dbl_reset_mem = ((uint32_t *) DFU_DBL_RESET_MEM);
+
+#ifdef USE_NRF52
+#define DEVICE_AND_COMMA(node_id) DEVICE_DT_GET(node_id),
+
+const struct device *cdc_dev[] = {DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, DEVICE_AND_COMMA)};
+
+static void cdc_dte_rate_callback(const struct device *, uint32_t rate){
+  if (rate == 1200) {
+    goto_dfu = true;
+  }
+}
+#endif
+
+void DeviceFirmwareUpdate::setup() {
+#ifdef USE_NRF52
+  for (int idx = 0; idx < ARRAY_SIZE(cdc_dev); idx++) {
+    cdc_acm_dte_rate_callback_set(cdc_dev[idx], cdc_dte_rate_callback);
+  }
+#endif
+}
+
+void DeviceFirmwareUpdate::loop() {
+  if (goto_dfu) {
+    goto_dfu = false;
+    (*dbl_reset_mem) = DFU_DBL_RESET_MAGIC;
+    reset_output_->set_state(true);
+  }
+}
+
+}  // namespace dfu
+}  // namespace esphome
+
+#ifdef USE_ARRUINO
+extern "C" {
+
 void __wrap_tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
   (void) rts;
 
@@ -22,28 +69,4 @@ void __wrap_tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
   }
 }
 }
-
-namespace esphome {
-namespace dfu {
-
-#define DFU_DBL_RESET_MEM 0x20007F7C
-#define DFU_DBL_RESET_MAGIC 0x5A1AD5  // SALADS
-uint32_t *dbl_reset_mem = ((uint32_t *) DFU_DBL_RESET_MEM);
-
-void DeviceFirmwareUpdate::loop() {
-  if (goto_dfu) {
-    goto_dfu = false;
-    (*dbl_reset_mem) = DFU_DBL_RESET_MAGIC;
-    pinMode(14, OUTPUT);
-    pinMode(16, OUTPUT);
-    digitalWrite(14, 1);
-    digitalWrite(16, 1);
-
-    delay(50);
-    digitalWrite(14, 0);
-    digitalWrite(16, 0);
-  }
-}
-
-}  // namespace dfu
-}  // namespace esphome
+#endif
