@@ -18,6 +18,7 @@ class WK2168Component : public wk_base::WKBaseComponent {
 
  protected:
   friend class WK2168GPIOPin;
+
 #ifdef TEST_COMPONENT
   void test_gpio_input_();
   void test_gpio_output_();
@@ -49,7 +50,6 @@ class WK2168GPIOPin : public GPIOPin {
 
   void setup() override;
   std::string dump_summary() const override;
-
   void pin_mode(gpio::Flags flags) override { this->parent_->set_pin_direction_(this->pin_, flags); }
   bool digital_read() override { return this->parent_->read_pin_val_(this->pin_) != this->inverted_; }
   void digital_write(bool value) override { this->parent_->write_pin_val_(this->pin_, value != this->inverted_); }

@@ -126,13 +126,12 @@ void WK2168Component::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
 ///////////////////////////////////////////////////////////////////////////////
 // The WK2168GPIOPin methods
 ///////////////////////////////////////////////////////////////////////////////
-
 void WK2168GPIOPin::setup() {
   ESP_LOGV(TAG, "Setting GPIO pin %d mode to %s", this->pin_,
            flags_ == gpio::FLAG_INPUT          ? "Input"
            : this->flags_ == gpio::FLAG_OUTPUT ? "Output"
                                                : "NOT SPECIFIED");
-  // ESP_LOGCONFIG(TAG, "Setting GPIO pins direction/mode to '%s' %02X", i2s_(flags_), flags_);
+  //   ESP_LOGCONFIG(TAG, "Setting GPIO pins mode to '%s' %02X", S2CS(this->flags_), this->flags_);
   this->pin_mode(this->flags_);
 }
 
