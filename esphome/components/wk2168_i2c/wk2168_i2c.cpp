@@ -53,8 +53,9 @@ void print_buffer(const uint8_t *data, size_t length) {
   hex_buffer[(3 * 32) + 1] = 0;
   for (size_t i = 0; i < length; i++) {
     snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
-    if (i % 32 == 31)
+    if (i % 32 == 31) {
       ESP_LOGVV(TAG, "   %s", hex_buffer);
+    }
   }
   if (length % 32) {
     // null terminate if incomplete line
