@@ -70,6 +70,7 @@ void WK2168Component::test_gpio_output_() {
 void WK2168Component::loop() {
   wk_base::WKBaseComponent::loop();  // we call the loop() method from base class
   if (((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP) && !test_mode_)
+
     return;
 
 #ifdef TEST_COMPONENT
