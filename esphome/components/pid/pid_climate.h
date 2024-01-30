@@ -99,6 +99,7 @@ class PIDClimate : public climate::Climate, public Component {
   float default_target_temperature_;
   std::unique_ptr<PIDAutotuner> autotuner_;
   bool do_publish_ = false;
+  uint32_t last_frost_protect_ = 0;
 };
 
 template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {

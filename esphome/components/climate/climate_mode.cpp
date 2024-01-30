@@ -19,6 +19,8 @@ const LogString *climate_mode_to_string(ClimateMode mode) {
       return LOG_STR("FAN_ONLY");
     case CLIMATE_MODE_DRY:
       return LOG_STR("DRY");
+    case CLIMATE_MODE_FROST_PROTECT:
+      return LOG_STR("FROST_PROTECT");
     default:
       return LOG_STR("UNKNOWN");
   }
@@ -37,6 +39,8 @@ const LogString *climate_action_to_string(ClimateAction action) {
       return LOG_STR("DRYING");
     case CLIMATE_ACTION_FAN:
       return LOG_STR("FAN");
+    case CLIMATE_ACTION_FROST_PROTECT:
+      return LOG_STR("FROST_PROTECT");
     default:
       return LOG_STR("UNKNOWN");
   }

@@ -43,6 +43,8 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
     modes.add("dry");
   if (traits.supports_mode(CLIMATE_MODE_HEAT_COOL))
     modes.add("heat_cool");
+  if (traits.supports_mode(CLIMATE_MODE_FROST_PROTECT))
+    modes.add("frost_protect");
 
   if (traits.get_supports_two_point_target_temperature()) {
     // temperature_low_command_topic
@@ -280,6 +282,9 @@ bool MQTTClimateComponent::publish_state_() {
     case CLIMATE_MODE_HEAT_COOL:
       mode_s = "heat_cool";
       break;
+    case CLIMATE_MODE_FROST_PROTECT:
+      mode_s = "frost_protect";
+      break;
     default:
       mode_s = "unknown";
   }
@@ -375,6 +380,9 @@ bool MQTTClimateComponent::publish_state_() {
         break;
       case CLIMATE_ACTION_FAN:
         payload = "fan";
+        break;
+      case CLIMATE_ACTION_FROST_PROTECT:
+        mode_s = "frost_protect";
         break;
       default:
         payload = "unknown";

@@ -41,14 +41,18 @@ void PIDClimate::setup() {
   }
 }
 void PIDClimate::control(const climate::ClimateCall &call) {
+    esphome::climate::ClimateMode oldMode = this->mode;
   if (call.get_mode().has_value())
     this->mode = *call.get_mode();
   if (call.get_target_temperature().has_value())
     this->target_temperature = *call.get_target_temperature();
 
-  // If switching to off mode, set output immediately
-  if (this->mode == climate::CLIMATE_MODE_OFF)
+  // If switching to off or frost protect mode, set output immediately
+  if (this->mode == climate::CLIMATE_MODE_OFF || this->mode == climate::CLIMATE_MODE_FROST_PROTECT) {
     this->write_output_(0.0f);
+  } else if (oldMode == climate::CLIMATE_MODE_OFF) {
+    this->controller_.reset_accumulated_integral();
+  }
 
   this->publish_state();
 }
@@ -63,8 +67,10 @@ climate::ClimateTraits PIDClimate::traits() {
   traits.set_supported_modes({climate::CLIMATE_MODE_OFF});
   if (supports_cool_())
     traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
-  if (supports_heat_())
+  if (supports_heat_()) {
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
+    traits.add_supported_mode(climate::CLIMATE_MODE_FROST_PROTECT);
+  }
   if (supports_heat_() && supports_cool_())
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
 
@@ -113,6 +119,8 @@ void PIDClimate::write_output_(float value) {
     new_action = climate::CLIMATE_ACTION_HEATING;
   } else if (this->mode == climate::CLIMATE_MODE_OFF) {
     new_action = climate::CLIMATE_ACTION_OFF;
+  } else if (this->mode == climate::CLIMATE_MODE_FROST_PROTECT) {
+    new_action = climate::CLIMATE_ACTION_FROST_PROTECT;
   } else {
     new_action = climate::CLIMATE_ACTION_IDLE;
   }
@@ -148,8 +156,22 @@ void PIDClimate::update_pid_() {
   }
 
   if (this->mode == climate::CLIMATE_MODE_OFF) {
+    this->controller_.reset_accumulated_integral();
     this->write_output_(0.0);
+  } else if (this->mode == climate::CLIMATE_MODE_FROST_PROTECT) {
+    this->controller_.reset_accumulated_integral();
+    if (last_frost_protect_ + 40*60*1000 < millis()) {
+        last_frost_protect_ = millis();
+    } else if (last_frost_protect_ + 30*60*1000 < millis()) {
+        this->write_output_(1);
+    } else {
+        this->write_output_(0.0);
+    }
   } else {
+    if ((this->mode == climate::CLIMATE_MODE_HEAT || this->mode == climate::CLIMATE_MODE_HEAT_COOL) && value > 0) {
+        // this also protects against frost
+        last_frost_protect_ = millis();
+    }
     this->write_output_(value);
   }
 

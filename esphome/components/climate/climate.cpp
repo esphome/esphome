@@ -149,6 +149,8 @@ ClimateCall &ClimateCall::set_mode(const std::string &mode) {
     this->set_mode(CLIMATE_MODE_DRY);
   } else if (str_equals_case_insensitive(mode, "HEAT_COOL")) {
     this->set_mode(CLIMATE_MODE_HEAT_COOL);
+  } else if (str_equals_case_insensitive(mode, "FROST_PROTECT")) {
+    this->set_mode(CLIMATE_MODE_FROST_PROTECT);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized mode %s", this->parent_->get_name().c_str(), mode.c_str());
   }

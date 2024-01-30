@@ -9,7 +9,7 @@ namespace pid {
 struct PIDController {
   float update(float setpoint, float process_value);
 
-  void reset_accumulated_integral() { accumulated_integral_ = 0; }
+  void reset_accumulated_integral() { accumulated_integral_ = 0.0; }
   void set_starting_integral_term(float in) { accumulated_integral_ = in; }
 
   bool in_deadband();

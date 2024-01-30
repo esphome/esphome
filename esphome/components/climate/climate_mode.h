@@ -24,7 +24,9 @@ enum ClimateMode : uint8_t {
    * For example, the target temperature can be adjusted based on a schedule, or learned behavior.
    * The target temperature can't be adjusted when in this mode.
    */
-  CLIMATE_MODE_AUTO = 6
+  CLIMATE_MODE_AUTO = 6,
+  /// The climate device uses parametrized flow to protect system from frost.
+  CLIMATE_MODE_FROST_PROTECT = 7
 };
 
 /// Enum for the current action of the climate device. Values match those of ClimateMode.
@@ -41,6 +43,8 @@ enum ClimateAction : uint8_t {
   CLIMATE_ACTION_DRYING = 5,
   /// The climate device is in fan only mode
   CLIMATE_ACTION_FAN = 6,
+  /// The climate device uses parametrized flow to protect system from frost.
+  CLIMATE_ACTION_FROST_PROTECT = 7
 };
 
 enum ClimateFanMode : uint8_t {
