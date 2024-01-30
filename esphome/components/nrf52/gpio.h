@@ -26,12 +26,12 @@ class NRF52GPIOPin : public InternalGPIOPin {
 
  protected:
   void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
-
   uint8_t pin_;
   bool inverted_;
   gpio::Flags flags_;
 #ifdef USE_ZEPHYR
   const device * gpio_ = nullptr;
+  bool value_ = false;
 #endif
 };
 

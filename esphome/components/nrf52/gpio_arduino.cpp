@@ -83,7 +83,7 @@ void NRF52GPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::Inter
 void NRF52GPIOPin::setup() { pin_mode(flags_); }
 
 void NRF52GPIOPin::pin_mode(gpio::Flags flags) {
-  pinMode(pin_, flags_to_mode(flags, pin_));  // NOLINT
+  pinMode(pin_, flags_to_mode(flags, pin_));
 }
 
 std::string NRF52GPIOPin::dump_summary() const {
@@ -93,10 +93,10 @@ std::string NRF52GPIOPin::dump_summary() const {
 }
 
 bool NRF52GPIOPin::digital_read() {
-  return bool(digitalRead(pin_)) != inverted_;  // NOLINT
+  return bool(digitalRead(pin_)) != inverted_;
 }
 void NRF52GPIOPin::digital_write(bool value) {
-  digitalWrite(pin_, value != inverted_ ? 1 : 0);  // NOLINT
+  digitalWrite(pin_, value != inverted_ ? 1 : 0);
 }
 void NRF52GPIOPin::detach_interrupt() const {
    detachInterrupt(pin_); 
@@ -109,7 +109,7 @@ void NRF52GPIOPin::detach_interrupt() const {
 // TODO seems to not work???
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   auto *arg = reinterpret_cast<nrf52::ISRPinArg *>(arg_);
-  return bool(digitalRead(arg->pin)) != arg->inverted;  // NOLINT
+  return bool(digitalRead(arg->pin)) != arg->inverted;
 }
 
 }  // namespace esphome

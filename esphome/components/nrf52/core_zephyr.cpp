@@ -1,18 +1,23 @@
 #ifdef USE_NRF52
 #ifdef USE_ZEPHYR
 
+#include <stdlib.h>
 #include <zephyr/kernel.h>
 
 namespace esphome {
 void yield() { ::k_yield(); }
-uint32_t millis() { return ::k_ticks_to_ms_floor32(k_uptime_ticks()); }
+uint32_t millis() { return k_ticks_to_ms_floor32(k_uptime_ticks()); }
 void delay(uint32_t ms) { ::k_msleep(ms); }
-uint32_t micros() { return ::k_ticks_to_us_floor32(k_uptime_ticks()); }
+uint32_t micros() { return k_ticks_to_us_floor32(k_uptime_ticks()); }
 
 void arch_init() {
     // TODO
 }
 void arch_feed_wdt() {
+    // TODO
+}
+
+void arch_restart() {
     // TODO
 }
 
