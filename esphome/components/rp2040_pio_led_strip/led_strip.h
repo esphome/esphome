@@ -91,7 +91,6 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
   uint32_t num_leds_;
   bool is_rgbw_;
 
-
   pio_hw_t *pio_;
   uint sm_;
   uint dma_chan_;

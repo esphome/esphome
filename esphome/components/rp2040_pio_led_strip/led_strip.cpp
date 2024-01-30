@@ -35,7 +35,6 @@ void RP2040PIOLEDStripLightOutput::setup() {
     return;
   }
 
-
   // Initialize the PIO program
 
   // Select PIO instance to use (0 or 1)
@@ -67,21 +66,20 @@ void RP2040PIOLEDStripLightOutput::setup() {
   }
 
   this->dma_config_ = dma_channel_get_default_config(this->dma_chan_);
-  channel_config_set_transfer_data_size(&this->dma_config_, DMA_SIZE_8); // 8 bit transfers (could be 32 but the pio program would need to be changed to handle junk data)
-  channel_config_set_read_increment(&this->dma_config_, true); // increment the read address
-  channel_config_set_write_increment(&this->dma_config_, false); // don't increment the write address
-  channel_config_set_dreq(&this->dma_config_, pio_get_dreq(this->pio_, this->sm_, true)); // set the DREQ to the state machine's TX FIFO
+  channel_config_set_transfer_data_size(
+      &this->dma_config_,
+      DMA_SIZE_8);  // 8 bit transfers (could be 32 but the pio program would need to be changed to handle junk data)
+  channel_config_set_read_increment(&this->dma_config_, true);    // increment the read address
+  channel_config_set_write_increment(&this->dma_config_, false);  // don't increment the write address
+  channel_config_set_dreq(&this->dma_config_,
+                          pio_get_dreq(this->pio_, this->sm_, true));  // set the DREQ to the state machine's TX FIFO
 
   dma_channel_configure(this->dma_chan_, &this->dma_config_,
-                        &this->pio_->txf[this->sm_], // write to the state machine's TX FIFO
-                        this->buf_, // read from memory
-                        this->is_rgbw_ ? num_leds_ * 4 : num_leds_ * 3, // number of bytes to transfer
-                        false // don't start yet
+                        &this->pio_->txf[this->sm_],                     // write to the state machine's TX FIFO
+                        this->buf_,                                      // read from memory
+                        this->is_rgbw_ ? num_leds_ * 4 : num_leds_ * 3,  // number of bytes to transfer
+                        false                                            // don't start yet
   );
-
-
-
-
 
   this->init_(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
 }
