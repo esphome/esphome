@@ -137,9 +137,9 @@ state_naming::Status LoRa_E220::sendStruct(void *structureManaged, uint16_t size
   uint8_t len = this->serial->write((uint8_t *) structureManaged, size_);
   if (len != size_) {
     ESP_LOGD(TAG, "Send... len:")
-    ESP_LOGD(TAG, len);
+    ESP_LOGD(TAG, "%d", len);
     ESP_LOGD(TAG, " size:")
-    ESP_LOGD(TAG, size_);
+    ESP_LOGD(TAG, "%d", size_);
     if (len == 0) {
       result = state_naming::ERR_E220_NO_RESPONSE_FROM_DEVICE;
     } else {
@@ -179,9 +179,9 @@ state_naming::Status LoRa_E220::receiveStruct(void *structureManaged, uint16_t s
   uint8_t len = this->serialDef.stream->readBytes((uint8_t *) structureManaged, size_);
 
   ESP_LOGD(TAG, "Available buffer: ");
-  ESP_LOGD(TAG, len);
+  ESP_LOGD(TAG, "%d", len);
   ESP_LOGD(TAG, " structure size: ");
-  ESP_LOGD(TAG, size_);
+  ESP_LOGD(TAG, "%d", size_);
 
   if (len != size_) {
     if (len == 0) {
@@ -264,7 +264,7 @@ bool LoRa_E220::writeProgramCommand(PROGRAM_COMMAND cmd, REGISTER_ADDRESS addr, 
   uint8_t CMD[3] = {cmd, addr, pl};
   uint8_t size = this->serial->write_array(CMD, 3);
 
-  ESP_LOGD(TAG, size);
+  ESP_LOGD(TAG, "%d", size);
 
   this->managedDelay(50);  // need ti check
 
@@ -409,18 +409,18 @@ ResponseStructContainer LoRa_E220::getModuleInformation() {
 
   ESP_LOGD(TAG, "----------------------------------------");
   ESP_LOGD(TAG, "HEAD: ");
-  ESP_LOGD(TAG, ((ModuleInformation *) rc.data)->COMMAND, BIN);
+  ESP_LOGD(TAG, "%d", ((ModuleInformation *) rc.data)->COMMAND);
   ESP_LOGD(TAG, " ");
-  ESP_LOGD(TAG, ((ModuleInformation *) rc.data)->STARTING_ADDRESS, DEC);
+  ESP_LOGD(TAG, "%d", ((ModuleInformation *) rc.data)->STARTING_ADDRESS);
   ESP_LOGD(TAG, " ");
-  ESP_LOGD(TAG, ((ModuleInformation *) rc.data)->LENGHT, HEX);
+  ESP_LOGD(TAG, "%s", format_hex_pretty(((ModuleInformation *) rc.data)->LENGHT).c_str());
 
   ESP_LOGD(TAG, "Model no.: ");
-  ESP_LOGD(TAG, ((ModuleInformation *) rc.data)->model, HEX);
+  ESP_LOGD(TAG, "%s", format_hex_pretty(((ModuleInformation *) rc.data)->model).c_str());
   ESP_LOGD(TAG, "Version  : ");
-  ESP_LOGD(TAG, ((ModuleInformation *) rc.data)->version, HEX);
+  ESP_LOGD(TAG, "%s", format_hex_pretty(((ModuleInformation *) rc.data)->version).c_str());
   ESP_LOGD(TAG, "Features : ");
-  ESP_LOGD(TAG, (ModuleInformation *) rc.data)->features, HEX);
+  ESP_LOGD(TAG, "%s", format_hex_pretty(((ModuleInformation *) rc.data)->features).c_str());
   ESP_LOGD(TAG, "Status : ");
   ESP_LOGD(TAG, rc.status.getResponseDescription());
   ESP_LOGD(TAG, "----------------------------------------");
@@ -523,7 +523,7 @@ ResponseStatus LoRa_E220::sendMessage(const std::string message) {
   ESP_LOGD(TAG, message);
   byte size = message.length();  // sizeof(message.c_str())+1;
   ESP_LOGD(TAG, " size: ");
-  ESP_LOGD(TAG, size);
+  ESP_LOGD(TAG, "%d", size);
   char messageFixed[size];
   memcpy(messageFixed, message.c_str(), size);
   ESP_LOGD(TAG, " memcpy ");
@@ -595,7 +595,7 @@ ResponseStatus LoRa_E220::sendConfigurationMessage(byte ADDH, byte ADDL, byte CH
   fixedStransmission->specialCommand1 = SPECIAL_WIFI_CONF_COMMAND;
   fixedStransmission->specialCommand2 = SPECIAL_WIFI_CONF_COMMAND;
 
-  ESP_LOGD(TAG, sizeof(Configuration) + 2);
+  ESP_LOGD(TAG, "%d", sizeof(Configuration) + 2);
 
   rc = sendFixedMessage(ADDH, ADDL, CHAN, fixedStransmission, sizeof(Configuration) + 2);
   return rc;
@@ -649,62 +649,62 @@ void LoRa_E220::printParameters(struct Configuration *configuration) {
   ESP_LOGD(TAG, "----------------------------------------");
 
   ESP_LOGD(TAG, "HEAD : ");
-  ESP_LOGD(TAG, configuration->COMMAND, HEX);
+  ESP_LOGD(TAG, "%s", format_hex_pretty(configuration->COMMAND).c_str());
   ESP_LOGD(TAG, " ");
-  ESP_LOGD(TAG, configuration->STARTING_ADDRESS, HEX);
+  ESP_LOGD(TAG, format_hex_pretty(configuration->STARTING_ADDRESS).c_str());
   ESP_LOGD(TAG, " ");
-  ESP_LOGD(TAG, configuration->LENGHT, HEX);
+  ESP_LOGD(TAG, format_hex_pretty(configuration->LENGHT).c_str());
   ESP_LOGD(TAG, " ");
   ESP_LOGD(TAG, "AddH : ");
-  ESP_LOGD(TAG, configuration->ADDH, HEX);
+  ESP_LOGD(TAG,  format_hex_pretty(configuration->ADDH).c_str();
   ESP_LOGD(TAG, "AddL : ");
-  ESP_LOGD(TAG, configuration->ADDL, HEX);
+  ESP_LOGD(TAG,  format_hex_pretty(configuration->ADDL).c_str());
   ESP_LOGD(TAG, " ");
   ESP_LOGD(TAG, "Chan : ");
-  ESP_LOGD(TAG, configuration->CHAN, DEC);
+  ESP_LOGD(TAG, "%d", configuration->CHAN);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->getChannelDescription());
   ESP_LOGD(TAG, " ");
   ESP_LOGD(TAG, "SpeedParityBit     : ");
-  ESP_LOGD(TAG, configuration->SPED.uartParity, BIN);
+  ESP_LOGD(TAG, "%d", configuration->SPED.uartParity);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->SPED.getUARTParityDescription());
   ESP_LOGD(TAG, "SpeedUARTDatte     : ");
-  ESP_LOGD(TAG, configuration->SPED.uartBaudRate, BIN);
+  ESP_LOGD(TAG,"%d",  configuration->SPED.uartBaudRate);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->SPED.getUARTBaudRateDescription());
   ESP_LOGD(TAG, "SpeedAirDataRate   : ");
-  ESP_LOGD(TAG, configuration->SPED.airDataRate, BIN);
+  ESP_LOGD(TAG,"%d",  configuration->SPED.airDataRate);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->SPED.getAirDataRateDescription());
   ESP_LOGD(TAG, " ");
   ESP_LOGD(TAG, "OptionSubPacketSett: ");
-  ESP_LOGD(TAG, configuration->OPTION.subPacketSetting, BIN);
+  ESP_LOGD(TAG,"%d",  configuration->OPTION.subPacketSetting);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->OPTION.getSubPacketSetting());
   ESP_LOGD(TAG, "OptionTranPower    : ");
-  ESP_LOGD(TAG, configuration->OPTION.transmissionPower, BIN);
+  ESP_LOGD(TAG, configuration->OPTION.transmissionPower);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->OPTION.getTransmissionPowerDescription());
   ESP_LOGD(TAG, "OptionRSSIAmbientNo: ");
-  ESP_LOGD(TAG, configuration->OPTION.RSSIAmbientNoise, BIN);
+  ESP_LOGD(TAG,"%d",  configuration->OPTION.RSSIAmbientNoise);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->OPTION.getRSSIAmbientNoiseEnable());
   ESP_LOGD(TAG, " ");
   ESP_LOGD(TAG, "TransModeWORPeriod : ");
-  ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.WORPeriod, BIN);
+  ESP_LOGD(TAG,"%d",  configuration->TRANSMISSION_MODE.WORPeriod);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.getWORPeriodByParamsDescription());
   ESP_LOGD(TAG, "TransModeEnableLBT : ");
-  ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.enableLBT, BIN);
+  ESP_LOGD(TAG,"%d",  configuration->TRANSMISSION_MODE.enableLBT);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.getLBTEnableByteDescription());
   ESP_LOGD(TAG, "TransModeEnableRSSI: ");
-  ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.enableRSSI, BIN);
+  ESP_LOGD(TAG, "%d", configuration->TRANSMISSION_MODE.enableRSSI);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.getRSSIEnableByteDescription());
   ESP_LOGD(TAG, "TransModeFixedTrans: ");
-  ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.fixedTransmission, BIN);
+  ESP_LOGD(TAG, "%d", configuration->TRANSMISSION_MODE.fixedTransmission);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.getFixedTransmissionDescription());
 
