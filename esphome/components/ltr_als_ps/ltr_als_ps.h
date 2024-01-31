@@ -14,10 +14,10 @@ namespace ltr_als_ps {
 enum DataAvail : uint8_t { NO_DATA, BAD_DATA, DATA_OK };
 
 enum LtrType : uint8_t {
-  LtrTypeUnknown = 0,
-  LtrTypeAlsOnly = 1,
-  LtrTypePsOnly = 2,
-  LtrTypeAlsAndPs = 3,
+  LTR_TYPE_UNKNOWN = 0,
+  LTR_TYPE_ALS_ONLY = 1,
+  LTR_TYPE_PS_ONLY = 2,
+  LTR_TYPE_ALS_AND_PS = 3,
 };
 
 class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
@@ -76,7 +76,7 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
     KEEP_PUBLISHING
   } state_{State::NOT_INITIALIZED};
 
-  LtrType ltr_type_{LtrType::LtrTypeAlsOnly};
+  LtrType ltr_type_{LtrType::LTR_TYPE_ALS_ONLY};
 
   //
   // Current measurements data
@@ -91,10 +91,10 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   uint16_t ps_readings_{0xfffe};
 
   inline const bool is_als_() const {
-    return this->ltr_type_ == LtrType::LtrTypeAlsOnly || this->ltr_type_ == LtrType::LtrTypeAlsAndPs;
+    return this->ltr_type_ == LtrType::LTR_TYPE_ALS_ONLY || this->ltr_type_ == LtrType::LTR_TYPE_ALS_AND_PS;
   }
   inline const bool is_ps_() const {
-    return this->ltr_type_ == LtrType::LtrTypePsOnly || this->ltr_type_ == LtrType::LtrTypeAlsAndPs;
+    return this->ltr_type_ == LtrType::LTR_TYPE_PS_ONLY || this->ltr_type_ == LtrType::LTR_TYPE_ALS_AND_PS;
   }
 
   //
@@ -157,11 +157,11 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   CallbackManager<void()> on_ps_high_trigger_callback_;
   CallbackManager<void()> on_ps_low_trigger_callback_;
 
-  void add_on_ps_high_trigger_callback(std::function<void()> callback) {
+  void add_on_ps_high_trigger_callback_(std::function<void()> callback) {
     this->on_ps_high_trigger_callback_.add(std::move(callback));
   }
 
-  void add_on_ps_low_trigger_callback(std::function<void()> callback) {
+  void add_on_ps_low_trigger_callback_(std::function<void()> callback) {
     this->on_ps_low_trigger_callback_.add(std::move(callback));
   }
 };
@@ -169,14 +169,14 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
 class LTRPsHighTrigger : public Trigger<> {
  public:
   explicit LTRPsHighTrigger(LTRAlsPsComponent *parent) {
-    parent->add_on_ps_high_trigger_callback([this]() { this->trigger(); });
+    parent->add_on_ps_high_trigger_callback_([this]() { this->trigger(); });
   }
 };
 
 class LTRPsLowTrigger : public Trigger<> {
  public:
   explicit LTRPsLowTrigger(LTRAlsPsComponent *parent) {
-    parent->add_on_ps_low_trigger_callback([this]() { this->trigger(); });
+    parent->add_on_ps_low_trigger_callback_([this]() { this->trigger(); });
   }
 };
 }  // namespace ltr_als_ps
