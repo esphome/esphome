@@ -23,9 +23,6 @@ class EbyteLoraE220 : public PollingComponent, public uart::UARTDevice {
   void set_pin_aux(GPIOPin *s) { pin_aux = s; }
   void set_pin_m0(GPIOPin *s) { pin_m0 = s; }
   void set_pin_m1(GPIOPin *s) { pin_m1 = s; }
-  void setup() override {}
-  void dump_config() override { ESP_LOGCONFIG(TAG, "Ebyte Lora E220"); }
-  void loop() override {}
   void update() override {
     // This will be called by App.loop()
 
