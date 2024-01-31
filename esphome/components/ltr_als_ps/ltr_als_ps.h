@@ -90,10 +90,10 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   } als_readings_;
   uint16_t ps_readings_{0xfffe};
 
-  inline const bool is_als_() const {
+  inline bool is_als_() const {
     return this->ltr_type_ == LtrType::LTR_TYPE_ALS_ONLY || this->ltr_type_ == LtrType::LTR_TYPE_ALS_AND_PS;
   }
-  inline const bool is_ps_() const {
+  inline bool is_ps_() const {
     return this->ltr_type_ == LtrType::LTR_TYPE_PS_ONLY || this->ltr_type_ == LtrType::LTR_TYPE_ALS_AND_PS;
   }
 
