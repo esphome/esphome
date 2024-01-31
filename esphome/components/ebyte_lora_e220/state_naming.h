@@ -1,3 +1,5 @@
+#include <utility>
+#include <vector>
 namespace esphome {
 namespace state_naming {
 

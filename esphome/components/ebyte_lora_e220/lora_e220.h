@@ -1,4 +1,6 @@
 #pragma once
+#include <utility>
+#include <vector>
 #include "state_naming.h"
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
