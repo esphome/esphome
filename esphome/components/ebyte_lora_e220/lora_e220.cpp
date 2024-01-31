@@ -1,150 +1,15 @@
 #include "lora_e220.h"
-
-LoRa_E220::LoRa_E220(HardwareSerial *serial, UART_BPS_RATE bpsRate) {  //, uint32_t serialConfig
-  this->txE220pin = txE220pin;
-  this->rxE220pin = rxE220pin;
-
-#ifdef ACTIVATE_SOFTWARE_SERIAL
-  this->ss = NULL;
-#endif
-
-  this->hs = serial;
-
-  //    this->serialConfig = serialConfig;
-
-  this->bpsRate = bpsRate;
-}
-LoRa_E220::LoRa_E220(HardwareSerial *serial, byte auxPin, UART_BPS_RATE bpsRate) {  // , uint32_t serialConfig
-  this->txE220pin = txE220pin;
-  this->rxE220pin = rxE220pin;
-  this->auxPin = auxPin;
-
-#ifdef ACTIVATE_SOFTWARE_SERIAL
-  this->ss = NULL;
-#endif
-
-  this->hs = serial;
-
-  //    this->serialConfig = serialConfig;
-
-  this->bpsRate = bpsRate;
-}
-LoRa_E220::LoRa_E220(HardwareSerial *serial, byte auxPin, byte m0Pin, byte m1Pin,
-                     UART_BPS_RATE bpsRate) {  //, uint32_t serialConfig
-  this->txE220pin = txE220pin;
-  this->rxE220pin = rxE220pin;
-
+namespace esphome {
+namespace lora_e220 {
+LoRa_E220::LoRa_E220(esphome::uart::UARTDevice *serial, GPIOPin *auxPin, GPIOPin *m0Pin,
+                     GPIOPin *m1Pin) {  //, uint32_t serialConfig
+  this->serial = serial;
   this->auxPin = auxPin;
 
   this->m0Pin = m0Pin;
   this->m1Pin = m1Pin;
-
-#ifdef ACTIVATE_SOFTWARE_SERIAL
-  this->ss = NULL;
-#endif
-
-  this->hs = serial;
-  //    this->serialConfig = serialConfig;
-
-  this->bpsRate = bpsRate;
 }
-
-#ifdef HARDWARE_SERIAL_SELECTABLE_PIN
-LoRa_E220::LoRa_E220(byte txE220pin, byte rxE220pin, HardwareSerial *serial, UART_BPS_RATE bpsRate,
-                     uint32_t serialConfig) {
-  this->txE220pin = txE220pin;
-  this->rxE220pin = rxE220pin;
-
-#ifdef ACTIVATE_SOFTWARE_SERIAL
-  this->ss = NULL;
-#endif
-
-  this->serialConfig = serialConfig;
-
-  this->hs = serial;
-
-  this->bpsRate = bpsRate;
-}
-LoRa_E220::LoRa_E220(byte txE220pin, byte rxE220pin, HardwareSerial *serial, byte auxPin, UART_BPS_RATE bpsRate,
-                     uint32_t serialConfig) {
-  this->txE220pin = txE220pin;
-  this->rxE220pin = rxE220pin;
-  this->auxPin = auxPin;
-
-#ifdef ACTIVATE_SOFTWARE_SERIAL
-  this->ss = NULL;
-#endif
-
-  this->serialConfig = serialConfig;
-
-  this->hs = serial;
-
-  this->bpsRate = bpsRate;
-}
-LoRa_E220::LoRa_E220(byte txE220pin, byte rxE220pin, HardwareSerial *serial, byte auxPin, byte m0Pin, byte m1Pin,
-                     UART_BPS_RATE bpsRate, uint32_t serialConfig) {
-  this->txE220pin = txE220pin;
-  this->rxE220pin = rxE220pin;
-
-  this->auxPin = auxPin;
-
-  this->m0Pin = m0Pin;
-  this->m1Pin = m1Pin;
-
-#ifdef ACTIVATE_SOFTWARE_SERIAL
-  this->ss = NULL;
-#endif
-
-  this->serialConfig = serialConfig;
-
-  this->hs = serial;
-
-  this->bpsRate = bpsRate;
-}
-#endif
-
-#ifdef ACTIVATE_SOFTWARE_SERIAL
-
-LoRa_E220::LoRa_E220(SoftwareSerial *serial, UART_BPS_RATE bpsRate) {
-  this->txE220pin = txE220pin;
-  this->rxE220pin = rxE220pin;
-
-  this->ss = serial;
-  this->hs = NULL;
-
-  this->bpsRate = bpsRate;
-}
-LoRa_E220::LoRa_E220(SoftwareSerial *serial, byte auxPin, UART_BPS_RATE bpsRate) {
-  this->txE220pin = txE220pin;
-  this->rxE220pin = rxE220pin;
-  this->auxPin = auxPin;
-
-  this->ss = serial;
-  this->hs = NULL;
-
-  this->bpsRate = bpsRate;
-}
-LoRa_E220::LoRa_E220(SoftwareSerial *serial, byte auxPin, byte m0Pin, byte m1Pin, UART_BPS_RATE bpsRate) {
-  this->txE220pin = txE220pin;
-  this->rxE220pin = rxE220pin;
-
-  this->auxPin = auxPin;
-
-  this->m0Pin = m0Pin;
-  this->m1Pin = m1Pin;
-
-  this->ss = serial;
-  this->hs = NULL;
-
-  this->bpsRate = bpsRate;
-}
-#endif
-
 bool LoRa_E220::begin() {
-  ESP_LOGD(TAG, "RX MIC ---> ");
-  ESP_LOGD(TAG, this->txE220pin);
-  ESP_LOGD(TAG, "TX MIC ---> ");
-  ESP_LOGD(TAG, this->rxE220pin);
   ESP_LOGD(TAG, "AUX ---> ");
   ESP_LOGD(TAG, this->auxPin);
   ESP_LOGD(TAG, "M0 ---> ");
@@ -153,63 +18,24 @@ bool LoRa_E220::begin() {
   ESP_LOGD(TAG, this->m1Pin);
 
   if (this->auxPin != -1) {
-    pinMode(this->auxPin, INPUT);
+    this->m0Pin->pin_mode(gpio::FLAG_INPUT);
     ESP_LOGD(TAG, "Init AUX pin!");
   }
   if (this->m0Pin != -1) {
-    pinMode(this->m0Pin, OUTPUT);
+    this->m0Pin->pin_mode(gpio::FLAG_OUTPUT);
     ESP_LOGD(TAG, "Init M0 pin!");
-    digitalWrite(this->m0Pin, HIGH);
+    this->m0Pin->digital_write(true);
   }
   if (this->m1Pin != -1) {
-    pinMode(this->m1Pin, OUTPUT);
+    this->m0Pin->pin_mode(gpio::FLAG_OUTPUT);
     ESP_LOGD(TAG, "Init M1 pin!");
-    digitalWrite(this->m1Pin, HIGH);
+    this->m1Pin->digital_write(true);
   }
 
   ESP_LOGD(TAG, "Begin ex");
-  if (this->hs) {
-    ESP_LOGD(TAG, "Begin Hardware Serial");
 
-#ifdef HARDWARE_SERIAL_SELECTABLE_PIN
-    if (this->txE220pin != -1 && this->rxE220pin != -1) {
-      ESP_LOGD(TAG, "PIN SELECTED!!");
-      this->serialDef.begin(*this->hs, this->bpsRate, this->serialConfig, this->txE220pin, this->rxE220pin);
-    } else {
-      this->serialDef.begin(*this->hs, this->bpsRate, this->serialConfig);
-    }
-#endif
-#ifndef HARDWARE_SERIAL_SELECTABLE_PIN
-    this->serialDef.begin(*this->hs, this->bpsRate);
-#endif
-    while (!this->hs) {
-      ;  // wait for serial port to connect. Needed for native USB
-    }
-
-#ifdef ACTIVATE_SOFTWARE_SERIAL
-  } else if (this->ss) {
-    ESP_LOGD(TAG, "Begin Software Serial");
-
-    this->serialDef.begin(*this->ss, this->bpsRate);
-  } else {
-    ESP_LOGD(TAG, "Begin Software Serial Pin");
-    SoftwareSerial *mySerial = new SoftwareSerial(
-        (int) this->txE220pin, (int) this->rxE220pin);  // "RX TX" // @suppress("Abstract class cannot be instantiated")
-    this->ss = mySerial;
-
-    //		SoftwareSerial mySerial(this->txE220pin, this->rxE220pin);
-    ESP_LOGD(TAG, "RX Pin: ");
-    ESP_LOGD(TAG, (int) this->txE220pin);
-    ESP_LOGD(TAG, "TX Pin: ");
-    ESP_LOGD(TAG, (int) this->rxE220pin);
-
-    this->serialDef.begin(*this->ss, this->bpsRate);
-#endif
-  }
-
-  this->serialDef.stream->setTimeout(100);
-  Status status = setMode(MODE_0_NORMAL);
-  return status == E220_SUCCESS;
+  state_naming::Status status = setMode(MODE_0_NORMAL);
+  return status == state_naming::E220_SUCCESS;
 }
 
 /*
@@ -220,7 +46,7 @@ a timeout is provided to avoid an infinite loop
 */
 
 Status LoRa_E220::waitCompleteResponse(unsigned long timeout, unsigned int waitNoAux) {
-  Status result = E220_SUCCESS;
+  state_naming::Status result = state_naming::E220_SUCCESS;
 
   unsigned long t = millis();
 
@@ -232,7 +58,7 @@ Status LoRa_E220::waitCompleteResponse(unsigned long timeout, unsigned int waitN
   // if AUX pin was supplied and look for HIGH state
   // note you can omit using AUX if no pins are available, but you will have to use delay() to let module finish
   if (this->auxPin != -1) {
-    while (digitalRead(this->auxPin) == LOW) {
+    while (this->auxPin->digital_read() == false) {
       if ((millis() - t) > timeout) {
         result = ERR_E220_TIMEOUT;
         ESP_LOGD(TAG, "Timeout error!");
@@ -244,12 +70,12 @@ Status LoRa_E220::waitCompleteResponse(unsigned long timeout, unsigned int waitN
     // if you can't use aux pin, use 4K7 pullup with Arduino
     // you may need to adjust this value if transmissions fail
     this->managedDelay(waitNoAux);
-    ESP_LOGD(TAG, F("Wait no AUX pin!"));
+    ESP_LOGD(TAG, "Wait no AUX pin!");
   }
 
   // per data sheet control after aux goes high is 2ms so delay for at least that long)
   this->managedDelay(20);
-  ESP_LOGD(TAG, F("Complete!"));
+  ESP_LOGD(TAG, "Complete!");
   return result;
 }
 
@@ -278,48 +104,13 @@ Method to indicate availability
 
 */
 
-// int LoRa_E220::available(unsigned long timeout) {
-int LoRa_E220::available() {
-  //	unsigned long t = millis();
-  //
-  //	// make darn sure millis() is not about to reach max data type limit and start over
-  //	if (((unsigned long) (t + timeout)) == 0){
-  //		t = 0;
-  //	}
-  //
-  //	if (this->auxPin != -1) {
-  //		if (digitalRead(this->auxPin) == HIGH){
-  //			return 0;
-  //		}else{
-  //			while (digitalRead(this->auxPin) == LOW) {
-  //				if ((millis() - t) > timeout){
-  //					ESP_LOGD(TAG, "Timeout error!");
-  //					return 0;
-  //				}
-  //			}
-  //			ESP_LOGD(TAG, "AUX HIGH!");
-  //			return 2;
-  //		}
-  //	}else{
-  return this->serialDef.stream->available();
-  //	}
-}
+int LoRa_E220::available() { return this->serial->available(); }
 
-/*
-
-Method to indicate availability
-
-*/
-
-void LoRa_E220::flush() { this->serialDef.stream->flush(); }
+void LoRa_E220::flush() { this->serial->flush(); }
 
 void LoRa_E220::cleanUARTBuffer() {
-  //  bool IsNull = true;
-
-  while (this->available()) {
-    //    IsNull = false;
-
-    this->serialDef.stream->read();
+  while (this->serial->available()) {
+    this->serial->read();
   }
 }
 
@@ -343,28 +134,28 @@ Status LoRa_E220::sendStruct(void *structureManaged, uint16_t size_) {
 
   Status result = E220_SUCCESS;
 
-  uint8_t len = this->serialDef.stream->write((uint8_t *) structureManaged, size_);
+  uint8_t len = this->serial->write((uint8_t *) structureManaged, size_);
   if (len != size_) {
-    ESP_LOGD(TAG, F("Send... len:"))
+    ESP_LOGD(TAG, "Send... len:")
     ESP_LOGD(TAG, len);
-    ESP_LOGD(TAG, F(" size:"))
+    ESP_LOGD(TAG, " size:")
     ESP_LOGD(TAG, size_);
     if (len == 0) {
-      result = ERR_E220_NO_RESPONSE_FROM_DEVICE;
+      result = state_naming::ERR_E220_NO_RESPONSE_FROM_DEVICE;
     } else {
-      result = ERR_E220_DATA_SIZE_NOT_MATCH;
+      result = state_naming::ERR_E220_DATA_SIZE_NOT_MATCH;
     }
   }
-  if (result != E220_SUCCESS)
+  if (result != state_naming::E220_SUCCESS)
     return result;
 
   result = this->waitCompleteResponse(5000, 5000);
-  if (result != E220_SUCCESS)
+  if (result != state_naming::E220_SUCCESS)
     return result;
-  ESP_LOGD(TAG, F("Clear buffer..."))
+  ESP_LOGD(TAG, "Clear buffer...")
   this->cleanUARTBuffer();
 
-  ESP_LOGD(TAG, F("ok!"))
+  ESP_LOGD(TAG, "ok!")
 
   return result;
 }
@@ -394,16 +185,16 @@ Status LoRa_E220::receiveStruct(void *structureManaged, uint16_t size_) {
 
   if (len != size_) {
     if (len == 0) {
-      result = ERR_E220_NO_RESPONSE_FROM_DEVICE;
+      result = state_naming::ERR_E220_NO_RESPONSE_FROM_DEVICE;
     } else {
-      result = ERR_E220_DATA_SIZE_NOT_MATCH;
+      result = state_naming::ERR_E220_DATA_SIZE_NOT_MATCH;
     }
   }
-  if (result != E220_SUCCESS)
+  if (result != state_naming::E220_SUCCESS)
     return result;
 
   result = this->waitCompleteResponse(1000);
-  if (result != E220_SUCCESS)
+  if (result != state_naming::E220_SUCCESS)
     return result;
 
   return result;
@@ -422,35 +213,35 @@ Status LoRa_E220::setMode(MODE_TYPE mode) {
   this->managedDelay(40);
 
   if (this->m0Pin == -1 && this->m1Pin == -1) {
-    ESP_LOGD(TAG, F("The M0 and M1 pins is not set, this mean that you are connect directly the pins as you need!"))
+    ESP_LOGD(TAG, "The M0 and M1 pins is not set, this mean that you are connect directly the pins as you need!")
   } else {
     switch (mode) {
       case MODE_0_NORMAL:
         // Mode 0 | normal operation
-        digitalWrite(this->m0Pin, LOW);
-        digitalWrite(this->m1Pin, LOW);
+        this->m0Pin->digital_write(false);
+        this->m1Pin->digital_write(false);
         ESP_LOGD(TAG, "MODE NORMAL!");
         break;
       case MODE_1_WOR_TRANSMITTER:
-        digitalWrite(this->m0Pin, HIGH);
-        digitalWrite(this->m1Pin, LOW);
+        this->m0Pin->digital_write(true);
+        this->m1Pin->digital_write(false);
         ESP_LOGD(TAG, "MODE WOR!");
         break;
       case MODE_2_WOR_RECEIVER:
         //		  case MODE_2_PROGRAM:
-        digitalWrite(this->m0Pin, LOW);
-        digitalWrite(this->m1Pin, HIGH);
+        this->m0Pin->digital_write(false);
+        this->m1Pin->digital_write(true);
         ESP_LOGD(TAG, "MODE RECEIVING!");
         break;
       case MODE_3_CONFIGURATION:
         // Mode 3 | Setting operation
-        digitalWrite(this->m0Pin, HIGH);
-        digitalWrite(this->m1Pin, HIGH);
+        this->m0Pin->digital_write(true);
+        this->m1Pin->digital_write(true);
         ESP_LOGD(TAG, "MODE SLEEP CONFIG!");
         break;
 
       default:
-        return ERR_E220_INVALID_PARAM;
+        return state_naming::ERR_E220_INVALID_PARAM;
     }
   }
   // data sheet says 2ms later control is returned, let's give just a bit more time
@@ -458,9 +249,9 @@ Status LoRa_E220::setMode(MODE_TYPE mode) {
   this->managedDelay(40);
 
   // wait until aux pin goes back low
-  Status res = this->waitCompleteResponse(1000);
+  state_naming::Status res = this->waitCompleteResponse(1000);
 
-  if (res == E220_SUCCESS) {
+  if (res == state_naming::E220_SUCCESS) {
     this->mode = mode;
   }
 
@@ -471,7 +262,7 @@ MODE_TYPE LoRa_E220::getMode() { return this->mode; }
 
 bool LoRa_E220::writeProgramCommand(PROGRAM_COMMAND cmd, REGISTER_ADDRESS addr, PACKET_LENGHT pl) {
   uint8_t CMD[3] = {cmd, addr, pl};
-  uint8_t size = this->serialDef.stream->write(CMD, 3);
+  uint8_t size = this->serial->write_array(CMD, 3);
 
   ESP_LOGD(TAG, size);
 
@@ -484,7 +275,7 @@ ResponseStructContainer LoRa_E220::getConfiguration() {
   ResponseStructContainer rc;
 
   rc.status.code = checkUARTConfiguration(MODE_3_PROGRAM);
-  if (rc.status.code != E220_SUCCESS)
+  if (rc.status.code != state_naming::E220_SUCCESS)
     return rc;
 
   MODE_TYPE prevMode = this->mode;
@@ -524,7 +315,7 @@ ResponseStructContainer LoRa_E220::getConfiguration() {
 }
 
 RESPONSE_STATUS LoRa_E220::checkUARTConfiguration(MODE_TYPE mode) {
-  if (mode == MODE_3_PROGRAM && this->bpsRate != UART_BPS_RATE_9600) {
+  if (mode == MODE_3_PROGRAM) {
     return ERR_E220_WRONG_UART_CONFIG;
   }
   return E220_SUCCESS;
@@ -595,7 +386,6 @@ ResponseStructContainer LoRa_E220::getModuleInformation() {
 
   rc.data = malloc(sizeof(ModuleInformation));
 
-  //	struct ModuleInformation *moduleInformation = (ModuleInformation *)malloc(sizeof(ModuleInformation));
   rc.status.code = this->receiveStruct((uint8_t *) rc.data, sizeof(ModuleInformation));
   if (rc.status.code != E220_SUCCESS) {
     this->setMode(prevMode);
@@ -618,55 +408,27 @@ ResponseStructContainer LoRa_E220::getModuleInformation() {
   }
 
   ESP_LOGD(TAG, "----------------------------------------");
-  ESP_LOGD(TAG, F("HEAD: "));
+  ESP_LOGD(TAG, "HEAD: ");
   ESP_LOGD(TAG, ((ModuleInformation *) rc.data)->COMMAND, BIN);
   ESP_LOGD(TAG, " ");
   ESP_LOGD(TAG, ((ModuleInformation *) rc.data)->STARTING_ADDRESS, DEC);
   ESP_LOGD(TAG, " ");
   ESP_LOGD(TAG, ((ModuleInformation *) rc.data)->LENGHT, HEX);
 
-  ESP_LOGD(TAG, F("Model no.: "));
+  ESP_LOGD(TAG, "Model no.: ");
   ESP_LOGD(TAG, ((ModuleInformation *) rc.data)->model, HEX);
-  ESP_LOGD(TAG, F("Version  : "));
+  ESP_LOGD(TAG, "Version  : ");
   ESP_LOGD(TAG, ((ModuleInformation *) rc.data)->version, HEX);
-  ESP_LOGD(TAG, F("Features : "));
+  ESP_LOGD(TAG, "Features : ");
   ESP_LOGD(TAG, (ModuleInformation *) rc.data)->features, HEX);
-  ESP_LOGD(TAG, F("Status : "));
+  ESP_LOGD(TAG, "Status : ");
   ESP_LOGD(TAG, rc.status.getResponseDescription());
   ESP_LOGD(TAG, "----------------------------------------");
-
-  //	if (rc.status.code!=E220_SUCCESS) return rc;
-
-  //	rc.data = moduleInformation; // malloc(sizeof (moduleInformation));
-
   return rc;
 }
 
 ResponseStatus LoRa_E220::resetModule() {
-  //	ResponseStatus status;
-  //
-  //	status.code = checkUARTConfiguration(MODE_2_PROGRAM);
-  //	if (status.code!=E220_SUCCESS) return status;
-  //
-  //	MODE_TYPE prevMode = this->mode;
-  //
-  //	status.code = this->setMode(MODE_2_PROGRAM);
-  //	if (status.code!=E220_SUCCESS) return status;
-  //
-  //	this->writeProgramCommand(WRITE_RESET_MODULE);
-  //
-  //	status.code = this->waitCompleteResponse(1000);
-  //	if (status.code!=E220_SUCCESS)  {
-  //		this->setMode(prevMode);
-  //		return status;
-  //	}
-  //
-  //
-  //	status.code = this->setMode(prevMode);
-  //	if (status.code!=E220_SUCCESS) return status;
-  //
-  //	return status;
-  ESP_LOGD(TAG, F("No information to reset module!"));
+  ESP_LOGD(TAG, "No information to reset module!");
   ResponseStatus status;
   status.code = ERR_E220_NOT_IMPLEMENT;
   return status;
@@ -678,13 +440,18 @@ ResponseContainer LoRa_E220::receiveMessageRSSI() { return LoRa_E220::receiveMes
 ResponseContainer LoRa_E220::receiveMessageComplete(bool rssiEnabled) {
   ResponseContainer rc;
   rc.status.code = E220_SUCCESS;
-  std::string tmpData = this->serialDef.stream->readstd::string();
-
-  ESP_LOGD(TAG, tmpData);
+  std::string buffer;
+  uint8_t data;
+  while (this->available() > 0) {
+    if (this->read_byte(&data)) {
+      buffer += (char) data;
+    }
+  }
+  ESP_LOGD(TAG, buffer);
 
   if (rssiEnabled) {
-    rc.rssi = tmpData.charAt(tmpData.length() - 1);
-    rc.data = tmpData.substd::string(0, tmpData.length() - 1);
+    rc.rssi = buffer.charAt(tmpData.length() - 1);
+    rc.data = buffer.substd::string(0, tmpData.length() - 1);
   } else {
     rc.data = tmpData;
   }
@@ -698,19 +465,6 @@ ResponseContainer LoRa_E220::receiveMessageComplete(bool rssiEnabled) {
   return rc;
 }
 
-ResponseContainer LoRa_E220::receiveMessageUntil(char delimiter) {
-  ResponseContainer rc;
-  rc.status.code = E220_SUCCESS;
-  rc.data = this->serialDef.stream->readstd::stringUntil(delimiter);
-  //	this->cleanUARTBuffer();
-  if (rc.status.code != E220_SUCCESS) {
-    return rc;
-  }
-
-  //	rc.data = message; // malloc(sizeof (moduleInformation));
-
-  return rc;
-}
 ResponseContainer LoRa_E220::receiveInitialMessage(uint8_t size) {
   ResponseContainer rc;
   rc.status.code = E220_SUCCESS;
@@ -765,14 +519,14 @@ ResponseStatus LoRa_E220::sendMessage(const void *message, const uint8_t size) {
   return status;
 }
 ResponseStatus LoRa_E220::sendMessage(const std::string message) {
-  ESP_LOGD(TAG, F("Send message: "));
+  ESP_LOGD(TAG, "Send message: ");
   ESP_LOGD(TAG, message);
   byte size = message.length();  // sizeof(message.c_str())+1;
-  ESP_LOGD(TAG, F(" size: "));
+  ESP_LOGD(TAG, " size: ");
   ESP_LOGD(TAG, size);
   char messageFixed[size];
   memcpy(messageFixed, message.c_str(), size);
-  ESP_LOGD(TAG, F(" memcpy "));
+  ESP_LOGD(TAG, " memcpy ");
 
   ResponseStatus status;
   status.code = this->sendStruct((uint8_t *) &messageFixed, size);
@@ -784,36 +538,7 @@ ResponseStatus LoRa_E220::sendMessage(const std::string message) {
 }
 
 ResponseStatus LoRa_E220::sendFixedMessage(byte ADDH, byte ADDL, byte CHAN, const std::string message) {
-  //	ESP_LOGD(TAG,"std::string/size: ");
-  //	ESP_LOGD(TAG,message);
-  //	ESP_LOGD(TAG,"/");
-  byte size = message.length();  // sizeof(message.c_str())+1;
-                                 //	ESP_LOGD(TAG, size);
-                                 //
-                                 //	#pragma pack(push, 1)
-                                 //	struct FixedStransmissionstd::string {
-                                 //		byte ADDH = 0;
-                                 //		byte ADDL = 0;
-                                 //		byte CHAN = 0;
-                                 //		char message[];
-                                 //	} fixedStransmission;
-                                 //	#pragma pack(pop)
-                                 //
-                                 //	fixedStransmission.ADDH = ADDH;
-                                 //	fixedStransmission.ADDL = ADDL;
-                                 //	fixedStransmission.CHAN = CHAN;
-                                 //	char* msg = (char*)message.c_str();
-                                 //	memcpy(fixedStransmission.message, (char*)msg, size);
-                                 ////	fixedStransmission.message = message;
-                                 //
-                                 //	ESP_LOGD(TAG,"Message: ");
-                                 //	ESP_LOGD(TAG, fixedStransmission.message);
-                                 //
-                                 //	ResponseStatus status;
-  //	status.code = this->sendStruct((uint8_t *)&fixedStransmission, sizeof(fixedStransmission));
-  //	if (status.code!=E220_SUCCESS) return status;
-  //
-  //	return status;
+  byte size = message.length();
   char messageFixed[size];
   memcpy(messageFixed, message.c_str(), size);
   return this->sendFixedMessage(ADDH, ADDL, CHAN, (uint8_t *) messageFixed, size);
@@ -835,40 +560,15 @@ FixedStransmission *init_stack(int m) {
 }
 
 ResponseStatus LoRa_E220::sendFixedMessage(byte ADDH, byte ADDL, byte CHAN, const void *message, const uint8_t size) {
-  //	#pragma pack(push, 1)
-  //	struct FixedStransmission {
-  //		byte ADDH = 0;
-  //		byte ADDL = 0;
-  //		byte CHAN = 0;
-  //		unsigned char message[];
-  //	} fixedStransmission;
-  //	#pragma pack(pop)
-
   ESP_LOGD(TAG, ADDH);
-
   FixedStransmission *fixedStransmission = init_stack(size);
-
-  //	STACK *resize_stack(STACK *st, int m){
-  //	    if (m<=st->max){
-  //	         return st; /* Take sure do not kill old values */
-  //	    }
-  //	    STACK *st = (STACK *)realloc(sizeof(STACK)+m*sizeof(int));
-  //	    st->max = m;
-  //	    return st;
-  //	}
-
   fixedStransmission->ADDH = ADDH;
   fixedStransmission->ADDL = ADDL;
   fixedStransmission->CHAN = CHAN;
-  //	fixedStransmission.message = &message;
-
   memcpy(fixedStransmission->message, (unsigned char *) message, size);
-
   ResponseStatus status;
   status.code = this->sendStruct((uint8_t *) fixedStransmission, size + 3);
-
   free(fixedStransmission);
-
   if (status.code != E220_SUCCESS)
     return status;
 
@@ -884,16 +584,11 @@ ResponseStatus LoRa_E220::sendConfigurationMessage(byte ADDH, byte ADDL, byte CH
                                                    PROGRAM_COMMAND programCommand) {
   ResponseStatus rc;
 
-  //	rc.code = this->setMode(MODE_2_PROGRAM);
-  //	if (rc.code!=E220_SUCCESS) return rc;
-
   configuration->COMMAND = programCommand;
   configuration->STARTING_ADDRESS = REG_ADDRESS_CFG;
   configuration->LENGHT = PL_CONFIGURATION;
 
   ConfigurationMessage *fixedStransmission = init_stack_conf(sizeof(Configuration));
-
-  //	fixedStransmission.message = &message;
 
   memcpy(fixedStransmission->message, (unsigned char *) configuration, sizeof(Configuration));
 
@@ -903,13 +598,6 @@ ResponseStatus LoRa_E220::sendConfigurationMessage(byte ADDH, byte ADDL, byte CH
   ESP_LOGD(TAG, sizeof(Configuration) + 2);
 
   rc = sendFixedMessage(ADDH, ADDL, CHAN, fixedStransmission, sizeof(Configuration) + 2);
-  //
-  //	ResponseStatus status;
-  //	status.code = this->sendStruct((uint8_t *)fixedStransmission, sizeof(Configuration)+5);
-  //	if (status.code!=E220_SUCCESS) return status;
-
-  //	free(fixedStransmission);
-
   return rc;
 }
 
@@ -960,62 +648,62 @@ unsigned long LoRa_E220::decrypt(unsigned long data) {
 void LoRa_E220::printParameters(struct Configuration *configuration) {
   ESP_LOGD(TAG, "----------------------------------------");
 
-  ESP_LOGD(TAG, F("HEAD : "));
+  ESP_LOGD(TAG, "HEAD : ");
   ESP_LOGD(TAG, configuration->COMMAND, HEX);
   ESP_LOGD(TAG, " ");
   ESP_LOGD(TAG, configuration->STARTING_ADDRESS, HEX);
   ESP_LOGD(TAG, " ");
   ESP_LOGD(TAG, configuration->LENGHT, HEX);
-  ESP_LOGD(TAG, F(" "));
-  ESP_LOGD(TAG, F("AddH : "));
+  ESP_LOGD(TAG, " ");
+  ESP_LOGD(TAG, "AddH : ");
   ESP_LOGD(TAG, configuration->ADDH, HEX);
-  ESP_LOGD(TAG, F("AddL : "));
+  ESP_LOGD(TAG, "AddL : ");
   ESP_LOGD(TAG, configuration->ADDL, HEX);
-  ESP_LOGD(TAG, F(" "));
-  ESP_LOGD(TAG, F("Chan : "));
+  ESP_LOGD(TAG, " ");
+  ESP_LOGD(TAG, "Chan : ");
   ESP_LOGD(TAG, configuration->CHAN, DEC);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->getChannelDescription());
-  ESP_LOGD(TAG, F(" "));
-  ESP_LOGD(TAG, F("SpeedParityBit     : "));
+  ESP_LOGD(TAG, " ");
+  ESP_LOGD(TAG, "SpeedParityBit     : ");
   ESP_LOGD(TAG, configuration->SPED.uartParity, BIN);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->SPED.getUARTParityDescription());
-  ESP_LOGD(TAG, F("SpeedUARTDatte     : "));
+  ESP_LOGD(TAG, "SpeedUARTDatte     : ");
   ESP_LOGD(TAG, configuration->SPED.uartBaudRate, BIN);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->SPED.getUARTBaudRateDescription());
-  ESP_LOGD(TAG, F("SpeedAirDataRate   : "));
+  ESP_LOGD(TAG, "SpeedAirDataRate   : ");
   ESP_LOGD(TAG, configuration->SPED.airDataRate, BIN);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->SPED.getAirDataRateDescription());
-  ESP_LOGD(TAG, F(" "));
-  ESP_LOGD(TAG, F("OptionSubPacketSett: "));
+  ESP_LOGD(TAG, " ");
+  ESP_LOGD(TAG, "OptionSubPacketSett: ");
   ESP_LOGD(TAG, configuration->OPTION.subPacketSetting, BIN);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->OPTION.getSubPacketSetting());
-  ESP_LOGD(TAG, F("OptionTranPower    : "));
+  ESP_LOGD(TAG, "OptionTranPower    : ");
   ESP_LOGD(TAG, configuration->OPTION.transmissionPower, BIN);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->OPTION.getTransmissionPowerDescription());
-  ESP_LOGD(TAG, F("OptionRSSIAmbientNo: "));
+  ESP_LOGD(TAG, "OptionRSSIAmbientNo: ");
   ESP_LOGD(TAG, configuration->OPTION.RSSIAmbientNoise, BIN);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->OPTION.getRSSIAmbientNoiseEnable());
-  ESP_LOGD(TAG, F(" "));
-  ESP_LOGD(TAG, F("TransModeWORPeriod : "));
+  ESP_LOGD(TAG, " ");
+  ESP_LOGD(TAG, "TransModeWORPeriod : ");
   ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.WORPeriod, BIN);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.getWORPeriodByParamsDescription());
-  ESP_LOGD(TAG, F("TransModeEnableLBT : "));
+  ESP_LOGD(TAG, "TransModeEnableLBT : ");
   ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.enableLBT, BIN);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.getLBTEnableByteDescription());
-  ESP_LOGD(TAG, F("TransModeEnableRSSI: "));
+  ESP_LOGD(TAG, "TransModeEnableRSSI: ");
   ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.enableRSSI, BIN);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.getRSSIEnableByteDescription());
-  ESP_LOGD(TAG, F("TransModeFixedTrans: "));
+  ESP_LOGD(TAG, "TransModeFixedTrans: ");
   ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.fixedTransmission, BIN);
   ESP_LOGD(TAG, " -> ");
   ESP_LOGD(TAG, configuration->TRANSMISSION_MODE.getFixedTransmissionDescription());
@@ -1023,3 +711,5 @@ void LoRa_E220::printParameters(struct Configuration *configuration) {
   ESP_LOGD(TAG, "----------------------------------------");
 }
 #endif
+}  // namespace lora_e220
+}  // namespace esphome

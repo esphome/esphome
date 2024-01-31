@@ -1,4 +1,5 @@
-#include "Arduino.h"
+namespace esphome {
+namespace state_naming {
 
 #ifdef FREQUENCY_433
 #define OPERATING_FREQUENCY 410
@@ -39,7 +40,7 @@ typedef enum RESPONSE_STATUS {
   ERR_E220_PACKET_TOO_BIG
 } Status;
 
-static std::string getResponseDescriptionByParams(byte status) {
+static std::string getResponseDescriptionByParams(uint8_t status) {
   switch (status) {
     case E220_SUCCESS:
       return "Success";
@@ -90,7 +91,7 @@ static std::string getResponseDescriptionByParams(byte status) {
 
 enum E220_UART_PARITY { MODE_00_8N1 = 0b00, MODE_01_8O1 = 0b01, MODE_10_8E1 = 0b10, MODE_11_8N1 = 0b11 };
 
-static std::string getUARTParityDescriptionByParams(byte uartParity) {
+static std::string getUARTParityDescriptionByParams(uint8_t uartParity) {
   switch (uartParity) {
     case MODE_00_8N1:
       return "8N1 (Default)";
@@ -131,7 +132,7 @@ enum UART_BPS_RATE {
   UART_BPS_RATE_115200 = 115200
 };
 
-static std::string getUARTBaudRateDescriptionByParams(byte uartBaudRate) {
+static std::string getUARTBaudRateDescriptionByParams(uint8_t uartBaudRate) {
   switch (uartBaudRate) {
     case UART_BPS_1200:
       return "1200bps";
@@ -173,7 +174,7 @@ enum AIR_DATA_RATE {
   AIR_DATA_RATE_111_625 = 0b111
 };
 
-static std::string getAirDataRateDescriptionByParams(byte airDataRate) {
+static std::string getAirDataRateDescriptionByParams(uint8_t airDataRate) {
   switch (airDataRate) {
     case AIR_DATA_RATE_000_24:
       return "2.4kbps";
@@ -211,7 +212,7 @@ enum SUB_PACKET_SETTING {
   SPS_032_11 = 0b11
 
 };
-static std::string getSubPacketSettingByParams(byte subPacketSetting) {
+static std::string getSubPacketSettingByParams(uint8_t subPacketSetting) {
   switch (subPacketSetting) {
     case SPS_200_00:
       return "200bytes (default)";
@@ -231,7 +232,7 @@ static std::string getSubPacketSettingByParams(byte subPacketSetting) {
 }
 
 enum RSSI_AMBIENT_NOISE_ENABLE { RSSI_AMBIENT_NOISE_ENABLED = 0b1, RSSI_AMBIENT_NOISE_DISABLED = 0b0 };
-static std::string getRSSIAmbientNoiseEnableByParams(byte rssiAmbientNoiseEnabled) {
+static std::string getRSSIAmbientNoiseEnableByParams(uint8_t rssiAmbientNoiseEnabled) {
   switch (rssiAmbientNoiseEnabled) {
     case RSSI_AMBIENT_NOISE_ENABLED:
       return "Enabled";
@@ -255,7 +256,7 @@ enum WOR_PERIOD {
   WOR_4000_111 = 0b111
 
 };
-static std::string getWORPeriodByParams(byte WORPeriod) {
+static std::string getWORPeriodByParams(uint8_t WORPeriod) {
   switch (WORPeriod) {
     case WOR_500_000:
       return "500ms";
@@ -286,7 +287,7 @@ static std::string getWORPeriodByParams(byte WORPeriod) {
   }
 }
 enum LBT_ENABLE_BYTE { LBT_ENABLED = 0b1, LBT_DISABLED = 0b0 };
-static std::string getLBTEnableByteByParams(byte LBTEnableByte) {
+static std::string getLBTEnableByteByParams(uint8_t LBTEnableByte) {
   switch (LBTEnableByte) {
     case LBT_ENABLED:
       return "Enabled";
@@ -300,7 +301,7 @@ static std::string getLBTEnableByteByParams(byte LBTEnableByte) {
 }
 
 enum RSSI_ENABLE_BYTE { RSSI_ENABLED = 0b1, RSSI_DISABLED = 0b0 };
-static std::string getRSSIEnableByteByParams(byte RSSIEnableByte) {
+static std::string getRSSIEnableByteByParams(uint8_t RSSIEnableByte) {
   switch (RSSIEnableByte) {
     case RSSI_ENABLED:
       return "Enabled";
@@ -315,7 +316,7 @@ static std::string getRSSIEnableByteByParams(byte RSSIEnableByte) {
 
 enum FIDEX_TRANSMISSION { FT_TRANSPARENT_TRANSMISSION = 0b0, FT_FIXED_TRANSMISSION = 0b1 };
 
-static std::string getFixedTransmissionDescriptionByParams(byte fixedTransmission) {
+static std::string getFixedTransmissionDescriptionByParams(uint8_t fixedTransmission) {
   switch (fixedTransmission) {
     case FT_TRANSPARENT_TRANSMISSION:
       return "Transparent transmission (default)";
@@ -337,7 +338,7 @@ enum TRANSMISSION_POWER {
 
 };
 
-static std::string getTransmissionPowerDescriptionByParams(byte transmissionPower) {
+static std::string getTransmissionPowerDescriptionByParams(uint8_t transmissionPower) {
   switch (transmissionPower) {
     case POWER_22:
       return "22dBm (Default)";
@@ -364,7 +365,7 @@ enum TRANSMISSION_POWER {
 
 };
 
-static std::string getTransmissionPowerDescriptionByParams(byte transmissionPower) {
+static std::string getTransmissionPowerDescriptionByParams(uint8_t transmissionPower) {
   switch (transmissionPower) {
     case POWER_30:
       return "30dBm (Default)";
@@ -391,7 +392,7 @@ enum TRANSMISSION_POWER {
 
 };
 
-static std::string getTransmissionPowerDescriptionByParams(byte transmissionPower) {
+static std::string getTransmissionPowerDescriptionByParams(uint8_t transmissionPower) {
   switch (transmissionPower) {
     case POWER_22:
       return "22dBm (Default)";
@@ -410,3 +411,5 @@ static std::string getTransmissionPowerDescriptionByParams(byte transmissionPowe
   }
 }
 #endif
+}  // namespace state_naming
+}  // namespace esphome
