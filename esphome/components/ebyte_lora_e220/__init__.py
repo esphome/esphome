@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import pins
 from esphome.components import sensor, text_sensor, uart
 from esphome.const import *
 ebyte_lora_e220_ns = cg.esphome_ns.namespace('ebyte_lora_e220')
