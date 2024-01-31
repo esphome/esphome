@@ -60,7 +60,7 @@ state_naming::Status LoRa_E220::waitCompleteResponse(unsigned long timeout, unsi
   if (this->auxPin != -1) {
     while (this->auxPin->digital_read() == false) {
       if ((millis() - t) > timeout) {
-        result = ERR_E220_TIMEOUT;
+        result = state_naming::ERR_E220_TIMEOUT;
         ESP_LOGD(TAG, "Timeout error!");
         return result;
       }
@@ -129,10 +129,10 @@ types each handle ints floats differently
 
 state_naming::Status LoRa_E220::sendStruct(void *structureManaged, uint16_t size_) {
   if (size_ > MAX_SIZE_TX_PACKET + 2) {
-    return ERR_E220_PACKET_TOO_BIG;
+    return state_naming::ERR_E220_PACKET_TOO_BIG;
   }
 
-  Status result = E220_SUCCESS;
+  Status result = state_naming::E220_SUCCESS;
 
   uint8_t len = this->serial->write((uint8_t *) structureManaged, size_);
   if (len != size_) {
@@ -174,7 +174,7 @@ types each handle ints floats differently
 */
 
 state_naming::Status LoRa_E220::receiveStruct(void *structureManaged, uint16_t size_) {
-  Status result = E220_SUCCESS;
+  Status result = state_naming::E220_SUCCESS;
 
   uint8_t len = this->serialDef.stream->readBytes((uint8_t *) structureManaged, size_);
 
@@ -281,7 +281,7 @@ ResponseStructContainer LoRa_E220::getConfiguration() {
   MODE_TYPE prevMode = this->mode;
 
   rc.status.code = this->setMode(MODE_3_PROGRAM);
-  if (rc.status.code != E220_SUCCESS)
+  if (rc.status.code != state_naming::E220_SUCCESS)
     return rc;
 
   this->writeProgramCommand(READ_CONFIGURATION, REG_ADDRESS_CFG, PL_CONFIGURATION);
@@ -293,22 +293,22 @@ ResponseStructContainer LoRa_E220::getConfiguration() {
   this->printParameters((Configuration *) rc.data);
 #endif
 
-  if (rc.status.code != E220_SUCCESS) {
+  if (rc.status.code != state_naming::E220_SUCCESS) {
     this->setMode(prevMode);
     return rc;
   }
 
   rc.status.code = this->setMode(prevMode);
-  if (rc.status.code != E220_SUCCESS)
+  if (rc.status.code != state_naming::E220_SUCCESS)
     return rc;
 
   if (WRONG_FORMAT == ((Configuration *) rc.data)->COMMAND) {
-    rc.status.code = ERR_E220_WRONG_FORMAT;
+    rc.status.code = state_naming::ERR_E220_WRONG_FORMAT;
   }
   if (RETURNED_COMMAND != ((Configuration *) rc.data)->COMMAND ||
       REG_ADDRESS_CFG != ((Configuration *) rc.data)->STARTING_ADDRESS ||
       PL_CONFIGURATION != ((Configuration *) rc.data)->LENGHT) {
-    rc.status.code = ERR_E220_HEAD_NOT_RECOGNIZED;
+    rc.status.code = state_naming::ERR_E220_HEAD_NOT_RECOGNIZED;
   }
 
   return rc;
@@ -316,22 +316,22 @@ ResponseStructContainer LoRa_E220::getConfiguration() {
 
 state_naming::RESPONSE_STATUS LoRa_E220::checkUARTConfiguration(MODE_TYPE mode) {
   if (mode == MODE_3_PROGRAM) {
-    return ERR_E220_WRONG_UART_CONFIG;
+    return state_naming::ERR_E220_WRONG_UART_CONFIG;
   }
-  return E220_SUCCESS;
+  return state_naming::E220_SUCCESS;
 }
 
 ResponseStatus LoRa_E220::setConfiguration(Configuration configuration, PROGRAM_COMMAND saveType) {
   ResponseStatus rc;
 
   rc.code = checkUARTConfiguration(MODE_3_PROGRAM);
-  if (rc.code != E220_SUCCESS)
+  if (rc.code != state_naming::E220_SUCCESS)
     return rc;
 
   MODE_TYPE prevMode = this->mode;
 
   rc.code = this->setMode(MODE_3_PROGRAM);
-  if (rc.code != E220_SUCCESS)
+  if (rc.code != state_naming::E220_SUCCESS)
     return rc;
 
   //	this->writeProgramCommand(saveType, REG_ADDRESS_CFG);
@@ -342,7 +342,7 @@ ResponseStatus LoRa_E220::setConfiguration(Configuration configuration, PROGRAM_
   configuration.LENGHT = PL_CONFIGURATION;
 
   rc.code = this->sendStruct((uint8_t *) &configuration, sizeof(Configuration));
-  if (rc.code != E220_SUCCESS) {
+  if (rc.code != state_naming::E220_SUCCESS) {
     this->setMode(prevMode);
     return rc;
   }
@@ -354,16 +354,16 @@ ResponseStatus LoRa_E220::setConfiguration(Configuration configuration, PROGRAM_
 #endif
 
   rc.code = this->setMode(prevMode);
-  if (rc.code != E220_SUCCESS)
+  if (rc.code != state_naming::E220_SUCCESS)
     return rc;
 
   if (WRONG_FORMAT == ((Configuration *) &configuration)->COMMAND) {
-    rc.code = ERR_E220_WRONG_FORMAT;
+    rc.code = state_naming::ERR_E220_WRONG_FORMAT;
   }
   if (RETURNED_COMMAND != ((Configuration *) &configuration)->COMMAND ||
       REG_ADDRESS_CFG != ((Configuration *) &configuration)->STARTING_ADDRESS ||
       PL_CONFIGURATION != ((Configuration *) &configuration)->LENGHT) {
-    rc.code = ERR_E220_HEAD_NOT_RECOGNIZED;
+    rc.code = state_naming::ERR_E220_HEAD_NOT_RECOGNIZED;
   }
 
   return rc;
@@ -373,13 +373,13 @@ ResponseStructContainer LoRa_E220::getModuleInformation() {
   ResponseStructContainer rc;
 
   rc.status.code = checkUARTConfiguration(MODE_3_PROGRAM);
-  if (rc.status.code != E220_SUCCESS)
+  if (rc.status.code != state_naming::E220_SUCCESS)
     return rc;
 
   MODE_TYPE prevMode = this->mode;
 
   rc.status.code = this->setMode(MODE_3_PROGRAM);
-  if (rc.status.code != E220_SUCCESS)
+  if (rc.status.code != state_naming::E220_SUCCESS)
     return rc;
 
   this->writeProgramCommand(READ_CONFIGURATION, REG_ADDRESS_PID, PL_PID);
@@ -387,24 +387,24 @@ ResponseStructContainer LoRa_E220::getModuleInformation() {
   rc.data = malloc(sizeof(ModuleInformation));
 
   rc.status.code = this->receiveStruct((uint8_t *) rc.data, sizeof(ModuleInformation));
-  if (rc.status.code != E220_SUCCESS) {
+  if (rc.status.code != state_naming::E220_SUCCESS) {
     this->setMode(prevMode);
     return rc;
   }
 
   rc.status.code = this->setMode(prevMode);
-  if (rc.status.code != E220_SUCCESS)
+  if (rc.status.code != state_naming::E220_SUCCESS)
     return rc;
 
   //	this->printParameters(*configuration);
 
   if (WRONG_FORMAT == ((ModuleInformation *) rc.data)->COMMAND) {
-    rc.status.code = ERR_E220_WRONG_FORMAT;
+    rc.status.code = state_naming::ERR_E220_WRONG_FORMAT;
   }
   if (RETURNED_COMMAND != ((ModuleInformation *) rc.data)->COMMAND ||
       REG_ADDRESS_PID != ((ModuleInformation *) rc.data)->STARTING_ADDRESS ||
       PL_PID != ((ModuleInformation *) rc.data)->LENGHT) {
-    rc.status.code = ERR_E220_HEAD_NOT_RECOGNIZED;
+    rc.status.code = state_naming::ERR_E220_HEAD_NOT_RECOGNIZED;
   }
 
   ESP_LOGD(TAG, "----------------------------------------");
@@ -430,7 +430,7 @@ ResponseStructContainer LoRa_E220::getModuleInformation() {
 ResponseStatus LoRa_E220::resetModule() {
   ESP_LOGD(TAG, "No information to reset module!");
   ResponseStatus status;
-  status.code = ERR_E220_NOT_IMPLEMENT;
+  status.code = state_naming::ERR_E220_NOT_IMPLEMENT;
   return status;
 }
 
@@ -439,7 +439,7 @@ state_naming::ResponseContainer LoRa_E220::receiveMessageRSSI() { return LoRa_E2
 
 state_naming::ResponseContainer LoRa_E220::receiveMessageComplete(bool rssiEnabled) {
   ResponseContainer rc;
-  rc.status.code = E220_SUCCESS;
+  rc.status.code = state_naming::E220_SUCCESS;
   std::string buffer;
   uint8_t data;
   while (this->available() > 0) {
@@ -456,7 +456,7 @@ state_naming::ResponseContainer LoRa_E220::receiveMessageComplete(bool rssiEnabl
     rc.data = tmpData;
   }
   this->cleanUARTBuffer();
-  if (rc.status.code != E220_SUCCESS) {
+  if (rc.status.code != state_naming::E220_SUCCESS) {
     return rc;
   }
 
@@ -467,14 +467,14 @@ state_naming::ResponseContainer LoRa_E220::receiveMessageComplete(bool rssiEnabl
 
 state_naming::ResponseContainer LoRa_E220::receiveInitialMessage(uint8_t size) {
   ResponseContainer rc;
-  rc.status.code = E220_SUCCESS;
+  rc.status.code = state_naming::E220_SUCCESS;
   char buff[size];
   uint8_t len = this->serialDef.stream->readBytes(buff, size);
   if (len != size) {
     if (len == 0) {
-      rc.status.code = ERR_E220_NO_RESPONSE_FROM_DEVICE;
+      rc.status.code = state_naming::ERR_E220_NO_RESPONSE_FROM_DEVICE;
     } else {
-      rc.status.code = ERR_E220_DATA_SIZE_NOT_MATCH;
+      rc.status.code = state_naming::ERR_E220_DATA_SIZE_NOT_MATCH;
     }
     return rc;
   }
@@ -496,7 +496,7 @@ state_naming::ResponseStructContainer LoRa_E220::receiveMessageComplete(const ui
 
   rc.data = malloc(size);
   rc.status.code = this->receiveStruct((uint8_t *) rc.data, size);
-  if (rc.status.code != E220_SUCCESS) {
+  if (rc.status.code != state_naming::E220_SUCCESS) {
     return rc;
   }
 
@@ -513,7 +513,7 @@ state_naming::ResponseStructContainer LoRa_E220::receiveMessageComplete(const ui
 ResponseStatus LoRa_E220::sendMessage(const void *message, const uint8_t size) {
   ResponseStatus status;
   status.code = this->sendStruct((uint8_t *) message, size);
-  if (status.code != E220_SUCCESS)
+  if (status.code != state_naming::E220_SUCCESS)
     return status;
 
   return status;
@@ -530,7 +530,7 @@ ResponseStatus LoRa_E220::sendMessage(const std::string message) {
 
   ResponseStatus status;
   status.code = this->sendStruct((uint8_t *) &messageFixed, size);
-  if (status.code != E220_SUCCESS)
+  if (status.code != state_naming::E220_SUCCESS)
     return status;
 
   //	free(messageFixed);
@@ -544,7 +544,7 @@ ResponseStatus LoRa_E220::sendFixedMessage(byte ADDH, byte ADDL, byte CHAN, cons
   return this->sendFixedMessage(ADDH, ADDL, CHAN, (uint8_t *) messageFixed, size);
 }
 ResponseStatus LoRa_E220::sendBroadcastFixedMessage(byte CHAN, const std::string message) {
-  return this->sendFixedMessage(BROADCAST_ADDRESS, BROADCAST_ADDRESS, CHAN, message);
+  return this->sendFixedMessage(state_naming::BROADCAST_ADDRESS, state_naming::BROADCAST_ADDRESS, CHAN, message);
 }
 
 typedef struct fixedStransmission {
@@ -569,7 +569,7 @@ ResponseStatus LoRa_E220::sendFixedMessage(byte ADDH, byte ADDL, byte CHAN, cons
   ResponseStatus status;
   status.code = this->sendStruct((uint8_t *) fixedStransmission, size + 3);
   free(fixedStransmission);
-  if (status.code != E220_SUCCESS)
+  if (status.code != state_naming::E220_SUCCESS)
     return status;
 
   return status;
