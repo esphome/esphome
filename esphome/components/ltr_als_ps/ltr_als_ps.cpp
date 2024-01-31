@@ -71,11 +71,11 @@ void LTRAlsPsComponent::setup() {
 void LTRAlsPsComponent::dump_config() {
   auto get_device_type = [](LtrType typ) {
     switch (typ) {
-      case LtrType::LtrTypeAlsOnly:
+      case LtrType::LTR_TYPE_ALS_ONLY:
         return "ALS only";
-      case LtrType::LtrTypePsOnly:
+      case LtrType::LTR_TYPE_PS_ONLY:
         return "PS only";
-      case LtrType::LtrTypeAlsAndPs:
+      case LtrType::LTR_TYPE_ALS_AND_PS:
         return "Als + PS";
       default:
         return "Unknown";
@@ -207,21 +207,21 @@ void LTRAlsPsComponent::loop() {
 }
 
 void LTRAlsPsComponent::check_and_trigger_ps_() {
-  static uint32_t last_high_trigger_time_{0};
-  static uint32_t last_low_trigger_time_{0};
+  static uint32_t last_high_trigger_time{0};
+  static uint32_t last_low_trigger_time{0};
   uint16_t ps_data = this->read_ps_data_();
   uint32_t now = millis();
 
   if (ps_data != this->ps_readings_) {
     this->ps_readings_ = ps_data;
     // Higher values - object is closer to sensor
-    if (ps_data > this->ps_threshold_high_ && now - last_high_trigger_time_ >= this->ps_cooldown_time_s_ * 1000) {
-      last_high_trigger_time_ = now;
+    if (ps_data > this->ps_threshold_high_ && now - last_high_trigger_time >= this->ps_cooldown_time_s_ * 1000) {
+      last_high_trigger_time = now;
       ESP_LOGD(TAG, "Proximity high threshold triggered. Value = %d, Trigger level = %d", ps_data,
                this->ps_threshold_high_);
       this->on_ps_high_trigger_callback_.call();
-    } else if (ps_data < this->ps_threshold_low_ && now - last_low_trigger_time_ >= this->ps_cooldown_time_s_ * 1000) {
-      last_low_trigger_time_ = now;
+    } else if (ps_data < this->ps_threshold_low_ && now - last_low_trigger_time >= this->ps_cooldown_time_s_ * 1000) {
+      last_low_trigger_time = now;
       ESP_LOGD(TAG, "Proximity low threshold triggered. Value = %d, Trigger level = %d", ps_data,
                this->ps_threshold_low_);
       this->on_ps_low_trigger_callback_.call();
