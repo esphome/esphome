@@ -10,7 +10,10 @@ import requests
 from esphome import core
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.helpers import copy_file_if_changed
+from esphome.helpers import (
+    copy_file_if_changed,
+    cpp_string_escape,
+)
 from esphome.const import (
     CONF_FAMILY,
     CONF_FILE,
@@ -388,7 +391,10 @@ async def to_code(config):
         glyph_initializer.append(
             cg.StructInitializer(
                 GlyphData,
-                ("a_char", glyph),
+                (
+                    "a_char",
+                    cg.RawExpression(f"(const uint8_t *){cpp_string_escape(glyph)}"),
+                ),
                 (
                     "data",
                     cg.RawExpression(f"{str(prog_arr)} + {str(glyph_args[glyph][0])}"),

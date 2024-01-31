@@ -14,7 +14,7 @@ void Glyph::draw(int x_at, int y_start, display::Display *display, Color color) 
   int scan_x1, scan_y1, scan_width, scan_height;
   this->scan_area(&scan_x1, &scan_y1, &scan_width, &scan_height);
 
-  const unsigned char *data = this->glyph_data_->data;
+  const uint8_t *data = this->glyph_data_->data;
   const int max_x = x_at + scan_x1 + scan_width;
   const int max_y = y_start + scan_y1 + scan_height;
 
@@ -33,8 +33,10 @@ void Glyph::draw(int x_at, int y_start, display::Display *display, Color color) 
     }
   }
 }
-const char *Glyph::get_char() const { return this->glyph_data_->a_char; }
-bool Glyph::compare_to(const char *str) const {
+const uint8_t *Glyph::get_char() const { return this->glyph_data_->a_char; }
+// Compare the char at the string position with this char.
+// Return true if this char is less than or equal the other.
+bool Glyph::compare_to(const uint8_t *str) const {
   // 1 -> this->char_
   // 2 -> str
   for (uint32_t i = 0;; i++) {
@@ -50,7 +52,7 @@ bool Glyph::compare_to(const char *str) const {
   // this should not happen
   return false;
 }
-int Glyph::match_length(const char *str) const {
+int Glyph::match_length(const uint8_t *str) const {
   for (uint32_t i = 0;; i++) {
     if (this->glyph_data_->a_char[i] == '\0')
       return i;
@@ -67,12 +69,13 @@ void Glyph::scan_area(int *x1, int *y1, int *width, int *height) const {
   *height = this->glyph_data_->height;
 }
 
-Font::Font(const GlyphData *data, int data_nr, int baseline, int height) : baseline_(baseline), height_(height) {
+Font::Font(const GlyphData *data, int data_nr, int baseline, int height, uint8_t bpp)
+    : baseline_(baseline), height_(height), bpp_(bpp) {
   glyphs_.reserve(data_nr);
   for (int i = 0; i < data_nr; ++i)
     glyphs_.emplace_back(&data[i]);
 }
-int Font::match_next_glyph(const char *str, int *match_length) {
+int Font::match_next_glyph(const uint8_t *str, int *match_length) {
   int lo = 0;
   int hi = this->glyphs_.size() - 1;
   while (lo != hi) {
@@ -97,7 +100,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   int x = 0;
   while (str[i] != '\0') {
     int match_length;
-    int glyph_n = this->match_next_glyph(str + i, &match_length);
+    int glyph_n = this->match_next_glyph((const uint8_t *) str + i, &match_length);
     if (glyph_n < 0) {
       // Unknown char, skip
       if (!this->get_glyphs().empty())
@@ -125,7 +128,7 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
   int x_at = x_start;
   while (text[i] != '\0') {
     int match_length;
-    int glyph_n = this->match_next_glyph(text + i, &match_length);
+    int glyph_n = this->match_next_glyph((const uint8_t *) text + i, &match_length);
     if (glyph_n < 0) {
       // Unknown char, skip
       ESP_LOGW(TAG, "Encountered character without representation in font: '%c'", text[i]);
