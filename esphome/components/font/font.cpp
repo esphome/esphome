@@ -18,16 +18,18 @@ void Glyph::draw(int x_at, int y_start, display::Display *display, Color color) 
   const int max_x = x_at + scan_x1 + scan_width;
   const int max_y = y_start + scan_y1 + scan_height;
 
-  for (int glyph_y = y_start + scan_y1; glyph_y < max_y; glyph_y++) {
-    for (int glyph_x = x_at + scan_x1; glyph_x < max_x; data++, glyph_x += 8) {
-      uint8_t pixel_data = progmem_read_byte(data);
-      const int pixel_max_x = std::min(max_x, glyph_x + 8);
-
-      for (int pixel_x = glyph_x; pixel_x < pixel_max_x && pixel_data; pixel_x++, pixel_data <<= 1) {
-        if (pixel_data & 0x80) {
-          display->draw_pixel_at(pixel_x, glyph_y, color);
-        }
+  uint8_t bitmask = 0;
+  uint8_t pixel_data = 0;
+  for (int glyph_y = y_start + scan_y1; glyph_y != max_y; glyph_y++) {
+    for (int glyph_x = x_at + scan_x1; glyph_x != max_x; glyph_x++) {
+      if (bitmask == 0) {
+        pixel_data = progmem_read_byte(data++);
+        bitmask = 0x80;
       }
+      if ((pixel_data & bitmask) != 0) {
+        display->draw_pixel_at(glyph_x, glyph_y, color);
+      }
+      bitmask >>= 1;
     }
   }
 }

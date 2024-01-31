@@ -29,6 +29,8 @@ DOMAIN = "font"
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
 
+CODEOWNERS = ["@esphome/core", "@clydebarrow"]
+
 font_ns = cg.esphome_ns.namespace("font")
 
 Font = font_ns.class_("Font")
@@ -368,13 +370,12 @@ async def to_code(config):
         mask = font.getmask(glyph, mode="1")
         offset_x, offset_y = font.getoffset(glyph)
         width, height = mask.size
-        width8 = ((width + 7) // 8) * 8
-        glyph_data = [0] * (height * width8 // 8)
+        glyph_data = [0] * ((height * width + 7) // 8)
         for y in range(height):
             for x in range(width):
                 if not mask.getpixel((x, y)):
                     continue
-                pos = x + y * width8
+                pos = x + y * width
                 glyph_data[pos // 8] |= 0x80 >> (pos % 8)
         glyph_args[glyph] = (len(data), offset_x, offset_y, width, height)
         data += glyph_data
