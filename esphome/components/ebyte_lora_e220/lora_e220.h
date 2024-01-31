@@ -1,5 +1,6 @@
 #pragma once
 #include <utility>
+#include <string>
 #include <vector>
 #include "state_naming.h"
 #include "esphome/core/component.h"
