@@ -11,22 +11,22 @@ LoRa_E220::LoRa_E220(esphome::uart::UARTDevice *serial, GPIOPin *auxPin, GPIOPin
 }
 bool LoRa_E220::begin() {
   ESP_LOGD(TAG, "AUX ---> ");
-  ESP_LOGD(TAG, this->auxPin);
+  LOG_PIN(TAG, this->auxPin);
   ESP_LOGD(TAG, "M0 ---> ");
-  ESP_LOGD(TAG, this->m0Pin);
+  LOG_PIN(TAG, this->m0Pin);
   ESP_LOGD(TAG, "M1 ---> ");
-  ESP_LOGD(TAG, this->m1Pin);
+  LOG_PIN(TAG, this->m1Pin);
 
-  if (this->auxPin != -1) {
+  if (this->auxPin != nullptr) {
     this->m0Pin->pin_mode(gpio::FLAG_INPUT);
     ESP_LOGD(TAG, "Init AUX pin!");
   }
-  if (this->m0Pin != -1) {
+  if (this->m0Pin != nullptr) {
     this->m0Pin->pin_mode(gpio::FLAG_OUTPUT);
     ESP_LOGD(TAG, "Init M0 pin!");
     this->m0Pin->digital_write(true);
   }
-  if (this->m1Pin != -1) {
+  if (this->m1Pin != nullptr) {
     this->m0Pin->pin_mode(gpio::FLAG_OUTPUT);
     ESP_LOGD(TAG, "Init M1 pin!");
     this->m1Pin->digital_write(true);
@@ -45,7 +45,7 @@ a timeout is provided to avoid an infinite loop
 
 */
 
-Status LoRa_E220::waitCompleteResponse(unsigned long timeout, unsigned int waitNoAux) {
+state_naming::Status LoRa_E220::waitCompleteResponse(unsigned long timeout, unsigned int waitNoAux) {
   state_naming::Status result = state_naming::E220_SUCCESS;
 
   unsigned long t = millis();
@@ -127,7 +127,7 @@ types each handle ints floats differently
 
 */
 
-Status LoRa_E220::sendStruct(void *structureManaged, uint16_t size_) {
+state_naming::Status LoRa_E220::sendStruct(void *structureManaged, uint16_t size_) {
   if (size_ > MAX_SIZE_TX_PACKET + 2) {
     return ERR_E220_PACKET_TOO_BIG;
   }
@@ -173,7 +173,7 @@ types each handle ints floats differently
 
 */
 
-Status LoRa_E220::receiveStruct(void *structureManaged, uint16_t size_) {
+state_naming::Status LoRa_E220::receiveStruct(void *structureManaged, uint16_t size_) {
   Status result = E220_SUCCESS;
 
   uint8_t len = this->serialDef.stream->readBytes((uint8_t *) structureManaged, size_);
@@ -206,7 +206,7 @@ method to set the mode (program, normal, etc.)
 
 */
 
-Status LoRa_E220::setMode(MODE_TYPE mode) {
+state_naming::Status LoRa_E220::setMode(MODE_TYPE mode) {
   // data sheet claims module needs some extra time after mode setting (2ms)
   // most of my projects uses 10 ms, but 40ms is safer
 
@@ -314,7 +314,7 @@ ResponseStructContainer LoRa_E220::getConfiguration() {
   return rc;
 }
 
-RESPONSE_STATUS LoRa_E220::checkUARTConfiguration(MODE_TYPE mode) {
+state_naming::RESPONSE_STATUS LoRa_E220::checkUARTConfiguration(MODE_TYPE mode) {
   if (mode == MODE_3_PROGRAM) {
     return ERR_E220_WRONG_UART_CONFIG;
   }
@@ -434,10 +434,10 @@ ResponseStatus LoRa_E220::resetModule() {
   return status;
 }
 
-ResponseContainer LoRa_E220::receiveMessage() { return LoRa_E220::receiveMessageComplete(false); }
-ResponseContainer LoRa_E220::receiveMessageRSSI() { return LoRa_E220::receiveMessageComplete(true); }
+state_naming::ResponseContainer LoRa_E220::receiveMessage() { return LoRa_E220::receiveMessageComplete(false); }
+state_naming::ResponseContainer LoRa_E220::receiveMessageRSSI() { return LoRa_E220::receiveMessageComplete(true); }
 
-ResponseContainer LoRa_E220::receiveMessageComplete(bool rssiEnabled) {
+state_naming::ResponseContainer LoRa_E220::receiveMessageComplete(bool rssiEnabled) {
   ResponseContainer rc;
   rc.status.code = E220_SUCCESS;
   std::string buffer;
@@ -465,7 +465,7 @@ ResponseContainer LoRa_E220::receiveMessageComplete(bool rssiEnabled) {
   return rc;
 }
 
-ResponseContainer LoRa_E220::receiveInitialMessage(uint8_t size) {
+state_naming::ResponseContainer LoRa_E220::receiveInitialMessage(uint8_t size) {
   ResponseContainer rc;
   rc.status.code = E220_SUCCESS;
   char buff[size];
@@ -484,14 +484,14 @@ ResponseContainer LoRa_E220::receiveInitialMessage(uint8_t size) {
   return rc;
 }
 
-ResponseStructContainer LoRa_E220::receiveMessage(const uint8_t size) {
+state_naming::ResponseStructContainer LoRa_E220::receiveMessage(const uint8_t size) {
   return LoRa_E220::receiveMessageComplete(size, false);
 }
-ResponseStructContainer LoRa_E220::receiveMessageRSSI(const uint8_t size) {
+state_naming::ResponseStructContainer LoRa_E220::receiveMessageRSSI(const uint8_t size) {
   return LoRa_E220::receiveMessageComplete(size, true);
 }
 
-ResponseStructContainer LoRa_E220::receiveMessageComplete(const uint8_t size, bool rssiEnabled) {
+state_naming::ResponseStructContainer LoRa_E220::receiveMessageComplete(const uint8_t size, bool rssiEnabled) {
   ResponseStructContainer rc;
 
   rc.data = malloc(size);
