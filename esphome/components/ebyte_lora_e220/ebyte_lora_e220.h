@@ -23,23 +23,8 @@ class EbyteLoraE220 : public PollingComponent, public uart::UARTDevice {
   void set_pin_aux(GPIOPin *s) { pin_aux = s; }
   void set_pin_m0(GPIOPin *s) { pin_m0 = s; }
   void set_pin_m1(GPIOPin *s) { pin_m1 = s; }
-  void update() override {
-    // This will be called by App.loop()
-
-    if (e220ttl.available() > 1) {
-      // read the String message
-      lora_e220::ResponseContainer rc = e220ttl.receiveMessageRSSI();
-      // Is something goes wrong print error
-      if (rc.status.code != 1) {
-        this->status_text_sensor->publish_state(rc.status.getResponseDescription());
-      } else {
-        // Print the data received
-        this->status_text_sensor->publish_state(rc.status.getResponseDescription());
-        this->message_text_sensor->publish_state(rc.data);
-        this->rssi_sensor->publish_state(rc.rssi);
-      }
-    }
-  }
+  void dump_config() override;
+  void update() override;
 
  protected:
   std::vector<uint8_t> buffer_;

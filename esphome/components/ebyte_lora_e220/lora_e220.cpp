@@ -11,13 +11,6 @@ LoRa_E220::LoRa_E220(esphome::uart::UARTDevice *serial, GPIOPin *auxPin, GPIOPin
   this->m1Pin = m1Pin;
 }
 bool LoRa_E220::begin() {
-  ESP_LOGD(TAG, "AUX ---> ");
-  LOG_PIN(TAG, this->auxPin);
-  ESP_LOGD(TAG, "M0 ---> ");
-  LOG_PIN(TAG, this->m0Pin);
-  ESP_LOGD(TAG, "M1 ---> ");
-  LOG_PIN(TAG, this->m1Pin);
-
   if (this->auxPin != nullptr) {
     this->m0Pin->pin_mode(gpio::FLAG_INPUT);
     ESP_LOGD(TAG, "Init AUX pin!");
