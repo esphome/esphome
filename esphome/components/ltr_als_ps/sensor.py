@@ -52,9 +52,9 @@ LTRAlsPsComponent = ltr_als_ps_ns.class_(
 
 LtrType = ltr_als_ps_ns.enum("LtrType")
 LTR_TYPES = {
-    "ALS": LtrType.LtrTypeAlsOnly,
-    "PS": LtrType.LtrTypePsOnly,
-    "ALS_PS": LtrType.LtrTypeAlsAndPs,
+    "ALS": LtrType.LTR_TYPE_ALS_ONLY,
+    "PS": LtrType.LTR_TYPE_PS_ONLY,
+    "ALS_PS": LtrType.LTR_TYPE_ALS_AND_PS,
 }
 
 AlsGain = ltr_als_ps_ns.enum("Gain")
