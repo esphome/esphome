@@ -1,4 +1,4 @@
-#include "ltr303.h"
+#include "ltr_als_ps.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -6,9 +6,9 @@
 using esphome::i2c::ErrorCode;
 
 namespace esphome {
-namespace ltr303 {
+namespace ltr_als_ps {
 
-static const char *const TAG = "ltr303";
+static const char *const TAG = "ltr_als_ps";
 
 static const uint8_t MAX_TRIES = 5;
 
@@ -52,24 +52,48 @@ static uint16_t get_meas_time_ms(MeasurementRepeatRate rate) {
   return ALS_MEAS_RATE[rate & 0b111];
 }
 
-static float get_gain_coeff(Gain gain) {
+static float get_gain_coeff(AlsGain gain) {
   static const float ALS_GAIN[8] = {1, 2, 4, 8, 0, 0, 48, 96};
   return ALS_GAIN[gain & 0b111];
 }
 
-void LTR303Component::setup() {
+static float get_ps_gain_coeff(PsGain gain) {
+  static const float PS_GAIN[4] = {16, 0, 32, 64};
+  return PS_GAIN[gain & 0b11];
+}
+
+void LTRAlsPsComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up LTR-303/329");
   // As per datasheet we need to wait at least 100ms after power on to get ALS chip responsive
   this->set_timeout(100, [this]() { this->state_ = State::DELAYED_SETUP; });
 }
 
-void LTR303Component::dump_config() {
+void LTRAlsPsComponent::dump_config() {
+  auto get_device_type = [](LtrType typ) {
+    switch (typ) {
+      case LtrType::LtrTypeAlsOnly:
+        return "ALS only";
+      case LtrType::LtrTypePsOnly:
+        return "PS only";
+      case LtrType::LtrTypeAlsAndPs:
+        return "Als + PS";
+      default:
+        return "Unknown";
+    }
+  };
+
   LOG_I2C_DEVICE(this);
+  ESP_LOGCONFIG(TAG, "  Device type: %s", get_device_type(this->ltr_type_));
   ESP_LOGCONFIG(TAG, "  Automatic mode: %s", ONOFF(this->automatic_mode_enabled_));
   ESP_LOGCONFIG(TAG, "  Gain: %.0fx", get_gain_coeff(this->gain_));
   ESP_LOGCONFIG(TAG, "  Integration time: %d ms", get_itime_ms(this->integration_time_));
   ESP_LOGCONFIG(TAG, "  Measurement repeat rate: %d ms", get_meas_time_ms(this->repeat_rate_));
   ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
+  ESP_LOGCONFIG(TAG, "  Proximity gain: %.0fx", get_ps_gain_coeff(this->ps_gain_));
+  ESP_LOGCONFIG(TAG, "  Proximity cooldown time: %d s", this->ps_cooldown_time_s_);
+  ESP_LOGCONFIG(TAG, "  Proximity high threshold: %d", this->ps_threshold_high_);
+  ESP_LOGCONFIG(TAG, "  Proximity low threshold: %d", this->ps_threshold_low_);
+
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "ALS calculated lux", this->ambient_light_sensor_);
@@ -82,50 +106,58 @@ void LTR303Component::dump_config() {
   }
 }
 
-void LTR303Component::update() {
+void LTRAlsPsComponent::update() {
   ESP_LOGD(TAG, "Updating");
   if (this->is_ready() && this->state_ == State::IDLE) {
     ESP_LOGD(TAG, "Initiating new data collection");
 
     this->state_ = this->automatic_mode_enabled_ ? State::COLLECTING_DATA_AUTO : State::WAITING_FOR_DATA;
 
-    this->readings_.ch0 = 0;
-    this->readings_.ch1 = 0;
-    this->readings_.actual_gain = this->gain_;
-    this->readings_.integration_time = this->integration_time_;
-    this->readings_.lux = 0;
+    this->als_readings_.ch0 = 0;
+    this->als_readings_.ch1 = 0;
+    this->als_readings_.actual_gain = this->gain_;
+    this->als_readings_.integration_time = this->integration_time_;
+    this->als_readings_.lux = 0;
 
   } else {
     ESP_LOGD(TAG, "Component not ready yet");
   }
 }
 
-void LTR303Component::loop() {
+void LTRAlsPsComponent::loop() {
   ErrorCode err = i2c::ERROR_OK;
   static uint8_t tries{0};
 
   switch (this->state_) {
     case State::DELAYED_SETUP:
-      this->configure_reset_and_activate_();
-      this->configure_integration_time_(this->integration_time_);
       err = this->write(nullptr, 0);
       if (err != i2c::ERROR_OK) {
         ESP_LOGD(TAG, "i2c connection failed");
         this->mark_failed();
       }
+      this->configure_reset_and_activate_();
+      if (this->is_als_()) {
+        this->configure_integration_time_(this->integration_time_);
+      }
+      if (this->is_ps_()) {
+        this->configure_ps_();
+      }
+
       this->state_ = State::IDLE;
       break;
 
     case State::IDLE:
-      // having fun, waiting for work
+      if (this->is_ps_()) {
+        check_and_trigger_ps_();
+      }
       break;
 
     case State::WAITING_FOR_DATA:
-      if (this->is_data_ready_(this->readings_) == DataAvail::DATA_OK) {
+      if (this->is_als_data_ready_(this->als_readings_) == DataAvail::DATA_OK) {
         tries = 0;
         ESP_LOGD(TAG, "Reading sensor data having gain = %.0fx, time = %d ms",
-                 get_gain_coeff(this->readings_.actual_gain), get_itime_ms(this->readings_.integration_time));
-        this->read_sensor_data_(this->readings_);
+                 get_gain_coeff(this->als_readings_.actual_gain), get_itime_ms(this->als_readings_.integration_time));
+        this->read_sensor_data_(this->als_readings_);
         this->state_ = State::DATA_COLLECTED;
       } else if (tries >= MAX_TRIES) {
         ESP_LOGW(TAG, "Can't get data after several tries.");
@@ -140,16 +172,16 @@ void LTR303Component::loop() {
 
     case State::COLLECTING_DATA_AUTO:
     case State::DATA_COLLECTED:
-      if (this->state_ == State::COLLECTING_DATA_AUTO || this->are_adjustments_required_(this->readings_)) {
+      if (this->state_ == State::COLLECTING_DATA_AUTO || this->are_adjustments_required_(this->als_readings_)) {
         this->state_ = State::ADJUSTMENT_IN_PROGRESS;
         ESP_LOGD(TAG, "Reconfiguring sensitivity");
-        this->configure_integration_time_(this->readings_.integration_time);
-        this->configure_gain_(this->readings_.actual_gain);
+        this->configure_integration_time_(this->als_readings_.integration_time);
+        this->configure_gain_(this->als_readings_.actual_gain);
         // if sensitivity adjustment needed - need to wait for first data samples after setting new parameters
         this->set_timeout(1 * get_meas_time_ms(this->repeat_rate_),
                           [this]() { this->state_ = State::WAITING_FOR_DATA; });
       } else {
-        this->apply_lux_calculation_(this->readings_);
+        this->apply_lux_calculation_(this->als_readings_);
         this->state_ = State::READY_TO_PUBLISH;
       }
       break;
@@ -159,12 +191,12 @@ void LTR303Component::loop() {
       break;
 
     case State::READY_TO_PUBLISH:
-      this->publish_data_part_1_(this->readings_);
+      this->publish_data_part_1_(this->als_readings_);
       this->state_ = State::KEEP_PUBLISHING;
       break;
 
     case State::KEEP_PUBLISHING:
-      this->publish_data_part_2_(this->readings_);
+      this->publish_data_part_2_(this->als_readings_);
       this->status_clear_warning();
       this->state_ = State::IDLE;
       break;
@@ -173,19 +205,72 @@ void LTR303Component::loop() {
       break;
   }
 }
-void LTR303Component::configure_reset_and_activate_() {
+
+void LTRAlsPsComponent::check_and_trigger_ps_() {
+  static uint32_t last_high_trigger_time_{0};
+  static uint32_t last_low_trigger_time_{0};
+  uint16_t ps_data = this->read_ps_data_();
+  uint32_t now = millis();
+
+  if (ps_data != this->ps_readings_) {
+    this->ps_readings_ = ps_data;
+    // Higher values - object is closer to sensor
+    if (ps_data > this->ps_threshold_high_ && now - last_high_trigger_time_ >= this->ps_cooldown_time_s_ * 1000) {
+      last_high_trigger_time_ = now;
+      ESP_LOGD(TAG, "Proximity high threshold triggered. Value = %d, Trigger level = %d", ps_data,
+               this->ps_threshold_high_);
+      this->on_ps_high_trigger_callback_.call();
+    } else if (ps_data < this->ps_threshold_low_ && now - last_low_trigger_time_ >= this->ps_cooldown_time_s_ * 1000) {
+      last_low_trigger_time_ = now;
+      ESP_LOGD(TAG, "Proximity low threshold triggered. Value = %d, Trigger level = %d", ps_data,
+               this->ps_threshold_low_);
+      this->on_ps_low_trigger_callback_.call();
+    }
+  }
+}
+
+bool LTRAlsPsComponent::check_part_number_() {
+  uint8_t manuf_id = this->reg((uint8_t) CommandRegisters::MANUFAC_ID).get();
+  if (manuf_id != 0x05) {  // 0x05 is Lite-On Semiconductor Corp. ID
+    ESP_LOGW(TAG, "Unknown manufacturer ID: 0x%02X", manuf_id);
+    this->mark_failed();
+    return false;
+  }
+
+  // Things getting not really funny here, we can't identify device type by part number ID
+  // ======================== ========= ===== =================
+  // Device                    Part ID   Rev   Capabilities
+  // ======================== ========= ===== =================
+  // Ltr-329/ltr-303            0x0a    0x00  Als 16b
+  // Ltr-553/ltr-556/ltr-556    0x09    0x02  Als 16b + Ps 11b  diff nm sens
+  // Ltr-659                    0x09    0x02  Ps 11b and ps gain
+  //
+  // There are other devices which might potentially work with default settings,
+  // but registers layout is different and we can't use them properly. For ex. ltr-558
+
+  PartIdRegister part_id{0};
+  part_id.raw = this->reg((uint8_t) CommandRegisters::PART_ID).get();
+  if (part_id.part_number_id != 0x0a && part_id.part_number_id != 0x09) {
+    ESP_LOGW(TAG, "Unknown part number ID: 0x%02X. It might not work properly.", part_id.part_number_id);
+    this->status_set_warning();
+    return true;
+  }
+  return true;
+}
+
+void LTRAlsPsComponent::configure_reset_and_activate_() {
   ESP_LOGD(TAG, "Resetting");
 
-  ControlRegister als_ctrl{0};
+  AlsControlRegister als_ctrl{0};
   als_ctrl.sw_reset = true;
-  this->reg((uint8_t) CommandRegisters::ALS_CTRL) = als_ctrl.raw;
+  this->reg((uint8_t) CommandRegisters::ALS_CONTR) = als_ctrl.raw;
   delay(2);
 
   uint8_t tries = MAX_TRIES;
   do {
     ESP_LOGD(TAG, "Waiting chip to reset");
     delay(2);
-    als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CTRL).get();
+    als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CONTR).get();
   } while (als_ctrl.sw_reset && tries--);  // while sw reset bit is on - keep waiting
 
   if (als_ctrl.sw_reset) {
@@ -197,14 +282,14 @@ void LTR303Component::configure_reset_and_activate_() {
   als_ctrl.gain = this->gain_;
 
   ESP_LOGD(TAG, "Setting active mode and gain reg 0x%02X", als_ctrl.raw);
-  this->reg((uint8_t) CommandRegisters::ALS_CTRL) = als_ctrl.raw;
+  this->reg((uint8_t) CommandRegisters::ALS_CONTR) = als_ctrl.raw;
   delay(5);
 
   tries = MAX_TRIES;
   do {
     ESP_LOGD(TAG, "Waiting for device to become active...");
     delay(2);
-    als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CTRL).get();
+    als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CONTR).get();
   } while (!als_ctrl.active_mode && tries--);  // while active mode is not set - keep waiting
 
   if (!als_ctrl.active_mode) {
@@ -212,15 +297,45 @@ void LTR303Component::configure_reset_and_activate_() {
   }
 }
 
-void LTR303Component::configure_gain_(Gain gain) {
-  ControlRegister als_ctrl{0};
+void LTRAlsPsComponent::configure_ps_() {
+  PsMeasurementRateRegister ps_meas{0};
+  ps_meas.ps_measurement_rate = PsMeasurementRate::PS_MEAS_RATE_50MS;
+  this->reg((uint8_t) CommandRegisters::PS_MEAS_RATE) = ps_meas.raw;
+
+  PsControlRegister ps_ctrl{0};
+  ps_ctrl.ps_mode_active = true;
+  ps_ctrl.ps_mode_xxx = true;
+  this->reg((uint8_t) CommandRegisters::PS_CONTR) = ps_ctrl.raw;
+}
+
+uint16_t LTRAlsPsComponent::read_ps_data_() {
+  AlsPsStatusRegister als_status{0};
+  als_status.raw = this->reg((uint8_t) CommandRegisters::ALS_PS_STATUS).get();
+  if (!als_status.ps_new_data || als_status.data_invalid) {
+    return this->ps_readings_;
+  }
+
+  uint8_t ps_low = this->reg((uint8_t) CommandRegisters::PS_DATA_0).get();
+  PsData1Register ps_high;
+  ps_high.raw = this->reg((uint8_t) CommandRegisters::PS_DATA_1).get();
+
+  uint16_t val = encode_uint16(ps_high.ps_data_high, ps_low);
+  //  ESP_LOGD(TAG, "Got sensor data: PS = %5d, Saturation flag = %d", val, ps_high.ps_saturation_flag);
+  if (ps_high.ps_saturation_flag) {
+    return 0x7ff;  // full 11 bit range
+  }
+  return val;
+}
+
+void LTRAlsPsComponent::configure_gain_(AlsGain gain) {
+  AlsControlRegister als_ctrl{0};
   als_ctrl.active_mode = true;
   als_ctrl.gain = gain;
-  this->reg((uint8_t) CommandRegisters::ALS_CTRL) = als_ctrl.raw;
+  this->reg((uint8_t) CommandRegisters::ALS_CONTR) = als_ctrl.raw;
   delay(2);
 }
 
-void LTR303Component::configure_integration_time_(IntegrationTime time) {
+void LTRAlsPsComponent::configure_integration_time_(IntegrationTime time) {
   MeasurementRateRegister meas{0};
   meas.measurement_repeat_rate = this->repeat_rate_;
   meas.integration_time = time;
@@ -228,11 +343,11 @@ void LTR303Component::configure_integration_time_(IntegrationTime time) {
   delay(2);
 }
 
-DataAvail LTR303Component::is_data_ready_(Readings &data) {
-  StatusRegister als_status{0};
+DataAvail LTRAlsPsComponent::is_als_data_ready_(AlsReadings &data) {
+  AlsPsStatusRegister als_status{0};
 
-  als_status.raw = this->reg((uint8_t) CommandRegisters::ALS_STATUS).get();
-  if (!als_status.new_data)
+  als_status.raw = this->reg((uint8_t) CommandRegisters::ALS_PS_STATUS).get();
+  if (!als_status.als_new_data)
     return DataAvail::NO_DATA;
 
   if (als_status.data_invalid) {
@@ -245,18 +360,18 @@ DataAvail LTR303Component::is_data_ready_(Readings &data) {
   return DataAvail::DATA_OK;
 }
 
-void LTR303Component::read_sensor_data_(Readings &data) {
-  uint8_t ch1_0 = this->reg((uint8_t) CommandRegisters::CH1_0).get();
-  uint8_t ch1_1 = this->reg((uint8_t) CommandRegisters::CH1_1).get();
-  uint8_t ch0_0 = this->reg((uint8_t) CommandRegisters::CH0_0).get();
-  uint8_t ch0_1 = this->reg((uint8_t) CommandRegisters::CH0_1).get();
+void LTRAlsPsComponent::read_sensor_data_(AlsReadings &data) {
+  uint8_t ch1_0 = this->reg((uint8_t) CommandRegisters::ALS_DATA_CH1_0).get();
+  uint8_t ch1_1 = this->reg((uint8_t) CommandRegisters::ALS_DATA_CH1_1).get();
+  uint8_t ch0_0 = this->reg((uint8_t) CommandRegisters::ALS_DATA_CH0_0).get();
+  uint8_t ch0_1 = this->reg((uint8_t) CommandRegisters::ALS_DATA_CH0_1).get();
   data.ch1 = encode_uint16(ch1_1, ch1_0);
   data.ch0 = encode_uint16(ch0_1, ch0_0);
 
   ESP_LOGD(TAG, "Got sensor data: CH1 = %d, CH0 = %d", data.ch1, data.ch0);
 }
 
-bool LTR303Component::are_adjustments_required_(Readings &data) {
+bool LTRAlsPsComponent::are_adjustments_required_(AlsReadings &data) {
   // skip first sample in auto mode -
   // we need to reconfigure device after last measurement
   if (!this->automatic_mode_enabled_)
@@ -265,13 +380,13 @@ bool LTR303Component::are_adjustments_required_(Readings &data) {
   // Recommended thresholds as per datasheet
   static const uint16_t LOW_INTENSITY_THRESHOLD = 1000;
   static const uint16_t HIGH_INTENSITY_THRESHOLD = 20000;
-  static const Gain GAINS[GAINS_COUNT] = {GAIN_1, GAIN_2, GAIN_4, GAIN_8, GAIN_48, GAIN_96};
+  static const AlsGain GAINS[GAINS_COUNT] = {GAIN_1, GAIN_2, GAIN_4, GAIN_8, GAIN_48, GAIN_96};
   static const IntegrationTime INT_TIMES[TIMES_COUNT] = {
       INTEGRATION_TIME_50MS,  INTEGRATION_TIME_100MS, INTEGRATION_TIME_150MS, INTEGRATION_TIME_200MS,
       INTEGRATION_TIME_250MS, INTEGRATION_TIME_300MS, INTEGRATION_TIME_350MS, INTEGRATION_TIME_400MS};
 
   if (data.ch0 <= LOW_INTENSITY_THRESHOLD) {
-    Gain next_gain = get_next(GAINS, data.actual_gain);
+    AlsGain next_gain = get_next(GAINS, data.actual_gain);
     if (next_gain != data.actual_gain) {
       data.actual_gain = next_gain;
       ESP_LOGD(TAG, "Low illuminance. Increasing gain.");
@@ -284,7 +399,7 @@ bool LTR303Component::are_adjustments_required_(Readings &data) {
       return true;
     }
   } else if (data.ch0 >= HIGH_INTENSITY_THRESHOLD) {
-    Gain prev_gain = get_prev(GAINS, data.actual_gain);
+    AlsGain prev_gain = get_prev(GAINS, data.actual_gain);
     if (prev_gain != data.actual_gain) {
       data.actual_gain = prev_gain;
       ESP_LOGD(TAG, "High illuminance. Decreasing gain.");
@@ -304,7 +419,7 @@ bool LTR303Component::are_adjustments_required_(Readings &data) {
   return false;
 }
 
-void LTR303Component::apply_lux_calculation_(Readings &data) {
+void LTRAlsPsComponent::apply_lux_calculation_(AlsReadings &data) {
   if ((data.ch0 == 0xFFFF) || (data.ch1 == 0xFFFF)) {
     ESP_LOGW(TAG, "Sensors got saturated");
     data.lux = 0.0f;
@@ -342,7 +457,10 @@ void LTR303Component::apply_lux_calculation_(Readings &data) {
   data.lux = lux;
 }
 
-void LTR303Component::publish_data_part_1_(Readings &data) {
+void LTRAlsPsComponent::publish_data_part_1_(AlsReadings &data) {
+  if (this->proximity_counts_sensor_ != nullptr) {
+    this->proximity_counts_sensor_->publish_state(this->ps_readings_);
+  }
   if (this->ambient_light_sensor_ != nullptr) {
     this->ambient_light_sensor_->publish_state(data.lux);
   }
@@ -354,7 +472,7 @@ void LTR303Component::publish_data_part_1_(Readings &data) {
   }
 }
 
-void LTR303Component::publish_data_part_2_(Readings &data) {
+void LTRAlsPsComponent::publish_data_part_2_(AlsReadings &data) {
   if (this->actual_gain_sensor_ != nullptr) {
     this->actual_gain_sensor_->publish_state(get_gain_coeff(data.actual_gain));
   }
@@ -362,5 +480,5 @@ void LTR303Component::publish_data_part_2_(Readings &data) {
     this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.integration_time));
   }
 }
-}  // namespace ltr303
+}  // namespace ltr_als_ps
 }  // namespace esphome
