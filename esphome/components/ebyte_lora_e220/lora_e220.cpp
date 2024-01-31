@@ -1,4 +1,5 @@
 #include "lora_e220.h"
+#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 namespace esphome {
 namespace lora_e220 {
 LoRa_E220::LoRa_E220(esphome::uart::UARTDevice *serial, GPIOPin *auxPin, GPIOPin *m0Pin,
