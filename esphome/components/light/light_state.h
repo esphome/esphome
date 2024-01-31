@@ -144,6 +144,19 @@ class LightState : public EntityBase, public Component {
 
   void current_values_as_ct(float *color_temperature, float *white_brightness);
 
+  /**
+   * Indicator if a transformer (e.g. transition) is active. This is useful
+   * for effects e.g. at the start of the apply() method, add a check like:
+   *
+   * if (this->state_->transformer_active) {
+   *   // Something is already running.
+   *   return;
+   * }
+   *
+   * This property is read-only for users. Any changes to it will be ignored.
+   */
+  bool transformer_active = false;
+
  protected:
   friend LightOutput;
   friend LightCall;
