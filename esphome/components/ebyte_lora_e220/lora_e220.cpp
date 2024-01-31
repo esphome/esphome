@@ -503,7 +503,7 @@ state_naming::ResponseStructContainer LoRa_E220::receiveMessageComplete(const ui
 
   if (rssiEnabled) {
     char rssi[1];
-    this->serialDef.stream->readBytes(rssi, 1);
+    this->serial->read_bytes(rssi, 1);
     rc.rssi = rssi[0];
   }
   this->cleanUARTBuffer();
@@ -522,7 +522,7 @@ ResponseStatus LoRa_E220::sendMessage(const void *message, const uint8_t size) {
 ResponseStatus LoRa_E220::sendMessage(const std::string message) {
   ESP_LOGD(TAG, "Send message: ");
   ESP_LOGD(TAG, message);
-  byte size = message.length();  // sizeof(message.c_str())+1;
+  uint8_t size = message.length();  // sizeof(message.c_str())+1;
   ESP_LOGD(TAG, " size: ");
   ESP_LOGD(TAG, "%d", size);
   char messageFixed[size];
@@ -538,20 +538,20 @@ ResponseStatus LoRa_E220::sendMessage(const std::string message) {
   return status;
 }
 
-ResponseStatus LoRa_E220::sendFixedMessage(byte ADDH, byte ADDL, byte CHAN, const std::string message) {
-  byte size = message.length();
+ResponseStatus LoRa_E220::sendFixedMessage(uint8_t ADDH, uint8_t ADDL, uint8_t CHAN, const std::string message) {
+  uint8_t size = message.length();
   char messageFixed[size];
   memcpy(messageFixed, message.c_str(), size);
   return this->sendFixedMessage(ADDH, ADDL, CHAN, (uint8_t *) messageFixed, size);
 }
-ResponseStatus LoRa_E220::sendBroadcastFixedMessage(byte CHAN, const std::string message) {
+ResponseStatus LoRa_E220::sendBroadcastFixedMessage(uint8_t CHAN, const std::string message) {
   return this->sendFixedMessage(state_naming::BROADCAST_ADDRESS, state_naming::BROADCAST_ADDRESS, CHAN, message);
 }
 
 typedef struct fixedStransmission {
-  byte ADDH = 0;
-  byte ADDL = 0;
-  byte CHAN = 0;
+  uint8_t ADDH = 0;
+  uint8_t ADDL = 0;
+  uint8_t CHAN = 0;
   unsigned char message[];
 } FixedStransmission;
 
@@ -560,7 +560,8 @@ FixedStransmission *init_stack(int m) {
   return st;
 }
 
-ResponseStatus LoRa_E220::sendFixedMessage(byte ADDH, byte ADDL, byte CHAN, const void *message, const uint8_t size) {
+ResponseStatus LoRa_E220::sendFixedMessage(uint8_t ADDH, uint8_t ADDL, uint8_t CHAN, const void *message,
+                                           const uint8_t size) {
   ESP_LOGD(TAG, ADDH);
   FixedStransmission *fixedStransmission = init_stack(size);
   fixedStransmission->ADDH = ADDH;
@@ -581,8 +582,8 @@ ConfigurationMessage *init_stack_conf(int m) {
   return st;
 }
 
-ResponseStatus LoRa_E220::sendConfigurationMessage(byte ADDH, byte ADDL, byte CHAN, Configuration *configuration,
-                                                   PROGRAM_COMMAND programCommand) {
+ResponseStatus LoRa_E220::sendConfigurationMessage(uint8_t ADDH, uint8_t ADDL, uint8_t CHAN,
+                                                   Configuration *configuration, PROGRAM_COMMAND programCommand) {
   ResponseStatus rc;
 
   configuration->COMMAND = programCommand;
@@ -602,7 +603,7 @@ ResponseStatus LoRa_E220::sendConfigurationMessage(byte ADDH, byte ADDL, byte CH
   return rc;
 }
 
-ResponseStatus LoRa_E220::sendBroadcastFixedMessage(byte CHAN, const void *message, const uint8_t size) {
+ResponseStatus LoRa_E220::sendBroadcastFixedMessage(uint8_t CHAN, const void *message, const uint8_t size) {
   return this->sendFixedMessage(0xFF, 0xFF, CHAN, message, size);
 }
 
