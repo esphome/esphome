@@ -1,12 +1,12 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import sensor, binary_sensor, text_sensor, uart
+from esphome.components import sensor, text_sensor, uart
 from esphome.const import *
 ebyte_lora_e220_ns = cg.esphome_ns.namespace('ebyte_lora_e220')
 EbyteLoraE220 = ebyte_lora_e220_ns.class_('EbyteLoraE220', cg.PollingComponent)
 
 DEPENDENCIES = ['uart']
-AUTO_LOAD = ['uart', 'sensor', 'text_sensor', 'binary_sensor']
+AUTO_LOAD = ['uart', 'sensor', 'text_sensor']
 
 CONF_PIN_AUX = "pin_aux"
 CONF_PIN_M0 = "pin_m0"
@@ -27,7 +27,7 @@ CONFIG_SCHEMA = cv.Schema({
 
 }).extend(cv.polling_component_schema('60s')).extend(uart.UART_DEVICE_SCHEMA)
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield uart.register_uart_device(var, config)
