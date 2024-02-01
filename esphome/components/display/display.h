@@ -252,7 +252,8 @@ class Display : public PollingComponent {
    * @param text The text to draw.
    * @param background When using multi-bit (anti-aliased) fonts, blend this background color into pixels
    */
-  void print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text, Color background = COLOR_OFF);
+  void print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text,
+             Color background = COLOR_OFF);
 
   /** Print `text` with the top left at [x,y] with `font`.
    *
@@ -261,7 +262,7 @@ class Display : public PollingComponent {
    * @param font The font to draw the text with.
    * @param color The color to draw the text with.
    * @param text The text to draw.
-* @param background When using multi-bit (anti-aliased) fonts, blend this background color into pixels
+   * @param background When using multi-bit (anti-aliased) fonts, blend this background color into pixels
    */
   void print(int x, int y, BaseFont *font, Color color, const char *text, Color background = COLOR_OFF);
 
