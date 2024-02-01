@@ -7,24 +7,43 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/log.h"
-#include "lora_e220.h"
 
 namespace esphome {
 namespace ebyte_lora_e220 {
 
 static const char *const TAG = "ebyte_lora_e220";
 
+// the mode the receiver is in
+enum MODE_TYPE {
+  MODE_0_NORMAL = 0,
+  MODE_0_TRANSMISSION = 0,
+  MODE_1_WOR_TRANSMITTER = 1,
+  MODE_1_WOR = 1,
+  MODE_2_WOR_RECEIVER = 2,
+  MODE_2_POWER_SAVING = 2,
+  MODE_3_CONFIGURATION = 3,
+  MODE_3_PROGRAM = 3,
+  MODE_3_SLEEP = 3,
+  MODE_INIT = 0xFF
+};
 class EbyteLoraE220 : public PollingComponent, public uart::UARTDevice {
  public:
-  lora_e220::LoRa_E220 e220ttl = lora_e220::LoRa_E220(this, pin_aux, pin_m0, pin_m1);  //  SERIAL AUX M0 M1
   void set_message_sensor(text_sensor::TextSensor *s) { message_text_sensor = s; }
   void set_status_sensor(text_sensor::TextSensor *s) { status_text_sensor = s; }
   void set_rssi_sensor(sensor::Sensor *s) { rssi_sensor = s; }
   void set_pin_aux(GPIOPin *s) { pin_aux = s; }
   void set_pin_m0(GPIOPin *s) { pin_m0 = s; }
   void set_pin_m1(GPIOPin *s) { pin_m1 = s; }
+  void setup() override;
   void dump_config() override;
   void update() override;
+
+ private:
+  MODE_TYPE mode = MODE_0_NORMAL;
+  // set WOR mode
+  bool setMode(MODE_TYPE type);
+  // checks the aux port to see if it is done setting
+  bool waitCompleteResponse(unsigned long timeout = 1000, unsigned int waitNoAux = 100);
 
  protected:
   std::vector<uint8_t> buffer_;
