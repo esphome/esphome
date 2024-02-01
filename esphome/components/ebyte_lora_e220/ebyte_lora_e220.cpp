@@ -5,6 +5,9 @@ namespace esphome {
 namespace ebyte_lora_e220 {
 
 void EbyteLoraE220::setup() {
+  this->pin_aux->setup();
+  this->pin_m0->setup();
+  this->pin_m1->setup();
   if (this->pin_aux != nullptr) {
     this->pin_aux->pin_mode(gpio::FLAG_INPUT);
     ESP_LOGD(TAG, "Init AUX pin!");
@@ -113,7 +116,7 @@ void EbyteLoraE220::dump_config() {
   LOG_PIN("  M0 Pin: ", this->pin_m0);
   LOG_PIN("  M1 Pin: ", this->pin_m1);
 };
-void EbyteLoraE220::update() {
+void EbyteLoraE220::loop() {
   // This will be called by App.loop()
 
   if (this->available() > 1) {

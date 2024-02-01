@@ -36,7 +36,7 @@ class EbyteLoraE220 : public PollingComponent, public uart::UARTDevice {
   void set_pin_m1(GPIOPin *s) { pin_m1 = s; }
   void setup() override;
   void dump_config() override;
-  void update() override;
+  void loop() override;
 
  private:
   MODE_TYPE mode = MODE_0_NORMAL;
