@@ -13,24 +13,27 @@ void TemplateDatetime::setup() {
 
   std::string state{};
 
-  state = this->initial_value_;
-  has_date = HAS_DATETIME_STRING_DATE_ONLY(initial_value_) || HAS_DATETIME_STRING_DATE_AND_TIME(initial_value_);
-  has_time = HAS_DATETIME_STRING_TIME_ONLY(initial_value_) || HAS_DATETIME_STRING_DATE_AND_TIME(initial_value_);
-  if (!(has_date || has_time)) {
-    ESP_LOGE(TAG, "'%s' - Could not set initial value! Datetime string has the wrong format!",
-             this->get_name().c_str());
-  }
+  if (!this->restore_value_) {
+    state = this->initial_value_;
 
-  if (this->restore_value_) {
+    // TODO do we need this check? initial_value_ should already be check by cv
+    has_date = HAS_DATETIME_STRING_DATE_ONLY(initial_value_) || HAS_DATETIME_STRING_DATE_AND_TIME(initial_value_);
+    has_time = HAS_DATETIME_STRING_TIME_ONLY(initial_value_) || HAS_DATETIME_STRING_DATE_AND_TIME(initial_value_);
+    if (!(has_date || has_time)) {
+      ESP_LOGE(TAG, "'%s' - Could not set initial value! Datetime string has the wrong format!",
+               this->get_name().c_str());
+    }
+  } else {
     char temp[SZ];
     this->pref_ = global_preferences->make_preference<uint8_t[SZ]>(194434030U ^ this->get_object_id_hash());
     if (this->pref_.load(&temp)) {
       state.assign(temp + 1, temp[0]);
     } else {
-      ESP_LOGE(TAG, "'%s' - Could not load stored value!", this->get_name().c_str());
+      // set to inital value if loading from pref failed
+      state = this->initial_value_;
     }
   }
-  this->publish_state(state);  // fix me!!!!!!!!!!!!!!
+  this->publish_state(state);
 }
 
 void TemplateDatetime::update() {
@@ -46,8 +49,8 @@ void TemplateDatetime::update() {
   has_date = HAS_DATETIME_STRING_DATE_ONLY(state) || HAS_DATETIME_STRING_DATE_AND_TIME(state);
   has_time = HAS_DATETIME_STRING_TIME_ONLY(state) || HAS_DATETIME_STRING_DATE_AND_TIME(state);
   if (!(has_date || has_time)) {
-    ESP_LOGE(TAG, "'%s' - Could not update value! Datetime string has the wrong format!", this->get_name().c_str());
-    return;
+    // ESP_LOGE(TAG, "'%s' - Could not update value! Datetime string has the wrong format!", this->get_name().c_str());
+    // return;
   }
   this->publish_state(state);
 }
@@ -61,7 +64,6 @@ void TemplateDatetime::control(std::string value) {
   if (this->restore_value_) {
     unsigned char temp[SZ];
     int size = this->state.size();
-    ESP_LOGD("mydebug", "value size: %d", size);
     memcpy(temp + 1, this->state.c_str(), size);
     temp[0] = ((unsigned char) size);
     this->pref_.save(&temp);

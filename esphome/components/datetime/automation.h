@@ -3,13 +3,15 @@
 #include "esphome/components/datetime/datetime.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#ifdef USE_TIME
+#include "esphome/components/time/real_time_clock.h"
+#endif
 
 namespace esphome {
 namespace datetime {
 
 static const char *const TAG = "input_datetime.automation";
 #ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
 class DatetimeOnTimeTrigger : public Trigger<>, public Component {
  public:
   explicit DatetimeOnTimeTrigger(Datetime *Datetime, time::RealTimeClock *rtc) : Datetime_(Datetime), rtc_(rtc) {}
