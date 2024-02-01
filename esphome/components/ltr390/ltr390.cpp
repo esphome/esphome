@@ -70,7 +70,7 @@ void LTR390Component::read_uvs_() {
   uint32_t uv = *val;
 
   if (this->uvi_sensor_ != nullptr) {
-    this->uvi_sensor_->publish_state( (uv / this->sensitivity_) * this->wfac_);
+    this->uvi_sensor_->publish_state((uv / this->sensitivity_) * this->wfac_);
   }
 
   if (this->uv_sensor_ != nullptr) {
@@ -129,11 +129,11 @@ void LTR390Component::setup() {
   this->reg(LTR390_GAIN) = gain_;
 
   // Set resolution and measurement rate
-  this->reg(LTR390_MEAS_RATE) = RESOLUTION_SETTING[this->res_] ;
+  this->reg(LTR390_MEAS_RATE) = RESOLUTION_SETTING[this->res_];
 
   // Set sensitivity by linearly scaling against known value in the datasheet
-  float gain_scale = GAINVALUES[this->gain_]/GAIN_MAX;
-  float intg_scale = (RESOLUTIONVALUE[this->res_]*100)/INTG_MAX;
+  float gain_scale = GAINVALUES[this->gain_] / GAIN_MAX;
+  float intg_scale = (RESOLUTIONVALUE[this->res_] * 100) / INTG_MAX;
   this->sensitivity_ = SENSITIVITY_MAX * gain_scale * intg_scale;
 
   // Set sensor read state

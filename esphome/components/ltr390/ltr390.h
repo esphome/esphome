@@ -56,7 +56,7 @@ static const float RESOLUTION_SETTING[6] = {0x00, 0x10, 0x20, 0x30, 0x40, 0x50};
 static const uint32_t MODEADDRESSES[2] = {0x0D, 0x10};
 
 static const float SENSITIVITY_MAX = 2300;
-static const float INTG_MAX = RESOLUTIONVALUE[0]*100;
+static const float INTG_MAX = RESOLUTIONVALUE[0] * 100;
 static const int GAIN_MAX = GAINVALUES[4];
 
 class LTR390Component : public PollingComponent, public i2c::I2CDevice {
