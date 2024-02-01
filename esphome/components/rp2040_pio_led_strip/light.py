@@ -67,7 +67,7 @@ static inline void rp2040_pio_led_strip_driver_{id}_init(PIO pio, uint sm, uint 
 
     pio_sm_config c = rp2040_pio_led_strip_{id}_program_get_default_config(offset);
     sm_config_set_set_pins(&c, pin, 1);
-    sm_config_set_out_shift(&c, false, true, {32 if rgbw else 24});
+    sm_config_set_out_shift(&c, false, true, 8);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
     int cycles_per_bit = 69;
@@ -85,8 +85,9 @@ static inline void rp2040_pio_led_strip_driver_{id}_init(PIO pio, uint sm, uint 
 .wrap_target
 awaiting_data:
     ; Wait for data in FIFO queue
+    out null, 24 ; discard the byte lane replication of the FIFO since we only need 8 bits
     pull block ; this will block until there is data in the FIFO queue and then it will pull it into the shift register
-    set y, {31 if rgbw else 23} ; set y to the number of bits to write counting 0, (23 if RGB, 31 if RGBW)
+    set y, 7 ; set y to the number of bits to write counting 0, (always 7 because we are doing one word at a time)
 
 mainloop:
     ; go through each bit in the shift register and jump to the appropriate label

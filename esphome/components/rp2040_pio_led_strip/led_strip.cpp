@@ -127,7 +127,7 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
     uint32_t color = encode_uint32(c1, c2, c3, w);
     pio_sm_put_blocking(this->pio_, this->sm_, color);
   }*/
-  dma_channel_transfer_to_buffer_now(this->dma_chan_, this->buf_, this->is_rgbw_ ? num_leds_ * 4 : num_leds_ * 3);
+  dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->is_rgbw_ ? num_leds_ * 4 : num_leds_ * 3);
 }
 
 light::ESPColorView RP2040PIOLEDStripLightOutput::get_view_internal(int32_t index) const {
