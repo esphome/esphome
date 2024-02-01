@@ -2,6 +2,7 @@ import logging
 import re
 from importlib import resources
 from typing import Optional
+from datetime import datetime as dt
 
 import esphome.codegen as cg
 
@@ -87,11 +88,48 @@ def has_datetime_string_date_or_time(value):
     )
 
 
+# does not take iinto account that some months do have < 31 days, do we need to check that?
 def validate_datetime_string(value: str):
     if not has_datetime_string_date_or_time(value):
         raise cv.Invalid(
             "Not a valid datetime: '{0}'.".format(value)
             + " valid formats are '2024-05-28 16:45:15', '2024-05-28', '16:45:15', '16:45'"
+        )
+
+    if len(value.split(":")) == 2:
+        value += ":00"
+
+    format = ""
+    invalide_valus = []
+    if has_datetime_string_date_and_time(value):
+        format = ["%Y", "%m", "%d", "%H", "%M", "%S"]
+    if has_datetime_string_date_only(value):
+        format = ["%Y", "%m", "%d"]
+    if has_datetime_string_time_only(value):
+        format = ["%H", "%M", "%S"]
+
+    splitted_value = re.split(r"[- :]", value)
+    for i, val in enumerate(splitted_value):
+        try:
+            dt.strptime(val, format[i])
+        except ValueError:
+            invalide_valus.append([val, format[i]])
+    if len(invalide_valus):
+        format_to_string = {
+            "%Y": ["Year", "0001-9999"],
+            "%m": ["Month", "1-12"],
+            "%d": ["Day", "1-31"],
+            "%H": ["Hour", "0-23"],
+            "%M": ["Minute", "0-59"],
+            "%S": ["Second", "0-59"],
+        }
+        invalide_component = ""
+        for invalide_value in invalide_valus:
+            value = value.replace(invalide_value[0], f"{{{invalide_value[0]}}}")
+
+            invalide_component += f"\n{invalide_value[0]} is not valid for component '{format_to_string[invalide_value[1]][0]}'({format_to_string[invalide_value[1]][1]})"
+        raise cv.Invalid(
+            "Not a valid datetime: '{0}'.".format(value) + f"{invalide_component}"
         )
     return value
 
@@ -212,7 +250,7 @@ OPERATION_BASE_SCHEMA = cv.Schema(
     DatetimeSetAction,
     OPERATION_BASE_SCHEMA.extend(
         {
-            cv.Required(CONF_VALUE): validate_datetime_string,
+            cv.Required(CONF_VALUE): cv.templatable(validate_datetime_string),
         }
     ),
 )
@@ -221,7 +259,8 @@ async def datetime_set_to_code(config, action_id, template_arg, args):
     action_var = cg.new_Pvariable(action_id, template_arg, paren)
 
     # await add_datetime_set_value(var, config[CONF_VALUE], config)
-    cg.add(action_var.set_value(config[CONF_VALUE]))
+    template_ = await cg.templatable(config[CONF_VALUE], [], cg.std_string)
+    cg.add(action_var.set_value(template_))
     return action_var
 
 
