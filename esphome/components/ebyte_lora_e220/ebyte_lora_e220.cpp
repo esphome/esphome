@@ -1,4 +1,3 @@
-#pragma once
 #include "ebyte_lora_e220.h"
 
 namespace esphome {
