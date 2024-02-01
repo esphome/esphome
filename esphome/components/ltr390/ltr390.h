@@ -17,13 +17,11 @@ enum LTR390CTRL {
 };
 
 // enums from https://github.com/adafruit/Adafruit_LTR390/
-
 static const uint8_t LTR390_MAIN_CTRL = 0x00;
 static const uint8_t LTR390_MEAS_RATE = 0x04;
 static const uint8_t LTR390_GAIN = 0x05;
 static const uint8_t LTR390_PART_ID = 0x06;
 static const uint8_t LTR390_MAIN_STATUS = 0x07;
-static const float LTR390_SENSITIVITY = 2300.0;
 
 // Sensing modes
 enum LTR390MODE {
@@ -49,6 +47,17 @@ enum LTR390RESOLUTION {
   LTR390_RESOLUTION_16BIT,
   LTR390_RESOLUTION_13BIT,
 };
+
+static const float GAINVALUES[5] = {1.0, 3.0, 6.0, 9.0, 18.0};
+static const float RESOLUTIONVALUE[6] = {4.0, 2.0, 1.0, 0.5, 0.25, 0.125};
+
+// Request fastest measurement rate - will be slowed by device if conversion rate is slower.
+static const float RESOLUTION_SETTING[6] = {0x00, 0x10, 0x20, 0x30, 0x40, 0x50};
+static const uint32_t MODEADDRESSES[2] = {0x0D, 0x10};
+
+static const float SENSITIVITY_MAX = 2300;
+static const float INTG_MAX = RESOLUTIONVALUE[0]*100;
+static const int GAIN_MAX = GAINVALUES[4];
 
 class LTR390Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -81,6 +90,7 @@ class LTR390Component : public PollingComponent, public i2c::I2CDevice {
 
   LTR390GAIN gain_;
   LTR390RESOLUTION res_;
+  float sensitivity_;
   float wfac_;
 
   sensor::Sensor *light_sensor_{nullptr};
