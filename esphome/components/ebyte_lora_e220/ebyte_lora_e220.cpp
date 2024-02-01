@@ -23,7 +23,10 @@ void EbyteLoraE220::setup() {
   }
 
   bool status = setMode(MODE_0_NORMAL);
-  ESP_LOGD(TAG, "setup success %s", status);
+  if (status)
+    ESP_LOGD(TAG, "Setup success");
+  else
+    ESP_LOGD(TAG, "Something went wrong");
 }
 bool EbyteLoraE220::setMode(MODE_TYPE mode) {
   // data sheet claims module needs some extra time after mode setting (2ms)
@@ -72,12 +75,12 @@ bool EbyteLoraE220::setMode(MODE_TYPE mode) {
 
   if (result) {
     this->mode = mode;
+    ESP_LOGD(TAG, "Mode set");
+    return true;
   } else {
-    ESP_LOGD(TAG, "No success");
+    ESP_LOGD(TAG, "No success setting mode");
     return false;
   }
-
-  return true;
 }
 bool EbyteLoraE220::waitCompleteResponse(unsigned long timeout, unsigned int waitNoAux) {
   unsigned long t = millis();
@@ -106,7 +109,6 @@ bool EbyteLoraE220::waitCompleteResponse(unsigned long timeout, unsigned int wai
 
   // per data sheet control after aux goes high is 2ms so delay for at least that long)
   delay(20);
-  ESP_LOGD(TAG, "Complete!");
   return true;
 }
 void EbyteLoraE220::dump_config() {
@@ -117,19 +119,22 @@ void EbyteLoraE220::dump_config() {
 };
 void EbyteLoraE220::loop() {
   // This will be called by App.loop()
-
-  if (this->available() > 1) {
-    std::string buffer;
-    uint8_t data;
-    while (this->available() > 0) {
-      if (this->read_byte(&data)) {
-        buffer += (char) data;
-      }
-    }
-    ESP_LOGD(TAG, "%s", buffer);
-    this->message_text_sensor->publish_state(buffer.substr(0, buffer.length() - 1));
-    this->rssi_sensor->publish_state(atoi(buffer.substr(buffer.length() - 1, 1).c_str()));
+  ESP_LOGD(TAG, "Checking if uart is available");
+  if (!available()) {
+    return;
   }
+  std::string buffer;
+
+  ESP_LOGD(TAG, "Starting to read message");
+  while (available()) {
+    uint8_t c;
+    if (this->read_byte(&c)) {
+      buffer += (char) c;
+    }
+  }
+  ESP_LOGD(TAG, "%s", buffer);
+  this->message_text_sensor->publish_state(buffer.substr(0, buffer.length() - 1));
+  this->rssi_sensor->publish_state(atoi(buffer.substr(buffer.length() - 1, 1).c_str()));
 }
 
 }  // namespace ebyte_lora_e220
