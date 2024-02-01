@@ -143,18 +143,16 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
             pixel |= 1;
           bitmask >>= 1;
         }
-        if (pixel != 0) {
-          if (this->bpp_ == 1) {
-            display->draw_pixel_at(glyph_x, glyph_y, color);
-          } else {
-            float on = (float) pixel / bpp_max;
-            float off = 1.0 - on;
-            Color blended;
-            blended.r = color.r * on + background.r * off;
-            blended.g = color.r * on + background.g * off;
-            blended.b = color.r * on + background.b * off;
-            display->draw_pixel_at(glyph_x, glyph_y, blended);
-          }
+        if (pixel == bpp_max) {
+          display->draw_pixel_at(glyph_x, glyph_y, color);
+        } else if (pixel != 0) {
+          float on = (float) pixel / bpp_max;
+          float off = 1.0 - on;
+          Color blended;
+          blended.r = color.r * on + background.r * off;
+          blended.g = color.r * on + background.g * off;
+          blended.b = color.r * on + background.b * off;
+          display->draw_pixel_at(glyph_x, glyph_y, blended);
         }
       }
     }
