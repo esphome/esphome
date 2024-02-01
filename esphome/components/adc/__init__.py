@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.const import CONF_ANALOG, CONF_INPUT, CONF_NUMBER
+from esphome.const import (
+    CONF_ANALOG,
+    CONF_INPUT,
+    CONF_NUMBER,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+)
 
 from esphome.core import CORE
 from esphome.components.esp32 import get_esp32_variant
@@ -194,6 +200,12 @@ def validate_adc_pin(value):
         )(value)
 
     if CORE.is_nrf52:
+        if CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] == "zephyr":
+            # TODO
+            raise cv.Invalid(
+                f"ADC is not imlemented on {CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK]}"
+            )
+
         conf = pins.gpio_pin_schema(
             {CONF_ANALOG: True, CONF_INPUT: True}, internal=True
         )(value)

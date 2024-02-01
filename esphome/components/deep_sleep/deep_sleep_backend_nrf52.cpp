@@ -1,4 +1,4 @@
-#ifdef USE_NRF52
+#if defined(USE_NRF52) && defined(USE_ARDUINO)
 #include "deep_sleep_backend_nrf52.h"
 #include "nrf_power.h"
 #include <cassert>

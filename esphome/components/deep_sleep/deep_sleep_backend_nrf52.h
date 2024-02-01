@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_NRF52
+#if defined(USE_NRF52) && defined(USE_ARDUINO)
 
 #include "esphome/core/optional.h"
 #include "Arduino.h"

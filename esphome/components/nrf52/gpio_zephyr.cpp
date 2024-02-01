@@ -111,6 +111,11 @@ void NRF52GPIOPin::detach_interrupt() const {
 
 }  // namespace nrf52
 
+bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
+  // TODO
+  return false;
+}
+
 }  // namespace esphome
 
 #endif

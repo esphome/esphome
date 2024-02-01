@@ -294,7 +294,7 @@ float ADCSensor::sample() {
 }
 #endif  // USE_LIBRETINY
 
-#ifdef USE_NRF52
+#if defined(USE_NRF52) && defined(USE_ARDUINO)
 float ADCSensor::sample() {
   // https://infocenter.nordicsemi.com/pdf/nRF52840_PS_v1.1.pdf
   // 6.23.2 Reference voltage and gain settings

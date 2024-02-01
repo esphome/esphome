@@ -76,7 +76,7 @@ void DeepSleepComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  GPIO Wakeup Run Duration: %" PRIu32 " ms", this->wakeup_cause_to_run_duration_->gpio_cause);
   }
 #endif
-#ifdef USE_NRF52
+#if defined(USE_NRF52) && defined(USE_ARDUINO)
   backend_.dump_config();
 #endif
 }
@@ -172,7 +172,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 #ifdef USE_ESP8266
   ESP.deepSleep(*this->sleep_duration_);  // NOLINT(readability-static-accessed-through-instance)
 #endif
-#ifdef USE_NRF52
+#if defined(USE_NRF52) && defined(USE_ARDUINO)
   backend_.begin_sleep(this->sleep_duration_);
   setup_deep_sleep_();
 #endif

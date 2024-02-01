@@ -14,6 +14,8 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_nrf52,
+    # TODO implement
+    cv.only_with_arduino,
 )
 
 

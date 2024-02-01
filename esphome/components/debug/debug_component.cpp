@@ -35,10 +35,10 @@
 #endif
 #endif
 
-#ifdef USE_NRF52
+#if defined(USE_NRF52) && defined(USE_ARDUINO)
+#include "nrf52/nrf_mbr.h"
 #include <Adafruit_TinyUSB.h> 
 #include "esphome/core/application.h"
-#include "nrf52/nrf_mbr.h"
 #endif
 
 namespace esphome {
@@ -61,7 +61,7 @@ static uint32_t get_free_heap() {
 #endif
 }
 
-#ifdef USE_NRF52
+#if defined(USE_NRF52) && defined(USE_ARDUINO)
 static std::string nrf52_get_reset_reason_name(){
   uint32_t rr = readResetReason();
   if (rr & POWER_RESETREAS_VBUS_Msk){
@@ -416,7 +416,8 @@ void DebugComponent::dump_config() {
   reset_reason = lt_get_reboot_reason_name(lt_get_reboot_reason());
 #endif  // USE_LIBRETINY
 
-#ifdef USE_NRF52
+#if defined(USE_NRF52) && defined(USE_ARDUINO)
+  //TODO fixme
   ESP_LOGD(TAG, "bootloader version %lu.%lu.%lu", (bootloaderVersion >> 16) & 0xFF, (bootloaderVersion >> 8) & 0xFF, bootloaderVersion & 0xFF);
   ESP_LOGD(TAG, "MBR bootloader addr 0x%08lx, UICR bootloader addr 0x%08lx", (*((uint32_t *)MBR_BOOTLOADER_ADDR)), NRF_UICR->NRFFW[0]);
   ESP_LOGD(TAG, "MBR param page addr 0x%08lx, UICR param page addr 0x%08lx", (*((uint32_t *) MBR_PARAM_PAGE_ADDR)), NRF_UICR->NRFFW[1]);
@@ -437,6 +438,7 @@ void DebugComponent::dump_config() {
 }
 
 void DebugComponent::loop() {
+#if defined(USE_NRF52) && defined(USE_ARDUINO)
   //TODO move to logger
   //TOOD do not print when exit from deep sleep
   static bool d = false;
@@ -446,6 +448,7 @@ void DebugComponent::loop() {
     }
     d = !d;
   }
+#endif
   // log when free heap space has halved
   uint32_t new_free_heap = get_free_heap();
   if (new_free_heap < this->free_heap_ / 2) {
