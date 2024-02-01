@@ -118,8 +118,6 @@ void EbyteLoraE220::dump_config() {
   LOG_PIN("  M1 Pin: ", this->pin_m1);
 };
 void EbyteLoraE220::loop() {
-  // This will be called by App.loop()
-  ESP_LOGD(TAG, "Checking if uart is available");
   if (!available()) {
     return;
   }
