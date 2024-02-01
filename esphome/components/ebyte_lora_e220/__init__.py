@@ -26,7 +26,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_LORA_RSSI):
         sensor.sensor_schema(device_class=DEVICE_CLASS_SIGNAL_STRENGTH,unit_of_measurement=UNIT_DECIBEL_MILLIWATT,accuracy_decimals=0,state_class=STATE_CLASS_MEASUREMENT).extend(),
 
-}).extend(cv.polling_component_schema('60s')).extend(uart.UART_DEVICE_SCHEMA)
+}).extend(uart.UART_DEVICE_SCHEMA)
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

@@ -26,17 +26,18 @@ enum MODE_TYPE {
   MODE_3_SLEEP = 3,
   MODE_INIT = 0xFF
 };
-class EbyteLoraE220 : public PollingComponent, public uart::UARTDevice {
+class EbyteLoraE220 : public Component, public uart::UARTDevice {
  public:
+  void setup() override;
+  void loop() override;
+  void dump_config() override;
+  // local
   void set_message_sensor(text_sensor::TextSensor *s) { message_text_sensor = s; }
   void set_status_sensor(text_sensor::TextSensor *s) { status_text_sensor = s; }
   void set_rssi_sensor(sensor::Sensor *s) { rssi_sensor = s; }
   void set_pin_aux(GPIOPin *s) { pin_aux = s; }
   void set_pin_m0(GPIOPin *s) { pin_m0 = s; }
   void set_pin_m1(GPIOPin *s) { pin_m1 = s; }
-  void setup() override;
-  void dump_config() override;
-  void loop() override;
 
  private:
   MODE_TYPE mode = MODE_0_NORMAL;
