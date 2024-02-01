@@ -10,29 +10,6 @@ namespace font {
 
 static const char *const TAG = "font";
 
-void Glyph::draw(int x_at, int y_start, display::Display *display, Color color) const {
-  int scan_x1, scan_y1, scan_width, scan_height;
-  this->scan_area(&scan_x1, &scan_y1, &scan_width, &scan_height);
-
-  const uint8_t *data = this->glyph_data_->data;
-  const int max_x = x_at + scan_x1 + scan_width;
-  const int max_y = y_start + scan_y1 + scan_height;
-
-  uint8_t bitmask = 0;
-  uint8_t pixel_data = 0;
-  for (int glyph_y = y_start + scan_y1; glyph_y != max_y; glyph_y++) {
-    for (int glyph_x = x_at + scan_x1; glyph_x != max_x; glyph_x++) {
-      if (bitmask == 0) {
-        pixel_data = progmem_read_byte(data++);
-        bitmask = 0x80;
-      }
-      if ((pixel_data & bitmask) != 0) {
-        display->draw_pixel_at(glyph_x, glyph_y, color);
-      }
-      bitmask >>= 1;
-    }
-  }
-}
 const uint8_t *Glyph::get_char() const { return this->glyph_data_->a_char; }
 // Compare the char at the string position with this char.
 // Return true if this char is less than or equal the other.
@@ -123,9 +100,10 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   *x_offset = min_x;
   *width = x - min_x;
 }
-void Font::print(int x_start, int y_start, display::Display *display, Color color, const char *text) {
+void Font::print(int x_start, int y_start, display::Display *display, Color color, const char *text, Color background) {
   int i = 0;
   int x_at = x_start;
+  int scan_x1, scan_y1, scan_width, scan_height;
   while (text[i] != '\0') {
     int match_length;
     int glyph_n = this->match_next_glyph((const uint8_t *) text + i, &match_length);
@@ -143,7 +121,43 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
     }
 
     const Glyph &glyph = this->get_glyphs()[glyph_n];
-    glyph.draw(x_at, y_start, display, color);
+    glyph.scan_area(&scan_x1, &scan_y1, &scan_width, &scan_height);
+
+    const uint8_t *data = glyph.glyph_data_->data;
+    const int max_x = x_at + scan_x1 + scan_width;
+    const int max_y = y_start + scan_y1 + scan_height;
+
+    uint8_t bitmask = 0;
+    uint8_t pixel_data = 0;
+    float bpp_max = (1 << this->bpp_) - 1;
+    for (int glyph_y = y_start + scan_y1; glyph_y != max_y; glyph_y++) {
+      for (int glyph_x = x_at + scan_x1; glyph_x != max_x; glyph_x++) {
+        uint8_t pixel = 0;
+        for (int bit_num = 0; bit_num != this->bpp_; bit_num++) {
+          if (bitmask == 0) {
+            pixel_data = progmem_read_byte(data++);
+            bitmask = 0x80;
+          }
+          pixel <<= 1;
+          if ((pixel_data & bitmask) != 0)
+            pixel |= 1;
+          bitmask >>= 1;
+        }
+        if (pixel != 0) {
+          if (this->bpp_ == 1) {
+            display->draw_pixel_at(glyph_x, glyph_y, color);
+          } else {
+            float on = (float) pixel / bpp_max;
+            float off = 1.0 - on;
+            Color blended;
+            blended.r = color.r * on + background.r * off;
+            blended.g = color.r * on + background.g * off;
+            blended.b = color.r * on + background.b * off;
+            display->draw_pixel_at(glyph_x, glyph_y, blended);
+          }
+        }
+      }
+    }
     x_at += glyph.glyph_data_->width + glyph.glyph_data_->offset_x;
 
     i += match_length;

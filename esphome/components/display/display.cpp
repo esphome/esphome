@@ -258,11 +258,11 @@ void Display::filled_triangle(int x1, int y1, int x2, int y2, int x3, int y3, Co
   }
 }
 
-void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text) {
+void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text, Color background) {
   int x_start, y_start;
   int width, height;
   this->get_text_bounds(x, y, text, font, align, &x_start, &y_start, &width, &height);
-  font->print(x_start, y_start, this, color, text);
+  font->print(x_start, y_start, this, color, text, background);
 }
 void Display::vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg) {
   char buffer[256];
@@ -362,8 +362,8 @@ void Display::get_text_bounds(int x, int y, const char *text, BaseFont *font, Te
       break;
   }
 }
-void Display::print(int x, int y, BaseFont *font, Color color, const char *text) {
-  this->print(x, y, font, color, TextAlign::TOP_LEFT, text);
+void Display::print(int x, int y, BaseFont *font, Color color, const char *text, Color background) {
+  this->print(x, y, font, color, TextAlign::TOP_LEFT, text, background);
 }
 void Display::print(int x, int y, BaseFont *font, TextAlign align, const char *text) {
   this->print(x, y, font, COLOR_ON, align, text);

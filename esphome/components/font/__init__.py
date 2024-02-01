@@ -25,8 +25,10 @@ from esphome.const import (
     CONF_PATH,
     CONF_WEIGHT,
 )
-from esphome.core import CORE, HexInt
-
+from esphome.core import (
+    CORE,
+    HexInt,
+)
 
 DOMAIN = "font"
 DEPENDENCIES = ["display"]
@@ -39,6 +41,8 @@ font_ns = cg.esphome_ns.namespace("font")
 Font = font_ns.class_("Font")
 Glyph = font_ns.class_("Glyph")
 GlyphData = font_ns.struct("GlyphData")
+
+CONF_BPP = "bpp"
 
 
 def validate_glyphs(value):
@@ -238,7 +242,6 @@ def _file_schema(value):
 
 FILE_SCHEMA = cv.Schema(_file_schema)
 
-
 DEFAULT_GLYPHS = (
     ' !"%()+=,-.:/?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
 )
@@ -250,12 +253,14 @@ FONT_SCHEMA = cv.Schema(
         cv.Required(CONF_FILE): FILE_SCHEMA,
         cv.Optional(CONF_GLYPHS, default=DEFAULT_GLYPHS): validate_glyphs,
         cv.Optional(CONF_SIZE, default=20): cv.int_range(min=1),
+        cv.Optional(CONF_BPP, default=1): cv.one_of(1, 2, 4, 8),
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
         cv.GenerateID(CONF_RAW_GLYPH_ID): cv.declare_id(GlyphData),
     }
 )
 
 CONFIG_SCHEMA = cv.All(validate_pillow_installed, FONT_SCHEMA)
+
 
 # PIL doesn't provide a consistent interface for both TrueType and bitmap
 # fonts. So, we use our own wrappers to give us the consistency that we need.
@@ -298,7 +303,10 @@ class BitmapFontWrapper:
 
 
 def convert_bitmap_to_pillow_font(filepath):
-    from PIL import PcfFontFile, BdfFontFile
+    from PIL import (
+        PcfFontFile,
+        BdfFontFile,
+    )
 
     local_bitmap_font_file = _compute_local_font_dir(filepath) / os.path.basename(
         filepath
@@ -369,17 +377,26 @@ async def to_code(config):
 
     glyph_args = {}
     data = []
+    bpp = config[CONF_BPP]
+    if bpp == 1:
+        mode = "1"
+        scale = 1
+    else:
+        mode = "L"
+        scale = 256 // (1 << bpp)
     for glyph in config[CONF_GLYPHS]:
-        mask = font.getmask(glyph, mode="1")
+        mask = font.getmask(glyph, mode=mode)
         offset_x, offset_y = font.getoffset(glyph)
         width, height = mask.size
-        glyph_data = [0] * ((height * width + 7) // 8)
+        glyph_data = [0] * ((height * width * bpp + 7) // 8)
+        pos = 0
         for y in range(height):
             for x in range(width):
-                if not mask.getpixel((x, y)):
-                    continue
-                pos = x + y * width
-                glyph_data[pos // 8] |= 0x80 >> (pos % 8)
+                pixel = mask.getpixel((x, y)) // scale
+                for bit_num in range(bpp):
+                    if pixel & (1 << (bpp - bit_num - 1)):
+                        glyph_data[pos // 8] |= 0x80 >> (pos % 8)
+                    pos += 1
         glyph_args[glyph] = (len(data), offset_x, offset_y, width, height)
         data += glyph_data
 
@@ -409,5 +426,5 @@ async def to_code(config):
     glyphs = cg.static_const_array(config[CONF_RAW_GLYPH_ID], glyph_initializer)
 
     cg.new_Pvariable(
-        config[CONF_ID], glyphs, len(glyph_initializer), ascent, ascent + descent
+        config[CONF_ID], glyphs, len(glyph_initializer), ascent, ascent + descent, bpp
     )

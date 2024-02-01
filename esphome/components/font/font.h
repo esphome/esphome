@@ -22,8 +22,6 @@ class Glyph {
  public:
   Glyph(const GlyphData *data) : glyph_data_(data) {}
 
-  void draw(int x, int y, display::Display *display, Color color) const;
-
   const uint8_t *get_char() const;
 
   bool compare_to(const uint8_t *str) const;
@@ -50,7 +48,8 @@ class Font : public display::BaseFont {
 
   int match_next_glyph(const uint8_t *str, int *match_length);
 
-  void print(int x_start, int y_start, display::Display *display, Color color, const char *text) override;
+  void print(int x_start, int y_start, display::Display *display, Color color, const char *text,
+             Color background) override;
   void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) override;
   inline int get_baseline() { return this->baseline_; }
   inline int get_height() { return this->height_; }
