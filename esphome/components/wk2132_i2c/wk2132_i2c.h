@@ -34,8 +34,8 @@ class WK2132RegI2C : public wk_base::WKBaseRegister {
 class WK2132ComponentI2C : public wk_base::WKBaseComponent, public i2c::I2CDevice {
  public:
   wk_base::WKBaseRegister &reg(uint8_t reg, uint8_t channel) override {
-    reg_i2c_.register_ = reg & 0x0F;
-    reg_i2c_.channel_ = channel & 0x01;
+    reg_i2c_.register_ = reg;
+    reg_i2c_.channel_ = channel;
     return reg_i2c_;
   }
 
