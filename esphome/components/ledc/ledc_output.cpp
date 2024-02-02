@@ -102,8 +102,6 @@ void LEDCOutput::write_state(float state) {
     return;
   }
 
-  const float state_orig = state;
-
   if (this->pin_->is_inverted())
     state = 1.0f - state;
 
@@ -122,13 +120,6 @@ void LEDCOutput::write_state(float state) {
   ledc_set_duty(speed_mode, chan_num, duty);
   ledc_update_duty(speed_mode, chan_num);
 #endif
-}
-
-bool LEDCOutput::is_on() {
-  if (this->pin_->is_inverted())
-    return this->duty_ < 1;
-  else
-    return this->duty_ > 0;
 }
 
 void LEDCOutput::setup() {
