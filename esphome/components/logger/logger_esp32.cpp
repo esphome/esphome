@@ -63,9 +63,9 @@ static void init_usb_serial_jtag_() {
 }
 #endif
 
-void init_uart_(uart_port_t uart_num) {
+void init_uart_(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
   uart_config_t uart_config{};
-  uart_config.baud_rate = (int) baud_rate_;
+  uart_config.baud_rate = (int) baud_rate;
   uart_config.data_bits = UART_DATA_8_BITS;
   uart_config.parity = UART_PARITY_DISABLE;
   uart_config.stop_bits = UART_STOP_BITS_1;
@@ -74,7 +74,7 @@ void init_uart_(uart_port_t uart_num) {
   uart_config.source_clk = UART_SCLK_DEFAULT;
 #endif
   uart_param_config(uart_num, &uart_config);
-  const int uart_buffer_size = tx_buffer_size_;
+  const int uart_buffer_size = tx_buffer_size;
   // Install UART driver using an event queue here
   uart_driver_install(uart_num, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
 }
@@ -158,7 +158,7 @@ void Logger::pre_setup() {
         // USE_ESP32_VARIANT_ESP32H2
     }
     if (this->uart_num_ >= 0) {
-      init_uart_(this->uart_num_);
+      init_uart_(this->uart_num_, baud_rate_, tx_buffer_size_);
     }
 #endif  // USE_ESP_IDF
   }
