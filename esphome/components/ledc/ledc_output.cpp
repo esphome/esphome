@@ -96,7 +96,18 @@ esp_err_t configure_timer_frequency(ledc_mode_t speed_mode, ledc_timer_t timer_n
 }
 #endif
 
-void LEDCOutput::write_state_final(float state) {
+void LEDCOutput::write_state(float state) {
+  if (!initialized_) {
+    ESP_LOGW(TAG, "LEDC output hasn't been initialized yet!");
+    return;
+  }
+
+  const float state_orig = state;
+
+  if (this->pin_->is_inverted())
+    state = 1.0f - state;
+
+  this->duty_ = state;
   const uint32_t max_duty = (uint32_t(1) << this->bit_depth_) - 1;
   const float duty_rounded = roundf(state * max_duty);
   auto duty = static_cast<uint32_t>(duty_rounded);
@@ -111,21 +122,6 @@ void LEDCOutput::write_state_final(float state) {
   ledc_set_duty(speed_mode, chan_num, duty);
   ledc_update_duty(speed_mode, chan_num);
 #endif
-}
-
-void LEDCOutput::write_state(float state) {
-  if (!initialized_) {
-    ESP_LOGW(TAG, "LEDC output hasn't been initialized yet!");
-    return;
-  }
-
-  const float state_orig = state;
-
-  if (this->pin_->is_inverted())
-    state = 1.0f - state;
-
-  this->duty_ = state;
-  this->write_state_final(state);
 }
 
 bool LEDCOutput::is_on() {

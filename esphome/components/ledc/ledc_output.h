@@ -32,8 +32,6 @@ class LEDCOutput : public output::FloatOutput, public Component {
   void write_state(float state) override;
 
  protected:
-  bool is_on(void);
-  void write_state_final(float state);
   InternalGPIOPin *pin_;
   uint8_t channel_{};
   uint8_t bit_depth_{};
