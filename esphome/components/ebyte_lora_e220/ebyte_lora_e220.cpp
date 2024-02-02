@@ -135,7 +135,6 @@ void EbyteLoraE220::loop() {
     return;
   }
   std::string buffer;
-
   ESP_LOGD(TAG, "Starting to read message");
   while (available()) {
     uint8_t c;
@@ -144,15 +143,23 @@ void EbyteLoraE220::loop() {
     }
   }
   ESP_LOGD(TAG, "%s", buffer);
+  // set the rssi
+  rssi_ = atoi(buffer.substr(buffer.length() - 1, 1).c_str());
+  // set the raw message
   raw_message_ = buffer.substr(0, buffer.length() - 1);
+  /*
+   * Starting to process the raw message
+   */
+  // found gps data in the raw message, lets parse it
   if (raw_message_.find('gps:') != std::string::npos) {
     int start = raw_message_.find(',');
     // minus gps
     latitude_ = atof(raw_message_.substr(4, start).c_str());
     latitude_ = atof(raw_message_.substr(start + 1, raw_message_.length()).c_str());
+    ESP_LOGD(TAG, "Location:");
+    ESP_LOGD(TAG, "  Lat: %f", this->latitude_);
+    ESP_LOGD(TAG, "  Lon: %f", this->longitude_);
   }
-  // set the rssi
-  rssi_ = atoi(buffer.substr(buffer.length() - 1, 1).c_str());
 }
 
 }  // namespace ebyte_lora_e220
