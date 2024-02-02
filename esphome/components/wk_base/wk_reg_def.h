@@ -17,7 +17,7 @@ namespace wk_base {
 /// @note only registers and parameters used have been fully documented
 /// @{
 
-/// @brief Global Control Register
+/// @brief Global Control Register - 00 0000
 /// @details @code
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   | bit
@@ -39,7 +39,7 @@ constexpr uint8_t GENA_C2EN = 1 << 1;
 /// @brief Channel 1 enable clock (0: disable, 1: enable)
 constexpr uint8_t GENA_C1EN = 1 << 0;
 
-/// @brief Global Reset Register
+/// @brief Global Reset Register - 00 0001
 /// @details @code
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   | bit
@@ -61,16 +61,16 @@ constexpr uint8_t GRST_C2RST = 1 << 1;
 /// @brief Channel 1 soft reset (0: not reset, 1: reset)
 constexpr uint8_t GRST_C1RST = 1 << 0;
 
-/// @brief Global Master channel control register (not used)
+/// @brief Global Master channel control register (not used) - 000010
 constexpr uint8_t WKREG_GMUT = 0x02;
 
-/// Global interrupt register (not used)
+/// Global interrupt register (not used) - 01 0000
 constexpr uint8_t WKREG_GIER = 0x10;
 
-/// Global interrupt flag register (not used)
+/// Global interrupt flag register (not used) 01 0001
 constexpr uint8_t WKREG_GIFR = 0x11;
 
-/// @brief Global GPIO direction register
+/// @brief Global GPIO direction register - 10 0001
 /// @details @code
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   | bit
@@ -84,7 +84,7 @@ constexpr uint8_t WKREG_GIFR = 0x11;
 /// @endcode
 constexpr uint8_t WKREG_GPDIR = 0x21;
 
-/// @brief Global GPIO data register
+/// @brief Global GPIO data register - 11 0001
 /// @details @code
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   | bit
@@ -98,7 +98,19 @@ constexpr uint8_t WKREG_GPDIR = 0x21;
 /// @endcode
 constexpr uint8_t WKREG_GPDAT = 0x31;
 
-/// @brief Global Page register
+/// @}
+/// @defgroup wk2168_cr_ WK2168 Channel Registers
+/// This topic groups all the **Channel Registers**: these registers are specific
+/// to the a specific channel i.e. each channel has its own set of registers
+/// @note only registers and parameters used have been documented
+/// @{
+
+/// @defgroup cr_p0 Channel registers when SPAGE=0
+/// The channel registers are further splitted into two groups.
+/// This first group is defined when the Global register WKREG_SPAGE is 0
+/// @{
+
+/// @brief Global Page register c0/c1 0011
 /// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   | bit
@@ -112,19 +124,7 @@ constexpr uint8_t WKREG_GPDAT = 0x31;
 /// @endcode
 constexpr uint8_t WKREG_SPAGE = 0x03;
 
-/// @}
-/// @defgroup wk2168_cr_ WK2168 Channel Registers
-/// This topic groups all the **Channel Registers**: these registers are specific
-/// to the a specific channel i.e. each channel has its own set of registers
-/// @note only registers and parameters used have been documented
-/// @{
-
-/// @defgroup cr_p0 Channel registers when SPAGE=0
-/// The channel registers are further splitted into two groups.
-/// This first group is defined when the Global register WKREG_SPAGE is 0
-/// @{
-
-/// @brief Serial Control Register
+/// @brief Serial Control Register - c0/c1 0100
 /// @details @code
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   | bit
@@ -142,7 +142,7 @@ constexpr uint8_t SCR_TXEN = 1 << 1;
 /// @brief receiving control (0: enable, 1: disable)
 constexpr uint8_t SCR_RXEN = 1 << 0;
 
-/// @brief Line Configuration Register:
+/// @brief Line Configuration Register - c0/c1 0101
 /// @details @code
 ///  -------------------------------------------------------------------------
 ///  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   | bit
@@ -168,7 +168,7 @@ constexpr uint8_t LCR_PAR_F1 = 3 << 1;
 /// @brief Stop length (0: 1 bit, 1: 2 bits)
 constexpr uint8_t LCR_STPL = 1 << 0;
 
-/// @brief FIFO Control Register
+/// @brief FIFO Control Register - c0/c1 0110
 /// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   | bit
@@ -186,17 +186,17 @@ constexpr uint8_t FCR_TFEN = 1 << 3;
 /// @brief Receiver FIFO enable
 constexpr uint8_t FCR_RFEN = 1 << 2;
 /// @brief Transmitter FIFO reset
-constexpr uint8_t FCR_TFRST = 1 << 3;
+constexpr uint8_t FCR_TFRST = 1 << 1;
 /// @brief Receiver FIFO reset
-constexpr uint8_t FCR_RFRST = 1 << 3;
+constexpr uint8_t FCR_RFRST = 1 << 0;
 
-/// @brief Serial Interrupt Enable Register (not used)
+/// @brief Serial Interrupt Enable Register (not used)  - c0/c1 0111
 constexpr uint8_t WKREG_SIER = 0x07;
 
-/// @brief Serial Interrupt Flag Register (not used)
+/// @brief Serial Interrupt Flag Register (not used) - c0/c1 1000
 constexpr uint8_t WKREG_SIFR = 0x08;
 
-/// @brief Transmitter FIFO Count
+/// @brief Transmitter FIFO Count - c0/c1 1001
 /// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
@@ -206,7 +206,7 @@ constexpr uint8_t WKREG_SIFR = 0x08;
 /// @endcode
 constexpr uint8_t WKREG_TFCNT = 0x09;
 
-/// @brief Receiver FIFO count
+/// @brief Receiver FIFO count - c0/c1 1010
 /// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
@@ -216,7 +216,7 @@ constexpr uint8_t WKREG_TFCNT = 0x09;
 /// @endcode
 constexpr uint8_t WKREG_RFCNT = 0x0A;
 
-/// @brief FIFO Status Register
+/// @brief FIFO Status Register - c0/c1 1011
 /// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   | bit
@@ -266,7 +266,7 @@ constexpr uint8_t WKREG_FDAT = 0x0D;
 /// This second group is defined when the Global register WKREG_SPAGE is 1
 /// @{
 
-/// @brief Baud rate configuration register: high byte
+/// @brief Baud rate configuration register: high byte - c0/c1 0100
 /// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
@@ -276,7 +276,7 @@ constexpr uint8_t WKREG_FDAT = 0x0D;
 /// @endcode
 constexpr uint8_t WKREG_BRH = 0x04;
 
-/// @brief Baud rate configuration register: low byte
+/// @brief Baud rate configuration register: low byte - c0/c1 0101
 /// @details @code
 /// -------------------------------------------------------------------------
 /// |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
@@ -286,13 +286,13 @@ constexpr uint8_t WKREG_BRH = 0x04;
 /// @endcode
 constexpr uint8_t WKREG_BRL = 0x05;
 
-/// @brief Baud rate configuration register decimal part
+/// @brief Baud rate configuration register decimal part - c0/c1 0110
 constexpr uint8_t WKREG_BRD = 0x06;
 
-/// @brief Receive FIFO Interrupt trigger configuration (not used)
+/// @brief Receive FIFO Interrupt trigger configuration (not used) - c0/c1 0111
 constexpr uint8_t WKREG_RFI = 0x07;
 
-/// @brief Transmit FIFO interrupt trigger configuration (not used)
+/// @brief Transmit FIFO interrupt trigger configuration (not used) - c0/c1 1000
 constexpr uint8_t WKREG_TFI = 0x08;
 
 /// @}

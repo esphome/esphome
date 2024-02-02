@@ -131,18 +131,20 @@ void WKBaseComponent::loop() {
   if (test_mode_ == 1) {  // test component in loopback
     char message[64];
     elapsed_ms(time);  // set time to now
-    for (auto *child : this->children_) {
-      snprintf(message, sizeof(message), "%s:%s", this->get_name(), child->get_channel_name());
-      child->uart_send_test_(message);
+    for (int i = 0; i < this->children_.size(); i++) {
+      if (i != ((loop_count - 1) % this->children_.size()))  // we do only one per loop
+        continue;
+      snprintf(message, sizeof(message), "%s:%s", this->get_name(), children_[i]->get_channel_name());
+      children_[i]->uart_send_test_(message);
       uint32_t const start_time = millis();
-      while (child->tx_fifo_is_not_empty_()) {  // wait until buffer empty
+      while (children_[i]->tx_fifo_is_not_empty_()) {  // wait until buffer empty
         if (millis() - start_time > 1500) {
-          ESP_LOGE(TAG, "timeout while flushing - %d bytes left in buffer...", child->tx_in_fifo_());
+          ESP_LOGE(TAG, "timeout while flushing - %d bytes left in buffer...", children_[i]->tx_in_fifo_());
           break;
         }
         yield();  // reschedule our thread to avoid blocking
       }
-      bool status = child->uart_receive_test_(message);
+      bool status = children_[i]->uart_receive_test_(message);
       ESP_LOGI(TAG, "Test %s => send/received %d bytes %s - execution time %d ms...", message, XFER_MAX_SIZE,
                status ? "correctly" : "with error", elapsed_ms(time));
     }
@@ -174,7 +176,7 @@ void WKBaseChannel::setup_channel() {
   }
 
   this->reg_(WKREG_SCR) = SCR_RXEN | SCR_TXEN;
-  this->reset_fifo_();
+  // this->reset_fifo_();
   this->receive_buffer_.clear();
   this->set_line_param_();
   this->set_baudrate_();
@@ -188,15 +190,16 @@ void WKBaseChannel::dump_channel() {
   ESP_LOGCONFIG(TAG, "    Parity: %s", p2s(this->parity_));
 }
 
-void WKBaseChannel::reset_fifo_() {
-  // we reset and enable all FIFO
-  this->reg_(WKREG_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
-}
+// void WKBaseChannel::reset_fifo_() {
+//   // we reset and enable all FIFO
+//   this->reg_(WKREG_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
+// }
 
 void WKBaseChannel::set_line_param_() {
   this->data_bits_ = 8;  // always equal to 8 for WK2168 (cant be changed)
-  WKBaseRegister &lcr = this->reg_(WKREG_LCR);
-  lcr &= 0xF0;  // we clear the lower 4 bit of LCR
+  // WKBaseRegister &lcr = this->reg_(WKREG_LCR);
+  uint8_t lcr = 0;
+  //   lcr &= 0xF0;  // we clear the lower 4 bit of LCR
   if (this->stop_bits_ == 2)
     lcr |= LCR_STPL;
   switch (this->parity_) {  // parity selection settings
@@ -209,8 +212,9 @@ void WKBaseChannel::set_line_param_() {
     default:
       break;  // no parity 000x
   }
+  this->reg_(WKREG_LCR) = lcr;
   ESP_LOGV(TAG, "    line config: %d data_bits, %d stop_bits, parity %s register [%s]", this->data_bits_,
-           this->stop_bits_, p2s(this->parity_), I2CS(lcr.read_reg()));
+           this->stop_bits_, p2s(this->parity_), I2CS(lcr));
 }
 
 void WKBaseChannel::set_baudrate_() {
