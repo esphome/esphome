@@ -26,14 +26,16 @@ enum MODE_TYPE {
   MODE_3_SLEEP = 3,
   MODE_INIT = 0xFF
 };
-class EbyteLoraE220 : public Component, public uart::UARTDevice {
+class EbyteLoraE220 : public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
+  void update() override;
   void loop() override;
   void dump_config() override;
   // local
+  void set_latitude_sensor(sensor::Sensor *latitude_sensor) { latitude_sensor_ = latitude_sensor; }
+  void set_longitude_sensor(sensor::Sensor *longitude_sensor) { longitude_sensor_ = longitude_sensor; }
   void set_message_sensor(text_sensor::TextSensor *s) { message_text_sensor = s; }
-  void set_status_sensor(text_sensor::TextSensor *s) { status_text_sensor = s; }
   void set_rssi_sensor(sensor::Sensor *s) { rssi_sensor = s; }
   void set_pin_aux(GPIOPin *s) { pin_aux = s; }
   void set_pin_m0(GPIOPin *s) { pin_m0 = s; }
@@ -47,13 +49,17 @@ class EbyteLoraE220 : public Component, public uart::UARTDevice {
   bool waitCompleteResponse(unsigned long timeout = 1000, unsigned int waitNoAux = 100);
 
  protected:
-  std::vector<uint8_t> buffer_;
-  text_sensor::TextSensor *message_text_sensor;
-  text_sensor::TextSensor *status_text_sensor;
-  sensor::Sensor *rssi_sensor;
-  GPIOPin *pin_aux;
-  GPIOPin *pin_m0;
-  GPIOPin *pin_m1;
+  int rssi_ = 0;
+  float latitude_ = -1;
+  float longitude_ = -1;
+  std::string raw_message_;
+  sensor::Sensor *latitude_sensor_{nullptr};
+  sensor::Sensor *longitude_sensor_{nullptr};
+  text_sensor::TextSensor *message_text_sensor{nullptr};
+  sensor::Sensor *rssi_sensor{nullptr};
+  GPIOPin *pin_aux{nullptr};
+  GPIOPin *pin_m0{nullptr};
+  GPIOPin *pin_m1{nullptr};
 };
 
 }  // namespace ebyte_lora_e220

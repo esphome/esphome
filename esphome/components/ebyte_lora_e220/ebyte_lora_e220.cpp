@@ -2,7 +2,20 @@
 
 namespace esphome {
 namespace ebyte_lora_e220 {
+void EbyteLoraE220::update() {
+  if (this->latitude_sensor_ != nullptr)
+    this->latitude_sensor_->publish_state(this->latitude_);
 
+  if (this->longitude_sensor_ != nullptr)
+    this->longitude_sensor_->publish_state(this->longitude_);
+
+  if (this->rssi_sensor != nullptr)
+    this->rssi_sensor->publish_state(this->rssi_);
+
+  // raw info
+  if (this->message_text_sensor != nullptr)
+    this->message_text_sensor->publish_state(this->raw_message_);
+}
 void EbyteLoraE220::setup() {
   this->pin_aux->setup();
   this->pin_m0->setup();
@@ -131,8 +144,15 @@ void EbyteLoraE220::loop() {
     }
   }
   ESP_LOGD(TAG, "%s", buffer);
-  this->message_text_sensor->publish_state(buffer.substr(0, buffer.length() - 1));
-  this->rssi_sensor->publish_state(atoi(buffer.substr(buffer.length() - 1, 1).c_str()));
+  raw_message_ = buffer.substr(0, buffer.length() - 1);
+  if (raw_message_.find('gps:') != std::string::npos) {
+    int start = raw_message_.find(',');
+    // minus gps
+    latitude_ = atof(raw_message_.substr(4, start).c_str());
+    latitude_ = atof(raw_message_.substr(start + 1, raw_message_.length()).c_str());
+  }
+  // set the rssi
+  rssi_ = atoi(buffer.substr(buffer.length() - 1, 1).c_str());
 }
 
 }  // namespace ebyte_lora_e220
