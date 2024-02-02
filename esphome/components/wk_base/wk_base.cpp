@@ -109,40 +109,37 @@ void WKBaseComponent::loop() {
   static uint32_t loop_count = 0;
   uint32_t time = 0;
 
-  if (test_mode_) {
-    ESP_LOGI(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count++, this->get_name(),
-             millis() - loop_time);
-  }
-  loop_time = millis();
-
   // If there are some bytes in the receive FIFO we transfers them to the ring buffers
-  elapsed_ms(time);  // set time to now
   size_t transferred = 0;
   for (auto *child : this->children_) {
     // we look if some characters has been received in the fifo
     transferred += child->xfer_fifo_to_buffer_();
   }
-  if ((test_mode_ > 0) && (transferred > 0)) {
-    ESP_LOGI(TAG, "we transferred %d bytes from fifo to buffer - execution time %d ms...", transferred,
-             elapsed_ms(time));
+  if (transferred > 0) {
+    ESP_LOGV(TAG, "we transferred %d bytes from fifo to buffer...", transferred);
   }
 
 #ifdef TEST_COMPONENT
   if (test_mode_ == 1) {  // test component in loopback
+    ESP_LOGI(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count++, this->get_name(),
+             millis() - loop_time);
+    loop_time = millis();
     char message[64];
     elapsed_ms(time);  // set time to now
-    for (auto *child : this->children_) {
-      snprintf(message, sizeof(message), "%s:%s", this->get_name(), child->get_channel_name());
-      child->uart_send_test_(message);
+    for (int i = 0; i < this->children_.size(); i++) {
+      if (i != ((loop_count - 1) % this->children_.size()))  // we do only one per loop
+        continue;
+      snprintf(message, sizeof(message), "%s:%s", this->get_name(), children_[i]->get_channel_name());
+      children_[i]->uart_send_test_(message);
       uint32_t const start_time = millis();
-      while (child->tx_fifo_is_not_empty_()) {  // wait until buffer empty
+      while (children_[i]->tx_fifo_is_not_empty_()) {  // wait until buffer empty
         if (millis() - start_time > 1500) {
-          ESP_LOGE(TAG, "timeout while flushing - %d bytes left in buffer...", child->tx_in_fifo_());
+          ESP_LOGE(TAG, "timeout while flushing - %d bytes left in buffer...", children_[i]->tx_in_fifo_());
           break;
         }
         yield();  // reschedule our thread to avoid blocking
       }
-      bool status = child->uart_receive_test_(message);
+      bool status = children_[i]->uart_receive_test_(message);
       ESP_LOGI(TAG, "Test %s => send/received %d bytes %s - execution time %d ms...", message, XFER_MAX_SIZE,
                status ? "correctly" : "with error", elapsed_ms(time));
     }
@@ -159,8 +156,6 @@ void WKBaseComponent::loop() {
     }
   }
 #endif
-  if (this->test_mode_)
-    ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -195,8 +190,9 @@ void WKBaseChannel::reset_fifo_() {
 
 void WKBaseChannel::set_line_param_() {
   this->data_bits_ = 8;  // always equal to 8 for WK2168 (cant be changed)
-  WKBaseRegister &lcr = this->reg_(WKREG_LCR);
-  lcr &= 0xF0;  // we clear the lower 4 bit of LCR
+  // WKBaseRegister &lcr = this->reg_(WKREG_LCR);
+  uint8_t lcr = 0;
+  //   lcr &= 0xF0;  // we clear the lower 4 bit of LCR
   if (this->stop_bits_ == 2)
     lcr |= LCR_STPL;
   switch (this->parity_) {  // parity selection settings
@@ -209,8 +205,9 @@ void WKBaseChannel::set_line_param_() {
     default:
       break;  // no parity 000x
   }
+  this->reg_(WKREG_LCR) = lcr;
   ESP_LOGV(TAG, "    line config: %d data_bits, %d stop_bits, parity %s register [%s]", this->data_bits_,
-           this->stop_bits_, p2s(this->parity_), I2CS(lcr.read_reg()));
+           this->stop_bits_, p2s(this->parity_), I2CS(lcr));
 }
 
 void WKBaseChannel::set_baudrate_() {
