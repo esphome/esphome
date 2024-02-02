@@ -63,7 +63,7 @@ static void init_usb_serial_jtag_() {
 }
 #endif
 
-void init_uart_(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
+void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
   uart_config_t uart_config{};
   uart_config.baud_rate = (int) baud_rate;
   uart_config.data_bits = UART_DATA_8_BITS;
@@ -109,9 +109,6 @@ void Logger::pre_setup() {
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3)
       case UART_SELECTION_USB_CDC:
 #endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32C3
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
-      case UART_SELECTION_USB_SERIAL_JTAG:
-#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32S3
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3)
 #if ARDUINO_USB_CDC_ON_BOOT
         this->hw_serial_ = &Serial;
@@ -158,7 +155,7 @@ void Logger::pre_setup() {
         // USE_ESP32_VARIANT_ESP32H2
     }
     if (this->uart_num_ >= 0) {
-      init_uart_(this->uart_num_, baud_rate_, tx_buffer_size_);
+      init_uart(this->uart_num_, baud_rate_, tx_buffer_size_);
     }
 #endif  // USE_ESP_IDF
   }
@@ -181,12 +178,12 @@ const char *const UART_SELECTIONS[] = {
     "UART2",
 #endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARINT_ESP32C6 && !USE_ESP32_VARIANT_ESP32S2 &&
         // !USE_ESP32_VARIANT_ESP32S3 && !USE_ESP32_VARIANT_ESP32H2
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#ifdef USE_USB_CDC
     "USB_CDC",
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
+#endif
+#ifdef USE_USB_SERIAL_JTAG
     "USB_SERIAL_JTAG",
-#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32S3
+#endif
 };
 
 const char *Logger::get_uart_selection_() { return UART_SELECTIONS[this->uart_]; }

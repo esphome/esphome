@@ -274,10 +274,16 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
-    if config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
+    try:
+        uart_selection(USB_SERIAL_JTAG)
         cg.add_build_flag("-DUSE_USB_SERIAL_JTAG")
-    elif config[CONF_HARDWARE_UART] == USB_CDC:
+    except cv.Invalid:
+        pass
+    try:
+        uart_selection(USB_CDC)
         cg.add_build_flag("-DUSE_USB_CDC")
+    except cv.Invalid:
+        pass
 
     # Register at end for safe mode
     await cg.register_component(log, config)
