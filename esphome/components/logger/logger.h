@@ -158,6 +158,8 @@ class Logger : public Component {
     va_end(arg);
   }
 
+  const char *get_uart_selection_();
+
   uint32_t baud_rate_;
   char *tx_buffer_{nullptr};
   int tx_buffer_at_{0};
