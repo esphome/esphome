@@ -32,29 +32,10 @@ namespace logger {
 static const char *const TAG = "logger";
 
 #ifdef USE_ESP_IDF
-void Logger::init_uart_() {
-  uart_config_t uart_config{};
-  uart_config.baud_rate = (int) baud_rate_;
-  uart_config.data_bits = UART_DATA_8_BITS;
-  uart_config.parity = UART_PARITY_DISABLE;
-  uart_config.stop_bits = UART_STOP_BITS_1;
-  uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-  uart_config.source_clk = UART_SCLK_DEFAULT;
-#endif
-  uart_param_config(this->uart_num_, &uart_config);
-  const int uart_buffer_size = tx_buffer_size_;
-  // Install UART driver using an event queue here
-  uart_driver_install(this->uart_num_, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
-}
-
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-void Logger::init_usb_cdc_() {}
-#endif
 
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32H2)
-void Logger::init_usb_serial_jtag_() {
+static void init_usb_serial_jtag_() {
   setvbuf(stdin, NULL, _IONBF, 0);  // Disable buffering on stdin
 
   // Minicom, screen, idf_monitor send CR when ENTER key is pressed
@@ -81,7 +62,24 @@ void Logger::init_usb_serial_jtag_() {
   esp_vfs_usb_serial_jtag_use_driver();
 }
 #endif
+
+void init_uart_(uart_port_t uart_num) {
+  uart_config_t uart_config{};
+  uart_config.baud_rate = (int) baud_rate_;
+  uart_config.data_bits = UART_DATA_8_BITS;
+  uart_config.parity = UART_PARITY_DISABLE;
+  uart_config.stop_bits = UART_STOP_BITS_1;
+  uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+  uart_config.source_clk = UART_SCLK_DEFAULT;
 #endif
+  uart_param_config(uart_num, &uart_config);
+  const int uart_buffer_size = tx_buffer_size_;
+  // Install UART driver using an event queue here
+  uart_driver_install(uart_num, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
+}
+
+#endif  // USE_ESP_IDF
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
@@ -148,20 +146,19 @@ void Logger::pre_setup() {
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_USB_CDC:
         this->uart_num_ = -1;
-        this->init_usb_cdc_();
         break;
 #endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32H2)
       case UART_SELECTION_USB_SERIAL_JTAG:
         this->uart_num_ = -1;
-        this->init_usb_serial_jtag_();
+        init_usb_serial_jtag_();
         break;
 #endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C6 || USE_ESP32_VARIANT_ESP32S3 ||
         // USE_ESP32_VARIANT_ESP32H2
     }
     if (this->uart_num_ >= 0) {
-      this->init_uart_();
+      init_uart_(this->uart_num_);
     }
 #endif  // USE_ESP_IDF
   }
