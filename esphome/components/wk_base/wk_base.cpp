@@ -105,10 +105,6 @@ void WKBaseComponent::loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP)
     return;
 
-  static uint32_t loop_time = 0;
-  static uint32_t loop_count = 0;
-  uint32_t time = 0;
-
   // If there are some bytes in the receive FIFO we transfers them to the ring buffers
   size_t transferred = 0;
   for (auto *child : this->children_) {
@@ -120,6 +116,9 @@ void WKBaseComponent::loop() {
   }
 
 #ifdef TEST_COMPONENT
+  static uint32_t loop_time = 0;
+  static uint32_t loop_count = 0;
+  uint32_t time = 0;
   if (test_mode_ == 1) {  // test component in loopback
     ESP_LOGI(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count++, this->get_name(),
              millis() - loop_time);
