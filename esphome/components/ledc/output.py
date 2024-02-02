@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_FREQUENCY,
     CONF_ID,
     CONF_PIN,
+    CONF_MIN_DUTY_TURN_ON,
 )
 
 DEPENDENCIES = ["esp32"]
@@ -46,6 +47,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
         cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
         cv.Optional(CONF_FREQUENCY, default="1kHz"): cv.frequency,
         cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=15),
+        cv.Optional(CONF_MIN_DUTY_TURN_ON, default="0%"): cv.templatable(cv.percentage),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -57,6 +59,8 @@ async def to_code(config):
     await output.register_output(var, config)
     if CONF_CHANNEL in config:
         cg.add(var.set_channel(config[CONF_CHANNEL]))
+    if CONF_MIN_DUTY_TURN_ON in config:
+        cg.add(var.set_min_duty_turn_on(config[CONF_MIN_DUTY_TURN_ON]))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
 
 

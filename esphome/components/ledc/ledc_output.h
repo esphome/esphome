@@ -19,6 +19,7 @@ class LEDCOutput : public output::FloatOutput, public Component {
 
   void set_channel(uint8_t channel) { this->channel_ = channel; }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
+  void set_min_duty_turn_on(float min_duty_turn_on) { this->min_duty_turn_on_ = min_duty_turn_on; }
   /// Dynamically change frequency at runtime
   void update_frequency(float frequency) override;
 
@@ -32,11 +33,14 @@ class LEDCOutput : public output::FloatOutput, public Component {
   void write_state(float state) override;
 
  protected:
+  bool is_on(void);
+  void write_state_final(float state);
   InternalGPIOPin *pin_;
   uint8_t channel_{};
   uint8_t bit_depth_{};
   float frequency_{};
   float duty_{0.0f};
+  float min_duty_turn_on_{0.0f};
   bool initialized_ = false;
 };
 

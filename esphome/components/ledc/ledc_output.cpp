@@ -96,16 +96,7 @@ esp_err_t configure_timer_frequency(ledc_mode_t speed_mode, ledc_timer_t timer_n
 }
 #endif
 
-void LEDCOutput::write_state(float state) {
-  if (!initialized_) {
-    ESP_LOGW(TAG, "LEDC output hasn't been initialized yet!");
-    return;
-  }
-
-  if (this->pin_->is_inverted())
-    state = 1.0f - state;
-
-  this->duty_ = state;
+void LEDCOutput::write_state_final(float state) {
   const uint32_t max_duty = (uint32_t(1) << this->bit_depth_) - 1;
   const float duty_rounded = roundf(state * max_duty);
   auto duty = static_cast<uint32_t>(duty_rounded);
@@ -120,6 +111,37 @@ void LEDCOutput::write_state(float state) {
   ledc_set_duty(speed_mode, chan_num, duty);
   ledc_update_duty(speed_mode, chan_num);
 #endif
+}
+
+void LEDCOutput::write_state(float state) {
+  if (!initialized_) {
+    ESP_LOGW(TAG, "LEDC output hasn't been initialized yet!");
+    return;
+  }
+
+  const float state_orig = state;
+
+  if (this->pin_->is_inverted())
+    state = 1.0f - state;
+
+  const float min_brightness = 0.05;
+  if (!this->is_on() && 0 < state_orig && state_orig < this->min_duty_turn_on_) {
+    ESP_LOGV(TAG, "Light is turned on and set to a low brightness (%f < %f), thus we set the min brightness (%f) first", state_orig, min_brightness, min_brightness);
+    this->write_state_final(this->pin_->is_inverted() ? 1 - this->min_duty_turn_on_ : this->min_duty_turn_on_);
+    ESP_LOGV(TAG, "Staying at minimum brightness for 10ms");  // So the LED driver turns on
+    delay(10);
+    ESP_LOGV(TAG, "Now setting the actually requested brightess");
+  }
+
+  this->duty_ = state;
+  this->write_state_final(state);
+}
+
+bool LEDCOutput::is_on() {
+  if (this->pin_->is_inverted())
+    return this->duty_ < 1;
+  else
+    return this->duty_ > 0;
 }
 
 void LEDCOutput::setup() {
@@ -166,6 +188,7 @@ void LEDCOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "  LEDC Channel: %u", this->channel_);
   ESP_LOGCONFIG(TAG, "  PWM Frequency: %.1f Hz", this->frequency_);
   ESP_LOGCONFIG(TAG, "  Bit depth: %u", this->bit_depth_);
+  ESP_LOGCONFIG(TAG, "  Min Duty Turn On: %.2f %", 100 * this->min_duty_turn_on_);
   ESP_LOGV(TAG, "  Max frequency for bit depth: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_));
   ESP_LOGV(TAG, "  Min frequency for bit depth: %f",
            ledc_min_frequency_for_bit_depth(this->bit_depth_, (this->frequency_ < 100)));
