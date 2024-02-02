@@ -121,6 +121,11 @@ void LEDCOutput::write_state(float state) {
 
   const float state_orig = state;
 
+  if (state != 0 && this->min_duty_ != 0) {
+    state = this->min_duty_ + (1 - this->min_duty_) * state;
+    ESP_LOGV(TAG, "Because min_duty is non-zero (it is %f) state was adjusted from %f to %f", this->min_duty_, state_orig, state);
+  }
+
   if (this->pin_->is_inverted())
     state = 1.0f - state;
 
@@ -188,7 +193,8 @@ void LEDCOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "  LEDC Channel: %u", this->channel_);
   ESP_LOGCONFIG(TAG, "  PWM Frequency: %.1f Hz", this->frequency_);
   ESP_LOGCONFIG(TAG, "  Bit depth: %u", this->bit_depth_);
-  ESP_LOGCONFIG(TAG, "  Min Duty Turn On: %.2f %", 100 * this->min_duty_turn_on_);
+  ESP_LOGCONFIG(TAG, "  Min Duty: %.2f \%", 100 * this->min_duty_);
+  ESP_LOGCONFIG(TAG, "  Min Duty Turn On: %.2f \%", 100 * this->min_duty_turn_on_);
   ESP_LOGV(TAG, "  Max frequency for bit depth: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_));
   ESP_LOGV(TAG, "  Min frequency for bit depth: %f",
            ledc_min_frequency_for_bit_depth(this->bit_depth_, (this->frequency_ < 100)));
