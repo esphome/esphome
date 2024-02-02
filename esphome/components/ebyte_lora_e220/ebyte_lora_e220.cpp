@@ -151,7 +151,7 @@ void EbyteLoraE220::loop() {
    * Starting to process the raw message
    */
   // found gps data in the raw message, lets parse it
-  if (raw_message_.find('gps:') != std::string::npos) {
+  if (raw_message_.find("gps:") != std::string::npos) {
     int start = raw_message_.find(',');
     // minus gps
     latitude_ = atof(raw_message_.substr(4, start).c_str());
