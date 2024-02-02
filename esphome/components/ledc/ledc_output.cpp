@@ -123,7 +123,8 @@ void LEDCOutput::write_state(float state) {
 
   if (state != 0 && this->min_duty_ != 0) {
     state = this->min_duty_ + (1 - this->min_duty_) * state;
-    ESP_LOGV(TAG, "Because min_duty is non-zero (it is %f) state was adjusted from %f to %f", this->min_duty_, state_orig, state);
+    ESP_LOGV(TAG, "Because min_duty is non-zero (it is %f) state was adjusted from %f to %f", this->min_duty_,
+             state_orig, state);
   }
 
   if (this->pin_->is_inverted())
@@ -131,7 +132,8 @@ void LEDCOutput::write_state(float state) {
 
   const float min_brightness = 0.05;
   if (!this->is_on() && 0 < state_orig && state_orig < this->min_duty_turn_on_) {
-    ESP_LOGV(TAG, "Light is turned on and set to a low brightness (%f < %f), thus we set the min brightness (%f) first", state_orig, min_brightness, min_brightness);
+    ESP_LOGV(TAG, "Light is turned on and set to a low brightness (%f < %f), thus we set the min brightness (%f) first",
+             state_orig, min_brightness, min_brightness);
     this->write_state_final(this->pin_->is_inverted() ? 1 - this->min_duty_turn_on_ : this->min_duty_turn_on_);
     ESP_LOGV(TAG, "Staying at minimum brightness for 10ms");  // So the LED driver turns on
     delay(10);
