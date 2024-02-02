@@ -109,26 +109,21 @@ void WKBaseComponent::loop() {
   static uint32_t loop_count = 0;
   uint32_t time = 0;
 
-  if (test_mode_) {
-    ESP_LOGI(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count++, this->get_name(),
-             millis() - loop_time);
-  }
-  loop_time = millis();
-
   // If there are some bytes in the receive FIFO we transfers them to the ring buffers
-  elapsed_ms(time);  // set time to now
   size_t transferred = 0;
   for (auto *child : this->children_) {
     // we look if some characters has been received in the fifo
     transferred += child->xfer_fifo_to_buffer_();
   }
-  if ((test_mode_ > 0) && (transferred > 0)) {
-    ESP_LOGI(TAG, "we transferred %d bytes from fifo to buffer - execution time %d ms...", transferred,
-             elapsed_ms(time));
+  if (transferred > 0) {
+    ESP_LOGV(TAG, "we transferred %d bytes from fifo to buffer...", transferred);
   }
 
 #ifdef TEST_COMPONENT
   if (test_mode_ == 1) {  // test component in loopback
+    ESP_LOGI(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count++, this->get_name(),
+             millis() - loop_time);
+    loop_time = millis();
     char message[64];
     elapsed_ms(time);  // set time to now
     for (int i = 0; i < this->children_.size(); i++) {
@@ -161,8 +156,6 @@ void WKBaseComponent::loop() {
     }
   }
 #endif
-  if (this->test_mode_)
-    ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -176,7 +169,7 @@ void WKBaseChannel::setup_channel() {
   }
 
   this->reg_(WKREG_SCR) = SCR_RXEN | SCR_TXEN;
-  // this->reset_fifo_();
+  this->reset_fifo_();
   this->receive_buffer_.clear();
   this->set_line_param_();
   this->set_baudrate_();
@@ -190,10 +183,10 @@ void WKBaseChannel::dump_channel() {
   ESP_LOGCONFIG(TAG, "    Parity: %s", p2s(this->parity_));
 }
 
-// void WKBaseChannel::reset_fifo_() {
-//   // we reset and enable all FIFO
-//   this->reg_(WKREG_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
-// }
+void WKBaseChannel::reset_fifo_() {
+  // we reset and enable all FIFO
+  this->reg_(WKREG_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
+}
 
 void WKBaseChannel::set_line_param_() {
   this->data_bits_ = 8;  // always equal to 8 for WK2168 (cant be changed)

@@ -56,7 +56,7 @@ void WK2168Component::test_gpio_output_() {
   if (!init_output) {
     init_output = true;
     // set all pins in output mode
-    this->reg(WKREG_GPDIR, 0) = 0x00;
+    this->reg(WKREG_GPDIR, 0) = 0xFF;
     ESP_LOGI(TAG, "initializing all pins to output mode");
     this->reg(WKREG_GPDAT, 0) = state;
     ESP_LOGI(TAG, "setting all outputs to 0");
@@ -64,7 +64,7 @@ void WK2168Component::test_gpio_output_() {
   state = ~state;
   this->reg(WKREG_GPDAT, 0) = state;
   ESP_LOGI(TAG, "Flipping all outputs to %02X (%s)", state, S2CS(state));
-  delay(1000);
+  delay(100);
 }
 #endif
 
@@ -86,7 +86,6 @@ void WK2168Component::loop() {
   if (test_mode_ == 2) {
     elapsed(time);  // set time to now
     test_gpio_input_();
-    ESP_LOGV(TAG, "test gpio input - execution time %d ms...", elapsed(time));
   }
 
   if (test_mode_ == 3) {
@@ -94,7 +93,6 @@ void WK2168Component::loop() {
     test_gpio_output_();
     ESP_LOGV(TAG, "test gpio output - execution time %d ms...", elapsed(time));
   }
-  ESP_LOGV(TAG, "loop execution time %d ms...", millis() - loop_time);
 
 #endif
 }

@@ -36,7 +36,7 @@ class WK2168RegI2C : public wk_base::WKBaseRegister {
 class WK2168ComponentI2C : public wk2168::WK2168Component, public i2c::I2CDevice {
  public:
   wk_base::WKBaseRegister &reg(uint8_t reg, uint8_t channel) override {
-    reg_i2c_.register_ = reg & 0x0F;
+    reg_i2c_.register_ = reg;
     reg_i2c_.channel_ = channel;
     return reg_i2c_;
   }
