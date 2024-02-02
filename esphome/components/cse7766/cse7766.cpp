@@ -1,6 +1,8 @@
 #include "cse7766.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
+#include <iomanip>
+#include <sstream>
 
 namespace esphome {
 namespace cse7766 {
@@ -68,11 +70,16 @@ bool CSE7766Component::check_byte_() {
   return true;
 }
 void CSE7766Component::parse_data_() {
-  ESP_LOGVV(TAG, "CSE7766 Data: ");
-  for (uint8_t i = 0; i < 23; i++) {
-    ESP_LOGVV(TAG, "  %u: 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", i + 1, BYTE_TO_BINARY(this->raw_data_[i]),
-              this->raw_data_[i]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  {
+    std::stringstream ss;
+    ss << "Raw data:" << std::hex << std::uppercase << std::setfill('0');
+    for (uint8_t i = 0; i < 23; i++) {
+      ss << ' ' << std::setw(2) << static_cast<unsigned>(this->raw_data_[i]);
+    }
+    ESP_LOGVV(TAG, "%s", ss.str().c_str());
   }
+#endif
 
   uint8_t header1 = this->raw_data_[0];
   if (header1 == 0xAA) {
