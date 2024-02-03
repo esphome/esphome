@@ -424,6 +424,10 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
 }
 
 void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
+  // This is a workaround to a firmware bug that started in v1.5.4 if we send write registers updates
+  // faster than 22 per second the modules will not respond correctly and will ignore further commands
+  // The symptoms are constant detection at the 35cm range.
+  delay_microseconds_safe(70000);  // Throttle down to no more than 22 LD2420 register writes per second
   this->cmd_reply_.command = buffer[CMD_FRAME_COMMAND];
   this->cmd_reply_.length = buffer[CMD_FRAME_DATA_LENGTH];
   uint8_t reg_element = 0;
