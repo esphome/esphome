@@ -38,7 +38,7 @@ enum UARTSelection {
   UART_SELECTION_UART0 = 0,
 #endif
   UART_SELECTION_UART1,
-#if defined(USE_LIBRETINY) && defined(USE_ESP32_VARIANT_ESP32)
+#if defined(USE_LIBRETINY) || defined(USE_ESP32_VARIANT_ESP32)
   UART_SELECTION_UART2,
 #endif
 #ifdef USE_USB_CDC
