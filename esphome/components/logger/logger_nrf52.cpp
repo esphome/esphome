@@ -4,18 +4,40 @@
 #endif
 #include "logger.h"
 #include "esphome/core/log.h"
-
-namespace esphome {
-namespace logger {
+#include "esphome/core/application.h"
 
 #ifdef USE_ZEPHYR
-// it must be inside namespace since there is duplicated macro EMPTY
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/usb/usb_device.h>
 #endif
 
+namespace esphome {
+namespace logger {
+
+
 static const char *const TAG = "logger";
+
+#ifdef USE_ZEPHYR
+void Logger::loop() {
+  if (this->uart_ != UART_SELECTION_USB_CDC || nullptr == uart_dev_) {
+    return;
+  }
+  static bool opened = false;
+  uint32_t dtr = 0;
+  uart_line_ctrl_get(uart_dev_, UART_LINE_CTRL_DTR, &dtr);
+
+  /* Poll if the DTR flag was set, optional */
+  if(opened == dtr) {
+    return;
+  }
+  
+  if(false == opened){
+    App.schedule_dump_config();
+  }
+  opened = !opened;
+}
+#endif
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {

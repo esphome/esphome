@@ -21,6 +21,10 @@
 #include <driver/uart.h>
 #endif  // USE_ESP_IDF
 
+#ifdef USE_ZEPHYR
+struct device;
+#endif
+
 namespace esphome {
 
 namespace logger {
@@ -157,7 +161,7 @@ class Logger : public Component {
 #elif defined(USE_ESP_IDF)
   uart_port_t uart_num_;
 #elif defined(USE_ZEPHYR)
-  const struct device * uart_dev_{nullptr};
+  const device * uart_dev_{nullptr};
 #endif
   struct LogLevelOverride {
     std::string tag;
