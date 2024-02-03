@@ -30,7 +30,7 @@ class NRF52GPIOPin : public InternalGPIOPin {
   bool inverted_;
   gpio::Flags flags_;
 #ifdef USE_ZEPHYR
-  const device * gpio_ = nullptr;
+  const device *gpio_ = nullptr;
   bool value_ = false;
 #endif
 };

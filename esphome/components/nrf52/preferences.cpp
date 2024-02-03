@@ -12,30 +12,30 @@ class NRF52Preferences : public ESPPreferences {
   }
 
   ESPPreferenceObject make_preference(size_t length, uint32_t type) override {
-	//TODO
+    // TODO
     return {};
   }
 
   bool sync() override {
-	//TODO
+    // TODO
     return true;
   }
 
   bool reset() override {
-	// TODO
+    // TODO
     return true;
   }
 
-//  protected:
-//   uint8_t *eeprom_sector_;
+  //  protected:
+  //   uint8_t *eeprom_sector_;
 };
 
 void setup_preferences() {
   auto *prefs = new NRF52Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
   global_preferences = prefs;
 }
-//TODO
-// void preferences_prevent_write(bool prevent) { s_prevent_write = prevent; }
+// TODO
+//  void preferences_prevent_write(bool prevent) { s_prevent_write = prevent; }
 
 }  // namespace nrf52
 

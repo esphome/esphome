@@ -9,8 +9,9 @@ namespace deep_sleep {
 
 class Nrf52DeepSleepBackend {
  public:
-  void begin_sleep(const optional<uint64_t>& sleep_duration);
+  void begin_sleep(const optional<uint64_t> &sleep_duration);
   void dump_config();
+
  protected:
   optional<uint32_t> last_sleep_duration_;
 };

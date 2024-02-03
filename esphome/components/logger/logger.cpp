@@ -46,7 +46,8 @@ void Logger::write_header_(int level, const char *tag, int line) {
     this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);
 #ifdef USE_ARDUINO
   } else {
-    this->printf_to_buffer_("%s[%s][%s:%03u]%s[%s]%s: ", color, letter, tag, line, ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED), pcTaskGetName(current_task), color);
+    this->printf_to_buffer_("%s[%s][%s:%03u]%s[%s]%s: ", color, letter, tag, line,
+                            ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED), pcTaskGetName(current_task), color);
   }
 #endif
 }
@@ -152,17 +153,17 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
 }
 
 #ifdef USE_USB_CDC
-# ifndef USE_ZEPHYR
+#ifndef USE_ZEPHYR
 void Logger::loop() {
 #ifdef USE_ARDUINO
   if (this->uart_ != UART_SELECTION_USB_CDC) {
     return;
   }
   static bool opened = false;
-  if (opened == Serial){
+  if (opened == Serial) {
     return;
   }
-  if(false == opened){
+  if (false == opened) {
     App.schedule_dump_config();
   }
   opened = !opened;

@@ -252,7 +252,7 @@ bool random_bytes(uint8_t *data, size_t len) {
 #ifdef USE_ARDUINO
   return nRFCrypto.Random.generate(data, len);
 #elif USE_ZEPHYR
-//TODO
+// TODO
 #endif
 #else
 #error "No random source available for this configuration."
@@ -531,7 +531,7 @@ Mutex::Mutex() {}
 void Mutex::lock() {}
 bool Mutex::try_lock() { return true; }
 void Mutex::unlock() {}
-//TODO
+// TODO
 #elif defined(USE_ESP32) || defined(USE_LIBRETINY) /*|| defined(USE_NRF52)*/
 Mutex::Mutex() { handle_ = xSemaphoreCreateMutex(); }
 void Mutex::lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }

@@ -161,7 +161,7 @@ class Logger : public Component {
 #elif defined(USE_ESP_IDF)
   uart_port_t uart_num_;
 #elif defined(USE_ZEPHYR)
-  const device * uart_dev_{nullptr};
+  const device *uart_dev_{nullptr};
 #endif
   struct LogLevelOverride {
     std::string tag;

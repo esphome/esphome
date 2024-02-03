@@ -4,8 +4,8 @@
 namespace esphome {
 namespace ble {
 class Beacon : public Component {
-	void loop() override;
-	void setup() override;
+  void loop() override;
+  void setup() override;
 };
-}
-}
+}  // namespace ble
+}  // namespace esphome

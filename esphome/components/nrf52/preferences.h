@@ -6,8 +6,8 @@ namespace esphome {
 namespace nrf52 {
 
 void setup_preferences();
-//TODO
-// void preferences_prevent_write(bool prevent);
+// TODO
+//  void preferences_prevent_write(bool prevent);
 
 }  // namespace nrf52
 }  // namespace esphome

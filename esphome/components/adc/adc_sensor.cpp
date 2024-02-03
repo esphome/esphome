@@ -302,8 +302,8 @@ float ADCSensor::sample() {
   // With internal reference, single-ended input (grounded negative input) and a gain of 1/6, the input range will be:
   // Input range = (0.6 V)/(1/6) = 3.6 V
 
-   uint32_t raw = analogRead(this->pin_->get_pin());  // NOLINT
-  if(output_raw_) {
+  uint32_t raw = analogRead(this->pin_->get_pin());  // NOLINT
+  if (output_raw_) {
     return raw;
   }
   // default 10-bit resolution

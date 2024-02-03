@@ -551,7 +551,7 @@ class Mutex {
   Mutex &operator=(const Mutex &) = delete;
 
  private:
-//TODO
+// TODO
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) /*|| defined(USE_NRF52)*/
   SemaphoreHandle_t handle_;
 #endif

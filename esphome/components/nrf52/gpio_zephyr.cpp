@@ -16,7 +16,7 @@ static int flags_to_mode(gpio::Flags flags, uint8_t pin, bool inverted, bool val
   }
   if (flags & gpio::FLAG_OUTPUT) {
     ret |= GPIO_OUTPUT;
-    if(value != inverted){
+    if (value != inverted) {
       ret |= GPIO_OUTPUT_INIT_HIGH;
     } else {
       ret |= GPIO_OUTPUT_INIT_LOW;
@@ -51,18 +51,18 @@ void NRF52GPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::Inter
 }
 
 void NRF52GPIOPin::setup() {
-  const struct device * gpio = nullptr;
-  if(pin_ < 32) {
+  const struct device *gpio = nullptr;
+  if (pin_ < 32) {
 #define GPIO0 DT_NODELABEL(gpio0)
 #if DT_NODE_HAS_STATUS(GPIO0, okay)
-  gpio = DEVICE_DT_GET(GPIO0);
+    gpio = DEVICE_DT_GET(GPIO0);
 #else
 #error "gpio0 is disabled"
 #endif
   } else {
 #define GPIO1 DT_NODELABEL(gpio1)
 #if DT_NODE_HAS_STATUS(GPIO1, okay)
-  gpio = DEVICE_DT_GET(GPIO1);
+    gpio = DEVICE_DT_GET(GPIO1);
 #else
 #error "gpio1 is disabled"
 #endif
@@ -77,7 +77,7 @@ void NRF52GPIOPin::setup() {
 }
 
 void NRF52GPIOPin::pin_mode(gpio::Flags flags) {
-  if(nullptr == gpio_) {
+  if (nullptr == gpio_) {
     return;
   }
   gpio_pin_configure(gpio_, pin_, flags_to_mode(flags, pin_, inverted_, value_));
@@ -90,7 +90,7 @@ std::string NRF52GPIOPin::dump_summary() const {
 }
 
 bool NRF52GPIOPin::digital_read() {
-  if(nullptr == gpio_) {
+  if (nullptr == gpio_) {
     return false;
   }
   return bool(gpio_pin_get(gpio_, pin_) != inverted_);
@@ -100,10 +100,10 @@ void NRF52GPIOPin::digital_write(bool value) {
   // make sure that value is not ignored since it can be inverted e.g. on switch side
   // that way init state should be correct
   value_ = value;
-  if(nullptr == gpio_) {
+  if (nullptr == gpio_) {
     return;
   }
-  gpio_pin_set(gpio_, pin_, value != inverted_ ? 1 : 0 );
+  gpio_pin_set(gpio_, pin_, value != inverted_ ? 1 : 0);
 }
 void NRF52GPIOPin::detach_interrupt() const {
   // TODO

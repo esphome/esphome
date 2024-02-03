@@ -19,5 +19,5 @@ class DeviceFirmwareUpdate : public Component {
   output::BinaryOutput *reset_output_;
 #endif
 };
-}
-}
+}  // namespace dfu
+}  // namespace esphome

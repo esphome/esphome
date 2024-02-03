@@ -1,6 +1,6 @@
 #ifdef USE_NRF52
 #ifdef USE_ARDUINO
-#include <Adafruit_TinyUSB.h> // for Serial
+#include <Adafruit_TinyUSB.h>  // for Serial
 #endif
 #include "logger.h"
 #include "esphome/core/log.h"
@@ -15,7 +15,6 @@
 namespace esphome {
 namespace logger {
 
-
 static const char *const TAG = "logger";
 
 #ifdef USE_ZEPHYR
@@ -28,11 +27,11 @@ void Logger::loop() {
   uart_line_ctrl_get(uart_dev_, UART_LINE_CTRL_DTR, &dtr);
 
   /* Poll if the DTR flag was set, optional */
-  if(opened == dtr) {
+  if (opened == dtr) {
     return;
   }
-  
-  if(false == opened){
+
+  if (false == opened) {
     App.schedule_dump_config();
   }
   opened = !opened;
@@ -59,10 +58,10 @@ void Logger::pre_setup() {
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart0));
         break;
       case UART_SELECTION_USB_CDC:
-          uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
-          if(device_is_ready(uart_dev)) {
-            usb_enable(NULL);
-          }
+        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
+        if (device_is_ready(uart_dev)) {
+          usb_enable(NULL);
+        }
         break;
     }
     if (!device_is_ready(uart_dev)) {
@@ -78,10 +77,10 @@ void Logger::pre_setup() {
 
 #ifdef USE_ZEPHYR
 void HOT Logger::write_msg_(const char *msg) {
-  if(nullptr == uart_dev_) {
+  if (nullptr == uart_dev_) {
     return;
   }
-  while(*msg) {
+  while (*msg) {
     uart_poll_out(uart_dev_, *msg);
     ++msg;
   }

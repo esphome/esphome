@@ -23,7 +23,7 @@ uint32_t *dbl_reset_mem = ((uint32_t *) DFU_DBL_RESET_MEM);
 
 const struct device *cdc_dev[] = {DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, DEVICE_AND_COMMA)};
 
-static void cdc_dte_rate_callback(const struct device *, uint32_t rate){
+static void cdc_dte_rate_callback(const struct device *, uint32_t rate) {
   if (rate == 1200) {
     goto_dfu = true;
   }
