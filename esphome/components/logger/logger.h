@@ -101,6 +101,7 @@ class Logger : public Component {
   void write_header_(int level, const char *tag, int line);
   void write_footer_();
   void log_message_(int level, const char *tag, int offset = 0);
+  void write_msg_(const char *msg);
 
   inline bool is_buffer_full_() const { return this->tx_buffer_at_ >= this->tx_buffer_size_; }
   inline int buffer_remaining_capacity_() const { return this->tx_buffer_size_ - this->tx_buffer_at_; }

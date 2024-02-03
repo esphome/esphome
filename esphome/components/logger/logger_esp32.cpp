@@ -158,6 +158,27 @@ void Logger::pre_setup() {
   ESP_LOGI(TAG, "Log initialized");
 }
 
+#ifdef USE_ESP_IDF
+void HOT Logger::write_msg_(const char *msg) {
+  if (
+#if defined(USE_ESP32_VARIANT_ESP32S2)
+      this->uart_ == UART_SELECTION_USB_CDC
+#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
+      this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
+#elif defined(USE_ESP32_VARIANT_ESP32S3)
+      this->uart_ == UART_SELECTION_USB_CDC || this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
+#else
+      /* DISABLES CODE */ (false)  // NOLINT
+#endif
+  ) {
+    puts(msg);
+  } else {
+    uart_write_bytes(this->uart_num_, msg, strlen(msg));
+    uart_write_bytes(this->uart_num_, "\n", 1);
+  }
+}
+#endif
+
 const char *const UART_SELECTIONS[] = {
     "UART0",           "UART1",
 #ifdef USE_ESP32_VARIANT_ESP32
