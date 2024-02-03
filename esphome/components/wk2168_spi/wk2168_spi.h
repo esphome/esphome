@@ -49,7 +49,7 @@ class WK2168ComponentSPI : public wk2168::WK2168Component,
 
  protected:
   friend class WK2168RegSPI;
-  WK2168RegSPI reg_spi_{this, 0, 0};  ///< store the current register
+  WK2168RegSPI reg_spi_{this, 0, 0};  ///< store the current register/channel
 };
 
 }  // namespace wk2168_spi

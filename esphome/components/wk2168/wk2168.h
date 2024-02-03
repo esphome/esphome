@@ -9,11 +9,13 @@ namespace esphome {
 namespace wk2168 {
 
 ////////////////////////////////////////////////////////////////////////////////////
-/// @brief The WK2168Component class stores the information global to the WK2168 component
-/// and provides methods to set/access this information.
+/// @brief The WK2168Component class stores the information global to the WK2168
+/// component and provides methods to set/access this information.
+/// This class inherit from the WKBaseComponent and adds the GPIO functionality.
 ////////////////////////////////////////////////////////////////////////////////////
 class WK2168Component : public wk_base::WKBaseComponent {
  public:
+  /// @brief we add the call to the GPIO pin tests
   void loop() override;
 
  protected:

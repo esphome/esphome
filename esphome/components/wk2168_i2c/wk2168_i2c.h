@@ -51,7 +51,7 @@ class WK2168ComponentI2C : public wk2168::WK2168Component, public i2c::I2CDevice
   friend class WK2168RegI2C;
   friend class WKBaseChannel;
   uint8_t base_address_;              ///< base address of I2C device
-  WK2168RegI2C reg_i2c_{this, 0, 0};  ///< store the current register
+  WK2168RegI2C reg_i2c_{this, 0, 0};  ///< store the current register/channel
 };
 
 }  // namespace wk2168_i2c

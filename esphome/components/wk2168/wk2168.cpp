@@ -18,15 +18,6 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 /// Convert std::string to C string
 #define S2CS(val) (i2s(val).c_str())
 
-/// @brief measure the time elapsed between two calls
-/// @param last_time time of the previous call
-/// @return the elapsed time in microseconds
-uint32_t elapsed(uint32_t &last_time) {
-  uint32_t e = millis() - last_time;
-  last_time = millis();
-  return e;
-};
-
 ///////////////////////////////////////////////////////////////////////////////
 // The WK2168Component methods
 ///////////////////////////////////////////////////////////////////////////////
@@ -84,14 +75,11 @@ void WK2168Component::loop() {
   loop_count++;
 
   if (test_mode_ == 2) {
-    elapsed(time);  // set time to now
     test_gpio_input_();
   }
 
   if (test_mode_ == 3) {
-    elapsed(time);  // set time to now
     test_gpio_output_();
-    ESP_LOGV(TAG, "test gpio output - execution time %d ms...", elapsed(time));
   }
 
 #endif
