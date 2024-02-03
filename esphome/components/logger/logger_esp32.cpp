@@ -8,8 +8,7 @@
 #ifdef USE_ESP_IDF
 #include <driver/uart.h>
 
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32H2)
+#ifdef USE_USB_SERIAL_JTAG
 #include <driver/usb_serial_jtag.h>
 #include <esp_vfs_dev.h>
 #include <esp_vfs_usb_serial_jtag.h>
@@ -33,8 +32,7 @@ static const char *const TAG = "logger";
 
 #ifdef USE_ESP_IDF
 
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32H2)
+#ifdef USE_USB_SERIAL_JTAG
 static void init_usb_serial_jtag_() {
   setvbuf(stdin, NULL, _IONBF, 0);  // Disable buffering on stdin
 
@@ -98,8 +96,7 @@ void Logger::pre_setup() {
         this->hw_serial_ = &Serial1;
         Serial1.begin(this->baud_rate_);
         break;
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
+#ifdef USE_ESP32_VARIANT_ESP32
       case UART_SELECTION_UART2:
         this->hw_serial_ = &Serial2;
         Serial2.begin(this->baud_rate_);
@@ -127,18 +124,16 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         this->uart_num_ = UART_NUM_1;
         break;
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3) && !defined(USE_ESP32_VARIANT_ESP32H2)
+#ifdef USE_ESP32_VARIANT_ESP32
       case UART_SELECTION_UART2:
         this->uart_num_ = UART_NUM_2;
         break;
-#endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32S2 && !USE_ESP32_VARIANT_ESP32S3 &&
-        // !USE_ESP32_VARIANT_ESP32H2
+#endif
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_USB_CDC:
         this->uart_num_ = -1;
         break;
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif
 #ifdef USE_USB_SERIAL_JTAG
       case UART_SELECTION_USB_SERIAL_JTAG:
         this->uart_num_ = -1;
@@ -165,11 +160,9 @@ void Logger::pre_setup() {
 
 const char *const UART_SELECTIONS[] = {
     "UART0",           "UART1",
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3) && !defined(USE_ESP32_VARIANT_ESP32H2)
+#ifdef USE_ESP32_VARIANT_ESP32
     "UART2",
-#endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARINT_ESP32C6 && !USE_ESP32_VARIANT_ESP32S2 &&
-        // !USE_ESP32_VARIANT_ESP32S3 && !USE_ESP32_VARIANT_ESP32H2
+#endif
 #ifdef USE_USB_CDC
     "USB_CDC",
 #endif
