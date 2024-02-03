@@ -105,28 +105,9 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   this->set_null_terminator_();
 
   const char *msg = this->tx_buffer_ + offset;
+
   if (this->baud_rate_ > 0) {
-#ifdef USE_ARDUINO
-    this->hw_serial_->println(msg);
-#endif  // USE_ARDUINO
-#ifdef USE_ESP_IDF
-    if (
-#if defined(USE_ESP32_VARIANT_ESP32S2)
-        this->uart_ == UART_SELECTION_USB_CDC
-#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
-        this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
-#elif defined(USE_ESP32_VARIANT_ESP32S3)
-        this->uart_ == UART_SELECTION_USB_CDC || this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
-#else
-        /* DISABLES CODE */ (false)  // NOLINT
-#endif
-    ) {
-      puts(msg);
-    } else {
-      uart_write_bytes(this->uart_num_, msg, strlen(msg));
-      uart_write_bytes(this->uart_num_, "\n", 1);
-    }
-#endif
+    this->write_msg_(msg);
   }
 
 #ifdef USE_ESP32
@@ -138,12 +119,19 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   if (xPortGetFreeHeapSize() < 2048)
     return;
 #endif
-#ifdef USE_HOST
-  puts(msg);
-#endif
 
   this->log_callback_.call(level, tag, msg);
 }
+
+#if defined(USE_HOST) || defined(USE_ARDUINO)
+void HOT Logger::write_msg_(const char *msg) {
+#ifdef USE_HOST
+  puts(msg);
+#elif USE_ARDUINO
+  this->hw_serial_->println(msg);
+#endif
+}
+#endif
 
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
   // add 1 to buffer size for null terminator
