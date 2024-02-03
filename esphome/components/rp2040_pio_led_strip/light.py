@@ -70,9 +70,12 @@ static inline void rp2040_pio_led_strip_driver_{id}_init(PIO pio, uint sm, uint 
     sm_config_set_out_shift(&c, false, true, 8);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
-    int cycles_per_bit = 69;
-    float div = 2.409;
-    sm_config_set_clkdiv(&c, div);
+    // target frequency is 57.5MHz
+    long clk = clock_get_hz(clk_sys);
+    long target_freq = 57500000;
+    int n = 2;
+    int f = round(((clk / target_freq) - n ) * 256);
+    sm_config_set_clkdiv_int_frac(&c, n, f);
 
 
     pio_sm_init(pio, sm, offset, &c);
@@ -95,7 +98,15 @@ mainloop:
 
     out x, 1
     jmp !x, writezero
-    jmp writeone
+
+writeone:
+    ; Write T1H and T1L bits to the output pin
+    set pins, 1 [{t1h}]
+{nops_t1h}
+    set pins, 0 [{t1l}]
+{nops_t1l}
+    jmp y--, mainloop
+    jmp awaiting_data
 
 writezero:
     ; Write T0H and T0L bits to the output pin
@@ -106,14 +117,7 @@ writezero:
     jmp y--, mainloop
     jmp awaiting_data
 
-writeone:
-    ; Write T1H and T1L bits to the output pin
-    set pins, 1 [{t1h}]
-{nops_t1h}
-    set pins, 0 [{t1l}]
-{nops_t1l}
-    jmp y--, mainloop
-    jmp awaiting_data
+
 
 .wrap"""
 
@@ -160,9 +164,9 @@ RGB_ORDERS = {
 }
 
 CHIPSETS = {
-    "WS2812": LEDStripTimings(20, 43, 41, 31),
-    "WS2812B": LEDStripTimings(23, 46, 46, 23),
-    "SK6812": LEDStripTimings(17, 52, 31, 31),
+    "WS2812": LEDStripTimings(20, 40, 46, 34),
+    "WS2812B": LEDStripTimings(23, 49, 46, 26),
+    "SK6812": LEDStripTimings(17, 52, 34, 34),
     "SM16703": LEDStripTimings(17, 52, 52, 17),
 }
 
