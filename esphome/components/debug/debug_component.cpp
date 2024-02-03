@@ -37,8 +37,6 @@
 
 #if defined(USE_NRF52) && defined(USE_ARDUINO)
 #include "nrf52/nrf_mbr.h"
-#include <Adafruit_TinyUSB.h> 
-#include "esphome/core/application.h"
 #endif
 
 namespace esphome {
@@ -438,17 +436,6 @@ void DebugComponent::dump_config() {
 }
 
 void DebugComponent::loop() {
-#if defined(USE_NRF52) && defined(USE_ARDUINO)
-  //TODO move to logger
-  //TOOD do not print when exit from deep sleep
-  static bool d = false;
-  if (d != Serial){
-    if(false == d){
-      App.schedule_dump_config();
-    }
-    d = !d;
-  }
-#endif
   // log when free heap space has halved
   uint32_t new_free_heap = get_free_heap();
   if (new_free_heap < this->free_heap_ / 2) {
