@@ -4,12 +4,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_NRF52
-#ifdef USE_ARDUINO
-#include <Adafruit_TinyUSB.h> // for Serial
-#endif
-#endif
-
 namespace esphome {
 namespace logger {
 

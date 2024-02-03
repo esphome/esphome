@@ -35,10 +35,11 @@ enum UARTSelection {
   UART_SELECTION_DEFAULT = 0,
   UART_SELECTION_UART0,
 #else
-#ifndef USE_NRF52
   UART_SELECTION_UART0 = 0,
 #endif
+#if !defined(USE_NRF52) || defined(PIN_SERIAL2_RX) && defined(PIN_SERIAL2_TX)
   UART_SELECTION_UART1,
+#endif
 #if defined(USE_LIBRETINY) || defined(USE_ESP32_VARIANT_ESP32)
   UART_SELECTION_UART2,
 #endif
