@@ -34,7 +34,9 @@ FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend(
         cv.Optional(CONF_MIN_POWER): cv.percentage,
         cv.Optional(CONF_ZERO_MEANS_ZERO, default=False): cv.boolean,
         cv.Optional(CONF_MIN_TURN_ON_POWER, default="0%"): cv.percentage,
-        cv.Optional(CONF_MIN_TURN_ON_POWER_DELAY, default="10ms"): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_MIN_TURN_ON_POWER_DELAY, default="10ms"
+        ): cv.positive_time_period_milliseconds,
     }
 )
 

@@ -19,8 +19,14 @@ void FloatOutput::set_min_power(float min_power) {
 }
 
 void FloatOutput::set_zero_means_zero(bool zero_means_zero) { this->zero_means_zero_ = zero_means_zero; }
-void FloatOutput::set_min_turn_on_power(float min_turn_on_power) { this->min_turn_on_power_ = min_turn_on_power; }
-void FloatOutput::set_min_turn_on_power_delay(float min_turn_on_power_delay) { this->min_turn_on_power_delay_ = min_turn_on_power_delay; }
+
+void FloatOutput::set_min_turn_on_power(float min_turn_on_power) {
+  this->min_turn_on_power_ = min_turn_on_power;
+}
+
+void FloatOutput::set_min_turn_on_power_delay(float min_turn_on_power_delay) {
+  this->min_turn_on_power_delay_ = min_turn_on_power_delay;
+}
 
 float FloatOutput::get_min_power() const { return this->min_power_; }
 
