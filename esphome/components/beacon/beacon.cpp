@@ -49,7 +49,7 @@ void startAdv(void) {
 }
 
 namespace esphome {
-namespace ble {
+namespace beacon {
 
 void Beacon::loop() {}
 
@@ -68,5 +68,5 @@ void Beacon::setup() {
   startAdv();
 }
 
-}  // namespace ble
+}  // namespace beacon
 }  // namespace esphome

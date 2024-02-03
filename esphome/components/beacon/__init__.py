@@ -4,7 +4,7 @@ from esphome.const import (
     CONF_ID,
 )
 
-dfu_ns = cg.esphome_ns.namespace("ble")
+dfu_ns = cg.esphome_ns.namespace("beacon")
 Beacon = dfu_ns.class_("Beacon", cg.Component)
 
 CONFIG_SCHEMA = cv.All(
