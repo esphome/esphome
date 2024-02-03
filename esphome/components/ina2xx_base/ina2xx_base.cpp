@@ -297,10 +297,10 @@ bool INA2XX::configure_adc_() {
   bool ret{false};
   AdcConfigurationRegister adc_cfg{0};
   adc_cfg.MODE = 0x0F;  // Fh = Continuous bus voltage, shunt voltage and temperature
-  adc_cfg.VBUSCT = AdcSpeed::ADC_SPEED_4120US;
-  adc_cfg.VSHCT = AdcSpeed::ADC_SPEED_4120US;
-  adc_cfg.VTCT = AdcSpeed::ADC_SPEED_4120US;
-  adc_cfg.AVG = AdcSample::ADC_SAMPLE_128;
+  adc_cfg.VBUSCT = this->adc_time_;
+  adc_cfg.VSHCT = this->adc_time_;
+  adc_cfg.VTCT = this->adc_time_;
+  adc_cfg.AVG = this->adc_avg_samples_;
   ret = this->write_unsigned_16_(RegisterMap::REG_ADC_CONFIG, adc_cfg.raw_u16);
   return ret;
 }

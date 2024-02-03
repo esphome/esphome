@@ -34,26 +34,26 @@ enum AdcRange : uint8_t {
   ADC_RANGE_1 = 1,
 };
 
-enum AdcSpeed : uint8_t {
-  ADC_SPEED_50US = 0,
-  ADC_SPEED_84US = 1,
-  ADC_SPEED_150US = 2,
-  ADC_SPEED_280US = 3,
-  ADC_SPEED_540US = 4,
-  ADC_SPEED_1052US = 5,
-  ADC_SPEED_2074US = 6,
-  ADC_SPEED_4120US = 7,
+enum AdcTime : uint8_t {
+  ADC_TIME_50US = 0,
+  ADC_TIME_84US = 1,
+  ADC_TIME_150US = 2,
+  ADC_TIME_280US = 3,
+  ADC_TIME_540US = 4,
+  ADC_TIME_1052US = 5,
+  ADC_TIME_2074US = 6,
+  ADC_TIME_4120US = 7,
 };
 
-enum AdcSample : uint8_t {
-  ADC_SAMPLE_1 = 0,
-  ADC_SAMPLE_4 = 1,
-  ADC_SAMPLE_16 = 2,
-  ADC_SAMPLE_64 = 3,
-  ADC_SAMPLE_128 = 4,
-  ADC_SAMPLE_256 = 5,
-  ADC_SAMPLE_512 = 6,
-  ADC_SAMPLE_1024 = 7,
+enum AdcAvgSamples : uint8_t {
+  ADC_AVG_SAMPLES_1 = 0,
+  ADC_AVG_SAMPLES_4 = 1,
+  ADC_AVG_SAMPLES_16 = 2,
+  ADC_AVG_SAMPLES_64 = 3,
+  ADC_AVG_SAMPLES_128 = 4,
+  ADC_AVG_SAMPLES_256 = 5,
+  ADC_AVG_SAMPLES_512 = 6,
+  ADC_AVG_SAMPLES_1024 = 7,
 };
 
 union ConfigurationRegister {
@@ -71,10 +71,10 @@ union ConfigurationRegister {
 union AdcConfigurationRegister {
   uint16_t raw_u16;
   struct {
-    AdcSample AVG : 3;
-    AdcSpeed VTCT : 3;
-    AdcSpeed VSHCT : 3;
-    AdcSpeed VBUSCT : 3;
+    AdcAvgSamples AVG : 3;
+    AdcTime VTCT : 3;
+    AdcTime VSHCT : 3;
+    AdcTime VBUSCT : 3;
     uint8_t MODE : 4;
   } __attribute__((packed));
 };
@@ -120,6 +120,8 @@ class INA2XX : public PollingComponent {
   void set_shunt_resistance_ohm(float shunt_resistance_ohm) { shunt_resistance_ohm_ = shunt_resistance_ohm; }
   void set_max_current_a(float max_current_a) { max_current_a_ = max_current_a; }
   void set_adc_range(uint8_t range) { adc_range_ = (range == 0) ? AdcRange::ADC_RANGE_0 : AdcRange::ADC_RANGE_1; }
+  void set_adc_time(AdcTime time) { adc_time_ = time; }
+  void set_adc_avg_samples(AdcAvgSamples samples) { adc_avg_samples_ = samples; }
   void set_shunt_tempco(uint16_t coeff) { shunt_tempco_ppm_c_ = coeff; }
 
   void set_shunt_voltage_sensor(sensor::Sensor *sensor) { shunt_voltage_sensor_ = sensor; }
@@ -159,6 +161,8 @@ class INA2XX : public PollingComponent {
   float shunt_resistance_ohm_;
   float max_current_a_;
   AdcRange adc_range_{AdcRange::ADC_RANGE_0};
+  AdcTime adc_time_{AdcTime::ADC_TIME_4120US};
+  AdcAvgSamples adc_avg_samples_{AdcAvgSamples::ADC_AVG_SAMPLES_128};
   uint16_t shunt_tempco_ppm_c_{0};
 
   //
