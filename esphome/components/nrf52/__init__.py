@@ -27,6 +27,7 @@ KEY_NRF52 = "nrf52"
 def set_core_data(config):
     CORE.data[KEY_NRF52] = {}
     CORE.data[KEY_NRF52][KEY_PRJ_CONF_OPTIONS] = {}
+    CORE.data[KEY_NRF52][KEY_ZEPHYR_OVERLAY] = ""
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = config[CONF_FRAMEWORK][CONF_TYPE]
     return config
@@ -103,6 +104,7 @@ nrf52_ns = cg.esphome_ns.namespace("nrf52")
 
 PrjConfValueType = Union[bool, str, int]
 KEY_PRJ_CONF_OPTIONS = "prj_conf_options"
+KEY_ZEPHYR_OVERLAY = "zephyr_overlay"
 
 
 def add_zephyr_prj_conf_option(name: str, value: PrjConfValueType):
@@ -116,6 +118,12 @@ def add_zephyr_prj_conf_option(name: str, value: PrjConfValueType):
                 f"{name} alread set with value {old_value}, new value {value}"
             )
     CORE.data[KEY_NRF52][KEY_PRJ_CONF_OPTIONS][name] = value
+
+
+def add_zephyr_overlay(content):
+    if not CORE.using_zephyr:
+        raise ValueError("Not an zephyr project")
+    CORE.data[KEY_NRF52][KEY_ZEPHYR_OVERLAY] += content
 
 
 @coroutine_with_priority(1000)
@@ -206,10 +214,6 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
     raise ValueError
 
 
-overlay = """
-"""
-
-
 # Called by writer.py
 def copy_files():
     if CORE.using_zephyr:
@@ -223,7 +227,10 @@ def copy_files():
         )
 
         write_file_if_changed(CORE.relative_build_path("zephyr/prj.conf"), contents)
-        write_file_if_changed(CORE.relative_build_path("zephyr/app.overlay"), overlay)
+        write_file_if_changed(
+            CORE.relative_build_path("zephyr/app.overlay"),
+            CORE.data[KEY_NRF52][KEY_ZEPHYR_OVERLAY],
+        )
 
     dir = os.path.dirname(__file__)
     build_zephyr_file = os.path.join(

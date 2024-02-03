@@ -40,6 +40,7 @@ from esphome.components.libretiny.const import (
     COMPONENT_BK72XX,
     COMPONENT_RTL87XX,
 )
+from esphome.components.nrf52 import add_zephyr_overlay
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
@@ -283,6 +284,7 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
+
     try:
         uart_selection(USB_SERIAL_JTAG)
         cg.add_build_flag("-DUSE_USB_SERIAL_JTAG")
@@ -293,6 +295,10 @@ async def to_code(config):
         cg.add_build_flag("-DUSE_USB_CDC")
     except cv.Invalid:
         pass
+
+    if CORE.using_zephyr:
+        if config[CONF_HARDWARE_UART] == UART0:
+            add_zephyr_overlay("""&uart0 { status = "okay";};""")
 
     # Register at end for safe mode
     await cg.register_component(log, config)

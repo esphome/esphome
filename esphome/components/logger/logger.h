@@ -37,7 +37,7 @@ enum UARTSelection {
 #else
   UART_SELECTION_UART0 = 0,
 #endif
-#if !defined(USE_NRF52) || defined(PIN_SERIAL2_RX) && defined(PIN_SERIAL2_TX)
+#ifndef USE_NRF52
   UART_SELECTION_UART1,
 #endif
 #if defined(USE_LIBRETINY) || defined(USE_ESP32_VARIANT_ESP32)
@@ -147,20 +147,17 @@ class Logger : public Component {
   char *tx_buffer_{nullptr};
   int tx_buffer_at_{0};
   int tx_buffer_size_{0};
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_NRF52)
   UARTSelection uart_{UART_SELECTION_UART0};
-#endif
-#ifdef USE_NRF52
-  UARTSelection uart_{UART_SELECTION_USB_CDC};
-#endif
-#ifdef USE_LIBRETINY
+#elif defined(USE_LIBRETINY)
   UARTSelection uart_{UART_SELECTION_DEFAULT};
 #endif
 #ifdef USE_ARDUINO
   Stream *hw_serial_{nullptr};
-#endif
-#ifdef USE_ESP_IDF
+#elif defined(USE_ESP_IDF)
   uart_port_t uart_num_;
+#elif defined(USE_ZEPHYR)
+  const struct device * uart_dev_{nullptr};
 #endif
   struct LogLevelOverride {
     std::string tag;
