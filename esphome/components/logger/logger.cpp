@@ -3,6 +3,7 @@
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace logger {
@@ -161,6 +162,24 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
   this->main_task = xTaskGetCurrentTaskHandle();
 #endif
 }
+
+#ifdef USE_USB_CDC
+void Logger::loop() {
+#ifdef USE_ARDUINO
+  if (this->uart_ != UART_SELECTION_USB_CDC) {
+    return;
+  }
+  static bool opened = false;
+  if (opened == Serial){
+    return;
+  }
+  if(false == opened){
+    App.schedule_dump_config();
+  }
+  opened = !opened;
+#endif
+}
+#endif
 
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 void Logger::set_log_level(const std::string &tag, int log_level) {
