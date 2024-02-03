@@ -106,21 +106,15 @@ void Logger::pre_setup() {
         break;
 #endif
 
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3)
+#ifdef USE_USB_CDC
       case UART_SELECTION_USB_CDC:
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
-      case UART_SELECTION_USB_SERIAL_JTAG:
-#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32S3
+        this->hw_serial_ = &Serial;
 #if ARDUINO_USB_CDC_ON_BOOT
-        this->hw_serial_ = &Serial;
         Serial.setTxTimeoutMs(0);  // workaround for 2.0.9 crash when there's no data connection
+#endif
         Serial.begin(this->baud_rate_);
-#else
-        this->hw_serial_ = &Serial;
-        Serial.begin(this->baud_rate_);
-#endif  // ARDUINO_USB_CDC_ON_BOOT
         break;
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32C3
+#endif
     }
 #endif  // USE_ARDUINO
 
@@ -145,14 +139,12 @@ void Logger::pre_setup() {
         this->uart_num_ = -1;
         break;
 #endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32H2)
+#ifdef USE_USB_SERIAL_JTAG
       case UART_SELECTION_USB_SERIAL_JTAG:
         this->uart_num_ = -1;
         init_usb_serial_jtag_();
         break;
-#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C6 || USE_ESP32_VARIANT_ESP32S3 ||
-        // USE_ESP32_VARIANT_ESP32H2
+#endif
     }
     if (this->uart_num_ >= 0) {
       init_uart(this->uart_num_, baud_rate_, tx_buffer_size_);
