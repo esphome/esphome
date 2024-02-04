@@ -68,6 +68,8 @@ class INA226Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *shunt_voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
+
+  int32_t twos_complement_(int32_t val, uint8_t bits);
 };
 
 }  // namespace ina226

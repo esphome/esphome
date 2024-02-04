@@ -33,6 +33,9 @@ static const uint8_t INA226_REGISTER_POWER = 0x03;
 static const uint8_t INA226_REGISTER_CURRENT = 0x04;
 static const uint8_t INA226_REGISTER_CALIBRATION = 0x05;
 
+static const uint16_t INA226_ADC_TIMES[] = {140, 204, 332, 588, 1100, 2116, 4156, 8244};
+static const uint16_t INA226_ADC_AVG_SAMPLES[] = {1, 4, 16, 64, 128, 256, 512, 1024};
+
 void INA226Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up INA226...");
 
@@ -46,6 +49,7 @@ void INA226Component::setup() {
   delay(1);
 
   config.raw = 0;
+  config.reserved = 0b100;  // as per datasheet
 
   // Averaging Mode AVG Bit Settings[11:9] (000 -> 1 sample, 001 -> 4 sample, 111 -> 1024 samples)
   config.avg_samples = static_cast<AdcAvgSamples>(this->adc_avg_samples_);
@@ -89,6 +93,9 @@ void INA226Component::dump_config() {
   }
   LOG_UPDATE_INTERVAL(this);
 
+  ESP_LOGCONFIG(TAG, "  ADC Conversion Time: %d", INA226_ADC_TIMES[this->adc_time_ & 0b111]);
+  ESP_LOGCONFIG(TAG, "  ADC Averaging Samples: %d", INA226_ADC_AVG_SAMPLES[this->adc_avg_samples_ & 0b111]);
+
   LOG_SENSOR("  ", "Bus Voltage", this->bus_voltage_sensor_);
   LOG_SENSOR("  ", "Shunt Voltage", this->shunt_voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
@@ -104,7 +111,9 @@ void INA226Component::update() {
       this->status_set_warning();
       return;
     }
-    float bus_voltage_v = int16_t(raw_bus_voltage) * 0.00125f;
+    // Convert for 2's compliment and signed value (though always positive)
+    float bus_voltage_v = this->twos_complement_(raw_bus_voltage, 16);
+    bus_voltage_v *= 0.00125f;
     this->bus_voltage_sensor_->publish_state(bus_voltage_v);
   }
 
@@ -114,7 +123,9 @@ void INA226Component::update() {
       this->status_set_warning();
       return;
     }
-    float shunt_voltage_v = int16_t(raw_shunt_voltage) * 0.0000025f;
+    // Convert for 2's compliment and signed value
+    float shunt_voltage_v = this->twos_complement_(raw_shunt_voltage, 16);
+    shunt_voltage_v *= 0.0000025f;
     this->shunt_voltage_sensor_->publish_state(shunt_voltage_v);
   }
 
@@ -124,7 +135,9 @@ void INA226Component::update() {
       this->status_set_warning();
       return;
     }
-    float current_ma = int16_t(raw_current) * (this->calibration_lsb_ / 1000.0f);
+    // Convert for 2's compliment and signed value
+    float current_ma = this->twos_complement_(raw_current, 16);
+    current_ma *= (this->calibration_lsb_ / 1000.0f);
     this->current_sensor_->publish_state(current_ma / 1000.0f);
   }
 
@@ -139,6 +152,13 @@ void INA226Component::update() {
   }
 
   this->status_clear_warning();
+}
+
+int32_t INA226Component::twos_complement_(int32_t val, uint8_t bits) {
+  if (val & ((uint32_t) 1 << (bits - 1))) {
+    val -= (uint32_t) 1 << bits;
+  }
+  return val;
 }
 
 }  // namespace ina226
