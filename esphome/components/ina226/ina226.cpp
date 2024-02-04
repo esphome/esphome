@@ -35,29 +35,31 @@ static const uint8_t INA226_REGISTER_CALIBRATION = 0x05;
 
 void INA226Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up INA226...");
-  // Config Register
-  // 0bx000000000000000 << 15 RESET Bit (1 -> trigger reset)
-  if (!this->write_byte_16(INA226_REGISTER_CONFIG, 0x8000)) {
+
+  ConfigurationRegister config;
+
+  config.reset = 1;
+  if (!this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)) {
     this->mark_failed();
     return;
   }
   delay(1);
 
-  uint16_t config = 0x0000;
+  config.raw = 0;
 
   // Averaging Mode AVG Bit Settings[11:9] (000 -> 1 sample, 001 -> 4 sample, 111 -> 1024 samples)
-  config |= 0b0000001000000000;
+  config.avg_samples = static_cast<AdcAvgSamples>(this->adc_avg_samples_);
 
   // Bus Voltage Conversion Time VBUSCT Bit Settings [8:6] (100 -> 1.1ms, 111 -> 8.244 ms)
-  config |= 0b0000000100000000;
+  config.bus_voltage_conversion_time = static_cast<AdcTime>(this->adc_time_);
 
   // Shunt Voltage Conversion Time VSHCT Bit Settings [5:3] (100 -> 1.1ms, 111 -> 8.244 ms)
-  config |= 0b0000000000100000;
+  config.shunt_voltage_conversion_time = static_cast<AdcTime>(this->adc_time_);
 
   // Mode Settings [2:0] Combinations (111 -> Shunt and Bus, Continuous)
-  config |= 0b0000000000000111;
+  config.mode = 0b111;
 
-  if (!this->write_byte_16(INA226_REGISTER_CONFIG, config)) {
+  if (!this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)) {
     this->mark_failed();
     return;
   }
