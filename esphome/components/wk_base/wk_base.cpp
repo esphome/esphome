@@ -25,13 +25,17 @@ order of entry. Implementation is classic and therefore not described in any det
  component or through a SPI bus for example in the case of the wk2168_spi component. Derived classes will actually
  performs the specific bus operations.
 
- @section WK2168Component_ The WKBaseComponent class
+ @section WKBaseComponent_ The WKBaseComponent class
 The WKBaseComponent class stores the information global to a WK family component and provides methods to set/access
 this information. It also serves as a container for WKBaseChannel instances. This is done by maintaining an array of
 references these WKBaseChannel instances. This class derives from two ESPHome classes. The esphome::Component class and
 the i2c::I2CDevice class. This class override esphome::Component::loop() method which is to facilitate the seamless
 transfer of accumulated bytes from the receive FIFO into the ring buffer. This process ensures quick access to the
 stored bytes, enhancing the overall efficiency of the component.
+
+ @section WKGPIOComponent_ WKGPIOComponent class
+
+ @section WKGPIOPin_ WKGPIOPin class
 
  @section WKBaseChannel_ The WKBaseChannel class
 The WKBaseChannel class is used to implement all the virtual methods of the ESPHome uart::UARTComponent class. An
@@ -50,7 +54,7 @@ static const char *const TAG = "wk_base";
 /// @return a std::string
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 /// Convert std::string to C string
-#define I2CS(val) (i2s(val).c_str())
+#define I2S2CS(val) (i2s(val).c_str())
 
 /// @brief measure the time elapsed between two calls
 /// @param last_time time of the previous call
@@ -105,10 +109,6 @@ void WKBaseComponent::loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP)
     return;
 
-  static uint32_t loop_time = 0;
-  static uint32_t loop_count = 0;
-  uint32_t time = 0;
-
   // If there are some bytes in the receive FIFO we transfers them to the ring buffers
   size_t transferred = 0;
   for (auto *child : this->children_) {
@@ -120,6 +120,10 @@ void WKBaseComponent::loop() {
   }
 
 #ifdef TEST_COMPONENT
+  static uint32_t loop_time = 0;
+  static uint32_t loop_count = 0;
+  uint32_t time = 0;
+
   if (test_mode_ == 1) {  // test component in loopback
     ESP_LOGI(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count++, this->get_name(),
              millis() - loop_time);
@@ -155,7 +159,101 @@ void WKBaseComponent::loop() {
       }
     }
   }
+
+  if (test_mode_ == 3) {
+    test_gpio_input_();
+  }
+
+  if (test_mode_ == 4) {
+    test_gpio_output_();
+  }
+
 #endif
+}
+
+#ifdef TEST_COMPONENT
+void WKBaseComponent::test_gpio_input_() {
+  static bool init_input{false};
+  static uint8_t state{0};
+  uint8_t value;
+  if (!init_input) {
+    init_input = true;
+    // set all pins in input mode
+    this->reg(WKREG_GPDIR, 0) = 0x00;
+    ESP_LOGI(TAG, "initializing all pins to input mode");
+    state = this->reg(WKREG_GPDAT, 0);
+    ESP_LOGI(TAG, "initial input data state = %02X (%s)", state, I2S2CS(state));
+  }
+  value = this->reg(WKREG_GPDAT, 0);
+  if (value != state) {
+    ESP_LOGI(TAG, "Input data changed from %02X to %02X (%s)", state, value, I2S2CS(value));
+    state = value;
+  }
+}
+
+void WKBaseComponent::test_gpio_output_() {
+  static bool init_output{false};
+  static uint8_t state{0};
+  if (!init_output) {
+    init_output = true;
+    // set all pins in output mode
+    this->reg(WKREG_GPDIR, 0) = 0xFF;
+    ESP_LOGI(TAG, "initializing all pins to output mode");
+    this->reg(WKREG_GPDAT, 0) = state;
+    ESP_LOGI(TAG, "setting all outputs to 0");
+  }
+  state = ~state;
+  this->reg(WKREG_GPDAT, 0) = state;
+  ESP_LOGI(TAG, "Flipping all outputs to %02X (%s)", state, I2S2CS(state));
+  delay(100);
+}
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
+// The WKGPIOComponent methods
+///////////////////////////////////////////////////////////////////////////////
+bool WKGPIOComponent::read_pin_val_(uint8_t pin) {
+  this->input_state_ = this->reg(WKREG_GPDAT, 0);
+  ESP_LOGVV(TAG, "reading input pin %d = %d in_state %s", pin, this->input_state_ & (1 << pin), I2S2CS(input_state_));
+  return this->input_state_ & (1 << pin);
+}
+
+void WKGPIOComponent::write_pin_val_(uint8_t pin, bool value) {
+  value ? this->output_state_ |= (1 << pin) : this->output_state_ &= ~(1 << pin);
+  ESP_LOGVV(TAG, "writing output pin %d with %d out_state %s", pin, value, I2S2CS(this->output_state_));
+  this->reg(WKREG_GPDAT, 0) = this->output_state_;
+}
+
+void WKGPIOComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
+  if (flags == gpio::FLAG_INPUT) {
+    this->pin_config_ &= ~(1 << pin);  // clear bit (input mode)
+  } else {
+    if (flags == gpio::FLAG_OUTPUT) {
+      this->pin_config_ |= 1 << pin;  // set bit (output mode)
+    } else {
+      ESP_LOGE(TAG, "pin %d direction invalid", pin);
+    }
+  }
+  ESP_LOGVV(TAG, "setting pin %d direction to %d pin_config=%s", pin, flags, I2S2CS(this->pin_config_));
+  this->reg(WKREG_GPDIR, 0) = this->pin_config_;  // TODO check ~
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// The WKGPIOPin methods
+///////////////////////////////////////////////////////////////////////////////
+void WKGPIOPin::setup() {
+  ESP_LOGV(TAG, "Setting GPIO pin %d mode to %s", this->pin_,
+           flags_ == gpio::FLAG_INPUT          ? "Input"
+           : this->flags_ == gpio::FLAG_OUTPUT ? "Output"
+                                               : "NOT SPECIFIED");
+  //   ESP_LOGCONFIG(TAG, "Setting GPIO pins mode to '%s' %02X", I2S2CS(this->flags_), this->flags_);
+  this->pin_mode(this->flags_);
+}
+
+std::string WKGPIOPin::dump_summary() const {
+  char buffer[32];
+  snprintf(buffer, sizeof(buffer), "%u via WK2168 %s", this->pin_, this->parent_->get_name());
+  return buffer;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -168,7 +266,6 @@ void WKBaseChannel::setup_channel() {
     ESP_LOGCONFIG(TAG, "  Error channel %s not working...", this->get_channel_name());
   }
 
-  this->reg_(WKREG_SCR) = SCR_RXEN | SCR_TXEN;
   this->reset_fifo_();
   this->receive_buffer_.clear();
   this->set_line_param_();
@@ -184,15 +281,15 @@ void WKBaseChannel::dump_channel() {
 }
 
 void WKBaseChannel::reset_fifo_() {
+  // enable transmission and reception
+  this->reg_(WKREG_SCR) = SCR_RXEN | SCR_TXEN;
   // we reset and enable all FIFO
   this->reg_(WKREG_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
 }
 
 void WKBaseChannel::set_line_param_() {
   this->data_bits_ = 8;  // always equal to 8 for WK2168 (cant be changed)
-  // WKBaseRegister &lcr = this->reg_(WKREG_LCR);
   uint8_t lcr = 0;
-  //   lcr &= 0xF0;  // we clear the lower 4 bit of LCR
   if (this->stop_bits_ == 2)
     lcr |= LCR_STPL;
   switch (this->parity_) {  // parity selection settings
@@ -205,9 +302,9 @@ void WKBaseChannel::set_line_param_() {
     default:
       break;  // no parity 000x
   }
-  this->reg_(WKREG_LCR) = lcr;
+  this->reg_(WKREG_LCR) = lcr;  // write LCR
   ESP_LOGV(TAG, "    line config: %d data_bits, %d stop_bits, parity %s register [%s]", this->data_bits_,
-           this->stop_bits_, p2s(this->parity_), I2CS(lcr));
+           this->stop_bits_, p2s(this->parity_), I2S2CS(lcr));
 }
 
 void WKBaseChannel::set_baudrate_() {
@@ -243,7 +340,7 @@ size_t WKBaseChannel::tx_in_fifo_() {
   if (tfcnt == 0) {
     uint8_t const fsr = this->reg_(WKREG_FSR);
     if (fsr & FSR_TFFULL) {
-      ESP_LOGVV(TAG, "tx FIFO full FSR=%s", I2CS(fsr));
+      ESP_LOGVV(TAG, "tx FIFO full FSR=%s", I2S2CS(fsr));
       tfcnt = FIFO_SIZE;
     }
   }
@@ -256,13 +353,13 @@ size_t WKBaseChannel::rx_in_fifo_() {
   uint8_t const fsr = this->reg_(WKREG_FSR);
   if (fsr & (FSR_RFOE | FSR_RFLB | FSR_RFFE | FSR_RFPE)) {
     if (fsr & FSR_RFOE)
-      ESP_LOGE(TAG, "Receive data overflow FSR=%s", I2CS(fsr));
+      ESP_LOGE(TAG, "Receive data overflow FSR=%s", I2S2CS(fsr));
     if (fsr & FSR_RFLB)
-      ESP_LOGE(TAG, "Receive line break FSR=%s", I2CS(fsr));
+      ESP_LOGE(TAG, "Receive line break FSR=%s", I2S2CS(fsr));
     if (fsr & FSR_RFFE)
-      ESP_LOGE(TAG, "Receive frame error FSR=%s", I2CS(fsr));
+      ESP_LOGE(TAG, "Receive frame error FSR=%s", I2S2CS(fsr));
     if (fsr & FSR_RFPE)
-      ESP_LOGE(TAG, "Receive parity error FSR=%s", I2CS(fsr));
+      ESP_LOGE(TAG, "Receive parity error FSR=%s", I2S2CS(fsr));
   }
   if ((available == 0) && (fsr & FSR_RFDAT)) {
     // here we should be very careful because we can have something like this:
@@ -271,27 +368,28 @@ size_t WKBaseChannel::rx_in_fifo_() {
     // -  so to be sure we need to do another read of RFCNT and if it is still zero -> buffer full
     available = this->reg_(WKREG_RFCNT);
     if (available == 0) {  // still zero ?
-      ESP_LOGV(TAG, "rx FIFO is full FSR=%s", I2CS(fsr));
+      ESP_LOGV(TAG, "rx FIFO is full FSR=%s", I2S2CS(fsr));
       available = FIFO_SIZE;
     }
   }
-  ESP_LOGVV(TAG, "rx FIFO contain %d bytes - FSR status=%s", available, I2CS(fsr));
+  ESP_LOGVV(TAG, "rx FIFO contain %d bytes - FSR status=%s", available, I2S2CS(fsr));
   return available;
 }
 
 bool WKBaseChannel::check_channel_down() {
   // to check if we channel is up we write to the LCR W/R register
+  // note that this will put a break on the tx line for few ms
   WKBaseRegister &lcr = this->reg_(WKREG_LCR);
   lcr = 0x3F;
   uint8_t val = lcr;
   if (val != 0x3F) {
-    ESP_LOGE(TAG, "R/W of LCR failed expected 0x3F received 0x%02X", val);
+    ESP_LOGE(TAG, "R/W of register failed expected 0x3F received 0x%02X", val);
     return true;
   }
   lcr = 0;
   val = lcr;
   if (val != 0x00) {
-    ESP_LOGE(TAG, "R/W of LCR failed expected 0x00 received 0x%02X", val);
+    ESP_LOGE(TAG, "R/W of register failed expected 0x00 received 0x%02X", val);
     return true;
   }
   return false;

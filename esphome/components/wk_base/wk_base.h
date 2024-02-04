@@ -2,8 +2,11 @@
 /// @author DrCoolZic
 /// @brief  wk_base classes declaration
 /// @details The classes declared in this file can be used by a family
-/// of Weikai UART bridge components.
-/// As of today used by wk2132_spi, wk2132_i2c, wk2168_spi, wk2168_i2c
+/// of Weikai UART 1 GPIO expander components.
+/// As of today used by
+///   wk2132_spi, wk2132_i2c, wk2168_spi, wk2168_i2c
+///   wk2212_spi, wk2212_i2c, wk2204_spi, wk2204_i2c
+///   wk2124_spi
 
 #pragma once
 #include <bitset>
@@ -136,10 +139,10 @@ template<typename T, size_t SIZE> class RingBuffer {
   size_t count_{0};            ///< count number of element in the buffer
 };
 
-class WKBaseComponent;  // forward declaration
-class WKBaseI2C;
-class WKBaseSPI;
+// class WKBaseI2C;
+// class WKBaseSPI;
 
+class WKBaseComponent;  // forward declaration
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Used to create WKBaseRegister objects that act as proxies to access remote register independently of the
 /// bus type.
@@ -256,6 +259,13 @@ class WKBaseComponent : public Component {
   /// therefore it is seen by our client almost as if it was a bus.
   float get_setup_priority() const override { return setup_priority::BUS - 0.1F; }
 
+#ifdef TEST_COMPONENT
+  /// @brief auto test for the GPIO pins
+  void test_gpio_input_();
+  /// @brief auto test for GPIO pin
+  void test_gpio_output_();
+#endif
+
   uint32_t crystal_;                         ///< crystal value;
   int test_mode_;                            ///< test mode value (0 -> no tests)
   bool page1_{false};                        ///< set to true when in "page1 mode"
@@ -263,11 +273,56 @@ class WKBaseComponent : public Component {
   std::string name_;                         ///< name of entity
 };
 
+////////////////////////////////////////////////////////////////////////////////////
+/// @brief The WKGPIOComponent class stores the information global to the WK family
+/// component and provides methods to set/access this information.
+/// This class inherit from the WKBaseComponent and adds the GPIO functionality.
+////////////////////////////////////////////////////////////////////////////////////
+class WKGPIOComponent : public wk_base::WKBaseComponent {
+ protected:
+  friend class WKGPIOPin;
+
+  /// Helper method to read the value of a pin.
+  bool read_pin_val_(uint8_t pin);
+
+  /// Helper method to write the value of a pin.
+  void write_pin_val_(uint8_t pin, bool value);
+
+  /// Helper method to set the pin mode of a pin.
+  void set_pin_direction_(uint8_t pin, gpio::Flags flags);
+
+  uint8_t pin_config_{0x00};    ///< pin config mask: 1 means OUTPUT, 0 means INPUT
+  uint8_t output_state_{0x00};  ///< output state: 1 means HIGH, 0 means LOW
+  uint8_t input_state_{0x00};   ///< input pin states: 1 means HIGH, 0 means LOW
+};
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Helper class to expose a WK family pin as an internal input GPIO pin.
+///////////////////////////////////////////////////////////////////////////////
+class WKGPIOPin : public GPIOPin {
+ public:
+  void set_parent(WKGPIOComponent *parent) { this->parent_ = parent; }
+  void set_pin(uint8_t pin) { this->pin_ = pin; }
+  void set_inverted(bool inverted) { this->inverted_ = inverted; }
+  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
+
+  void setup() override;
+  std::string dump_summary() const override;
+  void pin_mode(gpio::Flags flags) override { this->parent_->set_pin_direction_(this->pin_, flags); }
+  bool digital_read() override { return this->parent_->read_pin_val_(this->pin_) != this->inverted_; }
+  void digital_write(bool value) override { this->parent_->write_pin_val_(this->pin_, value != this->inverted_); }
+
+ protected:
+  WKGPIOComponent *parent_{nullptr};
+  uint8_t pin_;
+  bool inverted_;
+  gpio::Flags flags_;
+};
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief The WKBaseChannel class is used to implement all the virtual methods of the ESPHome
-/// uart::UARTComponent virtual class. This class is common to the different members of the Weikai components family
-/// and therefore avoid code duplication. Currently this is used for the wk2132_i2c, wk2132_spi, wk2168_i2c, wk2168_spi
-/// components.
+/// uart::UARTComponent virtual class. This class is common to the different members of the Weikai
+/// components family and therefore avoid code duplication.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 class WKBaseChannel : public uart::UARTComponent {
  public:

@@ -5,6 +5,11 @@ from esphome.const import (
     CONF_BAUD_RATE,
     CONF_CHANNEL,
     CONF_UART_ID,
+    CONF_INPUT,
+    CONF_INVERTED,
+    CONF_MODE,
+    CONF_NUMBER,
+    CONF_OUTPUT,
 )
 
 CODEOWNERS = ["@DrCoolZic"]
@@ -22,11 +27,11 @@ WKBaseComponent = wk_base_ns.class_("WKBaseComponent", cg.Component)
 WKBaseChannel = wk_base_ns.class_("WKBaseChannel", uart.UARTComponent)
 
 
-def check_channel_wk2132(value):
+def check_channel_max(value, max):
     channel_uniq = []
     channel_dup = []
     for x in value[CONF_UART]:
-        if x[CONF_CHANNEL] > 1:
+        if x[CONF_CHANNEL] > max - 1:
             raise cv.Invalid(f"Invalid channel number: {x[CONF_CHANNEL]}")
         if x[CONF_CHANNEL] not in channel_uniq:
             channel_uniq.append(x[CONF_CHANNEL])
@@ -35,6 +40,14 @@ def check_channel_wk2132(value):
     if len(channel_dup) > 0:
         raise cv.Invalid(f"Duplicate channel list: {channel_dup}")
     return value
+
+
+def check_channel_max_4(value):
+    return check_channel_max(value, 4)
+
+
+def check_channel_max_2(value):
+    return check_channel_max(value, 2)
 
 
 WKBASE_SCHEMA = cv.Schema(
@@ -70,3 +83,26 @@ async def register_wk_base(var, config):
         cg.add(chan.set_baud_rate(uart_elem[CONF_BAUD_RATE]))
         cg.add(chan.set_stop_bits(uart_elem[CONF_STOP_BITS]))
         cg.add(chan.set_parity(uart_elem[CONF_PARITY]))
+
+
+def validate_pin_mode(value):
+    """checks input/output mode inconsistency"""
+    if not (value[CONF_MODE][CONF_INPUT] or value[CONF_MODE][CONF_OUTPUT]):
+        raise cv.Invalid("Mode must be either input or output")
+    if value[CONF_MODE][CONF_INPUT] and value[CONF_MODE][CONF_OUTPUT]:
+        raise cv.Invalid("Mode must be either input or output")
+    return value
+
+
+WK2168_PIN_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=7),
+        cv.Optional(CONF_MODE, default={}): cv.All(
+            {
+                cv.Optional(CONF_INPUT, default=False): cv.boolean,
+                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
+            },
+        ),
+        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+    }
+)

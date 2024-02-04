@@ -1,4 +1,4 @@
-/// @file wk2168_spi.h
+/// @file wk2132_spi.h
 /// @author DrCoolZic
 /// @brief  wk_base classes declaration
 
@@ -8,33 +8,36 @@
 #include "esphome/components/wk_base/wk_base.h"
 
 namespace esphome {
-namespace wk2168_spi {
+namespace wk2132_spi {
 
-class WKGPIOPinSPI : public wk_base::WKGPIOPin {};
-class WKGPIOComponentSPI;
+class WK2132ComponentSPI;
 
-////////////////////////////////////////////////////////////////////////////////////
-// class WK2168RegSPI
-////////////////////////////////////////////////////////////////////////////////////
-class WK2168RegSPI : public wk_base::WKBaseRegister {
+class WK2132RegisterSPI : public wk_base::WKBaseRegister {
  public:
+  //
+  // implements WKBaseRegister virtual methods
+  //
   uint8_t read_reg() const override;
   void write_reg(uint8_t value) override;
   void read_fifo(uint8_t *data, size_t length) const override;
   void write_fifo(uint8_t *data, size_t length) override;
 
  protected:
-  friend WKGPIOComponentSPI;
-  WK2168RegSPI(wk_base::WKGPIOComponent *const comp, uint8_t reg, uint8_t channel)
+  friend WK2132ComponentSPI;
+  /// @brief ctor
+  /// @param comp component we belongs to
+  /// @param reg proxied register
+  /// @param channel associated channel
+  WK2132RegisterSPI(wk_base::WKBaseComponent *comp, uint8_t reg, uint8_t channel)
       : WKBaseRegister(comp, reg, channel) {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
-// class WKGPIOComponentSPI
+// class WK2132ComponentSPI
 ////////////////////////////////////////////////////////////////////////////////////
 
-/// @brief WKGPIOComponent using SPI bus
-class WKGPIOComponentSPI : public wk_base::WKGPIOComponent,
+/// @brief WKBaseComponent using SPI bus
+class WK2132ComponentSPI : public wk_base::WKBaseComponent,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
@@ -44,13 +47,16 @@ class WKGPIOComponentSPI : public wk_base::WKGPIOComponent,
     return reg_spi_;
   }
 
+  //
+  // override Component methods
+  //
   void setup() override;
   void dump_config() override;
 
  protected:
-  friend class WK2168RegSPI;
-  WK2168RegSPI reg_spi_{this, 0, 0};  ///< store the current register/channel
+  friend WK2132RegisterSPI;
+  WK2132RegisterSPI reg_spi_{this, 0, 0};  ///< store the current register
 };
 
-}  // namespace wk2168_spi
+}  // namespace wk2132_spi
 }  // namespace esphome
