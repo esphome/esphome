@@ -10,8 +10,10 @@
 
 #ifdef USE_ESP8266
 #include <ESP8266WiFi.h>
-#include <WiFiUdp.h>
+//#include <WiFiUdp.h>
 #endif
+
+#include <WiFiUdp.h> // test against nonesp
 
 namespace esphome {
 namespace wled {
