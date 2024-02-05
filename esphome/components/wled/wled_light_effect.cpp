@@ -106,7 +106,6 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
           return false;
       } else {
         ESP_LOGD(TAG, "got WLED notify");
-
         if (!parse_notifier_frame_(it, payload, size))
           return false;
       }
@@ -149,6 +148,13 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
 }
 
 bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size) {
+  
+  ESP_LOGD(TAG, payload[0]);
+  ESP_LOGD(TAG, payload[1]);
+  ESP_LOGD(TAG, payload[2]);
+  ESP_LOGD(TAG, payload[3]);
+  ESP_LOGD(TAG, payload[4]);
+
   // Packet needs to be empty
   return size == 0;
 }
