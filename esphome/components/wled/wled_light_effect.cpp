@@ -109,7 +109,7 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
         if (!parse_notifier_frame_(it, payload, size))
           return false;
         else
-          timeout == UINT8_MAX
+          timeout = UINT8_MAX;
       }
       break;
 
