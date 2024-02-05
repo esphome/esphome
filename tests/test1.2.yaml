@@ -1,0 +1,154 @@
+---
+substitutions:
+  devicename: test1_2
+  sensorname: my
+  textname: template
+  roomname: living_room
+
+esphome:
+  name: test1_2
+  name_add_mac_suffix: true
+  platform: ESP32
+  board: nodemcu-32s
+  build_path: build/test1
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  id: i2c_bus
+  frequency: 400kHz
+
+logger:
+  level: VERBOSE
+
+api:
+
+wifi:
+  ssid: "ssid"
+
+time:
+  - platform: ds3232
+    id: ds3232_chip
+    i2c_id: i2c_bus
+    temperature:
+      name: "Chip Temperature"
+    use_heartbeat: false
+    interrupt_pin:
+      number: GPIO18
+      mode:
+        input: true
+        pullup: true
+    reset_pin: GPIO23
+    fire_alarms_on_startup: true
+    first_alarm:
+      mode: MATCH_DAY_OF_WEEK_AND_TIME
+      time_pattern: "Wed 12:04:23"
+    second_alarm:
+      mode: MATCH_TIME
+      time:
+        minute: 10
+        hour: 21
+    on_first_alarm:
+      then:
+        - lambda: |-
+            if(!id(counter_one)->is_initialized()) {
+              ESP_LOGD("TEST", "NVRAM not yet ready...");
+              return;
+            };
+            int i = id(counter_one)->value();
+            i++;
+            id(test_snsr).publish_state(i);
+            id(counter_one)->value() = i;
+    on_heartbeat:
+      then:
+        - lambda: |-
+            ESP_LOGD("TEST", "1Hz heartbeat signal");
+    on_second_alarm:
+      then:
+        - logger.log: "Alarm 2 has been fired"
+        - lambda: |-
+            id(has_ever_fired)->value() = true;
+    # on_power_change:
+    #   then:
+    #     - lambda: |-
+    #         id(counter_one)->value() = id(counter_one)->value() + 1;
+    #     - if:
+    #         condition:
+    #           lambda: |-
+    #             return id(has_ever_fired)->value();
+    #         then:
+    #           - ds3232.enable_heartbeat: ds3232_chip
+    #         else:
+    #           - ds3232.enable_alarms: ds3232_chip
+    persistent_storage:
+      - id: counter_one
+        type: uint64
+        register: 0x21
+        initial_value: '3548'
+      - id: has_ever_fired
+        type: bool
+        register: 0x20
+
+sensor:
+  - platform: template
+    name: "Test"
+    id: test_snsr
+  - platform: template
+    name: "NVRAM Counter"
+    lambda: |-
+      if(id(counter_one)->is_initialized())
+        return id(counter_one)->value();
+      else
+        return NAN;
+    update_interval: 5s
+  - platform: template
+    name: "Has Ever Fired"
+    update_interval: 5s
+    lambda: |-
+      if(id(has_ever_fired)->is_initialized())
+        return id(has_ever_fired)->value();
+      else
+        return NAN;
+
+button:
+  - platform: template
+    name: Reset variables
+    on_press:
+      then:
+      - ds3232_nvram.set:
+          id: has_ever_fired
+          value: 'false'
+      - ds3232_nvram.set:
+          id: counter_one
+          value: '5555555'
+  - platform: template
+    name: Factory Reset
+    on_press:
+      then:
+        - ds3232.factory_reset
+  - platform: template
+    name: Toggle DS3232 mode
+    on_press:
+      then:
+      - if:
+          condition:
+            ds3232.is_heartbeat_enabled: ds3232_chip
+          then:
+            - ds3232.enable_alarms: ds3232_chip
+          else:
+            - ds3232.enable_heartbeat: ds3232_chip
+  - platform: template
+    name: Set New Alarm
+    on_press:
+      - ds3232.set_alarm_one:
+          mode: MATCH_SECONDS
+          active: true
+          time_pattern: "* *:*:10"
+      - ds3232.set_alarm_two:
+          mode: MATCH_MINUTES_SECONDS
+          active: true
+          time:
+            minute: 15
+      - ds3232_nvram.set:
+          id: has_ever_fired
+          value: 'false'
