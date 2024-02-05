@@ -76,8 +76,8 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_EMPTY,
             ),
-            cv.Optional(CONF_GAIN, default="X3"): cv.enum(GAIN_OPTIONS),
-            cv.Optional(CONF_RESOLUTION, default=18): cv.enum(RES_OPTIONS),
+            cv.Optional(CONF_GAIN, default="X18"): cv.enum(GAIN_OPTIONS),
+            cv.Optional(CONF_RESOLUTION, default=20): cv.enum(RES_OPTIONS),
             cv.Optional(CONF_WINDOW_CORRECTION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
             ),
