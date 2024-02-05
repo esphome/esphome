@@ -166,7 +166,7 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
   // Receive at least RGBW and Brightness from WLED Sync Notification
   
   //payload[0] //Brightness
-  uint8_t bri = payload[0]
+  uint8_t bri = payload[0];
   
   uint8_t r = payload[1];
   uint8_t g = payload[2];
