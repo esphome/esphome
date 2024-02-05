@@ -174,10 +174,10 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
   uint8_t w = payload[8];
 
 
-  uint8_t r2 = scale8(r, bri);
-  uint8_t g2 = scale8(g, bri);
-  uint8_t b2 = scale8(b, bri);
-  uint8_t w2 = scale8(w, bri);
+  uint8_t r2 = esp_scale8(r, bri);
+  uint8_t g2 = esp_scale8(g, bri);
+  uint8_t b2 = esp_scale8(b, bri);
+  uint8_t w2 = esp_scale8(w, bri);
     
   it[0].set(Color(r2, g2, b2, w2));
   
