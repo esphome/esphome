@@ -108,6 +108,8 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
         ESP_LOGD(TAG, "got WLED notify");
         if (!parse_notifier_frame_(it, payload, size))
           return false;
+        else
+          timeout == UINT8_MAX
       }
       break;
 
@@ -160,7 +162,6 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
   uint8_t b = payload[4];
   
   it[0].set(Color(r, g, b));
-  timeout == UINT8_MAX
   
   // Packet needs to be empty
   //return size == 0;
