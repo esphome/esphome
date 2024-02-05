@@ -48,7 +48,7 @@ enum DS3232NVRAMState {
 static const uint8_t SVC_NVRAM_ADDRESS = 0x14;
 
 /// @brief Minimal number of NVRAM register available to user variables.
-static const uint8_t MIN_NVRAM_ADDRESS = 0x20;
+static const uint8_t MIN_NVRAM_ADDRESS = 0x18;
 
 /// @brief Maximal number of NVRAM register available to user variables.
 static const uint8_t MAX_NVRAM_ADDRESS = 0xFF;
