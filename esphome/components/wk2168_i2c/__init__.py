@@ -37,6 +37,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add_build_flag("-DI2C_BUFFER_LENGTH=255")
     cg.add_build_flag("-DUSE_I2C_BUS")
+    cg.add_build_flag("-DHAS_GPIO_PIN")
     cg.add(var.set_name(str(config[CONF_ID])))
     await wk_base.register_wk_base(var, config)
     await i2c.register_i2c_device(var, config)

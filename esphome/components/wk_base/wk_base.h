@@ -19,8 +19,9 @@
 #include "Wire.h"
 #endif
 
-#define USE_SPI_BUS
-#define USE_I2C_BUS
+// #define USE_SPI_BUS
+// #define USE_I2C_BUS
+// #define HAS_GPIO_PIN
 
 #ifdef USE_SPI_BUS
 #include "esphome/components/spi/spi.h"
@@ -34,10 +35,10 @@
 /// not set it by default but you can add it by using the following lines in you configuration file:
 /// @code
 /// esphome:
-///   name: test-wk_base-i2c-arduino
 ///   platformio_options:
 ///     build_flags:
 ///       - -DTEST_COMPONENT
+
 // #define TEST_COMPONENT
 
 namespace esphome {
@@ -263,7 +264,6 @@ class WKBaseComponent : public Component {
 
  protected:
   friend class WKBaseChannel;
-  friend class WKGPIOPin;
 
   /// @brief Get the priority of the component
   /// @return the priority
@@ -272,6 +272,8 @@ class WKBaseComponent : public Component {
   /// therefore it is seen by our client almost as if it was a bus.
   float get_setup_priority() const override { return setup_priority::BUS - 0.1F; }
 
+#ifdef HAS_GPIO_PIN
+  friend class WKGPIOPin;
   /// Helper method to read the value of a pin.
   bool read_pin_val_(uint8_t pin);
 
@@ -288,16 +290,18 @@ class WKBaseComponent : public Component {
   void test_gpio_output_();
 #endif
 
+  uint8_t pin_config_{0x00};                 ///< pin config mask: 1 means OUTPUT, 0 means INPUT
+  uint8_t output_state_{0x00};               ///< output state: 1 means HIGH, 0 means LOW
+  uint8_t input_state_{0x00};                ///< input pin states: 1 means HIGH, 0 means LOW
+#endif                                       // HAS GPIO
   uint32_t crystal_;                         ///< crystal value;
   int test_mode_;                            ///< test mode value (0 -> no tests)
   bool page1_{false};                        ///< set to true when in "page1 mode"
   std::vector<WKBaseChannel *> children_{};  ///< the list of WKBaseChannel UART children
   std::string name_;                         ///< name of entity
-  uint8_t pin_config_{0x00};                 ///< pin config mask: 1 means OUTPUT, 0 means INPUT
-  uint8_t output_state_{0x00};               ///< output state: 1 means HIGH, 0 means LOW
-  uint8_t input_state_{0x00};                ///< input pin states: 1 means HIGH, 0 means LOW
 };
 
+#ifdef HAS_GPIO_PIN
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Helper class to expose a WK family IO pin as an internal GPIO pin.
 ///////////////////////////////////////////////////////////////////////////////
@@ -320,6 +324,7 @@ class WKGPIOPin : public GPIOPin {
   bool inverted_;
   gpio::Flags flags_;
 };
+#endif
 
 #ifdef USE_I2C_BUS
 ////////////////////////////////////////////////////////////////////////////////////
@@ -333,7 +338,7 @@ class WKBaseRegI2C : public WKBaseRegister {
   void write_fifo(uint8_t *data, size_t length) override;
 
  protected:
-  // friend WKBaseComponentI2C;
+  friend WKBaseComponentI2C;
   WKBaseRegI2C(WKBaseComponent *const comp, uint8_t reg, uint8_t channel) : WKBaseRegister(comp, reg, channel) {}
 };
 

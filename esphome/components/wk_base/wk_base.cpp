@@ -82,6 +82,23 @@ const char *p2s(uart::UARTParityOptions parity) {
   }
 }
 
+/// @brief Display a buffer in hexadecimal format (32 hex values / line).
+void print_buffer(const uint8_t *data, size_t length) {
+  char hex_buffer[100];
+  hex_buffer[(3 * 32) + 1] = 0;
+  for (size_t i = 0; i < length; i++) {
+    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
+    if (i % 32 == 31) {
+      ESP_LOGVV(TAG, "   %s", hex_buffer);
+    }
+  }
+  if (length % 32) {
+    // null terminate if incomplete line
+    hex_buffer[3 * (length % 32) + 2] = 0;
+    ESP_LOGVV(TAG, "   %s", hex_buffer);
+  }
+}
+
 static const char *const REG_TO_STR_P0[16] = {"GENA", "GRST",  "GMUT",  "SPAGE", "SCR", "LCR",  "FCR",  "SIER",
                                               "SIFR", "TFCNT", "RFCNT", "FSR",   "LSR", "FDAT", "FWCR", "RS485"};
 static const char *const REG_TO_STR_P1[16] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL",
@@ -139,22 +156,6 @@ inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, RegType fifo) 
   return addr;
 }
 #endif
-
-/// @brief Display a buffer in hexadecimal format (32 hex values / line).
-void print_buffer(const uint8_t *data, size_t length) {
-  char hex_buffer[100];
-  hex_buffer[(3 * 32) + 1] = 0;
-  for (size_t i = 0; i < length; i++) {
-    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
-    if (i % 32 == 31)
-      ESP_LOGVV(TAG, "   %s", hex_buffer);
-  }
-  if (length % 32) {
-    // null terminate if incomplete line
-    hex_buffer[3 * (length % 32) + 2] = 0;
-    ESP_LOGVV(TAG, "   %s", hex_buffer);
-  }
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // The WKBaseRegister methods
@@ -233,7 +234,7 @@ void WKBaseComponent::loop() {
       }
     }
   }
-
+#ifdef HAS_GPIO_PIN
   if (test_mode_ == 3) {
     test_gpio_input_();
   }
@@ -241,11 +242,11 @@ void WKBaseComponent::loop() {
   if (test_mode_ == 4) {
     test_gpio_output_();
   }
-
+#endif
 #endif
 }
 
-#ifdef TEST_COMPONENT
+#if defined(TEST_COMPONENT) && defined(HAS_GPIO_PIN)
 void WKBaseComponent::test_gpio_input_() {
   static bool init_input{false};
   static uint8_t state{0};
@@ -283,6 +284,7 @@ void WKBaseComponent::test_gpio_output_() {
 }
 #endif
 
+#ifdef HAS_GPIO_PIN
 bool WKBaseComponent::read_pin_val_(uint8_t pin) {
   this->input_state_ = this->reg(WKREG_GPDAT, 0);
   ESP_LOGVV(TAG, "reading input pin %d = %d in_state %s", pin, this->input_state_ & (1 << pin), I2S2CS(input_state_));
@@ -326,6 +328,7 @@ std::string WKGPIOPin::dump_summary() const {
   snprintf(buffer, sizeof(buffer), "%u via WK2168 %s", this->pin_, this->parent_->get_name());
   return buffer;
 }
+#endif
 
 #ifdef USE_I2C_BUS
 ///////////////////////////////////////////////////////////////////////////////
