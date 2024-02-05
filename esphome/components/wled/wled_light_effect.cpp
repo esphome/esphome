@@ -155,13 +155,14 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
 }
 
 bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size) {
-  
+  // https://kno.wled.ge/interfaces/udp-notifier/  
   
   uint8_t r = payload[1];
   uint8_t g = payload[2];
   uint8_t b = payload[3];
-  
-  it[0].set(Color(r, g, b));
+  uint8_t w = payload[8];
+
+  it[0].set(Color(r, g, b, w));
   
   // Packet needs to be empty?
   //return size == 0;
