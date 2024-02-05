@@ -8,7 +8,7 @@
 #ifdef USE_ESP_IDF
 #include <driver/uart.h>
 
-#ifdef USE_USB_SERIAL_JTAG
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
 #include <driver/usb_serial_jtag.h>
 #include <esp_vfs_dev.h>
 #include <esp_vfs_usb_serial_jtag.h>
@@ -32,7 +32,7 @@ static const char *const TAG = "logger";
 
 #ifdef USE_ESP_IDF
 
-#ifdef USE_USB_SERIAL_JTAG
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
 static void init_usb_serial_jtag_() {
   setvbuf(stdin, NULL, _IONBF, 0);  // Disable buffering on stdin
 
@@ -103,7 +103,7 @@ void Logger::pre_setup() {
         break;
 #endif
 
-#ifdef USE_USB_CDC
+#ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
         this->hw_serial_ = &Serial;
 #if ARDUINO_USB_CDC_ON_BOOT
@@ -134,7 +134,7 @@ void Logger::pre_setup() {
         this->uart_num_ = -1;
         break;
 #endif
-#ifdef USE_USB_SERIAL_JTAG
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
       case UART_SELECTION_USB_SERIAL_JTAG:
         this->uart_num_ = -1;
         init_usb_serial_jtag_();
@@ -184,10 +184,10 @@ const char *const UART_SELECTIONS[] = {
 #ifdef USE_ESP32_VARIANT_ESP32
     "UART2",
 #endif
-#ifdef USE_USB_CDC
+#ifdef USE_LOGGER_USB_CDC
     "USB_CDC",
 #endif
-#ifdef USE_USB_SERIAL_JTAG
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
     "USB_SERIAL_JTAG",
 #endif
 };

@@ -278,12 +278,12 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
     try:
         uart_selection(USB_SERIAL_JTAG)
-        cg.add_define("-DUSE_LOGGER_USB_SERIAL_JTAG")
+        cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
     except cv.Invalid:
         pass
     try:
         uart_selection(USB_CDC)
-        cg.add_build_flag("-DUSE_USB_CDC")
+        cg.add_define("USE_LOGGER_USB_CDC")
     except cv.Invalid:
         pass
 
