@@ -206,15 +206,15 @@ void DS3232Component::clear_nvram_() {
   uint8_t step = 0;
   bool state = true;
   std::vector<uint8_t> zeroes;
-  zeroes.resize(write_len_, 0);
+  zeroes.resize(write_len, 0);
 
   while (step < total_size) {
     bool res = false;
     if ((total_size - step) < write_len) {
-      res_ = this->write_bytes(MIN_NVRAM_ADDRESS + step_, zeroes.data(), total_size - step_);
+      res = this->write_bytes(MIN_NVRAM_ADDRESS + step, zeroes.data(), total_size - step);
       step += (total_size - step);
     } else {
-      res_ = this->write_bytes(MIN_NVRAM_ADDRESS + step_, zeroes);
+      res = this->write_bytes(MIN_NVRAM_ADDRESS + step, zeroes);
       step += write_len;
     }
     ESP_LOGV(TAG, "NVRAM: Trying to set %#02x register to 0x00: %s", MIN_NVRAM_ADDRESS + step, YESNO(res));
