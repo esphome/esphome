@@ -157,9 +157,9 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
 bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size) {
   
   
-  uint8_t r = payload[2];
-  uint8_t g = payload[3];
-  uint8_t b = payload[4];
+  uint8_t r = payload[4];
+  uint8_t g = payload[5];
+  uint8_t b = payload[6];
   
   it[0].set(Color(r, g, b));
   
