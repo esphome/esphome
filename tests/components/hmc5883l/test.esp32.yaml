@@ -1,0 +1,19 @@
+i2c:
+  - id: i2c_hmc5883l
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: hmc5883l
+    address: 0x68
+    field_strength_x:
+      name: HMC5883L Field Strength X
+    field_strength_y:
+      name: HMC5883L Field Strength Y
+    field_strength_z:
+      name: HMC5883L Field Strength Z
+    heading:
+      name: HMC5883L Heading
+    range: 130uT
+    oversampling: 8x
+    update_interval: 15s
