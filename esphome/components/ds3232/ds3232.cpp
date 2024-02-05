@@ -281,7 +281,7 @@ bool DS3232Component::read_memory(uint8_t reg_id, std::vector<uint8_t> &data) {
     ESP_LOGW(TAG, "NVRAM: Memory reset process in progress. Try later.");
     return false;
   }
-  if (data.size() == 0) {
+  if (data.empty()) {
     ESP_LOGW(TAG, "NVRAM: Nothing to write to memory.");
     return true;
   }
@@ -300,7 +300,7 @@ bool DS3232Component::read_memory(uint8_t reg_id, std::vector<uint8_t> &data) {
 }
 
 bool DS3232Component::write_memory(const uint8_t reg_id, const std::vector<uint8_t> &data) {
-  if (data.size() == 0) {
+  if (data.empty()) {
     ESP_LOGW(TAG, "NVRAM: Nothing to write to memory.");
     return true;
   }

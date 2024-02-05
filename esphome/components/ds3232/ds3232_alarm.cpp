@@ -68,7 +68,7 @@ DS3232Alarm DS3232Alarm::create(const bool is_enabled, const DS3232AlarmMode mod
   alarm.seconds_supported = is_seconds_supported;
   ESP_LOGVV(TAG, " Seconds supported: %s", YESNO(alarm.seconds_supported));
   alarm.mode = mode;
-  ESP_LOGVV(TAG, " Mode set to: %.2u (%.2u)", alarm.mode, mode);
+  ESP_LOGVV(TAG, " Mode set to: %.2u (%.2u)", alarm.mode.raw, mode.raw);
   alarm.second = second;
   ESP_LOGVV(TAG, " Seconds set to: %.2u (%.2u)", alarm.second, second);
   alarm.minute = minute;
@@ -89,11 +89,13 @@ std::string DS3232Alarm::to_string() const {
     return std::string(INVALID);
   char formatted_string[DS3232_ALARM_FORMAT_STRING_LENGTH];
   size_t len;
-  switch (this->mode.alarm_mode) {
-    case AlarmMode::EVERY_TIME:
+  switch (this->mode.raw) {
+    //AlarmMode::EVERY_TIME
+    case 15:
     case 31:
       return std::string(this->seconds_supported ? FORMAT_STRING_EVERY_TIME_S : FORMAT_STRING_EVERY_TIME_M);
-    case AlarmMode::MATCH_SECONDS:
+    //AlarmMode::MATCH_SECONDS
+    case 14:
     case 30:
       if (!this->seconds_supported)
         return std::string(FORMAT_STRING_EVERY_TIME_M);
@@ -104,7 +106,8 @@ std::string DS3232Alarm::to_string() const {
         return std::string(INVALID);
       }
       return std::string(formatted_string);
-    case AlarmMode::MATCH_MINUTES_SECONDS:
+    //AlarmMode::MATCH_MINUTES_SECONDS
+    case 12:
     case 28:
       len = snprintf(formatted_string, sizeof(formatted_string), FORMAT_STRING_EVERY_HOUR, this->minute, this->second);
       if (len < 0) {
@@ -112,7 +115,8 @@ std::string DS3232Alarm::to_string() const {
         return std::string(INVALID);
       }
       return std::string(formatted_string);
-    case AlarmMode::MATCH_TIME:
+    //AlarmMode::MATCH_TIME
+    case 8:
     case 24:
       len = snprintf(formatted_string, sizeof(formatted_string), FORMAT_STRING_EVERY_DAY, this->hour, this->minute,
                      this->second);
@@ -121,7 +125,8 @@ std::string DS3232Alarm::to_string() const {
         return std::string(INVALID);
       }
       return std::string(formatted_string);
-    case AlarmMode::MATCH_DAY_OF_WEEK_AND_TIME:
+    //AlarmMode::MATCH_DAY_OF_WEEK_AND_TIME
+    case 16:
       len = snprintf(formatted_string, sizeof(formatted_string), FORMAT_STRING_EVERY_WEEK,
                      DAYS_OF_WEEK[this->day_of_week], this->hour, this->minute, this->second);
       if (len < 0) {
@@ -129,7 +134,8 @@ std::string DS3232Alarm::to_string() const {
         return std::string(INVALID);
       }
       return std::string(formatted_string);
-    case AlarmMode::MATCH_DATE_AND_TIME:
+    //AlarmMode::MATCH_DATE_AND_TIME
+    case 0:
       len = snprintf(formatted_string, sizeof(formatted_string), FORMAT_STRING_EVERY_MONTH, this->day_of_month,
                      ORDINAL_SUFFIX(this->day_of_month), this->hour, this->minute, this->second);
       if (len < 0) {
