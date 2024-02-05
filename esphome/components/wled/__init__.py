@@ -9,6 +9,7 @@ WLEDLightEffect = wled_ns.class_("WLEDLightEffect", AddressableLightEffect)
 
 CONFIG_SCHEMA = cv.All(cv.Schema({}), cv.only_with_arduino)
 
+CONF_SYNCGROUP = 128
 
 @register_addressable_effect(
     "wled",
