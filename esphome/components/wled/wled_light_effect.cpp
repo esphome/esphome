@@ -183,6 +183,7 @@ bool WLEDLightEffect::parse_warls_frame_(light::AddressableLight &it, const uint
     uint8_t r = payload[1];
     uint8_t g = payload[2];
     uint8_t b = payload[3];
+    auto max_leds = it.size();
 
     if (led < max_leds) {
       it[led].set(Color(r, g, b));
