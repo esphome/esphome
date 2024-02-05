@@ -1,0 +1,8 @@
+remote_transmitter:
+  pin: 2
+  carrier_duty_percent: 50%
+
+climate:
+  - platform: gree
+    name: GREE
+    model: generic
