@@ -154,20 +154,41 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
   return true;
 }
 
+
+
+
+
+
+
 bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size) {
   // https://kno.wled.ge/interfaces/udp-notifier/  
+  // https://github.com/Aircoookie/WLED/blob/main/wled00/udp.cpp
+  // Receive at least RGBW and Brightness from WLED Sync Notification
+  
+  //payload[0] //Brightness
+  uint8_t bri = payload[0]
   
   uint8_t r = payload[1];
   uint8_t g = payload[2];
   uint8_t b = payload[3];
   uint8_t w = payload[8];
 
-  it[0].set(Color(r, g, b, w));
+
+  uint8_t r2 = scale8(r, bri);
+  uint8_t g2 = scale8(g, bri);
+  uint8_t b2 = scale8(b, bri);
+  uint8_t w2 = scale8(w, bri);
+    
+  it[0].set(Color(r2, g2, b2, w2));
   
-  // Packet needs to be empty?
-  //return size == 0;
   return true;
 }
+
+
+
+
+
+
 
 bool WLEDLightEffect::parse_warls_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size) {
   // packet: index, r, g, b
