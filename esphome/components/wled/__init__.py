@@ -16,6 +16,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({}), cv.only_with_arduino)
     "WLED",
     {
         cv.Optional(CONF_PORT, default=21324): cv.port,
+        cv.Optional(CONF_SYNCGROUP, default=128): cv.syncgroup
     },
 )
 async def wled_light_effect_to_code(config, effect_id):
