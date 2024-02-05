@@ -148,14 +148,12 @@ class LightState : public EntityBase, public Component {
    * Indicator if a transformer (e.g. transition) is active. This is useful
    * for effects e.g. at the start of the apply() method, add a check like:
    *
-   * if (this->state_->transformer_active) {
+   * if (this->state_->is_transformer_active()) {
    *   // Something is already running.
    *   return;
    * }
-   *
-   * This property is read-only for users. Any changes to it will be ignored.
    */
-  bool transformer_active = false;
+  bool is_transformer_active();
 
  protected:
   friend LightOutput;
@@ -216,6 +214,9 @@ class LightState : public EntityBase, public Component {
   LightRestoreMode restore_mode_;
   /// List of effects for this light.
   std::vector<LightEffect *> effects_;
+
+  // for effects, true if a transformer (transition) is active.
+  bool is_transformer_active_ = false;
 };
 
 }  // namespace light
