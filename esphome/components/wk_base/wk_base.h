@@ -15,8 +15,18 @@
 #include "esphome/components/uart/uart.h"
 #include "wk_reg_def.h"
 
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO) && defined(I2C_COMPILE)
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) && defined(USE_I2C_BUS)
 #include "Wire.h"
+#endif
+
+#define USE_SPI_BUS
+// #define USE_I2C_BUS
+
+#ifdef USE_SPI_BUS
+#include "esphome/components/spi/spi.h"
+#endif
+#ifdef USE_I2C_BUS
+#include "esphome/components/i2c/i2c.h"
 #endif
 
 /// When the TEST_COMPONENT flag is defined we include some auto-test methods. Used to test the software during
@@ -141,6 +151,8 @@ template<typename T, size_t SIZE> class RingBuffer {
 
 // class WKBaseI2C;
 // class WKBaseSPI;
+class WKGPIOComponentSPI;
+class WKBaseComponentSPI;
 
 class WKBaseComponent;  // forward declaration
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -205,6 +217,9 @@ class WKBaseRegister {
   virtual void write_fifo(uint8_t *data, size_t length) = 0;
 
  protected:
+  friend WKGPIOComponentSPI;
+  friend WKBaseComponentSPI;
+
   WKBaseComponent *const comp_;  ///< pointer to our parent (aggregation)
   uint8_t register_;             ///< address of the register
   uint8_t channel_;              ///< channel for this register
@@ -251,6 +266,7 @@ class WKBaseComponent : public Component {
 
  protected:
   friend class WKBaseChannel;
+  friend class WKGPIOPin;
 
   /// @brief Get the priority of the component
   /// @return the priority
@@ -258,6 +274,15 @@ class WKBaseComponent : public Component {
   /// the i2c bus (which has a priority of BUS) to communicate and the WK2168
   /// therefore it is seen by our client almost as if it was a bus.
   float get_setup_priority() const override { return setup_priority::BUS - 0.1F; }
+
+  /// Helper method to read the value of a pin.
+  bool read_pin_val_(uint8_t pin);
+
+  /// Helper method to write the value of a pin.
+  void write_pin_val_(uint8_t pin, bool value);
+
+  /// Helper method to set the pin mode of a pin.
+  void set_pin_direction_(uint8_t pin, gpio::Flags flags);
 
 #ifdef TEST_COMPONENT
   /// @brief auto test for the GPIO pins
@@ -271,29 +296,9 @@ class WKBaseComponent : public Component {
   bool page1_{false};                        ///< set to true when in "page1 mode"
   std::vector<WKBaseChannel *> children_{};  ///< the list of WKBaseChannel UART children
   std::string name_;                         ///< name of entity
-};
-
-////////////////////////////////////////////////////////////////////////////////////
-/// @brief The WKGPIOComponent class stores the information global to the WK family
-/// component and provides methods to set/access this information.
-/// This class inherit from the WKBaseComponent and adds the GPIO functionality.
-////////////////////////////////////////////////////////////////////////////////////
-class WKGPIOComponent : public wk_base::WKBaseComponent {
- protected:
-  friend class WKGPIOPin;
-
-  /// Helper method to read the value of a pin.
-  bool read_pin_val_(uint8_t pin);
-
-  /// Helper method to write the value of a pin.
-  void write_pin_val_(uint8_t pin, bool value);
-
-  /// Helper method to set the pin mode of a pin.
-  void set_pin_direction_(uint8_t pin, gpio::Flags flags);
-
-  uint8_t pin_config_{0x00};    ///< pin config mask: 1 means OUTPUT, 0 means INPUT
-  uint8_t output_state_{0x00};  ///< output state: 1 means HIGH, 0 means LOW
-  uint8_t input_state_{0x00};   ///< input pin states: 1 means HIGH, 0 means LOW
+  uint8_t pin_config_{0x00};                 ///< pin config mask: 1 means OUTPUT, 0 means INPUT
+  uint8_t output_state_{0x00};               ///< output state: 1 means HIGH, 0 means LOW
+  uint8_t input_state_{0x00};                ///< input pin states: 1 means HIGH, 0 means LOW
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -301,7 +306,7 @@ class WKGPIOComponent : public wk_base::WKBaseComponent {
 ///////////////////////////////////////////////////////////////////////////////
 class WKGPIOPin : public GPIOPin {
  public:
-  void set_parent(WKGPIOComponent *parent) { this->parent_ = parent; }
+  void set_parent(WKBaseComponent *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
@@ -313,11 +318,90 @@ class WKGPIOPin : public GPIOPin {
   void digital_write(bool value) override { this->parent_->write_pin_val_(this->pin_, value != this->inverted_); }
 
  protected:
-  WKGPIOComponent *parent_{nullptr};
+  WKBaseComponent *parent_{nullptr};
   uint8_t pin_;
   bool inverted_;
   gpio::Flags flags_;
 };
+
+#ifdef USE_I2C_BUS
+////////////////////////////////////////////////////////////////////////////////////
+// class WK2168RegI2C
+////////////////////////////////////////////////////////////////////////////////////
+class WK2168RegI2C : public WKBaseRegister {
+ public:
+  uint8_t read_reg() const override;
+  void write_reg(uint8_t value) override;
+  void read_fifo(uint8_t *data, size_t length) const override;
+  void write_fifo(uint8_t *data, size_t length) override;
+
+ protected:
+  friend WKGPIOComponentI2C;
+  WK2168RegI2C(WKGPIOComponent *const comp, uint8_t reg, uint8_t channel) : WKBaseRegister(comp, reg, channel) {}
+};
+
+////////////////////////////////////////////////////////////////////////////////////
+// class WKGPIOComponentI2C
+////////////////////////////////////////////////////////////////////////////////////
+class WKGPIOComponentI2C : public WKGPIOComponent, public i2c::I2CDevice {
+ public:
+  WKBaseRegister &reg(uint8_t reg, uint8_t channel) override {
+    reg_i2c_.register_ = reg;
+    reg_i2c_.channel_ = channel;
+    return reg_i2c_;
+  }
+
+  //
+  // override Component methods
+  //
+  void setup() override;
+  void dump_config() override;
+
+ protected:
+  friend class WK2168RegI2C;
+  friend class WKBaseChannel;
+  uint8_t base_address_;              ///< base address of I2C device
+  WK2168RegI2C reg_i2c_{this, 0, 0};  ///< store the current register/channel
+};
+#endif
+
+#ifdef USE_SPI_BUS
+
+////////////////////////////////////////////////////////////////////////////////////
+// class WKBaseRegSPI
+////////////////////////////////////////////////////////////////////////////////////
+class WKBaseRegSPI : public WKBaseRegister {
+ public:
+  WKBaseRegSPI(WKBaseComponent *const comp, uint8_t reg, uint8_t channel) : WKBaseRegister(comp, reg, channel) {}
+
+  uint8_t read_reg() const override;
+  void write_reg(uint8_t value) override;
+  void read_fifo(uint8_t *data, size_t length) const override;
+  void write_fifo(uint8_t *data, size_t length) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////////
+// class WKGPIOComponentSPI
+////////////////////////////////////////////////////////////////////////////////////
+/// @brief WKGPIOComponent using SPI bus
+class WKBaseComponentSPI : public WKBaseComponent,
+                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                 spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
+ public:
+  WKBaseRegister &reg(uint8_t reg, uint8_t channel) override {
+    reg_spi_.register_ = reg;
+    reg_spi_.channel_ = channel;
+    return reg_spi_;
+  }
+
+  void setup() override;
+  void dump_config() override;
+
+ protected:
+  // friend class WKBaseRegSPI;
+  WKBaseRegSPI reg_spi_{this, 0, 0};  ///< store the current register/channel
+};
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief The WKBaseChannel class is used to implement all the virtual methods of the ESPHome
