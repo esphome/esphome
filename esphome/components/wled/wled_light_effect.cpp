@@ -105,7 +105,6 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
         if (!parse_drgb_frame_(it, payload, size))
           return false;
       } else {
-        ESP_LOGD(TAG, "got WLED notify");
         if (!parse_notifier_frame_(it, payload, size))
           return false;
         else
@@ -114,26 +113,21 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
       break;
 
     case WARLS:
-      ESP_LOGD(TAG, "got WARLS");
-
       if (!parse_warls_frame_(it, payload, size))
         return false;
       break;
 
     case DRGB:
-      ESP_LOGD(TAG, "got DRGB");
       if (!parse_drgb_frame_(it, payload, size))
         return false;
       break;
 
     case DRGBW:
-      ESP_LOGD(TAG, "got DRGBW");
       if (!parse_drgbw_frame_(it, payload, size))
         return false;
       break;
 
     case DNRGB:
-      ESP_LOGD(TAG, "got DNRGB");
       if (!parse_dnrgb_frame_(it, payload, size))
         return false;
       break;
@@ -158,9 +152,6 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
   // Receive at least RGBW and Brightness for all LEDs from WLED Sync Notification
   // https://kno.wled.ge/interfaces/udp-notifier/  
   // https://github.com/Aircoookie/WLED/blob/main/wled00/udp.cpp
-
-  // TODO check sync group
-  //    - byte 34 bitmask 1-8 -> 1 2 4 8 16 32 64 128
   
   if (size < 34){
     return false;
@@ -168,11 +159,9 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
 
   uint8_t payloadSyncGroup = payload[34];
 
-  if(payloadSyncGroup == sync_group_mask_){
-    ESP_LOGD(TAG, "correct syncgroup");
-  }
-  else{
-    ESP_LOGD(TAG, "not correct syncgroup");
+  if(payloadSyncGroup != sync_group_mask_){ // 1-8 -> 1 2 4 8 16 32 64 128
+    //ESP_LOGD(TAG, "WLED sync group does not match");
+    return false
   }
   
   uint8_t bri = payload[0];  
