@@ -18,6 +18,6 @@ display:
 
 animation:
   - id: rgb565_animation
-    file: ../pnglogo.png
+    file: ../../pnglogo.png
     type: RGB565
     use_transparency: no
