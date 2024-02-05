@@ -1,0 +1,12 @@
+uart:
+  - id: uart_dfrobot_sen0395
+    tx_pin: 17
+    rx_pin: 16
+    baud_rate: 9600
+
+dfrobot_sen0395:
+  - id: mmwave
+
+binary_sensor:
+  - platform: dfrobot_sen0395
+    id: mmwave_detected

@@ -1,0 +1,7 @@
+uart:
+  - id: uart_dfplayer
+    tx_pin: 17
+    rx_pin: 16
+    baud_rate: 9600
+
+dfplayer:
