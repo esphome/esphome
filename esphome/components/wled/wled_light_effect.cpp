@@ -154,8 +154,19 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
 
 bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size) {
   
+  for (uint16_t led = 0; led < count; ++led, payload += 4) {
+    uint8_t r = payload[3];
+    uint8_t g = payload[4];
+    uint8_t b = payload[5];
+    
+    if (led < max_leds) {
+      it[led].set(Color(r, g, b));
+    }
+  }
+  
   // Packet needs to be empty
-  return size == 0;
+  //return size == 0;
+  return true;
 }
 
 bool WLEDLightEffect::parse_warls_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size) {
