@@ -53,7 +53,6 @@ union DS3232AlarmMode {
   mutable uint8_t raw;
 };
 
-
 /// @brief Alarm description
 struct DS3232Alarm {
   /// Indicates whether this alarm is enabled or not

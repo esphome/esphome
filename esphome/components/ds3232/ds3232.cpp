@@ -87,7 +87,6 @@ void DS3232Component::setup() {
   }
 }
 
-
 void DS3232Component::update() {
   if (this->late_startup_)
     return;
@@ -171,19 +170,19 @@ void DS3232Component::loop() {
         clear_nvram_();
       }
       break;
-  case DS3232NVRAMState::NEED_RESET:
-    if (this->busy_) {
-      ESP_LOGI(TAG, "Performing planned NVRAM factory reset...");
-      this->nvram_state_ = DS3232NVRAMState::OK;
-      this->variable_init_callback_.call();
-      if (this->nvram_state_ != DS3232NVRAMState::OK) {
-        ESP_LOGE(TAG, "NVRAM: Failed to reset to factory defaults.");
+    case DS3232NVRAMState::NEED_RESET:
+      if (this->busy_) {
+        ESP_LOGI(TAG, "Performing planned NVRAM factory reset...");
+        this->nvram_state_ = DS3232NVRAMState::OK;
+        this->variable_init_callback_.call();
+        if (this->nvram_state_ != DS3232NVRAMState::OK) {
+          ESP_LOGE(TAG, "NVRAM: Failed to reset to factory defaults.");
+        }
+        this->busy_ = false;
       }
-      this->busy_ = false;
-    }
-    break;
-  default:
-    break;
+      break;
+    default:
+      break;
   }
 }
 
@@ -351,7 +350,6 @@ void DS3232Component::process_alarms_() {
   };
   this->write_bytes(I2C_REG_STATUS, reg_data_.raw_blocks.status_raw, sizeof(reg_data_.raw_blocks.status_raw));
 }
-
 
 /// @brief Reads i2c registers from chip
 /// @return True - if data has been read; otherwise - false

@@ -22,7 +22,6 @@ enum DS3232PowerState {
   BATTERY = 0b10
 };
 
-
 /// @brief State of NVRAM functionality
 enum DS3232NVRAMState {
   /// @brief State is unknown
