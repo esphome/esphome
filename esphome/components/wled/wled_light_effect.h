@@ -35,6 +35,7 @@ class WLEDLightEffect : public light::AddressableLightEffect {
   std::unique_ptr<UDP> udp_;
   uint32_t blank_at_{0};
   uint32_t dropped_{0};
+  uint8_t sync_group_mask_{0};
 };
 
 }  // namespace wled
