@@ -105,6 +105,8 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
         if (!parse_drgb_frame_(it, payload, size))
           return false;
       } else {
+        ESP_LOGD(TAG, "got WLED notify");
+
         if (!parse_notifier_frame_(it, payload, size))
           return false;
       }
