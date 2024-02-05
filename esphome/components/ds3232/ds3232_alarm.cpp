@@ -32,13 +32,6 @@ static const char *const FORMAT_STRING_INVALID = INVALID;
 // So, the recommended formatted_string length initialization: 128 symbols (35 * 3 (105) growed to 2^x(128))
 static const size_t DS3232_ALARM_FORMAT_STRING_LENGTH = 128;
 
-/// Converts alarm match bits to mode
-// static AlarmMode bits_to_mode(bool use_week, bool match_day, bool match_hour, bool match_min, bool match_sec = false) {
-//   uint8_t mode_bits =
-//       0x00001 * match_sec + 0x00010 * match_min + 0x00100 * match_hour + 0x01000 * match_day + 0x10000 * use_week;
-//   return static_cast<AlarmMode>(mode_bits);
-// };
-
 DS3232AlarmMode DS3232Alarm::alarm_mode(const AlarmMode mode) {
   DS3232AlarmMode am = {};
   am.alarm_mode = mode;
@@ -46,12 +39,12 @@ DS3232AlarmMode DS3232Alarm::alarm_mode(const AlarmMode mode) {
 };
 
 DS3232AlarmMode DS3232Alarm::alarm_mode(const bool bit_seconds, const bool bit_minutes, const bool bit_hours,
-                                  const bool bit_days, const bool use_weekdays) {
+                                        const bool bit_days, const bool use_weekdays) {
   bool weekdays_bit = use_weekdays && !(bit_seconds || bit_minutes || bit_hours);
-  uint8_t mode_bits = 0b00001 * bit_seconds + 0b00010 * bit_minutes + 0b00100 * bit_hours + 0b01000 * bit_days +
-                      0b10000 * weekdays_bit;
-  ESP_LOGVV(TAG, "Converted alarm mode from %.1u, %.1u, %.1u, %.1u, %.1u to bits %.2u",
-    bit_seconds, bit_minutes, bit_hours, bit_days, use_weekdays, mode_bits);
+  uint8_t mode_bits =
+      0b00001 * bit_seconds + 0b00010 * bit_minutes + 0b00100 * bit_hours + 0b01000 * bit_days + 0b10000 * weekdays_bit;
+  ESP_LOGVV(TAG, "Converted alarm mode from %.1u, %.1u, %.1u, %.1u, %.1u to bits %.2u", bit_seconds, bit_minutes,
+            bit_hours, bit_days, use_weekdays, mode_bits);
   return DS3232Alarm::alarm_mode(static_cast<AlarmMode>(mode_bits));
 };
 
@@ -66,21 +59,9 @@ bool DS3232Alarm::is_valid() const {
 }
 
 DS3232Alarm DS3232Alarm::create(const bool is_enabled, const DS3232AlarmMode mode, const bool use_weekdays,
-                                const uint8_t day, const uint8_t hour, const uint8_t minute,
-                                const uint8_t second, const bool is_fired,
-                                const bool is_seconds_supported)
-{
+                                const uint8_t day, const uint8_t hour, const uint8_t minute, const uint8_t second,
+                                const bool is_fired, const bool is_seconds_supported) {
   DS3232Alarm alarm = {};
-  //   .enabled = is_enabled,
-  //   .seconds_supported = is_seconds_supported,
-  //   .mode = mode,
-  //   .second = second,
-  //   .minute = minute,
-  //   .hour = hour,
-  //   .day_of_week = (use_weekdays ? day : 1),
-  //   .day_of_month = (use_weekdays ? 1 : day),
-  //   .is_fired = is_fired
-  // };
   ESP_LOGVV(TAG, "Initializing new instance of alarm:");
   alarm.enabled = is_enabled;
   ESP_LOGVV(TAG, " Alarm state: %s", ONOFF(alarm.enabled));
@@ -105,7 +86,7 @@ DS3232Alarm DS3232Alarm::create(const bool is_enabled, const DS3232AlarmMode mod
 
 std::string DS3232Alarm::to_string() const {
   if (!this->is_valid())
-        return std::string(INVALID);
+    return std::string(INVALID);
   char formatted_string[DS3232_ALARM_FORMAT_STRING_LENGTH];
   size_t len;
   switch (this->mode.alarm_mode) {
@@ -125,8 +106,7 @@ std::string DS3232Alarm::to_string() const {
       return std::string(formatted_string);
     case AlarmMode::MATCH_MINUTES_SECONDS:
     case 28:
-      len =
-          snprintf(formatted_string, sizeof(formatted_string), FORMAT_STRING_EVERY_HOUR, this->minute, this->second);
+      len = snprintf(formatted_string, sizeof(formatted_string), FORMAT_STRING_EVERY_HOUR, this->minute, this->second);
       if (len < 0) {
         ESP_LOGE(TAG, "Unable to format alarm data.");
         return std::string(INVALID);

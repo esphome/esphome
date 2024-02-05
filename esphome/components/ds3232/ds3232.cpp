@@ -89,7 +89,7 @@ void DS3232Component::setup() {
 
 
 void DS3232Component::update() {
-  if(this->late_startup_)
+  if (this->late_startup_)
     return;
   this->read_time();
   this->read_temperature_();
@@ -103,12 +103,11 @@ float DS3232Component::get_setup_priority() const { return setup_priority::DATA 
 
 void DS3232Component::reinit_osf_() {
   this->read_data_();
-  if(!this->reg_data_.reg.osf_bit)
+  if (!this->reg_data_.reg.osf_bit)
     return;
   ESP_LOGD(TAG, "Found disabled oscillator. Restarting it.");
   this->reg_data_.reg.osf_bit = false;
-  if(!this->write_byte(I2C_REG_STATUS, this->reg_data_.raw_blocks.status_raw[0]))
-  {
+  if (!this->write_byte(I2C_REG_STATUS, this->reg_data_.raw_blocks.status_raw[0])) {
     ESP_LOGE(TAG, "Unable to restart oscillator.");
     return;
   }
@@ -165,21 +164,19 @@ void DS3232Component::loop() {
     }
     this->pin_state_ = pin_state;
   }
-  switch (this->nvram_state_)
-  {
-  case DS3232NVRAMState::NEED_INITIALIZATION:
-    if(this->busy_) {
-      ESP_LOGI(TAG, "Performing planned NVRAM full reset...");
-      clear_nvram_();
-    }
-    break;
+  switch (this->nvram_state_) {
+    case DS3232NVRAMState::NEED_INITIALIZATION:
+      if (this->busy_) {
+        ESP_LOGI(TAG, "Performing planned NVRAM full reset...");
+        clear_nvram_();
+      }
+      break;
   case DS3232NVRAMState::NEED_RESET:
-    if(this->busy_) {
+    if (this->busy_) {
       ESP_LOGI(TAG, "Performing planned NVRAM factory reset...");
       this->nvram_state_ = DS3232NVRAMState::OK;
       this->variable_init_callback_.call();
-      if(this->nvram_state_ != DS3232NVRAMState::OK)
-      {
+      if (this->nvram_state_ != DS3232NVRAMState::OK) {
         ESP_LOGE(TAG, "NVRAM: Failed to reset to factory defaults.");
       }
       this->busy_ = false;
@@ -212,10 +209,9 @@ void DS3232Component::clear_nvram_() {
   std::vector<uint8_t> zeroes;
   zeroes.resize(write_len_, 0);
 
-  while (step < total_size)
-  {
+  while (step < total_size) {
     bool res = false;
-    if((total_size - step) < write_len) {
+    if ((total_size - step) < write_len) {
       res_ = this->write_bytes(MIN_NVRAM_ADDRESS + step_, zeroes.data(), total_size - step_);
       step += (total_size - step);
     } else {
@@ -226,8 +222,7 @@ void DS3232Component::clear_nvram_() {
     state &= res;
   }
 
-  if(!state)
-  {
+  if (!state) {
     ESP_LOGE(TAG, "NVRAM: Unable to clear memory. Marking as failed.");
     this->nvram_state_ = DS3232NVRAMState::FAIL;
   } else {
@@ -237,8 +232,7 @@ void DS3232Component::clear_nvram_() {
     this->nvram_info_.info.is_initialized = false;
     this->nvram_info_.info.maj_version = NVRAM_DATA_MAJ_VERSION;
     this->nvram_info_.info.min_version = NVRAM_DATA_MIN_VERSION;
-    if(!this->write_bytes(SVC_NVRAM_ADDRESS, this->nvram_info_.raw, sizeof(this->nvram_info_.raw)))
-    {
+    if (!this->write_bytes(SVC_NVRAM_ADDRESS, this->nvram_info_.raw, sizeof(this->nvram_info_.raw))) {
       ESP_LOGE(TAG, "NVRAM: Unable to write service NVRAM information. Marking as failed.");
       this->nvram_state_ = DS3232NVRAMState::FAIL;
     }
@@ -247,8 +241,7 @@ void DS3232Component::clear_nvram_() {
     ESP_LOGD(TAG, "NVRAM: Variables has been initialized. Saving state.");
 
     this->nvram_info_.info.is_initialized = true;
-    if(!this->write_bytes(SVC_NVRAM_ADDRESS, this->nvram_info_.raw, sizeof(this->nvram_info_.raw)))
-    {
+    if (!this->write_bytes(SVC_NVRAM_ADDRESS, this->nvram_info_.raw, sizeof(this->nvram_info_.raw))) {
       ESP_LOGE(TAG, "NVRAM: Unable to write service NVRAM information. Marking as failed.");
       this->nvram_state_ = DS3232NVRAMState::FAIL;
     }
@@ -267,7 +260,7 @@ bool DS3232Component::validate_mem_(uint8_t reg_id, uint8_t size, bool ignore_em
 }
 
 void DS3232Component::reset_memory() {
-  if(this->nvram_state_ == DS3232NVRAMState::INITIALIZATION) {
+  if (this->nvram_state_ == DS3232NVRAMState::INITIALIZATION) {
     ESP_LOGW(TAG, "NVRAM: Another memory reset process in progress already.");
     return;
   }
@@ -276,7 +269,7 @@ void DS3232Component::reset_memory() {
 }
 
 void DS3232Component::reset_to_factory() {
-  if(this->nvram_state_ == DS3232NVRAMState::INITIALIZATION) {
+  if (this->nvram_state_ == DS3232NVRAMState::INITIALIZATION) {
     ESP_LOGW(TAG, "NVRAM: Another memory reset process in progress already.");
     return;
   }
@@ -285,11 +278,11 @@ void DS3232Component::reset_to_factory() {
 }
 
 bool DS3232Component::read_memory(uint8_t reg_id, std::vector<uint8_t> &data) {
-  if(this->nvram_state_ == DS3232NVRAMState::INITIALIZATION) {
+  if (this->nvram_state_ == DS3232NVRAMState::INITIALIZATION) {
     ESP_LOGW(TAG, "NVRAM: Memory reset process in progress. Try later.");
     return false;
   }
-  if(data.size() == 0) {
+  if (data.size() == 0) {
     ESP_LOGW(TAG, "NVRAM: Nothing to write to memory.");
     return true;
   }
@@ -297,36 +290,33 @@ bool DS3232Component::read_memory(uint8_t reg_id, std::vector<uint8_t> &data) {
     ESP_LOGE(TAG, "Invalid NVRAM memory mapping.");
     return false;
   } else {
-    if(!this->read_bytes(reg_id, data.data(), data.size())) {
-      ESP_LOGE(TAG, "NVRAM: Unable to read from %#02x register with size %u.", reg_id,  data.size());
+    if (!this->read_bytes(reg_id, data.data(), data.size())) {
+      ESP_LOGE(TAG, "NVRAM: Unable to read from %#02x register with size %u.", reg_id, data.size());
       this->nvram_state_ = DS3232NVRAMState::FAIL;
       return false;
     };
-    ESP_LOGD(TAG, "NVRAM: Value read from %#02x register with size %u.", reg_id,  data.size());
+    ESP_LOGD(TAG, "NVRAM: Value read from %#02x register with size %u.", reg_id, data.size());
     return true;
   }
 }
 
-bool DS3232Component::write_memory(const uint8_t reg_id, const std::vector<uint8_t> &data)
-{
-  if(data.size() == 0) {
+bool DS3232Component::write_memory(const uint8_t reg_id, const std::vector<uint8_t> &data) {
+  if (data.size() == 0) {
     ESP_LOGW(TAG, "NVRAM: Nothing to write to memory.");
     return true;
   }
 
-  if(this->nvram_state_ == DS3232NVRAMState::INITIALIZATION) {
+  if (this->nvram_state_ == DS3232NVRAMState::INITIALIZATION) {
     ESP_LOGW(TAG, "NVRAM: Memory reset process in progress. Try later.");
     return false;
   }
 
-  if(!this->validate_mem_(reg_id, data.size(), true))
-  {
+  if (!this->validate_mem_(reg_id, data.size(), true)) {
     ESP_LOGE(TAG, "Invalid NVRAM memory mapping.");
     return false;
   }
 
-  if(!this->write_bytes(reg_id, data))
-  {
+  if (!this->write_bytes(reg_id, data)) {
     ESP_LOGE(TAG, "NVRAM: Unable to write to %#02x register with size %u.", reg_id, data.size());
     this->nvram_state_ = DS3232NVRAMState::FAIL;
     return false;
@@ -481,12 +471,9 @@ ds3232_alarm::DS3232Alarm DS3232Component::get_alarm_one() {
   ds3232_alarm::DS3232Alarm alarm = {};
   alarm.enabled = reg_data_.reg.alarm_1_enable;
   alarm.seconds_supported = true;
-  alarm.mode = ds3232_alarm::DS3232Alarm::alarm_mode(
-    reg_data_.reg.alarm_1_mode_1,
-    reg_data_.reg.alarm_1_mode_2,
-    reg_data_.reg.alarm_1_mode_3,
-    reg_data_.reg.alarm_1_mode_4,
-    reg_data_.reg.alarm_1_use_day_of_week);
+  alarm.mode = ds3232_alarm::DS3232Alarm::alarm_mode(reg_data_.reg.alarm_1_mode_1, reg_data_.reg.alarm_1_mode_2,
+                                                     reg_data_.reg.alarm_1_mode_3, reg_data_.reg.alarm_1_mode_4,
+                                                     reg_data_.reg.alarm_1_use_day_of_week);
   alarm.second = reg_data_.reg.alarm_1_second + 10u * reg_data_.reg.alarm_1_second_10;
   alarm.minute = reg_data_.reg.alarm_1_minute + 10u * reg_data_.reg.alarm_1_minute_10;
   alarm.hour = reg_data_.reg.alarm_1_hour + 10u * reg_data_.reg.alarm_1_hour_10;
@@ -508,12 +495,9 @@ ds3232_alarm::DS3232Alarm DS3232Component::get_alarm_two() {
   ds3232_alarm::DS3232Alarm alarm = {};
   alarm.enabled = reg_data_.reg.alarm_2_enable;
   alarm.seconds_supported = false;
-  alarm.mode = ds3232_alarm::DS3232Alarm::alarm_mode(
-    false,
-    reg_data_.reg.alarm_2_mode_2,
-    reg_data_.reg.alarm_2_mode_3,
-    reg_data_.reg.alarm_2_mode_4,
-    reg_data_.reg.alarm_2_use_day_of_week);
+  alarm.mode =
+      ds3232_alarm::DS3232Alarm::alarm_mode(false, reg_data_.reg.alarm_2_mode_2, reg_data_.reg.alarm_2_mode_3,
+                                            reg_data_.reg.alarm_2_mode_4, reg_data_.reg.alarm_2_use_day_of_week);
   alarm.second = 0;
   alarm.minute = reg_data_.reg.alarm_2_minute + 10u * reg_data_.reg.alarm_2_minute_10;
   alarm.hour = reg_data_.reg.alarm_2_hour + 10u * reg_data_.reg.alarm_2_hour_10;

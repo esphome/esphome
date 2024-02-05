@@ -85,11 +85,11 @@ class DS3232Component : public time::RealTimeClock, public i2c::I2CDevice {
   /// @brief Perform full memory reinitialization. All available
   /// memory registers will be set to zeroes.
   /// This could help if memory structure is corrupted or faulty.
-  void reset_memory();          // Action
+  void reset_memory();  // Action
   /// @brief Sets all 'configuration' variables to their initial values.
-  void reset_to_factory();      // Action
-  void set_alarm_one(const ds3232_alarm::DS3232Alarm &alarm); // Action
-  void set_alarm_two(const ds3232_alarm::DS3232Alarm &alarm); // Action
+  void reset_to_factory();                                     // Action
+  void set_alarm_one(const ds3232_alarm::DS3232Alarm &alarm);  // Action
+  void set_alarm_two(const ds3232_alarm::DS3232Alarm &alarm);  // Action
   ds3232_alarm::DS3232Alarm get_alarm_one();
   ds3232_alarm::DS3232Alarm get_alarm_two();
   void clear_alarm_one();
@@ -111,8 +111,12 @@ class DS3232Component : public time::RealTimeClock, public i2c::I2CDevice {
   void add_on_power_change_callback(std::function<void(DS3232PowerState)> &&func) {
     this->power_state_callback_.add(std::move(func));
   }
-  void add_on_variable_init_required_callback(std::function<void()> &&func) { this->variable_init_callback_.add(std::move(func)); }
-  void add_on_variable_fail_callback(std::function<void()> &&func) { this->variable_fail_callback_.add(std::move(func)); }
+  void add_on_variable_init_required_callback(std::function<void()> &&func) {
+    this->variable_init_callback_.add(std::move(func));
+  }
+  void add_on_variable_fail_callback(std::function<void()> &&func) {
+    this->variable_fail_callback_.add(std::move(func));
+  }
   bool read_memory(uint8_t reg_id, std::vector<uint8_t> &data);
   bool write_memory(uint8_t reg_id, const std::vector<uint8_t> &data);
   bool is_valid_nvram(const uint8_t reg_id, uint8_t size) { return this->validate_mem_(reg_id, size, true); }
@@ -151,9 +155,9 @@ class DS3232Component : public time::RealTimeClock, public i2c::I2CDevice {
 
   union DS3232NVRAMData {
     struct {
-      uint8_t magix_1 : 2; //Always should be 0b11;
-      uint8_t magix_2 : 6; //Always should be 'E' char.
-      bool is_initialized : 1; //If set to 1 then it means that nvram has initialized values.
+      uint8_t magix_1 : 2;      // Always should be 0b11;
+      uint8_t magix_2 : 6;      // Always should be 'E' char.
+      bool is_initialized : 1;  // If set to 1 then it means that nvram has initialized values.
       uint8_t min_version : 3;
       uint8_t maj_version : 4;
     } info;
@@ -292,13 +296,13 @@ class PowerStateEvent : public Trigger<DS3232PowerState> {
 };
 
 template<typename... Ts> class FactoryResetNVRAMAction : public Action<Ts...>, public Parented<DS3232Component> {
-  public:
-    void play(Ts... x) override { this->parent_->reset_to_factory(); }
+ public:
+  void play(Ts... x) override { this->parent_->reset_to_factory(); }
 };
 
 template<typename... Ts> class EraseNVRAMAction : public Action<Ts...>, public Parented<DS3232Component> {
-  public:
-    void play(Ts... x) override { this->parent_->reset_memory(); }
+ public:
+  void play(Ts... x) override { this->parent_->reset_memory(); }
 };
 
 template<typename... Ts> class WriteAction : public Action<Ts...>, public Parented<DS3232Component> {

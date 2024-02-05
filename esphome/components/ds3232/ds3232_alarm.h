@@ -90,21 +90,19 @@ struct DS3232Alarm {
 
   /// Formats alarm into human-readable text.
   /// @return Textual description of alarm.
-std::string to_string() const;
+  std::string to_string() const;
 
   /// @brief Sets target alarm mode
   /// @param target_mode Mode of alarm to set
   void set_mode(AlarmMode target_mode) { mode.alarm_mode = target_mode; }
 
-static DS3232AlarmMode alarm_mode(AlarmMode mode);
-static DS3232AlarmMode alarm_mode(bool bit_seconds = false, bool bit_minutes = false,
-                                  bool bit_hours = false, bool bit_days = false,
-                                  bool use_weekdays = false);
+  static DS3232AlarmMode alarm_mode(AlarmMode mode);
+  static DS3232AlarmMode alarm_mode(bool bit_seconds = false, bool bit_minutes = false, bool bit_hours = false,
+                                    bool bit_days = false, bool use_weekdays = false);
 
-static DS3232Alarm create(bool is_enabled, DS3232AlarmMode mode, bool use_weekdays = true,
-                                uint8_t day = 1, uint8_t hour = 0, uint8_t minute = 0,
-                                uint8_t second = 0, bool is_fired = false,
-                                bool is_seconds_supported = false);
+  static DS3232Alarm create(bool is_enabled, DS3232AlarmMode mode, bool use_weekdays = true, uint8_t day = 1,
+                            uint8_t hour = 0, uint8_t minute = 0, uint8_t second = 0, bool is_fired = false,
+                            bool is_seconds_supported = false);
 };
 
 }  // namespace ds3232_alarm
