@@ -96,8 +96,10 @@ const char *reg_to_str(int reg, bool page1) {
   else
     return page1 ? REG_TO_STR_P1[reg & 0x0F] : REG_TO_STR_P0[reg & 0x0F];
 }
+enum RegType { REG = 0, FIFO = 1 };  ///< Register or FIFO
+
+#ifdef USE_SPI_BUS
 enum CmdType { WRITE_CMD = 0, READ_CMD = 1 };  ///< Read or Write transfer
-enum RegType { REG = 0, FIFO = 1 };            ///< Register or FIFO
 
 /// @brief Computes the SPI command byte
 /// @param transfer_type read or write command
@@ -116,6 +118,27 @@ enum RegType { REG = 0, FIFO = 1 };            ///< Register or FIFO
 inline static uint8_t cmd_byte(RegType fifo, CmdType transfer_type, uint8_t channel, uint8_t reg) {
   return (fifo << 7 | transfer_type << 6 | channel << 4 | reg << 0);
 }
+#endif
+
+#ifdef USE_I2C_BUS
+/// @brief Computes the I²C bus's address used to access the component
+/// @param base_address the base address of the component - set by the A1 A0 pins
+/// @param channel (0-3) the UART channel
+/// @param fifo (0-1) 0 = access to internal register, 1 = direct access to fifo
+/// @return the i2c address to use
+inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, RegType fifo) {
+  // the address of the device is:
+  // +----+----+----+----+----+----+----+----+
+  // |  0 | A1 | A0 |  1 |  0 | C1 | C0 |  F |
+  // +----+----+----+----+----+----+----+----+
+  // where:
+  // - A1,A0 is the address read from A1,A0 switch
+  // - C1,C0 is the channel number (in practice only 00 or 01)
+  // - F is: 0 when accessing register, one when accessing FIFO
+  uint8_t const addr = base_address | channel << 1 | fifo << 0;
+  return addr;
+}
+#endif
 
 /// @brief Display a buffer in hexadecimal format (32 hex values / line).
 void print_buffer(const uint8_t *data, size_t length) {
@@ -260,9 +283,6 @@ void WKBaseComponent::test_gpio_output_() {
 }
 #endif
 
-///////////////////////////////////////////////////////////////////////////////
-// The WKBaseComponent methods
-///////////////////////////////////////////////////////////////////////////////
 bool WKBaseComponent::read_pin_val_(uint8_t pin) {
   this->input_state_ = this->reg(WKREG_GPDAT, 0);
   ESP_LOGVV(TAG, "reading input pin %d = %d in_state %s", pin, this->input_state_ & (1 << pin), I2S2CS(input_state_));
@@ -306,6 +326,115 @@ std::string WKGPIOPin::dump_summary() const {
   snprintf(buffer, sizeof(buffer), "%u via WK2168 %s", this->pin_, this->parent_->get_name());
   return buffer;
 }
+
+#ifdef USE_I2C_BUS
+///////////////////////////////////////////////////////////////////////////////
+// The WKBaseRegI2C methods
+///////////////////////////////////////////////////////////////////////////////
+uint8_t WKBaseRegI2C::read_reg() const {
+  uint8_t value = 0x00;
+  WKBaseComponentI2C *comp_i2c = static_cast<WKBaseComponentI2C *>(this->comp_);
+  comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, REG);  // update the i2c bus address
+  auto error = comp_i2c->read_register(this->register_, &value, 1);
+  if (error == i2c::NO_ERROR) {
+    this->comp_->status_clear_warning();
+    ESP_LOGVV(TAG, "WKBaseRegI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", comp_i2c->address_,
+              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
+  } else {  // error
+    this->comp_->status_set_warning();
+    ESP_LOGE(TAG, "WKBaseRegI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", comp_i2c->address_,
+             reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
+  }
+  return value;
+}
+
+void WKBaseRegI2C::read_fifo(uint8_t *data, size_t length) const {
+  WKBaseComponentI2C *comp_i2c = static_cast<WKBaseComponentI2C *>(this->comp_);
+  comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, FIFO);
+  auto error = comp_i2c->read(data, length);
+  if (error == i2c::NO_ERROR) {
+    this->comp_->status_clear_warning();
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+    ESP_LOGVV(TAG, "WKBaseRegI2C::read_fifo() @%02X ch=%d I2C_code:%d len=%d buffer", comp_i2c->address_,
+              this->channel_, (int) error, length);
+    print_buffer(data, length);
+#endif
+  } else {  // error
+    this->comp_->status_set_warning();
+    ESP_LOGE(TAG, "WKBaseRegI2C::read_fifo() @%02X reg=N/A ch=%d I2C_code:%d len=%d buf=%02X...", comp_i2c->address_,
+             this->channel_, (int) error, length, data[0]);
+  }
+}
+
+void WKBaseRegI2C::write_reg(uint8_t value) {
+  WKBaseComponentI2C *comp_i2c = static_cast<WKBaseComponentI2C *>(this->comp_);
+  comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, REG);  // update the i2c bus
+  auto error = comp_i2c->write_register(this->register_, &value, 1);
+  if (error == i2c::NO_ERROR) {
+    this->comp_->status_clear_warning();
+    ESP_LOGVV(TAG, "WK2168Reg::write_reg() @%02X reg=%s ch=%d I2C_code:%d buf=%02X", comp_i2c->address_,
+              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
+  } else {  // error
+    this->comp_->status_set_warning();
+    ESP_LOGE(TAG, "WK2168Reg::write_reg() @%02X reg=%s ch=%d I2C_code:%d buf=%d", comp_i2c->address_,
+             reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
+  }
+}
+
+void WKBaseRegI2C::write_fifo(uint8_t *data, size_t length) {
+  WKBaseComponentI2C *comp_i2c = static_cast<WKBaseComponentI2C *>(this->comp_);
+  comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, FIFO);  // set fifo flag
+  auto error = comp_i2c->write(data, length);
+  if (error == i2c::NO_ERROR) {
+    this->comp_->status_clear_warning();
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+    ESP_LOGVV(TAG, "WK2168Reg::write_fifo() @%02X ch=%d I2C_code:%d len=%d buffer", comp_i2c->address_, this->channel_,
+              (int) error, length);
+    print_buffer(data, length);
+#endif
+  } else {  // error
+    this->comp_->status_set_warning();
+    ESP_LOGE(TAG, "WK2168Reg::write_fifo() @%02X reg=N/A, ch=%d I2C_code:%d len=%d, buf=%02X...", comp_i2c->address_,
+             this->channel_, (int) error, length, data[0]);
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// The WKBaseComponentI2C methods
+///////////////////////////////////////////////////////////////////////////////
+void WKBaseComponentI2C::setup() {
+  // before any manipulation we store the address to base_address_ for future use
+  this->base_address_ = this->address_;
+  ESP_LOGCONFIG(TAG, "Setting up wk2168_i2c: %s with %d UARTs at @%02X ...", this->get_name(), this->children_.size(),
+                this->base_address_);
+
+  // enable all channels
+  this->reg(WKREG_GENA, 0) = GENA_C1EN | GENA_C2EN | GENA_C3EN | GENA_C4EN;
+  // reset all channels
+  this->reg(WKREG_GRST, 0) = GRST_C1RST | GRST_C2RST | GRST_C3RST | GRST_C4RST;
+  // initialize the spage register to page 0
+  this->reg(WKREG_SPAGE, 0) = 0;
+  this->page1_ = false;
+
+  // we setup our children channels
+  for (auto *child : this->children_) {
+    child->setup_channel();
+  }
+}
+
+void WKBaseComponentI2C::dump_config() {
+  ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
+  ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
+  if (test_mode_)
+    ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
+  this->address_ = this->base_address_;  // we restore the base_address before display (less confusing)
+  LOG_I2C_DEVICE(this);
+
+  for (auto *child : this->children_) {
+    child->dump_channel();
+  }
+}
+#endif
 
 #ifdef USE_SPI_BUS
 ///////////////////////////////////////////////////////////////////////////////

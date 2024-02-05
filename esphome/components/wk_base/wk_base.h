@@ -1,9 +1,9 @@
 /// @file wk_base.h
 /// @author DrCoolZic
 /// @brief  wk_base classes declaration
-/// @details The classes declared in this file can be used by a family
-/// of Weikai UART 1 GPIO expander components.
-/// As of today used by
+/// @details The classes declared in this file can be used by the Weikai family
+/// of UART and GPIO expander components.
+/// As of today support for
 ///   wk2132_spi, wk2132_i2c, wk2168_spi, wk2168_i2c
 ///   wk2212_spi, wk2212_i2c, wk2204_spi, wk2204_i2c
 ///   wk2124_spi
@@ -20,7 +20,7 @@
 #endif
 
 #define USE_SPI_BUS
-// #define USE_I2C_BUS
+#define USE_I2C_BUS
 
 #ifdef USE_SPI_BUS
 #include "esphome/components/spi/spi.h"
@@ -149,12 +149,9 @@ template<typename T, size_t SIZE> class RingBuffer {
   size_t count_{0};            ///< count number of element in the buffer
 };
 
-// class WKBaseI2C;
-// class WKBaseSPI;
-class WKGPIOComponentSPI;
+class WKBaseComponent;
+class WKBaseComponentI2C;
 class WKBaseComponentSPI;
-
-class WKBaseComponent;  // forward declaration
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Used to create WKBaseRegister objects that act as proxies to access remote register independently of the
 /// bus type.
@@ -217,8 +214,8 @@ class WKBaseRegister {
   virtual void write_fifo(uint8_t *data, size_t length) = 0;
 
  protected:
-  friend WKGPIOComponentSPI;
   friend WKBaseComponentSPI;
+  friend WKBaseComponentI2C;
 
   WKBaseComponent *const comp_;  ///< pointer to our parent (aggregation)
   uint8_t register_;             ///< address of the register
@@ -302,7 +299,7 @@ class WKBaseComponent : public Component {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Helper class to expose a WK family pin as an internal input GPIO pin.
+/// @brief Helper class to expose a WK family IO pin as an internal GPIO pin.
 ///////////////////////////////////////////////////////////////////////////////
 class WKGPIOPin : public GPIOPin {
  public:
@@ -326,9 +323,9 @@ class WKGPIOPin : public GPIOPin {
 
 #ifdef USE_I2C_BUS
 ////////////////////////////////////////////////////////////////////////////////////
-// class WK2168RegI2C
+// class WKBaseRegI2C
 ////////////////////////////////////////////////////////////////////////////////////
-class WK2168RegI2C : public WKBaseRegister {
+class WKBaseRegI2C : public WKBaseRegister {
  public:
   uint8_t read_reg() const override;
   void write_reg(uint8_t value) override;
@@ -336,14 +333,14 @@ class WK2168RegI2C : public WKBaseRegister {
   void write_fifo(uint8_t *data, size_t length) override;
 
  protected:
-  friend WKGPIOComponentI2C;
-  WK2168RegI2C(WKGPIOComponent *const comp, uint8_t reg, uint8_t channel) : WKBaseRegister(comp, reg, channel) {}
+  // friend WKBaseComponentI2C;
+  WKBaseRegI2C(WKBaseComponent *const comp, uint8_t reg, uint8_t channel) : WKBaseRegister(comp, reg, channel) {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
-// class WKGPIOComponentI2C
+// class WKBaseComponentI2C
 ////////////////////////////////////////////////////////////////////////////////////
-class WKGPIOComponentI2C : public WKGPIOComponent, public i2c::I2CDevice {
+class WKBaseComponentI2C : public WKBaseComponent, public i2c::I2CDevice {
  public:
   WKBaseRegister &reg(uint8_t reg, uint8_t channel) override {
     reg_i2c_.register_ = reg;
@@ -358,15 +355,14 @@ class WKGPIOComponentI2C : public WKGPIOComponent, public i2c::I2CDevice {
   void dump_config() override;
 
  protected:
-  friend class WK2168RegI2C;
+  friend class WKBaseRegI2C;
   friend class WKBaseChannel;
   uint8_t base_address_;              ///< base address of I2C device
-  WK2168RegI2C reg_i2c_{this, 0, 0};  ///< store the current register/channel
+  WKBaseRegI2C reg_i2c_{this, 0, 0};  ///< store the current register/channel
 };
 #endif
 
 #ifdef USE_SPI_BUS
-
 ////////////////////////////////////////////////////////////////////////////////////
 // class WKBaseRegSPI
 ////////////////////////////////////////////////////////////////////////////////////
@@ -381,9 +377,8 @@ class WKBaseRegSPI : public WKBaseRegister {
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
-// class WKGPIOComponentSPI
+/// class WKBaseComponentSPI
 ////////////////////////////////////////////////////////////////////////////////////
-/// @brief WKGPIOComponent using SPI bus
 class WKBaseComponentSPI : public WKBaseComponent,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
@@ -398,7 +393,7 @@ class WKBaseComponentSPI : public WKBaseComponent,
   void dump_config() override;
 
  protected:
-  // friend class WKBaseRegSPI;
+  // friend WKBaseComponentSPI;
   WKBaseRegSPI reg_spi_{this, 0, 0};  ///< store the current register/channel
 };
 #endif
