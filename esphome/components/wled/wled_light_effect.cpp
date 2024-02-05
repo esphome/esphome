@@ -154,41 +154,29 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
   return true;
 }
 
-
-
-
-
-
-
 bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size) {
+  // Receive at least RGBW and Brightness for all LEDs from WLED Sync Notification
   // https://kno.wled.ge/interfaces/udp-notifier/  
   // https://github.com/Aircoookie/WLED/blob/main/wled00/udp.cpp
-  // Receive at least RGBW and Brightness from WLED Sync Notification
-  
-  //payload[0] //Brightness
-  uint8_t bri = payload[0];
-  
-  uint8_t r = payload[1];
-  uint8_t g = payload[2];
-  uint8_t b = payload[3];
-  uint8_t w = payload[8];
 
-
-  //uint8_t r2 = esp_scale8(r, bri);
-  //uint8_t g2 = esp_scale8(g, bri);
-  //uint8_t b2 = esp_scale8(b, bri);
-  //uint8_t w2 = esp_scale8(w, bri);
-  it[0].set(Color(esp_scale8(r, bri),esp_scale8(g, bri),esp_scale8(b, bri),esp_scale8(w, bri)));
-  //it[0].set(Color(r2, g2, b2, w2));
+  // TODO check sync group
+  
+  if (size < 9){
+    return false;
+  }
+  
+  uint8_t bri = payload[0];  
+  uint8_t r = esp_scale(payload[1], bri);
+  uint8_t g = esp_scale(payload[2], bri);
+  uint8_t b = esp_scale(payload[3], bri);
+  uint8_t w = esp_scale(payload[8], bri);
+  
+  for (uint16_t led = 0; led < it.size(); ++led) {
+    it[led].set(Color(r, g, b, w));
+    }
   
   return true;
 }
-
-
-
-
-
-
 
 bool WLEDLightEffect::parse_warls_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size) {
   // packet: index, r, g, b
