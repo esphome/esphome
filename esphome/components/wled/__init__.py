@@ -17,7 +17,7 @@ CONF_SYNCGROUP_MASK = "sync_group_mask"
     "WLED",
     {
         cv.Optional(CONF_PORT, default=21324): cv.port,
-        cv.Optional(CONF_SYNCGROUP_MASK, default=255): cv.int_range(min=1, max=255)
+        cv.Optional(CONF_SYNCGROUP_MASK, default=255): cv.int_range(min=0, max=255)
     },
 )
 async def wled_light_effect_to_code(config, effect_id):
