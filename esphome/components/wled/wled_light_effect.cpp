@@ -168,7 +168,7 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
 
   uint8_t payloadSyncGroup = payload[34];
 
-  if(payloadSyncGroup == syncgroup){
+  if(payloadSyncGroup == sync_group_mask_){
     ESP_LOGD(TAG, "correct syncgroup");
   }
   else{
