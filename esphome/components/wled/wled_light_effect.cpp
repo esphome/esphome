@@ -166,7 +166,14 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
     return false;
   }
 
-  //uint8_t syncGroup = payload[34]
+  uint8_t payloadSyncGroup = payload[34]
+
+  if(payloadSyncGroup == syncgroup){
+    ESP_LOGD(TAG, "correct syncgroup");
+  }
+  else{
+    ESP_LOGD(TAG, "not correct syncgroup");
+  }
   
   uint8_t bri = payload[0];  
   uint8_t r = esp_scale8(payload[1], bri);
