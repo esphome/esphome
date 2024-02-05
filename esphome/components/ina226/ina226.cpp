@@ -52,13 +52,13 @@ void INA226Component::setup() {
   config.reserved = 0b100;  // as per datasheet
 
   // Averaging Mode AVG Bit Settings[11:9] (000 -> 1 sample, 001 -> 4 sample, 111 -> 1024 samples)
-  config.avg_samples = static_cast<AdcAvgSamples>(this->adc_avg_samples_);
+  config.avg_samples = this->adc_avg_samples_;
 
   // Bus Voltage Conversion Time VBUSCT Bit Settings [8:6] (100 -> 1.1ms, 111 -> 8.244 ms)
-  config.bus_voltage_conversion_time = static_cast<AdcTime>(this->adc_time_);
+  config.bus_voltage_conversion_time = this->adc_time_;
 
   // Shunt Voltage Conversion Time VSHCT Bit Settings [5:3] (100 -> 1.1ms, 111 -> 8.244 ms)
-  config.shunt_voltage_conversion_time = static_cast<AdcTime>(this->adc_time_);
+  config.shunt_voltage_conversion_time = this->adc_time_;
 
   // Mode Settings [2:0] Combinations (111 -> Shunt and Bus, Continuous)
   config.mode = 0b111;
