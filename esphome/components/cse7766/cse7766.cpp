@@ -134,11 +134,13 @@ void CSE7766Component::parse_data_() {
 
   float power = 0.0f;
   float energy = 0.0f;
-  if (have_power) {
+  if (power_cycle_exceeds_range) {
     // Datasheet: power cycle exceeding range means active power is 0
-    if (!power_cycle_exceeds_range) {
-      power = power_coeff / float(power_cycle);
+    if (this->power_sensor_ != nullptr) {
+      this->power_sensor_->publish_state(0.0f);
     }
+  } else if (have_power) {
+    power = power_coeff / float(power_cycle);
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
     }
@@ -167,13 +169,8 @@ void CSE7766Component::parse_data_() {
 
   float current = 0.0f;
   if (have_current) {
-    if (have_voltage && !have_power) {
-      // Testing has shown that when we have voltage and current but not power, that means the power is 0.
-      // We report a power of 0, which in turn means we should report a current of 0.
-      if (this->power_sensor_ != nullptr) {
-        this->power_sensor_->publish_state(0);
-      }
-    } else if (power != 0.0f) {
+    // Assumption: if we don't have power measurement, then current is likely below 50mA
+    if (have_power) {
       current = current_coeff / float(current_cycle);
     }
     if (this->current_sensor_ != nullptr) {
