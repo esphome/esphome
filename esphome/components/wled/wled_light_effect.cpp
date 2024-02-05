@@ -160,6 +160,7 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
   // https://github.com/Aircoookie/WLED/blob/main/wled00/udp.cpp
 
   // TODO check sync group
+  //    - byte 36 bitmask 1-8 -> 1 2 4 8 16 32 64 128
   
   if (size < 9){
     return false;
