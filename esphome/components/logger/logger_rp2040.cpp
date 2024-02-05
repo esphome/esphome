@@ -1,7 +1,4 @@
 #ifdef USE_RP2040
-#ifndef USE_ARDUINO
-#error "Only ARDUINO is supported"
-#endif
 #include "logger.h"
 #include "esphome/core/log.h"
 
