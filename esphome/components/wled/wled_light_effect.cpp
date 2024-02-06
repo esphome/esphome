@@ -153,13 +153,13 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
   // https://kno.wled.ge/interfaces/udp-notifier/
   // https://github.com/Aircoookie/WLED/blob/main/wled00/udp.cpp
 
-  if (size < 34){
+  if (size < 34) {
     return false;
   }
 
   uint8_t payloadSyncGroup = payload[34];
 
-  if(sync_group_mask_ != 0 && payloadSyncGroup != sync_group_mask_){
+  if(sync_group_mask_ != 0 && payloadSyncGroup != sync_group_mask_) {
     ESP_LOGD(TAG, "sync group mask does not match");
     return false;
   }
@@ -172,7 +172,7 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
 
   for (uint16_t led = 0; led < it.size(); ++led) {
     it[led].set(Color(r, g, b, w));
-    }
+  }
 
   return true;
 }
