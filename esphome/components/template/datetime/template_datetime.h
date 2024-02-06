@@ -27,7 +27,7 @@ class TemplateDatetime : public datetime::Datetime, public PollingComponent {
   void control(std::string) override;
 
   bool optimistic_{false};
-  std::string initial_value_{};
+  std::string initial_value_{"00:00:00"};
   bool restore_value_{false};
   Trigger<std::string> *set_trigger_ = new Trigger<std::string>();
   optional<std::function<optional<std::string>()>> f_;
