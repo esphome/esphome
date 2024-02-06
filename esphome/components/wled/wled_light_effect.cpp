@@ -150,30 +150,30 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
 
 bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size) {
   // Receive at least RGBW and Brightness for all LEDs from WLED Sync Notification
-  // https://kno.wled.ge/interfaces/udp-notifier/  
+  // https://kno.wled.ge/interfaces/udp-notifier/
   // https://github.com/Aircoookie/WLED/blob/main/wled00/udp.cpp
-  
+
   if (size < 34){
     return false;
   }
 
   uint8_t payloadSyncGroup = payload[34];
 
-  if(sync_group_mask_ != 0 && payloadSyncGroup != sync_group_mask_){ // default 0 matches all, mask sync groups 1-8 with 1 2 4 8 16 32 64 128
+  if(sync_group_mask_ != 0 && payloadSyncGroup != sync_group_mask_){
     ESP_LOGD(TAG, "sync group mask does not match");
     return false;
   }
-  
-  uint8_t bri = payload[0];  
+
+  uint8_t bri = payload[0];
   uint8_t r = esp_scale8(payload[1], bri);
   uint8_t g = esp_scale8(payload[2], bri);
   uint8_t b = esp_scale8(payload[3], bri);
   uint8_t w = esp_scale8(payload[8], bri);
-  
+
   for (uint16_t led = 0; led < it.size(); ++led) {
     it[led].set(Color(r, g, b, w));
     }
-  
+
   return true;
 }
 
