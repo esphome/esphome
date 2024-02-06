@@ -183,7 +183,7 @@ async def setup_datetime_core_(datetime_var, config):
 
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], datetime_var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_automation(trigger, [(ESPTime, "x")], conf)
 
     if CONF_ON_TIME in config:
         time_var = await cg.get_variable(config[CONF_TIME_ID])

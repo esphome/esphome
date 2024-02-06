@@ -42,6 +42,7 @@ class Datetime : public EntityBase {
   DatetimeCall make_call() { return DatetimeCall(this); }
 
   void add_on_state_callback(std::function<void(std::string)> &&callback);
+  void add_on_state_callback(std::function<void(ESPTime)> &&callback);
 
   DatetimeTraits traits;
 
@@ -61,6 +62,7 @@ class Datetime : public EntityBase {
   virtual void control(std::string) = 0;
 
   CallbackManager<void(std::string)> state_callback_;
+  CallbackManager<void(ESPTime)> state_callback_time_;
   bool has_state_{false};
 };
 

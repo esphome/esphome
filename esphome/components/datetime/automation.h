@@ -27,10 +27,10 @@ class DatetimeOnTimeTrigger : public Trigger<>, public Component {
 };
 #endif  // USE_TIME
 
-class DatetimeValueTrigger : public Trigger<std::string> {
+class DatetimeValueTrigger : public Trigger<ESPTime> {
  public:
   explicit DatetimeValueTrigger(Datetime *parent) {
-    parent->add_on_state_callback([this](std::string value) { this->trigger(value); });
+    parent->add_on_state_callback([this](ESPTime value) { this->trigger(value); });
   }
 };
 

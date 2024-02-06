@@ -32,10 +32,15 @@ void Datetime::publish_state(std::string state) {
 
   ESP_LOGD(TAG, "'%s': Sending state %s", this->get_name().c_str(), this->state.c_str());
   this->state_callback_.call(state);
+  this->state_callback_time_.call(state_as_time);
 }
 
 void Datetime::add_on_state_callback(std::function<void(std::string)> &&callback) {
   this->state_callback_.add(std::move(callback));
+}
+
+void Datetime::add_on_state_callback(std::function<void(ESPTime)> &&callback) {
+  this->state_callback_time_.add(std::move(callback));
 }
 
 }  // namespace datetime
