@@ -19,9 +19,9 @@
 #include "Wire.h"
 #endif
 
-#define USE_SPI_BUS
-#define USE_I2C_BUS
-#define HAS_GPIO_PIN
+// #define USE_SPI_BUS
+// #define USE_I2C_BUS
+// #define HAS_GPIO_PIN
 
 #ifdef USE_SPI_BUS
 #include "esphome/components/spi/spi.h"
@@ -39,7 +39,7 @@
 ///     build_flags:
 ///       - -DTEST_COMPONENT
 
-#define TEST_COMPONENT
+// #define TEST_COMPONENT
 
 namespace esphome {
 namespace wk_base {
@@ -88,7 +88,7 @@ constexpr size_t RING_BUFFER_SIZE = XFER_MAX_SIZE;
 /// slow bus. As it it not possible to fix this problem by asking users to rewrite their code, I have implemented this
 /// ring buffer solution that store the bytes received locally.
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-template<typename T, size_t SIZE> class RingBuffer {
+template<typename T, size_t SIZE> class WKRingBuffer {
  public:
   /// @brief pushes an item at the tail of the fifo
   /// @param item item to push
@@ -548,7 +548,7 @@ class WKBaseChannel : public uart::UARTComponent {
 #endif
 
   /// @brief the buffer where we store temporarily the bytes received
-  RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
+  WKRingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
   WKBaseComponent *parent_;  ///< our WK2168component parent
   uint8_t channel_;          ///< our Channel number
   uint8_t data_;             ///< a one byte buffer for register read storage

@@ -7,14 +7,11 @@
 namespace esphome {
 namespace wk_base {
 
-/*! @mainpage WKBaseComponent source code documentation
- This documentation provides information about the implementation of the WKBaseComponent in ESPHome.
- The WKBaseComponent utilizes two primary classes: the WKBaseComponent class, the WKBaseChannel class,
- along with the RingBuffer and WKBaseRegister helper classes. Below, you'll find short descriptions
- of these three classes.
+/*! @mainpage Weikai source code documentation
+ This documentation provides information about the implementation of the family of WeiKai Components in ESPHome.
 
-  @section RingBuffer_ The RingBuffer template class
-The RingBuffer template class has it names implies implement a simple ring buffer helper class. This straightforward
+  @section WKRingBuffer_ The WKRingBuffer template class
+The WKRingBuffer template class has it names implies implement a simple ring buffer helper class. This straightforward
 container implements FIFO functionality, enabling bytes to be pushed into one side and popped from the other in the
 order of entry. Implementation is classic and therefore not described in any details.
 
@@ -49,8 +46,8 @@ individual instance of this class is created for each UART channel. It has a lin
 belongs to. This class derives from the uart::UARTComponent class. It collaborates through an aggregation with
 WKBaseComponent. This implies that WKBaseComponent acts as a container, housing several WKBaseChannel instances.
 Furthermore, the WKBaseChannel class derives from the ESPHome uart::UARTComponent class, it also has an association
-relationship with the RingBuffer and WKBaseRegister helper classes. Consequently, when a WKBaseChannel instance is
-destroyed, the associated RingBuffer instance is also destroyed.
+relationship with the WKRingBuffer and WKBaseRegister helper classes. Consequently, when a WKBaseChannel instance is
+destroyed, the associated WKRingBuffer instance is also destroyed.
 */
 
 static const char *const TAG = "wk_base";
