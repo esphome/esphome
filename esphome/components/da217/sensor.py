@@ -4,6 +4,7 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     ICON_BRIEFCASE_DOWNLOAD,
+    CONF_RESOLUTION,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER_PER_SECOND_SQUARED,
 )
@@ -21,7 +22,6 @@ CONF_ACCEL_Z = "accel_z"
 CONF_ENABLE_HIGH_PASS_FILTER = "enable_high_pass_filter"
 CONF_ENABLE_WATCHDOG = "enable_watchdog"
 CONF_WATCHDOG_TIME = "watchdog_time"
-CONF_RESOLUTION = "resolution"
 CONF_FULL_SCALE = "full_scale"
 
 WatchdogTime = da217_ns.enum("WatchdogTime")
