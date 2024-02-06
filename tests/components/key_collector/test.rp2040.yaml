@@ -1,0 +1,16 @@
+matrix_keypad:
+  id: keypad
+  rows:
+    - pin: 1
+    - pin: 2
+  columns:
+    - pin: 3
+    - pin: 4
+  keys: "1234"
+  has_pulldowns: true
+
+key_collector:
+  - id: reader
+    source_id: keypad
+    min_length: 4
+    max_length: 4
