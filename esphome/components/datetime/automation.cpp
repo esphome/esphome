@@ -4,6 +4,8 @@
 namespace esphome {
 namespace datetime {
 
+static const char *const TAG = "datetime.automation";
+
 #ifdef USE_TIME
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
                                              // there has been a drastic time synchronization

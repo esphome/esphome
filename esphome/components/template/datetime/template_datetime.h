@@ -8,12 +8,6 @@
 namespace esphome {
 namespace template_ {
 
-struct TemplateDatetimeRTCValue {
-  ESPTime value;
-  bool has_date{false};
-  bool has_time{false};
-};
-
 class TemplateDatetime : public datetime::Datetime, public PollingComponent {
  public:
   void set_template(std::function<optional<std::string>()> &&f) { this->f_ = f; }

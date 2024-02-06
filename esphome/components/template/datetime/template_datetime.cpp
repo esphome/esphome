@@ -16,7 +16,7 @@ void TemplateDatetime::setup() {
   if (!this->restore_value_) {
     state = this->initial_value_;
 
-    // TODO do we need this check? initial_value_ should already be check by cv
+    // TODO do we need this check? initial_value_ should already be checked and the correct fromat by cv
     has_date = HAS_DATETIME_STRING_DATE_ONLY(initial_value_) || HAS_DATETIME_STRING_DATE_AND_TIME(initial_value_);
     has_time = HAS_DATETIME_STRING_TIME_ONLY(initial_value_) || HAS_DATETIME_STRING_DATE_AND_TIME(initial_value_);
     if (!(has_date || has_time)) {

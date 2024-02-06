@@ -10,7 +10,6 @@
 namespace esphome {
 namespace datetime {
 
-static const char *const TAG = "input_datetime.automation";
 #ifdef USE_TIME
 class DatetimeOnTimeTrigger : public Trigger<>, public Component {
  public:

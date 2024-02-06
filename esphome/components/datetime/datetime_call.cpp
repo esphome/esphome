@@ -51,11 +51,7 @@ void DatetimeCall::perform() {
 }
 
 bool DatetimeCall::validate_datetime_string(std::string value) {
-  if (HAS_DATETIME_STRING_TIME_ONLY(value))
-    return true;
-  else if (HAS_DATETIME_STRING_DATE_ONLY(value))
-    return true;
-  else if (HAS_DATETIME_STRING_DATE_AND_TIME(value))
+  if (HAS_DATETIME_STRING_DATE_OR_TIME(value))
     return true;
   return false;
 }

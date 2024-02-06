@@ -14,20 +14,9 @@ namespace datetime {
 #define HAS_DATETIME_STRING_DATE_OR_TIME(value) \
   std::regex_match(value, std::regex(R"(^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?|\d{2}:\d{2}(:\d{2})?$)"))
 
-struct ESPDatetime {
-  ESPTime time;
-  bool has_date;
-  bool has_time;
-};
-
 class Datetime;
 
-enum DatetimeOperation {
-  DATETIME_OP_NONE,
-  DATETIME_OP_SET_VALUE,
-  DATETIME_OP_SET_HAS_DATE,
-  DATETIME_OP_SET_HAS_TIME,
-};
+enum DatetimeOperation { DATETIME_OP_NONE, DATETIME_OP_SET_VALUE };
 
 class DatetimeCall {
  public:

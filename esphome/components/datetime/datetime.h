@@ -25,11 +25,6 @@ namespace datetime {
     } \
   }
 
-#define STRFTIME_FORMAT_FROM_OBJ(obj, web) \
-  (obj)->has_date && (obj)->has_time ? (web) ? "%FT%T" : "%F %T" : (obj)->has_date ? "%F" : (obj)->has_time ? "%T" : ""
-
-// std::regex time_regex(R"(^(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(:\d{2})?)?|\d{2}:\d{2}(:\d{2})?)$)");
-
 class DatetimeTimeTrigger;
 
 class Datetime : public EntityBase {

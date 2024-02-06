@@ -1,7 +1,5 @@
 import logging
 import re
-from importlib import resources
-from typing import Optional
 from datetime import datetime as dt
 
 import esphome.codegen as cg
@@ -34,8 +32,8 @@ ESP_TIME_VAR = "esptime_var"
 _LOGGER = logging.getLogger(__name__)
 
 # bases of time from OttoWinter
-
 CODEOWNERS = ["@rfdarter"]
+
 IS_PLATFORM_COMPONENT = True
 
 datetime_ns = cg.esphome_ns.namespace("datetime")
@@ -145,25 +143,6 @@ def validate_datetime(config):
 
     return config
 
-
-# DATETIME_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-#     {
-#         cv.Optional(CONF_TIME_ID): cv.All( cv.requires_component(CONF_TIME), cv.use_id(time.RealTimeClock) ),
-#         cv.Optional(CONF_HAS_DATE, False): cv.boolean,
-#         cv.Optional(CONF_HAS_TIME, False): cv.boolean,
-#         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-#             {
-#                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DatetimeStateTrigger),
-#             }
-#         ),
-#         cv.Optional(CONF_ON_TIME): automation.validate_automation(
-#             {
-#                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DatetimeOnTimeTrigger),
-#             }
-#         ),
-#     }
-
-# ).extend(cv.polling_component_schema("15min")).add_extra(validate_datetime)
 
 DATETIME_SCHEMA = (
     cv.Schema(

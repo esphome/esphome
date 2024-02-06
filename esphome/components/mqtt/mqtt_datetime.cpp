@@ -42,10 +42,7 @@ bool MQTTDatetimeComponent::send_initial_state() {
     return true;
   }
 }
-bool MQTTDatetimeComponent::publish_state(std::string value) {
-  // std::string timeString = value.strftime(STRFTIME_FORMAT_FROM_OBJ(this->datetime_, true));
-  return this->publish(this->get_state_topic_(), value);
-}
+bool MQTTDatetimeComponent::publish_state(std::string value) { return this->publish(this->get_state_topic_(), value); }
 
 }  // namespace mqtt
 }  // namespace esphome

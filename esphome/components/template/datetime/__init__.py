@@ -12,7 +12,7 @@ from esphome.const import (
 )
 
 from .. import template_ns
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import coroutine_with_priority
 
 
 TemplateDatetime = template_ns.class_(
