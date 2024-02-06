@@ -1,0 +1,20 @@
+i2c:
+  - id: i2c_ina219
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: ina219
+    address: 0x40
+    shunt_resistance: 0.1 ohm
+    current:
+      name: INA219 Current
+    power:
+      name: INA219 Power
+    bus_voltage:
+      name: INA219 Bus Voltage
+    shunt_voltage:
+      name: INA219 Shunt Voltage
+    max_voltage: 32.0V
+    max_current: 3.2A
+    update_interval: 15s
