@@ -8,6 +8,7 @@ wled_ns = cg.esphome_ns.namespace("wled")
 WLEDLightEffect = wled_ns.class_("WLEDLightEffect", AddressableLightEffect)
 
 CONFIG_SCHEMA = cv.All(cv.Schema({}), cv.only_with_arduino)
+CONF_SYNC_GROUP_MASK = "sync_group_mask"
 
 
 @register_addressable_effect(
@@ -16,10 +17,11 @@ CONFIG_SCHEMA = cv.All(cv.Schema({}), cv.only_with_arduino)
     "WLED",
     {
         cv.Optional(CONF_PORT, default=21324): cv.port,
+        cv.Optional(CONF_SYNC_GROUP_MASK, default=0): cv.int_range(min=0, max=255),
     },
 )
 async def wled_light_effect_to_code(config, effect_id):
     effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(effect.set_port(config[CONF_PORT]))
-
+    cg.add(effect.set_sync_group_mask(config[CONF_SYNC_GROUP_MASK]))
     return effect
