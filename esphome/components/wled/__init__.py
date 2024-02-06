@@ -22,5 +22,5 @@ CONF_SYNC_GROUP_MASK = "sync_group_mask"
 async def wled_light_effect_to_code(config, effect_id):
     effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(effect.set_port(config[CONF_PORT]))
-    cg.add(effect.set_sync_group_mask(config[CONF_SYNCGROUP_MASK]));
+    cg.add(effect.set_sync_group_mask(config[CONF_SYNC_GROUP_MASK]));
     return effect
