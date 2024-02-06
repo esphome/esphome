@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome import core
 from esphome.automation import maybe_simple_id
 from esphome.const import CONF_ID
 from esphome.components import uart
@@ -101,7 +100,7 @@ def range_segment_list(input):
 
     largest_distance = -1
     for distance in input:
-        if isinstance(distance, core.Lambda):
+        if isinstance(distance, cv.Lambda):
             continue
         m = cv.distance(distance)
         if m > 9:
@@ -128,14 +127,14 @@ MMWAVE_SETTINGS_SCHEMA = cv.Schema(
         cv.Optional(CONF_OUTPUT_LATENCY): {
             cv.Required(CONF_DELAY_AFTER_DETECT): cv.templatable(
                 cv.All(
-                    cv.positive_time_period,
-                    cv.Range(max=core.TimePeriod(seconds=1638.375)),
+                    cv.positive_time_period_milliseconds,
+                    cv.Range(max=cv.TimePeriod(seconds=1638.375)),
                 )
             ),
             cv.Required(CONF_DELAY_AFTER_DISAPPEAR): cv.templatable(
                 cv.All(
-                    cv.positive_time_period,
-                    cv.Range(max=core.TimePeriod(seconds=1638.375)),
+                    cv.positive_time_period_milliseconds,
+                    cv.Range(max=cv.TimePeriod(seconds=1638.375)),
                 )
             ),
         },

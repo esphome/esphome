@@ -685,6 +685,40 @@ display:
     reset_pin:
       allow_other_uses: true
       number: GPIO23
+    model: 2.70in-b
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
+    model: 2.70in-bv2
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     model: 1.54in-m5coreink-m09
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
