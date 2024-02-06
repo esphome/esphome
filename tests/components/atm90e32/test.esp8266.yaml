@@ -1,0 +1,51 @@
+spi:
+  - id: spi_atm90e32
+    clk_pin: 14
+    mosi_pin: 13
+    miso_pin: 12
+
+sensor:
+  - platform: atm90e32
+    cs_pin: 5
+    phase_a:
+      voltage:
+        name: EMON Line Voltage A
+      current:
+        name: EMON CT1 Current
+      power:
+        name: EMON Active Power CT1
+      reactive_power:
+        name: EMON Reactive Power CT1
+      power_factor:
+        name: EMON Power Factor CT1
+      gain_voltage: 7305
+      gain_ct: 27961
+    phase_b:
+      current:
+        name: EMON CT2 Current
+      power:
+        name: EMON Active Power CT2
+      reactive_power:
+        name: EMON Reactive Power CT2
+      power_factor:
+        name: EMON Power Factor CT2
+      gain_voltage: 7305
+      gain_ct: 27961
+    phase_c:
+      current:
+        name: EMON CT3 Current
+      power:
+        name: EMON Active Power CT3
+      reactive_power:
+        name: EMON Reactive Power CT3
+      power_factor:
+        name: EMON Power Factor CT3
+      gain_voltage: 7305
+      gain_ct: 27961
+    frequency:
+      name: EMON Line Frequency
+    chip_temperature:
+      name: EMON Chip Temp A
+    line_frequency: 60Hz
+    current_phases: 3
+    gain_pga: 2X
