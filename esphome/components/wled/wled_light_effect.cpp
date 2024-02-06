@@ -159,8 +159,8 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
 
   uint8_t payloadSyncGroup = payload[34];
 
-  if(sync_group_mask_ != 0 && payloadSyncGroup != sync_group_mask_){ // 0 matches all, mask 1-8 -> 1 2 4 8 16 32 64 128
-    //ESP_LOGD(TAG, "WLED sync group does not match");
+  if(sync_group_mask_ != 0 && payloadSyncGroup != sync_group_mask_){ // default 0 matches all, mask sync groups 1-8 with 1 2 4 8 16 32 64 128
+    ESP_LOGD(TAG, "sync group mask does not match");
     return false;
   }
   
