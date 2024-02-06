@@ -28,11 +28,11 @@ const uint8_t DA217_RESOLUTION_RANGE_WATCHDOG_50MS = 1 << 5;
 const uint8_t DA217_RESOLUTION_RANGE_RESOLUTION_14BITS = 0b00 << 2;
 const uint8_t DA217_RESOLUTION_RANGE_RESOLUTION_12BITS = 0b01 << 2;
 const uint8_t DA217_RESOLUTION_RANGE_RESOLUTION_10BITS = 0b10 << 2;
-const uint8_t DA217_RESOLUTION_RANGE_RESOLUTION_8BITS =  0b11 << 2;
-const uint8_t DA217_RESOLUTION_RANGE_SCALE_2G =  0b00;
-const uint8_t DA217_RESOLUTION_RANGE_SCALE_4G =  0b01;
-const uint8_t DA217_RESOLUTION_RANGE_SCALE_8G =  0b10;
-const uint8_t DA217_RESOLUTION_RANGE_SCALE_16G =  0b11;
+const uint8_t DA217_RESOLUTION_RANGE_RESOLUTION_8BITS = 0b11 << 2;
+const uint8_t DA217_RESOLUTION_RANGE_SCALE_2G = 0b00;
+const uint8_t DA217_RESOLUTION_RANGE_SCALE_4G = 0b01;
+const uint8_t DA217_RESOLUTION_RANGE_SCALE_8G = 0b10;
+const uint8_t DA217_RESOLUTION_RANGE_SCALE_16G = 0b11;
 
 const uint8_t DA217_REGISTER_ODR_AXIS = 0x10;
 const uint8_t DA217_ODR_AXIS_DISABLE_X = 1 << 7;
@@ -70,7 +70,6 @@ const uint8_t DA217_INT_MAP1_ACTIVE = 1 << 2;
 const uint8_t DA217_INT_MAP1_STEP = 1 << 1;
 const uint8_t DA217_INT_MAP1_FREEFALL = 1;
 
-
 const uint8_t DA217_REGISTER_INT_LATCH = 0x21;
 const uint8_t DA217_INT_LATCH_INT1_LATCH_100MS = 0b1110;
 const uint8_t DA217_INT_LATCH_INT2_LATCH_100MS = 0b1110 << 4;
@@ -97,8 +96,7 @@ const float GRAVITY_EARTH = 9.80665f;
 void DA217Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DA217...");
   uint8_t chip_id;
-  if (!this->read_byte(DA217_REGISTER_CHIP_ID, &chip_id) ||
-      (chip_id != 0x13)) {
+  if (!this->read_byte(DA217_REGISTER_CHIP_ID, &chip_id) || (chip_id != 0x13)) {
     this->mark_failed();
     return;
   }
@@ -116,7 +114,8 @@ void DA217Component::setup() {
   set_register_(DA217_REGISTER_ODR_AXIS, odr_axis_);
 
   ESP_LOGV(TAG, "  Setting up interrupt latching...");
-  if (!this->write_byte(DA217_REGISTER_INT_LATCH, DA217_INT_LATCH_INT1_LATCH_100MS | DA217_INT_LATCH_INT2_LATCH_100MS)) {
+  if (!this->write_byte(DA217_REGISTER_INT_LATCH,
+                        DA217_INT_LATCH_INT1_LATCH_100MS | DA217_INT_LATCH_INT2_LATCH_100MS)) {
     this->mark_failed();
     return;
   }
@@ -162,7 +161,6 @@ void DA217Component::dump_config() {
 void DA217Component::update() {
   ESP_LOGV(TAG, "    Updating DA217...");
 
-
   uint8_t status = 0;
   this->read_byte(0x11, &status);
   ESP_LOGD(TAG, "Register 0x11 is %d", status);
@@ -171,12 +169,12 @@ void DA217Component::update() {
   int16_t raw_accel_y;
   int16_t raw_accel_z;
 
-  uint8_t * raw_accel_x_lsb_ptr = reinterpret_cast<uint8_t *>(&raw_accel_x);
-  uint8_t * raw_accel_x_msb_ptr = raw_accel_x_lsb_ptr + 1;
-  uint8_t * raw_accel_y_lsb_ptr = reinterpret_cast<uint8_t *>(&raw_accel_y);
-  uint8_t * raw_accel_y_msb_ptr = raw_accel_y_lsb_ptr + 1;
-  uint8_t * raw_accel_z_lsb_ptr = reinterpret_cast<uint8_t *>(&raw_accel_z);
-  uint8_t * raw_accel_z_msb_ptr = raw_accel_z_lsb_ptr + 1;
+  uint8_t *raw_accel_x_lsb_ptr = reinterpret_cast<uint8_t *>(&raw_accel_x);
+  uint8_t *raw_accel_x_msb_ptr = raw_accel_x_lsb_ptr + 1;
+  uint8_t *raw_accel_y_lsb_ptr = reinterpret_cast<uint8_t *>(&raw_accel_y);
+  uint8_t *raw_accel_y_msb_ptr = raw_accel_y_lsb_ptr + 1;
+  uint8_t *raw_accel_z_lsb_ptr = reinterpret_cast<uint8_t *>(&raw_accel_z);
+  uint8_t *raw_accel_z_msb_ptr = raw_accel_z_lsb_ptr + 1;
 
   if (!this->read_byte(DA217_REGISTER_ACC_X_LSB, raw_accel_x_lsb_ptr) ||
       !this->read_byte(DA217_REGISTER_ACC_X_MSB, raw_accel_x_msb_ptr) ||
@@ -191,14 +189,12 @@ void DA217Component::update() {
   // The sensor has been configured to use a scale of ±4g, so a span of 8g.
   // It also "left-justifies" the data it outputs, so no matter its actual
   // resolution, the reported values will use the full 16 bit span.
-  float g_per_bit = 8.0f/(1<<16);
+  float g_per_bit = 8.0f / (1 << 16);
   float accel_x = raw_accel_x * g_per_bit * GRAVITY_EARTH;
   float accel_y = raw_accel_y * g_per_bit * GRAVITY_EARTH;
   float accel_z = raw_accel_z * g_per_bit * GRAVITY_EARTH;
 
-  ESP_LOGD(TAG,
-           "Got accel={x=%.3f m/s², y=%.3f m/s², z=%.3f m/s²}, ",
-           accel_x, accel_y, accel_z);
+  ESP_LOGD(TAG, "Got accel={x=%.3f m/s², y=%.3f m/s², z=%.3f m/s²}, ", accel_x, accel_y, accel_z);
 
   if (this->accel_x_sensor_ != nullptr)
     this->accel_x_sensor_->publish_state(accel_x);
@@ -212,51 +208,29 @@ void DA217Component::update() {
 
 float DA217Component::get_setup_priority() const { return setup_priority::DATA; }
 
-void DA217Component::set_resolution_range(bool hp_en, bool wdt_en, WatchdogTime wdt_time, Resolution resolution, FullScale fs) {
-  resolution_range_ =
-    hp_en << 7 |
-    wdt_en << 6 |
-    wdt_time << 5 |
-    resolution << 2 |
-    fs;
+void DA217Component::set_resolution_range(bool hp_en, bool wdt_en, WatchdogTime wdt_time, Resolution resolution,
+                                          FullScale fs) {
+  resolution_range_ = hp_en << 7 | wdt_en << 6 | wdt_time << 5 | resolution << 2 | fs;
 }
 
 void DA217Component::set_odr_axis(bool x_axis_disable, bool y_axis_disable, bool z_axis_disable, OutputDataRate odr) {
-  odr_axis_ =
-    x_axis_disable << 7 |
-    y_axis_disable << 6 |
-    z_axis_disable << 5 |
-    odr;
+  odr_axis_ = x_axis_disable << 7 | y_axis_disable << 6 | z_axis_disable << 5 | odr;
 }
 
-void DA217Component::set_int_set1(InterruptSource int_source, bool s_tap_int_en, bool d_tap_int_en, bool orient_int_en, bool active_int_en_z, bool active_int_en_y, bool active_int_en_x) {
-  int_set1_ =
-    int_source << 6 |
-    s_tap_int_en << 5 |
-    d_tap_int_en << 4 |
-    orient_int_en << 3 |
-    active_int_en_z << 2 |
-    active_int_en_y << 1 |
-    active_int_en_x;
+void DA217Component::set_int_set1(InterruptSource int_source, bool s_tap_int_en, bool d_tap_int_en, bool orient_int_en,
+                                  bool active_int_en_z, bool active_int_en_y, bool active_int_en_x) {
+  int_set1_ = int_source << 6 | s_tap_int_en << 5 | d_tap_int_en << 4 | orient_int_en << 3 | active_int_en_z << 2 |
+              active_int_en_y << 1 | active_int_en_x;
 }
 
-void DA217Component::set_int_map1(bool int1_sm, bool int1_orient, bool int1_s_tap, bool int1_d_tap, bool int1_tilt, bool int1_active, bool int1_step, bool int1_freefall) {
-  int_map1_ =
-    int1_sm << 7 |
-    int1_orient << 6 |
-    int1_s_tap << 5 |
-    int1_d_tap << 4 |
-    int1_tilt << 3 |
-    int1_active << 2 |
-    int1_step << 1 |
-    int1_freefall;
+void DA217Component::set_int_map1(bool int1_sm, bool int1_orient, bool int1_s_tap, bool int1_d_tap, bool int1_tilt,
+                                  bool int1_active, bool int1_step, bool int1_freefall) {
+  int_map1_ = int1_sm << 7 | int1_orient << 6 | int1_s_tap << 5 | int1_d_tap << 4 | int1_tilt << 3 | int1_active << 2 |
+              int1_step << 1 | int1_freefall;
 }
 
 void DA217Component::set_tap_dur(TapQuietDuration tap_quiet, TapShockDuration tap_shock, DoubleTapDuration tap_dur) {
-  tap_dur_ =
-    tap_quiet << 7 |
-    tap_shock << 6 |
-    tap_dur;
+  tap_dur_ = tap_quiet << 7 | tap_shock << 6 | tap_dur;
 }
 
 void DA217Component::set_tap_ths(StableTiltTime tilt_time, uint8_t tap_th) {
@@ -264,9 +238,7 @@ void DA217Component::set_tap_ths(StableTiltTime tilt_time, uint8_t tap_th) {
   // tap_th uses 5 bits to describe the sensor's whole acceleration range. For
   // instance, in the ±4g range, a value of 0x1F for tap_th will mean a tap
   // threshold of 4g, and a value of 0 would mean 0g.
-  tap_ths_ =
-    tilt_time << 5 |
-    (tap_th & DA217_TAP_THS_TAP_TH_MASK);
+  tap_ths_ = tilt_time << 5 | (tap_th & DA217_TAP_THS_TAP_TH_MASK);
 }
 
 void DA217Component::set_register_(uint8_t a_register, uint8_t data) {
