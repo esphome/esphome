@@ -14,6 +14,8 @@ from esphome.const import (
 from .. import template_ns
 from esphome.core import coroutine_with_priority
 
+CODEOWNERS = ["@rfdarter"]
+
 
 TemplateDatetime = template_ns.class_(
     "TemplateDatetime", datetime.Datetime, cg.PollingComponent
