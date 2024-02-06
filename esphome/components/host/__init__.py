@@ -40,8 +40,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     cg.add_build_flag("-DUSE_HOST")
-    mac_addr = "0x" + ",0x".join(f"{config[CONF_MAC_ADDRESS]}".split(":"))
-    cg.add_build_flag(f"-DESPHOME_HOST_MAC_ADDRESS={mac_addr}")
+    cg.add_define("USE_ESPHOME_HOST_MAC_ADDRESS", config[CONF_MAC_ADDRESS].parts)
     cg.add_build_flag("-std=c++17")
     cg.add_build_flag("-lsodium")
     if IS_MACOS:
