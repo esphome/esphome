@@ -171,7 +171,7 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
   uint8_t b = esp_scale8(payload[3], bri);
   uint8_t w = esp_scale8(payload[8], bri);
 
-  for (auto && led : it) {
+  for (auto &&led : it) {
     led.set(Color(r, g, b, w));
   }
 
