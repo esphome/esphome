@@ -33,7 +33,11 @@ WLEDLightEffect::WLEDLightEffect(const std::string &name) : AddressableLightEffe
 void WLEDLightEffect::start() {
   AddressableLightEffect::start();
 
-  blank_at_ = 0;
+  if (blank_on_start_) {
+    blank_at_ = 0;
+  } else {
+    blank_at_ = UINT32_MAX;
+  }
 }
 
 void WLEDLightEffect::stop() {
@@ -158,12 +162,20 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
     return false;
   }
 
+  //uint8_t payload_sync_group_mask = payload[34];
+
+  //if (sync_group_mask_ != 0 && payload_sync_group_mask != sync_group_mask_) {
+  //  ESP_LOGD(TAG, "sync group mask does not match");
+  //  return false;
+  //}
+
   uint8_t payload_sync_group_mask = payload[34];
 
-  if (sync_group_mask_ != 0 && payload_sync_group_mask != sync_group_mask_) {
+  if ((payload_sync_group_mask & sync_group_mask_) != sync_group_mask_) {
     ESP_LOGD(TAG, "sync group mask does not match");
     return false;
   }
+
 
   uint8_t bri = payload[0];
   uint8_t r = esp_scale8(payload[1], bri);

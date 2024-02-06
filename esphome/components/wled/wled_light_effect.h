@@ -22,6 +22,7 @@ class WLEDLightEffect : public light::AddressableLightEffect {
   void apply(light::AddressableLight &it, const Color &current_color) override;
   void set_port(uint16_t port) { this->port_ = port; }
   void set_sync_group_mask(uint8_t mask) { this->sync_group_mask_ = mask; }
+  void set_blank_on_start(bool blank) { this->blank_on_start_ = blank; }
 
  protected:
   void blank_all_leds_(light::AddressableLight &it);
@@ -37,6 +38,7 @@ class WLEDLightEffect : public light::AddressableLightEffect {
   uint32_t blank_at_{0};
   uint32_t dropped_{0};
   uint8_t sync_group_mask_{0};
+  bool blank_on_start_{true};
 };
 
 }  // namespace wled
