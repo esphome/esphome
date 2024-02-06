@@ -173,7 +173,6 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
 
   for (auto &&led : it) {
     led.set(Color(r, g, b, w));
-  }
 
   return true;
 }
