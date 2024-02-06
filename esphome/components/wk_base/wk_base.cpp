@@ -25,17 +25,23 @@ order of entry. Implementation is classic and therefore not described in any det
  component or through a SPI bus for example in the case of the wk2168_spi component. Derived classes will actually
  performs the specific bus operations.
 
+ @section WKBaseRegI2C_ WKBaseRegI2C
+ The WKBaseRegI2C class implements the virtual methods of the WKBaseRegister virtual class for an I2C bus.
+
+  @section WKBaseRegSPI_ WKBaseSPII2C
+ The WKBaseRegSPI class implements the virtual methods of the WKBaseRegister virtual class for an SPI bus.
+
  @section WKBaseComponent_ The WKBaseComponent class
 The WKBaseComponent class stores the information global to a WK family component and provides methods to set/access
 this information. It also serves as a container for WKBaseChannel instances. This is done by maintaining an array of
-references these WKBaseChannel instances. This class derives from two ESPHome classes. The esphome::Component class and
-the i2c::I2CDevice class. This class override esphome::Component::loop() method which is to facilitate the seamless
-transfer of accumulated bytes from the receive FIFO into the ring buffer. This process ensures quick access to the
-stored bytes, enhancing the overall efficiency of the component.
-
- @section WKBaseComponent_ WKBaseComponent class
+references these WKBaseChannel instances. This class derives from two ESPHome classes. This class override
+esphome::Component::loop() method which is to facilitate the seamless transfer of accumulated bytes from the receive
+FIFO into the ring buffer. This process ensures quick access to the stored bytes, enhancing the overall efficiency of
+the component.
 
  @section WKGPIOPin_ WKGPIOPin class
+ The WKGPIOPin class is an helper class to expose the GPIO pins of WK family components as if they were internal GPIO
+pins. It also provides the setup() and dump_summary() methods.
 
  @section WKBaseChannel_ The WKBaseChannel class
 The WKBaseChannel class is used to implement all the virtual methods of the ESPHome uart::UARTComponent class. An
@@ -285,6 +291,9 @@ void WKBaseComponent::test_gpio_output_() {
 #endif
 
 #ifdef HAS_GPIO_PIN
+///////////////////////////////////////////////////////////////////////////////
+// The WKGPIOPin methods
+///////////////////////////////////////////////////////////////////////////////
 bool WKBaseComponent::read_pin_val_(uint8_t pin) {
   this->input_state_ = this->reg(WKREG_GPDAT, 0);
   ESP_LOGVV(TAG, "reading input pin %d = %d in_state %s", pin, this->input_state_ & (1 << pin), I2S2CS(input_state_));
@@ -311,9 +320,6 @@ void WKBaseComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
   this->reg(WKREG_GPDIR, 0) = this->pin_config_;  // TODO check ~
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// The WKGPIOPin methods
-///////////////////////////////////////////////////////////////////////////////
 void WKGPIOPin::setup() {
   ESP_LOGV(TAG, "Setting GPIO pin %d mode to %s", this->pin_,
            flags_ == gpio::FLAG_INPUT          ? "Input"
@@ -537,7 +543,6 @@ void WKBaseChannel::setup_channel() {
   if (this->check_channel_down()) {
     ESP_LOGCONFIG(TAG, "  Error channel %s not working...", this->get_channel_name());
   }
-
   this->reset_fifo_();
   this->receive_buffer_.clear();
   this->set_line_param_();
@@ -555,7 +560,7 @@ void WKBaseChannel::dump_channel() {
 void WKBaseChannel::reset_fifo_() {
   // enable transmission and reception
   this->reg_(WKREG_SCR) = SCR_RXEN | SCR_TXEN;
-  // we reset and enable all FIFO
+  // we reset and enable transmit and receive FIFO
   this->reg_(WKREG_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
 }
 
@@ -729,8 +734,6 @@ size_t WKBaseChannel::xfer_fifo_to_buffer_() {
     this->reg_(0).read_fifo(data, to_transfer);
     for (size_t i = 0; i < to_transfer; i++)
       this->receive_buffer_.push(data[i]);
-  } else {
-    ESP_LOGVV(TAG, "xfer_fifo_to_buffer: nothing to to_transfer");
   }
   return to_transfer;
 }

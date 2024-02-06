@@ -19,9 +19,9 @@
 #include "Wire.h"
 #endif
 
-// #define USE_SPI_BUS
-// #define USE_I2C_BUS
-// #define HAS_GPIO_PIN
+#define USE_SPI_BUS
+#define USE_I2C_BUS
+#define HAS_GPIO_PIN
 
 #ifdef USE_SPI_BUS
 #include "esphome/components/spi/spi.h"
@@ -39,7 +39,7 @@
 ///     build_flags:
 ///       - -DTEST_COMPONENT
 
-// #define TEST_COMPONENT
+#define TEST_COMPONENT
 
 namespace esphome {
 namespace wk_base {
@@ -143,7 +143,7 @@ template<typename T, size_t SIZE> class RingBuffer {
   /// @brief clear the buffer content
   inline void clear() { this->head_ = this->tail_ = this->count_ = 0; }
 
- private:
+ protected:
   std::array<T, SIZE> rb_{0};  ///< the ring buffer
   int tail_{0};                ///< position of the next element to read
   int head_{0};                ///< position of the next element to write
