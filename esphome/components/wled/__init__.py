@@ -9,15 +9,13 @@ WLEDLightEffect = wled_ns.class_("WLEDLightEffect", AddressableLightEffect)
 
 CONFIG_SCHEMA = cv.All(cv.Schema({}), cv.only_with_arduino)
 
-CONF_SYNCGROUP_MASK = "sync_group_mask"
-
 @register_addressable_effect(
     "wled",
     WLEDLightEffect,
     "WLED",
     {
         cv.Optional(CONF_PORT, default=21324): cv.port,
-        cv.Optional(CONF_SYNCGROUP_MASK, default=0): cv.int_range(min=0, max=255)
+        cv.Optional("sync_group_mask", default=0): cv.int_range(min=0, max=255) # 0 matches all, mask sync groups 1-8 with 1 2 4 8 16 32 64 128
     },
 )
 async def wled_light_effect_to_code(config, effect_id):
