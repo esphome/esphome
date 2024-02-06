@@ -65,7 +65,7 @@ OUTPUT_DATA_RATES = {
     "125HZ": OutputDataRate.Rate125Hz,
     "250HZ": OutputDataRate.Rate250Hz,
     "500HZ": OutputDataRate.Rate500Hz,
-    "UNCONFIGURED": OutputDataRate.Unconfigured
+    "UNCONFIGURED": OutputDataRate.Unconfigured,
 }
 
 # INT_SET1
@@ -87,7 +87,9 @@ INTERRUPT_SOURCES = {
 
 # INT_MAP1
 
-CONF_MAP_SIGNIFICANT_MOVEMENT_INTERRUPT_TO_INT1 = "map_significant_movement_interrupt_to_int1"
+CONF_MAP_SIGNIFICANT_MOVEMENT_INTERRUPT_TO_INT1 = (
+    "map_significant_movement_interrupt_to_int1"
+)
 CONF_MAP_ORIENTATION_INTERRUPT_TO_INT1 = "map_orientation_interrupt_to_int1"
 CONF_MAP_SINGLE_TAP_INTERRUPT_TO_INT1 = "map_single_tap_interrupt_to_int1"
 CONF_MAP_DOUBLE_TAP_INTERRUPT_TO_INT1 = "map_double_tap_interrupt_to_int1"
@@ -139,9 +141,7 @@ STABLE_TILT_TIMES = {
     "224_ODR_PERIODS": StableTiltTime.ODR224,
 }
 
-DA217Component = da217_ns.class_(
-    "DA217Component", cg.PollingComponent, i2c.I2CDevice
-)
+DA217Component = da217_ns.class_("DA217Component", cg.PollingComponent, i2c.I2CDevice)
 
 accel_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_METER_PER_SECOND_SQUARED,
@@ -187,13 +187,23 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ENABLE_ACTIVE_INTERRUPT_Y_AXIS, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_ACTIVE_INTERRUPT_X_AXIS, default=False): cv.boolean,
             # INT_MAP1
-            cv.Optional(CONF_MAP_SIGNIFICANT_MOVEMENT_INTERRUPT_TO_INT1, default=False): cv.boolean,
-            cv.Optional(CONF_MAP_ORIENTATION_INTERRUPT_TO_INT1, default=False): cv.boolean,
-            cv.Optional(CONF_MAP_SINGLE_TAP_INTERRUPT_TO_INT1, default=False): cv.boolean,
-            cv.Optional(CONF_MAP_DOUBLE_TAP_INTERRUPT_TO_INT1, default=False): cv.boolean,
+            cv.Optional(
+                CONF_MAP_SIGNIFICANT_MOVEMENT_INTERRUPT_TO_INT1, default=False
+            ): cv.boolean,
+            cv.Optional(
+                CONF_MAP_ORIENTATION_INTERRUPT_TO_INT1, default=False
+            ): cv.boolean,
+            cv.Optional(
+                CONF_MAP_SINGLE_TAP_INTERRUPT_TO_INT1, default=False
+            ): cv.boolean,
+            cv.Optional(
+                CONF_MAP_DOUBLE_TAP_INTERRUPT_TO_INT1, default=False
+            ): cv.boolean,
             cv.Optional(CONF_MAP_TILT_INTERRUPT_TO_INT1, default=False): cv.boolean,
             cv.Optional(CONF_MAP_ACTIVE_INTERRUPT_TO_INT1, default=False): cv.boolean,
-            cv.Optional(CONF_MAP_STEP_COUNTER_INTERRUPT_TO_INT1, default=False): cv.boolean,
+            cv.Optional(
+                CONF_MAP_STEP_COUNTER_INTERRUPT_TO_INT1, default=False
+            ): cv.boolean,
             cv.Optional(CONF_MAP_FREEFALL_INTERRUPT_TO_INT1, default=False): cv.boolean,
             # TAP_DUR
             cv.Optional(CONF_TAP_QUIET_DURATION, default="30MS"): cv.enum(
@@ -209,12 +219,15 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_STABLE_TILT_TIME, default="32_ODR_PERIODS"): cv.enum(
                 STABLE_TILT_TIMES, upper=True
             ),
-            cv.Optional(CONF_TAP_ACCELERATION_THRESHOLD, default=0.32): cv.float_range(min=0.0, max=1.0), # Default aims at tap_th=0xA, per datasheet
+            cv.Optional(CONF_TAP_ACCELERATION_THRESHOLD, default=0.32): cv.float_range(
+                min=0.0, max=1.0
+            ),  # Default aims at tap_th=0xA, per datasheet
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x27))
 )
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -227,9 +240,56 @@ async def to_code(config):
             sens = await sensor.new_sensor(config[accel_key])
             cg.add(getattr(var, f"set_accel_{d}_sensor")(sens))
 
-    cg.add(var.set_resolution_range(config[CONF_ENABLE_HIGH_PASS_FILTER], config[CONF_ENABLE_WATCHDOG], config[CONF_WATCHDOG_TIME], config[CONF_RESOLUTION], config[CONF_FULL_SCALE]));
-    cg.add(var.set_odr_axis(not config[CONF_ENABLE_X_AXIS], not config[CONF_ENABLE_Y_AXIS], not config[CONF_ENABLE_Z_AXIS], config[CONF_OUTPUT_DATA_RATE]));
-    cg.add(var.set_int_set1(config[CONF_INTERRUPT_SOURCE], config[CONF_ENABLE_SINGLE_TAP_INTERRUPT], config[CONF_ENABLE_DOUBLE_TAP_INTERRUPT], config[CONF_ENABLE_ORIENTATION_INTERRUPT], config[CONF_ENABLE_ACTIVE_INTERRUPT_Z_AXIS], config[CONF_ENABLE_ACTIVE_INTERRUPT_Y_AXIS], config[CONF_ENABLE_ACTIVE_INTERRUPT_X_AXIS]));
-    cg.add(var.set_int_map1(config[CONF_MAP_SIGNIFICANT_MOVEMENT_INTERRUPT_TO_INT1], config[CONF_MAP_ORIENTATION_INTERRUPT_TO_INT1], config[CONF_MAP_SINGLE_TAP_INTERRUPT_TO_INT1], config[CONF_MAP_DOUBLE_TAP_INTERRUPT_TO_INT1], config[CONF_MAP_TILT_INTERRUPT_TO_INT1], config[CONF_MAP_ACTIVE_INTERRUPT_TO_INT1], config[CONF_MAP_STEP_COUNTER_INTERRUPT_TO_INT1], config[CONF_MAP_FREEFALL_INTERRUPT_TO_INT1]));
-    cg.add(var.set_tap_dur(config[CONF_TAP_QUIET_DURATION], config[CONF_TAP_SHOCK_DURATION], config[CONF_DOUBLE_TAP_DURATION]));
-    cg.add(var.set_tap_ths(config[CONF_STABLE_TILT_TIME], int(config[CONF_TAP_ACCELERATION_THRESHOLD]*31+0.5)));
+    cg.add(
+        var.set_resolution_range(
+            config[CONF_ENABLE_HIGH_PASS_FILTER],
+            config[CONF_ENABLE_WATCHDOG],
+            config[CONF_WATCHDOG_TIME],
+            config[CONF_RESOLUTION],
+            config[CONF_FULL_SCALE],
+        )
+    )
+    cg.add(
+        var.set_odr_axis(
+            not config[CONF_ENABLE_X_AXIS],
+            not config[CONF_ENABLE_Y_AXIS],
+            not config[CONF_ENABLE_Z_AXIS],
+            config[CONF_OUTPUT_DATA_RATE],
+        )
+    )
+    cg.add(
+        var.set_int_set1(
+            config[CONF_INTERRUPT_SOURCE],
+            config[CONF_ENABLE_SINGLE_TAP_INTERRUPT],
+            config[CONF_ENABLE_DOUBLE_TAP_INTERRUPT],
+            config[CONF_ENABLE_ORIENTATION_INTERRUPT],
+            config[CONF_ENABLE_ACTIVE_INTERRUPT_Z_AXIS],
+            config[CONF_ENABLE_ACTIVE_INTERRUPT_Y_AXIS],
+            config[CONF_ENABLE_ACTIVE_INTERRUPT_X_AXIS],
+        )
+    )
+    cg.add(
+        var.set_int_map1(
+            config[CONF_MAP_SIGNIFICANT_MOVEMENT_INTERRUPT_TO_INT1],
+            config[CONF_MAP_ORIENTATION_INTERRUPT_TO_INT1],
+            config[CONF_MAP_SINGLE_TAP_INTERRUPT_TO_INT1],
+            config[CONF_MAP_DOUBLE_TAP_INTERRUPT_TO_INT1],
+            config[CONF_MAP_TILT_INTERRUPT_TO_INT1],
+            config[CONF_MAP_ACTIVE_INTERRUPT_TO_INT1],
+            config[CONF_MAP_STEP_COUNTER_INTERRUPT_TO_INT1],
+            config[CONF_MAP_FREEFALL_INTERRUPT_TO_INT1],
+        )
+    )
+    cg.add(
+        var.set_tap_dur(
+            config[CONF_TAP_QUIET_DURATION],
+            config[CONF_TAP_SHOCK_DURATION],
+            config[CONF_DOUBLE_TAP_DURATION],
+        )
+    )
+    cg.add(
+        var.set_tap_ths(
+            config[CONF_STABLE_TILT_TIME],
+            int(config[CONF_TAP_ACCELERATION_THRESHOLD] * 31 + 0.5),
+        )
+    )
