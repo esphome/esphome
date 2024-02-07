@@ -88,7 +88,7 @@ static inline void rp2040_pio_led_strip_driver_{id}_init(PIO pio, uint sm, uint 
 .wrap_target
 awaiting_data:
     ; Wait for data in FIFO queue
-    out null, 24 ; discard the byte lane replication of the FIFO since we only need 8 bits
+    ; out null, 24 ; discard the byte lane replication of the FIFO since we only need 8 bits (not needed????)
     pull block ; this will block until there is data in the FIFO queue and then it will pull it into the shift register
     set y, 7 ; set y to the number of bits to write counting 0, (always 7 because we are doing one word at a time)
 

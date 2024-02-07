@@ -116,18 +116,8 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
     return;
   }
 
-  // assemble bits in buffer to 32 bit words with ex for GBR: 0bGGGGGGGGRRRRRRRRBBBBBBBB00000000
-  // however, the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
-  /*for (int i = 0; i < this->num_leds_; i++) {
-    uint8_t multiplier = this->is_rgbw_ ? 4 : 3;
-    uint8_t c1 = this->buf_[(i * multiplier) + 0];
-    uint8_t c2 = this->buf_[(i * multiplier) + 1];
-    uint8_t c3 = this->buf_[(i * multiplier) + 2];
-    uint8_t w = this->is_rgbw_ ? this->buf_[(i * 4) + 3] : 0;
-    uint32_t color = encode_uint32(c1, c2, c3, w);
-    pio_sm_put_blocking(this->pio_, this->sm_, color);
-  }*/
-  dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->is_rgbw_ ? num_leds_ * 4 : num_leds_ * 3);
+  //the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
+  dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->get_buffer_size_());
 }
 
 light::ESPColorView RP2040PIOLEDStripLightOutput::get_view_internal(int32_t index) const {
