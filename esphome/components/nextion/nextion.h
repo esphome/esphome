@@ -1231,11 +1231,11 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return A Nextion::TFTUploadResult indicating the outcome of the transfer. It can be an OK status for successful transfers,
    * or various error codes that detail the nature of any failure encountered during the operation.
    */
-  #ifdef ARDUINO
+#ifdef ARDUINO
   TFTUploadResult upload_by_chunks_(HTTPClient &http_client, int &range_start);
-  #elif defined(USE_ESP_IDF)
+#elif defined(USE_ESP_IDF)
   TFTUploadResult upload_by_chunks_(esp_http_client_handle_t http_client, int &range_start);
-  #endif  // ARDUINO vs USE_ESP_IDF
+#endif  // ARDUINO vs USE_ESP_IDF
 
   /**
    * Ends the upload process, restart Nextion and, if successful,
