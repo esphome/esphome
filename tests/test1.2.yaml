@@ -1,0 +1,66 @@
+esphome:
+  name: test1_2
+  name_add_mac_suffix: true
+  platform: ESP32
+  board: nodemcu-32s
+  build_path: build/test1
+
+wifi:
+  networks:
+    - ssid: "MySSID"
+      password: "password"
+
+time:
+  - platform: sntp
+    id: test_time
+    on_time_sync:
+      then:
+        - datetime.set:
+            id: turn_on_time_datetime
+            value: !lambda |-
+              return ESPTime::from_epoch_local(id(test_time).now().timestamp + 30).strftime("%H:%M:%S");
+        - datetime.set:
+            id: turn_off_time_datetime
+            value: !lambda |-
+              return ESPTime::from_epoch_local(id(test_time).now().timestamp + 40).strftime("%H:%M:%S");
+
+button:
+  - platform: template
+    name: Set the time inputs to local time + 10 seconds
+    on_press: 
+      then:
+        - datetime.set:
+            id: turn_on_time_datetime
+            value: !lambda |-
+              return ESPTime::from_epoch_local(id(test_time).now().timestamp + 10).strftime("%H:%M:%S");
+        - datetime.set:
+            id: turn_off_time_datetime
+            value: !lambda |-
+              return ESPTime::from_epoch_local(id(test_time).now().timestamp + 20).strftime("%H:%M:%S");
+
+switch:
+  - platform: template
+    name: "Template Switch"
+    id: test_switch
+    optimistic: yes
+
+datetime:
+  - platform: template
+    id: turn_on_time_datetime
+    name: Time to turn the switch on
+    time_id: test_time
+    optimistic: yes
+    initial_value: "16:45:20"
+    on_time:
+      - switch.turn_on:
+          id: test_switch
+
+  - platform: template
+    id: turn_off_time_datetime
+    name: Time to turn the switch off
+    time_id: test_time
+    optimistic: yes
+    initial_value: "16:45:20"
+    on_time:
+      - switch.turn_off:
+          id: test_switch

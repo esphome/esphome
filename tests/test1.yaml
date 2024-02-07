@@ -4013,17 +4013,6 @@ teleinfo:
   update_interval: 60s
   historical_mode: true
 
-datetime:
-  - platform: template
-    id: test_datetime
-    name: Test Datetime
-    time_id: sntp_time
-    optimistic: yes
-    initial_value: "16:45:20"
-    on_time:
-      - switch.turn_on:
-          id: living_room_lights_off
-
 number:
   - platform: template
     id: test_number
@@ -4196,13 +4185,6 @@ button:
     name: Reset Mmwave Sensor
     on_press:
       - dfrobot_sen0395.reset:
-  - platform: template
-    name: Datetime component set test
-    on_press:
-      - datetime.set:
-          id: test_datetime
-          value: !lambda |-
-            return ESPTime::from_epoch_local(id(sntp_time).now().timestamp + 10).strftime("%H:%M:%S");
   - platform: template
     name: Poller component suspend test
     on_press:
