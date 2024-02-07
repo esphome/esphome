@@ -4202,7 +4202,7 @@ button:
       - datetime.set:
           id: test_datetime
           value: !lambda |-
-            return ESPTime::from_epoch_local(id(my_time).now().timestamp + 10).strftime("%H:%M:%S");
+            return ESPTime::from_epoch_local(id(sntp_time).now().timestamp + 10).strftime("%H:%M:%S");
   - platform: template
     name: Poller component suspend test
     on_press:
