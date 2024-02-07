@@ -40,10 +40,10 @@ RESOLUTIONS = {
 
 FullScale = da217_ns.enum("WatchdogTime")
 FULL_SCALES = {
-    "2G": FullScale.PLUSMINUS2G,
-    "4G": FullScale.PLUSMINUS4G,
-    "8G": FullScale.PLUSMINUS8G,
-    "16G": FullScale.PLUSMINUS16G,
+    "2G": FullScale.PLUS_MINUS2G,
+    "4G": FullScale.PLUS_MINUS4G,
+    "8G": FullScale.PLUS_MINUS8G,
+    "16G": FullScale.PLUS_MINUS16G,
 }
 
 # ODR_AXIS
@@ -118,14 +118,14 @@ TAP_SHOCK_DURATIONS = {
 
 DoubleTapDuration = da217_ns.enum("DoubleTapDuration")
 DOUBLE_TAP_DURATIONS = {
-    "50MS": DoubleTapDuration.DOUBLETAP50MS,
-    "100MS": DoubleTapDuration.DOUBLETAP100MS,
-    "150MS": DoubleTapDuration.DOUBLETAP150MS,
-    "200MS": DoubleTapDuration.DOUBLETAP200MS,
-    "250MS": DoubleTapDuration.DOUBLETAP250MS,
-    "375MS": DoubleTapDuration.DOUBLETAP375MS,
-    "500MS": DoubleTapDuration.DOUBLETAP500MS,
-    "700MS": DoubleTapDuration.DOUBLETAP700MS,
+    "50MS": DoubleTapDuration.DOUBLE_TAP50MS,
+    "100MS": DoubleTapDuration.DOUBLE_TAP100MS,
+    "150MS": DoubleTapDuration.DOUBLE_TAP150MS,
+    "200MS": DoubleTapDuration.DOUBLE_TAP200MS,
+    "250MS": DoubleTapDuration.DOUBLE_TAP250MS,
+    "375MS": DoubleTapDuration.DOUBLE_TAP375MS,
+    "500MS": DoubleTapDuration.DOUBLE_TAP500MS,
+    "700MS": DoubleTapDuration.DOUBLE_TAP700MS,
 }
 
 # TAP_THS
