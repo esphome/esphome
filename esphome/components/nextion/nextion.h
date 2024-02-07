@@ -1239,6 +1239,20 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 #endif  // ARDUINO vs USE_ESP_IDF
 
   /**
+   * This function fetched a chunk of data from the HTTP server and returns as an array of bytes.
+   *
+   * @param http_client The HTTP client instance for making the range request. For Arduino, this should be an HTTPClient
+   * object; for ESP-IDF, an esp_http_client_handle_t.
+   * @param buffer_size The chunk size to be fetched. It is the minimum value between the remaining data in the file and
+   * 4096 bytes (the chunk size supported by Nextion).
+   */
+#ifdef ARDUINO
+  std::vector<uint8_t> fetch_chunk_from_http_(HTTPClient &http_client, int buffer_size);
+#elif defined(USE_ESP_IDF)
+  std::vector<uint8_t> fetch_chunk_from_http_(esp_http_client_handle_t &http_client, int buffer_size);
+#endif  // ARDUINO vs USE_ESP_IDF
+
+  /**
    * Ends the upload process, restart Nextion and, if successful,
    * restarts ESP
    * @param Nextion::TFTUploadResult result of the transfer.

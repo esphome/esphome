@@ -113,6 +113,55 @@ uint32_t Nextion::get_free_heap_() {
 }
 
 #ifdef ARDUINO
+std::vector<uint8_t> Nextion::fetch_chunk_from_http_(HTTPClient &http_client, int buffer_size) {
+  std::vector<uint8_t> buffer();
+  uint32_t start_time = millis();
+  const uint32_t timeout = 5000;
+  int read_len = 0;
+  int partial_read_len = 0;
+  while (read_len < buffer_size && millis() - start_time < timeout) {
+    if (http_client.getStreamPtr()->available() > 0) {
+      partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer.data()) + read_len,
+                                                               buffer_size - read_len);
+      read_len += partial_read_len;
+      if (partial_read_len > 0) {
+        App.feed_wdt();
+        delay(2);
+      }
+    }
+  }
+  return buffer;
+}
+#elif defined(USE_ESP_IDF)
+std::vector<uint8_t> Nextion::fetch_chunk_from_http_(esp_http_client_handle_t &http_client, int buffer_size) {
+  std::vector<uint8_t> buffer();
+  int read_len = 0;
+  int partial_read_len = 0;
+  const int max_retries = 5;
+  int retries = 0;
+
+  // Attempt to read the chunk with retries.
+  while (retries < max_retries && read_len < buffer_size) {
+    partial_read_len = esp_http_client_read(http_client, reinterpret_cast<char *>(buffer.data()) + read_len, buffer_size - read_len);
+        
+    if (partial_read_len > 0) {
+      read_len += partial_read_len;  // Accumulate the total read length.
+      // Reset retries on successful read.
+      retries = 0;
+    } else if (partial_read_len == 0) {
+      // If no data was read, increment retries.
+      retries++;
+      delay(2);
+    } else {
+      break;
+    }
+    App.feed_wdt();  // Feed the watchdog timer.
+  }
+  return buffer;
+}
+#endif  // ARDUINO vs USE_ESP_IDF
+
+#ifdef ARDUINO
 Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, int &range_start) {
 #elif defined(USE_ESP_IDF)
 Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, int &range_start) {
@@ -160,42 +209,13 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     return Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_GET_CONTENT_LENGHT;
   }
 
-  ESP_LOGV(TAG, "Allocate buffer");
-  std::vector<uint8_t> buffer(4096);  // Attempt to allocate up to 4096 bytes
-  ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
-  // Check if the allocation was successful by comparing the size
-  if (buffer.size() != 4096) {
-    ESP_LOGE(TAG, "Failed to allocate memory for buffer");
-    return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
-  } else {
-    ESP_LOGV(TAG, "Memory for buffer allocated successfully");
-  }
-
   std::string recv_string;
   while (true) {
     App.feed_wdt();
     int buffer_size = std::min(this->content_length_, 4096);  // Limits buffer to the remaining data
-    buffer.clear();
     ESP_LOGV(TAG, "Fetching %d bytes from HTTP", buffer_size);
-#ifdef ARDUINO
-    uint32_t start_time = millis();
-    const uint32_t timeout = 5000;
-    int read_len = 0;
-    int partial_read_len = 0;
-    while (read_len < buffer_size && millis() - start_time < timeout) {
-      if (http_client.getStreamPtr()->available() > 0) {
-        partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer.data()) + read_len,
-                                                                 buffer_size - read_len);
-        read_len += partial_read_len;
-        if (partial_read_len > 0) {
-          App.feed_wdt();
-          delay(2);
-        }
-      }
-    }
-#elif defined(USE_ESP_IDF)
-    int read_len = esp_http_client_read(http_client, reinterpret_cast<char *>(buffer.data()), 4096);
-#endif
+    std::vector<uint8_t> buffer = fetch_chunk_from_http_(http_client, buffer_size);
+    read_len = buffer.size();
     if (read_len != buffer_size) {
       // Did not receive the full package within the timeout period
       ESP_LOGE(TAG, "Failed to read full package, received only %d of %d bytes", read_len, buffer_size);
