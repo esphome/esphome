@@ -113,8 +113,8 @@ uint32_t Nextion::get_free_heap_() {
 }
 
 #ifdef ARDUINO
-std::vector<uint8_t> Nextion::fetch_chunk_from_http_(HTTPClient &http_client, int buffer_size) {
-  std::vector<uint8_t> buffer();
+std::pair<std::vector<uint8_t>, int> Nextion::fetch_chunk_from_http_(HTTPClient &http_client, int buffer_size) {
+  std::vector<uint8_t> buffer(buffer_size); // Initialize buffer with the specified size
   uint32_t start_time = millis();
   const uint32_t timeout = 5000;
   int read_len = 0;
@@ -130,11 +130,11 @@ std::vector<uint8_t> Nextion::fetch_chunk_from_http_(HTTPClient &http_client, in
       }
     }
   }
-  return buffer;
+  return std::make_pair(buffer, read_len);
 }
 #elif defined(USE_ESP_IDF)
-std::vector<uint8_t> Nextion::fetch_chunk_from_http_(esp_http_client_handle_t &http_client, int buffer_size) {
-  std::vector<uint8_t> buffer();
+std::pair<std::vector<uint8_t>, int> Nextion::fetch_chunk_from_http_(esp_http_client_handle_t &http_client, int buffer_size) {
+  std::vector<uint8_t> buffer(buffer_size); // Initialize buffer with the specified size
   int read_len = 0;
   int partial_read_len = 0;
   const int max_retries = 5;
@@ -157,7 +157,7 @@ std::vector<uint8_t> Nextion::fetch_chunk_from_http_(esp_http_client_handle_t &h
     }
     App.feed_wdt();  // Feed the watchdog timer.
   }
-  return buffer;
+  return std::make_pair(buffer, read_len);
 }
 #endif  // ARDUINO vs USE_ESP_IDF
 
@@ -214,8 +214,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     App.feed_wdt();
     int buffer_size = std::min(this->content_length_, 4096);  // Limits buffer to the remaining data
     ESP_LOGV(TAG, "Fetching %d bytes from HTTP", buffer_size);
-    std::vector<uint8_t> buffer = fetch_chunk_from_http_(http_client, buffer_size);
-    read_len = buffer.size();
+    auto [buffer, read_len] = fetch_chunk_from_http_(http_client, buffer_size);
     if (read_len != buffer_size) {
       // Did not receive the full package within the timeout period
       ESP_LOGE(TAG, "Failed to read full package, received only %d of %d bytes", read_len, buffer_size);

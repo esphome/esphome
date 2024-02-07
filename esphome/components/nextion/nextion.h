@@ -1247,9 +1247,9 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * 4096 bytes (the chunk size supported by Nextion).
    */
 #ifdef ARDUINO
-  std::vector<uint8_t> fetch_chunk_from_http_(HTTPClient &http_client, int buffer_size);
+  std::pair<std::vector<uint8_t>, int> fetch_chunk_from_http_(HTTPClient &http_client, int buffer_size);
 #elif defined(USE_ESP_IDF)
-  std::vector<uint8_t> fetch_chunk_from_http_(esp_http_client_handle_t &http_client, int buffer_size);
+  std::pair<std::vector<uint8_t>, int> fetch_chunk_from_http_(esp_http_client_handle_t &http_client, int buffer_size);
 #endif  // ARDUINO vs USE_ESP_IDF
 
   /**
