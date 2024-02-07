@@ -90,8 +90,6 @@ bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
   return false;
 }
 
-bool ESPTime::strptime(char *time_to_parse, ESPTime &esp_time) { return strptime(time_to_parse, esp_time); }
-
 void ESPTime::increment_second() {
   this->timestamp++;
   if (!increment_time_value(this->second, 0, 60))

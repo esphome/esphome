@@ -13,7 +13,7 @@ namespace datetime {
 #ifdef USE_TIME
 class DatetimeOnTimeTrigger : public Trigger<>, public Component {
  public:
-  explicit DatetimeOnTimeTrigger(Datetime *datetime, time::RealTimeClock *rtc) : datetime_(datetime), rtc_(rtc) {}
+  explicit DatetimeOnTimeTrigger(Datetime *datetime, time::RealTimeClock *rtc) : rtc_(rtc), datetime_(datetime) {}
 
   bool matches(const ESPTime &time);
 

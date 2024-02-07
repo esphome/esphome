@@ -66,7 +66,7 @@ void DatetimeOnTimeTrigger::loop() {
   this->last_check_ = time;
   if (!time.fields_in_range()) {
     ESP_LOGW(TAG, "Time is out of range!");
-    ESP_LOGD(TAG, "Second=%02u Minute=%02u Hour=%02u DayOfWeek=%u DayOfMonth=%u DayOfYear=%u Month=%u time=%d",
+    ESP_LOGD(TAG, "Second=%02u Minute=%02u Hour=%02u DayOfWeek=%u DayOfMonth=%u DayOfYear=%u Month=%u time=%lld",
              time.second, time.minute, time.hour, time.day_of_week, time.day_of_month, time.day_of_year, time.month,
              (int64_t) time.timestamp);
   }

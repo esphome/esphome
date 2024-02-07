@@ -62,13 +62,6 @@ struct ESPTime {
            this->day_of_year < 367 && this->month > 0 && this->month < 13;
   }
 
-  /** Convert a null-terminated c string buffer to ESPTime struct as specified by the format argument.
-   * @param time_to_parse null-terminated c string formatet like this: 2020-08-25 05:30:00.
-   * @param esp_time an instance of a ESPTime struct
-   * @return the success sate of the parsing
-   */
-  static bool strptime(char *time_to_parse, ESPTime &esp_time);
-
   /** Convert a string to ESPTime struct as specified by the format argument.
    * @param time_to_parse null-terminated c string formatet like this: 2020-08-25 05:30:00.
    * @param esp_time an instance of a ESPTime struct

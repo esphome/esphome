@@ -51,9 +51,7 @@ void DatetimeCall::perform() {
 }
 
 bool DatetimeCall::validate_datetime_string_(const std::string &value) {
-  if (HAS_DATETIME_STRING_DATE_OR_TIME(value))
-    return true;
-  return false;
+  return HAS_DATETIME_STRING_DATE_OR_TIME(value);
 }
 
 }  // namespace datetime

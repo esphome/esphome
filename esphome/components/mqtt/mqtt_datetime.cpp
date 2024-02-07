@@ -23,7 +23,7 @@ void MQTTDatetimeComponent::setup() {
     call.set_value(state);
     call.perform();
   });
-  this->datetime_->add_on_state_callback([this](std::string state) { this->publish_state(std::move(state)); });
+  this->datetime_->add_on_state_callback([this](const std::string &state) { this->publish_state(state); });
 }
 
 void MQTTDatetimeComponent::dump_config() {
