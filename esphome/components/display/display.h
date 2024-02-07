@@ -291,6 +291,20 @@ class Display : public PollingComponent {
    * @param y The y coordinate of the text alignment anchor point.
    * @param font The font to draw the text with.
    * @param color The color to draw the text with.
+   * @param background The background color to use for anti-aliasing
+   * @param align The alignment of the text.
+   * @param format The format to use.
+   * @param ... The arguments to use for the text formatting.
+   */
+  void printf(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format, ...)
+      __attribute__((format(printf, 8, 9)));
+
+  /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
+   *
+   * @param x The x coordinate of the text alignment anchor point.
+   * @param y The y coordinate of the text alignment anchor point.
+   * @param font The font to draw the text with.
+   * @param color The color to draw the text with.
    * @param align The alignment of the text.
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
@@ -536,7 +550,8 @@ class Display : public PollingComponent {
  protected:
   bool clamp_x_(int x, int w, int &min_x, int &max_x);
   bool clamp_y_(int y, int h, int &min_y, int &max_y);
-  void vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg);
+  void vprintf_(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
+                va_list arg);
 
   void do_update_();
   void clear_clipping_();
