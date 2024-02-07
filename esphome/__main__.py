@@ -35,6 +35,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
     SECRETS_FILES,
+    PLATFORM_NRF52,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.helpers import indent, is_ip_address
@@ -288,10 +289,11 @@ def upload_using_esptool(config, port, file):
     return run_esptool(115200)
 
 
-def upload_using_platformio(config, port):
+def upload_using_platformio(
+    config, port, upload_args=["-t", "upload", "-t", "nobuild"]
+):
     from esphome import platformio_api
 
-    upload_args = ["-t", "upload", "-t", "nobuild"]
     if port is not None:
         upload_args += ["--upload-port", port]
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
@@ -309,7 +311,10 @@ def upload_program(config, args, host):
         if CORE.target_platform in (PLATFORM_BK72XX, PLATFORM_RTL87XX):
             return upload_using_platformio(config, host)
 
-        return 1  # Unknown target platform
+        if CORE.target_platform in (PLATFORM_NRF52):
+            return upload_using_platformio(config, host, ["-t", "upload"])
+
+        raise EsphomeError(f"Unknown target platform: {CORE.target_platform}")
 
     if CONF_OTA not in config:
         raise EsphomeError(

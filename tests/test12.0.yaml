@@ -1,0 +1,77 @@
+---
+nrf52:
+  board: nrf52840
+  framework:
+    type: arduino
+
+esphome:
+  name: nrf52-test
+
+logger:
+  level: DEBUG
+  logs:
+    switch: NONE
+
+switch:
+  - platform: gpio
+    pin:
+      number: 15
+      inverted: true
+      mode:
+        output: true
+    id: gpio_15
+
+
+interval:
+  - interval: 100ms
+    then:
+      - switch.toggle: gpio_15
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: 9
+      mode: INPUT_PULLUP
+
+    id: gpio_9
+
+sensor:
+  - platform: pulse_width
+    pin: P0.10
+    id: gpio_10
+    update_interval: 3s
+  - platform: adc
+    pin: P0.29
+    id: adc4
+    update_interval: 1s
+  - platform: uptime
+    name: Uptime Sensor
+    update_interval: 5s
+
+dfu:
+  reset_output: rest_gpio
+
+output:
+  - platform: gpio
+    pin:
+      number: 14
+      inverted: true
+      mode:
+        output: true
+    id: rest_gpio
+
+beacon:
+
+debug:
+  update_interval: 1s
+
+text_sensor:
+  - platform: debug
+    device:
+      name: "Device Info"
+    reset_reason:
+      name: "Reset Reason"
+
+deep_sleep:
+  run_duration: 10s
+  sleep_duration: 10s

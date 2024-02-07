@@ -21,11 +21,15 @@
 #include <driver/uart.h>
 #endif  // USE_ESP_IDF
 
+#ifdef USE_ZEPHYR
+struct device;
+#endif
+
 namespace esphome {
 
 namespace logger {
 
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_NRF52)
 /** Enum for logging UART selection
  *
  * Advanced configuration (pin selection, etc) is not supported.
@@ -34,41 +38,33 @@ enum UARTSelection {
 #ifdef USE_LIBRETINY
   UART_SELECTION_DEFAULT = 0,
   UART_SELECTION_UART0,
-  UART_SELECTION_UART1,
-  UART_SELECTION_UART2,
 #else
   UART_SELECTION_UART0 = 0,
+#endif
+#ifndef USE_NRF52
   UART_SELECTION_UART1,
-#if defined(USE_ESP32)
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3) && !defined(USE_ESP32_VARIANT_ESP32H2)
+#endif
+#if defined(USE_LIBRETINY) || defined(USE_ESP32_VARIANT_ESP32)
   UART_SELECTION_UART2,
-#endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32C6 && !USE_ESP32_VARIANT_ESP32S2 &&
-        // !USE_ESP32_VARIANT_ESP32S3 && !USE_ESP32_VARIANT_ESP32H2
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    (defined(USE_ESP32_VARIANT_ESP32C3) && defined(USE_ARDUINO))
+#endif
+#ifdef USE_USB_CDC
   UART_SELECTION_USB_CDC,
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32C3
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32H2)
+#endif
+#ifdef USE_USB_SERIAL_JTAG
   UART_SELECTION_USB_SERIAL_JTAG,
-#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C6 || USE_ESP32_VARIANT_ESP32S3 ||
-        // USE_ESP32_VARIANT_ESP32H2
-#endif  // USE_ESP32
+#endif
 #ifdef USE_ESP8266
   UART_SELECTION_UART0_SWAP,
 #endif  // USE_ESP8266
-#ifdef USE_RP2040
-  UART_SELECTION_USB_CDC,
-#endif  // USE_RP2040
-#endif  // USE_LIBRETINY
 };
 #endif  // USE_ESP32 || USE_ESP8266 || USE_RP2040 || USE_LIBRETINY
 
 class Logger : public Component {
  public:
   explicit Logger(uint32_t baud_rate, size_t tx_buffer_size);
-
+#ifdef USE_USB_CDC
+  void loop() override;
+#endif
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate);
   uint32_t get_baud_rate() const { return baud_rate_; }
@@ -78,7 +74,7 @@ class Logger : public Component {
 #ifdef USE_ESP_IDF
   uart_port_t get_uart_num() const { return uart_num_; }
 #endif
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_NRF52)
   void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
   /// Get the UART used by the logger.
   UARTSelection get_uart() const;
@@ -106,19 +102,10 @@ class Logger : public Component {
 #endif
 
  protected:
-#ifdef USE_ESP_IDF
-  void init_uart_();
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-  void init_usb_cdc_();
-#endif
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32H2)
-  void init_usb_serial_jtag_();
-#endif
-#endif
   void write_header_(int level, const char *tag, int line);
   void write_footer_();
   void log_message_(int level, const char *tag, int offset = 0);
+  void write_msg_(const char *msg);
 
   inline bool is_buffer_full_() const { return this->tx_buffer_at_ >= this->tx_buffer_size_; }
   inline int buffer_remaining_capacity_() const { return this->tx_buffer_size_ - this->tx_buffer_at_; }
@@ -158,21 +145,23 @@ class Logger : public Component {
     va_end(arg);
   }
 
+  const char *get_uart_selection_();
+
   uint32_t baud_rate_;
   char *tx_buffer_{nullptr};
   int tx_buffer_at_{0};
   int tx_buffer_size_{0};
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_NRF52)
   UARTSelection uart_{UART_SELECTION_UART0};
-#endif
-#ifdef USE_LIBRETINY
+#elif defined(USE_LIBRETINY)
   UARTSelection uart_{UART_SELECTION_DEFAULT};
 #endif
 #ifdef USE_ARDUINO
   Stream *hw_serial_{nullptr};
-#endif
-#ifdef USE_ESP_IDF
+#elif defined(USE_ESP_IDF)
   uart_port_t uart_num_;
+#elif defined(USE_ZEPHYR)
+  const device *uart_dev_{nullptr};
 #endif
   struct LogLevelOverride {
     std::string tag;
@@ -182,6 +171,7 @@ class Logger : public Component {
   CallbackManager<void(int, const char *, const char *)> log_callback_{};
   /// Prevents recursive log calls, if true a log message is already being processed.
   bool recursion_guard_ = false;
+  void *main_task = nullptr;
 };
 
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

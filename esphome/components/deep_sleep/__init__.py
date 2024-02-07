@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_WAKEUP_PIN,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
 )
 
 from esphome.components.esp32 import get_esp32_variant
@@ -198,7 +199,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TOUCH_WAKEUP): cv.All(cv.only_on_esp32, cv.boolean),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_NRF52]),
 )
 
 

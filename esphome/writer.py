@@ -310,6 +310,10 @@ def copy_src_tree():
                 CORE.relative_src_path("esphome.h"),
                 ESPHOME_H_FORMAT.format(include_s + '\n#include "pio_includes.h"'),
             )
+    elif CORE.is_nrf52:
+        from esphome.components.nrf52 import copy_files
+
+        copy_files()
 
 
 def generate_defines_h():

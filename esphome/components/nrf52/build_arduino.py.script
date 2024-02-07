@@ -1,0 +1,14 @@
+import os
+
+Import("env")
+
+def skip_nrfx_from_build(env, node):
+  if os.path.join("FrameworkArduino", "nordic", "nrfx") in node.path:
+    return node
+  if os.path.join("nrfx") in node.path:
+    if os.path.join("drivers", "src", "nrfx_wdt.c") in node.path:
+      return node
+    return None
+  return node
+
+env.AddBuildMiddleware(skip_nrfx_from_build)
