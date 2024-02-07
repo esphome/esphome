@@ -310,10 +310,15 @@ Nextion::TFTUploadResult Nextion::upload_tft() {
     ++tries;
   }
 
-  if (code >= 500) return this->upload_end(Nextion::TFTUploadResult::HttpError_ResponseServer);
-  else if (code >= 400) return this->upload_end(Nextion::TFTUploadResult::HttpError_ResponseClient);
-  else if (code >= 300) return this->upload_end(Nextion::TFTUploadResult::HttpError_ResponseRedirection);
-  else if ((code != 200 && code != 206) || tries > 5) return this->upload_end(Nextion::TFTUploadResult::HttpError_ResponseOther);
+  if (code >= 500) {
+    return this->upload_end(Nextion::TFTUploadResult::HttpError_ResponseServer);
+  } else if (code >= 400) {
+    return this->upload_end(Nextion::TFTUploadResult::HttpError_ResponseClient);
+  } else if (code >= 300) {
+    return this->upload_end(Nextion::TFTUploadResult::HttpError_ResponseRedirection);
+  } else if ((code != 200 && code != 206) || tries > 5) {
+    return this->upload_end(Nextion::TFTUploadResult::HttpError_ResponseOther);
+  }
 
   String content_range_string = http_client.header("Content-Range");
   content_range_string.remove(0, 12);
