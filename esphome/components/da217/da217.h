@@ -11,44 +11,44 @@
 namespace esphome {
 namespace da217 {
 
-enum WatchdogTime { Time1ms = 0, Time50ms = 1 };
+enum WatchdogTime { TIME1MS = 0, TIME50MS = 1 };
 
-enum Resolution { Resolution14bits = 0b00, Resolution12bits = 0b01, Resolution10bits = 0b10, Resolution8bits = 0b11 };
+enum Resolution { RESOLUTION14BITS = 0b00, RESOLUTION12BITS = 0b01, RESOLUTION10BITS = 0b10, RESOLUTION8BITS = 0b11 };
 
-enum FullScale { PlusMinus2g = 0b00, PlusMinus4g = 0b01, PlusMinus8g = 0b10, PlusMinus16g = 0b11 };
+enum FullScale { PLUS_MINUS2G = 0b00, PLUS_MINUS4G = 0b01, PLUS_MINUS8G = 0b10, PLUS_MINUS16G = 0b11 };
 
 enum OutputDataRate {
-  Rate1Hz = 0b0000,
-  Rate1p95Hz = 0b0001,
-  Rate3p9Hz = 0b0010,
-  Rate7p81Hz = 0b0011,
-  Rate15p63Hz = 0b0100,
-  Rate31p25Hz = 0b0101,
-  Rate62p5Hz = 0b0110,
-  Rate125Hz = 0b0111,
-  Rate250Hz = 0b1000,
-  Rate500Hz = 0b1001,
-  Unconfigured = 0b1111
+  RATE1_HZ = 0b0000,
+  RATE1P95_HZ = 0b0001,
+  RATE3P9_HZ = 0b0010,
+  RATE7P81_HZ = 0b0011,
+  RATE15P63_HZ = 0b0100,
+  RATE31P25_HZ = 0b0101,
+  RATE62P5_HZ = 0b0110,
+  RATE125_HZ = 0b0111,
+  RATE250_HZ = 0b1000,
+  RATE500_HZ = 0b1001,
+  UNCONFIGURED = 0b1111
 };
 
-enum InterruptSource { Oversampling = 0b00, Unfiltered = 0b01, Filtered = 0b10 };
+enum InterruptSource { OVERSAMPLING = 0b00, UNFILTERED = 0b01, FILTERED = 0b10 };
 
 enum TapQuietDuration {
-  Quiet30ms = 0,
-  Quiet20ms = 1,
+  QUIET30MS = 0,
+  QUIET20MS = 1,
 };
 
-enum TapShockDuration { Shock50ms = 0, Shock70ms = 1 };
+enum TapShockDuration { SHOCK50MS = 0, SHOCK70MS = 1 };
 
 enum DoubleTapDuration {
-  DoubleTap50ms = 0b000,
-  DoubleTap100ms = 0b001,
-  DoubleTap150ms = 0b010,
-  DoubleTap200ms = 0b011,
-  DoubleTap250ms = 0b100,
-  DoubleTap375ms = 0b101,
-  DoubleTap500ms = 0b110,
-  DoubleTap700ms = 0b111,
+  DOUBLE_TAP50MS = 0b000,
+  DOUBLE_TAP100MS = 0b001,
+  DOUBLE_TAP150MS = 0b010,
+  DOUBLE_TAP200MS = 0b011,
+  DOUBLE_TAP250MS = 0b100,
+  DOUBLE_TAP375MS = 0b101,
+  DOUBLE_TAP500MS = 0b110,
+  DOUBLE_TAP700MS = 0b111,
 };
 
 enum StableTiltTime { ODR32 = 0b00, ODR96 = 0b01, ODR160 = 0b10, ODR224 = 0b11 };

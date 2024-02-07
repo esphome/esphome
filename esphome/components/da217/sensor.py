@@ -26,24 +26,24 @@ CONF_FULL_SCALE = "full_scale"
 
 WatchdogTime = da217_ns.enum("WatchdogTime")
 WATCHDOG_TIMES = {
-    "1MS": WatchdogTime.Time1ms,
-    "50MS": WatchdogTime.Time50ms,
+    "1MS": WatchdogTime.TIME1MS,
+    "50MS": WatchdogTime.TIME50MS,
 }
 
 Resolution = da217_ns.enum("Resolution")
 RESOLUTIONS = {
-    "14BITS": Resolution.Resolution14bits,
-    "12BITS": Resolution.Resolution12bits,
-    "10BITS": Resolution.Resolution10bits,
-    "8BITS": Resolution.Resolution8bits,
+    "14BITS": Resolution.RESOLUTION14BITS,
+    "12BITS": Resolution.RESOLUTION12BITS,
+    "10BITS": Resolution.RESOLUTION10BITS,
+    "8BITS": Resolution.RESOLUTION8BITS,
 }
 
 FullScale = da217_ns.enum("WatchdogTime")
 FULL_SCALES = {
-    "2G": FullScale.PlusMinus2g,
-    "4G": FullScale.PlusMinus4g,
-    "8G": FullScale.PlusMinus8g,
-    "16G": FullScale.PlusMinus16g,
+    "2G": FullScale.PLUSMINUS2G,
+    "4G": FullScale.PLUSMINUS4G,
+    "8G": FullScale.PLUSMINUS8G,
+    "16G": FullScale.PLUSMINUS16G,
 }
 
 # ODR_AXIS
@@ -55,17 +55,17 @@ CONF_OUTPUT_DATA_RATE = "output_data_rate"
 
 OutputDataRate = da217_ns.enum("OutputDataRate")
 OUTPUT_DATA_RATES = {
-    "1HZ": OutputDataRate.Rate1Hz,
-    "1.95HZ": OutputDataRate.Rate1p95Hz,
-    "3.9HZ": OutputDataRate.Rate3p9Hz,
-    "7.81HZ": OutputDataRate.Rate7p81Hz,
-    "15.63HZ": OutputDataRate.Rate15p63Hz,
-    "31.25HZ": OutputDataRate.Rate31p25Hz,
-    "62.5HZ": OutputDataRate.Rate62p5Hz,
-    "125HZ": OutputDataRate.Rate125Hz,
-    "250HZ": OutputDataRate.Rate250Hz,
-    "500HZ": OutputDataRate.Rate500Hz,
-    "UNCONFIGURED": OutputDataRate.Unconfigured,
+    "1HZ": OutputDataRate.RATE1HZ,
+    "1.95HZ": OutputDataRate.RATE1P95HZ,
+    "3.9HZ": OutputDataRate.RATE3P9HZ,
+    "7.81HZ": OutputDataRate.RATE7P81HZ,
+    "15.63HZ": OutputDataRate.RATE15P63HZ,
+    "31.25HZ": OutputDataRate.RATE31P25HZ,
+    "62.5HZ": OutputDataRate.RATE62P5HZ,
+    "125HZ": OutputDataRate.RATE125HZ,
+    "250HZ": OutputDataRate.RATE250HZ,
+    "500HZ": OutputDataRate.RATE500HZ,
+    "UNCONFIGURED": OutputDataRate.UNCONFIGURED,
 }
 
 # INT_SET1
@@ -80,9 +80,9 @@ CONF_ENABLE_ACTIVE_INTERRUPT_X_AXIS = "enable_active_interrupt_x_axis"
 
 InterruptSource = da217_ns.enum("InterruptSource")
 INTERRUPT_SOURCES = {
-    "OVERSAMPLING": InterruptSource.Oversampling,
-    "UNFILTERED": InterruptSource.Unfiltered,
-    "FILTERED": InterruptSource.Filtered,
+    "OVERSAMPLING": InterruptSource.OVERSAMPLING,
+    "UNFILTERED": InterruptSource.UNFILTERED,
+    "FILTERED": InterruptSource.FILTERED,
 }
 
 # INT_MAP1
@@ -106,26 +106,26 @@ CONF_DOUBLE_TAP_DURATION = "double_tap_duration"
 
 TapQuietDuration = da217_ns.enum("TapQuietDuration")
 TAP_QUIET_DURATIONS = {
-    "30MS": TapQuietDuration.Quiet30ms,
-    "20MS": TapQuietDuration.Quiet20ms,
+    "30MS": TapQuietDuration.QUIET30MS,
+    "20MS": TapQuietDuration.QUIET20MS,
 }
 
 TapShockDuration = da217_ns.enum("TapShockDuration")
 TAP_SHOCK_DURATIONS = {
-    "50MS": TapShockDuration.Shock50ms,
-    "70MS": TapShockDuration.Shock70ms,
+    "50MS": TapShockDuration.SHOCK50MS,
+    "70MS": TapShockDuration.SHOCK70MS,
 }
 
 DoubleTapDuration = da217_ns.enum("DoubleTapDuration")
 DOUBLE_TAP_DURATIONS = {
-    "50MS": DoubleTapDuration.DoubleTap50ms,
-    "100MS": DoubleTapDuration.DoubleTap100ms,
-    "150MS": DoubleTapDuration.DoubleTap150ms,
-    "200MS": DoubleTapDuration.DoubleTap200ms,
-    "250MS": DoubleTapDuration.DoubleTap250ms,
-    "375MS": DoubleTapDuration.DoubleTap375ms,
-    "500MS": DoubleTapDuration.DoubleTap500ms,
-    "700MS": DoubleTapDuration.DoubleTap700ms,
+    "50MS": DoubleTapDuration.DOUBLETAP50MS,
+    "100MS": DoubleTapDuration.DOUBLETAP100MS,
+    "150MS": DoubleTapDuration.DOUBLETAP150MS,
+    "200MS": DoubleTapDuration.DOUBLETAP200MS,
+    "250MS": DoubleTapDuration.DOUBLETAP250MS,
+    "375MS": DoubleTapDuration.DOUBLETAP375MS,
+    "500MS": DoubleTapDuration.DOUBLETAP500MS,
+    "700MS": DoubleTapDuration.DOUBLETAP700MS,
 }
 
 # TAP_THS
