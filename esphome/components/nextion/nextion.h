@@ -1239,12 +1239,26 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 #endif  // ARDUINO vs USE_ESP_IDF
 
   /**
-   * This function fetched a chunk of data from the HTTP server and returns as an array of bytes.
+   * Fetches a chunk of data from the HTTP server and returns it along with the number of bytes read.
+   * This function attempts to read a specified number of bytes (chunk) from the HTTP server, using
+   * the provided HTTP client connection. It is designed to be compatible with both the Arduino and ESP-IDF
+   * environments, catering to their respective HTTP client implementations.
    *
-   * @param http_client The HTTP client instance for making the range request. For Arduino, this should be an HTTPClient
-   * object; for ESP-IDF, an esp_http_client_handle_t.
-   * @param buffer_size The chunk size to be fetched. It is the minimum value between the remaining data in the file and
-   * 4096 bytes (the chunk size supported by Nextion).
+   * The function aims to simplify the process of sequentially fetching portions of a larger dataset, such
+   * as a file, from a server by abstracting the specifics of HTTP data retrieval and chunk management.
+   * This is particularly useful in scenarios like streaming large files in manageable sections to conserve
+   * memory and facilitate reliable data transmission, especially in constrained environments.
+   *
+   * @param http_client The HTTP client instance used for making the range request. Depending on the
+   * environment, this should be either an HTTPClient object (Arduino) or an esp_http_client_handle_t (ESP-IDF).
+   * @param buffer_size The desired size of the data chunk to be fetched, in bytes. This size may be adjusted
+   * based on the actual data available from the server and the limitations of the hardware or HTTP client library.
+   * It typically does not exceed 4096 bytes, aligning with the maximum chunk size supported by Nextion displays.
+   *
+   * @return A pair consisting of a vector of bytes and an integer. The vector contains the data chunk fetched from
+   * the HTTP server, and the integer indicates the actual number of bytes read during the operation. The byte count
+   * helps in determining the end of data or managing partial reads, while the vector provides the data content.
+   * This dual return strategy enhances error handling and flow control in data streaming or downloading tasks.
    */
 #ifdef ARDUINO
   std::pair<std::vector<uint8_t>, int> fetch_chunk_from_http_(HTTPClient &http_client, int buffer_size);

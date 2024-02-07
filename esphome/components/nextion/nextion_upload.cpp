@@ -214,7 +214,9 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     App.feed_wdt();
     int buffer_size = std::min(this->content_length_, 4096);  // Limits buffer to the remaining data
     ESP_LOGV(TAG, "Fetching %d bytes from HTTP", buffer_size);
-    auto [buffer, read_len] = fetch_chunk_from_http_(http_client, buffer_size);
+    auto result = fetch_chunk_from_http_(http_client, buffer_size);
+    std::vector<uint8_t> buffer = result.first;
+    int read_len = result.second;
     if (read_len != buffer_size) {
       // Did not receive the full package within the timeout period
       ESP_LOGE(TAG, "Failed to read full package, received only %d of %d bytes", read_len, buffer_size);
