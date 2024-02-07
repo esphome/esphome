@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import spi, wk_base
+from esphome.components import spi, weikai
 from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
@@ -11,23 +11,23 @@ from esphome.const import (
 
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["spi"]
-AUTO_LOAD = ["wk_base"]
+AUTO_LOAD = ["weikai"]
 MULTI_CONF = True
 CONF_WK2168 = "wk2212_spi"
 
-wk_base_ns = cg.esphome_ns.namespace("wk_base")
-WKBaseComponentSPI = wk_base_ns.class_(
-    "WKBaseComponentSPI", wk_base.WKBaseComponent, spi.SPIDevice
+weikai_ns = cg.esphome_ns.namespace("weikai")
+WeikaiComponentSPI = weikai_ns.class_(
+    "WeikaiComponentSPI", weikai.WeikaiComponent, spi.SPIDevice
 )
-WKGPIOPin = wk_base_ns.class_(
-    "WKGPIOPin", cg.GPIOPin, cg.Parented.template(WKBaseComponentSPI)
+WeikaiGPIOPin = weikai_ns.class_(
+    "WeikaiGPIOPin", cg.GPIOPin, cg.Parented.template(WeikaiComponentSPI)
 )
 
 CONFIG_SCHEMA = cv.All(
-    wk_base.WKBASE_SCHEMA.extend(
-        {cv.GenerateID(): cv.declare_id(WKBaseComponentSPI)}
+    weikai.WKBASE_SCHEMA.extend(
+        {cv.GenerateID(): cv.declare_id(WeikaiComponentSPI)}
     ).extend(spi.spi_device_schema()),
-    wk_base.check_channel_max_2,
+    weikai.check_channel_max_2,
 )
 
 
@@ -35,23 +35,24 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add_build_flag("-DI2C_BUFFER_LENGTH=255")
     cg.add_build_flag("-DUSE_SPI_BUS")
+    cg.add_build_flag("-DHAS_GPIO_PIN")
     cg.add(var.set_name(str(config[CONF_ID])))
-    await wk_base.register_wk_base(var, config)
+    await weikai.register_weikai(var, config)
     await spi.register_spi_device(var, config)
 
 
 WK2168_PIN_SCHEMA = cv.All(
-    wk_base.WK2168_PIN_SCHEMA.extend(
+    weikai.WK2168_PIN_SCHEMA.extend(
         {
-            cv.GenerateID(): cv.declare_id(WKGPIOPin),
-            cv.Required(CONF_WK2168): cv.use_id(WKBaseComponentSPI),
+            cv.GenerateID(): cv.declare_id(WeikaiGPIOPin),
+            cv.Required(CONF_WK2168): cv.use_id(WeikaiComponentSPI),
         },
     ),
-    wk_base.validate_pin_mode,
+    weikai.validate_pin_mode,
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("wk2168_spi", WK2168_PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_WK2168, WK2168_PIN_SCHEMA)
 async def sc16is75x_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_WK2168])

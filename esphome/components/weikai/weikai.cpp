@@ -1,56 +1,56 @@
-/// @file wk_base.cpp
+/// @file weikai.cpp
 /// @author DrCoolzic
-/// @brief wk_base classes implementation
+/// @brief weikai classes implementation
 
-#include "wk_base.h"
+#include "weikai.h"
 
 namespace esphome {
-namespace wk_base {
+namespace weikai {
 
 /*! @mainpage Weikai source code documentation
  This documentation provides information about the implementation of the family of WeiKai Components in ESPHome.
 
-  @section WKRingBuffer_ The WKRingBuffer template class
-The WKRingBuffer template class has it names implies implement a simple ring buffer helper class. This straightforward
+  @section WKRingBuffer_ The RingBuffer template class
+The RingBuffer template class has it names implies implement a simple ring buffer helper class. This straightforward
 container implements FIFO functionality, enabling bytes to be pushed into one side and popped from the other in the
 order of entry. Implementation is classic and therefore not described in any details.
 
-  @section WKBaseRegister_ The WKBaseRegister class
- The WKBaseRegister helper class creates objects that act as proxies to device register.
+  @section WKBaseRegister_ The WeikaiRegister class
+ The WeikaiRegister helper class creates objects that act as proxies to device register.
  @details This is an abstract virtual class (interface) that provides all the necessary access to registers while hiding
  the actual implementation. The access to the registers can be made through an I²C bus in for example for wk2168_i2c
  component or through a SPI bus for example in the case of the wk2168_spi component. Derived classes will actually
  performs the specific bus operations.
 
- @section WKBaseRegI2C_ WKBaseRegI2C
- The WKBaseRegI2C class implements the virtual methods of the WKBaseRegister virtual class for an I2C bus.
+ @section WKBaseRegI2C_ WeikaiRegisterI2C
+ The WeikaiRegisterI2C class implements the virtual methods of the WeikaiRegister virtual class for an I2C bus.
 
   @section WKBaseRegSPI_ WKBaseSPII2C
- The WKBaseRegSPI class implements the virtual methods of the WKBaseRegister virtual class for an SPI bus.
+ The WeikaiRegisterSPI class implements the virtual methods of the WeikaiRegister virtual class for an SPI bus.
 
- @section WKBaseComponent_ The WKBaseComponent class
-The WKBaseComponent class stores the information global to a WK family component and provides methods to set/access
-this information. It also serves as a container for WKBaseChannel instances. This is done by maintaining an array of
-references these WKBaseChannel instances. This class derives from two ESPHome classes. This class override
+ @section WKBaseComponent_ The WeikaiComponent class
+The WeikaiComponent class stores the information global to a WK family component and provides methods to set/access
+this information. It also serves as a container for WeikaiChannel instances. This is done by maintaining an array of
+references these WeikaiChannel instances. This class derives from two ESPHome classes. This class override
 esphome::Component::loop() method which is to facilitate the seamless transfer of accumulated bytes from the receive
 FIFO into the ring buffer. This process ensures quick access to the stored bytes, enhancing the overall efficiency of
 the component.
 
- @section WKGPIOPin_ WKGPIOPin class
- The WKGPIOPin class is an helper class to expose the GPIO pins of WK family components as if they were internal GPIO
-pins. It also provides the setup() and dump_summary() methods.
+ @section WKGPIOPin_ WeikaiGPIOPin class
+ The WeikaiGPIOPin class is an helper class to expose the GPIO pins of WK family components as if they were internal
+GPIO pins. It also provides the setup() and dump_summary() methods.
 
- @section WKBaseChannel_ The WKBaseChannel class
-The WKBaseChannel class is used to implement all the virtual methods of the ESPHome uart::UARTComponent class. An
-individual instance of this class is created for each UART channel. It has a link back to the WKBaseComponent object it
+ @section WKBaseChannel_ The WeikaiChannel class
+The WeikaiChannel class is used to implement all the virtual methods of the ESPHome uart::UARTComponent class. An
+individual instance of this class is created for each UART channel. It has a link back to the WeikaiComponent object it
 belongs to. This class derives from the uart::UARTComponent class. It collaborates through an aggregation with
-WKBaseComponent. This implies that WKBaseComponent acts as a container, housing several WKBaseChannel instances.
-Furthermore, the WKBaseChannel class derives from the ESPHome uart::UARTComponent class, it also has an association
-relationship with the WKRingBuffer and WKBaseRegister helper classes. Consequently, when a WKBaseChannel instance is
-destroyed, the associated WKRingBuffer instance is also destroyed.
+WeikaiComponent. This implies that WeikaiComponent acts as a container, housing several WeikaiChannel instances.
+Furthermore, the WeikaiChannel class derives from the ESPHome uart::UARTComponent class, it also has an association
+relationship with the RingBuffer and WeikaiRegister helper classes. Consequently, when a WeikaiChannel instance is
+destroyed, the associated RingBuffer instance is also destroyed.
 */
 
-static const char *const TAG = "wk_base";
+static const char *const TAG = "weikai";
 
 /// @brief convert an int to binary representation as C++ std::string
 /// @param val integer to convert
@@ -161,29 +161,29 @@ inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, RegType fifo) 
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WKBaseRegister methods
+// The WeikaiRegister methods
 ///////////////////////////////////////////////////////////////////////////////
-WKBaseRegister &WKBaseRegister::operator=(uint8_t value) {
+WeikaiRegister &WeikaiRegister::operator=(uint8_t value) {
   write_reg(value);
   return *this;
 }
 
-WKBaseRegister &WKBaseRegister::operator&=(uint8_t value) {
+WeikaiRegister &WeikaiRegister::operator&=(uint8_t value) {
   value &= read_reg();
   write_reg(value);
   return *this;
 }
 
-WKBaseRegister &WKBaseRegister::operator|=(uint8_t value) {
+WeikaiRegister &WeikaiRegister::operator|=(uint8_t value) {
   value |= read_reg();
   write_reg(value);
   return *this;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WKBaseComponent methods
+// The WeikaiComponent methods
 ///////////////////////////////////////////////////////////////////////////////
-void WKBaseComponent::loop() {
+void WeikaiComponent::loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP)
     return;
 
@@ -250,7 +250,7 @@ void WKBaseComponent::loop() {
 }
 
 #if defined(TEST_COMPONENT) && defined(HAS_GPIO_PIN)
-void WKBaseComponent::test_gpio_input_() {
+void WeikaiComponent::test_gpio_input_() {
   static bool init_input{false};
   static uint8_t state{0};
   uint8_t value;
@@ -269,7 +269,7 @@ void WKBaseComponent::test_gpio_input_() {
   }
 }
 
-void WKBaseComponent::test_gpio_output_() {
+void WeikaiComponent::test_gpio_output_() {
   static bool init_output{false};
   static uint8_t state{0};
   if (!init_output) {
@@ -289,21 +289,25 @@ void WKBaseComponent::test_gpio_output_() {
 
 #ifdef HAS_GPIO_PIN
 ///////////////////////////////////////////////////////////////////////////////
-// The WKGPIOPin methods
+// The WeikaiGPIOPin methods
 ///////////////////////////////////////////////////////////////////////////////
-bool WKBaseComponent::read_pin_val_(uint8_t pin) {
+bool WeikaiComponent::read_pin_val_(uint8_t pin) {
   this->input_state_ = this->reg(WKREG_GPDAT, 0);
   ESP_LOGVV(TAG, "reading input pin %d = %d in_state %s", pin, this->input_state_ & (1 << pin), I2S2CS(input_state_));
   return this->input_state_ & (1 << pin);
 }
 
-void WKBaseComponent::write_pin_val_(uint8_t pin, bool value) {
-  value ? this->output_state_ |= (1 << pin) : this->output_state_ &= ~(1 << pin);
+void WeikaiComponent::write_pin_val_(uint8_t pin, bool value) {
+  if (value) {
+    this->output_state_ |= (1 << pin);
+  } else {
+    this->output_state_ &= ~(1 << pin);
+  }
   ESP_LOGVV(TAG, "writing output pin %d with %d out_state %s", pin, value, I2S2CS(this->output_state_));
   this->reg(WKREG_GPDAT, 0) = this->output_state_;
 }
 
-void WKBaseComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
+void WeikaiComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
     this->pin_config_ &= ~(1 << pin);  // clear bit (input mode)
   } else {
@@ -317,16 +321,16 @@ void WKBaseComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
   this->reg(WKREG_GPDIR, 0) = this->pin_config_;  // TODO check ~
 }
 
-void WKGPIOPin::setup() {
-  ESP_LOGV(TAG, "Setting GPIO pin %d mode to %s", this->pin_,
-           flags_ == gpio::FLAG_INPUT          ? "Input"
-           : this->flags_ == gpio::FLAG_OUTPUT ? "Output"
-                                               : "NOT SPECIFIED");
-  //   ESP_LOGCONFIG(TAG, "Setting GPIO pins mode to '%s' %02X", I2S2CS(this->flags_), this->flags_);
+void WeikaiGPIOPin::setup() {
+  ESP_LOGCONFIG(TAG, "Setting GPIO pin %d mode to %s", this->pin_,
+                flags_ == gpio::FLAG_INPUT          ? "Input"
+                : this->flags_ == gpio::FLAG_OUTPUT ? "Output"
+                                                    : "NOT SPECIFIED");
+  // ESP_LOGCONFIG(TAG, "Setting GPIO pins mode to '%s' %02X", I2S2CS(this->flags_), this->flags_);
   this->pin_mode(this->flags_);
 }
 
-std::string WKGPIOPin::dump_summary() const {
+std::string WeikaiGPIOPin::dump_summary() const {
   char buffer[32];
   snprintf(buffer, sizeof(buffer), "%u via WK2168 %s", this->pin_, this->parent_->get_name());
   return buffer;
@@ -335,45 +339,45 @@ std::string WKGPIOPin::dump_summary() const {
 
 #ifdef USE_I2C_BUS
 ///////////////////////////////////////////////////////////////////////////////
-// The WKBaseRegI2C methods
+// The WeikaiRegisterI2C methods
 ///////////////////////////////////////////////////////////////////////////////
-uint8_t WKBaseRegI2C::read_reg() const {
+uint8_t WeikaiRegisterI2C::read_reg() const {
   uint8_t value = 0x00;
-  WKBaseComponentI2C *comp_i2c = static_cast<WKBaseComponentI2C *>(this->comp_);
+  WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
   comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, REG);  // update the i2c bus address
   auto error = comp_i2c->read_register(this->register_, &value, 1);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WKBaseRegI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", comp_i2c->address_,
+    ESP_LOGVV(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", comp_i2c->address_,
               reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WKBaseRegI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", comp_i2c->address_,
+    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", comp_i2c->address_,
              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
   }
   return value;
 }
 
-void WKBaseRegI2C::read_fifo(uint8_t *data, size_t length) const {
-  WKBaseComponentI2C *comp_i2c = static_cast<WKBaseComponentI2C *>(this->comp_);
+void WeikaiRegisterI2C::read_fifo(uint8_t *data, size_t length) const {
+  WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
   comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, FIFO);
   auto error = comp_i2c->read(data, length);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-    ESP_LOGVV(TAG, "WKBaseRegI2C::read_fifo() @%02X ch=%d I2C_code:%d len=%d buffer", comp_i2c->address_,
+    ESP_LOGVV(TAG, "WeikaiRegisterI2C::read_fifo() @%02X ch=%d I2C_code:%d len=%d buffer", comp_i2c->address_,
               this->channel_, (int) error, length);
     print_buffer(data, length);
 #endif
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WKBaseRegI2C::read_fifo() @%02X reg=N/A ch=%d I2C_code:%d len=%d buf=%02X...", comp_i2c->address_,
-             this->channel_, (int) error, length, data[0]);
+    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_fifo() @%02X reg=N/A ch=%d I2C_code:%d len=%d buf=%02X...",
+             comp_i2c->address_, this->channel_, (int) error, length, data[0]);
   }
 }
 
-void WKBaseRegI2C::write_reg(uint8_t value) {
-  WKBaseComponentI2C *comp_i2c = static_cast<WKBaseComponentI2C *>(this->comp_);
+void WeikaiRegisterI2C::write_reg(uint8_t value) {
+  WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
   comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, REG);  // update the i2c bus
   auto error = comp_i2c->write_register(this->register_, &value, 1);
   if (error == i2c::NO_ERROR) {
@@ -387,8 +391,8 @@ void WKBaseRegI2C::write_reg(uint8_t value) {
   }
 }
 
-void WKBaseRegI2C::write_fifo(uint8_t *data, size_t length) {
-  WKBaseComponentI2C *comp_i2c = static_cast<WKBaseComponentI2C *>(this->comp_);
+void WeikaiRegisterI2C::write_fifo(uint8_t *data, size_t length) {
+  WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
   comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, FIFO);  // set fifo flag
   auto error = comp_i2c->write(data, length);
   if (error == i2c::NO_ERROR) {
@@ -406,9 +410,9 @@ void WKBaseRegI2C::write_fifo(uint8_t *data, size_t length) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WKBaseComponentI2C methods
+// The WeikaiComponentI2C methods
 ///////////////////////////////////////////////////////////////////////////////
-void WKBaseComponentI2C::setup() {
+void WeikaiComponentI2C::setup() {
   // before any manipulation we store the address to base_address_ for future use
   this->base_address_ = this->address_;
   ESP_LOGCONFIG(TAG, "Setting up wk2168_i2c: %s with %d UARTs at @%02X ...", this->get_name(), this->children_.size(),
@@ -428,7 +432,7 @@ void WKBaseComponentI2C::setup() {
   }
 }
 
-void WKBaseComponentI2C::dump_config() {
+void WeikaiComponentI2C::dump_config() {
   ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
   ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
   if (test_mode_)
@@ -444,46 +448,46 @@ void WKBaseComponentI2C::dump_config() {
 
 #ifdef USE_SPI_BUS
 ///////////////////////////////////////////////////////////////////////////////
-// The WKBaseRegSPI methods
+// The WeikaiRegisterSPI methods
 ///////////////////////////////////////////////////////////////////////////////
-uint8_t WKBaseRegSPI::read_reg() const {
-  auto *spi_comp = static_cast<WKBaseComponentSPI *>(this->comp_);
+uint8_t WeikaiRegisterSPI::read_reg() const {
+  auto *spi_comp = static_cast<WeikaiComponentSPI *>(this->comp_);
   uint8_t cmd = cmd_byte(REG, READ_CMD, this->channel_, this->register_);
   spi_comp->enable();
   spi_comp->write_byte(cmd);
   uint8_t val = spi_comp->read_byte();
   spi_comp->disable();
-  ESP_LOGVV(TAG, "WKBaseRegSPI::read_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2S2CS(cmd), cmd,
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2S2CS(cmd), cmd,
             reg_to_str(this->register_, this->comp_->page1()), this->channel_, val);
   return val;
 }
 
-void WKBaseRegSPI::read_fifo(uint8_t *data, size_t length) const {
-  auto *spi_comp = static_cast<WKBaseComponentSPI *>(this->comp_);
+void WeikaiRegisterSPI::read_fifo(uint8_t *data, size_t length) const {
+  auto *spi_comp = static_cast<WeikaiComponentSPI *>(this->comp_);
   uint8_t cmd = cmd_byte(FIFO, READ_CMD, this->channel_, this->register_);
   spi_comp->enable();
   spi_comp->write_byte(cmd);
   spi_comp->read_array(data, length);
   spi_comp->disable();
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  ESP_LOGVV(TAG, "WKBaseRegSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2S2CS(cmd), cmd, this->channel_,
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2S2CS(cmd), cmd, this->channel_,
             length);
   print_buffer(data, length);
 #endif
 }
 
-void WKBaseRegSPI::write_reg(uint8_t value) {
-  auto *spi_comp = static_cast<WKBaseComponentSPI *>(this->comp_);
+void WeikaiRegisterSPI::write_reg(uint8_t value) {
+  auto *spi_comp = static_cast<WeikaiComponentSPI *>(this->comp_);
   uint8_t buf[2]{cmd_byte(REG, WRITE_CMD, this->channel_, this->register_), value};
   spi_comp->enable();
   spi_comp->write_array(buf, 2);
   spi_comp->disable();
-  ESP_LOGVV(TAG, "WKBaseRegSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2S2CS(buf[0]), buf[0],
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2S2CS(buf[0]), buf[0],
             reg_to_str(this->register_, this->comp_->page1()), this->channel_, buf[1]);
 }
 
-void WKBaseRegSPI::write_fifo(uint8_t *data, size_t length) {
-  auto *spi_comp = static_cast<WKBaseComponentSPI *>(this->comp_);
+void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
+  auto *spi_comp = static_cast<WeikaiComponentSPI *>(this->comp_);
   uint8_t cmd = cmd_byte(FIFO, WRITE_CMD, this->channel_, this->register_);
   spi_comp->enable();
   spi_comp->write_byte(cmd);
@@ -491,17 +495,17 @@ void WKBaseRegSPI::write_fifo(uint8_t *data, size_t length) {
   spi_comp->disable();
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  ESP_LOGVV(TAG, "WKBaseRegSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2S2CS(cmd), cmd, this->channel_,
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2S2CS(cmd), cmd, this->channel_,
             length);
   print_buffer(data, length);
 #endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WKBaseComponentSPI methods
+// The WeikaiComponentSPI methods
 ///////////////////////////////////////////////////////////////////////////////
-void WKBaseComponentSPI::setup() {
-  using namespace wk_base;
+void WeikaiComponentSPI::setup() {
+  using namespace weikai;
   ESP_LOGCONFIG(TAG, "Setting up wk2168_spi: %s with %d UARTs...", this->get_name(), this->children_.size());
   this->spi_setup();
   // enable all channels
@@ -518,7 +522,7 @@ void WKBaseComponentSPI::setup() {
   }
 }
 
-void WKBaseComponentSPI::dump_config() {
+void WeikaiComponentSPI::dump_config() {
   ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
   ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
   if (test_mode_)
@@ -532,9 +536,9 @@ void WKBaseComponentSPI::dump_config() {
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
-// The WKBaseChannel methods
+// The WeikaiChannel methods
 ///////////////////////////////////////////////////////////////////////////////
-void WKBaseChannel::setup_channel() {
+void WeikaiChannel::setup_channel() {
   ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s ...", this->parent_->get_name(), this->get_channel_name());
   // we enable transmit and receive on this channel
   if (this->check_channel_down()) {
@@ -546,7 +550,7 @@ void WKBaseChannel::setup_channel() {
   this->set_baudrate_();
 }
 
-void WKBaseChannel::dump_channel() {
+void WeikaiChannel::dump_channel() {
   ESP_LOGCONFIG(TAG, "  UART %s ...", this->get_channel_name());
   ESP_LOGCONFIG(TAG, "    Baud rate: %d Bd", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "    Data bits: %d", this->data_bits_);
@@ -554,14 +558,14 @@ void WKBaseChannel::dump_channel() {
   ESP_LOGCONFIG(TAG, "    Parity: %s", p2s(this->parity_));
 }
 
-void WKBaseChannel::reset_fifo_() {
+void WeikaiChannel::reset_fifo_() {
   // enable transmission and reception
   this->reg_(WKREG_SCR) = SCR_RXEN | SCR_TXEN;
   // we reset and enable transmit and receive FIFO
   this->reg_(WKREG_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
 }
 
-void WKBaseChannel::set_line_param_() {
+void WeikaiChannel::set_line_param_() {
   this->data_bits_ = 8;  // always equal to 8 for WK2168 (cant be changed)
   uint8_t lcr = 0;
   if (this->stop_bits_ == 2)
@@ -581,7 +585,7 @@ void WKBaseChannel::set_line_param_() {
            this->stop_bits_, p2s(this->parity_), I2S2CS(lcr));
 }
 
-void WKBaseChannel::set_baudrate_() {
+void WeikaiChannel::set_baudrate_() {
   if (this->baud_rate_ > this->parent_->crystal_ / 16) {
     baud_rate_ = this->parent_->crystal_ / 16;
     ESP_LOGE(TAG, " Requested baudrate too high for crystal %d was reduced to %d Bd", this->parent_->crystal_,
@@ -607,9 +611,9 @@ void WKBaseChannel::set_baudrate_() {
            baud_high, baud_low, baud_dec);
 }
 
-inline bool WKBaseChannel::tx_fifo_is_not_empty_() { return this->reg_(WKREG_FSR) & FSR_TFDAT; }
+inline bool WeikaiChannel::tx_fifo_is_not_empty_() { return this->reg_(WKREG_FSR) & FSR_TFDAT; }
 
-size_t WKBaseChannel::tx_in_fifo_() {
+size_t WeikaiChannel::tx_in_fifo_() {
   size_t tfcnt = this->reg_(WKREG_TFCNT);
   if (tfcnt == 0) {
     uint8_t const fsr = this->reg_(WKREG_FSR);
@@ -622,7 +626,7 @@ size_t WKBaseChannel::tx_in_fifo_() {
   return tfcnt;
 }
 
-size_t WKBaseChannel::rx_in_fifo_() {
+size_t WeikaiChannel::rx_in_fifo_() {
   size_t available = this->reg_(WKREG_RFCNT);
   uint8_t const fsr = this->reg_(WKREG_FSR);
   if (fsr & (FSR_RFOE | FSR_RFLB | FSR_RFFE | FSR_RFPE)) {
@@ -650,10 +654,10 @@ size_t WKBaseChannel::rx_in_fifo_() {
   return available;
 }
 
-bool WKBaseChannel::check_channel_down() {
+bool WeikaiChannel::check_channel_down() {
   // to check if we channel is up we write to the LCR W/R register
   // note that this will put a break on the tx line for few ms
-  WKBaseRegister &lcr = this->reg_(WKREG_LCR);
+  WeikaiRegister &lcr = this->reg_(WKREG_LCR);
   lcr = 0x3F;
   uint8_t val = lcr;
   if (val != 0x3F) {
@@ -669,21 +673,21 @@ bool WKBaseChannel::check_channel_down() {
   return false;
 }
 
-bool WKBaseChannel::peek_byte(uint8_t *buffer) {
+bool WeikaiChannel::peek_byte(uint8_t *buffer) {
   auto available = this->receive_buffer_.count();
   if (!available)
     xfer_fifo_to_buffer_();
   return this->receive_buffer_.peek(*buffer);
 }
 
-int WKBaseChannel::available() {
+int WeikaiChannel::available() {
   size_t available = this->receive_buffer_.count();
   if (!available)
     available = xfer_fifo_to_buffer_();
   return available;
 }
 
-bool WKBaseChannel::read_array(uint8_t *buffer, size_t length) {
+bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
   bool status = true;
   auto available = this->receive_buffer_.count();
   if (length > available) {
@@ -700,7 +704,7 @@ bool WKBaseChannel::read_array(uint8_t *buffer, size_t length) {
   return status;
 }
 
-void WKBaseChannel::write_array(const uint8_t *buffer, size_t length) {
+void WeikaiChannel::write_array(const uint8_t *buffer, size_t length) {
   if (length > XFER_MAX_SIZE) {
     ESP_LOGE(TAG, "Write_array: invalid call - requested %d bytes but max size %d ...", length, XFER_MAX_SIZE);
     length = XFER_MAX_SIZE;
@@ -708,7 +712,7 @@ void WKBaseChannel::write_array(const uint8_t *buffer, size_t length) {
   this->reg_(0).write_fifo(const_cast<uint8_t *>(buffer), length);
 }
 
-void WKBaseChannel::flush() {
+void WeikaiChannel::flush() {
   uint32_t const start_time = millis();
   while (this->tx_fifo_is_not_empty_()) {  // wait until buffer empty
     if (millis() - start_time > 200) {
@@ -719,7 +723,7 @@ void WKBaseChannel::flush() {
   }
 }
 
-size_t WKBaseChannel::xfer_fifo_to_buffer_() {
+size_t WeikaiChannel::xfer_fifo_to_buffer_() {
   size_t to_transfer = this->rx_in_fifo_();
   size_t free = this->receive_buffer_.free();
   if (to_transfer > XFER_MAX_SIZE)
@@ -776,7 +780,7 @@ void print_buffer(std::vector<uint8_t> buffer) {
 }
 
 /// @brief test the write_array method
-void WKBaseChannel::uart_send_test_(char *message) {
+void WeikaiChannel::uart_send_test_(char *message) {
   auto start_exec = micros();
   std::vector<uint8_t> output_buffer(XFER_MAX_SIZE);
   generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
@@ -785,7 +789,7 @@ void WKBaseChannel::uart_send_test_(char *message) {
 }
 
 /// @brief test read_array method
-bool WKBaseChannel::uart_receive_test_(char *message) {
+bool WeikaiChannel::uart_receive_test_(char *message) {
   auto start_exec = micros();
   bool status = true;
   size_t received;
@@ -827,5 +831,5 @@ bool WKBaseChannel::uart_receive_test_(char *message) {
 /// @}
 #endif
 
-}  // namespace wk_base
+}  // namespace weikai
 }  // namespace esphome

@@ -1,6 +1,6 @@
-/// @file wk_base.h
+/// @file weikai.h
 /// @author DrCoolZic
-/// @brief  wk_base classes declaration
+/// @brief  weikai classes declaration
 /// @details The classes declared in this file can be used by the Weikai family
 /// of UART and GPIO expander components.
 /// As of today support for
@@ -42,7 +42,7 @@
 // #define TEST_COMPONENT
 
 namespace esphome {
-namespace wk_base {
+namespace weikai {
 
 /// @brief XFER_MAX_SIZE defines the maximum number of bytes allowed during one transfer.
 /// - When using the Arduino framework by default the maximum number of bytes that can be transferred is 128 bytes. But
@@ -88,7 +88,7 @@ constexpr size_t RING_BUFFER_SIZE = XFER_MAX_SIZE;
 /// slow bus. As it it not possible to fix this problem by asking users to rewrite their code, I have implemented this
 /// ring buffer solution that store the bytes received locally.
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-template<typename T, size_t SIZE> class WKRingBuffer {
+template<typename T, size_t SIZE> class RingBuffer {
  public:
   /// @brief pushes an item at the tail of the fifo
   /// @param item item to push
@@ -150,50 +150,50 @@ template<typename T, size_t SIZE> class WKRingBuffer {
   size_t count_{0};            ///< count number of element in the buffer
 };
 
-class WKBaseComponent;
-class WKBaseComponentI2C;
-class WKBaseComponentSPI;
+class WeikaiComponent;
+class WeikaiComponentI2C;
+class WeikaiComponentSPI;
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Used to create WKBaseRegister objects that act as proxies to access remote register independently of the
+/// @brief Used to create WeikaiRegister objects that act as proxies to access remote register independently of the
 /// bus type.
 /// @details This is an abstract interface class that provides many operations to access to registers while hiding
 /// the actual implementation. This allow to accesses the registers in the WKBase component abstract class independently
 /// of the actual bus (I2C, SPI). The derived classes will actually implements the specific bus operations dependant of
 /// the bus used.
-/// @n typical usage of WKBaseRegister:
+/// @n typical usage of WeikaiRegister:
 /// @code
-///   WKBaseRegister reg_1 {&WKBaseComponent, ADDR_REGISTER, CHANNEL_NUM, FIFO}  // declaration
-///   reg_1 |= 0x01;    // set bit 0 of the wk_base register
-///   reg_1 &= ~0x01;   // reset bit 0 of the wk_base register
-///   reg_1 = 10;       // Set the value of wk_base register
-///   uint val = reg_1; // get the value of wk_base register
+///   WeikaiRegister reg_1 {&WeikaiComponent, ADDR_REGISTER, CHANNEL_NUM, FIFO}  // declaration
+///   reg_1 |= 0x01;    // set bit 0 of the weikai register
+///   reg_1 &= ~0x01;   // reset bit 0 of the weikai register
+///   reg_1 = 10;       // Set the value of weikai register
+///   uint val = reg_1; // get the value of weikai register
 /// @endcode
-class WKBaseRegister {
+class WeikaiRegister {
  public:
-  /// @brief WKBaseRegister constructor.
-  /// @param comp our parent WKBaseComponent
+  /// @brief WeikaiRegister constructor.
+  /// @param comp our parent WeikaiComponent
   /// @param reg address of the register
   /// @param channel the channel of this register
-  WKBaseRegister(WKBaseComponent *const comp, uint8_t reg, uint8_t channel)
+  WeikaiRegister(WeikaiComponent *const comp, uint8_t reg, uint8_t channel)
       : comp_(comp), register_(reg), channel_(channel) {}
-  virtual ~WKBaseRegister() {}
+  virtual ~WeikaiRegister() {}
 
-  /// @brief overloads the = operator. This is used to set a value into the wk_base register
+  /// @brief overloads the = operator. This is used to set a value into the weikai register
   /// @param value to be set
   /// @return this object
-  WKBaseRegister &operator=(uint8_t value);
+  WeikaiRegister &operator=(uint8_t value);
 
-  /// @brief overloads the compound &= operator. This is often used to reset bits in the wk_base register
+  /// @brief overloads the compound &= operator. This is often used to reset bits in the weikai register
   /// @param value performs an & operation with value and store the result
   /// @return this object
-  WKBaseRegister &operator&=(uint8_t value);
+  WeikaiRegister &operator&=(uint8_t value);
 
-  /// @brief overloads the compound |= operator. This is often used to set bits in the wk_base register
+  /// @brief overloads the compound |= operator. This is often used to set bits in the weikai register
   /// @param value performs an | operation with value and store the result
   /// @return this object
-  WKBaseRegister &operator|=(uint8_t value);
+  WeikaiRegister &operator|=(uint8_t value);
 
-  /// @brief cast operator that returns the content of the wk_base register
+  /// @brief cast operator that returns the content of the weikai register
   operator uint8_t() const { return read_reg(); }
 
   /// @brief reads the register
@@ -215,25 +215,25 @@ class WKBaseRegister {
   virtual void write_fifo(uint8_t *data, size_t length) = 0;
 
  protected:
-  friend WKBaseComponentSPI;
-  friend WKBaseComponentI2C;
+  friend WeikaiComponentSPI;
+  friend WeikaiComponentI2C;
 
-  WKBaseComponent *const comp_;  ///< pointer to our parent (aggregation)
+  WeikaiComponent *const comp_;  ///< pointer to our parent (aggregation)
   uint8_t register_;             ///< address of the register
   uint8_t channel_;              ///< channel for this register
 };
 
-class WKBaseChannel;  // forward declaration
+class WeikaiChannel;  // forward declaration
 ////////////////////////////////////////////////////////////////////////////////////
-/// @brief The WKBaseComponent class stores the information global to the WK component
+/// @brief The WeikaiComponent class stores the information global to the WK component
 /// and provides methods to set/access this information. It is also the container of
-/// the WKBaseChannel children objects. This class is derived from esphome::Component
+/// the WeikaiChannel children objects. This class is derived from esphome::Component
 /// class.
 ////////////////////////////////////////////////////////////////////////////////////
-class WKBaseComponent : public Component {
+class WeikaiComponent : public Component {
  public:
   /// @brief virtual destructor
-  virtual ~WKBaseComponent() {}
+  virtual ~WeikaiComponent() {}
 
   /// @brief store crystal frequency
   /// @param crystal frequency
@@ -259,11 +259,11 @@ class WKBaseComponent : public Component {
   /// @brief Factory method to create a Register object
   /// @param reg address of the register
   /// @param channel channel associated with this register
-  /// @return a reference to WKBaseRegister
-  virtual WKBaseRegister &reg(uint8_t reg, uint8_t channel) = 0;
+  /// @return a reference to WeikaiRegister
+  virtual WeikaiRegister &reg(uint8_t reg, uint8_t channel) = 0;
 
  protected:
-  friend class WKBaseChannel;
+  friend class WeikaiChannel;
 
   /// @brief Get the priority of the component
   /// @return the priority
@@ -273,7 +273,7 @@ class WKBaseComponent : public Component {
   float get_setup_priority() const override { return setup_priority::BUS - 0.1F; }
 
 #ifdef HAS_GPIO_PIN
-  friend class WKGPIOPin;
+  friend class WeikaiGPIOPin;
   /// Helper method to read the value of a pin.
   bool read_pin_val_(uint8_t pin);
 
@@ -297,7 +297,7 @@ class WKBaseComponent : public Component {
   uint32_t crystal_;                         ///< crystal value;
   int test_mode_;                            ///< test mode value (0 -> no tests)
   bool page1_{false};                        ///< set to true when in "page1 mode"
-  std::vector<WKBaseChannel *> children_{};  ///< the list of WKBaseChannel UART children
+  std::vector<WeikaiChannel *> children_{};  ///< the list of WeikaiChannel UART children
   std::string name_;                         ///< name of entity
 };
 
@@ -305,9 +305,9 @@ class WKBaseComponent : public Component {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Helper class to expose a WK family IO pin as an internal GPIO pin.
 ///////////////////////////////////////////////////////////////////////////////
-class WKGPIOPin : public GPIOPin {
+class WeikaiGPIOPin : public GPIOPin {
  public:
-  void set_parent(WKBaseComponent *parent) { this->parent_ = parent; }
+  void set_parent(WeikaiComponent *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
@@ -319,7 +319,7 @@ class WKGPIOPin : public GPIOPin {
   void digital_write(bool value) override { this->parent_->write_pin_val_(this->pin_, value != this->inverted_); }
 
  protected:
-  WKBaseComponent *parent_{nullptr};
+  WeikaiComponent *parent_{nullptr};
   uint8_t pin_;
   bool inverted_;
   gpio::Flags flags_;
@@ -328,9 +328,9 @@ class WKGPIOPin : public GPIOPin {
 
 #ifdef USE_I2C_BUS
 ////////////////////////////////////////////////////////////////////////////////////
-// class WKBaseRegI2C
+// class WeikaiRegisterI2C
 ////////////////////////////////////////////////////////////////////////////////////
-class WKBaseRegI2C : public WKBaseRegister {
+class WeikaiRegisterI2C : public WeikaiRegister {
  public:
   uint8_t read_reg() const override;
   void write_reg(uint8_t value) override;
@@ -338,16 +338,16 @@ class WKBaseRegI2C : public WKBaseRegister {
   void write_fifo(uint8_t *data, size_t length) override;
 
  protected:
-  friend WKBaseComponentI2C;
-  WKBaseRegI2C(WKBaseComponent *const comp, uint8_t reg, uint8_t channel) : WKBaseRegister(comp, reg, channel) {}
+  friend WeikaiComponentI2C;
+  WeikaiRegisterI2C(WeikaiComponent *const comp, uint8_t reg, uint8_t channel) : WeikaiRegister(comp, reg, channel) {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
-// class WKBaseComponentI2C
+// class WeikaiComponentI2C
 ////////////////////////////////////////////////////////////////////////////////////
-class WKBaseComponentI2C : public WKBaseComponent, public i2c::I2CDevice {
+class WeikaiComponentI2C : public WeikaiComponent, public i2c::I2CDevice {
  public:
-  WKBaseRegister &reg(uint8_t reg, uint8_t channel) override {
+  WeikaiRegister &reg(uint8_t reg, uint8_t channel) override {
     reg_i2c_.register_ = reg;
     reg_i2c_.channel_ = channel;
     return reg_i2c_;
@@ -360,20 +360,20 @@ class WKBaseComponentI2C : public WKBaseComponent, public i2c::I2CDevice {
   void dump_config() override;
 
  protected:
-  friend class WKBaseRegI2C;
-  friend class WKBaseChannel;
-  uint8_t base_address_;              ///< base address of I2C device
-  WKBaseRegI2C reg_i2c_{this, 0, 0};  ///< store the current register/channel
+  friend class WeikaiRegisterI2C;
+  friend class WeikaiChannel;
+  uint8_t base_address_;                   ///< base address of I2C device
+  WeikaiRegisterI2C reg_i2c_{this, 0, 0};  ///< store the current register/channel
 };
 #endif
 
 #ifdef USE_SPI_BUS
 ////////////////////////////////////////////////////////////////////////////////////
-// class WKBaseRegSPI
+// class WeikaiRegisterSPI
 ////////////////////////////////////////////////////////////////////////////////////
-class WKBaseRegSPI : public WKBaseRegister {
+class WeikaiRegisterSPI : public WeikaiRegister {
  public:
-  WKBaseRegSPI(WKBaseComponent *const comp, uint8_t reg, uint8_t channel) : WKBaseRegister(comp, reg, channel) {}
+  WeikaiRegisterSPI(WeikaiComponent *const comp, uint8_t reg, uint8_t channel) : WeikaiRegister(comp, reg, channel) {}
 
   uint8_t read_reg() const override;
   void write_reg(uint8_t value) override;
@@ -382,13 +382,13 @@ class WKBaseRegSPI : public WKBaseRegister {
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
-/// class WKBaseComponentSPI
+/// class WeikaiComponentSPI
 ////////////////////////////////////////////////////////////////////////////////////
-class WKBaseComponentSPI : public WKBaseComponent,
+class WeikaiComponentSPI : public WeikaiComponent,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
-  WKBaseRegister &reg(uint8_t reg, uint8_t channel) override {
+  WeikaiRegister &reg(uint8_t reg, uint8_t channel) override {
     reg_spi_.register_ = reg;
     reg_spi_.channel_ = channel;
     return reg_spi_;
@@ -398,21 +398,21 @@ class WKBaseComponentSPI : public WKBaseComponent,
   void dump_config() override;
 
  protected:
-  // friend WKBaseComponentSPI;
-  WKBaseRegSPI reg_spi_{this, 0, 0};  ///< store the current register/channel
+  // friend WeikaiComponentSPI;
+  WeikaiRegisterSPI reg_spi_{this, 0, 0};  ///< store the current register/channel
 };
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief The WKBaseChannel class is used to implement all the virtual methods of the ESPHome
+/// @brief The WeikaiChannel class is used to implement all the virtual methods of the ESPHome
 /// uart::UARTComponent virtual class. This class is common to the different members of the Weikai
 /// components family and therefore avoid code duplication.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-class WKBaseChannel : public uart::UARTComponent {
+class WeikaiChannel : public uart::UARTComponent {
  public:
-  /// @brief We belongs to this WKBaseComponent
+  /// @brief We belongs to this WeikaiComponent
   /// @param parent pointer to the component we belongs to
-  void set_parent(WKBaseComponent *parent) {
+  void set_parent(WeikaiComponent *parent) {
     this->parent_ = parent;
     this->parent_->children_.push_back(this);  // add ourself to the list (vector)
   }
@@ -492,17 +492,17 @@ class WKBaseChannel : public uart::UARTComponent {
   void flush() override;
 
  protected:
-  friend class WKBaseComponent;
+  friend class WeikaiComponent;
 
   /// @brief this cannot happen with external uart therefore we do nothing
   void check_logger_conflict() override {}
 
-  /// @brief Factory method to create a WKBaseRegister proxy object
+  /// @brief Factory method to create a WeikaiRegister proxy object
   /// @param reg address of the register
-  /// @return a reference to WKBaseRegister
-  WKBaseRegister &reg_(uint8_t reg) { return this->parent_->reg(reg, channel_); }
+  /// @return a reference to WeikaiRegister
+  WeikaiRegister &reg_(uint8_t reg) { return this->parent_->reg(reg, channel_); }
 
-  /// @brief reset the wk_base internal FIFO
+  /// @brief reset the weikai internal FIFO
   void reset_fifo_();
 
   /// @brief set the line parameters
@@ -523,7 +523,7 @@ class WKBaseChannel : public uart::UARTComponent {
   /// @return true if not empty
   bool tx_fifo_is_not_empty_();
 
-  /// @brief transfer bytes from the wk_base internal FIFO to the buffer (if any)
+  /// @brief transfer bytes from the weikai internal FIFO to the buffer (if any)
   /// @return number of bytes transferred
   size_t xfer_fifo_to_buffer_();
 
@@ -548,12 +548,12 @@ class WKBaseChannel : public uart::UARTComponent {
 #endif
 
   /// @brief the buffer where we store temporarily the bytes received
-  WKRingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
-  WKBaseComponent *parent_;  ///< our WK2168component parent
+  RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
+  WeikaiComponent *parent_;  ///< our WK2168component parent
   uint8_t channel_;          ///< our Channel number
   uint8_t data_;             ///< a one byte buffer for register read storage
   std::string name_;         ///< name of the entity
 };
 
-}  // namespace wk_base
+}  // namespace weikai
 }  // namespace esphome

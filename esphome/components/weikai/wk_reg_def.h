@@ -5,7 +5,7 @@
 #pragma once
 
 namespace esphome {
-namespace wk_base {
+namespace weikai {
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /// Definition of the WK2168 registers
@@ -297,5 +297,5 @@ constexpr uint8_t WKREG_TFI = 0x08;
 
 /// @}
 /// @}
-}  // namespace wk_base
+}  // namespace weikai
 }  // namespace esphome
