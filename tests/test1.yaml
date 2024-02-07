@@ -985,7 +985,8 @@ sensor:
       name: Internal Ttemperature
     update_interval: 15s
     i2c_id: i2c_bus
-  - platform: kalman_combinator
+  - platform: combination
+    type: kalman
     name: Kalman-filtered temperature
     process_std_dev: 0.00139
     sources:
@@ -994,6 +995,57 @@ sensor:
           return 0.4 + std::abs(x - 25) * 0.023;
       - source: scd4x_temperature
         error: 1.5
+  - platform: combination
+    type: linear
+    name: Linearly combined temperatures
+    sources:
+      - source: scd30_temperature
+        coeffecient: !lambda |-
+          return 0.4 + std::abs(x - 25) * 0.023;
+      - source: scd4x_temperature
+        coeffecient: 1.5
+  - platform: combination
+    type: max
+    name: Max of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: mean
+    name: Mean of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: median
+    name: Median of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: min
+    name: Min of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: most_recently_updated
+    name: Most recently updated of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: range
+    name: Range of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: sum
+    name: Sum of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
   - platform: htu21d
     temperature:
       name: Living Room Temperature 6

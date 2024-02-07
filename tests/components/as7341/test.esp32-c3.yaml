@@ -1,0 +1,31 @@
+i2c:
+  - id: i2c_as5600
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: as7341
+    update_interval: 15s
+    gain: X8
+    atime: 120
+    astep: 99
+    f1:
+      name: F1
+    f2:
+      name: F2
+    f3:
+      name: F3
+    f4:
+      name: F4
+    f5:
+      name: F5
+    f6:
+      name: F6
+    f7:
+      name: F7
+    f8:
+      name: F8
+    clear:
+      name: Clear
+    nir:
+      name: NIR
