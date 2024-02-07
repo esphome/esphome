@@ -171,18 +171,18 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   std::string recv_string;
   while (true) {
     App.feed_wdt();
-    int bufferSize = std::min(this->content_length_, 4096);  // Limits buffer to the remaining data
-    ESP_LOGV(TAG, "Fetching %d bytes from HTTP", bufferSize);
+    int buffer_size = std::min(this->content_length_, 4096);  // Limits buffer to the remaining data
+    ESP_LOGV(TAG, "Fetching %d bytes from HTTP", buffer_size);
 #ifdef ARDUINO
     unsigned long startTime = millis();
     const unsigned long timeout = 5000;
     int read_len = 0;
     int partial_read_len = 0;
     buffer.clear();
-    while (read_len < bufferSize && millis() - startTime < timeout) {
+    while (read_len < buffer_size && millis() - startTime < timeout) {
       if (http_client.getStreamPtr()->available() > 0) {
         partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer.data()) + read_len,
-                                                                 bufferSize - read_len);
+                                                                 buffer_size - read_len);
         read_len += partial_read_len;
         if (partial_read_len > 0) {
           App.feed_wdt();
@@ -193,9 +193,9 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
 #elif defined(USE_ESP_IDF)
     int read_len = esp_http_client_read(http_client, reinterpret_cast<char *>(buffer.data()), 4096);
 #endif
-    if (read_len != bufferSize) {
+    if (read_len != buffer_size) {
       // Did not receive the full package within the timeout period
-      ESP_LOGE(TAG, "Failed to read full package, received only %d of %d bytes", read_len, bufferSize);
+      ESP_LOGE(TAG, "Failed to read full package, received only %d of %d bytes", read_len, buffer_size);
       return Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_FETCH_FULL_PACKAGE;
     }
     ESP_LOGV(TAG, "%d bytes fetched, writing it to UART", read_len);
@@ -494,10 +494,13 @@ Nextion::TFTUploadResult Nextion::upload_end_(Nextion::TFTUploadResult upload_re
   this->is_updating_ = false;
   ESP_LOGD(TAG, "Restarting Nextion");
   this->soft_reset();
-  vTaskDelay(pdMS_TO_TICKS(1500));  // NOLINT
   if (upload_results == Nextion::TFTUploadResult::OK) {
     ESP_LOGD(TAG, "Restarting ESPHome");
+#ifdef ARDUINO
+    ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
+#elif defined(USE_ESP_IDF)
     esp_restart();  // NOLINT(readability-static-accessed-through-instance)
+#endif  // ARDUINO vs USE_ESP_IDF
   } else {
     ESP_LOGE(TAG, "Nextion TFT upload failed: %s", this->tft_upload_result_to_string(upload_results));
   }
