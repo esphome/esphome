@@ -174,12 +174,12 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     int buffer_size = std::min(this->content_length_, 4096);  // Limits buffer to the remaining data
     ESP_LOGV(TAG, "Fetching %d bytes from HTTP", buffer_size);
 #ifdef ARDUINO
-    unsigned long startTime = millis();
+    unsigned long start_time = millis();
     const unsigned long timeout = 5000;
     int read_len = 0;
     int partial_read_len = 0;
     buffer.clear();
-    while (read_len < buffer_size && millis() - startTime < timeout) {
+    while (read_len < buffer_size && millis() - start_time < timeout) {
       if (http_client.getStreamPtr()->available() > 0) {
         partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer.data()) + read_len,
                                                                  buffer_size - read_len);
