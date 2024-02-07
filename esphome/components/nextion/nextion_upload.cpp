@@ -222,7 +222,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
           range_start = result;
           return Nextion::TFTUploadResult::OK;
         }
-      } else if (recv_string[0] != 0x05) {  // 0x05 == "ok"
+      } else if (recv_string[0] != 0x05 and recv_string[0] != 0x08) {  // 0x05 == "ok"
         ESP_LOGE(TAG, "Invalid response from Nextion: [%s]",
                  format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
         return Nextion::TFTUploadResult::NEXTION_ERROR_INVALID_RESPONSE;
