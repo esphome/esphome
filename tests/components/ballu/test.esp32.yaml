@@ -1,0 +1,12 @@
+remote_transmitter:
+  pin: 2
+  carrier_duty_percent: 50%
+
+climate:
+  - platform: heatpumpir
+    protocol: ballu
+    horizontal_default: middle
+    vertical_default: middle
+    name: HeatpumpIR Climate
+    min_temperature: 18
+    max_temperature: 30
