@@ -8,6 +8,17 @@ namespace ltr390 {
 
 static const char *const TAG = "ltr390";
 
+static const float GAINVALUES[5] = {1.0, 3.0, 6.0, 9.0, 18.0};
+static const float RESOLUTIONVALUE[6] = {4.0, 2.0, 1.0, 0.5, 0.25, 0.125};
+
+// Request fastest measurement rate - will be slowed by device if conversion rate is slower.
+static const float RESOLUTION_SETTING[6] = {0x00, 0x10, 0x20, 0x30, 0x40, 0x50};
+static const uint32_t MODEADDRESSES[2] = {0x0D, 0x10};
+
+static const float SENSITIVITY_MAX = 2300;
+static const float INTG_MAX = RESOLUTIONVALUE[0] * 100;
+static const int GAIN_MAX = GAINVALUES[4];
+
 uint32_t little_endian_bytes_to_int(const uint8_t *buffer, uint8_t num_bytes) {
   uint32_t value = 0;
 
