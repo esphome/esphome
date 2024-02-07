@@ -244,6 +244,8 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
           ESP_LOGI(TAG, "Nextion reported new range %" PRIu32, result);
           this->content_length_ = this->tft_size_ - result;
           range_start = result;
+        } else {
+          range_start = range_end + 1;
         }
         return Nextion::TFTUploadResult::OK;
       } else if (recv_string[0] != 0x05 and recv_string[0] != 0x08) {  // 0x05 == "ok"
