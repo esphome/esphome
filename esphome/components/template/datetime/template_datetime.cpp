@@ -4,6 +4,17 @@
 namespace esphome {
 namespace template_ {
 
+#define LOG_DATETIME(prefix, type, obj) \
+  if ((obj) != nullptr) { \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+    if (!(obj)->get_icon().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
+    } \
+    if (!(obj)->traits.get_device_class().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->traits.get_device_class().c_str()); \
+    } \
+  }
+
 static const char *const TAG = "template.datetime";
 static const uint8_t SZ = 20;
 

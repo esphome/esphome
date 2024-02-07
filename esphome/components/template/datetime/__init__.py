@@ -11,8 +11,8 @@ from esphome.const import (
     CONF_SET_ACTION,
 )
 
-from .. import template_ns
 from esphome.core import coroutine_with_priority
+from .. import template_ns
 
 CODEOWNERS = ["@rfdarter"]
 

@@ -126,9 +126,7 @@ def validate_datetime_string(value: str):
             value = value.replace(invalide_value[0], f"{{{invalide_value[0]}}}")
 
             invalide_component += f"\n{invalide_value[0]} is not valid for component '{format_to_string[invalide_value[1]][0]}'({format_to_string[invalide_value[1]][1]})"
-        raise cv.Invalid(
-            "Not a valid datetime: '{0}'.".format(value) + f"{invalide_component}"
-        )
+        raise cv.Invalid(f"Not a valid datetime: '{value}'." + f"{invalide_component}")
     return value
 
 
