@@ -318,7 +318,7 @@ Nextion::TFTUploadResult Nextion::upload_tft() {
   String content_range_string = http_client.header("Content-Range");
   content_range_string.remove(0, 12);
   this->tft_size_ = content_range_string.toInt();
-  
+
   #elif defined(USE_ESP_IDF)
   esp_http_client_config_t config = {
       .url = this->tft_url_.c_str(),
@@ -391,7 +391,6 @@ Nextion::TFTUploadResult Nextion::upload_tft() {
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->GetFreeHeap_());
   this->send_command_("sleep=0");
   this->set_backlight_brightness(1.0);
-  vTaskDelay(pdMS_TO_TICKS(250));  // NOLINT
 
   App.feed_wdt();
   char command[128];
@@ -454,10 +453,9 @@ Nextion::TFTUploadResult Nextion::upload_tft() {
   // Proceed with the content download as before
 
   ESP_LOGV(TAG, "Starting transfer by chunks loop");
-  
+
   int position = 0;
   while (this->content_length_ > 0) {
-    delay(500);
     Nextion::TFTUploadResult upload_result = upload_by_chunks_(http_client, position);
     if (upload_result != Nextion::TFTUploadResult::OK) {
       ESP_LOGE(TAG, "Error uploading TFT to Nextion!");

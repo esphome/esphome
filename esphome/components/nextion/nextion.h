@@ -922,12 +922,12 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   enum class TFTUploadResult {
       /**
        * @brief The upload state is unkown.
-       */
+      */
       Unknown,
 
       /**
        * @brief The upload operation completed successfully.
-       */
+      */
       OK,
 
       /**
@@ -947,25 +947,21 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
       /**
        * @brief HTTP response status on Server error range.
-       * 
       */
       HttpError_ResponseServer,
 
       /**
        * @brief HTTP response status on Clent error range.
-       * 
       */
       HttpError_ResponseClient,
 
       /**
        * @brief HTTP response status on Redirection error range.
-       * 
       */
       HttpError_ResponseRedirection,
 
       /**
        * @brief HTTP response status on Server error range.
-       * 
       */
       HttpError_ResponseOther,
 
