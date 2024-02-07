@@ -102,7 +102,11 @@ const char *Nextion::tft_upload_result_to_string(Nextion::TFTUploadResult result
 
 uint32_t Nextion::get_free_heap_() {
 #ifdef ARDUINO
+#ifdef ESP32
   return ESP.getFreeHeap();
+#elif defined(USE_ESP8266)
+  return EspClass::getFreeHeap();
+#endif  // ESP32 vs USE_ESP8266
 #elif defined(USE_ESP_IDF)
   return esp_get_free_heap_size();
 #endif  // ARDUINO vs USE_ESP_IDF
