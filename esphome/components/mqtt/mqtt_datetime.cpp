@@ -6,7 +6,7 @@
 #include "mqtt_const.h"
 
 #ifdef USE_MQTT
-#ifdef USE_NUMBER
+#ifdef USE_DATETIME
 
 namespace esphome {
 namespace mqtt {

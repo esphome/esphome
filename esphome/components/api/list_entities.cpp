@@ -60,7 +60,7 @@ bool ListEntitiesIterator::on_climate(climate::Climate *climate) { return this->
 bool ListEntitiesIterator::on_number(number::Number *number) { return this->client_->send_number_info(number); }
 #endif
 
-#ifdef USE_NUMBER
+#ifdef USE_DATETIME
 bool ListEntitiesIterator::on_datetime(datetime::Datetime *datetime) { return true; }
 #endif
 
