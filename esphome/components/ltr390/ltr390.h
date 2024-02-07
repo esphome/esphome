@@ -17,12 +17,6 @@ enum LTR390CTRL {
 };
 
 // enums from https://github.com/adafruit/Adafruit_LTR390/
-static const uint8_t LTR390_MAIN_CTRL = 0x00;
-static const uint8_t LTR390_MEAS_RATE = 0x04;
-static const uint8_t LTR390_GAIN = 0x05;
-static const uint8_t LTR390_PART_ID = 0x06;
-static const uint8_t LTR390_MAIN_STATUS = 0x07;
-
 // Sensing modes
 enum LTR390MODE {
   LTR390_MODE_ALS,

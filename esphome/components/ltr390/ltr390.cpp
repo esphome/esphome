@@ -8,6 +8,12 @@ namespace ltr390 {
 
 static const char *const TAG = "ltr390";
 
+static const uint8_t LTR390_MAIN_CTRL = 0x00;
+static const uint8_t LTR390_MEAS_RATE = 0x04;
+static const uint8_t LTR390_GAIN = 0x05;
+static const uint8_t LTR390_PART_ID = 0x06;
+static const uint8_t LTR390_MAIN_STATUS = 0x07;
+
 static const float GAINVALUES[5] = {1.0, 3.0, 6.0, 9.0, 18.0};
 static const float RESOLUTIONVALUE[6] = {4.0, 2.0, 1.0, 0.5, 0.25, 0.125};
 
