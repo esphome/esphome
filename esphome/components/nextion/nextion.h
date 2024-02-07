@@ -37,7 +37,7 @@ static const std::string COMMAND_DELIMITER{static_cast<char>(255), static_cast<c
 
 class Nextion : public NextionBase, public PollingComponent, public uart::UARTDevice {
  public:
-  /**
+   /**
    * Set the text of a component to a static string.
    * @param component The component name.
    * @param text The static text to set.
@@ -913,17 +913,155 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef USE_NEXTION_TFT_UPLOAD
   /**
+   * @enum TFTUploadResult
+   * @brief Enumeration for the results of a TFT upload operation.
+   *
+   * This enum is used to represent the various outcomes (both success and failure)
+   * of an attempt to upload a TFT file to a Nextion display.
+   */
+  enum class TFTUploadResult {
+      /**
+       * @brief The upload state is unkown.
+       */
+      Unknown,
+
+      /**
+       * @brief The upload operation completed successfully.
+       */
+      OK,
+
+      /**
+       * @brief Another upload is already in progress.
+      */
+      UploadInProgress,
+
+      /**
+       * @brief Network is not connected.
+      */
+      NetworkError_NotConnected,
+
+      /**
+       * @brief Connection to HTTP server failed
+      */
+      HttpError_ConnectionFailed,
+
+      /**
+       * @brief HTTP response status on Server error range.
+       * 
+      */
+      HttpError_ResponseServer,
+
+      /**
+       * @brief HTTP response status on Clent error range.
+       * 
+      */
+      HttpError_ResponseClient,
+
+      /**
+       * @brief HTTP response status on Redirection error range.
+       * 
+      */
+      HttpError_ResponseRedirection,
+
+      /**
+       * @brief HTTP response status on Server error range.
+       * 
+      */
+      HttpError_ResponseOther,
+
+      /**
+       * @brief HTTP server provided an invalid header.
+       */
+      HttpError_InvalidServerHeader,
+
+      /**
+       * @brief Failed to initialize HTTP client.
+      */
+      HttpError_ClientInitialization,
+
+      /**
+       * @brief HTTP failed to setup a persistent connection.
+      */
+      HttpError_KeepAlive,
+
+      /**
+       * @brief HTTP request failed.
+      */
+      HttpError_RequestFailed,
+
+      /**
+       * @brief The downloaded file size did not match the expected size.
+       */
+      HttpError_InvalidFileSize,
+
+      /**
+       * @brief Failed to fetch full package from HTTP server.
+      */
+       HttpError_FailedToFetchFullPackage,
+
+      /**
+       * @brief Failed to open connection to HTTP server.
+      */
+      HttpError_FailedToOpenConnection,
+
+      /**
+       * @brief Failed to get content lenght from HTTP server.
+      */
+      HttpError_FailedToGetContentLenght,
+
+      /**
+       * @brief Failed to set HTTP method.
+      */
+      HttpError_SetMethodFailed,
+
+      // Nextion Errors
+      /**
+       * @brief Preparation for TFT upload failed.
+      */
+      NextionError_PreparationFailed,
+
+      /**
+       * @brief Invalid response from Nextion.
+      */
+      NextionError_InvalidResponse,
+
+      // Process Errors
+      /**
+       * @brief Invalid range requested.
+      */
+      ProcessError_InvalidRange,
+
+      // Memory Errors
+      /**
+       * @brief
+      */
+      MemoryError_FailedToAllocate,
+  };
+
+  /**
+   * @brief Converts TFTUploadResult enum values to their corresponding string representations.
+   *
+   * This function is used to obtain human-readable strings for logging or displaying
+   * the outcomes of TFT upload operations to a Nextion display. It maps each enum value
+   * defined in TFTUploadResult to a descriptive text message.
+   *
+   * @param result The TFTUploadResult enum value to be converted to a string.
+   * @return A const char* pointing to the string representation of the given result.
+   */
+  static const char* TFTUploadResultToString(TFTUploadResult result);
+
+  /**
    * Set the tft file URL. https seems problematic with arduino..
    */
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
-
-#endif
 
   /**
    * Upload the tft file and soft reset Nextion
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
-  bool upload_tft();
+  Nextion::TFTUploadResult upload_tft();
+
+#endif
 
   void dump_config() override;
 
@@ -1074,50 +1212,48 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 #endif
   int content_length_ = 0;
   int tft_size_ = 0;
-#ifdef ARDUINO
-  /**
-   * will request chunk_size chunks from the web server
-   * and send each to the nextion
-   * @param HTTPClient http HTTP client handler.
-   * @param int range_start Position of next byte to transfer.
-   * @return position of last byte transferred, -1 for failure.
-   */
-  int upload_by_chunks_(HTTPClient *http, int range_start);
-
-  bool upload_with_range_(uint32_t range_start, uint32_t range_end);
 
   /**
-   * start update tft file to nextion.
+   * This function requests a specific range of data from an HTTP server using a persistent connection
+   * and sends it to the Nextion display in predefined chunks.
+   * It is compatible with both Arduino and ESP-IDF environments,
+   * leveraging a pre-initialized HTTP client to maintain the connection for consecutive range requests.
+   * The function determines the range of data to request based on the current position, indicated by `range_start`,
+   * and internally uses a fixed chunk size for data transmission.
+   * The `range_start` parameter is updated after each successful chunk transfer, facilitating sequential data fetching.
+   * The data is sent to the Nextion display in chunks, ensuring efficient and manageable data transfer.
    *
-   * @param const uint8_t *file_buf
-   * @param size_t buf_size
-   * @return true if success, false for failure.
+   * For Arduino environments, the function requires an HTTPClient object passed by reference,
+   * which is used to manage the connection and request headers.
+   * In ESP-IDF environments, an esp_http_client_handle_t is required, representing the handle to the initialized HTTP client.
+   *
+   * @param http_client The HTTP client instance for making the range request. For Arduino, this should be an HTTPClient object;
+   * for ESP-IDF, an esp_http_client_handle_t.
+   * @param range_start A reference to an integer that specifies the starting position of the current data transfer.
+   * This value is updated to mark the beginning of the next chunk after a successful transfer.
+   *
+   * @return A Nextion::TFTUploadResult indicating the outcome of the transfer. It can be an OK status for successful transfers,
+   * or various error codes that detail the nature of any failure encountered during the operation.
    */
-  bool upload_from_buffer_(const uint8_t *file_buf, size_t buf_size);
+  #ifdef ARDUINO
+  TFTUploadResult upload_by_chunks_(HTTPClient &http_client, int &range_start);
+  #elif defined(USE_ESP_IDF)
+  TFTUploadResult upload_by_chunks_(esp_http_client_handle_t http_client, int &range_start);
+  #endif  // ARDUINO vs USE_ESP_IDF
+
   /**
    * Ends the upload process, restart Nextion and, if successful,
    * restarts ESP
-   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   * @param Nextion::TFTUploadResult result of the transfer.
+   * @return Nextion::TFTUploadResult result of the transfer.
    */
-  bool upload_end_(bool successful);
-#elif defined(USE_ESP_IDF)
+  TFTUploadResult upload_end(TFTUploadResult upload_results);
+
   /**
-   * will request 4096 bytes chunks from the web server
-   * and send each to Nextion
-   * @param std::string url Full url for download.
-   * @param int range_start Position of next byte to transfer.
-   * @return position of last byte transferred, -1 for failure.
-   */
-  int upload_range(const std::string &url, int range_start);
-  /**
-   * Ends the upload process, restart Nextion and, if successful,
-   * restarts ESP
-   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
-   */
-  bool upload_end(bool successful);
-#endif  // ARDUINO vs ESP-IDF
+   * Returns the ESP Free Heap memory. This is framework independent.
+   * @return Free Heap in bytes.
+  */
+  uint32_t GetFreeHeap_();
 
 #endif  // USE_NEXTION_TFT_UPLOAD
 
@@ -1148,8 +1284,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef USE_NEXTION_TFT_UPLOAD
   std::string tft_url_;
-  uint8_t *transfer_buffer_{nullptr};
-  size_t transfer_buffer_size_;
   bool upload_first_chunk_sent_ = false;
 #endif
 
