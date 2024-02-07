@@ -27,77 +27,77 @@ static const char *const TAG = "nextion.upload.idf";
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
 
-const char* Nextion::TFTUploadResultToString(Nextion::TFTUploadResult result) {
-    switch (result) {
-        case Nextion::TFTUploadResult::OK:
-            return "Upload successful";
+const char *Nextion::TFTUploadResultToString(Nextion::TFTUploadResult result) {
+  switch (result) {
+    case Nextion::TFTUploadResult::OK:
+      return "Upload successful";
 
-        case Nextion::TFTUploadResult::UploadInProgress:
-            return "Another upload is already in progress";
+    case Nextion::TFTUploadResult::UploadInProgress:
+      return "Another upload is already in progress";
 
-        case Nextion::TFTUploadResult::NetworkError_NotConnected:
-            return "Network is not connected";
+    case Nextion::TFTUploadResult::NetworkError_NotConnected:
+      return "Network is not connected";
 
-        case Nextion::TFTUploadResult::HttpError_ConnectionFailed:
-            return "Connection to HTTP server failed";
+    case Nextion::TFTUploadResult::HttpError_ConnectionFailed:
+      return "Connection to HTTP server failed";
 
-        case Nextion::TFTUploadResult::HttpError_ResponseServer:
-            return "HTTP server error response";
+    case Nextion::TFTUploadResult::HttpError_ResponseServer:
+      return "HTTP server error response";
 
-        case Nextion::TFTUploadResult::HttpError_ResponseClient:
-            return "HTTP client error response";
+    case Nextion::TFTUploadResult::HttpError_ResponseClient:
+      return "HTTP client error response";
 
-        case Nextion::TFTUploadResult::HttpError_ResponseRedirection:
-            return "HTTP redirection error response";
+    case Nextion::TFTUploadResult::HttpError_ResponseRedirection:
+      return "HTTP redirection error response";
 
-        case Nextion::TFTUploadResult::HttpError_ResponseOther:
-            return "HTTP other error response";
+    case Nextion::TFTUploadResult::HttpError_ResponseOther:
+      return "HTTP other error response";
 
-        case Nextion::TFTUploadResult::HttpError_InvalidServerHeader:
-            return "HTTP server provided an invalid header";
+    case Nextion::TFTUploadResult::HttpError_InvalidServerHeader:
+      return "HTTP server provided an invalid header";
 
-        case Nextion::TFTUploadResult::HttpError_ClientInitialization:
-            return "Failed to initialize HTTP client";
+    case Nextion::TFTUploadResult::HttpError_ClientInitialization:
+      return "Failed to initialize HTTP client";
 
-        case Nextion::TFTUploadResult::HttpError_KeepAlive:
-            return "HTTP failed to setup a persistent connection";
+    case Nextion::TFTUploadResult::HttpError_KeepAlive:
+      return "HTTP failed to setup a persistent connection";
 
-        case Nextion::TFTUploadResult::HttpError_RequestFailed:
-            return "HTTP request failed";
+    case Nextion::TFTUploadResult::HttpError_RequestFailed:
+      return "HTTP request failed";
 
-        case Nextion::TFTUploadResult::HttpError_InvalidFileSize:
-            return "The downloaded file size did not match the expected size";
+    case Nextion::TFTUploadResult::HttpError_InvalidFileSize:
+      return "The downloaded file size did not match the expected size";
 
-        case Nextion::TFTUploadResult::HttpError_FailedToFetchFullPackage:
-            return "Failed to fetch full package from HTTP server";
+    case Nextion::TFTUploadResult::HttpError_FailedToFetchFullPackage:
+      return "Failed to fetch full package from HTTP server";
 
-        case Nextion::TFTUploadResult::HttpError_FailedToOpenConnection:
-            return "Failed to open connection to HTTP server";
+    case Nextion::TFTUploadResult::HttpError_FailedToOpenConnection:
+      return "Failed to open connection to HTTP server";
 
-        case Nextion::TFTUploadResult::HttpError_FailedToGetContentLenght:
-            return "Failed to get content length from HTTP server";
+    case Nextion::TFTUploadResult::HttpError_FailedToGetContentLenght:
+      return "Failed to get content length from HTTP server";
 
-        case Nextion::TFTUploadResult::HttpError_SetMethodFailed:
-            return "Failed to set HTTP method";
+    case Nextion::TFTUploadResult::HttpError_SetMethodFailed:
+      return "Failed to set HTTP method";
 
-        // Nextion Errors
-        case Nextion::TFTUploadResult::NextionError_PreparationFailed:
-            return "Preparation for TFT upload failed";
+    // Nextion Errors
+    case Nextion::TFTUploadResult::NextionError_PreparationFailed:
+      return "Preparation for TFT upload failed";
 
-        case Nextion::TFTUploadResult::NextionError_InvalidResponse:
-            return "Invalid response from Nextion";
+    case Nextion::TFTUploadResult::NextionError_InvalidResponse:
+      return "Invalid response from Nextion";
 
-        // Process Errors
-        case Nextion::TFTUploadResult::ProcessError_InvalidRange:
-            return "Invalid range requested";
+    // Process Errors
+    case Nextion::TFTUploadResult::ProcessError_InvalidRange:
+      return "Invalid range requested";
 
-        // Memory Errors
-        case Nextion::TFTUploadResult::MemoryError_FailedToAllocate:
-            return "Failed to allocate memory";
+    // Memory Errors
+    case Nextion::TFTUploadResult::MemoryError_FailedToAllocate:
+      return "Failed to allocate memory";
 
-        default:
-            return "Unknown error";
-    }
+    default:
+      return "Unknown error";
+  }
 }
 
 uint32_t Nextion::GetFreeHeap_() {
@@ -115,7 +115,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
 #endif  // ARDUINO vs USE_ESP_IDF
   uint range_size = this->tft_size_ - range_start;
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->GetFreeHeap_());
-  int range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096)-1;
+  int range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
   ESP_LOGD(TAG, "Range start: %i", range_start);
   if (range_size <= 0 or range_end <= range_start) {
     ESP_LOGD(TAG, "Range end: %i", range_end);
@@ -131,8 +131,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   http_client.addHeader("Range", range_header);
   int code = http_client.GET();
   if (code != HTTP_CODE_OK and code != HTTP_CODE_PARTIAL_CONTENT) {
-    ESP_LOGW(TAG, "HTTP Request failed; Error: %s",
-            HTTPClient::errorToString(code).c_str());
+    ESP_LOGW(TAG, "HTTP Request failed; Error: %s", HTTPClient::errorToString(code).c_str());
     return Nextion::TFTUploadResult::HttpError_RequestFailed;
   }
 #elif defined(USE_ESP_IDF)
@@ -158,7 +157,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   }
 
   ESP_LOGV(TAG, "Allocate buffer");
-  std::vector<uint8_t> buffer(4096); // Attempt to allocate up to 4096 bytes
+  std::vector<uint8_t> buffer(4096);  // Attempt to allocate up to 4096 bytes
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->GetFreeHeap_());
   // Check if the allocation was successful by comparing the size
   if (buffer.size() != 4096) {
@@ -182,11 +181,12 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     buffer.clear();
     while (read_len < bufferSize && millis() - startTime < timeout) {
       if (http_client.getStreamPtr()->available() > 0) {
-        partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer.data()) + read_len, bufferSize - read_len);
+        partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer.data()) + read_len,
+                                                                 bufferSize - read_len);
         read_len += partial_read_len;
         if (partial_read_len > 0) {
           App.feed_wdt();
-          delay(2); // Adjust based on your requirements
+          delay(2);
         }
       }
     }
@@ -210,9 +210,8 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
                this->GetFreeHeap_());
       upload_first_chunk_sent_ = true;
       if (recv_string[0] == 0x08 && recv_string.size() == 5) {  // handle partial upload request
-        ESP_LOGD(
-            TAG, "recv_string [%s]",
-            format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
+        ESP_LOGD(TAG, "recv_string [%s]",
+                 format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
         uint32_t result = 0;
         for (int j = 0; j < 4; ++j) {
           result += static_cast<uint8_t>(recv_string[j + 1]) << (8 * j);
@@ -224,9 +223,8 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
           return Nextion::TFTUploadResult::OK;
         }
       } else if (recv_string[0] != 0x05) {  // 0x05 == "ok"
-        ESP_LOGE(
-            TAG, "Invalid response from Nextion: [%s]",
-            format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
+        ESP_LOGE(TAG, "Invalid response from Nextion: [%s]",
+                 format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
         return Nextion::TFTUploadResult::NextionError_InvalidResponse;
       }
 
@@ -445,8 +443,8 @@ Nextion::TFTUploadResult Nextion::upload_tft() {
   ESP_LOGV(TAG, "Change the method to GET before starting the download");
   esp_err_t set_method_result = esp_http_client_set_method(http_client, HTTP_METHOD_GET);
   if (set_method_result != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to set HTTP method to GET: %s", esp_err_to_name(set_method_result));
-      return Nextion::TFTUploadResult::HttpError_SetMethodFailed;
+    ESP_LOGE(TAG, "Failed to set HTTP method to GET: %s", esp_err_to_name(set_method_result));
+    return Nextion::TFTUploadResult::HttpError_SetMethodFailed;
   }
 #endif  // USE_ESP_IDF
 

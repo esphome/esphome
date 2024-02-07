@@ -37,7 +37,7 @@ static const std::string COMMAND_DELIMITER{static_cast<char>(255), static_cast<c
 
 class Nextion : public NextionBase, public PollingComponent, public uart::UARTDevice {
  public:
-   /**
+  /**
    * Set the text of a component to a static string.
    * @param component The component name.
    * @param text The static text to set.
@@ -920,118 +920,118 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * of an attempt to upload a TFT file to a Nextion display.
    */
   enum class TFTUploadResult {
-      /**
-       * @brief The upload state is unkown.
-      */
-      Unknown,
+    /**
+     * @brief The upload state is unkown.
+     */
+    Unknown,
 
-      /**
-       * @brief The upload operation completed successfully.
-      */
-      OK,
+    /**
+     * @brief The upload operation completed successfully.
+     */
+    OK,
 
-      /**
-       * @brief Another upload is already in progress.
-      */
-      UploadInProgress,
+    /**
+     * @brief Another upload is already in progress.
+     */
+    UploadInProgress,
 
-      /**
-       * @brief Network is not connected.
-      */
-      NetworkError_NotConnected,
+    /**
+     * @brief Network is not connected.
+     */
+    NetworkError_NotConnected,
 
-      /**
-       * @brief Connection to HTTP server failed
-      */
-      HttpError_ConnectionFailed,
+    /**
+     * @brief Connection to HTTP server failed
+     */
+    HttpError_ConnectionFailed,
 
-      /**
-       * @brief HTTP response status on Server error range.
-      */
-      HttpError_ResponseServer,
+    /**
+     * @brief HTTP response status on Server error range.
+     */
+    HttpError_ResponseServer,
 
-      /**
-       * @brief HTTP response status on Clent error range.
-      */
-      HttpError_ResponseClient,
+    /**
+     * @brief HTTP response status on Clent error range.
+     */
+    HttpError_ResponseClient,
 
-      /**
-       * @brief HTTP response status on Redirection error range.
-      */
-      HttpError_ResponseRedirection,
+    /**
+     * @brief HTTP response status on Redirection error range.
+     */
+    HttpError_ResponseRedirection,
 
-      /**
-       * @brief HTTP response status on Server error range.
-      */
-      HttpError_ResponseOther,
+    /**
+     * @brief HTTP response status on Server error range.
+     */
+    HttpError_ResponseOther,
 
-      /**
-       * @brief HTTP server provided an invalid header.
-       */
-      HttpError_InvalidServerHeader,
+    /**
+     * @brief HTTP server provided an invalid header.
+     */
+    HttpError_InvalidServerHeader,
 
-      /**
-       * @brief Failed to initialize HTTP client.
-      */
-      HttpError_ClientInitialization,
+    /**
+     * @brief Failed to initialize HTTP client.
+     */
+    HttpError_ClientInitialization,
 
-      /**
-       * @brief HTTP failed to setup a persistent connection.
-      */
-      HttpError_KeepAlive,
+    /**
+     * @brief HTTP failed to setup a persistent connection.
+     */
+    HttpError_KeepAlive,
 
-      /**
-       * @brief HTTP request failed.
-      */
-      HttpError_RequestFailed,
+    /**
+     * @brief HTTP request failed.
+     */
+    HttpError_RequestFailed,
 
-      /**
-       * @brief The downloaded file size did not match the expected size.
-       */
-      HttpError_InvalidFileSize,
+    /**
+     * @brief The downloaded file size did not match the expected size.
+     */
+    HttpError_InvalidFileSize,
 
-      /**
-       * @brief Failed to fetch full package from HTTP server.
-      */
-       HttpError_FailedToFetchFullPackage,
+    /**
+     * @brief Failed to fetch full package from HTTP server.
+     */
+     HttpError_FailedToFetchFullPackage,
 
-      /**
-       * @brief Failed to open connection to HTTP server.
-      */
-      HttpError_FailedToOpenConnection,
+    /**
+     * @brief Failed to open connection to HTTP server.
+     */
+    HttpError_FailedToOpenConnection,
 
-      /**
-       * @brief Failed to get content lenght from HTTP server.
-      */
-      HttpError_FailedToGetContentLenght,
+    /**
+     * @brief Failed to get content lenght from HTTP server.
+     */
+    HttpError_FailedToGetContentLenght,
 
-      /**
-       * @brief Failed to set HTTP method.
-      */
-      HttpError_SetMethodFailed,
+    /**
+     * @brief Failed to set HTTP method.
+     */
+    HttpError_SetMethodFailed,
 
-      // Nextion Errors
-      /**
-       * @brief Preparation for TFT upload failed.
-      */
-      NextionError_PreparationFailed,
+    // Nextion Errors
+    /**
+     * @brief Preparation for TFT upload failed.
+     */
+    NextionError_PreparationFailed,
 
-      /**
-       * @brief Invalid response from Nextion.
-      */
-      NextionError_InvalidResponse,
+    /**
+     * @brief Invalid response from Nextion.
+     */
+    NextionError_InvalidResponse,
 
-      // Process Errors
-      /**
-       * @brief Invalid range requested.
-      */
-      ProcessError_InvalidRange,
+    // Process Errors
+    /**
+     * @brief Invalid range requested.
+     */
+    ProcessError_InvalidRange,
 
-      // Memory Errors
-      /**
-       * @brief
-      */
-      MemoryError_FailedToAllocate,
+    // Memory Errors
+    /**
+     * @brief
+     */
+    MemoryError_FailedToAllocate,
   };
 
   /**
@@ -1044,7 +1044,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param result The TFTUploadResult enum value to be converted to a string.
    * @return A const char* pointing to the string representation of the given result.
    */
-  static const char* TFTUploadResultToString(TFTUploadResult result);
+  static const char *TFTUploadResultToString(TFTUploadResult result);
 
   /**
    * Set the tft file URL. https seems problematic with arduino..
@@ -1221,15 +1221,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * For Arduino environments, the function requires an HTTPClient object passed by reference,
    * which is used to manage the connection and request headers.
-   * In ESP-IDF environments, an esp_http_client_handle_t is required, representing the handle to the initialized HTTP client.
+   * In ESP-IDF environments, an esp_http_client_handle_t is required, representing the handle to the initialized HTTP
+   * client.
    *
-   * @param http_client The HTTP client instance for making the range request. For Arduino, this should be an HTTPClient object;
-   * for ESP-IDF, an esp_http_client_handle_t.
+   * @param http_client The HTTP client instance for making the range request. For Arduino, this should be an HTTPClient
+   * object; for ESP-IDF, an esp_http_client_handle_t.
    * @param range_start A reference to an integer that specifies the starting position of the current data transfer.
    * This value is updated to mark the beginning of the next chunk after a successful transfer.
    *
-   * @return A Nextion::TFTUploadResult indicating the outcome of the transfer. It can be an OK status for successful transfers,
-   * or various error codes that detail the nature of any failure encountered during the operation.
+   * @return A Nextion::TFTUploadResult indicating the outcome of the transfer. It can be an OK status for successful
+   * transfers, or various error codes that detail the nature of any failure encountered during the operation.
    */
 #ifdef ARDUINO
   TFTUploadResult upload_by_chunks_(HTTPClient &http_client, int &range_start);
@@ -1248,7 +1249,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   /**
    * Returns the ESP Free Heap memory. This is framework independent.
    * @return Free Heap in bytes.
-  */
+   */
   uint32_t GetFreeHeap_();
 
 #endif  // USE_NEXTION_TFT_UPLOAD
