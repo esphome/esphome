@@ -923,7 +923,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
     /**
      * @brief The upload state is unkown.
      */
-    Unknown,
+    UNKNOWN,
 
     /**
      * @brief The upload operation completed successfully.
@@ -933,105 +933,105 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
     /**
      * @brief Another upload is already in progress.
      */
-    UploadInProgress,
+    UPLOAD_IN_PROGRESS,
 
     /**
      * @brief Network is not connected.
      */
-    NetworkError_NotConnected,
+    NETWORK_ERROR_NOT_CONNECTED,
 
     /**
      * @brief Connection to HTTP server failed
      */
-    HttpError_ConnectionFailed,
+    HTTP_ERROR_CONNECTION_FAILED,
 
     /**
      * @brief HTTP response status on Server error range.
      */
-    HttpError_ResponseServer,
+    HTTP_ERROR_RESPONSE_SERVER,
 
     /**
      * @brief HTTP response status on Clent error range.
      */
-    HttpError_ResponseClient,
+    HTTP_ERROR_RESPONSE_CLIENT,
 
     /**
      * @brief HTTP response status on Redirection error range.
      */
-    HttpError_ResponseRedirection,
+    HTTP_ERROR_RESPONSE_REDIRECTION,
 
     /**
      * @brief HTTP response status on Server error range.
      */
-    HttpError_ResponseOther,
+    HTTP_ERROR_RESPONSE_OTHER,
 
     /**
      * @brief HTTP server provided an invalid header.
      */
-    HttpError_InvalidServerHeader,
+    HTTP_ERROR_INVALID_SERVER_HEADER,
 
     /**
      * @brief Failed to initialize HTTP client.
      */
-    HttpError_ClientInitialization,
+    HTTP_ERROR_CLIENT_INITIALIZATION,
 
     /**
      * @brief HTTP failed to setup a persistent connection.
      */
-    HttpError_KeepAlive,
+    HTTP_ERROR_KEEP_ALIVE,
 
     /**
      * @brief HTTP request failed.
      */
-    HttpError_RequestFailed,
+    HTTP_ERROR_REQUEST_FAILED,
 
     /**
      * @brief The downloaded file size did not match the expected size.
      */
-    HttpError_InvalidFileSize,
+    HTTP_ERROR_INVALID_FILE_SIZE,
 
     /**
      * @brief Failed to fetch full package from HTTP server.
      */
-    HttpError_FailedToFetchFullPackage,
+    HTTP_ERROR_FAILED_TO_FETCH_FULL_PACKAGE,
 
     /**
      * @brief Failed to open connection to HTTP server.
      */
-    HttpError_FailedToOpenConnection,
+    HTTP_ERROR_FAILED_TO_OPEN_CONNECTION,
 
     /**
      * @brief Failed to get content lenght from HTTP server.
      */
-    HttpError_FailedToGetContentLenght,
+    HTTP_ERROR_FAILED_TO_GET_CONTENT_LENGHT,
 
     /**
      * @brief Failed to set HTTP method.
      */
-    HttpError_SetMethodFailed,
+    HTTP_ERROR_SET_METHOD_FAILED,
 
     // Nextion Errors
     /**
      * @brief Preparation for TFT upload failed.
      */
-    NextionError_PreparationFailed,
+    NEXTION_ERROR_PREPARATION_FAILED,
 
     /**
      * @brief Invalid response from Nextion.
      */
-    NextionError_InvalidResponse,
+    NEXTION_ERROR_INVALID_RESPONSE,
 
     // Process Errors
     /**
      * @brief Invalid range requested.
      */
-    ProcessError_InvalidRange,
+    PROCESS_ERROR_INVALID_RANGE,
 
     // Memory Errors
     /**
      * @brief
      */
-    MemoryError_FailedToAllocate,
+    MEMORY_ERROR_FAILED_TO_ALLOCATE,
   };
 
   /**
@@ -1044,7 +1044,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param result The TFTUploadResult enum value to be converted to a string.
    * @return A const char* pointing to the string representation of the given result.
    */
-  static const char *TFTUploadResultToString(TFTUploadResult result);
+  static const char *tft_upload_result_to_string(TFTUploadResult result);
 
   /**
    * Set the tft file URL. https seems problematic with arduino..
@@ -1244,13 +1244,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param Nextion::TFTUploadResult result of the transfer.
    * @return Nextion::TFTUploadResult result of the transfer.
    */
-  TFTUploadResult upload_end(TFTUploadResult upload_results);
+  TFTUploadResult upload_end_(TFTUploadResult upload_results);
 
   /**
    * Returns the ESP Free Heap memory. This is framework independent.
    * @return Free Heap in bytes.
    */
-  uint32_t GetFreeHeap_();
+  uint32_t get_free_heap_();
 
 #endif  // USE_NEXTION_TFT_UPLOAD
 
