@@ -212,6 +212,14 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
     return;
 #endif
 #ifdef USE_HOST
+  time_t rawtime;
+  struct tm *timeinfo;
+  char buffer[80];
+
+  time(&rawtime);
+  timeinfo = localtime(&rawtime);
+  strftime(buffer, sizeof buffer, "[%H:%M:%S]", timeinfo);
+  fputs(buffer, stdout);
   puts(msg);
 #endif
 

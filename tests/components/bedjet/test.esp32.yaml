@@ -1,0 +1,33 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+time:
+  - platform: sntp
+    id: sntp_time
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+      - 192.168.178.1
+
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: bedjet_blec
+
+bedjet:
+  - id: bedjet_hub
+    ble_client_id: bedjet_blec
+    time_id: sntp_time
+
+climate:
+  - platform: bedjet
+    name: My Bedjet
+    bedjet_id: bedjet_hub
+    heat_mode: extended
+
+fan:
+  - platform: bedjet
+    name: My Bedjet fan
+    bedjet_id: bedjet_hub

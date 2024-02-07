@@ -83,7 +83,7 @@ static const uint8_t PARTIAL_UPDATE_LUT_TTGO_B1[LUT_SIZE_TTGO_B1] = {
     0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x0F, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-void WaveshareEPaper::setup_pins_() {
+void WaveshareEPaperBase::setup_pins_() {
   this->init_internal_(this->get_buffer_length_());
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
@@ -98,13 +98,13 @@ void WaveshareEPaper::setup_pins_() {
 
   this->reset_();
 }
-float WaveshareEPaper::get_setup_priority() const { return setup_priority::PROCESSOR; }
-void WaveshareEPaper::command(uint8_t value) {
+float WaveshareEPaperBase::get_setup_priority() const { return setup_priority::PROCESSOR; }
+void WaveshareEPaperBase::command(uint8_t value) {
   this->start_command_();
   this->write_byte(value);
   this->end_command_();
 }
-void WaveshareEPaper::data(uint8_t value) {
+void WaveshareEPaperBase::data(uint8_t value) {
   this->start_data_();
   this->write_byte(value);
   this->end_data_();
@@ -112,7 +112,7 @@ void WaveshareEPaper::data(uint8_t value) {
 
 // write a command followed by one or more bytes of data.
 // The command is the first byte, length is the total including cmd.
-void WaveshareEPaper::cmd_data(const uint8_t *c_data, size_t length) {
+void WaveshareEPaperBase::cmd_data(const uint8_t *c_data, size_t length) {
   this->dc_pin_->digital_write(false);
   this->enable();
   this->write_byte(c_data[0]);
@@ -121,7 +121,7 @@ void WaveshareEPaper::cmd_data(const uint8_t *c_data, size_t length) {
   this->disable();
 }
 
-bool WaveshareEPaper::wait_until_idle_() {
+bool WaveshareEPaperBase::wait_until_idle_() {
   if (this->busy_pin_ == nullptr || !this->busy_pin_->digital_read()) {
     return true;
   }
@@ -136,7 +136,7 @@ bool WaveshareEPaper::wait_until_idle_() {
   }
   return true;
 }
-void WaveshareEPaper::update() {
+void WaveshareEPaperBase::update() {
   this->do_update_();
   this->display();
 }
@@ -159,20 +159,51 @@ void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color
     this->buffer_[pos] &= ~(0x80 >> subpos);
   }
 }
+
 uint32_t WaveshareEPaper::get_buffer_length_() {
   return this->get_width_controller() * this->get_height_internal() / 8u;
+}  // just a black buffer
+uint32_t WaveshareEPaperBWR::get_buffer_length_() {
+  return this->get_width_controller() * this->get_height_internal() / 4u;
+}  // black and red buffer
+
+void WaveshareEPaperBWR::fill(Color color) {
+  this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color);
 }
-void WaveshareEPaper::start_command_() {
+void HOT WaveshareEPaperBWR::draw_absolute_pixel_internal(int x, int y, Color color) {
+  if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
+    return;
+
+  const uint32_t buf_half_len = this->get_buffer_length_() / 2u;
+
+  const uint32_t pos = (x + y * this->get_width_internal()) / 8u;
+  const uint8_t subpos = x & 0x07;
+  // flip logic
+  if (color.is_on()) {
+    this->buffer_[pos] |= 0x80 >> subpos;
+  } else {
+    this->buffer_[pos] &= ~(0x80 >> subpos);
+  }
+
+  // draw red pixels only, if the color contains red only
+  if (((color.red > 0) && (color.green == 0) && (color.blue == 0))) {
+    this->buffer_[pos + buf_half_len] |= 0x80 >> subpos;
+  } else {
+    this->buffer_[pos + buf_half_len] &= ~(0x80 >> subpos);
+  }
+}
+
+void WaveshareEPaperBase::start_command_() {
   this->dc_pin_->digital_write(false);
   this->enable();
 }
-void WaveshareEPaper::end_command_() { this->disable(); }
-void WaveshareEPaper::start_data_() {
+void WaveshareEPaperBase::end_command_() { this->disable(); }
+void WaveshareEPaperBase::start_data_() {
   this->dc_pin_->digital_write(true);
   this->enable();
 }
-void WaveshareEPaper::end_data_() { this->disable(); }
-void WaveshareEPaper::on_safe_shutdown() { this->deep_sleep(); }
+void WaveshareEPaperBase::end_data_() { this->disable(); }
+void WaveshareEPaperBase::on_safe_shutdown() { this->deep_sleep(); }
 
 // ========================================================
 //                          Type A
@@ -493,7 +524,7 @@ uint32_t WaveshareEPaperTypeA::idle_timeout_() {
     case TTGO_EPAPER_2_13_IN_B1:
       return 2500;
     default:
-      return WaveshareEPaper::idle_timeout_();
+      return WaveshareEPaperBase::idle_timeout_();
   }
 }
 
@@ -693,6 +724,246 @@ int WaveshareEPaper2P7InV2::get_height_internal() { return 264; }
 void WaveshareEPaper2P7InV2::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 2.7in V2");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+// ========================================================
+//                          2.7inch_e-paper_b
+// ========================================================
+// Datasheet:
+//  - https://www.waveshare.com/w/upload/d/d8/2.7inch-e-paper-b-specification.pdf
+//  - https://github.com/waveshare/e-Paper/blob/master/RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_2in7b.c
+
+static const uint8_t LUT_VCOM_DC_2_7B[44] = {0x00, 0x00, 0x00, 0x1A, 0x1A, 0x00, 0x00, 0x01, 0x00, 0x0A, 0x0A,
+                                             0x00, 0x00, 0x08, 0x00, 0x0E, 0x01, 0x0E, 0x01, 0x10, 0x00, 0x0A,
+                                             0x0A, 0x00, 0x00, 0x08, 0x00, 0x04, 0x10, 0x00, 0x00, 0x05, 0x00,
+                                             0x03, 0x0E, 0x00, 0x00, 0x0A, 0x00, 0x23, 0x00, 0x00, 0x00, 0x01};
+
+static const uint8_t LUT_WHITE_TO_WHITE_2_7B[42] = {0x90, 0x1A, 0x1A, 0x00, 0x00, 0x01, 0x40, 0x0A, 0x0A, 0x00, 0x00,
+                                                    0x08, 0x84, 0x0E, 0x01, 0x0E, 0x01, 0x10, 0x80, 0x0A, 0x0A, 0x00,
+                                                    0x00, 0x08, 0x00, 0x04, 0x10, 0x00, 0x00, 0x05, 0x00, 0x03, 0x0E,
+                                                    0x00, 0x00, 0x0A, 0x00, 0x23, 0x00, 0x00, 0x00, 0x01};
+
+static const uint8_t LUT_BLACK_TO_WHITE_2_7B[42] = {0xA0, 0x1A, 0x1A, 0x00, 0x00, 0x01, 0x00, 0x0A, 0x0A, 0x00, 0x00,
+                                                    0x08, 0x84, 0x0E, 0x01, 0x0E, 0x01, 0x10, 0x90, 0x0A, 0x0A, 0x00,
+                                                    0x00, 0x08, 0xB0, 0x04, 0x10, 0x00, 0x00, 0x05, 0xB0, 0x03, 0x0E,
+                                                    0x00, 0x00, 0x0A, 0xC0, 0x23, 0x00, 0x00, 0x00, 0x01};
+
+static const uint8_t LUT_WHITE_TO_BLACK_2_7B[] = {0x90, 0x1A, 0x1A, 0x00, 0x00, 0x01, 0x20, 0x0A, 0x0A, 0x00, 0x00,
+                                                  0x08, 0x84, 0x0E, 0x01, 0x0E, 0x01, 0x10, 0x10, 0x0A, 0x0A, 0x00,
+                                                  0x00, 0x08, 0x00, 0x04, 0x10, 0x00, 0x00, 0x05, 0x00, 0x03, 0x0E,
+                                                  0x00, 0x00, 0x0A, 0x00, 0x23, 0x00, 0x00, 0x00, 0x01};
+
+static const uint8_t LUT_BLACK_TO_BLACK_2_7B[42] = {0x90, 0x1A, 0x1A, 0x00, 0x00, 0x01, 0x40, 0x0A, 0x0A, 0x00, 0x00,
+                                                    0x08, 0x84, 0x0E, 0x01, 0x0E, 0x01, 0x10, 0x80, 0x0A, 0x0A, 0x00,
+                                                    0x00, 0x08, 0x00, 0x04, 0x10, 0x00, 0x00, 0x05, 0x00, 0x03, 0x0E,
+                                                    0x00, 0x00, 0x0A, 0x00, 0x23, 0x00, 0x00, 0x00, 0x01};
+
+void WaveshareEPaper2P7InB::initialize() {
+  this->reset_();
+
+  // command power on
+  this->command(0x04);
+  this->wait_until_idle_();
+  delay(10);
+
+  // Command panel setting
+  this->command(0x00);
+  this->data(0xAF);  // KW-BF   KWR-AF    BWROTP 0f
+  // command pll control
+  this->command(0x30);
+  this->data(0x3A);  // 3A 100HZ   29 150Hz 39 200HZ    31 171HZ
+
+  // command power setting
+  this->command(0x01);
+  this->data(0x03);  // VDS_EN, VDG_EN
+  this->data(0x00);  // VCOM_HV, VGHL_LV[1], VGHL_LV[0]
+  this->data(0x2B);  // VDH
+  this->data(0x2B);  // VDL
+  this->data(0x09);  // VDHR
+
+  // command booster soft start
+  this->command(0x06);
+  this->data(0x07);
+  this->data(0x07);
+  this->data(0x17);
+
+  // Power optimization - ???
+  this->command(0xF8);
+  this->data(0x60);
+  this->data(0xA5);
+  this->command(0xF8);
+  this->data(0x89);
+  this->data(0xA5);
+  this->command(0xF8);
+  this->data(0x90);
+  this->data(0x00);
+  this->command(0xF8);
+  this->data(0x93);
+  this->data(0x2A);
+  this->command(0xF8);
+  this->data(0x73);
+  this->data(0x41);
+
+  // COMMAND VCM DC SETTING
+  this->command(0x82);
+  this->data(0x12);
+
+  // VCOM_AND_DATA_INTERVAL_SETTING
+  this->command(0x50);
+  this->data(0x87);  // define by OTP
+
+  delay(2);
+  // COMMAND LUT FOR VCOM
+  this->command(0x20);
+  for (uint8_t i : LUT_VCOM_DC_2_7B)
+    this->data(i);
+  // COMMAND LUT WHITE TO WHITE
+  this->command(0x21);
+  for (uint8_t i : LUT_WHITE_TO_WHITE_2_7B)
+    this->data(i);
+  // COMMAND LUT BLACK TO WHITE
+  this->command(0x22);
+  for (uint8_t i : LUT_BLACK_TO_WHITE_2_7B)
+    this->data(i);
+  // COMMAND LUT WHITE TO BLACK
+  this->command(0x23);
+  for (uint8_t i : LUT_WHITE_TO_BLACK_2_7B) {
+    this->data(i);
+  }
+  // COMMAND LUT BLACK TO BLACK
+  this->command(0x24);
+
+  for (uint8_t i : LUT_BLACK_TO_BLACK_2_7B) {
+    this->data(i);
+  }
+
+  delay(2);
+}
+
+void HOT WaveshareEPaper2P7InB::display() {
+  uint32_t buf_len_half = this->get_buffer_length_() >> 1;
+  this->initialize();
+
+  // TCON_RESOLUTION
+  this->command(0x61);
+  this->data(this->get_width_internal() >> 8);
+  this->data(this->get_width_internal() & 0xff);  // 176
+  this->data(this->get_height_internal() >> 8);
+  this->data(this->get_height_internal() & 0xff);  // 264
+
+  // COMMAND DATA START TRANSMISSION 1 (BLACK)
+  this->command(0x10);
+  delay(2);
+  for (uint32_t i = 0; i < buf_len_half; i++) {
+    this->data(this->buffer_[i]);
+  }
+  this->command(0x11);
+  delay(2);
+
+  // COMMAND DATA START TRANSMISSION 2  (RED)
+  this->command(0x13);
+  delay(2);
+  for (uint32_t i = buf_len_half; i < buf_len_half * 2u; i++) {
+    this->data(this->buffer_[i]);
+  }
+  this->command(0x11);
+
+  delay(2);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  this->wait_until_idle_();
+
+  this->deep_sleep();
+}
+int WaveshareEPaper2P7InB::get_width_internal() { return 176; }
+int WaveshareEPaper2P7InB::get_height_internal() { return 264; }
+void WaveshareEPaper2P7InB::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.7in B");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+// ========================================================
+//                          2.7inch_e-paper_b_v2
+// ========================================================
+// Datasheet:
+//  - https://www.waveshare.com/w/upload/7/7b/2.7inch-e-paper-b-v2-specification.pdf
+//  - https://github.com/waveshare/e-Paper/blob/master/RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_2in7b_V2.c
+
+void WaveshareEPaper2P7InBV2::initialize() {
+  this->reset_();
+
+  this->wait_until_idle_();
+  this->command(0x12);
+  this->wait_until_idle_();
+
+  this->command(0x00);
+  this->data(0x27);
+  this->data(0x01);
+  this->data(0x00);
+
+  this->command(0x11);
+  this->data(0x03);
+
+  // self.SetWindows(0, 0, self.width-1, self.height-1)
+  // SetWindows(self, Xstart, Ystart, Xend, Yend):
+
+  uint32_t xend = this->get_width_internal() - 1;
+  uint32_t yend = this->get_height_internal() - 1;
+  this->command(0x44);
+  this->data(0x00);
+  this->data((xend >> 3) & 0xff);
+
+  this->command(0x45);
+  this->data(0x00);
+  this->data(0x00);
+  this->data(yend & 0xff);
+  this->data((yend >> 8) & 0xff);
+
+  // SetCursor(self, Xstart, Ystart):
+  this->command(0x4E);
+  this->data(0x00);
+  this->command(0x4F);
+  this->data(0x00);
+  this->data(0x00);
+}
+
+void HOT WaveshareEPaper2P7InBV2::display() {
+  uint32_t buf_len = this->get_buffer_length_();
+  // COMMAND DATA START TRANSMISSION 1 (BLACK)
+  this->command(0x24);
+  delay(2);
+  for (uint32_t i = 0; i < buf_len; i++) {
+    this->data(this->buffer_[i]);
+  }
+  delay(2);
+
+  // COMMAND DATA START TRANSMISSION 2  (RED)
+  this->command(0x26);
+  delay(2);
+  for (uint32_t i = 0; i < buf_len; i++) {
+    this->data(this->buffer_[i]);
+  }
+
+  delay(2);
+
+  this->command(0x20);
+
+  this->wait_until_idle_();
+}
+int WaveshareEPaper2P7InBV2::get_width_internal() { return 176; }
+int WaveshareEPaper2P7InBV2::get_height_internal() { return 264; }
+void WaveshareEPaper2P7InBV2::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.7in B V2");
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);

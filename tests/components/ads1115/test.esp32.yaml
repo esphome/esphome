@@ -1,0 +1,13 @@
+i2c:
+  - id: i2c_ads1115
+    scl: 16
+    sda: 17
+
+ads1115:
+  address: 0x48
+
+sensor:
+  - platform: ads1115
+    multiplexer: A0_A1
+    gain: 1.024
+    id: ads1115_sensor

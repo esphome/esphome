@@ -1,0 +1,28 @@
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: airthings01
+
+sensor:
+  - id: airthingswp
+    platform: airthings_wave_plus
+    ble_client_id: airthings01
+    update_interval: 5min
+    battery_update_interval: 12h
+    temperature:
+      name: Wave Plus Temperature
+    radon:
+      name: Wave Plus Radon
+    radon_long_term:
+      name: Wave Plus Radon Long Term
+    pressure:
+      name: Wave Plus Pressure
+    humidity:
+      name: Wave Plus Humidity
+    co2:
+      name: Wave Plus CO2
+    tvoc:
+      name: Wave Plus VOC
+    battery_voltage:
+      name: Wave Plus Battery Voltage

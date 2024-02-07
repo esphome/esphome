@@ -50,7 +50,7 @@ class DfrobotSen0395SettingsAction : public Action<Ts...>, public Parented<Dfrob
       float detect = this->delay_after_detect_.value(x...);
       float disappear = this->delay_after_disappear_.value(x...);
       if (detect >= 0 && disappear >= 0) {
-        this->parent_->enqueue(make_unique<OutputLatencyCommand>(detect, disappear));
+        this->parent_->enqueue(make_unique<SetLatencyCommand>(detect, disappear));
       }
     }
     if (this->start_after_power_on_.has_value()) {

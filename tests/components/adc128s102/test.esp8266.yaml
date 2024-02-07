@@ -1,0 +1,14 @@
+spi:
+  - id: spi_adc128s102
+    clk_pin: 14
+    mosi_pin: 13
+    miso_pin: 12
+
+adc128s102:
+  cs_pin: 15
+  id: adc128s102_adc
+
+sensor:
+  - platform: adc128s102
+    id: adc128s102_channel_0
+    channel: 0

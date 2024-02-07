@@ -1,0 +1,7 @@
+output:
+  - platform: ac_dimmer
+    id: ac_dimmer_1
+    gate_pin:
+      number: 12
+    zero_cross_pin:
+      number: 13

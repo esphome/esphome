@@ -1,8 +1,9 @@
 #pragma once
 
-#include <string>
-#include <functional>
 #include <cmath>
+#include <cstdint>
+#include <functional>
+#include <string>
 
 #include "esphome/core/optional.h"
 
