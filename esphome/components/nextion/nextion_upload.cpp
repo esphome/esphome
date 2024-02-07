@@ -167,7 +167,6 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     ESP_LOGV(TAG, "Memory for buffer allocated successfully");
   }
 
-  int total_read_len = 0, read_len;
   std::string recv_string;
   while (true) {
     App.feed_wdt();
@@ -175,8 +174,8 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     buffer.clear();
     ESP_LOGV(TAG, "Fetching %d bytes from HTTP", buffer_size);
 #ifdef ARDUINO
-    unsigned long start_time = millis();
-    const unsigned long timeout = 5000;
+    uint32_t start_time = millis();
+    const uint32_t timeout = 5000;
     int read_len = 0;
     int partial_read_len = 0;
     while (read_len < buffer_size && millis() - start_time < timeout) {
