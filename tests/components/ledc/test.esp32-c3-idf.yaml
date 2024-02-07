@@ -1,0 +1,4 @@
+output:
+  - platform: ledc
+    id: test_ledc
+    pin: 4
