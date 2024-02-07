@@ -116,7 +116,7 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
     return;
   }
 
-  //the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
+  // the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
   dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->get_buffer_size_());
 }
 
