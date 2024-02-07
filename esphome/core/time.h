@@ -74,7 +74,7 @@ struct ESPTime {
    * @param esp_time an instance of a ESPTime struct
    * @return the success sate of the parsing
    */
-  static bool strptime(const std::string, ESPTime &esp_time);
+  static bool strptime(const std::string &time_to_parse, ESPTime &esp_time);
 
   /// Convert a C tm struct instance with a C unix epoch timestamp to an ESPTime instance.
   static ESPTime from_c_tm(struct tm *c_tm, time_t c_time);

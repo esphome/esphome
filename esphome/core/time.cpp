@@ -62,20 +62,25 @@ std::string ESPTime::strftime(const std::string &format) {
   return timestr;
 }
 
-bool ESPTime::strptime(const std::string time_to_parse, ESPTime &esp_time) {
+bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
   std::regex time_regex(R"(^(\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?|\d{2}:\d{2}(:\d{2})?)$)");
   if (std::regex_match(time_to_parse, time_regex)) {
     esp_time.second = 0;
-
-    if (time_to_parse.find('-') != std::string::npos &&
+    int count =
         std::sscanf(time_to_parse.c_str(), "%4hu-%2hhu-%2hhu %2hhu:%2hhu:%2hhu", &esp_time.year, &esp_time.month,
-                    &esp_time.day_of_month, &esp_time.hour, &esp_time.minute, &esp_time.second) >= 5) {
+                    &esp_time.day_of_month, &esp_time.hour, &esp_time.minute, &esp_time.second);
+    if (time_to_parse.find('-') != std::string::npos && count >= 5) {
       return true;
-    } else if (std::sscanf(time_to_parse.c_str(), "%2hhu:%2hhu:%2hhu", &esp_time.hour, &esp_time.minute,
-                           &esp_time.second) >= 2) {
+    }
+
+    count = std::sscanf(time_to_parse.c_str(), "%2hhu:%2hhu:%2hhu", &esp_time.hour, &esp_time.minute, &esp_time.second);
+    if (count >= 2) {
       return true;
-    } else if (std::sscanf(time_to_parse.c_str(), "%4hu-%2hhu-%2hhu", &esp_time.year, &esp_time.month,
-                           &esp_time.day_of_month) >= 3) {
+    }
+
+    count =
+        std::sscanf(time_to_parse.c_str(), "%4hu-%2hhu-%2hhu", &esp_time.year, &esp_time.month, &esp_time.day_of_month);
+    if (count >= 3) {
       esp_time.hour = 0;
       esp_time.minute = 0;
       return true;

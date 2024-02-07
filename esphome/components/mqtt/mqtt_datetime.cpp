@@ -1,5 +1,7 @@
 #include "mqtt_datetime.h"
+
 #include "esphome/core/log.h"
+#include <utility>
 
 #include "mqtt_const.h"
 
@@ -21,7 +23,7 @@ void MQTTDatetimeComponent::setup() {
     call.set_value(state);
     call.perform();
   });
-  this->datetime_->add_on_state_callback([this](std::string state) { this->publish_state(state); });
+  this->datetime_->add_on_state_callback([this](std::string state) { this->publish_state(std::move(state)); });
 }
 
 void MQTTDatetimeComponent::dump_config() {
@@ -42,7 +44,9 @@ bool MQTTDatetimeComponent::send_initial_state() {
     return true;
   }
 }
-bool MQTTDatetimeComponent::publish_state(std::string value) { return this->publish(this->get_state_topic_(), value); }
+bool MQTTDatetimeComponent::publish_state(const std::string &value) {
+  return this->publish(this->get_state_topic_(), value);
+}
 
 }  // namespace mqtt
 }  // namespace esphome

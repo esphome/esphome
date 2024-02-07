@@ -13,7 +13,7 @@ namespace datetime {
 #ifdef USE_TIME
 class DatetimeOnTimeTrigger : public Trigger<>, public Component {
  public:
-  explicit DatetimeOnTimeTrigger(Datetime *Datetime, time::RealTimeClock *rtc) : Datetime_(Datetime), rtc_(rtc) {}
+  explicit DatetimeOnTimeTrigger(Datetime *datetime, time::RealTimeClock *rtc) : datetime_(datetime), rtc_(rtc) {}
 
   bool matches(const ESPTime &time);
 
@@ -23,7 +23,7 @@ class DatetimeOnTimeTrigger : public Trigger<>, public Component {
  protected:
   time::RealTimeClock *rtc_;
   optional<ESPTime> last_check_;
-  Datetime *Datetime_;
+  Datetime *datetime_;
 };
 #endif  // USE_TIME
 
@@ -36,11 +36,11 @@ class DatetimeValueTrigger : public Trigger<ESPTime> {
 
 template<typename... Ts> class DatetimeSetAction : public Action<Ts...> {
  public:
-  DatetimeSetAction(Datetime *Datetime) : Datetime_(Datetime) {}
+  DatetimeSetAction(Datetime *datetime) : datetime_(datetime) {}
   TEMPLATABLE_VALUE(std::string, value)
 
   void play(Ts... x) override {
-    auto call = this->Datetime_->make_call();
+    auto call = this->datetime_->make_call();
 
     if (this->value_.has_value()) {
       call.set_value(value_.value(x...));
@@ -49,22 +49,22 @@ template<typename... Ts> class DatetimeSetAction : public Action<Ts...> {
   }
 
  protected:
-  Datetime *Datetime_;
+  Datetime *datetime_;
 };
 
 template<typename... Ts> class DatetimeOperationAction : public Action<Ts...> {
  public:
-  explicit DatetimeOperationAction(Datetime *Datetime) : Datetime_(Datetime) {}
+  explicit DatetimeOperationAction(Datetime *datetime) : datetime_(datetime) {}
   TEMPLATABLE_VALUE(DatetimeOperation, operation)
 
   void play(Ts... x) override {
-    auto call = this->Datetime_->make_call();
+    auto call = this->dDatetime_->make_call();
     call.with_operation(this->operation_.value(x...));
     call.perform();
   }
 
  protected:
-  Datetime *Datetime_;
+  Datetime *datetime_;
 };
 
 template<typename... Ts> class DatetimeHasDateCondition : public Condition<Ts...> {

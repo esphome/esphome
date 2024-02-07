@@ -20,13 +20,12 @@ class Datetime : public EntityBase {
  public:
   explicit Datetime();
 
- public:
   ESPTime state_as_time;
   std::string state;
   bool has_date;
   bool has_time;
 
-  void publish_state(std::string state);
+  void publish_state(const std::string &state);
 
   DatetimeCall make_call() { return DatetimeCall(this); }
 

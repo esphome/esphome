@@ -22,17 +22,17 @@ class DatetimeCall {
  public:
   explicit DatetimeCall(Datetime *parent) : parent_(parent) {}
   void perform();
-  DatetimeCall &set_value(const std::string value);
+  DatetimeCall &set_value(const std::string &value);
 
   DatetimeCall &with_operation(DatetimeOperation operation);
-  DatetimeCall &with_value(std::string value);
+  DatetimeCall &with_value(const std::string &value);
 
  protected:
   Datetime *const parent_;
   DatetimeOperation operation_{DATETIME_OP_NONE};
   optional<std::string> value_;
 
-  bool validate_datetime_string(std::string value);
+  bool validate_datetime_string_(const std::string &value);
 };
 
 }  // namespace datetime

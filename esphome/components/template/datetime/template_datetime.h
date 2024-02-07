@@ -20,11 +20,11 @@ class TemplateDatetime : public datetime::Datetime, public PollingComponent {
   Trigger<std::string> *get_set_trigger() const { return set_trigger_; }
   void set_optimistic(bool optimistic) { optimistic_ = optimistic; }
 
-  void set_initial_value(std::string initial_value) { initial_value_ = initial_value; }
+  void set_initial_value(std::string initial_value) { initial_value_ = std::move(initial_value); }
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
 
  protected:
-  void control(std::string) override;
+  void control(std::string value) override;
 
   bool optimistic_{false};
   std::string initial_value_{"00:00:00"};

@@ -29,10 +29,9 @@ class MQTTDatetimeComponent : public mqtt::MQTTComponent {
 
   bool send_initial_state() override;
 
-  bool publish_state(std::string value);
+  bool publish_state(const std::string &value);
 
  protected:
-  /// Override for MQTTComponent, returns "number".
   std::string component_type() const override;
   const EntityBase *get_entity() const override;
 

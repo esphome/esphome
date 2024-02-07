@@ -54,9 +54,9 @@ void TemplateDatetime::update() {
   auto val = (*this->f_)();
   if (!val.has_value())
     return;
-  ESP_LOGD(TAG, (*val).c_str());
+  ESP_LOGD(TAG, "%s", (*val).c_str());
 
-  std::string state = (*val).c_str();
+  std::string state = (*val);
   has_date = HAS_DATETIME_STRING_DATE_ONLY(state) || HAS_DATETIME_STRING_DATE_AND_TIME(state);
   has_time = HAS_DATETIME_STRING_TIME_ONLY(state) || HAS_DATETIME_STRING_DATE_AND_TIME(state);
   if (!(has_date || has_time)) {

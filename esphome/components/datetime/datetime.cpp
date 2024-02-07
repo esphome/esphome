@@ -11,7 +11,7 @@ static const char *const TAG = "datetime";
 
 Datetime::Datetime() {}
 
-void Datetime::publish_state(std::string state) {
+void Datetime::publish_state(const std::string &state) {
   this->has_state_ = true;
   this->state = state;
   this->has_date = HAS_DATETIME_STRING_DATE_ONLY(state) || HAS_DATETIME_STRING_DATE_AND_TIME(state);
@@ -23,9 +23,9 @@ void Datetime::publish_state(std::string state) {
   this->state_as_time.day_of_year = 0;
   this->state_as_time.day_of_week = 1;  // not important for us, but has to be set to get a utc timestamp
 
-  const uint8_t DAYS_IN_MONTH[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  const uint8_t days_in_month[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   for (int i = 1; i < this->state_as_time.month; i++) {
-    this->state_as_time.day_of_year += DAYS_IN_MONTH[i];
+    this->state_as_time.day_of_year += days_in_month[i];
   }
 
   this->state_as_time.day_of_year += this->state_as_time.day_of_month;
