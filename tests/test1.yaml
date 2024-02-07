@@ -4022,7 +4022,7 @@ datetime:
     initial_value: "16:45:20"
     on_time:
       - switch.turn_on:
-          id: test_select
+          id: living_room_lights_off
 
 number:
   - platform: template
