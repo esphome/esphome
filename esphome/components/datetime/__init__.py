@@ -90,7 +90,7 @@ def has_datetime_string_date_or_time(value):
 def validate_datetime_string(value: str):
     if not has_datetime_string_date_or_time(value):
         raise cv.Invalid(
-            "Not a valid datetime: '{0}'.".format(value)
+            f"Not a valid datetime: '{value}'."
             + " valid formats are '2024-05-28 16:45:15', '2024-05-28', '16:45:15', '16:45'"
         )
 
@@ -112,7 +112,7 @@ def validate_datetime_string(value: str):
             dt.strptime(val, format[i])
         except ValueError:
             invalide_valus.append([val, format[i]])
-    if len(invalide_valus):
+    if len(invalide_valus) != 0:
         format_to_string = {
             "%Y": ["Year", "0001-9999"],
             "%m": ["Month", "1-12"],
