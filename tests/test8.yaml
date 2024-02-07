@@ -77,8 +77,6 @@ display:
     lambda: |-
       it.printf(10, 100, id(roboto), Color(0x123456), COLOR_OFF, display::TextAlign::BASELINE, "%f", id(heap_free).state);
 
-    
-
 i2c:
   scl: GPIO18
   sda: GPIO8
