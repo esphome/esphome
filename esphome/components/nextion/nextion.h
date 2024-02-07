@@ -993,7 +993,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
     /**
      * @brief Failed to fetch full package from HTTP server.
      */
-     HttpError_FailedToFetchFullPackage,
+    HttpError_FailedToFetchFullPackage,
 
     /**
      * @brief Failed to open connection to HTTP server.
