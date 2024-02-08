@@ -284,7 +284,7 @@ void WeikaiComponent::test_gpio_output_() {
   state = ~state;
   this->reg(WKREG_GPDAT, 0) = state;
   ESP_LOGI(TAG, "Flipping all outputs to %02X (%s)", state, I2S2CS(state));
-  delay(100);
+  delay(100);  // NOLINT
 }
 #endif
 
