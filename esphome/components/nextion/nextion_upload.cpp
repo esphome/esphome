@@ -271,6 +271,8 @@ Nextion::TFTUploadResult Nextion::upload_tft() {
     if (!this->set_protocol_reparse_mode(false)) {
       ESP_LOGW(TAG, "Failed to request Nextion to exit reparse mode");
       ESP_LOGW(TAG, "Attempting upload regardless");
+    } else {
+      delay(500);  // NOLINT
     }
   }
 
