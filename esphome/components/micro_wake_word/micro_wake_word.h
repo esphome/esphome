@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP_IDF
+
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/ring_buffer.h"
@@ -188,3 +190,5 @@ template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, pub
 
 }  // namespace micro_wake_word
 }  // namespace esphome
+
+#endif  // USE_ESP_IDF

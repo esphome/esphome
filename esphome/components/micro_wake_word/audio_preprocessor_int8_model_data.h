@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP_IDF
+
 // Converted audio_preprocessor_int8.tflite
 // From https://github.com/tensorflow/tflite-micro/tree/main/tensorflow/lite/micro/examples/micro_speech/models accessed
 // January 2024
@@ -487,3 +489,5 @@ const unsigned char g_audio_preprocessor_int8_tflite[] = {
 
 }  // namespace micro_wake_word
 }  // namespace esphome
+
+#endif  // USE_ESP_IDF

@@ -1,5 +1,7 @@
 #include "micro_wake_word.h"
 
+#ifdef USE_ESP_IDF
+
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -490,3 +492,5 @@ bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<14> &
 
 }  // namespace micro_wake_word
 }  // namespace esphome
+
+#endif  // USE_ESP_IDF
