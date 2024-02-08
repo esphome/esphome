@@ -1802,6 +1802,19 @@ binary_sensor:
       inverted: false
       interrupt: FALLING
   - platform: gpio
+    name: "pin0"
+    pin:
+      wk2212_spi: wk2212_spi_wk_bridge
+      number: 0
+  - platform: gpio
+    name: "pin1"
+    pin:
+      wk2212_spi: wk2212_spi_wk_bridge
+      number: 1
+      mode:
+        input: true
+      inverted: true
+  - platform: gpio
     pin:
       allow_other_uses: true
       number: GPIO9
@@ -2712,6 +2725,21 @@ switch:
           code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
       - remote_transmitter.transmit_midea:
           code: !lambda "return {0xA2, 0x08, 0xFF, 0xFF, 0xFF};"
+  - platform: gpio
+    name: "pin2"
+    pin:
+      wk2212_spi: wk2212_spi_wk_bridge
+      number: 2
+      mode:
+        output: true
+  - platform: gpio
+    name: "pin3"
+    pin:
+      wk2212_spi: wk2212_spi_wk_bridge
+      number: 3
+      mode:
+        output: true
+      inverted: true
   - platform: gpio
     name: "MCP23S08 Pin #0"
     pin:
@@ -4014,18 +4042,153 @@ teleinfo:
   historical_mode: true
 
 wk2132_i2c:
-  - id: wk2132_id_0
+  - id: wk2132_i2c_id
     address: 0x70
     i2c_id: i2c_bus
     uart:
-      - uart_id: uart_id_0
+      - uart_id: wk2132_uart_id_0
         channel: 0
         baud_rate: 115200
         stop_bits: 1
         parity: none
-      - uart_id: uart_id_1
+      - uart_id: wk2132_uart_id_1
         channel: 1
         baud_rate: 19200
+wk2132_spi:
+  - id: wk2132_spi_id
+    cs_pin:
+      wk2168_spi: wk2168_spi_wk_bridge
+      number: 0
+      mode:
+        output: true
+    data_rate: 1MHz
+    uart:
+      - uart_id: wk2132_spi_uart_id0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - uart_id: wk2132_spi_uart_id1
+        channel: 1
+        baud_rate: 921600
+wk2168_i2c:
+  - id: wk2168_i2c_bridge_0
+    i2c_id: i2c_bus
+    address: 0x70
+    uart:
+      - uart_id: wk2168_i2c_uart_id0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - uart_id: wk2168_i2c_uart_id1
+        channel: 1
+        baud_rate: 921600
+      - uart_id: wk2168_i2c_uart_id2
+        channel: 2
+        baud_rate: 921600
+      - uart_id: wk2168_i2c_uart_id3
+        channel: 3
+        baud_rate: 921600
+wk2168_spi:
+  - id: wk2168_spi_wk_bridge
+    cs_pin:
+      wk2168_spi: wk2168_spi_wk_bridge
+      number: 1
+      mode:
+        output: true
+    crystal: 11059200
+    data_rate: 1MHz
+    test_mode: 1
+    uart:
+      - uart_id: wk2168_spi_uart_id0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - uart_id: wk2168_spi_uart_id1
+        channel: 1
+        baud_rate: 115200
+      - uart_id: wk2168_spi_uart_id2
+        channel: 2
+        baud_rate: 115200
+      - uart_id: wk2168_spi_uart_id3
+        channel: 3
+        baud_rate: 115200
+wk2204_i2c:
+  - id: wk2204_i2c_bridge_0
+    i2c_id: i2c_bus
+    address: 0x70
+    uart:
+      - uart_id: wk2204_i2c_uart_id0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - uart_id: wk2204_i2c_uart_id1
+        channel: 1
+        baud_rate: 921600
+      - uart_id: wk2204_i2c_uart_id2
+        channel: 2
+        baud_rate: 921600
+      - uart_id: wk2204_i2c_uart_id3
+        channel: 3
+        baud_rate: 921600
+wk2204_spi:
+  - id: wk2204_spi_wk_bridge
+    cs_pin:
+      wk2168_spi: wk2168_spi_wk_bridge
+      number: 2
+      mode:
+        output: true
+    crystal: 11059200
+    data_rate: 1MHz
+    uart:
+      - uart_id: wk2204_spi_uart_id0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - uart_id: wk2204_spi_uart_id1
+        channel: 1
+        baud_rate: 115200
+      - uart_id: wk2204_spi_uart_id2
+        channel: 2
+        baud_rate: 115200
+      - uart_id: wk2204_spi_uart_id3
+        channel: 3
+        baud_rate: 115200
+wk2212_i2c:
+  - id: wk2212_i2c_bridge_0
+    i2c_id: i2c_bus
+    address: 0x70
+    uart:
+      - uart_id: wk2212_i2c_uart_id0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - uart_id: wk2212_i2c_uart_id1
+        channel: 1
+        baud_rate: 921600
+wk2212_spi:
+  - id: wk2212_spi_wk_bridge
+    cs_pin:
+      wk2168_spi: wk2168_spi_wk_bridge
+      number: 3
+      mode:
+        output: true
+    crystal: 11059200
+    data_rate: 1MHz
+    uart:
+      - uart_id: wk2212_spi_uart_id0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - uart_id: wk2212_spi_uart_id1
+        channel: 1
+        baud_rate: 115200
 
 number:
   - platform: template
