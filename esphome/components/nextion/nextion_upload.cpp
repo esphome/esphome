@@ -164,7 +164,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   while (true) {
     App.feed_wdt();
     int buffer_size = std::min(this->content_length_, 4096);  // Limits buffer to the remaining data
-    std::vector<uint8_t> buffer(buffer_size); // Initialize buffer with the specified size
+    std::vector<uint8_t> buffer(buffer_size);                 // Initialize buffer with the specified size
     ESP_LOGVV(TAG, "Fetching %d bytes from HTTP", buffer_size);
     int read_len = 0;
     int partial_read_len = 0;
@@ -174,7 +174,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     while (read_len < buffer_size && millis() - start_time < timeout) {
       if (http_client.getStreamPtr()->available() > 0) {
         partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer.data()) + read_len,
-                                                                buffer_size - read_len);
+                                                                 buffer_size - read_len);
         read_len += partial_read_len;
         if (partial_read_len > 0) {
           App.feed_wdt();
@@ -186,7 +186,8 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     int retries = 0;
     // Attempt to read the chunk with retries.
     while (retries < 5 && read_len < buffer_size) {
-      partial_read_len = esp_http_client_read(http_client, reinterpret_cast<char *>(buffer.data()) + read_len, buffer_size - read_len);
+      partial_read_len =
+          esp_http_client_read(http_client, reinterpret_cast<char *>(buffer.data()) + read_len, buffer_size - read_len);
       if (partial_read_len > 0) {
         read_len += partial_read_len;  // Accumulate the total read length.
         // Reset retries on successful read.
