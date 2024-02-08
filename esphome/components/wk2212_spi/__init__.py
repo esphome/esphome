@@ -13,7 +13,7 @@ CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["weikai"]
 MULTI_CONF = True
-CONF_WK2212 = "wk2212_spi"
+CONF_WK2212_SPI = "wk2212_spi"
 
 weikai_ns = cg.esphome_ns.namespace("weikai")
 WeikaiComponentSPI = weikai_ns.class_(
@@ -45,17 +45,17 @@ WK2212_PIN_SCHEMA = cv.All(
     weikai.WEIKAI_PIN_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(WeikaiGPIOPin),
-            cv.Required(CONF_WK2212): cv.use_id(WeikaiComponentSPI),
+            cv.Required(CONF_WK2212_SPI): cv.use_id(WeikaiComponentSPI),
         },
     ),
     weikai.validate_pin_mode,
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register(CONF_WK2212, WK2212_PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_WK2212_SPI, WK2212_PIN_SCHEMA)
 async def sc16is75x_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_WK2212])
+    parent = await cg.get_variable(config[CONF_WK2212_SPI])
     cg.add(var.set_parent(parent))
     num = config[CONF_NUMBER]
     cg.add(var.set_pin(num))

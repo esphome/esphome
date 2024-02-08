@@ -111,11 +111,9 @@ static const char *const REG_TO_STR_P1[16] = {"GENA", "GRST", "GMUT", "SPAGE", "
 const char *reg_to_str(int reg, bool page1) {
   if (reg == WKREG_GPDAT) {
     return "GPDAT";
-  }
-  else if (reg == WKREG_GPDIR) {
+  } else if (reg == WKREG_GPDIR) {
     return "GPDIR";
-  }
-  else {
+  } else {
     return page1 ? REG_TO_STR_P1[reg & 0x0F] : REG_TO_STR_P0[reg & 0x0F];
   }
 }
