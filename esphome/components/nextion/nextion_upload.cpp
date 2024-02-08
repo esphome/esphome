@@ -195,7 +195,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
       } else {
         // If no data was read, increment retries.
         retries++;
-        delay(2);
+        vTaskDelay(pdMS_TO_TICKS(2));  // NOLINT
       }
       App.feed_wdt();  // Feed the watchdog timer.
     }
@@ -272,7 +272,11 @@ Nextion::TFTUploadResult Nextion::upload_tft() {
       ESP_LOGW(TAG, "Failed to request Nextion to exit reparse mode");
       ESP_LOGW(TAG, "Attempting upload regardless");
     } else {
+#ifdef ARDUINO
       delay(500);  // NOLINT
+#elif defined(USE_ESP_IDF)
+      vTaskDelay(pdMS_TO_TICKS(500));  // NOLINT
+#endif
     }
   }
 
@@ -507,19 +511,19 @@ Nextion::TFTUploadResult Nextion::upload_tft() {
 }
 
 Nextion::TFTUploadResult Nextion::upload_end_(Nextion::TFTUploadResult upload_results) {
-  ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
+  ESP_LOGD(TAG, "Nextion TFT upload finished: %s", this->tft_upload_result_to_string(upload_results));
   this->is_updating_ = false;
-  ESP_LOGD(TAG, "Restarting Nextion");
-  this->soft_reset();
   if (upload_results == Nextion::TFTUploadResult::OK) {
     ESP_LOGD(TAG, "Restarting ESPHome");
 #ifdef ARDUINO
+    delay(1500);    // NOLINT
     ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
 #elif defined(USE_ESP_IDF)
-    esp_restart();  // NOLINT(readability-static-accessed-through-instance)
+    vTaskDelay(pdMS_TO_TICKS(1500));  // NOLINT
+    esp_restart();                    // NOLINT(readability-static-accessed-through-instance)
 #endif  // ARDUINO vs USE_ESP_IDF
   } else {
-    ESP_LOGE(TAG, "Nextion TFT upload failed: %s", this->tft_upload_result_to_string(upload_results));
+    ESP_LOGE(TAG, "Nextion TFT upload failed");
   }
   return upload_results;
 }
