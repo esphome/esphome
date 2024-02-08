@@ -73,12 +73,14 @@ class MicroWakeWord : public Component {
   Trigger<std::string> *get_wake_word_detected_trigger() const { return this->wake_word_detected_trigger_; }
 
   void set_model_start(const uint8_t *model_start) { this->model_start_ = model_start; }
+  void set_wake_word(const std::string &wake_word) { this->wake_word_ = wake_word; }
 
  protected:
   void set_state_(State state);
   int read_microphone_();
 
   const uint8_t *model_start_;
+  std::string wake_word_;
 
   microphone::Microphone *microphone_{nullptr};
   Trigger<std::string> *wake_word_detected_trigger_ = new Trigger<std::string>();

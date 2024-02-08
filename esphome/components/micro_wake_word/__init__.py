@@ -1,13 +1,15 @@
 import logging
 
+import json
 import hashlib
+from urllib.parse import urljoin
 from pathlib import Path
 import requests
 
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from esphome.core import CORE, HexInt
+from esphome.core import CORE, HexInt, EsphomeError
 
 from esphome.components import esp32, microphone
 from esphome import automation, git, external_files
@@ -57,10 +59,10 @@ IsRunningCondition = micro_wake_word_ns.class_(
 )
 
 
-def _validate_tflite_filename(value):
+def _validate_json_filename(value):
     value = cv.string(value)
-    if not value.endswith(".tflite"):
-        raise cv.Invalid("Filename must end with .tflite")
+    if not value.endswith(".json"):
+        raise cv.Invalid("Manifest filename must end with .json")
     return value
 
 
@@ -87,13 +89,36 @@ if isinstance(CV_GIT_SCHEMA, dict):
 GIT_SCHEMA = cv.All(
     CV_GIT_SCHEMA.extend(
         {
-            cv.Required(CONF_FILE): _validate_tflite_filename,
+            cv.Required(CONF_FILE): _validate_json_filename,
             cv.Optional(CONF_REFRESH, default="1d"): cv.All(
                 cv.string, cv.source_refresh
             ),
         }
     ),
     _process_git_source,
+)
+
+KEY_WAKE_WORD = "wake_word"
+KEY_AUTHOR = "author"
+KEY_WEBSITE = "website"
+KEY_VERSION = "version"
+KEY_MICRO = "micro"
+
+MANIFEST_SCHEMA_V1 = cv.Schema(
+    {
+        cv.Required(CONF_TYPE): "micro",
+        cv.Required(KEY_WAKE_WORD): cv.string,
+        cv.Required(KEY_AUTHOR): cv.string,
+        cv.Required(KEY_WEBSITE): cv.url,
+        cv.Required(KEY_VERSION): cv.All(cv.int_, 1),
+        cv.Required(CONF_MODEL): cv.string,
+        cv.Required(KEY_MICRO): cv.Schema(
+            {
+                cv.Required(CONF_PROBABILITY_CUTOFF): cv.float_,
+                cv.Required(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
+            }
+        ),
+    }
 )
 
 
@@ -106,19 +131,10 @@ def _compute_local_file_path(config: dict) -> Path:
     return base_dir / key
 
 
-def _process_http_source(config):
-    url = config[CONF_URL]
-    path = _compute_local_file_path(config)
-
+def _download_file(url: str, path: Path) -> bytes:
     if not external_files.has_remote_file_changed(url, path):
         _LOGGER.debug("Remote file has not changed, skipping download")
-        return config
-
-    _LOGGER.debug(
-        "Remote file has changed, downloading from %s to %s",
-        url,
-        path,
-    )
+        return path.read_bytes()
 
     try:
         req = requests.get(
@@ -132,6 +148,32 @@ def _process_http_source(config):
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(req.content)
+    return req.content
+
+
+def _process_http_source(config):
+    url = config[CONF_URL]
+    path = _compute_local_file_path(config)
+
+    json_path = path / "manifest.json"
+
+    json_contents = _download_file(url, json_path)
+
+    manifest_data = json.loads(json_contents)
+    if not isinstance(manifest_data, dict):
+        raise cv.Invalid("Manifest file must contain a JSON object")
+
+    try:
+        MANIFEST_SCHEMA_V1(manifest_data)
+    except cv.Invalid as e:
+        raise cv.Invalid(f"Invalid manifest file: {e}") from e
+
+    model = manifest_data[CONF_MODEL]
+    model_url = urljoin(url, model)
+
+    model_path = path / model
+
+    _download_file(str(model_url), model_path)
 
     return config
 
@@ -145,7 +187,7 @@ HTTP_SCHEMA = cv.All(
 
 LOCAL_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_PATH): cv.All(_validate_tflite_filename, cv.file_),
+        cv.Required(CONF_PATH): cv.All(_validate_json_filename, cv.file_),
     }
 )
 
@@ -154,13 +196,13 @@ def _validate_source_model_name(value):
     if not isinstance(value, str):
         raise cv.Invalid("Model name must be a string")
 
-    if value.endswith(".tflite"):
-        raise cv.Invalid("Model name must not end with .tflite")
+    if value.endswith(".json"):
+        raise cv.Invalid("Model name must not end with .json")
 
     return MODEL_SOURCE_SCHEMA(
         {
             CONF_TYPE: TYPE_HTTP,
-            CONF_URL: f"https://github.com/esphome/micro-wake-word-models/raw/main/models/{value}.tflite",
+            CONF_URL: f"https://github.com/esphome/micro-wake-word-models/raw/main/models/{value}.json",
         }
     )
 
@@ -219,17 +261,34 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(MicroWakeWord),
             cv.GenerateID(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
-            cv.Optional(CONF_PROBABILITY_CUTOFF, default=0.5): cv.float_,
-            cv.Optional(CONF_SLIDING_WINDOW_AVERAGE_SIZE, default=10): cv.positive_int,
+            cv.Optional(CONF_PROBABILITY_CUTOFF): cv.float_,
+            cv.Optional(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
             cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
                 single=True
             ),
-            cv.Optional(CONF_MODEL): MODEL_SOURCE_SCHEMA,
+            cv.Required(CONF_MODEL): MODEL_SOURCE_SCHEMA,
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_esp_idf,
 )
+
+
+def _load_model_data(manifest_path: Path):
+    with open(manifest_path, encoding="utf-8") as f:
+        manifest = json.load(f)
+
+    try:
+        MANIFEST_SCHEMA_V1(manifest)
+    except cv.Invalid as e:
+        raise EsphomeError(f"Invalid manifest file: {e}") from e
+
+    model_path = urljoin(str(manifest_path), manifest[CONF_MODEL])
+
+    with open(model_path, "rb") as f:
+        model = f.read()
+
+    return manifest, model
 
 
 async def to_code(config):
@@ -238,11 +297,6 @@ async def to_code(config):
 
     mic = await cg.get_variable(config[CONF_MICROPHONE])
     cg.add(var.set_microphone(mic))
-
-    cg.add(var.set_probability_cutoff(config[CONF_PROBABILITY_CUTOFF]))
-    cg.add(
-        var.set_sliding_window_average_size(config[CONF_SLIDING_WINDOW_AVERAGE_SIZE])
-    )
 
     if on_wake_word_detection_config := config.get(CONF_ON_WAKE_WORD_DETECTED):
         await automation.build_automation(
@@ -260,30 +314,39 @@ async def to_code(config):
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
     cg.add_build_flag("-DESP_NN")
 
-    if model_config := config.get(CONF_MODEL):
-        data = []
-        if model_config[CONF_TYPE] == TYPE_GIT:
-            # compute path to model file
-            key = f"{model_config[CONF_URL]}@{model_config.get(CONF_REF)}"
-            base_dir = Path(CORE.data_dir) / DOMAIN
-            h = hashlib.new("sha256")
-            h.update(key.encode())
-            file: Path = base_dir / h.hexdigest()[:8] / model_config[CONF_FILE]
-            # convert file to raw bytes array
-            data = file.read_bytes()
+    model_config = config.get(CONF_MODEL)
+    data = []
+    if model_config[CONF_TYPE] == TYPE_GIT:
+        # compute path to model file
+        key = f"{model_config[CONF_URL]}@{model_config.get(CONF_REF)}"
+        base_dir = Path(CORE.data_dir) / DOMAIN
+        h = hashlib.new("sha256")
+        h.update(key.encode())
+        file: Path = base_dir / h.hexdigest()[:8] / model_config[CONF_FILE]
 
-        elif model_config[CONF_TYPE] == TYPE_LOCAL:
-            with open(model_config[CONF_PATH], "rb") as f:
-                data = f.read()
+    elif model_config[CONF_TYPE] == TYPE_LOCAL:
+        file = model_config[CONF_PATH]
 
-        elif model_config[CONF_TYPE] == TYPE_HTTP:
-            path = _compute_local_file_path(model_config)
-            with open(path, "rb") as f:
-                data = f.read()
+    elif model_config[CONF_TYPE] == TYPE_HTTP:
+        file = _compute_local_file_path(model_config) / "manifest.json"
 
-        rhs = [HexInt(x) for x in data]
-        prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-        cg.add(var.set_model_start(prog_arr))
+    manifest, data = _load_model_data(file)
+
+    rhs = [HexInt(x) for x in data]
+    prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
+    cg.add(var.set_model_start(prog_arr))
+
+    probability_cutoff = config.get(
+        CONF_PROBABILITY_CUTOFF, manifest[KEY_MICRO][CONF_PROBABILITY_CUTOFF]
+    )
+    cg.add(var.set_probability_cutoff(probability_cutoff))
+    sliding_window_average_size = config.get(
+        CONF_SLIDING_WINDOW_AVERAGE_SIZE,
+        manifest[KEY_MICRO][CONF_SLIDING_WINDOW_AVERAGE_SIZE],
+    )
+    cg.add(var.set_sliding_window_average_size(sliding_window_average_size))
+
+    cg.add(var.set_wake_word(manifest[KEY_WAKE_WORD]))
 
 
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})
