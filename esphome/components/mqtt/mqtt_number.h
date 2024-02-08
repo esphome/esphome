@@ -3,7 +3,7 @@
 #include "esphome/core/defines.h"
 
 #ifdef USE_MQTT
-#ifdef USE_DATETIME
+#ifdef USE_NUMBER
 
 #include "esphome/components/number/number.h"
 #include "mqtt_component.h"
