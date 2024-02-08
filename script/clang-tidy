@@ -27,7 +27,6 @@ import tempfile
 import threading
 
 
-
 def clang_options(idedata):
     cmd = []
 
@@ -113,6 +112,7 @@ def clang_options(idedata):
 
 
 pids = set()
+
 
 def run_tidy(executable, args, options, tmpdir, queue, lock, failed_files):
     while True:
@@ -236,7 +236,15 @@ def main():
         for _ in range(args.jobs):
             t = threading.Thread(
                 target=run_tidy,
-                args=(executable, args, options, tmpdir, task_queue, lock, failed_files),
+                args=(
+                    executable,
+                    args,
+                    options,
+                    tmpdir,
+                    task_queue,
+                    lock,
+                    failed_files,
+                ),
             )
             t.daemon = True
             t.start()
@@ -261,7 +269,7 @@ def main():
         # Kill subprocesses (and ourselves!)
         # No simple, clean alternative appears to be available.
         os.kill(0, 9)
-        return 2    # Will not execute.
+        return 2  # Will not execute.
 
     if args.fix and failed_files:
         print("Applying fixes ...")

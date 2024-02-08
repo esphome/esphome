@@ -79,10 +79,11 @@ bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
     esp_time.day_of_month = static_cast<uint8_t>(std::stoi(match[3].str()));
     esp_time.hour = static_cast<uint8_t>(std::stoi(match[4].str()));
     esp_time.minute = static_cast<uint8_t>(std::stoi(match[5].str()));
-    if (match[6].matched)
+    if (match[6].matched) {
       esp_time.second = static_cast<uint8_t>(std::stoi(match[6].str()));
-    else
+    } else {
       esp_time.second = 0;
+    }
 
     return true;
   } else if (std::regex_match(time_to_parse, match, date_only_regex)) {
@@ -100,10 +101,11 @@ bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
     esp_time.day_of_month = 0;
     esp_time.hour = static_cast<uint8_t>(std::stoi(match[1].str()));
     esp_time.minute = static_cast<uint8_t>(std::stoi(match[2].str()));
-    if (match[3].matched)
+    if (match[3].matched) {
       esp_time.second = static_cast<uint8_t>(std::stoi(match[3].str()));
-    else
+    } else {
       esp_time.second = 0;
+    }
 
     return true;
   }
