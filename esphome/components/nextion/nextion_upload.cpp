@@ -266,10 +266,12 @@ Nextion::TFTUploadResult Nextion::upload_tft() {
 
   this->is_updating_ = true;
 
-  ESP_LOGV(TAG, "Exiting Nextion reparse mode");
-  if (!this->set_protocol_reparse_mode(false)) {
-    ESP_LOGW(TAG, "Failed to exit Nextion reparse mode");
-    ESP_LOGW(TAG, "Attempting upload regardless");
+  if (!this->is_setup()) {
+    ESP_LOGD(TAG, "Exiting Nextion reparse mode");
+    if (!this->set_protocol_reparse_mode(false)) {
+      ESP_LOGW(TAG, "Failed to request Nextion to exit reparse mode");
+      ESP_LOGW(TAG, "Attempting upload regardless");
+    }
   }
 
   // Define the configuration for the HTTP client
