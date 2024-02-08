@@ -1,5 +1,6 @@
 #include "time.h"  // NOLINT
 #include <regex>
+#include <stdexcept>
 
 namespace esphome {
 
@@ -63,28 +64,48 @@ std::string ESPTime::strftime(const std::string &format) {
 }
 
 bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
-  std::regex time_regex(R"(^(\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?|\d{2}:\d{2}(:\d{2})?)$)");
-  if (std::regex_match(time_to_parse, time_regex)) {
+  std::regex date_or_time_regex(R"(^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$)");
+  std::regex time_and_date_regex(R"(^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$)");
+  std::regex date_only_regex(R"(^(\d{4})-(\d{2})-(\d{2})$)");
+  std::regex time_only_regex(R"(^(\d{2}):(\d{2})(?::(\d{2}))?$)");
+
+  if (std::regex_match(time_to_parse, date_or_time_regex) == 0)
+    return false;
+
+  std::smatch match;
+  if (std::regex_match(time_to_parse, match, time_and_date_regex)) {
+    esp_time.year = static_cast<uint16_t>(std::stoi(match[1].str()));
+    esp_time.month = static_cast<uint8_t>(std::stoi(match[2].str()));
+    esp_time.day_of_month = static_cast<uint8_t>(std::stoi(match[3].str()));
+    esp_time.hour = static_cast<uint8_t>(std::stoi(match[4].str()));
+    esp_time.minute = static_cast<uint8_t>(std::stoi(match[5].str()));
+    if (match[6].matched)
+      esp_time.second = static_cast<uint8_t>(std::stoi(match[6].str()));
+    else
+      esp_time.second = 0;
+
+    return true;
+  } else if (std::regex_match(time_to_parse, match, date_only_regex)) {
+    esp_time.year = static_cast<uint16_t>(std::stoi(match[1].str()));
+    esp_time.month = static_cast<uint8_t>(std::stoi(match[2].str()));
+    esp_time.day_of_month = static_cast<uint8_t>(std::stoi(match[3].str()));
+    esp_time.hour = 0;
+    esp_time.minute = 0;
     esp_time.second = 0;
-    int count =
-        std::sscanf(time_to_parse.c_str(), "%4hu-%2hhu-%2hhu %2hhu:%2hhu:%2hhu", &esp_time.year, &esp_time.month,
-                    &esp_time.day_of_month, &esp_time.hour, &esp_time.minute, &esp_time.second);
-    if (time_to_parse.find('-') != std::string::npos && count >= 5) {
-      return true;
-    }
 
-    count = std::sscanf(time_to_parse.c_str(), "%2hhu:%2hhu:%2hhu", &esp_time.hour, &esp_time.minute, &esp_time.second);
-    if (count >= 2) {
-      return true;
-    }
+    return true;
+  } else if (std::regex_match(time_to_parse, match, time_only_regex)) {
+    esp_time.year = 0;
+    esp_time.month = 0;
+    esp_time.day_of_month = 0;
+    esp_time.hour = static_cast<uint8_t>(std::stoi(match[1].str()));
+    esp_time.minute = static_cast<uint8_t>(std::stoi(match[2].str()));
+    if (match[3].matched)
+      esp_time.second = static_cast<uint8_t>(std::stoi(match[3].str()));
+    else
+      esp_time.second = 0;
 
-    count =
-        std::sscanf(time_to_parse.c_str(), "%4hu-%2hhu-%2hhu", &esp_time.year, &esp_time.month, &esp_time.day_of_month);
-    if (count >= 3) {
-      esp_time.hour = 0;
-      esp_time.minute = 0;
-      return true;
-    }
+    return true;
   }
 
   return false;
