@@ -881,18 +881,20 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   /**
    * @brief Sets the Nextion display's protocol reparse mode.
    *
-   * This function toggles the Nextion display's protocol reparse mode between active and passive. 
+   * This function toggles the Nextion display's protocol reparse mode between active and passive.
    * In active mode, the display actively parses incoming data.
-   * In passive mode, it does not parse data unless specifically instructed to do so. 
+   * In passive mode, it does not parse data unless specifically instructed to do so.
    * This is useful for managing how the Nextion display interprets incoming commands,
    * especially during initialization or in scenarios where precise control over command processing is needed.
    *
-   * @param active_mode A boolean value indicating the desired reparse mode. 
+   * @param active_mode A boolean value indicating the desired reparse mode.
    *        - true to set the display to active protocol reparse mode, where it actively parses incoming commands.
-   *        - false to set the display to passive protocol reparse mode, where command parsing is done only on explicit instruction.
+   *        - false to set the display to passive protocol reparse mode, where command parsing is done only on explicit
+   * instruction.
    *
-   * @return bool Returns true if all commands were sent successfully to the Nextion display, indicating that the mode was set as expected.
-   *              Returns false if any of the commands failed to send, indicating that the desired reparse mode may not be correctly set.
+   * @return bool Returns true if all commands were sent successfully to the Nextion display, indicating that the mode
+   * was set as expected. Returns false if any of the commands failed to send, indicating that the desired reparse mode
+   * may not be correctly set.
    */
   bool set_protocol_reparse_mode(bool active_mode);
 

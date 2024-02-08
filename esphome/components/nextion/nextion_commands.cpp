@@ -40,11 +40,12 @@ bool Nextion::set_protocol_reparse_mode(bool active_mode) {
   ESP_LOGV(TAG, "Set Nextion protocol reparse mode: %s", YESNO(active_mode));
   this->ignore_is_setup_ = true;  // if not in reparse mode setup will fail, so it should be ignored
   bool all_commands_sent = true;
-  if (active_mode) {              // Sets active protocol reparse mode
+  if (active_mode) {  // Sets active protocol reparse mode
     all_commands_sent &= this->send_command_("recmod=1");
-  } else {                                            // Sets passive protocol reparse mode
-    all_commands_sent &= this->send_command_("DRAKJHSUYDGBNCJHGJKSHBDN");  // To exit active reparse mode this sequence must be sent
-    all_commands_sent &= this->send_command_("recmod=0");                  // Sending recmode=0 twice is recommended
+  } else {  // Sets passive protocol reparse mode
+    all_commands_sent &=
+        this->send_command_("DRAKJHSUYDGBNCJHGJKSHBDN");   // To exit active reparse mode this sequence must be sent
+    all_commands_sent &= this->send_command_("recmod=0");  // Sending recmode=0 twice is recommended
     all_commands_sent &= this->send_command_("recmod=0");
   }
   if (!this->nextion_reports_is_setup_) {  // No need to connect if is already setup
