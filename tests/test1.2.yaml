@@ -27,7 +27,7 @@ time:
 button:
   - platform: template
     name: Set the time inputs to local time + 10 seconds
-    on_press: 
+    on_press:
       then:
         - datetime.set:
             id: turn_on_time_datetime
@@ -64,4 +64,3 @@ datetime:
     on_time:
       - switch.turn_off:
           id: test_switch
-          
