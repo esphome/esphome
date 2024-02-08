@@ -64,3 +64,4 @@ datetime:
     on_time:
       - switch.turn_off:
           id: test_switch
+          
