@@ -391,7 +391,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(bool exit_reparse) {
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
   int status_code = esp_http_client_get_status_code(http_client);
   TFTUploadResult response_error = this->handle_http_response_code_(status_code);
-  if (!response_error == Nextion::TFTUploadResult::OK) {
+  if (response_error != Nextion::TFTUploadResult::OK) {
     return this->upload_end_(response_error);
   }
 
