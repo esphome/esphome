@@ -420,6 +420,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(bool exit_reparse) {
   // The Nextion will ignore the upload command if it is sleeping
   ESP_LOGV(TAG, "Wake-up Nextion");
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
+  this->ignore_is_setup_ = true;
   this->send_command_("sleep=0");
   this->set_backlight_brightness(1.0);
 
@@ -520,6 +521,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(bool exit_reparse) {
 Nextion::TFTUploadResult Nextion::upload_end_(Nextion::TFTUploadResult upload_results) {
   ESP_LOGD(TAG, "Nextion TFT upload finished: %s", this->tft_upload_result_to_string(upload_results));
   this->is_updating_ = false;
+  this->ignore_is_setup_ = false;
   if (upload_results == Nextion::TFTUploadResult::OK) {
     ESP_LOGD(TAG, "Restarting ESPHome");
 #ifdef ARDUINO
