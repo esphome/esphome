@@ -345,7 +345,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(bool exit_reparse) {
   }
 
   TFTUploadResult response_error = this->handle_http_response_code_(code);
-  if (!response_error == Nextion::TFTUploadResult::OK) {
+  if (response_error != Nextion::TFTUploadResult::OK) {
     return this->upload_end_(response_error);
   }
 
