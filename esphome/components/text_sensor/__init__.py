@@ -121,6 +121,7 @@ async def map_filter_to_code(config, filter_id):
         filter_id, map_([(item[CONF_FROM], item[CONF_TO]) for item in config])
     )
 
+
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 TEXT_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
@@ -160,7 +161,9 @@ def text_sensor_schema(
     if icon is not _UNDEF:
         schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
     if device_class is not _UNDEF:
-        schema = schema.extend({cv.Optional(CONF_DEVICE_CLASS, default=device_class): cv.string})
+        schema = schema.extend(
+            {cv.Optional(CONF_DEVICE_CLASS, default=device_class): cv.string}
+        )
     if entity_category is not _UNDEF:
         schema = schema.extend(
             {
