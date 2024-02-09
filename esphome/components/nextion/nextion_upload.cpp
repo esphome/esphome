@@ -127,7 +127,7 @@ Nextion::TFTUploadResult Nextion::handle_http_response_code_(int code) {
     return Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_CLIENT;
   } else if (code >= 300) {
     return Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_REDIRECTION;
-  } else if ((code != 200 && code != 206) || tries > 5) {
+  } else if (code != 200 && code != 206) {
     return Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_OTHER;
   }
   return Nextion::TFTUploadResult::OK;
