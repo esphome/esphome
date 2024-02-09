@@ -1116,7 +1116,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * and 921600. Selecting a baud rate supported by both the Nextion display and the host hardware is essential for
    * ensuring a successful upload process.
    *
-   * @param baud_rate The desired baud rate for the TFT file transfer, specified as an unsigned 32-bit integer. 
+   * @param baud_rate The desired baud rate for the TFT file transfer, specified as an unsigned 32-bit integer.
    * If the specified baud rate is not supported, or if 0 is passed, the function will use the current baud rate.
    * The default value is 0, which implies using the current baud rate.
    * @param exit_reparse If true, the function exits reparse mode before uploading the TFT file. This parameter

@@ -275,7 +275,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   ESP_LOGD(TAG, "Nextion TFT upload requested");
   ESP_LOGD(TAG, "Exit reparse: %s", YESNO(exit_reparse));
   ESP_LOGD(TAG, "URL: %s", this->tft_url_.c_str());
-  
+
   if (this->is_updating_) {
     ESP_LOGW(TAG, "Currently uploading");
     return Nextion::TFTUploadResult::UPLOAD_IN_PROGRESS;
@@ -290,7 +290,8 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
 
   // Check if baud rate is supported
   this->original_baud_rate_ = this->parent_->get_baud_rate();
-  static const std::vector<uint32_t> supported_baud_rates = {2400, 4800, 9600, 19200, 31250, 38400, 57600, 115200, 230400, 250000, 256000, 512000, 921600};
+  static const std::vector<uint32_t> supported_baud_rates = {2400,   4800,   9600,   19200,  31250,  38400, 57600,
+                                                             115200, 230400, 250000, 256000, 512000, 921600};
   if (std::find(supported_baud_rates.begin(), supported_baud_rates.end(), baud_rate) == supported_baud_rates.end()) {
     baud_rate = this->original_baud_rate_;
   }
