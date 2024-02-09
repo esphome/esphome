@@ -1758,6 +1758,14 @@ sensor:
       memory_location: 0x20
       memory_address: 0x7d
       name: Adres sensor
+  - platform: pasco2
+    id: my_pasco2
+    co2:
+      name: PASCO2 CO2
+    update_interval: 15s
+    automatic_self_calibration: true
+    ambient_pressure_compensation: 961mBar
+    i2c_id: i2c_bus
 
 psram:
 
@@ -4218,6 +4226,12 @@ button:
       memory_location: 0xA0
       memory_address: 0x7D
       memory_data: 0x0F
+  - platform: template
+    name: Start calibration
+    on_press:
+      - pasco2.perform_forced_calibration:
+          value: 419
+          id: my_pasco2
 
 ld2410:
   id: my_ld2410
