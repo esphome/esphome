@@ -44,8 +44,11 @@ const char *Nextion::tft_upload_result_to_string(Nextion::TFTUploadResult result
     case Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_SERVER:
       return "HTTP server error response";
 
+    case Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_NOT_FOUND:
+      return "The requested resource was not found on the HTTP server";
+
     case Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_CLIENT:
-      return "HTTP client error response";
+      return "HTTP error - resource not found";
 
     case Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_REDIRECTION:
       return "HTTP redirection error response";
@@ -87,6 +90,9 @@ const char *Nextion::tft_upload_result_to_string(Nextion::TFTUploadResult result
     case Nextion::TFTUploadResult::NEXTION_ERROR_INVALID_RESPONSE:
       return "Invalid response from Nextion";
 
+    case Nextion::TFTUploadResult::NEXTION_ERROR_EXIT_REPARSE_NOT_SENT:
+      return "Failed to send an exit reparse command to Nextion";
+
     // Process Errors
     case Nextion::TFTUploadResult::PROCESS_ERROR_INVALID_RANGE:
       return "Invalid range requested";
@@ -110,6 +116,21 @@ uint32_t Nextion::get_free_heap_() {
 #elif defined(USE_ESP_IDF)
   return esp_get_free_heap_size();
 #endif  // ARDUINO vs USE_ESP_IDF
+}
+
+Nextion::TFTUploadResult Nextion::handle_http_response_code_(int code) {
+  if (code >= 500) {
+    return Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_SERVER;
+  } else if (code == 404) {  // This is a special case as many times local server are used
+    return Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_NOT_FOUND;
+  } else if (code >= 400) {
+    return Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_CLIENT;
+  } else if (code >= 300) {
+    return Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_REDIRECTION;
+  } else if ((code != 200 && code != 206) || tries > 5) {
+    return Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_OTHER;
+  }
+  return Nextion::TFTUploadResult::OK;
 }
 
 #ifdef ARDUINO
@@ -250,7 +271,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   return Nextion::TFTUploadResult::OK;
 }
 
-Nextion::TFTUploadResult Nextion::upload_tft() {
+Nextion::TFTUploadResult Nextion::upload_tft(bool exit_reparse) {
   ESP_LOGD(TAG, "Nextion TFT upload requested");
   ESP_LOGD(TAG, "URL: %s", this->tft_url_.c_str());
 
@@ -266,17 +287,11 @@ Nextion::TFTUploadResult Nextion::upload_tft() {
 
   this->is_updating_ = true;
 
-  if (!this->is_setup()) {
+  if (exit_reparse) {
     ESP_LOGD(TAG, "Exiting Nextion reparse mode");
     if (!this->set_protocol_reparse_mode(false)) {
       ESP_LOGW(TAG, "Failed to request Nextion to exit reparse mode");
-      ESP_LOGW(TAG, "Attempting upload regardless");
-    } else {
-#ifdef ARDUINO
-      delay(500);  // NOLINT
-#elif defined(USE_ESP_IDF)
-      vTaskDelay(pdMS_TO_TICKS(500));  // NOLINT
-#endif
+      return Nextion::TFTUploadResult::NEXTION_ERROR_EXIT_REPARSE_NOT_SENT;
     }
   }
 
@@ -329,14 +344,9 @@ Nextion::TFTUploadResult Nextion::upload_tft() {
     ++tries;
   }
 
-  if (code >= 500) {
-    return this->upload_end_(Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_SERVER);
-  } else if (code >= 400) {
-    return this->upload_end_(Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_CLIENT);
-  } else if (code >= 300) {
-    return this->upload_end_(Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_REDIRECTION);
-  } else if ((code != 200 && code != 206) || tries > 5) {
-    return this->upload_end_(Nextion::TFTUploadResult::HTTP_ERROR_RESPONSE_OTHER);
+  TFTUploadResult response_error = this->handle_http_response_code_(code);
+  if (!response_error == Nextion::TFTUploadResult::OK) {
+    return this->upload_end_(response_error);
   }
 
   String content_range_string = http_client.header("Content-Range");
@@ -380,12 +390,9 @@ Nextion::TFTUploadResult Nextion::upload_tft() {
   ESP_LOGV(TAG, "Check the HTTP Status Code");
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
   int status_code = esp_http_client_get_status_code(http_client);
-  if (status_code > 399) {
-    ESP_LOGE(TAG, "HTTP Status Code: %d", status_code);
-  } else if (status_code != 200 and status_code != 206) {
-    ESP_LOGW(TAG, "HTTP Status Code: %d", status_code);
-  } else {
-    ESP_LOGV(TAG, "HTTP Status Code: %d", status_code);
+  TFTUploadResult response_error = this->handle_http_response_code_(status_code);
+  if (!response_error == Nextion::TFTUploadResult::OK) {
+    return this->upload_end_(response_error);
   }
 
   this->tft_size_ = esp_http_client_get_content_length(http_client);

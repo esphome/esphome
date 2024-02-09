@@ -934,115 +934,156 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   enum class TFTUploadResult {
     /**
-     * @brief The upload state is unkown.
+     * @brief The upload state is unknown.
+     * This may occur if the upload process is disrupted or the status cannot be determined.
      */
     UNKNOWN,
 
     /**
      * @brief The upload operation completed successfully.
+     * The TFT file has been uploaded and applied to the Nextion display.
      */
     OK,
 
     /**
      * @brief Another upload is already in progress.
+     * Wait for the current operation to complete before initiating a new upload.
      */
     UPLOAD_IN_PROGRESS,
 
     /**
      * @brief Network is not connected.
+     * Ensure the device is connected to a network before attempting to upload.
      */
     NETWORK_ERROR_NOT_CONNECTED,
 
     /**
-     * @brief Connection to HTTP server failed
+     * @brief Connection to the HTTP server failed.
+     * Check the server URL and network connection.
      */
     HTTP_ERROR_CONNECTION_FAILED,
 
     /**
-     * @brief HTTP response status on Server error range.
+     * @brief Received a server error response from the HTTP server.
+     * Indicates a problem on the server side.
      */
     HTTP_ERROR_RESPONSE_SERVER,
 
     /**
-     * @brief HTTP response status on Clent error range.
+     * @brief Indicates that the requested resource was not found on the server.
+     * This error is triggered when the HTTP server responds with a 404 status code, which typically occurs if the URL
+     * to the TFT file is incorrect, the file has been removed, or the server configuration does not route the request
+     * to the intended resource.
+     * 
+     * This specific error points to a situation where the request was sent correctly but the server could not find the
+     * requested resource. To address this error, ensure that the URL for the TFT file is accurate and that the file
+     * indeed exists at the specified location on the server. Additionally, check the server's routing and
+     * configuration settings to ensure they correctly handle requests for the resource. Correcting the URL, verifying
+     * the presence of the file on the server, and confirming server configurations are primary steps for resolving
+     * this issue.
+    */
+    HTTP_ERROR_RESPONSE_NOT_FOUND,
+
+    /**
+     * @brief Received a client error response from the HTTP server.
+     * Check the request for errors.
      */
     HTTP_ERROR_RESPONSE_CLIENT,
 
     /**
-     * @brief HTTP response status on Redirection error range.
+     * @brief Received a redirection response from the HTTP server that could not be followed.
      */
     HTTP_ERROR_RESPONSE_REDIRECTION,
 
     /**
-     * @brief HTTP response status on Server error range.
+     * @brief Received an unexpected response from the HTTP server.
+     * Verify the server and request.
      */
     HTTP_ERROR_RESPONSE_OTHER,
 
     /**
-     * @brief HTTP server provided an invalid header.
+     * @brief The HTTP server provided an invalid header.
+     * Validate the server's response format.
      */
     HTTP_ERROR_INVALID_SERVER_HEADER,
 
     /**
-     * @brief Failed to initialize HTTP client.
+     * @brief Failed to initialize the HTTP client.
+     * Ensure the client setup is correct.
      */
     HTTP_ERROR_CLIENT_INITIALIZATION,
 
     /**
-     * @brief HTTP failed to setup a persistent connection.
+     * @brief Failed to setup a persistent connection with the HTTP server.
+     * Check the server's keep-alive settings.
      */
     HTTP_ERROR_KEEP_ALIVE,
 
     /**
-     * @brief HTTP request failed.
+     * @brief The HTTP request failed. Review the request configuration and server availability.
      */
     HTTP_ERROR_REQUEST_FAILED,
 
     /**
      * @brief The downloaded file size did not match the expected size.
+     * Verify the file source and size specified.
      */
     HTTP_ERROR_INVALID_FILE_SIZE,
 
     /**
-     * @brief Failed to fetch full package from HTTP server.
+     * @brief Failed to fetch the full package from the HTTP server.
+     * Ensure the server is serving the complete file.
      */
     HTTP_ERROR_FAILED_TO_FETCH_FULL_PACKAGE,
 
     /**
-     * @brief Failed to open connection to HTTP server.
+     * @brief Failed to open a connection to the HTTP server.
+     * Check the network connection and server URL.
      */
     HTTP_ERROR_FAILED_TO_OPEN_CONNECTION,
 
     /**
-     * @brief Failed to get content lenght from HTTP server.
+     * @brief Failed to get content length from the HTTP server.
+     * Verify the server's response headers.
      */
     HTTP_ERROR_FAILED_TO_GET_CONTENT_LENGHT,
 
     /**
-     * @brief Failed to set HTTP method.
+     * @brief Failed to set the HTTP method for the request.
+     * Ensure the HTTP client supports the intended method.
      */
     HTTP_ERROR_SET_METHOD_FAILED,
 
     // Nextion Errors
     /**
      * @brief Preparation for TFT upload failed.
+     * Check the device's readiness and connection status.
      */
     NEXTION_ERROR_PREPARATION_FAILED,
 
     /**
-     * @brief Invalid response from Nextion.
+     * @brief Received an invalid response from Nextion.
+     * Verify the command sent and the device's state.
      */
     NEXTION_ERROR_INVALID_RESPONSE,
+
+    /**
+     * @brief Failed to send an exit reparse command to Nextion.
+     * Ensure the device is connected and ready to receive commands.
+     */
+    NEXTION_ERROR_EXIT_REPARSE_NOT_SENT,
 
     // Process Errors
     /**
      * @brief Invalid range requested.
+     * Verify the range values are within acceptable limits.
      */
     PROCESS_ERROR_INVALID_RANGE,
 
     // Memory Errors
     /**
-     * @brief
+     * @brief Failed to allocate the necessary memory.
+     * Ensure there is sufficient memory available for the operation.
      */
     MEMORY_ERROR_FAILED_TO_ALLOCATE,
   };
@@ -1065,10 +1106,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
 
   /**
-   * Upload the tft file and soft reset Nextion
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   * Uploads the TFT file to the Nextion display.
+   * 
+   * @param exit_reparse If true, exits reparse mode before uploading the TFT file. Exiting reparse mode ensures
+   * that the display is ready to receive and apply the new TFT file without needing to manually reset or reconfigure.
+   * 
+   * @return Nextion::TFTUploadResult Indicates the outcome of the transfer. Nextion::TFTUploadResult::OK for success,
+   * otherwise, indicates failure with additional details on the operation status. The additional details can include
+   * specific error codes or messages that help identify the cause of the failure, accessible through the result's properties.
    */
-  Nextion::TFTUploadResult upload_tft();
+  Nextion::TFTUploadResult upload_tft(bool exit_reparse = false);
 
 #endif
 
@@ -1221,6 +1268,32 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 #endif
   int content_length_ = 0;
   int tft_size_ = 0;
+
+  /**
+   * @brief Evaluates the HTTP response code received and categorizes it into specific TFTUploadResult errors.
+   * 
+   * This function is designed to interpret the HTTP response codes and convert them into corresponding TFTUploadResult
+   * enum values that indicate the outcome of the TFT file upload attempt.
+   *
+   * @param code The HTTP status code received from the server as part of the TFT file upload process.
+   * 
+   * @return TFTUploadResult The result of evaluating the HTTP status code:
+   *         - HTTP_ERROR_RESPONSE_SERVER for server-side errors (HTTP status codes 500 and above).
+   *         - HTTP_ERROR_RESPONSE_NOT_FOUND for a 404 Not Found error, highlighting the frequent scenario of missing
+   * resources, especially relevant in the context of local servers.
+   *         - HTTP_ERROR_RESPONSE_CLIENT for other client-side errors (HTTP status codes in the 400 range
+   * excluding 404).
+   *         - HTTP_ERROR_RESPONSE_REDIRECTION for redirection errors (HTTP status codes in the 300 range).
+   *         - HTTP_ERROR_RESPONSE_OTHER for any other response codes that don't indicate a clear success (anything
+   * other than 200 and 206) or when the number of tries exceeds a certain limit, indicating potential issues in the
+   * upload process.
+   *         - OK for successful uploads where the server's response indicates that the file has been accepted and
+   * processed (HTTP status codes 200 and 206).
+   * 
+   * Note: This function is an internal utility used to streamline the error handling process for TFT uploads to
+   * Nextion displays by mapping various HTTP response scenarios to more specific error outcomes.
+   */
+  Nextion::TFTUploadResult Nextion::handle_http_response_code_(int code);
 
   /**
    * This function requests a specific range of data from an HTTP server using a persistent connection
