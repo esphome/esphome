@@ -1293,7 +1293,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Note: This function is an internal utility used to streamline the error handling process for TFT uploads to
    * Nextion displays by mapping various HTTP response scenarios to more specific error outcomes.
    */
-  Nextion::TFTUploadResult Nextion::handle_http_response_code_(int code);
+  TFTUploadResult handle_http_response_code_(int code);
 
   /**
    * This function requests a specific range of data from an HTTP server using a persistent connection
