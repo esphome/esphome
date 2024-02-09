@@ -88,7 +88,7 @@ constexpr size_t RING_BUFFER_SIZE = XFER_MAX_SIZE;
 /// slow bus. As it it not possible to fix this problem by asking users to rewrite their code, I have implemented this
 /// ring buffer solution that store the bytes received locally.
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-template<typename T, size_t SIZE> class RingBuffer {
+template<typename T, size_t SIZE> class WKRingBuffer {
  public:
   /// @brief pushes an item at the tail of the fifo
   /// @param item item to push
@@ -548,7 +548,7 @@ class WeikaiChannel : public uart::UARTComponent {
 #endif
 
   /// @brief the buffer where we store temporarily the bytes received
-  RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
+  WKRingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
   WeikaiComponent *parent_;  ///< our WK2168component parent
   uint8_t channel_;          ///< our Channel number
   uint8_t data_;             ///< a one byte buffer for register read storage
