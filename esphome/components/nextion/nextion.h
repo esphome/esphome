@@ -1108,15 +1108,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   /**
    * Uploads the TFT file to the Nextion display.
    *
-   * @param exit_reparse If true, exits reparse mode before uploading the TFT file. Exiting reparse mode ensures
-   * that the display is ready to receive and apply the new TFT file without needing to manually reset or reconfigure.
+   * @param exit_reparse If true (default), exits reparse mode before uploading the TFT file. Exiting reparse mode
+   * ensures that the display is ready to receive and apply the new TFT file without needing to manually reset or
+   * reconfigure.
    *
    * @return Nextion::TFTUploadResult Indicates the outcome of the transfer. Nextion::TFTUploadResult::OK for success,
    * otherwise, indicates failure with additional details on the operation status. The additional details can include
    * specific error codes or messages that help identify the cause of the failure, accessible through the result's
    * properties.
    */
-  Nextion::TFTUploadResult upload_tft(bool exit_reparse = false);
+  Nextion::TFTUploadResult upload_tft(bool exit_reparse = true);
 
 #endif
 
