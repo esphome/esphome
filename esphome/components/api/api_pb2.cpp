@@ -2785,7 +2785,6 @@ void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
   out.append("  device_class: ");
   out.append("'").append(this->device_class).append("'");
   out.append("\n");
-  
   out.append("}");
 }
 #endif
