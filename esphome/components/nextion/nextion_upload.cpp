@@ -271,10 +271,11 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   return Nextion::TFTUploadResult::OK;
 }
 
-Nextion::TFTUploadResult Nextion::upload_tft(bool exit_reparse) {
+Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGD(TAG, "Nextion TFT upload requested");
+  ESP_LOGD(TAG, "Exit reparse: %s", YESNO(exit_reparse));
   ESP_LOGD(TAG, "URL: %s", this->tft_url_.c_str());
-
+  
   if (this->is_updating_) {
     ESP_LOGW(TAG, "Currently uploading");
     return Nextion::TFTUploadResult::UPLOAD_IN_PROGRESS;
@@ -286,6 +287,14 @@ Nextion::TFTUploadResult Nextion::upload_tft(bool exit_reparse) {
   }
 
   this->is_updating_ = true;
+
+  // Check if baud rate is supported
+  this->original_baud_rate_ = this->parent_->get_baud_rate();
+  static const std::vector<uint32_t> supported_baud_rates = {2400, 4800, 9600, 19200, 31250, 38400, 57600, 115200, 230400, 250000, 256000, 512000, 921600};
+  if (std::find(supported_baud_rates.begin(), supported_baud_rates.end(), baud_rate) == supported_baud_rates.end()) {
+    baud_rate = this->original_baud_rate_;
+  }
+  ESP_LOGD(TAG, "Baud rate: %" PRIu32, baud_rate);
 
   if (exit_reparse) {
     ESP_LOGD(TAG, "Exiting Nextion reparse mode");
@@ -429,7 +438,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(bool exit_reparse) {
   // Tells the Nextion the content length of the tft file and baud rate it will be sent at
   // Once the Nextion accepts the command it will wait until the file is successfully uploaded
   // If it fails for any reason a power cycle of the display will be needed
-  sprintf(command, "whmi-wris %d,%" PRIu32 ",1", this->content_length_, this->parent_->get_baud_rate());
+  sprintf(command, "whmi-wris %d,%" PRIu32 ",1", this->content_length_, baud_rate);
 
   // Clear serial receive buffer
   ESP_LOGV(TAG, "Clear serial receive buffer");
@@ -443,9 +452,14 @@ Nextion::TFTUploadResult Nextion::upload_tft(bool exit_reparse) {
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
   this->send_command_(command);
 
+  if (baud_rate != this->original_baud_rate_) {
+    ESP_LOGD(TAG, "Changing baud rate from %" PRIu32 " to %" PRIu32 " bps", this->original_baud_rate_, baud_rate);
+    tf_uart->set_baud_rate(baud_rate);
+  }
+
   std::string response;
   ESP_LOGV(TAG, "Waiting for upgrade response");
-  this->recv_ret_string_(response, 2000, true);  // This can take some time to return
+  this->recv_ret_string_(response, 5000, true);  // This can take some time to return
 
   // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
   ESP_LOGD(TAG, "Upgrade response is [%s] - %zu byte(s)",
@@ -522,6 +536,13 @@ Nextion::TFTUploadResult Nextion::upload_end_(Nextion::TFTUploadResult upload_re
   ESP_LOGD(TAG, "Nextion TFT upload finished: %s", this->tft_upload_result_to_string(upload_results));
   this->is_updating_ = false;
   this->ignore_is_setup_ = false;
+
+  uint32_t baud_rate = this->parent_->get_baud_rate();
+  if (baud_rate != this->original_baud_rate_) {
+    ESP_LOGD(TAG, "Changing baud rate back from %" PRIu32 " to %" PRIu32 " bps", baud_rate, this->original_baud_rate_);
+    tf_uart->set_baud_rate(this->original_baud_rate_);
+  }
+
   if (upload_results == Nextion::TFTUploadResult::OK) {
     ESP_LOGD(TAG, "Restarting ESPHome");
 #ifdef ARDUINO

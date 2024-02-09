@@ -1106,18 +1106,29 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
 
   /**
-   * Uploads the TFT file to the Nextion display.
+   * @brief Uploads the TFT file to the Nextion display.
    *
-   * @param exit_reparse If true (default), exits reparse mode before uploading the TFT file. Exiting reparse mode
-   * ensures that the display is ready to receive and apply the new TFT file without needing to manually reset or
-   * reconfigure.
+   * This function initiates the upload of a TFT file to the Nextion display. Users can specify a target baud rate for
+   * the transfer. If the provided baud rate is not supported by Nextion, the function defaults to using the current
+   * baud rate set for the display. If no baud rate is specified (or if 0 is passed), the current baud rate is used.
    *
-   * @return Nextion::TFTUploadResult Indicates the outcome of the transfer. Nextion::TFTUploadResult::OK for success,
-   * otherwise, indicates failure with additional details on the operation status. The additional details can include
-   * specific error codes or messages that help identify the cause of the failure, accessible through the result's
-   * properties.
+   * Supported baud rates are: 2400, 4800, 9600, 19200, 31250, 38400, 57600, 115200, 230400, 250000, 256000, 512000
+   * and 921600. Selecting a baud rate supported by both the Nextion display and the host hardware is essential for
+   * ensuring a successful upload process.
+   *
+   * @param baud_rate The desired baud rate for the TFT file transfer, specified as an unsigned 32-bit integer. 
+   * If the specified baud rate is not supported, or if 0 is passed, the function will use the current baud rate.
+   * The default value is 0, which implies using the current baud rate.
+   * @param exit_reparse If true, the function exits reparse mode before uploading the TFT file. This parameter
+   * defaults to true, ensuring that the display is ready to receive and apply the new TFT file without needing
+   * to manually reset or reconfigure. Exiting reparse mode is recommended for most upload scenarios to ensure
+   * the display properly processes the uploaded file command.
+   * @return Nextion::TFTUploadResult Indicates the outcome of the transfer. Returns Nextion::TFTUploadResult::OK for
+   * success, otherwise, indicates failure with additional details on the operation status. These additional details
+   * can include specific error codes or messages that help identify the cause of failure, making troubleshooting more
+   * straightforward.
    */
-  Nextion::TFTUploadResult upload_tft(bool exit_reparse = true);
+  Nextion::TFTUploadResult upload_tft(uint32_t baud_rate = 0, bool exit_reparse = true);
 
 #endif
 
@@ -1270,6 +1281,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 #endif
   int content_length_ = 0;
   int tft_size_ = 0;
+  uint32_t original_baud_rate_ = 0;
 
   /**
    * @brief Evaluates the HTTP response code received and categorizes it into specific TFTUploadResult errors.
