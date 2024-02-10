@@ -76,14 +76,14 @@ class ExtEepromComponent : public i2c::I2CDevice, public Component {
  private:
   void write_block_(uint8_t deviceaddr, uint32_t memaddr, const uint8_t *obj, uint8_t size);
   void set_device_config_(uint32_t mem_size, uint8_t address_bytes, uint16_t page_size, uint8_t write_time_ms);
-  void set_memory_size_(uint32_t mem_size);                 // Set the size of memory in bytes
-  uint32_t get_memory_size_();                              // Return size of memory in bytes
-  void set_page_size_(uint16_t page_size);                  // Set the size of the page we can write a page at a time
-  uint16_t get_page_size_();                                // Get the size of the page we can read a page at a time
-  void set_address_size_bytes_(uint8_t address_size_bytes); // Set the number of bytes to use for device address
-  uint8_t get_address_size_bytes_();                        // Get the number of bytes to use for device address
-  void set_page_write_time_(uint8_t write_time_ms);         // Set the number of ms required per page write
-  uint8_t get_page_write_time_();                           // Get the number of ms required per page write
+  void set_memory_size_(uint32_t mem_size);                  // Set the size of memory in bytes
+  uint32_t get_memory_size_();                               // Return size of memory in bytes
+  void set_page_size_(uint16_t page_size);                   // Set the size of the page we can write a page at a time
+  uint16_t get_page_size_();                                 // Get the size of the page we can read a page at a time
+  void set_address_size_bytes_(uint8_t address_size_bytes);  // Set the number of bytes to use for device address
+  uint8_t get_address_size_bytes_();                         // Get the number of bytes to use for device address
+  void set_page_write_time_(uint8_t write_time_ms);          // Set the number of ms required per page write
+  uint8_t get_page_write_time_();                            // Get the number of ms required per page write
   uint32_t memory_size_bytes_{0};
   uint16_t memory_page_size_bytes_{0};
   uint8_t address_size_bytes_{0};

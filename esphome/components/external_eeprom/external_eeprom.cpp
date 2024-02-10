@@ -326,57 +326,56 @@ void ExtEepromComponent::set_memory_type(EEEDeviceType device_type) {
       break;
     case EEE_24XX01:
       this->device_type_text_ = "24XX01";
-      this->set_device_config_(128, 1, 8, 5); // 128
+      this->set_device_config_(128, 1, 8, 5);  // 128
       break;
     case EEE_24XX02:
       this->device_type_text_ = "24XX02";
-      this->set_device_config_(256, 1, 8, 5); // 256
+      this->set_device_config_(256, 1, 8, 5);  // 256
       break;
     case EEE_24XX04:
       this->device_type_text_ = "24XX04";
-      this->set_device_config_(512, 1, 16, 5); // 512
+      this->set_device_config_(512, 1, 16, 5);  // 512
       break;
     case EEE_24XX08:
       this->device_type_text_ = "24XX08";
-      this->set_device_config_(1024, 1, 16, 5); // 1024
+      this->set_device_config_(1024, 1, 16, 5);  // 1024
       break;
     case EEE_24XX16:
       this->device_type_text_ = "24XX16";
-      this->set_device_config_(2048, 1, 16, 1); // 2048
+      this->set_device_config_(2048, 1, 16, 1);  // 2048
       break;
     case EEE_24XX32:
       this->device_type_text_ = "24XX32";
-      this->set_device_config_(4096, 2, 32, 5); // 4096
+      this->set_device_config_(4096, 2, 32, 5);  // 4096
       break;
     case EEE_24XX64:
       this->device_type_text_ = "24XX64";
-      this->set_device_config_(8192, 2, 32, 5); // 8192
+      this->set_device_config_(8192, 2, 32, 5);  // 8192
       break;
     case EEE_24XX128:
       this->device_type_text_ = "24XX128";
-      this->set_device_config_(16384, 2, 64, 5); // 16384
+      this->set_device_config_(16384, 2, 64, 5);  // 16384
       break;
     case EEE_24XX256:
       this->device_type_text_ = "24XX256";
-      this->set_device_config_(32768, 2, 64, 5); // 32768
+      this->set_device_config_(32768, 2, 64, 5);  // 32768
       break;
     case EEE_24XX512:
       this->device_type_text_ = "24XX512";
-      this->set_device_config_(65536, 2, 64, 5); // 65536
+      this->set_device_config_(65536, 2, 64, 5);  // 65536
       break;
     case EEE_24XX1025:
       this->device_type_text_ = "24XX1025";
-      this->set_device_config_(128000, 2, 128, 5); // 128000
+      this->set_device_config_(128000, 2, 128, 5);  // 128000
       break;
     case EEE_24XX2048:
       this->device_type_text_ = "24XX2048";
-      this->set_device_config_(262144, 2, 256, 5); // 262144
+      this->set_device_config_(262144, 2, 256, 5);  // 262144
       break;
   }
 }
 void ExtEepromComponent::set_device_config_(uint32_t mem_size, uint8_t address_bytes, uint16_t page_size,
-                                            uint8_t write_time_ms)
-{
+                                            uint8_t write_time_ms) {
   this->set_memory_size_(mem_size);
   this->set_address_size_bytes_(address_bytes);
   this->set_page_size_(page_size);
