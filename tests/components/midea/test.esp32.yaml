@@ -1,3 +1,7 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
 remote_transmitter:
   pin: 18
   carrier_duty_percent: 50%
