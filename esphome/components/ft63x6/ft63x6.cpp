@@ -74,17 +74,17 @@ void FT63X6Touchscreen::update_touches() {
     return;
   }
 
-  if (((data[FT63X6_ADDR_TOUCH1_STATE] >> 6) & 0x01) == 0) {
+  if (((data[FT63X6_ADDR_TOUCH1_STATE] >> 7) & 0x01) == 0) {
     touch_id = data[FT63X6_ADDR_TOUCH1_ID] >> 4;  // id1 = 0 or 1
     x = encode_uint16(data[FT63X6_ADDR_TOUCH1_X] & 0x0F, data[FT63X6_ADDR_TOUCH1_X + 1]);
     y = encode_uint16(data[FT63X6_ADDR_TOUCH1_Y] & 0x0F, data[FT63X6_ADDR_TOUCH1_Y + 1]);
-    this->add_raw_touch_position_(touch_id, x, y);
+    this->add_raw_touch_position_(touch_id, x, y, data[0x07]);
   }
-  if (((data[FT63X6_ADDR_TOUCH2_STATE] >> 6) & 0x01) == 0) {
+  if (((data[FT63X6_ADDR_TOUCH2_STATE] >> 7) & 0x01) == 0) {
     touch_id = data[FT63X6_ADDR_TOUCH2_ID] >> 4;  // id1 = 0 or 1
     x = encode_uint16(data[FT63X6_ADDR_TOUCH2_X] & 0x0F, data[FT63X6_ADDR_TOUCH2_X + 1]);
     y = encode_uint16(data[FT63X6_ADDR_TOUCH2_Y] & 0x0F, data[FT63X6_ADDR_TOUCH2_Y + 1]);
-    this->add_raw_touch_position_(touch_id, x, y);
+    this->add_raw_touch_position_(touch_id, x, y, data[0x0D]);
   }
 }
 
