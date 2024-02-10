@@ -81,9 +81,10 @@ void FT63X6Touchscreen::update_touches() {
   }
 
   if ((data[0x02] & 0x0f == 0x00)) {
-    ESP_LOGV(TAG, "No touches detected");
+    ESP_LOGD(TAG, "No touches detected");
     return;
   }
+  ESP_LOGI(TAG, "Touches found: %d", data[0x02] & 0x0f);
 
   if (((data[FT63X6_ADDR_TOUCH1_STATE] >> 6) & 0x01) == 0) {  // checking event flag bit 6 if it is null
     touch_id = data[FT63X6_ADDR_TOUCH1_ID] >> 4;  // id1 = 0 or 1
