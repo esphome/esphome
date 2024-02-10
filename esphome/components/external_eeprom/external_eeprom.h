@@ -9,7 +9,22 @@ namespace external_eeprom {
 
 /// @brief This Class provides the methods to read and write data from an 24 LC/AT XX devices such as 24LC32. See
 /// https://ww1.microchip.com/downloads/en/devicedoc/doc0336.pdf
-
+enum EEEDeviceType
+{
+  EEE_24XX00,
+  EEE_24XX01,
+  EEE_24XX02,
+  EEE_24XX04,
+  EEE_24XX08,
+  EEE_24XX16,
+  EEE_24XX32,
+  EEE_24XX64,
+  EEE_24XX128,
+  EEE_24XX256,
+  EEE_24XX512,
+  EEE_24XX1025,
+  EEE_24XX2048
+};
 class ExtEepromComponent : public i2c::I2CDevice, public Component {
  public:
   void setup() override;
@@ -41,12 +56,9 @@ class ExtEepromComponent : public i2c::I2CDevice, public Component {
   void erase(uint8_t value_to_write = 0x00);  // Erase the entire memory. Optional: write a given byte to each spot.
 
   // Getters and Setters for component config
-  void set_memory_size(uint32_t mem_size);            // Set the size of memory in bytes
-  uint32_t get_memory_size();                         // Return size of memory in bytes
-  void set_page_size(uint8_t page_size);              // Set the size of the page we can write a page at a time
-  uint8_t get_page_size();                            // Get the size of the page we can read a page at a time
-  void set_page_write_time(uint8_t write_time_ms);    // Set the number of ms required per page write
-  uint8_t get_page_write_time();                      // Get the number of ms required per page write
+  void set_memory_type(EEEDeviceType device_type);
+
+  
   void set_i2c_buffer_size(uint8_t i2c_buffer_size);  // Set the size of hw buffer -2 for control & addr
   uint8_t get_i2c_buffer_size();                      // Get the size of hw buffer -2 for control & addr
   // Functionality to 'get' and 'put' objects to and from EEPROM.
@@ -66,10 +78,22 @@ class ExtEepromComponent : public i2c::I2CDevice, public Component {
 
  private:
   void write_block_(uint8_t deviceaddr, uint32_t memaddr, const uint8_t *obj, uint8_t size);
+  void set_device_config_(uint32_t mem_size, uint8_t address_bytes, uint16_t page_size, uint8_t write_time_ms);
+  void set_memory_size_(uint32_t mem_size);         // Set the size of memory in bytes
+  uint32_t get_memory_size_();                      // Return size of memory in bytes
+  void set_page_size_(uint16_t page_size);          // Set the size of the page we can write a page at a time
+  uint16_t get_page_size_();                        // Get the size of the page we can read a page at a time
+  void set_address_size_bytes_(uint8_t address_size_bytes); // Set the number of bytes to use for device address
+  uint8_t get_address_size_bytes_();                    // Get the number of bytes to use for device address
+  void set_page_write_time_(uint8_t write_time_ms);    // Set the number of ms required per page write
+  uint8_t get_page_write_time_();                   // Get the number of ms required per page write
   uint32_t memory_size_bytes_{0};
-  uint8_t memory_page_size_bytes_{0};
+  uint16_t memory_page_size_bytes_{0};
+  uint8_t address_size_bytes_{0};
   uint8_t memory_page_write_time_ms_{0};
   uint8_t i2c_buffer_size_{126};
+  EEEDeviceType device_type_{EEE_24XX32};
+  std::string device_type_text_{""};
 };
 
 }  // namespace external_eeprom

@@ -19,13 +19,12 @@ void ExtEepromComponent::loop() {}
 void ExtEepromComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "External Eeprom");
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "Size = %d", this->get_memory_size());
-  ESP_LOGCONFIG(TAG, "Page size = %d", this->get_page_size());
+  ESP_LOGCONFIG(TAG, "Device Type = %s", this->device_type_text_.c_str());
+  ESP_LOGCONFIG(TAG, "Size = %d", this->get_memory_size_());
+  ESP_LOGCONFIG(TAG, "Page size = %d", this->get_page_size_());
+  ESP_LOGCONFIG(TAG, "Number of Address Bytes = %d", this->get_address_size_bytes_());
   ESP_LOGCONFIG(TAG, "I2C HW buffer size = %d", this->get_i2c_buffer_size());
-  ESP_LOGCONFIG(TAG, "Page write time = %d", this->get_page_write_time());
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with device failed!");
-  }
+  ESP_LOGCONFIG(TAG, "Page write time = %d", this->get_page_write_time_());
 }
 /// @brief This checks whether the device is connected and not busy
 /// @param Caller can pass in an 0xFF I2C address. This is helpful for larger EEPROMs that have two addresses (see block
@@ -33,7 +32,7 @@ void ExtEepromComponent::dump_config() {
 /// @return an boolean True for connected
 bool ExtEepromComponent::is_connected(uint8_t i2c_address) {
   i2c::ErrorCode err;
-  if (i2c_address == 255)
+  if (i2c_address == 255) // We can't set the default so we use 255 instead
     i2c_address = this->address_;
   err = this->bus_->write(i2c_address, nullptr, 0, true);
   if (err != i2c::ERROR_OK)
@@ -91,15 +90,16 @@ void ExtEepromComponent::read(uint32_t memaddr, uint8_t *buff, uint16_t buffer_s
   ESP_LOGVV(TAG, "Read %d bytes from address %d", buffer_size, memaddr);
   uint32_t size = buffer_size;
   uint8_t *p = buff;
+  i2c::ErrorCode ret;
   while (size >= 1) {
     // Limit the amount to read to a page size
     uint16_t amt_to_read = size;
-    if (amt_to_read > i2c_buffer_size_)  // I2C buffer size limit
-      amt_to_read = i2c_buffer_size_;
+    if (amt_to_read > this->i2c_buffer_size_)  // I2C buffer size limit
+      amt_to_read = this->i2c_buffer_size_;
 
     // Check if we are dealing with large (>512kbit) EEPROMs
     uint8_t i2c_address = this->address_;
-    if (this->get_memory_size() > 0xFFFF) {
+    if (this->get_memory_size_() > 0xFFFF) {
       // Figure out if we are going to cross the barrier with this read
       if (memaddr < 0xFFFF) {
         if (0xFFFF - memaddr < amt_to_read)  // 0xFFFF - 0xFFFA < I2C_buffer_size
@@ -110,11 +110,13 @@ void ExtEepromComponent::read(uint32_t memaddr, uint8_t *buff, uint16_t buffer_s
       if (memaddr > 0xFFFF)
         i2c_address |= 0b100;  // Set the block bit to 1
     }
-    i2c::ErrorCode ret;
-    if (this->get_memory_size() > 2048) {
+    if (this->get_address_size_bytes_() == 2)
+    {
       uint8_t maddr[] = {(uint8_t) (memaddr >> 8), (uint8_t) (memaddr & 0xFF)};
       ret = this->bus_->write(i2c_address, maddr, 2, false);
-    } else {
+    }
+    else
+    {
       uint8_t maddr[] = {(uint8_t) (memaddr & 0xFF)};
       ret = this->bus_->write(i2c_address, maddr, 1, false);
     }
@@ -213,8 +215,8 @@ void ExtEepromComponent::write(uint32_t memaddr, uint8_t *data_to_write, uint16_
   }
 
   uint16_t max_write_size = this->memory_page_size_bytes_;
-  if (max_write_size > i2c_buffer_size_)
-    max_write_size = i2c_buffer_size_;
+  if (max_write_size > this->i2c_buffer_size_)
+    max_write_size = this->i2c_buffer_size_;
 
   /// Break the buffer into page sized chunks
 
@@ -235,7 +237,7 @@ void ExtEepromComponent::write(uint32_t memaddr, uint8_t *data_to_write, uint16_
     }
     /// Check if we are dealing with large (>512kbit) EEPROMs
     uint8_t i2c_address = this->address_;
-    if (this->get_memory_size() > 0xFFFF) {
+    if (this->get_memory_size_() > 0xFFFF) {
       /// Figure out if we are going to cross the barrier with this write
       if (memaddr < 0xFFFF) {
         if (0xFFFF - memaddr < amt_to_write)  /// 0xFFFF - 0xFFFA < I2C_buffer_size
@@ -311,30 +313,82 @@ void ExtEepromComponent::erase(uint8_t value_to_write) {
   for (uint32_t x = 0; x < this->memory_page_size_bytes_; x++)
     temp_buffer[x] = value_to_write;
 
-  for (uint32_t addr = 0; addr < this->get_memory_size(); addr += this->memory_page_size_bytes_)
+  for (uint32_t addr = 0; addr < this->get_memory_size_(); addr += this->memory_page_size_bytes_)
     write(addr, temp_buffer, this->memory_page_size_bytes_);
 }
-/// @brief Sets the size of the device in bytes
-/// @param memSize contains the size of the device
-void ExtEepromComponent::set_memory_size(uint32_t mem_size) { memory_size_bytes_ = mem_size; }
-/// @brief Gets the user specified size of the device in bytes
-/// @return size in bytes
-uint32_t ExtEepromComponent::get_memory_size() { return memory_size_bytes_; }
-/// @brief Sets the page size of the device in bytes
-/// @param page_size contains the size of the device pages
-void ExtEepromComponent::set_page_size(uint8_t page_size) { memory_page_size_bytes_ = page_size; }
-/// @brief Gets the user specified size of the device pages in bytes
-/// @return Page size in bytes
-uint8_t ExtEepromComponent::get_page_size() { return memory_page_size_bytes_; }
-/// @brief Sets the page write for the device in ms
-/// @param write_time_ms contains the time to write a page of the device
-void ExtEepromComponent::set_page_write_time(uint8_t write_time_ms) { memory_page_write_time_ms_ = write_time_ms; }
-/// @brief Gets the user specified write time for a device page in ms
-/// @return page write time in ms
-uint8_t ExtEepromComponent::get_page_write_time() { return memory_page_write_time_ms_; }
+void ExtEepromComponent::set_memory_type(EEEDeviceType device_type) {
+  device_type_ = device_type;
+      // Set settings based on known memory types
+      switch (device_type_)
+  {
+  default:
+    // Unknown type number
+    break;
+  case EEE_24XX00:
+    this->device_type_text_ = "24XX00";
+    this->set_device_config_(16, 1, 1, 5);
+    break;
+  case EEE_24XX01:
+    this->device_type_text_ = "24XX01";
+    this->set_device_config_(128, 1, 8, 5); // 128
+    break;
+  case EEE_24XX02:
+    this->device_type_text_ = "24XX02";
+    this->set_device_config_(256, 1, 8, 5); // 256
+    break;
+  case EEE_24XX04:
+    this->device_type_text_ = "24XX04";
+    this->set_device_config_(512, 1, 16, 5); // 512
+    break;
+  case EEE_24XX08:
+    this->device_type_text_ = "24XX08";
+    this->set_device_config_(1024, 1, 16, 5); // 1024
+    break;
+  case EEE_24XX16:
+    this->device_type_text_ = "24XX16";
+    this->set_device_config_(2048, 1, 16, 1); // 2048
+    break;
+  case EEE_24XX32:
+    this->device_type_text_ = "24XX32";
+    this->set_device_config_(4096, 2, 32, 5); // 4096
+    break;
+  case EEE_24XX64:
+    this->device_type_text_ = "24XX64";
+    this->set_device_config_(8192, 2, 32, 5); // 8192
+    break;
+  case EEE_24XX128:
+    this->device_type_text_ = "24XX128";
+    this->set_device_config_(16384, 2, 64, 5); // 16384
+    break;
+  case EEE_24XX256:
+    this->device_type_text_ = "24XX256";
+    this->set_device_config_(32768, 2, 64, 5); // 32768
+    break;
+  case EEE_24XX512:
+    this->device_type_text_ = "24XX512";
+    this->set_device_config_(65536, 2, 64, 5); // 65536
+    break;
+  case EEE_24XX1025:
+    this->device_type_text_ = "24XX1025";
+    this->set_device_config_(128000, 2, 128, 5); // 128000
+    break;
+  case EEE_24XX2048:
+    this->device_type_text_ = "24XX2048";
+    this->set_device_config_(262144, 2, 256, 5); // 262144
+    break;
+  }
+}
+void ExtEepromComponent::set_device_config_(uint32_t mem_size, uint8_t address_bytes, uint16_t page_size, uint8_t write_time_ms)
+{
+  this->set_memory_size_(mem_size);
+  this->set_address_size_bytes_(address_bytes);
+  this->set_page_size_(page_size);
+  this->set_page_write_time_(write_time_ms); 
+}
+
 /// @brief Sets the hw I2C buffer size -2, as 2 bytes are needed for control & addr
 /// @param buffer size in bytes, (ESP devices has a 128 I2C buffer so it is set to 126)
-void ExtEepromComponent::set_i2c_buffer_size(uint8_t i2c_buffer_size) { i2c_buffer_size_ = i2c_buffer_size; }
+void ExtEepromComponent::set_i2c_buffer_size(uint8_t i2c_buffer_size) { i2c_buffer_size_ = i2c_buffer_size - 2; }
 /// @brief Gets the hw I2C buffer size -2, as 2 bytes are needed for control & addr
 /// @return buffer size in bytes
 uint8_t ExtEepromComponent::get_i2c_buffer_size() { return i2c_buffer_size_; }
@@ -344,14 +398,17 @@ void ExtEepromComponent::write_block_(uint8_t deviceaddr, uint32_t memaddr, cons
   i2c::WriteBuffer buff[2];
   i2c::ErrorCode ret;
   // Check if the device has two address bytes
-  if (this->get_memory_size() > 2048) {
+  if (this->get_address_size_bytes_() == 2)
+  {
     uint8_t maddr[] = {(uint8_t) (memaddr >> 8), (uint8_t) (memaddr & 0xFF)};
     buff[0].data = maddr;
     buff[0].len = 2;
     buff[1].data = obj;
     buff[1].len = size;
     ret = this->bus_->writev(this->address_, buff, 2, true);
-  } else {
+  }
+  else
+  {
     uint8_t maddr[] = {(uint8_t) (memaddr & 0xFF)};
     buff[0].data = maddr;
     buff[0].len = 1;
@@ -363,6 +420,32 @@ void ExtEepromComponent::write_block_(uint8_t deviceaddr, uint32_t memaddr, cons
     ESP_LOGE(TAG, "Write raise this error %d on writing data to this address %d", ret, memaddr);
   }
 }
-
+// @brief Sets the size of the device in bytes
+/// @param memSize contains the size of the device
+void ExtEepromComponent::set_memory_size_(uint32_t mem_size) { memory_size_bytes_ = mem_size; }
+/// @brief Gets the user specified size of the device in bytes
+/// @return size in bytes
+uint32_t ExtEepromComponent::get_memory_size_() { return memory_size_bytes_; }
+/// @brief Sets the page size of the device in bytes
+/// @param page_size contains the size of the device pages
+void ExtEepromComponent::set_page_size_(uint16_t page_size) { memory_page_size_bytes_ = page_size; }
+/// @brief Gets the user specified size of the device pages in bytes
+/// @return Page size in bytes
+uint16_t ExtEepromComponent::get_page_size_() { return memory_page_size_bytes_; }
+/// @brief Sets the page write for the device in ms
+/// @param write_time_ms contains the time to write a page of the device
+void ExtEepromComponent::set_page_write_time_(uint8_t write_time_ms) { memory_page_write_time_ms_ = write_time_ms; }
+/// @brief Gets the user specified write time for a device page in ms
+/// @return page write time in ms
+uint8_t ExtEepromComponent::get_page_write_time_() { return memory_page_write_time_ms_; }
+/// @brief Set address_bytes for the device
+/// @param address_bytes contains the number of bytes the device uses for address
+void ExtEepromComponent::set_address_size_bytes_(uint8_t address_bytes)
+{
+  this->address_size_bytes_ = address_bytes;
+}
+/// @brief Gets the number of bytes used for the address
+/// @return size in bytes
+uint8_t ExtEepromComponent::get_address_size_bytes_() { return this->address_size_bytes_; }
 }  // namespace external_eeprom
 }  // namespace esphome
