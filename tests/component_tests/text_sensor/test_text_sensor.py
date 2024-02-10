@@ -44,7 +44,7 @@ def test_text_sensor_config_value_internal_set(generate_main):
     assert "ts_3->set_internal(false);" in main_cpp
 
 
-def test_text_sensor_sensor_device_class_set(generate_main):
+def test_text_sensor_device_class_set(generate_main):
     """
     When the device_class of text_sensor is set in the yaml file, it should be registered in main
     """
