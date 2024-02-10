@@ -74,10 +74,24 @@ void FT63X6Touchscreen::update_touches() {
     return;
   }
 
+  if ((data[0x08] & 0x0f != 0x0f) || (data[0x0E] & 0x0f != 0x0f)) {
+    ESP_LOGW(TAG, "Data does not look okey. lets wait.");
+    this->skip_update_ = true;
+    return;
+  }
+
+  if ((data[0x02] & 0x0f == 0x00)) {
+    ESP_LOGV(TAG, "No touches detected");
+    return;
+  }
+
   if (((data[FT63X6_ADDR_TOUCH1_STATE] >> 6) & 0x01) == 0) {  // checking event flag bit 6 if it is null
     touch_id = data[FT63X6_ADDR_TOUCH1_ID] >> 4;  // id1 = 0 or 1
     x = encode_uint16(data[FT63X6_ADDR_TOUCH1_X] & 0x0F, data[FT63X6_ADDR_TOUCH1_X + 1]);
     y = encode_uint16(data[FT63X6_ADDR_TOUCH1_Y] & 0x0F, data[FT63X6_ADDR_TOUCH1_Y + 1]);
+    if ((x == 0) && (y==0)) {
+      ESP_LOGW(TAG, "Reporting a (0,0) touch");
+    }
     this->add_raw_touch_position_(touch_id, x, y, data[0x07]);
   }
   if (((data[FT63X6_ADDR_TOUCH2_STATE] >> 6) & 0x01) == 0) { // checking event flag bit 6 if it is null
