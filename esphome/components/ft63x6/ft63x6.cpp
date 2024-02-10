@@ -74,13 +74,13 @@ void FT63X6Touchscreen::update_touches() {
     return;
   }
 
-  if ((data[0x08] & 0x0f != 0x0f) || (data[0x0E] & 0x0f != 0x0f)) {
+  if (((data[0x08] & 0x0f) != 0x0f) || ((data[0x0E] & 0x0f) != 0x0f)) {
     ESP_LOGW(TAG, "Data does not look okey. lets wait.");
     this->skip_update_ = true;
     return;
   }
 
-  if ((data[0x02] & 0x0f == 0x00)) {
+  if ((data[0x02] & 0x0f) == 0x00) {
     ESP_LOGD(TAG, "No touches detected");
     return;
   }
