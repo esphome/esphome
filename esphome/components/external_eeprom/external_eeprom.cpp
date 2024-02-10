@@ -32,7 +32,7 @@ void ExtEepromComponent::dump_config() {
 /// @return an boolean True for connected
 bool ExtEepromComponent::is_connected(uint8_t i2c_address) {
   i2c::ErrorCode err;
-  if (i2c_address == 255) // We can't set the default so we use 255 instead
+  if (i2c_address == 255)  // We can't set the default so we use 255 instead
     i2c_address = this->address_;
   err = this->bus_->write(i2c_address, nullptr, 0, true);
   if (err != i2c::ERROR_OK)
@@ -110,13 +110,10 @@ void ExtEepromComponent::read(uint32_t memaddr, uint8_t *buff, uint16_t buffer_s
       if (memaddr > 0xFFFF)
         i2c_address |= 0b100;  // Set the block bit to 1
     }
-    if (this->get_address_size_bytes_() == 2)
-    {
+    if (this->get_address_size_bytes_() == 2) {
       uint8_t maddr[] = {(uint8_t) (memaddr >> 8), (uint8_t) (memaddr & 0xFF)};
       ret = this->bus_->write(i2c_address, maddr, 2, false);
-    }
-    else
-    {
+    } else {
       uint8_t maddr[] = {(uint8_t) (memaddr & 0xFF)};
       ret = this->bus_->write(i2c_address, maddr, 1, false);
     }
@@ -318,72 +315,72 @@ void ExtEepromComponent::erase(uint8_t value_to_write) {
 }
 void ExtEepromComponent::set_memory_type(EEEDeviceType device_type) {
   device_type_ = device_type;
-      // Set settings based on known memory types
-      switch (device_type_)
-  {
-  default:
-    // Unknown type number
-    break;
-  case EEE_24XX00:
-    this->device_type_text_ = "24XX00";
-    this->set_device_config_(16, 1, 1, 5);
-    break;
-  case EEE_24XX01:
-    this->device_type_text_ = "24XX01";
-    this->set_device_config_(128, 1, 8, 5); // 128
-    break;
-  case EEE_24XX02:
-    this->device_type_text_ = "24XX02";
-    this->set_device_config_(256, 1, 8, 5); // 256
-    break;
-  case EEE_24XX04:
-    this->device_type_text_ = "24XX04";
-    this->set_device_config_(512, 1, 16, 5); // 512
-    break;
-  case EEE_24XX08:
-    this->device_type_text_ = "24XX08";
-    this->set_device_config_(1024, 1, 16, 5); // 1024
-    break;
-  case EEE_24XX16:
-    this->device_type_text_ = "24XX16";
-    this->set_device_config_(2048, 1, 16, 1); // 2048
-    break;
-  case EEE_24XX32:
-    this->device_type_text_ = "24XX32";
-    this->set_device_config_(4096, 2, 32, 5); // 4096
-    break;
-  case EEE_24XX64:
-    this->device_type_text_ = "24XX64";
-    this->set_device_config_(8192, 2, 32, 5); // 8192
-    break;
-  case EEE_24XX128:
-    this->device_type_text_ = "24XX128";
-    this->set_device_config_(16384, 2, 64, 5); // 16384
-    break;
-  case EEE_24XX256:
-    this->device_type_text_ = "24XX256";
-    this->set_device_config_(32768, 2, 64, 5); // 32768
-    break;
-  case EEE_24XX512:
-    this->device_type_text_ = "24XX512";
-    this->set_device_config_(65536, 2, 64, 5); // 65536
-    break;
-  case EEE_24XX1025:
-    this->device_type_text_ = "24XX1025";
-    this->set_device_config_(128000, 2, 128, 5); // 128000
-    break;
-  case EEE_24XX2048:
-    this->device_type_text_ = "24XX2048";
-    this->set_device_config_(262144, 2, 256, 5); // 262144
-    break;
+  // Set settings based on known memory types
+  switch (device_type_) {
+    default:
+      // Unknown type number
+      break;
+    case EEE_24XX00:
+      this->device_type_text_ = "24XX00";
+      this->set_device_config_(16, 1, 1, 5);
+      break;
+    case EEE_24XX01:
+      this->device_type_text_ = "24XX01";
+      this->set_device_config_(128, 1, 8, 5); // 128
+      break;
+    case EEE_24XX02:
+      this->device_type_text_ = "24XX02";
+      this->set_device_config_(256, 1, 8, 5); // 256
+      break;
+    case EEE_24XX04:
+      this->device_type_text_ = "24XX04";
+      this->set_device_config_(512, 1, 16, 5); // 512
+      break;
+    case EEE_24XX08:
+      this->device_type_text_ = "24XX08";
+      this->set_device_config_(1024, 1, 16, 5); // 1024
+      break;
+    case EEE_24XX16:
+      this->device_type_text_ = "24XX16";
+      this->set_device_config_(2048, 1, 16, 1); // 2048
+      break;
+    case EEE_24XX32:
+      this->device_type_text_ = "24XX32";
+      this->set_device_config_(4096, 2, 32, 5); // 4096
+      break;
+    case EEE_24XX64:
+      this->device_type_text_ = "24XX64";
+      this->set_device_config_(8192, 2, 32, 5); // 8192
+      break;
+    case EEE_24XX128:
+      this->device_type_text_ = "24XX128";
+      this->set_device_config_(16384, 2, 64, 5); // 16384
+      break;
+    case EEE_24XX256:
+      this->device_type_text_ = "24XX256";
+      this->set_device_config_(32768, 2, 64, 5); // 32768
+      break;
+    case EEE_24XX512:
+      this->device_type_text_ = "24XX512";
+      this->set_device_config_(65536, 2, 64, 5); // 65536
+      break;
+    case EEE_24XX1025:
+      this->device_type_text_ = "24XX1025";
+      this->set_device_config_(128000, 2, 128, 5); // 128000
+      break;
+    case EEE_24XX2048:
+      this->device_type_text_ = "24XX2048";
+      this->set_device_config_(262144, 2, 256, 5); // 262144
+      break;
   }
 }
-void ExtEepromComponent::set_device_config_(uint32_t mem_size, uint8_t address_bytes, uint16_t page_size, uint8_t write_time_ms)
+void ExtEepromComponent::set_device_config_(uint32_t mem_size, uint8_t address_bytes, uint16_t page_size,
+                                            uint8_t write_time_ms)
 {
   this->set_memory_size_(mem_size);
   this->set_address_size_bytes_(address_bytes);
   this->set_page_size_(page_size);
-  this->set_page_write_time_(write_time_ms); 
+  this->set_page_write_time_(write_time_ms);
 }
 
 /// @brief Sets the hw I2C buffer size -2, as 2 bytes are needed for control & addr
@@ -398,17 +395,14 @@ void ExtEepromComponent::write_block_(uint8_t deviceaddr, uint32_t memaddr, cons
   i2c::WriteBuffer buff[2];
   i2c::ErrorCode ret;
   // Check if the device has two address bytes
-  if (this->get_address_size_bytes_() == 2)
-  {
+  if (this->get_address_size_bytes_() == 2) {
     uint8_t maddr[] = {(uint8_t) (memaddr >> 8), (uint8_t) (memaddr & 0xFF)};
     buff[0].data = maddr;
     buff[0].len = 2;
     buff[1].data = obj;
     buff[1].len = size;
     ret = this->bus_->writev(this->address_, buff, 2, true);
-  }
-  else
-  {
+  } else {
     uint8_t maddr[] = {(uint8_t) (memaddr & 0xFF)};
     buff[0].data = maddr;
     buff[0].len = 1;
@@ -440,10 +434,7 @@ void ExtEepromComponent::set_page_write_time_(uint8_t write_time_ms) { memory_pa
 uint8_t ExtEepromComponent::get_page_write_time_() { return memory_page_write_time_ms_; }
 /// @brief Set address_bytes for the device
 /// @param address_bytes contains the number of bytes the device uses for address
-void ExtEepromComponent::set_address_size_bytes_(uint8_t address_bytes)
-{
-  this->address_size_bytes_ = address_bytes;
-}
+void ExtEepromComponent::set_address_size_bytes_(uint8_t address_bytes) { this->address_size_bytes_ = address_bytes; }
 /// @brief Gets the number of bytes used for the address
 /// @return size in bytes
 uint8_t ExtEepromComponent::get_address_size_bytes_() { return this->address_size_bytes_; }

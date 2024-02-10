@@ -734,7 +734,5 @@ light:
 external_eeprom:
   id: ext_eeprom_component_1
   address: 0x57
-  ee_page_write_time: 5
-  ee_page_size: 32
-  ee_memory_size: 4096
-  i2c_buffer_size: 126
+  ee_memory_type: 24XX32
+  i2c_buffer_size: 128
