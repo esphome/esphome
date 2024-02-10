@@ -1,3 +1,7 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
 i2s_audio:
   i2s_lrclk_pin: 13
   i2s_bclk_pin: 14
