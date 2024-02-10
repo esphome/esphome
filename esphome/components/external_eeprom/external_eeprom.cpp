@@ -435,7 +435,7 @@ uint8_t ExtEepromComponent::get_page_write_time_() { return memory_page_write_ti
 /// @param address_bytes contains the number of bytes the device uses for address
 void ExtEepromComponent::set_address_size_bytes_(uint8_t address_size_bytes) {
   this->address_size_bytes_ = address_size_bytes;
-  }
+}
 /// @brief Gets the number of bytes used for the address
 /// @return size in bytes
 uint8_t ExtEepromComponent::get_address_size_bytes_() { return this->address_size_bytes_; }
