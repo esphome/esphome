@@ -1,0 +1,16 @@
+spi:
+  - id: spi_mcp3204
+    clk_pin: 14
+    mosi_pin: 13
+    miso_pin: 12
+
+mcp3204:
+  - id: mcp3204_hub
+    cs_pin: 15
+
+sensor:
+  - platform: mcp3204
+    id: mcp3204_sensor
+    mcp3204_id: mcp3204_hub
+    number: 0
+    update_interval: 5s

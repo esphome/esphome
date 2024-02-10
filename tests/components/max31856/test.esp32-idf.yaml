@@ -1,0 +1,12 @@
+spi:
+  - id: spi_max31856
+    clk_pin: 16
+    mosi_pin: 17
+    miso_pin: 15
+
+sensor:
+  - platform: max31856
+    name: MAX31856 Temperature
+    cs_pin: 12
+    update_interval: 15s
+    mains_filter: 50Hz

@@ -1,0 +1,23 @@
+i2c:
+  - id: i2c_mcp23016
+    scl: 16
+    sda: 17
+
+mcp23016:
+  id: mcp23016_hub
+
+binary_sensor:
+  - platform: gpio
+    id: mcp23016_binary_sensor
+    pin:
+      mcp23016: mcp23016_hub
+      number: 0
+      mode: INPUT
+
+switch:
+  - platform: gpio
+    id: mcp23016_switch
+    pin:
+      mcp23016: mcp23016_hub
+      number: 1
+      mode: OUTPUT
