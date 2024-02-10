@@ -164,7 +164,7 @@ class BaseImage {
 
 class BaseFont {
  public:
-  virtual void print(int x, int y, Display *display, Color color, const char *text) = 0;
+  virtual void print(int x, int y, Display *display, Color color, const char *text, Color background = COLOR_OFF) = 0;
   virtual void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) = 0;
 };
 
@@ -235,8 +235,7 @@ class Display : public PollingComponent {
   /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
   void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
 
-  /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given
-  /// color.
+  /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
   void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON);
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
@@ -256,8 +255,10 @@ class Display : public PollingComponent {
    * @param color The color to draw the text with.
    * @param align The alignment of the text.
    * @param text The text to draw.
+   * @param background When using multi-bit (anti-aliased) fonts, blend this background color into pixels
    */
-  void print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text);
+  void print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text,
+             Color background = COLOR_OFF);
 
   /** Print `text` with the top left at [x,y] with `font`.
    *
@@ -266,8 +267,9 @@ class Display : public PollingComponent {
    * @param font The font to draw the text with.
    * @param color The color to draw the text with.
    * @param text The text to draw.
+   * @param background When using multi-bit (anti-aliased) fonts, blend this background color into pixels
    */
-  void print(int x, int y, BaseFont *font, Color color, const char *text);
+  void print(int x, int y, BaseFont *font, Color color, const char *text, Color background = COLOR_OFF);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -287,6 +289,20 @@ class Display : public PollingComponent {
    * @param text The text to draw.
    */
   void print(int x, int y, BaseFont *font, const char *text);
+
+  /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
+   *
+   * @param x The x coordinate of the text alignment anchor point.
+   * @param y The y coordinate of the text alignment anchor point.
+   * @param font The font to draw the text with.
+   * @param color The color to draw the text with.
+   * @param background The background color to use for anti-aliasing
+   * @param align The alignment of the text.
+   * @param format The format to use.
+   * @param ... The arguments to use for the text formatting.
+   */
+  void printf(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format, ...)
+      __attribute__((format(printf, 8, 9)));
 
   /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
@@ -539,7 +555,8 @@ class Display : public PollingComponent {
  protected:
   bool clamp_x_(int x, int w, int &min_x, int &max_x);
   bool clamp_y_(int y, int h, int &min_y, int &max_y);
-  void vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg);
+  void vprintf_(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
+                va_list arg);
 
   void do_update_();
   void clear_clipping_();
