@@ -92,6 +92,7 @@ enum WaveshareEPaperTypeAModel {
   WAVESHARE_EPAPER_2_13_IN,
   WAVESHARE_EPAPER_2_9_IN,
   WAVESHARE_EPAPER_2_9_IN_V2,
+  WAVESHARE_EPAPER_4_2_IN_V2,
   TTGO_EPAPER_2_13_IN,
   TTGO_EPAPER_2_13_IN_B73,
   TTGO_EPAPER_2_13_IN_B1,
@@ -114,6 +115,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
       case WAVESHARE_EPAPER_1_54_IN:
       case WAVESHARE_EPAPER_1_54_IN_V2:
       case WAVESHARE_EPAPER_2_9_IN_V2:
+      case WAVESHARE_EPAPER_4_2_IN_V2:
         // COMMAND DEEP SLEEP MODE
         this->command(0x10);
         this->data(0x01);
