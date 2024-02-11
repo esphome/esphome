@@ -1,0 +1,4 @@
+output:
+  - platform: rp2040_pwm
+    id: light_output_1
+    pin: 12

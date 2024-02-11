@@ -1,0 +1,14 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+ota:
+  safe_mode: true
+  password: "superlongpasswordthatnoonewillknow"
+  port: 3286
+  reboot_timeout: 2min
+  num_attempts: 5
+  on_state_change:
+    then:
+      lambda: >-
+        ESP_LOGD("ota", "State %d", state);

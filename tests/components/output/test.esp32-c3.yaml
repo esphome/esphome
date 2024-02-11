@@ -1,0 +1,4 @@
+output:
+  - platform: ledc
+    id: light_output_1
+    pin: 1
