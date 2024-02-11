@@ -35,9 +35,8 @@ void FT63X6Touchscreen::setup() {
 
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
+    this->hard_reset_();
   }
-
-  this->hard_reset_();
 
   // Get touch resolution
   if (this->x_raw_max_ == this->x_raw_min_) {
@@ -45,6 +44,16 @@ void FT63X6Touchscreen::setup() {
   }
   if (this->y_raw_max_ == this->y_raw_min_) {
     this->y_raw_max_ = 480;
+  }
+
+  uint8_t chip_id;
+
+  this->read_bytes(0xA3, (uint8_t *) &chip_id, 1);
+
+  if (chip_id != 0) {
+    ESP_LOGI(TAG, "FT6336U touch driver started chipid: %d", chip_id);
+  } else {
+    ESP_LOGE(TAG, "FT6336U touch driver failed to start");
   }
 }
 
@@ -68,14 +77,14 @@ void FT63X6Touchscreen::update_touches() {
   uint8_t data[15];
   uint16_t touch_id, x, y;
 
-  if (!this->read_bytes(0x00, (uint8_t *) data, 15)) {
+  if (!this->read_bytes(0x00, (uint8_t *) &data, 15)) {
     ESP_LOGE(TAG, "Failed to read touch data");
     this->skip_update_ = true;
     return;
   }
 
   if (((data[0x08] & 0x0f) != 0x0f) || ((data[0x0E] & 0x0f) != 0x0f)) {
-    ESP_LOGW(TAG, "Data does not look okey. lets wait.");
+    ESP_LOGVV(TAG, "Data does not look okey. lets wait. %d/%d", (data[0x08] & 0x0f), (data[0x0E] & 0x0f));
     this->skip_update_ = true;
     return;
   }
