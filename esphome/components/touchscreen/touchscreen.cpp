@@ -77,6 +77,8 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
   } else {
     tp = this->touches_[id];
     tp.state = STATE_UPDATED;
+    tp.y_prev = tp.y;
+    tp.x_prev = tp.x;
   }
   tp.x_raw = x_raw;
   tp.y_raw = y_raw;
@@ -110,7 +112,7 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
 void Touchscreen::send_touches_() {
   TouchPoints_t touches;
   for (auto tp : this->touches_) {
-    ESP_LOGD(TAG, "Touch status: %d/%d: raw:(%4d,%4d,%4d) calc:(%3d,%4d)", tp.second.id, tp.second.state,
+    ESP_LOGV(TAG, "Touch status: %d/%d: raw:(%4d,%4d,%4d) calc:(%3d,%4d)", tp.second.id, tp.second.state,
              tp.second.x_raw, tp.second.y_raw, tp.second.z_raw, tp.second.x, tp.second.y);
     touches.push_back(tp.second);
   }
