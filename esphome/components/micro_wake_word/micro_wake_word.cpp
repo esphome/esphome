@@ -197,7 +197,7 @@ bool MicroWakeWord::initialize_models() {
     return false;
   }
 
-  this->preprocessor_model_ = tflite::GetModel(g_audio_preprocessor_int8_tflite);
+  this->preprocessor_model_ = tflite::GetModel(G_AUDIO_PREPROCESSOR_INT8_TFLITE);
   if (this->preprocessor_model_->version() != TFLITE_SCHEMA_VERSION) {
     ESP_LOGE(TAG, "Wake word's audio preprocessor model's schema is not supported");
     return false;
