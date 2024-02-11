@@ -1,0 +1,17 @@
+light:
+  - platform: neopixelbus
+    id: addr3
+    name: Neopixelbus Light
+    gamma_correct: 2.8
+    color_correct: [0.0, 0.0, 0.0, 0.0]
+    default_transition_length: 10s
+    effects:
+      - addressable_flicker:
+          name: Flicker Effect With Custom Values
+          update_interval: 16ms
+          intensity: 5%
+    type: GRBW
+    variant: SK6812
+    method: ESP32_I2S_0
+    num_leds: 5
+    pin: 4
