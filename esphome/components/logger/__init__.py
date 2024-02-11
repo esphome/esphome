@@ -40,7 +40,7 @@ from esphome.components.libretiny.const import (
     COMPONENT_BK72XX,
     COMPONENT_RTL87XX,
 )
-from esphome.components.nrf52 import add_zephyr_overlay, add_zephyr_prj_conf_option
+from esphome.components.nrf52.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
@@ -298,9 +298,20 @@ async def to_code(config):
 
     if CORE.using_zephyr:
         if config[CONF_HARDWARE_UART] == UART0:
-            add_zephyr_overlay("""&uart0 { status = "okay";};""")
+            zephyr_add_overlay("""&uart0 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == USB_CDC:
-            add_zephyr_prj_conf_option("CONFIG_UART_LINE_CTRL", True)
+            zephyr_add_prj_conf("UART_LINE_CTRL", True)
+            zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+            zephyr_add_prj_conf("USB_CDC_ACM", True)
+            zephyr_add_overlay(
+                """
+&zephyr_udc0 {
+    cdc_acm_uart0: cdc_acm_uart0 {
+        compatible = "zephyr,cdc-acm-uart";
+    };
+};
+"""
+            )
 
     # Register at end for safe mode
     await cg.register_component(log, config)

@@ -13,21 +13,25 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import (
-    write_file_if_changed,
     copy_file_if_changed,
 )
-from typing import Union
+
+from .zephyr import (
+    zephyr_copy_files,
+    zephyr_set_core_data,
+    zephyr_to_code,
+)
+from .const import (
+    ZEPHYR_VARIANT_GENERIC,
+    ZEPHYR_VARIANT_NRF_SDK,
+)
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa
 
-KEY_NRF52 = "nrf52"
-
 
 def set_core_data(config):
-    CORE.data[KEY_NRF52] = {}
-    CORE.data[KEY_NRF52][KEY_PRJ_CONF_OPTIONS] = {}
-    CORE.data[KEY_NRF52][KEY_ZEPHYR_OVERLAY] = ""
+    zephyr_set_core_data(config)
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = config[CONF_FRAMEWORK][CONF_TYPE]
     return config
@@ -66,8 +70,6 @@ PLATFORM_FRAMEWORK_SCHEMA = cv.All(
     _platform_check_versions,
 )
 
-ZEPHYR_VARIANT_GENERIC = "generic"
-ZEPHYR_VARIANT_NRF_SDK = "nrf-sdk"
 ZEPHYR_VARIANTS = [
     ZEPHYR_VARIANT_GENERIC,
     ZEPHYR_VARIANT_NRF_SDK,
@@ -102,30 +104,6 @@ CONFIG_SCHEMA = cv.All(
 nrf52_ns = cg.esphome_ns.namespace("nrf52")
 
 
-PrjConfValueType = Union[bool, str, int]
-KEY_PRJ_CONF_OPTIONS = "prj_conf_options"
-KEY_ZEPHYR_OVERLAY = "zephyr_overlay"
-
-
-def add_zephyr_prj_conf_option(name: str, value: PrjConfValueType):
-    """Set an zephyr prj conf value."""
-    if not CORE.using_zephyr:
-        raise ValueError("Not an zephyr project")
-    if name in CORE.data[KEY_NRF52][KEY_PRJ_CONF_OPTIONS]:
-        old_value = CORE.data[KEY_NRF52][KEY_PRJ_CONF_OPTIONS][name]
-        if old_value != value:
-            raise ValueError(
-                f"{name} alread set with value {old_value}, new value {value}"
-            )
-    CORE.data[KEY_NRF52][KEY_PRJ_CONF_OPTIONS][name] = value
-
-
-def add_zephyr_overlay(content):
-    if not CORE.using_zephyr:
-        raise ValueError("Not an zephyr project")
-    CORE.data[KEY_NRF52][KEY_ZEPHYR_OVERLAY] += content
-
-
 @coroutine_with_priority(1000)
 async def to_code(config):
     cg.add(nrf52_ns.setup_preferences())
@@ -152,6 +130,7 @@ async def to_code(config):
     cg.add_platformio_option("board_upload.use_1200bps_touch", "true")
     cg.add_platformio_option("board_upload.require_upload_port", "true")
     cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
+    #
     cg.add_platformio_option("extra_scripts", [f"pre:build_{conf[CONF_TYPE]}.py"])
     if CORE.using_arduino:
         cg.add_build_flag("-DUSE_ARDUINO")
@@ -166,71 +145,21 @@ async def to_code(config):
         )
         cg.add_library("https://github.com/NordicSemiconductor/nrfx#v2.1.0", None, None)
     elif CORE.using_zephyr:
-        cg.add_build_flag("-DUSE_ZEPHYR")
-        if conf[CONF_VARIANT] == ZEPHYR_VARIANT_GENERIC:
-            cg.add_platformio_option(
-                "platform_packages",
-                [
-                    "platformio/framework-zephyr@^2.30500.231204",
-                    # "platformio/toolchain-gccarmnoneeabi@^1.120301.0"
-                ],
-            )
-        elif conf[CONF_VARIANT] == ZEPHYR_VARIANT_NRF_SDK:
-            cg.add_platformio_option(
-                "platform_packages",
-                [
-                    "platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf",
-                    "platformio/toolchain-gccarmnoneeabi@https://github.com/tomaszduda23/toolchain-sdk-ng",
-                ],
-            )
-        else:
-            raise NotImplementedError
-        # c++ support
-        add_zephyr_prj_conf_option("CONFIG_NEWLIB_LIBC", False)
-        add_zephyr_prj_conf_option("CONFIG_NEWLIB_LIBC_NANO", True)
-        add_zephyr_prj_conf_option("CONFIG_NEWLIB_LIBC_FLOAT_PRINTF", True)
-        add_zephyr_prj_conf_option("CONFIG_CPLUSPLUS", True)
-        add_zephyr_prj_conf_option("CONFIG_LIB_CPLUSPLUS", True)
-        # watchdog
-        add_zephyr_prj_conf_option("CONFIG_WATCHDOG", True)
-        add_zephyr_prj_conf_option("CONFIG_WDT_DISABLE_AT_BOOT", False)
-        # TODO debug only
-        add_zephyr_prj_conf_option("CONFIG_DEBUG_THREAD_INFO", True)
-
+        zephyr_to_code(conf)
     else:
         raise NotImplementedError
-    # add_zephyr_prj_conf_option("CONFIG_USE_SEGGER_RTT", True)
-    # add_zephyr_prj_conf_option("CONFIG_RTT_CONSOLE", True)
-    # add_zephyr_prj_conf_option("CONFIG_UART_CONSOLE", False)
+    # zephyr_add_prj_conf("USE_SEGGER_RTT", True)
+    # zephyr_add_prj_conf("RTT_CONSOLE", True)
+    # zephyr_add_prj_conf("UART_CONSOLE", False)
 
-
-def _format_prj_conf_val(value: PrjConfValueType) -> str:
-    if isinstance(value, bool):
-        return "y" if value else "n"
-    if isinstance(value, int):
-        return str(value)
-    if isinstance(value, str):
-        return f'"{value}"'
-    raise ValueError
+    # zephyr_add_prj_conf("LOG", True)
+    # zephyr_add_prj_conf("MCUBOOT_UTIL_LOG_LEVEL_WRN", True)
 
 
 # Called by writer.py
 def copy_files():
     if CORE.using_zephyr:
-        want_opts = CORE.data[KEY_NRF52][KEY_PRJ_CONF_OPTIONS]
-        contents = (
-            "\n".join(
-                f"{name}={_format_prj_conf_val(value)}"
-                for name, value in sorted(want_opts.items())
-            )
-            + "\n"
-        )
-
-        write_file_if_changed(CORE.relative_build_path("zephyr/prj.conf"), contents)
-        write_file_if_changed(
-            CORE.relative_build_path("zephyr/app.overlay"),
-            CORE.data[KEY_NRF52][KEY_ZEPHYR_OVERLAY],
-        )
+        zephyr_copy_files()
 
     dir = os.path.dirname(__file__)
     build_zephyr_file = os.path.join(

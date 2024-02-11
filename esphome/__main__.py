@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import time
+import asyncio
 from datetime import datetime
 
 import argcomplete
@@ -21,6 +22,7 @@ from esphome.const import (
     CONF_LOGGER,
     CONF_NAME,
     CONF_OTA,
+    CONF_FOTA,
     CONF_MQTT,
     CONF_MDNS,
     CONF_DISABLED,
@@ -47,6 +49,7 @@ from esphome.util import (
     get_serial_ports,
 )
 from esphome.log import color, setup_log, Fore
+from .zephyr_tools import smpmgr_scan, smpmgr_upload, list_pyocd
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -89,12 +92,40 @@ def choose_upload_log_host(
     options = []
     for port in get_serial_ports():
         options.append((f"{port.path} ({port.description})", port.path))
+        if show_ota and CONF_FOTA in CORE.config:
+            options.append(
+                (f"mcumgr {port.path} ({port.description})", f"mcumgr {port.path}")
+            )
     if default == "SERIAL":
         return choose_prompt(options, purpose=purpose)
+    pyocd = list_pyocd()
+    if len(pyocd) > 0:
+        for probe in list_pyocd():
+            options.append(
+                (
+                    f"pyOCD {probe['product_name']} ({probe['unique_id']})",
+                    f"pyocd {probe['unique_id']}",
+                )
+            )
+        if default == "PYOCD":
+            return choose_prompt(options, purpose=purpose)
     if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
         options.append((f"Over The Air ({CORE.address})", CORE.address))
         if default == "OTA":
             return CORE.address
+    if show_ota and CONF_FOTA in CORE.config:
+        if default is None or default == "FOTA":
+            ble_devices = asyncio.run(smpmgr_scan())
+            if len(ble_devices) == 0:
+                _LOGGER.warning("No FOTA service found!")
+            for device in ble_devices:
+                options.append(
+                    (
+                        f"FOTA over Bluetooth LE({device.address}) {device.name}",
+                        f"mcumgr {device.address}",
+                    )
+                )
+            return choose_prompt(options, purpose=purpose)
     if show_mqtt and CONF_MQTT in CORE.config:
         options.append((f"MQTT ({CORE.config['mqtt'][CONF_BROKER]})", "MQTT"))
         if default == "OTA":
@@ -315,6 +346,17 @@ def upload_program(config, args, host):
             return upload_using_platformio(config, host, ["-t", "upload"])
 
         raise EsphomeError(f"Unknown target platform: {CORE.target_platform}")
+
+    if host.startswith("pyocd"):
+        print(host.split(" ")[1])
+        raise EsphomeError("Not implemented")
+
+    if host.startswith("mcumgr"):
+        firmware = os.path.abspath(
+            CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+        )
+        if CONF_FOTA in config:
+            return asyncio.run(smpmgr_upload(config, host.split(" ")[1], firmware))
 
     if CONF_OTA not in config:
         raise EsphomeError(

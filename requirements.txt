@@ -25,3 +25,15 @@ pyparsing >= 3.0
 
 # For autocompletion
 argcomplete>=2.0.0
+
+# for mcumgr
+git+https://github.com/tomaszduda23/smp/#f9b85266485062f6a466989e8f59b913cc83b08b
+git+https://github.com/tomaszduda23/smpclient/#d25c8035ae2858fd41a106058297b619d58fbcb5
+# move to framework?
+git+https://github.com/tomaszduda23/pyOCD/#949193f7cbf09081f8e46d6b9d2e4a79e536997e
+bleak==0.21.1
+pydantic==2.16.2
+cbor2==5.6.1
+crcmod==1.7
+# pretty print by logging?
+rich==13.7.0

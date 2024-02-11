@@ -6,7 +6,7 @@ from esphome.const import (
 )
 
 from esphome.core import CORE
-from esphome.components.nrf52 import add_zephyr_prj_conf_option
+from esphome.components.nrf52.zephyr import zephyr_add_prj_conf
 
 dfu_ns = cg.esphome_ns.namespace("dfu")
 DeviceFirmwareUpdate = dfu_ns.class_("DeviceFirmwareUpdate", cg.Component)
@@ -32,5 +32,5 @@ async def to_code(config):
         # week symbol do not work for some reason so use wrap instaed
         cg.add_build_flag("-Wl,--wrap=tud_cdc_line_state_cb")
     elif CORE.using_zephyr:
-        add_zephyr_prj_conf_option("CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+        zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
     await cg.register_component(var, config)

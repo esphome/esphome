@@ -1,0 +1,5 @@
+KEY_ZEPHYR = "zephyr"
+KEY_PRJ_CONF = "prj_conf"
+KEY_OVERLAY = "overlay"
+ZEPHYR_VARIANT_GENERIC = "generic"
+ZEPHYR_VARIANT_NRF_SDK = "nrf-sdk"
