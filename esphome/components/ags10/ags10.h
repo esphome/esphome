@@ -13,17 +13,17 @@ class AGS10Component : public PollingComponent, public i2c::I2CDevice {
   /**
    * Sets TVOC sensor.
    */
-  void set_tvoc(sensor::Sensor *tvoc) { tvoc_ = tvoc; }
+  void set_tvoc(sensor::Sensor *tvoc) { this->tvoc_ = tvoc; }
 
   /**
    * Sets version info sensor.
    */
-  void set_version(sensor::Sensor *version) { version_ = version; }
+  void set_version(sensor::Sensor *version) { this->version_ = version; }
 
   /**
    * Sets resistance info sensor.
    */
-  void set_resistance(sensor::Sensor *resistance) { resistance_ = resistance; }
+  void set_resistance(sensor::Sensor *resistance) { this->resistance_ = resistance; }
 
   void setup() override;
 
@@ -113,15 +113,11 @@ class AGS10Component : public PollingComponent, public i2c::I2CDevice {
   template<size_t N> uint8_t calc_crc8_(std::array<uint8_t, N> dat, uint8_t num);
 };
 
-template<typename... Ts> class AGS10NewI2cAddressAction : public Action<Ts...> {
+template<typename... Ts> class AGS10NewI2cAddressAction : public Action<Ts...>, public Parented<AGS10Component> {
  public:
-  AGS10NewI2cAddressAction(AGS10Component *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(int, new_address)
+  TEMPLATABLE_VALUE(uint8_t, new_address)
 
   void play(Ts... x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
-
- protected:
-  AGS10Component *parent_;
 };
 
 enum AGS10SetZeroPointActionMode {
@@ -133,9 +129,8 @@ enum AGS10SetZeroPointActionMode {
   CUSTOM_VALUE,
 };
 
-template<typename... Ts> class AGS10SetZeroPointAction : public Action<Ts...> {
+template<typename... Ts> class AGS10SetZeroPointAction : public Action<Ts...>, public Parented<AGS10Component> {
  public:
-  AGS10SetZeroPointAction(AGS10Component *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(uint16_t, value)
   TEMPLATABLE_VALUE(AGS10SetZeroPointActionMode, mode)
 
@@ -152,9 +147,6 @@ template<typename... Ts> class AGS10SetZeroPointAction : public Action<Ts...> {
         break;
     }
   }
-
- protected:
-  AGS10Component *parent_;
 };
 }  // namespace ags10
 }  // namespace esphome

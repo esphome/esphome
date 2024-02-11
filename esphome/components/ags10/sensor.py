@@ -7,7 +7,9 @@ from esphome.const import (
     ICON_RADIATOR,
     ICON_RESTART,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
+    UNIT_OHM,
     UNIT_PARTS_PER_BILLION,
     CONF_ADDRESS,
     CONF_TVOC,
@@ -33,7 +35,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(AGS10Component),
-            cv.Required(CONF_TVOC): sensor.sensor_schema(
+            cv.Optional(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
@@ -42,9 +44,14 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_VERSION): sensor.sensor_schema(
                 icon=ICON_RESTART,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_RESISTANCE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_OHM,
                 icon=ICON_RESTART,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
     )
@@ -52,6 +59,9 @@ CONFIG_SCHEMA = (
     .extend(i2c.i2c_device_schema(0x1A))
 )
 
+FINAL_VALIDATE_SCHEMA = i2c.final_validate_device_schema(
+    "ags10", max_frequency="15khz"
+)
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
