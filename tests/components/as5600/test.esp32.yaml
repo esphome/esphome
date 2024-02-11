@@ -1,0 +1,27 @@
+i2c:
+  - id: i2c_as5600
+    scl: 16
+    sda: 17
+
+as5600:
+  dir_pin: 12
+  direction: clockwise
+  start_position: 90deg
+  range: 180deg
+  watchdog: true
+  power_mode: low1
+  hysteresis: lsb1
+  slow_filter: 8x
+  fast_filter: lsb6
+
+sensor:
+  - platform: as5600
+    name: AS5600 Position
+    raw_position:
+      name: AS5600 Raw Position
+    gain:
+      name: AS5600 Gain
+    magnitude:
+      name: AS5600 Magnitude
+    status:
+      name: AS5600 Status
