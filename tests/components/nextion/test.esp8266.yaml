@@ -1,3 +1,7 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
 uart:
   - id: uart_nextion
     tx_pin: 4
