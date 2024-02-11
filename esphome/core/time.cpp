@@ -1,6 +1,5 @@
 #include "time.h"  // NOLINT
 #include <regex>
-#include <stdexcept>
 
 namespace esphome {
 
