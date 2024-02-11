@@ -1,5 +1,8 @@
 KEY_ZEPHYR = "zephyr"
 KEY_PRJ_CONF = "prj_conf"
 KEY_OVERLAY = "overlay"
+KEY_BOOTLOADER = "bootloader"
 ZEPHYR_VARIANT_GENERIC = "generic"
 ZEPHYR_VARIANT_NRF_SDK = "nrf-sdk"
+BOOTLOADER_MCUBOOT = "mcuboot"
+BOOTLOADER_ADAFRUIT = "adafruit"

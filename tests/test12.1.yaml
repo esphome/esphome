@@ -1,6 +1,6 @@
 ---
 nrf52:
-  board: nrf52840
+  board: adafruit_itsybitsy_nrf52840
   framework:
     type: zephyr
     variant: generic

@@ -21,9 +21,14 @@ from .zephyr import (
     zephyr_set_core_data,
     zephyr_to_code,
 )
+from .boards_zephyr import BOARDS_ZEPHYR
 from .const import (
     ZEPHYR_VARIANT_GENERIC,
     ZEPHYR_VARIANT_NRF_SDK,
+    KEY_BOOTLOADER,
+    BOOTLOADER_MCUBOOT,
+    BOOTLOADER_ADAFRUIT,
+    KEY_ZEPHYR,
 )
 
 # force import gpio to register pin schema
@@ -76,7 +81,7 @@ ZEPHYR_VARIANTS = [
 ]
 
 FRAMEWORK_VARIANTS = [
-    "zephyr",
+    KEY_ZEPHYR,
     "arduino",
 ]
 
@@ -90,15 +95,50 @@ FRAMEWORK_SCHEMA = cv.All(
     _platform_check_versions,
 )
 
+BOOTLOADERS = [
+    BOOTLOADER_ADAFRUIT,
+    BOOTLOADER_MCUBOOT,
+]
+
+
+def _detect_bootloader(value):
+    value = value.copy()
+    bootloader = None
+
+    if value[CONF_FRAMEWORK][CONF_TYPE] == KEY_ZEPHYR:
+        if (
+            value[CONF_BOARD] in BOARDS_ZEPHYR
+            and KEY_BOOTLOADER in BOARDS_ZEPHYR[value[CONF_BOARD]]
+        ):
+            bootloader = BOARDS_ZEPHYR[value[CONF_BOARD]][KEY_BOOTLOADER]
+
+    if KEY_BOOTLOADER not in value:
+        if bootloader is None:
+            if value[CONF_FRAMEWORK][CONF_TYPE] == KEY_ZEPHYR:
+                bootloader = BOOTLOADER_MCUBOOT
+            elif value[CONF_FRAMEWORK][CONF_TYPE] == "arduino":
+                bootloader = BOOTLOADER_ADAFRUIT
+            else:
+                raise NotImplementedError
+        value[KEY_BOOTLOADER] = bootloader
+    else:
+        if bootloader is not None and bootloader != value[KEY_BOOTLOADER]:
+            raise cv.Invalid(
+                f"{value[CONF_FRAMEWORK][CONF_TYPE]} does not support '{bootloader}' bootloader for {value[CONF_BOARD]}"
+            )
+    return value
+
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_BOARD): cv.string_strict,
             cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
+            cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
         }
     ),
     set_core_data,
+    _detect_bootloader,
 )
 
 nrf52_ns = cg.esphome_ns.namespace("nrf52")
@@ -107,14 +147,6 @@ nrf52_ns = cg.esphome_ns.namespace("nrf52")
 @coroutine_with_priority(1000)
 async def to_code(config):
     cg.add(nrf52_ns.setup_preferences())
-    if config[CONF_BOARD] == "nrf52840":
-        if CORE.using_zephyr:
-            # this board works with https://github.com/adafruit/Adafruit_nRF52_Bootloader
-            config[CONF_BOARD] = "adafruit_itsybitsy_nrf52840"
-        elif CORE.using_arduino:
-            # it has most generic GPIO mapping
-            # TODO does it matter if custom board is defined?
-            config[CONF_BOARD] = "nrf52840_dk_adafruit"
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -123,13 +155,13 @@ async def to_code(config):
     cg.add_platformio_option(CONF_FRAMEWORK, conf[CONF_TYPE])
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
 
-    # make sure that firmware.zip is created
-    # for Adafruit_nRF52_Bootloader
-    # TODO add bootloader type to config
-    cg.add_platformio_option("board_upload.protocol", "nrfutil")
-    cg.add_platformio_option("board_upload.use_1200bps_touch", "true")
-    cg.add_platformio_option("board_upload.require_upload_port", "true")
-    cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
+    if config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT:
+        # make sure that firmware.zip is created
+        # for Adafruit_nRF52_Bootloader
+        cg.add_platformio_option("board_upload.protocol", "nrfutil")
+        cg.add_platformio_option("board_upload.use_1200bps_touch", "true")
+        cg.add_platformio_option("board_upload.require_upload_port", "true")
+        cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
     #
     cg.add_platformio_option("extra_scripts", [f"pre:build_{conf[CONF_TYPE]}.py"])
     if CORE.using_arduino:
@@ -148,12 +180,6 @@ async def to_code(config):
         zephyr_to_code(conf)
     else:
         raise NotImplementedError
-    # zephyr_add_prj_conf("USE_SEGGER_RTT", True)
-    # zephyr_add_prj_conf("RTT_CONSOLE", True)
-    # zephyr_add_prj_conf("UART_CONSOLE", False)
-
-    # zephyr_add_prj_conf("LOG", True)
-    # zephyr_add_prj_conf("MCUBOOT_UTIL_LOG_LEVEL_WRN", True)
 
 
 # Called by writer.py

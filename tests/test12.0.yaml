@@ -1,6 +1,6 @@
 ---
 nrf52:
-  board: nrf52840
+  board: nrf52840_dk_adafruit
   framework:
     type: arduino
 
