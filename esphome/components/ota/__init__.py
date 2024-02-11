@@ -17,8 +17,13 @@ from esphome.const import (
 from esphome.core import CORE, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
-DEPENDENCIES = ["network"]
-AUTO_LOAD = ["socket", "md5"]
+
+
+def AUTO_LOAD():
+    if CORE.using_zephyr:
+        return ["ota_mcuboot"]
+    return ["ota_network"]
+
 
 CONF_ON_STATE_CHANGE = "on_state_change"
 CONF_ON_BEGIN = "on_begin"
@@ -90,7 +95,7 @@ async def to_code(config):
     CORE.data[CONF_OTA] = {}
 
     var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_port(config[CONF_PORT]))
+    # cg.add(var.set_port(config[CONF_PORT]))
     cg.add_define("USE_OTA")
     if CONF_PASSWORD in config:
         cg.add(var.set_auth_password(config[CONF_PASSWORD]))
