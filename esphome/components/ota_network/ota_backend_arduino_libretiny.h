@@ -6,7 +6,7 @@
 #include "ota_backend.h"
 
 namespace esphome {
-namespace ota {
+namespace ota_network {
 
 class ArduinoLibreTinyOTABackend : public OTABackend {
  public:

@@ -2,7 +2,7 @@
 #include "ota_component.h"
 
 namespace esphome {
-namespace ota {
+namespace ota_network {
 
 class OTABackend {
  public:

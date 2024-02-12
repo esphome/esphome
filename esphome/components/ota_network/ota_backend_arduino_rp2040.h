@@ -8,7 +8,7 @@
 #include "ota_component.h"
 
 namespace esphome {
-namespace ota {
+namespace ota_network {
 
 class ArduinoRP2040OTABackend : public OTABackend {
  public:

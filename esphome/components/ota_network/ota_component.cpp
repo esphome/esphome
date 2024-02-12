@@ -17,12 +17,10 @@
 #include <cstdio>
 
 namespace esphome {
-namespace ota {
+namespace ota_network {
 
 static const char *const TAG = "ota";
 static constexpr u_int16_t OTA_BLOCK_SIZE = 8192;
-
-OTAComponent *global_ota_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 std::unique_ptr<OTABackend> make_ota_backend() {
 #ifdef USE_ARDUINO
@@ -44,7 +42,7 @@ std::unique_ptr<OTABackend> make_ota_backend() {
 #endif
 }
 
-OTAComponent::OTAComponent() { global_ota_component = this; }
+OTAComponent::OTAComponent() { ota::global_ota_component = this; }
 
 void OTAComponent::setup() {
   server_ = socket::socket_ip(SOCK_STREAM, 0);
@@ -102,7 +100,7 @@ void OTAComponent::dump_config() {
 #endif
   ESP_LOGCONFIG(TAG, "  OTA version: %d.", USE_OTA_VERSION);
   if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1 &&
-      this->safe_mode_rtc_value_ != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
+      this->safe_mode_rtc_value_ != esphome::ota_network::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGW(TAG, "Last Boot was an unhandled reset, will proceed to safe mode in %" PRIu32 " restarts",
              this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_);
   }
@@ -154,7 +152,7 @@ void OTAComponent::handle_() {
   ESP_LOGD(TAG, "Starting OTA Update from %s...", this->client_->getpeername().c_str());
   this->status_set_warning();
 #ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(OTA_STARTED, 0.0f, 0);
+  this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);
 #endif
 
   if (!this->readall_(buf, 5)) {
@@ -329,7 +327,7 @@ void OTAComponent::handle_() {
       float percentage = (total * 100.0f) / ota_size;
       ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage);
 #ifdef USE_OTA_STATE_CALLBACK
-      this->state_callback_.call(OTA_IN_PROGRESS, percentage, 0);
+      this->state_callback_.call(ota::OTA_IN_PROGRESS, percentage, 0);
 #endif
       // feed watchdog and give other tasks a chance to run
       App.feed_wdt();
@@ -363,7 +361,7 @@ void OTAComponent::handle_() {
   ESP_LOGI(TAG, "OTA update finished!");
   this->status_clear_warning();
 #ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(OTA_COMPLETED, 100.0f, 0);
+  this->state_callback_.call(ota::OTA_COMPLETED, 100.0f, 0);
 #endif
   delay(100);  // NOLINT
   App.safe_reboot();
@@ -380,7 +378,7 @@ error:
 
   this->status_momentary_error("onerror", 5000);
 #ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
+  this->state_callback_.call(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
 }
 
@@ -453,18 +451,18 @@ void OTAComponent::set_safe_mode_pending(const bool &pending) {
 
   uint32_t current_rtc = this->read_rtc_();
 
-  if (pending && current_rtc != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
+  if (pending && current_rtc != esphome::ota_network::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGI(TAG, "Device will enter safe mode on next boot.");
-    this->write_rtc_(esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC);
+    this->write_rtc_(esphome::ota_network::OTAComponent::ENTER_SAFE_MODE_MAGIC);
   }
 
-  if (!pending && current_rtc == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
+  if (!pending && current_rtc == esphome::ota_network::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGI(TAG, "Safe mode pending has been cleared");
     this->clean_rtc();
   }
 }
 bool OTAComponent::get_safe_mode_pending() {
-  return this->has_safe_mode_ && this->read_rtc_() == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC;
+  return this->has_safe_mode_ && this->read_rtc_() == esphome::ota_network::OTAComponent::ENTER_SAFE_MODE_MAGIC;
 }
 
 bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
@@ -475,7 +473,7 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
   this->rtc_ = global_preferences->make_preference<uint32_t>(233825507UL, false);
   this->safe_mode_rtc_value_ = this->read_rtc_();
 
-  bool is_manual_safe_mode = this->safe_mode_rtc_value_ == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC;
+  bool is_manual_safe_mode = this->safe_mode_rtc_value_ == esphome::ota_network::OTAComponent::ENTER_SAFE_MODE_MAGIC;
 
   if (is_manual_safe_mode) {
     ESP_LOGI(TAG, "Safe mode has been entered manually");
@@ -521,15 +519,9 @@ uint32_t OTAComponent::read_rtc_() {
 }
 void OTAComponent::clean_rtc() { this->write_rtc_(0); }
 void OTAComponent::on_safe_shutdown() {
-  if (this->has_safe_mode_ && this->read_rtc_() != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC)
+  if (this->has_safe_mode_ && this->read_rtc_() != esphome::ota_network::OTAComponent::ENTER_SAFE_MODE_MAGIC)
     this->clean_rtc();
 }
-
-#ifdef USE_OTA_STATE_CALLBACK
-void OTAComponent::add_on_state_callback(std::function<void(OTAState, float, uint8_t)> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
-#endif
 
 }  // namespace ota
 }  // namespace esphome

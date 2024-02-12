@@ -13,7 +13,7 @@
 #endif
 
 namespace esphome {
-namespace ota {
+namespace ota_network {
 
 OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
   this->partition_ = esp_ota_get_next_update_partition(nullptr);

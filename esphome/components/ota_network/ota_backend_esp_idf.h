@@ -8,7 +8,7 @@
 #include "esphome/components/md5/md5.h"
 
 namespace esphome {
-namespace ota {
+namespace ota_network {
 
 class IDFOTABackend : public OTABackend {
  public:

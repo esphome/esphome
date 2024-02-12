@@ -8,7 +8,7 @@
 #include "esphome/core/macros.h"
 
 namespace esphome {
-namespace ota {
+namespace ota_network {
 
 class ArduinoESP8266OTABackend : public OTABackend {
  public:

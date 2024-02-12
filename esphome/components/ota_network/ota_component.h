@@ -1,13 +1,11 @@
 #pragma once
 
 #include "esphome/components/socket/socket.h"
-#include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/defines.h"
+#include "esphome/components/ota/ota_component.h"
 
 namespace esphome {
-namespace ota {
+namespace ota_network {
 
 enum OTAResponseTypes {
   OTA_RESPONSE_OK = 0x00,
@@ -38,10 +36,8 @@ enum OTAResponseTypes {
   OTA_RESPONSE_ERROR_UNKNOWN = 0xFF,
 };
 
-enum OTAState { OTA_COMPLETED = 0, OTA_STARTED, OTA_IN_PROGRESS, OTA_ERROR };
-
 /// OTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
-class OTAComponent : public Component {
+class OTAComponent : public ota::OTAComponent {
  public:
   OTAComponent();
 #ifdef USE_OTA_PASSWORD
@@ -51,15 +47,11 @@ class OTAComponent : public Component {
   /// Manually set the port OTA should listen on.
   void set_port(uint16_t port);
 
-  bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time);
+  bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time) override;
 
   /// Set to true if the next startup will enter safe mode
-  void set_safe_mode_pending(const bool &pending);
-  bool get_safe_mode_pending();
-
-#ifdef USE_OTA_STATE_CALLBACK
-  void add_on_state_callback(std::function<void(OTAState, float, uint8_t)> &&callback);
-#endif
+  void set_safe_mode_pending(const bool &pending) override;
+  bool get_safe_mode_pending() override;
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -100,13 +92,7 @@ class OTAComponent : public Component {
 
   static const uint32_t ENTER_SAFE_MODE_MAGIC =
       0x5afe5afe;  ///< a magic number to indicate that safe mode should be entered on next boot
-
-#ifdef USE_OTA_STATE_CALLBACK
-  CallbackManager<void(OTAState, float, uint8_t)> state_callback_{};
-#endif
 };
-
-extern OTAComponent *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace ota
 }  // namespace esphome

@@ -8,7 +8,7 @@
 #include <Update.h>
 
 namespace esphome {
-namespace ota {
+namespace ota_network {
 
 OTAResponseTypes ArduinoESP32OTABackend::begin(size_t image_size) {
   bool ret = Update.begin(image_size, U_FLASH);

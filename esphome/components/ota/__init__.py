@@ -33,7 +33,14 @@ CONF_ON_ERROR = "on_error"
 
 ota_ns = cg.esphome_ns.namespace("ota")
 OTAState = ota_ns.enum("OTAState")
-OTAComponent = ota_ns.class_("OTAComponent", cg.Component)
+if CORE.using_zephyr:
+    OTAComponent = cg.esphome_ns.namespace("ota_mcuboot").class_(
+        "OTAComponent", cg.Component
+    )
+else:
+    OTAComponent = cg.esphome_ns.namespace("ota_network").class_(
+        "OTAComponent", cg.Component
+    )
 OTAStateChangeTrigger = ota_ns.class_(
     "OTAStateChangeTrigger", automation.Trigger.template()
 )
@@ -43,11 +50,25 @@ OTAEndTrigger = ota_ns.class_("OTAEndTrigger", automation.Trigger.template())
 OTAErrorTrigger = ota_ns.class_("OTAErrorTrigger", automation.Trigger.template())
 
 
+def not_supported_by_zephyr(value):
+    if CORE.using_zephyr:
+        raise cv.Invalid(f"Not supported by zephyr framework({value})")
+    return value
+
+
+def _default_ota_version():
+    if CORE.using_zephyr:
+        return cv.UNDEFINED
+    return 2
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(OTAComponent),
         cv.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
-        cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, int=True),
+        cv.Optional(CONF_VERSION, default=_default_ota_version()): cv.All(
+            cv.one_of(1, 2, int=True), not_supported_by_zephyr
+        ),
         cv.SplitDefault(
             CONF_PORT,
             esp8266=8266,
@@ -55,8 +76,11 @@ CONFIG_SCHEMA = cv.Schema(
             rp2040=2040,
             bk72xx=8892,
             rtl87xx=8892,
-        ): cv.port,
-        cv.Optional(CONF_PASSWORD): cv.string,
+        ): cv.All(
+            cv.port,
+            not_supported_by_zephyr,
+        ),
+        cv.Optional(CONF_PASSWORD): cv.All(cv.string, not_supported_by_zephyr),
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="5min"
         ): cv.positive_time_period_milliseconds,
@@ -95,12 +119,13 @@ async def to_code(config):
     CORE.data[CONF_OTA] = {}
 
     var = cg.new_Pvariable(config[CONF_ID])
-    # cg.add(var.set_port(config[CONF_PORT]))
     cg.add_define("USE_OTA")
-    if CONF_PASSWORD in config:
-        cg.add(var.set_auth_password(config[CONF_PASSWORD]))
-        cg.add_define("USE_OTA_PASSWORD")
-    cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])
+    if not CORE.using_zephyr:
+        cg.add(var.set_port(config[CONF_PORT]))
+        if CONF_PASSWORD in config:
+            cg.add(var.set_auth_password(config[CONF_PASSWORD]))
+            cg.add_define("USE_OTA_PASSWORD")
+        cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])
 
     await cg.register_component(var, config)
 
