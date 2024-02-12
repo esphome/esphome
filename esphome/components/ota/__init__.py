@@ -21,7 +21,7 @@ CODEOWNERS = ["@esphome/core"]
 
 def AUTO_LOAD():
     if CORE.using_zephyr:
-        return ["ota_mcuboot"]
+        return ["zephyr_ota_mcumgr"]
     return ["ota_network"]
 
 
@@ -34,7 +34,7 @@ CONF_ON_ERROR = "on_error"
 ota_ns = cg.esphome_ns.namespace("ota")
 OTAState = ota_ns.enum("OTAState")
 if CORE.using_zephyr:
-    OTAComponent = cg.esphome_ns.namespace("ota_mcuboot").class_(
+    OTAComponent = cg.esphome_ns.namespace("zephyr_ota_mcumgr").class_(
         "OTAComponent", cg.Component
     )
 else:
@@ -50,7 +50,7 @@ OTAEndTrigger = ota_ns.class_("OTAEndTrigger", automation.Trigger.template())
 OTAErrorTrigger = ota_ns.class_("OTAErrorTrigger", automation.Trigger.template())
 
 
-def not_supported_by_zephyr(value):
+def _not_supported_by_zephyr(value):
     if CORE.using_zephyr:
         raise cv.Invalid(f"Not supported by zephyr framework({value})")
     return value
@@ -67,7 +67,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(OTAComponent),
         cv.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
         cv.Optional(CONF_VERSION, default=_default_ota_version()): cv.All(
-            cv.one_of(1, 2, int=True), not_supported_by_zephyr
+            cv.one_of(1, 2, int=True), _not_supported_by_zephyr
         ),
         cv.SplitDefault(
             CONF_PORT,
@@ -78,9 +78,9 @@ CONFIG_SCHEMA = cv.Schema(
             rtl87xx=8892,
         ): cv.All(
             cv.port,
-            not_supported_by_zephyr,
+            _not_supported_by_zephyr,
         ),
-        cv.Optional(CONF_PASSWORD): cv.All(cv.string, not_supported_by_zephyr),
+        cv.Optional(CONF_PASSWORD): cv.All(cv.string, _not_supported_by_zephyr),
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="5min"
         ): cv.positive_time_period_milliseconds,

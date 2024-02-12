@@ -84,6 +84,7 @@ def zephyr_to_code(conf):
 
     # zephyr_add_prj_conf("LOG", True)
     # zephyr_add_prj_conf("MCUBOOT_UTIL_LOG_LEVEL_WRN", True)
+    # zephyr_add_prj_conf("BOOTLOADER_MCUBOOT", True)
 
 
 def _format_prj_conf_val(value: PrjConfValueType) -> str:

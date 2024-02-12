@@ -3,9 +3,9 @@
 #include "esphome/components/ota/ota_component.h"
 
 namespace esphome {
-namespace ota_mcuboot {
+namespace zephyr_ota_mcumgr {
 
 class OTAComponent : public ota::OTAComponent {};
 
-}  // namespace ota_mcuboot
+}  // namespace zephyr_ota_mcumgr
 }  // namespace esphome
