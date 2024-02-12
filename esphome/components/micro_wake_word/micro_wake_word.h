@@ -1,5 +1,13 @@
 #pragma once
 
+/**
+ * This is a workaround until we can figure out a way to get
+ * the tflite-micro idf component code available in CI
+ *
+ * */
+//
+#ifndef CLANG_TIDY
+
 #ifdef USE_ESP_IDF
 
 #include "esphome/core/automation.h"
@@ -8,9 +16,9 @@
 
 #include "esphome/components/microphone/microphone.h"
 
-#include "tensorflow/lite/core/c/common.h"
-#include "tensorflow/lite/micro/micro_interpreter.h"
-#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
+#include <tensorflow/lite/core/c/common.h>
+#include <tensorflow/lite/micro/micro_interpreter.h>
+#include <tensorflow/lite/micro/micro_mutable_op_resolver.h>
 
 namespace esphome {
 namespace micro_wake_word {
@@ -148,7 +156,7 @@ class MicroWakeWord : public Component {
    * @param feature_output Array that will store the features
    * @return True if successful, false otherwise.
    */
-  bool generate_single_feature_(const int16_t *audio_data, const int audio_data_size,
+  bool generate_single_feature_(const int16_t *audio_data, int audio_data_size,
                                 int8_t feature_output[PREPROCESSOR_FEATURE_SIZE]);
 
   /** Performs inference over the most recent feature slice with the streaming model
@@ -192,3 +200,5 @@ template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, pub
 }  // namespace esphome
 
 #endif  // USE_ESP_IDF
+
+#endif  // CLANG_TIDY

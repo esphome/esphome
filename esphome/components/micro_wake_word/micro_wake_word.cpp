@@ -1,5 +1,13 @@
 #include "micro_wake_word.h"
 
+/**
+ * This is a workaround until we can figure out a way to get
+ * the tflite-micro idf component code available in CI
+ *
+ * */
+//
+#ifndef CLANG_TIDY
+
 #ifdef USE_ESP_IDF
 
 #include "esphome/core/hal.h"
@@ -361,10 +369,7 @@ void MicroWakeWord::set_sliding_window_average_size(size_t size) {
 bool MicroWakeWord::slice_available_() {
   size_t available = this->ring_buffer_->available();
 
-  if (available > NEW_SAMPLES_TO_GET * sizeof(int16_t)) {
-    return true;
-  }
-  return false;
+  return available > (NEW_SAMPLES_TO_GET * sizeof(int16_t));
 }
 
 bool MicroWakeWord::stride_audio_samples_(int16_t **audio_samples) {
@@ -494,3 +499,5 @@ bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<14> &
 }  // namespace esphome
 
 #endif  // USE_ESP_IDF
+
+#endif  // CLANG_TIDY

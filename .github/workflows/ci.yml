@@ -379,13 +379,6 @@ jobs:
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
           echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
 
-      - name: Download ESP-IDF components
-        if: matrix.id == 'esp32-idf'
-        run: |
-          mkdir components
-
-          git clone --depth 1 https://github.com/espressif/esp-tflite-micro.git components/tflite
-
       - name: Run clang-tidy
         run: |
           . venv/bin/activate
