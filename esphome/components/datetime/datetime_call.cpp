@@ -37,7 +37,7 @@ void DatetimeCall::perform() {
         return;
       }
       if (!validate_datetime_string_(this->value_.value())) {
-        ESP_LOGW(TAG, "'%s' - Datetime performed without a valid datetime value, value was -%s", name,
+        ESP_LOGW(TAG, "'%s' - Datetime performed without a valid datetime value, value was '%s'", name,
                  this->value_.value().c_str());
         return;
       }
