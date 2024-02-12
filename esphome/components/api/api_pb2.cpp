@@ -4488,14 +4488,7 @@ void NumberCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 
-
-
-
-
-
-
-
-bool ListEntitiesInputDatetimeResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool ListEntitiesDatetimeResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 9: {
       this->disabled_by_default = value.as_bool();
@@ -4505,7 +4498,7 @@ bool ListEntitiesInputDatetimeResponse::decode_varint(uint32_t field_id, ProtoVa
       return false;
   }
 }
-bool ListEntitiesInputDatetimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+bool ListEntitiesDatetimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
       this->object_id = value.as_string();
@@ -4527,7 +4520,7 @@ bool ListEntitiesInputDatetimeResponse::decode_length(uint32_t field_id, ProtoLe
       return false;
   }
 }
-bool ListEntitiesInputDatetimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+bool ListEntitiesDatetimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 2: {
       this->key = value.as_fixed32();
@@ -4537,7 +4530,7 @@ bool ListEntitiesInputDatetimeResponse::decode_32bit(uint32_t field_id, Proto32B
       return false;
   }
 }
-void ListEntitiesInputDatetimeResponse::encode(ProtoWriteBuffer buffer) const {
+void ListEntitiesDatetimeResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->object_id);
   buffer.encode_fixed32(2, this->key);
   buffer.encode_string(3, this->name);
@@ -4547,9 +4540,9 @@ void ListEntitiesInputDatetimeResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void ListEntitiesInputDatetimeResponse::dump_to(std::string &out) const {
+void ListEntitiesDatetimeResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesInputDatetimeResponse {\n");
+  out.append("ListEntitiesDatetimeResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
   out.append("\n");
@@ -4578,10 +4571,9 @@ void ListEntitiesInputDatetimeResponse::dump_to(std::string &out) const {
   out.append("  entity_category: ");
   out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
-
 }
 #endif
-bool InputDatetimeStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool DatetimeStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 3: {
       this->missing_state = value.as_bool();
@@ -4591,7 +4583,7 @@ bool InputDatetimeStateResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       return false;
   }
 }
-bool InputDatetimeStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+bool DatetimeStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
       this->key = value.as_fixed32();
@@ -4605,7 +4597,7 @@ bool InputDatetimeStateResponse::decode_32bit(uint32_t field_id, Proto32Bit valu
       return false;
   }
 }
-bool InputDatetimeStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+bool DatetimeStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2: {
       this->state = value.as_string();
@@ -4615,15 +4607,15 @@ bool InputDatetimeStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
       return false;
   }
 }
-void InputDatetimeStateResponse::encode(ProtoWriteBuffer buffer) const {
+void DatetimeStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_string(2, this->state);
   buffer.encode_bool(3, this->missing_state);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void InputDatetimeStateResponse::dump_to(std::string &out) const {
+void DatetimeStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
-  out.append("InputDatetimeStateResponse {\n");
+  out.append("DatetimeStateResponse {\n");
   out.append("  key: ");
   sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
@@ -4640,7 +4632,7 @@ void InputDatetimeStateResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
-bool InputDatetimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+bool DatetimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
       this->key = value.as_fixed32();
@@ -4654,7 +4646,7 @@ bool InputDatetimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit val
       return false;
   }
 }
-bool InputDatetimeCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+bool DatetimeCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2: {
       this->state = value.as_string();
@@ -4664,12 +4656,12 @@ bool InputDatetimeCommandRequest::decode_length(uint32_t field_id, ProtoLengthDe
       return false;
   }
 }
-void InputDatetimeCommandRequest::encode(ProtoWriteBuffer buffer) const {
+void DatetimeCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_string(2, this->state);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void InputDatetimeCommandRequest::dump_to(std::string &out) const {
+void DatetimeCommandRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("NumberCommandRequest {\n");
   out.append("  key: ");
@@ -4684,9 +4676,6 @@ void InputDatetimeCommandRequest::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
-
-
-
 
 bool ListEntitiesSelectResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {

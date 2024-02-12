@@ -7,18 +7,18 @@
 namespace esphome {
 namespace datetime {
 
-enum InputDatetimeMode : uint8_t {
+enum DatetimeMode : uint8_t {
   DATETIME_MODE_AUTO = 0,
 };
 
-class InputDatetimeTraits : public EntityBase_DeviceClass {
+class DatetimeTraits : public EntityBase_DeviceClass {
  public:
   // Set/get the frontend mode.
-  void set_mode(InputDatetimeMode mode) { this->mode_ = mode; }
-  InputDatetimeMode get_mode() const { return this->mode_; }
+  void set_mode(DatetimeMode mode) { this->mode_ = mode; }
+  DatetimeMode get_mode() const { return this->mode_; }
 
  protected:
-  InputDatetimeMode mode_{DATETIME_MODE_AUTO};
+  DatetimeMode mode_{DATETIME_MODE_AUTO};
 };
 
 }  // namespace datetime

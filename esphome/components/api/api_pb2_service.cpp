@@ -265,19 +265,19 @@ bool APIServerConnectionBase::send_number_state_response(const NumberStateRespon
 #ifdef USE_NUMBER
 #endif
 #ifdef USE_DATETIME
-bool APIServerConnectionBase::send_list_entities_datetime_response(const ListEntitiesInputDatetimeResponse &msg) {
+bool APIServerConnectionBase::send_list_entities_datetime_response(const ListEntitiesDatetimeResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_list_entities_datetime_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<ListEntitiesInputDatetimeResponse>(msg, 49);
+  return this->send_message_<ListEntitiesDatetimeResponse>(msg, 49);
 }
 #endif
 #ifdef USE_DATETIME
-bool APIServerConnectionBase::send_datetime_state_response(const InputDatetimeStateResponse &msg) {
+bool APIServerConnectionBase::send_datetime_state_response(const DatetimeStateResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_datetime_state_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<InputDatetimeStateResponse>(msg, 100);
+  return this->send_message_<DatetimeStateResponse>(msg, 100);
 }
 #endif
 #ifdef USE_DATETIME
@@ -756,7 +756,7 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
     case 101: {
 #ifdef USE_DATETIME
-      InputDatetimeCommandRequest msg;
+      DatetimeCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_datetime_command_request: %s", msg.dump().c_str());
@@ -1183,7 +1183,7 @@ void APIServerConnection::on_number_command_request(const NumberCommandRequest &
 }
 #endif
 #ifdef USE_DATETIME
-void APIServerConnection::on_datetime_command_request(const InputDatetimeCommandRequest &msg) {
+void APIServerConnection::on_datetime_command_request(const DatetimeCommandRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;

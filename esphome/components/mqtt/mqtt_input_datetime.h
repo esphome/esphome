@@ -11,13 +11,13 @@
 namespace esphome {
 namespace mqtt {
 
-class MQTTInputDatetimeComponent : public mqtt::MQTTComponent {
+class MQTTDatetimeComponent : public mqtt::MQTTComponent {
  public:
-  /** Construct this MQTTInputDatetimeComponent instance with the provided friendly_name and datetime
+  /** Construct this MQTTDatetimeComponent instance with the provided friendly_name and datetime
    *
    * @param datetime The datetime component.
    */
-  explicit MQTTInputDatetimeComponent(datetime::InputDatetime *datetime);
+  explicit MQTTDatetimeComponent(datetime::Datetime *datetime);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -36,7 +36,7 @@ class MQTTInputDatetimeComponent : public mqtt::MQTTComponent {
   std::string component_type() const override;
   const EntityBase *get_entity() const override;
 
-  datetime::InputDatetime *datetime_;
+  datetime::Datetime *datetime_;
 };
 
 }  // namespace mqtt

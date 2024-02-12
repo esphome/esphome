@@ -850,7 +850,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 #endif
 
 #ifdef USE_DATETIME
-void WebServer::on_datetime_update(datetime::InputDatetime *obj, std::string state) {
+void WebServer::on_datetime_update(datetime::Datetime *obj, std::string state) {
   this->events_.send(this->datetime_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -891,7 +891,7 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
   request->send(404);
 }
 
-std::string WebServer::datetime_json(datetime::InputDatetime *obj, std::string value, JsonDetail start_config) {
+std::string WebServer::datetime_json(datetime::Datetime *obj, std::string value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_id(root, obj, "datetime-" + obj->get_object_id(), start_config);
     if (start_config == DETAIL_ALL) {

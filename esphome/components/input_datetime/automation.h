@@ -9,9 +9,9 @@ namespace datetime {
 
 static const char *const TAG = "datetime.automation";
 
-class InputDatetimeOnTimeTrigger : public Trigger<>, public Component {
+class DatetimeOnTimeTrigger : public Trigger<>, public Component {
  public:
-  explicit InputDatetimeOnTimeTrigger(InputDatetime *inputDatetime, time::RealTimeClock *rtc)
+  explicit DatetimeOnTimeTrigger(Datetime *inputDatetime, time::RealTimeClock *rtc)
       : inputDatetime_(inputDatetime), rtc_(rtc) {}
 
   bool matches(const ESPTime &time);
@@ -22,19 +22,19 @@ class InputDatetimeOnTimeTrigger : public Trigger<>, public Component {
  protected:
   time::RealTimeClock *rtc_;
   optional<ESPTime> last_check_;
-  InputDatetime *inputDatetime_;
+  Datetime *inputDatetime_;
 };
 
-class InputDatetimeStateTrigger : public Trigger<std::string> {
+class DatetimeStateTrigger : public Trigger<std::string> {
  public:
-  explicit InputDatetimeStateTrigger(InputDatetime *parent) {
+  explicit DatetimeStateTrigger(Datetime *parent) {
     parent->add_on_state_callback([this](std::string value) { this->trigger(value); });
   }
 };
 
-template<typename... Ts> class InputDatetimeSetAction : public Action<Ts...> {
+template<typename... Ts> class DatetimeSetAction : public Action<Ts...> {
  public:
-  InputDatetimeSetAction(InputDatetime *inputDatetime) : inputDatetime_(inputDatetime) {}
+  DatetimeSetAction(Datetime *inputDatetime) : inputDatetime_(inputDatetime) {}
   TEMPLATABLE_VALUE(std::string, value)
 
   void play(Ts... x) override {
@@ -47,13 +47,13 @@ template<typename... Ts> class InputDatetimeSetAction : public Action<Ts...> {
   }
 
  protected:
-  InputDatetime *inputDatetime_;
+  Datetime *inputDatetime_;
 };
 
-template<typename... Ts> class InputDatetimeOperationAction : public Action<Ts...> {
+template<typename... Ts> class DatetimeOperationAction : public Action<Ts...> {
  public:
-  explicit InputDatetimeOperationAction(InputDatetime *inputDatetime) : inputDatetime_(inputDatetime) {}
-  TEMPLATABLE_VALUE(InputDatetimeOperation, operation)
+  explicit DatetimeOperationAction(Datetime *inputDatetime) : inputDatetime_(inputDatetime) {}
+  TEMPLATABLE_VALUE(DatetimeOperation, operation)
 
   void play(Ts... x) override {
     auto call = this->inputDatetime_->make_call();
@@ -62,7 +62,7 @@ template<typename... Ts> class InputDatetimeOperationAction : public Action<Ts..
   }
 
  protected:
-  InputDatetime *inputDatetime_;
+  Datetime *inputDatetime_;
 };
 
 }  // namespace datetime

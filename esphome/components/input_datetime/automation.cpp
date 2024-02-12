@@ -8,7 +8,7 @@ namespace datetime {
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
                                              // there has been a drastic time synchronization
 
-bool InputDatetimeOnTimeTrigger::matches(const ESPTime &time) {
+bool DatetimeOnTimeTrigger::matches(const ESPTime &time) {
   if (!time.is_valid() || (!this->inputDatetime_->has_date && !this->inputDatetime_->has_time))
     return false;
 
@@ -37,7 +37,7 @@ bool InputDatetimeOnTimeTrigger::matches(const ESPTime &time) {
   return false;
 }
 
-void InputDatetimeOnTimeTrigger::loop() {
+void DatetimeOnTimeTrigger::loop() {
   ESPTime time = this->rtc_->now();
   if (!time.is_valid())
     return;
@@ -78,7 +78,7 @@ void InputDatetimeOnTimeTrigger::loop() {
     this->trigger();
 }
 
-float InputDatetimeOnTimeTrigger::get_setup_priority() const { return setup_priority::HARDWARE; }
+float DatetimeOnTimeTrigger::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 }  // namespace datetime
 }  // namespace esphome

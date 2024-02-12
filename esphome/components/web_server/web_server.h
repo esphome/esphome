@@ -222,12 +222,12 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_DATETIME
-  void on_datetime_update(datetime::InputDatetime *obj, std::string state) override;
+  void on_datetime_update(datetime::Datetime *obj, std::string state) override;
   /// Handle a datetime request under '/datetime/<id>'.
   void handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the datetime state with its value as a JSON string.
-  std::string datetime_json(datetime::InputDatetime *obj, std::string value, JsonDetail start_config);
+  std::string datetime_json(datetime::Datetime *obj, std::string value, JsonDetail start_config);
 #endif
 
 #ifdef USE_TEXT

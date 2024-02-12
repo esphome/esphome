@@ -83,7 +83,7 @@ bool ListEntitiesIterator::on_number(number::Number *number) {
 #endif
 
 #ifdef USE_DATETIME
-bool ListEntitiesIterator::on_datetime(datetime::InputDatetime *datetime) {
+bool ListEntitiesIterator::on_datetime(datetime::Datetime *datetime) {
   this->web_server_->events_.send(this->web_server_->datetime_json(datetime, datetime->state, DETAIL_ALL).c_str(),
                                   "state");
   return true;

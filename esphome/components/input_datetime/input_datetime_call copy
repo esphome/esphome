@@ -7,7 +7,7 @@
 namespace esphome {
 namespace datetime {
 
-class InputDatetime;
+class Datetime;
 
 struct ESPTimeEx;
 
@@ -37,7 +37,7 @@ struct ESPTimeEx : public ESPTime
   }
 };
 
-enum InputDatetimeOperation {
+enum DatetimeOperation {
   DATETIME_OP_NONE,
   DATETIME_OP_SET_ALL,
   DATETIME_OP_SET_DATETIME,
@@ -45,26 +45,26 @@ enum InputDatetimeOperation {
   DATETIME_OP_SET_ALL_SET_ONES,
 };
 
-class InputDatetimeCall {
+class DatetimeCall {
  public:
-  explicit InputDatetimeCall(InputDatetime *parent) : parent_(parent) {}
+  explicit DatetimeCall(Datetime *parent) : parent_(parent) {}
   void perform();
-  InputDatetimeCall &set_all(const ESPTime &value, bool has_date, bool has_time);
-  InputDatetimeCall &set_value(const ESPTime &value);
-  InputDatetimeCall &set_has_date(const bool has_date);
-  InputDatetimeCall &set_has_time(const bool has_time);
-  // InputDatetimeCall &set_has_date(const bool &has_date);
-  // InputDatetimeCall &set_has_time(const bool &has_time);
+  DatetimeCall &set_all(const ESPTime &value, bool has_date, bool has_time);
+  DatetimeCall &set_value(const ESPTime &value);
+  DatetimeCall &set_has_date(const bool has_date);
+  DatetimeCall &set_has_time(const bool has_time);
+  // DatetimeCall &set_has_date(const bool &has_date);
+  // DatetimeCall &set_has_time(const bool &has_time);
 
-  InputDatetimeCall &with_operation(InputDatetimeOperation operation);
-  InputDatetimeCall &with_values(ESPTime value, bool has_date, bool has_time);
-  InputDatetimeCall &with_value(ESPTime value);
-  InputDatetimeCall &with_has_date(bool has_date);
-  InputDatetimeCall &with_has_time(bool has_time);
+  DatetimeCall &with_operation(DatetimeOperation operation);
+  DatetimeCall &with_values(ESPTime value, bool has_date, bool has_time);
+  DatetimeCall &with_value(ESPTime value);
+  DatetimeCall &with_has_date(bool has_date);
+  DatetimeCall &with_has_time(bool has_time);
 
  protected:
-  InputDatetime *const parent_;
-  InputDatetimeOperation operation_{DATETIME_OP_NONE};
+  Datetime *const parent_;
+  DatetimeOperation operation_{DATETIME_OP_NONE};
   optional<ESPTime> value_;
   optional<bool> has_date_;
   optional<bool> has_time_;

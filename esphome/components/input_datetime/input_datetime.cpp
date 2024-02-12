@@ -9,9 +9,9 @@ namespace datetime {
 
 static const char *const TAG = "datetime";
 
-InputDatetime::InputDatetime() {}
+Datetime::Datetime() {}
 
-void InputDatetime::publish_state(std::string state) {
+void Datetime::publish_state(std::string state) {
   this->has_state_ = true;
   this->state = state;
   ESP_LOGD(TAG, "'%s': Sending state %s has_date: %s  has_time:%s", this->get_name().c_str(), state,
@@ -19,7 +19,7 @@ void InputDatetime::publish_state(std::string state) {
   this->state_callback_.call(state);
 }
 
-void InputDatetime::add_on_state_callback(std::function<void(std::string)> &&callback) {
+void Datetime::add_on_state_callback(std::function<void(std::string)> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 

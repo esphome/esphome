@@ -698,18 +698,18 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 #endif
 
 #ifdef USE_DATETIME
-bool APIConnection::send_datetime_state(datetime::InputDatetime *datetime, std::string state) {
+bool APIConnection::send_datetime_state(datetime::Datetime *datetime, std::string state) {
   if (!this->state_subscription_)
     return false;
 
-  InputDatetimeStateResponse resp{};
+  DatetimeStateResponse resp{};
   resp.key = datetime->get_object_id_hash();
   resp.state = state;
   resp.missing_state = !datetime->has_state();
   return this->send_datetime_state_response(resp);
 }
-bool APIConnection::send_datetime_info(datetime::InputDatetime *datetime) {
-  ListEntitiesInputDatetimeResponse msg;
+bool APIConnection::send_datetime_info(datetime::Datetime *datetime) {
+  ListEntitiesDatetimeResponse msg;
   msg.key = datetime->get_object_id_hash();
   msg.object_id = datetime->get_object_id();
   if (datetime->has_own_name())
@@ -721,8 +721,8 @@ bool APIConnection::send_datetime_info(datetime::InputDatetime *datetime) {
 
   return this->send_list_entities_datetime_response(msg);
 }
-void APIConnection::datetime_command(const InputDatetimeCommandRequest &msg) {
-  datetime::InputDatetime *datetime = App.get_datetime_by_key(msg.key);
+void APIConnection::datetime_command(const DatetimeCommandRequest &msg) {
+  datetime::Datetime *datetime = App.get_datetime_by_key(msg.key);
   if (datetime == nullptr)
     return;
 

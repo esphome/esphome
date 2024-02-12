@@ -7,19 +7,19 @@ namespace datetime {
 
 static const char *const TAG = "datetime";
 
-InputDatetimeCall &InputDatetimeCall::set_value(const std::string value) {
+DatetimeCall &DatetimeCall::set_value(const std::string value) {
   return this->with_operation(DATETIME_OP_SET_VALUE).with_value(value);
 }
 
-InputDatetimeCall &InputDatetimeCall::set_has_date(const bool has_date) {
+DatetimeCall &DatetimeCall::set_has_date(const bool has_date) {
   return this->with_operation(DATETIME_OP_SET_HAS_DATE).with_has_date(has_date);
 }
 
-InputDatetimeCall &InputDatetimeCall::set_has_time(const bool has_time) {
+DatetimeCall &DatetimeCall::set_has_time(const bool has_time) {
   return this->with_operation(DATETIME_OP_SET_HAS_TIME).with_has_time(has_time);
 }
 
-InputDatetimeCall &InputDatetimeCall::with_value(std::string value) {
+DatetimeCall &DatetimeCall::with_value(std::string value) {
   ESPTime time{0};
   ESP_LOGD("mydebug", value.c_str());
   ESP_LOGD("mydebug", "HAS_DATETIME_STRING_TIME_ONLY: %d", HAS_DATETIME_STRING_TIME_ONLY(value));
@@ -45,22 +45,22 @@ InputDatetimeCall &InputDatetimeCall::with_value(std::string value) {
   return *this;
 }
 
-InputDatetimeCall &InputDatetimeCall::with_has_date(bool has_date) {
+DatetimeCall &DatetimeCall::with_has_date(bool has_date) {
   this->has_date_ = has_date;
   return *this;
 }
 
-InputDatetimeCall &InputDatetimeCall::with_has_time(bool has_time) {
+DatetimeCall &DatetimeCall::with_has_time(bool has_time) {
   this->has_time_ = has_time;
   return *this;
 }
 
-InputDatetimeCall &InputDatetimeCall::with_operation(InputDatetimeOperation operation) {
+DatetimeCall &DatetimeCall::with_operation(DatetimeOperation operation) {
   this->operation_ = operation;
   return *this;
 }
 
-void InputDatetimeCall::perform() {
+void DatetimeCall::perform() {
   auto *parent = this->parent_;
   const auto *name = parent->get_name().c_str();
   const auto &traits = parent->traits;
@@ -69,13 +69,13 @@ void InputDatetimeCall::perform() {
 
   // load stored values if there are any
   if (!this->value_.has_value()) {
-    ESP_LOGW(TAG, "'%s' - InputDatetime performed without setting a value", name);
+    ESP_LOGW(TAG, "'%s' - Datetime performed without setting a value", name);
     return;
   }
 
   switch (this->operation_) {
     case DATETIME_OP_NONE:
-      ESP_LOGW(TAG, "'%s' - InputDatetime performed without selecting an operation", name);
+      ESP_LOGW(TAG, "'%s' - Datetime performed without selecting an operation", name);
       return;
     case DATETIME_OP_SET_VALUE:
       target_value = this->value_.value();
@@ -83,7 +83,7 @@ void InputDatetimeCall::perform() {
                            : this->parent_->has_date                          ? "%F"
                            : this->parent_->has_time                          ? "%T"
                                                                               : "";
-      ESP_LOGD(TAG, "'%s' - Setting InputDatetime value: %s", name, target_value);
+      ESP_LOGD(TAG, "'%s' - Setting Datetime value: %s", name, target_value);
       break;
   }
 

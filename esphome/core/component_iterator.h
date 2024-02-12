@@ -58,7 +58,7 @@ class ComponentIterator {
   virtual bool on_number(number::Number *number) = 0;
 #endif
 #ifdef USE_DATETIME
-  virtual bool on_datetime(datetime::InputDatetime *datetime) = 0;
+  virtual bool on_datetime(datetime::Datetime *datetime) = 0;
 #endif
 #ifdef USE_TEXT
   virtual bool on_text(text::Text *text) = 0;

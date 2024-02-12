@@ -1112,7 +1112,7 @@ class NumberCommandRequest : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
 };
-class ListEntitiesInputDatetimeResponse : public ProtoMessage {
+class ListEntitiesDatetimeResponse : public ProtoMessage {
  public:
   std::string object_id{};
   uint32_t key{0};
@@ -1131,7 +1131,7 @@ class ListEntitiesInputDatetimeResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class InputDatetimeStateResponse : public ProtoMessage {
+class DatetimeStateResponse : public ProtoMessage {
  public:
   uint32_t key{0};
   std::string state{};
@@ -1146,7 +1146,7 @@ class InputDatetimeStateResponse : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class InputDatetimeCommandRequest : public ProtoMessage {
+class DatetimeCommandRequest : public ProtoMessage {
  public:
   uint32_t key{0};
   std::string state{};

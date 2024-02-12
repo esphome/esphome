@@ -53,33 +53,33 @@ CODEOWNERS = ["@rfdarter"]
 IS_PLATFORM_COMPONENT = True
 
 datetime_ns = cg.esphome_ns.namespace("datetime")
-InputDatetime = datetime_ns.class_("InputDatetime", cg.EntityBase)
-InputDatetimeOnTimeTrigger = datetime_ns.class_(
-    "InputDatetimeOnTimeTrigger", automation.Trigger.template(), cg.Component
+Datetime = datetime_ns.class_("Datetime", cg.EntityBase)
+DatetimeOnTimeTrigger = datetime_ns.class_(
+    "DatetimeOnTimeTrigger", automation.Trigger.template(), cg.Component
 )
 ESPTime = cg.esphome_ns.struct("ESPTime")
 
 # Triggers
-InputDatetimeStateTrigger = datetime_ns.class_(
-    "InputDatetimeStateTrigger",
+DatetimeStateTrigger = datetime_ns.class_(
+    "DatetimeStateTrigger",
     automation.Trigger.template(ESPTime, cg.bool_, cg.bool_),
 )
 
 # Actions
-InputDatetimeSetAction = datetime_ns.class_("InputDatetimeSetAction", automation.Action)
+DatetimeSetAction = datetime_ns.class_("DatetimeSetAction", automation.Action)
 
 # Conditions
-InputDatetimeHasTimeCondition = datetime_ns.class_(
-    "InputDatetimeHasTimeCondition", Condition
+DatetimeHasTimeCondition = datetime_ns.class_(
+    "DatetimeHasTimeCondition", Condition
 )
-InputDatetimeHasDateCondition = datetime_ns.class_(
-    "InputDatetimeHasDateCondition", Condition
+DatetimeHasDateCondition = datetime_ns.class_(
+    "DatetimeHasDateCondition", Condition
 )
 
-InputDatetimeMode = datetime_ns.enum("NumberMode")
+DatetimeMode = datetime_ns.enum("NumberMode")
 
 DATETIME_MODES = {
-    "AUTO": InputDatetimeMode.DATETIME_MODE_AUTO,
+    "AUTO": DatetimeMode.DATETIME_MODE_AUTO,
 }
 
 
@@ -176,12 +176,12 @@ def validate_datetime(config):
 #         cv.Optional(CONF_HAS_TIME, False): cv.boolean,
 #         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
 #             {
-#                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(InputDatetimeStateTrigger),
+#                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DatetimeStateTrigger),
 #             }
 #         ),
 #         cv.Optional(CONF_ON_TIME): automation.validate_automation(
 #             {
-#                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(InputDatetimeOnTimeTrigger),
+#                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DatetimeOnTimeTrigger),
 #             }
 #         ),
 #     }
@@ -192,7 +192,7 @@ DATETIME_SCHEMA = (
     cv.Schema(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
-                mqtt.MQTTInputDatetimeComponent
+                mqtt.MQTTDatetimeComponent
             ),
             cv.Optional(CONF_TIME_ID): cv.All(
                 cv.requires_component(CONF_TIME), cv.use_id(time.RealTimeClock)
@@ -202,14 +202,14 @@ DATETIME_SCHEMA = (
             cv.Optional(CONF_ON_VALUE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        InputDatetimeStateTrigger
+                        DatetimeStateTrigger
                     ),
                 }
             ),
             cv.Optional(CONF_ON_TIME): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        InputDatetimeOnTimeTrigger
+                        DatetimeOnTimeTrigger
                     ),
                 }
             ),
@@ -272,14 +272,14 @@ async def to_code(config):
 
 OPERATION_BASE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ID): cv.use_id(InputDatetime),
+        cv.Required(CONF_ID): cv.use_id(Datetime),
     }
 )
 
 
 @automation.register_action(
     "datetime.set",
-    InputDatetimeSetAction,
+    DatetimeSetAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_VALUE): validate_timedate_value,
@@ -297,10 +297,10 @@ async def datetime_set_to_code(config, action_id, template_arg, args):
 
 @automation.register_condition(
     "datetime.has_time",
-    InputDatetimeHasTimeCondition,
+    DatetimeHasTimeCondition,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(InputDatetime),
+            cv.Required(CONF_ID): cv.use_id(Datetime),
         }
     ),
 )
@@ -311,10 +311,10 @@ async def datetime_has_time_to_code(config, condition_id, template_arg, args):
 
 @automation.register_condition(
     "datetime.has_date",
-    InputDatetimeHasDateCondition,
+    DatetimeHasDateCondition,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(InputDatetime),
+            cv.Required(CONF_ID): cv.use_id(Datetime),
         }
     ),
 )

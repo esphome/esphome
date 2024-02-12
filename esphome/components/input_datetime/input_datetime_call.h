@@ -14,31 +14,31 @@ namespace datetime {
 #define HAS_DATETIME_STRING_DATE_OR_TIME(value) \
   std::regex_match(value, std::regex(R"(^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?|\d{2}:\d{2}(:\d{2})?$)"))
 
-class InputDatetime;
+class Datetime;
 
-enum InputDatetimeOperation {
+enum DatetimeOperation {
   DATETIME_OP_NONE,
   DATETIME_OP_SET_VALUE,
   DATETIME_OP_SET_HAS_DATE,
   DATETIME_OP_SET_HAS_TIME,
 };
 
-class InputDatetimeCall {
+class DatetimeCall {
  public:
-  explicit InputDatetimeCall(InputDatetime *parent) : parent_(parent) {}
+  explicit DatetimeCall(Datetime *parent) : parent_(parent) {}
   void perform();
-  InputDatetimeCall &set_value(const std::string value);
-  InputDatetimeCall &set_has_date(const bool has_date);
-  InputDatetimeCall &set_has_time(const bool has_time);
+  DatetimeCall &set_value(const std::string value);
+  DatetimeCall &set_has_date(const bool has_date);
+  DatetimeCall &set_has_time(const bool has_time);
 
-  InputDatetimeCall &with_operation(InputDatetimeOperation operation);
-  InputDatetimeCall &with_value(std::string value);
-  InputDatetimeCall &with_has_date(bool has_date);
-  InputDatetimeCall &with_has_time(bool has_time);
+  DatetimeCall &with_operation(DatetimeOperation operation);
+  DatetimeCall &with_value(std::string value);
+  DatetimeCall &with_has_date(bool has_date);
+  DatetimeCall &with_has_time(bool has_time);
 
  protected:
-  InputDatetime *const parent_;
-  InputDatetimeOperation operation_{DATETIME_OP_NONE};
+  Datetime *const parent_;
+  DatetimeOperation operation_{DATETIME_OP_NONE};
   optional<std::string> value_;
   optional<bool> has_date_;
   optional<bool> has_time_;

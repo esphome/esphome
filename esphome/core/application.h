@@ -125,7 +125,7 @@ class Application {
 #endif
 
 #ifdef USE_DATETIME
-  void register_datetime(datetime::InputDatetime *datetime) { this->datetimes_.push_back(datetime); }
+  void register_datetime(datetime::Datetime *datetime) { this->datetimes_.push_back(datetime); }
 #endif
 
 #ifdef USE_TEXT
@@ -297,8 +297,8 @@ class Application {
   }
 #endif
 #ifdef USE_DATETIME
-  const std::vector<datetime::InputDatetime *> &get_datetimes() { return this->datetimes_; }
-  datetime::InputDatetime *get_datetime_by_key(uint32_t key, bool include_internal = false) {
+  const std::vector<datetime::Datetime *> &get_datetimes() { return this->datetimes_; }
+  datetime::Datetime *get_datetime_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->datetimes_)
       if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
@@ -399,7 +399,7 @@ class Application {
   std::vector<number::Number *> numbers_{};
 #endif
 #ifdef USE_DATETIME
-  std::vector<datetime::InputDatetime *> datetimes_{};
+  std::vector<datetime::Datetime *> datetimes_{};
 #endif
 #ifdef USE_SELECT
   std::vector<select::Select *> selects_{};

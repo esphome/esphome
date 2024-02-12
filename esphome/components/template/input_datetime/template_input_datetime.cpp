@@ -6,11 +6,11 @@ namespace template_ {
 
 static const char *const TAG = "template.datetime";
 
-void TemplateInputDatetime::setup() {
+void TemplateDatetime::setup() {
   if (this->f_.has_value())
     return;
 
-  TemplateInputDatetimeRTCValue recovered{};
+  TemplateDatetimeRTCValue recovered{};
   if (!this->restore_value_) {
     ESP_LOGD("maydebug", "!restore_value_");
     // recovered.value = this->initial_value_;
@@ -18,7 +18,7 @@ void TemplateInputDatetime::setup() {
     recovered.value = ESPTime{0};  // fix this!!! parse time from string
     recovered.has_time = this->has_time;
   } else {
-    this->pref_ = global_preferences->make_preference<TemplateInputDatetimeRTCValue>(this->get_object_id_hash());
+    this->pref_ = global_preferences->make_preference<TemplateDatetimeRTCValue>(this->get_object_id_hash());
     if (!this->pref_.load(&recovered)) {
       ESP_LOGD("maydebug", "restore!");
 
@@ -33,7 +33,7 @@ void TemplateInputDatetime::setup() {
   this->publish_state("00:00:00");  // fix me!!!!!!!!!!!!!!
 }
 
-void TemplateInputDatetime::update() {
+void TemplateDatetime::update() {
   ESP_LOGD(TAG, "Update");
   if (!this->f_.has_value())
     return;
@@ -67,12 +67,12 @@ void TemplateInputDatetime::update() {
   this->publish_state(value);
 }
 
-void TemplateInputDatetime::control(std::string value) {
+void TemplateDatetime::control(std::string value) {
   if (this->optimistic_)
     this->publish_state(value);
 
   if (this->restore_value_) {
-    TemplateInputDatetimeRTCValue save{};
+    TemplateDatetimeRTCValue save{};
     // save.value = value;
     save.has_date = has_date;
     save.value = ESPTime{0};  // fix me!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -82,7 +82,7 @@ void TemplateInputDatetime::control(std::string value) {
   }
 }
 
-void TemplateInputDatetime::dump_config() {
+void TemplateDatetime::dump_config() {
   LOG_DATETIME("", "Template Input_Datetime", this);
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
   LOG_UPDATE_INTERVAL(this);

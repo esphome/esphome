@@ -16,8 +16,8 @@ from .. import template_ns
 from esphome.core import CORE, coroutine_with_priority
 
 
-TemplateInputDatetime = template_ns.class_(
-    "TemplateInputDatetime", datetime.InputDatetime, cg.PollingComponent
+TemplateDatetime = template_ns.class_(
+    "TemplateDatetime", datetime.Datetime, cg.PollingComponent
 )
 
 
@@ -38,7 +38,7 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    datetime.datetime_schema(TemplateInputDatetime)
+    datetime.datetime_schema(TemplateDatetime)
     .extend(
         {
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
