@@ -1,0 +1,15 @@
+i2c:
+  - id: i2c_pmwcs3
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: pmwcs3
+    e25:
+      name: pmwcs3_e25
+    ec:
+      name: pmwcs3_ec
+    temperature:
+      name: pmwcs3_temperature
+    vwc:
+      name: pmwcs3_vwc

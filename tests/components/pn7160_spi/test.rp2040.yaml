@@ -1,0 +1,19 @@
+spi:
+  - id: spi_pn7160
+    clk_pin: 2
+    mosi_pin: 3
+    miso_pin: 4
+
+pn7160_spi:
+  id: nfcc_pn7160
+  cs_pin: 6
+  irq_pin: 7
+  ven_pin: 5
+  emulation_message: https://www.home-assistant.io/tag/pulse_ce
+  tag_ttl: 1000ms
+  on_tag:
+    - logger.log: "Tag"
+  on_tag_removed:
+    - logger.log: "Tag removed"
+  on_emulated_tag_scan:
+    - logger.log: "Tag emulated"

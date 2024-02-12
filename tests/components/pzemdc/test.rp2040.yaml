@@ -1,0 +1,18 @@
+uart:
+  - id: uart_pzemdc
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 9600
+    stop_bits: 2
+
+sensor:
+  - platform: pzemdc
+    id: pzemdc1
+    voltage:
+      name: PZEMDC Voltage
+    current:
+      name: PZEMDC Current
+    power:
+      name: PZEMDC Power
+    energy:
+      name: PZEMDC Energy
