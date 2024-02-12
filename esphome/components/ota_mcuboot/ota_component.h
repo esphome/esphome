@@ -5,8 +5,7 @@
 namespace esphome {
 namespace ota_mcuboot {
 
-class OTAComponent : public ota::OTAComponent {
-};
+class OTAComponent : public ota::OTAComponent {};
 
-}
-}
+}  // namespace ota_mcuboot
+}  // namespace esphome

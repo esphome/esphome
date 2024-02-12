@@ -26,6 +26,6 @@ class IDFOTABackend : public OTABackend {
   char expected_bin_md5_[32];
 };
 
-}  // namespace ota
+}  // namespace ota_network
 }  // namespace esphome
 #endif

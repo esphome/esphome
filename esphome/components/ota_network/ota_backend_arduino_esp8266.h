@@ -24,7 +24,7 @@ class ArduinoESP8266OTABackend : public OTABackend {
 #endif
 };
 
-}  // namespace ota
+}  // namespace ota_network
 }  // namespace esphome
 
 #endif

@@ -523,5 +523,5 @@ void OTAComponent::on_safe_shutdown() {
     this->clean_rtc();
 }
 
-}  // namespace ota
+}  // namespace ota_network
 }  // namespace esphome

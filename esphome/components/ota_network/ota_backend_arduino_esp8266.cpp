@@ -52,7 +52,7 @@ void ArduinoESP8266OTABackend::abort() {
   esp8266::preferences_prevent_write(false);
 }
 
-}  // namespace ota
+}  // namespace ota_network
 }  // namespace esphome
 
 #endif

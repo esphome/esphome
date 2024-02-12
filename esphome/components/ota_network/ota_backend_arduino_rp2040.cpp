@@ -52,7 +52,7 @@ void ArduinoRP2040OTABackend::abort() {
   rp2040::preferences_prevent_write(false);
 }
 
-}  // namespace ota
+}  // namespace ota_network
 }  // namespace esphome
 
 #endif  // USE_RP2040

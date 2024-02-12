@@ -40,7 +40,7 @@ OTAResponseTypes ArduinoESP32OTABackend::end() {
 
 void ArduinoESP32OTABackend::abort() { Update.abort(); }
 
-}  // namespace ota
+}  // namespace ota_network
 }  // namespace esphome
 
 #endif  // USE_ESP32_FRAMEWORK_ARDUINO

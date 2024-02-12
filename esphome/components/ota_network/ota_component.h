@@ -94,5 +94,5 @@ class OTAComponent : public ota::OTAComponent {
       0x5afe5afe;  ///< a magic number to indicate that safe mode should be entered on next boot
 };
 
-}  // namespace ota
+}  // namespace ota_network
 }  // namespace esphome

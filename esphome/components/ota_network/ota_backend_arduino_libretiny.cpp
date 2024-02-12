@@ -40,7 +40,7 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::end() {
 
 void ArduinoLibreTinyOTABackend::abort() { Update.abort(); }
 
-}  // namespace ota
+}  // namespace ota_network
 }  // namespace esphome
 
 #endif  // USE_LIBRETINY

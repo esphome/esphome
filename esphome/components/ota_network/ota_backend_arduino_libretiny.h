@@ -18,7 +18,7 @@ class ArduinoLibreTinyOTABackend : public OTABackend {
   bool supports_compression() override { return false; }
 };
 
-}  // namespace ota
+}  // namespace ota_network
 }  // namespace esphome
 
 #endif  // USE_LIBRETINY

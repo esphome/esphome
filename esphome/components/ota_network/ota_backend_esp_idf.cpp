@@ -110,6 +110,6 @@ void IDFOTABackend::abort() {
   this->update_handle_ = 0;
 }
 
-}  // namespace ota
+}  // namespace ota_network
 }  // namespace esphome
 #endif

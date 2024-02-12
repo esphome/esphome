@@ -18,7 +18,7 @@ class ArduinoESP32OTABackend : public OTABackend {
   bool supports_compression() override { return false; }
 };
 
-}  // namespace ota
+}  // namespace ota_network
 }  // namespace esphome
 
 #endif  // USE_ESP32_FRAMEWORK_ARDUINO

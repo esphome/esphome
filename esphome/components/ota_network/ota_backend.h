@@ -15,5 +15,5 @@ class OTABackend {
   virtual bool supports_compression() = 0;
 };
 
-}  // namespace ota
+}  // namespace ota_network
 }  // namespace esphome
