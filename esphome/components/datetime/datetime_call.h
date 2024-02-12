@@ -10,12 +10,12 @@ namespace datetime {
 #define HAS_DATETIME_STRING_DATE_ONLY(value) std::regex_match(value, std::regex(R"(^\d{4}-\d{2}-\d{2}$)"))
 #define HAS_DATETIME_STRING_TIME_ONLY(value) std::regex_match(value, std::regex(R"(^\d{2}:\d{2}(:\d{2})?$)"))
 #define HAS_DATETIME_STRING_DATE_AND_TIME(value) \
-  std::regex_match(value, std::regex(R"(^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$)"))
+  std::regex_match(value, std::regex(R"(^\d{4}-\d{2}-\d{2}[ ]{1}\d{2}:\d{2}(:\d{2})?$)"))
 #define HAS_DATETIME_STRING_DATE_OR_TIME(value) \
   std::regex_match( \
       value, \
-      std::regex( \
-          R"(^(?:(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?)?(?:(\d{2}):(\d{2})(?::(\d{2}))?)?$)"))
+      std::regex(R"((?:^\d{4}-\d{2}-\d{2}[ ]{1}\d{2}:\d{2}(:\d{2})?$|^\d{4}-\d{2}-\d{2}$|^\d{2}:\d{2}(:\d{2})?$))"))
+// R"(^((?:(\d{4})-(\d{2})-(\d{2})(?:[ ](\d{2}):(\d{2})(?::(\d{2}))?)?)?|(\d{2}):(\d{2})(?::(\d{2}))?)$)"))
 
 class Datetime;
 

@@ -64,8 +64,8 @@ std::string ESPTime::strftime(const std::string &format) {
 
 bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
   std::regex date_or_time_regex(
-      R"(^(?:(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?)?(?:(\d{2}):(\d{2})(?::(\d{2}))?)?$)");
-  std::regex time_and_date_regex(R"(^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$)");
+      R"((?:^\d{4}-\d{2}-\d{2}[ ]{1}\d{2}:\d{2}(:\d{2})?$|^\d{4}-\d{2}-\d{2}$|^\d{2}:\d{2}(:\d{2})?$))");
+  std::regex time_and_date_regex(R"(^(\d{4})-(\d{2})-(\d{2})[ ]{1}(\d{2}):(\d{2})(?::(\d{2}))?$)");
   std::regex date_only_regex(R"(^(\d{4})-(\d{2})-(\d{2})$)");
   std::regex time_only_regex(R"(^(\d{2}):(\d{2})(?::(\d{2}))?$)");
 

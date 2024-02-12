@@ -869,7 +869,7 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
 
     auto call = obj->make_call();
 
-    if (!request->hasParam("value") && !request->hasParam("has_date") && !request->hasParam("has_time")) {
+    if (!request->hasParam("value")) {
       request->send(409);
       return;
     }
@@ -877,6 +877,7 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
     if (request->hasParam("value")) {
       std::string value = request->getParam("value")->value().c_str();
       std::replace(value.begin(), value.end(), 'T', ' ');
+      // should be check if the value is valid before setting it, to be able to send 409?
       call.set_value(value);
     }
 
