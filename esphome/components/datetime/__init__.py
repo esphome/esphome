@@ -26,6 +26,8 @@ from esphome.automation import Condition
 from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 
+# TODO get all automations that provide datetime value as x to use datattype ESPTime instead of string
+
 
 ESP_TIME_VAR = "esptime_var"
 
