@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
+import esphome.final_validate as fv
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -112,6 +113,20 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+def _validate_mcumgr(config):
+    if CORE.using_zephyr:
+        fconf = fv.full_config.get()
+        try:
+            bootloader = fconf.get_config_for_path(["nrf52", "bootloader"])
+            if bootloader != "mcuboot":
+                raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
+        except KeyError:
+            pass
+
+
+FINAL_VALIDATE_SCHEMA = _validate_mcumgr
 
 
 @coroutine_with_priority(50.0)
