@@ -67,8 +67,8 @@ def zephyr_to_code(conf):
     else:
         raise NotImplementedError
     # c++ support
-    zephyr_add_prj_conf("NEWLIB_LIBC", False)
-    zephyr_add_prj_conf("NEWLIB_LIBC_NANO", True)
+    zephyr_add_prj_conf("NEWLIB_LIBC", True)
+    zephyr_add_prj_conf("CONFIG_FPU", True)
     zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
     zephyr_add_prj_conf("CPLUSPLUS", True)
     zephyr_add_prj_conf("LIB_CPLUSPLUS", True)

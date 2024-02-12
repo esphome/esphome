@@ -39,6 +39,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
+from esphome.components.nrf52.zephyr import zephyr_add_prj_conf
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -358,6 +359,9 @@ async def to_code(config):
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
     )
+
+    if CORE.using_zephyr:
+        zephyr_add_prj_conf("BT_DEVICE_NAME", config[CONF_NAME])
 
     CORE.add_job(_add_automations, config)
 

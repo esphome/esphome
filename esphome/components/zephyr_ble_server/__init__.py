@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
 )
-
 from esphome.components.nrf52.zephyr import zephyr_add_prj_conf
 
 zephyr_ble_server_ns = cg.esphome_ns.namespace("zephyr_ble_server")
@@ -23,5 +22,4 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     zephyr_add_prj_conf("BT", True)
     zephyr_add_prj_conf("BT_PERIPHERAL", True)
-    zephyr_add_prj_conf("BT_DEVICE_NAME_DYNAMIC", True)
     await cg.register_component(var, config)

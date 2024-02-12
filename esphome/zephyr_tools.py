@@ -82,6 +82,9 @@ async def smpmgr_upload(config, host, firmware):
             _LOGGER.warning("No images on device!")
         for image in image_state.images:
             pprint(image)
+            if image.active and not image.confirmed:
+                _LOGGER.error("No free slot")
+                return 1
             if image.hash == image_tlv_sha256:
                 if already_uploaded:
                     _LOGGER.error("Both slots have the same image")
