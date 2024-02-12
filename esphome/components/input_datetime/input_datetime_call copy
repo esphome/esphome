@@ -5,7 +5,7 @@
 //#include "text_traits.h"
 
 namespace esphome {
-namespace input_datetime {
+namespace datetime {
 
 class InputDatetime;
 
@@ -71,5 +71,5 @@ class InputDatetimeCall {
   bool validate_all_();
 };
 
-}  // namespace input_datetime
+}  // namespace datetime
 }  // namespace esphome

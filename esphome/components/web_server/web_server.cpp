@@ -849,16 +849,16 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 }
 #endif
 
-#ifdef USE_INPUT_DATETIME
-void WebServer::on_input_datetime_update(input_datetime::InputDatetime *obj, std::string state) {
-  this->events_.send(this->input_datetime_json(obj, state, DETAIL_STATE).c_str(), "state");
+#ifdef USE_DATETIME
+void WebServer::on_datetime_update(datetime::InputDatetime *obj, std::string state) {
+  this->events_.send(this->datetime_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
-void WebServer::handle_input_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_input_datetimes()) {
+void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_datetimes()) {
     if (obj->get_object_id() != match.id)
       continue;
     if (request->method() == HTTP_GET) {
-      std::string data = this->input_datetime_json(obj, obj->state, DETAIL_STATE);
+      std::string data = this->datetime_json(obj, obj->state, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -891,10 +891,9 @@ void WebServer::handle_input_datetime_request(AsyncWebServerRequest *request, co
   request->send(404);
 }
 
-std::string WebServer::input_datetime_json(input_datetime::InputDatetime *obj, std::string value,
-                                           JsonDetail start_config) {
+std::string WebServer::datetime_json(datetime::InputDatetime *obj, std::string value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
-    set_json_id(root, obj, "input_datetime-" + obj->get_object_id(), start_config);
+    set_json_id(root, obj, "datetime-" + obj->get_object_id(), start_config);
     if (start_config == DETAIL_ALL) {
       root["mode"] = (int) obj->traits.get_mode();
     }
@@ -910,7 +909,7 @@ std::string WebServer::input_datetime_json(input_datetime::InputDatetime *obj, s
     root["has_time"] = obj->has_time;
   });
 }
-#endif  // USE_INPUT_DATETIME
+#endif  // USE_DATETIME
 
 #ifdef USE_TEXT
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
@@ -1296,8 +1295,8 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
-#ifdef USE_INPUT_DATETIME
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "input_datetime")
+#ifdef USE_DATETIME
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "datetime")
     return true;
 #endif
 
@@ -1419,9 +1418,9 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 #endif
 
-#ifdef USE_INPUT_DATETIME
-  if (match.domain == "input_datetime") {
-    this->handle_input_datetime_request(request, match);
+#ifdef USE_DATETIME
+  if (match.domain == "datetime") {
+    this->handle_datetime_request(request, match);
     return;
   }
 #endif

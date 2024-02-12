@@ -6,14 +6,14 @@
 #include "esphome/core/entity_base.h"
 
 #include "esphome/components/time/real_time_clock.h"
-#include "input_datetime_call.h"
-#include "input_datetime_traits.h"
+#include "datetime_call.h"
+#include "datetime_traits.h"
 
 #include <vector>
 #include <regex>
 
 namespace esphome {
-namespace input_datetime {
+namespace datetime {
 
 #define LOG_INPUT_DATETIME(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -88,5 +88,5 @@ template<typename... Ts> class InputDatetimeHasDateCondition : public Condition<
   InputDatetime *parent_;
 };
 
-}  // namespace input_datetime
+}  // namespace datetime
 }  // namespace esphome

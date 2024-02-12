@@ -5,7 +5,7 @@
 #include <regex>
 
 namespace esphome {
-namespace input_datetime {
+namespace datetime {
 
 #define HAS_DATETIME_STRING_DATE_ONLY(value) std::regex_match(value, std::regex(R"(^\d{4}-\d{2}-\d{2}$)"))
 #define HAS_DATETIME_STRING_TIME_ONLY(value) std::regex_match(value, std::regex(R"(^\d{2}:\d{2}(:\d{2})?$)"))
@@ -44,5 +44,5 @@ class InputDatetimeCall {
   optional<bool> has_time_;
 };
 
-}  // namespace input_datetime
+}  // namespace datetime
 }  // namespace esphome

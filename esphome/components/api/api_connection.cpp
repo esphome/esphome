@@ -697,36 +697,36 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 }
 #endif
 
-#ifdef USE_INPUT_DATETIME
-bool APIConnection::send_input_datetime_state(input_datetime::InputDatetime *input_datetime, std::string state) {
+#ifdef USE_DATETIME
+bool APIConnection::send_datetime_state(datetime::InputDatetime *datetime, std::string state) {
   if (!this->state_subscription_)
     return false;
 
   InputDatetimeStateResponse resp{};
-  resp.key = input_datetime->get_object_id_hash();
+  resp.key = datetime->get_object_id_hash();
   resp.state = state;
-  resp.missing_state = !input_datetime->has_state();
-  return this->send_input_datetime_state_response(resp);
+  resp.missing_state = !datetime->has_state();
+  return this->send_datetime_state_response(resp);
 }
-bool APIConnection::send_input_datetime_info(input_datetime::InputDatetime *input_datetime) {
+bool APIConnection::send_datetime_info(datetime::InputDatetime *datetime) {
   ListEntitiesInputDatetimeResponse msg;
-  msg.key = input_datetime->get_object_id_hash();
-  msg.object_id = input_datetime->get_object_id();
-  if (input_datetime->has_own_name())
-    msg.name = input_datetime->get_name();
-  msg.unique_id = get_default_unique_id("input_datetime", input_datetime);
-  msg.icon = input_datetime->get_icon();
-  msg.disabled_by_default = input_datetime->is_disabled_by_default();
-  msg.entity_category = static_cast<enums::EntityCategory>(input_datetime->get_entity_category());
+  msg.key = datetime->get_object_id_hash();
+  msg.object_id = datetime->get_object_id();
+  if (datetime->has_own_name())
+    msg.name = datetime->get_name();
+  msg.unique_id = get_default_unique_id("datetime", datetime);
+  msg.icon = datetime->get_icon();
+  msg.disabled_by_default = datetime->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(datetime->get_entity_category());
 
-  return this->send_list_entities_input_datetime_response(msg);
+  return this->send_list_entities_datetime_response(msg);
 }
-void APIConnection::input_datetime_command(const InputDatetimeCommandRequest &msg) {
-  input_datetime::InputDatetime *input_datetime = App.get_input_datetime_by_key(msg.key);
-  if (input_datetime == nullptr)
+void APIConnection::datetime_command(const InputDatetimeCommandRequest &msg) {
+  datetime::InputDatetime *datetime = App.get_datetime_by_key(msg.key);
+  if (datetime == nullptr)
     return;
 
-  auto call = input_datetime->make_call();
+  auto call = datetime->make_call();
   call.set_value(msg.state);
   call.perform();
 }

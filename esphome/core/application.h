@@ -39,8 +39,8 @@
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
-#ifdef USE_INPUT_DATETIME
-#include "esphome/components/input_datetime/input_datetime.h"
+#ifdef USE_DATETIME
+#include "esphome/components/datetime/datetime.h"
 #endif
 #ifdef USE_TEXT
 #include "esphome/components/text/text.h"
@@ -124,10 +124,8 @@ class Application {
   void register_number(number::Number *number) { this->numbers_.push_back(number); }
 #endif
 
-#ifdef USE_INPUT_DATETIME
-  void register_input_datetime(input_datetime::InputDatetime *input_datetime) {
-    this->input_datetimes_.push_back(input_datetime);
-  }
+#ifdef USE_DATETIME
+  void register_datetime(datetime::InputDatetime *datetime) { this->datetimes_.push_back(datetime); }
 #endif
 
 #ifdef USE_TEXT
@@ -298,10 +296,10 @@ class Application {
     return nullptr;
   }
 #endif
-#ifdef USE_INPUT_DATETIME
-  const std::vector<input_datetime::InputDatetime *> &get_input_datetimes() { return this->input_datetimes_; }
-  input_datetime::InputDatetime *get_input_datetime_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->input_datetimes_)
+#ifdef USE_DATETIME
+  const std::vector<datetime::InputDatetime *> &get_datetimes() { return this->datetimes_; }
+  datetime::InputDatetime *get_datetime_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->datetimes_)
       if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
@@ -400,8 +398,8 @@ class Application {
 #ifdef USE_NUMBER
   std::vector<number::Number *> numbers_{};
 #endif
-#ifdef USE_INPUT_DATETIME
-  std::vector<input_datetime::InputDatetime *> input_datetimes_{};
+#ifdef USE_DATETIME
+  std::vector<datetime::InputDatetime *> datetimes_{};
 #endif
 #ifdef USE_SELECT
   std::vector<select::Select *> selects_{};

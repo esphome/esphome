@@ -5,7 +5,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome {
-namespace input_datetime {
+namespace datetime {
 
 enum InputDatetimeMode : uint8_t {
   INPUT_DATETIME_MODE_AUTO = 0,
@@ -21,5 +21,5 @@ class InputDatetimeTraits : public EntityBase_DeviceClass {
   InputDatetimeMode mode_{INPUT_DATETIME_MODE_AUTO};
 };
 
-}  // namespace input_datetime
+}  // namespace datetime
 }  // namespace esphome

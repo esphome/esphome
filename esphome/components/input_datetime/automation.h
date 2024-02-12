@@ -1,13 +1,13 @@
 #pragma once
 
-#include "esphome/components/input_datetime/input_datetime.h"
+#include "esphome/components/datetime/datetime.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
 namespace esphome {
-namespace input_datetime {
+namespace datetime {
 
-static const char *const TAG = "input_datetime.automation";
+static const char *const TAG = "datetime.automation";
 
 class InputDatetimeOnTimeTrigger : public Trigger<>, public Component {
  public:
@@ -65,5 +65,5 @@ template<typename... Ts> class InputDatetimeOperationAction : public Action<Ts..
   InputDatetime *inputDatetime_;
 };
 
-}  // namespace input_datetime
+}  // namespace datetime
 }  // namespace esphome

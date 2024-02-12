@@ -3,7 +3,7 @@
 #include "automation.h"
 
 namespace esphome {
-namespace input_datetime {
+namespace datetime {
 
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
                                              // there has been a drastic time synchronization
@@ -80,5 +80,5 @@ void InputDatetimeOnTimeTrigger::loop() {
 
 float InputDatetimeOnTimeTrigger::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace input_datetime
+}  // namespace datetime
 }  // namespace esphome

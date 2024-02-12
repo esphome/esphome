@@ -47,29 +47,29 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@rfdarter"]
 IS_PLATFORM_COMPONENT = True
 
-input_datetime_ns = cg.esphome_ns.namespace("input_datetime")
-InputDatetime = input_datetime_ns.class_("InputDatetime", cg.EntityBase)
-InputDatetimeOnTimeTrigger = input_datetime_ns.class_(
+datetime_ns = cg.esphome_ns.namespace("datetime")
+InputDatetime = datetime_ns.class_("InputDatetime", cg.EntityBase)
+InputDatetimeOnTimeTrigger = datetime_ns.class_(
     "InputDatetimeOnTimeTrigger", automation.Trigger.template(), cg.Component
 )
 ESPTime = cg.esphome_ns.struct("ESPTime")
 
 # Triggers
-InputDatetimeStateTrigger = input_datetime_ns.class_(
+InputDatetimeStateTrigger = datetime_ns.class_(
     "InputDatetimeStateTrigger",
     automation.Trigger.template(ESPTime, cg.bool_, cg.bool_),
 )
 
 # Actions
-InputDatetimeSetAction = input_datetime_ns.class_(
+InputDatetimeSetAction = datetime_ns.class_(
     "InputDatetimeSetAction", automation.Action
 )
 
 # Conditions
-InputDatetimeHasTimeCondition = input_datetime_ns.class_(
+InputDatetimeHasTimeCondition = datetime_ns.class_(
     "InputDatetimeHasTimeCondition", Condition
 )
-InputDatetimeHasDateCondition = input_datetime_ns.class_(
+InputDatetimeHasDateCondition = datetime_ns.class_(
     "InputDatetimeHasDateCondition", Condition
 )
 
@@ -162,7 +162,7 @@ VALID_INITAL_VALUES = [
 ]
 
 
-def validate_input_datetime(config):
+def validate_datetime(config):
     print("===================================================")
     print(config)
     print("=============================================k======")
@@ -257,16 +257,16 @@ INPUT_DATETIME_SCHEMA = (
         )
         .extend(cv.polling_component_schema("15min"))
     )
-    .add_extra(validate_input_datetime)
+    .add_extra(validate_datetime)
 )
 
 
-def input_datetime_schema(class_: MockObjClass) -> cv.Schema:
+def datetime_schema(class_: MockObjClass) -> cv.Schema:
     schema = {cv.GenerateID(): cv.declare_id(class_)}
     return INPUT_DATETIME_SCHEMA.extend(schema)
 
 
-async def setup_input_datetime_core_(input_datetime_var, config):
+async def setup_datetime_core_(datetime_var, config):
     time_var = await cg.get_variable(config[CONF_TIME_ID])
 
     # print(config)
@@ -292,12 +292,12 @@ async def setup_input_datetime_core_(input_datetime_var, config):
         print("hour:" + str(hour))
 
     for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], input_datetime_var)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], datetime_var)
         await automation.build_automation(trigger, [(ESPTime, "x")], conf)
 
     trigger_only_once = False
     for conf in config.get(CONF_ON_TIME, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], input_datetime_var, time_var)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], datetime_var, time_var)
         if not trigger_only_once:
             trigger_only_once = True
             await cg.register_component(trigger, conf)
@@ -306,23 +306,23 @@ async def setup_input_datetime_core_(input_datetime_var, config):
         await automation.build_automation(trigger, [], conf)
 
 
-async def register_input_datetime(var, config):
+async def register_datetime(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_input_datetime(var))
-    await setup_input_datetime_core_(var, config)
+    cg.add(cg.App.register_datetime(var))
+    await setup_datetime_core_(var, config)
 
 
-async def new_input_datetime(config, *args):
+async def new_datetime(config, *args):
     var = cg.new_Pvariable(config[CONF_ID], *args)
-    await register_input_datetime(var, config)
+    await register_datetime(var, config)
     return var
 
 
 @coroutine_with_priority(40.0)
 async def to_code(config):
-    cg.add_define("USE_INPUT_DATETIME")
-    cg.add_global(input_datetime_ns.using)
+    cg.add_define("USE_DATETIME")
+    cg.add_global(datetime_ns.using)
 
 
 OPERATION_BASE_SCHEMA = cv.Schema(
@@ -332,7 +332,7 @@ OPERATION_BASE_SCHEMA = cv.Schema(
 )
 
 
-async def add_input_datetime_set_value(action_var, config):
+async def add_datetime_set_value(action_var, config):
     if not CORE.has_id(ID(ESP_TIME_VAR)):
         esptime_var = cg.new_Pvariable(
             ID(ESP_TIME_VAR, False, ESPTime),
@@ -378,7 +378,7 @@ async def add_input_datetime_set_value(action_var, config):
 
 
 @automation.register_action(
-    "input_datetime.set",
+    "datetime.set",
     InputDatetimeSetAction,
     OPERATION_BASE_SCHEMA.extend(
         {
@@ -386,17 +386,17 @@ async def add_input_datetime_set_value(action_var, config):
         }
     ).add_extra(validate_timedate_value),
 )
-async def input_datetime_set_to_code(config, action_id, template_arg, args):
+async def datetime_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    await add_input_datetime_set_value(var, config)
+    await add_datetime_set_value(var, config)
 
     return var
 
 
 @automation.register_condition(
-    "input_datetime.has_time",
+    "datetime.has_time",
     InputDatetimeHasTimeCondition,
     cv.Schema(
         {
@@ -404,13 +404,13 @@ async def input_datetime_set_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-async def input_datetime_has_time_to_code(config, condition_id, template_arg, args):
+async def datetime_has_time_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
 @automation.register_condition(
-    "input_datetime.has_date",
+    "datetime.has_date",
     InputDatetimeHasDateCondition,
     cv.Schema(
         {
@@ -418,6 +418,6 @@ async def input_datetime_has_time_to_code(config, condition_id, template_arg, ar
         }
     ),
 )
-async def input_datetime_has_date_to_code(config, condition_id, template_arg, args):
+async def datetime_has_date_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren)

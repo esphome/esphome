@@ -1,11 +1,11 @@
-#include "input_datetime_call.h"
+#include "datetime_call.h"
 #include "esphome/core/log.h"
-#include "input_datetime.h"
+#include "datetime.h"
 
 namespace esphome {
-namespace input_datetime {
+namespace datetime {
 
-static const char *const TAG = "input_datetime";
+static const char *const TAG = "datetime";
 
 InputDatetimeCall &InputDatetimeCall::set_all(const ESPTime &value, bool has_date, bool has_time) 
 {
@@ -144,5 +144,5 @@ void InputDatetimeCall::perform()
   this->parent_->control(target_value, target_has_date, target_has_time);
 }
 
-}  // namespace input_datetime
+}  // namespace datetime
 }  // namespace esphome
