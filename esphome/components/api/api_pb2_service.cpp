@@ -264,6 +264,24 @@ bool APIServerConnectionBase::send_number_state_response(const NumberStateRespon
 #endif
 #ifdef USE_NUMBER
 #endif
+#ifdef USE_DATETIME
+bool APIServerConnectionBase::send_list_entities_datetime_response(const ListEntitiesDatetimeResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_datetime_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesDatetimeResponse>(msg, 100);
+}
+#endif
+#ifdef USE_DATETIME
+bool APIServerConnectionBase::send_datetime_state_response(const DatetimeStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_datetime_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<DatetimeStateResponse>(msg, 101);
+}
+#endif
+#ifdef USE_DATETIME
+#endif
 #ifdef USE_SELECT
 bool APIServerConnectionBase::send_list_entities_select_response(const ListEntitiesSelectResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -945,6 +963,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 102: {
+#ifdef USE_DATETIME
+      DatetimeCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_datetime_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_datetime_command_request(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -1151,6 +1180,19 @@ void APIServerConnection::on_number_command_request(const NumberCommandRequest &
     return;
   }
   this->number_command(msg);
+}
+#endif
+#ifdef USE_DATETIME
+void APIServerConnection::on_datetime_command_request(const DatetimeCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->datetime_command(msg);
 }
 #endif
 #ifdef USE_TEXT

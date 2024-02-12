@@ -965,6 +965,47 @@ message NumberCommandRequest {
   float state = 2;
 }
 
+// ==================== DATETIME ====================
+enum DatetimeMode {
+  DATETIME_MODE_AUTO = 0;
+}
+message ListEntitiesDatetimeResponse {
+  option (id) = 100;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  DatetimeMode mode = 8;
+}
+message DatetimeStateResponse {
+  option (id) = 101;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  string state = 2;
+  // If the dattime does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
+}
+message DatetimeCommandRequest {
+  option (id) = 102;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_DATETIME";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  string state = 2;
+}
+
 // ==================== SELECT ====================
 message ListEntitiesSelectResponse {
   option (id) = 52;

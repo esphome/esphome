@@ -72,6 +72,11 @@ class APIConnection : public APIServerConnection {
   bool send_number_info(number::Number *number);
   void number_command(const NumberCommandRequest &msg) override;
 #endif
+#ifdef USE_DATETIME
+  bool send_datetime_state(datetime::Datetime *datetime, std::string state);
+  bool send_datetime_info(datetime::Datetime *datetime);
+  void datetime_command(const DatetimeCommandRequest &msg) override;
+#endif
 #ifdef USE_TEXT
   bool send_text_state(text::Text *text, std::string state);
   bool send_text_info(text::Text *text);

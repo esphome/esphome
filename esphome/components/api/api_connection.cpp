@@ -697,6 +697,41 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_DATETIME
+bool APIConnection::send_datetime_state(datetime::Datetime *datetime, std::string state) {
+  if (!this->state_subscription_)
+    return false;
+
+  DatetimeStateResponse resp{};
+  resp.key = datetime->get_object_id_hash();
+  resp.state = state;
+  resp.missing_state = !datetime->has_state();
+  return this->send_datetime_state_response(resp);
+}
+bool APIConnection::send_datetime_info(datetime::Datetime *datetime) {
+  ListEntitiesDatetimeResponse msg;
+  msg.key = datetime->get_object_id_hash();
+  msg.object_id = datetime->get_object_id();
+  if (datetime->has_own_name())
+    msg.name = datetime->get_name();
+  msg.unique_id = get_default_unique_id("datetime", datetime);
+  msg.icon = datetime->get_icon();
+  msg.disabled_by_default = datetime->is_disabled_by_default();
+  // msg.entity_category = static_cast<enums::EntityCategory>(datetime->get_entity_category());
+
+  return this->send_list_entities_datetime_response(msg);
+}
+void APIConnection::datetime_command(const DatetimeCommandRequest &msg) {
+  datetime::Datetime *datetime = App.get_datetime_by_key(msg.key);
+  if (datetime == nullptr)
+    return;
+
+  auto call = datetime->make_call();
+  call.set_value(msg.state);
+  call.perform();
+}
+#endif
+
 #ifdef USE_TEXT
 bool APIConnection::send_text_state(text::Text *text, std::string state) {
   if (!this->state_subscription_)

@@ -61,7 +61,9 @@ bool ListEntitiesIterator::on_number(number::Number *number) { return this->clie
 #endif
 
 #ifdef USE_DATETIME
-bool ListEntitiesIterator::on_datetime(datetime::Datetime *datetime) { return true; }
+bool ListEntitiesIterator::on_datetime(datetime::Datetime *datetime) {
+  return this->client_->send_datetime_info(datetime);
+}
 #endif
 
 #ifdef USE_TEXT

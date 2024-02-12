@@ -255,6 +255,15 @@ void APIServer::on_number_update(number::Number *obj, float state) {
 }
 #endif
 
+#ifdef USE_DATETIME
+void APIServer::on_datetime_update(datetime::Datetime *obj, const std::string &state) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_datetime_state(obj, state);
+}
+#endif
+
 #ifdef USE_TEXT
 void APIServer::on_text_update(text::Text *obj, const std::string &state) {
   if (obj->is_internal())
