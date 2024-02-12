@@ -130,6 +130,7 @@ enum NumberMode : uint32_t {
   NUMBER_MODE_BOX = 1,
   NUMBER_MODE_SLIDER = 2,
 };
+enum DatetimeMode : uint32_t { DATETIMEMODE_AUTO = 0 };
 enum LockState : uint32_t {
   LOCK_STATE_NONE = 0,
   LOCK_STATE_LOCKED = 1,
@@ -1121,6 +1122,7 @@ class ListEntitiesDatetimeResponse : public ProtoMessage {
   std::string icon{};
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
+  enums::DatetimeMode mode{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

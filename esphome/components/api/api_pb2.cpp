@@ -4490,7 +4490,7 @@ void NumberCommandRequest::dump_to(std::string &out) const {
 
 bool ListEntitiesDatetimeResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
-    case 9: {
+    case 6: {
       this->disabled_by_default = value.as_bool();
       return true;
     }
@@ -4536,8 +4536,9 @@ void ListEntitiesDatetimeResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(3, this->name);
   buffer.encode_string(4, this->unique_id);
   buffer.encode_string(5, this->icon);
-  buffer.encode_bool(9, this->disabled_by_default);
-  buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
+  buffer.encode_bool(6, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
+  buffer.encode_enum<enums::DatetimeMode>(8, this->mode);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesDatetimeResponse::dump_to(std::string &out) const {
@@ -4568,6 +4569,10 @@ void ListEntitiesDatetimeResponse::dump_to(std::string &out) const {
   out.append(YESNO(this->disabled_by_default));
   out.append("\n");
 
+  out.append("  mode: ");
+  out.append(proto_enum_to_string<enums::DatetimeMode>(this->mode));
+  out.append("\n");
+
   out.append("  entity_category: ");
   out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
@@ -4589,10 +4594,6 @@ bool DatetimeStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->key = value.as_fixed32();
       return true;
     }
-    // case 2: {
-    //   this->state = value.as_string();
-    //   return true;
-    // }
     default:
       return false;
   }
@@ -4622,7 +4623,7 @@ void DatetimeStateResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  state: ");
-  sprintf(buffer, "%g", this->state);
+  out.append("'").append(this->state).append("'");
   out.append(buffer);
   out.append("\n");
 
@@ -4638,10 +4639,6 @@ bool DatetimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->key = value.as_fixed32();
       return true;
     }
-    // case 2: {
-    //   this->state = value.as_string();
-    //   return true;
-    // }
     default:
       return false;
   }
@@ -4670,7 +4667,7 @@ void DatetimeCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  state: ");
-  sprintf(buffer, "%g", this->state);
+  out.append("'").append(this->state).append("'");
   out.append(buffer);
   out.append("\n");
   out.append("}");

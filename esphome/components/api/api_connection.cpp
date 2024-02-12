@@ -704,7 +704,7 @@ bool APIConnection::send_datetime_state(datetime::Datetime *datetime, std::strin
 
   DatetimeStateResponse resp{};
   resp.key = datetime->get_object_id_hash();
-  resp.state = state;
+  resp.state = std::move(state);
   resp.missing_state = !datetime->has_state();
   return this->send_datetime_state_response(resp);
 }
