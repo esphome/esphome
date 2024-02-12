@@ -7,6 +7,7 @@ import logging
 import math
 import os
 import uuid
+from io import TextIOWrapper
 from typing import Any
 
 import yaml
@@ -19,7 +20,7 @@ except ImportError:
     FastestAvailableSafeLoader = PurePythonLoader
 
 from esphome import core
-from esphome.config_helpers import Extend, Remove, read_config_file
+from esphome.config_helpers import Extend, Remove
 from esphome.core import (
     CORE,
     DocumentRange,
@@ -284,7 +285,7 @@ class ESPHomeLoaderMixin:
 
         def substitute_vars(config, vars):
             from esphome.components import substitutions
-            from esphome.const import CONF_SUBSTITUTIONS
+            from esphome.const import CONF_DEFAULTS, CONF_SUBSTITUTIONS
 
             org_subs = None
             result = config
@@ -295,7 +296,15 @@ class ESPHomeLoaderMixin:
             elif CONF_SUBSTITUTIONS in result:
                 org_subs = result.pop(CONF_SUBSTITUTIONS)
 
+            defaults = {}
+            if CONF_DEFAULTS in result:
+                defaults = result.pop(CONF_DEFAULTS)
+
             result[CONF_SUBSTITUTIONS] = vars
+            for k, v in defaults.items():
+                if k not in result[CONF_SUBSTITUTIONS]:
+                    result[CONF_SUBSTITUTIONS][k] = v
+
             # Ignore missing vars that refer to the top level substitutions
             substitutions.do_substitution_pass(result, None, ignore_missing=True)
             result.pop(CONF_SUBSTITUTIONS)
@@ -410,19 +419,26 @@ def load_yaml(fname: str, clear_secrets: bool = True) -> Any:
 
 def _load_yaml_internal(fname: str) -> Any:
     """Load a YAML file."""
-    content = read_config_file(fname)
     try:
-        return _load_yaml_internal_with_type(ESPHomeLoader, fname, content)
-    except EsphomeError:
-        # Loading failed, so we now load with the Python loader which has more
-        # readable exceptions
-        return _load_yaml_internal_with_type(ESPHomePurePythonLoader, fname, content)
+        with open(fname, encoding="utf-8") as f_handle:
+            try:
+                return _load_yaml_internal_with_type(ESPHomeLoader, fname, f_handle)
+            except EsphomeError:
+                # Loading failed, so we now load with the Python loader which has more
+                # readable exceptions
+                # Rewind the stream so we can try again
+                f_handle.seek(0, 0)
+                return _load_yaml_internal_with_type(
+                    ESPHomePurePythonLoader, fname, f_handle
+                )
+    except (UnicodeDecodeError, OSError) as err:
+        raise EsphomeError(f"Error reading file {fname}: {err}") from err
 
 
 def _load_yaml_internal_with_type(
     loader_type: type[ESPHomeLoader] | type[ESPHomePurePythonLoader],
     fname: str,
-    content: str,
+    content: TextIOWrapper,
 ) -> Any:
     """Load a YAML file."""
     loader = loader_type(content)
