@@ -1,6 +1,7 @@
 #include "ble_server.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
 
@@ -64,7 +65,14 @@ void BLEServer::setup() {
   int rc = bt_enable(bt_ready);
   if (rc != 0) {
     ESP_LOGE(TAG, "Bluetooth enable failed: %d", rc);
+    return;
   }
+  rc = bt_set_name(App.get_name().c_str());
+  if (rc != 0) {
+    ESP_LOGE(TAG, "Bluetooth set name failed: %d", rc);
+    return;
+  }
+
 }
 
 }  // namespace zephyr_ble_server
