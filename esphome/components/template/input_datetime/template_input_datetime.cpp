@@ -83,7 +83,7 @@ void TemplateInputDatetime::control(std::string value) {
 }
 
 void TemplateInputDatetime::dump_config() {
-  LOG_INPUT_DATETIME("", "Template Input_Datetime", this);
+  LOG_DATETIME("", "Template Input_Datetime", this);
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
   LOG_UPDATE_INTERVAL(this);
 }

@@ -78,8 +78,8 @@ InputDatetimeHasDateCondition = datetime_ns.class_(
 
 InputDatetimeMode = datetime_ns.enum("NumberMode")
 
-INPUT_DATETIME_MODES = {
-    "AUTO": InputDatetimeMode.INPUT_DATETIME_MODE_AUTO,
+DATETIME_MODES = {
+    "AUTO": InputDatetimeMode.DATETIME_MODE_AUTO,
 }
 
 
@@ -169,7 +169,7 @@ def validate_datetime(config):
     return config
 
 
-# INPUT_DATETIME_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
+# DATETIME_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
 #     {
 #         cv.Optional(CONF_TIME_ID): cv.All( cv.requires_component(CONF_TIME), cv.use_id(time.RealTimeClock) ),
 #         cv.Optional(CONF_HAS_DATE, False): cv.boolean,
@@ -188,7 +188,7 @@ def validate_datetime(config):
 
 # ).extend(cv.polling_component_schema("15min")).add_extra(validate_datetime)
 
-INPUT_DATETIME_SCHEMA = (
+DATETIME_SCHEMA = (
     cv.Schema(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
@@ -213,9 +213,7 @@ INPUT_DATETIME_SCHEMA = (
                     ),
                 }
             ),
-            cv.Optional(CONF_MODE, default="AUTO"): cv.enum(
-                INPUT_DATETIME_MODES, upper=True
-            ),
+            cv.Optional(CONF_MODE, default="AUTO"): cv.enum(DATETIME_MODES, upper=True),
         }
     )
     .add_extra(validate_datetime)
@@ -225,7 +223,7 @@ INPUT_DATETIME_SCHEMA = (
 
 def datetime_schema(class_: MockObjClass) -> cv.Schema:
     schema = {cv.GenerateID(): cv.declare_id(class_)}
-    return INPUT_DATETIME_SCHEMA.extend(schema)
+    return DATETIME_SCHEMA.extend(schema)
 
 
 async def setup_datetime_core_(datetime_var, config):

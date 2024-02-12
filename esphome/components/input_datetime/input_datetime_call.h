@@ -17,10 +17,10 @@ namespace datetime {
 class InputDatetime;
 
 enum InputDatetimeOperation {
-  INPUT_DATETIME_OP_NONE,
-  INPUT_DATETIME_OP_SET_VALUE,
-  INPUT_DATETIME_OP_SET_HAS_DATE,
-  INPUT_DATETIME_OP_SET_HAS_TIME,
+  DATETIME_OP_NONE,
+  DATETIME_OP_SET_VALUE,
+  DATETIME_OP_SET_HAS_DATE,
+  DATETIME_OP_SET_HAS_TIME,
 };
 
 class InputDatetimeCall {
@@ -38,7 +38,7 @@ class InputDatetimeCall {
 
  protected:
   InputDatetime *const parent_;
-  InputDatetimeOperation operation_{INPUT_DATETIME_OP_NONE};
+  InputDatetimeOperation operation_{DATETIME_OP_NONE};
   optional<std::string> value_;
   optional<bool> has_date_;
   optional<bool> has_time_;

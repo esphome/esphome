@@ -15,7 +15,7 @@
 namespace esphome {
 namespace datetime {
 
-#define LOG_INPUT_DATETIME(prefix, type, obj) \
+#define LOG_DATETIME(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
     if (!(obj)->get_icon().empty()) { \

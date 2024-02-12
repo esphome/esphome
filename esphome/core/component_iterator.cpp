@@ -203,7 +203,7 @@ void ComponentIterator::advance() {
       break;
 #endif
 #ifdef USE_DATETIME
-    case IteratorState::INPUT_DATETIME:
+    case IteratorState::DATETIME:
       if (this->at_ >= App.get_datetimes().size()) {
         advance_platform = true;
       } else {

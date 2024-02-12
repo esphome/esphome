@@ -9,12 +9,12 @@ static const char *const TAG = "datetime";
 
 InputDatetimeCall &InputDatetimeCall::set_all(const ESPTime &value, bool has_date, bool has_time) 
 {
-  return this->with_operation(INPUT_DATETIME_OP_SET_ALL).with_values(value, has_date, has_time);
+  return this->with_operation(DATETIME_OP_SET_ALL).with_values(value, has_date, has_time);
 }
 
 InputDatetimeCall &InputDatetimeCall::set_value(const ESPTime &value) 
 {
-  return this->with_operation(INPUT_DATETIME_OP_SET_DATETIME).with_value(value);
+  return this->with_operation(DATETIME_OP_SET_DATETIME).with_value(value);
 }
 
 InputDatetimeCall &InputDatetimeCall::set_has_date(const bool has_date) 
@@ -96,12 +96,12 @@ void InputDatetimeCall::perform()
 
   switch (this->operation_)
   {
-  case INPUT_DATETIME_OP_NONE:
+  case DATETIME_OP_NONE:
     ESP_LOGW(TAG, "'%s' - InputDatetime performed without selecting an operation", name);
     return;
 
-  case INPUT_DATETIME_OP_SET_ALL:
-    ESP_LOGD("mydebug", "in INPUT_DATETIME_OP_SET_ALL");
+  case DATETIME_OP_SET_ALL:
+    ESP_LOGD("mydebug", "in DATETIME_OP_SET_ALL");
     if( !this->validate_all_() )
       return;
 
@@ -111,14 +111,14 @@ void InputDatetimeCall::perform()
     target_has_date = this->has_date_.value();
     target_has_time = this->has_time_.value();
     break;
-  case INPUT_DATETIME_OP_SET_DATETIME:
+  case DATETIME_OP_SET_DATETIME:
     if (!this->value_.has_value())
       return ESP_LOGW(TAG, "'%s' - No value set for InputDatetime", name);
     
     target_value = this->value_.value();
     ESP_LOGD(TAG, "'%s' - Setting InputDatetime value: %s", name, target_value.strftime("%F %T").c_str());
     break;
-  case INPUT_DATETIME_OP_SET_HAS_DATE_AND_HAS_TIME:
+  case DATETIME_OP_SET_HAS_DATE_AND_HAS_TIME:
     if (!this->has_date_.has_value() || !this->has_time_.has_value() )
       return ESP_LOGW(TAG, "'%s' - No has_date set for InputDatetime", name);
 
@@ -127,7 +127,7 @@ void InputDatetimeCall::perform()
     ESP_LOGD(TAG, "'%s' - Setting InputDatetime has_date: %s has time: %s", name, this->has_date_.value(), this->has_time_.value());
     break;
 
-  case INPUT_DATETIME_OP_SET_ALL_SET_ONES:
+  case DATETIME_OP_SET_ALL_SET_ONES:
     if (this->has_date_.has_value() ) {
       target_value = this->value_.value();
     }

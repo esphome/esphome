@@ -118,7 +118,7 @@ class ComponentIterator {
     NUMBER,
 #endif
 #ifdef USE_DATETIME
-    INPUT_DATETIME,
+    DATETIME,
 #endif
 #ifdef USE_TEXT
     TEXT,

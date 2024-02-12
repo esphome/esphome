@@ -38,11 +38,11 @@ struct ESPTimeEx : public ESPTime
 };
 
 enum InputDatetimeOperation {
-  INPUT_DATETIME_OP_NONE,
-  INPUT_DATETIME_OP_SET_ALL,
-  INPUT_DATETIME_OP_SET_DATETIME,
-  INPUT_DATETIME_OP_SET_HAS_DATE_AND_HAS_TIME,
-  INPUT_DATETIME_OP_SET_ALL_SET_ONES,
+  DATETIME_OP_NONE,
+  DATETIME_OP_SET_ALL,
+  DATETIME_OP_SET_DATETIME,
+  DATETIME_OP_SET_HAS_DATE_AND_HAS_TIME,
+  DATETIME_OP_SET_ALL_SET_ONES,
 };
 
 class InputDatetimeCall {
@@ -64,7 +64,7 @@ class InputDatetimeCall {
 
  protected:
   InputDatetime *const parent_;
-  InputDatetimeOperation operation_{INPUT_DATETIME_OP_NONE};
+  InputDatetimeOperation operation_{DATETIME_OP_NONE};
   optional<ESPTime> value_;
   optional<bool> has_date_;
   optional<bool> has_time_;

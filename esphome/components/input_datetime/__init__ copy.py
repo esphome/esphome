@@ -61,9 +61,7 @@ InputDatetimeStateTrigger = datetime_ns.class_(
 )
 
 # Actions
-InputDatetimeSetAction = datetime_ns.class_(
-    "InputDatetimeSetAction", automation.Action
-)
+InputDatetimeSetAction = datetime_ns.class_("InputDatetimeSetAction", automation.Action)
 
 # Conditions
 InputDatetimeHasTimeCondition = datetime_ns.class_(
@@ -225,7 +223,7 @@ TIME_DATE_VALUE_SCHEMA = cv.Schema(
 )
 
 # has_at_least_one_key
-INPUT_DATETIME_SCHEMA = (
+DATETIME_SCHEMA = (
     cv.Schema({})
     .extend(
         cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
@@ -263,7 +261,7 @@ INPUT_DATETIME_SCHEMA = (
 
 def datetime_schema(class_: MockObjClass) -> cv.Schema:
     schema = {cv.GenerateID(): cv.declare_id(class_)}
-    return INPUT_DATETIME_SCHEMA.extend(schema)
+    return DATETIME_SCHEMA.extend(schema)
 
 
 async def setup_datetime_core_(datetime_var, config):

@@ -8,7 +8,7 @@ namespace esphome {
 namespace datetime {
 
 enum InputDatetimeMode : uint8_t {
-  INPUT_DATETIME_MODE_AUTO = 0,
+  DATETIME_MODE_AUTO = 0,
 };
 
 class InputDatetimeTraits : public EntityBase_DeviceClass {
@@ -18,7 +18,7 @@ class InputDatetimeTraits : public EntityBase_DeviceClass {
   InputDatetimeMode get_mode() const { return this->mode_; }
 
  protected:
-  InputDatetimeMode mode_{INPUT_DATETIME_MODE_AUTO};
+  InputDatetimeMode mode_{DATETIME_MODE_AUTO};
 };
 
 }  // namespace datetime
