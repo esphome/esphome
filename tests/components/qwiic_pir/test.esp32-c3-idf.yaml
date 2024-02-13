@@ -1,0 +1,8 @@
+i2c:
+  - id: i2c_qwiic_pir
+    scl: 5
+    sda: 4
+
+binary_sensor:
+  - platform: qwiic_pir
+    name: Qwiic PIR Motion Sensor
