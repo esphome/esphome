@@ -1,0 +1,10 @@
+output:
+  - platform: ledc
+    id: rtttl_output
+    pin: 13
+    frequency: 1500Hz
+    channel: 14
+    max_power: 0.5
+
+rtttl:
+  output: rtttl_output

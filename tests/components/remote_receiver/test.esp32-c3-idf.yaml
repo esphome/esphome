@@ -1,0 +1,10 @@
+remote_receiver:
+  id: rcvr
+  pin: 2
+  dump: all
+  on_coolix:
+    then:
+      delay: !lambda "return x.first + x.second;"
+  on_rc_switch:
+    then:
+      delay: !lambda "return uint32_t(x.code) + x.protocol;"

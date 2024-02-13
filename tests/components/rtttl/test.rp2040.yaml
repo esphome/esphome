@@ -1,0 +1,9 @@
+output:
+  - platform: rp2040_pwm
+    id: rtttl_output
+    pin: 3
+    frequency: 1500Hz
+    max_power: 0.5
+
+rtttl:
+  output: rtttl_output

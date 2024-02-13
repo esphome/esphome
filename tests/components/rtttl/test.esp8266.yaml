@@ -1,0 +1,9 @@
+output:
+  - platform: esp8266_pwm
+    id: rtttl_output
+    pin: 13
+    frequency: 1500Hz
+    max_power: 0.5
+
+rtttl:
+  output: rtttl_output
