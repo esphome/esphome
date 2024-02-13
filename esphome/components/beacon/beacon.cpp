@@ -20,13 +20,13 @@ uint8_t beaconUuid[16] = {0x01, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67, 0x78,
 
 // A valid Beacon packet consists of the following information:
 // UUID, Major, Minor, RSSI @ 1M
-BLEBeacon beacon(beaconUuid, 1, 2, -54);
+BLEBeacon ble_beacon(beaconUuid, 1, 2, -54);
 
 void startAdv(void) {
   // Advertising packet
   // Set the beacon payload using the BLEBeacon class populated
   // earlier in this example
-  Bluefruit.Advertising.setBeacon(beacon);
+  Bluefruit.Advertising.setBeacon(ble_beacon);
 
   // Secondary Scan Response packet (optional)
   // Since there is no room for 'Name' in Advertising packet
@@ -62,7 +62,7 @@ void Beacon::setup() {
   Bluefruit.setName("ESPHome");
 
   // Manufacturer ID is required for Manufacturer Specific Data
-  beacon.setManufacturer(MANUFACTURER_ID);
+  ble_beacon.setManufacturer(MANUFACTURER_ID);
 
   // Setup the advertising packet
   startAdv();

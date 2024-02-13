@@ -50,12 +50,12 @@ OTAComponent::OTAComponent() { ota::global_ota_component = this; }
 void OTAComponent::setup() { mgmt_callback_register(&img_mgmt_callback); }
 
 void OTAComponent::loop() {
-  if (false == _is_confirmed){
+  if (false == _is_confirmed) {
     _is_confirmed = boot_is_img_confirmed();
-    if (false == _is_confirmed){
-      if(boot_write_img_confirmed()){
+    if (false == _is_confirmed) {
+      if (boot_write_img_confirmed()) {
         ESP_LOGD(TAG, "Unable to confirm image");
-        //TODO reboot
+        // TODO reboot
       }
     }
   }

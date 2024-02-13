@@ -9,7 +9,7 @@ nrf52:
   # bootloader: mcuboot
 
 esphome:
-  name: nrf52-test-zephyr
+  name: nrf52-test-nrf
 
 logger:
   # level: DEBUG
