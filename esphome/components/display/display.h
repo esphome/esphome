@@ -168,8 +168,8 @@ class BaseFont {
     print(x, y, display, color, text, COLOR_OFF);
   }
 
-  virtual void print(int x, int y, Display *display, Color color, const char *text, Color background) {};
-  
+  virtual void print(int x, int y, Display *display, Color color, const char *text, Color background){};
+
   virtual void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) = 0;
 };
 
