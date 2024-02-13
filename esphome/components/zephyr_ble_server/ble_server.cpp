@@ -10,7 +10,7 @@ namespace zephyr_ble_server {
 static const char *const TAG = "zephyr_ble_server";
 
 static struct k_work advertise_work;
-static const struct bt_data ad[] = {
+static const struct bt_data AD[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
 #ifdef USE_OTA
 
@@ -19,12 +19,12 @@ static const struct bt_data ad[] = {
 #endif
 };
 
-const struct bt_le_adv_param *adv_param = BT_LE_ADV_CONN_NAME;
+const struct bt_le_adv_param* const ADV_PARAM = BT_LE_ADV_CONN_NAME;
 
 static void advertise(struct k_work *work) {
   bt_le_adv_stop();
 
-  int rc = bt_le_adv_start(adv_param, ad, ARRAY_SIZE(ad), NULL, 0);
+  int rc = bt_le_adv_start(ADV_PARAM, AD, ARRAY_SIZE(AD), NULL, 0);
   if (rc) {
     ESP_LOGE(TAG, "Advertising failed to start (rc %d)", rc);
     return;

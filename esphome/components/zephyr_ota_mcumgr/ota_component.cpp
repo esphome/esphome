@@ -40,19 +40,19 @@ static enum mgmt_cb_return mcumgr_img_mgmt_cb(uint32_t event, enum mgmt_cb_retur
   return MGMT_CB_OK;
 }
 
-static struct mgmt_callback img_mgmt_callback = {
+static struct mgmt_callback IMG_MGMT_CALLBACK = {
     .callback = mcumgr_img_mgmt_cb,
     .event_id = MGMT_EVT_OP_IMG_MGMT_ALL,
 };
 
 OTAComponent::OTAComponent() { ota::global_ota_component = this; }
 
-void OTAComponent::setup() { mgmt_callback_register(&img_mgmt_callback); }
+void OTAComponent::setup() { mgmt_callback_register(&IMG_MGMT_CALLBACK); }
 
 void OTAComponent::loop() {
-  if (false == _is_confirmed) {
-    _is_confirmed = boot_is_img_confirmed();
-    if (false == _is_confirmed) {
+  if (!is_confirmed_) {
+    is_confirmed_ = boot_is_img_confirmed();
+    if (!is_confirmed_) {
       if (boot_write_img_confirmed()) {
         ESP_LOGD(TAG, "Unable to confirm image");
         // TODO reboot
@@ -85,7 +85,7 @@ void OTAComponent::dump_config() {
 }
 
 void OTAComponent::update_chunk(const img_mgmt_upload_check &upload) {
-  _percentage = (upload.req->off * 100.0f) / upload.action->size;
+  percentage_ = (upload.req->off * 100.0f) / upload.action->size;
 }
 
 void OTAComponent::update_started() {
@@ -97,11 +97,11 @@ void OTAComponent::update_started() {
 
 void OTAComponent::update_chunk_wrote() {
   uint32_t now = millis();
-  if (now - _last_progress > 1000) {
-    _last_progress = now;
-    ESP_LOGD(TAG, "OTA in progress: %0.1f%%", _percentage);
+  if (now - last_progress_ > 1000) {
+    last_progress_ = now;
+    ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage_);
 #ifdef USE_OTA_STATE_CALLBACK
-    this->state_callback_.call(ota::OTA_IN_PROGRESS, _percentage, 0);
+    this->state_callback_.call(ota::OTA_IN_PROGRESS, percentage_, 0);
 #endif
   }
 }

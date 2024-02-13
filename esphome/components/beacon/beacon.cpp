@@ -15,14 +15,14 @@
 #define MANUFACTURER_ID 0x0059
 
 // "nRF Connect" app can be used to detect beacon
-uint8_t beaconUuid[16] = {0x01, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67, 0x78,
+const uint8_t BEACON_UUID[16] = {0x01, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67, 0x78,
                           0x89, 0x9a, 0xab, 0xbc, 0xcd, 0xde, 0xef, 0xf0};
 
 // A valid Beacon packet consists of the following information:
 // UUID, Major, Minor, RSSI @ 1M
-BLEBeacon ble_beacon(beaconUuid, 1, 2, -54);
+BLEBeacon ble_beacon(BEACON_UUID, 1, 2, -54);
 
-void startAdv(void) {
+void start_adv() {
   // Advertising packet
   // Set the beacon payload using the BLEBeacon class populated
   // earlier in this example
@@ -65,7 +65,7 @@ void Beacon::setup() {
   ble_beacon.setManufacturer(MANUFACTURER_ID);
 
   // Setup the advertising packet
-  startAdv();
+  start_adv();
 }
 
 }  // namespace beacon

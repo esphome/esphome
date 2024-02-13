@@ -19,9 +19,9 @@ class OTAComponent : public ota::OTAComponent {
   void update_pending();
 
  protected:
-  uint32_t _last_progress = 0;
-  float _percentage = 0;
-  bool _is_confirmed = false;
+  uint32_t last_progress_ = 0;
+  float percentage_ = 0;
+  bool is_confirmed_ = false;
 };
 
 }  // namespace zephyr_ota_mcumgr

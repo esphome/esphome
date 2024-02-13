@@ -41,7 +41,7 @@ void Logger::write_header_(int level, const char *tag, int line) {
   const char *letter = LOG_LEVEL_LETTERS[level];
 #ifdef USE_ARDUINO
   void *current_task = xTaskGetCurrentTaskHandle();
-  if (current_task == main_task) {
+  if (current_task == main_task_) {
 #endif
     this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);
 #ifdef USE_ARDUINO
@@ -148,7 +148,7 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
   // add 1 to buffer size for null terminator
   this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
 #ifdef USE_ARDUINO
-  this->main_task = xTaskGetCurrentTaskHandle();
+  this->main_task_ = xTaskGetCurrentTaskHandle();
 #endif
 }
 
