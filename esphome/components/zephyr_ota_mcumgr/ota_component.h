@@ -11,6 +11,7 @@ class OTAComponent : public ota::OTAComponent {
  public:
   OTAComponent();
   void setup() override;
+  void loop() override;
   void dump_config() override;
   void update_chunk(const img_mgmt_upload_check &upload);
   void update_started();
@@ -20,6 +21,7 @@ class OTAComponent : public ota::OTAComponent {
  protected:
   uint32_t _last_progress = 0;
   float _percentage = 0;
+  bool _is_confirmed = false;
 };
 
 }  // namespace zephyr_ota_mcumgr
