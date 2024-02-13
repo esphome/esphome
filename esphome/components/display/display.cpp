@@ -264,7 +264,6 @@ void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, 
   this->get_text_bounds(x, y, text, font, align, &x_start, &y_start, &width, &height);
   font->print(x_start, y_start, this, color, text);
 }
-
 void Display::vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg) {
   char buffer[256];
   int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
