@@ -1,14 +1,20 @@
 ---
 nrf52:
-  board: nrf52840
+  # board: adafruit_itsybitsy_nrf52840
+  board: adafruit_feather_nrf52840
   framework:
     type: zephyr
     variant: nrf-sdk
+  # bootloader: adafruit
+  # bootloader: mcuboot
 
 esphome:
   name: nrf52-test-zephyr
 
 logger:
+  # level: DEBUG
+  # logs:
+  #   switch: NONE
 
 switch:
   - platform: gpio
@@ -29,12 +35,6 @@ interval:
 #     name: Uptime Sensor
 #     update_interval: 5s
 
-# shell:
-
-# ipsp:
-
-# otbr:
-
 output:
   - platform: gpio
     pin:
@@ -47,3 +47,31 @@ output:
 
 dfu:
   reset_output: rest_gpio
+
+ota:
+  safe_mode: true
+  on_begin:
+    then:
+      - logger.log: "OTA start"
+  on_progress:
+    then:
+      - logger.log:
+          format: "OTA progress %0.1f%%"
+          args: ["x"]
+  on_end:
+    then:
+      - logger.log: "OTA end"
+  on_error:
+    then:
+      - logger.log:
+          format: "OTA update error %d"
+          args: ["x"]
+  on_state_change:
+    then:
+      - if:
+          condition:
+            lambda: return state == ota::OTA_STARTED;
+          then:
+            - logger.log: "OTA start"
+
+zephyr_ble_server:
