@@ -31,8 +31,7 @@ class FT63X6Touchscreen : public Touchscreen, public i2c::I2CDevice {
   InternalGPIOPin *interrupt_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
 
-  uint8_t read_td_status_(void);
-  uint8_t read_touch_number_(void);
+  uint8_t read_touch_number_();
 
   uint16_t read_touch_x_(uint8_t touch);
   uint16_t read_touch_y_(uint8_t touch);

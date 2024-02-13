@@ -92,7 +92,7 @@ void FT63X6Touchscreen::update_touches() {
   }
 }
 
-uint8_t FT63X6Touchscreen::read_touch_number_(void) { return this->read_byte_(FT63X6_ADDR_TD_STATUS) & 0x0F; }
+uint8_t FT63X6Touchscreen::read_touch_number_() { return this->read_byte_(FT63X6_ADDR_TD_STATUS) & 0x0F; }
 // Touch 1 functions
 uint16_t FT63X6Touchscreen::read_touch_x_(uint8_t touch) {
   uint8_t read_buf[2];
