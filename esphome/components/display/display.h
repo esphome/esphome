@@ -164,7 +164,7 @@ class BaseImage {
 
 class BaseFont {
  public:
-  virtual void print(int x, int y, Display *display, Color color, const char *text){
+  virtual void print(int x, int y, Display *display, Color color, const char *text) {
     print(x, y, display, color, text, COLOR_OFF);
   }
 
