@@ -71,7 +71,7 @@ void FT63X6Touchscreen::dump_config() {
 void FT63X6Touchscreen::update_touches() {
   uint16_t touch_id, x, y;
 
-  uint8_t touches = this->read_touch_number();
+  uint8_t touches = this->read_touch_number_();
   if ((touches == 0x00) || (touches == 0xff)) {
     // ESP_LOGD(TAG, "No touches detected");
     return;
@@ -80,42 +80,42 @@ void FT63X6Touchscreen::update_touches() {
   ESP_LOGV(TAG, "Touches found: %d", touches);
 
   for (auto point = 0; point < touches; point++) {
-    if (((this->read_touch_event(point)) & 0x01) == 0) {  // checking event flag bit 6 if it is null
-      touch_id = this->read_touch_id(point);              // id1 = 0 or 1
-      x = this->read_touch_x(point);
-      y = this->read_touch_y(point);
+    if (((this->read_touch_event_(point)) & 0x01) == 0) {  // checking event flag bit 6 if it is null
+      touch_id = this->read_touch_id_(point);              // id1 = 0 or 1
+      x = this->read_touch_x_(point);
+      y = this->read_touch_y_(point);
       if ((x == 0) && (y == 0)) {
         ESP_LOGW(TAG, "Reporting a (0,0) touch on %d", touch_id);
       }
-      this->add_raw_touch_position_(touch_id, x, y, this->read_touch_weight(point));
+      this->add_raw_touch_position_(touch_id, x, y, this->read_touch_weight_(point));
     }
   }
 }
 
-uint8_t FT63X6Touchscreen::read_touch_number(void) { return this->read_byte_(FT63X6_ADDR_TD_STATUS) & 0x0F; }
+uint8_t FT63X6Touchscreen::read_touch_number_(void) { return this->read_byte_(FT63X6_ADDR_TD_STATUS) & 0x0F; }
 // Touch 1 functions
-uint16_t FT63X6Touchscreen::read_touch_x(uint8_t touch) {
+uint16_t FT63X6Touchscreen::read_touch_x_(uint8_t touch) {
   uint8_t read_buf[2];
   read_buf[0] = this->read_byte_(FT63X6_ADDR_TOUCH1_X + (touch * 6));
   read_buf[1] = this->read_byte_(FT63X6_ADDR_TOUCH1_X + 1 + (touch * 6));
   return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
-uint16_t FT63X6Touchscreen::read_touch_y(uint8_t touch) {
+uint16_t FT63X6Touchscreen::read_touch_y_(uint8_t touch) {
   uint8_t read_buf[2];
   read_buf[0] = this->read_byte_(FT63X6_ADDR_TOUCH1_Y + (touch * 6));
   read_buf[1] = this->read_byte_(FT63X6_ADDR_TOUCH1_Y + 1 + (touch * 6));
   return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
-uint8_t FT63X6Touchscreen::read_touch_event(uint8_t touch) {
+uint8_t FT63X6Touchscreen::read_touch_event_(uint8_t touch) {
   return this->read_byte_(FT63X6_ADDR_TOUCH1_X + (touch * 6)) >> 6;
 }
-uint8_t FT63X6Touchscreen::read_touch_id(uint8_t touch) {
+uint8_t FT63X6Touchscreen::read_touch_id_(uint8_t touch) {
   return this->read_byte_(FT63X6_ADDR_TOUCH1_ID + (touch * 6)) >> 4;
 }
-uint8_t FT63X6Touchscreen::read_touch_weight(uint8_t touch) {
+uint8_t FT63X6Touchscreen::read_touch_weight_(uint8_t touch) {
   return this->read_byte_(FT63X6_ADDR_TOUCH1_WEIGHT + (touch * 6));
 }
-uint8_t FT63X6Touchscreen::read_touch_misc(uint8_t touch) {
+uint8_t FT63X6Touchscreen::read_touch_misc_(uint8_t touch) {
   return this->read_byte_(FT63X6_ADDR_TOUCH1_MISC + (touch * 6)) >> 4;
 }
 
