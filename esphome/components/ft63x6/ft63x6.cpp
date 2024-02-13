@@ -81,7 +81,7 @@ void FT63X6Touchscreen::update_touches() {
 
   for (auto point = 0; point < touches; point++) {
     if (((this->read_touch_event(point)) & 0x01) == 0) {  // checking event flag bit 6 if it is null
-      touch_id = this->read_touch_id(point);      // id1 = 0 or 1
+      touch_id = this->read_touch_id(point);              // id1 = 0 or 1
       x = this->read_touch_x(point);
       y = this->read_touch_y(point);
       if ((x == 0) && (y == 0)) {
