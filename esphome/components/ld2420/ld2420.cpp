@@ -40,9 +40,9 @@ There are three documented parameters for modes:
   00 04 = Energy output mode
     This mode outputs detailed signal energy values for each gate and the target distance.
     The data format consist of the following.
-    Header HH, Length LL, Persence PP, Distance DD, Range Gate GG, 16 Gate Energies EE, Footer FF
-    HH HH HH HH LL LL PP DD DD GG GG EE EE .. 16x   .. FF FF FF FF
-    F4 F3 F2 F1 00 23 00 00 00 00 01 00 00 .. .. .. .. F8 F7 F6 F5
+    Header HH, Length LL, Persence PP, Distance DD, 16 Gate Energies EE, Footer FF
+    HH HH HH HH LL LL PP DD DD EE EE .. 16x   .. FF FF FF FF
+    F4 F3 F2 F1 23 00 00 00 00 00 00 .. .. .. .. F8 F7 F6 F5
   00 00 = debug output mode
     This mode outputs detailed values consisting of 20 Dopplers, 16 Ranges for a total 20 * 16 * 4 bytes
     The data format consist of the following.
