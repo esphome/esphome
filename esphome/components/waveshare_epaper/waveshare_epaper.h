@@ -1099,5 +1099,40 @@ class WaveshareEPaper13P3InK : public WaveshareEPaper {
   uint32_t idle_timeout_() override;
 };
 
+// WeAct 3-Color e-paper display driver
+enum WeActEPaper3CModel {
+  WEACT_EPAPER_2_13_IN_3C,
+  WEACT_EPAPER_2_90_IN_3C,
+  WEACT_EPAPER_4_20_IN_3C,
+};
+
+class WeActEPaper3C : public WaveshareEPaperBWR {
+ public:
+  explicit WeActEPaper3C(WeActEPaper3CModel model);
+
+  void display() override;
+  void dump_config() override;
+  void deep_sleep() override;
+  void setup() override;
+  void loop() override;
+  void initialize() override;
+
+ protected:
+  int get_width_internal() override;
+  int get_height_internal() override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  uint32_t idle_timeout_() override;
+
+ private:
+  void send_reset_();
+  void full_update_();
+  void set_window_(int t, int b);
+  void write_buffer_(int top, int bottom);
+
+  WeActEPaper3CModel model_;
+  bool is_busy_{false};
+  bool initialized_{false};
+};
+
 }  // namespace waveshare_epaper
 }  // namespace esphome
