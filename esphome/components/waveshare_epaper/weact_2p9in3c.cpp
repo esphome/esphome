@@ -25,21 +25,17 @@ static const uint8_t BORDER_FULL[] = {0x3C, 0x05};              // border wavefo
 static const uint8_t TEMP_SENS[] = {0x18, 0x80};                // use internal temp sensor
 static const uint8_t DISPLAY_UPDATE[] = {0x21, 0x00, 0x80};     // display update control
 
-// static const uint8_t GATEV[] = {0x03, 0x17};
-// static const uint8_t SRCV[] = {0x04, 0x41, 0x0C, 0x32};
-// static const uint8_t UPSEQ[] = {0x22, 0xC0};
-
-// static const uint8_t ON_PARTIAL[] = {0x22, 0x0F};
-// static const uint8_t VCOM[] = {0x2C, 0x36};
-// static const uint8_t CMD5[] = {0x37, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00};
-// static const uint8_t BORDER_PART[] = {0x3C, 0x80};  // border waveform
-// static const uint8_t CMD1[] = {0x3F, 0x22};
-
 // For controlling which part of the image we want to write
 static const uint8_t RAM_X_RANGE[] = {0x44, 0x00, WIDTH / 8u - 1};
 static const uint8_t RAM_Y_RANGE[] = {0x45, 0x00, 0x00, (uint8_t) HEIGHT - 1, (uint8_t) (HEIGHT >> 8)};
 static const uint8_t RAM_X_POS[] = {0x4E, 0x00}; // Always start at 0
 static const uint8_t RAM_Y_POS = 0x4F;
+
+// It's worth adding some notes for this implementation
+// - This display doesn't ship with a LUT, instead it relies on the internal values set during OTP
+// - This display inverts Black & White in memory, requiring a different implementation for draw_absolute_pixel_internal
+// - The reference implementation by the vendor points to https://github.com/ZinggJM/GxEPD2/blob/220fc5845c08b83c8dbac63e0cb83e1a774071ca/src/epd3c/GxEPD2_290_C90c.cpp
+// - The datasheet is here https://github.com/WeActStudio/WeActStudio.EpaperModule/blob/master/Doc/ZJY128296-029EAAMFGN.pdf
 
 #define SEND(x) this->cmd_data(x, sizeof(x))
 
@@ -141,7 +137,7 @@ int WeActEPaper2P9In3C::get_width_internal() { return WIDTH; }
 
 int WeActEPaper2P9In3C::get_height_internal() { return HEIGHT; }
 
-uint32_t WeActEPaper2P9In3C::idle_timeout_() { return 20000; } // Spec says ~15s for full refresh.
+uint32_t WeActEPaper2P9In3C::idle_timeout_() { return 2500; }
 
 void WeActEPaper2P9In3C::dump_config() {
   LOG_DISPLAY("", "WeAct E-Paper (3 Color)", this)
