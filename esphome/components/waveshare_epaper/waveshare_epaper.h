@@ -709,5 +709,34 @@ class WaveshareEPaper2P13InV3 : public WaveshareEPaper {
   bool is_busy_{false};
   void write_lut_(const uint8_t *lut);
 };
+
+class WeActEPaper2P9In3C : public WaveshareEPaperBWR {
+ public:
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override;
+
+  void setup() override;
+  void initialize() override;
+
+ protected:
+  int get_width_internal() override;
+  int get_height_internal() override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+
+  uint32_t idle_timeout_() override;
+
+  void write_buffer_(int top, int bottom);
+  void set_window_(int t, int b);
+  void send_reset_();
+  void partial_update_();
+  void full_update_() ;
+
+  uint32_t full_update_every_{0};
+  uint32_t at_update_{0};
+  bool is_busy_{false};
+};
 }  // namespace waveshare_epaper
 }  // namespace esphome
