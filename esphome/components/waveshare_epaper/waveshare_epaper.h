@@ -731,8 +731,7 @@ class WeActEPaper2P9In3C : public WaveshareEPaperBWR {
   void write_buffer_(int top, int bottom);
   void set_window_(int t, int b);
   void send_reset_();
-  void partial_update_();
-  void full_update_() ;
+  void full_update_();
 
   uint32_t full_update_every_{0};
   uint32_t at_update_{0};

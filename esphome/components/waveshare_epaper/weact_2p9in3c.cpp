@@ -5,6 +5,14 @@
 namespace esphome {
 namespace waveshare_epaper {
 
+// It's worth adding some notes for this implementation
+// - This display doesn't ship with a LUT, instead it relies on the internal values set during OTP
+// - This display inverts Black & White in memory, requiring a different implementation for draw_absolute_pixel_internal
+// - The reference implementation by the vendor points to
+// https://github.com/ZinggJM/GxEPD2/blob/220fc5845c08b83c8dbac63e0cb83e1a774071ca/src/epd3c/GxEPD2_290_C90c.cpp
+// - The datasheet is here
+// https://github.com/WeActStudio/WeActStudio.EpaperModule/blob/master/Doc/ZJY128296-029EAAMFGN.pdf
+
 static const char *const TAG = "weact_2.90_3c";
 
 static const uint16_t HEIGHT = 296;
@@ -28,45 +36,28 @@ static const uint8_t DISPLAY_UPDATE[] = {0x21, 0x00, 0x80};     // display updat
 // For controlling which part of the image we want to write
 static const uint8_t RAM_X_RANGE[] = {0x44, 0x00, WIDTH / 8u - 1};
 static const uint8_t RAM_Y_RANGE[] = {0x45, 0x00, 0x00, (uint8_t) HEIGHT - 1, (uint8_t) (HEIGHT >> 8)};
-static const uint8_t RAM_X_POS[] = {0x4E, 0x00}; // Always start at 0
+static const uint8_t RAM_X_POS[] = {0x4E, 0x00};  // Always start at 0
 static const uint8_t RAM_Y_POS = 0x4F;
-
-// It's worth adding some notes for this implementation
-// - This display doesn't ship with a LUT, instead it relies on the internal values set during OTP
-// - This display inverts Black & White in memory, requiring a different implementation for draw_absolute_pixel_internal
-// - The reference implementation by the vendor points to https://github.com/ZinggJM/GxEPD2/blob/220fc5845c08b83c8dbac63e0cb83e1a774071ca/src/epd3c/GxEPD2_290_C90c.cpp
-// - The datasheet is here https://github.com/WeActStudio/WeActStudio.EpaperModule/blob/master/Doc/ZJY128296-029EAAMFGN.pdf
 
 #define SEND(x) this->cmd_data(x, sizeof(x))
 
-// write the buffer starting on line top, up to line bottom.
-void WeActEPaper2P9In3C::write_buffer_(int top, int bottom) {
-  auto width_bytes = this->get_width_internal() / 8;
-  auto offset = top * width_bytes;
-  auto length = (bottom - top) * width_bytes;
+// Basics
 
-  this->wait_until_idle_();
-  this->set_window_(top, bottom);
+int WeActEPaper2P9In3C::get_width_internal() { return WIDTH; }
+int WeActEPaper2P9In3C::get_height_internal() { return HEIGHT; }
+uint32_t WeActEPaper2P9In3C::idle_timeout_() { return 2500; }
 
-  this->command(WRITE_BLACK);
-  this->start_data_();
-  this->write_array(this->buffer_ + offset, length);
-  this->end_data_();
-
-  this->command(WRITE_COLOR);
-  this->start_data_(); 
-  offset += this->get_buffer_length_() / 2;
-  this->write_array(this->buffer_ + offset, length);
-  this->end_data_();
+void WeActEPaper2P9In3C::dump_config() {
+  LOG_DISPLAY("", "WeAct E-Paper (3 Color)", this)
+  ESP_LOGCONFIG(TAG, "  Model: 2.90in Red+Black");
+  LOG_PIN("  CS Pin: ", this->cs_)
+  LOG_PIN("  Reset Pin: ", this->reset_pin_)
+  LOG_PIN("  DC Pin: ", this->dc_pin_)
+  LOG_PIN("  Busy Pin: ", this->busy_pin_)
+  LOG_UPDATE_INTERVAL(this)
 }
 
-void WeActEPaper2P9In3C::send_reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(2);
-    this->reset_pin_->digital_write(true);
-  }
-}
+// Device lifecycle
 
 void WeActEPaper2P9In3C::setup() {
   setup_pins_();
@@ -87,6 +78,21 @@ void WeActEPaper2P9In3C::setup() {
   this->wait_until_idle_();
 }
 
+void WeActEPaper2P9In3C::send_reset_() {
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->digital_write(false);
+    delay(2);
+    this->reset_pin_->digital_write(true);
+  }
+}
+
+// must implement, but we override setup to have more control
+void WeActEPaper2P9In3C::initialize() {}
+
+void WeActEPaper2P9In3C::deep_sleep() { SEND(SLEEP); }
+
+// Pixel stuff
+
 // t and b are y positions, i.e. line numbers.
 void WeActEPaper2P9In3C::set_window_(int t, int b) {
   SEND(RAM_X_RANGE);
@@ -100,53 +106,25 @@ void WeActEPaper2P9In3C::set_window_(int t, int b) {
   SEND(buffer);
 }
 
-// must implement, but we override setup to have more control
-void WeActEPaper2P9In3C::initialize() {}
+// send the buffer starting on line `top`, up to line `bottom`.
+void WeActEPaper2P9In3C::write_buffer_(int top, int bottom) {
+  auto width_bytes = this->get_width_internal() / 8;
+  auto offset = top * width_bytes;
+  auto length = (bottom - top) * width_bytes;
 
-void WeActEPaper2P9In3C::deep_sleep() {
-  SEND(SLEEP);
-}
+  this->wait_until_idle_();
+  this->set_window_(top, bottom);
 
-void WeActEPaper2P9In3C::partial_update_() {
-  this->full_update_();
-  // Figure this out later, no LUT...
-}
+  this->command(WRITE_BLACK);
+  this->start_data_();
+  this->write_array(this->buffer_ + offset, length);
+  this->end_data_();
 
-void WeActEPaper2P9In3C::full_update_() {
-  ESP_LOGI(TAG, "Performing full e-paper update.");
-  this->write_buffer_(0, this->get_height_internal());
-  SEND(UPDATE_FULL);
-  this->command(ACTIVATE);  // don't wait here
-  this->is_busy_ = false;
-}
-
-void WeActEPaper2P9In3C::display() {
-  if (this->is_busy_ || (this->busy_pin_ != nullptr && this->busy_pin_->digital_read()))
-    return;
-  this->is_busy_ = true;
-  const bool partial = this->at_update_ != 0;
-  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
-  if (partial) {
-    this->partial_update_();
-  } else {
-    this->full_update_();
-  }
-}
-
-int WeActEPaper2P9In3C::get_width_internal() { return WIDTH; }
-
-int WeActEPaper2P9In3C::get_height_internal() { return HEIGHT; }
-
-uint32_t WeActEPaper2P9In3C::idle_timeout_() { return 2500; }
-
-void WeActEPaper2P9In3C::dump_config() {
-  LOG_DISPLAY("", "WeAct E-Paper (3 Color)", this)
-  ESP_LOGCONFIG(TAG, "  Model: 2.90in Red+Black");
-  LOG_PIN("  CS Pin: ", this->cs_)
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  offset += this->get_buffer_length_() / 2;
+  this->command(WRITE_COLOR);
+  this->start_data_();
+  this->write_array(this->buffer_ + offset, length);
+  this->end_data_();
 }
 
 void HOT WeActEPaper2P9In3C::draw_absolute_pixel_internal(int x, int y, Color color) {
@@ -172,7 +150,20 @@ void HOT WeActEPaper2P9In3C::draw_absolute_pixel_internal(int x, int y, Color co
   }
 }
 
+void WeActEPaper2P9In3C::full_update_() {
+  ESP_LOGI(TAG, "Performing full e-paper update.");
+  this->write_buffer_(0, this->get_height_internal());
+  SEND(UPDATE_FULL);
+  this->command(ACTIVATE);  // don't wait here
+  this->is_busy_ = false;
+}
 
+void WeActEPaper2P9In3C::display() {
+  if (this->is_busy_ || (this->busy_pin_ != nullptr && this->busy_pin_->digital_read()))
+    return;
+  this->is_busy_ = true;
+  this->full_update_();
+}
 
 }  // namespace waveshare_epaper
 }  // namespace esphome
