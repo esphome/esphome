@@ -276,10 +276,10 @@ class Display : public PollingComponent {
 
   /// Draw the outline of a regular polygon inscribed in the circle centered on [x1,y1] with the given radius and color.
   /// Use the variation to switch between the flat-topped or the pointy-topped variation of the polygon.
-  /// Use the filling to switch between outlining or filling the polygon.
+  /// Use the drawing to switch between outlining or filling the polygon.
   void regular_polygon(int x1, int y1, int radius, RegularPolygonType edges,
                        RegularPolygonVariation variation = VARIATION_FLAT_TOPPED, Color color = COLOR_ON,
-                       RegularPolygonDrawing filling = DRAWING_OUTLINE);
+                       RegularPolygonDrawing drawing = DRAWING_OUTLINE);
 
   /// Fill a regular polygon inscribed in the circle centered on [x1,y1] with the given radius and color.
   /// Use the variation to switch between flat-topped and pointy-topped variation of the polygon.

@@ -258,7 +258,7 @@ void Display::filled_triangle(int x1, int y1, int x2, int y2, int x3, int y3, Co
   }
 }
 void HOT Display::regular_polygon(int x1, int y1, int radius, RegularPolygonType edges,
-                                  RegularPolygonVariation variation, Color color, RegularPolygonDrawing filling) {
+                                  RegularPolygonVariation variation, Color color, RegularPolygonDrawing drawing) {
   int previous_vertex_x, previous_vertex_y;
   // The 0 angle points right. To point up, we add 3π/2 (and not π/2 because the y-axis is reversed (=points downwards)
   // on the display component)
@@ -273,9 +273,9 @@ void HOT Display::regular_polygon(int x1, int y1, int radius, RegularPolygonType
     int current_vertex_x = (int) round(cos(current_vertex_angle) * radius) + x1;
     int current_vertex_y = (int) round(sin(current_vertex_angle) * radius) + y1;
     if (current_vertex > 0) {
-      if (filling == DRAWING_FILLED) {
+      if (drawing == DRAWING_FILLED) {
         this->filled_triangle(x1, y1, previous_vertex_x, previous_vertex_y, current_vertex_x, current_vertex_y, color);
-      } else if (filling == DRAWING_OUTLINE) {
+      } else if (drawing == DRAWING_OUTLINE) {
         this->line(previous_vertex_x, previous_vertex_y, current_vertex_x, current_vertex_y, color);
       }
     }
