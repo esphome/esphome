@@ -265,12 +265,12 @@ void HOT Display::get_regular_polygon_vertex(int vertex_id, int *vertex_x, int *
     // For a regular polygon, the human reference would be the top of the polygon,
     // hence we rotate the shape by 270° to orient the polygon up.
     rotation_degrees += ROTATION_270_DEGREES;
-    // Convert the rotation to radians, easier to use for trigonometrical calculations
+    // Convert the rotation to radians, easier to use in trigonometrical calculations
     float rotation_radians = rotation_degrees * PI / 180;
     // A pointy top variation means the first vertex of the polygon is at the top center of the shape, this requires no
     // additional rotation of the shape.
     // A flat top variation means the first point of the polygon has to be rotated so that the first edge is horizontal,
-    // this requires to rotate the shape by π/edges radians counter-clockwise so that the first point is situated on the
+    // this requires to rotate the shape by π/edges radians counter-clockwise so that the first point is located on the
     // left side of the first horizontal edge.
     rotation_radians -= (variation == VARIATION_FLAT_TOP) ? PI / edges : 0.0;
 
@@ -280,18 +280,17 @@ void HOT Display::get_regular_polygon_vertex(int vertex_id, int *vertex_x, int *
   }
 }
 
-void HOT Display::regular_polygon(int center_x, int center_y, int radius, int edges, RegularPolygonVariation variation,
+void HOT Display::regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation,
                                   float rotation_degrees, Color color, RegularPolygonDrawing drawing) {
   if (edges >= 2) {
     int previous_vertex_x, previous_vertex_y;
     for (int current_vertex_id = 0; current_vertex_id <= edges; current_vertex_id++) {
       int current_vertex_x, current_vertex_y;
-      get_regular_polygon_vertex(current_vertex_id, &current_vertex_x, &current_vertex_y, center_x, center_y, radius,
-                                 edges, variation, rotation_degrees);
-      if (current_vertex_id > 0) {
+      get_regular_polygon_vertex(current_vertex_id, &current_vertex_x, &current_vertex_y, x, y, radius, edges,
+                                 variation, rotation_degrees);
+      if (current_vertex_id > 0) {  // Start drawing after the 2nd vertex coordinates has been calculated
         if (drawing == DRAWING_FILLED) {
-          this->filled_triangle(center_x, center_y, previous_vertex_x, previous_vertex_y, current_vertex_x,
-                                current_vertex_y, color);
+          this->filled_triangle(x, y, previous_vertex_x, previous_vertex_y, current_vertex_x, current_vertex_y, color);
         } else if (drawing == DRAWING_OUTLINE) {
           this->line(previous_vertex_x, previous_vertex_y, current_vertex_x, current_vertex_y, color);
         }
@@ -301,24 +300,23 @@ void HOT Display::regular_polygon(int center_x, int center_y, int radius, int ed
     }
   }
 }
-void HOT Display::regular_polygon(int center_x, int center_y, int radius, int edges, RegularPolygonVariation variation,
-                                  Color color, RegularPolygonDrawing drawing) {
-  regular_polygon(center_x, center_y, radius, edges, variation, ROTATION_0_DEGREES, color, drawing);
-}
-void HOT Display::regular_polygon(int center_x, int center_y, int radius, int edges, Color color,
+void HOT Display::regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation, Color color,
                                   RegularPolygonDrawing drawing) {
-  regular_polygon(center_x, center_y, radius, edges, VARIATION_POINTY_TOP, ROTATION_0_DEGREES, color, drawing);
+  regular_polygon(x, y, radius, edges, variation, ROTATION_0_DEGREES, color, drawing);
 }
-void Display::filled_regular_polygon(int center_x, int center_y, int radius, int edges,
-                                     RegularPolygonVariation variation, float rotation_degrees, Color color) {
-  regular_polygon(center_x, center_y, radius, edges, variation, rotation_degrees, color, DRAWING_FILLED);
+void HOT Display::regular_polygon(int x, int y, int radius, int edges, Color color, RegularPolygonDrawing drawing) {
+  regular_polygon(x, y, radius, edges, VARIATION_POINTY_TOP, ROTATION_0_DEGREES, color, drawing);
 }
-void Display::filled_regular_polygon(int center_x, int center_y, int radius, int edges,
-                                     RegularPolygonVariation variation, Color color) {
-  regular_polygon(center_x, center_y, radius, edges, variation, ROTATION_0_DEGREES, color, DRAWING_FILLED);
+void Display::filled_regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation,
+                                     float rotation_degrees, Color color) {
+  regular_polygon(x, y, radius, edges, variation, rotation_degrees, color, DRAWING_FILLED);
 }
-void Display::filled_regular_polygon(int center_x, int center_y, int radius, int edges, Color color) {
-  regular_polygon(center_x, center_y, radius, edges, VARIATION_POINTY_TOP, ROTATION_0_DEGREES, color, DRAWING_FILLED);
+void Display::filled_regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation,
+                                     Color color) {
+  regular_polygon(x, y, radius, edges, variation, ROTATION_0_DEGREES, color, DRAWING_FILLED);
+}
+void Display::filled_regular_polygon(int x, int y, int radius, int edges, Color color) {
+  regular_polygon(x, y, radius, edges, VARIATION_POINTY_TOP, ROTATION_0_DEGREES, color, DRAWING_FILLED);
 }
 
 void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text) {

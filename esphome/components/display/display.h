@@ -279,7 +279,10 @@ class Display : public PollingComponent {
   void filled_triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color = COLOR_ON);
 
   /// Get the specified vertex (x,y) coordinates for the regular polygon inscribed in the circle centered on
-  /// [center_x,center_y] with the given radius.
+  /// [center_x,center_y] with the given radius. Vertex id are 0-indexed and rotate clockwise. In a pointy-topped
+  /// variation of a polygon with a 0° rotation, the vertex #0 is located at the top of the polygon. In a flat-topped
+  /// variation of a polygon with a 0° rotation, the vertex #0 is located on the left-side of the horizontal top
+  /// edge, and the vertex #1 is located on the right-side of the horizontal top edge.
   /// Use the edges constants (e.g.: EDGES_HEXAGON) or any integer to specify the number of edges of the polygon.
   /// Use the variation to switch between the flat-topped or the pointy-topped variation of the polygon.
   /// Use the rotation in degrees to rotate the shape clockwise.
@@ -287,31 +290,29 @@ class Display : public PollingComponent {
                                   int edges, RegularPolygonVariation variation = VARIATION_POINTY_TOP,
                                   float rotation_degrees = ROTATION_0_DEGREES);
 
-  /// Draw the outline of a regular polygon inscribed in the circle centered on [center_x,center_y] with the given
+  /// Draw the outline of a regular polygon inscribed in the circle centered on [x,y] with the given
   /// radius and color.
   /// Use the edges constants (e.g.: EDGES_HEXAGON) or any integer to specify the number of edges of the polygon.
   /// Use the variation to switch between the flat-topped or the pointy-topped variation of the polygon.
   /// Use the rotation in degrees to rotate the shape clockwise.
   /// Use the drawing to switch between outlining or filling the polygon.
-  void regular_polygon(int center_x, int center_y, int radius, int edges,
-                       RegularPolygonVariation variation = VARIATION_POINTY_TOP,
+  void regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation = VARIATION_POINTY_TOP,
                        float rotation_degrees = ROTATION_0_DEGREES, Color color = COLOR_ON,
                        RegularPolygonDrawing drawing = DRAWING_OUTLINE);
-  void regular_polygon(int center_x, int center_y, int radius, int edges, RegularPolygonVariation variation,
-                       Color color, RegularPolygonDrawing drawing = DRAWING_OUTLINE);
-  void regular_polygon(int center_x, int center_y, int radius, int edges, Color color,
+  void regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation, Color color,
+                       RegularPolygonDrawing drawing = DRAWING_OUTLINE);
+  void regular_polygon(int x, int y, int radius, int edges, Color color,
                        RegularPolygonDrawing drawing = DRAWING_OUTLINE);
 
-  /// Fill a regular polygon inscribed in the circle centered on [center_x,center_y] with the given radius and color.
+  /// Fill a regular polygon inscribed in the circle centered on [x,y] with the given radius and color.
   /// Use the edges constants (e.g.: EDGES_HEXAGON) or any integer to specify the number of edges of the polygon.
   /// Use the variation to switch between the flat-topped or the pointy-topped variation of the polygon.
   /// Use the rotation in degrees to rotate the shape clockwise.
-  void filled_regular_polygon(int center_x, int center_y, int radius, int edges,
+  void filled_regular_polygon(int x, int y, int radius, int edges,
                               RegularPolygonVariation variation = VARIATION_POINTY_TOP,
                               float rotation_degrees = ROTATION_0_DEGREES, Color color = COLOR_ON);
-  void filled_regular_polygon(int center_x, int center_y, int radius, int edges, RegularPolygonVariation variation,
-                              Color color);
-  void filled_regular_polygon(int center_x, int center_y, int radius, int edges, Color color);
+  void filled_regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation, Color color);
+  void filled_regular_polygon(int x, int y, int radius, int edges, Color color);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
