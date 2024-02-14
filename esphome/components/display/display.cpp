@@ -257,35 +257,42 @@ void Display::filled_triangle(int x1, int y1, int x2, int y2, int x3, int y3, Co
     this->filled_flat_side_triangle_(x3, y3, x2, y2, x_temp, y_temp, color);
   }
 }
-void HOT Display::regular_polygon(int x1, int y1, int radius, RegularPolygonType edges,
-                                  RegularPolygonVariation variation, Color color, RegularPolygonDrawing drawing) {
-  int previous_vertex_x, previous_vertex_y;
-  // The 0 angle points right. To point up, we add 3π/2 (and not π/2 because the y-axis is reversed (=points downwards)
-  // on the display component)
-  const float pointing_up_offset_angle = 3 * PI / 2;
-  // To match the variation, we add an offset of half the angle made by the axis between the center of the circle and
-  // each of the vertices, or we add a 0 offset if we want to stay pointed up
-  const float variation_offset_angle = (variation == VARIATION_FLAT_TOPPED) ? PI / edges : 0.0;
-  for (int current_vertex = 0; current_vertex <= edges; current_vertex++) {
-    float current_vertex_angle = ((float) current_vertex) / edges * 2 * PI;
-    current_vertex_angle += pointing_up_offset_angle;
-    current_vertex_angle += variation_offset_angle;
-    int current_vertex_x = (int) round(cos(current_vertex_angle) * radius) + x1;
-    int current_vertex_y = (int) round(sin(current_vertex_angle) * radius) + y1;
-    if (current_vertex > 0) {
-      if (drawing == DRAWING_FILLED) {
-        this->filled_triangle(x1, y1, previous_vertex_x, previous_vertex_y, current_vertex_x, current_vertex_y, color);
-      } else if (drawing == DRAWING_OUTLINE) {
-        this->line(previous_vertex_x, previous_vertex_y, current_vertex_x, current_vertex_y, color);
+void HOT Display::regular_polygon(int x1, int y1, int radius, int edges, RegularPolygonVariation variation,
+                                  float rotation_degrees, Color color, RegularPolygonDrawing drawing) {
+  if (edges >= 2) {
+    int previous_vertex_x, previous_vertex_y;
+    // Given the orientation of the display component, an angle is measured clockwise from the x axis.
+    // For a regular polygon, the human reference would be the top of the polygon,
+    // hence we rotate the shape by 270° to orient the polygon up.
+    rotation_degrees += ROTATION_270_DEGREES;
+    // Convert the rotation to radians, easier to use for trigonometrical calculations
+    float rotation_radians = rotation_degrees * PI / 180;
+    // A pointy top variation means the first vertex of the polygon is at the top center of the shape, this requires no
+    // additional rotation of the shape.
+    // A flat top variation means the first point of the polygon has to be rotated so that the first edge is horizontal,
+    // this requires to rotate the shape by π/edges radians counter-clockwise so that the first point is situated on the
+    // left side of the first horizontal edge.
+    rotation_radians -= (variation == VARIATION_FLAT_TOP) ? PI / edges : 0.0;
+    for (int current_vertex = 0; current_vertex <= edges; current_vertex++) {
+      float current_vertex_angle = ((float) current_vertex) / edges * 2 * PI + rotation_radians;
+      int current_vertex_x = (int) round(cos(current_vertex_angle) * radius) + x1;
+      int current_vertex_y = (int) round(sin(current_vertex_angle) * radius) + y1;
+      if (current_vertex > 0) {
+        if (drawing == DRAWING_FILLED) {
+          this->filled_triangle(x1, y1, previous_vertex_x, previous_vertex_y, current_vertex_x, current_vertex_y,
+                                color);
+        } else if (drawing == DRAWING_OUTLINE) {
+          this->line(previous_vertex_x, previous_vertex_y, current_vertex_x, current_vertex_y, color);
+        }
       }
+      previous_vertex_x = current_vertex_x;
+      previous_vertex_y = current_vertex_y;
     }
-    previous_vertex_x = current_vertex_x;
-    previous_vertex_y = current_vertex_y;
   }
 }
-void Display::filled_regular_polygon(int x1, int y1, int radius, RegularPolygonType edges,
-                                     RegularPolygonVariation variation, Color color) {
-  regular_polygon(x1, y1, radius, edges, variation, color, DRAWING_FILLED);
+void Display::filled_regular_polygon(int x1, int y1, int radius, int edges, RegularPolygonVariation variation,
+                                     float rotation_degrees, Color color) {
+  regular_polygon(x1, y1, radius, edges, variation, rotation_degrees, color, DRAWING_FILLED);
 }
 
 void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text) {
