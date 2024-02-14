@@ -290,9 +290,23 @@ void HOT Display::regular_polygon(int x1, int y1, int radius, int edges, Regular
     }
   }
 }
+void HOT Display::regular_polygon(int x1, int y1, int radius, int edges, RegularPolygonVariation variation, Color color,
+                                  RegularPolygonDrawing drawing) {
+  regular_polygon(x1, y1, radius, edges, variation, ROTATION_0_DEGREES, color, drawing);
+}
+void HOT Display::regular_polygon(int x1, int y1, int radius, int edges, Color color, RegularPolygonDrawing drawing) {
+  regular_polygon(x1, y1, radius, edges, VARIATION_POINTY_TOP, ROTATION_0_DEGREES, color, drawing);
+}
 void Display::filled_regular_polygon(int x1, int y1, int radius, int edges, RegularPolygonVariation variation,
                                      float rotation_degrees, Color color) {
   regular_polygon(x1, y1, radius, edges, variation, rotation_degrees, color, DRAWING_FILLED);
+}
+void Display::filled_regular_polygon(int x1, int y1, int radius, int edges, RegularPolygonVariation variation,
+                                     Color color) {
+  regular_polygon(x1, y1, radius, edges, variation, ROTATION_0_DEGREES, color, DRAWING_FILLED);
+}
+void Display::filled_regular_polygon(int x1, int y1, int radius, int edges, Color color) {
+  regular_polygon(x1, y1, radius, edges, VARIATION_POINTY_TOP, ROTATION_0_DEGREES, color, DRAWING_FILLED);
 }
 
 void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text) {

@@ -286,6 +286,10 @@ class Display : public PollingComponent {
   void regular_polygon(int x1, int y1, int radius, int edges, RegularPolygonVariation variation = VARIATION_POINTY_TOP,
                        float rotation_degrees = ROTATION_0_DEGREES, Color color = COLOR_ON,
                        RegularPolygonDrawing drawing = DRAWING_OUTLINE);
+  void regular_polygon(int x1, int y1, int radius, int edges, RegularPolygonVariation variation = VARIATION_POINTY_TOP,
+                       Color color = COLOR_ON, RegularPolygonDrawing drawing = DRAWING_OUTLINE);
+  void regular_polygon(int x1, int y1, int radius, int edges, Color color = COLOR_ON,
+                       RegularPolygonDrawing drawing = DRAWING_OUTLINE);
 
   /// Fill a regular polygon inscribed in the circle centered on [x1,y1] with the given radius and color.
   /// Use the edges constants (e.g.: EDGES_HEXAGON) or any integer to specify the number of edges of the polygon.
@@ -294,6 +298,9 @@ class Display : public PollingComponent {
   void filled_regular_polygon(int x1, int y1, int radius, int edges,
                               RegularPolygonVariation variation = VARIATION_POINTY_TOP,
                               float rotation_degrees = ROTATION_0_DEGREES, Color color = COLOR_ON);
+  void filled_regular_polygon(int x1, int y1, int radius, int edges,
+                              RegularPolygonVariation variation = VARIATION_POINTY_TOP, Color color = COLOR_ON);
+  void filled_regular_polygon(int x1, int y1, int radius, int edges, Color color = COLOR_ON);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
