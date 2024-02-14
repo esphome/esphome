@@ -1,0 +1,11 @@
+output:
+  - platform: ledc
+    id: servo_output_1
+    pin: 1
+
+servo:
+  id: test_servo
+  output: servo_output_1
+  restore: true
+  min_level: 4%
+  max_level: 8%

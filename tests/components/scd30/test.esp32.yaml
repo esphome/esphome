@@ -1,0 +1,20 @@
+i2c:
+  - id: i2c_scd30
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: scd30
+    co2:
+      name: SCD30 CO2
+    temperature:
+      id: scd30_temperature
+      name: SCD30 Temperature
+    humidity:
+      name: SCD30 Humidity
+    address: 0x61
+    automatic_self_calibration: true
+    altitude_compensation: 10m
+    ambient_pressure_compensation: 961mBar
+    temperature_offset: 4.2C
+    update_interval: 15s

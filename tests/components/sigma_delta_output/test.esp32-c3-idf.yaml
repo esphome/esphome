@@ -1,0 +1,16 @@
+output:
+  - platform: sigma_delta_output
+    id: sddac
+    pin: 4
+    turn_on_action:
+      then:
+        - logger.log: "Turned on"
+    turn_off_action:
+      then:
+        - logger.log: "Turned off"
+    state_change_action:
+      then:
+        - logger.log:
+            format: "Changed state: %d"
+            args: ["state"]
+    update_interval: 60s

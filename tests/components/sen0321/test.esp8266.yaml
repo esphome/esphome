@@ -1,0 +1,10 @@
+i2c:
+  - id: i2c_sen0321
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: sen0321
+    name: Workshop Ozone Sensor
+    id: sen0321_ozone
+    update_interval: 10s

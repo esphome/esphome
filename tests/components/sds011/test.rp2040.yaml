@@ -1,0 +1,14 @@
+uart:
+  - id: uart_sdm_sds011
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 115200
+
+sensor:
+  - platform: sds011
+    pm_2_5:
+      name: SDS011 PM2.5
+    pm_10_0:
+      name: SDS011 PM10.0
+    rx_only: false
+    update_interval: 5min
