@@ -142,9 +142,9 @@ void Display::filled_circle(int center_x, int center_y, int radius, Color color)
   } while (dx <= 0);
 }
 void HOT Display::triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color) {
-  this->line(x1, y1, x2, y2);
-  this->line(x1, y1, x3, y3);
-  this->line(x2, y2, x3, y3);
+  this->line(x1, y1, x2, y2, color);
+  this->line(x1, y1, x3, y3, color);
+  this->line(x2, y2, x3, y3, color);
 }
 void Display::sort_triangle_points_by_y_(int *x1, int *y1, int *x2, int *y2, int *x3, int *y3) {
   if (*y1 > *y2) {
