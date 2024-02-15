@@ -7,6 +7,7 @@ from esphome.const import (
 
 from esphome.core import CORE
 from esphome.components.zephyr import zephyr_add_prj_conf
+import esphome.final_validate as fv
 
 dfu_ns = cg.esphome_ns.namespace("dfu")
 DeviceFirmwareUpdate = dfu_ns.class_("DeviceFirmwareUpdate", cg.Component)
@@ -22,6 +23,21 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_nrf52,
 )
+
+
+# TODO move this to common place with OTA
+def _validate_mcumgr(config):
+    if CORE.using_zephyr:
+        fconf = fv.full_config.get()
+        try:
+            bootloader = fconf.get_config_for_path(["nrf52", "bootloader"])
+            if bootloader != "adafruit":
+                raise cv.Invalid(f"'{bootloader}' bootloader does not support DFU")
+        except KeyError:
+            pass
+
+
+FINAL_VALIDATE_SCHEMA = _validate_mcumgr
 
 
 async def to_code(config):
