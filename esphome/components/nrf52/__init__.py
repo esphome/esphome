@@ -21,14 +21,16 @@ from esphome.components.zephyr import (
     zephyr_set_core_data,
     zephyr_to_code,
 )
-from .boards_zephyr import BOARDS_ZEPHYR
-from .const import (
+from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_GENERIC,
     ZEPHYR_VARIANT_NRF_SDK,
+    KEY_ZEPHYR,
+)
+from .boards_zephyr import BOARDS_ZEPHYR
+from .const import (
     KEY_BOOTLOADER,
     BOOTLOADER_MCUBOOT,
     BOOTLOADER_ADAFRUIT,
-    KEY_ZEPHYR,
 )
 
 # force import gpio to register pin schema
