@@ -12,9 +12,9 @@ esphome:
   name: nrf52-test-nrf
 
 logger:
-  # level: DEBUG
-  # logs:
-  #   switch: NONE
+  level: DEBUG
+  logs:
+    switch: NONE
 
 switch:
   - platform: gpio

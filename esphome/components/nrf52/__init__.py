@@ -16,7 +16,7 @@ from esphome.helpers import (
     copy_file_if_changed,
 )
 
-from .zephyr import (
+from esphome.components.zephyr import (
     zephyr_copy_files,
     zephyr_set_core_data,
     zephyr_to_code,

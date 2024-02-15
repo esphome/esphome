@@ -6,10 +6,10 @@ from esphome.helpers import (
 )
 from .const import (
     ZEPHYR_VARIANT_GENERIC,
+    ZEPHYR_VARIANT_NRF_SDK,
     KEY_ZEPHYR,
     KEY_PRJ_CONF,
     KEY_OVERLAY,
-    ZEPHYR_VARIANT_NRF_SDK,
 )
 from esphome.const import (
     CONF_VARIANT,
@@ -75,16 +75,19 @@ def zephyr_to_code(conf):
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
+    # disable console
+    zephyr_add_prj_conf("UART_CONSOLE", False)
+    zephyr_add_prj_conf("CONSOLE", False)
     # TODO debug only
-    # zephyr_add_prj_conf("DEBUG_THREAD_INFO", True)
+    zephyr_add_prj_conf("DEBUG_THREAD_INFO", True)
+    # zephyr_add_prj_conf("DEBUG", True)
     ###
     # zephyr_add_prj_conf("USE_SEGGER_RTT", True)
     # zephyr_add_prj_conf("RTT_CONSOLE", True)
-    # zephyr_add_prj_conf("UART_CONSOLE", False)
-
     # zephyr_add_prj_conf("LOG", True)
-    # zephyr_add_prj_conf("MCUBOOT_UTIL_LOG_LEVEL_WRN", True)
-    # zephyr_add_prj_conf("BOOTLOADER_MCUBOOT", True)
+
+    # zephyr_add_prj_conf("USB_DEVICE_LOG_LEVEL_ERR", True)
+    # zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_DBG", True)
 
 
 def _format_prj_conf_val(value: PrjConfValueType) -> str:

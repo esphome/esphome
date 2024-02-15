@@ -1,4 +1,4 @@
-from esphome.components.nrf52.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import zephyr_add_prj_conf
 
 
 async def to_code(config):

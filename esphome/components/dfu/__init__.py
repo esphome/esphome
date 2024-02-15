@@ -6,7 +6,7 @@ from esphome.const import (
 )
 
 from esphome.core import CORE
-from esphome.components.nrf52.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import zephyr_add_prj_conf
 
 dfu_ns = cg.esphome_ns.namespace("dfu")
 DeviceFirmwareUpdate = dfu_ns.class_("DeviceFirmwareUpdate", cg.Component)

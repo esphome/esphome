@@ -4,7 +4,7 @@ from esphome.const import (
     CONF_ID,
 )
 
-from esphome.components.nrf52.zephyr import zephyr_add_prj_conf, zephyr_add_overlay
+from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_add_overlay
 
 fota_ns = cg.esphome_ns.namespace("fota")
 FOTAComponent = fota_ns.class_("FOTAComponent", cg.Component)
