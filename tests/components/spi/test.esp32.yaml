@@ -1,0 +1,5 @@
+spi:
+  - id: spi_spi
+    clk_pin: 16
+    mosi_pin: 17
+    miso_pin: 15

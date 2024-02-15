@@ -1,0 +1,12 @@
+uart:
+  - id: uart_sonoff_d1
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 9600
+
+light:
+  - platform: sonoff_d1
+    id: d1_light
+    name: Sonoff D1 Dimmer
+    restore_mode: RESTORE_DEFAULT_OFF
+    use_rm433_remote: false
