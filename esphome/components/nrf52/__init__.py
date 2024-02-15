@@ -168,19 +168,7 @@ async def to_code(config):
         cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
     #
     cg.add_platformio_option("extra_scripts", [f"pre:build_{conf[CONF_TYPE]}.py"])
-    if CORE.using_arduino:
-        cg.add_build_flag("-DUSE_ARDUINO")
-        # watchdog
-        cg.add_build_flag("-DNRFX_WDT_ENABLED=1")
-        cg.add_build_flag("-DNRFX_WDT0_ENABLED=1")
-        cg.add_build_flag("-DNRFX_WDT_CONFIG_NO_IRQ=1")
-        # prevent setting up GPIO PINs
-        cg.add_platformio_option("board_build.variant", "nrf52840")
-        cg.add_platformio_option(
-            "board_build.variants_dir", os.path.dirname(os.path.realpath(__file__))
-        )
-        cg.add_library("https://github.com/NordicSemiconductor/nrfx#v2.1.0", None, None)
-    elif CORE.using_zephyr:
+    if CORE.using_zephyr:
         zephyr_to_code(conf)
     else:
         raise NotImplementedError
