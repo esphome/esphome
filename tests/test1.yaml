@@ -414,6 +414,9 @@ dfrobot_sen0395:
   - id: mmwave
     uart_id: dfrobot_mmwave_uart
 
+gdk101:
+  i2c_id: i2c_bus
+
 sensor:
   - platform: xgzp68xx
     i2c_id: i2c_bus
@@ -1758,6 +1761,17 @@ sensor:
       memory_location: 0x20
       memory_address: 0x7d
       name: Adres sensor
+  - platform: gdk101
+    radiation_dose_per_1m:
+      name: "GDK101 Radiation Dose @ 1 min"
+    radiation_dose_per_10m:
+      name: "GDK101 Radiation Dose @ 10 min"
+    status:
+      name: "GDK101 Status"
+    version:
+      name: "GDK101 FW Version"
+    meas_time:
+      name: "GDK101 Measuring Time"
 
 psram:
 
@@ -2109,6 +2123,9 @@ binary_sensor:
     nfcc_id: nfcc_pn7160_i2c
     uid: 59-FC-AB-15
     name: MFC Tag 3
+  - platform: gdk101
+    vibrations:
+      name: "GDK101 Vibrations"
 
 pca9685:
   frequency: 500
