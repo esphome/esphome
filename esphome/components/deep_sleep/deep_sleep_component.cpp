@@ -7,10 +7,6 @@
 #include <Esp.h>
 #endif
 
-#ifdef USE_NRF52
-#include "deep_sleep_backend_nrf52.h"
-#endif
-
 namespace esphome {
 namespace deep_sleep {
 
@@ -37,8 +33,10 @@ optional<uint32_t> DeepSleepComponent::get_run_duration_() const {
   return this->run_duration_;
 }
 
-void DeepSleepComponent::setup_deep_sleep_() {
-  this->next_enter_deep_sleep_ = false;
+void DeepSleepComponent::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up Deep Sleep...");
+  global_has_deep_sleep = true;
+
   const optional<uint32_t> run_duration = get_run_duration_();
   if (run_duration.has_value()) {
     ESP_LOGI(TAG, "Scheduling Deep Sleep to start in %" PRIu32 " ms", *run_duration);
@@ -47,14 +45,6 @@ void DeepSleepComponent::setup_deep_sleep_() {
     ESP_LOGD(TAG, "Not scheduling Deep Sleep, as no run duration is configured.");
   }
 }
-
-void DeepSleepComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Deep Sleep...");
-  global_has_deep_sleep = true;
-
-  setup_deep_sleep_();
-}
-
 void DeepSleepComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Setting up Deep Sleep...");
   if (this->sleep_duration_.has_value()) {
@@ -74,9 +64,6 @@ void DeepSleepComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Touch Wakeup Run Duration: %" PRIu32 " ms", this->wakeup_cause_to_run_duration_->touch_cause);
     ESP_LOGCONFIG(TAG, "  GPIO Wakeup Run Duration: %" PRIu32 " ms", this->wakeup_cause_to_run_duration_->gpio_cause);
   }
-#endif
-#if defined(USE_NRF52) && defined(USE_ARDUINO)
-  backend_.dump_config();
 #endif
 }
 void DeepSleepComponent::loop() {
@@ -152,7 +139,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     esp_sleep_enable_touchpad_wakeup();
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
   }
-#endif  // USE_ESP32_VARIANT_ESP32C3
+#endif
 #ifdef USE_ESP32_VARIANT_ESP32C3
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
@@ -164,16 +151,12 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     esp_deep_sleep_enable_gpio_wakeup(1 << this->wakeup_pin_->get_pin(),
                                       static_cast<esp_deepsleep_gpio_wake_up_mode_t>(level));
   }
-#endif  // USE_ESP32_VARIANT_ESP32C3
+#endif
   esp_deep_sleep_start();
-#endif  // USE_ESP32
+#endif
 
 #ifdef USE_ESP8266
   ESP.deepSleep(*this->sleep_duration_);  // NOLINT(readability-static-accessed-through-instance)
-#endif
-#if defined(USE_NRF52) && defined(USE_ARDUINO)
-  backend_.begin_sleep(this->sleep_duration_);
-  setup_deep_sleep_();
 #endif
 }
 float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }
