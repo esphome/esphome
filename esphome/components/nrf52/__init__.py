@@ -34,6 +34,8 @@ from .const import (
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa
 
+AUTO_LOAD = ["zephyr"]
+
 
 def set_core_data(config):
     zephyr_set_core_data(config)

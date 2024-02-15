@@ -21,10 +21,10 @@
 #elif defined(USE_LIBRETINY)
 #include <FreeRTOS.h>
 #include <semphr.h>
-#elif defined(USE_NRF52)
-#ifdef USE_ARDUINO
+#elif defined(USE_NRF52) && defined(USE_ARDUINO)
 #include <Arduino.h>
-#endif
+#elif defined(USE_ZEPHYR)
+#include <zephyr/kernel.h>
 #endif
 
 #define HOT __attribute__((hot))
@@ -551,8 +551,9 @@ class Mutex {
   Mutex &operator=(const Mutex &) = delete;
 
  private:
-// TODO
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) /*|| defined(USE_NRF52)*/
+#if defined(USE_ZEPHYR)
+  k_mutex handle_;
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_NRF52)
   SemaphoreHandle_t handle_;
 #endif
 };

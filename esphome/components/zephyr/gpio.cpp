@@ -1,11 +1,10 @@
-#ifdef USE_NRF52
 #ifdef USE_ZEPHYR
 #include "gpio.h"
 #include "esphome/core/log.h"
 #include <zephyr/drivers/gpio.h>
 
 namespace esphome {
-namespace nrf52 {
+namespace zephyr {
 
 static const char *const TAG = "nrf52";
 
@@ -109,7 +108,7 @@ void NRF52GPIOPin::detach_interrupt() const {
   // TODO
 }
 
-}  // namespace nrf52
+}  // namespace zephyr
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   // TODO
@@ -119,4 +118,3 @@ bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
 }  // namespace esphome
 
 #endif
-#endif  // USE_NRF52

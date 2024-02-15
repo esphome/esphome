@@ -1,14 +1,11 @@
 #pragma once
 
-#include "esphome/core/hal.h"
 #ifdef USE_ZEPHYR
-#include "esphome/components/zephyr/gpio.h"
-#endif
-
+#include "esphome/core/hal.h"
+struct device;
 namespace esphome {
-namespace nrf52 {
+namespace zephyr {
 
-#ifdef USE_ARDUINO
 class NRF52GPIOPin : public InternalGPIOPin {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
@@ -30,9 +27,11 @@ class NRF52GPIOPin : public InternalGPIOPin {
   uint8_t pin_;
   bool inverted_;
   gpio::Flags flags_;
+  const device *gpio_ = nullptr;
+  bool value_ = false;
 };
-#else
-class NRF52GPIOPin : public zephyr::NRF52GPIOPin {};
-#endif  // USE_ARDUINO
-}  // namespace nrf52
+
+}  // namespace zephyr
 }  // namespace esphome
+
+#endif  // USE_ZEPHYR

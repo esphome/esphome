@@ -82,12 +82,12 @@ def zephyr_to_code(conf):
     zephyr_add_prj_conf("DEBUG_THREAD_INFO", True)
     # zephyr_add_prj_conf("DEBUG", True)
     ###
-    # zephyr_add_prj_conf("USE_SEGGER_RTT", True)
-    # zephyr_add_prj_conf("RTT_CONSOLE", True)
-    # zephyr_add_prj_conf("LOG", True)
+    zephyr_add_prj_conf("USE_SEGGER_RTT", True)
+    zephyr_add_prj_conf("RTT_CONSOLE", True)
+    zephyr_add_prj_conf("LOG", True)
 
     # zephyr_add_prj_conf("USB_DEVICE_LOG_LEVEL_ERR", True)
-    # zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_DBG", True)
+    zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
 
 
 def _format_prj_conf_val(value: PrjConfValueType) -> str:
