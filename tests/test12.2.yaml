@@ -44,10 +44,6 @@ output:
         output: true
     id: rest_gpio
 
-
-dfu:
-  reset_output: rest_gpio
-
 ota:
   safe_mode: true
   on_begin:
