@@ -1,0 +1,32 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+sensor:
+  - platform: hlw8012
+    sel_pin: 5
+    cf_pin: 4
+    cf1_pin: 3
+    current:
+      name: HLW8012 Current
+    voltage:
+      name: HLW8012 Voltage
+    power:
+      name: HLW8012 Power
+      id: hlw8012_power
+    energy:
+      name: HLW8012 Energy
+      id: hlw8012_energy
+    update_interval: 15s
+    current_resistor: 0.001 ohm
+    voltage_divider: 2351
+    change_mode_every: "never"
+    initial_mode: VOLTAGE
+    model: hlw8012
+  - platform: total_daily_energy
+    name: HLW8012 Total Daily Energy
+    power_id: hlw8012_power
