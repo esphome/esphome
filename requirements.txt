@@ -1,4 +1,5 @@
 async_timeout==4.0.3; python_version <= "3.10"
+cryptography==42.0.2
 voluptuous==0.14.1
 PyYAML==6.0.1
 paho-mqtt==1.6.1
@@ -12,7 +13,7 @@ platformio==6.1.13  # When updating platformio, also update Dockerfile
 esptool==4.7.0
 click==8.1.7
 esphome-dashboard==20231107.0
-aioesphomeapi==21.0.1
+aioesphomeapi==21.0.2
 zeroconf==0.131.0
 python-magic==0.4.27
 
