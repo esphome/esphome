@@ -1,0 +1,22 @@
+esp32_ble_tracker:
+
+xiaomi_rtcgq02lm:
+  - id: motion_rtcgq02lm
+    mac_address: 01:02:03:04:05:06
+    bindkey: "48403ebe2d385db8d0c187f81e62cb64"
+
+binary_sensor:
+  - platform: xiaomi_rtcgq02lm
+    id: motion_rtcgq02lm
+    motion:
+      name: Mi Motion Sensor 2
+    light:
+      name: Mi Motion Sensor 2 Light
+    button:
+      name: Mi Motion Sensor 2 Button
+
+sensor:
+  - platform: xiaomi_rtcgq02lm
+    id: motion_rtcgq02lm
+    battery_level:
+      name: Mi Motion Sensor 2 Battery level
