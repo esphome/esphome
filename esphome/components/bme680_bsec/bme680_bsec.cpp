@@ -58,8 +58,7 @@ void BME680BSECComponent::set_config_() {
       };
       this->bsec_status_ =
           bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
-    }
-    else {  // SUPPLY_VOLTAGE_1V8
+    } else {  // SUPPLY_VOLTAGE_1V8
       const uint8_t config[] = {
 #include "config/generic_18v_300s_28d/bsec_iaq.txt"
       };
@@ -73,8 +72,7 @@ void BME680BSECComponent::set_config_() {
       };
       this->bsec_status_ =
           bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
-    }
-    else {  // SUPPLY_VOLTAGE_1V8
+    } else {  // SUPPLY_VOLTAGE_1V8
       const uint8_t config[] = {
 #include "config/generic_18v_3s_28d/bsec_iaq.txt"
       };
