@@ -57,14 +57,14 @@ void BME680BSECComponent::set_config_() {
 #include "config/generic_33v_300s_28d/bsec_iaq.txt"
       };
       this->bsec_status_ =
-        bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
     }
     else {  // SUPPLY_VOLTAGE_1V8
       const uint8_t config[] = {
 #include "config/generic_18v_300s_28d/bsec_iaq.txt"
       };
       this->bsec_status_ =
-        bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
     }
   } else {  // SAMPLE_RATE_LP
     if (this->supply_voltage_ == SUPPLY_VOLTAGE_3V3) {
@@ -72,14 +72,14 @@ void BME680BSECComponent::set_config_() {
 #include "config/generic_33v_3s_28d/bsec_iaq.txt"
       };
       this->bsec_status_ =
-        bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
     }
     else {  // SUPPLY_VOLTAGE_1V8
       const uint8_t config[] = {
 #include "config/generic_18v_3s_28d/bsec_iaq.txt"
       };
       this->bsec_status_ =
-        bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
     }
   }
 }
