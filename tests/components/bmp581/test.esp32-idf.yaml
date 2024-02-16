@@ -1,0 +1,13 @@
+i2c:
+  - id: i2c_bmp581
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: bmp581
+    temperature:
+      name: "BMP581 Temperature"
+      iir_filter: 2x
+    pressure:
+      name: "BMP581 Pressure"
+      oversampling: 128x
