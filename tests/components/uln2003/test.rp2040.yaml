@@ -1,0 +1,29 @@
+esphome:
+  on_boot:
+    then:
+      - stepper.report_position:
+          id: uln2003_stepper
+          position: 250
+      - stepper.set_target:
+          id: uln2003_stepper
+          target: 250
+      - stepper.set_acceleration:
+          id: uln2003_stepper
+          acceleration: 250 steps/s^2
+      - stepper.set_deceleration:
+          id: uln2003_stepper
+          deceleration: 250 steps/s^2
+      - stepper.set_speed:
+          id: uln2003_stepper
+          speed: 250 steps/s
+
+stepper:
+  - platform: uln2003
+    id: uln2003_stepper
+    pin_a: 0
+    pin_b: 1
+    pin_c: 2
+    pin_d: 3
+    max_speed: 250 steps/s
+    acceleration: 100 steps/s^2
+    deceleration: 200 steps/s^2

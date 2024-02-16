@@ -1,0 +1,14 @@
+i2c:
+  - id: i2c_ufire_ise
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: template
+    id: test_sensor
+    lambda: "return 21;"
+  - platform: ufire_ise
+    id: ufire_ise_sensor
+    temperature_sensor: test_sensor
+    ph:
+      name: Ufire pH
