@@ -53,8 +53,15 @@ static const LogString *micro_wake_word_state_to_string(State state) {
   }
 }
 
+void MicroWakeWord::dump_config() {
+  ESP_LOGCONFIG(TAG, "microWakeWord:");
+  ESP_LOGCONFIG(TAG, "  Wake Word: %s", this->get_wake_word().c_str());
+  ESP_LOGCONFIG(TAG, "  Probability cutoff: %.3f", this->probability_cutoff_);
+  ESP_LOGCONFIG(TAG, "  Sliding window size: %d", this->sliding_window_average_size_);
+}
+
 void MicroWakeWord::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Micro Wake Word...");
+  ESP_LOGCONFIG(TAG, "Setting up microWakeWord...");
 
   if (!this->initialize_models()) {
     ESP_LOGE(TAG, "Failed to initialize models");

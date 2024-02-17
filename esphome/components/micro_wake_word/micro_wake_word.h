@@ -66,6 +66,7 @@ class MicroWakeWord : public Component {
   void setup() override;
   void loop() override;
   float get_setup_priority() const override;
+  void dump_config() override;
 
   void start();
   void stop();
