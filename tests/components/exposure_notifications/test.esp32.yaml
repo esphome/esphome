@@ -1,0 +1,9 @@
+esp32_ble_tracker:
+
+exposure_notifications:
+  on_exposure_notification:
+    then:
+      - lambda: |
+          ESP_LOGD("main", "Got notification:");
+          ESP_LOGD("main", "  RPI: %s", format_hex(x.rolling_proximity_identifier).c_str());
+          ESP_LOGD("main", "  RSSI: %d", x.rssi);
