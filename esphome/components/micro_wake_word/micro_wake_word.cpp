@@ -382,7 +382,10 @@ bool MicroWakeWord::slice_available_() {
     //  4) the model uses operations that are not optimized
     ESP_LOGW(TAG,
              "Audio buffer is nearly full. Wake word detection may be less accurate and have slower reponse times. "
-             "Verify you are using an ESP32-S3 and that you do not have other resource intensive components enabled.");
+#if !defined(USE_ESP32_VARIANT_ESP32S3)
+             "microWakeWord is designed for the ESP32-S3. The current platform is too slow for this model."
+#endif
+    );
   }
 
   return available > (NEW_SAMPLES_TO_GET * sizeof(int16_t));
