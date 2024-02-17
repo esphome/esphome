@@ -1,3 +1,16 @@
+esphome:
+  on_boot:
+    then:
+      - canbus.send:
+          # Extended ID explicit
+          use_extended_id: true
+          can_id: 0x100
+          data: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+      - canbus.send:
+          # Standard ID by default
+          can_id: 0x100
+          data: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+
 canbus:
   - platform: esp32_can
     id: esp32_internal_can
