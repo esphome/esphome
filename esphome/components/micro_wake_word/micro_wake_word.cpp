@@ -70,7 +70,7 @@ void MicroWakeWord::setup() {
   }
 
   ExternalRAMAllocator<int16_t> allocator(ExternalRAMAllocator<int16_t>::ALLOW_FAILURE);
-  this->input_buffer_ = allocator.allocate(NEW_SAMPLES_TO_GET);
+  this->input_buffer_ = allocator.allocate(INPUT_BUFFER_SIZE * sizeof(int16_t));
   if (this->input_buffer_ == nullptr) {
     ESP_LOGW(TAG, "Could not allocate input buffer");
     this->mark_failed();
@@ -88,7 +88,7 @@ void MicroWakeWord::setup() {
 }
 
 int MicroWakeWord::read_microphone_() {
-  size_t bytes_read = this->microphone_->read(this->input_buffer_, NEW_SAMPLES_TO_GET * sizeof(int16_t));
+  size_t bytes_read = this->microphone_->read(this->input_buffer_, INPUT_BUFFER_SIZE * sizeof(int16_t));
   if (bytes_read == 0) {
     return 0;
   }
@@ -286,11 +286,6 @@ bool MicroWakeWord::initialize_models() {
 }
 
 bool MicroWakeWord::update_features_() {
-  // Verify we have enough samples for a feature slice
-  if (!this->slice_available_()) {
-    return false;
-  }
-
   // Retrieve strided audio samples
   int16_t *audio_samples = nullptr;
   if (!this->stride_audio_samples_(&audio_samples)) {
@@ -376,19 +371,32 @@ void MicroWakeWord::set_sliding_window_average_size(size_t size) {
 bool MicroWakeWord::slice_available_() {
   size_t available = this->ring_buffer_->available();
 
+  size_t free = this->ring_buffer_->free();
+
+  if (free < NEW_SAMPLES_TO_GET * sizeof(int16_t)) {
+    // If the ring buffer is within one audio slice of being full, then wake word detection will have issues.
+    // If this is constantly occuring, then some possibilities why are
+    //  1) there are too many other slow components configured
+    //  2) the ESP32 isn't fast enough; e.g., an ESP32 is much slower than an ESP32-S3 at inferences.
+    //  3) the model is too large
+    //  4) the model uses operations that are not optimized
+    ESP_LOGW(TAG,
+             "Audio buffer is nearly full. Wake word detection may be less accurate and have slower reponse times. "
+             "Verify you are using an ESP32-S3 and that you do not have other resource intensive components enabled.");
+  }
+
   return available > (NEW_SAMPLES_TO_GET * sizeof(int16_t));
 }
 
 bool MicroWakeWord::stride_audio_samples_(int16_t **audio_samples) {
+  if (!this->slice_available_()) {
+    return false;
+  }
+
   // Copy 320 bytes (160 samples over 10 ms) into preprocessor_audio_buffer_ from history in
   // preprocessor_stride_buffer_
   memcpy((void *) (this->preprocessor_audio_buffer_), (void *) (this->preprocessor_stride_buffer_),
          HISTORY_SAMPLES_TO_KEEP * sizeof(int16_t));
-
-  if (this->ring_buffer_->available() < NEW_SAMPLES_TO_GET * sizeof(int16_t)) {
-    ESP_LOGD(TAG, "Audio Buffer not full enough");
-    return false;
-  }
 
   // Copy 640 bytes (320 samples over 20 ms) from the ring buffer
   // The first 320 bytes (160 samples over 10 ms) will be from history
