@@ -1,3 +1,10 @@
+esphome:
+  on_boot:
+    then:
+      - globals.set:
+          id: glob_int
+          value: "10"
+
 globals:
   - id: glob_int
     type: int
