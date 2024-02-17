@@ -74,6 +74,8 @@ class MicroWakeWord : public Component {
 
   bool initialize_models();
 
+  std::string get_wake_word() { return this->wake_word_; }
+
   // Increasing either of these will reduce the rate of false acceptances while increasing the false rejection rate
   void set_probability_cutoff(float probability_cutoff) { this->probability_cutoff_ = probability_cutoff; }
   void set_sliding_window_average_size(size_t size);
