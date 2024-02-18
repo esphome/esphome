@@ -1,7 +1,5 @@
 #include "wireguard.h"
 
-#ifdef USE_ESP32
-
 #include <cinttypes>
 #include <ctime>
 #include <functional>
@@ -11,16 +9,20 @@
 #include "esphome/core/time.h"
 #include "esphome/components/network/util.h"
 
-#include <esp_err.h>
-
 #include <esp_wireguard.h>
+#include <esp_wireguard_err.h>
 
 namespace esphome {
 namespace wireguard {
 
 static const char *const TAG = "wireguard";
 
-static const char *const LOGMSG_PEER_STATUS = "WireGuard remote peer is %s (latest handshake %s)";
+/*
+ * Cannot use `static const char*` for LOGMSG_PEER_STATUS on esp8266 platform
+ * because log messages in `Wireguard::update()` method fail.
+ */
+#define LOGMSG_PEER_STATUS "WireGuard remote peer is %s (latest handshake %s)"
+
 static const char *const LOGMSG_ONLINE = "online";
 static const char *const LOGMSG_OFFLINE = "offline";
 
@@ -287,5 +289,3 @@ std::string mask_key(const std::string &key) { return (key.substr(0, 5) + "[...]
 
 }  // namespace wireguard
 }  // namespace esphome
-
-#endif  // USE_ESP32

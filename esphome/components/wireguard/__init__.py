@@ -22,7 +22,7 @@ CONF_PEER_ALLOWED_IPS = "peer_allowed_ips"
 CONF_PEER_PERSISTENT_KEEPALIVE = "peer_persistent_keepalive"
 CONF_REQUIRE_CONNECTION_TO_PROCEED = "require_connection_to_proceed"
 
-DEPENDENCIES = ["time", "esp32"]
+DEPENDENCIES = ["time"]
 CODEOWNERS = ["@lhoracek", "@droscy", "@thomas0bernard"]
 
 # The key validation regex has been described by Jason Donenfeld himself
