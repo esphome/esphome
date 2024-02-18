@@ -140,59 +140,61 @@ def wizard_file(**kwargs):
 
     config += LOGGER_CONFIG
 
-    if kwargs["board"] != "rpipico":
-        config += API_CONFIG
+    if kwargs["board"] == "rpipico":
+        return config
 
-        # Configure API
-        if "password" in kwargs:
-            config += f"  password: \"{kwargs['password']}\"\n"
-        if "api_encryption_key" in kwargs:
-            config += f"  encryption:\n    key: \"{kwargs['api_encryption_key']}\"\n"
+    config += API_CONFIG
 
-        # Configure OTA
-        config += "\nota:\n"
-        if "ota_password" in kwargs:
-            config += f"  password: \"{kwargs['ota_password']}\""
-        elif "password" in kwargs:
-            config += f"  password: \"{kwargs['password']}\""
+    # Configure API
+    if "password" in kwargs:
+        config += f"  password: \"{kwargs['password']}\"\n"
+    if "api_encryption_key" in kwargs:
+        config += f"  encryption:\n    key: \"{kwargs['api_encryption_key']}\"\n"
 
-        # Configuring wifi
-        config += "\n\nwifi:\n"
+    # Configure OTA
+    config += "\nota:\n"
+    if "ota_password" in kwargs:
+        config += f"  password: \"{kwargs['ota_password']}\""
+    elif "password" in kwargs:
+        config += f"  password: \"{kwargs['password']}\""
 
-        if "ssid" in kwargs:
-            if kwargs["ssid"].startswith("!secret"):
-                template = "  ssid: {ssid}\n  password: {psk}\n"
-            else:
-                template = """  ssid: "{ssid}"\n  password: "{psk}"\n"""
-            config += template.format(**kwargs)
+    # Configuring wifi
+    config += "\n\nwifi:\n"
+
+    if "ssid" in kwargs:
+        if kwargs["ssid"].startswith("!secret"):
+            template = "  ssid: {ssid}\n  password: {psk}\n"
         else:
-            config += """  # ssid: "My SSID"
-  # password: "mypassword"
+            template = """  ssid: "{ssid}"\n  password: "{psk}"\n"""
+        config += template.format(**kwargs)
+    else:
+        config += """  # ssid: "My SSID"
+# password: "mypassword"
 
-  networks:
+networks:
 """
 
-        # pylint: disable=consider-using-f-string
-        if kwargs["platform"] in ["ESP8266", "ESP32", "BK72XX", "RTL87XX"]:
-            config += """
-  # Enable fallback hotspot (captive portal) in case wifi connection fails
-  ap:
-    ssid: "{fallback_name}"
-    password: "{fallback_psk}"
+    # pylint: disable=consider-using-f-string
+    if kwargs["platform"] in ["ESP8266", "ESP32", "BK72XX", "RTL87XX"]:
+        config += """
+# Enable fallback hotspot (captive portal) in case wifi connection fails
+ap:
+ssid: "{fallback_name}"
+password: "{fallback_psk}"
 
 captive_portal:
-        """.format(
-                **kwargs
-            )
-        else:
-            config += """
-  # Enable fallback hotspot in case wifi connection fails
-  ap:
-    ssid: "{fallback_name}"
-    password: "{fallback_psk}"
-        """.format(
-                **kwargs
-            )
+    """.format(
+            **kwargs
+        )
+    else:
+        config += """
+# Enable fallback hotspot in case wifi connection fails
+ap:
+ssid: "{fallback_name}"
+password: "{fallback_psk}"
+    """.format(
+            **kwargs
+        )
 
     return config
 
