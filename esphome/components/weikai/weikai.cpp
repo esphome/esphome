@@ -1,6 +1,7 @@
 /// @file weikai.cpp
-/// @author DrCoolzic
-/// @brief weikai classes implementation
+/// @brief  WeiKai component family - classes implementation
+/// @date Last Modified: 2024/02/18 15:22:40
+/// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
 
@@ -336,7 +337,7 @@ void WeikaiGPIOPin::setup() {
 
 std::string WeikaiGPIOPin::dump_summary() const {
   char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%u via WK2168 %s", this->pin_, this->parent_->get_name());
+  snprintf(buffer, sizeof(buffer), "%u via WeiKai %s", this->pin_, this->parent_->get_name());
   return buffer;
 }
 #endif
@@ -570,7 +571,7 @@ void WeikaiChannel::reset_fifo_() {
 }
 
 void WeikaiChannel::set_line_param_() {
-  this->data_bits_ = 8;  // always equal to 8 for WK2168 (cant be changed)
+  this->data_bits_ = 8;  // always equal to 8 for WeiKai (cant be changed)
   uint8_t lcr = 0;
   if (this->stop_bits_ == 2)
     lcr |= LCR_STPL;

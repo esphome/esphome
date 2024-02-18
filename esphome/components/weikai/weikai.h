@@ -1,12 +1,12 @@
 /// @file weikai.h
 /// @author DrCoolZic
-/// @brief  weikai classes declaration
+/// @brief  WeiKai component family - classes declaration
+/// @date Last Modified: 2024/02/18 16:13:53
 /// @details The classes declared in this file can be used by the Weikai family
-/// of UART and GPIO expander components.
-/// As of today support for
-///   wk2132_spi, wk2132_i2c, wk2168_spi, wk2168_i2c
-///   wk2212_spi, wk2212_i2c, wk2204_spi, wk2204_i2c
-///   wk2124_spi
+/// of UART and GPIO expander components. As of today it provides support for
+///     wk2124_spi, wk2132_spi, wk2168_spi, wk2204_spi, wk2212_spi,
+///                 wk2132_i2c, wk2168_i2c, wk2204_i2c, wk2212_i2c
+
 
 #pragma once
 #include <bitset>
@@ -15,14 +15,13 @@
 #include "esphome/components/uart/uart.h"
 #include "wk_reg_def.h"
 
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO) && defined(USE_I2C_BUS)
-#include "Wire.h"
-#endif
-
 // #define USE_SPI_BUS
 // #define USE_I2C_BUS
 // #define HAS_GPIO_PIN
 
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) && defined(USE_I2C_BUS)
+#include "Wire.h"   // needed to get I2C_BUFFER_LENGTH
+#endif
 #ifdef USE_SPI_BUS
 #include "esphome/components/spi/spi.h"
 #endif
@@ -31,14 +30,14 @@
 #endif
 
 /// When the TEST_COMPONENT flag is defined we include some auto-test methods. Used to test the software during
-/// development but can also be used in situ to test if the component is working correctly. In production we do
-/// not set it by default but you can add it by using the following lines in you configuration file:
+/// development but can also be used in situ to test if the component is working correctly. For release we do
+/// not set it by default but you can set it by using the following lines in you configuration file:
 /// @code
 /// esphome:
 ///   platformio_options:
 ///     build_flags:
 ///       - -DTEST_COMPONENT
-
+/// @endcode
 // #define TEST_COMPONENT
 
 namespace esphome {
@@ -47,7 +46,7 @@ namespace weikai {
 /// @brief XFER_MAX_SIZE defines the maximum number of bytes allowed during one transfer.
 /// - When using the Arduino framework by default the maximum number of bytes that can be transferred is 128 bytes. But
 ///   this can be changed by defining the macro I2C_BUFFER_LENGTH during compilation. This is done automatically by the
-///   __init__.py file when generating the code from the Yaml configuration file.
+///   __init__.py file during code generation from the Yaml configuration file.
 /// - When using the ESP-IDF Framework the maximum number of bytes allowed during transfer is 256 bytes.
 /// @bug At the time of writing (Jan 2024) there is a bug in the Arduino framework in the TwoWire::requestFrom() method.
 /// This bug limits the number of bytes we can read to 255. For this reasons we limit the XFER_MAX_SIZE to 255.
@@ -66,7 +65,7 @@ constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;  // ESP32 & FRAMEWORK_ARDUIN
 constexpr size_t XFER_MAX_SIZE = 255;  // ESP32 & FRAMEWORK_ARDUINO we limit to 255 because Arduino' framework error
 #endif
 
-/// @brief size of the internal WK2168 FIFO
+/// @brief size of the internal WeiKai FIFO
 constexpr size_t FIFO_SIZE = 256;
 
 /// @brief size of the ring buffer
@@ -75,7 +74,7 @@ constexpr size_t RING_BUFFER_SIZE = XFER_MAX_SIZE;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief This is an helper class that provides a simple ring buffers that works as a FIFO
-/// @details This ring buffer is used to buffer the bytes received in the FIFO of the I2C device. The best way to read
+/// @details This ring buffer is used to buffer the bytes received in the FIFO of the Weika device. The best way to read
 /// characters from the device FIFO, is to first check how many bytes were received and then read them all at once.
 /// Unfortunately in all the code I have reviewed the characters are read one by one in a while loop by checking if
 /// bytes are available then reading the byte until no more byte available. This is pretty inefficient for two reasons:
@@ -83,10 +82,9 @@ constexpr size_t RING_BUFFER_SIZE = XFER_MAX_SIZE;
 /// - and second you call the read byte method for each character.
 /// Assuming you need to read 100 bytes that results into 200 calls. This is to compare to 2 calls (one to find the
 /// number of bytes available plus one to read all the bytes) in the best case! If the registers you read are located on
-/// the micro-controller this is acceptable (even if it roughly double the process time) because the registers can be
-/// accessed fast. But when the registers are located on a remote device accessing them requires several cycles on the
-/// slow bus. As it it not possible to fix this problem by asking users to rewrite their code, I have implemented this
-/// ring buffer solution that store the bytes received locally.
+/// the micro-controller this is acceptable because the registers can be accessed fast. But when the registers are located
+/// on a remote device accessing them requires several cycles on a slow bus. As it it not possible to fix this problem 
+/// by asking users to rewrite their code, I have implemented this ring buffer that store the bytes received locally.
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template<typename T, size_t SIZE> class WKRingBuffer {
  public:
@@ -154,19 +152,18 @@ class WeikaiComponent;
 class WeikaiComponentI2C;
 class WeikaiComponentSPI;
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Used to create WeikaiRegister objects that act as proxies to access remote register independently of the
-/// bus type.
+/// @brief WeikaiRegister objects acts as proxies to access remote register independently of the bus type.
 /// @details This is an abstract interface class that provides many operations to access to registers while hiding
-/// the actual implementation. This allow to accesses the registers in the WKBase component abstract class independently
+/// the actual implementation. This allow to accesses the registers in the Weikai component abstract class independently
 /// of the actual bus (I2C, SPI). The derived classes will actually implements the specific bus operations dependant of
 /// the bus used.
 /// @n typical usage of WeikaiRegister:
 /// @code
-///   WeikaiRegister reg_1 {&WeikaiComponent, ADDR_REGISTER, CHANNEL_NUM, FIFO}  // declaration
-///   reg_1 |= 0x01;    // set bit 0 of the weikai register
-///   reg_1 &= ~0x01;   // reset bit 0 of the weikai register
-///   reg_1 = 10;       // Set the value of weikai register
-///   uint val = reg_1; // get the value of weikai register
+///   WeikaiRegister reg_X {&WeikaiComponent, ADDR_REGISTER_X, CHANNEL_NUM}  // declaration
+///   reg_X |= 0x01;    // set bit 0 of the weikai register
+///   reg_X &= ~0x01;   // reset bit 0 of the weikai register
+///   reg_X = 10;       // Set the value of weikai register
+///   uint val = reg_X; // get the value of weikai register
 /// @endcode
 class WeikaiRegister {
  public:
@@ -225,7 +222,7 @@ class WeikaiRegister {
 
 class WeikaiChannel;  // forward declaration
 ////////////////////////////////////////////////////////////////////////////////////
-/// @brief The WeikaiComponent class stores the information global to the WK component
+/// @brief The WeikaiComponent class stores the information global to the WeiKai component
 /// and provides methods to set/access this information. It is also the container of
 /// the WeikaiChannel children objects. This class is derived from esphome::Component
 /// class.
@@ -268,7 +265,7 @@ class WeikaiComponent : public Component {
   /// @brief Get the priority of the component
   /// @return the priority
   /// @details The priority is set  below setup_priority::BUS because we use
-  /// the i2c bus (which has a priority of BUS) to communicate and the WK2168
+  /// the spi/i2c busses (which has a priority of BUS) to communicate and the WeiKai
   /// therefore it is seen by our client almost as if it was a bus.
   float get_setup_priority() const override { return setup_priority::BUS - 0.1F; }
 
@@ -284,16 +281,18 @@ class WeikaiComponent : public Component {
   void set_pin_direction_(uint8_t pin, gpio::Flags flags);
 
 #ifdef TEST_COMPONENT
-  /// @brief auto test for the GPIO pins
+  /// @defgroup test_ Test component information
+  /// @brief Contains information about the auto-tests of the component
+  /// @{
   void test_gpio_input_();
-  /// @brief auto test for GPIO pin
   void test_gpio_output_();
+  /// @}
 #endif
 
   uint8_t pin_config_{0x00};                 ///< pin config mask: 1 means OUTPUT, 0 means INPUT
   uint8_t output_state_{0x00};               ///< output state: 1 means HIGH, 0 means LOW
   uint8_t input_state_{0x00};                ///< input pin states: 1 means HIGH, 0 means LOW
-#endif                                       // HAS GPIO
+#endif                                       // HAS GPIO pins
   uint32_t crystal_;                         ///< crystal value;
   int test_mode_;                            ///< test mode value (0 -> no tests)
   bool page1_{false};                        ///< set to true when in "page1 mode"
@@ -303,7 +302,7 @@ class WeikaiComponent : public Component {
 
 #ifdef HAS_GPIO_PIN
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Helper class to expose a WK family IO pin as an internal GPIO pin.
+/// @brief Helper class to expose a WeiKai family IO pin as an internal GPIO pin.
 ///////////////////////////////////////////////////////////////////////////////
 class WeikaiGPIOPin : public GPIOPin {
  public:
@@ -328,7 +327,7 @@ class WeikaiGPIOPin : public GPIOPin {
 
 #ifdef USE_I2C_BUS
 ////////////////////////////////////////////////////////////////////////////////////
-// class WeikaiRegisterI2C
+/// @brief WeikaiRegisterI2C objects acts as proxies to access remote register through an I2C Bus
 ////////////////////////////////////////////////////////////////////////////////////
 class WeikaiRegisterI2C : public WeikaiRegister {
  public:
@@ -343,7 +342,8 @@ class WeikaiRegisterI2C : public WeikaiRegister {
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
-// class WeikaiComponentI2C
+/// @brief The WeikaiComponentI2C class stores the information to the WeiKai component
+/// connected through an I2C bus.
 ////////////////////////////////////////////////////////////////////////////////////
 class WeikaiComponentI2C : public WeikaiComponent, public i2c::I2CDevice {
  public:
@@ -363,13 +363,13 @@ class WeikaiComponentI2C : public WeikaiComponent, public i2c::I2CDevice {
   friend class WeikaiRegisterI2C;
   friend class WeikaiChannel;
   uint8_t base_address_;                   ///< base address of I2C device
-  WeikaiRegisterI2C reg_i2c_{this, 0, 0};  ///< store the current register/channel
+  WeikaiRegisterI2C reg_i2c_{this, 0, 0};  ///< init to this component
 };
 #endif
 
 #ifdef USE_SPI_BUS
 ////////////////////////////////////////////////////////////////////////////////////
-// class WeikaiRegisterSPI
+/// @brief WeikaiRegisterSPI objects acts as proxies to access remote register through an SPI Bus
 ////////////////////////////////////////////////////////////////////////////////////
 class WeikaiRegisterSPI : public WeikaiRegister {
  public:
@@ -382,7 +382,8 @@ class WeikaiRegisterSPI : public WeikaiRegister {
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
-/// class WeikaiComponentSPI
+/// @brief The WeikaiComponentSPI class stores the information to the WeiKai component
+/// connected through an SPI bus.
 ////////////////////////////////////////////////////////////////////////////////////
 class WeikaiComponentSPI : public WeikaiComponent,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -399,7 +400,7 @@ class WeikaiComponentSPI : public WeikaiComponent,
 
  protected:
   // friend WeikaiComponentSPI;
-  WeikaiRegisterSPI reg_spi_{this, 0, 0};  ///< store the current register/channel
+  WeikaiRegisterSPI reg_spi_{this, 0, 0};  ///< init to this component
 };
 #endif
 
@@ -520,7 +521,7 @@ class WeikaiChannel : public uart::UARTComponent {
   size_t tx_in_fifo_();
 
   /// @brief test if transmit buffer is not empty in the status register (optimization)
-  /// @return true if not empty
+  /// @return true if not emptygroup test_
   bool tx_fifo_is_not_empty_();
 
   /// @brief transfer bytes from the weikai internal FIFO to the buffer (if any)
@@ -532,8 +533,7 @@ class WeikaiChannel : public uart::UARTComponent {
   bool virtual check_channel_down();
 
 #ifdef TEST_COMPONENT
-  /// @defgroup test_ Test component information
-  /// This group contains information about the test of the component
+  /// @ingroup test_
   /// @{
 
   /// @brief Test the write_array() method

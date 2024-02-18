@@ -1,19 +1,19 @@
-/// @file wk_def.h
+/// @file wk_reg_def.h
 /// @author DrCoolZic
-/// @brief  WK family registers definition: WK2168 / WK2132
-
+/// @brief  WeiKai component family - registers' definition
+/// @date Last Modified: 2024/02/18 15:49:18
 #pragma once
 
 namespace esphome {
 namespace weikai {
 
 ////////////////////////////////////////////////////////////////////////////////////////
-/// Definition of the WK2168 registers
+/// Definition of the WeiKai registers
 ////////////////////////////////////////////////////////////////////////////////////////
 
-/// @defgroup wk2168_gr_ WK2168 Global Registers
+/// @defgroup wk2168_gr_ WeiKai Global Registers
 /// This section groups all **Global Registers**: these registers are global to the
-/// the WK2168 chip (i.e. independent of the UART channel used)
+/// the WeiKai chip (i.e. independent of the UART channel used)
 /// @note only registers and parameters used have been fully documented
 /// @{
 
@@ -99,14 +99,16 @@ constexpr uint8_t WKREG_GPDIR = 0x21;
 constexpr uint8_t WKREG_GPDAT = 0x31;
 
 /// @}
-/// @defgroup wk2168_cr_ WK2168 Channel Registers
-/// This topic groups all the **Channel Registers**: these registers are specific
+/// @defgroup WeiKai_cr_ WeiKai Channel Registers
+/// @brief Definition of the register linked to a particular channel
+/// @details This topic groups all the **Channel Registers**: these registers are specific
 /// to the a specific channel i.e. each channel has its own set of registers
 /// @note only registers and parameters used have been documented
 /// @{
 
 /// @defgroup cr_p0 Channel registers when SPAGE=0
-/// The channel registers are further splitted into two groups.
+/// @brief Definition of the register linked to a particular channel when SPAGE=0
+/// @details The channel registers are further splitted into two groups.
 /// This first group is defined when the Global register WKREG_SPAGE is 0
 /// @{
 
@@ -262,7 +264,8 @@ constexpr uint8_t WKREG_FDAT = 0x0D;
 
 /// @}
 /// @defgroup cr_p1 Channel registers for SPAGE=1
-/// The channel registers are further splitted into two groups.
+/// @brief Definition of the register linked to a particular channel when SPAGE=1
+/// @details The channel registers are further splitted into two groups.
 /// This second group is defined when the Global register WKREG_SPAGE is 1
 /// @{
 
