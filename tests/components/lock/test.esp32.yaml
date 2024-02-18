@@ -1,3 +1,10 @@
+esphome:
+  on_boot:
+    then:
+      - lock.lock: test_lock1
+      - lock.unlock: test_lock1
+      - lock.open: test_lock1
+
 output:
   - platform: gpio
     id: test_binary
