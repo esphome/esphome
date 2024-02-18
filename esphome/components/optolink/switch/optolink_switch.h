@@ -17,8 +17,8 @@ class OptolinkSwitch : public DatapointComponent, public esphome::switch_::Switc
   }
 
  protected:
-  void setup() override { setup_datapoint(); }
-  void update() override { datapoint_read_request(); }
+  void setup() override { setup_datapoint_(); }
+  void update() override { datapoint_read_request_(); }
   void write_state(bool value) override;
 
   const StringRef &get_component_name() override { return get_name(); }

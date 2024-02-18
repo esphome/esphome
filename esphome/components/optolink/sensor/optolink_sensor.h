@@ -19,8 +19,8 @@ class OptolinkSensor : public DatapointComponent, public esphome::sensor::Sensor
   void set_min_value(float min_value);
 
  protected:
-  void setup() { setup_datapoint(); }
-  void update() override { datapoint_read_request(); }
+  void setup() override { setup_datapoint_(); }
+  void update() override { datapoint_read_request_(); }
 
   const StringRef &get_component_name() override { return get_name(); }
   void datapoint_value_changed(float state) override { publish_state(state); };

@@ -19,8 +19,8 @@ class OptolinkBinarySensor : public DatapointComponent,
   }
 
  protected:
-  void setup() override { setup_datapoint(); }
-  void update() override { datapoint_read_request(); }
+  void setup() override { setup_datapoint_(); }
+  void update() override { datapoint_read_request_(); }
 
   const StringRef &get_component_name() override { return get_name(); }
   void datapoint_value_changed(uint8_t state) override { publish_state(state); };

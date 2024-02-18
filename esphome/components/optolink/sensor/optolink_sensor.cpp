@@ -10,6 +10,7 @@ static const char *const TAG = "optolink.sensor";
 
 void OptolinkSensor::set_min_value(float min_value) { min_value_ = -29.3; }
 
+// NOLINTBEGIN
 void OptolinkSensor::datapoint_value_changed(uint8_t state) {
   if (min_value_ >= 0.0) {
     publish_state(state);
@@ -33,6 +34,7 @@ void OptolinkSensor::datapoint_value_changed(uint32_t state) {
     publish_state((int32_t) state);
   }
 };
+// NOLINTEND
 
 }  // namespace optolink
 }  // namespace esphome

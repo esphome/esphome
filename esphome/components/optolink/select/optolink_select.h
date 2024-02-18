@@ -24,8 +24,8 @@ class OptolinkSelect : public DatapointComponent, public esphome::select::Select
   };
 
  protected:
-  void setup() override { setup_datapoint(); }
-  void update() override { datapoint_read_request(); }
+  void setup() override { setup_datapoint_(); }
+  void update() override { datapoint_read_request_(); }
   void control(const std::string &value) override;
 
   const StringRef &get_component_name() override { return get_name(); }

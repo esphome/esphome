@@ -12,7 +12,7 @@ namespace optolink {
 static const char *const TAG = "optolink.datapoint_component";
 static std::vector<HassSubscription> hass_subscriptions_;
 
-void DatapointComponent::setup_datapoint() {
+void DatapointComponent::setup_datapoint_() {
   switch (div_ratio_) {
     case 0:
       datapoint_ = new Datapoint<convRaw>(get_component_name().c_str(), "optolink", address_, writeable_);
@@ -56,7 +56,7 @@ void DatapointComponent::setup_datapoint() {
           });
           break;
         default:
-          unfitting_value_type();
+          unfitting_value_type_();
       }
       break;
     case 10:
@@ -78,7 +78,7 @@ void DatapointComponent::setup_datapoint() {
           });
           break;
         default:
-          unfitting_value_type();
+          unfitting_value_type_();
       }
       break;
     case 100:
@@ -92,7 +92,7 @@ void DatapointComponent::setup_datapoint() {
           });
           break;
         default:
-          unfitting_value_type();
+          unfitting_value_type_();
       }
       break;
     case 1000:
@@ -120,16 +120,16 @@ void DatapointComponent::setup_datapoint() {
       }
       break;
     default:
-      unfitting_value_type();
+      unfitting_value_type_();
   }
 }
 
-void DatapointComponent::datapoint_read_request() {
-  if (is_dp_value_writing_outstanding) {
+void DatapointComponent::datapoint_read_request_() {
+  if (is_dp_value_writing_outstanding_) {
     ESP_LOGI(TAG, "read request for %s deferred due to outstanding write request", get_component_name().c_str());
-    datapoint_write_request(dp_value_outstanding);
+    datapoint_write_request_(dp_value_outstanding_);
   } else {
-    if (read_retries_ == 0 || read_retries_ >= MAX_RETRIES_UNTIL_RESET) {
+    if (read_retries_ == 0 || read_retries_ >= max_retries_until_reset_) {
       if (optolink_->read_value(datapoint_)) {
         read_retries_ = 1;
       }
@@ -165,7 +165,7 @@ void DatapointComponent::datapoint_value_changed(uint8_t *value, size_t length) 
   ESP_LOGW(TAG, "unused value update by sensor %s", get_component_name().c_str());
 }
 
-void DatapointComponent::datapoint_write_request(DPValue dp_value) {
+void DatapointComponent::datapoint_write_request_(DPValue dp_value) {
   if (!writeable_) {
     optolink_->set_state("trying to control not writable datapoint %s", get_component_name().c_str());
     ESP_LOGE(TAG, "trying to control not writable datapoint %s", get_component_name().c_str());
@@ -176,78 +176,78 @@ void DatapointComponent::datapoint_write_request(DPValue dp_value) {
     ESP_LOGI(TAG, "trying to update datapoint %s value: %s", get_component_name().c_str(), buffer);
 #endif
 
-    dp_value_outstanding = dp_value;
-    if (optolink_->write_value(datapoint_, dp_value_outstanding)) {
-      is_dp_value_writing_outstanding = false;
+    dp_value_outstanding_ = dp_value;
+    if (optolink_->write_value(datapoint_, dp_value_outstanding_)) {
+      is_dp_value_writing_outstanding_ = false;
     } else {
       ESP_LOGW(TAG, "write request for %s rejected due to outstanding running request - increase update_interval!",
                get_component_name().c_str());
-      is_dp_value_writing_outstanding = true;
+      is_dp_value_writing_outstanding_ = true;
     }
   }
 }
 
-void DatapointComponent::write_datapoint_value(float value) {
+void DatapointComponent::write_datapoint_value_(float value) {
   if (div_ratio_ > 1) {
-    datapoint_write_request(DPValue(value));
+    datapoint_write_request_(DPValue(value));
   } else if (div_ratio_ == 1) {
     switch (bytes_) {
       case 1:
-        datapoint_write_request(DPValue((uint8_t) value));
+        datapoint_write_request_(DPValue((uint8_t) value));
         break;
       case 2:
-        datapoint_write_request(DPValue((uint16_t) value));
+        datapoint_write_request_(DPValue((uint16_t) value));
         break;
       case 4:
-        datapoint_write_request(DPValue((uint32_t) value));
+        datapoint_write_request_(DPValue((uint32_t) value));
         break;
       default:
-        unfitting_value_type();
+        unfitting_value_type_();
         break;
     }
   } else {
-    unfitting_value_type();
+    unfitting_value_type_();
   }
 }
 
-void DatapointComponent::write_datapoint_value(uint8_t value) {
+void DatapointComponent::write_datapoint_value_(uint8_t value) {
   if (bytes_ == 1 && div_ratio_ == 1) {
-    datapoint_write_request(DPValue(value));
+    datapoint_write_request_(DPValue(value));
   } else {
-    unfitting_value_type();
+    unfitting_value_type_();
   }
 }
 
-void DatapointComponent::write_datapoint_value(uint16_t value) {
+void DatapointComponent::write_datapoint_value_(uint16_t value) {
   if (bytes_ == 2 && div_ratio_ == 1) {
-    datapoint_write_request(DPValue(value));
+    datapoint_write_request_(DPValue(value));
   } else {
-    unfitting_value_type();
+    unfitting_value_type_();
   }
 }
 
-void DatapointComponent::write_datapoint_value(uint32_t value) {
+void DatapointComponent::write_datapoint_value_(uint32_t value) {
   if (bytes_ == 4 && div_ratio_ == 1) {
-    datapoint_write_request(DPValue(value));
+    datapoint_write_request_(DPValue(value));
   } else {
-    unfitting_value_type();
+    unfitting_value_type_();
   }
 }
 
-void DatapointComponent::write_datapoint_value(uint8_t *value, size_t length) {
+void DatapointComponent::write_datapoint_value_(uint8_t *value, size_t length) {
   if (bytes_ == length && div_ratio_ == 0) {
-    datapoint_write_request(DPValue(value, length));
+    datapoint_write_request_(DPValue(value, length));
   } else {
-    unfitting_value_type();
+    unfitting_value_type_();
   }
 }
 
-void DatapointComponent::unfitting_value_type() {
+void DatapointComponent::unfitting_value_type_() {
   optolink_->set_state("Unfitting byte/div_ratio combination for sensor/component %s", get_component_name().c_str());
   ESP_LOGE(TAG, "Unfitting byte/div_ratio combination for sensor/component %s", get_component_name().c_str());
 }
 
-void DatapointComponent::set_optolink_state(const char *format, ...) {
+void DatapointComponent::set_optolink_state_(const char *format, ...) {
   va_list args;
   va_start(args, format);
   char buffer[128];
@@ -257,9 +257,9 @@ void DatapointComponent::set_optolink_state(const char *format, ...) {
   optolink_->set_state(buffer);
 }
 
-std::string DatapointComponent::get_optolink_state() { return optolink_->get_state(); }
+std::string DatapointComponent::get_optolink_state_() { return optolink_->get_state(); }
 
-void DatapointComponent::subscribe_hass(std::string entity_id, std::function<void(std::string)> f) {
+void DatapointComponent::subscribe_hass_(std::string entity_id, std::function<void(std::string)> f) {
   for (auto &subscription : hass_subscriptions_) {
     if (subscription.entity_id == entity_id) {
       subscription.callbacks.push_back(f);

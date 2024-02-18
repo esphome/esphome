@@ -84,20 +84,20 @@ void OptolinkTextSensor::setup() {
     case DAY_SCHEDULE:
       set_div_ratio(0);
       set_bytes(8);
-      set_address(get_address() + 8 * dow_);
+      set_address(get_address_() + 8 * dow_);
       break;
     case DAY_SCHEDULE_SYNCHRONIZED:
       set_writeable(true);
       set_div_ratio(0);
       set_bytes(8);
-      set_address(get_address() + 8 * dow_);
+      set_address(get_address_() + 8 * dow_);
       ESP_LOGI(TAG, "subscribing to schedule plan from HASS entity '%s' for component %s", this->entity_id_.c_str(),
                get_component_name().c_str());
-      subscribe_hass(entity_id_, [this](const std::string &state) {
+      subscribe_hass_(entity_id_, [this](const std::string &state) {
         ESP_LOGD(TAG, "update for schedule plan for component %s: %s", get_component_name().c_str(), state.c_str());
         uint8_t *data = encode_time_string(state);
         if (data) {
-          write_datapoint_value(data, 8);
+          write_datapoint_value_(data, 8);
         } else {
           ESP_LOGW(TAG, "not changing any value of datapoint %s", get_component_name().c_str());
         }
@@ -112,14 +112,14 @@ void OptolinkTextSensor::setup() {
       set_entity_category(esphome::ENTITY_CATEGORY_DIAGNOSTIC);
       return;  // no datapoint setup!
   }
-  setup_datapoint();
+  setup_datapoint_();
 };
 
 void OptolinkTextSensor::update() {
   if (mode_ == STATE_INFO) {
-    publish_state(get_optolink_state());
+    publish_state(get_optolink_state_());
   } else {
-    datapoint_read_request();
+    datapoint_read_request_();
   }
 }
 
@@ -143,13 +143,13 @@ void OptolinkTextSensor::datapoint_value_changed(uint8_t *value, size_t length) 
         }
         publish_state(buffer);
       } else {
-        unfitting_value_type();
+        unfitting_value_type_();
       }
       break;
     case DEVICE_INFO:
     case STATE_INFO:
     case MAP:
-      unfitting_value_type();
+      unfitting_value_type_();
       break;
   }
 };
