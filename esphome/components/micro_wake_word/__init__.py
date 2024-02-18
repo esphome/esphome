@@ -103,6 +103,7 @@ KEY_AUTHOR = "author"
 KEY_WEBSITE = "website"
 KEY_VERSION = "version"
 KEY_MICRO = "micro"
+KEY_MINIMUM_ESPHOME_VERSION = "minimum_esphome_version"
 
 MANIFEST_SCHEMA_V1 = cv.Schema(
     {
@@ -117,6 +118,9 @@ MANIFEST_SCHEMA_V1 = cv.Schema(
                 cv.Required(CONF_PROBABILITY_CUTOFF): cv.float_,
                 cv.Required(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
             }
+        ),
+        cv.Optional(KEY_MINIMUM_ESPHOME_VERSION): cv.All(
+            cv.version_number, cv.validate_esphome_version
         ),
     }
 )
