@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2024.1.0-dev"
+__version__ = "2024.3.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -1082,6 +1082,7 @@ DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS = "volatile_organic_compounds"
 DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS = "volatile_organic_compounds_parts"
 DEVICE_CLASS_VOLTAGE = "voltage"
 DEVICE_CLASS_VOLUME = "volume"
+DEVICE_CLASS_VOLUME_FLOW_RATE = "volume_flow_rate"
 DEVICE_CLASS_VOLUME_STORAGE = "volume_storage"
 DEVICE_CLASS_WATER = "water"
 DEVICE_CLASS_WEIGHT = "weight"

@@ -1,0 +1,13 @@
+uart:
+  - id: uart_a01nyub
+    tx_pin:
+      number: 17
+    rx_pin:
+      number: 16
+    baud_rate: 9600
+
+sensor:
+  - platform: a01nyub
+    id: a01nyub_sensor
+    name: a01nyub Distance
+    uart_id: uart_a01nyub
