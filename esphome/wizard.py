@@ -269,6 +269,7 @@ def wizard(path):
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
     from esphome.components.rtl87xx import boards as rtl87xx_boards
+    from esphome.components.rp2040 import boards as rp2040_boards
 
     if not path.endswith(".yaml") and not path.endswith(".yml"):
         safe_print(
@@ -335,7 +336,7 @@ def wizard(path):
         "firmwares for it."
     )
 
-    wizard_platforms = ["ESP32", "ESP8266", "BK72XX", "RTL87XX"]
+    wizard_platforms = ["ESP32", "ESP8266", "BK72XX", "RTL87XX", "RP2040"]
     safe_print(
         "Please choose one of the supported microcontrollers "
         "(Use ESP8266 for Sonoff devices)."
@@ -365,6 +366,10 @@ def wizard(path):
         board_link = (
             "http://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
         )
+    elif platform == "RP2040":
+        board_link = (
+            "https://www.raspberrypi.com/documentation/microcontrollers/rp2040.html"
+        )
     elif platform in ["BK72XX", "RTL87XX"]:
         board_link = "https://docs.libretiny.eu/docs/status/supported/"
     else:
@@ -389,6 +394,10 @@ def wizard(path):
     elif platform == "RTL87XX":
         safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'wr3')}\".")
         boards_list = rtl87xx_boards.BOARDS.items()
+    elif platform == "RP2040":
+        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'rpipicow')}\".")
+        boards_list = rp2040_boards.BOARDS.items()
+
     else:
         raise NotImplementedError("Unknown platform!")
 
