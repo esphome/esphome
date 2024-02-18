@@ -409,8 +409,6 @@ optolink:
   rx_pin: GPIO15
   tx_pin: GPIO16
   logger: true
-  device_info: Device Info
-  state: Component state
 
 micronova:
   enable_rx_pin:
@@ -3909,11 +3907,6 @@ text_sensor:
     tag_name: OPTARIF
     name: optarif
     teleinfo_id: myteleinfo
-  - platform: optolink
-    name: Error history 1
-    address: 0x7590
-    bytes: 9
-    raw: true
   - platform: ld2410
     version:
       name: "presenece sensor version"

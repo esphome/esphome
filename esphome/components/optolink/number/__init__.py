@@ -1,4 +1,3 @@
-from esphome import core
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import number
@@ -10,29 +9,27 @@ from esphome.const import (
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_STEP,
-    CONF_UPDATE_INTERVAL,
 )
-from .sensor import SENSOR_BASE_SCHEMA
-from . import OptolinkComponent, optolink_ns, CONF_OPTOLINK_ID
+from .. import optolink_ns, CONF_OPTOLINK_ID, SENSOR_BASE_SCHEMA
+
+
+DEPENDENCIES = ["optolink"]
+CODEOWNERS = ["@j0ta29"]
 
 OptolinkNumber = optolink_ns.class_(
     "OptolinkNumber", number.Number, cg.PollingComponent
 )
 
+
 CONFIG_SCHEMA = (
     number.NUMBER_SCHEMA.extend(
         {
-            cv.GenerateID(CONF_OPTOLINK_ID): cv.use_id(OptolinkComponent),
             cv.GenerateID(): cv.declare_id(OptolinkNumber),
             cv.Required(CONF_MAX_VALUE): cv.float_,
-            cv.Required(CONF_MIN_VALUE): cv.float_range(min=0.0),
+            cv.Required(CONF_MIN_VALUE): cv.float_range(),
             cv.Required(CONF_STEP): cv.float_,
-            cv.Optional(CONF_UPDATE_INTERVAL, default="10s"): cv.All(
-                cv.positive_time_period_milliseconds,
-                cv.Range(
-                    min=core.TimePeriod(seconds=1), max=core.TimePeriod(seconds=1800)
-                ),
-            ),
+            cv.Required(CONF_ADDRESS): cv.hex_uint32_t,
+            cv.Required(CONF_BYTES): cv.one_of(1, 2, 4, int=True),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
