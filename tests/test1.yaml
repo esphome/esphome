@@ -406,8 +406,8 @@ mcp23s17:
 
 optolink:
   protocol: P300
-  rx_pin: GPIO15
-  tx_pin: GPIO16
+  rx_pin: GPIO01
+  tx_pin: GPIO20
   logger: true
 
 micronova:
