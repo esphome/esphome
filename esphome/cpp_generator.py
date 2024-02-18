@@ -478,7 +478,7 @@ def variable(
     :param type_: Manually define a type for the variable, only use this when it's not possible
       to do so during config validation phase (for example because of template arguments).
 
-    :returns The new variable as a MockObj.
+    :return: The new variable as a MockObj.
     """
     assert isinstance(id_, ID)
     rhs = safe_exp(rhs)
@@ -526,7 +526,7 @@ def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj
     :param type_: Manually define a type for the variable, only use this when it's not possible
       to do so during config validation phase (for example because of template arguments).
 
-    :returns The new variable as a MockObj.
+    :return: The new variable as a MockObj.
     """
     assert isinstance(id_, ID)
     rhs = safe_exp(rhs)
@@ -549,7 +549,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     :param type_: Manually define a type for the variable, only use this when it's not possible
       to do so during config validation phase (for example because of template arguments).
 
-    :returns The new variable as a MockObj.
+    :return: The new variable as a MockObj.
     """
     rhs = safe_exp(rhs)
     obj = MockObj(id_, "->")
@@ -570,7 +570,7 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> Pvariable:
     :param id_: The ID used to declare the variable (also specifies the type).
     :param args: The values to pass to the constructor.
 
-    :returns The new variable as a MockObj.
+    :return: The new variable as a MockObj.
     """
     if args and isinstance(args[0], TemplateArguments):
         id_ = id_.copy()
