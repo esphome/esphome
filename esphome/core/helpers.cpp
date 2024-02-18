@@ -11,6 +11,12 @@
 #include <cstdio>
 #include <cstring>
 
+#ifdef USE_HOST
+#include <net/if.h>
+#include <netinet/in.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#endif
 #if defined(USE_ESP8266)
 #include <osapi.h>
 #include <user_interface.h>
@@ -278,10 +284,13 @@ std::string str_snake_case(const std::string &str) {
   return result;
 }
 std::string str_sanitize(const std::string &str) {
-  std::string out;
-  std::copy_if(str.begin(), str.end(), std::back_inserter(out), [](const char &c) {
-    return c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-  });
+  std::string out = str;
+  std::replace_if(
+      out.begin(), out.end(),
+      [](const char &c) {
+        return !(c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
+      },
+      '_');
   return out;
 }
 std::string str_snprintf(const char *fmt, size_t len, ...) {
@@ -412,7 +421,7 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
 int8_t step_to_accuracy_decimals(float step) {
   // use printf %g to find number of digits based on temperature step
   char buf[32];
-  sprintf(buf, "%.5g", step);
+  snprintf(buf, sizeof buf, "%.5g", step);
 
   std::string str{buf};
   size_t dot_pos = str.find('.');
@@ -548,7 +557,10 @@ void HighFrequencyLoopRequester::stop() {
 bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; }
 
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-#if defined(USE_ESP32)
+#if defined(USE_HOST)
+  static const uint8_t esphome_host_mac_address[6] = USE_ESPHOME_HOST_MAC_ADDRESS;
+  memcpy(mac, esphome_host_mac_address, sizeof(esphome_host_mac_address));
+#elif defined(USE_ESP32)
 #if defined(CONFIG_SOC_IEEE802154_SUPPORTED) || defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
   // When CONFIG_SOC_IEEE802154_SUPPORTED is defined, esp_efuse_mac_get_default
   // returns the 802.15.4 EUI-64 address. Read directly from eFuse instead.
@@ -566,6 +578,8 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   WiFi.macAddress(mac);
 #elif defined(USE_LIBRETINY)
   WiFi.macAddress(mac);
+#else
+// this should be an error, but that messes with CI checks. #error No mac address method defined
 #endif
 }
 std::string get_mac_address() {

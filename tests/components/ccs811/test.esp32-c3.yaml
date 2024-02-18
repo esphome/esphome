@@ -1,0 +1,13 @@
+i2c:
+  - id: i2c_ccs811
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: ccs811
+    eco2:
+      name: CCS811 eCO2
+    tvoc:
+      name: CCS811 TVOC
+    baseline: 0x4242
+    update_interval: 30s

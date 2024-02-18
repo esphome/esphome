@@ -17,7 +17,7 @@ static const char *const TAG = "voice_assistant";
 
 static const size_t SAMPLE_RATE_HZ = 16000;
 static const size_t INPUT_BUFFER_SIZE = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
-static const size_t BUFFER_SIZE = 1000 * SAMPLE_RATE_HZ / 1000;      // 1s
+static const size_t BUFFER_SIZE = 1024 * SAMPLE_RATE_HZ / 1000;
 static const size_t SEND_BUFFER_SIZE = INPUT_BUFFER_SIZE * sizeof(int16_t);
 static const size_t RECEIVE_SIZE = 1024;
 static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
@@ -86,14 +86,14 @@ void VoiceAssistant::setup() {
 
 #ifdef USE_ESP_ADF
   this->vad_instance_ = vad_create(VAD_MODE_4);
+#endif
 
-  this->ring_buffer_ = rb_create(BUFFER_SIZE, sizeof(int16_t));
+  this->ring_buffer_ = RingBuffer::create(BUFFER_SIZE * sizeof(int16_t));
   if (this->ring_buffer_ == nullptr) {
     ESP_LOGW(TAG, "Could not allocate ring buffer");
     this->mark_failed();
     return;
   }
-#endif
 
   ExternalRAMAllocator<uint8_t> send_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   this->send_buffer_ = send_allocator.allocate(SEND_BUFFER_SIZE);
@@ -112,14 +112,8 @@ int VoiceAssistant::read_microphone_() {
       memset(this->input_buffer_, 0, INPUT_BUFFER_SIZE * sizeof(int16_t));
       return 0;
     }
-#ifdef USE_ESP_ADF
     // Write audio into ring buffer
-    int available = rb_bytes_available(this->ring_buffer_);
-    if (available < bytes_read) {
-      rb_read(this->ring_buffer_, nullptr, bytes_read - available, 0);
-    }
-    rb_write(this->ring_buffer_, (char *) this->input_buffer_, bytes_read, 0);
-#endif
+    this->ring_buffer_->write((void *) this->input_buffer_, bytes_read);
   } else {
     ESP_LOGD(TAG, "microphone not running");
   }
@@ -141,9 +135,9 @@ void VoiceAssistant::loop() {
   switch (this->state_) {
     case State::IDLE: {
       if (this->continuous_ && this->desired_state_ == State::IDLE) {
+        this->ring_buffer_->reset();
 #ifdef USE_ESP_ADF
         if (this->use_wake_word_) {
-          rb_reset(this->ring_buffer_);
           this->set_state_(State::START_MICROPHONE, State::WAIT_FOR_VAD);
         } else
 #endif
@@ -236,19 +230,15 @@ void VoiceAssistant::loop() {
       break;  // State changed when udp server port received
     }
     case State::STREAMING_MICROPHONE: {
-      size_t bytes_read = this->read_microphone_();
-#ifdef USE_ESP_ADF
-      if (rb_bytes_filled(this->ring_buffer_) >= SEND_BUFFER_SIZE) {
-        rb_read(this->ring_buffer_, (char *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
-        this->socket_->sendto(this->send_buffer_, SEND_BUFFER_SIZE, 0, (struct sockaddr *) &this->dest_addr_,
+      this->read_microphone_();
+      size_t available = this->ring_buffer_->available();
+      while (available >= SEND_BUFFER_SIZE) {
+        size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
+        this->socket_->sendto(this->send_buffer_, read_bytes, 0, (struct sockaddr *) &this->dest_addr_,
                               sizeof(this->dest_addr_));
+        available = this->ring_buffer_->available();
       }
-#else
-      if (bytes_read > 0) {
-        this->socket_->sendto(this->input_buffer_, bytes_read, 0, (struct sockaddr *) &this->dest_addr_,
-                              sizeof(this->dest_addr_));
-      }
-#endif
+
       break;
     }
     case State::STOP_MICROPHONE: {
@@ -273,28 +263,27 @@ void VoiceAssistant::loop() {
       bool playing = false;
 #ifdef USE_SPEAKER
       if (this->speaker_ != nullptr) {
+        ssize_t received_len = 0;
         if (this->speaker_buffer_index_ + RECEIVE_SIZE < SPEAKER_BUFFER_SIZE) {
-          auto len = this->socket_->read(this->speaker_buffer_ + this->speaker_buffer_index_, RECEIVE_SIZE);
-          if (len > 0) {
-            this->speaker_buffer_index_ += len;
-            this->speaker_buffer_size_ += len;
+          received_len = this->socket_->read(this->speaker_buffer_ + this->speaker_buffer_index_, RECEIVE_SIZE);
+          if (received_len > 0) {
+            this->speaker_buffer_index_ += received_len;
+            this->speaker_buffer_size_ += received_len;
+            this->speaker_bytes_received_ += received_len;
           }
         } else {
-          ESP_LOGW(TAG, "Receive buffer full");
+          ESP_LOGD(TAG, "Receive buffer full");
         }
-        if (this->speaker_buffer_size_ > 0) {
-          size_t written = this->speaker_->play(this->speaker_buffer_, this->speaker_buffer_size_);
-          if (written > 0) {
-            memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
-            this->speaker_buffer_size_ -= written;
-            this->speaker_buffer_index_ -= written;
-            this->set_timeout("speaker-timeout", 2000, [this]() { this->speaker_->stop(); });
-          } else {
-            ESP_LOGW(TAG, "Speaker buffer full");
-          }
-        }
+        // Build a small buffer of audio before sending to the speaker
+        if (this->speaker_bytes_received_ > RECEIVE_SIZE * 4)
+          this->write_speaker_();
         if (this->wait_for_stream_end_) {
           this->cancel_timeout("playing");
+          if (this->stream_ended_ && received_len < 0) {
+            ESP_LOGD(TAG, "End of audio stream received");
+            this->cancel_timeout("speaker-timeout");
+            this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
+          }
           break;  // We dont want to timeout here as the STREAM_END event will take care of that.
         }
         playing = this->speaker_->is_running();
@@ -316,14 +305,26 @@ void VoiceAssistant::loop() {
     case State::RESPONSE_FINISHED: {
 #ifdef USE_SPEAKER
       if (this->speaker_ != nullptr) {
+        if (this->speaker_buffer_size_ > 0) {
+          this->write_speaker_();
+          break;
+        }
+        if (this->speaker_->has_buffered_data() || this->speaker_->is_running()) {
+          break;
+        }
+        ESP_LOGD(TAG, "Speaker has finished outputting all audio");
         this->speaker_->stop();
         this->cancel_timeout("speaker-timeout");
         this->cancel_timeout("playing");
         this->speaker_buffer_size_ = 0;
         this->speaker_buffer_index_ = 0;
+        this->speaker_bytes_received_ = 0;
         memset(this->speaker_buffer_, 0, SPEAKER_BUFFER_SIZE);
+        this->wait_for_stream_end_ = false;
+        this->stream_ended_ = false;
+
+        this->tts_stream_end_trigger_->trigger();
       }
-      this->wait_for_stream_end_ = false;
 #endif
       this->set_state_(State::IDLE, State::IDLE);
       break;
@@ -332,6 +333,22 @@ void VoiceAssistant::loop() {
       break;
   }
 }
+
+#ifdef USE_SPEAKER
+void VoiceAssistant::write_speaker_() {
+  if (this->speaker_buffer_size_ > 0) {
+    size_t written = this->speaker_->play(this->speaker_buffer_, this->speaker_buffer_size_);
+    if (written > 0) {
+      memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
+      this->speaker_buffer_size_ -= written;
+      this->speaker_buffer_index_ -= written;
+      this->set_timeout("speaker-timeout", 5000, [this]() { this->speaker_->stop(); });
+    } else {
+      ESP_LOGD(TAG, "Speaker buffer full, trying again next loop");
+    }
+  }
+}
+#endif
 
 void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscribe) {
   if (!subscribe) {
@@ -446,9 +463,9 @@ void VoiceAssistant::request_start(bool continuous, bool silence_detection) {
   if (this->state_ == State::IDLE) {
     this->continuous_ = continuous;
     this->silence_detection_ = silence_detection;
+    this->ring_buffer_->reset();
 #ifdef USE_ESP_ADF
     if (this->use_wake_word_) {
-      rb_reset(this->ring_buffer_);
       this->set_state_(State::START_MICROPHONE, State::WAIT_FOR_VAD);
     } else
 #endif
@@ -503,21 +520,20 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_RUN_START:
       ESP_LOGD(TAG, "Assist Pipeline running");
-      this->start_trigger_->trigger();
+      this->defer([this]() { this->start_trigger_->trigger(); });
       break;
     case api::enums::VOICE_ASSISTANT_WAKE_WORD_START:
       break;
     case api::enums::VOICE_ASSISTANT_WAKE_WORD_END: {
       ESP_LOGD(TAG, "Wake word detected");
-      this->wake_word_detected_trigger_->trigger();
+      this->defer([this]() { this->wake_word_detected_trigger_->trigger(); });
       break;
     }
     case api::enums::VOICE_ASSISTANT_STT_START:
       ESP_LOGD(TAG, "STT started");
-      this->listening_trigger_->trigger();
+      this->defer([this]() { this->listening_trigger_->trigger(); });
       break;
     case api::enums::VOICE_ASSISTANT_STT_END: {
-      this->set_state_(State::STOP_MICROPHONE, State::AWAITING_RESPONSE);
       std::string text;
       for (auto arg : msg.data) {
         if (arg.name == "text") {
@@ -529,12 +545,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       ESP_LOGD(TAG, "Speech recognised as: \"%s\"", text.c_str());
-      this->stt_end_trigger_->trigger(text);
+      this->defer([this, text]() { this->stt_end_trigger_->trigger(text); });
       break;
     }
     case api::enums::VOICE_ASSISTANT_INTENT_START:
       ESP_LOGD(TAG, "Intent started");
-      this->intent_start_trigger_->trigger();
+      this->defer([this]() { this->intent_start_trigger_->trigger(); });
       break;
     case api::enums::VOICE_ASSISTANT_INTENT_END: {
       for (auto arg : msg.data) {
@@ -542,7 +558,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
           this->conversation_id_ = std::move(arg.value);
         }
       }
-      this->intent_end_trigger_->trigger();
+      this->defer([this]() { this->intent_end_trigger_->trigger(); });
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_START: {
@@ -557,10 +573,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       ESP_LOGD(TAG, "Response: \"%s\"", text.c_str());
-      this->tts_start_trigger_->trigger(text);
+      this->defer([this, text]() {
+        this->tts_start_trigger_->trigger(text);
 #ifdef USE_SPEAKER
-      this->speaker_->start();
+        this->speaker_->start();
 #endif
+      });
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_END: {
@@ -575,22 +593,24 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       ESP_LOGD(TAG, "Response URL: \"%s\"", url.c_str());
+      this->defer([this, url]() {
 #ifdef USE_MEDIA_PLAYER
-      if (this->media_player_ != nullptr) {
-        this->media_player_->make_call().set_media_url(url).perform();
-      }
+        if (this->media_player_ != nullptr) {
+          this->media_player_->make_call().set_media_url(url).perform();
+        }
 #endif
+        this->tts_end_trigger_->trigger(url);
+      });
       State new_state = this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE;
       this->set_state_(new_state, new_state);
-      this->tts_end_trigger_->trigger(url);
       break;
     }
     case api::enums::VOICE_ASSISTANT_RUN_END: {
       ESP_LOGD(TAG, "Assist Pipeline ended");
       if (this->state_ == State::STREAMING_MICROPHONE) {
+        this->ring_buffer_->reset();
 #ifdef USE_ESP_ADF
         if (this->use_wake_word_) {
-          rb_reset(this->ring_buffer_);
           // No need to stop the microphone since we didn't use the speaker
           this->set_state_(State::WAIT_FOR_VAD, State::WAITING_FOR_VAD);
         } else
@@ -599,7 +619,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
           this->set_state_(State::IDLE, State::IDLE);
         }
       }
-      this->end_trigger_->trigger();
+      this->defer([this]() { this->end_trigger_->trigger(); });
       break;
     }
     case api::enums::VOICE_ASSISTANT_ERROR: {
@@ -617,8 +637,10 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       } else if (code == "wake-provider-missing" || code == "wake-engine-missing") {
         // Wake word is not set up or not ready on Home Assistant so stop and do not retry until user starts again.
-        this->request_stop();
-        this->error_trigger_->trigger(code, message);
+        this->defer([this, code, message]() {
+          this->request_stop();
+          this->error_trigger_->trigger(code, message);
+        });
         return;
       }
       ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
@@ -626,26 +648,32 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         this->signal_stop_();
         this->set_state_(State::STOP_MICROPHONE, State::IDLE);
       }
-      this->error_trigger_->trigger(code, message);
+      this->defer([this, code, message]() { this->error_trigger_->trigger(code, message); });
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_STREAM_START: {
 #ifdef USE_SPEAKER
       this->wait_for_stream_end_ = true;
+      ESP_LOGD(TAG, "TTS stream start");
+      this->defer([this] { this->tts_stream_start_trigger_->trigger(); });
 #endif
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_STREAM_END: {
-      this->set_state_(State::RESPONSE_FINISHED, State::IDLE);
+#ifdef USE_SPEAKER
+      this->stream_ended_ = true;
+      ESP_LOGD(TAG, "TTS stream end");
+#endif
       break;
     }
     case api::enums::VOICE_ASSISTANT_STT_VAD_START:
       ESP_LOGD(TAG, "Starting STT by VAD");
-      this->stt_vad_start_trigger_->trigger();
+      this->defer([this]() { this->stt_vad_start_trigger_->trigger(); });
       break;
     case api::enums::VOICE_ASSISTANT_STT_VAD_END:
       ESP_LOGD(TAG, "STT by VAD end");
-      this->stt_vad_end_trigger_->trigger();
+      this->set_state_(State::STOP_MICROPHONE, State::AWAITING_RESPONSE);
+      this->defer([this]() { this->stt_vad_end_trigger_->trigger(); });
       break;
     default:
       ESP_LOGD(TAG, "Unhandled event type: %d", msg.event_type);

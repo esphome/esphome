@@ -201,13 +201,19 @@ void SEN5XComponent::setup() {
           ESP_LOGE(TAG, "Failed to read RHT Acceleration mode");
         }
       }
-      if (this->voc_tuning_params_.has_value())
+      if (this->voc_tuning_params_.has_value()) {
         this->write_tuning_parameters_(SEN5X_CMD_VOC_ALGORITHM_TUNING, this->voc_tuning_params_.value());
-      if (this->nox_tuning_params_.has_value())
+        delay(20);
+      }
+      if (this->nox_tuning_params_.has_value()) {
         this->write_tuning_parameters_(SEN5X_CMD_NOX_ALGORITHM_TUNING, this->nox_tuning_params_.value());
+        delay(20);
+      }
 
-      if (this->temperature_compensation_.has_value())
+      if (this->temperature_compensation_.has_value()) {
         this->write_temperature_compensation_(this->temperature_compensation_.value());
+        delay(20);
+      }
 
       // Finally start sensor measurements
       auto cmd = SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY;
@@ -346,7 +352,7 @@ void SEN5XComponent::update() {
     float humidity = measurements[4] / 100.0;
     if (measurements[4] == 0xFFFF)
       humidity = NAN;
-    float temperature = measurements[5] / 200.0;
+    float temperature = (int16_t) measurements[5] / 200.0;
     if (measurements[5] == 0xFFFF)
       temperature = NAN;
     float voc = measurements[6] / 10.0;

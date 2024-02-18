@@ -31,7 +31,9 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
 #endif
 
   void set_channel(i2s_channel_fmt_t channel) { this->channel_ = channel; }
+  void set_sample_rate(uint32_t sample_rate) { this->sample_rate_ = sample_rate; }
   void set_bits_per_sample(i2s_bits_per_sample_t bits_per_sample) { this->bits_per_sample_ = bits_per_sample; }
+  void set_use_apll(uint32_t use_apll) { this->use_apll_ = use_apll; }
 
  protected:
   void start_();
@@ -45,7 +47,9 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
 #endif
   bool pdm_{false};
   i2s_channel_fmt_t channel_;
+  uint32_t sample_rate_;
   i2s_bits_per_sample_t bits_per_sample_;
+  bool use_apll_;
 
   HighFrequencyLoopRequester high_freq_;
 };

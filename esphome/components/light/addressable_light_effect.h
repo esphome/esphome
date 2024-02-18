@@ -57,7 +57,7 @@ class AddressableLambdaLightEffect : public AddressableLightEffect {
   void start() override { this->initial_run_ = true; }
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
-    if (now - this->last_run_ >= this->update_interval_) {
+    if (now - this->last_run_ >= this->update_interval_ || this->initial_run_) {
       this->last_run_ = now;
       this->f_(it, current_color, this->initial_run_);
       this->initial_run_ = false;
@@ -100,6 +100,7 @@ struct AddressableColorWipeEffectColor {
   uint8_t r, g, b, w;
   bool random;
   size_t num_leds;
+  bool gradient;
 };
 
 class AddressableColorWipeEffect : public AddressableLightEffect {
@@ -117,8 +118,15 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
       it.shift_left(1);
     else
       it.shift_right(1);
-    const AddressableColorWipeEffectColor color = this->colors_[this->at_color_];
-    const Color esp_color = Color(color.r, color.g, color.b, color.w);
+    const AddressableColorWipeEffectColor &color = this->colors_[this->at_color_];
+    Color esp_color = Color(color.r, color.g, color.b, color.w);
+    if (color.gradient) {
+      size_t next_color_index = (this->at_color_ + 1) % this->colors_.size();
+      const AddressableColorWipeEffectColor &next_color = this->colors_[next_color_index];
+      const Color next_esp_color = Color(next_color.r, next_color.g, next_color.b, next_color.w);
+      uint8_t gradient = 255 * ((float) this->leds_added_ / color.num_leds);
+      esp_color = esp_color.gradient(next_esp_color, gradient);
+    }
     if (this->reverse_)
       it[-1] = esp_color;
     else

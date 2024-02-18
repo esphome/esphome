@@ -39,6 +39,8 @@ class NextionBase {
 
   virtual void set_component_background_color(const char *component, Color color) = 0;
   virtual void set_component_pressed_background_color(const char *component, Color color) = 0;
+  virtual void set_component_foreground_color(const char *component, Color color) = 0;
+  virtual void set_component_pressed_foreground_color(const char *component, Color color) = 0;
   virtual void set_component_font_color(const char *component, Color color) = 0;
   virtual void set_component_pressed_font_color(const char *component, Color color) = 0;
   virtual void set_component_font(const char *component, uint8_t font_id) = 0;
@@ -48,10 +50,12 @@ class NextionBase {
 
   bool is_sleeping() { return this->is_sleeping_; }
   bool is_setup() { return this->is_setup_; }
+  bool is_detected() { return this->is_detected_; }
 
  protected:
   bool is_setup_ = false;
   bool is_sleeping_ = false;
+  bool is_detected_ = false;
 };
 
 }  // namespace nextion
