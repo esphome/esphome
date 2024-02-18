@@ -1,12 +1,11 @@
 /// @file weikai.h
 /// @author DrCoolZic
 /// @brief  WeiKai component family - classes declaration
-/// @date Last Modified: 2024/02/18 16:13:53
+/// @date Last Modified: 2024/02/18 16:26:33
 /// @details The classes declared in this file can be used by the Weikai family
 /// of UART and GPIO expander components. As of today it provides support for
 ///     wk2124_spi, wk2132_spi, wk2168_spi, wk2204_spi, wk2212_spi,
 ///                 wk2132_i2c, wk2168_i2c, wk2204_i2c, wk2212_i2c
-
 
 #pragma once
 #include <bitset>
@@ -20,7 +19,7 @@
 // #define HAS_GPIO_PIN
 
 #if defined(USE_ESP32_FRAMEWORK_ARDUINO) && defined(USE_I2C_BUS)
-#include "Wire.h"   // needed to get I2C_BUFFER_LENGTH
+#include "Wire.h"  // needed to get I2C_BUFFER_LENGTH
 #endif
 #ifdef USE_SPI_BUS
 #include "esphome/components/spi/spi.h"
@@ -82,9 +81,10 @@ constexpr size_t RING_BUFFER_SIZE = XFER_MAX_SIZE;
 /// - and second you call the read byte method for each character.
 /// Assuming you need to read 100 bytes that results into 200 calls. This is to compare to 2 calls (one to find the
 /// number of bytes available plus one to read all the bytes) in the best case! If the registers you read are located on
-/// the micro-controller this is acceptable because the registers can be accessed fast. But when the registers are located
-/// on a remote device accessing them requires several cycles on a slow bus. As it it not possible to fix this problem 
-/// by asking users to rewrite their code, I have implemented this ring buffer that store the bytes received locally.
+/// the micro-controller this is acceptable because the registers can be accessed fast. But when the registers are
+/// located on a remote device accessing them requires several cycles on a slow bus. As it it not possible to fix this
+/// problem by asking users to rewrite their code, I have implemented this ring buffer that store the bytes received
+/// locally.
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template<typename T, size_t SIZE> class WKRingBuffer {
  public:
