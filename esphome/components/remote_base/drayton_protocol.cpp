@@ -14,7 +14,7 @@ static const uint8_t NBITS_ADDRESS = 16;
 static const uint8_t NBITS_CHANNEL = 5;
 static const uint8_t NBITS_COMMAND = 7;
 static const uint8_t NDATABITS = NBITS_ADDRESS + NBITS_CHANNEL + NBITS_COMMAND;
-static const uint8_t MIN_RX_SRC = (NDATABITS * 2 + NBITS_SYNC / 2);
+static const uint8_t MIN_RX_SRC = (NDATABITS + NBITS_SYNC / 2);
 
 static const uint8_t CMD_ON = 0x41;
 static const uint8_t CMD_OFF = 0x02;
@@ -135,7 +135,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
       .command = 0,
   };
 
-  while (src.size() - src.get_index() > MIN_RX_SRC) {
+  while (src.size() - src.get_index() >= MIN_RX_SRC) {
     ESP_LOGVV(TAG,
               "Decode Drayton: %" PRId32 ", %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
               " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
@@ -150,7 +150,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     }
 
     // Look for sync pulse, after. If sucessful index points to space of sync symbol
-    while (src.size() - src.get_index() >= NDATABITS) {
+    while (src.size() - src.get_index() >= MIN_RX_SRC) {
       ESP_LOGVV(TAG, "Decode Drayton: sync search %d, %" PRId32 " %" PRId32, src.size() - src.get_index(), src.peek(),
                 src.peek(1));
       if (src.peek_mark(2 * BIT_TIME_US) &&
