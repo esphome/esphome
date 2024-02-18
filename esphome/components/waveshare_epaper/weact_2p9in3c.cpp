@@ -108,7 +108,7 @@ void WeActEPaper2P9In3C::set_window_(int t, int b) {
 
 // send the buffer starting on line `top`, up to line `bottom`.
 void WeActEPaper2P9In3C::write_buffer_(int top, int bottom) {
-  auto width_bytes = this->get_width_internal() / 8;
+  auto width_bytes = this->get_width_internal() / 8u;
   auto offset = top * width_bytes;
   auto length = (bottom - top) * width_bytes;
 
@@ -120,7 +120,7 @@ void WeActEPaper2P9In3C::write_buffer_(int top, int bottom) {
   this->write_array(this->buffer_ + offset, length);
   this->end_data_();
 
-  offset += this->get_buffer_length_() / 2;
+  offset += this->get_buffer_length_() / 2u;
   this->command(WRITE_COLOR);
   this->start_data_();
   this->write_array(this->buffer_ + offset, length);
@@ -131,10 +131,9 @@ void HOT WeActEPaper2P9In3C::draw_absolute_pixel_internal(int x, int y, Color co
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
 
-  const uint32_t buf_half_len = this->get_buffer_length_() / 2u;
-
   const uint32_t pos = (x + y * this->get_width_internal()) / 8u;
   const uint8_t subpos = 0x80 >> (x & 0x07);
+
   // flip logic
   if (color == display::COLOR_OFF) {
     this->buffer_[pos] |= subpos;
@@ -142,11 +141,12 @@ void HOT WeActEPaper2P9In3C::draw_absolute_pixel_internal(int x, int y, Color co
     this->buffer_[pos] &= ~subpos;
   }
 
-  // draw red pixels only, if the color contains red only
+  // draw red pixels only if the color contains red only
+  const uint32_t buf_half_len = this->get_buffer_length_() / 2u;
   if (((color.red > 0) && (color.green == 0) && (color.blue == 0))) {
-    this->buffer_[pos + buf_half_len] |= 0x80 >> subpos;
+    this->buffer_[pos + buf_half_len] |= subpos;
   } else {
-    this->buffer_[pos + buf_half_len] &= ~(0x80 >> subpos);
+    this->buffer_[pos + buf_half_len] &= ~subpos;
   }
 }
 
