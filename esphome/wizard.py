@@ -182,7 +182,7 @@ def wizard_file(**kwargs):
     ssid: "{fallback_name}"
     password: "{fallback_psk}"
 
-  captive_portal:
+captive_portal:
     """.format(
             **kwargs
         )
