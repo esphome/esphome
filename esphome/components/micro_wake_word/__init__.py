@@ -117,10 +117,10 @@ MANIFEST_SCHEMA_V1 = cv.Schema(
             {
                 cv.Required(CONF_PROBABILITY_CUTOFF): cv.float_,
                 cv.Required(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
+                cv.Optional(KEY_MINIMUM_ESPHOME_VERSION): cv.All(
+                    cv.version_number, cv.validate_esphome_version
+                ),
             }
-        ),
-        cv.Optional(KEY_MINIMUM_ESPHOME_VERSION): cv.All(
-            cv.version_number, cv.validate_esphome_version
         ),
     }
 )
