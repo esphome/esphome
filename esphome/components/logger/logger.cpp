@@ -212,6 +212,14 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
     return;
 #endif
 #ifdef USE_HOST
+  time_t rawtime;
+  struct tm *timeinfo;
+  char buffer[80];
+
+  time(&rawtime);
+  timeinfo = localtime(&rawtime);
+  strftime(buffer, sizeof buffer, "[%H:%M:%S]", timeinfo);
+  fputs(buffer, stdout);
   puts(msg);
 #endif
 
@@ -237,8 +245,8 @@ void Logger::pre_setup() {
         Serial1.begin(this->baud_rate_);
 #else
 #if ARDUINO_USB_CDC_ON_BOOT
-        this->hw_serial_ = &Serial;
-        Serial.begin(this->baud_rate_);
+        this->hw_serial_ = &Serial0;
+        Serial0.begin(this->baud_rate_);
 #else
         this->hw_serial_ = &Serial;
         Serial.begin(this->baud_rate_);
@@ -272,25 +280,22 @@ void Logger::pre_setup() {
 #endif
 #if defined(USE_ESP32) && \
     (defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3))
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3)
       case UART_SELECTION_USB_CDC:
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32C3
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_USB_SERIAL_JTAG:
 #endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32S3
-#ifdef USE_ESP32_VARIANT_ESP32C3
-        this->hw_serial_ = &Serial;
-        Serial.begin(this->baud_rate_);
-#endif  // USE_ESP32_VARIANT_ESP32C3
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3)
 #if ARDUINO_USB_CDC_ON_BOOT
         this->hw_serial_ = &Serial;
+        Serial.setTxTimeoutMs(0);  // workaround for 2.0.9 crash when there's no data connection
         Serial.begin(this->baud_rate_);
 #else
         this->hw_serial_ = &Serial;
         Serial.begin(this->baud_rate_);
 #endif  // ARDUINO_USB_CDC_ON_BOOT
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32C3
         break;
 #endif  // USE_ESP32 && (USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32C3)
 #ifdef USE_RP2040
