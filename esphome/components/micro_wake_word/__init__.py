@@ -261,7 +261,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(MicroWakeWord),
             cv.GenerateID(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
-            cv.Optional(CONF_PROBABILITY_CUTOFF): cv.float_,
+            cv.Optional(CONF_PROBABILITY_CUTOFF): cv.percentage,
             cv.Optional(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
             cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
                 single=True
