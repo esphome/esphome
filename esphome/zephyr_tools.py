@@ -11,7 +11,6 @@ from smpclient import SMPClient
 from smpclient.mcuboot import IMAGE_TLV, ImageInfo, TLVNotFound
 from smpclient.requests.image_management import ImageStatesRead, ImageStatesWrite
 from smpclient.requests.os_management import ResetWrite
-from pyocd.tools.lists import ListGenerator
 
 from smpclient.generics import error, success
 from esphome.espota2 import ProgressBar
@@ -127,7 +126,3 @@ async def smpmgr_upload(config, host, firmware):
         return 1
 
     return 0
-
-
-def list_pyocd():
-    return ListGenerator.list_probes()["boards"]

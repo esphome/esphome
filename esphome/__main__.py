@@ -48,7 +48,7 @@ from esphome.util import (
     get_serial_ports,
 )
 from esphome.log import color, setup_log, Fore
-from .zephyr_tools import smpmgr_upload, list_pyocd
+from .zephyr_tools import smpmgr_upload
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,17 +97,9 @@ def choose_upload_log_host(
         #     )
     if default == "SERIAL":
         return choose_prompt(options, purpose=purpose)
-    pyocd = list_pyocd()
-    if len(pyocd) > 0:
-        for probe in list_pyocd():
-            options.append(
-                (
-                    f"pyOCD {probe['product_name']} ({probe['unique_id']})",
-                    f"pyocd {probe['unique_id']}",
-                )
-            )
-        if default == "PYOCD":
-            return choose_prompt(options, purpose=purpose)
+    if default == "PYOCD":
+        options = [("pyocd", "PYOCD")]
+        return choose_prompt(options, purpose=purpose)
     if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
         options.append((f"Over The Air ({CORE.address})", CORE.address))
         if default == "OTA":
@@ -350,9 +342,8 @@ def upload_program(config, args, host):
 
         raise EsphomeError(f"Unknown target platform: {CORE.target_platform}")
 
-    if host.startswith("pyocd"):
-        print(host.split(" ")[1])
-        raise EsphomeError("Not implemented")
+    if host == "PYOCD":
+        return upload_using_platformio(config, host, ["-t", "flash_pyocd"])
 
     if host.startswith("mcumgr"):
         firmware = os.path.abspath(
