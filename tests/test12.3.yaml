@@ -1,0 +1,43 @@
+---
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+  framework:
+    type: zephyr
+    variant: nrf-sdk
+
+esphome:
+  name: nrf52-test-nrf-adafruit
+
+logger:
+  level: DEBUG
+  logs:
+    switch: NONE
+
+switch:
+  - platform: gpio
+    pin:
+      number: 15
+      inverted: true
+      mode:
+        output: true
+    id: gpio_15
+
+interval:
+  - interval: 500ms
+    then:
+      - switch.toggle: gpio_15
+
+output:
+  - platform: gpio
+    pin:
+      number: 14
+      inverted: true
+      mode:
+        output: true
+    id: rest_gpio
+
+dfu:
+  reset_output: rest_gpio
+
+zephyr_ble_server:
+
