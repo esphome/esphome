@@ -1,6 +1,8 @@
 
 #include "ebus_component.h"
 
+#include "esphome/core/helpers.h"
+
 namespace esphome {
 namespace ebus {
 
@@ -49,7 +51,7 @@ void EbusComponent::setup_queues_() {
   this->command_queue_ = xQueueCreate(this->command_queue_size_, sizeof(Telegram));
 }
 void EbusComponent::setup_ebus_() {
-  this->ebus_ = std::unique_ptr<Ebus>(new Ebus());
+  this->ebus_ = make_unique<Ebus>();
   this->ebus_->set_primary_address(this->primary_address_);
   this->ebus_->set_max_tries(this->max_tries_);
   this->ebus_->set_max_lock_counter(this->max_lock_counter_);
