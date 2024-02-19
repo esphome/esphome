@@ -304,7 +304,7 @@ def string(value):
     """Validate that a configuration value is a string. If not, automatically converts to a string.
 
     Note that this can be lossy, for example the input value 60.00 (float) will be turned into
-    "60.0" (string). For values where this could be a problem `string_string` has to be used.
+    "60.0" (string). For values where this could be a problem `string_strict` has to be used.
     """
     check_not_templatable(value)
     if isinstance(value, (dict, list)):

@@ -85,7 +85,7 @@ class Component {
 
   /** priority of setup(). higher -> executed earlier
    *
-   * Defaults to 0.
+   * Defaults to setup_priority::DATA, i.e. 600.
    *
    * @return The setup priority of this component
    */
