@@ -8,6 +8,13 @@ from esphome.const import (
     CONF_RX_PIN,
 )
 
+
+# TODO: make ebus primary address optional for only listening on the bus
+# TODO: send identification response ewhen requested
+# TODO: add binary_sensor
+# TODO: add debug mode that logs all messages on the bus
+# TODO: investigate using UART component, but that does not seem to expose the UART NUM
+
 CODEOWNERS = ["@guidoschreuder"]
 
 ebus_ns = cg.esphome_ns.namespace("ebus")
