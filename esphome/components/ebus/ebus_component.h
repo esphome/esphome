@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "esphome/core/log.h"
 #include "esphome/core/component.h"
 
@@ -33,19 +35,19 @@ class EbusComponent : public PollingComponent {
   void dump_config() override;
   void setup() override;
 
-  void set_primary_address(uint8_t);
-  void set_max_tries(uint8_t);
-  void set_max_lock_counter(uint8_t);
-  void set_uart_num(uint8_t);
-  void set_uart_tx_pin(uint8_t);
-  void set_uart_rx_pin(uint8_t);
-  void set_history_queue_size(uint8_t);
-  void set_command_queue_size(uint8_t);
+  void set_primary_address(uint8_t /*primary_address*/);
+  void set_max_tries(uint8_t /*max_tries*/);
+  void set_max_lock_counter(uint8_t /*max_lock_counter*/);
+  void set_uart_num(uint8_t /*uart_num*/);
+  void set_uart_tx_pin(uint8_t /*uart_tx_pin*/);
+  void set_uart_rx_pin(uint8_t /*uart_rx_pin*/);
+  void set_history_queue_size(uint8_t /*history_queue_size*/);
+  void set_command_queue_size(uint8_t /*command_queue_size*/);
 
-  void add_sender(EbusSender *);
-  void add_receiver(EbusReceiver *);
+  void add_sender(EbusSender * /*sender*/);
+  void add_receiver(EbusReceiver * /*receiver*/);
 
-  void update();
+  void update() override;
 
  protected:
   uint8_t primary_address_;
@@ -63,16 +65,16 @@ class EbusComponent : public PollingComponent {
   std::list<EbusSender *> senders_;
   std::list<EbusReceiver *> receivers_;
 
-  Ebus *ebus;
+  std::unique_ptr<Ebus> ebus_;
 
-  void setup_queues();
-  void setup_ebus();
-  void setup_uart();
-  void setup_tasks();
+  void setup_queues_();
+  void setup_ebus_();
+  void setup_uart_();
+  void setup_tasks_();
 
-  static void process_received_bytes(void *);
-  static void process_received_messages(void *);
-  void handle_message(Telegram &);
+  static void process_received_bytes(void * /*pvParameter*/);
+  static void process_received_messages(void * /*pvParameter*/);
+  void handle_message_(Telegram & /*telegram*/);
 };
 
 }  // namespace ebus

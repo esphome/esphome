@@ -2,7 +2,7 @@
 #include "ebus_sensor.h"
 
 // TODO: remove
-#define GET_BYTE(CMD, I) ((uint8_t) ((CMD >> 8 * I) & 0XFF))
+#define GET_BYTE(CMD, I) ((uint8_t) (((CMD) >> 8 * (I)) & 0XFF))
 
 namespace esphome {
 namespace ebus {
@@ -62,10 +62,10 @@ float EbusSensor::to_float(Telegram &telegram, uint8_t start, uint8_t length, fl
 }
 
 bool EbusSensor::is_mine(Telegram &telegram) {
-  if (this->source_ != SYN && this->source_ != telegram.getZZ()) {
+  if (this->source_ != SYN && this->source_ != telegram.get_zz()) {
     return false;
   }
-  if (telegram.getCommand() != this->command_) {
+  if (telegram.get_command() != this->command_) {
     return false;
   }
   for (int i = 0; i < this->payload_.size(); i++) {

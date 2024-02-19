@@ -12,17 +12,17 @@ class EbusSensor : public EbusReceiver, public EbusSender, public sensor::Sensor
 
   void dump_config() override;
 
-  void set_primary_address(uint8_t) override;
-  void set_source(uint8_t);
-  void set_destination(uint8_t);
-  void set_command(uint16_t);
-  void set_payload(const std::vector<uint8_t> &);
+  void set_primary_address(uint8_t /*primary_address*/) override;
+  void set_source(uint8_t /*source*/);
+  void set_destination(uint8_t /*destination*/);
+  void set_command(uint16_t /*command*/);
+  void set_payload(const std::vector<uint8_t> & /*payload*/);
 
-  void set_response_read_position(uint8_t);
-  void set_response_read_bytes(uint8_t);
-  void set_response_read_divider(float);
+  void set_response_read_position(uint8_t /*response_position*/);
+  void set_response_read_bytes(uint8_t /*response_bytes*/);
+  void set_response_read_divider(float /*response_divider*/);
 
-  void process_received(Telegram) override;
+  void process_received(Telegram /*telegram*/) override;
   optional<SendCommand> prepare_command() override;
 
   // TODO: refactor these

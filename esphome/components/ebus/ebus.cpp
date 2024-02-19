@@ -1,27 +1,11 @@
 #include "ebus.h"
 
+#include <utility>
+
 namespace esphome {
 namespace ebus {
 
-Ebus::Ebus(ebus_config_t &config) {
-  this->primary_address_ = config.primary_address;
-  this->max_tries_ = config.max_tries;
-  this->max_lock_counter_ = config.max_lock_counter;
-}
-
-void Ebus::set_uart_send_function(std::function<void(const char *, int16_t)> uart_send) {
-  this->uart_send_ = uart_send;
-}
-
-void Ebus::set_queue_received_telegram_function(std::function<void(Telegram &telegram)> queue_received_telegram) {
-  this->queue_received_telegram_ = queue_received_telegram;
-}
-
-void Ebus::set_dequeue_command_function(std::function<bool(void *const)> dequeue_command) {
-  this->dequeue_command_ = dequeue_command;
-}
-
-uint8_t Ebus::uart_send_char(uint8_t cr, bool esc, bool run_crc, uint8_t crc_init) {
+uint8_t Ebus::uart_send_char_(uint8_t cr, bool esc, bool run_crc, uint8_t crc_init) {
   char buffer[2];
   uint8_t crc = 0;
   uint8_t len = 1;
@@ -47,27 +31,27 @@ uint8_t Ebus::uart_send_char(uint8_t cr, bool esc, bool run_crc, uint8_t crc_ini
   return Elf::crc8_calc(buffer[1], crc);
 }
 
-void Ebus::uart_send_char(uint8_t cr, bool esc) { this->uart_send_char(cr, esc, false, 0); }
+void Ebus::uart_send_char_(uint8_t cr, bool esc) { this->uart_send_char_(cr, esc, false, 0); }
 
-void Ebus::uart_send_remaining_request_part(SendCommand &command) {
-  this->uart_send_char(command.getZZ());
-  this->uart_send_char(command.getPB());
-  this->uart_send_char(command.getSB());
-  this->uart_send_char(command.getNN());
-  for (int i = 0; i < command.getNN(); i++) {
-    this->uart_send_char((uint8_t) command.get_request_byte(i));
+void Ebus::uart_send_remaining_request_part_(SendCommand &command) {
+  this->uart_send_char_(command.get_zz());
+  this->uart_send_char_(command.get_pb());
+  this->uart_send_char_(command.get_sb());
+  this->uart_send_char_(command.get_nn());
+  for (int i = 0; i < command.get_nn(); i++) {
+    this->uart_send_char_((uint8_t) command.get_request_byte(i));
   }
-  this->uart_send_char(command.get_crc());
+  this->uart_send_char_(command.get_crc());
 }
 
 void Ebus::process_received_char(unsigned char received_byte) {
   // keep track of number of character between last 2 SYN chars
   // this is needed in case of arbitration
   if (received_byte == SYN) {
-    this->state = this->char_count_since_last_syn_ == 1 ? EbusState::arbitration : EbusState::normal;
+    this->state_ = this->char_count_since_last_syn_ == 1 ? EbusState::ARBITRATION : EbusState::NORMAL;
     this->char_count_since_last_syn_ = 0;
 
-    if (this->lock_counter_ > 0 && this->state == EbusState::normal) {
+    if (this->lock_counter_ > 0 && this->state_ == EbusState::NORMAL) {
       this->lock_counter_--;
     }
 
@@ -103,7 +87,7 @@ void Ebus::process_received_char(unsigned char received_byte) {
       break;
     case TelegramState::waitForRequestData:
       if (received_byte == SYN) {
-        if (this->receiving_telegram_.getZZ() == ESC) {
+        if (this->receiving_telegram_.get_zz() == ESC) {
           this->receiving_telegram_.set_state(TelegramState::endArbitration);
         } else {
           this->receiving_telegram_.set_state(TelegramState::endErrorUnexpectedSyn);
@@ -159,22 +143,22 @@ void Ebus::process_received_char(unsigned char received_byte) {
 
   switch (this->active_command_.get_state()) {
     case TelegramState::waitForSend:
-      if (received_byte == SYN && state == EbusState::normal && this->lock_counter_ == 0) {
+      if (received_byte == SYN && state_ == EbusState::NORMAL && this->lock_counter_ == 0) {
         this->active_command_.set_state(TelegramState::waitForArbitration);
-        this->uart_send_char(this->active_command_.getQQ());
+        this->uart_send_char_(this->active_command_.get_qq());
       }
       break;
     case TelegramState::waitForArbitration:
-      if (received_byte == this->active_command_.getQQ()) {
+      if (received_byte == this->active_command_.get_qq()) {
         // we won arbitration
-        this->uart_send_remaining_request_part(this->active_command_);
+        this->uart_send_remaining_request_part_(this->active_command_);
         if (this->active_command_.is_ack_expected()) {
           this->active_command_.set_state(TelegramState::waitForCommandAck);
         } else {
           this->active_command_.set_state(TelegramState::endCompleted);
           this->lock_counter_ = this->max_lock_counter_;
         }
-      } else if (Elf::get_priority_class(received_byte) == Elf::get_priority_class(this->active_command_.getQQ())) {
+      } else if (Elf::get_priority_class(received_byte) == Elf::get_priority_class(this->active_command_.get_qq())) {
         // eligible for round 2
         this->active_command_.set_state(TelegramState::waitForArbitration2nd);
       } else {
@@ -186,10 +170,10 @@ void Ebus::process_received_char(unsigned char received_byte) {
       break;
     case TelegramState::waitForArbitration2nd:
       if (received_byte == SYN) {
-        this->uart_send_char(this->active_command_.getQQ());
-      } else if (received_byte == this->active_command_.getQQ()) {
+        this->uart_send_char_(this->active_command_.get_qq());
+      } else if (received_byte == this->active_command_.get_qq()) {
         // won round 2
-        this->uart_send_remaining_request_part(this->active_command_);
+        this->uart_send_remaining_request_part_(this->active_command_);
         if (this->active_command_.is_ack_expected()) {
           this->active_command_.set_state(TelegramState::waitForCommandAck);
         } else {
@@ -220,30 +204,30 @@ void Ebus::process_received_char(unsigned char received_byte) {
   // responses to our commands are stored in receiving_telegram_
   // when response is completed send ACK or NACK when we were the primary
   if (this->receiving_telegram_.get_state() == TelegramState::waitForResponseAck &&
-      this->receiving_telegram_.getQQ() == this->primary_address_) {
+      this->receiving_telegram_.get_qq() == this->primary_address_) {
     if (this->receiving_telegram_.is_response_valid()) {
-      this->uart_send_char(ACK);
-      this->uart_send_char(SYN, false);
+      this->uart_send_char_(ACK);
+      this->uart_send_char_(SYN, false);
     } else {
-      this->uart_send_char(NACK);
+      this->uart_send_char_(NACK);
     }
   }
 
   // Handle our responses
-  this->handle_response(this->receiving_telegram_);
+  this->handle_response_(this->receiving_telegram_);
 }
 
-void Ebus::add_send_response_handler(std::function<uint8_t(Telegram &, uint8_t *)> send_response_handler) {
+void Ebus::add_send_response_handler(const std::function<uint8_t(Telegram &, uint8_t *)>& send_response_handler) {
   send_response_handlers_.push_back(send_response_handler);
 }
 
-void Ebus::handle_response(Telegram &telegram) {
+void Ebus::handle_response_(Telegram &telegram) {
   if (telegram.get_state() != TelegramState::waitForRequestAck ||
-      telegram.getZZ() != Elf::to_secondary(this->primary_address_)) {
+      telegram.get_zz() != Elf::to_secondary(this->primary_address_)) {
     return;
   }
   if (!telegram.is_request_valid()) {
-    uart_send_char(NACK);
+    uart_send_char_(NACK);
     return;
   }
 
@@ -261,17 +245,17 @@ void Ebus::handle_response(Telegram &telegram) {
 
   // we found no reponse to send
   if (len == 0) {
-    uart_send_char(NACK);
+    uart_send_char_(NACK);
     return;
   }
 
-  uart_send_char(ACK);
+  uart_send_char_(ACK);
   uint8_t crc = Elf::crc8_calc(len, 0);
-  uart_send_char(len);
+  uart_send_char_(len);
   for (int i = 0; i < len; i++) {
-    crc = uart_send_char(buf[i], true, true, crc);
+    crc = uart_send_char_(buf[i], true, true, crc);
   }
-  uart_send_char(crc);
+  uart_send_char_(crc);
 }
 
 unsigned char Elf::crc8_calc(unsigned char data, unsigned char crc_init) {
