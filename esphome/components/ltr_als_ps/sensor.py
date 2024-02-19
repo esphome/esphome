@@ -57,7 +57,7 @@ LTR_TYPES = {
     "ALS_PS": LtrType.LTR_TYPE_ALS_AND_PS,
 }
 
-AlsGain = ltr_als_ps_ns.enum("Gain")
+AlsGain = ltr_als_ps_ns.enum("AlsGain")
 ALS_GAINS = {
     "1X": AlsGain.GAIN_1,
     "2X": AlsGain.GAIN_2,
