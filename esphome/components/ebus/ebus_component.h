@@ -7,8 +7,10 @@
 
 #include "ebus.h"
 
+#ifndef USE_ESP8266
 #include <driver/uart.h>
 #include <soc/uart_reg.h>
+#endif
 
 namespace esphome {
 namespace ebus {
@@ -59,8 +61,10 @@ class EbusComponent : public PollingComponent {
   uint8_t uart_tx_pin_;
   uint8_t uart_rx_pin_;
 
+#ifndef USE_ESP8266
   QueueHandle_t history_queue_;
   QueueHandle_t command_queue_;
+#endif
 
   std::list<EbusSender *> senders_;
   std::list<EbusReceiver *> receivers_;
