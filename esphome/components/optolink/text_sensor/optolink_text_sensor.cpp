@@ -23,7 +23,7 @@ bool check_time_values(const Time &time) {
   return (time.hours >= 0 && time.hours <= 23) && (time.minutes >= 0 && time.minutes <= 59);
 }
 
-uint8_t *encode_time_string(const std::string input) {
+uint8_t *encode_time_string(const std::string &input) {
   char buffer[49];
   strncpy(buffer, input.c_str(), sizeof(buffer));
   buffer[sizeof(buffer) - 1] = 0x00;

@@ -259,7 +259,7 @@ void DatapointComponent::set_optolink_state_(const char *format, ...) {
 
 std::string DatapointComponent::get_optolink_state_() { return optolink_->get_state(); }
 
-void DatapointComponent::subscribe_hass_(const std::string entity_id, std::function<void(std::string)> f) {
+void DatapointComponent::subscribe_hass_(const std::string &entity_id, const std::function<void(std::string)> &f) {
   for (auto &subscription : hass_subscriptions_) {
     if (subscription.entity_id == entity_id) {
       subscription.callbacks.push_back(f);
