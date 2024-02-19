@@ -89,7 +89,7 @@ void EbusComponent::setup_uart_() {
       .stop_bits = UART_STOP_BITS_1,
       .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
       .rx_flow_ctrl_thresh = 2,
-      .use_ref_tick = true,
+      .source_clk = UART_SCLK_REF_TICK,
   };
 
   ESP_ERROR_CHECK(uart_param_config(this->uart_num_, &uart_config));

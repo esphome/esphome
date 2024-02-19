@@ -79,13 +79,14 @@ uint8_t Telegram::get_response_crc() { return this->response_buffer_[RESPONSE_OF
 
 void Telegram::push_response_data(uint8_t cr) {
   this->push_buffer_(cr, response_buffer_, &response_buffer_pos_, &response_rolling_crc_,
-                    RESPONSE_OFFSET + get_response_nn());
+                     RESPONSE_OFFSET + get_response_nn());
 }
 
 bool Telegram::is_response_complete() {
   return (this->state_ > TelegramState::waitForSyn || this->state_ == TelegramState::endCompleted) &&
          (this->response_buffer_pos_ > RESPONSE_OFFSET) &&
-         (this->response_buffer_pos_ == (RESPONSE_OFFSET + this->get_response_nn() + 1)) && !this->wait_for_escaped_char_;
+         (this->response_buffer_pos_ == (RESPONSE_OFFSET + this->get_response_nn() + 1)) &&
+         !this->wait_for_escaped_char_;
 }
 
 bool Telegram::is_response_valid() {
@@ -94,8 +95,8 @@ bool Telegram::is_response_valid() {
 
 bool Telegram::is_request_complete() {
   return (this->state_ > TelegramState::waitForSyn || this->state_ == TelegramState::endCompleted) &&
-         (this->request_buffer_pos_ > OFFSET_DATA) && (this->request_buffer_pos_ == (OFFSET_DATA + this->get_nn() + 1)) &&
-         !this->wait_for_escaped_char_;
+         (this->request_buffer_pos_ > OFFSET_DATA) &&
+         (this->request_buffer_pos_ == (OFFSET_DATA + this->get_nn() + 1)) && !this->wait_for_escaped_char_;
 }
 bool Telegram::is_request_valid() {
   return this->is_request_complete() && this->get_request_crc() == this->request_rolling_crc_;

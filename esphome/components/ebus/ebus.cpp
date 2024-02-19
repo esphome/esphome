@@ -217,7 +217,7 @@ void Ebus::process_received_char(unsigned char received_byte) {
   this->handle_response_(this->receiving_telegram_);
 }
 
-void Ebus::add_send_response_handler(const std::function<uint8_t(Telegram &, uint8_t *)>& send_response_handler) {
+void Ebus::add_send_response_handler(const std::function<uint8_t(Telegram &, uint8_t *)> &send_response_handler) {
   send_response_handlers_.push_back(send_response_handler);
 }
 
