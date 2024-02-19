@@ -1758,6 +1758,117 @@ sensor:
       memory_location: 0x20
       memory_address: 0x7d
       name: Adres sensor
+  - platform: statistics
+    source_id: dht_temperature
+    window:
+      type: sliding
+      window_size: 15
+    weight_type: duration
+    group_type: sample
+    statistics:
+      - type: count
+        name: "DHT Temperature - Count of Valid Measurements"
+      - type: duration
+        name: "DHT Temperature - Duration"
+      - type: lambda
+        name: "DHT Temperature - Lambda Mean"
+        lambda: !lambda "return agg.get_mean();"
+      - type: max
+        name: "DHT Temperature - Maximum"
+      - type: min
+        name: "DHT Temperature - Minimum"
+      - type: mean
+        name: "DHT Temperature - Average"
+      - type: quadrature
+        name: "DHT Temperature - Quadrature"
+        time_unit: "ms"
+      - type: since_argmax
+        name: "DHT Temperature - Time Since Last Maximum"
+        time_unit: "min"
+      - type: since_argmin
+        name: "DHT Temperature - Time Since Last Minimum"
+      - type: std_dev
+        name: "DHT Temperature - Standard Deviation"
+      - type: trend
+        name: "DHT Temperature - Trend"
+  - platform: statistics
+    source_id: dht_temperature
+    id: dht_15_minute_stats
+    window:
+      type: continuous
+      window_size: 45
+      chunk_duration: 20s
+      send_every: 3
+      send_first_at: 1
+    weight_type: duration
+    group_type: sample
+    statistics:
+      - type: count
+        name: "DHT Temperature - Count of Valid Measurements (over 15 min)"
+      - type: duration
+        name: "DHT Temperature - Duration (over 15 min)"
+        time_unit: "h"
+      - type: lambda
+        name: "DHT Temperature - Lambda Mean (over 15 min)"
+        lambda: !lambda "return agg.get_mean();"
+      - type: max
+        name: "DHT Temperature - Maximum (over 15 min)"
+      - type: min
+        name: "DHT Temperature - Minimum (over 15 min)"
+      - type: mean
+        name: "DHT Temperature - Average (over 15 min)"
+      - type: quadrature
+        name: "DHT Temperature - Quadrature (over 15 min)"
+        time_unit: "min"
+      - type: since_argmax
+        name: "DHT Temperature - Time Since Last Maximum (over 15 min)"
+        time_unit: "h"
+      - type: since_argmin
+        name: "DHT Temperature - Time Since Last Minimum (over 15 min)"
+        time_unit: "h"
+      - type: std_dev
+        name: "DHT Temperature - Standard Deviation (over 15 min)"
+      - type: trend
+        name: "DHT Temperature - Trend (over 15 min)"
+        time_unit: "h"
+  - platform: statistics
+    source_id: dht_temperature
+    window:
+      type: continuous_long_term
+      window_size: 0
+      chunk_duration: 60s
+      send_every: 1
+      send_first_at: 1
+      restore: true
+    weight_type: simple
+    group_type: population
+    statistics:
+      - type: count
+        name: "DHT Temperature - Count of Valid Measurements (all time)"
+      - type: duration
+        name: "DHT Temperature - Duration (all time)"
+      - type: lambda
+        name: "DHT Temperature - Lambda Mean (all time)"
+        lambda: !lambda "return agg.get_mean();"
+      - type: max
+        name: "DHT Temperature - Maximum (all time)"
+      - type: min
+        name: "DHT Temperature - Minimum (all time)"
+      - type: mean
+        name: "DHT Temperature - Average (all time)"
+      - type: quadrature
+        name: "DHT Temperature - Quadratur (all time)"
+        time_unit: "d"
+      - type: since_argmax
+        name: "DHT Temperature - Time Since Last Maximum (all time)"
+      - type: since_argmin
+        name: "DHT Temperature - Time Since Last Minimum (all time)"
+      - type: std_dev
+        name: "DHT Temperature - Standard Deviation (all time)"
+    on_update:
+      then:
+        - sensor.statistics.force_publish: dht_15_minute_stats
+        - sensor.statistics.reset: dht_15_minute_stats
 
 psram:
 
