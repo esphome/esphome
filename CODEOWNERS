@@ -94,6 +94,7 @@ esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/duty_time/* @dudanov
+esphome/components/ebus/* @guidoschreuder
 esphome/components/ee895/* @Stock-M
 esphome/components/ektf2232/touchscreen/* @jesserockz
 esphome/components/emc2101/* @ellull

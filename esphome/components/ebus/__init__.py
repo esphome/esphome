@@ -8,6 +8,8 @@ from esphome.const import (
     CONF_RX_PIN,
 )
 
+CODEOWNERS = ["@guidoschreuder"]
+
 ebus_ns = cg.esphome_ns.namespace("ebus")
 
 CONF_EBUS_ID = "ebus_id"
