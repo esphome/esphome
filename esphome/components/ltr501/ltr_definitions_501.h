@@ -3,7 +3,7 @@
 #include <cstdint>
 
 namespace esphome {
-namespace ltr_als_ps {
+namespace ltr501 {
 
 enum class CommandRegisters : uint8_t {
   ALS_CONTR = 0x80,         // ALS operation mode control and SW reset
@@ -40,28 +40,20 @@ enum class CommandRegisters : uint8_t {
 };
 
 // ALS Sensor gain levels
-enum AlsGain : uint8_t {
-  GAIN_1 = 0,  // default
-  GAIN_2 = 1,
-  GAIN_4 = 2,
-  GAIN_8 = 3,
-  GAIN_48 = 6,
-  GAIN_96 = 7,
+enum AlsGain501 : uint8_t {
+  GAIN_1 = 0,    // GAIN_RANGE_2 // default
+  GAIN_200 = 1,  // GAIN_RANGE_1
 };
-static const uint8_t GAINS_COUNT = 6;
+static const uint8_t GAINS_COUNT = 2;
 
 // ALS Sensor integration times
-enum IntegrationTime : uint8_t {
+enum IntegrationTime501 : uint8_t {
   INTEGRATION_TIME_100MS = 0,  // default
-  INTEGRATION_TIME_50MS = 1,
-  INTEGRATION_TIME_200MS = 2,
-  INTEGRATION_TIME_400MS = 3,
-  INTEGRATION_TIME_150MS = 4,
-  INTEGRATION_TIME_250MS = 5,
-  INTEGRATION_TIME_300MS = 6,
-  INTEGRATION_TIME_350MS = 7
+  INTEGRATION_TIME_50MS = 1,   // only in Dynamic GAIN_RANGE_2
+  INTEGRATION_TIME_200MS = 2,  // only in Dynamic GAIN_RANGE_1
+  INTEGRATION_TIME_400MS = 3,  // only in Dynamic GAIN_RANGE_1
 };
-static const uint8_t TIMES_COUNT = 8;
+static const uint8_t TIMES_COUNT = 4;
 
 // ALS Sensor measurement repeat rate
 enum MeasurementRepeatRate {
@@ -74,19 +66,20 @@ enum MeasurementRepeatRate {
 };
 
 // PS Sensor gain levels
-enum PsGain : uint8_t {
-  PS_GAIN_16 = 0,  // default
-  PS_GAIN_32 = 2,
-  PS_GAIN_64 = 3,
+enum PsGain501 : uint8_t {
+  PS_GAIN_1 = 0,  // default
+  PS_GAIN_4 = 1,
+  PS_GAIN_8 = 2,
+  PS_GAIN_16 = 3,
 };
 
-// PS Mode
-enum PsMode : uint8_t {
-  PS_MODE_STANDBY_00 = 0,  // default
-  PS_MODE_STANDBY_01 = 1,
-  PS_MODE_ACTIVE_10 = 2,
-  PS_MODE_ACTIVE_11 = 3,
-};
+// // PS Mode
+// enum PsMode : uint8_t {
+//   PS_MODE_STANDBY_00 = 0,  // default
+//   PS_MODE_STANDBY_01 = 1,
+//   PS_MODE_ACTIVE_10 = 2,
+//   PS_MODE_ACTIVE_11 = 3,
+// };
 
 // LED Pulse Modulation Frequency
 enum PsLedFreq : uint8_t {
@@ -103,9 +96,9 @@ enum PsLedFreq : uint8_t {
 // LED current duty
 enum PsLedDuty : uint8_t {
   PS_LED_DUTY_25 = 0,
-  PS_LED_DUTY_50 = 1,
+  PS_LED_DUTY_50 = 1,  // default
   PS_LED_DUTY_75 = 2,
-  PS_LED_DUTY_100 = 3,  // default
+  PS_LED_DUTY_100 = 3,
 };
 
 // LED pulsed current level
@@ -113,8 +106,8 @@ enum PsLedCurrent : uint8_t {
   PS_LED_CURRENT_5MA = 0,
   PS_LED_CURRENT_10MA = 1,
   PS_LED_CURRENT_20MA = 2,
-  PS_LED_CURRENT_50MA = 3,
-  PS_LED_CURRENT_100MA = 4,  // default
+  PS_LED_CURRENT_50MA = 3,  // default
+  PS_LED_CURRENT_100MA = 4,
   PS_LED_CURRENT_100MA1 = 5,
   PS_LED_CURRENT_100MA2 = 6,
   PS_LED_CURRENT_100MA3 = 7,
@@ -124,39 +117,39 @@ enum PsLedCurrent : uint8_t {
 enum PsMeasurementRate : uint8_t {
   PS_MEAS_RATE_50MS = 0,
   PS_MEAS_RATE_70MS = 1,
-  PS_MEAS_RATE_100MS = 2,
+  PS_MEAS_RATE_100MS = 2,  // default
   PS_MEAS_RATE_200MS = 3,
-  PS_MEAS_RATE_500MS = 4,  // default
+  PS_MEAS_RATE_500MS = 4,
   PS_MEAS_RATE_1000MS = 5,
   PS_MEAS_RATE_2000MS = 6,
   PS_MEAS_RATE_2000MS1 = 7,
-  PS_MEAS_RATE_10MS = 8,
 };
 
 //
 // ALS_CONTR Register (0x80)
 //
-union AlsControlRegister {
+union AlsControlRegister501 {
   uint8_t raw;
   struct {
-    bool active_mode : 1;
+    bool asl_mode_xxx : 1;
+    bool als_mode_active : 1;
     bool sw_reset : 1;
-    AlsGain gain : 3;
-    uint8_t reserved : 3;
+    AlsGain501 gain : 1;
+    uint8_t reserved : 4;
   } __attribute__((packed));
 };
 
 //
 // PS_CONTR Register (0x81)
 //
-union PsControlRegister {
+union PsControlRegister501 {
   uint8_t raw;
   struct {
     bool ps_mode_xxx : 1;
     bool ps_mode_active : 1;
-    PsGain ps_gain : 2;  // only LTR-659/558
+    PsGain501 ps_gain : 2;
     bool reserved_4 : 1;
-    bool ps_saturation_indicator_enable : 1;
+    bool reserved_5 : 1;
     bool reserved_6 : 1;
     bool reserved_7 : 1;
   } __attribute__((packed));
@@ -177,12 +170,9 @@ union PsLedRegister {
 //
 // PS_N_PULSES Register (0x83)
 //
-union PsNPulsesRegister {
+union PsNPulsesRegister501 {
   uint8_t raw;
-  struct {
-    uint8_t number_of_pulses : 4;
-    uint8_t reserved : 4;
-  } __attribute__((packed));
+  uint8_t number_of_pulses;
 };
 
 //
@@ -199,11 +189,12 @@ union PsMeasurementRateRegister {
 //
 // ALS_MEAS_RATE Register (0x85)
 //
-union MeasurementRateRegister {
+union MeasurementRateRegister501 {
   uint8_t raw;
   struct {
     MeasurementRepeatRate measurement_repeat_rate : 3;
-    IntegrationTime integration_time : 3;
+    IntegrationTime501 integration_time : 2;
+    bool reserved_5 : 1;
     bool reserved_6 : 1;
     bool reserved_7 : 1;
   } __attribute__((packed));
@@ -230,8 +221,10 @@ union AlsPsStatusRegister {
     bool ps_interrupt : 1;   // 0 - interrupt signal not active, 1 - interrupt signal active
     bool als_new_data : 1;   // 0 - old data, 1 - new data
     bool als_interrupt : 1;  // 0 - interrupt signal not active, 1 - interrupt signal active
-    AlsGain gain : 3;        // current ALS gain
-    bool data_invalid : 1;
+    AlsGain501 gain : 1;     // current ALS gain
+    bool reserved_5 : 1;
+    bool reserved_6 : 1;
+    bool reserved_7 : 1;
   } __attribute__((packed));
 };
 
@@ -271,5 +264,5 @@ union InterruptPersistRegister {
   } __attribute__((packed));
 };
 
-}  // namespace ltr_als_ps
+}  // namespace ltr501
 }  // namespace esphome

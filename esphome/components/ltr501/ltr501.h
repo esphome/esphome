@@ -6,10 +6,10 @@
 #include "esphome/core/optional.h"
 #include "esphome/core/automation.h"
 
-#include "ltr_definitions.h"
+#include "ltr_definitions_501.h"
 
 namespace esphome {
-namespace ltr_als_ps {
+namespace ltr501 {
 
 enum DataAvail : uint8_t { NO_DATA, BAD_DATA, DATA_OK };
 
@@ -20,7 +20,7 @@ enum LtrType : uint8_t {
   LTR_TYPE_ALS_AND_PS = 3,
 };
 
-class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
+class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
  public:
   //
   // EspHome framework functions
@@ -38,8 +38,8 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   // Configuration setters : ALS
   //
   void set_als_auto_mode(bool enable) { this->automatic_mode_enabled_ = enable; }
-  void set_als_gain(AlsGain gain) { this->gain_ = gain; }
-  void set_als_integration_time(IntegrationTime time) { this->integration_time_ = time; }
+  void set_als_gain(AlsGain501 gain) { this->gain_ = gain; }
+  void set_als_integration_time(IntegrationTime501 time) { this->integration_time_ = time; }
   void set_als_meas_repeat_rate(MeasurementRepeatRate rate) { this->repeat_rate_ = rate; }
   void set_als_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
 
@@ -48,7 +48,7 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   void set_ps_high_threshold(uint16_t threshold) { this->ps_threshold_high_ = threshold; }
   void set_ps_low_threshold(uint16_t threshold) { this->ps_threshold_low_ = threshold; }
   void set_ps_cooldown_time_s(uint16_t time) { this->ps_cooldown_time_s_ = time; }
-  void set_ps_gain(PsGain gain) { this->ps_gain_ = gain; }
+  void set_ps_gain(PsGain501 gain) { this->ps_gain_ = gain; }
 
   // Sensors setters
   //
@@ -84,16 +84,16 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   struct AlsReadings {
     uint16_t ch0{0};
     uint16_t ch1{0};
-    AlsGain actual_gain{AlsGain::GAIN_1};
-    IntegrationTime integration_time{IntegrationTime::INTEGRATION_TIME_100MS};
+    AlsGain501 actual_gain{AlsGain501::GAIN_1};
+    IntegrationTime501 integration_time{IntegrationTime501::INTEGRATION_TIME_100MS};
     float lux{0.0f};
   } als_readings_;
   uint16_t ps_readings_{0xfffe};
 
-  inline bool is_als_() const {
+  inline const bool is_als_() const {
     return this->ltr_type_ == LtrType::LTR_TYPE_ALS_ONLY || this->ltr_type_ == LtrType::LTR_TYPE_ALS_AND_PS;
   }
-  inline bool is_ps_() const {
+  inline const bool is_ps_() const {
     return this->ltr_type_ == LtrType::LTR_TYPE_PS_ONLY || this->ltr_type_ == LtrType::LTR_TYPE_ALS_AND_PS;
   }
 
@@ -104,8 +104,8 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
 
   void configure_reset_and_activate_();
 
-  void configure_integration_time_(IntegrationTime time);
-  void configure_gain_(AlsGain gain);
+  void configure_integration_time_(IntegrationTime501 time);
+  void configure_gain_(AlsGain501 gain);
   DataAvail is_als_data_ready_(AlsReadings &data);
   void read_sensor_data_(AlsReadings &data);
   bool are_adjustments_required_(AlsReadings &data);
@@ -120,14 +120,14 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   //
   // Component configuration
   //
-  bool automatic_mode_enabled_{true};
-  AlsGain gain_{AlsGain::GAIN_1};
-  IntegrationTime integration_time_{IntegrationTime::INTEGRATION_TIME_100MS};
+  bool automatic_mode_enabled_{false};
+  AlsGain501 gain_{AlsGain501::GAIN_1};
+  IntegrationTime501 integration_time_{IntegrationTime501::INTEGRATION_TIME_100MS};
   MeasurementRepeatRate repeat_rate_{MeasurementRepeatRate::REPEAT_RATE_500MS};
   float glass_attenuation_factor_{1.0};
 
   uint16_t ps_cooldown_time_s_{5};
-  PsGain ps_gain_{PsGain::PS_GAIN_16};
+  PsGain501 ps_gain_{PsGain501::PS_GAIN_1};
   uint16_t ps_threshold_high_{0xffff};
   uint16_t ps_threshold_low_{0x0000};
 
@@ -157,27 +157,27 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   CallbackManager<void()> on_ps_high_trigger_callback_;
   CallbackManager<void()> on_ps_low_trigger_callback_;
 
-  void add_on_ps_high_trigger_callback_(std::function<void()> callback) {
+  void add_on_ps_high_trigger_callback(std::function<void()> callback) {
     this->on_ps_high_trigger_callback_.add(std::move(callback));
   }
 
-  void add_on_ps_low_trigger_callback_(std::function<void()> callback) {
+  void add_on_ps_low_trigger_callback(std::function<void()> callback) {
     this->on_ps_low_trigger_callback_.add(std::move(callback));
   }
 };
 
 class LTRPsHighTrigger : public Trigger<> {
  public:
-  explicit LTRPsHighTrigger(LTRAlsPsComponent *parent) {
-    parent->add_on_ps_high_trigger_callback_([this]() { this->trigger(); });
+  explicit LTRPsHighTrigger(LTRAlsPs501Component *parent) {
+    parent->add_on_ps_high_trigger_callback([this]() { this->trigger(); });
   }
 };
 
 class LTRPsLowTrigger : public Trigger<> {
  public:
-  explicit LTRPsLowTrigger(LTRAlsPsComponent *parent) {
-    parent->add_on_ps_low_trigger_callback_([this]() { this->trigger(); });
+  explicit LTRPsLowTrigger(LTRAlsPs501Component *parent) {
+    parent->add_on_ps_low_trigger_callback([this]() { this->trigger(); });
   }
 };
-}  // namespace ltr_als_ps
+}  // namespace ltr501
 }  // namespace esphome
