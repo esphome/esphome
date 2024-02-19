@@ -10,6 +10,8 @@ namespace esphome {
 namespace optolink {
 
 static const char *const TAG = "optolink.datapoint_component";
+
+// NOLINTNEXTLINE
 static std::vector<HassSubscription> hass_subscriptions_;
 
 void DatapointComponent::setup_datapoint_() {
@@ -266,6 +268,7 @@ void DatapointComponent::subscribe_hass_(const std::string &entity_id, const std
       return;
     }
   }
+  // NOLINTNEXTLINE
   HassSubscription subscription{entity_id, ""};
   subscription.callbacks.push_back(f);
   hass_subscriptions_.push_back(subscription);
