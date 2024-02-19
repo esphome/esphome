@@ -162,4 +162,4 @@ void EbusComponent::update() {
 }  // namespace ebus
 }  // namespace esphome
 
-#endif // USE_ESP8266
+#endif  // USE_ESP8266
