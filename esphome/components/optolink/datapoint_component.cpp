@@ -157,7 +157,7 @@ void DatapointComponent::datapoint_value_changed(uint32_t value) {
   ESP_LOGW(TAG, "unused value update by sensor %s", get_component_name().c_str());
 }
 
-void DatapointComponent::datapoint_value_changed(std::string value) {
+void DatapointComponent::datapoint_value_changed(const std::string &value) {
   ESP_LOGW(TAG, "unused value update by sensor %s", get_component_name().c_str());
 }
 
@@ -266,7 +266,7 @@ void DatapointComponent::subscribe_hass_(const std::string &entity_id, const std
       return;
     }
   }
-  HassSubscription subscription{entity_id};
+  HassSubscription subscription{entity_id, ""};
   subscription.callbacks.push_back(f);
   hass_subscriptions_.push_back(subscription);
 

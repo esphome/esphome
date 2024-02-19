@@ -29,7 +29,7 @@ class OptolinkSelect : public DatapointComponent, public esphome::select::Select
   void control(const std::string &value) override;
 
   const StringRef &get_component_name() override { return get_name(); }
-  void datapoint_value_changed(std::string value) override;
+  void datapoint_value_changed(const std::string &value) override;
   void datapoint_value_changed(uint8_t value) override;
   void datapoint_value_changed(uint16_t value) override;
   void datapoint_value_changed(uint32_t value) override;

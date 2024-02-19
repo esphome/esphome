@@ -23,7 +23,7 @@ void OptolinkSelect::control(const std::string &value) {
   }
 };
 
-void OptolinkSelect::datapoint_value_changed(std::string value) {
+void OptolinkSelect::datapoint_value_changed(const std::string &value) {
   auto pos = mapping_->find(value);
   if (pos == mapping_->end()) {
     set_optolink_state_("value %s not found in select %s", value.c_str(), get_component_name().c_str());

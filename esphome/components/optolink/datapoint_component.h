@@ -42,7 +42,7 @@ class DatapointComponent {
   virtual void datapoint_value_changed(uint8_t value);
   virtual void datapoint_value_changed(uint16_t value);
   virtual void datapoint_value_changed(uint32_t value);
-  virtual void datapoint_value_changed(std::string value);
+  virtual void datapoint_value_changed(const std::string &value);
   virtual void datapoint_value_changed(uint8_t *value, size_t length);
 
   void write_datapoint_value_(float value);

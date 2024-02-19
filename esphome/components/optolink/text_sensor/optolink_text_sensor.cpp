@@ -34,6 +34,7 @@ uint8_t *encode_time_string(const std::string &input) {
   char *token = strtok(buffer, " ");
   while (token && time_count < 8) {
     Time current_time;
+    // NOLINTNEXTLINE
     if (sscanf(token, "%d:%d", &current_time.hours, &current_time.minutes) == 2) {
       if (check_time_values(current_time) && check_time_sequence(prev_time, current_time)) {
         time_values[time_count++] = current_time;
