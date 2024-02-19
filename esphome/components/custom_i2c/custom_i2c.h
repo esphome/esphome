@@ -40,7 +40,17 @@ template<typename... Ts> class TriggerManager {
 
 class CustomI2COnSetupComponent : public Component {
  public:
-  void setup() override { this->on_setup_triggers.trigger(); };
+  // TODO: Right now, this winds up running after all the pin banks and pins are set up, which isn't helpful if e.g. the
+  // user is dealing with a device like an MCP23017 that allows changing the register address layout and they want to
+  // change the address layout before anything else writes to the device. Need to find a way to force setup actions to
+  // run before anything else uses the custom I2C device.
+  // (Amusingly, the same thing happens with the pin banks vs. the pins: the pins are set up just before the pin bank is
+  // set up, so allowing setup actions to be attached to pin banks won't help either.)
+  void setup() override {
+    // TODO: remove before merging, currently here to troubleshoot the above setup order annoyance
+    ESP_LOGV(TAG, "running custom_i2c specific setup actions");
+    this->on_setup_triggers.trigger();
+  };
 
   TriggerManager<> on_setup_triggers;
 };
@@ -62,8 +72,11 @@ template<typename T> std::array<uint8_t, sizeof(T)> to_i2c(T value) {
 
 class CustomI2CDevice : public Component {
  public:
-  void setup() override{};
-  void loop() override{};
+  void setup() override {
+    // TODO: remove before merging, currently here to troubleshoot a setup order annoyance
+    ESP_LOGV(TAG, "Setting up custom_i2c device");
+  }
+  void loop() override {}
   void dump_config() override { ESP_LOGCONFIG(TAG, "CustomI2CDevice: present! (TODO: actually log the config)"); };
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void set_i2c_bus(i2c::I2CBus *bus) {
@@ -197,9 +210,12 @@ class CustomI2CDevice : public Component {
 
 class CustomI2CRegister : public Component {
  public:
-  void setup() override{};
-  void loop() override{};
-  void dump_config() override{};
+  void setup() override {
+    // TODO: remove before merging, currently here to troubleshoot a setup order annoyance
+    ESP_LOGV(TAG, "Setting up custom_i2c register");
+  }
+  void loop() override {}
+  void dump_config() override {}
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void set_custom_i2c_device(CustomI2CDevice *device) { this->device_ = device; }
   void set_read_delay(int32_t read_delay) { this->read_delay_ = read_delay; }
@@ -361,7 +377,11 @@ template<uint8_t bytes> class CustomI2COutput : public output::FloatOutput, publ
                 "custom_i2c float outputs only support writing up to 4 bytes for now. If you need "
                 "support for more, please open an issue.");
 
-  void setup() override { this->turn_off(); }
+  void setup() override {
+    // TODO: remove before merging, currently here to troubleshoot a setup order annoyance
+    ESP_LOGV(TAG, "Setting up custom_i2c output");
+    this->turn_off();
+  }
   void dump_config() override {}
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void set_register(CustomI2CRegister *register__) { this->register_ = register__; }
@@ -470,6 +490,8 @@ template<size_t bytes> class CustomI2CPinBank : public Component {
         return;
       }
 
+      ESP_LOGD(TAG, "writing a 1 to bit %d of byte %d", pin.bit_index, pin.byte_index);
+
       Word data{};
       data[pin.byte_index] |= pin.mask;
 
@@ -481,6 +503,11 @@ template<size_t bytes> class CustomI2CPinBank : public Component {
     bool cache_enabled_ = false;
     Word cache{};
   };
+
+  void setup() override {
+    // TODO: remove before merging, currently here to troubleshoot a setup order annoyance
+    ESP_LOGV(TAG, "setting up custom_i2c pin bank");
+  }
 
   void pin_mode(uint8_t pin_number, gpio::Flags flags) {
     PinLocation pin = PinLocation::for_pin(pin_number);
@@ -586,7 +613,11 @@ template<size_t bytes> class CustomI2CPinBank : public Component {
 
 template<size_t bytes> class CustomI2CPin : public GPIOPin {
  public:
-  void setup() override {}
+  void setup() override {
+    // TODO: remove before merging, currently here to troubleshoot a setup order annoyance
+    ESP_LOGV(TAG, "Setting up custom_i2c pin with number %d", this->pin_);
+    this->pin_mode(this->flags_);
+  }
   void pin_mode(gpio::Flags flags) override { this->pin_bank_->pin_mode(this->pin_, this->flags_); }
   bool digital_read() override { return this->pin_bank_->digital_read(this->pin_); }
   void digital_write(bool value) override { this->pin_bank_->digital_write(this->pin_, value ^ this->inverted_); }
