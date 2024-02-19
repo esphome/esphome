@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_INVERTED,
     CONF_MODE,
+    CONF_BYTES,
 )
 from esphome import core, automation, pins
 
@@ -23,7 +24,6 @@ from .constants import (
     CONF_MESSAGE_BUILDER_ID,
     CONF_MESSAGE_BUILDER_KEY,
     CONF_CACHE,
-    CONF_BYTES,
     CONF_PIN_BANKS,
     CONF_PIN_BANK_ID,
     KEY_CUSTOM_I2C,
