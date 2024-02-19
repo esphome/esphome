@@ -48,7 +48,7 @@ from esphome.util import (
     get_serial_ports,
 )
 from esphome.log import color, setup_log, Fore
-from .zephyr_tools import smpmgr_upload
+from .zephyr_tools import smpmgr_upload, smpmgr_scan
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,23 +100,24 @@ def choose_upload_log_host(
     if default == "PYOCD":
         options = [("pyocd", "PYOCD")]
         return choose_prompt(options, purpose=purpose)
-    if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
-        options.append((f"Over The Air ({CORE.address})", CORE.address))
-        if default == "OTA":
-            return CORE.address
-    # if show_ota and CONF_FOTA in CORE.config:
-    #     if default is None or default == "FOTA":
-    #         ble_devices = asyncio.run(smpmgr_scan())
-    #         if len(ble_devices) == 0:
-    #             _LOGGER.warning("No FOTA service found!")
-    #         for device in ble_devices:
-    #             options.append(
-    #                 (
-    #                     f"FOTA over Bluetooth LE({device.address}) {device.name}",
-    #                     f"mcumgr {device.address}",
-    #                 )
-    #             )
-    #         return choose_prompt(options, purpose=purpose)
+    if CORE.target_platform in (PLATFORM_NRF52):
+        if (show_ota and "ota" in CORE.config) and default is None:
+            ble_devices = asyncio.run(smpmgr_scan())
+            if len(ble_devices) == 0:
+                _LOGGER.warning("No OTA service found!")
+            for device in ble_devices:
+                options.append(
+                    (
+                        f"FOTA over Bluetooth LE({device.address}) {device.name}",
+                        f"mcumgr {device.address}",
+                    )
+                )
+            return choose_prompt(options, purpose=purpose)
+    else:
+        if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
+            options.append((f"Over The Air ({CORE.address})", CORE.address))
+            if default == "OTA":
+                return CORE.address
     if show_mqtt and CONF_MQTT in CORE.config:
         options.append((f"MQTT ({CORE.config['mqtt'][CONF_BROKER]})", "MQTT"))
         if default == "OTA":
@@ -344,7 +345,6 @@ def upload_program(config, args, host):
 
     if host == "PYOCD":
         return upload_using_platformio(config, host, ["-t", "flash_pyocd"])
-
     if host.startswith("mcumgr"):
         firmware = os.path.abspath(
             CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
