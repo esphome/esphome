@@ -7,9 +7,8 @@ namespace esphome {
 namespace ebus {
 
 class EbusSensor : public EbusReceiver, public EbusSender, public sensor::Sensor, public Component {
-public:
-  EbusSensor() {
-  }
+ public:
+  EbusSensor() {}
 
   void dump_config() override;
 
@@ -31,7 +30,7 @@ public:
   float to_float(Telegram &telegram, uint8_t start, uint8_t length, float divider);
   bool is_mine(Telegram &telegram);
 
-protected:
+ protected:
   uint8_t primary_address_;
   uint8_t source_ = SYN;
   uint8_t destination_ = SYN;

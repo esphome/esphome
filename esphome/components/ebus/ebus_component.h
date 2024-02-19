@@ -8,29 +8,27 @@
 #include <driver/uart.h>
 #include <soc/uart_reg.h>
 
-
 namespace esphome {
 namespace ebus {
 
-  static const char *const TAG = "ebus";
+static const char *const TAG = "ebus";
 
 class EbusReceiver {
-public:
+ public:
   EbusReceiver() {}
   virtual void process_received(Telegram) = 0;
 };
 
 class EbusSender {
-public:
+ public:
   EbusSender() {}
   virtual void set_primary_address(uint8_t) = 0;
   virtual optional<SendCommand> prepare_command() = 0;
 };
 
 class EbusComponent : public PollingComponent {
-public:
-  EbusComponent() {
-  }
+ public:
+  EbusComponent() {}
 
   void dump_config() override;
   void setup() override;
@@ -49,7 +47,7 @@ public:
 
   void update();
 
-protected:
+ protected:
   uint8_t primary_address_;
   uint8_t max_tries_;
   uint8_t max_lock_counter_;
@@ -65,7 +63,7 @@ protected:
   std::list<EbusSender *> senders_;
   std::list<EbusReceiver *> receivers_;
 
-  Ebus* ebus;
+  Ebus *ebus;
 
   void setup_queues();
   void setup_ebus();
@@ -75,8 +73,7 @@ protected:
   static void process_received_bytes(void *);
   static void process_received_messages(void *);
   void handle_message(Telegram &);
-
 };
 
-} // namespace ebus
-} // namespace esphome
+}  // namespace ebus
+}  // namespace esphome

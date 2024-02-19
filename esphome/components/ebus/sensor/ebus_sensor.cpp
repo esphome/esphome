@@ -23,41 +23,21 @@ void EbusSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "    command: 0x%04x", this->command_);
 };
 
-void EbusSensor::set_primary_address(uint8_t primary_address) {
-  this->primary_address_ = primary_address;
-}
-void EbusSensor::set_source(uint8_t source) {
-  this->source_ = source;
-}
-void EbusSensor::set_destination(uint8_t destination) {
-  this->destination_ = destination;
-}
-void EbusSensor::set_command(uint16_t command) {
-  this->command_ = command;
-}
-void EbusSensor::set_payload(const std::vector<uint8_t> &payload) {
-  this->payload_ = payload;
-}
-void EbusSensor::set_response_read_position(uint8_t response_position) {
-  this->response_position_ = response_position;
-}
-void EbusSensor::set_response_read_bytes(uint8_t response_bytes) {
-  this->response_bytes_ = response_bytes;
-}
-void EbusSensor::set_response_read_divider(float response_divider) {
-  this->response_divider_ = response_divider;
-}
+void EbusSensor::set_primary_address(uint8_t primary_address) { this->primary_address_ = primary_address; }
+void EbusSensor::set_source(uint8_t source) { this->source_ = source; }
+void EbusSensor::set_destination(uint8_t destination) { this->destination_ = destination; }
+void EbusSensor::set_command(uint16_t command) { this->command_ = command; }
+void EbusSensor::set_payload(const std::vector<uint8_t> &payload) { this->payload_ = payload; }
+void EbusSensor::set_response_read_position(uint8_t response_position) { this->response_position_ = response_position; }
+void EbusSensor::set_response_read_bytes(uint8_t response_bytes) { this->response_bytes_ = response_bytes; }
+void EbusSensor::set_response_read_divider(float response_divider) { this->response_divider_ = response_divider; }
 
 optional<SendCommand> EbusSensor::prepare_command() {
   optional<SendCommand> command;
   if (this->destination_ != SYN) {
     command = SendCommand(  //
-         this->primary_address_,
-         Elf::to_secondary(this->destination_),
-         GET_BYTE(this->command_, 1),
-         GET_BYTE(this->command_, 0),
-         this->payload_.size(),
-         &this->payload_[0]);
+        this->primary_address_, Elf::to_secondary(this->destination_), GET_BYTE(this->command_, 1),
+        GET_BYTE(this->command_, 0), this->payload_.size(), &this->payload_[0]);
   }
   return command;
 }
