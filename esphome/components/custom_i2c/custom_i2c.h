@@ -619,7 +619,7 @@ template<size_t bytes> class CustomI2CPin : public GPIOPin {
     this->pin_mode(this->flags_);
   }
   void pin_mode(gpio::Flags flags) override { this->pin_bank_->pin_mode(this->pin_, this->flags_); }
-  bool digital_read() override { return this->pin_bank_->digital_read(this->pin_); }
+  bool digital_read() override { return this->pin_bank_->digital_read(this->pin_) ^ this->inverted_; }
   void digital_write(bool value) override { this->pin_bank_->digital_write(this->pin_, value ^ this->inverted_); }
   std::string dump_summary() const override { return "CustomI2CPin (TODO)"; }
 
