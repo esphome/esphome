@@ -259,7 +259,7 @@ void DatapointComponent::set_optolink_state_(const char *format, ...) {
 
 std::string DatapointComponent::get_optolink_state_() { return optolink_->get_state(); }
 
-void DatapointComponent::subscribe_hass_(std::string entity_id, std::function<void(std::string)> f) {
+void DatapointComponent::subscribe_hass_(const std::string entity_id, std::function<void(std::string)> f) {
   for (auto &subscription : hass_subscriptions_) {
     if (subscription.entity_id == entity_id) {
       subscription.callbacks.push_back(f);
@@ -273,13 +273,13 @@ void DatapointComponent::subscribe_hass_(std::string entity_id, std::function<vo
 #ifdef USE_API
   if (api::global_api_server != nullptr) {
     api::global_api_server->subscribe_home_assistant_state(
-        entity_id, optional<std::string>(), [this, entity_id](const std::string &state) {
+        entity_id, optional<std::string>(), [entity_id](const std::string &state) {
           ESP_LOGD(TAG, "received schedule plan from HASS entity '%s': %s", entity_id.c_str(), state.c_str());
           for (auto &subscription : hass_subscriptions_) {
             if (subscription.last_state != state) {
               if (subscription.entity_id == entity_id) {
                 subscription.last_state = state;
-                for (auto callback : subscription.callbacks) {
+                for (const auto &callback : subscription.callbacks) {
                   callback(state);
                 }
               }

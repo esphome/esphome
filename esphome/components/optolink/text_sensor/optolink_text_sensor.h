@@ -26,11 +26,11 @@ class OptolinkTextSensor : public DatapointComponent,
   void update() override;
 
   const StringRef &get_component_name() override { return get_name(); }
-  void datapoint_value_changed(float state) override { publish_state(std::to_string(state)); };
-  void datapoint_value_changed(uint8_t state) override { publish_state(std::to_string(state)); };
-  void datapoint_value_changed(uint16_t state) override { publish_state(std::to_string(state)); };
-  void datapoint_value_changed(uint32_t state) override;
-  void datapoint_value_changed(uint8_t *state, size_t length) override;
+  void datapoint_value_changed(float value) override { publish_state(std::to_string(value)); };
+  void datapoint_value_changed(uint8_t value) override { publish_state(std::to_string(value)); };
+  void datapoint_value_changed(uint16_t value) override { publish_state(std::to_string(value)); };
+  void datapoint_value_changed(uint32_t value) override;
+  void datapoint_value_changed(uint8_t *value, size_t length) override;
 
  private:
   TextSensorMode mode_ = MAP;

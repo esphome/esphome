@@ -23,33 +23,33 @@ void OptolinkSelect::control(const std::string &value) {
   }
 };
 
-void OptolinkSelect::datapoint_value_changed(std::string key) {
-  auto pos = mapping_->find(key);
+void OptolinkSelect::datapoint_value_changed(std::string value) {
+  auto pos = mapping_->find(value);
   if (pos == mapping_->end()) {
-    set_optolink_state_("value %s not found in select %s", key.c_str(), get_component_name().c_str());
-    ESP_LOGE(TAG, "value %s not found in select %s", key.c_str(), get_component_name().c_str());
+    set_optolink_state_("value %s not found in select %s", value.c_str(), get_component_name().c_str());
+    ESP_LOGE(TAG, "value %s not found in select %s", value.c_str(), get_component_name().c_str());
   } else {
     publish_state(pos->second);
   }
 }
 
-void OptolinkSelect::datapoint_value_changed(uint8_t state) {
-  std::string key = std::to_string(state);
+void OptolinkSelect::datapoint_value_changed(uint8_t value) {
+  std::string key = std::to_string(value);
   datapoint_value_changed(key);
 }
 
-void OptolinkSelect::datapoint_value_changed(uint16_t state) {
-  std::string key = std::to_string(state);
+void OptolinkSelect::datapoint_value_changed(uint16_t value) {
+  std::string key = std::to_string(value);
   datapoint_value_changed(key);
 }
 
-void OptolinkSelect::datapoint_value_changed(uint32_t state) {
-  std::string key = std::to_string(state);
+void OptolinkSelect::datapoint_value_changed(uint32_t value) {
+  std::string key = std::to_string(value);
   datapoint_value_changed(key);
 }
 
-void OptolinkSelect::datapoint_value_changed(float state) {
-  std::string key = std::to_string(state);
+void OptolinkSelect::datapoint_value_changed(float value) {
+  std::string key = std::to_string(value);
   datapoint_value_changed(key);
 }
 

@@ -55,7 +55,7 @@ class DatapointComponent {
   void set_optolink_state_(const char *format, ...);
   std::string get_optolink_state_();
 
-  void subscribe_hass_(std::string entity_id, std::function<void(std::string)> f);
+  void subscribe_hass_(const std::string entity_id, std::function<void(std::string)> f);
 
  private:
   const size_t max_retries_until_reset_ = 10;

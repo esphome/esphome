@@ -23,10 +23,10 @@ class OptolinkSensor : public DatapointComponent, public esphome::sensor::Sensor
   void update() override { datapoint_read_request_(); }
 
   const StringRef &get_component_name() override { return get_name(); }
-  void datapoint_value_changed(float state) override { publish_state(state); };
-  void datapoint_value_changed(uint8_t state) override;
-  void datapoint_value_changed(uint16_t state) override;
-  void datapoint_value_changed(uint32_t state) override;
+  void datapoint_value_changed(float value) override { publish_state(value); };
+  void datapoint_value_changed(uint8_t value) override;
+  void datapoint_value_changed(uint16_t value) override;
+  void datapoint_value_changed(uint32_t value) override;
 
  private:
   float min_value_ = -FLT_MAX;

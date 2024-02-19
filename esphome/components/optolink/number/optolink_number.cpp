@@ -19,27 +19,27 @@ void OptolinkNumber::control(float value) {
   }
 };
 
-void OptolinkNumber::datapoint_value_changed(uint8_t state) {
+void OptolinkNumber::datapoint_value_changed(uint8_t value) {
   if (traits.get_min_value() >= 0) {
-    publish_state(state);
+    publish_state(value);
   } else {
-    publish_state((int8_t) state);
+    publish_state((int8_t) value);
   }
 };
 
-void OptolinkNumber::datapoint_value_changed(uint16_t state) {
+void OptolinkNumber::datapoint_value_changed(uint16_t value) {
   if (traits.get_min_value() >= 0) {
-    publish_state(state);
+    publish_state(value);
   } else {
-    publish_state((int16_t) state);
+    publish_state((int16_t) value);
   }
 };
 
-void OptolinkNumber::datapoint_value_changed(uint32_t state) {
+void OptolinkNumber::datapoint_value_changed(uint32_t value) {
   if (traits.get_min_value() >= 0) {
-    publish_state(state);
+    publish_state(value);
   } else {
-    publish_state((int32_t) state);
+    publish_state((int32_t) value);
   }
 };
 

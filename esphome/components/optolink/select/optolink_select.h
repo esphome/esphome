@@ -29,11 +29,11 @@ class OptolinkSelect : public DatapointComponent, public esphome::select::Select
   void control(const std::string &value) override;
 
   const StringRef &get_component_name() override { return get_name(); }
-  void datapoint_value_changed(std::string state) override;
-  void datapoint_value_changed(uint8_t state) override;
-  void datapoint_value_changed(uint16_t state) override;
-  void datapoint_value_changed(uint32_t state) override;
-  void datapoint_value_changed(float state) override;
+  void datapoint_value_changed(std::string value) override;
+  void datapoint_value_changed(uint8_t value) override;
+  void datapoint_value_changed(uint16_t value) override;
+  void datapoint_value_changed(uint32_t value) override;
+  void datapoint_value_changed(float value) override;
 
  private:
   std::map<std::string, std::string> *mapping_ = nullptr;

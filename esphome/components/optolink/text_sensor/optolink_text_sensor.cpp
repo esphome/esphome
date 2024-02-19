@@ -16,17 +16,14 @@ struct Time {
 };
 
 bool check_time_sequence(const Time &t1, const Time &t2) {
-  if (t2.hours > t1.hours || (t2.hours == t1.hours && t2.minutes >= t1.minutes)) {
-    return true;
-  }
-  return false;
+  return t2.hours > t1.hours || (t2.hours == t1.hours && t2.minutes >= t1.minutes);
 }
 
 bool check_time_values(const Time &time) {
   return (time.hours >= 0 && time.hours <= 23) && (time.minutes >= 0 && time.minutes <= 59);
 }
 
-uint8_t *encode_time_string(std::string input) {
+uint8_t *encode_time_string(const std::string input) {
   char buffer[49];
   strncpy(buffer, input.c_str(), sizeof(buffer));
   buffer[sizeof(buffer) - 1] = 0x00;
@@ -45,18 +42,18 @@ uint8_t *encode_time_string(std::string input) {
         ESP_LOGE(
             TAG,
             "Time values should be in the format hh:mm and in increasing order within the range of 00:00 to 23:59");
-        return 0;
+        return nullptr;
       }
     } else {
       ESP_LOGE(TAG, "Invalid time format");
-      return 0;
+      return nullptr;
     }
     token = strtok(nullptr, " ");
   }
 
   if (time_count % 2) {
     ESP_LOGE(TAG, "Number of time values must be even");
-    return 0;
+    return nullptr;
   }
 
   while (time_count < 8) {
@@ -64,11 +61,9 @@ uint8_t *encode_time_string(std::string input) {
   }
 
   static uint8_t data[8];
-  // ESP_LOGD(TAG, "Parsed time values:");
   for (int i = 0; i < 8; i++) {
     Time time = time_values[i];
     data[i] = (time.hours << 3) + (time.minutes / 10);
-    // ESP_LOGD(TAG, "  %02d:%02d => %d", time.hours, time.minutes, data[i]);
   }
 
   return data;
