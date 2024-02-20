@@ -1,8 +1,10 @@
 uart:
   - id: uponor_uart
     baud_rate: 19200
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
+    tx_pin:
+      number: ${tx_pin}
+    rx_pin:
+      number: ${rx_pin}
 
 time:
   - platform: sntp
