@@ -126,6 +126,14 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
 #if defined(USE_HOST) || defined(USE_ARDUINO)
 void HOT Logger::write_msg_(const char *msg) {
 #ifdef USE_HOST
+  time_t rawtime;
+  struct tm *timeinfo;
+  char buffer[80];
+
+  time(&rawtime);
+  timeinfo = localtime(&rawtime);
+  strftime(buffer, sizeof buffer, "[%H:%M:%S]", timeinfo);
+  fputs(buffer, stdout);
   puts(msg);
 #elif USE_ARDUINO
   this->hw_serial_->println(msg);
