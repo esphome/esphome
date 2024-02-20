@@ -1,0 +1,9 @@
+sensor:
+  - platform: adc
+    id: esp_adc_sensor
+    pin: 0
+  - platform: ct_clamp
+    sensor: esp_adc_sensor
+    name: CT Clamp
+    sample_duration: 500ms
+    update_interval: 5s

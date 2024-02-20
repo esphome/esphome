@@ -102,16 +102,6 @@ def valid_project_name(value: str):
     return value
 
 
-def validate_version(value: str):
-    min_version = cv.Version.parse(value)
-    current_version = cv.Version.parse(ESPHOME_VERSION)
-    if current_version < min_version:
-        raise cv.Invalid(
-            f"Your ESPHome version is too old. Please update to at least {min_version}"
-        )
-    return value
-
-
 if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
     _compile_process_limit_default = min(
         int(os.environ["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"]),
@@ -164,7 +154,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_MIN_VERSION, default=ESPHOME_VERSION): cv.All(
-                cv.version_number, validate_version
+                cv.version_number, cv.validate_esphome_version
             ),
             cv.Optional(
                 CONF_COMPILE_PROCESS_LIMIT, default=_compile_process_limit_default

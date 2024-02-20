@@ -52,17 +52,33 @@ void BME680BSECComponent::setup() {
 
 void BME680BSECComponent::set_config_() {
   if (this->sample_rate_ == SAMPLE_RATE_ULP) {
-    const uint8_t config[] = {
+    if (this->supply_voltage_ == SUPPLY_VOLTAGE_3V3) {
+      const uint8_t config[] = {
 #include "config/generic_33v_300s_28d/bsec_iaq.txt"
-    };
-    this->bsec_status_ =
-        bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
-  } else {
-    const uint8_t config[] = {
+      };
+      this->bsec_status_ =
+          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+    } else {  // SUPPLY_VOLTAGE_1V8
+      const uint8_t config[] = {
+#include "config/generic_18v_300s_28d/bsec_iaq.txt"
+      };
+      this->bsec_status_ =
+          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+    }
+  } else {  // SAMPLE_RATE_LP
+    if (this->supply_voltage_ == SUPPLY_VOLTAGE_3V3) {
+      const uint8_t config[] = {
 #include "config/generic_33v_3s_28d/bsec_iaq.txt"
-    };
-    this->bsec_status_ =
-        bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+      };
+      this->bsec_status_ =
+          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+    } else {  // SUPPLY_VOLTAGE_1V8
+      const uint8_t config[] = {
+#include "config/generic_18v_3s_28d/bsec_iaq.txt"
+      };
+      this->bsec_status_ =
+          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+    }
   }
 }
 
@@ -145,6 +161,7 @@ void BME680BSECComponent::dump_config() {
 
   ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f", this->temperature_offset_);
   ESP_LOGCONFIG(TAG, "  IAQ Mode: %s", this->iaq_mode_ == IAQ_MODE_STATIC ? "Static" : "Mobile");
+  ESP_LOGCONFIG(TAG, "  Supply Voltage: %sV", this->supply_voltage_ == SUPPLY_VOLTAGE_3V3 ? "3.3" : "1.8");
   ESP_LOGCONFIG(TAG, "  Sample Rate: %s", BME680_BSEC_SAMPLE_RATE_LOG(this->sample_rate_));
   ESP_LOGCONFIG(TAG, "  State Save Interval: %ims", this->state_save_interval_ms_);
 
