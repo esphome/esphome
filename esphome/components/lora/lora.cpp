@@ -124,7 +124,10 @@ void Lora::dump_config() {
   LOG_PIN("M0 Pin:", this->pin_m0);
   LOG_PIN("M1 Pin:", this->pin_m1);
 };
-
+void Lora::digital_write(uint8_t pin, bool value) {
+  std::string message = str_snprintf("%02x%02x", 12, pin, value);
+  sendMessage(message);
+}
 bool Lora::sendMessage(std::string message) {
   uint8_t size = message.length();
   char messageFixed[size];

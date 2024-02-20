@@ -33,8 +33,12 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
   // local
-  void set_latitude_sensor(sensor::Sensor *latitude_sensor) { latitude_sensor_ = latitude_sensor; }
-  void set_longitude_sensor(sensor::Sensor *longitude_sensor) { longitude_sensor_ = longitude_sensor; }
+  /// Helper function to read the value of a pin.
+  bool digital_read(uint8_t pin);
+  /// Helper function to write the value of a pin.
+  void digital_write(uint8_t pin, bool value);
+  /// Helper function to set the pin mode of a pin.
+  void pin_mode(uint8_t pin, gpio::Flags flags);
   void set_message_sensor(text_sensor::TextSensor *s) { message_text_sensor = s; }
   void set_rssi_sensor(sensor::Sensor *s) { rssi_sensor = s; }
   void set_pin_aux(GPIOPin *s) { pin_aux = s; }
@@ -54,8 +58,6 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   float latitude_ = -1;
   float longitude_ = -1;
   std::string raw_message_;
-  sensor::Sensor *latitude_sensor_{nullptr};
-  sensor::Sensor *longitude_sensor_{nullptr};
   text_sensor::TextSensor *message_text_sensor{nullptr};
   sensor::Sensor *rssi_sensor{nullptr};
   GPIOPin *pin_aux{nullptr};
