@@ -1,3 +1,10 @@
+esphome:
+  on_boot:
+    then:
+      - output.pipsolar.set_level:
+          id: inverter0_battery_recharge_voltage_out
+          value: 48.0
+
 uart:
   - id: uart_pipsolar
     tx_pin: 4

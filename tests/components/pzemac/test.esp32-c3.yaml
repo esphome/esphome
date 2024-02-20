@@ -1,3 +1,8 @@
+esphome:
+  on_boot:
+    then:
+      - pzemac.reset_energy: pzemac1
+
 uart:
   - id: uart_pzemac
     tx_pin: 4

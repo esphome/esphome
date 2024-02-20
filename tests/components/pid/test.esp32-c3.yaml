@@ -1,3 +1,19 @@
+esphome:
+  on_boot:
+    then:
+      - climate.pid.autotune: pid_climate
+      - climate.pid.autotune:
+          id: pid_climate
+          noiseband: 0.25
+          positive_output: 25%
+          negative_output: -25%
+      - climate.pid.set_control_parameters:
+          id: pid_climate
+          kp: 0.0
+          ki: 0.0
+          kd: 0.0
+      - climate.pid.reset_integral_term: pid_climate
+
 output:
   - platform: slow_pwm
     pin: 4
