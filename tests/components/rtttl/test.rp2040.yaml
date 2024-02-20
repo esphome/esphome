@@ -1,3 +1,9 @@
+esphome:
+  on_boot:
+    then:
+      - rtttl.play: 'siren:d=8,o=5,b=100:d,e,d,e,d,e,d,e'
+      - rtttl.stop
+
 output:
   - platform: rp2040_pwm
     id: rtttl_output
