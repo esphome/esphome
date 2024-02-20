@@ -1,14 +1,8 @@
-#include "ebyte_lora_e220.h"
+#include "lora.h"
 
 namespace esphome {
-namespace ebyte_lora_e220 {
-void EbyteLoraE220::update() {
-  if (this->latitude_sensor_ != nullptr)
-    this->latitude_sensor_->publish_state(this->latitude_);
-
-  if (this->longitude_sensor_ != nullptr)
-    this->longitude_sensor_->publish_state(this->longitude_);
-
+namespace lora {
+void Lora::update() {
   if (this->rssi_sensor != nullptr)
     this->rssi_sensor->publish_state(this->rssi_);
 
@@ -16,7 +10,7 @@ void EbyteLoraE220::update() {
   if (this->message_text_sensor != nullptr)
     this->message_text_sensor->publish_state(this->raw_message_);
 }
-void EbyteLoraE220::setup() {
+void Lora::setup() {
   this->pin_aux->setup();
   this->pin_m0->setup();
   this->pin_m1->setup();
@@ -41,7 +35,7 @@ void EbyteLoraE220::setup() {
   else
     ESP_LOGD(TAG, "Something went wrong");
 }
-bool EbyteLoraE220::setMode(MODE_TYPE mode) {
+bool Lora::setMode(MODE_TYPE mode) {
   // data sheet claims module needs some extra time after mode setting (2ms)
   // most of my projects uses 10 ms, but 40ms is safer
 
@@ -95,7 +89,7 @@ bool EbyteLoraE220::setMode(MODE_TYPE mode) {
     return false;
   }
 }
-bool EbyteLoraE220::waitCompleteResponse(unsigned long timeout, unsigned int waitNoAux) {
+bool Lora::waitCompleteResponse(unsigned long timeout, unsigned int waitNoAux) {
   unsigned long t = millis();
 
   // make darn sure millis() is not about to reach max data type limit and start over
@@ -124,13 +118,17 @@ bool EbyteLoraE220::waitCompleteResponse(unsigned long timeout, unsigned int wai
   delay(20);
   return true;
 }
-void EbyteLoraE220::dump_config() {
+void Lora::dump_config() {
   ESP_LOGCONFIG(TAG, "Ebyte Lora E220");
-  LOG_PIN("  Aux pin: ", this->pin_aux);
-  LOG_PIN("  M0 Pin: ", this->pin_m0);
-  LOG_PIN("  M1 Pin: ", this->pin_m1);
+  LOG_PIN("Aux pin:", this->pin_aux);
+  LOG_PIN("M0 Pin:", this->pin_m0);
+  LOG_PIN("M1 Pin:", this->pin_m1);
 };
-void EbyteLoraE220::loop() {
+
+bool Lora::SendMessage(){
+MAX_SIZE_TX_PACKET
+}
+void Lora::loop() {
   if (!available()) {
     return;
   }
@@ -142,7 +140,6 @@ void EbyteLoraE220::loop() {
       buffer += (char) c;
     }
   }
-  ESP_LOGD(TAG, "%s", buffer);
   // set the rssi
   rssi_ = atoi(buffer.substr(buffer.length() - 1, 1).c_str());
   // set the raw message
@@ -162,5 +159,5 @@ void EbyteLoraE220::loop() {
   }
 }
 
-}  // namespace ebyte_lora_e220
+}  // namespace lora
 }  // namespace esphome

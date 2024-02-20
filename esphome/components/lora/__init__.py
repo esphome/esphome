@@ -4,10 +4,8 @@ from esphome import pins
 from esphome.components import sensor, text_sensor, uart
 from esphome.const import *
 
-ebyte_lora_e220_ns = cg.esphome_ns.namespace("ebyte_lora_e220")
-EbyteLoraE220 = ebyte_lora_e220_ns.class_(
-    "EbyteLoraE220", cg.Component, uart.UARTDevice
-)
+lora_ns = cg.esphome_ns.namespace("lora")
+Lora = lora_ns.class_("Lora", cg.Component, uart.UARTDevice)
 
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["uart", "sensor", "text_sensor"]
@@ -31,7 +29,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_DEGREES,
                 accuracy_decimals=6,
             ),
-            cv.GenerateID(): cv.declare_id(EbyteLoraE220),
+            cv.GenerateID(): cv.declare_id(Lora),
             # for communication to let us know that we can receive data
             cv.Required(CONF_PIN_AUX): pins.gpio_input_pin_schema,
             # for communication set the mode
@@ -76,12 +74,3 @@ async def to_code(config):
     if CONF_LORA_RSSI in config:
         sens = await sensor.new_sensor(config[CONF_LORA_RSSI])
         cg.add(var.set_rssi_sensor(sens))
-
-    # if you are sending gps data over lora
-    if CONF_LATITUDE in config:
-        sens = await sensor.new_sensor(config[CONF_LATITUDE])
-        cg.add(var.set_latitude_sensor(sens))
-
-    if CONF_LONGITUDE in config:
-        sens = await sensor.new_sensor(config[CONF_LONGITUDE])
-        cg.add(var.set_longitude_sensor(sens))

@@ -9,10 +9,10 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace ebyte_lora_e220 {
+namespace lora {
 
-static const char *const TAG = "ebyte_lora_e220";
-
+static const char *const TAG = "lora";
+#define MAX_SIZE_TX_PACKET 200
 // the mode the receiver is in
 enum MODE_TYPE {
   MODE_0_NORMAL = 0,
@@ -26,7 +26,7 @@ enum MODE_TYPE {
   MODE_3_SLEEP = 3,
   MODE_INIT = 0xFF
 };
-class EbyteLoraE220 : public PollingComponent, public uart::UARTDevice {
+class Lora : public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
   void update() override;
@@ -62,5 +62,5 @@ class EbyteLoraE220 : public PollingComponent, public uart::UARTDevice {
   GPIOPin *pin_m1{nullptr};
 };
 
-}  // namespace ebyte_lora_e220
+}  // namespace lora
 }  // namespace esphome
