@@ -116,6 +116,7 @@ class VoiceAssistant : public Component {
   Trigger<std::string> *get_tts_end_trigger() const { return this->tts_end_trigger_; }
   Trigger<std::string> *get_tts_start_trigger() const { return this->tts_start_trigger_; }
   Trigger<std::string, std::string> *get_error_trigger() const { return this->error_trigger_; }
+  Trigger<> *get_idle_trigger() const { return this->idle_trigger_; }
 
   Trigger<> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
   Trigger<> *get_client_disconnected_trigger() const { return this->client_disconnected_trigger_; }
@@ -148,6 +149,7 @@ class VoiceAssistant : public Component {
   Trigger<std::string> *tts_end_trigger_ = new Trigger<std::string>();
   Trigger<std::string> *tts_start_trigger_ = new Trigger<std::string>();
   Trigger<std::string, std::string> *error_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<> *idle_trigger_ = new Trigger<>();
 
   Trigger<> *client_connected_trigger_ = new Trigger<>();
   Trigger<> *client_disconnected_trigger_ = new Trigger<>();

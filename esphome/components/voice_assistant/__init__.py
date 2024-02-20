@@ -32,6 +32,7 @@ CONF_ON_TTS_START = "on_tts_start"
 CONF_ON_TTS_STREAM_START = "on_tts_stream_start"
 CONF_ON_TTS_STREAM_END = "on_tts_stream_end"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
+CONF_ON_IDLE = "on_idle"
 
 CONF_SILENCE_DETECTION = "silence_detection"
 CONF_USE_WAKE_WORD = "use_wake_word"
@@ -127,6 +128,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_TTS_STREAM_END): automation.validate_automation(
                 single=True
             ),
+            cv.Optional(CONF_ON_IDLE): automation.validate_automation(single=True),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     tts_stream_validate,
@@ -257,6 +259,13 @@ async def to_code(config):
             var.get_tts_stream_end_trigger(),
             [],
             config[CONF_ON_TTS_STREAM_END],
+        )
+
+    if CONF_ON_IDLE in config:
+        await automation.build_automation(
+            var.get_idle_trigger(),
+            [],
+            config[CONF_ON_IDLE],
         )
 
     cg.add_define("USE_VOICE_ASSISTANT")
