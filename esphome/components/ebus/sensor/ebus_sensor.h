@@ -13,8 +13,8 @@ class EbusSensor : public EbusReceiver, public EbusSender, public sensor::Sensor
   void dump_config() override;
 
   void set_primary_address(uint8_t /*primary_address*/) override;
-  void set_source(uint8_t /*source*/);
-  void set_destination(uint8_t /*destination*/);
+  void set_send_poll(bool /*send_poll*/);
+  void set_address(uint8_t /*address*/);
   void set_command(uint16_t /*command*/);
   void set_payload(const std::vector<uint8_t> & /*payload*/);
 
@@ -32,8 +32,8 @@ class EbusSensor : public EbusReceiver, public EbusSender, public sensor::Sensor
 
  protected:
   uint8_t primary_address_;
-  uint8_t source_ = SYN;
-  uint8_t destination_ = SYN;
+  bool send_poll_;
+  uint8_t address_ = SYN;
   uint16_t command_;
   std::vector<uint8_t> payload_{};
   uint8_t response_position_;
