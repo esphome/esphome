@@ -296,6 +296,24 @@ def upload_using_platformio(config, port):
         upload_args += ["--upload-port", port]
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
+def check_permissions(port):
+    if os.name == "posix" and get_port_type(port) == "SERIAL":
+        # Check if we can open selected serial port
+        if not os.access(port, os.F_OK) :
+            raise EsphomeError(
+                "The selected serial port does not exist. To resolve this issue, "
+                "check that the device is connected to this computer with a USB cable and that "
+                "the USB cable can be used for data and is not a power-only cable."
+            )
+        if not (os.access(port, os.R_OK | os.W_OK)):
+            raise EsphomeError(
+                "You do not have read or write permission on the selected serial port. " 
+                "To resolve this issue, you can add your user to the dialout group "
+                "by replacing YOUR_USERNAME with your username "
+                "and running the following command: sudo usermod -a -G dialout YOUR_USERNAME "
+                "You may need to log out & back in or reboot to activate the new group access."
+            )
+    return 0
 
 def upload_program(config, args, host):
     if get_port_type(host) == "SERIAL":
