@@ -125,8 +125,18 @@ void Lora::dump_config() {
   LOG_PIN("M1 Pin:", this->pin_m1);
 };
 
-bool Lora::SendMessage(){
-MAX_SIZE_TX_PACKET
+bool Lora::sendMessage(std::string message) {
+  uint32 size = message.length();
+  char messageFixed[size];
+  memcpy(messageFixed, message.c_str(), size);
+  if (size > MAX_SIZE_TX_PACKET + 2) {
+    ESP_LOGD(TAG, "Package to big");
+    return false;
+  }
+  ESP_LOGD(TAG, "Sending: %s", message);
+  this->write_array((uint8_t *) &messageFixed, size);
+  bool result = this->waitCompleteResponse(5000, 5000);
+  return result;
 }
 void Lora::loop() {
   if (!available()) {
@@ -154,8 +164,8 @@ void Lora::loop() {
     latitude_ = atof(raw_message_.substr(4, start).c_str());
     latitude_ = atof(raw_message_.substr(start + 1, raw_message_.length()).c_str());
     ESP_LOGD(TAG, "Location:");
-    ESP_LOGD(TAG, "  Lat: %f", this->latitude_);
-    ESP_LOGD(TAG, "  Lon: %f", this->longitude_);
+    ESP_LOGD(TAG, "Lat: %f", this->latitude_);
+    ESP_LOGD(TAG, "Lon: %f", this->longitude_);
   }
 }
 

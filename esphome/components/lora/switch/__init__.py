@@ -3,17 +3,30 @@ import esphome.config_validation as cv
 from esphome.components import switch, uart
 from esphome.const import CONF_DATA, CONF_SEND_EVERY
 from esphome.core import HexInt
-from .. import uart_ns, validate_raw_data
+from .. import lora_ns
+
+
+def validate_raw_data(value):
+    if isinstance(value, str):
+        return value.encode("utf-8")
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return cv.Schema([cv.hex_uint8_t])(value)
+    raise cv.Invalid(
+        "data must either be a string wrapped in quotes or a list of bytes"
+    )
+
 
 DEPENDENCIES = ["uart"]
 
-UARTSwitch = uart_ns.class_("UARTSwitch", switch.Switch, uart.UARTDevice, cg.Component)
+LoraSwitch = lora_ns.class_("LoraSwitch", switch.Switch, uart.UARTDevice, cg.Component)
 
 CONF_TURN_OFF = "turn_off"
 CONF_TURN_ON = "turn_on"
 
 CONFIG_SCHEMA = (
-    switch.switch_schema(UARTSwitch, block_inverted=True)
+    switch.switch_schema(LoraSwitch, block_inverted=True)
     .extend(
         {
             cv.Required(CONF_DATA): cv.Any(

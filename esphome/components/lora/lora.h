@@ -47,6 +47,7 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   bool setMode(MODE_TYPE type);
   // checks the aux port to see if it is done setting
   bool waitCompleteResponse(unsigned long timeout = 1000, unsigned int waitNoAux = 100);
+  bool sendMessage(std::string message);
 
  protected:
   int rssi_ = 0;
