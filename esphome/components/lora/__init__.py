@@ -5,6 +5,7 @@ from esphome.components import sensor, text_sensor, uart
 from esphome.const import *
 
 DEPENDENCIES = ["uart"]
+AUTO_LOAD = ["uart", "sensor", "text_sensor"]
 MULTI_CONF = True
 
 lora_ns = cg.esphome_ns.namespace("lora")
