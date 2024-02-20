@@ -1,3 +1,9 @@
+esphome:
+  on_boot:
+    then:
+      - speaker.play: [0, 1, 2, 3]
+      - speaker.stop
+
 i2s_audio:
   i2s_lrclk_pin: 16
   i2s_bclk_pin: 17

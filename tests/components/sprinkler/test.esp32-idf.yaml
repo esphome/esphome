@@ -1,3 +1,37 @@
+esphome:
+  on_boot:
+    then:
+    - sprinkler.start_full_cycle: yard_sprinkler_ctrlr
+    - sprinkler.start_from_queue: yard_sprinkler_ctrlr
+    - sprinkler.start_single_valve:
+        id: yard_sprinkler_ctrlr
+        valve_number: 0
+        run_duration: 600s
+    - sprinkler.shutdown: yard_sprinkler_ctrlr
+    - sprinkler.next_valve: yard_sprinkler_ctrlr
+    - sprinkler.previous_valve: yard_sprinkler_ctrlr
+    - sprinkler.pause: yard_sprinkler_ctrlr
+    - sprinkler.resume: yard_sprinkler_ctrlr
+    - sprinkler.resume_or_start_full_cycle: yard_sprinkler_ctrlr
+    - sprinkler.queue_valve:
+        id: yard_sprinkler_ctrlr
+        valve_number: 2
+        run_duration: 900s
+    - sprinkler.clear_queued_valves: yard_sprinkler_ctrlr
+    - sprinkler.set_multiplier:
+        id: yard_sprinkler_ctrlr
+        multiplier: 1.5
+    - sprinkler.set_repeat:
+        id: yard_sprinkler_ctrlr
+        repeat: 2
+    - sprinkler.set_divider:
+        id: yard_sprinkler_ctrlr
+        divider: 2
+    - sprinkler.set_valve_run_duration:
+        id: yard_sprinkler_ctrlr
+        valve_number: 0
+        run_duration: 600s
+
 switch:
   - platform: template
     id: switch1
