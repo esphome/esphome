@@ -44,27 +44,6 @@ CONFIG_SCHEMA = (
 )
 
 
-def validate_mode(value):
-    if not (value[CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be output")
-    if value[CONF_INPUT] and value[CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be output")
-    return value
-
-
-Lora_PIN_SCHEMA = pins.gpio_base_schema(
-    LoraGPIOPin,
-    cv.int_range(min=0, max=17),
-    modes=[CONF_OUTPUT],
-    mode_validator=validate_mode,
-    invertable=True,
-).extend(
-    {
-        cv.Required(CONF_LORA): cv.use_id(Lora),
-    }
-)
-
-
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -85,6 +64,27 @@ async def to_code(config):
     if CONF_LORA_RSSI in config:
         sens = await sensor.new_sensor(config[CONF_LORA_RSSI])
         cg.add(var.set_rssi_sensor(sens))
+
+
+def validate_mode(value):
+    if not (value[CONF_OUTPUT]):
+        raise cv.Invalid("Mode must be output")
+    if value[CONF_INPUT] and value[CONF_OUTPUT]:
+        raise cv.Invalid("Mode must be output")
+    return value
+
+
+Lora_PIN_SCHEMA = pins.gpio_base_schema(
+    LoraGPIOPin,
+    cv.int_range(min=0, max=17),
+    modes=[CONF_OUTPUT],
+    mode_validator=validate_mode,
+    invertable=True,
+).extend(
+    {
+        cv.Required(CONF_LORA): cv.use_id(Lora),
+    }
+)
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_LORA, Lora_PIN_SCHEMA)
