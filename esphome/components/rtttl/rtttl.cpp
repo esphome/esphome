@@ -254,7 +254,7 @@ void Rtttl::loop() {
     // Add small silence gap between same note
     this->output_freq_ = freq;
 
-    ESP_LOGI(TAG, "playing note: %d for %dms", note, this->note_duration_);
+    ESP_LOGVV(TAG, "playing note: %d for %dms", note, this->note_duration_);
   } else {
     ESP_LOGVV(TAG, "waiting: %dms", this->note_duration_);
     this->output_freq_ = 0;
