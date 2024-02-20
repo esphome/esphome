@@ -126,7 +126,7 @@ void Lora::dump_config() {
 };
 
 bool Lora::sendMessage(std::string message) {
-  uint32 size = message.length();
+  uint8_t size = message.length();
   char messageFixed[size];
   memcpy(messageFixed, message.c_str(), size);
   if (size > MAX_SIZE_TX_PACKET + 2) {
