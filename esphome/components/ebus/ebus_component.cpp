@@ -9,7 +9,11 @@ namespace ebus {
 
 void EbusComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "EbusComponent");
-  ESP_LOGCONFIG(TAG, "  primary_addres: 0x%02x", this->primary_address_);
+  if (this->primary_address_ == SYN) {
+    ESP_LOGCONFIG(TAG, "  primary_addres: N/A");
+  } else {
+    ESP_LOGCONFIG(TAG, "  primary_addres: 0x%02x", this->primary_address_);
+  }
   ESP_LOGCONFIG(TAG, "  max_tries: %d", this->max_tries_);
   ESP_LOGCONFIG(TAG, "  max_lock_counter: %d", this->max_lock_counter_);
   ESP_LOGCONFIG(TAG, "  history_queue_size: %d", this->history_queue_size_);
@@ -42,6 +46,10 @@ void EbusComponent::set_command_queue_size(uint8_t command_queue_size) {
 }
 
 void EbusComponent::add_sender(EbusSender *sender) {
+  if (this->primary_address_ == SYN) {
+    return;
+  }
+
   sender->set_primary_address(this->primary_address_);
   this->senders_.push_back(sender);
 }
@@ -151,6 +159,9 @@ void EbusComponent::handle_message_(Telegram &telegram) {
 }
 
 void EbusComponent::update() {
+  if (this->primary_address_ == SYN) {
+    return;
+  }
   for (auto const &sender : this->senders_) {
     optional<SendCommand> command = sender->prepare_command();
     if (command.has_value()) {

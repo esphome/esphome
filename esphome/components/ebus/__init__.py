@@ -48,7 +48,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(EbusComponent),
-            cv.Required(CONF_PRIMARY_ADDRESS): validate_primary_address,
+            cv.Optional(CONF_PRIMARY_ADDRESS): validate_primary_address,
             cv.Optional(CONF_MAX_TRIES, default=2): cv.hex_uint8_t,
             cv.Optional(CONF_MAX_LOCK_COUNTER, default=4): cv.hex_uint8_t,
             cv.Optional(CONF_HISTORY_QUEUE_SIZE, default=20): cv.uint8_t,
@@ -70,7 +70,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    cg.add(var.set_primary_address(config[CONF_PRIMARY_ADDRESS]))
+    if CONF_PRIMARY_ADDRESS in config:
+        cg.add(var.set_primary_address(config[CONF_PRIMARY_ADDRESS]))
     cg.add(var.set_max_tries(config[CONF_MAX_TRIES]))
     cg.add(var.set_max_lock_counter(config[CONF_MAX_LOCK_COUNTER]))
     cg.add(var.set_uart_num(config[CONF_UART][CONF_NUM]))

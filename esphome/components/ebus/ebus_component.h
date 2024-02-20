@@ -52,7 +52,7 @@ class EbusComponent : public PollingComponent {
   void update() override;
 
  protected:
-  uint8_t primary_address_;
+  uint8_t primary_address_ = SYN;
   uint8_t max_tries_;
   uint8_t max_lock_counter_;
   uint8_t history_queue_size_;
