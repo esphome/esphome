@@ -1,3 +1,11 @@
+esphome:
+  on_boot:
+    then:
+      - servo.write:
+          id: test_servo
+          level: -100.0%
+      - servo.detach: test_servo
+
 output:
   - platform: rp2040_pwm
     id: servo_output_1

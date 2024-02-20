@@ -1,3 +1,11 @@
+esphome:
+  on_boot:
+    then:
+      - servo.write:
+          id: test_servo
+          level: -100.0%
+      - servo.detach: test_servo
+
 output:
   - platform: ledc
     id: servo_output_1

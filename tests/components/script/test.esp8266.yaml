@@ -23,4 +23,4 @@ script:
       param2: int
       param3: bool
     then:
-      - lambda: 'ESP_LOGD("main", (prefix + " Hello World!" + to_string(param2) + " " + to_string(param3)).c_str());'
+      - lambda: 'ESP_LOGD(prefix.c_str(), "Hello World! %i %i", param2, param3);'
