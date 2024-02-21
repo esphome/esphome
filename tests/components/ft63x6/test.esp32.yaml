@@ -1,26 +1,10 @@
-
-esphome:
-  name: test-tp
-
-esp32:
-  board: esp-wrover-kit
-  framework:
-    type: arduino
-
-psram:
-
-logger:
-  level: verbose
-
 spi:
   clk_pin: 14
   mosi_pin: 13
 
-color:
-  - id: white
-    red: 100%
-    blue: 100%
-    green: 100%
+i2c:
+  sda: GPIO18
+  scl: GPIO19
 
 display:
   - id: my_display
@@ -35,29 +19,6 @@ display:
       mirror_x: true
       mirror_y: true
     auto_clear_enabled: false
-    lambda: |-
-       it.rectangle(0, 0, 15, 15, id(white));
-
-# Define a PWM output on the ESP32
-output:
-  - platform: ledc
-    pin: 23
-    id: gpio_32_backlight_pwm
-
-# Define a monochromatic, dimmable light for the backlight
-light:
-  - platform: monochromatic
-    output: gpio_32_backlight_pwm
-    name: "Display Backlight"
-    id: back_light
-    restore_mode: ALWAYS_ON
-
-
-
-i2c:
-  sda: GPIO18
-  scl: GPIO19
-  scan: true
 
 touchscreen:
   - platform: ft63x6

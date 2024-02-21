@@ -1,10 +1,6 @@
 i2c:
   sda: GPIO8
   scl: GPIO18
-  scan: true
-
-
-psram:
 
 spi:
   clk_pin: 7
@@ -26,6 +22,7 @@ display:
       mirror_y: false
       mirror_x: false
       swap_xy: true
+
 touchscreen:
   - platform: tt21100
     address: 0x24
@@ -44,15 +41,3 @@ binary_sensor:
     x_max: 105
     y_min: 0
     y_max: 80
-
-esphome:
-  name: test
-
-esp32:
-  board: lolin_s2_mini
-  framework:
-    type: arduino
-
-logger:
-  level: verbose
-

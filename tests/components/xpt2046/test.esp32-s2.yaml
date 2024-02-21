@@ -1,33 +1,3 @@
-substitutions:
-  name: test-xpt2046
-  comment: test-xpt2046
-  project_version: "1"
-
-esphome:
-  name: ${name}
-  comment: "${name} - ${comment}"
-  friendly_name: "${comment}"
-
-  project:
-    name: ${name}.${comment}
-    version: ${project_version}
-
-  on_boot:
-    priority: -100
-    then:
-      - script.execute: my_script
-
-esp32:
-  board: lolin_s2_mini
-  framework:
-    type: arduino
-
-logger:
-  level: verbose
-  # hardware_uart: USB_CDC
-
-psram:
-
 spi:
   clk_pin: 7
   mosi_pin: 11
@@ -75,35 +45,3 @@ touchscreen:
     on_release:
       then:
         - light.turn_off: board_led
-
-
-  # Define a PWM output on the ESP32
-output:
-  - platform: ledc
-    pin: 16
-    id: gpio_17_backlight_pwm
-  - platform: ledc
-    pin: 15
-    id: gpio_15
-
-# Define a monochromatic, dimmable light for the backlight
-light:
-  - platform: monochromatic
-    output: gpio_17_backlight_pwm
-    name: Backlight
-    id: back_light
-    restore_mode: ALWAYS_ON
-
-  - platform: binary
-    output: gpio_15
-    id: board_led
-    internal: true
-    restore_mode: ALWAYS_OFF
-
-script:
-  - id: my_script
-    mode: restart
-    then:
-      - light.turn_on: back_light
-      - delay: 10min
-      - light.turn_off: back_light
