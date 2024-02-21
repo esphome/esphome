@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import display, uart
+from esphome.components import esp32
 from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
@@ -96,6 +97,11 @@ async def to_code(config):
         if CORE.is_esp32 and CORE.using_arduino:
             cg.add_library("WiFiClientSecure", None)
             cg.add_library("HTTPClient", None)
+        elif CORE.is_esp32 and CORE.using_esp_idf:
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
+            esp32.add_idf_sdkconfig_option(
+                "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True
+            )
         elif CORE.is_esp8266 and CORE.using_arduino:
             cg.add_library("ESP8266HTTPClient", None)
 

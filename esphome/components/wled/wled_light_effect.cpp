@@ -13,6 +13,10 @@
 #include <WiFiUdp.h>
 #endif
 
+#ifdef USE_BK72XX
+#include <WiFiUdp.h>
+#endif
+
 namespace esphome {
 namespace wled {
 
@@ -29,7 +33,11 @@ WLEDLightEffect::WLEDLightEffect(const std::string &name) : AddressableLightEffe
 void WLEDLightEffect::start() {
   AddressableLightEffect::start();
 
-  blank_at_ = 0;
+  if (this->blank_on_start_) {
+    this->blank_at_ = 0;
+  } else {
+    this->blank_at_ = UINT32_MAX;
+  }
 }
 
 void WLEDLightEffect::stop() {
@@ -101,8 +109,11 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
         if (!parse_drgb_frame_(it, payload, size))
           return false;
       } else {
-        if (!parse_notifier_frame_(it, payload, size))
+        if (!parse_notifier_frame_(it, payload, size)) {
           return false;
+        } else {
+          timeout = UINT8_MAX;
+        }
       }
       break;
 
@@ -143,8 +154,32 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
 }
 
 bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size) {
-  // Packet needs to be empty
-  return size == 0;
+  // Receive at least RGBW and Brightness for all LEDs from WLED Sync Notification
+  // https://kno.wled.ge/interfaces/udp-notifier/
+  // https://github.com/Aircoookie/WLED/blob/main/wled00/udp.cpp
+
+  if (size < 34) {
+    return false;
+  }
+
+  uint8_t payload_sync_group_mask = payload[34];
+
+  if (this->sync_group_mask_ && !(payload_sync_group_mask & this->sync_group_mask_)) {
+    ESP_LOGD(TAG, "sync group mask does not match");
+    return false;
+  }
+
+  uint8_t bri = payload[0];
+  uint8_t r = esp_scale8(payload[1], bri);
+  uint8_t g = esp_scale8(payload[2], bri);
+  uint8_t b = esp_scale8(payload[3], bri);
+  uint8_t w = esp_scale8(payload[8], bri);
+
+  for (auto &&led : it) {
+    led.set(Color(r, g, b, w));
+  }
+
+  return true;
 }
 
 bool WLEDLightEffect::parse_warls_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size) {
