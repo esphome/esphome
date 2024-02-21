@@ -25,8 +25,6 @@ touchscreen:
     id: my_toucher
     update_interval: 50ms
     cs_pin: 18
-    #interrupt_pin: 16
-
     threshold: 300
     calibration:
       x_min: 210
