@@ -1138,17 +1138,20 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.mac_address = get_mac_address_pretty();
   resp.esphome_version = ESPHOME_VERSION;
   resp.compilation_time = App.get_compilation_time();
+  resp.manufacturer = App.get_manufacturer();
+  if (resp.manufacturer.empty()) {
 #if defined(USE_ESP8266) || defined(USE_ESP32)
-  resp.manufacturer = "Espressif";
+    resp.manufacturer = "Espressif";
 #elif defined(USE_RP2040)
-  resp.manufacturer = "Raspberry Pi";
+    resp.manufacturer = "Raspberry Pi";
 #elif defined(USE_BK72XX)
-  resp.manufacturer = "Beken";
+    resp.manufacturer = "Beken";
 #elif defined(USE_RTL87XX)
-  resp.manufacturer = "Realtek";
+    resp.manufacturer = "Realtek";
 #elif defined(USE_HOST)
-  resp.manufacturer = "Host";
+    resp.manufacturer = "Host";
 #endif
+  }
   resp.model = ESPHOME_BOARD;
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;

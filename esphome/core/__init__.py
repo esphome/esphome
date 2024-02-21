@@ -485,6 +485,8 @@ class EsphomeCore:
         self.name: Optional[str] = None
         # The friendly name of the node
         self.friendly_name: Optional[str] = None
+        # The manufacturer of the node. Defaults to the manufacturer of the platform.
+        self.manufacturer: Optional[str] = None
         # The area / zone of the node
         self.area: Optional[str] = None
         # Additional data components can store temporary data in
@@ -531,6 +533,7 @@ class EsphomeCore:
         self.dashboard = False
         self.name = None
         self.friendly_name = None
+        self.manufacturer = None
         self.area = None
         self.data = {}
         self.config_path = None

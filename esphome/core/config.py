@@ -21,6 +21,7 @@ from esphome.const import (
     CONF_MIN_VERSION,
     CONF_NAME,
     CONF_FRIENDLY_NAME,
+    CONF_MANUFACTURER,
     CONF_ON_BOOT,
     CONF_ON_LOOP,
     CONF_ON_SHUTDOWN,
@@ -117,6 +118,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_NAME): cv.valid_name,
             cv.Optional(CONF_FRIENDLY_NAME, ""): cv.string,
+            cv.Optional(CONF_MANUFACTURER, ""): cv.string,
             cv.Optional(CONF_AREA, ""): cv.string,
             cv.Optional(CONF_COMMENT): cv.string,
             cv.Required(CONF_BUILD_PATH): cv.string,
@@ -342,6 +344,7 @@ async def to_code(config):
         cg.App.pre_setup(
             config[CONF_NAME],
             config[CONF_FRIENDLY_NAME],
+            config[CONF_MANUFACTURER],
             config[CONF_AREA],
             config.get(CONF_COMMENT, ""),
             cg.RawExpression('__DATE__ ", " __TIME__'),
