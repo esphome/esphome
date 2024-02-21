@@ -29,7 +29,7 @@ void Touchscreen::update() {
     this->store_.touched = true;
   } else {
     // no need to poll if we have interrupts.
-    ESP_LOGW(TAG, "Touch Polling Stopped !!!");
+    ESP_LOGW(TAG, "Touch Polling Stopped. You can safely remove the "update_interval:" variable from the YAML file.");
     this->stop_poller();
   }
 }
