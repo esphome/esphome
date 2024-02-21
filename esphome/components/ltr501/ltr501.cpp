@@ -410,8 +410,8 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
   // available combinations of gain and integration times:
   static const GainTimePair GAIN_TIME_PAIRS[] = {
       {AlsGain501::GAIN_1, INTEGRATION_TIME_50MS},    {AlsGain501::GAIN_1, INTEGRATION_TIME_100MS},
-      {AlsGain501::GAIN_200, INTEGRATION_TIME_100MS}, {AlsGain501::GAIN_200, INTEGRATION_TIME_200MS},
-      {AlsGain501::GAIN_200, INTEGRATION_TIME_400MS},
+      {AlsGain501::GAIN_150, INTEGRATION_TIME_100MS}, {AlsGain501::GAIN_150, INTEGRATION_TIME_200MS},
+      {AlsGain501::GAIN_150, INTEGRATION_TIME_400MS},
   };
 
   static const uint16_t HIGH_INTENSITY_THRESHOLD = 25000;
@@ -423,20 +423,19 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
 
   GainTimePair current_pair = {data.actual_gain, data.integration_time};
 
-  if (data.actual_gain == AlsGain501::GAIN_200) {
-    // when sensor is saturated it returns CH1 = 0, CH0 = 0
+  if (data.actual_gain == AlsGain501::GAIN_150) {
+    // when sensor is saturated it returns various crazy numbers
+    // CH1 = 1, CH0 = 0
     if (data.ch1 == 1 && data.ch0 == 0) {
-      ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 = 1, CH0 = 0, Gain 200x");
+      ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 = 1, CH0 = 0, Gain 150x");
       // fake saturation
       data.ch0 = 0xffff;
       data.ch1 = 0xffff;
     } else if (data.ch1 == 65535 && data.ch0 == 0) {
-      ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 = 65535, CH0 = 0, Gain 200x");
-      // fake saturation
+      ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 = 65535, CH0 = 0, Gain 150x");
       data.ch0 = 0xffff;
     } else if (data.ch1 > 1000 && data.ch0 == 0) {
-      ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 > 1000, CH0 = 0, Gain 200x");
-      // fake saturation
+      ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 > 1000, CH0 = 0, Gain 150x");
       data.ch0 = 0xffff;
     }
   }

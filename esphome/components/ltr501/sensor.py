@@ -61,7 +61,7 @@ LTR_TYPES = {
 AlsGain = ltr501_ns.enum("AlsGain501")
 ALS_GAINS = {
     "1X": AlsGain.GAIN_1,
-    "200X": AlsGain.GAIN_200,
+    "150X": AlsGain.GAIN_150,
 }
 
 IntegrationTime = ltr501_ns.enum("IntegrationTime501")
