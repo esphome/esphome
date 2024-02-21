@@ -10,6 +10,7 @@ esphome:
   name_add_mac_suffix: true
   platform: ESP32
   board: nodemcu-32s
+  manufacturer: "The Unit Tester"
   platformio_options:
     board_build.partitions: huge_app.csv
   on_boot:
