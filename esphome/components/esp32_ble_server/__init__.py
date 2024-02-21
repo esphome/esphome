@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MODEL
+from esphome.const import CONF_ID, CONF_MANUFACTURER, CONF_MODEL
 from esphome.components import esp32_ble
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
@@ -10,7 +10,6 @@ CODEOWNERS = ["@jesserockz", "@clydebarrow", "@Rapsssito"]
 CONFLICTS_WITH = ["esp32_ble_beacon"]
 DEPENDENCIES = ["esp32"]
 
-CONF_MANUFACTURER = "manufacturer"
 CONF_MANUFACTURER_DATA = "manufacturer_data"
 
 esp32_ble_server_ns = cg.esphome_ns.namespace("esp32_ble_server")
