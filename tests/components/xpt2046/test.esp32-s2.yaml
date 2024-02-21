@@ -37,10 +37,3 @@ touchscreen:
       mirror_x: false
       mirror_y: true
       swap_xy: true
-    on_touch:
-      then:
-        - light.turn_on: board_led
-        - script.execute: my_script
-    on_release:
-      then:
-        - light.turn_off: board_led
