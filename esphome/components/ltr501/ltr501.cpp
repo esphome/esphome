@@ -354,6 +354,7 @@ DataAvail LTRAlsPs501Component::is_als_data_ready_(AlsReadings &data) {
   AlsPsStatusRegister als_status{0};
 
   als_status.raw = this->reg((uint8_t) CommandRegisters::ALS_PS_STATUS).get();
+  ESP_LOGD(TAG,"AlsPsStatusRegister %x", als_status.raw);
   if (!als_status.als_new_data)
     return DataAvail::NO_DATA;
   ESP_LOGD(TAG, "Data ready, reported gain is %.0f", get_gain_coeff(als_status.gain));
