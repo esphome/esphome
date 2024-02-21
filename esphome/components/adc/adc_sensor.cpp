@@ -294,23 +294,6 @@ float ADCSensor::sample() {
 }
 #endif  // USE_LIBRETINY
 
-#if defined(USE_NRF52) && defined(USE_ARDUINO)
-float ADCSensor::sample() {
-  // https://infocenter.nordicsemi.com/pdf/nRF52840_PS_v1.1.pdf
-  // 6.23.2 Reference voltage and gain settings
-  // Default settings are internal reference with 1/6 gain (GND..3.6V ADC range)
-  // With internal reference, single-ended input (grounded negative input) and a gain of 1/6, the input range will be:
-  // Input range = (0.6 V)/(1/6) = 3.6 V
-
-  uint32_t raw = analogRead(this->pin_->get_pin());  // NOLINT
-  if (output_raw_) {
-    return raw;
-  }
-  // default 10-bit resolution
-  return raw * 3.6f / 1024.0f;
-}
-#endif  // USE_NRF52
-
 #ifdef USE_ESP8266
 std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }
 #endif
