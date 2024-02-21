@@ -89,7 +89,7 @@ void ArduinoI2CBus::dump_config() {
 
 ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
 #if defined(USE_ESP8266)
-  set_pins_and_clock_();  // reconfigure Wire global state in case there are multiple instances
+  this->set_pins_and_clock_();  // reconfigure Wire global state in case there are multiple instances
 #endif
 
   // logging is only enabled with vv level, if warnings are shown the caller
