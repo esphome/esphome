@@ -35,10 +35,6 @@
 #endif
 #endif
 
-#if defined(USE_NRF52) && defined(USE_ARDUINO)
-#include "nrf52/nrf_mbr.h"
-#endif
-
 namespace esphome {
 namespace debug {
 
@@ -53,45 +49,8 @@ static uint32_t get_free_heap() {
   return rp2040.getFreeHeap();
 #elif defined(USE_LIBRETINY)
   return lt_heap_get_free();
-#elif defined(USE_NRF52)
-  // TODO
-  return 0;
 #endif
 }
-
-#if defined(USE_NRF52) && defined(USE_ARDUINO)
-static std::string nrf52_get_reset_reason_name() {
-  uint32_t rr = readResetReason();
-  if (rr & POWER_RESETREAS_VBUS_Msk) {
-    return "VBUS";
-  }
-  if (rr & POWER_RESETREAS_NFC_Msk) {
-    return "NFC";
-  }
-  if (rr & POWER_RESETREAS_DIF_Msk) {
-    return "DIF";
-  }
-  if (rr & POWER_RESETREAS_LPCOMP_Msk) {
-    return "LPCOMP";
-  }
-  if (rr & POWER_RESETREAS_OFF_Msk) {
-    return "OFF";
-  }
-  if (rr & POWER_RESETREAS_LOCKUP_Msk) {
-    return "LOCKUP";
-  }
-  if (rr & POWER_RESETREAS_SREQ_Msk) {
-    return "SREQ";
-  }
-  if (rr & POWER_RESETREAS_DOG_Msk) {
-    return "DOG";
-  }
-  if (rr & POWER_RESETREAS_RESETPIN_Msk) {
-    return "RESETPIN";
-  }
-  return "NONE";
-}
-#endif
 
 void DebugComponent::dump_config() {
 #ifndef ESPHOME_LOG_HAS_DEBUG
@@ -413,18 +372,6 @@ void DebugComponent::dump_config() {
 
   reset_reason = lt_get_reboot_reason_name(lt_get_reboot_reason());
 #endif  // USE_LIBRETINY
-
-#if defined(USE_NRF52) && defined(USE_ARDUINO)
-  // TODO fixme
-  ESP_LOGD(TAG, "bootloader version %lu.%lu.%lu", (bootloaderVersion >> 16) & 0xFF, (bootloaderVersion >> 8) & 0xFF,
-           bootloaderVersion & 0xFF);
-  ESP_LOGD(TAG, "MBR bootloader addr 0x%08lx, UICR bootloader addr 0x%08lx", (*((uint32_t *) MBR_BOOTLOADER_ADDR)),
-           NRF_UICR->NRFFW[0]);
-  ESP_LOGD(TAG, "MBR param page addr 0x%08lx, UICR param page addr 0x%08lx", (*((uint32_t *) MBR_PARAM_PAGE_ADDR)),
-           NRF_UICR->NRFFW[1]);
-  reset_reason = nrf52_get_reset_reason_name();
-  ESP_LOGD(TAG, "Reset Reason: %s", reset_reason.c_str());
-#endif
 
 #ifdef USE_TEXT_SENSOR
   if (this->device_info_ != nullptr) {
