@@ -11,6 +11,7 @@ on:
       - "**"
       - "!.github/workflows/*.yml"
       - ".github/workflows/ci.yml"
+      - "!.yamllint"
   merge_group:
 
 permissions:
