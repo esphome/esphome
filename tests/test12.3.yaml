@@ -41,3 +41,5 @@ dfu:
 
 zephyr_ble_server:
 
+zephyr_ble_nus:
+  log: true
