@@ -19,7 +19,6 @@ display:
       mirror_x: false
       swap_xy: true
 
-
 touchscreen:
   - platform: xpt2046
     display: my_display
