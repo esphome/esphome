@@ -1,0 +1,35 @@
+name: API Proto CI
+
+# yamllint disable-line rule:truthy
+on:
+  pull_request:
+    paths:
+      - "esphome/components/api/api.proto"
+      - "esphome/components/api/api_pb2.cpp"
+      - "esphome/components/api/api_pb2.h"
+      - "esphome/components/api/api_pb2_service.cpp"
+      - "esphome/components/api/api_pb2_service.h"
+
+jobs:
+  check:
+    name: Check generated files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Generate files
+        run: script/api_protobuf/api_protobuf.py
+      - name: Check for changes
+        run: |
+          if ! git diff --quiet; then
+            echo "You have altered the generated proto files but they do not match what is expected."
+            echo "Please run `script/api_protobuf/api_protobuf.py` and commit the changes."
+            exit 1
+          fi
