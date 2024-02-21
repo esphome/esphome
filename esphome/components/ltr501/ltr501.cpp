@@ -382,6 +382,7 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
     return false;
   }
   data.number_of_adjustments++;
+  ESP_LOGD(TAG, "are_adjustments_required_, run #%d", data.number_of_adjustments);
 
   // available combinations of gain and integration times:
   static const GainTimePair GAIN_TIME_PAIRS[] = {
@@ -403,6 +404,7 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
   if (data.actual_gain == AlsGain501::GAIN_200) {
     //when sensor is saturated it returns CH1 = 0, CH0 = 0
     if (data.ch1 == 1 && data.ch0 == 0) {
+      ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 = 0, CH0 = 0, Gain 200x");
       //fake saturation
       data.ch0 = 0xffff;
     }
