@@ -35,7 +35,7 @@ void ArduinoI2CBus::setup() {
   }
 #endif
 
-  set_pins_and_clock_();
+  this->set_pins_and_clock_();
 
   initialized_ = true;
   if (this->scan_) {
