@@ -399,6 +399,15 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
 
   GainTimePair current_pair = {data.actual_gain, data.integration_time};
 
+
+  if (data.actual_gain == AlsGain501::GAIN_200) {
+    //when sensor is saturated it returns CH1 = 0, CH0 = 0
+    if (data.ch1 == 1 && data.ch0 == 0) {
+      //fake saturation
+      data.ch0 = 0xffff;
+    }
+  }
+
   if (data.ch0 <= LOW_INTENSITY_THRESHOLD) {
     GainTimePair next_pair = get_next(GAIN_TIME_PAIRS, current_pair);
     if (next_pair != current_pair) {
