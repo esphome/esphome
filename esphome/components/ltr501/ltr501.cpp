@@ -374,6 +374,10 @@ DataAvail LTRAlsPs501Component::is_als_data_ready_(AlsReadings &data) {
   if (!als_status.als_new_data)
     return DataAvail::NO_DATA;
   ESP_LOGD(TAG, "Data ready, reported gain is %.0f", get_gain_coeff(als_status.gain));
+  if (data.actual_gain != als_status.gain) {
+    ESP_LOGW(TAG, "Actual gain differs from requested (%.0f)", get_gain_coeff(data.actual_gain));
+    return DataAvail::BAD_DATA;
+  }
   data.actual_gain = als_status.gain;
   return DataAvail::DATA_OK;
 }
