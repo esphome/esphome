@@ -8,9 +8,11 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_NUMBER,
 )
+from esphome.components.zephyr.const import (
+    zephyr_ns,
+)
 
-nrf52_ns = cg.esphome_ns.namespace("nrf52")
-NRF52GPIOPin = nrf52_ns.class_("NRF52GPIOPin", cg.InternalGPIOPin)
+GPIOPin = zephyr_ns.class_("GPIOPin", cg.InternalGPIOPin)
 
 
 def _translate_pin(value):
@@ -41,9 +43,7 @@ def validate_gpio_pin(value):
 
 
 NRF52_PIN_SCHEMA = cv.All(
-    pins.gpio_base_schema(
-        NRF52GPIOPin, validate_gpio_pin, modes=pins.GPIO_STANDARD_MODES
-    ),
+    pins.gpio_base_schema(GPIOPin, validate_gpio_pin, modes=pins.GPIO_STANDARD_MODES),
 )
 
 

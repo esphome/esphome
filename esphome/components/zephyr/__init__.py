@@ -10,6 +10,7 @@ from .const import (
     KEY_ZEPHYR,
     KEY_PRJ_CONF,
     KEY_OVERLAY,
+    zephyr_ns,
 )
 from esphome.const import (
     CONF_VARIANT,
@@ -48,6 +49,7 @@ def zephyr_add_overlay(content):
 
 
 def zephyr_to_code(conf):
+    cg.add(zephyr_ns.setup_preferences())
     cg.add_build_flag("-DUSE_ZEPHYR")
     if conf[CONF_VARIANT] == ZEPHYR_VARIANT_GENERIC:
         cg.add_platformio_option(

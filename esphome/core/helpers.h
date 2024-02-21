@@ -21,8 +21,6 @@
 #elif defined(USE_LIBRETINY)
 #include <FreeRTOS.h>
 #include <semphr.h>
-#elif defined(USE_NRF52) && defined(USE_ARDUINO)
-#include <Arduino.h>
 #elif defined(USE_ZEPHYR)
 #include <zephyr/kernel.h>
 #endif
@@ -553,7 +551,7 @@ class Mutex {
  private:
 #if defined(USE_ZEPHYR)
   k_mutex handle_;
-#elif defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_NRF52)
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
   SemaphoreHandle_t handle_;
 #endif
 };

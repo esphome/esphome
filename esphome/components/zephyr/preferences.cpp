@@ -1,11 +1,11 @@
-#ifdef USE_NRF52
+#ifdef USE_ZEPHYR
 
 #include "esphome/core/preferences.h"
 
 namespace esphome {
-namespace nrf52 {
+namespace zephyr {
 
-class NRF52Preferences : public ESPPreferences {
+class Preferences : public ESPPreferences {
  public:
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override {
     return make_preference(length, type);
@@ -31,7 +31,7 @@ class NRF52Preferences : public ESPPreferences {
 };
 
 void setup_preferences() {
-  auto *prefs = new NRF52Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
+  auto *prefs = new Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
   global_preferences = prefs;
 }
 // TODO

@@ -145,12 +145,9 @@ CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
 )
 
-nrf52_ns = cg.esphome_ns.namespace("nrf52")
-
 
 @coroutine_with_priority(1000)
 async def to_code(config):
-    cg.add(nrf52_ns.setup_preferences())
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])

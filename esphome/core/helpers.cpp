@@ -48,12 +48,6 @@
 #include <WiFi.h>  // for macAddress()
 #endif
 
-#ifdef USE_NRF52
-#ifdef USE_ARDUINO
-#include "Adafruit_nRFCrypto.h"
-#endif
-#include "esphome/components/nrf52/core.h"
-#endif
 #ifdef USE_ZEPHYR
 #include <zephyr/random/rand32.h>
 #endif
@@ -212,7 +206,7 @@ uint32_t random_uint32() {
   std::mt19937 rng(dev());
   std::uniform_int_distribution<uint32_t> dist(0, std::numeric_limits<uint32_t>::max());
   return dist(rng);
-#elif defined(USE_NRF52)
+#elif defined(USE_ZEPHYR)
   return rand();
 #else
 #error "No random source available for this configuration."
@@ -251,8 +245,6 @@ bool random_bytes(uint8_t *data, size_t len) {
   }
   fclose(fp);
   return true;
-#elif defined(USE_NRF52) && defined(USE_ARDUINO)
-  return nRFCrypto.Random.generate(data, len);
 #elif defined(USE_ZEPHYR)
   sys_rand_get(data, len);
   return true;
@@ -538,7 +530,7 @@ Mutex::Mutex() { k_mutex_init(&handle_); }
 void Mutex::lock() { k_mutex_lock(&this->handle_, K_FOREVER); }
 bool Mutex::try_lock() { return k_mutex_lock(&this->handle_, K_NO_WAIT) == 0; }
 void Mutex::unlock() { k_mutex_unlock(&this->handle_); }
-#elif defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_NRF52)
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
 Mutex::Mutex() { handle_ = xSemaphoreCreateMutex(); }
 void Mutex::lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
 bool Mutex::try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
@@ -592,8 +584,6 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   WiFi.macAddress(mac);
 #elif defined(USE_LIBRETINY)
   WiFi.macAddress(mac);
-#elif defined(USE_NRF52)
-  nrf52GetMacAddr(mac);
 #endif
 }
 std::string get_mac_address() {
