@@ -1,3 +1,7 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
 wled:
 
 light:
