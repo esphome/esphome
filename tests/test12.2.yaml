@@ -30,11 +30,6 @@ interval:
     then:
       - switch.toggle: gpio_15
 
-# sensor:
-#   - platform: uptime
-#     name: Uptime Sensor
-#     update_interval: 5s
-
 output:
   - platform: gpio
     pin:
@@ -71,3 +66,6 @@ ota:
             - logger.log: "OTA start"
 
 zephyr_ble_server:
+
+zephyr_ble_nus:
+  log: true

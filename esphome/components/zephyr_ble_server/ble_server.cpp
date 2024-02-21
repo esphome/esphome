@@ -10,21 +10,28 @@ namespace zephyr_ble_server {
 static const char *const TAG = "zephyr_ble_server";
 
 static struct k_work advertise_work;
-static const struct bt_data AD[] = {
-    BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-#ifdef USE_OTA
 
+#define DEVICE_NAME CONFIG_BT_DEVICE_NAME
+#define DEVICE_NAME_LEN	(sizeof(DEVICE_NAME) - 1)
+
+static const struct bt_data AD[] = {
+	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
+	BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
+};
+
+static const struct bt_data SD[] = {
+#ifdef USE_OTA
     BT_DATA_BYTES(BT_DATA_UUID128_ALL, 0x84, 0xaa, 0x60, 0x74, 0x52, 0x8a, 0x8b, 0x86, 0xd3, 0x4c, 0xb7, 0x1d, 0x1d,
                   0xdc, 0x53, 0x8d),
 #endif
 };
 
-const struct bt_le_adv_param* const ADV_PARAM = BT_LE_ADV_CONN_NAME;
+const struct bt_le_adv_param* const ADV_PARAM = BT_LE_ADV_CONN;
 
 static void advertise(struct k_work *work) {
   bt_le_adv_stop();
 
-  int rc = bt_le_adv_start(ADV_PARAM, AD, ARRAY_SIZE(AD), NULL, 0);
+  int rc = bt_le_adv_start(ADV_PARAM, AD, ARRAY_SIZE(AD), SD, ARRAY_SIZE(SD));
   if (rc) {
     ESP_LOGE(TAG, "Advertising failed to start (rc %d)", rc);
     return;

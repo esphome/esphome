@@ -40,16 +40,23 @@ void Logger::write_header_(int level, const char *tag, int line) {
   const char *color = LOG_LEVEL_COLORS[level];
   const char *letter = LOG_LEVEL_LETTERS[level];
 #ifdef USE_ARDUINO
-  void *current_task = xTaskGetCurrentTaskHandle();
+  void * current_task = xTaskGetCurrentTaskHandle();
+#elif defined(USE_ZEPHYR)
+  k_tid_t current_task = k_current_get();
+#else
+  void * current_task = nullptr;
+#endif
   if (current_task == main_task_) {
-#endif
     this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);
-#ifdef USE_ARDUINO
   } else {
-    this->printf_to_buffer_("%s[%s][%s:%03u]%s[%s]%s: ", color, letter, tag, line,
-                            ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED), pcTaskGetName(current_task), color);
-  }
+#ifdef USE_ARDUINO
+    const char *thread_name = pcTaskGetName(current_task);
+#elif defined(USE_ZEPHYR)
+    const char *thread_name = k_thread_name_get(current_task);
 #endif
+    this->printf_to_buffer_("%s[%s][%s:%03u]%s[%s]%s: ", color, letter, tag, line,
+                            ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED), thread_name, color);
+  }
 }
 
 void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
@@ -149,6 +156,8 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
   this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
 #ifdef USE_ARDUINO
   this->main_task_ = xTaskGetCurrentTaskHandle();
+#elif defined(USE_ZEPHYR)
+  this->main_task_ = k_current_get();
 #endif
 }
 

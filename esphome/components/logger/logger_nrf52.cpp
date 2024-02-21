@@ -77,6 +77,9 @@ void Logger::pre_setup() {
 
 #ifdef USE_ZEPHYR
 void HOT Logger::write_msg_(const char *msg) {
+#ifdef CONFIG_PRINTK
+  printk("%s\n", msg);
+#endif
   if (nullptr == uart_dev_) {
     return;
   }
