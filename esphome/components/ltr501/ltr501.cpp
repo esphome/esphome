@@ -220,21 +220,21 @@ void LTRAlsPs501Component::loop() {
 }
 
 void LTRAlsPs501Component::check_and_trigger_ps_() {
-  static uint32_t last_high_trigger_time_{0};
-  static uint32_t last_low_trigger_time_{0};
+  static uint32_t last_high_trigger_time{0};
+  static uint32_t last_low_trigger_time{0};
   uint16_t ps_data = this->read_ps_data_();
   uint32_t now = millis();
 
   if (ps_data != this->ps_readings_) {
     this->ps_readings_ = ps_data;
     // Higher values - object is closer to sensor
-    if (ps_data > this->ps_threshold_high_ && now - last_high_trigger_time_ >= this->ps_cooldown_time_s_ * 1000) {
-      last_high_trigger_time_ = now;
+    if (ps_data > this->ps_threshold_high_ && now - last_high_trigger_time >= this->ps_cooldown_time_s_ * 1000) {
+      last_high_trigger_time = now;
       ESP_LOGD(TAG, "Proximity high threshold triggered. Value = %d, Trigger level = %d", ps_data,
                this->ps_threshold_high_);
       this->on_ps_high_trigger_callback_.call();
-    } else if (ps_data < this->ps_threshold_low_ && now - last_low_trigger_time_ >= this->ps_cooldown_time_s_ * 1000) {
-      last_low_trigger_time_ = now;
+    } else if (ps_data < this->ps_threshold_low_ && now - last_low_trigger_time >= this->ps_cooldown_time_s_ * 1000) {
+      last_low_trigger_time = now;
       ESP_LOGD(TAG, "Proximity low threshold triggered. Value = %d, Trigger level = %d", ps_data,
                this->ps_threshold_low_);
       this->on_ps_low_trigger_callback_.call();
@@ -418,7 +418,7 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
   static const uint16_t LOW_INTENSITY_THRESHOLD_1 = 100;
   static const uint16_t LOW_INTENSITY_THRESHOLD_200 = 2000;
 
-  const uint16_t LOW_INTENSITY_THRESHOLD =
+  const uint16_t low_intensity_threshold =
       (data.actual_gain == AlsGain501::GAIN_1 ? LOW_INTENSITY_THRESHOLD_1 : LOW_INTENSITY_THRESHOLD_200);
 
   GainTimePair current_pair = {data.actual_gain, data.integration_time};
@@ -429,6 +429,7 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
       ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 = 1, CH0 = 0, Gain 200x");
       // fake saturation
       data.ch0 = 0xffff;
+      data.ch1 = 0xffff;
     } else if (data.ch1 == 65535 && data.ch0 == 0) {
       ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 = 65535, CH0 = 0, Gain 200x");
       // fake saturation
@@ -436,7 +437,7 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
     }
   }
 
-  if (data.ch0 <= LOW_INTENSITY_THRESHOLD) {
+  if (data.ch0 <= low_intensity_threshold) {
     GainTimePair next_pair = get_next(GAIN_TIME_PAIRS, current_pair);
     if (next_pair != current_pair) {
       data.actual_gain = next_pair.gain;
@@ -445,7 +446,7 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
       return true;
     }
 
-  } else if (data.ch0 >= HIGH_INTENSITY_THRESHOLD) {
+  } else if (data.ch0 >= HIGH_INTENSITY_THRESHOLD || data.ch1 >= HIGH_INTENSITY_THRESHOLD) {
     GainTimePair prev_pair = get_prev(GAIN_TIME_PAIRS, current_pair);
     if (prev_pair != current_pair) {
       data.actual_gain = prev_pair.gain;

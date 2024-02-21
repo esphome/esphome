@@ -158,11 +158,11 @@ class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
   CallbackManager<void()> on_ps_high_trigger_callback_;
   CallbackManager<void()> on_ps_low_trigger_callback_;
 
-  void add_on_ps_high_trigger_callback(std::function<void()> callback) {
+  void add_on_ps_high_trigger_callback_(std::function<void()> callback) {
     this->on_ps_high_trigger_callback_.add(std::move(callback));
   }
 
-  void add_on_ps_low_trigger_callback(std::function<void()> callback) {
+  void add_on_ps_low_trigger_callback_(std::function<void()> callback) {
     this->on_ps_low_trigger_callback_.add(std::move(callback));
   }
 };
@@ -170,14 +170,14 @@ class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
 class LTRPsHighTrigger : public Trigger<> {
  public:
   explicit LTRPsHighTrigger(LTRAlsPs501Component *parent) {
-    parent->add_on_ps_high_trigger_callback([this]() { this->trigger(); });
+    parent->add_on_ps_high_trigger_callback_([this]() { this->trigger(); });
   }
 };
 
 class LTRPsLowTrigger : public Trigger<> {
  public:
   explicit LTRPsLowTrigger(LTRAlsPs501Component *parent) {
-    parent->add_on_ps_low_trigger_callback([this]() { this->trigger(); });
+    parent->add_on_ps_low_trigger_callback_([this]() { this->trigger(); });
   }
 };
 }  // namespace ltr501
