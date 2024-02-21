@@ -1,7 +1,7 @@
 #include "float_output.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/hal.h"  // delay
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace output {
