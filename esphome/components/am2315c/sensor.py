@@ -15,9 +15,7 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 am2315c_ns = cg.esphome_ns.namespace("am2315c")
-AM2315C = am2315c_ns.class_(
-    "AM2315C", cg.PollingComponent, i2c.I2CDevice
-)
+AM2315C = am2315c_ns.class_("AM2315C", cg.PollingComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(
