@@ -29,7 +29,7 @@ namespace am2315c {
 
 static const char *const TAG = "am2315c";
 
-uint8_t AM2315C::crc8(uint8_t *data, uint8_t len) {
+uint8_t AM2315C::crc8_(uint8_t *data, uint8_t len) {
   uint8_t crc = 0xFF;
   while (len--) {
     crc ^= *data++;
