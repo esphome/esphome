@@ -186,7 +186,8 @@ void LTRAlsPs501Component::loop() {
       // first measurement in auto mode (COLLECTING_DATA_AUTO state) require device reconfiguration
       if (this->state_ == State::COLLECTING_DATA_AUTO || this->are_adjustments_required_(this->als_readings_)) {
         this->state_ = State::ADJUSTMENT_IN_PROGRESS;
-        ESP_LOGD(TAG, "Reconfiguring sensitivity");
+        ESP_LOGD(TAG, "Reconfiguring sensitivity: gain = %.0fx, time = %d ms",
+                 get_gain_coeff(this->als_readings_.actual_gain), get_itime_ms(this->als_readings_.integration_time));
         this->configure_integration_time_(this->als_readings_.integration_time);
         this->configure_gain_(this->als_readings_.actual_gain);
         // if sensitivity adjustment needed - need to wait for first data samples after setting new parameters
