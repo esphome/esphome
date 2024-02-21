@@ -31,7 +31,7 @@ static const char *const TAG = "am2315c";
 
 uint8_t AM2315C::crc8(uint8_t *data, uint8_t len) {
   uint8_t crc = 0xFF;
-  while(len--) {
+  while (len--) {
     crc ^= *data++;
     for (uint8_t i = 0; i < 8; i++) {
       if (crc & 0x80) {
@@ -100,11 +100,10 @@ void AM2315C::setup() {
     return;
   }
 
-  // reset registers if required, according to the datasheet 
-  // this can be required after power on, although registers 
+  // reset registers if required, according to the datasheet
+  // this can be required after power on, although registers
   // never needed to be reset when tested
-  if ((status & 0x18) != 0x18)
-  {
+  if ((status & 0x18) != 0x18) {
     ESP_LOGD(TAG, "Reset AM2315C registers");
     if (!this->reset_register(0x1B)) {
       this->mark_failed();
@@ -120,7 +119,7 @@ void AM2315C::setup() {
     }
     delay(10);
   }
-}  
+}
 
 void AM2315C::update() {
   // request measurement
@@ -133,8 +132,8 @@ void AM2315C::update() {
     this->mark_failed();
     return;
   }
-    
-  // wait for hw to complete measurement 
+
+  // wait for hw to complete measurement
   set_timeout(160, [this]() {
     // check status
     uint8_t status = 0;
@@ -148,7 +147,7 @@ void AM2315C::update() {
       this->mark_failed();
       return;
     }
-    
+
     // read
     uint8_t data[7];
     if (this->read(data, 7) != i2c::ERROR_OK) {
@@ -156,7 +155,7 @@ void AM2315C::update() {
       this->mark_failed();
       return;
     }
-  
+
     // check for all zeros
     bool zeros = true;
     for (int i = 0; i < 7; i++) {
@@ -166,8 +165,8 @@ void AM2315C::update() {
       ESP_LOGW(TAG, "Data all zeros!");
       this->status_set_warning();
       return;
-    }  
-    
+    }
+
     // convert
     float temperature = 0.0;
     float humidity = 0.0;
