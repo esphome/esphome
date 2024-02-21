@@ -39,7 +39,7 @@ display:
     model: ili9341
     cs_pin: 5
     dc_pin: 12
-    reset_pin: 35
+    reset_pin: 33
     auto_clear_enabled: false
     data_rate: 40MHz
     dimensions: 320x240
