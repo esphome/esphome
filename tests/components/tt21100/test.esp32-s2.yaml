@@ -41,3 +41,4 @@ binary_sensor:
     x_max: 105
     y_min: 0
     y_max: 80
+    
