@@ -59,20 +59,20 @@ bool AM2315C::reset_register(uint8_t reg) {
   data[2] = 0;
   ESP_LOGD(TAG, "Reset register: 0x%02x", reg);
   if (this->write(data, 3) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Write failed!");
+    ESP_LOGE(TAG, "Write failed!");
     this->mark_failed();
     return false;
   }
   delay(5);
   if (this->read(data, 3) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Read failed!");
+    ESP_LOGE(TAG, "Read failed!");
     this->mark_failed();
     return false;
   }
   delay(10);
   data[0] = 0xB0 | reg;
   if (this->write(data, 3) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Write failed!");
+    ESP_LOGE(TAG, "Write failed!");
     this->mark_failed();
     return false;
   }
@@ -89,11 +89,13 @@ bool AM2315C::convert(uint8_t *data, float &humidity, float &temperature) {
   return this->crc8(data, 6) == data[6];
 }
 
-void AM2315C::update() {
+void AM2315C::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up AM2315C...");
+
   // get status
   uint8_t status = 0;
   if (this->read(&status, 1) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Read failed!");
+    ESP_LOGE(TAG, "Read failed!");
     this->mark_failed();
     return;
   }
@@ -103,6 +105,7 @@ void AM2315C::update() {
   // never needed to be reset when tested
   if ((status & 0x18) != 0x18)
   {
+    ESP_LOGD(TAG, "Reset AM2315C registers");
     if (!this->reset_register(0x1B)) {
       this->mark_failed();
       return;
@@ -115,71 +118,71 @@ void AM2315C::update() {
       this->mark_failed();
       return;
     }
+    delay(10);
   }
+}  
 
-  // wait 10 msecs before requesting measurement
-  set_timeout(10, [this]() {
-    // request measurement
-    uint8_t data[3];
-    data[0] = 0xAC;
-    data[1] = 0x33;
-    data[2] = 0x00;
-    if (this->write(data, 3) != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, "Write failed!");
+void AM2315C::update() {
+  // request measurement
+  uint8_t data[3];
+  data[0] = 0xAC;
+  data[1] = 0x33;
+  data[2] = 0x00;
+  if (this->write(data, 3) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Write failed!");
+    this->mark_failed();
+    return;
+  }
+    
+  // wait for hw to complete measurement 
+  set_timeout(160, [this]() {
+    // check status
+    uint8_t status = 0;
+    if (this->read(&status, 1) != i2c::ERROR_OK) {
+      ESP_LOGE(TAG, "Read failed!");
+      this->mark_failed();
+      return;
+    }
+    if ((status & 0x80) == 0x80) {
+      ESP_LOGE(TAG, "HW still busy!");
       this->mark_failed();
       return;
     }
     
-    // wait for hw to complete measurement 
-    set_timeout(160, [this]() {
-      // check status
-      uint8_t status = 0;
-      if (this->read(&status, 1) != i2c::ERROR_OK) {
-        ESP_LOGW(TAG, "Read failed!");
-        this->mark_failed();
-        return;
-      }
-      if ((status & 0x80) == 0x80) {
-        ESP_LOGE(TAG, "HW still busy!");
-        this->mark_failed();
-        return;
-      }
-      
-      // read
-      uint8_t data[7];
-      if (this->read(data, 7) != i2c::ERROR_OK) {
-        ESP_LOGE(TAG, "Read failed!");
-        this->mark_failed();
-        return;
-      }
+    // read
+    uint8_t data[7];
+    if (this->read(data, 7) != i2c::ERROR_OK) {
+      ESP_LOGE(TAG, "Read failed!");
+      this->mark_failed();
+      return;
+    }
+  
+    // check for all zeros
+    bool zeros = true;
+    for (int i = 0; i < 7; i++) {
+      zeros = zeros && (data[i] == 0);
+    }
+    if (zeros) {
+      ESP_LOGW(TAG, "Data all zeros!");
+      this->status_set_warning();
+      return;
+    }  
     
-      // check for all zeros
-      bool zeros = true;
-      for (int i = 0; i < 7; i++) {
-        zeros = zeros && (data[i] == 0);
+    // convert
+    float temperature = 0.0;
+    float humidity = 0.0;
+    if (this->convert(data, humidity, temperature)) {
+      if (this->temperature_sensor_ != nullptr) {
+        this->temperature_sensor_->publish_state(temperature);
       }
-      if (zeros) {
-        ESP_LOGW(TAG, "Data all zeros!");
-        this->status_set_warning();
-        return;
-      }  
-      
-      // convert
-      float temperature = 0.0;
-      float humidity = 0.0;
-      if (this->convert(data, humidity, temperature)) {
-        if (this->temperature_sensor_ != nullptr) {
-          this->temperature_sensor_->publish_state(temperature);
-        }
-        if (this->humidity_sensor_ != nullptr) {
-          this->humidity_sensor_->publish_state(humidity);
-        }
-        this->status_clear_warning();
-      } else {
-        ESP_LOGW(TAG, "CRC failed!");
-        this->status_set_warning();
+      if (this->humidity_sensor_ != nullptr) {
+        this->humidity_sensor_->publish_state(humidity);
       }
-    });
+      this->status_clear_warning();
+    } else {
+      ESP_LOGW(TAG, "CRC failed!");
+      this->status_set_warning();
+    }
   });
 }
 

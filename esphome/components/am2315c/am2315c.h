@@ -32,6 +32,7 @@ class AM2315C : public PollingComponent, public i2c::I2CDevice {
  public:
   void dump_config() override;
   void update() override;
+  void setup() override;
   float get_setup_priority() const override;
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
