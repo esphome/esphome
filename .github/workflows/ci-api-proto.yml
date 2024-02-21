@@ -9,6 +9,8 @@ on:
       - "esphome/components/api/api_pb2.h"
       - "esphome/components/api/api_pb2_service.cpp"
       - "esphome/components/api/api_pb2_service.h"
+      - "script/api_protobuf/api_protobuf.py"
+      - ".github/workflows/ci-api-proto.yml"
 
 jobs:
   check:
