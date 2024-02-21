@@ -6,7 +6,7 @@ struct device;
 namespace esphome {
 namespace zephyr {
 
-class GPIOPin : public InternalGPIOPin {
+class ZephyrGPIOPin : public InternalGPIOPin {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
