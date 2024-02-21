@@ -64,10 +64,8 @@ async def setup_output_platform_(obj, config):
         cg.add(obj.set_min_power(config[CONF_MIN_POWER]))
     if CONF_ZERO_MEANS_ZERO in config:
         cg.add(obj.set_zero_means_zero(config[CONF_ZERO_MEANS_ZERO]))
-    if CONF_MIN_TURN_ON_POWER in config:
-        cg.add(obj.set_min_turn_on_power(config[CONF_MIN_TURN_ON_POWER]))
-    if CONF_MIN_TURN_ON_POWER_DELAY in config:
-        cg.add(obj.set_min_turn_on_power_delay(config[CONF_MIN_TURN_ON_POWER_DELAY]))
+    cg.add(obj.set_min_turn_on_power(config[CONF_MIN_TURN_ON_POWER]))
+    cg.add(obj.set_min_turn_on_power_delay(config[CONF_MIN_TURN_ON_POWER_DELAY]))
 
 
 async def register_output(var, config):
