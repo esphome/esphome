@@ -98,7 +98,9 @@ void AM2315C::update() {
     return;
   }
 
-  // reset if required
+  // reset registers if required, according to the datasheet 
+  // this can be required after power on, although registers 
+  // never needed to be reset when tested
   if ((status & 0x18) != 0x18)
   {
     if (!this->reset_register(0x1B)) {
@@ -117,7 +119,7 @@ void AM2315C::update() {
 
   // wait 10 msecs before requesting measurement
   set_timeout(10, [this]() {
-    // request
+    // request measurement
     uint8_t data[3];
     data[0] = 0xAC;
     data[1] = 0x33;
