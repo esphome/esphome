@@ -48,7 +48,13 @@ from esphome.util import (
     get_serial_ports,
 )
 from esphome.log import color, setup_log, Fore
-from .zephyr_tools import smpmgr_upload, smpmgr_scan
+from .zephyr_tools import (
+    logger_connect,
+    smpmgr_upload,
+    is_mac_address,
+    logger_scan,
+    smpmgr_scan,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,33 +94,49 @@ def choose_prompt(options, purpose: str = None):
 def choose_upload_log_host(
     default, check_default, show_ota, show_mqtt, show_api, purpose: str = None
 ):
+    try:
+        mcuboot = CORE.config["nrf52"]["bootloader"] == "mcuboot"
+    except KeyError:
+        mcuboot = False
+    try:
+        ble_logger = CORE.config["zephyr_ble_nus"]["log"]
+    except KeyError:
+        ble_logger = False
+    ota = "ota" in CORE.config
     options = []
-    for port in get_serial_ports():
-        options.append((f"{port.path} ({port.description})", port.path))
-        # if show_ota and CONF_FOTA in CORE.config:
-        #     options.append(
-        #         (f"mcumgr {port.path} ({port.description})", f"mcumgr {port.path}")
-        #     )
+    if mcuboot and show_ota and ota:
+        for port in get_serial_ports():
+            options.append(
+                (f"mcumgr {port.path} ({port.description})", f"mcumgr {port.path}")
+            )
+    else:
+        for port in get_serial_ports():
+            options.append((f"{port.path} ({port.description})", port.path))
     if default == "SERIAL":
         return choose_prompt(options, purpose=purpose)
     if default == "PYOCD":
         options = [("pyocd", "PYOCD")]
         return choose_prompt(options, purpose=purpose)
-    if CORE.target_platform in (PLATFORM_NRF52):
-        if (show_ota and "ota" in CORE.config) and default is None:
-            ble_devices = asyncio.run(smpmgr_scan())
-            if len(ble_devices) == 0:
-                _LOGGER.warning("No OTA service found!")
-            for device in ble_devices:
+    if mcuboot:
+        if show_ota and ota:
+            if default:
                 options.append(
-                    (
-                        f"FOTA over Bluetooth LE({device.address}) {device.name}",
-                        f"mcumgr {device.address}",
-                    )
+                    (f"OTA over Bluetooth LE ({default})", f"mcumgr {default}")
                 )
-            return choose_prompt(options, purpose=purpose)
+                return choose_prompt(options, purpose=purpose)
+            else:
+                ble_devices = asyncio.run(smpmgr_scan(CORE.config["esphome"]["name"]))
+                if len(ble_devices) == 0:
+                    _LOGGER.warning("No OTA over Bluetooth LE service found!")
+                for device in ble_devices:
+                    options.append(
+                        (
+                            f"OTA over Bluetooth LE({device.address}) {device.name}",
+                            f"mcumgr {device.address}",
+                        )
+                    )
     else:
-        if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
+        if (show_ota and ota) or (show_api and "api" in CORE.config):
             options.append((f"Over The Air ({CORE.address})", CORE.address))
             if default == "OTA":
                 return CORE.address
@@ -122,6 +144,12 @@ def choose_upload_log_host(
         options.append((f"MQTT ({CORE.config['mqtt'][CONF_BROKER]})", "MQTT"))
         if default == "OTA":
             return "MQTT"
+    if "logging" == purpose and ble_logger and default is None:
+        ble_device = asyncio.run(logger_scan(CORE.config["esphome"]["name"]))
+        if ble_device:
+            options.append((f"Bluetooth LE logger ({ble_device})", ble_device.address))
+        else:
+            _LOGGER.warning("No logger over Bluetooth LE service found!")
     if default is not None:
         return default
     if check_default is not None and check_default in [opt[1] for opt in options]:
@@ -134,6 +162,8 @@ def get_port_type(port):
         return "SERIAL"
     if port == "MQTT":
         return "MQTT"
+    if is_mac_address(port):
+        return "BLE"
     return "NETWORK"
 
 
@@ -402,6 +432,9 @@ def show_logs(config, args, port):
         return mqtt.show_logs(
             config, args.topic, args.username, args.password, args.client_id
         )
+
+    if get_port_type(port) == "BLE":
+        return asyncio.run(logger_connect(port))
 
     raise EsphomeError("No remote or local logging method configured (api/mqtt/logger)")
 

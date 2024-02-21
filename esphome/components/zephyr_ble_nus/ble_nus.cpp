@@ -83,6 +83,8 @@ void BLENUS::setup() {
   if (logger::global_logger != nullptr && this->expose_log_) {
     logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
       this->write_array(reinterpret_cast<const uint8_t *>(message), strlen(message));
+      const char c = '\n';
+      this->write_array(reinterpret_cast<const uint8_t *>(&c), 1);
     });
   }
 #endif

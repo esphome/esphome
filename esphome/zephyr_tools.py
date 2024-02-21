@@ -3,8 +3,8 @@ import logging
 import re
 from typing import Final
 from rich.pretty import pprint
-from bleak import BleakScanner
-from bleak.exc import BleakDeviceNotFoundError
+from bleak import BleakScanner, BleakClient
+from bleak.exc import BleakDeviceNotFoundError, BleakDBusError
 from smpclient.transport.ble import SMPBLETransport
 from smpclient.transport.serial import SMPSerialTransport
 from smpclient import SMPClient
@@ -16,6 +16,8 @@ from smpclient.generics import error, success
 from esphome.espota2 import ProgressBar
 
 SMP_SERVICE_UUID = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
+NUS_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+NUS_TX_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 MAC_ADDRESS_PATTERN: Final = re.compile(
     r"([0-9A-F]{2}[:]){5}[0-9A-F]{2}$", flags=re.IGNORECASE
 )
@@ -23,9 +25,42 @@ MAC_ADDRESS_PATTERN: Final = re.compile(
 _LOGGER = logging.getLogger(__name__)
 
 
-async def smpmgr_scan():
-    _LOGGER.info("Scanning bluetooth...")
-    devices = await BleakScanner.discover(service_uuids=[SMP_SERVICE_UUID])
+def is_mac_address(value):
+    return MAC_ADDRESS_PATTERN.match(value)
+
+
+async def logger_scan(name):
+    _LOGGER.info(f"Scanning bluetooth for {name}...")
+    device = await BleakScanner.find_device_by_name(name)
+    return device
+
+
+async def logger_connect(host):
+    disconnected_event = asyncio.Event()
+
+    def handle_disconnect(client):
+        disconnected_event.set()
+
+    def handle_rx(_, data: bytearray):
+        print(data.decode("utf-8"), end="")
+
+    _LOGGER.info(f"Connecting {host}...")
+    async with BleakClient(host, disconnected_callback=handle_disconnect) as client:
+        _LOGGER.info(f"Connected {host}...")
+        try:
+            await client.start_notify(NUS_TX_CHAR_UUID, handle_rx)
+        except BleakDBusError as e:
+            _LOGGER.error(f"Bluetooth LE logger: {e}")
+            disconnected_event.set()
+        await disconnected_event.wait()
+
+
+async def smpmgr_scan(name):
+    _LOGGER.info(f"Scanning bluetooth for {name}...")
+    devices = []
+    for device in await BleakScanner.discover(service_uuids=[SMP_SERVICE_UUID]):
+        if device.name == name:
+            devices += [device]
     return devices
 
 
@@ -53,7 +88,7 @@ async def smpmgr_upload(config, host, firmware):
     if image_tlv_sha256 is None:
         return 1
 
-    if MAC_ADDRESS_PATTERN.match(host):
+    if is_mac_address(host):
         smp_client = SMPClient(SMPBLETransport(), host)
     else:
         smp_client = SMPClient(SMPSerialTransport(mtu=256), host)
