@@ -441,7 +441,7 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
     }
   }
 
-  if (data.ch0 <= low_intensity_threshold || (data.actual_gain==AlsGain501::GAIN_1 && data.lux < 320)) {
+  if (data.ch0 <= low_intensity_threshold || (data.actual_gain == AlsGain501::GAIN_1 && data.lux < 320)) {
     GainTimePair next_pair = get_next(GAIN_TIME_PAIRS, current_pair);
     if (next_pair != current_pair) {
       data.actual_gain = next_pair.gain;
@@ -487,9 +487,6 @@ void LTRAlsPs501Component::apply_lux_calculation_(AlsReadings &data) {
   float inv_pfactor = this->glass_attenuation_factor_;
   float lux = 0.0f;
 
-  ESP_LOGD(TAG, "Lux calculation: ratio %f, gain %f, int time %f, inv_pfactor %f", ratio, als_gain, als_time,
-           inv_pfactor);
-
   // method from
   // https://github.com/fards/Ainol_fire_kernel/blob/83832cf8a3082fd8e963230f4b1984479d1f1a84/customer/drivers/lightsensor/ltr501als.c#L295
 
@@ -506,6 +503,9 @@ void LTRAlsPs501Component::apply_lux_calculation_(AlsReadings &data) {
 
   lux = inv_pfactor * lux / als_gain / als_time;
   data.lux = lux;
+
+  ESP_LOGD(TAG, "Lux calculation: ratio %f, gain %f, int time %f, inv_pfactor %f, lux %d", ratio, als_gain, als_time,
+           inv_pfactor, lux);
 }
 
 void LTRAlsPs501Component::publish_data_part_1_(AlsReadings &data) {
