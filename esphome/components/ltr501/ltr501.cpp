@@ -434,6 +434,10 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
       ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 = 65535, CH0 = 0, Gain 200x");
       // fake saturation
       data.ch0 = 0xffff;
+    } else if (data.ch1 > 1000 && data.ch0 == 0) {
+      ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 > 1000, CH0 = 0, Gain 200x");
+      // fake saturation
+      data.ch0 = 0xffff;
     }
   }
 
