@@ -1,10 +1,9 @@
 ---
 nrf52:
   # board: adafruit_itsybitsy_nrf52840
-  board: adafruit_feather_nrf52840
-  framework:
-    type: zephyr
-    variant: nrf-sdk
+  # board: adafruit_feather_nrf52840
+  board: nrf52840dk_nrf52840
+
   # bootloader: adafruit
   # bootloader: mcuboot
 

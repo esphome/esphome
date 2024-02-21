@@ -2,7 +2,6 @@
 nrf52:
   board: adafruit_itsybitsy_nrf52840
   framework:
-    type: zephyr
     variant: generic
 
 esphome:
@@ -64,6 +63,3 @@ text_sensor:
     reset_reason:
       name: "Reset Reason"
 
-deep_sleep:
-  run_duration: 10s
-  sleep_duration: 10s

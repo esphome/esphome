@@ -585,6 +585,7 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
 #elif defined(USE_LIBRETINY)
   WiFi.macAddress(mac);
 #endif
+//TODO
 }
 std::string get_mac_address() {
   uint8_t mac[6];

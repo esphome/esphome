@@ -14,11 +14,15 @@ from .const import (
 )
 from esphome.const import (
     CONF_VARIANT,
+    CONF_BOARD,
 )
+
+KEY_BOARD = "board"
 
 
 def zephyr_set_core_data(config):
     CORE.data[KEY_ZEPHYR] = {}
+    CORE.data[KEY_ZEPHYR][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF] = {}
     CORE.data[KEY_ZEPHYR][KEY_OVERLAY] = ""
     return config
@@ -66,6 +70,8 @@ def zephyr_to_code(conf):
                 "platformio/toolchain-gccarmnoneeabi@https://github.com/tomaszduda23/toolchain-sdk-ng",
             ],
         )
+        # build is done by west so bypass board checking in platformio
+        cg.add_platformio_option("boards_dir", CORE.relative_build_path("boards"))
     else:
         raise NotImplementedError
     # c++ support
@@ -116,4 +122,23 @@ def zephyr_copy_files():
     write_file_if_changed(
         CORE.relative_build_path("zephyr/app.overlay"),
         CORE.data[KEY_ZEPHYR][KEY_OVERLAY],
+    )
+
+    fake_board_manifest = """
+{
+  "frameworks": [
+    "zephyr"
+  ],
+  "name": "esphome nrf52",
+  "upload": {
+    "maximum_ram_size": 248832,
+    "maximum_size": 815104
+  },
+  "url": "https://esphome.io/",
+  "vendor": "esphome"
+}
+"""
+    write_file_if_changed(
+        CORE.relative_build_path(f"boards/{CORE.data[KEY_ZEPHYR][KEY_BOARD]}.json"),
+        fake_board_manifest,
     )
