@@ -65,7 +65,7 @@ static uint16_t get_meas_time_ms(MeasurementRepeatRate rate) {
   return ALS_MEAS_RATE[rate & 0b111];
 }
 
-static float get_gain_coeff(AlsGain501 gain) { return gain == AlsGain501::GAIN_1 ? 1.0f : 200.0f; }
+static float get_gain_coeff(AlsGain501 gain) { return gain == AlsGain501::GAIN_1 ? 1.0f : 150.0f; }
 
 static float get_ps_gain_coeff(PsGain501 gain) {
   static const float PS_GAIN[4] = {1, 4, 8, 16};
@@ -170,6 +170,7 @@ void LTRAlsPs501Component::loop() {
                  get_gain_coeff(this->als_readings_.actual_gain), get_itime_ms(this->als_readings_.integration_time));
         this->read_sensor_data_(this->als_readings_);
         this->state_ = State::DATA_COLLECTED;
+        this->apply_lux_calculation_(this->als_readings_);
       } else if (tries >= MAX_TRIES) {
         ESP_LOGW(TAG, "Can't get data after several tries.");
         tries = 0;
@@ -194,7 +195,6 @@ void LTRAlsPs501Component::loop() {
         this->set_timeout(2 * get_meas_time_ms(this->repeat_rate_),
                           [this]() { this->state_ = State::WAITING_FOR_DATA; });
       } else {
-        this->apply_lux_calculation_(this->als_readings_);
         this->state_ = State::READY_TO_PUBLISH;
       }
       break;
@@ -441,7 +441,7 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
     }
   }
 
-  if (data.ch0 <= low_intensity_threshold) {
+  if (data.ch0 <= low_intensity_threshold || (data.actual_gain==AlsGain501::GAIN_1 && data.lux < 320)) {
     GainTimePair next_pair = get_next(GAIN_TIME_PAIRS, current_pair);
     if (next_pair != current_pair) {
       data.actual_gain = next_pair.gain;
