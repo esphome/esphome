@@ -182,13 +182,15 @@ void LTRAlsPs501Component::loop() {
 
     case State::COLLECTING_DATA_AUTO:
     case State::DATA_COLLECTED:
+      // skip first sample in auto mode (COLLECTING_DATA_AUTO) -       // we need to reconfigure device after last measurement
+
       if (this->state_ == State::COLLECTING_DATA_AUTO || this->are_adjustments_required_(this->als_readings_)) {
         this->state_ = State::ADJUSTMENT_IN_PROGRESS;
         ESP_LOGD(TAG, "Reconfiguring sensitivity");
         this->configure_integration_time_(this->als_readings_.integration_time);
         this->configure_gain_(this->als_readings_.actual_gain);
         // if sensitivity adjustment needed - need to wait for first data samples after setting new parameters
-        this->set_timeout(1 * get_meas_time_ms(this->repeat_rate_),
+        this->set_timeout(2 * get_meas_time_ms(this->repeat_rate_),
                           [this]() { this->state_ = State::WAITING_FOR_DATA; });
       } else {
         this->apply_lux_calculation_(this->als_readings_);
@@ -353,8 +355,8 @@ DataAvail LTRAlsPs501Component::is_als_data_ready_(AlsReadings &data) {
   als_status.raw = this->reg((uint8_t) CommandRegisters::ALS_PS_STATUS).get();
   if (!als_status.als_new_data)
     return DataAvail::NO_DATA;
-
   ESP_LOGD(TAG, "Data ready, reported gain is %.0f", get_gain_coeff(als_status.gain));
+  data.actual_gain = als_status.gain;
   return DataAvail::DATA_OK;
 }
 
@@ -370,11 +372,6 @@ void LTRAlsPs501Component::read_sensor_data_(AlsReadings &data) {
 }
 
 bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
-  // skip first sample in auto mode -
-  // we need to reconfigure device after last measurement
-  if (this->state_ == State::COLLECTING_DATA_AUTO)
-    return true;
-
   if (!this->automatic_mode_enabled_)
     return false;
 
