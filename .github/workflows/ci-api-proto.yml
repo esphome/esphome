@@ -23,7 +23,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt -r requirements_dev.txt
       - name: Generate files
         run: script/api_protobuf/api_protobuf.py
       - name: Check for changes
