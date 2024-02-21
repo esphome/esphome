@@ -503,7 +503,7 @@ switch:
   - platform: template
     name: open_vent
     id: open_vent
-    optimistic: True
+    optimistic: true
     on_turn_on:
       then:
         - grove_tb6612fng.run:
