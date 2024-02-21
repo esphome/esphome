@@ -161,11 +161,9 @@ void CSE7766Component::parse_data_() {
 
     energy = cf_diff * float(power_coeff) / 1000000.0f / 3600.0f;
     this->energy_total_ += energy;
-    if (this->energy_sensor_ != nullptr)
-      this->energy_sensor_->publish_state(this->energy_total_);
-  } else if ((this->energy_sensor_ != nullptr) && !this->energy_sensor_->has_state()) {
-    this->energy_sensor_->publish_state(0);
   }
+  if (this->energy_sensor_ != nullptr)
+    this->energy_sensor_->publish_state(this->energy_total_);
 
   float current = 0.0f;
   float calculated_current = 0.0f;
