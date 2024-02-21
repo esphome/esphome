@@ -100,7 +100,7 @@ binary_sensor:
     id: modbus_binsensortest
     register_type: read
     address: 0x3200
-    bitmask: 0x80 # (bit 8)
+    bitmask: 0x80  # (bit 8)
     lambda: "return x;"
 
   - platform: tm1638
