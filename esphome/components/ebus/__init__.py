@@ -16,6 +16,9 @@ from esphome.const import (
 # TODO: send identification response when requested
 # TODO: add debug mode that logs all messages on the bus
 # TODO: investigate using UART component, but that does not seem to expose the UART NUM
+# TODO: telegrams are always send to slave right now, primary->primary communication
+#       is possible according to the spec, but haven't found any need for it yet
+
 
 CODEOWNERS = ["@guidoschreuder"]
 

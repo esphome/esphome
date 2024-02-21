@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../ebus_sensor_base.h"
+#include "../ebus_component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
 namespace esphome {

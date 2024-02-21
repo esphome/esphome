@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include "esphome/core/log.h"
 #include "esphome/core/component.h"
@@ -35,6 +36,28 @@ class EbusSender {
   uint8_t address_ = SYN;
 };
 
+class EbusSensorBase : public EbusReceiver, public EbusSender, public Component {
+ public:
+  void dump_config() override;
+
+  void set_send_poll(bool send_poll) { this->send_poll_ = send_poll; }
+  void set_command(uint16_t command) { this->command_ = command; }
+  void set_payload(const std::vector<uint8_t> &payload) { this->payload_ = payload; }
+  void set_response_read_position(uint8_t response_position) { this->response_position_ = response_position; }
+
+  optional<SendCommand> prepare_command() override;
+
+  // TODO: refactor these
+  uint32_t get_response_bytes(Telegram &telegram, uint8_t start, uint8_t length);
+  bool is_mine(Telegram &telegram);
+
+ protected:
+  bool send_poll_;
+  uint16_t command_;
+  std::vector<uint8_t> payload_{};
+  uint8_t response_position_;
+};
+
 class EbusComponent : public PollingComponent {
  public:
   EbusComponent() {}
@@ -53,6 +76,10 @@ class EbusComponent : public PollingComponent {
 
   void add_sender(EbusSender * /*sender*/);
   void add_receiver(EbusReceiver * /*receiver*/);
+  void add_sensor(EbusSensorBase *sensor) {
+    this->add_sender(sensor);
+    this->add_receiver(sensor);
+  };
 
   void update() override;
 

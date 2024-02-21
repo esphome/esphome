@@ -43,5 +43,4 @@ async def to_code(config):
     cg.add(
         sens.set_response_read_divider(config[CONF_TELEGRAM][CONF_DECODE][CONF_DIVIDER])
     )
-    cg.add(ebus.add_receiver(sens))
-    cg.add(ebus.add_sender(sens))
+    cg.add(ebus.add_sensor(sens))
