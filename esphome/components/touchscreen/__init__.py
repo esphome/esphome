@@ -55,7 +55,7 @@ def validate_calibration(config):
             )
             < 10
         ):
-            raise cv.Invalid("Calibration X values difference must be more then 10")
+            raise cv.Invalid("Calibration X values difference must be more than 10")
 
         if (
             cv.int_(calibration_config[CONF_Y_MIN]) != 0
