@@ -128,6 +128,7 @@ void LTRAlsPs501Component::update() {
     this->als_readings_.actual_gain = this->gain_;
     this->als_readings_.integration_time = this->integration_time_;
     this->als_readings_.lux = 0;
+    this->als_readings_.number_of_adjustments = 0;
 
   } else {
     ESP_LOGD(TAG, "Component not ready yet");
@@ -182,8 +183,7 @@ void LTRAlsPs501Component::loop() {
 
     case State::COLLECTING_DATA_AUTO:
     case State::DATA_COLLECTED:
-      // skip first sample in auto mode (COLLECTING_DATA_AUTO) -       // we need to reconfigure device after last measurement
-
+      // first measurement in auto mode (COLLECTING_DATA_AUTO state) require device reconfiguration
       if (this->state_ == State::COLLECTING_DATA_AUTO || this->are_adjustments_required_(this->als_readings_)) {
         this->state_ = State::ADJUSTMENT_IN_PROGRESS;
         ESP_LOGD(TAG, "Reconfiguring sensitivity");
@@ -374,6 +374,13 @@ void LTRAlsPs501Component::read_sensor_data_(AlsReadings &data) {
 bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
   if (!this->automatic_mode_enabled_)
     return false;
+
+  if (data.number_of_adjustments > 10) {
+    // sometimes sensors fail to change sensitivity. this prevents us from infinite loop
+    ESP_LOGW(TAG, "Too many sensitivity adjustments done. Apparently, sensor reconfiguration fails. Stopping.");
+    return false;
+  }
+  data.number_of_adjustments++;
 
   // available combinations of gain and integration times:
   static const GainTimePair GAIN_TIME_PAIRS[] = {
