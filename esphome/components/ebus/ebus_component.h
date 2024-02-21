@@ -26,8 +26,13 @@ class EbusReceiver {
 class EbusSender {
  public:
   EbusSender() {}
-  virtual void set_primary_address(uint8_t) = 0;
+  void set_primary_address(uint8_t primary_address) { this->primary_address_ = primary_address; }
+  void set_address(uint8_t address) { this->address_ = Elf::to_secondary(address); }
   virtual optional<SendCommand> prepare_command() = 0;
+
+ protected:
+  uint8_t primary_address_;
+  uint8_t address_ = SYN;
 };
 
 class EbusComponent : public PollingComponent {
@@ -52,7 +57,7 @@ class EbusComponent : public PollingComponent {
   void update() override;
 
  protected:
-  uint8_t primary_address_ = SYN;
+  uint8_t primary_address_;
   uint8_t max_tries_;
   uint8_t max_lock_counter_;
   uint8_t history_queue_size_;

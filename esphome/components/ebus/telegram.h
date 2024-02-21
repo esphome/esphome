@@ -132,7 +132,7 @@ class Telegram : public TelegramBase {
 class SendCommand : public TelegramBase {
  public:
   SendCommand();
-  SendCommand(uint8_t qq, uint8_t zz, uint8_t pb, uint8_t sb, uint8_t nn, uint8_t *data);
+  SendCommand(uint8_t qq, uint8_t zz, uint16_t command, uint8_t nn, uint8_t *data);
   bool can_retry(int8_t max_tries);
   uint8_t get_crc();
 

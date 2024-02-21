@@ -2,7 +2,7 @@ ebus:
   primary_address: 0x00
   history_queue_size: 32
   command_queue_size: 16
-  poll_interval: "15s"
+  poll_interval: "60s"
   uart:
     num: 1
     tx_pin: 33
@@ -10,28 +10,41 @@ ebus:
 
 sensor:
   - platform: ebus
-    sensors:
-      - name: "Water Pressure"
-        id: zebus_water_pressure
-        telegram:
-          destination: 0x03
-          command: 0xb509
-          payload: [0x0d, 0x02, 0x00]
-          decode:
-            position: 0
-            bytes: 2
-            divider: 1000.0
-        device_class: "pressure"
-        unit_of_measurement: bar
-        state_class: "measurement"
-        accuracy_decimals: 3
-        internal: false
-        filters:
-          - clamp:
-              min_value: 0
-              max_value: 4
-              ignore_out_of_range: true
-          - median:
-              window_size: 5
-              send_every: 3
-              send_first_at: 3
+    name: "Water Pressure"
+    id: zebus_water_pressure
+    telegram:
+      send_poll: true
+      address: 0x03
+      command: 0xb509
+      payload: [0x0d, 0x02, 0x00]
+      decode:
+        position: 0
+        bytes: 2
+        divider: 1000.0
+    device_class: "pressure"
+    unit_of_measurement: bar
+    state_class: "measurement"
+    accuracy_decimals: 3
+    internal: false
+    filters:
+      - clamp:
+          min_value: 0
+          max_value: 4
+          ignore_out_of_range: true
+      - median:
+          window_size: 5
+          send_every: 3
+          send_first_at: 3
+
+binary_sensor:
+  - platform: ebus
+    name: "Thermostat in Quick Veto"
+    id: zebus_in_quick_veto
+    telegram:
+      send_poll: true
+      address: 0x10
+      command: 0xb509
+      payload: [0x0d, 0x16, 0x00]
+      decode:
+        position: 0
+        mask: 0x01
