@@ -22,7 +22,6 @@ display:
 
 touchscreen:
   - platform: ft63x6
-    #update_interval: 500ms
     interrupt_pin: GPIO39
     transform:
       swap_xy: true
