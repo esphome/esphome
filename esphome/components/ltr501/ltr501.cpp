@@ -340,6 +340,14 @@ void LTRAlsPs501Component::configure_gain_(AlsGain501 gain) {
   als_ctrl.gain = gain;
   this->reg((uint8_t) CommandRegisters::ALS_CONTR) = als_ctrl.raw;
   delay(2);
+
+  AlsControlRegister501 read_als_ctrl{0};
+  read_als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CONTR).get();
+  if (read_als_ctrl.gain != gain) {
+    ESP_LOGW(TAG, "Failed to set gain. We will try one more time.");
+    this->reg((uint8_t) CommandRegisters::ALS_CONTR) = als_ctrl.raw;
+    delay(2);
+  }
 }
 
 void LTRAlsPs501Component::configure_integration_time_(IntegrationTime501 time) {
@@ -348,13 +356,21 @@ void LTRAlsPs501Component::configure_integration_time_(IntegrationTime501 time) 
   meas.integration_time = time;
   this->reg((uint8_t) CommandRegisters::MEAS_RATE) = meas.raw;
   delay(2);
+
+  MeasurementRateRegister501 read_meas{0};
+  read_meas.raw = this->reg((uint8_t) CommandRegisters::MEAS_RATE).get();
+  if (read_meas.integration_time != time) {
+    ESP_LOGW(TAG, "Failed to set integration time. We will try one more time.");
+    this->reg((uint8_t) CommandRegisters::MEAS_RATE) = meas.raw;
+    delay(2);
+  }
 }
 
 DataAvail LTRAlsPs501Component::is_als_data_ready_(AlsReadings &data) {
   AlsPsStatusRegister als_status{0};
 
   als_status.raw = this->reg((uint8_t) CommandRegisters::ALS_PS_STATUS).get();
-  ESP_LOGD(TAG,"AlsPsStatusRegister %x", als_status.raw);
+  ESP_LOGD(TAG, "AlsPsStatusRegister %x", als_status.raw);
   if (!als_status.als_new_data)
     return DataAvail::NO_DATA;
   ESP_LOGD(TAG, "Data ready, reported gain is %.0f", get_gain_coeff(als_status.gain));
@@ -403,19 +419,17 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
 
   GainTimePair current_pair = {data.actual_gain, data.integration_time};
 
-
   if (data.actual_gain == AlsGain501::GAIN_200) {
-    //when sensor is saturated it returns CH1 = 0, CH0 = 0
+    // when sensor is saturated it returns CH1 = 0, CH0 = 0
     if (data.ch1 == 1 && data.ch0 == 0) {
       ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 = 1, CH0 = 0, Gain 200x");
-      //fake saturation
+      // fake saturation
       data.ch0 = 0xffff;
     } else if (data.ch1 == 65535 && data.ch0 == 0) {
       ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 = 65535, CH0 = 0, Gain 200x");
-      //fake saturation
+      // fake saturation
       data.ch0 = 0xffff;
     }
-
   }
 
   if (data.ch0 <= LOW_INTENSITY_THRESHOLD) {
