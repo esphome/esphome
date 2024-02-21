@@ -162,7 +162,7 @@ def text_sensor_schema(
         schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
     if device_class is not _UNDEF:
         schema = schema.extend(
-            {cv.Optional(CONF_DEVICE_CLASS, default=device_class): cv.string}
+            {cv.Optional(CONF_DEVICE_CLASS, default=device_class): validate_device_class}
         )
     if entity_category is not _UNDEF:
         schema = schema.extend(
