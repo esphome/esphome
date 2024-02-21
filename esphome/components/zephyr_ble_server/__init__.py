@@ -22,5 +22,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     zephyr_add_prj_conf("BT", True)
     zephyr_add_prj_conf("BT_PERIPHERAL", True)
+    zephyr_add_prj_conf("BT_RX_STACK_SIZE", 1536)
     # zephyr_add_prj_conf("BT_LL_SW_SPLIT", True)
     await cg.register_component(var, config)
