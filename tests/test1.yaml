@@ -380,7 +380,7 @@ ble_client:
       then:
         - ble_client.numeric_comparison_reply:
             id: ble_blah
-            accept: True
+            accept: true
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
 
@@ -2053,7 +2053,7 @@ binary_sensor:
     on_press:
       - fan.cycle_speed:
           id: fan_speed
-          off_speed_cycle: False
+          off_speed_cycle: false
       - logger.log: "Cycle speed clicked"
   - platform: remote_receiver
     name: Raw Remote Receiver Test
@@ -2312,7 +2312,7 @@ output:
     pin:
       pcf8574: pcf8574_hub
       number: 0
-      #allow_other_uses: true
+      # allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -2320,7 +2320,7 @@ output:
     pin:
       pca9554: pca9554_hub
       number: 0
-      #allow_other_uses: true
+      # allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -3411,7 +3411,7 @@ display:
     reset_pin:
       allow_other_uses: true
       number: GPIO23
-    backlight_pin: no
+    backlight_pin: false
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7920
