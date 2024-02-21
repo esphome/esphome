@@ -336,7 +336,7 @@ void FingerprintGrowComponent::aura_led_control(uint8_t state, uint8_t speed, ui
 }
 
 uint8_t FingerprintGrowComponent::send_command_() {
-  delay(100);
+  delay(10);
   this->write((uint8_t) (START_CODE >> 8));
   this->write((uint8_t) (START_CODE & 0xFF));
   this->write(this->address_[0]);
