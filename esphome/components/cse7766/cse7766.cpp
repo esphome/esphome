@@ -40,8 +40,8 @@ void CSE7766Component::loop() {
 float CSE7766Component::get_setup_priority() const { return setup_priority::DATA; }
 
 bool CSE7766Component::check_byte_() {
-  uint8_t index = this->raw_data_index_;
-  uint8_t byte = this->raw_data_[index];
+  const uint8_t index = this->raw_data_index_;
+  const uint8_t byte = this->raw_data_[index];
   if (index == 0) {
     return !((byte != 0x55) && ((byte & 0xF0) != 0xF0) && (byte != 0xAA));
   }
@@ -82,7 +82,7 @@ void CSE7766Component::parse_data_() {
 #endif
 
   // Parse header
-  uint8_t header1 = this->raw_data_[0];
+  const uint8_t header1 = this->raw_data_[0];
 
   if (header1 == 0xAA) {
     ESP_LOGE(TAG, "CSE7766 not calibrated!");
@@ -111,39 +111,35 @@ void CSE7766Component::parse_data_() {
   }
 
   // Parse data frame
-  uint32_t voltage_coeff = this->get_24_bit_uint_(2);
-  uint32_t voltage_cycle = this->get_24_bit_uint_(5);
-  uint32_t current_coeff = this->get_24_bit_uint_(8);
-  uint32_t current_cycle = this->get_24_bit_uint_(11);
-  uint32_t power_coeff = this->get_24_bit_uint_(14);
-  uint32_t power_cycle = this->get_24_bit_uint_(17);
-  uint8_t adj = this->raw_data_[20];
-  uint32_t cf_pulses = (this->raw_data_[21] << 8) + this->raw_data_[22];
+  const uint32_t voltage_coeff = this->get_24_bit_uint_(2);
+  const uint32_t voltage_cycle = this->get_24_bit_uint_(5);
+  const uint32_t current_coeff = this->get_24_bit_uint_(8);
+  const uint32_t current_cycle = this->get_24_bit_uint_(11);
+  const uint32_t power_coeff = this->get_24_bit_uint_(14);
+  const uint32_t power_cycle = this->get_24_bit_uint_(17);
+  const uint8_t adj = this->raw_data_[20];
+  const uint32_t cf_pulses = (this->raw_data_[21] << 8) + this->raw_data_[22];
 
-  bool have_power = adj & 0x10;
-  bool have_current = adj & 0x20;
-  bool have_voltage = adj & 0x40;
+  const bool have_power = adj & (1 << 4);
+  const bool have_current = adj & (1 << 5);
+  const bool have_voltage = adj & (1 << 6);
 
   float voltage = 0.0f;
   if (have_voltage) {
     voltage = voltage_coeff / float(voltage_cycle);
-    if (this->voltage_sensor_ != nullptr) {
-      this->voltage_sensor_->publish_state(voltage);
-    }
+    this->voltage_acc_ += voltage;
+    this->voltage_counts_ += 1;
   }
 
   float power = 0.0f;
   float energy = 0.0f;
   if (power_cycle_exceeds_range) {
     // Datasheet: power cycle exceeding range means active power is 0
-    if (this->power_sensor_ != nullptr) {
-      this->power_sensor_->publish_state(0.0f);
-    }
+    this->power_counts_ += 1;
   } else if (have_power) {
     power = power_coeff / float(power_cycle);
-    if (this->power_sensor_ != nullptr) {
-      this->power_sensor_->publish_state(power);
-    }
+    this->power_acc_ += power;
+    this->power_counts_ += 1;
 
     // Add CF pulses to the total energy only if we have Power coefficient to multiply by
 
@@ -161,10 +157,7 @@ void CSE7766Component::parse_data_() {
 
     energy = cf_diff * float(power_coeff) / 1000000.0f / 3600.0f;
     this->energy_total_ += energy;
-    if (this->energy_sensor_ != nullptr)
-      this->energy_sensor_->publish_state(this->energy_total_);
-  } else if ((this->energy_sensor_ != nullptr) && !this->energy_sensor_->has_state()) {
-    this->energy_sensor_->publish_state(0);
+    this->energy_total_counts_ += 1;
   }
 
   float current = 0.0f;
@@ -178,9 +171,8 @@ void CSE7766Component::parse_data_() {
     if (calculated_current > 0.05f) {
       current = current_coeff / float(current_cycle);
     }
-    if (this->current_sensor_ != nullptr) {
-      this->current_sensor_->publish_state(current);
-    }
+    this->current_acc_ += current;
+    this->current_counts_ += 1;
   }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
@@ -204,6 +196,37 @@ void CSE7766Component::parse_data_() {
 #endif
 }
 
+void CSE7766Component::update() {
+  const auto publish_state = [](const char *name, sensor::Sensor *sensor, float &acc, uint32_t &counts) {
+    if (counts != 0) {
+      const auto avg = acc / counts;
+
+      ESP_LOGV(TAG, "Got %s_acc=%.2f %s_counts=%" PRIu32 " %s=%.1f", name, acc, name, counts, name, avg);
+
+      if (sensor != nullptr) {
+        sensor->publish_state(avg);
+      }
+
+      acc = 0.0f;
+      counts = 0;
+    }
+  };
+
+  publish_state("voltage", this->voltage_sensor_, this->voltage_acc_, this->voltage_counts_);
+  publish_state("current", this->current_sensor_, this->current_acc_, this->current_counts_);
+  publish_state("power", this->power_sensor_, this->power_acc_, this->power_counts_);
+
+  if (this->energy_total_counts_ != 0) {
+    ESP_LOGV(TAG, "Got energy_total=%.2f energy_total_counts=%" PRIu32, this->energy_total_,
+             this->energy_total_counts_);
+
+    if (this->energy_sensor_ != nullptr) {
+      this->energy_sensor_->publish_state(this->energy_total_);
+    }
+    this->energy_total_counts_ = 0;
+  }
+}
+
 uint32_t CSE7766Component::get_24_bit_uint_(uint8_t start_index) {
   return (uint32_t(this->raw_data_[start_index]) << 16) | (uint32_t(this->raw_data_[start_index + 1]) << 8) |
          uint32_t(this->raw_data_[start_index + 2]);
@@ -211,6 +234,7 @@ uint32_t CSE7766Component::get_24_bit_uint_(uint8_t start_index) {
 
 void CSE7766Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CSE7766:");
+  LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
