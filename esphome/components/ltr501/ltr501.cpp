@@ -372,6 +372,9 @@ void LTRAlsPs501Component::read_sensor_data_(AlsReadings &data) {
 bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
   // skip first sample in auto mode -
   // we need to reconfigure device after last measurement
+  if (this->state_ == State::COLLECTING_DATA_AUTO)
+    return true;
+
   if (!this->automatic_mode_enabled_)
     return false;
 
