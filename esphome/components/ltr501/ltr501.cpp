@@ -504,7 +504,7 @@ void LTRAlsPs501Component::apply_lux_calculation_(AlsReadings &data) {
   lux = inv_pfactor * lux / als_gain / als_time;
   data.lux = lux;
 
-  ESP_LOGD(TAG, "Lux calculation: ratio %f, gain %f, int time %f, inv_pfactor %f, lux %d", ratio, als_gain, als_time,
+  ESP_LOGD(TAG, "Lux calculation: ratio %f, gain %f, int time %f, inv_pfactor %f, lux %f", ratio, als_gain, als_time,
            inv_pfactor, lux);
 }
 
