@@ -10,11 +10,10 @@ class EbusSensorBase : public EbusReceiver, public EbusSender, public Component 
  public:
   void dump_config() override;
 
-  void set_send_poll(bool /*send_poll*/);
-  void set_command(uint16_t /*command*/);
-  void set_payload(const std::vector<uint8_t> & /*payload*/);
-
-  void set_response_read_position(uint8_t /*response_position*/);
+  void set_send_poll(bool send_poll) { this->send_poll_ = send_poll; }
+  void set_command(uint16_t command) { this->command_ = command; }
+  void set_payload(const std::vector<uint8_t> &payload) { this->payload_ = payload; }
+  void set_response_read_position(uint8_t response_position) { this->response_position_ = response_position; }
 
   optional<SendCommand> prepare_command() override;
 
