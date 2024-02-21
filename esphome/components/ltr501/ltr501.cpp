@@ -362,6 +362,8 @@ DataAvail LTRAlsPs501Component::is_als_data_ready_(AlsReadings &data) {
 }
 
 void LTRAlsPs501Component::read_sensor_data_(AlsReadings &data) {
+  data.ch1 = 0;
+  data.ch0 = 0;
   uint8_t ch1_0 = this->reg((uint8_t) CommandRegisters::ALS_DATA_CH1_0).get();
   uint8_t ch1_1 = this->reg((uint8_t) CommandRegisters::ALS_DATA_CH1_1).get();
   uint8_t ch0_0 = this->reg((uint8_t) CommandRegisters::ALS_DATA_CH0_0).get();
@@ -404,10 +406,15 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
   if (data.actual_gain == AlsGain501::GAIN_200) {
     //when sensor is saturated it returns CH1 = 0, CH0 = 0
     if (data.ch1 == 1 && data.ch0 == 0) {
-      ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 = 0, CH0 = 0, Gain 200x");
+      ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 = 1, CH0 = 0, Gain 200x");
+      //fake saturation
+      data.ch0 = 0xffff;
+    } else if (data.ch1 == 65535 && data.ch0 == 0) {
+      ESP_LOGD(TAG, "Looks like sensor is saturated (?) CH1 = 65535, CH0 = 0, Gain 200x");
       //fake saturation
       data.ch0 = 0xffff;
     }
+
   }
 
   if (data.ch0 <= LOW_INTENSITY_THRESHOLD) {
