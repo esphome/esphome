@@ -1,6 +1,7 @@
 ---
 name: Synchronise Device Classes from Home Assistant
 
+# yamllint disable-line rule:truthy
 on:
   workflow_dispatch:
   schedule:
