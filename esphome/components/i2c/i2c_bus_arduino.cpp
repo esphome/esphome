@@ -37,7 +37,7 @@ void ArduinoI2CBus::setup() {
 
   this->set_pins_and_clock_();
 
-  initialized_ = true;
+  this->initialized_ = true;
   if (this->scan_) {
     ESP_LOGV(TAG, "Scanning i2c bus for active devices...");
     this->i2c_scan_();
