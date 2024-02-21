@@ -135,6 +135,8 @@ void VoiceAssistant::loop() {
   switch (this->state_) {
     case State::IDLE: {
       if (this->continuous_ && this->desired_state_ == State::IDLE) {
+        this->idle_trigger_->trigger();
+
         this->ring_buffer_->reset();
 #ifdef USE_ESP_ADF
         if (this->use_wake_word_) {
@@ -618,6 +620,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         {
           this->set_state_(State::IDLE, State::IDLE);
         }
+      } else if (this->state_ == State::AWAITING_RESPONSE) {
+        // No TTS start event ("nevermind")
+        this->set_state_(State::IDLE, State::IDLE);
       }
       this->defer([this]() { this->end_trigger_->trigger(); });
       break;
