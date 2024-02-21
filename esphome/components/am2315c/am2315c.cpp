@@ -45,7 +45,7 @@ uint8_t AM2315C::crc8(uint8_t *data, uint8_t len) {
   return crc;
 }
 
-bool AM2315C::reset_register(uint8_t reg) {
+bool AM2315C::reset_register_(uint8_t reg) {
   //  code based on demo code sent by www.aosong.com
   //  no further documentation.
   //  0x1B returned 18, 0, 4
@@ -80,13 +80,13 @@ bool AM2315C::reset_register(uint8_t reg) {
   return true;
 }
 
-bool AM2315C::convert(uint8_t *data, float &humidity, float &temperature) {
+bool AM2315C::convert_(uint8_t *data, float &humidity, float &temperature) {
   uint32_t raw;
   raw = (data[1] << 12) | (data[2] << 4) | (data[3] >> 4);
   humidity = raw * 9.5367431640625e-5;
   raw = ((data[3] & 0x0F) << 16) | (data[4] << 8) | data[5];
   temperature = raw * 1.9073486328125e-4 - 50;
-  return this->crc8(data, 6) == data[6];
+  return this->crc8_(data, 6) == data[6];
 }
 
 void AM2315C::setup() {
@@ -105,15 +105,15 @@ void AM2315C::setup() {
   // never needed to be reset when tested
   if ((status & 0x18) != 0x18) {
     ESP_LOGD(TAG, "Reset AM2315C registers");
-    if (!this->reset_register(0x1B)) {
+    if (!this->reset_register_(0x1B)) {
       this->mark_failed();
       return;
     }
-    if (!this->reset_register(0x1C)) {
+    if (!this->reset_register_(0x1C)) {
       this->mark_failed();
       return;
     }
-    if (!this->reset_register(0x1E)) {
+    if (!this->reset_register_(0x1E)) {
       this->mark_failed();
       return;
     }
@@ -158,8 +158,8 @@ void AM2315C::update() {
 
     // check for all zeros
     bool zeros = true;
-    for (int i = 0; i < 7; i++) {
-      zeros = zeros && (data[i] == 0);
+    for (unsigned char i : data) {
+      zeros = zeros && (i == 0);
     }
     if (zeros) {
       ESP_LOGW(TAG, "Data all zeros!");
@@ -170,7 +170,7 @@ void AM2315C::update() {
     // convert
     float temperature = 0.0;
     float humidity = 0.0;
-    if (this->convert(data, humidity, temperature)) {
+    if (this->convert_(data, humidity, temperature)) {
       if (this->temperature_sensor_ != nullptr) {
         this->temperature_sensor_->publish_state(temperature);
       }
