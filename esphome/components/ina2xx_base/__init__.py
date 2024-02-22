@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_ENERGY,
     CONF_MAX_CURRENT,
+    CONF_NAME,
     CONF_POWER,
     CONF_SHUNT_RESISTANCE,
     CONF_SHUNT_VOLTAGE,
@@ -80,59 +81,86 @@ INA2XX_SCHEMA = cv.Schema(
         cv.Optional(CONF_TEMPERATURE_COEFFICIENT, default=0): cv.int_range(
             min=0, max=16383
         ),
-        cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_MILLIVOLT,
-            accuracy_decimals=5,
-            device_class=DEVICE_CLASS_VOLTAGE,
-            state_class=STATE_CLASS_MEASUREMENT,
+        cv.Optional(CONF_SHUNT_VOLTAGE): cv.maybe_simple_value(
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_MILLIVOLT,
+                accuracy_decimals=5,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            key=CONF_NAME,
         ),
-        cv.Optional(CONF_BUS_VOLTAGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT,
-            accuracy_decimals=5,
-            device_class=DEVICE_CLASS_VOLTAGE,
-            state_class=STATE_CLASS_MEASUREMENT,
+        cv.Optional(CONF_BUS_VOLTAGE): cv.maybe_simple_value(
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=5,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            key=CONF_NAME,
         ),
-        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=5,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
+        cv.Optional(CONF_TEMPERATURE): cv.maybe_simple_value(
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=5,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            key=CONF_NAME,
         ),
-        cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-            unit_of_measurement=UNIT_AMPERE,
-            accuracy_decimals=8,
-            device_class=DEVICE_CLASS_CURRENT,
-            state_class=STATE_CLASS_MEASUREMENT,
+        cv.Optional(CONF_CURRENT): cv.maybe_simple_value(
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_AMPERE,
+                accuracy_decimals=8,
+                device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            key=CONF_NAME,
         ),
-        cv.Optional(CONF_POWER): sensor.sensor_schema(
-            unit_of_measurement=UNIT_WATT,
-            accuracy_decimals=6,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+        cv.Optional(CONF_POWER): cv.maybe_simple_value(
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_WATT,
+                accuracy_decimals=6,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            key=CONF_NAME,
         ),
-        cv.Optional(CONF_ENERGY): sensor.sensor_schema(
-            unit_of_measurement=UNIT_WATT_HOURS,
-            accuracy_decimals=8,
-            device_class=DEVICE_CLASS_ENERGY,
-            state_class=STATE_CLASS_MEASUREMENT,
+        cv.Optional(CONF_ENERGY): cv.maybe_simple_value(
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_WATT_HOURS,
+                accuracy_decimals=8,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            key=CONF_NAME,
         ),
-        cv.Optional(CONF_ENERGY_JOULES): sensor.sensor_schema(
-            unit_of_measurement=UNIT_JOULE,
-            accuracy_decimals=8,
-            device_class=DEVICE_CLASS_ENERGY,
-            state_class=STATE_CLASS_MEASUREMENT,
+        cv.Optional(CONF_ENERGY_JOULES): cv.maybe_simple_value(
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_JOULE,
+                accuracy_decimals=8,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            key=CONF_NAME,
         ),
-        cv.Optional(CONF_CHARGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_AMPERE_HOURS,
-            accuracy_decimals=8,
-            device_class=DEVICE_CLASS_ENERGY,
-            state_class=STATE_CLASS_MEASUREMENT,
+        cv.Optional(CONF_CHARGE): cv.maybe_simple_value(
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_AMPERE_HOURS,
+                accuracy_decimals=8,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            key=CONF_NAME,
         ),
-        cv.Optional(CONF_CHARGE_COULOMBS): sensor.sensor_schema(
-            unit_of_measurement=UNIT_COULOMB,
-            accuracy_decimals=8,
-            device_class=DEVICE_CLASS_ENERGY,
-            state_class=STATE_CLASS_MEASUREMENT,
+        cv.Optional(CONF_CHARGE_COULOMBS): cv.maybe_simple_value(
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_COULOMB,
+                accuracy_decimals=8,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            key=CONF_NAME,
         ),
     }
 ).extend(cv.polling_component_schema("60s"))
