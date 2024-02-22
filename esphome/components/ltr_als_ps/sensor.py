@@ -3,12 +3,13 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import i2c, sensor
 from esphome.const import (
-    CONF_ID,
     CONF_ACTUAL_GAIN,
     CONF_AUTO_MODE,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
+    CONF_ID,
     CONF_INTEGRATION_TIME,
+    CONF_NAME,
     CONF_REPEAT,
     CONF_TRIGGER_ID,
     CONF_TYPE,
@@ -156,45 +157,63 @@ CONFIG_SCHEMA = cv.All(
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LTRPsLowTrigger),
                 }
             ),
-            cv.Optional(CONF_AMBIENT_LIGHT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_LUX,
-                icon=ICON_BRIGHTNESS_6,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+            cv.Optional(CONF_AMBIENT_LIGHT): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_LUX,
+                    icon=ICON_BRIGHTNESS_6,
+                    accuracy_decimals=1,
+                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
             ),
-            cv.Optional(CONF_INFRARED_COUNTS): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS,
-                icon=ICON_BRIGHTNESS_5,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+            cv.Optional(CONF_INFRARED_COUNTS): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_COUNTS,
+                    icon=ICON_BRIGHTNESS_5,
+                    accuracy_decimals=0,
+                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
             ),
-            cv.Optional(CONF_FULL_SPECTRUM_COUNTS): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS,
-                icon=ICON_BRIGHTNESS_7,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+            cv.Optional(CONF_FULL_SPECTRUM_COUNTS): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_COUNTS,
+                    icon=ICON_BRIGHTNESS_7,
+                    accuracy_decimals=0,
+                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
             ),
-            cv.Optional(CONF_PS_COUNTS): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS,
-                icon=ICON_PROXIMITY,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_DISTANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+            cv.Optional(CONF_PS_COUNTS): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_COUNTS,
+                    icon=ICON_PROXIMITY,
+                    accuracy_decimals=0,
+                    device_class=DEVICE_CLASS_DISTANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
             ),
-            cv.Optional(CONF_ACTUAL_GAIN): sensor.sensor_schema(
-                icon=ICON_GAIN,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+            cv.Optional(CONF_ACTUAL_GAIN): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    icon=ICON_GAIN,
+                    accuracy_decimals=0,
+                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
             ),
-            cv.Optional(CONF_ACTUAL_INTEGRATION_TIME): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MILLISECOND,
-                icon=ICON_TIMER,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+            cv.Optional(CONF_ACTUAL_INTEGRATION_TIME): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_MILLISECOND,
+                    icon=ICON_TIMER,
+                    accuracy_decimals=0,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
             ),
         }
     )
