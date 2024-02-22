@@ -123,7 +123,7 @@ void LTRAlsPs501Component::update() {
     return;
   }
   if (this->is_ready() && this->is_als_() && this->state_ == State::IDLE) {
-    ESP_LOGD(TAG, "Update. Initiating new ALS data collection.");
+    ESP_LOGV(TAG, "Update. Initiating new ALS data collection.");
 
     this->state_ = this->automatic_mode_enabled_ ? State::COLLECTING_DATA_AUTO : State::WAITING_FOR_DATA;
 
@@ -135,7 +135,7 @@ void LTRAlsPs501Component::update() {
     this->als_readings_.number_of_adjustments = 0;
 
   } else {
-    ESP_LOGD(TAG, "Update. Component not ready yet.");
+    ESP_LOGV(TAG, "Update. Component not ready yet.");
   }
 }
 
@@ -171,7 +171,7 @@ void LTRAlsPs501Component::loop() {
     case State::WAITING_FOR_DATA:
       if (this->is_als_data_ready_(this->als_readings_) == DataAvail::DATA_OK) {
         tries = 0;
-        ESP_LOGD(TAG, "Reading sensor data assuming gain = %.0fx, time = %d ms",
+        ESP_LOGV(TAG, "Reading sensor data assuming gain = %.0fx, time = %d ms",
                  get_gain_coeff(this->als_readings_.gain), get_itime_ms(this->als_readings_.integration_time));
         this->read_sensor_data_(this->als_readings_);
         this->apply_lux_calculation_(this->als_readings_);
@@ -275,7 +275,7 @@ bool LTRAlsPs501Component::check_part_number_() {
 }
 
 void LTRAlsPs501Component::configure_reset_() {
-  ESP_LOGD(TAG, "Resetting");
+  ESP_LOGV(TAG, "Resetting");
 
   AlsControlRegister501 als_ctrl{0};
   als_ctrl.sw_reset = true;
@@ -284,7 +284,7 @@ void LTRAlsPs501Component::configure_reset_() {
 
   uint8_t tries = MAX_TRIES;
   do {
-    ESP_LOGD(TAG, "Waiting chip to reset");
+    ESP_LOGV(TAG, "Waiting chip to reset");
     delay(2);
     als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CONTR).get();
   } while (als_ctrl.sw_reset && tries--);  // while sw reset bit is on - keep waiting
@@ -300,13 +300,13 @@ void LTRAlsPs501Component::configure_als_() {
   als_ctrl.als_mode_active = true;
   als_ctrl.gain = this->gain_;
 
-  ESP_LOGD(TAG, "Setting active mode and gain reg 0x%02X", als_ctrl.raw);
+  ESP_LOGV(TAG, "Setting active mode and gain reg 0x%02X", als_ctrl.raw);
   this->reg((uint8_t) CommandRegisters::ALS_CONTR) = als_ctrl.raw;
   delay(5);
 
   uint8_t tries = MAX_TRIES;
   do {
-    ESP_LOGD(TAG, "Waiting for ALS device to become active...");
+    ESP_LOGV(TAG, "Waiting for ALS device to become active...");
     delay(2);
     als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CONTR).get();
   } while (!als_ctrl.als_mode_active && tries--);  // while active mode is not set - keep waiting
@@ -379,7 +379,7 @@ DataAvail LTRAlsPs501Component::is_als_data_ready_(AlsReadings &data) {
   als_status.raw = this->reg((uint8_t) CommandRegisters::ALS_PS_STATUS).get();
   if (!als_status.als_new_data)
     return DataAvail::NO_DATA;
-  ESP_LOGD(TAG, "Data ready, reported gain is %.0fx", get_gain_coeff(als_status.gain));
+  ESP_LOGV(TAG, "Data ready, reported gain is %.0fx", get_gain_coeff(als_status.gain));
   if (data.gain != als_status.gain) {
     ESP_LOGW(TAG, "Actual gain differs from requested (%.0f)", get_gain_coeff(data.gain));
     return DataAvail::BAD_DATA;
@@ -411,7 +411,7 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
     return false;
   }
 
-  ESP_LOGD(TAG, "Adjusting sensitivity, run #%d", data.number_of_adjustments);
+  ESP_LOGV(TAG, "Adjusting sensitivity, run #%d", data.number_of_adjustments);
 
   // available combinations of gain and integration times:
   static const GainTimePair GAIN_TIME_PAIRS[] = {
@@ -430,15 +430,15 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
     // when sensor is saturated it returns various crazy numbers
     // CH1 = 1, CH0 = 0
     if (data.ch1 == 1 && data.ch0 == 0) {
-      ESP_LOGD(TAG, "Looks like sensor got saturated (?) CH1 = 1, CH0 = 0, Gain 150x");
+      ESP_LOGV(TAG, "Looks like sensor got saturated (?) CH1 = 1, CH0 = 0, Gain 150x");
       // fake saturation
       data.ch0 = 0xffff;
       data.ch1 = 0xffff;
     } else if (data.ch1 == 65535 && data.ch0 == 0) {
-      ESP_LOGD(TAG, "Looks like sensor got saturated (?) CH1 = 65535, CH0 = 0, Gain 150x");
+      ESP_LOGV(TAG, "Looks like sensor got saturated (?) CH1 = 65535, CH0 = 0, Gain 150x");
       data.ch0 = 0xffff;
     } else if (data.ch1 > 1000 && data.ch0 == 0) {
-      ESP_LOGD(TAG, "Looks like sensor got saturated (?) CH1 = %d, CH0 = 0, Gain 150x", data.ch1);
+      ESP_LOGV(TAG, "Looks like sensor got saturated (?) CH1 = %d, CH0 = 0, Gain 150x", data.ch1);
       data.ch0 = 0xffff;
     }
   }
@@ -453,7 +453,7 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
     if (next_pair != current_pair) {
       data.gain = next_pair.gain;
       data.integration_time = next_pair.time;
-      ESP_LOGD(TAG, "Low illuminance. Increasing sensitivity.");
+      ESP_LOGV(TAG, "Low illuminance. Increasing sensitivity.");
       return true;
     }
 
@@ -462,7 +462,7 @@ bool LTRAlsPs501Component::are_adjustments_required_(AlsReadings &data) {
     if (prev_pair != current_pair) {
       data.gain = prev_pair.gain;
       data.integration_time = prev_pair.time;
-      ESP_LOGD(TAG, "High illuminance. Decreasing sensitivity.");
+      ESP_LOGV(TAG, "High illuminance. Decreasing sensitivity.");
       return true;
     }
   } else {
