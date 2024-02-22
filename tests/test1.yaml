@@ -1431,18 +1431,12 @@ sensor:
     i2c_id: i2c_bus
   - platform: veml7700
     address: 0x10
-    ambient_light:
-      name: Ambient light
-    ambient_light_counts:
-      name: Ambient light counts
-    full_spectrum:
-      name: Full spectrum
-    full_spectrum_counts:
-      name: Full spectrum counts
-    actual_integration_time:
-      name: Actual integration time
-    actual_gain:
-      name: Actual gain
+    ambient_light: Ambient light
+    ambient_light_counts: Ambient light counts
+    full_spectrum: Full spectrum
+    full_spectrum_counts: Full spectrum counts
+    actual_integration_time: Actual integration time
+    actual_gain: Actual gain
     i2c_id: i2c_bus
   - platform: veml3235
     id: veml3235_sensor
