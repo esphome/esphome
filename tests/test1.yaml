@@ -263,14 +263,6 @@ uart:
     rx_pin: GPIO10
     parity: EVEN
     baud_rate: 9600
-  - id: uponor_uart
-    baud_rate: 19200
-    tx_pin:
-      allow_other_uses: true
-      number: 17
-    rx_pin:
-      allow_other_uses: true
-      number: 16
 
 ota:
   safe_mode: true
@@ -421,12 +413,6 @@ micronova:
 dfrobot_sen0395:
   - id: mmwave
     uart_id: dfrobot_mmwave_uart
-
-uponor_smatrix:
-  uart_id: uponor_uart
-  address: 0x110B
-  time_id: sntp_time
-  time_device_address: 0xDE13
 
 sensor:
   - platform: xgzp68xx
@@ -1828,14 +1814,6 @@ sensor:
       current: Current
       calibration:
         current_gain: 3189
-  - platform: uponor_smatrix
-    address: 0xDE13
-    humidity:
-      name: Thermostat Humidity Living Room
-    temperature:
-      name: Thermostat Temperature Living Room
-    external_temperature:
-      name: Thermostat Floor Temperature Living Room
 
 psram:
 
@@ -2753,9 +2731,6 @@ climate:
     model: generic
   - platform: zhlt01
     name: ZH/LT-01 Climate
-  - platform: uponor_smatrix
-    address: 0xDE13
-    name: Thermostat Living Room
 
 script:
   - id: climate_custom
