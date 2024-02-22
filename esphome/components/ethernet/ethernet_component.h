@@ -4,9 +4,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/network/ip_address.h"
-#ifdef USE_ETHERNET_SPI
-#include "esphome/components/spi/spi.h"
-#endif
 
 #ifdef USE_ESP32
 
