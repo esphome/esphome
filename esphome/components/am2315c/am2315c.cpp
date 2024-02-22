@@ -101,10 +101,10 @@ void AM2315C::setup() {
   }
 
   // reset registers if required, according to the datasheet
-  // this can be required after power on, although registers
-  // never needed to be reset when tested
+  // this can be required after power on, although this was
+  // never required during testing
   if ((status & 0x18) != 0x18) {
-    ESP_LOGD(TAG, "Reset AM2315C registers");
+    ESP_LOGD(TAG, "Resetting AM2315C registers");
     if (!this->reset_register_(0x1B)) {
       this->mark_failed();
       return;
@@ -186,7 +186,7 @@ void AM2315C::update() {
 }
 
 void AM2315C::dump_config() {
-  ESP_LOGD(TAG, "AM2315C:");
+  ESP_LOGCONFIG(TAG, "AM2315C:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with AM2315C failed!");
