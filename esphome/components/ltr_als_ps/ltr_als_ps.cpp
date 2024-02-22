@@ -107,9 +107,9 @@ void LTRAlsPsComponent::dump_config() {
 }
 
 void LTRAlsPsComponent::update() {
-  ESP_LOGD(TAG, "Updating");
+  ESP_LOGV(TAG, "Updating");
   if (this->is_ready() && this->state_ == State::IDLE) {
-    ESP_LOGD(TAG, "Initiating new data collection");
+    ESP_LOGV(TAG, "Initiating new data collection");
 
     this->state_ = this->automatic_mode_enabled_ ? State::COLLECTING_DATA_AUTO : State::WAITING_FOR_DATA;
 
@@ -121,7 +121,7 @@ void LTRAlsPsComponent::update() {
     this->als_readings_.number_of_adjustments = 0;
 
   } else {
-    ESP_LOGD(TAG, "Component not ready yet");
+    ESP_LOGV(TAG, "Component not ready yet");
   }
 }
 
@@ -133,11 +133,12 @@ void LTRAlsPsComponent::loop() {
     case State::DELAYED_SETUP:
       err = this->write(nullptr, 0);
       if (err != i2c::ERROR_OK) {
-        ESP_LOGD(TAG, "i2c connection failed");
+        ESP_LOGV(TAG, "i2c connection failed");
         this->mark_failed();
       }
-      this->configure_reset_and_activate_();
+      this->configure_reset_();
       if (this->is_als_()) {
+        this->configure_als_();
         this->configure_integration_time_(this->integration_time_);
       }
       if (this->is_ps_()) {
@@ -156,7 +157,7 @@ void LTRAlsPsComponent::loop() {
     case State::WAITING_FOR_DATA:
       if (this->is_als_data_ready_(this->als_readings_) == DataAvail::DATA_OK) {
         tries = 0;
-        ESP_LOGD(TAG, "Reading sensor data having gain = %.0fx, time = %d ms",
+        ESP_LOGV(TAG, "Reading sensor data having gain = %.0fx, time = %d ms",
                  get_gain_coeff(this->als_readings_.actual_gain), get_itime_ms(this->als_readings_.integration_time));
         this->read_sensor_data_(this->als_readings_);
         this->state_ = State::DATA_COLLECTED;
@@ -261,8 +262,8 @@ bool LTRAlsPsComponent::check_part_number_() {
   return true;
 }
 
-void LTRAlsPsComponent::configure_reset_and_activate_() {
-  ESP_LOGD(TAG, "Resetting");
+void LTRAlsPsComponent::configure_reset_() {
+  ESP_LOGV(TAG, "Resetting");
 
   AlsControlRegister als_ctrl{0};
   als_ctrl.sw_reset = true;
@@ -271,7 +272,7 @@ void LTRAlsPsComponent::configure_reset_and_activate_() {
 
   uint8_t tries = MAX_TRIES;
   do {
-    ESP_LOGD(TAG, "Waiting chip to reset");
+    ESP_LOGV(TAG, "Waiting chip to reset");
     delay(2);
     als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CONTR).get();
   } while (als_ctrl.sw_reset && tries--);  // while sw reset bit is on - keep waiting
@@ -279,18 +280,22 @@ void LTRAlsPsComponent::configure_reset_and_activate_() {
   if (als_ctrl.sw_reset) {
     ESP_LOGW(TAG, "Failed to finalize reset procedure");
   }
+}
+
+void LTRAlsPsComponent::configure_als_() {
+  AlsControlRegister als_ctrl{0};
 
   als_ctrl.sw_reset = false;
   als_ctrl.active_mode = true;
   als_ctrl.gain = this->gain_;
 
-  ESP_LOGD(TAG, "Setting active mode and gain reg 0x%02X", als_ctrl.raw);
+  ESP_LOGV(TAG, "Setting active mode and gain reg 0x%02X", als_ctrl.raw);
   this->reg((uint8_t) CommandRegisters::ALS_CONTR) = als_ctrl.raw;
   delay(5);
 
-  tries = MAX_TRIES;
+  uint8_t tries = MAX_TRIES;
   do {
-    ESP_LOGD(TAG, "Waiting for device to become active...");
+    ESP_LOGV(TAG, "Waiting for device to become active...");
     delay(2);
     als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CONTR).get();
   } while (!als_ctrl.active_mode && tries--);  // while active mode is not set - keep waiting
@@ -323,7 +328,7 @@ uint16_t LTRAlsPsComponent::read_ps_data_() {
   ps_high.raw = this->reg((uint8_t) CommandRegisters::PS_DATA_1).get();
 
   uint16_t val = encode_uint16(ps_high.ps_data_high, ps_low);
-  //  ESP_LOGD(TAG, "Got sensor data: PS = %5d, Saturation flag = %d", val, ps_high.ps_saturation_flag);
+  //  ESP_LOGV(TAG, "Got sensor data: PS = %5d, Saturation flag = %d", val, ps_high.ps_saturation_flag);
   if (ps_high.ps_saturation_flag) {
     return 0x7ff;  // full 11 bit range
   }
@@ -373,7 +378,7 @@ DataAvail LTRAlsPsComponent::is_als_data_ready_(AlsReadings &data) {
     ESP_LOGW(TAG, "Data available but not valid");
     return DataAvail::BAD_DATA;
   }
-  ESP_LOGD(TAG, "Data ready, reported gain is %.0f", get_gain_coeff(als_status.gain));
+  ESP_LOGV(TAG, "Data ready, reported gain is %.0f", get_gain_coeff(als_status.gain));
   if (data.actual_gain != als_status.gain) {
     ESP_LOGW(TAG, "Actual gain differs from requested (%.0f)", get_gain_coeff(data.actual_gain));
     return DataAvail::BAD_DATA;
@@ -417,26 +422,26 @@ bool LTRAlsPsComponent::are_adjustments_required_(AlsReadings &data) {
     AlsGain next_gain = get_next(GAINS, data.actual_gain);
     if (next_gain != data.actual_gain) {
       data.actual_gain = next_gain;
-      ESP_LOGD(TAG, "Low illuminance. Increasing gain.");
+      ESP_LOGV(TAG, "Low illuminance. Increasing gain.");
       return true;
     }
     IntegrationTime next_time = get_next(INT_TIMES, data.integration_time);
     if (next_time != data.integration_time) {
       data.integration_time = next_time;
-      ESP_LOGD(TAG, "Low illuminance. Increasing integration time.");
+      ESP_LOGV(TAG, "Low illuminance. Increasing integration time.");
       return true;
     }
   } else if (data.ch0 >= HIGH_INTENSITY_THRESHOLD) {
     AlsGain prev_gain = get_prev(GAINS, data.actual_gain);
     if (prev_gain != data.actual_gain) {
       data.actual_gain = prev_gain;
-      ESP_LOGD(TAG, "High illuminance. Decreasing gain.");
+      ESP_LOGV(TAG, "High illuminance. Decreasing gain.");
       return true;
     }
     IntegrationTime prev_time = get_prev(INT_TIMES, data.integration_time);
     if (prev_time != data.integration_time) {
       data.integration_time = prev_time;
-      ESP_LOGD(TAG, "High illuminance. Decreasing integration time.");
+      ESP_LOGV(TAG, "High illuminance. Decreasing integration time.");
       return true;
     }
   } else {
@@ -481,7 +486,7 @@ void LTRAlsPsComponent::apply_lux_calculation_(AlsReadings &data) {
   lux = inv_pfactor * lux / als_gain / als_time;
   data.lux = lux;
 
-  ESP_LOGD(TAG, "Lux calculation: ratio %.2f, gain %.0f, int time %.1f, inv_pfactor %.3f, lux %.3f", ratio, als_gain,
+  ESP_LOGD(TAG, "Lux calculation: ratio %.3f, gain %.0fx, int time %.1f, inv_pfactor %.3f, lux %.3f", ratio, als_gain,
            als_time, inv_pfactor, lux);
 }
 
