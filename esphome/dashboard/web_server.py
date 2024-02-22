@@ -808,8 +808,16 @@ class EditRequestHandler(BaseHandler):
     @bind_config
     async def get(self, configuration: str | None = None) -> None:
         """Get the content of a file."""
-        loop = asyncio.get_running_loop()
+        if not configuration.endswith((".yaml", ".yml")):
+            self.send_error(404)
+            return
+
         filename = settings.rel_path(configuration)
+        if Path(filename).resolve().parent != settings.absolute_config_dir:
+            self.send_error(404)
+            return
+
+        loop = asyncio.get_running_loop()
         content = await loop.run_in_executor(
             None, self._read_file, filename, configuration
         )
@@ -835,14 +843,20 @@ class EditRequestHandler(BaseHandler):
     @bind_config
     async def post(self, configuration: str | None = None) -> None:
         """Write the content of a file."""
+        if not configuration.endswith((".yaml", ".yml")):
+            self.send_error(404)
+            return
+
+        filename = settings.rel_path(configuration)
+        if Path(filename).resolve().parent != settings.absolute_config_dir:
+            self.send_error(404)
+            return
+
         loop = asyncio.get_running_loop()
-        config_file = settings.rel_path(configuration)
-        await loop.run_in_executor(
-            None, self._write_file, config_file, self.request.body
-        )
+        await loop.run_in_executor(None, self._write_file, filename, self.request.body)
         # Ensure the StorageJSON is updated as well
         await async_run_system_command(
-            [*DASHBOARD_COMMAND, "compile", "--only-generate", config_file]
+            [*DASHBOARD_COMMAND, "compile", "--only-generate", filename]
         )
         self.set_status(200)
 
