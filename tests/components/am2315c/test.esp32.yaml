@@ -1,5 +1,5 @@
 i2c:
-  - id: i2c_bme280
+  - id: i2c_am2315c
     scl: 16
     sda: 17
 
