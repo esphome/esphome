@@ -118,9 +118,12 @@ void LTRAlsPs501Component::dump_config() {
 }
 
 void LTRAlsPs501Component::update() {
-  ESP_LOGD(TAG, "Updating");
-  if (this->is_ready() && this->state_ == State::IDLE) {
-    ESP_LOGD(TAG, "Initiating new data collection");
+  if (!this->is_als_()) {
+    ESP_LOGW(TAG, "Update. ALS data not available. Change configuration to ALS or ALS_PS.");
+    return;
+  }
+  if (this->is_ready() && this->is_als_() && this->state_ == State::IDLE) {
+    ESP_LOGD(TAG, "Update. Initiating new ALS data collection.");
 
     this->state_ = this->automatic_mode_enabled_ ? State::COLLECTING_DATA_AUTO : State::WAITING_FOR_DATA;
 
@@ -132,7 +135,7 @@ void LTRAlsPs501Component::update() {
     this->als_readings_.number_of_adjustments = 0;
 
   } else {
-    ESP_LOGD(TAG, "Component not ready yet");
+    ESP_LOGD(TAG, "Update. Component not ready yet.");
   }
 }
 
@@ -144,11 +147,12 @@ void LTRAlsPs501Component::loop() {
     case State::DELAYED_SETUP:
       err = this->write(nullptr, 0);
       if (err != i2c::ERROR_OK) {
-        ESP_LOGD(TAG, "i2c connection failed");
+        ESP_LOGW(TAG, "i2c connection failed");
         this->mark_failed();
       }
-      this->configure_reset_and_activate_();
+      this->configure_reset_();
       if (this->is_als_()) {
+        this->configure_als_();
         this->configure_integration_time_(this->integration_time_);
       }
       if (this->is_ps_()) {
@@ -270,7 +274,7 @@ bool LTRAlsPs501Component::check_part_number_() {
   return true;
 }
 
-void LTRAlsPs501Component::configure_reset_and_activate_() {
+void LTRAlsPs501Component::configure_reset_() {
   ESP_LOGD(TAG, "Resetting");
 
   AlsControlRegister501 als_ctrl{0};
@@ -288,7 +292,10 @@ void LTRAlsPs501Component::configure_reset_and_activate_() {
   if (als_ctrl.sw_reset) {
     ESP_LOGW(TAG, "Failed to finalize reset procedure");
   }
+}
 
+void LTRAlsPs501Component::configure_als_() {
+  AlsControlRegister501 als_ctrl{0};
   als_ctrl.sw_reset = false;
   als_ctrl.als_mode_active = true;
   als_ctrl.gain = this->gain_;
@@ -297,15 +304,15 @@ void LTRAlsPs501Component::configure_reset_and_activate_() {
   this->reg((uint8_t) CommandRegisters::ALS_CONTR) = als_ctrl.raw;
   delay(5);
 
-  tries = MAX_TRIES;
+  uint8_t tries = MAX_TRIES;
   do {
-    ESP_LOGD(TAG, "Waiting for device to become active...");
+    ESP_LOGD(TAG, "Waiting for ALS device to become active...");
     delay(2);
     als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CONTR).get();
   } while (!als_ctrl.als_mode_active && tries--);  // while active mode is not set - keep waiting
 
   if (!als_ctrl.als_mode_active) {
-    ESP_LOGW(TAG, "Failed to activate device");
+    ESP_LOGW(TAG, "Failed to activate ALS device");
   }
 }
 
