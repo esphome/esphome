@@ -110,7 +110,8 @@ class DashboardImportDiscovery:
         self, zeroconf: Zeroconf, info: AsyncServiceInfo, service_type: str, name: str
     ) -> None:
         """Process a service info."""
-        if await info.async_request(zeroconf, timeout=5):
+        # Timeout in 3s (async_request wants the timeout in millis)
+        if await info.async_request(zeroconf, timeout=3000):
             self._process_service_info(name, info)
 
     def _process_service_info(self, name: str, info: ServiceInfo) -> None:
