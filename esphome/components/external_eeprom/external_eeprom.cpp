@@ -88,7 +88,7 @@ double ExtEepromComponent::read_double(uint32_t memaddr) {
 /// @param buffer_size is the size of the buffer and also the number of bytes to be read
 void ExtEepromComponent::read(uint32_t memaddr, uint8_t *buff, uint16_t buffer_size) {
   ESP_LOGVV(TAG, "Read %d bytes from address %d", buffer_size, memaddr);
-  uint32_t size = buffer_size;
+  uint16_t size = buffer_size;
   uint8_t *p = buff;
   i2c::ErrorCode ret;
   while (size >= 1) {
@@ -203,7 +203,7 @@ void ExtEepromComponent::write_double(uint32_t memaddr, double value) {
 /// @param buffer_size is the size of the buffer and also the number of bytes to be written
 void ExtEepromComponent::write(uint32_t memaddr, uint8_t *data_to_write, uint16_t buffer_size) {
   ESP_LOGVV(TAG, "Write %d bytes to address %d", buffer_size, memaddr);
-  uint32_t size = buffer_size;
+  uint16_t size = buffer_size;
   uint8_t *p = data_to_write;
   // Check to make sure write is inside device range
   if (memaddr + buffer_size >= this->memory_size_bytes_) {
