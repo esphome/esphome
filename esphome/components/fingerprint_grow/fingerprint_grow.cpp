@@ -21,7 +21,7 @@ void FingerprintGrowComponent::update() {
       ESP_LOGV(TAG, "No touch sensing");
       this->waiting_removal_ = false;
       if ((this->enrollment_image_ == 0) &&  // Not in enrolment process
-          (millis() - this->last_transfer_ms_ > this->idle_period_to_sleep_ms_)) {
+          (millis() - this->last_transfer_ms_ > this->idle_period_to_sleep_ms_) && (this->is_sensor_awake_)) {
         this->sensor_sleep_();
       }
       return;
@@ -530,6 +530,7 @@ void FingerprintGrowComponent::sensor_sleep_() {
 
   this->sensor_power_pin_->digital_write(false);
   this->is_sensor_awake_ = false;
+  ESP_LOGD(TAG, "Fingerprint sensor is now in sleep mode.");
 }
 
 void FingerprintGrowComponent::dump_config() {
@@ -545,18 +546,30 @@ void FingerprintGrowComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Idle Period to Sleep: Never");
   }
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Fingerprint Count", this->fingerprint_count_sensor_);
-  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint16_t) this->fingerprint_count_sensor_->get_state());
-  LOG_SENSOR("  ", "Status", this->status_sensor_);
-  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint8_t) this->status_sensor_->get_state());
-  LOG_SENSOR("  ", "Capacity", this->capacity_sensor_);
-  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint16_t) this->capacity_sensor_->get_state());
-  LOG_SENSOR("  ", "Security Level", this->security_level_sensor_);
-  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint8_t) this->security_level_sensor_->get_state());
-  LOG_SENSOR("  ", "Last Finger ID", this->last_finger_id_sensor_);
-  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint32_t) this->last_finger_id_sensor_->get_state());
-  LOG_SENSOR("  ", "Last Confidence", this->last_confidence_sensor_);
-  ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint32_t) this->last_confidence_sensor_->get_state());
+  if (this->fingerprint_count_sensor_) {
+    LOG_SENSOR("  ", "Fingerprint Count", this->fingerprint_count_sensor_);
+    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint16_t) this->fingerprint_count_sensor_->get_state());
+  }
+  if (this->status_sensor_) {
+    LOG_SENSOR("  ", "Status", this->status_sensor_);
+    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint8_t) this->status_sensor_->get_state());
+  }
+  if (this->capacity_sensor_) {
+    LOG_SENSOR("  ", "Capacity", this->capacity_sensor_);
+    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint16_t) this->capacity_sensor_->get_state());
+  }
+  if (this->security_level_sensor_) {
+    LOG_SENSOR("  ", "Security Level", this->security_level_sensor_);
+    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint8_t) this->security_level_sensor_->get_state());
+  }
+  if (this->last_finger_id_sensor_) {
+    LOG_SENSOR("  ", "Last Finger ID", this->last_finger_id_sensor_);
+    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint32_t) this->last_finger_id_sensor_->get_state());
+  }
+  if (this->last_confidence_sensor_) {
+    LOG_SENSOR("  ", "Last Confidence", this->last_confidence_sensor_);
+    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint32_t) this->last_confidence_sensor_->get_state());
+  }
 }
 
 }  // namespace fingerprint_grow
