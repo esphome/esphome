@@ -186,6 +186,7 @@ def preload_core_config(config, result):
         conf = PRELOAD_CONFIG_SCHEMA(config[CONF_ESPHOME])
 
     CORE.name = conf[CONF_NAME]
+    CORE.name_add_mac_suffix = conf[CONF_NAME_ADD_MAC_SUFFIX]
     CORE.friendly_name = conf.get(CONF_FRIENDLY_NAME)
     CORE.data[KEY_CORE] = {}
 

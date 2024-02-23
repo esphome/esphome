@@ -186,6 +186,13 @@ def validate_fingerprint(value):
     return value
 
 
+def get_default_topic_prefix():
+    val = CORE.name
+    if CORE.name_add_mac_suffix is True:
+        val += "-{$MAC}"
+    return val
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -227,7 +234,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
-            cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.publish_topic,
+            cv.Optional(
+                CONF_TOPIC_PREFIX, default=get_default_topic_prefix()
+            ): cv.publish_topic,
             cv.Optional(CONF_LOG_TOPIC): cv.Any(
                 None,
                 MQTT_MESSAGE_BASE.extend(

@@ -27,6 +27,14 @@ namespace mqtt {
 
 static const char *const TAG = "mqtt";
 
+void str_inject_mac(std::string &str) {
+  static auto mac = get_mac_address().substr(6, 6);
+  auto pos = str.find("{$MAC}");
+  if (pos != std::string::npos) {
+    str.replace(pos, 6, mac);
+  }
+}
+
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
   this->credentials_.client_id = App.get_name() + "-" + get_mac_address();
@@ -35,6 +43,17 @@ MQTTClientComponent::MQTTClientComponent() {
 // Connection
 void MQTTClientComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MQTT...");
+
+  if (App.is_name_add_mac_suffix_enabled()) {
+    // try find and replace placeholder "-{$MAC}" with last 3 bytes of MAC address
+    str_inject_mac(this->topic_prefix_);
+    str_inject_mac(this->last_will_.topic);
+    str_inject_mac(this->birth_message_.topic);
+    str_inject_mac(this->shutdown_message_.topic);
+    str_inject_mac(this->log_message_.topic);
+    str_inject_mac(this->availability_.topic);
+  }
+
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
         if (index == 0)

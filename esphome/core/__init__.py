@@ -483,6 +483,8 @@ class EsphomeCore:
         self.ace = False
         # The name of the node
         self.name: Optional[str] = None
+        # Whether to add the MAC address to the name
+        self.name_add_mac_suffix = False
         # The friendly name of the node
         self.friendly_name: Optional[str] = None
         # The area / zone of the node
@@ -530,6 +532,7 @@ class EsphomeCore:
 
         self.dashboard = False
         self.name = None
+        self.name_add_mac_suffix = False
         self.friendly_name = None
         self.area = None
         self.data = {}
