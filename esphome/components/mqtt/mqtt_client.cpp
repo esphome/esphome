@@ -27,12 +27,16 @@ namespace mqtt {
 
 static const char *const TAG = "mqtt";
 
-void str_inject_mac(std::string &str) {
-  static auto mac = get_mac_address().substr(6, 6);
-  auto pos = str.find("{$MAC}");
-  if (pos != std::string::npos) {
-    str.replace(pos, 6, mac);
+static const char *const MAC_PLACEHOLDER = "<mac_address>";
+static const char *const TOPIC_PREFIX_PLACEHOLDER = "<topic_prefix>";
+
+std::string &str_replace(std::string &value, const std::string &placeholder, const std::string &replacement) {
+  size_t start_pos = value.find(placeholder);
+  while (start_pos != std::string::npos) {
+    value.replace(start_pos, placeholder.length(), replacement);
+    start_pos = value.find(placeholder, start_pos + replacement.length());
   }
+  return value;
 }
 
 MQTTClientComponent::MQTTClientComponent() {
@@ -45,14 +49,22 @@ void MQTTClientComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MQTT...");
 
   if (App.is_name_add_mac_suffix_enabled()) {
-    // try find and replace placeholder "-{$MAC}" with last 3 bytes of MAC address
-    str_inject_mac(this->topic_prefix_);
-    str_inject_mac(this->last_will_.topic);
-    str_inject_mac(this->birth_message_.topic);
-    str_inject_mac(this->shutdown_message_.topic);
-    str_inject_mac(this->log_message_.topic);
-    str_inject_mac(this->availability_.topic);
+    auto mac = get_mac_address().substr(6, 6);  // last 3 bytes of MAC
+
+    str_replace(this->topic_prefix_, MAC_PLACEHOLDER, mac);
+    str_replace(this->last_will_.topic, MAC_PLACEHOLDER, mac);
+    str_replace(this->birth_message_.topic, MAC_PLACEHOLDER, mac);
+    str_replace(this->shutdown_message_.topic, MAC_PLACEHOLDER, mac);
+    str_replace(this->log_message_.topic, MAC_PLACEHOLDER, mac);
+    str_replace(this->availability_.topic, MAC_PLACEHOLDER, mac);
   }
+
+  // check for {{topic_prefix}} placeholders should it be used by user
+  str_replace(this->last_will_.topic, TOPIC_PREFIX_PLACEHOLDER, this->topic_prefix_);
+  str_replace(this->birth_message_.topic, TOPIC_PREFIX_PLACEHOLDER, this->topic_prefix_);
+  str_replace(this->shutdown_message_.topic, TOPIC_PREFIX_PLACEHOLDER, this->topic_prefix_);
+  str_replace(this->log_message_.topic, TOPIC_PREFIX_PLACEHOLDER, this->topic_prefix_);
+  str_replace(this->availability_.topic, TOPIC_PREFIX_PLACEHOLDER, this->topic_prefix_);
 
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
@@ -668,10 +680,11 @@ void MQTTClientComponent::add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZ
 MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // MQTTMessageTrigger
-MQTTMessageTrigger::MQTTMessageTrigger(std::string topic) : topic_(std::move(topic)) {}
-void MQTTMessageTrigger::set_qos(uint8_t qos) { this->qos_ = qos; }
+MQTTMessageTrigger::MQTTMessageTrigger(std::string topic, uint8_t qos) : topic_(std::move(topic)), qos_(qos) {}
 void MQTTMessageTrigger::set_payload(const std::string &payload) { this->payload_ = payload; }
 void MQTTMessageTrigger::setup() {
+  // replace <me> with the topic prefix
+  str_replace(this->topic_, TOPIC_PREFIX_PLACEHOLDER, global_mqtt_client->get_topic_prefix());
   global_mqtt_client->subscribe(
       this->topic_,
       [this](const std::string &topic, const std::string &payload) {
@@ -683,12 +696,32 @@ void MQTTMessageTrigger::setup() {
       },
       this->qos_);
 }
+
 void MQTTMessageTrigger::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Message Trigger:");
   ESP_LOGCONFIG(TAG, "  Topic: '%s'", this->topic_.c_str());
   ESP_LOGCONFIG(TAG, "  QoS: %u", this->qos_);
 }
+
 float MQTTMessageTrigger::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
+
+// MQTTJsonMessageTrigger
+MQTTJsonMessageTrigger::MQTTJsonMessageTrigger(std::string topic, uint8_t qos) : topic_(std::move(topic)), qos_(qos) {}
+
+void MQTTJsonMessageTrigger::setup() {
+  // replace <me> with the topic prefix
+  str_replace(this->topic_, TOPIC_PREFIX_PLACEHOLDER, global_mqtt_client->get_topic_prefix());
+  global_mqtt_client->subscribe_json(
+      this->topic_, [this](const std::string &topic, JsonObject root) { this->trigger(root); }, this->qos_);
+}
+
+void MQTTJsonMessageTrigger::dump_config() {
+  ESP_LOGCONFIG(TAG, "MQTT JSON Message Trigger:");
+  ESP_LOGCONFIG(TAG, "  Topic: '%s'", this->topic_.c_str());
+  ESP_LOGCONFIG(TAG, "  QoS: %u", this->qos_);
+}
+
+float MQTTJsonMessageTrigger::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 }  // namespace mqtt
 }  // namespace esphome

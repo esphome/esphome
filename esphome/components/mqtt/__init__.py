@@ -95,7 +95,9 @@ MQTTMessageTrigger = mqtt_ns.class_(
     "MQTTMessageTrigger", automation.Trigger.template(cg.std_string), cg.Component
 )
 MQTTJsonMessageTrigger = mqtt_ns.class_(
-    "MQTTJsonMessageTrigger", automation.Trigger.template(cg.JsonObjectConst)
+    "MQTTJsonMessageTrigger",
+    automation.Trigger.template(cg.JsonObjectConst),
+    cg.Component,
 )
 MQTTConnectTrigger = mqtt_ns.class_("MQTTConnectTrigger", automation.Trigger.template())
 MQTTDisconnectTrigger = mqtt_ns.class_(
@@ -189,7 +191,7 @@ def validate_fingerprint(value):
 def get_default_topic_prefix():
     val = CORE.name
     if CORE.name_add_mac_suffix is True:
-        val += "-{$MAC}"
+        val += "-<mac_address>"
     return val
 
 
@@ -408,8 +410,7 @@ async def to_code(config):
     # end esp-idf
 
     for conf in config.get(CONF_ON_MESSAGE, []):
-        trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC])
-        cg.add(trig.set_qos(conf[CONF_QOS]))
+        trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC], conf[CONF_QOS])
         if CONF_PAYLOAD in conf:
             cg.add(trig.set_payload(conf[CONF_PAYLOAD]))
         await cg.register_component(trig, conf)
@@ -417,6 +418,7 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):
         trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC], conf[CONF_QOS])
+        await cg.register_component(trig, conf)
         await automation.build_automation(trig, [(cg.JsonObjectConst, "x")], conf)
 
     for conf in config.get(CONF_ON_CONNECT, []):
