@@ -733,8 +733,3 @@ adc128s102:
     allow_other_uses: true
     number: GPIO12
 
-external_eeprom:
-  id: ext_eeprom_component_1
-  address: 0x57
-  ee_memory_type: 24XX32
-  i2c_buffer_size: 128

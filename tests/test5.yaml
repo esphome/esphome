@@ -731,8 +731,3 @@ light:
     bit1_high: 100us
     bit1_low: 100us
 
-external_eeprom:
-  id: ext_eeprom_component_1
-  address: 0x57
-  ee_memory_type: 24XX32
-  i2c_buffer_size: 128

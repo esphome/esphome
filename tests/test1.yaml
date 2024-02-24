@@ -4331,9 +4331,3 @@ alarm_control_panel:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));
 
-external_eeprom:
-  id: ext_eeprom_component_1
-  address: 0x57
-  ee_memory_type: 24XX32
-  i2c_buffer_size: 128
-  i2c_id: i2c_bus
