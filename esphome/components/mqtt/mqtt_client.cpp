@@ -467,7 +467,7 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
     ret = this->mqtt_backend_.publish(message);
     delay(0);
   }
-  
+
   if (!logging_topic) {
     if (ret) {
       ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d qos=%d)", message.topic.c_str(), message.payload.c_str(),
