@@ -7,6 +7,7 @@ import threading
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Coroutine
 
 from ..zeroconf import DiscoveredImport
 from .dns import DNSCache
@@ -141,9 +142,11 @@ class ESPHomeDashboard:
                     await task
             await asyncio.sleep(0)
 
-    def async_create_background_task(self, coro: Callable[[], Any]) -> asyncio.Task:
+    def async_create_background_task(
+        self, coro: Coroutine[Any, Any, Any]
+    ) -> asyncio.Task:
         """Create a background task."""
-        task = self.loop.create_task(coro())
+        task = self.loop.create_task(coro)
         task.add_done_callback(self._background_tasks.discard)
         return task
 
