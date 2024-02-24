@@ -732,4 +732,3 @@ adc128s102:
   cs_pin:
     allow_other_uses: true
     number: GPIO12
-
