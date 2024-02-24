@@ -38,7 +38,7 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.helpers import copy_file_if_changed, walk_files
+from esphome.helpers import copy_file_if_changed, get_str_env, walk_files
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -190,16 +190,12 @@ def preload_core_config(config, result):
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
-        if "ESPHOME_BUILD_PATH" in os.environ:
-            build_path_env = os.environ["ESPHOME_BUILD_PATH"]
+        if get_str_env("ESPHOME_BUILD_PATH", None) is not None:
+            conf[CONF_BUILD_PATH] = get_str_env("ESPHOME_BUILD_PATH", None)
         # If the env var is not set, use the default
         else:
-            build_path_env = ".esphome/build"
-        # Always append the name to the build path, it will work for default and for env var
-        build_path_env = os.path.join(build_path_env, CORE.name)
-        build_path_env = os.path.expanduser(build_path_env)
-        conf[CONF_BUILD_PATH] = build_path_env
-    CORE.build_path = CORE.relative_config_path(conf[CONF_BUILD_PATH])
+            conf[CONF_BUILD_PATH] = f"build/{CORE.name}"
+    CORE.build_path = CORE.relative_internal_path(conf[CONF_BUILD_PATH])
 
     has_oldstyle = CONF_PLATFORM in conf
     newstyle_found = [key for key in TARGET_PLATFORMS if key in config]
