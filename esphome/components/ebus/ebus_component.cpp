@@ -197,7 +197,7 @@ optional<SendCommand> EbusSensorBase::prepare_command() {
 
   if (this->send_poll_) {
     command = SendCommand(  //
-        this->parent_->get_primary_address(), this->address_, this->command_, this->payload_.size(), &this->payload_[0]);
+        this->parent_->get_primary_address(), this->address_, this->command_, this->payload_);
   }
   return command;
 }

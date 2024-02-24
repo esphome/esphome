@@ -104,15 +104,15 @@ bool Telegram::is_request_valid() {
 
 SendCommand::SendCommand() { this->state_ = TelegramState::endCompleted; }
 
-SendCommand::SendCommand(uint8_t qq, uint8_t zz, uint16_t command, uint8_t nn, uint8_t *data) {
+SendCommand::SendCommand(uint8_t qq, uint8_t zz, uint16_t command, std::vector<uint8_t> &data) {
   this->state_ = TelegramState::waitForSend;
   this->push_req_data(qq);
   this->push_req_data(zz);
   this->push_req_data(command >> 8);
   this->push_req_data(command & 0xFF);
-  this->push_req_data(nn);
-  for (int i = 0; i < nn; i++) {
-    this->push_req_data(data[i]);
+  this->push_req_data(data.size());
+  for (int i = 0; i < data.size(); i++) {
+    this->push_req_data(data.at(i));
   }
   this->push_req_data(this->request_rolling_crc_);
 }
