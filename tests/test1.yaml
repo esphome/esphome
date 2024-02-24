@@ -380,7 +380,7 @@ ble_client:
       then:
         - ble_client.numeric_comparison_reply:
             id: ble_blah
-            accept: True
+            accept: true
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
 
@@ -1758,6 +1758,62 @@ sensor:
       memory_location: 0x20
       memory_address: 0x7d
       name: Adres sensor
+  - platform: ade7880
+    i2c_id: i2c_bus
+    irq0_pin:
+      number: GPIO13
+      allow_other_uses: true
+    irq1_pin:
+      number: GPIO5
+      allow_other_uses: true
+    reset_pin:
+      number: GPIO16
+      allow_other_uses: true
+    frequency: 60Hz
+    phase_a:
+      name: Channel A
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3116628
+        voltage_gain: -757178
+        power_gain: -1344457
+        phase_angle: 188
+    phase_b:
+      name: Channel B
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3133655
+        voltage_gain: -755235
+        power_gain: -1345638
+        phase_angle: 188
+    phase_c:
+      name: Channel C
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3111158
+        voltage_gain: -743813
+        power_gain: -1351437
+        phase_angle: 180
+    neutral:
+      name: Neutral
+      current: Current
+      calibration:
+        current_gain: 3189
 
 psram:
 
@@ -1997,7 +2053,7 @@ binary_sensor:
     on_press:
       - fan.cycle_speed:
           id: fan_speed
-          off_speed_cycle: False
+          off_speed_cycle: false
       - logger.log: "Cycle speed clicked"
   - platform: remote_receiver
     name: Raw Remote Receiver Test
@@ -2256,7 +2312,7 @@ output:
     pin:
       pcf8574: pcf8574_hub
       number: 0
-      #allow_other_uses: true
+      # allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -2264,7 +2320,7 @@ output:
     pin:
       pca9554: pca9554_hub
       number: 0
-      #allow_other_uses: true
+      # allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -3355,7 +3411,7 @@ display:
     reset_pin:
       allow_other_uses: true
       number: GPIO23
-    backlight_pin: no
+    backlight_pin: false
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7920
