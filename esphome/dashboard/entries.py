@@ -238,7 +238,7 @@ class DashboardEntries:
         return path_to_cache_key
 
     def async_schedule_storage_json_update(self, filename: str) -> None:
-        # Ensure the StorageJSON is updated as well
+        """Schedule a task to update the storage JSON file."""
         self._dashboard.async_create_background_task(
             async_run_system_command(
                 [*DASHBOARD_COMMAND, "compile", "--only-generate", filename]

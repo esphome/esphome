@@ -852,6 +852,7 @@ class EditRequestHandler(BaseHandler):
 
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._write_file, filename, self.request.body)
+        # Ensure the StorageJSON is updated as well
         DASHBOARD.entries.async_schedule_storage_json_update(filename)
         self.set_status(200)
 
