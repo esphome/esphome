@@ -12,8 +12,8 @@ namespace ebus {
 
 class Elf {
  public:
-  static unsigned char crc8_calc(unsigned char data, unsigned char crc_init);
-  static unsigned char crc8_array(unsigned char data[], unsigned int length);
+  static uint8_t crc8_calc(uint8_t data, uint8_t crc_init);
+  static uint8_t crc8_array(uint8_t data[], uint8_t length);
   static bool is_primary(uint8_t address);
   static int is_primary_nibble(uint8_t nibble);
   static uint8_t get_priority_class(uint8_t address);
@@ -36,7 +36,7 @@ class Ebus {
     this->dequeue_command_ = dequeue_command;
   }
 
-  void process_received_char(unsigned char received_byte);
+  void process_received_char(uint8_t received_byte);
   void add_send_response_handler(std::function<std::vector<uint8_t>(Telegram &)> send_response_handler);
 
  protected:

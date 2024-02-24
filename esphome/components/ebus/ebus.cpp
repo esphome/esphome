@@ -44,7 +44,7 @@ void Ebus::uart_send_remaining_request_part_(SendCommand &command) {
   this->uart_send_char_(command.get_crc());
 }
 
-void Ebus::process_received_char(unsigned char received_byte) {
+void Ebus::process_received_char(uint8_t received_byte) {
   // keep track of number of character between last 2 SYN chars
   // this is needed in case of arbitration
   if (received_byte == SYN) {
@@ -257,30 +257,29 @@ void Ebus::handle_response_(Telegram &telegram) {
   uart_send_char_(crc);
 }
 
-unsigned char Elf::crc8_calc(unsigned char data, unsigned char crc_init) {
-  unsigned char crc;
-  unsigned char polynom;
+uint8_t Elf::crc8_calc(uint8_t data, uint8_t crc_init) {
+  uint8_t crc;
+  uint8_t polynom;
 
   crc = crc_init;
   for (int i = 0; i < 8; i++) {
     if (crc & 0x80) {
-      polynom = (unsigned char) 0x9B;
+      polynom = 0x9B;
     } else {
-      polynom = (unsigned char) 0;
+      polynom = 0;
     }
-    crc = (unsigned char) ((crc & ~0x80) << 1);
+    crc = ((crc & ~0x80) << 1);
     if (data & 0x80) {
-      crc = (unsigned char) (crc | 1);
+      crc = (crc | 1);
     }
-    crc = (unsigned char) (crc ^ polynom);
-    data = (unsigned char) (data << 1);
+    crc = (crc ^ polynom);
+    data = (data << 1);
   }
   return (crc);
 }
 
-unsigned char Elf::crc8_array(unsigned char data[], unsigned int length) {
-  unsigned char uc_crc;
-  uc_crc = (unsigned char) 0;
+uint8_t Elf::crc8_array(uint8_t data[], uint8_t length) {
+  uint8_t uc_crc = 0;
   for (int i = 0; i < length; i++) {
     uc_crc = crc8_calc(data[i], uc_crc);
   }
