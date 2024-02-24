@@ -37,10 +37,9 @@ async def to_code(config):
     ebus = await cg.get_variable(config[CONF_EBUS_ID])
     sens = await sensor.new_sensor(config)
 
-    sensor_base_config(sens, config)
+    sensor_base_config(ebus, sens, config)
 
     cg.add(sens.set_response_read_bytes(config[CONF_TELEGRAM][CONF_DECODE][CONF_BYTES]))
     cg.add(
         sens.set_response_read_divider(config[CONF_TELEGRAM][CONF_DECODE][CONF_DIVIDER])
     )
-    cg.add(ebus.add_sensor(sens))

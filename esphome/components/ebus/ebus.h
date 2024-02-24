@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <list>
+#include <vector>
 
 #include "telegram.h"
 
@@ -36,7 +37,7 @@ class Ebus {
   }
 
   void process_received_char(unsigned char received_byte);
-  void add_send_response_handler(const std::function<uint8_t(Telegram &, uint8_t *)> &send_response_handler);
+  void add_send_response_handler(std::function<std::vector<uint8_t>(Telegram &)> send_response_handler);
 
  protected:
   uint8_t primary_address_;
@@ -47,7 +48,7 @@ class Ebus {
   EbusState state_ = EbusState::ARBITRATION;
   Telegram receiving_telegram_;
   SendCommand active_command_;
-  std::list<std::function<uint8_t(Telegram &, uint8_t *)>> send_response_handlers_;
+  std::list<std::function<std::vector<uint8_t>(Telegram &)>> send_response_handlers_;
 
   std::function<void(const char *, int16_t)> uart_send_;
   std::function<void(Telegram &)> queue_received_telegram_;

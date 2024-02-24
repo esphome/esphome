@@ -49,8 +49,6 @@ void EbusComponent::add_sender(EbusSender *sender) {
   if (this->primary_address_ == SYN) {
     return;
   }
-
-  sender->set_primary_address(this->primary_address_);
   this->senders_.push_back(sender);
 }
 void EbusComponent::add_receiver(EbusReceiver *receiver) { this->receivers_.push_back(receiver); }
@@ -59,6 +57,7 @@ void EbusComponent::setup_queues_() {
   this->history_queue_ = xQueueCreate(this->history_queue_size_, sizeof(Telegram));
   this->command_queue_ = xQueueCreate(this->command_queue_size_, sizeof(Telegram));
 }
+
 void EbusComponent::setup_ebus_() {
   this->ebus_ = make_unique<Ebus>();
   this->ebus_->set_primary_address(this->primary_address_);
@@ -75,6 +74,17 @@ void EbusComponent::setup_ebus_() {
     if (x_higher_priority_task_woken) {
       portYIELD_FROM_ISR();
     }
+  });
+
+  this->ebus_->add_send_response_handler([&](Telegram &telegram) {
+    std::vector<uint8_t> reply = {};
+    for (auto const &receiver : this->receivers_) {
+      reply = receiver->reply(telegram);
+      if (reply.size() != 0) {
+        break;
+      }
+    }
+    return reply;
   });
 
   this->ebus_->set_dequeue_command_function([&](void *const command) {
@@ -187,7 +197,7 @@ optional<SendCommand> EbusSensorBase::prepare_command() {
 
   if (this->send_poll_) {
     command = SendCommand(  //
-        this->primary_address_, this->address_, this->command_, this->payload_.size(), &this->payload_[0]);
+        this->parent_->get_primary_address(), this->address_, this->command_, this->payload_.size(), &this->payload_[0]);
   }
   return command;
 }

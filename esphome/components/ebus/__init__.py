@@ -125,7 +125,9 @@ async def to_code(config):
     cg.add(var.set_update_interval(config[CONF_POLL_INTERVAL].total_milliseconds))
 
 
-def sensor_base_config(sensor_base, config):
+def sensor_base_config(ebus, sensor_base, config):
+    cg.add(sensor_base.set_parent(ebus))
+    cg.add(ebus.add_sensor(sensor_base)),
     cg.add(sensor_base.set_send_poll(config[CONF_TELEGRAM][CONF_SEND_POLL]))
     if CONF_ADDRESS in config[CONF_TELEGRAM]:
         cg.add(sensor_base.set_address(config[CONF_TELEGRAM][CONF_ADDRESS]))

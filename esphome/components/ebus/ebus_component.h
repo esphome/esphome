@@ -18,28 +18,28 @@ namespace ebus {
 
 static const char *const TAG = "ebus";
 
+class EbusComponent;
+
 class EbusReceiver {
  public:
-  EbusReceiver() {}
   virtual void process_received(Telegram) = 0;
+  std::vector<uint8_t> reply(Telegram telegram) {
+    std::vector<uint8_t> reply = {0xe3, 'E', 'S', 'P', 'H', 'M', 0x12, 0x34, 0x56, 0x78};
+    return reply;
+  };
 };
 
 class EbusSender {
  public:
-  EbusSender() {}
-  void set_primary_address(uint8_t primary_address) { this->primary_address_ = primary_address; }
-  void set_address(uint8_t address) { this->address_ = Elf::to_secondary(address); }
   virtual optional<SendCommand> prepare_command() = 0;
-
- protected:
-  uint8_t primary_address_;
-  uint8_t address_ = SYN;
 };
 
 class EbusSensorBase : public EbusReceiver, public EbusSender, public Component {
  public:
   void dump_config() override;
 
+  void set_parent(EbusComponent *parent) { this->parent_ = parent; }
+  void set_address(uint8_t address) { this->address_ = Elf::to_secondary(address); }
   void set_send_poll(bool send_poll) { this->send_poll_ = send_poll; }
   void set_command(uint16_t command) { this->command_ = command; }
   void set_payload(const std::vector<uint8_t> &payload) { this->payload_ = payload; }
@@ -52,6 +52,8 @@ class EbusSensorBase : public EbusReceiver, public EbusSender, public Component 
   bool is_mine(Telegram &telegram);
 
  protected:
+  EbusComponent *parent_;
+  uint8_t address_ = SYN;
   bool send_poll_;
   uint16_t command_;
   std::vector<uint8_t> payload_{};
@@ -66,6 +68,7 @@ class EbusComponent : public PollingComponent {
   void setup() override;
 
   void set_primary_address(uint8_t /*primary_address*/);
+  uint8_t get_primary_address() { return this->primary_address_; }
   void set_max_tries(uint8_t /*max_tries*/);
   void set_max_lock_counter(uint8_t /*max_lock_counter*/);
   void set_uart_num(uint8_t /*uart_num*/);

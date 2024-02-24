@@ -217,7 +217,7 @@ void Ebus::process_received_char(unsigned char received_byte) {
   this->handle_response_(this->receiving_telegram_);
 }
 
-void Ebus::add_send_response_handler(const std::function<uint8_t(Telegram &, uint8_t *)> &send_response_handler) {
+void Ebus::add_send_response_handler(std::function<std::vector<uint8_t>(Telegram &)> send_response_handler) {
   send_response_handlers_.push_back(send_response_handler);
 }
 
@@ -232,28 +232,27 @@ void Ebus::handle_response_(Telegram &telegram) {
   }
 
   // response buffer
-  uint8_t buf[RESPONSE_BUFFER_SIZE] = {0};
-  int len = 0;
+  std::vector<uint8_t> reply;
 
   // find response
   for (auto const &handler : send_response_handlers_) {
-    len = handler(telegram, buf);
-    if (len != 0) {
+    reply = handler(telegram);
+    if (reply.size() != 0) {
       break;
     }
   }
 
   // we found no reponse to send
-  if (len == 0) {
+  if (reply.size() == 0 || reply.size() > RESPONSE_BUFFER_SIZE) {
     uart_send_char_(NACK);
     return;
   }
 
   uart_send_char_(ACK);
-  uint8_t crc = Elf::crc8_calc(len, 0);
-  uart_send_char_(len);
-  for (int i = 0; i < len; i++) {
-    crc = uart_send_char_(buf[i], true, true, crc);
+  uint8_t crc = Elf::crc8_calc(reply.size(), 0);
+  uart_send_char_(reply.size());
+  for (int i = 0; i < reply.size(); i++) {
+    crc = uart_send_char_(reply[i], true, true, crc);
   }
   uart_send_char_(crc);
 }
