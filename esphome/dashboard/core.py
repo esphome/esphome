@@ -72,6 +72,7 @@ class ESPHomeDashboard:
         "mdns_status",
         "settings",
         "dns_cache",
+        "_background_tasks",
     )
 
     def __init__(self) -> None:
