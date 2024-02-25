@@ -190,11 +190,8 @@ def preload_core_config(config, result):
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
-        if get_str_env("ESPHOME_BUILD_PATH", None) is not None:
-            conf[CONF_BUILD_PATH] = get_str_env("ESPHOME_BUILD_PATH", None)
-        # If the env var is not set, use the default
-        else:
-            conf[CONF_BUILD_PATH] = f"build/{CORE.name}"
+        build_path = get_str_env("ESPHOME_BUILD_PATH", "build")
+        conf[CONF_BUILD_PATH] = os.path.join(build_path, CORE.name)
     CORE.build_path = CORE.relative_internal_path(conf[CONF_BUILD_PATH])
 
     has_oldstyle = CONF_PLATFORM in conf
