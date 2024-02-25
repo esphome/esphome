@@ -125,16 +125,16 @@ async def to_code(config):
     cg.add(var.set_update_interval(config[CONF_POLL_INTERVAL].total_milliseconds))
 
 
-def sensor_base_config(ebus, sensor_base, config):
-    cg.add(sensor_base.set_parent(ebus))
-    cg.add(ebus.add_sensor(sensor_base)),
-    cg.add(sensor_base.set_send_poll(config[CONF_TELEGRAM][CONF_SEND_POLL]))
+def item_config(ebus, item, config):
+    cg.add(item.set_parent(ebus))
+    cg.add(ebus.add_item(item)),
+    cg.add(item.set_send_poll(config[CONF_TELEGRAM][CONF_SEND_POLL]))
     if CONF_ADDRESS in config[CONF_TELEGRAM]:
-        cg.add(sensor_base.set_address(config[CONF_TELEGRAM][CONF_ADDRESS]))
-    cg.add(sensor_base.set_command(config[CONF_TELEGRAM][CONF_COMMAND]))
-    cg.add(sensor_base.set_payload(config[CONF_TELEGRAM][CONF_PAYLOAD]))
+        cg.add(item.set_address(config[CONF_TELEGRAM][CONF_ADDRESS]))
+    cg.add(item.set_command(config[CONF_TELEGRAM][CONF_COMMAND]))
+    cg.add(item.set_payload(config[CONF_TELEGRAM][CONF_PAYLOAD]))
     cg.add(
-        sensor_base.set_response_read_position(
+        item.set_response_read_position(
             config[CONF_TELEGRAM][CONF_DECODE][CONF_POSITION]
         )
     )

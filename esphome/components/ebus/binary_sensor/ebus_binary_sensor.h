@@ -6,7 +6,7 @@
 namespace esphome {
 namespace ebus {
 
-class EbusBinarySensor : public EbusSensorBase, public binary_sensor::BinarySensor {
+class EbusBinarySensor : public EbusItem, public binary_sensor::BinarySensor {
  public:
   EbusBinarySensor() {}
 

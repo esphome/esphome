@@ -180,7 +180,7 @@ void EbusComponent::update() {
   }
 }
 
-void EbusSensorBase::dump_config() {
+void EbusItem::dump_config() {
   ESP_LOGCONFIG(TAG, "EbusSensor");
   ESP_LOGCONFIG(TAG, "  message:");
   ESP_LOGCONFIG(TAG, "    send_poll: %s", this->send_poll_ ? "true" : "false");
@@ -192,7 +192,7 @@ void EbusSensorBase::dump_config() {
   ESP_LOGCONFIG(TAG, "    command: 0x%04x", this->command_);
 };
 
-optional<SendCommand> EbusSensorBase::prepare_command() {
+optional<SendCommand> EbusItem::prepare_command() {
   optional<SendCommand> command;
 
   if (this->send_poll_) {
@@ -202,7 +202,7 @@ optional<SendCommand> EbusSensorBase::prepare_command() {
   return command;
 }
 
-uint32_t EbusSensorBase::get_response_bytes(Telegram &telegram, uint8_t start, uint8_t length) {
+uint32_t EbusItem::get_response_bytes(Telegram &telegram, uint8_t start, uint8_t length) {
   uint32_t result = 0;
   for (uint8_t i = 0; i < 4 && i < length; i++) {
     result = result | (telegram.get_response_byte(start + i) << (i * 8));
@@ -210,7 +210,7 @@ uint32_t EbusSensorBase::get_response_bytes(Telegram &telegram, uint8_t start, u
   return result;
 }
 
-bool EbusSensorBase::is_mine(Telegram &telegram) {
+bool EbusItem::is_mine(Telegram &telegram) {
   if (this->address_ != SYN && this->address_ != telegram.get_zz()) {
     return false;
   }

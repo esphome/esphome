@@ -12,7 +12,7 @@ from .. import (
     CONF_DECODE,
     ebus_ns,
     create_telegram_schema,
-    sensor_base_config,
+    item_config,
 )
 
 AUTO_LOAD = ["ebus"]
@@ -37,7 +37,7 @@ async def to_code(config):
     ebus = await cg.get_variable(config[CONF_EBUS_ID])
     sens = await sensor.new_sensor(config)
 
-    sensor_base_config(ebus, sens, config)
+    item_config(ebus, sens, config)
 
     cg.add(sens.set_response_read_bytes(config[CONF_TELEGRAM][CONF_DECODE][CONF_BYTES]))
     cg.add(

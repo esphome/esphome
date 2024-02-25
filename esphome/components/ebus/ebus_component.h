@@ -34,7 +34,7 @@ class EbusSender {
   virtual optional<SendCommand> prepare_command() = 0;
 };
 
-class EbusSensorBase : public EbusReceiver, public EbusSender, public Component {
+class EbusItem : public EbusReceiver, public EbusSender, public Component {
  public:
   void dump_config() override;
 
@@ -79,9 +79,9 @@ class EbusComponent : public PollingComponent {
 
   void add_sender(EbusSender * /*sender*/);
   void add_receiver(EbusReceiver * /*receiver*/);
-  void add_sensor(EbusSensorBase *sensor) {
-    this->add_sender(sensor);
-    this->add_receiver(sensor);
+  void add_item(EbusItem *item) {
+    this->add_sender(item);
+    this->add_receiver(item);
   };
 
   void update() override;
