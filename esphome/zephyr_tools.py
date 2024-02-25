@@ -11,6 +11,7 @@ from smpclient import SMPClient
 from smpclient.mcuboot import IMAGE_TLV, ImageInfo, TLVNotFound
 from smpclient.requests.image_management import ImageStatesRead, ImageStatesWrite
 from smpclient.requests.os_management import ResetWrite
+from smp.exceptions import SMPBadStartDelimiter
 
 from smpclient.generics import error, success
 from esphome.espota2 import ProgressBar
@@ -102,9 +103,13 @@ async def smpmgr_upload(config, host, firmware):
 
     _LOGGER.info(f"Connected {host}...")
 
-    image_state = await asyncio.wait_for(
-        smp_client.request(ImageStatesRead()), timeout=SMPClient.MEDIUM_TIMEOUT
-    )
+    try:
+        image_state = await asyncio.wait_for(
+            smp_client.request(ImageStatesRead()), timeout=SMPClient.MEDIUM_TIMEOUT
+        )
+    except SMPBadStartDelimiter as e:
+        _LOGGER.error(f"mcumgr is not supported by device ({e})")
+        return 1
 
     already_uploaded = False
 

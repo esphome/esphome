@@ -17,6 +17,8 @@ from esphome.const import (
     CONF_BOARD,
 )
 
+
+AUTO_LOAD = ["preferences"]
 KEY_BOARD = "board"
 
 
@@ -80,6 +82,9 @@ def zephyr_to_code(conf):
     zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
     zephyr_add_prj_conf("CPLUSPLUS", True)
     zephyr_add_prj_conf("LIB_CPLUSPLUS", True)
+    # preferences
+    zephyr_add_prj_conf("SETTINGS", True)
+    zephyr_add_prj_conf("NVS", True)
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
@@ -93,8 +98,10 @@ def zephyr_to_code(conf):
     zephyr_add_prj_conf("USE_SEGGER_RTT", True)
     zephyr_add_prj_conf("RTT_CONSOLE", True)
     zephyr_add_prj_conf("LOG", True)
+    zephyr_add_prj_conf("LOG_BLOCK_IN_THREAD", True)
+    zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
+    zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
 
-    # zephyr_add_prj_conf("USB_DEVICE_LOG_LEVEL_ERR", True)
     zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
 
 
