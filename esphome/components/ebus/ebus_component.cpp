@@ -45,12 +45,6 @@ void EbusComponent::set_command_queue_size(uint8_t command_queue_size) {
   this->command_queue_size_ = command_queue_size;
 }
 
-void EbusComponent::add_sender(EbusSender *sender) {
-  if (this->primary_address_ == SYN) {
-    return;
-  }
-  this->senders_.push_back(sender);
-}
 void EbusComponent::add_receiver(EbusReceiver *receiver) { this->receivers_.push_back(receiver); }
 
 void EbusComponent::setup_queues_() {
@@ -172,8 +166,8 @@ void EbusComponent::update() {
   if (this->primary_address_ == SYN) {
     return;
   }
-  for (auto const &sender : this->senders_) {
-    optional<SendCommand> command = sender->prepare_command();
+  for (auto const &item : this->items_) {
+    optional<SendCommand> command = item->prepare_command();
     if (command.has_value()) {
       xQueueSendToBack(this->command_queue_, &command.value(), portMAX_DELAY);
     }

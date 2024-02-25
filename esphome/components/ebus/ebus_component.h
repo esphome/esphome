@@ -29,12 +29,7 @@ class EbusReceiver {
   };
 };
 
-class EbusSender {
- public:
-  virtual optional<SendCommand> prepare_command() = 0;
-};
-
-class EbusItem : public EbusReceiver, public EbusSender, public Component {
+class EbusItem : public EbusReceiver, public Component {
  public:
   void dump_config() override;
 
@@ -45,7 +40,7 @@ class EbusItem : public EbusReceiver, public EbusSender, public Component {
   void set_payload(const std::vector<uint8_t> &payload) { this->payload_ = payload; }
   void set_response_read_position(uint8_t response_position) { this->response_position_ = response_position; }
 
-  optional<SendCommand> prepare_command() override;
+  virtual optional<SendCommand> prepare_command();
 
   // TODO: refactor these
   uint32_t get_response_bytes(Telegram &telegram, uint8_t start, uint8_t length);
@@ -77,10 +72,9 @@ class EbusComponent : public PollingComponent {
   void set_history_queue_size(uint8_t /*history_queue_size*/);
   void set_command_queue_size(uint8_t /*command_queue_size*/);
 
-  void add_sender(EbusSender * /*sender*/);
   void add_receiver(EbusReceiver * /*receiver*/);
   void add_item(EbusItem *item) {
-    this->add_sender(item);
+    this->items_.push_back(item);
     this->add_receiver(item);
   };
 
@@ -101,7 +95,7 @@ class EbusComponent : public PollingComponent {
   QueueHandle_t command_queue_;
 #endif
 
-  std::list<EbusSender *> senders_;
+  std::list<EbusItem *> items_;
   std::list<EbusReceiver *> receivers_;
 
   std::unique_ptr<Ebus> ebus_;
