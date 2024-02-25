@@ -17,25 +17,8 @@ class Servo : public Component {
   void loop() override;
   void write(float value);
   void internal_write(float value);
-  void detach() {
-    this->state_ = STATE_DETACHED;
-    this->output_->set_level(0.0f);
-  }
-  void setup() override {
-    float v;
-    if (this->restore_) {
-      this->rtc_ = global_preferences->make_preference<float>(global_servo_id);
-      global_servo_id++;
-      if (this->rtc_.load(&v)) {
-        this->target_value_ = v;
-        this->internal_write(v);
-        this->state_ = STATE_ATTACHED;
-        this->start_millis_ = millis();
-        return;
-      }
-    }
-    this->detach();
-  }
+  void detach();
+  void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   void set_min_level(float min_level) { min_level_ = min_level; }
