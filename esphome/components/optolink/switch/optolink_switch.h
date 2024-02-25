@@ -22,7 +22,7 @@ class OptolinkSwitch : public DatapointComponent, public esphome::switch_::Switc
   void write_state(bool value) override;
 
   const StringRef &get_component_name() override { return get_name(); }
-  void datapoint_value_changed(uint8_t value) override { publish_state(state); };
+  void datapoint_value_changed(uint8_t value) override { publish_state((bool) value); };
 };
 
 }  // namespace optolink
