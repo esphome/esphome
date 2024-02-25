@@ -45,8 +45,6 @@ void EbusComponent::set_command_queue_size(uint8_t command_queue_size) {
   this->command_queue_size_ = command_queue_size;
 }
 
-void EbusComponent::add_receiver(EbusReceiver *receiver) { this->receivers_.push_back(receiver); }
-
 void EbusComponent::setup_queues_() {
   this->history_queue_ = xQueueCreate(this->history_queue_size_, sizeof(Telegram));
   this->command_queue_ = xQueueCreate(this->command_queue_size_, sizeof(Telegram));
@@ -72,8 +70,8 @@ void EbusComponent::setup_ebus_() {
 
   this->ebus_->add_send_response_handler([&](Telegram &telegram) {
     std::vector<uint8_t> reply = {};
-    for (auto const &receiver : this->receivers_) {
-      reply = receiver->reply(telegram);
+    for (auto const &item : this->items_) {
+      reply = item->reply(telegram);
       if (reply.size() != 0) {
         break;
       }
@@ -157,8 +155,8 @@ void EbusComponent::handle_message_(Telegram &telegram) {
     return;
   }
 
-  for (auto const &receiver : this->receivers_) {
-    receiver->process_received(telegram);
+  for (auto const &item : this->items_) {
+    item->process_received(telegram);
   }
 }
 
