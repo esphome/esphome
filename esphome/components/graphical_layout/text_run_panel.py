@@ -1,4 +1,6 @@
 import esphome.codegen as cg
+from esphome.cpp_generator import CallExpression, MockObjClass, MockObj
+from esphome.core import ID
 import esphome.config_validation as cv
 from esphome.components import font, color, sensor, text_sensor, time
 from esphome.components.display import display_ns
@@ -10,6 +12,8 @@ from esphome.const import (
     CONF_TIME_ID,
 )
 
+
+SharedPtr = cg.std_ns.class_("shared_ptr")
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 TextRunPanel = graphical_layout_ns.class_("TextRunPanel")
 TextAlign = display_ns.enum("TextAlign", is_class=True)
@@ -130,6 +134,20 @@ def get_config_schema(base_item_schema, item_type_schema):
     )
 
 
+def build_text_run_base_shared_ptr(
+    id_: ID, type: MockObjClass, *make_shared_args
+) -> MockObj:
+    make_shared = CallExpression(
+        cg.RawExpression("std::make_shared"),
+        cg.TemplateArguments(type),
+        *make_shared_args,
+    )
+    shared_ptr = cg.new_variable(id_, make_shared, SharedPtr.template(type))
+    shared_ptr.op = "->"
+
+    return shared_ptr
+
+
 async def config_to_layout_item(pvariable_builder, item_config, child_item_builder):
     var = await pvariable_builder(item_config)
 
@@ -162,28 +180,42 @@ async def config_to_layout_item(pvariable_builder, item_config, child_item_build
         run_font = await cg.get_variable(run_config[CONF_FONT])
         if run_sensor_config := run_config.get(CONF_SENSOR):
             sens = await cg.get_variable(run_sensor_config)
-            run = cg.new_Pvariable(run_config[CONF_ID], sens, run_font)
+            run = build_text_run_base_shared_ptr(
+                run_config[CONF_ID], SensorTextRun, sens, run_font
+            )
         elif run_text_sensor_config := run_config.get(CONF_TEXT_SENSOR):
             text_sens = await cg.get_variable(run_text_sensor_config)
-            run = cg.new_Pvariable(run_config[CONF_ID], text_sens, run_font)
+            run = build_text_run_base_shared_ptr(
+                run_config[CONF_ID], TextSensorTextRun, text_sens, run_font
+            )
         elif run_time_id_config := run_config.get(CONF_TIME_ID):
             time_sens = await cg.get_variable(run_time_id_config)
             time_format = await cg.templatable(
                 run_config[CONF_TIME_FORMAT], args=[], output_type=cg.std_string
             )
             use_utc_time = run_config[CONF_USE_UTC_TIME]
-            run = cg.new_Pvariable(
-                run_config[CONF_ID], time_sens, time_format, use_utc_time, run_font
+            run = build_text_run_base_shared_ptr(
+                run_config[CONF_ID],
+                TimeTextRun,
+                time_sens,
+                time_format,
+                use_utc_time,
+                run_font,
             )
         elif paragraph_break_config := run_config.get(CONF_PARAGRAPH_BREAK):
-            run = cg.new_Pvariable(
-                run_config[CONF_ID], paragraph_break_config, run_font
+            run = build_text_run_base_shared_ptr(
+                run_config[CONF_ID],
+                ParagraphBreakTextRun,
+                paragraph_break_config,
+                run_font,
             )
         else:
             run_text = await cg.templatable(
                 run_config[CONF_TEXT], args=[], output_type=cg.std_string
             )
-            run = cg.new_Pvariable(run_config[CONF_ID], run_text, run_font)
+            run = build_text_run_base_shared_ptr(
+                run_config[CONF_ID], TextRun, run_text, run_font
+            )
 
         if run_text_formatter_config := run_config.get(CONF_TEXT_FORMATTER):
             run_text_formatter = await cg.process_lambda(

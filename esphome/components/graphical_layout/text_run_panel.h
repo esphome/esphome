@@ -174,7 +174,7 @@ struct RunProperties {
 
 class CalculatedTextRun {
  public:
-  CalculatedTextRun(TextRunBase *run, RunProperties run_properties) {
+  CalculatedTextRun(std::shared_ptr<TextRunBase> run, RunProperties run_properties) {
     this->run = run;
     this->run_properties = run_properties;
   }
@@ -193,7 +193,7 @@ class CalculatedTextRun {
 
   std::string text{};
   display::Rect bounds{};
-  TextRunBase *run{nullptr};
+  std::shared_ptr<TextRunBase> run{};
   int16_t baseline{0};
   RunProperties run_properties{};
 };
@@ -258,7 +258,7 @@ class TextRunPanel : public LayoutItem {
     this->can_wrap_at_character_ = can_wrap_at_character;
   };
 
-  void add_text_run(TextRunBase *text_run) { this->text_runs_.push_back(text_run); };
+  void add_text_run(std::shared_ptr<TextRunBase> text_run) { this->text_runs_.push_back(text_run); };
   void set_text_align(display::TextAlign text_align) { this->text_align_ = text_align; };
   void set_min_width(int min_width) { this->min_width_ = min_width; };
   void set_max_width(int max_width) { this->max_width_ = max_width; };
@@ -274,7 +274,7 @@ class TextRunPanel : public LayoutItem {
   void apply_alignment_to_lines_(std::vector<std::shared_ptr<LineInfo>> &lines, display::TextAlign alignment);
   CharacterProperties get_character_properties_(char character);
 
-  std::vector<TextRunBase *> text_runs_;
+  std::vector<std::shared_ptr<TextRunBase>> text_runs_;
   display::TextAlign text_align_{display::TextAlign::TOP_LEFT};
   int min_width_{0};
   int max_width_{0};

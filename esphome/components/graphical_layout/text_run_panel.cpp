@@ -21,7 +21,7 @@ void TextRunPanel::dump_config(int indent_depth, int additional_level_depth) {
                 LOG_STR_ARG(display::text_align_to_string(this->text_align_)));
   ESP_LOGCONFIG(TAG, "%*sDraw Partial Lines: %s", indent_depth, "", YESNO(this->draw_partial_lines_));
   ESP_LOGCONFIG(TAG, "%*sText Runs: %i", indent_depth, "", this->text_runs_.size());
-  for (TextRunBase *run : this->text_runs_) {
+  for (const auto &run : this->text_runs_) {
     std::string text = run->get_text();
     ESP_LOGCONFIG(TAG, "%*sText: %s", indent_depth + additional_level_depth, "", text.c_str());
   }
@@ -85,7 +85,7 @@ void TextRunPanel::render_internal(display::Display *display, display::Rect boun
 
 std::vector<std::shared_ptr<CalculatedTextRun>> TextRunPanel::split_runs_into_words_() {
   std::vector<std::shared_ptr<CalculatedTextRun>> runs;
-  for (TextRunBase *run : this->text_runs_) {
+  for (const auto &run : this->text_runs_) {
     std::string text = run->get_text();
     CanWrapAtCharacterArguments can_wrap_at_args(this, 0, text, ' ');
 
