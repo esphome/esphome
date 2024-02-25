@@ -175,7 +175,7 @@ struct RunProperties {
 class CalculatedTextRun {
  public:
   CalculatedTextRun(std::shared_ptr<TextRunBase> run, RunProperties run_properties) {
-    this->run = run;
+    this->run = std::move(run);
     this->run_properties = run_properties;
   }
 
@@ -258,7 +258,7 @@ class TextRunPanel : public LayoutItem {
     this->can_wrap_at_character_ = can_wrap_at_character;
   };
 
-  void add_text_run(std::shared_ptr<TextRunBase> text_run) { this->text_runs_.push_back(text_run); };
+  void add_text_run(const std::shared_ptr<TextRunBase> &text_run) { this->text_runs_.push_back(text_run); };
   void set_text_align(display::TextAlign text_align) { this->text_align_ = text_align; };
   void set_min_width(int min_width) { this->min_width_ = min_width; };
   void set_max_width(int max_width) { this->max_width_ = max_width; };
