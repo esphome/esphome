@@ -477,7 +477,6 @@ binary_sensor:
       sx1509: sx1509_hub
       number: 3
 
-
   - platform: touchscreen
     touchscreen_id: lilygo_touchscreen
     id: touch_key1
@@ -490,7 +489,6 @@ binary_sensor:
   - platform: gt911
     id: touch_key_911
     index: 0
-
 
   - platform: gpio
     name: MaxIn Pin 4
@@ -520,7 +518,6 @@ binary_sensor:
       mode:
         input: true
       inverted: false
-
 
 climate:
   - platform: tuya
@@ -590,7 +587,6 @@ cover:
     name: Garage Door
     open_duration: 14s
     close_duration: 14s
-
 
 display:
   - platform: addressable_light
@@ -669,6 +665,40 @@ display:
       number: GPIO23
     model: 2.90inv2
     full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
+    model: 2.70in-b
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
+    model: 2.70in-bv2
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
@@ -851,16 +881,16 @@ esp32_camera:
       allow_other_uses: true
     - number: GPIO35
       allow_other_uses: true
-    - number:  GPIO34
-    - number:  GPIO5
+    - number: GPIO34
+    - number: GPIO5
       allow_other_uses: true
-    - number:  GPIO39
+    - number: GPIO39
       allow_other_uses: true
-    - number:  GPIO18
+    - number: GPIO18
       allow_other_uses: true
-    - number:  GPIO36
+    - number: GPIO36
       allow_other_uses: true
-    - number:  GPIO19
+    - number: GPIO19
       allow_other_uses: true
   vsync_pin:
     allow_other_uses: true
@@ -893,8 +923,8 @@ esp32_camera:
   jpeg_quality: 10
   on_image:
     then:
-    - lambda: |-
-        ESP_LOGD("main", "image len=%d, data=%c", image.length, image.data[0]);
+      - lambda: |-
+          ESP_LOGD("main", "image len=%d, data=%c", image.length, image.data[0]);
 
 esp32_camera_web_server:
   - port: 8080
@@ -970,7 +1000,6 @@ touchscreen:
       number: GPIO3
     display: inkplate_display
 
-
   - platform: ft63x6
     id: ft63_touchscreen
     interrupt_pin:
@@ -978,7 +1007,7 @@ touchscreen:
       number: GPIO39
     reset_pin:
       allow_other_uses: true
-      number:  GPIO5
+      number: GPIO5
     display: inkplate_display
     on_touch:
       - logger.log:
