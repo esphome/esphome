@@ -85,6 +85,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_F7): SENSOR_SCHEMA,
             cv.Optional(CONF_F8): SENSOR_SCHEMA,
             cv.Optional(CONF_NIR): SENSOR_SCHEMA,
+            cv.Optional(CONF_CLEAR): SENSOR_SCHEMA,
             cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS),
             cv.Optional(CONF_ATIME, default=29): cv.int_range(min=0, max=255),
             cv.Optional(CONF_ASTEP, default=599): cv.int_range(min=0, max=65534),
