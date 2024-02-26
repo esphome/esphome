@@ -600,6 +600,7 @@ message ListEntitiesTextSensorResponse {
   string icon = 5;
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
+  string device_class = 8;
 }
 message TextSensorStateResponse {
   option (id) = 27;
