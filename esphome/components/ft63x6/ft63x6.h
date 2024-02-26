@@ -16,6 +16,8 @@ namespace ft63x6 {
 
 using namespace touchscreen;
 
+static const uint8_t FT6X36_DEFAULT_THRESHOLD = 22;
+
 class FT63X6Touchscreen : public Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
@@ -23,6 +25,7 @@ class FT63X6Touchscreen : public Touchscreen, public i2c::I2CDevice {
 
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
+  void set_threshold(uint8_t threshold) { this->threshold_ = threshold; }
 
  protected:
   void hard_reset_();
@@ -30,6 +33,7 @@ class FT63X6Touchscreen : public Touchscreen, public i2c::I2CDevice {
 
   InternalGPIOPin *interrupt_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
+  uint8_t threshold_{FT6X36_DEFAULT_THRESHOLD};
 
   uint8_t read_touch_number_();
 
