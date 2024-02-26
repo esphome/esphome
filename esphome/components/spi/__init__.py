@@ -74,7 +74,8 @@ CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
 
-# RP2040 SPI pin assignments are complicated. Refer to https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
+# RP2040 SPI pin assignments are complicated;
+# refer to GPIO function select table in https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
 
 RP_SPI_PINSETS = [
     {
@@ -85,7 +86,7 @@ RP_SPI_PINSETS = [
     {
         CONF_MISO_PIN: [8, 12, 24, 28, -1],
         CONF_CLK_PIN: [10, 14, 26],
-        CONF_MOSI_PIN: [11, 23, 27, -1],
+        CONF_MOSI_PIN: [11, 15, 27, -1],
     },
 ]
 
