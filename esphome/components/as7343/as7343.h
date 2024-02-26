@@ -94,6 +94,8 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
 
   //  uint16_t read_channel(AS7343AdcChannel channel);
   bool read_channels(uint16_t *data);
+  float calculate_par_v1();
+  float calculate_par_v2();
   // void set_smux_low_channels(bool enable);
   // bool set_smux_command(AS7343SmuxCommand command);
   // void configure_smux_low_channels();

@@ -7,6 +7,34 @@ namespace as7343 {
 
 static const char *const TAG = "as7343";
 
+static constexpr uint8_t NUM_USEFUL_CHANNELS = 13;
+static constexpr uint8_t CHANNEL_IDX[NUM_USEFUL_CHANNELS] = {
+    AS7343_CHANNEL_405_F1, AS7343_CHANNEL_425_F2,  AS7343_CHANNEL_450_FZ,  AS7343_CHANNEL_475_F3, AS7343_CHANNEL_515_F4,
+    AS7343_CHANNEL_555_FY, AS7343_CHANNEL_550_F5,  AS7343_CHANNEL_600_FXL, AS7343_CHANNEL_640_F6, AS7343_CHANNEL_690_F7,
+    AS7343_CHANNEL_745_F8, AS7343_CHANNEL_855_NIR, AS7343_CHANNEL_CLEAR,
+};
+static constexpr float CHANNEL_SENS[NUM_USEFUL_CHANNELS] = {0.19402, 0.26647, 0.35741, 0.41753, 0.52235,
+                                                            0.59633, 0.56242, 0.65645, 0.68882, 0.79980,
+                                                            0.70423, 0.40366, 0.38516};
+static constexpr float CHANNEL_NM[NUM_USEFUL_CHANNELS] = {405, 425, 450, 475, 515, 555, 550,
+                                                          600, 640, 690, 745, 855, 718};
+static constexpr float CHANNEL_NM_WIDTH[NUM_USEFUL_CHANNELS] = {30, 22, 55, 30, 40, 100, 35, 80, 50, 55, 60, 54, 0};
+
+static constexpr float CONST_H = 6.6260695e-34f;
+static constexpr float CONST_C = 299792458;
+// constexpr std::array<float, NUM_USEFUL_CHANNELS> fill_photon_energy() {
+//     std::array<float, NUM_USEFUL_CHANNELS> v{0};
+//     for(int i = 0; i < NUM_USEFUL_CHANNELS; ++i) {
+//         v[i] =  CHANNEL_NM[i]> 0 ? CONST_H * CONST_C / (CHANNEL_NM[i] * 1e9) : 0;
+//     }
+//     return v;
+// }
+
+//  constexpr std::array<float, NUM_USEFUL_CHANNELS> v = fill_photon_energy();
+static constexpr float PHOTON_ENERGIES[NUM_USEFUL_CHANNELS] = {
+    4.9048E-19f,  4.67399E-19f, 4.41432E-19f, 4.18199E-19f, 3.85718E-19f, 3.57918E-19f, 3.61172E-19f,
+    3.31074E-19f, 3.10382E-19f, 2.87891E-19f, 2.66637E-19f, 2.32333E-19f, 2.76664E-19f};
+
 void AS7343Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up AS7343...");
   LOG_I2C_DEVICE(this);
@@ -72,6 +100,20 @@ float AS7343Component::get_setup_priority() const { return setup_priority::DATA;
 
 void AS7343Component::update() {
   this->read_channels(this->channel_readings_);
+
+  {
+    ESP_LOGD(TAG, "nm: %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, ", CHANNEL_NM[0],
+             CHANNEL_NM[1], CHANNEL_NM[2], CHANNEL_NM[3], CHANNEL_NM[4], CHANNEL_NM[5], CHANNEL_NM[6], CHANNEL_NM[7],
+             CHANNEL_NM[8], CHANNEL_NM[9], CHANNEL_NM[10], CHANNEL_NM[11], CHANNEL_NM[12]);
+    ESP_LOGD(TAG, "counts: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, ",
+             this->channel_readings_[CHANNEL_IDX[0]], this->channel_readings_[CHANNEL_IDX[1]],
+             this->channel_readings_[CHANNEL_IDX[2]], this->channel_readings_[CHANNEL_IDX[3]],
+             this->channel_readings_[CHANNEL_IDX[4]], this->channel_readings_[CHANNEL_IDX[5]],
+             this->channel_readings_[CHANNEL_IDX[6]], this->channel_readings_[CHANNEL_IDX[7]],
+             this->channel_readings_[CHANNEL_IDX[8]], this->channel_readings_[CHANNEL_IDX[9]],
+             this->channel_readings_[CHANNEL_IDX[10]], this->channel_readings_[CHANNEL_IDX[11]],
+             this->channel_readings_[CHANNEL_IDX[12]]);
+  }
 
   if (this->f1_ != nullptr) {
     this->f1_->publish_state(this->channel_readings_[AS7343_CHANNEL_405_F1]);
@@ -140,107 +182,39 @@ bool AS7343Component::setup_astep(uint16_t astep) {
   return this->write_byte_16((uint8_t) AS7343Registers::ASTEP_LSB, swap_bytes(astep));
 }
 
+float AS7343Component::calculate_par_v1() {
+  float par = 0;
+  for (uint8_t i = 0; i < NUM_USEFUL_CHANNELS; i++) {
+    par += this->channel_readings_[CHANNEL_IDX[i]] * CHANNEL_SENS[i];
+  }
+  return par;
+}
+
+float AS7343Component::calculate_par_v2() {
+  // static const float CONST_H = 6.6260695e-34f;
+  // static const float CONST_C = 299792458;
+  // static float photon_energy[NUM_USEFUL_CHANNELS];
+  // float max_photon_energy = 0;
+  // for (uint8_t i = 0; i < NUM_USEFUL_CHANNELS; i++) {
+  //   // calculate photon energy
+  //   float energy = CONST_H * CONST_C / (CHANNEL_NM[i] * 1e-9);
+  //   photon_energy[i] = energy;
+  //   if (energy > max_photon_energy) {
+  //     max_photon_energy = energy;
+  //   }
+  // }
+  //  constexpr std::array<float, NUM_USEFUL_CHANNELS> v = fill_photon_energy();
+
+  float par = 0;
+  return par;
+}
+
 bool AS7343Component::read_channels(uint16_t *data) {
   this->enable_spectral_measurement(true);
   this->wait_for_data();
 
   return this->read_bytes_16((uint8_t) AS7343Registers::DATA_O, this->channel_readings_, AS7343_NUM_CHANNELS);
-
-  // this->set_smux_low_channels(true);
-  // this->enable_spectral_measurement(true);
-  // this->wait_for_data();
-  // bool low_success = this->read_bytes_16(AS7343_CH0_DATA_L, data, 6);
-
-  // this->set_smux_low_channels(false);
-  // this->enable_spectral_measurement(true);
-  // this->wait_for_data();
-  // bool high_sucess = this->read_bytes_16(AS7343_CH0_DATA_L, &data[6], 6);
-
-  // return low_success && high_sucess;
 }
-
-// void AS7343Component::set_smux_low_channels(bool enable) {
-//   // this->enable_spectral_measurement(false);
-//   // this->set_smux_command(AS7343_SMUX_CMD_WRITE);
-
-//   // if (enable) {
-//   //   this->configure_smux_low_channels();
-
-//   // } else {
-//   //   this->configure_smux_high_channels();
-//   // }
-//   // this->enable_smux();
-// }
-
-// bool AS7343Component::set_smux_command(AS7343SmuxCommand command) {
-//   // uint8_t data = command << 3;  // Write to bits 4:3 of the register
-//   // return this->write_byte(AS7343_CFG6, data);
-// }
-
-// void AS7343Component::configure_smux_low_channels() {
-//   // SMUX Config for F1,F2,F3,F4,NIR,Clear
-//   // this->write_byte(0x00, 0x30);  // F3 left set to ADC2
-//   // this->write_byte(0x01, 0x01);  // F1 left set to ADC0
-//   // this->write_byte(0x02, 0x00);  // Reserved or disabled
-//   // this->write_byte(0x03, 0x00);  // F8 left disabled
-//   // this->write_byte(0x04, 0x00);  // F6 left disabled
-//   // this->write_byte(0x05, 0x42);  // F4 left connected to ADC3/f2 left connected to ADC1
-//   // this->write_byte(0x06, 0x00);  // F5 left disbled
-//   // this->write_byte(0x07, 0x00);  // F7 left disbled
-//   // this->write_byte(0x08, 0x50);  // CLEAR connected to ADC4
-//   // this->write_byte(0x09, 0x00);  // F5 right disabled
-//   // this->write_byte(0x0A, 0x00);  // F7 right disabled
-//   // this->write_byte(0x0B, 0x00);  // Reserved or disabled
-//   // this->write_byte(0x0C, 0x20);  // F2 right connected to ADC1
-//   // this->write_byte(0x0D, 0x04);  // F4 right connected to ADC3
-//   // this->write_byte(0x0E, 0x00);  // F6/F8 right disabled
-//   // this->write_byte(0x0F, 0x30);  // F3 right connected to AD2
-//   // this->write_byte(0x10, 0x01);  // F1 right connected to AD0
-//   // this->write_byte(0x11, 0x50);  // CLEAR right connected to AD4
-//   // this->write_byte(0x12, 0x00);  // Reserved or disabled
-//   // this->write_byte(0x13, 0x06);  // NIR connected to ADC5
-// }
-
-// void AS7343Component::configure_smux_high_channels() {
-//   // SMUX Config for F5,F6,F7,F8,NIR,Clear
-//   // this->write_byte(0x00, 0x00);  // F3 left disable
-//   // this->write_byte(0x01, 0x00);  // F1 left disable
-//   // this->write_byte(0x02, 0x00);  // reserved/disable
-//   // this->write_byte(0x03, 0x40);  // F8 left connected to ADC3
-//   // this->write_byte(0x04, 0x02);  // F6 left connected to ADC1
-//   // this->write_byte(0x05, 0x00);  // F4/ F2 disabled
-//   // this->write_byte(0x06, 0x10);  // F5 left connected to ADC0
-//   // this->write_byte(0x07, 0x03);  // F7 left connected to ADC2
-//   // this->write_byte(0x08, 0x50);  // CLEAR Connected to ADC4
-//   // this->write_byte(0x09, 0x10);  // F5 right connected to ADC0
-//   // this->write_byte(0x0A, 0x03);  // F7 right connected to ADC2
-//   // this->write_byte(0x0B, 0x00);  // Reserved or disabled
-//   // this->write_byte(0x0C, 0x00);  // F2 right disabled
-//   // this->write_byte(0x0D, 0x00);  // F4 right disabled
-//   // this->write_byte(0x0E, 0x24);  // F8 right connected to ADC2/ F6 right connected to ADC1
-//   // this->write_byte(0x0F, 0x00);  // F3 right disabled
-//   // this->write_byte(0x10, 0x00);  // F1 right disabled
-//   // this->write_byte(0x11, 0x50);  // CLEAR right connected to AD4
-//   // this->write_byte(0x12, 0x00);  // Reserved or disabled
-//   // this->write_byte(0x13, 0x06);  // NIR connected to ADC5
-// }
-
-// bool AS7343Component::enable_smux() {
-//   // this->set_register_bit(AS7343_ENABLE, 4);
-
-//   // uint16_t timeout = 1000;
-//   // for (uint16_t time = 0; time < timeout; time++) {
-//   //   // The SMUXEN bit is cleared once the SMUX operation is finished
-//   //   bool smuxen = this->read_register_bit(AS7343_ENABLE, 4);
-//   //   if (!smuxen) {
-//   //     return true;
-//   //   }
-
-//   //   delay(1);
-//   // }
-
-//   // return false;
-// }
 
 bool AS7343Component::wait_for_data(uint16_t timeout) {
   for (uint16_t time = 0; time < timeout; time++) {
