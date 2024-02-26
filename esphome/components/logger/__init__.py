@@ -128,7 +128,7 @@ def uart_selection(value):
             raise cv.Invalid(f"Arduino framework does not support {value}.")
         variant = get_esp32_variant()
         if CORE.using_esp_idf and variant == VARIANT_ESP32C3 and value == USB_CDC:
-            raise cv.Invalid(f"esp idf variant {variant} does not support {value}.")
+            raise cv.Invalid(f"{value} is not supported for variant {variant} when using ESP-IDF .")
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
