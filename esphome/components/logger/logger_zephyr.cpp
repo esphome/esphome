@@ -1,23 +1,18 @@
-#ifdef USE_NRF52
-#ifdef USE_ARDUINO
-#include <Adafruit_TinyUSB.h>  // for Serial
-#endif
+#ifdef USE_ZEPHYR
+
 #include "logger.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#ifdef USE_ZEPHYR
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/usb/usb_device.h>
-#endif
 
 namespace esphome {
 namespace logger {
 
 static const char *const TAG = "logger";
 
-#ifdef USE_ZEPHYR
 void Logger::loop() {
   if (this->uart_ != UART_SELECTION_USB_CDC || nullptr == uart_dev_) {
     return;
@@ -36,22 +31,9 @@ void Logger::loop() {
   }
   opened = !opened;
 }
-#endif
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
-#ifdef USE_ARDUINO
-    switch (this->uart_) {
-      case UART_SELECTION_UART0:
-        this->hw_serial_ = &Serial1;
-        Serial1.begin(this->baud_rate_);
-        break;
-      case UART_SELECTION_USB_CDC:
-        this->hw_serial_ = &Serial;
-        Serial.begin(this->baud_rate_);
-        break;
-    }
-#elif defined(USE_ZEPHYR)
     static const struct device *uart_dev = nullptr;
     switch (this->uart_) {
       case UART_SELECTION_UART0:
@@ -69,13 +51,11 @@ void Logger::pre_setup() {
     } else {
       uart_dev_ = uart_dev;
     }
-#endif
   }
   global_logger = this;
   ESP_LOGI(TAG, "Log initialized");
 }
 
-#ifdef USE_ZEPHYR
 void HOT Logger::write_msg_(const char *msg) {
 #ifdef CONFIG_PRINTK
   printk("%s\n", msg);
@@ -89,7 +69,6 @@ void HOT Logger::write_msg_(const char *msg) {
   }
   uart_poll_out(uart_dev_, '\n');
 }
-#endif
 
 const char *const UART_SELECTIONS[] = {"UART0", "USB_CDC"};
 
