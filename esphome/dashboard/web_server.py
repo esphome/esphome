@@ -9,11 +9,11 @@ import hashlib
 import json
 import logging
 import os
-import time
 import secrets
 import shutil
 import subprocess
 import threading
+import time
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
@@ -40,6 +40,7 @@ from esphome.storage_json import StorageJSON, ext_storage_path, trash_storage_pa
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
+from .const import DASHBOARD_COMMAND
 from .core import DASHBOARD
 from .entries import EntryState, entry_state_to_bool
 from .util.file import write_file
@@ -284,9 +285,6 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
 
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         raise NotImplementedError
-
-
-DASHBOARD_COMMAND = ["esphome", "--dashboard"]
 
 
 class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
@@ -808,8 +806,16 @@ class EditRequestHandler(BaseHandler):
     @bind_config
     async def get(self, configuration: str | None = None) -> None:
         """Get the content of a file."""
-        loop = asyncio.get_running_loop()
+        if not configuration.endswith((".yaml", ".yml")):
+            self.send_error(404)
+            return
+
         filename = settings.rel_path(configuration)
+        if Path(filename).resolve().parent != settings.absolute_config_dir:
+            self.send_error(404)
+            return
+
+        loop = asyncio.get_running_loop()
         content = await loop.run_in_executor(
             None, self._read_file, filename, configuration
         )
@@ -835,15 +841,19 @@ class EditRequestHandler(BaseHandler):
     @bind_config
     async def post(self, configuration: str | None = None) -> None:
         """Write the content of a file."""
+        if not configuration.endswith((".yaml", ".yml")):
+            self.send_error(404)
+            return
+
+        filename = settings.rel_path(configuration)
+        if Path(filename).resolve().parent != settings.absolute_config_dir:
+            self.send_error(404)
+            return
+
         loop = asyncio.get_running_loop()
-        config_file = settings.rel_path(configuration)
-        await loop.run_in_executor(
-            None, self._write_file, config_file, self.request.body
-        )
+        await loop.run_in_executor(None, self._write_file, filename, self.request.body)
         # Ensure the StorageJSON is updated as well
-        await async_run_system_command(
-            [*DASHBOARD_COMMAND, "compile", "--only-generate", config_file]
-        )
+        DASHBOARD.entries.async_schedule_storage_json_update(filename)
         self.set_status(200)
 
 
