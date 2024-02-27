@@ -140,13 +140,8 @@ void CSE7766Component::parse_data_() {
     uint16_t cf_diff = cf_pulses - this->cf_pulses_last_;
     this->cf_pulses_total_ += cf_diff;
     this->cf_pulses_last_ = cf_pulses;
-    // Calculate CF pulses into total energy only if we have Power coefficient to multiply by
-    if (have_power) {
-      energy = this->cf_pulses_total_ * float(power_coeff) / 1000000.0f / 3600.0f;
-      this->energy_sensor_->publish_state(energy);
-    } else if (!this->energy_sensor_->has_state()) {
-      this->energy_sensor_->publish_state(0);
-    }
+    energy = this->cf_pulses_total_ * float(power_coeff) / 1000000.0f / 3600.0f;
+    this->energy_sensor_->publish_state(energy);
   }
 
   float power = 0.0f;
