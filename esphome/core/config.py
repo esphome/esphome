@@ -38,7 +38,7 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.helpers import copy_file_if_changed, walk_files
+from esphome.helpers import copy_file_if_changed, get_str_env, walk_files
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -190,7 +190,8 @@ def preload_core_config(config, result):
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
-        conf[CONF_BUILD_PATH] = f"build/{CORE.name}"
+        build_path = get_str_env("ESPHOME_BUILD_PATH", "build")
+        conf[CONF_BUILD_PATH] = os.path.join(build_path, CORE.name)
     CORE.build_path = CORE.relative_internal_path(conf[CONF_BUILD_PATH])
 
     has_oldstyle = CONF_PLATFORM in conf

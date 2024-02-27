@@ -30,8 +30,8 @@ class CSE7766Component : public Component, public uart::UARTDevice {
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
   sensor::Sensor *energy_sensor_{nullptr};
-  float energy_total_{0.0f};
-  uint32_t cf_pulses_last_{0};
+  uint32_t cf_pulses_total_{0};
+  uint16_t cf_pulses_last_{0};
 };
 
 }  // namespace cse7766

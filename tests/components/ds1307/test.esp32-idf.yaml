@@ -1,0 +1,9 @@
+i2c:
+  - id: i2c_ds1307
+    scl: 16
+    sda: 17
+
+time:
+  - platform: ds1307
+    id: ds1307_time
+    update_interval: never

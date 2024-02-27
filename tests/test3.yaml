@@ -1035,34 +1035,34 @@ climate:
         target_temperature: 1
         current_temperature: 0.5
     supported_modes:
-    - 'OFF'
-    - HEAT_COOL
-    - COOL
-    - HEAT
-    - DRY
-    - FAN_ONLY
+      - "OFF"
+      - HEAT_COOL
+      - COOL
+      - HEAT
+      - DRY
+      - FAN_ONLY
     supported_swing_modes:
-    - 'OFF'
-    - VERTICAL
-    - HORIZONTAL
-    - BOTH
+      - "OFF"
+      - VERTICAL
+      - HORIZONTAL
+      - BOTH
     supported_presets:
-    - AWAY
-    - BOOST
-    - ECO
-    - SLEEP
+      - AWAY
+      - BOOST
+      - ECO
+      - SLEEP
     on_alarm_start:
       then:
         - logger.log:
             level: DEBUG
-            format: "Alarm activated. Code: %d. Message: \"%s\""
-            args: [ code, message]
+            format: 'Alarm activated. Code: %d. Message: "%s"'
+            args: [code, message]
     on_alarm_end:
       then:
         - logger.log:
             level: DEBUG
-            format: "Alarm deactivated. Code: %d. Message: \"%s\""
-            args: [ code, message]
+            format: 'Alarm deactivated. Code: %d. Message: "%s"'
+            args: [code, message]
 
 sprinkler:
   - id: yard_sprinkler_ctrlr

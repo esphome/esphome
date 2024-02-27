@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import threading
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Coroutine
 
 from ..zeroconf import DiscoveredImport
 from .dns import DNSCache
@@ -71,6 +73,7 @@ class ESPHomeDashboard:
         "mdns_status",
         "settings",
         "dns_cache",
+        "_background_tasks",
     )
 
     def __init__(self) -> None:
@@ -85,6 +88,7 @@ class ESPHomeDashboard:
         self.mdns_status: MDNSStatus | None = None
         self.settings = DashboardSettings()
         self.dns_cache = DNSCache()
+        self._background_tasks: set[asyncio.Task] = set()
 
     async def async_setup(self) -> None:
         """Setup the dashboard."""
@@ -132,7 +136,19 @@ class ESPHomeDashboard:
             if settings.status_use_mqtt:
                 status_thread_mqtt.join()
                 self.mqtt_ping_request.set()
+            for task in self._background_tasks:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
             await asyncio.sleep(0)
+
+    def async_create_background_task(
+        self, coro: Coroutine[Any, Any, Any]
+    ) -> asyncio.Task:
+        """Create a background task."""
+        task = self.loop.create_task(coro)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
 
 
 DASHBOARD = ESPHomeDashboard()

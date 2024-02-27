@@ -19,7 +19,7 @@ SpeedFan = speed_ns.class_("SpeedFan", cg.Component, fan.Fan)
 CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
     {
         cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(SpeedFan),
-        cv.Required(CONF_OUTPUT): cv.use_id(output.FloatOutput),
+        cv.Optional(CONF_OUTPUT): cv.use_id(output.FloatOutput),
         cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_id(output.BinaryOutput),
         cv.Optional(CONF_DIRECTION_OUTPUT): cv.use_id(output.BinaryOutput),
         cv.Optional(CONF_SPEED): cv.invalid(
@@ -32,10 +32,13 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
 
 
 async def to_code(config):
-    output_ = await cg.get_variable(config[CONF_OUTPUT])
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], output_, config[CONF_SPEED_COUNT])
+    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], config[CONF_SPEED_COUNT])
     await cg.register_component(var, config)
     await fan.register_fan(var, config)
+
+    if CONF_OUTPUT in config:
+        output_ = await cg.get_variable(config[CONF_OUTPUT])
+        cg.add(var.set_output(output_))
 
     if CONF_OSCILLATION_OUTPUT in config:
         oscillation_output = await cg.get_variable(config[CONF_OSCILLATION_OUTPUT])

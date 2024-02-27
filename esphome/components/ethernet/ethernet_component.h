@@ -58,7 +58,7 @@ class EthernetComponent : public Component {
   void set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_clock_gpio_t clk_gpio);
   void set_manual_ip(const ManualIP &manual_ip);
 
-  network::IPAddress get_ip_address();
+  network::IPAddresses get_ip_addresses();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
   bool powerdown();
@@ -87,8 +87,8 @@ class EthernetComponent : public Component {
 
   bool started_{false};
   bool connected_{false};
+  bool got_ipv4_address_{false};
 #if LWIP_IPV6
-  bool got_ipv6_{false};
   uint8_t ipv6_count_{0};
 #endif /* LWIP_IPV6 */
   EthernetComponentState state_{EthernetComponentState::STOPPED};

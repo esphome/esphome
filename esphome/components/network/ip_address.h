@@ -135,5 +135,7 @@ struct IPAddress {
   ip_addr_t ip_addr_;
 };
 
+using IPAddresses = std::array<IPAddress, 5>;
+
 }  // namespace network
 }  // namespace esphome

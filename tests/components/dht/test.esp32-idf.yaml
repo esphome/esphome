@@ -1,0 +1,11 @@
+sensor:
+  - platform: dht
+    pin: 4
+    model: AM2302
+    update_interval: 15s
+    temperature:
+      id: dht_temperature
+      name: DHT Temperature
+    humidity:
+      id: dht_humidity
+      name: DHT Humidity

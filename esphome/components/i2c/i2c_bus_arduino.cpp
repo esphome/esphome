@@ -24,7 +24,7 @@ void ArduinoI2CBus::setup() {
   }
   next_bus_num++;
 #elif defined(USE_ESP8266)
-  wire_ = &Wire;  // NOLINT(cppcoreguidelines-prefer-member-initializer)
+  wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)
 #elif defined(USE_RP2040)
   static bool first = true;
   if (first) {
@@ -35,6 +35,16 @@ void ArduinoI2CBus::setup() {
   }
 #endif
 
+  this->set_pins_and_clock_();
+
+  this->initialized_ = true;
+  if (this->scan_) {
+    ESP_LOGV(TAG, "Scanning i2c bus for active devices...");
+    this->i2c_scan_();
+  }
+}
+
+void ArduinoI2CBus::set_pins_and_clock_() {
 #ifdef USE_RP2040
   wire_->setSDA(this->sda_pin_);
   wire_->setSCL(this->scl_pin_);
@@ -43,12 +53,8 @@ void ArduinoI2CBus::setup() {
   wire_->begin(static_cast<int>(sda_pin_), static_cast<int>(scl_pin_));
 #endif
   wire_->setClock(frequency_);
-  initialized_ = true;
-  if (this->scan_) {
-    ESP_LOGV(TAG, "Scanning i2c bus for active devices...");
-    this->i2c_scan_();
-  }
 }
+
 void ArduinoI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C Bus:");
   ESP_LOGCONFIG(TAG, "  SDA Pin: GPIO%u", this->sda_pin_);
@@ -82,6 +88,10 @@ void ArduinoI2CBus::dump_config() {
 }
 
 ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
+#if defined(USE_ESP8266)
+  this->set_pins_and_clock_();  // reconfigure Wire global state in case there are multiple instances
+#endif
+
   // logging is only enabled with vv level, if warnings are shown the caller
   // should log them
   if (!initialized_) {
@@ -120,6 +130,10 @@ ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt)
   return ERROR_OK;
 }
 ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) {
+#if defined(USE_ESP8266)
+  this->set_pins_and_clock_();  // reconfigure Wire global state in case there are multiple instances
+#endif
+
   // logging is only enabled with vv level, if warnings are shown the caller
   // should log them
   if (!initialized_) {
@@ -164,7 +178,7 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
       return ERROR_UNKNOWN;
     case 2:
     case 3:
-      ESP_LOGVV(TAG, "TX failed: not acknowledged");
+      ESP_LOGVV(TAG, "TX failed: not acknowledged: %d", status);
       return ERROR_NOT_ACKNOWLEDGED;
     case 5:
       ESP_LOGVV(TAG, "TX failed: timeout");
