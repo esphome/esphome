@@ -2,7 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_FACTORY_RESET
+
 from esphome.components import uart
 
 CODEOWNERS = ["@niklasweber"]
@@ -28,7 +29,6 @@ CONF_DELAY_AFTER_DETECT = "delay_after_detect"
 CONF_DELAY_AFTER_DISAPPEAR = "delay_after_disappear"
 CONF_DETECTION_SEGMENTS = "detection_segments"
 CONF_OUTPUT_LATENCY = "output_latency"
-CONF_FACTORY_RESET = "factory_reset"
 CONF_SENSITIVITY = "sensitivity"
 
 CONFIG_SCHEMA = cv.All(
