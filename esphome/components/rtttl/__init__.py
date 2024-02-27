@@ -100,8 +100,7 @@ async def to_code(config):
         out = await cg.get_variable(config[CONF_SPEAKER])
         cg.add(var.set_speaker(out))
 
-    if CONF_GAIN in config:
-        cg.add(var.set_gain(config[CONF_GAIN]))
+    cg.add(var.set_gain(config[CONF_GAIN]))
 
     for conf in config.get(CONF_ON_FINISHED_PLAYBACK, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
