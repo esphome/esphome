@@ -1,0 +1,14 @@
+esphome:
+  on_boot:
+    then:
+      - deep_sleep.prevent
+      - delay: 1s
+      - deep_sleep.allow
+
+deep_sleep:
+  run_duration:
+    default: 10s
+    gpio_wakeup_reason: 30s
+  sleep_duration: 50s
+  wakeup_pin: 4
+  wakeup_pin_mode: INVERT_WAKEUP
