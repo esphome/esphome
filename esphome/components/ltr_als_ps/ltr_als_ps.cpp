@@ -115,7 +115,7 @@ void LTRAlsPsComponent::update() {
 
     this->als_readings_.ch0 = 0;
     this->als_readings_.ch1 = 0;
-    this->als_readings_.actual_gain = this->gain_;
+    this->als_readings_.gain = this->gain_;
     this->als_readings_.integration_time = this->integration_time_;
     this->als_readings_.lux = 0;
     this->als_readings_.number_of_adjustments = 0;
@@ -157,8 +157,8 @@ void LTRAlsPsComponent::loop() {
     case State::WAITING_FOR_DATA:
       if (this->is_als_data_ready_(this->als_readings_) == DataAvail::DATA_OK) {
         tries = 0;
-        ESP_LOGV(TAG, "Reading sensor data having gain = %.0fx, time = %d ms",
-                 get_gain_coeff(this->als_readings_.actual_gain), get_itime_ms(this->als_readings_.integration_time));
+        ESP_LOGV(TAG, "Reading sensor data having gain = %.0fx, time = %d ms", get_gain_coeff(this->als_readings_.gain),
+                 get_itime_ms(this->als_readings_.integration_time));
         this->read_sensor_data_(this->als_readings_);
         this->state_ = State::DATA_COLLECTED;
         this->apply_lux_calculation_(this->als_readings_);
@@ -178,12 +178,12 @@ void LTRAlsPsComponent::loop() {
       // first measurement in auto mode (COLLECTING_DATA_AUTO state) require device reconfiguration
       if (this->state_ == State::COLLECTING_DATA_AUTO || this->are_adjustments_required_(this->als_readings_)) {
         this->state_ = State::ADJUSTMENT_IN_PROGRESS;
-        ESP_LOGD(TAG, "Reconfiguring sensitivity: gain = %.0fx, time = %d ms",
-                 get_gain_coeff(this->als_readings_.actual_gain), get_itime_ms(this->als_readings_.integration_time));
+        ESP_LOGD(TAG, "Reconfiguring sensitivity: gain = %.0fx, time = %d ms", get_gain_coeff(this->als_readings_.gain),
+                 get_itime_ms(this->als_readings_.integration_time));
         this->configure_integration_time_(this->als_readings_.integration_time);
-        this->configure_gain_(this->als_readings_.actual_gain);
+        this->configure_gain_(this->als_readings_.gain);
         // if sensitivity adjustment needed - need to wait for first data samples after setting new parameters
-        this->set_timeout(1 * get_meas_time_ms(this->repeat_rate_),
+        this->set_timeout(2 * get_meas_time_ms(this->repeat_rate_),
                           [this]() { this->state_ = State::WAITING_FOR_DATA; });
       } else {
         this->state_ = State::READY_TO_PUBLISH;
@@ -221,12 +221,12 @@ void LTRAlsPsComponent::check_and_trigger_ps_() {
     // Higher values - object is closer to sensor
     if (ps_data > this->ps_threshold_high_ && now - last_high_trigger_time >= this->ps_cooldown_time_s_ * 1000) {
       last_high_trigger_time = now;
-      ESP_LOGD(TAG, "Proximity high threshold triggered. Value = %d, Trigger level = %d", ps_data,
+      ESP_LOGV(TAG, "Proximity high threshold triggered. Value = %d, Trigger level = %d", ps_data,
                this->ps_threshold_high_);
       this->on_ps_high_trigger_callback_.call();
     } else if (ps_data < this->ps_threshold_low_ && now - last_low_trigger_time >= this->ps_cooldown_time_s_ * 1000) {
       last_low_trigger_time = now;
-      ESP_LOGD(TAG, "Proximity low threshold triggered. Value = %d, Trigger level = %d", ps_data,
+      ESP_LOGV(TAG, "Proximity low threshold triggered. Value = %d, Trigger level = %d", ps_data,
                this->ps_threshold_low_);
       this->on_ps_low_trigger_callback_.call();
     }
@@ -379,8 +379,8 @@ DataAvail LTRAlsPsComponent::is_als_data_ready_(AlsReadings &data) {
     return DataAvail::BAD_DATA;
   }
   ESP_LOGV(TAG, "Data ready, reported gain is %.0f", get_gain_coeff(als_status.gain));
-  if (data.actual_gain != als_status.gain) {
-    ESP_LOGW(TAG, "Actual gain differs from requested (%.0f)", get_gain_coeff(data.actual_gain));
+  if (data.gain != als_status.gain) {
+    ESP_LOGW(TAG, "Actual gain differs from requested (%.0f)", get_gain_coeff(data.gain));
     return DataAvail::BAD_DATA;
   }
   return DataAvail::DATA_OK;
@@ -396,7 +396,7 @@ void LTRAlsPsComponent::read_sensor_data_(AlsReadings &data) {
   data.ch1 = encode_uint16(ch1_1, ch1_0);
   data.ch0 = encode_uint16(ch0_1, ch0_0);
 
-  ESP_LOGD(TAG, "Got sensor data: CH1 = %d, CH0 = %d", data.ch1, data.ch0);
+  ESP_LOGV(TAG, "Got sensor data: CH1 = %d, CH0 = %d", data.ch1, data.ch0);
 }
 
 bool LTRAlsPsComponent::are_adjustments_required_(AlsReadings &data) {
@@ -412,16 +412,16 @@ bool LTRAlsPsComponent::are_adjustments_required_(AlsReadings &data) {
 
   // Recommended thresholds as per datasheet
   static const uint16_t LOW_INTENSITY_THRESHOLD = 1000;
-  static const uint16_t HIGH_INTENSITY_THRESHOLD = 20000;
+  static const uint16_t HIGH_INTENSITY_THRESHOLD = 30000;
   static const AlsGain GAINS[GAINS_COUNT] = {GAIN_1, GAIN_2, GAIN_4, GAIN_8, GAIN_48, GAIN_96};
   static const IntegrationTime INT_TIMES[TIMES_COUNT] = {
       INTEGRATION_TIME_50MS,  INTEGRATION_TIME_100MS, INTEGRATION_TIME_150MS, INTEGRATION_TIME_200MS,
       INTEGRATION_TIME_250MS, INTEGRATION_TIME_300MS, INTEGRATION_TIME_350MS, INTEGRATION_TIME_400MS};
 
   if (data.ch0 <= LOW_INTENSITY_THRESHOLD) {
-    AlsGain next_gain = get_next(GAINS, data.actual_gain);
-    if (next_gain != data.actual_gain) {
-      data.actual_gain = next_gain;
+    AlsGain next_gain = get_next(GAINS, data.gain);
+    if (next_gain != data.gain) {
+      data.gain = next_gain;
       ESP_LOGV(TAG, "Low illuminance. Increasing gain.");
       return true;
     }
@@ -432,9 +432,9 @@ bool LTRAlsPsComponent::are_adjustments_required_(AlsReadings &data) {
       return true;
     }
   } else if (data.ch0 >= HIGH_INTENSITY_THRESHOLD) {
-    AlsGain prev_gain = get_prev(GAINS, data.actual_gain);
-    if (prev_gain != data.actual_gain) {
-      data.actual_gain = prev_gain;
+    AlsGain prev_gain = get_prev(GAINS, data.gain);
+    if (prev_gain != data.gain) {
+      data.gain = prev_gain;
       ESP_LOGV(TAG, "High illuminance. Decreasing gain.");
       return true;
     }
@@ -468,7 +468,7 @@ void LTRAlsPsComponent::apply_lux_calculation_(AlsReadings &data) {
   float ch0 = data.ch0;
   float ch1 = data.ch1;
   float ratio = ch1 / (ch0 + ch1);
-  float als_gain = get_gain_coeff(data.actual_gain);
+  float als_gain = get_gain_coeff(data.gain);
   float als_time = ((float) get_itime_ms(data.integration_time)) / 100.0f;
   float inv_pfactor = this->glass_attenuation_factor_;
   float lux = 0.0f;
@@ -486,7 +486,7 @@ void LTRAlsPsComponent::apply_lux_calculation_(AlsReadings &data) {
   lux = inv_pfactor * lux / als_gain / als_time;
   data.lux = lux;
 
-  ESP_LOGD(TAG, "Lux calculation: ratio %.3f, gain %.0fx, int time %.1f, inv_pfactor %.3f, lux %.3f", ratio, als_gain,
+  ESP_LOGV(TAG, "Lux calculation: ratio %.3f, gain %.0fx, int time %.1f, inv_pfactor %.3f, lux %.3f", ratio, als_gain,
            als_time, inv_pfactor, lux);
 }
 
@@ -507,7 +507,7 @@ void LTRAlsPsComponent::publish_data_part_1_(AlsReadings &data) {
 
 void LTRAlsPsComponent::publish_data_part_2_(AlsReadings &data) {
   if (this->actual_gain_sensor_ != nullptr) {
-    this->actual_gain_sensor_->publish_state(get_gain_coeff(data.actual_gain));
+    this->actual_gain_sensor_->publish_state(get_gain_coeff(data.gain));
   }
   if (this->actual_integration_time_sensor_ != nullptr) {
     this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.integration_time));

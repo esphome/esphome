@@ -84,7 +84,7 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   struct AlsReadings {
     uint16_t ch0{0};
     uint16_t ch1{0};
-    AlsGain actual_gain{AlsGain::GAIN_1};
+    AlsGain gain{AlsGain::GAIN_1};
     IntegrationTime integration_time{IntegrationTime::INTEGRATION_TIME_100MS};
     float lux{0.0f};
     uint8_t number_of_adjustments{0};
