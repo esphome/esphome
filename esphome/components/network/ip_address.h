@@ -77,6 +77,13 @@ struct IPAddress {
   }
 #endif /* LWIP_IPV6 */
   IPAddress(esp_ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t)); }
+  IPAddress(esp_ip_addr_t *other_ip) {
+#if LWIP_IPV6
+    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_));
+#else
+    memcpy((void *) &ip_addr_, (void *) &other_ip->u_addr.ip4, sizeof(ip_addr_));
+#endif
+  }
   operator esp_ip_addr_t() const {
     esp_ip_addr_t tmp;
 #if LWIP_IPV6
@@ -127,6 +134,8 @@ struct IPAddress {
  protected:
   ip_addr_t ip_addr_;
 };
+
+using IPAddresses = std::array<IPAddress, 5>;
 
 }  // namespace network
 }  // namespace esphome

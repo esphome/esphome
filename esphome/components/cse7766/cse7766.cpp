@@ -118,7 +118,7 @@ void CSE7766Component::parse_data_() {
   uint32_t power_coeff = this->get_24_bit_uint_(14);
   uint32_t power_cycle = this->get_24_bit_uint_(17);
   uint8_t adj = this->raw_data_[20];
-  uint32_t cf_pulses = (this->raw_data_[21] << 8) + this->raw_data_[22];
+  uint16_t cf_pulses = (this->raw_data_[21] << 8) + this->raw_data_[22];
 
   bool have_power = adj & 0x10;
   bool have_current = adj & 0x20;
@@ -132,8 +132,19 @@ void CSE7766Component::parse_data_() {
     }
   }
 
+  float energy = 0.0;
+  if (this->energy_sensor_ != nullptr) {
+    if (this->cf_pulses_last_ == 0 && !this->energy_sensor_->has_state()) {
+      this->cf_pulses_last_ = cf_pulses;
+    }
+    uint16_t cf_diff = cf_pulses - this->cf_pulses_last_;
+    this->cf_pulses_total_ += cf_diff;
+    this->cf_pulses_last_ = cf_pulses;
+    energy = this->cf_pulses_total_ * float(power_coeff) / 1000000.0f / 3600.0f;
+    this->energy_sensor_->publish_state(energy);
+  }
+
   float power = 0.0f;
-  float energy = 0.0f;
   if (power_cycle_exceeds_range) {
     // Datasheet: power cycle exceeding range means active power is 0
     if (this->power_sensor_ != nullptr) {
@@ -144,27 +155,6 @@ void CSE7766Component::parse_data_() {
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
     }
-
-    // Add CF pulses to the total energy only if we have Power coefficient to multiply by
-
-    if (this->cf_pulses_last_ == 0) {
-      this->cf_pulses_last_ = cf_pulses;
-    }
-
-    uint32_t cf_diff;
-    if (cf_pulses < this->cf_pulses_last_) {
-      cf_diff = cf_pulses + (0x10000 - this->cf_pulses_last_);
-    } else {
-      cf_diff = cf_pulses - this->cf_pulses_last_;
-    }
-    this->cf_pulses_last_ = cf_pulses;
-
-    energy = cf_diff * float(power_coeff) / 1000000.0f / 3600.0f;
-    this->energy_total_ += energy;
-    if (this->energy_sensor_ != nullptr)
-      this->energy_sensor_->publish_state(this->energy_total_);
-  } else if ((this->energy_sensor_ != nullptr) && !this->energy_sensor_->has_state()) {
-    this->energy_sensor_->publish_state(0);
   }
 
   float current = 0.0f;
