@@ -12,7 +12,6 @@ namespace ethernet_info {
 class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
   void update() override {
-    std::string address_results;
     auto ips = ethernet::global_eth_component->get_ip_addresses();
     if (ips != this->last_ips_) {
       this->last_ips_ = ips;
@@ -20,7 +19,7 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
       uint8_t sensor = 0;
       for (auto &ip : ips) {
         if (ip.is_set()) {
-          if (ip_sensors_[sensor] != nullptr) {
+          if (this->ip_sensors_[sensor] != nullptr) {
             this->ip_sensors_[sensor]->publish_state(ip.str());
             sensor++;
           }
@@ -32,7 +31,7 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
   float get_setup_priority() const override { return setup_priority::ETHERNET; }
   std::string unique_id() override { return get_mac_address() + "-ethernetinfo"; }
   void dump_config() override;
-  void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { ip_sensors_[index] = s; }
+  void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { this->ip_sensors_[index] = s; }
 
  protected:
   network::IPAddresses last_ips_;

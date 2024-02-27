@@ -18,7 +18,7 @@ class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSenso
       uint8_t sensor = 0;
       for (auto &ip : ips) {
         if (ip.is_set()) {
-          if (ip_sensors_[sensor] != nullptr) {
+          if (this->ip_sensors_[sensor] != nullptr) {
             this->ip_sensors_[sensor]->publish_state(ip.str());
             sensor++;
           }
@@ -29,7 +29,7 @@ class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSenso
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   std::string unique_id() override { return get_mac_address() + "-wifiinfo-ip"; }
   void dump_config() override;
-  void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { ip_sensors_[index] = s; }
+  void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { this->ip_sensors_[index] = s; }
 
  protected:
   network::IPAddresses last_ips_;
