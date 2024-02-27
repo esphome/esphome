@@ -23,6 +23,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_BK72XX,
     PLATFORM_RTL87XX,
+    PLATFORM_RP2040,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -91,12 +92,21 @@ CONFIG_SCHEMA = cv.All(
                 esp32_idf=False,
                 bk72xx=True,
                 rtl87xx=True,
+                rp2040=True,
             ): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_BK72XX,
+            PLATFORM_RTL87XX,
+            PLATFORM_RP2040,
+        ]
+    ),
     default_url,
     validate_local,
     validate_ota,
