@@ -353,6 +353,7 @@ bool MicroWakeWord::detect_wake_word_() {
 
   // Detect the wake word if the sliding window average is above the cutoff
   if (sliding_window_average > this->probability_cutoff_) {
+    ESP_LOGD(TAG, "  Detection Probability: %.3f", sliding_window_average);
     this->ignore_windows_ = -MIN_SLICES_BEFORE_DETECTION;
     for (auto &prob : this->recent_streaming_probabilities_) {
       prob = 0;
