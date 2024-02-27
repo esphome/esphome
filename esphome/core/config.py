@@ -38,7 +38,7 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.helpers import copy_file_if_changed, walk_files
+from esphome.helpers import copy_file_if_changed, get_str_env, walk_files
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -102,16 +102,6 @@ def valid_project_name(value: str):
     return value
 
 
-def validate_version(value: str):
-    min_version = cv.Version.parse(value)
-    current_version = cv.Version.parse(ESPHOME_VERSION)
-    if current_version < min_version:
-        raise cv.Invalid(
-            f"Your ESPHome version is too old. Please update to at least {min_version}"
-        )
-    return value
-
-
 if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
     _compile_process_limit_default = min(
         int(os.environ["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"]),
@@ -164,7 +154,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_MIN_VERSION, default=ESPHOME_VERSION): cv.All(
-                cv.version_number, validate_version
+                cv.version_number, cv.validate_esphome_version
             ),
             cv.Optional(
                 CONF_COMPILE_PROCESS_LIMIT, default=_compile_process_limit_default
@@ -200,7 +190,8 @@ def preload_core_config(config, result):
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
-        conf[CONF_BUILD_PATH] = f"build/{CORE.name}"
+        build_path = get_str_env("ESPHOME_BUILD_PATH", "build")
+        conf[CONF_BUILD_PATH] = os.path.join(build_path, CORE.name)
     CORE.build_path = CORE.relative_internal_path(conf[CONF_BUILD_PATH])
 
     has_oldstyle = CONF_PLATFORM in conf

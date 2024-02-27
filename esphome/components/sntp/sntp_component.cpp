@@ -25,6 +25,7 @@ namespace sntp {
 static const char *const TAG = "sntp";
 
 void SNTPComponent::setup() {
+#ifndef USE_HOST
   ESP_LOGCONFIG(TAG, "Setting up SNTP...");
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   if (sntp_enabled()) {
@@ -48,6 +49,7 @@ void SNTPComponent::setup() {
 #endif
 
   sntp_init();
+#endif
 }
 void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SNTP Time:");
@@ -57,7 +59,7 @@ void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
 }
 void SNTPComponent::update() {
-#ifndef USE_ESP_IDF
+#if !defined(USE_ESP_IDF) && !defined(USE_HOST)
   // force resync
   if (sntp_enabled()) {
     sntp_stop();
