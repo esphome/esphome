@@ -75,8 +75,8 @@ CC1101::CC1101() {
   this->clb_[2][1] = 76;
   this->clb_[3][0] = 77;
   this->clb_[3][1] = 79;
-  
-  memset(this->pa_table_, 0, sizeof(pa_table_));  
+
+  memset(this->pa_table_, 0, sizeof(pa_table_));
   this->pa_table_[1] = 0xc0;
 }
 
