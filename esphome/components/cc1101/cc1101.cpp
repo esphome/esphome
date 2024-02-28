@@ -2,7 +2,7 @@
   https://github.com/gabest11/esphome-cc1101
 
   This is a CC1101 transceiver component that works with esphome's remote_transmitter/remote_receiver.
-  
+
   It can be compiled with Arduino and esp-idf framework and should support any esphome compatible board through the SPI Bus.
 
   On ESP8266, you can use the same pin for GDO and GD2 (it is an optional parameter).
@@ -65,20 +65,20 @@ CC1101::CC1101()
   this->m4RxBw_ = 0;
   this->trxstate_ = 0;
 
-  this->clb_[0][0] = 24; 
+  this->clb_[0][0] = 24;
   this->clb_[0][1] = 28;
-  this->clb_[1][0] = 31; 
+  this->clb_[1][0] = 31;
   this->clb_[1][1] = 38;
-  this->clb_[2][0] = 65; 
+  this->clb_[2][0] = 65;
   this->clb_[2][1] = 76;
-  this->clb_[3][0] = 77; 
+  this->clb_[3][0] = 77;
   this->clb_[3][1] = 79;
 }
 
 void CC1101::set_config_gdo0(InternalGPIOPin* pin)
 {
-  gdo0_ = pin; 
-  
+  gdo0_ = pin;
+ 
   if(gdo2_ == NULL) gdo2_ = pin;
 }
 
@@ -222,7 +222,7 @@ bool CC1101::reset()
   //this->disable();
   this->cs_->digital_write(false);
   delayMicroseconds(41);
-  
+ 
   this->send_cmd(CC1101_SRES);
 
   ESP_LOGD(TAG, "Issued CC1101 reset sequence.");
@@ -292,7 +292,7 @@ void CC1101::write_register_burst(uint8_t reg, uint8_t* buffer, size_t length)
 bool CC1101::send_data(const uint8_t* data, size_t length)
 {
   uint8_t buffer[length];
-  
+ 
   memcpy(buffer, data, lenght);
 
   this->send_cmd(CC1101_SIDLE);
@@ -338,7 +338,7 @@ void CC1101::set_mode(bool s)
     this->write_register(CC1101_MDMCFG3, 0x93);
     this->write_register(CC1101_MDMCFG4, 7 + this->m4RxBw_);
   }
-  
+
   this->set_modulation(this->modulation_);
 }
 
@@ -550,7 +550,7 @@ void CC1101::set_frequency(uint32_t f)
     this->write_register(CC1101_TEST0, 0x09);
 
     uint8_t s = this->read_status_register(CC1101_FSCAL2);
-    
+
     if(s < 32)
     {
       this->write_register(CC1101_FSCAL2, s + 32);
@@ -562,7 +562,7 @@ void CC1101::set_frequency(uint32_t f)
 
 void CC1101::set_clb(uint8_t b, uint8_t s, uint8_t e)
 {
-  if(b < 4) 
+  if(b < 4)
   {
     this->clb_[b][0] = s;
     this->clb_[b][1] = e;

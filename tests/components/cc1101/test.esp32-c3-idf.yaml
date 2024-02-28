@@ -60,9 +60,9 @@ button:
           code: '0111000110010011110110010100011111110001001011110111'
           protocol:
             pulse_length: 434
-            sync: [1,6]
-            zero: [1,2]
-            one: [2,1]
+            sync: [1, 6]
+            zero: [1, 2]
+            one: [2, 1]
             inverted: true
           repeat:
             times: 10
