@@ -35,7 +35,9 @@ remote_transmitter:
     id: realtx
 
 remote_receiver:
-  pin: GPIO4  # GDO0
+  pin:
+    number: GPIO4  # GDO0
+    allow_other_uses: true
   dump:
     - rc_switch
   # Settings to optimize recognition of RF devices
