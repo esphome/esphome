@@ -292,6 +292,7 @@ ota:
 logger:
   baud_rate: 0
   level: VERBOSE
+  log_queue_length: 12
   logs:
     mqtt.component: DEBUG
     mqtt.client: ERROR

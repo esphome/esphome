@@ -65,6 +65,14 @@ enum UARTSelection {
 };
 #endif  // USE_ESP32 || USE_ESP8266 || USE_RP2040 || USE_LIBRETINY
 
+#ifdef ESPHOME_LOGGER_QUEUE_MSG_LENGTH
+struct ESPHOME_LOGGER_QUEUE_MSG {
+  const int level;
+  const char *tag;
+  char tx_buffer[ESPHOME_LOGGER_QUEUE_MSG_LENGTH + 1];
+};
+#endif  // ESPHOME_LOGGER_QUEUE_MSG_LENGTH
+
 class Logger : public Component {
  public:
   explicit Logger(uint32_t baud_rate, size_t tx_buffer_size);
@@ -72,6 +80,9 @@ class Logger : public Component {
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate);
   uint32_t get_baud_rate() const { return baud_rate_; }
+#ifdef ESPHOME_LOGGER_QUEUE_MSG_LENGTH
+  void set_log_queue_length(uint8_t val) { this->log_queue_length_ = val; }
+#endif  // ESPHOME_LOGGER_QUEUE_MSG_LENGTH
 #ifdef USE_ARDUINO
   Stream *get_hw_serial() const { return hw_serial_; }
 #endif
@@ -92,6 +103,7 @@ class Logger : public Component {
   /// Set up this component.
   void pre_setup();
   void dump_config() override;
+  void setup() override;
 
   int level_for(const char *tag);
 
@@ -118,7 +130,8 @@ class Logger : public Component {
 #endif
   void write_header_(int level, const char *tag, int line);
   void write_footer_();
-  void log_message_(int level, const char *tag, int offset = 0);
+  void log_message_(int level, const char *tag, uint32_t offset = 0);
+  inline void log_message_write_(const char *msg, int level, const char *tag);
 
   inline bool is_buffer_full_() const { return this->tx_buffer_at_ >= this->tx_buffer_size_; }
   inline int buffer_remaining_capacity_() const { return this->tx_buffer_size_ - this->tx_buffer_at_; }
@@ -182,6 +195,17 @@ class Logger : public Component {
   CallbackManager<void(int, const char *, const char *)> log_callback_{};
   /// Prevents recursive log calls, if true a log message is already being processed.
   bool recursion_guard_ = false;
+
+#ifdef ESPHOME_LOGGER_QUEUE_MSG_LENGTH
+  uint8_t log_queue_length_{0};
+  ESPHOME_LOGGER_QUEUE_MSG *log_static_queue_storage_{nullptr};
+  StaticQueue_t log_static_queue_;
+  QueueHandle_t log_queue_ = NULL;
+  TaskHandle_t eventTaskHandle_ = NULL;
+  static void eventTask_(void *args);
+
+  inline bool use_log_queue_() { return this->log_queue_ != NULL; }
+#endif  // ESPHOME_LOGGER_QUEUE_MSG_LENGTH
 };
 
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

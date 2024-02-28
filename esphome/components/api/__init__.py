@@ -21,7 +21,7 @@ from esphome.const import (
     CONF_ON_CLIENT_CONNECTED,
     CONF_ON_CLIENT_DISCONNECTED,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import coroutine_with_priority, CORE
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["socket"]
@@ -148,6 +148,9 @@ async def to_code(config):
 
     cg.add_define("USE_API")
     cg.add_global(api_ns.using)
+
+    if CORE.is_esp32:
+        cg.add_define("USE_API_MUTEX")
 
 
 KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string_strict)})

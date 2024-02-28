@@ -16,6 +16,7 @@ esphome:
   name: esp32-s3-test
 
 logger:
+  log_queue_length: 12
 
 debug:
 

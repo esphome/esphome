@@ -523,14 +523,30 @@ APIError APINoiseFrameHelper::write_packet(uint16_t type, const uint8_t *payload
   return write_raw_(&iov, 1);
 }
 APIError APINoiseFrameHelper::try_send_tx_buf_() {
+#ifdef USE_API_MUTEX
+  if (!this->send_mutex_.try_lock()) {
+    return APIError::WOULD_BLOCK;
+  }
+#else
+  if (this->send_running_) {
+    return APIError::WOULD_BLOCK;
+  }
+  this->send_running_ = true;
+#endif
+
   // try send from tx_buf
-  while (state_ != State::CLOSED && !tx_buf_.empty()) {
+  while (state_ != State::CLOSED && state_ != State::FAILED && !tx_buf_.empty()) {
     ssize_t sent = socket_->write(tx_buf_.data(), tx_buf_.size());
     if (sent == -1) {
       if (errno == EWOULDBLOCK || errno == EAGAIN)
         break;
       state_ = State::FAILED;
       HELPER_LOG("Socket write failed with errno %d", errno);
+#ifdef USE_API_MUTEX
+      this->send_mutex_.unlock();
+#else
+      this->send_running_ = false;
+#endif
       return APIError::SOCKET_WRITE_FAILED;
     } else if (sent == 0) {
       break;
@@ -539,6 +555,12 @@ APIError APINoiseFrameHelper::try_send_tx_buf_() {
     // replace with deque of buffers
     tx_buf_.erase(tx_buf_.begin(), tx_buf_.begin() + sent);
   }
+
+#ifdef USE_API_MUTEX
+  this->send_mutex_.unlock();
+#else
+  this->send_running_ = false;
+#endif
 
   return APIError::OK;
 }
@@ -925,20 +947,42 @@ APIError APIPlaintextFrameHelper::write_packet(uint16_t type, const uint8_t *pay
   return write_raw_(iov, 2);
 }
 APIError APIPlaintextFrameHelper::try_send_tx_buf_() {
+#ifdef USE_API_MUTEX
+  if (!this->send_mutex_.try_lock()) {
+    return APIError::WOULD_BLOCK;
+  }
+#else
+  if (this->send_running_) {
+    return APIError::WOULD_BLOCK;
+  }
+  this->send_running_ = true;
+#endif
+
   // try send from tx_buf
-  while (state_ != State::CLOSED && !tx_buf_.empty()) {
+  while (state_ != State::CLOSED && state_ != State::FAILED && !tx_buf_.empty()) {
     ssize_t sent = socket_->write(tx_buf_.data(), tx_buf_.size());
     if (is_would_block(sent)) {
       break;
     } else if (sent == -1) {
       state_ = State::FAILED;
       HELPER_LOG("Socket write failed with errno %d", errno);
+#ifdef USE_API_MUTEX
+      this->send_mutex_.unlock();
+#else
+      this->send_running_ = false;
+#endif
       return APIError::SOCKET_WRITE_FAILED;
     }
     // TODO: inefficient if multiple packets in txbuf
     // replace with deque of buffers
     tx_buf_.erase(tx_buf_.begin(), tx_buf_.begin() + sent);
   }
+
+#ifdef USE_API_MUTEX
+  this->send_mutex_.unlock();
+#else
+  this->send_running_ = false;
+#endif
 
   return APIError::OK;
 }

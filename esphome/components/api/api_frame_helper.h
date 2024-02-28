@@ -10,6 +10,10 @@
 #include "noise/protocol.h"
 #endif
 
+#ifdef USE_API_MUTEX
+#include <mutex>
+#endif
+
 #include "api_noise_context.h"
 #include "esphome/components/socket/socket.h"
 
@@ -109,6 +113,11 @@ class APINoiseFrameHelper : public APIFrameHelper {
   void send_explicit_handshake_reject_(const std::string &reason);
 
   std::unique_ptr<socket::Socket> socket_;
+#ifdef USE_API_MUTEX
+  std::mutex send_mutex_;
+#else
+  bool send_running_;
+#endif
 
   std::string info_;
   uint8_t rx_header_buf_[3];
@@ -167,6 +176,11 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
   APIError write_raw_(const struct iovec *iov, int iovcnt);
 
   std::unique_ptr<socket::Socket> socket_;
+#ifdef USE_API_MUTEX
+  std::mutex send_mutex_;
+#else
+  bool send_running_;
+#endif
 
   std::string info_;
   std::vector<uint8_t> rx_header_buf_;

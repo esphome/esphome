@@ -26,6 +26,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#define QUEUE_WAIT_DONT_BLOCK (TickType_t) 0
+#define QUEUE_WAIT_BLOCKING (portTickType) portMAX_DELAY
+
 namespace esphome {
 namespace logger {
 
@@ -169,7 +172,8 @@ int HOT Logger::level_for(const char *tag) {
   }
   return ESPHOME_LOG_LEVEL;
 }
-void HOT Logger::log_message_(int level, const char *tag, int offset) {
+
+void HOT Logger::log_message_(int level, const char *tag, uint32_t offset) {
   // remove trailing newline
   if (this->tx_buffer_[this->tx_buffer_at_ - 1] == '\n') {
     this->tx_buffer_at_--;
@@ -178,6 +182,33 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   this->set_null_terminator_();
 
   const char *msg = this->tx_buffer_ + offset;
+
+#ifdef ESPHOME_LOGGER_QUEUE_MSG_LENGTH
+  if (this->use_log_queue_()) {
+    // log queue is created. All messages are handeld by queue.
+    ESPHOME_LOGGER_QUEUE_MSG log_msg{level, tag, 0};
+    memcpy(&log_msg.tx_buffer, msg, (this->tx_buffer_at_ - offset + 1));
+    // if log queue is full block to ensure no log message is lost.
+    xQueueSend(this->log_queue_, &log_msg, QUEUE_WAIT_BLOCKING);
+  } else
+#endif  // ESPHOME_LOGGER_QUEUE_MSG_LENGTH
+  {
+    this->log_message_write_(msg, level, tag);
+  }
+}
+
+#ifdef ESPHOME_LOGGER_QUEUE_MSG_LENGTH
+void HOT Logger::eventTask_(void *args) {
+  Logger *instance = (Logger *) args;
+  ESPHOME_LOGGER_QUEUE_MSG log_msg{};
+
+  while (xQueueReceive(instance->log_queue_, &log_msg, QUEUE_WAIT_BLOCKING) == pdPASS) {
+    instance->log_message_write_(log_msg.tx_buffer, log_msg.level, log_msg.tag);
+  }
+}
+#endif  // ESPHOME_LOGGER_QUEUE_MSG_LENGTH
+
+void Logger::log_message_write_(const char *msg, int level, const char *tag) {
   if (this->baud_rate_ > 0) {
 #ifdef USE_ARDUINO
     this->hw_serial_->println(msg);
@@ -249,6 +280,11 @@ void Logger::pre_setup() {
         Serial0.begin(this->baud_rate_);
 #else
         this->hw_serial_ = &Serial;
+#ifdef USE_ESP32
+        if (this->tx_buffer_size_ > SOC_UART_FIFO_LEN) {
+          Serial.setTxBufferSize(this->tx_buffer_size_);
+        }
+#endif  // USE_ESP32
         Serial.begin(this->baud_rate_);
 #endif
 #endif
@@ -265,6 +301,11 @@ void Logger::pre_setup() {
         Serial2.begin(this->baud_rate_);
 #else
         this->hw_serial_ = &Serial1;
+#ifdef USE_ESP32
+        if (this->tx_buffer_size_ > SOC_UART_FIFO_LEN) {
+          Serial1.setTxBufferSize(this->tx_buffer_size_);
+        }
+#endif  // USE_ESP32
         Serial1.begin(this->baud_rate_);
 #endif
 #ifdef USE_ESP8266
@@ -275,6 +316,11 @@ void Logger::pre_setup() {
     !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_UART2:
         this->hw_serial_ = &Serial2;
+#ifdef USE_ESP32
+        if (this->tx_buffer_size_ > SOC_UART_FIFO_LEN) {
+          Serial2.setTxBufferSize(this->tx_buffer_size_);
+        }
+#endif  // USE_ESP32
         Serial2.begin(this->baud_rate_);
         break;
 #endif
@@ -404,6 +450,42 @@ void Logger::pre_setup() {
 }
 #endif  // USE_LIBRETINY
 
+void Logger::setup() {
+#ifdef ESPHOME_LOGGER_QUEUE_MSG_LENGTH
+  ExternalRAMAllocator<ESPHOME_LOGGER_QUEUE_MSG> allocator(
+      ExternalRAMAllocator<ESPHOME_LOGGER_QUEUE_MSG>::ALLOW_FAILURE);
+  this->log_static_queue_storage_ = allocator.allocate(this->log_queue_length_);
+  if (this->log_static_queue_storage_ != nullptr) {
+    this->log_queue_ =
+        xQueueCreateStatic(this->log_queue_length_,                               // uxQueueLength
+                           sizeof(ESPHOME_LOGGER_QUEUE_MSG),                      // uxItemSize
+                           (uint8_t *) (void *) this->log_static_queue_storage_,  // pucQueueStorageBuffer
+                           &this->log_static_queue_);                             // pxQueueBuffer
+    if (this->use_log_queue_()) {
+      // Creating log msg event Task
+      if (xTaskCreatePinnedToCore(Logger::eventTask_,
+                                  "logger_task",            // name
+                                  4 * 1024,                 // stack size (in words)
+                                  this,                     // input params
+                                  1,                        // priority
+                                  &this->eventTaskHandle_,  // handle
+                                  0                         // core
+                                  ) != pdPASS) {
+        vQueueDelete(this->log_queue_);
+        this->log_queue_ = NULL;
+        ESP_LOGW(TAG, "Cannot create log queue task. Disabling log queuing.");
+        allocator.deallocate(this->log_static_queue_storage_, this->log_queue_length_);
+      }
+    } else {
+      ESP_LOGW(TAG, "Cannot create log queue. Disabling log queuing.");
+      allocator.deallocate(this->log_static_queue_storage_, this->log_queue_length_);
+    }
+  } else {
+    ESP_LOGW(TAG, "Cannot allocate memory for log queue. Disabling log queuing.");
+  }
+#endif  // ESPHOME_LOGGER_QUEUE_MSG_LENGTH
+}
+
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 void Logger::set_log_level(const std::string &tag, int log_level) {
   this->log_levels_.push_back(LogLevelOverride{tag, log_level});
@@ -454,6 +536,12 @@ void Logger::dump_config() {
   for (auto &it : this->log_levels_) {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.tag.c_str(), LOG_LEVELS[it.level]);
   }
+
+#ifdef ESPHOME_LOGGER_QUEUE_MSG_LENGTH
+  if (this->use_log_queue_()) {
+    ESP_LOGCONFIG(TAG, "  Queue length: %" PRIu32, this->log_queue_length_);
+  }
+#endif  // ESPHOME_LOGGER_QUEUE_MSG_LENGTH
 }
 void Logger::write_footer_() { this->write_to_buffer_(ESPHOME_LOG_RESET_COLOR, strlen(ESPHOME_LOG_RESET_COLOR)); }
 
@@ -461,3 +549,6 @@ Logger *global_logger = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-gl
 
 }  // namespace logger
 }  // namespace esphome
+
+#undef QUEUE_WAIT_DONT_BLOCK
+#undef QUEUE_WAIT_BLOCKING
