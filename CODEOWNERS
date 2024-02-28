@@ -67,6 +67,7 @@ esphome/components/button/* @esphome/core
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/cap1188/* @mreditor97
 esphome/components/captive_portal/* @OttoWinter
+esphome/components/cc1101/* @gabest11
 esphome/components/ccs811/* @habbie
 esphome/components/cd74hc4067/* @asoehlke
 esphome/components/climate/* @esphome/core
