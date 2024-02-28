@@ -132,27 +132,14 @@ class MQTTClientComponent : public Component {
   bool is_discovery_enabled() const;
   bool is_discovery_ip_enabled() const;
 
-#if ASYNC_TCP_SSL_ENABLED
-  /** Add a SSL fingerprint to use for TCP SSL connections to the MQTT broker.
-   *
-   * To use this feature you first have to globally enable the `ASYNC_TCP_SSL_ENABLED` define flag.
-   * This function can be called multiple times and any certificate that matches any of the provided fingerprints
-   * will match. Calling this method will also automatically disable all non-ssl connections.
-   *
-   * @warning This is *not* secure and *not* how SSL is usually done. You'll have to add
-   *          a separate fingerprint for every certificate you use. Additionally, the hashing
-   *          algorithm used here due to the constraints of the MCU, SHA1, is known to be insecure.
-   *
-   * @param fingerprint The SSL fingerprint as a 20 value long std::array.
-   */
-  void add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint);
-#endif
-#ifdef USE_ESP32
   void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
+  void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
+
+#ifdef USE_ESP32
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
   void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
-  void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
 #endif
+
   const Availability &get_availability();
 
   /** Set the topic prefix that will be prepended to all topics together with "/". This will, in most cases,
