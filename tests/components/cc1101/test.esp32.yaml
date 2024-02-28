@@ -1,0 +1,60 @@
+spi:
+  clk_pin: GPIO18
+  miso_pin: GPIO19
+  mosi_pin: GPIO23
+
+sensor:
+  - platform: cc1101
+    id: transceiver
+    cs_pin: GPIO5
+    gdo0: GPIO32
+    gdo2: GPIO33
+    bandwidth: 200
+    frequency: 433920
+    rssi:
+      name: RSSI
+    lqi:
+      name: LQI
+
+remote_transmitter:
+  - pin: GPIO32 # GDO0
+    carrier_duty_percent: 100%
+
+remote_receiver:
+  pin: GPIO33 # GDO0
+  dump:
+    - rc_switch
+  # Settings to optimize recognition of RF devices
+  tolerance: 50%
+  buffer_size: 2kb
+  filter: 250us
+  idle: 4ms
+  on_rc_switch:
+    - logger.log:
+        format: "on_rc_switch: %i %llu"
+        args: [x.protocol, x.code]
+
+binary_sensor:
+  - platform: remote_receiver
+    name: "Window"
+    rc_switch_raw:
+      code: '110111110001111011100110'
+    filters:
+      - delayed_off: 1000ms
+
+button:
+  - platform: template
+    name: "Gate"
+    on_press:
+      - cc1101.begin_tx: transceiver
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: '0111000110010011110110010100011111110001001011110111'
+          protocol:
+            pulse_length: 434
+            sync: [1,6]
+            zero: [1,2]
+            one: [2,1]
+            inverted: true
+          repeat:
+            times: 10
+      - cc1101.end_tx: transceiver
