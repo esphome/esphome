@@ -28,7 +28,7 @@
 #include <Arduino.h>
 #else  // USE_ESP_IDF
 #include <driver/gpio.h>
-int32_t map(long x, long in_min, long in_max, long out_min, long out_max) {
+int32_t map(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int32_t out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 #endif
