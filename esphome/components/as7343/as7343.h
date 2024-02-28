@@ -80,22 +80,29 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   void set_f8_sensor(sensor::Sensor *f8_sensor) { f8_ = f8_sensor; }
   void set_nir_sensor(sensor::Sensor *nir_sensor) { nir_ = nir_sensor; }
   void set_clear_sensor(sensor::Sensor *clear_sensor) { clear_ = clear_sensor; }
+  void set_illuminance_sensor(sensor::Sensor *sensor) { illuminance_ = sensor; }
+  void set_irradiance_sensor(sensor::Sensor *sensor) { irradiance_ = sensor; }
 
   void set_gain(AS7343Gain gain) { gain_ = gain; }
+  void set_gain(esphome::optional<unsigned int> g);
   void set_atime(uint8_t atime) { atime_ = atime; }
   void set_astep(uint16_t astep) { astep_ = astep; }
 
   AS7343Gain get_gain();
   uint8_t get_atime();
   uint16_t get_astep();
+
   bool setup_gain(AS7343Gain gain);
   bool setup_atime(uint8_t atime);
   bool setup_astep(uint16_t astep);
 
+  float get_gain_multiplier(AS7343Gain gain);
   //  uint16_t read_channel(AS7343AdcChannel channel);
   bool read_channels(uint16_t *data);
   float calculate_par_v1();
-  float calculate_par_v2();
+  float calculate_par_v2(float tint_ms, float gain_x);
+  float calculate_spectre_();
+
   // void set_smux_low_channels(bool enable);
   // bool set_smux_command(AS7343SmuxCommand command);
   // void configure_smux_low_channels();
@@ -130,6 +137,8 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *f8_{nullptr};
   sensor::Sensor *nir_{nullptr};
   sensor::Sensor *clear_{nullptr};
+  sensor::Sensor *illuminance_{nullptr};
+  sensor::Sensor *irradiance_{nullptr};
 
   uint16_t astep_;
   AS7343Gain gain_;

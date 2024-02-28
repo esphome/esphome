@@ -5,9 +5,11 @@ from esphome.const import (
     CONF_GAIN,
     CONF_ID,
     CONF_NAME,
+    CONF_ILLUMINANCE,
     DEVICE_CLASS_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,
+    UNIT_LUX,
 )
 
 
@@ -36,8 +38,10 @@ CONF_F7 = "f7"
 CONF_F8 = "f8"
 CONF_NIR = "nir"
 CONF_CLEAR = "clear"
+CONF_IRRADIANCE = "irradiance"
 
 UNIT_COUNTS = "#"
+UNIT_IRRADIANCE = "W/m²"
 
 AS7343_GAIN = as7343_ns.enum("AS7343Gain")
 GAIN_OPTIONS = {
@@ -89,6 +93,26 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS),
             cv.Optional(CONF_ATIME, default=29): cv.int_range(min=0, max=255),
             cv.Optional(CONF_ASTEP, default=599): cv.int_range(min=0, max=65534),
+            cv.Optional(CONF_ILLUMINANCE): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_LUX,
+                    icon=ICON_BRIGHTNESS_5,
+                    accuracy_decimals=0,
+                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
+            cv.Optional(CONF_IRRADIANCE): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_IRRADIANCE,
+                    icon=ICON_BRIGHTNESS_5,
+                    accuracy_decimals=0,
+                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -109,6 +133,8 @@ SENSORS = {
     CONF_F8: "set_f8_sensor",
     CONF_NIR: "set_nir_sensor",
     CONF_CLEAR: "set_clear_sensor",
+    CONF_ILLUMINANCE: "set_illuminance_sensor",
+    CONF_IRRADIANCE: "set_irradiance_sensor",
 }
 
 
