@@ -7,18 +7,17 @@
 namespace esphome {
 namespace cc1101 {
 
-class CC1101
-  : public sensor::Sensor,
-    public PollingComponent,
-    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1KHZ>
-{
-protected:
-  InternalGPIOPin* gdo0_;
-  InternalGPIOPin* gdo2_;
+class CC1101 : public sensor::Sensor,
+               public PollingComponent,
+               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                     spi::DATA_RATE_1KHZ> {
+ protected:
+  InternalGPIOPin *gdo0_;
+  InternalGPIOPin *gdo2_;
   uint32_t bandwidth_;
   uint32_t frequency_;
-  sensor::Sensor* rssi_sensor_;
-  sensor::Sensor* lqi_sensor_;
+  sensor::Sensor *rssi_sensor_;
+  sensor::Sensor *lqi_sensor_;
 
   uint8_t partnum_;
   uint8_t version_;
@@ -30,11 +29,11 @@ protected:
   uint8_t read_register(uint8_t reg);
   uint8_t read_config_register(uint8_t reg);
   uint8_t read_status_register(uint8_t reg);
-  void read_register_burst(uint8_t reg, uint8_t* buffer, size_t length);
-  void write_register(uint8_t reg, uint8_t* value, size_t length);
+  void read_register_burst(uint8_t reg, uint8_t *buffer, size_t length);
+  void write_register(uint8_t reg, uint8_t *value, size_t length);
   void write_register(uint8_t reg, uint8_t value);
-  void write_register_burst(uint8_t reg, uint8_t* buffer, size_t length);
-  //bool send_data(const uint8_t* data, size_t length);
+  void write_register_burst(uint8_t reg, uint8_t *buffer, size_t length);
+  // bool send_data(const uint8_t* data, size_t length);
 
   // ELECHOUSE_CC1101 stuff
 
@@ -71,15 +70,15 @@ protected:
   void split_MDMCFG2();
   void split_MDMCFG4();
 
-public:
+ public:
   CC1101();
 
-  void set_config_gdo0(InternalGPIOPin* pin);
-  void set_config_gdo2(InternalGPIOPin* pin);
+  void set_config_gdo0(InternalGPIOPin *pin);
+  void set_config_gdo2(InternalGPIOPin *pin);
   void set_config_bandwidth(uint32_t bandwidth);
   void set_config_frequency(uint32_t frequency);
-  void set_config_rssi_sensor(sensor::Sensor* rssi_sensor);
-  void set_config_lqi_sensor(sensor::Sensor* lqi_sensor);
+  void set_config_rssi_sensor(sensor::Sensor *rssi_sensor);
+  void set_config_lqi_sensor(sensor::Sensor *lqi_sensor);
 
   void setup() override;
   void update() override;
@@ -92,18 +91,15 @@ public:
   void end_tx();
 };
 
-template<typename... Ts> class BeginTxAction : public Action<Ts...>, public Parented<CC1101>
-{
-public:
+template<typename... Ts> class BeginTxAction : public Action<Ts...>, public Parented<CC1101> {
+ public:
   void play(Ts... x) override { this->parent_->begin_tx(); }
 };
 
-template<typename... Ts> class EndTxAction : public Action<Ts...>, public Parented<CC1101>
-{
-public:
+template<typename... Ts> class EndTxAction : public Action<Ts...>, public Parented<CC1101> {
+ public:
   void play(Ts... x) override { this->parent_->end_tx(); }
 };
 
-} // namespace cc1101
-} // namespace esphome
-
+}  // namespace cc1101
+}  // namespace esphome

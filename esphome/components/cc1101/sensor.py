@@ -6,6 +6,7 @@ from esphome.components import spi
 from esphome.automation import maybe_simple_id
 from esphome.const import (
     CONF_ID,
+    CONF_FREQUENCY,
     UNIT_EMPTY,
     UNIT_DECIBEL_MILLIWATT,
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -19,7 +20,7 @@ DEPENDENCIES = ["spi"]
 CONF_GDO0 = "gdo0"
 CONF_GDO2 = "gdo2"
 CONF_BANDWIDTH = "bandwidth"
-CONF_FREQUENCY = "frequency"
+# CONF_FREQUENCY = "frequency"
 CONF_RSSI = "rssi"
 CONF_LQI = "lqi"
 
