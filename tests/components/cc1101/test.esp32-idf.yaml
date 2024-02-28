@@ -17,11 +17,15 @@ sensor:
       name: LQI
 
 remote_transmitter:
-  - pin: GPIO32 # GDO0
+  - pin:
+      number: GPIO32  # GDO0
+      allow_other_uses: true
     carrier_duty_percent: 100%
 
 remote_receiver:
-  pin: GPIO33 # GDO0
+  pin:
+    number: GPIO33  # GDO0
+    allow_other_uses: true
   dump:
     - rc_switch
   # Settings to optimize recognition of RF devices

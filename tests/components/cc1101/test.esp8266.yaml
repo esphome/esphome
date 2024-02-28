@@ -6,8 +6,8 @@ spi:
 sensor:
   - platform: cc1101
     id: transceiver
-    cs_pin: D8 # GPIO15
-    gdo0: D1 # GPIO5
+    cs_pin: D8  # GPIO15
+    gdo0: D1  # GPIO5
     # gdo2: not used with ESP8266
     bandwidth: 200
     frequency: 433920
@@ -17,11 +17,15 @@ sensor:
       name: LQI
 
 remote_transmitter:
-  - pin: D1 # GDO0
+  - pin:
+      number: D1  # GDO0
+      allow_other_uses: true
     carrier_duty_percent: 100%
 
 remote_receiver:
-  pin: D1 # GDO0
+  pin:
+    number: D1  # GDO0
+    allow_other_uses: true
   dump:
     - rc_switch
   # Settings to optimize recognition of RF devices

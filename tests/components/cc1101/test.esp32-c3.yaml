@@ -21,15 +21,19 @@ sensor:
 # dummy transmitter will push rx to the third place
 
 remote_transmitter:
-  - pin: GPIO21 # TX pin
+  - pin:
+      number: GPIO21  # TX pin
+      allow_other_uses: true
     carrier_duty_percent: 100%
     id: dummytx
-  - pin: GPIO3 # GDO0
+  - pin:
+      number: GPIO3  # GDO0
+      allow_other_uses: true
     carrier_duty_percent: 100%
     id: realtx
 
 remote_receiver:
-  pin: GPIO4 # GDO0
+  pin: GPIO4  # GDO0
   dump:
     - rc_switch
   # Settings to optimize recognition of RF devices
