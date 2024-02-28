@@ -38,13 +38,13 @@ namespace cc1101 {
 
 static const char *const TAG = "cc1101";
 
-//                             -30   -20   -15   -10     0     5     7    10
-static uint8_t PA_TABLE_315[8]{0x12, 0x0D, 0x1C, 0x34, 0x51, 0x85, 0xCB, 0xC2};  // 300 - 348
-static uint8_t PA_TABLE_433[8]{0x12, 0x0E, 0x1D, 0x34, 0x60, 0x84, 0xC8, 0xC0};  // 387 - 464
-//                              -30   -20   -15   -10    -6     0     5     7    10    12
-static uint8_t PA_TABLE_868[10]{0x03, 0x17, 0x1D, 0x26, 0x37, 0x50, 0x86, 0xCD, 0xC5, 0xC0};  // 779 - 899.99
-//                              -30   -20   -15   -10    -6     0     5     7    10    11
-static uint8_t PA_TABLE_915[10]{0x03, 0x0E, 0x1E, 0x27, 0x38, 0x8E, 0x84, 0xCC, 0xC3, 0xC0};  // 900 - 928
+// 300 - 348, 387 - 464              -30   -20   -15   -10     0     5     7    10
+static const uint8_t PA_TABLE_315[8]{0x12, 0x0D, 0x1C, 0x34, 0x51, 0x85, 0xCB, 0xC2};
+static const uint8_t PA_TABLE_433[8]{0x12, 0x0E, 0x1D, 0x34, 0x60, 0x84, 0xC8, 0xC0};
+// 779 - 899.99                       -30   -20   -15   -10    -6     0     5     7    10    12
+static const uint8_t PA_TABLE_868[10]{0x03, 0x17, 0x1D, 0x26, 0x37, 0x50, 0x86, 0xCD, 0xC5, 0xC0};
+// 900 - 928                          -30   -20   -15   -10    -6     0     5     7    10    11
+static const uint8_t PA_TABLE_915[10]{0x03, 0x0E, 0x1E, 0x27, 0x38, 0x8E, 0x84, 0xCC, 0xC3, 0xC0};
 
 CC1101::CC1101() {
   this->gdo0_ = nullptr;
