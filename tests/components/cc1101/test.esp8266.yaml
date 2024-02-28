@@ -10,7 +10,6 @@ sensor:
     gdo0:
       number: D1  # GPIO5
       allow_other_uses: true
-    # gdo2: not used with ESP8266
     bandwidth: 200
     frequency: 433920
     rssi:

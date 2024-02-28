@@ -7,12 +7,6 @@ sensor:
   - platform: cc1101
     id: transceiver
     cs_pin: GPIO5
-    gdo0:
-      number: GPIO32
-      allow_other_uses: true
-    gdo2:
-      number: GPIO33
-      allow_other_uses: true
     bandwidth: 200
     frequency: 433920
     rssi:
@@ -21,15 +15,11 @@ sensor:
       name: LQI
 
 remote_transmitter:
-  - pin:
-      number: GPIO32  # GDO0
-      allow_other_uses: true
+  - pin: GPIO32  # GDO0
     carrier_duty_percent: 100%
 
 remote_receiver:
-  pin:
-    number: GPIO33  # GDO0
-    allow_other_uses: true
+  pin: GPIO33  # GDO2
   dump:
     - rc_switch
   # Settings to optimize recognition of RF devices

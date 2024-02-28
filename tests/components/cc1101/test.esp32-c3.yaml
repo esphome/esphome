@@ -7,12 +7,6 @@ sensor:
   - platform: cc1101
     id: transceiver
     cs_pin: GPIO10
-    gdo0:
-      number: GPIO3
-      allow_other_uses: true
-    gdo2:
-      number: GPIO4
-      allow_other_uses: true
     bandwidth: 200
     frequency: 433920
     rssi:
@@ -28,16 +22,12 @@ remote_transmitter:
   - pin: GPIO21  # TX pin
     carrier_duty_percent: 100%
     id: dummytx
-  - pin:
-      number: GPIO3  # GDO0
-      allow_other_uses: true
+  - pin: GPIO3  # GDO0
     carrier_duty_percent: 100%
     id: realtx
 
 remote_receiver:
-  pin:
-    number: GPIO4  # GDO0
-    allow_other_uses: true
+  pin: GPIO4  # GDO2
   dump:
     - rc_switch
   # Settings to optimize recognition of RF devices

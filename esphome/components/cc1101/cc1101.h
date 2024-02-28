@@ -13,7 +13,6 @@ class CC1101 : public sensor::Sensor,
                                      spi::DATA_RATE_1KHZ> {
  protected:
   InternalGPIOPin *gdo0_;
-  InternalGPIOPin *gdo2_;
   uint32_t bandwidth_;
   uint32_t frequency_;
   sensor::Sensor *rssi_sensor_;
@@ -78,7 +77,6 @@ class CC1101 : public sensor::Sensor,
   CC1101();
 
   void set_config_gdo0(InternalGPIOPin *pin);
-  void set_config_gdo2(InternalGPIOPin *pin);
   void set_config_bandwidth(uint32_t bandwidth);
   void set_config_frequency(uint32_t frequency);
   void set_config_rssi_sensor(sensor::Sensor *rssi_sensor);

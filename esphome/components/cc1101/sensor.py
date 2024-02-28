@@ -16,7 +16,6 @@ from esphome.const import (
 DEPENDENCIES = ["spi"]
 
 CONF_GDO0 = "gdo0"
-CONF_GDO2 = "gdo2"
 CONF_BANDWIDTH = "bandwidth"
 # CONF_FREQUENCY = "frequency"
 CONF_RSSI = "rssi"
@@ -32,8 +31,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(CC1101),
-            cv.Required(CONF_GDO0): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_GDO2): pins.gpio_input_pin_schema,
+            cv.Optional(CONF_GDO0): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BANDWIDTH, default=200): cv.uint32_t,
             cv.Optional(CONF_FREQUENCY, default=433920): cv.uint32_t,
             cv.Optional(CONF_RSSI): sensor.sensor_schema(
@@ -73,11 +71,9 @@ async def to_code(config):
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
 
-    gdo0 = await cg.gpio_pin_expression(config[CONF_GDO0])
-    cg.add(var.set_config_gdo0(gdo0))
-    if CONF_GDO2 in config:
-        gdo2 = await cg.gpio_pin_expression(config[CONF_GDO2])
-        cg.add(var.set_config_gdo2(gdo2))
+    if CONF_GDO0 in config:
+        gdo0 = await cg.gpio_pin_expression(config[CONF_GDO0])
+        cg.add(var.set_config_gdo0(gdo0))
     cg.add(var.set_config_bandwidth(config[CONF_BANDWIDTH]))
     cg.add(var.set_config_frequency(config[CONF_FREQUENCY]))
     if CONF_RSSI in config:

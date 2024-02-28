@@ -6,7 +6,13 @@
   It can be compiled with Arduino and esp-idf framework and should support any esphome compatible board through the SPI
   Bus.
 
-  On ESP8266, you can use the same pin for GDO and GD2 (it is an optional parameter).
+  On ESP8266, you can use a single pin instead of GD0O and GD02 (gdo0 is an optional parameter). If assigned,
+  the pin direction will be reversed for the transfers.
+
+  On ESP32, this will not work, you must connect two separate pins. TX to GDO0, RX to GDO2.
+  If only TX works, they are probably switched.
+
+  Transferst must be surrounded with cc1101.begin_tx and cc1101.end_tx.
 
   The source code is a mashup of the following github projects with some special esphome sauce:
 
@@ -48,7 +54,6 @@ static const uint8_t PA_TABLE_915[10]{0x03, 0x0E, 0x1E, 0x27, 0x38, 0x8E, 0x84, 
 
 CC1101::CC1101() {
   this->gdo0_ = nullptr;
-  this->gdo2_ = nullptr;
   this->bandwidth_ = 200;
   this->frequency_ = 433920;
   this->rssi_sensor_ = nullptr;
@@ -80,14 +85,7 @@ CC1101::CC1101() {
   this->pa_table_[1] = 0xc0;
 }
 
-void CC1101::set_config_gdo0(InternalGPIOPin *pin) {
-  gdo0_ = pin;
-
-  if (gdo2_ == nullptr)
-    gdo2_ = pin;
-}
-
-void CC1101::set_config_gdo2(InternalGPIOPin *pin) { gdo2_ = pin; }
+void CC1101::set_config_gdo0(InternalGPIOPin *pin) { gdo0_ = pin; }
 
 void CC1101::set_config_bandwidth(uint32_t bandwidth) { bandwidth_ = bandwidth; }
 
@@ -98,10 +96,10 @@ void CC1101::set_config_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ 
 void CC1101::set_config_lqi_sensor(sensor::Sensor *lqi_sensor) { lqi_sensor_ = lqi_sensor; }
 
 void CC1101::setup() {
-  this->gdo0_->setup();
-  this->gdo2_->setup();
-  this->gdo0_->pin_mode(gpio::FLAG_OUTPUT);
-  this->gdo2_->pin_mode(gpio::FLAG_INPUT);
+  if (this->gdo0_ != nullptr) {
+    this->gdo0_->setup();
+    this->gdo0_->pin_mode(gpio::FLAG_INPUT);
+  }
 
   this->spi_setup();
 
@@ -184,7 +182,6 @@ void CC1101::dump_config() {
   ESP_LOGCONFIG(TAG, "CC1101 partnum %02x version %02x:", this->partnum_, this->version_);
   LOG_PIN("  CC1101 CS Pin: ", this->cs_);
   LOG_PIN("  CC1101 GDO0: ", this->gdo0_);
-  LOG_PIN("  CC1101 GDO2: ", this->gdo2_);
   ESP_LOGCONFIG(TAG, "  CC1101 Bandwith: %d KHz", this->bandwidth_);
   ESP_LOGCONFIG(TAG, "  CC1101 Frequency: %d KHz", this->frequency_);
   LOG_SENSOR("  ", "RSSI", this->rssi_sensor_);
@@ -646,7 +643,7 @@ void CC1101::split_mdmcfg4_() {
 void CC1101::begin_tx() {
   this->set_tx_();
 
-  if (this->gdo0_ == this->gdo2_) {
+  if (this->gdo0_ != nullptr) {
 #ifdef USE_ESP8266
 #ifdef USE_ARDUINO
     noInterrupts();  // NOLINT
@@ -659,7 +656,7 @@ void CC1101::begin_tx() {
 }
 
 void CC1101::end_tx() {
-  if (this->gdo0_ == this->gdo2_) {
+  if (this->gdo0_ != nullptr) {
 #ifdef USE_ESP8266
 #ifdef USE_ARDUINO
     interrupts();  // NOLINT
