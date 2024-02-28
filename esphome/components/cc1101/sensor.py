@@ -13,8 +13,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
 )
 
-CODEOWNERS = ["@gabest11", "@dbuezas", "@nistvan86", "@LSatan"]
-
 DEPENDENCIES = ["spi"]
 
 CONF_GDO0 = "gdo0"

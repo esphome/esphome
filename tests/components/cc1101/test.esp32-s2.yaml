@@ -7,8 +7,12 @@ sensor:
   - platform: cc1101
     id: transceiver
     cs_pin: GPIO34
-    gdo0: GPIO8
-    gdo2: GPIO9
+    gdo0:
+      number: GPIO8
+      allow_other_uses: true
+    gdo2:
+      number: GPIO9
+      allow_other_uses: true
     bandwidth: 200
     frequency: 433920
     rssi:

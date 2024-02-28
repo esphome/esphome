@@ -7,8 +7,12 @@ sensor:
   - platform: cc1101
     id: transceiver
     cs_pin: GPIO10
-    gdo0: GPIO3
-    gdo2: GPIO4
+    gdo0:
+      number: GPIO3
+      allow_other_uses: true
+    gdo2:
+      number: GPIO4
+      allow_other_uses: true
     bandwidth: 200
     frequency: 433920
     rssi:
@@ -21,9 +25,7 @@ sensor:
 # dummy transmitter will push rx to the third place
 
 remote_transmitter:
-  - pin:
-      number: GPIO21  # TX pin
-      allow_other_uses: true
+  - pin: GPIO21  # TX pin
     carrier_duty_percent: 100%
     id: dummytx
   - pin:
