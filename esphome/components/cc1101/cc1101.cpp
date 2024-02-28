@@ -38,14 +38,13 @@ namespace cc1101 {
 
 static const char *const TAG = "cc1101";
 
-uint8_t PA_TABLE[8]{0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-//                       -30  -20  -15  -10   0    5    7    10
-uint8_t PA_TABLE_315[8]{0x12, 0x0D, 0x1C, 0x34, 0x51, 0x85, 0xCB, 0xC2};  // 300 - 348
-uint8_t PA_TABLE_433[8]{0x12, 0x0E, 0x1D, 0x34, 0x60, 0x84, 0xC8, 0xC0};  // 387 - 464
-//                        -30  -20  -15  -10  -6    0    5    7    10   12
-uint8_t PA_TABLE_868[10]{0x03, 0x17, 0x1D, 0x26, 0x37, 0x50, 0x86, 0xCD, 0xC5, 0xC0};  // 779 - 899.99
-//                        -30  -20  -15  -10  -6    0    5    7    10   11
-uint8_t PA_TABLE_915[10]{0x03, 0x0E, 0x1E, 0x27, 0x38, 0x8E, 0x84, 0xCC, 0xC3, 0xC0};  // 900 - 928
+//                             -30   -20   -15   -10     0     5     7    10
+static uint8_t PA_TABLE_315[8]{0x12, 0x0D, 0x1C, 0x34, 0x51, 0x85, 0xCB, 0xC2};  // 300 - 348
+static uint8_t PA_TABLE_433[8]{0x12, 0x0E, 0x1D, 0x34, 0x60, 0x84, 0xC8, 0xC0};  // 387 - 464
+//                              -30   -20   -15   -10    -6     0     5     7    10    12
+static uint8_t PA_TABLE_868[10]{0x03, 0x17, 0x1D, 0x26, 0x37, 0x50, 0x86, 0xCD, 0xC5, 0xC0};  // 779 - 899.99
+//                              -30   -20   -15   -10    -6     0     5     7    10    11
+static uint8_t PA_TABLE_915[10]{0x03, 0x0E, 0x1E, 0x27, 0x38, 0x8E, 0x84, 0xCC, 0xC3, 0xC0};  // 900 - 928
 
 CC1101::CC1101() {
   this->gdo0_ = nullptr;
@@ -65,7 +64,7 @@ CC1101::CC1101() {
   this->chan_ = 0;
   this->pa_ = 12;
   this->last_pa_ = -1;
-  this->m4RxBw_ = 0;
+  this->m4rxbw_ = 0;
   this->trxstate_ = 0;
 
   this->clb_[0][0] = 24;
@@ -76,6 +75,9 @@ CC1101::CC1101() {
   this->clb_[2][1] = 76;
   this->clb_[3][0] = 77;
   this->clb_[3][1] = 79;
+  
+  memset(this->pa_table_, 0, sizeof(pa_table_));  
+  this->pa_table_[1] = 0xc0;
 }
 
 void CC1101::set_config_gdo0(InternalGPIOPin *pin) {
@@ -303,13 +305,13 @@ void CC1101::set_mode_(bool s) {
     this->write_register_(CC1101_IOCFG0, 0x06);
     this->write_register_(CC1101_PKTCTRL0, 0x05);
     this->write_register_(CC1101_MDMCFG3, 0xF8);
-    this->write_register_(CC1101_MDMCFG4, 11 + this->m4RxBw_);
+    this->write_register_(CC1101_MDMCFG4, 11 + this->m4rxbw_);
   } else {
     this->write_register_(CC1101_IOCFG2, 0x0D);
     this->write_register_(CC1101_IOCFG0, 0x0D);
     this->write_register_(CC1101_PKTCTRL0, 0x32);
     this->write_register_(CC1101_MDMCFG3, 0x93);
-    this->write_register_(CC1101_MDMCFG4, 7 + this->m4RxBw_);
+    this->write_register_(CC1101_MDMCFG4, 7 + this->m4rxbw_);
   }
 
   this->set_modulation_(this->modulation_);
@@ -321,32 +323,32 @@ void CC1101::set_modulation_(uint8_t m) {
 
   this->modulation_ = m;
 
-  this->split_MDMCFG2_();
+  this->split_mdmcfg2_();
 
   switch (m) {
     case 0:
-      this->m2MODFM_ = 0x00;
+      this->m2modfm_ = 0x00;
       this->frend0_ = 0x10;
       break;  // 2-FSK
     case 1:
-      this->m2MODFM_ = 0x10;
+      this->m2modfm_ = 0x10;
       this->frend0_ = 0x10;
       break;  // GFSK
     case 2:
-      this->m2MODFM_ = 0x30;
+      this->m2modfm_ = 0x30;
       this->frend0_ = 0x11;
       break;  // ASK
     case 3:
-      this->m2MODFM_ = 0x40;
+      this->m2modfm_ = 0x40;
       this->frend0_ = 0x10;
       break;  // 4-FSK
     case 4:
-      this->m2MODFM_ = 0x70;
+      this->m2modfm_ = 0x70;
       this->frend0_ = 0x10;
       break;  // MSK
   }
 
-  this->write_register_(CC1101_MDMCFG2, this->m2DCOFF_ + this->m2MODFM_ + this->m2MANCH_ + this->m2SYNCM_);
+  this->write_register_(CC1101_MDMCFG2, this->m2dcoff_ + this->m2modfm_ + this->m2manch_ + this->m2syncm_);
   this->write_register_(CC1101_FREND0, this->frend0_);
 
   this->set_pa_(this->pa_);
@@ -447,14 +449,14 @@ void CC1101::set_pa_(int8_t pa) {
   }
 
   if (this->modulation_ == 2) {
-    PA_TABLE[0] = 0;
-    PA_TABLE[1] = a;
+    this->pa_table_[0] = 0;
+    this->pa_table_[1] = a;
   } else {
-    PA_TABLE[0] = a;
-    PA_TABLE[1] = 0;
+    this->pa_table_[0] = a;
+    this->pa_table_[1] = 0;
   }
 
-  this->write_register_burst_(CC1101_PATABLE, PA_TABLE, sizeof(PA_TABLE));
+  this->write_register_burst_(CC1101_PATABLE, this->pa_table_, sizeof(this->pa_table_));
 }
 
 void CC1101::set_frequency_(uint32_t f) {
@@ -588,11 +590,11 @@ void CC1101::set_rxbw_(uint32_t bw) {
     s2--;
   }
 
-  this->split_MDMCFG4_();
+  this->split_mdmcfg4_();
 
-  this->m4RxBw_ = (s1 << 6) | (s2 << 4);
+  this->m4rxbw_ = (s1 << 6) | (s2 << 4);
 
-  this->write_register_(CC1101_MDMCFG4, this->m4RxBw_ + this->m4DaRa_);
+  this->write_register_(CC1101_MDMCFG4, this->m4rxbw_ + this->m4dara_);
 }
 
 void CC1101::set_tx_() {
@@ -625,20 +627,20 @@ void CC1101::set_sleep_() {
   this->trxstate_ = 0;
 }
 
-void CC1101::split_MDMCFG2_() {
+void CC1101::split_mdmcfg2_() {
   uint8_t calc = this->read_status_register_(CC1101_MDMCFG2);
 
-  this->m2DCOFF_ = calc & 0x80;
-  this->m2MODFM_ = calc & 0x70;
-  this->m2MANCH_ = calc & 0x08;
-  this->m2SYNCM_ = calc & 0x07;
+  this->m2dcoff_ = calc & 0x80;
+  this->m2modfm_ = calc & 0x70;
+  this->m2manch_ = calc & 0x08;
+  this->m2syncm_ = calc & 0x07;
 }
 
-void CC1101::split_MDMCFG4_() {
+void CC1101::split_mdmcfg4_() {
   uint8_t calc = this->read_status_register_(CC1101_MDMCFG4);
 
-  this->m4RxBw_ = calc & 0xf0;
-  this->m4DaRa_ = calc & 0x0f;
+  this->m4rxbw_ = calc & 0xf0;
+  this->m4dara_ = calc & 0x0f;
 }
 
 void CC1101::begin_tx() {

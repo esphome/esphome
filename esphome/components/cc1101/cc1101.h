@@ -43,17 +43,18 @@ class CC1101 : public sensor::Sensor,
   uint8_t chan_;
   int8_t pa_;
   uint8_t last_pa_;
-  uint8_t m4RxBw_;
-  uint8_t m4DaRa_;
-  uint8_t m2DCOFF_;
-  uint8_t m2MODFM_;
-  uint8_t m2MANCH_;
-  uint8_t m2SYNCM_;
-  uint8_t m1FEC_;
-  uint8_t m1PRE_;
-  uint8_t m1CHSP_;
+  uint8_t m4rxbw_;
+  uint8_t m4dara_;
+  uint8_t m2dcoff_;
+  uint8_t m2modfm_;
+  uint8_t m2manch_;
+  uint8_t m2syncm_;
+  uint8_t m1fec_;
+  uint8_t m1pre_;
+  uint8_t m1chsp_;
   uint8_t trxstate_;
   uint8_t clb_[4][2];
+  uint8_t pa_table_[8];
 
   int32_t get_rssi_();
   uint8_t get_lqi_();
@@ -70,8 +71,8 @@ class CC1101 : public sensor::Sensor,
   void set_sidle_();
   void set_sleep_();
 
-  void split_MDMCFG2_();
-  void split_MDMCFG4_();
+  void split_mdmcfg2_();
+  void split_mdmcfg4_();
 
  public:
   CC1101();
