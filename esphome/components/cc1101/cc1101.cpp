@@ -17,6 +17,7 @@
   TODO: Libretiny? (USE_LIBRETINY)
 */
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "cc1101.h"
 #include "cc1101defs.h"
@@ -78,7 +79,7 @@ CC1101::CC1101()
 void CC1101::set_config_gdo0(InternalGPIOPin* pin)
 {
   gdo0_ = pin;
- 
+
   if(gdo2_ == NULL) gdo2_ = pin;
 }
 
@@ -222,7 +223,7 @@ bool CC1101::reset()
   //this->disable();
   this->cs_->digital_write(false);
   delayMicroseconds(41);
- 
+
   this->send_cmd(CC1101_SRES);
 
   ESP_LOGD(TAG, "Issued CC1101 reset sequence.");
@@ -292,7 +293,7 @@ void CC1101::write_register_burst(uint8_t reg, uint8_t* buffer, size_t length)
 bool CC1101::send_data(const uint8_t* data, size_t length)
 {
   uint8_t buffer[length];
- 
+
   memcpy(buffer, data, lenght);
 
   this->send_cmd(CC1101_SIDLE);
@@ -671,7 +672,7 @@ void CC1101::begin_tx()
   {
 #ifdef USE_ESP8266
   #ifdef USE_ARDUINO
-    noInterrupts();
+    noInterrupts(); // NOLINT
   #else // USE_ESP_IDF
     portDISABLE_INTERRUPTS()
   #endif
@@ -686,7 +687,7 @@ void CC1101::end_tx()
   {
 #ifdef USE_ESP8266
   #ifdef USE_ARDUINO
-    interrupts();
+    interrupts(); // NOLINT
   #else // USE_ESP_IDF
     portENABLE_INTERRUPTS()
   #endif
