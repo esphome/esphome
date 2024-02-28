@@ -14,26 +14,24 @@ static constexpr float CONST_C = 299792458;
 
 static constexpr uint8_t NUM_USEFUL_CHANNELS = 13;
 static constexpr uint8_t CHANNEL_IDX[NUM_USEFUL_CHANNELS] = {
-    AS7343_CHANNEL_405_F1, AS7343_CHANNEL_425_F2, AS7343_CHANNEL_450_FZ,  AS7343_CHANNEL_475_F3, AS7343_CHANNEL_515_F4,
-    AS7343_CHANNEL_555_FY, AS7343_CHANNEL_550_F5, AS7343_CHANNEL_600_FXL, AS7343_CHANNEL_640_F6, AS7343_CHANNEL_690_F7,
-    AS7343_CHANNEL_745_F8, AS7343_CHANNEL_CLEAR,  AS7343_CHANNEL_855_NIR};
-static constexpr float CHANNEL_SENS[NUM_USEFUL_CHANNELS] = {
-    0.19402, 0.26647, 0.35741, 0.41753, 0.52235, 0.59633, 0.56242, 0.65645, 0.68882, 0.79980, 0.70423, 0.38516, 0.40366,
-};
+    AS7343_CHANNEL_405_F1, AS7343_CHANNEL_425_F2,  AS7343_CHANNEL_450_FZ,  AS7343_CHANNEL_475_F3, AS7343_CHANNEL_515_F4,
+    AS7343_CHANNEL_555_FY, AS7343_CHANNEL_550_F5,  AS7343_CHANNEL_600_FXL, AS7343_CHANNEL_640_F6, AS7343_CHANNEL_690_F7,
+    AS7343_CHANNEL_745_F8, AS7343_CHANNEL_855_NIR, AS7343_CHANNEL_CLEAR};
+static constexpr float CHANNEL_SENS[NUM_USEFUL_CHANNELS] = {0.19402, 0.26647, 0.35741, 0.41753, 0.52235,
+                                                            0.59633, 0.56242, 0.65645, 0.68882, 0.79980,
+                                                            0.70423, 0.40366, 0.38516};
 static constexpr float CHANNEL_NM[NUM_USEFUL_CHANNELS] = {405, 425, 450, 475, 515, 555, 550,
-                                                          600, 640, 690, 745, 718, 855};
-static constexpr float CHANNEL_NM_WIDTH[NUM_USEFUL_CHANNELS] = {30, 22, 55, 30, 40, 100, 35, 80, 50, 55, 60, 0, 54};
+                                                          600, 640, 690, 745, 855, 718};
+static constexpr float CHANNEL_NM_WIDTH[NUM_USEFUL_CHANNELS] = {30, 22, 55, 30, 40, 100, 35, 80, 50, 55, 60, 54, 0};
 
 static constexpr float CHANNEL_IRRAD_PER_BASIC_COUNT[NUM_USEFUL_CHANNELS] = {
     767.5101757, 2512.765376, 2034.308898, 5730.41039,  1404.780643, 1177.586336, 2803.31385,
-    923.8726968, 1322.666667, 811.8520699, 5106.962963,  4416.832833, 417.0131368,
-
-};
+    923.8726968, 1322.666667, 811.8520699, 5106.962963, 417.0131368, 4416.832833};
 
 // E = h*c/lambda
 static constexpr float PHOTON_ENERGIES[NUM_USEFUL_CHANNELS] = {
     4.9048E-19f,  4.67399E-19f, 4.41432E-19f, 4.18199E-19f, 3.85718E-19f, 3.57918E-19f, 3.61172E-19f,
-    3.31074E-19f, 3.10382E-19f, 2.87891E-19f, 2.66637E-19f, 2.76664E-19f, 2.32333E-19f};
+    3.31074E-19f, 3.10382E-19f, 2.87891E-19f, 2.66637E-19f, 2.32333E-19f, 2.76664E-19f};
 
 // constexpr std::array<float, NUM_USEFUL_CHANNELS> fill_photon_energy() {
 //     std::array<float, NUM_USEFUL_CHANNELS> v{0};
@@ -133,11 +131,11 @@ void AS7343Component::update() {
            this->channel_readings_[CHANNEL_IDX[7]], this->channel_readings_[CHANNEL_IDX[8]],
            this->channel_readings_[CHANNEL_IDX[9]], this->channel_readings_[CHANNEL_IDX[10]],
            this->channel_readings_[CHANNEL_IDX[11]], this->channel_readings_[CHANNEL_IDX[12]]);
-  
+
   float irradiance = this->calculate_par_v2(tint_ms, gain_x);
 
   if (this->illuminance_ != nullptr) {
-    this->illuminance_->publish_state(irradiance/0.0079);
+    this->illuminance_->publish_state(irradiance / 0.0079);
   }
 
   if (this->irradiance_ != nullptr) {
