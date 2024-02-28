@@ -6,6 +6,7 @@ from esphome import automation
 from esphome.const import (
     CONF_ON_TOUCH,
     CONF_ON_RELEASE,
+    CONF_ON_UPDATE,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_SWAP_XY,
@@ -30,7 +31,6 @@ TouchListener = touchscreen_ns.class_("TouchListener")
 CONF_DISPLAY = "display"
 CONF_TOUCHSCREEN_ID = "touchscreen_id"
 CONF_REPORT_INTERVAL = "report_interval"  # not used yet:
-CONF_ON_UPDATE = "on_update"
 CONF_TOUCH_TIMEOUT = "touch_timeout"
 
 
