@@ -24,16 +24,16 @@ class CC1101 : public sensor::Sensor,
   int32_t last_rssi_;
   int32_t last_lqi_;
 
-  bool reset();
-  void send_cmd(uint8_t cmd);
-  uint8_t read_register(uint8_t reg);
-  uint8_t read_config_register(uint8_t reg);
-  uint8_t read_status_register(uint8_t reg);
-  void read_register_burst(uint8_t reg, uint8_t *buffer, size_t length);
-  void write_register(uint8_t reg, uint8_t *value, size_t length);
-  void write_register(uint8_t reg, uint8_t value);
-  void write_register_burst(uint8_t reg, uint8_t *buffer, size_t length);
-  // bool send_data(const uint8_t* data, size_t length);
+  bool reset_();
+  void send_cmd_(uint8_t cmd);
+  uint8_t read_register_(uint8_t reg);
+  uint8_t read_config_register_(uint8_t reg);
+  uint8_t read_status_register_(uint8_t reg);
+  void read_register_burst_(uint8_t reg, uint8_t *buffer, size_t length);
+  void write_register_(uint8_t reg, uint8_t *value, size_t length);
+  void write_register_(uint8_t reg, uint8_t value);
+  void write_register_burst_(uint8_t reg, uint8_t *buffer, size_t length);
+  // bool send_data_(const uint8_t* data, size_t length);
 
   // ELECHOUSE_CC1101 stuff
 
@@ -55,20 +55,23 @@ class CC1101 : public sensor::Sensor,
   uint8_t trxstate_;
   uint8_t clb_[4][2];
 
-  void set_mode(bool s);
-  void set_frequency(uint32_t f);
-  void set_modulation(uint8_t m);
-  void set_pa(int8_t pa);
-  void set_clb(uint8_t b, uint8_t s, uint8_t e);
-  void set_rxbw(uint32_t bw);
-  void set_tx();
-  void set_rx();
-  void set_sres();
-  void set_sidle();
-  void set_sleep();
+  int32_t get_rssi_();
+  uint8_t get_lqi_();
 
-  void split_MDMCFG2();
-  void split_MDMCFG4();
+  void set_mode_(bool s);
+  void set_frequency_(uint32_t f);
+  void set_modulation_(uint8_t m);
+  void set_pa_(int8_t pa);
+  void set_clb_(uint8_t b, uint8_t s, uint8_t e);
+  void set_rxbw_(uint32_t bw);
+  void set_tx_();
+  void set_rx_();
+  void set_sres_();
+  void set_sidle_();
+  void set_sleep_();
+
+  void split_MDMCFG2_();
+  void split_MDMCFG4_();
 
  public:
   CC1101();
@@ -83,9 +86,6 @@ class CC1101 : public sensor::Sensor,
   void setup() override;
   void update() override;
   void dump_config() override;
-
-  int32_t get_rssi();
-  uint8_t get_lqi();
 
   void begin_tx();
   void end_tx();
