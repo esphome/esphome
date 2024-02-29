@@ -168,8 +168,6 @@ struct HaierPacketBigData {
   uint8_t expansion_valve_open_degree[2];  // 0 - 4095
 };
 
-#define UINT16_BE(x) (((uint16_t) ((x)[0]) << 8) + (x)[1])
-
 struct DeviceVersionAnswer {
   char protocol_version[8];
   char software_version[8];
