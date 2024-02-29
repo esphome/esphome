@@ -1,7 +1,7 @@
 /// @file weikai.h
 /// @author DrCoolZic
 /// @brief  WeiKai component family - classes declaration
-/// @date Last Modified: 2024/02/29 18:23:32
+/// @date Last Modified: 2024/02/29 18:27:37
 /// @details The classes declared in this file can be used by the Weikai family
 /// of UART and GPIO expander components. As of today it provides support for
 ///     wk2124_spi, wk2132_spi, wk2168_spi, wk2204_spi, wk2212_spi,
@@ -64,7 +64,6 @@ constexpr size_t XFER_MAX_SIZE = 128;
 constexpr size_t FIFO_SIZE = 256;
 
 /// @brief size of the ring buffer
-/// @details We set the size of ring buffer to XFER_MAX_SIZE
 constexpr size_t RING_BUFFER_SIZE = 256;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
