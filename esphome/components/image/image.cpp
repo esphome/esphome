@@ -2,12 +2,97 @@
 
 #include "esphome/core/hal.h"
 
+#include "esphome/core/log.h"
+
 namespace esphome {
 namespace image {
+
+static const char *const TAG = "image";
 
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
   switch (type_) {
     case IMAGE_TYPE_BINARY: {
+      bool c_on = color_on.is_on();
+      bool c_off = color_off.is_on();
+      if (this->is_vertical()) {
+        if (display->get_pixel_group_mode() == display::PIXEL_GROUP_VERTICAL) {
+          const uint32_t height_8 = ((this->height_ + 7u) / 8u);
+          uint8_t offset = (uint32_t)y % 8;
+          uint8_t reverse_offset = 8 - offset;
+          int y_offset = y < 0 ? -1 : 0;
+          for (int img_x = 0; img_x < this->width_; img_x++) {
+            for (int img_y = 0; img_y < height_8; img_y++) {
+              uint8_t data1 = progmem_read_byte(this->data_start_ + img_x * height_8 + img_y);
+              uint8_t data2 = 0xff;
+              if (this->transparent_) {
+                data2 = data1;
+                data1 = (c_on) ? 0xff : 0x00;
+              } else {
+                if (c_off) {
+                  if (c_on) {
+                    data1 = 0xff;
+                  } else {
+                    data1 = ~data1;
+                  }
+                } else if (!c_on){
+                  data1 = 0x00;
+                }
+              }
+              if (img_y == height_8 - 1 && (this->height_ % 8) != 0) {
+                data2 &= 0xff << (8 - (this->height_ % 8));
+              }
+              if (y % 8 == 0) {
+                display->draw_vertical_pixel_group(x + img_x, y / 8 + img_y, data1, data2, true);
+              } else {
+                display->draw_vertical_pixel_group(x + img_x, y / 8 + img_y + y_offset, data1 >> offset, data2 >> offset, true);
+                display->draw_vertical_pixel_group(x + img_x, y / 8 + img_y + y_offset + 1, data1 << reverse_offset, data2 << reverse_offset, true);
+              }
+            }
+          }
+          break;
+        } else if (display->get_pixel_group_mode() == display::PIXEL_GROUP_HORIZONTAL) {
+            ESP_LOGI(TAG, "To speed up rendering set the image type to BINARY");
+        }
+      } else {
+        if (display->get_pixel_group_mode() == display::PIXEL_GROUP_HORIZONTAL) {
+          const uint32_t width_8 = ((this->width_ + 7u) / 8u);
+          uint8_t offset = (uint32_t)x % 8;
+          uint8_t reverse_offset = 8 - offset;
+          int x_offset = x < 0 ? -1 : 0;
+          for (int img_x = 0; img_x < width_8; img_x++) {
+            for (int img_y = 0; img_y < this->height_; img_y++) {
+              uint8_t data1 = progmem_read_byte(this->data_start_ + img_x + img_y * width_8);
+              uint8_t data2 = 0xff;
+              if (this->transparent_) {
+                data2 = data1;
+                data1 = (c_on) ? 0xff : 0x00;
+              } else {
+                if (c_off) {
+                  if (c_on) {
+                    data1 = 0xff;
+                  } else {
+                    data1 = ~data1;
+                  }
+                } else if (!c_on){
+                  data1 = 0x00;
+                }
+              }
+              if (img_x == width_8 - 1 && (this->width_ % 8) != 0) {
+                data2 &= 0xff << (8 - (this->width_ % 8));
+              }
+              if (y % 8 == 0) {
+                display->draw_horizontal_pixel_group(x / 8 + img_x, y + img_y, data1, data2, true);
+              } else {
+                display->draw_horizontal_pixel_group(x / 8 + img_x + x_offset, y + img_y, data1 >> offset, data2 >> offset, true);
+                display->draw_horizontal_pixel_group(x / 8 + img_x + x_offset + 1, y + img_y, data1 << reverse_offset, data2 << reverse_offset, true);
+              }
+            }
+          }
+          break;
+        } else if (display->get_pixel_group_mode() == display::PIXEL_GROUP_VERTICAL) {
+            ESP_LOGI(TAG, "To speed up rendering set the image type to BINARY_VERTICAL");
+        }
+      }
       for (int img_x = 0; img_x < width_; img_x++) {
         for (int img_y = 0; img_y < height_; img_y++) {
           if (this->get_binary_pixel_(img_x, img_y)) {
@@ -80,9 +165,15 @@ Color Image::get_pixel(int x, int y, Color color_on, Color color_off) const {
   }
 }
 bool Image::get_binary_pixel_(int x, int y) const {
-  const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
-  const uint32_t pos = x + y * width_8;
-  return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
+  if (this->is_vertical()) {
+    const uint32_t height_8 = ((this->height_ + 7u) / 8u) * 8u;
+    const uint32_t pos = x * height_8 + y;
+    return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
+  } else {
+    const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
+    const uint32_t pos = x + y * width_8;
+    return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
+  }
 }
 Color Image::get_rgba_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_) * 4;

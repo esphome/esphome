@@ -64,6 +64,9 @@ class SSD1306 : public display::DisplayBuffer {
 
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
+  void draw_vertical_pixel_group_internal(int x, int y_row, uint8_t colors, uint8_t transparency, bool reverse_bit_order) override;
+  inline display::PixelGroupMode get_pixel_group_mode_internal() override { return display::PIXEL_GROUP_VERTICAL; }
+
   int get_height_internal() override;
   int get_width_internal() override;
   size_t get_buffer_length_();
