@@ -1,6 +1,6 @@
 /// @file weikai_i2c.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/02/29 13:49:09
+/// @date Last Modified: 2024/02/29 21:29:25
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai_i2c.h"
@@ -43,7 +43,6 @@ const char *reg_to_str(int reg, bool page1) {
 }
 enum RegType { REG = 0, FIFO = 1 };  ///< Register or FIFO
 
-
 /// @brief Computes the I²C bus's address used to access the component
 /// @param base_address the base address of the component - set by the A1 A0 pins
 /// @param channel (0-3) the UART channel
@@ -62,22 +61,22 @@ inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, RegType fifo) 
   return addr;
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // The WeikaiRegisterI2C methods
 ///////////////////////////////////////////////////////////////////////////////
 uint8_t WeikaiRegisterI2C::read_reg() const {
   uint8_t value = 0x00;
   WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
-  comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, REG);  // update the i2c bus address
+  uint8_t address = i2c_address(comp_i2c->base_address_, this->channel_, REG);
+  comp_i2c->set_i2c_address(address);
   auto error = comp_i2c->read_register(this->register_, &value, 1);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", comp_i2c->address_,
+    ESP_LOGVV(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", address,
               reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", comp_i2c->address_,
+    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", address,
              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
   }
   return value;
@@ -85,51 +84,54 @@ uint8_t WeikaiRegisterI2C::read_reg() const {
 
 void WeikaiRegisterI2C::read_fifo(uint8_t *data, size_t length) const {
   WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
-  comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, FIFO);
+  uint8_t address = i2c_address(comp_i2c->base_address_, this->channel_, FIFO);
+  comp_i2c->set_i2c_address(address);
   auto error = comp_i2c->read(data, length);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-    ESP_LOGVV(TAG, "WeikaiRegisterI2C::read_fifo() @%02X ch=%d I2C_code:%d len=%d buffer", comp_i2c->address_,
-              this->channel_, (int) error, length);
+    ESP_LOGVV(TAG, "WeikaiRegisterI2C::read_fifo() @%02X ch=%d I2C_code:%d len=%d buffer", address, this->channel_,
+              (int) error, length);
     print_buffer(data, length);
 #endif
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_fifo() @%02X reg=N/A ch=%d I2C_code:%d len=%d buf=%02X...",
-             comp_i2c->address_, this->channel_, (int) error, length, data[0]);
+    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_fifo() @%02X reg=N/A ch=%d I2C_code:%d len=%d buf=%02X...", address,
+             this->channel_, (int) error, length, data[0]);
   }
 }
 
 void WeikaiRegisterI2C::write_reg(uint8_t value) {
   WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
-  comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, REG);  // update the i2c bus
+  uint8_t address = i2c_address(comp_i2c->base_address_, this->channel_, REG);  // update the i2c bus
+  comp_i2c->set_i2c_address(address);
   auto error = comp_i2c->write_register(this->register_, &value, 1);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WK2168Reg::write_reg() @%02X reg=%s ch=%d I2C_code:%d buf=%02X", comp_i2c->address_,
+    ESP_LOGVV(TAG, "WK2168Reg::write_reg() @%02X reg=%s ch=%d I2C_code:%d buf=%02X", address,
               reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WK2168Reg::write_reg() @%02X reg=%s ch=%d I2C_code:%d buf=%d", comp_i2c->address_,
+    ESP_LOGE(TAG, "WK2168Reg::write_reg() @%02X reg=%s ch=%d I2C_code:%d buf=%d", address,
              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
   }
 }
 
 void WeikaiRegisterI2C::write_fifo(uint8_t *data, size_t length) {
   WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
-  comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, FIFO);  // set fifo flag
+  uint8_t address = i2c_address(comp_i2c->base_address_, this->channel_, FIFO);  // set fifo flag
+  comp_i2c->set_i2c_address(address);
   auto error = comp_i2c->write(data, length);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-    ESP_LOGVV(TAG, "WK2168Reg::write_fifo() @%02X ch=%d I2C_code:%d len=%d buffer", comp_i2c->address_, this->channel_,
+    ESP_LOGVV(TAG, "WK2168Reg::write_fifo() @%02X ch=%d I2C_code:%d len=%d buffer", address, this->channel_,
               (int) error, length);
     print_buffer(data, length);
 #endif
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WK2168Reg::write_fifo() @%02X reg=N/A, ch=%d I2C_code:%d len=%d, buf=%02X...", comp_i2c->address_,
+    ESP_LOGE(TAG, "WK2168Reg::write_fifo() @%02X reg=N/A, ch=%d I2C_code:%d len=%d, buf=%02X...", address,
              this->channel_, (int) error, length, data[0]);
   }
 }
@@ -170,6 +172,5 @@ void WeikaiComponentI2C::dump_config() {
   }
 }
 
-
-}  // namespace weikai
+}  // namespace weikai_i2c
 }  // namespace esphome

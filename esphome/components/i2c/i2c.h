@@ -265,7 +265,7 @@ class I2CDevice {
 
   bool write_byte_16(uint8_t a_register, uint16_t data) { return write_bytes_16(a_register, &data, 1); }
 
-//  protected:
+ protected:
   uint8_t address_{0x00};  ///< store the address of the device on the bus
   I2CBus *bus_{nullptr};   ///< pointer to I2CBus instance
 };
