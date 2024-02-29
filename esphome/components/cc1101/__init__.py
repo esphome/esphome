@@ -14,6 +14,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["spi"]
+AUTO_LOAD = ["sensor"]
 
 CODEOWNERS = ["@gabest11"]
 
