@@ -1,0 +1,21 @@
+esphome:
+  name: test
+
+substitutions:
+  switch_def:
+    platform: template
+    name: $name
+    optimistic: True
+  name: Normal switch
+  valid_interpolation: "1"
+
+switch:
+- platform: template
+  name: $name
+  optimistic: True
+- $switch_def
+- platform: template
+  name: Switch $invalid_interpolation
+  optimistic: True
+
+host:

@@ -28,7 +28,7 @@ def validate_substitution_key(value):
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        validate_substitution_key: cv.string_strict,
+        validate_substitution_key: cv.Any(None, str, int, float, dict, list),
     }
 )
 
@@ -37,49 +37,77 @@ async def to_code(config):
     pass
 
 
-def _expand_substitutions(substitutions, value, path, ignore_missing):
+def _find_tokens(value):
+    """
+    Finds substitutable tokens in the form of:
+    ```
+    "a variable $a and a variable $abc"
+    ```
+    and turns them into pairs of:
+    ```
+    ('a', (11, 2)), ('abc', (16, 4))
+    ```
+    where the first number represents the characters
+    skipped from the last token to the start of the new one
+    and the last number the length of the token
+    (including $ or ${})
+    """
     if "$" not in value:
-        return value
+        return
 
-    orig_value = value
-
-    i = 0
-    while True:
-        m = cv.VARIABLE_PROG.search(value, i)
-        if not m:
-            # Nothing more to match. Done
-            break
-
-        i, j = m.span(0)
-        name = m.group(1)
+    last_end = 0
+    for match in cv.VARIABLE_PROG.finditer(value):
+        name = match.group(1)
+        start, end = match.span(0)
         if name.startswith("{") and name.endswith("}"):
             name = name[1:-1]
+
+        yield match.group(1), (start - last_end, end - start)
+        last_end = end
+
+
+def _expand_substitutions(substitutions, value, path, ignore_missing):
+    substituted = ""
+    start_from = 0
+    for name, (ignored_chars, length) in _find_tokens(value):
         if name not in substitutions:
             if not ignore_missing and "password" not in path:
                 _LOGGER.warning(
                     "Found '%s' (see %s) which looks like a substitution, but '%s' was "
                     "not declared",
-                    orig_value,
+                    value,
                     "->".join(str(x) for x in path),
                     name,
                 )
-            i = j
+            substituted += value[start_from : ignored_chars + length]
+            start_from = ignored_chars + length
             continue
 
         sub = substitutions[name]
-        tail = value[j:]
-        value = value[:i] + sub
-        i = len(value)
-        value += tail
+        if isinstance(sub, str):
+            substituted += value[start_from:ignored_chars] + sub
+            start_from += ignored_chars + length
+            continue
 
-    # orig_value can also already be a lambda with esp_range info, and only
-    # a plain string is sent in orig_value
-    if isinstance(orig_value, ESPHomeDataBase):
+        if length != len(value):
+            raise cv.Invalid(
+                "String interpolation is only allowed for substitutions with "
+                f"string types, however {name!r} (used in {'->'.join(str(x) for x in path)}) "
+                f"is of type {type(sub)}"
+            )
+
+        return sub
+
+    substituted += value[start_from:]
+
+    # value can also already be a lambda with esp_range info, and only
+    # a plain string is sent in value
+    if isinstance(value, ESPHomeDataBase):
         # even though string can get larger or smaller, the range should point
         # to original document marks
-        return make_data_base(value, orig_value)
+        return make_data_base(substituted, value)
 
-    return value
+    return substituted
 
 
 def _substitute_item(substitutions, item, path, ignore_missing):
@@ -91,6 +119,7 @@ def _substitute_item(substitutions, item, path, ignore_missing):
     elif isinstance(item, dict):
         replace_keys = []
         for k, v in item.items():
+            # if we're not in the substitutions section, substitute keys
             if path or k != CONF_SUBSTITUTIONS:
                 sub = _substitute_item(substitutions, k, path + [k], ignore_missing)
                 if sub is not None:
@@ -133,7 +162,7 @@ def do_substitution_pass(config, command_line_substitutions, ignore_missing=Fals
                 sub = validate_substitution_key(key)
                 if sub != key:
                     replace_keys.append((key, sub))
-                substitutions[key] = cv.string_strict(value)
+                substitutions[key] = value
         for old, new in replace_keys:
             substitutions[new] = substitutions[old]
             del substitutions[old]
