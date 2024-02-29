@@ -24,6 +24,7 @@
   TODO: Libretiny? (USE_LIBRETINY)
 */
 
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "cc1101.h"
