@@ -99,8 +99,8 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   float get_gain_multiplier(AS7343Gain gain);
   //  uint16_t read_channel(AS7343AdcChannel channel);
   bool read_channels(uint16_t *data);
-  float calculate_par_v1();
-  float calculate_par_v2(float tint_ms, float gain_x);
+  float calculate_ppfd(float tint_ms, float gain_x, AS7343Gain gain);
+  void calculate_irradiance(float tint_ms, float gain_x, float& irradiance, float& lux, AS7343Gain gain);
   float calculate_spectre_();
 
   // void set_smux_low_channels(bool enable);

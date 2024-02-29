@@ -20,6 +20,10 @@ static constexpr uint8_t CHANNEL_IDX[NUM_USEFUL_CHANNELS] = {
 static constexpr float CHANNEL_SENS[NUM_USEFUL_CHANNELS] = {0.19402, 0.26647, 0.35741, 0.41753, 0.52235,
                                                             0.59633, 0.56242, 0.65645, 0.68882, 0.79980,
                                                             0.70423, 0.40366, 0.38516};
+static constexpr float CHANNEL_BASIC_CORRECTIONS[NUM_USEFUL_CHANNELS] = {
+    1.055464349, 1.043509797, 1.029576268, 1.0175052,   1.00441899,  0.987356499, 0.957597044,
+    0.995863485, 1.014628964, 0.996500814, 0.933072749, 1.052236338, 0.999570232};
+
 static constexpr float CHANNEL_NM[NUM_USEFUL_CHANNELS] = {405, 425, 450, 475, 515, 555, 550,
                                                           600, 640, 690, 745, 855, 718};
 static constexpr float CHANNEL_NM_WIDTH[NUM_USEFUL_CHANNELS] = {30, 22, 55, 30, 40, 100, 35, 80, 50, 55, 60, 54, 0};
@@ -113,7 +117,7 @@ void AS7343Component::update() {
   uint8_t atime = get_atime();
   uint16_t astep = get_astep();
 
-  float tint_ms = (1 + atime) * (1 + astep) * 2.78 / 1000;
+  float tint_ms = (1 + atime) * (1 + astep) * 2.78 / 1000;  // us to ms
   float gain_x = get_gain_multiplier(gain);
 
   ESP_LOGD(TAG, "  Gain : %.1fX", gain_x);
@@ -132,10 +136,16 @@ void AS7343Component::update() {
            this->channel_readings_[CHANNEL_IDX[9]], this->channel_readings_[CHANNEL_IDX[10]],
            this->channel_readings_[CHANNEL_IDX[11]], this->channel_readings_[CHANNEL_IDX[12]]);
 
-  float irradiance = this->calculate_par_v2(tint_ms, gain_x);
+  float irradiance;
+  float lux;
+  this->calculate_irradiance(tint_ms, gain_x, irradiance, lux, gain);
+  ESP_LOGD(TAG, "  Irradiance: %f W/m^2", irradiance);
+  ESP_LOGD(TAG, "  Lux solar : %f lx", lux);
+  float par = this->calculate_ppfd(tint_ms, gain_x, gain);
+  ESP_LOGD(TAG, "  PAR       : %.2f", par);
 
   if (this->illuminance_ != nullptr) {
-    this->illuminance_->publish_state(irradiance / 0.0079);
+    this->illuminance_->publish_state(lux);
   }
 
   if (this->irradiance_ != nullptr) {
@@ -222,24 +232,39 @@ bool AS7343Component::setup_astep(uint16_t astep) {
   return this->write_byte_16((uint8_t) AS7343Registers::ASTEP_LSB, swap_bytes(astep));
 }
 
-float AS7343Component::calculate_par_v1() {
+float AS7343Component::calculate_ppfd(float tint_ms, float gain_x, AS7343Gain gain) {
   float par = 0;
-  for (uint8_t i = 0; i < NUM_USEFUL_CHANNELS; i++) {
-    par += this->channel_readings_[CHANNEL_IDX[i]] * CHANNEL_SENS[i];
-  }
-  return par;
-}
-
-float AS7343Component::calculate_par_v2(float tint_ms, float gain_x) {
-  float irradiance = 0;
+  float bc[NUM_USEFUL_CHANNELS] = {0};
+  float bcc[NUM_USEFUL_CHANNELS] = {0};
 
   for (uint8_t i = 0; i < NUM_USEFUL_CHANNELS; i++) {
     float basic_count = this->channel_readings_[CHANNEL_IDX[i]] / (gain_x * tint_ms);
+    bc[i] = basic_count * AS7343_GAIN_CORRECTION[(uint8_t) gain][i];
+    bcc[i] = basic_count / CHANNEL_SENS[i];
+    if (CHANNEL_NM[i] < 400 || CHANNEL_NM[i] > 700) {
+      continue;
+    }
+
+    float watts = basic_count * CHANNEL_IRRAD_PER_BASIC_COUNT[i] / 1000;
+    float photon_flux = watts / PHOTON_ENERGIES[i];
+    par += photon_flux;
+  }
+
+  ESP_LOGD(TAG, "basic counts, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f", bc[0], bc[1], bc[2], bc[3], bc[4],
+           bc[5], bc[6], bc[7], bc[8], bc[9], bc[10], bc[11]);
+  ESP_LOGD(TAG, "basic counts corrected, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f", bcc[0], bcc[1], bcc[2],
+           bcc[3], bcc[4], bcc[5], bcc[6], bcc[7], bcc[8], bcc[9], bcc[10], bcc[11]);
+  return par;
+}
+
+void AS7343Component::calculate_irradiance(float tint_ms, float gain_x, float &irradiance, float &lux, AS7343Gain gain) {
+  for (uint8_t i = 0; i < NUM_USEFUL_CHANNELS; i++) {
+    float basic_count = this->channel_readings_[CHANNEL_IDX[i]] / (gain_x * tint_ms);
+    basic_count *= AS7343_GAIN_CORRECTION[(uint8_t) gain][i];
     irradiance += basic_count * CHANNEL_IRRAD_PER_BASIC_COUNT[i];
   }
-  ESP_LOGD(TAG, "  Irradiance: %f W/m^2", irradiance / 1000);
-  ESP_LOGD(TAG, "  Lux solar: %f lx", irradiance / 1000 / 0.0079);
-  return irradiance;
+  irradiance /= 1000;
+  lux = irradiance / 0.0079;
 }
 
 bool AS7343Component::read_channels(uint16_t *data) {
