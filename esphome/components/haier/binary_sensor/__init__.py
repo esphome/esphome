@@ -64,8 +64,7 @@ async def to_code(config):
     paren = await cg.get_variable(config[CONF_HAIER_ID])
 
     for type, _ in SENSOR_TYPES.items():
-        if type in config:
-            conf = config[type]
+        if conf := config.get(type):
             sens = await binary_sensor.new_binary_sensor(conf)
             binary_sensor_type = getattr(BinarySensorTypeEnum, type.upper())
             cg.add(paren.set_sub_binary_sensor(binary_sensor_type, sens))
