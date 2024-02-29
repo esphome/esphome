@@ -1,9 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation, pins
+from esphome import pins
 from esphome.components import sensor
 from esphome.components import spi
-from esphome.automation import maybe_simple_id
 from esphome.components import remote_base
 from esphome.const import (
     CONF_ID,
@@ -56,6 +55,7 @@ CONFIG_SCHEMA = (
     .extend(spi.spi_device_schema(cs_pin_required=True))
 )
 
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -73,6 +73,7 @@ async def to_code(config):
         lqi = await sensor.new_sensor(config[CONF_LQI])
         cg.add(var.set_config_lqi_sensor(lqi))
 
+
 CC1101RawAction = ns.class_("CC1101RawAction", remote_base.RemoteTransmitterActionBase)
 
 CC1101_TRANSMIT_SCHEMA = (
@@ -86,10 +87,14 @@ CC1101_TRANSMIT_SCHEMA = (
     .extend(remote_base.RC_SWITCH_TRANSMITTER)
 )
 
+
 @remote_base.register_action("cc1101", CC1101RawAction, CC1101_TRANSMIT_SCHEMA)
 async def cc1101_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, remote_base.RCSwitchBase, to_exp=remote_base.build_rc_switch_protocol
+        config[CONF_PROTOCOL],
+        args,
+        remote_base.RCSwitchBase,
+        to_exp=remote_base.build_rc_switch_protocol,
     )
     cg.add(var.set_protocol(proto))
     cg.add(var.set_code(await cg.templatable(config[CONF_CODE], args, cg.std_string)))
