@@ -1,7 +1,13 @@
 from esphome import pins
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
+from esphome.components.esp32.const import (
+    VARIANT_ESP32C3,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 from esphome.const import (
     CONF_DOMAIN,
     CONF_ID,
@@ -19,9 +25,11 @@ from esphome.const import (
     CONF_CS_PIN,
     CONF_INTERRUPT_PIN,
     CONF_RESET_PIN,
+    CONF_SPI,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.components.network import IPAddress
+from esphome.components.spi import get_spi_interface, CONF_INTERFACE_INDEX
 
 CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
@@ -47,6 +55,8 @@ ETHERNET_TYPES = {
     "KSZ8081RNA": EthernetType.ETHERNET_TYPE_KSZ8081RNA,
     "W5500": EthernetType.ETHERNET_TYPE_W5500,
 }
+
+SPI_ETHERNET_TYPES = ["W5500"]
 
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
 emac_rmii_clock_gpio_t = cg.global_ns.enum("emac_rmii_clock_gpio_t")
@@ -151,6 +161,28 @@ CONFIG_SCHEMA = cv.All(
     ),
     _validate,
 )
+
+
+def _final_validate(config):
+    if config[CONF_TYPE] not in SPI_ETHERNET_TYPES:
+        return
+    if spi_configs := fv.full_config.get().get(CONF_SPI):
+        variant = get_esp32_variant()
+        if variant in (VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3):
+            spi_host = "SPI2_HOST"
+        else:
+            spi_host = "SPI3_HOST"
+        for spi_conf in spi_configs:
+            if (index := spi_conf.get(CONF_INTERFACE_INDEX)) is not None:
+                interface = get_spi_interface(index)
+                if interface == spi_host:
+                    raise cv.Invalid(
+                        f"`spi` component is using interface '{interface}'. "
+                        f"To use {config[CONF_TYPE]}, you must change the `interface` on the `spi` component.",
+                    )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def manual_ip(config):
