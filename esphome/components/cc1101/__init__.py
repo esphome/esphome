@@ -13,7 +13,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
 )
 
-DEPENDENCIES = ["spi", "sensor"]
+DEPENDENCIES = ["spi"]
 
 CODEOWNERS = ["@gabest11"]
 
