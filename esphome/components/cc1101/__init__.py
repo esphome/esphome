@@ -74,7 +74,7 @@ async def to_code(config):
         cg.add(var.set_config_lqi_sensor(lqi))
 
 
-CC1101RawAction = ns.class_("CC1101RawAction", remote_base.RemoteTransmitterActionBase)
+CC1101RawAction = ns.class_("CC1101RawAction", remote_base.RCSwitchRawAction)
 
 CC1101_TRANSMIT_SCHEMA = (
     cv.Schema(
