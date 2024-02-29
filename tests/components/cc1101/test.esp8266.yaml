@@ -3,19 +3,18 @@ spi:
   miso_pin: D6
   mosi_pin: D7
 
-sensor:
-  - platform: cc1101
-    id: transceiver
-    cs_pin: D8  # GPIO15
-    gdo0:
-      number: D1  # GPIO5
-      allow_other_uses: true
-    bandwidth: 200
-    frequency: 433920
-    rssi:
-      name: RSSI
-    lqi:
-      name: LQI
+cc1101:
+  id: transceiver
+  cs_pin: D8  # GPIO15
+  gdo0:
+    number: D1  # GPIO5
+    allow_other_uses: true
+  bandwidth: 200
+  frequency: 433920
+  rssi:
+    name: RSSI
+  lqi:
+    name: LQI
 
 remote_transmitter:
   - pin:

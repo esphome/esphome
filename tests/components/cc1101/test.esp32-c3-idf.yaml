@@ -3,16 +3,15 @@ spi:
   miso_pin: GPIO5
   mosi_pin: GPIO7
 
-sensor:
-  - platform: cc1101
-    id: transceiver
-    cs_pin: GPIO10
-    bandwidth: 200
-    frequency: 433920
-    rssi:
-      name: RSSI
-    lqi:
-      name: LQI
+cc1101:
+  id: transceiver
+  cs_pin: GPIO10
+  bandwidth: 200
+  frequency: 433920
+  rssi:
+    name: RSSI
+  lqi:
+    name: LQI
 
 # https://github.com/esphome/issues/issues/2934
 # c3 has four channels, two for tx, two for rx
