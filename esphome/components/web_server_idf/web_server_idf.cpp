@@ -65,7 +65,7 @@ void AsyncWebServer::begin() {
 
 esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
   ESP_LOGVV(TAG, "Enter AsyncWebServer::request_post_handler. uri=%s", r->uri);
-  auto content_type = request_get_header(r, "Conetnt-Type");
+  auto content_type = request_get_header(r, "Content-Type");
   if (content_type.has_value() && *content_type != "application/x-www-form-urlencoded") {
     ESP_LOGW(TAG, "Only application/x-www-form-urlencoded supported for POST request");
     // fallback to get handler to support backward compatibility
