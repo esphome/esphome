@@ -8,7 +8,7 @@ DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["weikai", "weikai_i2c"]
 MULTI_CONF = True
 
-weikai_i2c_ns = cg.esphome_ns.namespace("weikai")
+weikai_i2c_ns = cg.esphome_ns.namespace("weikai_i2c")
 WeikaiComponentI2C = weikai_i2c_ns.class_(
     "WeikaiComponentI2C", weikai.WeikaiComponent, i2c.I2CDevice
 )
@@ -26,7 +26,6 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add_build_flag("-DI2C_BUFFER_LENGTH=255")
-    cg.add_define("USE_I2C_BUS")  # add to defines.h
     cg.add(var.set_name(str(config[CONF_ID])))
     await weikai.register_weikai(var, config)
     await i2c.register_i2c_device(var, config)

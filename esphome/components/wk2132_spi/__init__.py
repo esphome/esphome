@@ -1,15 +1,15 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import spi, weikai
+from esphome.components import spi, weikai, weikai_spi
 from esphome.const import CONF_ID
 
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["spi"]
-AUTO_LOAD = ["weikai"]
+AUTO_LOAD = ["weikai", "weikai_spi"]
 MULTI_CONF = True
 
-weikai_ns = cg.esphome_ns.namespace("weikai")
-WeikaiComponentSPI = weikai_ns.class_(
+weikai_spi_ns = cg.esphome_ns.namespace("weikai_spi")
+WeikaiComponentSPI = weikai_spi_ns.class_(
     "WeikaiComponentSPI", weikai.WeikaiComponent, spi.SPIDevice
 )
 

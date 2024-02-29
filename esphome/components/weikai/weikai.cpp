@@ -1,6 +1,6 @@
 /// @file weikai.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/02/29 13:57:32
+/// @date Last Modified: 2024/02/29 17:59:35
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
@@ -89,7 +89,7 @@ const char *p2s(uart::UARTParityOptions parity) {
   }
 }
 
-/// @brief Display a buffer in hexadecimal format (32 hex values / line).
+/// @brief Display a buffer in hexadecimal format (32 hex values / line) for debug
 void print_buffer(const uint8_t *data, size_t length) {
   char hex_buffer[100];
   hex_buffer[(3 * 32) + 1] = 0;
@@ -123,7 +123,6 @@ const char *reg_to_str(int reg, bool page1) {
 }
 
 enum RegType { REG = 0, FIFO = 1 };  ///< Register or FIFO
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // The WeikaiRegister methods
@@ -187,7 +186,7 @@ void WeikaiComponent::loop() {
         yield();  // reschedule our thread to avoid blocking
       }
       bool status = children_[i]->uart_receive_test_(message);
-      ESP_LOGI(TAG, "Test %s => send/received %d bytes %s - execution time %d ms...", message, XFER_MAX_SIZE,
+      ESP_LOGI(TAG, "Test %s => send/received %d bytes %s - execution time %d ms...", message, 2 * XFER_MAX_SIZE,
                status ? "correctly" : "with error", elapsed_ms(time));
     }
   }
@@ -202,7 +201,6 @@ void WeikaiComponent::loop() {
       }
     }
   }
-#ifdef HAS_GPIO_PIN
   if (test_mode_ == 3) {
     test_gpio_input_();
   }
@@ -211,10 +209,9 @@ void WeikaiComponent::loop() {
     test_gpio_output_();
   }
 #endif
-#endif
 }
 
-#if defined(TEST_COMPONENT) && defined(HAS_GPIO_PIN)
+#if defined(TEST_COMPONENT)
 void WeikaiComponent::test_gpio_input_() {
   static bool init_input{false};
   static uint8_t state{0};
@@ -252,7 +249,6 @@ void WeikaiComponent::test_gpio_output_() {
 }
 #endif
 
-#ifdef HAS_GPIO_PIN
 ///////////////////////////////////////////////////////////////////////////////
 // The WeikaiGPIOPin methods
 ///////////////////////////////////////////////////////////////////////////////
@@ -300,8 +296,6 @@ std::string WeikaiGPIOPin::dump_summary() const {
   snprintf(buffer, sizeof(buffer), "%u via WeiKai %s", this->pin_, this->parent_->get_name());
   return buffer;
 }
-#endif
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // The WeikaiChannel methods
@@ -553,7 +547,9 @@ void WeikaiChannel::uart_send_test_(char *message) {
   std::vector<uint8_t> output_buffer(XFER_MAX_SIZE);
   generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
   this->write_array(&output_buffer[0], XFER_MAX_SIZE);                // we send the buffer
-  ESP_LOGV(TAG, "%s => sent %d bytes - exec time %d µs ...", message, XFER_MAX_SIZE, micros() - start_exec);
+  this->flush();
+  this->write_array(&output_buffer[0], XFER_MAX_SIZE);  // we send the buffer again
+  ESP_LOGV(TAG, "%s => sent %d bytes - exec time %d µs ...", message, 2 * XFER_MAX_SIZE, micros() - start_exec);
 }
 
 /// @brief test read_array method
@@ -565,29 +561,32 @@ bool WeikaiChannel::uart_receive_test_(char *message) {
 
   // we wait until we have received all the bytes
   uint32_t const start_time = millis();
-  while (XFER_MAX_SIZE > (received = this->available())) {
-    this->xfer_fifo_to_buffer_();
-    if (millis() - start_time > 1500) {
-      ESP_LOGE(TAG, "uart_receive_test_() timeout: only %d bytes received...", received);
-      break;
+  for (int i = 0; i < 2; i++) {
+    while (XFER_MAX_SIZE > this->available()) {
+      this->xfer_fifo_to_buffer_();
+      if (millis() - start_time > 1500) {
+        ESP_LOGE(TAG, "uart_receive_test_() timeout: only %d bytes received...", this->available());
+        break;
+      }
+      yield();  // reschedule our thread to avoid blocking
     }
-    yield();  // reschedule our thread to avoid blocking
-  }
 
-  uint8_t peek_value = 0;
-  this->peek_byte(&peek_value);
-  if (peek_value != 0) {
-    ESP_LOGE(TAG, "Peek first byte value error...");
-    status = false;
-  }
-
-  status = this->read_array(&buffer[0], XFER_MAX_SIZE) && status;
-  for (size_t i = 0; i < XFER_MAX_SIZE; i++) {
-    if (buffer[i] != i) {
-      ESP_LOGE(TAG, "Read buffer contains error...");
-      print_buffer(buffer);
+    received += this->available();
+    uint8_t peek_value = 0;
+    this->peek_byte(&peek_value);
+    if (peek_value != 0) {
+      ESP_LOGE(TAG, "Peek first byte value error...");
       status = false;
-      break;
+    }
+
+    status = this->read_array(&buffer[0], XFER_MAX_SIZE) && status;
+    for (size_t i = 0; i < XFER_MAX_SIZE; i++) {
+      if (buffer[i] != i) {
+        ESP_LOGE(TAG, "Read buffer contains error...");
+        print_buffer(buffer);
+        status = false;
+        break;
+      }
     }
   }
 

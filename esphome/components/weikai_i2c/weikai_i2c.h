@@ -1,10 +1,9 @@
 /// @file weikai_i2c.h
 /// @author DrCoolZic
 /// @brief  WeiKai component family - classes declaration
-/// @date Last Modified: 2024/02/29 14:45:09
+/// @date Last Modified: 2024/02/29 17:18:46
 /// @details The classes declared in this file can be used by the Weikai family
-/// of UART and GPIO expander components. As of today it provides support for
-///                 wk2132_i2c, wk2168_i2c, wk2204_i2c, wk2212_i2c
+///          wk2132_i2c, wk2168_i2c, wk2204_i2c, wk2212_i2c
 
 #pragma once
 #include <bitset>
@@ -14,12 +13,9 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/weikai/weikai.h"
 
-
 namespace esphome {
 namespace weikai_i2c {
 
-
-class WeikaiComponent;
 class WeikaiComponentI2C;
 
 // using namespace weikai;
@@ -33,9 +29,10 @@ class WeikaiRegisterI2C : public weikai::WeikaiRegister {
   void read_fifo(uint8_t *data, size_t length) const override;
   void write_fifo(uint8_t *data, size_t length) override;
 
-//  protected:
-//   friend WeikaiComponentI2C;
-//   WeikaiRegisterI2C(WeikaiComponent *const comp, uint8_t reg, uint8_t channel) : weikai::WeikaiRegister(comp, reg, channel) {}
+ protected:
+  friend WeikaiComponentI2C;
+  WeikaiRegisterI2C(weikai::WeikaiComponent *const comp, uint8_t reg, uint8_t channel)
+      : weikai::WeikaiRegister(comp, reg, channel) {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +41,7 @@ class WeikaiRegisterI2C : public weikai::WeikaiRegister {
 ////////////////////////////////////////////////////////////////////////////////////
 class WeikaiComponentI2C : public weikai::WeikaiComponent, public i2c::I2CDevice {
  public:
-  WeikaiRegister &reg(uint8_t reg, uint8_t channel) override {
+  weikai::WeikaiRegister &reg(uint8_t reg, uint8_t channel) override {
     reg_i2c_.register_ = reg;
     reg_i2c_.channel_ = channel;
     return reg_i2c_;
@@ -56,11 +53,10 @@ class WeikaiComponentI2C : public weikai::WeikaiComponent, public i2c::I2CDevice
   void setup() override;
   void dump_config() override;
 
-//  protected:
   friend class WeikaiChannel;
   uint8_t base_address_;                   ///< base address of I2C device
   WeikaiRegisterI2C reg_i2c_{this, 0, 0};  ///< init to this component
 };
 
-}  // namespace weikai
+}  // namespace weikai_i2c
 }  // namespace esphome

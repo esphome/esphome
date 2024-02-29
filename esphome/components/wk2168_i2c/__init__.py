@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import i2c, weikai
+from esphome.components import i2c, weikai, weikai_i2c
 from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
@@ -11,12 +11,13 @@ from esphome.const import (
 
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["weikai"]
+AUTO_LOAD = ["weikai", "weikai_i2c"]
 MULTI_CONF = True
 CONF_WK2168_I2C = "wk2168_i2c"
 
 weikai_ns = cg.esphome_ns.namespace("weikai")
-WeikaiComponentI2C = weikai_ns.class_(
+weikai_i2c_ns = cg.esphome_ns.namespace("weikai_i2c")
+WeikaiComponentI2C = weikai_i2c_ns.class_(
     "WeikaiComponentI2C", weikai.WeikaiComponent, i2c.I2CDevice
 )
 WeikaiGPIOPin = weikai_ns.class_(
@@ -36,8 +37,8 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add_build_flag("-DI2C_BUFFER_LENGTH=255")
-    cg.add_build_flag("-DUSE_I2C_BUS")
-    cg.add_build_flag("-DHAS_GPIO_PIN")
+    # cg.add_build_flag("-DUSE_I2C_BUS")
+    # cg.add_build_flag("-DHAS_GPIO_PIN")
     cg.add(var.set_name(str(config[CONF_ID])))
     await weikai.register_weikai(var, config)
     await i2c.register_i2c_device(var, config)
