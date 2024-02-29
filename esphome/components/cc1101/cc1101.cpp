@@ -12,8 +12,6 @@
   On ESP32, this will not work, you must connect two separate pins. TX to GDO0, RX to GDO2.
   If only TX works, they are probably switched.
 
-  Transferst must be surrounded with cc1101.begin_tx and cc1101.end_tx.
-
   The source code is a mashup of the following github projects with some special esphome sauce:
 
   https://github.com/dbuezas/esphome-cc1101 (the original esphome component)

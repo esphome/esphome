@@ -4,9 +4,12 @@ from esphome import automation, pins
 from esphome.components import sensor
 from esphome.components import spi
 from esphome.automation import maybe_simple_id
+from esphome.components import remote_base
 from esphome.const import (
     CONF_ID,
     CONF_FREQUENCY,
+    CONF_PROTOCOL,
+    CONF_CODE,
     UNIT_EMPTY,
     UNIT_DECIBEL_MILLIWATT,
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -14,7 +17,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["spi"]
-AUTO_LOAD = ["sensor"]
+AUTO_LOAD = ["sensor", "remote_base"]
 
 CODEOWNERS = ["@gabest11"]
 
@@ -23,12 +26,11 @@ CONF_BANDWIDTH = "bandwidth"
 # CONF_FREQUENCY = "frequency"
 CONF_RSSI = "rssi"
 CONF_LQI = "lqi"
+CONF_CC1101_ID = "cc1101_id"
 
-cc1101_ns = cg.esphome_ns.namespace("cc1101")
-CC1101 = cc1101_ns.class_("CC1101", cg.PollingComponent, spi.SPIDevice)
+ns = cg.esphome_ns.namespace("cc1101")
 
-BeginTxAction = cc1101_ns.class_("BeginTxAction", automation.Action)
-EndTxAction = cc1101_ns.class_("EndTxAction", automation.Action)
+CC1101 = ns.class_("CC1101", cg.PollingComponent, spi.SPIDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -54,21 +56,6 @@ CONFIG_SCHEMA = (
     .extend(spi.spi_device_schema(cs_pin_required=True))
 )
 
-CC1101_ACTION_SCHEMA = maybe_simple_id(
-    {
-        cv.Required(CONF_ID): cv.use_id(CC1101),
-    }
-)
-
-
-@automation.register_action("cc1101.begin_tx", BeginTxAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.end_tx", EndTxAction, CC1101_ACTION_SCHEMA)
-async def cc1101_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -85,3 +72,25 @@ async def to_code(config):
     if CONF_LQI in config:
         lqi = await sensor.new_sensor(config[CONF_LQI])
         cg.add(var.set_config_lqi_sensor(lqi))
+
+CC1101RawAction = ns.class_("CC1101RawAction", remote_base.RemoteTransmitterActionBase)
+
+CC1101_TRANSMIT_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_CC1101_ID): cv.use_id(CC1101),
+        }
+    )
+    .extend(remote_base.REMOTE_TRANSMITTABLE_SCHEMA)
+    .extend(remote_base.RC_SWITCH_RAW_SCHEMA)
+    .extend(remote_base.RC_SWITCH_TRANSMITTER)
+)
+
+@remote_base.register_action("cc1101", CC1101RawAction, CC1101_TRANSMIT_SCHEMA)
+async def cc1101_action(var, config, args):
+    proto = await cg.templatable(
+        config[CONF_PROTOCOL], args, remote_base.RCSwitchBase, to_exp=remote_base.build_rc_switch_protocol
+    )
+    cg.add(var.set_protocol(proto))
+    cg.add(var.set_code(await cg.templatable(config[CONF_CODE], args, cg.std_string)))
+    await cg.register_parented(var, config[CONF_CC1101_ID])

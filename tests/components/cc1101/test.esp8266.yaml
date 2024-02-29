@@ -50,8 +50,7 @@ button:
   - platform: template
     name: "Gate"
     on_press:
-      - cc1101.begin_tx: transceiver
-      - remote_transmitter.transmit_rc_switch_raw:
+      - remote_transmitter.transmit_cc1101:
           code: '0111000110010011110110010100011111110001001011110111'
           protocol:
             pulse_length: 434
@@ -61,4 +60,3 @@ button:
             inverted: true
           repeat:
             times: 10
-      - cc1101.end_tx: transceiver
