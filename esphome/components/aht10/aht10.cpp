@@ -26,21 +26,19 @@ static const uint8_t AHT20_INITIALIZE_CMD[] = {0xBE, 0x08, 0x00};
 static const uint8_t AHT10_MEASURE_CMD[] = {0xAC, 0x33, 0x00};
 static const uint8_t AHT10_SOFTRESET_CMD[] = {0xBA};
 
-static const uint8_t AHT10_DEFAULT_DELAY = 5;    // ms, for initialization and temperature measurement
-static const uint8_t AHT10_HUMIDITY_DELAY = 30;  // ms
+static const uint8_t AHT10_DEFAULT_DELAY = 5;     // ms, for initialization and temperature measurement
+static const uint8_t AHT10_HUMIDITY_DELAY = 30;   // ms
 static const uint8_t AHT10_SOFTRESET_DELAY = 30;  // ms
 
-static const uint8_t AHT10_ATTEMPTS = 3;         // safety margin, normally 3 attempts are enough: 3*30=90ms
+static const uint8_t AHT10_ATTEMPTS = 3;  // safety margin, normally 3 attempts are enough: 3*30=90ms
 static const uint8_t AHT10_INIT_ATTEMPTS = 10;
 
 static const uint8_t AHT10_STATUS_BUSY = 0x80;
 
-
-
 void AHT10Component::setup() {
   if (this->write(AHT10_SOFTRESET_CMD, sizeof(AHT10_SOFTRESET_CMD)) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Reset AHT10 failed!");
-  }  
+  }
   delay(AHT10_SOFTRESET_DELAY);
 
   const uint8_t *init_cmd;
@@ -54,7 +52,7 @@ void AHT10Component::setup() {
       init_cmd = AHT10_INITIALIZE_CMD;
       ESP_LOGCONFIG(TAG, "Setting up AHT10");
   }
-  
+
   if (this->write(init_cmd, sizeof(init_cmd)) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with AHT10 failed!");
     this->mark_failed();
