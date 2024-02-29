@@ -1,15 +1,15 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c, weikai
+from esphome.components import i2c, weikai, weikai_i2c
 from esphome.const import CONF_ID
 
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["weikai"]
+AUTO_LOAD = ["weikai", "weikai_i2c"]
 MULTI_CONF = True
 
-weikai_ns = cg.esphome_ns.namespace("weikai")
-WeikaiComponentI2C = weikai_ns.class_(
+weikai_i2c_ns = cg.esphome_ns.namespace("weikai")
+WeikaiComponentI2C = weikai_i2c_ns.class_(
     "WeikaiComponentI2C", weikai.WeikaiComponent, i2c.I2CDevice
 )
 

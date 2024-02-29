@@ -1,7 +1,7 @@
 /// @file weikai.h
 /// @author DrCoolZic
 /// @brief  WeiKai component family - classes declaration
-/// @date Last Modified: 2024/02/29 14:22:38
+/// @date Last Modified: 2024/02/18 16:26:33
 /// @details The classes declared in this file can be used by the Weikai family
 /// of UART and GPIO expander components. As of today it provides support for
 ///     wk2124_spi, wk2132_spi, wk2168_spi, wk2204_spi, wk2212_spi,
@@ -14,12 +14,19 @@
 #include "esphome/components/uart/uart.h"
 #include "wk_reg_def.h"
 
+// #define USE_SPI_BUS
+// #define USE_I2C_BUS
 // #define HAS_GPIO_PIN
 
 #if defined(USE_ESP32_FRAMEWORK_ARDUINO) && defined(USE_I2C_BUS)
 #include "Wire.h"  // needed to get I2C_BUFFER_LENGTH
 #endif
-
+#ifdef USE_SPI_BUS
+#include "esphome/components/spi/spi.h"
+#endif
+#ifdef USE_I2C_BUS
+#include "esphome/components/i2c/i2c.h"
+#endif
 
 /// When the TEST_COMPONENT flag is defined we include some auto-test methods. Used to test the software during
 /// development but can also be used in situ to test if the component is working correctly. For release we do
@@ -144,7 +151,6 @@ template<typename T, size_t SIZE> class WKRingBuffer {
 class WeikaiComponent;
 class WeikaiComponentI2C;
 class WeikaiComponentSPI;
-class WeikaiRegisterI2C;
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief WeikaiRegister objects acts as proxies to access remote register independently of the bus type.
 /// @details This is an abstract interface class that provides many operations to access to registers while hiding
@@ -205,10 +211,9 @@ class WeikaiRegister {
   /// @param length number of bytes to write
   virtual void write_fifo(uint8_t *data, size_t length) = 0;
 
-//  protected:
+ protected:
   friend WeikaiComponentSPI;
   friend WeikaiComponentI2C;
-  friend WeikaiRegisterI2C;
 
   WeikaiComponent *const comp_;  ///< pointer to our parent (aggregation)
   uint8_t register_;             ///< address of the register
@@ -320,6 +325,84 @@ class WeikaiGPIOPin : public GPIOPin {
 };
 #endif
 
+#ifdef USE_I2C_BUS
+////////////////////////////////////////////////////////////////////////////////////
+/// @brief WeikaiRegisterI2C objects acts as proxies to access remote register through an I2C Bus
+////////////////////////////////////////////////////////////////////////////////////
+class WeikaiRegisterI2C : public WeikaiRegister {
+ public:
+  uint8_t read_reg() const override;
+  void write_reg(uint8_t value) override;
+  void read_fifo(uint8_t *data, size_t length) const override;
+  void write_fifo(uint8_t *data, size_t length) override;
+
+ protected:
+  friend WeikaiComponentI2C;
+  WeikaiRegisterI2C(WeikaiComponent *const comp, uint8_t reg, uint8_t channel) : WeikaiRegister(comp, reg, channel) {}
+};
+
+////////////////////////////////////////////////////////////////////////////////////
+/// @brief The WeikaiComponentI2C class stores the information to the WeiKai component
+/// connected through an I2C bus.
+////////////////////////////////////////////////////////////////////////////////////
+class WeikaiComponentI2C : public WeikaiComponent, public i2c::I2CDevice {
+ public:
+  WeikaiRegister &reg(uint8_t reg, uint8_t channel) override {
+    reg_i2c_.register_ = reg;
+    reg_i2c_.channel_ = channel;
+    return reg_i2c_;
+  }
+
+  //
+  // override Component methods
+  //
+  void setup() override;
+  void dump_config() override;
+
+ protected:
+  friend class WeikaiRegisterI2C;
+  friend class WeikaiChannel;
+  uint8_t base_address_;                   ///< base address of I2C device
+  WeikaiRegisterI2C reg_i2c_{this, 0, 0};  ///< init to this component
+};
+#endif
+
+#ifdef USE_SPI_BUS
+////////////////////////////////////////////////////////////////////////////////////
+/// @brief WeikaiRegisterSPI objects acts as proxies to access remote register through an SPI Bus
+////////////////////////////////////////////////////////////////////////////////////
+class WeikaiRegisterSPI : public WeikaiRegister {
+ public:
+  WeikaiRegisterSPI(WeikaiComponent *const comp, uint8_t reg, uint8_t channel) : WeikaiRegister(comp, reg, channel) {}
+
+  uint8_t read_reg() const override;
+  void write_reg(uint8_t value) override;
+  void read_fifo(uint8_t *data, size_t length) const override;
+  void write_fifo(uint8_t *data, size_t length) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////////
+/// @brief The WeikaiComponentSPI class stores the information to the WeiKai component
+/// connected through an SPI bus.
+////////////////////////////////////////////////////////////////////////////////////
+class WeikaiComponentSPI : public WeikaiComponent,
+                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                 spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
+ public:
+  WeikaiRegister &reg(uint8_t reg, uint8_t channel) override {
+    reg_spi_.register_ = reg;
+    reg_spi_.channel_ = channel;
+    return reg_spi_;
+  }
+
+  void setup() override;
+  void dump_config() override;
+
+ protected:
+  // friend WeikaiComponentSPI;
+  WeikaiRegisterSPI reg_spi_{this, 0, 0};  ///< init to this component
+};
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief The WeikaiChannel class is used to implement all the virtual methods of the ESPHome
@@ -353,11 +436,6 @@ class WeikaiChannel : public uart::UARTComponent {
   /// @brief dump channel information
   void virtual dump_channel();
 
-  /// @brief Factory method to create a WeikaiRegister proxy object
-  /// @param reg address of the register
-  /// @return a reference to WeikaiRegister
-  WeikaiRegister &reg_(uint8_t reg) { return this->parent_->reg(reg, channel_); }
-  
   //
   // we implements/overrides the virtual class from UARTComponent
   //
@@ -420,7 +498,10 @@ class WeikaiChannel : public uart::UARTComponent {
   /// @brief this cannot happen with external uart therefore we do nothing
   void check_logger_conflict() override {}
 
-
+  /// @brief Factory method to create a WeikaiRegister proxy object
+  /// @param reg address of the register
+  /// @return a reference to WeikaiRegister
+  WeikaiRegister &reg_(uint8_t reg) { return this->parent_->reg(reg, channel_); }
 
   /// @brief reset the weikai internal FIFO
   void reset_fifo_();

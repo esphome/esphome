@@ -1,6 +1,6 @@
 /// @file weikai.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/02/29 13:57:32
+/// @date Last Modified: 2024/02/18 15:22:40
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
@@ -121,9 +121,49 @@ const char *reg_to_str(int reg, bool page1) {
     return page1 ? REG_TO_STR_P1[reg & 0x0F] : REG_TO_STR_P0[reg & 0x0F];
   }
 }
-
 enum RegType { REG = 0, FIFO = 1 };  ///< Register or FIFO
 
+#ifdef USE_SPI_BUS
+enum CmdType { WRITE_CMD = 0, READ_CMD = 1 };  ///< Read or Write transfer
+
+/// @brief Computes the SPI command byte
+/// @param transfer_type read or write command
+/// @param reg (0-15) the address of the register
+/// @param channel (0-3) the UART channel
+/// @param fifo (0-1) 0 = access to internal register, 1 = direct access to fifo
+/// @return the spi command byte
+/// @details
+/// +------+------+------+------+------+------+------+------+
+/// | FIFO | R/W  |    C1-C0    |           A3-A0           |
+/// +------+------+-------------+---------------------------+
+/// FIFO: 0 = register, 1 = FIFO
+/// R/W: 0 = write, 1 = read
+/// C1-C0: Channel (0-1)
+/// A3-A0: Address (0-F)
+inline static uint8_t cmd_byte(RegType fifo, CmdType transfer_type, uint8_t channel, uint8_t reg) {
+  return (fifo << 7 | transfer_type << 6 | channel << 4 | reg << 0);
+}
+#endif
+
+#ifdef USE_I2C_BUS
+/// @brief Computes the I²C bus's address used to access the component
+/// @param base_address the base address of the component - set by the A1 A0 pins
+/// @param channel (0-3) the UART channel
+/// @param fifo (0-1) 0 = access to internal register, 1 = direct access to fifo
+/// @return the i2c address to use
+inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, RegType fifo) {
+  // the address of the device is:
+  // +----+----+----+----+----+----+----+----+
+  // |  0 | A1 | A0 |  1 |  0 | C1 | C0 |  F |
+  // +----+----+----+----+----+----+----+----+
+  // where:
+  // - A1,A0 is the address read from A1,A0 switch
+  // - C1,C0 is the channel number (in practice only 00 or 01)
+  // - F is: 0 when accessing register, one when accessing FIFO
+  uint8_t const addr = base_address | channel << 1 | fifo << 0;
+  return addr;
+}
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // The WeikaiRegister methods
@@ -302,6 +342,203 @@ std::string WeikaiGPIOPin::dump_summary() const {
 }
 #endif
 
+#ifdef USE_I2C_BUS
+///////////////////////////////////////////////////////////////////////////////
+// The WeikaiRegisterI2C methods
+///////////////////////////////////////////////////////////////////////////////
+uint8_t WeikaiRegisterI2C::read_reg() const {
+  uint8_t value = 0x00;
+  WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
+  comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, REG);  // update the i2c bus address
+  auto error = comp_i2c->read_register(this->register_, &value, 1);
+  if (error == i2c::NO_ERROR) {
+    this->comp_->status_clear_warning();
+    ESP_LOGVV(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", comp_i2c->address_,
+              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
+  } else {  // error
+    this->comp_->status_set_warning();
+    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", comp_i2c->address_,
+             reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
+  }
+  return value;
+}
+
+void WeikaiRegisterI2C::read_fifo(uint8_t *data, size_t length) const {
+  WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
+  comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, FIFO);
+  auto error = comp_i2c->read(data, length);
+  if (error == i2c::NO_ERROR) {
+    this->comp_->status_clear_warning();
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+    ESP_LOGVV(TAG, "WeikaiRegisterI2C::read_fifo() @%02X ch=%d I2C_code:%d len=%d buffer", comp_i2c->address_,
+              this->channel_, (int) error, length);
+    print_buffer(data, length);
+#endif
+  } else {  // error
+    this->comp_->status_set_warning();
+    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_fifo() @%02X reg=N/A ch=%d I2C_code:%d len=%d buf=%02X...",
+             comp_i2c->address_, this->channel_, (int) error, length, data[0]);
+  }
+}
+
+void WeikaiRegisterI2C::write_reg(uint8_t value) {
+  WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
+  comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, REG);  // update the i2c bus
+  auto error = comp_i2c->write_register(this->register_, &value, 1);
+  if (error == i2c::NO_ERROR) {
+    this->comp_->status_clear_warning();
+    ESP_LOGVV(TAG, "WK2168Reg::write_reg() @%02X reg=%s ch=%d I2C_code:%d buf=%02X", comp_i2c->address_,
+              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
+  } else {  // error
+    this->comp_->status_set_warning();
+    ESP_LOGE(TAG, "WK2168Reg::write_reg() @%02X reg=%s ch=%d I2C_code:%d buf=%d", comp_i2c->address_,
+             reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
+  }
+}
+
+void WeikaiRegisterI2C::write_fifo(uint8_t *data, size_t length) {
+  WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
+  comp_i2c->address_ = i2c_address(comp_i2c->base_address_, this->channel_, FIFO);  // set fifo flag
+  auto error = comp_i2c->write(data, length);
+  if (error == i2c::NO_ERROR) {
+    this->comp_->status_clear_warning();
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+    ESP_LOGVV(TAG, "WK2168Reg::write_fifo() @%02X ch=%d I2C_code:%d len=%d buffer", comp_i2c->address_, this->channel_,
+              (int) error, length);
+    print_buffer(data, length);
+#endif
+  } else {  // error
+    this->comp_->status_set_warning();
+    ESP_LOGE(TAG, "WK2168Reg::write_fifo() @%02X reg=N/A, ch=%d I2C_code:%d len=%d, buf=%02X...", comp_i2c->address_,
+             this->channel_, (int) error, length, data[0]);
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// The WeikaiComponentI2C methods
+///////////////////////////////////////////////////////////////////////////////
+void WeikaiComponentI2C::setup() {
+  // before any manipulation we store the address to base_address_ for future use
+  this->base_address_ = this->address_;
+  ESP_LOGCONFIG(TAG, "Setting up wk2168_i2c: %s with %d UARTs at @%02X ...", this->get_name(), this->children_.size(),
+                this->base_address_);
+
+  // enable all channels
+  this->reg(WKREG_GENA, 0) = GENA_C1EN | GENA_C2EN | GENA_C3EN | GENA_C4EN;
+  // reset all channels
+  this->reg(WKREG_GRST, 0) = GRST_C1RST | GRST_C2RST | GRST_C3RST | GRST_C4RST;
+  // initialize the spage register to page 0
+  this->reg(WKREG_SPAGE, 0) = 0;
+  this->page1_ = false;
+
+  // we setup our children channels
+  for (auto *child : this->children_) {
+    child->setup_channel();
+  }
+}
+
+void WeikaiComponentI2C::dump_config() {
+  ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
+  ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
+  if (test_mode_)
+    ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
+  this->address_ = this->base_address_;  // we restore the base_address before display (less confusing)
+  LOG_I2C_DEVICE(this);
+
+  for (auto *child : this->children_) {
+    child->dump_channel();
+  }
+}
+#endif
+
+#ifdef USE_SPI_BUS
+///////////////////////////////////////////////////////////////////////////////
+// The WeikaiRegisterSPI methods
+///////////////////////////////////////////////////////////////////////////////
+uint8_t WeikaiRegisterSPI::read_reg() const {
+  auto *spi_comp = static_cast<WeikaiComponentSPI *>(this->comp_);
+  uint8_t cmd = cmd_byte(REG, READ_CMD, this->channel_, this->register_);
+  spi_comp->enable();
+  spi_comp->write_byte(cmd);
+  uint8_t val = spi_comp->read_byte();
+  spi_comp->disable();
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2S2CS(cmd), cmd,
+            reg_to_str(this->register_, this->comp_->page1()), this->channel_, val);
+  return val;
+}
+
+void WeikaiRegisterSPI::read_fifo(uint8_t *data, size_t length) const {
+  auto *spi_comp = static_cast<WeikaiComponentSPI *>(this->comp_);
+  uint8_t cmd = cmd_byte(FIFO, READ_CMD, this->channel_, this->register_);
+  spi_comp->enable();
+  spi_comp->write_byte(cmd);
+  spi_comp->read_array(data, length);
+  spi_comp->disable();
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2S2CS(cmd), cmd, this->channel_,
+            length);
+  print_buffer(data, length);
+#endif
+}
+
+void WeikaiRegisterSPI::write_reg(uint8_t value) {
+  auto *spi_comp = static_cast<WeikaiComponentSPI *>(this->comp_);
+  uint8_t buf[2]{cmd_byte(REG, WRITE_CMD, this->channel_, this->register_), value};
+  spi_comp->enable();
+  spi_comp->write_array(buf, 2);
+  spi_comp->disable();
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2S2CS(buf[0]), buf[0],
+            reg_to_str(this->register_, this->comp_->page1()), this->channel_, buf[1]);
+}
+
+void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
+  auto *spi_comp = static_cast<WeikaiComponentSPI *>(this->comp_);
+  uint8_t cmd = cmd_byte(FIFO, WRITE_CMD, this->channel_, this->register_);
+  spi_comp->enable();
+  spi_comp->write_byte(cmd);
+  spi_comp->write_array(data, length);
+  spi_comp->disable();
+
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2S2CS(cmd), cmd, this->channel_,
+            length);
+  print_buffer(data, length);
+#endif
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// The WeikaiComponentSPI methods
+///////////////////////////////////////////////////////////////////////////////
+void WeikaiComponentSPI::setup() {
+  using namespace weikai;
+  ESP_LOGCONFIG(TAG, "Setting up wk2168_spi: %s with %d UARTs...", this->get_name(), this->children_.size());
+  this->spi_setup();
+  // enable all channels
+  this->reg(WKREG_GENA, 0) = GENA_C1EN | GENA_C2EN | GENA_C3EN | GENA_C4EN;
+  // reset all channels
+  this->reg(WKREG_GRST, 0) = GRST_C1RST | GRST_C2RST | GRST_C3RST | GRST_C4RST;
+  // initialize the spage register to page 0
+  this->reg(WKREG_SPAGE, 0) = 0;
+  this->page1_ = false;
+
+  // we setup our children channels
+  for (auto *child : this->children_) {
+    child->setup_channel();
+  }
+}
+
+void WeikaiComponentSPI::dump_config() {
+  ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
+  ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
+  if (test_mode_)
+    ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
+  LOG_PIN("  CS Pin: ", this->cs_);
+
+  for (auto *child : this->children_) {
+    child->dump_channel();
+  }
+}
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // The WeikaiChannel methods

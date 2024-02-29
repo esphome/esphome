@@ -22,9 +22,9 @@ CONF_CRYSTAL = "crystal"
 CONF_UART = "uart"
 CONF_TEST_MODE = "test_mode"
 
-weika_ns = cg.esphome_ns.namespace("weikai")
-WeikaiComponent = weika_ns.class_("WeikaiComponent", cg.Component)
-WeikaiChannel = weika_ns.class_("WeikaiChannel", uart.UARTComponent)
+weikai_ns = cg.esphome_ns.namespace("weikai")
+WeikaiComponent = weikai_ns.class_("WeikaiComponent", cg.Component)
+WeikaiChannel = weikai_ns.class_("WeikaiChannel", uart.UARTComponent)
 
 
 def check_channel_max(value, max):
