@@ -1,0 +1,62 @@
+i2c:
+  - id: i2c_inkplate6
+    scl: 16
+    sda: 17
+
+display:
+  - platform: inkplate6
+    id: inkplate_display
+    greyscale: false
+    partial_updating: false
+    update_interval: 60s
+    display_data_0_pin:
+      number: 1
+      allow_other_uses: true
+    display_data_1_pin:
+      number: 1
+      allow_other_uses: true
+    display_data_2_pin:
+      number: 1
+      allow_other_uses: true
+    display_data_3_pin:
+      number: 1
+      allow_other_uses: true
+    display_data_5_pin:
+      number: 1
+      allow_other_uses: true
+    display_data_4_pin:
+      number: 1
+      allow_other_uses: true
+    display_data_6_pin:
+      number: 1
+      allow_other_uses: true
+    display_data_7_pin:
+      number: 1
+      allow_other_uses: true
+    ckv_pin:
+      number: 1
+      allow_other_uses: true
+    sph_pin:
+      number: 1
+      allow_other_uses: true
+    gmod_pin:
+      number: 1
+      allow_other_uses: true
+    gpio0_enable_pin:
+      number: 1
+      allow_other_uses: true
+    oe_pin:
+      number: 1
+      allow_other_uses: true
+    spv_pin:
+      number: 1
+      allow_other_uses: true
+    powerup_pin:
+      number: 1
+      allow_other_uses: true
+    wakeup_pin:
+      number: 1
+      allow_other_uses: true
+    vcom_pin:
+      number: 1
+      allow_other_uses: true

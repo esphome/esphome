@@ -1,0 +1,9 @@
+sensor:
+  - platform: adc
+    id: my_sensor
+    pin: 1
+    attenuation: 11db
+  - platform: integration
+    sensor: my_sensor
+    name: Integration Sensor
+    time_unit: s

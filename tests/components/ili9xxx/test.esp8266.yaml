@@ -1,0 +1,35 @@
+spi:
+  - id: spi_main_lcd
+    clk_pin: 14
+    mosi_pin: 13
+    miso_pin: 12
+
+display:
+  - platform: ili9xxx
+    invert_colors: true
+    dimensions: 320x240
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
+    model: TFT 2.4
+    color_palette: GRAYSCALE
+    cs_pin: 5
+    dc_pin: 15
+    reset_pin: 16
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ili9xxx
+    dimensions:
+      width: 320
+      height: 240
+      offset_width: 20
+      offset_height: 10
+    model: TFT 2.4
+    cs_pin: 2
+    dc_pin: 4
+    reset_pin: 0
+    auto_clear_enabled: false
+    rotation: 90
+    lambda: |-
+      it.fill(Color::WHITE);
