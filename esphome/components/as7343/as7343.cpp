@@ -125,10 +125,10 @@ void AS7343Component::update() {
   ESP_LOGD(TAG, "  ASTEP: %u", astep);
   ESP_LOGD(TAG, "  TINT : %.2f", tint_ms);
 
-  ESP_LOGD(TAG, "nm: %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, ", CHANNEL_NM[0],
+  ESP_LOGD(TAG, "nm, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, ", CHANNEL_NM[0],
            CHANNEL_NM[1], CHANNEL_NM[2], CHANNEL_NM[3], CHANNEL_NM[4], CHANNEL_NM[5], CHANNEL_NM[6], CHANNEL_NM[7],
            CHANNEL_NM[8], CHANNEL_NM[9], CHANNEL_NM[10], CHANNEL_NM[11], CHANNEL_NM[12]);
-  ESP_LOGD(TAG, "counts: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, ", this->channel_readings_[CHANNEL_IDX[0]],
+  ESP_LOGD(TAG, "counts, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, ", this->channel_readings_[CHANNEL_IDX[0]],
            this->channel_readings_[CHANNEL_IDX[1]], this->channel_readings_[CHANNEL_IDX[2]],
            this->channel_readings_[CHANNEL_IDX[3]], this->channel_readings_[CHANNEL_IDX[4]],
            this->channel_readings_[CHANNEL_IDX[5]], this->channel_readings_[CHANNEL_IDX[6]],
@@ -252,7 +252,7 @@ float AS7343Component::calculate_ppfd(float tint_ms, float gain_x, AS7343Gain ga
 
   ESP_LOGD(TAG, "basic counts, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f", bc[0], bc[1], bc[2], bc[3], bc[4],
            bc[5], bc[6], bc[7], bc[8], bc[9], bc[10], bc[11]);
-  ESP_LOGD(TAG, "basic counts corrected, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f", bcc[0], bcc[1], bcc[2],
+  ESP_LOGD(TAG, "basic counts sens corrected, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f", bcc[0], bcc[1], bcc[2],
            bcc[3], bcc[4], bcc[5], bcc[6], bcc[7], bcc[8], bcc[9], bcc[10], bcc[11]);
   return par;
 }
