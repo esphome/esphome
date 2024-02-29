@@ -1,7 +1,7 @@
 /// @file weikai.h
 /// @author DrCoolZic
 /// @brief  WeiKai component family - classes declaration
-/// @date Last Modified: 2024/02/29 18:27:37
+/// @date Last Modified: 2024/02/29 18:33:45
 /// @details The classes declared in this file can be used by the Weikai family
 /// of UART and GPIO expander components. As of today it provides support for
 ///     wk2124_spi, wk2132_spi, wk2168_spi, wk2204_spi, wk2212_spi,
@@ -27,7 +27,7 @@
 ///     build_flags:
 ///       - -DTEST_COMPONENT
 /// @endcode
-#define TEST_COMPONENT
+// #define TEST_COMPONENT
 
 namespace esphome {
 namespace weikai {
