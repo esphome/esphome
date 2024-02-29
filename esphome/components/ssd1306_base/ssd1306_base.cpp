@@ -229,13 +229,14 @@ bool SSD1306::is_ssd1305_() const {
 }
 void SSD1306::update() {
   uint32_t ccount, ccount2, ccount3;
-  asm volatile ( "rsr %0, ccount" : "=a" (ccount) );
+  asm volatile("rsr %0, ccount" : "=a"(ccount));
   this->do_update_();
-  asm volatile ( "rsr %0, ccount" : "=a" (ccount2) );
+  asm volatile("rsr %0, ccount" : "=a"(ccount2));
   this->display();
-  asm volatile ( "rsr %0, ccount" : "=a" (ccount3) );
+  asm volatile("rsr %0, ccount" : "=a"(ccount3));
   uint32_t cpu_freq = esp_clk_cpu_freq();
-  ESP_LOGE(TAG, "do_update() took %i cycles (%.1fms), display() took %i cycles (%.1fms).", ccount2-ccount, (ccount2-ccount)*1000.0f/cpu_freq, ccount3-ccount2, (ccount3-ccount2)*1000.0f/cpu_freq);
+  ESP_LOGE(TAG, "do_update() took %i cycles (%.1fms), display() took %i cycles (%.1fms).", ccount2 - ccount,
+           (ccount2 - ccount) * 1000.0f / cpu_freq, ccount3 - ccount2, (ccount3 - ccount2) * 1000.0f / cpu_freq);
 }
 
 void SSD1306::set_invert(bool invert) {
@@ -333,7 +334,8 @@ void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
     this->buffer_[pos] &= ~(1 << subpos);
   }
 }
-void HOT SSD1306::draw_vertical_pixel_group_internal(int x, int y_row, uint8_t colors, uint8_t transparency, bool reverse_bit_order) {
+void HOT SSD1306::draw_vertical_pixel_group_internal(int x, int y_row, uint8_t colors, uint8_t transparency,
+                                                     bool reverse_bit_order) {
   if (x >= this->get_width_internal() || x < 0 || y_row >= (this->get_height_internal() / 8) || y_row < 0)
     return;
   uint16_t pos = x + y_row * this->get_width_internal();

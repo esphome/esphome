@@ -68,7 +68,8 @@ void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
   App.feed_wdt();
 }
 
-void DisplayBuffer::draw_vertical_pixel_group(int x, int y_row, uint8_t colors, uint8_t transparency, bool reverse_bit_order) {
+void DisplayBuffer::draw_vertical_pixel_group(int x, int y_row, uint8_t colors, uint8_t transparency,
+                                              bool reverse_bit_order) {
   Rect clipping = this->get_clipping();
   if (clipping.is_set()) {
     if (x < clipping.x || x > clipping.x2() || y_row * 8 + 7 < clipping.y || y_row * 8 > clipping.y2()) {
@@ -109,7 +110,8 @@ void DisplayBuffer::draw_vertical_pixel_group(int x, int y_row, uint8_t colors, 
   App.feed_wdt();
 }
 
-void DisplayBuffer::draw_horizontal_pixel_group(int x_column, int y, uint8_t colors, uint8_t transparency, bool reverse_bit_order) {
+void DisplayBuffer::draw_horizontal_pixel_group(int x_column, int y, uint8_t colors, uint8_t transparency,
+                                                bool reverse_bit_order) {
   Rect clipping = this->get_clipping();
   if (clipping.is_set()) {
     if (y < clipping.y || y > clipping.y2() || x_column * 8 + 7 < clipping.x || x_column * 8 > clipping.x2()) {
@@ -154,7 +156,7 @@ PixelGroupMode DisplayBuffer::get_pixel_group_mode() {
   switch (this->rotation_) {
     case DISPLAY_ROTATION_90_DEGREES:
     case DISPLAY_ROTATION_270_DEGREES:
-      return (PixelGroupMode)((uint8_t)this->get_pixel_group_mode_internal() ^ 0x03);
+      return (PixelGroupMode) ((uint8_t) this->get_pixel_group_mode_internal() ^ 0x03);
     case DISPLAY_ROTATION_0_DEGREES:
     case DISPLAY_ROTATION_180_DEGREES:
     default:
@@ -163,7 +165,8 @@ PixelGroupMode DisplayBuffer::get_pixel_group_mode() {
 }
 
 uint8_t HOT DisplayBuffer::reverse_bit_order(uint8_t data) {
-  if (data == 0xFF) return 0xFF;
+  if (data == 0xFF)
+    return 0xFF;
   data = (data & 0xF0) >> 4 | (data & 0x0F) << 4;
   data = (data & 0xCC) >> 2 | (data & 0x33) << 2;
   data = (data & 0xAA) >> 1 | (data & 0x55) << 1;

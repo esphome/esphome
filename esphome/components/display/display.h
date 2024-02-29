@@ -198,9 +198,11 @@ class Display : public PollingComponent {
   virtual void draw_pixel_at(int x, int y, Color color) = 0;
 
   /// Draw directly to the display buffer in 8-pixel high groups, y_row = y / 8
-  virtual void draw_vertical_pixel_group(int x, int y_row, uint8_t colors, uint8_t transparency, bool reverse_bit_order) = 0;
+  virtual void draw_vertical_pixel_group(int x, int y_row, uint8_t colors, uint8_t transparency,
+                                         bool reverse_bit_order) = 0;
   /// Draw directly to the display buffer in 8-pixel wide groups, x_column = x / 8
-  virtual void draw_horizontal_pixel_group(int x_column, int y, uint8_t colors, uint8_t transparency, bool reverse_bit_order) = 0;
+  virtual void draw_horizontal_pixel_group(int x_column, int y, uint8_t colors, uint8_t transparency,
+                                           bool reverse_bit_order) = 0;
   /// Get supported mode (vertical, horizontal, none), can change depending on display rotation
   virtual PixelGroupMode get_pixel_group_mode() = 0;
 
