@@ -1,7 +1,7 @@
 /// @file weikai.h
 /// @author DrCoolZic
 /// @brief  WeiKai component family - classes declaration
-/// @date Last Modified: 2024/02/29 21:10:14
+/// @date Last Modified: 2024/03/01 12:27:07
 /// @details The classes declared in this file can be used by the Weikai family
 /// of UART and GPIO expander components. As of today it provides support for
 ///     wk2124_spi, wk2132_spi, wk2168_spi, wk2204_spi, wk2212_spi,
@@ -13,10 +13,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "wk_reg_def.h"
-
-// #if defined(USE_ESP32_FRAMEWORK_ARDUINO) && defined(USE_I2C_BUS)
-// #include "Wire.h"  // needed to get I2C_BUFFER_LENGTH
-// #endif
 
 /// When the TEST_COMPONENT flag is defined we include some auto-test methods. Used to test the software during
 /// development but can also be used in situ to test if the component is working correctly. For release we do
@@ -32,39 +28,18 @@
 namespace esphome {
 namespace weikai {
 
-// /// @brief XFER_MAX_SIZE defines the maximum number of bytes allowed during one transfer.
-// /// - When using the Arduino framework by default the maximum number of bytes that can be transferred is 128 bytes.
-// But
-// ///   this can be changed by defining the macro I2C_BUFFER_LENGTH during compilation. This is done automatically by
-// the
-// ///   __init__.py file during code generation from the Yaml configuration file.
-// /// - When using the ESP-IDF Framework the maximum number of bytes allowed during transfer is 256 bytes.
-// /// @bug At the time of writing (Jan 2024) there is a bug in the Arduino framework in the TwoWire::requestFrom()
-// method.
-// /// This bug limits the number of bytes we can read to 255. For this reasons we limit the XFER_MAX_SIZE to 255.
-// /// - When we use an ESP8286 CPU we limit the transfer to 128
-
-// #if defined(USE_ESP8266)  // ESP8286
-// constexpr size_t XFER_MAX_SIZE = 128;
-
-// #elif defined(USE_ESP32_FRAMEWORK_ESP_IDF)                     // ESP32 and framework IDF
-// constexpr size_t XFER_MAX_SIZE = 256;
-
-// // ESP32 and framework Arduino
-// #elif defined(I2C_BUFFER_LENGTH) && (I2C_BUFFER_LENGTH < 256)  // Here we are using an USE_ESP32_FRAMEWORK_ARDUINO
-// constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;  // ESP32 & FRAMEWORK_ARDUINO
-// #else
-// constexpr size_t XFER_MAX_SIZE = 255;  // ESP32 & FRAMEWORK_ARDUINO we limit to 255 because Arduino' framework error
-// #endif
-
 /// @brief XFER_MAX_SIZE defines the maximum number of bytes allowed during one transfer.
+#if defined(I2C_BUFFER_LENGTH)
+constexpr size_t XFER_MAX_SIZE = I2C_BUFFER_LENGTH;
+#else
 constexpr size_t XFER_MAX_SIZE = 128;
+#endif
 
 /// @brief size of the internal WeiKai FIFO
 constexpr size_t FIFO_SIZE = 256;
 
-/// @brief size of the ring buffer
-constexpr size_t RING_BUFFER_SIZE = 256;
+/// @brief size of the ring buffer set to size of the FIFO
+constexpr size_t RING_BUFFER_SIZE = FIFO_SIZE;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief This is an helper class that provides a simple ring buffers that works as a FIFO

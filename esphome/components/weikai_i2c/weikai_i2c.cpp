@@ -1,6 +1,6 @@
 /// @file weikai_i2c.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/02/29 21:29:25
+/// @date Last Modified: 2024/03/01 12:34:10
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai_i2c.h"
@@ -164,6 +164,7 @@ void WeikaiComponentI2C::dump_config() {
   ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
   if (test_mode_)
     ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
+  ESP_LOGCONFIG(TAG, "  Transfer buffer size: %d", XFER_MAX_SIZE);
   this->address_ = this->base_address_;  // we restore the base_address before display (less confusing)
   LOG_I2C_DEVICE(this);
 

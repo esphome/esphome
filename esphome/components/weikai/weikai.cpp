@@ -1,6 +1,6 @@
 /// @file weikai.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/02/29 17:59:35
+/// @date Last Modified: 2024/03/01 11:05:16
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
@@ -186,7 +186,7 @@ void WeikaiComponent::loop() {
         yield();  // reschedule our thread to avoid blocking
       }
       bool status = children_[i]->uart_receive_test_(message);
-      ESP_LOGI(TAG, "Test %s => send/received %d bytes %s - execution time %d ms...", message, 2 * XFER_MAX_SIZE,
+      ESP_LOGI(TAG, "Test %s => send/received %d bytes %s - execution time %d ms...", message, RING_BUFFER_SIZE,
                status ? "correctly" : "with error", elapsed_ms(time));
     }
   }
@@ -486,18 +486,21 @@ void WeikaiChannel::flush() {
 }
 
 size_t WeikaiChannel::xfer_fifo_to_buffer_() {
-  size_t to_transfer = this->rx_in_fifo_();
-  size_t free = this->receive_buffer_.free();
-  if (to_transfer > XFER_MAX_SIZE)
-    to_transfer = XFER_MAX_SIZE;
-  if (to_transfer > free)
-    to_transfer = free;  // we'll do the rest next time
-  if (to_transfer) {
-    uint8_t data[to_transfer];
-    this->reg_(0).read_fifo(data, to_transfer);
-    for (size_t i = 0; i < to_transfer; i++)
-      this->receive_buffer_.push(data[i]);
-  }
+  size_t to_transfer;
+  size_t free;
+  while ((to_transfer = this->rx_in_fifo_()) && (free = this->receive_buffer_.free())) {
+    // while bytes in fifo and some room in the buffer we transfer
+    if (to_transfer > XFER_MAX_SIZE)
+      to_transfer = XFER_MAX_SIZE;  // we can only do so much
+    if (to_transfer > free)
+      to_transfer = free;  // we'll do the rest next time
+    if (to_transfer) {
+      uint8_t data[to_transfer];
+      this->reg_(0).read_fifo(data, to_transfer);
+      for (size_t i = 0; i < to_transfer; i++)
+        this->receive_buffer_.push(data[i]);
+    }
+  }  // while work to do
   return to_transfer;
 }
 
@@ -546,22 +549,26 @@ void WeikaiChannel::uart_send_test_(char *message) {
   auto start_exec = micros();
   std::vector<uint8_t> output_buffer(XFER_MAX_SIZE);
   generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
-  this->write_array(&output_buffer[0], XFER_MAX_SIZE);                // we send the buffer
-  this->flush();
-  this->write_array(&output_buffer[0], XFER_MAX_SIZE);  // we send the buffer again
-  ESP_LOGV(TAG, "%s => sent %d bytes - exec time %d µs ...", message, 2 * XFER_MAX_SIZE, micros() - start_exec);
+  size_t to_send = RING_BUFFER_SIZE;
+  while (to_send) {
+    this->write_array(&output_buffer[0], XFER_MAX_SIZE);  // we send the buffer
+    this->flush();
+    to_send -= XFER_MAX_SIZE;
+  }
+  ESP_LOGV(TAG, "%s => sent %d bytes - exec time %d µs ...", message, RING_BUFFER_SIZE, micros() - start_exec);
 }
 
 /// @brief test read_array method
 bool WeikaiChannel::uart_receive_test_(char *message) {
   auto start_exec = micros();
   bool status = true;
-  size_t received;
-  std::vector<uint8_t> buffer(XFER_MAX_SIZE);
+  size_t received = 0;
+  std::vector<uint8_t> buffer(RING_BUFFER_SIZE);
 
   // we wait until we have received all the bytes
   uint32_t const start_time = millis();
-  for (int i = 0; i < 2; i++) {
+  status = true;
+  while (received < RING_BUFFER_SIZE) {
     while (XFER_MAX_SIZE > this->available()) {
       this->xfer_fifo_to_buffer_();
       if (millis() - start_time > 1500) {
@@ -570,23 +577,23 @@ bool WeikaiChannel::uart_receive_test_(char *message) {
       }
       yield();  // reschedule our thread to avoid blocking
     }
+    status = this->read_array(&buffer[received], XFER_MAX_SIZE) && status;
+    received += XFER_MAX_SIZE;
+  }
 
-    received += this->available();
-    uint8_t peek_value = 0;
-    this->peek_byte(&peek_value);
-    if (peek_value != 0) {
-      ESP_LOGE(TAG, "Peek first byte value error...");
+  uint8_t peek_value = 0;
+  this->peek_byte(&peek_value);
+  if (peek_value != 0) {
+    ESP_LOGE(TAG, "Peek first byte value error...");
+    status = false;
+  }
+
+  for (size_t i = 0; i < RING_BUFFER_SIZE; i++) {
+    if (buffer[i] != i % XFER_MAX_SIZE) {
+      ESP_LOGE(TAG, "Read buffer contains error...b=%x i=%x", buffer[i], i % XFER_MAX_SIZE);
+      print_buffer(buffer);
       status = false;
-    }
-
-    status = this->read_array(&buffer[0], XFER_MAX_SIZE) && status;
-    for (size_t i = 0; i < XFER_MAX_SIZE; i++) {
-      if (buffer[i] != i) {
-        ESP_LOGE(TAG, "Read buffer contains error...");
-        print_buffer(buffer);
-        status = false;
-        break;
-      }
+      break;
     }
   }
 
