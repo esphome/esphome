@@ -140,10 +140,24 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *illuminance_{nullptr};
   sensor::Sensor *irradiance_{nullptr};
 
+  sensor::Sensor *bf1_{nullptr};
+  sensor::Sensor *bf2_{nullptr};
+  sensor::Sensor *bfz_{nullptr};
+  sensor::Sensor *bf3_{nullptr};
+  sensor::Sensor *bf4_{nullptr};
+  sensor::Sensor *bfy_{nullptr};
+  sensor::Sensor *bf5_{nullptr};
+  sensor::Sensor *bfxl_{nullptr};
+  sensor::Sensor *bf6_{nullptr};
+  sensor::Sensor *bf7_{nullptr};
+  sensor::Sensor *bf8_{nullptr};
+  sensor::Sensor *bnir_{nullptr};
+
   uint16_t astep_;
   AS7343Gain gain_;
   uint8_t atime_;
   uint16_t channel_readings_[AS7343_NUM_CHANNELS];
+  float channel_basic_readings_[AS7343_NUM_CHANNELS];
 };
 
 }  // namespace as7343

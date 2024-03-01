@@ -55,15 +55,6 @@ static constexpr uint8_t AS7343_ENABLE_PON_BIT = 0;
 static constexpr uint8_t AS7343_ENABLE_SP_EN_BIT = 1;
 static constexpr uint8_t AS7343_CFG0_REG_BANK_BIT = 4;
 
-union AS7343RegCfg20 {
-  uint8_t raw;
-  struct {
-    uint8_t reserved : 5;
-    uint8_t auto_smux : 2;
-    uint8_t fd_fifo_8b : 1;
-  };
-};
-
 enum AS7343Gain : uint8_t {
   AS7343_GAIN_0_5X,
   AS7343_GAIN_1X,
@@ -102,6 +93,52 @@ enum AS7343Channel : uint8_t {
 };
 
 static constexpr uint8_t AS7343_NUM_CHANNELS = 18;
+
+union AS7343RegCfg20 {
+  uint8_t raw;
+  struct {
+    uint8_t reserved : 5;
+    uint8_t auto_smux : 2;
+    uint8_t fd_fifo_8b : 1;
+  } __attribute__((packed));
+};
+
+union AS7343RegStatus {
+  uint8_t raw;
+  struct {
+    uint8_t sint : 1;
+    uint8_t reserved_1 : 1;
+    uint8_t fint : 1;
+    uint8_t aint : 1;
+    uint8_t reserved_4_6 : 3;
+    uint8_t asat : 1;
+  } __attribute__((packed));
+};
+
+union AS7343RegStatus2 {
+  uint8_t raw;
+  struct {
+    uint8_t fdsat_digital : 1;
+    uint8_t fdsat_analog : 1;
+    uint8_t reserved_2 : 1;
+    uint8_t asat_analog : 1;
+    uint8_t asat_digital : 1;
+    uint8_t reserved_5 : 1;
+    uint8_t avalid : 1;
+    uint8_t reserved_7 : 1;
+  } __attribute__((packed));
+};
+
+union AS7343RegAStatus {
+  uint8_t raw;
+  struct {
+    AS7343Gain again_status : 4;
+    uint8_t reserved_4_6 : 3;
+    uint8_t asat_status : 1;
+    
+  } __attribute__((packed));
+};
+
 
 }  // namespace as7343
 }  // namespace esphome

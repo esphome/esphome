@@ -39,6 +39,8 @@ CONF_F8 = "f8"
 CONF_NIR = "nir"
 CONF_CLEAR = "clear"
 CONF_IRRADIANCE = "irradiance"
+CONF_DIGITAL_SATURATION = "digital_saturation"
+CONF_ANALOG_SATURATION = "analog_saturation"
 
 UNIT_COUNTS = "#"
 UNIT_IRRADIANCE = "W/m²"
@@ -65,7 +67,7 @@ SENSOR_SCHEMA = cv.maybe_simple_value(
     sensor.sensor_schema(
         unit_of_measurement=UNIT_COUNTS,
         icon=ICON_BRIGHTNESS_5,
-        accuracy_decimals=0,
+        accuracy_decimals=4,
         device_class=DEVICE_CLASS_ILLUMINANCE,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
