@@ -107,7 +107,9 @@ CC1101_TRANSMIT_SCHEMA = (
 )
 
 
-@remote_base.register_action("rc_switch_raw_cc1101", CC1101RawAction, CC1101_TRANSMIT_SCHEMA)
+@remote_base.register_action(
+    "rc_switch_raw_cc1101", CC1101RawAction, CC1101_TRANSMIT_SCHEMA
+)
 async def rc_switch_raw_cc1101_action(var, config, args):
     proto = await cg.templatable(
         config[CONF_PROTOCOL],
