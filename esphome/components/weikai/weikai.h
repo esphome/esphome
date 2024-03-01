@@ -1,7 +1,7 @@
 /// @file weikai.h
 /// @author DrCoolZic
 /// @brief  WeiKai component family - classes declaration
-/// @date Last Modified: 2024/03/01 12:27:07
+/// @date Last Modified: 2024/03/01 14:11:09
 /// @details The classes declared in this file can be used by the Weikai family
 /// of UART and GPIO expander components. As of today it provides support for
 ///     wk2124_spi, wk2132_spi, wk2168_spi, wk2204_spi, wk2212_spi,
@@ -321,7 +321,7 @@ class WeikaiChannel : public uart::UARTComponent {
   /// @brief Factory method to create a WeikaiRegister proxy object
   /// @param reg address of the register
   /// @return a reference to WeikaiRegister
-  WeikaiRegister &reg_(uint8_t reg) { return this->parent_->reg(reg, channel_); }
+  WeikaiRegister &reg(uint8_t reg) { return this->parent_->reg(reg, channel_); }
 
   //
   // we implements/overrides the virtual class from UARTComponent

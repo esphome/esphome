@@ -1,6 +1,6 @@
 /// @file weikai.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/03/01 11:05:16
+/// @date Last Modified: 2024/03/01 14:12:14
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
@@ -322,9 +322,9 @@ void WeikaiChannel::dump_channel() {
 
 void WeikaiChannel::reset_fifo_() {
   // enable transmission and reception
-  this->reg_(WKREG_SCR) = SCR_RXEN | SCR_TXEN;
+  this->reg(WKREG_SCR) = SCR_RXEN | SCR_TXEN;
   // we reset and enable transmit and receive FIFO
-  this->reg_(WKREG_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
+  this->reg(WKREG_FCR) = FCR_TFEN | FCR_RFEN | FCR_TFRST | FCR_RFRST;
 }
 
 void WeikaiChannel::set_line_param_() {
@@ -342,7 +342,7 @@ void WeikaiChannel::set_line_param_() {
     default:
       break;  // no parity 000x
   }
-  this->reg_(WKREG_LCR) = lcr;  // write LCR
+  this->reg(WKREG_LCR) = lcr;  // write LCR
   ESP_LOGV(TAG, "    line config: %d data_bits, %d stop_bits, parity %s register [%s]", this->data_bits_,
            this->stop_bits_, p2s(this->parity_), I2S2CS(lcr));
 }
@@ -362,23 +362,23 @@ void WeikaiChannel::set_baudrate_() {
   uint8_t const baud_dec = (uint8_t) (val_dec);
 
   this->parent_->page1_ = true;  // switch to page 1
-  this->reg_(WKREG_SPAGE) = 1;
-  this->reg_(WKREG_BRH) = baud_high;
-  this->reg_(WKREG_BRL) = baud_low;
-  this->reg_(WKREG_BRD) = baud_dec;
+  this->reg(WKREG_SPAGE) = 1;
+  this->reg(WKREG_BRH) = baud_high;
+  this->reg(WKREG_BRL) = baud_low;
+  this->reg(WKREG_BRD) = baud_dec;
   this->parent_->page1_ = false;  // switch back to page 0
-  this->reg_(WKREG_SPAGE) = 0;
+  this->reg(WKREG_SPAGE) = 0;
 
   ESP_LOGV(TAG, "    Crystal=%d baudrate=%d => registers [%d %d %d]", this->parent_->crystal_, this->baud_rate_,
            baud_high, baud_low, baud_dec);
 }
 
-inline bool WeikaiChannel::tx_fifo_is_not_empty_() { return this->reg_(WKREG_FSR) & FSR_TFDAT; }
+inline bool WeikaiChannel::tx_fifo_is_not_empty_() { return this->reg(WKREG_FSR) & FSR_TFDAT; }
 
 size_t WeikaiChannel::tx_in_fifo_() {
-  size_t tfcnt = this->reg_(WKREG_TFCNT);
+  size_t tfcnt = this->reg(WKREG_TFCNT);
   if (tfcnt == 0) {
-    uint8_t const fsr = this->reg_(WKREG_FSR);
+    uint8_t const fsr = this->reg(WKREG_FSR);
     if (fsr & FSR_TFFULL) {
       ESP_LOGVV(TAG, "tx FIFO full FSR=%s", I2S2CS(fsr));
       tfcnt = FIFO_SIZE;
@@ -389,8 +389,8 @@ size_t WeikaiChannel::tx_in_fifo_() {
 }
 
 size_t WeikaiChannel::rx_in_fifo_() {
-  size_t available = this->reg_(WKREG_RFCNT);
-  uint8_t const fsr = this->reg_(WKREG_FSR);
+  size_t available = this->reg(WKREG_RFCNT);
+  uint8_t const fsr = this->reg(WKREG_FSR);
   if (fsr & (FSR_RFOE | FSR_RFLB | FSR_RFFE | FSR_RFPE)) {
     if (fsr & FSR_RFOE)
       ESP_LOGE(TAG, "Receive data overflow FSR=%s", I2S2CS(fsr));
@@ -406,7 +406,7 @@ size_t WeikaiChannel::rx_in_fifo_() {
     // -  at time t0 we read RFCNT=0 because nothing yet received
     // -  at time t0+delta we might read FIFO not empty because one byte has just been received
     // -  so to be sure we need to do another read of RFCNT and if it is still zero -> buffer full
-    available = this->reg_(WKREG_RFCNT);
+    available = this->reg(WKREG_RFCNT);
     if (available == 0) {  // still zero ?
       ESP_LOGV(TAG, "rx FIFO is full FSR=%s", I2S2CS(fsr));
       available = FIFO_SIZE;
@@ -419,7 +419,7 @@ size_t WeikaiChannel::rx_in_fifo_() {
 bool WeikaiChannel::check_channel_down() {
   // to check if we channel is up we write to the LCR W/R register
   // note that this will put a break on the tx line for few ms
-  WeikaiRegister &lcr = this->reg_(WKREG_LCR);
+  WeikaiRegister &lcr = this->reg(WKREG_LCR);
   lcr = 0x3F;
   uint8_t val = lcr;
   if (val != 0x3F) {
@@ -471,7 +471,7 @@ void WeikaiChannel::write_array(const uint8_t *buffer, size_t length) {
     ESP_LOGE(TAG, "Write_array: invalid call - requested %d bytes but max size %d ...", length, XFER_MAX_SIZE);
     length = XFER_MAX_SIZE;
   }
-  this->reg_(0).write_fifo(const_cast<uint8_t *>(buffer), length);
+  this->reg(0).write_fifo(const_cast<uint8_t *>(buffer), length);
 }
 
 void WeikaiChannel::flush() {
@@ -496,7 +496,7 @@ size_t WeikaiChannel::xfer_fifo_to_buffer_() {
       to_transfer = free;  // we'll do the rest next time
     if (to_transfer) {
       uint8_t data[to_transfer];
-      this->reg_(0).read_fifo(data, to_transfer);
+      this->reg(0).read_fifo(data, to_transfer);
       for (size_t i = 0; i < to_transfer; i++)
         this->receive_buffer_.push(data[i]);
     }
