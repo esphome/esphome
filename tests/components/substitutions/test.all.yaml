@@ -17,5 +17,3 @@ switch:
   - platform: template
     name: Switch ${name} ${valid_interpolation} ${name} ${name}
     optimistic: true
-
-host:
