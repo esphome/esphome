@@ -70,8 +70,8 @@ optional<ElectraRC3Data> ElectraRC3Protocol::decode(RemoteReceiveData src) {
 
 void ElectraRC3Protocol::dump(const ElectraRC3Data &data) {
   ESP_LOGD(ELECTRA_RC3_TAG,
-           "Received Electra RC3: power = 0x%X, mode = 0x%X, fan = 0x%X, swing = 0x%X, ifeel = 0x%X, temperature = "
-           "0x%X, sleep = 0x%X",
+           "Received Electra RC3: power = 0x%llX, mode = 0x%llX, fan = 0x%llX, swing = 0x%llX, "
+           "ifeel = 0x%llX, temperature = 0x%llX, sleep = 0x%llX",
            data.power, data.mode, data.fan, data.swing, data.ifeel, data.temperature, data.sleep);
 }
 
