@@ -112,21 +112,21 @@ void ADE7953::update() {
   reg = this->use_acc_energy_regs_ ? 0x0322 : 0x0310;
   err = this->ade_read_32(reg, &val);
   ADE_PUBLISH(apparent_power_a, (int32_t) val, pf);
-  err = this->ade_read_32(reg+1, &val);
+  err = this->ade_read_32(reg + 1, &val);
   ADE_PUBLISH(apparent_power_b, (int32_t) val, pf);
 
   // Active power
   reg = this->use_acc_energy_regs_ ? 0x031E : 0x0312;
   err = this->ade_read_32(reg, &val);
   ADE_PUBLISH(active_power_a, (int32_t) val, pf);
-  err = this->ade_read_32(reg+1, &val);
+  err = this->ade_read_32(reg + 1, &val);
   ADE_PUBLISH(active_power_b, (int32_t) val, pf);
 
   // Reactive power
   reg = this->use_acc_energy_regs_ ? 0x0320 : 0x0314;
   err = this->ade_read_32(reg, &val);
   ADE_PUBLISH(reactive_power_a, (int32_t) val, pf);
-  err = this->ade_read_32(reg+1, &val);
+  err = this->ade_read_32(reg + 1, &val);
   ADE_PUBLISH(reactive_power_b, (int32_t) val, pf);
 
   // Current
