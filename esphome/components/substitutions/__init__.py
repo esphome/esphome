@@ -79,13 +79,13 @@ def _expand_substitutions(substitutions, value, path, ignore_missing):
                     "->".join(str(x) for x in path),
                     name,
                 )
-            substituted += value[start_from : ignored_chars + length]
-            start_from = ignored_chars + length
+            substituted += value[start_from : start_from + ignored_chars + length]
+            start_from += ignored_chars + length
             continue
 
         sub = substitutions[name]
         if isinstance(sub, str):
-            substituted += value[start_from:ignored_chars] + sub
+            substituted += value[start_from : start_from + ignored_chars] + sub
             start_from += ignored_chars + length
             continue
 

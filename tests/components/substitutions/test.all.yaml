@@ -15,7 +15,7 @@ switch:
   optimistic: True
 - $switch_def
 - platform: template
-  name: Switch $invalid_interpolation
+  name: Switch ${name} ${invalid} ${name} ${name}
   optimistic: True
 
 host:
