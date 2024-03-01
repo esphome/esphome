@@ -21,8 +21,8 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
         if (ip.is_set()) {
           if (this->ip_sensors_[sensor] != nullptr) {
             this->ip_sensors_[sensor]->publish_state(ip.str());
-            sensor++;
           }
+          sensor++;
         }
       }
     }

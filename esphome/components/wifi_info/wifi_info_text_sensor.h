@@ -20,8 +20,8 @@ class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSenso
         if (ip.is_set()) {
           if (this->ip_sensors_[sensor] != nullptr) {
             this->ip_sensors_[sensor]->publish_state(ip.str());
-            sensor++;
           }
+          sensor++;
         }
       }
     }
