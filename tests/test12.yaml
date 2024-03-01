@@ -12,7 +12,7 @@ esp32:
   variant: esp32s3
   framework:
     type: esp-idf
-# Required to achieve sufficient PSRAM bandwidth
+    # Required to achieve sufficient PSRAM bandwidth
     sdkconfig_options:
       CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: y
       CONFIG_ESP32S3_DATA_CACHE_64KB: y
@@ -51,7 +51,6 @@ output:
     id: ledc_gpio4
     frequency: 100Hz
 
-
 light:
   - platform: monochromatic
     output: ledc_gpio4
@@ -69,7 +68,6 @@ i2c:
   scl: 40
   scan: false
   id: bus_a
-
 
 # I/O expander. Touchscreen RESET and INTERRUPT are not used.
 pca9554:
@@ -118,4 +116,3 @@ display:
       - 13
       - 14
       - 15
-
