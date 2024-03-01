@@ -5,17 +5,17 @@ substitutions:
   switch_def:
     platform: template
     name: $name
-    optimistic: True
+    optimistic: true
   name: Normal switch
   valid_interpolation: "1"
 
 switch:
-- platform: template
-  name: $name
-  optimistic: True
-- $switch_def
-- platform: template
-  name: Switch ${name} ${invalid} ${name} ${name}
-  optimistic: True
+  - platform: template
+    name: $name
+    optimistic: true
+  - $switch_def
+  - platform: template
+    name: Switch ${name} ${valid_interpolation} ${name} ${name}
+    optimistic: true
 
 host:
