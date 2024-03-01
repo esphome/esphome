@@ -9,26 +9,18 @@ substitutions:
   devicename: test-4
 
 ethernet:
-  type: W5500
-  clk_pin:
-    allow_other_uses: true
-    number: GPIO19
-  mosi_pin:
-    allow_other_uses: true
-    number: GPIO21
-  miso_pin:
+  type: LAN8720
+  mdc_pin:
     allow_other_uses: true
     number: GPIO23
-  cs_pin:
+  mdio_pin:
     allow_other_uses: true
-    number: GPIO18
-  interrupt_pin:
+    number: GPIO25
+  clk_mode: GPIO0_IN
+  phy_addr: 0
+  power_pin:
     allow_other_uses: true
-    number: GPIO36
-  reset_pin:
-    allow_other_uses: true
-    number: GPIO22
-  clock_speed: 10Mhz
+    number: GPIO25
   manual_ip:
     static_ip: 192.168.178.56
     gateway: 192.168.178.1
