@@ -118,7 +118,7 @@ void CSE7766Component::parse_data_() {
   uint32_t power_coeff = this->get_24_bit_uint_(14);
   uint32_t power_cycle = this->get_24_bit_uint_(17);
   uint8_t adj = this->raw_data_[20];
-  uint32_t cf_pulses = (this->raw_data_[21] << 8) + this->raw_data_[22];
+  uint16_t cf_pulses = (this->raw_data_[21] << 8) + this->raw_data_[22];
 
   bool have_power = adj & 0x10;
   bool have_current = adj & 0x20;
@@ -132,8 +132,19 @@ void CSE7766Component::parse_data_() {
     }
   }
 
+  float energy = 0.0;
+  if (this->energy_sensor_ != nullptr) {
+    if (this->cf_pulses_last_ == 0 && !this->energy_sensor_->has_state()) {
+      this->cf_pulses_last_ = cf_pulses;
+    }
+    uint16_t cf_diff = cf_pulses - this->cf_pulses_last_;
+    this->cf_pulses_total_ += cf_diff;
+    this->cf_pulses_last_ = cf_pulses;
+    energy = this->cf_pulses_total_ * float(power_coeff) / 1000000.0f / 3600.0f;
+    this->energy_sensor_->publish_state(energy);
+  }
+
   float power = 0.0f;
-  float energy = 0.0f;
   if (power_cycle_exceeds_range) {
     // Datasheet: power cycle exceeding range means active power is 0
     if (this->power_sensor_ != nullptr) {
@@ -144,27 +155,6 @@ void CSE7766Component::parse_data_() {
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
     }
-
-    // Add CF pulses to the total energy only if we have Power coefficient to multiply by
-
-    if (this->cf_pulses_last_ == 0) {
-      this->cf_pulses_last_ = cf_pulses;
-    }
-
-    uint32_t cf_diff;
-    if (cf_pulses < this->cf_pulses_last_) {
-      cf_diff = cf_pulses + (0x10000 - this->cf_pulses_last_);
-    } else {
-      cf_diff = cf_pulses - this->cf_pulses_last_;
-    }
-    this->cf_pulses_last_ = cf_pulses;
-
-    energy = cf_diff * float(power_coeff) / 1000000.0f / 3600.0f;
-    this->energy_total_ += energy;
-    if (this->energy_sensor_ != nullptr)
-      this->energy_sensor_->publish_state(this->energy_total_);
-  } else if ((this->energy_sensor_ != nullptr) && !this->energy_sensor_->has_state()) {
-    this->energy_sensor_->publish_state(0);
   }
 
   float current = 0.0f;
@@ -180,6 +170,32 @@ void CSE7766Component::parse_data_() {
     }
     if (this->current_sensor_ != nullptr) {
       this->current_sensor_->publish_state(current);
+    }
+  }
+
+  if (have_voltage && have_current) {
+    const float apparent_power = voltage * current;
+    if (this->apparent_power_sensor_ != nullptr) {
+      this->apparent_power_sensor_->publish_state(apparent_power);
+    }
+    if (this->power_factor_sensor_ != nullptr && (have_power || power_cycle_exceeds_range)) {
+      float pf = NAN;
+      if (apparent_power > 0) {
+        pf = power / apparent_power;
+        if (pf < 0 || pf > 1) {
+          ESP_LOGD(TAG, "Impossible power factor: %.4f not in interval [0, 1]", pf);
+          pf = NAN;
+        }
+      } else if (apparent_power == 0 && power == 0) {
+        // No load, report ideal power factor
+        pf = 1.0f;
+      } else if (current == 0 && calculated_current <= 0.05f) {
+        // Datasheet: minimum measured current is 50mA
+        ESP_LOGV(TAG, "Can't calculate power factor (current below minimum for CSE7766)");
+      } else {
+        ESP_LOGW(TAG, "Can't calculate power factor from P = %.4f W, S = %.4f VA", power, apparent_power);
+      }
+      this->power_factor_sensor_->publish_state(pf);
     }
   }
 
@@ -215,6 +231,8 @@ void CSE7766Component::dump_config() {
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
   LOG_SENSOR("  ", "Energy", this->energy_sensor_);
+  LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
+  LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
   this->check_uart_settings(4800);
 }
 
