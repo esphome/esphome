@@ -17,18 +17,11 @@ static const char *TAG = "rp2040_pio_led_strip";
 
 static uint8_t num_instance_[2] = {0, 0};
 static std::map<Chipset, uint> chipset_offsets_ = {
-    {CHIPSET_WS2812, 0},
-    {CHIPSET_WS2812B, 0},
-    {CHIPSET_SK6812, 0},
-    {CHIPSET_SM16703, 0},
-    {CHIPSET_CUSTOM, 0},
+    {CHIPSET_WS2812, 0}, {CHIPSET_WS2812B, 0}, {CHIPSET_SK6812, 0}, {CHIPSET_SM16703, 0}, {CHIPSET_CUSTOM, 0},
 };
 static std::map<Chipset, bool> conf_count_ = {
-    {CHIPSET_WS2812, false},
-    {CHIPSET_WS2812B, false},
-    {CHIPSET_SK6812, false},
-    {CHIPSET_SM16703, false},
-    {CHIPSET_CUSTOM, false},
+    {CHIPSET_WS2812, false},  {CHIPSET_WS2812B, false}, {CHIPSET_SK6812, false},
+    {CHIPSET_SM16703, false}, {CHIPSET_CUSTOM, false},
 };
 
 void RP2040PIOLEDStripLightOutput::setup() {
