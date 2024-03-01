@@ -10,6 +10,8 @@ from esphome.const import (
 
 from .. import template_ns
 
+CODEOWNERS = ["@ssieb"]
+
 TemplateFan = template_ns.class_("TemplateFan", cg.Component, fan.Fan)
 
 CONF_HAS_DIRECTION = "has_direction"
