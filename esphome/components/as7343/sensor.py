@@ -39,11 +39,14 @@ CONF_F8 = "f8"
 CONF_NIR = "nir"
 CONF_CLEAR = "clear"
 CONF_IRRADIANCE = "irradiance"
-CONF_DIGITAL_SATURATION = "digital_saturation"
-CONF_ANALOG_SATURATION = "analog_saturation"
+CONF_PPFD = "ppfd"
+CONF_SATURATION = "saturation"
 
 UNIT_COUNTS = "#"
 UNIT_IRRADIANCE = "W/m²"
+UNIT_PPFD = "µmol/sm²"
+
+ICON_SATURATION = "mdi:weather-sunny-alert"
 
 AS7343_GAIN = as7343_ns.enum("AS7343Gain")
 GAIN_OPTIONS = {
@@ -67,7 +70,7 @@ SENSOR_SCHEMA = cv.maybe_simple_value(
     sensor.sensor_schema(
         unit_of_measurement=UNIT_COUNTS,
         icon=ICON_BRIGHTNESS_5,
-        accuracy_decimals=4,
+        accuracy_decimals=0,
         device_class=DEVICE_CLASS_ILLUMINANCE,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
@@ -115,6 +118,26 @@ CONFIG_SCHEMA = (
                 ),
                 key=CONF_NAME,
             ),
+            cv.Optional(CONF_PPFD): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_PPFD,
+                    icon=ICON_BRIGHTNESS_5,
+                    accuracy_decimals=0,
+                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
+            cv.Optional(CONF_SATURATION): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_COUNTS,
+                    icon=ICON_SATURATION,
+                    accuracy_decimals=0,
+                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -137,6 +160,8 @@ SENSORS = {
     CONF_CLEAR: "set_clear_sensor",
     CONF_ILLUMINANCE: "set_illuminance_sensor",
     CONF_IRRADIANCE: "set_irradiance_sensor",
+    CONF_PPFD: "set_ppfd_sensor",
+    CONF_SATURATION: "set_saturation_sensor",
 }
 
 

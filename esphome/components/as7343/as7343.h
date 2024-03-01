@@ -9,57 +9,6 @@
 namespace esphome {
 namespace as7343 {
 
-static const uint8_t AS7341_CONFIG = 0x70;
-static const uint8_t AS7341_LED = 0x74;
-
-static const uint8_t AS7341_ENABLE = 0x80;
-static const uint8_t AS7341_ATIME = 0x81;
-
-static const uint8_t AS7341_WTIME = 0x83;
-
-static const uint8_t AS7341_AUXID = 0x90;
-static const uint8_t AS7341_REVID = 0x91;
-static const uint8_t AS7341_ID = 0x92;
-static const uint8_t AS7341_STATUS = 0x93;
-
-// static const uint8_t AS7341_CH0_DATA_L = 0x95;
-// static const uint8_t AS7341_CH0_DATA_H = 0x96;
-// static const uint8_t AS7341_CH1_DATA_L = 0x97;
-// static const uint8_t AS7341_CH1_DATA_H = 0x98;
-// static const uint8_t AS7341_CH2_DATA_L = 0x99;
-// static const uint8_t AS7341_CH2_DATA_H = 0x9A;
-// static const uint8_t AS7341_CH3_DATA_L = 0x9B;
-// static const uint8_t AS7341_CH3_DATA_H = 0x9C;
-// static const uint8_t AS7341_CH4_DATA_L = 0x9D;
-// static const uint8_t AS7341_CH4_DATA_H = 0x9E;
-// static const uint8_t AS7341_CH5_DATA_L = 0x9F;
-// static const uint8_t AS7341_CH5_DATA_H = 0xA0;
-
-// static const uint8_t AS7341_STATUS2 = 0xA3;
-
-// static const uint8_t AS7341_CFG1 = 0xAA;  ///< Controls ADC Gain
-
-// static const uint8_t AS7341_CFG6 = 0xAF;  // Stores SMUX command
-// static const uint8_t AS7341_CFG9 = 0xB2;  // Config for system interrupts (SMUX, Flicker detection)
-
-// static const uint8_t AS7341_ASTEP = 0xCA;      // LSB
-// static const uint8_t AS7341_ASTEP_MSB = 0xCB;  // MSB
-
-// enum AS7343AdcChannel {
-//   AS7343_ADC_CHANNEL_0,
-//   AS7343_ADC_CHANNEL_1,
-//   AS7343_ADC_CHANNEL_2,
-//   AS7343_ADC_CHANNEL_3,
-//   AS7343_ADC_CHANNEL_4,
-//   AS7343_ADC_CHANNEL_5,
-// };
-
-// enum AS7343SmuxCommand {
-//   AS7343_SMUX_CMD_ROM_RESET,  ///< ROM code initialization of SMUX
-//   AS7343_SMUX_CMD_READ,       ///< Read SMUX configuration to RAM from SMUX chain
-//   AS7343_SMUX_CMD_WRITE,      ///< Write SMUX configuration from RAM to SMUX chain
-// };
-
 class AS7343Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
@@ -82,6 +31,8 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   void set_clear_sensor(sensor::Sensor *clear_sensor) { clear_ = clear_sensor; }
   void set_illuminance_sensor(sensor::Sensor *sensor) { illuminance_ = sensor; }
   void set_irradiance_sensor(sensor::Sensor *sensor) { irradiance_ = sensor; }
+  void set_ppfd_sensor(sensor::Sensor *sensor) { ppfd_ = sensor; }
+  void set_saturation_sensor(sensor::Sensor *sensor) { this->saturated_ = sensor; }
 
   void set_gain(AS7343Gain gain) { gain_ = gain; }
   void set_gain(esphome::optional<unsigned int> g);
@@ -96,18 +47,14 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   bool setup_atime(uint8_t atime);
   bool setup_astep(uint16_t astep);
 
+  bool change_gain(AS7343Gain gain);
+
   float get_gain_multiplier(AS7343Gain gain);
-  //  uint16_t read_channel(AS7343AdcChannel channel);
+
   bool read_channels(uint16_t *data);
   float calculate_ppfd(float tint_ms, float gain_x, AS7343Gain gain);
   void calculate_irradiance(float tint_ms, float gain_x, float &irradiance, float &lux, AS7343Gain gain);
   float calculate_spectre_();
-
-  // void set_smux_low_channels(bool enable);
-  // bool set_smux_command(AS7343SmuxCommand command);
-  // void configure_smux_low_channels();
-  // void configure_smux_high_channels();
-  //  bool enable_smux();
 
   bool wait_for_data(uint16_t timeout = 1000);
   bool is_data_ready();
@@ -123,6 +70,7 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
  protected:
   void set_bank_for_reg_(AS7343Registers reg = AS7343Registers::ENABLE);
   bool bank_{false};
+  bool readings_saturated_{false};
 
   sensor::Sensor *f1_{nullptr};
   sensor::Sensor *f2_{nullptr};
@@ -139,6 +87,9 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *clear_{nullptr};
   sensor::Sensor *illuminance_{nullptr};
   sensor::Sensor *irradiance_{nullptr};
+  sensor::Sensor *ppfd_{nullptr};
+
+  sensor::Sensor *saturated_{nullptr};
 
   sensor::Sensor *bf1_{nullptr};
   sensor::Sensor *bf2_{nullptr};
