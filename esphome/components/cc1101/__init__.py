@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
+from esphome import automation, pins
+from esphome.automation import maybe_simple_id
 from esphome.components import sensor
 from esphome.components import spi
 from esphome.components import remote_base
@@ -74,6 +75,24 @@ async def to_code(config):
         cg.add(var.set_config_lqi_sensor(lqi))
 
 
+BeginTxAction = ns.class_("BeginTxAction", automation.Action)
+EndTxAction = ns.class_("EndTxAction", automation.Action)
+
+CC1101_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(CC1101),
+    }
+)
+
+
+@automation.register_action("cc1101.begin_tx", BeginTxAction, CC1101_ACTION_SCHEMA)
+@automation.register_action("cc1101.end_tx", EndTxAction, CC1101_ACTION_SCHEMA)
+async def cc1101_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
 CC1101RawAction = ns.class_("CC1101RawAction", remote_base.RCSwitchRawAction)
 
 CC1101_TRANSMIT_SCHEMA = (
@@ -88,8 +107,8 @@ CC1101_TRANSMIT_SCHEMA = (
 )
 
 
-@remote_base.register_action("cc1101", CC1101RawAction, CC1101_TRANSMIT_SCHEMA)
-async def cc1101_action(var, config, args):
+@remote_base.register_action("rc_switch_raw_cc1101", CC1101RawAction, CC1101_TRANSMIT_SCHEMA)
+async def rc_switch_raw_cc1101_action(var, config, args):
     proto = await cg.templatable(
         config[CONF_PROTOCOL],
         args,

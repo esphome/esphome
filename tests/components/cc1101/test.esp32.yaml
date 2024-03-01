@@ -43,7 +43,7 @@ button:
   - platform: template
     name: "Gate"
     on_press:
-      - remote_transmitter.transmit_cc1101:
+      - remote_transmitter.transmit_rc_switch_raw_cc1101:
           code: '0111000110010011110110010100011111110001001011110111'
           protocol:
             pulse_length: 434

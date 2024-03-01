@@ -90,6 +90,16 @@ class CC1101 : public PollingComponent,
   void end_tx();
 };
 
+template<typename... Ts> class BeginTxAction : public Action<Ts...>, public Parented<CC1101> {
+ public:
+  void play(Ts... x) override { this->parent_->begin_tx(); }
+};
+
+template<typename... Ts> class EndTxAction : public Action<Ts...>, public Parented<CC1101> {
+ public:
+  void play(Ts... x) override { this->parent_->end_tx(); }
+};
+
 template<typename... Ts> class CC1101RawAction : public remote_base::RCSwitchRawAction<Ts...>, public Parented<CC1101> {
  protected:
   void play(Ts... x) override {

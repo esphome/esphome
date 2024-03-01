@@ -6,11 +6,13 @@
   It can be compiled with Arduino and esp-idf framework and should support any esphome compatible board through the SPI
   Bus.
 
-  On ESP8266, you can use a single pin instead of GD0O and GD02 (gdo0 is an optional parameter). If assigned,
-  the pin direction will be reversed for the transfers.
+  On ESP8266, you can use a single pin instead of GD0O and GD02 (gdo0 is an optional parameter). If assigned, the pin
+  direction will be reversed for the transfers.
 
-  On ESP32, this will not work, you must connect two separate pins. TX to GDO0, RX to GDO2.
-  If only TX works, they are probably switched.
+  On ESP32, this will not work, you must connect two separate pins. TX to GDO0, RX to GDO2. If only TX works, they are
+  probably switched.
+
+  Transfers, except transmit_rc_switch_raw_cc1101, must be surrounded with cc1101.begin_tx and cc1101.end_tx.
 
   The source code is a mashup of the following github projects with some special esphome sauce:
 
@@ -593,14 +595,14 @@ void CC1101::set_rxbw_(uint32_t bw) {
 }
 
 void CC1101::set_tx_() {
-  ESP_LOGI(TAG, "CC1101 set_tx");
+  ESP_LOGD(TAG, "CC1101 set_tx");
   this->send_cmd_(CC1101_SIDLE);
   this->send_cmd_(CC1101_STX);
   this->trxstate_ = 1;
 }
 
 void CC1101::set_rx_() {
-  ESP_LOGI(TAG, "CC1101 set_rx");
+  ESP_LOGD(TAG, "CC1101 set_rx");
   this->send_cmd_(CC1101_SIDLE);
   this->send_cmd_(CC1101_SRX);
   this->trxstate_ = 2;
