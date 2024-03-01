@@ -430,30 +430,22 @@ async def to_code(config):
             vertical = True
             height8 = ((height + 7) // 8) * 8
             data = [0 for _ in range(height8 * width // 8)]
-            for y in range(height):
-                for x in range(width):
-                    if transparent and has_alpha:
-                        a = alpha.getpixel((x, y))
-                        if not a:
-                            continue
-                    elif image.getpixel((x, y)):
-                        continue
-                    pos = x * height8 + y
-                    data[pos // 8] |= 0x80 >> (pos % 8)
         else:
             width8 = ((width + 7) // 8) * 8
             data = [0 for _ in range(height * width8 // 8)]
-            for y in range(height):
-                for x in range(width):
-                    if transparent and has_alpha:
-                        a = alpha.getpixel((x, y))
-                        if not a:
-                            continue
-                    elif image.getpixel((x, y)):
+        for y in range(height):
+            for x in range(width):
+                if transparent and has_alpha:
+                    a = alpha.getpixel((x, y))
+                    if not a:
                         continue
+                elif image.getpixel((x, y)):
+                    continue
+                if vertical:
+                    pos = x * height8 + y
+                else:
                     pos = x + y * width8
-                    data[pos // 8] |= 0x80 >> (pos % 8)
-
+                data[pos // 8] |= 0x80 >> (pos % 8)
     else:
         raise core.EsphomeError(
             f"Image f{config[CONF_ID]} has an unsupported type: {config[CONF_TYPE]}."
