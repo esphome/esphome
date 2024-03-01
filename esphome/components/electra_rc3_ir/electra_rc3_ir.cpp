@@ -96,8 +96,8 @@ void ElectraRC3IR::transmit_state() {
   data.swing = (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) ? 1 : 0;
 
   ESP_LOGD(TAG,
-           "Electra RC3: power = 0x%llX, mode = 0x%llX, fan = 0x%llX, swing = 0x%llX, ifeel = 0x%llX, temperature = 0x%llX, sleep "
-           "= 0x%llX",
+           "Electra RC3: power = 0x%llX, mode = 0x%llX, fan = 0x%llX, swing = 0x%llX, "
+           "ifeel = 0x%llX, temperature = 0x%llX, sleep = 0x%llX",
            data.power, data.mode, data.fan, data.swing, data.ifeel, data.temperature, data.sleep);
 
   auto transmit = this->transmitter_->transmit();
