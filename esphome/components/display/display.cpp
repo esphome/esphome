@@ -141,6 +141,183 @@ void Display::filled_circle(int center_x, int center_y, int radius, Color color)
     }
   } while (dx <= 0);
 }
+void HOT Display::triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color) {
+  this->line(x1, y1, x2, y2, color);
+  this->line(x1, y1, x3, y3, color);
+  this->line(x2, y2, x3, y3, color);
+}
+void Display::sort_triangle_points_by_y_(int *x1, int *y1, int *x2, int *y2, int *x3, int *y3) {
+  if (*y1 > *y2) {
+    int x_temp = *x1, y_temp = *y1;
+    *x1 = *x2, *y1 = *y2;
+    *x2 = x_temp, *y2 = y_temp;
+  }
+  if (*y1 > *y3) {
+    int x_temp = *x1, y_temp = *y1;
+    *x1 = *x3, *y1 = *y3;
+    *x3 = x_temp, *y3 = y_temp;
+  }
+  if (*y2 > *y3) {
+    int x_temp = *x2, y_temp = *y2;
+    *x2 = *x3, *y2 = *y3;
+    *x3 = x_temp, *y3 = y_temp;
+  }
+}
+void Display::filled_flat_side_triangle_(int x1, int y1, int x2, int y2, int x3, int y3, Color color) {
+  // y2 must be equal to y3 (same horizontal line)
+
+  // Initialize Bresenham's algorithm for side 1
+  int s1_current_x = x1;
+  int s1_current_y = y1;
+  bool s1_axis_swap = false;
+  int s1_dx = abs(x2 - x1);
+  int s1_dy = abs(y2 - y1);
+  int s1_sign_x = ((x2 - x1) >= 0) ? 1 : -1;
+  int s1_sign_y = ((y2 - y1) >= 0) ? 1 : -1;
+  if (s1_dy > s1_dx) {  // swap values
+    int tmp = s1_dx;
+    s1_dx = s1_dy;
+    s1_dy = tmp;
+    s1_axis_swap = true;
+  }
+  int s1_error = 2 * s1_dy - s1_dx;
+
+  // Initialize Bresenham's algorithm for side 2
+  int s2_current_x = x1;
+  int s2_current_y = y1;
+  bool s2_axis_swap = false;
+  int s2_dx = abs(x3 - x1);
+  int s2_dy = abs(y3 - y1);
+  int s2_sign_x = ((x3 - x1) >= 0) ? 1 : -1;
+  int s2_sign_y = ((y3 - y1) >= 0) ? 1 : -1;
+  if (s2_dy > s2_dx) {  // swap values
+    int tmp = s2_dx;
+    s2_dx = s2_dy;
+    s2_dy = tmp;
+    s2_axis_swap = true;
+  }
+  int s2_error = 2 * s2_dy - s2_dx;
+
+  // Iterate on side 1 and allow side 2 to be processed to match the advance of the y-axis.
+  for (int i = 0; i <= s1_dx; i++) {
+    if (s1_current_x <= s2_current_x) {
+      this->horizontal_line(s1_current_x, s1_current_y, s2_current_x - s1_current_x + 1, color);
+    } else {
+      this->horizontal_line(s2_current_x, s2_current_y, s1_current_x - s2_current_x + 1, color);
+    }
+
+    // Bresenham's #1
+    // Side 1 s1_current_x and s1_current_y calculation
+    while (s1_error >= 0) {
+      if (s1_axis_swap) {
+        s1_current_x += s1_sign_x;
+      } else {
+        s1_current_y += s1_sign_y;
+      }
+      s1_error = s1_error - 2 * s1_dx;
+    }
+    if (s1_axis_swap) {
+      s1_current_y += s1_sign_y;
+    } else {
+      s1_current_x += s1_sign_x;
+    }
+    s1_error = s1_error + 2 * s1_dy;
+
+    // Bresenham's #2
+    // Side 2 s2_current_x and s2_current_y calculation
+    while (s2_current_y != s1_current_y) {
+      while (s2_error >= 0) {
+        if (s2_axis_swap) {
+          s2_current_x += s2_sign_x;
+        } else {
+          s2_current_y += s2_sign_y;
+        }
+        s2_error = s2_error - 2 * s2_dx;
+      }
+      if (s2_axis_swap) {
+        s2_current_y += s2_sign_y;
+      } else {
+        s2_current_x += s2_sign_x;
+      }
+      s2_error = s2_error + 2 * s2_dy;
+    }
+  }
+}
+void Display::filled_triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color) {
+  // Sort the three points by y-coordinate ascending, so [x1,y1] is the topmost point
+  this->sort_triangle_points_by_y_(&x1, &y1, &x2, &y2, &x3, &y3);
+
+  if (y2 == y3) {  // Check for special case of a bottom-flat triangle
+    this->filled_flat_side_triangle_(x1, y1, x2, y2, x3, y3, color);
+  } else if (y1 == y2) {  // Check for special case of a top-flat triangle
+    this->filled_flat_side_triangle_(x3, y3, x1, y1, x2, y2, color);
+  } else {  // General case: split the no-flat-side triangle in a top-flat triangle and bottom-flat triangle
+    int x_temp = (int) (x1 + ((float) (y2 - y1) / (float) (y3 - y1)) * (x3 - x1)), y_temp = y2;
+    this->filled_flat_side_triangle_(x1, y1, x2, y2, x_temp, y_temp, color);
+    this->filled_flat_side_triangle_(x3, y3, x2, y2, x_temp, y_temp, color);
+  }
+}
+void HOT Display::get_regular_polygon_vertex(int vertex_id, int *vertex_x, int *vertex_y, int center_x, int center_y,
+                                             int radius, int edges, RegularPolygonVariation variation,
+                                             float rotation_degrees) {
+  if (edges >= 2) {
+    // Given the orientation of the display component, an angle is measured clockwise from the x axis.
+    // For a regular polygon, the human reference would be the top of the polygon,
+    // hence we rotate the shape by 270° to orient the polygon up.
+    rotation_degrees += ROTATION_270_DEGREES;
+    // Convert the rotation to radians, easier to use in trigonometrical calculations
+    float rotation_radians = rotation_degrees * PI / 180;
+    // A pointy top variation means the first vertex of the polygon is at the top center of the shape, this requires no
+    // additional rotation of the shape.
+    // A flat top variation means the first point of the polygon has to be rotated so that the first edge is horizontal,
+    // this requires to rotate the shape by π/edges radians counter-clockwise so that the first point is located on the
+    // left side of the first horizontal edge.
+    rotation_radians -= (variation == VARIATION_FLAT_TOP) ? PI / edges : 0.0;
+
+    float vertex_angle = ((float) vertex_id) / edges * 2 * PI + rotation_radians;
+    *vertex_x = (int) round(cos(vertex_angle) * radius) + center_x;
+    *vertex_y = (int) round(sin(vertex_angle) * radius) + center_y;
+  }
+}
+
+void HOT Display::regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation,
+                                  float rotation_degrees, Color color, RegularPolygonDrawing drawing) {
+  if (edges >= 2) {
+    int previous_vertex_x, previous_vertex_y;
+    for (int current_vertex_id = 0; current_vertex_id <= edges; current_vertex_id++) {
+      int current_vertex_x, current_vertex_y;
+      get_regular_polygon_vertex(current_vertex_id, &current_vertex_x, &current_vertex_y, x, y, radius, edges,
+                                 variation, rotation_degrees);
+      if (current_vertex_id > 0) {  // Start drawing after the 2nd vertex coordinates has been calculated
+        if (drawing == DRAWING_FILLED) {
+          this->filled_triangle(x, y, previous_vertex_x, previous_vertex_y, current_vertex_x, current_vertex_y, color);
+        } else if (drawing == DRAWING_OUTLINE) {
+          this->line(previous_vertex_x, previous_vertex_y, current_vertex_x, current_vertex_y, color);
+        }
+      }
+      previous_vertex_x = current_vertex_x;
+      previous_vertex_y = current_vertex_y;
+    }
+  }
+}
+void HOT Display::regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation, Color color,
+                                  RegularPolygonDrawing drawing) {
+  regular_polygon(x, y, radius, edges, variation, ROTATION_0_DEGREES, color, drawing);
+}
+void HOT Display::regular_polygon(int x, int y, int radius, int edges, Color color, RegularPolygonDrawing drawing) {
+  regular_polygon(x, y, radius, edges, VARIATION_POINTY_TOP, ROTATION_0_DEGREES, color, drawing);
+}
+void Display::filled_regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation,
+                                     float rotation_degrees, Color color) {
+  regular_polygon(x, y, radius, edges, variation, rotation_degrees, color, DRAWING_FILLED);
+}
+void Display::filled_regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation,
+                                     Color color) {
+  regular_polygon(x, y, radius, edges, variation, ROTATION_0_DEGREES, color, DRAWING_FILLED);
+}
+void Display::filled_regular_polygon(int x, int y, int radius, int edges, Color color) {
+  regular_polygon(x, y, radius, edges, VARIATION_POINTY_TOP, ROTATION_0_DEGREES, color, DRAWING_FILLED);
+}
 
 void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text) {
   int x_start, y_start;
