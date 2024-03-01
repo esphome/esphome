@@ -62,7 +62,7 @@ def _find_tokens(value):
         if name.startswith("{") and name.endswith("}"):
             name = name[1:-1]
 
-        yield match.group(1), (start - last_end, end - start)
+        yield name, (start - last_end, end - start)
         last_end = end
 
 
