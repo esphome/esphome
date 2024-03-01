@@ -13,7 +13,8 @@ void TemplateFan::setup() {
   }
 
   // Construct traits
-  this->traits_ = fan::FanTraits(this->has_oscillating_, this->speed_count_ > 0, this->has_direction_, this->speed_count_);
+  this->traits_ =
+      fan::FanTraits(this->has_oscillating_, this->speed_count_ > 0, this->has_direction_, this->speed_count_);
   this->traits_.set_supported_preset_modes(this->preset_modes_);
 }
 

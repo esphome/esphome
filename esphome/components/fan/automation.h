@@ -114,9 +114,7 @@ template<typename... Ts> class FanIsOffCondition : public Condition<Ts...> {
 class FanStateTrigger : public Trigger<Fan *> {
  public:
   FanStateTrigger(Fan *state) {
-    state->add_on_state_callback([this, state]() {
-      this->trigger(state);
-    });
+    state->add_on_state_callback([this, state]() { this->trigger(state); });
   }
 };
 
