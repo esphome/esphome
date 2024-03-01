@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import i2c, weikai, weikai_i2c
+from esphome.components import i2c, weikai
 from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
