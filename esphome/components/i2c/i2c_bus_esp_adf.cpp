@@ -1,6 +1,8 @@
-#ifdef USE_ESP_IDF
 #include "i2c_bus_esp_idf.h"
-#ifndef USE_ESP_ADF
+#ifdef USE_ESP_ADF
+// We need the i2c_bus.h header from the esp_peripherals component of ADF, not the one in this folder
+#include "../../../../components/esp_peripherals/driver/i2c_bus/i2c_bus.h"
+#include <audio_mutex.h>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -8,10 +10,27 @@
 #include <cstring>
 #include <cinttypes>
 
+extern "C" {
+// I'm cheating here because the available interface with ADF is not compatible with ESPHome vectorial interface
+// So let's import the handle type and use it as is
+typedef struct {
+  i2c_config_t i2c_conf;     /*!<I2C bus parameters*/
+  i2c_port_t i2c_port;       /*!<I2C port number */
+  int ref_count;             /*!<Reference Count for multiple client */
+  xSemaphoreHandle bus_lock; /*!<Lock for bus */
+} i2c_bus_t;
+}
+
 namespace esphome {
 namespace i2c {
 
-static const char *const TAG = "i2c.idf";
+struct ScopeLock {
+  i2c_bus_t *bus_;
+  ScopeLock(i2c_bus_t *bus) : bus_(bus) { mutex_lock(this->bus_->bus_lock); }
+  ~ScopeLock() { mutex_unlock(this->bus_->bus_lock); }
+};
+
+static const char *const TAG = "i2c.adf";
 
 void IDFI2CBus::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2C bus...");
@@ -39,18 +58,13 @@ void IDFI2CBus::setup() {
   conf.scl_io_num = scl_pin_;
   conf.scl_pullup_en = scl_pullup_enabled_;
   conf.master.clk_speed = frequency_;
-  esp_err_t err = i2c_param_config(port_, &conf);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "i2c_param_config failed: %s", esp_err_to_name(err));
+  this->handle_ = i2c_bus_create(port_, &conf);
+  if (this->handle_ == NULL) {
+    ESP_LOGW(TAG, "i2c_bus_create failed");
     this->mark_failed();
     return;
   }
-  err = i2c_driver_install(port_, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "i2c_driver_install failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
+  ESP_LOGW(TAG, "i2c_bus_t: %p -> ref_count %d/%d, lock %p", this->handle_, ((i2c_bus_t*)this->handle_)->ref_count, ((i2c_bus_t*)this->handle_)->i2c_port, ((i2c_bus_t*)this->handle_)->bus_lock);
   initialized_ = true;
   if (this->scan_) {
     ESP_LOGV(TAG, "Scanning i2c bus for active devices...");
@@ -96,6 +110,7 @@ ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
     ESP_LOGVV(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
   }
+
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
   esp_err_t err = i2c_master_start(cmd);
   if (err != ESP_OK) {
@@ -126,8 +141,13 @@ ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
     i2c_cmd_link_delete(cmd);
     return ERROR_UNKNOWN;
   }
-  err = i2c_master_cmd_begin(port_, cmd, 20 / portTICK_PERIOD_MS);
-  i2c_cmd_link_delete(cmd);
+
+  {
+    i2c_bus_t *p_bus = (i2c_bus_t *) this->handle_;
+    ScopeLock scope(p_bus);
+    err = i2c_master_cmd_begin(p_bus->i2c_port, cmd, 20 / portTICK_PERIOD_MS);
+    i2c_cmd_link_delete(cmd);
+  }
   if (err == ESP_FAIL) {
     // transfer not acked
     ESP_LOGVV(TAG, "RX from %02X failed: not acked", address);
@@ -210,8 +230,13 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, b
       return ERROR_UNKNOWN;
     }
   }
-  err = i2c_master_cmd_begin(port_, cmd, 20 / portTICK_PERIOD_MS);
-  i2c_cmd_link_delete(cmd);
+
+  {
+    i2c_bus_t *p_bus = (i2c_bus_t *) this->handle_;
+    ScopeLock scope(p_bus);
+    err = i2c_master_cmd_begin(p_bus->i2c_port, cmd, 20 / portTICK_PERIOD_MS);
+    i2c_cmd_link_delete(cmd);
+  }
   if (err == ESP_FAIL) {
     // transfer not acked
     ESP_LOGVV(TAG, "TX to %02X failed: not acked", address);
@@ -342,5 +367,4 @@ void IDFI2CBus::recover_() {
 }  // namespace i2c
 }  // namespace esphome
 
-#endif
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP_ADF

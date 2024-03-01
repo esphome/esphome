@@ -1,7 +1,9 @@
 #pragma once
 
 #ifdef USE_ESP_IDF
-
+#include "esphome/core/defines.h"
+// TODO Remove this once the ADF code is in
+//#define USE_ESP_ADF
 #include "i2c_bus.h"
 #include "esphome/core/component.h"
 #include <driver/i2c.h>
@@ -42,6 +44,10 @@ class IDFI2CBus : public I2CBus, public Component {
   bool scl_pullup_enabled_;
   uint32_t frequency_;
   bool initialized_ = false;
+
+#ifdef USE_ESP_ADF
+  void *handle_;
+#endif
 };
 
 }  // namespace i2c
