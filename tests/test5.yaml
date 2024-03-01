@@ -730,3 +730,13 @@ light:
     bit0_low: 100us
     bit1_high: 100us
     bit1_low: 100us
+
+fram:
+
+fram_pref:
+  pool_start: 1024
+  pool_size: 2KiB
+  static_prefs:
+    - key: wifi
+      lambda: |-
+        return fnv1_hash(App.get_compilation_time());

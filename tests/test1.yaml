@@ -4472,3 +4472,14 @@ alarm_control_panel:
       then:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));
+
+fram:
+  i2c_id: i2c_bus
+
+fram_pref:
+  pool_start: 1024
+  pool_size: 2KiB
+  static_prefs:
+    - key: wifi
+      lambda: |-
+        return fnv1_hash(App.get_compilation_time());
