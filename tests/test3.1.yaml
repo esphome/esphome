@@ -49,6 +49,7 @@ spi:
     number: GPIO14
 
 ota:
+  version: 2
 
 logger:
 
@@ -289,6 +290,62 @@ sensor:
     id: adc128s102_channel_0
     channel: 0
 
+  - platform: ade7880
+    irq0_pin:
+      number: GPIO13
+      allow_other_uses: true
+    irq1_pin:
+      number: GPIO5
+      allow_other_uses: true
+    reset_pin:
+      number: GPIO16
+      allow_other_uses: true
+    frequency: 60Hz
+    phase_a:
+      name: Channel A
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3116628
+        voltage_gain: -757178
+        power_gain: -1344457
+        phase_angle: 188
+    phase_b:
+      name: Channel B
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3133655
+        voltage_gain: -755235
+        power_gain: -1345638
+        phase_angle: 188
+    phase_c:
+      name: Channel C
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3111158
+        voltage_gain: -743813
+        power_gain: -1351437
+        phase_angle: 180
+    neutral:
+      name: Neutral
+      current: Current
+      calibration:
+        current_gain: 3189
+
 apds9960:
   address: 0x20
   update_interval: 60s
@@ -446,7 +503,7 @@ switch:
   - platform: template
     name: open_vent
     id: open_vent
-    optimistic: True
+    optimistic: true
     on_turn_on:
       then:
         - grove_tb6612fng.run:

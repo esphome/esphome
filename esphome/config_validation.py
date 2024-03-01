@@ -57,6 +57,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     VALID_SUBSTITUTIONS_CHARACTERS,
+    __version__ as ESPHOME_VERSION,
 )
 from esphome.core import (
     CORE,
@@ -1895,6 +1896,16 @@ def version_number(value):
         raise Invalid("Not a valid version number") from e
 
 
+def validate_esphome_version(value: str):
+    min_version = Version.parse(value)
+    current_version = Version.parse(ESPHOME_VERSION)
+    if current_version < min_version:
+        raise Invalid(
+            f"Your ESPHome version is too old. Please update to at least {min_version}"
+        )
+    return value
+
+
 def platformio_version_constraint(value):
     # for documentation on valid version constraints:
     # https://docs.platformio.org/en/latest/core/userguide/platforms/cmd_install.html#cmd-platform-install
@@ -2004,15 +2015,19 @@ def suppress_invalid():
         pass
 
 
-GIT_SCHEMA = {
-    Required(CONF_URL): url,
-    Optional(CONF_REF): git_ref,
-    Optional(CONF_USERNAME): string,
-    Optional(CONF_PASSWORD): string,
-}
-LOCAL_SCHEMA = {
-    Required(CONF_PATH): directory,
-}
+GIT_SCHEMA = Schema(
+    {
+        Required(CONF_URL): url,
+        Optional(CONF_REF): git_ref,
+        Optional(CONF_USERNAME): string,
+        Optional(CONF_PASSWORD): string,
+    }
+)
+LOCAL_SCHEMA = Schema(
+    {
+        Required(CONF_PATH): directory,
+    }
+)
 
 
 def validate_source_shorthand(value):
@@ -2053,8 +2068,8 @@ SOURCE_SCHEMA = Any(
     validate_source_shorthand,
     typed_schema(
         {
-            TYPE_GIT: Schema(GIT_SCHEMA),
-            TYPE_LOCAL: Schema(LOCAL_SCHEMA),
+            TYPE_GIT: GIT_SCHEMA,
+            TYPE_LOCAL: LOCAL_SCHEMA,
         }
     ),
 )

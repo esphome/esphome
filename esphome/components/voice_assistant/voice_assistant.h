@@ -7,6 +7,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/ring_buffer.h"
 
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
@@ -21,7 +22,6 @@
 
 #ifdef USE_ESP_ADF
 #include <esp_vad.h>
-#include <ringbuf.h>
 #endif
 
 namespace esphome {
@@ -116,6 +116,7 @@ class VoiceAssistant : public Component {
   Trigger<std::string> *get_tts_end_trigger() const { return this->tts_end_trigger_; }
   Trigger<std::string> *get_tts_start_trigger() const { return this->tts_start_trigger_; }
   Trigger<std::string, std::string> *get_error_trigger() const { return this->error_trigger_; }
+  Trigger<> *get_idle_trigger() const { return this->idle_trigger_; }
 
   Trigger<> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
   Trigger<> *get_client_disconnected_trigger() const { return this->client_disconnected_trigger_; }
@@ -148,6 +149,7 @@ class VoiceAssistant : public Component {
   Trigger<std::string> *tts_end_trigger_ = new Trigger<std::string>();
   Trigger<std::string> *tts_start_trigger_ = new Trigger<std::string>();
   Trigger<std::string, std::string> *error_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<> *idle_trigger_ = new Trigger<>();
 
   Trigger<> *client_connected_trigger_ = new Trigger<>();
   Trigger<> *client_disconnected_trigger_ = new Trigger<>();
@@ -177,10 +179,10 @@ class VoiceAssistant : public Component {
 
 #ifdef USE_ESP_ADF
   vad_handle_t vad_instance_;
-  ringbuf_handle_t ring_buffer_;
   uint8_t vad_threshold_{5};
   uint8_t vad_counter_{0};
 #endif
+  std::unique_ptr<RingBuffer> ring_buffer_;
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;

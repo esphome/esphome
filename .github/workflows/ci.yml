@@ -11,6 +11,7 @@ on:
       - "**"
       - "!.github/workflows/*.yml"
       - ".github/workflows/ci.yml"
+      - "!.yamllint"
   merge_group:
 
 permissions:
@@ -45,7 +46,7 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@v3.3.2
+        uses: actions/cache@v4.0.0
         with:
           path: venv
           # yamllint disable-line rule:line-length
@@ -218,7 +219,7 @@ jobs:
           . venv/bin/activate
           pytest -vv --cov-report=xml --tb=native tests
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -365,7 +366,7 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Cache platformio
-        uses: actions/cache@v3.3.2
+        uses: actions/cache@v4.0.0
         with:
           path: ~/.platformio
           # yamllint disable-line rule:line-length
@@ -392,6 +393,62 @@ jobs:
         # yamllint disable-line rule:line-length
         if: always()
 
+  list-components:
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+        with:
+          # Fetch enough history so `git merge-base refs/remotes/origin/dev HEAD` works.
+          fetch-depth: 500
+      - name: Fetch dev branch
+        run: |
+          git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/dev*:refs/remotes/origin/dev* +refs/tags/dev*:refs/tags/dev*
+          git merge-base refs/remotes/origin/dev HEAD
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Find changed components
+        id: set-matrix
+        run: |
+          . venv/bin/activate
+          echo "matrix=$(script/list-components.py --changed | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
+
+  test-build-components:
+    name: Component test ${{ matrix.file }}
+    runs-on: ubuntu-latest
+    needs:
+      - common
+      - list-components
+    if: ${{ needs.list-components.outputs.matrix != '[]' && needs.list-components.outputs.matrix != '' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        file: ${{ fromJson(needs.list-components.outputs.matrix) }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: test_build_components -e config -c ${{ matrix.file }}
+        run: |
+          . venv/bin/activate
+          ./script/test_build_components -e config -c ${{ matrix.file }}
+      - name: test_build_components -e compile -c ${{ matrix.file }}
+        run: |
+          . venv/bin/activate
+          ./script/test_build_components -e compile -c ${{ matrix.file }}
+
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
@@ -406,6 +463,7 @@ jobs:
       - pyupgrade
       - compile-tests
       - clang-tidy
+      - test-build-components
     if: always()
     steps:
       - name: Success

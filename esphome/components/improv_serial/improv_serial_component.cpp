@@ -155,9 +155,13 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv:
     urls.push_back(this->get_formatted_next_url_());
   }
 #ifdef USE_WEBSERVER
-  auto ip = wifi::global_wifi_component->wifi_sta_ip();
-  std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
-  urls.push_back(webserver_url);
+  for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
+    if (ip.is_ip4()) {
+      std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
+      urls.push_back(webserver_url);
+      break;
+    }
+  }
 #endif
   std::vector<uint8_t> data = improv::build_rpc_response(command, urls, false);
   return data;

@@ -17,14 +17,24 @@ from esphome.const import (
 DEPENDENCIES = ["spi"]
 
 waveshare_epaper_ns = cg.esphome_ns.namespace("waveshare_epaper")
-WaveshareEPaper = waveshare_epaper_ns.class_(
-    "WaveshareEPaper", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
+WaveshareEPaperBase = waveshare_epaper_ns.class_(
+    "WaveshareEPaperBase", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
+)
+WaveshareEPaper = waveshare_epaper_ns.class_("WaveshareEPaper", WaveshareEPaperBase)
+WaveshareEPaperBWR = waveshare_epaper_ns.class_(
+    "WaveshareEPaperBWR", WaveshareEPaperBase
 )
 WaveshareEPaperTypeA = waveshare_epaper_ns.class_(
     "WaveshareEPaperTypeA", WaveshareEPaper
 )
 WaveshareEPaper2P7In = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P7In", WaveshareEPaper
+)
+WaveshareEPaper2P7InB = waveshare_epaper_ns.class_(
+    "WaveshareEPaper2P7InB", WaveshareEPaperBWR
+)
+WaveshareEPaper2P7InBV2 = waveshare_epaper_ns.class_(
+    "WaveshareEPaper2P7InBV2", WaveshareEPaperBWR
 )
 WaveshareEPaper2P7InV2 = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P7InV2", WaveshareEPaper
@@ -34,6 +44,9 @@ WaveshareEPaper2P9InB = waveshare_epaper_ns.class_(
 )
 WaveshareEPaper2P9InBV3 = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P9InBV3", WaveshareEPaper
+)
+WaveshareEPaper2P9InV2R2 = waveshare_epaper_ns.class_(
+    "WaveshareEPaper2P9InV2R2", WaveshareEPaper
 )
 GDEY029T94 = waveshare_epaper_ns.class_("GDEY029T94", WaveshareEPaper)
 WaveshareEPaper4P2In = waveshare_epaper_ns.class_(
@@ -72,6 +85,9 @@ WaveshareEPaper7P5InHDB = waveshare_epaper_ns.class_(
 WaveshareEPaper2P13InDKE = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P13InDKE", WaveshareEPaper
 )
+WaveshareEPaper2P13InV3 = waveshare_epaper_ns.class_(
+    "WaveshareEPaper2P13InV3", WaveshareEPaper
+)
 GDEW0154M09 = waveshare_epaper_ns.class_("GDEW0154M09", WaveshareEPaper)
 
 WaveshareEPaperTypeAModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeAModel")
@@ -89,9 +105,12 @@ MODELS = {
     "2.90inv2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN_V2),
     "gdey029t94": ("c", GDEY029T94),
     "2.70in": ("b", WaveshareEPaper2P7In),
+    "2.70in-b": ("b", WaveshareEPaper2P7InB),
+    "2.70in-bv2": ("b", WaveshareEPaper2P7InBV2),
     "2.70inv2": ("b", WaveshareEPaper2P7InV2),
     "2.90in-b": ("b", WaveshareEPaper2P9InB),
     "2.90in-bv3": ("b", WaveshareEPaper2P9InBV3),
+    "2.90inv2-r2": ("c", WaveshareEPaper2P9InV2R2),
     "4.20in": ("b", WaveshareEPaper4P2In),
     "4.20in-bv2": ("b", WaveshareEPaper4P2InBV2),
     "5.83in": ("b", WaveshareEPaper5P8In),
@@ -104,6 +123,7 @@ MODELS = {
     "7.50inv2alt": ("b", WaveshareEPaper7P5InV2alt),
     "7.50in-hd-b": ("b", WaveshareEPaper7P5InHDB),
     "2.13in-ttgo-dke": ("c", WaveshareEPaper2P13InDKE),
+    "2.13inv3": ("c", WaveshareEPaper2P13InV3),
     "1.54in-m5coreink-m09": ("c", GDEW0154M09),
 }
 
@@ -126,12 +146,12 @@ def validate_full_update_every_only_types_ac(value):
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
-            cv.GenerateID(): cv.declare_id(WaveshareEPaper),
+            cv.GenerateID(): cv.declare_id(WaveshareEPaperBase),
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_MODEL): cv.one_of(*MODELS, lower=True),
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,
+            cv.Optional(CONF_FULL_UPDATE_EVERY): cv.int_range(min=1, max=4294967295),
             cv.Optional(CONF_RESET_DURATION): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
