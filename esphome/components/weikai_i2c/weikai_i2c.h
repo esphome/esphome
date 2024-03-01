@@ -1,7 +1,7 @@
 /// @file weikai_i2c.h
 /// @author DrCoolZic
 /// @brief  WeiKai component family - classes declaration
-/// @date Last Modified: 2024/03/01 12:58:46
+/// @date Last Modified: 2024/03/01 13:31:57
 /// @details The classes declared in this file can be used by the Weikai family
 ///          wk2132_i2c, wk2168_i2c, wk2204_i2c, wk2212_i2c
 
@@ -53,7 +53,6 @@ class WeikaiComponentI2C : public weikai::WeikaiComponent, public i2c::I2CDevice
   void setup() override;
   void dump_config() override;
 
- protected:
   uint8_t base_address_;                   ///< base address of I2C device
   WeikaiRegisterI2C reg_i2c_{this, 0, 0};  ///< init to this component
 };
