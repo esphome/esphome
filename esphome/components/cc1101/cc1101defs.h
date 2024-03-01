@@ -58,18 +58,18 @@ static constexpr uint32_t CC1101_TEST0 = 0x2E;     // Various test settings
 // CC1101 Strobe commands
 static constexpr uint32_t CC1101_SRES = 0x30;     // Reset chip.
 static constexpr uint32_t CC1101_SFSTXON = 0x31;  // Enable and calibrate frequency synthesizer (if MCSM0.FS_AUTOCAL=1).
-                                              // If in RX/TX: Go to a wait state where only the synthesizer is
-                                              // running (for quick RX / TX turnaround).
+                                                  // If in RX/TX: Go to a wait state where only the synthesizer is
+                                                  // running (for quick RX / TX turnaround).
 static constexpr uint32_t CC1101_SXOFF = 0x32;    // Turn off crystal oscillator.
 static constexpr uint32_t CC1101_SCAL = 0x33;     // Calibrate frequency synthesizer and turn it off
-                                              // (enables quick start).
+                                                  // (enables quick start).
 static constexpr uint32_t CC1101_SRX = 0x34;      // Enable RX. Perform calibration first if coming from IDLE and
-                                              // MCSM0.FS_AUTOCAL=1.
+                                                  // MCSM0.FS_AUTOCAL=1.
 static constexpr uint32_t CC1101_STX = 0x35;      // In IDLE state: Enable TX. Perform calibration first if
-                                              // MCSM0.FS_AUTOCAL=1. If in RX state and CCA is enabled:
-                                              // Only go to TX if channel is clear.
+                                                  // MCSM0.FS_AUTOCAL=1. If in RX state and CCA is enabled:
+                                                  // Only go to TX if channel is clear.
 static constexpr uint32_t CC1101_SIDLE = 0x36;    // Exit RX / TX, turn off frequency synthesizer and exit
-                                              // Wake-On-Radio mode if applicable.
+                                                  // Wake-On-Radio mode if applicable.
 static constexpr uint32_t CC1101_SAFC = 0x37;     // Perform AFC adjustment of the frequency synthesizer
 static constexpr uint32_t CC1101_SWOR = 0x38;     // Start automatic RX polling sequence (Wake-on-Radio)
 static constexpr uint32_t CC1101_SPWD = 0x39;     // Enter power down mode when CSn goes high.
@@ -77,7 +77,7 @@ static constexpr uint32_t CC1101_SFRX = 0x3A;     // Flush the RX FIFO buffer.
 static constexpr uint32_t CC1101_SFTX = 0x3B;     // Flush the TX FIFO buffer.
 static constexpr uint32_t CC1101_SWORRST = 0x3C;  // Reset real time clock.
 static constexpr uint32_t CC1101_SNOP = 0x3D;     // No operation. May be used to pad strobe commands to two
-                                              // INT8Us for simpler software.
+                                                  // INT8Us for simpler software.
 // CC1101 STATUS REGSITER
 static constexpr uint32_t CC1101_PARTNUM = 0x30;
 static constexpr uint32_t CC1101_VERSION = 0x31;
