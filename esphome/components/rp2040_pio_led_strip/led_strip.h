@@ -13,6 +13,7 @@
 #include <hardware/dma.h>
 #include <hardware/structs/pio.h>
 #include <pico/stdio.h>
+#include <map>
 
 namespace esphome {
 namespace rp2040_pio_led_strip {
@@ -24,6 +25,15 @@ enum RGBOrder : uint8_t {
   ORDER_GBR,
   ORDER_BGR,
   ORDER_BRG,
+};
+
+enum Chipset : uint8_t {
+  CHIPSET_WS2812,
+  CHIPSET_WS2812B,
+  CHIPSET_SK6812,
+  CHIPSET_SM16703,
+  CHIPSET_APA102,
+  CHIPSET_CUSTOM = 0xFF,
 };
 
 inline const char *rgb_order_to_string(RGBOrder order) {
@@ -98,7 +108,7 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
   dma_channel_config dma_config_;
 
   RGBOrder rgb_order_{ORDER_RGB};
-  uint8_t chipset_{0};
+  Chipset chipset_{CHIPSET_CUSTOM};
 
   uint32_t last_refresh_{0};
   float max_refresh_rate_;
@@ -108,8 +118,8 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
 
  private:
   inline static int num_instance_[2];
-  inline static bool conf_count_[5];
-  inline static int chipset_offsets_[4];
+  inline static std::map<Chipset, bool> conf_count_;
+  inline static std::map<Chipset, int> chipset_offsets_;
 };
 
 }  // namespace rp2040_pio_led_strip

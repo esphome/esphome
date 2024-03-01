@@ -15,6 +15,22 @@ namespace rp2040_pio_led_strip {
 
 static const char *TAG = "rp2040_pio_led_strip";
 
+static uint8_t num_instance_[2] = {0, 0};
+static std::map<Chipset, uint> chipset_offsets_ = {
+    {CHIPSET_WS2812, 0},
+    {CHIPSET_WS2812B, 0},
+    {CHIPSET_SK6812, 0},
+    {CHIPSET_SM16703, 0},
+    {CHIPSET_CUSTOM, 0},
+};
+static std::map<Chipset, bool> conf_count_ = {
+    {CHIPSET_WS2812, false},
+    {CHIPSET_WS2812B, false},
+    {CHIPSET_SK6812, false},
+    {CHIPSET_SM16703, false},
+    {CHIPSET_CUSTOM, false},
+};
+
 void RP2040PIOLEDStripLightOutput::setup() {
   ESP_LOGCONFIG(TAG, "Setting up RP2040 LED Strip...");
 
@@ -174,15 +190,15 @@ void RP2040PIOLEDStripLightOutput::dump_config() {
 
 void RP2040PIOLEDStripLightOutput::set_chipset(std::string chipset) {
   if (strncmp(chipset.c_str(), "WS2812", 6) == 0) {
-    this->chipset_ = 0;
+    this->chipset_ = CHIPSET_WS2812;
   } else if (strncmp(chipset.c_str(), "WS2812B", 7) == 0) {
-    this->chipset_ = 1;
+    this->chipset_ = CHIPSET_WS2812B;
   } else if (strncmp(chipset.c_str(), "SK6812", 6) == 0) {
-    this->chipset_ = 2;
+    this->chipset_ = CHIPSET_SK6812;
   } else if (strncmp(chipset.c_str(), "SM16703", 7) == 0) {
-    this->chipset_ = 3;
+    this->chipset_ = CHIPSET_SM16703;
   } else {
-    this->chipset_ = 4;
+    this->chipset_ = CHIPSET_CUSTOM;
   }
 }
 
