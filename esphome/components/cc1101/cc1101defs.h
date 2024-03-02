@@ -102,6 +102,12 @@ static constexpr uint32_t CC1101_READ_SINGLE = 0x80;      // read single
 static constexpr uint32_t CC1101_READ_BURST = 0xC0;       // read burst
 static constexpr uint32_t CC1101_BYTES_IN_RXFIFO = 0x7F;  // byte number in RXfifo
 
+static constexpr uint32_t CC1101_MARCSTATE_IDLE = 0x01;
+
+static constexpr uint32_t CC1101_MARCSTATE_RX = 0x0D;
+static constexpr uint32_t CC1101_MARCSTATE_RX_END = 0x0E;
+static constexpr uint32_t CC1101_MARCSTATE_TXRX_SWITCH = 0x0F;
+
 static constexpr uint32_t CC1101_MARCSTATE_TX = 0x13;
 static constexpr uint32_t CC1101_MARCSTATE_TX_END = 0x14;
 static constexpr uint32_t CC1101_MARCSTATE_RXTX_SWITCH = 0x15;

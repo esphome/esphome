@@ -4,6 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/remote_base/rc_switch_protocol.h"
+#include "esphome/components/voltage_sampler/voltage_sampler.h"
 
 namespace esphome {
 namespace cc1101 {
@@ -13,18 +14,21 @@ class CC1101 : public PollingComponent,
                                      spi::DATA_RATE_1KHZ> {
  protected:
   InternalGPIOPin *gdo0_;
+  voltage_sampler::VoltageSampler *gdo0_adc_;
   uint32_t bandwidth_;
   uint32_t frequency_;
   sensor::Sensor *rssi_sensor_;
   sensor::Sensor *lqi_sensor_;
+  sensor::Sensor *temperature_sensor_;
 
   uint8_t partnum_;
   uint8_t version_;
   int32_t last_rssi_;
   int32_t last_lqi_;
+  float last_temperature_;
 
   bool reset_();
-  void send_cmd_(uint8_t cmd);
+  void strobe_(uint8_t cmd);
   uint8_t read_register_(uint8_t reg);
   uint8_t read_config_register_(uint8_t reg);
   uint8_t read_status_register_(uint8_t reg);
@@ -57,6 +61,7 @@ class CC1101 : public PollingComponent,
 
   int32_t get_rssi_();
   uint8_t get_lqi_();
+  float get_temperature_();
 
   void set_mode_(bool s);
   void set_frequency_(uint32_t f);
@@ -64,11 +69,8 @@ class CC1101 : public PollingComponent,
   void set_pa_(int8_t pa);
   void set_clb_(uint8_t b, uint8_t s, uint8_t e);
   void set_rxbw_(uint32_t bw);
-  void set_tx_();
-  void set_rx_();
-  void set_sres_();
-  void set_sidle_();
-  void set_sleep_();
+  void set_state_(uint8_t state);
+  bool wait_state_(uint8_t state);
 
   void split_mdmcfg2_();
   void split_mdmcfg4_();
@@ -76,11 +78,13 @@ class CC1101 : public PollingComponent,
  public:
   CC1101();
 
-  void set_config_gdo0(InternalGPIOPin *pin);
+  void set_config_gdo0_pin(InternalGPIOPin *pin);
+  void set_config_gdo0_adc_pin(voltage_sampler::VoltageSampler *pin);
   void set_config_bandwidth(uint32_t bandwidth);
   void set_config_frequency(uint32_t frequency);
   void set_config_rssi_sensor(sensor::Sensor *rssi_sensor);
   void set_config_lqi_sensor(sensor::Sensor *lqi_sensor);
+  void set_config_temperature_sensor(sensor::Sensor *temperature_sensor);
 
   void setup() override;
   void update() override;

@@ -38,6 +38,9 @@ int32_t map(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int32_t 
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 #endif
+int32_t mapfloat(float x, float in_min, float in_max, float out_min, float out_max) {
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 
 namespace esphome {
 namespace cc1101 {
@@ -54,15 +57,18 @@ static const uint8_t PA_TABLE_915[10]{0x03, 0x0E, 0x1E, 0x27, 0x38, 0x8E, 0x84, 
 
 CC1101::CC1101() {
   this->gdo0_ = nullptr;
+  this->gdo0_adc_ = nullptr;
   this->bandwidth_ = 200;
   this->frequency_ = 433920;
   this->rssi_sensor_ = nullptr;
   this->lqi_sensor_ = nullptr;
+  this->temperature_sensor_ = nullptr;
 
   this->partnum_ = 0;
   this->version_ = 0;
   this->last_rssi_ = INT_MIN;
   this->last_lqi_ = INT_MIN;
+  this->last_temperature_ = NAN;
 
   this->mode_ = false;
   this->modulation_ = 2;
@@ -85,7 +91,9 @@ CC1101::CC1101() {
   this->pa_table_[1] = 0xc0;
 }
 
-void CC1101::set_config_gdo0(InternalGPIOPin *pin) { gdo0_ = pin; }
+void CC1101::set_config_gdo0_pin(InternalGPIOPin *pin) { gdo0_ = pin; }
+
+void CC1101::set_config_gdo0_adc_pin(voltage_sampler::VoltageSampler *pin) { gdo0_adc_ = pin; }
 
 void CC1101::set_config_bandwidth(uint32_t bandwidth) { bandwidth_ = bandwidth; }
 
@@ -95,10 +103,19 @@ void CC1101::set_config_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ 
 
 void CC1101::set_config_lqi_sensor(sensor::Sensor *lqi_sensor) { lqi_sensor_ = lqi_sensor; }
 
+void CC1101::set_config_temperature_sensor(sensor::Sensor *temperature_sensor) {
+  temperature_sensor_ = temperature_sensor;
+}
+
 void CC1101::setup() {
   if (this->gdo0_ != nullptr) {
+#ifdef USE_ESP8266
+    // ESP8266 GDO0 generally input, switched to output for TX
+    // ESP32 GDO0 output, GDO2 input
+    // if there is an ADC, GDO0 is input only while reading temperature
     this->gdo0_->setup();
     this->gdo0_->pin_mode(gpio::FLAG_INPUT);
+#endif
   }
 
   this->spi_setup();
@@ -149,7 +166,7 @@ void CC1101::setup() {
 
   //
 
-  this->set_rx_();
+  this->set_state_(CC1101_SRX);
 
   //
 
@@ -159,21 +176,28 @@ void CC1101::setup() {
 void CC1101::update() {
   if (this->rssi_sensor_ != nullptr) {
     int32_t rssi = this->get_rssi_();
-
+    ESP_LOGV(TAG, "rssi = %d", rssi);
     if (rssi != this->last_rssi_) {
       this->rssi_sensor_->publish_state(rssi);
-
       this->last_rssi_ = rssi;
     }
   }
 
   if (this->lqi_sensor_ != nullptr) {
     int32_t lqi = this->get_lqi_() & 0x7f;  // msb = CRC ok or not set
-
+    ESP_LOGV(TAG, "lqi = %d", lqi);
     if (lqi != this->last_lqi_) {
       this->lqi_sensor_->publish_state(lqi);
-
       this->last_lqi_ = lqi;
+    }
+  }
+
+  if (this->temperature_sensor_ != nullptr && this->gdo0_ != nullptr && this->gdo0_adc_ != nullptr) {
+    float temperature = this->get_temperature_();
+    ESP_LOGV(TAG, "temperature = %.2f", temperature);
+    if (temperature != NAN && temperature != this->last_temperature_) {
+      this->temperature_sensor_->publish_state(temperature);
+      this->last_temperature_ = temperature;
     }
   }
 }
@@ -186,24 +210,13 @@ void CC1101::dump_config() {
   ESP_LOGCONFIG(TAG, "  CC1101 Frequency: %d KHz", this->frequency_);
   LOG_SENSOR("  ", "RSSI", this->rssi_sensor_);
   LOG_SENSOR("  ", "LQI", this->lqi_sensor_);
+  LOG_SENSOR("  ", "Temperature sensor", this->temperature_sensor_);
 }
 
 bool CC1101::reset_() {
-  // Chip reset sequence. CS wiggle (CC1101 manual page 45)
-
-  // this->disable(); // esp-idf calls end_transaction and asserts, because no begin_transaction was called
-  this->cs_->digital_write(false);
-  delayMicroseconds(5);
-  // this->enable();
-  this->cs_->digital_write(true);
-  delayMicroseconds(10);
-  // this->disable();
-  this->cs_->digital_write(false);
-  delayMicroseconds(41);
-
-  this->send_cmd_(CC1101_SRES);
-
   ESP_LOGD(TAG, "Issued CC1101 reset sequence.");
+
+  this->set_state_(CC1101_SRES);
 
   // Read part number and version
 
@@ -215,15 +228,15 @@ bool CC1101::reset_() {
   return this->version_ > 0;
 }
 
-void CC1101::send_cmd_(uint8_t cmd) {
+void CC1101::strobe_(uint8_t cmd) {
   this->enable();
-  this->transfer_byte(cmd);
+  this->write_byte(cmd);
   this->disable();
 }
 
 uint8_t CC1101::read_register_(uint8_t reg) {
   this->enable();
-  this->transfer_byte(reg);
+  this->write_byte(reg);
   uint8_t value = this->transfer_byte(0);
   this->disable();
   return value;
@@ -241,7 +254,7 @@ void CC1101::read_register_burst_(uint8_t reg, uint8_t *buffer, size_t length) {
 }
 void CC1101::write_register_(uint8_t reg, uint8_t *value, size_t length) {
   this->enable();
-  this->transfer_byte(reg);
+  this->write_byte(reg);
   this->transfer_array(value, length);
   this->disable();
 }
@@ -267,18 +280,9 @@ bool CC1101::send_data_(const uint8_t* data, size_t length)
 
   this->write_register_burst_(CC1101_TXFIFO, buffer, length);
 
-  this->send_cmd_(CC1101_STX);
+  this->strobe_(CC1101_STX);
 
-  uint8_t state = this->read_status_register_(CC1101_MARCSTATE) & 0x1f;
-
-  if(state != CC1101_MARCSTATE_TX && state != CC1101_MARCSTATE_TX_END && state != CC1101_MARCSTATE_RXTX_SWITCH)
-  {
-    ESP_LOGE(TAG, "CC1101 in invalid state after sending, returning to idle. State: 0x%02x", state);
-    this->send_cmd_(CC1101_SIDLE);
-    return false;
-  }
-
-  return true;
+  return this->wait_state(CC1101_STX);
 }
 */
 
@@ -293,6 +297,80 @@ int32_t CC1101::get_rssi_() {
 }
 
 uint8_t CC1101::get_lqi_() { return this->read_status_register_(CC1101_LQI); }
+
+float CC1101::get_temperature_() {
+  if (this->gdo0_ == nullptr || this->gdo0_adc_ == nullptr) {
+    ESP_LOGE(TAG, "cannot read temperature if GDO0_ADC is not set");
+    return NAN;
+  }
+
+  uint8_t trxstate = this->trxstate_;
+
+#ifndef USE_ESP8266
+  this->gdo0_->pin_mode(gpio::FLAG_INPUT);
+#endif
+
+  // datasheet 11.2, 26
+
+  this->set_state_(CC1101_SIDLE);
+
+  this->write_register_(CC1101_IOCFG0, 0x80);
+  this->write_register_(CC1101_PTEST, 0xBF);
+
+  delay(50);  // TODO
+
+  float voltage = 0.0f;
+  int successful_samples = 0;
+
+  for (uint8_t i = 0, num_samples = 3; i < num_samples; i++) {
+    float voltage_reading = this->gdo0_adc_->sample();
+    ESP_LOGV(TAG, "ADC voltage_reading = %f", voltage_reading);
+    if (std::isfinite(voltage_reading) && voltage_reading > 0.6 && voltage_reading < 1.0) {
+      voltage += voltage_reading;
+      successful_samples++;
+    }
+  }
+
+  this->write_register_(CC1101_PTEST, 0x7F);
+
+  if (this->mode_) {
+    this->write_register_(CC1101_IOCFG0, 0x06);
+  } else {
+    this->write_register_(CC1101_IOCFG0, 0x0D);
+  }
+
+#ifndef USE_ESP8266
+  this->gdo0_->pin_mode(gpio::FLAG_OUTPUT);
+#endif
+
+  switch (trxstate) {
+    case CC1101_STX:
+      this->set_state_(CC1101_STX);
+      break;
+    case CC1101_SRX:
+      this->set_state_(CC1101_SRX);
+      break;
+    default:
+      this->set_state_(CC1101_SIDLE);
+      break;
+  }
+
+  if (successful_samples == 0) {
+    return NAN;
+  }
+
+  float v = voltage * 1000 / static_cast<float>(successful_samples);
+
+  if (v >= 651 && v < 747) {
+    return mapfloat(v, 651, 747, -40, 0);
+  } else if (v >= 747 && v < 847) {
+    return mapfloat(v, 747, 847, 0, 40);
+  } else if (v >= 847 && v < 945) {
+    return mapfloat(v, 847, 945, 40, 80);
+  }
+
+  return NAN;
+}
 
 void CC1101::set_mode_(bool s) {
   this->mode_ = s;
@@ -594,34 +672,62 @@ void CC1101::set_rxbw_(uint32_t bw) {
   this->write_register_(CC1101_MDMCFG4, this->m4rxbw_ + this->m4dara_);
 }
 
-void CC1101::set_tx_() {
-  ESP_LOGD(TAG, "CC1101 set_tx");
-  this->send_cmd_(CC1101_SIDLE);
-  this->send_cmd_(CC1101_STX);
-  this->trxstate_ = 1;
+void CC1101::set_state_(uint8_t state) {
+  if (state == CC1101_STX || state == CC1101_SRX || state == CC1101_SPWD) {
+    this->set_state_(CC1101_SIDLE);
+  }
+
+  ESP_LOGV(TAG, "set_state_(0x%02x)", state);
+
+  this->trxstate_ = state;
+
+  if (state == CC1101_SRES) {
+    // datasheet 19.1.2
+    // this->disable(); // esp-idf calls end_transaction and asserts, because no begin_transaction was called
+    this->cs_->digital_write(false);
+    delayMicroseconds(5);
+    // this->enable();
+    this->cs_->digital_write(true);
+    delayMicroseconds(10);
+    // this->disable();
+    this->cs_->digital_write(false);
+    delayMicroseconds(41);
+  }
+
+  this->strobe_(state);
+  this->wait_state_(state);
 }
 
-void CC1101::set_rx_() {
-  ESP_LOGD(TAG, "CC1101 set_rx");
-  this->send_cmd_(CC1101_SIDLE);
-  this->send_cmd_(CC1101_SRX);
-  this->trxstate_ = 2;
-}
+bool CC1101::wait_state_(uint8_t state) {
+  static constexpr uint16_t timeout_limit = 5000;
+  uint16_t timeout = timeout_limit;
 
-void CC1101::set_sres_() {
-  this->send_cmd_(CC1101_SRES);
-  this->trxstate_ = 0;
-}
+  while (timeout > 0) {
+    uint8_t s = this->read_status_register_(CC1101_MARCSTATE) & 0x1f;
+    if (state == CC1101_SIDLE) {
+      if (s == CC1101_MARCSTATE_IDLE)
+        break;
+    } else if (state == CC1101_SRX) {
+      if (s == CC1101_MARCSTATE_RX || s == CC1101_MARCSTATE_RX_END || s == CC1101_MARCSTATE_RXTX_SWITCH)
+        break;
+    } else if (state == CC1101_STX) {
+      if (s == CC1101_MARCSTATE_TX || s == CC1101_MARCSTATE_TX_END || s == CC1101_MARCSTATE_TXRX_SWITCH)
+        break;
+    } else {
+      break;  // else if TODO
+    }
 
-void CC1101::set_sidle_() {
-  this->send_cmd_(CC1101_SIDLE);
-  this->trxstate_ = 0;
-}
+    timeout--;
 
-void CC1101::set_sleep_() {
-  this->send_cmd_(CC1101_SIDLE);  // Exit RX / TX, turn off frequency synthesizer and exit
-  this->send_cmd_(CC1101_SPWD);   // Enter power down mode when CSn goes high.
-  this->trxstate_ = 0;
+    delayMicroseconds(1);
+  }
+
+  if (timeout < timeout_limit) {
+    ESP_LOGW(TAG, "wait_state_(0x%02x) timeout = %d/%d", state, timeout, timeout_limit);
+    delayMicroseconds(100);
+  }
+
+  return timeout > 0;
 }
 
 void CC1101::split_mdmcfg2_() {
@@ -641,7 +747,7 @@ void CC1101::split_mdmcfg4_() {
 }
 
 void CC1101::begin_tx() {
-  this->set_tx_();
+  this->set_state_(CC1101_STX);
 
   if (this->gdo0_ != nullptr) {
 #ifdef USE_ESP8266
@@ -650,8 +756,8 @@ void CC1101::begin_tx() {
 #else                // USE_ESP_IDF
     portDISABLE_INTERRUPTS()
 #endif
-#endif
     this->gdo0_->pin_mode(gpio::FLAG_OUTPUT);
+#endif
   }
 }
 
@@ -663,12 +769,11 @@ void CC1101::end_tx() {
 #else              // USE_ESP_IDF
     portENABLE_INTERRUPTS()
 #endif
-#endif
     this->gdo0_->pin_mode(gpio::FLAG_INPUT);
+#endif
   }
 
-  this->set_rx_();
-  this->set_rx_();  // yes, twice (really?)
+  this->set_state_(CC1101_SRX);
 }
 
 }  // namespace cc1101

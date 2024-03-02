@@ -5,23 +5,28 @@ from esphome.automation import maybe_simple_id
 from esphome.components import sensor
 from esphome.components import spi
 from esphome.components import remote_base
+from esphome.components import voltage_sampler
 from esphome.const import (
     CONF_ID,
     CONF_FREQUENCY,
     CONF_PROTOCOL,
     CONF_CODE,
+    CONF_TEMPERATURE,
     UNIT_EMPTY,
     UNIT_DECIBEL_MILLIWATT,
+    UNIT_CELSIUS,
     DEVICE_CLASS_SIGNAL_STRENGTH,
+    DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
 )
 
 DEPENDENCIES = ["spi"]
-AUTO_LOAD = ["sensor", "remote_base"]
+AUTO_LOAD = ["sensor", "remote_base", "voltage_sampler"]
 
 CODEOWNERS = ["@gabest11"]
 
-CONF_GDO0 = "gdo0"
+CONF_GDO0_PIN = "gdo0_pin"
+CONF_GDO0_ADC_ID = "gdo0_adc_id"
 CONF_BANDWIDTH = "bandwidth"
 # CONF_FREQUENCY = "frequency"
 CONF_RSSI = "rssi"
@@ -36,7 +41,8 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(CC1101),
-            cv.Optional(CONF_GDO0): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_GDO0_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_GDO0_ADC_ID): cv.use_id(voltage_sampler.VoltageSampler),
             cv.Optional(CONF_BANDWIDTH, default=200): cv.uint32_t,
             cv.Optional(CONF_FREQUENCY, default=433920): cv.uint32_t,
             cv.Optional(CONF_RSSI): sensor.sensor_schema(
@@ -48,6 +54,12 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_LQI): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
                 accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
@@ -62,9 +74,12 @@ async def to_code(config):
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
 
-    if CONF_GDO0 in config:
-        gdo0 = await cg.gpio_pin_expression(config[CONF_GDO0])
-        cg.add(var.set_config_gdo0(gdo0))
+    if CONF_GDO0_PIN in config:
+        gdo0_pin = await cg.gpio_pin_expression(config[CONF_GDO0_PIN])
+        cg.add(var.set_config_gdo0_pin(gdo0_pin))
+    if CONF_GDO0_ADC_ID in config:
+        gdo0_adc_id = await cg.get_variable(config[CONF_GDO0_ADC_ID])
+        cg.add(var.set_config_gdo0_adc_pin(gdo0_adc_id))
     cg.add(var.set_config_bandwidth(config[CONF_BANDWIDTH]))
     cg.add(var.set_config_frequency(config[CONF_FREQUENCY]))
     if CONF_RSSI in config:
@@ -73,6 +88,9 @@ async def to_code(config):
     if CONF_LQI in config:
         lqi = await sensor.new_sensor(config[CONF_LQI])
         cg.add(var.set_config_lqi_sensor(lqi))
+    if CONF_TEMPERATURE in config:
+        temperature = await sensor.new_sensor(config[CONF_TEMPERATURE])
+        cg.add(var.set_config_temperature_sensor(temperature))
 
 
 BeginTxAction = ns.class_("BeginTxAction", automation.Action)
