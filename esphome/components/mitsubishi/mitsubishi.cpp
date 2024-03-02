@@ -31,6 +31,8 @@ const uint8_t MITSUBISHI_POWERFUL = 0x08;
 
 // Optional presets used to enable some model features
 const uint8_t MITSUBISHI_ECONOCOOL = 0x20;
+const uint8_t MITSUBISHI_NIGHTMODE = 0xC1;
+const uint8_t MITSUBISHI_DEFAULTMODE = 0x81;
 
 // Pulse parameters in usec
 const uint16_t MITSUBISHI_BIT_MARK = 430;
@@ -82,7 +84,7 @@ climate::ClimateTraits MitsubishiClimate::traits() {
                                     climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL});
 
   traits.set_supported_presets(
-      {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST});
+      {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST, climate::CLIMATE_PRESET_SLEEP});
 
   return traits;
 }
@@ -108,7 +110,6 @@ void MitsubishiClimate::transmit_state() {
   // Byte 15: HVAC specfic, i.e. POWERFUL, SMART SET, PLASMA, always 0x00
   // Byte 16: Constant 0x00
   // Byte 17: Checksum: SUM[Byte0...Byte16]
-
   uint32_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x08, 0x00, 0x00,
                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
@@ -220,6 +221,10 @@ void MitsubishiClimate::transmit_state() {
       remote_state[6] = MITSUBISHI_MODE_COOL | MITSUBISHI_OTHERWISE;
       remote_state[8] = (remote_state[8] & ~7) | MITSUBISHI_MODE_A_COOL;
       remote_state[14] = MITSUBISHI_ECONOCOOL;
+      break;
+    case climate::CLIMATE_PRESET_SLEEP:
+      remote_state[9] = MITSUBISHI_FAN_AUTO;
+      remote_state[14] = MITSUBISHI_NIGHTMODE;
       break;
     case climate::CLIMATE_PRESET_BOOST:
       remote_state[6] |= MITSUBISHI_OTHERWISE;
@@ -364,6 +369,18 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       } else {
         this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
       }
+      break;
+  }
+
+  switch (state_frame[14]) {
+    case MITSUBISHI_ECONOCOOL:
+      this->preset = climate::CLIMATE_PRESET_ECO;
+      break;
+    case MITSUBISHI_NIGHTMODE:
+      this->preset = climate::CLIMATE_PRESET_SLEEP;
+      break;
+    case MITSUBISHI_DEFAULTMODE:
+      this->preset = climate::CLIMATE_PRESET_NONE;
       break;
   }
 
