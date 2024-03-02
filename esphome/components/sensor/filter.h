@@ -245,6 +245,7 @@ class ThrottleAverageFilter : public Filter, public Component {
   uint32_t time_period_;
   float sum_{0.0f};
   unsigned int n_{0};
+  bool have_nan_{false};
 };
 
 using lambda_filter_t = std::function<optional<float>(float)>;

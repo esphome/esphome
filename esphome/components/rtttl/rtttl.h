@@ -15,7 +15,7 @@ namespace esphome {
 namespace rtttl {
 
 #ifdef USE_SPEAKER
-static const size_t SAMPLE_BUFFER_SIZE = 256;
+static const size_t SAMPLE_BUFFER_SIZE = 512;
 
 struct SpeakerSample {
   int16_t left{0};
@@ -31,6 +31,13 @@ class Rtttl : public Component {
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
 #endif
+  void set_gain(float gain) {
+    if (gain < 0.1f)
+      gain = 0.1f;
+    if (gain > 1.0f)
+      gain = 1.0f;
+    this->gain_ = gain;
+  }
   void play(std::string rtttl);
   void stop();
   void dump_config() override;
@@ -60,6 +67,7 @@ class Rtttl : public Component {
   uint16_t note_duration_;
 
   uint32_t output_freq_;
+  float gain_{0.6f};
 
 #ifdef USE_OUTPUT
   output::FloatOutput *output_;
@@ -68,13 +76,13 @@ class Rtttl : public Component {
   void play_output_();
 
 #ifdef USE_SPEAKER
-  speaker::Speaker *speaker_;
-  void play_speaker_();
+  speaker::Speaker *speaker_{nullptr};
   int sample_rate_{16000};
   int samples_per_wave_{0};
   int samples_sent_{0};
   int samples_count_{0};
   int samples_gap_{0};
+
 #endif
 
   CallbackManager<void()> on_finished_playback_callback_;
