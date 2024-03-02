@@ -6,7 +6,7 @@ spi:
 cc1101:
   id: transceiver
   cs_pin: D8  # GPIO15
-  gdo0:
+  gdo0_pin:
     number: D1  # GPIO5
     allow_other_uses: true
   bandwidth: 200
@@ -15,12 +15,14 @@ cc1101:
     name: RSSI
   lqi:
     name: LQI
+  temperature:
+    name: Temperature
 
 remote_transmitter:
-  - pin:
-      number: D1  # GDO0
-      allow_other_uses: true
-    carrier_duty_percent: 100%
+  pin:
+    number: D1  # GDO0
+    allow_other_uses: true
+  carrier_duty_percent: 100%
 
 remote_receiver:
   pin:

@@ -12,6 +12,8 @@ cc1101:
     name: RSSI
   lqi:
     name: LQI
+  temperature:
+    name: Temperature
 
 # https://github.com/esphome/issues/issues/2934
 # c3 has four channels, two for tx, two for rx

@@ -12,10 +12,12 @@ cc1101:
     name: RSSI
   lqi:
     name: LQI
+  temperature:
+    name: Temperature
 
 remote_transmitter:
-  - pin: GPIO32  # GDO0
-    carrier_duty_percent: 100%
+  pin: GPIO32  # GDO0
+  carrier_duty_percent: 100%
 
 remote_receiver:
   pin: GPIO33  # GDO2
