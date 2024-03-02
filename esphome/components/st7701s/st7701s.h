@@ -135,6 +135,8 @@ class ST7701S : public display::Display,
     this->offset_y_ = offset_y;
   }
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+  int get_width_internal() override { return this->width_; }
+  int get_height_internal() override { return this->height_; }
   void dump_config() override;
 
   // this will be horribly slow.
