@@ -14,7 +14,7 @@
 #include "esp_netif.h"
 #include "esp_tls.h"
 #include "nvs_flash.h"
-#include <inttypes.h>
+#include <cinttypes>
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
@@ -52,7 +52,7 @@ int OtaHttpIDF::http_init() {
   }
   this->body_length_ = esp_http_client_fetch_headers(this->client_);
 
-  ESP_LOGD(TAG, "body_length: %d , esp_http_client_get_content_length: %" PRId64, this->body_length_,
+  ESP_LOGD(TAG, "body_length: %d , esp_http_client_get_content_length: %" PRId32, this->body_length_,
            esp_http_client_get_content_length(this->client_));
 
   if (this->body_length_ <= 0) {
