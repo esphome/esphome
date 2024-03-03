@@ -3932,6 +3932,10 @@ text_sensor:
   - platform: template
     name: Template Text Sensor
     id: ${textname}_text
+  - platform: template
+    name: Template Text Sensor Timestamp
+    id: ${textname}_text_timestamp
+    device_class: timestamp
   - platform: wifi_info
     scan_results:
       name: Scan Results

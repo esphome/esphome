@@ -8,3 +8,5 @@ MAX_EXECUTOR_WORKERS = 48
 
 
 SENTINEL = object()
+
+DASHBOARD_COMMAND = ["esphome", "--dashboard"]
