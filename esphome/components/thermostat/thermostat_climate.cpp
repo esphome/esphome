@@ -1,6 +1,5 @@
 #include "thermostat_climate.h"
 #include "esphome/core/log.h"
-#include <cinttypes>
 
 namespace esphome {
 namespace thermostat {
@@ -61,6 +60,15 @@ void ThermostatClimate::setup() {
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
   this->setup_complete_ = true;
   this->publish_state();
+}
+
+void ThermostatClimate::loop() {
+  for (auto &timer : this->timer_) {
+    if (timer.active && (timer.started + timer.time < millis())) {
+      timer.active = false;
+      timer.func();
+    }
+  }
 }
 
 float ThermostatClimate::cool_deadband() { return this->cooling_deadband_; }
@@ -439,6 +447,7 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
           this->start_timer_(thermostat::TIMER_FANNING_ON);
           trig_fan = this->fan_only_action_trigger_;
         }
+        this->cooling_max_runtime_exceeded_ = false;
         trig = this->cool_action_trigger_;
         ESP_LOGVV(TAG, "Switching to COOLING action");
         action_ready = true;
@@ -452,6 +461,7 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
           this->start_timer_(thermostat::TIMER_FANNING_ON);
           trig_fan = this->fan_only_action_trigger_;
         }
+        this->heating_max_runtime_exceeded_ = false;
         trig = this->heat_action_trigger_;
         ESP_LOGVV(TAG, "Switching to HEATING action");
         action_ready = true;
@@ -752,15 +762,15 @@ bool ThermostatClimate::heating_action_ready_() {
 
 void ThermostatClimate::start_timer_(const ThermostatClimateTimerIndex timer_index) {
   if (this->timer_duration_(timer_index) > 0) {
-    this->set_timeout(this->timer_[timer_index].name, this->timer_duration_(timer_index),
-                      this->timer_cbf_(timer_index));
+    this->timer_[timer_index].started = millis();
     this->timer_[timer_index].active = true;
   }
 }
 
 bool ThermostatClimate::cancel_timer_(ThermostatClimateTimerIndex timer_index) {
+  auto ret = this->timer_[timer_index].active;
   this->timer_[timer_index].active = false;
-  return this->cancel_timeout(this->timer_[timer_index].name);
+  return ret;
 }
 
 bool ThermostatClimate::timer_active_(ThermostatClimateTimerIndex timer_index) {
@@ -777,7 +787,6 @@ std::function<void()> ThermostatClimate::timer_cbf_(ThermostatClimateTimerIndex 
 
 void ThermostatClimate::cooling_max_run_time_timer_callback_() {
   ESP_LOGVV(TAG, "cooling_max_run_time timer expired");
-  this->timer_[thermostat::TIMER_COOLING_MAX_RUN_TIME].active = false;
   this->cooling_max_runtime_exceeded_ = true;
   this->trigger_supplemental_action_();
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
@@ -785,21 +794,18 @@ void ThermostatClimate::cooling_max_run_time_timer_callback_() {
 
 void ThermostatClimate::cooling_off_timer_callback_() {
   ESP_LOGVV(TAG, "cooling_off timer expired");
-  this->timer_[thermostat::TIMER_COOLING_OFF].active = false;
   this->switch_to_action_(this->compute_action_());
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
 }
 
 void ThermostatClimate::cooling_on_timer_callback_() {
   ESP_LOGVV(TAG, "cooling_on timer expired");
-  this->timer_[thermostat::TIMER_COOLING_ON].active = false;
   this->switch_to_action_(this->compute_action_());
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
 }
 
 void ThermostatClimate::fan_mode_timer_callback_() {
   ESP_LOGVV(TAG, "fan_mode timer expired");
-  this->timer_[thermostat::TIMER_FAN_MODE].active = false;
   this->switch_to_fan_mode_(this->fan_mode.value_or(climate::CLIMATE_FAN_ON));
   if (this->supports_fan_only_action_uses_fan_mode_timer_)
     this->switch_to_action_(this->compute_action_());
@@ -807,19 +813,16 @@ void ThermostatClimate::fan_mode_timer_callback_() {
 
 void ThermostatClimate::fanning_off_timer_callback_() {
   ESP_LOGVV(TAG, "fanning_off timer expired");
-  this->timer_[thermostat::TIMER_FANNING_OFF].active = false;
   this->switch_to_action_(this->compute_action_());
 }
 
 void ThermostatClimate::fanning_on_timer_callback_() {
   ESP_LOGVV(TAG, "fanning_on timer expired");
-  this->timer_[thermostat::TIMER_FANNING_ON].active = false;
   this->switch_to_action_(this->compute_action_());
 }
 
 void ThermostatClimate::heating_max_run_time_timer_callback_() {
   ESP_LOGVV(TAG, "heating_max_run_time timer expired");
-  this->timer_[thermostat::TIMER_HEATING_MAX_RUN_TIME].active = false;
   this->heating_max_runtime_exceeded_ = true;
   this->trigger_supplemental_action_();
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
@@ -827,21 +830,18 @@ void ThermostatClimate::heating_max_run_time_timer_callback_() {
 
 void ThermostatClimate::heating_off_timer_callback_() {
   ESP_LOGVV(TAG, "heating_off timer expired");
-  this->timer_[thermostat::TIMER_HEATING_OFF].active = false;
   this->switch_to_action_(this->compute_action_());
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
 }
 
 void ThermostatClimate::heating_on_timer_callback_() {
   ESP_LOGVV(TAG, "heating_on timer expired");
-  this->timer_[thermostat::TIMER_HEATING_ON].active = false;
   this->switch_to_action_(this->compute_action_());
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
 }
 
 void ThermostatClimate::idle_on_timer_callback_() {
   ESP_LOGVV(TAG, "idle_on timer expired");
-  this->timer_[thermostat::TIMER_IDLE_ON].active = false;
   this->switch_to_action_(this->compute_action_());
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
 }
