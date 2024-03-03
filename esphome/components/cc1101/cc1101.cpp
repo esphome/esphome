@@ -697,8 +697,8 @@ void CC1101::set_state_(uint8_t state) {
 }
 
 bool CC1101::wait_state_(uint8_t state) {
-  static constexpr uint16_t timeout_limit = 5000;
-  uint16_t timeout = timeout_limit;
+  static constexpr uint16_t TIMEOUT_LIMIT = 5000;
+  uint16_t timeout = TIMEOUT_LIMIT;
 
   while (timeout > 0) {
     uint8_t s = this->read_status_register_(CC1101_MARCSTATE) & 0x1f;
@@ -720,8 +720,8 @@ bool CC1101::wait_state_(uint8_t state) {
     delayMicroseconds(1);
   }
 
-  if (timeout < timeout_limit) {
-    ESP_LOGW(TAG, "wait_state_(0x%02x) timeout = %d/%d", state, timeout, timeout_limit);
+  if (timeout < TIMEOUT_LIMIT) {
+    ESP_LOGW(TAG, "wait_state_(0x%02x) timeout = %d/%d", state, timeout, TIMEOUT_LIMIT);
     delayMicroseconds(100);
   }
 
