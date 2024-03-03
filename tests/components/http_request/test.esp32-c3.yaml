@@ -1,0 +1,7 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+http_request:
+  useragent: esphome/tagreader
+  timeout: 10s

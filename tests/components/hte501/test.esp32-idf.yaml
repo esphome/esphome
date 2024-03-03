@@ -1,0 +1,12 @@
+i2c:
+  - id: i2c_hte501
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: hte501
+    address: 0x40
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity
