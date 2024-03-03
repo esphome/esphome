@@ -317,8 +317,6 @@ float CC1101::get_temperature_() {
   this->write_register_(CC1101_IOCFG0, 0x80);
   this->write_register_(CC1101_PTEST, 0xBF);
 
-  delay(50);  // TODO
-
   float voltage = 0.0f;
   int successful_samples = 0;
 
