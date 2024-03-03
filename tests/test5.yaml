@@ -494,7 +494,7 @@ sensor:
     id: ms8607_more_config
     temperature:
       name: Indoor Temperature
-      accuracy_decimals:  1
+      accuracy_decimals: 1
     pressure:
       name: Indoor Pressure
       internal: true
