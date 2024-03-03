@@ -4,10 +4,13 @@
 set -e
 
 cd "$(dirname "$0")/.."
-
+location="venv/bin/activate"
 if [ ! -n "$DEVCONTAINER" ] && [ ! -n "$VIRTUAL_ENV" ] && [ ! "$ESPHOME_NO_VENV" ]; then
   python3 -m venv venv
-  source venv/bin/activate
+  if [ -f venv/Scripts/activate ]; then
+    location="venv/Scripts/activate"
+  fi
+  source $location;
 fi
 
 # Avoid unsafe git error when running inside devcontainer
@@ -25,4 +28,4 @@ script/platformio_install_deps.py platformio.ini --libraries --tools --platforms
 
 echo
 echo
-echo "Virtual environment created; source venv/bin/activate to use it"
+echo "Virtual environment created. Run 'source $location' to use it."

@@ -14,6 +14,13 @@
 #include <IPAddress.h>
 #endif /* USE_ADRDUINO */
 
+#ifdef USE_HOST
+#include <arpa/inet.h>
+using ip_addr_t = in_addr;
+using ip4_addr_t = in_addr;
+#define ipaddr_aton(x, y) inet_aton((x), (y))
+#endif
+
 #if USE_ESP32_FRAMEWORK_ARDUINO
 #define arduino_ns Arduino_h
 #elif USE_LIBRETINY
@@ -32,6 +39,14 @@ namespace network {
 
 struct IPAddress {
  public:
+#ifdef USE_HOST
+  IPAddress() { ip_addr_.s_addr = 0; }
+  IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
+    this->ip_addr_.s_addr = htonl((first << 24) | (second << 16) | (third << 8) | fourth);
+  }
+  IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
+  IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
+#else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
     IP_ADDR4(&ip_addr_, first, second, third, fourth);
@@ -62,6 +77,13 @@ struct IPAddress {
   }
 #endif /* LWIP_IPV6 */
   IPAddress(esp_ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t)); }
+  IPAddress(esp_ip_addr_t *other_ip) {
+#if LWIP_IPV6
+    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_));
+#else
+    memcpy((void *) &ip_addr_, (void *) &other_ip->u_addr.ip4, sizeof(ip_addr_));
+#endif
+  }
   operator esp_ip_addr_t() const {
     esp_ip_addr_t tmp;
 #if LWIP_IPV6
@@ -107,10 +129,13 @@ struct IPAddress {
     }
     return *this;
   }
+#endif
 
  protected:
   ip_addr_t ip_addr_;
 };
+
+using IPAddresses = std::array<IPAddress, 5>;
 
 }  // namespace network
 }  // namespace esphome
