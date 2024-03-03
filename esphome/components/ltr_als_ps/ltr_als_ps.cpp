@@ -84,22 +84,25 @@ void LTRAlsPsComponent::dump_config() {
 
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Device type: %s", get_device_type(this->ltr_type_));
-  ESP_LOGCONFIG(TAG, "  Automatic mode: %s", ONOFF(this->automatic_mode_enabled_));
-  ESP_LOGCONFIG(TAG, "  Gain: %.0fx", get_gain_coeff(this->gain_));
-  ESP_LOGCONFIG(TAG, "  Integration time: %d ms", get_itime_ms(this->integration_time_));
-  ESP_LOGCONFIG(TAG, "  Measurement repeat rate: %d ms", get_meas_time_ms(this->repeat_rate_));
-  ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
-  ESP_LOGCONFIG(TAG, "  Proximity gain: %.0fx", get_ps_gain_coeff(this->ps_gain_));
-  ESP_LOGCONFIG(TAG, "  Proximity cooldown time: %d s", this->ps_cooldown_time_s_);
-  ESP_LOGCONFIG(TAG, "  Proximity high threshold: %d", this->ps_threshold_high_);
-  ESP_LOGCONFIG(TAG, "  Proximity low threshold: %d", this->ps_threshold_low_);
-
+  if (this->is_als_()) {
+    ESP_LOGCONFIG(TAG, "  Automatic mode: %s", ONOFF(this->automatic_mode_enabled_));
+    ESP_LOGCONFIG(TAG, "  Gain: %.0fx", get_gain_coeff(this->gain_));
+    ESP_LOGCONFIG(TAG, "  Integration time: %d ms", get_itime_ms(this->integration_time_));
+    ESP_LOGCONFIG(TAG, "  Measurement repeat rate: %d ms", get_meas_time_ms(this->repeat_rate_));
+    ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
+    LOG_SENSOR("  ", "ALS calculated lux", this->ambient_light_sensor_);
+    LOG_SENSOR("  ", "CH1 Infrared counts", this->infrared_counts_sensor_);
+    LOG_SENSOR("  ", "CH0 Visible+IR counts", this->full_spectrum_counts_sensor_);
+    LOG_SENSOR("  ", "Actual gain", this->actual_gain_sensor_);
+  }
+  if (this->is_ps_()) {
+    ESP_LOGCONFIG(TAG, "  Proximity gain: %.0fx", get_ps_gain_coeff(this->ps_gain_));
+    ESP_LOGCONFIG(TAG, "  Proximity cooldown time: %d s", this->ps_cooldown_time_s_);
+    ESP_LOGCONFIG(TAG, "  Proximity high threshold: %d", this->ps_threshold_high_);
+    ESP_LOGCONFIG(TAG, "  Proximity low threshold: %d", this->ps_threshold_low_);
+    LOG_SENSOR("  ", "Proximity counts", this->proximity_counts_sensor_);
+  }
   LOG_UPDATE_INTERVAL(this);
-
-  LOG_SENSOR("  ", "ALS calculated lux", this->ambient_light_sensor_);
-  LOG_SENSOR("  ", "CH1 Infrared counts", this->infrared_counts_sensor_);
-  LOG_SENSOR("  ", "CH0 Visible+IR counts", this->full_spectrum_counts_sensor_);
-  LOG_SENSOR("  ", "Actual gain", this->actual_gain_sensor_);
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with I2C LTR-303/329 failed!");
@@ -403,7 +406,7 @@ bool LTRAlsPsComponent::are_adjustments_required_(AlsReadings &data) {
   if (!this->automatic_mode_enabled_)
     return false;
 
-  if (data.number_of_adjustments > 10) {
+  if (data.number_of_adjustments > 15) {
     // sometimes sensors fail to change sensitivity. this prevents us from infinite loop
     ESP_LOGW(TAG, "Too many sensitivity adjustments done. Apparently, sensor reconfiguration fails. Stopping.");
     return false;
