@@ -35,7 +35,6 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   void set_saturation_sensor(sensor::Sensor *sensor) { this->saturated_ = sensor; }
 
   void set_gain(AS7343Gain gain) { gain_ = gain; }
-  void set_gain(esphome::optional<unsigned int> g);
   void set_atime(uint8_t atime) { atime_ = atime; }
   void set_astep(uint16_t astep) { astep_ = astep; }
 
@@ -51,7 +50,7 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
 
   float get_gain_multiplier(AS7343Gain gain);
 
-  bool read_channels(uint16_t *data);
+  bool read_18_channels(uint16_t *data);
   float calculate_ppfd(float tint_ms, float gain_x, AS7343Gain gain);
   void calculate_irradiance(float tint_ms, float gain_x, float &irradiance, float &lux, AS7343Gain gain);
   float calculate_spectre_();
@@ -109,6 +108,14 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t atime_;
   uint16_t channel_readings_[AS7343_NUM_CHANNELS];
   float channel_basic_readings_[AS7343_NUM_CHANNELS];
+
+  float get_tint_();
+  void optimizer_(float max_TINT);
+  void direct_config_3_chain_();
+  void setup_tint_(float tint);
+
+ public:
+  bool as7352_set_integration_time_us(uint32_t time_us);
 };
 
 }  // namespace as7343

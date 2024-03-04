@@ -135,10 +135,9 @@ union AS7343RegAStatus {
     AS7343Gain again_status : 4;
     uint8_t reserved_4_6 : 3;
     uint8_t asat_status : 1;
-    
+
   } __attribute__((packed));
 };
-
 
 }  // namespace as7343
 }  // namespace esphome
