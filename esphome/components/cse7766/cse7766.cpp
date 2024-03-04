@@ -173,6 +173,32 @@ void CSE7766Component::parse_data_() {
     }
   }
 
+  if (have_voltage && have_current) {
+    const float apparent_power = voltage * current;
+    if (this->apparent_power_sensor_ != nullptr) {
+      this->apparent_power_sensor_->publish_state(apparent_power);
+    }
+    if (this->power_factor_sensor_ != nullptr && (have_power || power_cycle_exceeds_range)) {
+      float pf = NAN;
+      if (apparent_power > 0) {
+        pf = power / apparent_power;
+        if (pf < 0 || pf > 1) {
+          ESP_LOGD(TAG, "Impossible power factor: %.4f not in interval [0, 1]", pf);
+          pf = NAN;
+        }
+      } else if (apparent_power == 0 && power == 0) {
+        // No load, report ideal power factor
+        pf = 1.0f;
+      } else if (current == 0 && calculated_current <= 0.05f) {
+        // Datasheet: minimum measured current is 50mA
+        ESP_LOGV(TAG, "Can't calculate power factor (current below minimum for CSE7766)");
+      } else {
+        ESP_LOGW(TAG, "Can't calculate power factor from P = %.4f W, S = %.4f VA", power, apparent_power);
+      }
+      this->power_factor_sensor_->publish_state(pf);
+    }
+  }
+
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   {
     std::stringstream ss;
@@ -205,6 +231,8 @@ void CSE7766Component::dump_config() {
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
   LOG_SENSOR("  ", "Energy", this->energy_sensor_);
+  LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
+  LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
   this->check_uart_settings(4800);
 }
 
