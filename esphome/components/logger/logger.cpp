@@ -123,24 +123,6 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   this->log_callback_.call(level, tag, msg);
 }
 
-#if defined(USE_HOST) || defined(USE_ARDUINO)
-void HOT Logger::write_msg_(const char *msg) {
-#ifdef USE_HOST
-  time_t rawtime;
-  struct tm *timeinfo;
-  char buffer[80];
-
-  time(&rawtime);
-  timeinfo = localtime(&rawtime);
-  strftime(buffer, sizeof buffer, "[%H:%M:%S]", timeinfo);
-  fputs(buffer, stdout);
-  puts(msg);
-#elif USE_ARDUINO
-  this->hw_serial_->println(msg);
-#endif
-}
-#endif
-
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
   // add 1 to buffer size for null terminator
   this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT

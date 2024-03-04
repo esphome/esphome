@@ -177,6 +177,8 @@ void HOT Logger::write_msg_(const char *msg) {
     uart_write_bytes(this->uart_num_, "\n", 1);
   }
 }
+#else
+void HOT Logger::write_msg_(const char *msg) { this->hw_serial_->println(msg); }
 #endif
 
 const char *const UART_SELECTIONS[] = {
