@@ -6,14 +6,17 @@ substitutions:
     platform: template
     name: $name
     optimistic: true
+  nested_def: $switch_def
+  double_nested_def: $nested_def
   name: Normal switch
   valid_interpolation: "1"
 
 switch:
+  - $double_nested_def
+  - $switch_def
   - platform: template
     name: $name
     optimistic: true
-  - $switch_def
   - platform: template
     name: Switch ${name} ${valid_interpolation} ${name} ${name}
     optimistic: true
