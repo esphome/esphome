@@ -69,7 +69,7 @@ int OtaHttpArduino::http_init() {
     this->client_.end();
     return -1;
   } else {
-    ESP_LOGV(TAG, "http begin successfull.");
+    ESP_LOGV(TAG, "http begin successful");
   }
 
   this->client_.setReuse(true);
