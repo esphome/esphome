@@ -8,7 +8,7 @@ esphome:
 globals:
   - id: my_global_string
     type: std::string
-    restore_value: yes
+    restore_value: true
     max_restore_data_length: 70
     initial_value: '"DefaultValue"'
 
@@ -786,11 +786,11 @@ image:
   - id: rgb24_image
     file: pnglogo.png
     type: RGB24
-    use_transparency: yes
+    use_transparency: true
   - id: rgb565_image
     file: pnglogo.png
     type: RGB565
-    use_transparency: no
+    use_transparency: false
   - id: web_svg_image
     file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
     resize: 256x48
