@@ -166,7 +166,7 @@ void OtaHttpComponent::check_upgrade() {
       delay(300);  // NOLINT
       App.setup();
 
-      ESP_LOGI(TAG, "previous ota_http doesn't succed. Retrying");
+      ESP_LOGI(TAG, "Previous ota_http unsuccessful. Retrying");
       pref_.ota_http_state = OTA_HTTP_STATE_SAFE_MODE;
       pref_obj_.save(&pref_);
       this->flash();
