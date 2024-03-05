@@ -219,7 +219,6 @@ void WaveshareEPaperTypeA::initialize() {
       // More models can be added here to enable deep sleep if eligible
       case WAVESHARE_EPAPER_1_54_IN:
       case WAVESHARE_EPAPER_1_54_IN_V2:
-      case WAVESHARE_EPAPER_4_2_IN_V2:
         this->deep_sleep_between_updates_ = true;
         ESP_LOGI(TAG, "Set the display to deep sleep");
         this->deep_sleep();
@@ -273,7 +272,6 @@ void WaveshareEPaperTypeA::init_display_() {
       break;
     case TTGO_EPAPER_2_13_IN_B74:
     case WAVESHARE_EPAPER_2_9_IN_V2:
-    case WAVESHARE_EPAPER_4_2_IN_V2:
       this->data(0x03);  // from top left to bottom right
       // RAM content option for Display Update
       this->command(0x21);
@@ -313,9 +311,6 @@ void WaveshareEPaperTypeA::dump_config() {
       break;
     case WAVESHARE_EPAPER_2_9_IN_V2:
       ESP_LOGCONFIG(TAG, "  Model: 2.9inV2");
-      break;
-    case WAVESHARE_EPAPER_4_2_IN_V2:
-      ESP_LOGCONFIG(TAG, "  Model: 4.2inV2");
       break;
   }
   ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
@@ -440,7 +435,6 @@ void HOT WaveshareEPaperTypeA::display() {
   this->command(0x22);
   switch (this->model_) {
     case WAVESHARE_EPAPER_2_9_IN_V2:
-    case WAVESHARE_EPAPER_4_2_IN_V2:
     case WAVESHARE_EPAPER_1_54_IN_V2:
     case TTGO_EPAPER_2_13_IN_B74:
       this->data(full_update ? 0xF7 : 0xFF);
@@ -479,8 +473,6 @@ int WaveshareEPaperTypeA::get_width_internal() {
     case WAVESHARE_EPAPER_2_9_IN:
     case WAVESHARE_EPAPER_2_9_IN_V2:
       return 128;
-    case WAVESHARE_EPAPER_4_2_IN_V2:
-      return 400;
   }
   return 0;
 }
@@ -511,8 +503,6 @@ int WaveshareEPaperTypeA::get_height_internal() {
     case WAVESHARE_EPAPER_2_9_IN:
     case WAVESHARE_EPAPER_2_9_IN_V2:
       return 296;
-    case WAVESHARE_EPAPER_4_2_IN_V2:
-      return 300;
   }
   return 0;
 }
