@@ -1,9 +1,6 @@
 ---
 nrf52:
   board: adafruit_itsybitsy_nrf52840
-  framework:
-    type: zephyr
-    variant: nrf-sdk
 
 esphome:
   name: nrf52-test-nrf-adafruit

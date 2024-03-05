@@ -1,8 +1,9 @@
 ---
 nrf52:
   # board: adafruit_itsybitsy_nrf52840
-  # board: adafruit_feather_nrf52840
-  board: nrf52840dk_nrf52840
+  board: adafruit_feather_nrf52840
+  # board: nrf52840dk_nrf52840
+  # board: nrf5340dk_nrf5340_cpuapp
 
   # bootloader: adafruit
   # bootloader: mcuboot
@@ -23,9 +24,11 @@ switch:
       mode:
         output: true
     id: gpio_15
+    restore_mode: RESTORE_DEFAULT_OFF
 
 interval:
   - interval: 500ms
+  # - interval: 20s
     then:
       - switch.toggle: gpio_15
 
