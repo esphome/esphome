@@ -173,7 +173,7 @@ void OtaHttpComponent::check_upgrade() {
       return;
     }
     if (pref_.ota_http_state == OTA_HTTP_STATE_SAFE_MODE) {
-      ESP_LOGE(TAG, "previous safe mode didn't succeed. ota_http skipped");
+      ESP_LOGE(TAG, "Previous safe mode unsuccessful; skipped ota_http");
       pref_.ota_http_state = OTA_HTTP_STATE_ABORT;
       pref_obj_.save(&pref_);
       global_preferences->sync();
