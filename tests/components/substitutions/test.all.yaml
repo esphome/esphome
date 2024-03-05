@@ -10,6 +10,17 @@ substitutions:
   double_nested_def: $nested_def
   name: Normal switch
   valid_interpolation: "1"
+  included_sensor_name: Included sensor 2
+
+packages:
+  included: !include
+    file: included.yaml
+    vars:
+      included_sensor_id: included_sensor
+      included_sensor:
+        name: $included_sensor_name
+        id: included_sensor2
+        platform: template
 
 switch:
   - $double_nested_def
