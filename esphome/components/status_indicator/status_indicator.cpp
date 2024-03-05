@@ -65,7 +65,7 @@ void StatusIndicator::loop() {
   if ((App.get_app_state() & STATUS_LED_ERROR) != 0u) {
     status = "on_app_error";
     this->status_.on_error = 1;
-  } else if (this->status_.on_error == 1) {
+  } else if (this->status_.on_error) {
     status = "on_clear_app_error";
     this->status_.on_error = 0;
   }
@@ -75,7 +75,7 @@ void StatusIndicator::loop() {
     if (status.empty() && wifi::global_wifi_component->is_ap_enabled()) {
       status = "on_wifi_ap_enabled";
       this->status_.on_wifi_ap = 1;
-    } else if (this->status_.on_wifi_ap == 1) {
+    } else if (this->status_.on_wifi_ap) {
       status = "on_wifi_ap_disabled";
       this->status_.on_wifi_ap = 0;
     }
@@ -84,7 +84,7 @@ void StatusIndicator::loop() {
     if (status.empty() && not is_connected()) {
       status = "on_network_disconnected";
       this->status_.on_network = 1;
-    } else if (this->status_.on_network == 1) {
+    } else if (this->status_.on_network) {
       status = "on_network_connected";
       this->status_.on_network = 0;
     }
