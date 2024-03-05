@@ -93,7 +93,7 @@ void StatusIndicator::loop() {
     if (status.empty() && api::global_api_server != nullptr && not api::global_api_server->is_connected()) {
       status = "on_api_disconnected";
       this->status_.on_api = 1;
-    } else if (this->status_.on_error == 1) {
+    } else if (this->status_.on_error) {
       status = "on_api_connected";
       this->status_.on_api = 0;
     }
@@ -102,7 +102,7 @@ void StatusIndicator::loop() {
     if (status.empty() && mqtt::global_mqtt_client != nullptr && not mqtt::global_mqtt_client->is_connected()) {
       status = "on_mqtt_disconnected";
       this->status_.on_mqtt = 1;
-    } else if (this->status_.on_mqtt == 1) {
+    } else if (this->status_.on_mqtt) {
       status = "on_mqtt_connected";
       this->status_.on_mqtt = 0;
     }
@@ -111,7 +111,7 @@ void StatusIndicator::loop() {
   if (status.empty() && (App.get_app_state() & STATUS_LED_WARNING) != 0u) {
     status = "on_app_warning";
     this->status_.on_warning = 1;
-  } else if (this->status_.on_warning == 1) {
+  } else if (this->status_.on_warning) {
     status = "on_clear_app_warning";
     this->status_.on_warning = 0;
   }
