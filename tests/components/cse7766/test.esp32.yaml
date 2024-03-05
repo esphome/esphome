@@ -1,0 +1,16 @@
+uart:
+  - id: uart_cse7766
+    tx_pin:
+      number: 17
+    rx_pin:
+      number: 16
+    baud_rate: 4800
+
+sensor:
+  - platform: cse7766
+    voltage:
+      name: CSE7766 Voltage
+    current:
+      name: CSE7766 Current
+    power:
+      name: CSE776 Power

@@ -1,0 +1,28 @@
+esphome:
+  on_boot:
+    then:
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          factory_reset: true
+          detection_segments:
+            - [0cm, 5m]
+            - 600cm
+            - !lambda "return 7;"
+          output_latency:
+            delay_after_detect: 0s
+            delay_after_disappear: 0s
+          sensitivity: 6
+      - dfrobot_sen0395.reset
+
+uart:
+  - id: uart_dfrobot_sen0395
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 9600
+
+dfrobot_sen0395:
+  - id: mmwave
+
+binary_sensor:
+  - platform: dfrobot_sen0395
+    id: mmwave_detected

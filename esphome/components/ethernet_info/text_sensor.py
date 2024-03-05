@@ -18,17 +18,25 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_IP_ADDRESS): text_sensor.text_sensor_schema(
             IPAddressEsthernetInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-        ).extend(cv.polling_component_schema("1s"))
+        )
+        .extend(cv.polling_component_schema("1s"))
+        .extend(
+            {
+                cv.Optional(f"address_{x}"): text_sensor.text_sensor_schema(
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                )
+                for x in range(5)
+            }
+        )
     }
 )
 
 
-async def setup_conf(config, key):
-    if key in config:
-        conf = config[key]
-        var = await text_sensor.new_text_sensor(conf)
-        await cg.register_component(var, conf)
-
-
 async def to_code(config):
-    await setup_conf(config, CONF_IP_ADDRESS)
+    if conf := config.get(CONF_IP_ADDRESS):
+        ip_info = await text_sensor.new_text_sensor(config[CONF_IP_ADDRESS])
+        await cg.register_component(ip_info, config[CONF_IP_ADDRESS])
+        for x in range(5):
+            if sensor_conf := conf.get(f"address_{x}"):
+                sens = await text_sensor.new_text_sensor(sensor_conf)
+                cg.add(ip_info.add_ip_sensors(x, sens))
