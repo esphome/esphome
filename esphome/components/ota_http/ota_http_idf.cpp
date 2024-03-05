@@ -52,8 +52,8 @@ int OtaHttpIDF::http_init() {
   }
   this->body_length_ = esp_http_client_fetch_headers(this->client_);
 
-  ESP_LOGD(TAG, "body_length: %d , esp_http_client_get_content_length: %" PRId32, this->body_length_,
-           esp_http_client_get_content_length(this->client_));
+  ESP_LOGD(TAG, "body_length: %d , esp_http_client_get_content_length: %" PRId64, this->body_length_,
+           (int64_t) esp_http_client_get_content_length(this->client_));
 
   if (this->body_length_ <= 0) {
     ESP_LOGE(TAG, "Incorrect file size (%d) reported by http server (http status: %d). Aborting", this->body_length_,
