@@ -93,7 +93,7 @@ void StatusIndicator::loop() {
     if (status.empty() && api::global_api_server != nullptr && not api::global_api_server->is_connected()) {
       status = "on_api_disconnected";
       this->status_.on_api = 1;
-    } else if (this->status_.on_error) {
+    } else if (this->status_.on_api) {
       status = "on_api_connected";
       this->status_.on_api = 0;
     }
