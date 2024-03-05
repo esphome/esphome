@@ -161,26 +161,6 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
 #endif
 }
 
-#ifdef USE_USB_CDC
-#ifndef USE_ZEPHYR
-void Logger::loop() {
-#ifdef USE_ARDUINO
-  if (this->uart_ != UART_SELECTION_USB_CDC) {
-    return;
-  }
-  static bool opened = false;
-  if (opened == Serial) {
-    return;
-  }
-  if (false == opened) {
-    App.schedule_dump_config();
-  }
-  opened = !opened;
-#endif
-}
-#endif
-#endif
-
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 void Logger::set_log_level(const std::string &tag, int log_level) {
   this->log_levels_.push_back(LogLevelOverride{tag, log_level});

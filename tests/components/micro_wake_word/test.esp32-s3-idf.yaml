@@ -1,0 +1,15 @@
+i2s_audio:
+  i2s_lrclk_pin: GPIO18
+  i2s_bclk_pin: GPIO19
+
+microphone:
+  - platform: i2s_audio
+    id: echo_microphone
+    i2s_din_pin: GPIO17
+    adc_type: external
+    pdm: true
+
+micro_wake_word:
+  model: hey_jarvis
+  on_wake_word_detected:
+    - logger.log: "Wake word detected"

@@ -140,7 +140,9 @@ def uart_selection(value):
             raise cv.Invalid(f"Arduino framework does not support {value}.")
         variant = get_esp32_variant()
         if CORE.using_esp_idf and variant == VARIANT_ESP32C3 and value == USB_CDC:
-            raise cv.Invalid(f"esp idf variant {variant} does not support {value}.")
+            raise cv.Invalid(
+                f"{value} is not supported for variant {variant} when using ESP-IDF."
+            )
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
@@ -292,6 +294,16 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
+    try:
+        uart_selection(USB_SERIAL_JTAG)
+        cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
+    except cv.Invalid:
+        pass
+    try:
+        uart_selection(USB_CDC)
+        cg.add_define("USE_LOGGER_USB_CDC")
+    except cv.Invalid:
+        pass
 
     try:
         uart_selection(USB_SERIAL_JTAG)

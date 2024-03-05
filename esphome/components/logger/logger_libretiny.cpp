@@ -50,6 +50,8 @@ void Logger::pre_setup() {
   ESP_LOGI(TAG, "Log initialized");
 }
 
+void HOT Logger::write_msg_(const char *msg) { this->hw_serial_->println(msg); }
+
 const char *const UART_SELECTIONS[] = {"DEFAULT", "UART0", "UART1", "UART2"};
 
 const char *Logger::get_uart_selection_() { return UART_SELECTIONS[this->uart_]; }

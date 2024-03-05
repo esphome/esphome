@@ -1,7 +1,4 @@
 #ifdef USE_RP2040
-#ifndef USE_ARDUINO
-#error "Only ARDUINO is supported"
-#endif
 #include "logger.h"
 #include "esphome/core/log.h"
 
@@ -30,6 +27,8 @@ void Logger::pre_setup() {
   global_logger = this;
   ESP_LOGI(TAG, "Log initialized");
 }
+
+void HOT Logger::write_msg_(const char *msg) { this->hw_serial_->println(msg); }
 
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "USB_CDC"};
 

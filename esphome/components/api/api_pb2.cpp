@@ -2721,6 +2721,10 @@ bool ListEntitiesTextSensorResponse::decode_length(uint32_t field_id, ProtoLengt
       this->icon = value.as_string();
       return true;
     }
+    case 8: {
+      this->device_class = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -2743,6 +2747,7 @@ void ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(5, this->icon);
   buffer.encode_bool(6, this->disabled_by_default);
   buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
+  buffer.encode_string(8, this->device_class);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
@@ -2775,6 +2780,10 @@ void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
 
   out.append("  entity_category: ");
   out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -6594,6 +6603,10 @@ bool VoiceAssistantRequest::decode_length(uint32_t field_id, ProtoLengthDelimite
       this->audio_settings = value.as_message<VoiceAssistantAudioSettings>();
       return true;
     }
+    case 5: {
+      this->wake_word_phrase = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -6603,6 +6616,7 @@ void VoiceAssistantRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(2, this->conversation_id);
   buffer.encode_uint32(3, this->flags);
   buffer.encode_message<VoiceAssistantAudioSettings>(4, this->audio_settings);
+  buffer.encode_string(5, this->wake_word_phrase);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void VoiceAssistantRequest::dump_to(std::string &out) const {
@@ -6623,6 +6637,10 @@ void VoiceAssistantRequest::dump_to(std::string &out) const {
 
   out.append("  audio_settings: ");
   this->audio_settings.dump_to(out);
+  out.append("\n");
+
+  out.append("  wake_word_phrase: ");
+  out.append("'").append(this->wake_word_phrase).append("'");
   out.append("\n");
   out.append("}");
 }
