@@ -66,7 +66,7 @@ def _find_tokens(value):
         last_end = end
 
 
-def _expand_substitutions(substitutions, value, path, ignore_missing):
+def _expand_substitutions(substitutions, value, path, ignore_missing, is_key=False):
     substituted = ""
     start_from = 0
     for name, (ignored_chars, length) in _find_tokens(value):
@@ -89,6 +89,13 @@ def _expand_substitutions(substitutions, value, path, ignore_missing):
             start_from += ignored_chars + length
             continue
 
+        if is_key:
+            raise cv.Invalid(
+                "Key substitution is only allowed for string types, "
+                f"however {name!r} (used in {'->'.join(str(x) for x in path)}) "
+                f"is of type {type(sub)}"
+            )
+
         if length != len(value):
             raise cv.Invalid(
                 "String interpolation is only allowed for substitutions with "
@@ -110,7 +117,7 @@ def _expand_substitutions(substitutions, value, path, ignore_missing):
     return substituted
 
 
-def _substitute_item(substitutions, item, path, ignore_missing):
+def _substitute_item(substitutions, item, path, ignore_missing, is_key=False):
     if isinstance(item, list):
         for i, it in enumerate(item):
             sub = _substitute_item(substitutions, it, path + [i], ignore_missing)
@@ -121,7 +128,9 @@ def _substitute_item(substitutions, item, path, ignore_missing):
         for k, v in item.items():
             # if we're not in the substitutions section, substitute keys
             if path or k != CONF_SUBSTITUTIONS:
-                sub = _substitute_item(substitutions, k, path + [k], ignore_missing)
+                sub = _substitute_item(
+                    substitutions, k, path + [k], ignore_missing, is_key=True
+                )
                 if sub is not None:
                     replace_keys.append((k, sub))
             sub = _substitute_item(substitutions, v, path + [k], ignore_missing)
@@ -131,11 +140,13 @@ def _substitute_item(substitutions, item, path, ignore_missing):
             item[new] = merge_config(item.get(old), item.get(new))
             del item[old]
     elif isinstance(item, str):
-        sub = _expand_substitutions(substitutions, item, path, ignore_missing)
+        sub = _expand_substitutions(substitutions, item, path, ignore_missing, is_key)
         if sub != item:
             return sub
     elif isinstance(item, core.Lambda):
-        sub = _expand_substitutions(substitutions, item.value, path, ignore_missing)
+        sub = _expand_substitutions(
+            substitutions, item.value, path, ignore_missing, is_key
+        )
         if sub != item:
             item.value = sub
     return None
