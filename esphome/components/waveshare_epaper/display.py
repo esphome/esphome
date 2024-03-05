@@ -112,7 +112,7 @@ MODELS = {
     "2.90in-bv3": ("b", WaveshareEPaper2P9InBV3),
     "4.20in": ("b", WaveshareEPaper4P2In),
     "4.20in-bv2": ("b", WaveshareEPaper4P2InBV2),
-    "4.20in-v2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_4_2_IN_V2),
+    "4.20in-v2": ("a-alt", WaveshareEPaper4P2InV2),
     "5.83in": ("b", WaveshareEPaper5P8In),
     "5.83inv2": ("b", WaveshareEPaper5P8InV2),
     "7.50in": ("b", WaveshareEPaper7P5In),
@@ -170,7 +170,7 @@ async def to_code(config):
     if model_type == "a":
         rhs = WaveshareEPaperTypeA.new(model)
         var = cg.Pvariable(config[CONF_ID], rhs, WaveshareEPaperTypeA)
-    elif model_type in ("b", "c"):
+    elif model_type in ("a-alt", "b", "c"):
         rhs = model.new()
         var = cg.Pvariable(config[CONF_ID], rhs, model)
     else:
