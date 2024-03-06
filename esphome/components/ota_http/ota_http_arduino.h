@@ -28,7 +28,7 @@ namespace ota_http {
 class OtaHttpArduino : public OtaHttpComponent {
  public:
   int http_init() override;
-  size_t http_read(uint8_t *buf, size_t len) override;
+  int http_read(uint8_t *buf, size_t len) override;
   void http_end() override;
 
  protected:

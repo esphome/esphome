@@ -88,7 +88,13 @@ void OtaHttpComponent::flash() {
 
   while (this->bytes_read_ != this->body_length_) {
     // read a maximum of chunk_size bytes into buf. (real read size returned)
-    size_t bufsize = this->http_read(buf, this->http_recv_buffer_);
+    int bufsize = this->http_read(buf, this->http_recv_buffer_);
+
+    if (bufsize < 0) {
+      ESP_LOGE(TAG, "ERROR: stream closed");
+      this->cleanup_();
+      return;
+    }
 
     // add read bytes to md5
     md5_receive.add(buf, bufsize);

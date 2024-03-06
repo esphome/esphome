@@ -63,18 +63,16 @@ int OtaHttpIDF::http_init() {
   return 1;
 }
 
-size_t OtaHttpIDF::http_read(uint8_t *buf, const size_t max_len) {
-  size_t bufsize = std::min(max_len, this->body_length_ - this->bytes_read_);
+int OtaHttpIDF::http_read(uint8_t *buf, const size_t max_len) {
+  int bufsize = std::min(max_len, this->body_length_ - this->bytes_read_);
   int read_len = esp_http_client_read(this->client_, (char *) buf, bufsize);
-  if (read_len <= 0) {
-    ESP_LOGE(TAG, "Error read data");
-  } else {
+  if (read_len > 0) {
     this->bytes_read_ += bufsize;
     buf[bufsize] = '\0';  // not fed to ota
   }
   // ESP_LOGVV(TAG, "Read %d bytes, %d remainings", read_len, this->body_length_ - this->bytes_read);
 
-  return (size_t) read_len;  // FIXME size_t dosen't allow < 0
+  return read_len;
 }
 
 void OtaHttpIDF::http_end() {

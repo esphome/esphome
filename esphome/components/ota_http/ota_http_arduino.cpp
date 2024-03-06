@@ -107,7 +107,7 @@ int OtaHttpArduino::http_init() {
   return 1;
 }
 
-size_t OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
+int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
   // wait for the stream to be populated
   while (this->stream_ptr_->available() == 0) {
     // give other tasks a chance to run while waiting for some data:
@@ -115,20 +115,15 @@ size_t OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
     yield();
     delay(1);
   }
-  // size_t bufsize = std::min(max_len, this->body_length - this->bytes_read);
   int available_data = this->stream_ptr_->available();
-  if (available_data < 0) {
-    ESP_LOGE(TAG, "ERROR: stream closed");
-    this->cleanup_();
-    return -1;
+  int bufsize = std::min((int)max_len, available_data);
+  if (bufsize > 0) {
+    // ESP_LOGVV(TAG, "data available: %zu", available_data);
+
+    this->stream_ptr_->readBytes(buf, bufsize);
+    this->bytes_read_ += bufsize;
+    buf[bufsize] = '\0';  // not fed to ota
   }
-  size_t bufsize = std::min(max_len, (size_t) available_data);
-
-  // ESP_LOGVV(TAG, "data available: %zu", available_data);
-
-  this->stream_ptr_->readBytes(buf, bufsize);
-  this->bytes_read_ += bufsize;
-  buf[bufsize] = '\0';  // not fed to ota
 
   return bufsize;
 }

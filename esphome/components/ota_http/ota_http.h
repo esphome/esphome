@@ -45,7 +45,7 @@ class OtaHttpComponent : public Component {
   void flash();
   void check_upgrade();
   virtual int http_init() { return -1; };
-  virtual size_t http_read(uint8_t *buf, size_t len) { return 0; };
+  virtual int http_read(uint8_t *buf, size_t len) { return 0; };
   virtual void http_end(){};
 
  protected:
