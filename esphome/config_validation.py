@@ -856,7 +856,27 @@ def date_time(allowed_date: bool = True, allowed_time: bool = True):
     if allowed_time:
         exc_message += "time"
 
+    schema = Schema({})
+    if allowed_date:
+        schema = schema.extend(
+            {
+                Optional(CONF_YEAR): int_range(min=1970, max=3000),
+                Optional(CONF_MONTH): int_range(min=1, max=12),
+                Optional(CONF_DAY): int_range(min=1, max=31),
+            }
+        )
+    if allowed_time:
+        schema = schema.extend(
+            {
+                Optional(CONF_HOUR): int_range(min=0, max=23),
+                Optional(CONF_MINUTE): int_range(min=0, max=59),
+                Optional(CONF_SECOND): int_range(min=0, max=59),
+            }
+        )
+
     def validator(value):
+        if isinstance(value, dict):
+            return schema(value)
         value = string(value)
 
         match = pattern.match(value)
@@ -903,7 +923,7 @@ def date_time(allowed_date: bool = True, allowed_time: bool = True):
             return_value[CONF_MINUTE] = date_obj.minute
             return_value[CONF_SECOND] = date_obj.second if has_seconds else 0
 
-        return return_value
+        return schema(return_value)
 
     return validator
 

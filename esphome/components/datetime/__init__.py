@@ -8,9 +8,12 @@ from esphome.const import (
     CONF_ID,
     CONF_ON_TIME,
     CONF_TIME_ID,
-    CONF_VALUE,
     CONF_TYPE,
     CONF_MQTT_ID,
+    CONF_DATE,
+    CONF_YEAR,
+    CONF_MONTH,
+    CONF_DAY,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
@@ -122,14 +125,26 @@ OPERATION_BASE_SCHEMA = cv.Schema(
     DateSetAction,
     OPERATION_BASE_SCHEMA.extend(
         {
-            cv.Required(CONF_VALUE): cv.templatable(cv.date_time(allowed_time=False)),
+            cv.Required(CONF_DATE): cv.Any(
+                cv.returning_lambda, cv.date_time(allowed_time=False)
+            ),
         }
     ),
 )
 async def datetime_date_set_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    action_var = cg.new_Pvariable(action_id, template_arg, paren)
+    action_var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(action_var, config[CONF_ID])
 
-    template_ = await cg.templatable(config[CONF_VALUE], [], cg.ESPTime)
-    cg.add(action_var.set_date(template_))
+    date = config[CONF_DATE]
+    if cg.is_template(date):
+        template_ = await cg.templatable(config[CONF_DATE], [], cg.ESPTime)
+        cg.add(action_var.set_date(template_))
+    else:
+        date_struct = cg.StructInitializer(
+            cg.ESPTime,
+            ("day_of_month", date[CONF_DAY]),
+            ("month", date[CONF_MONTH]),
+            ("year", date[CONF_YEAR]),
+        )
+        cg.add(action_var.set_date(date_struct))
     return action_var
