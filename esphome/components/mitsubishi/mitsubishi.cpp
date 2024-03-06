@@ -367,10 +367,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
   }
 
-  ESP_LOGV(TAG, "Receiving: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X",
-           state_frame[0], state_frame[1], state_frame[2], state_frame[3], state_frame[4], state_frame[5],
-           state_frame[6], state_frame[7], state_frame[8], state_frame[9], state_frame[10], state_frame[11],
-           state_frame[12], state_frame[13], state_frame[14], state_frame[15], state_frame[16], state_frame[17]);
+  ESP_LOGV(TAG, "Receiving: %s", format_hex_pretty(state_frame, 18).c_str());
 
   this->publish_state();
   return true;
