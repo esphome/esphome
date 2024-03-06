@@ -116,7 +116,7 @@ int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
     delay(1);
   }
   int available_data = this->stream_ptr_->available();
-  int bufsize = std::min((int)max_len, available_data);
+  int bufsize = std::min((int) max_len, available_data);
   if (bufsize > 0) {
     // ESP_LOGVV(TAG, "data available: %zu", available_data);
 
