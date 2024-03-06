@@ -7,7 +7,7 @@
 namespace esphome {
 namespace datetime {
 
-static const char *const TAG = "date_entity";
+static const char *const TAG = "datetime.date_entity";
 
 void DateEntity::publish_state() {
   if (this->year_ == 0 || this->month_ == 0 || this->day_ == 0) {
@@ -30,6 +30,7 @@ void DateEntity::publish_state() {
     return;
   }
   this->has_state_ = true;
+  ESP_LOGD(TAG, "'%s': Sending date %d-%d-%d", this->get_name().c_str(), this->year_, this->month_, this->day_);
   this->state_callback_.call();
 }
 
