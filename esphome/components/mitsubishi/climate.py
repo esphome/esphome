@@ -64,14 +64,11 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await climate_ir.register_climate_ir(var, config)
 
-    if CONF_SET_FAN_MODE in config:
-        cg.add(var.set_fan_mode(config[CONF_SET_FAN_MODE]))
+    cg.add(var.set_fan_mode(config[CONF_SET_FAN_MODE]))
 
     cg.add(var.set_supports_dry(config[CONF_SUPPORTS_DRY]))
     cg.add(var.set_supports_fan_only(config[CONF_SUPPORTS_FAN_ONLY]))
 
-    if CONF_HORIZONTAL_DEFAULT in config:
-        cg.add(var.set_horizontal_default(config[CONF_HORIZONTAL_DEFAULT]))
+    cg.add(var.set_horizontal_default(config[CONF_HORIZONTAL_DEFAULT]))
 
-    if CONF_VERTICAL_DEFAULT in config:
-        cg.add(var.set_vertical_default(config[CONF_VERTICAL_DEFAULT]))
+    cg.add(var.set_vertical_default(config[CONF_VERTICAL_DEFAULT]))
