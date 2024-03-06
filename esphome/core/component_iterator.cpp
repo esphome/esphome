@@ -202,17 +202,17 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
-#ifdef USE_DATETIME
-    case IteratorState::DATETIME:
-      if (this->at_ >= App.get_datetimes().size()) {
+#ifdef USE_DATETIME_DATE
+    case IteratorState::DATETIME_DATE:
+      if (this->at_ >= App.get_dates().size()) {
         advance_platform = true;
       } else {
-        auto *datetime = App.get_datetimes()[this->at_];
-        if (datetime->is_internal() && !this->include_internal_) {
+        auto *date = App.get_dates()[this->at_];
+        if (date->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
-          success = this->on_datetime(datetime);
+          success = this->on_date(date);
         }
       }
       break;

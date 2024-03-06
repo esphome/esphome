@@ -121,15 +121,6 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_NUMBER
   virtual void on_number_command_request(const NumberCommandRequest &value){};
 #endif
-#ifdef USE_DATETIME
-  bool send_list_entities_datetime_response(const ListEntitiesDatetimeResponse &msg);
-#endif
-#ifdef USE_DATETIME
-  bool send_datetime_state_response(const DatetimeStateResponse &msg);
-#endif
-#ifdef USE_DATETIME
-  virtual void on_datetime_command_request(const DatetimeCommandRequest &value){};
-#endif
 #ifdef USE_SELECT
   bool send_list_entities_select_response(const ListEntitiesSelectResponse &msg);
 #endif
@@ -267,6 +258,15 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_TEXT
   virtual void on_text_command_request(const TextCommandRequest &value){};
 #endif
+#ifdef USE_DATETIME_DATE
+  bool send_list_entities_date_response(const ListEntitiesDateResponse &msg);
+#endif
+#ifdef USE_DATETIME_DATE
+  bool send_date_state_response(const DateStateResponse &msg);
+#endif
+#ifdef USE_DATETIME_DATE
+  virtual void on_date_command_request(const DateCommandRequest &value){};
+#endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
@@ -306,9 +306,6 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_NUMBER
   virtual void number_command(const NumberCommandRequest &msg) = 0;
 #endif
-#ifdef USE_DATETIME
-  virtual void datetime_command(const DatetimeCommandRequest &msg) = 0;
-#endif
 #ifdef USE_TEXT
   virtual void text_command(const TextCommandRequest &msg) = 0;
 #endif
@@ -323,6 +320,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_MEDIA_PLAYER
   virtual void media_player_command(const MediaPlayerCommandRequest &msg) = 0;
+#endif
+#ifdef USE_DATETIME_DATE
+  virtual void date_command(const DateCommandRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   virtual void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
@@ -395,9 +395,6 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_NUMBER
   void on_number_command_request(const NumberCommandRequest &msg) override;
 #endif
-#ifdef USE_DATETIME
-  void on_datetime_command_request(const DatetimeCommandRequest &msg) override;
-#endif
 #ifdef USE_TEXT
   void on_text_command_request(const TextCommandRequest &msg) override;
 #endif
@@ -412,6 +409,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_MEDIA_PLAYER
   void on_media_player_command_request(const MediaPlayerCommandRequest &msg) override;
+#endif
+#ifdef USE_DATETIME_DATE
+  void on_date_command_request(const DateCommandRequest &msg) override;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;

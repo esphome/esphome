@@ -1,11 +1,13 @@
-#include "time.h"  // NOLINT
 #include <regex>
+
+#include "helpers.h"
+#include "time.h"  // NOLINT
 
 namespace esphome {
 
-static bool is_leap_year(uint32_t year) { return (year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0); }
+bool is_leap_year(uint32_t year) { return (year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0); }
 
-static uint8_t days_in_month(uint8_t month, uint16_t year) {
+uint8_t days_in_month(uint8_t month, uint16_t year) {
   static const uint8_t DAYS_IN_MONTH[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   uint8_t days = DAYS_IN_MONTH[month];
   if (month == 2 && is_leap_year(year))
@@ -63,54 +65,41 @@ std::string ESPTime::strftime(const std::string &format) {
 }
 
 bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
-  std::regex date_or_time_regex(
-      R"((?:^\d{4}-\d{2}-\d{2}[ ]{1}\d{2}:\d{2}(:\d{2})?$|^\d{4}-\d{2}-\d{2}$|^\d{2}:\d{2}(:\d{2})?$))");
-  std::regex time_and_date_regex(R"(^(\d{4})-(\d{2})-(\d{2})[ ]{1}(\d{2}):(\d{2})(?::(\d{2}))?$)");
-  std::regex date_only_regex(R"(^(\d{4})-(\d{2})-(\d{2})$)");
-  std::regex time_only_regex(R"(^(\d{2}):(\d{2})(?::(\d{2}))?$)");
-
-  if (std::regex_match(time_to_parse, date_or_time_regex) == 0)
-    return false;
+  // clang-format off
+  std::regex dt_regex(R"(^
+    (
+      (\d{4})-(\d{1,2})-(\d{1,2})
+      (?:\s(?=.+))
+    )?
+    (
+      (\d{1,2}):(\d{2})
+      (?::(\d{2}))?
+    )?
+  $)");
+  // clang-format on
 
   std::smatch match;
-  if (std::regex_match(time_to_parse, match, time_and_date_regex)) {
-    esp_time.year = static_cast<uint16_t>(std::stoi(match[1].str()));
-    esp_time.month = static_cast<uint8_t>(std::stoi(match[2].str()));
-    esp_time.day_of_month = static_cast<uint8_t>(std::stoi(match[3].str()));
-    esp_time.hour = static_cast<uint8_t>(std::stoi(match[4].str()));
-    esp_time.minute = static_cast<uint8_t>(std::stoi(match[5].str()));
-    if (match[6].matched) {
-      esp_time.second = static_cast<uint8_t>(std::stoi(match[6].str()));
+  if (std::regex_match(time_to_parse, match, dt_regex) == 0)
+    return false;
+
+  if (match[1].matched) {  // Has date parts
+
+    esp_time.year = parse_number<uint16_t>(match[2].str()).value_or(0);
+    esp_time.month = parse_number<uint8_t>(match[3].str()).value_or(0);
+    esp_time.day_of_month = parse_number<uint8_t>(match[4].str()).value_or(0);
+  }
+  if (match[5].matched) {  // Has time parts
+
+    esp_time.hour = parse_number<uint8_t>(match[6].str()).value_or(0);
+    esp_time.minute = parse_number<uint8_t>(match[7].str()).value_or(0);
+    if (match[8].matched) {
+      esp_time.second = parse_number<uint8_t>(match[8].str()).value_or(0);
     } else {
       esp_time.second = 0;
     }
-
-    return true;
-  } else if (std::regex_match(time_to_parse, match, date_only_regex)) {
-    esp_time.year = static_cast<uint16_t>(std::stoi(match[1].str()));
-    esp_time.month = static_cast<uint8_t>(std::stoi(match[2].str()));
-    esp_time.day_of_month = static_cast<uint8_t>(std::stoi(match[3].str()));
-    esp_time.hour = 0;
-    esp_time.minute = 0;
-    esp_time.second = 0;
-
-    return true;
-  } else if (std::regex_match(time_to_parse, match, time_only_regex)) {
-    esp_time.year = 0;
-    esp_time.month = 0;
-    esp_time.day_of_month = 0;
-    esp_time.hour = static_cast<uint8_t>(std::stoi(match[1].str()));
-    esp_time.minute = static_cast<uint8_t>(std::stoi(match[2].str()));
-    if (match[3].matched) {
-      esp_time.second = static_cast<uint8_t>(std::stoi(match[3].str()));
-    } else {
-      esp_time.second = 0;
-    }
-
-    return true;
   }
 
-  return false;
+  return true;
 }
 
 void ESPTime::increment_second() {

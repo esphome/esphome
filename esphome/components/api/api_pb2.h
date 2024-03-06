@@ -130,7 +130,6 @@ enum NumberMode : uint32_t {
   NUMBER_MODE_BOX = 1,
   NUMBER_MODE_SLIDER = 2,
 };
-enum DatetimeMode : uint32_t { DATETIMEMODE_AUTO = 0 };
 enum LockState : uint32_t {
   LOCK_STATE_NONE = 0,
   LOCK_STATE_LOCKED = 1,
@@ -1114,54 +1113,6 @@ class NumberCommandRequest : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
 };
-class ListEntitiesDatetimeResponse : public ProtoMessage {
- public:
-  std::string object_id{};
-  uint32_t key{0};
-  std::string name{};
-  std::string unique_id{};
-  std::string icon{};
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
-  enums::DatetimeMode mode{};
-  void encode(ProtoWriteBuffer buffer) const override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
-};
-class DatetimeStateResponse : public ProtoMessage {
- public:
-  uint32_t key{0};
-  std::string state{};
-  bool missing_state{false};
-  void encode(ProtoWriteBuffer buffer) const override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
-};
-class DatetimeCommandRequest : public ProtoMessage {
- public:
-  uint32_t key{0};
-  std::string state{};
-  void encode(ProtoWriteBuffer buffer) const override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-};
 class ListEntitiesSelectResponse : public ProtoMessage {
  public:
   std::string object_id{};
@@ -1897,6 +1848,56 @@ class TextCommandRequest : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class ListEntitiesDateResponse : public ProtoMessage {
+ public:
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  std::string icon{};
+  bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class DateStateResponse : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  bool missing_state{false};
+  uint32_t year{0};
+  uint32_t month{0};
+  uint32_t day{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class DateCommandRequest : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  uint32_t year{0};
+  uint32_t month{0};
+  uint32_t day{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 
 }  // namespace api

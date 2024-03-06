@@ -698,37 +698,39 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 }
 #endif
 
-#ifdef USE_DATETIME
-bool APIConnection::send_datetime_state(datetime::Datetime *datetime, std::string state) {
+#ifdef USE_DATETIME_DATE
+bool APIConnection::send_date_state(datetime::DateEntity *date) {
   if (!this->state_subscription_)
     return false;
 
-  DatetimeStateResponse resp{};
-  resp.key = datetime->get_object_id_hash();
-  resp.state = std::move(state);
-  resp.missing_state = !datetime->has_state();
-  return this->send_datetime_state_response(resp);
+  DateStateResponse resp{};
+  resp.key = date->get_object_id_hash();
+  resp.missing_state = !date->has_state();
+  resp.year = date->year;
+  resp.month = date->month;
+  resp.day = date->day;
+  return this->send_date_state_response(resp);
 }
-bool APIConnection::send_datetime_info(datetime::Datetime *datetime) {
-  ListEntitiesDatetimeResponse msg;
-  msg.key = datetime->get_object_id_hash();
-  msg.object_id = datetime->get_object_id();
-  if (datetime->has_own_name())
-    msg.name = datetime->get_name();
-  msg.unique_id = get_default_unique_id("datetime", datetime);
-  msg.icon = datetime->get_icon();
-  msg.disabled_by_default = datetime->is_disabled_by_default();
-  // msg.entity_category = static_cast<enums::EntityCategory>(datetime->get_entity_category());
+bool APIConnection::send_date_info(datetime::DateEntity *date) {
+  ListEntitiesDateResponse msg;
+  msg.key = date->get_object_id_hash();
+  msg.object_id = date->get_object_id();
+  if (date->has_own_name())
+    msg.name = date->get_name();
+  msg.unique_id = get_default_unique_id("date", date);
+  msg.icon = date->get_icon();
+  msg.disabled_by_default = date->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(date->get_entity_category());
 
-  return this->send_list_entities_datetime_response(msg);
+  return this->send_list_entities_date_response(msg);
 }
-void APIConnection::datetime_command(const DatetimeCommandRequest &msg) {
-  datetime::Datetime *datetime = App.get_datetime_by_key(msg.key);
-  if (datetime == nullptr)
+void APIConnection::date_command(const DateCommandRequest &msg) {
+  datetime::DateEntity *date = App.get_date_by_key(msg.key);
+  if (date == nullptr)
     return;
 
-  auto call = datetime->make_call();
-  call.set_value(msg.state);
+  auto call = date->make_call();
+  call.set_date(msg.year, msg.month, msg.day);
   call.perform();
 }
 #endif

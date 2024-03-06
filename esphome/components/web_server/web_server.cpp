@@ -6,6 +6,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_ARDUINO
 #include "StreamString.h"
@@ -851,16 +852,16 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 }
 #endif
 
-#ifdef USE_DATETIME
-void WebServer::on_datetime_update(datetime::Datetime *obj, const std::string &state) {
-  this->events_.send(this->datetime_json(obj, state, DETAIL_STATE).c_str(), "state");
+#ifdef USE_DATETIME_DATE
+void WebServer::on_date_update(datetime::DateEntity *obj) {
+  this->events_.send(this->date_json(obj, DETAIL_STATE).c_str(), "state");
 }
-void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_datetimes()) {
+void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_dates()) {
     if (obj->get_object_id() != match.id)
       continue;
     if (request->method() == HTTP_GET) {
-      std::string data = this->datetime_json(obj, obj->state, DETAIL_STATE);
+      std::string data = this->date_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -878,9 +879,7 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
 
     if (request->hasParam("value")) {
       std::string value = request->getParam("value")->value().c_str();
-      std::replace(value.begin(), value.end(), 'T', ' ');
-      // should be check if the value is valid before setting it, to be able to send 409?
-      call.set_value(value);
+      call.set_date(value);
     }
 
     this->schedule_([call]() mutable { call.perform(); });
@@ -890,25 +889,15 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
   request->send(404);
 }
 
-std::string WebServer::datetime_json(datetime::Datetime *obj, const std::string &value, JsonDetail start_config) {
-  return json::build_json([obj, value, start_config](JsonObject root) {
-    set_json_id(root, obj, "datetime-" + obj->get_object_id(), start_config);
-    if (start_config == DETAIL_ALL) {
-      root["mode"] = (int) obj->traits.get_mode();
-    }
-    std::string value_mut = value;
-    size_t position = value_mut.find(' ');
-    while (position != std::string::npos) {
-      value_mut.replace(position, 1, "T");
-      position = value_mut.find(' ', position + 1);
-    }
-    root["value"] = value_mut;
-    root["state"] = value_mut;
-    root["has_date"] = obj->has_date;
-    root["has_time"] = obj->has_time;
+std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject root) {
+    set_json_id(root, obj, "date-" + obj->get_object_id(), start_config);
+    std::string value = str_sprintf("%d/%d/%d", obj->year, obj->month, obj->day);
+    root["value"] = value;
+    root["state"] = value;
   });
 }
-#endif  // USE_DATETIME
+#endif  // USE_DATETIME_DATE
 
 #ifdef USE_TEXT
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
@@ -1294,8 +1283,8 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
-#ifdef USE_DATETIME
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "datetime")
+#ifdef USE_DATETIME_DATE
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "date")
     return true;
 #endif
 
@@ -1417,9 +1406,9 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 #endif
 
-#ifdef USE_DATETIME
-  if (match.domain == "datetime") {
-    this->handle_datetime_request(request, match);
+#ifdef USE_DATETIME_DATE
+  if (match.domain == "date") {
+    this->handle_date_request(request, match);
     return;
   }
 #endif
