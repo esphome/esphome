@@ -28,7 +28,7 @@ void TMP102Component::dump_config() {
 }
 
 void TMP102Component::update() {
-  uint16_t raw_temperature;
+  int16_t raw_temperature;
   if (this->write(&TMP102_REGISTER_TEMPERATURE, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
@@ -39,7 +39,6 @@ void TMP102Component::update() {
     return;
   }
   raw_temperature = i2c::i2ctohs(raw_temperature);
-
   raw_temperature = raw_temperature >> 4;
   float temperature = raw_temperature * TMP102_CONVERSION_FACTOR;
   ESP_LOGD(TAG, "Got Temperature=%.1f°C", temperature);
