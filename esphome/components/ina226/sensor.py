@@ -21,7 +21,8 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 CONF_ADC_AVERAGING = "adc_averaging"
-CONF_ADC_TIME = "adc_time"
+CONF_ADC_TIME_V = "adc_time_voltage"
+CONF_ADC_TIME_C = "adc_time_current"
 
 ina226_ns = cg.esphome_ns.namespace("ina226")
 INA226Component = ina226_ns.class_(
@@ -92,7 +93,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MAX_CURRENT, default=3.2): cv.All(
                 cv.current, cv.Range(min=0.0)
             ),
-            cv.Optional(CONF_ADC_TIME, default="1100 us"): validate_adc_time,
+            cv.Optional(CONF_ADC_TIME_V, default="1100 us"): validate_adc_time,
+            cv.Optional(CONF_ADC_TIME_C, default="1100 us"): validate_adc_time,
             cv.Optional(CONF_ADC_AVERAGING, default=4): cv.enum(
                 ADC_AVG_SAMPLES, int=True
             ),
@@ -110,7 +112,8 @@ async def to_code(config):
 
     cg.add(var.set_shunt_resistance_ohm(config[CONF_SHUNT_RESISTANCE]))
     cg.add(var.set_max_current_a(config[CONF_MAX_CURRENT]))
-    cg.add(var.set_adc_time(config[CONF_ADC_TIME]))
+    cg.add(var.set_adc_time_voltage(config[CONF_ADC_TIME_V]))
+    cg.add(var.set_adc_time_current(config[CONF_ADC_TIME_C]))
     cg.add(var.set_adc_avg_samples(config[CONF_ADC_AVERAGING]))
 
     if CONF_BUS_VOLTAGE in config:
