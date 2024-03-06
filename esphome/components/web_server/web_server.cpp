@@ -749,6 +749,8 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       call.set_command_close();
     } else if (match.method == "stop") {
       call.set_command_stop();
+    } else if (match.method == "toggle") {
+      call.set_command_toggle();
     } else if (match.method != "set") {
       request->send(404);
       return;

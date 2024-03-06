@@ -34,24 +34,27 @@ void EKTF2232Touchscreen::setup() {
 
   // Get touch resolution
   uint8_t received[4];
-  this->write(GET_X_RES, 4);
-  if (this->read(received, 4)) {
-    ESP_LOGE(TAG, "Failed to read X resolution!");
-    this->interrupt_pin_->detach_interrupt();
-    this->mark_failed();
-    return;
+  if (this->x_raw_max_ == this->x_raw_min_) {
+    this->write(GET_X_RES, 4);
+    if (this->read(received, 4)) {
+      ESP_LOGE(TAG, "Failed to read X resolution!");
+      this->interrupt_pin_->detach_interrupt();
+      this->mark_failed();
+      return;
+    }
+    this->x_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
   }
-  this->x_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
 
-  this->write(GET_Y_RES, 4);
-  if (this->read(received, 4)) {
-    ESP_LOGE(TAG, "Failed to read Y resolution!");
-    this->interrupt_pin_->detach_interrupt();
-    this->mark_failed();
-    return;
+  if (this->y_raw_max_ == this->y_raw_min_) {
+    this->write(GET_Y_RES, 4);
+    if (this->read(received, 4)) {
+      ESP_LOGE(TAG, "Failed to read Y resolution!");
+      this->interrupt_pin_->detach_interrupt();
+      this->mark_failed();
+      return;
+    }
+    this->y_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
   }
-  this->y_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
-
   this->set_power_state(true);
 }
 

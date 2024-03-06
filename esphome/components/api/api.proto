@@ -1451,6 +1451,7 @@ message VoiceAssistantRequest {
   string conversation_id = 2;
   uint32 flags = 3;
   VoiceAssistantAudioSettings audio_settings = 4;
+  string wake_word_phrase = 5;
 }
 
 message VoiceAssistantResponse {
