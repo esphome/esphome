@@ -44,20 +44,20 @@ void OtaHttpComponent::dump_config() {
 };
 
 void OtaHttpComponent::flash() {
-  if (pref_obj_.load(&pref_)) {
-    ESP_LOGV(TAG, "restored pref ota_http_state: %d", pref_.ota_http_state);
+  if (this->pref_obj_.load(&this->pref_)) {
+    ESP_LOGV(TAG, "restored pref ota_http_state: %d", this->pref_.ota_http_state);
   }
 
-  if (pref_.ota_http_state != OTA_HTTP_STATE_SAFE_MODE) {
+  if (this->pref_.ota_http_state != OTA_HTTP_STATE_SAFE_MODE) {
     ESP_LOGV(TAG, "setting mode to progress");
-    pref_.ota_http_state = OTA_HTTP_STATE_PROGRESS;
-    pref_obj_.save(&pref_);
+    this->pref_.ota_http_state = OTA_HTTP_STATE_PROGRESS;
+    this->pref_obj_.save(&this->pref_);
   }
 
   global_preferences->sync();
 
 #ifdef OTA_HTTP_ONLY_AT_BOOT
-  if (pref_.ota_http_state != OTA_HTTP_STATE_SAFE_MODE) {
+  if (this->pref_.ota_http_state != OTA_HTTP_STATE_SAFE_MODE) {
     ESP_LOGI(TAG, "Rebooting before flashing new firmware.");
     App.safe_reboot();
   }
@@ -126,7 +126,7 @@ void OtaHttpComponent::flash() {
   // send md5 to backend (backend will check that the flashed one has the same)
   md5_receive.calculate();
   md5_receive.get_hex(md5_receive_str.get());
-  ESP_LOGD(TAG, "md5sum recieved: %s (size %d)", md5_receive_str.get(), bytes_read_);
+  ESP_LOGD(TAG, "md5sum recieved: %s (size %d)", md5_receive_str.get(), this->bytes_read_);
   esphome::ota_http::OtaHttpComponent::BACKEND->set_update_md5(md5_receive_str.get());
 
   this->http_end();
@@ -143,8 +143,8 @@ void OtaHttpComponent::flash() {
     return;
   }
 
-  pref_.ota_http_state = OTA_HTTP_STATE_OK;
-  pref_obj_.save(&pref_);
+  this->pref_.ota_http_state = OTA_HTTP_STATE_OK;
+  this->pref_obj_.save(&this->pref_);
   delay(10);
   ESP_LOGI(TAG, "OTA update finished! Rebooting...");
   delay(10);
@@ -159,13 +159,13 @@ void OtaHttpComponent::cleanup_() {
   ESP_LOGE(TAG, "Aborting http connection");
   this->http_end();
   ESP_LOGE(TAG, "Previous safe mode unsuccessful; skipped ota_http");
-  pref_.ota_http_state = OTA_HTTP_STATE_ABORT;
-  pref_obj_.save(&pref_);
+  this->pref_.ota_http_state = OTA_HTTP_STATE_ABORT;
+  this->pref_obj_.save(&this->pref_);
 };
 
 void OtaHttpComponent::check_upgrade() {
-  if (pref_obj_.load(&pref_)) {
-    if (pref_.ota_http_state == OTA_HTTP_STATE_PROGRESS) {
+  if (this->pref_obj_.load(&this->pref_)) {
+    if (this->pref_.ota_http_state == OTA_HTTP_STATE_PROGRESS) {
       // progress at boot time means that there was a problem
 
       // Delay here to allow power to stabilise before Wi-Fi/Ethernet is initialised.
@@ -173,15 +173,15 @@ void OtaHttpComponent::check_upgrade() {
       App.setup();
 
       ESP_LOGI(TAG, "Previous ota_http unsuccessful. Retrying");
-      pref_.ota_http_state = OTA_HTTP_STATE_SAFE_MODE;
-      pref_obj_.save(&pref_);
+      this->pref_.ota_http_state = OTA_HTTP_STATE_SAFE_MODE;
+      this->pref_obj_.save(&this->pref_);
       this->flash();
       return;
     }
-    if (pref_.ota_http_state == OTA_HTTP_STATE_SAFE_MODE) {
+    if (this->pref_.ota_http_state == OTA_HTTP_STATE_SAFE_MODE) {
       ESP_LOGE(TAG, "Previous safe mode unsuccessful; skipped ota_http");
-      pref_.ota_http_state = OTA_HTTP_STATE_ABORT;
-      pref_obj_.save(&pref_);
+      this->pref_.ota_http_state = OTA_HTTP_STATE_ABORT;
+      this->pref_obj_.save(&this->pref_);
       global_preferences->sync();
     }
   }

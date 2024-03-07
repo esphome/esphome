@@ -51,17 +51,17 @@ int OtaHttpArduino::http_init() {
 #endif  // USE_HTTP_REQUEST_ESP8266_HTTPS
 #endif  // USE_ESP8266
 
-  ESP_LOGD(TAG, "Trying to connect to %s", pref_.url);
+  ESP_LOGD(TAG, "Trying to connect to %s", this->pref_.url);
 
   bool status = false;
 #ifdef USE_RP2040
   this->client_.setInsecure();
 #endif
 #if defined(USE_ESP32) || defined(USE_RP2040)
-  status = this->client_.begin(pref_.url);
+  status = this->client_.begin(this->pref_.url);
 #endif
 #ifdef USE_ESP8266
-  status = this->client_.begin(*this->stream_ptr_, pref_.url);
+  status = this->client_.begin(*this->stream_ptr_, this->pref_.url);
 #endif
 
   if (!status) {

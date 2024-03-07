@@ -32,14 +32,10 @@ class OtaHttpComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void set_url(const std::string &url) {
-    // this->url_ = std::move(url);
-    // TODO check size
-    size_t length = std::min(url.length(), static_cast<size_t>(sizeof(pref_.url) - 1));
-    strncpy(pref_.url, url.c_str(), length);
-    pref_.url[length] = '\0';
-    // this->secure_ = url.rfind("https:", 0) == 0;
-    // this->secure_ = strncmp(pref_.url, "https:", 6) == 0;
-    pref_obj_.save(&pref_);
+    size_t length = std::min(url.length(), static_cast<size_t>(sizeof(this->pref_.url) - 1));
+    strncpy(this->pref_.url, url.c_str(), length);
+    this->pref_.url[length] = '\0';
+    this->pref_obj_.save(&this->pref_);
   }
   void set_timeout(uint64_t timeout) { this->timeout_ = timeout; }
   void flash();
@@ -49,8 +45,7 @@ class OtaHttpComponent : public Component {
   virtual void http_end(){};
 
  protected:
-  // std::string url_;
-  bool secure_() { return strncmp(pref_.url, "https:", 6) == 0; };
+  bool secure_() { return strncmp(this->pref_.url, "https:", 6) == 0; };
   size_t body_length_ = 0;
   size_t bytes_read_ = 0;
   uint64_t timeout_{1000 * 60 * 10};            // must match CONF_TIMEOUT in __init__.py
