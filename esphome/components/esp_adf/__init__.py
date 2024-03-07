@@ -70,9 +70,9 @@ async def to_code(config):
 
     esp32.add_idf_component(
         name="esp-adf",
-        repo="https://github.com/espressif/esp-adf",
+        repo="https://github.com/X-Ryl669/esp-adf",
         path="components",
-        ref="v2.5",
+        ref="with-i2c-cb",
         components=["*"],
         submodules=["components/esp-sr", "components/esp-adf-libs"],
     )
@@ -99,5 +99,5 @@ async def to_code(config):
         )
         esp32.add_extra_build_file(
             "esp_adf_patches/idf_v4.4_freertos.patch",
-            "https://github.com/espressif/esp-adf/raw/v2.5/idf_patches/idf_v4.4_freertos.patch",
+            "https://github.com/X-Ryl669/esp-adf/raw/with-i2c-cb/idf_patches/idf_v4.4_freertos.patch",
         )
