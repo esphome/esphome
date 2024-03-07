@@ -12,6 +12,9 @@ static const char *const TAG = "ina2xx";
 
 #define OKFAILED(b) ((b) ? "OK" : "FAILED")
 
+static const uint16_t ADC_TIMES[8] = {50, 84, 150, 280, 540, 1052, 2074, 4120};
+static const uint16_t ADC_SAMPLES[8] = {1, 4, 16, 64, 128, 256, 512, 1024};
+
 void INA2XX::setup() {
   ESP_LOGCONFIG(TAG, "Setting up INA2xx...");
 
@@ -164,7 +167,6 @@ void INA2XX::dump_config() {
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with INA2xx failed!");
-    return;
   }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Shunt resistance = %f Ohm", shunt_resistance_ohm_);
@@ -173,6 +175,12 @@ void INA2XX::dump_config() {
   ESP_LOGCONFIG(TAG, "  ADCRANGE = %d (%s)", (uint8_t) this->adc_range_, this->adc_range_ ? "±40.96 mV" : "±163.84 mV");
   ESP_LOGCONFIG(TAG, "  CURRENT_LSB = %f", this->current_lsb_);
   ESP_LOGCONFIG(TAG, "  SHUNT_CAL = %d", this->shunt_cal_);
+
+  ESP_LOGCONFIG(TAG, "  ADC Samples = %d; ADC times: Bus = %d μs, Shunt = %d μs, Temp = %d μs",
+                ADC_SAMPLES[0b111 & (uint8_t) this->adc_avg_samples_],
+                ADC_TIMES[0b111 & (uint8_t) this->adc_time_bus_voltage_],
+                ADC_TIMES[0b111 & (uint8_t) this->adc_time_shunt_voltage_],
+                ADC_TIMES[0b111 & (uint8_t) this->adc_time_die_temperature_]);
 
   auto get_device_name = [](INAType typ) {
     switch (typ) {
@@ -297,9 +305,9 @@ bool INA2XX::configure_adc_() {
   bool ret{false};
   AdcConfigurationRegister adc_cfg{0};
   adc_cfg.MODE = 0x0F;  // Fh = Continuous bus voltage, shunt voltage and temperature
-  adc_cfg.VBUSCT = this->adc_time_;
-  adc_cfg.VSHCT = this->adc_time_;
-  adc_cfg.VTCT = this->adc_time_;
+  adc_cfg.VBUSCT = this->adc_time_bus_voltage_;
+  adc_cfg.VSHCT = this->adc_time_shunt_voltage_;
+  adc_cfg.VTCT = this->adc_time_die_temperature_;
   adc_cfg.AVG = this->adc_avg_samples_;
   ret = this->write_unsigned_16_(RegisterMap::REG_ADC_CONFIG, adc_cfg.raw_u16);
   return ret;

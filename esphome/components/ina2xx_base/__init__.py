@@ -76,7 +76,14 @@ INA2XX_SCHEMA = cv.Schema(
         cv.Required(CONF_SHUNT_RESISTANCE): cv.All(cv.resistance, cv.Range(min=0.0)),
         cv.Required(CONF_MAX_CURRENT): cv.All(cv.current, cv.Range(min=0.0)),
         cv.Optional(CONF_ADC_RANGE, default=0): cv.int_range(min=0, max=1),
-        cv.Optional(CONF_ADC_TIME, default="4120 us"): validate_adc_time,
+        cv.Optional(CONF_ADC_TIME, default="4120 us"): cv.Any(
+            validate_adc_time,
+            {
+                cv.Optional(CONF_BUS_VOLTAGE, default="4120 us"): validate_adc_time,
+                cv.Optional(CONF_SHUNT_VOLTAGE, default="4120 us"): validate_adc_time,
+                cv.Optional(CONF_TEMPERATURE, default="4120 us"): validate_adc_time,
+            },
+        ),
         cv.Optional(CONF_ADC_AVERAGING, default=128): cv.enum(ADC_SAMPLES, int=True),
         cv.Optional(CONF_TEMPERATURE_COEFFICIENT, default=0): cv.int_range(
             min=0, max=16383
@@ -172,9 +179,18 @@ async def setup_ina2xx(var, config):
     cg.add(var.set_shunt_resistance_ohm(config[CONF_SHUNT_RESISTANCE]))
     cg.add(var.set_max_current_a(config[CONF_MAX_CURRENT]))
     cg.add(var.set_adc_range(config[CONF_ADC_RANGE]))
-    cg.add(var.set_adc_time(config[CONF_ADC_TIME]))
     cg.add(var.set_adc_avg_samples(config[CONF_ADC_AVERAGING]))
     cg.add(var.set_shunt_tempco(config[CONF_TEMPERATURE_COEFFICIENT]))
+
+    adc_time_config = config[CONF_ADC_TIME]
+    if isinstance(adc_time_config, dict):
+        cg.add(var.set_adc_time_bus_voltage(adc_time_config[CONF_BUS_VOLTAGE]))
+        cg.add(var.set_adc_time_shunt_voltage(adc_time_config[CONF_SHUNT_VOLTAGE]))
+        cg.add(var.set_adc_time_die_temperature(adc_time_config[CONF_TEMPERATURE]))
+    else:
+        cg.add(var.set_adc_time_bus_voltage(adc_time_config))
+        cg.add(var.set_adc_time_shunt_voltage(adc_time_config))
+        cg.add(var.set_adc_time_die_temperature(adc_time_config))
 
     if conf := config.get(CONF_SHUNT_VOLTAGE):
         sens = await sensor.new_sensor(conf)
