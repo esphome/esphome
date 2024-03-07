@@ -483,6 +483,29 @@ sensor:
     address: 0x77
     iir_filter: 2X
 
+  - platform: ms8607
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity
+    pressure:
+      name: Pressure
+  - platform: ms8607
+    id: ms8607_more_config
+    temperature:
+      name: Indoor Temperature
+      accuracy_decimals: 1
+    pressure:
+      name: Indoor Pressure
+      internal: true
+    humidity:
+      name: Indoor Humidity
+      address: 0x41
+      i2c_id:
+    i2c_id:
+    address: 0x77
+    update_interval: 10min
+
   - platform: sen5x
     id: sen54
     temperature:

@@ -600,6 +600,7 @@ message ListEntitiesTextSensorResponse {
   string icon = 5;
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
+  string device_class = 8;
 }
 message TextSensorStateResponse {
   option (id) = 27;
@@ -1449,6 +1450,7 @@ message VoiceAssistantRequest {
   string conversation_id = 2;
   uint32 flags = 3;
   VoiceAssistantAudioSettings audio_settings = 4;
+  string wake_word_phrase = 5;
 }
 
 message VoiceAssistantResponse {
