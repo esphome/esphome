@@ -1,0 +1,34 @@
+uart:
+  baud_rate: 9600
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+  rx_pin: RX
+  tx_pin: TX
+
+modbus:
+  id: modbus1
+
+fan:
+  - platform: air_technic_hru
+    name: "HRU"
+    co2_sensor_installed:
+      name: "CO2 Sensor Installed"
+    external_control:
+      name: "External Control"
+    heater_installed:
+      name: "Heater Installed"
+    start_after_power_loss:
+      name: "Star After Power Loss"
+    defrost_temperature:
+      name: "Defrost Temperature"
+    defrost_interval_time:
+      name: "Defrost Interval Time"
+    defrost_start_temperature:
+      name: "Defrost Start Temperature"
+    defrost_duration:
+      name: "Defrost Duration"
+    co2:
+      name: "CO2 Concentration"
+    defrosting:
+      name: "Defrosting"
