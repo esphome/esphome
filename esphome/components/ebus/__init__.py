@@ -21,6 +21,7 @@ from esphome.const import (
 
 
 CODEOWNERS = ["@guidoschreuder"]
+DEPENDENCIES = ["esp32"]
 
 ebus_ns = cg.esphome_ns.namespace("ebus")
 
