@@ -146,3 +146,10 @@ datetime:
     type: date
     set_action:
       - logger.log: "set_value"
+    on_value:
+      - logger.log:
+          format: "Date: %04d-%02d-%02d"
+          args:
+            - x.year
+            - x.month
+            - x.day_of_month
