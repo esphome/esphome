@@ -14,6 +14,8 @@ from esphome.const import (
 
 from .. import speed_ns
 
+AUTO_LOAD = ["output"]
+
 SpeedFan = speed_ns.class_("SpeedFan", cg.Component, fan.Fan)
 
 CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
