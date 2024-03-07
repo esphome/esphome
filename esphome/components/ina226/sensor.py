@@ -15,7 +15,8 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
     UNIT_AMPERE,
-    UNIT_WATT, CONF_VOLTAGE,
+    UNIT_WATT,
+    CONF_VOLTAGE,
 )
 
 DEPENDENCIES = ["i2c"]
