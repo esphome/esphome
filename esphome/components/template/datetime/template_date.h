@@ -29,7 +29,7 @@ class TemplateDate : public datetime::DateEntity, public PollingComponent {
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
 
  protected:
-  void control(const datetime::DateCall &) override;
+  void control(const datetime::DateCall &call) override;
 
   bool optimistic_{false};
   ESPTime initial_value_{};
