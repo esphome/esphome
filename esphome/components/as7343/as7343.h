@@ -50,7 +50,7 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
 
   float get_gain_multiplier(AS7343Gain gain);
 
-  bool read_18_channels(uint16_t *data);
+  bool read_18_channels(std::array<uint16_t, AS7343_NUM_CHANNELS> &data);
   float calculate_ppfd(float tint_ms, float gain_x, AS7343Gain gain);
   void calculate_irradiance(float tint_ms, float gain_x, float &irradiance, float &lux, AS7343Gain gain);
   float calculate_spectre_();
@@ -90,29 +90,30 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
 
   sensor::Sensor *saturated_{nullptr};
 
-  sensor::Sensor *bf1_{nullptr};
-  sensor::Sensor *bf2_{nullptr};
-  sensor::Sensor *bfz_{nullptr};
-  sensor::Sensor *bf3_{nullptr};
-  sensor::Sensor *bf4_{nullptr};
-  sensor::Sensor *bfy_{nullptr};
-  sensor::Sensor *bf5_{nullptr};
-  sensor::Sensor *bfxl_{nullptr};
-  sensor::Sensor *bf6_{nullptr};
-  sensor::Sensor *bf7_{nullptr};
-  sensor::Sensor *bf8_{nullptr};
-  sensor::Sensor *bnir_{nullptr};
-
   uint16_t astep_;
   AS7343Gain gain_;
   uint8_t atime_;
-  uint16_t channel_readings_[AS7343_NUM_CHANNELS];
-  float channel_basic_readings_[AS7343_NUM_CHANNELS];
+
+  std::array<uint16_t, AS7343_NUM_CHANNELS> channel_readings_;
+  AS7343Gain readings_gain_;
+  uint8_t readings_done_;
+
+  std::array<float, AS7343_NUM_CHANNELS> channel_basic_readings_;
 
   float get_tint_();
   void optimizer_(float max_TINT);
   void direct_config_3_chain_();
   void setup_tint_(float tint);
+
+  bool spectral_post_process_();
+  void get_optimized_gain_(uint16_t maximum_adc, uint16_t highest_adc, uint8_t lower_gain_limit,
+                           uint8_t upper_gain_limit, uint8_t &out_gain, bool &out_saturation);
+
+  uint16_t get_maximum_spectral_adc_();
+  uint16_t get_maximum_spectral_adc_(uint16_t atime, uint16_t astep);
+  // uint16_t get_highest_value(std::array<uint16_t, AS7343_NUM_CHANNELS> &data);
+
+  template<typename T, size_t N> T get_highest_value(std::array<T, N> &data);
 
  public:
   bool as7352_set_integration_time_us(uint32_t time_us);

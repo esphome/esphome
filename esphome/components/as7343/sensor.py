@@ -44,7 +44,7 @@ CONF_SATURATION = "saturation"
 
 UNIT_COUNTS = "#"
 UNIT_IRRADIANCE = "W/m²"
-UNIT_PPFD = "µmol/sm²"
+UNIT_PPFD = "µmol/s⋅m²"
 
 ICON_SATURATION = "mdi:weather-sunny-alert"
 

@@ -137,7 +137,33 @@ void AS7343Component::update() {
   this->read_18_channels(this->channel_readings_);
   this->enable_spectral_measurement(false);
 
-  AS7343Gain gain = get_gain();
+  if (0) {
+    this->channel_readings_[AS7343_CHANNEL_CLEAR] = 0;
+    this->channel_readings_[AS7343_CHANNEL_CLEAR_0] = 0;
+    this->channel_readings_[AS7343_CHANNEL_CLEAR_1] = 0;
+    this->channel_readings_[AS7343_CHANNEL_FD] = 0;
+    this->channel_readings_[AS7343_CHANNEL_FD_0] = 0;
+    this->channel_readings_[AS7343_CHANNEL_FD_1] = 0;
+    if (this->spectral_post_process_()) {
+      ESP_LOGW(TAG, "Spectral post process - need to repeat 1");
+      delay(20);
+      this->enable_spectral_measurement(true);
+      this->read_18_channels(this->channel_readings_);
+      this->enable_spectral_measurement(false);
+      this->channel_readings_[AS7343_CHANNEL_CLEAR] = 0;
+      this->channel_readings_[AS7343_CHANNEL_CLEAR_0] = 0;
+      this->channel_readings_[AS7343_CHANNEL_CLEAR_1] = 0;
+      this->channel_readings_[AS7343_CHANNEL_FD] = 0;
+      this->channel_readings_[AS7343_CHANNEL_FD_0] = 0;
+      this->channel_readings_[AS7343_CHANNEL_FD_1] = 0;
+    }
+  }
+
+  if (this->spectral_post_process_()) {
+    ESP_LOGW(TAG, "Spectral post process - need to repeat 2");
+  }
+
+  AS7343Gain gain = this->readings_gain_;
   uint8_t atime = get_atime();
   uint16_t astep = get_astep();
 
@@ -145,6 +171,15 @@ void AS7343Component::update() {
   float gain_x = get_gain_multiplier(gain);
 
   float tint2_ms = this->get_tint_();
+
+  uint16_t max_adc = this->get_maximum_spectral_adc_();
+  uint16_t highest_adc = this->get_highest_value(this->channel_readings_);
+
+  if (highest_adc >= max_adc) {
+    ESP_LOGW(TAG, "Max ADC: %u, Highest ADC: %u", max_adc, highest_adc);
+  } else {
+    ESP_LOGD(TAG, "Max ADC: %u, Highest ADC: %u", max_adc, highest_adc);
+  }
 
   ESP_LOGD(TAG, "  ,Gain , %.1f,X", gain_x);
   ESP_LOGD(TAG, "  ,ATIME, %u,", atime);
@@ -170,7 +205,7 @@ void AS7343Component::update() {
   ESP_LOGD(TAG, "  ,Irradiance, %f, W/m²", irradiance);
   ESP_LOGD(TAG, "  ,Lux solar , %f, lx", lux);
   float ppfd = this->calculate_ppfd(tint_ms, gain_x, gain);
-  ESP_LOGD(TAG, "  ,PPFD      , %.2f, µmol/sm²", ppfd);
+  ESP_LOGD(TAG, "  ,PPFD      , %.2f, µmol/s⋅m²", ppfd);
 
   if (this->illuminance_ != nullptr) {
     this->illuminance_->publish_state(lux);
@@ -183,12 +218,18 @@ void AS7343Component::update() {
   if (this->ppfd_ != nullptr) {
     this->ppfd_->publish_state(ppfd);
   }
-
+  uint8_t i = 0;
+  float max_val = 0;
   float normalized_readings[NUM_USEFUL_CHANNELS];
-  for (uint8_t i = 0; i < NUM_USEFUL_CHANNELS; i++) {
-    normalized_readings[i] = this->channel_readings_[CHANNEL_IDX[i]];
-    normalized_readings[i] /= CHANNEL_SENS[i];
-    normalized_readings[i] *= CHANNEL_SENS[0] / 655.35f;
+  for (i = 0; i < NUM_USEFUL_CHANNELS; i++) {
+    normalized_readings[i] = (float) this->channel_readings_[CHANNEL_IDX[i]] / CHANNEL_SENS[i];
+    if (max_val < normalized_readings[i]) {
+      max_val = normalized_readings[i];
+    }
+  }
+
+  for (i = 0; i < NUM_USEFUL_CHANNELS; i++) {
+    normalized_readings[i] = normalized_readings[i] * 100 / max_val;
   }
 
   if (this->f1_ != nullptr) {
@@ -331,13 +372,13 @@ void AS7343Component::calculate_irradiance(float tint_ms, float gain_x, float &i
       continue;
     }
     float basic_count = reading / (gain_x * tint_ms);
-    ESP_LOGD(TAG, "[%2d] Basic count     %f", i, basic_count);
+    //    ESP_LOGD(TAG, "[%2d] Basic count     %f", i, basic_count);
     basic_count *= AS7343_GAIN_CORRECTION[(uint8_t) gain][i];
-    ESP_LOGD(TAG, "[%2d] gain corrected  %f", i, basic_count);
+    //    ESP_LOGD(TAG, "[%2d] gain corrected  %f", i, basic_count);
     irr_band = basic_count * CHANNEL_IRRAD_MW_PER_BASIC_COUNT[i] / 10000;  // 1000 - if mW/m2, 100 if its uW/cm2
-    ESP_LOGD(TAG, "[%2d] irradiance      %f", i, irr_band);
+    //    ESP_LOGD(TAG, "[%2d] irradiance      %f", i, irr_band);
     irradiance_in_w_per_m2 += irr_band * CHANNEL_ENERGY_CONTRIBUTION[i];
-    ESP_LOGD(TAG, "[%2d] band irradiance %f", i, irr_band * CHANNEL_ENERGY_CONTRIBUTION[i]);
+    //    ESP_LOGD(TAG, "[%2d] band irradiance %f", i, irr_band * CHANNEL_ENERGY_CONTRIBUTION[i]);
   }
   // sunlight equivalent
   // 1 W/m2 = 116 ± 3 lx solar
@@ -345,7 +386,7 @@ void AS7343Component::calculate_irradiance(float tint_ms, float gain_x, float &i
   lux = irradiance_in_w_per_m2 * 116;
 }
 
-bool AS7343Component::read_18_channels(uint16_t *data) {
+bool AS7343Component::read_18_channels(std::array<uint16_t, AS7343_NUM_CHANNELS> &data) {
   this->wait_for_data();
 
   AS7343RegStatus status{0};
@@ -363,8 +404,9 @@ bool AS7343Component::read_18_channels(uint16_t *data) {
     ESP_LOGW(TAG, "AS7343 affected by analog or digital saturation. Readings are not reliable.");
   }
   this->readings_saturated_ = astatus.asat_status;
+  this->readings_gain_ = astatus.again_status;
 
-  return this->read_bytes_16((uint8_t) AS7343Registers::DATA_O, data, AS7343_NUM_CHANNELS);
+  return this->read_bytes_16((uint8_t) AS7343Registers::DATA_O, data.data(), AS7343_NUM_CHANNELS);
 }
 
 bool AS7343Component::wait_for_data(uint16_t timeout) {
@@ -470,104 +512,104 @@ float AS7343Component::get_tint_() {
 }
 
 void AS7343Component::optimizer_(float max_TINT) {
-  uint8_t currentGain = 12;
+  // uint8_t currentGain = 12;
 
-  uint16_t FSR = 65535;
-  float TINT = 182.0;
-  // AS7343_set_TINT(handle, TINT);
-  this->setup_tint_(TINT);
+  // uint16_t FSR = 65535;
+  // float TINT = 182.0;
+  // // AS7343_set_TINT(handle, TINT);
+  // this->setup_tint_(TINT);
 
-  uint16_t max_count;
-  uint16_t min_count;
+  // uint16_t max_count;
+  // uint16_t min_count;
 
-  while (true) {
-    max_count = 0;
-    min_count = 0xffff;
-    this->setup_gain((AS7343Gain) currentGain);
+  // while (true) {
+  //   max_count = 0;
+  //   min_count = 0xffff;
+  //   this->setup_gain((AS7343Gain) currentGain);
 
-    uint16_t data[18];
-    this->enable_spectral_measurement(true);
-    this->read_18_channels(data);
-    this->enable_spectral_measurement(false);
+  //   uint16_t data[18];
+  //   this->enable_spectral_measurement(true);
+  //   this->read_18_channels(data);
+  //   this->enable_spectral_measurement(false);
 
-    for (uint8_t i = 0; i < 18; i++) {
-      if (i == 5 || i == 11 || i == 17) {
-        continue;
-      }
-      if (data[i] > max_count) {
-        max_count = data[i];
-      }
-      if (data[i] < min_count) {
-        min_count = data[i];
-      }
-    }
+  //   for (uint8_t i = 0; i < 18; i++) {
+  //     if (i == 5 || i == 11 || i == 17) {
+  //       continue;
+  //     }
+  //     if (data[i] > max_count) {
+  //       max_count = data[i];
+  //     }
+  //     if (data[i] < min_count) {
+  //       min_count = data[i];
+  //     }
+  //   }
 
-    if (max_count > 0xE665) {
-      if (currentGain == 0) {
-        // TODO: send optimizer failed due to saturation message
-        break;
-      }
-      currentGain -= 1;
-      continue;
-    }
+  //   if (max_count > 0xE665) {
+  //     if (currentGain == 0) {
+  //       // TODO: send optimizer failed due to saturation message
+  //       break;
+  //     }
+  //     currentGain -= 1;
+  //     continue;
+  //   }
 
-    else if (min_count == 0) {
-      if (currentGain == 12) {
-        // TODO: send optimizer failed due to saturation message
-        break;
-      }
-      currentGain += 1;
-      continue;
-    }
+  //   else if (min_count == 0) {
+  //     if (currentGain == 12) {
+  //       // TODO: send optimizer failed due to saturation message
+  //       break;
+  //     }
+  //     currentGain += 1;
+  //     continue;
+  //   }
 
-    else {
-      break;
-    }
-  }
+  //   else {
+  //     break;
+  //   }
+  // }
 
-  float counts_expected = (float) max_count;
-  float multiplier = 0.90;
+  // float counts_expected = (float) max_count;
+  // float multiplier = 0.90;
 
-  while (true) {
-    // set to loop once only, might change the algorithm in the future
-    max_count = 0;
-    float exp = (multiplier * (float) FSR - counts_expected);
-    if (exp < 0) {
-      break;
-    }
-    float temp_TINT = TINT + pow(2, log((multiplier * (float) FSR - counts_expected)) / log(2)) * (2.0 / 720.0);
+  // while (true) {
+  //   // set to loop once only, might change the algorithm in the future
+  //   max_count = 0;
+  //   float exp = (multiplier * (float) FSR - counts_expected);
+  //   if (exp < 0) {
+  //     break;
+  //   }
+  //   float temp_TINT = TINT + pow(2, log((multiplier * (float) FSR - counts_expected)) / log(2)) * (2.0 / 720.0);
 
-    if (temp_TINT > max_TINT) {
-      break;
-    }
+  //   if (temp_TINT > max_TINT) {
+  //     break;
+  //   }
 
-    this->setup_tint_(temp_TINT);
+  //   this->setup_tint_(temp_TINT);
 
-    uint16_t data[18];
-    this->enable_spectral_measurement(true);
-    this->read_18_channels(data);
-    this->enable_spectral_measurement(false);
+  //   std::array<uint16_t,AS7343_NUM_CHANNELS> data;
+  //   this->enable_spectral_measurement(true);
+  //   this->read_18_channels(data.data());
+  //   this->enable_spectral_measurement(false);
 
-    for (uint8_t i = 0; i < 18; i++) {
-      if (i == 5 || i == 11 || i == 17) {
-        continue;
-      }
-      if (data[i] > max_count) {
-        max_count = data[i];
-      }
-    }
+  //   for (uint8_t i = 0; i < 18; i++) {
+  //     if (i == 5 || i == 11 || i == 17) {
+  //       continue;
+  //     }
+  //     if (data[i] > max_count) {
+  //       max_count = data[i];
+  //     }
+  //   }
 
-    if (max_count >= multiplier * 0xFFEE) {
-      multiplier = multiplier - 0.05;
-      continue;
-    } else {
-      TINT = temp_TINT;
-    }
-    break;
-  }
-  // this->set_gain(currentGain);
-  this->setup_gain((AS7343Gain) currentGain);
-  this->setup_tint_(TINT);
+  //   if (max_count >= multiplier * 0xFFEE) {
+  //     multiplier = multiplier - 0.05;
+  //     continue;
+  //   } else {
+  //     TINT = temp_TINT;
+  //   }
+  //   break;
+  // }
+  // // this->set_gain(currentGain);
+  // this->setup_gain((AS7343Gain) currentGain);
+  // this->setup_tint_(TINT);
 }
 
 void AS7343Component::direct_config_3_chain_() {
@@ -723,14 +765,145 @@ bool AS7343Component::as7352_set_integration_time_us(uint32_t time_us) {
   } else {
     astep = (uint16_t) astep_i64;
   }
-  ESP_LOGD(TAG, "for itime %u : atime %u, astep %u", time_us, atime, astep);
+
+  auto max_adc = this->get_maximum_spectral_adc_(atime, astep);
+  ESP_LOGD(TAG, "for itime %u : atime %u, astep %u, max_adc: %u", time_us, atime, astep, max_adc);
 
   this->set_astep(astep);
-
-  //    if (result)
   this->set_atime(atime);
 
+  this->setup_atime(atime);
+  this->setup_astep(astep);
+
   return result;
+}
+
+uint16_t AS7343Component::get_maximum_spectral_adc_() {
+  //
+  return this->get_maximum_spectral_adc_(this->atime_, this->astep_);
+};
+
+static constexpr uint16_t MAX_ADC_COUNT = 65535;
+
+uint16_t AS7343Component::get_maximum_spectral_adc_(uint16_t atime, uint16_t astep) {
+  uint32_t value = (atime + 1) * (astep + 1);
+  if (value > MAX_ADC_COUNT) {
+    value = MAX_ADC_COUNT;
+  }
+  return value;
+}
+
+// uint16_t AS7343Component::get_highest_value(std::array<uint16_t, AS7343_NUM_CHANNELS> &data) {
+template<typename T, size_t N> T AS7343Component::get_highest_value(std::array<T, N> &data) {
+  T max = 0;
+  for (const auto &v : data) {
+    if (v > max) {
+      max = v;
+    }
+  }
+  return max;
+}
+
+#define LOW_AUTO_GAIN_VALUE 3
+#define AUTO_GAIN_DIVIDER 2
+#define IS_SATURATION 1
+#define SATURATION_LOW_PERCENT 80
+#define SATURATION_HIGH_PERCENT 100
+#define ADC_SATURATED_VALUE 65535
+
+bool AS7343Component::spectral_post_process_() {
+  bool need_to_repeat = false;
+  uint16_t highest_value, maximum_adc;
+  bool is_saturation{false};
+  uint8_t current_gain, new_gain;
+
+  uint16_t max_adc = this->get_maximum_spectral_adc_();
+  uint16_t highest_adc = this->get_highest_value(this->channel_readings_);
+
+  current_gain = this->readings_gain_;
+  new_gain = current_gain;
+  this->get_optimized_gain_(max_adc, highest_adc, AS7343Gain::AS7343_GAIN_0_5X, AS7343Gain::AS7343_GAIN_128X, new_gain,
+                            is_saturation);
+  if (new_gain != current_gain) {
+    // need to repeat the measurement
+    this->set_gain((AS7343Gain) new_gain);
+    this->setup_gain((AS7343Gain) new_gain);
+    need_to_repeat = true;
+  } else if (is_saturation) {
+    // digital saturation
+    // but can't change gain? try change time ?
+    ESP_LOGW(TAG, "Spectral post process: OPTIMIZE saturation detected");
+  }
+  if (!is_saturation) {
+    // no saturation
+    for (uint8_t i = 0; i < AS7343_NUM_CHANNELS; i++) {
+      // todo - update reading with gain factor first, then compare
+      if (this->channel_readings_[i] >= max_adc) {  // check both values - before and after gain factor application
+        this->channel_readings_[i] = ADC_SATURATED_VALUE;
+        is_saturation = true;
+      }
+    }
+    if (is_saturation) {
+      ESP_LOGW(TAG, "Spectral post process: CHANNEL saturation detected");
+    }
+  }
+  /// what to do with saturation and !need_to_repeat ?
+  ESP_LOGW(TAG, "Spectral post process: gain %u, saturation %u, need to repeat %u", new_gain, is_saturation,
+           need_to_repeat);
+  return need_to_repeat;
+}
+
+static uint8_t find_highest_bit(uint32_t value) {
+  uint8_t i = 0;
+  uint8_t order = 0;
+
+  for (i = 0; i < 32; i++) {
+    if (value == 0) {
+      break;
+    } else if ((value >> i) & 1) {
+      order = i;
+    }
+  }
+
+  return order;
+}
+
+void AS7343Component::get_optimized_gain_(uint16_t maximum_adc, uint16_t highest_adc, uint8_t lower_gain_limit,
+                                          uint8_t upper_gain_limit, uint8_t &out_gain, bool &out_saturation) {
+  uint32_t gain_change;
+
+  if (highest_adc == 0) {
+    highest_adc = 1;
+  }
+
+  if (highest_adc >= maximum_adc) {
+    /* saturation detected */
+    if (out_gain > LOW_AUTO_GAIN_VALUE) {
+      out_gain /= AUTO_GAIN_DIVIDER;
+    } else {
+      out_gain = lower_gain_limit;
+    }
+    out_saturation = true;
+  } else {
+    /* value too low, increase the gain */
+    gain_change =
+        (SATURATION_LOW_PERCENT * (uint32_t) maximum_adc) / (SATURATION_HIGH_PERCENT * (uint32_t) highest_adc);
+    if (gain_change == 0 && out_gain != 0) {
+      (out_gain)--;
+    } else {
+      gain_change = find_highest_bit(gain_change);
+      if (((uint32_t) (out_gain) + gain_change) > upper_gain_limit) {
+        out_gain = upper_gain_limit;
+      } else {
+        out_gain += (uint8_t) gain_change;
+      }
+    }
+    out_saturation = false;
+  }
+
+  if (lower_gain_limit > out_gain) {
+    out_gain = lower_gain_limit;
+  }
 }
 
 }  // namespace as7343
