@@ -42,14 +42,13 @@ enum VerticalDirection {
 class MitsubishiClimate : public climate_ir::ClimateIR {
  public:
   MitsubishiClimate()
-      : climate_ir::ClimateIR(
-            MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, true,
-            {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MIDDLE,
-             climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_QUIET},
-            {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
-             climate::CLIMATE_SWING_HORIZONTAL},
-            {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST,
-             climate::CLIMATE_PRESET_SLEEP}) {}
+      : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, true,
+                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MIDDLE,
+                              climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_QUIET},
+                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
+                              climate::CLIMATE_SWING_HORIZONTAL},
+                              {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST,
+                              climate::CLIMATE_PRESET_SLEEP}) {}
 
   void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
   void set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
