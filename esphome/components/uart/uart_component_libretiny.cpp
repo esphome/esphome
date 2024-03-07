@@ -1,10 +1,10 @@
 #ifdef USE_LIBRETINY
 
+#include "uart_component_libretiny.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "uart_component_libretiny.h"
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -53,27 +53,25 @@ void LibreTinyUARTComponent::setup() {
   bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();
   bool rx_inverted = rx_pin_ != nullptr && rx_pin_->is_inverted();
 
-  if (false)
-    return;
 #if LT_HW_UART0
-  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL0_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL0_RX)) {
+  if ((tx_pin == -1 || tx_pin == PIN_SERIAL0_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL0_RX)) {
     this->serial_ = &Serial0;
     this->hardware_idx_ = 0;
-  }
+  } else
 #endif
 #if LT_HW_UART1
-  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL1_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL1_RX)) {
+      if ((tx_pin == -1 || tx_pin == PIN_SERIAL1_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL1_RX)) {
     this->serial_ = &Serial1;
     this->hardware_idx_ = 1;
-  }
+  } else
 #endif
 #if LT_HW_UART2
-  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL2_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL2_RX)) {
+      if ((tx_pin == -1 || tx_pin == PIN_SERIAL2_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL2_RX)) {
     this->serial_ = &Serial2;
     this->hardware_idx_ = 2;
-  }
+  } else
 #endif
-  else {
+  {
 #if LT_ARD_HAS_SOFTSERIAL
     this->serial_ = new SoftwareSerial(rx_pin, tx_pin, rx_inverted || tx_inverted);
 #else
