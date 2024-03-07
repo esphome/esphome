@@ -32,7 +32,6 @@ const uint8_t MITSUBISHI_POWERFUL = 0x08;
 // Optional presets used to enable some model features
 const uint8_t MITSUBISHI_ECONOCOOL = 0x20;
 const uint8_t MITSUBISHI_NIGHTMODE = 0xC1;
-const uint8_t MITSUBISHI_DEFAULTMODE = 0x81;
 
 // Pulse parameters in usec
 const uint16_t MITSUBISHI_BIT_MARK = 430;
@@ -378,9 +377,6 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
     case MITSUBISHI_NIGHTMODE:
       this->preset = climate::CLIMATE_PRESET_SLEEP;
-      break;
-    case MITSUBISHI_DEFAULTMODE:
-      this->preset = climate::CLIMATE_PRESET_NONE;
       break;
   }
 
