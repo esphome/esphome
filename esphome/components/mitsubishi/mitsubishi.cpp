@@ -83,8 +83,8 @@ climate::ClimateTraits MitsubishiClimate::traits() {
   traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
                                     climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL});
 
-  traits.set_supported_presets(
-      {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST, climate::CLIMATE_PRESET_SLEEP});
+  traits.set_supported_presets({climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO,
+                                climate::CLIMATE_PRESET_BOOST, climate::CLIMATE_PRESET_SLEEP});
 
   return traits;
 }
