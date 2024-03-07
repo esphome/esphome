@@ -6,8 +6,8 @@ from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
     CONF_ID,
-    CONF_ON_TIME,
-    CONF_TIME_ID,
+    CONF_ON_VALUE,
+    CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_MQTT_ID,
     CONF_DATE,
@@ -31,6 +31,10 @@ DateEntity = datetime_ns.class_("DateEntity", DateTimeBase)
 # Actions
 DateSetAction = datetime_ns.class_("DateSetAction", automation.Action)
 
+DateTimeStateTrigger = datetime_ns.class_(
+    "DateTimeStateTrigger", automation.Trigger.template(cg.ESPTime)
+)
+
 DATETIME_MODES = [
     "DATE",
     "TIME",
@@ -38,27 +42,16 @@ DATETIME_MODES = [
 ]
 
 
-def validate_datetime(config):
-    if CONF_ON_TIME in config and CONF_TIME_ID not in config:
-        with cv.prepend_path(CONF_ON_TIME):
-            raise cv.Invalid(
-                f"When using '{CONF_ON_TIME}' you need to provide '{CONF_TIME_ID}'."
-            )
-
-    return config
-
-
-_DATETIME_SCHEMA = (
-    cv.Schema(
-        {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
-                mqtt.MQTTDatetimeComponent
-            ),
-        }
-    )
-    .extend(cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA))
-    .add_extra(validate_datetime)
-)
+_DATETIME_SCHEMA = cv.Schema(
+    {
+        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTDatetimeComponent),
+        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DateTimeStateTrigger),
+            }
+        ),
+    }
+).extend(cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA))
 
 
 def date_schema(class_: MockObjClass) -> cv.Schema:
@@ -85,12 +78,15 @@ def datetime_schema(class_: MockObjClass) -> cv.Schema:
     return _DATETIME_SCHEMA.extend(schema)
 
 
-async def setup_datetime_core_(datetime_var, config):
-    await setup_entity(datetime_var, config)
+async def setup_datetime_core_(var, config):
+    await setup_entity(var, config)
 
     if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], datetime_var)
+        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
+    for conf in config.get(CONF_ON_VALUE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(cg.ESPTime, "x")], conf)
 
 
 async def register_datetime(var, config):

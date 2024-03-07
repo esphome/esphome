@@ -43,7 +43,13 @@ class DateEntity : public DateTimeBase {
   void publish_state();
   DateCall make_call();
 
-  void add_on_state_callback(std::function<void()> &&callback) { state_callback_.add(std::move(callback)); }
+  ESPTime state_as_esptime() const override {
+    ESPTime obj;
+    obj.year = this->year_;
+    obj.month = this->month_;
+    obj.day_of_month = this->day_;
+    return obj;
+  }
 
   const uint16_t &year = year_;
   const uint8_t &month = month_;
@@ -52,8 +58,6 @@ class DateEntity : public DateTimeBase {
  protected:
   friend class DateCall;
   friend struct DateEntityRestoreState;
-
-  CallbackManager<void()> state_callback_;
 
   virtual void control(const DateCall &call) = 0;
 };
