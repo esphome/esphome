@@ -94,8 +94,8 @@ AGS10_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
     AGS10_NEW_I2C_ADDRESS_SCHEMA,
 )
 async def ags10newi2caddress_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
     address = await cg.templatable(config[CONF_ADDRESS], args, int)
     cg.add(var.set_new_address(address))
     return var
@@ -108,7 +108,7 @@ AGS10_SET_ZERO_POINT_ACTION_MODE = {
     "CUSTOM_VALUE": AGS10SetZeroPointActionMode.CUSTOM_VALUE,
 }
 
-AGS10_SET_ZERO_POINT_SCHEMA = cv.All(
+AGS10_SET_ZERO_POINT_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(AGS10Component),
         cv.Required(CONF_MODE): cv.enum(AGS10_SET_ZERO_POINT_ACTION_MODE, upper=True),
@@ -123,9 +123,10 @@ AGS10_SET_ZERO_POINT_SCHEMA = cv.All(
     AGS10_SET_ZERO_POINT_SCHEMA,
 )
 async def ags10setzeropoint_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    var.set_mode(await cg.templatable(config.get(CONF_MODE), args, enumerate))
-    if value := config.get(CONF_VALUE):
-        cg.add(var.set_value(await cg.templatable(value, args, int)))
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    mode = await cg.templatable(config.get(CONF_MODE), args, enumerate)
+    cg.add(var.set_mode(mode))
+    value = await cg.templatable(config[CONF_VALUE], args, int)
+    cg.add(var.set_value(value))
     return var
