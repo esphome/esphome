@@ -84,7 +84,7 @@ class UARTComponent {
 
   // Sets the size of the TX buffer.
   // @param tx_buffer_size Size of the TX buffer in bytes.
-  void set_tx_buffer_size(size_t tx_buffer_size) { this->tx_buffer_size_ = tx_buffer_size; }  
+  void set_tx_buffer_size(size_t tx_buffer_size) { this->tx_buffer_size_ = tx_buffer_size; }
   
   // Sets the size of the RX buffer.
   // @param rx_buffer_size Size of the RX buffer in bytes.
@@ -92,7 +92,7 @@ class UARTComponent {
 
   // Gets the size of the TX buffer.
   // @return Size of the TX buffer in bytes.
-  size_t get_tx_buffer_size() { return this->tx_buffer_size_; }  
+  size_t get_tx_buffer_size() { return this->tx_buffer_size_; }
   
   // Gets the size of the RX buffer.
   // @return Size of the RX buffer in bytes.
