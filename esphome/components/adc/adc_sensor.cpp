@@ -165,7 +165,7 @@ float ADCSensor::sample() {
     raw += analogRead(this->pin_->get_pin());  // NOLINT
 #endif
   }
-  raw = raw / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
+  raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
   if (this->output_raw_) {
     return raw;
   }
@@ -189,7 +189,7 @@ float ADCSensor::sample() {
       }
       sum += raw;
     }
-    sum = sum / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
+    sum = (sum + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
     if (this->output_raw_) {
       return sum;
     }
@@ -264,7 +264,7 @@ float ADCSensor::sample() {
     for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
       raw += adc_read();
     }
-    raw = raw / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
+    raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
     adc_set_temp_sensor_enabled(false);
     if (this->output_raw_) {
       return raw;
@@ -289,7 +289,7 @@ float ADCSensor::sample() {
     for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
       raw += adc_read();
     }
-    raw = raw / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
+    raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
 
 #ifdef CYW43_USES_VSYS_PIN
     if (pin == PICO_VSYS_PIN) {
@@ -313,12 +313,14 @@ float ADCSensor::sample() {
     for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
       raw += analogRead(this->pin_->get_pin());  // NOLINT
     }
-    return raw / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
+    raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
+    return raw;
   }
   for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
     raw += analogReadVoltage(this->pin_->get_pin());  // NOLINT
   }
-  return (raw / this->sample_count_) / 1000.0f;  // NOLINT(clang-analyzer-core.DivideZero)
+  raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
+  return raw / 1000.0f;
 }
 #endif  // USE_LIBRETINY
 
