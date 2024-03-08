@@ -77,7 +77,7 @@ const char *Nextion::tft_upload_result_to_string(Nextion::TFTUploadResult result
     case Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_OPEN_CONNECTION:
       return "Failed to open connection to HTTP server";
 
-    case Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_GET_CONTENT_LENGHT:
+    case Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_GET_CONTENT_LENGTH:
       return "Failed to get content length from HTTP server";
 
     case Nextion::TFTUploadResult::HTTP_ERROR_SET_METHOD_FAILED:
