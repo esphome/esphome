@@ -115,7 +115,6 @@ class AGS10Component : public PollingComponent, public i2c::I2CDevice {
 
 template<typename... Ts> class AGS10NewI2cAddressAction : public Action<Ts...>, public Parented<AGS10Component> {
  public:
-  AGS10NewI2cAddressAction(AGS10Component *parent) : Parented{parent} {}  // It does not compile without it.
   TEMPLATABLE_VALUE(uint8_t, new_address)
 
   void play(Ts... x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
@@ -132,7 +131,6 @@ enum AGS10SetZeroPointActionMode {
 
 template<typename... Ts> class AGS10SetZeroPointAction : public Action<Ts...>, public Parented<AGS10Component> {
  public:
-  AGS10SetZeroPointAction(AGS10Component *parent) : Parented{parent} {}  // It does not compile without it.
   TEMPLATABLE_VALUE(uint16_t, value)
   TEMPLATABLE_VALUE(AGS10SetZeroPointActionMode, mode)
 
