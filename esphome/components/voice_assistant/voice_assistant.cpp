@@ -215,6 +215,8 @@ void VoiceAssistant::loop() {
       msg.conversation_id = this->conversation_id_;
       msg.flags = flags;
       msg.audio_settings = audio_settings;
+      msg.wake_word_phrase = this->wake_word_;
+      this->wake_word_ = "";
 
       if (this->api_client_ == nullptr || !this->api_client_->send_voice_assistant_request(msg)) {
         ESP_LOGW(TAG, "Could not request start");
