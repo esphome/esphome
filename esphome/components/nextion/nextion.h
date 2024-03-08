@@ -1046,7 +1046,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
      * @brief Failed to get content length from the HTTP server.
      * Verify the server's response headers.
      */
-    HTTP_ERROR_FAILED_TO_GET_CONTENT_LENGHT,
+    HTTP_ERROR_FAILED_TO_GET_CONTENT_LENGTH,
 
     /**
      * @brief Failed to set the HTTP method for the request.
