@@ -138,9 +138,9 @@ void ExtEepromComponent::read(uint32_t memaddr, uint8_t *buff, uint16_t buffer_s
 /// @param str_to_read will hold the bytes read from the device on return of the fuction
 
 uint32_t ExtEepromComponent::read_string_from_eeprom(uint32_t memaddr, std::string &str_to_read) {
-  uint8_t new_str_len = read8(memaddr);
+  uint8_t new_str_len = this->read8(memaddr);
   uint8_t data[new_str_len + 1];
-  read(memaddr + 1, (uint8_t *) data, new_str_len);
+  this->read(memaddr + 1, (uint8_t *) data, new_str_len);
   data[new_str_len] = '\0';
   str_to_read = (char *) data;
   return memaddr + 1 + new_str_len;
@@ -150,8 +150,8 @@ uint32_t ExtEepromComponent::read_string_from_eeprom(uint32_t memaddr, std::stri
 /// @param memaddr is the location to write
 /// @param data_to_write contains the byte to be written
 void ExtEepromComponent::write8(uint32_t memaddr, uint8_t data_to_write) {
-  if (read8(memaddr) != data_to_write) {  // Update only if data is new
-    write(memaddr, &data_to_write, 1);
+  if (this->read8(memaddr) != data_to_write) {  // Update only if data is new
+    this->write(memaddr, &data_to_write, 1);
   }
 }
 /// @brief Writes a 16 bit word to a given location
@@ -159,7 +159,7 @@ void ExtEepromComponent::write8(uint32_t memaddr, uint8_t data_to_write) {
 /// @param memaddr is the location to write
 /// @param value contains the word to be written
 void ExtEepromComponent::write16(uint32_t memaddr, uint16_t value) {
-  if (read16(memaddr) != value) {  // Update only if data is new
+  if (this->read16(memaddr) != value) {  // Update only if data is new
     uint16_t val = value;
     this->write(memaddr, (uint8_t *) &val, sizeof(uint16_t));
   }
@@ -169,7 +169,7 @@ void ExtEepromComponent::write16(uint32_t memaddr, uint16_t value) {
 /// @param memaddr is the location to write
 /// @param value contains the word to be written
 void ExtEepromComponent::write32(uint32_t memaddr, uint32_t value) {
-  if (read32(memaddr) != value) {  // Update only if data is new
+  if (this->read32(memaddr) != value) {  // Update only if data is new
     uint32_t val = value;
     this->write(memaddr, (uint8_t *) &val, sizeof(uint32_t));
   }
@@ -179,7 +179,7 @@ void ExtEepromComponent::write32(uint32_t memaddr, uint32_t value) {
 /// @param memaddr is the location to write
 /// @param value contains the float to be written
 void ExtEepromComponent::write_float(uint32_t memaddr, float value) {
-  if (read_float(memaddr) != value) {  // Update only if data is new
+  if (this->read_float(memaddr) != value) {  // Update only if data is new
     float val = value;
     this->write(memaddr, (uint8_t *) &val, sizeof(float));
   }
@@ -189,7 +189,7 @@ void ExtEepromComponent::write_float(uint32_t memaddr, float value) {
 /// @param memaddr is the location to write
 /// @param value contains the double to be written
 void ExtEepromComponent::write_double(uint32_t memaddr, double value) {
-  if (read_double(memaddr) != value)  // Update only if data is new
+  if (this->read_double(memaddr) != value)  // Update only if data is new
   {
     double val = value;
     this->write(memaddr, (uint8_t *) &val, sizeof(double));
@@ -268,8 +268,8 @@ uint32_t ExtEepromComponent::write_string_to_eeprom(uint32_t memaddr, std::strin
   }
   uint8_t len = str_to_write.length();
   const char *p = str_to_write.c_str();
-  write8(memaddr, len);
-  write(memaddr + 1, (uint8_t *) p, len);
+  this->write8(memaddr, len);
+  this->write(memaddr + 1, (uint8_t *) p, len);
   return memaddr + 1 + len;
 }
 void ExtEepromComponent::dump_eeprom(uint32_t start_addr, uint16_t word_count) {
@@ -311,7 +311,7 @@ void ExtEepromComponent::erase(uint8_t value_to_write) {
     temp_buffer[x] = value_to_write;
 
   for (uint32_t addr = 0; addr < this->get_memory_size_(); addr += this->memory_page_size_bytes_)
-    write(addr, temp_buffer, this->memory_page_size_bytes_);
+    this->write(addr, temp_buffer, this->memory_page_size_bytes_);
 }
 void ExtEepromComponent::set_memory_type(EEEDeviceType device_type) {
   device_type_ = device_type;
@@ -384,10 +384,10 @@ void ExtEepromComponent::set_device_config_(uint32_t mem_size, uint8_t address_b
 
 /// @brief Sets the hw I2C buffer size -2, as 2 bytes are needed for control & addr
 /// @param buffer size in bytes, (ESP devices has a 128 I2C buffer so it is set to 126)
-void ExtEepromComponent::set_i2c_buffer_size(uint8_t i2c_buffer_size) { i2c_buffer_size_ = i2c_buffer_size - 2; }
+void ExtEepromComponent::set_i2c_buffer_size(uint8_t i2c_buffer_size) { this->i2c_buffer_size_ = i2c_buffer_size - 2; }
 /// @brief Gets the hw I2C buffer size -2, as 2 bytes are needed for control & addr
 /// @return buffer size in bytes
-uint8_t ExtEepromComponent::get_i2c_buffer_size() { return i2c_buffer_size_; }
+uint8_t ExtEepromComponent::get_i2c_buffer_size() { return this->i2c_buffer_size_; }
 
 // private functions
 void ExtEepromComponent::write_block_(uint8_t deviceaddr, uint32_t memaddr, const uint8_t *obj, uint8_t size) {
@@ -415,22 +415,22 @@ void ExtEepromComponent::write_block_(uint8_t deviceaddr, uint32_t memaddr, cons
 }
 // @brief Sets the size of the device in bytes
 /// @param memSize contains the size of the device
-void ExtEepromComponent::set_memory_size_(uint32_t mem_size) { memory_size_bytes_ = mem_size; }
+void ExtEepromComponent::set_memory_size_(uint32_t mem_size) { this->memory_size_bytes_ = mem_size; }
 /// @brief Gets the user specified size of the device in bytes
 /// @return size in bytes
-uint32_t ExtEepromComponent::get_memory_size_() { return memory_size_bytes_; }
+uint32_t ExtEepromComponent::get_memory_size_() { return this->memory_size_bytes_; }
 /// @brief Sets the page size of the device in bytes
 /// @param page_size contains the size of the device pages
-void ExtEepromComponent::set_page_size_(uint16_t page_size) { memory_page_size_bytes_ = page_size; }
+void ExtEepromComponent::set_page_size_(uint16_t page_size) { this->memory_page_size_bytes_ = page_size; }
 /// @brief Gets the user specified size of the device pages in bytes
 /// @return Page size in bytes
-uint16_t ExtEepromComponent::get_page_size_() { return memory_page_size_bytes_; }
+uint16_t ExtEepromComponent::get_page_size_() { return this->memory_page_size_bytes_; }
 /// @brief Sets the page write for the device in ms
 /// @param write_time_ms contains the time to write a page of the device
-void ExtEepromComponent::set_page_write_time_(uint8_t write_time_ms) { memory_page_write_time_ms_ = write_time_ms; }
+void ExtEepromComponent::set_page_write_time_(uint8_t write_time_ms) { this->memory_page_write_time_ms_ = write_time_ms; }
 /// @brief Gets the user specified write time for a device page in ms
 /// @return page write time in ms
-uint8_t ExtEepromComponent::get_page_write_time_() { return memory_page_write_time_ms_; }
+uint8_t ExtEepromComponent::get_page_write_time_() { return this->memory_page_write_time_ms_; }
 /// @brief Set address_bytes for the device
 /// @param address_bytes contains the number of bytes the device uses for address
 void ExtEepromComponent::set_address_size_bytes_(uint8_t address_size_bytes) {
