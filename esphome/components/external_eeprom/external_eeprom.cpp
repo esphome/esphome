@@ -427,7 +427,9 @@ void ExtEepromComponent::set_page_size_(uint16_t page_size) { this->memory_page_
 uint16_t ExtEepromComponent::get_page_size_() { return this->memory_page_size_bytes_; }
 /// @brief Sets the page write for the device in ms
 /// @param write_time_ms contains the time to write a page of the device
-void ExtEepromComponent::set_page_write_time_(uint8_t write_time_ms) { this->memory_page_write_time_ms_ = write_time_ms; }
+void ExtEepromComponent::set_page_write_time_(uint8_t write_time_ms) {
+  this->memory_page_write_time_ms_ = write_time_ms;
+}
 /// @brief Gets the user specified write time for a device page in ms
 /// @return page write time in ms
 uint8_t ExtEepromComponent::get_page_write_time_() { return this->memory_page_write_time_ms_; }
