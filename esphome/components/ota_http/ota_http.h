@@ -12,17 +12,19 @@
 namespace esphome {
 namespace ota_http {
 
-static const uint8_t OTA_HTTP_STATE_OK = 10;
-static const uint8_t OTA_HTTP_STATE_PROGRESS = 20;
-static const uint8_t OTA_HTTP_STATE_SAFE_MODE = 30;
-static const uint8_t OTA_HTTP_STATE_ABORT = 40;
+enum OtaHttpState {
+  OTA_HTTP_STATE_OK,
+  OTA_HTTP_STATE_PROGRESS,
+  OTA_HTTP_STATE_SAFE_MODE,
+  OTA_HTTP_STATE_ABORT
+};
 
 #define OTA_HTTP_PREF_SAFE_MODE_HASH 99380598UL
 
 static const char *const TAG = "ota_http";
 
 struct OtaHttpGlobalPrefType {
-  int ota_http_state;
+  OtaHttpState ota_http_state;
   char url[256];
   bool verify_ssl;
 } PACKED;

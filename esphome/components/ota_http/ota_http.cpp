@@ -44,12 +44,8 @@ void OtaHttpComponent::dump_config() {
 };
 
 void OtaHttpComponent::flash() {
-  if (this->pref_obj_.load(&this->pref_)) {
-    ESP_LOGV(TAG, "restored pref ota_http_state: %d", this->pref_.ota_http_state);
-  }
-
   if (this->pref_.ota_http_state != OTA_HTTP_STATE_SAFE_MODE) {
-    ESP_LOGV(TAG, "setting mode to progress");
+    ESP_LOGV(TAG, "Setting mode to progress");
     this->pref_.ota_http_state = OTA_HTTP_STATE_PROGRESS;
     this->pref_obj_.save(&this->pref_);
   }
@@ -164,6 +160,7 @@ void OtaHttpComponent::cleanup_() {
 };
 
 void OtaHttpComponent::check_upgrade() {
+  // function called at boot time if CONF_SAFE_MODE is True or "fallback"
   if (this->pref_obj_.load(&this->pref_)) {
     if (this->pref_.ota_http_state == OTA_HTTP_STATE_PROGRESS) {
       // progress at boot time means that there was a problem
