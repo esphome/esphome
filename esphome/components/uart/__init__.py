@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_UART_ID,
     CONF_DATA,
     CONF_RX_BUFFER_SIZE,
+    CONF_TX_BUFFER_SIZE,
     CONF_INVERTED,
     CONF_INVERT,
     CONF_TRIGGER_ID,
@@ -172,6 +173,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
             cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_PIN): validate_rx_pin,
+            cv.Optional(CONF_TX_BUFFER_SIZE, default=0): cv.validate_bytes,
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
@@ -227,6 +229,7 @@ async def to_code(config):
     if CONF_RX_PIN in config:
         rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
         cg.add(var.set_rx_pin(rx_pin))
+    cg.add(var.set_tx_buffer_size(config[CONF_TX_BUFFER_SIZE]))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))

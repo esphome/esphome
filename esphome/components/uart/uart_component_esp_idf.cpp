@@ -110,7 +110,7 @@ void IDFUARTComponent::setup() {
   err = uart_driver_install(this->uart_num_, /* UART RX ring buffer size. */ this->rx_buffer_size_,
                             /* UART TX ring buffer size. If set to zero, driver will not use TX buffer, TX function will
                                block task until all data have been sent out.*/
-                            0,
+                            this->tx_buffer_size_,
                             /* UART event queue size/depth. */ 20, &(this->uart_event_queue_),
                             /* Flags used to allocate the interrupt. */ 0);
   if (err != ESP_OK) {
@@ -139,6 +139,9 @@ void IDFUARTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus %u:", this->uart_num_);
   LOG_PIN("  TX Pin: ", tx_pin_);
   LOG_PIN("  RX Pin: ", rx_pin_);
+  if (this->tx_pin_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  TX Buffer Size: %u", this->tx_buffer_size_);
+  }
   if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
