@@ -1,8 +1,9 @@
 #pragma once
 
-#include <string>
-#include <functional>
 #include <cmath>
+#include <cstdint>
+#include <functional>
+#include <string>
 
 #include "esphome/core/optional.h"
 
@@ -192,7 +193,7 @@ class Component {
    * again in the future.
    *
    * The first retry of f happens after `initial_wait_time` milliseconds. The delay between retries is
-   * increased by multipling by `backoff_increase_factor` each time. If no backoff_increase_factor is
+   * increased by multiplying by `backoff_increase_factor` each time. If no backoff_increase_factor is
    * supplied (default = 1.0), the wait time will stay constant.
    *
    * The retry function f needs to accept a single argument: the number of attempts remaining. On the
