@@ -127,6 +127,8 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
         break;
     }
     if (this->model_ != WAVESHARE_EPAPER_2_13_IN_V2) {
+      // From panel specification:
+      // "After this command initiated, the chip will enter Deep Sleep Mode, BUSY pad will keep output high."
       this->wait_until_idle_();
     }
   }

@@ -420,6 +420,8 @@ void HOT WaveshareEPaperTypeA::display() {
       this->command(0x3C);
       this->data(full_update ? 0x03 : 0x01);
       break;
+    default:
+      break;
   }
 
   // Set x & y regions we want to write to (full)
