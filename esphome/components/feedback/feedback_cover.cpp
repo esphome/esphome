@@ -316,8 +316,14 @@ bool FeedbackCover::is_at_target_() const {
 
   switch (this->current_trigger_operation_) {
     case COVER_OPERATION_OPENING:
+      if (this->target_position_ >= COVER_OPEN && this->open_endstop_ != nullptr && !this->open_endstop_->state)
+        // if we go to fully opened and have an endstop, then approximated position will be ignored until endstop reached
+        return false;
       return this->position >= this->target_position_;
     case COVER_OPERATION_CLOSING:
+      if (this->target_position_ <= COVER_CLOSED && this->close_endstop_ != nullptr && !this->close_endstop_->state)
+        // if we go to fully closed and have an endstop, then approximated position will be ignored until endstop reached
+        return false;
       return this->position <= this->target_position_;
     case COVER_OPERATION_IDLE:
       return this->current_operation == COVER_OPERATION_IDLE;
