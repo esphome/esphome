@@ -45,7 +45,7 @@ class OtaHttpComponent : public Component {
   bool secure_() { return strncmp(this->pref_.url, "https:", 6) == 0; };
   size_t body_length_ = 0;
   size_t bytes_read_ = 0;
-  uint64_t timeout_{1000 * 60 * 10};            // must match CONF_TIMEOUT in __init__.py
+  uint64_t timeout_;
   const uint16_t http_recv_buffer_ = 1000;      // the firwmware GET chunk size
   const uint16_t max_http_recv_buffer_ = 1024;  // internal max http buffer size must be > HTTP_RECV_BUFFER_ (TLS
                                                 // overhead) and must be a power of two from 512 to 4096
@@ -61,7 +61,7 @@ template<typename... Ts> class OtaHttpFlashAction : public Action<Ts...> {
  public:
   OtaHttpFlashAction(OtaHttpComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, url)
-  TEMPLATABLE_VALUE(uint16_t, timeout)
+  TEMPLATABLE_VALUE(uint64_t, timeout)
 
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
