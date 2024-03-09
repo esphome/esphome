@@ -3,6 +3,7 @@ from esphome.components import output
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
+    CONF_PHASE_ANGLE,
     CONF_CHANNEL,
     CONF_FREQUENCY,
     CONF_ID,
@@ -46,6 +47,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
         cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
         cv.Optional(CONF_FREQUENCY, default="1kHz"): cv.frequency,
         cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=15),
+        cv.Optional(CONF_PHASE_ANGLE): cv.All(
+            cv.only_with_esp_idf, cv.angle, cv.float_range(min=0.0, max=360.0)
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -58,6 +62,8 @@ async def to_code(config):
     if CONF_CHANNEL in config:
         cg.add(var.set_channel(config[CONF_CHANNEL]))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
+    if CONF_PHASE_ANGLE in config:
+        cg.add(var.set_phase_angle(config[CONF_PHASE_ANGLE]))
 
 
 @automation.register_action(
