@@ -317,6 +317,27 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   return upload_end_(Nextion::TFTUploadResult::OK);
 }
 
+Nextion::TFTUploadResult Nextion::upload_end_(Nextion::TFTUploadResult upload_results) {
+  ESP_LOGD(TAG, "Nextion TFT upload finished: %s", this->tft_upload_result_to_string(upload_results));
+  this->is_updating_ = false;
+  this->ignore_is_setup_ = false;
+
+  uint32_t baud_rate = this->parent_->get_baud_rate();
+  if (baud_rate != this->original_baud_rate_) {
+    ESP_LOGD(TAG, "Changing baud rate back from %" PRIu32 " to %" PRIu32 " bps", baud_rate, this->original_baud_rate_);
+    this->parent_->set_baud_rate(this->original_baud_rate_);
+  }
+
+  if (upload_results == Nextion::TFTUploadResult::OK) {
+    ESP_LOGD(TAG, "Restarting ESPHome");
+    delay(1500);    // NOLINT
+    ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
+  } else {
+    ESP_LOGE(TAG, "Nextion TFT upload failed");
+  }
+  return upload_results;
+}
+
 }  // namespace nextion
 }  // namespace esphome
 
