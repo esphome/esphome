@@ -343,6 +343,7 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
       trig = this->stop_trigger_;
       break;
     case COVER_OPERATION_OPENING:
+      if (this->target_position_ < 1 && this->target_position_ * 100 < this->position * 100 + 1) return;  
       this->last_operation_ = dir;
       trig = this->open_trigger_;
 #ifdef USE_BINARY_SENSOR
@@ -350,6 +351,7 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
 #endif
       break;
     case COVER_OPERATION_CLOSING:
+      if (this->target_position_ > 0 && this->target_position_ * 100 > this->position * 100 - 1) return;
       this->last_operation_ = dir;
       trig = this->close_trigger_;
 #ifdef USE_BINARY_SENSOR
