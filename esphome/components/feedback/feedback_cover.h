@@ -84,6 +84,13 @@ class FeedbackCover : public cover::Cover, public Component {
   uint32_t last_publish_time_{0};
   float target_position_{0};
   uint32_t update_interval_{1000};
+
+  // calibration
+  bool calibration_active_{false};
+  float endstop_dur_{0};
+  uint32_t calibration_open_dur_{0};
+  uint32_t calibration_close_dur_{0};
+  uint8_t calibration_step_{0};
 };
 
 }  // namespace feedback

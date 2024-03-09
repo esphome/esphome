@@ -37,6 +37,10 @@ void FeedbackCover::setup() {
 #endif
 
   this->last_recompute_time_ = this->start_dir_time_ = millis();
+
+  /*if (this->open_endstop_ != nullptr && this->close_endstop_ != nullptr) {
+    calibration_active_ = true;
+  }*/
 }
 
 CoverTraits FeedbackCover::get_traits() {
@@ -143,6 +147,7 @@ void FeedbackCover::endstop_reached_(bool open_endstop) {
   if (this->current_trigger_operation_ == (open_endstop ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING)) {
     float dur = (now - this->start_dir_time_) / 1e3f;
     ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.", this->name_.c_str(), open_endstop ? "Open" : "Close", dur);
+    endstop_dur_ = dur;
 
     // if there is no external mechanism, stop the cover
     if (!this->has_built_in_endstop_) {
@@ -218,6 +223,38 @@ void FeedbackCover::set_open_obstacle_sensor(binary_sensor::BinarySensor *open_o
 #endif
 
 void FeedbackCover::loop() {
+  if (calibration_active_ && this->open_endstop_ != nullptr && this->close_endstop_ != nullptr) {
+    // if last operation ended and took at least 1000ms
+    if (this->current_operation == COVER_OPERATION_IDLE && (this->start_dir_time_ + 1000 < millis())) {
+      if (calibration_step_ % 2 == 0) {
+        if (calibration_step_ > 1) {
+          calibration_open_dur_ += endstop_dur_ * 1000;
+          ESP_LOGD(TAG, "calibrating %s active [%d], starting close measurement", this->name_.c_str(), calibration_step_);
+        } else {
+          ESP_LOGD(TAG, "calibrating %s active [0]: initing valve", this->name_.c_str());
+        }
+        this->start_direction_(COVER_OPERATION_CLOSING);
+      } else if (calibration_step_ % 2 == 1) {
+        if (calibration_step_ > 1) {
+          calibration_close_dur_ += endstop_dur_ * 1000;
+        }
+        if (calibration_step_ >= 3) {
+          calibration_active_ = false;
+          close_duration_ = calibration_close_dur_ / (calibration_step_ / 2);
+          ESP_LOGD(TAG, "calibrating %s done: measured close duration = %dms", this->name_.c_str(), close_duration_);
+          open_duration_ = calibration_open_dur_ / (calibration_step_ / 2);
+          ESP_LOGD(TAG, "calibrating %s done: measured open duration = %dms", this->name_.c_str(), open_duration_);
+        } else {
+          ESP_LOGD(TAG, "calibrating %s active [%d]: starting open measurement", this->name_.c_str(), calibration_step_);
+          this->start_direction_(COVER_OPERATION_OPENING);
+        }
+      }
+      calibration_step_++;
+    }
+    return;
+  }
+
+
   if (this->current_operation == COVER_OPERATION_IDLE)
     return;
   const uint32_t now = millis();
@@ -252,6 +289,7 @@ void FeedbackCover::loop() {
 }
 
 void FeedbackCover::control(const CoverCall &call) {
+  if (this->calibration_active_) return;
   // stop action logic
   if (call.get_stop()) {
     this->start_direction_(COVER_OPERATION_IDLE);
