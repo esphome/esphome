@@ -117,7 +117,7 @@ void FeedbackCover::set_close_sensor(binary_sensor::BinarySensor *close_feedback
 void FeedbackCover::set_open_endstop(binary_sensor::BinarySensor *open_endstop) {
   this->open_endstop_ = open_endstop;
   open_endstop->add_on_state_callback([this](bool state) {
-    if (state) {
+    if (state && this->current_trigger_operation_ == COVER_OPERATION_OPENING && this->start_dir_time_ - millis() > 2000) {
       this->endstop_reached_(true);
     }
   });
@@ -126,7 +126,7 @@ void FeedbackCover::set_open_endstop(binary_sensor::BinarySensor *open_endstop) 
 void FeedbackCover::set_close_endstop(binary_sensor::BinarySensor *close_endstop) {
   this->close_endstop_ = close_endstop;
   close_endstop->add_on_state_callback([this](bool state) {
-    if (state) {
+    if (state && this->current_trigger_operation_ == COVER_OPERATION_CLOSING && this->start_dir_time_ - millis() > 2000) {
       this->endstop_reached_(false);
     }
   });
