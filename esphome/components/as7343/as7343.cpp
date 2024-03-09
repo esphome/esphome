@@ -36,6 +36,20 @@ static constexpr float CHANNEL_NM[NUM_USEFUL_CHANNELS] = {405, 425, 450, 475, 51
                                                           600, 640, 690, 745, 855, 718};
 static constexpr float CHANNEL_NM_WIDTH[NUM_USEFUL_CHANNELS] = {30, 22, 55, 30, 40, 100, 35, 80, 50, 55, 60, 54, 0};
 
+static constexpr float CHANNEL_PHOTOPIC_LUMINOSITY[NUM_USEFUL_CHANNELS] = {0.0006400000000,
+                                                                           0.0073000000000,
+                                                                           0.0380000000000,
+                                                                           0.1126000000000,
+                                                                           0.6082000000000,
+                                                                           0.9949501000000,
+                                                                           1.0000000000000,
+                                                                           0.6310000000000,
+                                                                           0.1750000000000,
+                                                                           0.0082100000000,
+                                                                           0.0001719000000,
+                                                                           0,
+                                                                           0};
+
 // Irradiation in mW/m² per basic count
 static constexpr float CHANNEL_IRRAD_MW_PER_BASIC_COUNT[NUM_USEFUL_CHANNELS] = {
     767.5101757, 2512.765376, 2034.308898, 5730.41039,  1404.780643, 1177.586336, 2803.31385,
@@ -137,6 +151,13 @@ void AS7343Component::update() {
   this->read_18_channels(this->channel_readings_);
   this->enable_spectral_measurement(false);
 
+  for (uint8_t i = 0; i < NUM_USEFUL_CHANNELS; i++) {
+    ESP_LOGD(TAG, "Channel %d: %d", i, this->channel_readings_[CHANNEL_IDX[i]]);
+  }
+
+  this->channel_readings_[AS7343_CHANNEL_FD] = 0;
+  this->channel_readings_[AS7343_CHANNEL_FD_0] = 0;
+  this->channel_readings_[AS7343_CHANNEL_FD_1] = 0;
   if (0) {
     this->channel_readings_[AS7343_CHANNEL_CLEAR] = 0;
     this->channel_readings_[AS7343_CHANNEL_CLEAR_0] = 0;
@@ -159,7 +180,7 @@ void AS7343Component::update() {
     }
   }
 
-  if (this->spectral_post_process_()) {
+  if (this->spectral_post_process_(false)) {
     ESP_LOGW(TAG, "Spectral post process - need to repeat 2");
   }
 
@@ -375,15 +396,17 @@ void AS7343Component::calculate_irradiance(float tint_ms, float gain_x, float &i
     //    ESP_LOGD(TAG, "[%2d] Basic count     %f", i, basic_count);
     basic_count *= AS7343_GAIN_CORRECTION[(uint8_t) gain][i];
     //    ESP_LOGD(TAG, "[%2d] gain corrected  %f", i, basic_count);
-    irr_band = basic_count * CHANNEL_IRRAD_MW_PER_BASIC_COUNT[i] / 10000;  // 1000 - if mW/m2, 100 if its uW/cm2
+    irr_band = basic_count * CHANNEL_IRRAD_MW_PER_BASIC_COUNT[i] / 1000;  // 1000 - if mW/m2, 100 if its uW/cm2
     //    ESP_LOGD(TAG, "[%2d] irradiance      %f", i, irr_band);
-    irradiance_in_w_per_m2 += irr_band * CHANNEL_ENERGY_CONTRIBUTION[i];
+    irr_band *= CHANNEL_ENERGY_CONTRIBUTION[i];
+    lux += irr_band * CHANNEL_PHOTOPIC_LUMINOSITY[i];
+    irradiance_in_w_per_m2 += irr_band ;
     //    ESP_LOGD(TAG, "[%2d] band irradiance %f", i, irr_band * CHANNEL_ENERGY_CONTRIBUTION[i]);
   }
   // sunlight equivalent
   // 1 W/m2 = 116 ± 3 lx solar
   // https://www.extrica.com/article/21667/pdf
-  lux = irradiance_in_w_per_m2 * 116;
+  lux *= 116;
 }
 
 bool AS7343Component::read_18_channels(std::array<uint16_t, AS7343_NUM_CHANNELS> &data) {
@@ -811,7 +834,7 @@ template<typename T, size_t N> T AS7343Component::get_highest_value(std::array<T
 #define SATURATION_HIGH_PERCENT 100
 #define ADC_SATURATED_VALUE 65535
 
-bool AS7343Component::spectral_post_process_() {
+bool AS7343Component::spectral_post_process_(bool fire_at_will) {
   bool need_to_repeat = false;
   uint16_t highest_value, maximum_adc;
   bool is_saturation{false};
@@ -825,9 +848,11 @@ bool AS7343Component::spectral_post_process_() {
   this->get_optimized_gain_(max_adc, highest_adc, AS7343Gain::AS7343_GAIN_0_5X, AS7343Gain::AS7343_GAIN_128X, new_gain,
                             is_saturation);
   if (new_gain != current_gain) {
-    // need to repeat the measurement
-    this->set_gain((AS7343Gain) new_gain);
-    this->setup_gain((AS7343Gain) new_gain);
+    if (fire_at_will) {
+      // need to repeat the measurement
+      this->set_gain((AS7343Gain) new_gain);
+      this->setup_gain((AS7343Gain) new_gain);
+    }
     need_to_repeat = true;
   } else if (is_saturation) {
     // digital saturation

@@ -105,7 +105,7 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   void direct_config_3_chain_();
   void setup_tint_(float tint);
 
-  bool spectral_post_process_();
+  bool spectral_post_process_(bool fire_at_will = true);
   void get_optimized_gain_(uint16_t maximum_adc, uint16_t highest_adc, uint8_t lower_gain_limit,
                            uint8_t upper_gain_limit, uint8_t &out_gain, bool &out_saturation);
 
