@@ -16,7 +16,7 @@ void HOT Logger::write_msg_(const char *msg) {
   puts(msg);
 }
 
-void Logger::pre_setup() {}
+void Logger::pre_setup() { global_logger = this; }
 
 }  // namespace logger
 }  // namespace esphome
