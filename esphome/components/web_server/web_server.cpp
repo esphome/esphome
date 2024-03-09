@@ -748,6 +748,8 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       call.set_command_close();
     } else if (match.method == "stop") {
       call.set_command_stop();
+    } else if (match.method == "toggle") {
+      call.set_command_toggle();
     } else if (match.method != "set") {
       request->send(404);
       return;
@@ -785,6 +787,8 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
                               obj->position, start_config);
     root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
 
+    if (obj->get_traits().get_supports_position())
+      root["position"] = obj->position;
     if (obj->get_traits().get_supports_tilt())
       root["tilt"] = obj->tilt;
   });

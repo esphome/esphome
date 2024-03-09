@@ -713,6 +713,7 @@ class ListEntitiesTextSensorResponse : public ProtoMessage {
   std::string icon{};
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
+  std::string device_class{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1701,6 +1702,7 @@ class VoiceAssistantRequest : public ProtoMessage {
   std::string conversation_id{};
   uint32_t flags{0};
   VoiceAssistantAudioSettings audio_settings{};
+  std::string wake_word_phrase{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
