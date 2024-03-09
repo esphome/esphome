@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/version.h"
 #include <cinttypes>
+#include <climits>
 
 #ifdef USE_ESP32
 
