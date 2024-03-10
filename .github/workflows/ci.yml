@@ -12,6 +12,7 @@ on:
       - "!.github/workflows/*.yml"
       - ".github/workflows/ci.yml"
       - "!.yamllint"
+      - "!.github/dependabot.yml"
   merge_group:
 
 permissions:
