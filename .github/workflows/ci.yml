@@ -433,6 +433,9 @@ jobs:
       matrix:
         file: ${{ fromJson(needs.list-components.outputs.matrix) }}
     steps:
+      - name: Install libsodium
+        run: sudo apt-get install libsodium-dev
+
       - name: Check out code from GitHub
         uses: actions/checkout@v4.1.1
       - name: Restore Python
