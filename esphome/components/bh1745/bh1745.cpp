@@ -135,6 +135,7 @@ void BH1745Component::loop() {
 
     case State::DATA_COLLECTED:
       this->publish_data_();
+      this->state_ = State::IDLE;
       break;
 
     default:
@@ -226,6 +227,7 @@ float BH1745Component::calculate_cct_(Readings &data) {
   }
   if (ct > 10000)
     ct = 10000;
+  ESP_LOGD(TAG, "CCT calculation:%.0f", ct);
   return roundf(ct);
   /*
   float cct;
@@ -259,6 +261,12 @@ void BH1745Component::publish_data_() {
   }
   if (this->clear_counts_sensor_ != nullptr) {
     this->clear_counts_sensor_->publish_state(this->readings_.clear);
+  }
+  if (this->illuminance_sensor_ != nullptr) {
+    this->illuminance_sensor_->publish_state(this->calculate_lux_(this->readings_));
+  }
+  if (this->color_temperature_sensor_ != nullptr) {
+    this->color_temperature_sensor_->publish_state(this->calculate_cct_(this->readings_));
   }
 }
 
