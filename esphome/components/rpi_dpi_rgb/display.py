@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_DATA_PINS,
     CONF_ID,
+    CONF_IGNORE_STRAPPING_WARNING,
     CONF_DIMENSIONS,
     CONF_WIDTH,
     CONF_HEIGHT,
@@ -15,6 +16,7 @@ from esphome.const import (
     CONF_RED,
     CONF_GREEN,
     CONF_BLUE,
+    CONF_NUMBER,
 )
 
 # Temporary work-around
@@ -59,9 +61,24 @@ DATA_PIN_SCHEMA = pins.gpio_pin_schema(
 )
 
 
+def data_pin_validate(value):
+    """
+    It is safe to use strapping pins as RGB output data bits, as they are outputs only,
+    and not initialised until after boot.
+    """
+    if not isinstance(value, dict):
+        value = {CONF_NUMBER: value, CONF_IGNORE_STRAPPING_WARNING: True}
+        try:
+            value = DATA_PIN_SCHEMA(value)
+        except cv.Invalid:
+            value[CONF_IGNORE_STRAPPING_WARNING] = False
+            value = DATA_PIN_SCHEMA(value)
+    return value
+
+
 def data_pin_set(length):
     return cv.All(
-        [DATA_PIN_SCHEMA],
+        [data_pin_validate],
         cv.Length(min=length, max=length, msg=f"Exactly {length} data pins required"),
     )
 
