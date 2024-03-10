@@ -47,6 +47,7 @@ esphome/components/bang_bang/* @OttoWinter
 esphome/components/bedjet/* @jhansche
 esphome/components/bedjet/climate/* @jhansche
 esphome/components/bedjet/fan/* @jhansche
+esphome/components/bh1745/* @latonita
 esphome/components/bh1750/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
 esphome/components/bk72xx/* @kuba2k2
