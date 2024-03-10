@@ -62,6 +62,8 @@ class WaveshareEPaperBase : public display::DisplayBuffer,
   GPIOPin *dc_pin_;
   GPIOPin *busy_pin_{nullptr};
   virtual uint32_t idle_timeout_() { return 1000u; }  // NOLINT(readability-identifier-naming)
+
+  virtual void init_internal_(uint32_t buffer_length);
 };
 
 class WaveshareEPaper : public WaveshareEPaperBase {
@@ -84,6 +86,22 @@ class WaveshareEPaperBWR : public WaveshareEPaperBase {
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   uint32_t get_buffer_length_() override;
+};
+
+class WaveshareEPaper7C : public WaveshareEPaperBase {
+ public:
+  uint8_t color_to_hex(Color color);
+  void fill(Color color) override;
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+
+ protected:
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  uint32_t get_buffer_length_() override;
+  void init_internal_(uint32_t buffer_length);
+
+  static const int NUM_BUFFERS = 20;
+  uint8_t * buffers_[NUM_BUFFERS];
 };
 
 enum WaveshareEPaperTypeAModel {
@@ -160,6 +178,7 @@ enum WaveshareEPaperTypeBModel {
   WAVESHARE_EPAPER_2_7_IN_B_V2,
   WAVESHARE_EPAPER_4_2_IN,
   WAVESHARE_EPAPER_4_2_IN_B_V2,
+  WAVESHARE_EPAPER_7_3_IN_F,
   WAVESHARE_EPAPER_7_5_IN,
   WAVESHARE_EPAPER_7_5_INV2,
   WAVESHARE_EPAPER_7_5_IN_B_V2,
@@ -532,6 +551,28 @@ class WaveshareEPaper5P8InV2 : public WaveshareEPaper {
   int get_width_internal() override;
 
   int get_height_internal() override;
+};
+
+class WaveshareEPaper7P3InF : public WaveshareEPaper7C {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+  
+  uint32_t idle_timeout_() override;
+  
+  void deep_sleep() override {;}
+
+  bool wait_until_idle_();
+
+  bool deep_sleep_between_updates_{true};
 };
 
 class WaveshareEPaper7P5In : public WaveshareEPaper {
