@@ -146,8 +146,10 @@ const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DE
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
   ESP_LOGCONFIG(TAG, "  Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
+#ifndef USE_HOST
   ESP_LOGCONFIG(TAG, "  Log Baud Rate: %" PRIu32, this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Hardware UART: %s", get_uart_selection_());
+#endif
 
   for (auto &it : this->log_levels_) {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.tag.c_str(), LOG_LEVELS[it.level]);
