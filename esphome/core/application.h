@@ -39,6 +39,9 @@
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
+#ifdef USE_DATETIME_DATE
+#include "esphome/components/datetime/date_entity.h"
+#endif
 #ifdef USE_TEXT
 #include "esphome/components/text/text.h"
 #endif
@@ -119,6 +122,10 @@ class Application {
 
 #ifdef USE_NUMBER
   void register_number(number::Number *number) { this->numbers_.push_back(number); }
+#endif
+
+#ifdef USE_DATETIME_DATE
+  void register_date(datetime::DateEntity *date) { this->dates_.push_back(date); }
 #endif
 
 #ifdef USE_TEXT
@@ -289,6 +296,15 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_DATETIME_DATE
+  const std::vector<datetime::DateEntity *> &get_dates() { return this->dates_; }
+  datetime::DateEntity *get_date_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->dates_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 #ifdef USE_TEXT
   const std::vector<text::Text *> &get_texts() { return this->texts_; }
   text::Text *get_text_by_key(uint32_t key, bool include_internal = false) {
@@ -381,6 +397,9 @@ class Application {
 #endif
 #ifdef USE_NUMBER
   std::vector<number::Number *> numbers_{};
+#endif
+#ifdef USE_DATETIME_DATE
+  std::vector<datetime::DateEntity *> dates_{};
 #endif
 #ifdef USE_SELECT
   std::vector<select::Select *> selects_{};

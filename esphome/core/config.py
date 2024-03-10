@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_ON_BOOT,
     CONF_ON_LOOP,
     CONF_ON_SHUTDOWN,
+    CONF_ON_UPDATE,
     CONF_PLATFORM,
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
@@ -51,6 +52,9 @@ ShutdownTrigger = cg.esphome_ns.class_(
 )
 LoopTrigger = cg.esphome_ns.class_(
     "LoopTrigger", cg.Component, automation.Trigger.template()
+)
+ProjectUpdateTrigger = cg.esphome_ns.class_(
+    "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
 )
 
 VERSION_REGEX = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$")
@@ -151,6 +155,13 @@ CONFIG_SCHEMA = cv.All(
                         cv.string_strict, valid_project_name
                     ),
                     cv.Required(CONF_VERSION): cv.string_strict,
+                    cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                ProjectUpdateTrigger
+                            ),
+                        }
+                    ),
                 }
             ),
             cv.Optional(CONF_MIN_VERSION, default=ESPHOME_VERSION): cv.All(
@@ -380,9 +391,15 @@ async def to_code(config):
     if config[CONF_INCLUDES]:
         CORE.add_job(add_includes, config[CONF_INCLUDES])
 
-    if CONF_PROJECT in config:
-        cg.add_define("ESPHOME_PROJECT_NAME", config[CONF_PROJECT][CONF_NAME])
-        cg.add_define("ESPHOME_PROJECT_VERSION", config[CONF_PROJECT][CONF_VERSION])
+    if project_conf := config.get(CONF_PROJECT):
+        cg.add_define("ESPHOME_PROJECT_NAME", project_conf[CONF_NAME])
+        cg.add_define("ESPHOME_PROJECT_VERSION", project_conf[CONF_VERSION])
+        for conf in project_conf.get(CONF_ON_UPDATE, []):
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+            await cg.register_component(trigger, conf)
+            await automation.build_automation(
+                trigger, [(cg.std_string, "version")], conf
+            )
 
     if config[CONF_PLATFORMIO_OPTIONS]:
         CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])
