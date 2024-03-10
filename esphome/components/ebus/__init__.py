@@ -128,7 +128,7 @@ async def to_code(config):
 
 def item_config(ebus, item, config):
     cg.add(item.set_parent(ebus))
-    cg.add(ebus.add_item(item)),
+    cg.add(ebus.add_item(item))
     cg.add(item.set_send_poll(config[CONF_TELEGRAM][CONF_SEND_POLL]))
     if CONF_ADDRESS in config[CONF_TELEGRAM]:
         cg.add(item.set_address(config[CONF_TELEGRAM][CONF_ADDRESS]))
