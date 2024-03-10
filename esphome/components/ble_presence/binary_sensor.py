@@ -3,13 +3,14 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_MAC_ADDRESS,
-    CONF_IRK,
     CONF_SERVICE_UUID,
     CONF_IBEACON_MAJOR,
     CONF_IBEACON_MINOR,
     CONF_IBEACON_UUID,
     CONF_MIN_RSSI,
 )
+
+CONF_IRK = "irk"
 
 DEPENDENCIES = ["esp32_ble_tracker"]
 
