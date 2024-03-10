@@ -5,8 +5,14 @@ import esphome.codegen as cg
 import esphome.final_validate as fv
 
 from esphome.components import esp32
+from esphome.components.i2c import I2CDevice, i2c_ns, I2CBus, CONFIG_SCHEMA as I2C_CONFIG_SCHEMA
+from esphome.core import CORE
+
 
 from esphome.const import CONF_ID, CONF_BOARD
+
+from pprint import pprint
+
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
@@ -77,14 +83,18 @@ async def to_code(config):
         submodules=["components/esp-sr", "components/esp-adf-libs"],
     )
 
-    esp32.add_idf_component(
-        name="esp-dsp",
-        repo="https://github.com/espressif/esp-dsp",
-        ref="v1.2.0",
-    )
+#    esp32.add_idf_component(
+#        name="esp-dsp",
+#        repo="https://github.com/espressif/esp-dsp",
+#        ref="v1.4.0",
+#    )
 
     cg.add_platformio_option(
         "board_build.embed_txtfiles", "components/dueros_service/duer_profile"
+    )
+    # This is required for esp-dsp that have files with the same basename and different extension (.S,.c)
+    cg.add_platformio_option(
+        "board_build.esp-idf.preserve_source_file_extension", "yes"
     )
 
     if board := config.get(CONF_BOARD):
@@ -101,3 +111,20 @@ async def to_code(config):
             "esp_adf_patches/idf_v4.4_freertos.patch",
             "https://github.com/X-Ryl669/esp-adf/raw/with-i2c-cb/idf_patches/idf_v4.4_freertos.patch",
         )
+
+# I2C Bus below
+ADFI2CBus = i2c_ns.class_("ADFI2CBus", I2CBus, cg.Component)
+# Patch the I2C config schema to use the right I2C bus
+def _patch_idfi2cbus(config):
+    from esphome.cpp_generator import MockObjClass
+
+    if not CORE.is_esp32:
+        raise cv.Invalid("Not supported on other CPU that ESP32")
+
+    if "i2c" in fv.full_config.get():
+        for i2c_inst in fv.full_config.get()["i2c"]:
+            i2c_inst["id"].type = MockObjClass("i2c::ADFI2CBus", parents = i2c_inst["id"].type._parents)
+
+    return config
+
+FINAL_VALIDATE_SCHEMA = _patch_idfi2cbus

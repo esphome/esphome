@@ -48,7 +48,7 @@ void ADFI2CBus::setup() {
     this->mark_failed();
     return;
   }
-  if (i2c_bus_run_cb(this->handle_, &recover_i2c_hard, this) != ESP_OK)
+  if (i2c_bus_run_cb(this->handle_, &recover_i2c_hard, this) != ESP_OK) {
     ESP_LOGW(TAG, "i2c_bus_recover failed");
     this->mark_failed();
     return;
@@ -98,6 +98,8 @@ struct ReadVCmd
   ReadBuffer * buffers;
   size_t cnt;
   ErrorCode code { ERROR_UNKNOWN };
+
+  ReadVCmd(uint8_t address, ReadBuffer * buffers, size_t cnt) : address(address), buffers(buffers), cnt(cnt) {}
 
   ErrorCode read(i2c_port_t port) {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
@@ -191,6 +193,9 @@ struct WriteVCmd
   size_t cnt;
   bool stop;
   ErrorCode code { ERROR_UNKNOWN };
+
+  WriteVCmd(uint8_t address, WriteBuffer * buffers, size_t cnt, bool stop) : address(address), buffers(buffers), cnt(cnt), stop(stop) {}
+
 
   ErrorCode write(i2c_port_t port) {
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
