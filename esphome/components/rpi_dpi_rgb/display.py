@@ -12,11 +12,18 @@ from esphome.const import (
     CONF_HEIGHT,
     CONF_LAMBDA,
     CONF_COLOR_ORDER,
+    CONF_RED,
+    CONF_GREEN,
+    CONF_BLUE,
 )
 
 # Temporary work-around
 try:
-    from esphome.const import CONF_OFFSET_HEIGHT, CONF_OFFSET_WIDTH, CONF_INVERT_COLORS
+    from esphome.const import (
+        CONF_OFFSET_HEIGHT,
+        CONF_OFFSET_WIDTH,
+        CONF_INVERT_COLORS,
+    )
 except ImportError:
     CONF_OFFSET_HEIGHT = "offset_height"
     CONF_OFFSET_WIDTH = "offset_width"
@@ -51,6 +58,14 @@ DATA_PIN_SCHEMA = pins.gpio_pin_schema(
     internal=True,
 )
 
+
+def data_pin_set(length):
+    return cv.All(
+        [DATA_PIN_SCHEMA],
+        cv.Length(min=length, max=length, msg=f"Exactly {length} data pins required"),
+    )
+
+
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         cv.Schema(
@@ -71,9 +86,15 @@ CONFIG_SCHEMA = cv.All(
                     cv.frequency, cv.Range(min=4e6, max=30e6)
                 ),
                 cv.Optional(CONF_PCLK_INVERTED, default=True): cv.boolean,
-                cv.Required(CONF_DATA_PINS): cv.All(
-                    [DATA_PIN_SCHEMA],
-                    cv.Length(min=16, max=16, msg="Exactly 16 data pins required"),
+                cv.Required(CONF_DATA_PINS): cv.Any(
+                    data_pin_set(16),
+                    cv.Schema(
+                        {
+                            cv.Required(CONF_RED): data_pin_set(5),
+                            cv.Required(CONF_GREEN): data_pin_set(6),
+                            cv.Required(CONF_BLUE): data_pin_set(5),
+                        }
+                    ),
                 ),
                 cv.Optional(CONF_COLOR_ORDER): cv.one_of(
                     *COLOR_ORDERS.keys(), upper=True
@@ -112,7 +133,24 @@ async def to_code(config):
     cg.add(var.set_pclk_inverted(config[CONF_PCLK_INVERTED]))
     cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY]))
     index = 0
-    for pin in config[CONF_DATA_PINS]:
+    dpins = []
+    if CONF_RED in config[CONF_DATA_PINS]:
+        red_pins = config[CONF_DATA_PINS][CONF_RED]
+        green_pins = config[CONF_DATA_PINS][CONF_GREEN]
+        blue_pins = config[CONF_DATA_PINS][CONF_BLUE]
+        if config[CONF_COLOR_ORDER] == "BGR":
+            dpins.extend(red_pins)
+            dpins.extend(green_pins)
+            dpins.extend(blue_pins)
+        else:
+            dpins.extend(blue_pins)
+            dpins.extend(green_pins)
+            dpins.extend(red_pins)
+        # swap bytes to match big-endian format
+        dpins = dpins[8:16] + dpins[0:8]
+    else:
+        dpins = config[CONF_DATA_PINS]
+    for pin in dpins:
         data_pin = await cg.gpio_pin_expression(pin)
         cg.add(var.add_data_pin(data_pin, index))
         index += 1
