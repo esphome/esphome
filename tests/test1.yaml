@@ -364,8 +364,10 @@ esp32_ble_tracker:
 ble_client:
   - mac_address: AA:BB:CC:DD:EE:FF
     id: ble_foo
+    auto_connect: true
   - mac_address: 11:22:33:44:55:66
     id: ble_blah
+    auto_connect: false
     on_connect:
       then:
         - switch.turn_on: ble1_status
@@ -384,7 +386,7 @@ ble_client:
       then:
         - ble_client.numeric_comparison_reply:
             id: ble_blah
-            accept: True
+            accept: true
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
 
@@ -702,7 +704,7 @@ sensor:
     update_interval: 30s
     mode: low_power
     i2c_id: i2c_bus
-  - platform: bme280
+  - platform: bme280_i2c
     temperature:
       name: Outside Temperature
       oversampling: 16x
@@ -716,6 +718,21 @@ sensor:
     iir_filter: 16x
     update_interval: 15s
     i2c_id: i2c_bus
+  - platform: bme280_spi
+    temperature:
+      name: Outside Temperature
+      oversampling: 16x
+    pressure:
+      name: Outside Pressure
+      oversampling: none
+    humidity:
+      name: Outside Humidity
+      oversampling: 8x
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    iir_filter: 16x
+    update_interval: 15s
   - platform: bme680
     temperature:
       name: Outside Temperature
@@ -860,6 +877,13 @@ sensor:
     oversampling: 8x
     update_interval: 15s
     i2c_id: i2c_bus
+  - platform: honeywell_hih_i2c
+    temperature:
+      name: Living Room Temperature 7
+    humidity:
+      name: Living Room Humidity 7
+    update_interval: 15s
+    i2c_id: i2c_bus
   - platform: honeywellabp
     pressure:
       name: Honeywell pressure
@@ -961,7 +985,8 @@ sensor:
       name: Internal Ttemperature
     update_interval: 15s
     i2c_id: i2c_bus
-  - platform: kalman_combinator
+  - platform: combination
+    type: kalman
     name: Kalman-filtered temperature
     process_std_dev: 0.00139
     sources:
@@ -970,6 +995,57 @@ sensor:
           return 0.4 + std::abs(x - 25) * 0.023;
       - source: scd4x_temperature
         error: 1.5
+  - platform: combination
+    type: linear
+    name: Linearly combined temperatures
+    sources:
+      - source: scd30_temperature
+        coeffecient: !lambda |-
+          return 0.4 + std::abs(x - 25) * 0.023;
+      - source: scd4x_temperature
+        coeffecient: 1.5
+  - platform: combination
+    type: max
+    name: Max of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: mean
+    name: Mean of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: median
+    name: Median of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: min
+    name: Min of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: most_recently_updated
+    name: Most recently updated of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: range
+    name: Range of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: sum
+    name: Sum of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
   - platform: htu21d
     temperature:
       name: Living Room Temperature 6
@@ -1367,6 +1443,16 @@ sensor:
       name: tsl2591 calculated_lux
       id: tsl2591_cl
     i2c_id: i2c_bus
+  - platform: veml3235
+    id: veml3235_sensor
+    name: VEML3235 Light Sensor
+    i2c_id: i2c_bus
+    auto_gain: true
+    auto_gain_threshold_high: 90%
+    auto_gain_threshold_low: 15%
+    digital_gain: 1X
+    gain: 1X
+    integration_time: 50ms
   - platform: tee501
     name: Office Temperature 3
     address: 0x48
@@ -1686,6 +1772,62 @@ sensor:
       memory_location: 0x20
       memory_address: 0x7d
       name: Adres sensor
+  - platform: ade7880
+    i2c_id: i2c_bus
+    irq0_pin:
+      number: GPIO13
+      allow_other_uses: true
+    irq1_pin:
+      number: GPIO5
+      allow_other_uses: true
+    reset_pin:
+      number: GPIO16
+      allow_other_uses: true
+    frequency: 60Hz
+    phase_a:
+      name: Channel A
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3116628
+        voltage_gain: -757178
+        power_gain: -1344457
+        phase_angle: 188
+    phase_b:
+      name: Channel B
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3133655
+        voltage_gain: -755235
+        power_gain: -1345638
+        phase_angle: 188
+    phase_c:
+      name: Channel C
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3111158
+        voltage_gain: -743813
+        power_gain: -1351437
+        phase_angle: 180
+    neutral:
+      name: Neutral
+      current: Current
+      calibration:
+        current_gain: 3189
 
 psram:
 
@@ -1746,6 +1888,8 @@ binary_sensor:
       - delayed_on_off: !lambda "return 10;"
       - delayed_on: !lambda "return 1000;"
       - delayed_off: !lambda "return 0;"
+      - settle: 40ms
+      - settle: !lambda "return 10;"
     on_press:
       then:
         - lambda: >-
@@ -1923,7 +2067,7 @@ binary_sensor:
     on_press:
       - fan.cycle_speed:
           id: fan_speed
-          off_speed_cycle: False
+          off_speed_cycle: false
       - logger.log: "Cycle speed clicked"
   - platform: remote_receiver
     name: Raw Remote Receiver Test
@@ -2023,6 +2167,18 @@ binary_sensor:
   - platform: dfrobot_sen0395
     id: mmwave_detected_uart
     dfrobot_sen0395_id: mmwave
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    ndef_contains: pulse
+    name: MFC Tag 1
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    tag_id: pulse
+    name: MFC Tag 2
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    uid: 59-FC-AB-15
+    name: MFC Tag 3
 
 pca9685:
   frequency: 500
@@ -2170,7 +2326,7 @@ output:
     pin:
       pcf8574: pcf8574_hub
       number: 0
-      #allow_other_uses: true
+      # allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -2178,7 +2334,7 @@ output:
     pin:
       pca9554: pca9554_hub
       number: 0
-      #allow_other_uses: true
+      # allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -3038,6 +3194,16 @@ interval:
               page_id: page1
           then:
             - logger.log: Seeing page 1
+  - interval: 60min
+    then:
+      - ble_client.connect: ble_blah
+      - ble_client.ble_write:
+          id: ble_blah
+          service_uuid: EBE0CCB0-7A0A-4B0C-8A1A-6FF2997DA3A6
+          characteristic_uuid: EBE0CCB7-7A0A-4B0C-8A1A-6FF2997DA3A6
+          value: !lambda |-
+            return {1, 0};
+      - ble_client.disconnect: ble_blah
 
 color:
   - id: kbx_red
@@ -3259,7 +3425,7 @@ display:
     reset_pin:
       allow_other_uses: true
       number: GPIO23
-    backlight_pin: no
+    backlight_pin: false
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7920
@@ -3269,6 +3435,25 @@ display:
       allow_other_uses: true
       number: GPIO23
       inverted: true
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7567_i2c
+    id: st7735_display_i2c
+    address: 0x3F
+    i2c_id: i2c_bus
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7567_spi
+    id: st7735_display_spi
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO16
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7735
@@ -3419,6 +3604,7 @@ pn532_i2c:
   i2c_id: i2c_bus
 
 pn7150_i2c:
+  id: nfcc_pn7150_i2c
   i2c_id: i2c_bus
   irq_pin:
     allow_other_uses: true
@@ -3751,6 +3937,10 @@ text_sensor:
   - platform: template
     name: Template Text Sensor
     id: ${textname}_text
+  - platform: template
+    name: Template Text Sensor Timestamp
+    id: ${textname}_text_timestamp
+    device_class: timestamp
   - platform: wifi_info
     scan_results:
       name: Scan Results

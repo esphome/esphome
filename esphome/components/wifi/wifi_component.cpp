@@ -55,6 +55,9 @@ void WiFiComponent::start() {
   uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
+  if (this->fast_connect_) {
+    this->fast_connect_pref_ = global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash, false);
+  }
 
   SavedWifiSettings save{};
   if (this->pref_.load(&save)) {
@@ -78,6 +81,7 @@ void WiFiComponent::start() {
 
     if (this->fast_connect_) {
       this->selected_ap_ = this->sta_[0];
+      this->load_fast_connect_settings_();
       this->start_connecting(this->selected_ap_, false);
     } else {
       this->start_scanning();
@@ -203,14 +207,13 @@ void WiFiComponent::set_fast_connect(bool fast_connect) { this->fast_connect_ = 
 void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
 void WiFiComponent::set_rrm(bool rrm) { this->rrm_ = rrm; }
 #endif
-
-network::IPAddress WiFiComponent::get_ip_address() {
+network::IPAddresses WiFiComponent::get_ip_addresses() {
   if (this->has_sta())
-    return this->wifi_sta_ip();
+    return this->wifi_sta_ip_addresses();
 
 #ifdef USE_WIFI_AP
   if (this->has_ap())
-    return this->wifi_soft_ap_ip();
+    return {this->wifi_soft_ap_ip()};
 #endif  // USE_WIFI_AP
 
   return {};
@@ -408,7 +411,11 @@ void WiFiComponent::print_connect_params_() {
     return;
   }
   ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), wifi_ssid().c_str());
-  ESP_LOGCONFIG(TAG, "  IP Address: %s", wifi_sta_ip().str().c_str());
+  for (auto &ip : wifi_sta_ip_addresses()) {
+    if (ip.is_set()) {
+      ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str().c_str());
+    }
+  }
   ESP_LOGCONFIG(TAG, "  BSSID: " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X"), bssid[0], bssid[1], bssid[2], bssid[3],
                 bssid[4], bssid[5]);
   ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
@@ -604,6 +611,11 @@ void WiFiComponent::check_connecting_finished() {
 
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
+
+    if (this->fast_connect_) {
+      this->save_fast_connect_settings_();
+    }
+
     return;
   }
 
@@ -649,12 +661,19 @@ void WiFiComponent::retry_connect() {
 
   delay(10);
   if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
-      (this->num_retried_ > 5 || this->error_from_callback_)) {
-    // If retry failed for more than 5 times, let's restart STA
-    ESP_LOGW(TAG, "Restarting WiFi adapter...");
-    this->wifi_mode_(false, {});
-    delay(100);  // NOLINT
-    this->num_retried_ = 0;
+      (this->num_retried_ > 3 || this->error_from_callback_)) {
+    if (this->num_retried_ > 5) {
+      // If retry failed for more than 5 times, let's restart STA
+      ESP_LOGW(TAG, "Restarting WiFi adapter...");
+      this->wifi_mode_(false, {});
+      delay(100);  // NOLINT
+      this->num_retried_ = 0;
+    } else {
+      // Try hidden networks after 3 failed retries
+      ESP_LOGD(TAG, "Retrying with hidden networks...");
+      this->fast_connect_ = true;
+      this->num_retried_++;
+    }
   } else {
     this->num_retried_++;
   }
@@ -703,6 +722,35 @@ bool WiFiComponent::is_esp32_improv_active_() {
 #else
   return false;
 #endif
+}
+
+void WiFiComponent::load_fast_connect_settings_() {
+  SavedWifiFastConnectSettings fast_connect_save{};
+
+  if (this->fast_connect_pref_.load(&fast_connect_save)) {
+    bssid_t bssid{};
+    std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
+    this->selected_ap_.set_bssid(bssid);
+    this->selected_ap_.set_channel(fast_connect_save.channel);
+
+    ESP_LOGD(TAG, "Loaded saved fast_connect wifi settings");
+  }
+}
+
+void WiFiComponent::save_fast_connect_settings_() {
+  bssid_t bssid = wifi_bssid();
+  uint8_t channel = wifi_channel_();
+
+  if (bssid != this->selected_ap_.get_bssid() || channel != this->selected_ap_.get_channel()) {
+    SavedWifiFastConnectSettings fast_connect_save{};
+
+    memcpy(fast_connect_save.bssid, bssid.data(), 6);
+    fast_connect_save.channel = channel;
+
+    this->fast_connect_pref_.save(&fast_connect_save);
+
+    ESP_LOGD(TAG, "Saved fast_connect wifi settings");
+  }
 }
 
 void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }

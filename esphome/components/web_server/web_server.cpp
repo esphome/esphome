@@ -4,6 +4,7 @@
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
@@ -397,19 +398,21 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 
 #define set_json_id(root, obj, sensor, start_config) \
   (root)["id"] = sensor; \
-  if (((start_config) == DETAIL_ALL)) \
-    (root)["name"] = (obj)->get_name();
+  if (((start_config) == DETAIL_ALL)) { \
+    (root)["name"] = (obj)->get_name(); \
+    (root)["icon"] = (obj)->get_icon(); \
+    (root)["entity_category"] = (obj)->get_entity_category(); \
+    if ((obj)->is_disabled_by_default()) \
+      (root)["is_disabled_by_default"] = (obj)->is_disabled_by_default(); \
+  }
 
 #define set_json_value(root, obj, sensor, value, start_config) \
-  set_json_id((root), (obj), sensor, start_config)(root)["value"] = value;
-
-#define set_json_state_value(root, obj, sensor, state, value, start_config) \
-  set_json_value(root, obj, sensor, value, start_config)(root)["state"] = state;
+  set_json_id((root), (obj), sensor, start_config); \
+  (root)["value"] = value;
 
 #define set_json_icon_state_value(root, obj, sensor, state, value, start_config) \
-  set_json_value(root, obj, sensor, value, start_config)(root)["state"] = state; \
-  if (((start_config) == DETAIL_ALL)) \
-    (root)["icon"] = (obj)->get_icon();
+  set_json_value(root, obj, sensor, value, start_config); \
+  (root)["state"] = state;
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
@@ -436,6 +439,10 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
         state += " " + obj->get_unit_of_measurement();
     }
     set_json_icon_state_value(root, obj, "sensor-" + obj->get_object_id(), state, value, start_config);
+    if (start_config == DETAIL_ALL) {
+      if (!obj->get_unit_of_measurement().empty())
+        root["uom"] = obj->get_unit_of_measurement();
+    }
   });
 }
 #endif
@@ -529,7 +536,8 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool s
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
-    set_json_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config);
+    set_json_icon_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value,
+                              start_config);
   });
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -548,7 +556,8 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
 void WebServer::on_fan_update(fan::Fan *obj) { this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state"); }
 std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {
-    set_json_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state, start_config);
+    set_json_icon_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state,
+                              start_config);
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
@@ -740,6 +749,8 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       call.set_command_close();
     } else if (match.method == "stop") {
       call.set_command_stop();
+    } else if (match.method == "toggle") {
+      call.set_command_toggle();
     } else if (match.method != "set") {
       request->send(404);
       return;
@@ -773,10 +784,12 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
 }
 std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {
-    set_json_state_value(root, obj, "cover-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN",
-                         obj->position, start_config);
+    set_json_icon_state_value(root, obj, "cover-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN",
+                              obj->position, start_config);
     root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
 
+    if (obj->get_traits().get_supports_position())
+      root["position"] = obj->position;
     if (obj->get_traits().get_supports_tilt())
       root["tilt"] = obj->tilt;
   });
@@ -824,6 +837,8 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       root["max_value"] = obj->traits.get_max_value();
       root["step"] = obj->traits.get_step();
       root["mode"] = (int) obj->traits.get_mode();
+      if (!obj->traits.get_unit_of_measurement().empty())
+        root["uom"] = obj->traits.get_unit_of_measurement();
     }
     if (std::isnan(value)) {
       root["value"] = "\"NaN\"";
@@ -838,6 +853,53 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
   });
 }
 #endif
+
+#ifdef USE_DATETIME_DATE
+void WebServer::on_date_update(datetime::DateEntity *obj) {
+  this->events_.send(this->date_json(obj, DETAIL_STATE).c_str(), "state");
+}
+void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_dates()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+    if (request->method() == HTTP_GET) {
+      std::string data = this->date_json(obj, DETAIL_STATE);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (!request->hasParam("value")) {
+      request->send(409);
+      return;
+    }
+
+    if (request->hasParam("value")) {
+      std::string value = request->getParam("value")->value().c_str();
+      call.set_date(value);
+    }
+
+    this->schedule_([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject root) {
+    set_json_id(root, obj, "date-" + obj->get_object_id(), start_config);
+    std::string value = str_sprintf("%d-%d-%d", obj->year, obj->month, obj->day);
+    root["value"] = value;
+    root["state"] = value;
+  });
+}
+#endif  // USE_DATETIME_DATE
 
 #ifdef USE_TEXT
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
@@ -930,7 +992,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 }
 std::string WebServer::select_json(select::Select *obj, const std::string &value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
-    set_json_state_value(root, obj, "select-" + obj->get_object_id(), value, value, start_config);
+    set_json_icon_state_value(root, obj, "select-" + obj->get_object_id(), value, value, start_config);
     if (start_config == DETAIL_ALL) {
       JsonArray opt = root.createNestedArray("option");
       for (auto &option : obj->traits.get_options()) {
@@ -1223,6 +1285,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_DATETIME_DATE
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "date")
+    return true;
+#endif
+
 #ifdef USE_TEXT
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "text")
     return true;
@@ -1337,6 +1404,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_NUMBER
   if (match.domain == "number") {
     this->handle_number_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_DATETIME_DATE
+  if (match.domain == "date") {
+    this->handle_date_request(request, match);
     return;
   }
 #endif

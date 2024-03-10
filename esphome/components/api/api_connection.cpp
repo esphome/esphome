@@ -118,7 +118,9 @@ void APIConnection::loop() {
   this->list_entities_iterator_.advance();
   this->initial_state_iterator_.advance();
 
-  const uint32_t keepalive = 60000;
+  static uint32_t keepalive = 60000;
+  static uint8_t max_ping_retries = 60;
+  static uint16_t ping_retry_interval = 1000;
   const uint32_t now = millis();
   if (this->sent_ping_) {
     // Disconnect if not responded within 2.5*keepalive
@@ -126,10 +128,24 @@ void APIConnection::loop() {
       on_fatal_error();
       ESP_LOGW(TAG, "%s didn't respond to ping request in time. Disconnecting...", this->client_combined_info_.c_str());
     }
-  } else if (now - this->last_traffic_ > keepalive) {
+  } else if (now - this->last_traffic_ > keepalive && now > this->next_ping_retry_) {
     ESP_LOGVV(TAG, "Sending keepalive PING...");
-    this->sent_ping_ = true;
-    this->send_ping_request(PingRequest());
+    this->sent_ping_ = this->send_ping_request(PingRequest());
+    if (!this->sent_ping_) {
+      this->next_ping_retry_ = now + ping_retry_interval;
+      this->ping_retries_++;
+      if (this->ping_retries_ >= max_ping_retries) {
+        on_fatal_error();
+        ESP_LOGE(TAG, "%s: Sending keepalive failed %d time(s). Disconnecting...", this->client_combined_info_.c_str(),
+                 this->ping_retries_);
+      } else if (this->ping_retries_ >= 10) {
+        ESP_LOGW(TAG, "%s: Sending keepalive failed %d time(s), will retry in %d ms",
+                 this->client_combined_info_.c_str(), this->ping_retries_, ping_retry_interval);
+      } else {
+        ESP_LOGD(TAG, "%s: Sending keepalive failed %d time(s), will retry in %d ms",
+                 this->client_combined_info_.c_str(), this->ping_retries_, ping_retry_interval);
+      }
+    }
   }
 
 #ifdef USE_ESP32_CAMERA
@@ -527,6 +543,7 @@ bool APIConnection::send_text_sensor_info(text_sensor::TextSensor *text_sensor) 
   msg.icon = text_sensor->get_icon();
   msg.disabled_by_default = text_sensor->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(text_sensor->get_entity_category());
+  msg.device_class = text_sensor->get_device_class();
   return this->send_list_entities_text_sensor_response(msg);
 }
 #endif
@@ -677,6 +694,43 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 
   auto call = number->make_call();
   call.set_value(msg.state);
+  call.perform();
+}
+#endif
+
+#ifdef USE_DATETIME_DATE
+bool APIConnection::send_date_state(datetime::DateEntity *date) {
+  if (!this->state_subscription_)
+    return false;
+
+  DateStateResponse resp{};
+  resp.key = date->get_object_id_hash();
+  resp.missing_state = !date->has_state();
+  resp.year = date->year;
+  resp.month = date->month;
+  resp.day = date->day;
+  return this->send_date_state_response(resp);
+}
+bool APIConnection::send_date_info(datetime::DateEntity *date) {
+  ListEntitiesDateResponse msg;
+  msg.key = date->get_object_id_hash();
+  msg.object_id = date->get_object_id();
+  if (date->has_own_name())
+    msg.name = date->get_name();
+  msg.unique_id = get_default_unique_id("date", date);
+  msg.icon = date->get_icon();
+  msg.disabled_by_default = date->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(date->get_entity_category());
+
+  return this->send_list_entities_date_response(msg);
+}
+void APIConnection::date_command(const DateCommandRequest &msg) {
+  datetime::DateEntity *date = App.get_date_by_key(msg.key);
+  if (date == nullptr)
+    return;
+
+  auto call = date->make_call();
+  call.set_date(msg.year, msg.month, msg.day);
   call.perform();
 }
 #endif
