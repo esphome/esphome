@@ -137,7 +137,9 @@ class Logger : public Component {
     va_end(arg);
   }
 
+#ifndef USE_HOST
   const char *get_uart_selection_();
+#endif
 
   uint32_t baud_rate_;
   char *tx_buffer_{nullptr};
