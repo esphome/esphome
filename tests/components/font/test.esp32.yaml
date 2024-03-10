@@ -5,7 +5,7 @@ font:
     glyphs: "0123456789."
     extras:
       - file: "gfonts://Roboto"
-        glyphs: [ "\u00C4", "\u00C5", "\U000000C7" ]
+        glyphs: ["\u00C4", "\u00C5", "\U000000C7"]
 
 spi:
   clk_pin: 14
