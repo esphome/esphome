@@ -75,13 +75,13 @@ def data_pin_validate(value):
     and not initialised until after boot.
     """
     if not isinstance(value, dict):
-        value = {CONF_NUMBER: value, CONF_IGNORE_STRAPPING_WARNING: True}
         try:
-            value = DATA_PIN_SCHEMA(value)
+            return DATA_PIN_SCHEMA(
+                {CONF_NUMBER: value, CONF_IGNORE_STRAPPING_WARNING: True}
+            )
         except cv.Invalid:
-            value[CONF_IGNORE_STRAPPING_WARNING] = False
-            value = DATA_PIN_SCHEMA(value)
-    return value
+            pass
+    return DATA_PIN_SCHEMA(value)
 
 
 def data_pin_set(length):

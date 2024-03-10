@@ -44,9 +44,9 @@ display:
         ignore_strapping_warning: true
       - 1
       - 2
-      - number: 3
-        ignore_strapping_warning: true
-      - 4
+      - 3
+      - number: 4
+        ignore_strapping_warning: false
       - 5
       - 6
       - 7
