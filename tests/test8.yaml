@@ -56,14 +56,6 @@ font:
   - file: "gfonts://Roboto"
     id: roboto
     size: 20
-    glyphs: "0123456789."
-    extras:
-      - file: "gfonts://Roboto"
-        glyphs: [
-          "\u00C4",
-          "\u00C5",
-          "\U000000C7"
-          ]
 
 display:
   - platform: ili9xxx
