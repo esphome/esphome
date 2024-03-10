@@ -142,7 +142,7 @@ class BH1745Component : public PollingComponent, public i2c::I2CDevice {
 
   float calculate_lux_(Readings &data);
   float calculate_cct_(Readings &data);
-  
+
   void publish_data_();
 };
 
