@@ -1,6 +1,7 @@
 import urllib.parse as urlparse
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import automation
 from esphome.const import (
     CONF_ID,
@@ -16,7 +17,7 @@ from esphome.core import Lambda, CORE, coroutine_with_priority
 CODEOWNERS = ["@oarcher"]
 
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["md5", "ota"]
+AUTO_LOAD = ["md5", "ota", "preferences"]
 
 ota_http_ns = cg.esphome_ns.namespace("ota_http")
 OtaHttpComponent = ota_http_ns.class_("OtaHttpComponent", cg.Component)
@@ -60,6 +61,16 @@ def validate_secure_url(config):
         )
     return config
 
+def validate_safe_mode(config):
+    # using 'safe_mode' on 'esp8266' require 'restore_from_flash'
+    if CORE.is_esp8266 and config[CONF_SAFE_MODE]:
+        if not fv.full_config.get()["esp8266"]["restore_from_flash"]:
+            raise cv.Invalid(
+                "Using 'safe_mode' on 'esp8266' require 'restore_from_flash'."
+                "See https://esphome.io/components/esp8266#configuration-variables"
+            )
+    return config
+
 
 def _declare_request_class(value):
     if CORE.using_esp_idf:
@@ -91,6 +102,10 @@ CONFIG_SCHEMA = cv.All(
         esp_idf=cv.Version(0, 0, 0),
         rp2040_arduino=cv.Version(0, 0, 0),
     ),
+)
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    validate_safe_mode
 )
 
 
