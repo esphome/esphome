@@ -17,13 +17,9 @@ enum ILI9XXXColorMode {
   BITS_16 = 0x10,
 };
 
-#ifndef ILI9XXXDisplay_DATA_RATE
-#define ILI9XXXDisplay_DATA_RATE spi::DATA_RATE_40MHZ
-#endif  // ILI9XXXDisplay_DATA_RATE
-
 class ILI9XXXDisplay : public display::DisplayBuffer,
                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                             spi::CLOCK_PHASE_LEADING, ILI9XXXDisplay_DATA_RATE> {
+                                             spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_40MHZ> {
  public:
   ILI9XXXDisplay() = default;
   ILI9XXXDisplay(uint8_t const *init_sequence, int16_t width, int16_t height, bool invert_colors)
