@@ -32,7 +32,10 @@ from esphome.const import (
     CONF_ALLOW_OTHER_USES,
     CONF_DATA_PINS,
 )
-from esphome.core import coroutine_with_priority, CORE
+from esphome.core import (
+    coroutine_with_priority,
+    CORE,
+)
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 spi_ns = cg.esphome_ns.namespace("spi")
@@ -73,6 +76,8 @@ CONF_SPI_MODE = "spi_mode"
 CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
+TYPE_SINGLE = "single"
+TYPE_QUAD = "quad"
 
 # RP2040 SPI pin assignments are complicated;
 # refer to GPIO function select table in https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
@@ -266,49 +271,50 @@ SPI_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SPIComponent),
-            cv.Required(CONF_CLK_PIN): clk_pin_validator,
             cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_FORCE_SW): cv.invalid(
                 "force_sw is deprecated - use interface: software"
             ),
-            cv.Optional(CONF_INTERFACE, default="any"): cv.one_of(
-                *sum(get_hw_interface_list(), ["software", "hardware", "any"]),
+            cv.Required(CONF_CLK_PIN): clk_pin_validator,
+            cv.Optional(CONF_INTERFACE, default="hardware"): cv.one_of(
+                *sum(get_hw_interface_list(), ["software", "any", "hardware"]),
                 lower=True,
             ),
         }
     ),
-    cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
+    cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
 )
 
 SPI_QUAD_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(QuadSPIComponent),
-            cv.Required(CONF_CLK_PIN): clk_pin_validator,
             cv.Required(CONF_DATA_PINS): cv.All(
                 cv.ensure_list(pins.internal_gpio_output_pin_number),
                 cv.Length(min=4, max=4),
             ),
+            cv.Required(CONF_CLK_PIN): clk_pin_validator,
             cv.Optional(CONF_INTERFACE, default="hardware"): cv.one_of(
                 *sum(get_hw_interface_list(), ["hardware"]),
                 lower=True,
             ),
         }
     ),
+    cv.only_on([PLATFORM_ESP32]),
     cv.only_with_esp_idf,
 )
 
 CONFIG_SCHEMA = cv.All(
-    # Order is important. SPI_SCHEMA is the default.
     cv.ensure_list(
-        cv.Any(
-            SPI_SCHEMA,
-            SPI_QUAD_SCHEMA,
-            msg="Standard SPI requires mosi_pin and/or miso_pin; quad SPI requires data_pins only."
-            + " A clock pin is always required",
-        ),
+        cv.typed_schema(
+            {
+                TYPE_SINGLE: SPI_SCHEMA,
+                TYPE_QUAD: SPI_QUAD_SCHEMA,
+            },
+            default_type=TYPE_SINGLE,
+        )
     ),
     validate_spi_config,
 )
