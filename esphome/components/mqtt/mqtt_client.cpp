@@ -474,8 +474,8 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
 
   if (!logging_topic) {
     if (ret) {
-      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d)", message.topic.c_str(), message.payload.c_str(),
-               message.retain);
+      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d qos=%d)", message.topic.c_str(), message.payload.c_str(),
+               message.retain, message.qos);
     } else {
       ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). will retry later..", message.topic.c_str(),
                message.payload.length());
