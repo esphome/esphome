@@ -490,6 +490,8 @@ def get_default_topic_for(data, component_type, name, suffix):
 async def register_mqtt_component(var, config):
     await cg.register_component(var, {})
 
+    if CONF_QOS in config:
+        cg.add(var.set_qos(config[CONF_QOS]))
     if CONF_RETAIN in config:
         cg.add(var.set_retain(config[CONF_RETAIN]))
     if not config.get(CONF_DISCOVERY, True):
