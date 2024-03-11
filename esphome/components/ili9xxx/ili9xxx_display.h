@@ -254,5 +254,10 @@ class ILI9XXXS3BoxLite : public ILI9XXXDisplay {
   ILI9XXXS3BoxLite() : ILI9XXXDisplay(INITCMD_S3BOXLITE, 320, 240, true) {}
 };
 
+class ILI9XXXGC9A01A : public ILI9XXXDisplay {
+ public:
+  ILI9XXXGC9A01A() : ILI9XXXDisplay(INITCMD_GC9A01A, 240, 240, true) {}
+};
+
 }  // namespace ili9xxx
 }  // namespace esphome

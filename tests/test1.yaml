@@ -2652,6 +2652,10 @@ climate:
     name: Yashima Climate
   - platform: mitsubishi
     name: Mitsubishi
+    supports_dry: "true"
+    supports_fan_only: "true"
+    horizontal_default: "left"
+    vertical_default: "down"
   - platform: whirlpool
     name: Whirlpool Climate
   - platform: climate_ir_lg
