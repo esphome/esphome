@@ -25,6 +25,7 @@ void CST226Touchscreen::update_touches() {
     this->skip_update_ = true;
     return;
   }
+  this->status_clear_warning();
   if (data[6] != 0xAB || data[0] == 0xAB || data[5] == 0x80) {
     this->skip_update_ = true;
     return;
