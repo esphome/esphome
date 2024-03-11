@@ -86,6 +86,14 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
  protected:
+  inline bool check_buffer_() {
+    if (this->buffer_ == nullptr) {
+      this->alloc_buffer_();
+      return !this->is_failed();
+    }
+    return true;
+  }
+
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void setup_pins_();
 
@@ -116,6 +124,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void end_command_();
   void start_data_();
   void end_data_();
+  void alloc_buffer_();
 
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *dc_pin_{nullptr};
@@ -243,6 +252,11 @@ class ILI9XXXS3Box : public ILI9XXXDisplay {
 class ILI9XXXS3BoxLite : public ILI9XXXDisplay {
  public:
   ILI9XXXS3BoxLite() : ILI9XXXDisplay(INITCMD_S3BOXLITE, 320, 240, true) {}
+};
+
+class ILI9XXXGC9A01A : public ILI9XXXDisplay {
+ public:
+  ILI9XXXGC9A01A() : ILI9XXXDisplay(INITCMD_GC9A01A, 240, 240, true) {}
 };
 
 }  // namespace ili9xxx
