@@ -67,7 +67,7 @@ class CST816Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
     uint16_t x = encode_uint16(data[CST816_REG_XPOS_HIGH] & 0xF, data[CST816_REG_XPOS_LOW]);
     uint16_t y = encode_uint16(data[CST816_REG_YPOS_HIGH] & 0xF, data[CST816_REG_YPOS_LOW]);
     esph_log_v(TAG, "Read touch %d/%d", x, y);
-    if (x > this->x_raw_max_) {
+    if (x >= this->x_raw_max_) {
       this->update_button_state_(true);
     } else {
       this->add_raw_touch_position_(0, x, y);
@@ -104,8 +104,12 @@ class CST816Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
         return;
     }
     this->write_byte(CST816_REG_IRQ_CTL, CST816_IRQ_EN_MOTION);
-    this->x_raw_max_ = this->display_->get_width();
-    this->y_raw_max_ = this->display_->get_height();
+    if (this->x_raw_max_ == this->x_raw_min_) {
+      this->x_raw_max_ = this->display_->get_native_width();
+    }
+    if (this->y_raw_max_ == this->y_raw_min_) {
+      this->y_raw_max_ = this->display_->get_native_height();
+    }
     esph_log_config(TAG, "CST816 Touchscreen setup complete");
   }
 
