@@ -41,7 +41,7 @@ void MR24HPC1Component::dump_config() {
   LOG_SENSOR(" ", "Custom Mode Num Sensor", this->custom_mode_num_sensor_);
 #endif
 #ifdef USE_SWITCH
-  LOG_SWITCH(" ", "Underly Open Function Switch", this->underly_open_function_switch_);
+  LOG_SWITCH(" ", "Underly Open Function Switch", this->underlying_open_function_switch_);
 #endif
 #ifdef USE_BUTTON
   LOG_BUTTON(" ", "Restart Button", this->restart_button_);
@@ -402,8 +402,8 @@ void MR24HPC1Component::r24_frame_parse_product_information_(uint8_t *data) {
 // Parsing the underlying open parameters
 void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *data) {
   if (data[FRAME_COMMAND_WORD_INDEX] == 0x00) {
-    if (this->underly_open_function_switch_ != nullptr) {
-      this->underly_open_function_switch_->publish_state(
+    if (this->underlying_open_function_switch_ != nullptr) {
+      this->underlying_open_function_switch_->publish_state(
           data[FRAME_DATA_INDEX]);  // Underlying Open Parameter Switch Status Updates
     }
     if (data[FRAME_DATA_INDEX]) {
@@ -476,8 +476,8 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
     } else {
       this->s_output_info_switch_flag_ = OUTPUT_SWTICH_OFF;
     }
-    if (this->underly_open_function_switch_ != nullptr) {
-      this->underly_open_function_switch_->publish_state(data[FRAME_DATA_INDEX]);
+    if (this->underlying_open_function_switch_ != nullptr) {
+      this->underlying_open_function_switch_->publish_state(data[FRAME_DATA_INDEX]);
     }
   } else if ((this->custom_spatial_static_value_sensor_ != nullptr) && (data[FRAME_COMMAND_WORD_INDEX] == 0x81)) {
     this->custom_spatial_static_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);

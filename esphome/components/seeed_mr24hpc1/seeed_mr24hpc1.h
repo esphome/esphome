@@ -1,6 +1,6 @@
 #pragma once
-#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -128,7 +128,7 @@ class MR24HPC1Component : public Component,
   SUB_SENSOR(custom_mode_num)
 #endif
 #ifdef USE_SWITCH
-  SUB_SWITCH(underly_open_function)
+  SUB_SWITCH(underlying_open_function)
 #endif
 #ifdef USE_BUTTON
   SUB_BUTTON(restart)
