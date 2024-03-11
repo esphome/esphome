@@ -33,6 +33,10 @@ void ADFI2CBus::setup() {
     ESP_LOGE(TAG, "Too many I2C buses configured");                                                                                                                                                                                                                                                   this->mark_failed();                                                                                                                                                                                                                                                                              return;
   }
 
+// Recovery is disabled by default in adf since any esp-adf component that needed the I2C bus
+// might have run its setup and create the bus already. In that case, it would break the bus
+//  this->recover_();
+  this->recovery_result_ = RECOVERY_COMPLETED;
 
   i2c_config_t conf{};
   memset(&conf, 0, sizeof(conf));
@@ -48,12 +52,12 @@ void ADFI2CBus::setup() {
     this->mark_failed();
     return;
   }
-  if (i2c_bus_run_cb(this->handle_, &recover_i2c_hard, this) != ESP_OK) {
+/*  if (i2c_bus_run_cb(this->handle_, &recover_i2c_hard, this) != ESP_OK) {
     ESP_LOGW(TAG, "i2c_bus_recover failed");
     this->mark_failed();
     return;
   }
-
+*/
   if (this->scan_) {
     ESP_LOGV(TAG, "Scanning i2c bus for active devices...");
     this->i2c_scan_();

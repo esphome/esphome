@@ -4,9 +4,8 @@
 /* Tried and failed with:
    esp_peripherals/driver/i2c_bus/i2c_bus.h
    driver/i2c_bus/i2c_bus.h
-
+   Note the conflicting i2c_bus.h header name that exists in both path
 */
-
 #include "../components/esp_peripherals/driver/i2c_bus/i2c_bus.h"
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/core/component.h"
