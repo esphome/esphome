@@ -1,0 +1,157 @@
+---
+spi:
+  - id: spi_id_1
+    clk_pin:
+      allow_other_uses: true
+      number: GPIO21
+    mosi_pin:
+      allow_other_uses: true
+      number: GPIO22
+    miso_pin:
+      allow_other_uses: true
+      number: GPIO23
+    interface: hardware
+
+display:
+  - platform: waveshare_epaper
+    model: 2.13in-ttgo-b1
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.90in
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
+    full_update_every: 30
+    reset_duration: 200ms
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.90inv2
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.70in-b
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.70in-bv2
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 1.54in-m5coreink-m09
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.13inv3
+    spi_id: spi_id_1
+    cs_pin:
+      number: GPIO23
+      allow_other_uses: true
+    dc_pin:
+      number: GPIO23
+      allow_other_uses: true
+    busy_pin:
+      number: GPIO23
+      allow_other_uses: true
+    reset_pin:
+      number: GPIO23
+      allow_other_uses: true
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.13inv2
+    spi_id: spi_id_1
+    cs_pin:
+      number: GPIO23
+      allow_other_uses: true
+    dc_pin:
+      number: GPIO23
+      allow_other_uses: true
+    busy_pin:
+      number: GPIO23
+      allow_other_uses: true
+    reset_pin:
+      number: GPIO23
+      allow_other_uses: true
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());

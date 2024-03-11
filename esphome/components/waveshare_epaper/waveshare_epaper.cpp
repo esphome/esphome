@@ -257,11 +257,13 @@ void WaveshareEPaperTypeA::initialize() {
 }
 void WaveshareEPaperTypeA::init_display_() {
   if (this->model_ == TTGO_EPAPER_2_13_IN_B74 || this->model_ == WAVESHARE_EPAPER_2_13_IN_V2) {
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
-    delay(10);
-    this->wait_until_idle_();
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(false);
+      delay(10);
+      this->reset_pin_->digital_write(true);
+      delay(10);
+      this->wait_until_idle_();
+    }
 
     this->command(0x12);  // SWRESET
     this->wait_until_idle_();
