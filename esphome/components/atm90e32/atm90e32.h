@@ -120,7 +120,7 @@ class ATM90E32Component : public PollingComponent,
   int line_freq_{60};
   int current_phases_{3};
   bool publish_interval_flag_{true};
-  bool peak_current_signed_{true};
+  bool peak_current_signed_{false};
 };
 
 }  // namespace atm90e32
