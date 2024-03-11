@@ -6,7 +6,6 @@ from esphome.const import (
 )
 from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
-AUTO_LOAD = ["seeed_mr24hpc1"]
 CONF_HAS_TARGET = "has_target"
 
 CONFIG_SCHEMA = {

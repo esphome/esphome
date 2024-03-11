@@ -15,7 +15,6 @@ CONF_MOTION_STATUS = "motion_status"
 
 CONF_CUSTOM_MODE_END = "custom_mode_end"
 
-AUTO_LOAD = ["seeed_mr24hpc1"]
 
 # The entity category for read only diagnostic values, for example RSSI, uptime or MAC Address
 CONFIG_SCHEMA = {
