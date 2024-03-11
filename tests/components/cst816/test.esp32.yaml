@@ -30,3 +30,7 @@ display:
 spi:
   clk_pin: 14
   mosi_pin: 13
+
+binary_sensor:
+  - platform: cst816
+    name: Home Button
