@@ -59,11 +59,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
     this->check_minimum_rssi_ = true;
     this->minimum_rssi_ = rssi;
   }
-  void on_scan_end() override {
-    if (!this->found_)
-      this->publish_state(false);
-    this->found_ = false;
-  }
+  void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
     if (this->check_minimum_rssi_ && this->minimum_rssi_ > device.get_rssi()) {
       return false;
@@ -71,8 +67,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
     switch (this->match_by_) {
       case MATCH_BY_MAC_ADDRESS:
         if (device.address_uint64() == this->address_) {
-          this->publish_state(true);
-          this->found_ = true;
+          this->set_found_(true);
           return true;
         }
         break;
@@ -86,8 +81,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
       case MATCH_BY_SERVICE_UUID:
         for (auto uuid : device.get_service_uuids()) {
           if (this->uuid_ == uuid) {
-            this->publish_state(true);
-            this->found_ = true;
+            this->set_found_(true);
             return true;
           }
         }
@@ -111,16 +105,26 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
           return false;
         }
 
-        this->publish_state(true);
-        this->found_ = true;
+        this->set_found_(true);
         return true;
     }
     return false;
+  }
+
+  void loop() override {
+    if (this->found_ && this->last_seen_ + this->timeout_ < millis())
+      this->set_found_(false);
   }
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
+  void set_found_(bool state) {
+    this->found_ = state;
+    if (state)
+      this->last_seen_ = millis();
+    this->publish_state(state);
+  }
   enum MatchType { MATCH_BY_MAC_ADDRESS, MATCH_BY_IRK, MATCH_BY_SERVICE_UUID, MATCH_BY_IBEACON_UUID };
   MatchType match_by_;
 
@@ -177,6 +181,8 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   }
 
   bool found_{false};
+  uint32_t last_seen_{};
+  uint32_t timeout_{};
 };
 
 }  // namespace ble_presence

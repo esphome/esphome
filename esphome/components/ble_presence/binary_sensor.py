@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_IBEACON_MINOR,
     CONF_IBEACON_UUID,
     CONF_MIN_RSSI,
+    CONF_TIMEOUT,
 )
 
 CONF_IRK = "irk"
@@ -41,6 +42,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IBEACON_MAJOR): cv.uint16_t,
             cv.Optional(CONF_IBEACON_MINOR): cv.uint16_t,
             cv.Optional(CONF_IBEACON_UUID): cv.uuid,
+            cv.Optional(CONF_TIMEOUT, default="5min"): cv.positive_time_period,
             cv.Optional(CONF_MIN_RSSI): cv.All(
                 cv.decibel, cv.int_range(min=-100, max=-30)
             ),
@@ -60,6 +62,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_ble_device(var, config)
 
+    cg.add(var.set_timeout(config[CONF_TIMEOUT].total_milliseconds))
     if min_rssi := config.get(CONF_MIN_RSSI):
         cg.add(var.set_minimum_rssi(min_rssi))
 
