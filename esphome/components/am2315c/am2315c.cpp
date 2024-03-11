@@ -117,7 +117,6 @@ void AM2315C::setup() {
       this->mark_failed();
       return;
     }
-    delay(10);
   }
 }
 
@@ -158,7 +157,7 @@ void AM2315C::update() {
 
     // check for all zeros
     bool zeros = true;
-    for (unsigned char i : data) {
+    for (uint8_t i : data) {
       zeros = zeros && (i == 0);
     }
     if (zeros) {
