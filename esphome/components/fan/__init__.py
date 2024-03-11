@@ -15,7 +15,10 @@ from esphome.const import (
     CONF_SPEED_COMMAND_TOPIC,
     CONF_SPEED_STATE_TOPIC,
     CONF_OFF_SPEED_CYCLE,
+    CONF_ON_DIRECTION_SET,
+    CONF_ON_OSCILLATING_SET,
     CONF_ON_SPEED_SET,
+    CONF_ON_STATE,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_ON_PRESET_SET,
@@ -55,11 +58,22 @@ TurnOffAction = fan_ns.class_("TurnOffAction", automation.Action)
 ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
 CycleSpeedAction = fan_ns.class_("CycleSpeedAction", automation.Action)
 
+FanStateTrigger = fan_ns.class_(
+    "FanStateTrigger", automation.Trigger.template(Fan.operator("ptr"))
+)
 FanTurnOnTrigger = fan_ns.class_("FanTurnOnTrigger", automation.Trigger.template())
 FanTurnOffTrigger = fan_ns.class_("FanTurnOffTrigger", automation.Trigger.template())
-FanSpeedSetTrigger = fan_ns.class_("FanSpeedSetTrigger", automation.Trigger.template())
+FanDirectionSetTrigger = fan_ns.class_(
+    "FanDirectionSetTrigger", automation.Trigger.template(FanDirection)
+)
+FanOscillatingSetTrigger = fan_ns.class_(
+    "FanOscillatingSetTrigger", automation.Trigger.template(cg.bool_)
+)
+FanSpeedSetTrigger = fan_ns.class_(
+    "FanSpeedSetTrigger", automation.Trigger.template(cg.int_)
+)
 FanPresetSetTrigger = fan_ns.class_(
-    "FanPresetSetTrigger", automation.Trigger.template()
+    "FanPresetSetTrigger", automation.Trigger.template(cg.std_string)
 )
 
 FanIsOnCondition = fan_ns.class_("FanIsOnCondition", automation.Condition.template())
@@ -90,6 +104,11 @@ FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).exte
         cv.Optional(CONF_SPEED_COMMAND_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.subscribe_topic
         ),
+        cv.Optional(CONF_ON_STATE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanStateTrigger),
+            }
+        ),
         cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOnTrigger),
@@ -98,6 +117,16 @@ FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).exte
         cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOffTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_DIRECTION_SET): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanDirectionSetTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_OSCILLATING_SET): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanOscillatingSetTrigger),
             }
         ),
         cv.Optional(CONF_ON_SPEED_SET): automation.validate_automation(
@@ -186,18 +215,27 @@ async def setup_fan_core_(var, config):
                 mqtt_.set_custom_speed_command_topic(config[CONF_SPEED_COMMAND_TOPIC])
             )
 
+    for conf in config.get(CONF_ON_STATE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(Fan.operator("ptr"), "x")], conf)
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_TURN_OFF, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_DIRECTION_SET, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(FanDirection, "x")], conf)
+    for conf in config.get(CONF_ON_OSCILLATING_SET, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(cg.bool_, "x")], conf)
     for conf in config.get(CONF_ON_SPEED_SET, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [(cg.int_, "x")], conf)
     for conf in config.get(CONF_ON_PRESET_SET, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
 
 async def register_fan(var, config):

@@ -80,6 +80,7 @@ esphome/components/copy/* @OttoWinter
 esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
+esphome/components/cst816/* @clydebarrow
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/current_based/* @djwmarcx
 esphome/components/dac7678/* @NickB1
@@ -118,7 +119,7 @@ esphome/components/ezo_pmp/* @carlos-sarmiento
 esphome/components/factory_reset/* @anatoly-savchenkov
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
-esphome/components/fingerprint_grow/* @OnFreund @loongyh
+esphome/components/fingerprint_grow/* @OnFreund @alexborro @loongyh
 esphome/components/fs3000/* @kahrendt
 esphome/components/ft5x06/* @clydebarrow
 esphome/components/ft63x6/* @gpambrozio
@@ -342,6 +343,7 @@ esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax
 esphome/components/template/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/template/datetime/* @rfdarter
+esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
