@@ -34,6 +34,8 @@
 #define USE_MEDIA_PLAYER
 #define USE_MQTT
 #define USE_NUMBER
+#define USE_DATETIME
+#define USE_DATETIME_DATE
 #define USE_OTA
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
