@@ -8,7 +8,6 @@ from esphome.components import (
 from esphome.const import (
     CONF_DC_PIN,
     CONF_RESET_PIN,
-    CONF_OUTPUT,
     CONF_DATA_PINS,
     CONF_ID,
     CONF_DIMENSIONS,
@@ -29,13 +28,17 @@ from esphome.const import (
     CONF_IGNORE_STRAPPING_WARNING,
 )
 
+from esphome.components.esp32 import (
+    only_on_variant,
+    const,
+)
+from esphome.components.rpi_dpi_rgb.display import (
+    CONF_PCLK_FREQUENCY,
+    CONF_PCLK_INVERTED,
+)
 from .init_sequences import (
     ST7701S_INITS,
     cmd,
-)
-from ..rpi_dpi_rgb.display import (
-    CONF_PCLK_FREQUENCY,
-    CONF_PCLK_INVERTED,
 )
 
 CONF_INIT_SEQUENCE = "init_sequence"
@@ -51,7 +54,7 @@ CONF_VSYNC_PULSE_WIDTH = "vsync_pulse_width"
 CONF_VSYNC_BACK_PORCH = "vsync_back_porch"
 CONF_VSYNC_FRONT_PORCH = "vsync_front_porch"
 
-DEPENDENCIES = ["spi"]
+DEPENDENCIES = ["spi", "esp32"]
 
 st7701s_ns = cg.esphome_ns.namespace("st7701s")
 ST7701S = st7701s_ns.class_("ST7701S", display.Display, cg.Component, spi.SPIDevice)
@@ -61,12 +64,7 @@ COLOR_ORDERS = {
     "RGB": ColorOrder.COLOR_ORDER_RGB,
     "BGR": ColorOrder.COLOR_ORDER_BGR,
 }
-DATA_PIN_SCHEMA = pins.gpio_pin_schema(
-    {
-        CONF_OUTPUT: True,
-    },
-    internal=True,
-)
+DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
 
 def data_pin_validate(value):
@@ -167,6 +165,7 @@ CONFIG_SCHEMA = cv.All(
             }
         ).extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6))
     ),
+    only_on_variant(supported=[const.VARIANT_ESP32S3]),
     cv.only_with_esp_idf,
 )
 

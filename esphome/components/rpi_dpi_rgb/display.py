@@ -4,7 +4,6 @@ from esphome import pins
 from esphome.components import display
 from esphome.const import (
     CONF_RESET_PIN,
-    CONF_OUTPUT,
     CONF_DATA_PINS,
     CONF_ID,
     CONF_IGNORE_STRAPPING_WARNING,
@@ -17,19 +16,16 @@ from esphome.const import (
     CONF_GREEN,
     CONF_BLUE,
     CONF_NUMBER,
+    CONF_OFFSET_HEIGHT,
+    CONF_OFFSET_WIDTH,
+    CONF_INVERT_COLORS,
+)
+from esphome.components.esp32 import (
+    only_on_variant,
+    const,
 )
 
-# Temporary work-around
-try:
-    from esphome.const import (
-        CONF_OFFSET_HEIGHT,
-        CONF_OFFSET_WIDTH,
-        CONF_INVERT_COLORS,
-    )
-except ImportError:
-    CONF_OFFSET_HEIGHT = "offset_height"
-    CONF_OFFSET_WIDTH = "offset_width"
-    CONF_INVERT_COLORS = "invert_colors"
+DEPENDENCIES = ["esp32"]
 
 CONF_DE_PIN = "de_pin"
 CONF_PCLK_PIN = "pclk_pin"
@@ -53,12 +49,7 @@ COLOR_ORDERS = {
     "RGB": ColorOrder.COLOR_ORDER_RGB,
     "BGR": ColorOrder.COLOR_ORDER_BGR,
 }
-DATA_PIN_SCHEMA = pins.gpio_pin_schema(
-    {
-        CONF_OUTPUT: True,
-    },
-    internal=True,
-)
+DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
 
 def data_pin_validate(value):
@@ -131,6 +122,7 @@ CONFIG_SCHEMA = cv.All(
             }
         )
     ),
+    only_on_variant(supported=[const.VARIANT_ESP32S3]),
     cv.only_with_esp_idf,
 )
 
