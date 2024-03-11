@@ -693,6 +693,7 @@ sensor:
     internal: true
     address: 0x23
     update_interval: 30s
+    qos: 2
     retain: false
     availability:
     state_topic: livingroom/custom_state_topic
