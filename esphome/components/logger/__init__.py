@@ -127,6 +127,10 @@ def uart_selection(value):
         if CORE.using_arduino and value.upper() in ESP_ARDUINO_UNSUPPORTED_USB_UARTS:
             raise cv.Invalid(f"Arduino framework does not support {value}.")
         variant = get_esp32_variant()
+        if CORE.using_esp_idf and variant == VARIANT_ESP32C3 and value == USB_CDC:
+            raise cv.Invalid(
+                f"{value} is not supported for variant {variant} when using ESP-IDF."
+            )
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
@@ -140,6 +144,8 @@ def uart_selection(value):
         component = get_libretiny_component()
         if component in UART_SELECTION_LIBRETINY:
             return cv.one_of(*UART_SELECTION_LIBRETINY[component], upper=True)(value)
+    if CORE.is_host:
+        raise cv.Invalid("Uart selection not valid for host platform")
     raise NotImplementedError
 
 
@@ -274,6 +280,16 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
+    try:
+        uart_selection(USB_SERIAL_JTAG)
+        cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
+    except cv.Invalid:
+        pass
+    try:
+        uart_selection(USB_CDC)
+        cg.add_define("USE_LOGGER_USB_CDC")
+    except cv.Invalid:
+        pass
 
     # Register at end for safe mode
     await cg.register_component(log, config)
