@@ -98,6 +98,9 @@ class CST226Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
       if (this->read16_(0xD1F8, buffer, 4)) {
         this->x_raw_max_ = buffer[0] + (buffer[1] << 8);
         this->y_raw_max_ = buffer[2] + (buffer[3] << 8);
+      } else {
+        this->x_raw_max_ = this->display_->get_native_width();
+        this->y_raw_max_ = this->display_->get_native_height();
       }
     }
     this->setup_complete_ = true;
