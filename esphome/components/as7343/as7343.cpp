@@ -9,34 +9,67 @@ namespace as7343 {
 
 static const char *const TAG = "as7343";
 
-static constexpr float CONST_H = 6.6260695e-34f;
-static constexpr float CONST_C = 299792458;
-
-static constexpr uint8_t NUM_USEFUL_CHANNELS = 13;
-static constexpr uint8_t CHANNEL_IDX[NUM_USEFUL_CHANNELS] = {
-    AS7343_CHANNEL_405_F1, AS7343_CHANNEL_425_F2,  AS7343_CHANNEL_450_FZ,  AS7343_CHANNEL_475_F3, AS7343_CHANNEL_515_F4,
-    AS7343_CHANNEL_555_FY, AS7343_CHANNEL_550_F5,  AS7343_CHANNEL_600_FXL, AS7343_CHANNEL_640_F6, AS7343_CHANNEL_690_F7,
-    AS7343_CHANNEL_745_F8, AS7343_CHANNEL_855_NIR, AS7343_CHANNEL_CLEAR};
-
-// pimoroni
-static constexpr float CHANNEL_COMPENSATION_GAIN[NUM_USEFUL_CHANNELS] = {1.84, 6.03, 4.88, 13.74, 3.37, 2.82, 6.72,
+// pimoroni?
+static constexpr float CHANNEL_COMPENSATION_GAIN[AS7343_NUM_CHANNELS] = {1.84, 6.03, 4.88, 13.74, 3.37, 2.82, 6.72,
                                                                          2.22, 3.17, 1.95, 12.25, 1.00, 1};
 
-static constexpr float CHANNEL_SENS[NUM_USEFUL_CHANNELS] = {0.19402, 0.26647, 0.35741, 0.41753, 0.52235,
+static constexpr float CHANNEL_SENS[AS7343_NUM_CHANNELS] = {0.19402, 0.26647, 0.35741, 0.41753, 0.52235,
                                                             0.59633, 0.56242, 0.65645, 0.68882, 0.79980,
                                                             0.70423, 0.40366, 0.38516};
-static constexpr float CHANNEL_BASIC_CORRECTIONS[NUM_USEFUL_CHANNELS] = {
+
+//
+// 1. AS7343 Datasheet-based
+//
+// 1.1 Names
+// static constexpr char *CHANNEL_NAMES[AS7343_NUM_CHANNELS] = {"F1",  "F2", "FZ", "F3", "F4",  "FY",   "F5",
+//                                                              "FXL", "F6", "F7", "F8", "NIR", "Clear"};
+
+static const std::array<const char *, AS7343_NUM_CHANNELS> CHANNEL_NAMES = {
+    "F1", "F2", "FZ", "F3", "F4", "FY", "F5", "FXL", "F6", "F7", "F8", "NIR", "Clear"};
+// 1.2 Each channel central wavelength in nm
+static const std::array<float, AS7343_NUM_CHANNELS> CHANNEL_NM = {405, 425, 450, 475, 515, 555, 550,
+                                                                  600, 640, 690, 745, 855, 718};
+// 1.3 Each channel width in nm
+static const std::array<float, AS7343_NUM_CHANNELS> CHANNEL_NM_WIDTH = {30, 22, 55, 30, 40, 100, 35,
+                                                                        80, 50, 55, 60, 54, 0};
+
+// 1.4 Gain correctoin for each channel
+static constexpr float CHANNEL_BASIC_CORRECTIONS[AS7343_NUM_CHANNELS] = {
     1.055464349, 1.043509797, 1.029576268, 1.0175052,   1.00441899,  0.987356499, 0.957597044,
     0.995863485, 1.014628964, 0.996500814, 0.933072749, 1.052236338, 0.999570232};
 
-static const float OFFSETS[NUM_USEFUL_CHANNELS] = {0.000281, 0.000281, 0.000281, 0.000281, 0.000281, 0.000281,
-                                                   0.000281, 0.000281, 0.000422, 0.000281, 0.000422, 0.000281};
+// 1.5 Irradiation in mW/m² per basic count ?
+static constexpr float CHANNEL_IRRAD_MW_PER_BASIC_COUNT[AS7343_NUM_CHANNELS] = {
+    767.5101757, 2512.765376, 2034.308898, 5730.41039,  1404.780643, 1177.586336, 2803.31385,
+    923.8726968, 1322.666667, 811.8520699, 5106.962963, 417.0131368, 78.70319635};
 
-static constexpr float CHANNEL_NM[NUM_USEFUL_CHANNELS] = {405, 425, 450, 475, 515, 555, 550,
-                                                          600, 640, 690, 745, 855, 718};
-static constexpr float CHANNEL_NM_WIDTH[NUM_USEFUL_CHANNELS] = {30, 22, 55, 30, 40, 100, 35, 80, 50, 55, 60, 54, 0};
+// 1.6 band energy contribution precalculated based on band widths and central wavelengths (photon energy)
+// value = band energy / sum of all bands energies, except for VIS
+static constexpr float CHANNEL_ENERGY_CONTRIBUTION[AS7343_NUM_CHANNELS] = {0.069385773,
+                                                                           0.04848841,
+                                                                           0.114486525,
+                                                                           0.059160501,
+                                                                           0.072754014,
+                                                                           0.168776203,
+                                                                           0.059608686,
+                                                                           0.124894391,
+                                                                           0.073180307,
+                                                                           0.074665125,
+                                                                           0.075439565,
+                                                                           0.059160501,
+                                                                           0};
 
-static constexpr float CHANNEL_PHOTOPIC_LUMINOSITY[NUM_USEFUL_CHANNELS] = {0.0006400000000,
+//
+// 2. Scientific data
+//
+// 2.1 Photon energy for selected bands
+// E = h*c/lambda
+static constexpr float PHOTON_ENERGIES[AS7343_NUM_CHANNELS] = {
+    4.9048E-19f,  4.67399E-19f, 4.41432E-19f, 4.18199E-19f, 3.85718E-19f, 3.57918E-19f, 3.61172E-19f,
+    3.31074E-19f, 3.10382E-19f, 2.87891E-19f, 2.66637E-19f, 2.32333E-19f, 2.76664E-19f};
+
+// 2.2 CIE 1923 Photopic Luminosity Function for selected bands
+static constexpr float CHANNEL_PHOTOPIC_LUMINOSITY[AS7343_NUM_CHANNELS] = {0.0006400000000,
                                                                            0.0073000000000,
                                                                            0.0380000000000,
                                                                            0.1126000000000,
@@ -50,31 +83,8 @@ static constexpr float CHANNEL_PHOTOPIC_LUMINOSITY[NUM_USEFUL_CHANNELS] = {0.000
                                                                            0,
                                                                            0};
 
-// Irradiation in mW/m² per basic count
-static constexpr float CHANNEL_IRRAD_MW_PER_BASIC_COUNT[NUM_USEFUL_CHANNELS] = {
-    767.5101757, 2512.765376, 2034.308898, 5730.41039,  1404.780643, 1177.586336, 2803.31385,
-    923.8726968, 1322.666667, 811.8520699, 5106.962963, 417.0131368, 78.70319635};
-
-// E = h*c/lambda
-static constexpr float PHOTON_ENERGIES[NUM_USEFUL_CHANNELS] = {
-    4.9048E-19f,  4.67399E-19f, 4.41432E-19f, 4.18199E-19f, 3.85718E-19f, 3.57918E-19f, 3.61172E-19f,
-    3.31074E-19f, 3.10382E-19f, 2.87891E-19f, 2.66637E-19f, 2.32333E-19f, 2.76664E-19f};
-
 // static constexpr float CHANNEL_CONTRIB[NUM_USEFUL_CHANNELS] = {
 //     0.0603622, 0.0442656, 0.110664, 0.0603622, 0.0804829, 0.201207, 0.0704225, 0.160966, 0.100604, 0.110664, 0};
-static constexpr float CHANNEL_ENERGY_CONTRIBUTION[NUM_USEFUL_CHANNELS] = {0.069385773,
-                                                                           0.04848841,
-                                                                           0.114486525,
-                                                                           0.059160501,
-                                                                           0.072754014,
-                                                                           0.168776203,
-                                                                           0.059608686,
-                                                                           0.124894391,
-                                                                           0.073180307,
-                                                                           0.074665125,
-                                                                           0.075439565,
-                                                                           0.059160501,
-                                                                           0};
 
 void AS7343Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up AS7343...");
@@ -143,58 +153,34 @@ void AS7343Component::dump_config() {
 
 float AS7343Component::get_setup_priority() const { return setup_priority::DATA; }
 
+void log13_f(const char *TAG, const char *str, const std::array<float, 13> &arr) {
+  ESP_LOGD(TAG, "%s, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, ", str, arr[0],
+           arr[1], arr[2], arr[3], arr[4], arr[5], arr[6], arr[7], arr[8], arr[9], arr[10], arr[11], arr[12]);
+}
+
+void log13_d(const char *TAG, const char *str, const std::array<uint16_t, 13> &arr) {
+  ESP_LOGD(TAG, "%s, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, ", str, arr[0], arr[1], arr[2], arr[3], arr[4],
+           arr[5], arr[6], arr[7], arr[8], arr[9], arr[10], arr[11], arr[12]);
+}
+
+void log13_s(const char *TAG, const char *str, const std::array<const char *, 13> &arr) {
+  ESP_LOGD(TAG, "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, ", str, arr[0], arr[1], arr[2], arr[3], arr[4],
+           arr[5], arr[6], arr[7], arr[8], arr[9], arr[10], arr[11], arr[12]);
+}
+
 void AS7343Component::update() {
-  //  this->optimizer_(1000);
-  //  delay(20);
-
   this->enable_spectral_measurement(true);
-  this->read_18_channels(this->channel_readings_);
+  this->read_all_channels();
   this->enable_spectral_measurement(false);
+  this->calculate_basic_counts();
 
-  for (uint8_t i = 0; i < NUM_USEFUL_CHANNELS; i++) {
-    ESP_LOGD(TAG, "Channel %d: %d", i, this->channel_readings_[CHANNEL_IDX[i]]);
-  }
 
-  this->channel_readings_[AS7343_CHANNEL_FD] = 0;
-  this->channel_readings_[AS7343_CHANNEL_FD_0] = 0;
-  this->channel_readings_[AS7343_CHANNEL_FD_1] = 0;
-  if (0) {
-    this->channel_readings_[AS7343_CHANNEL_CLEAR] = 0;
-    this->channel_readings_[AS7343_CHANNEL_CLEAR_0] = 0;
-    this->channel_readings_[AS7343_CHANNEL_CLEAR_1] = 0;
-    this->channel_readings_[AS7343_CHANNEL_FD] = 0;
-    this->channel_readings_[AS7343_CHANNEL_FD_0] = 0;
-    this->channel_readings_[AS7343_CHANNEL_FD_1] = 0;
-    if (this->spectral_post_process_()) {
-      ESP_LOGW(TAG, "Spectral post process - need to repeat 1");
-      delay(20);
-      this->enable_spectral_measurement(true);
-      this->read_18_channels(this->channel_readings_);
-      this->enable_spectral_measurement(false);
-      this->channel_readings_[AS7343_CHANNEL_CLEAR] = 0;
-      this->channel_readings_[AS7343_CHANNEL_CLEAR_0] = 0;
-      this->channel_readings_[AS7343_CHANNEL_CLEAR_1] = 0;
-      this->channel_readings_[AS7343_CHANNEL_FD] = 0;
-      this->channel_readings_[AS7343_CHANNEL_FD_0] = 0;
-      this->channel_readings_[AS7343_CHANNEL_FD_1] = 0;
-    }
-  }
-
-  if (this->spectral_post_process_(false)) {
-    ESP_LOGW(TAG, "Spectral post process - need to repeat 2");
-  }
-
-  AS7343Gain gain = this->readings_gain_;
-  uint8_t atime = get_atime();
-  uint16_t astep = get_astep();
-
-  float tint_ms = (1 + atime) * (1 + astep) * 2.78 / 1000;  // us to ms
-  float gain_x = get_gain_multiplier(gain);
-
-  float tint2_ms = this->get_tint_();
+  log13_s(TAG, "Channel", CHANNEL_NAMES);
+  log13_f(TAG, "Nm", CHANNEL_NM);
+  log13_d(TAG, "Counts", this->readings_.raw_counts);
 
   uint16_t max_adc = this->get_maximum_spectral_adc_();
-  uint16_t highest_adc = this->get_highest_value(this->channel_readings_);
+  uint16_t highest_adc = this->get_highest_value(this->readings_.raw_counts);
 
   if (highest_adc >= max_adc) {
     ESP_LOGW(TAG, "Max ADC: %u, Highest ADC: %u", max_adc, highest_adc);
@@ -202,30 +188,32 @@ void AS7343Component::update() {
     ESP_LOGD(TAG, "Max ADC: %u, Highest ADC: %u", max_adc, highest_adc);
   }
 
-  ESP_LOGD(TAG, "  ,Gain , %.1f,X", gain_x);
-  ESP_LOGD(TAG, "  ,ATIME, %u,", atime);
-  ESP_LOGD(TAG, "  ,ASTEP, %u,", astep);
-  ESP_LOGD(TAG, "  ,TINT , %.2f,", tint_ms);
-  ESP_LOGD(TAG, "  ,TINT2 , %.2f,", tint2_ms);
+  ESP_LOGD(TAG, "  ,Gain , %.1f,X", this->readings_.gain_x);
+  ESP_LOGD(TAG, "  ,ATIME, %u,", this->readings_.atime);
+  ESP_LOGD(TAG, "  ,ASTEP, %u,", this->readings_.astep);
+  ESP_LOGD(TAG, "  ,TINT , %.2f,", this->readings_.t_int);
 
-  ESP_LOGD(TAG, ",nm, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, ", CHANNEL_NM[0],
-           CHANNEL_NM[1], CHANNEL_NM[2], CHANNEL_NM[3], CHANNEL_NM[4], CHANNEL_NM[5], CHANNEL_NM[6], CHANNEL_NM[7],
-           CHANNEL_NM[8], CHANNEL_NM[9], CHANNEL_NM[10], CHANNEL_NM[11], CHANNEL_NM[12]);
-  ESP_LOGD(TAG, ",counts, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, ",
-           this->channel_readings_[CHANNEL_IDX[0]], this->channel_readings_[CHANNEL_IDX[1]],
-           this->channel_readings_[CHANNEL_IDX[2]], this->channel_readings_[CHANNEL_IDX[3]],
-           this->channel_readings_[CHANNEL_IDX[4]], this->channel_readings_[CHANNEL_IDX[5]],
-           this->channel_readings_[CHANNEL_IDX[6]], this->channel_readings_[CHANNEL_IDX[7]],
-           this->channel_readings_[CHANNEL_IDX[8]], this->channel_readings_[CHANNEL_IDX[9]],
-           this->channel_readings_[CHANNEL_IDX[10]], this->channel_readings_[CHANNEL_IDX[11]],
-           this->channel_readings_[CHANNEL_IDX[12]]);
+  // ESP_LOGD(TAG, ",nm, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, ", CHANNEL_NM[0],
+  //          CHANNEL_NM[1], CHANNEL_NM[2], CHANNEL_NM[3], CHANNEL_NM[4], CHANNEL_NM[5], CHANNEL_NM[6], CHANNEL_NM[7],
+  //          CHANNEL_NM[8], CHANNEL_NM[9], CHANNEL_NM[10], CHANNEL_NM[11], CHANNEL_NM[12]);
+  // ESP_LOGD(TAG, ",counts, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, ",
+  //          this->channel_readings_[CHANNEL_IDX[0]], this->channel_readings_[CHANNEL_IDX[1]],
+  //          this->channel_readings_[CHANNEL_IDX[2]], this->channel_readings_[CHANNEL_IDX[3]],
+  //          this->channel_readings_[CHANNEL_IDX[4]], this->channel_readings_[CHANNEL_IDX[5]],
+  //          this->channel_readings_[CHANNEL_IDX[6]], this->channel_readings_[CHANNEL_IDX[7]],
+  //          this->channel_readings_[CHANNEL_IDX[8]], this->channel_readings_[CHANNEL_IDX[9]],
+  //          this->channel_readings_[CHANNEL_IDX[10]], this->channel_readings_[CHANNEL_IDX[11]],
+  //          this->channel_readings_[CHANNEL_IDX[12]]);
 
   float irradiance;
   float lux;
-  this->calculate_irradiance(tint_ms, gain_x, irradiance, lux, gain);
+  float ppfd;
+
+  this->calculate_irradiance(irradiance, lux);
+  this->calculate_ppfd(ppfd);
+
   ESP_LOGD(TAG, "  ,Irradiance, %f, W/m²", irradiance);
   ESP_LOGD(TAG, "  ,Lux solar , %f, lx", lux);
-  float ppfd = this->calculate_ppfd(tint_ms, gain_x, gain);
   ESP_LOGD(TAG, "  ,PPFD      , %.2f, µmol/s⋅m²", ppfd);
 
   if (this->illuminance_ != nullptr) {
@@ -239,17 +227,18 @@ void AS7343Component::update() {
   if (this->ppfd_ != nullptr) {
     this->ppfd_->publish_state(ppfd);
   }
+
   uint8_t i = 0;
   float max_val = 0;
-  float normalized_readings[NUM_USEFUL_CHANNELS];
-  for (i = 0; i < NUM_USEFUL_CHANNELS; i++) {
-    normalized_readings[i] = (float) this->channel_readings_[CHANNEL_IDX[i]] / CHANNEL_SENS[i];
+  float normalized_readings[AS7343_NUM_CHANNELS];
+  for (i = 0; i < AS7343_NUM_CHANNELS; i++) {
+    normalized_readings[i] = (float) this->readings_.basic_counts[i] / CHANNEL_SENS[i];
     if (max_val < normalized_readings[i]) {
       max_val = normalized_readings[i];
     }
   }
 
-  for (i = 0; i < NUM_USEFUL_CHANNELS; i++) {
+  for (i = 0; i < AS7343_NUM_CHANNELS; i++) {
     normalized_readings[i] = normalized_readings[i] * 100 / max_val;
   }
 
@@ -344,64 +333,74 @@ bool AS7343Component::change_gain(AS7343Gain gain) {
   return this->write_byte((uint8_t) AS7343Registers::CFG1, gain);
 }
 
-float AS7343Component::calculate_ppfd(float tint_ms, float gain_x, AS7343Gain gain) {
-  float pfd = 0;
-  float bc[NUM_USEFUL_CHANNELS] = {0};
-  float bcc[NUM_USEFUL_CHANNELS] = {0};
+void AS7343Component::calculate_basic_counts() {
+  float divisor = this->readings_.gain_x * this->readings_.t_int;
+  for (size_t i = 0; i < AS7343_NUM_CHANNELS; i++) {
+    // 1. raw -> basic
+    float basic_count = this->readings_.raw_counts[i] / divisor;
+    // 2. gain correction
+    basic_count *= AS7343_GAIN_CORRECTION[(uint8_t) this->readings_.gain][i];
 
-  for (uint8_t i = 0; i < NUM_USEFUL_CHANNELS - 1; i++) {
-    float basic_count = this->channel_readings_[CHANNEL_IDX[i]] / (gain_x * tint_ms);
-    bc[i] = basic_count * AS7343_GAIN_CORRECTION[(uint8_t) gain][i];
-    bcc[i] = basic_count / CHANNEL_SENS[i];
-    this->channel_basic_readings_[i] = bcc[i];
+    this->readings_.basic_counts[i] = basic_count;
+  }
+}
+
+void AS7343Component::calculate_ppfd(float &ppfd) {
+  /*
+  Given the spectral irradiance Iλ, defined as the radiant flux
+  per unit wavelength and unit area, the photon flux density
+  in the PAR wavelength range can be calculated using the
+  following expression:
+
+  φ = ∫ Iλ(λ) * dλ / (hc/λ)                             (1)
+
+  where h is Planck’s constant, c is the speed of light, and λ is the wavelength.
+
+  The PPFD is simply the photon density flux measured in units of
+  micro-moles of photons per square meter per second (µmol m−2 s−1),
+  where a mole of photons is defined as NA = 6.022×10^23 (Avogadro’s number) photons.
+
+  PPFD (or Qpar) can be calculated as
+  Qpar = φ / (NA * 10^6)                                (2)
+
+  Combining (1) and (2) gives the following expression for PPFD:
+
+  Qpar = ∫ Iλ(λ) * dλ / (hc/λ * NA * 10^6)              (3)
+
+  where 1/hc/NA*10^6 is a constant equal to 0.836e-2.
+
+  */
+  ppfd = 0;
+
+  // assume we integrate using rectangles - mid point is channel wavelength, width is channel width in nm
+  for (uint8_t i = 0; i < AS7343_NUM_CHANNELS; i++) {
     if (CHANNEL_NM[i] < 400 || CHANNEL_NM[i] > 700) {
       continue;
     }
 
-    //    float irradiance_in_w_per_m2 = basic_count * CHANNEL_IRRAD_MW_PER_BASIC_COUNT[i] /1000 ;
+    // Iλ(λ)
+    float irradiance_in_w_per_m2 = this->readings_.basic_counts[i] * CHANNEL_IRRAD_MW_PER_BASIC_COUNT[i] / 1000;
+    float photon_flux = irradiance_in_w_per_m2 * CHANNEL_NM[i] * 0.836e-2;
 
-    float irradiance_in_w_per_m2 = basic_count * CHANNEL_IRRAD_MW_PER_BASIC_COUNT[i] / 10000;
-    // probably is it not mW/m2 but uW/cm2!!!! so try divide by 10k not 1000
-    // 1 W/m2 = 100 uW/cm2
-
-    // // https://www.berthold.com/en/bioanalytic/knowledge/faq/irradiance-to-photon-flux/
-    // float photon_flux = watts * CHANNEL_NM[i] * 0.836e-2;
-    // photon_flux *= CHANNEL_ENERGY_CONTRIBUTION[i];
-
-    irradiance_in_w_per_m2 *= CHANNEL_ENERGY_CONTRIBUTION[i];
-
-    float photon_count = irradiance_in_w_per_m2 / PHOTON_ENERGIES[i];
-    float pfd_in_micromols = 1e6f * photon_count / 6.02214179e23f;
-
-    pfd += pfd_in_micromols;
+    // assume channels cover whole range
+    ppfd += photon_flux * CHANNEL_NM_WIDTH[i] / 1e9f;  // nm to meters
   }
-
-  ESP_LOGD(TAG, ",basic_counts, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f", bc[0], bc[1], bc[2], bc[3], bc[4],
-           bc[5], bc[6], bc[7], bc[8], bc[9], bc[10], bc[11]);
-  ESP_LOGD(TAG, ",basic_counts_sens_corrected, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f", bcc[0], bcc[1], bcc[2],
-           bcc[3], bcc[4], bcc[5], bcc[6], bcc[7], bcc[8], bcc[9], bcc[10], bcc[11]);
-  return pfd;
 }
 
-void AS7343Component::calculate_irradiance(float tint_ms, float gain_x, float &irradiance_in_w_per_m2, float &lux,
-                                           AS7343Gain gain) {
+void AS7343Component::calculate_irradiance(float &irradiance_in_w_per_m2, float &lux) {
+  // Total irradiance in a whole wavelenght interval
   float irr_band;
+  float lux_band;
   irradiance_in_w_per_m2 = 0;
-  for (uint8_t i = 0; i < NUM_USEFUL_CHANNELS - 1; i++) {
-    uint16_t reading = this->channel_readings_[CHANNEL_IDX[i]];
-    if (reading == 0) {
-      continue;
-    }
-    float basic_count = reading / (gain_x * tint_ms);
-    //    ESP_LOGD(TAG, "[%2d] Basic count     %f", i, basic_count);
-    basic_count *= AS7343_GAIN_CORRECTION[(uint8_t) gain][i];
-    //    ESP_LOGD(TAG, "[%2d] gain corrected  %f", i, basic_count);
-    irr_band = basic_count * CHANNEL_IRRAD_MW_PER_BASIC_COUNT[i] / 1000;  // 1000 - if mW/m2, 100 if its uW/cm2
-    //    ESP_LOGD(TAG, "[%2d] irradiance      %f", i, irr_band);
-    irr_band *= CHANNEL_ENERGY_CONTRIBUTION[i];
-    lux += irr_band * CHANNEL_PHOTOPIC_LUMINOSITY[i];
-    irradiance_in_w_per_m2 += irr_band ;
-    //    ESP_LOGD(TAG, "[%2d] band irradiance %f", i, irr_band * CHANNEL_ENERGY_CONTRIBUTION[i]);
+
+  for (uint8_t i = 0; i < AS7343_NUM_CHANNELS - 1; i++) {
+    irr_band = this->readings_.basic_counts[i] * CHANNEL_IRRAD_MW_PER_BASIC_COUNT[i] / 1000;
+
+    //    irr_band *= CHANNEL_ENERGY_CONTRIBUTION[i]; ?
+    lux_band = irr_band * CHANNEL_PHOTOPIC_LUMINOSITY[i];
+
+    lux += lux_band;
+    irradiance_in_w_per_m2 += irr_band;
   }
   // sunlight equivalent
   // 1 W/m2 = 116 ± 3 lx solar
@@ -409,7 +408,15 @@ void AS7343Component::calculate_irradiance(float tint_ms, float gain_x, float &i
   lux *= 116;
 }
 
-bool AS7343Component::read_18_channels(std::array<uint16_t, AS7343_NUM_CHANNELS> &data) {
+bool AS7343Component::read_all_channels() {
+  static constexpr uint8_t CHANNEL_MAP[AS7343_NUM_CHANNELS] = {
+      AS7343_CHANNEL_405_F1, AS7343_CHANNEL_425_F2, AS7343_CHANNEL_450_FZ, AS7343_CHANNEL_475_F3,
+      AS7343_CHANNEL_515_F4, AS7343_CHANNEL_555_FY, AS7343_CHANNEL_550_F5, AS7343_CHANNEL_600_FXL,
+      AS7343_CHANNEL_640_F6, AS7343_CHANNEL_690_F7, AS7343_CHANNEL_745_F8, AS7343_CHANNEL_855_NIR,
+      AS7343_CHANNEL_CLEAR};
+
+  std::array<uint16_t, AS7343_NUM_CHANNELS_MAX> data;
+
   this->wait_for_data();
 
   AS7343RegStatus status{0};
@@ -426,10 +433,22 @@ bool AS7343Component::read_18_channels(std::array<uint16_t, AS7343_NUM_CHANNELS>
   if (astatus.asat_status) {
     ESP_LOGW(TAG, "AS7343 affected by analog or digital saturation. Readings are not reliable.");
   }
-  this->readings_saturated_ = astatus.asat_status;
-  this->readings_gain_ = astatus.again_status;
 
-  return this->read_bytes_16((uint8_t) AS7343Registers::DATA_O, data.data(), AS7343_NUM_CHANNELS);
+  auto ret = this->read_bytes_16((uint8_t) AS7343Registers::DATA_O, data.data(), AS7343_NUM_CHANNELS_MAX);
+
+  for (uint8_t i = 0; i < AS7343_NUM_CHANNELS; i++) {
+    this->readings_.raw_counts[i] = data[CHANNEL_MAP[i]];
+  }
+
+  this->readings_.gain = astatus.again_status;
+  this->readings_.gain_x = get_gain_multiplier(this->readings_.gain);
+  this->readings_.atime = get_atime();
+  this->readings_.astep = get_astep();
+  this->readings_.t_int = (1 + this->readings_.atime) * (1 + this->readings_.astep) * 2.78 / 1000;  // us to ms
+
+  this->readings_saturated_ = astatus.asat_status;
+
+  return ret;
 }
 
 bool AS7343Component::wait_for_data(uint16_t timeout) {
@@ -836,45 +855,46 @@ template<typename T, size_t N> T AS7343Component::get_highest_value(std::array<T
 
 bool AS7343Component::spectral_post_process_(bool fire_at_will) {
   bool need_to_repeat = false;
-  uint16_t highest_value, maximum_adc;
-  bool is_saturation{false};
-  uint8_t current_gain, new_gain;
+  // uint16_t highest_value, maximum_adc;
+  // bool is_saturation{false};
+  // uint8_t current_gain, new_gain;
 
-  uint16_t max_adc = this->get_maximum_spectral_adc_();
-  uint16_t highest_adc = this->get_highest_value(this->channel_readings_);
+  // uint16_t max_adc = this->get_maximum_spectral_adc_();
+  // uint16_t highest_adc = this->get_highest_value(this->channel_readings_);
 
-  current_gain = this->readings_gain_;
-  new_gain = current_gain;
-  this->get_optimized_gain_(max_adc, highest_adc, AS7343Gain::AS7343_GAIN_0_5X, AS7343Gain::AS7343_GAIN_128X, new_gain,
-                            is_saturation);
-  if (new_gain != current_gain) {
-    if (fire_at_will) {
-      // need to repeat the measurement
-      this->set_gain((AS7343Gain) new_gain);
-      this->setup_gain((AS7343Gain) new_gain);
-    }
-    need_to_repeat = true;
-  } else if (is_saturation) {
-    // digital saturation
-    // but can't change gain? try change time ?
-    ESP_LOGW(TAG, "Spectral post process: OPTIMIZE saturation detected");
-  }
-  if (!is_saturation) {
-    // no saturation
-    for (uint8_t i = 0; i < AS7343_NUM_CHANNELS; i++) {
-      // todo - update reading with gain factor first, then compare
-      if (this->channel_readings_[i] >= max_adc) {  // check both values - before and after gain factor application
-        this->channel_readings_[i] = ADC_SATURATED_VALUE;
-        is_saturation = true;
-      }
-    }
-    if (is_saturation) {
-      ESP_LOGW(TAG, "Spectral post process: CHANNEL saturation detected");
-    }
-  }
+  // current_gain = this->readings_gain_;
+  // new_gain = current_gain;
+  // this->get_optimized_gain_(max_adc, highest_adc, AS7343Gain::AS7343_GAIN_0_5X, AS7343Gain::AS7343_GAIN_128X,
+  // new_gain,
+  //                           is_saturation);
+  // if (new_gain != current_gain) {
+  //   if (fire_at_will) {
+  //     // need to repeat the measurement
+  //     this->set_gain((AS7343Gain) new_gain);
+  //     this->setup_gain((AS7343Gain) new_gain);
+  //   }
+  //   need_to_repeat = true;
+  // } else if (is_saturation) {
+  //   // digital saturation
+  //   // but can't change gain? try change time ?
+  //   ESP_LOGW(TAG, "Spectral post process: OPTIMIZE saturation detected");
+  // }
+  // if (!is_saturation) {
+  //   // no saturation
+  //   for (uint8_t i = 0; i < AS7343_NUM_CHANNELS; i++) {
+  //     // todo - update reading with gain factor first, then compare
+  //     if (this->channel_readings_[i] >= max_adc) {  // check both values - before and after gain factor application
+  //       this->channel_readings_[i] = ADC_SATURATED_VALUE;
+  //       is_saturation = true;
+  //     }
+  //   }
+  //   if (is_saturation) {
+  //     ESP_LOGW(TAG, "Spectral post process: CHANNEL saturation detected");
+  //   }
+  // }
   /// what to do with saturation and !need_to_repeat ?
-  ESP_LOGW(TAG, "Spectral post process: gain %u, saturation %u, need to repeat %u", new_gain, is_saturation,
-           need_to_repeat);
+  // ESP_LOGW(TAG, "Spectral post process: gain %u, saturation %u, need to repeat %u", new_gain, is_saturation,
+  //          need_to_repeat);
   return need_to_repeat;
 }
 

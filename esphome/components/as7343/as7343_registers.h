@@ -92,7 +92,8 @@ enum AS7343Channel : uint8_t {
   AS7343_CHANNEL_FD,
 };
 
-static constexpr uint8_t AS7343_NUM_CHANNELS = 18;
+static constexpr uint8_t AS7343_NUM_CHANNELS_MAX = 18;
+static constexpr uint8_t AS7343_NUM_CHANNELS = 13;
 
 union AS7343RegCfg20 {
   uint8_t raw;

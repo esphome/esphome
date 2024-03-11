@@ -50,10 +50,11 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
 
   float get_gain_multiplier(AS7343Gain gain);
 
-  bool read_18_channels(std::array<uint16_t, AS7343_NUM_CHANNELS> &data);
-  float calculate_ppfd(float tint_ms, float gain_x, AS7343Gain gain);
-  void calculate_irradiance(float tint_ms, float gain_x, float &irradiance, float &lux, AS7343Gain gain);
-  float calculate_spectre_();
+  bool read_all_channels();
+
+  void calculate_basic_counts();
+  void calculate_ppfd(float &ppfd);
+  void calculate_irradiance(float &irradiance, float &lux);
 
   bool wait_for_data(uint16_t timeout = 1000);
   bool is_data_ready();
@@ -94,11 +95,16 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   AS7343Gain gain_;
   uint8_t atime_;
 
-  std::array<uint16_t, AS7343_NUM_CHANNELS> channel_readings_;
-  AS7343Gain readings_gain_;
-  uint8_t readings_done_;
+  struct {
+    std::array<uint16_t, AS7343_NUM_CHANNELS> raw_counts;
+    std::array<float, AS7343_NUM_CHANNELS> basic_counts;
+    AS7343Gain gain;
+    uint8_t atime;
+    uint16_t astep;
 
-  std::array<float, AS7343_NUM_CHANNELS> channel_basic_readings_;
+    float gain_x;
+    float t_int;
+  } readings_;
 
   float get_tint_();
   void optimizer_(float max_TINT);
