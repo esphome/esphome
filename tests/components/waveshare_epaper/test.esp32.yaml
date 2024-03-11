@@ -2,14 +2,11 @@
 spi:
   - id: spi_id_1
     clk_pin:
-      allow_other_uses: true
-      number: GPIO21
+      number: GPIO18
     mosi_pin:
-      allow_other_uses: true
-      number: GPIO22
-    miso_pin:
-      allow_other_uses: true
       number: GPIO23
+    miso_pin:
+      number: GPIO19
     interface: hardware
 
 display:
@@ -18,16 +15,16 @@ display:
     spi_id: spi_id_1
     cs_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO25
     dc_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO26
     busy_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO27
     reset_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO32
     full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
@@ -36,16 +33,16 @@ display:
     spi_id: spi_id_1
     cs_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO25
     dc_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO26
     busy_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO27
     reset_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO32
     full_update_every: 30
     reset_duration: 200ms
     lambda: |-
@@ -55,16 +52,16 @@ display:
     spi_id: spi_id_1
     cs_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO25
     dc_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO26
     busy_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO27
     reset_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO32
     full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
@@ -73,16 +70,16 @@ display:
     spi_id: spi_id_1
     cs_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO25
     dc_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO26
     busy_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO27
     reset_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO32
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
@@ -90,16 +87,16 @@ display:
     spi_id: spi_id_1
     cs_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO25
     dc_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO26
     busy_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO27
     reset_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO32
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
@@ -107,33 +104,33 @@ display:
     spi_id: spi_id_1
     cs_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO25
     dc_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO26
     busy_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO27
     reset_pin:
       allow_other_uses: true
-      number: GPIO23
+      number: GPIO32
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
     model: 2.13inv3
     spi_id: spi_id_1
     cs_pin:
-      number: GPIO23
       allow_other_uses: true
+      number: GPIO25
     dc_pin:
-      number: GPIO23
       allow_other_uses: true
+      number: GPIO26
     busy_pin:
-      number: GPIO23
       allow_other_uses: true
+      number: GPIO27
     reset_pin:
-      number: GPIO23
       allow_other_uses: true
+      number: GPIO32
     full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
@@ -141,17 +138,17 @@ display:
     model: 2.13inv2
     spi_id: spi_id_1
     cs_pin:
-      number: GPIO23
       allow_other_uses: true
+      number: GPIO25
     dc_pin:
-      number: GPIO23
       allow_other_uses: true
+      number: GPIO26
     busy_pin:
-      number: GPIO23
       allow_other_uses: true
+      number: GPIO27
     reset_pin:
-      number: GPIO23
       allow_other_uses: true
+      number: GPIO32
     full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
