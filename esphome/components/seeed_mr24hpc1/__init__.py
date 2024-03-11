@@ -29,12 +29,6 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
 )
 
-# This code extends the current CONFIG_SCHEMA by adding all the configuration parameters for the UART device and components.
-# This means that in the YAML configuration file, the user can use these parameters to configure this component.
-CONFIG_SCHEMA = cv.All(
-    CONFIG_SCHEMA.extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
-)
-
 # A verification mode was created to verify the configuration parameters of a UART device named "seeed_mr24hpc1".
 # This authentication mode requires that the device must have transmit and receive functionality, a parity mode of "NONE", and a stop bit of one.
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
