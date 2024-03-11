@@ -1,6 +1,6 @@
 #include "controller.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 
@@ -57,6 +57,12 @@ void Controller::setup_controller(bool include_internal) {
   for (auto *obj : App.get_numbers()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj](float state) { this->on_number_update(obj, state); });
+  }
+#endif
+#ifdef USE_DATETIME_DATE
+  for (auto *obj : App.get_dates()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj]() { this->on_date_update(obj); });
   }
 #endif
 #ifdef USE_TEXT
