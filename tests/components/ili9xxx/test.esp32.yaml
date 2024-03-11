@@ -4,7 +4,7 @@ spi:
 
 display:
   - platform: ili9xxx
-    model: gca901a
+    model: gc9a01a
     id: gca901_display
     cs_pin: GPIO5
     dc_pin: GPIO22
