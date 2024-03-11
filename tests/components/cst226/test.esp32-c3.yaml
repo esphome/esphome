@@ -1,4 +1,3 @@
-
 spi:
   - id: spi_id_1
     clk_pin: GPIO7
