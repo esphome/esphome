@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/version.h"
 #include <cinttypes>
+#include <climits>
 
 #ifdef USE_ESP32
 
@@ -49,6 +50,8 @@ static uint32_t get_free_heap() {
   return rp2040.getFreeHeap();
 #elif defined(USE_LIBRETINY)
   return lt_heap_get_free();
+#elif defined(USE_HOST)
+  return INT_MAX;
 #endif
 }
 

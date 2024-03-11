@@ -1,0 +1,13 @@
+uart:
+  - id: uart_a02yyuw
+    tx_pin:
+      number: 4
+    rx_pin:
+      number: 5
+    baud_rate: 9600
+
+sensor:
+  - platform: a02yyuw
+    id: a02yyuw_sensor
+    name: a02yyuw Distance
+    uart_id: uart_a02yyuw

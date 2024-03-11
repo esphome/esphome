@@ -1,4 +1,5 @@
 """Tests for the wizard.py file."""
+
 import os
 
 import esphome.wizard as wz
