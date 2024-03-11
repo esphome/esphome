@@ -316,7 +316,7 @@ static const uint8_t PROGMEM INITCMD_ST7789V[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_GCA901[] = {
+static const uint8_t PROGMEM INITCMD_GC9A01A[] = {
   0xEF, 0,
   0xEB, 1, 0x14, // ?
   0xFE, 0,
