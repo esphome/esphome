@@ -17,10 +17,8 @@ extern "C" {
 #include "lwip/dhcp.h"
 #include "lwip/init.h"  // LWIP_VERSION_
 #include "lwip/apps/sntp.h"
-#if LWIP_IPV6
 #include "lwip/netif.h"  // struct netif
 #include <AddrList.h>
-#endif
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
 #include "LwipDhcpServer.h"
 #define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
@@ -185,12 +183,15 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   return ret;
 }
 
-network::IPAddress WiFiComponent::wifi_sta_ip() {
+network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
-  struct ip_info ip {};
-  wifi_get_ip_info(STATION_IF, &ip);
-  return network::IPAddress(&ip.ip);
+  network::IPAddresses addresses;
+  uint8_t index = 0;
+  for (auto &addr : addrList) {
+    addresses[index++] = addr.ipFromNetifNum();
+  }
+  return addresses;
 }
 bool WiFiComponent::wifi_apply_hostname_() {
   const std::string &hostname = App.get_name();
@@ -327,17 +328,20 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
   }
 
-#if ENABLE_IPV6
-  for (bool configured = false; !configured;) {
+#if USE_NETWORK_IPV6
+  bool connected = false;
+  while (!connected) {
+    uint8_t ipv6_addr_count = 0;
     for (auto addr : addrList) {
       ESP_LOGV(TAG, "Address %s", addr.toString().c_str());
-      if ((configured = !addr.isLocal() && addr.isV6())) {
-        break;
+      if (addr.isV6()) {
+        ipv6_addr_count++;
       }
     }
     delay(500);  // NOLINT
+    connected = (ipv6_addr_count >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
   }
-#endif
+#endif /* USE_NETWORK_IPV6 */
 
   if (ap.get_channel().has_value()) {
     ret = wifi_set_channel(*ap.get_channel());
@@ -688,6 +692,8 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
   }
   this->scan_done_ = true;
 }
+
+#ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   // enable AP
   if (!this->wifi_mode_({}, true))
@@ -753,6 +759,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   return true;
 }
+
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   // enable AP
   if (!this->wifi_mode_({}, true))
@@ -790,11 +797,14 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
+
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   struct ip_info ip {};
   wifi_get_ip_info(SOFTAP_IF, &ip);
   return network::IPAddress(&ip.ip);
 }
+#endif  // USE_WIFI_AP
+
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
   uint8_t *raw_bssid = WiFi.BSSID();

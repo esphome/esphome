@@ -11,10 +11,11 @@
 
 #include <esp_heap_caps.h>
 #include <esp_http_client.h>
+#include <cinttypes>
 
 namespace esphome {
 namespace nextion {
-static const char *const TAG = "nextion_upload";
+static const char *const TAG = "nextion.upload.idf";
 
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
@@ -23,7 +24,7 @@ int Nextion::upload_range(const std::string &url, int range_start) {
   ESP_LOGVV(TAG, "url: %s", url.c_str());
   uint range_size = this->tft_size_ - range_start;
   ESP_LOGVV(TAG, "tft_size_: %i", this->tft_size_);
-  ESP_LOGV(TAG, "Available heap: %u", esp_get_free_heap_size());
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   int range_end = (range_start == 0) ? std::min(this->tft_size_, 16383) : this->tft_size_;
   if (range_size <= 0 or range_end <= range_start) {
     ESP_LOGE(TAG, "Invalid range");
@@ -36,6 +37,8 @@ int Nextion::upload_range(const std::string &url, int range_start) {
   esp_http_client_config_t config = {
       .url = url.c_str(),
       .cert_pem = nullptr,
+      .disable_auto_redirect = false,
+      .max_redirection_count = 10,
   };
   esp_http_client_handle_t client = esp_http_client_init(&config);
 
@@ -43,7 +46,7 @@ int Nextion::upload_range(const std::string &url, int range_start) {
   sprintf(range_header, "bytes=%d-%d", range_start, range_end);
   ESP_LOGV(TAG, "Requesting range: %s", range_header);
   esp_http_client_set_header(client, "Range", range_header);
-  ESP_LOGVV(TAG, "Available heap: %u", esp_get_free_heap_size());
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
 
   ESP_LOGV(TAG, "Opening http connetion");
   esp_err_t err;
@@ -64,18 +67,19 @@ int Nextion::upload_range(const std::string &url, int range_start) {
 
   int total_read_len = 0, read_len;
 
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   ESP_LOGV(TAG, "Allocate buffer");
   uint8_t *buffer = new uint8_t[4096];
   std::string recv_string;
   if (buffer == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate memory for buffer");
-    ESP_LOGV(TAG, "Available heap: %u", esp_get_free_heap_size());
+    ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   } else {
     ESP_LOGV(TAG, "Memory for buffer allocated successfully");
 
     while (true) {
       App.feed_wdt();
-      ESP_LOGVV(TAG, "Available heap: %u", esp_get_free_heap_size());
+      ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
       int read_len = esp_http_client_read(client, reinterpret_cast<char *>(buffer), 4096);
       ESP_LOGVV(TAG, "Read %d bytes from HTTP client, writing to UART", read_len);
       if (read_len > 0) {
@@ -83,15 +87,14 @@ int Nextion::upload_range(const std::string &url, int range_start) {
         ESP_LOGVV(TAG, "Write to UART successful");
         this->recv_ret_string_(recv_string, 5000, true);
         this->content_length_ -= read_len;
-        ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %d bytes",
-                 100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_);
-        if (recv_string[0] != 0x05) {  // 0x05 == "ok"
+        ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %d bytes, heap is %" PRIu32 " bytes",
+                 100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_,
+                 esp_get_free_heap_size());
+
+        if (recv_string[0] == 0x08 && recv_string.size() == 5) {  // handle partial upload request
           ESP_LOGD(
               TAG, "recv_string [%s]",
               format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
-        }
-        // handle partial upload request
-        if (recv_string[0] == 0x08 && recv_string.size() == 5) {
           uint32_t result = 0;
           for (int j = 0; j < 4; ++j) {
             result += static_cast<uint8_t>(recv_string[j + 1]) << (8 * j);
@@ -100,13 +103,37 @@ int Nextion::upload_range(const std::string &url, int range_start) {
             ESP_LOGI(TAG, "Nextion reported new range %" PRIu32, result);
             this->content_length_ = this->tft_size_ - result;
             // Deallocate the buffer when done
+            ESP_LOGV(TAG, "Deallocate buffer");
+            ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
             delete[] buffer;
             ESP_LOGVV(TAG, "Memory for buffer deallocated");
-            esp_http_client_cleanup(client);
+            ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
+            ESP_LOGV(TAG, "Close http client");
+            ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
             esp_http_client_close(client);
+            esp_http_client_cleanup(client);
+            ESP_LOGVV(TAG, "Client closed");
+            ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
             return result;
           }
+        } else if (recv_string[0] != 0x05) {  // 0x05 == "ok"
+          ESP_LOGE(
+              TAG, "Invalid response from Nextion: [%s]",
+              format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
+          ESP_LOGV(TAG, "Deallocate buffer");
+          ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
+          delete[] buffer;
+          ESP_LOGVV(TAG, "Memory for buffer deallocated");
+          ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
+          ESP_LOGV(TAG, "Close http client");
+          ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
+          esp_http_client_close(client);
+          esp_http_client_cleanup(client);
+          ESP_LOGVV(TAG, "Client closed");
+          ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
+          return -1;
         }
+
         recv_string.clear();
       } else if (read_len == 0) {
         ESP_LOGV(TAG, "End of HTTP response reached");
@@ -118,11 +145,18 @@ int Nextion::upload_range(const std::string &url, int range_start) {
     }
 
     // Deallocate the buffer when done
+    ESP_LOGV(TAG, "Deallocate buffer");
+    ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
     delete[] buffer;
     ESP_LOGVV(TAG, "Memory for buffer deallocated");
+    ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   }
-  esp_http_client_cleanup(client);
+  ESP_LOGV(TAG, "Close http client");
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   esp_http_client_close(client);
+  esp_http_client_cleanup(client);
+  ESP_LOGVV(TAG, "Client closed");
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   return range_end + 1;
 }
 
@@ -144,17 +178,19 @@ bool Nextion::upload_tft() {
 
   // Define the configuration for the HTTP client
   ESP_LOGV(TAG, "Establishing connection to HTTP server");
-  ESP_LOGVV(TAG, "Available heap: %u", esp_get_free_heap_size());
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   esp_http_client_config_t config = {
       .url = this->tft_url_.c_str(),
       .cert_pem = nullptr,
       .method = HTTP_METHOD_HEAD,
       .timeout_ms = 15000,
+      .disable_auto_redirect = false,
+      .max_redirection_count = 10,
   };
 
   // Initialize the HTTP client with the configuration
   ESP_LOGV(TAG, "Initializing HTTP client");
-  ESP_LOGV(TAG, "Available heap: %u", esp_get_free_heap_size());
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   esp_http_client_handle_t http = esp_http_client_init(&config);
   if (!http) {
     ESP_LOGE(TAG, "Failed to initialize HTTP client.");
@@ -163,7 +199,7 @@ bool Nextion::upload_tft() {
 
   // Perform the HTTP request
   ESP_LOGV(TAG, "Check if the client could connect");
-  ESP_LOGV(TAG, "Available heap: %u", esp_get_free_heap_size());
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   esp_err_t err = esp_http_client_perform(http);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "HTTP request failed: %s", esp_err_to_name(err));
@@ -172,14 +208,22 @@ bool Nextion::upload_tft() {
   }
 
   // Check the HTTP Status Code
+  ESP_LOGV(TAG, "Check the HTTP Status Code");
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   int status_code = esp_http_client_get_status_code(http);
   ESP_LOGV(TAG, "HTTP Status Code: %d", status_code);
   size_t tft_file_size = esp_http_client_get_content_length(http);
   ESP_LOGD(TAG, "TFT file size: %zu", tft_file_size);
 
+  ESP_LOGD(TAG, "Close HTTP connection");
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
+  esp_http_client_close(http);
+  esp_http_client_cleanup(http);
+  ESP_LOGVV(TAG, "Connection closed");
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
+
   if (tft_file_size < 4096) {
     ESP_LOGE(TAG, "File size check failed. Size: %zu", tft_file_size);
-    esp_http_client_cleanup(http);
     return this->upload_end(false);
   } else {
     ESP_LOGV(TAG, "File size check passed. Proceeding...");
@@ -188,8 +232,10 @@ bool Nextion::upload_tft() {
   this->tft_size_ = tft_file_size;
 
   ESP_LOGD(TAG, "Updating Nextion");
-  // The Nextion will ignore the update command if it is sleeping
 
+  // The Nextion will ignore the update command if it is sleeping
+  ESP_LOGV(TAG, "Wake-up Nextion");
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   this->send_command_("sleep=0");
   this->set_backlight_brightness(1.0);
   vTaskDelay(pdMS_TO_TICKS(250));  // NOLINT
@@ -202,26 +248,31 @@ bool Nextion::upload_tft() {
   sprintf(command, "whmi-wris %d,%" PRIu32 ",1", this->content_length_, this->parent_->get_baud_rate());
 
   // Clear serial receive buffer
+  ESP_LOGV(TAG, "Clear serial receive buffer");
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   uint8_t d;
   while (this->available()) {
     this->read_byte(&d);
   };
 
+  ESP_LOGV(TAG, "Send update instruction: %s", command);
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   this->send_command_(command);
 
   std::string response;
   ESP_LOGV(TAG, "Waiting for upgrade response");
-  this->recv_ret_string_(response, 2048, true);  // This can take some time to return
+  this->recv_ret_string_(response, 5000, true);  // This can take some time to return
 
   // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
-  ESP_LOGD(TAG, "Upgrade response is [%s]",
-           format_hex_pretty(reinterpret_cast<const uint8_t *>(response.data()), response.size()).c_str());
+  ESP_LOGD(TAG, "Upgrade response is [%s] - %zu bytes",
+           format_hex_pretty(reinterpret_cast<const uint8_t *>(response.data()), response.size()).c_str(),
+           response.length());
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
 
   if (response.find(0x05) != std::string::npos) {
     ESP_LOGV(TAG, "Preparation for tft update done");
   } else {
     ESP_LOGE(TAG, "Preparation for tft update failed %d \"%s\"", response[0], response.c_str());
-    esp_http_client_cleanup(http);
     return this->upload_end(false);
   }
 
@@ -229,12 +280,12 @@ bool Nextion::upload_tft() {
            content_length_, esp_get_free_heap_size());
 
   ESP_LOGV(TAG, "Starting transfer by chunks loop");
+  ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   int result = 0;
   while (content_length_ > 0) {
     result = upload_range(this->tft_url_.c_str(), result);
     if (result < 0) {
       ESP_LOGE(TAG, "Error updating Nextion!");
-      esp_http_client_cleanup(http);
       return this->upload_end(false);
     }
     App.feed_wdt();
@@ -243,9 +294,6 @@ bool Nextion::upload_tft() {
 
   ESP_LOGD(TAG, "Successfully updated Nextion!");
 
-  ESP_LOGD(TAG, "Close HTTP connection");
-  esp_http_client_close(http);
-  esp_http_client_cleanup(http);
   return upload_end(true);
 }
 
@@ -255,7 +303,7 @@ bool Nextion::upload_end(bool successful) {
   this->soft_reset();
   vTaskDelay(pdMS_TO_TICKS(1500));  // NOLINT
   if (successful) {
-    ESP_LOGD(TAG, "Restarting esphome");
+    ESP_LOGD(TAG, "Restarting ESPHome");
     esp_restart();  // NOLINT(readability-static-accessed-through-instance)
   }
   return successful;

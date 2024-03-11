@@ -397,8 +397,10 @@ RC522::StatusCode RC522::await_transceive_() {
     back_length_ = 0;
     ESP_LOGW(TAG, "Communication with the MFRC522 might be down, reset in %d",
              10 - error_counter_);  // todo: trigger reset?
-    if (error_counter_++ > 10)
+    if (error_counter_++ >= 10) {
       setup();
+      error_counter_ = 0;  // reset the error counter
+    }
 
     return STATUS_TIMEOUT;
   }

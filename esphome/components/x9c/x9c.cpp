@@ -7,6 +7,10 @@ namespace x9c {
 static const char *const TAG = "x9c.output";
 
 void X9cOutput::trim_value(int change_amount) {
+  if (change_amount == 0) {
+    return;
+  }
+
   if (change_amount > 0) {  // Set change direction
     this->ud_pin_->digital_write(true);
   } else {
@@ -45,17 +49,17 @@ void X9cOutput::setup() {
 
   if (this->initial_value_ <= 0.50) {
     this->trim_value(-101);  // Set min value (beyond 0)
-    this->trim_value((int) (this->initial_value_ * 100));
+    this->trim_value(static_cast<uint32_t>(roundf(this->initial_value_ * 100)));
   } else {
     this->trim_value(101);  // Set max value (beyond 100)
-    this->trim_value((int) (this->initial_value_ * 100) - 100);
+    this->trim_value(static_cast<uint32_t>(roundf(this->initial_value_ * 100) - 100));
   }
   this->pot_value_ = this->initial_value_;
   this->write_state(this->initial_value_);
 }
 
 void X9cOutput::write_state(float state) {
-  this->trim_value((int) ((state - this->pot_value_) * 100));
+  this->trim_value(static_cast<uint32_t>(roundf((state - this->pot_value_) * 100)));
   this->pot_value_ = state;
 }
 
