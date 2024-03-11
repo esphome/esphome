@@ -59,7 +59,6 @@ class RpiDpiRgb : public display::Display {
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
   void dump_config() override;
 
-  // this will be horribly slow.
  protected:
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
