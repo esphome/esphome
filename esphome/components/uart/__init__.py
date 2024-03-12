@@ -11,7 +11,7 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_RX_PIN,
     CONF_TX_PIN,
-	CONF_FLOW_CONTROL_PIN,
+    CONF_FLOW_CONTROL_PIN,
     CONF_UART_ID,
     CONF_DATA,
     CONF_RX_BUFFER_SIZE,
@@ -29,7 +29,7 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER,
     CONF_DUMMY_RECEIVER_ID,
     CONF_LAMBDA,
-	KEY_CORE,
+    KEY_CORE,
     KEY_FRAMEWORK_VERSION,
 )
 from esphome.core import CORE
@@ -89,25 +89,30 @@ def validate_invert_esp32(config):
         )
     return config
 
-def validate_tx_buffer_support(config):
-	if CORE.is_esp32:
-		return config
-	raise cv.Invalid(
-		"Hardware does not support UART TX buffer."
-	)
+def validate_tx_buffer(value):
+    value = cv.validate_bytes(value)
+    if (
+        value <= 0 or
+        CORE.is_esp32
+    ):
+        return value
+    raise cv.Invalid(
+        "Hardware does not support UART TX buffer."
+    )
 
 def validate_flow_control_support(config):
-	if CONF_FLOW_CONTROL_PIN not in config:
-		return config
-	if CORE.is_esp32:
-		if CORE.using_arduino and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] < cv.Version(2, 0, 8):
-			raise cv.Invalid(
+    if CONF_FLOW_CONTROL_PIN not in config:
+        return config
+    if CORE.is_esp32:
+        if CORE.using_arduino and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] < cv.Version(2, 0, 8):
+            raise cv.Invalid(
                     "ESP32 RS485 UART Flow Control requires framework version 2.0.8 or higher."
                 )
-		return config
-	raise cv.Invalid(
-		"Hardware does not support RS485 flow control."
-	)
+        return config
+    raise cv.Invalid(
+        "Hardware does not support RS485 flow control."
+    )
+
 def _uart_declare_type(value):
     if CORE.is_esp8266:
         return cv.declare_id(ESP8266UartComponent)(value)
@@ -194,8 +199,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
             cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_PIN): validate_rx_pin,
-			cv.Optional(CONF_FLOW_CONTROL_PIN): pins.internal_gpio_output_pin_schema,
-            cv.Optional(CONF_TX_BUFFER_SIZE, default=0): cv.validate_bytes,
+            cv.Optional(CONF_FLOW_CONTROL_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_TX_BUFFER_SIZE, default=0): validate_tx_buffer,
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
@@ -210,8 +215,8 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN),
     validate_invert_esp32,
-	validate_tx_buffer_support,
-	validate_flow_control_support,
+    validate_tx_buffer_support,
+    validate_flow_control_support,
 )
 
 
