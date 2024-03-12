@@ -215,7 +215,6 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN),
     validate_invert_esp32,
-    validate_tx_buffer_support,
     validate_flow_control_support,
 )
 
