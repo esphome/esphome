@@ -19,6 +19,8 @@ from esphome.const import (
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
 
+CONF_BH1745_ID = "bh1745_id"
+
 UNIT_COUNTS = "#"
 
 CONF_RED_CHANNEL = "red_channel"

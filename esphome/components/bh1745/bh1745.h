@@ -102,6 +102,9 @@ class BH1745Component : public PollingComponent, public i2c::I2CDevice {
     color_temperature_sensor_ = color_temperature_sensor;
   }
 
+  // only for Pimoroni board
+  void switch_led(bool on_off);
+
  protected:
   MeasurementTime measurement_time_{MeasurementTime::TIME_160MS};
   AdcGain adc_gain_{AdcGain::GAIN_1X};

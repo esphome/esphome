@@ -57,6 +57,13 @@ void BH1745Component::setup() {
   sys_ctrl.int_reset = false;
   this->reg((uint8_t) Bh1745Registers::SYSTEM_CONTROL) = sys_ctrl.raw;
 
+  // only for pimoroni boards for now - there are LEDs connected to interrupt pin
+  uint16_t TH_HIGH[1] = {0xFFFF};
+  uint16_t TH_LOW[1] = {0x0000};
+  this->write_bytes_16((uint8_t) Bh1745Registers::TH_LSB, TH_LOW, 1);
+  this->write_bytes_16((uint8_t) Bh1745Registers::TL_LSB, TH_HIGH, 1);
+  this->reg((uint8_t) Bh1745Registers::INTERRUPT_) = 0x00;
+
   this->set_timeout(BH1745_RESET_TIMEOUT_MS, [this]() {
     this->configure_measurement_time_();
     this->state_ = State::DELAYED_SETUP;
@@ -145,6 +152,18 @@ void BH1745Component::loop() {
 }
 
 float BH1745Component::get_setup_priority() const { return setup_priority::DATA; }
+
+void BH1745Component::switch_led(bool on_off) {
+  // shall we require somehow that its a pimoroni board?
+  uint8_t raw = this->reg((uint8_t) Bh1745Registers::INTERRUPT_).get();
+
+  if (on_off) {
+    raw |= (1);
+  } else {
+    raw &= ~(1);
+  }
+  this->reg((uint8_t) Bh1745Registers::INTERRUPT_) = raw;
+}
 
 void BH1745Component::configure_measurement_time_() {
   ModeControl1Register mode_ctrl1;
