@@ -10,12 +10,14 @@ from esphome import const, util
 from esphome.storage_json import StorageJSON, ext_storage_path
 
 from .const import (
+    DASHBOARD_COMMAND,
     EVENT_ENTRY_ADDED,
     EVENT_ENTRY_REMOVED,
     EVENT_ENTRY_STATE_CHANGED,
     EVENT_ENTRY_UPDATED,
 )
 from .enum import StrEnum
+from .util.subprocess import async_run_system_command
 
 if TYPE_CHECKING:
     from .core import ESPHomeDashboard
@@ -234,6 +236,14 @@ class DashboardEntries:
                 stat.st_size,
             )
         return path_to_cache_key
+
+    def async_schedule_storage_json_update(self, filename: str) -> None:
+        """Schedule a task to update the storage JSON file."""
+        self._dashboard.async_create_background_task(
+            async_run_system_command(
+                [*DASHBOARD_COMMAND, "compile", "--only-generate", filename]
+            )
+        )
 
 
 class DashboardEntry:

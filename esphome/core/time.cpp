@@ -1,10 +1,13 @@
+#include <regex>
+
+#include "helpers.h"
 #include "time.h"  // NOLINT
 
 namespace esphome {
 
-static bool is_leap_year(uint32_t year) { return (year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0); }
+bool is_leap_year(uint32_t year) { return (year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0); }
 
-static uint8_t days_in_month(uint8_t month, uint16_t year) {
+uint8_t days_in_month(uint8_t month, uint16_t year) {
   static const uint8_t DAYS_IN_MONTH[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   uint8_t days = DAYS_IN_MONTH[month];
   if (month == 2 && is_leap_year(year))
@@ -59,6 +62,44 @@ std::string ESPTime::strftime(const std::string &format) {
   }
   timestr.resize(len);
   return timestr;
+}
+
+bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
+  // clang-format off
+  std::regex dt_regex(R"(^
+    (
+      (\d{4})-(\d{1,2})-(\d{1,2})
+      (?:\s(?=.+))
+    )?
+    (
+      (\d{1,2}):(\d{2})
+      (?::(\d{2}))?
+    )?
+  $)");
+  // clang-format on
+
+  std::smatch match;
+  if (std::regex_match(time_to_parse, match, dt_regex) == 0)
+    return false;
+
+  if (match[1].matched) {  // Has date parts
+
+    esp_time.year = parse_number<uint16_t>(match[2].str()).value_or(0);
+    esp_time.month = parse_number<uint8_t>(match[3].str()).value_or(0);
+    esp_time.day_of_month = parse_number<uint8_t>(match[4].str()).value_or(0);
+  }
+  if (match[5].matched) {  // Has time parts
+
+    esp_time.hour = parse_number<uint8_t>(match[6].str()).value_or(0);
+    esp_time.minute = parse_number<uint8_t>(match[7].str()).value_or(0);
+    if (match[8].matched) {
+      esp_time.second = parse_number<uint8_t>(match[8].str()).value_or(0);
+    } else {
+      esp_time.second = 0;
+    }
+  }
+
+  return true;
 }
 
 void ESPTime::increment_second() {

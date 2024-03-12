@@ -17,7 +17,7 @@ static const char *const TAG = "voice_assistant";
 
 static const size_t SAMPLE_RATE_HZ = 16000;
 static const size_t INPUT_BUFFER_SIZE = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
-static const size_t BUFFER_SIZE = 1000 * SAMPLE_RATE_HZ / 1000;      // 1s
+static const size_t BUFFER_SIZE = 1024 * SAMPLE_RATE_HZ / 1000;
 static const size_t SEND_BUFFER_SIZE = INPUT_BUFFER_SIZE * sizeof(int16_t);
 static const size_t RECEIVE_SIZE = 1024;
 static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
@@ -135,6 +135,8 @@ void VoiceAssistant::loop() {
   switch (this->state_) {
     case State::IDLE: {
       if (this->continuous_ && this->desired_state_ == State::IDLE) {
+        this->idle_trigger_->trigger();
+
         this->ring_buffer_->reset();
 #ifdef USE_ESP_ADF
         if (this->use_wake_word_) {
@@ -213,6 +215,8 @@ void VoiceAssistant::loop() {
       msg.conversation_id = this->conversation_id_;
       msg.flags = flags;
       msg.audio_settings = audio_settings;
+      msg.wake_word_phrase = this->wake_word_;
+      this->wake_word_ = "";
 
       if (this->api_client_ == nullptr || !this->api_client_->send_voice_assistant_request(msg)) {
         ESP_LOGW(TAG, "Could not request start");
@@ -231,10 +235,12 @@ void VoiceAssistant::loop() {
     }
     case State::STREAMING_MICROPHONE: {
       this->read_microphone_();
-      if (this->ring_buffer_->available() >= SEND_BUFFER_SIZE) {
-        this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
-        this->socket_->sendto(this->send_buffer_, SEND_BUFFER_SIZE, 0, (struct sockaddr *) &this->dest_addr_,
+      size_t available = this->ring_buffer_->available();
+      while (available >= SEND_BUFFER_SIZE) {
+        size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
+        this->socket_->sendto(this->send_buffer_, read_bytes, 0, (struct sockaddr *) &this->dest_addr_,
                               sizeof(this->dest_addr_));
+        available = this->ring_buffer_->available();
       }
 
       break;
@@ -616,6 +622,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         {
           this->set_state_(State::IDLE, State::IDLE);
         }
+      } else if (this->state_ == State::AWAITING_RESPONSE) {
+        // No TTS start event ("nevermind")
+        this->set_state_(State::IDLE, State::IDLE);
       }
       this->defer([this]() { this->end_trigger_->trigger(); });
       break;
