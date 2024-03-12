@@ -82,6 +82,10 @@ class UARTComponent {
   // @param rx_pin Pointer to the internal GPIO pin used for reception.
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
 
+  // Sets the flow control pin for the UART bus.
+  // @param rx_pin Pointer to the internal GPIO pin used for reception.
+  void set_flow_control_pin(InternalGPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
+
   // Sets the size of the TX buffer.
   // @param tx_buffer_size Size of the TX buffer in bytes.
   void set_tx_buffer_size(size_t tx_buffer_size) { this->tx_buffer_size_ = tx_buffer_size; }
@@ -169,6 +173,7 @@ class UARTComponent {
 
   InternalGPIOPin *tx_pin_;
   InternalGPIOPin *rx_pin_;
+  InternalGPIOPin *flow_control_pin_;
   size_t tx_buffer_size_;
   size_t rx_buffer_size_;
   uint32_t baud_rate_;

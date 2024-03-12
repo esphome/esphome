@@ -86,6 +86,7 @@ void IDFUARTComponent::setup() {
 
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
+  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
 
   uint32_t invert = 0;
   if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
@@ -113,10 +114,20 @@ void IDFUARTComponent::setup() {
                             this->tx_buffer_size_,
                             /* UART event queue size/depth. */ 20, &(this->uart_event_queue_),
                             /* Flags used to allocate the interrupt. */ 0);
+
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
+  }
+
+  if (this->flow_control_pin_ != nullptr) {
+    err = uart_set_mode(uart_num, UART_MODE_RS485_HALF_DUPLEX);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
+      this->mark_failed();
+      return;
+    }
   }
 
   xSemaphoreGive(this->lock_);
