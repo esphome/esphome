@@ -148,13 +148,13 @@ template<typename T> void EmmetiClimate::add_(T val, esphome::remote_base::Remot
 
 template<typename T>
 void EmmetiClimate::reverse_add_(T val, size_t len, esphome::remote_base::RemoteTransmitData *data) {
-  add_(reverse_(val, len), len, data);
+  this->add_(this->reverse_(val, len), len, data);
 }
 
 bool EmmetiClimate::check_checksum_(uint8_t checksum) {
   uint8_t expected = this->gen_checksum_();
-  ESP_LOGD(TAG, "Expected checksum: %X", expected);
-  ESP_LOGD(TAG, "Checksum received: %X", checksum);
+  ESP_LOGV(TAG, "Expected checksum: %X", expected);
+  ESP_LOGV(TAG, "Checksum received: %X", checksum);
 
   return checksum == expected;
 }
@@ -168,37 +168,37 @@ void EmmetiClimate::transmit_state() {
   data->space(EMMETI_HEADER_SPACE);
 
   if (this->mode != climate::CLIMATE_MODE_OFF) {
-    reverse_add_(this->set_mode_(), 3, data);
-    add_(1, data);
-    reverse_add_(this->set_fan_speed_(), 2, data);
-    add_(this->swing_mode != climate::CLIMATE_SWING_OFF, data);
-    add_(0, data);  // sleep mode
-    reverse_add_(this->set_temp_(), 4, data);
-    add_(0, 8, data);      // zeros
-    add_(0, data);         // turbo mode
-    add_(1, data);         // light
-    add_(1, data);         // tree icon thingy
-    add_(0, data);         // blow mode
-    add_(0x52, 11, data);  // idk
+    this->reverse_add_(this->set_mode_(), 3, data);
+    this->add_(1, data);
+    this->reverse_add_(this->set_fan_speed_(), 2, data);
+    this->add_(this->swing_mode != climate::CLIMATE_SWING_OFF, data);
+    this->add_(0, data);  // sleep mode
+    this->reverse_add_(this->set_temp_(), 4, data);
+    this->add_(0, 8, data);      // zeros
+    this->add_(0, data);         // turbo mode
+    this->add_(1, data);         // light
+    this->add_(1, data);         // tree icon thingy
+    this->add_(0, data);         // blow mode
+    this->add_(0x52, 11, data);  // idk
 
     data->mark(EMMETI_BIT_MARK);
     data->space(EMMETI_MESSAGE_SPACE);
 
-    reverse_add_(this->set_blades_(), 4, data);
-    add_(0, 4, data);          // zeros
-    reverse_add_(2, 2, data);  // thermometer
-    add_(0, 18, data);         // zeros
-    reverse_add_(this->gen_checksum_(), 4, data);
+    this->reverse_add_(this->set_blades_(), 4, data);
+    this->add_(0, 4, data);          // zeros
+    this->reverse_add_(2, 2, data);  // thermometer
+    this->add_(0, 18, data);         // zeros
+    this->reverse_add_(this->gen_checksum_(), 4, data);
   } else {
-    add_(9, 12, data);
-    add_(0, 8, data);
-    add_(0x2052, 15, data);
+    this->add_(9, 12, data);
+    this->add_(0, 8, data);
+    this->add_(0x2052, 15, data);
     data->mark(EMMETI_BIT_MARK);
     data->space(EMMETI_MESSAGE_SPACE);
-    add_(0, 8, data);
-    add_(1, 2, data);
-    add_(0, 18, data);
-    add_(0x0C, 4, data);
+    this->add_(0, 8, data);
+    this->add_(1, 2, data);
+    this->add_(0, 18, data);
+    this->add_(0x0C, 4, data);
   }
   data->mark(EMMETI_BIT_MARK);
   data->space(0);
@@ -206,7 +206,7 @@ void EmmetiClimate::transmit_state() {
   transmit.perform();
 }
 
-bool EmmetiClimate::parse_state_frame_(state curr_state) {
+bool EmmetiClimate::parse_state_frame_(EmmetiState curr_state) {
   this->mode = this->get_mode_(curr_state.mode);
   this->fan_mode = this->get_fan_speed_(curr_state.fan_speed);
   this->target_temperature = this->get_temp_(curr_state.temp);
@@ -226,7 +226,7 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
   ESP_LOGD(TAG, "Received emmeti frame");
 
-  state curr_state;
+  EmmetiState curr_state;
 
   for (size_t pos = 0; pos < 3; pos++) {
     if (data.expect_item(EMMETI_BIT_MARK, EMMETI_ONE_SPACE)) {

@@ -51,7 +51,7 @@ const uint32_t EMMETI_ONE_SPACE = 1630;
 const uint32_t EMMETI_ZERO_SPACE = 530;
 const uint32_t EMMETI_MESSAGE_SPACE = 20000;
 
-using state = struct State {
+struct EmmetiState {
   uint8_t mode = 0;
   uint8_t bitmap = 0;
   uint8_t fan_speed = 0;
@@ -74,7 +74,7 @@ class EmmetiClimate : public climate_ir::ClimateIR {
   void transmit_state() override;
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
-  bool parse_state_frame_(state curr_state);
+  bool parse_state_frame_(EmmetiState curr_state);
 
   // setters
   uint8_t set_mode_();
