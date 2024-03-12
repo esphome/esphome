@@ -7,7 +7,6 @@ from esphome.components import (
 )
 from esphome.const import (
     CONF_RESET_PIN,
-    CONF_OUTPUT,
     CONF_ID,
     CONF_DIMENSIONS,
     CONF_WIDTH,
