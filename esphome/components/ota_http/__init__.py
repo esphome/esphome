@@ -61,6 +61,7 @@ def validate_secure_url(config):
         )
     return config
 
+
 def validate_safe_mode(config):
     # using 'safe_mode' on 'esp8266' require 'restore_from_flash'
     if CORE.is_esp8266 and config[CONF_SAFE_MODE]:
@@ -104,9 +105,7 @@ CONFIG_SCHEMA = cv.All(
     ),
 )
 
-FINAL_VALIDATE_SCHEMA = cv.All(
-    validate_safe_mode
-)
+FINAL_VALIDATE_SCHEMA = cv.All(validate_safe_mode)
 
 
 @coroutine_with_priority(50.0)
