@@ -18,7 +18,6 @@ font:
     id: monocraft2
     size: 24
 
-
 spi:
   clk_pin: 14
   mosi_pin: 13
