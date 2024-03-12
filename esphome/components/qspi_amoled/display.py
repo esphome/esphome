@@ -41,12 +41,7 @@ COLOR_ORDERS = {
     "RGB": ColorOrder.COLOR_ORDER_RGB,
     "BGR": ColorOrder.COLOR_ORDER_BGR,
 }
-DATA_PIN_SCHEMA = pins.gpio_pin_schema(
-    {
-        CONF_OUTPUT: True,
-    },
-    internal=True,
-)
+DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
