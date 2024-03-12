@@ -26,28 +26,18 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
+#include "seeed_mr24hpc1_constants.h"
+
 #include <map>
 
 namespace esphome {
 namespace seeed_mr24hpc1 {
 
-static const uint8_t FRAME_BUF_MAX_SIZE = 128;
-static const uint8_t PRODUCT_BUF_MAX_SIZE = 32;
-
-static const uint8_t FRAME_HEADER1_VALUE = 0x53;
-static const uint8_t FRAME_HEADER2_VALUE = 0x59;
-static const uint8_t FRAME_TAIL1_VALUE = 0x54;
-static const uint8_t FRAME_TAIL2_VALUE = 0x43;
-
-static const uint8_t FRAME_CONTROL_WORD_INDEX = 2;
-static const uint8_t FRAME_COMMAND_WORD_INDEX = 3;
-static const uint8_t FRAME_DATA_INDEX = 6;
-
-enum {
+enum FrameState {
   FRAME_IDLE,
   FRAME_HEADER2,
-  FRAME_CTL_WORLD,
-  FRAME_CMD_WORLD,
+  FRAME_CTL_WORD,
+  FRAME_CMD_WORD,
   FRAME_DATA_LEN_H,
   FRAME_DATA_LEN_L,
   FRAME_DATA_BYTES,
@@ -56,7 +46,7 @@ enum {
   FRAME_TAIL2,
 };
 
-enum {
+enum PollingState {
   STANDARD_FUNCTION_QUERY_PRODUCT_MODE = 0,
   STANDARD_FUNCTION_QUERY_PRODUCT_ID,
   STANDARD_FUNCTION_QUERY_FIRMWARE_VERSION,
@@ -87,9 +77,9 @@ enum {
   UNDERLY_FUNCTION_QUERY_TARGET_MOVEMENT_SPEED,
 };
 
-enum {
+enum OutputSwitch {
   OUTPUT_SWITCH_INIT,
-  OUTPUT_SWTICH_ON,
+  OUTPUT_SWITCH_ON,
   OUTPUT_SWTICH_OFF,
 };
 
@@ -100,8 +90,8 @@ static const char *const S_KEEP_AWAY_STR[3] = {"None", "Close", "Away"};
 static const char *const S_UNMANNED_TIME_STR[9] = {"None", "10s",   "30s",   "1min", "2min",
                                                    "5min", "10min", "30min", "60min"};
 static const char *const S_BOUNDARY_STR[10] = {"0.5m", "1.0m", "1.5m", "2.0m", "2.5m",
-                                               "3.0m", "3.5m", "4.0m", "4.5m", "5.0m"};       // uint: m
-static const float S_PRESENCE_OF_DETECTION_RANGE_STR[7] = {0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0};  // uint: m
+                                               "3.0m", "3.5m", "4.0m", "4.5m", "5.0m"};                // uint: m
+static const float S_PRESENCE_OF_DETECTION_RANGE_STR[7] = {0.0f, 0.5f, 1.0f, 1.5f, 2.0f, 2.5f, 3.0f};  // uint: m
 
 class MR24HPC1Component : public Component,
                           public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
@@ -172,7 +162,7 @@ class MR24HPC1Component : public Component,
   void r24_frame_parse_work_status_(uint8_t *data);
   void r24_frame_parse_product_information_(uint8_t *data);
   void r24_frame_parse_human_information_(uint8_t *data);
-  void send_query_(uint8_t *query, size_t string_length);
+  void send_query_(const uint8_t *query, size_t string_length);
 
  public:
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }
@@ -216,11 +206,11 @@ class MR24HPC1Component : public Component,
   void set_custom_end_mode();
   void set_existence_boundary(uint8_t value);
   void set_motion_boundary(uint8_t value);
-  void set_existence_threshold(int value);
-  void set_motion_threshold(int value);
-  void set_motion_trigger_time(int value);
-  void set_motion_to_rest_time(int value);
-  void set_custom_unman_time(int value);
+  void set_existence_threshold(uint8_t value);
+  void set_motion_threshold(uint8_t value);
+  void set_motion_trigger_time(uint8_t value);
+  void set_motion_to_rest_time(uint16_t value);
+  void set_custom_unman_time(uint16_t value);
 };
 
 }  // namespace seeed_mr24hpc1
