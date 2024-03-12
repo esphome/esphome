@@ -28,8 +28,9 @@ def test_write_utf8_file_fails_at_rename(
     test_dir = tmpdir.mkdir("files")
     test_file = Path(test_dir / "test.json")
 
-    with pytest.raises(OSError), patch(
-        "esphome.dashboard.util.file.os.replace", side_effect=OSError
+    with (
+        pytest.raises(OSError),
+        patch("esphome.dashboard.util.file.os.replace", side_effect=OSError),
     ):
         write_utf8_file(test_file, '{"some":"data"}', False)
 
@@ -45,9 +46,11 @@ def test_write_utf8_file_fails_at_rename_and_remove(
     test_dir = tmpdir.mkdir("files")
     test_file = Path(test_dir / "test.json")
 
-    with pytest.raises(OSError), patch(
-        "esphome.dashboard.util.file.os.remove", side_effect=OSError
-    ), patch("esphome.dashboard.util.file.os.replace", side_effect=OSError):
+    with (
+        pytest.raises(OSError),
+        patch("esphome.dashboard.util.file.os.remove", side_effect=OSError),
+        patch("esphome.dashboard.util.file.os.replace", side_effect=OSError),
+    ):
         write_utf8_file(test_file, '{"some":"data"}', False)
 
     assert "File replacement cleanup failed" in caplog.text
