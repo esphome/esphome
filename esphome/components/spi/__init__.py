@@ -32,7 +32,10 @@ from esphome.const import (
     CONF_ALLOW_OTHER_USES,
     CONF_DATA_PINS,
 )
-from esphome.core import coroutine_with_priority, CORE
+from esphome.core import (
+    coroutine_with_priority,
+    CORE,
+)
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 spi_ns = cg.esphome_ns.namespace("spi")
@@ -73,6 +76,8 @@ CONF_SPI_MODE = "spi_mode"
 CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
+TYPE_SINGLE = "single"
+TYPE_QUAD = "quad"
 
 # RP2040 SPI pin assignments are complicated;
 # refer to GPIO function select table in https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
@@ -297,18 +302,19 @@ SPI_QUAD_SCHEMA = cv.All(
             ),
         }
     ),
+    cv.only_on([PLATFORM_ESP32]),
     cv.only_with_esp_idf,
 )
 
 CONFIG_SCHEMA = cv.All(
-    # Order is important. SPI_SCHEMA is the default.
     cv.ensure_list(
-        cv.Any(
-            SPI_SCHEMA,
-            SPI_QUAD_SCHEMA,
-            msg="Standard SPI requires mosi_pin and/or miso_pin; quad SPI requires data_pins only."
-            + " A clock pin is always required",
-        ),
+        cv.typed_schema(
+            {
+                TYPE_SINGLE: SPI_SCHEMA,
+                TYPE_QUAD: SPI_QUAD_SCHEMA,
+            },
+            default_type=TYPE_SINGLE,
+        )
     ),
     validate_spi_config,
 )
