@@ -19,7 +19,7 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4.1.1
+      - uses: actions/checkout@v4.1.2
       - name: Get tag
         id: tag
         # yamllint disable rule:line-length
@@ -43,7 +43,7 @@ jobs:
     if: github.repository == 'esphome/esphome' && github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.1.1
+      - uses: actions/checkout@v4.1.2
       - name: Set up Python
         uses: actions/setup-python@v5.0.0
         with:
@@ -78,7 +78,7 @@ jobs:
           - linux/arm/v7
           - linux/arm64
     steps:
-      - uses: actions/checkout@v4.1.1
+      - uses: actions/checkout@v4.1.2
       - name: Set up Python
         uses: actions/setup-python@v5.0.0
         with:
@@ -156,7 +156,7 @@ jobs:
           - ghcr
           - dockerhub
     steps:
-      - uses: actions/checkout@v4.1.1
+      - uses: actions/checkout@v4.1.2
       - name: Download digests
         uses: actions/download-artifact@v3.0.2
         with:
