@@ -813,7 +813,7 @@ void MR24HPC1Component::set_existence_boundary(uint8_t value) {
   if ((this->custom_mode_num_sensor_ != nullptr) && (this->custom_mode_num_sensor_->state == 0))
     return;  // You'll have to check that you're in custom mode to set it up
   uint8_t send_data_len = 10;
-  uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x0A, 0x00, 0x01, value + 1, 0x00, 0x54, 0x43};
+  uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x0A, 0x00, 0x01, (uint8_t) (value + 1), 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
   this->send_query_(send_data, send_data_len);
   this->get_existence_boundary();
@@ -823,7 +823,7 @@ void MR24HPC1Component::set_motion_boundary(uint8_t value) {
   if ((this->custom_mode_num_sensor_ != nullptr) && (this->custom_mode_num_sensor_->state == 0))
     return;  // You'll have to check that you're in custom mode to set it up
   uint8_t send_data_len = 10;
-  uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x0B, 0x00, 0x01, value + 1, 0x00, 0x54, 0x43};
+  uint8_t send_data[10] = {0x53, 0x59, 0x08, 0x0B, 0x00, 0x01, (uint8_t) (value + 1), 0x00, 0x54, 0x43};
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
   this->send_query_(send_data, send_data_len);
   this->get_motion_boundary();
