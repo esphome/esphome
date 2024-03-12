@@ -332,8 +332,7 @@ TYPED_FILE_SCHEMA = cv.typed_schema(
 def _file_schema(value):
     if isinstance(value, str):
         return validate_file_shorthand(value)
-    typed_schema = TYPED_FILE_SCHEMA(value)
-    return typed_schema
+    return TYPED_FILE_SCHEMA(value)
 
 
 FILE_SCHEMA = cv.All(_file_schema)
