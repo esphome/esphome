@@ -259,7 +259,6 @@ EXTERNAL_FONT_SCHEMA = cv.Schema(
     }
 )
 
-CONF_DOWNLOAD = "download"
 
 GFONTS_SCHEMA = cv.All(
     EXTERNAL_FONT_SCHEMA.extend(
