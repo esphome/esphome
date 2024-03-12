@@ -381,6 +381,7 @@ esphome/components/ultrasonic/* @OttoWinter
 esphome/components/uponor_smatrix/* @kroimon
 esphome/components/vbus/* @ssieb
 esphome/components/veml3235/* @kbx81
+esphome/components/veml7700/* @latonita
 esphome/components/version/* @esphome/core
 esphome/components/voice_assistant/* @jesserockz
 esphome/components/wake_on_lan/* @willwill2will54
