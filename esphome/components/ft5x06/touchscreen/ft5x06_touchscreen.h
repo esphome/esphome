@@ -71,7 +71,7 @@ class FT5x06Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
         this->x_raw_max_ = this->display_->get_native_width();
       }
       if (this->y_raw_max_ == this->y_raw_min_) {
-        this->x_raw_max_ = this->display_->get_native_height();
+        this->y_raw_max_ = this->display_->get_native_height();
       }
     }
     esph_log_config(TAG, "FT5x06 Touchscreen setup complete");
