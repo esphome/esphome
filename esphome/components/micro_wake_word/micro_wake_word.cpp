@@ -134,7 +134,7 @@ void MicroWakeWord::loop() {
         this->set_state_(State::IDLE);
         if (this->detected_) {
           this->detected_ = false;
-          this->wake_word_detected_trigger_->trigger("");
+          this->wake_word_detected_trigger_->trigger(this->wake_word_);
         }
       }
       break;
