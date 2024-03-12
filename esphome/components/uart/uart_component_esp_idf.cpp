@@ -122,7 +122,7 @@ void IDFUARTComponent::setup() {
   }
 
   if (this->flow_control_pin_ != nullptr) {
-    err = uart_set_mode(uart_num, UART_MODE_RS485_HALF_DUPLEX);
+    err = uart_set_mode(this->uart_num_, UART_MODE_RS485_HALF_DUPLEX);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
       this->mark_failed();

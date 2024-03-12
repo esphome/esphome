@@ -89,16 +89,18 @@ def validate_invert_esp32(config):
         )
     return config
 
+
 def validate_tx_buffer(value):
     value = cv.validate_bytes(value)
     if (
-        value <= 0 or
-        CORE.is_esp32
+        value <= 0
+        or CORE.is_esp32
     ):
         return value
     raise cv.Invalid(
         "Hardware does not support UART TX buffer."
     )
+
 
 def validate_flow_control_support(config):
     if CONF_FLOW_CONTROL_PIN not in config:
@@ -106,12 +108,13 @@ def validate_flow_control_support(config):
     if CORE.is_esp32:
         if CORE.using_arduino and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] < cv.Version(2, 0, 8):
             raise cv.Invalid(
-                    "ESP32 RS485 UART Flow Control requires framework version 2.0.8 or higher."
-                )
+                "ESP32 RS485 UART Flow Control requires framework version 2.0.8 or higher."
+            )
         return config
     raise cv.Invalid(
         "Hardware does not support RS485 flow control."
     )
+
 
 def _uart_declare_type(value):
     if CORE.is_esp8266:

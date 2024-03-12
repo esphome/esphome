@@ -214,9 +214,9 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   this->write_array(payload);
   this->write_byte(crc & 0xFF);
   this->write_byte((crc >> 8) & 0xFF);
-  
+
   if (this->flow_control_pin_ != nullptr) {
-    this->flush();  
+    this->flush();
     this->flow_control_pin_->digital_write(false);
   }
   waiting_for_response = payload[0];
