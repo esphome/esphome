@@ -76,8 +76,7 @@ void ADE7953::update() {
     return;
 
   static const float ADE_POWER_FACTOR = 154.0f;
-  static const float ADE_WATTSEC_POWER_FACTOR =
-                     ADE_POWER_FACTOR * ADE_POWER_FACTOR / 3600;
+  static const float ADE_WATTSEC_POWER_FACTOR = ADE_POWER_FACTOR * ADE_POWER_FACTOR / 3600;
 
   bool err;
 
