@@ -1,13 +1,10 @@
-//
-// Created by Clyde Stubbs on 29/10/2023.
-//
+#ifdef USE_ESP_IDF
 #include "qspi_amoled.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace qspi_amoled {
 
-#ifdef USE_ESP_IDF
 void QspiAmoLed::setup() {
   esph_log_config(TAG, "Setting up QSPI_AMOLED");
   this->spi_setup();
@@ -163,6 +160,6 @@ void QspiAmoLed::dump_config() {
   ESP_LOGCONFIG(TAG, "  SPI Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 }
 
-#endif
 }  // namespace qspi_amoled
 }  // namespace esphome
+#endif

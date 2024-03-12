@@ -26,7 +26,6 @@ from esphome.const import (
     CONF_TRANSFORM,
 )
 
-
 DEPENDENCIES = ["spi"]
 
 qspi_amoled_ns = cg.esphome_ns.namespace("qspi_amoled")
@@ -73,8 +72,8 @@ CONFIG_SCHEMA = cv.All(
                         cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
                     }
                 ),
-                cv.Optional(CONF_COLOR_ORDER, default="RGB"): cv.one_of(
-                    *COLOR_ORDERS.keys(), upper=True
+                cv.Optional(CONF_COLOR_ORDER, default="RGB"): cv.enum(
+                    COLOR_ORDERS, upper=True
                 ),
                 cv.Optional(CONF_INVERT_COLORS, default=False): cv.boolean,
                 cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
@@ -101,7 +100,7 @@ async def to_code(config):
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
 
-    cg.add(var.set_color_mode(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
+    cg.add(var.set_color_mode(config[CONF_COLOR_ORDER]))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
     cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
     cg.add(var.set_model(config[CONF_MODEL]))
