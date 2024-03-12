@@ -414,7 +414,7 @@ class EFont:
         elif ftype == TYPE_LOCAL:
             path = CORE.relative_config_path(file[CONF_PATH])
             font = load_ttf_font(path, size)
-        elif ftype == TYPE_GFONTS or ftype == TYPE_WEB:
+        elif ftype in (TYPE_GFONTS, TYPE_WEB):
             path = get_font_path(file, ftype)
             font = load_ttf_font(path, size)
         else:

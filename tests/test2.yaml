@@ -812,19 +812,6 @@ image:
     file: mdi:alert-outline
     type: BINARY
 
-font:
-  - file: "gfonts://Roboto"
-    id: roboto
-    size: 20
-  - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
-    id: monocraft
-    size: 20
-  - file:
-      type: web
-      url: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
-    id: monocraft2
-    size: 24
-
 graph:
   - id: my_graph
     sensor: ha_hello_world_temperature
