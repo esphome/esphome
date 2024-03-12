@@ -333,6 +333,7 @@ ota:
   reboot_timeout: 15min
 
 ota_http:
+  safe_mode: false
 
 logger:
   hardware_uart: UART1
