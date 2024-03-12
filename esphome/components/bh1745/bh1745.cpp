@@ -58,11 +58,11 @@ void BH1745Component::setup() {
   this->reg((uint8_t) Bh1745Registers::SYSTEM_CONTROL) = sys_ctrl.raw;
 
   // only for pimoroni boards for now - there are LEDs connected to interrupt pin
-  uint16_t TH_HIGH[1] = {0xFFFF};
-  uint16_t TH_LOW[1] = {0x0000};
-  this->write_bytes_16((uint8_t) Bh1745Registers::TH_LSB, TH_LOW, 1);
-  this->write_bytes_16((uint8_t) Bh1745Registers::TL_LSB, TH_HIGH, 1);
-  this->reg((uint8_t) Bh1745Registers::INTERRUPT_) = 0x00;
+  uint16_t th_high[1] = {0xFFFF};
+  uint16_t th_low[1] = {0x0000};
+  this->write_bytes_16((uint8_t) Bh1745Registers::TH_LSB, th_low, 1);
+  this->write_bytes_16((uint8_t) Bh1745Registers::TL_LSB, th_high, 1);
+  this->reg((uint8_t) Bh1745Registers::INTERRUPT_REG) = 0x00;
 
   this->set_timeout(BH1745_RESET_TIMEOUT_MS, [this]() {
     this->configure_measurement_time_();
@@ -76,8 +76,11 @@ void BH1745Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with BH1745 failed!");
   }
-
   LOG_UPDATE_INTERVAL(this);
+
+  ESP_LOGCONFIG(TAG, "  Gain: %dx", get_adc_gain(this->adc_gain_));
+  ESP_LOGCONFIG(TAG, "  Integration time: %d ms", get_measurement_time_ms(this->measurement_time_));
+  ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
 
   LOG_SENSOR("  ", "Red Counts", this->red_counts_sensor_);
   LOG_SENSOR("  ", "Green Counts", this->green_counts_sensor_);
@@ -119,11 +122,11 @@ void BH1745Component::loop() {
       this->set_timeout(BH1745_RESET_TIMEOUT_MS, [this]() { this->state_ = State::IDLE; });
       break;
 
-    case State::IDLE:
-      break;
+      // case State::IDLE:
+      //   break;
 
-    case State::MEASUREMENT_IN_PROGRESS:
-      break;
+      // case State::MEASUREMENT_IN_PROGRESS:
+      //   break;
 
     case State::WAITING_FOR_DATA:
       if (this->is_data_ready_(this->readings_)) {
@@ -155,14 +158,14 @@ float BH1745Component::get_setup_priority() const { return setup_priority::DATA;
 
 void BH1745Component::switch_led(bool on_off) {
   // shall we require somehow that its a pimoroni board?
-  uint8_t raw = this->reg((uint8_t) Bh1745Registers::INTERRUPT_).get();
+  uint8_t raw = this->reg((uint8_t) Bh1745Registers::INTERRUPT_REG).get();
 
   if (on_off) {
     raw |= (1);
   } else {
     raw &= ~(1);
   }
-  this->reg((uint8_t) Bh1745Registers::INTERRUPT_) = raw;
+  this->reg((uint8_t) Bh1745Registers::INTERRUPT_REG) = raw;
 }
 
 void BH1745Component::configure_measurement_time_() {
@@ -205,7 +208,7 @@ void BH1745Component::read_data_(BH1745Component::Readings &data) {
   data.green *= CHANNEL_COMPENSATION[1];
   data.blue *= CHANNEL_COMPENSATION[2];
   data.clear *= CHANNEL_COMPENSATION[3];
-  ESP_LOGD(TAG, "Red:%d,Green:%d,Blue:%d,Clear:%d", data.red, data.green, data.blue, data.clear);
+  ESP_LOGV(TAG, "Red: %d, Green: %d, Blue: %d, Clear: %d", data.red, data.green, data.blue, data.clear);
 }
 
 float BH1745Component::calculate_lux_(Readings &data) {
@@ -224,8 +227,8 @@ float BH1745Component::calculate_lux_(Readings &data) {
     lx_tmp = 0;
   }
 
-  lx = lx_tmp / gain / integration_time * 160;
-  ESP_LOGD(TAG, "Lux calculation:%.0f", lx);
+  lx = lx_tmp / gain / integration_time * 160 / this->glass_attenuation_factor_;
+  ESP_LOGV(TAG, "Lux calculation: %.0f", lx);
   return lx;
 }
 
@@ -246,7 +249,7 @@ float BH1745Component::calculate_cct_(Readings &data) {
   }
   if (ct > 10000)
     ct = 10000;
-  ESP_LOGD(TAG, "CCT calculation:%.0f", ct);
+  ESP_LOGV(TAG, "CCT calculation: %.0f", ct);
   return roundf(ct);
   /*
   float cct;
@@ -263,7 +266,7 @@ float BH1745Component::calculate_cct_(Readings &data) {
     n = (x - 0.3320) / (0.1858 - y);
 
     cct = (449 * n * n * n + 3525 * n * n + 6823.3 * n + 5520.33) / gain / integration_time;
-    ESP_LOGD(TAG, "Red:%d,Green:%d,Blue:%d,Clear:%d,CCT calculation:%.0f\n", data.red, data.green, data.blue,
+    ESP_LOGV(TAG, "Red:%d,Green:%d,Blue:%d,Clear:%d,CCT calculation:%.0f\n", data.red, data.green, data.blue,
   data.clear, cct);
   */
 }

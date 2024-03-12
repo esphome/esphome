@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_ID,
     CONF_COLOR_TEMPERATURE,
     CONF_GAIN,
+    CONF_GLASS_ATTENUATION_FACTOR,
     CONF_ILLUMINANCE,
     CONF_INTEGRATION_TIME,
     CONF_NAME,
@@ -75,6 +76,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_INTEGRATION_TIME, default="160ms"
             ): validate_measurement_time,
+            cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.float_range(
+                min=1.0
+            ),
             cv.Optional(CONF_RED_CHANNEL): color_channel_schema,
             cv.Optional(CONF_GREEN_CHANNEL): color_channel_schema,
             cv.Optional(CONF_BLUE_CHANNEL): color_channel_schema,
@@ -112,6 +116,7 @@ async def to_code(config):
 
     cg.add(var.set_adc_gain(config[CONF_GAIN]))
     cg.add(var.set_measurement_time(config[CONF_INTEGRATION_TIME]))
+    cg.add(var.set_glass_attenuation_factor(config[CONF_GLASS_ATTENUATION_FACTOR]))
 
     if CONF_RED_CHANNEL in config:
         sens = await sensor.new_sensor(config[CONF_RED_CHANNEL])

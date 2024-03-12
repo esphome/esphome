@@ -11,7 +11,7 @@ class BH1745SwitchLed : public switch_::Switch, public Component {
  public:
   void dump_config() override;
 
-  void set_bh1745(BH1745Component *bh1745) { bh1745_ = bh1745; }
+  void set_bh1745(BH1745Component *bh1745) { this->bh1745_ = bh1745; }
 
  protected:
   void write_state(bool state) override;

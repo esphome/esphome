@@ -22,7 +22,7 @@ enum class Bh1745Registers : uint8_t {
   CLEAR_DATA_MSB = 0x57,
   DINT_DATA_LSB = 0x58,
   DINT_DATA_MSB = 0x59,
-  INTERRUPT_ = 0x60,
+  INTERRUPT_REG = 0x60,
   PERSISTENCE = 0x61,
   TH_LSB = 0x62,
   TH_MSB = 0x63,
@@ -90,17 +90,16 @@ class BH1745Component : public PollingComponent, public i2c::I2CDevice {
   void loop() override;
   float get_setup_priority() const override;
 
-  void set_measurement_time(MeasurementTime measurement_time) { measurement_time_ = measurement_time; };
-  void set_adc_gain(AdcGain adc_gain) { adc_gain_ = adc_gain; };
+  void set_measurement_time(MeasurementTime measurement_time) { this->measurement_time_ = measurement_time; };
+  void set_adc_gain(AdcGain adc_gain) { this->adc_gain_ = adc_gain; };
+  void set_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
 
-  void set_red_counts_sensor(sensor::Sensor *red_counts_sensor) { red_counts_sensor_ = red_counts_sensor; }
-  void set_green_counts_sensor(sensor::Sensor *green_counts_sensor) { green_counts_sensor_ = green_counts_sensor; }
-  void set_blue_counts_sensor(sensor::Sensor *blue_counts_sensor) { blue_counts_sensor_ = blue_counts_sensor; }
-  void set_clear_counts_sensor(sensor::Sensor *clear_counts_sensor) { clear_counts_sensor_ = clear_counts_sensor; }
-  void set_illuminance_sensor(sensor::Sensor *illuminance_sensor) { illuminance_sensor_ = illuminance_sensor; }
-  void set_color_temperature_sensor(sensor::Sensor *color_temperature_sensor) {
-    color_temperature_sensor_ = color_temperature_sensor;
-  }
+  void set_red_counts_sensor(sensor::Sensor *red) { this->red_counts_sensor_ = red; }
+  void set_green_counts_sensor(sensor::Sensor *green) { this->green_counts_sensor_ = green; }
+  void set_blue_counts_sensor(sensor::Sensor *blue) { this->blue_counts_sensor_ = blue; }
+  void set_clear_counts_sensor(sensor::Sensor *clear) { this->clear_counts_sensor_ = clear; }
+  void set_illuminance_sensor(sensor::Sensor *illuminance) { this->illuminance_sensor_ = illuminance; }
+  void set_color_temperature_sensor(sensor::Sensor *cct) { this->color_temperature_sensor_ = cct; }
 
   // only for Pimoroni board
   void switch_led(bool on_off);
@@ -108,6 +107,7 @@ class BH1745Component : public PollingComponent, public i2c::I2CDevice {
  protected:
   MeasurementTime measurement_time_{MeasurementTime::TIME_160MS};
   AdcGain adc_gain_{AdcGain::GAIN_1X};
+  float glass_attenuation_factor_{1.0};
 
   sensor::Sensor *red_counts_sensor_{nullptr};
   sensor::Sensor *green_counts_sensor_{nullptr};
