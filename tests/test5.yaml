@@ -58,6 +58,10 @@ i2c:
     number: 22
   frequency: 100khz
 
+seeedmultichannelrelay:
+  id: SeeedMultiChannelRelay_ID
+  address: 0x01 # changes the address of the seeedmultichannelrelay (only runs once to update into the EPROM) then you have to change the i2c_address
+
 modbus:
   uart_id: uart_1
   flow_control_pin:
@@ -649,6 +653,24 @@ switch:
     id: Led3
     led: 3
     name: TM1638Led3
+
+  - platform: seeedmultichannelrelay
+    id: seeedmultichannelrelay_1
+    name: seeedmultichannelrelay1
+    channel: 1
+    seeedmultichannelrelay_id: SeeedMultiChannelRelay_ID
+
+  - platform: seeedmultichannelrelay
+    id: seeedmultichannelrelay_2
+    name: seeedmultichannelrelay2
+    channel: 2
+    seeedmultichannelrelay_id: SeeedMultiChannelRelay_ID
+
+  - platform: seeedmultichannelrelay
+    id: seeedmultichannelrelay_8
+    name: seeedmultichannelrelay8
+    channel: 8
+    seeedmultichannelrelay_id: SeeedMultiChannelRelay_ID
 
 display:
   - platform: tm1638
