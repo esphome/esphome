@@ -358,6 +358,9 @@ bool MicroWakeWord::detect_wake_word_() {
     for (auto &prob : this->recent_streaming_probabilities_) {
       prob = 0;
     }
+
+    ESP_LOGD(TAG, "Wake word sliding average probability is %.3f and most recent probability is %.3f",
+             sliding_window_average, streaming_prob);
     return true;
   }
 
