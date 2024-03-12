@@ -1,0 +1,16 @@
+sensor:
+  - platform: bh1745
+    address: 0x38
+    i2c_id: i2c_bh1745
+    gain: 1X
+    integration_time: 160ms
+    red_channel: Red channel
+    green_channel: Green channel
+    blue_channel: Blue channel
+    clear_channel: Clear channel
+    illuminance: Illuminance
+    color_temperature: Color temperature
+
+switch:
+  - platform: bh1745
+    name: BH1754 LED
