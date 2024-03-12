@@ -131,6 +131,8 @@ MODELS = {
     "1.54in-m5coreink-m09": ("c", GDEW0154M09),
 }
 
+RESET_PIN_REQUIRED_MODELS = ("2.13inv2", "2.13in-ttgo-b74")
+
 
 def validate_full_update_every_only_types_ac(value):
     if CONF_FULL_UPDATE_EVERY not in value:
@@ -145,6 +147,14 @@ def validate_full_update_every_only_types_ac(value):
             + ", ".join(full_models)
         )
     return value
+
+
+def validate_reset_pin_required(config):
+    if config[CONF_MODEL] in RESET_PIN_REQUIRED_MODELS and CONF_RESET_PIN not in config:
+        raise cv.Invalid(
+            f"'{CONF_RESET_PIN}' is required for model {config[CONF_MODEL]}"
+        )
+    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -165,6 +175,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("1s"))
     .extend(spi.spi_device_schema()),
     validate_full_update_every_only_types_ac,
+    validate_reset_pin_required,
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
 )
 
