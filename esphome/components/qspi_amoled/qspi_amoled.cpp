@@ -15,9 +15,6 @@ void QspiAmoLed::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  SPI Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
-#ifdef USE_POWER_SUPPLY
-  ESP_LOGCONFIG(TAG, "  Power Supply Configured: yes");
-#endif
 }
 
 #endif
