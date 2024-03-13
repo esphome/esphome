@@ -330,7 +330,6 @@ bool MicroWakeWord::detect_wake_word_() {
   }
 
   // Perform inference
-  uint32_t streaming_size = micros();
   float streaming_prob = this->perform_streaming_inference_();
 
   // Add the most recent probability to the sliding window
