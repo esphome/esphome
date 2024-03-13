@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2024.3.0-dev"
+__version__ = "2024.4.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -856,6 +856,7 @@ CONF_VISUAL = "visual"
 CONF_VOLTAGE = "voltage"
 CONF_VOLTAGE_ATTENUATION = "voltage_attenuation"
 CONF_VOLTAGE_DIVIDER = "voltage_divider"
+CONF_VOLUME = "volume"
 CONF_WAIT_TIME = "wait_time"
 CONF_WAIT_UNTIL = "wait_until"
 CONF_WAKEUP_PIN = "wakeup_pin"
