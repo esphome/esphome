@@ -750,7 +750,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   }
 
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)
-  WiFi.softAPDhcpServer().setRouter(true);  // send ROUTER option with netif's gateway IP
+  ESP8266WiFiClass::softAPDhcpServer().setRouter(true);  // send ROUTER option with netif's gateway IP
 #else
   uint8_t mode = 1;
   // bit0, 1 enables router information from ESP8266 SoftAP DHCP server.
