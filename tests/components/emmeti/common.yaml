@@ -11,3 +11,4 @@ climate:
   - platform: emmeti
     name: Emmeti
     receiver_id: rcvr
+    transmitter_id: tx
