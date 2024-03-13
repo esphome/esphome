@@ -1056,13 +1056,6 @@ sensor:
       name: Living Room Heater 6
     update_interval: 15s
     i2c_id: i2c_bus
-  - platform: htu31d
-    temperature:
-      name: Living Room Temperature 7
-    humidity:
-      name: Living Room Humidity 7
-    update_interval: 15s
-    i2c_id: i2c_bus
   - platform: max6675
     name: Living Room Temperature
     cs_pin:
