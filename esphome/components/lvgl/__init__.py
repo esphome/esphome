@@ -52,6 +52,7 @@ from esphome.const import (
     CONF_ARGS,
     CONF_FORMAT,
     CONF_DURATION,
+    CONF_STEP,
 )
 from esphome.cpp_generator import (
     LambdaExpression,
@@ -73,6 +74,7 @@ from .defines import (
     CONF_METER,
     CONF_ROLLER,
     CONF_SLIDER,
+    CONF_SPINBOX,
     CONF_SWITCH,
     CONF_TABLE,
     CONF_TEXTAREA,
@@ -198,6 +200,7 @@ lv_checkbox_t = cg.MockObjClass("LvCheckboxType", parents=[lv_obj_t])
 lv_line_t = cg.MockObjClass("LvLineType", parents=[lv_obj_t])
 lv_img_t = cg.MockObjClass("LvImgType", parents=[lv_obj_t])
 lv_animimg_t = cg.MockObjClass("LvAnimImgType", parents=[lv_obj_t])
+lv_spinbox_t = cg.MockObjClass("LvSpinBoxType", parents=[lv_obj_t])
 lv_number_t = lvgl_ns.class_("LvPseudoNumber")
 lv_arc_t = cg.MockObjClass("LvArcType", parents=[lv_obj_t, lv_number_t])
 lv_bar_t = cg.MockObjClass("LvBarType", parents=[lv_obj_t, lv_number_t])
@@ -230,6 +233,8 @@ CONF_ANTIALIAS = "antialias"
 CONF_ARC_LENGTH = "arc_length"
 CONF_AUTO_START = "auto_start"
 CONF_BACKGROUND_STYLE = "background_style"
+CONF_DECIMAL_PLACES = "decimal_places"
+CONF_DIGITS = "digits"
 CONF_DISP_BG_COLOR = "disp_bg_color"
 CONF_DISP_BG_IMAGE = "disp_bg_image"
 CONF_BODY = "body"
@@ -288,6 +293,7 @@ CONF_REPEAT_COUNT = "repeat_count"
 CONF_ROWS = "rows"
 CONF_R_MOD = "r_mod"
 CONF_RECOLOR = "recolor"
+CONF_ROLLOVER = "rollover"
 CONF_SCALES = "scales"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
@@ -339,6 +345,13 @@ WIDGET_TYPES = {
     CONF_SLIDER: (CONF_MAIN, CONF_INDICATOR, CONF_KNOB),
     CONF_SPINNER: (CONF_MAIN, CONF_INDICATOR),
     CONF_SWITCH: (CONF_MAIN, CONF_INDICATOR, CONF_KNOB),
+    CONF_SPINBOX: (
+        CONF_MAIN,
+        CONF_SCROLLBAR,
+        CONF_SELECTED,
+        CONF_CURSOR,
+        CONF_TEXTAREA_PLACEHOLDER,
+    ),
     CONF_TABLE: (CONF_MAIN, CONF_ITEMS),
     CONF_TEXTAREA: (
         CONF_MAIN,
@@ -682,6 +695,16 @@ def lv_repeat_count(value):
         value = 0xFFFF
     return cv.positive_int(value)
 
+
+SPINBOX_SCHEMA = {
+    cv.Optional(CONF_VALUE): lv_float,
+    cv.Required(CONF_RANGE_FROM): lv_float,
+    cv.Required(CONF_RANGE_TO): lv_float,
+    cv.Required(CONF_DIGITS): cv.positive_int,
+    cv.Optional(CONF_STEP, default=1.0): cv.positive_float,
+    cv.Optional(CONF_DECIMAL_PLACES, default=0): cv.positive_int,
+    cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
+}
 
 ANIMIMG_SCHEMA = {
     cv.Required(CONF_SRC): cv.ensure_list(cv.use_id(Image_)),
