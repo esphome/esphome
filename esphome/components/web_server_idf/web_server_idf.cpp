@@ -7,6 +7,7 @@
 
 #include "esp_tls_crypto.h"
 
+#include "utils.h"
 #include "web_server_idf.h"
 
 namespace esphome {
@@ -47,7 +48,7 @@ void AsyncWebServer::begin() {
     const httpd_uri_t handler_post = {
         .uri = "",
         .method = HTTP_POST,
-        .handler = AsyncWebServer::request_handler,
+        .handler = AsyncWebServer::request_post_handler,
         .user_ctx = this,
     };
     httpd_register_uri_handler(this->server_, &handler_post);
@@ -62,20 +63,62 @@ void AsyncWebServer::begin() {
   }
 }
 
+esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
+  ESP_LOGVV(TAG, "Enter AsyncWebServer::request_post_handler. uri=%s", r->uri);
+  auto content_type = request_get_header(r, "Content-Type");
+  if (content_type.has_value() && *content_type != "application/x-www-form-urlencoded") {
+    ESP_LOGW(TAG, "Only application/x-www-form-urlencoded supported for POST request");
+    // fallback to get handler to support backward compatibility
+    return AsyncWebServer::request_handler(r);
+  }
+
+  if (!request_has_header(r, "Content-Length")) {
+    ESP_LOGW(TAG, "Content length is requred for post: %s", r->uri);
+    httpd_resp_send_err(r, HTTPD_411_LENGTH_REQUIRED, nullptr);
+    return ESP_OK;
+  }
+
+  if (r->content_len > HTTPD_MAX_REQ_HDR_LEN) {
+    ESP_LOGW(TAG, "Request size is to big: %zu", r->content_len);
+    httpd_resp_send_err(r, HTTPD_400_BAD_REQUEST, nullptr);
+    return ESP_FAIL;
+  }
+
+  std::string post_query;
+  if (r->content_len > 0) {
+    post_query.resize(r->content_len);
+    const int ret = httpd_req_recv(r, &post_query[0], r->content_len + 1);
+    if (ret <= 0) {  // 0 return value indicates connection closed
+      if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+        httpd_resp_send_err(r, HTTPD_408_REQ_TIMEOUT, nullptr);
+        return ESP_ERR_TIMEOUT;
+      }
+      httpd_resp_send_err(r, HTTPD_400_BAD_REQUEST, nullptr);
+      return ESP_FAIL;
+    }
+  }
+
+  AsyncWebServerRequest req(r, std::move(post_query));
+  return static_cast<AsyncWebServer *>(r->user_ctx)->request_handler_(&req);
+}
+
 esp_err_t AsyncWebServer::request_handler(httpd_req_t *r) {
-  ESP_LOGV(TAG, "Enter AsyncWebServer::request_handler. method=%u, uri=%s", r->method, r->uri);
+  ESP_LOGVV(TAG, "Enter AsyncWebServer::request_handler. method=%u, uri=%s", r->method, r->uri);
   AsyncWebServerRequest req(r);
-  auto *server = static_cast<AsyncWebServer *>(r->user_ctx);
-  for (auto *handler : server->handlers_) {
-    if (handler->canHandle(&req)) {
+  return static_cast<AsyncWebServer *>(r->user_ctx)->request_handler_(&req);
+}
+
+esp_err_t AsyncWebServer::request_handler_(AsyncWebServerRequest *request) const {
+  for (auto *handler : this->handlers_) {
+    if (handler->canHandle(request)) {
       // At now process only basic requests.
       // OTA requires multipart request support and handleUpload for it
-      handler->handleRequest(&req);
+      handler->handleRequest(request);
       return ESP_OK;
     }
   }
-  if (server->on_not_found_) {
-    server->on_not_found_(&req);
+  if (this->on_not_found_) {
+    this->on_not_found_(request);
     return ESP_OK;
   }
   return ESP_ERR_NOT_FOUND;
@@ -88,22 +131,10 @@ AsyncWebServerRequest::~AsyncWebServerRequest() {
   }
 }
 
-bool AsyncWebServerRequest::hasHeader(const char *name) const { return httpd_req_get_hdr_value_len(*this, name); }
+bool AsyncWebServerRequest::hasHeader(const char *name) const { return request_has_header(*this, name); }
 
 optional<std::string> AsyncWebServerRequest::get_header(const char *name) const {
-  size_t buf_len = httpd_req_get_hdr_value_len(*this, name);
-  if (buf_len == 0) {
-    return {};
-  }
-  auto buf = std::unique_ptr<char[]>(new char[++buf_len]);
-  if (!buf) {
-    ESP_LOGE(TAG, "No enough memory for get header %s", name);
-    return {};
-  }
-  if (httpd_req_get_hdr_value_str(*this, name, buf.get(), buf_len) != ESP_OK) {
-    return {};
-  }
-  return {buf.get()};
+  return request_get_header(*this, name);
 }
 
 std::string AsyncWebServerRequest::url() const {
@@ -193,74 +224,25 @@ void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
 
-static std::string url_decode(const std::string &in) {
-  std::string out;
-  out.reserve(in.size());
-  for (std::size_t i = 0; i < in.size(); ++i) {
-    if (in[i] == '%') {
-      ++i;
-      if (i + 1 < in.size()) {
-        auto c = parse_hex<uint8_t>(&in[i], 2);
-        if (c.has_value()) {
-          out += static_cast<char>(*c);
-          ++i;
-        } else {
-          out += '%';
-          out += in[i++];
-          out += in[i];
-        }
-      } else {
-        out += '%';
-        out += in[i];
-      }
-    } else if (in[i] == '+') {
-      out += ' ';
-    } else {
-      out += in[i];
-    }
-  }
-  return out;
-}
-
 AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
   auto find = this->params_.find(name);
   if (find != this->params_.end()) {
     return find->second;
   }
 
-  auto query_len = httpd_req_get_url_query_len(this->req_);
-  if (query_len == 0) {
-    return nullptr;
+  optional<std::string> val = query_key_value(this->post_query_, name);
+  if (!val.has_value()) {
+    auto url_query = request_get_url_query(*this);
+    if (url_query.has_value()) {
+      val = query_key_value(url_query.value(), name);
+    }
   }
 
-  auto query_str = std::unique_ptr<char[]>(new char[++query_len]);
-  if (!query_str) {
-    ESP_LOGE(TAG, "No enough memory for get query param");
-    return nullptr;
+  AsyncWebParameter *param = nullptr;
+  if (val.has_value()) {
+    param = new AsyncWebParameter(val.value());  // NOLINT(cppcoreguidelines-owning-memory)
   }
-
-  auto res = httpd_req_get_url_query_str(*this, query_str.get(), query_len);
-  if (res != ESP_OK) {
-    ESP_LOGW(TAG, "Can't get query for request: %s", esp_err_to_name(res));
-    return nullptr;
-  }
-
-  auto query_val = std::unique_ptr<char[]>(new char[query_len]);
-  if (!query_val) {
-    ESP_LOGE(TAG, "No enough memory for get query param value");
-    return nullptr;
-  }
-
-  res = httpd_query_key_value(query_str.get(), name.c_str(), query_val.get(), query_len);
-  if (res != ESP_OK) {
-    this->params_.insert({name, nullptr});
-    return nullptr;
-  }
-  query_str.release();
-  auto decoded = url_decode(query_val.get());
-  query_val.release();
-  auto *param = new AsyncWebParameter(decoded);  // NOLINT(cppcoreguidelines-owning-memory)
-  this->params_.insert(std::make_pair(name, param));
+  this->params_.insert({name, param});
   return param;
 }
 
@@ -271,14 +253,15 @@ void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
 void AsyncResponseStream::print(float value) { this->print(to_string(value)); }
 
 void AsyncResponseStream::printf(const char *fmt, ...) {
-  std::string str;
   va_list args;
 
   va_start(args, fmt);
-  size_t length = vsnprintf(nullptr, 0, fmt, args);
+  const int length = vsnprintf(nullptr, 0, fmt, args);
   va_end(args);
 
+  std::string str;
   str.resize(length);
+
   va_start(args, fmt);
   vsnprintf(&str[0], length + 1, fmt, args);
   va_end(args);
