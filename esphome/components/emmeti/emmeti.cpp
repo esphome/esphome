@@ -129,7 +129,7 @@ climate::ClimateSwingMode EmmetiClimate::get_swing_(uint8_t bitmap) {
 template<typename T> T EmmetiClimate::reverse_(T val, size_t len) {
   T result = 0;
   for (size_t i = 0; i < len; i++) {
-    result |= ((val & 1 << i) != 0) << len - 1 - i;
+    result |= ((val & 1 << i) != 0) << (len - 1 - i);
   }
   return result;
 }
