@@ -247,28 +247,11 @@ float BH1745Component::calculate_cct_(Readings &data) {
     float b_eff = fmin(b_ratio * 10.67, 1);
     ct = ((1 - b_eff) * 16234 * (exp(-2.781 * r_ratio))) + (b_eff * 1882 * (exp(4.448 * b_ratio)));
   }
-  if (ct > 10000)
+  if (ct > 10000) {
     ct = 10000;
-  ESP_LOGV(TAG, "CCT calculation: %.0f", ct);
-  return roundf(ct);
-  /*
-  float cct;
-  float gain = get_adc_gain(data.gain);
-  float integration_time = get_measurement_time_ms(data.meas_time);
-  float r, g, b, x, y, n;
-  //copilot alg :)
-    r = (float)data.red / data.clear;
-    g = (float)data.green / data.clear;
-    b = (float)data.blue / data.clear;
-
-    x = (-0.14282) * r + (1.54924) * g + (-0.95641) * b;
-    y = (-0.32466) * r + (1.57837) * g + (-0.73191) * b;
-    n = (x - 0.3320) / (0.1858 - y);
-
-    cct = (449 * n * n * n + 3525 * n * n + 6823.3 * n + 5520.33) / gain / integration_time;
-    ESP_LOGV(TAG, "Red:%d,Green:%d,Blue:%d,Clear:%d,CCT calculation:%.0f\n", data.red, data.green, data.blue,
-  data.clear, cct);
-  */
+  }
+  ESP_LOGV(TAG, "CCT calculation: %.1f", ct);
+  return ct;
 }
 
 void BH1745Component::publish_data_() {
