@@ -1,6 +1,6 @@
 /// @file weikai.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/03/01 14:12:14
+/// @date Last Modified: 2024/03/02 16:54:22
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
@@ -19,38 +19,44 @@ container implements FIFO functionality, enabling bytes to be pushed into one si
 order of entry. Implementation is classic and therefore not described in any details.
 
   @section WeikaiRegister_ The WeikaiRegister class
- The WeikaiRegister helper class creates objects that act as proxies to device register.
+ The WeikaiRegister helper class creates objects that act as proxies to the device registers.
  @details This is an abstract virtual class (interface) that provides all the necessary access to registers while hiding
  the actual implementation. The access to the registers can be made through an I²C bus in for example for wk2168_i2c
  component or through a SPI bus for example in the case of the wk2168_spi component. Derived classes will actually
  performs the specific bus operations.
 
  @section WeikaiRegisterI2C_ WeikaiRegisterI2C
- The WeikaiRegisterI2C class implements the virtual methods of the WeikaiRegister virtual class for an I2C bus.
+ The weikai_i2c::WeikaiRegisterI2C class implements the virtual methods of the WeikaiRegister class for an I2C bus.
 
   @section WeikaiRegisterSPI_ WeikaiRegisterSPI
- The WeikaiRegisterSPI class implements the virtual methods of the WeikaiRegister virtual class for an SPI bus.
+ The weikai_spi::WeikaiRegisterSPI class implements the virtual methods of the WeikaiRegister class for an SPI bus.
 
  @section WeikaiComponent_ The WeikaiComponent class
-The WeikaiComponent class stores the information global to a WK family component and provides methods to set/access
+The WeikaiComponent class stores the information global to a WeiKai family component and provides methods to set/access
 this information. It also serves as a container for WeikaiChannel instances. This is done by maintaining an array of
-references these WeikaiChannel instances. This class derives from two ESPHome classes. This class override
-esphome::Component::loop() method which is to facilitate the seamless transfer of accumulated bytes from the receive
+references these WeikaiChannel instances. This class derives from the esphome::Component classes. This class override
+esphome::Component::loop() method to facilitate the seamless transfer of accumulated bytes from the receive
 FIFO into the ring buffer. This process ensures quick access to the stored bytes, enhancing the overall efficiency of
 the component.
 
+ @section WeikaiComponentI2C_ WeikaiComponentI2C
+ The weikai_i2c::WeikaiComponentI2C class implements the virtual methods of the WeikaiComponent class for an I2C bus.
+
+  @section WeikaiComponentSPI_ WeikaiComponentSPI
+ The weikai_spi::WeikaiComponentSPI class implements the virtual methods of the WeikaiComponent class for an SPI bus.
+
  @section WeikaiGPIOPin_ WeikaiGPIOPin class
  The WeikaiGPIOPin class is an helper class to expose the GPIO pins of WK family components as if they were internal
-GPIO pins. It also provides the setup() and dump_summary() methods.
+ GPIO pins. It also provides the setup() and dump_summary() methods.
 
  @section WeikaiChannel_ The WeikaiChannel class
-The WeikaiChannel class is used to implement all the virtual methods of the ESPHome uart::UARTComponent class. An
-individual instance of this class is created for each UART channel. It has a link back to the WeikaiComponent object it
-belongs to. This class derives from the uart::UARTComponent class. It collaborates through an aggregation with
-WeikaiComponent. This implies that WeikaiComponent acts as a container, housing several WeikaiChannel instances.
-Furthermore, the WeikaiChannel class derives from the ESPHome uart::UARTComponent class, it also has an association
-relationship with the WKRingBuffer and WeikaiRegister helper classes. Consequently, when a WeikaiChannel instance is
-destroyed, the associated WKRingBuffer instance is also destroyed.
+ The WeikaiChannel class is used to implement all the virtual methods of the ESPHome uart::UARTComponent class. An
+ individual instance of this class is created for each UART channel. It has a link back to the WeikaiComponent object it
+ belongs to. This class derives from the uart::UARTComponent class. It collaborates through an aggregation with
+ WeikaiComponent. This implies that WeikaiComponent acts as a container, housing several WeikaiChannel instances.
+ Furthermore, the WeikaiChannel class derives from the ESPHome uart::UARTComponent class, it also has an association
+ relationship with the WKRingBuffer and WeikaiRegister helper classes. Consequently, when a WeikaiChannel instance is
+ destroyed, the associated WKRingBuffer instance is also destroyed.
 
 */
 
@@ -350,7 +356,7 @@ void WeikaiChannel::set_line_param_() {
 void WeikaiChannel::set_baudrate_() {
   if (this->baud_rate_ > this->parent_->crystal_ / 16) {
     baud_rate_ = this->parent_->crystal_ / 16;
-    ESP_LOGE(TAG, " Requested baudrate too high for crystal %d was reduced to %d Bd", this->parent_->crystal_,
+    ESP_LOGE(TAG, " Requested baudrate too high for crystal=%d Hz. Has been reduced to %d Bd", this->parent_->crystal_,
              this->baud_rate_);
   };
   uint16_t const val_int = this->parent_->crystal_ / (this->baud_rate_ * 16) - 1;

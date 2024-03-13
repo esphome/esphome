@@ -1,7 +1,7 @@
 /// @file weikai.h
 /// @author DrCoolZic
 /// @brief  WeiKai component family - classes declaration
-/// @date Last Modified: 2024/03/01 14:11:09
+/// @date Last Modified: 2024/03/02 16:56:20
 /// @details The classes declared in this file can be used by the Weikai family
 /// of UART and GPIO expander components. As of today it provides support for
 ///     wk2124_spi, wk2132_spi, wk2168_spi, wk2204_spi, wk2212_spi,
@@ -49,6 +49,7 @@ constexpr size_t RING_BUFFER_SIZE = FIFO_SIZE;
 /// bytes are available then reading the byte until no more byte available. This is pretty inefficient for two reasons:
 /// - Fist you need to perform a test for each byte to read
 /// - and second you call the read byte method for each character.
+/// .
 /// Assuming you need to read 100 bytes that results into 200 calls. This is to compare to 2 calls (one to find the
 /// number of bytes available plus one to read all the bytes) in the best case! If the registers you read are located on
 /// the micro-controller this is acceptable because the registers can be accessed fast. But when the registers are
