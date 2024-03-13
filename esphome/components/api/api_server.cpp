@@ -255,6 +255,15 @@ void APIServer::on_number_update(number::Number *obj, float state) {
 }
 #endif
 
+#ifdef USE_DATETIME_DATE
+void APIServer::on_date_update(datetime::DateEntity *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_date_state(obj);
+}
+#endif
+
 #ifdef USE_TEXT
 void APIServer::on_text_update(text::Text *obj, const std::string &state) {
   if (obj->is_internal())
@@ -319,7 +328,7 @@ void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeo
 #ifdef USE_HOMEASSISTANT_TIME
 void APIServer::request_time() {
   for (auto &client : this->clients_) {
-    if (!client->remove_ && client->connection_state_ == APIConnection::ConnectionState::CONNECTED)
+    if (!client->remove_ && client->is_authenticated())
       client->send_time_request();
   }
 }

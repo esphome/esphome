@@ -1,0 +1,12 @@
+i2c:
+  - id: i2c_dht12
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: dht12
+    temperature:
+      name: DHT12 Temperature
+    humidity:
+      name: DHT12 Humidity
+    update_interval: 15s

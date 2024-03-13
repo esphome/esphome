@@ -21,48 +21,70 @@ namespace esphome {
 namespace aht10 {
 
 static const char *const TAG = "aht10";
-static const uint8_t AHT10_CALIBRATE_CMD[] = {0xE1};
+static const uint8_t AHT10_INITIALIZE_CMD[] = {0xE1, 0x08, 0x00};
+static const uint8_t AHT20_INITIALIZE_CMD[] = {0xBE, 0x08, 0x00};
 static const uint8_t AHT10_MEASURE_CMD[] = {0xAC, 0x33, 0x00};
-static const uint8_t AHT10_DEFAULT_DELAY = 5;    // ms, for calibration and temperature measurement
-static const uint8_t AHT10_HUMIDITY_DELAY = 30;  // ms
-static const uint8_t AHT10_ATTEMPTS = 3;         // safety margin, normally 3 attempts are enough: 3*30=90ms
+static const uint8_t AHT10_SOFTRESET_CMD[] = {0xBA};
+
+static const uint8_t AHT10_DEFAULT_DELAY = 5;     // ms, for initialization and temperature measurement
+static const uint8_t AHT10_HUMIDITY_DELAY = 30;   // ms
+static const uint8_t AHT10_SOFTRESET_DELAY = 30;  // ms
+
+static const uint8_t AHT10_ATTEMPTS = 3;  // safety margin, normally 3 attempts are enough: 3*30=90ms
+static const uint8_t AHT10_INIT_ATTEMPTS = 10;
+
+static const uint8_t AHT10_STATUS_BUSY = 0x80;
 
 void AHT10Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AHT10...");
+  if (this->write(AHT10_SOFTRESET_CMD, sizeof(AHT10_SOFTRESET_CMD)) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Reset AHT10 failed!");
+  }
+  delay(AHT10_SOFTRESET_DELAY);
 
-  if (!this->write_bytes(0, AHT10_CALIBRATE_CMD, sizeof(AHT10_CALIBRATE_CMD))) {
+  const uint8_t *init_cmd;
+  switch (this->variant_) {
+    case AHT10Variant::AHT20:
+      init_cmd = AHT20_INITIALIZE_CMD;
+      ESP_LOGCONFIG(TAG, "Setting up AHT20");
+      break;
+    case AHT10Variant::AHT10:
+    default:
+      init_cmd = AHT10_INITIALIZE_CMD;
+      ESP_LOGCONFIG(TAG, "Setting up AHT10");
+  }
+
+  if (this->write(init_cmd, sizeof(init_cmd)) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with AHT10 failed!");
     this->mark_failed();
     return;
   }
-  uint8_t data = 0;
-  if (this->write(&data, 1) != i2c::ERROR_OK) {
-    ESP_LOGD(TAG, "Communication with AHT10 failed!");
-    this->mark_failed();
-    return;
-  }
-  delay(AHT10_DEFAULT_DELAY);
-  if (this->read(&data, 1) != i2c::ERROR_OK) {
-    ESP_LOGD(TAG, "Communication with AHT10 failed!");
-    this->mark_failed();
-    return;
-  }
-  if (this->read(&data, 1) != i2c::ERROR_OK) {
-    ESP_LOGD(TAG, "Communication with AHT10 failed!");
-    this->mark_failed();
-    return;
+  uint8_t data = AHT10_STATUS_BUSY;
+  int cal_attempts = 0;
+  while (data & AHT10_STATUS_BUSY) {
+    delay(AHT10_DEFAULT_DELAY);
+    if (this->read(&data, 1) != i2c::ERROR_OK) {
+      ESP_LOGE(TAG, "Communication with AHT10 failed!");
+      this->mark_failed();
+      return;
+    }
+    ++cal_attempts;
+    if (cal_attempts > AHT10_INIT_ATTEMPTS) {
+      ESP_LOGE(TAG, "AHT10 initialization timed out!");
+      this->mark_failed();
+      return;
+    }
   }
   if ((data & 0x68) != 0x08) {  // Bit[6:5] = 0b00, NORMAL mode and Bit[3] = 0b1, CALIBRATED
-    ESP_LOGE(TAG, "AHT10 calibration failed!");
+    ESP_LOGE(TAG, "AHT10 initialization failed!");
     this->mark_failed();
     return;
   }
 
-  ESP_LOGV(TAG, "AHT10 calibrated");
+  ESP_LOGV(TAG, "AHT10 initialization");
 }
 
 void AHT10Component::update() {
-  if (!this->write_bytes(0, AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD))) {
+  if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with AHT10 failed!");
     this->status_set_warning();
     return;
@@ -89,7 +111,7 @@ void AHT10Component::update() {
         break;
       } else {
         ESP_LOGD(TAG, "ATH10 Unrealistic humidity (0x0), retrying...");
-        if (!this->write_bytes(0, AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD))) {
+        if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
           ESP_LOGE(TAG, "Communication with AHT10 failed!");
           this->status_set_warning();
           return;

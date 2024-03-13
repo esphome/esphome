@@ -29,16 +29,27 @@ web_server:
   version: 2
 
 i2c:
-  sda: 4
-  scl: 5
+  sda:
+    allow_other_uses: true
+    number: 4
+  scl:
+    allow_other_uses: true
+    number: 5
   scan: false
 
 spi:
-  clk_pin: GPIO12
-  mosi_pin: GPIO13
-  miso_pin: GPIO14
+  clk_pin:
+    allow_other_uses: true
+    number: GPIO12
+  mosi_pin:
+    allow_other_uses: true
+    number: GPIO13
+  miso_pin:
+    allow_other_uses: true
+    number: GPIO14
 
 ota:
+  version: 2
 
 logger:
 
@@ -52,7 +63,9 @@ sensor:
     name: VL53L0x Distance
     address: 0x29
     update_interval: 60s
-    enable_pin: GPIO13
+    enable_pin:
+      allow_other_uses: true
+      number: GPIO13
     timeout: 200us
   - platform: apds9960
     type: clear
@@ -170,7 +183,9 @@ sensor:
         name: Custom Sensor
 
   - platform: ade7953_i2c
-    irq_pin: GPIO16
+    irq_pin:
+      allow_other_uses: true
+      number: GPIO16
     voltage:
       name: ADE7953 Voltage
       id: ade7953_voltage
@@ -199,8 +214,12 @@ sensor:
     update_interval: 1s
 
   - platform: ade7953_spi
-    cs_pin: GPIO04
-    irq_pin: GPIO16
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO04
+    irq_pin:
+      allow_other_uses: true
+      number: GPIO16
     voltage:
       name: ADE7953 Voltage
     current_a:
@@ -270,6 +289,62 @@ sensor:
   - platform: adc128s102
     id: adc128s102_channel_0
     channel: 0
+
+  - platform: ade7880
+    irq0_pin:
+      number: GPIO13
+      allow_other_uses: true
+    irq1_pin:
+      number: GPIO5
+      allow_other_uses: true
+    reset_pin:
+      number: GPIO16
+      allow_other_uses: true
+    frequency: 60Hz
+    phase_a:
+      name: Channel A
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3116628
+        voltage_gain: -757178
+        power_gain: -1344457
+        phase_angle: 188
+    phase_b:
+      name: Channel B
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3133655
+        voltage_gain: -755235
+        power_gain: -1345638
+        phase_angle: 188
+    phase_c:
+      name: Channel C
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3111158
+        voltage_gain: -743813
+        power_gain: -1351437
+        phase_angle: 180
+    neutral:
+      name: Neutral
+      current: Current
+      calibration:
+        current_gain: 3189
 
 apds9960:
   address: 0x20
@@ -360,8 +435,12 @@ text_sensor:
         name: Custom Text Sensor
 
 sm2135:
-  data_pin: GPIO12
-  clock_pin: GPIO14
+  data_pin:
+    allow_other_uses: true
+    number: GPIO12
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO14
   rgb_current: 20mA
   cw_current: 60mA
 
@@ -390,7 +469,9 @@ switch:
     interlock: *interlock
   - platform: gpio
     id: gpio_switch3
-    pin: GPIO1
+    pin:
+      allow_other_uses: true
+      number: GPIO1
     interlock: *interlock
   - platform: custom
     lambda: |-
@@ -422,7 +503,7 @@ switch:
   - platform: template
     name: open_vent
     id: open_vent
-    optimistic: True
+    optimistic: true
     on_turn_on:
       then:
         - grove_tb6612fng.run:
@@ -440,10 +521,18 @@ custom_component:
 stepper:
   - platform: uln2003
     id: my_stepper
-    pin_a: GPIO12
-    pin_b: GPIO13
-    pin_c: GPIO14
-    pin_d: GPIO15
+    pin_a:
+      allow_other_uses: true
+      number: GPIO12
+    pin_b:
+      allow_other_uses: true
+      number: GPIO13
+    pin_c:
+      allow_other_uses: true
+      number: GPIO14
+    pin_d:
+      allow_other_uses: true
+      number: GPIO15
     sleep_when_done: false
     step_mode: HALF_STEP
     max_speed: 250 steps/s
@@ -451,8 +540,12 @@ stepper:
     deceleration: inf
   - platform: a4988
     id: my_stepper2
-    step_pin: GPIO1
-    dir_pin: GPIO2
+    step_pin:
+      allow_other_uses: true
+      number: GPIO1
+    dir_pin:
+      allow_other_uses: true
+      number: GPIO2
     max_speed: 0.1 steps/s
     acceleration: 10 steps/s^2
     deceleration: 10 steps/s^2
@@ -556,11 +649,14 @@ cover:
 output:
   - platform: esp8266_pwm
     id: out
-    pin: D3
+    pin:
+      number: D3
     frequency: 50Hz
   - platform: esp8266_pwm
     id: out2
-    pin: D4
+    pin:
+      allow_other_uses: true
+      number: D4
   - platform: custom
     type: binary
     lambda: |-
@@ -572,7 +668,9 @@ output:
   - platform: sigma_delta_output
     id: sddac
     update_interval: 60s
-    pin: D4
+    pin:
+      allow_other_uses: true
+      number: D4
     turn_on_action:
       then:
         - logger.log: "Turned on"
@@ -593,7 +691,9 @@ output:
     outputs:
       - id: custom_float
   - platform: slow_pwm
-    pin: GPIO5
+    pin:
+      allow_other_uses: true
+      number: GPIO5
     id: my_slow_pwm
     period: 15s
     restart_cycle_on_state_change: false
@@ -635,12 +735,18 @@ servo:
 ttp229_lsf:
 
 ttp229_bsf:
-  sdo_pin: D2
-  scl_pin: D1
+  sdo_pin:
+    allow_other_uses: true
+    number: D2
+  scl_pin:
+    allow_other_uses: true
+    number: D1
 
 display:
   - platform: max7219digit
-    cs_pin: GPIO15
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO15
     num_chips: 4
     rotate_chip: 0
     intensity: 10
@@ -666,10 +772,20 @@ button:
     name: Restart Button (Factory Default Settings)
 
 cd74hc4067:
-  pin_s0: GPIO12
-  pin_s1: GPIO13
-  pin_s2: GPIO14
-  pin_s3: GPIO15
+  pin_s0:
+    allow_other_uses: true
+    number: GPIO12
+  pin_s1:
+    allow_other_uses: true
+    number: GPIO13
+  pin_s2:
+    allow_other_uses: true
+    number: GPIO14
+  pin_s3:
+    allow_other_uses: true
+    number: GPIO15
 
 adc128s102:
-  cs_pin: GPIO12
+  cs_pin:
+    allow_other_uses: true
+    number: GPIO12

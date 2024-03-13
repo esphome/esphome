@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4.1.1
       - name: Set up Python
-        uses: actions/setup-python@v4.7.1
+        uses: actions/setup-python@v5.0.0
         with:
           python-version: "3.x"
       - name: Set up python environment
@@ -80,12 +80,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4.1.1
       - name: Set up Python
-        uses: actions/setup-python@v4.7.1
+        uses: actions/setup-python@v5.0.0
         with:
           python-version: "3.9"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.0.0
+        uses: docker/setup-buildx-action@v3.1.0
       - name: Set up QEMU
         if: matrix.platform != 'linux/amd64'
         uses: docker/setup-qemu-action@v3.0.0
@@ -163,7 +163,7 @@ jobs:
           name: digests-${{ matrix.image.target }}-${{ matrix.registry }}
           path: /tmp/digests
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.0.0
+        uses: docker/setup-buildx-action@v3.1.0
 
       - name: Log in to docker hub
         if: matrix.registry == 'dockerhub'

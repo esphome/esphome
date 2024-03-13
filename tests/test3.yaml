@@ -223,55 +223,102 @@ uart:
     tx_pin:
       number: GPIO1
       inverted: true
-    rx_pin: GPIO3
+      allow_other_uses: true
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO3
     baud_rate: 115200
   - id: uart_2
-    tx_pin: GPIO4
-    rx_pin: GPIO5
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO5
     baud_rate: 9600
   - id: uart_3
-    tx_pin: GPIO4
-    rx_pin: GPIO5
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO5
     baud_rate: 4800
   - id: uart_4
-    tx_pin: GPIO4
-    rx_pin: GPIO5
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO5
     baud_rate: 9600
   - id: uart_5
-    tx_pin: GPIO4
-    rx_pin: GPIO5
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO5
     baud_rate: 9600
   - id: uart_6
-    tx_pin: GPIO4
-    rx_pin: GPIO5
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO5
     baud_rate: 9600
   - id: uart_7
-    tx_pin: GPIO4
-    rx_pin: GPIO5
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO5
     baud_rate: 38400
   - id: uart_8
-    tx_pin: GPIO4
-    rx_pin: GPIO5
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO5
     baud_rate: 4800
     parity: NONE
     stop_bits: 2
     # Specifically added for testing debug with no options at all.
     debug:
   - id: uart_9
-    tx_pin: GPIO4
-    rx_pin: GPIO5
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO5
     baud_rate: 9600
   - id: uart_10
-    tx_pin: GPIO4
-    rx_pin: GPIO5
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO5
     baud_rate: 9600
   - id: uart_11
-    tx_pin: GPIO4
-    rx_pin: GPIO5
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO5
     baud_rate: 9600
   - id: uart_12
-    tx_pin: GPIO4
-    rx_pin: GPIO5
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO5
     baud_rate: 9600
 
 modbus:
@@ -362,6 +409,7 @@ sensor:
       name: hydreon_total_acc
     r_int:
       name: hydreon_r_int
+    resolution: low
 
   - platform: adc
     pin: VCC
@@ -587,7 +635,11 @@ sensor:
     current:
       name: CSE7766 Current
     power:
-      name: CSE776 Power
+      name: CSE7766 Power
+    apparent_power:
+      name: CSE7766 Apparent Power
+    power_factor:
+      name: CSE7766 Power Factor
 
   - platform: fingerprint_grow
     fingerprint_count:
@@ -696,6 +748,31 @@ sensor:
     temperature:
       name: Kuntze temperature
 
+  - platform: haier
+    haier_id: haier_climate
+    compressor_current:
+      name: Haier AC compressor current
+    compressor_frequency:
+      name: Haier AC compressor frequency
+    expansion_valve_open_degree:
+      name: Haier AC expansion valve open degree
+    humidity:
+      name: Haier AC indoor humidity
+    indoor_coil_temperature:
+      name: Haier AC indoor coil temperature
+    outdoor_coil_temperature:
+      name: Haier AC outdoor coil temperature
+    outdoor_defrost_temperature:
+      name: Haier AC outdoor defrost temperature
+    outdoor_in_air_temperature:
+      name: Haier AC outdoor in air temperature
+    outdoor_out_air_temperature:
+      name: Haier AC outdoor out air temperature
+    outdoor_temperature:
+      name: Haier AC outdoor temperature
+    power:
+      name: Haier AC power
+
 time:
   - platform: homeassistant
 
@@ -748,13 +825,34 @@ binary_sensor:
 
   - platform: gpio
     id: bin1
-    pin: 1
+    pin:
+      allow_other_uses: true
+      number: 1
   - platform: gpio
     id: bin2
-    pin: 2
+    pin:
+      allow_other_uses: true
+      number: 2
   - platform: gpio
     id: bin3
-    pin: 3
+    pin:
+      allow_other_uses: true
+      number: 3
+
+  - platform: haier
+    haier_id: haier_climate
+    compressor_status:
+      name: Haier AC compressor status
+    defrost_status:
+      name: Haier AC defrost status
+    four_way_valve_status:
+      name: Haier AC four-way valve status
+    indoor_electric_heating_status:
+      name: Haier AC indoor electric heating status
+    indoor_fan_status:
+      name: Haier AC indoor fan status
+    outdoor_fan_status:
+      name: Haier AC outdoor fan status
 
 globals:
   - id: my_global_string
@@ -762,11 +860,15 @@ globals:
     initial_value: '""'
 
 remote_receiver:
-  pin: GPIO12
+  pin:
+    allow_other_uses: true
+    number: GPIO12
   dump: []
 
 status_led:
-  pin: GPIO2
+  pin:
+    allow_other_uses: true
+    number: GPIO2
 
 text_sensor:
   - platform: daly_bms
@@ -819,13 +921,19 @@ script:
 switch:
   - platform: gpio
     id: gpio_switch1
-    pin: 1
+    pin:
+      allow_other_uses: true
+      number: 1
   - platform: gpio
     id: gpio_switch2
-    pin: 2
+    pin:
+      allow_other_uses: true
+      number: 2
   - platform: gpio
     id: gpio_switch3
-    pin: 3
+    pin:
+      allow_other_uses: true
+      number: 3
 
   - platform: nextion
     id: r0
@@ -836,6 +944,7 @@ climate:
   - platform: bang_bang
     name: Bang Bang Climate
     sensor: ha_hello_world
+    humidity_sensor: ha_hello_world
     default_target_temperature_low: 18°C
     default_target_temperature_high: 24°C
     idle_action:
@@ -850,6 +959,7 @@ climate:
   - platform: thermostat
     name: Thermostat Climate
     sensor: ha_hello_world
+    humidity_sensor: ha_hello_world
     preset:
       - name: Default Preset
         default_target_temperature_low: 18°C
@@ -937,6 +1047,7 @@ climate:
     id: pid_climate
     name: PID Climate Controller
     sensor: ha_hello_world
+    humidity_sensor: ha_hello_world
     default_target_temperature: 21°C
     heat_output: my_slow_pwm
     control_parameters:
@@ -954,29 +1065,48 @@ climate:
       kd_multiplier: 0.0
       deadband_output_averaging_samples: 1
   - platform: haier
+    id: haier_climate
     protocol: hOn
     name: Haier AC
     uart_id: uart_12
     wifi_signal: true
+    answer_timeout: 200ms
     beeper: true
-    outdoor_temperature:
-      name:  Haier AC outdoor temperature
     visual:
       min_temperature: 16 °C
       max_temperature: 30 °C
-      temperature_step: 1 °C
+      temperature_step:
+        target_temperature: 1
+        current_temperature: 0.5
     supported_modes:
-    - 'OFF'
-    - HEAT_COOL
-    - COOL
-    - HEAT
-    - DRY
-    - FAN_ONLY
+      - "OFF"
+      - HEAT_COOL
+      - COOL
+      - HEAT
+      - DRY
+      - FAN_ONLY
     supported_swing_modes:
-    - 'OFF'
-    - VERTICAL
-    - HORIZONTAL
-    - BOTH
+      - "OFF"
+      - VERTICAL
+      - HORIZONTAL
+      - BOTH
+    supported_presets:
+      - AWAY
+      - BOOST
+      - ECO
+      - SLEEP
+    on_alarm_start:
+      then:
+        - logger.log:
+            level: DEBUG
+            format: 'Alarm activated. Code: %d. Message: "%s"'
+            args: [code, message]
+    on_alarm_end:
+      then:
+        - logger.log:
+            level: DEBUG
+            format: 'Alarm deactivated. Code: %d. Message: "%s"'
+            args: [code, message]
 
 sprinkler:
   - id: yard_sprinkler_ctrlr
@@ -1023,13 +1153,18 @@ sprinkler:
 output:
   - platform: esp8266_pwm
     id: out
-    pin: D3
+    pin:
+      number: D3
     frequency: 50Hz
   - platform: esp8266_pwm
     id: out2
-    pin: D4
+    pin:
+      allow_other_uses: true
+      number: D4
   - platform: slow_pwm
-    pin: GPIO5
+    pin:
+      allow_other_uses: true
+      number: GPIO5
     id: my_slow_pwm
     period: 15s
     restart_cycle_on_state_change: false
@@ -1039,7 +1174,9 @@ e131:
 light:
   - platform: neopixelbus
     name: Neopixelbus Light
-    pin: GPIO1
+    pin:
+      allow_other_uses: true
+      number: GPIO1
     type: GRBW
     variant: SK6812
     method: ESP8266_UART0
@@ -1071,6 +1208,12 @@ light:
     max_brightness: 500
     firmware: "51.6"
     uart_id: uart_11
+    nrst_pin:
+      number: 5
+      allow_other_uses: true
+    boot0_pin:
+      number: 4
+      allow_other_uses: true
 
 sim800l:
   uart_id: uart_4
@@ -1096,8 +1239,12 @@ dfplayer:
           logger.log: Playback finished event
 tm1651:
   id: tm1651_battery
-  clk_pin: D6
-  dio_pin: D5
+  clk_pin:
+    allow_other_uses: true
+    number: D6
+  dio_pin:
+    allow_other_uses: true
+    number: D5
 
 rf_bridge:
   uart_id: uart_5
@@ -1150,9 +1297,22 @@ display:
         lambda: 'ESP_LOGD("display","Display shows new page %u", x);'
 
 fingerprint_grow:
-  sensing_pin: 4
+  sensing_pin:
+    allow_other_uses: true
+    number: 4
+  sensor_power_pin:
+    allow_other_uses: true
+    number: 5
+    inverted: true
+  idle_period_to_sleep: 5s
   password: 0x12FE37DC
   new_password: 0xA65B9840
+  on_finger_scan_start:
+    - homeassistant.event:
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_start
+  on_finger_scan_invalid:
+    - homeassistant.event:
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_invalid
   on_finger_scan_matched:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_finger_scan_matched
@@ -1162,6 +1322,9 @@ fingerprint_grow:
   on_finger_scan_unmatched:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_finger_scan_unmatched
+  on_finger_scan_misplaced:
+    - homeassistant.event:
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_misplaced
   on_enrollment_scan:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_enrollment_scan
@@ -1184,7 +1347,9 @@ dsmr:
   decryption_key: 00112233445566778899aabbccddeeff
   uart_id: uart_6
   max_telegram_length: 1000
-  request_pin: D5
+  request_pin:
+    allow_other_uses: true
+    number: D5
   request_interval: 20s
   receive_timeout: 100ms
 
@@ -1197,8 +1362,11 @@ qr_code:
     value: https://esphome.io/index.html
 
 lightwaverf:
-  read_pin: 13
-  write_pin: 14
+  read_pin:
+    number: 13
+  write_pin:
+    allow_other_uses: true
+    number: 14
 
 alarm_control_panel:
   - platform: template

@@ -52,12 +52,22 @@ spi_device:
   mode: 3
   bit_order: lsb_first
 
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
+
 display:
   - platform: ili9xxx
+    id: displ8
     model: ili9342
     cs_pin: GPIO5
     dc_pin: GPIO4
-    reset_pin: GPIO48
+    reset_pin:
+      number: GPIO48
+      allow_other_uses: true
+    lambda: |-
+      it.printf(10, 100, id(roboto), Color(0x123456), COLOR_OFF, display::TextAlign::BASELINE, "%f", id(heap_free).state);
 
 i2c:
   scl: GPIO18
@@ -65,10 +75,14 @@ i2c:
 
 touchscreen:
   - platform: tt21100
+    display: displ8
     interrupt_pin:
       number: GPIO3
       ignore_strapping_warning: true
-    reset_pin: GPIO48
+      allow_other_uses: false
+    reset_pin:
+      number: GPIO48
+      allow_other_uses: true
 
 binary_sensor:
   - platform: tt21100
@@ -78,6 +92,7 @@ binary_sensor:
 sensor:
   - platform: debug
     free:
+      id: heap_free
       name: "Heap Free"
     block:
       name: "Max Block Free"
@@ -85,3 +100,13 @@ sensor:
       name: "Loop Time"
     psram:
       name: "PSRAM Free"
+
+# Purposely test that `animation:` does auto-load `image:`
+# Keep the `image:` undefined.
+# image:
+
+animation:
+  - id: rgb565_animation
+    file: pnglogo.png
+    type: RGB565
+    use_transparency: false
