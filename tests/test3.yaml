@@ -320,15 +320,6 @@ uart:
       allow_other_uses: true
       number: GPIO5
     baud_rate: 9600
-  - id: uart_13
-    tx_pin:
-      allow_other_uses: true
-      number: GPIO4
-    rx_pin:
-      allow_other_uses: true
-      number: GPIO5
-    baud_rate: 1200
-    stop_bits: 2
 
 modbus:
   uart_id: uart_1
@@ -722,10 +713,6 @@ sensor:
   - platform: dsmr
     energy_delivered_tariff1:
       name: dsmr_energy_delivered_tariff1
-  - platform: kamstrup_kmp
-    uart_id: uart_13
-    heat_energy:
-      name: "Heat Energy"
 
   - platform: nextion
     id: testnumber
