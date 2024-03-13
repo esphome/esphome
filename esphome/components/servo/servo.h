@@ -28,6 +28,8 @@ class Servo : public Component {
   void set_auto_detach_time(uint32_t auto_detach_time) { auto_detach_time_ = auto_detach_time; }
   void set_transition_length(uint32_t transition_length) { transition_length_ = transition_length; }
 
+  bool has_reached_target() { return this->current_value_ == this->target_value_; }
+
  protected:
   void save_level_(float v);
 
