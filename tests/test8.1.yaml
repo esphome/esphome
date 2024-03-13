@@ -23,12 +23,12 @@ psram:
 
 spi:
   - id: spi_id_1
+    type: single
     clk_pin:
-      number:  GPIO7
+      number: GPIO7
       allow_other_uses: false
     mosi_pin: GPIO6
-    interface: any
-
+    interface: hardware
 spi_device:
   id: spidev
   data_rate: 2MHz

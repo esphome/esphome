@@ -1,0 +1,20 @@
+esphome:
+  name: componenttestesp32idf
+  friendly_name: $component_name
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: esp-idf
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_name: $component_name
+      test_name: $test_name
+      target_platform: $target_platform
+      component_test_file: $component_test_file
