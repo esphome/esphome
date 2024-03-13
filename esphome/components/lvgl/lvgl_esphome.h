@@ -62,6 +62,7 @@ typedef lv_msgbox_t LvMsgBoxType;
 typedef lv_line_t LvLineType;
 typedef lv_img_t LvImgType;
 typedef lv_animimg_t LvAnimImgType;
+typedef lv_spinbox_t LvSpinBoxType;
 typedef lv_arc_t LvArcType;
 typedef lv_bar_t LvBarType;
 typedef lv_theme_t LvThemeType;
@@ -288,12 +289,12 @@ class LvglComponent : public PollingComponent {
 #if LV_USE_LOG
     lv_log_register_print_cb(log_cb);
 #endif
-    size_t bytes_per_pixel = LV_COLOR_DEPTH / 8;
     auto display = this->displays_[0];
     size_t buffer_pixels = display->get_width() * display->get_height() / this->buffer_frac_;
-    auto buf = lv_custom_mem_alloc(buffer_pixels * bytes_per_pixel);
+    auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;
+    auto buf = lv_custom_mem_alloc(buf_bytes);
     if (buf == nullptr) {
-      esph_log_e(TAG, "Malloc failed to allocate %zu bytes", buffer_pixels * bytes_per_pixel);
+      esph_log_e(TAG, "Malloc failed to allocate %zu bytes", buf_bytes);
       this->mark_failed();
       return;
     }
