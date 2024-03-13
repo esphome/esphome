@@ -80,32 +80,62 @@ RADAR_SETTINGS_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(AT581XComponent),
         cv.Optional(CONF_FACTORY_RESET): cv.templatable(cv.boolean),
-        cv.Optional(CONF_FREQUENCY, default=5800): cv.one_of(
-            5696,
-            5715,
-            5730,
-            5748,
-            5765,
-            5784,
-            5800,
-            5819,
-            5836,
-            5851,
-            5869,
-            5888,
-            int=True,
+        cv.Optional(CONF_FREQUENCY, default=5800): cv.templatable(
+            cv.one_of(
+                5696,
+                5715,
+                5730,
+                5748,
+                5765,
+                5784,
+                5800,
+                5819,
+                5836,
+                5851,
+                5869,
+                5888,
+                int=True,
+            )
         ),
-        cv.Optional(CONF_SENSING_DISTANCE, default=823): cv.int_range(min=0, max=1023),
-        cv.Optional(CONF_POWERON_SELFCHECK_TIME, default=2000): cv.int_range(
-            min=0, max=65535
+        cv.Optional(CONF_SENSING_DISTANCE, default=823): cv.templatable(
+            cv.int_range(min=0, max=1023)
         ),
-        cv.Optional(CONF_POWER_CONSUMPTION, default=70): cv.one_of(
-            48, 56, 63, 70, 77, 91, 105, 115, 40, 44, 47, 51, 54, 61, 68, 78, int=True
+        cv.Optional(CONF_POWERON_SELFCHECK_TIME, default=2000): cv.templatable(
+            cv.int_range(min=0, max=65535)
         ),
-        cv.Optional(CONF_PROTECT_TIME, default=1000): cv.int_range(min=1, max=65535),
-        cv.Optional(CONF_TRIGGER_BASE, default=500): cv.int_range(min=1, max=65535),
-        cv.Optional(CONF_TRIGGER_KEEP, default=1500): cv.int_range(min=1, max=65535),
-        cv.Optional(CONF_STAGE_GAIN, default=3): cv.int_range(min=0, max=12),
+        cv.Optional(CONF_POWER_CONSUMPTION, default=70): cv.templatable(
+            cv.one_of(
+                48,
+                56,
+                63,
+                70,
+                77,
+                91,
+                105,
+                115,
+                40,
+                44,
+                47,
+                51,
+                54,
+                61,
+                68,
+                78,
+                int=True,
+            )
+        ),
+        cv.Optional(CONF_PROTECT_TIME, default=1000): cv.templatable(
+            cv.int_range(min=1, max=65535)
+        ),
+        cv.Optional(CONF_TRIGGER_BASE, default=500): cv.templatable(
+            cv.int_range(min=1, max=65535)
+        ),
+        cv.Optional(CONF_TRIGGER_KEEP, default=1500): cv.templatable(
+            cv.int_range(min=1, max=65535)
+        ),
+        cv.Optional(CONF_STAGE_GAIN, default=3): cv.templatable(
+            cv.int_range(min=0, max=12)
+        ),
     }
 ).add_extra(
     cv.has_at_least_one_key(

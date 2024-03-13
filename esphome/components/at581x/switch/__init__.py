@@ -8,6 +8,8 @@ from esphome.const import (
 )
 from .. import CONF_AT581X_ID, AT581XComponent, at581x_ns
 
+DEPENDENCIES = ["at581x"]
+
 RFSwitch = at581x_ns.class_("RFSwitch", switch.Switch)
 
 CONF_RF = "rf"
