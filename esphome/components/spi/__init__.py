@@ -198,7 +198,6 @@ def get_hw_spi(config, available):
 def validate_spi_config(config):
     available = list(range(len(get_hw_interface_list())))
     for spi in config:
-        # map pin number to schema
         interface = spi[CONF_INTERFACE]
         if interface == "software":
             pass
