@@ -2740,9 +2740,6 @@ climate:
     heat_mode: extended
   - platform: whynter
     name: Whynter
-  - platform: emmeti
-    name: Emmeti
-    receiver_id: rcvr
   - platform: noblex
     name: AC Living
     id: noblex_ac
