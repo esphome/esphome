@@ -29,7 +29,7 @@ class Servo : public Component {
   void set_transition_length(uint32_t transition_length) { transition_length_ = transition_length; }
 
  protected:
-  void save_level_(float v) { this->rtc_.save(&v); }
+  void save_level_(float v);
 
   output::FloatOutput *output_;
   float min_level_ = 0.0300f;

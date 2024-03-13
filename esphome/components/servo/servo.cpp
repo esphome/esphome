@@ -97,5 +97,10 @@ void Servo::detach() {
   this->output_->set_level(0.0f);
 }
 
+void Servo::save_level_(float v) {
+  if (this->restore_)
+    this->rtc_.save(&v);
+}
+
 }  // namespace servo
 }  // namespace esphome
