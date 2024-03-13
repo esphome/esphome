@@ -24,6 +24,32 @@ static const char *const CONF_MAX_CHARGE_CURRENT = "max_charge_current";
 static const char *const CONF_MAX_DISCHARGE_CURRENT = "max_discharge_current";
 static const char *const CONF_MIN_DISCHARGE_VOLTAGE = "min_discharge_voltage";
 
+// alarm and warning flags.
+
+static const uint32_t FLAG_GENERAL_ALARM = 0x0001;
+static const uint32_t FLAG_HIGH_VOLTAGE = 0x0002;
+static const uint32_t FLAG_LOW_VOLTAGE = 0x0004;
+static const uint32_t FLAG_HIGH_TEMPERATURE = 0x0008;
+static const uint32_t FLAG_LOW_TEMPERATURE = 0x0010;
+static const uint32_t FLAG_HIGH_TEMPERATURE_CHARGE = 0x0020;
+static const uint32_t FLAG_LOW_TEMPERATURE_CHARGE = 0x0040;
+static const uint32_t FLAG_HIGH_CURRENT = 0x0080;
+static const uint32_t FLAG_HIGH_CURRENT_CHARGE = 0x0100;
+static const uint32_t FLAG_CONTACTOR_ERROR = 0x0200;
+static const uint32_t FLAG_SHORT_CIRCUIT = 0x0400;
+static const uint32_t FLAG_BMS_INTERNAL_ERROR = 0x0800;
+static const uint32_t FLAG_CELL_IMBALANCE = 0x1000;
+
+// request flags
+
+enum Requests {
+  REQ_CHARGE_ENABLE,
+  REQ_DISCHARGE_ENABLE,
+  REQ_FORCE_CHARGE_1,
+  REQ_FORCE_CHARGE_2,
+  REQ_FULL_CHARGE,
+};
+
 // this should be split out into a top-level bms component, with canbus_bms as a platform.
 class Bms {
  public:
@@ -36,6 +62,9 @@ class Bms {
   virtual float get_min_voltage() = 0;
   virtual float get_max_charge_current() = 0;
   virtual float get_max_discharge_current() = 0;
+  virtual uint32_t get_alarms() = 0;
+  virtual uint32_t get_warnings() = 0;
+  virtual uint32_t get_requests() = 0;
 };
 
 class TextSensorDesc {
@@ -54,14 +83,16 @@ class FlagDesc {
   friend class CanbusBmsComponent;
 
  public:
-  FlagDesc(const char *key, const char *message, int msg_id, int offset, int bit_no, int warn_offset, int warn_bit_no)
+  FlagDesc(const char *key, const char *message, int msg_id, int offset, int bit_no, int warn_offset, int warn_bit_no,
+           int bit_mask)
       : key_{key},
         message_{message},
         msg_id_{msg_id},
         offset_{offset},
         bit_no_{bit_no},
         warn_offset_{warn_offset},
-        warn_bit_no_{warn_bit_no} {}
+        warn_bit_no_{warn_bit_no},
+        bit_mask_{bit_mask} {}
 
  protected:
   const char *key_;
@@ -71,6 +102,7 @@ class FlagDesc {
   const int bit_no_;
   const int warn_offset_;
   const int warn_bit_no_;
+  const int bit_mask_;
   bool warned_ = false;
   bool alarmed_ = false;
 };
@@ -80,8 +112,14 @@ class BinarySensorDesc {
 
  public:
   BinarySensorDesc(const char *key, binary_sensor::BinarySensor *sensor, int msg_id, int offset, int bit_no,
-                   bool filtered)
-      : key_{key}, sensor_{sensor}, msg_id_{msg_id}, offset_{offset}, bit_no_{bit_no}, filtered_{filtered} {}
+                   bool filtered, Requests index)
+      : key_{key},
+        sensor_{sensor},
+        msg_id_{msg_id},
+        offset_{offset},
+        bit_no_{bit_no},
+        filtered_{filtered},
+        bit_mask_{1u << index} {}
 
  protected:
   const char *key_;
@@ -89,8 +127,17 @@ class BinarySensorDesc {
   const int msg_id_;
   const int offset_;
   const int bit_no_;
-  const bool filtered_;     // if sensor has its own filter chain
+  const bool filtered_;  // if sensor has its own filter chain
+  const uint32_t bit_mask_;
   uint32_t last_time_ = 0;  // records last time a value was sent
+  bool last_value_ = 0;
+
+  void publish_(bool value) {
+    this->last_time_ = millis();
+    this->last_value_ = value;
+    if (this->sensor_ != nullptr)
+      this->sensor_->publish_state(value);
+  }
 };
 
 class SensorDesc {
@@ -134,7 +181,7 @@ class SensorDesc {
 class CanbusBmsComponent : public Action<std::vector<uint8_t>, uint32_t, bool>, public PollingComponent, public Bms {
  public:
   CanbusBmsComponent(uint32_t throttle, uint32_t timeout, const char *name, bool debug)
-      : PollingComponent(std::min(throttle, 15000U)),
+      : PollingComponent(std::min(throttle, (uint32_t) 15000U)),
         name_{name},
         debug_{debug},
         throttle_{throttle},
@@ -151,6 +198,9 @@ class CanbusBmsComponent : public Action<std::vector<uint8_t>, uint32_t, bool>, 
   float get_min_voltage() override;
   float get_max_charge_current() override;
   float get_max_discharge_current() override;
+  uint32_t get_alarms() override;
+  uint32_t get_warnings() override;
+  uint32_t get_requests() override;
 
   void set_canbus(canbus::Canbus *canbus) { this->canbus_ = canbus; }
   // called when a CAN Bus message is received

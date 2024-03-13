@@ -17,7 +17,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["canbus"]
-AUTO_LOAD = ["sensor", "text_sensor", "binary_sensor"]
+AUTO_LOAD = ["sensor", "text_sensor", "binary_sensor", "number"]
 MULTI_CONF = True
 
 CONF_BMS_ID = "bms_id"
@@ -31,7 +31,6 @@ bms = cg.esphome_ns.namespace("canbus_bms")
 BmsComponent = bms.class_("CanbusBmsComponent", cg.PollingComponent, CanbusComponent)
 BmsTrigger = bms.class_("BmsTrigger", CanbusTrigger)
 SensorDesc = bms.class_("SensorDesc")
-BinarySensorDesc = bms.class_("BinarySensorDesc")
 TextSensorDesc = bms.class_("TextSensorDesc")
 FlagDesc = bms.class_("FlagDesc")
 

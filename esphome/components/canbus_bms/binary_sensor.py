@@ -10,8 +10,8 @@ from esphome.const import (
 )
 
 from . import (
+    bms,
     BmsComponent,
-    BinarySensorDesc,
     CONF_BMS_ID,
     CONF_MSG_ID,
     CONF_BIT_NO,
@@ -19,10 +19,16 @@ from . import (
     CONF_ALARMS,
 )
 
+CONF_REQUEST = "request"
+
+BinarySensorDesc = bms.class_("BinarySensorDesc")
+Requests = bms.enum("Requests")
+
 
 # define an alarm or warning bit, found as a bit in a byte at an offset in a message
-def bms_bit_desc(msg_id=-1, offset=-1, bitno=-1):
+def bms_bit_desc(request, msg_id, offset, bitno):
     return {
+        CONF_REQUEST: request,
         CONF_MSG_ID: msg_id,
         CONF_OFFSET: offset,
         CONF_BIT_NO: bitno,
@@ -34,11 +40,21 @@ PYLON_REQUEST_MSG_ID = 0x35C
 # The sensor map from conf id to message and data decoding information. Each sensor may have multiple
 # implementations corresponding to different BMS protocols.
 REQUESTS = {
-    "charge_enable": (bms_bit_desc(PYLON_REQUEST_MSG_ID, 0, 7),),
-    "discharge_enable": (bms_bit_desc(PYLON_REQUEST_MSG_ID, 0, 6),),
-    "force_charge_1": (bms_bit_desc(PYLON_REQUEST_MSG_ID, 0, 5),),
-    "force_charge_2": (bms_bit_desc(PYLON_REQUEST_MSG_ID, 0, 4),),
-    "request_full_charge": (bms_bit_desc(PYLON_REQUEST_MSG_ID, 0, 3),),
+    "charge_enable": (
+        bms_bit_desc(Requests.REQ_CHARGE_ENABLE, PYLON_REQUEST_MSG_ID, 0, 7),
+    ),
+    "discharge_enable": (
+        bms_bit_desc(Requests.REQ_DISCHARGE_ENABLE, PYLON_REQUEST_MSG_ID, 0, 6),
+    ),
+    "force_charge_1": (
+        bms_bit_desc(Requests.REQ_FORCE_CHARGE_1, PYLON_REQUEST_MSG_ID, 0, 5),
+    ),
+    "force_charge_2": (
+        bms_bit_desc(Requests.REQ_FORCE_CHARGE_2, PYLON_REQUEST_MSG_ID, 0, 4),
+    ),
+    "full_charge": (
+        bms_bit_desc(Requests.REQ_FULL_CHARGE, PYLON_REQUEST_MSG_ID, 0, 3),
+    ),
 }
 
 FLAGS = {
@@ -83,6 +99,7 @@ async def to_code(config):
     hub = await cg.get_variable(bms_id)
     # Add entries for sensors with direct bit mappings
     vectors = {}  # map message ids to vectors.
+    index = 0
     for key, entries in REQUESTS.items():
         sens = cg.nullptr
         filtered = True
@@ -110,9 +127,11 @@ async def to_code(config):
                         desc[CONF_OFFSET],
                         desc[CONF_BIT_NO],
                         filtered,
+                        desc[CONF_REQUEST],
                     )
                 )
             )
+        index += 1
     for id, vector in vectors.items():
         cg.add(hub.add_binary_sensor_list(id, vector))
 
