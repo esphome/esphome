@@ -8,9 +8,9 @@
  */
 
 #include "htu31d.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace htu31d {
@@ -43,112 +43,11 @@ static const uint8_t HTU31D_RESET = 0x1E;
 static const uint8_t HTU31D_DIAGNOSTICS = 0x08;
 
 /**
- * Resets the sensor and ensures that the devices serial number can be read over
- * I2C.
- */
-void HTU31DComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up esphome/components/htu31d HTU31D...");
-
-  if (!reset_()) {
-    this->mark_failed();
-    return;
-  }
-
-  if (read_serial_num_() == 0) {
-    this->mark_failed();
-    return;
-  }
-}
-
-/**
- * Called once every update interval (user configured, defaults to 60s) and sets
- * the current temperature and humidity.
- */
-void HTU31DComponent::update() {
-  ESP_LOGD(TAG, "Checking temperature and humidty values");
-
-  float temperature = 0.0f;
-  float humidity = 0.0f;
-
-  // Trigger a conversion. From the spec sheet: The conversion command triggers
-  // a single temperature and humidity conversion.
-  if (this->write_register(HTU31D_CONVERSION, nullptr, 0) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "Received errror writing conversion register");
-    return;
-  }
-
-  // Wait conversion time.
-  delay(20);
-
-  uint8_t thdata[6];
-  if (this->read_register(HTU31D_READTEMPHUM, thdata, 6) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "Error reading temperature/humidty register");
-    return;
-  }
-
-  // Calculate temperature value.
-  uint16_t raw_temp = encode_uint16(thdata[0], thdata[1]);
-
-  uint8_t crc = compute_crc_((uint32_t) raw_temp << 8);
-  if (crc != thdata[2]) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "Error validating temperature CRC");
-    return;
-  }
-
-  temperature = raw_temp;
-  temperature /= 65535.0f;
-  temperature *= 165;
-  temperature -= 40;
-
-  if (this->temperature_ != nullptr) {
-    this->temperature_->publish_state(temperature);
-  }
-
-  // Calculate humidty value.
-  uint16_t raw_hum = encode_uint16(thdata[3], thdata[4]);
-
-  crc = compute_crc_((uint32_t) raw_hum << 8);
-  if (crc != thdata[5]) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "Error validating humidty CRC");
-    return;
-  }
-
-  humidity = raw_hum;
-  humidity /= 65535.0f;
-  humidity *= 100;
-
-  if (this->humidity_ != nullptr) {
-    this->humidity_->publish_state(humidity);
-  }
-
-  ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
-  this->status_clear_warning();
-}
-
-/**
- * Logs the current compoenent config.
- */
-void HTU31DComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "HTU31D:");
-  LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with HTU31D failed!");
-  }
-  LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
-}
-
-/**
  * Computes a CRC result for the provided input.
  *
  * @returns the computed CRC result for the provided input
  */
-uint8_t HTU31DComponent::compute_crc_(uint32_t value) {
+uint8_t compute_crc(uint32_t value) {
   uint32_t polynom = 0x98800000;  // x^8 + x^5 + x^4 + 1
   uint32_t msb = 0x80000000;
   uint32_t mask = 0xFF800000;
@@ -167,6 +66,104 @@ uint8_t HTU31DComponent::compute_crc_(uint32_t value) {
   }
 
   return result;
+}
+
+/**
+ * Resets the sensor and ensures that the devices serial number can be read over
+ * I2C.
+ */
+void HTU31DComponent::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up esphome/components/htu31d HTU31D...");
+
+  if (!this->reset_()) {
+    this->mark_failed();
+    return;
+  }
+
+  if (this->read_serial_num_() == 0) {
+    this->mark_failed();
+    return;
+  }
+}
+
+/**
+ * Called once every update interval (user configured, defaults to 60s) and sets
+ * the current temperature and humidity.
+ */
+void HTU31DComponent::update() {
+  ESP_LOGD(TAG, "Checking temperature and humidty values");
+
+  // Trigger a conversion. From the spec sheet: The conversion command triggers
+  // a single temperature and humidity conversion.
+  if (this->write_register(HTU31D_CONVERSION, nullptr, 0) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    ESP_LOGE(TAG, "Received errror writing conversion register");
+    return;
+  }
+
+  // Wait conversion time.
+  this->set_timeout(20, [this]() {
+    uint8_t thdata[6];
+    if (this->read_register(HTU31D_READTEMPHUM, thdata, 6) != i2c::ERROR_OK) {
+      this->status_set_warning();
+      ESP_LOGE(TAG, "Error reading temperature/humidty register");
+      return;
+    }
+
+    // Calculate temperature value.
+    uint16_t raw_temp = encode_uint16(thdata[0], thdata[1]);
+
+    uint8_t crc = compute_crc((uint32_t) raw_temp << 8);
+    if (crc != thdata[2]) {
+      this->status_set_warning();
+      ESP_LOGE(TAG, "Error validating temperature CRC");
+      return;
+    }
+
+    float temperature = raw_temp;
+    temperature /= 65535.0f;
+    temperature *= 165;
+    temperature -= 40;
+
+    if (this->temperature_ != nullptr) {
+      this->temperature_->publish_state(temperature);
+    }
+
+    // Calculate humidty value.
+    uint16_t raw_hum = encode_uint16(thdata[3], thdata[4]);
+
+    crc = compute_crc((uint32_t) raw_hum << 8);
+    if (crc != thdata[5]) {
+      this->status_set_warning();
+      ESP_LOGE(TAG, "Error validating humidty CRC");
+      return;
+    }
+
+    float humidity = raw_hum;
+    humidity /= 65535.0f;
+    humidity *= 100;
+
+    if (this->humidity_ != nullptr) {
+      this->humidity_->publish_state(humidity);
+    }
+
+    ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
+    this->status_clear_warning();
+  });
+}
+
+/**
+ * Logs the current compoenent config.
+ */
+void HTU31DComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "HTU31D:");
+  LOG_I2C_DEVICE(this);
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "Communication with HTU31D failed!");
+  }
+  LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "Temperature", this->temperature_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_);
 }
 
 /**
@@ -201,7 +198,7 @@ uint32_t HTU31DComponent::read_serial_num_() {
 
   serial = encode_uint32(reply[0], reply[1], reply[2], padding);
 
-  uint8_t crc = compute_crc_(serial);
+  uint8_t crc = compute_crc(serial);
   if (crc != reply[3]) {
     ESP_LOGE(TAG, "Error validating serial CRC");
     return 0;
@@ -239,7 +236,7 @@ bool HTU31DComponent::is_heater_enabled() {
  * @param desired True for on, and False for off.
  */
 void HTU31DComponent::set_heater_state(bool desired) {
-  bool current = is_heater_enabled();
+  bool current = this->is_heater_enabled();
 
   // If the current state matches the desired state, there is nothing to do.
   if (current == desired) {
