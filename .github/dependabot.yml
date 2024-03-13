@@ -13,3 +13,13 @@ updates:
     schedule:
       interval: daily
     open-pull-requests-limit: 10
+  - package-ecosystem: github-actions
+    directory: "/.github/actions/build-image"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+  - package-ecosystem: github-actions
+    directory: "/.github/actions/restore-python"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10

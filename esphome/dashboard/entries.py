@@ -10,12 +10,14 @@ from esphome import const, util
 from esphome.storage_json import StorageJSON, ext_storage_path
 
 from .const import (
+    DASHBOARD_COMMAND,
     EVENT_ENTRY_ADDED,
     EVENT_ENTRY_REMOVED,
     EVENT_ENTRY_STATE_CHANGED,
     EVENT_ENTRY_UPDATED,
 )
 from .enum import StrEnum
+from .util.subprocess import async_run_system_command
 
 if TYPE_CHECKING:
     from .core import ESPHomeDashboard
@@ -235,6 +237,14 @@ class DashboardEntries:
             )
         return path_to_cache_key
 
+    def async_schedule_storage_json_update(self, filename: str) -> None:
+        """Schedule a task to update the storage JSON file."""
+        self._dashboard.async_create_background_task(
+            async_run_system_command(
+                [*DASHBOARD_COMMAND, "compile", "--only-generate", filename]
+            )
+        )
+
 
 class DashboardEntry:
     """Represents a single dashboard entry.
@@ -262,7 +272,7 @@ class DashboardEntry:
         self.state = EntryState.UNKNOWN
         self._to_dict: dict[str, Any] | None = None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return the representation of this entry."""
         return (
             f"DashboardEntry(path={self.path} "

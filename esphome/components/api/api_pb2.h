@@ -472,6 +472,7 @@ class ListEntitiesFanResponse : public ProtoMessage {
   bool disabled_by_default{false};
   std::string icon{};
   enums::EntityCategory entity_category{};
+  std::vector<std::string> supported_preset_modes{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -490,6 +491,7 @@ class FanStateResponse : public ProtoMessage {
   enums::FanSpeed speed{};
   enums::FanDirection direction{};
   int32_t speed_level{0};
+  std::string preset_mode{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -497,6 +499,7 @@ class FanStateResponse : public ProtoMessage {
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class FanCommandRequest : public ProtoMessage {
@@ -512,6 +515,8 @@ class FanCommandRequest : public ProtoMessage {
   enums::FanDirection direction{};
   bool has_speed_level{false};
   int32_t speed_level{0};
+  bool has_preset_mode{false};
+  std::string preset_mode{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -519,6 +524,7 @@ class FanCommandRequest : public ProtoMessage {
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesLightResponse : public ProtoMessage {
@@ -707,6 +713,7 @@ class ListEntitiesTextSensorResponse : public ProtoMessage {
   std::string icon{};
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
+  std::string device_class{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -979,6 +986,10 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   std::string icon{};
   enums::EntityCategory entity_category{};
   float visual_current_temperature_step{0.0f};
+  bool supports_current_humidity{false};
+  bool supports_target_humidity{false};
+  float visual_min_humidity{0.0f};
+  float visual_max_humidity{0.0f};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1004,6 +1015,8 @@ class ClimateStateResponse : public ProtoMessage {
   std::string custom_fan_mode{};
   enums::ClimatePreset preset{};
   std::string custom_preset{};
+  float current_humidity{0.0f};
+  float target_humidity{0.0f};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1037,6 +1050,8 @@ class ClimateCommandRequest : public ProtoMessage {
   enums::ClimatePreset preset{};
   bool has_custom_preset{false};
   std::string custom_preset{};
+  bool has_target_humidity{false};
+  float target_humidity{0.0f};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1687,6 +1702,7 @@ class VoiceAssistantRequest : public ProtoMessage {
   std::string conversation_id{};
   uint32_t flags{0};
   VoiceAssistantAudioSettings audio_settings{};
+  std::string wake_word_phrase{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1833,6 +1849,56 @@ class TextCommandRequest : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class ListEntitiesDateResponse : public ProtoMessage {
+ public:
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  std::string icon{};
+  bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class DateStateResponse : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  bool missing_state{false};
+  uint32_t year{0};
+  uint32_t month{0};
+  uint32_t day{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class DateCommandRequest : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  uint32_t year{0};
+  uint32_t month{0};
+  uint32_t day{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 
 }  // namespace api
