@@ -64,7 +64,7 @@ class _Schema(vol.Schema):
 
         # Recursively compile schema
         _compiled_schema = {}
-        for skey, svalue in vol.iteritems(schema):
+        for skey, svalue in schema.items():
             new_key = self._compile(skey)
             new_value = self._compile(svalue)
             _compiled_schema[skey] = (new_key, new_value)
