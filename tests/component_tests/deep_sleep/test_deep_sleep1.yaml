@@ -8,3 +8,4 @@ deep_sleep:
   id: deepsleep
   sleep_duration: 1min
   run_duration: 10s
+  wakeup_pin: GPIO2

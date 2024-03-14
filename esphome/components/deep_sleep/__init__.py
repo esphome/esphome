@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_MINUTE,
     CONF_MODE,
     CONF_NUMBER,
+    CONF_PIN,
     CONF_PINS,
     CONF_RUN_DURATION,
     CONF_SECOND,
@@ -28,6 +29,9 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
 )
+from esphome.core import CORE
+
+MULTIPIN_DEVICES = [VARIANT_ESP32C3, VARIANT_ESP32C2]
 
 WAKEUP_PINS = {
     VARIANT_ESP32: [
@@ -105,6 +109,14 @@ WAKEUP_PINS = {
 }
 
 
+def validate_pin_numbers(value):
+    if CONF_PIN in value:
+        validate_pin_number(value[CONF_PIN])
+    else:
+        validate_pin_number(value)
+    return value
+
+
 def validate_pin_number(value):
     valid_pins = WAKEUP_PINS.get(get_esp32_variant(), WAKEUP_PINS[VARIANT_ESP32])
     if value[CONF_NUMBER] not in valid_pins:
@@ -115,10 +127,43 @@ def validate_pin_number(value):
 
 
 def validate_config(config):
-    if get_esp32_variant() == VARIANT_ESP32C3 and CONF_ESP32_EXT1_WAKEUP in config:
-        raise cv.Invalid("ESP32-C3 does not support wakeup from touch.")
-    if get_esp32_variant() == VARIANT_ESP32C3 and CONF_TOUCH_WAKEUP in config:
-        raise cv.Invalid("ESP32-C3 does not support wakeup from ext1")
+    if CORE.is_esp32:
+        if get_esp32_variant() in MULTIPIN_DEVICES and CONF_ESP32_EXT1_WAKEUP in config:
+            raise cv.Invalid("Your device does not support wakeup from ext1")
+        if get_esp32_variant() in MULTIPIN_DEVICES and CONF_TOUCH_WAKEUP in config:
+            raise cv.Invalid("Your device does not support wakeup from touch.")
+        if CONF_WAKEUP_PIN in config and (
+            (not isinstance(config[CONF_WAKEUP_PIN], list))
+            or (
+                len(config[CONF_WAKEUP_PIN]) < 2
+                and CONF_PIN not in config[CONF_WAKEUP_PIN][0]
+            )
+        ):
+            # Automatically convert single wakeup_pin to 'multipin list'
+            config = config.copy()
+            pin = (
+                config.pop(CONF_WAKEUP_PIN)[0]
+                if isinstance(config[CONF_WAKEUP_PIN], list)
+                else config.pop(CONF_WAKEUP_PIN)
+            )
+            wakeup_pin = {CONF_PIN: pin}
+            if CONF_WAKEUP_PIN_MODE in config:
+                wakeup_pin[CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
+            config[CONF_WAKEUP_PIN] = [wakeup_pin]
+
+        if CONF_WAKEUP_PIN not in config:
+            config = config.copy()
+            config[CONF_WAKEUP_PIN] = []
+
+        if (
+            len(config[CONF_WAKEUP_PIN]) > 1
+            and get_esp32_variant() not in MULTIPIN_DEVICES
+        ):
+            raise cv.Invalid("Your board only supports wake from a single pin")
+        if len(config[CONF_WAKEUP_PIN]) > 1 and CONF_WAKEUP_PIN_MODE in config:
+            raise cv.Invalid(
+                "You need to remove the global wakeup_pin_mode and define it per pin"
+            )
     return config
 
 
@@ -167,6 +212,16 @@ WAKEUP_CAUSES_SCHEMA = cv.Schema(
     }
 )
 
+WakeupPinItem = deep_sleep_ns.struct("WakeupPinItem")
+WAKEUP_SINGLEPIN_SCHEMA = pins.internal_gpio_input_pin_schema
+WAKEUP_MULTIPIN_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_PIN): WAKEUP_SINGLEPIN_SCHEMA,
+        cv.Optional(CONF_WAKEUP_PIN_MODE): (cv.enum(WAKEUP_PIN_MODES, upper=True)),
+    }
+)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -178,8 +233,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_WAKEUP_PIN): cv.All(
                 cv.only_on_esp32,
-                pins.internal_gpio_input_pin_schema,
-                validate_pin_number,
+                cv.ensure_list(
+                    cv.All(
+                        cv.Any(WAKEUP_SINGLEPIN_SCHEMA, WAKEUP_MULTIPIN_SCHEMA),
+                        validate_pin_numbers,
+                    )
+                ),
             ),
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
                 cv.only_on_esp32, cv.enum(WAKEUP_PIN_MODES), upper=True
@@ -199,6 +258,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
+    validate_config,
 )
 
 
@@ -209,10 +269,22 @@ async def to_code(config):
     if CONF_SLEEP_DURATION in config:
         cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
     if CONF_WAKEUP_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_WAKEUP_PIN])
-        cg.add(var.set_wakeup_pin(pin))
-    if CONF_WAKEUP_PIN_MODE in config:
-        cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
+        for item in config.get(CONF_WAKEUP_PIN, []):
+            cg.add(
+                var.add_wakeup_pin(
+                    cg.StructInitializer(
+                        WakeupPinItem,
+                        ("wakeup_pin", await cg.gpio_pin_expression(item[CONF_PIN])),
+                        (
+                            "wakeup_pin_mode",
+                            item.get(
+                                CONF_WAKEUP_PIN_MODE,
+                                WakeupPinMode.WAKEUP_PIN_MODE_IGNORE,
+                            ),
+                        ),
+                    )
+                )
+            )
     if CONF_RUN_DURATION in config:
         run_duration_config = config[CONF_RUN_DURATION]
         if not isinstance(run_duration_config, dict):

@@ -48,6 +48,11 @@ struct WakeupCauseToRunDuration {
   uint32_t gpio_cause;
 };
 
+struct WakeupPinItem {
+  InternalGPIOPin *wakeup_pin;
+  WakeupPinMode wakeup_pin_mode;
+};
+
 #endif
 
 template<typename... Ts> class EnterDeepSleepAction;
@@ -65,12 +70,10 @@ class DeepSleepComponent : public Component {
   /// Set the duration in ms the component should sleep once it's in deep sleep mode.
   void set_sleep_duration(uint32_t time_ms);
 #if defined(USE_ESP32)
-  /** Set the pin to wake up to on the ESP32 once it's in deep sleep mode.
+  /** Set the pins to wake up to on the ESP32 once it's in deep sleep mode.
    * Use the inverted property to set the wakeup level.
    */
-  void set_wakeup_pin(InternalGPIOPin *pin) { this->wakeup_pin_ = pin; }
-
-  void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
+  void add_wakeup_pin(const WakeupPinItem pin) { this->wakeup_pins_.push_back(pin); }
 #endif
 
 #if defined(USE_ESP32)
@@ -108,11 +111,11 @@ class DeepSleepComponent : public Component {
 
   optional<uint64_t> sleep_duration_;
 #ifdef USE_ESP32
-  InternalGPIOPin *wakeup_pin_;
-  WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
+  std::vector<WakeupPinItem> wakeup_pins_;
   optional<Ext1Wakeup> ext1_wakeup_;
   optional<bool> touch_wakeup_;
   optional<WakeupCauseToRunDuration> wakeup_cause_to_run_duration_;
+  bool prepare_pin_(esphome::InternalGPIOPin *pin, WakeupPinMode pin_mode);
 #endif
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};

@@ -10,3 +10,6 @@ deep_sleep:
   run_duration:
     default: 10s
     gpio_wakeup_reason: 30s
+  wakeup_pin:
+    - pin: GPIO2
+      wakeup_pin_mode: KEEP_AWAKE
