@@ -120,7 +120,6 @@ void ESP32ArduinoUARTComponent::setup() {
 void ESP32ArduinoUARTComponent::load_settings(bool dump_config) {
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
-  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
   bool invert = false;
   if (tx_pin_ != nullptr && tx_pin_->is_inverted())
     invert = true;
@@ -131,7 +130,7 @@ void ESP32ArduinoUARTComponent::load_settings(bool dump_config) {
   this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, invert);
 #ifdef USE_UART_FLOW_CONTROL
   if (this->flow_control_pin_ != nullptr) {
-    this->hw_serial_->setPins(-1, -1, -1, flow_control);
+    this->hw_serial_->setPins(-1, -1, -1, this->flow_control_pin_->get_pin());
     this->hw_serial_->setMode(UART_MODE_RS485_HALF_DUPLEX);
   }
 #endif
