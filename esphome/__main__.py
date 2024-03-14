@@ -346,6 +346,7 @@ def upload_program(config, args, host):
         not is_ip_address(CORE.address)
         and (get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED])
         and CONF_MQTT in config
+        and not args.device
     ):
         from esphome import mqtt
 
