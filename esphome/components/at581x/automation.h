@@ -10,12 +10,12 @@ namespace at581x {
 
 template<typename... Ts> class AT581XResetAction : public Action<Ts...>, public Parented<AT581XComponent> {
  public:
-  void play(Ts... x) { this->parent_->set_factory_reset(); }
+  void play(Ts... x) { this->parent_->reset_hardware_frontend(); }
 };
 
 template<typename... Ts> class AT581XSettingsAction : public Action<Ts...>, public Parented<AT581XComponent> {
  public:
-  TEMPLATABLE_VALUE(int8_t, factory_reset)
+  TEMPLATABLE_VALUE(int8_t, hw_frontend_reset)
   TEMPLATABLE_VALUE(int, frequency)
   TEMPLATABLE_VALUE(int, sensing_distance)
   TEMPLATABLE_VALUE(int, poweron_selfcheck_time)
@@ -62,8 +62,8 @@ template<typename... Ts> class AT581XSettingsAction : public Action<Ts...>, publ
     // This actually perform all the modification on the system
     this->parent_->i2c_write_config();
 
-    if (this->factory_reset_.has_value() && this->factory_reset_.value(x...) == true) {
-      this->parent_->set_factory_reset();
+    if (this->hw_frontend_reset_.has_value() && this->hw_frontend_reset_.value(x...) == true) {
+      this->parent_->reset_hardware_frontend();
     }
   }
 };

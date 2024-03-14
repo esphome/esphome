@@ -12,11 +12,11 @@ DEPENDENCIES = ["at581x"]
 
 RFSwitch = at581x_ns.class_("RFSwitch", switch.Switch)
 
-CONF_RF = "rf"
+CONF_RF_POWER = "rf_power"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_AT581X_ID): cv.use_id(AT581XComponent),
-    cv.Optional(CONF_RF): switch.switch_schema(
+    cv.Optional(CONF_RF_POWER): switch.switch_schema(
         RFSwitch,
         device_class=DEVICE_CLASS_SWITCH,
         entity_category=ENTITY_CATEGORY_CONFIG,
@@ -27,7 +27,7 @@ CONFIG_SCHEMA = {
 
 async def to_code(config):
     at581x_component = await cg.get_variable(config[CONF_AT581X_ID])
-    if rf_config := config.get(CONF_RF):
+    if rf_config := config.get(CONF_RF_POWER):
         s = await switch.new_switch(rf_config)
         await cg.register_parented(s, config[CONF_AT581X_ID])
-        cg.add(at581x_component.set_rf_switch(s))
+        cg.add(at581x_component.set_rf_power_switch(s))

@@ -4,25 +4,33 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/defines.h"
+#ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
+#endif
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
 namespace at581x {
 
 class AT581XComponent : public Component, public i2c::I2CDevice {
+#ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(motion);
+#endif
 
+#ifdef USE_SWITCH
  protected:
-  switch_::Switch *rf_switch_{nullptr};
+  switch_::Switch *rf_power_switch_{nullptr};
 
  public:
-  void set_rf_switch(switch_::Switch *s) {
-    this->rf_switch_ = s;
+  void set_rf_power_switch(switch_::Switch *s) {
+    this->rf_power_switch_ = s;
     s->turn_on();
   }
+#endif
 
   AT581XComponent();
   void setup() override;
@@ -43,7 +51,7 @@ class AT581XComponent : public Component, public i2c::I2CDevice {
   void set_power_consumption(int value) { this->power_ = value; }
 
   bool i2c_write_config();
-  bool set_factory_reset();
+  bool reset_hardware_frontend();
   bool i2c_write_reg(uint8_t addr, uint8_t data);
   bool i2c_write_reg(uint8_t addr, uint32_t data);
   bool i2c_write_reg(uint8_t addr, uint16_t data);

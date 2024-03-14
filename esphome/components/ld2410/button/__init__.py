@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_FACTORY_RESET,
     DEVICE_CLASS_RESTART,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_CONFIG,
@@ -16,6 +15,7 @@ QueryButton = ld2410_ns.class_("QueryButton", button.Button)
 ResetButton = ld2410_ns.class_("ResetButton", button.Button)
 RestartButton = ld2410_ns.class_("RestartButton", button.Button)
 
+CONF_FACTORY_RESET = "factory_reset"
 CONF_RESTART = "restart"
 CONF_QUERY_PARAMS = "query_params"
 

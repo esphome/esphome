@@ -1,4 +1,5 @@
 #include "at581x.h"
+#include "esphome/core/log.h"
 
 /* Select gain for AT581X (3dB per step for level1, 6dB per step for level 2), high value = small gain. (p12) */
 const uint8_t GAIN_ADDR_TABLE[] = {0x5c, 0x63};
@@ -56,18 +57,20 @@ static const char *const TAG = "at581x";
 AT581XComponent::AT581XComponent() {}
 
 bool AT581XComponent::i2c_write_reg(uint8_t addr, uint8_t data) {
-  return write_register(addr, &data, 1) == esphome::i2c::NO_ERROR;
+  return this->write_register(addr, &data, 1) == esphome::i2c::NO_ERROR;
 }
 bool AT581XComponent::i2c_write_reg(uint8_t addr, uint32_t data) {
-  return i2c_write_reg(addr + 0, uint8_t(data & 0xFF)) && i2c_write_reg(addr + 1, uint8_t((data >> 8) & 0xFF)) &&
-         i2c_write_reg(addr + 2, uint8_t((data >> 16) & 0xFF)) && i2c_write_reg(addr + 3, uint8_t((data >> 24) & 0xFF));
+  return this->i2c_write_reg(addr + 0, uint8_t(data & 0xFF)) &&
+         this->i2c_write_reg(addr + 1, uint8_t((data >> 8) & 0xFF)) &&
+         this->i2c_write_reg(addr + 2, uint8_t((data >> 16) & 0xFF)) &&
+         this->i2c_write_reg(addr + 3, uint8_t((data >> 24) & 0xFF));
 }
 bool AT581XComponent::i2c_write_reg(uint8_t addr, uint16_t data) {
-  return i2c_write_reg(addr, uint8_t(data & 0xFF)) && i2c_write_reg(addr + 1, uint8_t((data >> 8) & 0xFF));
+  return this->i2c_write_reg(addr, uint8_t(data & 0xFF)) && this->i2c_write_reg(addr + 1, uint8_t((data >> 8) & 0xFF));
 }
 
 bool AT581XComponent::i2c_read_reg(uint8_t addr, uint8_t &data) {
-  return read_register(addr, &data, 1) == esphome::i2c::NO_ERROR;
+  return this->read_register(addr, &data, 1) == esphome::i2c::NO_ERROR;
 }
 
 void AT581XComponent::setup() {
@@ -80,18 +83,20 @@ void AT581XComponent::setup() {
 void AT581XComponent::loop() {
   // The main operation is to detect the human presence
   bool state = this->detection_pin_->digital_read();
+#ifdef USE_BINARY_SENSOR
   if (this->motion_binary_sensor_ != nullptr) {
     this->motion_binary_sensor_->publish_state(state);
   }
+#endif
 }
 void AT581XComponent::dump_config() {
-  if (this->motion_binary_sensor_ != nullptr) {
-    LOG_BINARY_SENSOR("", "AT581X", this->motion_binary_sensor_);
-  }
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR("", "AT581X", this->motion_binary_sensor_);
+#endif
   LOG_PIN("  Pin: ", this->detection_pin_);
   LOG_I2C_DEVICE(this);
 }
-#define ArrSz(X) (sizeof(X) / sizeof((X)[0]))
+#define ARRAY_SIZE(X) (sizeof(X) / sizeof((X)[0]))
 bool AT581XComponent::i2c_write_config() {
   ESP_LOGCONFIG(TAG, "Writing new config for AT581X...");
   ESP_LOGCONFIG(TAG, "Frequency: %dMHz", this->freq_);
@@ -104,18 +109,18 @@ bool AT581XComponent::i2c_write_config() {
   ESP_LOGCONFIG(TAG, "Self check time: %dms", this->self_check_time_ms_);
 
   // Set frequency point
-  if (!i2c_write_reg(FREQ_ADDR, GAIN61_VALUE)) {
+  if (!this->i2c_write_reg(FREQ_ADDR, GAIN61_VALUE)) {
     ESP_LOGE(TAG, "Failed to write AT581X Freq mode");
     return false;
   }
   // Find the current frequency from the table to know what value to write
-  for (size_t i = 0; i < ArrSz(FREQ_TABLE) + 1; i++) {
-    if (i == ArrSz(FREQ_TABLE)) {
+  for (size_t i = 0; i < ARRAY_SIZE(FREQ_TABLE) + 1; i++) {
+    if (i == ARRAY_SIZE(FREQ_TABLE)) {
       ESP_LOGE(TAG, "Set frequency not found");
       return false;
     }
     if (FREQ_TABLE[i] == this->freq_) {
-      if (!i2c_write_reg(0x5F, FREQ5F_TABLE[i]) || !i2c_write_reg(0x60, FREQ60_TABLE[i])) {
+      if (!this->i2c_write_reg(0x5F, FREQ5F_TABLE[i]) || !this->i2c_write_reg(0x60, FREQ60_TABLE[i])) {
         ESP_LOGE(TAG, "Failed to write AT581X Freq value");
         return false;
       }
@@ -124,16 +129,16 @@ bool AT581XComponent::i2c_write_config() {
   }
 
   // Set distance
-  if (!i2c_write_reg(SIGNAL_DETECTION_THRESHOLD_ADDR_LO, (uint8_t) (this->delta_ & 0xFF)) ||
-      !i2c_write_reg(SIGNAL_DETECTION_THRESHOLD_ADDR_HI, (uint8_t) (this->delta_ >> 8))) {
+  if (!this->i2c_write_reg(SIGNAL_DETECTION_THRESHOLD_ADDR_LO, (uint8_t) (this->delta_ & 0xFF)) ||
+      !this->i2c_write_reg(SIGNAL_DETECTION_THRESHOLD_ADDR_HI, (uint8_t) (this->delta_ >> 8))) {
     ESP_LOGE(TAG, "Failed to write AT581X sensing distance low");
     return false;
   }
 
   // Set power setting
   uint8_t pwr67 = PWR_THRESH_VAL_EN | PWR_WORK_TIME_EN, pwr68 = PWR_BURST_TIME_EN | PWR_THRESH_EN;
-  for (size_t i = 0; i < ArrSz(POWER_TABLE) + 1; i++) {
-    if (i == ArrSz(POWER_TABLE)) {
+  for (size_t i = 0; i < ARRAY_SIZE(POWER_TABLE) + 1; i++) {
+    if (i == ARRAY_SIZE(POWER_TABLE)) {
       ESP_LOGE(TAG, "Set power not found");
       return false;
     }
@@ -144,56 +149,56 @@ bool AT581XComponent::i2c_write_config() {
     }
   }
 
-  if (!i2c_write_reg(POWER_THRESHOLD_ADDR_LO, pwr67) || !i2c_write_reg(POWER_THRESHOLD_ADDR_HI, pwr68)) {
+  if (!this->i2c_write_reg(POWER_THRESHOLD_ADDR_LO, pwr67) || !this->i2c_write_reg(POWER_THRESHOLD_ADDR_HI, pwr68)) {
     ESP_LOGE(TAG, "Failed to write AT581X power registers");
     return false;
   }
 
   // Set gain
-  if (!i2c_write_reg(GAIN_ADDR_TABLE[0], GAIN5C_TABLE[this->gain_]) ||
-      !i2c_write_reg(GAIN_ADDR_TABLE[1], GAIN63_TABLE[this->gain_ >> 1])) {
+  if (!this->i2c_write_reg(GAIN_ADDR_TABLE[0], GAIN5C_TABLE[this->gain_]) ||
+      !this->i2c_write_reg(GAIN_ADDR_TABLE[1], GAIN63_TABLE[this->gain_ >> 1])) {
     ESP_LOGE(TAG, "Failed to write AT581X gain registers");
     return false;
   }
 
   // Set times
-  if (!i2c_write_reg(TRIGGER_BASE_TIME_ADDR, (uint32_t) this->trigger_base_time_ms_)) {
+  if (!this->i2c_write_reg(TRIGGER_BASE_TIME_ADDR, (uint32_t) this->trigger_base_time_ms_)) {
     ESP_LOGE(TAG, "Failed to write AT581X trigger base time registers");
     return false;
   }
-  if (!i2c_write_reg(TRIGGER_KEEP_TIME_ADDR, (uint32_t) this->trigger_keep_time_ms_)) {
+  if (!this->i2c_write_reg(TRIGGER_KEEP_TIME_ADDR, (uint32_t) this->trigger_keep_time_ms_)) {
     ESP_LOGE(TAG, "Failed to write AT581X trigger keep time registers");
     return false;
   }
 
-  if (!i2c_write_reg(PROTECT_TIME_ADDR, (uint16_t) this->protect_time_ms_)) {
+  if (!this->i2c_write_reg(PROTECT_TIME_ADDR, (uint16_t) this->protect_time_ms_)) {
     ESP_LOGE(TAG, "Failed to write AT581X protect time registers");
     return false;
   }
-  if (!i2c_write_reg(SELF_CHECK_TIME_ADDR, (uint16_t) this->self_check_time_ms_)) {
+  if (!this->i2c_write_reg(SELF_CHECK_TIME_ADDR, (uint16_t) this->self_check_time_ms_)) {
     ESP_LOGE(TAG, "Failed to write AT581X self check time registers");
     return false;
   }
 
-  if (!i2c_write_reg(0x41, TIME41_VALUE)) {
+  if (!this->i2c_write_reg(0x41, TIME41_VALUE)) {
     ESP_LOGE(TAG, "Failed to enable AT581X time registers");
     return false;
   }
 
   // Don't know why it's required in other code, it's not in datasheet
-  if (!i2c_write_reg(0x55, (uint8_t) 0x04)) {
+  if (!this->i2c_write_reg(0x55, (uint8_t) 0x04)) {
     ESP_LOGE(TAG, "Failed to enable AT581X");
     return false;
   }
 
   // Ok, config is written, let's reset the chip so it's using the new config
-  return set_factory_reset();
+  return this->reset_hardware_frontend();
 }
 
 // float AT581XComponent::get_setup_priority() const { return 0; }
-bool AT581XComponent::set_factory_reset() {
-  if (!i2c_write_reg(RESET_ADDR, (uint8_t) 0) || !i2c_write_reg(RESET_ADDR, (uint8_t) 1)) {
-    ESP_LOGE(TAG, "Failed to reset AT581X component");
+bool AT581XComponent::reset_hardware_frontend() {
+  if (!this->i2c_write_reg(RESET_ADDR, (uint8_t) 0) || !this->i2c_write_reg(RESET_ADDR, (uint8_t) 1)) {
+    ESP_LOGE(TAG, "Failed to reset AT581X hardware frontend");
     return false;
   }
   return true;
@@ -201,8 +206,8 @@ bool AT581XComponent::set_factory_reset() {
 
 void AT581XComponent::set_rf_mode(bool enable) {
   const uint8_t *p = enable ? &RF_ON_TABLE[0] : &RF_OFF_TABLE[0];
-  for (size_t i = 0; i < ArrSz(RF_REG_ADDR); i++) {
-    if (!i2c_write_reg(RF_REG_ADDR[i], p[i])) {
+  for (size_t i = 0; i < ARRAY_SIZE(RF_REG_ADDR); i++) {
+    if (!this->i2c_write_reg(RF_REG_ADDR[i], p[i])) {
       ESP_LOGE(TAG, "Failed to write AT581X RF mode");
       return;
     }

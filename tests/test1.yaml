@@ -17,17 +17,6 @@ esphome:
     then:
       - lambda: >-
           ESP_LOGD("main", "ON BOOT!");
-      - at581x.settings:
-          id: "Waveradar"
-          factory_reset: false
-          frequency: 5800
-          sensing_distance: 200
-          poweron_selfcheck_time: 2000
-          protect_time: 1000
-          trigger_base: 500
-          trigger_keep: 10000
-          stage_gain: 3
-          power_consumption: 70
   on_shutdown:
     then:
       - lambda: >-
@@ -352,13 +341,6 @@ as5600:
   hysteresis: lsb1
   slow_filter: 8x
   fast_filter: lsb6
-
-at581x:
-  id: "Waveradar"
-  i2c_id: i2c_bus
-  detection_pin:
-    number: GPIO21
-    allow_other_uses: true
 
 dallas:
   pin:
@@ -2198,10 +2180,6 @@ binary_sensor:
     nfcc_id: nfcc_pn7160_i2c
     uid: 59-FC-AB-15
     name: MFC Tag 3
-  - platform: at581x
-    at581x_id: "Waveradar"
-    motion_detected:
-      name: "Radar motion"
 
 pca9685:
   frequency: 500
@@ -2674,10 +2652,6 @@ climate:
     name: Yashima Climate
   - platform: mitsubishi
     name: Mitsubishi
-    supports_dry: "true"
-    supports_fan_only: "true"
-    horizontal_default: "left"
-    vertical_default: "down"
   - platform: whirlpool
     name: Whirlpool Climate
   - platform: climate_ir_lg
@@ -3137,10 +3111,6 @@ switch:
   - platform: micronova
     stove:
       name: Stove on/off
-  - platform: at581x
-    at581x_id: "Waveradar"
-    rf:
-      name: "Enable Radar"
 
 fan:
   - platform: binary
