@@ -388,7 +388,6 @@ esphome/components/vbus/* @ssieb
 esphome/components/veml3235/* @kbx81
 esphome/components/veml7700/* @latonita
 esphome/components/version/* @esphome/core
-esphome/components/vnc/* @clydebarrow
 esphome/components/voice_assistant/* @jesserockz
 esphome/components/wake_on_lan/* @willwill2will54
 esphome/components/waveshare_epaper/* @clydebarrow
