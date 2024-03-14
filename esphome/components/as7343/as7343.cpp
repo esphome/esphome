@@ -121,6 +121,10 @@ void AS7343Component::setup() {
   this->setup_gain(this->gain_);
 
   // enable led false ?
+
+  this->enable_spectral_measurement(true);
+
+  this->state_ = State::IDLE;
 }
 
 void AS7343Component::dump_config() {
@@ -170,14 +174,54 @@ void log13_s(const char *TAG, const char *str, const std::array<const char *, 13
 }
 
 void AS7343Component::update() {
-  this->enable_spectral_measurement(true);
-  this->read_all_channels();
-  this->enable_spectral_measurement(false);
-  this->calculate_basic_counts();
+  if (this->is_ready() && this->state_ == State::IDLE) {
+    ESP_LOGV(TAG, "Update: Initiating new data collection");
 
-  log13_s(TAG, "Channel", CHANNEL_NAMES);
-  log13_f(TAG, "Nm", CHANNEL_NM);
-  log13_d(TAG, "Counts", this->readings_.raw_counts);
+    //  this->enable_spectral_measurement(true);
+
+    this->readings_.millis_start = millis();
+    this->state_ = State::COLLECTING_DATA;
+  } else {
+    ESP_LOGV(TAG, "Update: Component not ready yet");
+  }
+}
+
+void AS7343Component::loop() {
+  if (this->is_ready()) {
+    switch (this->state_) {
+      case State::IDLE:
+        // doing nothing, having best time
+        break;
+
+      case State::COLLECTING_DATA:
+        if (this->is_data_ready()) {
+          this->read_all_channels();
+
+          log13_s(TAG, "Channel", CHANNEL_NAMES);
+          log13_f(TAG, "Nm", CHANNEL_NM);
+          log13_d(TAG, "Counts", this->readings_.raw_counts);
+
+          this->state_ = State::DATA_COLLECTED;
+        } else if (millis() - this->readings_.millis_start > 30 * 1000) {
+          ESP_LOGW(TAG, "Data collection timeout (30s)");
+          this->state_ = State::IDLE;
+        } else {
+          // just do nothing, wait for data
+        }
+        break;
+
+      case State::DATA_COLLECTED:
+        // apply modifications
+        // publish
+        this->calculate_and_publish();
+        this->state_ = State::IDLE;
+        break;
+    }
+  }
+}
+
+void AS7343Component::calculate_and_publish() {
+  this->calculate_basic_counts();
 
   uint16_t max_adc = this->get_maximum_spectral_adc_();
   uint16_t highest_adc = this->get_highest_value(this->readings_.raw_counts);
@@ -192,18 +236,6 @@ void AS7343Component::update() {
   ESP_LOGD(TAG, "  ,ATIME, %u,", this->readings_.atime);
   ESP_LOGD(TAG, "  ,ASTEP, %u,", this->readings_.astep);
   ESP_LOGD(TAG, "  ,TINT , %.2f,", this->readings_.t_int);
-
-  // ESP_LOGD(TAG, ",nm, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, ", CHANNEL_NM[0],
-  //          CHANNEL_NM[1], CHANNEL_NM[2], CHANNEL_NM[3], CHANNEL_NM[4], CHANNEL_NM[5], CHANNEL_NM[6], CHANNEL_NM[7],
-  //          CHANNEL_NM[8], CHANNEL_NM[9], CHANNEL_NM[10], CHANNEL_NM[11], CHANNEL_NM[12]);
-  // ESP_LOGD(TAG, ",counts, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, ",
-  //          this->channel_readings_[CHANNEL_IDX[0]], this->channel_readings_[CHANNEL_IDX[1]],
-  //          this->channel_readings_[CHANNEL_IDX[2]], this->channel_readings_[CHANNEL_IDX[3]],
-  //          this->channel_readings_[CHANNEL_IDX[4]], this->channel_readings_[CHANNEL_IDX[5]],
-  //          this->channel_readings_[CHANNEL_IDX[6]], this->channel_readings_[CHANNEL_IDX[7]],
-  //          this->channel_readings_[CHANNEL_IDX[8]], this->channel_readings_[CHANNEL_IDX[9]],
-  //          this->channel_readings_[CHANNEL_IDX[10]], this->channel_readings_[CHANNEL_IDX[11]],
-  //          this->channel_readings_[CHANNEL_IDX[12]]);
 
   float irradiance;
   float irradiance_photopic;
@@ -292,12 +324,10 @@ void AS7343Component::update() {
   if (this->nir_ != nullptr) {
     this->nir_->publish_state(normalized_readings[11]);
   }
-  // if (this->clear_ != nullptr) {
-  //   float clear = (this->channel_readings_[AS7343_CHANNEL_CLEAR] + this->channel_readings_[AS7343_CHANNEL_CLEAR_0] +
-  //                  this->channel_readings_[AS7343_CHANNEL_CLEAR_1]) /
-  //                 3;
-  //   this->clear_->publish_state(clear);
-  // }
+  if (this->clear_ != nullptr) {
+    float clear = (this->readings_.basic_counts[AS7343_CHANNEL_CLEAR]);
+    this->clear_->publish_state(clear);
+  }
   if (this->saturated_ != nullptr) {
     this->saturated_->publish_state(this->readings_saturated_);
   }
@@ -431,11 +461,9 @@ bool AS7343Component::read_all_channels() {
       AS7343_CHANNEL_405_F1, AS7343_CHANNEL_425_F2, AS7343_CHANNEL_450_FZ, AS7343_CHANNEL_475_F3,
       AS7343_CHANNEL_515_F4, AS7343_CHANNEL_555_FY, AS7343_CHANNEL_550_F5, AS7343_CHANNEL_600_FXL,
       AS7343_CHANNEL_640_F6, AS7343_CHANNEL_690_F7, AS7343_CHANNEL_745_F8, AS7343_CHANNEL_855_NIR,
-      AS7343_CHANNEL_CLEAR};
+      AS7343_CHANNEL_CLEAR_0};
 
   std::array<uint16_t, AS7343_NUM_CHANNELS_MAX> data;
-
-  this->wait_for_data();
 
   AS7343RegStatus status{0};
   status.raw = this->reg((uint8_t) AS7343Registers::STATUS).get();
@@ -458,6 +486,10 @@ bool AS7343Component::read_all_channels() {
     this->readings_.raw_counts[i] = data[CHANNEL_MAP[i]];
   }
 
+  ESP_LOGD(TAG, "Clear = %d, Fd = %d", data[AS7343_CHANNEL_CLEAR], data[AS7343_CHANNEL_FD]);
+  ESP_LOGD(TAG, "Clear_0 = %d, Fd_0 = %d", data[AS7343_CHANNEL_CLEAR_0], data[AS7343_CHANNEL_FD_0]);
+  ESP_LOGD(TAG, "Clear_1 = %d, Fd_1 = %d", data[AS7343_CHANNEL_CLEAR_1], data[AS7343_CHANNEL_FD_1]);
+
   this->readings_.gain = astatus.again_status;
   this->readings_.gain_x = get_gain_multiplier(this->readings_.gain);
   this->readings_.atime = get_atime();
@@ -467,18 +499,6 @@ bool AS7343Component::read_all_channels() {
   this->readings_saturated_ = astatus.asat_status;
 
   return ret;
-}
-
-bool AS7343Component::wait_for_data(uint16_t timeout) {
-  for (uint16_t time = 0; time < timeout; time++) {
-    if (this->is_data_ready()) {
-      return true;
-    }
-
-    delay(1);
-  }
-
-  return false;
 }
 
 bool AS7343Component::is_data_ready() {

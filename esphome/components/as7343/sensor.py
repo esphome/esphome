@@ -11,6 +11,7 @@ from esphome.const import (
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
+    UNIT_PERCENT,
 )
 
 
@@ -69,7 +70,7 @@ GAIN_OPTIONS = {
 
 SENSOR_SCHEMA = cv.maybe_simple_value(
     sensor.sensor_schema(
-        unit_of_measurement=UNIT_COUNTS,
+        unit_of_measurement=UNIT_PERCENT,
         icon=ICON_BRIGHTNESS_5,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_ILLUMINANCE,
@@ -95,7 +96,16 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_F7): SENSOR_SCHEMA,
             cv.Optional(CONF_F8): SENSOR_SCHEMA,
             cv.Optional(CONF_NIR): SENSOR_SCHEMA,
-            cv.Optional(CONF_CLEAR): SENSOR_SCHEMA,
+            cv.Optional(CONF_CLEAR): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_COUNTS,
+                    icon=ICON_BRIGHTNESS_5,
+                    accuracy_decimals=5,
+                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
             cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS),
             cv.Optional(CONF_ATIME, default=29): cv.int_range(min=0, max=255),
             cv.Optional(CONF_ASTEP, default=599): cv.int_range(min=0, max=65534),

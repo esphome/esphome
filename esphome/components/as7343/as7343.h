@@ -15,6 +15,7 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
+  void loop() override;
 
   void set_f1_sensor(sensor::Sensor *f1_sensor) { f1_ = f1_sensor; }
   void set_f2_sensor(sensor::Sensor *f2_sensor) { f2_ = f2_sensor; }
@@ -57,8 +58,10 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   void calculate_ppfd(float &ppfd);
   void calculate_irradiance(float &irradiance, float &irradiance_photopic, float &lux);
 
-  bool wait_for_data(uint16_t timeout = 1000);
   bool is_data_ready();
+
+  void calculate_and_publish();
+
   bool enable_power(bool enable);
   bool enable_spectral_measurement(bool enable);
 
@@ -69,6 +72,25 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   uint16_t swap_bytes(uint16_t data);
 
  protected:
+   //
+  // Internal state machine, used to split all the actions into
+  // small steps in loop() to make sure we are not blocking execution
+  //
+  enum class State : uint8_t {
+    NOT_INITIALIZED,
+    INITIAL_SETUP_COMPLETED,
+    IDLE,
+    COLLECTING_DATA,
+    COLLECTING_DATA_AUTO,
+    DATA_COLLECTED,
+    ADJUSTMENT_NEEDED,
+    ADJUSTMENT_IN_PROGRESS,
+    READY_TO_APPLY_ADJUSTMENTS,
+    READY_TO_PUBLISH_PART_1,
+    READY_TO_PUBLISH_PART_2,
+    READY_TO_PUBLISH_PART_3
+  } state_{State::NOT_INITIALIZED};
+
   void set_bank_for_reg_(AS7343Registers reg = AS7343Registers::ENABLE);
   bool bank_{false};
   bool readings_saturated_{false};
@@ -106,6 +128,7 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
 
     float gain_x;
     float t_int;
+    uint32_t millis_start;
   } readings_;
 
   float get_tint_();
