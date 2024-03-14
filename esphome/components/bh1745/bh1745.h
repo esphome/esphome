@@ -118,6 +118,7 @@ class BH1745Component : public PollingComponent, public i2c::I2CDevice {
 
   enum class State : uint8_t {
     NOT_INITIALIZED,
+    INITIAL_SETUP_COMPLETED,
     DELAYED_SETUP,
     IDLE,
     MEASUREMENT_IN_PROGRESS,

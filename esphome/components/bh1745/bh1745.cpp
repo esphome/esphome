@@ -66,7 +66,7 @@ void BH1745Component::setup() {
 
   this->set_timeout(BH1745_RESET_TIMEOUT_MS, [this]() {
     this->configure_measurement_time_();
-    this->state_ = State::DELAYED_SETUP;
+    this->state_ = State::INITIAL_SETUP_COMPLETED;
   });
 }
 
@@ -112,45 +112,48 @@ void BH1745Component::update() {
 }
 
 void BH1745Component::loop() {
-  switch (this->state_) {
-    case State::NOT_INITIALIZED:
-      break;
+  if (this->is_ready()) {
+    switch (this->state_) {
+      case State::NOT_INITIALIZED:
+        break;
 
-    case State::DELAYED_SETUP:
-      this->configure_gain_();
-      this->reg((uint8_t) Bh1745Registers::MODE_CONTROL3) = 0x02;
-      this->set_timeout(BH1745_RESET_TIMEOUT_MS, [this]() { this->state_ = State::IDLE; });
-      break;
+      case State::INITIAL_SETUP_COMPLETED:
+        this->state_ = State::DELAYED_SETUP;
+        this->configure_gain_();
+        this->reg((uint8_t) Bh1745Registers::MODE_CONTROL3) = 0x02;
+        this->set_timeout(BH1745_RESET_TIMEOUT_MS, [this]() { this->state_ = State::IDLE; });
+        break;
 
-      // case State::IDLE:
-      //   break;
+      case State::DELAYED_SETUP:
+      case State::IDLE:
+      case State::MEASUREMENT_IN_PROGRESS:
+        break;
 
-      // case State::MEASUREMENT_IN_PROGRESS:
-      //   break;
+      case State::WAITING_FOR_DATA:
+        if (this->is_data_ready_(this->readings_)) {
+          this->read_data_(this->readings_);
+          this->state_ = State::DATA_COLLECTED;
+          return;
+        } else if (this->readings_.tries > BH1745_MAX_TRIES) {
+          ESP_LOGW(TAG, "Can't get data after several tries. Aborting.");
+          this->status_set_warning();
+          this->state_ = State::IDLE;
+          return;
+        } else {
+          this->readings_.tries++;
+        }
+        break;
 
-    case State::WAITING_FOR_DATA:
-      if (this->is_data_ready_(this->readings_)) {
-        this->read_data_(this->readings_);
-        this->state_ = State::DATA_COLLECTED;
-        return;
-      } else if (this->readings_.tries > BH1745_MAX_TRIES) {
-        ESP_LOGW(TAG, "Can't get data after several tries. Aborting.");
-        this->status_set_warning();
+      case State::DATA_COLLECTED:
+        this->status_clear_warning();
+        this->publish_data_();
         this->state_ = State::IDLE;
-        return;
-      } else {
-        this->readings_.tries++;
-      }
-      break;
+        break;
 
-    case State::DATA_COLLECTED:
-      this->publish_data_();
-      this->state_ = State::IDLE;
-      break;
-
-    default:
-      // wrong state
-      break;
+      default:
+        // wrong state
+        break;
+    }
   }
 }
 
@@ -228,7 +231,7 @@ float BH1745Component::calculate_lux_(Readings &data) {
   }
 
   lx = lx_tmp / gain / integration_time * 160 / this->glass_attenuation_factor_;
-  ESP_LOGV(TAG, "Lux calculation: %.0f", lx);
+  ESP_LOGV(TAG, "Lux calculation: %.1f", lx);
   return lx;
 }
 
