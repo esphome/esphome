@@ -2,7 +2,8 @@ spi:
   - id: spi_id_1
     type: single
     clk_pin:
-      number: GPIO7
+      number: GPIO0
+      ignore_strapping_warning: true
       allow_other_uses: false
     mosi_pin: GPIO6
     interface: hardware
