@@ -133,6 +133,7 @@ void AS7343Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Gain: %.1f", get_gain_multiplier(get_gain()));
   ESP_LOGCONFIG(TAG, "  ATIME: %u", get_atime());
   ESP_LOGCONFIG(TAG, "  ASTEP: %u", get_astep());
+  ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
 
   LOG_SENSOR("  ", "F1", this->f1_);
   LOG_SENSOR("  ", "F2", this->f2_);
@@ -174,7 +175,6 @@ void AS7343Component::update() {
   this->enable_spectral_measurement(false);
   this->calculate_basic_counts();
 
-
   log13_s(TAG, "Channel", CHANNEL_NAMES);
   log13_f(TAG, "Nm", CHANNEL_NM);
   log13_d(TAG, "Counts", this->readings_.raw_counts);
@@ -183,9 +183,9 @@ void AS7343Component::update() {
   uint16_t highest_adc = this->get_highest_value(this->readings_.raw_counts);
 
   if (highest_adc >= max_adc) {
-    ESP_LOGW(TAG, "Max ADC: %u, Highest ADC: %u", max_adc, highest_adc);
+    ESP_LOGW(TAG, "Max ADC: %u, Highest reading: %u", max_adc, highest_adc);
   } else {
-    ESP_LOGD(TAG, "Max ADC: %u, Highest ADC: %u", max_adc, highest_adc);
+    ESP_LOGD(TAG, "Max ADC: %u, Highest reading: %u", max_adc, highest_adc);
   }
 
   ESP_LOGD(TAG, "  ,Gain , %.1f,X", this->readings_.gain_x);
@@ -206,15 +206,29 @@ void AS7343Component::update() {
   //          this->channel_readings_[CHANNEL_IDX[12]]);
 
   float irradiance;
+  float irradiance_photopic;
   float lux;
   float ppfd;
 
-  this->calculate_irradiance(irradiance, lux);
+  this->calculate_irradiance(irradiance, irradiance_photopic, lux);
   this->calculate_ppfd(ppfd);
 
-  ESP_LOGD(TAG, "  ,Irradiance, %f, W/m²", irradiance);
-  ESP_LOGD(TAG, "  ,Lux solar , %f, lx", lux);
-  ESP_LOGD(TAG, "  ,PPFD      , %.2f, µmol/s⋅m²", ppfd);
+  ESP_LOGD(TAG, "BEFORE GLASS ATTENUATION");
+  ESP_LOGD(TAG, "  ,Irradiance          , %f, W/m²", irradiance);
+  ESP_LOGD(TAG, "  ,Irradiance(photopic), %f, W/m²", irradiance_photopic);
+  ESP_LOGD(TAG, "  ,Lux(solar coeff)    , %f, lx", lux);
+  ESP_LOGD(TAG, "  ,PPFD                , %.2f, µmol/s⋅m²", ppfd);
+
+  irradiance *= this->glass_attenuation_factor_;
+  irradiance_photopic *= this->glass_attenuation_factor_;
+  lux *= this->glass_attenuation_factor_;
+  ppfd *= this->glass_attenuation_factor_;
+
+  ESP_LOGD(TAG, "AFTER GLASS ATTENUATION");
+  ESP_LOGD(TAG, "  ,Irradiance          , %f, W/m²", irradiance);
+  ESP_LOGD(TAG, "  ,Irradiance(photopic), %f, W/m²", irradiance_photopic);
+  ESP_LOGD(TAG, "  ,Lux(solar coeff)    , %f, lx", lux);
+  ESP_LOGD(TAG, "  ,PPFD                , %.2f, µmol/s⋅m²", ppfd);
 
   if (this->illuminance_ != nullptr) {
     this->illuminance_->publish_state(lux);
@@ -387,25 +401,29 @@ void AS7343Component::calculate_ppfd(float &ppfd) {
   }
 }
 
-void AS7343Component::calculate_irradiance(float &irradiance_in_w_per_m2, float &lux) {
+void AS7343Component::calculate_irradiance(float &irradiance_in_w_per_m2, float &irradiance_in_w_per_m2_photopic,
+                                           float &lux) {
   // Total irradiance in a whole wavelenght interval
   float irr_band;
-  float lux_band;
+  float photo_band;
   irradiance_in_w_per_m2 = 0;
+  irradiance_in_w_per_m2_photopic = 0;
+  lux = 0;
 
+  // walk through all bands except for Clear (VIS)
   for (uint8_t i = 0; i < AS7343_NUM_CHANNELS - 1; i++) {
     irr_band = this->readings_.basic_counts[i] * CHANNEL_IRRAD_MW_PER_BASIC_COUNT[i] / 1000;
-
-    //    irr_band *= CHANNEL_ENERGY_CONTRIBUTION[i]; ?
-    lux_band = irr_band * CHANNEL_PHOTOPIC_LUMINOSITY[i];
-
-    lux += lux_band;
     irradiance_in_w_per_m2 += irr_band;
+
+    // photo_band *= CHANNEL_ENERGY_CONTRIBUTION[i]; ?? ideas
+    // let's make model assumption bands are adjacent and cover whole range
+    photo_band = irr_band * CHANNEL_PHOTOPIC_LUMINOSITY[i];
+    irradiance_in_w_per_m2_photopic += photo_band;
   }
   // sunlight equivalent
   // 1 W/m2 = 116 ± 3 lx solar
   // https://www.extrica.com/article/21667/pdf
-  lux *= 116;
+  lux = irradiance_in_w_per_m2_photopic * 116;
 }
 
 bool AS7343Component::read_all_channels() {

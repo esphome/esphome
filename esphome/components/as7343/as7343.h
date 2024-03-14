@@ -37,6 +37,7 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   void set_gain(AS7343Gain gain) { gain_ = gain; }
   void set_atime(uint8_t atime) { atime_ = atime; }
   void set_astep(uint16_t astep) { astep_ = astep; }
+  void set_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
 
   AS7343Gain get_gain();
   uint8_t get_atime();
@@ -54,7 +55,7 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
 
   void calculate_basic_counts();
   void calculate_ppfd(float &ppfd);
-  void calculate_irradiance(float &irradiance, float &lux);
+  void calculate_irradiance(float &irradiance, float &irradiance_photopic, float &lux);
 
   bool wait_for_data(uint16_t timeout = 1000);
   bool is_data_ready();
@@ -94,6 +95,7 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   uint16_t astep_;
   AS7343Gain gain_;
   uint8_t atime_;
+  float glass_attenuation_factor_{1.0};
 
   struct {
     std::array<uint16_t, AS7343_NUM_CHANNELS> raw_counts;

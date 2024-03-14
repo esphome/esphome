@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_ILLUMINANCE,
     DEVICE_CLASS_ILLUMINANCE,
+    CONF_GLASS_ATTENUATION_FACTOR,
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
@@ -98,6 +99,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS),
             cv.Optional(CONF_ATIME, default=29): cv.int_range(min=0, max=255),
             cv.Optional(CONF_ASTEP, default=599): cv.int_range(min=0, max=65534),
+            cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.float_range(
+                min=1.0
+            ),
             cv.Optional(CONF_ILLUMINANCE): cv.maybe_simple_value(
                 sensor.sensor_schema(
                     unit_of_measurement=UNIT_LUX,
@@ -173,6 +177,7 @@ async def to_code(config):
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_atime(config[CONF_ATIME]))
     cg.add(var.set_astep(config[CONF_ASTEP]))
+    cg.add(var.set_glass_attenuation_factor(config[CONF_GLASS_ATTENUATION_FACTOR]))
 
     for conf_id, set_sensor_func in SENSORS.items():
         if sens_config := config.get(conf_id):
