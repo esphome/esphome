@@ -501,6 +501,7 @@ binary_sensor:
   - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
     name: ESP32 BLE Tracker Google Home Mini
+    timeout: 30s
   - platform: ble_presence
     service_uuid: 11aa
     name: BLE Test Service 16 Presence
@@ -810,11 +811,6 @@ image:
   - id: another_alert_icon
     file: mdi:alert-outline
     type: BINARY
-
-font:
-  - file: "gfonts://Roboto"
-    id: roboto
-    size: 20
 
 graph:
   - id: my_graph

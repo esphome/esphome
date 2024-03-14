@@ -90,6 +90,7 @@ enum WaveshareEPaperTypeAModel {
   WAVESHARE_EPAPER_1_54_IN = 0,
   WAVESHARE_EPAPER_1_54_IN_V2,
   WAVESHARE_EPAPER_2_13_IN,
+  WAVESHARE_EPAPER_2_13_IN_V2,
   WAVESHARE_EPAPER_2_9_IN,
   WAVESHARE_EPAPER_2_9_IN_V2,
   TTGO_EPAPER_2_13_IN,
@@ -114,6 +115,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
       case WAVESHARE_EPAPER_1_54_IN:
       case WAVESHARE_EPAPER_1_54_IN_V2:
       case WAVESHARE_EPAPER_2_9_IN_V2:
+      case WAVESHARE_EPAPER_2_13_IN_V2:
         // COMMAND DEEP SLEEP MODE
         this->command(0x10);
         this->data(0x01);
@@ -124,7 +126,11 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
         this->command(0x10);
         break;
     }
-    this->wait_until_idle_();
+    if (this->model_ != WAVESHARE_EPAPER_2_13_IN_V2) {
+      // From panel specification:
+      // "After this command initiated, the chip will enter Deep Sleep Mode, BUSY pad will keep output high."
+      this->wait_until_idle_();
+    }
   }
 
   void set_full_update_every(uint32_t full_update_every);
@@ -335,6 +341,36 @@ class WaveshareEPaper2P9InBV3 : public WaveshareEPaper {
   int get_width_internal() override;
 
   int get_height_internal() override;
+};
+
+class WaveshareEPaper2P9InV2R2 : public WaveshareEPaper {
+ public:
+  WaveshareEPaper2P9InV2R2();
+
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override;
+
+  void set_full_update_every(uint32_t full_update_every);
+
+ protected:
+  void write_lut_(const uint8_t *lut, uint8_t size);
+
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  int get_width_controller() override;
+
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
+
+ private:
+  void reset_();
 };
 
 class WaveshareEPaper4P2In : public WaveshareEPaper {

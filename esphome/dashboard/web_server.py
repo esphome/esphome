@@ -820,6 +820,7 @@ class EditRequestHandler(BaseHandler):
             None, self._read_file, filename, configuration
         )
         if content is not None:
+            self.set_header("Content-Type", "application/yaml")
             self.write(content)
 
     def _read_file(self, filename: str, configuration: str) -> bytes | None:

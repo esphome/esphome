@@ -1,0 +1,14 @@
+remote_transmitter:
+  id: tx
+  pin: ${remote_transmitter_pin}
+  carrier_duty_percent: 100%
+
+remote_receiver:
+  id: rcvr
+  pin: ${remote_receiver_pin}
+
+climate:
+  - platform: emmeti
+    name: Emmeti
+    receiver_id: rcvr
+    transmitter_id: tx
