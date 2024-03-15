@@ -10,16 +10,16 @@ from . import CONF_AT581X_ID, AT581XComponent
 
 DEPENDENCIES = ["at581x"]
 
-CONF_HAS_TARGET = "has_target"
-
-CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_AT581X_ID): cv.use_id(AT581XComponent),
-    cv.Optional(CONF_HAS_TARGET): binary_sensor.binary_sensor_schema(
+CONFIG_SCHEMA = (
+    binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_MOTION,
         icon=ICON_MOTION_SENSOR,
-    ),
-}
-
+    ).extend(cv.Schema(
+        {
+            cv.GenerateID(CONF_AT581X_ID): cv.use_id(AT581XComponent),
+        }
+    )
+)
 
 async def to_code(config):
     at581x_component = await cg.get_variable(config[CONF_AT581X_ID])
