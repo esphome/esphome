@@ -264,8 +264,8 @@ static lv_img_dsc_t *lv_img_from(image::Image *src) {
 
 #if LV_USE_ANIMIMG
 
-static void lv_animimg_stop(lv_obj_t * obj) {
-  lv_animimg_t * animg = (lv_animimg_t *)obj;
+static void lv_animimg_stop(lv_obj_t *obj) {
+  lv_animimg_t *animg = (lv_animimg_t *) obj;
   int32_t duration = animg->anim.time;
   lv_animimg_set_duration(obj, 0);
   lv_animimg_start(obj);
