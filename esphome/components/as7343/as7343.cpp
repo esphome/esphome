@@ -177,7 +177,7 @@ void AS7343Component::update() {
   if (this->is_ready() && this->state_ == State::IDLE) {
     ESP_LOGV(TAG, "Update: Initiating new data collection");
 
-    //  this->enable_spectral_measurement(true);
+    this->enable_spectral_measurement(true);
 
     this->readings_.millis_start = millis();
     this->state_ = State::COLLECTING_DATA;
@@ -196,7 +196,8 @@ void AS7343Component::loop() {
       case State::COLLECTING_DATA:
         if (this->is_data_ready()) {
           this->read_all_channels();
-
+          this->enable_spectral_measurement(false);
+          
           log13_s(TAG, "Channel", CHANNEL_NAMES);
           log13_f(TAG, "Nm", CHANNEL_NM);
           log13_d(TAG, "Counts", this->readings_.raw_counts);
