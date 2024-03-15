@@ -198,9 +198,7 @@ void WaveshareEPaper7C::init_internal_(uint32_t buffer_length) {
 }
 uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
   uint8_t hex_code;
-  if (!color.is_on()) {
-    hex_code = 0x1; //White background by default
-  } else if (((color.red < 127) && (color.green < 127) && (color.blue < 127))) {
+  if (((color.red < 127) && (color.green < 127) && (color.blue < 127))) {
     hex_code = 0x0; //Black
   } else if (((color.red > 127) && (color.green > 127) && (color.blue > 127))) {
     hex_code = 0x1; //White
@@ -220,7 +218,14 @@ uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
   return hex_code;
 }
 void WaveshareEPaper7C::fill(Color color) {
-  uint8_t pixel_color = this->color_to_hex(color);
+  uint8_t pixel_color;
+  if (color.is_on()) {
+    pixel_color = this->color_to_hex(color);
+  }
+  else{
+    pixel_color = 0x1;
+  }
+  
   if (this->buffers_ == nullptr) {
     ESP_LOGE(TAG, "Buffer unavailable!");
   }
