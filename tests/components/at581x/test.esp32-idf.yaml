@@ -32,11 +32,9 @@ i2c:
 binary_sensor:
   - platform: at581x
     at581x_id: "Waveradar"
-    has_target:
-      name: "Radar motion"
+    name: "Radar motion"
 
 switch:
   - platform: at581x
     at581x_id: "Waveradar"
-    rf_power:
-      name: "Enable Radar"
+    name: "Enable Radar"
