@@ -101,7 +101,7 @@ class WaveshareEPaper7C : public WaveshareEPaperBase {
   void init_internal_(uint32_t buffer_length);
 
   static const int NUM_BUFFERS = 10;
-  uint8_t * buffers_[NUM_BUFFERS];
+  uint8_t *buffers_[NUM_BUFFERS];
 };
 
 enum WaveshareEPaperTypeAModel {
@@ -565,10 +565,10 @@ class WaveshareEPaper7P3InF : public WaveshareEPaper7C {
   int get_width_internal() override;
 
   int get_height_internal() override;
-  
+
   uint32_t idle_timeout_() override;
-  
-  void deep_sleep() override {;}
+
+  void deep_sleep() override { ; }
 
   bool wait_until_idle_();
 
