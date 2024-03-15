@@ -316,6 +316,7 @@ CONF_TITLE = "title"
 CONF_TOP_LAYER = "top_layer"
 CONF_TRANSPARENCY_KEY = "transparency_key"
 CONF_THEME = "theme"
+CONF_VISIBLE_ROW_COUNT = "visible_row_count"
 CONF_WIDGET = "widget"
 CONF_WIDGETS = "widgets"
 CONF_X = "x"
@@ -379,6 +380,8 @@ class LValidator:
         return self.validator(value)
 
     async def process(self, value, args=()):
+        if value is None:
+            return None
         if isinstance(value, Lambda):
             return f"{await cg.process_lambda(value, args, return_type=self.rtype)}()"
         if self.idtype is not None and isinstance(value, ID):
@@ -390,6 +393,11 @@ class LValidator:
 
 lv_color = LValidator(lv_color_validator, lv_color_t)
 lv_bool = LValidator(lv_bool_validator, cg.bool_, BinarySensor, "get_state()")
+lv_milliseconds = LValidator(
+    cv.positive_time_period_milliseconds,
+    cg.int32,
+    retmapper=lambda x: x.total_milliseconds,
+)
 
 
 class TextValidator(LValidator):
@@ -436,6 +444,9 @@ class TextValidator(LValidator):
 lv_text = TextValidator()
 lv_float = LValidator(cv.float_, cg.float_, Sensor, "get_state()")
 lv_int = LValidator(cv.int_, cg.int_, Sensor, "get_state()")
+lv_brightness = LValidator(
+    cv.percentage, cg.float_, Sensor, "get_state()", retmapper=lambda x: int(x * 255)
+)
 
 cell_alignments = lv_one_of(LV_CELL_ALIGNMENTS, prefix="LV_GRID_ALIGNMENT_")
 grid_alignments = lv_one_of(LV_GRID_ALIGNMENTS, prefix="LV_GRID_ALIGNMENT_")
@@ -448,6 +459,7 @@ STYLE_PROPS = {
     "arc_color": lv_color,
     "arc_rounded": lv_bool,
     "arc_width": cv.positive_int,
+    "anim_time": lv_milliseconds,
     "bg_color": lv_color,
     "bg_grad_color": lv_color,
     "bg_dither_mode": lv_one_of(["NONE", "ORDERED", "ERR_DIFF"], "LV_DITHER_"),
@@ -706,17 +718,24 @@ SPINBOX_SCHEMA = {
     cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
 }
 
-ANIMIMG_SCHEMA = {
-    cv.Required(CONF_SRC): cv.ensure_list(cv.use_id(Image_)),
-    cv.Required(CONF_DURATION): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_REPEAT_COUNT, default="forever"): lv_repeat_count,
-    cv.Optional(CONF_AUTO_START, default=True): cv.boolean,
-}
+ANIMIMG_BASE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_REPEAT_COUNT, default="forever"): lv_repeat_count,
+        cv.Optional(CONF_AUTO_START, default=True): cv.boolean,
+    }
+)
+ANIMIMG_SCHEMA = ANIMIMG_BASE_SCHEMA.extend(
+    {
+        cv.Required(CONF_DURATION): lv_milliseconds,
+        cv.Required(CONF_SRC): cv.ensure_list(cv.use_id(Image_)),
+    }
+)
 
-ANIMIMG_MODIFY_SCHEMA = {
-    cv.Optional(CONF_DURATION): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_REPEAT_COUNT): lv_repeat_count,
-}
+ANIMIMG_MODIFY_SCHEMA = ANIMIMG_BASE_SCHEMA.extend(
+    {
+        cv.Optional(CONF_DURATION): lv_milliseconds,
+    }
+)
 
 IMG_SCHEMA = {
     cv.Required(CONF_SRC): cv.use_id(Image_),
@@ -923,6 +942,7 @@ DROPDOWN_MODIFY_SCHEMA = DROPDOWN_BASE_SCHEMA
 ROLLER_BASE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_SELECTED_INDEX): cv.templatable(cv.int_),
+        cv.Optional(CONF_VISIBLE_ROW_COUNT): lv_int,
         cv.Optional(CONF_MODE, default="NORMAL"): lv_one_of(
             ROLLER_MODES, "LV_ROLLER_MODE_"
         ),
@@ -944,7 +964,7 @@ ROLLER_MODIFY_SCHEMA = ROLLER_BASE_SCHEMA.extend(
 LED_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_COLOR): lv_color,
-        cv.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
+        cv.Optional(CONF_BRIGHTNESS): lv_brightness,
     }
 )
 
@@ -1231,7 +1251,7 @@ async def set_obj_properties(widget: Widget, config):
         init.extend(widget.set_property("layout", layout, "obj"))
         if layout == "LV_LAYOUT_FLEX":
             lv_uses.add("FLEX")
-            init.extend(widget.set_property("flex_flow", config[CONF_FLEX_FLOW], "obj"))
+            init.extend(widget.set_property("flex_flow", config, "obj"))
         if layout == "LV_LAYOUT_GRID":
             lv_uses.add("GRID")
     if states := config.get(CONF_STATE):
@@ -1266,8 +1286,7 @@ async def set_obj_properties(widget: Widget, config):
     if config.get(CONF_LAYOUT) == "LV_LAYOUT_GRID":
         wid = config[CONF_ID]
         for key in (CONF_GRID_COLUMN_ALIGN, CONF_GRID_COLUMN_ALIGN):
-            if value := config.get(key):
-                init.extend(widget.set_property(key, value))
+            init.extend(widget.set_property(key, config))
         rows = "{" + ",".join(config[CONF_GRID_ROWS]) + ", LV_GRID_TEMPLATE_LAST}"
         row_id = ID(f"{wid}_row_dsc", is_declaration=True, type=lv_coord_t)
         row_array = cg.static_const_array(row_id, cg.RawExpression(rows))
@@ -1291,10 +1310,8 @@ async def label_to_code(var: Widget, label_conf):
     init = []
     if value := label_conf.get(CONF_TEXT):
         init.extend(await lv_text.set_text(var, value))
-    if mode := label_conf.get(CONF_LONG_MODE):
-        init.extend(var.set_property("long_mode", mode))
-    if (recolor := label_conf.get(CONF_RECOLOR)) is not None:
-        init.extend(var.set_property("recolor", recolor))
+    init.extend(var.set_property(CONF_LONG_MODE, label_conf))
+    init.extend(var.set_property(CONF_RECOLOR, label_conf))
     return init
 
 
@@ -1332,10 +1349,12 @@ async def btn_to_code(var, btn):
 
 async def led_to_code(var: Widget, config):
     init = []
-    if color := config.get(CONF_COLOR):
-        init.extend(var.set_property("color", color))
-    if brightness := await lv_float.process(config.get(CONF_BRIGHTNESS)):
-        init.extend(var.set_property("brightness", int(brightness * 255)))
+    init.extend(var.set_property(CONF_COLOR, config))
+    init.extend(
+        var.set_property(
+            CONF_BRIGHTNESS, await lv_brightness.process(config.get(CONF_BRIGHTNESS))
+        )
+    )
     return init
 
 
@@ -1344,7 +1363,7 @@ SHOW_SCHEMA = LVGL_SCHEMA.extend(
         cv.Optional(CONF_ANIMATION, default="NONE"): lv_one_of(
             LV_ANIM, "LV_SCR_LOAD_ANIM_"
         ),
-        cv.Optional(CONF_TIME, default="50ms"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_TIME, default="50ms"): lv_milliseconds,
     }
 )
 
@@ -1377,8 +1396,7 @@ async def animimg_start(config, action_id, template_arg, args):
 )
 async def animimg_stop(config, action_id, template_arg, args):
     widget = await get_widget(config[CONF_ID])
-    init = widget.set_property(CONF_DURATION, 0)
-    init.append(f"lv_animimg_start({widget.obj})")
+    init = [f"lv_animimg_stop({widget.obj})"]
     return await action_to_code(init, action_id, widget, template_arg, args)
 
 
@@ -1390,7 +1408,6 @@ async def animimg_stop(config, action_id, template_arg, args):
 async def animimg_update_to_code(config, action_id, template_arg, args):
     widget = await get_widget(config[CONF_ID])
     init = await animimg_to_code(widget, config)
-    init.append(f"lv_animimg_start({widget.obj})")
     return await update_to_code(config, action_id, widget, init, template_arg, args)
 
 
@@ -1402,7 +1419,7 @@ async def animimg_update_to_code(config, action_id, template_arg, args):
 async def page_next_to_code(config, action_id, template_arg, args):
     lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
     animation = config[CONF_ANIMATION]
-    time = config[CONF_TIME].total_milliseconds
+    time = await lv_milliseconds.process(config[CONF_TIME])
     init = [f"{lv_comp}->show_next_page(false, {animation}, {time})"]
     return await action_to_code(init, action_id, lv_comp, template_arg, args)
 
@@ -1462,6 +1479,12 @@ async def roller_to_code(var, config):
     if selected := config.get(CONF_SELECTED_INDEX):
         value = await lv_int.process(selected)
         init.append(f"lv_roller_set_selected({var.obj}, {value}, {animated})")
+    init.extend(
+        var.set_property(
+            CONF_VISIBLE_ROW_COUNT,
+            await lv_int.process(config.get(CONF_VISIBLE_ROW_COUNT)),
+        )
+    )
     return init
 
 
@@ -1639,12 +1662,8 @@ async def animimg_to_code(var: Widget, config):
         src_arry = cg.static_const_array(src_id, cg.RawExpression(srcs))
         count = len(config[CONF_SRC])
         init.append(f"lv_animimg_set_src({wid}, {src_arry}, {count})")
-    repeat_count = config.get(CONF_REPEAT_COUNT)
-    if repeat_count is not None:
-        init.extend(var.set_property(CONF_REPEAT_COUNT, repeat_count))
-    duration = config.get(CONF_DURATION)
-    if duration is not None:
-        init.extend(var.set_property(CONF_DURATION, duration.total_milliseconds))
+    init.extend(var.set_property(CONF_REPEAT_COUNT, config))
+    init.extend(var.set_property(CONF_DURATION, config))
     if config.get(CONF_AUTO_START):
         init.append(f"lv_animimg_start({var.obj})")
     return init

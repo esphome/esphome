@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from . import BTNMATRIX_CTRLS
+from ...core import TimePeriod
 
 EVENT_LAMB = "event_lamb__"
 
@@ -40,6 +41,12 @@ class Widget:
         return [f"lv_obj_clear_flag({self.obj}, {flag})"]
 
     def set_property(self, prop, value, ltype=None):
+        if isinstance(value, dict):
+            value = value.get(prop)
+        if value is None:
+            return []
+        if isinstance(value, TimePeriod):
+            value = value.total_milliseconds
         ltype = ltype or self.type_base()
         return [f"lv_{ltype}_set_{prop}({self.obj}, {value})"]
 
