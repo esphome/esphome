@@ -708,14 +708,41 @@ def lv_repeat_count(value):
     return cv.positive_int(value)
 
 
-SPINBOX_SCHEMA = {
-    cv.Optional(CONF_VALUE): lv_float,
-    cv.Required(CONF_RANGE_FROM): lv_float,
-    cv.Required(CONF_RANGE_TO): lv_float,
-    cv.Required(CONF_DIGITS): cv.positive_int,
-    cv.Optional(CONF_STEP, default=1.0): cv.positive_float,
-    cv.Optional(CONF_DECIMAL_PLACES, default=0): cv.positive_int,
-    cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
+def validate_spinbox(config):
+    max_val = 2**31 - 1
+    min_val = -1 - max_val
+    scale = 10 ** config[CONF_DECIMAL_PLACES]
+    range_from = int(config[CONF_RANGE_FROM] * scale)
+    range_to = int(config[CONF_RANGE_TO] * scale)
+    step = int(config[CONF_STEP] * scale)
+    if (
+        range_from > max_val
+        or range_from < min_val
+        or range_to > max_val
+        or range_to < min_val
+    ):
+        raise cv.Invalid("Range outside allowed limits")
+    if step <= 0 or step >= (range_to - range_from) / 2:
+        raise cv.Invalid("Invalid step value")
+    if config[CONF_DIGITS] <= config[CONF_DECIMAL_PLACES]:
+        raise cv.Invalid("Number of digits must exceed number of decimal places")
+    return config
+
+
+SPINBOX_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_VALUE): lv_float,
+        cv.Optional(CONF_RANGE_FROM, default=0): cv.float_,
+        cv.Optional(CONF_RANGE_TO, default=100): cv.float_,
+        cv.Optional(CONF_DIGITS, default=4): cv.int_range(1, 10),
+        cv.Optional(CONF_STEP, default=1.0): cv.positive_float,
+        cv.Optional(CONF_DECIMAL_PLACES, default=0): cv.int_range(0, 6),
+        cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
+    },
+).add_extra(validate_spinbox)
+
+SPINBOX_MODIFY_SCHEMA = {
+    cv.Required(CONF_VALUE): lv_float,
 }
 
 ANIMIMG_BASE_SCHEMA = cv.Schema(
@@ -1653,6 +1680,25 @@ async def msgbox_to_code(conf):
     return init
 
 
+async def spinbox_to_code(var: Widget, config):
+    init = []
+    digits = config[CONF_DIGITS]
+    scale = 10 ** config[CONF_DECIMAL_PLACES]
+    range_from = int(config[CONF_RANGE_FROM] * scale)
+    range_to = int(config[CONF_RANGE_TO] * scale)
+    step = int(config[CONF_STEP] * scale)
+    init.append(f"lv_spinbox_set_range({var.obj}, {range_from}, {range_to})")
+    init.extend(var.set_property(CONF_STEP, step))
+    init.extend(var.set_property(CONF_ROLLOVER, config))
+    init.append(
+        f"lv_spinbox_set_digit_format({var.obj}, {digits}, {digits - config[CONF_DECIMAL_PLACES]})"
+    )
+    init.extend(
+        var.set_property(CONF_VALUE, await lv_float.process(config.get(CONF_VALUE)))
+    )
+    return init
+
+
 async def animimg_to_code(var: Widget, config):
     init = []
     wid = config[CONF_ID]
@@ -2231,6 +2277,22 @@ async def obj_hide_to_code(config, action_id, template_arg, args):
 async def obj_update_to_code(config, action_id, template_arg, args):
     obj = await get_widget(config[CONF_ID])
     return await update_to_code(config, action_id, obj, [], template_arg, args)
+
+
+@automation.register_action(
+    "lvgl.spinbox.update",
+    ObjUpdateAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(lv_spinbox_t),
+            cv.Required(CONF_VALUE): lv_float,
+        }
+    ),
+)
+async def spinbox_update_to_code(config, action_id, template_arg, args):
+    obj = await get_widget(config[CONF_ID])
+    init = obj.set_property(CONF_VALUE, lv_float.process(config[CONF_VALUE]))
+    return await update_to_code(config, action_id, obj, init, template_arg, args)
 
 
 @automation.register_action(
