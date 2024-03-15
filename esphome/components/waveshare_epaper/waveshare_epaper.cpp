@@ -199,21 +199,21 @@ void WaveshareEPaper7C::init_internal_(uint32_t buffer_length) {
 uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
   uint8_t hex_code;
   if (((color.red < 127) && (color.green < 127) && (color.blue < 127))) {
-    hex_code = 0x0;  //Black
+    hex_code = 0x0;  // Black
   } else if (((color.red > 127) && (color.green > 127) && (color.blue > 127))) {
-    hex_code = 0x1;  //White
+    hex_code = 0x1;  // White
   } else if (((color.red < 127) && (color.green > 127) && (color.blue < 127))) {
-    hex_code = 0x2;  //Green
+    hex_code = 0x2;  // Green
   } else if (((color.red < 127) && (color.green < 127) && (color.blue > 127))) {
-    hex_code = 0x3;  //Blue
+    hex_code = 0x3;  // Blue
   } else if (((color.red > 127) && (color.green < 127) && (color.blue < 127))) {
-    hex_code = 0x4;  //Red
+    hex_code = 0x4;  // Red
   } else if (((color.red > 127) && (color.green > 127) && (color.blue < 127))) {
-    hex_code = 0x5;  //Yellow
+    hex_code = 0x5;  // Yellow
   } else if (((color.red > 127) && (color.green > 64) && (color.green < 191) && (color.blue < 127))) {
-    hex_code = 0x6;  //Orange
+    hex_code = 0x6;  // Orange
   } else {
-    hex_code = 0x1;  //White
+    hex_code = 0x1;  // White
   }
   return hex_code;
 }
@@ -235,7 +235,7 @@ void WaveshareEPaper7C::fill(Color color) {
         // | byte 1 | byte 2 | byte 3 |
         // |aaabbbaa|abbbaaab|bbaaabbb|
         this->buffers_[buffer_index][buffer_pos + 0] = pixel_color << 5 | pixel_color << 2 | pixel_color >> 1;
-        this->buffers_[buffer_index][buffer_pos + 1] = 
+        this->buffers_[buffer_index][buffer_pos + 1] =
             pixel_color << 7 | pixel_color << 4 | pixel_color << 1 | pixel_color >> 2;
         this->buffers_[buffer_index][buffer_pos + 2] = pixel_color << 6 | pixel_color << 3 | pixel_color << 0;
       }
@@ -305,7 +305,7 @@ void HOT WaveshareEPaper7C::draw_absolute_pixel_internal(int x, int y, Color col
   uint32_t buffer_position = byte_position / small_buffer_length;
   uint32_t buffer_subposition = byte_position % small_buffer_length;
 
-   if (byte_subposition <= 5) {
+  if (byte_subposition <= 5) {
     this->buffers_[buffer_position][buffer_subposition] =
         (this->buffers_[buffer_position][buffer_subposition] & (0xFF ^ (0b111 << (5 - byte_subposition)))) |
         (pixel_bits << (5 - byte_subposition));
@@ -2615,7 +2615,8 @@ void HOT WaveshareEPaper7P3InF::display() {
   this->command(0x10);
   uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
   uint8_t byte_to_send;
-  for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos += 3) {
+  for (int buffer_index = 0; buffer_index < NUM_BUFFERS; buffer_index++) {
+    for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos += 3) {
       std::bitset<24> triplet = this->buffers_[buffer_index][buffer_pos + 0] << 16 |
                                 this->buffers_[buffer_index][buffer_pos + 1] << 8 |
                                 this->buffers_[buffer_index][buffer_pos + 2] << 0;
