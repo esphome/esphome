@@ -100,7 +100,7 @@ class WaveshareEPaper7C : public WaveshareEPaperBase {
   uint32_t get_buffer_length_() override;
   void init_internal_(uint32_t buffer_length);
 
-  static const int NUM_BUFFERS = 20;
+  static const int NUM_BUFFERS = 10;
   uint8_t * buffers_[NUM_BUFFERS];
 };
 
@@ -573,6 +573,17 @@ class WaveshareEPaper7P3InF : public WaveshareEPaper7C {
   bool wait_until_idle_();
 
   bool deep_sleep_between_updates_{true};
+
+  void reset_() {
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(true);
+      delay(20);
+      this->reset_pin_->digital_write(false);
+      delay(1);
+      this->reset_pin_->digital_write(true);
+      delay(20);
+    }
+  };
 };
 
 class WaveshareEPaper7P5In : public WaveshareEPaper {

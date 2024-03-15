@@ -3,6 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include <cinttypes>
+#include <bitset>
 
 namespace esphome {
 namespace waveshare_epaper {
@@ -111,7 +112,6 @@ static const uint8_t PARTIAL_UPD_2IN9_LUT[PARTIAL_UPD_2IN9_LUT_SIZE] =
 // clang-format on
 
 void WaveshareEPaperBase::setup_pins_() {
-  ESP_LOGI(TAG, "Will create buffer of size: %d", this->get_buffer_length_());//debug
   this->init_internal_(this->get_buffer_length_());
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
@@ -174,62 +174,35 @@ void WaveshareEPaper::fill(Color color) {
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
-void WaveshareEPaper7C::init_internal_(uint32_t buffer_length) {
-  ESP_LOGI(TAG, "Buffer n°0 points to: %d", this->buffers_[0]);//debug
-  ESP_LOGI(TAG, "EXEC CUSTOM WaveshareEPaper7C::init_internal_, creating splitted buffer");//debug
-  for (int i = 0; i < NUM_BUFFERS; i++)
-    this->buffers_[i] = nullptr;
-
-  ESP_LOGI(TAG, "Available ram before allocation: %d", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));//debug
-  //Same as DisplayBuffer::init_internal_, but here we split the buffer because of heap fragmentation
-  
+void WaveshareEPaper7C::init_internal_(uint32_t buffer_length) {  
   if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < buffer_length){
     ESP_LOGE(TAG, "Could not allocate buffers, not enough ram!");
     return;
   }
 
-  //return;//debug
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-  //ExternalRAMAllocator<uint8_t> allocator;//test debug
 
   uint32_t small_buffer_length = buffer_length / NUM_BUFFERS;
-  ESP_LOGI(TAG, "We want %d buffers of size %d", NUM_BUFFERS, small_buffer_length);//debug
 
-  for (int i = 0; i < NUM_BUFFERS; i++)
-    this->buffers_[i] = nullptr;
-  ESP_LOGI(TAG, "Buffer n°0 points to: %d", this->buffers_[0]);//debug
-
-  uint8_t * tmp = nullptr;
   for (int i = 0; i < NUM_BUFFERS; i++) {
-    ESP_LOGI(TAG, "");//debug
-    ESP_LOGI(TAG, "Available ram: %d", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));//debug
-    ESP_LOGI(TAG, "Biggest block: %d", heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));//debug
-    ESP_LOGI(TAG, "Wanted alloc: %d", small_buffer_length);//debug
-    
     this->buffers_[i] = allocator.allocate(small_buffer_length);
     
     if (this->buffers_[i] == nullptr) {
-      ESP_LOGE(TAG, "Could not allocate buffer %d for display!", NUM_BUFFERS);
-      ESP_LOGI(TAG, "Biggest block was: %d", heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));//debug
-
-      //TODO : desallocate before setting to nullptr
-      ESP_LOGE(TAG, "Deleting all buffers");//debug
-      for (int k = 0; k < NUM_BUFFERS; k++)
+      ESP_LOGE(TAG, "Could not allocate buffer %d for display!", i);
+      for (int k = 0; k < NUM_BUFFERS; k++){
+        allocator.deallocate(this->buffers_[k], small_buffer_length);
         this->buffers_[k] = nullptr;
-      ESP_LOGI(TAG, "Buffer n°0 points to: %d", this->buffers_[0]);//debug, should be null
+      }
       return;
     }
-    ESP_LOGI(TAG, "Buffer n°%d points to: %d", i, this->buffers_[i]);//debug
   }
-
-  ESP_LOGI(TAG, "init_internal_ : %d buffers allocated with success", NUM_BUFFERS);//debug
-  ESP_LOGI(TAG, "Available ram after allocation: %d", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));//debug
-
   this->clear();
 }
 uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
   uint8_t hex_code;
-  if (((color.red < 127) && (color.green < 127) && (color.blue < 127))) {
+  if (!color.is_on()) {
+    hex_code = 0x1; //White background by default
+  } else if (((color.red < 127) && (color.green < 127) && (color.blue < 127))) {
     hex_code = 0x0; //Black
   } else if (((color.red > 127) && (color.green > 127) && (color.blue > 127))) {
     hex_code = 0x1; //White
@@ -249,42 +222,31 @@ uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
   return hex_code;
 }
 void WaveshareEPaper7C::fill(Color color) {
-  ESP_LOGI(TAG, "EXEC WaveshareEPaper7C::fill");
-  ESP_LOGI(TAG, "this->get_width_internal() : %d", this->get_width_internal());
-  ESP_LOGI(TAG, "this->get_height_internal() : %d", this->get_height_internal());
-  ESP_LOGI(TAG, "this->get_buffer_length_() : %d", this->get_buffer_length_());
-  return;//debug
-
-  uint8_t fill;
-  if (!color.is_on()) { 
-    fill = 0x11; //White background by default
-  }
-  else{
-    uint8_t hex_color = this->color_to_hex(color);
-    fill = (hex_color << 4) | hex_color;
-    ESP_LOGI(TAG, "Color: (%d,%d,%d) converted to 0x%X", color.red, color.green, color.blue, fill);
-  }  
-
-  ESP_LOGI(TAG, "Check buffers");//debug
+  uint8_t pixel_color = this->color_to_hex(color);
   if (this->buffers_ == nullptr) {
     ESP_LOGE(TAG, "Buffer unavailable!");
   }
   else{
     uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
-    ESP_LOGI(TAG, "small_buffer_length : %d",small_buffer_length);//debug
     for (int buffer_index = 0; buffer_index < NUM_BUFFERS; buffer_index++) {
-      ESP_LOGI(TAG, "Buffer n°%d points to: %d", buffer_index, this->buffers_[buffer_index]);//debug
-      for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos++) {
-        this->buffers_[buffer_index][buffer_pos] = fill;
-        if (buffer_pos<5){
-          ESP_LOGI(TAG, "Buffer n°%d pos %d points to: %d, value is 0x%X", buffer_index, buffer_pos, &(this->buffers_[buffer_index][buffer_pos]), fill);//debug
-        }
+      for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos+=3) {
+        // We store 8 bitset<3> in 3 bytes
+        // | byte 1 | byte 2 | byte 3 |
+        // |aaabbbaa|abbbaaab|bbaaabbb|
+        this->buffers_[buffer_index][buffer_pos+0] = pixel_color << 5
+                                                   | pixel_color << 2
+                                                   | pixel_color >> 1;
+        this->buffers_[buffer_index][buffer_pos+1] = pixel_color << 7
+                                                   | pixel_color << 4
+                                                   | pixel_color << 1
+                                                   | pixel_color >> 2;
+        this->buffers_[buffer_index][buffer_pos+2] = pixel_color << 6
+                                                   | pixel_color << 3
+                                                   | pixel_color << 0;
       }
       App.feed_wdt();
-      ESP_LOGI(TAG, "ok");//debug
     }
   }
-  ESP_LOGI(TAG, "fill done");//debug
 }
 void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
@@ -307,8 +269,8 @@ uint32_t WaveshareEPaperBWR::get_buffer_length_() {
   return this->get_width_controller() * this->get_height_internal() / 4u;
 }  // black and red buffer
 uint32_t WaveshareEPaper7C::get_buffer_length_() {
-  return this->get_width_controller() * this->get_height_internal() / 3u;//2u make wifi crash, 3u is ok
-}  // 7 colors buffer
+  return this->get_width_controller() * this->get_height_internal() / 8u * 3u;
+}  // 7 colors buffer, 1 pixel = 3 bits, we will store 8 pixels in 24 bits = 3 bytes
 
 void WaveshareEPaperBWR::fill(Color color) {
   this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color);
@@ -336,36 +298,32 @@ void HOT WaveshareEPaperBWR::draw_absolute_pixel_internal(int x, int y, Color co
   }
 }
 void HOT WaveshareEPaper7C::draw_absolute_pixel_internal(int x, int y, Color color) {
-  ESP_LOGI(TAG, "EXEC WaveshareEPaper7C::draw_absolute_pixel_internal");
-  return;//debug
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
 
-  uint8_t hex_color = this->color_to_hex(color);
+  uint8_t pixel_bits = this->color_to_hex(color);
 
-  const uint32_t pos = (x + y * this->get_width_controller()) / 2u;
-  const uint8_t subpos = x % 2;
-  const uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
-  const uint32_t buffer_index = pos / small_buffer_length; //dividing integers = rounded down
-  const uint32_t buffer_pos = pos % small_buffer_length;
+  uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
+  uint32_t pixel_position = x + y * this->get_width_controller(); //xème pixel
+  uint32_t first_bit_position = pixel_position * 3; //xème bit (début du pixel)
+  uint32_t byte_position = first_bit_position / 8u;
+  uint32_t byte_subposition = first_bit_position % 8u;
+  uint32_t buffer_position = byte_position / small_buffer_length;
+  uint32_t buffer_subposition = byte_position % small_buffer_length;
 
-  if (this->buffers_ == nullptr) {
-      ESP_LOGE(TAG, "draw_absolute_pixel_internal, buffer unavailable 1");
-      return;
+  if (byte_subposition <= 5){
+    this->buffers_[buffer_position][buffer_subposition] = 
+      (this->buffers_[buffer_position][buffer_subposition] & (0xFF ^ (0b111 << (5 - byte_subposition))))
+        | (pixel_bits << (5 - byte_subposition));
   }
-  if (this->buffers_[buffer_index] == nullptr) {
-      ESP_LOGE(TAG, "draw_absolute_pixel_internal, buffer unavailable 2");
-      return;
-  }
-  if (this->buffers_[buffer_index][buffer_pos]) {
-      ESP_LOGE(TAG, "draw_absolute_pixel_internal, buffer unavailable 3");
-      return;
-  }
+  else {
+    this->buffers_[buffer_position][buffer_subposition + 0] = 
+      (this->buffers_[buffer_position][buffer_subposition + 0] & (0xFF ^ (0b111 >> (byte_subposition - 5)))) 
+        | (pixel_bits >> (byte_subposition - 5));
 
-  if (subpos == 0) {  // Pixel on the left side of the byte
-    this->buffers_[buffer_index][buffer_pos] = (this->buffers_[buffer_index][buffer_pos] & 0x0F) | (hex_color << 4);
-  } else {  // Pixel on the right side of the byte
-    this->buffers_[buffer_index][buffer_pos] = (this->buffers_[buffer_index][buffer_pos] & 0xF0) | hex_color;
+    this->buffers_[buffer_position][buffer_subposition + 1] = 
+      (this->buffers_[buffer_position][buffer_subposition + 1] & (0xFF ^ (0xFF & (0b111 << (13 - byte_subposition))))) 
+        | (pixel_bits << (13 - byte_subposition));
   }
 }
 
@@ -2546,15 +2504,15 @@ void WaveshareEPaper7P5In::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 void WaveshareEPaper7P3InF::initialize() {
-  ESP_LOGI(TAG, "initialize");
-  return;//debug
-  this->reset_();
-  delay(20);
-
   if (this->buffers_ == nullptr) {
     ESP_LOGE(TAG, "Buffer unavailable!");
     return;
   }
+
+  this->reset_();
+  delay(20);
+  this->wait_until_idle_();
+
   // COMMAND CMDH
   this->command(0xAA); 
   this->data(0x49);
@@ -2649,42 +2607,48 @@ void WaveshareEPaper7P3InF::initialize() {
   ESP_LOGI(TAG, "Display initialized successfully");
 }
 void HOT WaveshareEPaper7P3InF::display() {
-  ESP_LOGI(TAG, "EXEC DISPLAY");//debug
-  return;
   if (this->buffers_ == nullptr) {
     ESP_LOGE(TAG, "Buffer unavailable!");
     return;
   }
   uint32_t buf_len = this->get_buffer_length_();
 
-  // WAKE UP FROM DEEP SLEEP
-  if (this->deep_sleep_between_updates_) {
-    ESP_LOGI(TAG, "Wake up the display from deep sleep");
-    this->reset_();
-    this->wait_until_idle_();
-    this->initialize();
-  }
+  // INITIALIZATION
+  ESP_LOGI(TAG, "Initialise the display");
+  this->initialize();
 
   // COMMAND DATA START TRANSMISSION
   ESP_LOGI(TAG, "Sending data to the display");
-  ESP_LOGI(TAG, "buf_len : %d", buf_len);//debug
   this->command(0x10);
-  delay(2);
   uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
-  ESP_LOGI(TAG, "small_buffer_length : %d",small_buffer_length);//debug
+  uint8_t byte_to_send;
   for (int buffer_index = 0; buffer_index < NUM_BUFFERS; buffer_index++) {
-    ESP_LOGI(TAG, "Buffer n°%d points to: %d", buffer_index, this->buffers_[buffer_index]);//debug
-    for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos++) {
-      //this->buffers_[buffer_index][buffer_pos] = 0x22;
-      this->data(this->buffers_[buffer_index][buffer_pos]);
-      if (buffer_pos<5){
-        ESP_LOGI(TAG, "Buffer n°%d pos %d points to: %d, value is 0x%X", buffer_index, buffer_pos, &(this->buffers_[buffer_index][buffer_pos]), this->buffers_[buffer_index][buffer_pos]);//debug
-      }
+    for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos+=3) {
+      std::bitset<24> triplet = this->buffers_[buffer_index][buffer_pos+0] << 16
+                              | this->buffers_[buffer_index][buffer_pos+1] << 8
+                              | this->buffers_[buffer_index][buffer_pos+2] << 0;
+      // 8 bitset<3> are stored in 3 bytes
+      // |aaabbbaa|abbbaaab|bbaaabbb|
+      // | byte 1 | byte 2 | byte 3 |
+      byte_to_send = (triplet >> 17).to_ulong() & 0b01110000
+                   | (triplet >> 18).to_ulong() & 0b00000111;
+      this->data(byte_to_send);
+
+      byte_to_send = (triplet >> 11).to_ulong() & 0b01110000
+                   | (triplet >> 12).to_ulong() & 0b00000111;
+      this->data(byte_to_send);
+
+      byte_to_send = (triplet >> 5).to_ulong() & 0b01110000
+                   | (triplet >> 6).to_ulong() & 0b00000111;
+      this->data(byte_to_send);
+
+      byte_to_send = (triplet << 1).to_ulong() & 0b01110000
+                   | (triplet << 0).to_ulong() & 0b00000111;
+      this->data(byte_to_send);
     }
     App.feed_wdt();
-    ESP_LOGI(TAG, "ok");//debug
   }
-  this->wait_until_idle_();
+  //this->wait_until_idle_();
 
   // COMMAND POWER ON
   ESP_LOGI(TAG, "Power on the display");
@@ -2703,12 +2667,12 @@ void HOT WaveshareEPaper7P3InF::display() {
   this->data(0x00);
   this->wait_until_idle_();
 
+  ESP_LOGI(TAG, "Set the display to deep sleep");
+  ESP_LOGE(TAG, "GO TO DEEP SLEEP");
+  this->command(0x07);
+  this->data(0xA5);
 
-  if (this->deep_sleep_between_updates_) {
-    ESP_LOGI(TAG, "Set the display to deep sleep");
-    this->command(0x07);
-    this->data(0xA5);
-  }
+  //this->reset_();
 }
 int WaveshareEPaper7P3InF::get_width_internal() { return 800; }
 int WaveshareEPaper7P3InF::get_height_internal() { return 480; }
@@ -2723,22 +2687,19 @@ void WaveshareEPaper7P3InF::dump_config() {
 }
 
 bool WaveshareEPaper7P3InF::wait_until_idle_() {
-  ESP_LOGI(TAG, "wifi wait_until_idle_");//debug
-  return true;
   if (this->busy_pin_ == nullptr) {
     return true;
   }
   const uint32_t start = millis();
   while (this->busy_pin_->digital_read()) {
     if (millis() - start > this->idle_timeout_()) {
-      ESP_LOGI(TAG, "Timeout while displaying image!");
+      ESP_LOGE(TAG, "Timeout while displaying image!");
       return false;
     }
     App.feed_wdt();
     delay(10);
   }
   delay(200);
-  //ESP_LOGI(TAG, "Was in 7P3::wait_until_idle_() for %d ms", millis() - start);
   return true;
 }
 bool WaveshareEPaper7P5InV2::wait_until_idle_() {
