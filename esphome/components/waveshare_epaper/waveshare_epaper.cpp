@@ -256,12 +256,14 @@ void WaveshareEPaperTypeA::initialize() {
   }
 }
 void WaveshareEPaperTypeA::init_display_() {
-  if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
-    delay(10);
-    this->wait_until_idle_();
+  if (this->model_ == TTGO_EPAPER_2_13_IN_B74 || this->model_ == WAVESHARE_EPAPER_2_13_IN_V2) {
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(false);
+      delay(10);
+      this->reset_pin_->digital_write(true);
+      delay(10);
+      this->wait_until_idle_();
+    }
 
     this->command(0x12);  // SWRESET
     this->wait_until_idle_();
@@ -321,6 +323,9 @@ void WaveshareEPaperTypeA::dump_config() {
     case WAVESHARE_EPAPER_2_13_IN:
       ESP_LOGCONFIG(TAG, "  Model: 2.13in");
       break;
+    case WAVESHARE_EPAPER_2_13_IN_V2:
+      ESP_LOGCONFIG(TAG, "  Model: 2.13inV2");
+      break;
     case TTGO_EPAPER_2_13_IN:
       ESP_LOGCONFIG(TAG, "  Model: 2.13in (TTGO)");
       break;
@@ -366,6 +371,8 @@ void HOT WaveshareEPaperTypeA::display() {
     if (full_update != prev_full_update) {
       switch (this->model_) {
         case TTGO_EPAPER_2_13_IN:
+        case WAVESHARE_EPAPER_2_13_IN_V2:
+          // Waveshare 2.13" V2 uses the same LUTs as TTGO
           this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO : PARTIAL_UPDATE_LUT_TTGO, LUT_SIZE_TTGO);
           break;
         case TTGO_EPAPER_2_13_IN_B73:
@@ -382,6 +389,41 @@ void HOT WaveshareEPaperTypeA::display() {
       }
     }
     this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+  }
+
+  if (this->model_ == WAVESHARE_EPAPER_2_13_IN_V2) {
+    // Set VCOM for full or partial update
+    this->command(0x2C);
+    this->data(full_update ? 0x55 : 0x26);
+
+    if (!full_update) {
+      // Enable "ping-pong"
+      this->command(0x37);
+      this->data(0x00);
+      this->data(0x00);
+      this->data(0x00);
+      this->data(0x00);
+      this->data(0x40);
+      this->data(0x00);
+      this->data(0x00);
+      this->command(0x22);
+      this->data(0xc0);
+      this->command(0x20);
+    }
+  }
+
+  // Border waveform
+  switch (this->model_) {
+    case TTGO_EPAPER_2_13_IN_B74:
+      this->command(0x3C);
+      this->data(full_update ? 0x05 : 0x80);
+      break;
+    case WAVESHARE_EPAPER_2_13_IN_V2:
+      this->command(0x3C);
+      this->data(full_update ? 0x03 : 0x01);
+      break;
+    default:
+      break;
   }
 
   // Set x & y regions we want to write to (full)
@@ -407,12 +449,6 @@ void HOT WaveshareEPaperTypeA::display() {
       this->data((this->get_height_internal() - 1) >> 8);
 
       break;
-    case TTGO_EPAPER_2_13_IN_B74:
-      // BorderWaveform
-      this->command(0x3C);
-      this->data(full_update ? 0x05 : 0x80);
-
-      // fall through
     default:
       // COMMAND SET RAM X ADDRESS START END POSITION
       this->command(0x44);
@@ -458,6 +494,14 @@ void HOT WaveshareEPaperTypeA::display() {
   }
   this->end_data_();
 
+  if (this->model_ == WAVESHARE_EPAPER_2_13_IN_V2 && full_update) {
+    // Write base image again on full refresh
+    this->command(0x26);
+    this->start_data_();
+    this->write_array(this->buffer_, this->get_buffer_length_());
+    this->end_data_();
+  }
+
   // COMMAND DISPLAY UPDATE CONTROL 2
   this->command(0x22);
   switch (this->model_) {
@@ -468,6 +512,9 @@ void HOT WaveshareEPaperTypeA::display() {
       break;
     case TTGO_EPAPER_2_13_IN_B73:
       this->data(0xC7);
+      break;
+    case WAVESHARE_EPAPER_2_13_IN_V2:
+      this->data(full_update ? 0xC7 : 0x0C);
       break;
     default:
       this->data(0xC4);
@@ -492,6 +539,7 @@ int WaveshareEPaperTypeA::get_width_internal() {
     case WAVESHARE_EPAPER_1_54_IN_V2:
       return 200;
     case WAVESHARE_EPAPER_2_13_IN:
+    case WAVESHARE_EPAPER_2_13_IN_V2:
     case TTGO_EPAPER_2_13_IN:
     case TTGO_EPAPER_2_13_IN_B73:
     case TTGO_EPAPER_2_13_IN_B74:
@@ -507,6 +555,7 @@ int WaveshareEPaperTypeA::get_width_internal() {
 int WaveshareEPaperTypeA::get_width_controller() {
   switch (this->model_) {
     case WAVESHARE_EPAPER_2_13_IN:
+    case WAVESHARE_EPAPER_2_13_IN_V2:
     case TTGO_EPAPER_2_13_IN:
     case TTGO_EPAPER_2_13_IN_B73:
     case TTGO_EPAPER_2_13_IN_B74:
@@ -522,6 +571,7 @@ int WaveshareEPaperTypeA::get_height_internal() {
     case WAVESHARE_EPAPER_1_54_IN_V2:
       return 200;
     case WAVESHARE_EPAPER_2_13_IN:
+    case WAVESHARE_EPAPER_2_13_IN_V2:
     case TTGO_EPAPER_2_13_IN:
     case TTGO_EPAPER_2_13_IN_B73:
     case TTGO_EPAPER_2_13_IN_B74:
@@ -548,6 +598,7 @@ uint32_t WaveshareEPaperTypeA::idle_timeout_() {
   switch (this->model_) {
     case WAVESHARE_EPAPER_1_54_IN:
     case WAVESHARE_EPAPER_1_54_IN_V2:
+    case WAVESHARE_EPAPER_2_13_IN_V2:
     case TTGO_EPAPER_2_13_IN_B1:
       return 2500;
     default:
