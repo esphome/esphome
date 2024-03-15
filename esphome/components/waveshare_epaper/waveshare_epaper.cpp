@@ -181,12 +181,10 @@ void WaveshareEPaper7C::init_internal_(uint32_t buffer_length) {
   }
 
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-
   uint32_t small_buffer_length = buffer_length / NUM_BUFFERS;
 
   for (int i = 0; i < NUM_BUFFERS; i++) {
     this->buffers_[i] = allocator.allocate(small_buffer_length);
-    
     if (this->buffers_[i] == nullptr) {
       ESP_LOGE(TAG, "Could not allocate buffer %d for display!", i);
       for (int k = 0; k < NUM_BUFFERS; k++){
@@ -302,7 +300,6 @@ void HOT WaveshareEPaper7C::draw_absolute_pixel_internal(int x, int y, Color col
     return;
 
   uint8_t pixel_bits = this->color_to_hex(color);
-
   uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
   uint32_t pixel_position = x + y * this->get_width_controller(); //xème pixel
   uint32_t first_bit_position = pixel_position * 3; //xème bit (début du pixel)
@@ -326,7 +323,6 @@ void HOT WaveshareEPaper7C::draw_absolute_pixel_internal(int x, int y, Color col
         | (pixel_bits << (13 - byte_subposition));
   }
 }
-
 void WaveshareEPaperBase::start_command_() {
   this->dc_pin_->digital_write(false);
   this->enable();
@@ -1428,7 +1424,8 @@ void WaveshareEPaper2P9InBV3::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-// ========================================================//               2.90in v2 rev2
+// ========================================================
+//               2.90in v2 rev2
 // based on SDK and examples in ZIP file from:
 // https://www.waveshare.com/pico-epaper-2.9.htm
 // ========================================================
@@ -2648,7 +2645,6 @@ void HOT WaveshareEPaper7P3InF::display() {
     }
     App.feed_wdt();
   }
-  //this->wait_until_idle_();
 
   // COMMAND POWER ON
   ESP_LOGI(TAG, "Power on the display");
@@ -2671,8 +2667,6 @@ void HOT WaveshareEPaper7P3InF::display() {
   ESP_LOGE(TAG, "GO TO DEEP SLEEP");
   this->command(0x07);
   this->data(0xA5);
-
-  //this->reset_();
 }
 int WaveshareEPaper7P3InF::get_width_internal() { return 800; }
 int WaveshareEPaper7P3InF::get_height_internal() { return 480; }
