@@ -52,6 +52,8 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
   void set_awgain(uint32_t awgain) { awgain_ = awgain; }
   void set_bwgain(uint32_t bwgain) { bwgain_ = bwgain; }
 
+  void set_use_acc_energy_regs(bool use_acc_energy_regs) { use_acc_energy_regs_ = use_acc_energy_regs; }
+
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_frequency_sensor(sensor::Sensor *frequency_sensor) { frequency_sensor_ = frequency_sensor; }
 
@@ -103,6 +105,8 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
   uint32_t bigain_;
   uint32_t awgain_;
   uint32_t bwgain_;
+  bool use_acc_energy_regs_{false};
+  uint32_t last_update_;
 
   virtual bool ade_write_8(uint16_t reg, uint8_t value) = 0;
 
