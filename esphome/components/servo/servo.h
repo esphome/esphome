@@ -17,22 +17,8 @@ class Servo : public Component {
   void loop() override;
   void write(float value);
   void internal_write(float value);
-  void detach() {
-    this->output_->set_level(0.0f);
-    this->save_level_(0.0f);
-  }
-  void setup() override {
-    float v;
-    if (this->restore_) {
-      this->rtc_ = global_preferences->make_preference<float>(global_servo_id);
-      global_servo_id++;
-      if (this->rtc_.load(&v)) {
-        this->output_->set_level(v);
-        return;
-      }
-    }
-    this->detach();
-  }
+  void detach();
+  void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   void set_min_level(float min_level) { min_level_ = min_level; }
@@ -42,8 +28,10 @@ class Servo : public Component {
   void set_auto_detach_time(uint32_t auto_detach_time) { auto_detach_time_ = auto_detach_time; }
   void set_transition_length(uint32_t transition_length) { transition_length_ = transition_length; }
 
+  bool has_reached_target() { return this->current_value_ == this->target_value_; }
+
  protected:
-  void save_level_(float v) { this->rtc_.save(&v); }
+  void save_level_(float v);
 
   output::FloatOutput *output_;
   float min_level_ = 0.0300f;
