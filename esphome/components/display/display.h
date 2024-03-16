@@ -263,7 +263,7 @@ class Display : public PollingComponent {
 
   /// Draw a straight line at the given angle based on the origin [x, y] from a specified start and stop radius with the
   /// given color.
-  void line_at_angle(int x, int y, int angle, int startRadius, int stopRadius, Color color = COLOR_ON);
+  void line_at_angle(int x, int y, int angle, int start_radius, int stop_radius, Color color = COLOR_ON);
 
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
   void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
