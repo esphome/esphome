@@ -40,12 +40,12 @@ void Display::line_at_angle(int x, int y, int angle, int length, Color color) {
   this->line_at_angle(x, y, angle, 0, length, color);
 }
 
-void Display::line_at_angle(int x, int y, int angle, int startRadius, int stopRadius, Color color) {
+void Display::line_at_angle(int x, int y, int angle, int start_radius, int stop_radius, Color color) {
   // Calculate start and end points
-  int x1 = (startRadius * cos(angle * M_PI / 180)) + x;
-  int y1 = (startRadius * sin(angle * M_PI / 180)) + y;
-  int x2 = (stopRadius * cos(angle * M_PI / 180)) + x;
-  int y2 = (stopRadius * sin(angle * M_PI / 180)) + y;
+  int x1 = (start_radius * cos(angle * M_PI / 180)) + x;
+  int y1 = (start_radius * sin(angle * M_PI / 180)) + y;
+  int x2 = (stop_radius * cos(angle * M_PI / 180)) + x;
+  int y2 = (stop_radius * sin(angle * M_PI / 180)) + y;
 
   // Draw line
   this->line(x1, y1, x2, y2, color);
