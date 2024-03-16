@@ -91,6 +91,9 @@ async def to_code(config):
         cg.add_define("USE_ESP_ADF_BOARD")
 
         esp32.add_idf_sdkconfig_option(SUPPORTED_BOARDS[board], True)
+        #esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_BOOT_INIT", True)
+        #esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True)
+
 
         esp32.add_extra_script(
             "pre",
