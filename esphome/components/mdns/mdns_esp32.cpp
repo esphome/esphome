@@ -12,6 +12,7 @@ namespace mdns {
 static const char *const TAG = "mdns";
 
 void MDNSComponent::setup() {
+  global_mdns = this;
   this->compile_records_();
 
   esp_err_t err = mdns_init();
@@ -48,11 +49,43 @@ void MDNSComponent::setup() {
   }
 }
 
+std::vector<network::IPAddress> MDNSComponent::resolve(const std::string &servicename) {
+  std::vector<network::IPAddress> resolved;
+  mdns_result_t *results = nullptr;
+  mdns_ip_addr_t *a = nullptr;
+  esp_err_t err = mdns_query_ptr(("_" + servicename).c_str(), "_tcp", 3000, 20, &results);
+  if (err) {
+    ESP_LOGE(TAG, "Query Failed: %s", esp_err_to_name(err));
+    return {};
+  }
+  if (!results) {
+    ESP_LOGW(TAG, "No results found!");
+    return {};
+  }
+  while (results) {
+    a = results->addr;
+    while (a) {
+      network::IPAddress ip_addr = network::IPAddress(&a->addr);
+      if (std::count(resolved.begin(), resolved.end(), ip_addr) == 0) {
+        resolved.push_back(ip_addr);
+      }
+      ESP_LOGVV(TAG, "Found mDNS %s", ip_addr.str().c_str());
+      a = a->next;
+    }
+    results = results->next;
+  }
+
+  mdns_query_results_free(results);
+
+  return resolved;
+}
+
 void MDNSComponent::on_shutdown() {
   mdns_free();
   delay(40);  // Allow the mdns packets announcing service removal to be sent
 }
 
+MDNSComponent *global_mdns = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace mdns
 }  // namespace esphome
 
