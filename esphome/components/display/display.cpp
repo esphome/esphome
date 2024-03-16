@@ -36,11 +36,11 @@ void HOT Display::line(int x1, int y1, int x2, int y2, Color color) {
   }
 }
 
-void lineAtAngle(int x, int y, int angle, int length, Color color = COLOR_ON) {
+void Display::lineAtAngle(int x, int y, int angle, int length, Color color = COLOR_ON) {
   this->lineAtAngle(x, y, angle, 0, length, color);
 }
 
-void lineAtAngle(int x, int y, int angle, int startRadius, int stopRadius, Color color = COLOR_ON) {
+void Display::lineAtAngle(int x, int y, int angle, int startRadius, int stopRadius, Color color = COLOR_ON) {
   // Calculate start and end points
   int x1 = (startRadius * cos(angle * M_PI / 180)) + x;
   int y1 = (startRadius * sin(angle * M_PI / 180)) + y;
