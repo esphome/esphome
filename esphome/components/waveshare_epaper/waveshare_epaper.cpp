@@ -187,9 +187,9 @@ void WaveshareEPaper7C::init_internal_(uint32_t buffer_length) {
     this->buffers_[i] = allocator.allocate(small_buffer_length);
     if (this->buffers_[i] == nullptr) {
       ESP_LOGE(TAG, "Could not allocate buffer %d for display!", i);
-      for (int k = 0; k < NUM_BUFFERS; k++) {
-        allocator.deallocate(this->buffers_[k], small_buffer_length);
-        this->buffers_[k] = nullptr;
+      for (auto & buffer : this->buffers_) {
+        allocator.deallocate(buffer, small_buffer_length);
+        buffer = nullptr;
       }
       return;
     }
@@ -229,15 +229,15 @@ void WaveshareEPaper7C::fill(Color color) {
     ESP_LOGE(TAG, "Buffer unavailable!");
   } else {
     uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
-    for (int buffer_index = 0; buffer_index < NUM_BUFFERS; buffer_index++) {
+    for (auto & buffer : this->buffers_) {
       for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos += 3) {
         // We store 8 bitset<3> in 3 bytes
         // | byte 1 | byte 2 | byte 3 |
         // |aaabbbaa|abbbaaab|bbaaabbb|
-        this->buffers_[buffer_index][buffer_pos + 0] = pixel_color << 5 | pixel_color << 2 | pixel_color >> 1;
-        this->buffers_[buffer_index][buffer_pos + 1] =
+        buffer[buffer_pos + 0] = pixel_color << 5 | pixel_color << 2 | pixel_color >> 1;
+        buffer[buffer_pos + 1] =
             pixel_color << 7 | pixel_color << 4 | pixel_color << 1 | pixel_color >> 2;
-        this->buffers_[buffer_index][buffer_pos + 2] = pixel_color << 6 | pixel_color << 3 | pixel_color << 0;
+        buffer[buffer_pos + 2] = pixel_color << 6 | pixel_color << 3 | pixel_color << 0;
       }
       App.feed_wdt();
     }
@@ -2615,24 +2615,24 @@ void HOT WaveshareEPaper7P3InF::display() {
   this->command(0x10);
   uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
   uint8_t byte_to_send;
-  for (int buffer_index = 0; buffer_index < NUM_BUFFERS; buffer_index++) {
+  for (auto & buffer : this->buffers_) {
     for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos += 3) {
-      std::bitset<24> triplet = this->buffers_[buffer_index][buffer_pos + 0] << 16 |
-                                this->buffers_[buffer_index][buffer_pos + 1] << 8 |
-                                this->buffers_[buffer_index][buffer_pos + 2] << 0;
+      std::bitset<24> triplet = buffer[buffer_pos + 0] << 16 |
+                                buffer[buffer_pos + 1] << 8 |
+                                buffer[buffer_pos + 2] << 0;
       // 8 bitset<3> are stored in 3 bytes
       // |aaabbbaa|abbbaaab|bbaaabbb|
       // | byte 1 | byte 2 | byte 3 |
-      byte_to_send = (triplet >> 17).to_ulong() & 0b01110000 | (triplet >> 18).to_ulong() & 0b00000111;
+      byte_to_send = ((triplet >> 17).to_ulong() & 0b01110000) | ((triplet >> 18).to_ulong() & 0b00000111);
       this->data(byte_to_send);
 
-      byte_to_send = (triplet >> 11).to_ulong() & 0b01110000 | (triplet >> 12).to_ulong() & 0b00000111;
+      byte_to_send = ((triplet >> 11).to_ulong() & 0b01110000) | ((triplet >> 12).to_ulong() & 0b00000111);
       this->data(byte_to_send);
 
-      byte_to_send = (triplet >> 5).to_ulong() & 0b01110000 | (triplet >> 6).to_ulong() & 0b00000111;
+      byte_to_send = ((triplet >> 5).to_ulong() & 0b01110000) | ((triplet >> 6).to_ulong() & 0b00000111);
       this->data(byte_to_send);
 
-      byte_to_send = (triplet << 1).to_ulong() & 0b01110000 | (triplet << 0).to_ulong() & 0b00000111;
+      byte_to_send = ((triplet << 1).to_ulong() & 0b01110000) | ((triplet << 0).to_ulong() & 0b00000111);
       this->data(byte_to_send);
     }
     App.feed_wdt();
