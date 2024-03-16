@@ -23,13 +23,13 @@ display:
       // Draw hour ticks
       for(int h = 0; h < 12; h++) {
         int hourAngle = (h * 30) - 90;
-      
+
         it.lineAtAngle(centerX, centerY, hourAngle, radius - 10, radius);
       }
 
       // Draw minute ticks
       for(int m = 0; m < 60; m++) {
         int minuteAngle = (m * 6) - 90;
-      
+
         it.lineAtAngle(centerX, centerY, minuteAngle, radius - 5, radius);
       }
