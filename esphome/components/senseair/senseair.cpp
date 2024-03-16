@@ -56,7 +56,7 @@ void SenseAirComponent::update() {
   const uint16_t status = (uint16_t(response[3]) << 8) | response[4];
   const int16_t ppm = (int16_t(response[length + 1]) << 8) | response[length + 2];
 
-  ESP_LOGD(TAG, "SenseAir Received CO₂=%uppm Status=0x%02X", ppm, status);
+  ESP_LOGD(TAG, "SenseAir Received CO₂=%dppm Status=0x%02X", ppm, status);
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(ppm);
 }
