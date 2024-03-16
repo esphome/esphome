@@ -74,11 +74,8 @@ bool AT581XComponent::i2c_read_reg(uint8_t addr, uint8_t &data) {
 }
 
 void AT581XComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AT581X...");  //, this->id_.c_str());
+  ESP_LOGCONFIG(TAG, "Setting up AT581X...");
   this->detection_pin_->setup();
-  if (!i2c_write_config()) {
-    ESP_LOGCONFIG(TAG, "Setting up AT581X failed...");  //, this->id_.c_str());
-  }
 }
 void AT581XComponent::loop() {
   // The main operation is to detect the human presence
