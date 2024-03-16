@@ -180,7 +180,7 @@ class MicroWakeWord : public Component {
   bool register_preprocessor_ops_(tflite::MicroMutableOpResolver<18> &op_resolver);
 
   /// @brief Returns true if successfully registered the streaming model's TensorFlow operations
-  bool register_streaming_ops_(tflite::MicroMutableOpResolver<15> &op_resolver);
+  bool register_streaming_ops_(tflite::MicroMutableOpResolver<18> &op_resolver);
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<MicroWakeWord> {

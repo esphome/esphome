@@ -226,7 +226,7 @@ bool MicroWakeWord::initialize_models() {
   }
 
   static tflite::MicroMutableOpResolver<18> preprocessor_op_resolver;
-  static tflite::MicroMutableOpResolver<15> streaming_op_resolver;
+  static tflite::MicroMutableOpResolver<18> streaming_op_resolver;
 
   if (!this->register_preprocessor_ops_(preprocessor_op_resolver))
     return false;
@@ -461,7 +461,7 @@ bool MicroWakeWord::register_preprocessor_ops_(tflite::MicroMutableOpResolver<18
   return true;
 }
 
-bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<15> &op_resolver) {
+bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<18> &op_resolver) {
   if (op_resolver.AddCallOnce() != kTfLiteOk)
     return false;
   if (op_resolver.AddVarHandle() != kTfLiteOk)
@@ -491,6 +491,12 @@ bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<15> &
   if (op_resolver.AddQuantize() != kTfLiteOk)
     return false;
   if (op_resolver.AddDepthwiseConv2D() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddReduceMax() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddAveragePool2D() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddMaxPool2D() != kTfLiteOk)
     return false;
 
   return true;
