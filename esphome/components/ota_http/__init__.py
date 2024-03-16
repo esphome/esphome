@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_SAFE_MODE,
 )
 from esphome.components import esp32
-from esphome.core import Lambda, CORE, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 
 CODEOWNERS = ["@oarcher"]
 
@@ -26,7 +26,17 @@ OtaHttpIDF = ota_http_ns.class_("OtaHttpIDF", OtaHttpComponent)
 
 OtaHttpFlashAction = ota_http_ns.class_("OtaHttpFlashAction", automation.Action)
 
-CONF_VERIFY_SSL = "verify_ssl"
+CONF_EXCLUDE_CERTIFICATE_BUNDLE = "exclude_certificate_bundle"
+
+
+def validate_certificate_bundle(config):
+    if not config.get(CONF_EXCLUDE_CERTIFICATE_BUNDLE) and not CORE.using_esp_idf:
+        raise cv.Invalid(
+            "ESPHome supports certificate verification only via ESP-IDF. "
+            f"Set '{CONF_EXCLUDE_CERTIFICATE_BUNDLE}: true' to skip certificate validation."
+        )
+
+    return config
 
 
 def validate_url(value):
@@ -46,20 +56,6 @@ def validate_url(value):
         parsed[2] = "/"
 
     return urlparse.urlunparse(parsed)
-
-
-def validate_secure_url(config):
-    url_ = config[CONF_URL]
-    if (
-        config.get(CONF_VERIFY_SSL)
-        and not isinstance(url_, Lambda)
-        and url_.lower().startswith("https:")
-    ):
-        raise cv.Invalid(
-            "Currently ESPHome doesn't support SSL verification. "
-            "Set 'verify_ssl: false' to make insecure HTTPS requests."
-        )
-    return config
 
 
 def validate_safe_mode(config):
@@ -92,6 +88,7 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
                 cv.only_on_esp8266, cv.boolean
             ),
+            cv.Optional(CONF_EXCLUDE_CERTIFICATE_BUNDLE, default=False): cv.boolean,
             cv.Optional(CONF_SAFE_MODE, default="fallback"): cv.Any(
                 cv.boolean, "fallback"
             ),
@@ -103,6 +100,7 @@ CONFIG_SCHEMA = cv.All(
         esp_idf=cv.Version(0, 0, 0),
         rp2040_arduino=cv.Version(0, 0, 0),
     ),
+    validate_certificate_bundle,
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(validate_safe_mode)
@@ -118,9 +116,17 @@ async def to_code(config):
 
     if CORE.is_esp32:
         if CORE.using_esp_idf:
-            esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
             esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True
+                "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE",
+                not config.get(CONF_EXCLUDE_CERTIFICATE_BUNDLE),
+            )
+            esp32.add_idf_sdkconfig_option(
+                "CONFIG_ESP_TLS_INSECURE",
+                config.get(CONF_EXCLUDE_CERTIFICATE_BUNDLE),
+            )
+            esp32.add_idf_sdkconfig_option(
+                "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY",
+                config.get(CONF_EXCLUDE_CERTIFICATE_BUNDLE),
             )
         else:
             cg.add_library("WiFiClientSecure", None)
@@ -142,9 +148,10 @@ OTA_HTTP_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(OtaHttpComponent),
         cv.Required(CONF_URL): cv.templatable(validate_url),
-        cv.Optional(CONF_VERIFY_SSL, default=True): cv.boolean,
     }
-).add_extra(validate_secure_url)
+)
+
+
 OTA_HTTP_FLASH_ACTION_SCHEMA = automation.maybe_conf(
     CONF_URL,
     OTA_HTTP_ACTION_SCHEMA.extend(

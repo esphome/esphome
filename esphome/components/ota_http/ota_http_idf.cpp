@@ -1,5 +1,3 @@
-
-
 #ifdef USE_ESP_IDF
 
 #include "ota_http_idf.h"
@@ -42,6 +40,11 @@ int OtaHttpIDF::http_init() {
   config.buffer_size = this->max_http_recv_buffer_;
   config.auth_type = HTTP_AUTH_TYPE_BASIC;
   config.max_authorization_retries = -1;
+#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+  if (this->secure_()) {
+    config.crt_bundle_attach = esp_crt_bundle_attach;
+  }
+#endif
 #pragma GCC diagnostic pop
 
   this->client_ = esp_http_client_init(&config);
