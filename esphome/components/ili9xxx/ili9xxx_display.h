@@ -239,6 +239,9 @@ class WAVESHARERES35 : public ILI9XXXILI9488 {
 class ILI9XXXILI9488A : public ILI9XXXDisplay {
  public:
   ILI9XXXILI9488A() : ILI9XXXDisplay(INITCMD_ILI9488_A, 480, 320, true) {}
+  void set_madctl() override {
+
+  }
 };
 
 //-----------   ILI9XXX_35_TFT rotated display --------------
