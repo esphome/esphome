@@ -160,7 +160,7 @@ class ILI9XXXST7789V : public ILI9XXXDisplay {
 //-----------   Waveshare 2.8 Res Touch */
 class WAVESHARERES28 : public ILI9XXXDisplay {
  public:
-  WAVESHARERES28() : ILI9XXXDisplay(INITCMD_ST7789V_WS, 240, 320, false) {}
+  WAVESHARERES28() : ILI9XXXDisplay(INITCMD_ST7789V_WS, 320, 240, true) {}
 };
 //-----------   ILI9XXX_24_TFT display --------------
 class ILI9XXXILI9341 : public ILI9XXXDisplay {
