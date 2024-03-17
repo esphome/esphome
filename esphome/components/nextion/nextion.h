@@ -82,16 +82,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   /**
    * Set the picture of an image component.
    * @param component The component name.
-   * @param value The picture name.
+   * @param value The picture id.
    *
    * Example:
    * ```cpp
-   * it.set_component_picture("pic", "4");
+   * it.set_component_picture("pic", 4);
    * ```
    *
    * This will change the image of the component `pic` to the image with ID `4`.
    */
-  void set_component_picture(const char *component, const char *picture);
+  void set_component_picture(const char *component, uint8_t picture_id);
   /**
    * Set the background color of a component.
    * @param component The component name.
