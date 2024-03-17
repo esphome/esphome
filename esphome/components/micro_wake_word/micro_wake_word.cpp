@@ -226,7 +226,7 @@ bool MicroWakeWord::initialize_models() {
   }
 
   static tflite::MicroMutableOpResolver<18> preprocessor_op_resolver;
-  static tflite::MicroMutableOpResolver<18> streaming_op_resolver;
+  static tflite::MicroMutableOpResolver<17> streaming_op_resolver;
 
   if (!this->register_preprocessor_ops_(preprocessor_op_resolver))
     return false;
@@ -382,13 +382,12 @@ bool MicroWakeWord::stride_audio_samples_(int16_t **audio_samples) {
     return false;
   }
 
-  // Copy the last 320 bytes (160 samples over 10 ms) from the audio buffer into history stride buffer for the next
-  // iteration
+  // Copy the last 320 bytes (160 samples over 10 ms) from the audio buffer to the start of the audio buffer
   memcpy((void *) (this->preprocessor_audio_buffer_), (void *) (this->preprocessor_audio_buffer_ + NEW_SAMPLES_TO_GET),
          HISTORY_SAMPLES_TO_KEEP * sizeof(int16_t));
 
-  // Copy 640 bytes (320 samples over 20 ms) from the ring buffer
-  // The first 320 bytes (160 samples over 10 ms) will be from history
+  // Copy 640 bytes (320 samples over 20 ms) from the ring buffer into the audio buffer offset 320 bytes (160 samples
+  // over 10 ms)
   size_t bytes_read = this->ring_buffer_->read((void *) (this->preprocessor_audio_buffer_ + HISTORY_SAMPLES_TO_KEEP),
                                                NEW_SAMPLES_TO_GET * sizeof(int16_t), pdMS_TO_TICKS(200));
 
@@ -461,7 +460,7 @@ bool MicroWakeWord::register_preprocessor_ops_(tflite::MicroMutableOpResolver<18
   return true;
 }
 
-bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<18> &op_resolver) {
+bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<17> &op_resolver) {
   if (op_resolver.AddCallOnce() != kTfLiteOk)
     return false;
   if (op_resolver.AddVarHandle() != kTfLiteOk)
@@ -491,8 +490,6 @@ bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<18> &
   if (op_resolver.AddQuantize() != kTfLiteOk)
     return false;
   if (op_resolver.AddDepthwiseConv2D() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddReduceMax() != kTfLiteOk)
     return false;
   if (op_resolver.AddAveragePool2D() != kTfLiteOk)
     return false;
