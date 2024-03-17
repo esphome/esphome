@@ -138,8 +138,11 @@ def import_config(
                 else:
                     loaded_yaml["esphome"]["friendly_name"] = friendly_name
 
-        with p.open("w", encoding="utf8") as f:
-            yaml.dump(loaded_yaml, f)
+            with p.open("w", encoding="utf8") as f:
+                yaml.dump(loaded_yaml, f)
+        else:
+            with p.open("w", encoding="utf8") as f:
+                f.write(contents)
 
     else:
         substitutions = {"name": name}
