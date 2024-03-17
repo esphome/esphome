@@ -157,7 +157,11 @@ class ILI9XXXST7789V : public ILI9XXXDisplay {
  public:
   ILI9XXXST7789V() : ILI9XXXDisplay(INITCMD_ST7789V, 240, 320, false) {}
 };
-
+//-----------   Waveshare 2.8 Res Touch */
+class WAVESHARERES28 : public ILI9XXXDisplay {
+ public:
+  WAVESHARERES28() : ILI9XXXDisplay(INITCMD_ST7789V_WS, 240, 320, false) {}
+};
 //-----------   ILI9XXX_24_TFT display --------------
 class ILI9XXXILI9341 : public ILI9XXXDisplay {
  public:
@@ -231,7 +235,6 @@ class WAVESHARERES35 : public ILI9XXXILI9488 {
     this->end_data_();
   }
 };
-
 //-----------   ILI9XXX_35_TFT origin colors rotated display --------------
 class ILI9XXXILI9488A : public ILI9XXXDisplay {
  public:

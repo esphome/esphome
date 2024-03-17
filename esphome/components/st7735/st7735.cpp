@@ -165,6 +165,42 @@ static const uint8_t PROGMEM
     ST77XX_COLMOD,  1,              // 15: set color mode, 1 arg, no delay:
       0x05 },                       //     16-bit color
 
+DFR0928_CMD[] = {                 // 7735R init, part 1 (DFR0928)
+    14,                             // 14 commands in list:
+    ST77XX_SWRESET,   ST_CMD_DELAY, //  1: Software reset, 0 args, w/delay
+     150,                           //     150 ms delay
+    ST77XX_SLPOUT,    ST_CMD_DELAY, //  2: Out of sleep mode, 0 args, w/delay
+      120,                          //     120 ms delay
+//    ST77XX_INVON,  0,               // 13: Invert display, no args
+    ST7735_FRMCTR1, 3,              //  3: Framerate ctrl - normal mode, 3 arg:
+      0x01, 0x2C, 0x2D,
+    ST7735_FRMCTR2, 3,              //  4: Framerate ctrl - idle mode, 3 args:
+      0x01, 0x2C, 0x2D,
+    ST7735_FRMCTR3, 6,              //  5: Framerate - partial mode, 6 args:
+      0x01, 0x2C, 0x2D,             //     Dot inversion mode
+      0x01, 0x2C, 0x2D,             //     Line inversion mode
+//    ST7735_DISSET5, 3,
+//      0xA2, 0x02, 0x84,
+    ST7735_INVCTR,  1,              //  6: Display inversion ctrl, 1 arg:
+      0x07,                         //     No inversion
+    ST7735_PWCTR1,  3,              //  7: Power control, 3 args, no delay:
+      0x28, 0x08, 0x04,
+    ST7735_PWCTR2,  1,              //  8: Power control, 1 arg, no delay:
+      0xC0,
+    ST7735_PWCTR3,  2,              //  9: Power control, 2 args, no delay:
+      0x0D, 0x00,
+    ST7735_PWCTR4,  2,              // 10: Power control, 2 args, no delay:
+      0x8D, 0x2A,
+    ST7735_PWCTR5,  2,              // 11: Power control, 2 args, no delay:
+      0x8A, 0xEE,
+    ST7735_VMCTR1,  1,              // 12: Power control, 1 arg, no delay:
+      0x1A,
+//    ST77XX_INVOFF,  0,              // 13: Don't invert display, no args
+    ST77XX_COLMOD,  1,              // 13: set color mode, 1 arg, no delay:
+      0x05,
+    ST77XX_MADCTL,  1,              // 15: Mem access ctl (directions), 1 arg:
+      0xC0 },
+
   RCMD2GREEN[] = {                  // 7735R init, part 2 (green tab only)
     2,                              //  2 commands in list:
     ST77XX_CASET,   4,              //  1: Column addr set, 4 args, no delay:
@@ -216,7 +252,19 @@ static const uint8_t PROGMEM
     ST77XX_NORON,     ST_CMD_DELAY, //  3: Normal display on, no args, w/delay
       10,                           //     10 ms delay
     ST77XX_DISPON,    ST_CMD_DELAY, //  4: Main screen turn on, no args w/delay
-      100 };                        //     100 ms delay
+      100 },                        //     100 ms delay
+
+  DFR0928_CMD3[] = {
+    3,
+    ST7735_GMCTRP1, 16,
+       0x04, 0x22, 0X07, 0X0A, 0X2E, 0X30, 0x25, 0x2A,
+       0X28, 0X26, 0X2E, 0X3A, 0X00, 0X01, 0X03, 0x13,
+    ST7735_GMCTRN1, 16,
+       0x04, 0x16, 0X06, 0X0D, 0X2D, 0X26, 0x23, 0x27,
+       0X27, 0X25, 0X2D, 0X3B, 0X00, 0X01, 0X04, 0x13,
+    //ST77XX_NORON, ST_CMD_DELAY, 10,
+    ST77XX_DISPON, ST_CMD_DELAY, 0
+  };
 
 // clang-format on
 static const char *const TAG = "st7735";
@@ -249,7 +297,13 @@ void ST7735::setup() {
   dump_config();
   ESP_LOGD(TAG, "  END");
 
+if (this->model_ == INITR_DFR0928) {
+      // DFR0928 1.8" display initialize with DFR0928_CMD
+      display_init_(DFR0928_CMD);
+  } else {
+      // All other displays initialize with RCMD1
   display_init_(RCMD1);
+}
 
   if (this->model_ == INITR_GREENTAB) {
     display_init_(RCMD2GREEN);
@@ -267,11 +321,20 @@ void ST7735::setup() {
     display_init_(RCMD2GREEN160X80);
     colstart_ == 0 ? colstart_ = 24 : colstart_;
     rowstart_ == 0 ? rowstart_ = 0 : rowstart_;
+} else if (this->model_ == INITR_DFR0928) {
+    // If colstart & rowstart are left at defaults set them to the correct values
+    colstart_ == 0 ? colstart_ = 2 : colstart_;
+    rowstart_ == 0 ? rowstart_ = 1 : rowstart_;
   } else {
     // colstart, rowstart left at default '0' values
     display_init_(RCMD2RED);
   }
+
+  if (this->model_ == INITR_DFR0928) {
+    display_init_(DFR0928_CMD3);
+  } else {
   display_init_(RCMD3);
+}
 
   uint8_t data = 0;
   if (this->model_ != INITR_HALLOWING) {
@@ -345,6 +408,8 @@ const char *ST7735::model_str_() {
       return "ST7735 BLACKTAB";
     case INITR_MINI_160X80:
       return "ST7735 MINI160x80";
+case INITR_DFR0928:
+      return "ST7735s Fermion: 1.8\" 128x160 (DFR0928)";
     default:
       return "Unknown";
   }
