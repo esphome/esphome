@@ -3557,6 +3557,16 @@ display:
       it.display_celsius(true);
       it.printf(1, "%.1f", id(dht_humidity).state);
       it.display_humidity(true);
+  - platform: ht16k33
+    id: ht16k33_display
+    i2c_id: i2c_bus
+    intensity: 15
+    update_interval: 15s
+    rotate_chip: 90
+    flip_x: true
+    lambda: |-
+      it.filled_rectangle(0, 0, 5, 8, ht16k33::HT16K33Component::CL);
+      it.filled_rectangle(11, 0, 5, 8, ht16k33::HT16K33Component::CH);
 
 tm1651:
   id: tm1651_battery
