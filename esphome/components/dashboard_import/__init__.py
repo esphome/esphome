@@ -5,6 +5,7 @@ from typing import Optional
 import re
 
 import requests
+from ruamel.yaml import YAML
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -105,20 +106,40 @@ def import_config(
             raise ValueError(f"Error while fetching {url}: {e}") from e
 
         contents = req.text
-
-        if contents.find("name_add_mac_suffix: true") != -1:
-            contents = re.sub(r"name: (.*)", f"name: {name}", contents)
-
+        yaml = YAML()
+        loaded_yaml = yaml.load(contents)
+        if (
+            "name_add_mac_suffix" in loaded_yaml["esphome"]
+            and loaded_yaml["esphome"]["name_add_mac_suffix"]
+        ):
+            loaded_yaml["esphome"]["name_add_mac_suffix"] = False
+            name_val = loaded_yaml["esphome"]["name"]
+            sub_pattern = re.compile(r"\$\{?([a-zA-Z-_]+)\}?")
+            if match := sub_pattern.match(name_val):
+                name_sub = match.group(1)
+                if name_sub in loaded_yaml["substitutions"]:
+                    loaded_yaml["substitutions"][name_sub] = name
+                else:
+                    raise ValueError(
+                        f"Name substitution {name_sub} not found in substitutions"
+                    )
+            else:
+                loaded_yaml["esphome"]["name"] = name
             if friendly_name is not None:
-                contents = re.sub(
-                    r"friendly_name: (.*)", f"friendly_name: {friendly_name}", contents
-                )
+                friendly_name_val = loaded_yaml["esphome"]["friendly_name"]
+                if match := sub_pattern.match(friendly_name_val):
+                    friendly_name_sub = match.group(1)
+                    if friendly_name_sub in loaded_yaml["substitutions"]:
+                        loaded_yaml["substitutions"][friendly_name_sub] = friendly_name
+                    else:
+                        raise ValueError(
+                            f"Friendly name substitution {friendly_name_sub} not found in substitutions"
+                        )
+                else:
+                    loaded_yaml["esphome"]["friendly_name"] = friendly_name
 
-            contents = contents.replace(
-                "name_add_mac_suffix: true", "name_add_mac_suffix: false"
-            )
-
-        p.write_text(contents, encoding="utf8")
+        with p.open("w", encoding="utf8") as f:
+            yaml.dump(loaded_yaml, f)
 
     else:
         substitutions = {"name": name}
