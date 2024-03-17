@@ -1,0 +1,35 @@
+spi:
+  - id: spi_main_lcd
+    clk_pin: 16
+    mosi_pin: 17
+    miso_pin: 15
+
+display:
+  - platform: ili9xxx
+    id: main_lcd
+    model: ili9342
+    cs_pin: 12
+    dc_pin: 13
+    reset_pin: 21
+    lambda: |-
+      // Draw an analog clock in the center of the screen
+      int centerX = it.get_width() / 2;
+      int centerY = it.get_height() / 2;
+      int radius = min(it.get_width(), it.get_height()) / 4;
+
+      // Draw border
+      it.circle(centerX, centerY, radius);
+
+      // Draw hour ticks
+      for(int h = 0; h < 12; h++) {
+        int hourAngle = (h * 30) - 90;
+
+        it.line_at_angle(centerX, centerY, hourAngle, radius - 10, radius);
+      }
+
+      // Draw minute ticks
+      for(int m = 0; m < 60; m++) {
+        int minuteAngle = (m * 6) - 90;
+
+        it.line_at_angle(centerX, centerY, minuteAngle, radius - 5, radius);
+      }
