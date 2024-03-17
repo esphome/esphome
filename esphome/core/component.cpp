@@ -5,7 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <utility>
-#include <inttypes.h>
+#include <cinttypes>
 
 namespace esphome {
 
