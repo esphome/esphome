@@ -12,6 +12,7 @@ CONF_PIN = "pin"
 CONF_ADDRESS = "address"
 CONF_PHYSICAL_ADDRESS = "physical_address"
 CONF_PROMISCUOUS_MODE = "promiscuous_mode"
+CONF_MONITOR_MODE = "monitor_mode"
 CONF_OSD_NAME = "osd_name"
 CONF_ON_MESSAGE = "on_message"
 
@@ -60,6 +61,7 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
         cv.Required(CONF_ADDRESS): cv.int_range(min=0, max=15),
         cv.Required(CONF_PHYSICAL_ADDRESS): cv.uint16_t,
         cv.Optional(CONF_PROMISCUOUS_MODE, False): cv.boolean,
+        cv.Optional(CONF_MONITOR_MODE, False): cv.boolean,
         cv.Optional(CONF_OSD_NAME, "esphome"): validate_osd_name,
         cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
             {
@@ -83,6 +85,7 @@ async def to_code(config):
     cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(var.set_physical_address(config[CONF_PHYSICAL_ADDRESS]))
     cg.add(var.set_promiscuous_mode(config[CONF_PROMISCUOUS_MODE]))
+    cg.add(var.set_monitor_mode(config[CONF_MONITOR_MODE]))
 
     osd_name_bytes = bytes(config[CONF_OSD_NAME], 'ascii', 'ignore') # convert string to ascii bytes
     osd_name_bytes = [x for x in osd_name_bytes] # convert byte array to int array

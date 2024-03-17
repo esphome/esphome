@@ -48,6 +48,7 @@ void HDMICEC::dump_config() {
   LOG_PIN("  pin: ", pin_);
   ESP_LOGCONFIG(TAG, "  address: %x", address_);
   ESP_LOGCONFIG(TAG, "  promiscuous mode: %s", (promiscuous_mode_ ? "yes" : "no"));
+  ESP_LOGCONFIG(TAG, "  monitor mode: %s", (monitor_mode_ ? "yes" : "no"));
 }
 
 void HDMICEC::loop() {
@@ -189,6 +190,8 @@ void HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
 }
 
 bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes) {
+  if (monitor_mode_) return false;
+
   bool is_broadcast = (destination == 0xF);
 
   // prepare the bytes to send
@@ -339,7 +342,7 @@ void IRAM_ATTR HDMICEC::gpio_intr_(HDMICEC *self) {
   if (level == false) {
     self->last_falling_edge_us_ = now;
 
-    if (self->recv_ack_queued_) {
+    if (self->recv_ack_queued_ && !self->monitor_mode_) {
       self->recv_ack_queued_ = false;
       {
         InterruptLock interrupt_lock;

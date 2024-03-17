@@ -27,6 +27,7 @@ public:
   uint8_t address() { return address_; }
   void set_physical_address(uint16_t physical_address) { physical_address_ = physical_address; }
   void set_promiscuous_mode(bool promiscuous_mode) { promiscuous_mode_ = promiscuous_mode; }
+  void set_monitor_mode(bool monitor_mode) { monitor_mode_ = monitor_mode; }
   void set_osd_name_bytes(const std::vector<uint8_t> &osd_name_bytes) { osd_name_bytes_ = osd_name_bytes; }
   void add_message_trigger(MessageTrigger *trigger) { message_triggers_.push_back(trigger); }
 
@@ -54,6 +55,7 @@ protected:
   uint8_t address_;
   uint16_t physical_address_;
   bool promiscuous_mode_;
+  bool monitor_mode_;
   std::vector<uint8_t> osd_name_bytes_;
   std::vector<MessageTrigger*> message_triggers_;
 
