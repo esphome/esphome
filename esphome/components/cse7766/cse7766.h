@@ -7,16 +7,19 @@
 namespace esphome {
 namespace cse7766 {
 
-class CSE7766Component : public PollingComponent, public uart::UARTDevice {
+class CSE7766Component : public Component, public uart::UARTDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
   void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
   void set_energy_sensor(sensor::Sensor *energy_sensor) { energy_sensor_ = energy_sensor; }
+  void set_apparent_power_sensor(sensor::Sensor *apparent_power_sensor) {
+    apparent_power_sensor_ = apparent_power_sensor;
+  }
+  void set_power_factor_sensor(sensor::Sensor *power_factor_sensor) { power_factor_sensor_ = power_factor_sensor; }
 
   void loop() override;
   float get_setup_priority() const override;
-  void update() override;
   void dump_config() override;
 
  protected:
@@ -31,16 +34,10 @@ class CSE7766Component : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
   sensor::Sensor *energy_sensor_{nullptr};
-  float voltage_acc_{0.0f};
-  float current_acc_{0.0f};
-  float power_acc_{0.0f};
-  float energy_total_{0.0f};
-  uint32_t cf_pulses_last_{0};
-  uint32_t voltage_counts_{0};
-  uint32_t current_counts_{0};
-  uint32_t power_counts_{0};
-  // Setting this to 1 means it will always publish 0 once at startup
-  uint32_t energy_total_counts_{1};
+  sensor::Sensor *apparent_power_sensor_{nullptr};
+  sensor::Sensor *power_factor_sensor_{nullptr};
+  uint32_t cf_pulses_total_{0};
+  uint16_t cf_pulses_last_{0};
 };
 
 }  // namespace cse7766

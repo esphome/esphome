@@ -42,6 +42,12 @@ bool InitialStateIterator::on_number(number::Number *number) {
   return this->client_->send_number_state(number, number->state);
 }
 #endif
+#ifdef USE_DATETIME_DATE
+bool InitialStateIterator::on_date(datetime::DateEntity *date) { return this->client_->send_date_state(date); }
+#endif
+#ifdef USE_TEXT
+bool InitialStateIterator::on_text(text::Text *text) { return this->client_->send_text_state(text, text->state); }
+#endif
 #ifdef USE_SELECT
 bool InitialStateIterator::on_select(select::Select *select) {
   return this->client_->send_select_state(select, select->state);

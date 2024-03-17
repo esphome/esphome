@@ -113,9 +113,9 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 
   tcpip_adapter_ip_info_t info;
   memset(&info, 0, sizeof(info));
-  info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
-  info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
-  info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
+  info.ip = manual_ip->static_ip;
+  info.gw = manual_ip->gateway;
+  info.netmask = manual_ip->subnet;
 
   esp_err_t dhcp_stop_ret = tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA);
   if (dhcp_stop_ret != ESP_OK && dhcp_stop_ret != ESP_ERR_TCPIP_ADAPTER_DHCP_ALREADY_STOPPED) {
@@ -128,35 +128,52 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   }
 
   ip_addr_t dns;
+// TODO: is this needed?
 #if LWIP_IPV6
   dns.type = IPADDR_TYPE_V4;
-#endif
-  if (uint32_t(manual_ip->dns1) != 0) {
-#if LWIP_IPV6
-    dns.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns1);
-#else
-    dns.addr = static_cast<uint32_t>(manual_ip->dns1);
-#endif
+#endif /* LWIP_IPV6 */
+  if (manual_ip->dns1.is_set()) {
+    dns = manual_ip->dns1;
     dns_setserver(0, &dns);
   }
-  if (uint32_t(manual_ip->dns2) != 0) {
-#if LWIP_IPV6
-    dns.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns2);
-#else
-    dns.addr = static_cast<uint32_t>(manual_ip->dns2);
-#endif
+  if (manual_ip->dns2.is_set()) {
+    dns = manual_ip->dns2;
     dns_setserver(1, &dns);
   }
 
   return true;
 }
 
-network::IPAddress WiFiComponent::wifi_sta_ip() {
+network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
+  network::IPAddresses addresses;
   tcpip_adapter_ip_info_t ip;
-  tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
-  return {ip.ip.addr};
+  esp_err_t err = tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "esp_netif_get_ip_info failed: %s", esp_err_to_name(err));
+    // TODO: do something smarter
+    // return false;
+  } else {
+    addresses[0] = network::IPAddress(&ip.ip);
+  }
+#if USE_NETWORK_IPV6
+  ip6_addr_t ipv6;
+  err = tcpip_adapter_get_ip6_global(TCPIP_ADAPTER_IF_STA, &ipv6);
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "esp_netif_get_ip6_gobal failed: %s", esp_err_to_name(err));
+  } else {
+    addresses[1] = network::IPAddress(&ipv6);
+  }
+  err = tcpip_adapter_get_ip6_linklocal(TCPIP_ADAPTER_IF_STA, &ipv6);
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "esp_netif_get_ip6_linklocal failed: %s", esp_err_to_name(err));
+  } else {
+    addresses[2] = network::IPAddress(&ipv6);
+  }
+#endif /* USE_NETWORK_IPV6 */
+
+  return addresses;
 }
 
 bool WiFiComponent::wifi_apply_hostname_() {
@@ -447,9 +464,9 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       buf[it.ssid_len] = '\0';
       ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
                format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
-#if LWIP_IPV6
+#if USE_NETWORK_IPV6
       this->set_timeout(100, [] { WiFi.enableIpV6(); });
-#endif /* LWIP_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
 
       break;
     }
@@ -501,18 +518,26 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       auto it = info.got_ip.ip_info;
       ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip).c_str(),
                format_ip4_addr(it.gw).c_str());
+      this->got_ipv4_address_ = true;
+#if USE_NETWORK_IPV6
+      s_sta_connecting = this->num_ipv6_addresses_ < USE_NETWORK_MIN_IPV6_ADDR_COUNT;
+#else
       s_sta_connecting = false;
+#endif /* USE_NETWORK_IPV6 */
       break;
     }
-#if LWIP_IPV6
+#if USE_NETWORK_IPV6
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
       auto it = info.got_ip6.ip6_info;
       ESP_LOGV(TAG, "Got IPv6 address=" IPV6STR, IPV62STR(it.ip));
+      this->num_ipv6_addresses_++;
+      s_sta_connecting = !(this->got_ipv4_address_ & (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT));
       break;
     }
-#endif /* LWIP_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
     case ESPHOME_EVENT_ID_WIFI_STA_LOST_IP: {
       ESP_LOGV(TAG, "Event: Lost IP");
+      this->got_ipv4_address_ = false;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_START: {
@@ -604,6 +629,8 @@ void WiFiComponent::wifi_scan_done_callback_() {
   WiFi.scanDelete();
   this->scan_done_ = true;
 }
+
+#ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   esp_err_t err;
 
@@ -614,13 +641,13 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   tcpip_adapter_ip_info_t info;
   memset(&info, 0, sizeof(info));
   if (manual_ip.has_value()) {
-    info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
-    info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
-    info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
+    info.ip = manual_ip->static_ip;
+    info.gw = manual_ip->gateway;
+    info.netmask = manual_ip->subnet;
   } else {
-    info.ip.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
-    info.gw.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
-    info.netmask.addr = static_cast<uint32_t>(network::IPAddress(255, 255, 255, 0));
+    info.ip = network::IPAddress(192, 168, 4, 1);
+    info.gw = network::IPAddress(192, 168, 4, 1);
+    info.netmask = network::IPAddress(255, 255, 255, 0);
   }
   tcpip_adapter_dhcp_status_t dhcp_status;
   tcpip_adapter_dhcps_get_status(TCPIP_ADAPTER_IF_AP, &dhcp_status);
@@ -638,12 +665,12 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   dhcps_lease_t lease;
   lease.enable = true;
-  network::IPAddress start_address = info.ip.addr;
-  start_address[3] += 99;
-  lease.start_ip.addr = static_cast<uint32_t>(start_address);
+  network::IPAddress start_address = network::IPAddress(&info.ip);
+  start_address += 99;
+  lease.start_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());
-  start_address[3] += 100;
-  lease.end_ip.addr = static_cast<uint32_t>(start_address);
+  start_address += 100;
+  lease.end_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
   err = tcpip_adapter_dhcps_option(TCPIP_ADAPTER_OP_SET, TCPIP_ADAPTER_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
 
@@ -661,6 +688,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   return true;
 }
+
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   // enable AP
   if (!this->wifi_mode_({}, true))
@@ -699,11 +727,14 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
+
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip);
-  return {ip.ip.addr};
+  return network::IPAddress(&ip.ip);
 }
+#endif  // USE_WIFI_AP
+
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
 
 bssid_t WiFiComponent::wifi_bssid() {
@@ -718,9 +749,9 @@ bssid_t WiFiComponent::wifi_bssid() {
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
 int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
-network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
-network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
-network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
+network::IPAddress WiFiComponent::wifi_subnet_mask_() { return network::IPAddress(WiFi.subnetMask()); }
+network::IPAddress WiFiComponent::wifi_gateway_ip_() { return network::IPAddress(WiFi.gatewayIP()); }
+network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddress(WiFi.dnsIP(num)); }
 void WiFiComponent::wifi_loop_() {}
 
 }  // namespace wifi

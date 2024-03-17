@@ -31,6 +31,12 @@
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
+#ifdef USE_DATETIME_DATE
+#include "esphome/components/datetime/date_entity.h"
+#endif
+#ifdef USE_TEXT
+#include "esphome/components/text/text.h"
+#endif
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
@@ -75,6 +81,12 @@ class Controller {
 #endif
 #ifdef USE_NUMBER
   virtual void on_number_update(number::Number *obj, float state){};
+#endif
+#ifdef USE_DATETIME_DATE
+  virtual void on_date_update(datetime::DateEntity *obj){};
+#endif
+#ifdef USE_TEXT
+  virtual void on_text_update(text::Text *obj, const std::string &state){};
 #endif
 #ifdef USE_SELECT
   virtual void on_select_update(select::Select *obj, const std::string &state, size_t index){};

@@ -4,7 +4,16 @@ import esphome.config_validation as cv
 import esphome.final_validate as fv
 from esphome import automation
 from esphome.components.output import FloatOutput
-from esphome.const import CONF_ID, CONF_OUTPUT, CONF_PLATFORM, CONF_TRIGGER_ID
+from esphome.components.speaker import Speaker
+
+from esphome.const import (
+    CONF_ID,
+    CONF_OUTPUT,
+    CONF_PLATFORM,
+    CONF_TRIGGER_ID,
+    CONF_SPEAKER,
+    CONF_GAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,17 +33,24 @@ IsPlayingCondition = rtttl_ns.class_("IsPlayingCondition", automation.Condition)
 
 MULTI_CONF = True
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_ID): cv.declare_id(Rtttl),
-        cv.Required(CONF_OUTPUT): cv.use_id(FloatOutput),
-        cv.Optional(CONF_ON_FINISHED_PLAYBACK): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FinishedPlaybackTrigger),
-            }
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_ID): cv.declare_id(Rtttl),
+            cv.Optional(CONF_OUTPUT): cv.use_id(FloatOutput),
+            cv.Optional(CONF_SPEAKER): cv.use_id(Speaker),
+            cv.Optional(CONF_GAIN, default="0.6"): cv.percentage,
+            cv.Optional(CONF_ON_FINISHED_PLAYBACK): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        FinishedPlaybackTrigger
+                    ),
+                }
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.has_exactly_one_key(CONF_OUTPUT, CONF_SPEAKER),
+)
 
 
 def validate_parent_output_config(value):
@@ -63,9 +79,9 @@ def validate_parent_output_config(value):
 
 FINAL_VALIDATE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_OUTPUT): fv.id_declaration_match_schema(
+        cv.Optional(CONF_OUTPUT): fv.id_declaration_match_schema(
             validate_parent_output_config
-        )
+        ),
     },
     extra=cv.ALLOW_EXTRA,
 )
@@ -75,8 +91,16 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    out = await cg.get_variable(config[CONF_OUTPUT])
-    cg.add(var.set_output(out))
+    if CONF_OUTPUT in config:
+        out = await cg.get_variable(config[CONF_OUTPUT])
+        cg.add(var.set_output(out))
+        cg.add_define("USE_OUTPUT")
+
+    if CONF_SPEAKER in config:
+        out = await cg.get_variable(config[CONF_SPEAKER])
+        cg.add(var.set_speaker(out))
+
+    cg.add(var.set_gain(config[CONF_GAIN]))
 
     for conf in config.get(CONF_ON_FINISHED_PLAYBACK, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

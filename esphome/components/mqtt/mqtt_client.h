@@ -13,6 +13,8 @@
 #include "mqtt_backend_esp32.h"
 #elif defined(USE_ESP8266)
 #include "mqtt_backend_esp8266.h"
+#elif defined(USE_LIBRETINY)
+#include "mqtt_backend_libretiny.h"
 #endif
 #include "lwip/ip_addr.h"
 
@@ -144,6 +146,8 @@ class MQTTClientComponent : public Component {
 #endif
 #ifdef USE_ESP32
   void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
+  void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
+  void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
 #endif
   const Availability &get_availability();
@@ -300,6 +304,8 @@ class MQTTClientComponent : public Component {
   MQTTBackendESP32 mqtt_backend_;
 #elif defined(USE_ESP8266)
   MQTTBackendESP8266 mqtt_backend_;
+#elif defined(USE_LIBRETINY)
+  MQTTBackendLibreTiny mqtt_backend_;
 #endif
 
   MQTTClientState state_{MQTT_CLIENT_DISCONNECTED};

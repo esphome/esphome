@@ -17,6 +17,8 @@ from esphome.const import (
     CONF_TAG,
     CONF_TRIGGER_ID,
     CONF_TX_BUFFER_SIZE,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -30,6 +32,12 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S3,
     VARIANT_ESP32C2,
     VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+)
+from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
+from esphome.components.libretiny.const import (
+    COMPONENT_BK72XX,
+    COMPONENT_RTL87XX,
 )
 
 CODEOWNERS = ["@esphome/core"]
@@ -70,19 +78,26 @@ UART2 = "UART2"
 UART0_SWAP = "UART0_SWAP"
 USB_SERIAL_JTAG = "USB_SERIAL_JTAG"
 USB_CDC = "USB_CDC"
+DEFAULT = "DEFAULT"
 
 UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
     VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
     VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32C3: [UART0, UART1, USB_SERIAL_JTAG],
+    VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C2: [UART0, UART1],
     VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
 
-ESP_IDF_UARTS = [USB_CDC, USB_SERIAL_JTAG]
+UART_SELECTION_LIBRETINY = {
+    COMPONENT_BK72XX: [DEFAULT, UART1, UART2],
+    COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
+}
+
+ESP_ARDUINO_UNSUPPORTED_USB_UARTS = [USB_SERIAL_JTAG]
 
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
@@ -93,6 +108,7 @@ HARDWARE_UART_TO_UART_SELECTION = {
     UART2: logger_ns.UART_SELECTION_UART2,
     USB_CDC: logger_ns.UART_SELECTION_USB_CDC,
     USB_SERIAL_JTAG: logger_ns.UART_SELECTION_USB_SERIAL_JTAG,
+    DEFAULT: logger_ns.UART_SELECTION_DEFAULT,
 }
 
 HARDWARE_UART_TO_SERIAL = {
@@ -100,6 +116,7 @@ HARDWARE_UART_TO_SERIAL = {
     UART0_SWAP: cg.global_ns.Serial,
     UART1: cg.global_ns.Serial1,
     UART2: cg.global_ns.Serial2,
+    DEFAULT: cg.global_ns.Serial,
 }
 
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
@@ -107,15 +124,28 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 def uart_selection(value):
     if CORE.is_esp32:
-        if value.upper() in ESP_IDF_UARTS and not CORE.using_esp_idf:
-            raise cv.Invalid(f"Only esp-idf framework supports {value}.")
+        if CORE.using_arduino and value.upper() in ESP_ARDUINO_UNSUPPORTED_USB_UARTS:
+            raise cv.Invalid(f"Arduino framework does not support {value}.")
         variant = get_esp32_variant()
+        if CORE.using_esp_idf and variant == VARIANT_ESP32C3 and value == USB_CDC:
+            raise cv.Invalid(
+                f"{value} is not supported for variant {variant} when using ESP-IDF."
+            )
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
         return cv.one_of(*UART_SELECTION_ESP8266, upper=True)(value)
     if CORE.is_rp2040:
         return cv.one_of(*UART_SELECTION_RP2040, upper=True)(value)
+    if CORE.is_libretiny:
+        family = get_libretiny_family()
+        if family in UART_SELECTION_LIBRETINY:
+            return cv.one_of(*UART_SELECTION_LIBRETINY[family], upper=True)(value)
+        component = get_libretiny_component()
+        if component in UART_SELECTION_LIBRETINY:
+            return cv.one_of(*UART_SELECTION_LIBRETINY[component], upper=True)(value)
+    if CORE.is_host:
+        raise cv.Invalid("Uart selection not valid for host platform")
     raise NotImplementedError
 
 
@@ -147,9 +177,24 @@ CONFIG_SCHEMA = cv.All(
                 CONF_HARDWARE_UART,
                 esp8266=UART0,
                 esp32=UART0,
+                esp32_s2=USB_CDC,
+                esp32_s3_arduino=USB_CDC,
+                esp32_s3_idf=USB_SERIAL_JTAG,
+                esp32_c3_arduino=USB_CDC,
+                esp32_c3_idf=USB_SERIAL_JTAG,
                 rp2040=USB_CDC,
+                bk72xx=DEFAULT,
+                rtl87xx=DEFAULT,
             ): cv.All(
-                cv.only_on([PLATFORM_ESP8266, PLATFORM_ESP32, PLATFORM_RP2040]),
+                cv.only_on(
+                    [
+                        PLATFORM_ESP8266,
+                        PLATFORM_ESP32,
+                        PLATFORM_RP2040,
+                        PLATFORM_BK72XX,
+                        PLATFORM_RTL87XX,
+                    ]
+                ),
                 uart_selection,
             ),
             cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
@@ -224,11 +269,27 @@ async def to_code(config):
     if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
         cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
 
+    if CORE.using_arduino:
+        if config[CONF_HARDWARE_UART] == USB_CDC:
+            cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=1")
+            if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32C3:
+                cg.add_build_flag("-DARDUINO_USB_MODE=1")
+
     if CORE.using_esp_idf:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
+    try:
+        uart_selection(USB_SERIAL_JTAG)
+        cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
+    except cv.Invalid:
+        pass
+    try:
+        uart_selection(USB_CDC)
+        cg.add_define("USE_LOGGER_USB_CDC")
+    except cv.Invalid:
+        pass
 
     # Register at end for safe mode
     await cg.register_component(log, config)

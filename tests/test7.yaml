@@ -3,6 +3,9 @@
 wifi:
   ssid: 'ssid'
 
+network:
+  enable_ipv6: true
+
 esp32:
   board: lolin_c3_mini
   framework:
@@ -27,6 +30,8 @@ esphome:
                     - status_code
 
 logger:
+
+debug:
 
 http_request:
   useragent: esphome/tagreader

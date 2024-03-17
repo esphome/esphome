@@ -17,6 +17,17 @@ void HydreonRGxxComponent::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Connection with hydreon_rgxx failed!");
   }
+  if (model_ == RG9) {
+    ESP_LOGCONFIG(TAG, "  Model: RG9");
+    ESP_LOGCONFIG(TAG, "  Disable Led: %s", TRUEFALSE(this->disable_led_));
+  } else {
+    ESP_LOGCONFIG(TAG, "  Model: RG15");
+    if (this->resolution_ == FORCE_HIGH) {
+      ESP_LOGCONFIG(TAG, "  Resolution: high");
+    } else {
+      ESP_LOGCONFIG(TAG, "  Resolution: low");
+    }
+  }
   LOG_UPDATE_INTERVAL(this);
 
   int i = 0;
@@ -187,7 +198,24 @@ void HydreonRGxxComponent::process_line_() {
     this->cancel_interval("reboot");
     this->no_response_count_ = 0;
     ESP_LOGI(TAG, "Boot detected: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
-    this->write_str("P\nH\nM\n");  // set sensor to polling mode, high res mode, metric mode
+
+    if (this->model_ == RG15) {
+      if (this->resolution_ == FORCE_HIGH) {
+        this->write_str("P\nH\nM\n");  // set sensor to (P)polling mode, (H)high res mode, (M)metric mode
+      } else {
+        this->write_str("P\nL\nM\n");  // set sensor to (P)polling mode, (L)low res mode, (M)metric mode
+      }
+    }
+
+    if (this->model_ == RG9) {
+      this->write_str("P\n");  // set sensor to (P)polling mode
+
+      if (this->disable_led_) {
+        this->write_str("D 1\n");  // set sensor (D 1)rain detection LED disabled
+      } else {
+        this->write_str("D 0\n");  // set sensor (D 0)rain detection LED enabled
+      }
+    }
     return;
   }
   if (this->buffer_starts_with_("SW")) {
@@ -227,7 +255,22 @@ void HydreonRGxxComponent::process_line_() {
       if (n == std::string::npos) {
         continue;
       }
-      float data = strtof(this->buffer_.substr(n + strlen(PROTOCOL_NAMES[i])).c_str(), nullptr);
+
+      if (n == this->buffer_.find('t', n)) {
+        // The device temperature ('t') response contains both °C and °F values:
+        // "t 72F 22C".
+        // ESPHome uses only °C, only parse °C value (move past 'F').
+        n = this->buffer_.find('F', n);
+        if (n == std::string::npos) {
+          continue;
+        }
+        n += 1;  // move past 'F'
+      } else {
+        n += strlen(PROTOCOL_NAMES[i]);  // move past protocol name
+      }
+
+      // parse value, starting at str position n
+      float data = strtof(this->buffer_.substr(n).c_str(), nullptr);
       this->sensors_[i]->publish_state(data);
       ESP_LOGD(TAG, "Received %s: %f", PROTOCOL_NAMES[i], this->sensors_[i]->get_raw_state());
       this->sensors_received_ |= (1 << i);

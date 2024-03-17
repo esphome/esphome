@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ID,
     CONF_JS_INCLUDE,
     CONF_JS_URL,
+    CONF_ENABLE_PRIVATE_NETWORK_ACCESS,
     CONF_PORT,
     CONF_AUTH,
     CONF_USERNAME,
@@ -18,6 +19,10 @@ from esphome.const import (
     CONF_LOG,
     CONF_VERSION,
     CONF_LOCAL,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -59,11 +64,12 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(WebServer),
             cv.Optional(CONF_PORT, default=80): cv.port,
-            cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2),
+            cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_CSS_URL): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
             cv.Optional(CONF_JS_URL): cv.string,
             cv.Optional(CONF_JS_INCLUDE): cv.file_,
+            cv.Optional(CONF_ENABLE_PRIVATE_NETWORK_ACCESS, default=True): cv.boolean,
             cv.Optional(CONF_AUTH): cv.Schema(
                 {
                     cv.Required(CONF_USERNAME): cv.All(
@@ -79,13 +85,18 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
             cv.SplitDefault(
-                CONF_OTA, esp8266=True, esp32_arduino=True, esp32_idf=False
+                CONF_OTA,
+                esp8266=True,
+                esp32_arduino=True,
+                esp32_idf=False,
+                bk72xx=True,
+                rtl87xx=True,
             ): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on(["esp32", "esp8266"]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
     default_url,
     validate_local,
     validate_ota,
@@ -149,6 +160,8 @@ async def to_code(config):
         cg.add(var.set_js_url(config[CONF_JS_URL]))
     cg.add(var.set_allow_ota(config[CONF_OTA]))
     cg.add(var.set_expose_log(config[CONF_LOG]))
+    if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
+        cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if CONF_AUTH in config:
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))

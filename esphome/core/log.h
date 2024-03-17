@@ -17,6 +17,9 @@
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp32-hal-log.h>
 #endif
+#ifdef USE_LIBRETINY
+#include <lt_logger.h>
+#endif
 
 namespace esphome {
 
