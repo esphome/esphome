@@ -11,6 +11,10 @@ class Widget:
         self.type = type
         self.config = config
         self.obj = obj or var
+        self.parent = None
+
+    def set_parent(self, parent):
+        self.parent = parent
 
     def add_state(self, state):
         return [f"lv_obj_add_state({self.obj}, {state})"]

@@ -111,6 +111,7 @@ from .defines import (
     CONF_SPINNER,
     LV_GRID_ALIGNMENTS,
     LV_CELL_ALIGNMENTS,
+    SIBLING_ALIGNMENTS,
 )
 
 from .lv_validation import (
@@ -425,19 +426,11 @@ class TextValidator(LValidator):
 
         if isinstance(value, dict):
             args = [str(x) for x in value[CONF_ARGS]]
-            args_ = cg.RawExpression(",".join(args))
+            arg_expr = cg.RawExpression(",".join(args))
             format = cpp_string_escape(value[CONF_FORMAT])
-            set_prop = var.set_property("text", "text__")[0]
-            return [
-                f"""{{
-                char * text__ = nullptr;
-                asprintf(&text__, {format}, {args_});
-                if (text__ != nullptr) {{
-                    {set_prop};
-                    free(text__);
-                }}
-            }}"""
-            ]
+            return var.set_property(
+                "text", f"str_sprintf({format}, {arg_expr}).c_str()"
+            )
         return var.set_property("text", await self.process(value))
 
 
@@ -729,22 +722,6 @@ def validate_spinbox(config):
     return config
 
 
-SPINBOX_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_VALUE): lv_float,
-        cv.Optional(CONF_RANGE_FROM, default=0): cv.float_,
-        cv.Optional(CONF_RANGE_TO, default=100): cv.float_,
-        cv.Optional(CONF_DIGITS, default=4): cv.int_range(1, 10),
-        cv.Optional(CONF_STEP, default=1.0): cv.positive_float,
-        cv.Optional(CONF_DECIMAL_PLACES, default=0): cv.int_range(0, 6),
-        cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
-    },
-).add_extra(validate_spinbox)
-
-SPINBOX_MODIFY_SCHEMA = {
-    cv.Required(CONF_VALUE): lv_float,
-}
-
 ANIMIMG_BASE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_REPEAT_COUNT, default="forever"): lv_repeat_count,
@@ -995,6 +972,41 @@ LED_SCHEMA = cv.Schema(
     }
 )
 
+SPIN_ACTIONS = (
+    "INCREMENT",
+    "DECREMENT",
+    "STEP_NEXT",
+    "STEP_PREV",
+    "CLEAR",
+)
+
+
+def spin_btn_schema(value):
+    schema = container_schema(
+        CONF_BTN,
+        extras={
+            cv.Required(CONF_ACTION): lv_one_of(SPIN_ACTIONS, prefix=""),
+            cv.Required(CONF_ALIGN): lv_one_of(SIBLING_ALIGNMENTS, prefix="LV_ALIGN_"),
+        },
+    )
+    return cv.ensure_list(schema)(value)
+
+
+SPINBOX_SCHEMA = {
+    cv.Optional(CONF_VALUE): lv_float,
+    cv.Optional(CONF_RANGE_FROM, default=0): cv.float_,
+    cv.Optional(CONF_RANGE_TO, default=100): cv.float_,
+    cv.Optional(CONF_DIGITS, default=4): cv.int_range(1, 10),
+    cv.Optional(CONF_STEP, default=1.0): cv.positive_float,
+    cv.Optional(CONF_DECIMAL_PLACES, default=0): cv.int_range(0, 6),
+    cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
+    cv.Optional(CONF_BUTTONS): spin_btn_schema,
+}
+
+SPINBOX_MODIFY_SCHEMA = {
+    cv.Required(CONF_VALUE): lv_float,
+}
+
 # For use by platform components
 LVGL_SCHEMA = cv.Schema(
     {
@@ -1067,12 +1079,11 @@ def obj_schema(wtype: str):
     )
 
 
-def container_schema(widget_type):
+def container_schema(widget_type, extras=None):
     lv_type = get_widget_type(widget_type)
-    schema = obj_schema(widget_type)
-    if extras := globals().get(f"{widget_type.upper()}_SCHEMA"):
+    schema = obj_schema(widget_type).extend({cv.GenerateID(): cv.declare_id(lv_type)})
+    if extras := extras or globals().get(f"{widget_type.upper()}_SCHEMA"):
         schema = schema.extend(extras).add_extra(validate_max_min)
-    schema = schema.extend({cv.GenerateID(): cv.declare_id(lv_type)})
 
     # Delayed evaluation for recursion
     def validator(value):
@@ -1696,6 +1707,14 @@ async def spinbox_to_code(var: Widget, config):
     init.extend(
         var.set_property(CONF_VALUE, await lv_float.process(config.get(CONF_VALUE)))
     )
+    if buttons := config.get(CONF_BUTTONS):
+        for button in buttons:
+            print(button)
+            align = button[CONF_ALIGN]
+            del button[CONF_ALIGN]
+            init.extend(await widget_to_code(button, CONF_BTN, var.parent))
+            btn = await get_widget(button[CONF_ID])
+            init.append(f"lv_obj_align_to({btn.obj}, {var.obj}, {align}, 0, 0)")
     return init
 
 
@@ -2214,6 +2233,7 @@ async def widget_to_code(w_cnfig, w_type, parent: Widget):
         obj = var
 
     widget = Widget(var, get_widget_type(w_type), w_cnfig, obj)
+    widget.set_parent(parent)
     widget_map[id] = widget
     if theme := theme_widget_map.get(w_type):
         init.append(f"{theme}({obj})")

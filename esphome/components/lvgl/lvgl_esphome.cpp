@@ -9,7 +9,7 @@ namespace lvgl {}  // namespace lvgl
 static const char *const TAG = "lvgl";
 size_t lv_millis(void) { return esphome::millis(); }
 
-#if defined(USE_HOST) || defined(RP2040)
+#if defined(USE_HOST) || defined(USE_RP2040)
 void *lv_custom_mem_alloc(size_t size) { return malloc(size); }
 void lv_custom_mem_free(void *ptr) { return free(ptr); }
 void *lv_custom_mem_realloc(void *ptr, size_t size) { return realloc(ptr, size); }

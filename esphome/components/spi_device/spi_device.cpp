@@ -18,9 +18,9 @@ void SPIDeviceComponent::dump_config() {
   LOG_PIN("  CS pin: ", this->cs_);
   ESP_LOGCONFIG(TAG, "  Mode: %d", this->mode_);
   if (this->data_rate_ < 1000000) {
-    ESP_LOGCONFIG(TAG, "  Data rate: %dkHz", this->data_rate_ / 1000);
+    ESP_LOGCONFIG(TAG, "  Data rate: %ukHz", this->data_rate_ / 1000U);
   } else {
-    ESP_LOGCONFIG(TAG, "  Data rate: %dMHz", this->data_rate_ / 1000000);
+    ESP_LOGCONFIG(TAG, "  Data rate: %uMHz", this->data_rate_ / 1000000);
   }
 }
 
