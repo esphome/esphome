@@ -212,7 +212,7 @@ WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {
   if (now - started_ > 50) {
     const char *src = component_ == nullptr ? "<null>" : component_->get_component_source();
     ESP_LOGW(TAG, "Component %s took a long time for an operation (%u ms).", src, (now - started_));
-    ESP_LOGW(TAG, "Components should block for at most 20-30ms.");
+    ESP_LOGW(TAG, "Components should block for at most 30 ms.");
     ;
   }
 }
