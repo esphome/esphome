@@ -32,38 +32,42 @@ static const uint8_t INA226_REGISTER_BUS_VOLTAGE = 0x02;
 static const uint8_t INA226_REGISTER_POWER = 0x03;
 static const uint8_t INA226_REGISTER_CURRENT = 0x04;
 static const uint8_t INA226_REGISTER_CALIBRATION = 0x05;
+static const uint8_t INA226_REGISTER_MASK_ENABLE = 0x06;
+
+static const uint16_t INA226_MASK_ENABLE_CONVERSION_READY = 0b1000;
 
 static const uint16_t INA226_ADC_TIMES[] = {140, 204, 332, 588, 1100, 2116, 4156, 8244};
 static const uint16_t INA226_ADC_AVG_SAMPLES[] = {1, 4, 16, 64, 128, 256, 512, 1024};
 
+static const uint32_t INA226_TIMEOUT_MS = 10 * 1000;
+
 void INA226Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up INA226...");
 
-  ConfigurationRegister config;
-
-  config.reset = 1;
-  if (!this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)) {
+  this->config_reg_.reset = 1;
+  if (!this->write_byte_16(INA226_REGISTER_CONFIG, this->config_reg_.raw)) {
     this->mark_failed();
     return;
   }
   delay(1);
 
-  config.raw = 0;
-  config.reserved = 0b100;  // as per datasheet
+  this->config_reg_.raw = 0;
+  this->config_reg_.reserved = 0b100;  // as per datasheet
 
   // Averaging Mode AVG Bit Settings[11:9] (000 -> 1 sample, 001 -> 4 sample, 111 -> 1024 samples)
-  config.avg_samples = this->adc_avg_samples_;
+  this->config_reg_.avg_samples = this->adc_avg_samples_;
 
   // Bus Voltage Conversion Time VBUSCT Bit Settings [8:6] (100 -> 1.1ms, 111 -> 8.244 ms)
-  config.bus_voltage_conversion_time = this->adc_time_voltage_;
+  this->config_reg_.bus_voltage_conversion_time = this->adc_time_voltage_;
 
   // Shunt Voltage Conversion Time VSHCT Bit Settings [5:3] (100 -> 1.1ms, 111 -> 8.244 ms)
-  config.shunt_voltage_conversion_time = this->adc_time_current_;
+  this->config_reg_.shunt_voltage_conversion_time = this->adc_time_current_;
 
   // Mode Settings [2:0] Combinations (111 -> Shunt and Bus, Continuous)
-  config.mode = 0b111;
+  this->config_reg_.mode =
+      this->low_power_mode_ ? AdcMode::ADC_MODE_POWER_DOWN : AdcMode::ADC_MODE_SHUNT_AND_BUS_CONTINUOUS;
 
-  if (!this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)) {
+  if (!this->write_byte_16(INA226_REGISTER_CONFIG, this->config_reg_.raw)) {
     this->mark_failed();
     return;
   }
@@ -106,6 +110,44 @@ void INA226Component::dump_config() {
 float INA226Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void INA226Component::update() {
+  if (this->is_ready() && this->state_ == State::IDLE) {
+    this->start_measurements_();
+    this->last_start_time_ = millis();
+    this->state_ = State::WAITING_FOR_DATA;
+  }
+}
+
+void INA226Component::loop() {
+  if (!this->is_ready())
+    return;
+
+  switch (this->state_) {
+    case State::NOT_INITIALIZED:
+    case State::IDLE:
+      break;
+    case State::WAITING_FOR_DATA:
+      if (this->is_conversion_ready_()) {
+        this->state_ = State::READY_TO_PUBLISH;
+      } else if (millis() - this->last_start_time_ > INA226_TIMEOUT_MS) {
+        ESP_LOGW(TAG, "INA226 Data collection timeout");
+        this->status_set_warning();
+        this->state_ = State::IDLE;
+      } else {
+        ESP_LOGD(TAG, "INA226 Data not ready yet, waiting...");
+      }
+      break;
+    case State::READY_TO_PUBLISH:
+      this->stop_measurements_();
+      this->get_and_publish_data_();
+      this->state_ = State::IDLE;
+      break;
+    default:
+      // shall never be here
+      break;
+  }
+}
+
+void INA226Component::get_and_publish_data_() {
   if (this->bus_voltage_sensor_ != nullptr) {
     uint16_t raw_bus_voltage;
     if (!this->read_byte_16(INA226_REGISTER_BUS_VOLTAGE, &raw_bus_voltage)) {
@@ -160,6 +202,34 @@ int32_t INA226Component::twos_complement_(int32_t val, uint8_t bits) {
     val -= (uint32_t) 1 << bits;
   }
   return val;
+}
+
+void INA226Component::stop_measurements_() {
+  if (!this->low_power_mode_)
+    return;
+
+  this->config_reg_.mode = AdcMode::ADC_MODE_POWER_DOWN;
+  if (!this->write_byte_16(INA226_REGISTER_CONFIG, this->config_reg_.raw)) {
+    this->mark_failed();
+  }
+}
+
+void INA226Component::start_measurements_() {
+  if (!this->low_power_mode_)
+    return;
+  this->config_reg_.mode = AdcMode::ADC_MODE_SHUNT_AND_BUS_TRIGGERED;
+  if (!this->write_byte_16(INA226_REGISTER_CONFIG, this->config_reg_.raw)) {
+    this->mark_failed();
+  }
+}
+
+bool INA226Component::is_conversion_ready_() {
+  uint16_t me_reg;
+  if (!this->read_byte_16(INA226_REGISTER_MASK_ENABLE, &me_reg)) {
+    this->mark_failed();
+    return false;
+  }
+  return (me_reg & INA226_MASK_ENABLE_CONVERSION_READY);
 }
 
 }  // namespace ina226
