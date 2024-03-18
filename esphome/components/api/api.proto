@@ -1595,5 +1595,4 @@ message TextCommandRequest {
 
   fixed32 key = 1;
   string state = 2;
-  string blah = 3;
 }
