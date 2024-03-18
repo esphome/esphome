@@ -61,9 +61,11 @@ void UponorSmatrixComponent::loop() {
 
   // Send packets during bus silence
   if ((now - this->last_rx_ > 300) && (now - this->last_poll_start_ < 9500) && (now - this->last_tx_ > 200)) {
+#ifdef USE_TIME
     // Only build time packet when bus is silent and queue is empty to make sure we can send it right away
     if (this->send_time_requested_ && this->tx_queue_.empty() && this->do_send_time_())
       this->send_time_requested_ = false;
+#endif
     // Send the next packet in the queue
     if (!this->tx_queue_.empty()) {
       auto packet = std::move(this->tx_queue_.front());
