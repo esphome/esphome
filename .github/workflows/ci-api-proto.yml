@@ -51,7 +51,7 @@ jobs:
         uses: actions/github-script@v7.0.1
         with:
           script: |
-            github.rest.pulls.createReview({
+            await github.rest.pulls.createReview({
               pull_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -63,7 +63,7 @@ jobs:
         uses: actions/github-script@v7.0.1
         with:
           script: |
-            let reviews = github.rest.pulls.listReviews({
+            let reviews = await github.rest.pulls.listReviews({
               pull_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo
@@ -71,7 +71,7 @@ jobs:
             console.log(reviews)
             for (let review of reviews) {
               if (review.user.login === 'github-actions[bot]' && review.state === 'CHANGES_REQUESTED') {
-                github.rest.pulls.dismissReview({
+                await github.rest.pulls.dismissReview({
                   pull_number: context.issue.number,
                   owner: context.repo.owner,
                   repo: context.repo.repo,
