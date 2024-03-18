@@ -55,7 +55,6 @@ jobs:
               pull_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'You have altered the generated proto files but they do not match what is expected.
-                Please run `script/api_protobuf/api_protobuf.py` and commit the changes.',
-              event: 'REQUEST_CHANGES'
+              event: 'REQUEST_CHANGES',
+              body: 'You have altered the generated proto files but they do not match what is expected.\nPlease run "script/api_protobuf/api_protobuf.py" and commit the changes.'
             })
