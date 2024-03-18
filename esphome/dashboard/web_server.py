@@ -516,7 +516,8 @@ class ImportRequestHandler(BaseHandler):
             self.set_status(500)
             self.write("File already exists")
             return
-        except ValueError:
+        except ValueError as e:
+            _LOGGER.error(e)
             self.set_status(422)
             self.write("Invalid package url")
             return
