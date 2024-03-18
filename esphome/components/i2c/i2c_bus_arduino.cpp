@@ -61,7 +61,7 @@ void ArduinoI2CBus::set_pins_and_clock_() {
     wire_->setClockStretchLimit(timeout_);  // unit: us
 #elif defined(USE_RP2040)
     // https://github.com/earlephilhower/ArduinoCore-API/blob/e37df85425e0ac020bfad226d927f9b00d2e0fb7/api/Stream.h
-    wire_->SetTimeout(timeout_ / 1000);  // unit: ms
+    wire_->setTimeout(timeout_ / 1000);  // unit: ms
 #endif
   }
   wire_->setClock(frequency_);
