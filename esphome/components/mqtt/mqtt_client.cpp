@@ -66,30 +66,38 @@ void MQTTClientComponent::setup() {
   }
 #endif
 
-  this->subscribe(
-      "esphome/discover", [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); },
-      2);
+  if (this->is_discovery_enabled()) {
+    this->subscribe(
+        "esphome/discover", [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); },
+        2);
 
-  std::string topic = "esphome/ping/";
-  topic.append(App.get_name());
-  this->subscribe(
-      topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
+    std::string topic = "esphome/ping/";
+    topic.append(App.get_name());
+    this->subscribe(
+        topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
+  }
 
   this->last_connected_ = millis();
   this->start_dnslookup_();
 }
 
 void MQTTClientComponent::send_device_info_() {
-  if (!this->is_connected()) {
+  if (!this->is_connected() or !this->is_discovery_enabled()) {
     return;
   }
   std::string topic = "esphome/discover/";
   topic.append(App.get_name());
+
   this->publish_json(
       topic,
       [](JsonObject root) {
-        auto ip = network::get_ip_address();
-        root["ip"] = ip.str();
+        uint8_t index = 0;
+        for (auto &ip : network::get_ip_addresses()) {
+          if (ip.is_set()) {
+            root["ip" + (index == 0 ? "" : esphome::to_string(index))] = ip.str();
+            index++;
+          }
+        }
         root["name"] = App.get_name();
 #ifdef USE_API
         root["port"] = api::global_api_server->get_port();
@@ -102,6 +110,9 @@ void MQTTClientComponent::send_device_info_() {
 #endif
 #ifdef USE_ESP32
         root["platform"] = "ESP32";
+#endif
+#ifdef USE_LIBRETINY
+        root["platform"] = lt_cpu_get_model_name();
 #endif
 
         root["board"] = ESPHOME_BOARD;
@@ -141,7 +152,7 @@ void MQTTClientComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Availability: '%s'", this->availability_.topic.c_str());
   }
 }
-bool MQTTClientComponent::can_proceed() { return this->is_connected(); }
+bool MQTTClientComponent::can_proceed() { return network::is_disabled() || this->is_connected(); }
 
 void MQTTClientComponent::start_dnslookup_() {
   for (auto &subscription : this->subscriptions_) {
@@ -153,28 +164,18 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
-#ifdef USE_ESP32
+#if USE_NETWORK_IPV6
+  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
+                                         MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV6_IPV4);
+#else
   err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
                                          MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
-#endif
-#ifdef USE_ESP8266
-  err_t err = dns_gethostbyname(this->credentials_.address.c_str(), &addr,
-                                esphome::mqtt::MQTTClientComponent::dns_found_callback, this);
-#endif
+#endif /* USE_NETWORK_IPV6 */
   switch (err) {
     case ERR_OK: {
       // Got IP immediately
       this->dns_resolved_ = true;
-#ifdef USE_ESP32
-#if LWIP_IPV6
-      this->ip_ = addr.u_addr.ip4.addr;
-#else
-      this->ip_ = addr.addr;
-#endif
-#endif
-#ifdef USE_ESP8266
-      this->ip_ = addr.addr;
-#endif
+      this->ip_ = network::IPAddress(&addr);
       this->start_connect_();
       return;
     }
@@ -225,16 +226,7 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
   if (ipaddr == nullptr) {
     a_this->dns_resolve_error_ = true;
   } else {
-#ifdef USE_ESP32
-#if LWIP_IPV6
-    a_this->ip_ = ipaddr->u_addr.ip4.addr;
-#else
-    a_this->ip_ = ipaddr->addr;
-#endif
-#endif  // USE_ESP32
-#ifdef USE_ESP8266
-    a_this->ip_ = ipaddr->addr;
-#endif
+    a_this->ip_ = network::IPAddress(ipaddr);
     a_this->dns_resolved_ = true;
   }
 }
@@ -482,8 +474,8 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
 
   if (!logging_topic) {
     if (ret) {
-      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d)", message.topic.c_str(), message.payload.c_str(),
-               message.retain);
+      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d qos=%d)", message.topic.c_str(), message.payload.c_str(),
+               message.retain, message.qos);
     } else {
       ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). will retry later..", message.topic.c_str(),
                message.payload.length());
@@ -556,8 +548,8 @@ static bool topic_match(const char *message, const char *subscription) {
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-#ifdef USE_ARDUINO
-  // on Arduino, this is called in lwIP/AsyncTCP task; some components do not like running
+#ifdef USE_ESP8266
+  // on ESP8266, this is called in lwIP/AsyncTCP task; some components do not like running
   // from a different task.
   this->defer([this, topic, payload]() {
 #endif
@@ -565,7 +557,7 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
       if (topic_match(topic.c_str(), subscription.topic.c_str()))
         subscription.callback(topic, payload);
     }
-#ifdef USE_ARDUINO
+#ifdef USE_ESP8266
   });
 #endif
 }

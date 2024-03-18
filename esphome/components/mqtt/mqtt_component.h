@@ -8,6 +8,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/string_ref.h"
 #include "mqtt_client.h"
 
 namespace esphome {
@@ -76,6 +77,10 @@ class MQTTComponent : public Component {
 
   virtual bool is_internal();
 
+  /// Set QOS for state messages.
+  void set_qos(uint8_t qos);
+  uint8_t get_qos() const;
+
   /// Set whether state message should be retained.
   void set_retain(bool retain);
   bool get_retain() const;
@@ -88,9 +93,9 @@ class MQTTComponent : public Component {
   virtual std::string component_type() const = 0;
 
   /// Set a custom state topic. Set to "" for default behavior.
-  void set_custom_state_topic(const std::string &custom_state_topic);
+  void set_custom_state_topic(const char *custom_state_topic);
   /// Set a custom command topic. Set to "" for default behavior.
-  void set_custom_command_topic(const std::string &custom_command_topic);
+  void set_custom_command_topic(const char *custom_command_topic);
   /// Set whether command message should be retained.
   void set_command_retain(bool command_retain);
 
@@ -188,12 +193,18 @@ class MQTTComponent : public Component {
   /// Generate the Home Assistant MQTT discovery object id by automatically transforming the friendly name.
   std::string get_default_object_id_() const;
 
-  std::string custom_state_topic_{};
-  std::string custom_command_topic_{};
+  StringRef custom_state_topic_{};
+  StringRef custom_command_topic_{};
+
+  std::unique_ptr<Availability> availability_;
+
+  bool has_custom_state_topic_{false};
+  bool has_custom_command_topic_{false};
+
   bool command_retain_{false};
   bool retain_{true};
+  uint8_t qos_{0};
   bool discovery_enabled_{true};
-  std::unique_ptr<Availability> availability_;
   bool resend_state_{false};
 };
 

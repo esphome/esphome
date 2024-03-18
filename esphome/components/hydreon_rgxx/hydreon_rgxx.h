@@ -16,6 +16,11 @@ enum RGModel {
   RG15 = 2,
 };
 
+enum RG15Resolution {
+  FORCE_LOW = 1,
+  FORCE_HIGH = 2,
+};
+
 #ifdef HYDREON_RGXX_NUM_SENSORS
 static const uint8_t NUM_SENSORS = HYDREON_RGXX_NUM_SENSORS;
 #else
@@ -37,6 +42,7 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   void set_em_sat_sensor(binary_sensor::BinarySensor *sensor) { this->em_sat_sensor_ = sensor; }
 #endif
   void set_model(RGModel model) { model_ = model; }
+  void set_resolution(RG15Resolution resolution) { resolution_ = resolution; }
   void set_request_temperature(bool b) { request_temperature_ = b; }
 
   /// Schedule data readings.
@@ -48,6 +54,8 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
   float get_setup_priority() const override;
+
+  void set_disable_led(bool disable_led) { this->disable_led_ = disable_led; }
 
  protected:
   void process_line_();
@@ -66,12 +74,16 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   int16_t boot_count_ = 0;
   int16_t no_response_count_ = 0;
   std::string buffer_;
+
   RGModel model_ = RG9;
+  RG15Resolution resolution_ = FORCE_HIGH;
+
   int sw_version_ = 0;
   bool too_cold_ = false;
   bool lens_bad_ = false;
   bool em_sat_ = false;
   bool request_temperature_ = false;
+  bool disable_led_ = false;
 
   // bit field showing which sensors we have received data for
   int sensors_received_ = -1;

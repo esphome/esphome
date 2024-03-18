@@ -495,6 +495,42 @@ bool APIServerConnectionBase::send_alarm_control_panel_state_response(const Alar
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
 #endif
+#ifdef USE_TEXT
+bool APIServerConnectionBase::send_list_entities_text_response(const ListEntitiesTextResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_text_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesTextResponse>(msg, 97);
+}
+#endif
+#ifdef USE_TEXT
+bool APIServerConnectionBase::send_text_state_response(const TextStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_text_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<TextStateResponse>(msg, 98);
+}
+#endif
+#ifdef USE_TEXT
+#endif
+#ifdef USE_DATETIME_DATE
+bool APIServerConnectionBase::send_list_entities_date_response(const ListEntitiesDateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_date_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesDateResponse>(msg, 100);
+}
+#endif
+#ifdef USE_DATETIME_DATE
+bool APIServerConnectionBase::send_date_state_response(const DateStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_date_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<DateStateResponse>(msg, 101);
+}
+#endif
+#ifdef USE_DATETIME_DATE
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
@@ -916,6 +952,28 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 99: {
+#ifdef USE_TEXT
+      TextCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_text_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_text_command_request(msg);
+#endif
+      break;
+    }
+    case 102: {
+#ifdef USE_DATETIME_DATE
+      DateCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_date_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_date_command_request(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -1124,6 +1182,19 @@ void APIServerConnection::on_number_command_request(const NumberCommandRequest &
   this->number_command(msg);
 }
 #endif
+#ifdef USE_TEXT
+void APIServerConnection::on_text_command_request(const TextCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->text_command(msg);
+}
+#endif
 #ifdef USE_SELECT
 void APIServerConnection::on_select_command_request(const SelectCommandRequest &msg) {
   if (!this->is_connection_setup()) {
@@ -1174,6 +1245,19 @@ void APIServerConnection::on_media_player_command_request(const MediaPlayerComma
     return;
   }
   this->media_player_command(msg);
+}
+#endif
+#ifdef USE_DATETIME_DATE
+void APIServerConnection::on_date_command_request(const DateCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->date_command(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY

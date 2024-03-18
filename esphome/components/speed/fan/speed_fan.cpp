@@ -12,11 +12,14 @@ void SpeedFan::setup() {
     restore->apply(*this);
     this->write_state_();
   }
+
+  // Construct traits
+  this->traits_ = fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
+  this->traits_.set_supported_preset_modes(this->preset_modes_);
 }
+
 void SpeedFan::dump_config() { LOG_FAN("", "Speed Fan", this); }
-fan::FanTraits SpeedFan::get_traits() {
-  return fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
-}
+
 void SpeedFan::control(const fan::FanCall &call) {
   if (call.get_state().has_value())
     this->state = *call.get_state();
@@ -26,14 +29,15 @@ void SpeedFan::control(const fan::FanCall &call) {
     this->oscillating = *call.get_oscillating();
   if (call.get_direction().has_value())
     this->direction = *call.get_direction();
+  this->preset_mode = call.get_preset_mode();
 
   this->write_state_();
   this->publish_state();
 }
+
 void SpeedFan::write_state_() {
   float speed = this->state ? static_cast<float>(this->speed) / static_cast<float>(this->speed_count_) : 0.0f;
   this->output_->set_level(speed);
-
   if (this->oscillating_ != nullptr)
     this->oscillating_->set_state(this->oscillating);
   if (this->direction_ != nullptr)

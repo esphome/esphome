@@ -232,8 +232,9 @@ void VBusCustomSensor::dump_config() {
     ESP_LOGCONFIG(TAG, "  Command: 0x%04x", this->command_);
   }
   ESP_LOGCONFIG(TAG, "  Sensors:");
-  for (VBusCustomSubSensor *sensor : this->sensors_)
+  for (VBusCustomSubSensor *sensor : this->sensors_) {
     LOG_SENSOR("  ", "-", sensor);
+  }
 }
 
 void VBusCustomSensor::handle_message(std::vector<uint8_t> &message) {

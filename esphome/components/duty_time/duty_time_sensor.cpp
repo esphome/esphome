@@ -6,9 +6,11 @@ namespace duty_time_sensor {
 
 static const char *const TAG = "duty_time_sensor";
 
+#ifdef USE_BINARY_SENSOR
 void DutyTimeSensor::set_sensor(binary_sensor::BinarySensor *const sensor) {
   sensor->add_on_state_callback([this](bool state) { this->process_state_(state); });
 }
+#endif
 
 void DutyTimeSensor::start() {
   if (!this->last_state_)
@@ -93,7 +95,7 @@ void DutyTimeSensor::publish_and_save_(const uint32_t sec, const uint32_t ms) {
 
 void DutyTimeSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Duty Time:");
-  ESP_LOGCONFIG(TAG, "  Update Interval: %dms", this->get_update_interval());
+  ESP_LOGCONFIG(TAG, "  Update Interval: %" PRId32 "ms", this->get_update_interval());
   ESP_LOGCONFIG(TAG, "  Restore: %s", ONOFF(this->restore_));
   LOG_SENSOR("  ", "Duty Time Sensor:", this);
   LOG_SENSOR("  ", "Last Duty Time Sensor:", this->last_duty_time_sensor_);

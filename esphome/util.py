@@ -57,7 +57,7 @@ class SimpleRegistry(dict):
         return decorator
 
 
-def safe_print(message=""):
+def safe_print(message="", end="\n"):
     from esphome.core import CORE
 
     if CORE.dashboard:
@@ -67,18 +67,24 @@ def safe_print(message=""):
             pass
 
     try:
-        print(message)
+        print(message, end=end)
         return
     except UnicodeEncodeError:
         pass
 
     try:
-        print(message.encode("utf-8", "backslashreplace"))
+        print(message.encode("utf-8", "backslashreplace"), end=end)
     except UnicodeEncodeError:
         try:
-            print(message.encode("ascii", "backslashreplace"))
+            print(message.encode("ascii", "backslashreplace"), end=end)
         except UnicodeEncodeError:
             print("Cannot print line because of invalid locale!")
+
+
+def safe_input(prompt=""):
+    if prompt:
+        safe_print(prompt, end="")
+    return input()
 
 
 def shlex_quote(s):
@@ -190,7 +196,7 @@ def run_external_command(
     try:
         sys.argv = list(cmd)
         sys.exit = mock_exit
-        return func() or 0
+        retval = func() or 0
     except KeyboardInterrupt:  # pylint: disable=try-except-raise
         raise
     except SystemExit as err:
@@ -206,9 +212,10 @@ def run_external_command(
         sys.stdout = orig_stdout
         sys.stderr = orig_stderr
 
-        if capture_stdout:
-            # pylint: disable=lost-exception
-            return cap_stdout.getvalue()
+    if capture_stdout:
+        return cap_stdout.getvalue()
+
+    return retval
 
 
 def run_external_process(*cmd, **kwargs):

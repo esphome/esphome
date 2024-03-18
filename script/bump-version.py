@@ -2,7 +2,6 @@
 
 import argparse
 import re
-import subprocess
 from dataclasses import dataclass
 import sys
 
@@ -40,12 +39,12 @@ class Version:
 
 
 def sub(path, pattern, repl, expected_count=1):
-    with open(path) as fh:
+    with open(path, encoding="utf-8") as fh:
         content = fh.read()
     content, count = re.subn(pattern, repl, content, flags=re.MULTILINE)
     if expected_count is not None:
         assert count == expected_count, f"Pattern {pattern} replacement failed!"
-    with open(path, "wt") as fh:
+    with open(path, "w", encoding="utf-8") as fh:
         fh.write(content)
 
 

@@ -40,7 +40,6 @@ void E131Component::setup() {
     this->mark_failed();
     return;
   }
-  server.ss_family = AF_INET;
 
   err = this->socket_->bind((struct sockaddr *) &server, sizeof(server));
   if (err != 0) {

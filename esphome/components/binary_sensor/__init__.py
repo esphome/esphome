@@ -141,6 +141,7 @@ DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter, cg.Compon
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter, cg.Component)
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
+SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter, cg.Component)
 
 FILTER_REGISTRY = Registry()
 validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
@@ -257,6 +258,19 @@ async def lambda_filter_to_code(config, filter_id):
         config, [(bool, "x")], return_type=cg.optional.template(bool)
     )
     return cg.new_Pvariable(filter_id, lambda_)
+
+
+@register_filter(
+    "settle",
+    SettleFilter,
+    cv.templatable(cv.positive_time_period_milliseconds),
+)
+async def settle_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id)
+    await cg.register_component(var, {})
+    template_ = await cg.templatable(config, [], cg.uint32)
+    cg.add(var.set_delay(template_))
+    return var
 
 
 MULTI_CLICK_TIMING_SCHEMA = cv.Schema(
@@ -467,14 +481,14 @@ def binary_sensor_schema(
 async def setup_binary_sensor_core_(var, config):
     await setup_entity(var, config)
 
-    if CONF_DEVICE_CLASS in config:
-        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
-    if CONF_PUBLISH_INITIAL_STATE in config:
-        cg.add(var.set_publish_initial_state(config[CONF_PUBLISH_INITIAL_STATE]))
-    if CONF_INVERTED in config:
-        cg.add(var.set_inverted(config[CONF_INVERTED]))
-    if CONF_FILTERS in config:
-        filters = await cg.build_registry_list(FILTER_REGISTRY, config[CONF_FILTERS])
+    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
+        cg.add(var.set_device_class(device_class))
+    if publish_initial_state := config.get(CONF_PUBLISH_INITIAL_STATE):
+        cg.add(var.set_publish_initial_state(publish_initial_state))
+    if inverted := config.get(CONF_INVERTED):
+        cg.add(var.set_inverted(inverted))
+    if filters_config := config.get(CONF_FILTERS):
+        filters = await cg.build_registry_list(FILTER_REGISTRY, filters_config)
         cg.add(var.add_filters(filters))
 
     for conf in config.get(CONF_ON_PRESS, []):
@@ -518,8 +532,8 @@ async def setup_binary_sensor_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(bool, "x")], conf)
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if mqtt_id := config.get(CONF_MQTT_ID):
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
 

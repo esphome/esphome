@@ -1,0 +1,36 @@
+spi:
+  id: quad_spi
+  clk_pin: 15
+  type: quad
+  data_pins: [14, 10, 16, 12]
+
+display:
+  - platform: qspi_amoled
+    model: RM690B0
+    data_rate: 80MHz
+    spi_mode: mode0
+    dimensions:
+      width: 450
+      height: 600
+      offset_width: 16
+    color_order: rgb
+    invert_colors: false
+    brightness: 255
+    cs_pin: 11
+    reset_pin: 13
+    enable_pin: 9
+
+  - platform: qspi_amoled
+    model: RM67162
+    id: main_lcd
+    dimensions:
+      height: 240
+      width: 536
+    transform:
+      mirror_x: true
+      swap_xy: true
+    color_order: rgb
+    brightness: 255
+    cs_pin: 6
+    reset_pin: 17
+    enable_pin: 38

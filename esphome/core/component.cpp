@@ -5,6 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <utility>
+#include <cinttypes>
 
 namespace esphome {
 
@@ -169,7 +170,7 @@ float Component::get_actual_setup_priority() const {
 void Component::set_setup_priority(float priority) { this->setup_priority_override_ = priority; }
 
 bool Component::has_overridden_loop() const {
-#ifdef CLANG_TIDY
+#if defined(USE_HOST) || defined(CLANG_TIDY)
   bool loop_overridden = true;
   bool call_loop_overridden = true;
 #else
@@ -188,8 +189,18 @@ void PollingComponent::call_setup() {
   // Let the polling component subclass setup their HW.
   this->setup();
 
+  // init the poller
+  this->start_poller();
+}
+
+void PollingComponent::start_poller() {
   // Register interval.
   this->set_interval("update", this->get_update_interval(), [this]() { this->update(); });
+}
+
+void PollingComponent::stop_poller() {
+  // Clear the interval to suspend component
+  this->cancel_interval("update");
 }
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
@@ -201,8 +212,8 @@ WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {
   uint32_t now = millis();
   if (now - started_ > 50) {
     const char *src = component_ == nullptr ? "<null>" : component_->get_component_source();
-    ESP_LOGW(TAG, "Component %s took a long time for an operation (%.2f s).", src, (now - started_) / 1e3f);
-    ESP_LOGW(TAG, "Components should block for at most 20-30ms.");
+    ESP_LOGW(TAG, "Component %s took a long time for an operation (%" PRIu32 " ms).", src, (now - started_));
+    ESP_LOGW(TAG, "Components should block for at most 30 ms.");
     ;
   }
 }

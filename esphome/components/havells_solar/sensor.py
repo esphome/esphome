@@ -6,6 +6,9 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_FREQUENCY,
     CONF_ID,
+    CONF_PHASE_A,
+    CONF_PHASE_B,
+    CONF_PHASE_C,
     CONF_REACTIVE_POWER,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
@@ -24,9 +27,6 @@ from esphome.const import (
     UNIT_WATT,
 )
 
-CONF_PHASE_A = "phase_a"
-CONF_PHASE_B = "phase_b"
-CONF_PHASE_C = "phase_c"
 CONF_ENERGY_PRODUCTION_DAY = "energy_production_day"
 CONF_TOTAL_ENERGY_PRODUCTION = "total_energy_production"
 CONF_TOTAL_GENERATION_TIME = "total_generation_time"

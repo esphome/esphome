@@ -1,6 +1,7 @@
 #include "servo.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace servo {
@@ -14,8 +15,24 @@ void Servo::dump_config() {
   ESP_LOGCONFIG(TAG, "  Idle Level: %.1f%%", this->idle_level_ * 100.0f);
   ESP_LOGCONFIG(TAG, "  Min Level: %.1f%%", this->min_level_ * 100.0f);
   ESP_LOGCONFIG(TAG, "  Max Level: %.1f%%", this->max_level_ * 100.0f);
-  ESP_LOGCONFIG(TAG, "  auto detach time: %d ms", this->auto_detach_time_);
-  ESP_LOGCONFIG(TAG, "  run duration: %d ms", this->transition_length_);
+  ESP_LOGCONFIG(TAG, "  auto detach time: %" PRIu32 " ms", this->auto_detach_time_);
+  ESP_LOGCONFIG(TAG, "  run duration: %" PRIu32 " ms", this->transition_length_);
+}
+
+void Servo::setup() {
+  float v;
+  if (this->restore_) {
+    this->rtc_ = global_preferences->make_preference<float>(global_servo_id);
+    global_servo_id++;
+    if (this->rtc_.load(&v)) {
+      this->target_value_ = v;
+      this->internal_write(v);
+      this->state_ = STATE_ATTACHED;
+      this->start_millis_ = millis();
+      return;
+    }
+  }
+  this->detach();
 }
 
 void Servo::loop() {
@@ -24,7 +41,6 @@ void Servo::loop() {
     if (millis() - this->start_millis_ > this->auto_detach_time_) {
       this->detach();
       this->start_millis_ = 0;
-      this->state_ = STATE_DETACHED;
       ESP_LOGD(TAG, "Servo detached on auto_detach_time");
     }
   }
@@ -53,8 +69,11 @@ void Servo::loop() {
 
 void Servo::write(float value) {
   value = clamp(value, -1.0f, 1.0f);
-  if (this->target_value_ == value)
+  if ((this->state_ == STATE_DETACHED) && (this->target_value_ == value)) {
     this->internal_write(value);
+  } else {
+    this->save_level_(value);
+  }
   this->target_value_ = value;
   this->source_value_ = this->current_value_;
   this->state_ = STATE_ATTACHED;
@@ -71,10 +90,17 @@ void Servo::internal_write(float value) {
     level = lerp(value, this->idle_level_, this->max_level_);
   }
   this->output_->set_level(level);
-  if (this->target_value_ == this->current_value_) {
-    this->save_level_(level);
-  }
   this->current_value_ = value;
+}
+
+void Servo::detach() {
+  this->state_ = STATE_DETACHED;
+  this->output_->set_level(0.0f);
+}
+
+void Servo::save_level_(float v) {
+  if (this->restore_)
+    this->rtc_.save(&v);
 }
 
 }  // namespace servo

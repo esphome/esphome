@@ -20,10 +20,66 @@ class TriggeredTrigger : public Trigger<> {
   }
 };
 
+class ArmingTrigger : public Trigger<> {
+ public:
+  explicit ArmingTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_arming_callback([this]() { this->trigger(); });
+  }
+};
+
+class PendingTrigger : public Trigger<> {
+ public:
+  explicit PendingTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_pending_callback([this]() { this->trigger(); });
+  }
+};
+
+class ArmedHomeTrigger : public Trigger<> {
+ public:
+  explicit ArmedHomeTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_armed_home_callback([this]() { this->trigger(); });
+  }
+};
+
+class ArmedNightTrigger : public Trigger<> {
+ public:
+  explicit ArmedNightTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_armed_night_callback([this]() { this->trigger(); });
+  }
+};
+
+class ArmedAwayTrigger : public Trigger<> {
+ public:
+  explicit ArmedAwayTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_armed_away_callback([this]() { this->trigger(); });
+  }
+};
+
+class DisarmedTrigger : public Trigger<> {
+ public:
+  explicit DisarmedTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_disarmed_callback([this]() { this->trigger(); });
+  }
+};
+
 class ClearedTrigger : public Trigger<> {
  public:
   explicit ClearedTrigger(AlarmControlPanel *alarm_control_panel) {
     alarm_control_panel->add_on_cleared_callback([this]() { this->trigger(); });
+  }
+};
+
+class ChimeTrigger : public Trigger<> {
+ public:
+  explicit ChimeTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_chime_callback([this]() { this->trigger(); });
+  }
+};
+
+class ReadyTrigger : public Trigger<> {
+ public:
+  explicit ReadyTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_ready_callback([this]() { this->trigger(); });
   }
 };
 
@@ -60,6 +116,26 @@ template<typename... Ts> class ArmHomeAction : public Action<Ts...> {
       call.set_code(code.value());
     }
     call.arm_home();
+    call.perform();
+  }
+
+ protected:
+  AlarmControlPanel *alarm_control_panel_;
+};
+
+template<typename... Ts> class ArmNightAction : public Action<Ts...> {
+ public:
+  explicit ArmNightAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
+
+  TEMPLATABLE_VALUE(std::string, code)
+
+  void play(Ts... x) override {
+    auto call = this->alarm_control_panel_->make_call();
+    auto code = this->code_.optional_value(x...);
+    if (code.has_value()) {
+      call.set_code(code.value());
+    }
+    call.arm_night();
     call.perform();
   }
 

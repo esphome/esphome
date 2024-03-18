@@ -1,9 +1,10 @@
-import colorama
+import json
 import os.path
 import re
 import subprocess
-import json
 from pathlib import Path
+
+import colorama
 
 root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
 basepath = os.path.join(root_path, "esphome")
@@ -44,7 +45,7 @@ def build_all_include():
     content = "\n".join(headers)
     p = Path(temp_header_file)
     p.parent.mkdir(exist_ok=True)
-    p.write_text(content)
+    p.write_text(content, encoding="utf-8")
 
 
 def walk_files(path):
@@ -54,14 +55,14 @@ def walk_files(path):
 
 
 def get_output(*args):
-    proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    output, err = proc.communicate()
+    with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+        output, _ = proc.communicate()
     return output.decode("utf-8")
 
 
 def get_err(*args):
-    proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    output, err = proc.communicate()
+    with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+        _, err = proc.communicate()
     return err.decode("utf-8")
 
 
@@ -69,16 +70,16 @@ def splitlines_no_ends(string):
     return [s.strip() for s in string.splitlines()]
 
 
-def changed_files():
+def changed_files(branch="dev"):
     check_remotes = ["upstream", "origin"]
     check_remotes.extend(splitlines_no_ends(get_output("git", "remote")))
     for remote in check_remotes:
-        command = ["git", "merge-base", f"refs/remotes/{remote}/dev", "HEAD"]
+        command = ["git", "merge-base", f"refs/remotes/{remote}/{branch}", "HEAD"]
         try:
             merge_base = splitlines_no_ends(get_output(*command))[0]
             break
         # pylint: disable=bare-except
-        except:
+        except:  # noqa: E722
             pass
     else:
         raise ValueError("Git not configured")
@@ -103,7 +104,7 @@ def filter_changed(files):
 def filter_grep(files, value):
     matched = []
     for file in files:
-        with open(file) as handle:
+        with open(file, encoding="utf-8") as handle:
             contents = handle.read()
         if value in contents:
             matched.append(file)
@@ -114,8 +115,8 @@ def git_ls_files(patterns=None):
     command = ["git", "ls-files", "-s"]
     if patterns is not None:
         command.extend(patterns)
-    proc = subprocess.Popen(command, stdout=subprocess.PIPE)
-    output, err = proc.communicate()
+    with subprocess.Popen(command, stdout=subprocess.PIPE) as proc:
+        output, _ = proc.communicate()
     lines = [x.split() for x in output.decode("utf-8").splitlines()]
     return {s[3].strip(): int(s[0]) for s in lines}
 
@@ -152,3 +153,39 @@ def load_idedata(environment):
 
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
     return data
+
+
+def get_binary(name: str, version: str) -> str:
+    binary_file = f"{name}-{version}"
+    try:
+        result = subprocess.check_output([binary_file, "-version"])
+        if result.returncode == 0:
+            return binary_file
+    except Exception:
+        pass
+    binary_file = name
+    try:
+        result = subprocess.run(
+            [binary_file, "-version"], text=True, capture_output=True
+        )
+        if result.returncode == 0 and (f"version {version}") in result.stdout:
+            return binary_file
+        raise FileNotFoundError(f"{name} not found")
+
+    except FileNotFoundError as ex:
+        print(
+            f"""
+            Oops. It looks like {name} is not installed. It should be available under venv/bin
+            and in PATH after running in turn:
+              script/setup
+              source venv/bin/activate.
+
+            Please confirm you can run "{name} -version" or "{name}-{version} -version"
+            in your terminal and install
+            {name} (v{version}) if necessary.
+
+            Note you can also upload your code as a pull request on GitHub and see the CI check
+            output to apply {name}
+            """
+        )
+        raise

@@ -52,6 +52,7 @@ CHIPSETS = {
 
 
 CONF_IS_RGBW = "is_rgbw"
+CONF_IS_WRGB = "is_wrgb"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
 CONF_BIT1_HIGH = "bit1_high"
@@ -63,6 +64,8 @@ RMT_CHANNELS = {
     esp32.const.VARIANT_ESP32S2: [0, 1, 2, 3],
     esp32.const.VARIANT_ESP32S3: [0, 1, 2, 3],
     esp32.const.VARIANT_ESP32C3: [0, 1],
+    esp32.const.VARIANT_ESP32C6: [0, 1],
+    esp32.const.VARIANT_ESP32H2: [0, 1],
 }
 
 
@@ -88,22 +91,23 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
+            cv.Optional(CONF_IS_WRGB, default=False): cv.boolean,
             cv.Inclusive(
                 CONF_BIT0_HIGH,
                 "custom",
-            ): cv.positive_time_period_microseconds,
+            ): cv.positive_time_period_nanoseconds,
             cv.Inclusive(
                 CONF_BIT0_LOW,
                 "custom",
-            ): cv.positive_time_period_microseconds,
+            ): cv.positive_time_period_nanoseconds,
             cv.Inclusive(
                 CONF_BIT1_HIGH,
                 "custom",
-            ): cv.positive_time_period_microseconds,
+            ): cv.positive_time_period_nanoseconds,
             cv.Inclusive(
                 CONF_BIT1_LOW,
                 "custom",
-            ): cv.positive_time_period_microseconds,
+            ): cv.positive_time_period_nanoseconds,
         }
     ),
     cv.has_exactly_one_key(CONF_CHIPSET, CONF_BIT0_HIGH),
@@ -143,6 +147,7 @@ async def to_code(config):
 
     cg.add(var.set_rgb_order(config[CONF_RGB_ORDER]))
     cg.add(var.set_is_rgbw(config[CONF_IS_RGBW]))
+    cg.add(var.set_is_wrgb(config[CONF_IS_WRGB]))
 
     cg.add(
         var.set_rmt_channel(

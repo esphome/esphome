@@ -26,11 +26,14 @@ duty_time_sensor_ns = cg.esphome_ns.namespace("duty_time_sensor")
 DutyTimeSensor = duty_time_sensor_ns.class_(
     "DutyTimeSensor", sensor.Sensor, cg.PollingComponent
 )
-StartAction = duty_time_sensor_ns.class_("StartAction", Action)
-StopAction = duty_time_sensor_ns.class_("StopAction", Action)
-ResetAction = duty_time_sensor_ns.class_("ResetAction", Action)
-SetAction = duty_time_sensor_ns.class_("SetAction", Action)
-RunningCondition = duty_time_sensor_ns.class_("RunningCondition", Condition)
+BaseAction = duty_time_sensor_ns.class_("BaseAction", Action, cg.Parented)
+StartAction = duty_time_sensor_ns.class_("StartAction", BaseAction)
+StopAction = duty_time_sensor_ns.class_("StopAction", BaseAction)
+ResetAction = duty_time_sensor_ns.class_("ResetAction", BaseAction)
+SetAction = duty_time_sensor_ns.class_("SetAction", BaseAction)
+RunningCondition = duty_time_sensor_ns.class_(
+    "RunningCondition", Condition, cg.Parented
+)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -89,20 +92,23 @@ DUTY_TIME_ID_SCHEMA = maybe_simple_id(
 
 @register_action("sensor.duty_time.start", StartAction, DUTY_TIME_ID_SCHEMA)
 async def sensor_runtime_start_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @register_action("sensor.duty_time.stop", StopAction, DUTY_TIME_ID_SCHEMA)
 async def sensor_runtime_stop_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @register_action("sensor.duty_time.reset", ResetAction, DUTY_TIME_ID_SCHEMA)
 async def sensor_runtime_reset_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @register_condition(
