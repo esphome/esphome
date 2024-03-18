@@ -37,7 +37,8 @@ jobs:
       - name: Check for changes
         run: |
           if ! git diff --quiet; then
-            echo "You have altered the generated proto files but they do not match what is expected."
-            echo "Please run `script/api_protobuf/api_protobuf.py` and commit the changes."
+            echo "## Job Failed" | tee -a $GITHUB_STEP_SUMMARY
+            echo "You have altered the generated proto files but they do not match what is expected." | tee -a $GITHUB_STEP_SUMMARY
+            echo "Please run 'script/api_protobuf/api_protobuf.py' and commit the changes." | tee -a $GITHUB_STEP_SUMMARY
             exit 1
           fi
