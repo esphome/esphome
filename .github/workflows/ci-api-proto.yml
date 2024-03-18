@@ -69,7 +69,7 @@ jobs:
               repo: context.repo.repo
             });
             console.log(reviews)
-            for (let review of reviews) {
+            for (let review of reviews.data) {
               if (review.user.login === 'github-actions[bot]' && review.state === 'CHANGES_REQUESTED') {
                 await github.rest.pulls.dismissReview({
                   pull_number: context.issue.number,
