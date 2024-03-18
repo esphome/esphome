@@ -16,11 +16,22 @@ jobs:
   check:
     name: Check generated files
     runs-on: ubuntu-latest
-    container: ghcr.io/esphome/esphome-lint:dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
 
+      - name: Install apt dependencies
+        run: |
+          sudo apt update
+          sudo apt-cache show protobuf-compiler
+          sudo apt install -y protobuf-compiler
+          protoc --version
+      - name: Install python dependencies
+        run: pip install aioesphomeapi -c requirements.txt -r requirements_dev.txt
       - name: Generate files
         run: script/api_protobuf/api_protobuf.py
       - name: Check for changes
