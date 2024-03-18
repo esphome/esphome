@@ -1,0 +1,6 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+ota_http:
+  exclude_certificate_bundle: true

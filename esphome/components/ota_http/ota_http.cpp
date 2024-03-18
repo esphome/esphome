@@ -39,13 +39,13 @@ std::unique_ptr<ota::OTABackend> make_ota_backend() {
 const std::unique_ptr<ota::OTABackend> OtaHttpComponent::BACKEND = make_ota_backend();
 
 void OtaHttpComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "OTA_http:");
+  ESP_LOGCONFIG(TAG, "ota_http:");
   ESP_LOGCONFIG(TAG, "  Timeout: %llums", (uint64_t) this->timeout_);
 };
 
 void OtaHttpComponent::flash() {
   if (this->pref_.ota_http_state != OTA_HTTP_STATE_SAFE_MODE) {
-    ESP_LOGV(TAG, "Setting mode to progress");
+    ESP_LOGV(TAG, "Setting state to 'progress'");
     this->pref_.ota_http_state = OTA_HTTP_STATE_PROGRESS;
     this->pref_obj_.save(&this->pref_);
   }
@@ -54,7 +54,7 @@ void OtaHttpComponent::flash() {
 
 #ifdef OTA_HTTP_ONLY_AT_BOOT
   if (this->pref_.ota_http_state != OTA_HTTP_STATE_SAFE_MODE) {
-    ESP_LOGI(TAG, "Rebooting before flashing new firmware.");
+    ESP_LOGI(TAG, "Rebooting before flashing new firmware");
     App.safe_reboot();
   }
 #endif
@@ -63,16 +63,16 @@ void OtaHttpComponent::flash() {
   uint8_t buf[this->http_recv_buffer_ + 1];
   int error_code = 0;
   uint32_t last_progress = 0;
-  esphome::md5::MD5Digest md5_receive;
+  md5::MD5Digest md5_receive;
   std::unique_ptr<char[]> md5_receive_str(new char[33]);
-  if (!this->http_init()) {
+  if (!this->http_get_md5() || !this->http_init(this->pref_.url)) {
     return;
   }
 
-  // we will compute md5 on the fly
-  // TODO: better security if fetched from the http server
+  ESP_LOGD(TAG, "MD5 expected: %s", this->md5_expected_);
+  // we will compute MD5 on the fly for verification -- Arduino OTA seems to ignore it
   md5_receive.init();
-  ESP_LOGV(TAG, "md5sum from received data initialized.");
+  ESP_LOGV(TAG, "MD5Digest initialized");
 
   error_code = esphome::ota_http::OtaHttpComponent::BACKEND->begin(this->body_length_);
   if (error_code != 0) {
@@ -82,22 +82,23 @@ void OtaHttpComponent::flash() {
   }
   ESP_LOGV(TAG, "OTA backend begin");
 
+  this->bytes_read_ = 0;
   while (this->bytes_read_ != this->body_length_) {
     // read a maximum of chunk_size bytes into buf. (real read size returned)
     int bufsize = this->http_read(buf, this->http_recv_buffer_);
 
     if (bufsize < 0) {
-      ESP_LOGE(TAG, "ERROR: stream closed");
+      ESP_LOGE(TAG, "Stream closed");
       this->cleanup_();
       return;
     }
 
-    // add read bytes to md5
+    // add read bytes to MD5
     md5_receive.add(buf, bufsize);
 
     // write bytes to OTA backend
     this->update_started_ = true;
-    error_code = esphome::ota_http::OtaHttpComponent::BACKEND->write(buf, bufsize);
+    error_code = ota_http::OtaHttpComponent::BACKEND->write(buf, bufsize);
     if (error_code != 0) {
       // error code explaination available at
       // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_component.h
@@ -112,29 +113,34 @@ void OtaHttpComponent::flash() {
       last_progress = now;
       ESP_LOGI(TAG, "Progress: %0.1f%%", this->bytes_read_ * 100. / this->body_length_);
       // feed watchdog and give other tasks a chance to run
-      esphome::App.feed_wdt();
+      App.feed_wdt();
       yield();
     }
   }  // while
 
-  ESP_LOGI(TAG, "Done in %.0f secs", float(millis() - update_start_time) / 1000);
+  ESP_LOGI(TAG, "Done in %.0f seconds", float(millis() - update_start_time) / 1000);
 
-  // send md5 to backend (backend will check that the flashed one has the same)
+  // verify MD5 is as expected and act accordingly
   md5_receive.calculate();
   md5_receive.get_hex(md5_receive_str.get());
-  ESP_LOGD(TAG, "md5sum recieved: %s (size %d)", md5_receive_str.get(), this->bytes_read_);
-  esphome::ota_http::OtaHttpComponent::BACKEND->set_update_md5(md5_receive_str.get());
+  if (strncmp(md5_receive_str.get(), this->md5_expected_, MD5_SIZE) != 0) {
+    ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", md5_receive_str.get());
+    this->cleanup_();
+    return;
+  } else {
+    ota_http::OtaHttpComponent::BACKEND->set_update_md5(md5_receive_str.get());
+  }
 
   this->http_end();
 
   // feed watchdog and give other tasks a chance to run
-  esphome::App.feed_wdt();
+  App.feed_wdt();
   yield();
   delay(100);  // NOLINT
 
-  error_code = esphome::ota_http::OtaHttpComponent::BACKEND->end();
+  error_code = ota_http::OtaHttpComponent::BACKEND->end();
   if (error_code != 0) {
-    ESP_LOGE(TAG, "Error ending OTA!, error_code: %d", error_code);
+    ESP_LOGE(TAG, "Error ending OTA (%d)", error_code);
     this->cleanup_();
     return;
   }
@@ -142,20 +148,22 @@ void OtaHttpComponent::flash() {
   this->pref_.ota_http_state = OTA_HTTP_STATE_OK;
   this->pref_obj_.save(&this->pref_);
   delay(10);
-  ESP_LOGI(TAG, "OTA update finished! Rebooting...");
+  ESP_LOGI(TAG, "OTA update completed");
   delay(10);
   esphome::App.safe_reboot();
 }
 
 void OtaHttpComponent::cleanup_() {
   if (this->update_started_) {
-    ESP_LOGE(TAG, "Abort OTA backend");
-    esphome::ota_http::OtaHttpComponent::BACKEND->abort();
+    ESP_LOGV(TAG, "Aborting OTA backend");
+    ota_http::OtaHttpComponent::BACKEND->abort();
   }
-  ESP_LOGE(TAG, "Aborting http connection");
+  ESP_LOGV(TAG, "Aborting HTTP connection");
   this->http_end();
-  ESP_LOGE(TAG, "Previous safe mode unsuccessful; skipped ota_http");
-  this->pref_.ota_http_state = OTA_HTTP_STATE_ABORT;
+  if (this->pref_.ota_http_state == OTA_HTTP_STATE_SAFE_MODE) {
+    ESP_LOGE(TAG, "Previous safe mode unsuccessful; skipped ota_http");
+    this->pref_.ota_http_state = OTA_HTTP_STATE_ABORT;
+  }
   this->pref_obj_.save(&this->pref_);
 };
 
@@ -169,7 +177,7 @@ void OtaHttpComponent::check_upgrade() {
       delay(300);  // NOLINT
       App.setup();
 
-      ESP_LOGI(TAG, "Previous ota_http unsuccessful. Retrying");
+      ESP_LOGI(TAG, "Previous ota_http unsuccessful. Retrying...");
       this->pref_.ota_http_state = OTA_HTTP_STATE_SAFE_MODE;
       this->pref_obj_.save(&this->pref_);
       this->flash();
@@ -182,6 +190,18 @@ void OtaHttpComponent::check_upgrade() {
       global_preferences->sync();
     }
   }
+}
+
+bool OtaHttpComponent::http_get_md5() {
+  if (this->http_init(this->pref_.md5_url) != MD5_SIZE) {
+    ESP_LOGE(TAG, "Incorrect file size (%d) for MD5 reported by HTTP server. Aborting", this->body_length_);
+    return false;
+  }
+
+  auto read_len = this->http_read((uint8_t *) this->md5_expected_, MD5_SIZE);
+  this->http_end();
+
+  return read_len == MD5_SIZE;
 }
 
 }  // namespace ota_http

@@ -27,6 +27,7 @@ OtaHttpIDF = ota_http_ns.class_("OtaHttpIDF", OtaHttpComponent)
 OtaHttpFlashAction = ota_http_ns.class_("OtaHttpFlashAction", automation.Action)
 
 CONF_EXCLUDE_CERTIFICATE_BUNDLE = "exclude_certificate_bundle"
+CONF_MD5_URL = "md5_url"
 
 
 def validate_certificate_bundle(config):
@@ -147,6 +148,7 @@ async def to_code(config):
 OTA_HTTP_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(OtaHttpComponent),
+        cv.Required(CONF_MD5_URL): cv.templatable(validate_url),
         cv.Required(CONF_URL): cv.templatable(validate_url),
     }
 )
@@ -169,6 +171,8 @@ async def ota_http_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
+    template_ = await cg.templatable(config[CONF_MD5_URL], args, cg.std_string)
+    cg.add(var.set_md5_url(template_))
     template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
     cg.add(var.set_url(template_))
     return var

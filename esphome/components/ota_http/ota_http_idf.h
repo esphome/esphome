@@ -11,7 +11,7 @@ namespace ota_http {
 
 class OtaHttpIDF : public OtaHttpComponent {
  public:
-  int http_init() override;
+  int http_init(char *url) override;
   int http_read(uint8_t *buf, size_t len) override;
   void http_end() override;
 

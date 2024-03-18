@@ -30,11 +30,11 @@
 namespace esphome {
 namespace ota_http {
 
-int OtaHttpIDF::http_init() {
+int OtaHttpIDF::http_init(char *url) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
   esp_http_client_config_t config = {nullptr};
-  config.url = this->pref_.url;
+  config.url = url;
   config.method = HTTP_METHOD_GET;
   config.timeout_ms = (int) this->timeout_;
   config.buffer_size = this->max_http_recv_buffer_;
@@ -55,15 +55,14 @@ int OtaHttpIDF::http_init() {
   }
   this->body_length_ = esp_http_client_fetch_headers(this->client_);
 
-  ESP_LOGD(TAG, "body_length: %d , esp_http_client_get_content_length: %" PRId64, this->body_length_,
+  ESP_LOGV(TAG, "body_length: %d , esp_http_client_get_content_length: %" PRId64, this->body_length_,
            (int64_t) esp_http_client_get_content_length(this->client_));
 
   if (this->body_length_ <= 0) {
-    ESP_LOGE(TAG, "Incorrect file size (%d) reported by http server (http status: %d). Aborting", this->body_length_,
-             err);
+    ESP_LOGE(TAG, "Incorrect file size (%d) reported by HTTP server (status: %d). Aborting", this->body_length_, err);
     return -1;
   }
-  return 1;
+  return this->body_length_;
 }
 
 int OtaHttpIDF::http_read(uint8_t *buf, const size_t max_len) {
@@ -73,7 +72,7 @@ int OtaHttpIDF::http_read(uint8_t *buf, const size_t max_len) {
     this->bytes_read_ += bufsize;
     buf[bufsize] = '\0';  // not fed to ota
   }
-  // ESP_LOGVV(TAG, "Read %d bytes, %d remainings", read_len, this->body_length_ - this->bytes_read);
+  // ESP_LOGVV(TAG, "Read %d bytes, %d remaining", read_len, this->body_length_ - this->bytes_read);
 
   return read_len;
 }

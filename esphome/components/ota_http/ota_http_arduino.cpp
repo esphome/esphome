@@ -1,9 +1,3 @@
-// firmware update from http (ie when OTA port is behind a firewall)
-// code adapted from
-// esphome/components/ota/ota_backend.cpp
-// and
-// esphome/components/http_request
-
 #include "ota_http.h"
 
 #ifdef USE_ARDUINO
@@ -22,7 +16,7 @@ struct Header {
   const char *value;
 };
 
-int OtaHttpArduino::http_init() {
+int OtaHttpArduino::http_init(char *url) {
   int http_code;
   uint32_t start_time;
   uint32_t duration;
@@ -31,80 +25,67 @@ int OtaHttpArduino::http_init() {
   const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
 
 #ifdef USE_ESP8266
-#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
-  if (this->secure_()) {
-    ESP_LOGD(TAG, "esp8266 https connection with WiFiClientSecure");
-    this->stream_ptr_ = std::make_unique<WiFiClientSecure>();
-    WiFiClientSecure *secure_client = static_cast<WiFiClientSecure *>(this->stream_ptr_.get());
-    secure_client->setBufferSizes(this->max_http_recv_buffer_, 512);
-    secure_client->setInsecure();
-  } else {
-    this->stream_ptr_ = std::make_unique<WiFiClient>();
+  if (this->stream_ptr_ == nullptr && this->set_stream_ptr_()) {
+    ESP_LOGE(TAG, "Unable to set client");
   }
-#else
-  ESP_LOGD(TAG, "esp8266 http connection with WiFiClient");
-  if (this->secure_()) {
-    ESP_LOGE(TAG, "Can't use https connection with esp8266_disable_ssl_support");
-    return -1;
-  }
-  this->stream_ptr_ = std::make_unique<WiFiClient>();
-#endif  // USE_HTTP_REQUEST_ESP8266_HTTPS
 #endif  // USE_ESP8266
 
-  ESP_LOGD(TAG, "Trying to connect to %s", this->pref_.url);
+  ESP_LOGD(TAG, "Trying to connect to %s", url);
 
   bool status = false;
 #ifdef USE_RP2040
   this->client_.setInsecure();
 #endif
 #if defined(USE_ESP32) || defined(USE_RP2040)
-  status = this->client_.begin(this->pref_.url);
+  status = this->client_.begin(url);
 #endif
 #ifdef USE_ESP8266
-  status = this->client_.begin(*this->stream_ptr_, this->pref_.url);
+  status = this->client_.begin(*this->stream_ptr_, String(url));
 #endif
 
   if (!status) {
-    ESP_LOGE(TAG, "Unable to make http connection");
+    ESP_LOGE(TAG, "Unable to make HTTP connection");
     this->client_.end();
     return -1;
   } else {
-    ESP_LOGV(TAG, "http begin successful");
+    ESP_LOGV(TAG, "HTTP begin successful");
   }
 
   this->client_.setReuse(true);
-  ESP_LOGVV(TAG, "http client setReuse.");
+  ESP_LOGVV(TAG, "HTTP client setReuse");
 
   // returned needed headers must be collected before the requests
   this->client_.collectHeaders(header_keys, header_count);
-  ESP_LOGV(TAG, "http headers collected.");
+  ESP_LOGV(TAG, "HTTP headers collected");
 
-  // http GET
+  // HTTP GET
   start_time = millis();
   http_code = this->client_.GET();
   duration = millis() - start_time;
-  ESP_LOGV(TAG, "http GET finished.");
+  ESP_LOGV(TAG, "HTTP GET finished");
 
   if (http_code >= 310) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s (%d); Duration: %u ms", pref_.url,
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s (%d); Duration: %u ms", url,
              HTTPClient::errorToString(http_code).c_str(), http_code, duration);
     return -1;
   }
 
   if (this->client_.getSize() < 0) {
-    ESP_LOGE(TAG, "Incorrect file size (%d) reported by http server (http status: %d). Aborting",
-             this->client_.getSize(), http_code);
+    ESP_LOGE(TAG, "Incorrect file size (%d) reported by HTTP server (status: %d). Aborting", this->client_.getSize(),
+             http_code);
     return -1;
   }
 
   this->body_length_ = (size_t) this->client_.getSize();
-  ESP_LOGD(TAG, "firmware is %d bytes length.", this->body_length_);
+  ESP_LOGV(TAG, "body_length: %d", this->body_length_);
 
 #if defined(USE_ESP32) || defined(USE_RP2040)
-  this->stream_ptr_ = std::unique_ptr<WiFiClient>(this->client_.getStreamPtr());
+  if (this->stream_ptr_ == nullptr) {
+    this->set_stream_ptr_();
+  }
 #endif
 
-  return 1;
+  return this->body_length_;
 }
 
 int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
@@ -129,6 +110,34 @@ int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
 }
 
 void OtaHttpArduino::http_end() { this->client_.end(); }
+
+int OtaHttpArduino::set_stream_ptr_() {
+#ifdef USE_ESP8266
+#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
+  if (this->secure_()) {
+    ESP_LOGD(TAG, "ESP8266 HTTPS connection with WiFiClientSecure");
+    this->stream_ptr_ = std::make_unique<WiFiClientSecure>();
+    WiFiClientSecure *secure_client = static_cast<WiFiClientSecure *>(this->stream_ptr_.get());
+    secure_client->setBufferSizes(this->max_http_recv_buffer_, 512);
+    secure_client->setInsecure();
+  } else {
+    this->stream_ptr_ = std::make_unique<WiFiClient>();
+  }
+#else
+  ESP_LOGD(TAG, "ESP8266 HTTP connection with WiFiClient");
+  if (this->secure_()) {
+    ESP_LOGE(TAG, "Can't use HTTPS connection with esp8266_disable_ssl_support");
+    return -1;
+  }
+  this->stream_ptr_ = std::make_unique<WiFiClient>();
+#endif  // USE_HTTP_REQUEST_ESP8266_HTTPS
+#endif  // USE_ESP8266
+
+#if defined(USE_ESP32) || defined(USE_RP2040)
+  this->stream_ptr_ = std::unique_ptr<WiFiClient>(this->client_.getStreamPtr());
+#endif
+  return 0;
+}
 
 }  // namespace ota_http
 }  // namespace esphome
