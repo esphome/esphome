@@ -47,7 +47,7 @@ jobs:
             exit 1
           fi
       - if: failure()
-        name: Comment on PR
+        name: Review PR
         uses: actions/github-script@v7.0.1
         with:
           script: |
@@ -58,3 +58,24 @@ jobs:
               event: 'REQUEST_CHANGES',
               body: 'You have altered the generated proto files but they do not match what is expected.\nPlease run "script/api_protobuf/api_protobuf.py" and commit the changes.'
             })
+      - if: success()
+        name: Dismiss review
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            let reviews = github.rest.pulls.listReviews({
+              pull_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            for (let review of reviews.data) {
+              if (review.user.login === 'github-actions[bot]' && review.state === 'CHANGES_REQUESTED') {
+                github.rest.pulls.dismissReview({
+                  pull_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  review_id: review.id,
+                  message: 'Files now match the expected proto files.'
+                });
+              }
+            }
