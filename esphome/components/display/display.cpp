@@ -36,6 +36,21 @@ void HOT Display::line(int x1, int y1, int x2, int y2, Color color) {
   }
 }
 
+void Display::line_at_angle(int x, int y, int angle, int length, Color color) {
+  this->line_at_angle(x, y, angle, 0, length, color);
+}
+
+void Display::line_at_angle(int x, int y, int angle, int start_radius, int stop_radius, Color color) {
+  // Calculate start and end points
+  int x1 = (start_radius * cos(angle * M_PI / 180)) + x;
+  int y1 = (start_radius * sin(angle * M_PI / 180)) + y;
+  int x2 = (stop_radius * cos(angle * M_PI / 180)) + x;
+  int y2 = (stop_radius * sin(angle * M_PI / 180)) + y;
+
+  // Draw line
+  this->line(x1, y1, x2, y2, color);
+}
+
 void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                              ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
@@ -257,18 +272,81 @@ void Display::filled_triangle(int x1, int y1, int x2, int y2, int x3, int y3, Co
     this->filled_flat_side_triangle_(x3, y3, x2, y2, x_temp, y_temp, color);
   }
 }
+void HOT Display::get_regular_polygon_vertex(int vertex_id, int *vertex_x, int *vertex_y, int center_x, int center_y,
+                                             int radius, int edges, RegularPolygonVariation variation,
+                                             float rotation_degrees) {
+  if (edges >= 2) {
+    // Given the orientation of the display component, an angle is measured clockwise from the x axis.
+    // For a regular polygon, the human reference would be the top of the polygon,
+    // hence we rotate the shape by 270° to orient the polygon up.
+    rotation_degrees += ROTATION_270_DEGREES;
+    // Convert the rotation to radians, easier to use in trigonometrical calculations
+    float rotation_radians = rotation_degrees * PI / 180;
+    // A pointy top variation means the first vertex of the polygon is at the top center of the shape, this requires no
+    // additional rotation of the shape.
+    // A flat top variation means the first point of the polygon has to be rotated so that the first edge is horizontal,
+    // this requires to rotate the shape by π/edges radians counter-clockwise so that the first point is located on the
+    // left side of the first horizontal edge.
+    rotation_radians -= (variation == VARIATION_FLAT_TOP) ? PI / edges : 0.0;
 
-void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text) {
+    float vertex_angle = ((float) vertex_id) / edges * 2 * PI + rotation_radians;
+    *vertex_x = (int) round(cos(vertex_angle) * radius) + center_x;
+    *vertex_y = (int) round(sin(vertex_angle) * radius) + center_y;
+  }
+}
+
+void HOT Display::regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation,
+                                  float rotation_degrees, Color color, RegularPolygonDrawing drawing) {
+  if (edges >= 2) {
+    int previous_vertex_x, previous_vertex_y;
+    for (int current_vertex_id = 0; current_vertex_id <= edges; current_vertex_id++) {
+      int current_vertex_x, current_vertex_y;
+      get_regular_polygon_vertex(current_vertex_id, &current_vertex_x, &current_vertex_y, x, y, radius, edges,
+                                 variation, rotation_degrees);
+      if (current_vertex_id > 0) {  // Start drawing after the 2nd vertex coordinates has been calculated
+        if (drawing == DRAWING_FILLED) {
+          this->filled_triangle(x, y, previous_vertex_x, previous_vertex_y, current_vertex_x, current_vertex_y, color);
+        } else if (drawing == DRAWING_OUTLINE) {
+          this->line(previous_vertex_x, previous_vertex_y, current_vertex_x, current_vertex_y, color);
+        }
+      }
+      previous_vertex_x = current_vertex_x;
+      previous_vertex_y = current_vertex_y;
+    }
+  }
+}
+void HOT Display::regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation, Color color,
+                                  RegularPolygonDrawing drawing) {
+  regular_polygon(x, y, radius, edges, variation, ROTATION_0_DEGREES, color, drawing);
+}
+void HOT Display::regular_polygon(int x, int y, int radius, int edges, Color color, RegularPolygonDrawing drawing) {
+  regular_polygon(x, y, radius, edges, VARIATION_POINTY_TOP, ROTATION_0_DEGREES, color, drawing);
+}
+void Display::filled_regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation,
+                                     float rotation_degrees, Color color) {
+  regular_polygon(x, y, radius, edges, variation, rotation_degrees, color, DRAWING_FILLED);
+}
+void Display::filled_regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation,
+                                     Color color) {
+  regular_polygon(x, y, radius, edges, variation, ROTATION_0_DEGREES, color, DRAWING_FILLED);
+}
+void Display::filled_regular_polygon(int x, int y, int radius, int edges, Color color) {
+  regular_polygon(x, y, radius, edges, VARIATION_POINTY_TOP, ROTATION_0_DEGREES, color, DRAWING_FILLED);
+}
+
+void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text, Color background) {
   int x_start, y_start;
   int width, height;
   this->get_text_bounds(x, y, text, font, align, &x_start, &y_start, &width, &height);
-  font->print(x_start, y_start, this, color, text);
+  font->print(x_start, y_start, this, color, text, background);
 }
-void Display::vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg) {
+
+void Display::vprintf_(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
+                       va_list arg) {
   char buffer[256];
   int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
   if (ret > 0)
-    this->print(x, y, font, color, align, buffer);
+    this->print(x, y, font, color, align, buffer, background);
 }
 
 void Display::image(int x, int y, BaseImage *image, Color color_on, Color color_off) {
@@ -362,8 +440,8 @@ void Display::get_text_bounds(int x, int y, const char *text, BaseFont *font, Te
       break;
   }
 }
-void Display::print(int x, int y, BaseFont *font, Color color, const char *text) {
-  this->print(x, y, font, color, TextAlign::TOP_LEFT, text);
+void Display::print(int x, int y, BaseFont *font, Color color, const char *text, Color background) {
+  this->print(x, y, font, color, TextAlign::TOP_LEFT, text, background);
 }
 void Display::print(int x, int y, BaseFont *font, TextAlign align, const char *text) {
   this->print(x, y, font, COLOR_ON, align, text);
@@ -371,28 +449,35 @@ void Display::print(int x, int y, BaseFont *font, TextAlign align, const char *t
 void Display::print(int x, int y, BaseFont *font, const char *text) {
   this->print(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, text);
 }
+void Display::printf(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
+                     ...) {
+  va_list arg;
+  va_start(arg, format);
+  this->vprintf_(x, y, font, color, background, align, format, arg);
+  va_end(arg);
+}
 void Display::printf(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
-  this->vprintf_(x, y, font, color, align, format, arg);
+  this->vprintf_(x, y, font, color, COLOR_OFF, align, format, arg);
   va_end(arg);
 }
 void Display::printf(int x, int y, BaseFont *font, Color color, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
-  this->vprintf_(x, y, font, color, TextAlign::TOP_LEFT, format, arg);
+  this->vprintf_(x, y, font, color, COLOR_OFF, TextAlign::TOP_LEFT, format, arg);
   va_end(arg);
 }
 void Display::printf(int x, int y, BaseFont *font, TextAlign align, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
-  this->vprintf_(x, y, font, COLOR_ON, align, format, arg);
+  this->vprintf_(x, y, font, COLOR_ON, COLOR_OFF, align, format, arg);
   va_end(arg);
 }
 void Display::printf(int x, int y, BaseFont *font, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
-  this->vprintf_(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, format, arg);
+  this->vprintf_(x, y, font, COLOR_ON, COLOR_OFF, TextAlign::TOP_LEFT, format, arg);
   va_end(arg);
 }
 void Display::set_writer(display_writer_t &&writer) { this->writer_ = writer; }

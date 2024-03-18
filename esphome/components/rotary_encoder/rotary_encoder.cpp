@@ -226,6 +226,7 @@ void RotaryEncoderSensor::loop() {
     }
     this->store_.last_read = counter;
     this->publish_state(counter);
+    this->listeners_.call(counter);
     this->publish_initial_value_ = false;
   }
 }

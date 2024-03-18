@@ -137,6 +137,42 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
+#define PI 3.1415926535897932384626433832795
+
+const int EDGES_TRIGON = 3;
+const int EDGES_TRIANGLE = 3;
+const int EDGES_TETRAGON = 4;
+const int EDGES_QUADRILATERAL = 4;
+const int EDGES_PENTAGON = 5;
+const int EDGES_HEXAGON = 6;
+const int EDGES_HEPTAGON = 7;
+const int EDGES_OCTAGON = 8;
+const int EDGES_NONAGON = 9;
+const int EDGES_ENNEAGON = 9;
+const int EDGES_DECAGON = 10;
+const int EDGES_HENDECAGON = 11;
+const int EDGES_DODECAGON = 12;
+const int EDGES_TRIDECAGON = 13;
+const int EDGES_TETRADECAGON = 14;
+const int EDGES_PENTADECAGON = 15;
+const int EDGES_HEXADECAGON = 16;
+
+const float ROTATION_0_DEGREES = 0.0;
+const float ROTATION_45_DEGREES = 45.0;
+const float ROTATION_90_DEGREES = 90.0;
+const float ROTATION_180_DEGREES = 180.0;
+const float ROTATION_270_DEGREES = 270.0;
+
+enum RegularPolygonVariation {
+  VARIATION_POINTY_TOP = 0,
+  VARIATION_FLAT_TOP = 1,
+};
+
+enum RegularPolygonDrawing {
+  DRAWING_OUTLINE = 0,
+  DRAWING_FILLED = 1,
+};
+
 class Display;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
@@ -164,7 +200,7 @@ class BaseImage {
 
 class BaseFont {
  public:
-  virtual void print(int x, int y, Display *display, Color color, const char *text) = 0;
+  virtual void print(int x, int y, Display *display, Color color, const char *text, Color background) = 0;
   virtual void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) = 0;
 };
 
@@ -175,10 +211,15 @@ class Display : public PollingComponent {
   /// Clear the entire screen by filling it with OFF pixels.
   void clear();
 
-  /// Get the width of the image in pixels with rotation applied.
-  virtual int get_width() = 0;
-  /// Get the height of the image in pixels with rotation applied.
-  virtual int get_height() = 0;
+  /// Get the calculated width of the display in pixels with rotation applied.
+  virtual int get_width() { return this->get_width_internal(); }
+  /// Get the calculated height of the display in pixels with rotation applied.
+  virtual int get_height() { return this->get_height_internal(); }
+
+  /// Get the native (original) width of the display in pixels.
+  int get_native_width() { return this->get_width_internal(); }
+  /// Get the native (original) height of the display in pixels.
+  int get_native_height() { return this->get_height_internal(); }
 
   /// Set a single pixel at the specified coordinates to default color.
   inline void draw_pixel_at(int x, int y) { this->draw_pixel_at(x, y, COLOR_ON); }
@@ -217,6 +258,13 @@ class Display : public PollingComponent {
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
   void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON);
 
+  /// Draw a straight line at the given angle based on the origin [x, y] for a specified length with the given color.
+  void line_at_angle(int x, int y, int angle, int length, Color color = COLOR_ON);
+
+  /// Draw a straight line at the given angle based on the origin [x, y] from a specified start and stop radius with the
+  /// given color.
+  void line_at_angle(int x, int y, int angle, int start_radius, int stop_radius, Color color = COLOR_ON);
+
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
   void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
 
@@ -242,6 +290,42 @@ class Display : public PollingComponent {
   /// Fill a triangle contained between the points [x1,y1], [x2,y2] and [x3,y3] with the given color.
   void filled_triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color = COLOR_ON);
 
+  /// Get the specified vertex (x,y) coordinates for the regular polygon inscribed in the circle centered on
+  /// [center_x,center_y] with the given radius. Vertex id are 0-indexed and rotate clockwise. In a pointy-topped
+  /// variation of a polygon with a 0° rotation, the vertex #0 is located at the top of the polygon. In a flat-topped
+  /// variation of a polygon with a 0° rotation, the vertex #0 is located on the left-side of the horizontal top
+  /// edge, and the vertex #1 is located on the right-side of the horizontal top edge.
+  /// Use the edges constants (e.g.: EDGES_HEXAGON) or any integer to specify the number of edges of the polygon.
+  /// Use the variation to switch between the flat-topped or the pointy-topped variation of the polygon.
+  /// Use the rotation in degrees to rotate the shape clockwise.
+  void get_regular_polygon_vertex(int vertex_id, int *vertex_x, int *vertex_y, int center_x, int center_y, int radius,
+                                  int edges, RegularPolygonVariation variation = VARIATION_POINTY_TOP,
+                                  float rotation_degrees = ROTATION_0_DEGREES);
+
+  /// Draw the outline of a regular polygon inscribed in the circle centered on [x,y] with the given
+  /// radius and color.
+  /// Use the edges constants (e.g.: EDGES_HEXAGON) or any integer to specify the number of edges of the polygon.
+  /// Use the variation to switch between the flat-topped or the pointy-topped variation of the polygon.
+  /// Use the rotation in degrees to rotate the shape clockwise.
+  /// Use the drawing to switch between outlining or filling the polygon.
+  void regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation = VARIATION_POINTY_TOP,
+                       float rotation_degrees = ROTATION_0_DEGREES, Color color = COLOR_ON,
+                       RegularPolygonDrawing drawing = DRAWING_OUTLINE);
+  void regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation, Color color,
+                       RegularPolygonDrawing drawing = DRAWING_OUTLINE);
+  void regular_polygon(int x, int y, int radius, int edges, Color color,
+                       RegularPolygonDrawing drawing = DRAWING_OUTLINE);
+
+  /// Fill a regular polygon inscribed in the circle centered on [x,y] with the given radius and color.
+  /// Use the edges constants (e.g.: EDGES_HEXAGON) or any integer to specify the number of edges of the polygon.
+  /// Use the variation to switch between the flat-topped or the pointy-topped variation of the polygon.
+  /// Use the rotation in degrees to rotate the shape clockwise.
+  void filled_regular_polygon(int x, int y, int radius, int edges,
+                              RegularPolygonVariation variation = VARIATION_POINTY_TOP,
+                              float rotation_degrees = ROTATION_0_DEGREES, Color color = COLOR_ON);
+  void filled_regular_polygon(int x, int y, int radius, int edges, RegularPolygonVariation variation, Color color);
+  void filled_regular_polygon(int x, int y, int radius, int edges, Color color);
+
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
    * @param x The x coordinate of the text alignment anchor point.
@@ -250,8 +334,10 @@ class Display : public PollingComponent {
    * @param color The color to draw the text with.
    * @param align The alignment of the text.
    * @param text The text to draw.
+   * @param background When using multi-bit (anti-aliased) fonts, blend this background color into pixels
    */
-  void print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text);
+  void print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text,
+             Color background = COLOR_OFF);
 
   /** Print `text` with the top left at [x,y] with `font`.
    *
@@ -260,8 +346,9 @@ class Display : public PollingComponent {
    * @param font The font to draw the text with.
    * @param color The color to draw the text with.
    * @param text The text to draw.
+   * @param background When using multi-bit (anti-aliased) fonts, blend this background color into pixels
    */
-  void print(int x, int y, BaseFont *font, Color color, const char *text);
+  void print(int x, int y, BaseFont *font, Color color, const char *text, Color background = COLOR_OFF);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -281,6 +368,20 @@ class Display : public PollingComponent {
    * @param text The text to draw.
    */
   void print(int x, int y, BaseFont *font, const char *text);
+
+  /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
+   *
+   * @param x The x coordinate of the text alignment anchor point.
+   * @param y The y coordinate of the text alignment anchor point.
+   * @param font The font to draw the text with.
+   * @param color The color to draw the text with.
+   * @param background The background color to use for anti-aliasing
+   * @param align The alignment of the text.
+   * @param format The format to use.
+   * @param ... The arguments to use for the text formatting.
+   */
+  void printf(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format, ...)
+      __attribute__((format(printf, 8, 9)));
 
   /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
@@ -533,10 +634,14 @@ class Display : public PollingComponent {
  protected:
   bool clamp_x_(int x, int w, int &min_x, int &max_x);
   bool clamp_y_(int y, int h, int &min_y, int &max_y);
-  void vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg);
+  void vprintf_(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
+                va_list arg);
 
   void do_update_();
   void clear_clipping_();
+
+  virtual int get_height_internal() = 0;
+  virtual int get_width_internal() = 0;
 
   /**
    * This method fills a triangle using only integer variables by using a
