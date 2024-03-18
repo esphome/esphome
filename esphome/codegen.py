@@ -87,4 +87,5 @@ from esphome.cpp_types import (  # noqa
     gpio_Flags,
     EntityCategory,
     Parented,
+    ESPTime,
 )
