@@ -1,0 +1,18 @@
+light:
+  - platform: esp32_rmt_led_strip
+    id: led_strip
+    pin: 13
+    num_leds: 60
+    rmt_channel: 6
+    rgb_order: GRB
+    chipset: ws2812
+  - platform: esp32_rmt_led_strip
+    id: led_strip2
+    pin: 14
+    num_leds: 60
+    rmt_channel: 2
+    rgb_order: RGB
+    bit0_high: 100us
+    bit0_low: 100us
+    bit1_high: 100us
+    bit1_low: 100us
