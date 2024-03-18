@@ -32,10 +32,12 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
 
 
 async def to_code(config):
-    output_ = await cg.get_variable(config[CONF_OUTPUT])
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], output_, config[CONF_SPEED_COUNT])
+    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], config[CONF_SPEED_COUNT])
     await cg.register_component(var, config)
     await fan.register_fan(var, config)
+
+    output_ = await cg.get_variable(config[CONF_OUTPUT])
+    cg.add(var.set_output(output_))
 
     if CONF_OSCILLATION_OUTPUT in config:
         oscillation_output = await cg.get_variable(config[CONF_OSCILLATION_OUTPUT])
