@@ -264,6 +264,15 @@ void APIServer::on_date_update(datetime::DateEntity *obj) {
 }
 #endif
 
+#ifdef USE_DATETIME_TIME
+void APIServer::on_time_update(datetime::TimeEntity *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_time_state(obj);
+}
+#endif
+
 #ifdef USE_TEXT
 void APIServer::on_text_update(text::Text *obj, const std::string &state) {
   if (obj->is_internal())

@@ -34,6 +34,9 @@
 #ifdef USE_DATETIME_DATE
 #include "esphome/components/datetime/date_entity.h"
 #endif
+#ifdef USE_DATETIME_TIME
+#include "esphome/components/datetime/time_entity.h"
+#endif
 #ifdef USE_TEXT
 #include "esphome/components/text/text.h"
 #endif
@@ -84,6 +87,9 @@ class Controller {
 #endif
 #ifdef USE_DATETIME_DATE
   virtual void on_date_update(datetime::DateEntity *obj){};
+#endif
+#ifdef USE_DATETIME_TIME
+  virtual void on_time_update(datetime::TimeEntity *obj){};
 #endif
 #ifdef USE_TEXT
   virtual void on_text_update(text::Text *obj, const std::string &state){};

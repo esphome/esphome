@@ -89,6 +89,13 @@ bool ListEntitiesIterator::on_date(datetime::DateEntity *date) {
 }
 #endif
 
+#ifdef USE_DATETIME_TIME
+bool ListEntitiesIterator::on_time(datetime::TimeEntity *time) {
+  this->web_server_->events_.send(this->web_server_->time_json(time, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
 #ifdef USE_TEXT
 bool ListEntitiesIterator::on_text(text::Text *text) {
   this->web_server_->events_.send(this->web_server_->text_json(text, text->state, DETAIL_ALL).c_str(), "state");
