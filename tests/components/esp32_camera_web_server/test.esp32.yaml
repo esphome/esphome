@@ -3,12 +3,12 @@ esp32_camera:
   data_pins:
     - number: 17
     - number: 35
-    - number:  34
-    - number:  5
-    - number:  39
-    - number:  18
-    - number:  36
-    - number:  19
+    - number: 34
+    - number: 5
+    - number: 39
+    - number: 18
+    - number: 36
+    - number: 19
   vsync_pin: 22
   href_pin: 26
   pixel_clock_pin: 21
