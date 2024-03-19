@@ -173,7 +173,8 @@ void HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
       data.insert(data.end(), physical_address_bytes.begin(), physical_address_bytes.end());
       // Device Type
       data.push_back(logical_address_to_device_type(address_));
-      send(address_, source, data);
+      // Broadcast Physical Address
+      send(address_, 0xF, data);
       break;
     }
 
