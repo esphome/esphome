@@ -50,7 +50,7 @@ const uint8_t ASCII_TO_SEG[95] PROGMEM = {
   SEG_UNSUPPORTED_CHAR,                       // '*', (0x2A)
   SEG_UNSUPPORTED_CHAR,                       // '+', (0x2B)
   SEG_DP,                                     // ',', (0x2C)
-  SEG_A,                                      // '-', (0x2D)
+  SEG_G,                                      // '-', (0x2D)
   SEG_DP,                                     // '.', (0x2E)
   SEG_UNSUPPORTED_CHAR,                       // '/', (0x2F)
   SEG_A|SEG_B|SEG_C|SEG_D|SEG_E|SEG_F,        // '0', (0x30)
