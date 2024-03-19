@@ -24,5 +24,5 @@ esp32_camera:
   jpeg_quality: 10
   on_image:
     then:
-    - lambda: |-
-        ESP_LOGD("main", "image len=%d, data=%c", image.length, image.data[0]);
+      - lambda: |-
+          ESP_LOGD("main", "image len=%d, data=%c", image.length, image.data[0]);
