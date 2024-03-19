@@ -123,7 +123,6 @@ void AHT10Component::read_data_() {
       return;
     }
   }
-  // data is valid, we can break the loop
   ESP_LOGD(TAG, "Success at %ums", (unsigned) (millis() - this->start_time_));
   uint32_t raw_temperature = ((data[3] & 0x0F) << 16) | (data[4] << 8) | data[5];
   uint32_t raw_humidity = ((data[1] << 16) | (data[2] << 8) | data[3]) >> 4;
