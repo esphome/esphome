@@ -143,7 +143,7 @@ const uint8_t ASCII_TO_SEG[95] PROGMEM = {
 
 void MAX6921Component::init_display_(void) {
   uint32_t freq;
-  const uint32_t PWM_FREQ_WANTED = 500;
+  const uint32_t PWM_FREQ_WANTED = 5000;
   const uint8_t PWM_RESOLUTION = 8;
 
   // setup PWM for blank pin (intensity)...
