@@ -36,6 +36,7 @@ static const uint8_t AHT10_INIT_ATTEMPTS = 10;
 static const uint8_t AHT10_STATUS_BUSY = 0x80;
 
 void AHT10Component::setup() {
+  this->read_delay_ = this->humidity_sensor_ != nullptr ? AHT10_HUMIDITY_DELAY : AHT10_DEFAULT_DELAY;
   if (this->write(AHT10_SOFTRESET_CMD, sizeof(AHT10_SOFTRESET_CMD)) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Reset AHT10 failed!");
   }
@@ -83,74 +84,78 @@ void AHT10Component::setup() {
   ESP_LOGV(TAG, "AHT10 initialization");
 }
 
-void AHT10Component::update() {
-  if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Communication with AHT10 failed!");
-    this->status_set_warning();
-    return;
-  }
-  uint8_t data[6];
-  uint8_t delay_ms = AHT10_DEFAULT_DELAY;
-  if (this->humidity_sensor_ != nullptr)
-    delay_ms = AHT10_HUMIDITY_DELAY;
-  bool success = false;
-  for (int i = 0; i < AHT10_ATTEMPTS; ++i) {
-    ESP_LOGVV(TAG, "Attempt %d at %6" PRIu32, i, millis());
-    delay(delay_ms);
-    if (this->read(data, 6) != i2c::ERROR_OK) {
-      ESP_LOGD(TAG, "Communication with AHT10 failed, waiting...");
-      continue;
-    }
-
-    if ((data[0] & 0x80) == 0x80) {  // Bit[7] = 0b1, device is busy
-      ESP_LOGD(TAG, "AHT10 is busy, waiting...");
-    } else if (data[1] == 0x0 && data[2] == 0x0 && (data[3] >> 4) == 0x0) {
-      // Unrealistic humidity (0x0)
-      if (this->humidity_sensor_ == nullptr) {
-        ESP_LOGVV(TAG, "ATH10 Unrealistic humidity (0x0), but humidity is not required");
-        break;
-      } else {
-        ESP_LOGD(TAG, "ATH10 Unrealistic humidity (0x0), retrying...");
-        if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
-          ESP_LOGE(TAG, "Communication with AHT10 failed!");
-          this->status_set_warning();
-          return;
-        }
-      }
-    } else {
-      // data is valid, we can break the loop
-      ESP_LOGVV(TAG, "Answer at %6" PRIu32, millis());
-      success = true;
-      break;
-    }
-  }
-  if (!success || (data[0] & 0x80) == 0x80) {
+void AHT10Component::restart_read_() {
+  if (this->read_count_ == AHT10_ATTEMPTS) {
+    this->read_count_ = 0;
     ESP_LOGE(TAG, "Measurements reading timed-out!");
-    this->status_set_warning();
+    this->status_set_error();
+    return;
+  }
+  this->read_count_++;
+  this->set_timeout(this->read_delay_, [this]() { this->read_data_(); });
+}
+
+void AHT10Component::read_data_() {
+  uint8_t data[6];
+  ESP_LOGVV(TAG, "Attempt %d at %6" PRIu32, this->read_count_, millis());
+  if (this->read(data, 6) != i2c::ERROR_OK) {
+    ESP_LOGD(TAG, "Communication with AHT10 failed, waiting...");
+    this->restart_read_();
     return;
   }
 
+  if ((data[0] & 0x80) == 0x80) {  // Bit[7] = 0b1, device is busy
+    ESP_LOGD(TAG, "AHT10 is busy, waiting...");
+    this->restart_read_();
+    return;
+  }
+  if (data[1] == 0x0 && data[2] == 0x0 && (data[3] >> 4) == 0x0) {
+    // Unrealistic humidity (0x0)
+    if (this->humidity_sensor_ == nullptr) {
+      ESP_LOGVV(TAG, "ATH10 Unrealistic humidity (0x0), but humidity is not required");
+    } else {
+      ESP_LOGD(TAG, "ATH10 Unrealistic humidity (0x0), retrying...");
+      if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
+        ESP_LOGE(TAG, "Communication with AHT10 failed!");
+        this->status_set_warning();
+      }
+      this->restart_read_();
+      return;
+    }
+  }
+  // data is valid, we can break the loop
+  ESP_LOGVV(TAG, "Answer at %6" PRIu32, millis());
   uint32_t raw_temperature = ((data[3] & 0x0F) << 16) | (data[4] << 8) | data[5];
   uint32_t raw_humidity = ((data[1] << 16) | (data[2] << 8) | data[3]) >> 4;
 
-  float temperature = ((200.0f * (float) raw_temperature) / 1048576.0f) - 50.0f;
-  float humidity;
-  if (raw_humidity == 0) {  // unrealistic value
-    humidity = NAN;
-  } else {
-    humidity = (float) raw_humidity * 100.0f / 1048576.0f;
-  }
-
   if (this->temperature_sensor_ != nullptr) {
+    float temperature = ((200.0f * (float) raw_temperature) / 1048576.0f) - 50.0f;
     this->temperature_sensor_->publish_state(temperature);
   }
   if (this->humidity_sensor_ != nullptr) {
+    float humidity;
+    if (raw_humidity == 0) {  // unrealistic value
+      humidity = NAN;
+    } else {
+      humidity = (float) raw_humidity * 100.0f / 1048576.0f;
+    }
     if (std::isnan(humidity)) {
       ESP_LOGW(TAG, "Invalid humidity! Sensor reported 0%% Hum");
     }
     this->humidity_sensor_->publish_state(humidity);
   }
   this->status_clear_warning();
+  this->read_count_ = 0;
+}
+void AHT10Component::update() {
+  if (this->read_count_ != 0)
+    return;
+  if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Communication with AHT10 failed!");
+    this->status_set_warning();
+    return;
+  }
+  this->restart_read_();
 }
 
 float AHT10Component::get_setup_priority() const { return setup_priority::DATA; }
