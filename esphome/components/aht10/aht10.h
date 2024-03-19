@@ -30,6 +30,7 @@ class AHT10Component : public PollingComponent, public i2c::I2CDevice {
   unsigned read_delay_{};
   void read_data_();
   void restart_read_();
+  uint32_t start_time_{};
 };
 
 }  // namespace aht10

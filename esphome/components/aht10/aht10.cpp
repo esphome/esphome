@@ -97,7 +97,7 @@ void AHT10Component::restart_read_() {
 
 void AHT10Component::read_data_() {
   uint8_t data[6];
-  ESP_LOGVV(TAG, "Attempt %d at %6" PRIu32, this->read_count_, millis());
+  ESP_LOGD(TAG, "Read attempt %d at %ums", this->read_count_, (unsigned) (millis() - this->start_time_));
   if (this->read(data, 6) != i2c::ERROR_OK) {
     ESP_LOGD(TAG, "Communication with AHT10 failed, waiting...");
     this->restart_read_();
@@ -112,7 +112,7 @@ void AHT10Component::read_data_() {
   if (data[1] == 0x0 && data[2] == 0x0 && (data[3] >> 4) == 0x0) {
     // Unrealistic humidity (0x0)
     if (this->humidity_sensor_ == nullptr) {
-      ESP_LOGVV(TAG, "ATH10 Unrealistic humidity (0x0), but humidity is not required");
+      ESP_LOGV(TAG, "ATH10 Unrealistic humidity (0x0), but humidity is not required");
     } else {
       ESP_LOGD(TAG, "ATH10 Unrealistic humidity (0x0), retrying...");
       if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
@@ -124,7 +124,7 @@ void AHT10Component::read_data_() {
     }
   }
   // data is valid, we can break the loop
-  ESP_LOGVV(TAG, "Answer at %6" PRIu32, millis());
+  ESP_LOGD(TAG, "Success at %ums", (unsigned) (millis() - this->start_time_));
   uint32_t raw_temperature = ((data[3] & 0x0F) << 16) | (data[4] << 8) | data[5];
   uint32_t raw_humidity = ((data[1] << 16) | (data[2] << 8) | data[3]) >> 4;
 
@@ -150,6 +150,7 @@ void AHT10Component::read_data_() {
 void AHT10Component::update() {
   if (this->read_count_ != 0)
     return;
+  this->start_time_ = millis();
   if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with AHT10 failed!");
     this->status_set_warning();
