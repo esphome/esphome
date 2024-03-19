@@ -688,6 +688,11 @@ class MainRequestHandler(BaseHandler):
     @authenticated
     def get(self) -> None:
         begin = bool(self.get_argument("begin", False))
+        if settings.using_password:
+            # Simply accessing the xsrf_token sets the cookie for us
+            self.xsrf_token  # pylint: disable=pointless-statement
+        else:
+            self.clear_cookie("_xsrf")
 
         self.render(
             "index.template.html",
@@ -1102,6 +1107,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
         "log_function": log_function,
         "websocket_ping_interval": 30.0,
         "template_path": get_base_frontend_path(),
+        "xsrf_cookies": settings.using_password,
     }
     rel = settings.relative_url
     return tornado.web.Application(
