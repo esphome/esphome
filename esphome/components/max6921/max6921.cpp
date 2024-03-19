@@ -270,8 +270,7 @@ void MAX6921Component::dump_config() {
 
 void MAX6921Component::set_intensity(uint8_t intensity) {
   if (intensity > MAX_DISPLAY_INTENSITY) {
-    ESP_LOGW(TAG, "Invalid intensity: %u (0..%u)",
-             this->display_.intensity.config_value, MAX_DISPLAY_INTENSITY);
+    ESP_LOGW(TAG, "Invalid intensity: %u (0..%u)", intensity, MAX_DISPLAY_INTENSITY);
     intensity = MAX_DISPLAY_INTENSITY;
   }
   if ((intensity == 0) || (intensity != this->display_.intensity.config_value)) {
