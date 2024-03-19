@@ -2,6 +2,7 @@
 
 #ifdef USE_VOICE_ASSISTANT
 
+#include "audio_buffer.h"
 #include "esphome/core/log.h"
 
 #include <cstdio>
@@ -238,8 +239,11 @@ void VoiceAssistant::loop() {
       size_t available = this->ring_buffer_->available();
       while (available >= SEND_BUFFER_SIZE) {
         size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
-        this->socket_->sendto(this->send_buffer_, read_bytes, 0, (struct sockaddr *) &this->dest_addr_,
-                              sizeof(this->dest_addr_));
+        api::VoiceAssistantAudio msg;
+        msg.data = std::string((const char*)this->send_buffer_, read_bytes);
+        this->api_client_->send_voice_assistant_audio(msg);
+        // this->socket_->sendto(this->send_buffer_, read_bytes, 0, (struct sockaddr *) &this->dest_addr_,
+        //                       sizeof(this->dest_addr_));
         available = this->ring_buffer_->available();
       }
 
@@ -267,23 +271,24 @@ void VoiceAssistant::loop() {
       bool playing = false;
 #ifdef USE_SPEAKER
       if (this->speaker_ != nullptr) {
-        ssize_t received_len = 0;
-        if (this->speaker_buffer_index_ + RECEIVE_SIZE < SPEAKER_BUFFER_SIZE) {
-          received_len = this->socket_->read(this->speaker_buffer_ + this->speaker_buffer_index_, RECEIVE_SIZE);
-          if (received_len > 0) {
-            this->speaker_buffer_index_ += received_len;
-            this->speaker_buffer_size_ += received_len;
-            this->speaker_bytes_received_ += received_len;
-          }
-        } else {
-          ESP_LOGD(TAG, "Receive buffer full");
-        }
+        // ssize_t received_len = 0;
+        // if (this->speaker_buffer_index_ + RECEIVE_SIZE < SPEAKER_BUFFER_SIZE) {
+        //   received_len = this->socket_->read(this->speaker_buffer_ + this->speaker_buffer_index_, RECEIVE_SIZE);
+        //   if (received_len > 0) {
+        //     this->speaker_buffer_index_ += received_len;
+        //     this->speaker_buffer_size_ += received_len;
+        //     this->speaker_bytes_received_ += received_len;
+        //   }
+        // } else {
+        //   ESP_LOGD(TAG, "Receive buffer full");
+        // }
         // Build a small buffer of audio before sending to the speaker
         if (this->speaker_bytes_received_ > RECEIVE_SIZE * 4)
           this->write_speaker_();
         if (this->wait_for_stream_end_) {
           this->cancel_timeout("playing");
-          if (this->stream_ended_ && received_len < 0) {
+          // if (this->stream_ended_ && received_len < 0) {
+          if (this->stream_ended_) {
             ESP_LOGD(TAG, "End of audio stream received");
             this->cancel_timeout("speaker-timeout");
             this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
@@ -686,6 +691,13 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       ESP_LOGD(TAG, "Unhandled event type: %d", msg.event_type);
       break;
   }
+}
+
+void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
+  memcpy(this->speaker_buffer_ + this->speaker_buffer_index_, msg.data.c_str(), msg.data.length());
+  this->speaker_buffer_index_ += msg.data.length();
+  this->speaker_buffer_size_ += msg.data.length();
+  this->speaker_bytes_received_ += msg.data.length();
 }
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -1641,3 +1641,9 @@ message DateCommandRequest {
   uint32 month = 3;
   uint32 day = 4;
 }
+
+message VoiceAssistantAudio {
+  option (id) = 103;
+
+  bytes data = 1;
+}

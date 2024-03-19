@@ -233,12 +233,16 @@ class APIServerConnectionBase : public ProtoService {
 #endif
 #ifdef USE_VOICE_ASSISTANT
   bool send_voice_assistant_request(const VoiceAssistantRequest &msg);
+  bool send_voice_assistant_audio(const VoiceAssistantAudio &msg);
 #endif
 #ifdef USE_VOICE_ASSISTANT
   virtual void on_voice_assistant_response(const VoiceAssistantResponse &value){};
 #endif
 #ifdef USE_VOICE_ASSISTANT
   virtual void on_voice_assistant_event_response(const VoiceAssistantEventResponse &value){};
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  virtual void on_voice_assistant_audio(const VoiceAssistantAudio &value){};
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_list_entities_alarm_control_panel_response(const ListEntitiesAlarmControlPanelResponse &msg);

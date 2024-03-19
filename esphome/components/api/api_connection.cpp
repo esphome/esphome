@@ -1055,6 +1055,15 @@ void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventR
     voice_assistant::global_voice_assistant->on_event(msg);
   }
 }
+void APIConnection::on_voice_assistant_audio(const VoiceAssistantAudio &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_audio(msg);
+  }
+};
 
 #endif
 

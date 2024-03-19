@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 
+
 #ifdef USE_VOICE_ASSISTANT
 
 #include "esphome/core/automation.h"
@@ -84,6 +85,7 @@ class VoiceAssistant : public Component {
   void request_stop();
 
   void on_event(const api::VoiceAssistantEventResponse &msg);
+  void on_audio(const api::VoiceAssistantAudio &msg);
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }

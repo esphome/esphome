@@ -7403,6 +7403,28 @@ void DateCommandRequest::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool VoiceAssistantAudio::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->data = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantAudio::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->data);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantAudio::dump_to(std::string &out) const {
+  out.append("VoiceAssistantAudio {\n");
+  out.append("  error: ");
+  out.append(YESNO(this->error));
+  out.append("\n");
+  out.append("}");
+}
+#endif
 
 }  // namespace api
 }  // namespace esphome
