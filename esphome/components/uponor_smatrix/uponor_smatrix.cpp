@@ -173,7 +173,9 @@ bool UponorSmatrixComponent::send(uint16_t device_address, const UponorSmatrixDa
     return false;
 
   // Assemble packet for send queue. All fields are big-endian except for the little-endian checksum.
-  std::vector<uint8_t> packet(6 + 3 * data_len);
+  std::vector<uint8_t> packet;
+  packet.reserve(6 + 3 * data_len);
+
   packet.push_back(this->address_ >> 8);
   packet.push_back(this->address_ >> 0);
   packet.push_back(device_address >> 8);
