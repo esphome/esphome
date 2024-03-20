@@ -15,7 +15,6 @@
 #include "aht10.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
-#include <cinttypes>
 
 namespace esphome {
 namespace aht10 {
@@ -27,7 +26,7 @@ static const uint8_t AHT10_MEASURE_CMD[] = {0xAC, 0x33, 0x00};
 static const uint8_t AHT10_SOFTRESET_CMD[] = {0xBA};
 
 static const uint8_t AHT10_DEFAULT_DELAY = 5;     // ms, for initialization and temperature measurement
-static const uint8_t AHT10_HUMIDITY_DELAY = 30;   // ms
+static const uint8_t AHT10_READ_DELAY = 80;       // ms, time to wait for conversion result
 static const uint8_t AHT10_SOFTRESET_DELAY = 30;  // ms
 
 static const uint8_t AHT10_ATTEMPTS = 3;  // safety margin, normally 3 attempts are enough: 3*30=90ms
@@ -36,7 +35,6 @@ static const uint8_t AHT10_INIT_ATTEMPTS = 10;
 static const uint8_t AHT10_STATUS_BUSY = 0x80;
 
 void AHT10Component::setup() {
-  this->read_delay_ = this->humidity_sensor_ != nullptr ? AHT10_HUMIDITY_DELAY : AHT10_DEFAULT_DELAY;
   if (this->write(AHT10_SOFTRESET_CMD, sizeof(AHT10_SOFTRESET_CMD)) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Reset AHT10 failed!");
   }
@@ -87,12 +85,11 @@ void AHT10Component::setup() {
 void AHT10Component::restart_read_() {
   if (this->read_count_ == AHT10_ATTEMPTS) {
     this->read_count_ = 0;
-    ESP_LOGE(TAG, "Measurements reading timed-out!");
-    this->status_set_error();
+    this->status_set_error("Measurements reading timed-out!");
     return;
   }
   this->read_count_++;
-  this->set_timeout(this->read_delay_, [this]() { this->read_data_(); });
+  this->set_timeout(AHT10_READ_DELAY, [this]() { this->read_data_(); });
 }
 
 void AHT10Component::read_data_() {
@@ -116,8 +113,7 @@ void AHT10Component::read_data_() {
     } else {
       ESP_LOGD(TAG, "ATH10 Unrealistic humidity (0x0), retrying...");
       if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
-        ESP_LOGE(TAG, "Communication with AHT10 failed!");
-        this->status_set_warning();
+        this->status_set_warning("Communication with AHT10 failed!");
       }
       this->restart_read_();
       return;
@@ -151,8 +147,7 @@ void AHT10Component::update() {
     return;
   this->start_time_ = millis();
   if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Communication with AHT10 failed!");
-    this->status_set_warning();
+    this->status_set_warning("Communication with AHT10 failed!");
     return;
   }
   this->restart_read_();
