@@ -54,7 +54,7 @@ void AHT10Component::setup() {
       ESP_LOGCONFIG(TAG, "Setting up AHT10");
   }
 
-  if (this->write(init_cmd, sizeof(init_cmd)) != i2c::ERROR_OK) {
+  if (this->write(init_cmd, sizeof(AHT10_INITIALIZE_CMD)) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with AHT10 failed!");
     this->mark_failed();
     return;
