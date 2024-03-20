@@ -1,0 +1,17 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+e131:
+
+light:
+  - platform: rp2040_pio_led_strip
+    id: led_strip
+    pin: 2
+    pio: 0
+    num_leds: 256
+    rgb_order: GRB
+    chipset: WS2812
+    effects:
+      - e131:
+          universe: 1

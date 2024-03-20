@@ -1,0 +1,3 @@
+text_sensor:
+  - platform: version
+    name: "ESPHome Version"

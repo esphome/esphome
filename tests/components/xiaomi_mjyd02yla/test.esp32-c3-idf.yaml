@@ -1,0 +1,13 @@
+esp32_ble_tracker:
+
+binary_sensor:
+  - platform: xiaomi_mjyd02yla
+    name: MJYD02YL-A Motion
+    mac_address: 50:EC:50:CD:32:02
+    bindkey: 48403ebe2d385db8d0c187f81e62cb64
+    idle_time:
+      name: MJYD02YL-A Idle Time
+    light:
+      name: MJYD02YL-A Light Status
+    battery_level:
+      name: MJYD02YL-A Battery Level
