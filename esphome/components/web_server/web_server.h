@@ -13,7 +13,7 @@
 #include <freertos/semphr.h>
 #endif
 
-#if USE_WEBSERVER_VERSION == 2
+#if USE_WEBSERVER_VERSION >= 2
 extern const uint8_t ESPHOME_WEBSERVER_INDEX_HTML[] PROGMEM;
 extern const size_t ESPHOME_WEBSERVER_INDEX_HTML_SIZE;
 #endif

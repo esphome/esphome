@@ -358,7 +358,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->print(F("</article></body></html>"));
   request->send(stream);
 }
-#elif USE_WEBSERVER_VERSION == 2
+#elif USE_WEBSERVER_VERSION >= 2
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
