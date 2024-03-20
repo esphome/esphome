@@ -67,21 +67,21 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_SUN_GTIL2_ID])
-    if CONF_AC_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_AC_VOLTAGE])
+    if ac_voltage_config := config.get(CONF_AC_VOLTAGE):
+        sens = await sensor.new_sensor(ac_voltage_config)
         cg.add(hub.set_ac_voltage(sens))
-    if CONF_DC_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_DC_VOLTAGE])
+    if dc_voltage_config := config.get(CONF_DC_VOLTAGE):
+        sens = await sensor.new_sensor(dc_voltage_config)
         cg.add(hub.set_dc_voltage(sens))
-    if CONF_AC_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_AC_POWER])
+    if ac_power_config := config.get(CONF_AC_POWER):
+        sens = await sensor.new_sensor(ac_power_config)
         cg.add(hub.set_ac_power(sens))
-    if CONF_DC_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_DC_POWER])
+    if dc_power_config := config.get(CONF_DC_POWER):
+        sens = await sensor.new_sensor(dc_power_config)
         cg.add(hub.set_dc_power(sens))
-    if CONF_LIMITER_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_LIMITER_POWER])
+    if limiter_power_config := config.get(CONF_LIMITER_POWER):
+        sens = await sensor.new_sensor(limiter_power_config)
         cg.add(hub.set_limiter_power(sens))
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+    if temperature_config := config.get(CONF_TEMPERATURE):
+        sens = await sensor.new_sensor(temperature_config)
         cg.add(hub.set_temperature(sens))
