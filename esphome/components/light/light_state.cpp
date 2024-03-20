@@ -79,27 +79,23 @@ void LightState::setup() {
     case LIGHT_ALWAYS_ON:
       recovered.state = true;
       break;
-    case LIGHT_ALWAYS_ON_WARM_WHITE:
-      {
-        recovered.state = true; // Turns the light on.
-        recovered.color_mode = ColorMode::COLOR_TEMPERATURE;
-        float mireds = this->get_traits().get_max_mireds();
-        recovered.color_temp = mireds > 0 ? mireds : 454.0f; // 454 ~ 2200K
-      }
-      break;
+    case LIGHT_ALWAYS_ON_WARM_WHITE: {
+      recovered.state = true;  // Turns the light on.
+      recovered.color_mode = ColorMode::COLOR_TEMPERATURE;
+      float mireds = this->get_traits().get_max_mireds();
+      recovered.color_temp = mireds > 0 ? mireds : 454.0f;  // 454 ~ 2200K
+    } break;
     case LIGHT_ALWAYS_ON_BRIGHT_WHITE:
       recovered.state = true;
       recovered.color_mode = ColorMode::COLOR_TEMPERATURE;
-      recovered.color_temp = 312.0f; // 312 ~ 3200K
+      recovered.color_temp = 312.0f;  // 312 ~ 3200K
       break;
-    case LIGHT_ALWAYS_ON_COOL_WHITE:
-      {
-        recovered.state = true;
-        recovered.color_mode = ColorMode::COLOR_TEMPERATURE;
-        float mireds = this->get_traits().get_min_mireds();
-        recovered.color_temp = mireds > 0 ? mireds : 154.0f; // 154 ~ 6500K
-      }
-      break;
+    case LIGHT_ALWAYS_ON_COOL_WHITE: {
+      recovered.state = true;
+      recovered.color_mode = ColorMode::COLOR_TEMPERATURE;
+      float mireds = this->get_traits().get_min_mireds();
+      recovered.color_temp = mireds > 0 ? mireds : 154.0f;  // 154 ~ 6500K
+    } break;
   }
 
   call.set_color_mode_if_supported(recovered.color_mode);
