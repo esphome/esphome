@@ -58,6 +58,10 @@ class ComponentManifest:
         return getattr(self.module, "MULTI_CONF", False)
 
     @property
+    def multi_conf_no_default(self) -> bool:
+        return getattr(self.module, "MULTI_CONF_NO_DEFAULT", False)
+
+    @property
     def to_code(self) -> Optional[Callable[[Any], None]]:
         return getattr(self.module, "to_code", None)
 

@@ -17,6 +17,14 @@ from esphome.const import (
     CONF_WIDTH,
     CONF_HEIGHT,
     CONF_ROTATION,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_SWAP_XY,
+    CONF_COLOR_ORDER,
+    CONF_OFFSET_HEIGHT,
+    CONF_OFFSET_WIDTH,
+    CONF_TRANSFORM,
+    CONF_INVERT_COLORS,
 )
 
 DEPENDENCIES = ["spi"]
@@ -43,6 +51,7 @@ ILI9XXXColorMode = ili9xxx_ns.enum("ILI9XXXColorMode")
 ColorOrder = display.display_ns.enum("ColorMode")
 
 MODELS = {
+    "GC9A01A": ili9xxx_ns.class_("ILI9XXXGC9A01A", ILI9XXXDisplay),
     "M5STACK": ili9xxx_ns.class_("ILI9XXXM5Stack", ILI9XXXDisplay),
     "M5CORE": ili9xxx_ns.class_("ILI9XXXM5CORE", ILI9XXXDisplay),
     "TFT_2.4": ili9xxx_ns.class_("ILI9XXXILI9341", ILI9XXXDisplay),
@@ -58,6 +67,7 @@ MODELS = {
     "ST7789V": ili9xxx_ns.class_("ILI9XXXST7789V", ILI9XXXDisplay),
     "S3BOX": ili9xxx_ns.class_("ILI9XXXS3Box", ILI9XXXDisplay),
     "S3BOX_LITE": ili9xxx_ns.class_("ILI9XXXS3BoxLite", ILI9XXXDisplay),
+    "WAVESHARE_RES_3_5": ili9xxx_ns.class_("WAVESHARERES35", ILI9XXXDisplay),
 }
 
 COLOR_ORDERS = {
@@ -70,14 +80,6 @@ COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
 CONF_INVERT_DISPLAY = "invert_display"
-CONF_INVERT_COLORS = "invert_colors"
-CONF_MIRROR_X = "mirror_x"
-CONF_MIRROR_Y = "mirror_y"
-CONF_SWAP_XY = "swap_xy"
-CONF_COLOR_ORDER = "color_order"
-CONF_OFFSET_HEIGHT = "offset_height"
-CONF_OFFSET_WIDTH = "offset_width"
-CONF_TRANSFORM = "transform"
 
 
 def _validate(config):

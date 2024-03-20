@@ -1,7 +1,7 @@
 import operator
 from functools import reduce
 import esphome.config_validation as cv
-from esphome.core import CORE, ID
+from esphome.core import CORE
 
 from esphome.const import (
     CONF_INPUT,
@@ -25,15 +25,16 @@ class PinRegistry(dict):
     def reset(self):
         self.pins_used = {}
 
-    def get_count(self, key, number):
+    def get_count(self, key, id, number):
         """
         Get the number of places a given pin is used.
-        :param key: The ID of the defining component
+        :param key: The key of the registered pin schema.
+        :param id: The ID of the defining component
         :param number: The pin number
         :return: The number of places the pin is used.
         """
-        pin_key = (key, number)
-        return self.pins_used[pin_key] if pin_key in self.pins_used else 0
+        pin_key = (key, id, number)
+        return len(self.pins_used[pin_key]) if pin_key in self.pins_used else 0
 
     def register(self, name, schema, final_validate=None):
         """
@@ -65,9 +66,10 @@ class PinRegistry(dict):
         result = self[key][1](conf)
         if CONF_NUMBER in result:
             # key maps to the pin schema
-            if isinstance(key, ID):
-                key = key.id
-            pin_key = (key, result[CONF_NUMBER])
+            if key != CORE.target_platform:
+                pin_key = (key, conf[key], result[CONF_NUMBER])
+            else:
+                pin_key = (key, key, result[CONF_NUMBER])
             if pin_key not in self.pins_used:
                 self.pins_used[pin_key] = []
             # client_id identifies the instance of the providing component
@@ -101,7 +103,7 @@ class PinRegistry(dict):
         Run the final validation for all pins, and check for reuse
         :param fconf: The full config
         """
-        for (key, _), pin_list in self.pins_used.items():
+        for (key, _, _), pin_list in self.pins_used.items():
             count = len(pin_list)  # number of places same pin used.
             final_val_fun = self[key][2]  # final validation function
             for pin_path, client_id, pin_config in pin_list:

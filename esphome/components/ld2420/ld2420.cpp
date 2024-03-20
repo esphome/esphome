@@ -40,9 +40,9 @@ There are three documented parameters for modes:
   00 04 = Energy output mode
     This mode outputs detailed signal energy values for each gate and the target distance.
     The data format consist of the following.
-    Header HH, Length LL, Persence PP, Distance DD, Range Gate GG, 16 Gate Energies EE, Footer FF
-    HH HH HH HH LL LL PP DD DD GG GG EE EE .. 16x   .. FF FF FF FF
-    F4 F3 F2 F1 00 23 00 00 00 00 01 00 00 .. .. .. .. F8 F7 F6 F5
+    Header HH, Length LL, Persence PP, Distance DD, 16 Gate Energies EE, Footer FF
+    HH HH HH HH LL LL PP DD DD EE EE .. 16x   .. FF FF FF FF
+    F4 F3 F2 F1 23 00 00 00 00 00 00 .. .. .. .. F8 F7 F6 F5
   00 00 = debug output mode
     This mode outputs detailed values consisting of 20 Dopplers, 16 Ranges for a total 20 * 16 * 4 bytes
     The data format consist of the following.
@@ -211,10 +211,11 @@ void LD2420Component::factory_reset_action() {
 void LD2420Component::restart_module_action() {
   ESP_LOGCONFIG(TAG, "Restarting LD2420 module...");
   this->send_module_restart();
-  delay_microseconds_safe(45000);
-  this->set_config_mode(true);
-  this->set_system_mode(system_mode_);
-  this->set_config_mode(false);
+  this->set_timeout(250, [this]() {
+    this->set_config_mode(true);
+    this->set_system_mode(system_mode_);
+    this->set_config_mode(false);
+  });
   ESP_LOGCONFIG(TAG, "LD2420 Restarted.");
 }
 
@@ -527,18 +528,16 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
       this->write_byte(cmd_buffer[index]);
     }
 
-    delay_microseconds_safe(500);  // give the module a moment to process it
     error = 0;
     if (frame.command == CMD_RESTART) {
-      delay_microseconds_safe(25000);  // Wait for the restart
-      return 0;                        // restart does not reply exit now
+      return 0;  // restart does not reply exit now
     }
 
     while (!this->cmd_reply_.ack) {
       while (available()) {
         this->readline_(read(), ack_buffer, sizeof(ack_buffer));
       }
-      delay_microseconds_safe(250);
+      delay_microseconds_safe(1450);
       if (loop_count <= 0) {
         error = LD2420_ERROR_TIMEOUT;
         retry--;

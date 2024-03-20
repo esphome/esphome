@@ -1,0 +1,3 @@
+# Useful stuff when working in a development environment
+clang-format==13.0.1
+clang-tidy==14.0.6

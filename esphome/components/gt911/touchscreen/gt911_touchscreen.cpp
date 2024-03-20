@@ -14,6 +14,7 @@ static const uint8_t GET_TOUCHES[2] = {0x81, 0x4F};
 static const uint8_t GET_SWITCHES[2] = {0x80, 0x4D};
 static const uint8_t GET_MAX_VALUES[2] = {0x80, 0x48};
 static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
+static const size_t MAX_BUTTONS = 4;  // max number of buttons scanned
 
 #define ERROR_CHECK(err) \
   if ((err) != i2c::ERROR_OK) { \
@@ -47,9 +48,13 @@ void GT911Touchscreen::setup() {
     if (err == i2c::ERROR_OK) {
       err = this->read(data, sizeof(data));
       if (err == i2c::ERROR_OK) {
-        this->x_raw_max_ = encode_uint16(data[1], data[0]);
-        this->y_raw_max_ = encode_uint16(data[3], data[2]);
-        esph_log_d(TAG, "Read max_x/max_y %d/%d", this->x_raw_max_, this->y_raw_max_);
+        if (this->x_raw_max_ == this->x_raw_min_) {
+          this->x_raw_max_ = encode_uint16(data[1], data[0]);
+        }
+        if (this->y_raw_max_ == this->y_raw_min_) {
+          this->y_raw_max_ = encode_uint16(data[3], data[2]);
+        }
+        esph_log_d(TAG, "calibration max_x/max_y %d/%d", this->x_raw_max_, this->y_raw_max_);
       }
     }
   }
@@ -79,9 +84,6 @@ void GT911Touchscreen::update_touches() {
     return;
   }
 
-  if (num_of_touches == 0)
-    return;
-
   err = this->write(GET_TOUCHES, sizeof(GET_TOUCHES), false);
   ERROR_CHECK(err);
   // num_of_touches is guaranteed to be 0..5. Also read the key data
@@ -94,10 +96,13 @@ void GT911Touchscreen::update_touches() {
     uint16_t y = encode_uint16(data[i][4], data[i][3]);
     this->add_raw_touch_position_(id, x, y);
   }
-  auto keys = data[num_of_touches][0];
-  for (size_t i = 0; i != 4; i++) {
-    for (auto *listener : this->button_listeners_)
-      listener->update_button(i, (keys & (1 << i)) != 0);
+  auto keys = data[num_of_touches][0] & ((1 << MAX_BUTTONS) - 1);
+  if (keys != this->button_state_) {
+    this->button_state_ = keys;
+    for (size_t i = 0; i != MAX_BUTTONS; i++) {
+      for (auto *listener : this->button_listeners_)
+        listener->update_button(i, (keys & (1 << i)) != 0);
+    }
   }
 }
 
