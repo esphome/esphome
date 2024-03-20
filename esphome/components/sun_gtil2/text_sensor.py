@@ -23,8 +23,8 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_SUN_GTIL2_ID])
-    if CONF_STATE in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_STATE])
+    if state_config := config.get(CONF_STATE):
+        sens = await text_sensor.new_text_sensor(state_config)
         cg.add(hub.set_state(sens))
     if CONF_SERIAL_NUMBER in config:
         sens = await text_sensor.new_text_sensor(config[CONF_SERIAL_NUMBER])
