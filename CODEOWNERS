@@ -89,7 +89,7 @@ esphome/components/dac7678/* @NickB1
 esphome/components/daikin_brc/* @hagak
 esphome/components/daly_bms/* @s1lvi0
 esphome/components/dashboard_import/* @esphome/core
-esphome/components/datetime/* @rfdarter
+esphome/components/datetime/* @jesserockz @rfdarter
 esphome/components/debug/* @OttoWinter
 esphome/components/delonghi/* @grob6000
 esphome/components/dfplayer/* @glmnet
