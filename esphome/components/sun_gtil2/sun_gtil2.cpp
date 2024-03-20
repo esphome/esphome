@@ -90,6 +90,7 @@ void SunGTIL2::handle_char_(uint8_t c) {
   ESP_LOGVV(TAG, "Unknown values: %02x %02x %02x %02x %02x", msg.unknown1, msg.unknown2, msg.unknown3, msg.unknown4,
             msg.unknown5);
 
+#ifdef USE_SENSOR
   if (this->ac_voltage_ != nullptr)
     this->ac_voltage_->publish_state(__builtin_bswap16(msg.ac_voltage) / 10.0f);
   if (this->dc_voltage_ != nullptr)
@@ -102,6 +103,8 @@ void SunGTIL2::handle_char_(uint8_t c) {
     this->limiter_power_->publish_state(static_cast<int32_t>(__builtin_bswap32(msg.limiter_power)) / 10.0f);
   if (this->temperature_ != nullptr)
     this->temperature_->publish_state(calculate_temperature_(__builtin_bswap16(msg.temperature)));
+#endif
+#ifdef USE_TEXT_SENSOR
   if (this->state_ != nullptr) {
     this->state_->publish_state(this->state_to_string_(msg.state));
   }
@@ -110,17 +113,22 @@ void SunGTIL2::handle_char_(uint8_t c) {
     serial_number.assign(msg.serial_number, 10);
     this->serial_number_->publish_state(serial_number);
   }
+#endif
 }
 
 void SunGTIL2::dump_config() {
+#ifdef USE_SENSOR
   LOG_SENSOR("", "AC Voltage", this->ac_voltage_);
   LOG_SENSOR("", "DC Voltage", this->dc_voltage_);
   LOG_SENSOR("", "AC Power", this->ac_power_);
   LOG_SENSOR("", "DC Power", this->dc_power_);
   LOG_SENSOR("", "Limiter Power", this->limiter_power_);
   LOG_SENSOR("", "Temperature", this->temperature_);
+#endif
+#ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("", "State", this->state_);
   LOG_TEXT_SENSOR("", "Serial Number", this->serial_number_);
+#endif
 }
 
 }  // namespace sun_gtil2
