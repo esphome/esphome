@@ -27,7 +27,6 @@ class AHT10Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *humidity_sensor_{nullptr};
   AHT10Variant variant_{};
   unsigned read_count_{};
-  unsigned read_delay_{};
   void read_data_();
   void restart_read_();
   uint32_t start_time_{};
