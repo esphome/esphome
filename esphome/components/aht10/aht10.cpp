@@ -96,7 +96,7 @@ void AHT10Component::read_data_() {
   uint8_t data[6];
   ESP_LOGD(TAG, "Read attempt %d at %ums", this->read_count_, (unsigned) (millis() - this->start_time_));
   if (this->read(data, 6) != i2c::ERROR_OK) {
-    ESP_LOGD(TAG, "Communication with AHT10 failed, waiting...");
+    this->status_set_warning("AHT10 read failed, retrying soon");
     this->restart_read_();
     return;
   }
