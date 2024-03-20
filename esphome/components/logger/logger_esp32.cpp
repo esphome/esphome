@@ -129,7 +129,7 @@ void Logger::pre_setup() {
         this->uart_num_ = UART_NUM_2;
         break;
 #endif
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C6)
       case UART_SELECTION_USB_CDC:
         this->uart_num_ = -1;
         break;
