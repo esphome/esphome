@@ -124,13 +124,13 @@ class Component {
 
   virtual bool can_proceed();
 
-  bool status_has_warning();
+  bool status_has_warning() const;
 
-  bool status_has_error();
+  bool status_has_error() const;
 
-  void status_set_warning();
+  void status_set_warning(const char *message = "unspecified");
 
-  void status_set_error();
+  void status_set_error(const char *message = "unspecified");
 
   void status_clear_warning();
 
