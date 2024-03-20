@@ -30,7 +30,7 @@ int OtaHttpArduino::http_init(char *url) {
   }
 #endif  // USE_ESP8266
 
-  ESP_LOGD(TAG, "Trying to connect to %s", url);
+  ESP_LOGD(TAG, "Connecting to %s", url);
 
   bool status = false;
 #ifdef USE_RP2040
@@ -115,7 +115,7 @@ int OtaHttpArduino::set_stream_ptr_() {
 #ifdef USE_ESP8266
 #ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
   if (this->secure_()) {
-    ESP_LOGD(TAG, "ESP8266 HTTPS connection with WiFiClientSecure");
+    ESP_LOGV(TAG, "ESP8266 HTTPS connection with WiFiClientSecure");
     this->stream_ptr_ = std::make_unique<WiFiClientSecure>();
     WiFiClientSecure *secure_client = static_cast<WiFiClientSecure *>(this->stream_ptr_.get());
     secure_client->setBufferSizes(this->max_http_recv_buffer_, 512);
@@ -124,7 +124,7 @@ int OtaHttpArduino::set_stream_ptr_() {
     this->stream_ptr_ = std::make_unique<WiFiClient>();
   }
 #else
-  ESP_LOGD(TAG, "ESP8266 HTTP connection with WiFiClient");
+  ESP_LOGV(TAG, "ESP8266 HTTP connection with WiFiClient");
   if (this->secure_()) {
     ESP_LOGE(TAG, "Can't use HTTPS connection with esp8266_disable_ssl_support");
     return -1;

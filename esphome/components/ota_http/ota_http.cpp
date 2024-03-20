@@ -193,8 +193,9 @@ void OtaHttpComponent::check_upgrade() {
 }
 
 bool OtaHttpComponent::http_get_md5() {
-  if (this->http_init(this->pref_.md5_url) != MD5_SIZE) {
-    ESP_LOGE(TAG, "Incorrect file size (%d) for MD5 reported by HTTP server. Aborting", this->body_length_);
+  if (this->http_init(this->pref_.md5_url) < MD5_SIZE) {
+    ESP_LOGE(TAG, "MD5 file must be %u bytes; %u bytes reported by HTTP server. Aborting", MD5_SIZE,
+             this->body_length_);
     return false;
   }
 
