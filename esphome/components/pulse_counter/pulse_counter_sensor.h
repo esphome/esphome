@@ -20,6 +20,8 @@ enum PulseCounterCountMode {
   PULSE_COUNTER_DECREMENT,
 };
 
+enum class Storage { basic, pcnt };
+
 #ifdef HAS_PCNT
 using pulse_counter_t = int16_t;
 #else
@@ -58,11 +60,12 @@ struct HwPulseCounterStorage : public PulseCounterStorageBase {
 };
 #endif
 
-PulseCounterStorageBase *get_storage(bool hw_pcnt = false);
+PulseCounterStorageBase *get_storage(Storage storage = Storage::basic);
 
 class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
  public:
-  explicit PulseCounterSensor(bool hw_pcnt = false) : storage_(*get_storage(hw_pcnt)) {}
+  explicit PulseCounterSensor(Storage storage = Storage::basic) : storage_(*get_storage(storage)) {}
+  explicit PulseCounterSensor(int storage = 0) : PulseCounterSensor(Storage(storage)) {}
 
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_rising_edge_mode(PulseCounterCountMode mode) { storage_.rising_edge_mode = mode; }
