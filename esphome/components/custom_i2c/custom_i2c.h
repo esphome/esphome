@@ -7,7 +7,11 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/log.h"
+
+// TODO: move all the output related stuff into its own header that's only included when outputs are used
+#ifdef USE_OUTPUT
 #include "esphome/components/output/float_output.h"
+#endif
 
 namespace esphome::custom_i2c {
 
@@ -370,6 +374,8 @@ template<typename... Ts> class WriteAction : public Action<Ts...> {
   MessageBuilder<Ts...> *message_builder_{};
 };
 
+// TODO: move all the output related stuff into its own header that's only included when outputs are used
+#ifdef USE_OUTPUT
 template<uint8_t bytes> class CustomI2COutput : public output::FloatOutput, public Component {
  public:
   // mind you, I'll eat my hat if anyone so much as has a need for 4 bytes in the first place
@@ -409,6 +415,7 @@ template<uint8_t bytes> class CustomI2COutput : public output::FloatOutput, publ
  protected:
   CustomI2CRegister *register_{};
 };
+#endif
 
 template<size_t bytes> class CustomI2CPinBank : public Component {
  public:

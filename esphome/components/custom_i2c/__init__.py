@@ -381,7 +381,11 @@ async def to_code(config):
 async def write_action_to_code(config, action_id, template_arg, args):
     action = cg.new_Pvariable(action_id, template_arg)
 
-    action.set_message_builder(await build_message_builder(config, template_arg, args))
+    cg.add(
+        action.set_message_builder(
+            await build_message_builder(config, template_arg, args)
+        )
+    )
 
     if CONF_DEVICE_ID in config:
         cg.add(action.set_device(await cg.get_variable(config[CONF_DEVICE_ID])))
