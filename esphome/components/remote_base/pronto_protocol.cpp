@@ -49,13 +49,13 @@ bool ProntoData::operator==(const ProntoData &rhs) const {
   for (std::vector<uint16_t>::size_type i = 0; i < data1.size() - 1; ++i) {
     int diff = data2[i] - data1[i];
     diff *= diff;
-    if (diff > 9)
+    if (rhs.delta == -1 && diff > 9)
       return false;
 
     total_diff += diff;
   }
 
-  return total_diff <= data1.size() * 3;
+  return total_diff <= (rhs.delta == -1 ? data1.size() * 3 : rhs.delta);
 }
 
 // DO NOT EXPORT from this file
@@ -222,6 +222,7 @@ optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
   prontodata += compensate_and_dump_sequence_(data, timebase);
 
   out.data = prontodata;
+  out.delta = -1;
 
   return out;
 }
