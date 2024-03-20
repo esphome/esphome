@@ -187,11 +187,7 @@ void MQTTClientComponent::start_dnslookup_() {
     default:
     case ERR_ARG: {
       // error
-#if defined(USE_ESP8266)
-      ESP_LOGW(TAG, "Error resolving MQTT broker IP address: %ld", err);
-#else
       ESP_LOGW(TAG, "Error resolving MQTT broker IP address: %d", err);
-#endif
       break;
     }
   }
