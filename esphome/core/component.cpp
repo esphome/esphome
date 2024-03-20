@@ -5,6 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <utility>
+#include <cinttypes>
 
 namespace esphome {
 
@@ -140,18 +141,35 @@ bool Component::is_ready() {
          (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
 }
 bool Component::can_proceed() { return true; }
-bool Component::status_has_warning() { return this->component_state_ & STATUS_LED_WARNING; }
-bool Component::status_has_error() { return this->component_state_ & STATUS_LED_ERROR; }
-void Component::status_set_warning() {
+bool Component::status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
+bool Component::status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
+void Component::status_set_warning(const char *message) {
+  // Don't spam the log. This risks missing different warning messages though.
+  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+    return;
   this->component_state_ |= STATUS_LED_WARNING;
   App.app_state_ |= STATUS_LED_WARNING;
+  ESP_LOGW(this->get_component_source(), "Warning set: %s", message);
 }
-void Component::status_set_error() {
+void Component::status_set_error(const char *message) {
+  if ((this->component_state_ & STATUS_LED_ERROR) != 0)
+    return;
   this->component_state_ |= STATUS_LED_ERROR;
   App.app_state_ |= STATUS_LED_ERROR;
+  ESP_LOGE(this->get_component_source(), "Error set: %s", message);
 }
-void Component::status_clear_warning() { this->component_state_ &= ~STATUS_LED_WARNING; }
-void Component::status_clear_error() { this->component_state_ &= ~STATUS_LED_ERROR; }
+void Component::status_clear_warning() {
+  if ((this->component_state_ & STATUS_LED_WARNING) == 0)
+    return;
+  this->component_state_ &= ~STATUS_LED_WARNING;
+  ESP_LOGW(this->get_component_source(), "Warning cleared");
+}
+void Component::status_clear_error() {
+  if ((this->component_state_ & STATUS_LED_ERROR) == 0)
+    return;
+  this->component_state_ &= ~STATUS_LED_ERROR;
+  ESP_LOGE(this->get_component_source(), "Error cleared");
+}
 void Component::status_momentary_warning(const std::string &name, uint32_t length) {
   this->status_set_warning();
   this->set_timeout(name, length, [this]() { this->status_clear_warning(); });
@@ -211,8 +229,8 @@ WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {
   uint32_t now = millis();
   if (now - started_ > 50) {
     const char *src = component_ == nullptr ? "<null>" : component_->get_component_source();
-    ESP_LOGW(TAG, "Component %s took a long time for an operation (%.2f s).", src, (now - started_) / 1e3f);
-    ESP_LOGW(TAG, "Components should block for at most 20-30ms.");
+    ESP_LOGW(TAG, "Component %s took a long time for an operation (%" PRIu32 " ms).", src, (now - started_));
+    ESP_LOGW(TAG, "Components should block for at most 30 ms.");
     ;
   }
 }

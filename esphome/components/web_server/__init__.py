@@ -44,6 +44,11 @@ def default_url(config):
             config[CONF_CSS_URL] = ""
         if not (CONF_JS_URL in config):
             config[CONF_JS_URL] = "https://oi.esphome.io/v2/www.js"
+    if config[CONF_VERSION] == 3:
+        if not (CONF_CSS_URL in config):
+            config[CONF_CSS_URL] = ""
+        if not (CONF_JS_URL in config):
+            config[CONF_JS_URL] = "https://oi.esphome.io/v3/www.js"
     return config
 
 
@@ -64,7 +69,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(WebServer),
             cv.Optional(CONF_PORT, default=80): cv.port,
-            cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, int=True),
+            cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, 3, int=True),
             cv.Optional(CONF_CSS_URL): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
             cv.Optional(CONF_JS_URL): cv.string,
@@ -152,7 +157,7 @@ async def to_code(config):
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER_VERSION", version)
-    if version == 2:
+    if version >= 2:
         # Don't compress the index HTML as the data sizes are almost the same.
         add_resource_as_progmem("INDEX_HTML", build_index_html(config), compress=False)
     else:
