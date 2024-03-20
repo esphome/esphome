@@ -12,7 +12,6 @@ static const double NTC_C = 1.0396291358342124e-07;
 static const float PULLUP_RESISTANCE = 10000.0f;
 static const uint16_t ADC_MAX = 1023;  // ADC of the inverter controller, not the ESP
 
-#pragma pack(push, 1)
 struct SunGTIL2Message {
   uint16_t sync;
   uint8_t ac_waveform[277];
@@ -32,8 +31,7 @@ struct SunGTIL2Message {
   char serial_number[10];
   uint8_t unknown5;
   uint8_t end[39];
-};
-#pragma pack(pop)
+} __attribute__((packed));
 
 static const uint16_t MESSAGE_SIZE = sizeof(SunGTIL2Message);
 
