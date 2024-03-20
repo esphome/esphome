@@ -394,7 +394,7 @@ sensor:
       name: "DC Power"
     limiter_power:
       id: gtil_limiter_power
-      internal: True
+      internal: true
 
 #
 # platform sensor.apds9960 requires component apds9960
@@ -820,7 +820,7 @@ text_sensor:
       name: "State"
     serial_number:
       id: gtil_serial_number
-      internal: True
+      internal: true
 
 output:
   - platform: pipsolar
