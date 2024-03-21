@@ -47,7 +47,7 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@v4.0.1
+        uses: actions/cache@v4.0.2
         with:
           path: venv
           # yamllint disable-line rule:line-length
@@ -367,7 +367,7 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Cache platformio
-        uses: actions/cache@v4.0.1
+        uses: actions/cache@v4.0.2
         with:
           path: ~/.platformio
           # yamllint disable-line rule:line-length
