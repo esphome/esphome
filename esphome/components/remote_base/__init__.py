@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_MAGNITUDE,
     CONF_WAND_ID,
     CONF_LEVEL,
+    CONF_DELTA,
 )
 from esphome.core import coroutine
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -792,6 +793,7 @@ async def pioneer_action(var, config, args):
 PRONTO_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA): cv.string,
+        cv.Optional(CONF_DELTA, default=-1): cv.int_,
     }
 )
 
@@ -803,6 +805,7 @@ def pronto_binary_sensor(var, config):
             cg.StructInitializer(
                 ProntoData,
                 ("data", config[CONF_DATA]),
+                ("delta", config[CONF_DELTA]),
             )
         )
     )
