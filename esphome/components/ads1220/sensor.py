@@ -4,7 +4,6 @@ from esphome.components import sensor, voltage_sampler
 from esphome.const import (
     CONF_GAIN,
     CONF_MULTIPLEXER,
-	CONF_
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,

@@ -236,11 +236,11 @@ class ADS1220Sensor : public sensor::Sensor, public PollingComponent, public vol
         ADS1220Component *parent_;
         ADS1220Multiplexer multiplexer_;
         ADS1220Gain gain_;
-		ADS1220DataRate datarate_;
-		ADS1220OpMode op_mode_;
-		ADS1220ConvMode_;
-		ADS1220VRefSource vref_source_;
-		ADS1220DrdyMode drdy_mode_;
+        ADS1220DataRate datarate_;
+        ADS1220OpMode op_mode_;
+        ADS1220ConvMode_;
+        ADS1220VRefSource vref_source_;
+        ADS1220DrdyMode drdy_mode_;
 	
 		bool temp_sensor_;
 	
