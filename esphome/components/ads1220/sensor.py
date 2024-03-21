@@ -4,7 +4,7 @@ from esphome.components import sensor, voltage_sampler
 from esphome.const import (
     CONF_GAIN,
     CONF_MULTIPLEXER,
-    CONF_RESOLUTION,
+	CONF_
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
@@ -45,11 +45,80 @@ GAIN = {
     "128": ADS1220Gain.ADS1220_GAIN_128,
 }
 
-ADS1220Resolution = ads1220_ns.enum("ADS1220Resolution")
-RESOLUTION = {
-    "24_BITS": ADS1220Resolution.ADS1220_24_BITS,
+ADS1220DataRate = ads1220_ns.enum("ADS1220DataRate")
+DATARATE = {
+    "0": ADS1220DataRate.ADS1220_DR_LVL_0,
+    "1": ADS1220DataRate.ADS1220_DR_LVL_1,
+    "2": ADS1220DataRate.ADS1220_DR_LVL_2,
+    "3": ADS1220DataRate.ADS1220_DR_LVL_3,
+    "4": ADS1220DataRate.ADS1220_DR_LVL_4,
+    "5": ADS1220DataRate.ADS1220_DR_LVL_5,
+    "6": ADS1220DataRate.ADS1220_DR_LVL_6,
 }
 
+ADS1220OpMode = ads1220_ns.enum("ADS1220OpMode")
+OP_MODE = {
+    "NORMAL": ADS1220OpMode.ADS1220_NORMAL_MODE,
+    "DUTY_CYCLE": ADS1220OpMode.ADS1220_DUTY_CYCLE_MODE,
+    "TURBO": ADS1220OpMode.ADS1220_TURBO_MODE,
+}
+
+ADS1220ConvMode = ads1220_ns.enum("ADS1220ConvMode")
+CONV_MODE = {
+	"SINGLE_SHOT": ADS1220ConvMode.ADS1220_SINGLE_SHOT,
+	"CONTINUOUS": ADS1220ConvMode.ADS1220_CONTINUOUS,
+}
+
+ADS1220VRef = ads1220_ns.enum("ADS1220VRef")
+VREF = {
+	"INTERNAL": ADS1220VRef.ADS1220_VREF_INT,
+    "REFP0_REFN0": ADS1220VRef.ADS1220_VREF_REFP0_REFN0,
+    "REFP1_REFN1": ADS1220VRef.ADS1220_VREF_REFP1_REFN1,
+    "AVDD_AVSS": ADS1220VRef.ADS1220_VREF_AVDD_AVSS,
+}
+
+ADS1220FIR = ads1220_ns.enum("ADS1220FIR")
+FIR = {
+    "NONE": ADS1220FIR.ADS1220_NONE,
+    "50_60": ADS1220FIR.ADS1220_50HZ_60HZ,
+    "50": ADS1220FIR.ADS1220_50HZ,
+    "60": ADS1220FIR.ADS1220_60HZ,
+}
+
+ADS1220PSW = ads1220_ns.enum("ADS1220PSW")
+PSW = {
+    "OPEN": ADS1220PSW.ADS1220_ALWAYS_OPEN,
+    "SWITCH": ADS1220PSW.ADS1220_SWITCH,
+}
+
+ADS1220IdacCurrent = ads1220_ns.enum("ADS1220IdacCurrent")
+IDAC_CURRENT = {
+    "OFF": ADS1220IdacCurrent.ADS1220_IDAC_OFF,
+    "10uA": ADS1220IdacCurrent.ADS1220_IDAC_10_MU_A,
+    "50uA": ADS1220IdacCurrent.ADS1220_IDAC_50_MU_A,
+    "100uA": ADS1220IdacCurrent.ADS1220_IDAC_100_MU_A,
+    "250uA": ADS1220IdacCurrent.ADS1220_IDAC_250_MU_A,
+    "500uA": ADS1220IdacCurrent.ADS1220_IDAC_500_MU_A,
+    "1000uA": ADS1220IdacCurrent.ADS1220_IDAC_1000_MU_A,
+    "1500uA": ADS1220IdacCurrent.ADS1220_IDAC_1500_MU_A,
+}
+
+ADS1220IdacRouting = ads1220_ns.enum("ADS1220IdacRouting")
+ = {
+    "NONE": ADS1220IdacRouting.ADS1220_IDAC_NONE,
+    "AIN0_REFP1": ADS1220IdacRouting.ADS1220_IDAC_AIN0_REFP1,
+    "AIN1": ADS1220IdacRouting.ADS1220_IDAC_AIN1,
+    "AIN2": ADS1220IdacRouting.ADS1220_IDAC_AIN2,
+    "AIN3_REFN1": ADS1220IdacRouting.ADS1220_IDAC_AIN3_REFN1,
+    "REFP0": ADS1220IdacRouting.ADS1220_IDAC_REFP0,
+    "REFN0": ADS1220IdacRouting.ADS1220_IDAC_REFN0,
+}
+
+ADS1220DrdyMode = ads1220_ns.enum("ADS1220DrdyMode")
+DRDY_MODE = {
+    "DRDY_ONLY": ADS1220_DRDY_ONLY
+    "DOUT_DRDY": ADS1220_DOUT_DRDY
+}
 
 def validate_gain(value):
     if isinstance(value, float):
@@ -78,9 +147,6 @@ CONFIG_SCHEMA = (
             cv.GenerateID(CONF_ADS1220_ID): cv.use_id(ADS1220Component),
             cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space="_"),
             cv.Required(CONF_GAIN): validate_gain,
-            cv.Optional(CONF_RESOLUTION, default="24_BITS"): cv.enum(
-                RESOLUTION, upper=True, space="_"
-            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))

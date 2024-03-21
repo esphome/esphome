@@ -34,6 +34,9 @@ void ADS1220Component::setup() {
 	uint8_t value_2;
 	uint8_t value_3;
 
+	bool enable = false;
+    uint16_t config = 0;
+
     this->spi_setup();
     //pinMode(csPin, OUTPUT);
     //digitalWrite(csPin, HIGH);
@@ -58,29 +61,44 @@ void ADS1220Component::setup() {
     bypassPGA(false);
     if (!ctrlVal) {
         ESP_LOGE(TAG, "Communication with ADS1220 failed!");
-        //this->mark_failed();
-        //return;
+        this->mark_failed();
+        return;
     }
 
 	ESP_LOGCONFIG(TAG, "Configuring ADS1220...");
 
     // Setup operation mode
-    setOperatingMode(ADS1220_TURBO_MODE);
-    // Setup Gain
-    setGain(ADS1220_GAIN_1);
-    // Set mode
-    if (this->continuous_mode_) {
-        // Set continuous mode
-        setConversionMode(ADS1220_CONTINUOUS);
-    } else {
-        // Set singleshot mode
-        setConversionMode(ADS1220_SINGLE_SHOT);
-    }
-    // Set data rate - 860 samples per second (we're in singleshot mode)
-    setDataRate(ADS1220_DR_LVL_4);
-    setVRefSource(ADS1220_VREF_AVDD_AVSS);
-    setDrdyMode(ADS1220_DRDY_ONLY);
+    //setOperatingMode(ADS1220_TURBO_MODE);
+
+	// Setup gain
+    //setGain(ADS1220_GAIN_1);
+    config = sensor->get_gain();
+    setGain((ads1220Gain)config);
+	// Setup datarate
+    config = sensor->get_datarate();
+    setDataRate((ads1220DataRate)config);
+	// Setup operating mode
+    config = sensor->get_operating_mode();
+    setOperatingMode((ads1220OpMode)config);
+	// Setup conversion mode
+    config = sensor->get_conversion_mode();
+    setConversionMode((ads1220ConvMode)config);
+	// Setup temperature sensor
+    enable = sensor->get_temp_sensor();
+    enableTemperatureSensor(enable);
+	// Setup voltage reference
+    config = sensor->get_vref_source();
+	setVRefSource((ads1220VRef)config);
+	// Setup dataready pin mode
+    config = sensor->get_drdy_mode();
+	setDrdyMode((ads1220DrdyMode)config);
+
+
+	// Setup burnout current sources (testing wire breaks or shorted sensors)
+    //config = sensor->get_burnout_current_sources();
+	//enableBurnOutCurrentSources(false);
 }
+
 void ADS1220Component::dump_config() {
     ESP_LOGCONFIG(TAG, "Setting up ADS1220...");
     //LOG_I2C_DEVICE(this);
@@ -295,7 +313,7 @@ void ADS1220Component::setDrdyMode(ads1220DrdyMode mode){
 }
 
 /* Other settings */
-void ADS1220Component::setVRefValue_V(float refVal){
+void ADS1220Component::setVRefValue(float refVal){
     vRef = refVal;
 }
 
