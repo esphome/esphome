@@ -27,7 +27,7 @@ void SHT3XDComponent::setup() {
     return;
   }
   this->serial_number_ = (uint32_t(raw_serial_number[0]) << 16) | uint32_t(raw_serial_number[1]);
-  
+
   if (!this->write_command(heater_enabled_ ? SHT3XD_COMMAND_HEATER_ENABLE : SHT3XD_COMMAND_HEATER_DISABLE)) {
     this->mark_failed();
     return;
@@ -42,7 +42,7 @@ void SHT3XDComponent::dump_config() {
   }
   ESP_LOGD(TAG, "  Serial Number: 0x%08" PRIX32, this->serial_number_);
   ESP_LOGD(TAG, "  Heater Enabled: %s", this->heater_enabled_ ? "true" : "false");
-  
+
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
 
