@@ -31,7 +31,7 @@ CONF_MD5_URL = "md5_url"
 
 
 def validate_certificate_bundle(config):
-    if not config.get(CONF_EXCLUDE_CERTIFICATE_BUNDLE) and not CORE.using_esp_idf:
+    if not (CORE.is_esp8266 and config.get(CONF_ESP8266_DISABLE_SSL_SUPPORT)) and (not config.get(CONF_EXCLUDE_CERTIFICATE_BUNDLE) and not CORE.using_esp_idf):
         raise cv.Invalid(
             "ESPHome supports certificate verification only via ESP-IDF. "
             f"Set '{CONF_EXCLUDE_CERTIFICATE_BUNDLE}: true' to skip certificate validation."
