@@ -66,6 +66,7 @@ class MicroWakeWord : public Component {
   void setup() override;
   void loop() override;
   float get_setup_priority() const override;
+  void dump_config() override;
 
   void start();
   void stop();
@@ -73,6 +74,8 @@ class MicroWakeWord : public Component {
   bool is_running() const { return this->state_ != State::IDLE; }
 
   bool initialize_models();
+
+  std::string get_wake_word() { return this->wake_word_; }
 
   // Increasing either of these will reduce the rate of false acceptances while increasing the false rejection rate
   void set_probability_cutoff(float probability_cutoff) { this->probability_cutoff_ = probability_cutoff; }
@@ -125,7 +128,6 @@ class MicroWakeWord : public Component {
 
   // Stores audio fed into feature generator preprocessor
   int16_t *preprocessor_audio_buffer_;
-  int16_t *preprocessor_stride_buffer_;
 
   bool detected_{false};
 
@@ -178,7 +180,7 @@ class MicroWakeWord : public Component {
   bool register_preprocessor_ops_(tflite::MicroMutableOpResolver<18> &op_resolver);
 
   /// @brief Returns true if successfully registered the streaming model's TensorFlow operations
-  bool register_streaming_ops_(tflite::MicroMutableOpResolver<14> &op_resolver);
+  bool register_streaming_ops_(tflite::MicroMutableOpResolver<17> &op_resolver);
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<MicroWakeWord> {

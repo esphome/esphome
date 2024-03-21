@@ -1,8 +1,8 @@
 #include "list_entities.h"
-#include "esphome/core/util.h"
-#include "esphome/core/log.h"
-#include "esphome/core/application.h"
 #include "api_connection.h"
+#include "esphome/core/application.h"
+#include "esphome/core/log.h"
+#include "esphome/core/util.h"
 
 namespace esphome {
 namespace api {
@@ -58,6 +58,10 @@ bool ListEntitiesIterator::on_climate(climate::Climate *climate) { return this->
 
 #ifdef USE_NUMBER
 bool ListEntitiesIterator::on_number(number::Number *number) { return this->client_->send_number_info(number); }
+#endif
+
+#ifdef USE_DATETIME_DATE
+bool ListEntitiesIterator::on_date(datetime::DateEntity *date) { return this->client_->send_date_info(date); }
 #endif
 
 #ifdef USE_TEXT
