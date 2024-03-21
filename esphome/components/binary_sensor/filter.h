@@ -108,6 +108,19 @@ class LambdaFilter : public Filter {
   std::function<optional<bool>(bool)> f_;
 };
 
+class SettleFilter : public Filter, public Component {
+ public:
+  optional<bool> new_value(bool value, bool is_initial) override;
+
+  float get_setup_priority() const override;
+
+  template<typename T> void set_delay(T delay) { this->delay_ = delay; }
+
+ protected:
+  TemplatableValue<uint32_t> delay_{};
+  bool steady_{true};
+};
+
 }  // namespace binary_sensor
 
 }  // namespace esphome

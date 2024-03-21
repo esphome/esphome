@@ -54,7 +54,7 @@ class OTAEndTrigger : public Trigger<> {
   }
 };
 
-class OTAErrorTrigger : public Trigger<int> {
+class OTAErrorTrigger : public Trigger<uint8_t> {
  public:
   explicit OTAErrorTrigger(OTAComponent *parent) {
     parent->add_on_state_callback([this, parent](OTAState state, float progress, uint8_t error) {

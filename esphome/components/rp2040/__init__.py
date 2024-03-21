@@ -14,6 +14,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_RP2040,
 )
 from esphome.core import CORE, coroutine_with_priority, EsphomeError
 from esphome.helpers import mkdir_p, write_file, copy_file_if_changed
@@ -30,7 +31,7 @@ AUTO_LOAD = []
 
 def set_core_data(config):
     CORE.data[KEY_RP2040] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "rp2040"
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_RP2040
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
@@ -40,6 +41,17 @@ def set_core_data(config):
     CORE.data[KEY_RP2040][KEY_PIO_FILES] = {}
 
     return config
+
+
+def get_download_types(storage_json):
+    return [
+        {
+            "title": "UF2 format",
+            "description": "For copying to RP2040 over USB.",
+            "file": "firmware.uf2",
+            "download": f"{storage_json.name}.uf2",
+        },
+    ]
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
@@ -62,19 +74,19 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 3, 0)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 6, 0)
 
 # The platformio/raspberrypi version to use for arduino frameworks
 #  - https://github.com/platformio/platform-raspberrypi/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/raspberrypi
-ARDUINO_PLATFORM_VERSION = cv.Version(1, 9, 0)
+ARDUINO_PLATFORM_VERSION = cv.Version(1, 10, 0)
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(3, 3, 0), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(3, 3, 0), None),
+        "dev": (cv.Version(3, 4, 0), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(3, 4, 0), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -141,6 +153,9 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     cg.add(rp2040_ns.setup_preferences())
 
+    # Allow LDF to properly discover dependency including those in preprocessor
+    # conditionals
+    cg.add_platformio_option("lib_ldf_mode", "chain+")
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_RP2040")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])

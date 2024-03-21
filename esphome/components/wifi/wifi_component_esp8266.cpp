@@ -17,14 +17,17 @@ extern "C" {
 #include "lwip/dhcp.h"
 #include "lwip/init.h"  // LWIP_VERSION_
 #include "lwip/apps/sntp.h"
-#if LWIP_IPV6
 #include "lwip/netif.h"  // struct netif
-#endif
+#include <AddrList.h>
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
 #include "LwipDhcpServer.h"
+#if USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
+#include <ESP8266WiFi.h>
+#include "ESP8266WiFiAP.h"
 #define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
 #define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
 #define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpSoftAP.set_dhcps_offer_option(offer, mode)
+#endif
 #endif
 }
 
@@ -97,6 +100,7 @@ bool WiFiComponent::wifi_apply_power_save_() {
       power_save = NONE_SLEEP_T;
       break;
   }
+  wifi_fpm_auto_sleep_set_in_null_mode(1);
   return wifi_set_sleep_type(power_save);
 }
 
@@ -145,9 +149,9 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 #endif
 
   struct ip_info info {};
-  info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
-  info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
-  info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
+  info.ip = manual_ip->static_ip;
+  info.gw = manual_ip->gateway;
+  info.netmask = manual_ip->subnet;
 
   if (dhcp_status == DHCP_STARTED) {
     bool dhcp_stop_ret = wifi_station_dhcpc_stop();
@@ -163,12 +167,12 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   }
 
   ip_addr_t dns;
-  if (uint32_t(manual_ip->dns1) != 0) {
-    dns.addr = static_cast<uint32_t>(manual_ip->dns1);
+  if (manual_ip->dns1.is_set()) {
+    dns = manual_ip->dns1;
     dns_setserver(0, &dns);
   }
-  if (uint32_t(manual_ip->dns2) != 0) {
-    dns.addr = static_cast<uint32_t>(manual_ip->dns2);
+  if (manual_ip->dns2.is_set()) {
+    dns = manual_ip->dns2;
     dns_setserver(1, &dns);
   }
 
@@ -183,12 +187,15 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   return ret;
 }
 
-network::IPAddress WiFiComponent::wifi_sta_ip() {
+network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
-  struct ip_info ip {};
-  wifi_get_ip_info(STATION_IF, &ip);
-  return {ip.ip.addr};
+  network::IPAddresses addresses;
+  uint8_t index = 0;
+  for (auto &addr : addrList) {
+    addresses[index++] = addr.ipFromNetifNum();
+  }
+  return addresses;
 }
 bool WiFiComponent::wifi_apply_hostname_() {
   const std::string &hostname = App.get_name();
@@ -324,6 +331,21 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     ESP_LOGV(TAG, "wifi_station_connect failed!");
     return false;
   }
+
+#if USE_NETWORK_IPV6
+  bool connected = false;
+  while (!connected) {
+    uint8_t ipv6_addr_count = 0;
+    for (auto addr : addrList) {
+      ESP_LOGV(TAG, "Address %s", addr.toString().c_str());
+      if (addr.isV6()) {
+        ipv6_addr_count++;
+      }
+    }
+    delay(500);  // NOLINT
+    connected = (ipv6_addr_count >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
+  }
+#endif /* USE_NETWORK_IPV6 */
 
   if (ap.get_channel().has_value()) {
     ret = wifi_set_channel(*ap.get_channel());
@@ -674,6 +696,8 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
   }
   this->scan_done_ = true;
 }
+
+#ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   // enable AP
   if (!this->wifi_mode_({}, true))
@@ -681,13 +705,13 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   struct ip_info info {};
   if (manual_ip.has_value()) {
-    info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
-    info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
-    info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
+    info.ip = manual_ip->static_ip;
+    info.gw = manual_ip->gateway;
+    info.netmask = manual_ip->subnet;
   } else {
-    info.ip.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
-    info.gw.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
-    info.netmask.addr = static_cast<uint32_t>(network::IPAddress(255, 255, 255, 0));
+    info.ip = network::IPAddress(192, 168, 4, 1);
+    info.gw = network::IPAddress(192, 168, 4, 1);
+    info.netmask = network::IPAddress(255, 255, 255, 0);
   }
 
   if (wifi_softap_dhcps_status() == DHCP_STARTED) {
@@ -701,18 +725,18 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return false;
   }
 
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0) && USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
   dhcpSoftAP.begin(&info);
 #endif
 
   struct dhcps_lease lease {};
   lease.enable = true;
-  network::IPAddress start_address = info.ip.addr;
-  start_address[3] += 99;
-  lease.start_ip.addr = static_cast<uint32_t>(start_address);
+  network::IPAddress start_address = network::IPAddress(&info.ip);
+  start_address += 99;
+  lease.start_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());
-  start_address[3] += 100;
-  lease.end_ip.addr = static_cast<uint32_t>(start_address);
+  start_address += 100;
+  lease.end_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
   if (!wifi_softap_set_dhcps_lease(&lease)) {
     ESP_LOGV(TAG, "Setting SoftAP DHCP lease failed!");
@@ -725,12 +749,16 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return false;
   }
 
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)
+  ESP8266WiFiClass::softAPDhcpServer().setRouter(true);  // send ROUTER option with netif's gateway IP
+#else
   uint8_t mode = 1;
   // bit0, 1 enables router information from ESP8266 SoftAP DHCP server.
   if (!wifi_softap_set_dhcps_offer_option(OFFER_ROUTER, &mode)) {
     ESP_LOGV(TAG, "wifi_softap_set_dhcps_offer_option failed!");
     return false;
   }
+#endif
 
   if (!wifi_softap_dhcps_start()) {
     ESP_LOGV(TAG, "Starting SoftAP DHCPS failed!");
@@ -739,6 +767,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   return true;
 }
+
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   // enable AP
   if (!this->wifi_mode_({}, true))
@@ -776,11 +805,14 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
+
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   struct ip_info ip {};
   wifi_get_ip_info(SOFTAP_IF, &ip);
-  return {ip.ip.addr};
+  return network::IPAddress(&ip.ip);
 }
+#endif  // USE_WIFI_AP
+
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
   uint8_t *raw_bssid = WiFi.BSSID();
@@ -793,9 +825,9 @@ bssid_t WiFiComponent::wifi_bssid() {
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
 int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
-network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
-network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
-network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
+network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {(const ip_addr_t *) WiFi.subnetMask()}; }
+network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t *) WiFi.gatewayIP()}; }
+network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {(const ip_addr_t *) WiFi.dnsIP(num)}; }
 void WiFiComponent::wifi_loop_() {}
 
 }  // namespace wifi

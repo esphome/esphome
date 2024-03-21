@@ -1,0 +1,78 @@
+# Tests for ESP32-S3 boards - IDf
+---
+wifi:
+  ssid: "ssid"
+
+network:
+  enable_ipv6: true
+
+esp32:
+  board: esp32s3box
+  variant: ESP32S3
+  framework:
+    type: esp-idf
+
+esphome:
+  name: esp32-s3-test
+
+logger:
+
+debug:
+
+psram:
+
+spi:
+  - id: spi_id_1
+    type: single
+    clk_pin:
+      number: GPIO7
+      allow_other_uses: false
+    mosi_pin: GPIO6
+    interface: hardware
+spi_device:
+  id: spidev
+  data_rate: 2MHz
+  spi_id: spi_id_1
+  mode: 3
+  bit_order: lsb_first
+
+display:
+  - platform: ili9xxx
+    id: displ8
+    model: ili9342
+    cs_pin: GPIO5
+    dc_pin: GPIO4
+    reset_pin:
+      number: GPIO48
+      allow_other_uses: true
+
+i2c:
+  scl: GPIO18
+  sda: GPIO8
+
+touchscreen:
+  - platform: tt21100
+    display: displ8
+    interrupt_pin:
+      number: GPIO3
+      ignore_strapping_warning: true
+      allow_other_uses: false
+    reset_pin:
+      number: GPIO48
+      allow_other_uses: true
+
+binary_sensor:
+  - platform: tt21100
+    name: Home Button
+    index: 1
+
+sensor:
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Max Block Free"
+    loop_time:
+      name: "Loop Time"
+    psram:
+      name: "PSRAM Free"

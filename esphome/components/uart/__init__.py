@@ -42,6 +42,9 @@ ESP8266UartComponent = uart_ns.class_(
     "ESP8266UartComponent", UARTComponent, cg.Component
 )
 RP2040UartComponent = uart_ns.class_("RP2040UartComponent", UARTComponent, cg.Component)
+LibreTinyUARTComponent = uart_ns.class_(
+    "LibreTinyUARTComponent", UARTComponent, cg.Component
+)
 
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
@@ -72,12 +75,13 @@ def validate_rx_pin(value):
 def validate_invert_esp32(config):
     if (
         CORE.is_esp32
+        and CORE.using_arduino
         and CONF_TX_PIN in config
         and CONF_RX_PIN in config
         and config[CONF_TX_PIN][CONF_INVERTED] != config[CONF_RX_PIN][CONF_INVERTED]
     ):
         raise cv.Invalid(
-            "Different invert values for TX and RX pin are not (yet) supported for ESP32."
+            "Different invert values for TX and RX pin are not supported for ESP32 when using Arduino."
         )
     return config
 
@@ -92,6 +96,8 @@ def _uart_declare_type(value):
             return cv.declare_id(IDFUARTComponent)(value)
     if CORE.is_rp2040:
         return cv.declare_id(RP2040UartComponent)(value)
+    if CORE.is_libretiny:
+        return cv.declare_id(LibreTinyUARTComponent)(value)
     raise NotImplementedError
 
 

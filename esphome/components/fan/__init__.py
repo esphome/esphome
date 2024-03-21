@@ -14,9 +14,14 @@ from esphome.const import (
     CONF_SPEED_LEVEL_STATE_TOPIC,
     CONF_SPEED_COMMAND_TOPIC,
     CONF_SPEED_STATE_TOPIC,
+    CONF_OFF_SPEED_CYCLE,
+    CONF_ON_DIRECTION_SET,
+    CONF_ON_OSCILLATING_SET,
     CONF_ON_SPEED_SET,
+    CONF_ON_STATE,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
+    CONF_ON_PRESET_SET,
     CONF_TRIGGER_ID,
     CONF_DIRECTION,
     CONF_RESTORE_MODE,
@@ -53,9 +58,23 @@ TurnOffAction = fan_ns.class_("TurnOffAction", automation.Action)
 ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
 CycleSpeedAction = fan_ns.class_("CycleSpeedAction", automation.Action)
 
+FanStateTrigger = fan_ns.class_(
+    "FanStateTrigger", automation.Trigger.template(Fan.operator("ptr"))
+)
 FanTurnOnTrigger = fan_ns.class_("FanTurnOnTrigger", automation.Trigger.template())
 FanTurnOffTrigger = fan_ns.class_("FanTurnOffTrigger", automation.Trigger.template())
-FanSpeedSetTrigger = fan_ns.class_("FanSpeedSetTrigger", automation.Trigger.template())
+FanDirectionSetTrigger = fan_ns.class_(
+    "FanDirectionSetTrigger", automation.Trigger.template(FanDirection)
+)
+FanOscillatingSetTrigger = fan_ns.class_(
+    "FanOscillatingSetTrigger", automation.Trigger.template(cg.bool_)
+)
+FanSpeedSetTrigger = fan_ns.class_(
+    "FanSpeedSetTrigger", automation.Trigger.template(cg.int_)
+)
+FanPresetSetTrigger = fan_ns.class_(
+    "FanPresetSetTrigger", automation.Trigger.template(cg.std_string)
+)
 
 FanIsOnCondition = fan_ns.class_("FanIsOnCondition", automation.Condition.template())
 FanIsOffCondition = fan_ns.class_("FanIsOffCondition", automation.Condition.template())
@@ -85,6 +104,11 @@ FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).exte
         cv.Optional(CONF_SPEED_COMMAND_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.subscribe_topic
         ),
+        cv.Optional(CONF_ON_STATE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanStateTrigger),
+            }
+        ),
         cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOnTrigger),
@@ -95,13 +119,60 @@ FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).exte
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOffTrigger),
             }
         ),
+        cv.Optional(CONF_ON_DIRECTION_SET): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanDirectionSetTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_OSCILLATING_SET): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanOscillatingSetTrigger),
+            }
+        ),
         cv.Optional(CONF_ON_SPEED_SET): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanSpeedSetTrigger),
             }
         ),
+        cv.Optional(CONF_ON_PRESET_SET): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanPresetSetTrigger),
+            }
+        ),
     }
 )
+
+_PRESET_MODES_SCHEMA = cv.All(
+    cv.ensure_list(cv.string_strict),
+    cv.Length(min=1),
+)
+
+
+def validate_preset_modes(value):
+    # Check against defined schema
+    value = _PRESET_MODES_SCHEMA(value)
+
+    # Ensure preset names are unique
+    errors = []
+    presets = set()
+    for i, preset in enumerate(value):
+        # If name does not exist yet add it
+        if preset not in presets:
+            presets.add(preset)
+            continue
+
+        # Otherwise it's an error
+        errors.append(
+            cv.Invalid(
+                f"Found duplicate preset name '{preset}'. Presets must have unique names.",
+                [i],
+            )
+        )
+
+    if errors:
+        raise cv.MultipleInvalid(errors)
+
+    return value
 
 
 async def setup_fan_core_(var, config):
@@ -144,15 +215,27 @@ async def setup_fan_core_(var, config):
                 mqtt_.set_custom_speed_command_topic(config[CONF_SPEED_COMMAND_TOPIC])
             )
 
+    for conf in config.get(CONF_ON_STATE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(Fan.operator("ptr"), "x")], conf)
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_TURN_OFF, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_DIRECTION_SET, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(FanDirection, "x")], conf)
+    for conf in config.get(CONF_ON_OSCILLATING_SET, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(cg.bool_, "x")], conf)
     for conf in config.get(CONF_ON_SPEED_SET, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [(cg.int_, "x")], conf)
+    for conf in config.get(CONF_ON_PRESET_SET, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
 
 async def register_fan(var, config):
@@ -217,10 +300,22 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action("fan.cycle_speed", CycleSpeedAction, FAN_ACTION_SCHEMA)
+@automation.register_action(
+    "fan.cycle_speed",
+    CycleSpeedAction,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(Fan),
+            cv.Optional(CONF_OFF_SPEED_CYCLE, default=True): cv.boolean,
+        }
+    ),
+)
 async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_OFF_SPEED_CYCLE], args, bool)
+    cg.add(var.set_no_off_cycle(template_))
+    return var
 
 
 @automation.register_condition(

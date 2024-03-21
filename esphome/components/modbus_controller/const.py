@@ -1,6 +1,7 @@
 CONF_BITMASK = "bitmask"
 CONF_BYTE_OFFSET = "byte_offset"
 CONF_COMMAND_THROTTLE = "command_throttle"
+CONF_OFFLINE_SKIP_UPDATES = "offline_skip_updates"
 CONF_CUSTOM_COMMAND = "custom_command"
 CONF_FORCE_NEW_RANGE = "force_new_range"
 CONF_MODBUS_CONTROLLER_ID = "modbus_controller_id"

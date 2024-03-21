@@ -57,6 +57,12 @@ class ComponentIterator {
 #ifdef USE_NUMBER
   virtual bool on_number(number::Number *number) = 0;
 #endif
+#ifdef USE_DATETIME_DATE
+  virtual bool on_date(datetime::DateEntity *date) = 0;
+#endif
+#ifdef USE_TEXT
+  virtual bool on_text(text::Text *text) = 0;
+#endif
 #ifdef USE_SELECT
   virtual bool on_select(select::Select *select) = 0;
 #endif
@@ -110,6 +116,12 @@ class ComponentIterator {
 #endif
 #ifdef USE_NUMBER
     NUMBER,
+#endif
+#ifdef USE_DATETIME_DATE
+    DATETIME_DATE,
+#endif
+#ifdef USE_TEXT
+    TEXT,
 #endif
 #ifdef USE_SELECT
     SELECT,

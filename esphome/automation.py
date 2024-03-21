@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE_ID,
     CONF_TIME,
+    CONF_UPDATE_INTERVAL,
 )
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
@@ -69,6 +70,8 @@ WhileAction = cg.esphome_ns.class_("WhileAction", Action)
 RepeatAction = cg.esphome_ns.class_("RepeatAction", Action)
 WaitUntilAction = cg.esphome_ns.class_("WaitUntilAction", Action, cg.Component)
 UpdateComponentAction = cg.esphome_ns.class_("UpdateComponentAction", Action)
+SuspendComponentAction = cg.esphome_ns.class_("SuspendComponentAction", Action)
+ResumeComponentAction = cg.esphome_ns.class_("ResumeComponentAction", Action)
 Automation = cg.esphome_ns.class_("Automation")
 
 LambdaCondition = cg.esphome_ns.class_("LambdaCondition", Condition)
@@ -138,6 +141,7 @@ AUTOMATION_SCHEMA = cv.Schema(
 AndCondition = cg.esphome_ns.class_("AndCondition", Condition)
 OrCondition = cg.esphome_ns.class_("OrCondition", Condition)
 NotCondition = cg.esphome_ns.class_("NotCondition", Condition)
+XorCondition = cg.esphome_ns.class_("XorCondition", Condition)
 
 
 @register_condition("and", AndCondition, validate_condition_list)
@@ -156,6 +160,12 @@ async def or_condition_to_code(config, condition_id, template_arg, args):
 async def not_condition_to_code(config, condition_id, template_arg, args):
     condition = await build_condition(config, template_arg, args)
     return cg.new_Pvariable(condition_id, template_arg, condition)
+
+
+@register_condition("xor", XorCondition, validate_condition_list)
+async def xor_condition_to_code(config, condition_id, template_arg, args):
+    conditions = await build_condition_list(config, template_arg, args)
+    return cg.new_Pvariable(condition_id, template_arg, conditions)
 
 
 @register_condition("lambda", LambdaCondition, cv.returning_lambda)
@@ -301,6 +311,41 @@ async def lambda_action_to_code(config, action_id, template_arg, args):
 async def component_update_action_to_code(config, action_id, template_arg, args):
     comp = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, comp)
+
+
+@register_action(
+    "component.suspend",
+    SuspendComponentAction,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
+        }
+    ),
+)
+async def component_suspend_action_to_code(config, action_id, template_arg, args):
+    comp = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, comp)
+
+
+@register_action(
+    "component.resume",
+    ResumeComponentAction,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
+            cv.Optional(CONF_UPDATE_INTERVAL): cv.templatable(
+                cv.positive_time_period_milliseconds
+            ),
+        }
+    ),
+)
+async def component_resume_action_to_code(config, action_id, template_arg, args):
+    comp = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, comp)
+    if CONF_UPDATE_INTERVAL in config:
+        template_ = await cg.templatable(config[CONF_UPDATE_INTERVAL], args, int)
+        cg.add(var.set_update_interval(template_))
+    return var
 
 
 async def build_action(full_config, template_arg, args):

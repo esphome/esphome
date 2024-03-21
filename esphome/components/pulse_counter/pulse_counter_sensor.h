@@ -4,6 +4,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
+#include <cinttypes>
+
 #if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
 #include <driver/pcnt.h>
 #define HAS_PCNT

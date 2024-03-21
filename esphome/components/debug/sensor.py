@@ -17,6 +17,8 @@ from . import CONF_DEBUG_ID, DebugComponent
 
 DEPENDENCIES = ["debug"]
 
+CONF_PSRAM = "psram"
+
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_DEBUG_ID): cv.use_id(DebugComponent),
     cv.Optional(CONF_FREE): sensor.sensor_schema(
@@ -47,24 +49,38 @@ CONFIG_SCHEMA = {
         accuracy_decimals=0,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
+    cv.Optional(CONF_PSRAM): cv.All(
+        cv.only_on_esp32,
+        cv.requires_component("psram"),
+        sensor.sensor_schema(
+            unit_of_measurement=UNIT_BYTES,
+            icon=ICON_COUNTER,
+            accuracy_decimals=0,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
+    ),
 }
 
 
 async def to_code(config):
     debug_component = await cg.get_variable(config[CONF_DEBUG_ID])
 
-    if CONF_FREE in config:
-        sens = await sensor.new_sensor(config[CONF_FREE])
+    if free_conf := config.get(CONF_FREE):
+        sens = await sensor.new_sensor(free_conf)
         cg.add(debug_component.set_free_sensor(sens))
 
-    if CONF_BLOCK in config:
-        sens = await sensor.new_sensor(config[CONF_BLOCK])
+    if block_conf := config.get(CONF_BLOCK):
+        sens = await sensor.new_sensor(block_conf)
         cg.add(debug_component.set_block_sensor(sens))
 
-    if CONF_FRAGMENTATION in config:
-        sens = await sensor.new_sensor(config[CONF_FRAGMENTATION])
+    if fragmentation_conf := config.get(CONF_FRAGMENTATION):
+        sens = await sensor.new_sensor(fragmentation_conf)
         cg.add(debug_component.set_fragmentation_sensor(sens))
 
-    if CONF_LOOP_TIME in config:
-        sens = await sensor.new_sensor(config[CONF_LOOP_TIME])
+    if loop_time_conf := config.get(CONF_LOOP_TIME):
+        sens = await sensor.new_sensor(loop_time_conf)
         cg.add(debug_component.set_loop_time_sensor(sens))
+
+    if psram_conf := config.get(CONF_PSRAM):
+        sens = await sensor.new_sensor(psram_conf)
+        cg.add(debug_component.set_psram_sensor(sens))
