@@ -160,6 +160,5 @@ async def to_code(config):
 
     cg.add(var.set_multiplexer(config[CONF_MULTIPLEXER]))
     cg.add(var.set_gain(config[CONF_GAIN]))
-    cg.add(var.set_resolution(config[CONF_RESOLUTION]))
 
     cg.add(paren.register_sensor(var))
