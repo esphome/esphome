@@ -18,7 +18,7 @@ class AQICalculator : public AbstractAQICalculator {
  protected:
   static const int AMOUNT_OF_LEVELS = 7;
 
-   int index_grid_[AMOUNT_OF_LEVELS][2] = {
+  int index_grid_[AMOUNT_OF_LEVELS][2] = {
       {0, 50},
       {51, 100},
       {101, 150},
@@ -27,7 +27,7 @@ class AQICalculator : public AbstractAQICalculator {
       {301, 400},
       {401, 500}
   };
-   int pm2_5_calculation_grid_[AMOUNT_OF_LEVELS][2] = {
+  int pm2_5_calculation_grid_[AMOUNT_OF_LEVELS][2] = {
       {0, 12},
       {13, 35},
       {36, 55},
@@ -35,7 +35,7 @@ class AQICalculator : public AbstractAQICalculator {
       {151, 250},
       {251, 350},
       {351, 500}
-};
+  };
   int pm10_0_calculation_grid_[AMOUNT_OF_LEVELS][2] = {
       {0, 54},
       {55, 154},
@@ -44,7 +44,7 @@ class AQICalculator : public AbstractAQICalculator {
       {355, 424},
       {425, 504},
       {505, 604}
-};
+  };
 
   int calculate_index_(uint16_t value, int array[AMOUNT_OF_LEVELS][2]) {
     int grid_index = get_grid_index_(value, array);
