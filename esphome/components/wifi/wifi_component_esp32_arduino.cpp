@@ -157,7 +157,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   } else {
     addresses[0] = network::IPAddress(&ip.ip);
   }
-#if LWIP_IPV6
+#if USE_NETWORK_IPV6
   ip6_addr_t ipv6;
   err = tcpip_adapter_get_ip6_global(TCPIP_ADAPTER_IF_STA, &ipv6);
   if (err != ESP_OK) {
@@ -171,7 +171,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   } else {
     addresses[2] = network::IPAddress(&ipv6);
   }
-#endif /* LWIP_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
 
   return addresses;
 }
