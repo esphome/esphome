@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
+#include <vector>
+
 namespace esphome {
 namespace lightwaverf {
 

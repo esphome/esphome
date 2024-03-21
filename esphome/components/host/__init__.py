@@ -4,6 +4,7 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_HOST,
+    CONF_MAC_ADDRESS,
 )
 from esphome.core import CORE
 from esphome.helpers import IS_MACOS
@@ -28,13 +29,18 @@ def set_core_data(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema({}),
+    cv.Schema(
+        {
+            cv.Optional(CONF_MAC_ADDRESS, default="98:35:69:ab:f6:79"): cv.mac_address,
+        }
+    ),
     set_core_data,
 )
 
 
 async def to_code(config):
     cg.add_build_flag("-DUSE_HOST")
+    cg.add_define("USE_ESPHOME_HOST_MAC_ADDRESS", config[CONF_MAC_ADDRESS].parts)
     cg.add_build_flag("-std=c++17")
     cg.add_build_flag("-lsodium")
     if IS_MACOS:
