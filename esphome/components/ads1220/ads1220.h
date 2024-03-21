@@ -68,7 +68,7 @@ typedef enum ADS1220VRef {
     ADS1220_VREF_AVDD_AVSS      = 0xC0
 } ads1220VRef;
 
-typedef enum ADS1220_FIR{
+typedef enum ADS1220FIR{
     ADS1220_NONE        = 0x00,   // default
     ADS1220_50HZ_60HZ   = 0x10,
     ADS1220_50HZ        = 0x20,
@@ -106,9 +106,11 @@ typedef enum ADS1220DrdyMode {
     ADS1220_DOUT_DRDY = 0x02
 } ads1220DrdyMode;
 
-typedef enum ADS1220Resolution {
-    ADS1220_24_BITS = 24,
-} ads1220Resolution;
+typedef enum ADS1220FaultTestMode {
+    ADS1220_TEST_OFF = 0x00,   // default
+    ADS1220_TEST_ON = 0x01
+} ads1220FaultTestMode;
+
 
 class ADS1220Sensor;
 
@@ -150,6 +152,22 @@ class ADS1220Component : public Component, public spi::SPIDevice<spi::BIT_ORDER_
         float channel_2_voltage;
         float channel_3_voltage;
         static constexpr float ADS1220_RANGE {8388607.0}; // = 2^23 - 1 as float
+
+        ADS1220Multiplexer prev_multiplexer;
+        ADS1220Gain prev_gain;
+        ADS1220DataRate prev_datarate;
+        ADS1220OpMode prev_op_mode;
+        ADS1220ConvMode prev_conv_mode;
+        ADS1220VRef prev_vref_source;
+        ADS1220DrdyMode prev_drdy_mode;
+        ADS1220FIR prev_fir;
+        ADS1220PSW prev_psw;
+        ADS1220IdacCurrent prev_idac_current;
+        ADS1220IdacRouting prev_idac_1_routing;
+        ADS1220IdacRouting prev_idac_2_routing;
+
+		bool prev_temp_sensor_mode;
+	    bool prev_burnout_current_sources;
 
         /* Configuration Register 0 settings */
         void setCompareChannels(ads1220Multiplexer mux);
@@ -212,23 +230,29 @@ class ADS1220Sensor : public sensor::Sensor, public PollingComponent, public vol
 
 		void set_datarate(ADS1220DataRate datarate) { datarate_ = datarate; }
 		void set_operating_mode(ADS1220OpMode op_mode ) { op_mode_ = op_mode; }
-		void set_conversion_mode(ADS1220ConvMode) { conv_mode_ = conv_mode; }
-		void set_temp_sensor(bool temp_sensor) { temp_sensor_ = temp_sensor; }
-		void set_burnout_current_sources(ADS1220BurnoutCurrentSource burnout_current_source) { burnout_current_source_ = burnout_current_source; }
-		void set_vref_source(ADS1220VRefSource vref_source) { vref_source_ = vref_source; }
+		void set_conversion_mode(ADS1220ConvMode conv_mode) { conv_mode_ = conv_mode; }
+		void set_temp_sensor_mode(bool temp_sensor) { temp_sensor_mode_ = temp_sensor_mode; }
+		void set_burnout_current_sources(bool burnout_current_sources) { burnout_current_sources_ = burnout_current_sources; }
+		void set_vref_source(ADS1220VRef vref_source) { vref_source_ = vref_source; }
 		void set_drdy_mode(ADS1220DrdyMode drdy_mode) { drdy_mode_ = drdy_mode; }
+
+        void set_fir_filter(ADS1220FIR fir) { fir_ = fir; }
+        void set_low_side_power_switch(ADS1220PSW psw) { psw_ = psw; }
+        void set_idac_current(ADS1220IdacCurrent idac_current) { idac_current_ = idac_current; }
+        void set_idac_1_routing(ADS1220IdacRouting idac_1_routing) { idac_1_routing_ = idac_1_routing; }
+        void set_idac_2_routing(ADS1220IdacRouting idac_2_routing) { idac_2_routing_ = idac_2_routing; }
 		
-		void set_temperature_mode(bool temp) { this->temperature_mode_ = temp; }
+		//void set_temperature_mode(bool temp) { this->temperature_mode_ = temp; }
 	
         float sample() override;
         uint8_t get_multiplexer() const { return multiplexer_; }
         uint8_t get_gain() const { return gain_; }
 	
-		uint8_t get_datarate() const { return gain_; }
+		uint8_t get_datarate() const { return datarate_; }
 		uint8_t get_operating_mode() const { return op_mode_; }
 		uint8_t get_conversion_mode() const { return conv_mode_; }
-		uint8_t get_temp_sensor() const { return temp_sensor_; }
-		uint8_t get_burnout_current_sources() const { return burnout_current_source_; }
+		uint8_t get_temp_sensor_mode() const { return temp_sensor_mode_; }
+		uint8_t get_burnout_current_sources() const { return burnout_current_sources_; }
 		uint8_t get_vref_source() const { return vref_source_; }
 		uint8_t get_drdy_mode() const { return drdy_mode_; }
     
@@ -238,12 +262,18 @@ class ADS1220Sensor : public sensor::Sensor, public PollingComponent, public vol
         ADS1220Gain gain_;
         ADS1220DataRate datarate_;
         ADS1220OpMode op_mode_;
-        ADS1220ConvMode_;
-        ADS1220VRefSource vref_source_;
+        ADS1220ConvMode conv_mode_;
+        ADS1220VRef vref_source_;
         ADS1220DrdyMode drdy_mode_;
+        ADS1220FIR fir_;
+        ADS1220PSW psw_;
+        ADS1220IdacCurrent idac_current_;
+        ADS1220IdacRouting idac_1_routing_;
+        ADS1220IdacRouting idac_2_routing_;
 	
-		bool temp_sensor_;
-	
+		bool temp_sensor_mode_;
+	    bool burnout_current_sources_;
+
 };
 
 }  // namespace ads1220

@@ -34,9 +34,6 @@ void ADS1220Component::setup() {
 	uint8_t value_2;
 	uint8_t value_3;
 
-	bool enable = false;
-    uint16_t config = 0;
-
     this->spi_setup();
     //pinMode(csPin, OUTPUT);
     //digitalWrite(csPin, HIGH);
@@ -66,37 +63,24 @@ void ADS1220Component::setup() {
     }
 
 	ESP_LOGCONFIG(TAG, "Configuring ADS1220...");
-
+/*
     // Setup operation mode
-    //setOperatingMode(ADS1220_TURBO_MODE);
-
-	// Setup gain
-    //setGain(ADS1220_GAIN_1);
-    config = sensor->get_gain();
-    setGain((ads1220Gain)config);
-	// Setup datarate
-    config = sensor->get_datarate();
-    setDataRate((ads1220DataRate)config);
-	// Setup operating mode
-    config = sensor->get_operating_mode();
-    setOperatingMode((ads1220OpMode)config);
-	// Setup conversion mode
-    config = sensor->get_conversion_mode();
-    setConversionMode((ads1220ConvMode)config);
-	// Setup temperature sensor
-    enable = sensor->get_temp_sensor();
-    enableTemperatureSensor(enable);
-	// Setup voltage reference
-    config = sensor->get_vref_source();
-	setVRefSource((ads1220VRef)config);
-	// Setup dataready pin mode
-    config = sensor->get_drdy_mode();
-	setDrdyMode((ads1220DrdyMode)config);
-
-
-	// Setup burnout current sources (testing wire breaks or shorted sensors)
-    //config = sensor->get_burnout_current_sources();
-	//enableBurnOutCurrentSources(false);
+    setOperatingMode(ADS1220_TURBO_MODE);
+    // Setup Gain
+    setGain(ADS1220_GAIN_1);
+    // Set mode
+    if (this->continuous_mode_) {
+        // Set continuous mode
+        setConversionMode(ADS1220_CONTINUOUS);
+    } else {
+        // Set singleshot mode
+        setConversionMode(ADS1220_SINGLE_SHOT);
+    }
+    // Set data rate - 860 samples per second (we're in singleshot mode)
+    setVRefSource(ADS1220_VREF_AVDD_AVSS);
+    setDrdyMode(ADS1220_DRDY_ONLY);
+    setDataRate(ADS1220_DR_LVL_4);
+    */
 }
 
 void ADS1220Component::dump_config() {
@@ -110,7 +94,6 @@ void ADS1220Component::dump_config() {
         LOG_SENSOR("  ", "Sensor", sensor);
         ESP_LOGCONFIG(TAG, "    Multiplexer: %u", sensor->get_multiplexer());
         ESP_LOGCONFIG(TAG, "    Gain: %u", sensor->get_gain());
-        ESP_LOGCONFIG(TAG, "    Resolution: %u", sensor->get_resolution());
     }
 }
 
@@ -129,14 +112,74 @@ float ADS1220Component::request_measurement(ADS1220Sensor *sensor) {
     
     uint16_t config = 0;
 
-    config = sensor->get_multiplexer();
-    setCompareChannels((ads1220Multiplexer)config);
-
+    // Setup gain
     config = sensor->get_gain();
-    setGain((ads1220Gain)config);
-    //setGain(sensor->get_gain);
-    //setCompareChannels(sensor->get_multiplexer());
-    //setCompareChannels(ADS1220_MULTIPLEXER_P0_NG);
+    //ESP_LOGI(TAG, "ADS1220 gain: 0x%02x", (ads1220Gain)config);
+    if (prev_gain != config) {
+        setGain((ads1220Gain)config);
+        prev_gain = (ads1220Gain)config;
+    }
+	// Setup datarate
+    config = sensor->get_datarate();
+    //ESP_LOGI(TAG, "ADS1220 datarate: 0x%02x", (ads1220DataRate)config);
+    if (prev_datarate != config) {
+        setDataRate((ads1220DataRate)config);
+        prev_datarate = (ads1220DataRate)config;
+    }
+	// Setup operating mode
+    config = sensor->get_operating_mode();
+    //ESP_LOGI(TAG, "ADS1220 op mode: 0x%02x", (ads1220OpMode)config);
+    if (prev_op_mode != config) {
+        setOperatingMode((ads1220OpMode)config);
+        prev_op_mode = (ads1220OpMode)config;
+    }
+	// Setup conversion mode
+    config = sensor->get_conversion_mode();
+    //ESP_LOGI(TAG, "ADS1220 conv mode: 0x%02x", (ads1220ConvMode)config);
+    if (prev_conv_mode != config) {
+        setConversionMode((ads1220ConvMode)config);
+        prev_conv_mode = (ads1220ConvMode)config;
+    }
+	// Setup voltage reference
+    config = sensor->get_vref_source();
+    //ESP_LOGI(TAG, "ADS1220 vref: 0x%02x", (ads1220VRef)config);
+    if (prev_vref_source != config) {
+    	setVRefSource((ads1220VRef)config);
+    	prev_vref_source = (ads1220VRef)config;
+    }
+	// Setup dataready pin mode
+    config = sensor->get_drdy_mode();
+    //ESP_LOGI(TAG, "ADS1220 drdy: 0x%02x", (ads1220DrdyMode)config);
+    if (prev_drdy_mode != config) {
+    	setDrdyMode((ads1220DrdyMode)config);
+    	prev_drdy_mode = (ads1220DrdyMode)config;
+    }
+
+	// Setup temperature sensor
+    config = sensor->get_temp_sensor_mode();
+    ESP_LOGI(TAG, "ADS1220 temp sensor mode: 0x%02x", config);
+    if (prev_temp_sensor != config) {
+        //enableTemperatureSensor(config);
+        prev_temp_sensor = config;
+    }
+	// Setup burnout current sources
+    config = sensor->get_burnout_current_sources();
+    ESP_LOGI(TAG, "ADS1220 fault test mode: 0x%02x", config);
+    if (prev_burnout_current_sources != config) {
+        //enableBurnOutCurrentSources(config);
+        prev_burnout_current_sources = config;
+    }
+
+
+
+	// Setup multiplexer
+    config = sensor->get_multiplexer();
+    //ESP_LOGI(TAG, "ADS1220 mux: 0x%02x", (ads1220Multiplexer)config);
+    if (prev_multiplexer != config) {
+        setCompareChannels((ads1220Multiplexer)config);
+        prev_multiplexer = (ads1220Multiplexer)config;
+    }
+
     resultInMV = getVoltage_mV();
     resultInVoltage = resultInMV / 1000.0;
     

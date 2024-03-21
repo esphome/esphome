@@ -5,13 +5,18 @@ from esphome.const import (
     CONF_GAIN,
     CONF_MULTIPLEXER,
     DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
     UNIT_VOLT,
+    CONF_TYPE,
     CONF_ID,
 )
 from . import ads1220_ns, ADS1220Component
 
+
 DEPENDENCIES = ["ads1220"]
+
 
 ADS1220Multiplexer = ads1220_ns.enum("ADS1220Multiplexer")
 MUX = {
@@ -46,13 +51,13 @@ GAIN = {
 
 ADS1220DataRate = ads1220_ns.enum("ADS1220DataRate")
 DATARATE = {
-    "0": ADS1220DataRate.ADS1220_DR_LVL_0,
-    "1": ADS1220DataRate.ADS1220_DR_LVL_1,
-    "2": ADS1220DataRate.ADS1220_DR_LVL_2,
-    "3": ADS1220DataRate.ADS1220_DR_LVL_3,
-    "4": ADS1220DataRate.ADS1220_DR_LVL_4,
-    "5": ADS1220DataRate.ADS1220_DR_LVL_5,
-    "6": ADS1220DataRate.ADS1220_DR_LVL_6,
+    "DR_LVL_0": ADS1220DataRate.ADS1220_DR_LVL_0,
+    "DR_LVL_1": ADS1220DataRate.ADS1220_DR_LVL_1,
+    "DR_LVL_2": ADS1220DataRate.ADS1220_DR_LVL_2,
+    "DR_LVL_3": ADS1220DataRate.ADS1220_DR_LVL_3,
+    "DR_LVL_4": ADS1220DataRate.ADS1220_DR_LVL_4,
+    "DR_LVL_5": ADS1220DataRate.ADS1220_DR_LVL_5,
+    "DR_LVL_6": ADS1220DataRate.ADS1220_DR_LVL_6,
 }
 
 ADS1220OpMode = ads1220_ns.enum("ADS1220OpMode")
@@ -119,6 +124,12 @@ DRDY_MODE = {
     "DOUT_DRDY": ADS1220DrdyMode.ADS1220_DOUT_DRDY,
 }
 
+ADS1220FaultTestMode = ads1220_ns.enum("ADS1220FaultTestMode")
+FAULT_TEST_MODE = {
+    "TEST_OFF": ADS1220FaultTestMode.ADS1220_TEST_OFF,
+    "TEST_ON": ADS1220FaultTestMode.ADS1220_TEST_ON,
+}
+
 def validate_gain(value):
     if isinstance(value, float):
         value = f"{value:0.03f}"
@@ -133,32 +144,90 @@ ADS1220Sensor = ads1220_ns.class_(
 )
 
 CONF_ADS1220_ID = "ads1220_id"
-CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        ADS1220Sensor,
-        unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
-    .extend(
-        {
-            cv.GenerateID(CONF_ADS1220_ID): cv.use_id(ADS1220Component),
-            cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space="_"),
-            cv.Required(CONF_GAIN): validate_gain,
-        }
-    )
-    .extend(cv.polling_component_schema("60s"))
+CONF_DATARATE = "datarate"
+CONF_OP_MODE = "operation_mode"
+CONF_CONV_MODE = "conversion_mode"
+CONF_VREF = "vref"
+CONF_FIR = "fir"
+CONF_PSW = "psw"
+CONF_IDAC_CURRENT = "idac_current"
+CONF_IDAC_1_ROUTING = "idac_1_routing"
+CONF_IDAC_2_ROUTING = "idac_2_routing"
+CONF_DRDY_MODE = "drdy_mode"
+CONF_FAULT_TEST_MODE = "fault_test_mode"
+
+TYPE_ADC = "adc"
+TYPE_TEMPERATURE = "temperature"
+
+CONFIG_SCHEMA = cv.typed_schema(
+    {
+        TYPE_ADC: sensor.sensor_schema(
+            ADS1220Sensor,
+            unit_of_measurement=UNIT_VOLT,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_VOLTAGE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        )
+        .extend(
+            {
+                cv.GenerateID(CONF_ADS1220_ID): cv.use_id(ADS1220Component),
+                cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space="_"),
+                cv.Required(CONF_GAIN): validate_gain,
+                cv.Optional(CONF_DATARATE, default="DR_LVL_0"): cv.enum(DATARATE, upper=True, space="_"),
+                cv.Optional(CONF_OP_MODE, default="TURBO"): cv.enum(OP_MODE, upper=True, space="_"),
+                cv.Optional(CONF_CONV_MODE, default="SINGLE_SHOT"): cv.enum(CONV_MODE, upper=True, space="_"),
+                cv.Optional(CONF_VREF, default="INTERNAL"): cv.enum(VREF, upper=True, space="_"),
+                cv.Optional(CONF_FIR, default="NONE"): cv.enum(FIR, upper=True, space="_"),
+                cv.Optional(CONF_PSW, default="OPEN"): cv.enum(PSW, upper=True, space="_"),
+                cv.Optional(CONF_IDAC_CURRENT, default="OFF"): cv.enum(IDAC_CURRENT, upper=True, space="_"),
+                cv.Optional(CONF_IDAC_1_ROUTING, default="NONE"): cv.enum(IDAC_ROUTING, upper=True, space="_"),
+                cv.Optional(CONF_IDAC_2_ROUTING, default="NONE"): cv.enum(IDAC_ROUTING, upper=True, space="_"),
+                cv.Optional(CONF_DRDY_MODE, default="DRDY_ONLY"): cv.enum(DRDY_MODE, upper=True, space="_"),
+                cv.Optional(CONF_FAULT_TEST_MODE, default="TEST_OFF"): cv.enum(FAULT_TEST_MODE, upper=True, space="_"),
+            }
+        )
+        .extend(cv.polling_component_schema("60s")),
+        TYPE_TEMPERATURE: sensor.sensor_schema(
+            ADS1220Sensor,
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        )
+        .extend(
+            {
+                cv.GenerateID(CONF_ADS1220_ID): cv.use_id(ADS1220Component),
+            }
+        )
+        .extend(cv.polling_component_schema("60s")),
+    },
+    default_type=TYPE_ADC,
 )
 
-
 async def to_code(config):
+    #var = await sensor.new_sensor(config)
+    #await cg.register_component(var, config)
+    #await cg.register_parented(var, config[CONF_ADS1220_ID])
+
     paren = await cg.get_variable(config[CONF_ADS1220_ID])
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await sensor.register_sensor(var, config)
     await cg.register_component(var, config)
 
-    cg.add(var.set_multiplexer(config[CONF_MULTIPLEXER]))
-    cg.add(var.set_gain(config[CONF_GAIN]))
+    if config[CONF_TYPE] == TYPE_ADC:
+        cg.add(var.set_multiplexer(config[CONF_MULTIPLEXER]))
+        cg.add(var.set_gain(config[CONF_GAIN]))
+        cg.add(var.set_datarate(config[CONF_DATARATE]))
+        cg.add(var.set_operating_mode(config[CONF_OP_MODE]))
+        cg.add(var.set_conversion_mode(config[CONF_CONV_MODE]))
+        cg.add(var.set_vref_source(config[CONF_VREF]))
+        cg.add(var.set_fir_filter(config[CONF_FIR]))
+        cg.add(var.set_low_side_power_switch(config[CONF_PSW]))
+        cg.add(var.set_idac_current(config[CONF_IDAC_CURRENT]))
+        cg.add(var.set_idac_1_routing(config[CONF_IDAC_1_ROUTING]))
+        cg.add(var.set_idac_2_routing(config[CONF_IDAC_2_ROUTING]))
+        cg.add(var.set_drdy_mode(config[CONF_DRDY_MODE]))
+    if config[CONF_TYPE] == TYPE_TEMPERATURE:
+        cg.add(var.set_temp_sensor_mode(True))
 
     cg.add(paren.register_sensor(var))
