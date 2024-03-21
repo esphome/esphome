@@ -669,8 +669,12 @@ display:
   - platform: waveshare_epaper_1in9_i2c
     command_address: 0x3C
     data_address: 0x3D
-    busy_pin: GPIO23
-    reset_pin: GPIO23
+    busy_pin:
+      number: GPIO23
+      allow_other_uses: true
+    reset_pin:
+      number: GPIO23
+      allow_other_uses: true
     update_interval: 5s
     full_update_every: 30
     lambda: |-
