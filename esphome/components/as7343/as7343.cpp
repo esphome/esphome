@@ -152,8 +152,8 @@ void AS7343Component::dump_config() {
   LOG_SENSOR("  ", "F8", this->f8_);
   LOG_SENSOR("  ", "NIR", this->nir_);
   LOG_SENSOR("  ", "Clear", this->clear_);
-  LOG_SENSOR("  ", "Clear", this->clear_);
-  LOG_SENSOR("  ", "Clear", this->clear_);
+  // LOG_SENSOR("  ", "Clear", this->clear_);
+  // LOG_SENSOR("  ", "Clear", this->clear_);
 }
 
 float AS7343Component::get_setup_priority() const { return setup_priority::DATA; }
@@ -197,7 +197,7 @@ void AS7343Component::loop() {
         if (this->is_data_ready()) {
           this->read_all_channels();
           this->enable_spectral_measurement(false);
-          
+
           log13_s(TAG, "Channel", CHANNEL_NAMES);
           log13_f(TAG, "Nm", CHANNEL_NM);
           log13_d(TAG, "Counts", this->readings_.raw_counts);
@@ -243,32 +243,42 @@ void AS7343Component::calculate_and_publish() {
   float lux;
   float ppfd;
 
+  float cct, duv, lux2;
+
   this->calculate_irradiance(irradiance, irradiance_photopic, lux);
   this->calculate_ppfd(ppfd);
+  this->calculate_color_params(cct, duv, lux2);
 
-  ESP_LOGD(TAG, "BEFORE GLASS ATTENUATION");
-  ESP_LOGD(TAG, "  ,Irradiance          , %f, W/m²", irradiance);
-  ESP_LOGD(TAG, "  ,Irradiance(photopic), %f, W/m²", irradiance_photopic);
-  ESP_LOGD(TAG, "  ,Lux(solar coeff)    , %f, lx", lux);
-  ESP_LOGD(TAG, "  ,PPFD                , %.2f, µmol/s⋅m²", ppfd);
+  // ESP_LOGD(TAG, "BEFORE GLASS ATTENUATION");
+  // ESP_LOGD(TAG, "  ,Irradiance          , %f, W/m²", irradiance);
+  // ESP_LOGD(TAG, "  ,Irradiance(photopic), %f, W/m²", irradiance_photopic);
+  // ESP_LOGD(TAG, "  ,Lux(solar coeff)    , %f, lx", lux);
+  // ESP_LOGD(TAG, "  ,PPFD                , %f, µmol/s⋅m²", ppfd);
 
   irradiance *= this->glass_attenuation_factor_;
   irradiance_photopic *= this->glass_attenuation_factor_;
   lux *= this->glass_attenuation_factor_;
+  lux2 *= this->glass_attenuation_factor_;
   ppfd *= this->glass_attenuation_factor_;
 
   ESP_LOGD(TAG, "AFTER GLASS ATTENUATION");
   ESP_LOGD(TAG, "  ,Irradiance          , %f, W/m²", irradiance);
   ESP_LOGD(TAG, "  ,Irradiance(photopic), %f, W/m²", irradiance_photopic);
+  ESP_LOGD(TAG, "  ,PPFD                , %f, µmol/s⋅m²", ppfd);
   ESP_LOGD(TAG, "  ,Lux(solar coeff)    , %f, lx", lux);
-  ESP_LOGD(TAG, "  ,PPFD                , %.2f, µmol/s⋅m²", ppfd);
+  ESP_LOGD(TAG, "  ,Lux(XYZ)            , %f, lx", lux2);
+  ESP_LOGD(TAG, "  ,Color temp(XYZ)     , %f, K", cct);
 
   if (this->illuminance_ != nullptr) {
-    this->illuminance_->publish_state(lux);
+    this->illuminance_->publish_state(lux2);
   }
 
   if (this->irradiance_ != nullptr) {
     this->irradiance_->publish_state(irradiance);
+  }
+
+  if (this->irradiance_photopic_ != nullptr) {
+    this->irradiance_photopic_->publish_state(irradiance_photopic);
   }
 
   if (this->ppfd_ != nullptr) {
@@ -326,7 +336,7 @@ void AS7343Component::calculate_and_publish() {
     this->nir_->publish_state(normalized_readings[11]);
   }
   if (this->clear_ != nullptr) {
-    float clear = (this->readings_.basic_counts[AS7343_CHANNEL_CLEAR]);
+    float clear = (this->readings_.basic_counts[AS7343_CHANNEL_CLEAR_0]);
     this->clear_->publish_state(clear);
   }
   if (this->saturated_ != nullptr) {
@@ -425,11 +435,19 @@ void AS7343Component::calculate_ppfd(float &ppfd) {
 
     // Iλ(λ)
     float irradiance_in_w_per_m2 = this->readings_.basic_counts[i] * CHANNEL_IRRAD_MW_PER_BASIC_COUNT[i] / 1000;
-    float photon_flux = irradiance_in_w_per_m2 * CHANNEL_NM[i] * 0.836e-2;
+    
+    // hack?
+    irradiance_in_w_per_m2 *= 10;
+    
+//     float photon_flux = irradiance_in_w_per_m2 * CHANNEL_NM[i] * 0.836e-2;
+// //    ESP_LOGD(TAG, "Photon flux (%.0f) = %.2f", CHANNEL_NM[i], photon_flux);
+//     // assume channels cover whole range
+//     ppfd += photon_flux * CHANNEL_NM_WIDTH[i] / 1e9f;  // nm to meters
 
-    // assume channels cover whole range
-    ppfd += photon_flux * CHANNEL_NM_WIDTH[i] / 1e9f;  // nm to meters
+    ppfd += irradiance_in_w_per_m2;
   }
+  // https://www.controlledenvironments.org/wp-content/uploads/sites/6/2017/06/Ch01.pdf
+  ppfd *= 4.6; // good approximation  1 W/m2 ≈ 4.6 μmole.m2/s.
 }
 
 void AS7343Component::calculate_irradiance(float &irradiance_in_w_per_m2, float &irradiance_in_w_per_m2_photopic,
@@ -443,7 +461,13 @@ void AS7343Component::calculate_irradiance(float &irradiance_in_w_per_m2, float 
 
   // walk through all bands except for Clear (VIS)
   for (uint8_t i = 0; i < AS7343_NUM_CHANNELS - 1; i++) {
+    // 
     irr_band = this->readings_.basic_counts[i] * CHANNEL_IRRAD_MW_PER_BASIC_COUNT[i] / 1000;
+    
+    //errata hack???
+    irr_band *= 10;
+
+
     irradiance_in_w_per_m2 += irr_band;
 
     // photo_band *= CHANNEL_ENERGY_CONTRIBUTION[i]; ?? ideas
@@ -455,6 +479,44 @@ void AS7343Component::calculate_irradiance(float &irradiance_in_w_per_m2, float 
   // 1 W/m2 = 116 ± 3 lx solar
   // https://www.extrica.com/article/21667/pdf
   lux = irradiance_in_w_per_m2_photopic * 116;
+}
+
+void AS7343Component::calculate_color_params(float &cct, float &duv, float &lux) {
+  float AS7343_XYZ_COEFF[3][AS7343_NUM_CHANNELS - 2] = {
+      {-0.07879, -0.12235, 1.99879, -0.33364, -0.06795, -0.45419, 0.00000, 5.27242, -0.05072, -0.04666, -0.03931},
+      {-0.03269, -0.01297, -0.04011, -0.06889, -0.17453, 5.69083, 0.00000, -0.22956, -0.04762, -0.01295, -0.02797},
+      {-0.31295, -0.57885, 10.00197, -0.31281, -0.19657, -0.11077, 0.00000, -0.06132, -0.03536, -0.06025, -0.12174}};
+
+  float XYZ[3] = {0, 0, 0};
+  for (uint8_t i = 0; i < AS7343_NUM_CHANNELS - 2; i++) {
+    for (uint8_t j = 0; j < 3; j++) {
+      XYZ[j] += this->readings_.basic_counts[i] * AS7343_XYZ_COEFF[j][i];
+    }
+  }
+  float epsilon = 0.0001;
+  float xyz_sum = XYZ[0] + XYZ[1] + XYZ[2];
+  float x{0}, y{0}, z{0};
+  if (xyz_sum < epsilon && xyz_sum > -epsilon) {
+    cct = 0;
+    duv = 0;
+    lux = 0;
+  } else {
+    duv = 0;
+    x = XYZ[0] / xyz_sum;
+    y = XYZ[1] / xyz_sum;
+    z = XYZ[2] / xyz_sum;
+
+    float n = (x - 0.3320) / (0.1858 - y);
+
+    cct = 437 * pow(n, 3) + 3601 * pow(n, 2) + 6861 * n + 5517;
+
+    // Calc lx from Y CIE1931
+    lux = XYZ[1] * 683;
+  }
+
+  // ESP_LOGD(TAG, "XYZ: %.2f, %.2f, %.2f", XYZ[0], XYZ[1], XYZ[2]);
+  // ESP_LOGD(TAG, "x: %.4f, y: %.4f, z: %.4f", x, y, z);
+//  ESP_LOGD(TAG, "XYZ: CCT: %.2f, lux: %.2f", cct, lux);
 }
 
 bool AS7343Component::read_all_channels() {
@@ -495,7 +557,7 @@ bool AS7343Component::read_all_channels() {
   this->readings_.gain_x = get_gain_multiplier(this->readings_.gain);
   this->readings_.atime = get_atime();
   this->readings_.astep = get_astep();
-  this->readings_.t_int = (1 + this->readings_.atime) * (1 + this->readings_.astep) * 2.78 / 1000;  // us to ms
+  this->readings_.t_int = (1 + this->readings_.atime) * (1 + this->readings_.astep) * 2.78; // / 1000;  // us to ms
 
   this->readings_saturated_ = astatus.asat_status;
 

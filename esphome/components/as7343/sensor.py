@@ -41,6 +41,7 @@ CONF_F8 = "f8"
 CONF_NIR = "nir"
 CONF_CLEAR = "clear"
 CONF_IRRADIANCE = "irradiance"
+CONF_IRRADIANCE_PHOTOPIC = "irradiance_photopic"
 CONF_PPFD = "ppfd"
 CONF_SATURATION = "saturation"
 
@@ -132,6 +133,16 @@ CONFIG_SCHEMA = (
                 ),
                 key=CONF_NAME,
             ),
+            cv.Optional(CONF_IRRADIANCE_PHOTOPIC): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_IRRADIANCE,
+                    icon=ICON_BRIGHTNESS_5,
+                    accuracy_decimals=0,
+                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
             cv.Optional(CONF_PPFD): cv.maybe_simple_value(
                 sensor.sensor_schema(
                     unit_of_measurement=UNIT_PPFD,
@@ -174,6 +185,7 @@ SENSORS = {
     CONF_CLEAR: "set_clear_sensor",
     CONF_ILLUMINANCE: "set_illuminance_sensor",
     CONF_IRRADIANCE: "set_irradiance_sensor",
+    CONF_IRRADIANCE_PHOTOPIC: "set_irradiance_photopic_sensor",
     CONF_PPFD: "set_ppfd_sensor",
     CONF_SATURATION: "set_saturation_sensor",
 }
