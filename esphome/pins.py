@@ -314,7 +314,7 @@ def gpio_base_schema(
     def _number_validator(value):
         if isinstance(value, str) and value.upper().startswith("GPIOX"):
             raise cv.Invalid(
-                f"Found '{value}' when expecting a GPIO pin number.\n"
+                f"Found placeholder '{value}' when expecting a GPIO pin number.\n"
                 "You must replace this with an actual pin number."
             )
         return number_validator(value)
