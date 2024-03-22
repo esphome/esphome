@@ -35,6 +35,7 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   void set_irradiance_photopic_sensor(sensor::Sensor *sensor) { irradiance_photopic_ = sensor; }
   void set_ppfd_sensor(sensor::Sensor *sensor) { ppfd_ = sensor; }
   void set_saturation_sensor(sensor::Sensor *sensor) { this->saturated_ = sensor; }
+  void set_color_temperature_sensor(sensor::Sensor *sensor) { ct_ = sensor; }
 
   void set_gain(AS7343Gain gain) { gain_ = gain; }
   void set_atime(uint8_t atime) { atime_ = atime; }
@@ -114,6 +115,7 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *irradiance_{nullptr};
   sensor::Sensor *irradiance_photopic_{nullptr};
   sensor::Sensor *ppfd_{nullptr};
+  sensor::Sensor *ct_{nullptr};
 
   sensor::Sensor *saturated_{nullptr};
 

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
+    CONF_COLOR_TEMPERATURE,
     CONF_GAIN,
     CONF_ID,
     CONF_NAME,
@@ -10,8 +11,10 @@ from esphome.const import (
     CONF_GLASS_ATTENUATION_FACTOR,
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,
+    UNIT_KELVIN,
     UNIT_LUX,
     UNIT_PERCENT,
+    ICON_THERMOMETER,
 )
 
 
@@ -163,6 +166,15 @@ CONFIG_SCHEMA = (
                 ),
                 key=CONF_NAME,
             ),
+            cv.Optional(CONF_COLOR_TEMPERATURE): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_KELVIN,
+                    icon=ICON_THERMOMETER,
+                    accuracy_decimals=0,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -188,6 +200,7 @@ SENSORS = {
     CONF_IRRADIANCE_PHOTOPIC: "set_irradiance_photopic_sensor",
     CONF_PPFD: "set_ppfd_sensor",
     CONF_SATURATION: "set_saturation_sensor",
+    CONF_COLOR_TEMPERATURE: "set_color_temperature_sensor",
 }
 
 

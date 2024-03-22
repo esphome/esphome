@@ -269,6 +269,10 @@ void AS7343Component::calculate_and_publish() {
   ESP_LOGD(TAG, "  ,Lux(XYZ)            , %f, lx", lux2);
   ESP_LOGD(TAG, "  ,Color temp(XYZ)     , %f, K", cct);
 
+  if (this->ct_ != nullptr) {
+    this->ct_->publish_state(cct);
+  }
+
   if (this->illuminance_ != nullptr) {
     this->illuminance_->publish_state(lux2);
   }
