@@ -132,9 +132,9 @@ class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
  public:
   void setup() override {
     uint32_t hash = fnv1_hash(ESPHOME_PROJECT_NAME);
-    ESPPreferenceObject pref = global_preferences->make_preference<char[30]>(hash, true);
-    char previous_version[30];
-    char current_version[30] = ESPHOME_PROJECT_VERSION;
+    ESPPreferenceObject pref = global_preferences->make_preference<char[60]>(hash, true);
+    char previous_version[60];
+    char current_version[60] = ESPHOME_PROJECT_VERSION;
     if (pref.load(&previous_version)) {
       int cmp = strcmp(previous_version, current_version);
       if (cmp < 0) {
