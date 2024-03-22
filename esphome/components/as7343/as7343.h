@@ -57,7 +57,7 @@ class AS7343Component : public PollingComponent, public i2c::I2CDevice {
   bool read_all_channels();
 
   void calculate_basic_counts();
-  void calculate_ppfd(float &ppfd);
+  void calculate_ppfd(float &ppfd, float &par);
   void calculate_irradiance(float &irradiance, float &irradiance_photopic, float &lux);
   void calculate_color_params(float &ct, float &duv, float &lux);
 

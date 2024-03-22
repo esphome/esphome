@@ -241,12 +241,12 @@ void AS7343Component::calculate_and_publish() {
   float irradiance;
   float irradiance_photopic;
   float lux;
-  float ppfd;
+  float ppfd, par;
 
   float cct, duv, lux2;
 
   this->calculate_irradiance(irradiance, irradiance_photopic, lux);
-  this->calculate_ppfd(ppfd);
+  this->calculate_ppfd(ppfd, par);
   this->calculate_color_params(cct, duv, lux2);
 
   // ESP_LOGD(TAG, "BEFORE GLASS ATTENUATION");
@@ -260,10 +260,12 @@ void AS7343Component::calculate_and_publish() {
   lux *= this->glass_attenuation_factor_;
   lux2 *= this->glass_attenuation_factor_;
   ppfd *= this->glass_attenuation_factor_;
+  par *= this->glass_attenuation_factor_;
 
   ESP_LOGD(TAG, "AFTER GLASS ATTENUATION");
   ESP_LOGD(TAG, "  ,Irradiance          , %f, W/m²", irradiance);
   ESP_LOGD(TAG, "  ,Irradiance(photopic), %f, W/m²", irradiance_photopic);
+  ESP_LOGD(TAG, "  ,PAR                 , %f, W/m²", par);
   ESP_LOGD(TAG, "  ,PPFD                , %f, µmol/s⋅m²", ppfd);
   ESP_LOGD(TAG, "  ,Lux(solar coeff)    , %f, lx", lux);
   ESP_LOGD(TAG, "  ,Lux(XYZ)            , %f, lx", lux2);
@@ -404,7 +406,7 @@ void AS7343Component::calculate_basic_counts() {
   }
 }
 
-void AS7343Component::calculate_ppfd(float &ppfd) {
+void AS7343Component::calculate_ppfd(float &ppfd, float &par) {
   /*
   Given the spectral irradiance Iλ, defined as the radiant flux
   per unit wavelength and unit area, the photon flux density
@@ -430,6 +432,7 @@ void AS7343Component::calculate_ppfd(float &ppfd) {
 
   */
   ppfd = 0;
+  par = 0;
 
   // assume we integrate using rectangles - mid point is channel wavelength, width is channel width in nm
   for (uint8_t i = 0; i < AS7343_NUM_CHANNELS; i++) {
@@ -439,19 +442,21 @@ void AS7343Component::calculate_ppfd(float &ppfd) {
 
     // Iλ(λ)
     float irradiance_in_w_per_m2 = this->readings_.basic_counts[i] * CHANNEL_IRRAD_MW_PER_BASIC_COUNT[i] / 1000;
-    
+
     // hack?
     irradiance_in_w_per_m2 *= 10;
-    
-//     float photon_flux = irradiance_in_w_per_m2 * CHANNEL_NM[i] * 0.836e-2;
-// //    ESP_LOGD(TAG, "Photon flux (%.0f) = %.2f", CHANNEL_NM[i], photon_flux);
-//     // assume channels cover whole range
-//     ppfd += photon_flux * CHANNEL_NM_WIDTH[i] / 1e9f;  // nm to meters
 
-    ppfd += irradiance_in_w_per_m2;
+    //     float photon_flux = irradiance_in_w_per_m2 * CHANNEL_NM[i] * 0.836e-2;
+    // //    ESP_LOGD(TAG, "Photon flux (%.0f) = %.2f", CHANNEL_NM[i], photon_flux);
+    //     // assume channels cover whole range
+    //     ppfd += photon_flux * CHANNEL_NM_WIDTH[i] / 1e9f;  // nm to meters
+
+    // k = λ / h * c * Na
+    // 1 W/m2 = λ / 119.565
+    // https://www.gigahertz-optik.com/en-us/service-and-support/knowledge-base/measurement-of-par/
+    ppfd += irradiance_in_w_per_m2 * CHANNEL_NM[i] / 119.565;
+    par += irradiance_in_w_per_m2;
   }
-  // https://www.controlledenvironments.org/wp-content/uploads/sites/6/2017/06/Ch01.pdf
-  ppfd *= 4.6; // good approximation  1 W/m2 ≈ 4.6 μmole.m2/s.
 }
 
 void AS7343Component::calculate_irradiance(float &irradiance_in_w_per_m2, float &irradiance_in_w_per_m2_photopic,
@@ -465,12 +470,11 @@ void AS7343Component::calculate_irradiance(float &irradiance_in_w_per_m2, float 
 
   // walk through all bands except for Clear (VIS)
   for (uint8_t i = 0; i < AS7343_NUM_CHANNELS - 1; i++) {
-    // 
+    //
     irr_band = this->readings_.basic_counts[i] * CHANNEL_IRRAD_MW_PER_BASIC_COUNT[i] / 1000;
-    
-    //errata hack???
-    irr_band *= 10;
 
+    // errata hack???
+    irr_band *= 10;
 
     irradiance_in_w_per_m2 += irr_band;
 
@@ -520,7 +524,7 @@ void AS7343Component::calculate_color_params(float &cct, float &duv, float &lux)
 
   // ESP_LOGD(TAG, "XYZ: %.2f, %.2f, %.2f", XYZ[0], XYZ[1], XYZ[2]);
   // ESP_LOGD(TAG, "x: %.4f, y: %.4f, z: %.4f", x, y, z);
-//  ESP_LOGD(TAG, "XYZ: CCT: %.2f, lux: %.2f", cct, lux);
+  //  ESP_LOGD(TAG, "XYZ: CCT: %.2f, lux: %.2f", cct, lux);
 }
 
 bool AS7343Component::read_all_channels() {
@@ -561,7 +565,7 @@ bool AS7343Component::read_all_channels() {
   this->readings_.gain_x = get_gain_multiplier(this->readings_.gain);
   this->readings_.atime = get_atime();
   this->readings_.astep = get_astep();
-  this->readings_.t_int = (1 + this->readings_.atime) * (1 + this->readings_.astep) * 2.78; // / 1000;  // us to ms
+  this->readings_.t_int = (1 + this->readings_.atime) * (1 + this->readings_.astep) * 2.78;  // / 1000;  // us to ms
 
   this->readings_saturated_ = astatus.asat_status;
 
@@ -571,9 +575,11 @@ bool AS7343Component::read_all_channels() {
 bool AS7343Component::is_data_ready() {
   AS7343RegStatus2 status2{0};
   status2.raw = this->reg((uint8_t) AS7343Registers::STATUS2).get();
-  ESP_LOGD(TAG, "Status2 0x%02x, avalid %d, asat_digital %d, asat_analog %d", status2.raw, status2.avalid,
-           status2.asat_digital, status2.asat_analog);
   this->reg((uint8_t) AS7343Registers::STATUS2) = status2.raw;
+  if (status2.avalid) {
+    ESP_LOGD(TAG, "Status2 0x%02x, avalid %d, asat_digital %d, asat_analog %d", status2.raw, status2.avalid,
+             status2.asat_digital, status2.asat_analog);
+  }
 
   //  return this->read_register_bit((uint8_t) AS7343Registers::STATUS2, 6);
   return status2.avalid;
