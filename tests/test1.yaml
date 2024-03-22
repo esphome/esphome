@@ -4165,14 +4165,14 @@ button:
       then:
         - fan.turn_on:
             id: fan_speed_presets
-            preset: Preset 1
+            preset_mode: Preset 1
   - platform: template
     name: Fan Turn On Action w/ Preset Template
     on_press:
       then:
         - fan.turn_on:
             id: fan_hbridge_presets
-            preset: !lambda 'return "Preset 2";'
+            preset_mode: !lambda 'return "Preset 2";'
 
 ld2410:
   id: my_ld2410
