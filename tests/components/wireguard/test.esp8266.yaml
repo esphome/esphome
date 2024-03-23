@@ -1,31 +1,14 @@
----
-esphome:
-  name: test10-3
-  build_path: build/test10.3
-
-esp8266:
-  board: esp01_1m
-
 wifi:
   ssid: "MySSID1"
   password: "password1"
-  reboot_timeout: 3min
-  power_save_mode: high
 
 network:
   enable_ipv6: true
-
-logger:
-  level: VERBOSE
-
-api:
-  reboot_timeout: 10min
 
 time:
   - platform: sntp
 
 wireguard:
-  id: vpn
   address: 172.16.34.100
   netmask: 255.255.255.0
   # NEVER use the following keys for your vpn, they are now public!
