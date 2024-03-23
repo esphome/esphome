@@ -23,6 +23,9 @@ logger:
 api:
   reboot_timeout: 10min
 
+web_server:
+  version: 3
+
 time:
   - platform: sntp
 

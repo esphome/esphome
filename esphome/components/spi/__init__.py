@@ -29,7 +29,6 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
-    CONF_ALLOW_OTHER_USES,
     CONF_DATA_PINS,
 )
 from esphome.core import (
@@ -199,8 +198,6 @@ def get_hw_spi(config, available):
 def validate_spi_config(config):
     available = list(range(len(get_hw_interface_list())))
     for spi in config:
-        # map pin number to schema
-        spi[CONF_CLK_PIN] = pins.gpio_output_pin_schema(spi[CONF_CLK_PIN])
         interface = spi[CONF_INTERFACE]
         if interface == "software":
             pass
@@ -257,21 +254,11 @@ def get_spi_interface(index):
     return "new SPIClass(HSPI)"
 
 
-# Do not use a pin schema for the number, as that will trigger a pin reuse error due to duplication of the
-# clock pin in the standard and quad schemas.
-clk_pin_validator = cv.maybe_simple_value(
-    {
-        cv.Required(CONF_NUMBER): cv.Any(cv.int_, cv.string),
-        cv.Optional(CONF_ALLOW_OTHER_USES): cv.boolean,
-    },
-    key=CONF_NUMBER,
-)
-
 SPI_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SPIComponent),
-            cv.Required(CONF_CLK_PIN): clk_pin_validator,
+            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_FORCE_SW): cv.invalid(
@@ -280,6 +267,9 @@ SPI_SCHEMA = cv.All(
             cv.Optional(CONF_INTERFACE, default="any"): cv.one_of(
                 *sum(get_hw_interface_list(), ["software", "hardware", "any"]),
                 lower=True,
+            ),
+            cv.Optional(CONF_DATA_PINS): cv.invalid(
+                "'data_pins' should be used with 'type: quad' only"
             ),
         }
     ),
@@ -291,7 +281,7 @@ SPI_QUAD_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(QuadSPIComponent),
-            cv.Required(CONF_CLK_PIN): clk_pin_validator,
+            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_DATA_PINS): cv.All(
                 cv.ensure_list(pins.internal_gpio_output_pin_number),
                 cv.Length(min=4, max=4),
@@ -299,6 +289,12 @@ SPI_QUAD_SCHEMA = cv.All(
             cv.Optional(CONF_INTERFACE, default="hardware"): cv.one_of(
                 *sum(get_hw_interface_list(), ["hardware"]),
                 lower=True,
+            ),
+            cv.Optional(CONF_MISO_PIN): cv.invalid(
+                "'miso_pin' should not be used with quad SPI"
+            ),
+            cv.Optional(CONF_MOSI_PIN): cv.invalid(
+                "'mosi_pin' should not be used with quad SPI"
             ),
         }
     ),
