@@ -23,6 +23,13 @@
 
 #ifdef USE_ARDUINO
 #include <esp32-hal-bt.h>
+#include "mbedtls/aes.h"
+#include "mbedtls/base64.h"
+#endif
+
+#ifdef USE_ESP_IDF
+#define MBEDTLS_AES_ALT
+#include <aes_alt.h>
 #endif
 
 // bt_trace.h
@@ -690,6 +697,45 @@ void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   for (auto &tx_power : device.get_tx_powers()) {
     ESP_LOGD(TAG, "  TX Power: %d", tx_power);
   }
+}
+
+bool ESPBTDevice::resolve_irk(const uint8_t *irk) const {
+  uint8_t ecb_key[16];
+  uint8_t ecb_plaintext[16];
+  uint8_t ecb_ciphertext[16];
+
+  uint64_t addr64 = esp32_ble::ble_addr_to_uint64(this->address_);
+
+  memcpy(&ecb_key, irk, 16);
+  memset(&ecb_plaintext, 0, 16);
+
+  ecb_plaintext[13] = (addr64 >> 40) & 0xff;
+  ecb_plaintext[14] = (addr64 >> 32) & 0xff;
+  ecb_plaintext[15] = (addr64 >> 24) & 0xff;
+
+  mbedtls_aes_context ctx = {0, 0, {0}};
+  mbedtls_aes_init(&ctx);
+
+  if (mbedtls_aes_setkey_enc(&ctx, ecb_key, 128) != 0) {
+    mbedtls_aes_free(&ctx);
+    return false;
+  }
+
+  if (mbedtls_aes_crypt_ecb(&ctx,
+#ifdef USE_ARDUINO
+                            MBEDTLS_AES_ENCRYPT,
+#elif defined(USE_ESP_IDF)
+                            ESP_AES_ENCRYPT,
+#endif
+                            ecb_plaintext, ecb_ciphertext) != 0) {
+    mbedtls_aes_free(&ctx);
+    return false;
+  }
+
+  mbedtls_aes_free(&ctx);
+
+  return ecb_ciphertext[15] == (addr64 & 0xff) && ecb_ciphertext[14] == ((addr64 >> 8) & 0xff) &&
+         ecb_ciphertext[13] == ((addr64 >> 16) & 0xff);
 }
 
 }  // namespace esp32_ble_tracker
