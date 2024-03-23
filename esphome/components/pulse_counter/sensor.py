@@ -1,7 +1,9 @@
+import os
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, pins
 from esphome.components import sensor
+from esphome.components import esp32
 from esphome.const import (
     CONF_COUNT_MODE,
     CONF_FALLING_EDGE,
@@ -21,6 +23,7 @@ from esphome.const import (
 from esphome.core import CORE
 
 CONF_USE_PCNT = "use_pcnt"
+CONF_USE_ULP = "use_ulp"
 
 pulse_counter_ns = cg.esphome_ns.namespace("pulse_counter")
 PulseCounterCountMode = pulse_counter_ns.enum("PulseCounterCountMode")
@@ -43,9 +46,11 @@ SetTotalPulsesAction = pulse_counter_ns.class_(
 
 def validate_internal_filter(value):
     use_pcnt = value.get(CONF_USE_PCNT)
-    if CORE.is_esp8266 and use_pcnt:
+    use_ulp = value.get(CONF_USE_ULP)
+
+    if CORE.is_esp8266 and (use_pcnt or use_ulp):
         raise cv.Invalid(
-            "Using hardware PCNT is only available on ESP32",
+            "Using hardware pulse counters is only available on ESP32",
             [CONF_USE_PCNT],
         )
 
@@ -106,6 +111,7 @@ CONFIG_SCHEMA = cv.All(
                 validate_count_mode,
             ),
             cv.SplitDefault(CONF_USE_PCNT, esp32=True): cv.boolean,
+            cv.Optional(CONF_USE_ULP): cv.boolean,
             cv.Optional(
                 CONF_INTERNAL_FILTER, default="13us"
             ): cv.positive_time_period_microseconds,
@@ -123,6 +129,15 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    if config.get(CONF_USE_ULP):
+        var = await sensor.new_sensor(config, 2)
+    else:
+        var = await sensor.new_sensor(config, config.get(CONF_USE_PCNT))
+    if config.get(CONF_USE_ULP):
+        esp32.add_extra_build_file(
+            "src/CMakeLists.txt",
+            os.path.join(os.path.dirname(__file__), "CMakeLists.txt"),
+        )
     var = await sensor.new_sensor(config, config.get(CONF_USE_PCNT))
     await cg.register_component(var, config)
 
