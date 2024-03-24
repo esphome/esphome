@@ -94,7 +94,7 @@ class DateCall {
    */
   static bool strptime(const std::string &time_to_parse, ESPTime &esp_time);
 
-protected:
+ protected:
   void validate_();
 
   DateEntity *parent_;
