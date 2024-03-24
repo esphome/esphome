@@ -126,23 +126,23 @@ void Lora::dump_config() {
 };
 void Lora::digital_write(uint8_t pin, bool value) { this->sendPinInfo(pin, value); }
 bool Lora::sendPinInfo(uint8_t pin, bool value) {
-  uint8_t request_message[3];
-  request_message[1] = 0xA5;   // just some bit to indicate, yo this is pin info
-  request_message[1] = pin;    // Pin to send
-  request_message[2] = value;  // high or low
-  this->write_array(request_message, sizeof(request_message));
-  this->flush();
+  uint8_t data[3];
+  data[1] = 0xA5;   // just some bit to indicate, yo this is pin info
+  data[1] = pin;    // Pin to send
+  data[2] = value;  // high or low
+  ESP_LOGD(TAG, "Sending message");
+  ESP_LOGD(TAG, "PIN: %u ", data[1]);
+  ESP_LOGD(TAG, "VALUE: %u ", data[2]);
+  this->write_array(data, sizeof(data));
+  bool result = this->waitCompleteResponse(5000, 5000);
   return true;
 }
 void Lora::loop() {
-  if (!available()) {
-    return;
-  }
   std::string buffer;
   std::vector<uint8_t> data;
   bool pin_data_found = false;
-  ESP_LOGD(TAG, "Starting to read message");
-  while (available()) {
+  ESP_LOGD(TAG, "Starting to check for messages");
+  while (this->available()) {
     uint8_t c;
     if (this->read_byte(&c)) {
       buffer += (char) c;
