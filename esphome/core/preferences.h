@@ -16,7 +16,7 @@ class ESPPreferenceBackend {
 class ESPPreferenceObject {
  public:
   ESPPreferenceObject() = default;
-  ESPPreferenceObject(ESPPreferenceBackend *backend) : backend_(backend) {}
+  explicit ESPPreferenceObject(ESPPreferenceBackend *backend) : backend_(backend) {}
 
   template<typename T> bool save(const T *src) {
     if (backend_ == nullptr)
