@@ -87,7 +87,14 @@ class DateCall {
   optional<uint8_t> get_month() const { return this->month_; }
   optional<uint8_t> get_day() const { return this->day_; }
 
- protected:
+  /** Convert a string to ESPTime struct as specified by the format argument.
+   * @param time_to_parse null-terminated c string formatet like this: 2020-08-25 05:30:00.
+   * @param esp_time an instance of a ESPTime struct
+   * @return the success sate of the parsing
+   */
+  static bool strptime(const std::string &time_to_parse, ESPTime &esp_time);
+
+protected:
   void validate_();
 
   DateEntity *parent_;
