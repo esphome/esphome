@@ -4,13 +4,7 @@
 #include "esphome/core/log.h"
 #include "optolink.h"
 
-#if defined(VITOWIFI_PROTOCOL)
-// NOLINTNEXTLINE
-VitoWiFiClass<VITOWIFI_PROTOCOL> VitoWiFi;  // VITOWIFI_PROTOCOL always is set
-#else
-// NOLINTNEXTLINE
-VitoWiFiClass<P300> VitoWiFi;  // this is not really a fallback but dedicated to clang-lint
-#endif
+VitoWiFiClass<USE_OPTOLINK_VITOWIFI_PROTOCOL> VitoWiFi;  // NOLINT
 
 namespace esphome {
 namespace optolink {

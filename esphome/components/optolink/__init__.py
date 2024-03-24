@@ -55,11 +55,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_PROTOCOL): cv.one_of("P300", "KW"),
             cv.Optional(CONF_RX_PIN): cv.All(
                 cv.only_on_esp32,
-                pins.internal_gpio_input_pin_schema,
+                pins.internal_gpio_input_pin_number,
             ),
             cv.Optional(CONF_TX_PIN): cv.All(
                 cv.only_on_esp32,
-                pins.internal_gpio_output_pin_schema,
+                pins.internal_gpio_input_pin_number,
             ),
             cv.Optional(CONF_LOGGER, default=False): cv.boolean,
         }
@@ -75,14 +75,15 @@ async def to_code(config):
     cg.add_library("VitoWiFi", "1.1.2")
 
     cg.add_define(
-        "VITOWIFI_PROTOCOL", cg.RawExpression(f"Optolink{config[CONF_PROTOCOL]}")
+        "USE_OPTOLINK_VITOWIFI_PROTOCOL",
+        cg.RawExpression(f"Optolink{config[CONF_PROTOCOL]}"),
     )
 
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_logger_enabled(config[CONF_LOGGER]))
 
     if CORE.is_esp32:
-        cg.add(var.set_rx_pin(config[CONF_RX_PIN]["number"]))
-        cg.add(var.set_tx_pin(config[CONF_TX_PIN]["number"]))
+        cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
+        cg.add(var.set_tx_pin(config[CONF_TX_PIN]))
 
     await cg.register_component(var, config)
