@@ -93,7 +93,7 @@ DateCall &DateCall::set_date(ESPTime time) { return this->set_date(time.year, ti
 
 DateCall &DateCall::set_date(const std::string &date) {
   ESPTime val{};
-  if (!this->strptime(date, val)) {
+  if (!esphome::datetime::DateCall::strptime(date, val)) {
     ESP_LOGE(TAG, "Could not convert the date string to an ESPTime object");
     return *this;
   }
