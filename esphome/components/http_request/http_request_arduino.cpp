@@ -28,7 +28,7 @@ HttpResponse HttpRequestArduino::send() {
     this->client_.end();
     this->status_set_warning();
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
-    return {-1, 0, {}, 0};
+    return {-1, 0, {}, 0, this->capture_response_};
   }
 
   bool begin_status = false;
@@ -55,7 +55,7 @@ HttpResponse HttpRequestArduino::send() {
     this->client_.end();
     this->status_set_warning();
     ESP_LOGW(TAG, "HTTP Request failed at the begin phase. Please check the configuration");
-    return {-1, 0, {}, 0};
+    return {-1, 0, {}, 0, this->capture_response_};
   }
 
   this->client_.setTimeout(this->timeout_);
@@ -83,7 +83,7 @@ HttpResponse HttpRequestArduino::send() {
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s; Duration: %u ms", this->url_.c_str(),
              HTTPClient::errorToString(http_code).c_str(), duration);
     this->status_set_warning();
-    return {http_code, 0, {}, 0};
+    return {http_code, 0, {}, 0, this->capture_response_};
   }
   if (this->capture_response_) {
 #ifdef USE_ESP32
