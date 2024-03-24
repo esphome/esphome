@@ -139,8 +139,8 @@ bool Lora::sendMessage(std::string message) {
   }
   ESP_LOGD(TAG, "Sending: %s", message);
   this->write_array((uint8_t *) &messageFixed, size);
-  bool result = this->waitCompleteResponse(5000, 5000);
-  return result;
+  // bool result = this->waitCompleteResponse(5000, 5000);
+  return true;
 }
 void Lora::loop() {
   if (!available()) {
