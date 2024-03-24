@@ -125,21 +125,16 @@ void Lora::dump_config() {
   LOG_PIN("M1 Pin:", this->pin_m1);
 };
 void Lora::digital_write(uint8_t pin, bool value) {
-  ESP_LOGD(TAG, "Starting to write message");
-  std::string message = str_snprintf("%02x%02x", 9, pin, value);
-  this->sendMessage(message);
+  ESP_LOGD(TAG, "Setting internal state");
+  this->sendPinInfo(pin, value);
 }
-bool Lora::sendMessage(std::string message) {
-  uint8_t size = message.length();
-  char messageFixed[size];
-  memcpy(messageFixed, message.c_str(), size);
-  if (size > MAX_SIZE_TX_PACKET + 2) {
-    ESP_LOGD(TAG, "Package to big");
-    return false;
-  }
-  ESP_LOGD(TAG, "Sending: %s", message);
-  this->write_array((uint8_t *) &messageFixed, size);
-  // bool result = this->waitCompleteResponse(5000, 5000);
+bool Lora::sendPinInfo(uint8_t pin, bool value) {
+  uint8_t request_message[3];
+  request_message[1] = 0xA5;   // just some bit to indicate, yo this is pin info
+  request_message[1] = pin;    // Pin to send
+  request_message[2] = value;  // high or low
+  this->write_array(request_message, sizeof(request_message));
+  this->flush();
   return true;
 }
 void Lora::loop() {
