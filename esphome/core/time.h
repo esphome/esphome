@@ -67,7 +67,7 @@ struct ESPTime {
            this->day_of_year < 367 && this->month > 0 && this->month < 13;
   }
 
-#ifdef USE_DATETIME_DATE
+#if defined(USE_DATETIME_DATE) || defined(USE_DATETIME_TIME)
 
   /** Convert a string to ESPTime struct as specified by the format argument.
    * @param time_to_parse null-terminated c string formatet like this: 2020-08-25 05:30:00.
@@ -75,7 +75,7 @@ struct ESPTime {
    * @return the success sate of the parsing
    */
   static bool strptime(const std::string &time_to_parse, ESPTime &esp_time);
-  
+
 #endif
 
   /// Convert a C tm struct instance with a C unix epoch timestamp to an ESPTime instance.
