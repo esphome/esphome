@@ -61,7 +61,7 @@ class OtaHttpComponent : public Component {
   uint64_t timeout_;
   const uint16_t http_recv_buffer_ = 500;      // the firmware GET chunk size
   const uint16_t max_http_recv_buffer_ = 512;  // internal max http buffer size must be > HTTP_RECV_BUFFER_ (TLS
-                                              // overhead) and must be a power of two from 512 to 4096
+                                               // overhead) and must be a power of two from 512 to 4096
   bool update_started_ = false;
   static const std::unique_ptr<ota::OTABackend> BACKEND;
   void cleanup_();
