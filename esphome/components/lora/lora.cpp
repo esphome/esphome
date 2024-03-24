@@ -124,10 +124,7 @@ void Lora::dump_config() {
   LOG_PIN("M0 Pin:", this->pin_m0);
   LOG_PIN("M1 Pin:", this->pin_m1);
 };
-void Lora::digital_write(uint8_t pin, bool value) {
-  ESP_LOGD(TAG, "Setting internal state");
-  this->sendPinInfo(pin, value);
-}
+void Lora::digital_write(uint8_t pin, bool value) { this->sendPinInfo(pin, value); }
 bool Lora::sendPinInfo(uint8_t pin, bool value) {
   uint8_t request_message[3];
   request_message[1] = 0xA5;   // just some bit to indicate, yo this is pin info
@@ -142,14 +139,27 @@ void Lora::loop() {
     return;
   }
   std::string buffer;
+  std::vector<uint8_t> data;
+  bool pin_data_found = false;
   ESP_LOGD(TAG, "Starting to read message");
   while (available()) {
     uint8_t c;
     if (this->read_byte(&c)) {
       buffer += (char) c;
+      // indicates that there is pin data, lets capture that
+      if (c == 0xA5) {
+        pin_data_found = true;
+      }
+      if (pin_data_found)
+        data.push_back(c);
     }
   }
   ESP_LOGD(TAG, "Got %s", buffer);
+  if (data.size() != 0) {
+    ESP_LOGD(TAG, "Found pin data!");
+    ESP_LOGD(TAG, "PIN: %u ", data[1]);
+    ESP_LOGD(TAG, "VALUE: %u ", data[2]);
+  }
   // set the rssi
   rssi_ = atoi(buffer.substr(buffer.length() - 1, 1).c_str());
   // set the raw message
