@@ -57,6 +57,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     VALID_SUBSTITUTIONS_CHARACTERS,
+    __version__ as ESPHOME_VERSION,
 )
 from esphome.core import (
     CORE,
@@ -1893,6 +1894,16 @@ def version_number(value):
         return str(Version.parse(value))
     except ValueError as e:
         raise Invalid("Not a valid version number") from e
+
+
+def validate_esphome_version(value: str):
+    min_version = Version.parse(value)
+    current_version = Version.parse(ESPHOME_VERSION)
+    if current_version < min_version:
+        raise Invalid(
+            f"Your ESPHome version is too old. Please update to at least {min_version}"
+        )
+    return value
 
 
 def platformio_version_constraint(value):

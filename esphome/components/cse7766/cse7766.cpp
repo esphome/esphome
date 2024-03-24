@@ -1,6 +1,8 @@
 #include "cse7766.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
+#include <iomanip>
+#include <sstream>
 
 namespace esphome {
 namespace cse7766 {
@@ -68,20 +70,26 @@ bool CSE7766Component::check_byte_() {
   return true;
 }
 void CSE7766Component::parse_data_() {
-  ESP_LOGVV(TAG, "CSE7766 Data: ");
-  for (uint8_t i = 0; i < 23; i++) {
-    ESP_LOGVV(TAG, "  %u: 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", i + 1, BYTE_TO_BINARY(this->raw_data_[i]),
-              this->raw_data_[i]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  {
+    std::stringstream ss;
+    ss << "Raw data:" << std::hex << std::uppercase << std::setfill('0');
+    for (uint8_t i = 0; i < 23; i++) {
+      ss << ' ' << std::setw(2) << static_cast<unsigned>(this->raw_data_[i]);
+    }
+    ESP_LOGVV(TAG, "%s", ss.str().c_str());
   }
+#endif
 
+  // Parse header
   uint8_t header1 = this->raw_data_[0];
+
   if (header1 == 0xAA) {
     ESP_LOGE(TAG, "CSE7766 not calibrated!");
     return;
   }
 
   bool power_cycle_exceeds_range = false;
-
   if ((header1 & 0xF0) == 0xF0) {
     if (header1 & 0xD) {
       ESP_LOGE(TAG, "CSE7766 reports abnormal external circuit or chip damage: (0x%02X)", header1);
@@ -94,74 +102,106 @@ void CSE7766Component::parse_data_() {
       if (header1 & (1 << 0)) {
         ESP_LOGE(TAG, "  Coefficient storage area is abnormal.");
       }
+
+      // Datasheet: voltage or current cycle exceeding range means invalid values
       return;
     }
 
     power_cycle_exceeds_range = header1 & (1 << 1);
   }
 
-  uint32_t voltage_calib = this->get_24_bit_uint_(2);
+  // Parse data frame
+  uint32_t voltage_coeff = this->get_24_bit_uint_(2);
   uint32_t voltage_cycle = this->get_24_bit_uint_(5);
-  uint32_t current_calib = this->get_24_bit_uint_(8);
+  uint32_t current_coeff = this->get_24_bit_uint_(8);
   uint32_t current_cycle = this->get_24_bit_uint_(11);
-  uint32_t power_calib = this->get_24_bit_uint_(14);
+  uint32_t power_coeff = this->get_24_bit_uint_(14);
   uint32_t power_cycle = this->get_24_bit_uint_(17);
-
   uint8_t adj = this->raw_data_[20];
   uint32_t cf_pulses = (this->raw_data_[21] << 8) + this->raw_data_[22];
 
+  bool have_power = adj & 0x10;
+  bool have_current = adj & 0x20;
   bool have_voltage = adj & 0x40;
+
+  float voltage = 0.0f;
   if (have_voltage) {
-    // voltage cycle of serial port outputted is a complete cycle;
-    float voltage = voltage_calib / float(voltage_cycle);
-    if (this->voltage_sensor_ != nullptr)
+    voltage = voltage_coeff / float(voltage_cycle);
+    if (this->voltage_sensor_ != nullptr) {
       this->voltage_sensor_->publish_state(voltage);
+    }
   }
 
-  bool have_power = adj & 0x10;
   float power = 0.0f;
-
-  if (have_power) {
-    // power cycle of serial port outputted is a complete cycle;
-    // According to the user manual, power cycle exceeding range means the measured power is 0
-    if (!power_cycle_exceeds_range) {
-      power = power_calib / float(power_cycle);
+  float energy = 0.0f;
+  if (power_cycle_exceeds_range) {
+    // Datasheet: power cycle exceeding range means active power is 0
+    if (this->power_sensor_ != nullptr) {
+      this->power_sensor_->publish_state(0.0f);
     }
-    if (this->power_sensor_ != nullptr)
+  } else if (have_power) {
+    power = power_coeff / float(power_cycle);
+    if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
+    }
 
-    uint32_t difference;
+    // Add CF pulses to the total energy only if we have Power coefficient to multiply by
+
     if (this->cf_pulses_last_ == 0) {
       this->cf_pulses_last_ = cf_pulses;
     }
 
+    uint32_t cf_diff;
     if (cf_pulses < this->cf_pulses_last_) {
-      difference = cf_pulses + (0x10000 - this->cf_pulses_last_);
+      cf_diff = cf_pulses + (0x10000 - this->cf_pulses_last_);
     } else {
-      difference = cf_pulses - this->cf_pulses_last_;
+      cf_diff = cf_pulses - this->cf_pulses_last_;
     }
     this->cf_pulses_last_ = cf_pulses;
-    this->energy_total_ += difference * float(power_calib) / 1000000.0f / 3600.0f;
+
+    energy = cf_diff * float(power_coeff) / 1000000.0f / 3600.0f;
+    this->energy_total_ += energy;
     if (this->energy_sensor_ != nullptr)
       this->energy_sensor_->publish_state(this->energy_total_);
   } else if ((this->energy_sensor_ != nullptr) && !this->energy_sensor_->has_state()) {
     this->energy_sensor_->publish_state(0);
   }
 
-  if (adj & 0x20) {
-    // indicates current cycle of serial port outputted is a complete cycle;
-    float current = 0.0f;
-    if (have_voltage && !have_power) {
-      // Testing has shown that when we have voltage and current but not power, that means the power is 0.
-      // We report a power of 0, which in turn means we should report a current of 0.
-      if (this->power_sensor_ != nullptr)
-        this->power_sensor_->publish_state(0);
-    } else if (power != 0.0f) {
-      current = current_calib / float(current_cycle);
+  float current = 0.0f;
+  float calculated_current = 0.0f;
+  if (have_current) {
+    // Assumption: if we don't have power measurement, then current is likely below 50mA
+    if (have_power && voltage > 1.0f) {
+      calculated_current = power / voltage;
     }
-    if (this->current_sensor_ != nullptr)
+    // Datasheet: minimum measured current is 50mA
+    if (calculated_current > 0.05f) {
+      current = current_coeff / float(current_cycle);
+    }
+    if (this->current_sensor_ != nullptr) {
       this->current_sensor_->publish_state(current);
+    }
   }
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  {
+    std::stringstream ss;
+    ss << "Parsed:";
+    if (have_voltage) {
+      ss << " V=" << voltage << "V";
+    }
+    if (have_current) {
+      ss << " I=" << current * 1000.0f << "mA (~" << calculated_current * 1000.0f << "mA)";
+    }
+    if (have_power) {
+      ss << " P=" << power << "W";
+    }
+    if (energy != 0.0f) {
+      ss << " E=" << energy << "kWh (" << cf_pulses << ")";
+    }
+    ESP_LOGVV(TAG, "%s", ss.str().c_str());
+  }
+#endif
 }
 
 uint32_t CSE7766Component::get_24_bit_uint_(uint8_t start_index) {

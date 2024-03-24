@@ -160,11 +160,13 @@ light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index
       b = 0;
       break;
   }
-  uint8_t multiplier = this->is_rgbw_ ? 4 : 3;
-  return {this->buf_ + (index * multiplier) + r,
-          this->buf_ + (index * multiplier) + g,
-          this->buf_ + (index * multiplier) + b,
-          this->is_rgbw_ ? this->buf_ + (index * multiplier) + 3 : nullptr,
+  uint8_t multiplier = this->is_rgbw_ || this->is_wrgb_ ? 4 : 3;
+  uint8_t white = this->is_wrgb_ ? 0 : 3;
+
+  return {this->buf_ + (index * multiplier) + r + this->is_wrgb_,
+          this->buf_ + (index * multiplier) + g + this->is_wrgb_,
+          this->buf_ + (index * multiplier) + b + this->is_wrgb_,
+          this->is_rgbw_ || this->is_wrgb_ ? this->buf_ + (index * multiplier) + white : nullptr,
           &this->effect_data_[index],
           &this->correction_};
 }
