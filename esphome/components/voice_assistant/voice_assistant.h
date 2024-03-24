@@ -7,6 +7,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/ring_buffer.h"
 
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
@@ -21,7 +22,6 @@
 
 #ifdef USE_ESP_ADF
 #include <esp_vad.h>
-#include <ringbuf.h>
 #endif
 
 namespace esphome {
@@ -116,12 +116,15 @@ class VoiceAssistant : public Component {
   Trigger<std::string> *get_tts_end_trigger() const { return this->tts_end_trigger_; }
   Trigger<std::string> *get_tts_start_trigger() const { return this->tts_start_trigger_; }
   Trigger<std::string, std::string> *get_error_trigger() const { return this->error_trigger_; }
+  Trigger<> *get_idle_trigger() const { return this->idle_trigger_; }
 
   Trigger<> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
   Trigger<> *get_client_disconnected_trigger() const { return this->client_disconnected_trigger_; }
 
   void client_subscription(api::APIConnection *client, bool subscribe);
   api::APIConnection *get_api_connection() const { return this->api_client_; }
+
+  void set_wake_word(const std::string &wake_word) { this->wake_word_ = wake_word; }
 
  protected:
   int read_microphone_();
@@ -148,6 +151,7 @@ class VoiceAssistant : public Component {
   Trigger<std::string> *tts_end_trigger_ = new Trigger<std::string>();
   Trigger<std::string> *tts_start_trigger_ = new Trigger<std::string>();
   Trigger<std::string, std::string> *error_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<> *idle_trigger_ = new Trigger<>();
 
   Trigger<> *client_connected_trigger_ = new Trigger<>();
   Trigger<> *client_disconnected_trigger_ = new Trigger<>();
@@ -173,14 +177,16 @@ class VoiceAssistant : public Component {
 
   std::string conversation_id_{""};
 
+  std::string wake_word_{""};
+
   HighFrequencyLoopRequester high_freq_;
 
 #ifdef USE_ESP_ADF
   vad_handle_t vad_instance_;
-  ringbuf_handle_t ring_buffer_;
   uint8_t vad_threshold_{5};
   uint8_t vad_counter_{0};
 #endif
+  std::unique_ptr<RingBuffer> ring_buffer_;
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;
@@ -198,8 +204,13 @@ class VoiceAssistant : public Component {
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {
+  TEMPLATABLE_VALUE(std::string, wake_word);
+
  public:
-  void play(Ts... x) override { this->parent_->request_start(false, this->silence_detection_); }
+  void play(Ts... x) override {
+    this->parent_->set_wake_word(this->wake_word_.value(x...));
+    this->parent_->request_start(false, this->silence_detection_);
+  }
 
   void set_silence_detection(bool silence_detection) { this->silence_detection_ = silence_detection; }
 

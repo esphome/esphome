@@ -34,42 +34,31 @@ enum UARTSelection {
 #ifdef USE_LIBRETINY
   UART_SELECTION_DEFAULT = 0,
   UART_SELECTION_UART0,
-  UART_SELECTION_UART1,
-  UART_SELECTION_UART2,
 #else
   UART_SELECTION_UART0 = 0,
+#endif
   UART_SELECTION_UART1,
-#if defined(USE_ESP32)
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3) && !defined(USE_ESP32_VARIANT_ESP32H2)
+#if defined(USE_LIBRETINY) || defined(USE_ESP32_VARIANT_ESP32)
   UART_SELECTION_UART2,
-#endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32C6 && !USE_ESP32_VARIANT_ESP32S2 &&
-        // !USE_ESP32_VARIANT_ESP32S3 && !USE_ESP32_VARIANT_ESP32H2
-#ifdef USE_ESP_IDF
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#endif
+#ifdef USE_LOGGER_USB_CDC
   UART_SELECTION_USB_CDC,
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32H2)
+#endif
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
   UART_SELECTION_USB_SERIAL_JTAG,
-#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C6 || USE_ESP32_VARIANT_ESP32S3 ||
-        // USE_ESP32_VARIANT_ESP32H2
-#endif  // USE_ESP_IDF
-#endif  // USE_ESP32
+#endif
 #ifdef USE_ESP8266
   UART_SELECTION_UART0_SWAP,
 #endif  // USE_ESP8266
-#ifdef USE_RP2040
-  UART_SELECTION_USB_CDC,
-#endif  // USE_RP2040
-#endif  // USE_LIBRETINY
 };
 #endif  // USE_ESP32 || USE_ESP8266 || USE_RP2040 || USE_LIBRETINY
 
 class Logger : public Component {
  public:
   explicit Logger(uint32_t baud_rate, size_t tx_buffer_size);
-
+#ifdef USE_LOGGER_USB_CDC
+  void loop() override;
+#endif
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate);
   uint32_t get_baud_rate() const { return baud_rate_; }
@@ -107,19 +96,10 @@ class Logger : public Component {
 #endif
 
  protected:
-#ifdef USE_ESP_IDF
-  void init_uart_();
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-  void init_usb_cdc_();
-#endif
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32H2)
-  void init_usb_serial_jtag_();
-#endif
-#endif
   void write_header_(int level, const char *tag, int line);
   void write_footer_();
   void log_message_(int level, const char *tag, int offset = 0);
+  void write_msg_(const char *msg);
 
   inline bool is_buffer_full_() const { return this->tx_buffer_at_ >= this->tx_buffer_size_; }
   inline int buffer_remaining_capacity_() const { return this->tx_buffer_size_ - this->tx_buffer_at_; }
@@ -158,6 +138,10 @@ class Logger : public Component {
     this->vprintf_to_buffer_(format, arg);
     va_end(arg);
   }
+
+#ifndef USE_HOST
+  const char *get_uart_selection_();
+#endif
 
   uint32_t baud_rate_;
   char *tx_buffer_{nullptr};

@@ -200,8 +200,8 @@ float BMP280Component::read_temperature_(int32_t *t_fine) {
   int32_t var2 = (((((adc >> 4) - t1) * ((adc >> 4) - t1)) >> 12) * t3) >> 14;
   *t_fine = var1 + var2;
 
-  float temperature = (*t_fine * 5 + 128) >> 8;
-  return temperature / 100.0f;
+  float temperature = (*t_fine * 5 + 128);
+  return temperature / 25600.0f;
 }
 
 float BMP280Component::read_pressure_(int32_t t_fine) {

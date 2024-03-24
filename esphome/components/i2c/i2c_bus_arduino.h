@@ -30,6 +30,7 @@ class ArduinoI2CBus : public I2CBus, public Component {
 
  private:
   void recover_();
+  void set_pins_and_clock_();
   RecoveryCode recovery_result_;
 
  protected:

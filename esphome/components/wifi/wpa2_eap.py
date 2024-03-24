@@ -3,6 +3,7 @@
 The cryptography package is loaded lazily in the functions
 so that it doesn't crash if it's not installed.
 """
+
 import logging
 from pathlib import Path
 

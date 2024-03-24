@@ -15,6 +15,16 @@ void BangBangClimate::setup() {
     this->publish_state();
   });
   this->current_temperature = this->sensor_->state;
+
+  // register for humidity values and get initial state
+  if (this->humidity_sensor_ != nullptr) {
+    this->humidity_sensor_->add_on_state_callback([this](float state) {
+      this->current_humidity = state;
+      this->publish_state();
+    });
+    this->current_humidity = this->humidity_sensor_->state;
+  }
+
   // restore set points
   auto restore = this->restore_state_();
   if (restore.has_value()) {
@@ -47,6 +57,8 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
 climate::ClimateTraits BangBangClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
+  if (this->humidity_sensor_ != nullptr)
+    traits.set_supports_current_humidity(true);
   traits.set_supported_modes({
       climate::CLIMATE_MODE_OFF,
   });
@@ -171,6 +183,7 @@ void BangBangClimate::set_away_config(const BangBangClimateTargetTempConfig &awa
 BangBangClimate::BangBangClimate()
     : idle_trigger_(new Trigger<>()), cool_trigger_(new Trigger<>()), heat_trigger_(new Trigger<>()) {}
 void BangBangClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
+void BangBangClimate::set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
 Trigger<> *BangBangClimate::get_idle_trigger() const { return this->idle_trigger_; }
 Trigger<> *BangBangClimate::get_cool_trigger() const { return this->cool_trigger_; }
 void BangBangClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
@@ -181,8 +194,8 @@ void BangBangClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
   ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
-  ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
-  ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
+  ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.2f°C", this->normal_config_.default_temperature_low);
+  ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.2f°C", this->normal_config_.default_temperature_high);
 }
 
 BangBangClimateTargetTempConfig::BangBangClimateTargetTempConfig() = default;
