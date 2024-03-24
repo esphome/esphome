@@ -126,8 +126,8 @@ void Lora::dump_config() {
 };
 void Lora::digital_write(uint8_t pin, bool value) {
   ESP_LOGD(TAG, "Starting to write message");
-  // std::string message = str_snprintf("%02x%02x", 9, pin, value);
-  this->sendMessage("bla");
+  std::string message = str_snprintf("%02x%02x", 9, pin, value);
+  this->sendMessage(message);
 }
 bool Lora::sendMessage(std::string message) {
   uint8_t size = message.length();
@@ -138,10 +138,9 @@ bool Lora::sendMessage(std::string message) {
     return false;
   }
   ESP_LOGD(TAG, "Sending: %s", message);
-  // this->write_array((uint8_t *) &messageFixed, size);
-  // bool result = this->waitCompleteResponse(5000, 5000);
-  // return result;
-  return true;
+  this->write_array((uint8_t *) &messageFixed, size);
+  bool result = this->waitCompleteResponse(5000, 5000);
+  return result;
 }
 void Lora::loop() {
   if (!available()) {
