@@ -25,6 +25,7 @@ struct HttpResponse {
   int content_length;
   std::vector<char> data;
   uint32_t duration_ms;
+  bool capture_response;
 };
 
 class HttpRequestResponseTrigger : public Trigger<int32_t, uint32_t, HttpResponse &> {
@@ -34,7 +35,6 @@ class HttpRequestResponseTrigger : public Trigger<int32_t, uint32_t, HttpRespons
 
 class HttpRequestComponent : public Component {
  public:
-  HttpRequestComponent();
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
@@ -46,8 +46,6 @@ class HttpRequestComponent : public Component {
   void set_body(const std::string &body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = std::move(headers); }
   void set_capture_response(bool capture_response) { this->capture_response_ = capture_response; }
-
-  bool get_capture_response() { return this->capture_response_; }
 
   virtual void set_url(std::string url) = 0;
   virtual HttpResponse send() = 0;
@@ -126,8 +124,6 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};
   std::vector<HttpRequestResponseTrigger *> response_triggers_;
 };
-
-extern HttpRequestComponent *global_http_request;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace http_request
 }  // namespace esphome

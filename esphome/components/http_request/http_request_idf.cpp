@@ -34,8 +34,8 @@ esp_err_t http_event_handler(esp_http_client_event_t *evt) {
        *  However, event handler can also be used in case chunked encoding is used.
        */
       if (!esp_http_client_is_chunked_response(evt->client)) {
-        if (global_http_request->get_capture_response()) {
-          auto &response = *reinterpret_cast<HttpResponse *>(evt->user_data);
+        auto &response = *reinterpret_cast<HttpResponse *>(evt->user_data);
+        if (response.capture_response) {
           auto *const data_begin = reinterpret_cast<char *>(evt->data);
           auto *const data_end = data_begin + evt->data_len;
           response.data.insert(response.data.end(), data_begin, data_end);
@@ -81,7 +81,9 @@ HttpResponse HttpRequestIDF::send() {
   }
 
   HttpResponse response = {};  // used as user_data, by http_event_handler, in esp_http_client_perform
-  response.data.reserve(this->rx_buffer_size_);
+  response.capture_response = this->capture_response_;
+  if (this->capture_response_)
+    response.data.reserve(this->rx_buffer_size_);
   esp_http_client_config_t config = {};
 
   config.url = this->url_.c_str();
