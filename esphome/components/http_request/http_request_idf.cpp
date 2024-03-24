@@ -124,6 +124,8 @@ HttpResponse HttpRequestIDF::send() {
   response.content_length = esp_http_client_get_content_length(client);
   response.duration_ms = duration;
 
+  esp_http_client_cleanup(client);
+
   if (status_code < 200 || status_code >= 300) {
     ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), status_code, duration);
     this->status_set_warning();
@@ -133,8 +135,6 @@ HttpResponse HttpRequestIDF::send() {
   this->status_clear_warning();
   ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), status_code,
            duration);
-
-  esp_http_client_cleanup(client);
 
   return response;
 }
