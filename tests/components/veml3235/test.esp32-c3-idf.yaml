@@ -1,0 +1,15 @@
+i2c:
+  - id: i2c_veml3235
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: veml3235
+    id: veml3235_sensor
+    name: VEML3235 Light Sensor
+    auto_gain: true
+    auto_gain_threshold_high: 90%
+    auto_gain_threshold_low: 15%
+    digital_gain: 1X
+    gain: 1X
+    integration_time: 50ms

@@ -91,8 +91,13 @@ void MQTTClientComponent::send_device_info_() {
   this->publish_json(
       topic,
       [](JsonObject root) {
-        auto ip = network::get_ip_address();
-        root["ip"] = ip.str();
+        uint8_t index = 0;
+        for (auto &ip : network::get_ip_addresses()) {
+          if (ip.is_set()) {
+            root["ip" + (index == 0 ? "" : esphome::to_string(index))] = ip.str();
+            index++;
+          }
+        }
         root["name"] = App.get_name();
 #ifdef USE_API
         root["port"] = api::global_api_server->get_port();
@@ -159,14 +164,13 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if USE_NETWORK_IPV6
+  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
+                                         MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV6_IPV4);
+#else
   err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
                                          MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
-#endif
-#ifdef USE_ESP8266
-  err_t err = dns_gethostbyname(this->credentials_.address.c_str(), &addr,
-                                esphome::mqtt::MQTTClientComponent::dns_found_callback, this);
-#endif
+#endif /* USE_NETWORK_IPV6 */
   switch (err) {
     case ERR_OK: {
       // Got IP immediately
@@ -183,11 +187,7 @@ void MQTTClientComponent::start_dnslookup_() {
     default:
     case ERR_ARG: {
       // error
-#if defined(USE_ESP8266)
-      ESP_LOGW(TAG, "Error resolving MQTT broker IP address: %ld", err);
-#else
       ESP_LOGW(TAG, "Error resolving MQTT broker IP address: %d", err);
-#endif
       break;
     }
   }
@@ -470,8 +470,8 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
 
   if (!logging_topic) {
     if (ret) {
-      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d)", message.topic.c_str(), message.payload.c_str(),
-               message.retain);
+      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d qos=%d)", message.topic.c_str(), message.payload.c_str(),
+               message.retain, message.qos);
     } else {
       ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). will retry later..", message.topic.c_str(),
                message.payload.length());

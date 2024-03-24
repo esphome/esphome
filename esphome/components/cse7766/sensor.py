@@ -2,19 +2,24 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, uart
 from esphome.const import (
+    CONF_APPARENT_POWER,
     CONF_CURRENT,
     CONF_ENERGY,
     CONF_ID,
     CONF_POWER,
+    CONF_POWER_FACTOR,
     CONF_VOLTAGE,
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
+    DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_VOLT,
     UNIT_AMPERE,
+    UNIT_VOLT,
+    UNIT_VOLT_AMPS,
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
@@ -51,6 +56,17 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_ENERGY,
             state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
+        cv.Optional(CONF_APPARENT_POWER): sensor.sensor_schema(
+            unit_of_measurement=UNIT_VOLT_AMPS,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_APPARENT_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_POWER_FACTOR,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
     }
 ).extend(uart.UART_DEVICE_SCHEMA)
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
@@ -75,3 +91,9 @@ async def to_code(config):
     if energy_config := config.get(CONF_ENERGY):
         sens = await sensor.new_sensor(energy_config)
         cg.add(var.set_energy_sensor(sens))
+    if apparent_power_config := config.get(CONF_APPARENT_POWER):
+        sens = await sensor.new_sensor(apparent_power_config)
+        cg.add(var.set_apparent_power_sensor(sens))
+    if power_factor_config := config.get(CONF_POWER_FACTOR):
+        sens = await sensor.new_sensor(power_factor_config)
+        cg.add(var.set_power_factor_sensor(sens))

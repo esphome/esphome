@@ -4,6 +4,7 @@ from esphome.components import sensor, uart
 from esphome.const import (
     CONF_CURRENT,
     CONF_ENERGY,
+    CONF_EXTERNAL_TEMPERATURE,
     CONF_ID,
     CONF_POWER,
     CONF_VOLTAGE,
@@ -24,7 +25,6 @@ from esphome.const import (
 DEPENDENCIES = ["uart"]
 
 CONF_INTERNAL_TEMPERATURE = "internal_temperature"
-CONF_EXTERNAL_TEMPERATURE = "external_temperature"
 
 bl0940_ns = cg.esphome_ns.namespace("bl0940")
 BL0940 = bl0940_ns.class_("BL0940", cg.PollingComponent, uart.UARTDevice)

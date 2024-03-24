@@ -19,7 +19,20 @@ esphome:
     # Templated
     - sensor.template.publish:
         id: template_sens
-        state: !lambda 'return 42.0;'
+        state: !lambda "return 42.0;"
+
+    - datetime.date.set:
+        id: test_date
+        date:
+          year: 2021
+          month: 1
+          day: 1
+    - datetime.date.set:
+        id: test_date
+        date: !lambda "return {.day_of_month = 1, .month = 1, .year = 2021};"
+    - datetime.date.set:
+        id: test_date
+        date: "2021-01-01"
 
 binary_sensor:
   - platform: template
@@ -125,3 +138,18 @@ alarm_control_panel:
     name: Alarm Panel
     codes:
       - "1234"
+
+datetime:
+  - platform: template
+    name: Date
+    id: test_date
+    type: date
+    set_action:
+      - logger.log: "set_value"
+    on_value:
+      - logger.log:
+          format: "Date: %04d-%02d-%02d"
+          args:
+            - x.year
+            - x.month
+            - x.day_of_month

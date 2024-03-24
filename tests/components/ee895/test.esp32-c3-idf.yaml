@@ -1,0 +1,14 @@
+i2c:
+  - id: i2c_ee895
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: ee895
+    address: 0x5F
+    co2:
+      name: EE895 CO2
+    temperature:
+      name: EE895 Temperature
+    pressure:
+      name: EE895 Pressure

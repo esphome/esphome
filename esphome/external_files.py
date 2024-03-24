@@ -33,7 +33,9 @@ def has_remote_file_changed(url, local_file_path):
                 IF_MODIFIED_SINCE: local_modification_time_str,
                 CACHE_CONTROL: CACHE_CONTROL_MAX_AGE + "3600",
             }
-            response = requests.head(url, headers=headers, timeout=NETWORK_TIMEOUT)
+            response = requests.head(
+                url, headers=headers, timeout=NETWORK_TIMEOUT, allow_redirects=True
+            )
 
             _LOGGER.debug(
                 "has_remote_file_changed: File %s, Local modified %s, response code %d",

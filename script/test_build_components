@@ -28,7 +28,12 @@ start_esphome() {
   component_test_file="./tests/test_build_components/build/$target_component.$test_name.$target_platform.yaml"
 
   cp $target_platform_file $component_test_file
-  sed -i "s!\$component_test_file!../../.$f!g" $component_test_file
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS sed is...different
+    sed -i '' "s!\$component_test_file!../../.$f!g" $component_test_file
+  else
+    sed -i "s!\$component_test_file!../../.$f!g" $component_test_file
+  fi
 
   # Start esphome process
   echo "> [$target_component] [$test_name] [$target_platform]"

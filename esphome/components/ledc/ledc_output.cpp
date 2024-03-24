@@ -96,6 +96,12 @@ esp_err_t configure_timer_frequency(ledc_mode_t speed_mode, ledc_timer_t timer_n
 }
 #endif
 
+#ifdef USE_ESP_IDF
+constexpr int ledc_angle_to_htop(float angle, uint8_t bit_depth) {
+  return static_cast<int>(angle * ((1U << bit_depth) - 1) / 360.);
+}
+#endif  // USE_ESP_IDF
+
 void LEDCOutput::write_state(float state) {
   if (!initialized_) {
     ESP_LOGW(TAG, "LEDC output hasn't been initialized yet!");
@@ -117,7 +123,8 @@ void LEDCOutput::write_state(float state) {
 #ifdef USE_ESP_IDF
   auto speed_mode = get_speed_mode(channel_);
   auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
-  ledc_set_duty(speed_mode, chan_num, duty);
+  int hpoint = ledc_angle_to_htop(this->phase_angle_, this->bit_depth_);
+  ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
   ledc_update_duty(speed_mode, chan_num);
 #endif
 }
@@ -143,8 +150,10 @@ void LEDCOutput::setup() {
     this->status_set_error();
     return;
   }
+  int hpoint = ledc_angle_to_htop(this->phase_angle_, this->bit_depth_);
 
   ESP_LOGV(TAG, "Configured frequency %f with a bit depth of %u bits", this->frequency_, this->bit_depth_);
+  ESP_LOGV(TAG, "Angle of %.1f° results in hpoint %u", this->phase_angle_, hpoint);
 
   ledc_channel_config_t chan_conf{};
   chan_conf.gpio_num = pin_->get_pin();
@@ -153,7 +162,7 @@ void LEDCOutput::setup() {
   chan_conf.intr_type = LEDC_INTR_DISABLE;
   chan_conf.timer_sel = timer_num;
   chan_conf.duty = inverted_ == pin_->is_inverted() ? 0 : (1U << bit_depth_);
-  chan_conf.hpoint = 0;
+  chan_conf.hpoint = hpoint;
   ledc_channel_config(&chan_conf);
   initialized_ = true;
   this->status_clear_error();
@@ -165,6 +174,7 @@ void LEDCOutput::dump_config() {
   LOG_PIN("  Pin ", this->pin_);
   ESP_LOGCONFIG(TAG, "  LEDC Channel: %u", this->channel_);
   ESP_LOGCONFIG(TAG, "  PWM Frequency: %.1f Hz", this->frequency_);
+  ESP_LOGCONFIG(TAG, "  Phase angle: %.1f°", this->phase_angle_);
   ESP_LOGCONFIG(TAG, "  Bit depth: %u", this->bit_depth_);
   ESP_LOGV(TAG, "  Max frequency for bit depth: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_));
   ESP_LOGV(TAG, "  Min frequency for bit depth: %f",

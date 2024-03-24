@@ -6,11 +6,10 @@ sensor:
     mac_address: D3:75:F2:DC:16:91
     tank_type: Europe_11kg
     temperature:
-        name: "Propane test temp"
+      name: "Propane test temp"
     level:
-        name: "Propane test level"
+      name: "Propane test level"
     distance:
-        name: "Propane test distance"
+      name: "Propane test distance"
     battery_level:
-        name: "Propane test battery level"
-
+      name: "Propane test battery level"

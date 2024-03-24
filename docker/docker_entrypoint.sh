@@ -21,4 +21,10 @@ export PLATFORMIO_PLATFORMS_DIR="${pio_cache_base}/platforms"
 export PLATFORMIO_PACKAGES_DIR="${pio_cache_base}/packages"
 export PLATFORMIO_CACHE_DIR="${pio_cache_base}/cache"
 
+# If /build is mounted, use that as the build path
+# otherwise use path in /config (so that builds aren't lost on container restart)
+if [[ -d /build ]]; then
+    export ESPHOME_BUILD_PATH=/build
+fi
+
 exec esphome "$@"

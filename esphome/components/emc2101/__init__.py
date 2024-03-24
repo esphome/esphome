@@ -7,6 +7,8 @@ CODEOWNERS = ["@ellull"]
 
 DEPENDENCIES = ["i2c"]
 
+MULTI_CONF = True
+
 CONF_PWM = "pwm"
 CONF_DIVIDER = "divider"
 CONF_DAC = "dac"

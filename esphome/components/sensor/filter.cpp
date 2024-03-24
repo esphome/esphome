@@ -252,7 +252,9 @@ ThrottleAverageFilter::ThrottleAverageFilter(uint32_t time_period) : time_period
 
 optional<float> ThrottleAverageFilter::new_value(float value) {
   ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::new_value(value=%f)", this, value);
-  if (!std::isnan(value)) {
+  if (std::isnan(value)) {
+    this->have_nan_ = true;
+  } else {
     this->sum_ += value;
     this->n_++;
   }
@@ -262,12 +264,14 @@ void ThrottleAverageFilter::setup() {
   this->set_interval("throttle_average", this->time_period_, [this]() {
     ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
     if (this->n_ == 0) {
-      this->output(NAN);
+      if (this->have_nan_)
+        this->output(NAN);
     } else {
       this->output(this->sum_ / this->n_);
       this->sum_ = 0.0f;
       this->n_ = 0;
     }
+    this->have_nan_ = false;
   });
 }
 float ThrottleAverageFilter::get_setup_priority() const { return setup_priority::HARDWARE; }

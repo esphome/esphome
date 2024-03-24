@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_RESOLUTION,
     UNIT_LUX,
     ICON_BRIGHTNESS_5,
+    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ILLUMINANCE,
 )
 
@@ -61,22 +62,22 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_COUNTS,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
+                device_class=DEVICE_CLASS_EMPTY,
             ),
             cv.Optional(CONF_UV_INDEX): sensor.sensor_schema(
                 unit_of_measurement=UNIT_UVI,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=5,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
+                device_class=DEVICE_CLASS_EMPTY,
             ),
             cv.Optional(CONF_UV): sensor.sensor_schema(
                 unit_of_measurement=UNIT_COUNTS,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
+                device_class=DEVICE_CLASS_EMPTY,
             ),
-            cv.Optional(CONF_GAIN, default="X3"): cv.enum(GAIN_OPTIONS),
-            cv.Optional(CONF_RESOLUTION, default=18): cv.enum(RES_OPTIONS),
+            cv.Optional(CONF_GAIN, default="X18"): cv.enum(GAIN_OPTIONS),
+            cv.Optional(CONF_RESOLUTION, default=20): cv.enum(RES_OPTIONS),
             cv.Optional(CONF_WINDOW_CORRECTION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
             ),

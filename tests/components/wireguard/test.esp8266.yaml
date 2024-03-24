@@ -1,0 +1,62 @@
+wifi:
+  ssid: "MySSID1"
+  password: "password1"
+
+network:
+  enable_ipv6: true
+
+time:
+  - platform: sntp
+
+wireguard:
+  address: 172.16.34.100
+  netmask: 255.255.255.0
+  # NEVER use the following keys for your vpn, they are now public!
+  private_key: wPBMxtNYH3mChicrbpsRpZIasIdPq3yZuthn23FbGG8=
+  peer_public_key: Hs2JfikvYU03/Kv3YoAs1hrUIPPTEkpsZKSPUljE9yc=
+  peer_preshared_key: 20fjM5GRnSolGPC5SRj9ljgIUyQfruv0B0bvLl3Yt60=
+  peer_endpoint: wg.server.example
+  peer_persistent_keepalive: 25s
+  peer_allowed_ips:
+    - 172.16.34.0/24
+    - 192.168.4.0/24
+
+binary_sensor:
+  - platform: wireguard
+    status:
+      name: 'WireGuard Status'
+    enabled:
+      name: 'WireGuard Enabled'
+
+sensor:
+  - platform: wireguard
+    latest_handshake:
+      name: 'WireGuard Latest Handshake'
+
+text_sensor:
+  - platform: wireguard
+    address:
+      name: 'WireGuard Address'
+
+button:
+  - platform: template
+    name: 'Toggle WireGuard'
+    entity_category: config
+    on_press:
+      - if:
+          condition: wireguard.enabled
+          then:
+            - wireguard.disable:
+          else:
+            - wireguard.enable:
+
+  - platform: template
+    name: 'Log WireGuard status'
+    entity_category: config
+    on_press:
+      - if:
+          condition: wireguard.peer_online
+          then:
+            - logger.log: 'wireguard remote peer is online'
+          else:
+            - logger.log: 'wireguard remote peer is offline'

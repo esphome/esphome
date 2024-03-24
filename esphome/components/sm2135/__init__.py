@@ -15,6 +15,7 @@ SM2135 = sm2135_ns.class_("SM2135", cg.Component)
 
 CONF_RGB_CURRENT = "rgb_current"
 CONF_CW_CURRENT = "cw_current"
+CONF_SEPARATE_MODES = "separate_modes"
 
 SM2135Current = sm2135_ns.enum("SM2135Current")
 
@@ -51,6 +52,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,
         cv.Optional(CONF_RGB_CURRENT, "20mA"): cv.enum(DRIVE_STRENGTHS_RGB),
         cv.Optional(CONF_CW_CURRENT, "10mA"): cv.enum(DRIVE_STRENGTHS_CW),
+        cv.Optional(CONF_SEPARATE_MODES, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -66,3 +68,4 @@ async def to_code(config):
 
     cg.add(var.set_rgb_current(config[CONF_RGB_CURRENT]))
     cg.add(var.set_cw_current(config[CONF_CW_CURRENT]))
+    cg.add(var.set_separate_modes(config[CONF_SEPARATE_MODES]))

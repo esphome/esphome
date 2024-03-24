@@ -197,8 +197,8 @@ void Nextion::disable_component_touch(const char *component) {
   this->add_no_result_to_queue_with_printf_("disable_component_touch", "tsw %s,0", component);
 }
 
-void Nextion::set_component_picture(const char *component, const char *picture) {
-  this->add_no_result_to_queue_with_printf_("set_component_picture", "%s.val=%s", component, picture);
+void Nextion::set_component_picture(const char *component, uint8_t picture_id) {
+  this->add_no_result_to_queue_with_printf_("set_component_picture", "%s.pic=%d", component, picture_id);
 }
 
 void Nextion::set_component_text(const char *component, const char *text) {

@@ -2,6 +2,7 @@
 #include <string>
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/helpers.h"
 #include "hon_climate.h"
 #include "hon_packet.h"
 
@@ -51,10 +52,9 @@ hon_protocol::HorizontalSwingMode get_horizontal_swing_mode(AirflowHorizontalDir
 }
 
 HonClimate::HonClimate()
-    : cleaning_status_(CleaningState::NO_CLEANING),
-      got_valid_outdoor_temp_(false),
-      active_alarms_{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-      outdoor_sensor_(nullptr) {
+    : cleaning_status_(CleaningState::NO_CLEANING), got_valid_outdoor_temp_(false), active_alarms_{0x00, 0x00, 0x00,
+                                                                                                   0x00, 0x00, 0x00,
+                                                                                                   0x00, 0x00} {
   last_status_message_ = std::unique_ptr<uint8_t[]>(new uint8_t[sizeof(hon_protocol::HaierPacketControl)]);
   this->fan_mode_speed_ = (uint8_t) hon_protocol::FanMode::FAN_MID;
   this->other_modes_fan_speed_ = (uint8_t) hon_protocol::FanMode::FAN_AUTO;
@@ -65,8 +65,6 @@ HonClimate::~HonClimate() {}
 void HonClimate::set_beeper_state(bool state) { this->beeper_status_ = state; }
 
 bool HonClimate::get_beeper_state() const { return this->beeper_status_; }
-
-void HonClimate::set_outdoor_temperature_sensor(esphome::sensor::Sensor *sensor) { this->outdoor_sensor_ = sensor; }
 
 AirflowVerticalDirection HonClimate::get_vertical_airflow() const { return this->vertical_direction_; };
 
@@ -368,7 +366,14 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
       if (this->can_send_message() && this->is_message_interval_exceeded_(now)) {
         static const haier_protocol::HaierMessage STATUS_REQUEST(
             haier_protocol::FrameType::CONTROL, (uint16_t) hon_protocol::SubcommandsControl::GET_USER_DATA);
-        this->send_message_(STATUS_REQUEST, this->use_crc_);
+        static const haier_protocol::HaierMessage BIG_DATA_REQUEST(
+            haier_protocol::FrameType::CONTROL, (uint16_t) hon_protocol::SubcommandsControl::GET_BIG_DATA);
+        if ((this->protocol_phase_ == ProtocolPhases::SENDING_FIRST_STATUS_REQUEST) ||
+            (!this->should_get_big_data_())) {
+          this->send_message_(STATUS_REQUEST, this->use_crc_);
+        } else {
+          this->send_message_(BIG_DATA_REQUEST, this->use_crc_);
+        }
         this->last_status_request_ = now;
       }
       break;
@@ -685,9 +690,87 @@ void HonClimate::process_alarm_message_(const uint8_t *packet, uint8_t size, boo
   }
 }
 
+#ifdef USE_SENSOR
+void HonClimate::set_sub_sensor(SubSensorType type, sensor::Sensor *sens) {
+  if (type < SubSensorType::SUB_SENSOR_TYPE_COUNT) {
+    if (type >= SubSensorType::BIG_DATA_FRAME_SUB_SENSORS) {
+      if ((this->sub_sensors_[(size_t) type] != nullptr) && (sens == nullptr)) {
+        this->big_data_sensors_--;
+      } else if ((this->sub_sensors_[(size_t) type] == nullptr) && (sens != nullptr)) {
+        this->big_data_sensors_++;
+      }
+    }
+    this->sub_sensors_[(size_t) type] = sens;
+  }
+}
+
+void HonClimate::update_sub_sensor_(SubSensorType type, float value) {
+  if (type < SubSensorType::SUB_SENSOR_TYPE_COUNT) {
+    size_t index = (size_t) type;
+    if ((this->sub_sensors_[index] != nullptr) &&
+        ((!this->sub_sensors_[index]->has_state()) || (this->sub_sensors_[index]->raw_state != value)))
+      this->sub_sensors_[index]->publish_state(value);
+  }
+}
+#endif  // USE_SENSOR
+
+#ifdef USE_BINARY_SENSOR
+void HonClimate::set_sub_binary_sensor(SubBinarySensorType type, binary_sensor::BinarySensor *sens) {
+  if (type < SubBinarySensorType::SUB_BINARY_SENSOR_TYPE_COUNT) {
+    if ((this->sub_binary_sensors_[(size_t) type] != nullptr) && (sens == nullptr)) {
+      this->big_data_sensors_--;
+    } else if ((this->sub_binary_sensors_[(size_t) type] == nullptr) && (sens != nullptr)) {
+      this->big_data_sensors_++;
+    }
+    this->sub_binary_sensors_[(size_t) type] = sens;
+  }
+}
+
+void HonClimate::update_sub_binary_sensor_(SubBinarySensorType type, uint8_t value) {
+  if (value < 2) {
+    bool converted_value = value == 1;
+    size_t index = (size_t) type;
+    if ((this->sub_binary_sensors_[index] != nullptr) && ((!this->sub_binary_sensors_[index]->has_state()) ||
+                                                          (this->sub_binary_sensors_[index]->state != converted_value)))
+      this->sub_binary_sensors_[index]->publish_state(converted_value);
+  }
+}
+#endif  // USE_BINARY_SENSOR
+
 haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *packet_buffer, uint8_t size) {
-  if (size < hon_protocol::HAIER_STATUS_FRAME_SIZE + this->extra_control_packet_bytes_)
+  size_t expected_size = 2 + sizeof(hon_protocol::HaierPacketControl) + sizeof(hon_protocol::HaierPacketSensors) +
+                         this->extra_control_packet_bytes_;
+  if (size < expected_size)
     return haier_protocol::HandlerError::WRONG_MESSAGE_STRUCTURE;
+  uint16_t subtype = (((uint16_t) packet_buffer[0]) << 8) + packet_buffer[1];
+  if ((subtype == 0x7D01) && (size >= expected_size + 4 + sizeof(hon_protocol::HaierPacketBigData))) {
+    // Got BigData packet
+    const hon_protocol::HaierPacketBigData *bd_packet =
+        (const hon_protocol::HaierPacketBigData *) (&packet_buffer[expected_size + 4]);
+#ifdef USE_SENSOR
+    this->update_sub_sensor_(SubSensorType::INDOOR_COIL_TEMPERATURE, bd_packet->indoor_coil_temperature / 2.0 - 20);
+    this->update_sub_sensor_(SubSensorType::OUTDOOR_COIL_TEMPERATURE, bd_packet->outdoor_coil_temperature - 64);
+    this->update_sub_sensor_(SubSensorType::OUTDOOR_DEFROST_TEMPERATURE, bd_packet->outdoor_coil_temperature - 64);
+    this->update_sub_sensor_(SubSensorType::OUTDOOR_IN_AIR_TEMPERATURE, bd_packet->outdoor_in_air_temperature - 64);
+    this->update_sub_sensor_(SubSensorType::OUTDOOR_OUT_AIR_TEMPERATURE, bd_packet->outdoor_out_air_temperature - 64);
+    this->update_sub_sensor_(SubSensorType::POWER, encode_uint16(bd_packet->power[0], bd_packet->power[1]));
+    this->update_sub_sensor_(SubSensorType::COMPRESSOR_FREQUENCY, bd_packet->compressor_frequency);
+    this->update_sub_sensor_(SubSensorType::COMPRESSOR_CURRENT,
+                             encode_uint16(bd_packet->compressor_current[0], bd_packet->compressor_current[1]) / 10.0);
+    this->update_sub_sensor_(
+        SubSensorType::EXPANSION_VALVE_OPEN_DEGREE,
+        encode_uint16(bd_packet->expansion_valve_open_degree[0], bd_packet->expansion_valve_open_degree[1]) / 4095.0);
+#endif  // USE_SENSOR
+#ifdef USE_BINARY_SENSOR
+    this->update_sub_binary_sensor_(SubBinarySensorType::OUTDOOR_FAN_STATUS, bd_packet->outdoor_fan_status);
+    this->update_sub_binary_sensor_(SubBinarySensorType::DEFROST_STATUS, bd_packet->defrost_status);
+    this->update_sub_binary_sensor_(SubBinarySensorType::COMPRESSOR_STATUS, bd_packet->compressor_status);
+    this->update_sub_binary_sensor_(SubBinarySensorType::INDOOR_FAN_STATUS, bd_packet->indoor_fan_status);
+    this->update_sub_binary_sensor_(SubBinarySensorType::FOUR_WAY_VALVE_STATUS, bd_packet->four_way_valve_status);
+    this->update_sub_binary_sensor_(SubBinarySensorType::INDOOR_ELECTRIC_HEATING_STATUS,
+                                    bd_packet->indoor_electric_heating_status);
+#endif  // USE_BINARY_SENSOR
+  }
   struct {
     hon_protocol::HaierPacketControl control;
     hon_protocol::HaierPacketSensors sensors;
@@ -699,13 +782,17 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
   if (packet.sensors.error_status != 0) {
     ESP_LOGW(TAG, "HVAC error, code=0x%02X", packet.sensors.error_status);
   }
-  if ((this->outdoor_sensor_ != nullptr) &&
+#ifdef USE_SENSOR
+  if ((this->sub_sensors_[(size_t) SubSensorType::OUTDOOR_TEMPERATURE] != nullptr) &&
       (this->got_valid_outdoor_temp_ || (packet.sensors.outdoor_temperature > 0))) {
     this->got_valid_outdoor_temp_ = true;
-    float otemp = (float) (packet.sensors.outdoor_temperature + PROTOCOL_OUTDOOR_TEMPERATURE_OFFSET);
-    if ((!this->outdoor_sensor_->has_state()) || (this->outdoor_sensor_->get_raw_state() != otemp))
-      this->outdoor_sensor_->publish_state(otemp);
+    this->update_sub_sensor_(SubSensorType::OUTDOOR_TEMPERATURE,
+                             (float) (packet.sensors.outdoor_temperature + PROTOCOL_OUTDOOR_TEMPERATURE_OFFSET));
   }
+  if ((this->sub_sensors_[(size_t) SubSensorType::HUMIDITY] != nullptr) && (packet.sensors.room_humidity <= 100)) {
+    this->update_sub_sensor_(SubSensorType::HUMIDITY, (float) packet.sensors.room_humidity);
+  }
+#endif  // USE_SENSOR
   bool should_publish = false;
   {
     // Extra modes/presets
@@ -1009,21 +1096,22 @@ void HonClimate::fill_control_messages_queue_() {
           break;
       }
     }
-    if (quiet_mode_buf[1] != 0xFF) {
+    auto presets = this->traits_.get_supported_presets();
+    if ((quiet_mode_buf[1] != 0xFF) && ((presets.find(climate::ClimatePreset::CLIMATE_PRESET_ECO) != presets.end()))) {
       this->control_messages_queue_.push(
           haier_protocol::HaierMessage(haier_protocol::FrameType::CONTROL,
                                        (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                            (uint8_t) hon_protocol::DataParameters::QUIET_MODE,
                                        quiet_mode_buf, 2));
     }
-    if (fast_mode_buf[1] != 0xFF) {
+    if ((fast_mode_buf[1] != 0xFF) && ((presets.find(climate::ClimatePreset::CLIMATE_PRESET_BOOST) != presets.end()))) {
       this->control_messages_queue_.push(
           haier_protocol::HaierMessage(haier_protocol::FrameType::CONTROL,
                                        (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                            (uint8_t) hon_protocol::DataParameters::FAST_MODE,
                                        fast_mode_buf, 2));
     }
-    if (away_mode_buf[1] != 0xFF) {
+    if ((away_mode_buf[1] != 0xFF) && ((presets.find(climate::ClimatePreset::CLIMATE_PRESET_AWAY) != presets.end()))) {
       this->control_messages_queue_.push(
           haier_protocol::HaierMessage(haier_protocol::FrameType::CONTROL,
                                        (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
@@ -1032,7 +1120,7 @@ void HonClimate::fill_control_messages_queue_() {
     }
   }
   // Target temperature
-  if (climate_control.target_temperature.has_value()) {
+  if (climate_control.target_temperature.has_value() && (this->mode != ClimateMode::CLIMATE_MODE_FAN_ONLY)) {
     uint8_t buffer[2] = {0x00, 0x00};
     buffer[1] = ((uint8_t) climate_control.target_temperature.value()) - 16;
     this->control_messages_queue_.push(
@@ -1119,11 +1207,23 @@ bool HonClimate::prepare_pending_action() {
 
 void HonClimate::process_protocol_reset() {
   HaierClimateBase::process_protocol_reset();
-  if (this->outdoor_sensor_ != nullptr) {
-    this->outdoor_sensor_->publish_state(NAN);
+#ifdef USE_SENSOR
+  for (auto &sub_sensor : this->sub_sensors_) {
+    if ((sub_sensor != nullptr) && sub_sensor->has_state())
+      sub_sensor->publish_state(NAN);
   }
+#endif  // USE_SENSOR
   this->got_valid_outdoor_temp_ = false;
   this->hvac_hardware_info_.reset();
+}
+
+bool HonClimate::should_get_big_data_() {
+  if (this->big_data_sensors_ > 0) {
+    static uint8_t counter = 0;
+    counter = (counter + 1) % 3;
+    return counter == 1;
+  }
+  return false;
 }
 
 }  // namespace haier

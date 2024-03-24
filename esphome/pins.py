@@ -311,10 +311,18 @@ def gpio_base_schema(
         map(lambda m: (cv.Optional(m, default=mode_default), cv.boolean), modes)
     )
 
+    def _number_validator(value):
+        if isinstance(value, str) and value.upper().startswith("GPIOX"):
+            raise cv.Invalid(
+                f"Found placeholder '{value}' when expecting a GPIO pin number.\n"
+                "You must replace this with an actual pin number."
+            )
+        return number_validator(value)
+
     schema = cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(pin_type),
-            cv.Required(CONF_NUMBER): number_validator,
+            cv.Required(CONF_NUMBER): _number_validator,
             cv.Optional(CONF_ALLOW_OTHER_USES): cv.boolean,
             cv.Optional(CONF_MODE, default={}): cv.All(mode_dict, mode_validator),
         }

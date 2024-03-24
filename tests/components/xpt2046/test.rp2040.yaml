@@ -1,0 +1,34 @@
+spi:
+  - id: spi_xpt2046
+    clk_pin: 2
+    mosi_pin: 3
+    miso_pin: 4
+
+display:
+  - platform: ili9xxx
+    id: xpt_display
+    dimensions: 320x240
+    model: TFT 2.4
+    cs_pin: 8
+    dc_pin: 9
+    reset_pin: 10
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+
+touchscreen:
+  - platform: xpt2046
+    id: xpt_touchscreen
+    cs_pin: 5
+    interrupt_pin: 6
+    display: xpt_display
+    update_interval: 50ms
+    threshold: 400
+    calibration:
+      x_min: 3860
+      x_max: 280
+      y_min: 340
+      y_max: 3860
+    on_touch:
+      - logger.log:
+          format: Touch at (%d, %d)
+          args: [touch.x, touch.y]

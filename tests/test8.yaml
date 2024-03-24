@@ -52,6 +52,11 @@ spi_device:
   mode: 3
   bit_order: lsb_first
 
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
+
 display:
   - platform: ili9xxx
     id: displ8
@@ -61,6 +66,8 @@ display:
     reset_pin:
       number: GPIO48
       allow_other_uses: true
+    lambda: |-
+      it.printf(10, 100, id(roboto), Color(0x123456), COLOR_OFF, display::TextAlign::BASELINE, "%f", id(heap_free).state);
 
 i2c:
   scl: GPIO18
@@ -85,6 +92,7 @@ binary_sensor:
 sensor:
   - platform: debug
     free:
+      id: heap_free
       name: "Heap Free"
     block:
       name: "Max Block Free"
@@ -101,4 +109,4 @@ animation:
   - id: rgb565_animation
     file: pnglogo.png
     type: RGB565
-    use_transparency: no
+    use_transparency: false

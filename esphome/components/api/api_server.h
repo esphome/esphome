@@ -66,6 +66,9 @@ class APIServer : public Component, public Controller {
 #ifdef USE_NUMBER
   void on_number_update(number::Number *obj, float state) override;
 #endif
+#ifdef USE_DATETIME_DATE
+  void on_date_update(datetime::DateEntity *obj) override;
+#endif
 #ifdef USE_TEXT
   void on_text_update(text::Text *obj, const std::string &state) override;
 #endif

@@ -1,3 +1,16 @@
+esphome:
+  on_boot:
+    then:
+      - homeassistant.event:
+          event: esphome.button_pressed
+          data:
+            message: Button was pressed
+      - homeassistant.service:
+          service: notify.html5
+          data:
+            message: Button was pressed
+      - homeassistant.tag_scanned: pulse
+
 wifi:
   ssid: MySSID
   password: password1

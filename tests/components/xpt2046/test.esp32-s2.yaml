@@ -1,0 +1,37 @@
+spi:
+  clk_pin: 7
+  mosi_pin: 11
+  miso_pin: 9
+
+display:
+  - platform: ili9xxx
+    id: my_display
+    model: ili9341
+    cs_pin: 5
+    dc_pin: 12
+    reset_pin: 33
+    auto_clear_enabled: false
+    data_rate: 40MHz
+    dimensions: 320x240
+    update_interval: never
+    transform:
+      mirror_y: false
+      mirror_x: false
+      swap_xy: true
+
+touchscreen:
+  - platform: xpt2046
+    display: my_display
+    id: my_toucher
+    update_interval: 50ms
+    cs_pin: 18
+    threshold: 300
+    calibration:
+      x_min: 210
+      x_max: 3890
+      y_min: 170
+      y_max: 3730
+    transform:
+      mirror_x: false
+      mirror_y: true
+      swap_xy: true
