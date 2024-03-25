@@ -36,7 +36,7 @@ void Lora::setup() {
     ESP_LOGD(TAG, "Something went wrong");
   }
 }
-bool Lora::set_mode_(ModeType type) {
+bool Lora::set_mode_(ModeType mode) {
   // data sheet claims module needs some extra time after mode setting (2ms)
   // most of my projects uses 10 ms, but 40ms is safer
 
