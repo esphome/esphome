@@ -29,9 +29,13 @@ from esphome.const import (
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
     CONF_RETAIN,
+    CONF_QOS,
     CONF_SETUP_PRIORITY,
     CONF_STATE_TOPIC,
     CONF_TOPIC,
+    CONF_YEAR,
+    CONF_MONTH,
+    CONF_DAY,
     CONF_HOUR,
     CONF_MINUTE,
     CONF_SECOND,
@@ -817,21 +821,112 @@ positive_not_null_time_period = All(
 
 
 def time_of_day(value):
-    value = string(value)
-    try:
-        date = datetime.strptime(value, "%H:%M:%S")
-    except ValueError as err:
-        try:
-            date = datetime.strptime(value, "%H:%M:%S %p")
-        except ValueError:
-            # pylint: disable=raise-missing-from
-            raise Invalid(f"Invalid time of day: {err}")
+    return date_time(allowed_date=False, allowed_time=True)(value)
 
-    return {
-        CONF_HOUR: date.hour,
-        CONF_MINUTE: date.minute,
-        CONF_SECOND: date.second,
-    }
+
+def date_time(allowed_date: bool = True, allowed_time: bool = True):
+
+    pattern_str = r"^"  # Start of string
+    if allowed_date:
+        pattern_str += (
+            r"("  # 1. Optional Date group
+            r"\d{4}-\d{1,2}-\d{1,2}"  # Date
+            r"(?:\s(?=.+))?"  # Space after date only if time is following
+            r")?"  # End optional Date group
+        )
+    if allowed_time:
+        pattern_str += (
+            r"("  # 2. Optional Time group
+            r"(\d{1,2}:\d{2})"  # 3. Hour/Minute
+            r"(:\d{2})?"  # 4. Seconds
+            r"("  # 5. Optional AM/PM group
+            r"(\s)?"  # 6. Optional Space
+            r"(?:AM|PM|am|pm)"  # AM/PM string matching
+            r")?"  # End optional AM/PM group
+            r")?"  # End optional Time group
+        )
+    pattern_str += r"$"  # End of string
+
+    pattern = re.compile(pattern_str)
+
+    exc_message = ""
+    if allowed_date:
+        exc_message += "date"
+        if allowed_time:
+            exc_message += "/"
+    if allowed_time:
+        exc_message += "time"
+
+    schema = Schema({})
+    if allowed_date:
+        schema = schema.extend(
+            {
+                Optional(CONF_YEAR): int_range(min=1970, max=3000),
+                Optional(CONF_MONTH): int_range(min=1, max=12),
+                Optional(CONF_DAY): int_range(min=1, max=31),
+            }
+        )
+    if allowed_time:
+        schema = schema.extend(
+            {
+                Optional(CONF_HOUR): int_range(min=0, max=23),
+                Optional(CONF_MINUTE): int_range(min=0, max=59),
+                Optional(CONF_SECOND): int_range(min=0, max=59),
+            }
+        )
+
+    def validator(value):
+        if isinstance(value, dict):
+            return schema(value)
+        value = string(value)
+
+        match = pattern.match(value)
+        if match is None:
+            # pylint: disable=raise-missing-from
+            raise Invalid(f"Invalid {exc_message}: {value}")
+
+        if allowed_date:
+            has_date = match[1] is not None
+        if allowed_time:
+            has_time = match[2] is not None
+            has_seconds = match[3] is not None
+            has_ampm = match[4] is not None
+            has_ampm_space = match[5] is not None
+
+        format = ""
+        if allowed_date and has_date:
+            format += "%Y-%m-%d"
+            if allowed_time and has_time:
+                format += " "
+        if allowed_time and has_time:
+            format += "%H:%M"
+            if has_seconds:
+                format += ":%S"
+            if has_ampm_space:
+                format += " "
+            if has_ampm:
+                format += "%p"
+
+        try:
+            date_obj = datetime.strptime(value, format)
+        except ValueError as err:
+            # pylint: disable=raise-missing-from
+            raise Invalid(f"Invalid {exc_message}: {err}")
+
+        return_value = {}
+        if allowed_date and has_date:
+            return_value[CONF_YEAR] = date_obj.year
+            return_value[CONF_MONTH] = date_obj.month
+            return_value[CONF_DAY] = date_obj.day
+
+        if allowed_time and has_time:
+            return_value[CONF_HOUR] = date_obj.hour
+            return_value[CONF_MINUTE] = date_obj.minute
+            return_value[CONF_SECOND] = date_obj.second if has_seconds else 0
+
+        return schema(return_value)
+
+    return validator
 
 
 def mac_address(value):
@@ -1779,6 +1874,7 @@ MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
 
 MQTT_COMPONENT_SCHEMA = Schema(
     {
+        Optional(CONF_QOS): All(requires_component("mqtt"), int_range(min=0, max=2)),
         Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
         Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
         Optional(CONF_STATE_TOPIC): All(requires_component("mqtt"), publish_topic),
