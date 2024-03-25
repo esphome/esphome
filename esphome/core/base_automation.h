@@ -131,14 +131,15 @@ class LoopTrigger : public Trigger<>, public Component {
 class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
  public:
   void setup() override {
-    const uint8_t current_version[]{ESPHOME_PROJECT_VERSION_HASH};
-    const size_t VERSION_LENGTH = sizeof(current_version);
-    ESPPreferenceObject pref =
-        global_preferences->make_preference<char[VERSION_LENGTH]>(ESPHOME_PROJECT_NAME_HASH, true);
-    char previous_version[VERSION_LENGTH];
+    uint32_t hash = fnv1_hash(ESPHOME_PROJECT_NAME);
+    ESPPreferenceObject pref = global_preferences->make_preference<char[30]>(hash, true);
+    char previous_version[30];
+    char current_version[30] = ESPHOME_PROJECT_VERSION;
     if (pref.load(&previous_version)) {
-      if (memcmp(previous_version, current_version, VERSION_LENGTH) != 0)
-        this->trigger(std::string(ESPHOME_PROJECT_VERSION));
+      int cmp = strcmp(previous_version, current_version);
+      if (cmp < 0) {
+        this->trigger(previous_version);
+      }
     }
     pref.save(&current_version);
     global_preferences->sync();
