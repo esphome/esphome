@@ -2,6 +2,8 @@ import logging
 import multiprocessing
 import os
 import re
+import hashlib
+from fnvhash import fnv1a_32
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -392,8 +394,19 @@ async def to_code(config):
         CORE.add_job(add_includes, config[CONF_INCLUDES])
 
     if project_conf := config.get(CONF_PROJECT):
+        version = project_conf[CONF_VERSION]
+        name = project_conf[CONF_NAME]
         cg.add_define("ESPHOME_PROJECT_NAME", project_conf[CONF_NAME])
-        cg.add_define("ESPHOME_PROJECT_VERSION", project_conf[CONF_VERSION])
+        cg.add_define("ESPHOME_PROJECT_VERSION", version)
+        hash = hashlib.sha1()
+        hash.update(name.encode())
+        hash.update(version.encode())
+        bytes = ",".join(hex(x) for x in hash.digest())
+        cg.add_define("ESPHOME_PROJECT_VERSION_HASH", cg.RawExpression(bytes))
+        cg.add_define(
+            "ESPHOME_PROJECT_NAME_HASH", cg.RawExpression(hex(fnv1a_32(name.encode())))
+        )
+
         for conf in project_conf.get(CONF_ON_UPDATE, []):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
             await cg.register_component(trigger, conf)
