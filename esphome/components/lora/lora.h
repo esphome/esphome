@@ -50,7 +50,7 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   // set WOR mode
   bool set_mode_(ModeType mode);
   // checks the aux port to see if it is done setting
-  bool wait_complete_response_(uint32_t timeout = 1000, uint32_t wait_no_aux = 100);
+  bool wait_complete_response_(uint32_t timeout = 1000);
   bool send_pin_info_(uint8_t pin, bool value);
 
  protected:

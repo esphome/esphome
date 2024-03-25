@@ -94,31 +94,22 @@ bool Lora::set_mode_(ModeType mode) {
     return false;
   }
 }
-bool Lora::wait_complete_response_(uint32_t timeout, uint32_t wait_no_aux) {
-  uint32_t t = millis();
+bool Lora::wait_complete_response_(uint32_t timeout) {
+  uint32_t start_millis = millis();
 
   // make darn sure millis() is not about to reach max data type limit and start over
-  if ((t + timeout) == 0) {
-    t = 0;
+  if ((start_millis + timeout) == 0) {
+    start_millis = 0;
   }
   ESP_LOGD(TAG, "Checking if response was complete");
-  // if AUX pin was supplied and look for HIGH state
-  // note you can omit using AUX if no pins are available, but you will have to use delay() to let module finish
-  if (this->pin_aux_ != nullptr) {
-    while (!this->pin_aux_->digital_read()) {
-      if ((millis() - t) > timeout) {
-        ESP_LOGD(TAG, "Timeout error!");
-        return false;
-      }
+  // loop till not high, or the timeout is reached
+  while (!this->pin_aux_->digital_read()) {
+    if ((millis() - start_millis) > timeout) {
+      ESP_LOGD(TAG, "Timeout error!");
+      return false;
     }
-    ESP_LOGD(TAG, "AUX HIGH!");
-  } else {
-    // if you can't use aux pin, use 4K7 pullup with Arduino
-    // you may need to adjust this value if transmissions fail
-    delay(wait_no_aux);
-    ESP_LOGD(TAG, "Wait no AUX pin!");
+    delay(50);
   }
-
   // per data sheet control after aux goes high is 2ms so delay for at least that long)
   delay(20);
   return true;
@@ -139,7 +130,7 @@ bool Lora::send_pin_info_(uint8_t pin, bool value) {
   ESP_LOGD(TAG, "PIN: %u ", data[1]);
   ESP_LOGD(TAG, "VALUE: %u ", data[2]);
   this->write_array(data, sizeof(data));
-  bool return_value = this->wait_complete_response_(5000, 5000);
+  bool return_value = this->wait_complete_response_(5000);
   this->flush();
   return return_value;
 }
