@@ -40,19 +40,18 @@ void AHT10Component::setup() {
   }
   delay(AHT10_SOFTRESET_DELAY);
 
-  const uint8_t *init_cmd;
+  i2c::ErrorCode error_code = i2c::ERROR_INVALID_ARGUMENT;
   switch (this->variant_) {
     case AHT10Variant::AHT20:
-      init_cmd = AHT20_INITIALIZE_CMD;
       ESP_LOGCONFIG(TAG, "Setting up AHT20");
+      error_code = this->write(AHT20_INITIALIZE_CMD, sizeof(AHT20_INITIALIZE_CMD));
       break;
     case AHT10Variant::AHT10:
-    default:
-      init_cmd = AHT10_INITIALIZE_CMD;
       ESP_LOGCONFIG(TAG, "Setting up AHT10");
+      error_code = this->write(AHT10_INITIALIZE_CMD, sizeof(AHT10_INITIALIZE_CMD));
+      break;
   }
-
-  if (this->write(init_cmd, sizeof(init_cmd)) != i2c::ERROR_OK) {
+  if (error_code != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with AHT10 failed!");
     this->mark_failed();
     return;
