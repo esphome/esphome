@@ -57,7 +57,7 @@ bool Lora::setMode(MODE_TYPE mode) {
         ESP_LOGD(TAG, "MODE WOR!");
         break;
       case MODE_2_WOR_RECEIVER:
-        //		  case MODE_2_PROGRAM:
+        // case MODE_2_PROGRAM:
         this->pin_m0->digital_write(false);
         this->pin_m1->digital_write(true);
         ESP_LOGD(TAG, "MODE RECEIVING!");
