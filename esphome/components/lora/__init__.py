@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ID,
     ENTITY_CATEGORY_NONE,
 )
+from . import gpio  # noqa
 
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["uart", "sensor", "text_sensor"]
