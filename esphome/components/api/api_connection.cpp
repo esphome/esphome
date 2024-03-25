@@ -1212,7 +1212,8 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.bluetooth_proxy_feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
 #endif
 #ifdef USE_VOICE_ASSISTANT
-  resp.voice_assistant_version = voice_assistant::global_voice_assistant->get_version();
+  resp.legacy_voice_assistant_version = voice_assistant::global_voice_assistant->get_legacy_version();
+  resp.voice_assistant_feature_flags = voice_assistant::global_voice_assistant->get_feature_flags();
 #endif
   return resp;
 }

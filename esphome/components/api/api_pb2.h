@@ -327,7 +327,8 @@ class DeviceInfoResponse : public ProtoMessage {
   uint32_t bluetooth_proxy_feature_flags{0};
   std::string manufacturer{};
   std::string friendly_name{};
-  uint32_t voice_assistant_version{0};
+  uint32_t legacy_voice_assistant_version{0};
+  uint32_t voice_assistant_feature_flags{0};
   std::string suggested_area{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1674,6 +1675,7 @@ class BluetoothDeviceClearCacheResponse : public ProtoMessage {
 class SubscribeVoiceAssistantRequest : public ProtoMessage {
  public:
   bool subscribe{false};
+  uint32_t flags{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

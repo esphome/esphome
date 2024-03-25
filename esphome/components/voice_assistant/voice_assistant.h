@@ -2,7 +2,6 @@
 
 #include "esphome/core/defines.h"
 
-
 #ifdef USE_VOICE_ASSISTANT
 
 #include "esphome/core/automation.h"
@@ -30,9 +29,14 @@ namespace voice_assistant {
 
 // Version 1: Initial version
 // Version 2: Adds raw speaker support
-// Version 3: Unused/skip
-static const uint32_t INITIAL_VERSION = 1;
-static const uint32_t SPEAKER_SUPPORT = 2;
+static const uint32_t LEGACY_INITIAL_VERSION = 1;
+static const uint32_t LEGACY_SPEAKER_SUPPORT = 2;
+
+enum VoiceAssistantFeature : uint32_t {
+  FEATURE_VOICE_ASSISTANT = 1 << 0,
+  FEATURE_SPEAKER = 1 << 1,
+  FEATURE_API_AUDIO = 1 << 2,
+};
 
 enum class State {
   IDLE,
@@ -72,13 +76,25 @@ class VoiceAssistant : public Component {
   }
 #endif
 
-  uint32_t get_version() const {
+  uint32_t get_legacy_version() const {
 #ifdef USE_SPEAKER
     if (this->speaker_ != nullptr) {
-      return SPEAKER_SUPPORT;
+      return LEGACY_SPEAKER_SUPPORT;
     }
 #endif
-    return INITIAL_VERSION;
+    return LEGACY_INITIAL_VERSION;
+  }
+
+  uint32_t get_feature_flags() const {
+    uint32_t flags = 0;
+    flags |= VoiceAssistantFeature::FEATURE_VOICE_ASSISTANT;
+#ifdef USE_SPEAKER
+    if (this->speaker_ != nullptr) {
+      flags |= VoiceAssistantFeature::FEATURE_SPEAKER;
+    }
+#endif
+    flags |= VoiceAssistantFeature::FEATURE_API_AUDIO;
+    return flags;
   }
 
   void request_start(bool continuous, bool silence_detection);

@@ -217,7 +217,8 @@ message DeviceInfoResponse {
 
   string friendly_name = 13;
 
-  uint32 voice_assistant_version = 14;
+  uint32 legacy_voice_assistant_version = 14;
+  uint32 voice_assistant_feature_flags = 17;
 
   string suggested_area = 16;
 }
@@ -1428,6 +1429,7 @@ message SubscribeVoiceAssistantRequest {
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
   bool subscribe = 1;
+  uint32 flags = 2;
 }
 
 enum VoiceAssistantRequestFlag {
