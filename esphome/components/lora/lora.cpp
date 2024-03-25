@@ -142,7 +142,6 @@ void Lora::loop() {
   std::string buffer;
   std::vector<uint8_t> data;
   bool pin_data_found = false;
-  ESP_LOGD(TAG, "Starting to check for messages");
   if (!this->available())
     return;
   while (this->available()) {
