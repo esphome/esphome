@@ -1,4 +1,4 @@
-#if defined(USE_DATETIME_DATE) || defined(USE_DATETIME_TIME)
+#ifdef USE_DATETIME
 #include <regex>
 #endif
 
@@ -66,7 +66,7 @@ std::string ESPTime::strftime(const std::string &format) {
   return timestr;
 }
 
-#if defined(USE_DATETIME_DATE) || defined(USE_DATETIME_TIME)
+#ifdef USE_DATETIME
 
 bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
   // clang-format off

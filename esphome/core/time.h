@@ -67,7 +67,7 @@ struct ESPTime {
            this->day_of_year < 367 && this->month > 0 && this->month < 13;
   }
 
-#if defined(USE_DATETIME_DATE) || defined(USE_DATETIME_TIME)
+#ifdef USE_DATETIME
 
   /** Convert a string to ESPTime struct as specified by the format argument.
    * @param time_to_parse null-terminated c string formatet like this: 2020-08-25 05:30:00.
