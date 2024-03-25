@@ -9,10 +9,6 @@
 
 namespace esphome {
 namespace lora {
-
-static const char *const TAG = "lora";
-// pin stuff
-
 class LoraGPIOPin : public GPIOPin {
  public:
   void setup() override;
