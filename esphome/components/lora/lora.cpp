@@ -97,7 +97,7 @@ bool Lora::wait_complete_response_(uint32_t timeout, uint32_t wait_no_aux) {
   if ((t + timeout) == 0) {
     t = 0;
   }
-
+  ESP_LOGD(TAG, "Checking if response was complete");
   // if AUX pin was supplied and look for HIGH state
   // note you can omit using AUX if no pins are available, but you will have to use delay() to let module finish
   if (this->pin_aux_ != nullptr) {
@@ -135,8 +135,9 @@ bool Lora::send_pin_info_(uint8_t pin, bool value) {
   ESP_LOGD(TAG, "PIN: %u ", data[1]);
   ESP_LOGD(TAG, "VALUE: %u ", data[2]);
   this->write_array(data, sizeof(data));
-  // bool result = this->waitCompleteResponse(5000, 5000);
-  return true;
+  bool return_value = this->wait_complete_response_(5000, 5000);
+  this->flush();
+  return return_value;
 }
 void Lora::loop() {
   std::string buffer;
