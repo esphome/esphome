@@ -12,6 +12,7 @@
 #include "esp_netif.h"
 #include "esp_tls.h"
 #include "nvs_flash.h"
+#include "esp_task_wdt.h"
 #include <cinttypes>
 #include <cctype>
 #include <cstdlib>
@@ -31,6 +32,8 @@ namespace esphome {
 namespace ota_http {
 
 int OtaHttpIDF::http_init(char *url) {
+  esp_task_wdt_init(20, true);
+  App.feed_wdt();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
   esp_http_client_config_t config = {nullptr};
