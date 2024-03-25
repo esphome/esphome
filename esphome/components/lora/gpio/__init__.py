@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import CONF_ID, CONF_OUTPUT, CONF_NUMBER, CONF_INVERTED, CONF_MODE
-from . import CONF_LORA, Lora, lora_ns
+from .. import CONF_LORA, Lora, lora_ns
 
 LoraGPIOPin = lora_ns.class_("LoraGPIOPin", cg.GPIOPin)
 
