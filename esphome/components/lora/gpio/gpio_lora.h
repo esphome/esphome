@@ -5,7 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "lora.h"
+#include "../lora.h"
 
 namespace esphome {
 namespace lora {
