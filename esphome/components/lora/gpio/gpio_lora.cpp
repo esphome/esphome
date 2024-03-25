@@ -2,11 +2,11 @@
 
 namespace esphome {
 namespace lora {
-static const char *const TAGPin = "lora.pin";
+static const char *const TAG_PIN = "lora.pin";
 void LoraGPIOPin::setup() { pin_mode(flags_); }
 void LoraGPIOPin::pin_mode(gpio::Flags flags) {
   if (flags != gpio::FLAG_OUTPUT) {
-    ESP_LOGD(TAGPin, "Output only supported");
+    ESP_LOGD(TAG_PIN, "Output only supported");
   }
 }
 bool LoraGPIOPin::digital_read() { return false; }

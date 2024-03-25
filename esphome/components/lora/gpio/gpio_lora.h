@@ -16,7 +16,6 @@ class LoraGPIOPin : public GPIOPin {
   bool digital_read() override;
   void digital_write(bool value) override;
   std::string dump_summary() const override;
-
   void set_parent(Lora *parent) { parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
