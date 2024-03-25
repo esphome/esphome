@@ -5,14 +5,6 @@
 #include "esphome/components/spi/spi.h"
 #include <esp32-hal-gpio.h>
 
-
-//#define MORE_DEBUG
-#ifdef MORE_DEBUG
-#define ESP_LOGD_MORE(...)  ESP_LOGD(__VA_ARGS__)
-#else
-#define ESP_LOGD_MORE(...)  {}
-#endif
-
 namespace esphome {
 namespace max6921 {
 
@@ -20,6 +12,11 @@ class MAX6921Component;
 
 using max6921_writer_t = std::function<void(MAX6921Component &)>;
 
+
+enum demo_mode_t {
+  DEMO_MODE_OFF,
+  DEMO_MODE_SCROLL_FONT,
+};
 
 typedef struct {
   InternalGPIOPin *pwm_pin;
@@ -41,6 +38,7 @@ typedef struct {
   uint current_pos;
   bool text_changed;
   uint32_t refresh_period_us;
+  demo_mode_t demo_mode;
 }display_t;
 
 
@@ -53,6 +51,7 @@ class MAX6921Component : public PollingComponent,
   uint8_t print(uint8_t pos, const char *str);
   uint8_t print(const char *str);
   void set_blank_pin(InternalGPIOPin *pin) { this->display_.intensity.pwm_pin = pin; }
+  void set_demo_mode(demo_mode_t mode) { this->display_.demo_mode = mode; }
   void set_intensity(uint8_t intensity);
   void set_load_pin(GPIOPin *load) { this->load_pin_ = load; }
   void set_num_digits(uint8_t num_digits) { this->display_.num_digits = num_digits; }
@@ -65,14 +64,19 @@ class MAX6921Component : public PollingComponent,
 
  protected:
   GPIOPin *load_pin_{};
+  bool setup_finished{false};
   display_t display_;
   uint8_t *ascii_out_data_;
-  void IRAM_ATTR HOT enable_load() { this->load_pin_->digital_write(true); }
-  void IRAM_ATTR HOT disable_load() { this->load_pin_->digital_write(false); }
-  void enable_blank() { digitalWrite(this->display_.intensity.pwm_pin->get_pin(), HIGH); }  // display off
+  void clear_display(int pos=-1);
   void disable_blank() { digitalWrite(this->display_.intensity.pwm_pin->get_pin(), LOW); }  // display on
-  optional<max6921_writer_t> writer_{};
+  void IRAM_ATTR HOT disable_load() { this->load_pin_->digital_write(false); }
   static void display_refresh_task(void *pv);
+  void enable_blank() { digitalWrite(this->display_.intensity.pwm_pin->get_pin(), HIGH); }  // display off
+  void IRAM_ATTR HOT enable_load() { this->load_pin_->digital_write(true); }
+  demo_mode_t get_demo_mode(void) { return this->display_.demo_mode; }
+  int set_display(uint8_t pos, const char *str);
+  void update_demo_mode_scroll_font_(void);
+  optional<max6921_writer_t> writer_{};
 
  private:
   void init_display_(void);

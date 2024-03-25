@@ -10,12 +10,22 @@ CODEOWNERS = ["@endym"]
 CONF_LOAD_PIN = "load_pin"
 CONF_BLANK_PIN = "blank_pin"
 CONF_NUM_DIGITS = "num_digits"
+CONF_DEMO_MODE = "demo_mode"
 
 max6921_ns = cg.esphome_ns.namespace("max6921")
 MAX6921Component = max6921_ns.class_(
     "MAX6921Component", cg.PollingComponent, spi.SPIDevice
 )
 MAX6921ComponentRef = MAX6921Component.operator("ref")
+
+# optional "demo_mode" configuration
+CONF_DEMO_MODE_OFF = "off"
+CONF_DEMO_MODE_SCROLL_FONT = "scroll_font"
+DemoMode = max6921_ns.enum("DemoMode")
+DEMO_MODES = {
+    CONF_DEMO_MODE_OFF: DemoMode.DEMO_MODE_OFF,
+    CONF_DEMO_MODE_SCROLL_FONT: DemoMode.DEMO_MODE_SCROLL_FONT,
+}
 
 CONFIG_SCHEMA = (
     display.BASIC_DISPLAY_SCHEMA.extend(
@@ -25,6 +35,9 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_BLANK_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_NUM_DIGITS): cv.int_range(min=1, max=20),
             cv.Optional(CONF_INTENSITY, default=16): cv.int_range(min=0, max=16),
+            cv.Optional(CONF_DEMO_MODE, default=CONF_DEMO_MODE_OFF): cv.enum(
+                DEMO_MODES
+            ),
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -43,6 +56,7 @@ async def to_code(config):
     cg.add(var.set_blank_pin(blank_pin))
     cg.add(var.set_num_digits(config[CONF_NUM_DIGITS]))
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
+    cg.add(var.set_demo_mode(config[CONF_DEMO_MODE]))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(

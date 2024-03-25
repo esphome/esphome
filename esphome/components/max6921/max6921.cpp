@@ -190,20 +190,6 @@ void MAX6921Component::init_display_(void) {
            this->display_.refresh_period_us, this->display_.num_digits);
 }
 
-void MAX6921Component::update_display_(void) {
-  if (this->display_.intensity.config_changed) {
-    // calc duty for low-active BLANK pin...
-    uint32_t inverted_duty = this->display_.intensity.max_duty - \
-                             this->display_.intensity.duty_quotient * \
-                             this->display_.intensity.config_value;
-    ESP_LOGD(TAG, "Change display intensity to %u (off-time duty=%u/%u)",
-             this->display_.intensity.config_value, inverted_duty,
-             this->display_.intensity.max_duty);
-    ledcWrite(this->display_.intensity.pwm_channel, inverted_duty);
-    this->display_.intensity.config_changed = false;
-  }
-}
-
 void MAX6921Component::init_font_(void) {
   uint8_t seg_data;
 
@@ -229,6 +215,144 @@ void MAX6921Component::init_font_(void) {
     if (seg_data & SEG_DP)
       this->ascii_out_data_[ascii_idx] |= (1 << (DISP_SEG_TO_OUT[7] % 8));
   }
+}
+
+/**
+ * @brief Clears the whole display buffer or only the given position.
+ *
+ * @param pos display position 0..n (optional, default=whole display)
+ */
+void MAX6921Component::clear_display(int pos) {
+  if (pos < 0)
+    memset(this->display_.out_buf_, 0, this->display_.out_buf_size_);           // clear whole display buffer
+  else if (pos < this->display_.num_digits)
+    memset(&this->display_.out_buf_[pos*3], 0, 3);                              // clear display buffer at given position
+  else
+    ESP_LOGW(TAG, "Invalid display position %i (max=%u)", pos, this->display_.num_digits - 1);
+}
+
+/**
+ * @brief Shows the given text on the display at given position.
+ *
+ * @param start_pos display position 0..n
+ * @param str text to display
+ *
+ * @return number of characters displayed
+ */
+int MAX6921Component::set_display(uint8_t start_pos, const char *str) {
+  uint8_t pos = start_pos;
+
+  for (; *str != '\0'; str++) {
+    uint32_t out_data;
+    if (pos >= this->display_.num_digits) {
+      ESP_LOGE(TAG, "MAX6921 string too long or invalid position for the display!");
+      break;
+    }
+
+    // create segment data...
+    ESP_LOGV(TAG, "%s(): pos: %u, char: '%c' (0x%02x)", __func__, pos+1, *str, *str);
+    if ((*str >= ' ') &&
+        ((*str - ' ') < ARRAY_ELEM_COUNT(ASCII_TO_SEG)))                        // supported char?
+      out_data = this->ascii_out_data_[*str - ' '];                             // yes ->
+    else
+      out_data = SEG_UNSUPPORTED_CHAR;
+    ESP_LOGV(TAG, "%s(): segment data: 0x%06x", __func__, out_data);
+    #if 0
+    // At the moment an unsupport character is equal to blank (' ').
+    // To distinguish an unsupported character from blank we would need to
+    // increase font data type from uint8_t to uint16_t!
+    if (out_data == SEG_UNSUPPORTED_CHAR) {
+      ESP_LOGW(TAG, "Encountered character '%c (0x%02x)' with no display representation!", *str, *str);
+    }
+    #endif
+    if (((*str == ',') || (*str == '.')) && (pos > start_pos))                  // is point/comma?
+      pos--;                                                                    // yes -> modify display buffer of previous position
+    else
+      this->clear_display(pos);                                                 // no -> clear display buffer of current position (for later OR operation)
+
+    // shift data to the smallest segment OUT position...
+    out_data <<= (this->display_.seg_out_smallest);
+    ESP_LOGV(TAG, "%s(): segment data shifted to first segment bit (OUT%u): 0x%06x",
+                  __func__, this->display_.seg_out_smallest, out_data);
+
+    // add position data...
+    out_data |= (1 << DISP_POS_TO_OUT[pos]);
+    ESP_LOGV(TAG, "%s(): OUT data with position: 0x%06x", __func__, out_data);
+
+    // write to appropriate position of display buffer...
+    this->display_.out_buf_[pos*3+0] |= (uint8_t)((out_data >> 16) & 0xFF);
+    this->display_.out_buf_[pos*3+1] |= (uint8_t)((out_data >> 8) & 0xFF);
+    this->display_.out_buf_[pos*3+2] |= (uint8_t)(out_data & 0xFF);
+    ESP_LOGV(TAG, "%s(): display buffer of position %u: 0x%02x%02x%02x",
+                  __func__, pos+1, this->display_.out_buf_[pos*3+0],
+                  this->display_.out_buf_[pos*3+1], this->display_.out_buf_[pos*3+2]);
+
+    pos++;
+  }
+  this->display_.text_changed = true;
+
+  return pos - start_pos;
+}
+
+void MAX6921Component::update_display_(void) {
+  // handle display intensity...
+  if (this->display_.intensity.config_changed) {
+    // calc duty for low-active BLANK pin...
+    uint32_t inverted_duty = this->display_.intensity.max_duty - \
+                             this->display_.intensity.duty_quotient * \
+                             this->display_.intensity.config_value;
+    ESP_LOGD(TAG, "Change display intensity to %u (off-time duty=%u/%u)",
+             this->display_.intensity.config_value, inverted_duty,
+             this->display_.intensity.max_duty);
+    ledcWrite(this->display_.intensity.pwm_channel, inverted_duty);
+    this->display_.intensity.config_changed = false;
+  }
+
+  // handle demo modes...
+  switch (this->get_demo_mode()) {
+    case DEMO_MODE_SCROLL_FONT:
+      this->update_demo_mode_scroll_font_();
+      break;
+    default:
+      break;
+  }
+}
+
+void MAX6921Component::update_demo_mode_scroll_font_(void) {
+  static char *text = new char[this->display_.num_digits + 1];
+  static uint8_t start_pos = this->display_.num_digits - 1;                     // start at right side
+  static uint start_font_idx = 0;
+  uint font_idx, pos = 0;
+
+  // build text...
+  font_idx = start_font_idx;
+  ESP_LOGV(TAG, "%s(): ENTRY: start-pos=%u, start-font-idx=%u",
+           __func__, start_pos, start_font_idx);
+  do {
+    if (pos < start_pos) {                                                      // before start position?
+      text[pos++] = ' ';                                                        // add blank to string
+    } else {
+      if (this->ascii_out_data_[font_idx] > 0) {                                // displayable character?
+        text[pos++] = ' ' + font_idx;                                           // add character to string
+      }
+      font_idx = (font_idx + 1) % ARRAY_ELEM_COUNT(ASCII_TO_SEG);               // next font character
+    }
+    ESP_LOGV(TAG, "%s(): LOOP: pos=%u, font-idx=%u, char='%c'",
+             __func__, (pos>0)?pos-1:0, font_idx, (pos>0)?text[pos-1]:' ');
+  } while (pos < this->display_.num_digits);
+  text[pos] = 0;
+  // determine next start font index...
+  if (start_pos == 0) {
+    start_font_idx = text[1] - ' ';
+  }
+  // update display start position...
+  if (start_pos > 0)
+    --start_pos;
+  ESP_LOGV(TAG, "%s(): EXIT: start-pos=%u, start-font-idx=%u, text={%s}",
+           __func__, start_pos, start_font_idx, text);
+
+  this->set_display(0, text);
+
 }
 
 float MAX6921Component::get_setup_priority() const { return setup_priority::HARDWARE; }
@@ -258,6 +382,8 @@ void MAX6921Component::setup() {
                           nullptr,                // handle
                           1                       // core
   );
+
+  this->setup_finished = true;
 }
 
 void MAX6921Component::dump_config() {
@@ -266,11 +392,16 @@ void MAX6921Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  BLANK Pin: GPIO%u", this->display_.intensity.pwm_pin->get_pin());
   ESP_LOGCONFIG(TAG, "  Number of digits: %u", this->display_.num_digits);
   ESP_LOGCONFIG(TAG, "  Intensity: %u", this->display_.intensity.config_value);
+  ESP_LOGCONFIG(TAG, "  Demo mode: %u", this->display_.demo_mode);
 }
 
 void MAX6921Component::set_intensity(uint8_t intensity) {
+  if (!this->setup_finished) {
+    ESP_LOGD(TAG, "Set intensity: setup not finished -> discard intensity value");
+    return;
+  }
   if (intensity > MAX_DISPLAY_INTENSITY) {
-    ESP_LOGW(TAG, "Invalid intensity: %u (0..%u)", intensity, MAX_DISPLAY_INTENSITY);
+    ESP_LOGV(TAG, "Invalid intensity: %u (0..%u)", intensity, MAX_DISPLAY_INTENSITY);
     intensity = MAX_DISPLAY_INTENSITY;
   }
   if ((intensity == 0) || (intensity != this->display_.intensity.config_value)) {
@@ -280,27 +411,23 @@ void MAX6921Component::set_intensity(uint8_t intensity) {
   }
 }
 
-/*
- * Clocks data into MAX6921 via SPI (MSB first).
- * Data must contain 3 bytes with following format:
- *   bit  | 23 | 22 | 21 | 20 | 19 | 18 | ... | 1 | 0
- *   ------------------------------------------------
- *   DOUT | x  | x  | x  | x  | 19 | 18 | ... | 1 | 0
+/**
+ * @brief Clocks data into MAX6921 via SPI (MSB first).
+ *        Data must contain 3 bytes with following format:
+ *          bit  | 23 | 22 | 21 | 20 | 19 | 18 | ... | 1 | 0
+ *          ------------------------------------------------
+ *          DOUT | x  | x  | x  | x  | 19 | 18 | ... | 1 | 0
  */
 void HOT MAX6921Component::write_data(uint8_t *ptr, size_t length) {
   uint8_t data[3];
-  #ifdef MORE_DEBUG
-  static bool once = false;
-  #endif
+  static bool first_call_logged = false;
 
   assert(length == 3);
   this->disable_load();                   // set LOAD to low
   memcpy(data, ptr, sizeof(data));        // make copy of data, because transfer buffer will be overwritten with SPI answer
-  #ifdef MORE_DEBUG
-  if (!once)
-    ESP_LOGD(TAG, "SPI(%u): 0x%02x%02x%02x", length, data[0], data[1], data[2]);
-    once = true;
-  #endif
+  if (!first_call_logged)
+    ESP_LOGVV(TAG, "SPI(%u): 0x%02x%02x%02x", length, data[0], data[1], data[2]);
+    first_call_logged = true;
   this->transfer_array(data, sizeof(data));
   this->enable_load();                    // set LOAD to high to update output latch
 }
@@ -312,34 +439,9 @@ void MAX6921Component::update() {
     (*this->writer_)(*this);
 }
 
-
-#if 0
-void HOT MAX6921Component::display() {
-  static uint count = 0;
-
-  if (count < this->display_.num_digits) {
-    count++;
-    ESP_LOGD(TAG, "%s(): SPI transfer for position %u: 0x%02x%02x%02x", __func__,
-             this->display_.current_pos,
-             this->display_.out_buf_[(this->display_.current_pos-1)*3],
-             this->display_.out_buf_[(this->display_.current_pos-1)*3+1],
-             this->display_.out_buf_[(this->display_.current_pos-1)*3+2]);
-  }
-  // write MAX9621 data of current position...
-  this->write_data(&this->display_.out_buf_[(this->display_.current_pos-1)*3], 3);
-
-  // next display position...
-  if (++this->display_.current_pos > this->display_.num_digits)
-    this->display_.current_pos = 1;
-}
-#endif
-
-
 void HOT MAX6921Component::display_refresh_task(void *pv) {
   MAX6921Component *max6921_comp = (MAX6921Component*)pv;
-  #ifdef MORE_DEBUG
   static uint count = max6921_comp->display_.num_digits;
-  #endif
 
   if (max6921_comp->display_.refresh_period_us == 0) {
     ESP_LOGE(TAG, "Invalid display refresh period -> using default 2ms");
@@ -347,21 +449,19 @@ void HOT MAX6921Component::display_refresh_task(void *pv) {
   }
 
   while (true) {
-    #ifdef MORE_DEBUG
-    // debug output one-time after any text change for all digits...
+    // one-time debug output after any text change for all digits...
     if (max6921_comp->display_.text_changed) {
       count = 0;
       max6921_comp->display_.text_changed = false;
     }
     if (count < max6921_comp->display_.num_digits) {
       count++;
-      ESP_LOGD(TAG, "%s(): SPI transfer for position %u: 0x%02x%02x%02x", __func__,
-               max6921_comp->display_.current_pos,
-               max6921_comp->display_.out_buf_[(max6921_comp->display_.current_pos-1)*3],
-               max6921_comp->display_.out_buf_[(max6921_comp->display_.current_pos-1)*3+1],
-               max6921_comp->display_.out_buf_[(max6921_comp->display_.current_pos-1)*3+2]);
+      ESP_LOGVV(TAG, "%s(): SPI transfer for position %u: 0x%02x%02x%02x", __func__,
+                max6921_comp->display_.current_pos,
+                max6921_comp->display_.out_buf_[(max6921_comp->display_.current_pos-1)*3],
+                max6921_comp->display_.out_buf_[(max6921_comp->display_.current_pos-1)*3+1],
+                max6921_comp->display_.out_buf_[(max6921_comp->display_.current_pos-1)*3+2]);
     }
-    #endif
 
     // write MAX9621 data of current position...
     max6921_comp->write_data(&max6921_comp->display_.out_buf_[(max6921_comp->display_.current_pos-1)*3], 3);
@@ -381,59 +481,14 @@ void HOT MAX6921Component::display_refresh_task(void *pv) {
  *   str      : display text
  */
 uint8_t MAX6921Component::print(uint8_t start_pos, const char *str) {
-  uint8_t pos = start_pos;
-
-  if (strcmp(str, this->display_.current_text) == 0)                            // display text not changed?
+  if ((this->get_demo_mode() != DEMO_MODE_OFF) ||                               // demo mode enabled or
+      (strcmp(str, this->display_.current_text) == 0))                          // display text not changed?
     return strlen(str);                                                         // yes -> abort
-  ESP_LOGD_MORE(TAG, "%s(): text changed: str=%s, prev=%s", __func__, str, this->display_.current_text);
+  ESP_LOGV(TAG, "%s(): text changed: str=%s, prev=%s", __func__, str, this->display_.current_text);
   strncpy(this->display_.current_text, str, this->display_.current_text_buf_size-1);
   this->display_.current_text[this->display_.current_text_buf_size-1] = 0;
 
-  for (; *str != '\0'; str++) {
-    uint32_t out_data;
-    if (pos >= this->display_.num_digits) {
-      ESP_LOGE(TAG, "MAX6921 string too long or invalid position for the display!");
-      break;
-    }
-
-    // create segment data...
-    ESP_LOGD_MORE(TAG, "%s(): pos: %u, char: '%c' (0x%02x)", __func__, pos+1, *str, *str);
-    if ((*str >= ' ') &&
-        ((*str - ' ') < ARRAY_ELEM_COUNT(ASCII_TO_SEG)))                        // supported char?
-      out_data = this->ascii_out_data_[*str - ' '];                             // yes ->
-    else
-      out_data = SEG_UNSUPPORTED_CHAR;
-    ESP_LOGD_MORE(TAG, "%s(): segment data: 0x%06x", __func__, out_data);
-    if (out_data == SEG_UNSUPPORTED_CHAR) {
-      ESP_LOGW(TAG, "Encountered character '%c' with no display representation!", *str);
-    }
-    if (((*str == ',') || (*str == '.')) && (pos > start_pos))                  // is point/comma?
-      pos--;                                                                    // yes -> modify display buffer of previous position
-    else
-      memset(&this->display_.out_buf_[pos*3], 0, 3);                            // no -> clear display buffer of current position (for later OR operation)
-
-    // shift data to the smallest segment OUT position...
-    out_data <<= (this->display_.seg_out_smallest);
-    ESP_LOGD_MORE(TAG, "%s(): segment data shifted to first segment bit (OUT%u): 0x%06x",
-                  __func__, this->display_.seg_out_smallest, out_data);
-
-    // add position data...
-    out_data |= (1 << DISP_POS_TO_OUT[pos]);
-    ESP_LOGD_MORE(TAG, "%s(): OUT data with position: 0x%06x", __func__, out_data);
-
-    // write to appropriate position of display buffer...
-    this->display_.out_buf_[pos*3+0] |= (uint8_t)((out_data >> 16) & 0xFF);
-    this->display_.out_buf_[pos*3+1] |= (uint8_t)((out_data >> 8) & 0xFF);
-    this->display_.out_buf_[pos*3+2] |= (uint8_t)(out_data & 0xFF);
-    ESP_LOGD_MORE(TAG, "%s(): display buffer of position %u: 0x%02x%02x%02x",
-                  __func__, pos+1, this->display_.out_buf_[pos*3+0],
-                  this->display_.out_buf_[pos*3+1], this->display_.out_buf_[pos*3+2]);
-
-    pos++;
-  }
-  this->display_.text_changed = true;
-
-  return pos - start_pos;
+  return this->set_display(start_pos, str);
 }
 
 uint8_t MAX6921Component::print(const char *str) { return this->print(0, str); }
