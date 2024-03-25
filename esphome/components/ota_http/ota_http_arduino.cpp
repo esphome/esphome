@@ -7,6 +7,10 @@
 #include "esphome/core/application.h"
 #include "esphome/components/network/util.h"
 #include "esphome/components/md5/md5.h"
+#ifdef USE_ESP32
+#include "esp_task_wdt.h"
+#include "esp_idf_version.h"
+#endif
 
 namespace esphome {
 namespace ota_http {
@@ -25,17 +29,35 @@ int OtaHttpArduino::http_init(char *url) {
   const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
 
 #ifdef USE_ESP8266
+  ESP.wdtEnable(WDT_TIMEOUT_S * 1000);
   if (this->stream_ptr_ == nullptr && this->set_stream_ptr_()) {
     ESP_LOGE(TAG, "Unable to set client");
   }
 #endif  // USE_ESP8266
 
+#ifdef USE_ESP32
+#if ESP_IDF_VERSION_MAJOR >= 5
+  esp_task_wdt_config_t wdt_config = {
+      .timeout_ms = WDT_TIMEOUT_S * 1000,
+      .idle_core_mask = 0x03,
+      .trigger_panic = true,
+  };
+  esp_task_wdt_reconfigure(&wdt_config);
+#else
+  esp_task_wdt_init(WDT_TIMEOUT_S, true);
+#endif // ESP_IDF_VERSION_MAJOR
+#endif // USE_ESP32
+
   ESP_LOGD(TAG, "Connecting to %s", url);
 
   bool status = false;
 #ifdef USE_RP2040
+  watchdog_enable(WDT_TIMEOUT_S * 1000, true);
   this->client_.setInsecure();
 #endif
+
+  App.feed_wdt();
+
 #if defined(USE_ESP32) || defined(USE_RP2040)
   status = this->client_.begin(url);
 #endif
