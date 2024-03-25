@@ -39,7 +39,7 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   void digital_write(uint8_t pin, bool value);
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, gpio::Flags flags);
-  void set_message_sensor(text_sensor::TextSensor *s) { message_text_sensor = s; }
+  void set_message_sensor(text_sensor::TextSensor *s) { message_text_sensor_ = s; }
   void set_rssi_sensor(sensor::Sensor *s) { rssi_sensor_ = s; }
   void set_pin_aux(GPIOPin *s) { pin_aux_ = s; }
   void set_pin_m0(GPIOPin *s) { pin_m0_ = s; }
@@ -48,9 +48,9 @@ class Lora : public PollingComponent, public uart::UARTDevice {
  private:
   ModeType mode_ = MODE_0_NORMAL;
   // set WOR mode
-  bool set_mode_(ModeType type);
+  bool set_mode_(ModeType mode);
   // checks the aux port to see if it is done setting
-  bool wait_complete_response_(uint32_t timeout = 1000, uint32_t waitNoAux = 100);
+  bool wait_complete_response_(uint32_t timeout = 1000, uint32_t wait_no_aux = 100);
   bool send_pin_info_(uint8_t pin, bool value);
 
  protected:

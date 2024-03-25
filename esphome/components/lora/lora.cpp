@@ -36,7 +36,7 @@ void Lora::setup() {
     ESP_LOGD(TAG, "Something went wrong");
   }
 }
-bool Lora::set_mode_(ModeType mode) {
+bool Lora::set_mode_(ModeType type) {
   // data sheet claims module needs some extra time after mode setting (2ms)
   // most of my projects uses 10 ms, but 40ms is safer
 
@@ -101,7 +101,7 @@ bool Lora::wait_complete_response_(uint32_t timeout, uint32_t wait_no_aux) {
   // if AUX pin was supplied and look for HIGH state
   // note you can omit using AUX if no pins are available, but you will have to use delay() to let module finish
   if (this->pin_aux_ != nullptr) {
-    while (this->pin_aux_->digital_read() == false) {
+    while (!this->pin_aux_->digital_read()) {
       if ((millis() - t) > timeout) {
         ESP_LOGD(TAG, "Timeout error!");
         return false;
