@@ -1495,6 +1495,15 @@ message VoiceAssistantEventResponse {
   repeated VoiceAssistantEventData data = 2;
 }
 
+message VoiceAssistantAudio {
+  option (id) = 106;
+  option (source) = SOURCE_BOTH;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  bytes data = 1;
+}
+
+
 // ==================== ALARM CONTROL PANEL ====================
 enum AlarmControlPanelState {
   ALARM_STATE_DISARMED = 0;
@@ -1640,10 +1649,4 @@ message DateCommandRequest {
   uint32 year = 2;
   uint32 month = 3;
   uint32 day = 4;
-}
-
-message VoiceAssistantAudio {
-  option (id) = 103;
-
-  bytes data = 1;
 }
