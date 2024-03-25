@@ -34,14 +34,14 @@ namespace ota_http {
 
 int OtaHttpIDF::http_init(char *url) {
 #if ESP_IDF_VERSION_MAJOR >= 5
-    esp_task_wdt_config_t wdt_config = {
-        .timeout_ms = WDT_TIMEOUT_S * 1000,
-        .idle_core_mask = 0x03,
-        .trigger_panic = true,
-    };
-    esp_task_wdt_reconfigure(&wdt_config);
+  esp_task_wdt_config_t wdt_config = {
+      .timeout_ms = WDT_TIMEOUT_S * 1000,
+      .idle_core_mask = 0x03,
+      .trigger_panic = true,
+  };
+  esp_task_wdt_reconfigure(&wdt_config);
 #else
-    esp_task_wdt_init(WDT_TIMEOUT_S, true);
+  esp_task_wdt_init(WDT_TIMEOUT_S, true);
 #endif
   App.feed_wdt();
 #pragma GCC diagnostic push

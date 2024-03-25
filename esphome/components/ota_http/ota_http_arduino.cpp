@@ -45,8 +45,8 @@ int OtaHttpArduino::http_init(char *url) {
   esp_task_wdt_reconfigure(&wdt_config);
 #else
   esp_task_wdt_init(WDT_TIMEOUT_S, true);
-#endif // ESP_IDF_VERSION_MAJOR
-#endif // USE_ESP32
+#endif  // ESP_IDF_VERSION_MAJOR
+#endif  // USE_ESP32
 
   ESP_LOGD(TAG, "Connecting to %s", url);
 
