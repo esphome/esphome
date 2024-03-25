@@ -4,6 +4,7 @@ from esphome import pins
 from esphome.const import CONF_ID, CONF_OUTPUT, CONF_NUMBER, CONF_INVERTED, CONF_MODE
 from .. import CONF_LORA, Lora, lora_ns
 
+CONF_LORA_GPIO = "lora_gpio"
 LoraGPIOPin = lora_ns.class_("LoraGPIOPin", cg.GPIOPin)
 
 
@@ -26,7 +27,7 @@ Lora_PIN_SCHEMA = pins.gpio_base_schema(
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register(CONF_LORA, Lora_PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_LORA_GPIO, Lora_PIN_SCHEMA)
 async def lora_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_LORA])
