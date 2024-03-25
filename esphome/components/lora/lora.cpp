@@ -3,12 +3,16 @@
 namespace esphome {
 namespace lora {
 void Lora::update() {
+  if (!this->update_needed_)
+    return;
   if (this->rssi_sensor_ != nullptr)
     this->rssi_sensor_->publish_state(this->rssi_);
 
   // raw info
   if (this->message_text_sensor_ != nullptr)
     this->message_text_sensor_->publish_state(this->raw_message_);
+  // reset the updater
+  this->update_needed_ = false;
 }
 void Lora::setup() {
   this->pin_aux_->setup();
@@ -157,6 +161,7 @@ void Lora::loop() {
         data.push_back(c);
     }
   }
+  this->update_needed_ = true;
   ESP_LOGD(TAG, "Got %s", buffer.c_str());
   if (!data.empty()) {
     ESP_LOGD(TAG, "Found pin data!");

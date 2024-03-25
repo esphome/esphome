@@ -54,6 +54,7 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   bool send_pin_info_(uint8_t pin, bool value);
 
  protected:
+  bool update_needed_ = false;
   int rssi_ = 0;
   float latitude_ = -1;
   float longitude_ = -1;
