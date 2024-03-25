@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch
-from esphome.const import *
 from .. import CONF_LORA, Lora, lora_ns
 
 LoraSwitch = lora_ns.class_("LoraSwitch", switch.Switch, cg.Component)
