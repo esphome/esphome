@@ -29,7 +29,7 @@ int OtaHttpArduino::http_init(char *url) {
   const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
 
 #ifdef USE_ESP8266
-  ESP.wdtEnable(WDT_TIMEOUT_S * 1000);
+  EspClass::wdtEnable(WDT_TIMEOUT_S * 1000);
   if (this->stream_ptr_ == nullptr && this->set_stream_ptr_()) {
     ESP_LOGE(TAG, "Unable to set client");
   }
