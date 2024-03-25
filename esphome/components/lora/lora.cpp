@@ -132,6 +132,8 @@ bool Lora::send_pin_info_(uint8_t pin, bool value) {
   this->write_array(data, sizeof(data));
   bool return_value = this->wait_complete_response_(5000);
   this->flush();
+  if (return_value)
+    ESP_LOGD(TAG, "Success!");
   return return_value;
 }
 void Lora::loop() {
