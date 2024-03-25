@@ -20,7 +20,7 @@ void HostPreferences::setup_() {
   fs::create_directories(this->filename_);
   this->filename_.append("/");
   this->filename_.append(App.get_name());
-  this->filename_.append(".json");
+  this->filename_.append(".prefs");
   FILE *fp = fopen(this->filename_.c_str(), "rb");
   if (fp != nullptr) {
     while (!feof((fp))) {
