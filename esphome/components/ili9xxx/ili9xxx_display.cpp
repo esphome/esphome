@@ -42,7 +42,9 @@ void ILI9XXXDisplay::setup() {
   this->y_low_ = this->height_;
   this->x_high_ = 0;
   this->y_high_ = 0;
+}
 
+void ILI9XXXDisplay::alloc_buffer_() {
   if (this->buffer_color_mode_ == BITS_16) {
     this->init_internal_(this->get_buffer_length_() * 2);
     if (this->buffer_ != nullptr) {
@@ -107,6 +109,8 @@ void ILI9XXXDisplay::dump_config() {
 float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 void ILI9XXXDisplay::fill(Color color) {
+  if (!this->check_buffer_())
+    return;
   uint16_t new_color = 0;
   this->x_low_ = 0;
   this->y_low_ = 0;
@@ -124,7 +128,6 @@ void ILI9XXXDisplay::fill(Color color) {
           // Upper and lower is equal can use quicker memset operation. Takes ~20ms.
           memset(this->buffer_, (uint8_t) new_color, buffer_length_16_bits);
         } else {
-          // Slower set of both buffers. Takes ~30ms.
           for (uint32_t i = 0; i < buffer_length_16_bits; i = i + 2) {
             this->buffer_[i] = (uint8_t) (new_color >> 8);
             this->buffer_[i + 1] = (uint8_t) new_color;
@@ -144,6 +147,8 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
   }
+  if (!this->check_buffer_())
+    return;
   uint32_t pos = (y * width_) + x;
   uint16_t new_color;
   bool updated = false;

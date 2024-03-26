@@ -612,112 +612,6 @@ display:
     rotation: 0°
     update_interval: 16ms
 
-  - platform: waveshare_epaper
-    spi_id: spi_id_1
-    cs_pin:
-      allow_other_uses: true
-      number: GPIO23
-    dc_pin:
-      allow_other_uses: true
-      number: GPIO23
-    busy_pin:
-      allow_other_uses: true
-      number: GPIO23
-    reset_pin:
-      allow_other_uses: true
-      number: GPIO23
-    model: 2.13in-ttgo-b1
-    full_update_every: 30
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: waveshare_epaper
-    spi_id: spi_id_1
-    cs_pin:
-      allow_other_uses: true
-      number: GPIO23
-    dc_pin:
-      allow_other_uses: true
-      number: GPIO23
-    busy_pin:
-      allow_other_uses: true
-      number: GPIO23
-    reset_pin:
-      allow_other_uses: true
-      number: GPIO23
-    model: 2.90in
-    full_update_every: 30
-    reset_duration: 200ms
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: waveshare_epaper
-    spi_id: spi_id_1
-    cs_pin:
-      allow_other_uses: true
-      number: GPIO23
-    dc_pin:
-      allow_other_uses: true
-      number: GPIO23
-    busy_pin:
-      allow_other_uses: true
-      number: GPIO23
-    reset_pin:
-      allow_other_uses: true
-      number: GPIO23
-    model: 2.90inv2
-    full_update_every: 30
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: waveshare_epaper
-    spi_id: spi_id_1
-    cs_pin:
-      allow_other_uses: true
-      number: GPIO23
-    dc_pin:
-      allow_other_uses: true
-      number: GPIO23
-    busy_pin:
-      allow_other_uses: true
-      number: GPIO23
-    reset_pin:
-      allow_other_uses: true
-      number: GPIO23
-    model: 2.70in-b
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: waveshare_epaper
-    spi_id: spi_id_1
-    cs_pin:
-      allow_other_uses: true
-      number: GPIO23
-    dc_pin:
-      allow_other_uses: true
-      number: GPIO23
-    busy_pin:
-      allow_other_uses: true
-      number: GPIO23
-    reset_pin:
-      allow_other_uses: true
-      number: GPIO23
-    model: 2.70in-bv2
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: waveshare_epaper
-    spi_id: spi_id_1
-    cs_pin:
-      allow_other_uses: true
-      number: GPIO23
-    dc_pin:
-      allow_other_uses: true
-      number: GPIO23
-    busy_pin:
-      allow_other_uses: true
-      number: GPIO23
-    reset_pin:
-      allow_other_uses: true
-      number: GPIO23
-    model: 1.54in-m5coreink-m09
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: inkplate6
     id: inkplate_display
     greyscale: false
@@ -771,24 +665,6 @@ display:
     vcom_pin:
       number: GPIO1
       allow_other_uses: true
-  - platform: waveshare_epaper
-    spi_id: spi_id_1
-    cs_pin:
-      number: GPIO23
-      allow_other_uses: true
-    dc_pin:
-      number: GPIO23
-      allow_other_uses: true
-    busy_pin:
-      number: GPIO23
-      allow_other_uses: true
-    reset_pin:
-      number: GPIO23
-      allow_other_uses: true
-    model: 2.13inv3
-    full_update_every: 30
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
 
 number:
   - platform: tuya
@@ -976,10 +852,11 @@ touchscreen:
     display: inkplate_display
     update_interval: 50ms
     threshold: 400
-    calibration_x_min: 3860
-    calibration_x_max: 280
-    calibration_y_min: 340
-    calibration_y_max: 3860
+    calibration:
+      x_min: 3860
+      x_max: 280
+      y_min: 340
+      y_max: 3860
     on_touch:
       - logger.log:
           format: Touch at (%d, %d)

@@ -124,6 +124,8 @@ class VoiceAssistant : public Component {
   void client_subscription(api::APIConnection *client, bool subscribe);
   api::APIConnection *get_api_connection() const { return this->api_client_; }
 
+  void set_wake_word(const std::string &wake_word) { this->wake_word_ = wake_word; }
+
  protected:
   int read_microphone_();
   void set_state_(State state);
@@ -175,6 +177,8 @@ class VoiceAssistant : public Component {
 
   std::string conversation_id_{""};
 
+  std::string wake_word_{""};
+
   HighFrequencyLoopRequester high_freq_;
 
 #ifdef USE_ESP_ADF
@@ -200,8 +204,13 @@ class VoiceAssistant : public Component {
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {
+  TEMPLATABLE_VALUE(std::string, wake_word);
+
  public:
-  void play(Ts... x) override { this->parent_->request_start(false, this->silence_detection_); }
+  void play(Ts... x) override {
+    this->parent_->set_wake_word(this->wake_word_.value(x...));
+    this->parent_->request_start(false, this->silence_detection_);
+  }
 
   void set_silence_detection(bool silence_detection) { this->silence_detection_ = silence_detection; }
 
