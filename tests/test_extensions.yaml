@@ -1,0 +1,47 @@
+---
+substitutions:
+  devicename: extensions
+  sensorname: my
+  textname: template
+  roomname: living_room
+
+esphome:
+  name: extensions
+  platform: ESP32
+  board: nodemcu-32s
+  build_path: build/extensions
+
+i2c:
+  sda:
+    number: 21
+  scl:
+    number: 22
+  id: i2c_bus
+
+sensor:
+  - id: sensor_1
+    platform: template
+
+  - id: ${roomname}
+    platform: template
+
+  - <<: !include test_packages/test_uptime_sensor.yaml
+
+  - platform: bmp280
+    temperature:
+      id: temperature
+      name: Outside Temperature
+    pressure:
+      name: Outside Pressure
+    address: 0x77
+    i2c_id: i2c_bus
+
+extensions:
+  sensor_1:
+    name: ${sensorname}
+  ${roomname}:
+    name: sensor_name
+  ${devicename}_uptime_pcg:
+    update_interval: 10min
+  temperature:
+    oversampling: 8x
