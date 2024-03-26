@@ -4,7 +4,6 @@ namespace esphome {
 namespace lora {
 void Lora::update() {
   can_send_message_();
-  get_mode_();
   if (!this->update_needed_)
     return;
   if (this->rssi_sensor_ != nullptr)
