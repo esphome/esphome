@@ -13,6 +13,12 @@ namespace output {
   } \
   if (this->min_power_ != 0.0f) { \
     ESP_LOGCONFIG(TAG, "  Min Power: %.1f%%", this->min_power_ * 100.0f); \
+  } \
+  if (this->min_turn_on_power_ != 0.0f) { \
+    ESP_LOGCONFIG(TAG, "  Min Turn On Power: %.1f%%", this->min_turn_on_power_ * 100.0f); \
+  } \
+  if (this->min_turn_on_power_delay_ != 10) { \
+    ESP_LOGCONFIG(TAG, "  Min Turn On Power Delay: %dms", this->min_turn_on_power_delay_); \
   }
 
 /** Base class for all output components that can output a variable level, like PWM.
@@ -52,6 +58,9 @@ class FloatOutput : public BinaryOutput {
    */
   void set_zero_means_zero(bool zero_means_zero);
 
+  void set_min_turn_on_power(float min_turn_on_power);
+  void set_min_turn_on_power_delay(float min_turn_on_power_delay);
+
   /** Set the level of this float output, this is called from the front-end.
    *
    * @param state The new state.
@@ -79,6 +88,13 @@ class FloatOutput : public BinaryOutput {
   /// Implement BinarySensor's write_enabled; this should never be called.
   void write_state(bool state) override;
   virtual void write_state(float state) = 0;
+
+  /// only used for min_turn_on_power to know when powered on
+  optional<bool> is_on_value_;
+  bool is_on_();
+
+  float min_turn_on_power_{0.0f};
+  unsigned int min_turn_on_power_delay_{10};
 
   float max_power_{1.0f};
   float min_power_{0.0f};
