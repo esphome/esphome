@@ -56,6 +56,7 @@ void PulseMeterSensor::loop() {
       case MeterState::RUNNING: {
         uint32_t delta_us = this->get_->last_detected_edge_us_ - this->last_processed_edge_us_;
         float pulse_width_us = delta_us / float(this->get_->count_);
+        this->last_pulse_width_us_ = pulse_width_us;
         this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
       } break;
     }
@@ -65,17 +66,22 @@ void PulseMeterSensor::loop() {
   // No detected edges this loop
   else {
     const uint32_t now = micros();
-    const uint32_t time_since_valid_edge_us = now - this->last_processed_edge_us_;
+    // If we received a pulse right now, this is what the pulse width would be
+    const uint32_t pulse_width_us = now - this->last_processed_edge_us_;
 
     switch (this->meter_state_) {
       // Running and initial states can timeout
       case MeterState::INITIAL:
       case MeterState::RUNNING: {
-        if (time_since_valid_edge_us > this->timeout_us_) {
+        if (pulse_width_us > this->timeout_us_) {
           this->meter_state_ = MeterState::TIMED_OUT;
-          ESP_LOGD(TAG, "No pulse detected for %" PRIu32 "s, assuming 0 pulses/min",
-                   time_since_valid_edge_us / 1000000);
+          ESP_LOGD(TAG, "No pulse detected for %" PRIu32 "s, assuming 0 pulses/min", pulse_width_us / 1000000);
           this->publish_state(0.0f);
+        } else if (this->fade_mode_ && (pulse_width_us >= this->last_pulse_width_us_ * 2)) {
+          // In fade mode, if the amount of time since the last pulse has doubled, then we publish a simulated signal
+          // The result is if the pulses suddenly stop (or get much slower) the sensor will fade towards 0
+          this->last_pulse_width_us_ = pulse_width_us;
+          this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
         }
       } break;
       default:
