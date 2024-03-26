@@ -108,10 +108,10 @@ bool Lora::wait_complete_response_(uint32_t timeout) {
       ESP_LOGD(TAG, "Timeout error!");
       return false;
     }
-    delay(50);
+    delayMicroseconds(2);
   }
   // per data sheet control after aux goes high is 2ms so delay for at least that long)
-  delay(20);
+  delayMicroseconds(2);
   return true;
 }
 void Lora::dump_config() {
