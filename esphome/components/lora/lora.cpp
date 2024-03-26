@@ -8,6 +8,7 @@ void Lora::update() {
     this->starting_to_check_ = 0;
     this->time_out_after_ = 0;
   } else {
+    ESP_LOGD(TAG, "Aux pin is High! Can send again!");
     // it has taken too long to complete, error out!
     if ((millis() - this->starting_to_check_) > this->time_out_after_) {
       ESP_LOGD(TAG, "Timeout error! Resetting timers");
@@ -92,6 +93,7 @@ bool Lora::can_send_message_() {
     // If it is high then all good and settings have been saved
     this->starting_to_check_ = 0;
     this->time_out_after_ = 0;
+    ESP_LOGD(TAG, "Aux pin is High! Can send again!");
     return true;
 
   } else {
