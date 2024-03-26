@@ -308,9 +308,9 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
             and "api" in entry.loaded_integrations
         ):
             if (mdns := dashboard.mdns_status) and (
-                    address := await mdns.async_resolve_host(
-                        entry.name if port == "OTA" else port[4:]
-                    )
+                address := await mdns.async_resolve_host(
+                    entry.name if port == "OTA" else port[4:]
+                )
             ):
                 # Use the IP address if available but only
                 # if the API is loaded and the device is online
