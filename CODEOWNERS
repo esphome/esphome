@@ -251,6 +251,7 @@ esphome/components/optolink/number/* @j0ta29
 esphome/components/optolink/select/* @j0ta29
 esphome/components/optolink/sensor/* @j0ta29
 esphome/components/optolink/switch/* @j0ta29
+esphome/components/optolink/text/* @j0ta29
 esphome/components/optolink/text_sensor/* @j0ta29
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
