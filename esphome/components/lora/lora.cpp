@@ -3,21 +3,7 @@
 namespace esphome {
 namespace lora {
 void Lora::update() {
-  // High means no more information is needed
-  if (this->pin_aux_->digital_read()) {
-    if (!this->starting_to_check_ == 0 && !this->time_out_after_ == 0) {
-      this->starting_to_check_ = 0;
-      this->time_out_after_ = 0;
-      ESP_LOGD(TAG, "Aux pin is High! Can send again!");
-    }
-  } else {
-    // it has taken too long to complete, error out!
-    if ((millis() - this->starting_to_check_) > this->time_out_after_) {
-      ESP_LOGD(TAG, "Timeout error! Resetting timers");
-      this->starting_to_check_ = 0;
-      this->time_out_after_ = 0;
-    }
-  }
+  can_send_message_();
   get_mode_();
   if (!this->update_needed_)
     return;
@@ -111,18 +97,21 @@ void Lora::set_mode_(ModeType mode) {
   ESP_LOGD(TAG, "Mode is going to be set");
 }
 bool Lora::can_send_message_() {
+  // High means no more information is needed
   if (this->pin_aux_->digital_read()) {
-    // If it is high then all good and settings have been saved
-    if (this->starting_to_check_ != 0) {
+    if (!this->starting_to_check_ == 0 && !this->time_out_after_ == 0) {
       this->starting_to_check_ = 0;
-    }
-    if (this->time_out_after_ != 0) {
       this->time_out_after_ = 0;
+      ESP_LOGD(TAG, "Aux pin is High! Can send again!");
     }
     return true;
-
   } else {
-    ESP_LOGD(TAG, "Aux pin is still LOW! Have to wait before sending message");
+    // it has taken too long to complete, error out!
+    if ((millis() - this->starting_to_check_) > this->time_out_after_) {
+      ESP_LOGD(TAG, "Timeout error! Resetting timers");
+      this->starting_to_check_ = 0;
+      this->time_out_after_ = 0;
+    }
     return false;
   }
 }
