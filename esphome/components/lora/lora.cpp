@@ -41,12 +41,12 @@ void Lora::setup() {
   if (this->pin_m0_ != nullptr) {
     this->pin_m0_->pin_mode(gpio::FLAG_OUTPUT);
     ESP_LOGD(TAG, "Init M0 pin!");
-    this->pin_m0_->digital_write(HIGH);
+    this->pin_m0_->digital_write(false);
   }
   if (this->pin_m1_ != nullptr) {
     this->pin_m1_->pin_mode(gpio::FLAG_OUTPUT);
     ESP_LOGD(TAG, "Init M1 pin!");
-    this->pin_m1_->digital_write(HIGH);
+    this->pin_m1_->digital_write(false);
   }
 
   set_mode_(MODE_0_NORMAL);
@@ -95,25 +95,25 @@ void Lora::set_mode_(ModeType mode) {
     switch (mode) {
       case MODE_0_NORMAL:
         // Mode 0 | normal operation
-        this->pin_m0_->digital_write(LOW);
-        this->pin_m1_->digital_write(LOW);
+        this->pin_m0_->digital_write(false);
+        this->pin_m1_->digital_write(false);
         ESP_LOGD(TAG, "MODE NORMAL!");
         break;
       case MODE_1_WOR_TRANSMITTER:
-        this->pin_m0_->digital_write(HIGH);
-        this->pin_m1_->digital_write(LOW);
+        this->pin_m0_->digital_write(true);
+        this->pin_m1_->digital_write(false);
         ESP_LOGD(TAG, "MODE WOR!");
         break;
       case MODE_2_WOR_RECEIVER:
         // case MODE_2_PROGRAM:
-        this->pin_m0_->digital_write(LOW);
-        this->pin_m1_->digital_write(HIGH);
+        this->pin_m0_->digital_write(false);
+        this->pin_m1_->digital_write(true);
         ESP_LOGD(TAG, "MODE RECEIVING!");
         break;
       case MODE_3_CONFIGURATION:
         // Mode 3 | Setting operation
-        this->pin_m0_->digital_write(HIGH);
-        this->pin_m1_->digital_write(HIGH);
+        this->pin_m0_->digital_write(true);
+        this->pin_m1_->digital_write(true);
         ESP_LOGD(TAG, "MODE SLEEP CONFIG!");
         break;
       case MODE_INIT:
