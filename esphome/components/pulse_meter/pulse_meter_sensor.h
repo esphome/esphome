@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 
 #include <cinttypes>
+#include <variant>
 
 namespace esphome {
 namespace pulse_meter {
@@ -43,28 +44,40 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   // Variables used in the loop
   enum class MeterState { INITIAL, RUNNING, TIMED_OUT };
   MeterState meter_state_ = MeterState::INITIAL;
+  bool peeked_edge_ = false;
   uint32_t total_pulses_ = 0;
   uint32_t last_processed_edge_us_ = 0;
 
   // This struct (and the two pointers) are used to pass data between the ISR and loop.
   // These two pointers are exchanged each loop.
-  // Therefore you can't use data in the pointer to loop receives to set values in the pointer to loop sends.
-  // As a result it's easiest if you only use these pointers to send data from the ISR to the loop.
-  // (except for resetting the values)
+  // Use these to send data from the ISR to the loop not the other way around  (except for resetting the values).
   struct State {
     uint32_t last_detected_edge_us_ = 0;
+    uint32_t last_rising_edge_us_ = 0;
     uint32_t count_ = 0;
   };
   State state_[2];
   volatile State *set_ = state_;
   volatile State *get_ = state_ + 1;
 
-  // Only use these variables in the ISR
+  // Only use the following variables in the ISR or while guarded by an InterruptLock
   ISRInternalGPIOPin isr_pin_;
-  uint32_t last_edge_candidate_us_ = 0;
-  uint32_t last_intr_ = 0;
-  bool in_pulse_ = false;
+
+  /// The last pin value seen
   bool last_pin_val_ = false;
+
+  /// Filter state for edge mode
+  struct EdgeState {
+    uint32_t last_sent_edge_us_ = 0;
+  };
+  EdgeState edge_state_{};
+
+  /// Filter state for pulse mode
+  struct PulseState {
+    uint32_t last_intr_ = 0;
+    bool latched_ = false;
+  };
+  PulseState pulse_state_{};
 };
 
 }  // namespace pulse_meter
