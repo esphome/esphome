@@ -41,6 +41,7 @@ CONF_CURRENT_GAIN_A = "current_gain_a"
 CONF_CURRENT_GAIN_B = "current_gain_b"
 CONF_ACTIVE_POWER_GAIN_A = "active_power_gain_a"
 CONF_ACTIVE_POWER_GAIN_B = "active_power_gain_b"
+CONF_USE_ACCUMULATED_ENERGY_REGISTERS = "use_accumulated_energy_registers"
 PGA_GAINS = {
     "1x": 0b000,
     "2x": 0b001,
@@ -155,6 +156,7 @@ ADE7953_CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ACTIVE_POWER_GAIN_B, default=0x400000): cv.hex_int_range(
             min=0x100000, max=0x800000
         ),
+        cv.Optional(CONF_USE_ACCUMULATED_ENERGY_REGISTERS, default=False): cv.boolean,
     }
 ).extend(cv.polling_component_schema("60s"))
 
@@ -174,6 +176,9 @@ async def register_ade7953(var, config):
     cg.add(var.set_bigain(config.get(CONF_CURRENT_GAIN_B)))
     cg.add(var.set_awgain(config.get(CONF_ACTIVE_POWER_GAIN_A)))
     cg.add(var.set_bwgain(config.get(CONF_ACTIVE_POWER_GAIN_B)))
+    cg.add(
+        var.set_use_acc_energy_regs(config.get(CONF_USE_ACCUMULATED_ENERGY_REGISTERS))
+    )
 
     for key in [
         CONF_VOLTAGE,

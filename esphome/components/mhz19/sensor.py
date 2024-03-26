@@ -18,6 +18,7 @@ from esphome.const import (
 DEPENDENCIES = ["uart"]
 
 CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
+CONF_WARMUP_TIME = "warmup_time"
 
 mhz19_ns = cg.esphome_ns.namespace("mhz19")
 MHZ19Component = mhz19_ns.class_("MHZ19Component", cg.PollingComponent, uart.UARTDevice)
@@ -45,6 +46,9 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AUTOMATIC_BASELINE_CALIBRATION): cv.boolean,
+            cv.Optional(
+                CONF_WARMUP_TIME, default="75s"
+            ): cv.positive_time_period_seconds,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -67,6 +71,8 @@ async def to_code(config):
 
     if CONF_AUTOMATIC_BASELINE_CALIBRATION in config:
         cg.add(var.set_abc_enabled(config[CONF_AUTOMATIC_BASELINE_CALIBRATION]))
+
+    cg.add(var.set_warmup_seconds(config[CONF_WARMUP_TIME]))
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
