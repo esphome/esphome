@@ -74,9 +74,7 @@ float ESP32BLEBeacon::get_setup_priority() const { return setup_priority::BLUETO
 void ESP32BLEBeacon::ble_core_task(void *params) {
   ble_setup();
 
-  while (true) {
-    delay(1000);  // NOLINT
-  }
+  vTaskDelete(nullptr);
 }
 
 void ESP32BLEBeacon::ble_setup() {
