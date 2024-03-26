@@ -24,7 +24,6 @@ enum ModeType {
   MODE_3_CONFIGURATION = 3,
   MODE_3_PROGRAM = 3,
   MODE_3_SLEEP = 3,
-  MODE_INIT = 0xFF
 };
 class Lora : public PollingComponent, public uart::UARTDevice {
  public:
