@@ -5,9 +5,11 @@ namespace lora {
 void Lora::update() {
   // High means no more information is needed
   if (this->pin_aux_->digital_read()) {
-    this->starting_to_check_ = 0;
-    this->time_out_after_ = 0;
-    ESP_LOGD(TAG, "Aux pin is High! Can send again!");
+    if (!this->starting_to_check_ == 0 && !this->time_out_after_ == 0) {
+      this->starting_to_check_ = 0;
+      this->time_out_after_ = 0;
+      ESP_LOGD(TAG, "Aux pin is High! Can send again!");
+    }
   } else {
     // it has taken too long to complete, error out!
     if ((millis() - this->starting_to_check_) > this->time_out_after_) {
@@ -61,15 +63,19 @@ ModeType Lora::get_mode_() {
   bool pin1 = this->pin_m0_->digital_read();
   bool pin2 = this->pin_m1_->digital_read();
   if (!pin1 && !pin2) {
+    ESP_LOGD(TAG, "MODE NORMAL!");
     internalMode = MODE_0_NORMAL;
   }
   if (pin1 && !pin2) {
+    ESP_LOGD(TAG, "MODE WOR!");
     internalMode = MODE_1_WOR_TRANSMITTER;
   }
   if (!pin1 && pin2) {
+    ESP_LOGD(TAG, "MODE WOR!");
     internalMode = MODE_2_WOR_RECEIVER;
   }
   if (pin1 && pin2) {
+    ESP_LOGD(TAG, "MODE Conf!");
     internalMode = MODE_3_CONFIGURATION;
   }
   if (internalMode != this->mode_) {
