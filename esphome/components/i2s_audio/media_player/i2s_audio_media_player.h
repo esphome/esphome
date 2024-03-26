@@ -41,6 +41,10 @@ class I2SAudioMediaPlayer : public Component, public media_player::MediaPlayer, 
 
   void set_i2s_comm_fmt_lsb(bool lsb) { this->i2s_comm_fmt_lsb_ = lsb; }
 
+  void set_eq_lo(float bias) { this->eq_lo_ = bias; }
+  void set_eq_mid(float bias) { this->eq_mid_ = bias; }
+  void set_eq_hi(float bias) { this->eq_hi_ = bias; }
+
   media_player::MediaPlayerTraits get_traits() override;
 
   bool is_muted() const override { return this->muted_; }
@@ -74,6 +78,10 @@ class I2SAudioMediaPlayer : public Component, public media_player::MediaPlayer, 
   uint8_t external_dac_channels_;
 
   bool i2s_comm_fmt_lsb_;
+
+  float eq_lo_;
+  float eq_mid_;
+  float eq_hi_;
 
   HighFrequencyLoopRequester high_freq_;
 

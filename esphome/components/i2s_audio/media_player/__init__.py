@@ -41,6 +41,21 @@ NO_INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32S2]
 
 I2C_COMM_FMT_OPTIONS = ["lsb", "msb"]
 
+CONF_TONE = "tone"
+CONF_LO = "lo"
+CONF_MID = "mid"
+CONF_HI = "hi"
+
+AUDIO_EQ_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_LO, default=0): cv.float_range(-40, 6),
+            cv.Optional(CONF_MID, default=0): cv.float_range(-40, 6),
+            cv.Optional(CONF_HI, default=0): cv.float_range(-40, 6),
+        }
+    )
+)
+
 
 def validate_esp32_variant(config):
     if config[CONF_DAC_TYPE] != "internal":
@@ -75,6 +90,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_I2S_COMM_FMT, default="msb"): cv.one_of(
                         *I2C_COMM_FMT_OPTIONS, lower=True
                     ),
+                    cv.Optional(CONF_TONE): AUDIO_EQ_SCHEMA,
                 }
             ).extend(cv.COMPONENT_SCHEMA),
         },
@@ -101,6 +117,11 @@ async def to_code(config):
             cg.add(var.set_mute_pin(pin))
         cg.add(var.set_external_dac_channels(2 if config[CONF_MODE] == "stereo" else 1))
         cg.add(var.set_i2s_comm_fmt_lsb(config[CONF_I2S_COMM_FMT] == "lsb"))
+
+    if config[CONF_TONE] is not None:
+        cg.add(var.set_eq_lo(config[CONF_TONE][CONF_LO]))
+        cg.add(var.set_eq_mid(config[CONF_TONE][CONF_MID]))
+        cg.add(var.set_eq_hi(config[CONF_TONE][CONF_HI]))
 
     cg.add_library("WiFiClientSecure", None)
     cg.add_library("HTTPClient", None)
