@@ -5,9 +5,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/defines.h"
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
@@ -17,10 +14,6 @@ namespace esphome {
 namespace at581x {
 
 class AT581XComponent : public Component, public i2c::I2CDevice {
-#ifdef USE_BINARY_SENSOR
-  SUB_BINARY_SENSOR(motion);
-#endif
-
 #ifdef USE_SWITCH
  protected:
   switch_::Switch *rf_power_switch_{nullptr};
@@ -32,15 +25,12 @@ class AT581XComponent : public Component, public i2c::I2CDevice {
   }
 #endif
 
-  AT581XComponent();
   void setup() override;
-  void loop() override;
   void dump_config() override;
   //  float get_setup_priority() const override;
 
   void set_sensing_distance(int distance) { this->delta_ = 1023 - distance; }
 
-  void set_detection_pin(GPIOPin *pin) { this->detection_pin_ = pin; }
   void set_rf_mode(bool enabled);
   void set_frequency(int frequency) { this->freq_ = frequency; }
   void set_poweron_selfcheck_time(int value) { this->self_check_time_ms_ = value; }
@@ -66,8 +56,6 @@ class AT581XComponent : public Component, public i2c::I2CDevice {
   int delta_;                /*!< Delta value: 0 ~ 1023, the larger the value, the shorter the distance */
   int gain_;                 /*!< Default: 9dB */
   int power_;                /*!< In µA */
-
-  GPIOPin *detection_pin_;
 };
 
 }  // namespace at581x

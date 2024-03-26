@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins, automation, core
+from esphome import automation, core
 from esphome.components import i2c
 from esphome.automation import maybe_simple_id
 from esphome.const import (
@@ -23,7 +23,6 @@ CONF_AT581X_ID = "at581x_id"
 
 CONF_SENSING_DISTANCE = "sensing_distance"
 CONF_SENSITIVITY = "sensitivity"
-CONF_DETECTION_PIN = "detection_pin"
 CONF_POWERON_SELFCHECK_TIME = "poweron_selfcheck_time"
 CONF_PROTECT_TIME = "protect_time"
 CONF_TRIGGER_BASE = "trigger_base"
@@ -68,9 +67,6 @@ RADAR_ALLOWED_CUR_CONSUMPTION = [
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(AT581XComponent),
-        cv.Optional(
-            CONF_DETECTION_PIN, default=21
-        ): pins.internal_gpio_input_pin_schema,
     }
 )
 
@@ -83,8 +79,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    pin = await cg.gpio_pin_expression(config[CONF_DETECTION_PIN])
-    cg.add(var.set_detection_pin(pin))
 
 
 # Actions

@@ -18,8 +18,6 @@ esphome:
 at581x:
   id: "Waveradar"
   i2c_id: i2c_bus
-  detection_pin:
-    number: GPIO21
 
 i2c:
   sda: 8
@@ -30,8 +28,8 @@ i2c:
   id: i2c_bus
 
 binary_sensor:
-  - platform: at581x
-    at581x_id: "Waveradar"
+  - platform: gpio
+    pin: GPIO21
     name: "Radar motion"
 
 switch:

@@ -54,8 +54,6 @@ namespace at581x {
 
 static const char *const TAG = "at581x";
 
-AT581XComponent::AT581XComponent() {}
-
 bool AT581XComponent::i2c_write_reg(uint8_t addr, uint8_t data) {
   return this->write_register(addr, &data, 1) == esphome::i2c::NO_ERROR;
 }
@@ -73,26 +71,8 @@ bool AT581XComponent::i2c_read_reg(uint8_t addr, uint8_t &data) {
   return this->read_register(addr, &data, 1) == esphome::i2c::NO_ERROR;
 }
 
-void AT581XComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AT581X...");
-  this->detection_pin_->setup();
-}
-void AT581XComponent::loop() {
-  // The main operation is to detect the human presence
-  bool state = this->detection_pin_->digital_read();
-#ifdef USE_BINARY_SENSOR
-  if (this->motion_binary_sensor_ != nullptr) {
-    this->motion_binary_sensor_->publish_state(state);
-  }
-#endif
-}
-void AT581XComponent::dump_config() {
-#ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("", "AT581X", this->motion_binary_sensor_);
-#endif
-  LOG_PIN("  Pin: ", this->detection_pin_);
-  LOG_I2C_DEVICE(this);
-}
+void AT581XComponent::setup() { ESP_LOGCONFIG(TAG, "Setting up AT581X..."); }
+void AT581XComponent::dump_config() { LOG_I2C_DEVICE(this); }
 #define ARRAY_SIZE(X) (sizeof(X) / sizeof((X)[0]))
 bool AT581XComponent::i2c_write_config() {
   ESP_LOGCONFIG(TAG, "Writing new config for AT581X...");
