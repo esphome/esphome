@@ -1,3 +1,5 @@
+#pragma once
+
 #ifdef USE_ARDUINO
 
 #include <cstdint>
