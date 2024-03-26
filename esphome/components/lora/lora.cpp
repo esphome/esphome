@@ -157,7 +157,8 @@ void Lora::loop() {
     data.push_back(c);
   }
   if (data.size() >= 4) {
-    ESP_LOGD(TAG, "start bit: %u ", data[0]);
+    ESP_LOGD(TAG, "Total: %u ", data.size());
+    ESP_LOGD(TAG, "Start bit: %u ", data[0]);
     ESP_LOGD(TAG, "PIN: %u ", data[1]);
     ESP_LOGD(TAG, "VALUE: %u ", data[2]);
     ESP_LOGD(TAG, "RSSI: %u ", data[3]);
