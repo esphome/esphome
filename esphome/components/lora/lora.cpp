@@ -7,12 +7,13 @@ void Lora::update() {
   if (this->pin_aux_->digital_read()) {
     this->starting_to_check_ = 0;
     this->time_out_after_ = 0;
-  }
-  // it has taken too long to complete, error out!
-  if ((millis() - this->starting_to_check_) > this->time_out_after_) {
-    ESP_LOGD(TAG, "Timeout error! Resetting timers");
-    this->starting_to_check_ = 0;
-    this->time_out_after_ = 0;
+  } else {
+    // it has taken too long to complete, error out!
+    if ((millis() - this->starting_to_check_) > this->time_out_after_) {
+      ESP_LOGD(TAG, "Timeout error! Resetting timers");
+      this->starting_to_check_ = 0;
+      this->time_out_after_ = 0;
+    }
   }
   if (!this->update_needed_)
     return;
