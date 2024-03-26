@@ -28,7 +28,7 @@ void Jsnsr04tComponent::loop() {
 
     this->buffer_.push_back(data);
     if (this->buffer_.size() == 4)
-      check_buffer_();
+      this->check_buffer_();
   }
 }
 
