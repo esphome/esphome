@@ -23,6 +23,12 @@ DEPENDENCIES = ["i2c"]
 
 CONF_ADC_AVERAGING = "adc_averaging"
 CONF_ADC_TIME = "adc_time"
+CONF_OPERATING_MODE = "operating_mode"
+
+OPERATING_MODES = {
+    "continuous": False,
+    "low_power": True,
+}
 
 ina226_ns = cg.esphome_ns.namespace("ina226")
 INA226Component = ina226_ns.class_(
@@ -105,6 +111,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ADC_AVERAGING, default=4): cv.enum(
                 ADC_AVG_SAMPLES, int=True
             ),
+            cv.Optional(CONF_OPERATING_MODE, default="continuous"): cv.enum(
+                OPERATING_MODES, lower=True
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -129,6 +138,7 @@ async def to_code(config):
         cg.add(var.set_adc_time_current(adc_time_config))
 
     cg.add(var.set_adc_avg_samples(config[CONF_ADC_AVERAGING]))
+    cg.add(var.set_enable_low_power_mode(config[CONF_OPERATING_MODE]))
 
     if CONF_BUS_VOLTAGE in config:
         sens = await sensor.new_sensor(config[CONF_BUS_VOLTAGE])
