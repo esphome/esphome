@@ -11,12 +11,6 @@ namespace optolink {
 
 class Optolink;
 
-struct HassSubscription {
-  std::string entity_id;
-  std::string last_state;
-  std::vector<std::function<void(std::string)>> callbacks;
-};
-
 class DatapointComponent {
  public:
   DatapointComponent(Optolink *optolink, bool writeable = false) : dp_value_outstanding_((uint8_t) 0) {
@@ -54,8 +48,6 @@ class DatapointComponent {
   void unfitting_value_type_();
   void set_optolink_state_(const char *format, ...);
   std::string get_optolink_state_();
-
-  void subscribe_hass_(const std::string &entity_id, const std::function<void(std::string)> &f);
 
  private:
   const size_t max_retries_until_reset_ = 10;

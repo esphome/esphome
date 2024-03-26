@@ -11,9 +11,6 @@ namespace optolink {
 
 static const char *const TAG = "optolink.datapoint_component";
 
-// NOLINTNEXTLINE
-static std::vector<HassSubscription> hass_subscriptions_;
-
 void DatapointComponent::setup_datapoint_() {
   switch (div_ratio_) {
     case 0:
@@ -260,38 +257,6 @@ void DatapointComponent::set_optolink_state_(const char *format, ...) {
 }
 
 std::string DatapointComponent::get_optolink_state_() { return optolink_->get_state(); }
-
-void DatapointComponent::subscribe_hass_(const std::string &entity_id, const std::function<void(std::string)> &f) {
-  for (auto &subscription : hass_subscriptions_) {
-    if (subscription.entity_id == entity_id) {
-      subscription.callbacks.push_back(f);
-      return;
-    }
-  }
-  // NOLINTNEXTLINE
-  HassSubscription subscription{entity_id, ""};
-  subscription.callbacks.push_back(f);
-  hass_subscriptions_.push_back(subscription);
-
-#ifdef USE_API
-  if (api::global_api_server != nullptr) {
-    api::global_api_server->subscribe_home_assistant_state(
-        entity_id, optional<std::string>(), [entity_id](const std::string &state) {
-          ESP_LOGD(TAG, "received schedule plan from HASS entity '%s': %s", entity_id.c_str(), state.c_str());
-          for (auto &subscription : hass_subscriptions_) {
-            if (subscription.last_state != state) {
-              if (subscription.entity_id == entity_id) {
-                subscription.last_state = state;
-                for (const auto &callback : subscription.callbacks) {
-                  callback(state);
-                }
-              }
-            }
-          }
-        });
-  }
-#endif
-}
 
 void conv2_100_F::encode(uint8_t *out, DPValue in) {
   int16_t tmp = floor((in.getFloat() * 100) + 0.5);

@@ -7,32 +7,28 @@ from esphome.const import (
     CONF_DIV_RATIO,
     CONF_ENTITY_ID,
     CONF_ID,
-    CONF_MODE,
+    CONF_TYPE,
 )
-from .. import optolink_ns, CONF_OPTOLINK_ID, SENSOR_BASE_SCHEMA
+from .. import (
+    CONF_DAY_OF_WEEK,
+    DAY_OF_WEEK,
+    optolink_ns,
+    CONF_OPTOLINK_ID,
+    SENSOR_BASE_SCHEMA,
+)
 
 DEPENDENCIES = ["optolink", "api"]
 CODEOWNERS = ["@j0ta29"]
 
-TextSensorMode = optolink_ns.enum("TextSensorMode")
-MODE = {
-    "MAP": TextSensorMode.MAP,
-    "RAW": TextSensorMode.RAW,
-    "DAY_SCHEDULE": TextSensorMode.DAY_SCHEDULE,
-    "DAY_SCHEDULE_SYNCHRONIZED": TextSensorMode.DAY_SCHEDULE_SYNCHRONIZED,
-    "DEVICE_INFO": TextSensorMode.DEVICE_INFO,
-    "STATE_INFO": TextSensorMode.STATE_INFO,
+TextSensorType = optolink_ns.enum("TextSensorType")
+TYPE = {
+    "MAP": TextSensorType.TEXT_SENSOR_TYPE_MAP,
+    "RAW": TextSensorType.TEXT_SENSOR_TYPE_RAW,
+    "DAY_SCHEDULE": TextSensorType.TEXT_SENSOR_TYPE_DAY_SCHEDULE,
+    "DAY_SCHEDULE_SYNCHRONIZED": TextSensorType.TEXT_SENSOR_TYPE_DAY_SCHEDULE_SYNCHRONIZED,
+    "DEVICE_INFO": TextSensorType.TEXT_SENSOR_TYPE_DEVICE_INFO,
+    "STATE_INFO": TextSensorType.TEXT_SENSOR_TYPE_STATE_INFO,
 }
-DAY_OF_WEEK = {
-    "MONDAY": 0,
-    "TUESDAY": 1,
-    "WEDNESDAY": 2,
-    "THURSDAY": 3,
-    "FRIDAY": 4,
-    "SATURDAY": 5,
-    "SUNDAY": 6,
-}
-CONF_DAY_OF_WEEK = "day_of_week"
 
 OptolinkTextSensor = optolink_ns.class_(
     "OptolinkTextSensor", text_sensor.TextSensor, cg.PollingComponent
@@ -41,21 +37,21 @@ OptolinkTextSensor = optolink_ns.class_(
 
 def check_address():
     def validator_(config):
-        modes_address_needed = [
+        types_address_needed = [
             "MAP",
             "RAW",
             "DAY_SCHEDULE",
             "DAY_SCHEDULE_SYNCHRONIZED",
         ]
-        address_needed = config[CONF_MODE] in modes_address_needed
+        address_needed = config[CONF_TYPE] in types_address_needed
         address_defined = CONF_ADDRESS in config
         if address_needed and not address_defined:
             raise cv.Invalid(
-                f"{CONF_ADDRESS} is required in this modes: {modes_address_needed}"
+                f"{CONF_ADDRESS} is required for this types: {types_address_needed}"
             )
         if not address_needed and address_defined:
             raise cv.Invalid(
-                f"{CONF_ADDRESS} is only allowed in this modes mode: {modes_address_needed}"
+                f"{CONF_ADDRESS} is only allowed for this types: {types_address_needed}"
             )
         return config
 
@@ -64,32 +60,32 @@ def check_address():
 
 def check_bytes():
     def validator_(config):
-        modes_bytes_needed = ["MAP", "RAW", "DAY_SCHEDULE", "DAY_SCHEDULE_SYNCHRONIZED"]
-        bytes_needed = config[CONF_MODE] in modes_bytes_needed
+        types_bytes_needed = ["MAP", "RAW", "DAY_SCHEDULE", "DAY_SCHEDULE_SYNCHRONIZED"]
+        bytes_needed = config[CONF_TYPE] in types_bytes_needed
         bytes_defined = CONF_BYTES in config
         if bytes_needed and not bytes_defined:
             raise cv.Invalid(
-                f"{CONF_BYTES} is required in this modes: {modes_bytes_needed}"
+                f"{CONF_BYTES} is required for this types: {types_bytes_needed}"
             )
         if not bytes_needed and bytes_defined:
             raise cv.Invalid(
-                f"{CONF_BYTES} is only allowed in this modes: {modes_bytes_needed}"
+                f"{CONF_BYTES} is only allowed for this types: {types_bytes_needed}"
             )
 
-        modes_bytes_range_1_to_9 = ["MAP", "RAW"]
-        if config[CONF_MODE] in modes_bytes_range_1_to_9 and config[
+        types_bytes_range_1_to_9 = ["MAP", "RAW"]
+        if config[CONF_TYPE] in types_bytes_range_1_to_9 and config[
             CONF_BYTES
         ] not in range(0, 10):
             raise cv.Invalid(
-                f"{CONF_BYTES} must be between 1 and 9 for this modes: {modes_bytes_range_1_to_9}"
+                f"{CONF_BYTES} must be between 1 and 9 for this types: {types_bytes_range_1_to_9}"
             )
 
-        modes_bytes_day_schedule = ["DAY_SCHEDULE", "DAY_SCHEDULE_SYNCHRONIZED"]
-        if config[CONF_MODE] in modes_bytes_day_schedule and config[CONF_BYTES] not in [
+        types_bytes_day_schedule = ["DAY_SCHEDULE", "DAY_SCHEDULE_SYNCHRONIZED"]
+        if config[CONF_TYPE] in types_bytes_day_schedule and config[CONF_BYTES] not in [
             56
         ]:
             raise cv.Invalid(
-                f"{CONF_BYTES} must be 56 for this modes: {modes_bytes_day_schedule}"
+                f"{CONF_BYTES} must be 56 for this types: {types_bytes_day_schedule}"
             )
 
         return config
@@ -99,14 +95,14 @@ def check_bytes():
 
 def check_dow():
     def validator_(config):
-        modes_dow_needed = ["DAY_SCHEDULE", "DAY_SCHEDULE_SYNCHRONIZED"]
-        if config[CONF_MODE] in modes_dow_needed and CONF_DAY_OF_WEEK not in config:
+        types_dow_needed = ["DAY_SCHEDULE", "DAY_SCHEDULE_SYNCHRONIZED"]
+        if config[CONF_TYPE] in types_dow_needed and CONF_DAY_OF_WEEK not in config:
             raise cv.Invalid(
-                f"{CONF_DAY_OF_WEEK} is required in this modes: {modes_dow_needed}"
+                f"{CONF_DAY_OF_WEEK} is required for this types: {types_dow_needed}"
             )
-        if config[CONF_MODE] not in modes_dow_needed and CONF_DAY_OF_WEEK in config:
+        if config[CONF_TYPE] not in types_dow_needed and CONF_DAY_OF_WEEK in config:
             raise cv.Invalid(
-                f"{CONF_DAY_OF_WEEK} is only allowed in this modes: {modes_dow_needed}"
+                f"{CONF_DAY_OF_WEEK} is only allowed for this types: {types_dow_needed}"
             )
         return config
 
@@ -115,20 +111,20 @@ def check_dow():
 
 def check_entity_id():
     def validator_(config):
-        modes_entitiy_id_needed = ["DAY_SCHEDULE_SYNCHRONIZED"]
+        types_entitiy_id_needed = ["DAY_SCHEDULE_SYNCHRONIZED"]
         if (
-            config[CONF_MODE] in modes_entitiy_id_needed
+            config[CONF_TYPE] in types_entitiy_id_needed
             and CONF_ENTITY_ID not in config
         ):
             raise cv.Invalid(
-                f"{CONF_ENTITY_ID} is required in this modes: {modes_entitiy_id_needed}"
+                f"{CONF_ENTITY_ID} is required for this types: {types_entitiy_id_needed}"
             )
         if (
-            config[CONF_MODE] not in modes_entitiy_id_needed
+            config[CONF_TYPE] not in types_entitiy_id_needed
             and CONF_ENTITY_ID in config
         ):
             raise cv.Invalid(
-                f"{CONF_ENTITY_ID} is only allowed in this modes: {modes_entitiy_id_needed}"
+                f"{CONF_ENTITY_ID} is only allowed for this types: {types_entitiy_id_needed}"
             )
         return config
 
@@ -139,7 +135,7 @@ CONFIG_SCHEMA = cv.All(
     text_sensor.TEXT_SENSOR_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(OptolinkTextSensor),
-            cv.Required(CONF_MODE): cv.enum(MODE, upper=True),
+            cv.Required(CONF_TYPE): cv.enum(TYPE, upper=True),
             cv.Optional(CONF_ADDRESS): cv.hex_uint32_t,
             cv.Optional(CONF_BYTES): cv.uint8_t,
             cv.Optional(CONF_DAY_OF_WEEK): cv.enum(DAY_OF_WEEK, upper=True),
@@ -162,7 +158,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await text_sensor.register_text_sensor(var, config)
 
-    cg.add(var.set_mode(config[CONF_MODE]))
+    cg.add(var.set_type(config[CONF_TYPE]))
     if CONF_ADDRESS in config:
         cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(var.set_div_ratio(config[CONF_DIV_RATIO]))

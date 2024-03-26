@@ -9,7 +9,13 @@
 namespace esphome {
 namespace optolink {
 
-enum TextSensorMode { MAP, RAW, DAY_SCHEDULE, DAY_SCHEDULE_SYNCHRONIZED, DEVICE_INFO, STATE_INFO };
+enum TextSensorType {
+  TEXT_SENSOR_TYPE_MAP,
+  TEXT_SENSOR_TYPE_RAW,
+  TEXT_SENSOR_TYPE_DAY_SCHEDULE,
+  TEXT_SENSOR_TYPE_DEVICE_INFO,
+  TEXT_SENSOR_TYPE_STATE_INFO
+};
 
 class OptolinkTextSensor : public DatapointComponent,
                            public esphome::text_sensor::TextSensor,
@@ -17,7 +23,7 @@ class OptolinkTextSensor : public DatapointComponent,
  public:
   OptolinkTextSensor(Optolink *optolink) : DatapointComponent(optolink) {}
 
-  void set_mode(TextSensorMode mode) { mode_ = mode; }
+  void set_type(TextSensorType type) { type_ = type; }
   void set_day_of_week(int dow) { dow_ = dow; }
   void set_entity_id(const std::string &entity_id) { entity_id_ = entity_id; }
 
@@ -33,7 +39,7 @@ class OptolinkTextSensor : public DatapointComponent,
   void datapoint_value_changed(uint8_t *value, size_t length) override;
 
  private:
-  TextSensorMode mode_ = MAP;
+  TextSensorType type_ = TEXT_SENSOR_TYPE_MAP;
   int dow_ = 0;
   std::string entity_id_;
 };

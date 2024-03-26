@@ -21,6 +21,17 @@ MULTI_CONF = False
 optolink_ns = cg.esphome_ns.namespace("optolink")
 CONF_OPTOLINK_ID = "optolink_id"
 
+DAY_OF_WEEK = {
+    "MONDAY": 0,
+    "TUESDAY": 1,
+    "WEDNESDAY": 2,
+    "THURSDAY": 3,
+    "FRIDAY": 4,
+    "SATURDAY": 5,
+    "SUNDAY": 6,
+}
+CONF_DAY_OF_WEEK = "day_of_week"
+
 OptolinkComponent = optolink_ns.class_("Optolink", cg.Component)
 CONF_OPTOLINK_ID = "optolink_id"
 SENSOR_BASE_SCHEMA = cv.Schema(
