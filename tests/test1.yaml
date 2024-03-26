@@ -87,6 +87,10 @@ mdns:
 http_request:
   useragent: esphome/device
   timeout: 10s
+  retry:
+    count: 3
+    delay: 1s
+    backoff_factor: 1.5
 
 mqtt:
   broker: "192.168.178.84"

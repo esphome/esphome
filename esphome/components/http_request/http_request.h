@@ -45,6 +45,9 @@ class HttpRequestComponent : public Component {
   void set_method(const char *method) { this->method_ = method; }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
+  void set_retries(uint16_t retries) { this->retries_ = retries; }
+  void set_retry_delay(uint16_t retry_delay) { this->retry_delay_ = retry_delay; }
+  void set_retry_backoff_factor(float retry_backoff_factor) { this->retry_backoff_factor_ = retry_backoff_factor; }
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
   void set_redirect_limit(uint16_t limit) { this->redirect_limit_ = limit; }
   void set_body(const std::string &body) { this->body_ = body; }
@@ -63,6 +66,9 @@ class HttpRequestComponent : public Component {
   bool follow_redirects_;
   uint16_t redirect_limit_;
   uint16_t timeout_{5000};
+  uint16_t retries_{0};
+  uint16_t retry_delay_{1000};
+  float retry_backoff_factor_{1.0};
   std::string body_;
   std::list<Header> headers_;
 #ifdef USE_ESP8266
@@ -72,6 +78,7 @@ class HttpRequestComponent : public Component {
 #endif
   std::shared_ptr<WiFiClient> get_wifi_client_();
 #endif
+  RetryResult send_(const std::vector<HttpRequestResponseTrigger *> &response_triggers, uint8_t attempt);
 };
 
 template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
@@ -92,6 +99,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
     this->parent_->set_method(this->method_.value(x...));
+    this->parent_->set_body("");
     if (this->body_.has_value()) {
       this->parent_->set_body(this->body_.value(x...));
     }
@@ -114,7 +122,6 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     this->parent_->set_headers(headers);
     this->parent_->send(this->response_triggers_);
     this->parent_->close();
-    this->parent_->set_body("");
   }
 
  protected:
