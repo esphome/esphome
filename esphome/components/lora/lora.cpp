@@ -53,10 +53,11 @@ void Lora::setup() {
 }
 
 ModeType Lora::get_mode_() {
+  ModeType internalMode = MODE_INIT;
   if (!Lora::can_send_message_()) {
-    return MODE_INIT;
+    return internalMode;
   }
-  ModeType internalMode;
+
   bool pin1 = this->pin_m0_->digital_read();
   bool pin2 = this->pin_m1_->digital_read();
   if (!pin1 && !pin2) {
@@ -76,6 +77,7 @@ ModeType Lora::get_mode_() {
              this->mode_);
     set_mode_(internalMode);
   }
+  return internalMode;
 }
 void Lora::set_mode_(ModeType mode) {
   if (!Lora::can_send_message_()) {
