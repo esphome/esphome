@@ -461,8 +461,8 @@ class OTAPortRequestHandler(BaseHandler):
                 ):
                     data.append(
                         {
-                            "port": "OTA-%s" % host,
-                            "desc": "Over-The-Air: %s" % host[:-7],
+                            "port": f"OTA-{host}",
+                            "desc": f"Over-The-Air: {host[:-7]}",
                         }
                     )
 
