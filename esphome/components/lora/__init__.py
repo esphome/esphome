@@ -54,13 +54,13 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    p = await cg.gpio_pin_expression(config[CONF_PIN_AUX])
-    cg.add(var.set_pin_aux(p))
+    pin_aux = await cg.gpio_pin_expression(config[CONF_PIN_AUX])
+    cg.add(var.set_pin_aux(pin_aux))
 
-    p = await cg.gpio_pin_expression(config[CONF_PIN_M0])
-    cg.add(var.set_pin_m0(p))
-    p = await cg.gpio_pin_expression(config[CONF_PIN_M1])
-    cg.add(var.set_pin_m1(p))
+    pin_m0 = await cg.gpio_pin_expression(config[CONF_PIN_M0])
+    cg.add(var.set_pin_m0(pin_m0))
+    pin_m1 = await cg.gpio_pin_expression(config[CONF_PIN_M1])
+    cg.add(var.set_pin_m1(pin_m1))
 
     if CONF_LORA_MESSAGE in config:
         sens = await text_sensor.new_text_sensor(config[CONF_LORA_MESSAGE])

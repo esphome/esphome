@@ -33,18 +33,13 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   void update() override;
   void loop() override;
   void dump_config() override;
-  // local
-  /// Helper function to read the value of a pin.
-  bool digital_read(uint8_t pin);
   /// Helper function to write the value of a pin.
   void digital_write(uint8_t pin, bool value);
-  /// Helper function to set the pin mode of a pin.
-  void pin_mode(uint8_t pin, gpio::Flags flags);
-  void set_message_sensor(text_sensor::TextSensor *s) { message_text_sensor_ = s; }
-  void set_rssi_sensor(sensor::Sensor *s) { rssi_sensor_ = s; }
-  void set_pin_aux(GPIOPin *s) { pin_aux_ = s; }
-  void set_pin_m0(GPIOPin *s) { pin_m0_ = s; }
-  void set_pin_m1(GPIOPin *s) { pin_m1_ = s; }
+  void set_message_sensor(text_sensor::TextSensor *message_text_sensor) { message_text_sensor_ = message_text_sensor; }
+  void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
+  void set_pin_aux(GPIOPin *pin_aux) { pin_aux_ = pin_aux; }
+  void set_pin_m0(GPIOPin *pin_m0) { pin_m0_ = pin_m0; }
+  void set_pin_m1(GPIOPin *pin_m1) { pin_m1_ = pin_m1; }
 
  private:
   ModeType mode_ = MODE_INIT;
@@ -66,9 +61,9 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   std::string raw_message_;
   text_sensor::TextSensor *message_text_sensor_{nullptr};
   sensor::Sensor *rssi_sensor_{nullptr};
-  GPIOPin *pin_aux_{nullptr};
-  GPIOPin *pin_m0_{nullptr};
-  GPIOPin *pin_m1_{nullptr};
+  GPIOPin *pin_aux_;
+  GPIOPin *pin_m0_;
+  GPIOPin *pin_m1_;
 };
 
 }  // namespace lora
