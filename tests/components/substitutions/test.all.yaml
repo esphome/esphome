@@ -1,0 +1,33 @@
+esphome:
+  name: test
+
+substitutions:
+  switch_def:
+    platform: template
+    name: $name
+    optimistic: true
+  nested_def: $switch_def
+  double_nested_def: $nested_def
+  name: Normal switch
+  valid_interpolation: "1"
+  included_sensor_name: Included sensor 2
+
+packages:
+  included: !include
+    file: included.yaml
+    vars:
+      included_sensor_id: included_sensor
+      included_sensor:
+        name: $included_sensor_name
+        id: included_sensor2
+        platform: template
+
+switch:
+  - $double_nested_def
+  - $switch_def
+  - platform: template
+    name: $name
+    optimistic: true
+  - platform: template
+    name: Switch ${name} ${valid_interpolation} ${name} ${name}
+    optimistic: true

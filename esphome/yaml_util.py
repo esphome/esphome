@@ -279,8 +279,6 @@ class ESPHomeLoaderMixin:
             if file is None:
                 raise yaml.MarkedYAMLError("Must include 'file'", node.start_mark)
             vars = fields.get("vars")
-            if vars:
-                vars = {k: str(v) for k, v in vars.items()}
             return file, vars
 
         def substitute_vars(config, vars):

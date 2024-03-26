@@ -1,0 +1,5 @@
+sensor:
+  - id: $included_sensor_id
+    platform: template
+    name: Inlcuded sensor
+  - $included_sensor
