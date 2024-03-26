@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_KEY,
     CONF_USERNAME,
     CONF_EAP,
+    CONF_TTLS_PHASE_2,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
 )
@@ -104,6 +105,7 @@ EAP_AUTH_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME): cv.string_strict,
             cv.Optional(CONF_PASSWORD): cv.string_strict,
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
+            cv.Optional(CONF_TTLS_PHASE_2): wpa2_eap.validate_ttls_phase_2,
             cv.Inclusive(
                 CONF_CERTIFICATE, "certificate_and_key"
             ): wpa2_eap.validate_certificate,
@@ -338,6 +340,7 @@ def eap_auth(config):
         ("ca_cert", ca_cert),
         ("client_cert", client_cert),
         ("client_key", key),
+        ("ttls_phase_2", config.get(CONF_TTLS_PHASE_2, "")),
     )
 
 
