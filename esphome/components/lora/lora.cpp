@@ -151,8 +151,6 @@ void Lora::check_for_message_() {
   std::string buffer;
   std::vector<uint8_t> data;
   bool pin_data_found = false;
-  if (!this->available())
-    return;
   ESP_LOGD(TAG, "Reading serial");
   while (this->available()) {
     uint8_t c;
