@@ -154,6 +154,7 @@ void Lora::loop() {
   bool pin_data_found = false;
   if (!this->available())
     return;
+  ESP_LOGD(TAG, "Reading serial");
   while (this->available()) {
     uint8_t c;
     if (this->read_byte(&c)) {
