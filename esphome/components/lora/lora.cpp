@@ -158,10 +158,10 @@ void Lora::loop() {
   }
   if (data.size() >= 4) {
     ESP_LOGD(TAG, "Total: %u ", data.size());
-    ESP_LOGD(TAG, "Start bit: %u ", data[0]);
+    ESP_LOGD(TAG, "Start bit: %#02x ", data[0]);
     ESP_LOGD(TAG, "PIN: %u ", data[1]);
     ESP_LOGD(TAG, "VALUE: %u ", data[2]);
-    ESP_LOGD(TAG, "RSSI: %u ", data[3]);
+    ESP_LOGD(TAG, "RSSI: %#02x ", data[3]);
     this->rssi_sensor_->publish_state(data[3]);
     this->message_text_sensor_->publish_state("Got something");
   } else {
