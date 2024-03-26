@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import pins
 from esphome.components import sensor, voltage_sampler
 from esphome.const import (
     CONF_GAIN,
@@ -14,7 +15,7 @@ from esphome.const import (
 )
 from . import ads1220_ns, ADS1220Component
 
-
+CODEOWNERS = ["@miikasyvanen"]
 DEPENDENCIES = ["ads1220"]
 
 
@@ -138,10 +139,11 @@ def validate_gain(value):
 
     return cv.enum(GAIN)(value)
 
-
 ADS1220Sensor = ads1220_ns.class_(
     "ADS1220Sensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
+
+ADS1220GPIOPin = ads1220_ns.class_("ADS1220GPIOPin", cg.GPIOPin)
 
 CONF_ADS1220_ID = "ads1220_id"
 CONF_DATARATE = "datarate"
@@ -155,6 +157,7 @@ CONF_IDAC_1_ROUTING = "idac_1_routing"
 CONF_IDAC_2_ROUTING = "idac_2_routing"
 CONF_DRDY_MODE = "drdy_mode"
 CONF_FAULT_TEST_MODE = "fault_test_mode"
+#CONF_DRDY_PIN = "drdy_pin"
 
 TYPE_ADC = "adc"
 TYPE_TEMPERATURE = "temperature"
@@ -205,10 +208,6 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 async def to_code(config):
-    #var = await sensor.new_sensor(config)
-    #await cg.register_component(var, config)
-    #await cg.register_parented(var, config[CONF_ADS1220_ID])
-
     paren = await cg.get_variable(config[CONF_ADS1220_ID])
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await sensor.register_sensor(var, config)

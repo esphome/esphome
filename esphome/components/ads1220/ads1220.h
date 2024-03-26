@@ -116,14 +116,17 @@ class ADS1220Sensor;
 
 class ADS1220Component : public Component, public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
     public:
+        ADS1220Sensor *sensor;
         void register_sensor(ADS1220Sensor *obj) { this->sensors_.push_back(obj); }
         /// Set up the internal sensor array.
         void setup() override;
         void dump_config() override;
         /// HARDWARE_LATE setup priority
         float get_setup_priority() const override { return setup_priority::DATA; }
-        void set_continuous_mode(bool continuous_mode) { continuous_mode_ = continuous_mode; }
-    
+
+        void set_drdy_pin(GPIOPin *pin) { drdy_pin = pin; }
+        //GPIOPin *get_drdy_pin() { return drdy_pin; }
+
         /// Helper method to request a measurement from a sensor.
         float request_measurement(ADS1220Sensor *sensor);
 
@@ -132,8 +135,9 @@ class ADS1220Component : public Component, public spi::SPIDevice<spi::BIT_ORDER_
         uint16_t prev_config_{0};
         bool continuous_mode_ = false;
 
-        uint8_t csPin;
-        uint8_t drdyPin = 0;
+        //uint8_t csPin;
+	    //uint8_t drdy_pin;
+        GPIOPin *drdy_pin{nullptr};
         uint8_t regValue;
         float vRef;
         uint8_t gain;
@@ -141,7 +145,6 @@ class ADS1220Component : public Component, public spi::SPIDevice<spi::BIT_ORDER_
         bool refMeasurement;
         ads1220ConvMode convMode;
         bool doNotBypassPgaIfPossible = false;
-        InternalGPIOPin *drdy_pin{nullptr};
 
         uint8_t spi_device_register_0_buffered;
         uint8_t spi_device_register_1_buffered;
@@ -167,7 +170,7 @@ class ADS1220Component : public Component, public spi::SPIDevice<spi::BIT_ORDER_
         ADS1220IdacRouting prev_idac_2_routing;
 
 		bool prev_temp_sensor_mode;
-	    bool prev_burnout_current_sources;
+	    bool prev_fault_test_mode;
 
         /* Configuration Register 0 settings */
         void setCompareChannels(ads1220Multiplexer mux);
@@ -217,7 +220,7 @@ class ADS1220Component : public Component, public spi::SPIDevice<spi::BIT_ORDER_
         uint8_t readRegister(uint8_t reg);
         void writeRegister(uint8_t reg, uint8_t val);
         void send_command(uint8_t cmd);
-    
+
 };
 
 /// Internal holder class that is in instance of Sensor so that the hub can create individual sensors.
@@ -225,34 +228,31 @@ class ADS1220Sensor : public sensor::Sensor, public PollingComponent, public vol
     public:
         ADS1220Sensor(ADS1220Component *parent) : parent_(parent) {}
         void update() override;
+
         void set_multiplexer(ADS1220Multiplexer multiplexer) { multiplexer_ = multiplexer; }
         void set_gain(ADS1220Gain gain) { gain_ = gain; }
-
 		void set_datarate(ADS1220DataRate datarate) { datarate_ = datarate; }
 		void set_operating_mode(ADS1220OpMode op_mode ) { op_mode_ = op_mode; }
 		void set_conversion_mode(ADS1220ConvMode conv_mode) { conv_mode_ = conv_mode; }
-		void set_temp_sensor_mode(bool temp_sensor) { temp_sensor_mode_ = temp_sensor_mode; }
-		void set_burnout_current_sources(bool burnout_current_sources) { burnout_current_sources_ = burnout_current_sources; }
+		void set_temp_sensor_mode(bool temp_sensor_mode) { temp_sensor_mode_ = temp_sensor_mode; }
+		void set_fault_test_mode(bool fault_test_mode) { fault_test_mode_ = fault_test_mode; }
 		void set_vref_source(ADS1220VRef vref_source) { vref_source_ = vref_source; }
 		void set_drdy_mode(ADS1220DrdyMode drdy_mode) { drdy_mode_ = drdy_mode; }
-
         void set_fir_filter(ADS1220FIR fir) { fir_ = fir; }
         void set_low_side_power_switch(ADS1220PSW psw) { psw_ = psw; }
         void set_idac_current(ADS1220IdacCurrent idac_current) { idac_current_ = idac_current; }
         void set_idac_1_routing(ADS1220IdacRouting idac_1_routing) { idac_1_routing_ = idac_1_routing; }
         void set_idac_2_routing(ADS1220IdacRouting idac_2_routing) { idac_2_routing_ = idac_2_routing; }
-		
-		//void set_temperature_mode(bool temp) { this->temperature_mode_ = temp; }
-	
+
         float sample() override;
+        
         uint8_t get_multiplexer() const { return multiplexer_; }
         uint8_t get_gain() const { return gain_; }
-	
 		uint8_t get_datarate() const { return datarate_; }
 		uint8_t get_operating_mode() const { return op_mode_; }
 		uint8_t get_conversion_mode() const { return conv_mode_; }
 		uint8_t get_temp_sensor_mode() const { return temp_sensor_mode_; }
-		uint8_t get_burnout_current_sources() const { return burnout_current_sources_; }
+		uint8_t get_fault_test_mode() const { return fault_test_mode_; }
 		uint8_t get_vref_source() const { return vref_source_; }
 		uint8_t get_drdy_mode() const { return drdy_mode_; }
     
@@ -271,9 +271,9 @@ class ADS1220Sensor : public sensor::Sensor, public PollingComponent, public vol
         ADS1220IdacRouting idac_1_routing_;
         ADS1220IdacRouting idac_2_routing_;
 	
-		bool temp_sensor_mode_;
-	    bool burnout_current_sources_;
-
+		uint8_t temp_sensor_mode_;
+	    uint8_t fault_test_mode_;
+	    
 };
 
 }  // namespace ads1220

@@ -37,8 +37,13 @@ void ADS1220Component::setup() {
     this->spi_setup();
     //pinMode(csPin, OUTPUT);
     //digitalWrite(csPin, HIGH);
-    pinMode(drdyPin, INPUT);
-    
+    //drdyPin = 21;
+    //pinMode(sensor->drdy_pin, INPUT_PULLUP);
+
+    this->drdy_pin->setup();
+    this->drdy_pin->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+
+
     //vRef = 2.048;
     vRef = 3.300;
     gain = 1;
@@ -158,28 +163,29 @@ float ADS1220Component::request_measurement(ADS1220Sensor *sensor) {
 	// Setup temperature sensor
     config = sensor->get_temp_sensor_mode();
     ESP_LOGI(TAG, "ADS1220 temp sensor mode: 0x%02x", config);
-    if (prev_temp_sensor != config) {
+    if (prev_temp_sensor_mode != config) {
         //enableTemperatureSensor(config);
-        prev_temp_sensor = config;
+        prev_temp_sensor_mode = config;
     }
 	// Setup burnout current sources
-    config = sensor->get_burnout_current_sources();
+    config = sensor->get_fault_test_mode();
     ESP_LOGI(TAG, "ADS1220 fault test mode: 0x%02x", config);
-    if (prev_burnout_current_sources != config) {
+    if (prev_fault_test_mode != config) {
         //enableBurnOutCurrentSources(config);
-        prev_burnout_current_sources = config;
+        prev_fault_test_mode = config;
     }
 
 
 
 	// Setup multiplexer
     config = sensor->get_multiplexer();
-    //ESP_LOGI(TAG, "ADS1220 mux: 0x%02x", (ads1220Multiplexer)config);
+    ESP_LOGI(TAG, "ADS1220 mux: 0x%02x", (ads1220Multiplexer)config);
     if (prev_multiplexer != config) {
         setCompareChannels((ads1220Multiplexer)config);
         prev_multiplexer = (ads1220Multiplexer)config;
     }
 
+    ESP_LOGI(TAG, "Start conversion!");
     resultInMV = getVoltage_mV();
     resultInVoltage = resultInMV / 1000.0;
     
@@ -462,28 +468,22 @@ uint32_t ADS1220Component::readResult()
     uint8_t data[4] = { 0x00 };
     uint32_t rawResult = 0;
 
-    //ESP_LOGI(TAG, "Read result from ADS1220!");
-    //delay(1);
-
     if(convMode == ADS1220_SINGLE_SHOT){
-        //ESP_LOGI(TAG, "Start conversion!");
-        //delay(1);
         start();
     }
-    while(digitalRead(drdyPin)) {}
+    while(this->drdy_pin->digital_read()) {
+        delay(1);
+    }
 
-    //ESP_LOGI(TAG, "Store result to memory!");
-    //delay(1);
-    
     this->enable();
-    delay(1);
+    //delay(1);
     
     data[0] = this->read_byte();
     data[1] = this->read_byte();
     data[2] = this->read_byte();
 
     this->disable();
-    delay(1);
+    //delay(1);
 
     rawResult = data[0];
     rawResult = (rawResult << 8) | data[1];
@@ -518,7 +518,7 @@ uint8_t ADS1220Component::readRegister(uint8_t reg)
     uint8_t data[4] = { 0x00 };;
 
     this->enable();
-    delay(1);
+    //delay(1);
 
     this->write_byte(ADS1220_RREG | (reg<<2));
 
@@ -527,7 +527,7 @@ uint8_t ADS1220Component::readRegister(uint8_t reg)
     data[2] = this->read_byte();
 
     this->disable();
-    delay(1);
+    //delay(1);
 
     return data[0];
 }
@@ -544,13 +544,13 @@ void ADS1220Component::writeRegister(uint8_t reg, uint8_t val)
         spi_device_register_3_buffered = val;
 
     this->enable();
-    delay(1);
+    //delay(1);
 
     this->write_byte(ADS1220_WREG | (reg<<2));
     this->write_byte(val);
 
     this->disable();
-    delay(1);
+    //delay(1);
 
 }
 
@@ -559,12 +559,12 @@ void ADS1220Component::send_command(uint8_t cmd)
     //ESP_LOGI(TAG, "Send command %u to ADS1220", cmd);
     
     this->enable();
-    delay(1);
+    //delay(1);
     
     this->write_byte(cmd);
 
     this->disable();
-    delay(1);
+    //delay(1);
 }
 
 
