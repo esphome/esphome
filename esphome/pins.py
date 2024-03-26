@@ -327,6 +327,8 @@ def gpio_base_schema(
             cv.Optional(CONF_MODE, default={}): cv.All(mode_dict, mode_validator),
         }
     )
+
     if invertable:
         return schema.extend({cv.Optional(CONF_INVERTED, default=False): cv.boolean})
+
     return schema

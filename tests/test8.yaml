@@ -38,6 +38,11 @@ light:
     id: rgb_led
     name: "RGB LED"
     data_rate: 8MHz
+  - platform: binary
+    name: "Red Info Light"
+    output: board_info_ed
+    entity_category: diagnostic
+    restore_mode: ALWAYS_OFF
 
 spi:
   id: spi_id_1
@@ -72,6 +77,14 @@ display:
 i2c:
   scl: GPIO18
   sda: GPIO8
+
+output:
+  - platform: gpio
+    id: board_info_ed
+    pin:
+      # This pin is reserved on the ESP32S3!
+      number: 26
+      ignore_pin_validation_error: true
 
 touchscreen:
   - platform: tt21100
