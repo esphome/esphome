@@ -275,15 +275,26 @@ bool WiFiComponent::wifi_apply_power_save_() {
   }
   return esp_wifi_set_ps(power_save) == ESP_OK;
 }
-
-esp_eap_ttls_phase2_types parse_ttls_phase_2(std::string ttls_phase_2) {
-  if (ttls_phase_2 == "pap") { return ESP_EAP_TTLS_PHASE2_PAP; }
-  if (ttls_phase_2 == "eap") { return ESP_EAP_TTLS_PHASE2_EAP; }
-  if (ttls_phase_2 == "mschap") { return ESP_EAP_TTLS_PHASE2_MSCHAP; }
-  if (ttls_phase_2 == "mschapv2") { return ESP_EAP_TTLS_PHASE2_MSCHAPV2; }
-  if (ttls_phase_2 == "chap") { return ESP_EAP_TTLS_PHASE2_CHAP; }
-  return ESP_EAP_TTLS_PHASE2_MSCHAPV2;
-}
+#ifdef USE_WIFI_WPA2_EAP
+  esp_eap_ttls_phase2_types parse_ttls_phase_2(std::string ttls_phase_2) {
+    if (ttls_phase_2 == "pap") {
+      return ESP_EAP_TTLS_PHASE2_PAP;
+    }
+    if (ttls_phase_2 == "eap") {
+      return ESP_EAP_TTLS_PHASE2_EAP;
+    }
+    if (ttls_phase_2 == "mschap") {
+      return ESP_EAP_TTLS_PHASE2_MSCHAP;
+    }
+    if (ttls_phase_2 == "mschapv2") {
+      return ESP_EAP_TTLS_PHASE2_MSCHAPV2;
+    }
+    if (ttls_phase_2 == "chap") {
+      return ESP_EAP_TTLS_PHASE2_CHAP;
+    }
+    return ESP_EAP_TTLS_PHASE2_MSCHAPV2;
+  }
+#endif
 
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // enable STA
