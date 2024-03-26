@@ -3,8 +3,8 @@
 namespace esphome {
 namespace lora {
 void Lora::update() {
-  // all good!
-  if (!this->pin_aux_->digital_read()) {
+  // High means no more information is needed
+  if (this->pin_aux_->digital_read()) {
     this->starting_to_check_ = 0;
     this->time_out_after_ = 0;
   }
@@ -87,15 +87,15 @@ void Lora::set_mode_(ModeType mode) {
   ESP_LOGD(TAG, "Mode is going to be set");
 }
 bool Lora::can_send_message_() {
-  // if the pin is still high, we should not be doing anything
   if (this->pin_aux_->digital_read()) {
-    ESP_LOGD(TAG, "Aux pin is still high!");
-    return false;
-  } else {
-    // the pin isn't high anymore, but the system isn't updated yet
+    // If it is high then all good and settings have been saved
     this->starting_to_check_ = 0;
     this->time_out_after_ = 0;
     return true;
+
+  } else {
+    ESP_LOGD(TAG, "Aux pin is still LOW! Have to wait before sending message");
+    return false;
   }
 }
 void Lora::setup_wait_response_(uint32_t timeout) {
