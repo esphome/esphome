@@ -34,6 +34,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 CONF_BUFFER_SIZE,
                 esp32="10000b",
                 esp8266="1000b",
+                rp2040="1000b",
                 bk72xx="1000b",
                 rtl87xx="1000b",
             ): cv.validate_bytes,
