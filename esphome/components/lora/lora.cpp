@@ -161,8 +161,8 @@ void Lora::loop() {
     ESP_LOGD(TAG, "PIN: %u ", data[1]);
     ESP_LOGD(TAG, "VALUE: %u ", data[2]);
     ESP_LOGD(TAG, "RSSI: %u ", data[3]);
-    rssi_ = (char) data[3];
-    this->update_needed_ = true;
+    this->rssi_sensor_->publish_state(data[3]);
+    this->message_text_sensor_->publish_state("Got something");
   } else {
     ESP_LOGD(TAG, "WEIRD");
   }
