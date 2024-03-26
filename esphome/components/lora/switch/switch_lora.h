@@ -3,7 +3,6 @@
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
-#include "esphome/components/pcf8574/pcf8574.h"
 #include "esphome/components/switch/switch.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
