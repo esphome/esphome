@@ -138,3 +138,5 @@ sdkconfig.*
 .tests/
 
 /components
+rfidscanner.yaml
+secrets.yaml
