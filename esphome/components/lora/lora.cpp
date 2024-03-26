@@ -5,7 +5,6 @@ namespace lora {
 void Lora::update() {
   can_send_message_();
   get_mode_();
-  check_for_message_();
   if (!this->update_needed_)
     return;
   if (this->rssi_sensor_ != nullptr)
@@ -147,7 +146,7 @@ void Lora::send_pin_info_(uint8_t pin, bool value) {
   this->setup_wait_response_(5000);
   ESP_LOGD(TAG, "Successfully put in queue");
 }
-void Lora::check_for_message_() {
+void Lora::loop() {
   std::string buffer;
   std::vector<uint8_t> data;
   bool pin_data_found = false;
@@ -160,6 +159,7 @@ void Lora::check_for_message_() {
       buffer += (char) c;
       // indicates that there is pin data, lets capture that
       if (c == 0xA5) {
+        ESP_LOGD(TAG, "Found pin data!");
         pin_data_found = true;
       }
       if (pin_data_found)
@@ -167,18 +167,22 @@ void Lora::check_for_message_() {
     }
   }
   this->update_needed_ = true;
-  ESP_LOGD(TAG, "Got %s", buffer.c_str());
+
   if (!data.empty()) {
     ESP_LOGD(TAG, "Found pin data!");
     ESP_LOGD(TAG, "PIN: %u ", data[1]);
     ESP_LOGD(TAG, "VALUE: %u ", data[2]);
+  } else {
+    ESP_LOGD(TAG, "Got %s", buffer.c_str());
   }
   char *ptr;
   // set the rssi
   rssi_ = strtol(buffer.substr(buffer.length() - 1, 1).c_str(), &ptr, 2);
   ESP_LOGD(TAG, "RSSI: %u ", rssi_);
   // set the raw message
-  raw_message_ = buffer.substr(0, buffer.length() - 1);
+  if (!pin_data_found) {
+    raw_message_ = buffer.substr(0, buffer.length() - 1);
+  }
 }
 }  // namespace lora
 }  // namespace esphome
