@@ -162,17 +162,8 @@ void Lora::loop() {
     ESP_LOGD(TAG, "VALUE: %u ", data[2]);
     ESP_LOGD(TAG, "RSSI: %u ", data[3]);
   } else {
-    ESP_LOGD(TAG, "WEIRD ");
+    ESP_LOGD(TAG, "WEIRD");
   }
-
-  // char *ptr;
-  // // set the rssi
-  // rssi_ = strtol(buffer.substr(buffer.length() - 1, 1).c_str(), &ptr, 2);
-  // ESP_LOGD(TAG, "RSSI: %u ", rssi_);
-  // // set the raw message
-  // if (!pin_data_found) {
-  //   raw_message_ = buffer.substr(0, buffer.length() - 1);
-  // }
 }
 }  // namespace lora
 }  // namespace esphome
