@@ -103,6 +103,7 @@ bool Lora::can_send_message_() {
     if (!this->starting_to_check_ == 0 && !this->time_out_after_ == 0) {
       this->starting_to_check_ = 0;
       this->time_out_after_ = 0;
+      this->flush();
       ESP_LOGD(TAG, "Aux pin is High! Can send again!");
     }
     return true;
