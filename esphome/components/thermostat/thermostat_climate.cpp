@@ -1041,18 +1041,48 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
 
 bool ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTempConfig &config) {
   bool something_changed = false;
+  ThermostatClimateTargetTempConfig *current_config = nullptr;
 
-  if (this->supports_two_points_) {
-    if (this->target_temperature_low != config.default_temperature_low) {
-      this->target_temperature_low = config.default_temperature_low;
-      something_changed = true;
+  if (this->preset.has_value()) {
+    climate::ClimatePreset preset = this->preset.value();
+    ThermostatClimateTargetTempConfig &current_preset_config = this->preset_config_.find(preset)->second;
+    current_config = &current_preset_config;
+  }
+
+  if (this->custom_preset.has_value()) {
+    const std::string &custom_preset = this->custom_preset.value();
+    ThermostatClimateTargetTempConfig &current_custom_preset_config =
+        this->custom_preset_config_.find(custom_preset)->second;
+    current_config = &current_custom_preset_config;
+  }
+
+  if (current_config != nullptr && current_config->preset_temp_restore_) {
+    if (supports_two_points_) {
+      current_config->stored_temperature_low = this->target_temperature_low;
+      current_config->stored_temperature_high = this->target_temperature_high;
+    } else {
+      current_config->stored_temperature = this->target_temperature;
     }
-    if (this->target_temperature_high != config.default_temperature_high) {
-      this->target_temperature_high = config.default_temperature_high;
+  }
+
+  if (config.preset_temp_restore_) {
+    if (this->supports_two_points_) {
+      this->target_temperature_low =
+          std::isnan(config.stored_temperature_low) ? config.default_temperature_low : config.stored_temperature_low;
+      this->target_temperature_high =
+          std::isnan(config.stored_temperature_high) ? config.default_temperature_high : config.stored_temperature_high;
+      something_changed = true;
+    } else {
+      this->target_temperature =
+          std::isnan(config.stored_temperature) ? config.default_temperature : config.stored_temperature;
       something_changed = true;
     }
   } else {
-    if (this->target_temperature != config.default_temperature) {
+    if (this->supports_two_points_) {
+      this->target_temperature_low = config.default_temperature_low;
+      this->target_temperature_high = config.default_temperature_high;
+      something_changed = true;
+    } else {
       this->target_temperature = config.default_temperature;
       something_changed = true;
     }
