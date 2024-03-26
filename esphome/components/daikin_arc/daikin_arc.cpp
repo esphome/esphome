@@ -40,7 +40,7 @@ void DaikinArcClimate::transmit_query_() {
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  for (unsigned char i : remote_header) {
+  for (uint8_t i : remote_header) {
     for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
       data->mark(DAIKIN_BIT_MARK);
       bool bit = i & mask;
@@ -120,16 +120,8 @@ void DaikinArcClimate::transmit_state() {
 
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
-  // for (int i = 0; i < 8; i++) {
-  //   for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit
-  //   mask
-  //     data->mark(DAIKIN_BIT_MARK);
-  //     bool bit = remote_state[i] & mask;
-  //     data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
-  //   }
-  // }
 
-  for (unsigned char i : remote_header) {
+  for (uint8_t i : remote_header) {
     for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
       data->mark(DAIKIN_BIT_MARK);
       bool bit = i & mask;
@@ -142,7 +134,7 @@ void DaikinArcClimate::transmit_state() {
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  for (unsigned char i : remote_state) {
+  for (uint8_t i : remote_state) {
     for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
       data->mark(DAIKIN_BIT_MARK);
       bool bit = i & mask;
