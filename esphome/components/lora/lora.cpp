@@ -161,6 +161,8 @@ void Lora::loop() {
     ESP_LOGD(TAG, "PIN: %u ", data[1]);
     ESP_LOGD(TAG, "VALUE: %u ", data[2]);
     ESP_LOGD(TAG, "RSSI: %u ", data[3]);
+    rssi_ = (char) data[3];
+    this->update_needed_ = true;
   } else {
     ESP_LOGD(TAG, "WEIRD");
   }
