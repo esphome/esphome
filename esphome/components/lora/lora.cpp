@@ -146,9 +146,6 @@ void Lora::send_pin_info_(uint8_t pin, bool value) {
   ESP_LOGD(TAG, "Successfully put in queue");
 }
 void Lora::loop() {
-  if (!Lora::can_send_message_()) {
-    return;
-  }
   std::string buffer;
   std::vector<uint8_t> data;
   bool pin_data_found = false;
