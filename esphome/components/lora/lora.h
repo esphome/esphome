@@ -28,6 +28,7 @@ enum ModeType {
 class Lora : public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void update() override;
   void loop() override;
   void dump_config() override;
