@@ -24,6 +24,7 @@ enum ModeType {
   MODE_3_CONFIGURATION = 3,
   MODE_3_PROGRAM = 3,
   MODE_3_SLEEP = 3,
+  MODE_INIT = 0xFF
 };
 class Lora : public PollingComponent, public uart::UARTDevice {
  public:
@@ -46,9 +47,10 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   void set_pin_m1(GPIOPin *s) { pin_m1_ = s; }
 
  private:
-  ModeType mode_ = MODE_0_NORMAL;
+  ModeType mode_ = MODE_INIT;
   // set WOR mode
   void set_mode_(ModeType mode);
+  ModeType get_mode_();
   // checks the aux port to see if it is done setting
   void setup_wait_response_(uint32_t timeout = 1000);
   bool can_send_message_();

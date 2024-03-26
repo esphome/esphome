@@ -7,8 +7,8 @@ void Lora::update() {
   if (this->pin_aux_->digital_read()) {
     this->starting_to_check_ = 0;
     this->time_out_after_ = 0;
-  } else {
     ESP_LOGD(TAG, "Aux pin is High! Can send again!");
+  } else {
     // it has taken too long to complete, error out!
     if ((millis() - this->starting_to_check_) > this->time_out_after_) {
       ESP_LOGD(TAG, "Timeout error! Resetting timers");
@@ -16,6 +16,7 @@ void Lora::update() {
       this->time_out_after_ = 0;
     }
   }
+  get_mode_();
   if (!this->update_needed_)
     return;
   if (this->rssi_sensor_ != nullptr)
@@ -50,6 +51,32 @@ void Lora::setup() {
 
   ESP_LOGD(TAG, "Setup success");
 }
+
+ModeType Lora::get_mode_() {
+  if (!Lora::can_send_message_()) {
+    return;
+  }
+  ModeType internalMode;
+  bool pin1 = this->pin_m0_->digital_read();
+  bool pin2 = this->pin_m1_->digital_read();
+  if (!pin1 && !pin2) {
+    internalMode = MODE_0_NORMAL;
+  }
+  if (pin1 && !pin2) {
+    internalMode = MODE_1_WOR_TRANSMITTER;
+  }
+  if (!pin1 && pin2) {
+    internalMode = MODE_2_WOR_RECEIVER;
+  }
+  if (pin1 && pin2) {
+    internalMode = MODE_3_CONFIGURATION;
+  }
+  if (internalMode != this->mode_) {
+    ESP_LOGD(TAG, "Modes are not equal, calling the set function!! , checked: %u, expected: %u", internalMode,
+             this->mode_);
+    set_mode_(internalMode);
+  }
+}
 void Lora::set_mode_(ModeType mode) {
   if (!Lora::can_send_message_()) {
     return;
@@ -81,6 +108,9 @@ void Lora::set_mode_(ModeType mode) {
         this->pin_m1_->digital_write(true);
         ESP_LOGD(TAG, "MODE SLEEP CONFIG!");
         break;
+      case MODE_INIT:
+        ESP_LOGD(TAG, "Don't call this!");
+        break;
     }
   }
   // wait until aux pin goes back low
@@ -91,9 +121,12 @@ void Lora::set_mode_(ModeType mode) {
 bool Lora::can_send_message_() {
   if (this->pin_aux_->digital_read()) {
     // If it is high then all good and settings have been saved
-    this->starting_to_check_ = 0;
-    this->time_out_after_ = 0;
-    ESP_LOGD(TAG, "Aux pin is High! Can send again!");
+    if (this->starting_to_check_ != 0) {
+      this->starting_to_check_ = 0;
+    }
+    if (this->time_out_after_ != 0) {
+      this->time_out_after_ = 0;
+    }
     return true;
 
   } else {
