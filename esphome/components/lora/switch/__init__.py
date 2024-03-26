@@ -11,7 +11,7 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.Required(CONF_LORA): cv.use_id(LoraComponent),
-            cv.Required(PIN_TO_SEND): cv.int_range(min=1, max=256),
+            cv.Required(PIN_TO_SEND): cv.int_range(min=0, max=3),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
