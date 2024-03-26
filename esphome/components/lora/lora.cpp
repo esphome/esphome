@@ -34,23 +34,7 @@ void Lora::setup() {
   this->pin_aux_->setup();
   this->pin_m0_->setup();
   this->pin_m1_->setup();
-  if (this->pin_aux_ != nullptr) {
-    this->pin_aux_->pin_mode(gpio::FLAG_INPUT);
-    ESP_LOGD(TAG, "Init AUX pin!");
-  }
-  if (this->pin_m0_ != nullptr) {
-    this->pin_m0_->pin_mode(gpio::FLAG_OUTPUT);
-    ESP_LOGD(TAG, "Init M0 pin!");
-    this->pin_m0_->digital_write(false);
-  }
-  if (this->pin_m1_ != nullptr) {
-    this->pin_m1_->pin_mode(gpio::FLAG_OUTPUT);
-    ESP_LOGD(TAG, "Init M1 pin!");
-    this->pin_m1_->digital_write(false);
-  }
-
   set_mode_(MODE_0_NORMAL);
-
   ESP_LOGD(TAG, "Setup success");
 }
 
