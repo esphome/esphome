@@ -1,9 +1,4 @@
-import json
-import os
-
 from esphome.const import CONF_ID
-from esphome.core import CORE
-from esphome.helpers import read_file
 
 
 class Extend:
@@ -36,25 +31,6 @@ class Remove:
         Only used in unit tests.
         """
         return isinstance(b, Remove) and self.value == b.value
-
-
-def read_config_file(path: str) -> str:
-    if CORE.vscode and (
-        not CORE.ace or os.path.abspath(path) == os.path.abspath(CORE.config_path)
-    ):
-        print(
-            json.dumps(
-                {
-                    "type": "read_file",
-                    "path": path,
-                }
-            )
-        )
-        data = json.loads(input())
-        assert data["type"] == "file_response"
-        return data["content"]
-
-    return read_file(path)
 
 
 def merge_config(full_old, full_new):
