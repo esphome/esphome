@@ -31,7 +31,7 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   void setup() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void update() override;
-  void loop() override;
+
   void dump_config() override;
   /// Helper function to write the value of a pin.
   void digital_write(uint8_t pin, bool value);
@@ -45,6 +45,7 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   ModeType mode_ = MODE_INIT;
   // set WOR mode
   void set_mode_(ModeType mode);
+  void check_for_message_();
   ModeType get_mode_();
   // checks the aux port to see if it is done setting
   void setup_wait_response_(uint32_t timeout = 1000);

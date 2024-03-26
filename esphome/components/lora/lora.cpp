@@ -5,6 +5,7 @@ namespace lora {
 void Lora::update() {
   can_send_message_();
   get_mode_();
+  check_for_message_();
   if (!this->update_needed_)
     return;
   if (this->rssi_sensor_ != nullptr)
@@ -145,7 +146,7 @@ void Lora::send_pin_info_(uint8_t pin, bool value) {
   this->setup_wait_response_(5000);
   ESP_LOGD(TAG, "Successfully put in queue");
 }
-void Lora::loop() {
+void Lora::check_for_message_() {
   std::string buffer;
   std::vector<uint8_t> data;
   bool pin_data_found = false;
