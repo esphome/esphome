@@ -101,6 +101,14 @@ uart:
       allow_other_uses: true
     baud_rate: 1200
     parity: EVEN
+  - id: uart_tormatic
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO25
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO26
+    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -587,6 +595,12 @@ cover:
     name: Garage Door
     open_duration: 14s
     close_duration: 14s
+  - platform: tormatic
+    uart_id: uart_tormatic
+    id: tormatic_garage_door
+    name: Tormatic Garage Door
+    open_duration: 15s
+    close_duration: 22s
 
 display:
   - platform: addressable_light
