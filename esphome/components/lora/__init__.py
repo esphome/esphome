@@ -69,7 +69,7 @@ async def to_code(config):
         sens = await text_sensor.new_text_sensor(config[CONF_LORA_MESSAGE])
         cg.add(var.set_message_sensor(sens))
 
-    if CONF_LORA_MESSAGE in config:
+    if CONF_PCF8574 in config:
         comp = await cg.get_variable(config[CONF_PCF8574])
         cg.add(var.set_pcf8574(comp))
 
