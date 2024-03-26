@@ -148,39 +148,31 @@ void Lora::send_pin_info_(uint8_t pin, bool value) {
 void Lora::loop() {
   std::string buffer;
   std::vector<uint8_t> data;
-  bool pin_data_found = false;
   if (!this->available())
     return;
   ESP_LOGD(TAG, "Reading serial");
   while (this->available()) {
     uint8_t c;
-    if (this->read_byte(&c)) {
-      buffer += (char) c;
-      // indicates that there is pin data, lets capture that
-      data.push_back(c);
-    }
+    this->read_byte(&c);
+    data.push_back(c);
   }
-  this->update_needed_ = true;
-
-  if (!data.empty()) {
-    auto it = data.begin();
-    ESP_LOGD(TAG, "PIN: %u ", data[0]);
+  if (data.size() >= 4) {
+    ESP_LOGD(TAG, "start bit: %u ", data[0]);
     ESP_LOGD(TAG, "PIN: %u ", data[1]);
     ESP_LOGD(TAG, "VALUE: %u ", data[2]);
     ESP_LOGD(TAG, "RSSI: %u ", data[3]);
-    pin_data_found = true;
-
   } else {
-    ESP_LOGD(TAG, "Got %s", buffer.c_str());
+    ESP_LOGD(TAG, "WEIRD ");
   }
-  char *ptr;
-  // set the rssi
-  rssi_ = strtol(buffer.substr(buffer.length() - 1, 1).c_str(), &ptr, 2);
-  ESP_LOGD(TAG, "RSSI: %u ", rssi_);
-  // set the raw message
-  if (!pin_data_found) {
-    raw_message_ = buffer.substr(0, buffer.length() - 1);
-  }
+
+  // char *ptr;
+  // // set the rssi
+  // rssi_ = strtol(buffer.substr(buffer.length() - 1, 1).c_str(), &ptr, 2);
+  // ESP_LOGD(TAG, "RSSI: %u ", rssi_);
+  // // set the raw message
+  // if (!pin_data_found) {
+  //   raw_message_ = buffer.substr(0, buffer.length() - 1);
+  // }
 }
 }  // namespace lora
 }  // namespace esphome
