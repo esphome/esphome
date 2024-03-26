@@ -135,7 +135,7 @@ void Lora::send_pin_info_(uint8_t pin, bool value) {
     return;
   }
   uint8_t data[3];
-  data[1] = 0xA5;   // just some bit to indicate, yo this is pin info
+  data[1] = 0xFF;   // just some bit to indicate, yo this is pin info
   data[1] = pin;    // Pin to send
   data[2] = value;  // high or low
   ESP_LOGD(TAG, "Sending message");
@@ -157,20 +157,19 @@ void Lora::loop() {
     if (this->read_byte(&c)) {
       buffer += (char) c;
       // indicates that there is pin data, lets capture that
-      if (c == 0xA5) {
-        ESP_LOGD(TAG, "Found pin data!");
-        pin_data_found = true;
-      }
-      if (pin_data_found)
-        data.push_back(c);
+      data.push_back(c);
     }
   }
   this->update_needed_ = true;
 
   if (!data.empty()) {
-    ESP_LOGD(TAG, "Found pin data!");
+    auto it = data.begin();
+    ESP_LOGD(TAG, "PIN: %u ", data[0]);
     ESP_LOGD(TAG, "PIN: %u ", data[1]);
     ESP_LOGD(TAG, "VALUE: %u ", data[2]);
+    ESP_LOGD(TAG, "RSSI: %u ", data[3]);
+    pin_data_found = true;
+
   } else {
     ESP_LOGD(TAG, "Got %s", buffer.c_str());
   }
