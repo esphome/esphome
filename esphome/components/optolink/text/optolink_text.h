@@ -21,7 +21,7 @@ class OptolinkText : public DatapointComponent, public esphome::text::Text, publ
  protected:
   void setup() override;
   void update() override { datapoint_read_request_(); }
-  void control(const std::string &value);
+  void control(const std::string &value) override;
 
   const StringRef &get_component_name() override { return get_name(); }
   void datapoint_value_changed(uint8_t *value, size_t length) override;

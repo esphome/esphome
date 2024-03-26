@@ -2,7 +2,7 @@
 
 #include "helpers.h"
 #include "esphome/core/log.h"
-#include <string.h>
+#include <cstring>
 
 namespace esphome {
 namespace optolink {
@@ -23,7 +23,7 @@ void rtrim(std::string &s) {
   s.erase(p, s.end());
 }
 
-std::string decode_day_schedule(uint8_t *input) {
+std::string decode_day_schedule(const uint8_t *input) {
   char buffer[49];
   for (int i = 0; i < 8; i++) {
     int hour = input[i] >> 3;
