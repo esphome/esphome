@@ -300,14 +300,17 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
         if (
-            (port == "OTA" or port[0:4] == "OTA-")  # pylint: disable=too-many-boolean-expressions
+            (
+                port == "OTA" or port[0:4] == "OTA-"
+            )  # pylint: disable=too-many-boolean-expressions
             and (entry := entries.get(config_file))
             and entry.loaded_integrations
             and "api" in entry.loaded_integrations
         ):
             if (mdns := dashboard.mdns_status) and (
                     address := await mdns.async_resolve_host(
-                        entry.name if port == "OTA" else port[4:])
+                        entry.name if port == "OTA" else port[4:]
+                    )
             ):
                 # Use the IP address if available but only
                 # if the API is loaded and the device is online
@@ -446,16 +449,22 @@ class SerialPortRequestHandler(BaseHandler):
 class OTAPortRequestHandler(BaseHandler):
     @authenticated
     async def get(self) -> None:
-        ports = await asyncio.get_running_loop().run_in_executor(None, get_serial_ports)
-        data = []
-        data.append({"port": "OTA", "desc": "Over-The-Air"})
+        data = [{"port": "OTA", "desc": "Over-The-Air"}]
 
         dashboard = DASHBOARD
         if mdns := dashboard.mdns_status:
             for host in mdns.host_mdns_state:
-                if dashboard.entries.get_by_name(host) is None and host[-7] == '-' and dashboard.entries.get_by_name(
-                        host[:-7]) is not None:
-                    data.append({"port": "OTA-%s" % host, "desc": "Over-The-Air: %s" % host[:-7]})
+                if (
+                    dashboard.entries.get_by_name(host) is None
+                    and host[-7] == "-"
+                    and dashboard.entries.get_by_name(host[:-7]) is not None
+                ):
+                    data.append(
+                        {
+                            "port": "OTA-%s" % host,
+                            "desc": "Over-The-Air: %s" % host[:-7],
+                        }
+                    )
 
         data.sort(key=lambda x: x["port"], reverse=True)
         self.set_header("content-type", "application/json")
@@ -803,14 +812,15 @@ class PingRequestHandler(BaseHandler):
 
         entry_mac_name = {}
         if mdns := dashboard.mdns_status:
-            for host in mdns.host_mdns_state:
-                if host[-7] == '-':
-                    entry_mac_name[host[:-7]] = mdns.host_mdns_state[host]
+            for host, state in mdns.host_mdns_state.items():
+                if host[-7] == "-":
+                    entry_mac_name[host[:-7]] = state
 
         self.write(
             json.dumps(
                 {
-                    entry.filename: entry_state_to_bool(entry.state) or entry_mac_name.get(entry.name)
+                    entry.filename: entry_state_to_bool(entry.state)
+                    or entry_mac_name.get(entry.name)
                     for entry in dashboard.entries.async_all()
                 }
             )
