@@ -30,6 +30,7 @@ class SCD30Component : public Component, public sensirion_common::SensirionI2CDe
 
  protected:
   bool is_data_ready_();
+  void restart_continuous_measurements_();
 
   enum ErrorCode {
     COMMUNICATION_FAILED,
@@ -41,6 +42,7 @@ class SCD30Component : public Component, public sensirion_common::SensirionI2CDe
   bool enable_asc_{true};
   uint16_t altitude_compensation_{0xFFFF};
   uint16_t ambient_pressure_compensation_{0x0000};
+  uint16_t current_ambient_pressure_compensation_{0x0000};
   float temperature_offset_{0.0};
   uint16_t update_interval_{0xFFFF};
 
