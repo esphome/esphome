@@ -10,8 +10,9 @@ from esphome.const import (
     UNIT_VOLT,
     CONF_ID,
 )
-from . import ads1115_ns, ADS1115Component
+from .. import ads1115_ns, ADS1115Component, CONF_ADS1115_ID
 
+AUTO_LOAD = ["voltage_sampler"]
 DEPENDENCIES = ["ads1115"]
 
 ADS1115Multiplexer = ads1115_ns.enum("ADS1115Multiplexer")
@@ -56,7 +57,6 @@ ADS1115Sensor = ads1115_ns.class_(
     "ADS1115Sensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
 
-CONF_ADS1115_ID = "ads1115_id"
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         ADS1115Sensor,
@@ -69,7 +69,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(CONF_ADS1115_ID): cv.use_id(ADS1115Component),
             cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space="_"),
-            cv.Required(CONF_GAIN): validate_gain,
+            cv.Required(CONF_GAIN): cv.enum(GAIN, string=True),
             cv.Optional(CONF_RESOLUTION, default="16_BITS"): cv.enum(
                 RESOLUTION, upper=True, space="_"
             ),
