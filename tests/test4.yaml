@@ -101,14 +101,6 @@ uart:
       allow_other_uses: true
     baud_rate: 1200
     parity: EVEN
-  - id: uart_jsn_sr04t
-    tx_pin:
-      allow_other_uses: false
-      number: GPIO10
-    rx_pin:
-      allow_other_uses: false
-      number: GPIO9
-    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -378,12 +370,6 @@ sensor:
     name: "a02yyuw Distance"
     uart_id: uart_a02yyuw
     state_topic: "esphome/sensor/a02yyuw_sensor/state"
-  - platform: jsn_sr04t
-    id: jsn_sr04t_sensor
-    name: "jsn_sr04t Distance"
-    uart_id: uart_jsn_sr04t
-    update_interval: 1s
-    state_topic: "esphome/sensor/jsn_sr04t_sensor/state"
 
 #
 # platform sensor.apds9960 requires component apds9960

@@ -1,0 +1,14 @@
+uart:
+  - id: uart_jsn_sr04t
+    tx_pin:
+      number: 4
+    rx_pin:
+      number: 5
+    baud_rate: 9600
+
+sensor:
+  - platform: jsn_sr04t
+    id: jsn_sr04t_sensor
+    name: "jsn_sr04t Distance"
+    uart_id: uart_jsn_sr04t
+    update_interval: 1s
