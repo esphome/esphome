@@ -27,8 +27,8 @@ static const uint32_t WDT_TIMEOUT_S = 20;
 
 struct OtaHttpGlobalPrefType {
   OtaHttpState ota_http_state;
-  char md5_url[512];
-  char url[512];
+  char md5_url[250];
+  char url[250];
 } PACKED;
 
 class OtaHttpComponent : public Component {
