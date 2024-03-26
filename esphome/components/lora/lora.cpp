@@ -3,6 +3,17 @@
 namespace esphome {
 namespace lora {
 void Lora::update() {
+  // all good!
+  if (!this->pin_aux_->digital_read()) {
+    this->starting_to_check_ = 0;
+    this->time_out_after_ = 0;
+  }
+  // it has taken too long to complete, error out!
+  if ((millis() - this->starting_to_check_) > this->time_out_after_) {
+    ESP_LOGD(TAG, "Timeout error! Resetting timers");
+    this->starting_to_check_ = 0;
+    this->time_out_after_ = 0;
+  }
   if (!this->update_needed_)
     return;
   if (this->rssi_sensor_ != nullptr)
@@ -33,19 +44,14 @@ void Lora::setup() {
     this->pin_m1_->digital_write(true);
   }
 
-  bool status = set_mode_(MODE_0_NORMAL);
-  if (status) {
-    ESP_LOGD(TAG, "Setup success");
-  } else {
-    ESP_LOGD(TAG, "Something went wrong");
-  }
+  set_mode_(MODE_0_NORMAL);
+
+  ESP_LOGD(TAG, "Setup success");
 }
-bool Lora::set_mode_(ModeType mode) {
-  // data sheet claims module needs some extra time after mode setting (2ms)
-  // most of my projects uses 10 ms, but 40ms is safer
-
-  delay(40);
-
+void Lora::set_mode_(ModeType mode) {
+  if (!Lora::can_send_message_()) {
+    return;
+  }
   if (this->pin_m0_ == nullptr && this->pin_m1_ == nullptr) {
     ESP_LOGD(TAG, "The M0 and M1 pins is not set, this mean that you are connect directly the pins as you need!");
   } else {
@@ -73,46 +79,32 @@ bool Lora::set_mode_(ModeType mode) {
         this->pin_m1_->digital_write(true);
         ESP_LOGD(TAG, "MODE SLEEP CONFIG!");
         break;
-
-      default:
-        return false;
     }
   }
-  // data sheet says 2ms later control is returned, let's give just a bit more time
-  // these modules can take time to activate pins
-  delay(40);
-
   // wait until aux pin goes back low
-  bool result = this->wait_complete_response_(1000);
-
-  if (result) {
-    this->mode_ = mode;
-    ESP_LOGD(TAG, "Mode set");
-    return true;
-  } else {
-    ESP_LOGD(TAG, "No success setting mode");
+  this->setup_wait_response_(1000);
+  this->mode_ = mode;
+  ESP_LOGD(TAG, "Mode is going to be set");
+}
+bool Lora::can_send_message_() {
+  // if the pin is still high, we should not be doing anything
+  if (this->pin_aux_->digital_read()) {
+    ESP_LOGD(TAG, "Aux pin is still high!");
     return false;
+  } else {
+    // the pin isn't high anymore, but the system isn't updated yet
+    this->starting_to_check_ = 0;
+    this->time_out_after_ = 0;
+    return true;
   }
 }
-bool Lora::wait_complete_response_(uint32_t timeout) {
-  uint32_t start_millis = millis();
-
-  // make darn sure millis() is not about to reach max data type limit and start over
-  if ((start_millis + timeout) == 0) {
-    start_millis = 0;
+void Lora::setup_wait_response_(uint32_t timeout) {
+  if (this->starting_to_check_ != 0 || this->time_out_after_ != 0) {
+    ESP_LOGD(TAG, "Wait response already set!!  %u", timeout);
   }
-  ESP_LOGD(TAG, "Checking if response was complete");
-  // loop till not high, or the timeout is reached
-  while (!this->pin_aux_->digital_read()) {
-    if ((millis() - start_millis) > timeout) {
-      ESP_LOGD(TAG, "Timeout error!");
-      return false;
-    }
-    delayMicroseconds(2);
-  }
-  // per data sheet control after aux goes high is 2ms so delay for at least that long)
-  delayMicroseconds(2);
-  return true;
+  ESP_LOGD(TAG, "Setting a timer for %u", timeout);
+  this->starting_to_check_ = millis();
+  this->time_out_after_ = timeout;
 }
 void Lora::dump_config() {
   ESP_LOGCONFIG(TAG, "Ebyte Lora E220");
@@ -121,7 +113,10 @@ void Lora::dump_config() {
   LOG_PIN("M1 Pin:", this->pin_m1_);
 };
 void Lora::digital_write(uint8_t pin, bool value) { this->send_pin_info_(pin, value); }
-bool Lora::send_pin_info_(uint8_t pin, bool value) {
+void Lora::send_pin_info_(uint8_t pin, bool value) {
+  if (!Lora::can_send_message_()) {
+    return;
+  }
   uint8_t data[3];
   data[1] = 0xA5;   // just some bit to indicate, yo this is pin info
   data[1] = pin;    // Pin to send
@@ -130,13 +125,13 @@ bool Lora::send_pin_info_(uint8_t pin, bool value) {
   ESP_LOGD(TAG, "PIN: %u ", data[1]);
   ESP_LOGD(TAG, "VALUE: %u ", data[2]);
   this->write_array(data, sizeof(data));
-  bool return_value = this->wait_complete_response_(5000);
-  this->flush();
-  if (return_value)
-    ESP_LOGD(TAG, "Success!");
-  return return_value;
+  this->setup_wait_response_(5000);
+  ESP_LOGD(TAG, "Successfully put in queue");
 }
 void Lora::loop() {
+  if (!Lora::can_send_message_()) {
+    return;
+  }
   std::string buffer;
   std::vector<uint8_t> data;
   bool pin_data_found = false;
