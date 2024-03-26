@@ -2,6 +2,7 @@
 #include <utility>
 #include <vector>
 #include "esphome/core/component.h"
+#include "esphome/components/pcf8574/pcf8574.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/helpers.h"
@@ -40,6 +41,7 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   void set_pin_aux(GPIOPin *pin_aux) { pin_aux_ = pin_aux; }
   void set_pin_m0(GPIOPin *pin_m0) { pin_m0_ = pin_m0; }
   void set_pin_m1(GPIOPin *pin_m1) { pin_m1_ = pin_m1; }
+  void set_pcf8574(pcf8574::PCF8574Component *pcf8574) { pcf8574_ = pcf8574; }
 
  private:
   ModeType mode_ = MODE_INIT;
@@ -64,6 +66,7 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   GPIOPin *pin_aux_;
   GPIOPin *pin_m0_;
   GPIOPin *pin_m1_;
+  pcf8574::PCF8574Component *pcf8574_{nullptr};
 };
 
 }  // namespace lora

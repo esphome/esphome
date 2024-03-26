@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch
-from .. import CONF_LORA, Lora, lora_ns
+from .. import CONF_LORA, LoraComponent, lora_ns
 
 LoraSwitch = lora_ns.class_("LoraSwitch", switch.Switch, cg.Component)
 
@@ -10,7 +10,7 @@ CONFIG_SCHEMA = (
     switch.switch_schema(LoraSwitch, block_inverted=True)
     .extend(
         {
-            cv.Required(CONF_LORA): cv.use_id(Lora),
+            cv.Required(CONF_LORA): cv.use_id(LoraComponent),
             cv.Required(PIN_TO_SEND): cv.int_range(min=1, max=256),
         }
     )
