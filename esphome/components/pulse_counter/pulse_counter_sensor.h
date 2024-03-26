@@ -69,6 +69,7 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   void set_falling_edge_mode(PulseCounterCountMode mode) { storage_.falling_edge_mode = mode; }
   void set_filter_us(uint32_t filter) { storage_.filter_us = filter; }
   void set_total_sensor(sensor::Sensor *total_sensor) { total_sensor_ = total_sensor; }
+  void set_binary_sensor(sensor::Sensor *binary_sensor) { binary_sensor_ = binary_sensor; }
 
   void set_total_pulses(uint32_t pulses);
 
@@ -84,6 +85,7 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   uint32_t last_time_{0};
   uint32_t current_total_{0};
   sensor::Sensor *total_sensor_{nullptr};
+  sensor::Sensor *binary_sensor_{nullptr};
 };
 
 }  // namespace pulse_counter

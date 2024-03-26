@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation, pins
 from esphome.components import sensor
 from esphome.const import (
+    CONF_BINARY_SENSOR,
     CONF_COUNT_MODE,
     CONF_FALLING_EDGE,
     CONF_ID,
@@ -115,6 +116,7 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
+            cv.Optional(CONF_BINARY_SENSOR): sensor.sensor_schema(),
         },
     )
     .extend(cv.polling_component_schema("60s")),
@@ -136,6 +138,10 @@ async def to_code(config):
     if CONF_TOTAL in config:
         sens = await sensor.new_sensor(config[CONF_TOTAL])
         cg.add(var.set_total_sensor(sens))
+
+    if CONF_BINARY_SENSOR in config:
+        bsens = await sensor.new_sensor(config[CONF_BINARY_SENSOR])
+        cg.add(var.set_binary_sensor(bsens))
 
 
 @automation.register_action(
