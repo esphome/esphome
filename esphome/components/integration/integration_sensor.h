@@ -33,6 +33,7 @@ class IntegrationSensor : public sensor::Sensor, public Component {
   void set_method(IntegrationMethod method) { method_ = method; }
   void set_restore(bool restore) { restore_ = restore; }
   void reset() { this->publish_and_save_(0.0f); }
+  void reset_to_value(float value) { this->publish_and_save_(value); }
 
  protected:
   void process_sensor_value_(float value);
