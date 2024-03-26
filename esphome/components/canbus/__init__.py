@@ -91,6 +91,13 @@ CANBUS_SCHEMA = cv.Schema(
 
 CANBUS_SCHEMA.add_extra(validate_id)
 
+# A schema to use for all CANBUS devices
+CANBUS_DEVICE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
+    }
+)
+
 
 async def setup_canbus_core_(var, config):
     await cg.register_component(var, config)
