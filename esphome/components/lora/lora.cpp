@@ -137,7 +137,7 @@ void Lora::send_pin_info_(uint8_t pin, bool value) {
   uint8_t data[3];
   data[1] = 0xFF;   // just some bit to indicate, yo this is pin info
   data[1] = pin;    // Pin to send
-  data[2] = value;  // high or low
+  data[2] = value;  // Inverted for the pcf8574
   ESP_LOGD(TAG, "Sending message");
   ESP_LOGD(TAG, "PIN: %u ", data[1]);
   ESP_LOGD(TAG, "VALUE: %u ", data[2]);
@@ -167,9 +167,9 @@ void Lora::loop() {
     if (this->message_text_sensor_ != nullptr)
       this->message_text_sensor_->publish_state("Got something");
     if (this->pcf8574_ != nullptr) {
-      ESP_LOGD(TAG, " pcf8574_ PIN: %u ", data[1]);
-      ESP_LOGD(TAG, " pcf8574_ VALUE: %u ", data[2]);
-      this->pcf8574_->digital_write(data[1], data[2]);
+      ESP_LOGD(TAG, "pcf8574 PIN: %u ", data[1]);
+      ESP_LOGD(TAG, "pcf8574 VALUE: %u ", !data[2]);
+      this->pcf8574_->digital_write(data[1], !data[2]);
     }
   } else {
     ESP_LOGD(TAG, "WEIRD");
