@@ -7,7 +7,7 @@ LoraSwitch = lora_ns.class_("LoraSwitch", switch.Switch, cg.Component)
 
 PIN_TO_SEND = "pin_to_send"
 CONFIG_SCHEMA = (
-    switch.switch_schema(LoraSwitch, block_inverted=True)
+    switch.switch_schema(LoraSwitch)
     .extend(
         {
             cv.Required(CONF_LORA): cv.use_id(LoraComponent),
