@@ -42,6 +42,7 @@ esphome/components/as5600/* @ammmze
 esphome/components/as5600/sensor/* @ammmze
 esphome/components/as7341/* @mrgnr
 esphome/components/async_tcp/* @OttoWinter
+esphome/components/at581x/* @X-Ryl669
 esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/atm90e26/* @danieltwagner
 esphome/components/b_parasite/* @rbaron
@@ -172,6 +173,7 @@ esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
 esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
+esphome/components/jsn_sr04t/* @Mafus1
 esphome/components/json/* @OttoWinter
 esphome/components/kamstrup_kmp/* @cfeenstra1024
 esphome/components/key_collector/* @ssieb
