@@ -1,0 +1,28 @@
+output:
+  - platform: ledc
+    id: light_output_1
+    pin: 12
+  - platform: ledc
+    id: light_output_2
+    pin: 13
+  - platform: ledc
+    id: light_output_3
+    pin: 14
+  - platform: ledc
+    id: light_output_4
+    pin: 15
+  - platform: ledc
+    id: light_output_5
+    pin: 16
+
+light:
+  - platform: rgbww
+    name: RGBWW Light
+    red: light_output_1
+    green: light_output_2
+    blue: light_output_3
+    cold_white: light_output_4
+    warm_white: light_output_5
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    color_interlock: true

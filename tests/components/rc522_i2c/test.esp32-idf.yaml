@@ -1,0 +1,17 @@
+i2c:
+  - id: i2c_rc522
+    scl: 16
+    sda: 17
+
+rc522_i2c:
+  - id: rc522_nfcc
+    update_interval: 1s
+    on_tag:
+      - lambda: |-
+          ESP_LOGD("main", "Found tag %s", x.c_str());
+
+binary_sensor:
+  - platform: rc522
+    rc522_id: rc522_nfcc
+    name: RC522 NFC Tag
+    uid: 74-10-37-94
