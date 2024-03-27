@@ -5,12 +5,12 @@
 // Implementation based on:
 //   https://github.com/sciosense/ENS160_driver
 
-#include "ens160.h"
+#include "ens160_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
 namespace esphome {
-namespace ens160 {
+namespace ens160_base {
 
 static const char *const TAG = "ens160";
 
@@ -303,7 +303,6 @@ void ENS160Component::dump_config() {
   ESP_LOGI(TAG, "Firmware Version: %d.%d.%d", this->firmware_ver_major_, this->firmware_ver_minor_,
            this->firmware_ver_build_);
 
-  LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "CO2 Sensor:", this->co2_);
   LOG_SENSOR("  ", "TVOC Sensor:", this->tvoc_);
@@ -317,5 +316,5 @@ void ENS160Component::dump_config() {
   }
 }
 
-}  // namespace ens160
+}  // namespace ens160_base
 }  // namespace esphome
