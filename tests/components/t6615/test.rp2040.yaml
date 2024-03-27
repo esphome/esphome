@@ -1,0 +1,10 @@
+uart:
+  - id: uart_t6615
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 19200
+
+sensor:
+  - platform: t6615
+    co2:
+      name: CO2 Sensor

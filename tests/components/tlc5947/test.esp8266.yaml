@@ -1,0 +1,13 @@
+tlc5947:
+  clock_pin: 5
+  data_pin: 4
+  lat_pin: 13
+
+output:
+  - platform: tlc5947
+    id: output_1
+    channel: 0
+    max_power: 0.8
+  - platform: tlc5947
+    id: output_2
+    channel: 1

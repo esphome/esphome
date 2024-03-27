@@ -1,0 +1,12 @@
+display:
+  - platform: tm1621
+    id: tm1621_display
+    cs_pin: 7
+    data_pin: 4
+    read_pin: 5
+    write_pin: 6
+    lambda: |-
+      it.printf(0, "%.1f", 20.0);
+      it.display_celsius(true);
+      it.printf(1, "%.1f", 20.0);
+      it.display_humidity(true);

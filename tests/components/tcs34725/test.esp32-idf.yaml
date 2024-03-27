@@ -1,0 +1,21 @@
+i2c:
+  - id: i2c_tcs34725
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: tcs34725
+    red_channel:
+      name: Red Channel
+    green_channel:
+      name: Green Channel
+    blue_channel:
+      name: Blue Channel
+    clear_channel:
+      name: Clear Channel
+    illuminance:
+      name: Illuminance
+    color_temperature:
+      name: Color Temperature
+    integration_time: 614ms
+    gain: 60x
