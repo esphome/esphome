@@ -106,8 +106,10 @@ struct EAPAuth {
   // used for EAP-TLS
   const char *client_cert;
   const char *client_key;
-  // used for EAP-TTLS
+// used for EAP-TTLS
+#ifdef USE_ESP_IDF
   esp_eap_ttls_phase2_types ttls_phase_2;
+#endif
 };
 #endif  // USE_WIFI_WPA2_EAP
 

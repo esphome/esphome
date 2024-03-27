@@ -113,7 +113,9 @@ EAP_AUTH_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME): cv.string_strict,
             cv.Optional(CONF_PASSWORD): cv.string_strict,
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
-            cv.Optional(CONF_TTLS_PHASE_2): cv.enum(TTLS_PHASE_2),
+            cv.Optional(CONF_TTLS_PHASE_2): cv.All(
+                cv.enum(TTLS_PHASE_2), cv.only_with_esp_idf
+            ),
             cv.Inclusive(
                 CONF_CERTIFICATE, "certificate_and_key"
             ): wpa2_eap.validate_certificate,
