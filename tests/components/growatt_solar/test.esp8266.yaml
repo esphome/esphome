@@ -15,39 +15,39 @@ sensor:
       name: Growatt Status Code
     phase_a:
       voltage:
-          name: Growatt Voltage Phase A
+        name: Growatt Voltage Phase A
       current:
-          name: Growatt Current Phase A
+        name: Growatt Current Phase A
       active_power:
-          name: Growatt Power Phase A
+        name: Growatt Power Phase A
     phase_b:
       voltage:
-          name: Growatt Voltage Phase B
+        name: Growatt Voltage Phase B
       current:
-          name: Growatt Current Phase B
+        name: Growatt Current Phase B
       active_power:
-          name: Growatt Power Phase B
+        name: Growatt Power Phase B
     phase_c:
       voltage:
-          name: Growatt Voltage Phase C
+        name: Growatt Voltage Phase C
       current:
-          name: Growatt Current Phase C
+        name: Growatt Current Phase C
       active_power:
-          name: Growatt Power Phase C
+        name: Growatt Power Phase C
     pv1:
       voltage:
-          name: Growatt PV1 Voltage
+        name: Growatt PV1 Voltage
       current:
-          name: Growatt PV1 Current
+        name: Growatt PV1 Current
       active_power:
-          name: Growatt PV1 Active Power
+        name: Growatt PV1 Active Power
     pv2:
       voltage:
-          name: Growatt PV2 Voltage
+        name: Growatt PV2 Voltage
       current:
-          name: Growatt PV2 Current
+        name: Growatt PV2 Current
       active_power:
-          name: Growatt PV2 Active Power
+        name: Growatt PV2 Active Power
     active_power:
       name: Growatt Grid Active Power
     pv_active_power:
