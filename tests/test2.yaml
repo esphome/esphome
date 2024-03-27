@@ -311,6 +311,20 @@ sensor:
     id: motion_rtcgq02lm
     battery_level:
       name: Mi Motion Sensor 2 Battery level
+  - platform: ltr_als_ps
+    address: 0x23
+    gain: 1x
+    integration_time: 100ms
+    ps_cooldown: 5 s
+    ambient_light:
+      name: "Ambient light"
+    full_spectrum_counts:
+      name: "Full spectrum counts"
+    infrared_counts:
+      name: "Infrared counts"
+    actual_gain:
+      name: "Actual gain"
+    update_interval: 60s
   - platform: ltr390
     uv:
       name: LTR390 UV
