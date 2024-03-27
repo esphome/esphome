@@ -8,7 +8,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/log.h"
-#include "switch/ebyte_lora_switch.h"
 
 namespace esphome {
 namespace ebyte_lora {
