@@ -198,23 +198,37 @@ void WaveshareEPaper7C::init_internal_(uint32_t buffer_length) {
 }
 uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
   uint8_t hex_code;
-  if (((color.red < 127) && (color.green < 127) && (color.blue < 127))) {
-    hex_code = 0x0;  // Black
-  } else if (((color.red > 127) && (color.green > 127) && (color.blue > 127))) {
-    hex_code = 0x1;  // White
-  } else if (((color.red < 127) && (color.green > 127) && (color.blue < 127))) {
-    hex_code = 0x2;  // Green
-  } else if (((color.red < 127) && (color.green < 127) && (color.blue > 127))) {
-    hex_code = 0x3;  // Blue
-  } else if (((color.red > 127) && (color.green < 127) && (color.blue < 127))) {
-    hex_code = 0x4;  // Red
-  } else if (((color.red > 127) && (color.green > 127) && (color.blue < 127))) {
-    hex_code = 0x5;  // Yellow
-  } else if (((color.red > 127) && (color.green > 64) && (color.green < 191) && (color.blue < 127))) {
-    hex_code = 0x6;  // Orange
+
+  if (color.red > 127) {
+    if (color.blue > 127) {
+      if (color.green > 127) {
+        hex_code = 0x1;  // White
+      } else {
+        hex_code = 0x5;  // Yellow
+      }
+    } else {
+      if (color.green > 85 && color.green < 170 ) {
+        hex_code = 0x6;  // Orange
+      } else {
+        hex_code = 0x4;  // Red
+      }
+    }
   } else {
-    hex_code = 0x1;  // White
+    if (color.green > 127) {
+      if (color.blue > 127) {
+        hex_code = 0x3;  // Blue
+      } else {
+        hex_code = 0x2;  // Green
+      }
+    } else {
+      if (color.blue > 127) {
+        hex_code = 0x3;  // Blue
+      } else {
+        hex_code = 0x0;  // Black
+      }
+    }
   }
+
   return hex_code;
 }
 void WaveshareEPaper7C::fill(Color color) {
@@ -225,7 +239,7 @@ void WaveshareEPaper7C::fill(Color color) {
     pixel_color = 0x1;
   }
 
-  if (this->buffers_ == nullptr) {
+  if (this->buffers_[0] == nullptr) {
     ESP_LOGE(TAG, "Buffer unavailable!");
   } else {
     uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
@@ -2496,7 +2510,7 @@ void WaveshareEPaper7P5In::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 void WaveshareEPaper7P3InF::initialize() {
-  if (this->buffers_ == nullptr) {
+  if (this->buffers_[0] == nullptr) {
     ESP_LOGE(TAG, "Buffer unavailable!");
     return;
   }
@@ -2599,11 +2613,10 @@ void WaveshareEPaper7P3InF::initialize() {
   ESP_LOGI(TAG, "Display initialized successfully");
 }
 void HOT WaveshareEPaper7P3InF::display() {
-  if (this->buffers_ == nullptr) {
+  if (this->buffers_[0] == nullptr) {
     ESP_LOGE(TAG, "Buffer unavailable!");
     return;
   }
-  uint32_t buf_len = this->get_buffer_length_();
 
   // INITIALIZATION
   ESP_LOGI(TAG, "Initialise the display");
