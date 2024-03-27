@@ -11,6 +11,13 @@ display:
     cs_pin: 5
     dc_pin: 15
     reset_pin: 16
+    lambda: |-
+      // Draw a QR code in the center of the screen
+      auto scale = 2;
+      auto size = id(homepage_qr).get_size() * scale;
+      auto x = (it.get_width() / 2) - (size / 2);
+      auto y = (it.get_height() / 2) - (size / 2);
+      it.qr_code(x, y, id(homepage_qr), Color(255,255,255), scale);
 
 qr_code:
   - id: homepage_qr
