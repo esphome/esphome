@@ -1,0 +1,13 @@
+spi:
+  - id: spi_max31855
+    clk_pin: 14
+    mosi_pin: 13
+    miso_pin: 12
+
+sensor:
+  - platform: max31855
+    name: MAX31855 Temperature
+    cs_pin: 15
+    update_interval: 15s
+    reference_temperature:
+      name: MAX31855 Internal Temperature

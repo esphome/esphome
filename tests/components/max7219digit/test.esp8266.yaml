@@ -1,0 +1,16 @@
+spi:
+  - id: spi_max7219digit
+    clk_pin: 14
+    mosi_pin: 13
+    miso_pin: 12
+
+display:
+  - platform: max7219digit
+    cs_pin: 15
+    num_chips: 4
+    rotate_chip: 0
+    intensity: 10
+    scroll_mode: STOP
+    id: my_matrix
+    lambda: |-
+      it.printdigit("hello");

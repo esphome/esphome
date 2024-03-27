@@ -1,0 +1,19 @@
+i2c:
+  - id: i2c_max6956
+    scl: 16
+    sda: 17
+
+max6956:
+  - id: max6956_1
+    address: 0x40
+
+binary_sensor:
+  - platform: gpio
+    name: Max Input Pin 4
+    pin:
+      max6956: max6956_1
+      number: 4
+      mode:
+        input: true
+        pullup: true
+      inverted: false

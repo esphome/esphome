@@ -1,0 +1,13 @@
+spi:
+  - id: spi_max31865
+    clk_pin: 6
+    mosi_pin: 7
+    miso_pin: 5
+
+sensor:
+  - platform: max31865
+    name: MAX31865 Temperature
+    cs_pin: 8
+    update_interval: 15s
+    reference_resistance: 430 Ω
+    rtd_nominal_resistance: 100 Ω
