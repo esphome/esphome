@@ -2,9 +2,9 @@
 #include <utility>
 #include <vector>
 #include "esphome/core/component.h"
-#include "esphome/components/pcf8574/pcf8574.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/components/switch/switch.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/log.h"
@@ -42,7 +42,6 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void register_sensor(EbyteLoraSwitch *obj) { this->sensors_.push_back(obj); }
   void set_pin_m0(GPIOPin *pin_m0) { pin_m0_ = pin_m0; }
   void set_pin_m1(GPIOPin *pin_m1) { pin_m1_ = pin_m1; }
-  void set_pcf8574(pcf8574::PCF8574Component *pcf8574) { pcf8574_ = pcf8574; }
 
  private:
   std::vector<EbyteLoraSwitch *> sensors_;
@@ -58,8 +57,6 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
  protected:
   bool update_needed_ = false;
   int rssi_ = 0;
-  float latitude_ = -1;
-  float longitude_ = -1;
   uint32_t starting_to_check_;
   uint32_t time_out_after_;
   std::string raw_message_;
@@ -68,7 +65,6 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   GPIOPin *pin_aux_;
   GPIOPin *pin_m0_;
   GPIOPin *pin_m1_;
-  pcf8574::PCF8574Component *pcf8574_{nullptr};
 };
 class EbyteLoraSwitch : public switch_::Switch, public Component {
  public:
