@@ -1,0 +1,14 @@
+uart:
+  - id: uart_pzem004t
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 115200
+
+sensor:
+  - platform: pzem004t
+    voltage:
+      name: PZEM004T Voltage
+    current:
+      name: PZEM004T Current
+    power:
+      name: PZEM004T Power

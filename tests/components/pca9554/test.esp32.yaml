@@ -1,0 +1,26 @@
+i2c:
+  - id: i2c_pca9554
+    scl: 16
+    sda: 17
+
+pca9554:
+  - id: pca9554_hub
+    pin_count: 8
+    address: 0x3F
+
+binary_sensor:
+  - platform: gpio
+    id: pca9554_input
+    name: PCA9554 Binary Sensor
+    pin:
+      pca9554: pca9554_hub
+      number: 1
+      mode: INPUT
+      inverted: true
+  - platform: gpio
+    id: pca9554_output
+    pin:
+      pca9554: pca9554_hub
+      number: 0
+      mode: OUTPUT
+      inverted: false

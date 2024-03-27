@@ -1,0 +1,14 @@
+spi:
+  - id: spi_pcd8544
+    clk_pin: 16
+    mosi_pin: 17
+    miso_pin: 15
+
+display:
+  - platform: pcd8544
+    cs_pin: 12
+    dc_pin: 13
+    reset_pin: 14
+    contrast: 60
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());

@@ -1,0 +1,27 @@
+i2c:
+  - id: i2c_pmsa003i
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: pmsa003i
+    pm_1_0:
+      name: PMSA003i PM1.0
+    pm_2_5:
+      name: PMSA003i PM2.5
+    pm_10_0:
+      name: PMSA003i PM10.0
+    pmc_0_3:
+      name: PMSA003i PMC <0.3µm
+    pmc_0_5:
+      name: PMSA003i PMC <0.5µm
+    pmc_1_0:
+      name: PMSA003i PMC <1µm
+    pmc_2_5:
+      name: PMSA003i PMC <2.5µm
+    pmc_5_0:
+      name: PMSA003i PMC <5µm
+    pmc_10_0:
+      name: PMSA003i PMC <10µm
+    address: 0x12
+    standard_units: true
