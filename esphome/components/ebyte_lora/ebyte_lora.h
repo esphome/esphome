@@ -27,6 +27,8 @@ enum ModeType {
   MODE_3_SLEEP = 3,
   MODE_INIT = 0xFF
 };
+// has to be defined first, will be implemented later
+class EbyteLoraSwitch;
 class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
