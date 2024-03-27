@@ -223,6 +223,9 @@ canbus:
     can_id: 4
     bit_rate: 50kbps
 
+sensor:
+  - platform: da217
+
 button:
   - platform: template
     name: Canbus Actions
