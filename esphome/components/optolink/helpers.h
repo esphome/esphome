@@ -23,7 +23,7 @@ inline bool check_time_values(const Time &time) {
 
 void rtrim(std::string &s);
 
-std::string decode_day_schedule(uint8_t *input);
+std::string decode_day_schedule(const uint8_t *input);
 
 uint8_t *encode_day_schedule(const std::string &input, uint8_t *output);
 
