@@ -10,9 +10,9 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace lora {
+namespace ebyte_lora {
 
-static const char *const TAG = "lora";
+static const char *const TAG = "ebyte_lora";
 static const uint8_t MAX_SIZE_TX_PACKET = 200;
 // the mode the receiver is in
 enum ModeType {
@@ -27,7 +27,7 @@ enum ModeType {
   MODE_3_SLEEP = 3,
   MODE_INIT = 0xFF
 };
-class Lora : public PollingComponent, public uart::UARTDevice {
+class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -69,5 +69,5 @@ class Lora : public PollingComponent, public uart::UARTDevice {
   pcf8574::PCF8574Component *pcf8574_{nullptr};
 };
 
-}  // namespace lora
+}  // namespace ebyte_lora
 }  // namespace esphome

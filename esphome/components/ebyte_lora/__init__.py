@@ -11,22 +11,25 @@ from esphome.const import (
     ENTITY_CATEGORY_NONE,
 )
 
+CODEOWNERS = ["@danielkoek"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["uart", "sensor", "text_sensor"]
 
-lora_ns = cg.esphome_ns.namespace("lora")
-LoraComponent = lora_ns.class_("Lora", cg.PollingComponent, uart.UARTDevice)
+ebyte_lora_ns = cg.esphome_ns.namespace("ebyte_lora")
+EbyteLoraComponent = ebyte_lora_ns.class_(
+    "EbyteLora", cg.PollingComponent, uart.UARTDevice
+)
+CONF_EBYTE_LORA = "ebyte_lora"
 CONF_PIN_AUX = "pin_aux"
 CONF_PIN_M0 = "pin_m0"
 CONF_PIN_M1 = "pin_m1"
 CONF_PCF8574 = "pcf8574"
 CONF_LORA_MESSAGE = "lora_message"
 CONF_LORA_RSSI = "lora_rssi"
-CONF_LORA = "lora"
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(LoraComponent),
+            cv.GenerateID(): cv.declare_id(EbyteLoraComponent),
             # for communication to let us know that we can receive data
             cv.Required(CONF_PIN_AUX): pins.gpio_input_pin_schema,
             # for communication set the mode

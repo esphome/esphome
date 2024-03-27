@@ -1,8 +1,8 @@
-#include "lora.h"
+#include "ebyte_lora.h"
 
 namespace esphome {
-namespace lora {
-void Lora::update() {
+namespace ebyte_lora {
+void EbyteLoraComponent::update() {
   can_send_message_();
   if (!this->update_needed_)
     return;
@@ -15,7 +15,7 @@ void Lora::update() {
   // reset the updater
   this->update_needed_ = false;
 }
-void Lora::setup() {
+void EbyteLoraComponent::setup() {
   this->pin_aux_->setup();
   this->pin_m0_->setup();
   this->pin_m1_->setup();
@@ -23,9 +23,9 @@ void Lora::setup() {
   ESP_LOGD(TAG, "Setup success");
 }
 
-ModeType Lora::get_mode_() {
+ModeType EbyteLoraComponent::get_mode_() {
   ModeType internalMode = MODE_INIT;
-  if (!Lora::can_send_message_()) {
+  if (!EbyteLoraComponent::can_send_message_()) {
     return internalMode;
   }
 
@@ -54,8 +54,8 @@ ModeType Lora::get_mode_() {
   }
   return internalMode;
 }
-void Lora::set_mode_(ModeType mode) {
-  if (!Lora::can_send_message_()) {
+void EbyteLoraComponent::set_mode_(ModeType mode) {
+  if (!can_send_message_()) {
     return;
   }
   if (this->pin_m0_ == nullptr && this->pin_m1_ == nullptr) {
@@ -95,7 +95,7 @@ void Lora::set_mode_(ModeType mode) {
   this->mode_ = mode;
   ESP_LOGD(TAG, "Mode is going to be set");
 }
-bool Lora::can_send_message_() {
+bool EbyteLoraComponent::can_send_message_() {
   // High means no more information is needed
   if (this->pin_aux_->digital_read()) {
     if (!this->starting_to_check_ == 0 && !this->time_out_after_ == 0) {
@@ -115,7 +115,7 @@ bool Lora::can_send_message_() {
     return false;
   }
 }
-void Lora::setup_wait_response_(uint32_t timeout) {
+void EbyteLoraComponent::setup_wait_response_(uint32_t timeout) {
   if (this->starting_to_check_ != 0 || this->time_out_after_ != 0) {
     ESP_LOGD(TAG, "Wait response already set!!  %u", timeout);
   }
@@ -123,15 +123,15 @@ void Lora::setup_wait_response_(uint32_t timeout) {
   this->starting_to_check_ = millis();
   this->time_out_after_ = timeout;
 }
-void Lora::dump_config() {
+void EbyteLoraComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Ebyte Lora E220");
   LOG_PIN("Aux pin:", this->pin_aux_);
   LOG_PIN("M0 Pin:", this->pin_m0_);
   LOG_PIN("M1 Pin:", this->pin_m1_);
 };
-void Lora::digital_write(uint8_t pin, bool value) { this->send_pin_info_(pin, value); }
-void Lora::send_pin_info_(uint8_t pin, bool value) {
-  if (!Lora::can_send_message_()) {
+void EbyteLoraComponent::digital_write(uint8_t pin, bool value) { this->send_pin_info_(pin, value); }
+void EbyteLoraComponent::send_pin_info_(uint8_t pin, bool value) {
+  if (!EbyteLoraComponent::can_send_message_()) {
     return;
   }
   uint8_t data[3];
@@ -145,7 +145,7 @@ void Lora::send_pin_info_(uint8_t pin, bool value) {
   this->setup_wait_response_(5000);
   ESP_LOGD(TAG, "Successfully put in queue");
 }
-void Lora::loop() {
+void EbyteLoraComponent::loop() {
   std::string buffer;
   std::vector<uint8_t> data;
   if (!this->available())
@@ -175,5 +175,5 @@ void Lora::loop() {
     ESP_LOGD(TAG, "WEIRD");
   }
 }
-}  // namespace lora
+}  // namespace ebyte_lora
 }  // namespace esphome
