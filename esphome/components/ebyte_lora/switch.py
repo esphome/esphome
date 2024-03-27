@@ -1,8 +1,10 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch
-from .. import EbyteLoraComponent, CONF_EBYTE_LORA, ebyte_lora_ns
+from . import EbyteLoraComponent, CONF_EBYTE_LORA, ebyte_lora_ns
 
+
+DEPENDENCIES = ["ebyte_lora"]
 EbyteLoraSwitch = ebyte_lora_ns.class_("EbyteLoraSwitch", switch.Switch, cg.Component)
 
 PIN_TO_SEND = "pin_to_send"

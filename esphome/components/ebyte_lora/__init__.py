@@ -14,6 +14,7 @@ from esphome.const import (
 CODEOWNERS = ["@danielkoek"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["uart", "sensor", "text_sensor"]
+MULTI_CONF = True
 
 ebyte_lora_ns = cg.esphome_ns.namespace("ebyte_lora")
 EbyteLoraComponent = ebyte_lora_ns.class_(
