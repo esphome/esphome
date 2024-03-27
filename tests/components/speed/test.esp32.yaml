@@ -1,0 +1,9 @@
+output:
+  - platform: ledc
+    id: fan_output_1
+    pin: 12
+
+fan:
+  - platform: speed
+    id: fan_speed
+    output: fan_output_1

@@ -1,0 +1,17 @@
+esphome:
+  on_boot:
+    then:
+      - speaker.play: [0, 1, 2, 3]
+      - speaker.stop
+
+i2s_audio:
+  i2s_lrclk_pin: 6
+  i2s_bclk_pin: 7
+  i2s_mclk_pin: 5
+
+speaker:
+  - platform: i2s_audio
+    id: speaker_id
+    dac_type: external
+    i2s_dout_pin: 3
+    mode: mono
