@@ -115,6 +115,7 @@ int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
   while (this->stream_ptr_->available() == 0) {
     // give other tasks a chance to run while waiting for some data:
     // ESP_LOGVV(TAG, "not enougth data available: %zu (total read: %zu)", streamPtr->available(), bytes_read);
+    App.feed_wdt();
     yield();
     delay(1);
   }

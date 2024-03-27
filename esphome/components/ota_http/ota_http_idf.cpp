@@ -80,6 +80,7 @@ int OtaHttpIDF::http_init(char *url) {
 
 int OtaHttpIDF::http_read(uint8_t *buf, const size_t max_len) {
   int bufsize = std::min(max_len, this->body_length_ - this->bytes_read_);
+  App.feed_wdt();
   int read_len = esp_http_client_read(this->client_, (char *) buf, bufsize);
   if (read_len > 0) {
     this->bytes_read_ += bufsize;

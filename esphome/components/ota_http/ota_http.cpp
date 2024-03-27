@@ -87,6 +87,10 @@ void OtaHttpComponent::flash() {
     // read a maximum of chunk_size bytes into buf. (real read size returned)
     int bufsize = this->http_read(buf, this->http_recv_buffer_);
 
+    // feed watchdog and give other tasks a chance to run
+      App.feed_wdt();
+      yield();
+
     if (bufsize < 0) {
       ESP_LOGE(TAG, "Stream closed");
       this->cleanup_();
@@ -112,9 +116,6 @@ void OtaHttpComponent::flash() {
     if ((now - last_progress > 1000) or (this->bytes_read_ == this->body_length_)) {
       last_progress = now;
       ESP_LOGI(TAG, "Progress: %0.1f%%", this->bytes_read_ * 100. / this->body_length_);
-      // feed watchdog and give other tasks a chance to run
-      App.feed_wdt();
-      yield();
     }
   }  // while
 
