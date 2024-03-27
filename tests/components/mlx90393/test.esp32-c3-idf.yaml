@@ -1,0 +1,20 @@
+i2c:
+  - id: i2c_mlx90393
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: mlx90393
+    oversampling: 1
+    filter: 0
+    gain: 3X
+    x_axis:
+      name: mlxxaxis
+    y_axis:
+      name: mlxyaxis
+    z_axis:
+      name: mlxzaxis
+      resolution: 17BIT
+    temperature:
+      name: mlxtemp
+      oversampling: 2

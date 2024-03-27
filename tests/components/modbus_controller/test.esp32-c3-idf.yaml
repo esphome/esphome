@@ -1,0 +1,14 @@
+uart:
+  - id: uart_modbus
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 9600
+
+modbus:
+  id: mod_bus1
+  flow_control_pin: 6
+
+modbus_controller:
+  - id: modbus_controller1
+    address: 0x2
+    modbus_id: mod_bus1

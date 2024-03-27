@@ -1,0 +1,20 @@
+i2c:
+  - id: i2c_mics_4514
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: mics_4514
+    update_interval: 60s
+    nitrogen_dioxide:
+      name: MICS-4514 NO2
+    carbon_monoxide:
+      name: MICS-4514 CO
+    methane:
+      name: MICS-4514 CH4
+    hydrogen:
+      name: MICS-4514 H2
+    ethanol:
+      name: MICS-4514 C2H5OH
+    ammonia:
+      name: MICS-4514 NH3

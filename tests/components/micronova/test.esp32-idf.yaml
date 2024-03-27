@@ -1,0 +1,49 @@
+uart:
+  - id: uart_micronova
+    tx_pin: 17
+    rx_pin: 16
+    baud_rate: 9600
+
+micronova:
+  enable_rx_pin: 18
+
+button:
+  - platform: micronova
+    custom_button:
+      name: Custom Micronova Button
+      memory_location: 0xA0
+      memory_address: 0x7D
+      memory_data: 0x0F
+
+number:
+  - platform: micronova
+    thermostat_temperature:
+      name: Micronova Thermostaat
+      step: 1
+    power_level:
+      name: Micronova Power level
+
+sensor:
+  - platform: micronova
+    room_temperature:
+      name: Room Temperature
+    fumes_temperature:
+      name: Fumes Temperature
+    water_temperature:
+      name: Water temperature
+    water_pressure:
+      name: Water pressure
+    stove_power:
+      name: Stove Power
+    fan_speed:
+      fan_rpm_offset: 240
+      name: Fan RPM
+    memory_address_sensor:
+      memory_location: 0x20
+      memory_address: 0x7d
+      name: Adres sensor
+
+switch:
+  - platform: micronova
+    stove:
+      name: Stove on/off
