@@ -85,10 +85,10 @@ light:
     red: pca_0
     green: pca_1
     blue: pca_2
-  - platform: fastled_clockless
+  - platform: fastled
     id: addr1
     chipset: WS2811
-    pin:
+    data_pin:
       allow_other_uses: true
       number: GPIO23
     num_leds: 60
@@ -169,7 +169,7 @@ light:
                 green: 100%
                 blue: 0%
 
-  - platform: fastled_spi
+  - platform: fastled
     id: addr2
     chipset: WS2801
     data_pin:
