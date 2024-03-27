@@ -19,7 +19,7 @@
 #include <WiFi.h>
 #endif
 
-#ifdef USE_WIFI_WPA2_EAP
+#if defined(USE_ESP_IDF) && defined(USE_WIFI_WPA2_EAP)
 #include <esp_wpa2.h>
 #endif
 
