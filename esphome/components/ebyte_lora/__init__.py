@@ -17,7 +17,7 @@ AUTO_LOAD = ["uart", "sensor", "text_sensor"]
 
 ebyte_lora_ns = cg.esphome_ns.namespace("ebyte_lora")
 EbyteLoraComponent = ebyte_lora_ns.class_(
-    "EbyteLora", cg.PollingComponent, uart.UARTDevice
+    "EbyteLoraComponent", cg.PollingComponent, uart.UARTDevice
 )
 CONF_EBYTE_LORA = "ebyte_lora"
 CONF_PIN_AUX = "pin_aux"
