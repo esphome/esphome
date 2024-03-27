@@ -77,12 +77,6 @@ def validate_certificate(value):
     return value
 
 
-def validate_ttls_phase_2(value):
-    if value in ("pap", "chap", "mschap", "mschapv2", "eap"):
-        return value
-    raise cv.Invalid(f"Unsupported TTLS Phase 2: {value}")
-
-
 def _validate_load_private_key(key, cert_pw):
     key = cv.file_(key)
     try:

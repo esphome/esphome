@@ -19,6 +19,10 @@
 #include <WiFi.h>
 #endif
 
+#ifdef USE_WIFI_WPA2_EAP
+#include <esp_wpa2.h>
+#endif
+
 #ifdef USE_ESP8266
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiType.h>
@@ -103,7 +107,7 @@ struct EAPAuth {
   const char *client_cert;
   const char *client_key;
   // used for EAP-TTLS
-  std::string ttls_phase_2;
+  esp_eap_ttls_phase2_types ttls_phase_2;
 };
 #endif  // USE_WIFI_WPA2_EAP
 
