@@ -1,0 +1,16 @@
+sm16716:
+  clock_pin: 4
+  data_pin: 5
+  num_channels: 3
+  num_chips: 1
+
+output:
+  - platform: sm16716
+    id: sm16716_red
+    channel: 1
+  - platform: sm16716
+    id: sm16716_green
+    channel: 0
+  - platform: sm16716
+    id: sm16716_blue
+    channel: 2
