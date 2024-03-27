@@ -51,10 +51,12 @@ BASE_CONFIG_FRIENDLY = """esphome:
   friendly_name: {friendly_name}
 """
 
-LOGGER_API_CONFIG = """
+LOGGER_CONFIG = """
 # Enable logging
 logger:
+"""
 
+API_CONFIG = """
 # Enable Home Assistant API
 api:
 """
@@ -136,7 +138,12 @@ def wizard_file(**kwargs):
 
     config += HARDWARE_BASE_CONFIGS[kwargs["platform"]].format(**kwargs)
 
-    config += LOGGER_API_CONFIG
+    config += LOGGER_CONFIG
+
+    if kwargs["board"] == "rpipico":
+        return config
+
+    config += API_CONFIG
 
     # Configure API
     if "password" in kwargs:

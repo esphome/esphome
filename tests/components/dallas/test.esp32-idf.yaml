@@ -1,0 +1,11 @@
+dallas:
+  pin: 4
+
+sensor:
+  - platform: dallas
+    address: 0x1C0000031EDD2A28
+    name: Dallas Temperature
+    resolution: 9
+  - platform: dallas
+    index: 1
+    name: Dallas Temperature

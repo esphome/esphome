@@ -23,7 +23,7 @@ class XPT2046Component : public Touchscreen,
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
+  // float get_setup_priority() const override;
 
  protected:
   static int16_t best_two_avg(int16_t value1, int16_t value2, int16_t value3);
