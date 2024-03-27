@@ -45,6 +45,9 @@ class Image : public display::BaseImage {
   void set_transparency(bool transparent) { transparent_ = transparent; }
   bool has_transparency() const { return transparent_; }
 
+  void set_vertical(bool vertical) { vertical_ = vertical; }
+  bool is_vertical() const { return vertical_; }
+
  protected:
   bool get_binary_pixel_(int x, int y) const;
   Color get_rgb24_pixel_(int x, int y) const;
@@ -57,6 +60,7 @@ class Image : public display::BaseImage {
   ImageType type_;
   const uint8_t *data_start_;
   bool transparent_;
+  bool vertical_;
 };
 
 }  // namespace image
