@@ -17,12 +17,12 @@ key_collector:
     on_progress:
       - logger.log:
           format: "input progress: '%s', started by '%c'"
-          args: [ 'x.c_str()', "(start == 0 ? '~' : start)" ]
+          args: ['x.c_str()', "(start == 0 ? '~' : start)"]
     on_result:
       - logger.log:
           format: "input result: '%s', started by '%c', ended by '%c'"
-          args: [ 'x.c_str()', "(start == 0 ? '~' : start)", "(end == 0 ? '~' : end)" ]
+          args: ['x.c_str()', "(start == 0 ? '~' : start)", "(end == 0 ? '~' : end)"]
     on_timeout:
       - logger.log:
           format: "input timeout: '%s', started by '%c'"
-          args: [ 'x.c_str()', "(start == 0 ? '~' : start)" ]
+          args: ['x.c_str()', "(start == 0 ? '~' : start)"]
