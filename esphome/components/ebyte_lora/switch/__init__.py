@@ -24,3 +24,4 @@ async def to_code(config):
     await cg.register_component(var, config)
     cg.add(var.set_parent(parent))
     cg.add(var.set_pin(config[PIN_TO_SEND]))
+    cg.add(parent.register_sensor(var))

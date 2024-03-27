@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import sensor, text_sensor, uart, pcf8574
+from esphome.components import sensor, text_sensor, uart
 
 from esphome.const import (
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -23,7 +23,6 @@ CONF_EBYTE_LORA = "ebyte_lora"
 CONF_PIN_AUX = "pin_aux"
 CONF_PIN_M0 = "pin_m0"
 CONF_PIN_M1 = "pin_m1"
-CONF_PCF8574 = "pcf8574"
 CONF_LORA_MESSAGE = "lora_message"
 CONF_LORA_RSSI = "lora_rssi"
 CONFIG_SCHEMA = (
@@ -40,7 +39,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_LORA_MESSAGE): text_sensor.text_sensor_schema(
                 entity_category=ENTITY_CATEGORY_NONE,
             ),
-            cv.Optional(CONF_PCF8574): cv.use_id(pcf8574.PCF8574Component),
             # if you want to see the rssi
             cv.Optional(CONF_LORA_RSSI): sensor.sensor_schema(
                 device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -71,11 +69,6 @@ async def to_code(config):
     if CONF_LORA_MESSAGE in config:
         sens = await text_sensor.new_text_sensor(config[CONF_LORA_MESSAGE])
         cg.add(var.set_message_sensor(sens))
-
-    if CONF_PCF8574 in config:
-        comp = await cg.get_variable(config[CONF_PCF8574])
-        cg.add(var.set_pcf8574(comp))
-
     if CONF_LORA_RSSI in config:
         sens = await sensor.new_sensor(config[CONF_LORA_RSSI])
         cg.add(var.set_rssi_sensor(sens))

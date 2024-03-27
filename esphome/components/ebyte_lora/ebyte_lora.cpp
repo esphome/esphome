@@ -166,10 +166,12 @@ void EbyteLoraComponent::loop() {
       this->rssi_sensor_->publish_state(data[3]);
     if (this->message_text_sensor_ != nullptr)
       this->message_text_sensor_->publish_state("Got something");
-    if (this->pcf8574_ != nullptr) {
-      ESP_LOGD(TAG, "pcf8574 PIN: %u ", data[1]);
-      ESP_LOGD(TAG, "pcf8574 VALUE: %u ", !data[2]);
-      this->pcf8574_->digital_write(data[1], !data[2]);
+
+    for (auto *sensor : this->sensors_) {
+      if (sensor->get_pin() == data[1]) {
+        ESP_LOGD(TAG, "Updating switch");
+        sensor->got_state_message(data[2]);
+      }
     }
   } else {
     ESP_LOGD(TAG, "WEIRD");
