@@ -206,8 +206,11 @@ def perform_ota(
 
     _, version = receive_exactly(sock, 2, "version", RESPONSE_OK)
     _LOGGER.debug("Device support OTA version: %s", version)
-    if version not in (OTA_VERSION_1_0, OTA_VERSION_2_0):
-        raise OTAError(f"Unsupported OTA version {version}")
+    supported_versions = (OTA_VERSION_1_0, OTA_VERSION_2_0)
+    if version not in supported_versions:
+        raise OTAError(
+            f"Device uses unsupported OTA version {version}, this ESPHome supports {supported_versions}"
+        )
 
     # Features
     send_check(sock, FEATURE_SUPPORTS_COMPRESSION, "features")

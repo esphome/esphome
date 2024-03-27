@@ -1,107 +1,172 @@
+---
 spi:
-  - id: spi_bme280
-    clk_pin: 16
-    mosi_pin: 17
-    miso_pin: 15
+  - id: spi_id_1
+    clk_pin:
+      number: GPIO18
+    mosi_pin:
+      number: GPIO23
+    miso_pin:
+      number: GPIO19
+    interface: hardware
 
 display:
   - platform: waveshare_epaper
+    model: 2.13in-ttgo-b1
+    spi_id: spi_id_1
     cs_pin:
       allow_other_uses: true
-      number: 4
+      number: GPIO25
     dc_pin:
       allow_other_uses: true
-      number: 4
+      number: GPIO26
     busy_pin:
       allow_other_uses: true
-      number: 4
+      number: GPIO27
     reset_pin:
       allow_other_uses: true
-      number: 4
-    model: 2.13in-ttgo-b1
+      number: GPIO32
     full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
+    model: 2.13in-ttgo-b74
+    spi_id: spi_id_1
     cs_pin:
       allow_other_uses: true
-      number: 4
+      number: GPIO25
     dc_pin:
       allow_other_uses: true
-      number: 4
+      number: GPIO26
     busy_pin:
       allow_other_uses: true
-      number: 4
+      number: GPIO27
     reset_pin:
       allow_other_uses: true
-      number: 4
+      number: GPIO32
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
     model: 2.90in
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO25
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO26
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO27
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO32
     full_update_every: 30
     reset_duration: 200ms
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
+    model: 2.90inv2
+    spi_id: spi_id_1
     cs_pin:
       allow_other_uses: true
-      number: 4
+      number: GPIO25
     dc_pin:
       allow_other_uses: true
-      number: 4
+      number: GPIO26
     busy_pin:
       allow_other_uses: true
-      number: 4
+      number: GPIO27
     reset_pin:
       allow_other_uses: true
-      number: 4
-    model: 2.90inv2
+      number: GPIO32
     full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
-    cs_pin:
-      allow_other_uses: true
-      number: 4
-    dc_pin:
-      allow_other_uses: true
-      number: 4
-    busy_pin:
-      allow_other_uses: true
-      number: 4
-    reset_pin:
-      allow_other_uses: true
-      number: 4
     model: 2.70in-b
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO25
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO26
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO27
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO32
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
-    cs_pin:
-      allow_other_uses: true
-      number: 4
-    dc_pin:
-      allow_other_uses: true
-      number: 4
-    busy_pin:
-      allow_other_uses: true
-      number: 4
-    reset_pin:
-      allow_other_uses: true
-      number: 4
     model: 2.70in-bv2
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO25
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO26
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO27
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO32
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
+    model: 1.54in-m5coreink-m09
+    spi_id: spi_id_1
     cs_pin:
       allow_other_uses: true
-      number: 4
+      number: GPIO25
     dc_pin:
       allow_other_uses: true
-      number: 4
+      number: GPIO26
     busy_pin:
       allow_other_uses: true
-      number: 4
+      number: GPIO27
     reset_pin:
       allow_other_uses: true
-      number: 4
-    model: 1.54in-m5coreink-m09
+      number: GPIO32
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.13inv3
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO25
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO26
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO27
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO32
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    model: 2.13inv2
+    spi_id: spi_id_1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO25
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO26
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO27
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO32
+    full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());

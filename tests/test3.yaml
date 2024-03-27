@@ -409,6 +409,7 @@ sensor:
       name: hydreon_total_acc
     r_int:
       name: hydreon_r_int
+    resolution: low
 
   - platform: adc
     pin: VCC
@@ -634,7 +635,11 @@ sensor:
     current:
       name: CSE7766 Current
     power:
-      name: CSE776 Power
+      name: CSE7766 Power
+    apparent_power:
+      name: CSE7766 Apparent Power
+    power_factor:
+      name: CSE7766 Power Factor
 
   - platform: fingerprint_grow
     fingerprint_count:
@@ -743,6 +748,31 @@ sensor:
     temperature:
       name: Kuntze temperature
 
+  - platform: haier
+    haier_id: haier_climate
+    compressor_current:
+      name: Haier AC compressor current
+    compressor_frequency:
+      name: Haier AC compressor frequency
+    expansion_valve_open_degree:
+      name: Haier AC expansion valve open degree
+    humidity:
+      name: Haier AC indoor humidity
+    indoor_coil_temperature:
+      name: Haier AC indoor coil temperature
+    outdoor_coil_temperature:
+      name: Haier AC outdoor coil temperature
+    outdoor_defrost_temperature:
+      name: Haier AC outdoor defrost temperature
+    outdoor_in_air_temperature:
+      name: Haier AC outdoor in air temperature
+    outdoor_out_air_temperature:
+      name: Haier AC outdoor out air temperature
+    outdoor_temperature:
+      name: Haier AC outdoor temperature
+    power:
+      name: Haier AC power
+
 time:
   - platform: homeassistant
 
@@ -808,6 +838,21 @@ binary_sensor:
     pin:
       allow_other_uses: true
       number: 3
+
+  - platform: haier
+    haier_id: haier_climate
+    compressor_status:
+      name: Haier AC compressor status
+    defrost_status:
+      name: Haier AC defrost status
+    four_way_valve_status:
+      name: Haier AC four-way valve status
+    indoor_electric_heating_status:
+      name: Haier AC indoor electric heating status
+    indoor_fan_status:
+      name: Haier AC indoor fan status
+    outdoor_fan_status:
+      name: Haier AC outdoor fan status
 
 globals:
   - id: my_global_string
@@ -1020,14 +1065,13 @@ climate:
       kd_multiplier: 0.0
       deadband_output_averaging_samples: 1
   - platform: haier
+    id: haier_climate
     protocol: hOn
     name: Haier AC
     uart_id: uart_12
     wifi_signal: true
     answer_timeout: 200ms
     beeper: true
-    outdoor_temperature:
-      name: Haier AC outdoor temperature
     visual:
       min_temperature: 16 °C
       max_temperature: 30 °C
@@ -1256,6 +1300,11 @@ fingerprint_grow:
   sensing_pin:
     allow_other_uses: true
     number: 4
+  sensor_power_pin:
+    allow_other_uses: true
+    number: 5
+    inverted: true
+  idle_period_to_sleep: 5s
   password: 0x12FE37DC
   new_password: 0xA65B9840
   on_finger_scan_start:
