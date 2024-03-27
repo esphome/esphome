@@ -16,6 +16,8 @@ static const uint8_t DALLAS_COMMAND_READ_SCRATCH_PAD = 0xBE;
 static const uint8_t DALLAS_COMMAND_WRITE_SCRATCH_PAD = 0x4E;
 
 uint16_t DallasTemperatureSensor::millis_to_wait_for_conversion() const {
+  if (this->chipset_ == DallasChipset::MAX31850)
+    return 100;  // For the MAX31850, resolution is 14, t_CONV = 100ms
   switch (this->resolution_) {
     case 9:
       return 94;
@@ -71,6 +73,7 @@ void DallasComponent::setup() {
     }
   }
 }
+
 void DallasComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "DallasComponent:");
   LOG_PIN("  Pin: ", this->pin_);
@@ -100,6 +103,7 @@ void DallasComponent::dump_config() {
 }
 
 void DallasComponent::register_sensor(DallasTemperatureSensor *sensor) { this->sensors_.push_back(sensor); }
+
 void DallasComponent::update() {
   this->status_clear_warning();
 
@@ -142,16 +146,26 @@ void DallasComponent::update() {
       float tempc = sensor->get_temp_c();
       ESP_LOGD(TAG, "'%s': Got Temperature=%.1f°C", sensor->get_name().c_str(), tempc);
       sensor->publish_state(tempc);
+      if (tempc == NAN)
+        this->status_set_warning();
     });
   }
 }
 
 void DallasTemperatureSensor::set_address(uint64_t address) { this->address_ = address; }
+
 uint8_t DallasTemperatureSensor::get_resolution() const { return this->resolution_; }
+
 void DallasTemperatureSensor::set_resolution(uint8_t resolution) { this->resolution_ = resolution; }
+
+void DallasTemperatureSensor::set_chipset(DallasChipset chipset) { this->chipset_ = chipset; }
+
 optional<uint8_t> DallasTemperatureSensor::get_index() const { return this->index_; }
+
 void DallasTemperatureSensor::set_index(uint8_t index) { this->index_ = index; }
+
 uint8_t *DallasTemperatureSensor::get_address8() { return reinterpret_cast<uint8_t *>(&this->address_); }
+
 const std::string &DallasTemperatureSensor::get_address_name() {
   if (this->address_name_.empty()) {
     this->address_name_ = std::string("0x") + format_hex(this->address_);
@@ -159,6 +173,7 @@ const std::string &DallasTemperatureSensor::get_address_name() {
 
   return this->address_name_;
 }
+
 bool IRAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
   auto *wire = this->parent_->one_wire_;
 
@@ -179,6 +194,7 @@ bool IRAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
 
   return true;
 }
+
 bool DallasTemperatureSensor::setup_sensor() {
   bool r = this->read_scratch_pad();
 
@@ -189,10 +205,18 @@ bool DallasTemperatureSensor::setup_sensor() {
   if (!this->check_scratch_pad())
     return false;
 
+  if (this->chipset_ == DallasChipset::MAX31850) {
+    // The MAX31850 does not support setting any configuration, and the resolution is
+    // statically set to 14 bits
+    ESP_LOGW(TAG, "MAX31850 doesn't support any configuration, resolution is 14 bits.");
+    resolution_ = 14;
+    return false;
+  }
+
   if (this->scratch_pad_[4] == this->resolution_)
     return false;
 
-  if (this->get_address8()[0] == DALLAS_MODEL_DS18S20) {
+  if (this->get_address8()[0] == DALLAS_MODEL_DS18S20 || this->chipset_ == DallasChipset::DS18S20) {
     // DS18S20 doesn't support resolution.
     ESP_LOGW(TAG, "DS18S20 doesn't support setting resolution.");
     return false;
@@ -235,16 +259,15 @@ bool DallasTemperatureSensor::setup_sensor() {
   wire->reset();
   return true;
 }
+
 bool DallasTemperatureSensor::check_scratch_pad() {
   bool chksum_validity = (crc8(this->scratch_pad_, 8) == this->scratch_pad_[8]);
   bool config_validity = false;
 
-  switch (this->get_address8()[0]) {
-    case DALLAS_MODEL_DS18B20:
-      config_validity = ((this->scratch_pad_[4] & 0x9F) == 0x1F);
-      break;
-    default:
-      config_validity = ((this->scratch_pad_[4] & 0x10) == 0x10);
+  if (this->get_address8()[0] == DALLAS_MODEL_DS18B20 || this->chipset_ == DallasChipset::DS18B20) {
+    config_validity = ((this->scratch_pad_[4] & 0x9F) == 0x1F);
+  } else {
+    config_validity = ((this->scratch_pad_[4] & 0x10) == 0x10);
   }
 
 #ifdef ESPHOME_LOG_LEVEL_VERY_VERBOSE
@@ -260,15 +283,40 @@ bool DallasTemperatureSensor::check_scratch_pad() {
   }
   return chksum_validity && config_validity;
 }
+
 float DallasTemperatureSensor::get_temp_c() {
   int16_t temp = (int16_t(this->scratch_pad_[1]) << 11) | (int16_t(this->scratch_pad_[0]) << 3);
-  if (this->get_address8()[0] == DALLAS_MODEL_DS18S20) {
+  if (this->get_address8()[0] == DALLAS_MODEL_DS18S20 || this->chipset_ == DallasChipset::DS18S20) {
     int diff = (this->scratch_pad_[7] - this->scratch_pad_[6]) << 7;
     temp = ((temp & 0xFFF0) << 3) - 16 + (diff / this->scratch_pad_[7]);
+  }
+  if (this->chipset_ == DallasChipset::MAX31850) {
+    // The MXA31850 can not use the "auto" chipset ID, because it overloads the ID
+    // value used by one of the Dallas chips.
+    if (this->scratch_pad_[0] & 0x1) {
+      // A fault was detected
+      switch (this->scratch_pad_[2] & 0x07) {
+        case 1:
+          ESP_LOGE(TAG, "Thermocouple open circuit!");
+          return NAN;
+        case 2:
+          ESP_LOGE(TAG, "Thermocouple shorted to GND!");
+          return NAN;
+        case 4:
+          ESP_LOGE(TAG, "Thermocouple shorted to Vdd!");
+          return NAN;
+        default:
+          ESP_LOGE(TAG, "Unknown thermocouple fault!");
+          return NAN;
+      }
+    }
+    temp = int16_t(this->scratch_pad_[1]) << 8 | (this->scratch_pad_[0] & 0xFC);
+    return temp / 16.0f;
   }
 
   return temp / 128.0f;
 }
+
 std::string DallasTemperatureSensor::unique_id() { return "dallas-" + str_lower_case(format_hex(this->address_)); }
 
 }  // namespace dallas
