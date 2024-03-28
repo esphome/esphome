@@ -23,7 +23,6 @@ enum OtaHttpState {
 
 static const char *const TAG = "ota_http";
 static const uint8_t MD5_SIZE = 32;
-static const uint32_t WDT_TIMEOUT_S = 20;
 
 struct OtaHttpGlobalPrefType {
   OtaHttpState ota_http_state;

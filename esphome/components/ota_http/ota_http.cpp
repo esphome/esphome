@@ -9,6 +9,10 @@
 #include "esphome/components/ota/ota_backend.h"
 #include "ota_http.h"
 
+#ifdef CONFIG_WDT
+#include "watchdog.h"
+#endif
+
 namespace esphome {
 namespace ota_http {
 
@@ -58,7 +62,9 @@ void OtaHttpComponent::flash() {
     App.safe_reboot();
   }
 #endif
-
+#ifdef CONFIG_WDT
+  watchdog::Watchdog::set_timeout(CONFIG_WDT);
+#endif
   uint32_t update_start_time = millis();
   uint8_t buf[this->http_recv_buffer_ + 1];
   int error_code = 0;
@@ -166,6 +172,9 @@ void OtaHttpComponent::cleanup_() {
     this->pref_.ota_http_state = OTA_HTTP_STATE_ABORT;
   }
   this->pref_obj_.save(&this->pref_);
+#ifdef CONFIG_WDT
+  watchdog::Watchdog::reset();
+#endif
 };
 
 void OtaHttpComponent::check_upgrade() {

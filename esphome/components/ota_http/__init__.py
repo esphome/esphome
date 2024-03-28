@@ -28,6 +28,7 @@ OtaHttpFlashAction = ota_http_ns.class_("OtaHttpFlashAction", automation.Action)
 
 CONF_EXCLUDE_CERTIFICATE_BUNDLE = "exclude_certificate_bundle"
 CONF_MD5_URL = "md5_url"
+CONF_WDT = "watchdog_timeout"
 
 
 def validate_certificate_bundle(config):
@@ -72,6 +73,12 @@ def validate_safe_mode(config):
     return config
 
 
+def validate_wdt(config):
+    if CORE.is_esp8266:
+        raise cv.Invalid(f"{CONF_WDT} not available on 'esp8266'")
+    return config
+
+
 def _declare_request_class(value):
     if CORE.using_esp_idf:
         return cv.declare_id(OtaHttpIDF)(value)
@@ -87,6 +94,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): _declare_request_class,
             cv.Optional(
                 CONF_TIMEOUT, default="5min"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_WDT, default="0s"
             ): cv.positive_time_period_milliseconds,
             cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
                 cv.only_on_esp8266, cv.boolean
@@ -104,6 +114,7 @@ CONFIG_SCHEMA = cv.All(
         rp2040_arduino=cv.Version(0, 0, 0),
     ),
     validate_certificate_bundle,
+    validate_wdt,
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(validate_safe_mode)
@@ -113,6 +124,10 @@ FINAL_VALIDATE_SCHEMA = cv.All(validate_safe_mode)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
+
+
+    if config[CONF_WDT].total_milliseconds > 0:
+        cg.add_define("CONFIG_WDT", config[CONF_WDT].total_milliseconds)
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")

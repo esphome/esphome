@@ -33,16 +33,6 @@ namespace esphome {
 namespace ota_http {
 
 int OtaHttpIDF::http_init(char *url) {
-#if ESP_IDF_VERSION_MAJOR >= 5
-  esp_task_wdt_config_t wdt_config = {
-      .timeout_ms = WDT_TIMEOUT_S * 1000,
-      .idle_core_mask = 0x03,
-      .trigger_panic = true,
-  };
-  esp_task_wdt_reconfigure(&wdt_config);
-#else
-  esp_task_wdt_init(WDT_TIMEOUT_S, true);
-#endif
   App.feed_wdt();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -60,6 +50,8 @@ int OtaHttpIDF::http_init(char *url) {
 #endif
 #pragma GCC diagnostic pop
 
+  ESP_LOGI(TAG, "Trying to connect to url: %s", url);
+
   this->client_ = esp_http_client_init(&config);
   esp_err_t err;
   if ((err = esp_http_client_open(this->client_, 0)) != ESP_OK) {
@@ -68,8 +60,7 @@ int OtaHttpIDF::http_init(char *url) {
   }
   this->body_length_ = esp_http_client_fetch_headers(this->client_);
 
-  ESP_LOGV(TAG, "body_length: %d , esp_http_client_get_content_length: %" PRId64, this->body_length_,
-           (int64_t) esp_http_client_get_content_length(this->client_));
+  ESP_LOGV(TAG, "body_length: %d", this->body_length_);
 
   if (this->body_length_ <= 0) {
     ESP_LOGE(TAG, "Incorrect file size (%d) reported by HTTP server (status: %d). Aborting", this->body_length_, err);
