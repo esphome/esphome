@@ -99,11 +99,11 @@ STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend(
 )
 
 TTLS_PHASE_2 = {
-    "pap": cg.MockObj("ESP_EAP_TTLS_PHASE2_PAP"),
-    "chap": cg.MockObj("ESP_EAP_TTLS_PHASE2_CHAP"),
-    "mschap": cg.MockObj("ESP_EAP_TTLS_PHASE2_MSCHAP"),
-    "mschapv2": cg.MockObj("ESP_EAP_TTLS_PHASE2_MSCHAPV2"),
-    "eap": cg.MockObj("ESP_EAP_TTLS_PHASE2_EAP"),
+    "pap": cg.global_ns.ESP_EAP_TTLS_PHASE2_PAP,
+    "chap": cg.global_ns.ESP_EAP_TTLS_PHASE2_CHAP,
+    "mschap": cg.global_ns.ESP_EAP_TTLS_PHASE2_MSCHAP,
+    "mschapv2": cg.global_ns.ESP_EAP_TTLS_PHASE2_MSCHAPV2,
+    "eap": cg.global_ns.ESP_EAP_TTLS_PHASE2_EAP,
 }
 
 EAP_AUTH_SCHEMA = cv.All(
