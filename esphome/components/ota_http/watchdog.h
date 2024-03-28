@@ -15,8 +15,8 @@ class Watchdog {
   static void reset();
 
  private:
-  static uint32_t timeout_ms; // NOLINT
-  static uint32_t init_timeout_ms; // NOLINT
+  static uint32_t timeout_ms;       // NOLINT
+  static uint32_t init_timeout_ms;  // NOLINT
   Watchdog() {}
 };
 
