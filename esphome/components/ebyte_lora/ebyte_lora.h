@@ -72,10 +72,6 @@ class EbyteLoraSwitch : public switch_::Switch, public Component {
   void set_parent(EbyteLoraComponent *parent) { parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }
   uint8_t get_pin() { return pin_; }
-  void got_state_message(bool state) {
-    ESP_LOGD("ebyte_lora_switch", "Got an update");
-    this->publish_state(state);
-  };
 
  protected:
   void write_state(bool state) override { this->parent_->digital_write(this->pin_, state); }

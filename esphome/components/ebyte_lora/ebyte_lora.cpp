@@ -145,6 +145,7 @@ void EbyteLoraComponent::loop() {
     this->read_byte(&c);
     data.push_back(c);
   }
+  // if it is only push info
   if (data[0] == SWITCH_PUSH) {
     ESP_LOGD(TAG, "GOT SWITCH PUSH ", data.size());
     ESP_LOGD(TAG, "Total: %u ", data.size());
@@ -158,14 +159,25 @@ void EbyteLoraComponent::loop() {
     for (auto *sensor : this->sensors_) {
       if (sensor->get_pin() == data[1]) {
         ESP_LOGD(TAG, "Updating switch");
-        sensor->got_state_message(data[2]);
+        sensor->publish_state(data[2]);
       }
     }
     send_switch_info_();
   }
+  // starting info loop
   if (data[0] == SWITCH_INFO) {
-    ESP_LOGD(TAG, "GOT INFO ", data.size());
-
+    for (int i = 0; i < data.size(); i++) {
+      if (data[i] == SWITCH_INFO) {
+        ESP_LOGD(TAG, "GOT INFO ", data.size());
+        uint8_t pin = data[i + 1];
+        bool value = data[i + 2];
+        for (auto *sensor : this->sensors_) {
+          if (pin == sensor->get_pin()) {
+            sensor->publish_state(value);
+          }
+        }
+      }
+    }
     ESP_LOGD(TAG, "RSSI: %u % ", (data[data.size() - 1] / 255.0) * 100);
   }
 }
@@ -174,6 +186,7 @@ void EbyteLoraComponent::send_switch_info_() {
     return;
   }
   std::vector<uint8_t> data;
+
   for (auto *sensor : this->sensors_) {
     uint8_t pin = sensor->get_pin();
     uint8_t value = sensor->state;
