@@ -171,10 +171,10 @@ void EbyteLoraComponent::loop() {
         if (sensor->get_pin() == data[i]) {
           sensor->publish_state(data[i + 1]);
         }
-        ESP_LOGD(TAG, "PIN: %u ", data[i]);
-        ESP_LOGD(TAG, "VALUE: %u ", data[i + 1]);
-        i = +2;
       }
+      ESP_LOGD(TAG, "PIN TO SET: %u ", data[i]);
+      ESP_LOGD(TAG, "VALUE TO SET: %u ", data[i + 1]);
+      i = +2;
     }
     ESP_LOGD(TAG, "RSSI: %u % ", (data[data.size() - 1] / 255.0) * 100);
   }
