@@ -4,8 +4,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#include <stdint.h>
-#include <inttypes.h>
+#include <cinttypes>
+#include <cstdint>
 #ifdef USE_ESP32
 #include "esp_task_wdt.h"
 #include "esp_idf_version.h"
@@ -22,8 +22,8 @@ namespace esphome {
 namespace ota_http {
 namespace watchdog {
 
-uint32_t Watchdog::timeout_ms_ = 0;
-uint32_t Watchdog::init_timeout_ms_ = Watchdog::get_timeout();
+uint32_t Watchdog::timeout_ms = 0;
+uint32_t Watchdog::init_timeout_ms = Watchdog::get_timeout();
 
 void Watchdog::set_timeout(uint32_t timeout_ms) {
   ESP_LOGV(TAG, "set_timeout: %" PRId32 "ms", timeout_ms);
@@ -47,14 +47,14 @@ void Watchdog::set_timeout(uint32_t timeout_ms) {
 #ifdef USE_RP2040
   watchdog_enable(timeout_ms, true);
 #endif
-  Watchdog::timeout_ms_ = timeout_ms;
+  Watchdog::timeout_ms = timeout_ms;
 }
 
 uint32_t Watchdog::get_timeout() {
   uint32_t timeout_ms = 0;
 
 #ifdef USE_ESP32
-  timeout_ms = std::max((uint32_t) CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000, Watchdog::timeout_ms_);
+  timeout_ms = std::max((uint32_t) CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000, Watchdog::timeout_ms);
 #endif  // USE_ESP32
 
 #ifdef USE_RP2040
@@ -63,14 +63,14 @@ uint32_t Watchdog::get_timeout() {
 
   if (timeout_ms == 0) {
     // fallback to stored timeout
-    timeout_ms = Watchdog::timeout_ms_;
+    timeout_ms = Watchdog::timeout_ms;
   }
   ESP_LOGVV(TAG, "get_timeout: %" PRId32 "ms", timeout_ms);
 
   return timeout_ms;
 }
 
-void Watchdog::reset() { Watchdog::set_timeout(Watchdog::init_timeout_ms_); }
+void Watchdog::reset() { Watchdog::set_timeout(Watchdog::init_timeout_ms); }
 
 }  // namespace watchdog
 }  // namespace ota_http

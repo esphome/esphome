@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 
 namespace esphome {
 namespace ota_http {
@@ -15,8 +15,8 @@ class Watchdog {
   static void reset();
 
  private:
-  static uint32_t timeout_ms_;
-  static uint32_t init_timeout_ms_;
+  static uint32_t timeout_ms;
+  static uint32_t init_timeout_ms;
   Watchdog() {}
 };
 
