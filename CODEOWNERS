@@ -62,6 +62,7 @@ esphome/components/bluetooth_proxy/* @jesserockz
 esphome/components/bme280_base/* @esphome/core
 esphome/components/bme280_spi/* @apbodrov
 esphome/components/bme680_bsec/* @trvrnrth
+esphome/components/bme68x_bsec/* @neffs
 esphome/components/bmi160/* @flaviut
 esphome/components/bmp3xx/* @martgras
 esphome/components/bmp581/* @kahrendt

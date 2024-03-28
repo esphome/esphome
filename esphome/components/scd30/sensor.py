@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_HUMIDITY,
     CONF_TEMPERATURE,
+    CONF_TEMPERATURE_OFFSET,
     CONF_CO2,
     CONF_UPDATE_INTERVAL,
     CONF_VALUE,
@@ -36,7 +37,6 @@ ForceRecalibrationWithReference = scd30_ns.class_(
 CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
 CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
 CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
-CONF_TEMPERATURE_OFFSET = "temperature_offset"
 
 
 CONFIG_SCHEMA = (
