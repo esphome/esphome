@@ -53,7 +53,9 @@ power_supply:
       inverted: true
 
 i2c:
-  sda: 21
+  sda:
+    number: 21
+    allow_other_uses: true
   scl:
     number: 22
     allow_other_uses: true
@@ -61,6 +63,18 @@ i2c:
   frequency: 100kHz
   setup_priority: -100
   id: i2c_bus
+
+spi:
+  id: spi_bus
+  clk_pin:
+    allow_other_uses: true
+    number: GPIO21
+  mosi_pin:
+    allow_other_uses: true
+    number: GPIO22
+  miso_pin:
+    allow_other_uses: true
+    number: GPIO23
 
 pca9685:
   frequency: 500
@@ -219,7 +233,9 @@ canbus:
   - platform: esp32_can
     id: esp32_internal_can
     rx_pin: GPIO04
-    tx_pin: GPIO05
+    tx_pin:
+      number: GPIO05
+      allow_other_uses: true
     can_id: 4
     bit_rate: 50kbps
 
@@ -230,3 +246,79 @@ button:
       - canbus.send: "abc"
       - canbus.send: [0, 1, 2]
       - canbus.send: !lambda return {0, 1, 2};
+
+display:
+  - platform: ili9xxx
+    invert_colors: true
+    dimensions: 320x240
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
+    model: TFT 2.4
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      number: GPIO19
+    color_palette: GRAYSCALE
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO22
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
+
+color:
+  - id: layout_black
+    red: 100%
+    green: 100%
+    blue: 100%
+  - id: layout_white
+    red: 0%
+    green: 0%
+    blue: 0%
+
+graphical_layout:
+  id: test_graphical_layout
+  layout:
+    type: horizontal_stack
+    child_align: stretch_to_fit_height
+    items:
+      - type: fixed_dimension_panel
+        width: 100
+        height: 100
+        border: 1
+        child:
+          type: text_panel
+          text: "Simple text panel"
+          font: roboto
+      - type: vertical_stack
+        item_padding: 1
+        margin: 1
+        padding: 1
+        border: 1
+        border_color: layout_black
+        items:
+          - type: display_rendering_panel
+            height: 50
+            width: 50
+            lambda: |-
+              it.filled_circle(25, 25, 10);
+          - type: text_run_panel
+            text_align: baseline_center
+            max_width: 100
+            runs:
+              - font: roboto
+                text: Hello
+              - font: roboto
+                text: World
+                background_color: layout_black
+                foreground_color: layout_white
+              - font: roboto
+                text: !lambda |-
+                  return "Dynamic text";

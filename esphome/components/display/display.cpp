@@ -402,6 +402,12 @@ void Display::menu(int x, int y, graphical_display_menu::GraphicalDisplayMenu *m
 }
 #endif  // USE_GRAPHICAL_DISPLAY_MENU
 
+#ifdef USE_GRAPHICAL_LAYOUT
+void Display::render_layout(int x, int y, graphical_layout::RootLayoutComponent *layout) {
+  layout->render_at(this, x, y);
+}
+#endif
+
 void Display::get_text_bounds(int x, int y, const char *text, BaseFont *font, TextAlign align, int *x1, int *y1,
                               int *width, int *height) {
   int x_offset, baseline;
@@ -577,6 +583,34 @@ bool Display::clip(int x, int y) {
     return false;
   return true;
 }
+
+void Display::set_local_coordinates_relative_to_current(int x_offset, int y_offset) {
+  Point p(0, 0);
+  if (!this->local_coordinate_.empty()) {
+    p = this->local_coordinate_.back();
+  }
+  p.x += x_offset;
+  p.y += y_offset;
+
+  this->local_coordinate_.push_back(p);
+}
+void Display::pop_local_coordinates() {
+  if (this->local_coordinate_.empty()) {
+    ESP_LOGE(TAG, "pop_local_coordinates: No local coordinates set");
+  } else {
+    this->local_coordinate_.pop_back();
+  }
+}
+
+Point Display::get_local_coordinates() {
+  Point p(0, 0);
+  if (!this->local_coordinate_.empty()) {
+    p = this->local_coordinate_.back();
+  }
+
+  return p;
+}
+
 bool Display::clamp_x_(int x, int w, int &min_x, int &max_x) {
   min_x = std::max(x, 0);
   max_x = std::min(x + w, this->get_width());
@@ -616,6 +650,37 @@ void DisplayPage::set_parent(Display *parent) { this->parent_ = parent; }
 void DisplayPage::set_prev(DisplayPage *prev) { this->prev_ = prev; }
 void DisplayPage::set_next(DisplayPage *next) { this->next_ = next; }
 const display_writer_t &DisplayPage::get_writer() const { return this->writer_; }
+
+const LogString *text_align_to_string(TextAlign textalign) {
+  switch (textalign) {
+    case TextAlign::TOP_LEFT:
+      return LOG_STR("TOP_LEFT");
+    case TextAlign::TOP_CENTER:
+      return LOG_STR("TOP_CENTER");
+    case TextAlign::TOP_RIGHT:
+      return LOG_STR("TOP_RIGHT");
+    case TextAlign::CENTER_LEFT:
+      return LOG_STR("CENTER_LEFT");
+    case TextAlign::CENTER:
+      return LOG_STR("CENTER");
+    case TextAlign::CENTER_RIGHT:
+      return LOG_STR("CENTER_RIGHT");
+    case TextAlign::BASELINE_LEFT:
+      return LOG_STR("BASELINE_LEFT");
+    case TextAlign::BASELINE_CENTER:
+      return LOG_STR("BASELINE_CENTER");
+    case TextAlign::BASELINE_RIGHT:
+      return LOG_STR("BASELINE_RIGHT");
+    case TextAlign::BOTTOM_LEFT:
+      return LOG_STR("BOTTOM_LEFT");
+    case TextAlign::BOTTOM_CENTER:
+      return LOG_STR("BOTTOM_CENTER");
+    case TextAlign::BOTTOM_RIGHT:
+      return LOG_STR("BOTTOM_RIGHT");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
 
 }  // namespace display
 }  // namespace esphome
