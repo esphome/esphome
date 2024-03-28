@@ -178,6 +178,7 @@ void EbyteLoraComponent::loop() {
         }
       }
     }
+    this->rssi_sensor_->publish_state((data[data.size() - 1] / 255.0) * 100);
     ESP_LOGD(TAG, "RSSI: %u % ", (data[data.size() - 1] / 255.0) * 100);
   }
 }
