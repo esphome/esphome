@@ -2,19 +2,6 @@
 
 namespace esphome {
 namespace ebyte_lora {
-void EbyteLoraComponent::update() {
-  can_send_message_();
-  if (!this->update_needed_)
-    return;
-  if (this->rssi_sensor_ != nullptr)
-    this->rssi_sensor_->publish_state(this->rssi_);
-
-  // raw info
-  if (this->message_text_sensor_ != nullptr)
-    this->message_text_sensor_->publish_state(this->raw_message_);
-  // reset the updater
-  this->update_needed_ = false;
-}
 void EbyteLoraComponent::setup() {
   this->pin_aux_->setup();
   this->pin_m0_->setup();
@@ -135,7 +122,7 @@ void EbyteLoraComponent::send_pin_info_(uint8_t pin, bool value) {
     return;
   }
   uint8_t data[3];
-  data[1] = 0xFF;   // just some bit to indicate, yo this is pin info
+  data[1] = 1;      // number one to indicate
   data[1] = pin;    // Pin to send
   data[2] = value;  // Inverted for the pcf8574
   ESP_LOGD(TAG, "Sending message");
@@ -158,14 +145,12 @@ void EbyteLoraComponent::loop() {
   }
   if (data.size() >= 4) {
     ESP_LOGD(TAG, "Total: %u ", data.size());
-    ESP_LOGD(TAG, "Start bit: %#02x ", data[0]);
+    ESP_LOGD(TAG, "Start bit: ", data[0]);
     ESP_LOGD(TAG, "PIN: %u ", data[1]);
     ESP_LOGD(TAG, "VALUE: %u ", data[2]);
-    ESP_LOGD(TAG, "RSSI: %#02x ", data[3]);
+    ESP_LOGD(TAG, "RSSI: %u % ", (data[3] / 255.0) * 100);
     if (this->rssi_sensor_ != nullptr)
       this->rssi_sensor_->publish_state((data[3] / 255.0) * 100);
-    if (this->message_text_sensor_ != nullptr)
-      this->message_text_sensor_->publish_state("Got something");
 
     for (auto *sensor : this->sensors_) {
       if (sensor->get_pin() == data[1]) {
@@ -173,8 +158,6 @@ void EbyteLoraComponent::loop() {
         sensor->got_state_message(data[2]);
       }
     }
-  } else {
-    ESP_LOGD(TAG, "WEIRD");
   }
 }
 }  // namespace ebyte_lora

@@ -3,7 +3,6 @@
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/switch/switch.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
@@ -33,12 +32,10 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  void update() override;
   void loop() override;
   void dump_config() override;
   /// Helper function to write the value of a pin.
   void digital_write(uint8_t pin, bool value);
-  void set_message_sensor(text_sensor::TextSensor *message_text_sensor) { message_text_sensor_ = message_text_sensor; }
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
   void set_pin_aux(GPIOPin *pin_aux) { pin_aux_ = pin_aux; }
   void register_sensor(EbyteLoraSwitch *obj) { this->sensors_.push_back(obj); }
@@ -62,7 +59,6 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   uint32_t starting_to_check_;
   uint32_t time_out_after_;
   std::string raw_message_;
-  text_sensor::TextSensor *message_text_sensor_{nullptr};
   sensor::Sensor *rssi_sensor_{nullptr};
   GPIOPin *pin_aux_;
   GPIOPin *pin_m0_;
