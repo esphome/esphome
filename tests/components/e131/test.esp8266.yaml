@@ -1,0 +1,17 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+e131:
+
+light:
+  - platform: neopixelbus
+    name: Neopixelbus Light
+    pin: 1
+    type: GRBW
+    variant: SK6812
+    method: ESP8266_UART0
+    num_leds: 256
+    effects:
+      - e131:
+          universe: 1

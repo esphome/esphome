@@ -345,6 +345,7 @@ esphome/components/st7789v/* @kbx81
 esphome/components/st7920/* @marsjan155
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
+esphome/components/sun_gtil2/* @Mat931
 esphome/components/switch/* @esphome/core
 esphome/components/t6615/* @tylermenezes
 esphome/components/tca9548a/* @andreashergert1984
