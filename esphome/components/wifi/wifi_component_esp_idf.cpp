@@ -396,6 +396,11 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
       if (err != ESP_OK) {
         ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_password failed! %d", err);
       }
+      // set TTLS Phase 2, defaults to MSCHAPV2
+      err = esp_wifi_sta_wpa2_ent_set_ttls_phase2_method(eap.ttls_phase_2);
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ttls_phase2_method failed! %d", err);
+      }
     }
     err = esp_wifi_sta_wpa2_ent_enable();
     if (err != ESP_OK) {
