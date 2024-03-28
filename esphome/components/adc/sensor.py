@@ -24,6 +24,8 @@ from . import (
 
 AUTO_LOAD = ["voltage_sampler"]
 
+CONF_SAMPLES = "samples"
+
 
 def validate_config(config):
     if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
@@ -67,6 +69,7 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
                 cv.only_on_esp32, cv.enum(ATTENUATION_MODES, lower=True)
             ),
+            cv.Optional(CONF_SAMPLES, default=1): cv.int_range(min=1, max=255),
         }
     )
     .extend(cv.polling_component_schema("60s")),
@@ -90,6 +93,7 @@ async def to_code(config):
         cg.add(var.set_pin(pin))
 
     cg.add(var.set_output_raw(config[CONF_RAW]))
+    cg.add(var.set_sample_count(config[CONF_SAMPLES]))
 
     if attenuation := config.get(CONF_ATTENUATION):
         if attenuation == "auto":
