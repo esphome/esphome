@@ -8,6 +8,7 @@
 #include <list>
 #include <queue>
 #include <set>
+#include <utility>
 #include <vector>
 
 namespace esphome {
@@ -251,6 +252,21 @@ class SensorItem {
   bool force_new_range{false};
 };
 
+class ServerRegister {
+ public:
+  ServerRegister(uint16_t address, SensorValueType value_type, uint8_t register_count,
+                 std::function<float()> read_lambda) {
+    this->address = address;
+    this->value_type = value_type;
+    this->register_count = register_count;
+    this->read_lambda = std::move(read_lambda);
+  }
+  uint16_t address;
+  SensorValueType value_type;
+  uint8_t register_count;
+  std::function<float()> read_lambda;
+};
+
 // ModbusController::create_register_ranges_ tries to optimize register range
 // for this the sensors must be ordered by register_type, start_address and bitmask
 class SensorItemsComparator {
@@ -418,10 +434,14 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void queue_command(const ModbusCommandItem &command);
   /// Registers a sensor with the controller. Called by esphomes code generator
   void add_sensor_item(SensorItem *item) { sensorset_.insert(item); }
+  /// Registers a server register with the controller. Called by esphomes code generator
+  void add_server_register(ServerRegister *server_register) { server_registers_.push_back(server_register); }
   /// called when a modbus response was parsed without errors
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   /// called when a modbus error response was received
   void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
+  /// called when a modbus request (function code 3 or 4) was parsed without errors
+  void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers) final;
   /// default delegate called by process_modbus_data when a response has retrieved from the incoming queue
   void on_register_data(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data);
   /// default delegate called by process_modbus_data when a response for a write response has retrieved from the
@@ -452,6 +472,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void dump_sensors_();
   /// Collection of all sensors for this component
   SensorSet sensorset_;
+  /// Collection of all server registers for this component
+  std::vector<ServerRegister *> server_registers_;
   /// Continuous range of modbus registers
   std::vector<RegisterRange> register_ranges_;
   /// Hold the pending requests to be sent

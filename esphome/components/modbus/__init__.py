@@ -17,13 +17,21 @@ Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
 MULTI_CONF = True
 
+CONF_ROLE = "role"
 CONF_MODBUS_ID = "modbus_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
+
+ModbusRole = modbus_ns.enum("ModbusRole")
+MODBUS_ROLES = {
+    "client": ModbusRole.CLIENT,
+    "server": ModbusRole.SERVER,
+}
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Modbus),
+            cv.Optional(CONF_ROLE, default="client"): cv.enum(MODBUS_ROLES),
             cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
             cv.Optional(
                 CONF_SEND_WAIT_TIME, default="250ms"
@@ -43,6 +51,7 @@ async def to_code(config):
 
     await uart.register_uart_device(var, config)
 
+    cg.add(var.set_role(config[CONF_ROLE]))
     if CONF_FLOW_CONTROL_PIN in config:
         pin = await gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
         cg.add(var.set_flow_control_pin(pin))

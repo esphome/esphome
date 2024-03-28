@@ -49,6 +49,10 @@ uart:
       allow_other_uses: true
       number: 16
     baud_rate: 19200
+  - id: uart_3
+    tx_pin: 25
+    rx_pin: 20
+    baud_rate: 19200
 
 i2c:
   sda:
@@ -59,16 +63,27 @@ i2c:
   frequency: 100khz
 
 modbus:
-  uart_id: uart_1
-  flow_control_pin:
-    allow_other_uses: true
-    number: 5
-  id: mod_bus1
+  - uart_id: uart_1
+    flow_control_pin:
+      allow_other_uses: true
+      number: 5
+    id: mod_bus1
+  - uart_id: uart_2
+    id: mod_bus2
+    role: server
 
 modbus_controller:
   - id: modbus_controller_test
     address: 0x2
     modbus_id: mod_bus1
+  - id: modbus_controller_server_test
+    address: 0x2
+    modbus_id: mod_bus2
+    server_registers:
+      - address: 0x0000
+        value_type: S_DWORD_R
+        read_lambda: |-
+          return 42.3;
 
 mqtt:
   broker: test.mosquitto.org
@@ -404,6 +419,7 @@ select:
       - three
 
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_test
     name: Modbus Select Register 1000
     address: 1000
     value_type: U_WORD
@@ -424,6 +440,7 @@ sensor:
     name: Internal Temperature
     state_topic:
   - platform: selec_meter
+    modbus_id: mod_bus1
     total_active_energy:
       name: SelecEM2M Total Active Energy
     import_active_energy:
@@ -602,6 +619,7 @@ sensor:
         lambda: return x[0] / 10.0;
 
   - platform: kuntze
+    modbus_id: mod_bus1
     ph:
       name: Kuntze pH
     temperature:
