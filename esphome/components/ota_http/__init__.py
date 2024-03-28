@@ -91,7 +91,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_WATCHDOG_TIMEOUT): cv.All(
                 cv.Any(cv.only_on_esp32, cv.only_on_rp2040),
-                cv.positive_time_period_milliseconds
+                cv.positive_time_period_milliseconds,
             ),
             cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
                 cv.only_on_esp8266, cv.boolean
@@ -119,8 +119,13 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
 
-    if config.get(CONF_WATCHDOG_TIMEOUT, None) and config[CONF_WATCHDOG_TIMEOUT].total_milliseconds > 0:
-        cg.add_define("CONFIG_WATCHDOG_TIMEOUT", config[CONF_WATCHDOG_TIMEOUT].total_milliseconds)
+    if (
+        config.get(CONF_WATCHDOG_TIMEOUT, None)
+        and config[CONF_WATCHDOG_TIMEOUT].total_milliseconds > 0
+    ):
+        cg.add_define(
+            "CONFIG_WATCHDOG_TIMEOUT", config[CONF_WATCHDOG_TIMEOUT].total_milliseconds
+        )
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")

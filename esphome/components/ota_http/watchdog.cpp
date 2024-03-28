@@ -14,6 +14,9 @@
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
 #endif
+#ifdef USE_ESP8266
+#include "Esp.h"
+#endif
 
 namespace esphome {
 namespace ota_http {
