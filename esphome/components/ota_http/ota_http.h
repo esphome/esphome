@@ -3,7 +3,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/log.h"
 #include "esphome/components/ota/ota_backend.h"
 
 #include <memory>
@@ -63,16 +62,7 @@ class OtaHttpComponent : public Component {
       global_preferences->make_preference<OtaHttpGlobalPrefType>(OTA_HTTP_PREF_SAFE_MODE_HASH, true);
 
  private:
-  bool set_url_(const std::string &value, char *url) {
-    if (value.length() > MAX_URL_LEN - 1) {
-      ESP_LOGE(TAG, "Url max lenght is %d, and attempted to set url with lenght %d: %s", MAX_URL_LEN, value.length(), value.c_str());
-      return false;
-    }
-    strncpy(url, value.c_str(), value.length());
-    url[value.length()] = '\0'; // null terminator
-    this->pref_obj_.save(&this->pref_);
-    return true;
-  }
+  bool set_url_(const std::string &value, char *url);
 };
 
 template<typename... Ts> class OtaHttpFlashAction : public Action<Ts...> {
@@ -90,7 +80,6 @@ template<typename... Ts> class OtaHttpFlashAction : public Action<Ts...> {
       this->parent_->flash();
       // Normaly never reached (device rebooted)
     }
-    ESP_LOGE(TAG, "Aborted");
   }
 
  protected:

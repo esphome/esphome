@@ -215,5 +215,17 @@ bool OtaHttpComponent::http_get_md5() {
   return read_len == MD5_SIZE;
 }
 
+bool OtaHttpComponent::set_url_(const std::string &value, char *url) {
+  if (value.length() > MAX_URL_LEN - 1) {
+    ESP_LOGE(TAG, "Url max lenght is %d, and attempted to set url with lenght %d: %s", MAX_URL_LEN, value.length(),
+             value.c_str());
+    return false;
+  }
+  strncpy(url, value.c_str(), value.length());
+  url[value.length()] = '\0';  // null terminator
+  this->pref_obj_.save(&this->pref_);
+  return true;
+}
+
 }  // namespace ota_http
 }  // namespace esphome
