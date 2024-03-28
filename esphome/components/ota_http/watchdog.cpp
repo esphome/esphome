@@ -22,8 +22,8 @@ namespace esphome {
 namespace ota_http {
 namespace watchdog {
 
-uint32_t Watchdog::timeout_ms = 0;
-uint32_t Watchdog::init_timeout_ms = Watchdog::get_timeout();
+uint32_t Watchdog::timeout_ms = 0; // NOLINT
+uint32_t Watchdog::init_timeout_ms = Watchdog::get_timeout(); // NOLINT
 
 void Watchdog::set_timeout(uint32_t timeout_ms) {
   ESP_LOGV(TAG, "set_timeout: %" PRId32 "ms", timeout_ms);
