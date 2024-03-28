@@ -165,17 +165,7 @@ void EbyteLoraComponent::loop() {
   }
   if (data[0] == SWITCH_INFO) {
     ESP_LOGD(TAG, "GOT INFO ", data.size());
-    uint8_t i = 1;
-    while (i < data.size() - 1) {
-      for (auto *sensor : this->sensors_) {
-        if (sensor->get_pin() == data[i]) {
-          sensor->publish_state(data[i + 1]);
-        }
-      }
-      ESP_LOGD(TAG, "PIN TO SET: %u ", data[i]);
-      ESP_LOGD(TAG, "VALUE TO SET: %u ", data[i + 1]);
-      i = +2;
-    }
+
     ESP_LOGD(TAG, "RSSI: %u % ", (data[data.size() - 1] / 255.0) * 100);
   }
 }
