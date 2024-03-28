@@ -13,7 +13,7 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.Required(CONF_EBYTE_LORA): cv.use_id(EbyteLoraComponent),
-            cv.Required(PIN_TO_SEND): cv.int_range(min=0, max=3),
+            cv.Required(PIN_TO_SEND): cv.int_range(min=1, max=4),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
