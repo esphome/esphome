@@ -51,7 +51,8 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   // checks the aux port to see if it is done setting
   void setup_wait_response_(uint32_t timeout = 1000);
   bool can_send_message_();
-  void send_pin_info_(uint8_t pin, bool value);
+  void send_switch_push_(uint8_t pin, bool value);
+  void send_switch_info_();
 
  protected:
   bool update_needed_ = false;

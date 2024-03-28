@@ -2,6 +2,8 @@
 
 namespace esphome {
 namespace ebyte_lora {
+static const uint8_t SWITCH_PUSH = 0x55;
+static const uint8_t SWITCH_INFO = 0x66;
 void EbyteLoraComponent::setup() {
   this->pin_aux_->setup();
   this->pin_m0_->setup();
@@ -116,16 +118,16 @@ void EbyteLoraComponent::dump_config() {
   LOG_PIN("M0 Pin:", this->pin_m0_);
   LOG_PIN("M1 Pin:", this->pin_m1_);
 };
-void EbyteLoraComponent::digital_write(uint8_t pin, bool value) { this->send_pin_info_(pin, value); }
-void EbyteLoraComponent::send_pin_info_(uint8_t pin, bool value) {
+void EbyteLoraComponent::digital_write(uint8_t pin, bool value) { this->send_switch_push_(pin, value); }
+void EbyteLoraComponent::send_switch_push_(uint8_t pin, bool value) {
   if (!EbyteLoraComponent::can_send_message_()) {
     return;
   }
   uint8_t data[3];
-  data[1] = 1;      // number one to indicate
-  data[1] = pin;    // Pin to send
-  data[2] = value;  // Inverted for the pcf8574
-  ESP_LOGD(TAG, "Sending message");
+  data[0] = SWITCH_PUSH;  // number one to indicate
+  data[1] = pin;          // Pin to send
+  data[2] = value;        // Inverted for the pcf8574
+  ESP_LOGD(TAG, "Sending message to remote lora");
   ESP_LOGD(TAG, "PIN: %u ", data[1]);
   ESP_LOGD(TAG, "VALUE: %u ", data[2]);
   this->write_array(data, sizeof(data));
@@ -143,7 +145,19 @@ void EbyteLoraComponent::loop() {
     this->read_byte(&c);
     data.push_back(c);
   }
-  if (data.size() >= 4) {
+  if (data[0] == SWITCH_PUSH) {
+    ESP_LOGD(TAG, "GOT SWITCH PUSH ", data.size());
+  }
+  if (data[0] == SWITCH_INFO) {
+    ESP_LOGD(TAG, "GOT INFO ", data.size());
+    uint8_t i = 1;
+    while (i < data.size()) {
+      ESP_LOGD(TAG, "PIN: %u ", data[i]);
+      ESP_LOGD(TAG, "VALUE: %u ", data[i + 1]);
+      i = +2;
+    }
+  }
+  if (data.size() == 4) {
     ESP_LOGD(TAG, "Total: %u ", data.size());
     ESP_LOGD(TAG, "Start bit: ", data[0]);
     ESP_LOGD(TAG, "PIN: %u ", data[1]);
@@ -158,7 +172,25 @@ void EbyteLoraComponent::loop() {
         sensor->got_state_message(data[2]);
       }
     }
+    send_switch_info_();
   }
+}
+void EbyteLoraComponent::send_switch_info_() {
+  if (!EbyteLoraComponent::can_send_message_()) {
+    return;
+  }
+  std::vector<uint8_t> data;
+  for (auto *sensor : this->sensors_) {
+    uint8_t pin = sensor->get_pin();
+    uint8_t value = sensor->state;
+    data.push_back(SWITCH_INFO);  // number one to indicate
+    data.push_back(pin);
+    data.push_back(value);  // Pin to send
+  }
+  ESP_LOGD(TAG, "Sending info back");
+  this->write_array(data);
+  this->setup_wait_response_(5000);
+  ESP_LOGD(TAG, "Successfully put in queue");
 }
 }  // namespace ebyte_lora
 }  // namespace esphome
