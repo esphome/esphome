@@ -65,6 +65,12 @@ void Controller::setup_controller(bool include_internal) {
       obj->add_on_state_callback([this, obj]() { this->on_date_update(obj); });
   }
 #endif
+#ifdef USE_DATETIME_TIME
+  for (auto *obj : App.get_times()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj]() { this->on_time_update(obj); });
+  }
+#endif
 #ifdef USE_TEXT
   for (auto *obj : App.get_texts()) {
     if (include_internal || !obj->is_internal())

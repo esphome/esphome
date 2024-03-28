@@ -901,6 +901,52 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
 }
 #endif  // USE_DATETIME_DATE
 
+#ifdef USE_DATETIME_TIME
+void WebServer::on_time_update(datetime::TimeEntity *obj) {
+  this->events_.send(this->time_json(obj, DETAIL_STATE).c_str(), "state");
+}
+void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_times()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+    if (request->method() == HTTP_GET && match.method.empty()) {
+      std::string data = this->time_json(obj, DETAIL_STATE);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (!request->hasParam("value")) {
+      request->send(409);
+      return;
+    }
+
+    if (request->hasParam("value")) {
+      std::string value = request->getParam("value")->value().c_str();
+      call.set_time(value);
+    }
+
+    this->schedule_([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject root) {
+    set_json_id(root, obj, "time-" + obj->get_object_id(), start_config);
+    std::string value = str_sprintf("%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
+    root["value"] = value;
+    root["state"] = value;
+  });
+}
+#endif  // USE_DATETIME_TIME
+
 #ifdef USE_TEXT
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
   this->events_.send(this->text_json(obj, state, DETAIL_STATE).c_str(), "state");
@@ -1290,6 +1336,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_DATETIME_TIME
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "time")
+    return true;
+#endif
+
 #ifdef USE_TEXT
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "text")
     return true;
@@ -1411,6 +1462,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_DATETIME_DATE
   if (match.domain == "date") {
     this->handle_date_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_DATETIME_TIME
+  if (match.domain == "time") {
+    this->handle_time_request(request, match);
     return;
   }
 #endif

@@ -153,3 +153,16 @@ datetime:
             - x.year
             - x.month
             - x.day_of_month
+  - platform: template
+    name: Time
+    id: test_time
+    type: time
+    set_action:
+      - logger.log: "set_value"
+    on_value:
+      - logger.log:
+          format: "Time: %02d:%02d:%02d"
+          args:
+            - x.hour
+            - x.minute
+            - x.second
