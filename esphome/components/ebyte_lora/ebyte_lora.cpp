@@ -152,27 +152,32 @@ void EbyteLoraComponent::loop() {
     ESP_LOGD(TAG, "GOT INFO ", data.size());
     uint8_t i = 1;
     while (i < data.size()) {
-      ESP_LOGD(TAG, "PIN: %u ", data[i]);
-      ESP_LOGD(TAG, "VALUE: %u ", data[i + 1]);
-      i = +2;
-    }
-  }
-  if (data.size() == 4) {
-    ESP_LOGD(TAG, "Total: %u ", data.size());
-    ESP_LOGD(TAG, "Start bit: ", data[0]);
-    ESP_LOGD(TAG, "PIN: %u ", data[1]);
-    ESP_LOGD(TAG, "VALUE: %u ", data[2]);
-    ESP_LOGD(TAG, "RSSI: %u % ", (data[3] / 255.0) * 100);
-    if (this->rssi_sensor_ != nullptr)
-      this->rssi_sensor_->publish_state((data[3] / 255.0) * 100);
-
-    for (auto *sensor : this->sensors_) {
-      if (sensor->get_pin() == data[1]) {
-        ESP_LOGD(TAG, "Updating switch");
-        sensor->got_state_message(data[2]);
+      for (auto *sensor : this->sensors_) {
+        if (sensor->get_pin() == data[i]) {
+          sensor->publish_state(data[i + 1]);
+        }
+        ESP_LOGD(TAG, "PIN: %u ", data[i]);
+        ESP_LOGD(TAG, "VALUE: %u ", data[i + 1]);
+        i = +2;
       }
     }
-    send_switch_info_();
+    if (data.size() == 4) {
+      ESP_LOGD(TAG, "Total: %u ", data.size());
+      ESP_LOGD(TAG, "Start bit: ", data[0]);
+      ESP_LOGD(TAG, "PIN: %u ", data[1]);
+      ESP_LOGD(TAG, "VALUE: %u ", data[2]);
+      ESP_LOGD(TAG, "RSSI: %u % ", (data[3] / 255.0) * 100);
+      if (this->rssi_sensor_ != nullptr)
+        this->rssi_sensor_->publish_state((data[3] / 255.0) * 100);
+
+      for (auto *sensor : this->sensors_) {
+        if (sensor->get_pin() == data[1]) {
+          ESP_LOGD(TAG, "Updating switch");
+          sensor->got_state_message(data[2]);
+        }
+      }
+      send_switch_info_();
+    }
   }
 }
 void EbyteLoraComponent::send_switch_info_() {
