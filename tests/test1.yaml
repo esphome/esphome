@@ -410,6 +410,12 @@ mcp23s17:
       allow_other_uses: true
     deviceaddress: 1
 
+optolink:
+  protocol: P300
+  rx_pin: GPIO01
+  tx_pin: GPIO20
+  logger: true
+
 micronova:
   enable_rx_pin:
     allow_other_uses: true
@@ -1706,6 +1712,13 @@ sensor:
       id: temp_etuve
     humidity:
       name: "Humidity hyt271"
+  - platform: optolink
+    name: Boiler Temperature
+    address: 0xA309
+    bytes: 2
+    div_ratio: 100
+    unit_of_measurement: °C
+    device_class: temperature
   - platform: iaqcore
     i2c_id: i2c_bus
     co2:
@@ -2162,6 +2175,9 @@ binary_sensor:
       name: still
     out_pin_presence_status:
       name: out pin presence status
+  - platform: optolink
+    name: Disturbance
+    address: 0x0A82
   - platform: qwiic_pir
     i2c_id: i2c_bus
     name: "Qwiic PIR Motion Sensor"
@@ -3107,6 +3123,10 @@ switch:
     id: outlet_switch
     optimistic: true
     device_class: outlet
+  - platform: optolink
+    name: Economy mode
+    address: 0x2302
+    icon: mdi:sprout-outline
   - platform: ld2410
     engineering_mode:
       name: "control ld2410 engineering mode"
@@ -4101,6 +4121,17 @@ number:
     step: 1
     max_value: 10
     optimistic: true
+  - platform: optolink
+    name: Room Temperature Setpoint
+    unit_of_measurement: °C
+    address: 0x2306
+    bytes: 1
+    min_value: 3
+    max_value: 37
+    step: 1
+    mode: box
+    icon: "mdi:home-thermometer"
+    device_class: temperature
   - platform: ld2410
     light_threshold:
       name: light threshold
@@ -4174,6 +4205,14 @@ select:
   - platform: copy
     source_id: test_select
     name: Test Select Copy
+  - platform: optolink
+    name: Operation mode
+    address: 0x2323
+    bytes: 1
+    map:
+      - "0 -> Off"
+      - "1 -> Only hot water"
+      - "2 -> Heating and hot water"
   - platform: ld2410
     distance_resolution:
       name: distance resolution
