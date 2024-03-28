@@ -163,7 +163,7 @@ void EbyteLoraComponent::loop() {
     ESP_LOGD(TAG, "VALUE: %u ", data[2]);
     ESP_LOGD(TAG, "RSSI: %#02x ", data[3]);
     if (this->rssi_sensor_ != nullptr)
-      this->rssi_sensor_->publish_state(data[3]);
+      this->rssi_sensor_->publish_state((data[3] / 255.0) * 100);
     if (this->message_text_sensor_ != nullptr)
       this->message_text_sensor_->publish_state("Got something");
 

@@ -5,10 +5,10 @@ from esphome.components import sensor, text_sensor, uart
 
 from esphome.const import (
     DEVICE_CLASS_SIGNAL_STRENGTH,
-    UNIT_DECIBEL_MILLIWATT,
     STATE_CLASS_MEASUREMENT,
     CONF_ID,
     ENTITY_CATEGORY_NONE,
+    UNIT_PERCENT,
 )
 
 CODEOWNERS = ["@danielkoek"]
@@ -43,8 +43,8 @@ CONFIG_SCHEMA = (
             # if you want to see the rssi
             cv.Optional(CONF_LORA_RSSI): sensor.sensor_schema(
                 device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
-                unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
-                accuracy_decimals=0,
+                unit_of_measurement=UNIT_PERCENT,
+                accuracy_decimals=1,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
