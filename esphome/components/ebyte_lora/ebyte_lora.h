@@ -31,7 +31,7 @@ class EbyteLoraSwitch;
 class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
-  void update() override {}
+  void update() override { send_switch_info_(); }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
   void dump_config() override;
