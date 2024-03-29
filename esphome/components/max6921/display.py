@@ -40,7 +40,7 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.polling_component_schema("1s"))
+    .extend(cv.polling_component_schema("500ms"))
     .extend(spi.spi_device_schema(cs_pin_required=False))
 )
 
