@@ -20,8 +20,8 @@ enum OtaHttpState {
 };
 
 #define OTA_HTTP_PREF_SAFE_MODE_HASH 99380598UL
-#ifndef CONFIG_MAX_URL_LENGHT
-static const uint16_t CONFIG_MAX_URL_LENGHT = 128;
+#ifndef CONFIG_MAX_URL_LENGTH
+static const uint16_t CONFIG_MAX_URL_LENGTH = 128;
 #endif
 
 static const char *const TAG = "ota_http";
@@ -29,8 +29,8 @@ static const uint8_t MD5_SIZE = 32;
 
 struct OtaHttpGlobalPrefType {
   OtaHttpState ota_http_state;
-  char md5_url[CONFIG_MAX_URL_LENGHT];
-  char url[CONFIG_MAX_URL_LENGHT];
+  char md5_url[CONFIG_MAX_URL_LENGTH];
+  char url[CONFIG_MAX_URL_LENGTH];
 } PACKED;
 
 class OtaHttpComponent : public Component {
