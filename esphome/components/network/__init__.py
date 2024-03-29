@@ -64,25 +64,6 @@ async def to_code(config):
         cg.add_define("USE_NETWORK_IPV6", config[CONF_ENABLE_IPV6])
         cg.add_define(
             "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
-    hosts = []
-    if CONF_HOSTS in config:
-        hosts = [
-            (host[CONF_NAME], IPAddress(host[CONF_IP_ADDRESS]))
-            for host in config[CONF_HOSTS]
-        ]
-    if CONF_HOSTSFILE in config:
-        hosts_contents = helpers.read_file(
-            CORE.relative_config_path(config[CONF_HOSTSFILE])
-        )
-        hosts.extend(parse_hosts_file(hosts_contents))
-
-    map_ = cg.std_ns.class_("multimap").template(cg.std_string, IPAddress)
-    cg.new_Pvariable(config[CONF_NETWORK_ID], map_(hosts))
-    cg.add_define("ENABLE_IPV6", config[CONF_ENABLE_IPV6])
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", config[CONF_ENABLE_IPV6])
-        add_idf_sdkconfig_option(
-            "CONFIG_LWIP_IPV6_AUTOCONFIG", config[CONF_ENABLE_IPV6]
         )
         if CORE.using_esp_idf:
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", config[CONF_ENABLE_IPV6])
@@ -97,3 +78,17 @@ async def to_code(config):
                     cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
                 if CORE.is_esp8266:
                     cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
+    hosts = []
+    if CONF_HOSTS in config:
+        hosts = [
+            (host[CONF_NAME], IPAddress(host[CONF_IP_ADDRESS]))
+            for host in config[CONF_HOSTS]
+        ]
+    if CONF_HOSTSFILE in config:
+        hosts_contents = helpers.read_file(
+            CORE.relative_config_path(config[CONF_HOSTSFILE])
+        )
+        hosts.extend(parse_hosts_file(hosts_contents))
+
+    map_ = cg.std_ns.class_("multimap").template(cg.std_string, IPAddress)
+    cg.new_Pvariable(config[CONF_NETWORK_ID], map_(hosts))
