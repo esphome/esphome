@@ -16,12 +16,6 @@ static const char *const TAG = "max6921";
 // display intensity (brightness)...
 static const uint MAX_DISPLAY_INTENSITY = 16;
 
-// display segment to DOUTx mapping...
-static const uint8_t DISP_SEG_TO_OUT[] = {
-// a  b  c  d  e  f  g  dp
-   0, 2, 5, 6, 4, 1, 3, 7
-};
-
 // display character position (left to right) to DOUTx mapping...
 static const uint8_t DISP_POS_TO_OUT[] = {
 // left 1   2   3   4   5   6   7   8  right
@@ -179,9 +173,9 @@ void MAX6921Component::init_display_(void) {
 
   // find smallest segment DOUT number...
   this->display_.seg_out_smallest = 19;
-  for (uint8_t i=0; i<ARRAY_ELEM_COUNT(DISP_SEG_TO_OUT); i++) {
-    if (DISP_SEG_TO_OUT[i] < this->display_.seg_out_smallest)
-      this->display_.seg_out_smallest = DISP_SEG_TO_OUT[i];
+  for (uint8_t i=0; i<this->display_.seg_to_out_map.size(); i++) {
+    if (this->display_.seg_to_out_map[i] < this->display_.seg_out_smallest)
+      this->display_.seg_out_smallest = this->display_.seg_to_out_map[i];
   }
 
   // calculate refresh period for 60Hz
@@ -199,21 +193,21 @@ void MAX6921Component::init_font_(void) {
     this->ascii_out_data_[ascii_idx] = 0;
     seg_data = progmem_read_byte(&ASCII_TO_SEG[ascii_idx]);
     if (seg_data & SEG_A)
-      this->ascii_out_data_[ascii_idx] |= (1 << (DISP_SEG_TO_OUT[0] % 8));
+      this->ascii_out_data_[ascii_idx] |= (1 << (this->display_.seg_to_out_map[0] % 8));
     if (seg_data & SEG_B)
-      this->ascii_out_data_[ascii_idx] |= (1 << (DISP_SEG_TO_OUT[1] % 8));
+      this->ascii_out_data_[ascii_idx] |= (1 << (this->display_.seg_to_out_map[1] % 8));
     if (seg_data & SEG_C)
-      this->ascii_out_data_[ascii_idx] |= (1 << (DISP_SEG_TO_OUT[2] % 8));
+      this->ascii_out_data_[ascii_idx] |= (1 << (this->display_.seg_to_out_map[2] % 8));
     if (seg_data & SEG_D)
-      this->ascii_out_data_[ascii_idx] |= (1 << (DISP_SEG_TO_OUT[3] % 8));
+      this->ascii_out_data_[ascii_idx] |= (1 << (this->display_.seg_to_out_map[3] % 8));
     if (seg_data & SEG_E)
-      this->ascii_out_data_[ascii_idx] |= (1 << (DISP_SEG_TO_OUT[4] % 8));
+      this->ascii_out_data_[ascii_idx] |= (1 << (this->display_.seg_to_out_map[4] % 8));
     if (seg_data & SEG_F)
-      this->ascii_out_data_[ascii_idx] |= (1 << (DISP_SEG_TO_OUT[5] % 8));
+      this->ascii_out_data_[ascii_idx] |= (1 << (this->display_.seg_to_out_map[5] % 8));
     if (seg_data & SEG_G)
-      this->ascii_out_data_[ascii_idx] |= (1 << (DISP_SEG_TO_OUT[6] % 8));
+      this->ascii_out_data_[ascii_idx] |= (1 << (this->display_.seg_to_out_map[6] % 8));
     if (seg_data & SEG_DP)
-      this->ascii_out_data_[ascii_idx] |= (1 << (DISP_SEG_TO_OUT[7] % 8));
+      this->ascii_out_data_[ascii_idx] |= (1 << (this->display_.seg_to_out_map[7] % 8));
   }
 }
 
@@ -387,9 +381,19 @@ void MAX6921Component::setup() {
 }
 
 void MAX6921Component::dump_config() {
+  char seg_name[3];
   ESP_LOGCONFIG(TAG, "MAX6921:");
   LOG_PIN("  LOAD Pin: ", this->load_pin_);
   ESP_LOGCONFIG(TAG, "  BLANK Pin: GPIO%u", this->display_.intensity.pwm_pin->get_pin());
+  // display segment to DOUTx mapping...
+  for (uint i=0; i<this->display_.seg_to_out_map.size(); i++) {
+    if (i < 7) {
+      seg_name[0] = 'a' + i;
+      seg_name[1] = 0;
+    } else
+      strncpy(seg_name, "dp", sizeof(seg_name));
+    ESP_LOGCONFIG(TAG, "  Display segment %s: OUT%u", seg_name, this->display_.seg_to_out_map[i]);
+  }
   ESP_LOGCONFIG(TAG, "  Number of digits: %u", this->display_.num_digits);
   ESP_LOGCONFIG(TAG, "  Intensity: %u", this->display_.intensity.config_value);
   ESP_LOGCONFIG(TAG, "  Demo mode: %u", this->display_.demo_mode);

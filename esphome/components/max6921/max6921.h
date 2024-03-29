@@ -28,6 +28,7 @@ typedef struct {
 }display_intensity_t;
 
 typedef struct {
+  std::vector<uint8_t> seg_to_out_map;
   uint num_digits;
   display_intensity_t intensity;
   uint8_t *out_buf_;
@@ -55,6 +56,7 @@ class MAX6921Component : public PollingComponent,
   void set_intensity(uint8_t intensity);
   void set_load_pin(GPIOPin *load) { this->load_pin_ = load; }
   void set_num_digits(uint8_t num_digits) { this->display_.num_digits = num_digits; }
+  void set_seg_to_out_pin_map(const std::vector<uint8_t> &pin_map) { this->display_.seg_to_out_map = pin_map; }
   void set_writer(max6921_writer_t &&writer);
   void setup() override;
   uint8_t strftime(uint8_t pos, const char *format, ESPTime time) __attribute__((format(strftime, 3, 0)));
