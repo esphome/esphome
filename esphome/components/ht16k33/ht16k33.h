@@ -40,6 +40,8 @@ class HT16K33Component : public display::DisplayBuffer, public i2c::I2CDevice {
 
   float get_setup_priority() const override;
 
+  void fill(Color color) override;
+
   void display();
 
   void invert_on_off(bool on_off);
@@ -81,16 +83,14 @@ class HT16K33Component : public display::DisplayBuffer, public i2c::I2CDevice {
   /*!
     @brief  Clear display.
   */
-  void clear(void);
-
-  void fill(Color color);
+  void clear();
 
  protected:
   void init_reset_();
   uint8_t orientation_180_();
-  void command_(uint8_t cmmand);
-  void command_all_(uint8_t cmmand);
-  uint16_t color_to_pixel(Color color);
+  void command_(uint8_t value);
+  void command_all_(uint8_t value);
+  uint16_t color_to_pixel_(Color color);
 
   uint8_t intensity_{};  // Intensity of the display from 0 to 15 (most)
   uint8_t num_chips_;

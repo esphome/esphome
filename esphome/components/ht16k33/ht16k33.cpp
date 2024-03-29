@@ -176,7 +176,7 @@ int HT16K33Component::get_width_internal() { return this->num_chips_ / this->num
 void HT16K33Component::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x + 1 > (int) this->max_displaybuffer_[0].size()) {  // Extend the display buffer in case required
     for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
-      this->max_displaybuffer_[chip_line].resize(x + 1, color_to_pixel(this->bckgrnd_));
+      this->max_displaybuffer_[chip_line].resize(x + 1, color_to_pixel_(this->bckgrnd_));
     }
   }
 
@@ -186,14 +186,14 @@ void HT16K33Component::draw_absolute_pixel_internal(int x, int y, Color color) {
   uint8_t const pos = x;     // X is starting at 0 top left
   uint8_t const subpos = y;  // Y is starting at 0 top left
 
-  int const ch_mask = 1 << subpos % 8;
-  int const cl_mask = 1 << (subpos % 8 + 8);
+  int const cl_mask = 1 << subpos % 8;
+  int const ch_mask = 1 << (subpos % 8 + 8);
   uint16_t *pixel_ptr = &this->max_displaybuffer_[subpos / 8][pos];
-  if (color == CL) {
-    // Turn on cl LED.
-    *pixel_ptr |= cl_mask;
-    // Turn off ch LED.
-    *pixel_ptr &= ~ch_mask;
+  if (color == CH) {
+    // Turn off cl LED.
+    *pixel_ptr &= ~cl_mask;
+    // Turn on ch LED.
+    *pixel_ptr |= ch_mask;
   } else if (color == CLH) {
     // Turn on ch and cl LED.
     *pixel_ptr |= cl_mask;
@@ -203,11 +203,11 @@ void HT16K33Component::draw_absolute_pixel_internal(int x, int y, Color color) {
     *pixel_ptr &= ~cl_mask;
     *pixel_ptr &= ~ch_mask;
   } else {
-    // CH or unrecognized color, treat it as CH
-    // Turn on ch LED.
-    *pixel_ptr |= ch_mask;
-    // Turn off cl LED.
-    *pixel_ptr &= ~cl_mask;
+    // CH or unrecognized color, treat it as CL
+    // Turn on cl LED.
+    *pixel_ptr |= cl_mask;
+    // Turn off ch LED.
+    *pixel_ptr &= ~ch_mask;
   }
 }
 
@@ -281,7 +281,7 @@ void HT16K33Component::scroll(bool on_off) { this->set_scroll(on_off); }
 void HT16K33Component::scroll_left() {
   for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
     if (this->update_) {
-      this->max_displaybuffer_[chip_line].push_back(color_to_pixel(this->bckgrnd_));
+      this->max_displaybuffer_[chip_line].push_back(color_to_pixel_(this->bckgrnd_));
       for (uint16_t i = 0; i < this->stepsleft_; i++) {
         this->max_displaybuffer_[chip_line].push_back(this->max_displaybuffer_[chip_line].front());
         this->max_displaybuffer_[chip_line].erase(this->max_displaybuffer_[chip_line].begin());
@@ -328,6 +328,7 @@ void HT16K33Component::send64pixels(uint8_t chip, const uint16_t pixels[8]) {
         b |= ((pixels[7 - col] >> (i + 8)) & 1) << (15 - i);
       }
     }
+    b = reverse_bits(b);
     // send this byte to display at selected chip
     this->set_i2c_address(base_address_ | chip << 1);
     bool err;
@@ -339,14 +340,11 @@ void HT16K33Component::send64pixels(uint8_t chip, const uint16_t pixels[8]) {
   }
 }
 
-uint16_t HT16K33Component::color_to_pixel(Color color) {
-  // i2c is big endian (MSB first) and we are sending 16 bits
-  // so the lower 8 bits are the LEDs with higher addresses
-  // and the upper 8 bits are the LEDs with lower addresses
+uint16_t HT16K33Component::color_to_pixel_(Color color) {
   if (color == CL) {
-    return 0xFF00;
-  } else if (color == CH) {
     return 0x00FF;
+  } else if (color == CH) {
+    return 0xFF00;
   } else if (color == Color::BLACK) {
     return 0x0000;
   } else {
@@ -360,7 +358,7 @@ void HT16K33Component::fill(Color color) {
   uint8_t const fill = color.is_on() ? 1 : 0;
   for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
     this->max_displaybuffer_[chip_line].clear();
-    this->max_displaybuffer_[chip_line].resize(get_width_internal(), color_to_pixel(color));
+    this->max_displaybuffer_[chip_line].resize(get_width_internal(), color_to_pixel_(color));
   }
 }
 
