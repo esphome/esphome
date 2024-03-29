@@ -313,28 +313,35 @@ void MAX6921Component::update_display_(void) {
 }
 
 void MAX6921Component::update_demo_mode_scroll_font_(void) {
-  static char *text = new char[this->display_.num_digits + 1];
+  static char *text = new char[this->display_.num_digits + 2 + 1];              // comma and point do not use an extra display position
   static uint8_t start_pos = this->display_.num_digits - 1;                     // start at right side
   static uint start_font_idx = 0;
-  uint font_idx, pos = 0;
+  uint font_idx, text_idx = 0, char_with_point_num = 0;
 
   // build text...
   font_idx = start_font_idx;
   ESP_LOGV(TAG, "%s(): ENTRY: start-pos=%u, start-font-idx=%u",
            __func__, start_pos, start_font_idx);
   do {
-    if (pos < start_pos) {                                                      // before start position?
-      text[pos++] = ' ';                                                        // add blank to string
+    if (text_idx < start_pos) {                                                 // before start position?
+      text[text_idx++] = ' ';                                                   // add blank to string
     } else {
       if (this->ascii_out_data_[font_idx] > 0) {                                // displayable character?
-        text[pos++] = ' ' + font_idx;                                           // add character to string
+        text[text_idx] = ' ' + font_idx;                                        // add character to string
+        if ((text[text_idx] == '.') || (text[text_idx] == ',')) {               // point-only character?
+          if (text_idx > 0) {                                                   // yes -> point after a character?
+            ++text_idx;
+            ++char_with_point_num;
+          }
+        } else
+          ++text_idx;
       }
       font_idx = (font_idx + 1) % ARRAY_ELEM_COUNT(ASCII_TO_SEG);               // next font character
     }
     ESP_LOGV(TAG, "%s(): LOOP: pos=%u, font-idx=%u, char='%c'",
-             __func__, (pos>0)?pos-1:0, font_idx, (pos>0)?text[pos-1]:' ');
-  } while (pos < this->display_.num_digits);
-  text[pos] = 0;
+             __func__, (text_idx>0)?text_idx-1:0, font_idx, (text_idx>0)?text[text_idx-1]:' ');
+  } while ((text_idx - char_with_point_num) < this->display_.num_digits);
+  text[text_idx] = 0;
   // determine next start font index...
   if (start_pos == 0) {
     start_font_idx = text[1] - ' ';
