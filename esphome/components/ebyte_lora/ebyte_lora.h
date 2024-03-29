@@ -24,7 +24,7 @@ class EbyteLoraSwitch;
 class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
-  void update() override { send_switch_info_(); }
+  void update() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
   void dump_config() override;
@@ -55,6 +55,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   uint32_t starting_to_check_;
   uint32_t time_out_after_;
   std::string raw_message_;
+  RegisterConfig config;
   sensor::Sensor *rssi_sensor_{nullptr};
   GPIOPin *pin_aux_;
   GPIOPin *pin_m0_;
