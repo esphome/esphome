@@ -112,19 +112,13 @@ CONFIG_SCHEMA = cv.All(
 
 
 def add_entity_to_sorting_list(web_server, entity, config):
-    if CONF_WEB_SERVER_SORTING_GROUP in config:
-        group = config[CONF_WEB_SERVER_SORTING_GROUP]
-    elif CONF_ENTITY_CATEGORY in config:
-        group = config[CONF_ENTITY_CATEGORY]
-    else:
-        group = "none"
-
-    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
-        weight = config[CONF_WEB_SERVER_SORTING_WEIGHT]
-    else:
-        weight = 50
-
-    cg.add(web_server.add_entity_to_sorting_list(entity, weight, group))
+    cg.add(
+        web_server.add_entity_to_sorting_list(
+            entity,
+            config[CONF_WEB_SERVER_SORTING_WEIGHT],
+            config[CONF_WEB_SERVER_SORTING_GROUP],
+        )
+    )
 
 
 def build_index_html(config) -> str:
