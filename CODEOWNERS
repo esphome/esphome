@@ -155,6 +155,7 @@ esphome/components/honeywellabp/* @RubyBailey
 esphome/components/honeywellabp2_i2c/* @jpfaff
 esphome/components/host/* @esphome/core
 esphome/components/hrxl_maxsonar_wr/* @netmikey
+esphome/components/ht16k33/* @tylerwowen
 esphome/components/hte501/* @Stock-M
 esphome/components/htu31d/* @betterengineering
 esphome/components/hydreon_rgxx/* @functionpointer
