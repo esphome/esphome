@@ -21,19 +21,19 @@ void EbyteLoraComponent::get_current_config_() {
   }
   if (read_array((uint8_t *) &buffer, sizeof(buffer))) {
     ESP_LOGD(TAG, "Found config");
-    buffer.addh_description_();
-    buffer.addl_description_();
-    buffer.reg_0.air_data_rate_description_();
-    buffer.reg_0.uart_baud_description_();
-    buffer.reg_0.parity_description_();
-    buffer.reg_1.rssi_noise_description_();
-    buffer.reg_1.sub_packet_description_();
-    buffer.reg_1.transmission_power_description_();
-    buffer.channel_description_();
-    buffer.reg_3.enable_lbt_description_();
-    buffer.reg_3.wor_period_description_();
-    buffer.reg_3.enable_rssi_description_();
-    buffer.reg_3.transmission_type_description_();
+    ESP_LOGD(TAG, buffer.addh_description_().c_str());
+    ESP_LOGD(TAG, buffer.addl_description_().c_str());
+    ESP_LOGD(TAG, buffer.reg_0.air_data_rate_description_().c_str());
+    ESP_LOGD(TAG, buffer.reg_0.uart_baud_description_().c_str());
+    ESP_LOGD(TAG, buffer.reg_0.parity_description_().c_str());
+    ESP_LOGD(TAG, buffer.reg_1.rssi_noise_description_().c_str());
+    ESP_LOGD(TAG, buffer.reg_1.sub_packet_description_().c_str());
+    ESP_LOGD(TAG, buffer.reg_1.transmission_power_description_().c_str());
+    ESP_LOGD(TAG, buffer.channel_description_().c_str());
+    ESP_LOGD(TAG, buffer.reg_3.enable_lbt_description_().c_str());
+    ESP_LOGD(TAG, buffer.reg_3.wor_period_description_().c_str());
+    ESP_LOGD(TAG, buffer.reg_3.enable_rssi_description_().c_str());
+    ESP_LOGD(TAG, buffer.reg_3.transmission_type_description_().c_str());
     set_mode_(NORMAL);
   } else {
     ESP_LOGW(TAG, "Junk on wire. Throwing away partial message");

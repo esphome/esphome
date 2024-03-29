@@ -11,6 +11,7 @@
 
 namespace esphome {
 namespace ebyte_lora {
+static const char *const TAG = "ebyte_lora";
 static const uint8_t MAX_SIZE_TX_PACKET = 200;
 
 // the mode the receiver is in
