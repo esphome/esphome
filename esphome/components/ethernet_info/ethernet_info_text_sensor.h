@@ -41,15 +41,10 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
 class DNSAddressEthernetInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
   void update() override {
-    std::string dns_results;
-
     auto dns_one = ethernet::global_eth_component->get_dns_address(0);
     auto dns_two = ethernet::global_eth_component->get_dns_address(1);
 
-    dns_results += "DNS1: ";
-    dns_results += dns_one.str();
-    dns_results += " DNS2: ";
-    dns_results += dns_two.str();
+    std::string dns_results = dns_one.str() + " " + dns_two.str();
 
     if (dns_results != this->last_results_) {
       this->last_results_ = dns_results;
