@@ -114,9 +114,9 @@ struct REG1 {
   uint8_t rssi_noise : 1;
   std::string rssi_noise_description_() {
     switch (this->rssi_noise) {
-      case ENABLED:
+      case EBYTE_ENABLED:
         return "rssi_noise: ENABLED";
-      case DISABLED:
+      case EBYTE_DISABLED:
         return "rssi_noise: DISABLED";
       default:
         return "";
