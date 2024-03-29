@@ -43,8 +43,29 @@ std::unique_ptr<ota::OTABackend> make_ota_backend() {
 const std::unique_ptr<ota::OTABackend> OtaHttpComponent::BACKEND = make_ota_backend();
 
 void OtaHttpComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "ota_http:");
-  ESP_LOGCONFIG(TAG, "  Timeout: %llums", (uint64_t) this->timeout_);
+  ESP_LOGCONFIG(TAG, "OTA Update over http:");
+  ESP_LOGCONFIG(TAG, "  Max url lenght: %d", MAX_URL_LEN);
+  ESP_LOGCONFIG(TAG, "  Timeout: %llus", this->timeout_ / 1000);
+#ifdef CONFIG_WATCHDOG_TIMEOUT
+  ESP_LOGCONFIG(TAG, "  Watchdog timeout: %ds", CONFIG_WATCHDOG_TIMEOUT / 1000);
+#endif
+#ifdef OTA_HTTP_ONLY_AT_BOOT
+  ESP_LOGCONFIG(TAG, "  Safe mode: Yes");
+#else
+  ESP_LOGCONFIG(TAG, "  Safe mode: %s", this->safe_mode_ ? "Fallback" : "No");
+#endif
+#ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+  ESP_LOGCONFIG(TAG, "  TLS server verification: Yes");
+#else
+  ESP_LOGCONFIG(TAG, "  TLS server verification: No");
+#endif
+#ifdef USE_ESP8266
+#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
+  ESP_LOGCONFIG(TAG, "  ESP8266 SSL support: No");
+#else
+  ESP_LOGCONFIG(TAG, "  ESP8266 SSL support: Yes");
+#endif
+#endif
 };
 
 void OtaHttpComponent::flash() {
@@ -179,6 +200,7 @@ void OtaHttpComponent::cleanup_() {
 
 void OtaHttpComponent::check_upgrade() {
   // function called at boot time if CONF_SAFE_MODE is True or "fallback"
+  this->safe_mode_ = true;
   if (this->pref_obj_.load(&this->pref_)) {
     if (this->pref_.ota_http_state == OTA_HTTP_STATE_PROGRESS) {
       // progress at boot time means that there was a problem

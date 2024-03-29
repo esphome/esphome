@@ -49,6 +49,7 @@ class OtaHttpComponent : public Component {
   bool secure_() { return strncmp(this->pref_.url, "https:", 6) == 0; };
   size_t body_length_ = 0;
   size_t bytes_read_ = 0;
+  bool safe_mode_ = false;
   uint64_t timeout_;
   const uint16_t http_recv_buffer_ = 500;      // the firmware GET chunk size
   const uint16_t max_http_recv_buffer_ = 512;  // internal max http buffer size must be > HTTP_RECV_BUFFER_ (TLS
