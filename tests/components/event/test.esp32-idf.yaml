@@ -1,0 +1,6 @@
+event:
+  - platform: template
+    name: Event
+    id: some_event
+    on_event:
+      - logger.log: Event fired

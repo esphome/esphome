@@ -326,6 +326,7 @@ constexpr const char *const MQTT_EFFECT_LIST = "effect_list";
 constexpr const char *const MQTT_EFFECT_STATE_TOPIC = "effect_state_topic";
 constexpr const char *const MQTT_EFFECT_TEMPLATE = "effect_template";
 constexpr const char *const MQTT_EFFECT_VALUE_TEMPLATE = "effect_value_template";
+constexpr const char *const MQTT_EVENT_TYPES = "event_types";
 constexpr const char *const MQTT_EXPIRE_AFTER = "expire_after";
 constexpr const char *const MQTT_FAN_MODE_COMMAND_TEMPLATE = "fan_mode_command_template";
 constexpr const char *const MQTT_FAN_MODE_COMMAND_TOPIC = "fan_mode_command_topic";

@@ -150,5 +150,14 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 }
 #endif
 
+#ifdef USE_EVENT
+bool ListEntitiesIterator::on_event(event::Event *event) {
+  // Null event type, since we are just iterating over entities
+  std::string event_type = "default";
+  this->web_server_->events_.send(this->web_server_->event_json(event, event_type, DETAIL_ALL).c_str(), "event_type");
+  return true;
+}
+#endif
+
 }  // namespace web_server
 }  // namespace esphome

@@ -1700,3 +1700,29 @@ message TimeCommandRequest {
   uint32 minute = 3;
   uint32 second = 4;
 }
+
+// ==================== EVENT ====================
+message ListEntitiesEventResponse {
+  option (id) = 106;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_EVENT";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  string device_class = 8;
+  repeated string event_types = 9;
+}
+message EventResponse {
+  option (id) = 107;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_EVENT";
+
+  fixed32 key = 1;
+  string event_type = 2;
+}

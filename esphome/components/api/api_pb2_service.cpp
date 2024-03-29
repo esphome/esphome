@@ -557,6 +557,22 @@ bool APIServerConnectionBase::send_time_state_response(const TimeStateResponse &
 #endif
 #ifdef USE_DATETIME_TIME
 #endif
+#ifdef USE_EVENT
+bool APIServerConnectionBase::send_list_entities_event_response(const ListEntitiesEventResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_event_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesEventResponse>(msg, 106);
+}
+#endif
+#ifdef USE_EVENT
+bool APIServerConnectionBase::send_event_response(const EventResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_event_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<EventResponse>(msg, 107);
+}
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
