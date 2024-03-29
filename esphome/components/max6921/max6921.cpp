@@ -13,14 +13,8 @@ namespace max6921 {
 
 static const char *const TAG = "max6921";
 
-// display intensity (brightness)...
+// max. display intensity (brightness)...
 static const uint MAX_DISPLAY_INTENSITY = 16;
-
-// display character position (left to right) to DOUTx mapping...
-static const uint8_t DISP_POS_TO_OUT[] = {
-// left 1   2   3   4   5   6   7   8  right
-        15, 14, 13, 16, 12, 17, 11, 18
-};
 
 // segments of 7-segment character
 static const uint8_t SEG_A  = (1<<0);
@@ -244,13 +238,13 @@ int MAX6921Component::set_display(uint8_t start_pos, const char *str) {
     }
 
     // create segment data...
-    ESP_LOGV(TAG, "%s(): pos: %u, char: '%c' (0x%02x)", __func__, pos+1, *str, *str);
+    ESP_LOGVV(TAG, "%s(): pos: %u, char: '%c' (0x%02x)", __func__, pos+1, *str, *str);
     if ((*str >= ' ') &&
         ((*str - ' ') < ARRAY_ELEM_COUNT(ASCII_TO_SEG)))                        // supported char?
       out_data = this->ascii_out_data_[*str - ' '];                             // yes ->
     else
       out_data = SEG_UNSUPPORTED_CHAR;
-    ESP_LOGV(TAG, "%s(): segment data: 0x%06x", __func__, out_data);
+    ESP_LOGVV(TAG, "%s(): segment data: 0x%06x", __func__, out_data);
     #if 0
     // At the moment an unsupport character is equal to blank (' ').
     // To distinguish an unsupported character from blank we would need to
@@ -266,18 +260,18 @@ int MAX6921Component::set_display(uint8_t start_pos, const char *str) {
 
     // shift data to the smallest segment OUT position...
     out_data <<= (this->display_.seg_out_smallest);
-    ESP_LOGV(TAG, "%s(): segment data shifted to first segment bit (OUT%u): 0x%06x",
+    ESP_LOGVV(TAG, "%s(): segment data shifted to first segment bit (OUT%u): 0x%06x",
                   __func__, this->display_.seg_out_smallest, out_data);
 
     // add position data...
-    out_data |= (1 << DISP_POS_TO_OUT[pos]);
-    ESP_LOGV(TAG, "%s(): OUT data with position: 0x%06x", __func__, out_data);
+    out_data |= (1 << this->display_.pos_to_out_map[pos]);
+    ESP_LOGVV(TAG, "%s(): OUT data with position: 0x%06x", __func__, out_data);
 
     // write to appropriate position of display buffer...
     this->display_.out_buf_[pos*3+0] |= (uint8_t)((out_data >> 16) & 0xFF);
     this->display_.out_buf_[pos*3+1] |= (uint8_t)((out_data >> 8) & 0xFF);
     this->display_.out_buf_[pos*3+2] |= (uint8_t)(out_data & 0xFF);
-    ESP_LOGV(TAG, "%s(): display buffer of position %u: 0x%02x%02x%02x",
+    ESP_LOGVV(TAG, "%s(): display buffer of position %u: 0x%02x%02x%02x",
                   __func__, pos+1, this->display_.out_buf_[pos*3+0],
                   this->display_.out_buf_[pos*3+1], this->display_.out_buf_[pos*3+2]);
 
@@ -353,7 +347,6 @@ void MAX6921Component::update_demo_mode_scroll_font_(void) {
            __func__, start_pos, start_font_idx, text);
 
   this->set_display(0, text);
-
 }
 
 float MAX6921Component::get_setup_priority() const { return setup_priority::HARDWARE; }
@@ -399,9 +392,13 @@ void MAX6921Component::dump_config() {
       seg_name[1] = 0;
     } else
       strncpy(seg_name, "dp", sizeof(seg_name));
-    ESP_LOGCONFIG(TAG, "  Display segment %s: OUT%u", seg_name, this->display_.seg_to_out_map[i]);
+    ESP_LOGCONFIG(TAG, "  Display segment %2s: OUT%u", seg_name, this->display_.seg_to_out_map[i]);
   }
-  ESP_LOGCONFIG(TAG, "  Number of digits: %u", this->display_.num_digits);
+  // display position to DOUTx mapping...
+  for (uint i=0; i<this->display_.seg_to_out_map.size(); i++) {
+    ESP_LOGCONFIG(TAG, "  Display position %2u: OUT%u", i, this->display_.pos_to_out_map[i]);
+  }
+  // ESP_LOGCONFIG(TAG, "  Number of digits: %u", this->display_.num_digits);
   ESP_LOGCONFIG(TAG, "  Intensity: %u", this->display_.intensity.config_value);
   ESP_LOGCONFIG(TAG, "  Demo mode: %u", this->display_.demo_mode);
 }
