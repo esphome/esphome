@@ -19,8 +19,8 @@ from esphome.const import (
     CONF_LOG,
     CONF_VERSION,
     CONF_LOCAL,
-    CONF_WEBSEVER_SORTING_GROUP,
-    CONF_WEBSEVER_SORTING_WEIGHT,
+    CONF_WEB_SERVER_SORTING_GROUP,
+    CONF_WEB_SERVER_SORTING_WEIGHT,
     CONF_ENTITY_CATEGORY,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -112,15 +112,15 @@ CONFIG_SCHEMA = cv.All(
 
 
 def add_entity_to_sorting_list(web_server, entity, config):
-    if CONF_WEBSEVER_SORTING_GROUP in config:
-        group = config[CONF_WEBSEVER_SORTING_GROUP]
+    if CONF_WEB_SERVER_SORTING_GROUP in config:
+        group = config[CONF_WEB_SERVER_SORTING_GROUP]
     elif CONF_ENTITY_CATEGORY in config:
         group = config[CONF_ENTITY_CATEGORY]
     else:
         group = "none"
 
-    if config[CONF_WEBSEVER_SORTING_WEIGHT]:
-        weight = config[CONF_WEBSEVER_SORTING_WEIGHT]
+    if config[CONF_WEB_SERVER_SORTING_WEIGHT]:
+        weight = config[CONF_WEB_SERVER_SORTING_WEIGHT]
     else:
         weight = 50
 
