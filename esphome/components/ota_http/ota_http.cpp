@@ -239,8 +239,8 @@ bool OtaHttpComponent::http_get_md5() {
 
 bool OtaHttpComponent::set_url_(const std::string &value, char *url) {
   if (value.length() > CONFIG_MAX_URL_LENGHT - 1) {
-    ESP_LOGE(TAG, "Url max lenght is %d, and attempted to set url with lenght %d: %s", CONFIG_MAX_URL_LENGHT, value.length(),
-             value.c_str());
+    ESP_LOGE(TAG, "Url max lenght is %d, and attempted to set url with lenght %d: %s", CONFIG_MAX_URL_LENGHT,
+             value.length(), value.c_str());
     return false;
   }
   strncpy(url, value.c_str(), value.length());
