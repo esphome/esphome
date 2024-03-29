@@ -5,6 +5,7 @@
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
+#include "esphome/core/entity_base.h"
 
 #include <vector>
 #include <map>
@@ -291,7 +292,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// This web handle is not trivial.
   bool isRequestHandlerTrivial() override;
 
-  void add_entity_to_sorting_list(EntityBase *entity, float weight, std::string group);
+  void add_entity_to_sorting_list(EntityBase *entity, float weight, const char *group);
 
  protected:
   void schedule_(std::function<void()> &&f);
