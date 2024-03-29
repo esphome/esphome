@@ -60,6 +60,12 @@ int OtaHttpIDF::http_init(char *url) {
   }
   this->body_length_ = esp_http_client_fetch_headers(this->client_);
 
+  int http_code = esp_http_client_get_status_code(this->client_);
+  if (http_code >= 310) {
+    ESP_LOGE(TAG, "HTTP error %d; URL: %s", http_code, url);
+    return -1;
+  }
+
   ESP_LOGV(TAG, "body_length: %d", this->body_length_);
 
   if (this->body_length_ <= 0) {
