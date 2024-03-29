@@ -1,17 +1,46 @@
 #include "ebyte_lora.h"
+#include "config.h"
 
 namespace esphome {
 namespace ebyte_lora {
 static const uint8_t SWITCH_PUSH = 0x55;
 static const uint8_t SWITCH_INFO = 0x66;
+static const uint8_t PROGRAM_CONF = 0xC1;
 void EbyteLoraComponent::setup() {
   this->pin_aux_->setup();
   this->pin_m0_->setup();
   this->pin_m1_->setup();
-  set_mode_(MODE_0_NORMAL);
+  get_current_config_();
   ESP_LOGD(TAG, "Setup success");
 }
-
+void EbyteLoraComponent::get_current_config_() {
+  set_mode_(CONFIGURATION);
+  uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
+  this->write_array(data, sizeof(data));
+  RegisterConfig buffer;
+  if (!this->available()) {
+    return;
+  }
+  if (read_array((uint8_t *) &buffer, sizeof(buffer))) {
+    ESP_LOGD(TAG, "Found config");
+    buffer.addh_description_();
+    buffer.addl_description_();
+    buffer.reg_0.air_data_rate_description_();
+    buffer.reg_0.uart_baud_description_();
+    buffer.reg_0.parity_description_();
+    buffer.reg_1.rssi_noise_description_();
+    buffer.reg_1.sub_packet_description_();
+    buffer.reg_1.transmission_power_description_();
+    buffer.channel_description_();
+    buffer.reg_3.enable_lbt_description_();
+    buffer.reg_3.wor_period_description_();
+    buffer.reg_3.enable_rssi_description_();
+    buffer.reg_3.transmission_type_description_();
+    set_mode_(NORMAL);
+  } else {
+    ESP_LOGW(TAG, "Junk on wire. Throwing away partial message");
+  }
+}
 ModeType EbyteLoraComponent::get_mode_() {
   ModeType internalMode = MODE_INIT;
   if (!EbyteLoraComponent::can_send_message_()) {
@@ -22,19 +51,19 @@ ModeType EbyteLoraComponent::get_mode_() {
   bool pin2 = this->pin_m1_->digital_read();
   if (!pin1 && !pin2) {
     ESP_LOGD(TAG, "MODE NORMAL!");
-    internalMode = MODE_0_NORMAL;
+    internalMode = NORMAL;
   }
   if (pin1 && !pin2) {
     ESP_LOGD(TAG, "MODE WOR!");
-    internalMode = MODE_1_WOR_TRANSMITTER;
+    internalMode = WOR_SEND;
   }
   if (!pin1 && pin2) {
     ESP_LOGD(TAG, "MODE WOR!");
-    internalMode = MODE_2_WOR_RECEIVER;
+    internalMode = WOR_RECEIVER;
   }
   if (pin1 && pin2) {
     ESP_LOGD(TAG, "MODE Conf!");
-    internalMode = MODE_3_CONFIGURATION;
+    internalMode = CONFIGURATION;
   }
   if (internalMode != this->mode_) {
     ESP_LOGD(TAG, "Modes are not equal, calling the set function!! , checked: %u, expected: %u", internalMode,
@@ -51,28 +80,28 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
     ESP_LOGD(TAG, "The M0 and M1 pins is not set, this mean that you are connect directly the pins as you need!");
   } else {
     switch (mode) {
-      case MODE_0_NORMAL:
+      case NORMAL:
         // Mode 0 | normal operation
         this->pin_m0_->digital_write(false);
         this->pin_m1_->digital_write(false);
         ESP_LOGD(TAG, "MODE NORMAL!");
         break;
-      case MODE_1_WOR_TRANSMITTER:
+      case WOR_SEND:
         this->pin_m0_->digital_write(true);
         this->pin_m1_->digital_write(false);
-        ESP_LOGD(TAG, "MODE WOR!");
+        ESP_LOGD(TAG, "MODE WOR SEND!");
         break;
-      case MODE_2_WOR_RECEIVER:
+      case WOR_RECEIVER:
         // case MODE_2_PROGRAM:
         this->pin_m0_->digital_write(false);
         this->pin_m1_->digital_write(true);
         ESP_LOGD(TAG, "MODE RECEIVING!");
         break;
-      case MODE_3_CONFIGURATION:
+      case CONFIGURATION:
         // Mode 3 | Setting operation
         this->pin_m0_->digital_write(true);
         this->pin_m1_->digital_write(true);
-        ESP_LOGD(TAG, "MODE SLEEP CONFIG!");
+        ESP_LOGD(TAG, "MODE SLEEP and CONFIG!");
         break;
       case MODE_INIT:
         ESP_LOGD(TAG, "Don't call this!");
@@ -104,6 +133,7 @@ bool EbyteLoraComponent::can_send_message_() {
     return false;
   }
 }
+
 void EbyteLoraComponent::setup_wait_response_(uint32_t timeout) {
   if (this->starting_to_check_ != 0 || this->time_out_after_ != 0) {
     ESP_LOGD(TAG, "Wait response already set!!  %u", timeout);

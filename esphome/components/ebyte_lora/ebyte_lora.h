@@ -11,21 +11,13 @@
 namespace esphome {
 namespace ebyte_lora {
 
-static const char *const TAG = "ebyte_lora";
 static const uint8_t MAX_SIZE_TX_PACKET = 200;
+
 // the mode the receiver is in
-enum ModeType {
-  MODE_0_NORMAL = 0,
-  MODE_0_TRANSMISSION = 0,
-  MODE_1_WOR_TRANSMITTER = 1,
-  MODE_1_WOR = 1,
-  MODE_2_WOR_RECEIVER = 2,
-  MODE_2_POWER_SAVING = 2,
-  MODE_3_CONFIGURATION = 3,
-  MODE_3_PROGRAM = 3,
-  MODE_3_SLEEP = 3,
-  MODE_INIT = 0xFF
-};
+enum ModeType { NORMAL = 0, WOR_SEND = 1, WOR_RECEIVER = 2, CONFIGURATION = 3, MODE_INIT = 0xFF };
+// 1 byte, 8 bits in total
+// note that the data sheets shows the order in reverse
+
 // has to be defined first, will be implemented later
 class EbyteLoraSwitch;
 class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
@@ -52,6 +44,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   // checks the aux port to see if it is done setting
   void setup_wait_response_(uint32_t timeout = 1000);
   bool can_send_message_();
+  void get_current_config_();
   void send_switch_push_(uint8_t pin, bool value);
   void send_switch_info_();
 
