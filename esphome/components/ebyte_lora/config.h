@@ -7,7 +7,7 @@ namespace ebyte_lora {
 
 // check your data sheet to see what the values are, since each module does it diffrent
 
-enum ENABLE_BYTE { ENABLED = 0b1, DISABLED = 0b0 };
+enum ENABLE_BYTE { EBYTE_ENABLED = 0b1, EBYTE_DISABLED = 0b0 };
 
 enum AIR_DATA_RATE {
   AIR_2_4kb = 0b000,
@@ -182,9 +182,9 @@ struct REG3 {
   uint8_t enable_lbt : 1;
   std::string enable_lbt_description_() {
     switch (this->enable_lbt) {
-      case ENABLED:
+      case EBYTE_ENABLED:
         return "enable_lbt: ENABLED";
-      case DISABLED:
+      case EBYTE_DISABLED:
         return "enable_lbt: DISABLED";
       default:
     }
@@ -205,10 +205,10 @@ struct REG3 {
   uint8_t enable_rssi : 1;
   std::string enable_rssi_description_() {
     switch (this->enable_rssi) {
-      case ENABLED:
+      case EBYTE_ENABLED:
         return "enable_rssi: ENABLED";
 
-      case DISABLED:
+      case EBYTE_DISABLED:
         return "enable_rssi: DISABLED";
       default:
         return "";
