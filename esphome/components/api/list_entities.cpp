@@ -38,6 +38,9 @@ bool ListEntitiesIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) 
 #ifdef USE_LOCK
 bool ListEntitiesIterator::on_lock(lock::Lock *a_lock) { return this->client_->send_lock_info(a_lock); }
 #endif
+#ifdef USE_VALVE
+bool ListEntitiesIterator::on_valve(valve::Valve *valve) { return this->client_->send_valve_info(valve); }
+#endif
 
 bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(); }
 ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}

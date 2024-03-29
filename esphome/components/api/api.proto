@@ -43,6 +43,7 @@ service APIConnection {
   rpc select_command (SelectCommandRequest) returns (void) {}
   rpc button_command (ButtonCommandRequest) returns (void) {}
   rpc lock_command (LockCommandRequest) returns (void) {}
+  rpc valve_command (ValveCommandRequest) returns (void) {}
   rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
   rpc date_command (DateCommandRequest) returns (void) {}
 
@@ -614,6 +615,74 @@ message TextSensorStateResponse {
   // If the text sensor does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
+}
+
+// ==================== VALVE ====================
+message ListEntitiesValveResponse {
+  option (id) = 13;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VALVE";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  bool assumed_state = 5;
+  bool supports_position = 6;
+  string device_class = 7;
+  bool disabled_by_default = 8;
+  string icon = 9;
+  EntityCategory entity_category = 10;
+  bool supports_stop = 11;
+}
+
+enum LegacyValveState {
+  LEGACY_VALVE_STATE_OPEN = 0;
+  LEGACY_VALVE_STATE_CLOSED = 1;
+}
+enum ValveOperation {
+  VALVE_OPERATION_IDLE = 0;
+  VALVE_OPERATION_IS_OPENING = 1;
+  VALVE_OPERATION_IS_CLOSING = 2;
+}
+message ValveStateResponse {
+  option (id) = 22;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VALVE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  // legacy: state has been removed in 1.13
+  // clients/servers must still send/accept it until the next protocol change
+  LegacyValveState legacy_state = 2;
+
+  float position = 3;
+  ValveOperation current_operation = 4;
+}
+
+enum LegacyValveCommand {
+  LEGACY_VALVE_COMMAND_OPEN = 0;
+  LEGACY_VALVE_COMMAND_CLOSE = 1;
+  LEGACY_VALVE_COMMAND_STOP = 2;
+  LEGACY_VALVE_COMMAND_TOGGLE = 3;
+}
+message ValveCommandRequest {
+  option (id) = 30;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VALVE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+
+  // legacy: command has been removed in 1.13
+  // clients/servers must still send/accept it until the next protocol change
+  bool has_legacy_command = 2;
+  LegacyValveCommand legacy_command = 3;
+
+  bool has_position = 4;
+  float position = 5;
+  bool stop = 6;
 }
 
 // ==================== SUBSCRIBE LOGS ====================

@@ -176,6 +176,24 @@ bool APIServerConnectionBase::send_text_sensor_state_response(const TextSensorSt
   return this->send_message_<TextSensorStateResponse>(msg, 27);
 }
 #endif
+#ifdef USE_VALVE
+bool APIServerConnectionBase::send_list_entities_valve_response(const ListEntitiesValveResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_valve_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesValveResponse>(msg, 13);
+}
+#endif
+#ifdef USE_VALVE
+bool APIServerConnectionBase::send_valve_state_response(const ValveStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_valve_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ValveStateResponse>(msg, 22);
+}
+#endif
+#ifdef USE_VALVE
+#endif
 bool APIServerConnectionBase::send_subscribe_logs_response(const SubscribeLogsResponse &msg) {
   return this->send_message_<SubscribeLogsResponse>(msg, 29);
 }
@@ -624,13 +642,13 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 30: {
-#ifdef USE_COVER
-      CoverCommandRequest msg;
+#ifdef USE_VALVE
+      ValveCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_cover_command_request: %s", msg.dump().c_str());
+      ESP_LOGVV(TAG, "on_valve_command_request: %s", msg.dump().c_str());
 #endif
-      this->on_cover_command_request(msg);
+      this->on_valve_command_request(msg);
 #endif
       break;
     }
@@ -1232,6 +1250,19 @@ void APIServerConnection::on_lock_command_request(const LockCommandRequest &msg)
     return;
   }
   this->lock_command(msg);
+}
+#endif
+#ifdef USE_VALVE
+void APIServerConnection::on_valve_command_request(const ValveCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->valve_command(msg);
 }
 #endif
 #ifdef USE_MEDIA_PLAYER

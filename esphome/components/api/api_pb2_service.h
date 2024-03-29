@@ -81,6 +81,15 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_TEXT_SENSOR
   bool send_text_sensor_state_response(const TextSensorStateResponse &msg);
 #endif
+#ifdef USE_VALVE
+  bool send_list_entities_valve_response(const ListEntitiesValveResponse &msg);
+#endif
+#ifdef USE_VALVE
+  bool send_valve_state_response(const ValveStateResponse &msg);
+#endif
+#ifdef USE_VALVE
+  virtual void on_valve_command_request(const ValveCommandRequest &value){};
+#endif
   virtual void on_subscribe_logs_request(const SubscribeLogsRequest &value){};
   bool send_subscribe_logs_response(const SubscribeLogsResponse &msg);
   virtual void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &value){};
@@ -318,6 +327,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_LOCK
   virtual void lock_command(const LockCommandRequest &msg) = 0;
 #endif
+#ifdef USE_VALVE
+  virtual void valve_command(const ValveCommandRequest &msg) = 0;
+#endif
 #ifdef USE_MEDIA_PLAYER
   virtual void media_player_command(const MediaPlayerCommandRequest &msg) = 0;
 #endif
@@ -406,6 +418,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_LOCK
   void on_lock_command_request(const LockCommandRequest &msg) override;
+#endif
+#ifdef USE_VALVE
+  void on_valve_command_request(const ValveCommandRequest &msg) override;
 #endif
 #ifdef USE_MEDIA_PLAYER
   void on_media_player_command_request(const MediaPlayerCommandRequest &msg) override;

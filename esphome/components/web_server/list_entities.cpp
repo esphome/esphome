@@ -86,6 +86,13 @@ bool ListEntitiesIterator::on_lock(lock::Lock *a_lock) {
 }
 #endif
 
+#ifdef USE_VALVE
+bool ListEntitiesIterator::on_valve(valve::Valve *valve) {
+  this->web_server_->events_.send(this->web_server_->valve_json(valve, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
 #ifdef USE_CLIMATE
 bool ListEntitiesIterator::on_climate(climate::Climate *climate) {
   if (this->web_server_->events_.count() == 0)

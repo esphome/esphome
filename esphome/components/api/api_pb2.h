@@ -60,6 +60,21 @@ enum SensorLastResetType : uint32_t {
   LAST_RESET_NEVER = 1,
   LAST_RESET_AUTO = 2,
 };
+enum LegacyValveState : uint32_t {
+  LEGACY_VALVE_STATE_OPEN = 0,
+  LEGACY_VALVE_STATE_CLOSED = 1,
+};
+enum ValveOperation : uint32_t {
+  VALVE_OPERATION_IDLE = 0,
+  VALVE_OPERATION_IS_OPENING = 1,
+  VALVE_OPERATION_IS_CLOSING = 2,
+};
+enum LegacyValveCommand : uint32_t {
+  LEGACY_VALVE_COMMAND_OPEN = 0,
+  LEGACY_VALVE_COMMAND_CLOSE = 1,
+  LEGACY_VALVE_COMMAND_STOP = 2,
+  LEGACY_VALVE_COMMAND_TOGGLE = 3,
+};
 enum LogLevel : uint32_t {
   LOG_LEVEL_NONE = 0,
   LOG_LEVEL_ERROR = 1,
@@ -737,6 +752,61 @@ class TextSensorStateResponse : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class ListEntitiesValveResponse : public ProtoMessage {
+ public:
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  bool assumed_state{false};
+  bool supports_position{false};
+  std::string device_class{};
+  bool disabled_by_default{false};
+  std::string icon{};
+  enums::EntityCategory entity_category{};
+  bool supports_stop{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class ValveStateResponse : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  enums::LegacyValveState legacy_state{};
+  float position{0.0f};
+  enums::ValveOperation current_operation{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class ValveCommandRequest : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  bool has_legacy_command{false};
+  enums::LegacyValveCommand legacy_command{};
+  bool has_position{false};
+  float position{0.0f};
+  bool stop{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class SubscribeLogsRequest : public ProtoMessage {

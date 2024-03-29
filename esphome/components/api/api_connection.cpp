@@ -878,6 +878,66 @@ void APIConnection::lock_command(const LockCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_VALVE
+bool APIConnection::send_valve_state(valve::Valve *valve) {
+  if (!this->state_subscription_)
+    return false;
+
+  ValveStateResponse resp{};
+  resp.key = valve->get_object_id_hash();
+  resp.legacy_state =
+      (valve->position == valve::VALVE_OPEN) ? enums::LEGACY_VALVE_STATE_OPEN : enums::LEGACY_VALVE_STATE_CLOSED;
+  resp.position = valve->position;
+  resp.current_operation = static_cast<enums::ValveOperation>(valve->current_operation);
+  return this->send_valve_state_response(resp);
+}
+bool APIConnection::send_valve_info(valve::Valve *valve) {
+  auto traits = valve->get_traits();
+  ListEntitiesValveResponse msg;
+  msg.key = valve->get_object_id_hash();
+  msg.object_id = valve->get_object_id();
+  if (valve->has_own_name())
+    msg.name = valve->get_name();
+  msg.unique_id = get_default_unique_id("valve", valve);
+  msg.assumed_state = traits.get_is_assumed_state();
+  msg.supports_position = traits.get_supports_position();
+  msg.supports_stop = traits.get_supports_stop();
+  msg.device_class = valve->get_device_class();
+  msg.disabled_by_default = valve->is_disabled_by_default();
+  msg.icon = valve->get_icon();
+  msg.entity_category = static_cast<enums::EntityCategory>(valve->get_entity_category());
+  return this->send_list_entities_valve_response(msg);
+}
+void APIConnection::valve_command(const ValveCommandRequest &msg) {
+  valve::Valve *valve = App.get_valve_by_key(msg.key);
+  if (valve == nullptr)
+    return;
+
+  auto call = valve->make_call();
+  if (msg.has_legacy_command) {
+    switch (msg.legacy_command) {
+      case enums::LEGACY_VALVE_COMMAND_OPEN:
+        call.set_command_open();
+        break;
+      case enums::LEGACY_VALVE_COMMAND_CLOSE:
+        call.set_command_close();
+        break;
+      case enums::LEGACY_VALVE_COMMAND_STOP:
+        call.set_command_stop();
+        break;
+      case enums::LEGACY_VALVE_COMMAND_TOGGLE:
+        call.set_command_toggle();
+        break;
+    }
+  }
+  if (msg.has_position)
+    call.set_position(msg.position);
+  if (msg.stop)
+    call.set_command_stop();
+  call.perform();
+}
+#endif
+
 #ifdef USE_MEDIA_PLAYER
 bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_player) {
   if (!this->state_subscription_)
