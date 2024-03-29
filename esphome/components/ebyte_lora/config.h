@@ -215,7 +215,6 @@ struct REG3 {
     }
   }
 };
-static const uint8_t OPERATING_FREQUENCY = 700;
 struct RegisterConfig {
   uint8_t command = 0;
   uint8_t starting_address = 0;
