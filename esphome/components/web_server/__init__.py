@@ -119,7 +119,7 @@ def add_entity_to_sorting_list(web_server, entity, config):
     else:
         group = "none"
 
-    if config[CONF_WEB_SERVER_SORTING_WEIGHT]:
+    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
         weight = config[CONF_WEB_SERVER_SORTING_WEIGHT]
     else:
         weight = 50
