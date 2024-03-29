@@ -7,6 +7,7 @@
 #include "esphome/core/controller.h"
 
 #include <vector>
+#include <map>
 #ifdef USE_ESP32
 #include <deque>
 #include <freertos/FreeRTOS.h>
@@ -39,8 +40,7 @@ struct UrlMatch {
   bool valid;          ///< Whether this match is valid
 };
 
-struct SortingEntity {
-  uint32_t object_id_hash;
+struct SortingComponents {
   float weight;
   std::string group;
 };
@@ -299,7 +299,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
   ListEntitiesIterator entities_iterator_;
-  std::vector<SortingEntity *> sorting_entitys_;
+  std::map<EntityBase *, SortingComponents *> sorting_entitys_;
 #if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
   const char *js_url_{nullptr};

@@ -833,12 +833,11 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
   return json::build_json([this, obj, value, start_config](JsonObject root) {
     set_json_id(root, obj, "number-" + obj->get_object_id(), start_config);
     if (start_config == DETAIL_ALL) {
-      for (auto *entity : this->sorting_entitys_) {
-        if (obj->get_object_id_hash() == entity->object_id_hash) {
-          root["weight"] = entity->weight;
-          root["group"] = entity->group;
-        }
+      if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
+        root["weight"] = this->sorting_entitys_[obj]->weight;
+        root["group"] = this->sorting_entitys_[obj]->group;
       }
+
       root["min_value"] = obj->traits.get_min_value();
       root["max_value"] = obj->traits.get_max_value();
       root["step"] = obj->traits.get_step();
@@ -1462,14 +1461,8 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 bool WebServer::isRequestHandlerTrivial() { return false; }
 
 void WebServer::add_entity_to_sorting_list(EntityBase *entity, float weight, std::string group) {
-  for (auto sorting_entity : this->sorting_entitys_) {
-    if (sorting_entity->object_id_hash == entity->get_object_id_hash()) {
-      return;
-    }
-  }
-
-  SortingEntity *sorting_entity = new SortingEntity{entity->get_object_id_hash(), weight, group};
-  this->sorting_entitys_.push_back(sorting_entity);
+  SortingComponents *sorting_component = new SortingComponents{weight, group};
+  this->sorting_entitys_[entity] = sorting_component;
 }
 
 void WebServer::schedule_(std::function<void()> &&f) {
