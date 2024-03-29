@@ -196,7 +196,6 @@ struct REG3 {
     switch (this->transmission_mode) {
       case TRANSPARENT:
         return "transmission_type: TRANSPARENT";
-
       case FIXED:
         return "transmission_type: FIXED";
       default:
@@ -208,7 +207,6 @@ struct REG3 {
     switch (this->enable_rssi) {
       case EBYTE_ENABLED:
         return "enable_rssi: ENABLED";
-
       case EBYTE_DISABLED:
         return "enable_rssi: DISABLED";
       default:
