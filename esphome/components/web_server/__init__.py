@@ -118,11 +118,13 @@ def add_entity_to_sorting_list(web_server, entity, config):
         group = config[CONF_ENTITY_CATEGORY]
     else:
         group = "none"
-    cg.add(
-        web_server.add_entity_to_sorting_list(
-            entity, config[CONF_WEBSEVER_SORTING_WEIGHT], group
-        )
-    )
+
+    if config[CONF_WEBSEVER_SORTING_WEIGHT]:
+        weight = config[CONF_WEBSEVER_SORTING_WEIGHT]
+    else:
+        weight = 50
+
+    cg.add(web_server.add_entity_to_sorting_list(entity, weight, group))
 
 
 def build_index_html(config) -> str:

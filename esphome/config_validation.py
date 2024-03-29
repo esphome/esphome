@@ -1895,7 +1895,7 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
 
 WEBSERVER_SORTING_SCHEMA = Schema(
     {
-        Optional(CONF_WEBSEVER_SORTING_WEIGHT, default=50): All(
+        Optional(CONF_WEBSEVER_SORTING_WEIGHT): All(
             requires_component("web_server"), float_
         ),
         Optional(CONF_WEBSEVER_SORTING_GROUP): All(
