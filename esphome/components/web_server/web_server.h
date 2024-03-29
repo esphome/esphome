@@ -39,6 +39,12 @@ struct UrlMatch {
   bool valid;          ///< Whether this match is valid
 };
 
+struct SortingEntity {
+  uint32_t object_id_hash;
+  float weight;
+  std::string group;
+};
+
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
 /** This class allows users to create a web server with their ESP nodes.
@@ -285,12 +291,15 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// This web handle is not trivial.
   bool isRequestHandlerTrivial() override;
 
+  void add_entity_to_sorting_list(EntityBase *entity, float weight, std::string group);
+
  protected:
   void schedule_(std::function<void()> &&f);
   friend ListEntitiesIterator;
   web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
   ListEntitiesIterator entities_iterator_;
+  std::vector<SortingEntity *> sorting_entitys_;
 #if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
   const char *js_url_{nullptr};

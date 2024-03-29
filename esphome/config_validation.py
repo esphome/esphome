@@ -46,6 +46,8 @@ from esphome.const import (
     CONF_REF,
     CONF_URL,
     CONF_PATH,
+    CONF_WEBSEVER_SORTING_WEIGHT,
+    CONF_WEBSEVER_SORTING_GROUP,
     CONF_USERNAME,
     CONF_PASSWORD,
     ENTITY_CATEGORY_CONFIG,
@@ -1888,6 +1890,17 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
         Optional(CONF_COMMAND_TOPIC): All(requires_component("mqtt"), subscribe_topic),
         Optional(CONF_COMMAND_RETAIN): All(requires_component("mqtt"), boolean),
+    }
+)
+
+WEBSERVER_SORTING_SCHEMA = Schema(
+    {
+        Optional(CONF_WEBSEVER_SORTING_WEIGHT, default=50): All(
+            requires_component("web_server"), float_
+        ),
+        Optional(CONF_WEBSEVER_SORTING_GROUP): All(
+            requires_component("web_server"), string
+        ),
     }
 )
 

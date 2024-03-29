@@ -19,6 +19,9 @@ from esphome.const import (
     CONF_LOG,
     CONF_VERSION,
     CONF_LOCAL,
+    CONF_WEBSEVER_SORTING_GROUP,
+    CONF_WEBSEVER_SORTING_WEIGHT,
+    CONF_ENTITY_CATEGORY,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_BK72XX,
@@ -106,6 +109,20 @@ CONFIG_SCHEMA = cv.All(
     validate_local,
     validate_ota,
 )
+
+
+def add_entity_to_sorting_list(web_server, entity, config):
+    if CONF_WEBSEVER_SORTING_GROUP in config:
+        group = config[CONF_WEBSEVER_SORTING_GROUP]
+    elif CONF_ENTITY_CATEGORY in config:
+        group = config[CONF_ENTITY_CATEGORY]
+    else:
+        group = "none"
+    cg.add(
+        web_server.add_entity_to_sorting_list(
+            entity, config[CONF_WEBSEVER_SORTING_WEIGHT], group
+        )
+    )
 
 
 def build_index_html(config) -> str:
