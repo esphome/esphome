@@ -66,7 +66,7 @@ def clone_or_update(
         cmd += ["--", url, str(repo_dir)]
         run_git_command(cmd)
 
-        if ref is not None: 
+        if ref is not None:
             # We need to fetch the PR branch first, otherwise git will complain
             # about missing objects
             _LOGGER.info("Fetching %s", ref)
