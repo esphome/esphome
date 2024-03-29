@@ -7,10 +7,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/log.h"
+#include "config.h"
 
 namespace esphome {
 namespace ebyte_lora {
-
 static const uint8_t MAX_SIZE_TX_PACKET = 200;
 
 // the mode the receiver is in

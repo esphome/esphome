@@ -1,6 +1,4 @@
 #include "ebyte_lora.h"
-#include "config.h"
-
 namespace esphome {
 namespace ebyte_lora {
 static const uint8_t SWITCH_PUSH = 0x55;
