@@ -299,7 +299,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
   ListEntitiesIterator entities_iterator_;
-  std::map<EntityBase *, SortingComponents *> sorting_entitys_;
+  std::map<EntityBase *, SortingComponents> sorting_entitys_;
 #if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
   const char *js_url_{nullptr};

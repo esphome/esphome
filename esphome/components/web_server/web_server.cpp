@@ -834,8 +834,8 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
     set_json_id(root, obj, "number-" + obj->get_object_id(), start_config);
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
-        root["weight"] = this->sorting_entitys_[obj]->weight;
-        root["group"] = this->sorting_entitys_[obj]->group;
+        root["weight"] = this->sorting_entitys_[obj].weight;
+        root["group"] = this->sorting_entitys_[obj].group;
       }
 
       root["min_value"] = obj->traits.get_min_value();
@@ -1461,8 +1461,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 bool WebServer::isRequestHandlerTrivial() { return false; }
 
 void WebServer::add_entity_to_sorting_list(EntityBase *entity, float weight, std::string group) {
-  SortingComponents *sorting_component = new SortingComponents{weight, group};
-  this->sorting_entitys_[entity] = sorting_component;
+  this->sorting_entitys_[entity] = SortingComponents{weight, group};
 }
 
 void WebServer::schedule_(std::function<void()> &&f) {
