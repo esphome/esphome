@@ -29,6 +29,7 @@ OtaHttpFlashAction = ota_http_ns.class_("OtaHttpFlashAction", automation.Action)
 CONF_EXCLUDE_CERTIFICATE_BUNDLE = "exclude_certificate_bundle"
 CONF_MD5_URL = "md5_url"
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
+CONF_MAX_URL_LENGHT = "max_url_lenght"
 
 
 def validate_certificate_bundle(config):
@@ -100,6 +101,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SAFE_MODE, default="fallback"): cv.Any(
                 cv.boolean, "fallback"
             ),
+            cv.Optional(CONF_MAX_URL_LENGHT, default=240): cv.uint16_t,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
@@ -118,7 +120,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(validate_safe_mode)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
-
+    cg.add_define("CONFIG_MAX_URL_LENGHT", config[CONF_MAX_URL_LENGHT])
     if (
         config.get(CONF_WATCHDOG_TIMEOUT, None)
         and config[CONF_WATCHDOG_TIMEOUT].total_milliseconds > 0

@@ -44,7 +44,7 @@ const std::unique_ptr<ota::OTABackend> OtaHttpComponent::BACKEND = make_ota_back
 
 void OtaHttpComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "OTA Update over http:");
-  ESP_LOGCONFIG(TAG, "  Max url lenght: %d", MAX_URL_LEN);
+  ESP_LOGCONFIG(TAG, "  Max url lenght: %d", CONFIG_MAX_URL_LENGHT);
   ESP_LOGCONFIG(TAG, "  Timeout: %llus", this->timeout_ / 1000);
 #ifdef CONFIG_WATCHDOG_TIMEOUT
   ESP_LOGCONFIG(TAG, "  Watchdog timeout: %ds", CONFIG_WATCHDOG_TIMEOUT / 1000);
@@ -238,8 +238,8 @@ bool OtaHttpComponent::http_get_md5() {
 }
 
 bool OtaHttpComponent::set_url_(const std::string &value, char *url) {
-  if (value.length() > MAX_URL_LEN - 1) {
-    ESP_LOGE(TAG, "Url max lenght is %d, and attempted to set url with lenght %d: %s", MAX_URL_LEN, value.length(),
+  if (value.length() > CONFIG_MAX_URL_LENGHT - 1) {
+    ESP_LOGE(TAG, "Url max lenght is %d, and attempted to set url with lenght %d: %s", CONFIG_MAX_URL_LENGHT, value.length(),
              value.c_str());
     return false;
   }
