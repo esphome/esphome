@@ -2,7 +2,7 @@
 name: CI for docker images
 
 # Only run when docker paths change
-# yamllint disable-line rule:truthy
+
 on:
   push:
     branches: [dev, beta, release]
