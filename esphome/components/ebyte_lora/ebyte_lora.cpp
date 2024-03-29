@@ -7,7 +7,9 @@ static const uint8_t PROGRAM_CONF = 0xC1;
 void EbyteLoraComponent::update() {
   if (get_mode_() != NORMAL) {
     if (this->config.command == 0) {
-      ESP_LOGD(TAG, "Config not set yet!");
+      ESP_LOGD(TAG, "Config not set yet!, gonna request it now!");
+      get_current_config_();
+      return;
     }
     ESP_LOGD(TAG, "Mode was not set right");
     set_mode_(NORMAL);
