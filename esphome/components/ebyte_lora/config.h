@@ -187,6 +187,7 @@ struct REG3 {
       case EBYTE_DISABLED:
         return "enable_lbt: DISABLED";
       default:
+        return "";
     }
   }
   uint8_t reserve2 : 1;
