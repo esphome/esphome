@@ -42,8 +42,18 @@ std::unique_ptr<ota::OTABackend> make_ota_backend() {
 
 const std::unique_ptr<ota::OTABackend> OtaHttpComponent::BACKEND = make_ota_backend();
 
+OtaHttpComponent::OtaHttpComponent() {
+  this->pref_obj_.load(&this->pref_);
+  if (!this->pref_obj_.save(&this->pref_)) {
+    // error at 'load' might be caused by 1st usage, but error at 'save' is a real error.
+    ESP_LOGE(TAG, "Unable to use flash memory. Safe mode might be not available");
+  }
+}
+
 void OtaHttpComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "OTA Update over http:");
+  pref_.last_md5[MD5_SIZE] = '\0';
+  ESP_LOGCONFIG(TAG, "  Last flashed md5: %s", pref_.last_md5);
   ESP_LOGCONFIG(TAG, "  Max url length: %d", CONFIG_MAX_URL_LENGTH);
   ESP_LOGCONFIG(TAG, "  Timeout: %llus", this->timeout_ / 1000);
 #ifdef CONFIG_WATCHDOG_TIMEOUT
@@ -92,11 +102,27 @@ void OtaHttpComponent::flash() {
   uint32_t last_progress = 0;
   md5::MD5Digest md5_receive;
   std::unique_ptr<char[]> md5_receive_str(new char[33]);
-  if (!this->http_get_md5() || !this->http_init(this->pref_.url)) {
+  if (!this->http_get_md5()) {
     return;
   }
 
   ESP_LOGD(TAG, "MD5 expected: %s", this->md5_expected_);
+
+  if(!CONFIG_FORCE_UPDATE) {
+    if (strncmp(this->pref_.last_md5, this->md5_expected_, MD5_SIZE) == 0) {
+      this->http_end();
+      ESP_LOGW(TAG, "OTA Update skipped: retrieved md5 %s match the last installed firmware", this->pref_.last_md5);
+#ifdef CONFIG_WATCHDOG_TIMEOUT
+      watchdog::Watchdog::reset();
+#endif
+      return;
+    }
+  }
+
+  if(!this->http_init(this->pref_.url)) {
+    return;
+  }
+
   // we will compute MD5 on the fly for verification -- Arduino OTA seems to ignore it
   md5_receive.init();
   ESP_LOGV(TAG, "MD5Digest initialized");
@@ -174,7 +200,9 @@ void OtaHttpComponent::flash() {
   }
 
   this->pref_.ota_http_state = OTA_HTTP_STATE_OK;
+  strncpy(this->pref_.last_md5, this->md5_expected_, MD5_SIZE);
   this->pref_obj_.save(&this->pref_);
+  global_preferences->sync();
   delay(10);
   ESP_LOGI(TAG, "OTA update completed");
   delay(10);
@@ -225,9 +253,15 @@ void OtaHttpComponent::check_upgrade() {
 }
 
 bool OtaHttpComponent::http_get_md5() {
-  if (this->http_init(this->pref_.md5_url) < MD5_SIZE) {
+  int length = this->http_init(this->pref_.md5_url);
+  if (length < 0) {
+    this->http_end();
+    return false;
+  }
+  if (length < MD5_SIZE) {
     ESP_LOGE(TAG, "MD5 file must be %u bytes; %u bytes reported by HTTP server. Aborting", MD5_SIZE,
              this->body_length_);
+    this->http_end();
     return false;
   }
 

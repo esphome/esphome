@@ -23,18 +23,23 @@ enum OtaHttpState {
 #ifndef CONFIG_MAX_URL_LENGTH
 static const uint16_t CONFIG_MAX_URL_LENGTH = 128;
 #endif
+#ifndef CONFIG_FORCE_UPDATE
+static const bool CONFIG_FORCE_UPDATE = true;
+#endif
 
 static const char *const TAG = "ota_http";
 static const uint8_t MD5_SIZE = 32;
 
 struct OtaHttpGlobalPrefType {
   OtaHttpState ota_http_state;
+  char last_md5[MD5_SIZE + 1];
   char md5_url[CONFIG_MAX_URL_LENGTH];
   char url[CONFIG_MAX_URL_LENGTH];
 } PACKED;
 
 class OtaHttpComponent : public Component {
  public:
+  OtaHttpComponent();
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   bool set_md5_url(const std::string &md5_url) { return this->set_url_(md5_url, this->pref_.md5_url); }
@@ -60,7 +65,7 @@ class OtaHttpComponent : public Component {
   static const std::unique_ptr<ota::OTABackend> BACKEND;
   void cleanup_();
   char md5_expected_[MD5_SIZE];
-  OtaHttpGlobalPrefType pref_ = {OTA_HTTP_STATE_OK, "", ""};
+  OtaHttpGlobalPrefType pref_ = {OTA_HTTP_STATE_OK, "None", "", ""};
   ESPPreferenceObject pref_obj_ =
       global_preferences->make_preference<OtaHttpGlobalPrefType>(OTA_HTTP_PREF_SAFE_MODE_HASH, true);
 

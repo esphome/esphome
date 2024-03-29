@@ -30,6 +30,7 @@ CONF_EXCLUDE_CERTIFICATE_BUNDLE = "exclude_certificate_bundle"
 CONF_MD5_URL = "md5_url"
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
 CONF_MAX_URL_LENGTH = "max_url_length"
+CONF_FORCE_UPDATE = "force_update"
 
 
 def validate_certificate_bundle(config):
@@ -102,6 +103,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean, "fallback"
             ),
             cv.Optional(CONF_MAX_URL_LENGTH, default=240): cv.uint16_t,
+            cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
@@ -121,6 +123,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add_define("CONFIG_MAX_URL_LENGTH", config[CONF_MAX_URL_LENGTH])
+    cg.add_define("CONFIG_FORCE_UPDATE", config[CONF_FORCE_UPDATE]);
     if (
         config.get(CONF_WATCHDOG_TIMEOUT, None)
         and config[CONF_WATCHDOG_TIMEOUT].total_milliseconds > 0
