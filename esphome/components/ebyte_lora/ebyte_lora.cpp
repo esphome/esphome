@@ -221,6 +221,9 @@ void EbyteLoraComponent::loop() {
     this->rssi_sensor_->publish_state((data[data.size() - 1] / 255.0) * 100);
     ESP_LOGD(TAG, "RSSI: %u % ", (data[data.size() - 1] / 255.0) * 100);
   }
+  if (data[0] == PROGRAM_CONF) {
+    ESP_LOGD(TAG, "GOT PROGRAM_CONF");
+  }
 }
 void EbyteLoraComponent::send_switch_info_() {
   if (!EbyteLoraComponent::can_send_message_()) {
