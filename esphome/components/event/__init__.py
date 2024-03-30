@@ -21,7 +21,7 @@ from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
 from esphome.cpp_generator import MockObjClass
 
-CODEOWNERS = ["@esphome/core"]
+CODEOWNERS = ["@nohat"]
 IS_PLATFORM_COMPONENT = True
 
 DEVICE_CLASSES = [

@@ -4,6 +4,8 @@ import esphome.codegen as cg
 
 from .. import template_ns
 
+CODEOWNERS = ["@nohat"]
+
 TemplateEvent = template_ns.class_("TemplateEvent", event.Event, cg.Component)
 
 CONFIG_SCHEMA = event.event_schema(TemplateEvent)
