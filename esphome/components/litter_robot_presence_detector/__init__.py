@@ -5,7 +5,7 @@ from esphome.const import CONF_ID
 DEPENDENCIES = ["esp32_camera"]
 
 litter_robot_presence_detector_ns = cg.esphome_ns.namespace("litter_robot_presence_detector")
-LitterRobotPresenceDetectorConstructor = litter_robot_presence_detector_ns.class_("LitterRobotPresenceDetectorConstructor")
+LitterRobotPresenceDetectorConstructor = litter_robot_presence_detector_ns.class_("LitterRobotPresenceDetectorConstructor", cg.Component)
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema(
