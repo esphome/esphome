@@ -87,8 +87,7 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 }
 #endif
 #ifdef USE_EVENT
-bool ListEntitiesIterator::on_event(event::Event *event) { 
-  return this->client_->send_event_info(event); }
+bool ListEntitiesIterator::on_event(event::Event *event) { return this->client_->send_event_info(event); }
 #endif
 
 }  // namespace api

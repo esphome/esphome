@@ -310,7 +310,7 @@ void APIServer::on_media_player_update(media_player::MediaPlayer *obj) {
 #endif
 
 #ifdef USE_EVENT
-void APIServer::on_event(event::Event * obj, const std::string &event_type) {
+void APIServer::on_event(event::Event *obj, const std::string &event_type) {
   for (auto &c : this->clients_)
     c->send_event(obj, event_type);
 }

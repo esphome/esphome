@@ -1,8 +1,8 @@
 from esphome.components import event
 
-from .. import template_ns
-
 import esphome.codegen as cg
+
+from .. import template_ns
 
 TemplateEvent = template_ns.class_("TemplateEvent", event.Event, cg.Component)
 

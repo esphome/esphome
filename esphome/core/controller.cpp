@@ -106,8 +106,7 @@ void Controller::setup_controller(bool include_internal) {
 #ifdef USE_EVENT
   for (auto *obj : App.get_events()) {
     if (include_internal || !obj->is_internal())
-      obj->add_on_event_fired_callback(
-          [this, obj](const std::string &event_type) { this->on_event(obj, event_type); });
+      obj->add_on_event_fired_callback([this, obj](const std::string &event_type) { this->on_event(obj, event_type); });
   }
 #endif
 }

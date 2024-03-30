@@ -27,7 +27,8 @@ void MQTTEventComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
 }
 
 void MQTTEventComponent::setup() {
-  this->event_->add_on_event_fired_callback([this](const std::string &event_type) { this->publish_event_(event_type); });
+  this->event_->add_on_event_fired_callback(
+      [this](const std::string &event_type) { this->publish_event_(event_type); });
 }
 
 void MQTTEventComponent::dump_config() {
@@ -40,7 +41,8 @@ void MQTTEventComponent::dump_config() {
 }
 
 bool MQTTEventComponent::publish_event_(const std::string &event_type) {
-  return this->publish_json(this->get_state_topic_(), [event_type](JsonObject root) { root[MQTT_EVENT_TYPE] = event_type; });
+  return this->publish_json(this->get_state_topic_(),
+                            [event_type](JsonObject root) { root[MQTT_EVENT_TYPE] = event_type; });
 }
 
 std::string MQTTEventComponent::component_type() const { return "event"; }

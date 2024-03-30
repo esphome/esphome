@@ -1304,8 +1304,8 @@ std::string WebServer::event_json(event::Event *event, const std::string &event_
         event_types.add(event_type);
       }
       root["device_class"] = event->get_device_class();
-      }
-    });
+    }
+  });
 }
 #endif
 
