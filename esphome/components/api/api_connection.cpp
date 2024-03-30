@@ -1169,9 +1169,6 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
 
 #ifdef USE_EVENT
 bool APIConnection::send_event(event::Event *event, std::string event_type) {
-  // if (!this->state_subscription_)
-  //   return false;
-
   EventResponse resp{};
   resp.key = event->get_object_id_hash();
   resp.event_type = std::move(event_type);

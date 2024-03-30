@@ -24,7 +24,6 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
   bool has_event_type(const std::string &event_type) const;
   void set_event_types(const std::vector<std::string> &event_types);
   std::vector<std::string> get_event_types() const { return this->types_; }
-  size_t size() const { return this->types_.size(); }
   void add_on_event_fired_callback(std::function<void(const std::string &event_type)> &&callback);
  protected:
   CallbackManager<void(const std::string &event_type)> event_fired_callback_;

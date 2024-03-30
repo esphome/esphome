@@ -153,8 +153,8 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 #ifdef USE_EVENT
 bool ListEntitiesIterator::on_event(event::Event *event) {
   // Null event type, since we are just iterating over entities
-  std::string event_type = "default";
-  this->web_server_->events_.send(this->web_server_->event_json(event, event_type, DETAIL_ALL).c_str(), "event_type");
+  const std::string null_event_type = "";
+  this->web_server_->events_.send(this->web_server_->event_json(event, null_event_type, DETAIL_ALL).c_str(), "state");
   return true;
 }
 #endif
