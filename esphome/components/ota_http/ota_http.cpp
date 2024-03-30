@@ -108,7 +108,7 @@ void OtaHttpComponent::flash() {
 
   ESP_LOGD(TAG, "MD5 expected: %s", this->md5_expected_);
 
-  if(!CONFIG_FORCE_UPDATE) {
+  if (!CONFIG_FORCE_UPDATE) {
     if (strncmp(this->pref_.last_md5, this->md5_expected_, MD5_SIZE) == 0) {
       this->http_end();
       ESP_LOGW(TAG, "OTA Update skipped: retrieved md5 %s match the last installed firmware", this->pref_.last_md5);
@@ -119,7 +119,7 @@ void OtaHttpComponent::flash() {
     }
   }
 
-  if(!this->http_init(this->pref_.url)) {
+  if (!this->http_init(this->pref_.url)) {
     return;
   }
 

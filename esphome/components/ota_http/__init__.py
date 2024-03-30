@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_METHOD,
     CONF_ESP8266_DISABLE_SSL_SUPPORT,
     CONF_SAFE_MODE,
+    CONF_FORCE_UPDATE,
 )
 from esphome.components import esp32
 from esphome.core import CORE, coroutine_with_priority
@@ -30,7 +31,6 @@ CONF_EXCLUDE_CERTIFICATE_BUNDLE = "exclude_certificate_bundle"
 CONF_MD5_URL = "md5_url"
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
 CONF_MAX_URL_LENGTH = "max_url_length"
-CONF_FORCE_UPDATE = "force_update"
 
 
 def validate_certificate_bundle(config):
@@ -123,7 +123,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add_define("CONFIG_MAX_URL_LENGTH", config[CONF_MAX_URL_LENGTH])
-    cg.add_define("CONFIG_FORCE_UPDATE", config[CONF_FORCE_UPDATE]);
+    cg.add_define("CONFIG_FORCE_UPDATE", config[CONF_FORCE_UPDATE])
     if (
         config.get(CONF_WATCHDOG_TIMEOUT, None)
         and config[CONF_WATCHDOG_TIMEOUT].total_milliseconds > 0
