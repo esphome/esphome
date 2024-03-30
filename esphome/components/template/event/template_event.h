@@ -6,10 +6,7 @@
 namespace esphome {
 namespace template_ {
 
-class TemplateEvent : public Component, public event::Event {
- public:
-  void event_fired_action(const std::string &event_type) override{};
-};
+class TemplateEvent : public Component, public event::Event { };
 
 }  // namespace template_
 }  // namespace esphome
