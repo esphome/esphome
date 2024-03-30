@@ -4,7 +4,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/application.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/esp32_camera/esp32_camera.h"
 
 namespace esphome {
@@ -13,7 +12,7 @@ namespace litter_robot_presence_detector {
 constexpr uint8_t PRESENCE = 1;
 constexpr uint8_t EMPTY = 0;
 
-class LitterRobotPresenceDetector : public PollingComponent, public binary_sensor::BinarySensor {
+class LitterRobotPresenceDetector : public PollingComponent {
  public:
   // constructor
   LitterRobotPresenceDetector() : PollingComponent(2000) {}
