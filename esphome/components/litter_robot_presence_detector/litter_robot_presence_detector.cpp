@@ -1,18 +1,19 @@
 #ifdef USE_ESP32
 #include "litter_robot_presence_detector.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace litter_robot_presence_detector {
 
 static const char *const TAG = "litter_robot_presence_detector";
 
-float get_setup_priority() const override { return esphome::setup_priority::LATE; }
+float LitterRobotPresenceDetector::get_setup_priority() const { return esphome::setup_priority::LAtE; }
 
 LitterRobotPresenceDetector::LitterRobotPresenceDetector() : PollingComponent() {}
 
 void LitterRobotPresenceDetector::on_shutdown() {
-  this.inferring_ = false;
-  this.image_ = nullptr;
+  this->inferring_ = false;
+  this->image_ = nullptr;
   vSemaphoreDelete(this->semaphore_);
   this->semaphore_ = nullptr;
 }
@@ -36,7 +37,7 @@ void LitterRobotPresenceDetector::setup() {
 }
 
 void LitterRobotPresenceDetector::update() {
-  if (this.inferring_) {
+  if (this->inferring_) {
     ESP_LOGI(TAG, "litter robot presence detector is inferring, skip!")
     return;
   }
@@ -53,7 +54,7 @@ void LitterRobotPresenceDetector::update() {
   ESP_LOGI(TAG, "SNAPSHOT: acquired frame with size %d", image_size);
 }
 
-std::shared_ptr<esphome::esp32_camera::CameraImage> CameraWebServer::wait_for_image_() {
+std::shared_ptr<esphome::esp32_camera::CameraImage> LitterRobotPresenceDetector::wait_for_image_() {
   std::shared_ptr<esphome::esp32_camera::CameraImage> image;
   image.swap(this->image_);
 
