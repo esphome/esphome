@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_STEP,
 )
 
+CODEOWNERS = ["@landonr"]
 homeassistant_number_ns = cg.esphome_ns.namespace("homeassistant_number")
 
 AUTO_LOAD = ["number", "homeassistant"]
