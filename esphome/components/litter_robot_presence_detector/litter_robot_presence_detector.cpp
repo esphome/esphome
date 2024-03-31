@@ -31,17 +31,17 @@ void LitterRobotPresenceDetector::setup() {
     }
   });
 
-  ESP_LOGD(TAG, "setup litter robot presence detector successfully")
+  ESP_LOGD(TAG, "setup litter robot presence detector successfully");
 }
 
 void LitterRobotPresenceDetector::update() {
   if (this->inferring_) {
-    ESP_LOGI(TAG, "litter robot presence detector is inferring, skip!")
+    ESP_LOGI(TAG, "litter robot presence detector is inferring, skip!");
     return;
   }
 
   esp32_camera::global_esp32_camera->request_image(esphome::esp32_camera::WEB_REQUESTER);
-  auto image = this.wait_for_image_();
+  auto image = this->wait_for_image_();
 
   if (!image) {
     ESP_LOGW(TAG, "SNAPSHOT: failed to acquire frame");
@@ -65,4 +65,5 @@ std::shared_ptr<esphome::esp32_camera::CameraImage> LitterRobotPresenceDetector:
   return image;
 }
 }  // namespace litter_robot_presence_detector
+}  // namespace esphome
 #endif
