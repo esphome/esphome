@@ -18,6 +18,7 @@ void LitterRobotPresenceDetector::on_shutdown() {
 
 void LitterRobotPresenceDetector::setup() {
   if (!esp32_camera::global_esp32_camera || esp32_camera::global_esp32_camera->is_failed()) {
+    ESP_LOGW(TAG, "setup litter robot presence detector failed");
     this->mark_failed();
     return;
   }
@@ -35,6 +36,11 @@ void LitterRobotPresenceDetector::setup() {
 }
 
 void LitterRobotPresenceDetector::update() {
+  if (this->is_failed()) {
+    ESP_LOGW(TAG, "the setup has failed, not doing anything");
+    return;
+  }
+
   if (this->inferring_) {
     ESP_LOGI(TAG, "litter robot presence detector is inferring, skip!");
     return;
