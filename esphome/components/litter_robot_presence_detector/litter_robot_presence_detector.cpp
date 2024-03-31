@@ -32,7 +32,7 @@ void LitterRobotPresenceDetector::setup() {
     }
   });
 
-  ESP_LOGD(TAG, "setup litter robot presence detector successfully");
+  ESP_LOGI(TAG, "setup litter robot presence detector successfully");
 }
 
 void LitterRobotPresenceDetector::update() {
