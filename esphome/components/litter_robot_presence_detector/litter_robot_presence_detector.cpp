@@ -7,9 +7,7 @@ namespace litter_robot_presence_detector {
 
 static const char *const TAG = "litter_robot_presence_detector";
 
-float LitterRobotPresenceDetector::get_setup_priority() const { return esphome::setup_priority::LAtE; }
-
-LitterRobotPresenceDetector::LitterRobotPresenceDetector() : PollingComponent() {}
+float LitterRobotPresenceDetector::get_setup_priority() const { return setup_priority::LATE; }
 
 void LitterRobotPresenceDetector::on_shutdown() {
   this->inferring_ = false;
@@ -60,7 +58,7 @@ std::shared_ptr<esphome::esp32_camera::CameraImage> LitterRobotPresenceDetector:
 
   if (!image) {
     // retry as we might still be fetching image
-    xSemaphoreTake(this->semaphore_, IMAGE_REQUEST_TIMEOUT / portTICK_PERIOD_MS);
+    xSemaphoreTake(this->semaphore_, 2000);
     image.swap(this->image_);
   }
 

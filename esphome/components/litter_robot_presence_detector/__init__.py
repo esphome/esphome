@@ -6,7 +6,7 @@ DEPENDENCIES = ["esp32_camera"]
 AUTO_LOAD = ["sensor"]
 
 litter_robot_presence_detector_ns = cg.esphome_ns.namespace("litter_robot_presence_detector")
-LitterRobotPresenceDetectorConstructor = litter_robot_presence_detector_ns.class_("LitterRobotPresenceDetectorConstructor", cg.PollingComponent)
+LitterRobotPresenceDetectorConstructor = litter_robot_presence_detector_ns.class_("LitterRobotPresenceDetector", cg.PollingComponent)
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema(
