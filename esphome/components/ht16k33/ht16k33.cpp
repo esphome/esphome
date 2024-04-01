@@ -219,10 +219,9 @@ void HT16K33Component::command_(uint8_t value) {
 }
 
 void HT16K33Component::command_all_(uint8_t value) {
-  this->set_i2c_address(base_address_);
-  for (uint8_t i = 0; i < this->num_chips_; i++) {
+  for (uint8_t chip_add = base_address_; chip_add < base_address_ + this->num_chips_; chip_add++) {
+    this->set_i2c_address(chip_add);
     this->command_(value);
-    this->set_i2c_address(base_address_ | (i + 1) << 1);
   }
   this->set_i2c_address(base_address_);
 }
@@ -233,10 +232,6 @@ void HT16K33Component::update() {
   if (this->writer_.has_value())  // insert Labda function if available
     (*this->writer_)(*this);
 }
-
-void HT16K33Component::invert_on_off(bool on_off) { this->invert_ = on_off; };
-
-void HT16K33Component::invert_on_off() { this->invert_ = !this->invert_; };
 
 bool HT16K33Component::is_on() { return this->is_on_; }
 
@@ -331,12 +326,7 @@ void HT16K33Component::send64pixels(uint8_t chip, const uint16_t pixels[8]) {
     b = reverse_bits(b);
     // send this byte to display at selected chip
     this->set_i2c_address(base_address_ | chip << 1);
-    bool err;
-    if (this->invert_) {
-      this->write_byte_16(HT16K33_REGISTER_RAM | col << 1, ~b);
-    } else {
-      this->write_byte_16(HT16K33_REGISTER_RAM | col << 1, b);
-    }
+    this->write_byte_16(HT16K33_REGISTER_RAM | col << 1, b);
   }
 }
 
@@ -355,7 +345,6 @@ uint16_t HT16K33Component::color_to_pixel_(Color color) {
 void HT16K33Component::clear() { fill(this->bckgrnd_); }
 
 void HT16K33Component::fill(Color color) {
-  uint8_t const fill = color.is_on() ? 1 : 0;
   for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
     this->max_displaybuffer_[chip_line].clear();
     this->max_displaybuffer_[chip_line].resize(get_width_internal(), color_to_pixel_(color));
