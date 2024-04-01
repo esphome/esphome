@@ -23,6 +23,7 @@ void ICNT86Touchscreen::setup() {
     this->reset_pin_->setup();
     this->reset_();
   }
+  this->conversion_to_resolution_ = false;
   // Trigger initial read to activate the interrupt
   this->store_.touched = true;
 }
