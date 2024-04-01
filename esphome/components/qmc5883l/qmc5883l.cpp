@@ -79,11 +79,10 @@ void QMC5883LComponent::update() {
   uint8_t status = false;
   this->read_byte(QMC5883L_REGISTER_STATUS, &status);
 
-  uint16_t raw_x, raw_y, raw_z, raw_temp;
+  uint16_t raw_x, raw_y, raw_z;
   if (!this->read_byte_16_(QMC5883L_REGISTER_DATA_X_LSB, &raw_x) ||
       !this->read_byte_16_(QMC5883L_REGISTER_DATA_Y_LSB, &raw_y) ||
-      !this->read_byte_16_(QMC5883L_REGISTER_DATA_Z_LSB, &raw_z) ||
-      !this->read_byte_16_(QMC5883L_REGISTER_TEMPERATURE_LSB, &raw_temp)) {
+      !this->read_byte_16_(QMC5883L_REGISTER_DATA_Z_LSB, &raw_z)) {
     this->status_set_warning();
     return;
   }
@@ -104,9 +103,19 @@ void QMC5883LComponent::update() {
   const float x = int16_t(raw_x) * mg_per_bit * 0.1f;
   const float y = int16_t(raw_y) * mg_per_bit * 0.1f;
   const float z = int16_t(raw_z) * mg_per_bit * 0.1f;
-  const float temp = int16_t(raw_temp) * 0.01f;
 
   float heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
+
+  float temp = NAN;
+  if (this->temperature_sensor_ != nullptr) {
+    uint16_t raw_temp;
+    if (!this->read_byte_16_(QMC5883L_REGISTER_TEMPERATURE_LSB, &raw_temp)) {
+      this->status_set_warning();
+      return;
+    }
+    temp = int16_t(raw_temp) * 0.01f;
+  }
+
   ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f° temperature=%0.01f°C status=%u", x, y, z, heading,
            temp, status);
 
