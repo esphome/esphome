@@ -138,7 +138,16 @@ async def to_code(config):
             "src/CMakeLists.txt",
             os.path.join(os.path.dirname(__file__), "CMakeLists.txt"),
         )
-    var = await sensor.new_sensor(config, config.get(CONF_USE_PCNT))
+        esp32.add_extra_build_file(
+            "ulp/pulse_cnt.S",
+            os.path.join(os.path.dirname(__file__), "ulp/pulse_cnt.S"),
+        )
+        esp32.add_extra_build_file(
+            "ulp/wake_up.S", os.path.join(os.path.dirname(__file__), "ulp/wake_up.S")
+        )
+        esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_ENABLED", True)
+        esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_TYPE_FSM", True)
+        esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_RESERVE_MEM", 1024)
     await cg.register_component(var, config)
 
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
