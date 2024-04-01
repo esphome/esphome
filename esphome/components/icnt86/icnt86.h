@@ -31,8 +31,6 @@ class ICNT86Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   void reset_touch_sensor_();
   InternalGPIOPin *interrupt_pin_{};
   GPIOPin *reset_pin_{nullptr};
-
-
 };
 
 }  // namespace icnt86

@@ -48,7 +48,7 @@ void ICNT86Touchscreen::update_touches() {
       UWORD Y = ((UWORD) buf[4 + 7 * i] << 8) + buf[3 + 7 * i];
       UWORD P = buf[5 + 7 * i];
       UWORD TouchEvenid = buf[6 + 7 * i];
-            ESP_LOGD(TAG, "Touch x: %d, y: %d, p: %d", X, Y, P);
+      ESP_LOGD(TAG, "Touch x: %d, y: %d, p: %d", X, Y, P);
 
       this->set_raw_touch_position_(TouchEvenid, X, Y, P);
     }
