@@ -76,7 +76,8 @@ void QMC5883LComponent::dump_config() {
 float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
 void QMC5883LComponent::update() {
   uint8_t status = false;
-  this->read_byte(QMC5883L_REGISTER_STATUS, &status);
+  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG)
+    this->read_byte(QMC5883L_REGISTER_STATUS, &status);
 
   float mg_per_bit;
   switch (this->range_) {
