@@ -19,7 +19,7 @@ CONF_SEG_D_PIN = "seg_d_pin"
 CONF_SEG_E_PIN = "seg_e_pin"
 CONF_SEG_F_PIN = "seg_f_pin"
 CONF_SEG_G_PIN = "seg_g_pin"
-CONF_SEG_DP_PIN = "seg_dp_pin"
+CONF_SEG_P_PIN = "seg_p_pin"
 CONF_POS_TO_OUT_MAP = "pos_to_out_map"
 CONF_POS_0_PIN = "pos_0_pin"
 CONF_POS_1_PIN = "pos_1_pin"
@@ -80,7 +80,7 @@ OUT_PIN_MAPPING_SCHEMA = cv.Schema(
                     cv.Required(CONF_SEG_E_PIN): cv.int_range(min=0, max=19),
                     cv.Required(CONF_SEG_F_PIN): cv.int_range(min=0, max=19),
                     cv.Required(CONF_SEG_G_PIN): cv.int_range(min=0, max=19),
-                    cv.Optional(CONF_SEG_DP_PIN): cv.int_range(min=0, max=19),
+                    cv.Optional(CONF_SEG_P_PIN): cv.int_range(min=0, max=19),
                 }
             ),
             cv.Required(CONF_POS_TO_OUT_MAP): cv.Schema(
@@ -132,24 +132,22 @@ async def to_code(config):
     cg.add(var.set_load_pin(load_pin))
     blank_pin = await cg.gpio_pin_expression(config[CONF_BLANK_PIN])
     cg.add(var.set_blank_pin(blank_pin))
+    # pass array of display segment pin numbers sorted by pin name...
+    sorted_list_of_tuples = sorted(
+        config[CONF_OUT_PIN_MAPPING][CONF_SEG_TO_OUT_MAP].items()
+    )
     cg.add(
         var.set_seg_to_out_pin_map(
-            cg.ArrayInitializer(
-                *[
-                    config[CONF_OUT_PIN_MAPPING][CONF_SEG_TO_OUT_MAP][seg]
-                    for seg in config[CONF_OUT_PIN_MAPPING][CONF_SEG_TO_OUT_MAP]
-                ]
-            )
+            cg.ArrayInitializer(*[tuple[1] for tuple in sorted_list_of_tuples])
         )
+    )
+    # pass array of display position pin numbers sorted by pin name...
+    sorted_list_of_tuples = sorted(
+        config[CONF_OUT_PIN_MAPPING][CONF_POS_TO_OUT_MAP].items()
     )
     cg.add(
         var.set_pos_to_out_pin_map(
-            cg.ArrayInitializer(
-                *[
-                    config[CONF_OUT_PIN_MAPPING][CONF_POS_TO_OUT_MAP][seg]
-                    for seg in config[CONF_OUT_PIN_MAPPING][CONF_POS_TO_OUT_MAP]
-                ]
-            )
+            cg.ArrayInitializer(*[tuple[1] for tuple in sorted_list_of_tuples])
         )
     )
     cg.add(var.set_intensity(config[CONF_INTENSITY]))

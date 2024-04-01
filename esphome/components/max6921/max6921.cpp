@@ -240,10 +240,12 @@ int MAX6921Component::set_display(uint8_t start_pos, const char *str) {
     // create segment data...
     ESP_LOGVV(TAG, "%s(): pos: %u, char: '%c' (0x%02x)", __func__, pos+1, *str, *str);
     if ((*str >= ' ') &&
-        ((*str - ' ') < ARRAY_ELEM_COUNT(ASCII_TO_SEG)))                        // supported char?
+        ((*str - ' ') < ARRAY_ELEM_COUNT(ASCII_TO_SEG))) {                      // supported char?
       out_data = this->ascii_out_data_[*str - ' '];                             // yes ->
-    else
+    } else {
+      ESP_LOGW(TAG, "Encountered unsupported character '%c (0x%02x)'!", *str, *str);
       out_data = SEG_UNSUPPORTED_CHAR;
+    }
     ESP_LOGVV(TAG, "%s(): segment data: 0x%06x", __func__, out_data);
     #if 0
     // At the moment an unsupport character is equal to blank (' ').
