@@ -44,9 +44,6 @@ class HT16K33Component : public display::DisplayBuffer, public i2c::I2CDevice {
 
   void display();
 
-  void invert_on_off(bool on_off);
-  void invert_on_off();
-
   bool is_on();
   void turn_on();
   void turn_off();
@@ -81,7 +78,7 @@ class HT16K33Component : public display::DisplayBuffer, public i2c::I2CDevice {
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
   /*!
-    @brief  Clear display.
+    @brief  Reset the display to background color.
   */
   void clear();
 
@@ -105,7 +102,6 @@ class HT16K33Component : public display::DisplayBuffer, public i2c::I2CDevice {
   uint16_t scroll_dwell_;
   uint16_t old_buffer_size_{0};
   ScrollMode scroll_mode_;
-  bool invert_{};
   uint8_t orientation_;
   Color bckgrnd_{Color::BLACK};
   std::vector<std::vector<uint16_t>> max_displaybuffer_;
