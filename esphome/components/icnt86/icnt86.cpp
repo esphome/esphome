@@ -84,7 +84,7 @@ void ICNT86Touchscreen::icnt_read_(UWORD reg, char const *data, UBYTE len) { thi
 
 void ICNT86Touchscreen::icnt_write_(UWORD reg, char const *data, UBYTE len) { this->i2c_write_byte_(reg, data, len); }
 void ICNT86Touchscreen::i2c_read_byte_(UWORD reg, char const *data, UBYTE len) {
-  char *rbuf = data;
+  char *rbuf = const data;
   this->i2c_write_byte_(reg, nullptr, 0);
   this->read((uint8_t *) rbuf, len);
 }
