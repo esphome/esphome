@@ -36,6 +36,21 @@ void HOT Display::line(int x1, int y1, int x2, int y2, Color color) {
   }
 }
 
+void Display::line_at_angle(int x, int y, int angle, int length, Color color) {
+  this->line_at_angle(x, y, angle, 0, length, color);
+}
+
+void Display::line_at_angle(int x, int y, int angle, int start_radius, int stop_radius, Color color) {
+  // Calculate start and end points
+  int x1 = (start_radius * cos(angle * M_PI / 180)) + x;
+  int y1 = (start_radius * sin(angle * M_PI / 180)) + y;
+  int x2 = (stop_radius * cos(angle * M_PI / 180)) + x;
+  int y2 = (stop_radius * sin(angle * M_PI / 180)) + y;
+
+  // Draw line
+  this->line(x1, y1, x2, y2, color);
+}
+
 void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                              ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
@@ -319,17 +334,19 @@ void Display::filled_regular_polygon(int x, int y, int radius, int edges, Color 
   regular_polygon(x, y, radius, edges, VARIATION_POINTY_TOP, ROTATION_0_DEGREES, color, DRAWING_FILLED);
 }
 
-void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text) {
+void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text, Color background) {
   int x_start, y_start;
   int width, height;
   this->get_text_bounds(x, y, text, font, align, &x_start, &y_start, &width, &height);
-  font->print(x_start, y_start, this, color, text);
+  font->print(x_start, y_start, this, color, text, background);
 }
-void Display::vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg) {
+
+void Display::vprintf_(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
+                       va_list arg) {
   char buffer[256];
   int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
   if (ret > 0)
-    this->print(x, y, font, color, align, buffer);
+    this->print(x, y, font, color, align, buffer, background);
 }
 
 void Display::image(int x, int y, BaseImage *image, Color color_on, Color color_off) {
@@ -423,8 +440,8 @@ void Display::get_text_bounds(int x, int y, const char *text, BaseFont *font, Te
       break;
   }
 }
-void Display::print(int x, int y, BaseFont *font, Color color, const char *text) {
-  this->print(x, y, font, color, TextAlign::TOP_LEFT, text);
+void Display::print(int x, int y, BaseFont *font, Color color, const char *text, Color background) {
+  this->print(x, y, font, color, TextAlign::TOP_LEFT, text, background);
 }
 void Display::print(int x, int y, BaseFont *font, TextAlign align, const char *text) {
   this->print(x, y, font, COLOR_ON, align, text);
@@ -432,28 +449,35 @@ void Display::print(int x, int y, BaseFont *font, TextAlign align, const char *t
 void Display::print(int x, int y, BaseFont *font, const char *text) {
   this->print(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, text);
 }
+void Display::printf(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
+                     ...) {
+  va_list arg;
+  va_start(arg, format);
+  this->vprintf_(x, y, font, color, background, align, format, arg);
+  va_end(arg);
+}
 void Display::printf(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
-  this->vprintf_(x, y, font, color, align, format, arg);
+  this->vprintf_(x, y, font, color, COLOR_OFF, align, format, arg);
   va_end(arg);
 }
 void Display::printf(int x, int y, BaseFont *font, Color color, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
-  this->vprintf_(x, y, font, color, TextAlign::TOP_LEFT, format, arg);
+  this->vprintf_(x, y, font, color, COLOR_OFF, TextAlign::TOP_LEFT, format, arg);
   va_end(arg);
 }
 void Display::printf(int x, int y, BaseFont *font, TextAlign align, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
-  this->vprintf_(x, y, font, COLOR_ON, align, format, arg);
+  this->vprintf_(x, y, font, COLOR_ON, COLOR_OFF, align, format, arg);
   va_end(arg);
 }
 void Display::printf(int x, int y, BaseFont *font, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
-  this->vprintf_(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, format, arg);
+  this->vprintf_(x, y, font, COLOR_ON, COLOR_OFF, TextAlign::TOP_LEFT, format, arg);
   va_end(arg);
 }
 void Display::set_writer(display_writer_t &&writer) { this->writer_ = writer; }

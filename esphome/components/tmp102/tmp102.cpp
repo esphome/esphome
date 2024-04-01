@@ -39,9 +39,6 @@ void TMP102Component::update() {
     return;
   }
   raw_temperature = i2c::i2ctohs(raw_temperature);
-  if (raw_temperature & 0x8000) {
-    raw_temperature |= 0xF000;
-  }
   raw_temperature = raw_temperature >> 4;
   float temperature = raw_temperature * TMP102_CONVERSION_FACTOR;
   ESP_LOGD(TAG, "Got Temperature=%.1f°C", temperature);

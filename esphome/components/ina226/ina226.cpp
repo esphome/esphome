@@ -55,10 +55,10 @@ void INA226Component::setup() {
   config.avg_samples = this->adc_avg_samples_;
 
   // Bus Voltage Conversion Time VBUSCT Bit Settings [8:6] (100 -> 1.1ms, 111 -> 8.244 ms)
-  config.bus_voltage_conversion_time = this->adc_time_;
+  config.bus_voltage_conversion_time = this->adc_time_voltage_;
 
   // Shunt Voltage Conversion Time VSHCT Bit Settings [5:3] (100 -> 1.1ms, 111 -> 8.244 ms)
-  config.shunt_voltage_conversion_time = this->adc_time_;
+  config.shunt_voltage_conversion_time = this->adc_time_current_;
 
   // Mode Settings [2:0] Combinations (111 -> Shunt and Bus, Continuous)
   config.mode = 0b111;
@@ -93,7 +93,8 @@ void INA226Component::dump_config() {
   }
   LOG_UPDATE_INTERVAL(this);
 
-  ESP_LOGCONFIG(TAG, "  ADC Conversion Time: %d", INA226_ADC_TIMES[this->adc_time_ & 0b111]);
+  ESP_LOGCONFIG(TAG, "  ADC Conversion Time Bus Voltage: %d", INA226_ADC_TIMES[this->adc_time_voltage_ & 0b111]);
+  ESP_LOGCONFIG(TAG, "  ADC Conversion Time Shunt Voltage: %d", INA226_ADC_TIMES[this->adc_time_current_ & 0b111]);
   ESP_LOGCONFIG(TAG, "  ADC Averaging Samples: %d", INA226_ADC_AVG_SAMPLES[this->adc_avg_samples_ & 0b111]);
 
   LOG_SENSOR("  ", "Bus Voltage", this->bus_voltage_sensor_);

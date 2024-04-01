@@ -661,12 +661,19 @@ void WiFiComponent::retry_connect() {
 
   delay(10);
   if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
-      (this->num_retried_ > 5 || this->error_from_callback_)) {
-    // If retry failed for more than 5 times, let's restart STA
-    ESP_LOGW(TAG, "Restarting WiFi adapter...");
-    this->wifi_mode_(false, {});
-    delay(100);  // NOLINT
-    this->num_retried_ = 0;
+      (this->num_retried_ > 3 || this->error_from_callback_)) {
+    if (this->num_retried_ > 5) {
+      // If retry failed for more than 5 times, let's restart STA
+      ESP_LOGW(TAG, "Restarting WiFi adapter...");
+      this->wifi_mode_(false, {});
+      delay(100);  // NOLINT
+      this->num_retried_ = 0;
+    } else {
+      // Try hidden networks after 3 failed retries
+      ESP_LOGD(TAG, "Retrying with hidden networks...");
+      this->fast_connect_ = true;
+      this->num_retried_++;
+    }
   } else {
     this->num_retried_++;
   }

@@ -1,0 +1,80 @@
+name: API Proto CI
+
+on:
+  pull_request:
+    paths:
+      - "esphome/components/api/api.proto"
+      - "esphome/components/api/api_pb2.cpp"
+      - "esphome/components/api/api_pb2.h"
+      - "esphome/components/api/api_pb2_service.cpp"
+      - "esphome/components/api/api_pb2_service.h"
+      - "script/api_protobuf/api_protobuf.py"
+      - ".github/workflows/ci-api-proto.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check:
+    name: Check generated files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.1
+      - name: Set up Python
+        uses: actions/setup-python@v5.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Install apt dependencies
+        run: |
+          sudo apt update
+          sudo apt-cache show protobuf-compiler
+          sudo apt install -y protobuf-compiler
+          protoc --version
+      - name: Install python dependencies
+        run: pip install aioesphomeapi -c requirements.txt -r requirements_dev.txt
+      - name: Generate files
+        run: script/api_protobuf/api_protobuf.py
+      - name: Check for changes
+        run: |
+          if ! git diff --quiet; then
+            echo "## Job Failed" | tee -a $GITHUB_STEP_SUMMARY
+            echo "You have altered the generated proto files but they do not match what is expected." | tee -a $GITHUB_STEP_SUMMARY
+            echo "Please run 'script/api_protobuf/api_protobuf.py' and commit the changes." | tee -a $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+      - if: failure()
+        name: Review PR
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            await github.rest.pulls.createReview({
+              pull_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              event: 'REQUEST_CHANGES',
+              body: 'You have altered the generated proto files but they do not match what is expected.\nPlease run "script/api_protobuf/api_protobuf.py" and commit the changes.'
+            })
+      - if: success()
+        name: Dismiss review
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            let reviews = await github.rest.pulls.listReviews({
+              pull_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            for (let review of reviews.data) {
+              if (review.user.login === 'github-actions[bot]' && review.state === 'CHANGES_REQUESTED') {
+                await github.rest.pulls.dismissReview({
+                  pull_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  review_id: review.id,
+                  message: 'Files now match the expected proto files.'
+                });
+              }
+            }
