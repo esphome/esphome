@@ -51,7 +51,7 @@ void ICNT86Touchscreen::update_touches() {
       UWORD touch_evenid = buf[6 + 7 * i];
       ESP_LOGD(TAG, "Touch x: %d, y: %d, p: %d", x, y, p);
 
-      this->add_raw_touch_position_(touch_evenid, x, y, p, true);
+      this->add_raw_touch_position_(touch_evenid, x, y, p);
     }
   }
 }
