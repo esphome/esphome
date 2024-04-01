@@ -1,0 +1,26 @@
+---
+esphome:
+  name: test
+  platform: ESP8266
+  board: d1_mini_lite
+
+text_sensor:
+  - platform: template
+    id: ts_1
+    name: "Template Text Sensor 1"
+    lambda: |-
+      return {"Hello World"};
+  - platform: template
+    id: ts_2
+    name: "Template Text Sensor 2"
+    lambda: |-
+      return {"2023-06-22T18:43:52+00:00"};
+    device_class: timestamp
+    internal: true
+  - platform: template
+    id: ts_3
+    name: "Template Text Sensor 3"
+    lambda: |-
+      return {"2023-06-22T18:43:52+00:00"};
+    device_class: date
+    internal: false

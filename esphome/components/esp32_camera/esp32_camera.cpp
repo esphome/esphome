@@ -37,7 +37,7 @@ void ESP32Camera::setup() {
                           "framebuffer_task",  // name
                           1024,                // stack size
                           nullptr,             // task pv params
-                          0,                   // priority
+                          1,                   // priority
                           nullptr,             // handle
                           1                    // core
   );

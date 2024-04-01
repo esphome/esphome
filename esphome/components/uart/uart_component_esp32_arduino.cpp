@@ -88,7 +88,11 @@ void ESP32ArduinoUARTComponent::setup() {
 #endif
   static uint8_t next_uart_num = 0;
   if (is_default_tx && is_default_rx && next_uart_num == 0) {
+#if ARDUINO_USB_CDC_ON_BOOT
+    this->hw_serial_ = &Serial0;
+#else
     this->hw_serial_ = &Serial;
+#endif
     next_uart_num++;
   } else {
 #ifdef USE_LOGGER

@@ -1,0 +1,23 @@
+spi:
+  - id: spi_main_lcd
+    clk_pin: 6
+    mosi_pin: 7
+    miso_pin: 5
+
+display:
+  - platform: ili9xxx
+    id: main_lcd
+    model: ili9342
+    cs_pin: 8
+    dc_pin: 9
+    reset_pin: 10
+
+# Purposely test that `animation:` does auto-load `image:`
+# Keep the `image:` undefined.
+# image:
+
+animation:
+  - id: rgb565_animation
+    file: ../../pnglogo.png
+    type: RGB565
+    use_transparency: false

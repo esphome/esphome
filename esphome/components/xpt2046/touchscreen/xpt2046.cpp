@@ -32,9 +32,8 @@ void XPT2046Component::update_touches() {
 
   int16_t touch_pressure_1 = this->read_adc_(0xB1 /* touch_pressure_1 */);
   int16_t touch_pressure_2 = this->read_adc_(0xC1 /* touch_pressure_2 */);
-  ESP_LOGVV(TAG, "touch_pressure  %d, %d", touch_pressure_1, touch_pressure_2);
   z_raw = touch_pressure_1 + 0Xfff - touch_pressure_2;
-
+  ESP_LOGVV(TAG, "Touchscreen Update z = %d", z_raw);
   touch = (z_raw >= this->threshold_);
   if (touch) {
     read_adc_(0xD1 /* X */);  // dummy Y measure, 1st is always noisy
@@ -53,9 +52,9 @@ void XPT2046Component::update_touches() {
     x_raw = best_two_avg(data[1], data[3], data[5]);
     y_raw = best_two_avg(data[0], data[2], data[4]);
 
-    ESP_LOGV(TAG, "Touchscreen Update [%d, %d], z = %d", x_raw, y_raw, z_raw);
+    ESP_LOGD(TAG, "Touchscreen Update [%d, %d], z = %d", x_raw, y_raw, z_raw);
 
-    this->set_raw_touch_position_(0, x_raw, y_raw, z_raw);
+    this->add_raw_touch_position_(0, x_raw, y_raw, z_raw);
   }
 }
 
@@ -77,7 +76,7 @@ void XPT2046Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-float XPT2046Component::get_setup_priority() const { return setup_priority::DATA; }
+// float XPT2046Component::get_setup_priority() const { return setup_priority::DATA; }
 
 int16_t XPT2046Component::best_two_avg(int16_t value1, int16_t value2, int16_t value3) {
   int16_t delta_a, delta_b, delta_c;
