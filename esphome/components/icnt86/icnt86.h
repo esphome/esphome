@@ -23,11 +23,10 @@ class ICNT86Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
  protected:
   void update_touches() override;
   void reset_();
-  void I2C_Write_Byte_(UWORD Reg, char *Data, UBYTE len);
-  void ICNT_Read_(UWORD Reg, char *Data, UBYTE len);
-  void ICNT_Write_(UWORD Reg, char *Data, UBYTE len);
-  void I2C_Read_Byte_(UWORD Reg, char *Data, UBYTE len);
-  void ICNT_ReadVersion_();
+  void i2c_read_byte_(UWORD reg,  static_cast<char>Data, UBYTE len);
+  void icnt_read_(UWORD reg,  static_cast<char>Data, UBYTE len);
+  void icnt_write_(UWORD reg,  static_cast<char>Data, UBYTE len);
+  void i2c_read_byte_(UWORD reg,  static_cast<char>Data, UBYTE len);
   void reset_touch_sensor_();
   InternalGPIOPin *interrupt_pin_{};
   GPIOPin *reset_pin_{nullptr};

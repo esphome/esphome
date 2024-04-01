@@ -33,24 +33,24 @@ void ICNT86Touchscreen::update_touches() {
   // Read report length
   uint16_t data_len;
 
-  this->ICNT_Read_(0x1001, buf, 1);
+  this->icnt_read_(0x1001, buf, 1);
   uint8_t touch_count = buf[0];
 
   if (touch_count == 0x00 || (touch_count > 5 || touch_count < 1)) {  // No new touch
     return;
   } else {
-    this->ICNT_Read_(0x1002, buf, touch_count * 7);
-    this->ICNT_Write_(0x1001, mask, 1);
+    this->icnt_read_(0x1002, buf, touch_count * 7);
+    this->icnt_write_(0x1001, mask, 1);
     ESP_LOGD(TAG, "Touch count: %d", touch_count);
 
     for (UBYTE i = 0; i < touch_count; i++) {
-      UWORD X = ((UWORD) buf[2 + 7 * i] << 8) + buf[1 + 7 * i];
-      UWORD Y = ((UWORD) buf[4 + 7 * i] << 8) + buf[3 + 7 * i];
-      UWORD P = buf[5 + 7 * i];
-      UWORD TouchEvenid = buf[6 + 7 * i];
-      ESP_LOGD(TAG, "Touch x: %d, y: %d, p: %d", X, Y, P);
+      UWORD x = ((UWORD) buf[2 + 7 * i] << 8) + buf[1 + 7 * i];
+      UWORD y = ((UWORD) buf[4 + 7 * i] << 8) + buf[3 + 7 * i];
+      UWORD p = buf[5 + 7 * i];
+      UWORD touch_evenid = buf[6 + 7 * i];
+      ESP_LOGD(TAG, "Touch x: %d, y: %d, p: %d", x, y, p);
 
-      this->set_raw_touch_position_(TouchEvenid, X, Y, P);
+      this->add_raw_touch_position_(touch_evenid, x, y, p, true);
     }
   }
 }
@@ -64,10 +64,10 @@ void ICNT86Touchscreen::reset_() {
   }
 }
 
-void ICNT86Touchscreen::I2C_Write_Byte_(UWORD Reg, char *Data, UBYTE len) {
-  char wbuf[50] = {(Reg >> 8) & 0xff, Reg & 0xff};
+void ICNT86Touchscreen::i2c_write_byte_(UWORD reg, char const *data, UBYTE len) {
+  char wbuf[50] = {static_cast<char>(reg >> 8) & 0xff, static_cast<char>(reg) & 0xff};
   for (UBYTE i = 0; i < len; i++) {
-    wbuf[i + 2] = Data[i];
+    wbuf[i + 2] = data[i];
   }
   this->write((const uint8_t *) wbuf, len + 2);
 }
@@ -79,12 +79,12 @@ void ICNT86Touchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-void ICNT86Touchscreen::ICNT_Read_(UWORD Reg, char *Data, UBYTE len) { this->I2C_Read_Byte_(Reg, Data, len); }
+void ICNT86Touchscreen::icnt_read_(UWORD reg, char const *data, UBYTE len) { this->i2c_read_byte_(reg, data, len); }
 
-void ICNT86Touchscreen::ICNT_Write_(UWORD Reg, char *Data, UBYTE len) { this->I2C_Write_Byte_(Reg, Data, len); }
-void ICNT86Touchscreen::I2C_Read_Byte_(UWORD Reg, char *Data, UBYTE len) {
-  char *rbuf = Data;
-  this->I2C_Write_Byte_(Reg, 0, 0);
+void ICNT86Touchscreen::icnt_write_(UWORD reg, char const *data, UBYTE len) { this->i2c_write_byte_(reg, data, len); }
+void ICNT86Touchscreen::i2c_read_byte_(UWORD reg, char const *data, UBYTE len) {
+  char *rbuf = data;
+  this->i2c_write_byte_(reg, nullptr, 0);
   this->read((uint8_t *) rbuf, len);
 }
 
