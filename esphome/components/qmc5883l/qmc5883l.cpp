@@ -107,7 +107,8 @@ void QMC5883LComponent::update() {
   const float temp = int16_t(raw_temp) * 0.01f;
 
   float heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
-  ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f° temperature=%0.01f°C status=%u", x, y, z, heading, temp, status);
+  ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f° temperature=%0.01f°C status=%u", x, y, z, heading,
+           temp, status);
 
   if (this->x_sensor_ != nullptr)
     this->x_sensor_->publish_state(x);
