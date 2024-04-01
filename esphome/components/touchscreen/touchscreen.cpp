@@ -109,11 +109,12 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
     tp.y_org = tp.y;
   }
 
-  ESP_LOGD(TAG, "Touch info, x_raw: %d, y_raw: %d, p: %d, x: %d, y: %d", x_raw, y_raw, z_raw, tp.x, tp.y);
+  ESP_LOGD(TAG, "Touch info, x_raw: %d, y_raw: %d, p: %d, x: %d, y: %d, x_prev: %d, y_prev: %d", x_raw, y_raw, z_raw, tp.x, tp.y,tp.x_prev, tp.y_prev );
 
   this->touches_[id] = tp;
 
   this->is_touched_ = true;
+
   if ((tp.x != tp.x_prev) || (tp.y != tp.y_prev)) {
     this->need_update_ = true;
   }
