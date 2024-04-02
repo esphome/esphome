@@ -1230,10 +1230,10 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @brief Check if the TFT update process is currently running.
    *
    * This method provides a way to determine if the Nextion display is in the
-   * process of updating its TFT firmware. When a TFT update is in progress, 
-   * certain operations or commands may be restricted or could interfere with the 
+   * process of updating its TFT firmware. When a TFT update is in progress,
+   * certain operations or commands may be restricted or could interfere with the
    * update process. By checking the state of the update process, the system can
-   * make informed decisions about performing actions that involve communication 
+   * make informed decisions about performing actions that involve communication
    * with the Nextion display.
    *
    * @return true if the TFT update process is active, indicating that the Nextion
