@@ -232,5 +232,6 @@ struct RegisterConfig {
   uint8_t crypt_h;
   uint8_t crypt_l;
 };
+#pragma pack(pop)
 }  // namespace ebyte_lora
 }  // namespace esphome
