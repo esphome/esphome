@@ -28,6 +28,7 @@ enum UART_BPS_SPEED {
   UART_115200 = 0b111
 };
 enum UART_PARITY_SETTING { EBYTE_UART_8N1 = 0b00, EBYTE_UART_8O1 = 0b01, EBYTE_UART_8E1 = 0b10 };
+#pragma pack(push, 1)
 struct REG0 {
   uint8_t air_data_rate : 3;
   std::string air_data_rate_description_() {
