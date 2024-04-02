@@ -10,8 +10,8 @@ from esphome.const import (
 DEPENDENCIES = ["uart"]
 
 ultrasonic_uart_ns = cg.esphome_ns.namespace("ultrasonic_uart")
-UltrasonicSensorComponent_UART = ultrasonic_uart_ns.class_(
-    "UltrasonicSensorComponent_UART",
+UltrasonicSensorUart = ultrasonic_uart_ns.class_(
+    "UltrasonicSensorUart",
     sensor.Sensor,
     cg.PollingComponent,
     uart.UARTDevice,
@@ -19,7 +19,7 @@ UltrasonicSensorComponent_UART = ultrasonic_uart_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UltrasonicSensorComponent_UART,
+        UltrasonicSensorUart,
         unit_of_measurement=UNIT_CENTIMETER,
         icon=ICON_ARROW_EXPAND_VERTICAL,
         accuracy_decimals=2,
