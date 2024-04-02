@@ -18,22 +18,23 @@ from esphome.const import (
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
+    CONF_DISABLED,
+    CONF_ESPHOME,
     CONF_LOGGER,
+    CONF_MDNS,
+    CONF_MQTT,
     CONF_NAME,
     CONF_OTA,
-    CONF_MQTT,
-    CONF_MDNS,
-    CONF_DISABLED,
     CONF_PASSWORD,
-    CONF_PORT,
-    CONF_ESPHOME,
+    CONF_PLATFORM,
     CONF_PLATFORMIO_OPTIONS,
+    CONF_PORT,
     CONF_SUBSTITUTIONS,
     PLATFORM_BK72XX,
-    PLATFORM_RTL87XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
@@ -65,7 +66,7 @@ def choose_prompt(options, purpose: str = None):
         f'Found multiple options{f" for {purpose}" if purpose else ""}, please choose one:'
     )
     for i, (desc, _) in enumerate(options):
-        safe_print(f"  [{i+1}] {desc}")
+        safe_print(f"  [{i + 1}] {desc}")
 
     while True:
         opt = input("(number): ")
@@ -330,15 +331,20 @@ def upload_program(config, args, host):
 
         return 1  # Unknown target platform
 
-    if CONF_OTA not in config:
+    ota_conf = {}
+    if CONF_OTA in config:
+        for ota_item in config.get(CONF_OTA):
+            if ota_item[CONF_PLATFORM] == CONF_ESPHOME:
+                ota_conf = ota_item
+                break
+
+    if not ota_conf:
         raise EsphomeError(
-            "Cannot upload Over the Air as the config does not include the ota: "
-            "component"
+            f"Cannot upload Over the Air as the {CONF_OTA} configuration is not present or does not include {CONF_PLATFORM}: {CONF_ESPHOME}"
         )
 
     from esphome import espota2
 
-    ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
     password = ota_conf.get(CONF_PASSWORD, "")
 

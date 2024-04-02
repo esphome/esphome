@@ -1,9 +1,8 @@
-#include "esphome/core/defines.h"
 #ifdef USE_LIBRETINY
-
-#include "ota_backend_arduino_libretiny.h"
-#include "ota_component.h"
 #include "ota_backend.h"
+#include "ota_backend_arduino_libretiny.h"
+
+#include "esphome/core/defines.h"
 
 #include <Update.h>
 

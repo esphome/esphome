@@ -1,10 +1,9 @@
-#include "esphome/core/defines.h"
 #ifdef USE_ARDUINO
 #ifdef USE_ESP8266
-
-#include "ota_backend_arduino_esp8266.h"
-#include "ota_component.h"
 #include "ota_backend.h"
+#include "ota_backend_arduino_esp8266.h"
+
+#include "esphome/core/defines.h"
 #include "esphome/components/esp8266/preferences.h"
 
 #include <Updater.h>

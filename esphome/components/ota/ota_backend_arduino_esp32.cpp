@@ -1,8 +1,7 @@
-#include "esphome/core/defines.h"
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#include "esphome/core/defines.h"
 
 #include "ota_backend_arduino_esp32.h"
-#include "ota_component.h"
 #include "ota_backend.h"
 
 #include <Update.h>

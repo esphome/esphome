@@ -8,7 +8,7 @@ namespace safe_mode {
 
 static const char *const TAG = "safe_mode.button";
 
-void SafeModeButton::set_ota(ota::OTAComponent *ota) { this->ota_ = ota; }
+void SafeModeButton::set_ota(ota_esphome::OTAESPHomeComponent *ota) { this->ota_ = ota; }
 
 void SafeModeButton::press_action() {
   ESP_LOGI(TAG, "Restarting device in safe mode...");

@@ -18,7 +18,7 @@
 #include <cinttypes>
 
 #ifdef USE_OTA
-#include "esphome/components/ota/ota_component.h"
+#include "esphome/components/esphome/ota/ota_esphome.h"
 #endif
 
 #ifdef USE_ARDUINO
@@ -58,11 +58,12 @@ void ESP32BLETracker::setup() {
   this->scanner_idle_ = true;
 
 #ifdef USE_OTA
-  ota::global_ota_component->add_on_state_callback([this](ota::OTAState state, float progress, uint8_t error) {
-    if (state == ota::OTA_STARTED) {
-      this->stop_scan();
-    }
-  });
+  ota_esphome::global_ota_component->add_on_state_callback(
+      [this](ota_esphome::OTAESPHomeState state, float progress, uint8_t error) {
+        if (state == ota_esphome::OTA_STARTED) {
+          this->stop_scan();
+        }
+      });
 #endif
 }
 

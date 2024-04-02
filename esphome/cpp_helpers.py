@@ -3,14 +3,16 @@ import logging
 from esphome.const import (
     CONF_DISABLED_BY_DEFAULT,
     CONF_ENTITY_CATEGORY,
+    CONF_ESPHOME,
     CONF_ICON,
     CONF_INTERNAL,
     CONF_NAME,
-    CONF_SETUP_PRIORITY,
-    CONF_UPDATE_INTERVAL,
-    CONF_TYPE_ID,
     CONF_OTA,
+    CONF_PLATFORM,
     CONF_SAFE_MODE,
+    CONF_SETUP_PRIORITY,
+    CONF_TYPE_ID,
+    CONF_UPDATE_INTERVAL,
     KEY_PAST_SAFE_MODE,
 )
 
@@ -139,9 +141,17 @@ async def build_registry_list(registry, config):
 
 
 async def past_safe_mode():
-    safe_mode_enabled = (
-        CONF_OTA in CORE.config and CORE.config[CONF_OTA][CONF_SAFE_MODE]
-    )
+    ota_conf = {}
+    if CONF_OTA in CORE.config:
+        for ota_item in CORE.config.get(CONF_OTA):
+            if ota_item[CONF_PLATFORM] == CONF_ESPHOME:
+                ota_conf = ota_item
+                break
+
+    if not ota_conf:
+        return
+
+    safe_mode_enabled = ota_conf[CONF_SAFE_MODE]
     if not safe_mode_enabled:
         return
 
