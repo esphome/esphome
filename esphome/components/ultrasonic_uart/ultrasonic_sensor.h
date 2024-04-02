@@ -7,7 +7,7 @@
 namespace esphome {
 namespace ultrasonic_uart {
 
-class UltrasonicSensorComponentUart : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
+class UltrasonicSensorUart : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
   void dump_config() override;
