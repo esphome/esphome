@@ -28,28 +28,6 @@ void EbyteLoraComponent::get_current_config_() {
   set_mode_(CONFIGURATION);
   uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
   this->write_array(data, sizeof(data));
-  if (!this->available()) {
-    return;
-  }
-  if (read_array((uint8_t *) &this->config, sizeof(this->config))) {
-    ESP_LOGD(TAG, "Found config");
-    ESP_LOGD(TAG, this->config.addh_description_().c_str());
-    ESP_LOGD(TAG, this->config.addl_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_0.air_data_rate_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_0.uart_baud_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_0.parity_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_1.rssi_noise_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_1.sub_packet_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_1.transmission_power_description_().c_str());
-    ESP_LOGD(TAG, this->config.channel_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_3.enable_lbt_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_3.wor_period_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_3.enable_rssi_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_3.transmission_type_description_().c_str());
-    set_mode_(NORMAL);
-  } else {
-    ESP_LOGW(TAG, "Junk on wire. Throwing away partial message");
-  }
 }
 ModeType EbyteLoraComponent::get_mode_() {
   ModeType internalMode = MODE_INIT;
@@ -223,6 +201,21 @@ void EbyteLoraComponent::loop() {
   }
   if (data[0] == PROGRAM_CONF) {
     ESP_LOGD(TAG, "GOT PROGRAM_CONF");
+    memcpy(&this->config, &data, data.size());
+    ESP_LOGD(TAG, this->config.addh_description_().c_str());
+    ESP_LOGD(TAG, this->config.addl_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_0.air_data_rate_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_0.uart_baud_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_0.parity_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_1.rssi_noise_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_1.sub_packet_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_1.transmission_power_description_().c_str());
+    ESP_LOGD(TAG, this->config.channel_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_3.enable_lbt_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_3.wor_period_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_3.enable_rssi_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_3.transmission_type_description_().c_str());
+    set_mode_(NORMAL);
   }
 }
 void EbyteLoraComponent::send_switch_info_() {
