@@ -115,15 +115,22 @@ void I2SAudioSpeaker::player_task(void *params) {
     size_t remaining = data_event.len / 2;
     size_t current = 0;
 
+    const uint8_t vol = remap<uint8_t, float>(this_speaker->volume_, 0.0f, 1.0f, 0, 21);
+    const uint8_t m_vol = VOLUME_TABLE[vol];
+
     while (remaining > 0) {
+      int32_t sample = buffer[current];
+      // Multiplies sample by the modified volume factor then shifts back. If m_vol = 64, this does nothing.
+      int16_t volume_adjusted_sample = sample * m_vol >> 6;
+
       esp_err_t err;
       if (this_speaker->bits_per_sample_ == I2S_BITS_PER_SAMPLE_16BIT) {
-        err = i2s_write(this_speaker->parent_->get_port(), &buffer[current], sizeof(buffer[current]), &bytes_written,
-                        (10 / portTICK_PERIOD_MS));
+        err = i2s_write(this_speaker->parent_->get_port(), &volume_adjusted_sample, sizeof(volume_adjusted_sample),
+                        &bytes_written, (10 / portTICK_PERIOD_MS));
       } else {
-        err = i2s_write_expand(this_speaker->parent_->get_port(), &buffer[current], sizeof(buffer[current]),
-                               I2S_BITS_PER_SAMPLE_16BIT, this_speaker->bits_per_sample_, &bytes_written,
-                               (10 / portTICK_PERIOD_MS));
+        err = i2s_write_expand(this_speaker->parent_->get_port(), &volume_adjusted_sample,
+                               sizeof(volume_adjusted_sample), I2S_BITS_PER_SAMPLE_16BIT,
+                               this_speaker->bits_per_sample_, &bytes_written, (10 / portTICK_PERIOD_MS));
       }
 
       if (err != ESP_OK) {

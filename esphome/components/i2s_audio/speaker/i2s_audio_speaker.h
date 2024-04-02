@@ -18,6 +18,10 @@ namespace i2s_audio {
 
 static const size_t BUFFER_SIZE = 1024;
 
+// Volume table is borrowed from https://github.com/schreibfaul1/ESP32-audioI2S
+static const uint8_t VOLUME_TABLE[22] = {0,  1,  2,  3,  4,  6,  8,  10, 12, 14, 17,
+                                         20, 23, 27, 30, 34, 38, 43, 48, 52, 58, 64};
+
 enum class TaskEventType : uint8_t {
   STARTING = 0,
   STARTED,

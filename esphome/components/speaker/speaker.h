@@ -20,10 +20,15 @@ class Speaker {
 
   virtual bool has_buffered_data() const = 0;
 
+  void set_volume(float volume) { this->volume_ = volume; }
+  float get_volume() { return this->volume_; }
+
   bool is_running() const { return this->state_ == STATE_RUNNING; }
 
  protected:
   State state_{STATE_STOPPED};
+
+  float volume_{1.0f};
 };
 
 }  // namespace speaker
