@@ -39,8 +39,8 @@ I2SAudioOut = i2s_audio_ns.class_(
 )
 i2s_mode_t = cg.global_ns.enum("i2s_mode_t")
 I2S_MODE_OPTIONS = {
-    CONF_PRIMARY: i2s_mode_t.I2S_MODE_MASTER,  // NOLINT
-    CONF_SECONDARY: i2s_mode_t.I2S_MODE_SLAVE,  // NOLINT
+    CONF_PRIMARY: i2s_mode_t.I2S_MODE_MASTER,  # NOLINT
+    CONF_SECONDARY: i2s_mode_t.I2S_MODE_SLAVE,  # NOLINT
 }
 i2s_bits_per_sample_t = cg.global_ns.enum("i2s_bits_per_sample_t")
 BITS_PER_SAMPLE = {
