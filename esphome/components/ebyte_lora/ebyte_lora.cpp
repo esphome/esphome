@@ -9,6 +9,21 @@ void EbyteLoraComponent::update() {
     ESP_LOGD(TAG, "Config not set yet!, gonna request it now!");
     get_current_config_();
     return;
+  } else {
+    ESP_LOGD(TAG, "Current config");
+    ESP_LOGD(TAG, this->config.addh_description_().c_str());
+    ESP_LOGD(TAG, this->config.addl_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_0.air_data_rate_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_0.uart_baud_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_0.parity_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_1.rssi_noise_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_1.sub_packet_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_1.transmission_power_description_().c_str());
+    ESP_LOGD(TAG, this->config.channel_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_3.enable_lbt_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_3.wor_period_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_3.enable_rssi_description_().c_str());
+    ESP_LOGD(TAG, this->config.reg_3.transmission_type_description_().c_str());
   }
   if (get_mode_() != NORMAL) {
     ESP_LOGD(TAG, "Mode was not set right");
@@ -202,21 +217,8 @@ void EbyteLoraComponent::loop() {
   }
   if (data[0] == PROGRAM_CONF) {
     ESP_LOGD(TAG, "GOT PROGRAM_CONF");
-    // memcpy(&this->config, &data, data.size());
-    // ESP_LOGD(TAG, this->config.addh_description_().c_str());
-    // ESP_LOGD(TAG, this->config.addl_description_().c_str());
-    // ESP_LOGD(TAG, this->config.reg_0.air_data_rate_description_().c_str());
-    // ESP_LOGD(TAG, this->config.reg_0.uart_baud_description_().c_str());
-    // ESP_LOGD(TAG, this->config.reg_0.parity_description_().c_str());
-    // ESP_LOGD(TAG, this->config.reg_1.rssi_noise_description_().c_str());
-    // ESP_LOGD(TAG, this->config.reg_1.sub_packet_description_().c_str());
-    // ESP_LOGD(TAG, this->config.reg_1.transmission_power_description_().c_str());
-    // ESP_LOGD(TAG, this->config.channel_description_().c_str());
-    // ESP_LOGD(TAG, this->config.reg_3.enable_lbt_description_().c_str());
-    // ESP_LOGD(TAG, this->config.reg_3.wor_period_description_().c_str());
-    // ESP_LOGD(TAG, this->config.reg_3.enable_rssi_description_().c_str());
-    // ESP_LOGD(TAG, this->config.reg_3.transmission_type_description_().c_str());
-    // set_mode_(NORMAL);
+    memcpy(&this->config, &data, data.size());
+    set_mode_(NORMAL);
   }
 }
 void EbyteLoraComponent::send_switch_info_() {
@@ -232,10 +234,9 @@ void EbyteLoraComponent::send_switch_info_() {
     data.push_back(pin);
     data.push_back(value);  // Pin to send
   }
-  ESP_LOGD(TAG, "Sending info back");
+  ESP_LOGD(TAG, "Sending switch info");
   this->write_array(data);
   this->setup_wait_response_(5000);
-  ESP_LOGD(TAG, "Successfully put in queue");
 }
 }  // namespace ebyte_lora
 }  // namespace esphome
