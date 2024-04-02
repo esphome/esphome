@@ -35,8 +35,6 @@ void ICNT86Touchscreen::setup() {
 void ICNT86Touchscreen::update_touches() {
   char buf[100];
   char mask[1] = {0x00};
-  // Read report length
-  uint16_t data_len;
 
   this->icnt_read_(0x1001, buf, 1);
   uint8_t touch_count = buf[0];
@@ -71,7 +69,7 @@ void ICNT86Touchscreen::reset_() {
 }
 
 void ICNT86Touchscreen::i2c_write_byte_(UWORD reg, char const *data, UBYTE len) {
-  char wbuf[50] = {static_cast<char>(reg >> 8) & 0xff, static_cast<char>(reg) & 0xff};
+  char wbuf[50] = {static_cast<char>(reg >> 8 & 0xff), static_cast<char>(reg & 0xff)};
   for (UBYTE i = 0; i < len; i++) {
     wbuf[i + 2] = data[i];
   }
