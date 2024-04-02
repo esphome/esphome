@@ -1226,6 +1226,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   size_t queue_size() { return this->nextion_queue_.size(); }
 
+  bool is_updating() { return this->is_updating_; }
+
  protected:
   std::deque<NextionQueue *> nextion_queue_;
   std::deque<NextionQueue *> waveform_queue_;
