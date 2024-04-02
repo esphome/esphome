@@ -3,7 +3,6 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "../nextion_component.h"
 #include "../nextion_base.h"
-#include "../nextion.h"
 
 namespace esphome {
 namespace nextion {

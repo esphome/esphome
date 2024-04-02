@@ -48,6 +48,8 @@ class NextionBase {
   virtual void show_component(const char *component) = 0;
   virtual void hide_component(const char *component) = 0;
 
+  virtual bool is_updating() { return false; }
+
   bool is_sleeping() { return this->is_sleeping_; }
   bool is_setup() { return this->is_setup_; }
   bool is_detected() { return this->is_detected_; }
