@@ -3,6 +3,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "../nextion_component.h"
 #include "../nextion_base.h"
+#include "../nextion.h"
 
 namespace esphome {
 namespace nextion {
