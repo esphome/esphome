@@ -21,7 +21,7 @@ static const char *const TAG = "nextion.upload.arduino";
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
 
-uint32_t Nextion::get_free_heap_() {
+inline uint32_t Nextion::get_free_heap_() {
 #ifdef ESP32
   return ESP.getFreeHeap();
 #elif defined(USE_ESP8266)
@@ -237,10 +237,11 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
 
   // The Nextion will ignore the upload command if it is sleeping
   ESP_LOGV(TAG, "Wake-up Nextion");
-  ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
   this->ignore_is_setup_ = true;
   this->send_command_("sleep=0");
-  this->set_backlight_brightness(1.0);
+  this->send_command_("dim=100");
+  delay(250);  // NOLINT
+  ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
 
   App.feed_wdt();
   char command[128];
@@ -251,14 +252,11 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
 
   // Clear serial receive buffer
   ESP_LOGV(TAG, "Clear serial receive buffer");
+  this->reset_(false);
+  delay(250);  // NOLINT
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
-  uint8_t d;
-  while (this->available()) {
-    this->read_byte(&d);
-  };
 
   ESP_LOGV(TAG, "Send upload instruction: %s", command);
-  ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
   this->send_command_(command);
 
   if (baud_rate != this->original_baud_rate_) {

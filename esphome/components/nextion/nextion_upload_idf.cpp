@@ -221,10 +221,11 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
 
   // The Nextion will ignore the upload command if it is sleeping
   ESP_LOGV(TAG, "Wake-up Nextion");
-  ESP_LOGV(TAG, "Free heap: %" PRIu32, esp_get_free_heap_size());
   this->ignore_is_setup_ = true;
   this->send_command_("sleep=0");
-  this->set_backlight_brightness(1.0);
+  this->send_command_("dim=100");
+  vTaskDelay(pdMS_TO_TICKS(250));  // NOLINT
+  ESP_LOGV(TAG, "Free heap: %" PRIu32, esp_get_free_heap_size());
 
   App.feed_wdt();
   char command[128];
@@ -235,14 +236,11 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
 
   // Clear serial receive buffer
   ESP_LOGV(TAG, "Clear serial receive buffer");
+  this->reset_(false);
+  vTaskDelay(pdMS_TO_TICKS(250));  // NOLINT
   ESP_LOGV(TAG, "Free heap: %" PRIu32, esp_get_free_heap_size());
-  uint8_t d;
-  while (this->available()) {
-    this->read_byte(&d);
-  };
 
   ESP_LOGV(TAG, "Send upload instruction: %s", command);
-  ESP_LOGV(TAG, "Free heap: %" PRIu32, esp_get_free_heap_size());
   this->send_command_(command);
 
   if (baud_rate != this->original_baud_rate_) {
