@@ -120,5 +120,71 @@ class MAX7219Component : public display::DisplayBuffer,
   optional<max7219_writer_t> writer_local_{};
 };
 
+
+/*
+void invert_on_off(bool on_off);
+  void invert_on_off();
+
+  void turn_on_off(bool on_off);
+
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  int get_height_internal() override;
+  int get_width_internal() override;
+
+  void set_intensity(uint8_t intensity) { this->intensity_ = intensity; };
+  void set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; };
+  void set_num_chip_lines(uint8_t num_chip_lines) { this->num_chip_lines_ = num_chip_lines; };
+  void set_chip_lines_style(ChipLinesStyle chip_lines_style) { this->chip_lines_style_ = chip_lines_style; };
+  void set_chip_orientation(uint8_t rotate) { this->orientation_ = rotate; };
+  void set_scroll_speed(uint16_t speed) { this->scroll_speed_ = speed; };
+  void set_scroll_dwell(uint16_t dwell) { this->scroll_dwell_ = dwell; };
+  void set_scroll_delay(uint16_t delay) { this->scroll_delay_ = delay; };
+  void set_scroll(bool on_off) { this->scroll_ = on_off; };
+  void set_reverse(bool on_off) { this->reverse_ = on_off; };
+  void set_flip_x(bool flip_x) { this->flip_x_ = flip_x; };
+  void scroll_left();
+
+*/
+
+template<typename... Ts> class DisplayInvertAction : public Action<Ts...> {
+ public:
+  DisplayInvertAction(MAX7219Component *buffer) : buffer_(buffer) {}
+  TEMPLATABLE_VALUE(bool, state)
+
+  void play(Ts... x) override { this->buffer_->invert_on_off(this->state_.optional_value(x...)); }
+
+  MAX7219Component *buffer_;
+};
+
+template<typename... Ts> class DisplayVisiblityAction : public Action<Ts...> {
+ public:
+  DisplayVisiblityAction(MAX7219Component *buffer) : buffer_(buffer) {}
+  TEMPLATABLE_VALUE(bool, state)
+
+  void play(Ts... x) override { this->buffer_->turn_on_off(this->state_.optional_value(x...)); }
+
+  MAX7219Component *buffer_;
+};
+
+template<typename... Ts> class DisplayReverseAction : public Action<Ts...> {
+ public:
+  DisplayReverseAction(MAX7219Component *buffer) : buffer_(buffer) {}
+  TEMPLATABLE_VALUE(bool, state)
+
+  void play(Ts... x) override { this->buffer_->set_reverse(this->state_.optional_value(x...)); }
+
+  MAX7219Component *buffer_;
+};
+
+template<typename... Ts> class DisplayIntensityAction : public Action<Ts...> {
+ public:
+  DisplayIntensityAction(MAX7219Component *buffer) : buffer_(buffer) {}
+  TEMPLATABLE_VALUE(uint8_t, state)
+
+  void play(Ts... x) override { this->buffer_->intensity(this->state_.optional_value(x...)); }
+
+  MAX7219Component *buffer_;
+};
+
 }  // namespace max7219digit
 }  // namespace esphome
