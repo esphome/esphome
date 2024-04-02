@@ -22,6 +22,8 @@ CONF_I2S_MCLK_PIN = "i2s_mclk_pin"
 CONF_I2S_BCLK_PIN = "i2s_bclk_pin"
 CONF_I2S_LRCLK_PIN = "i2s_lrclk_pin"
 
+CONF_BITS_PER_SAMPLE = "bits_per_sample"
+
 CONF_I2S_MODE = "i2s_mode"
 CONF_PRIMARY = "primary"
 CONF_SECONDARY = "secondary"
@@ -40,6 +42,13 @@ I2S_MODE_OPTIONS = {
     CONF_PRIMARY: i2s_mode_t.I2S_MODE_MASTER,
     CONF_SECONDARY: i2s_mode_t.I2S_MODE_SLAVE,
 }
+i2s_bits_per_sample_t = cg.global_ns.enum("i2s_bits_per_sample_t")
+BITS_PER_SAMPLE = {
+    16: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_16BIT,
+    32: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_32BIT,
+}
+
+_validate_bits = cv.float_with_unit("bits", "bit")
 
 # https://github.com/espressif/esp-idf/blob/master/components/soc/{variant}/include/soc/soc_caps.h
 I2S_PORTS = {

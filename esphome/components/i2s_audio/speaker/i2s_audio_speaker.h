@@ -50,6 +50,7 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
   void set_internal_dac_mode(i2s_dac_mode_t mode) { this->internal_dac_mode_ = mode; }
 #endif
   void set_external_dac_channels(uint8_t channels) { this->external_dac_channels_ = channels; }
+  void set_bits_per_sample(i2s_bits_per_sample_t bits_per_sample) { this->bits_per_sample_ = bits_per_sample; }
 
   void start() override;
   void stop() override;
@@ -67,6 +68,8 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
   TaskHandle_t player_task_handle_{nullptr};
   QueueHandle_t buffer_queue_;
   QueueHandle_t event_queue_;
+
+  i2s_bits_per_sample_t bits_per_sample_;
 
   uint8_t dout_pin_{0};
 

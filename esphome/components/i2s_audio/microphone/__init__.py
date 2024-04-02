@@ -10,8 +10,11 @@ from .. import (
     i2s_audio_ns,
     I2SAudioComponent,
     I2SAudioIn,
+    BITS_PER_SAMPLE,
+    CONF_BITS_PER_SAMPLE,
     CONF_I2S_AUDIO_ID,
     CONF_I2S_DIN_PIN,
+    _validate_bits,
 )
 
 CODEOWNERS = ["@jesserockz"]
@@ -21,7 +24,6 @@ CONF_ADC_PIN = "adc_pin"
 CONF_ADC_TYPE = "adc_type"
 CONF_PDM = "pdm"
 CONF_SAMPLE_RATE = "sample_rate"
-CONF_BITS_PER_SAMPLE = "bits_per_sample"
 CONF_USE_APLL = "use_apll"
 
 I2SAudioMicrophone = i2s_audio_ns.class_(
@@ -33,16 +35,9 @@ CHANNELS = {
     "left": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_LEFT,
     "right": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_RIGHT,
 }
-i2s_bits_per_sample_t = cg.global_ns.enum("i2s_bits_per_sample_t")
-BITS_PER_SAMPLE = {
-    16: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_16BIT,
-    32: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_32BIT,
-}
 
 INTERNAL_ADC_VARIANTS = [esp32.const.VARIANT_ESP32]
 PDM_VARIANTS = [esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S3]
-
-_validate_bits = cv.float_with_unit("bits", "bit")
 
 
 def validate_esp32_variant(config):
