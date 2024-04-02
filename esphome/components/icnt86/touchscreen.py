@@ -20,7 +20,7 @@ ICNT86Touchscreen = icnt86_ns.class_(
 CONF_ICNT86_ID = "icnt86_id"
 CONF_RTS_PIN = "rts_pin"
 
-CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
+CONFIG_SCHEMA = touchscreen.touchscreen_schema('250ms').extend(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ICNT86Touchscreen),
