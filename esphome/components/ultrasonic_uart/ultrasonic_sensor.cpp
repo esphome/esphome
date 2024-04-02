@@ -6,9 +6,7 @@ namespace ultrasonic_uart {
 
 static const char *const TAG = "ultrasonic_uart";
 
-void UltrasonicSensorComponent_UART::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Ultrasonic Sensor...");
-}
+void UltrasonicSensorComponent_UART::setup() { ESP_LOGCONFIG(TAG, "Setting up Ultrasonic Sensor..."); }
 void UltrasonicSensorComponent_UART::update() {
   this->write(0x55);
   while (this->available() == 4) {
