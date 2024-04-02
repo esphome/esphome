@@ -11,7 +11,10 @@ DEPENDENCIES = ["uart"]
 
 ultrasonic_uart_ns = cg.esphome_ns.namespace("ultrasonic_uart")
 UltrasonicSensorComponent_UART = ultrasonic_uart_ns.class_(
-    "UltrasonicSensorComponent_UART", sensor.Sensor, cg.PollingComponent, uart.UARTDevice,
+    "UltrasonicSensorComponent_UART",
+    sensor.Sensor,
+    cg.PollingComponent,
+    uart.UARTDevice,
 )
 
 CONFIG_SCHEMA = (
@@ -35,6 +38,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     parity=None,
     stop_bits=1,
 )
+
 
 async def to_code(config):
     var = await sensor.new_sensor(config)
