@@ -219,14 +219,14 @@ struct RegisterConfig {
   uint8_t starting_address = 0;
   uint8_t length = 0;
   uint8_t addh = 0;
-  std::string addh_description_() { return "addh:" + this->addh; }
+  std::string addh_description_() { return "addh:" + to_string(this->addh); }
   uint8_t addl = 0;
-  std::string addl_description_() { return "addl:" + this->addh; }
+  std::string addl_description_() { return "addl:" + to_string(this->addh); }
   struct REG0 reg_0;
   struct REG1 reg_1;
   // reg2
   uint8_t channel;
-  std::string channel_description_() { return "channel:" + this->channel; }
+  std::string channel_description_() { return "channel: " + to_string(this->channel); }
   struct REG3 reg_3;
   uint8_t crypt_h;
   uint8_t crypt_l;
