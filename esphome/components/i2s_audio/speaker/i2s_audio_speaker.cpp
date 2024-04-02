@@ -60,10 +60,18 @@ void I2SAudioSpeaker::player_task(void *params) {
   }
 #endif
 
-  esp_err_t err = i2s_driver_install(this_speaker->parent_->get_port(), &config, 0, nullptr);
-  if (err != ESP_OK) {
+  esp_err_t err_driver = i2s_driver_install(this_speaker->parent_->get_port(), &config, 0, nullptr);
+
+  // Specify incoming audio stream is mono channel so it gets converted automatically when written to DMA buffer
+  uint32_t bits_cfg = (I2S_BITS_PER_SAMPLE_16BIT << 16) | I2S_BITS_PER_SAMPLE_16BIT;
+  esp_err_t err_clk = i2s_set_clk(this_speaker->parent_->get_port(), 16000, bits_cfg, I2S_CHANNEL_MONO);
+
+  if ((err_driver != ESP_OK) || (err_clk != ESP_OK)) {
     event.type = TaskEventType::WARNING;
-    event.err = err;
+    if (err_driver != ESP_OK)
+      event.err = err_driver;
+    else
+      event.err = err_clk;
     xQueueSend(this_speaker->event_queue_, &event, 0);
     event.type = TaskEventType::STOPPED;
     xQueueSend(this_speaker->event_queue_, &event, 0);
@@ -108,10 +116,8 @@ void I2SAudioSpeaker::player_task(void *params) {
     size_t current = 0;
 
     while (remaining > 0) {
-      uint32_t sample = (buffer[current] << 16) | (buffer[current] & 0xFFFF);
-
-      esp_err_t err = i2s_write(this_speaker->parent_->get_port(), &sample, sizeof(sample), &bytes_written,
-                                (10 / portTICK_PERIOD_MS));
+      esp_err_t err = i2s_write(this_speaker->parent_->get_port(), &buffer[current], sizeof(buffer[current]),
+                                &bytes_written, (10 / portTICK_PERIOD_MS));
       if (err != ESP_OK) {
         event = {.type = TaskEventType::WARNING, .err = err};
         xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
