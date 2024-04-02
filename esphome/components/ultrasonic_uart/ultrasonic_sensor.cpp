@@ -6,8 +6,8 @@ namespace ultrasonic_uart {
 
 static const char *const TAG = "ultrasonic_uart";
 
-void UltrasonicSensorComponent::setup() { ESP_LOGCONFIG(TAG, "Setting up Ultrasonic Sensor..."); }
-void UltrasonicSensorComponent::update() {
+void UltrasonicSensorUart::setup() { ESP_LOGCONFIG(TAG, "Setting up Ultrasonic Sensor..."); }
+void UltrasonicSensorUart::update() {
   this->write(0x55);
   while (this->available() == 4) {
     auto frame = *this->read_array<4>();
@@ -17,10 +17,10 @@ void UltrasonicSensorComponent::update() {
     }
   }
 }
-void UltrasonicSensorComponent::dump_config() {
+void UltrasonicSensorUart::dump_config() {
   LOG_SENSOR("", "Ultrasonic Sensor", this);
   LOG_UPDATE_INTERVAL(this);
 }
-float UltrasonicSensorComponent_UART::get_setup_priority() const { return setup_priority::DATA; }
+float UltrasonicSensorUart::get_setup_priority() const { return setup_priority::DATA; }
 }  // namespace ultrasonic_uart
 }  // namespace esphome
