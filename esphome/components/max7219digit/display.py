@@ -115,21 +115,18 @@ DisplayReverseAction = max7219_ns.class_("DisplayReverseAction", automation.Acti
 DisplayIntensityAction = max7219_ns.class_("DisplayIntensityAction", automation.Action)
 
 
-MAX7219_OFF_ACTION_SCHEMA = cv.Schema(
-    automation.maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(MAX7219Component),
-            cv.Optional(CONF_STATE, default=False): False,
-        }
-    )
+MAX7219_OFF_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(MAX7219Component),
+        cv.Optional(CONF_STATE, default=False): False,
+    }
 )
 
 MAX7219_ON_ACTION_SCHEMA = automation.maybe_simple_id(
-    MAX7219_OFF_ACTION_SCHEMA.extend(
-        {
-            cv.Optional(CONF_STATE, default=True): True,
-        }
-    )
+    {
+        cv.Required(CONF_ID): cv.use_id(MAX7219Component),
+        cv.Optional(CONF_STATE, default=True): True,
+    }
 )
 
 
