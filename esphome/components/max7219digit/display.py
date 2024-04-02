@@ -115,12 +115,15 @@ DisplayReverseAction = max7219_ns.class_("DisplayReverseAction", automation.Acti
 DisplayIntensityAction = max7219_ns.class_("DisplayIntensityAction", automation.Action)
 
 
-MAX7219_OFF_ACTION_SCHEMA = automation.maybe_simple_id(
-    {
-        cv.Required(CONF_ID): cv.use_id(MAX7219Component),
-        cv.Optional(CONF_STATE, default=False): False,
-    }
+MAX7219_OFF_ACTION_SCHEMA = cv.Schema(
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(MAX7219Component),
+            cv.Optional(CONF_STATE, default=False): False,
+        }
+    )
 )
+
 MAX7219_ON_ACTION_SCHEMA = automation.maybe_simple_id(
     MAX7219_OFF_ACTION_SCHEMA.extend(
         {
@@ -183,5 +186,5 @@ MAX7219_INTENSITY_SCHEMA = automation.maybe_simple_id(
 async def MAX7219_intensity_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_INTENSITY], args, cg.int8)
+    template_ = await cg.templatable(config[CONF_INTENSITY], args, cg.int_)
     cg.add(var.set_state(template_))

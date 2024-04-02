@@ -120,7 +120,6 @@ class MAX7219Component : public display::DisplayBuffer,
   optional<max7219_writer_t> writer_local_{};
 };
 
-
 /*
 void invert_on_off(bool on_off);
   void invert_on_off();
