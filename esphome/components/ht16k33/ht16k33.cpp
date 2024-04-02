@@ -19,10 +19,6 @@ constexpr uint8_t HT16K33_BLINK_2HZ = 0x01;
 constexpr uint8_t HT16K33_BLINK_1HZ = 0x02;
 constexpr uint8_t HT16K33_BLINK_HALFHZ = 0x03;
 
-const Color HT16K33Component::CL(255, 0, 0);
-const Color HT16K33Component::CH(0, 255, 0);
-const Color HT16K33Component::CLH(255, 255, 0);
-
 float HT16K33Component::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void HT16K33Component::setup() {
