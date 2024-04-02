@@ -98,8 +98,8 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
       tp.x = (uint16_t) ((int) x * this->display_width_ / 0x1000);
       tp.y = (uint16_t) ((int) y * this->display_height_ / 0x1000);
     } else {
-      tp.x =  x;
-      tp.y =  y;
+      tp.x = x;
+      tp.y = y;
     }
   } else {
     tp.state |= STATE_CALIBRATE;
