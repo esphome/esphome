@@ -53,7 +53,8 @@ void ICNT86Touchscreen::update_touches() {
       UWORD y = ((UWORD) buf[4 + 7 * i] << 8) + buf[3 + 7 * i];
       UWORD p = buf[5 + 7 * i];
       UWORD touch_evenid = buf[6 + 7 * i];
-      if (this->touches_.count(touch_evenid) == 0 || (x != this->touches_[touch_evenid].x_prev && y != this->touches_[touch_evenid].y_prev)) {
+      if (this->touches_.count(touch_evenid) == 0 ||
+          (x != this->touches_[touch_evenid].x_prev && y != this->touches_[touch_evenid].y_prev)) {
         this->add_raw_touch_position_(touch_evenid, x, y, p);
       }
     }
