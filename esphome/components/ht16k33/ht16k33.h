@@ -20,14 +20,14 @@ enum ScrollMode {
 
 class HT16K33Component;
 
+const Color CL(255, 0, 0);
+const Color CH(0, 255, 0);
+const Color CLH(255, 255, 0);
+
 using ht16k33_writer_t = std::function<void(HT16K33Component &)>;
 
 class HT16K33Component : public display::DisplayBuffer, public i2c::I2CDevice {
  public:
-  static const Color CL;
-  static const Color CH;
-  static const Color CLH;
-
   void set_writer(ht16k33_writer_t &&writer) { this->writer_ = writer; }
 
   void setup() override;

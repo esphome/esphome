@@ -3565,8 +3565,8 @@ display:
     rotate_chip: 90
     flip_x: true
     lambda: |-
-      it.filled_rectangle(0, 0, 5, 8, ht16k33::HT16K33Component::CL);
-      it.filled_rectangle(11, 0, 5, 8, ht16k33::HT16K33Component::CH);
+      it.filled_rectangle(0, 0, 5, 8, ht16k33::CL);
+      it.filled_rectangle(11, 0, 5, 8, ht16k33::CH);
 
 tm1651:
   id: tm1651_battery
