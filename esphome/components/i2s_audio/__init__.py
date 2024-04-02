@@ -22,6 +22,10 @@ CONF_I2S_MCLK_PIN = "i2s_mclk_pin"
 CONF_I2S_BCLK_PIN = "i2s_bclk_pin"
 CONF_I2S_LRCLK_PIN = "i2s_lrclk_pin"
 
+CONF_I2S_MODE = "i2s_mode"
+CONF_PRIMARY = "primary"
+CONF_SECONDARY = "secondary"
+
 CONF_I2S_AUDIO = "i2s_audio"
 CONF_I2S_AUDIO_ID = "i2s_audio_id"
 
@@ -31,6 +35,11 @@ I2SAudioIn = i2s_audio_ns.class_("I2SAudioIn", cg.Parented.template(I2SAudioComp
 I2SAudioOut = i2s_audio_ns.class_(
     "I2SAudioOut", cg.Parented.template(I2SAudioComponent)
 )
+i2s_mode_t = cg.global_ns.enum("i2s_mode_t")
+I2S_MODE_OPTIONS = {
+    CONF_PRIMARY: i2s_mode_t.I2S_MODE_MASTER,
+    CONF_SECONDARY: i2s_mode_t.I2S_MODE_SLAVE,
+}
 
 # https://github.com/espressif/esp-idf/blob/master/components/soc/{variant}/include/soc/soc_caps.h
 I2S_PORTS = {
@@ -46,6 +55,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_I2S_LRCLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_I2S_BCLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_I2S_MCLK_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_I2S_MODE, default=CONF_PRIMARY): cv.enum(
+            I2S_MODE_OPTIONS, lower=True
+        ),
     }
 )
 
@@ -68,6 +80,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
+    cg.add(var.set_i2s_mode(config[CONF_I2S_MODE]))
     cg.add(var.set_lrclk_pin(config[CONF_I2S_LRCLK_PIN]))
     if CONF_I2S_BCLK_PIN in config:
         cg.add(var.set_bclk_pin(config[CONF_I2S_BCLK_PIN]))

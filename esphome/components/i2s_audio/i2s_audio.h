@@ -33,6 +33,9 @@ class I2SAudioComponent : public Component {
   void set_bclk_pin(int pin) { this->bclk_pin_ = pin; }
   void set_lrclk_pin(int pin) { this->lrclk_pin_ = pin; }
 
+  void set_i2s_mode(i2s_mode_t mode) { this->mode_ = mode; }
+  i2s_mode_t get_i2s_mode() { return this->mode_; }
+
   void lock() { this->lock_.lock(); }
   bool try_lock() { return this->lock_.try_lock(); }
   void unlock() { this->lock_.unlock(); }
@@ -49,6 +52,7 @@ class I2SAudioComponent : public Component {
   int bclk_pin_{I2S_PIN_NO_CHANGE};
   int lrclk_pin_;
   i2s_port_t port_{};
+  i2s_mode_t mode_{};
 };
 
 }  // namespace i2s_audio
