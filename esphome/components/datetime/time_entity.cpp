@@ -94,6 +94,62 @@ void TimeEntityRestoreState::apply(TimeEntity *time) {
   time->publish_state();
 }
 
+#ifdef USE_TIME
+
+static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
+                                             // there has been a drastic time synchronization
+
+void OnTimeTrigger::loop() {
+  if (!this->parent_->has_state()) {
+    return;
+  }
+  ESPTime time = this->rtc_->now();
+  if (!time.is_valid()) {
+    return;
+  }
+  if (this->last_check_.has_value()) {
+    if (*this->last_check_ > time && this->last_check_->timestamp - time.timestamp > MAX_TIMESTAMP_DRIFT) {
+      // We went back in time (a lot), probably caused by time synchronization
+      ESP_LOGW(TAG, "Time has jumped back!");
+    } else if (*this->last_check_ >= time) {
+      // already handled this one
+      return;
+    } else if (time > *this->last_check_ && time.timestamp - this->last_check_->timestamp > MAX_TIMESTAMP_DRIFT) {
+      // We went ahead in time (a lot), probably caused by time synchronization
+      ESP_LOGW(TAG, "Time has jumped ahead!");
+      this->last_check_ = time;
+      return;
+    }
+
+    while (true) {
+      this->last_check_->increment_second();
+      if (*this->last_check_ >= time)
+        break;
+
+      if (this->matches_(*this->last_check_)) {
+        this->trigger();
+        break;
+      }
+    }
+  }
+
+  this->last_check_ = time;
+  if (!time.fields_in_range()) {
+    ESP_LOGW(TAG, "Time is out of range!");
+    ESP_LOGD(TAG, "Second=%02u Minute=%02u Hour=%02u", time.second, time.minute, time.hour);
+  }
+
+  if (this->matches_(time))
+    this->trigger();
+}
+
+bool OnTimeTrigger::matches_(const ESPTime &time) const {
+  return time.is_valid() && time.hour == this->parent_->hour && time.minute == this->parent_->minute &&
+         time.second == this->parent_->second;
+}
+
+#endif
+
 }  // namespace datetime
 }  // namespace esphome
 

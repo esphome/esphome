@@ -3,10 +3,12 @@ import esphome.codegen as cg
 # import cpp_generator as cpp
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import mqtt
+from esphome.components import mqtt, time
 from esphome.const import (
     CONF_ID,
+    CONF_ON_TIME,
     CONF_ON_VALUE,
+    CONF_TIME_ID,
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_MQTT_ID,
@@ -41,6 +43,10 @@ DateTimeStateTrigger = datetime_ns.class_(
     "DateTimeStateTrigger", automation.Trigger.template(cg.ESPTime)
 )
 
+OnTimeTrigger = datetime_ns.class_(
+    "OnTimeTrigger", automation.Trigger, cg.Component, cg.Parented.template(TimeEntity)
+)
+
 DATETIME_MODES = [
     "DATE",
     "TIME",
@@ -73,6 +79,16 @@ def time_schema(class_: MockObjClass) -> cv.Schema:
         cv.GenerateID(): cv.declare_id(class_),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTimeComponent),
         cv.Optional(CONF_TYPE, default="TIME"): cv.one_of("TIME", upper=True),
+        cv.Inclusive(
+            CONF_ON_TIME,
+            CONF_ON_TIME,
+            msg="`on_time` and `time_id` must both be specified",
+        ): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTimeTrigger),
+            }
+        ),
+        cv.Inclusive(CONF_TIME_ID, CONF_ON_TIME): cv.use_id(time.RealTimeClock),
     }
     return _DATETIME_SCHEMA.extend(schema)
 
@@ -94,6 +110,17 @@ async def setup_datetime_core_(var, config):
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.ESPTime, "x")], conf)
+
+    rtc_id = config.get(CONF_TIME_ID)
+    rtc = None
+    if rtc_id is not None:
+        rtc = await cg.get_variable(rtc_id)
+    for conf in config.get(CONF_ON_TIME, []):
+        assert rtc is not None
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], rtc)
+        await automation.build_automation(trigger, [], conf)
+        await cg.register_component(trigger, conf)
+        await cg.register_parented(trigger, var)
 
 
 async def register_datetime(var, config):
