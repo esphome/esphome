@@ -4,6 +4,7 @@ from esphome import automation
 from esphome.components import uart
 from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID
 
+CODEOWNERS = ["@Swamp-Ig"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor"]
 MULTI_CONF = True
