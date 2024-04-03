@@ -31,6 +31,11 @@ def validate_config(config):
     if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
         raise cv.Invalid("Automatic attenuation cannot be used when raw output is set")
 
+    if config.get(CONF_ATTENUATION, None) == "auto" and config.get(CONF_SAMPLES, 1) > 1:
+        raise cv.Invalid(
+            "Automatic attenuation cannot be used when multisampling is set"
+        )
+
     return config
 
 
