@@ -109,8 +109,12 @@ void DallasComponent::update() {
     result = this->one_wire_->reset();
   }
   if (!result) {
-    ESP_LOGE(TAG, "Requesting conversion failed");
-    this->status_set_warning();
+    //TODO Only log error if set in config
+    if (this->found_sensors_.size() > 0) {
+      ESP_LOGE(TAG, "Requesting conversion failed");
+      this->status_set_warning();
+    }
+
     for (auto *sensor : this->sensors_) {
       sensor->publish_state(NAN);
     }
