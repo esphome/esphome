@@ -2,9 +2,12 @@ output:
   - platform: ledc
     id: light_output_1
     pin: 1
+    channel: 0
   - platform: ledc
     id: light_output_2
     pin: 2
+    channel: 1
+    phase_angle: 180°
 
 light:
   - platform: cwww

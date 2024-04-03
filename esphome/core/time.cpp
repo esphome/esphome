@@ -1,4 +1,6 @@
+#ifdef USE_DATETIME
 #include <regex>
+#endif
 
 #include "helpers.h"
 #include "time.h"  // NOLINT
@@ -64,6 +66,8 @@ std::string ESPTime::strftime(const std::string &format) {
   return timestr;
 }
 
+#ifdef USE_DATETIME
+
 bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
   // clang-format off
   std::regex dt_regex(R"(^
@@ -101,6 +105,8 @@ bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
 
   return true;
 }
+
+#endif
 
 void ESPTime::increment_second() {
   this->timestamp++;

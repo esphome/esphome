@@ -268,6 +268,9 @@ SPI_SCHEMA = cv.All(
                 *sum(get_hw_interface_list(), ["software", "hardware", "any"]),
                 lower=True,
             ),
+            cv.Optional(CONF_DATA_PINS): cv.invalid(
+                "'data_pins' should be used with 'type: quad' only"
+            ),
         }
     ),
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
@@ -286,6 +289,12 @@ SPI_QUAD_SCHEMA = cv.All(
             cv.Optional(CONF_INTERFACE, default="hardware"): cv.one_of(
                 *sum(get_hw_interface_list(), ["hardware"]),
                 lower=True,
+            ),
+            cv.Optional(CONF_MISO_PIN): cv.invalid(
+                "'miso_pin' should not be used with quad SPI"
+            ),
+            cv.Optional(CONF_MOSI_PIN): cv.invalid(
+                "'mosi_pin' should not be used with quad SPI"
             ),
         }
     ),
