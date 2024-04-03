@@ -2838,5 +2838,176 @@ void WaveshareEPaper2P13InDKE::set_full_update_every(uint32_t full_update_every)
   this->full_update_every_ = full_update_every;
 }
 
+// implement Poller for reducing the update cycle 
+
+
+void WaveshareEPaperPolled::update() {
+  this->do_update_();
+  if (this->state_ == State::SLEEPING) {
+    this->set_state_(State::UPDATE_REQUESTED);
+  }
+}
+
+void WaveshareEPaperPolled::loop() {
+  switch (this->state_) {
+    case State::SLEEPING:
+      break;
+    case State::UPDATE_REQUESTED:
+      this->reset_pin_->digital_write(false);
+      this->set_state_(State::RESETTING);
+      break;
+    case State::RESETTING:
+      if (millis() - this->last_state_change_ >= this->reset_duration_) {
+        this->reset_pin_->digital_write(true);
+        this->set_state_(State::INITIALIZING);
+      }
+      break;
+    case State::INITIALIZING:
+      if (millis() - this->last_state_change_ >= 200) {
+        this->power_on();
+        this->set_state_(State::POWERING_ON);
+      }
+      break;
+    case State::POWERING_ON:
+      if (millis() - this->last_state_change_ >= 100 && (!this->busy_pin_ || !this->busy_pin_->digital_read())) {
+        this->configure();
+        this->set_state_(State::CONFIGURING);
+      }
+      break;
+    case State::CONFIGURING:
+      this->display();
+      this->set_state_(State::DISPLAYING);
+      break;
+    case State::DISPLAYING:
+      if (millis() - this->last_state_change_ >= 200 && (!this->busy_pin_ || !this->busy_pin_->digital_read())) {
+        this->power_off();
+        this->set_state_(State::POWERING_OFF);
+      }
+      break;
+    case State::POWERING_OFF:
+      if (!this->busy_pin_ || !this->busy_pin_->digital_read()) {
+        this->deep_sleep();
+        this->set_state_(State::SLEEPING);
+      }
+      break;
+  }
+}
+
+void WaveshareEPaperPolled::set_state_(State state) {
+  this->state_ = state;
+  this->last_state_change_ = millis();
+  switch (this->state_) {
+    case State::SLEEPING:
+      ESP_LOGD(TAG, "sleeping");
+      break;
+    case State::UPDATE_REQUESTED:
+      ESP_LOGD(TAG, "update_requested");
+      break;
+    case State::RESETTING:
+      ESP_LOGD(TAG, "resetting");
+      break;
+    case State::INITIALIZING:
+      ESP_LOGD(TAG, "initializing");
+      break;
+    case State::POWERING_ON:
+      ESP_LOGD(TAG, "powering_on");
+      break;
+    case State::CONFIGURING:
+      ESP_LOGD(TAG, "configuring");
+      break;
+    case State::DISPLAYING:
+      ESP_LOGD(TAG, "displaying");
+      break;
+    case State::POWERING_OFF:
+      ESP_LOGD(TAG, "powering_off");
+      break;
+  }
+}
+
+
+// Waveshare  7.5inch e-Paper (B)	(Color: red, black, white) greyscale:2	resolution:800×480	Displaydimension:163.20×97.92 Outerdimension:170.20×111.20×1.18 FullUpdatetime:26 Protokol:SPI
+// Wiki:   https://www.waveshare.com/wiki/7.5inch_e-Paper_HAT_(B)
+// Github: https://github.com/waveshareteam/e-Paper
+
+int WaveshareEPaper7P5InV3rb::get_height_internal() { return 480; }
+void WaveshareEPaper7P5InV3rb::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5in V3 Black/Red");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+void WaveshareEPaper7P5InV3rb::power_on() {
+  // COMMAND POWER SETTING
+  this->command(0x01);
+  this->data(0x07);
+  this->data(0x17);
+  this->data(0x3F);
+  this->data(0x3F);
+  // POWER ON
+  this->command(0x04);
+}
+
+void WaveshareEPaper7P5InV3rb::configure() {
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0x0F);  // KW-3f KWR-2F BWROTP 0f BWOTP 1f
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x03);
+  this->data(0x20);
+  this->data(0x01);
+  this->data(0xE0);
+  // COMMAND DUAL SPI MODE
+  this->command(0x15);
+  this->data(0x00);
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x11);
+  this->data(0x07);
+  // COMMAND TCON SETTING
+  this->command(0x60);
+  this->data(0x22);
+  // COMMAND RESOLUTION GATE SETTING
+  this->command(0x65);
+  this->data(0x00);
+  this->data(0x00);
+  this->data(0x00);
+  this->data(0x00);
+}
+
+void HOT WaveshareEPaper7P5InV3rb::display() {
+  uint32_t buf_len = this->get_buffer_length_();
+  // COMMAND DATA START TRANSMISSION BLACK
+  this->command(0x10);
+  for (uint32_t i = 0; i < buf_len / 2; i++) {
+    this->data(this->buffer_[i]);
+  }
+
+  // COMMAND DATA START TRANSMISSION RED
+  this->command(0x13);
+  for (uint32_t i = buf_len / 2; i < buf_len; i++) {
+    this->data(~this->buffer_[i]);
+  }
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+}
+
+void WaveshareEPaper7P5InV3rb::power_off() {
+  this->command(0x02);  // POWER OFF
+}
+
+void WaveshareEPaper7P5InV3rb::deep_sleep() {
+  this->command(0x07);  // SLEEP
+  this->data(0xA5);
+}
+
+void WaveshareEPaper7P5InV3rb::initialize() { this->init_display_(); }
+//ToDo: WaveshareEPaper7P5InV3rb::initialize()
+
+
 }  // namespace waveshare_epaper
 }  // namespace esphome
