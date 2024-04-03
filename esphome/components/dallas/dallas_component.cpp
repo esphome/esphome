@@ -61,10 +61,10 @@ void DallasComponent::setup() {
     if (sensor->get_index().has_value()) {
       if (*sensor->get_index() >= this->found_sensors_.size()) {
         this->status_set_error("Sensor configured by index but not found");
+        sensor->found_at_start_ = false;
         continue;
       }
       sensor->set_address(this->found_sensors_[*sensor->get_index()]);
-      sensor->found_at_start_ = true;
     }
 
     if (!sensor->setup_sensor()) {
@@ -110,8 +110,8 @@ void DallasComponent::update() {
     result = this->one_wire_->reset();
   }
   if (!result) {
-    if (!this->ignore_ || (this->found_sensors_.size() > 0)) {
-      // Log error always if ignore_error is configured as false
+    if (!this->ignore_error_when_no_sensors_found_ || (this->found_sensors_.size() > 0)) {
+      // Log error always if ignore_error_when_no_sensors_found is configured as false
       // Otherwise log error if at the start sensors were found (and thus are disconnected during uptime)
       ESP_LOGE(TAG, "Requesting conversion failed");
       this->status_set_warning();
