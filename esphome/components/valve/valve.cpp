@@ -181,7 +181,6 @@ bool Valve::is_fully_closed() const { return this->position == VALVE_CLOSED; }
 
 ValveCall ValveRestoreState::to_call(Valve *valve) {
   auto call = valve->make_call();
-  auto traits = valve->get_traits();
   call.set_position(this->position);
   return call;
 }

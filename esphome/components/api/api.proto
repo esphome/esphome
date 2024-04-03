@@ -637,10 +637,6 @@ message ListEntitiesValveResponse {
   bool supports_stop = 11;
 }
 
-enum LegacyValveState {
-  LEGACY_VALVE_STATE_OPEN = 0;
-  LEGACY_VALVE_STATE_CLOSED = 1;
-}
 enum ValveOperation {
   VALVE_OPERATION_IDLE = 0;
   VALVE_OPERATION_IS_OPENING = 1;
@@ -653,20 +649,10 @@ message ValveStateResponse {
   option (no_delay) = true;
 
   fixed32 key = 1;
-  // legacy: state has been removed in 1.13
-  // clients/servers must still send/accept it until the next protocol change
-  LegacyValveState legacy_state = 2;
-
-  float position = 3;
-  ValveOperation current_operation = 4;
+  float position = 2;
+  ValveOperation current_operation = 3;
 }
 
-enum LegacyValveCommand {
-  LEGACY_VALVE_COMMAND_OPEN = 0;
-  LEGACY_VALVE_COMMAND_CLOSE = 1;
-  LEGACY_VALVE_COMMAND_STOP = 2;
-  LEGACY_VALVE_COMMAND_TOGGLE = 3;
-}
 message ValveCommandRequest {
   option (id) = 30;
   option (source) = SOURCE_CLIENT;
@@ -674,15 +660,9 @@ message ValveCommandRequest {
   option (no_delay) = true;
 
   fixed32 key = 1;
-
-  // legacy: command has been removed in 1.13
-  // clients/servers must still send/accept it until the next protocol change
-  bool has_legacy_command = 2;
-  LegacyValveCommand legacy_command = 3;
-
-  bool has_position = 4;
-  float position = 5;
-  bool stop = 6;
+  bool has_position = 2;
+  float position = 3;
+  bool stop = 4;
 }
 
 // ==================== SUBSCRIBE LOGS ====================

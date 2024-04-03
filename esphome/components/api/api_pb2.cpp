@@ -147,18 +147,6 @@ template<> const char *proto_enum_to_string<enums::SensorLastResetType>(enums::S
 }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
-template<> const char *proto_enum_to_string<enums::LegacyValveState>(enums::LegacyValveState value) {
-  switch (value) {
-    case enums::LEGACY_VALVE_STATE_OPEN:
-      return "LEGACY_VALVE_STATE_OPEN";
-    case enums::LEGACY_VALVE_STATE_CLOSED:
-      return "LEGACY_VALVE_STATE_CLOSED";
-    default:
-      return "UNKNOWN";
-  }
-}
-#endif
-#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ValveOperation>(enums::ValveOperation value) {
   switch (value) {
     case enums::VALVE_OPERATION_IDLE:
@@ -167,22 +155,6 @@ template<> const char *proto_enum_to_string<enums::ValveOperation>(enums::ValveO
       return "VALVE_OPERATION_IS_OPENING";
     case enums::VALVE_OPERATION_IS_CLOSING:
       return "VALVE_OPERATION_IS_CLOSING";
-    default:
-      return "UNKNOWN";
-  }
-}
-#endif
-#ifdef HAS_PROTO_MESSAGE_DUMP
-template<> const char *proto_enum_to_string<enums::LegacyValveCommand>(enums::LegacyValveCommand value) {
-  switch (value) {
-    case enums::LEGACY_VALVE_COMMAND_OPEN:
-      return "LEGACY_VALVE_COMMAND_OPEN";
-    case enums::LEGACY_VALVE_COMMAND_CLOSE:
-      return "LEGACY_VALVE_COMMAND_CLOSE";
-    case enums::LEGACY_VALVE_COMMAND_STOP:
-      return "LEGACY_VALVE_COMMAND_STOP";
-    case enums::LEGACY_VALVE_COMMAND_TOGGLE:
-      return "LEGACY_VALVE_COMMAND_TOGGLE";
     default:
       return "UNKNOWN";
   }
@@ -3012,11 +2984,7 @@ void ListEntitiesValveResponse::dump_to(std::string &out) const {
 #endif
 bool ValveStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
-    case 2: {
-      this->legacy_state = value.as_enum<enums::LegacyValveState>();
-      return true;
-    }
-    case 4: {
+    case 3: {
       this->current_operation = value.as_enum<enums::ValveOperation>();
       return true;
     }
@@ -3030,7 +2998,7 @@ bool ValveStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->key = value.as_fixed32();
       return true;
     }
-    case 3: {
+    case 2: {
       this->position = value.as_float();
       return true;
     }
@@ -3040,9 +3008,8 @@ bool ValveStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 void ValveStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
-  buffer.encode_enum<enums::LegacyValveState>(2, this->legacy_state);
-  buffer.encode_float(3, this->position);
-  buffer.encode_enum<enums::ValveOperation>(4, this->current_operation);
+  buffer.encode_float(2, this->position);
+  buffer.encode_enum<enums::ValveOperation>(3, this->current_operation);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ValveStateResponse::dump_to(std::string &out) const {
@@ -3051,10 +3018,6 @@ void ValveStateResponse::dump_to(std::string &out) const {
   out.append("  key: ");
   sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
-  out.append("\n");
-
-  out.append("  legacy_state: ");
-  out.append(proto_enum_to_string<enums::LegacyValveState>(this->legacy_state));
   out.append("\n");
 
   out.append("  position: ");
@@ -3071,18 +3034,10 @@ void ValveStateResponse::dump_to(std::string &out) const {
 bool ValveCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
-      this->has_legacy_command = value.as_bool();
-      return true;
-    }
-    case 3: {
-      this->legacy_command = value.as_enum<enums::LegacyValveCommand>();
-      return true;
-    }
-    case 4: {
       this->has_position = value.as_bool();
       return true;
     }
-    case 6: {
+    case 4: {
       this->stop = value.as_bool();
       return true;
     }
@@ -3096,7 +3051,7 @@ bool ValveCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->key = value.as_fixed32();
       return true;
     }
-    case 5: {
+    case 3: {
       this->position = value.as_float();
       return true;
     }
@@ -3106,11 +3061,9 @@ bool ValveCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 void ValveCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
-  buffer.encode_bool(2, this->has_legacy_command);
-  buffer.encode_enum<enums::LegacyValveCommand>(3, this->legacy_command);
-  buffer.encode_bool(4, this->has_position);
-  buffer.encode_float(5, this->position);
-  buffer.encode_bool(6, this->stop);
+  buffer.encode_bool(2, this->has_position);
+  buffer.encode_float(3, this->position);
+  buffer.encode_bool(4, this->stop);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ValveCommandRequest::dump_to(std::string &out) const {
@@ -3119,14 +3072,6 @@ void ValveCommandRequest::dump_to(std::string &out) const {
   out.append("  key: ");
   sprintf(buffer, "%" PRIu32, this->key);
   out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_legacy_command: ");
-  out.append(YESNO(this->has_legacy_command));
-  out.append("\n");
-
-  out.append("  legacy_command: ");
-  out.append(proto_enum_to_string<enums::LegacyValveCommand>(this->legacy_command));
   out.append("\n");
 
   out.append("  has_position: ");

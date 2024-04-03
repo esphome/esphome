@@ -60,20 +60,10 @@ enum SensorLastResetType : uint32_t {
   LAST_RESET_NEVER = 1,
   LAST_RESET_AUTO = 2,
 };
-enum LegacyValveState : uint32_t {
-  LEGACY_VALVE_STATE_OPEN = 0,
-  LEGACY_VALVE_STATE_CLOSED = 1,
-};
 enum ValveOperation : uint32_t {
   VALVE_OPERATION_IDLE = 0,
   VALVE_OPERATION_IS_OPENING = 1,
   VALVE_OPERATION_IS_CLOSING = 2,
-};
-enum LegacyValveCommand : uint32_t {
-  LEGACY_VALVE_COMMAND_OPEN = 0,
-  LEGACY_VALVE_COMMAND_CLOSE = 1,
-  LEGACY_VALVE_COMMAND_STOP = 2,
-  LEGACY_VALVE_COMMAND_TOGGLE = 3,
 };
 enum LogLevel : uint32_t {
   LOG_LEVEL_NONE = 0,
@@ -780,7 +770,6 @@ class ListEntitiesValveResponse : public ProtoMessage {
 class ValveStateResponse : public ProtoMessage {
  public:
   uint32_t key{0};
-  enums::LegacyValveState legacy_state{};
   float position{0.0f};
   enums::ValveOperation current_operation{};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -795,8 +784,6 @@ class ValveStateResponse : public ProtoMessage {
 class ValveCommandRequest : public ProtoMessage {
  public:
   uint32_t key{0};
-  bool has_legacy_command{false};
-  enums::LegacyValveCommand legacy_command{};
   bool has_position{false};
   float position{0.0f};
   bool stop{false};

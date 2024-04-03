@@ -885,8 +885,6 @@ bool APIConnection::send_valve_state(valve::Valve *valve) {
 
   ValveStateResponse resp{};
   resp.key = valve->get_object_id_hash();
-  resp.legacy_state =
-      (valve->position == valve::VALVE_OPEN) ? enums::LEGACY_VALVE_STATE_OPEN : enums::LEGACY_VALVE_STATE_CLOSED;
   resp.position = valve->position;
   resp.current_operation = static_cast<enums::ValveOperation>(valve->current_operation);
   return this->send_valve_state_response(resp);
@@ -914,22 +912,6 @@ void APIConnection::valve_command(const ValveCommandRequest &msg) {
     return;
 
   auto call = valve->make_call();
-  if (msg.has_legacy_command) {
-    switch (msg.legacy_command) {
-      case enums::LEGACY_VALVE_COMMAND_OPEN:
-        call.set_command_open();
-        break;
-      case enums::LEGACY_VALVE_COMMAND_CLOSE:
-        call.set_command_close();
-        break;
-      case enums::LEGACY_VALVE_COMMAND_STOP:
-        call.set_command_stop();
-        break;
-      case enums::LEGACY_VALVE_COMMAND_TOGGLE:
-        call.set_command_toggle();
-        break;
-    }
-  }
   if (msg.has_position)
     call.set_position(msg.position);
   if (msg.stop)
