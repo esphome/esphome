@@ -707,7 +707,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     *conf.ap.password = 0;
   } else {
     conf.ap.authmode = WIFI_AUTH_WPA2_PSK;
-    strncpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), sizeof(conf.ap.ssid));
+    strncpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), sizeof(conf.ap.password));
   }
 
   conf.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;
