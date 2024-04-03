@@ -275,7 +275,7 @@ def highlight(s):
 
 
 @lint_re_check(
-    r"^#define\s+([a-zA-Z0-9_]+)\s+([0-9bx]+)" + CPP_RE_EOL,
+    r"^#define\s+([a-zA-Z0-9_]+)\s+(0b[10]+|0x[0-9a-fA-F]+|\d+)\s*?(?:\/\/.*?)?$",
     include=cpp_include,
     exclude=[
         "esphome/core/log.h",
