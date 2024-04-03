@@ -72,6 +72,7 @@ void QMC5883LComponent::dump_config() {
   LOG_SENSOR("  ", "Y Axis", this->y_sensor_);
   LOG_SENSOR("  ", "Z Axis", this->z_sensor_);
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
 float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
 void QMC5883LComponent::update() {
@@ -123,7 +124,18 @@ void QMC5883LComponent::update() {
     heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
   }
 
-  ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f° status=%u", x, y, z, heading, status);
+  float temp = NAN;
+  if (this->temperature_sensor_ != nullptr) {
+    uint16_t raw_temp;
+    if (!this->read_byte_16_(QMC5883L_REGISTER_TEMPERATURE_LSB, &raw_temp)) {
+      this->status_set_warning();
+      return;
+    }
+    temp = int16_t(raw_temp) * 0.01f;
+  }
+
+  ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f° temperature=%0.01f°C status=%u", x, y, z, heading,
+           temp, status);
 
   if (this->x_sensor_ != nullptr)
     this->x_sensor_->publish_state(x);
@@ -133,6 +145,8 @@ void QMC5883LComponent::update() {
     this->z_sensor_->publish_state(z);
   if (this->heading_sensor_ != nullptr)
     this->heading_sensor_->publish_state(heading);
+  if (this->temperature_sensor_ != nullptr)
+    this->temperature_sensor_->publish_state(temp);
 }
 
 bool QMC5883LComponent::read_byte_16_(uint8_t a_register, uint16_t *data) {
