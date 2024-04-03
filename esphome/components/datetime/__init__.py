@@ -190,16 +190,16 @@ async def datetime_time_set_to_code(config, action_id, template_arg, args):
     action_var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(action_var, config[CONF_ID])
 
-    time = config[CONF_TIME]
-    if cg.is_template(time):
+    time_config = config[CONF_TIME]
+    if cg.is_template(time_config):
         template_ = await cg.templatable(config[CONF_TIME], [], cg.ESPTime)
         cg.add(action_var.set_time(template_))
     else:
         time_struct = cg.StructInitializer(
             cg.ESPTime,
-            ("second", time[CONF_SECOND]),
-            ("minute", time[CONF_MINUTE]),
-            ("hour", time[CONF_HOUR]),
+            ("second", time_config[CONF_SECOND]),
+            ("minute", time_config[CONF_MINUTE]),
+            ("hour", time_config[CONF_HOUR]),
         )
         cg.add(action_var.set_time(time_struct))
     return action_var
