@@ -2,8 +2,10 @@ import base64
 import secrets
 from pathlib import Path
 from typing import Optional
+import re
 
 import requests
+from ruamel.yaml import YAML
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -11,7 +13,6 @@ import esphome.final_validate as fv
 from esphome import git
 from esphome.components.packages import validate_source_shorthand
 from esphome.const import CONF_REF, CONF_WIFI, CONF_ESPHOME, CONF_PROJECT
-from esphome.wizard import wizard_file
 from esphome.yaml_util import dump
 
 dashboard_import_ns = cg.esphome_ns.namespace("dashboard_import")
@@ -94,75 +95,74 @@ def import_config(
     if p.exists():
         raise FileExistsError
 
-    if project_name == "esphome.web":
-        if "esp32c3" in import_url:
-            board = "esp32-c3-devkitm-1"
-            platform = "ESP32"
-        elif "esp32s2" in import_url:
-            board = "esp32-s2-saola-1"
-            platform = "ESP32"
-        elif "esp32s3" in import_url:
-            board = "esp32-s3-devkitc-1"
-            platform = "ESP32"
-        elif "esp32" in import_url:
-            board = "esp32dev"
-            platform = "ESP32"
-        elif "esp8266" in import_url:
-            board = "esp01_1m"
-            platform = "ESP8266"
-        elif "pico-w" in import_url:
-            board = "pico-w"
-            platform = "RP2040"
+    git_file = git.GitFile.from_shorthand(import_url)
 
-        kwargs = {
-            "name": name,
-            "friendly_name": friendly_name,
-            "platform": platform,
-            "board": board,
-            "ssid": "!secret wifi_ssid",
-            "psk": "!secret wifi_password",
+    if git_file.query and "full_config" in git_file.query:
+        url = git_file.raw_url
+        try:
+            req = requests.get(url, timeout=30)
+            req.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise ValueError(f"Error while fetching {url}: {e}") from e
+
+        contents = req.text
+        yaml = YAML()
+        loaded_yaml = yaml.load(contents)
+        if (
+            "name_add_mac_suffix" in loaded_yaml["esphome"]
+            and loaded_yaml["esphome"]["name_add_mac_suffix"]
+        ):
+            loaded_yaml["esphome"]["name_add_mac_suffix"] = False
+            name_val = loaded_yaml["esphome"]["name"]
+            sub_pattern = re.compile(r"\$\{?([a-zA-Z-_]+)\}?")
+            if match := sub_pattern.match(name_val):
+                name_sub = match.group(1)
+                if name_sub in loaded_yaml["substitutions"]:
+                    loaded_yaml["substitutions"][name_sub] = name
+                else:
+                    raise ValueError(
+                        f"Name substitution {name_sub} not found in substitutions"
+                    )
+            else:
+                loaded_yaml["esphome"]["name"] = name
+            if friendly_name is not None:
+                friendly_name_val = loaded_yaml["esphome"]["friendly_name"]
+                if match := sub_pattern.match(friendly_name_val):
+                    friendly_name_sub = match.group(1)
+                    if friendly_name_sub in loaded_yaml["substitutions"]:
+                        loaded_yaml["substitutions"][friendly_name_sub] = friendly_name
+                    else:
+                        raise ValueError(
+                            f"Friendly name substitution {friendly_name_sub} not found in substitutions"
+                        )
+                else:
+                    loaded_yaml["esphome"]["friendly_name"] = friendly_name
+
+            with p.open("w", encoding="utf8") as f:
+                yaml.dump(loaded_yaml, f)
+        else:
+            with p.open("w", encoding="utf8") as f:
+                f.write(contents)
+
+    else:
+        substitutions = {"name": name}
+        esphome_core = {"name": "${name}", "name_add_mac_suffix": False}
+        if friendly_name:
+            substitutions["friendly_name"] = friendly_name
+            esphome_core["friendly_name"] = "${friendly_name}"
+        config = {
+            "substitutions": substitutions,
+            "packages": {project_name: import_url},
+            "esphome": esphome_core,
         }
         if encryption:
             noise_psk = secrets.token_bytes(32)
             key = base64.b64encode(noise_psk).decode()
-            kwargs["api_encryption_key"] = key
+            config["api"] = {"encryption": {"key": key}}
 
-        p.write_text(
-            wizard_file(**kwargs),
-            encoding="utf8",
-        )
-    else:
-        git_file = git.GitFile.from_shorthand(import_url)
+        output = dump(config)
 
-        if git_file.query and "full_config" in git_file.query:
-            url = git_file.raw_url
-            try:
-                req = requests.get(url, timeout=30)
-                req.raise_for_status()
-            except requests.exceptions.RequestException as e:
-                raise ValueError(f"Error while fetching {url}: {e}") from e
+        if network == CONF_WIFI:
+            output += WIFI_CONFIG
 
-            p.write_text(req.text, encoding="utf8")
-
-        else:
-            substitutions = {"name": name}
-            esphome_core = {"name": "${name}", "name_add_mac_suffix": False}
-            if friendly_name:
-                substitutions["friendly_name"] = friendly_name
-                esphome_core["friendly_name"] = "${friendly_name}"
-            config = {
-                "substitutions": substitutions,
-                "packages": {project_name: import_url},
-                "esphome": esphome_core,
-            }
-            if encryption:
-                noise_psk = secrets.token_bytes(32)
-                key = base64.b64encode(noise_psk).decode()
-                config["api"] = {"encryption": {"key": key}}
-
-            output = dump(config)
-
-            if network == CONF_WIFI:
-                output += WIFI_CONFIG
-
-            p.write_text(output, encoding="utf8")
+        p.write_text(output, encoding="utf8")

@@ -1,0 +1,17 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+wled:
+
+light:
+  - platform: neopixelbus
+    id: addr
+    name: Neopixelbus Light
+    method: esp8266_uart
+    num_leds: 5
+    pin: 2
+    type: GRBW
+    variant: SK6812
+    effects:
+      - wled:

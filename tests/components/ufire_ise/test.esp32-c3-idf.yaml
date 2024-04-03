@@ -1,0 +1,25 @@
+esphome:
+  on_boot:
+    then:
+      - ufire_ise.calibrate_probe_high:
+          id: ufire_ise_sensor
+          solution: 7.0
+      - ufire_ise.calibrate_probe_low:
+          id: ufire_ise_sensor
+          solution: 4.0
+      - ufire_ise.reset:
+
+i2c:
+  - id: i2c_ufire_ise
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: template
+    id: test_sensor
+    lambda: "return 21;"
+  - platform: ufire_ise
+    id: ufire_ise_sensor
+    temperature_sensor: test_sensor
+    ph:
+      name: Ufire pH
