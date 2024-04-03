@@ -10,10 +10,6 @@ namespace datetime {
 static const char *const TAG = "datetime.time_entity";
 
 void TimeEntity::publish_state() {
-  if (this->hour_ == 0 || this->minute_ == 0 || this->second_ == 0) {
-    this->has_state_ = false;
-    return;
-  }
   if (this->hour_ < 0 || this->hour_ > 23) {
     this->has_state_ = false;
     ESP_LOGE(TAG, "Hour must be between 0 and 23");
@@ -30,7 +26,8 @@ void TimeEntity::publish_state() {
     return;
   }
   this->has_state_ = true;
-  ESP_LOGD(TAG, "'%s': Sending time %d:%d:%d", this->get_name().c_str(), this->hour_, this->minute_, this->second_);
+  ESP_LOGD(TAG, "'%s': Sending time %02d:%02d:%02d", this->get_name().c_str(), this->hour_, this->minute_,
+           this->second_);
   this->state_callback_.call();
 }
 
