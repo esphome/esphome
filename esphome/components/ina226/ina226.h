@@ -50,7 +50,8 @@ class INA226Component : public PollingComponent, public i2c::I2CDevice {
 
   void set_shunt_resistance_ohm(float shunt_resistance_ohm) { shunt_resistance_ohm_ = shunt_resistance_ohm; }
   void set_max_current_a(float max_current_a) { max_current_a_ = max_current_a; }
-  void set_adc_time(AdcTime time) { adc_time_ = time; }
+  void set_adc_time_voltage(AdcTime time) { adc_time_voltage_ = time; }
+  void set_adc_time_current(AdcTime time) { adc_time_current_ = time; }
   void set_adc_avg_samples(AdcAvgSamples samples) { adc_avg_samples_ = samples; }
 
   void set_bus_voltage_sensor(sensor::Sensor *bus_voltage_sensor) { bus_voltage_sensor_ = bus_voltage_sensor; }
@@ -61,7 +62,8 @@ class INA226Component : public PollingComponent, public i2c::I2CDevice {
  protected:
   float shunt_resistance_ohm_;
   float max_current_a_;
-  AdcTime adc_time_{AdcTime::ADC_TIME_1100US};
+  AdcTime adc_time_voltage_{AdcTime::ADC_TIME_1100US};
+  AdcTime adc_time_current_{AdcTime::ADC_TIME_1100US};
   AdcAvgSamples adc_avg_samples_{AdcAvgSamples::ADC_AVG_SAMPLES_4};
   uint32_t calibration_lsb_;
   sensor::Sensor *bus_voltage_sensor_{nullptr};

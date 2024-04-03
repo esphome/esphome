@@ -322,6 +322,12 @@ ads1115:
   address: 0x48
   i2c_id: i2c_bus
 
+ads1118:
+  spi_id: spi_bus
+  cs_pin:
+    allow_other_uses: true
+    number: GPIO12
+
 as5600:
   i2c_id: i2c_bus
   dir_pin:
@@ -571,6 +577,14 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: ads1118
+    name: ads1118 adc
+    multiplexer: A0_A1
+    gain: 1.024
+    type: adc
+  - platform: ads1118
+    name: ads1118 temperature
+    type: temperature
   - platform: as5600
     name: AS5600 Position
     raw_position:
@@ -679,6 +693,7 @@ sensor:
     internal: true
     address: 0x23
     update_interval: 30s
+    qos: 2
     retain: false
     availability:
     state_topic: livingroom/custom_state_topic
@@ -2637,6 +2652,10 @@ climate:
     name: Yashima Climate
   - platform: mitsubishi
     name: Mitsubishi
+    supports_dry: "true"
+    supports_fan_only: "true"
+    horizontal_default: "left"
+    vertical_default: "down"
   - platform: whirlpool
     name: Whirlpool Climate
   - platform: climate_ir_lg

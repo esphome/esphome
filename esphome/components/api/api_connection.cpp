@@ -698,6 +698,43 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_DATETIME_DATE
+bool APIConnection::send_date_state(datetime::DateEntity *date) {
+  if (!this->state_subscription_)
+    return false;
+
+  DateStateResponse resp{};
+  resp.key = date->get_object_id_hash();
+  resp.missing_state = !date->has_state();
+  resp.year = date->year;
+  resp.month = date->month;
+  resp.day = date->day;
+  return this->send_date_state_response(resp);
+}
+bool APIConnection::send_date_info(datetime::DateEntity *date) {
+  ListEntitiesDateResponse msg;
+  msg.key = date->get_object_id_hash();
+  msg.object_id = date->get_object_id();
+  if (date->has_own_name())
+    msg.name = date->get_name();
+  msg.unique_id = get_default_unique_id("date", date);
+  msg.icon = date->get_icon();
+  msg.disabled_by_default = date->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(date->get_entity_category());
+
+  return this->send_list_entities_date_response(msg);
+}
+void APIConnection::date_command(const DateCommandRequest &msg) {
+  datetime::DateEntity *date = App.get_date_by_key(msg.key);
+  if (date == nullptr)
+    return;
+
+  auto call = date->make_call();
+  call.set_date(msg.year, msg.month, msg.day);
+  call.perform();
+}
+#endif
+
 #ifdef USE_TEXT
 bool APIConnection::send_text_state(text::Text *text, std::string state) {
   if (!this->state_subscription_)
