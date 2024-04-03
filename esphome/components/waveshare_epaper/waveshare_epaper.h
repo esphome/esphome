@@ -132,7 +132,36 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
       this->wait_until_idle_();
     }
   }
+class WaveshareEPaperTypeB : public WaveshareEPaper {
+ public:
+  WaveshareEPaperTypeB(WaveshareEPaperTypeBModel model);
 
+  void initialize() override;
+
+  void dump_config() override;
+
+  void display() override;
+
+  void deep_sleep() override {
+    switch (this->model_) {
+      // Models with specific deep sleep command and data
+      case WAVESHARE_EPAPER_2_13_IN_V2:
+        // COMMAND DEEP SLEEP MODE
+        this->command(0x07);
+        this->data(0xA5);
+        break;
+      // Other models default to simple deep sleep command
+      default:
+        // COMMAND DEEP SLEEP
+        this->command(0x02);
+        break;
+    }
+    if (this->model_ != WAVESHARE_EPAPER_2_13_IN_V2) {
+      // From panel specification:
+      // "After this command initiated, the chip will enter Deep Sleep Mode, BUSY pad will keep output high."
+      this->wait_until_idle_();
+    }
+  }
   void set_full_update_every(uint32_t full_update_every);
 
  protected:
@@ -149,6 +178,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   uint32_t full_update_every_{30};
   uint32_t at_update_{0};
   WaveshareEPaperTypeAModel model_;
+  WaveshareEPaperTypeBModel model_;
   uint32_t idle_timeout_() override;
 
   bool deep_sleep_between_updates_{false};
@@ -163,6 +193,8 @@ enum WaveshareEPaperTypeBModel {
   WAVESHARE_EPAPER_7_5_IN,
   WAVESHARE_EPAPER_7_5_INV2,
   WAVESHARE_EPAPER_7_5_IN_B_V2,
+  WAVESHARE_EPAPER_7_5_INV3,        // added for v3 Displays 
+  WAVESHARE_EPAPER_7_5_INV3_RB,      // added for v3 Displays Red-Black
 };
 
 class WaveshareEPaper2P7In : public WaveshareEPaper {
@@ -556,7 +588,7 @@ class WaveshareEPaper7P5InBV2 : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
-class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
+class WaveshareEPaper7P5InBV3 : public WaveshareEPaperBWR {
  public:
   bool wait_until_idle_();
 
@@ -745,5 +777,83 @@ class WaveshareEPaper2P13InV3 : public WaveshareEPaper {
   bool is_busy_{false};
   void write_lut_(const uint8_t *lut);
 };
+
+
+// Generic Waveshare e-paper component that
+// avoids using any blocking wait to be able to support
+// big screens that are slow to update
+class WaveshareEPaperPolled : public WaveshareEPaper {
+  // Will request a display refresh
+  void update() override;
+
+  // Will move the state machine one state at a time
+  // to refresh the display when requested by display()
+  void loop() override;
+
+  // Unused method from parent
+  void initialize() override {}
+
+ protected:
+  // Below are display steps, called one after the other by loop()
+  // Just implement these to support a new device.
+  // Never sleep or wait in a step, the state machine will
+  // handle it.
+
+  // Just after reset, set the power mode and power the driver on
+  virtual void power_on() = 0;
+
+  // Send all the configuration required to display
+  virtual void configure() = 0;
+
+  // Send image data and refresh the display
+  void display() override = 0;
+
+  // Power off the driver
+  virtual void power_off() = 0;
+
+  // Set the screen to deep sleep
+  void deep_sleep() override = 0;
+
+ private:
+  enum class State : uint8_t {
+    SLEEPING,
+    UPDATE_REQUESTED,
+    RESETTING,
+    INITIALIZING,
+    POWERING_ON,
+    CONFIGURING,
+    DISPLAYING,
+    POWERING_OFF,
+  };
+
+  // Set the current state of the display
+  void set_state_(State state);
+
+  // Current state of the display
+  State state_{State::SLEEPING};
+  // Timestamp of last state changed, used to wait between states
+  uint32_t last_state_change_{0};
+};
+
+// 7.5 inches screen supporting black and red color with
+// a v3 label on the back. Called EDP_7in5b_V2 in WaveShare examples.
+class WaveshareEPaper7P5InV3rb : public WaveshareEPaperPolled {
+ public:
+  void dump_config() override;
+  void initialize() override;
+
+  void power_on() override;
+  void configure() override;
+  void display() override;
+  void power_off() override;
+  void deep_sleep() override;
+
+  std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
+
+ protected:
+  int get_width_internal() override { return 800; }
+  int get_height_internal() override { return 480; }
+};
+
 }  // namespace waveshare_epaper
 }  // namespace esphome
