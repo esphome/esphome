@@ -1,5 +1,10 @@
 #include "pulse_counter_sensor.h"
 #include "esphome/core/log.h"
+// TODO This cannot be a general dependency for this file
+#include "esp32/ulp.h"
+#include "ulp_main.h"
+#include "soc/rtc_periph.h"
+#include "driver/rtc_io.h"
 
 namespace esphome {
 namespace pulse_counter {
@@ -15,7 +20,10 @@ PulseCounterStorageBase *get_storage(Storage storage) {
       return new BasicPulseCounterStorage;
     case Storage::pcnt:
       return new HwPulseCounterStorage;
+    case Storage::ulp:
+      return new UlpPulseCounterStorage;
   }
+  return new BasicPulseCounterStorage;
 }
 #else
 PulseCounterStorageBase *get_storage(Storage) { return new BasicPulseCounterStorage; }
@@ -145,6 +153,101 @@ pulse_counter_t HwPulseCounterStorage::read_raw_value() {
   this->last_value = counter;
   return ret;
 }
+
+/* === ULP === */
+
+extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
+extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
+
+
+bool UlpPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
+  this->pin = pin;
+  this->pin->setup();
+
+  uint32_t rising = 0;
+  uint32_t falling = 0;
+  switch (this->rising_edge_mode) {
+    case PULSE_COUNTER_DISABLE:
+      rising = 0;
+      break;
+    case PULSE_COUNTER_INCREMENT:
+      rising = +1;
+      break;
+    case PULSE_COUNTER_DECREMENT:
+      rising = -1;
+      break;
+  }
+  switch (this->falling_edge_mode) {
+    case PULSE_COUNTER_DISABLE:
+      falling = 0;
+      break;
+    case PULSE_COUNTER_INCREMENT:
+      falling = +1;
+      break;
+    case PULSE_COUNTER_DECREMENT:
+      falling = -1;
+      break;
+  }
+
+  esp_err_t error = ulp_load_binary(0, ulp_main_bin_start, (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Loading ULP binary failed: %s", esp_err_to_name(error));
+    return false;
+  }
+
+  /* GPIO used for pulse counting. */
+  gpio_num_t gpio_num = GPIO_NUM_0;
+  int rtcio_num = rtc_io_number_get(gpio_num);
+  assert(rtc_gpio_is_valid_gpio(gpio_num) && "GPIO used for pulse counting must be an RTC IO");
+
+  /* Initialize some variables used by ULP program.
+   * Each 'ulp_xyz' variable corresponds to 'xyz' variable in the ULP program.
+   * These variables are declared in an auto generated header file,
+   * 'ulp_main.h', name of this file is defined in component.mk as ULP_APP_NAME.
+   * These variables are located in RTC_SLOW_MEM and can be accessed both by the
+   * ULP and the main CPUs.
+   *
+   * Note that the ULP reads only the lower 16 bits of these variables.
+   */
+  ulp_debounce_counter = 3;
+  ulp_debounce_max_count = 3;
+  ulp_next_edge = 0;
+  ulp_io_number = rtcio_num; /* map from GPIO# to RTC_IO# */
+  ulp_edge_count_to_wake_up = 10;
+
+  /* Initialize selected GPIO as RTC IO, enable input, disable pullup and pulldown */
+  rtc_gpio_init(gpio_num);
+  rtc_gpio_set_direction(gpio_num, RTC_GPIO_MODE_INPUT_ONLY);
+  rtc_gpio_pulldown_dis(gpio_num);
+  rtc_gpio_pullup_dis(gpio_num);
+  rtc_gpio_hold_en(gpio_num);
+
+  /* Set ULP wake up period to T = 20ms.
+   * Minimum pulse width has to be T * (ulp_debounce_counter + 1) = 80ms.
+   */
+  ulp_set_wakeup_period(0, 20000);
+
+  /* Start the program */
+  error = ulp_run(&ulp_entry - RTC_SLOW_MEM);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Starting ULP program failed: %s", esp_err_to_name(error));
+    return false;
+  }
+
+  // TODO Support Filter
+
+  return true;
+}
+
+pulse_counter_t UlpPulseCounterStorage::read_raw_value() {
+  // TODO count edges separately
+  uint32_t count = (ulp_edge_count & UINT16_MAX) / 2;
+  ulp_edge_count = 0;
+  return count;
+}
+
+/* === END ULP ===*/
+
 #endif
 
 void PulseCounterSensor::setup() {
