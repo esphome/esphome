@@ -31,7 +31,7 @@ enum MBusDataType {
   BCD_24 = 0x10,
   BCD_32 = 0x11,
   BCD_48 = 0x12,
-  SPECIAL = 0x13,
+  MBUS_SPECIAL = 0x13,
   VARIABLE = 0x14,
   DATE_16 = 0x15,
   DATE_TIME_32 = 0x16,
@@ -174,41 +174,41 @@ class MBusValue {
 
   std::string get_data_type_str() const {
     switch (this->data_type) {
-      case 0x00:
+      case MBusDataType::NO_DATA:
         return "NO_DATA";
-      case 0x01:
+      case MBusDataType::INT8:
         return "INT8";
-      case 0x02:
+      case MBusDataType::INT16:
         return "INT16";
-      case 0x03:
+      case MBusDataType::INT24:
         return "INT24";
-      case 0x04:
+      case MBusDataType::INT32:
         return "INT32";
-      case 0x05:
+      case MBusDataType::FLOAT:
         return "FLOAT";
-      case 0x06:
+      case MBusDataType::INT48:
         return "INT48";
-      case 0x07:
+      case MBusDataType::INT64:
         return "INT64";
-      case 0x08:
+      case MBusDataType::BCD_8:
         return "BCD_8";
-      case 0x09:
+      case MBusDataType::BCD_16:
         return "BCD_16";
-      case 0x10:
+      case MBusDataType::BCD_24:
         return "BCD_24";
-      case 0x11:
+      case MBusDataType::BCD_32:
         return "BCD_32";
-      case 0x12:
+      case MBusDataType::BCD_48:
         return "BCD_48";
-      case 0x13:
+      case MBusDataType::MBUS_SPECIAL:
         return "SPECIAL";
-      case 0x14:
+      case MBusDataType::VARIABLE:
         return "VARIABLE";
-      case 0x15:
+      case MBusDataType::DATE_16:
         return "DATE_16";
-      case 0x16:
+      case MBusDataType::DATE_TIME_32:
         return "DATE_TIME_32";
-      case 0x17:
+      case MBusDataType::DATE_TIME_48:
         return "DATE_TIME_48";
     }
 
