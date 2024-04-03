@@ -102,6 +102,7 @@ bool WiFiComponent::wifi_apply_power_save_() {
   }
   return esp_wifi_set_ps(power_save) == ESP_OK;
 }
+
 bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
@@ -120,7 +121,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
     // https://github.com/esphome/issues/issues/2299
     sntp_servermode_dhcp(false);
 
-    // Use DHCP client
+    // No manual IP is set; use DHCP client
     if (dhcp_status != ESP_NETIF_DHCP_STARTED) {
       err = esp_netif_dhcpc_start(s_sta_netif);
       if (err != ESP_OK) {
@@ -135,14 +136,14 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   info.ip = manual_ip->static_ip;
   info.gw = manual_ip->gateway;
   info.netmask = manual_ip->subnet;
-  esp_err_t dhcp_stop_ret = esp_netif_dhcpc_stop(s_sta_netif);
-  if (dhcp_stop_ret != ESP_OK && dhcp_stop_ret != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
-    ESP_LOGV(TAG, "Stopping DHCP client failed! %s", esp_err_to_name(dhcp_stop_ret));
+  err = esp_netif_dhcpc_stop(s_sta_netif);
+  if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+    ESP_LOGV(TAG, "Stopping DHCP client failed! %s", esp_err_to_name(err));
   }
 
-  esp_err_t wifi_set_info_ret = esp_netif_set_ip_info(s_sta_netif, &info);
-  if (wifi_set_info_ret != ESP_OK) {
-    ESP_LOGV(TAG, "Setting manual IP info failed! %s", esp_err_to_name(wifi_set_info_ret));
+  err = esp_netif_set_ip_info(s_sta_netif, &info);
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "Setting manual IP info failed! %s", esp_err_to_name(err));
   }
 
   esp_netif_dns_info_t dns;
@@ -719,6 +720,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     strncpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), sizeof(conf.ap.password));
   }
 
+  // pairwise cipher of SoftAP, group cipher will be derived using this.
   conf.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;
 
   esp_err_t err = esp_wifi_set_config(WIFI_IF_AP, &conf);

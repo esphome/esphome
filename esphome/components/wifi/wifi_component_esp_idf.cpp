@@ -22,8 +22,9 @@
 #include "dhcpserver/dhcpserver.h"
 #endif  // USE_WIFI_AP
 
-#include "lwip/err.h"
+#include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
+#include "lwip/err.h"
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -433,6 +434,11 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   }
 
   if (!manual_ip.has_value()) {
+    // lwIP starts the SNTP client if it gets an SNTP server from DHCP. We don't need the time, and more importantly,
+    // the built-in SNTP client has a memory leak in certain situations. Disable this feature.
+    // https://github.com/esphome/issues/issues/2299
+    sntp_servermode_dhcp(false);
+
     // No manual IP is set; use DHCP client
     if (dhcp_status != ESP_NETIF_DHCP_STARTED) {
       err = esp_netif_dhcpc_start(s_sta_netif);
@@ -450,13 +456,12 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   info.netmask = manual_ip->subnet;
   err = esp_netif_dhcpc_stop(s_sta_netif);
   if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
-    ESP_LOGV(TAG, "esp_netif_dhcpc_stop failed: %s", esp_err_to_name(err));
-    return false;
+    ESP_LOGV(TAG, "Stopping DHCP client failed! %s", esp_err_to_name(err));
   }
+
   err = esp_netif_set_ip_info(s_sta_netif, &info);
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_netif_set_ip_info failed: %s", esp_err_to_name(err));
-    return false;
+    ESP_LOGV(TAG, "Setting manual IP info failed! %s", esp_err_to_name(err));
   }
 
   esp_netif_dns_info_t dns;
@@ -888,13 +893,14 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
-#endif  // USE_WIFI_AP
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(s_sta_netif, &ip);
   return network::IPAddress(&ip.ip);
 }
+#endif  // USE_WIFI_AP
+
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
 
 bssid_t WiFiComponent::wifi_bssid() {
