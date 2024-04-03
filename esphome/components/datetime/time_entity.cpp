@@ -50,6 +50,16 @@ void TimeCall::validate_() {
 
 void TimeCall::perform() {
   this->validate_();
+  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  if (this->hour_.has_value()) {
+    ESP_LOGD(TAG, " Hour: %d", *this->hour_);
+  }
+  if (this->minute_.has_value()) {
+    ESP_LOGD(TAG, " Minute: %d", *this->minute_);
+  }
+  if (this->second_.has_value()) {
+    ESP_LOGD(TAG, " Second: %d", *this->second_);
+  }
   this->parent_->control(*this);
 }
 
