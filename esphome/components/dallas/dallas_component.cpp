@@ -61,7 +61,6 @@ void DallasComponent::setup() {
     if (sensor->get_index().has_value()) {
       if (*sensor->get_index() >= this->found_sensors_.size()) {
         this->status_set_error("Sensor configured by index but not found");
-        sensor->found_at_start_ = false;
         continue;
       }
       sensor->set_address(this->found_sensors_[*sensor->get_index()]);
@@ -110,9 +109,8 @@ void DallasComponent::update() {
     result = this->one_wire_->reset();
   }
   if (!result) {
-    if (!this->ignore_error_when_no_sensors_found_ || (this->found_sensors_.size() > 0)) {
-      // Log error always if ignore_error_when_no_sensors_found is configured as false
-      // Otherwise log error if at the start sensors were found (and thus are disconnected during uptime)
+    if (this->found_sensors_.size() > 0) {
+      // Only log error if at the start sensors were found (and thus are disconnected during uptime)
       ESP_LOGE(TAG, "Requesting conversion failed");
       this->status_set_warning();
     }
@@ -130,13 +128,13 @@ void DallasComponent::update() {
   }
 
   for (auto *sensor : this->sensors_) {
-    this->set_timeout(sensor->get_address_name(), sensor->millis_to_wait_for_conversion(), [this, sensor] {
-      if (!sensor->found_at_start_) {
-        ESP_LOGV(TAG, "'%s' - Sensor not found at startup, skipping!", sensor->get_name().c_str());
-        sensor->publish_state(NAN);
-        return;
-      }
+    if (sensor->get_address() == 0) {
+      ESP_LOGV(TAG, "'%s' - Indexed sensor not found at startup, skipping update", sensor->get_name().c_str());
+      sensor->publish_state(NAN);
+      continue;
+    }
 
+    this->set_timeout(sensor->get_address_name(), sensor->millis_to_wait_for_conversion(), [this, sensor] {
       bool res = sensor->read_scratch_pad();
 
       if (!res) {
@@ -164,6 +162,8 @@ void DallasTemperatureSensor::set_resolution(uint8_t resolution) { this->resolut
 optional<uint8_t> DallasTemperatureSensor::get_index() const { return this->index_; }
 void DallasTemperatureSensor::set_index(uint8_t index) { this->index_ = index; }
 uint8_t *DallasTemperatureSensor::get_address8() { return reinterpret_cast<uint8_t *>(&this->address_); }
+uint64_t DallasTemperatureSensor::get_address() { return this->address_; }
+
 const std::string &DallasTemperatureSensor::get_address_name() {
   if (this->address_name_.empty()) {
     this->address_name_ = std::string("0x") + format_hex(this->address_);

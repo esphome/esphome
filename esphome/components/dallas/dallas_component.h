@@ -15,7 +15,6 @@ class DallasComponent : public PollingComponent {
  public:
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void register_sensor(DallasTemperatureSensor *sensor);
-  void set_ignore_error_when_no_sensors_found(bool ignore) { ignore_error_when_no_sensors_found_ = ignore; }
 
   void setup() override;
   void dump_config() override;
@@ -27,7 +26,6 @@ class DallasComponent : public PollingComponent {
   friend DallasTemperatureSensor;
 
   InternalGPIOPin *pin_;
-  bool ignore_error_when_no_sensors_found_;
   ESPOneWire *one_wire_;
   std::vector<DallasTemperatureSensor *> sensors_;
   std::vector<uint64_t> found_sensors_;
@@ -39,6 +37,8 @@ class DallasTemperatureSensor : public sensor::Sensor {
   void set_parent(DallasComponent *parent) { parent_ = parent; }
   /// Helper to get a pointer to the address as uint8_t.
   uint8_t *get_address8();
+  
+  uint64_t get_address();
   /// Helper to create (and cache) the name for this sensor. For example "0xfe0000031f1eaf29".
   const std::string &get_address_name();
 
@@ -63,8 +63,6 @@ class DallasTemperatureSensor : public sensor::Sensor {
   float get_temp_c();
 
   std::string unique_id() override;
-
-  bool found_at_start_ = true;
 
  protected:
   DallasComponent *parent_;
