@@ -1,0 +1,39 @@
+esphome:
+  on_boot:
+    then:
+      - speaker.volume_set: 0.5
+      - speaker.stop:
+      - speaker.play: [0x18, 0x20]
+      - wait_until:
+          not:
+            speaker.is_playing:
+      - lambda: |-
+          id(i2s_mic).start();
+
+i2s_audio:
+  - id: i2s_primary
+    i2s_lrclk_pin: 19
+    i2s_bclk_pin: 14
+    i2s_mclk_pin: 16
+    i2s_mode: primary
+  - id: i2s_secondary
+    i2s_lrclk_pin: 13
+    i2s_bclk_pin: 17
+    i2s_mclk_pin: 18
+    i2s_mode: secondary
+
+microphone:
+  - platform: i2s_audio
+    id: i2s_mic
+    i2s_audio_id: i2s_primary
+    i2s_din_pin: 3
+    adc_type: external
+    pdm: false
+
+speaker:
+  - platform: i2s_audio
+    i2s_audio_id: i2s_secondary
+    dac_type: external
+    i2s_dout_pin: 1
+    mode: mono
+    bits_per_sample: 32bit
