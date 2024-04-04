@@ -1898,9 +1898,6 @@ WEBSERVER_SORTING_SCHEMA = Schema(
         OnlyWith(CONF_WEB_SERVER_SORTING_WEIGHT, "web_server", 50): All(
             requires_component("web_server"), float_
         ),
-        OnlyWith(CONF_WEB_SERVER_SORTING_GROUP, "web_server", "none"): All(
-            requires_component("web_server"), string
-        ),
     }
 )
 

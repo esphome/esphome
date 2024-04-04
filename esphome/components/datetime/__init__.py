@@ -4,12 +4,14 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
+from esphome.components import web_server
 from esphome.const import (
     CONF_ID,
     CONF_ON_VALUE,
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_MQTT_ID,
+    CONF_WEB_SERVER_ID,
     CONF_DATE,
     CONF_YEAR,
     CONF_MONTH,
@@ -51,7 +53,11 @@ _DATETIME_SCHEMA = cv.Schema(
             }
         ),
     }
-).extend(cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA))
+).extend(
+    cv.ENTITY_BASE_SCHEMA.extend(cv.WEBSERVER_SORTING_SCHEMA).extend(
+        cv.MQTT_COMMAND_COMPONENT_SCHEMA
+    )
+)
 
 
 def date_schema(class_: MockObjClass) -> cv.Schema:
@@ -84,6 +90,9 @@ async def setup_datetime_core_(var, config):
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
+    if CONF_WEB_SERVER_ID in config:
+        web_server_ = await cg.get_variable(config[CONF_WEB_SERVER_ID])
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.ESPTime, "x")], conf)
