@@ -59,6 +59,7 @@ bool MAX7321::write_(uint8_t value) {
 
 void MAX7321::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX7321");
+  LOG_I2C_DEVICE(this);
 }
 
 /**************************************
