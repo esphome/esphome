@@ -43,7 +43,6 @@ struct UrlMatch {
 
 struct SortingComponents {
   float weight;
-  std::string group;
 };
 
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
@@ -292,7 +291,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// This web handle is not trivial.
   bool isRequestHandlerTrivial() override;
 
-  void add_entity_to_sorting_list(EntityBase *entity, float weight, const char *group);
+  void add_entity_to_sorting_list(EntityBase *entity, float weight);
 
  protected:
   void schedule_(std::function<void()> &&f);

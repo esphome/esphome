@@ -115,7 +115,6 @@ def add_entity_to_sorting_list(web_server, entity, config):
         web_server.add_entity_to_sorting_list(
             entity,
             config[CONF_WEB_SERVER_SORTING_WEIGHT],
-            config[CONF_WEB_SERVER_SORTING_GROUP],
         )
     )
 
