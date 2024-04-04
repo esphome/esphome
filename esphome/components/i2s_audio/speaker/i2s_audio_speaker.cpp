@@ -68,10 +68,11 @@ void I2SAudioSpeaker::player_task(void *params) {
 
   if ((err_driver != ESP_OK) || (err_clk != ESP_OK)) {
     event.type = TaskEventType::WARNING;
-    if (err_driver != ESP_OK)
+    if (err_driver != ESP_OK) {
       event.err = err_driver;
-    else
+    } else {
       event.err = err_clk;
+    }
     xQueueSend(this_speaker->event_queue_, &event, 0);
     event.type = TaskEventType::STOPPED;
     xQueueSend(this_speaker->event_queue_, &event, 0);
