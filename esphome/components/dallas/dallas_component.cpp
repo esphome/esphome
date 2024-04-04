@@ -109,7 +109,7 @@ void DallasComponent::update() {
     result = this->one_wire_->reset();
   }
   if (!result) {
-    if (this->found_sensors_.size() > 0) {
+    if (!this->found_sensors_.empty()) {
       // Only log error if at the start sensors were found (and thus are disconnected during uptime)
       ESP_LOGE(TAG, "Requesting conversion failed");
       this->status_set_warning();
