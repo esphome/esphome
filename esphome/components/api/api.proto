@@ -1423,6 +1423,11 @@ message BluetoothDeviceClearCacheResponse {
 }
 
 // ==================== PUSH TO TALK ====================
+enum VoiceAssistantSubscribeFlag {
+  VOICE_ASSISTANT_SUBSCRIBE_NONE = 0;
+  VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO = 1;
+}
+
 message SubscribeVoiceAssistantRequest {
   option (id) = 89;
   option (source) = SOURCE_CLIENT;
@@ -1503,6 +1508,7 @@ message VoiceAssistantAudio {
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
   bytes data = 1;
+  bool end = 2;
 }
 
 

@@ -165,6 +165,10 @@ enum BluetoothDeviceRequestType : uint32_t {
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE = 5,
   BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE = 6,
 };
+enum VoiceAssistantSubscribeFlag : uint32_t {
+  VOICE_ASSISTANT_SUBSCRIBE_NONE = 0,
+  VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO = 1,
+};
 enum VoiceAssistantRequestFlag : uint32_t {
   VOICE_ASSISTANT_REQUEST_NONE = 0,
   VOICE_ASSISTANT_REQUEST_USE_VAD = 1,
@@ -1754,6 +1758,7 @@ class VoiceAssistantEventResponse : public ProtoMessage {
 class VoiceAssistantAudio : public ProtoMessage {
  public:
   std::string data{};
+  bool end{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1761,6 +1766,7 @@ class VoiceAssistantAudio : public ProtoMessage {
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesAlarmControlPanelResponse : public ProtoMessage {
  public:

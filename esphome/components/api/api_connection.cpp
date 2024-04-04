@@ -1040,10 +1040,15 @@ void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &ms
       voice_assistant::global_voice_assistant->failed_to_start();
       return;
     }
-    struct sockaddr_storage storage;
-    socklen_t len = sizeof(storage);
-    this->helper_->getpeername((struct sockaddr *) &storage, &len);
-    voice_assistant::global_voice_assistant->start_streaming(&storage, msg.port);
+    if (msg.port == 0) {
+      // Use API Audio
+      voice_assistant::global_voice_assistant->start_streaming();
+    } else {
+      struct sockaddr_storage storage;
+      socklen_t len = sizeof(storage);
+      this->helper_->getpeername((struct sockaddr *) &storage, &len);
+      voice_assistant::global_voice_assistant->start_streaming(&storage, msg.port);
+    }
   }
 };
 void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) {
@@ -1151,7 +1156,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 9;
+  resp.api_version_minor = 10;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   resp.name = App.get_name();
 

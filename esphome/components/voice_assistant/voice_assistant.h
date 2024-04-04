@@ -54,11 +54,17 @@ enum class State {
   RESPONSE_FINISHED,
 };
 
+enum AudioMode : uint8_t {
+  AUDIO_MODE_UDP,
+  AUDIO_MODE_API,
+};
+
 class VoiceAssistant : public Component {
  public:
   void setup() override;
   void loop() override;
   float get_setup_priority() const override;
+  void start_streaming();
   void start_streaming(struct sockaddr_storage *addr, uint16_t port);
   void failed_to_start();
 
@@ -91,9 +97,9 @@ class VoiceAssistant : public Component {
 #ifdef USE_SPEAKER
     if (this->speaker_ != nullptr) {
       flags |= VoiceAssistantFeature::FEATURE_SPEAKER;
+      flags |= VoiceAssistantFeature::FEATURE_API_AUDIO;
     }
 #endif
-    flags |= VoiceAssistantFeature::FEATURE_API_AUDIO;
     return flags;
   }
 
@@ -219,6 +225,10 @@ class VoiceAssistant : public Component {
 
   State state_{State::IDLE};
   State desired_state_{State::IDLE};
+
+  AudioMode audio_mode_{AUDIO_MODE_UDP};
+  bool udp_socket_running_{false};
+  bool start_udp_socket_();
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {

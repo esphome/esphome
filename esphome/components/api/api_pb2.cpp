@@ -410,6 +410,19 @@ const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::Bluet
 }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
+template<>
+const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::VoiceAssistantSubscribeFlag value) {
+  switch (value) {
+    case enums::VOICE_ASSISTANT_SUBSCRIBE_NONE:
+      return "VOICE_ASSISTANT_SUBSCRIBE_NONE";
+    case enums::VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO:
+      return "VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::VoiceAssistantRequestFlag>(enums::VoiceAssistantRequestFlag value) {
   switch (value) {
     case enums::VOICE_ASSISTANT_REQUEST_NONE:
@@ -6774,6 +6787,16 @@ void VoiceAssistantEventResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool VoiceAssistantAudio::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->end = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool VoiceAssistantAudio::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -6784,13 +6807,20 @@ bool VoiceAssistantAudio::decode_length(uint32_t field_id, ProtoLengthDelimited 
       return false;
   }
 }
-void VoiceAssistantAudio::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->data); }
+void VoiceAssistantAudio::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->data);
+  buffer.encode_bool(2, this->end);
+}
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void VoiceAssistantAudio::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("VoiceAssistantAudio {\n");
   out.append("  data: ");
   out.append("'").append(this->data).append("'");
+  out.append("\n");
+
+  out.append("  end: ");
+  out.append(YESNO(this->end));
   out.append("\n");
   out.append("}");
 }
