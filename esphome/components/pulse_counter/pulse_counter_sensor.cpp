@@ -1,10 +1,11 @@
 #include "pulse_counter_sensor.h"
 #include "esphome/core/log.h"
-// TODO This cannot be a general dependency for this file
+#ifdef CONF_USE_ULP
 #include "esp32/ulp.h"
 #include "ulp_main.h"
 #include "soc/rtc_periph.h"
 #include "driver/rtc_io.h"
+#endif
 
 namespace esphome {
 namespace pulse_counter {
@@ -20,8 +21,12 @@ PulseCounterStorageBase *get_storage(Storage storage) {
       return new BasicPulseCounterStorage;
     case Storage::pcnt:
       return new HwPulseCounterStorage;
+#ifdef CONF_USE_ULP
     case Storage::ulp:
       return new UlpPulseCounterStorage;
+#endif
+    default:
+      return new BasicPulseCounterStorage;
   }
   return new BasicPulseCounterStorage;
 }
@@ -156,6 +161,8 @@ pulse_counter_t HwPulseCounterStorage::read_raw_value() {
 
 /* === ULP === */
 
+#ifdef CONF_USE_ULP
+
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
 extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
 
@@ -241,10 +248,12 @@ bool UlpPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
 
 pulse_counter_t UlpPulseCounterStorage::read_raw_value() {
   // TODO count edges separately
-  uint32_t count = (ulp_edge_count & UINT16_MAX) / 2;
+  uint32_t count = ulp_edge_count;
   ulp_edge_count = 0;
   return count;
 }
+
+#endif
 
 /* === END ULP ===*/
 

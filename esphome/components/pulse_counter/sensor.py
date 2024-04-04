@@ -134,6 +134,7 @@ async def to_code(config):
     else:
         var = await sensor.new_sensor(config, config.get(CONF_USE_PCNT))
     if config.get(CONF_USE_ULP):
+        var.add_define("CONF_USE_ULP", True)
         esp32.add_extra_build_file(
             "src/CMakeLists.txt",
             os.path.join(os.path.dirname(__file__), "CMakeLists.txt"),
