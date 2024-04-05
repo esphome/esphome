@@ -4,8 +4,7 @@ from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 from esphome import automation, core
 from esphome.automation import Condition, maybe_simple_id
-from esphome.components import mqtt
-from esphome.components import web_server
+from esphome.components import mqtt, web_server
 from esphome.const import (
     CONF_DELAY,
     CONF_DEVICE_CLASS,

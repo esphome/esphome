@@ -2,8 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.cpp_helpers import setup_entity
 from esphome import automation
-from esphome.components import mqtt
-from esphome.components import web_server
+from esphome.components import mqtt, web_server
 from esphome.const import (
     CONF_ACTION_STATE_TOPIC,
     CONF_AWAY,

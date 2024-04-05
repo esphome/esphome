@@ -3,8 +3,7 @@ import esphome.codegen as cg
 # import cpp_generator as cpp
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import mqtt
-from esphome.components import web_server
+from esphome.components import mqtt, web_server
 from esphome.const import (
     CONF_ID,
     CONF_ON_VALUE,

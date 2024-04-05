@@ -2,8 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id, Condition
-from esphome.components import mqtt
-from esphome.components import web_server
+from esphome.components import mqtt, web_server
 from esphome.const import (
     CONF_ID,
     CONF_DEVICE_CLASS,
