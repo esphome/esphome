@@ -14,7 +14,7 @@ static const uint32_t BIT_ONE_HIGH_US = 350;
 static const uint32_t BIT_ONE_LOW_US = 750;
 
 void DooyaProtocol::encode(RemoteTransmitData *dst, const DooyaData &data) {
-  dst->set_carrier_frequency(38000);
+  dst->set_carrier_frequency(0);
   dst->reserve(2 + 40 * 2u);
 
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
