@@ -46,19 +46,27 @@ void I2SAudioMicrophone::start_() {
     return;  // Waiting for another i2s to return lock
   }
   i2s_driver_config_t config = {
-      .mode = (i2s_mode_t) (this->parent_->get_i2s_mode() | I2S_MODE_RX),
-      .sample_rate = this->sample_rate_,
-      .bits_per_sample = this->bits_per_sample_,
-      .channel_format = this->channel_,
-      .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-      .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-      .dma_buf_count = 4,
-      .dma_buf_len = 256,
-      .use_apll = this->use_apll_,
-      .tx_desc_auto_clear = false,
-      .fixed_mclk = 0,
-      .mclk_multiple = I2S_MCLK_MULTIPLE_DEFAULT,
-      .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
+    .mode = (i2s_mode_t) (this->parent_->get_i2s_mode() | I2S_MODE_RX),
+    .sample_rate = this->sample_rate_,
+    .bits_per_sample = this->bits_per_sample_,
+    .channel_format = this->channel_,
+    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+    .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+    .dma_buf_count = 4,
+    .dma_buf_len = 256,
+    .use_apll = this->use_apll_,
+    .tx_desc_auto_clear = false,
+    .fixed_mclk = 0,
+    .mclk_multiple = I2S_MCLK_MULTIPLE_DEFAULT,
+    .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
+#if SOC_I2S_SUPPORTS_TDM
+    .chan_mask = (i2s_channel_t) (I2S_TDM_ACTIVE_CH0 | I2S_TDM_ACTIVE_CH1),
+    .total_chan = 2,
+    .left_align = false,
+    .big_edin = false,
+    .bit_order_msb = false,
+    .skip_msk = false,
+#endif
   };
 
 #if SOC_I2S_SUPPORTS_ADC
