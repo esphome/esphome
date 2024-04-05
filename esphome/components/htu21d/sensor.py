@@ -21,7 +21,9 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 htu21d_ns = cg.esphome_ns.namespace("htu21d")
-HTU21DComponent = htu21d_ns.class_("HTU21DComponent", cg.PollingComponent, i2c.I2CDevice)
+HTU21DComponent = htu21d_ns.class_(
+    "HTU21DComponent", cg.PollingComponent, i2c.I2CDevice
+)
 SetHeaterLevelAction = htu21d_ns.class_("SetHeaterLevelAction", automation.Action)
 SetHeaterAction = htu21d_ns.class_("SetHeaterAction", automation.Action)
 HTU21DSensorModels = htu21d_ns.enum("HTU21DSensorModels")
@@ -53,9 +55,7 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=1,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_MODEL, default="HTU21D"): cv.enum(
-                MODELS, upper=True
-            ),
+            cv.Optional(CONF_MODEL, default="HTU21D"): cv.enum(MODELS, upper=True),
         }
     )
     .extend(cv.polling_component_schema("60s"))

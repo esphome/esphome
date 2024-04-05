@@ -84,7 +84,7 @@ void HTU21DComponent::update() {
       int8_t heater_level;
 
       // HTU21D does not have heater level
-      if (this->sensor_model_ == HTU21D_SENSOR_MODEL_HTU21D){
+      if (this->sensor_model_ == HTU21D_SENSOR_MODEL_HTU21D) {
         heater_level = 0;
       } else {
         heater_level = this->get_heater_level();
