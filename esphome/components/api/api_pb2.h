@@ -376,6 +376,7 @@ class ListEntitiesBinarySensorResponse : public ProtoMessage {
   bool disabled_by_default{false};
   std::string icon{};
   enums::EntityCategory entity_category{};
+  std::string device_name{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -414,6 +415,7 @@ class ListEntitiesCoverResponse : public ProtoMessage {
   std::string icon{};
   enums::EntityCategory entity_category{};
   bool supports_stop{false};
+  std::string device_name{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

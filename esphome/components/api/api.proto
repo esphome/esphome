@@ -263,6 +263,7 @@ message ListEntitiesBinarySensorResponse {
   bool disabled_by_default = 7;
   string icon = 8;
   EntityCategory entity_category = 9;
+  string device_name = 10;
 }
 message BinarySensorStateResponse {
   option (id) = 21;
@@ -296,6 +297,7 @@ message ListEntitiesCoverResponse {
   string icon = 10;
   EntityCategory entity_category = 11;
   bool supports_stop = 12;
+  string device_name = 13;
 }
 
 enum LegacyCoverState {

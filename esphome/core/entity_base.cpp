@@ -35,6 +35,15 @@ std::string EntityBase::get_icon() const {
 }
 void EntityBase::set_icon(const char *icon) { this->icon_c_str_ = icon; }
 
+// Entity Device Name
+std::string EntityBase::get_device_name() const {
+  if (this->device_name_c_str_ == nullptr) {
+    return "";
+  }
+  return this->device_name_c_str_;
+}
+void EntityBase::set_device_name(const char *device_name) { this->device_name_c_str_ = device_name; }
+
 // Entity Category
 EntityCategory EntityBase::get_entity_category() const { return this->entity_category_; }
 void EntityBase::set_entity_category(EntityCategory entity_category) { this->entity_category_ = entity_category; }

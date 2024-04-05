@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
     CONF_COMMAND_RETAIN,
+    CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
@@ -340,6 +341,18 @@ def icon(value):
         return value
     raise Invalid(
         'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
+    )
+
+
+def device_name(value):
+    """Validate that a given config value is a valid device name."""
+    value = string_strict(value)
+    if not value:
+        return value
+    # if re.match("^[\\w\\-]+:[\\w\\-]+$", value):
+    #     return value
+    raise Invalid(
+        'device name must be string that matches a defined device in "deviced:" section'
     )
 
 
@@ -1906,6 +1919,8 @@ ENTITY_BASE_SCHEMA = Schema(
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
         Optional(CONF_ICON): icon,
         Optional(CONF_ENTITY_CATEGORY): entity_category,
+        Optional(CONF_DEVICE_ID): device_name,
+
     }
 )
 

@@ -47,6 +47,10 @@ class EntityBase {
   std::string get_icon() const;
   void set_icon(const char *icon);
 
+  // Get/set this entity's device name
+  std::string get_device_name() const;
+  void set_device_name(const char *icon);
+
  protected:
   /// The hash_base() function has been deprecated. It is kept in this
   /// class for now, to prevent external components from not compiling.
@@ -61,6 +65,7 @@ class EntityBase {
   bool internal_{false};
   bool disabled_by_default_{false};
   EntityCategory entity_category_{ENTITY_CATEGORY_NONE};
+  const char *device_name_c_str_{nullptr};
 };
 
 class EntityBase_DeviceClass {
