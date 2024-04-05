@@ -812,11 +812,6 @@ image:
     file: mdi:alert-outline
     type: BINARY
 
-font:
-  - file: "gfonts://Roboto"
-    id: roboto
-    size: 20
-
 graph:
   - id: my_graph
     sensor: ha_hello_world_temperature

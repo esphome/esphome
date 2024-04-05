@@ -1,27 +1,6 @@
----
-esphome:
-  name: test10
-  build_path: build/test10
-
-esp32:
-  board: esp32doit-devkit-v1
-  framework:
-    type: arduino
-
 wifi:
-  ssid: "MySSID1"
-  password: "password1"
-  reboot_timeout: 3min
-  power_save_mode: high
-
-network:
-  enable_ipv6: true
-
-logger:
-  level: VERBOSE
-
-api:
-  reboot_timeout: 10min
+  ssid: MySSID
+  password: password1
 
 time:
   - platform: sntp

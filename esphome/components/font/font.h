@@ -30,6 +30,8 @@ class Glyph {
 
   void scan_area(int *x1, int *y1, int *width, int *height) const;
 
+  const GlyphData *get_glyph_data() const { return this->glyph_data_; }
+
  protected:
   friend Font;
 

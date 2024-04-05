@@ -128,7 +128,6 @@ class MicroWakeWord : public Component {
 
   // Stores audio fed into feature generator preprocessor
   int16_t *preprocessor_audio_buffer_;
-  int16_t *preprocessor_stride_buffer_;
 
   bool detected_{false};
 
@@ -181,7 +180,7 @@ class MicroWakeWord : public Component {
   bool register_preprocessor_ops_(tflite::MicroMutableOpResolver<18> &op_resolver);
 
   /// @brief Returns true if successfully registered the streaming model's TensorFlow operations
-  bool register_streaming_ops_(tflite::MicroMutableOpResolver<14> &op_resolver);
+  bool register_streaming_ops_(tflite::MicroMutableOpResolver<17> &op_resolver);
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<MicroWakeWord> {
