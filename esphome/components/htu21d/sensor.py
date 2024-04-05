@@ -22,6 +22,8 @@ DEPENDENCIES = ["i2c"]
 
 htu21d_ns = cg.esphome_ns.namespace("htu21d")
 HTU21DComponent = htu21d_ns.class_("HTU21DComponent", cg.PollingComponent, i2c.I2CDevice)
+SetHeaterLevelAction = htu21d_ns.class_("SetHeaterLevelAction", automation.Action)
+SetHeaterAction = htu21d_ns.class_("SetHeaterAction", automation.Action)
 HTU21DSensorModels = htu21d_ns.enum("HTU21DSensorModels")
 
 MODELS = {
@@ -29,10 +31,6 @@ MODELS = {
     "SI7021": HTU21DSensorModels.HTU21D_SENSOR_MODEL_SI7021,
     "SHT21": HTU21DSensorModels.HTU21D_SENSOR_MODEL_SHT21,
 }
-
-SetHeaterLevelAction = htu21d_ns.class_("SetHeaterLevelAction", automation.Action)
-SetHeaterAction = htu21d_ns.class_("SetHeaterAction", automation.Action)
-
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -55,13 +53,14 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=1,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_MODEL, default="HTU21D"): cv.enum(MODELS, upper=True),
+            cv.Optional(CONF_MODEL, default="HTU21D"): cv.enum(
+                MODELS, upper=True
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x40))
 )
-
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
