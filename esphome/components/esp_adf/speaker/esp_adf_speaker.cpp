@@ -174,12 +174,12 @@ void ESPADFSpeaker::player_task(void *params) {
   xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
 
   audio_pipeline_unregister(pipeline, i2s_stream_writer);
-  audio_pipeline_unregister(pipeline, filter);
+  //  audio_pipeline_unregister(pipeline, filter);
   audio_pipeline_unregister(pipeline, raw_write);
 
   audio_pipeline_deinit(pipeline);
   audio_element_deinit(i2s_stream_writer);
-  audio_element_deinit(filter);
+  //  audio_element_deinit(filter);
   audio_element_deinit(raw_write);
 
   event.type = TaskEventType::STOPPED;

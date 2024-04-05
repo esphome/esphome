@@ -116,7 +116,9 @@ def _patch_idfi2cbus(config):
     if "i2c" in fv.full_config.get():
         for i2c_inst in fv.full_config.get()["i2c"]:
             i2c_inst["id"].type = MockObjClass(
-                "i2c::ADFI2CBus", parents=i2c_inst["id"].type._parents
+                "i2c::ADFI2CBus",
+                # pylint: disable=protected-access
+                parents=i2c_inst["id"].type._parents,
             )
 
     return config

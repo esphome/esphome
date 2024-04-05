@@ -12,6 +12,10 @@
 #include <driver/i2c.h>
 
 namespace esphome {
+
+// Please the linter
+namespace esp_adf {}
+
 namespace i2c {
 
 class ADFI2CBus : public I2CBus, public Component {

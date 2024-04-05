@@ -9,6 +9,10 @@
 #include <cinttypes>
 
 namespace esphome {
+
+// Please the linter
+namespace esp_adf {}
+
 namespace i2c {
 
 static const char *const TAG = "i2c.adf";
