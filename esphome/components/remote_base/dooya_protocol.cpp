@@ -108,8 +108,8 @@ optional<DooyaData> DooyaProtocol::decode(RemoteReceiveData src) {
   return out;
 }
 void DooyaProtocol::dump(const DooyaData &data) {
-  ESP_LOGI(TAG, "Received Dooya: id=0x%08" PRIX32 ", channel=%d, button=%d, check=%d",
-           data.id, data.channel, data.button, data.check);
+  ESP_LOGI(TAG, "Received Dooya: id=0x%08" PRIX32 ", channel=%d, button=%d, check=%d", data.id, data.channel,
+           data.button, data.check);
 }
 
 }  // namespace remote_base

@@ -15,8 +15,7 @@ struct DooyaData {
   uint8_t check;
 
   bool operator==(const DooyaData &rhs) const {
-    return id == rhs.id && channel == rhs.channel &&
-      button == rhs.button && check == rhs.check;
+    return id == rhs.id && channel == rhs.channel && button == rhs.button && check == rhs.check;
   }
 };
 
