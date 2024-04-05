@@ -16,7 +16,7 @@
 namespace esphome {
 namespace esp_adf {
 
-static const size_t BUFFER_COUNT = 20;
+static const size_t BUFFER_COUNT = 25;
 
 static const char *const TAG = "esp_adf.speaker";
 
@@ -50,41 +50,6 @@ void ESPADFSpeaker::player_task(void *params) {
   };
   audio_pipeline_handle_t pipeline = audio_pipeline_init(&pipeline_cfg);
 
- /* i2s_driver_config_t i2s_config = {};
-  i2s_config.mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_TX);
-  i2s_config.sample_rate = 16000;
-  i2s_config.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
-  i2s_config.channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT;
-  i2s_config.communication_format = I2S_COMM_FORMAT_STAND_I2S;
-  i2s_config.intr_alloc_flags = ESP_INTR_FLAG_LEVEL2 | ESP_INTR_FLAG_IRAM;
-  i2s_config.dma_buf_count = 8;
-  i2s_config.dma_buf_len = 1024;
-  i2s_config.use_apll = false;
-  i2s_config.tx_desc_auto_clear = true;
-  i2s_config.fixed_mclk = 0;
-  i2s_config.mclk_multiple = I2S_MCLK_MULTIPLE_256;
-  i2s_config.bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT;
-
-
-
-  i2s_stream_cfg_t i2s_cfg = {};
-  i2s_cfg.type = AUDIO_STREAM_WRITER;
-  i2s_cfg.i2s_config = i2s_config;
-  i2s_cfg.i2s_port = I2S_NUM_0;
-  i2s_cfg.use_alc = false;
-  i2s_cfg.volume = 0;
-  i2s_cfg.out_rb_size = I2S_STREAM_RINGBUFFER_SIZE;
-  i2s_cfg.task_stack = I2S_STREAM_TASK_STACK;
-  i2s_cfg.task_core = I2S_STREAM_TASK_CORE;
-  i2s_cfg.task_prio = I2S_STREAM_TASK_PRIO;
-  i2s_cfg.stack_in_ext = false;
-  i2s_cfg.multi_out_num = 0;
-  i2s_cfg.uninstall_drv = true;
-  i2s_cfg.need_expand = false;
-  i2s_cfg.expand_src_bits = I2S_BITS_PER_SAMPLE_16BIT;
-
-  audio_element_handle_t i2s_stream_writer = i2s_stream_init(&i2s_cfg);
-*/
   i2s_stream_cfg_t i2s_cfg = {};
   memset(&i2s_cfg, 0, sizeof(i2s_cfg));
   i2s_cfg.type = AUDIO_STREAM_WRITER;
@@ -101,7 +66,7 @@ void ESPADFSpeaker::player_task(void *params) {
   i2s_cfg.need_expand = false;
   i2s_cfg.expand_src_bits = I2S_BITS_PER_SAMPLE_16BIT;
   i2s_cfg.buffer_len = I2S_STREAM_BUF_SIZE;
-  i2s_cfg.i2s_config.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX);
+  i2s_cfg.i2s_config.mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_TX);
   i2s_cfg.i2s_config.sample_rate = 16000;
   i2s_cfg.i2s_config.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
   i2s_cfg.i2s_config.channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT;
@@ -115,49 +80,28 @@ void ESPADFSpeaker::player_task(void *params) {
   i2s_cfg.i2s_config.bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT;
 
   audio_element_handle_t i2s_stream_writer = i2s_stream_init(&i2s_cfg);
-
-  rsp_filter_cfg_t rsp_cfg = {};
-/*
-      .src_rate = 16000,
-      .src_ch = 1,
-      .dest_rate = 16000,
-      .dest_bits = 16,
-      .dest_ch = 2,
-      .src_bits = 16,
-      .mode = RESAMPLE_DECODE_MODE,
-      .max_indata_bytes = RSP_FILTER_BUFFER_BYTE,
-      .out_len_bytes = RSP_FILTER_BUFFER_BYTE,
-      .type = ESP_RESAMPLE_TYPE_AUTO,
-      .complexity = 2,
-      .down_ch_idx = 0,
-      .prefer_flag = ESP_RSP_PREFER_TYPE_SPEED,
-      .out_rb_size = RSP_FILTER_RINGBUFFER_SIZE,
-      .task_stack = RSP_FILTER_TASK_STACK,
-      .task_core = RSP_FILTER_TASK_CORE,
-      .task_prio = RSP_FILTER_TASK_PRIO,
-      .stack_in_ext = true,
-  };
+  /*
+    rsp_filter_cfg_t rsp_cfg = {};
+    rsp_cfg.src_rate = 16000;
+    rsp_cfg.src_ch = 1;
+    rsp_cfg.src_bits = 16;
+    rsp_cfg.dest_rate = 16000;
+    rsp_cfg.dest_ch = 2;
+    rsp_cfg.dest_bits = 16;
+    rsp_cfg.mode = RESAMPLE_DECODE_MODE;
+    rsp_cfg.max_indata_bytes = RSP_FILTER_BUFFER_BYTE;
+    rsp_cfg.out_len_bytes = RSP_FILTER_BUFFER_BYTE;
+    rsp_cfg.type = ESP_RESAMPLE_TYPE_AUTO;
+    rsp_cfg.complexity = 2;
+    rsp_cfg.down_ch_idx = 0;
+    rsp_cfg.prefer_flag = ESP_RSP_PREFER_TYPE_SPEED;
+    rsp_cfg.out_rb_size = RSP_FILTER_RINGBUFFER_SIZE;
+    rsp_cfg.task_stack = RSP_FILTER_TASK_STACK;
+    rsp_cfg.task_core = RSP_FILTER_TASK_CORE;
+    rsp_cfg.task_prio = RSP_FILTER_TASK_PRIO;
+    rsp_cfg.stack_in_ext = true;
+    audio_element_handle_t filter = rsp_filter_init(&rsp_cfg);
   */
-  rsp_cfg.src_rate = 16000;
-  rsp_cfg.src_ch = 1;
-  rsp_cfg.src_bits = 16;
-  rsp_cfg.dest_rate = 16000;
-  rsp_cfg.dest_ch = 2;
-  rsp_cfg.dest_bits = 16;
-  rsp_cfg.mode = RESAMPLE_DECODE_MODE;
-  rsp_cfg.max_indata_bytes = RSP_FILTER_BUFFER_BYTE;
-  rsp_cfg.out_len_bytes = RSP_FILTER_BUFFER_BYTE;
-  rsp_cfg.type = ESP_RESAMPLE_TYPE_AUTO;
-  rsp_cfg.complexity = 2;
-  rsp_cfg.down_ch_idx = 0;
-  rsp_cfg.prefer_flag = ESP_RSP_PREFER_TYPE_SPEED;
-  rsp_cfg.out_rb_size = RSP_FILTER_RINGBUFFER_SIZE;
-  rsp_cfg.task_stack = RSP_FILTER_TASK_STACK;
-  rsp_cfg.task_core = RSP_FILTER_TASK_CORE;
-  rsp_cfg.task_prio = RSP_FILTER_TASK_PRIO;
-  rsp_cfg.stack_in_ext = true;
-  audio_element_handle_t filter = rsp_filter_init(&rsp_cfg);
-
   raw_stream_cfg_t raw_cfg = {
       .type = AUDIO_STREAM_WRITER,
       .out_rb_size = 8 * 1024,
@@ -165,7 +109,7 @@ void ESPADFSpeaker::player_task(void *params) {
   audio_element_handle_t raw_write = raw_stream_init(&raw_cfg);
 
   audio_pipeline_register(pipeline, raw_write, "raw");
-  audio_pipeline_register(pipeline, filter, "filter");
+  //  audio_pipeline_register(pipeline, filter, "filter");
   audio_pipeline_register(pipeline, i2s_stream_writer, "i2s");
 
   const char *link_tag[3] = {

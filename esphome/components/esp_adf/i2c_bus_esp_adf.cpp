@@ -8,16 +8,12 @@
 #include <cstring>
 #include <cinttypes>
 
-
 namespace esphome {
 namespace i2c {
 
-
 static const char *const TAG = "i2c.adf";
 
-static void recover_i2c_hard(i2c_port_t, void* bus) {
-  ((ADFI2CBus*)bus)->recover_();
-}
+static void recover_i2c_hard(i2c_port_t, void *bus) { ((ADFI2CBus *) bus)->recover_(); }
 
 void ADFI2CBus::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2C bus...");
@@ -30,12 +26,14 @@ void ADFI2CBus::setup() {
   next_port = I2C_NUM_MAX;
 #endif
   if (port == I2C_NUM_MAX) {
-    ESP_LOGE(TAG, "Too many I2C buses configured");                                                                                                                                                                                                                                                   this->mark_failed();                                                                                                                                                                                                                                                                              return;
+    ESP_LOGE(TAG, "Too many I2C buses configured");
+    this->mark_failed();
+    return;
   }
 
-// Recovery is disabled by default in adf since any esp-adf component that needed the I2C bus
-// might have run its setup and create the bus already. In that case, it would break the bus
-//  this->recover_();
+  // Recovery is disabled by default in adf since any esp-adf component that needed the I2C bus
+  // might have run its setup and create the bus already. In that case, it would break the bus
+  //  this->recover_();
   this->recovery_result_ = RECOVERY_COMPLETED;
 
   i2c_config_t conf{};
@@ -52,12 +50,12 @@ void ADFI2CBus::setup() {
     this->mark_failed();
     return;
   }
-/*  if (i2c_bus_run_cb(this->handle_, &recover_i2c_hard, this) != ESP_OK) {
-    ESP_LOGW(TAG, "i2c_bus_recover failed");
-    this->mark_failed();
-    return;
-  }
-*/
+  /*  if (i2c_bus_run_cb(this->handle_, &recover_i2c_hard, this) != ESP_OK) {
+      ESP_LOGW(TAG, "i2c_bus_recover failed");
+      this->mark_failed();
+      return;
+    }
+  */
   if (this->scan_) {
     ESP_LOGV(TAG, "Scanning i2c bus for active devices...");
     this->i2c_scan_();
@@ -95,15 +93,13 @@ void ADFI2CBus::dump_config() {
   }
 }
 
-
-struct ReadVCmd
-{
+struct ReadVCmd {
   uint8_t address;
-  ReadBuffer * buffers;
+  ReadBuffer *buffers;
   size_t cnt;
-  ErrorCode code { ERROR_UNKNOWN };
+  ErrorCode code{ERROR_UNKNOWN};
 
-  ReadVCmd(uint8_t address, ReadBuffer * buffers, size_t cnt) : address(address), buffers(buffers), cnt(cnt) {}
+  ReadVCmd(uint8_t address, ReadBuffer *buffers, size_t cnt) : address(address), buffers(buffers), cnt(cnt) {}
 
   ErrorCode read(i2c_port_t port) {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
@@ -167,11 +163,10 @@ struct ReadVCmd
 
     return ERROR_OK;
   }
-
 };
 // Calling stub for I2C port
-static void i2c_readv(i2c_port_t port, void* arg) {
-  ReadVCmd * args = (ReadVCmd*)arg;
+static void i2c_readv(i2c_port_t port, void *arg) {
+  ReadVCmd *args = (ReadVCmd *) arg;
   args->code = args->read(port);
 }
 
@@ -182,7 +177,7 @@ ErrorCode ADFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
     ESP_LOGVV(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
   }
-  ReadVCmd cmd { address, buffers, cnt };
+  ReadVCmd cmd{address, buffers, cnt};
   if (i2c_bus_run_cb(this->handle_, &i2c_readv, &cmd) != ESP_OK || cmd.code != ERROR_OK) {
     ESP_LOGVV(TAG, "i2c readv failed!");
     return cmd.code;
@@ -190,16 +185,15 @@ ErrorCode ADFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
   return ERROR_OK;
 }
 
-struct WriteVCmd
-{
+struct WriteVCmd {
   uint8_t address;
-  WriteBuffer * buffers;
+  WriteBuffer *buffers;
   size_t cnt;
   bool stop;
-  ErrorCode code { ERROR_UNKNOWN };
+  ErrorCode code{ERROR_UNKNOWN};
 
-  WriteVCmd(uint8_t address, WriteBuffer * buffers, size_t cnt, bool stop) : address(address), buffers(buffers), cnt(cnt), stop(stop) {}
-
+  WriteVCmd(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop)
+      : address(address), buffers(buffers), cnt(cnt), stop(stop) {}
 
   ErrorCode write(i2c_port_t port) {
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
@@ -266,8 +260,8 @@ struct WriteVCmd
 };
 
 // Calling stub for I2C port
-static void i2c_writev(i2c_port_t port, void* arg) {
-  WriteVCmd * args = (WriteVCmd*)arg;
+static void i2c_writev(i2c_port_t port, void *arg) {
+  WriteVCmd *args = (WriteVCmd *) arg;
   args->code = args->write(port);
 }
 
@@ -279,7 +273,7 @@ ErrorCode ADFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, b
     return ERROR_NOT_INITIALIZED;
   }
 
-  WriteVCmd cmd { address, buffers, cnt, stop };
+  WriteVCmd cmd{address, buffers, cnt, stop};
   if (i2c_bus_run_cb(this->handle_, &i2c_writev, &cmd) != ESP_OK || cmd.code != ERROR_OK) {
     ESP_LOGVV(TAG, "i2c writev failed!");
     return cmd.code;
@@ -287,13 +281,11 @@ ErrorCode ADFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, b
   return ERROR_OK;
 }
 
-
 /// Perform I2C bus recovery, see:
 /// https://www.nxp.com/docs/en/user-guide/UM10204.pdf
 /// https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf
 void ADFI2CBus::recover_() {
   ESP_LOGI(TAG, "Performing I2C bus recovery");
-
 
   const gpio_num_t scl_pin = static_cast<gpio_num_t>(scl_pin_);
   const gpio_num_t sda_pin = static_cast<gpio_num_t>(sda_pin_);
@@ -401,7 +393,6 @@ void ADFI2CBus::recover_() {
 
   recovery_result_ = RECOVERY_COMPLETED;
 }
-
 
 }  // namespace i2c
 }  // namespace esphome

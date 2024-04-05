@@ -75,50 +75,18 @@ void ESPADFMicrophone::read_task(void *params) {
 
   event.type = TaskEventType::STARTING;
   xQueueSend(this_mic->read_event_queue_, &event, portMAX_DELAY);
-/*
-  audio_pipeline_cfg_t pipeline_cfg = {
-      .rb_size = 8 * 1024,
-  };
-  */
+  /*
+    audio_pipeline_cfg_t pipeline_cfg = {
+        .rb_size = 8 * 1024,
+    };
+    */
   audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
   audio_pipeline_handle_t pipeline = audio_pipeline_init(&pipeline_cfg);
-/*
-  i2s_driver_config_t i2s_config = {};
-  i2s_config.mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_RX);
-  i2s_config.sample_rate = 16000;
-  i2s_config.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
-  i2s_config.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
-  i2s_config.communication_format = I2S_COMM_FORMAT_STAND_I2S;
-  i2s_config.intr_alloc_flags = ESP_INTR_FLAG_LEVEL2 | ESP_INTR_FLAG_IRAM;
-  i2s_config.dma_buf_count = 8;
-  i2s_config.dma_buf_len = 128;
-  i2s_config.use_apll = false;
-  i2s_config.tx_desc_auto_clear = true;
-  i2s_config.fixed_mclk = 0;
-  i2s_config.mclk_multiple = I2S_MCLK_MULTIPLE_256;
-  i2s_config.bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT;
 
-  i2s_stream_cfg_t i2s_cfg = {};
-  i2s_cfg.type = AUDIO_STREAM_READER;
-  i2s_cfg.i2s_config = i2s_config;
-  i2s_cfg.i2s_port = static_cast<i2s_port_t>(CODEC_ADC_I2S_PORT);
-  i2s_cfg.use_alc = false;
-  i2s_cfg.volume = 0;
-  i2s_cfg.out_rb_size = I2S_STREAM_RINGBUFFER_SIZE;
-  i2s_cfg.task_stack = I2S_STREAM_TASK_STACK;
-  i2s_cfg.task_core = I2S_STREAM_TASK_CORE;
-  i2s_cfg.task_prio = I2S_STREAM_TASK_PRIO;
-  i2s_cfg.stack_in_ext = false;
-  i2s_cfg.multi_out_num = 0;
-  i2s_cfg.uninstall_drv = true;
-  i2s_cfg.need_expand = false;
-  i2s_cfg.expand_src_bits = I2S_BITS_PER_SAMPLE_16BIT;
-*/
-  //i2s_stream_cfg_t i2s_cfg = I2S_STREAM_CFG_DEFAULT_WITH_PARA(CODEC_ADC_I2S_PORT, 48000, 16, AUDIO_STREAM_READER);
   i2s_stream_cfg_t i2s_cfg = {};
   memset(&i2s_cfg, 0, sizeof(i2s_cfg));
   i2s_cfg.type = AUDIO_STREAM_READER;
-  i2s_cfg.i2s_port = (i2s_port_t)CODEC_ADC_I2S_PORT;
+  i2s_cfg.i2s_port = (i2s_port_t) CODEC_ADC_I2S_PORT;
   i2s_cfg.use_alc = false;
   i2s_cfg.volume = 0;
   i2s_cfg.out_rb_size = I2S_STREAM_RINGBUFFER_SIZE;
@@ -131,7 +99,7 @@ void ESPADFMicrophone::read_task(void *params) {
   i2s_cfg.need_expand = false;
   i2s_cfg.expand_src_bits = I2S_BITS_PER_SAMPLE_16BIT;
   i2s_cfg.buffer_len = I2S_STREAM_BUF_SIZE;
-  i2s_cfg.i2s_config.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX | I2S_MODE_RX);
+  i2s_cfg.i2s_config.mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_TX | I2S_MODE_RX);
   i2s_cfg.i2s_config.sample_rate = 16000;
   i2s_cfg.i2s_config.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
   i2s_cfg.i2s_config.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
@@ -143,30 +111,9 @@ void ESPADFMicrophone::read_task(void *params) {
   i2s_cfg.i2s_config.tx_desc_auto_clear = true;
   i2s_cfg.i2s_config.fixed_mclk = 0;
   audio_element_handle_t i2s_stream_reader = i2s_stream_init(&i2s_cfg);
-/*
-  rsp_filter_cfg_t rsp_cfg = {
-      .src_rate = 16000,
-      .src_ch = 2,
-      .dest_rate = 16000,
-      .dest_bits = 16,
-      .dest_ch = 1,
-      .src_bits = I2S_BITS_PER_SAMPLE_16BIT,
-      .mode = RESAMPLE_DECODE_MODE,
-      .max_indata_bytes = RSP_FILTER_BUFFER_BYTE,
-      .out_len_bytes = RSP_FILTER_BUFFER_BYTE,
-      .type = ESP_RESAMPLE_TYPE_AUTO,
-      .complexity = 2,
-      .down_ch_idx = 0,
-      .prefer_flag = ESP_RSP_PREFER_TYPE_SPEED,
-      .out_rb_size = RSP_FILTER_RINGBUFFER_SIZE,
-      .task_stack = RSP_FILTER_TASK_STACK,
-      .task_core = RSP_FILTER_TASK_CORE,
-      .task_prio = RSP_FILTER_TASK_PRIO,
-      .stack_in_ext = true,
-  };
-  */
+
   rsp_filter_cfg_t rsp_cfg = {};
-  memset(&rsp_cfg, 0, sizeof(rsp_cfg)); //DEFAULT_RESAMPLE_FILTER_CONFIG();
+  memset(&rsp_cfg, 0, sizeof(rsp_cfg));  // DEFAULT_RESAMPLE_FILTER_CONFIG();
   rsp_cfg.src_rate = 16000;
   rsp_cfg.src_ch = 2;
   rsp_cfg.src_bits = 16;
@@ -187,30 +134,31 @@ void ESPADFMicrophone::read_task(void *params) {
   rsp_cfg.stack_in_ext = true;
   audio_element_handle_t filter = rsp_filter_init(&rsp_cfg);
 
-  algorithm_stream_cfg_t algo_cfg = {
-      .input_type = ALGORITHM_STREAM_INPUT_TYPE1,
-      .task_stack = 10 * 1024,
-      .task_prio = ALGORITHM_STREAM_TASK_PERIOD,
-      .task_core = ALGORITHM_STREAM_PINNED_TO_CORE,
-      .out_rb_size = ALGORITHM_STREAM_RINGBUFFER_SIZE,
-      .stack_in_ext = true,
-      .rec_linear_factor = 1,
-      .ref_linear_factor = 1,
-      .debug_input = false,
-      .swap_ch = false,
-      // .algo_mask = ALGORITHM_STREAM_USE_AGC,
-      // .algo_mask = (ALGORITHM_STREAM_USE_AEC | ALGORITHM_STREAM_USE_AGC | ALGORITHM_STREAM_USE_NS),
-      // .algo_mask = (ALGORITHM_STREAM_USE_AGC | ALGORITHM_STREAM_USE_NS),
-      .algo_mask = (ALGORITHM_STREAM_USE_AEC | ALGORITHM_STREAM_USE_NS),
-      // .algo_mask = (ALGORITHM_STREAM_USE_NS),
-      .sample_rate = 16000,
-      .mic_ch = 1,
-      .agc_gain = 10,
-      .aec_low_cost = false,
-  };
+  /*
+    algorithm_stream_cfg_t algo_cfg = {
+        .input_type = ALGORITHM_STREAM_INPUT_TYPE1,
+        .task_stack = 10 * 1024,
+        .task_prio = ALGORITHM_STREAM_TASK_PERIOD,
+        .task_core = ALGORITHM_STREAM_PINNED_TO_CORE,
+        .out_rb_size = ALGORITHM_STREAM_RINGBUFFER_SIZE,
+        .stack_in_ext = true,
+        .rec_linear_factor = 1,
+        .ref_linear_factor = 1,
+        .debug_input = false,
+        .swap_ch = false,
+        // .algo_mask = ALGORITHM_STREAM_USE_AGC,
+        // .algo_mask = (ALGORITHM_STREAM_USE_AEC | ALGORITHM_STREAM_USE_AGC | ALGORITHM_STREAM_USE_NS),
+        // .algo_mask = (ALGORITHM_STREAM_USE_AGC | ALGORITHM_STREAM_USE_NS),
+        .algo_mask = (ALGORITHM_STREAM_USE_AEC | ALGORITHM_STREAM_USE_NS),
+        // .algo_mask = (ALGORITHM_STREAM_USE_NS),
+        .sample_rate = 16000,
+        .mic_ch = 1,
+        .agc_gain = 10,
+        .aec_low_cost = false,
+    };
 
-  // audio_element_handle_t algo_stream = algo_stream_init(&algo_cfg);
-
+     audio_element_handle_t algo_stream = algo_stream_init(&algo_cfg);
+  */
   raw_stream_cfg_t raw_cfg = {
       .type = AUDIO_STREAM_READER,
       .out_rb_size = 8 * 1024,
@@ -230,18 +178,15 @@ void ESPADFMicrophone::read_task(void *params) {
   };
   audio_pipeline_link(pipeline, &link_tag[0], 3);
 
-/*  // Set the event listener for the pipeline, else it'll fill itself and crash
-  audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
-  audio_event_iface_handle_t evt = audio_event_iface_init(&evt_cfg);
-  audio_pipeline_set_listener(pipeline, evt);
-  esp_periph_config_t periph_cfg = DEFAULT_ESP_PERIPH_SET_CONFIG();
-  esp_periph_set_handle_t set = esp_periph_set_init(&periph_cfg);
-
-  // Initialize SD Card peripheral
-//  audio_board_sdcard_init(set, SD_MODE_1_LINE);
-  audio_event_iface_set_listener(esp_periph_set_get_event_iface(set), evt);
-  ESP_LOGW(TAG, "audio pipeline listener installed");
-*/
+  /*
+    // Set the event listener for the pipeline, else it'll fill itself and crash
+    audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
+    audio_event_iface_handle_t evt = audio_event_iface_init(&evt_cfg);
+    audio_pipeline_set_listener(pipeline, evt);
+    esp_periph_config_t periph_cfg = DEFAULT_ESP_PERIPH_SET_CONFIG();
+    esp_periph_set_handle_t set = esp_periph_set_init(&periph_cfg);
+    ESP_LOGW(TAG, "audio pipeline listener installed");
+  */
 
   audio_pipeline_run(pipeline);
 
@@ -280,21 +225,21 @@ void ESPADFMicrophone::read_task(void *params) {
     }
     rb_write(this_mic->ring_buffer_, (char *) buffer, bytes_read, 0);
 
-/*    // Pipeline listener for events too
-    audio_event_iface_msg_t msg;
-    esp_err_t ret = audio_event_iface_listen(evt, &msg, 0);
-    if (ret == ESP_OK) {
-      ESP_LOGW(TAG, "msg srct:%d, src:%p, cmd:%d, data:%d", msg.source_type, msg.source, msg.cmd, (int)msg.data);
+    /*    // Pipeline listener for events too
+        audio_event_iface_msg_t msg;
+        esp_err_t ret = audio_event_iface_listen(evt, &msg, 0);
+        if (ret == ESP_OK) {
+          ESP_LOGW(TAG, "msg srct:%d, src:%p, cmd:%d, data:%d", msg.source_type, msg.source, msg.cmd, (int)msg.data);
 
-      // Stop when the last pipeline element (raw_read in this case) receives stop event
-      if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *) raw_read
-          && msg.cmd == AEL_MSG_CMD_REPORT_STATUS
-          && (((int)msg.data == AEL_STATUS_STATE_STOPPED) || ((int)msg.data == AEL_STATUS_STATE_FINISHED))) {
-          // Stop from the microphone (upon error?)
-          break;
-      }
-    }
-*/
+          // Stop when the last pipeline element (raw_read in this case) receives stop event
+          if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *) raw_read
+              && msg.cmd == AEL_MSG_CMD_REPORT_STATUS
+              && (((int)msg.data == AEL_STATUS_STATE_STOPPED) || ((int)msg.data == AEL_STATUS_STATE_FINISHED))) {
+              // Stop from the microphone (upon error?)
+              break;
+          }
+        }
+    */
   }
 
   allocator.deallocate(buffer, BUFFER_SIZE / sizeof(int16_t));

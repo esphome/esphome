@@ -5,7 +5,7 @@ import esphome.codegen as cg
 import esphome.final_validate as fv
 
 from esphome.components import esp32
-from esphome.components.i2c import I2CDevice, i2c_ns, I2CBus
+from esphome.components.i2c import i2c_ns, I2CBus
 
 
 from esphome.const import CONF_ID, CONF_BOARD
@@ -91,9 +91,8 @@ async def to_code(config):
         cg.add_define("USE_ESP_ADF_BOARD")
 
         esp32.add_idf_sdkconfig_option(SUPPORTED_BOARDS[board], True)
-        #esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_BOOT_INIT", True)
-        #esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True)
-
+        # esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_BOOT_INIT", True)
+        # esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True)
 
         esp32.add_extra_script(
             "pre",
@@ -105,16 +104,22 @@ async def to_code(config):
             "https://github.com/X-Ryl669/esp-adf/raw/with-i2c-cb/idf_patches/idf_v4.4_freertos.patch",
         )
 
+
 # I2C Bus below
 ADFI2CBus = i2c_ns.class_("ADFI2CBus", I2CBus, cg.Component)
+
+
 # Patch the I2C config schema to use the right I2C bus
 def _patch_idfi2cbus(config):
     from esphome.cpp_generator import MockObjClass
 
     if "i2c" in fv.full_config.get():
         for i2c_inst in fv.full_config.get()["i2c"]:
-            i2c_inst["id"].type = MockObjClass("i2c::ADFI2CBus", parents = i2c_inst["id"].type._parents)
+            i2c_inst["id"].type = MockObjClass(
+                "i2c::ADFI2CBus", parents=i2c_inst["id"].type._parents
+            )
 
     return config
+
 
 FINAL_VALIDATE_SCHEMA = _patch_idfi2cbus
