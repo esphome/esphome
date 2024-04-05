@@ -76,7 +76,12 @@ bool Component::cancel_timeout(const std::string &name) {  // NOLINT
 
 void Component::call_loop() { this->loop(); }
 void Component::call_setup() { this->setup(); }
-void Component::call_dump_config() { this->dump_config(); }
+void Component::call_dump_config() {
+  this->dump_config();
+  if (this->is_failed()) {
+    ESP_LOGE(this->get_component_source(), "  Component is marked FAILED");
+  }
+}
 
 uint32_t Component::get_component_state() const { return this->component_state_; }
 void Component::call() {
