@@ -8,11 +8,7 @@
 namespace esphome {
 namespace htu21d {
 
-enum HTU21DSensorModels {
-    HTU21D_SENSOR_MODEL_HTU21D =0,
-    HTU21D_SENSOR_MODEL_SI7021,
-    HTU21D_SENSOR_MODEL_SHT21
-};
+enum HTU21DSensorModels { HTU21D_SENSOR_MODEL_HTU21D = 0, HTU21D_SENSOR_MODEL_SI7021, HTU21D_SENSOR_MODEL_SHT21 };
 
 class HTU21DComponent : public PollingComponent, public i2c::I2CDevice {
  public:
