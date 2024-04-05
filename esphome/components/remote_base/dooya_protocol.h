@@ -31,7 +31,7 @@ DECLARE_REMOTE_PROTOCOL(Dooya)
 
 template<typename... Ts> class DooyaAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(uint32_t, data)
+  TEMPLATABLE_VALUE(uint32_t, id)
   TEMPLATABLE_VALUE(uint8_t, channel)
   TEMPLATABLE_VALUE(uint8_t, button)
   TEMPLATABLE_VALUE(uint8_t, check)
