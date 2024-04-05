@@ -91,18 +91,22 @@ optional<DooyaData> DooyaProtocol::decode(RemoteReceiveData src) {
     }
   }
 
-  for (uint8_t i = 0; i < 4; i++) {
+  for (uint8_t i = 0; i < 3; i++) {
     if (src.expect_item(BIT_ONE_HIGH_US, BIT_ONE_LOW_US)) {
       out.check = (out.check << 1) | 1;
     } else if (src.expect_item(BIT_ZERO_HIGH_US, BIT_ZERO_LOW_US)) {
       out.check = (out.check << 1) | 0;
-    } else if (src.expect_mark(BIT_ONE_HIGH_US)) {
-      out.check = (out.check << 1) | 1;
-    } else if (src.expect_mark(BIT_ZERO_HIGH_US)) {
-      out.check = (out.check << 1) | 0;
     } else {
       return {};
     }
+  }
+  // Last bit is not received properly but can be decoded
+  if (src.expect_mark(BIT_ONE_HIGH_US)) {
+    out.check = (out.check << 1) | 1;
+  } else if (src.expect_mark(BIT_ZERO_HIGH_US)) {
+    out.check = (out.check << 1) | 0;
+  } else {
+    return {};
   }
 
   return out;
