@@ -5,6 +5,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CENTIMETER,
     ICON_ARROW_EXPAND_VERTICAL,
+    DEVICE_CLASS_DISTANCE,
 )
 
 DEPENDENCIES = ["uart"]
