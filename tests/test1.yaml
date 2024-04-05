@@ -56,6 +56,10 @@ packages:
   wifi: !include test_packages/test_packages_package_wifi.yaml
   pkg_test: !include test_packages/test_packages_package1.yaml
 
+device:
+  - id: dev_one
+    name: First device
+
 wifi:
   networks:
     - ssid: "MySSID"
@@ -1844,6 +1848,7 @@ esp32_touch:
 binary_sensor:
   - platform: gpio
     name: "MCP23S08 Pin #1"
+    device_id: dev_one
     pin:
       mcp23xxx: mcp23s08_hub
       # Use pin number 1
