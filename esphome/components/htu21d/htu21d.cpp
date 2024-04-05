@@ -82,11 +82,11 @@ void HTU21DComponent::update() {
         this->humidity_->publish_state(humidity);
 
       int8_t heater_level;
-      
+
       //HTU21D does not have heater level
       if (this->sensor_model_ == HTU21D_SENSOR_MODEL_HTU21D) {
           heater_level = 0;
-      } 
+      }
       else {
           heater_level = this->get_heater_level();
           ESP_LOGD(TAG, "Heater Level=%d", heater_level);
