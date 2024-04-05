@@ -91,7 +91,7 @@ async def to_code(config):
                 ("month", initial_value[CONF_MONTH]),
                 ("year", initial_value[CONF_YEAR]),
             )
-            cg.add(var.set_date(date_struct))
+            cg.add(var.set_initial_value(date_struct))
 
     if CONF_SET_ACTION in config:
         await automation.build_automation(
