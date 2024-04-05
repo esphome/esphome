@@ -40,7 +40,7 @@ void HTU21DComponent::dump_config() {
 }
 void HTU21DComponent::update() {
   if (this->write(&HTU21D_REGISTER_TEMPERATURE, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
+    this->status_set_warning("write temp register");
     return;
   }
 
@@ -48,7 +48,7 @@ void HTU21DComponent::update() {
   this->set_timeout(85, [this]() {
     uint16_t raw_temperature;
     if (this->read(reinterpret_cast<uint8_t *>(&raw_temperature), 2) != i2c::ERROR_OK) {
-      this->status_set_warning();
+      this->status_set_warning("read temp");
       return;
     }
     raw_temperature = i2c::i2ctohs(raw_temperature);
@@ -59,32 +59,41 @@ void HTU21DComponent::update() {
 
     if (this->temperature_ != nullptr)
       this->temperature_->publish_state(temperature);
-    this->status_clear_warning();
+    this->status_clear_warning("temp");
 
     if (this->write(&HTU21D_REGISTER_HUMIDITY, 1) != i2c::ERROR_OK) {
-      this->status_set_warning();
+      this->status_set_warning("write humidity register");
       return;
     }
 
     this->set_timeout(50, [this]() {
       uint16_t raw_humidity;
       if (this->read(reinterpret_cast<uint8_t *>(&raw_humidity), 2) != i2c::ERROR_OK) {
-        this->status_set_warning();
+        this->status_set_warning("read humidity");
         return;
       }
       raw_humidity = i2c::i2ctohs(raw_humidity);
 
       float humidity = (float(raw_humidity & 0xFFFC)) * 125.0f / 65536.0f - 6.0f;
 
-      int8_t heater_level = this->get_heater_level();
-
-      ESP_LOGD(TAG, "Got Humidity=%.1f%% Heater Level=%d", humidity, heater_level);
+      ESP_LOGD(TAG, "Got Humidity=%.1f%%", humidity);
 
       if (this->humidity_ != nullptr)
         this->humidity_->publish_state(humidity);
+
+      int8_t heater_level;
+      
+      //HTU21D does not have heater level
+      if (this->sensor_model_ == HTU21D_SENSOR_MODEL_HTU21D) {
+          heater_level = 0;
+      } else {
+          heater_level = this->get_heater_level();
+          ESP_LOGD(TAG, "Heater Level=%d", heater_level);
+      }
+
       if (this->heater_ != nullptr)
         this->heater_->publish_state(heater_level);
-      this->status_clear_warning();
+      this->status_clear_warning("humidity");
     });
   });
 }
