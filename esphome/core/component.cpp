@@ -163,11 +163,11 @@ void Component::status_set_error(const char *message) {
   App.app_state_ |= STATUS_LED_ERROR;
   ESP_LOGE(this->get_component_source(), "Error set: %s", message);
 }
-void Component::status_clear_warning() {
+void Component::status_clear_warning(const char *message) {
   if ((this->component_state_ & STATUS_LED_WARNING) == 0)
     return;
   this->component_state_ &= ~STATUS_LED_WARNING;
-  ESP_LOGW(this->get_component_source(), "Warning cleared");
+  ESP_LOGW(this->get_component_source(), "Warning cleared: %s", message);
 }
 void Component::status_clear_error() {
   if ((this->component_state_ & STATUS_LED_ERROR) == 0)

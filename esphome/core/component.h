@@ -132,7 +132,7 @@ class Component {
 
   void status_set_error(const char *message = "unspecified");
 
-  void status_clear_warning();
+  void status_clear_warning(const char *message = "ok");
 
   void status_clear_error();
 
