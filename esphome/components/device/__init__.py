@@ -8,6 +8,7 @@ StringRef = cg.esphome_ns.struct("StringRef")
 
 MULTI_CONF = True
 
+CODEOWNERS = ["@dala318"]
 
 CONFIG_SCHEMA = cv.Schema(
     {
