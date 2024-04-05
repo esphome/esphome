@@ -24,7 +24,8 @@ CONFIG_SCHEMA = (
         icon=ICON_ARROW_EXPAND_VERTICAL,
         accuracy_decimals=2,
         state_class=STATE_CLASS_MEASUREMENT,
-    )
+        device_class=DEVICE_CLASS_DISTANCE,
+)
     .extend(cv.polling_component_schema("60s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
