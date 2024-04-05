@@ -344,16 +344,10 @@ def icon(value):
     )
 
 
-def device_name(value):
-    """Validate that a given config value is a valid device name."""
-    value = string_strict(value)
-    if not value:
-        return value
-    # if re.match("^[\\w\\-]+:[\\w\\-]+$", value):
-    #     return value
-    raise Invalid(
-        'device name must be string that matches a defined device in "deviced:" section'
-    )
+def device_id(value):
+    StringRef = cg.esphome_ns.struct("StringRef")
+    validator = use_id(StringRef)
+    return validator(value)
 
 
 def boolean(value):
@@ -1904,6 +1898,7 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     }
 )
 
+# StringRef = cg.esphome_ns.struct("StringRef")
 ENTITY_BASE_SCHEMA = Schema(
     {
         Optional(CONF_NAME): Any(
@@ -1919,8 +1914,8 @@ ENTITY_BASE_SCHEMA = Schema(
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
         Optional(CONF_ICON): icon,
         Optional(CONF_ENTITY_CATEGORY): entity_category,
-        Optional(CONF_DEVICE_ID): device_name,
-
+        # Optional(CONF_DEVICE_ID): use_id(StringRef),
+        Optional(CONF_DEVICE_ID): device_id,
     }
 )
 

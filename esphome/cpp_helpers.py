@@ -115,8 +115,8 @@ async def setup_entity(var, config):
     if CONF_ENTITY_CATEGORY in config:
         add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
     if CONF_DEVICE_ID in config:
-        # TODO: lookup the device from devices: section and get the real name
-        add(var.set_device_name(config[CONF_DEVICE_ID]))
+        parent = await get_variable(config[CONF_DEVICE_ID])
+        add(var.set_device_name(parent))
 
 
 def extract_registry_entry_config(
