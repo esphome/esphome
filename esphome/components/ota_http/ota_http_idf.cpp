@@ -33,6 +33,8 @@ namespace esphome {
 namespace ota_http {
 
 int OtaHttpIDF::http_init(char *url) {
+  int status;
+
   App.feed_wdt();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -50,29 +52,15 @@ int OtaHttpIDF::http_init(char *url) {
 #endif
 #pragma GCC diagnostic pop
 
-  ESP_LOGI(TAG, "Trying to connect to url: %s", OtaHttpComponent::safe_url(url).c_str());
-
   this->client_ = esp_http_client_init(&config);
-  esp_err_t err;
-  if ((err = esp_http_client_open(this->client_, 0)) != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
-    return 0;
+  if ((status = esp_http_client_open(this->client_, 0)) != ESP_OK) {
+    return status;
   }
   this->body_length_ = esp_http_client_fetch_headers(this->client_);
 
-  int http_code = esp_http_client_get_status_code(this->client_);
-  if (http_code >= 310) {
-    ESP_LOGE(TAG, "HTTP error %d; URL: %s", http_code, OtaHttpComponent::safe_url(url).c_str());
-    return -1;
-  }
+  status = esp_http_client_get_status_code(this->client_);
 
-  ESP_LOGV(TAG, "body_length: %d", this->body_length_);
-
-  if (this->body_length_ <= 0) {
-    ESP_LOGE(TAG, "Incorrect file size (%d) reported by HTTP server (status: %d). Aborting", this->body_length_, err);
-    return -1;
-  }
-  return this->body_length_;
+  return status;
 }
 
 int OtaHttpIDF::http_read(uint8_t *buf, const size_t max_len) {
@@ -83,7 +71,6 @@ int OtaHttpIDF::http_read(uint8_t *buf, const size_t max_len) {
     this->bytes_read_ += bufsize;
     buf[bufsize] = '\0';  // not fed to ota
   }
-  // ESP_LOGVV(TAG, "Read %d bytes, %d remaining", read_len, this->body_length_ - this->bytes_read);
 
   return read_len;
 }

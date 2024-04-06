@@ -17,25 +17,18 @@ struct Header {
 };
 
 int OtaHttpArduino::http_init(char *url) {
-  int http_code;
-  uint32_t start_time;
-  uint32_t duration;
 
   const char *header_keys[] = {"Content-Length", "Content-Type"};
   const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
 
 #ifdef USE_ESP8266
-  // EspClass::wdtEnable(WDT_TIMEOUT_S * 1000);
   if (this->stream_ptr_ == nullptr && this->set_stream_ptr_()) {
     ESP_LOGE(TAG, "Unable to set client");
   }
 #endif  // USE_ESP8266
 
-  ESP_LOGD(TAG, "Connecting to %s", OtaHttpComponent::safe_url(url).c_str());
-
-  bool status = false;
+  int status;
 #ifdef USE_RP2040
-  // watchdog_enable(WDT_TIMEOUT_S * 1000, true);
   this->client_.setInsecure();
 #endif
 
@@ -49,40 +42,19 @@ int OtaHttpArduino::http_init(char *url) {
 #endif
 
   if (!status) {
-    ESP_LOGE(TAG, "Unable to make HTTP connection");
     this->client_.end();
-    return -1;
-  } else {
-    ESP_LOGV(TAG, "HTTP begin successful");
+    return status;
   }
 
   this->client_.setReuse(true);
-  ESP_LOGVV(TAG, "HTTP client setReuse");
 
   // returned needed headers must be collected before the requests
   this->client_.collectHeaders(header_keys, header_count);
-  ESP_LOGV(TAG, "HTTP headers collected");
 
   // HTTP GET
-  start_time = millis();
-  http_code = this->client_.GET();
-  duration = millis() - start_time;
-  ESP_LOGV(TAG, "HTTP GET finished");
-
-  if (http_code >= 310) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s (%d); Duration: %u ms", OtaHttpComponent::safe_url(url).c_str(),
-             HTTPClient::errorToString(http_code).c_str(), http_code, duration);
-    return -1;
-  }
-
-  if (this->client_.getSize() < 0) {
-    ESP_LOGE(TAG, "Incorrect file size (%d) reported by HTTP server (status: %d). Aborting", this->client_.getSize(),
-             http_code);
-    return -1;
-  }
+  status = this->client_.GET();
 
   this->body_length_ = (size_t) this->client_.getSize();
-  ESP_LOGV(TAG, "body_length: %d", this->body_length_);
 
 #if defined(USE_ESP32) || defined(USE_RP2040)
   if (this->stream_ptr_ == nullptr) {
@@ -90,14 +62,13 @@ int OtaHttpArduino::http_init(char *url) {
   }
 #endif
 
-  return this->body_length_;
+  return status;
 }
 
 int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
   // wait for the stream to be populated
   while (this->stream_ptr_->available() == 0) {
     // give other tasks a chance to run while waiting for some data:
-    // ESP_LOGVV(TAG, "not enougth data available: %zu (total read: %zu)", streamPtr->available(), bytes_read);
     App.feed_wdt();
     yield();
     delay(1);
@@ -105,7 +76,6 @@ int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
   int available_data = this->stream_ptr_->available();
   int bufsize = std::min((int) max_len, available_data);
   if (bufsize > 0) {
-    // ESP_LOGVV(TAG, "data available: %zu", available_data);
 
     this->stream_ptr_->readBytes(buf, bufsize);
     this->bytes_read_ += bufsize;

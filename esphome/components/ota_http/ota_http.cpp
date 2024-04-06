@@ -119,7 +119,9 @@ void OtaHttpComponent::flash() {
     }
   }
 
-  if (!this->http_init(this->pref_.url)) {
+  ESP_LOGI(TAG, "Trying to connect to url: %s", OtaHttpComponent::safe_url(this->pref_.url).c_str());
+  if(! this->check_status(this->http_init(this->pref_.url))) {
+    this->http_end();
     return;
   }
 
@@ -133,7 +135,7 @@ void OtaHttpComponent::flash() {
     this->cleanup_();
     return;
   }
-  ESP_LOGV(TAG, "OTA backend begin");
+  ESP_LOGI(TAG, "OTA backend begin");
 
   this->bytes_read_ = 0;
   while (this->bytes_read_ != this->body_length_) {
@@ -253,7 +255,12 @@ void OtaHttpComponent::check_upgrade() {
 }
 
 bool OtaHttpComponent::http_get_md5() {
-  int length = this->http_init(this->pref_.md5_url);
+  ESP_LOGI(TAG, "Trying to connect to url: %s", OtaHttpComponent::safe_url(this->pref_.md5_url).c_str());
+  if(! this->check_status(this->http_init(this->pref_.md5_url))) {
+    this->http_end();
+    return false;
+  }
+  int length = this->body_length_;
   if (length < 0) {
     this->http_end();
     return false;
@@ -280,6 +287,20 @@ bool OtaHttpComponent::set_url_(const std::string &value, char *url) {
   strncpy(url, value.c_str(), value.length());
   url[value.length()] = '\0';  // null terminator
   this->pref_obj_.save(&this->pref_);
+  return true;
+}
+
+bool OtaHttpComponent::check_status(int status){
+  // status can be -1, or http status code
+  if(status < 100) {
+    ESP_LOGE(TAG, "No answer from http server (error %d). Network error?", status);
+    return false;
+  }
+  if (status >= 310) {
+    ESP_LOGE(TAG, "HTTP error %d", status);
+    return false;
+  }
+  ESP_LOGV(TAG, "HTTP status %d", status);
   return true;
 }
 

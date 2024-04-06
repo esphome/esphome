@@ -46,13 +46,14 @@ class OtaHttpComponent : public Component {
   bool set_md5_url(const std::string &md5_url) { return this->set_url_(md5_url, this->pref_.md5_url); }
   bool set_url(const std::string &url) { return this->set_url_(url, this->pref_.url); }
   static std::string safe_url(const char* url) {
-    std::regex urlPattern(R"(^(https?:\/\/)([^:]+):([^@]+)@)");
-    return std::regex_replace(url, urlPattern, "$1*****:*****@");
+    std::regex url_pattern(R"(^(https?:\/\/)([^:]+):([^@]+)@)");
+    return std::regex_replace(url, url_pattern, "$1*****:*****@");
   }
   void set_timeout(uint64_t timeout) { this->timeout_ = timeout; }
   void flash();
   void check_upgrade();
   bool http_get_md5();
+  bool check_status(int status);
   virtual int http_init(char *url) { return -1; };
   virtual int http_read(uint8_t *buf, size_t len) { return 0; };
   virtual void http_end(){};
