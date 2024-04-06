@@ -2662,7 +2662,6 @@ void HOT WaveshareEPaper7P3InF::display() {
   this->wait_until_idle_();
 
   ESP_LOGI(TAG, "Set the display to deep sleep");
-  ESP_LOGE(TAG, "GO TO DEEP SLEEP");
   this->command(0x07);
   this->data(0xA5);
 }
