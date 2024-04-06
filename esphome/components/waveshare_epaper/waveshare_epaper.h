@@ -62,8 +62,6 @@ class WaveshareEPaperBase : public display::DisplayBuffer,
   GPIOPin *dc_pin_;
   GPIOPin *busy_pin_{nullptr};
   virtual uint32_t idle_timeout_() { return 1000u; }  // NOLINT(readability-identifier-naming)
-
-  virtual void init_internal_(uint32_t buffer_length);
 };
 
 class WaveshareEPaper : public WaveshareEPaperBase {
@@ -98,7 +96,7 @@ class WaveshareEPaper7C : public WaveshareEPaperBase {
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   uint32_t get_buffer_length_() override;
-  void init_internal_(uint32_t buffer_length) override;
+  void init_internal_(uint32_t buffer_length);
 
   static const int NUM_BUFFERS = 10;
   uint8_t *buffers_[NUM_BUFFERS];
@@ -288,7 +286,6 @@ class GDEW0154M09 : public WaveshareEPaper {
   void display() override;
   void dump_config() override;
   void deep_sleep() override;
-  using WaveshareEPaper::init_internal_;
 
  protected:
   int get_width_internal() override;

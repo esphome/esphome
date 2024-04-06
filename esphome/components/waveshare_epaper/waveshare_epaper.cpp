@@ -175,11 +175,6 @@ void WaveshareEPaper::fill(Color color) {
     this->buffer_[i] = fill;
 }
 void WaveshareEPaper7C::init_internal_(uint32_t buffer_length) {
-  if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < buffer_length) {
-    ESP_LOGE(TAG, "Could not allocate buffers, not enough ram!");
-    return;
-  }
-
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   uint32_t small_buffer_length = buffer_length / NUM_BUFFERS;
 
@@ -207,7 +202,7 @@ uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
         hex_code = 0x5;  // Yellow
       }
     } else {
-      if (color.green > 85 && color.green < 170 ) {
+      if (color.green > 85 && color.green < 170) {
         hex_code = 0x6;  // Orange
       } else {
         hex_code = 0x4;  // Red
