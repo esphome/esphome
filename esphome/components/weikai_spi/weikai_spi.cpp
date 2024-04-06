@@ -1,6 +1,6 @@
 /// @file weikai_spi.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/04/06 14:16:22
+/// @date Last Modified: 2024/04/06 14:46:09
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai_spi.h"
@@ -174,7 +174,7 @@ void WeikaiComponentSPI::setup() {
 
 void WeikaiComponentSPI::dump_config() {
   ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
-  ESP_LOGCONFIG(TAG, "  Crystal: %ld", this->crystal_);
+  ESP_LOGCONFIG(TAG, "  Crystal: %" PRIu32 "", this->crystal_);
   if (test_mode_)
     ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
   ESP_LOGCONFIG(TAG, "  Transfer buffer size: %d", XFER_MAX_SIZE);

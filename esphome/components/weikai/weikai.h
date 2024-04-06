@@ -1,7 +1,7 @@
 /// @file weikai.h
 /// @author DrCoolZic
 /// @brief  WeiKai component family - classes declaration
-/// @date Last Modified: 2024/03/02 16:56:20
+/// @date Last Modified: 2024/04/06 14:44:17
 /// @details The classes declared in this file can be used by the Weikai family
 /// of UART and GPIO expander components. As of today it provides support for
 ///     wk2124_spi, wk2132_spi, wk2168_spi, wk2204_spi, wk2212_spi,
@@ -10,6 +10,7 @@
 #pragma once
 #include <bitset>
 #include <memory>
+#include <cinttypes>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "wk_reg_def.h"

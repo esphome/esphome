@@ -1,10 +1,9 @@
 /// @file weikai.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/04/06 14:24:01
+/// @date Last Modified: 2024/04/06 14:44:03
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
-#include <cinttypes>
 
 namespace esphome {
 namespace weikai {
@@ -174,8 +173,8 @@ void WeikaiComponent::loop() {
   uint32_t time = 0;
 
   if (test_mode_ == 1) {  // test component in loopback
-    ESP_LOGI(TAG, "Component loop %lu for %s : %lu ms since last call ...", loop_count++, this->get_name(),
-             millis() - loop_time);
+    ESP_LOGI(TAG, "Component loop %" PRIu32 " for %s : %" PRIu32 " ms since last call ...", loop_count++,
+             this->get_name(), millis() - loop_time);
     loop_time = millis();
     char message[64];
     elapsed_ms(time);  // set time to now
@@ -193,8 +192,8 @@ void WeikaiComponent::loop() {
         yield();  // reschedule our thread to avoid blocking
       }
       bool status = children_[i]->uart_receive_test_(message);
-      ESP_LOGI(TAG, "Test %s => send/received %u bytes %s - execution time %lu ms...", message, RING_BUFFER_SIZE,
-               status ? "correctly" : "with error", elapsed_ms(time));
+      ESP_LOGI(TAG, "Test %s => send/received %u bytes %s - execution time %" PRIu32 " ms...", message,
+               RING_BUFFER_SIZE, status ? "correctly" : "with error", elapsed_ms(time));
     }
   }
 
@@ -321,7 +320,7 @@ void WeikaiChannel::setup_channel() {
 
 void WeikaiChannel::dump_channel() {
   ESP_LOGCONFIG(TAG, "  UART %s ...", this->get_channel_name());
-  ESP_LOGCONFIG(TAG, "    Baud rate: %ld Bd", this->baud_rate_);
+  ESP_LOGCONFIG(TAG, "    Baud rate: %" PRIu32 " Bd", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "    Data bits: %u", this->data_bits_);
   ESP_LOGCONFIG(TAG, "    Stop bits: %u", this->stop_bits_);
   ESP_LOGCONFIG(TAG, "    Parity: %s", p2s(this->parity_));
@@ -357,7 +356,7 @@ void WeikaiChannel::set_line_param_() {
 void WeikaiChannel::set_baudrate_() {
   if (this->baud_rate_ > this->parent_->crystal_ / 16) {
     baud_rate_ = this->parent_->crystal_ / 16;
-    ESP_LOGE(TAG, " Requested baudrate too high for crystal=%lu Hz. Has been reduced to %lu Bd",
+    ESP_LOGE(TAG, " Requested baudrate too high for crystal=%" PRIu32 " Hz. Has been reduced to %" PRIu32 " Bd",
              this->parent_->crystal_, this->baud_rate_);
   };
   uint16_t const val_int = this->parent_->crystal_ / (this->baud_rate_ * 16) - 1;
