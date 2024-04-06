@@ -1,6 +1,6 @@
 /// @file weikai.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/04/06 14:44:03
+/// @date Last Modified: 2024/04/06 15:13:11
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
@@ -71,7 +71,7 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 
 /// @brief measure the time elapsed between two calls
 /// @param last_time time of the previous call
-/// @return the elapsed time in microseconds
+/// @return the elapsed time in milliseconds
 uint32_t elapsed_ms(uint32_t &last_time) {
   uint32_t e = millis() - last_time;
   last_time = millis();
