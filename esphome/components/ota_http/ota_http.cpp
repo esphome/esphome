@@ -119,7 +119,7 @@ void OtaHttpComponent::flash() {
     }
   }
 
-  if( !this->set_url(this->pref_.url) )
+  if (!this->set_url(this->pref_.url))
     return;
   ESP_LOGI(TAG, "Trying to connect to url: %s", this->get_safe_url().c_str());
   this->http_init();
@@ -285,20 +285,20 @@ bool OtaHttpComponent::http_get_md5() {
 }
 
 bool OtaHttpComponent::set_url(char *url) {
-    this->body_length_ = 0;
-    this->status_ = -1;
-    this->bytes_read_ = 0;
-    if (url == nullptr) {
-      ESP_LOGE(TAG, "Bad url: (nullptr)");
-      return false;
-    }
-    if (strncmp(url, "http", 4) != 0) {
-      ESP_LOGE(TAG, "Bad url: %s", url);
-      return false;
-    }
-    this->url_ = url;
-    return true;
+  this->body_length_ = 0;
+  this->status_ = -1;
+  this->bytes_read_ = 0;
+  if (url == nullptr) {
+    ESP_LOGE(TAG, "Bad url: (nullptr)");
+    return false;
   }
+  if (strncmp(url, "http", 4) != 0) {
+    ESP_LOGE(TAG, "Bad url: %s", url);
+    return false;
+  }
+  this->url_ = url;
+  return true;
+}
 
 bool OtaHttpComponent::save_url_(const std::string &value, char *url) {
   if (value.length() > CONFIG_MAX_URL_LENGTH - 1) {
@@ -312,9 +312,9 @@ bool OtaHttpComponent::save_url_(const std::string &value, char *url) {
   return true;
 }
 
-bool OtaHttpComponent::check_status(){
+bool OtaHttpComponent::check_status() {
   // status can be -1, or http status code
-  if(this->status_ < 100) {
+  if (this->status_ < 100) {
     ESP_LOGE(TAG, "No answer from http server (error %d). Network error?", this->status_);
     return false;
   }

@@ -17,7 +17,6 @@ struct Header {
 };
 
 void OtaHttpArduino::http_init() {
-
   const char *header_keys[] = {"Content-Length", "Content-Type"};
   const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
 
@@ -60,7 +59,6 @@ void OtaHttpArduino::http_init() {
     this->set_stream_ptr_();
   }
 #endif
-
 }
 
 int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
@@ -74,7 +72,6 @@ int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
   int available_data = this->stream_ptr_->available();
   int bufsize = std::min((int) max_len, available_data);
   if (bufsize > 0) {
-
     this->stream_ptr_->readBytes(buf, bufsize);
     this->bytes_read_ += bufsize;
     buf[bufsize] = '\0';  // not fed to ota

@@ -33,7 +33,6 @@ namespace esphome {
 namespace ota_http {
 
 void OtaHttpIDF::http_init() {
-
   App.feed_wdt();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -57,7 +56,6 @@ void OtaHttpIDF::http_init() {
   }
   this->body_length_ = esp_http_client_fetch_headers(this->client_);
   this->status_ = esp_http_client_get_status_code(this->client_);
-
 }
 
 int OtaHttpIDF::http_read(uint8_t *buf, const size_t max_len) {
