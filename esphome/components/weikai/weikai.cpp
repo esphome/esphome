@@ -1,6 +1,6 @@
 /// @file weikai.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/03/02 16:54:22
+/// @date Last Modified: 2024/04/06 11:50:28
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
@@ -261,7 +261,7 @@ void WeikaiComponent::test_gpio_output_() {
 ///////////////////////////////////////////////////////////////////////////////
 bool WeikaiComponent::read_pin_val_(uint8_t pin) {
   this->input_state_ = this->reg(WKREG_GPDAT, 0);
-  ESP_LOGVV(TAG, "reading input pin %" PRId32 " = %" PRId32 " in_state %s", pin, this->input_state_ & (1 << pin),
+  ESP_LOGVV(TAG, "reading input pin %" PRId8 " = %" PRId8 " in_state %s", pin, this->input_state_ & (1 << pin),
             I2S2CS(input_state_));
   return this->input_state_ & (1 << pin);
 }
@@ -272,7 +272,7 @@ void WeikaiComponent::write_pin_val_(uint8_t pin, bool value) {
   } else {
     this->output_state_ &= ~(1 << pin);
   }
-  ESP_LOGVV(TAG, "writing output pin %" PRId32 " with %" PRId32 " out_state %s", pin, value,
+  ESP_LOGVV(TAG, "writing output pin %" PRId8 " with %" PRId8 " out_state %s", pin, uint8_t(value),
             I2S2CS(this->output_state_));
   this->reg(WKREG_GPDAT, 0) = this->output_state_;
 }
@@ -284,16 +284,15 @@ void WeikaiComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
     if (flags == gpio::FLAG_OUTPUT) {
       this->pin_config_ |= 1 << pin;  // set bit (output mode)
     } else {
-      ESP_LOGE(TAG, "pin %" PRId32 " direction invalid", pin);
+      ESP_LOGE(TAG, "pin %" PRId8 " direction invalid", pin);
     }
   }
-  ESP_LOGVV(TAG, "setting pin %" PRId32 " direction to %" PRId32 " pin_config=%s", pin, flags,
-            I2S2CS(this->pin_config_));
+  ESP_LOGVV(TAG, "setting pin %" PRId8 " direction to %" PRId8 " pin_config=%s", pin, flags, I2S2CS(this->pin_config_));
   this->reg(WKREG_GPDIR, 0) = this->pin_config_;  // TODO check ~
 }
 
 void WeikaiGPIOPin::setup() {
-  ESP_LOGCONFIG(TAG, "Setting GPIO pin %" PRId32 " mode to %s", this->pin_,
+  ESP_LOGCONFIG(TAG, "Setting GPIO pin %" PRId8 " mode to %s", this->pin_,
                 flags_ == gpio::FLAG_INPUT          ? "Input"
                 : this->flags_ == gpio::FLAG_OUTPUT ? "Output"
                                                     : "NOT SPECIFIED");
@@ -325,8 +324,8 @@ void WeikaiChannel::setup_channel() {
 void WeikaiChannel::dump_channel() {
   ESP_LOGCONFIG(TAG, "  UART %s ...", this->get_channel_name());
   ESP_LOGCONFIG(TAG, "    Baud rate: %" PRId32 " Bd", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "    Data bits: %" PRId32 "", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "    Stop bits: %" PRId32 "", this->stop_bits_);
+  ESP_LOGCONFIG(TAG, "    Data bits: %" PRId8 "", this->data_bits_);
+  ESP_LOGCONFIG(TAG, "    Stop bits: %" PRId8 "", this->stop_bits_);
   ESP_LOGCONFIG(TAG, "    Parity: %s", p2s(this->parity_));
 }
 
@@ -353,7 +352,7 @@ void WeikaiChannel::set_line_param_() {
       break;  // no parity 000x
   }
   this->reg(WKREG_LCR) = lcr;  // write LCR
-  ESP_LOGV(TAG, "    line config: %" PRId32 " data_bits, %" PRId32 " stop_bits, parity %s register [%s]",
+  ESP_LOGV(TAG, "    line config: %" PRId8 " data_bits, %" PRId8 " stop_bits, parity %s register [%s]",
            this->data_bits_, this->stop_bits_, p2s(this->parity_), I2S2CS(lcr));
 }
 
@@ -379,7 +378,7 @@ void WeikaiChannel::set_baudrate_() {
   this->parent_->page1_ = false;  // switch back to page 0
   this->reg(WKREG_SPAGE) = 0;
 
-  ESP_LOGV(TAG, "    Crystal=%" PRId32 " baudrate=%" PRId32 " => registers [%" PRId32 " %" PRId32 " %" PRId32 "]",
+  ESP_LOGV(TAG, "    Crystal=%" PRId32 " baudrate=%" PRId32 " => registers [%" PRId8 " %" PRId8 " %" PRId8 "]",
            this->parent_->crystal_, this->baud_rate_, baud_high, baud_low, baud_dec);
 }
 
@@ -472,7 +471,7 @@ bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
   for (size_t i = 0; i < length; i++) {
     this->receive_buffer_.pop(buffer[i]);
   }
-  ESP_LOGVV(TAG, "read_array(ch=%" PRId32 " buffer[0]=%02X, length=%" PRId32 "): status %s", this->channel_, *buffer,
+  ESP_LOGVV(TAG, "read_array(ch=%" PRId8 " buffer[0]=%02X, length=%" PRId32 "): status %s", this->channel_, *buffer,
             length, status ? "OK" : "ERROR");
   return status;
 }
@@ -585,7 +584,7 @@ bool WeikaiChannel::uart_receive_test_(char *message) {
     while (XFER_MAX_SIZE > this->available()) {
       this->xfer_fifo_to_buffer_();
       if (millis() - start_time > 1500) {
-        ESP_LOGE(TAG, "uart_receive_test_() timeout: only %" PRId32 " bytes received...", this->available());
+        ESP_LOGE(TAG, "uart_receive_test_() timeout: only %" PRId32 " bytes received...", uint32_t(this->available()));
         break;
       }
       yield();  // reschedule our thread to avoid blocking
