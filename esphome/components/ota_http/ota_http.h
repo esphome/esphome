@@ -8,6 +8,7 @@
 #include <memory>
 #include <utility>
 #include <string>
+#include <regex>
 
 namespace esphome {
 namespace ota_http {
@@ -44,6 +45,10 @@ class OtaHttpComponent : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   bool set_md5_url(const std::string &md5_url) { return this->set_url_(md5_url, this->pref_.md5_url); }
   bool set_url(const std::string &url) { return this->set_url_(url, this->pref_.url); }
+  static std::string safe_url(const char* url) {
+    std::regex urlPattern(R"(^(https?:\/\/)([^:]+):([^@]+)@)");
+    return std::regex_replace(url, urlPattern, "$1*****:*****@");
+  }
   void set_timeout(uint64_t timeout) { this->timeout_ = timeout; }
   void flash();
   void check_upgrade();

@@ -50,7 +50,7 @@ int OtaHttpIDF::http_init(char *url) {
 #endif
 #pragma GCC diagnostic pop
 
-  ESP_LOGI(TAG, "Trying to connect to url: %s", url);
+  ESP_LOGI(TAG, "Trying to connect to url: %s", OtaHttpComponent::safe_url(url).c_str());
 
   this->client_ = esp_http_client_init(&config);
   esp_err_t err;
@@ -62,7 +62,7 @@ int OtaHttpIDF::http_init(char *url) {
 
   int http_code = esp_http_client_get_status_code(this->client_);
   if (http_code >= 310) {
-    ESP_LOGE(TAG, "HTTP error %d; URL: %s", http_code, url);
+    ESP_LOGE(TAG, "HTTP error %d; URL: %s", http_code, OtaHttpComponent::safe_url(url).c_str());
     return -1;
   }
 

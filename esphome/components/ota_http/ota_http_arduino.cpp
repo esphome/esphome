@@ -31,7 +31,7 @@ int OtaHttpArduino::http_init(char *url) {
   }
 #endif  // USE_ESP8266
 
-  ESP_LOGD(TAG, "Connecting to %s", url);
+  ESP_LOGD(TAG, "Connecting to %s", OtaHttpComponent::safe_url(url).c_str());
 
   bool status = false;
 #ifdef USE_RP2040
@@ -70,7 +70,7 @@ int OtaHttpArduino::http_init(char *url) {
   ESP_LOGV(TAG, "HTTP GET finished");
 
   if (http_code >= 310) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s (%d); Duration: %u ms", url,
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s (%d); Duration: %u ms", OtaHttpComponent::safe_url(url).c_str(),
              HTTPClient::errorToString(http_code).c_str(), http_code, duration);
     return -1;
   }
