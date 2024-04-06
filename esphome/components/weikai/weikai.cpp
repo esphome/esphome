@@ -1,6 +1,6 @@
 /// @file weikai.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/04/06 11:50:28
+/// @date Last Modified: 2024/04/06 13:29:50
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
@@ -187,13 +187,13 @@ void WeikaiComponent::loop() {
       uint32_t const start_time = millis();
       while (children_[i]->tx_fifo_is_not_empty_()) {  // wait until buffer empty
         if (millis() - start_time > 1500) {
-          ESP_LOGE(TAG, "timeout while flushing - %" PRId32 " bytes left in buffer...", children_[i]->tx_in_fifo_());
+          ESP_LOGE(TAG, "timeout while flushing - %" PRIu16 " bytes left in buffer...", children_[i]->tx_in_fifo_());
           break;
         }
         yield();  // reschedule our thread to avoid blocking
       }
       bool status = children_[i]->uart_receive_test_(message);
-      ESP_LOGI(TAG, "Test %s => send/received %" PRId32 " bytes %s - execution time %" PRId32 " ms...", message,
+      ESP_LOGI(TAG, "Test %s => send/received %" PRIu8 " bytes %s - execution time %" PRId32 " ms...", message,
                RING_BUFFER_SIZE, status ? "correctly" : "with error", elapsed_ms(time));
     }
   }
@@ -462,7 +462,7 @@ bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
   bool status = true;
   auto available = this->receive_buffer_.count();
   if (length > available) {
-    ESP_LOGW(TAG, "read_array: buffer underflow requested %" PRId32 " bytes only %" PRId32 " bytes available...",
+    ESP_LOGW(TAG, "read_array: buffer underflow requested %" PRIu16 " bytes only %" PRIu16 " bytes available...",
              length, available);
     length = available;
     status = false;
@@ -471,14 +471,14 @@ bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
   for (size_t i = 0; i < length; i++) {
     this->receive_buffer_.pop(buffer[i]);
   }
-  ESP_LOGVV(TAG, "read_array(ch=%" PRId8 " buffer[0]=%02X, length=%" PRId32 "): status %s", this->channel_, *buffer,
+  ESP_LOGVV(TAG, "read_array(ch=%" PRId8 " buffer[0]=%02X, length=%" PRIu16 "): status %s", this->channel_, *buffer,
             length, status ? "OK" : "ERROR");
   return status;
 }
 
 void WeikaiChannel::write_array(const uint8_t *buffer, size_t length) {
   if (length > XFER_MAX_SIZE) {
-    ESP_LOGE(TAG, "Write_array: invalid call - requested %" PRId32 " bytes but max size %" PRId32 " ...", length,
+    ESP_LOGE(TAG, "Write_array: invalid call - requested %" PRIu16 " bytes but max size %" PRIu8 " ...", length,
              XFER_MAX_SIZE);
     length = XFER_MAX_SIZE;
   }
@@ -489,7 +489,7 @@ void WeikaiChannel::flush() {
   uint32_t const start_time = millis();
   while (this->tx_fifo_is_not_empty_()) {  // wait until buffer empty
     if (millis() - start_time > 200) {
-      ESP_LOGW(TAG, "WARNING flush timeout - still %" PRId32 " bytes not sent after 200 ms...", this->tx_in_fifo_());
+      ESP_LOGW(TAG, "WARNING flush timeout - still %" PRIu16 " bytes not sent after 200 ms...", this->tx_in_fifo_());
       return;
     }
     yield();  // reschedule our thread to avoid blocking
