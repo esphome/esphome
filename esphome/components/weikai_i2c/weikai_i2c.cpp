@@ -1,6 +1,6 @@
 /// @file weikai_i2c.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/03/01 12:34:10
+/// @date Last Modified: 2024/04/06 14:00:59
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai_i2c.h"
@@ -72,11 +72,11 @@ uint8_t WeikaiRegisterI2C::read_reg() const {
   auto error = comp_i2c->read_register(this->register_, &value, 1);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
-    ESP_LOGVV(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", address,
+    ESP_LOGVV(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%u I2C_code:%d, buf=%02X", address,
               reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%d I2C_code:%d, buf=%02X", address,
+    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%u I2C_code:%d, buf=%02X", address,
              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
   }
   return value;
@@ -161,7 +161,7 @@ void WeikaiComponentI2C::setup() {
 
 void WeikaiComponentI2C::dump_config() {
   ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
-  ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
+  ESP_LOGCONFIG(TAG, "  Crystal: %lu", this->crystal_);
   if (test_mode_)
     ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
   ESP_LOGCONFIG(TAG, "  Transfer buffer size: %d", XFER_MAX_SIZE);
