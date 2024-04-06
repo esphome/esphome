@@ -1,6 +1,6 @@
 /// @file weikai.cpp
 /// @brief  WeiKai component family - classes implementation
-/// @date Last Modified: 2024/04/06 13:52:44
+/// @date Last Modified: 2024/04/06 14:24:01
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
@@ -321,7 +321,7 @@ void WeikaiChannel::setup_channel() {
 
 void WeikaiChannel::dump_channel() {
   ESP_LOGCONFIG(TAG, "  UART %s ...", this->get_channel_name());
-  ESP_LOGCONFIG(TAG, "    Baud rate: %lu Bd", this->baud_rate_);
+  ESP_LOGCONFIG(TAG, "    Baud rate: %ld Bd", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "    Data bits: %u", this->data_bits_);
   ESP_LOGCONFIG(TAG, "    Stop bits: %u", this->stop_bits_);
   ESP_LOGCONFIG(TAG, "    Parity: %s", p2s(this->parity_));
