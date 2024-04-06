@@ -59,7 +59,7 @@ void InternalTemperatureSensor::update() {
   temperature = raw * 0.04f;
 #else
   temperature = raw * 0.128f;
-#endif  // USE_BK72XX_VARIANT
+#endif  // USE_LIBRETINY_VARIANT_BK7231T
 #endif  // USE_BK72XX
   if (success && std::isfinite(temperature)) {
     this->publish_state(temperature);
