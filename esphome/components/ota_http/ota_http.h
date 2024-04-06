@@ -43,24 +43,27 @@ class OtaHttpComponent : public Component {
   OtaHttpComponent();
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-  bool set_md5_url(const std::string &md5_url) { return this->set_url_(md5_url, this->pref_.md5_url); }
-  bool set_url(const std::string &url) { return this->set_url_(url, this->pref_.url); }
-  static std::string safe_url(const char* url) {
+  bool save_md5_url(const std::string &md5_url) { return this->save_url_(md5_url, this->pref_.md5_url); }
+  bool save_url(const std::string &url) { return this->save_url_(url, this->pref_.url); }
+  bool set_url(char *url);
+  std::string get_safe_url() {
     std::regex url_pattern(R"(^(https?:\/\/)([^:]+):([^@]+)@)");
-    return std::regex_replace(url, url_pattern, "$1*****:*****@");
+    return std::regex_replace(this->url_, url_pattern, "$1*****:*****@");
   }
   void set_timeout(uint64_t timeout) { this->timeout_ = timeout; }
   void flash();
   void check_upgrade();
   bool http_get_md5();
-  bool check_status(int status);
-  virtual int http_init(char *url) { return -1; };
+  bool check_status();
+  virtual void http_init(){};
   virtual int http_read(uint8_t *buf, size_t len) { return 0; };
   virtual void http_end(){};
 
  protected:
-  bool secure_() { return strncmp(this->pref_.url, "https:", 6) == 0; };
+  char *url_ = nullptr;
+  bool secure_() { return strncmp(this->url_, "https:", 6) == 0; };
   size_t body_length_ = 0;
+  int status_ = -1;
   size_t bytes_read_ = 0;
   bool safe_mode_ = false;
   uint64_t timeout_;
@@ -76,7 +79,7 @@ class OtaHttpComponent : public Component {
       global_preferences->make_preference<OtaHttpGlobalPrefType>(OTA_HTTP_PREF_SAFE_MODE_HASH, true);
 
  private:
-  bool set_url_(const std::string &value, char *url);
+  bool save_url_(const std::string &value, char *url);
 };
 
 template<typename... Ts> class OtaHttpFlashAction : public Action<Ts...> {
@@ -87,7 +90,7 @@ template<typename... Ts> class OtaHttpFlashAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint64_t, timeout)
 
   void play(Ts... x) override {
-    if (this->parent_->set_md5_url(this->md5_url_.value(x...)) && this->parent_->set_url(this->url_.value(x...))) {
+    if (this->parent_->save_md5_url(this->md5_url_.value(x...)) && this->parent_->save_url(this->url_.value(x...))) {
       if (this->timeout_.has_value()) {
         this->parent_->set_timeout(this->timeout_.value(x...));
       }

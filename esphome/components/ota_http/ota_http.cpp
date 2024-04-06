@@ -119,8 +119,11 @@ void OtaHttpComponent::flash() {
     }
   }
 
-  ESP_LOGI(TAG, "Trying to connect to url: %s", OtaHttpComponent::safe_url(this->pref_.url).c_str());
-  if(! this->check_status(this->http_init(this->pref_.url))) {
+  if( !this->set_url(this->pref_.url) )
+    return;
+  ESP_LOGI(TAG, "Trying to connect to url: %s", this->get_safe_url().c_str());
+  this->http_init();
+  if (!this->check_status()) {
     this->http_end();
     return;
   }
@@ -255,8 +258,11 @@ void OtaHttpComponent::check_upgrade() {
 }
 
 bool OtaHttpComponent::http_get_md5() {
-  ESP_LOGI(TAG, "Trying to connect to url: %s", OtaHttpComponent::safe_url(this->pref_.md5_url).c_str());
-  if(! this->check_status(this->http_init(this->pref_.md5_url))) {
+  if (!this->set_url(this->pref_.md5_url))
+    return false;
+  ESP_LOGI(TAG, "Trying to connect to url: %s", this->get_safe_url().c_str());
+  this->http_init();
+  if (!this->check_status()) {
     this->http_end();
     return false;
   }
@@ -278,7 +284,23 @@ bool OtaHttpComponent::http_get_md5() {
   return read_len == MD5_SIZE;
 }
 
-bool OtaHttpComponent::set_url_(const std::string &value, char *url) {
+bool OtaHttpComponent::set_url(char *url) {
+    this->body_length_ = 0;
+    this->status_ = -1;
+    this->bytes_read_ = 0;
+    if (url == nullptr) {
+      ESP_LOGE(TAG, "Bad url: (nullptr)");
+      return false;
+    }
+    if (strncmp(url, "http", 4) != 0) {
+      ESP_LOGE(TAG, "Bad url: %s", url);
+      return false;
+    }
+    this->url_ = url;
+    return true;
+  }
+
+bool OtaHttpComponent::save_url_(const std::string &value, char *url) {
   if (value.length() > CONFIG_MAX_URL_LENGTH - 1) {
     ESP_LOGE(TAG, "Url max length is %d, and attempted to set url with length %d: %s", CONFIG_MAX_URL_LENGTH,
              value.length(), value.c_str());
@@ -290,17 +312,17 @@ bool OtaHttpComponent::set_url_(const std::string &value, char *url) {
   return true;
 }
 
-bool OtaHttpComponent::check_status(int status){
+bool OtaHttpComponent::check_status(){
   // status can be -1, or http status code
-  if(status < 100) {
-    ESP_LOGE(TAG, "No answer from http server (error %d). Network error?", status);
+  if(this->status_ < 100) {
+    ESP_LOGE(TAG, "No answer from http server (error %d). Network error?", this->status_);
     return false;
   }
-  if (status >= 310) {
-    ESP_LOGE(TAG, "HTTP error %d", status);
+  if (this->status_ >= 310) {
+    ESP_LOGE(TAG, "HTTP error %d", this->status_);
     return false;
   }
-  ESP_LOGV(TAG, "HTTP status %d", status);
+  ESP_LOGV(TAG, "HTTP status %d", this->status_);
   return true;
 }
 

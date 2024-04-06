@@ -32,14 +32,13 @@
 namespace esphome {
 namespace ota_http {
 
-int OtaHttpIDF::http_init(char *url) {
-  int status;
+void OtaHttpIDF::http_init() {
 
   App.feed_wdt();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
   esp_http_client_config_t config = {nullptr};
-  config.url = url;
+  config.url = this->url_;
   config.method = HTTP_METHOD_GET;
   config.timeout_ms = (int) this->timeout_;
   config.buffer_size = this->max_http_recv_buffer_;
@@ -53,14 +52,12 @@ int OtaHttpIDF::http_init(char *url) {
 #pragma GCC diagnostic pop
 
   this->client_ = esp_http_client_init(&config);
-  if ((status = esp_http_client_open(this->client_, 0)) != ESP_OK) {
-    return status;
+  if ((this->status_ = esp_http_client_open(this->client_, 0)) != ESP_OK) {
+    return;
   }
   this->body_length_ = esp_http_client_fetch_headers(this->client_);
+  this->status_ = esp_http_client_get_status_code(this->client_);
 
-  status = esp_http_client_get_status_code(this->client_);
-
-  return status;
 }
 
 int OtaHttpIDF::http_read(uint8_t *buf, const size_t max_len) {

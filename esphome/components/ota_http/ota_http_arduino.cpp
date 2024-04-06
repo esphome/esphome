@@ -16,7 +16,7 @@ struct Header {
   const char *value;
 };
 
-int OtaHttpArduino::http_init(char *url) {
+void OtaHttpArduino::http_init() {
 
   const char *header_keys[] = {"Content-Length", "Content-Type"};
   const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
@@ -27,7 +27,6 @@ int OtaHttpArduino::http_init(char *url) {
   }
 #endif  // USE_ESP8266
 
-  int status;
 #ifdef USE_RP2040
   this->client_.setInsecure();
 #endif
@@ -35,15 +34,15 @@ int OtaHttpArduino::http_init(char *url) {
   App.feed_wdt();
 
 #if defined(USE_ESP32) || defined(USE_RP2040)
-  status = this->client_.begin(url);
+  this->status_ = this->client_.begin(this->url_);
 #endif
 #ifdef USE_ESP8266
-  status = this->client_.begin(*this->stream_ptr_, String(url));
+  this->status_ = this->client_.begin(*this->stream_ptr_, String(url));
 #endif
 
-  if (!status) {
+  if (!this->status_) {
     this->client_.end();
-    return status;
+    return;
   }
 
   this->client_.setReuse(true);
@@ -52,7 +51,7 @@ int OtaHttpArduino::http_init(char *url) {
   this->client_.collectHeaders(header_keys, header_count);
 
   // HTTP GET
-  status = this->client_.GET();
+  this->status_ = this->client_.GET();
 
   this->body_length_ = (size_t) this->client_.getSize();
 
@@ -62,7 +61,6 @@ int OtaHttpArduino::http_init(char *url) {
   }
 #endif
 
-  return status;
 }
 
 int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
