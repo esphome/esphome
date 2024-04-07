@@ -14,26 +14,6 @@ static const char *const TAG = "pulse_counter";
 
 const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 
-#ifdef HAS_PCNT
-PulseCounterStorageBase *get_storage(Storage storage) {
-  switch (storage) {
-    case Storage::basic:
-      return new BasicPulseCounterStorage;
-    case Storage::pcnt:
-      return new HwPulseCounterStorage;
-#ifdef CONF_USE_ULP
-    case Storage::ulp:
-      return new UlpPulseCounterStorage;
-#endif
-    default:
-      return new BasicPulseCounterStorage;
-  }
-  return new BasicPulseCounterStorage;
-}
-#else
-PulseCounterStorageBase *get_storage(Storage) { return new BasicPulseCounterStorage; }
-#endif
-
 void IRAM_ATTR BasicPulseCounterStorage::gpio_intr(BasicPulseCounterStorage *arg) {
   const uint32_t now = micros();
   const bool discard = now - arg->last_pulse < arg->filter_us;
@@ -203,9 +183,11 @@ bool UlpPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   }
 
   /* GPIO used for pulse counting. */
-  gpio_num_t gpio_num = GPIO_NUM_0;
+  gpio_num_t gpio_num = static_cast<gpio_num_t>(pin->get_pin());
   int rtcio_num = rtc_io_number_get(gpio_num);
-  assert(rtc_gpio_is_valid_gpio(gpio_num) && "GPIO used for pulse counting must be an RTC IO");
+  if (!rtc_gpio_is_valid_gpio(gpio_num)) {
+    ESP_LOGE(TAG, "GPIO used for pulse counting must be an RTC IO");
+  }
 
   /* Initialize some variables used by ULP program.
    * Each 'ulp_xyz' variable corresponds to 'xyz' variable in the ULP program.
@@ -222,11 +204,9 @@ bool UlpPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   ulp_io_number = rtcio_num; /* map from GPIO# to RTC_IO# */
   ulp_edge_count_to_wake_up = 10;
 
-  /* Initialize selected GPIO as RTC IO, enable input, disable pullup and pulldown */
+  /* Initialize selected GPIO as RTC IO, enable input */
   rtc_gpio_init(gpio_num);
   rtc_gpio_set_direction(gpio_num, RTC_GPIO_MODE_INPUT_ONLY);
-  rtc_gpio_pulldown_dis(gpio_num);
-  rtc_gpio_pullup_dis(gpio_num);
   rtc_gpio_hold_en(gpio_num);
 
   /* Set ULP wake up period to T = 20ms.

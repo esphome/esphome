@@ -24,6 +24,7 @@ from esphome.core import CORE
 
 CONF_USE_PCNT = "use_pcnt"
 CONF_USE_ULP = "use_ulp"
+CONF_STORAGE_ID = "storage"
 
 pulse_counter_ns = cg.esphome_ns.namespace("pulse_counter")
 PulseCounterCountMode = pulse_counter_ns.enum("PulseCounterCountMode")
@@ -121,6 +122,9 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
+            cv.GenerateID(CONF_STORAGE_ID): cv.declare_id(
+                "pulse_counter::PulseCounterStorageBase"
+            ),
         },
     )
     .extend(cv.polling_component_schema("60s")),
@@ -130,15 +134,16 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     if config.get(CONF_USE_ULP):
-        var = await sensor.new_sensor(config, 2)
-    else:
-        var = await sensor.new_sensor(config, config.get(CONF_USE_PCNT))
-    if config.get(CONF_USE_ULP):
-        var.add_define("CONF_USE_ULP", True)
+        cg.add_define("CONF_USE_ULP", True)
+        storage = cg.Pvariable(
+            config[CONF_STORAGE_ID],
+            cg.RawExpression("new pulse_counter::UlpPulseCounterStorage()"),
+        )
         esp32.add_extra_build_file(
             "src/CMakeLists.txt",
             os.path.join(os.path.dirname(__file__), "CMakeLists.txt"),
         )
+        # FIXME These files don't get cleared when the config changes, necessitating deleting .esphome
         esp32.add_extra_build_file(
             "ulp/pulse_cnt.S",
             os.path.join(os.path.dirname(__file__), "ulp/pulse_cnt.S"),
@@ -149,6 +154,17 @@ async def to_code(config):
         esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_ENABLED", True)
         esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_TYPE_FSM", True)
         esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_RESERVE_MEM", 1024)
+    elif config.get(CONF_USE_PCNT):
+        storage = cg.Pvariable(
+            config[CONF_STORAGE_ID],
+            cg.RawExpression("new pulse_counter::HwPulseCounterStorage()"),
+        )
+    else:
+        storage = cg.Pvariable(
+            config[CONF_STORAGE_ID],
+            cg.RawExpression("new pulse_counter::BasicPulseCounterStorage()"),
+        )
+    var = await sensor.new_sensor(config, storage)
     await cg.register_component(var, config)
 
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
