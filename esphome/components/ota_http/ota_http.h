@@ -80,20 +80,20 @@ class OtaHttpComponent : public Component {
     // using regex makes 8266 unstable later
     const char *prefix_end = strstr(this->url_, "://");
     if (!prefix_end) {
-      strcpy(this->safe_url_, this->url_);
+      strlcpy(this->safe_url_, this->url_, sizeof(this->safe_url_));
       return;
     }
     const char *at = strchr(prefix_end, '@');
     if (!at) {
-      strcpy(this->safe_url_, this->url_);
+      strlcpy(this->safe_url_, this->url_, sizeof(this->safe_url_));
       return;
     }
-    size_t prefix_len = prefix_end - this->url_ + 3;
-    strncpy(this->safe_url_, this->url_, prefix_len);
-    this->safe_url_[prefix_len] = '\0';
 
-    strcat(this->safe_url_, "****:****@");
-    strcat(this->safe_url_, at + 1);
+    size_t prefix_len = prefix_end - this->url_ + 3;
+    strlcpy(this->safe_url_, this->url_, prefix_len + 1);
+    strlcat(this->safe_url_, "****:****@", sizeof(this->safe_url_));
+
+    strlcat(this->safe_url_, at + 1, sizeof(this->safe_url_));
   }
 };
 
