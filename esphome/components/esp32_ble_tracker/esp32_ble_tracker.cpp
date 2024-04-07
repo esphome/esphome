@@ -364,6 +364,10 @@ void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_ga
 }
 
 void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t::ble_scan_param_cmpl_evt_param &param) {
+  if (param.status == ESP_BT_STATUS_DONE) {
+    this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
+    return;
+  }
   this->scan_set_param_failed_ = param.status;
 }
 
