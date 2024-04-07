@@ -24,7 +24,7 @@ void TLC5971::dump_config() {
 }
 
 void TLC5971::loop() {
-  if (!this->update_) 
+  if (!this->update_)
     return;
 
   uint32_t command;
