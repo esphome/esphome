@@ -278,5 +278,12 @@ void BH1745Component::publish_data_() {
   }
 }
 
+void BH1745Component::set_pimoroni_led_switch(switch_::Switch *led_switch) {
+  this->led_switch_ = led_switch;
+  if (this->led_switch_ != nullptr) {
+    static_cast<BH1745SwitchLed *>(this->led_switch_)->set_bh1745(this);
+  }
+}
+
 }  // namespace bh1745
 }  // namespace esphome

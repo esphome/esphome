@@ -10,7 +10,4 @@ sensor:
     clear_channel: Clear channel
     illuminance: Illuminance
     color_temperature: Color temperature
-
-switch:
-  - platform: bh1745
-    name: BH1754 LED
+    pimoroni_led_switch: LED Switch
