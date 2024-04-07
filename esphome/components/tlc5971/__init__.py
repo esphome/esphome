@@ -1,5 +1,5 @@
 # this component is for the "TLC5971 12-Channel, 12-Bit PWM LED Driver" [https://www.ti.com/lit/ds/symlink/tlc5971.pdf],
-# which is used e.g. on [https://www.adafruit.com/product/1455]. The code is based on the TLC5947 component.
+# which is used e.g. on [https://www.adafruit.com/product/1455]. The code is based on the TLC5947 component by @rnauber.
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -13,7 +13,7 @@ from esphome.const import (
 
 
 AUTO_LOAD = ["output"]
-CODEOWNERS = ["@rnauber", "@IJIJI"]
+CODEOWNERS = ["@IJIJI"]
 
 tlc5971_ns = cg.esphome_ns.namespace("tlc5971")
 TLC5971 = tlc5971_ns.class_("TLC5971", cg.Component)

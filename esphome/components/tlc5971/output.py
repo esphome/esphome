@@ -5,7 +5,7 @@ from esphome.const import CONF_CHANNEL, CONF_ID
 from . import TLC5971
 
 DEPENDENCIES = ["tlc5971"]
-CODEOWNERS = ["@rnauber", "@IJIJI"]
+CODEOWNERS = ["@IJIJI"]
 
 Channel = TLC5971.class_("Channel", output.FloatOutput)
 
