@@ -582,14 +582,14 @@ void WiFiComponent::wifi_pre_setup_() {
 }
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   auto status = WiFiClass::status();
-  if (status == WL_CONNECTED) {
-    return WiFiSTAConnectStatus::CONNECTED;
-  } else if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST) {
+  if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST) {
     return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
   } else if (status == WL_NO_SSID_AVAIL) {
     return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
   } else if (s_sta_connecting) {
     return WiFiSTAConnectStatus::CONNECTING;
+  } else if (status == WL_CONNECTED) {
+    return WiFiSTAConnectStatus::CONNECTED;
   }
   return WiFiSTAConnectStatus::IDLE;
 }
@@ -707,7 +707,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     *conf.ap.password = 0;
   } else {
     conf.ap.authmode = WIFI_AUTH_WPA2_PSK;
-    strncpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), sizeof(conf.ap.ssid));
+    strncpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), sizeof(conf.ap.password));
   }
 
   conf.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;

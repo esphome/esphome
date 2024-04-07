@@ -36,7 +36,9 @@ class SSD1306 : public display::DisplayBuffer {
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_external_vcc(bool external_vcc) { this->external_vcc_ = external_vcc; }
   void init_contrast(float contrast) { this->contrast_ = contrast; }
+  float get_contrast();
   void set_contrast(float contrast);
+  float get_brightness();
   void init_brightness(float brightness) { this->brightness_ = brightness; }
   void set_brightness(float brightness);
   void init_flip_x(bool flip_x) { this->flip_x_ = flip_x; }
