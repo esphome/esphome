@@ -78,15 +78,15 @@ class OtaHttpComponent : public Component {
   bool save_url_(const std::string &value, char *url);
   void set_safe_url_() {
     // using regex makes 8266 unstable later
-    const char* prefix_end = strstr(this->url_, "://");
+    const char *prefix_end = strstr(this->url_, "://");
     if (!prefix_end) {
-        strcpy(this->safe_url_, this->url_);
-        return;
+      strcpy(this->safe_url_, this->url_);
+      return;
     }
-    const char* at = strchr(prefix_end, '@');
+    const char *at = strchr(prefix_end, '@');
     if (!at) {
-        strcpy(this->safe_url_, this->url_);
-        return;
+      strcpy(this->safe_url_, this->url_);
+      return;
     }
     size_t prefix_len = prefix_end - this->url_ + 3;
     strncpy(this->safe_url_, this->url_, prefix_len);
@@ -94,7 +94,7 @@ class OtaHttpComponent : public Component {
 
     strcat(this->safe_url_, "****:****@");
     strcat(this->safe_url_, at + 1);
-}
+  }
 };
 
 template<typename... Ts> class OtaHttpFlashAction : public Action<Ts...> {
