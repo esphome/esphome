@@ -36,7 +36,7 @@ void OtaHttpArduino::http_init() {
   this->status_ = this->client_.begin(this->url_);
 #endif
 #ifdef USE_ESP8266
-  this->status_ = this->client_.begin(*this->stream_ptr_, String(url));
+  this->status_ = this->client_.begin(*this->stream_ptr_, String(this->url_));
 #endif
 
   if (!this->status_) {
