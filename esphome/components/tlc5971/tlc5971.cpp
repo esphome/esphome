@@ -77,13 +77,6 @@ void TLC5971::transfer(uint8_t *buffer, size_t len) {
     uint8_t reply = 0;
     uint8_t send = buffer[i];
 
-    /*
-    Serial.print("\tSending software SPI byte 0x");
-    Serial.print(send, HEX);
-    Serial.print(" -> 0x");
-    */
-
-    // Serial.print(send, HEX);
     for (uint8_t b = startbit; b != 0; b = b >> 1) {
 
       if (bitdelay_us) {
@@ -107,7 +100,5 @@ void TLC5971::transfer(uint8_t *buffer, size_t len) {
     }
   }
 }
-
-
 }  // namespace tlc5971
 }  // namespace esphome

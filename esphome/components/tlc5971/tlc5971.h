@@ -36,7 +36,6 @@ class TLC5971 : public Component {
 
    protected:
     void write_state(float state) override {
-      // auto amount = static_cast<uint16_t>(state * 0xfff);
       auto amount = static_cast<uint16_t>(state * 0xffff);
       this->parent_->set_channel_value_(this->channel_, amount);
     }
@@ -65,6 +64,5 @@ class TLC5971 : public Component {
   std::vector<uint16_t> pwm_amounts_;
   bool update_{true};
 };
-
 }  // namespace tlc5971
 }  // namespace esphome
