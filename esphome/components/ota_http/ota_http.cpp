@@ -121,7 +121,7 @@ void OtaHttpComponent::flash() {
 
   if (!this->set_url(this->pref_.url))
     return;
-  ESP_LOGI(TAG, "Trying to connect to url: %s", this->get_safe_url().c_str());
+  ESP_LOGI(TAG, "Trying to connect to url: %s", this->safe_url_);
   this->http_init();
   if (!this->check_status()) {
     this->http_end();
@@ -260,7 +260,7 @@ void OtaHttpComponent::check_upgrade() {
 bool OtaHttpComponent::http_get_md5() {
   if (!this->set_url(this->pref_.md5_url))
     return false;
-  ESP_LOGI(TAG, "Trying to connect to url: %s", this->get_safe_url().c_str());
+  ESP_LOGI(TAG, "Trying to connect to url: %s", this->safe_url_);
   this->http_init();
   if (!this->check_status()) {
     this->http_end();
@@ -297,6 +297,7 @@ bool OtaHttpComponent::set_url(char *url) {
     return false;
   }
   this->url_ = url;
+  this->set_safe_url_();
   return true;
 }
 
