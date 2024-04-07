@@ -24,7 +24,8 @@ void TLC5971::dump_config() {
 }
 
 void TLC5971::loop() {
-  if (!this->update_) return;
+  if (!this->update_) 
+    return;
 
   uint32_t command;
 
@@ -36,13 +37,13 @@ void TLC5971::loop() {
   command |= 0x16;
 
   command <<= 7;
-  command |= 0x7F; // default 100% brigthness
+  command |= 0x7F;  // default 100% brigthness
 
   command <<= 7;
-  command |= 0x7F; // default 100% brigthness
+  command |= 0x7F;  // default 100% brigthness
 
   command <<= 7;
-  command |= 0x7F; // default 100% brigthness
+  command |= 0x7F;  // default 100% brigthness
 
   for (uint8_t n = 0; n < num_chips_; n++) {
     this->transfer(command >> 24);
@@ -67,7 +68,6 @@ void TLC5971::transfer(uint8_t send) {
 }
 
 void TLC5971::transfer(uint8_t *buffer, size_t len) {
-
   uint8_t startbit = 0x80;
 
   bool towrite, lastmosi = !(buffer[0] & startbit);
@@ -78,14 +78,12 @@ void TLC5971::transfer(uint8_t *buffer, size_t len) {
     uint8_t send = buffer[i];
 
     for (uint8_t b = startbit; b != 0; b = b >> 1) {
-
       if (bitdelay_us) {
         delayMicroseconds(bitdelay_us);
       }
 
       towrite = send & b;
       if ((lastmosi != towrite)) {
-
         this->data_pin_->digital_write(towrite);
         lastmosi = towrite;
       }
