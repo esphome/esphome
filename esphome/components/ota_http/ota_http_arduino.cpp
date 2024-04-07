@@ -23,6 +23,7 @@ void OtaHttpArduino::http_init() {
 #ifdef USE_ESP8266
   if (this->stream_ptr_ == nullptr && this->set_stream_ptr_()) {
     ESP_LOGE(TAG, "Unable to set client");
+    return;
   }
 #endif  // USE_ESP8266
 
