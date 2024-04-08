@@ -476,6 +476,14 @@ bool APIServerConnectionBase::send_voice_assistant_request(const VoiceAssistantR
 #endif
 #ifdef USE_VOICE_ASSISTANT
 #endif
+#ifdef USE_VOICE_ASSISTANT
+bool APIServerConnectionBase::send_voice_assistant_audio(const VoiceAssistantAudio &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_voice_assistant_audio: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<VoiceAssistantAudio>(msg, 106);
+}
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
 bool APIServerConnectionBase::send_list_entities_alarm_control_panel_response(
     const ListEntitiesAlarmControlPanelResponse &msg) {
@@ -971,6 +979,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       ESP_LOGVV(TAG, "on_date_command_request: %s", msg.dump().c_str());
 #endif
       this->on_date_command_request(msg);
+#endif
+      break;
+    }
+    case 106: {
+#ifdef USE_VOICE_ASSISTANT
+      VoiceAssistantAudio msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_voice_assistant_audio: %s", msg.dump().c_str());
+#endif
+      this->on_voice_assistant_audio(msg);
 #endif
       break;
     }
