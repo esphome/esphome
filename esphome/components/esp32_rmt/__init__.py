@@ -3,6 +3,8 @@ import esphome.codegen as cg
 
 from esphome.components import esp32
 
+CODEOWNERS = ["@jesserockz"]
+
 RMT_TX_CHANNELS = {
     esp32.const.VARIANT_ESP32: [0, 1, 2, 3, 4, 5, 6, 7],
     esp32.const.VARIANT_ESP32S2: [0, 1, 2, 3],
