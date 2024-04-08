@@ -135,19 +135,19 @@ void MAX6921Component::init_display_(void) {
   const uint8_t PWM_RESOLUTION = 8;
 
   // setup PWM for blank pin (intensity)...
-  this->display_.intensity.pwm_channel = 0;
-  freq = ledcSetup(this->display_.intensity.pwm_channel, PWM_FREQ_WANTED, PWM_RESOLUTION);
+  this->display_.brightness.pwm_channel = 0;
+  freq = ledcSetup(this->display_.brightness.pwm_channel, PWM_FREQ_WANTED, PWM_RESOLUTION);
   if (freq != 0) {
-    ledcAttachPin(this->display_.intensity.pwm_pin->get_pin(), this->display_.intensity.pwm_channel);
-    this->display_.intensity.max_duty = pow(2,PWM_RESOLUTION);                      // max. duty value for given resolution
-    this->display_.intensity.duty_quotient = this->display_.intensity.max_duty / MAX_DISPLAY_INTENSITY; // pre-calc fixed duty quotient (256 / 16)
+    ledcAttachPin(this->display_.brightness.pwm_pin->get_pin(), this->display_.brightness.pwm_channel);
+    this->display_.brightness.max_duty = pow(2,PWM_RESOLUTION);                      // max. duty value for given resolution
+    this->display_.brightness.duty_quotient = this->display_.brightness.max_duty / MAX_DISPLAY_INTENSITY; // pre-calc fixed duty quotient (256 / 16)
     ESP_LOGD(TAG, "Prepare intensity PWM: pin=%u, channel=%u, freq=%uHz, resolution=%ubit, duty quotient=%u",
-             this->display_.intensity.pwm_pin->get_pin(),
-             this->display_.intensity.pwm_channel, freq, PWM_RESOLUTION,
-             this->display_.intensity.duty_quotient);
+             this->display_.brightness.pwm_pin->get_pin(),
+             this->display_.brightness.pwm_channel, freq, PWM_RESOLUTION,
+             this->display_.brightness.duty_quotient);
   } else {
     ESP_LOGE(TAG, "Failed to configure PWM -> set to max. intensity");
-    pinMode(this->display_.intensity.pwm_pin->get_pin(), OUTPUT);
+    pinMode(this->display_.brightness.pwm_pin->get_pin(), OUTPUT);
     this->disable_blank();      // enable display (max. intensity)
   }
 
@@ -286,16 +286,16 @@ int MAX6921Component::set_display(uint8_t start_pos, const char *str) {
 
 void MAX6921Component::update_display_(void) {
   // handle display intensity...
-  if (this->display_.intensity.config_changed) {
+  if (this->display_.brightness.config_changed) {
     // calc duty for low-active BLANK pin...
-    uint32_t inverted_duty = this->display_.intensity.max_duty - \
-                             this->display_.intensity.duty_quotient * \
-                             this->display_.intensity.config_value;
-    ESP_LOGD(TAG, "Change display intensity to %u (off-time duty=%u/%u)",
-             this->display_.intensity.config_value, inverted_duty,
-             this->display_.intensity.max_duty);
-    ledcWrite(this->display_.intensity.pwm_channel, inverted_duty);
-    this->display_.intensity.config_changed = false;
+    uint32_t inverted_duty = this->display_.brightness.max_duty - \
+                             this->display_.brightness.max_duty * \
+                             this->display_.brightness.config_value;
+    ESP_LOGD(TAG, "Change display brightness to %.1f (off-time duty=%u/%u)",
+             this->display_.brightness.config_value, inverted_duty,
+             this->display_.brightness.max_duty);
+    ledcWrite(this->display_.brightness.pwm_channel, inverted_duty);
+    this->display_.brightness.config_changed = false;
   }
 
   // handle demo modes...
@@ -386,7 +386,7 @@ void MAX6921Component::dump_config() {
   char seg_name[3];
   ESP_LOGCONFIG(TAG, "MAX6921:");
   LOG_PIN("  LOAD Pin: ", this->load_pin_);
-  ESP_LOGCONFIG(TAG, "  BLANK Pin: GPIO%u", this->display_.intensity.pwm_pin->get_pin());
+  ESP_LOGCONFIG(TAG, "  BLANK Pin: GPIO%u", this->display_.brightness.pwm_pin->get_pin());
   // display segment to DOUTx mapping...
   for (uint i=0; i<this->display_.seg_to_out_map.size(); i++) {
     if (i < 7) {
@@ -401,23 +401,19 @@ void MAX6921Component::dump_config() {
     ESP_LOGCONFIG(TAG, "  Display position %2u: OUT%u", i, this->display_.pos_to_out_map[i]);
   }
   // ESP_LOGCONFIG(TAG, "  Number of digits: %u", this->display_.num_digits);
-  ESP_LOGCONFIG(TAG, "  Intensity: %u", this->display_.intensity.config_value);
+  ESP_LOGCONFIG(TAG, "  Brightness: %.1f", this->display_.brightness.config_value);
   ESP_LOGCONFIG(TAG, "  Demo mode: %u", this->display_.demo_mode);
 }
 
-void MAX6921Component::set_intensity(uint8_t intensity) {
+void MAX6921Component::set_brightness(float brightness) {
   if (!this->setup_finished) {
-    ESP_LOGD(TAG, "Set intensity: setup not finished -> discard intensity value");
+    ESP_LOGD(TAG, "Set brightness: setup not finished -> discard brightness value");
     return;
   }
-  if (intensity > MAX_DISPLAY_INTENSITY) {
-    ESP_LOGV(TAG, "Invalid intensity: %u (0..%u)", intensity, MAX_DISPLAY_INTENSITY);
-    intensity = MAX_DISPLAY_INTENSITY;
-  }
-  if ((intensity == 0) || (intensity != this->display_.intensity.config_value)) {
-    this->display_.intensity.config_value = intensity;
-    ESP_LOGD(TAG, "Set intensity: %u", this->display_.intensity.config_value);
-    this->display_.intensity.config_changed = true;
+  if ((brightness == 0.0) || (brightness != this->display_.brightness.config_value)) {
+    this->display_.brightness.config_value = brightness;
+    ESP_LOGD(TAG, "Set brightness: %.1f", this->display_.brightness.config_value);
+    this->display_.brightness.config_changed = true;
   }
 }
 

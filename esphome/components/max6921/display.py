@@ -1,8 +1,8 @@
-from esphome import pins
+from esphome import pins, automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import display, spi
-from esphome.const import CONF_ID, CONF_INTENSITY, CONF_LAMBDA
+from esphome.const import CONF_ID, CONF_BRIGHTNESS, CONF_LAMBDA
 
 
 DEPENDENCIES = ["spi", "esp32"]
@@ -41,6 +41,8 @@ MAX6921Component = max6921_ns.class_(
     "MAX6921Component", cg.PollingComponent, spi.SPIDevice
 )
 MAX6921ComponentRef = MAX6921Component.operator("ref")
+SetBrightnessAction = max6921_ns.class_("SetBrightnessAction", automation.Action)
+
 
 # optional "demo_mode" configuration
 CONF_DEMO_MODE_OFF = "off"
@@ -105,6 +107,7 @@ OUT_PIN_MAPPING_SCHEMA = cv.Schema(
     )
 )
 
+
 CONFIG_SCHEMA = (
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
@@ -112,7 +115,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_LOAD_PIN): pins.gpio_input_pin_schema,
             cv.Required(CONF_BLANK_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_OUT_PIN_MAPPING): OUT_PIN_MAPPING_SCHEMA,
-            cv.Optional(CONF_INTENSITY, default=16): cv.int_range(min=0, max=16),
+            cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.templatable(cv.percentage),
             cv.Optional(CONF_DEMO_MODE, default=CONF_DEMO_MODE_OFF): cv.enum(
                 DEMO_MODES
             ),
@@ -150,7 +153,7 @@ async def to_code(config):
             cg.ArrayInitializer(*[tuple[1] for tuple in sorted_list_of_tuples])
         )
     )
-    cg.add(var.set_intensity(config[CONF_INTENSITY]))
+    cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
     cg.add(var.set_demo_mode(config[CONF_DEMO_MODE]))
 
     if CONF_LAMBDA in config:
@@ -158,3 +161,34 @@ async def to_code(config):
             config[CONF_LAMBDA], [(MAX6921ComponentRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
+
+
+ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(MAX6921Component),
+    }
+)
+
+
+ACTION_SET_BRIGHTNESS_SCHEMA = cv.All(
+    automation.maybe_simple_id(
+        ACTION_SCHEMA.extend(
+            cv.Schema(
+                {
+                    cv.Required(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
+                }
+            )
+        )
+    ),
+)
+
+
+@automation.register_action(
+    "max6921.set_brightness", SetBrightnessAction, ACTION_SET_BRIGHTNESS_SCHEMA
+)
+async def max6921_set_brightness_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, float)
+    cg.add(var.set_brightness(template_))
+    return var
