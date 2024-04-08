@@ -16,105 +16,146 @@ void EbyteLoraComponent::update() {
     switch (this->config.reg_0.air_data_rate) {
       case AIR_2_4kb:
         ESP_LOGD(TAG, "air_data_rate: 2.4kb");
+        break;
       case AIR_4_8kb:
         ESP_LOGD(TAG, "air_data_rate: 4.8kb");
+        break;
       case AIR_9_6kb:
         ESP_LOGD(TAG, "air_data_rate: 9.6kb");
+        break;
       case AIR_19_2kb:
         ESP_LOGD(TAG, "air_data_rate: 19.2kb");
+        break;
       case AIR_38_4kb:
         ESP_LOGD(TAG, "air_data_rate: 38.4kb");
+        break;
       case AIR_62_5kb:
         ESP_LOGD(TAG, "air_data_rate: 62.5kb");
+        break;
     }
     switch (this->config.reg_0.uart_baud) {
       case UART_1200:
         ESP_LOGD(TAG, "uart_baud: 1200");
+        break;
       case UART_2400:
         ESP_LOGD(TAG, "uart_baud: 2400");
+        break;
       case UART_4800:
         ESP_LOGD(TAG, "uart_baud: 4800");
+        break;
       case UART_9600:
         ESP_LOGD(TAG, "uart_baud: 9600");
+        break;
       case UART_19200:
         ESP_LOGD(TAG, "uart_baud: 19200");
+        break;
       case UART_38400:
         ESP_LOGD(TAG, "uart_baud: 38400");
+        break;
       case UART_57600:
         ESP_LOGD(TAG, "uart_baud: 57600");
+        break;
       case UART_115200:
         ESP_LOGD(TAG, "uart_baud: 115200");
+        break;
     }
     switch (this->config.reg_0.parity) {
       case EBYTE_UART_8N1:
         ESP_LOGD(TAG, "uart_parity: 8N1");
+        break;
       case EBYTE_UART_8O1:
         ESP_LOGD(TAG, "uart_parity: 8O1");
+        break;
       case EBYTE_UART_8E1:
         ESP_LOGD(TAG, "uart_parity: 8E1");
+        break;
     }
     switch (this->config.reg_1.rssi_noise) {
       case EBYTE_ENABLED:
         ESP_LOGD(TAG, "rssi_noise: ENABLED");
+        break;
       case EBYTE_DISABLED:
         ESP_LOGD(TAG, "rssi_noise: DISABLED");
+        break;
     }
     switch (this->config.reg_1.sub_packet) {
       case SUB_200b:
         ESP_LOGD(TAG, "sub_packet: 200 bytes");
+        break;
       case SUB_128b:
         ESP_LOGD(TAG, "sub_packet: 128 bytes");
+        break;
       case SUB_64b:
         ESP_LOGD(TAG, "sub_packet: 64 bytes");
+        break;
       case SUB_32b:
         ESP_LOGD(TAG, "sub_packet: 32 bytes");
+        break;
     }
     switch (this->config.reg_1.transmission_power) {
       case TX_DEFAULT_MAX:
         ESP_LOGD(TAG, "transmission_power: default or max");
+        break;
       case TX_LOWER:
         ESP_LOGD(TAG, "transmission_power: lower");
+        break;
       case TX_EVEN_LOWER:
         ESP_LOGD(TAG, "transmission_power: even lower");
+        break;
       case TX_LOWEST:
         ESP_LOGD(TAG, "transmission_power: Lowest");
+        break;
     }
     ESP_LOGD(TAG, "channel: %u", this->config.channel);
     switch (this->config.reg_3.enable_lbt) {
       case EBYTE_ENABLED:
         ESP_LOGD(TAG, "enable_lbt: ENABLED");
+        break;
       case EBYTE_DISABLED:
         ESP_LOGD(TAG, "enable_lbt: DISABLED");
+        break;
     }
     switch (this->config.reg_3.transmission_mode) {
       case TRANSPARENT:
         ESP_LOGD(TAG, "transmission_type: TRANSPARENT");
+        break;
       case FIXED:
         ESP_LOGD(TAG, "transmission_type: FIXED");
+        break;
     }
     switch (this->config.reg_3.enable_rssi) {
       case EBYTE_ENABLED:
         ESP_LOGD(TAG, "enable_rssi: ENABLED");
+        break;
       case EBYTE_DISABLED:
         ESP_LOGD(TAG, "enable_rssi: DISABLED");
+        break;
     }
     switch (this->config.reg_3.wor_period) {
       case WOR_500:
         ESP_LOGD(TAG, "wor_period: 500");
+        break;
       case WOR_1000:
         ESP_LOGD(TAG, "wor_period: 1000");
+        break;
       case WOR_1500:
         ESP_LOGD(TAG, "wor_period: 1500");
+        break;
       case WOR_2000:
         ESP_LOGD(TAG, "wor_period: 2000");
+        break;
       case WOR_2500:
         ESP_LOGD(TAG, "wor_period: 2500");
+        break;
       case WOR_3000:
         ESP_LOGD(TAG, "wor_period: 3000");
+        break;
       case WOR_3500:
         ESP_LOGD(TAG, "wor_period: 3500");
+        break;
       case WOR_4000:
         ESP_LOGD(TAG, "wor_period: 4000");
+        break;
     }
   }
   if (get_mode_() != NORMAL) {
