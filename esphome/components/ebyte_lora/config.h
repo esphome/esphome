@@ -56,8 +56,8 @@ struct RegisterConfig {
   uint8_t command : 8;
   uint8_t starting_address : 8;
   uint8_t length : 8;
-  int addh : 8;
-  int addl : 8;
+  uint8_t addh : 8;
+  uint8_t addl : 8;
   struct {
     uint8_t air_data_rate : 3;
     uint8_t parity : 2;
@@ -71,7 +71,7 @@ struct RegisterConfig {
     uint8_t sub_packet : 2;
   } reg_1;
   // reg2
-  int channel : 8;
+  uint8_t channel : 8;
   struct {
     uint8_t wor_period : 3;
     uint8_t reserve1 : 1;
