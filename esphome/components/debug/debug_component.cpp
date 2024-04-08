@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <climits>
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -49,6 +50,8 @@ static uint32_t get_free_heap() {
   return rp2040.getFreeHeap();
 #elif defined(USE_LIBRETINY)
   return lt_heap_get_free();
+#elif defined(USE_HOST)
+  return INT_MAX;
 #endif
 }
 

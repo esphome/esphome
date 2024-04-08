@@ -168,10 +168,6 @@ bool IRAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
     if (!wire->reset()) {
       return false;
     }
-  }
-
-  {
-    InterruptLock lock;
 
     wire->select(this->address_);
     wire->write8(DALLAS_COMMAND_READ_SCRATCH_PAD);

@@ -1,12 +1,14 @@
 #pragma once
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display_color_utils.h"
 #include "ili9xxx_defines.h"
 #include "ili9xxx_init.h"
 
 namespace esphome {
 namespace ili9xxx {
 
+static const char *const TAG = "ili9xxx";
 const size_t ILI9XXX_TRANSFER_BUFFER_SIZE = 126;  // ensure this is divisible by 6
 
 enum ILI9XXXColorMode {
@@ -15,13 +17,9 @@ enum ILI9XXXColorMode {
   BITS_16 = 0x10,
 };
 
-#ifndef ILI9XXXDisplay_DATA_RATE
-#define ILI9XXXDisplay_DATA_RATE spi::DATA_RATE_40MHZ
-#endif  // ILI9XXXDisplay_DATA_RATE
-
 class ILI9XXXDisplay : public display::DisplayBuffer,
                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                             spi::CLOCK_PHASE_LEADING, ILI9XXXDisplay_DATA_RATE> {
+                                             spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_40MHZ> {
  public:
   ILI9XXXDisplay() = default;
   ILI9XXXDisplay(uint8_t const *init_sequence, int16_t width, int16_t height, bool invert_colors)
@@ -31,6 +29,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
     while ((cmd = *addr++) != 0) {
       num_args = *addr++ & 0x7F;
       bits = *addr;
+      esph_log_d(TAG, "Command %02X, length %d, bits %02X", cmd, num_args, bits);
       switch (cmd) {
         case ILI9XXX_MADCTL: {
           this->swap_xy_ = (bits & MADCTL_MV) != 0;
@@ -67,10 +66,9 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
     this->offset_y_ = offset_y;
   }
   void invert_colors(bool invert);
-  void command(uint8_t value);
-  void data(uint8_t value);
+  virtual void command(uint8_t value);
+  virtual void data(uint8_t value);
   void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes);
-  uint8_t read_command(uint8_t command_byte, uint8_t index);
   void set_color_order(display::ColorOrder color_order) { this->color_order_ = color_order; }
   void set_swap_xy(bool swap_xy) { this->swap_xy_ = swap_xy; }
   void set_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
@@ -84,11 +82,22 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void setup() override;
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
  protected:
+  inline bool check_buffer_() {
+    if (this->buffer_ == nullptr) {
+      this->alloc_buffer_();
+      return !this->is_failed();
+    }
+    return true;
+  }
+
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void setup_pins_();
 
+  virtual void set_madctl();
   void display_();
   void init_lcd_();
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t x2, uint16_t y2);
@@ -115,6 +124,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void end_command_();
   void start_data_();
   void end_data_();
+  void alloc_buffer_();
 
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *dc_pin_{nullptr};
@@ -124,7 +134,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   bool need_update_ = false;
   bool is_18bitdisplay_ = false;
   bool pre_invertcolors_ = false;
-  display::ColorOrder color_order_{};
+  display::ColorOrder color_order_{display::COLOR_ORDER_BGR};
   bool swap_xy_{};
   bool mirror_x_{};
   bool mirror_y_{};
@@ -178,10 +188,48 @@ class ILI9XXXILI9486 : public ILI9XXXDisplay {
   ILI9XXXILI9486() : ILI9XXXDisplay(INITCMD_ILI9486, 480, 320, false) {}
 };
 
-//-----------   ILI9XXX_35_TFT rotated display --------------
 class ILI9XXXILI9488 : public ILI9XXXDisplay {
  public:
-  ILI9XXXILI9488() : ILI9XXXDisplay(INITCMD_ILI9488, 480, 320, true) {}
+  ILI9XXXILI9488(const uint8_t *seq = INITCMD_ILI9488) : ILI9XXXDisplay(seq, 480, 320, true) {}
+
+ protected:
+  void set_madctl() override {
+    uint8_t mad = this->color_order_ == display::COLOR_ORDER_BGR ? MADCTL_BGR : MADCTL_RGB;
+    uint8_t dfun = 0x22;
+    this->width_ = 320;
+    this->height_ = 480;
+    if (!(this->swap_xy_ || this->mirror_x_ || this->mirror_y_)) {
+      // no transforms
+    } else if (this->mirror_y_ && this->mirror_x_) {
+      // rotate 180
+      dfun = 0x42;
+    } else if (this->swap_xy_) {
+      this->width_ = 480;
+      this->height_ = 320;
+      mad |= 0x20;
+      if (this->mirror_x_) {
+        dfun = 0x02;
+      } else {
+        dfun = 0x62;
+      }
+    }
+    this->command(ILI9XXX_DFUNCTR);
+    this->data(0);
+    this->data(dfun);
+    this->command(ILI9XXX_MADCTL);
+    this->data(mad);
+  }
+};
+//-----------   Waveshare 3.5 Res Touch - ILI9488 interfaced via 16 bit shift register to parallel */
+class WAVESHARERES35 : public ILI9XXXILI9488 {
+ public:
+  WAVESHARERES35() : ILI9XXXILI9488(INITCMD_WAVESHARE_RES_3_5) {}
+  void data(uint8_t value) override {
+    this->start_data_();
+    this->write_byte(0);
+    this->write_byte(value);
+    this->end_data_();
+  }
 };
 
 //-----------   ILI9XXX_35_TFT origin colors rotated display --------------
@@ -204,6 +252,11 @@ class ILI9XXXS3Box : public ILI9XXXDisplay {
 class ILI9XXXS3BoxLite : public ILI9XXXDisplay {
  public:
   ILI9XXXS3BoxLite() : ILI9XXXDisplay(INITCMD_S3BOXLITE, 320, 240, true) {}
+};
+
+class ILI9XXXGC9A01A : public ILI9XXXDisplay {
+ public:
+  ILI9XXXGC9A01A() : ILI9XXXDisplay(INITCMD_GC9A01A, 240, 240, true) {}
 };
 
 }  // namespace ili9xxx

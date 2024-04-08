@@ -1,0 +1,11 @@
+spi:
+  mosi_pin: GPIO23
+  clk_pin: GPIO18
+
+display:
+  - platform: ili9xxx
+    model: gc9a01a
+    id: gca901_display
+    cs_pin: GPIO5
+    dc_pin: GPIO22
+    reset_pin: GPIO21

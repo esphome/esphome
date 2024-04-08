@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_MAGNITUDE,
     CONF_WAND_ID,
     CONF_LEVEL,
+    CONF_DELTA,
 )
 from esphome.core import coroutine
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -633,6 +634,62 @@ async def magiquest_action(var, config, args):
     cg.add(var.set_magnitude(template_))
 
 
+# Microchip HCS301 KeeLoq OOK
+(
+    KeeloqData,
+    KeeloqBinarySensor,
+    KeeloqTrigger,
+    KeeloqAction,
+    KeeloqDumper,
+) = declare_protocol("Keeloq")
+KEELOQ_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFFFFF)),
+        cv.Required(CONF_CODE): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFFFFFF)),
+        cv.Optional(CONF_COMMAND, default=0x10): cv.All(
+            cv.hex_int,
+            cv.Range(min=0, max=0x10),
+        ),
+        cv.Optional(CONF_LEVEL, default=False): cv.boolean,
+    }
+)
+
+
+@register_binary_sensor("keeloq", KeeloqBinarySensor, KEELOQ_SCHEMA)
+def Keeloq_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                KeeloqData,
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("keeloq", KeeloqTrigger, KeeloqData)
+def keeloq_trigger(var, config):
+    pass
+
+
+@register_dumper("keeloq", KeeloqDumper)
+def keeloq_dumper(var, config):
+    pass
+
+
+@register_action("keeloq", KeeloqAction, KEELOQ_SCHEMA)
+async def keeloq_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint32)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint32)
+    cg.add(var.set_encrypted(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
+    template_ = await cg.templatable(config[CONF_LEVEL], args, bool)
+    cg.add(var.set_vlow(template_))
+
+
 # NEC
 NECData, NECBinarySensor, NECTrigger, NECAction, NECDumper = declare_protocol("NEC")
 NEC_SCHEMA = cv.Schema(
@@ -736,6 +793,7 @@ async def pioneer_action(var, config, args):
 PRONTO_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA): cv.string,
+        cv.Optional(CONF_DELTA, default=-1): cv.int_,
     }
 )
 
@@ -747,6 +805,7 @@ def pronto_binary_sensor(var, config):
             cg.StructInitializer(
                 ProntoData,
                 ("data", config[CONF_DATA]),
+                ("delta", config[CONF_DELTA]),
             )
         )
     )

@@ -202,6 +202,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_DATETIME_DATE
+    case IteratorState::DATETIME_DATE:
+      if (this->at_ >= App.get_dates().size()) {
+        advance_platform = true;
+      } else {
+        auto *date = App.get_dates()[this->at_];
+        if (date->is_internal() && !this->include_internal_) {
+          success = true;
+          break;
+        } else {
+          success = this->on_date(date);
+        }
+      }
+      break;
+#endif
 #ifdef USE_TEXT
     case IteratorState::TEXT:
       if (this->at_ >= App.get_texts().size()) {
