@@ -10,20 +10,112 @@ void EbyteLoraComponent::update() {
     get_current_config_();
     return;
   } else {
-    ESP_LOGD(TAG, "Current config");
-    ESP_LOGD(TAG, this->config.addh_description_().c_str());
-    ESP_LOGD(TAG, this->config.addl_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_0.air_data_rate_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_0.uart_baud_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_0.parity_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_1.rssi_noise_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_1.sub_packet_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_1.transmission_power_description_().c_str());
-    ESP_LOGD(TAG, this->config.channel_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_3.enable_lbt_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_3.wor_period_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_3.enable_rssi_description_().c_str());
-    ESP_LOGD(TAG, this->config.reg_3.transmission_type_description_().c_str());
+    ESP_LOGD(TAG, "Current config:");
+    ESP_LOGD(TAG, "addh: %u", this->config.addh);
+    ESP_LOGD(TAG, "addl: %u", this->config.addl);
+    switch (this->config.reg_0.air_data_rate) {
+      case AIR_2_4kb:
+        ESP_LOGD(TAG, "air_data_rate: 2.4kb");
+      case AIR_4_8kb:
+        ESP_LOGD(TAG, "air_data_rate: 4.8kb");
+      case AIR_9_6kb:
+        ESP_LOGD(TAG, "air_data_rate: 9.6kb");
+      case AIR_19_2kb:
+        ESP_LOGD(TAG, "air_data_rate: 19.2kb");
+      case AIR_38_4kb:
+        ESP_LOGD(TAG, "air_data_rate: 38.4kb");
+      case AIR_62_5kb:
+        ESP_LOGD(TAG, "air_data_rate: 62.5kb");
+    }
+    switch (this->config.reg_0.uart_baud) {
+      case UART_1200:
+        ESP_LOGD(TAG, "uart_baud: 1200");
+      case UART_2400:
+        ESP_LOGD(TAG, "uart_baud: 2400");
+      case UART_4800:
+        ESP_LOGD(TAG, "uart_baud: 4800");
+      case UART_9600:
+        ESP_LOGD(TAG, "uart_baud: 9600");
+      case UART_19200:
+        ESP_LOGD(TAG, "uart_baud: 19200");
+      case UART_38400:
+        ESP_LOGD(TAG, "uart_baud: 38400");
+      case UART_57600:
+        ESP_LOGD(TAG, "uart_baud: 57600");
+      case UART_115200:
+        ESP_LOGD(TAG, "uart_baud: 115200");
+    }
+    switch (this->config.reg_0.parity) {
+      case EBYTE_UART_8N1:
+        ESP_LOGD(TAG, "uart_parity: 8N1");
+      case EBYTE_UART_8O1:
+        ESP_LOGD(TAG, "uart_parity: 8O1");
+      case EBYTE_UART_8E1:
+        ESP_LOGD(TAG, "uart_parity: 8E1");
+    }
+    switch (this->config.reg_1.rssi_noise) {
+      case EBYTE_ENABLED:
+        ESP_LOGD(TAG, "rssi_noise: ENABLED");
+      case EBYTE_DISABLED:
+        ESP_LOGD(TAG, "rssi_noise: DISABLED");
+    }
+    switch (this->config.reg_1.sub_packet) {
+      case SUB_200b:
+        ESP_LOGD(TAG, "sub_packet: 200 bytes");
+      case SUB_128b:
+        ESP_LOGD(TAG, "sub_packet: 128 bytes");
+      case SUB_64b:
+        ESP_LOGD(TAG, "sub_packet: 64 bytes");
+      case SUB_32b:
+        ESP_LOGD(TAG, "sub_packet: 32 bytes");
+    }
+    switch (this->config.reg_1.transmission_power) {
+      case TX_DEFAULT_MAX:
+        ESP_LOGD(TAG, "transmission_power: default or max");
+      case TX_LOWER:
+        ESP_LOGD(TAG, "transmission_power: lower");
+      case TX_EVEN_LOWER:
+        ESP_LOGD(TAG, "transmission_power: even lower");
+      case TX_LOWEST:
+        ESP_LOGD(TAG, "transmission_power: Lowest");
+    }
+    ESP_LOGD(TAG, "channel: %u", this->config.channel);
+    switch (this->config.reg_3.enable_lbt) {
+      case EBYTE_ENABLED:
+        ESP_LOGD(TAG, "enable_lbt: ENABLED");
+      case EBYTE_DISABLED:
+        ESP_LOGD(TAG, "enable_lbt: DISABLED");
+    }
+    switch (this->config.reg_3.transmission_mode) {
+      case TRANSPARENT:
+        ESP_LOGD(TAG, "transmission_type: TRANSPARENT");
+      case FIXED:
+        ESP_LOGD(TAG, "transmission_type: FIXED");
+    }
+    switch (this->config.reg_3.enable_rssi) {
+      case EBYTE_ENABLED:
+        ESP_LOGD(TAG, "enable_rssi: ENABLED");
+      case EBYTE_DISABLED:
+        ESP_LOGD(TAG, "enable_rssi: DISABLED");
+    }
+    switch (this->config.reg_3.wor_period) {
+      case WOR_500:
+        ESP_LOGD(TAG, "wor_period: 500");
+      case WOR_1000:
+        ESP_LOGD(TAG, "wor_period: 1000");
+      case WOR_1500:
+        ESP_LOGD(TAG, "wor_period: 1500");
+      case WOR_2000:
+        ESP_LOGD(TAG, "wor_period: 2000");
+      case WOR_2500:
+        ESP_LOGD(TAG, "wor_period: 2500");
+      case WOR_3000:
+        ESP_LOGD(TAG, "wor_period: 3000");
+      case WOR_3500:
+        ESP_LOGD(TAG, "wor_period: 3500");
+      case WOR_4000:
+        ESP_LOGD(TAG, "wor_period: 4000");
+    }
   }
   if (get_mode_() != NORMAL) {
     ESP_LOGD(TAG, "Mode was not set right");
