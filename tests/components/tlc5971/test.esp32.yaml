@@ -1,0 +1,22 @@
+tlc5971:
+  data_pin: 35
+  clock_pin: 36
+
+# Individual outputs
+output:
+  - platform: tlc5971
+    id: output_red
+    channel: 0
+  - platform: tlc5971
+    id: output_blue
+    channel: 1
+  - platform: tlc5971
+    id: output_green
+    channel: 2
+
+light:
+  - platform: rgb
+    name: "TLC 5971 Led"
+    red: output_red
+    green: output_green
+    blue: output_blue
