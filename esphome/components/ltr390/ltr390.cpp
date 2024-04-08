@@ -13,33 +13,24 @@ static const uint8_t LTR390_MEAS_RATE = 0x04;
 static const uint8_t LTR390_GAIN = 0x05;
 static const uint8_t LTR390_PART_ID = 0x06;
 static const uint8_t LTR390_MAIN_STATUS = 0x07;
-
 static const float GAINVALUES[5] = {1.0, 3.0, 6.0, 9.0, 18.0};
 static const float RESOLUTIONVALUE[6] = {4.0, 2.0, 1.0, 0.5, 0.25, 0.125};
 
 // Request fastest measurement rate - will be slowed by device if conversion rate is slower.
 static const float RESOLUTION_SETTING[6] = {0x00, 0x10, 0x20, 0x30, 0x40, 0x50};
-static const uint32_t MODEADDRESSES[2] = {0x0D, 0x10};
 
 static const float SENSITIVITY_MAX = 2300;
 static const float INTG_MAX = RESOLUTIONVALUE[0] * 100;
 static const int GAIN_MAX = GAINVALUES[4];
 
-uint32_t little_endian_bytes_to_int(const uint8_t *buffer, uint8_t num_bytes) {
-  uint32_t value = 0;
-
-  for (int i = 0; i < num_bytes; i++) {
-    value <<= 8;
-    value |= buffer[num_bytes - i - 1];
-  }
-
-  return value;
-}
+static const uint8_t LTR390_ALSDATA_LSB = 0x0D;  // ALS data lowest byte
+static const uint8_t LTR390_ALSDATA_MSB = 0x0E;  // ALS data middle byte
+static const uint8_t LTR390_ALSDATA_HSB = 0x0F;  // ALS data highest byte
+static const uint8_t LTR390_UVSDATA_LSB = 0x10;  // UVS data lowest byte
+static const uint8_t LTR390_UVSDATA_MSB = 0x11;  // UVS data middle byte
+static const uint8_t LTR390_UVSDATA_HSB = 0x12;  // UVS data highest byte
 
 optional<uint32_t> LTR390Component::read_sensor_data_(LTR390MODE mode) {
-  const uint8_t num_bytes = 3;
-  uint8_t buffer[num_bytes];
-
   // Wait until data available
   const uint32_t now = millis();
   while (true) {
@@ -56,12 +47,20 @@ optional<uint32_t> LTR390Component::read_sensor_data_(LTR390MODE mode) {
     delay(2);
   }
 
-  if (!this->read_bytes(MODEADDRESSES[mode], buffer, num_bytes)) {
-    ESP_LOGW(TAG, "Reading data from sensor failed!");
-    return {};
+  uint8_t lsb_reg = LTR390_UVSDATA_LSB;
+  uint8_t msb_reg = LTR390_UVSDATA_MSB;
+  uint8_t hsb_reg = LTR390_UVSDATA_HSB;
+  if (mode == LTR390_MODE_ALS) {
+    lsb_reg = LTR390_ALSDATA_LSB;
+    msb_reg = LTR390_ALSDATA_MSB;
+    hsb_reg = LTR390_ALSDATA_HSB;
   }
-
-  return little_endian_bytes_to_int(buffer, num_bytes);
+  uint8_t lsb = this->reg(lsb_reg).get();
+  uint8_t msb = this->reg(msb_reg).get();
+  uint8_t hsb = this->reg(hsb_reg).get();
+  hsb &= 0x0F;
+  uint32_t out = ((uint32_t) hsb << 16) | ((uint16_t) msb << 8) | lsb;
+  return out;
 }
 
 void LTR390Component::read_als_() {
