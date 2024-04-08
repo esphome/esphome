@@ -29,9 +29,14 @@ namespace voice_assistant {
 
 // Version 1: Initial version
 // Version 2: Adds raw speaker support
-// Version 3: Unused/skip
-static const uint32_t INITIAL_VERSION = 1;
-static const uint32_t SPEAKER_SUPPORT = 2;
+static const uint32_t LEGACY_INITIAL_VERSION = 1;
+static const uint32_t LEGACY_SPEAKER_SUPPORT = 2;
+
+enum VoiceAssistantFeature : uint32_t {
+  FEATURE_VOICE_ASSISTANT = 1 << 0,
+  FEATURE_SPEAKER = 1 << 1,
+  FEATURE_API_AUDIO = 1 << 2,
+};
 
 enum class State {
   IDLE,
@@ -49,11 +54,17 @@ enum class State {
   RESPONSE_FINISHED,
 };
 
+enum AudioMode : uint8_t {
+  AUDIO_MODE_UDP,
+  AUDIO_MODE_API,
+};
+
 class VoiceAssistant : public Component {
  public:
   void setup() override;
   void loop() override;
   float get_setup_priority() const override;
+  void start_streaming();
   void start_streaming(struct sockaddr_storage *addr, uint16_t port);
   void failed_to_start();
 
@@ -71,19 +82,32 @@ class VoiceAssistant : public Component {
   }
 #endif
 
-  uint32_t get_version() const {
+  uint32_t get_legacy_version() const {
 #ifdef USE_SPEAKER
     if (this->speaker_ != nullptr) {
-      return SPEAKER_SUPPORT;
+      return LEGACY_SPEAKER_SUPPORT;
     }
 #endif
-    return INITIAL_VERSION;
+    return LEGACY_INITIAL_VERSION;
+  }
+
+  uint32_t get_feature_flags() const {
+    uint32_t flags = 0;
+    flags |= VoiceAssistantFeature::FEATURE_VOICE_ASSISTANT;
+#ifdef USE_SPEAKER
+    if (this->speaker_ != nullptr) {
+      flags |= VoiceAssistantFeature::FEATURE_SPEAKER;
+      flags |= VoiceAssistantFeature::FEATURE_API_AUDIO;
+    }
+#endif
+    return flags;
   }
 
   void request_start(bool continuous, bool silence_detection);
   void request_stop();
 
   void on_event(const api::VoiceAssistantEventResponse &msg);
+  void on_audio(const api::VoiceAssistantAudio &msg);
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
@@ -201,6 +225,10 @@ class VoiceAssistant : public Component {
 
   State state_{State::IDLE};
   State desired_state_{State::IDLE};
+
+  AudioMode audio_mode_{AUDIO_MODE_UDP};
+  bool udp_socket_running_{false};
+  bool start_udp_socket_();
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {

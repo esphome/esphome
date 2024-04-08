@@ -170,7 +170,7 @@ def _notify_old_style(config):
 ARDUINO_VERSIONS = {
     "dev": (cv.Version(0, 0, 0), "https://github.com/libretiny-eu/libretiny.git"),
     "latest": (cv.Version(0, 0, 0), None),
-    "recommended": (cv.Version(1, 4, 1), None),
+    "recommended": (cv.Version(1, 5, 1), None),
 }
 
 
