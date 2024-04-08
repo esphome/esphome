@@ -54,8 +54,7 @@ class TLC5971 : public Component {
     this->pwm_amounts_[channel] = value;
   }
 
-  void transfer(uint8_t send);
-  void transfer(uint8_t *buffer, size_t len);
+  void transfer_(uint8_t send);
 
   GPIOPin *data_pin_;
   GPIOPin *clock_pin_;

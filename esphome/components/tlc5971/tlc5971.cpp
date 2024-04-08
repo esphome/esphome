@@ -46,57 +46,49 @@ void TLC5971::loop() {
   command |= 0x7F;  // default 100% brigthness
 
   for (uint8_t n = 0; n < num_chips_; n++) {
-    this->transfer(command >> 24);
-    this->transfer(command >> 16);
-    this->transfer(command >> 8);
-    this->transfer(command);
+    this->transfer_(command >> 24);
+    this->transfer_(command >> 16);
+    this->transfer_(command >> 8);
+    this->transfer_(command);
 
     // 12 channels per TLC59711
     for (int8_t c = 11; c >= 0; c--) {
       // 16 bits per channel, send MSB first
-      this->transfer(pwm_amounts_.at(n * 12 + c) >> 8);
-      this->transfer(pwm_amounts_.at(n * 12 + c));
+      this->transfer_(pwm_amounts_.at(n * 12 + c) >> 8);
+      this->transfer_(pwm_amounts_.at(n * 12 + c));
     }
   }
 
   this->update_ = false;
 }
 
-void TLC5971::transfer(uint8_t send) {
-  uint8_t data = send;
-  transfer(&data, 1);
-}
+void TLC5971::transfer_(uint8_t send) {
 
-void TLC5971::transfer(uint8_t *buffer, size_t len) {
   uint8_t startbit = 0x80;
 
-  bool towrite, lastmosi = !(buffer[0] & startbit);
+  bool towrite, lastmosi = !(send & startbit);
   uint8_t bitdelay_us = (1000000 / 1000000) / 2;
 
-  for (size_t i = 0; i < len; i++) {
-    uint8_t reply = 0;
-    uint8_t send = buffer[i];
-
-    for (uint8_t b = startbit; b != 0; b = b >> 1) {
-      if (bitdelay_us) {
-        delayMicroseconds(bitdelay_us);
-      }
-
-      towrite = send & b;
-      if ((lastmosi != towrite)) {
-        this->data_pin_->digital_write(towrite);
-        lastmosi = towrite;
-      }
-
-      this->clock_pin_->digital_write(true);
-
-      if (bitdelay_us) {
-        delayMicroseconds(bitdelay_us);
-      }
-
-      this->clock_pin_->digital_write(false);
+  for (uint8_t b = startbit; b != 0; b = b >> 1) {
+    if (bitdelay_us) {
+      delayMicroseconds(bitdelay_us);
     }
+
+    towrite = send & b;
+    if ((lastmosi != towrite)) {
+      this->data_pin_->digital_write(towrite);
+      lastmosi = towrite;
+    }
+
+    this->clock_pin_->digital_write(true);
+
+    if (bitdelay_us) {
+      delayMicroseconds(bitdelay_us);
+    }
+
+    this->clock_pin_->digital_write(false);
   }
+  
 }
 }  // namespace tlc5971
 }  // namespace esphome
