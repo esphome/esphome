@@ -63,7 +63,6 @@ void TLC5971::loop() {
 }
 
 void TLC5971::transfer_(uint8_t send) {
-
   uint8_t startbit = 0x80;
 
   bool towrite, lastmosi = !(send & startbit);
@@ -88,7 +87,6 @@ void TLC5971::transfer_(uint8_t send) {
 
     this->clock_pin_->digital_write(false);
   }
-  
 }
 }  // namespace tlc5971
 }  // namespace esphome
