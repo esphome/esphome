@@ -1,6 +1,6 @@
 tlc5971:
-  data_pin: GPIO13
-  clock_pin: GPIO14
+  data_pin: 35
+  clock_pin: 36
 
 # Individual outputs
 output:
