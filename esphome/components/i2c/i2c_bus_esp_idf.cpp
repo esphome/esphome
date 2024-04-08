@@ -1,12 +1,12 @@
 #ifdef USE_ESP_IDF
 
 #include "i2c_bus_esp_idf.h"
-#include "esphome/core/hal.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/application.h"
-#include <cstring>
 #include <cinttypes>
+#include <cstring>
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace i2c {
@@ -47,7 +47,7 @@ void IDFI2CBus::setup() {
   }
   if (timeout_ > 0) {  // if timeout specified in yaml:
     if (timeout_ > 13000) {
-      ESP_LOGW(TAG, "i2c timeout of %dus greater than max of 13ms on esp-idf, setting to max", timeout_);
+      ESP_LOGW(TAG, "i2c timeout of %" PRIu32 "us greater than max of 13ms on esp-idf, setting to max", timeout_);
       timeout_ = 13000;
     }
     err = i2c_set_timeout(port_, timeout_ * 80);  // unit: APB 80MHz clock cycle
@@ -77,7 +77,7 @@ void IDFI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
   ESP_LOGCONFIG(TAG, "  Frequency: %" PRIu32 " Hz", this->frequency_);
   if (timeout_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Timeout: %u us", this->timeout_);
+    ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "us", this->timeout_);
   }
   switch (this->recovery_result_) {
     case RECOVERY_COMPLETED:
