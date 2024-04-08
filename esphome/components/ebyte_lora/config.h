@@ -7,9 +7,9 @@ namespace ebyte_lora {
 
 // check your data sheet to see what the values are, since each module does it diffrent
 
-enum ENABLE_BYTE : uint8_t { EBYTE_ENABLED = 0b1, EBYTE_DISABLED = 0b0 };
+enum EnableByte : uint8_t { EBYTE_ENABLED = 0b1, EBYTE_DISABLED = 0b0 };
 
-enum AIR_DATA_RATE : uint8_t {
+enum AirDataRate : uint8_t {
   AIR_2_4kb = 0b000,
   AIR_4_8kb = 0b011,
   AIR_9_6kb = 0b100,
@@ -17,7 +17,7 @@ enum AIR_DATA_RATE : uint8_t {
   AIR_38_4kb = 0b110,
   AIR_62_5kb = 0b111
 };
-enum UART_BPS_SPEED : uint8_t {
+enum UartBpsSpeed : uint8_t {
   UART_1200 = 0b000,
   UART_2400 = 0b001,
   UART_4800 = 0b010,
@@ -27,19 +27,19 @@ enum UART_BPS_SPEED : uint8_t {
   UART_57600 = 0b110,
   UART_115200 = 0b111
 };
-enum UART_PARITY_SETTING : uint8_t { EBYTE_UART_8N1 = 0b00, EBYTE_UART_8O1 = 0b01, EBYTE_UART_8E1 = 0b10 };
-enum TRANSMISSION_POWER : uint8_t {
+enum UartParitySetting : uint8_t { EBYTE_UART_8N1 = 0b00, EBYTE_UART_8O1 = 0b01, EBYTE_UART_8E1 = 0b10 };
+enum TransmissionPower : uint8_t {
   TX_DEFAULT_MAX = 0b00,
   TX_LOWER = 0b01,
   TX_EVEN_LOWER = 0b10,
   TX_LOWEST = 0b11
 
 };
-enum SUB_PACKET_SETTING : uint8_t { SUB_200b = 0b00, SUB_128b = 0b01, SUB_64b = 0b10, SUB_32b = 0b11 };
+enum SubPacketSetting : uint8_t { SUB_200b = 0b00, SUB_128b = 0b01, SUB_64b = 0b10, SUB_32b = 0b11 };
 // again in reverse order on the data sheet
 
-enum TRANSMISSION_MODE { TRANSPARENT = 0b0, FIXED = 0b1 };
-enum WOR_PERIOD : uint8_t {
+enum TransmissionMode { TRANSPARENT = 0b0, FIXED = 0b1 };
+enum WorPeriod : uint8_t {
   WOR_500 = 0b000,
   WOR_1000 = 0b001,
   WOR_1500 = 0b010,
