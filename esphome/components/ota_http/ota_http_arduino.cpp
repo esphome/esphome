@@ -64,14 +64,14 @@ void OtaHttpArduino::http_init() {
 
 int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
 #ifdef USE_ESP8266
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0) // && USE_ARDUINO_VERSION_CODE < VERSION_CODE(?, ?, ?)
-  if( ! this->secure_()) {
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)  // && USE_ARDUINO_VERSION_CODE < VERSION_CODE(?, ?, ?)
+  if (!this->secure_()) {
     // needed for http and arduino > 3.1 until https://github.com/esp8266/Arduino/issues/9035 is closed
     ESP_LOGVV(TAG, "Resetting WiFiClient stream for arduino > 3.1");
     this->stream_ptr_.reset(this->client_.getStreamPtr());
   }
-#endif // USE_ARDUINO_VERSION_CODE
-#endif // USE_ESP8266
+#endif  // USE_ARDUINO_VERSION_CODE
+#endif  // USE_ESP8266
 
   // wait for the stream to be populated
   while (this->stream_ptr_->available() == 0) {
