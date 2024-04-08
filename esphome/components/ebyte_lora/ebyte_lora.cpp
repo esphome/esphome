@@ -350,9 +350,8 @@ void EbyteLoraComponent::loop() {
   }
   if (data[0] == PROGRAM_CONF) {
     ESP_LOGD(TAG, "GOT PROGRAM_CONF");
-    auto *sbuff = reinterpret_cast<const RegisterConfig *>(&data);
     memset(&this->config, 0, sizeof(RegisterConfig));
-    memcpy(&this->config, sbuff, sbuff->length);
+    memcpy(&this->config, &data[0], sizeof(RegisterConfig));
     set_mode_(NORMAL);
   }
 }
