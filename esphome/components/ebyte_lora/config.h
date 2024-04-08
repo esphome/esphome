@@ -28,8 +28,7 @@ enum UART_BPS_SPEED {
   UART_115200 = 0b111
 };
 enum UART_PARITY_SETTING { EBYTE_UART_8N1 = 0b00, EBYTE_UART_8O1 = 0b01, EBYTE_UART_8E1 = 0b10 };
-#pragma pack(push, 1)
-struct REG0 {
+typedef struct {
   uint8_t air_data_rate : 3;
   std::string air_data_rate_description_() {
     switch (this->air_data_rate) {
@@ -85,7 +84,7 @@ struct REG0 {
         return "";
     }
   }
-};
+} __attribute__((packed)) reg_0;
 enum TRANSMISSION_POWER {
   TX_DEFAULT_MAX = 0b00,
   TX_LOWER = 0b01,
@@ -95,7 +94,7 @@ enum TRANSMISSION_POWER {
 };
 enum SUB_PACKET_SETTING { SUB_200b = 0b00, SUB_128b = 0b01, SUB_64b = 0b10, SUB_32b = 0b11 };
 // again in reverse order on the data sheet
-struct REG1 {
+typedef struct {
   uint8_t transmission_power : 2;
   std::string transmission_power_description_() {
     switch (this->transmission_power) {
@@ -141,7 +140,7 @@ struct REG1 {
         return "";
     }
   }
-};
+} __attribute__((packed)) reg_1;
 enum TRANSMISSION_MODE { TRANSPARENT = 0b0, FIXED = 0b1 };
 enum WOR_PERIOD {
   WOR_500 = 0b000,
@@ -155,7 +154,7 @@ enum WOR_PERIOD {
 
 };
 // reverse order on the data sheet
-struct REG3 {
+typedef struct {
   uint8_t wor_period : 3;
   std::string wor_period_description_() {
     switch (this->wor_period) {
@@ -214,8 +213,8 @@ struct REG3 {
         return "";
     }
   }
-};
-struct RegisterConfig {
+} __attribute__((packed)) reg_3;
+typedef struct {
   uint8_t command = 0;
   uint8_t starting_address = 0;
   uint8_t length = 0;
@@ -223,15 +222,14 @@ struct RegisterConfig {
   std::string addh_description_() { return "addh:" + to_string(this->addh); }
   uint8_t addl = 0;
   std::string addl_description_() { return "addl:" + to_string(this->addh); }
-  struct REG0 reg_0;
-  struct REG1 reg_1;
+  reg_0 reg_0;
+  reg_1 reg_1;
   // reg2
   uint8_t channel;
   std::string channel_description_() { return "channel: " + to_string(this->channel); }
-  struct REG3 reg_3;
+  reg_3 reg_3;
   uint8_t crypt_h;
   uint8_t crypt_l;
-};
-#pragma pack(pop)
+} __attribute__((packed)) reg_config;
 }  // namespace ebyte_lora
 }  // namespace esphome
