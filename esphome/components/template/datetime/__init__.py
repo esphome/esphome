@@ -8,6 +8,9 @@ from esphome.const import (
     CONF_OPTIMISTIC,
     CONF_RESTORE_VALUE,
     CONF_SET_ACTION,
+    CONF_DAY,
+    CONF_MONTH,
+    CONF_YEAR,
 )
 
 from esphome.core import coroutine_with_priority
@@ -82,7 +85,13 @@ async def to_code(config):
         cg.add(var.set_restore_value(config[CONF_RESTORE_VALUE]))
 
         if initial_value := config.get(CONF_INITIAL_VALUE):
-            cg.add(var.set_initial_value(initial_value))
+            date_struct = cg.StructInitializer(
+                cg.ESPTime,
+                ("day_of_month", initial_value[CONF_DAY]),
+                ("month", initial_value[CONF_MONTH]),
+                ("year", initial_value[CONF_YEAR]),
+            )
+            cg.add(var.set_initial_value(date_struct))
 
     if CONF_SET_ACTION in config:
         await automation.build_automation(

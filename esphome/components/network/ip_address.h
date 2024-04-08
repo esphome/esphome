@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <array>
 #include "esphome/core/macros.h"
+#include "esphome/core/helpers.h"
 
 #if defined(USE_ESP_IDF) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
 #include <lwip/ip_addr.h>
@@ -116,7 +117,7 @@ struct IPAddress {
   bool is_set() { return !ip_addr_isany(&ip_addr_); }
   bool is_ip4() { return IP_IS_V4(&ip_addr_); }
   bool is_ip6() { return IP_IS_V6(&ip_addr_); }
-  std::string str() const { return ipaddr_ntoa(&ip_addr_); }
+  std::string str() const { return str_lower_case(ipaddr_ntoa(&ip_addr_)); }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   IPAddress &operator+=(uint8_t increase) {
