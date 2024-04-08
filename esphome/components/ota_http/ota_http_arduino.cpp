@@ -66,21 +66,22 @@ int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
 #ifdef USE_ESP8266
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)  // && USE_ARDUINO_VERSION_CODE < VERSION_CODE(?, ?, ?)
   if (!this->secure_()) {
-    // needed for http and arduino > 3.1 until https://github.com/esp8266/Arduino/issues/9035 is closed
-    ESP_LOGVV(TAG, "Resetting WiFiClient stream for arduino > 3.1");
-    this->stream_ptr_.reset(this->client_.getStreamPtr());
+    ESP_LOGW(TAG, "Using arduino version >= 3.1 is **very** slow. Consider setting framework version to 3.0.2 in your yaml");
   }
 #endif  // USE_ARDUINO_VERSION_CODE
 #endif  // USE_ESP8266
 
+  // Since arduino8266 >= 3.1 using this->stream_ptr_ is broken (https://github.com/esp8266/Arduino/issues/9035)
+  WiFiClient *stream_ptr = this->client_.getStreamPtr();
+
   // wait for the stream to be populated
-  while (this->stream_ptr_->available() == 0) {
+  while (stream_ptr->available() == 0) {
     // give other tasks a chance to run while waiting for some data:
     App.feed_wdt();
     yield();
     delay(1);
   }
-  int available_data = this->stream_ptr_->available();
+  int available_data = stream_ptr->available();
   int bufsize = std::min((int) max_len, available_data);
   if (bufsize > 0) {
     this->stream_ptr_->readBytes(buf, bufsize);
