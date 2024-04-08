@@ -336,6 +336,26 @@ Nextion::TFTUploadResult Nextion::upload_end_(Nextion::TFTUploadResult upload_re
   return upload_results;
 }
 
+#ifdef USE_ESP8266
+WiFiClient *Nextion::get_wifi_client_() {
+  if (this->tft_url_.compare(0, 6, "https:") == 0) {
+    if (this->wifi_client_secure_ == nullptr) {
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();
+      this->wifi_client_secure_->setInsecure();
+      this->wifi_client_secure_->setBufferSizes(512, 512);
+    }
+    return this->wifi_client_secure_;
+  }
+
+  if (this->wifi_client_ == nullptr) {
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    this->wifi_client_ = new WiFiClient();
+  }
+  return this->wifi_client_;
+}
+#endif  // USE_ESP8266
+
 }  // namespace nextion
 }  // namespace esphome
 
