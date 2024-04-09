@@ -48,7 +48,7 @@ CHIPSETS = {
     "WS2812": LEDStripTimings(400, 1000, 1000, 400),
     "SK6812": LEDStripTimings(300, 900, 600, 600),
     "APA106": LEDStripTimings(350, 1360, 1360, 350),
-    "SM16703": LEDStripTimings(300, 900, 1360, 350),
+    "SM16703": LEDStripTimings(300, 900, 900, 300),
 }
 
 
