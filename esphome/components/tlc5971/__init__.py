@@ -12,7 +12,6 @@ from esphome.const import (
 )
 
 
-AUTO_LOAD = ["output"]
 CODEOWNERS = ["@IJIJI"]
 
 tlc5971_ns = cg.esphome_ns.namespace("tlc5971")

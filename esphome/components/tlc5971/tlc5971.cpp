@@ -88,5 +88,14 @@ void TLC5971::transfer_(uint8_t send) {
     this->clock_pin_->digital_write(false);
   }
 }
+void TLC5971::set_channel_value(uint16_t channel, uint16_t value) {
+  if (channel >= this->num_chips_ * N_CHANNELS_PER_CHIP)
+    return;
+  if (this->pwm_amounts_[channel] != value) {
+    this->update_ = true;
+  }
+  this->pwm_amounts_[channel] = value;
+}
+
 }  // namespace tlc5971
 }  // namespace esphome
