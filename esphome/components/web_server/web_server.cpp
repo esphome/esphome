@@ -1266,6 +1266,8 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 
 #ifdef USE_VALVE
 void WebServer::on_valve_update(valve::Valve *obj) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->valve_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
