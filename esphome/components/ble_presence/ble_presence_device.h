@@ -73,8 +73,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
         break;
       case MATCH_BY_IRK:
         if (resolve_irk_(device.address_uint64(), this->irk_)) {
-          this->publish_state(true);
-          this->found_ = true;
+          this->set_found_(true);
           return true;
         }
         break;

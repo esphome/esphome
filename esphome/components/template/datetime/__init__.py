@@ -9,7 +9,11 @@ from esphome.const import (
     CONF_RESTORE_VALUE,
     CONF_SET_ACTION,
     CONF_DAY,
+    CONF_HOUR,
+    CONF_MINUTE,
     CONF_MONTH,
+    CONF_SECOND,
+    CONF_TYPE,
     CONF_YEAR,
 )
 
@@ -21,6 +25,10 @@ CODEOWNERS = ["@rfdarter"]
 
 TemplateDate = template_ns.class_(
     "TemplateDate", datetime.DateEntity, cg.PollingComponent
+)
+
+TemplateTime = template_ns.class_(
+    "TemplateTime", datetime.TimeEntity, cg.PollingComponent
 )
 
 
@@ -63,6 +71,13 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_INITIAL_VALUE): cv.date_time(allowed_time=False),
                 }
             ),
+            "TIME": datetime.time_schema(TemplateTime)
+            .extend(_BASE_SCHEMA)
+            .extend(
+                {
+                    cv.Optional(CONF_INITIAL_VALUE): cv.date_time(allowed_date=False),
+                }
+            ),
         },
         upper=True,
     ),
@@ -85,13 +100,22 @@ async def to_code(config):
         cg.add(var.set_restore_value(config[CONF_RESTORE_VALUE]))
 
         if initial_value := config.get(CONF_INITIAL_VALUE):
-            date_struct = cg.StructInitializer(
-                cg.ESPTime,
-                ("day_of_month", initial_value[CONF_DAY]),
-                ("month", initial_value[CONF_MONTH]),
-                ("year", initial_value[CONF_YEAR]),
-            )
-            cg.add(var.set_initial_value(date_struct))
+            if config[CONF_TYPE] == "DATE":
+                date_struct = cg.StructInitializer(
+                    cg.ESPTime,
+                    ("day_of_month", initial_value[CONF_DAY]),
+                    ("month", initial_value[CONF_MONTH]),
+                    ("year", initial_value[CONF_YEAR]),
+                )
+                cg.add(var.set_initial_value(date_struct))
+            elif config[CONF_TYPE] == "TIME":
+                time_struct = cg.StructInitializer(
+                    cg.ESPTime,
+                    ("second", initial_value[CONF_SECOND]),
+                    ("minute", initial_value[CONF_MINUTE]),
+                    ("hour", initial_value[CONF_HOUR]),
+                )
+                cg.add(var.set_initial_value(time_struct))
 
     if CONF_SET_ACTION in config:
         await automation.build_automation(
