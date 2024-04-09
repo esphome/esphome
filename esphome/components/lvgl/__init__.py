@@ -1000,7 +1000,13 @@ SPINBOX_SCHEMA = {
     cv.Optional(CONF_STEP, default=1.0): cv.positive_float,
     cv.Optional(CONF_DECIMAL_PLACES, default=0): cv.int_range(0, 6),
     cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
-    cv.Optional(CONF_BUTTONS): spin_btn_schema,
+    cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+        {
+            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                automation.Trigger.template(cg.float_)
+            )
+        }
+    ),
 }
 
 SPINBOX_MODIFY_SCHEMA = {
@@ -1407,6 +1413,38 @@ SHOW_SCHEMA = LVGL_SCHEMA.extend(
 
 
 @automation.register_action(
+    "lvgl.spinbox.increment",
+    ObjUpdateAction,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ID): cv.use_id(lv_spinbox_t),
+        },
+        key=CONF_ID,
+    ),
+)
+async def spinbox_increment(config, action_id, template_arg, args):
+    widget = await cg.get_variable(config[CONF_ID])
+    init = [f"lv_spinbox_increment({widget})"]
+    return await action_to_code(init, action_id, widget, template_arg, args)
+
+
+@automation.register_action(
+    "lvgl.spinbox.decrement",
+    ObjUpdateAction,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ID): cv.use_id(lv_spinbox_t),
+        },
+        key=CONF_ID,
+    ),
+)
+async def spinbox_decrement(config, action_id, template_arg, args):
+    widget = await cg.get_variable(config[CONF_ID])
+    init = [f"lv_spinbox_decrement({widget})"]
+    return await action_to_code(init, action_id, widget, template_arg, args)
+
+
+@automation.register_action(
     "lvgl.animimg.start",
     ObjUpdateAction,
     cv.maybe_simple_value(
@@ -1695,6 +1733,7 @@ async def spinbox_to_code(var: Widget, config):
     init = []
     digits = config[CONF_DIGITS]
     scale = 10 ** config[CONF_DECIMAL_PLACES]
+    var.set_scale(scale)
     range_from = int(config[CONF_RANGE_FROM] * scale)
     range_to = int(config[CONF_RANGE_TO] * scale)
     step = int(config[CONF_STEP] * scale)
@@ -1707,14 +1746,6 @@ async def spinbox_to_code(var: Widget, config):
     init.extend(
         var.set_property(CONF_VALUE, await lv_float.process(config.get(CONF_VALUE)))
     )
-    if buttons := config.get(CONF_BUTTONS):
-        for button in buttons:
-            print(button)
-            align = button[CONF_ALIGN]
-            del button[CONF_ALIGN]
-            init.extend(await widget_to_code(button, CONF_BTN, var.parent))
-            btn = await get_widget(button[CONF_ID])
-            init.append(f"lv_obj_align_to({btn.obj}, {var.obj}, {align}, 0, 0)")
     return init
 
 
@@ -1939,7 +1970,7 @@ async def generate_triggers(lv_component):
                     widget.type, cg.MockObjClass
                 ) and widget.type.inherits_from(lv_number_t):
                     args = [(cg.float_, "x")]
-                    value = f"lv_{widget.type_base()}_get_value({obj})"
+                    value = widget.get_value()
                 else:
                     args = []
                     value = ""
@@ -1956,9 +1987,10 @@ async def generate_triggers(lv_component):
                         conf[CONF_TRIGGER_ID],
                     )
                     await automation.build_automation(trigger, [(cg.float_, "x")], conf)
+                    value = widget.get_value()
                     init.extend(
                         widget.set_event_cb(
-                            f"{trigger}->trigger(lv_{widget.type_base()}_get_value({obj}))",
+                            f"{trigger}->trigger({value})",
                             "LV_EVENT_VALUE_CHANGED",
                             f"{lv_component}->get_custom_change_event()",
                         )

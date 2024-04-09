@@ -48,7 +48,8 @@ async def to_code(config):
         animated = ""
     else:
         animated = f", {animated}"
-    publish = f"{var}->publish_state(lv_{widget.type_base()}_get_value({widget.obj}))"
+    value = widget.get_value()
+    publish = f"{var}->publish_state({value})"
     init = widget.set_event_cb(publish, "LV_EVENT_VALUE_CHANGED")
     init.extend(
         [

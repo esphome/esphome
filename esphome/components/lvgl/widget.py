@@ -12,9 +12,13 @@ class Widget:
         self.config = config
         self.obj = obj or var
         self.parent = None
+        self.scale = 1.0
 
     def set_parent(self, parent):
         self.parent = parent
+
+    def set_scale(self, scale: float):
+        self.scale = scale
 
     def add_state(self, state):
         return [f"lv_obj_add_state({self.obj}, {state})"]
@@ -67,6 +71,11 @@ class Widget:
                 ]
             )
         return init
+
+    def get_value(self):
+        if self.scale == 1.0:
+            return f"lv_{self.type_base()}_get_value({self.obj})"
+        return f"lv_{self.type_base()}_get_value({self.obj})/{self.scale:#f}f"
 
     def type_base(self):
         base = str(self.type)
