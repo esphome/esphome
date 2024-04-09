@@ -536,7 +536,7 @@ bool APIServerConnectionBase::send_list_entities_valve_response(const ListEntiti
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_list_entities_valve_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<ListEntitiesValveResponse>(msg, 106);
+  return this->send_message_<ListEntitiesValveResponse>(msg, 109);
 }
 #endif
 #ifdef USE_VALVE
@@ -544,7 +544,7 @@ bool APIServerConnectionBase::send_valve_state_response(const ValveStateResponse
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_valve_state_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<ValveStateResponse>(msg, 108);
+  return this->send_message_<ValveStateResponse>(msg, 110);
 }
 #endif
 #ifdef USE_VALVE
@@ -992,7 +992,7 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
-    case 107: {
+    case 111: {
 #ifdef USE_VALVE
       ValveCommandRequest msg;
       msg.decode(msg_data, msg_size);

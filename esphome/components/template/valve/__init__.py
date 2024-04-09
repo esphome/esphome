@@ -11,10 +11,10 @@ from esphome.const import (
     CONF_OPEN_ACTION,
     CONF_OPTIMISTIC,
     CONF_POSITION,
+    CONF_POSITION_ACTION,
     CONF_RESTORE_MODE,
     CONF_STATE,
     CONF_STOP_ACTION,
-    CONF_POSITION_ACTION,
 )
 from .. import template_ns
 

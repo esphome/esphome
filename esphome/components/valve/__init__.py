@@ -4,15 +4,15 @@ from esphome import automation
 from esphome.automation import maybe_simple_id, Condition
 from esphome.components import mqtt
 from esphome.const import (
-    CONF_ID,
     CONF_DEVICE_CLASS,
-    CONF_STATE,
+    CONF_ID,
+    CONF_MQTT_ID,
     CONF_ON_OPEN,
     CONF_POSITION,
     CONF_POSITION_COMMAND_TOPIC,
     CONF_POSITION_STATE_TOPIC,
+    CONF_STATE,
     CONF_STOP,
-    CONF_MQTT_ID,
     CONF_TRIGGER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
