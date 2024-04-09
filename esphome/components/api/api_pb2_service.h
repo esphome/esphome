@@ -240,6 +240,10 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_VOICE_ASSISTANT
   virtual void on_voice_assistant_event_response(const VoiceAssistantEventResponse &value){};
 #endif
+#ifdef USE_VOICE_ASSISTANT
+  bool send_voice_assistant_audio(const VoiceAssistantAudio &msg);
+  virtual void on_voice_assistant_audio(const VoiceAssistantAudio &value){};
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_list_entities_alarm_control_panel_response(const ListEntitiesAlarmControlPanelResponse &msg);
 #endif
@@ -266,6 +270,15 @@ class APIServerConnectionBase : public ProtoService {
 #endif
 #ifdef USE_DATETIME_DATE
   virtual void on_date_command_request(const DateCommandRequest &value){};
+#endif
+#ifdef USE_DATETIME_TIME
+  bool send_list_entities_time_response(const ListEntitiesTimeResponse &msg);
+#endif
+#ifdef USE_DATETIME_TIME
+  bool send_time_state_response(const TimeStateResponse &msg);
+#endif
+#ifdef USE_DATETIME_TIME
+  virtual void on_time_command_request(const TimeCommandRequest &value){};
 #endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
@@ -323,6 +336,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_DATETIME_DATE
   virtual void date_command(const DateCommandRequest &msg) = 0;
+#endif
+#ifdef USE_DATETIME_TIME
+  virtual void time_command(const TimeCommandRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   virtual void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
@@ -412,6 +428,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_DATETIME_DATE
   void on_date_command_request(const DateCommandRequest &msg) override;
+#endif
+#ifdef USE_DATETIME_TIME
+  void on_time_command_request(const TimeCommandRequest &msg) override;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
