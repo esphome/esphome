@@ -167,7 +167,7 @@ void Component::status_clear_warning(const char *message) {
   if ((this->component_state_ & STATUS_LED_WARNING) == 0)
     return;
   this->component_state_ &= ~STATUS_LED_WARNING;
-  ESP_LOGW(TAG, "Component %s cleared Warning flag", this->get_component_source());
+  ESP_LOGW(TAG, "Component %s cleared Warning flag: %s", this->get_component_source(), message);
 }
 void Component::status_clear_error() {
   if ((this->component_state_ & STATUS_LED_ERROR) == 0)
