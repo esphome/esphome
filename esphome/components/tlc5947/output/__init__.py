@@ -5,7 +5,6 @@ from esphome.const import CONF_CHANNEL, CONF_ID
 from .. import TLC5947, tlc5947_ns
 
 DEPENDENCIES = ["tlc5947"]
-CODEOWNERS = ["@rnauber"]
 
 TLC5947Channel = tlc5947_ns.class_(
     "TLC5947Channel", output.FloatOutput, cg.Parented.template(TLC5947)
