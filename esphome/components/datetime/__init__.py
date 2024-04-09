@@ -81,14 +81,16 @@ def time_schema(class_: MockObjClass) -> cv.Schema:
         cv.Optional(CONF_TYPE, default="TIME"): cv.one_of("TIME", upper=True),
         cv.Inclusive(
             CONF_ON_TIME,
-            CONF_ON_TIME,
+            group_of_inclusion=CONF_ON_TIME,
             msg="`on_time` and `time_id` must both be specified",
         ): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTimeTrigger),
             }
         ),
-        cv.Inclusive(CONF_TIME_ID, CONF_ON_TIME): cv.use_id(time.RealTimeClock),
+        cv.Inclusive(CONF_TIME_ID, group_of_inclusion=CONF_ON_TIME): cv.use_id(
+            time.RealTimeClock
+        ),
     }
     return _DATETIME_SCHEMA.extend(schema)
 
