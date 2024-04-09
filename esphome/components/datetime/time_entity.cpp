@@ -10,17 +10,17 @@ namespace datetime {
 static const char *const TAG = "datetime.time_entity";
 
 void TimeEntity::publish_state() {
-  if (this->hour_ < 0 || this->hour_ > 23) {
+  if (this->hour_ > 23) {
     this->has_state_ = false;
     ESP_LOGE(TAG, "Hour must be between 0 and 23");
     return;
   }
-  if (this->minute_ < 0 || this->minute_ > 59) {
+  if (this->minute_ > 59) {
     this->has_state_ = false;
     ESP_LOGE(TAG, "Minute must be between 0 and 59");
     return;
   }
-  if (this->second_ < 0 || this->second_ > 59) {
+  if (this->second_ > 59) {
     this->has_state_ = false;
     ESP_LOGE(TAG, "Second must be between 0 and 59");
     return;
@@ -34,15 +34,15 @@ void TimeEntity::publish_state() {
 TimeCall TimeEntity::make_call() { return TimeCall(this); }
 
 void TimeCall::validate_() {
-  if (this->hour_.has_value() && (this->hour_ < 0 || this->hour_ > 23)) {
+  if (this->hour_.has_value() && this->hour_ > 23) {
     ESP_LOGE(TAG, "Hour must be between 0 and 23");
     this->hour_.reset();
   }
-  if (this->minute_.has_value() && (this->minute_ < 0 || this->minute_ > 59)) {
+  if (this->minute_.has_value() && this->minute_ > 59) {
     ESP_LOGE(TAG, "Minute must be between 0 and 59");
     this->minute_.reset();
   }
-  if (this->second_.has_value() && (this->second_ < 0 || this->second_ > 59)) {
+  if (this->second_.has_value() && this->second_ > 59) {
     ESP_LOGE(TAG, "Second must be between 0 and 59");
     this->second_.reset();
   }
