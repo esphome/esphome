@@ -3,7 +3,7 @@ i2c:
   scl: 22
   scan: true
   frequency: 600kHz
-  
+
 wk2132_i2c:
   - id: wk2132_i2c_id
     address: 0x70
