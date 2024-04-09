@@ -50,9 +50,8 @@ CONFIG_SCHEMA = valve.VALVE_SCHEMA.extend(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await valve.new_valve(config)
     await cg.register_component(var, config)
-    await valve.register_valve(var, config)
     if CONF_LAMBDA in config:
         template_ = await cg.process_lambda(
             config[CONF_LAMBDA], [], return_type=cg.optional.template(float)

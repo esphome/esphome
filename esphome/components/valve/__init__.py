@@ -121,6 +121,12 @@ async def register_valve(var, config):
     await setup_valve_core_(var, config)
 
 
+async def new_valve(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_valve(var, config)
+    return var
+
+
 VALVE_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(Valve),
