@@ -12,7 +12,7 @@ remote_receiver:
   on_mirage:
     then:
       - lambda: |-
-          ESP_LOGD("mirage", "Mirage data: %s", format_hex(x.code).c_str());
+          ESP_LOGD("mirage", "Mirage data: %s", format_hex(x.data).c_str());
 
 binary_sensor:
   - platform: remote_receiver
