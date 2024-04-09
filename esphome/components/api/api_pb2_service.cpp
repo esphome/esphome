@@ -176,24 +176,6 @@ bool APIServerConnectionBase::send_text_sensor_state_response(const TextSensorSt
   return this->send_message_<TextSensorStateResponse>(msg, 27);
 }
 #endif
-#ifdef USE_VALVE
-bool APIServerConnectionBase::send_list_entities_valve_response(const ListEntitiesValveResponse &msg) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  ESP_LOGVV(TAG, "send_list_entities_valve_response: %s", msg.dump().c_str());
-#endif
-  return this->send_message_<ListEntitiesValveResponse>(msg, 13);
-}
-#endif
-#ifdef USE_VALVE
-bool APIServerConnectionBase::send_valve_state_response(const ValveStateResponse &msg) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  ESP_LOGVV(TAG, "send_valve_state_response: %s", msg.dump().c_str());
-#endif
-  return this->send_message_<ValveStateResponse>(msg, 22);
-}
-#endif
-#ifdef USE_VALVE
-#endif
 bool APIServerConnectionBase::send_subscribe_logs_response(const SubscribeLogsResponse &msg) {
   return this->send_message_<SubscribeLogsResponse>(msg, 29);
 }
@@ -549,6 +531,24 @@ bool APIServerConnectionBase::send_date_state_response(const DateStateResponse &
 #endif
 #ifdef USE_DATETIME_DATE
 #endif
+#ifdef USE_VALVE
+bool APIServerConnectionBase::send_list_entities_valve_response(const ListEntitiesValveResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_valve_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesValveResponse>(msg, 106);
+}
+#endif
+#ifdef USE_VALVE
+bool APIServerConnectionBase::send_valve_state_response(const ValveStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_valve_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ValveStateResponse>(msg, 108);
+}
+#endif
+#ifdef USE_VALVE
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
@@ -642,13 +642,13 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 30: {
-#ifdef USE_VALVE
-      ValveCommandRequest msg;
+#ifdef USE_COVER
+      CoverCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_valve_command_request: %s", msg.dump().c_str());
+      ESP_LOGVV(TAG, "on_cover_command_request: %s", msg.dump().c_str());
 #endif
-      this->on_valve_command_request(msg);
+      this->on_cover_command_request(msg);
 #endif
       break;
     }
@@ -989,6 +989,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       ESP_LOGVV(TAG, "on_date_command_request: %s", msg.dump().c_str());
 #endif
       this->on_date_command_request(msg);
+#endif
+      break;
+    }
+    case 107: {
+#ifdef USE_VALVE
+      ValveCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_valve_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_valve_command_request(msg);
 #endif
       break;
     }

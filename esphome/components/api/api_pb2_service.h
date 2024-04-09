@@ -81,15 +81,6 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_TEXT_SENSOR
   bool send_text_sensor_state_response(const TextSensorStateResponse &msg);
 #endif
-#ifdef USE_VALVE
-  bool send_list_entities_valve_response(const ListEntitiesValveResponse &msg);
-#endif
-#ifdef USE_VALVE
-  bool send_valve_state_response(const ValveStateResponse &msg);
-#endif
-#ifdef USE_VALVE
-  virtual void on_valve_command_request(const ValveCommandRequest &value){};
-#endif
   virtual void on_subscribe_logs_request(const SubscribeLogsRequest &value){};
   bool send_subscribe_logs_response(const SubscribeLogsResponse &msg);
   virtual void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &value){};
@@ -275,6 +266,15 @@ class APIServerConnectionBase : public ProtoService {
 #endif
 #ifdef USE_DATETIME_DATE
   virtual void on_date_command_request(const DateCommandRequest &value){};
+#endif
+#ifdef USE_VALVE
+  bool send_list_entities_valve_response(const ListEntitiesValveResponse &msg);
+#endif
+#ifdef USE_VALVE
+  bool send_valve_state_response(const ValveStateResponse &msg);
+#endif
+#ifdef USE_VALVE
+  virtual void on_valve_command_request(const ValveCommandRequest &value){};
 #endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;

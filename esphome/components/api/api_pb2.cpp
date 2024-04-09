@@ -147,20 +147,6 @@ template<> const char *proto_enum_to_string<enums::SensorLastResetType>(enums::S
 }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
-template<> const char *proto_enum_to_string<enums::ValveOperation>(enums::ValveOperation value) {
-  switch (value) {
-    case enums::VALVE_OPERATION_IDLE:
-      return "VALVE_OPERATION_IDLE";
-    case enums::VALVE_OPERATION_IS_OPENING:
-      return "VALVE_OPERATION_IS_OPENING";
-    case enums::VALVE_OPERATION_IS_CLOSING:
-      return "VALVE_OPERATION_IS_CLOSING";
-    default:
-      return "UNKNOWN";
-  }
-}
-#endif
-#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel value) {
   switch (value) {
     case enums::LOG_LEVEL_NONE:
@@ -533,6 +519,20 @@ template<> const char *proto_enum_to_string<enums::TextMode>(enums::TextMode val
       return "TEXT_MODE_TEXT";
     case enums::TEXT_MODE_PASSWORD:
       return "TEXT_MODE_PASSWORD";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
+template<> const char *proto_enum_to_string<enums::ValveOperation>(enums::ValveOperation value) {
+  switch (value) {
+    case enums::VALVE_OPERATION_IDLE:
+      return "VALVE_OPERATION_IDLE";
+    case enums::VALVE_OPERATION_IS_OPENING:
+      return "VALVE_OPERATION_IS_OPENING";
+    case enums::VALVE_OPERATION_IS_CLOSING:
+      return "VALVE_OPERATION_IS_CLOSING";
     default:
       return "UNKNOWN";
   }
@@ -2852,239 +2852,6 @@ void TextSensorStateResponse::dump_to(std::string &out) const {
 
   out.append("  missing_state: ");
   out.append(YESNO(this->missing_state));
-  out.append("\n");
-  out.append("}");
-}
-#endif
-bool ListEntitiesValveResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 5: {
-      this->assumed_state = value.as_bool();
-      return true;
-    }
-    case 6: {
-      this->supports_position = value.as_bool();
-      return true;
-    }
-    case 8: {
-      this->disabled_by_default = value.as_bool();
-      return true;
-    }
-    case 10: {
-      this->entity_category = value.as_enum<enums::EntityCategory>();
-      return true;
-    }
-    case 11: {
-      this->supports_stop = value.as_bool();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-bool ListEntitiesValveResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->object_id = value.as_string();
-      return true;
-    }
-    case 3: {
-      this->name = value.as_string();
-      return true;
-    }
-    case 4: {
-      this->unique_id = value.as_string();
-      return true;
-    }
-    case 7: {
-      this->device_class = value.as_string();
-      return true;
-    }
-    case 9: {
-      this->icon = value.as_string();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-bool ListEntitiesValveResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 2: {
-      this->key = value.as_fixed32();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-void ListEntitiesValveResponse::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_string(1, this->object_id);
-  buffer.encode_fixed32(2, this->key);
-  buffer.encode_string(3, this->name);
-  buffer.encode_string(4, this->unique_id);
-  buffer.encode_bool(5, this->assumed_state);
-  buffer.encode_bool(6, this->supports_position);
-  buffer.encode_string(7, this->device_class);
-  buffer.encode_bool(8, this->disabled_by_default);
-  buffer.encode_string(9, this->icon);
-  buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
-  buffer.encode_bool(11, this->supports_stop);
-}
-#ifdef HAS_PROTO_MESSAGE_DUMP
-void ListEntitiesValveResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesValveResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  sprintf(buffer, "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-  out.append("  unique_id: ");
-  out.append("'").append(this->unique_id).append("'");
-  out.append("\n");
-
-  out.append("  assumed_state: ");
-  out.append(YESNO(this->assumed_state));
-  out.append("\n");
-
-  out.append("  supports_position: ");
-  out.append(YESNO(this->supports_position));
-  out.append("\n");
-
-  out.append("  device_class: ");
-  out.append("'").append(this->device_class).append("'");
-  out.append("\n");
-
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  supports_stop: ");
-  out.append(YESNO(this->supports_stop));
-  out.append("\n");
-  out.append("}");
-}
-#endif
-bool ValveStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 3: {
-      this->current_operation = value.as_enum<enums::ValveOperation>();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-bool ValveStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1: {
-      this->key = value.as_fixed32();
-      return true;
-    }
-    case 2: {
-      this->position = value.as_float();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-void ValveStateResponse::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_fixed32(1, this->key);
-  buffer.encode_float(2, this->position);
-  buffer.encode_enum<enums::ValveOperation>(3, this->current_operation);
-}
-#ifdef HAS_PROTO_MESSAGE_DUMP
-void ValveStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ValveStateResponse {\n");
-  out.append("  key: ");
-  sprintf(buffer, "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  position: ");
-  sprintf(buffer, "%g", this->position);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  current_operation: ");
-  out.append(proto_enum_to_string<enums::ValveOperation>(this->current_operation));
-  out.append("\n");
-  out.append("}");
-}
-#endif
-bool ValveCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 2: {
-      this->has_position = value.as_bool();
-      return true;
-    }
-    case 4: {
-      this->stop = value.as_bool();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-bool ValveCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1: {
-      this->key = value.as_fixed32();
-      return true;
-    }
-    case 3: {
-      this->position = value.as_float();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-void ValveCommandRequest::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_fixed32(1, this->key);
-  buffer.encode_bool(2, this->has_position);
-  buffer.encode_float(3, this->position);
-  buffer.encode_bool(4, this->stop);
-}
-#ifdef HAS_PROTO_MESSAGE_DUMP
-void ValveCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ValveCommandRequest {\n");
-  out.append("  key: ");
-  sprintf(buffer, "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_position: ");
-  out.append(YESNO(this->has_position));
-  out.append("\n");
-
-  out.append("  position: ");
-  sprintf(buffer, "%g", this->position);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  stop: ");
-  out.append(YESNO(this->stop));
   out.append("\n");
   out.append("}");
 }
@@ -7646,6 +7413,239 @@ void DateCommandRequest::dump_to(std::string &out) const {
   out.append("  day: ");
   sprintf(buffer, "%" PRIu32, this->day);
   out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool ListEntitiesValveResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 5: {
+      this->assumed_state = value.as_bool();
+      return true;
+    }
+    case 6: {
+      this->supports_position = value.as_bool();
+      return true;
+    }
+    case 8: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    case 10: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
+    case 11: {
+      this->supports_stop = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesValveResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->object_id = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->unique_id = value.as_string();
+      return true;
+    }
+    case 7: {
+      this->device_class = value.as_string();
+      return true;
+    }
+    case 9: {
+      this->icon = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesValveResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ListEntitiesValveResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+  buffer.encode_string(4, this->unique_id);
+  buffer.encode_bool(5, this->assumed_state);
+  buffer.encode_bool(6, this->supports_position);
+  buffer.encode_string(7, this->device_class);
+  buffer.encode_bool(8, this->disabled_by_default);
+  buffer.encode_string(9, this->icon);
+  buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
+  buffer.encode_bool(11, this->supports_stop);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ListEntitiesValveResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ListEntitiesValveResponse {\n");
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id).append("'");
+  out.append("\n");
+
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  unique_id: ");
+  out.append("'").append(this->unique_id).append("'");
+  out.append("\n");
+
+  out.append("  assumed_state: ");
+  out.append(YESNO(this->assumed_state));
+  out.append("\n");
+
+  out.append("  supports_position: ");
+  out.append(YESNO(this->supports_position));
+  out.append("\n");
+
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  out.append("  supports_stop: ");
+  out.append(YESNO(this->supports_stop));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool ValveStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 3: {
+      this->current_operation = value.as_enum<enums::ValveOperation>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ValveStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    case 2: {
+      this->position = value.as_float();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ValveStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_float(2, this->position);
+  buffer.encode_enum<enums::ValveOperation>(3, this->current_operation);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ValveStateResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ValveStateResponse {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  position: ");
+  sprintf(buffer, "%g", this->position);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  current_operation: ");
+  out.append(proto_enum_to_string<enums::ValveOperation>(this->current_operation));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool ValveCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->has_position = value.as_bool();
+      return true;
+    }
+    case 4: {
+      this->stop = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ValveCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    case 3: {
+      this->position = value.as_float();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ValveCommandRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_bool(2, this->has_position);
+  buffer.encode_float(3, this->position);
+  buffer.encode_bool(4, this->stop);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ValveCommandRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ValveCommandRequest {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  has_position: ");
+  out.append(YESNO(this->has_position));
+  out.append("\n");
+
+  out.append("  position: ");
+  sprintf(buffer, "%g", this->position);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  stop: ");
+  out.append(YESNO(this->stop));
   out.append("\n");
   out.append("}");
 }
