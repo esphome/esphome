@@ -43,7 +43,7 @@ void I2SAudioSpeaker::player_task(void *params) {
     .mode = (i2s_mode_t) (this_speaker->parent_->get_i2s_mode() | I2S_MODE_TX),
     .sample_rate = 16000,
     .bits_per_sample = this_speaker->bits_per_sample_,
-    .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
+    .channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT,
     .communication_format = I2S_COMM_FORMAT_STAND_I2S,
     .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
     .dma_buf_count = 8,
@@ -70,17 +70,10 @@ void I2SAudioSpeaker::player_task(void *params) {
 
   esp_err_t err_driver = i2s_driver_install(this_speaker->parent_->get_port(), &config, 0, nullptr);
 
-  // Specify incoming audio stream is mono channel so it gets converted automatically when written to DMA buffer
-  uint32_t bits_cfg = (this_speaker->bits_per_sample_ << 16) | this_speaker->bits_per_sample_;
-  esp_err_t err_clk = i2s_set_clk(this_speaker->parent_->get_port(), 16000, bits_cfg, I2S_CHANNEL_MONO);
-
-  if ((err_driver != ESP_OK) || (err_clk != ESP_OK)) {
+  if ((err_driver != ESP_OK)) {  //|| (err_clk != ESP_OK)) {
     event.type = TaskEventType::WARNING;
-    if (err_driver != ESP_OK) {
-      event.err = err_driver;
-    } else {
-      event.err = err_clk;
-    }
+    event.err = err_driver;
+
     xQueueSend(this_speaker->event_queue_, &event, 0);
     event.type = TaskEventType::STOPPED;
     xQueueSend(this_speaker->event_queue_, &event, 0);
