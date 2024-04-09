@@ -3,21 +3,21 @@
 #include "esphome/core/defines.h"
 
 #ifdef USE_MQTT
-#ifdef USE_DATETIME_DATE
+#ifdef USE_DATETIME_TIME
 
-#include "esphome/components/datetime/date_entity.h"
+#include "esphome/components/datetime/time_entity.h"
 #include "mqtt_component.h"
 
 namespace esphome {
 namespace mqtt {
 
-class MQTTDateComponent : public mqtt::MQTTComponent {
+class MQTTTimeComponent : public mqtt::MQTTComponent {
  public:
-  /** Construct this MQTTDateComponent instance with the provided friendly_name and date
+  /** Construct this MQTTTimeComponent instance with the provided friendly_name and time
    *
-   * @param date The date component.
+   * @param time The time entity.
    */
-  explicit MQTTDateComponent(datetime::DateEntity *date);
+  explicit MQTTTimeComponent(datetime::TimeEntity *time);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -29,13 +29,13 @@ class MQTTDateComponent : public mqtt::MQTTComponent {
 
   bool send_initial_state() override;
 
-  bool publish_state(uint16_t year, uint8_t month, uint8_t day);
+  bool publish_state(uint8_t hour, uint8_t minute, uint8_t second);
 
  protected:
   std::string component_type() const override;
   const EntityBase *get_entity() const override;
 
-  datetime::DateEntity *date_;
+  datetime::TimeEntity *time_;
 };
 
 }  // namespace mqtt
