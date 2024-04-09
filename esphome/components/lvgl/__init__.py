@@ -2006,7 +2006,7 @@ async def generate_triggers(lv_component):
 
 
 async def to_code(config):
-    cg.add_library("lvgl/lvgl", "8.3.11")
+    cg.add_library("lvgl/lvgl", "8.4.0")
     for comp in lvgl_components_required:
         add_define(f"LVGL_USES_{comp.upper()}")
     add_define("_STRINGIFY(x)", "_STRINGIFY_(x)")
