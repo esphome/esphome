@@ -1645,7 +1645,7 @@ message DateCommandRequest {
 
 // ==================== VALVE ====================
 message ListEntitiesValveResponse {
-  option (id) = 106;
+  option (id) = 109;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_VALVE";
 
@@ -1669,7 +1669,7 @@ enum ValveOperation {
   VALVE_OPERATION_IS_CLOSING = 2;
 }
 message ValveStateResponse {
-  option (id) = 108;
+  option (id) = 110;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_VALVE";
   option (no_delay) = true;
@@ -1680,7 +1680,7 @@ message ValveStateResponse {
 }
 
 message ValveCommandRequest {
-  option (id) = 107;
+  option (id) = 111;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_VALVE";
   option (no_delay) = true;
