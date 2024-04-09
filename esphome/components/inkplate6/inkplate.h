@@ -68,8 +68,9 @@ class Inkplate6 : public display::DisplayBuffer, public i2c::I2CDevice {
 
   void set_greyscale(bool greyscale) {
     this->greyscale_ = greyscale;
-    this->initialize_();
     this->block_partial_ = true;
+    if (this->is_ready())
+      this->initialize_();
   }
   void set_partial_updating(bool partial_updating) { this->partial_updating_ = partial_updating; }
   void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }

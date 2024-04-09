@@ -170,7 +170,7 @@ def _notify_old_style(config):
 ARDUINO_VERSIONS = {
     "dev": (cv.Version(0, 0, 0), "https://github.com/libretiny-eu/libretiny.git"),
     "latest": (cv.Version(0, 0, 0), None),
-    "recommended": (cv.Version(1, 4, 1), None),
+    "recommended": (cv.Version(1, 5, 1), None),
 }
 
 
@@ -309,7 +309,7 @@ async def component_to_code(config):
         lt_options["LT_UART_SILENT_ENABLED"] = 0
         lt_options["LT_UART_SILENT_ALL"] = 0
     # set default UART port
-    if uart_port := framework.get(CONF_UART_PORT, None) is not None:
+    if (uart_port := framework.get(CONF_UART_PORT, None)) is not None:
         lt_options["LT_UART_DEFAULT_PORT"] = uart_port
     # add custom options
     lt_options.update(framework[CONF_OPTIONS])
