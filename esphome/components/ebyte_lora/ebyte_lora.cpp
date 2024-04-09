@@ -7,7 +7,7 @@ static const uint8_t PROGRAM_CONF = 0xC1;
 void EbyteLoraComponent::update() {
   if (this->config.command == 0) {
     ESP_LOGD(TAG, "Config not set yet!, gonna request it now!");
-    get_current_config_();
+    this->get_current_config_();
     return;
   } else {
     ESP_LOGD(TAG, "Current config:");
@@ -169,59 +169,59 @@ void EbyteLoraComponent::update() {
         break;
     }
   }
-  if (get_mode_() != NORMAL) {
+  if (this->get_mode_() != NORMAL) {
     ESP_LOGD(TAG, "Mode was not set right");
-    set_mode_(NORMAL);
+    this->set_mode_(NORMAL);
   }
 
-  send_switch_info_();
+  this->send_switch_info_();
 }
 void EbyteLoraComponent::setup() {
   this->pin_aux_->setup();
   this->pin_m0_->setup();
   this->pin_m1_->setup();
-  get_current_config_();
+  this->get_current_config_();
   ESP_LOGD(TAG, "Setup success");
 }
 void EbyteLoraComponent::get_current_config_() {
-  set_mode_(CONFIGURATION);
+  this->set_mode_(CONFIGURATION);
   uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
   this->write_array(data, sizeof(data));
   ESP_LOGD(TAG, "Config info requested");
 }
 ModeType EbyteLoraComponent::get_mode_() {
-  ModeType internalMode = MODE_INIT;
-  if (!EbyteLoraComponent::can_send_message_()) {
-    return internalMode;
+  ModeType internal_mode = MODE_INIT;
+  if (!this->can_send_message_()) {
+    return internal_mode;
   }
 
   bool pin1 = this->pin_m0_->digital_read();
   bool pin2 = this->pin_m1_->digital_read();
   if (!pin1 && !pin2) {
     // ESP_LOGD(TAG, "MODE NORMAL!");
-    internalMode = NORMAL;
+    internal_mode = NORMAL;
   }
   if (pin1 && !pin2) {
     // ESP_LOGD(TAG, "MODE WOR!");
-    internalMode = WOR_SEND;
+    internal_mode = WOR_SEND;
   }
   if (!pin1 && pin2) {
     // ESP_LOGD(TAG, "MODE WOR!");
-    internalMode = WOR_RECEIVER;
+    internal_mode = WOR_RECEIVER;
   }
   if (pin1 && pin2) {
     // ESP_LOGD(TAG, "MODE Conf!");
-    internalMode = CONFIGURATION;
+    internal_mode = CONFIGURATION;
   }
-  if (internalMode != this->mode_) {
-    ESP_LOGD(TAG, "Modes are not equal, calling the set function!! , checked: %u, expected: %u", internalMode,
+  if (internal_mode != this->mode_) {
+    ESP_LOGD(TAG, "Modes are not equal, calling the set function!! , checked: %u, expected: %u", internal_mode,
              this->mode_);
-    set_mode_(internalMode);
+    this->set_mode_(internal_mode);
   }
-  return internalMode;
+  return internal_mode;
 }
 void EbyteLoraComponent::set_mode_(ModeType mode) {
-  if (!can_send_message_()) {
+  if (!this->can_send_message_()) {
     return;
   }
   if (this->pin_m0_ == nullptr && this->pin_m1_ == nullptr) {
@@ -298,7 +298,7 @@ void EbyteLoraComponent::dump_config() {
 };
 void EbyteLoraComponent::digital_write(uint8_t pin, bool value) { this->send_switch_push_(pin, value); }
 void EbyteLoraComponent::send_switch_push_(uint8_t pin, bool value) {
-  if (!EbyteLoraComponent::can_send_message_()) {
+  if (!this->can_send_message_()) {
     return;
   }
   uint8_t data[3];
@@ -363,11 +363,11 @@ void EbyteLoraComponent::loop() {
     ESP_LOGD(TAG, "GOT PROGRAM_CONF");
     memset(&this->config, 0, sizeof(RegisterConfig));
     memcpy(&this->config, &data, sizeof(RegisterConfig));
-    set_mode_(NORMAL);
+    this->set_mode_(NORMAL);
   }
 }
 void EbyteLoraComponent::send_switch_info_() {
-  if (!EbyteLoraComponent::can_send_message_()) {
+  if (!this->can_send_message_()) {
     return;
   }
   std::vector<uint8_t> data;
