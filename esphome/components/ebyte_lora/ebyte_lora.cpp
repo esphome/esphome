@@ -11,25 +11,36 @@ void EbyteLoraComponent::update() {
     return;
   } else {
     ESP_LOGD(TAG, "Current config:");
+    std::string res;
+    size_t len = sizeof(this->config.raw);
+    char buf[20];
+    for (size_t i = 0; i < len; i++) {
+      if (i > 0) {
+        res += ';';
+      }
+      sprintf(buf, "0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(this->config.raw[i]), this->config.raw[i]);
+      res += buf;
+    }
+    ESP_LOGD(TAG, "%s", res.c_str());
     ESP_LOGD(TAG, "addh: %u", this->config.addh);
     ESP_LOGD(TAG, "addl: %u", this->config.addl);
     switch (this->config.reg_0.air_data_rate) {
-      case AIR_2_4kb:
+      case AIR_2_4KB:
         ESP_LOGD(TAG, "air_data_rate: 2.4kb");
         break;
-      case AIR_4_8kb:
+      case AIR_4_8KB:
         ESP_LOGD(TAG, "air_data_rate: 4.8kb");
         break;
-      case AIR_9_6kb:
+      case AIR_9_6KB:
         ESP_LOGD(TAG, "air_data_rate: 9.6kb");
         break;
-      case AIR_19_2kb:
+      case AIR_19_2KB:
         ESP_LOGD(TAG, "air_data_rate: 19.2kb");
         break;
-      case AIR_38_4kb:
+      case AIR_38_4KB:
         ESP_LOGD(TAG, "air_data_rate: 38.4kb");
         break;
-      case AIR_62_5kb:
+      case AIR_62_5KB:
         ESP_LOGD(TAG, "air_data_rate: 62.5kb");
         break;
     }
@@ -79,16 +90,16 @@ void EbyteLoraComponent::update() {
         break;
     }
     switch (this->config.reg_1.sub_packet) {
-      case SUB_200b:
+      case SUB_200B:
         ESP_LOGD(TAG, "sub_packet: 200 bytes");
         break;
-      case SUB_128b:
+      case SUB_128B:
         ESP_LOGD(TAG, "sub_packet: 128 bytes");
         break;
-      case SUB_64b:
+      case SUB_64B:
         ESP_LOGD(TAG, "sub_packet: 64 bytes");
         break;
-      case SUB_32b:
+      case SUB_32B:
         ESP_LOGD(TAG, "sub_packet: 32 bytes");
         break;
     }
@@ -351,7 +362,7 @@ void EbyteLoraComponent::loop() {
   if (data[0] == PROGRAM_CONF) {
     ESP_LOGD(TAG, "GOT PROGRAM_CONF");
     memset(&this->config, 0, sizeof(RegisterConfig));
-    memcpy(&this->config, &data[0], sizeof(RegisterConfig));
+    memcpy(&this->config, &data, sizeof(RegisterConfig));
     set_mode_(NORMAL);
   }
 }
