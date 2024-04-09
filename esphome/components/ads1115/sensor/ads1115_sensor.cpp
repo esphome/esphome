@@ -5,7 +5,7 @@
 namespace esphome {
 namespace ads1115 {
 
-static const char *const TAG = "ads1115";
+static const char *const TAG = "ads1115.sensor";
 
 float ADS1115Sensor::sample() {
   return this->parent_->request_measurement(this->multiplexer_, this->gain_, this->resolution_);
