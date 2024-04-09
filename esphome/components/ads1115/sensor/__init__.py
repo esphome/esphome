@@ -44,15 +44,6 @@ RESOLUTION = {
 }
 
 
-def validate_gain(value):
-    if isinstance(value, float):
-        value = f"{value:0.03f}"
-    elif not isinstance(value, str):
-        raise cv.Invalid(f'invalid gain "{value}"')
-
-    return cv.enum(GAIN)(value)
-
-
 ADS1115Sensor = ads1115_ns.class_(
     "ADS1115Sensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
