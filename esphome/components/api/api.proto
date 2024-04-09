@@ -1714,12 +1714,13 @@ message ListEntitiesValveResponse {
   string name = 3;
   string unique_id = 4;
 
-  bool assumed_state = 5;
-  bool supports_position = 6;
-  string device_class = 7;
-  bool disabled_by_default = 8;
-  string icon = 9;
-  EntityCategory entity_category = 10;
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  string device_class = 8;
+
+  bool assumed_state = 9;
+  bool supports_position = 10;
   bool supports_stop = 11;
 }
 

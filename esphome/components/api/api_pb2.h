@@ -1980,12 +1980,12 @@ class ListEntitiesValveResponse : public ProtoMessage {
   uint32_t key{0};
   std::string name{};
   std::string unique_id{};
+  std::string icon{};
+  bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
+  std::string device_class{};
   bool assumed_state{false};
   bool supports_position{false};
-  std::string device_class{};
-  bool disabled_by_default{false};
-  std::string icon{};
-  enums::EntityCategory entity_category{};
   bool supports_stop{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
