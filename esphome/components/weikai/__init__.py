@@ -4,7 +4,7 @@ from esphome.components import uart
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_CHANNEL,
-    CONF_UART_ID,
+    CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
     CONF_MODE,
@@ -57,7 +57,7 @@ WKBASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_TEST_MODE, default=0): cv.int_,
         cv.Required(CONF_UART): cv.ensure_list(
             {
-                cv.Required(CONF_UART_ID): cv.declare_id(WeikaiChannel),
+                cv.Required(CONF_ID): cv.declare_id(WeikaiChannel),
                 cv.Optional(CONF_CHANNEL, default=0): cv.int_range(min=0, max=3),
                 cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
                 cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
@@ -76,8 +76,8 @@ async def register_weikai(var, config):
     cg.add(var.set_test_mode(config[CONF_TEST_MODE]))
     await cg.register_component(var, config)
     for uart_elem in config[CONF_UART]:
-        chan = cg.new_Pvariable(uart_elem[CONF_UART_ID])
-        cg.add(chan.set_channel_name(str(uart_elem[CONF_UART_ID])))
+        chan = cg.new_Pvariable(uart_elem[CONF_ID])
+        cg.add(chan.set_channel_name(str(uart_elem[CONF_ID])))
         cg.add(chan.set_parent(var))
         cg.add(chan.set_channel(uart_elem[CONF_CHANNEL]))
         cg.add(chan.set_baud_rate(uart_elem[CONF_BAUD_RATE]))
@@ -86,7 +86,7 @@ async def register_weikai(var, config):
 
 
 def validate_pin_mode(value):
-    """checks input/output mode inconsistency"""
+    """Checks input/output mode inconsistency"""
     if not (value[CONF_MODE][CONF_INPUT] or value[CONF_MODE][CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_MODE][CONF_INPUT] and value[CONF_MODE][CONF_OUTPUT]:
