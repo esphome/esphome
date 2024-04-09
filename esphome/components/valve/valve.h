@@ -15,7 +15,7 @@ const extern float VALVE_CLOSED;
 #define LOG_VALVE(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    auto traits_ = (obj)->get_traits(); \
+    auto traits_ = (obj) -> get_traits(); \
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
@@ -117,25 +117,6 @@ class Valve : public EntityBase, public EntityBase_DeviceClass {
 
   /// Construct a new valve call used to control the valve.
   ValveCall make_call();
-  /** Open the valve.
-   *
-   * This is a legacy method and may be removed later, please use `.make_call()` instead.
-   */
-  ESPDEPRECATED("open() is deprecated, use make_call().set_command_open() instead.", "2021.9")
-  void open();
-  /** Close the valve.
-   *
-   * This is a legacy method and may be removed later, please use `.make_call()` instead.
-   */
-  ESPDEPRECATED("close() is deprecated, use make_call().set_command_close() instead.", "2021.9")
-  void close();
-  /** Stop the valve.
-   *
-   * This is a legacy method and may be removed later, please use `.make_call()` instead.
-   * As per solution from issue #2885 the call should include perform()
-   */
-  ESPDEPRECATED("stop() is deprecated, use make_call().set_command_stop().perform() instead.", "2021.9")
-  void stop();
 
   void add_on_state_callback(std::function<void()> &&f);
 

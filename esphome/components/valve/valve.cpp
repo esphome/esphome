@@ -125,21 +125,7 @@ ValveCall &ValveCall::set_stop(bool stop) {
 bool ValveCall::get_stop() const { return this->stop_; }
 
 ValveCall Valve::make_call() { return {this}; }
-void Valve::open() {
-  auto call = this->make_call();
-  call.set_command_open();
-  call.perform();
-}
-void Valve::close() {
-  auto call = this->make_call();
-  call.set_command_close();
-  call.perform();
-}
-void Valve::stop() {
-  auto call = this->make_call();
-  call.set_command_stop();
-  call.perform();
-}
+
 void Valve::add_on_state_callback(std::function<void()> &&f) { this->state_callback_.add(std::move(f)); }
 void Valve::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
