@@ -934,13 +934,13 @@ bool APIConnection::send_valve_info(valve::Valve *valve) {
   if (valve->has_own_name())
     msg.name = valve->get_name();
   msg.unique_id = get_default_unique_id("valve", valve);
+  msg.icon = valve->get_icon();
+  msg.disabled_by_default = valve->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(valve->get_entity_category());
+  msg.device_class = valve->get_device_class();
   msg.assumed_state = traits.get_is_assumed_state();
   msg.supports_position = traits.get_supports_position();
   msg.supports_stop = traits.get_supports_stop();
-  msg.device_class = valve->get_device_class();
-  msg.disabled_by_default = valve->is_disabled_by_default();
-  msg.icon = valve->get_icon();
-  msg.entity_category = static_cast<enums::EntityCategory>(valve->get_entity_category());
   return this->send_list_entities_valve_response(msg);
 }
 void APIConnection::valve_command(const ValveCommandRequest &msg) {
