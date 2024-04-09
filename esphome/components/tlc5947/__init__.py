@@ -14,7 +14,6 @@ from esphome.const import (
 CONF_LAT_PIN = "lat_pin"
 CONF_OE_PIN = "oe_pin"
 
-AUTO_LOAD = ["output"]
 CODEOWNERS = ["@rnauber"]
 
 tlc5947_ns = cg.esphome_ns.namespace("tlc5947")
