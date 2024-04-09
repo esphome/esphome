@@ -851,9 +851,9 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
   return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_id(root, obj, "number-" + obj->get_object_id(), start_config);
     if (start_config == DETAIL_ALL) {
-      root["min_value"] = obj->traits.get_min_value();
-      root["max_value"] = obj->traits.get_max_value();
-      root["step"] = obj->traits.get_step();
+      root["min_value"] = std::to_string(obj->traits.get_min_value());
+      root["max_value"] = std::to_string(obj->traits.get_max_value());
+      root["step"] = std::to_string(obj->traits.get_step());
       root["mode"] = (int) obj->traits.get_mode();
       if (!obj->traits.get_unit_of_measurement().empty())
         root["uom"] = obj->traits.get_unit_of_measurement();
@@ -862,7 +862,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       root["value"] = "\"NaN\"";
       root["state"] = "NA";
     } else {
-      root["value"] = value;
+      root["value"] = std::to_string(value);
       std::string state = value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
       if (!obj->traits.get_unit_of_measurement().empty())
         state += " " + obj->traits.get_unit_of_measurement();
