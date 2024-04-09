@@ -1,0 +1,19 @@
+i2c:
+  sda: 21
+  scl: 22
+  scan: true
+  frequency: 600kHz
+  
+wk2132_i2c:
+  - id: wk2132_i2c_id
+    address: 0x70
+    i2c_id: i2c_bus
+    uart:
+      - uart_id: wk2132_uart_id_0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - uart_id: wk2132_uart_id_1
+        channel: 1
+        baud_rate: 19200
