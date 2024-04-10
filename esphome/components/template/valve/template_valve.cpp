@@ -14,6 +14,7 @@ TemplateValve::TemplateValve()
       stop_trigger_(new Trigger<>()),
       toggle_trigger_(new Trigger<>()),
       position_trigger_(new Trigger<float>()) {}
+
 void TemplateValve::setup() {
   ESP_LOGCONFIG(TAG, "Setting up template valve '%s'...", this->name_.c_str());
   switch (this->restore_mode_) {
@@ -34,6 +35,7 @@ void TemplateValve::setup() {
     }
   }
 }
+
 void TemplateValve::loop() {
   bool changed = false;
 
@@ -51,15 +53,23 @@ void TemplateValve::loop() {
   if (changed)
     this->publish_state();
 }
+
 void TemplateValve::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 void TemplateValve::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 void TemplateValve::set_state_lambda(std::function<optional<float>()> &&f) { this->state_f_ = f; }
 float TemplateValve::get_setup_priority() const { return setup_priority::HARDWARE; }
+
 Trigger<> *TemplateValve::get_open_trigger() const { return this->open_trigger_; }
 Trigger<> *TemplateValve::get_close_trigger() const { return this->close_trigger_; }
 Trigger<> *TemplateValve::get_stop_trigger() const { return this->stop_trigger_; }
 Trigger<> *TemplateValve::get_toggle_trigger() const { return this->toggle_trigger_; }
-void TemplateValve::dump_config() { LOG_VALVE("", "Template Valve", this); }
+
+void TemplateValve::dump_config() {
+  LOG_VALVE("", "Template Valve", this);
+  ESP_LOGCONFIG(TAG, "  Has position: %s", YESNO(this->has_position_));
+  ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
+}
+
 void TemplateValve::control(const ValveCall &call) {
   if (call.get_stop()) {
     this->stop_prev_trigger_();
@@ -94,6 +104,7 @@ void TemplateValve::control(const ValveCall &call) {
 
   this->publish_state();
 }
+
 ValveTraits TemplateValve::get_traits() {
   auto traits = ValveTraits();
   traits.set_is_assumed_state(this->assumed_state_);
@@ -102,10 +113,13 @@ ValveTraits TemplateValve::get_traits() {
   traits.set_supports_position(this->has_position_);
   return traits;
 }
+
 Trigger<float> *TemplateValve::get_position_trigger() const { return this->position_trigger_; }
+
 void TemplateValve::set_has_stop(bool has_stop) { this->has_stop_ = has_stop; }
 void TemplateValve::set_has_toggle(bool has_toggle) { this->has_toggle_ = has_toggle; }
 void TemplateValve::set_has_position(bool has_position) { this->has_position_ = has_position; }
+
 void TemplateValve::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {
     this->prev_command_trigger_->stop_action();
