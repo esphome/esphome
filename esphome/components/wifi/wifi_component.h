@@ -258,7 +258,7 @@ class WiFiComponent : public Component {
 #endif
 
   network::IPAddress get_dns_address(int num);
-  network::IPAddress get_ip_address();
+  network::IPAddresses get_ip_addresses();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
 
@@ -293,7 +293,7 @@ class WiFiComponent : public Component {
     });
   }
 
-  network::IPAddress wifi_sta_ip();
+  network::IPAddresses wifi_sta_ip_addresses();
   std::string wifi_ssid();
   bssid_t wifi_bssid();
 
@@ -396,6 +396,10 @@ class WiFiComponent : public Component {
   bool rrm_{false};
 #endif
   bool enable_on_boot_;
+  bool got_ipv4_address_{false};
+#if USE_NETWORK_IPV6
+  uint8_t num_ipv6_addresses_{0};
+#endif /* USE_NETWORK_IPV6 */
 
   Trigger<> *connect_trigger_{new Trigger<>()};
   Trigger<> *disconnect_trigger_{new Trigger<>()};
