@@ -201,8 +201,7 @@ DPI_INTERFACE_SCHEMA = cv.Schema(
     },
 )
 
-COMMON_SCHEMA = cv.All(
-    font.validate_pillow_installed,
+COMMON_SCHEMA = (
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ILI9XXXDisplay),
@@ -235,42 +234,45 @@ COMMON_SCHEMA = cv.All(
                 }
             ),
         },
-    ).extend(cv.polling_component_schema("1s")),
-    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
-    _validate,
+    ).extend(cv.polling_component_schema("1s"))
 )
 
 
-CONFIG_SCHEMA = cv.typed_schema(
-    {
-        "SPI": spi.spi_device_schema(False, "40MHz")
-        .extend(
-            {
-                cv.GenerateID(CONF_BUS_ID): cv.declare_id(SPI_Interface),
-                cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-            }
-        )
-        .extend(COMMON_SCHEMA),
-        "SPI16D": spi.spi_device_schema(False, "40MHz")
-        .extend(
-            {
-                cv.GenerateID(CONF_BUS_ID): cv.declare_id(SPI16D_Interface),
-                cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-            }
-        )
-        .extend(COMMON_SCHEMA),
-        "DPI_RGB": DPI_INTERFACE_SCHEMA.extend(COMMON_SCHEMA),
-        "SPI_RGB": DPI_INTERFACE_SCHEMA.extend(COMMON_SCHEMA)
-        .extend(
-            {
-                cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
-            }
-        )
-        .extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6)),
-    },
-    default_type="SPI",
-    key=CONF_INTERFACE,
-    upper=True,
+CONFIG_SCHEMA = cv.All(
+    font.validate_pillow_installed,
+    cv.typed_schema(
+        {
+            "SPI": spi.spi_device_schema(False, "40MHz")
+            .extend(
+                {
+                    cv.GenerateID(CONF_BUS_ID): cv.declare_id(SPI_Interface),
+                    cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
+                }
+            )
+            .extend(COMMON_SCHEMA),
+            "SPI16D": spi.spi_device_schema(False, "40MHz")
+            .extend(
+                {
+                    cv.GenerateID(CONF_BUS_ID): cv.declare_id(SPI16D_Interface),
+                    cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
+                }
+            )
+            .extend(COMMON_SCHEMA),
+            "DPI_RGB": DPI_INTERFACE_SCHEMA.extend(COMMON_SCHEMA),
+            "SPI_RGB": DPI_INTERFACE_SCHEMA.extend(COMMON_SCHEMA)
+            .extend(
+                {
+                    cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
+                }
+            )
+            .extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6)),
+        },
+        default_type="SPI",
+        key=CONF_INTERFACE,
+        upper=True,
+    ),
+    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+    _validate,
 )
 
 
