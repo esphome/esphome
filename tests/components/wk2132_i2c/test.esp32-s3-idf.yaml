@@ -1,5 +1,5 @@
 substitutions:
-  scl_pin: GPI40
-  sda_pin: GPI41
+  scl_pin: GPI040
+  sda_pin: GPI041
 
 <<: !include common.yaml
