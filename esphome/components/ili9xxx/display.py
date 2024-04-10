@@ -201,78 +201,76 @@ DPI_INTERFACE_SCHEMA = cv.Schema(
     },
 )
 
+COMMON_SCHEMA = cv.All(
+    font.validate_pillow_installed,
+    display.FULL_DISPLAY_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(ILI9XXXDisplay),
+            cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
+            cv.Optional(CONF_DIMENSIONS): cv.Any(
+                cv.dimensions,
+                cv.Schema(
+                    {
+                        cv.Required(CONF_WIDTH): cv.int_,
+                        cv.Required(CONF_HEIGHT): cv.int_,
+                        cv.Optional(CONF_OFFSET_HEIGHT, default=0): cv.int_,
+                        cv.Optional(CONF_OFFSET_WIDTH, default=0): cv.int_,
+                    }
+                ),
+            ),
+            cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_COLOR_PALETTE, default="NONE"): COLOR_PALETTE,
+            cv.GenerateID(CONF_COLOR_PALETTE_ID): cv.declare_id(cg.uint8),
+            cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
+                cv.file_
+            ),
+            cv.Optional(CONF_INVERT_COLORS): cv.boolean,
+            cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
+            cv.Exclusive(CONF_ROTATION, CONF_ROTATION): validate_rotation,
+            cv.Exclusive(CONF_TRANSFORM, CONF_ROTATION): cv.Schema(
+                {
+                    cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
+                    cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+                    cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+                }
+            ),
+        },
+    ).extend(cv.polling_component_schema("1s")),
+    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+    _validate,
+)
 
-INTERFACE_SCHEMA = cv.typed_schema(
+
+CONFIG_SCHEMA = cv.typed_schema(
     {
-        "SPI": spi.spi_device_schema(False, "40MHz").extend(
+        "SPI": spi.spi_device_schema(False, "40MHz")
+        .extend(
             {
                 cv.GenerateID(CONF_BUS_ID): cv.declare_id(SPI_Interface),
                 cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             }
-        ),
-        "SPI16D": spi.spi_device_schema(False, "40MHz").extend(
+        )
+        .extend(COMMON_SCHEMA),
+        "SPI16D": spi.spi_device_schema(False, "40MHz")
+        .extend(
             {
                 cv.GenerateID(CONF_BUS_ID): cv.declare_id(SPI16D_Interface),
                 cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             }
-        ),
-        "DPI_RGB": DPI_INTERFACE_SCHEMA,
-        "SPI_RGB": DPI_INTERFACE_SCHEMA.extend(
+        )
+        .extend(COMMON_SCHEMA),
+        "DPI_RGB": DPI_INTERFACE_SCHEMA.extend(COMMON_SCHEMA),
+        "SPI_RGB": DPI_INTERFACE_SCHEMA.extend(COMMON_SCHEMA)
+        .extend(
             {
                 cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
             }
-        ).extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6)),
+        )
+        .extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6)),
     },
     default_type="SPI",
     key=CONF_INTERFACE,
     upper=True,
-)
-
-
-CONFIG_SCHEMA = cv.All(
-    font.validate_pillow_installed,
-    display.FULL_DISPLAY_SCHEMA.extend(
-        cv.All(
-            {
-                cv.GenerateID(): cv.declare_id(ILI9XXXDisplay),
-                cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
-                cv.Optional(CONF_DIMENSIONS): cv.Any(
-                    cv.dimensions,
-                    cv.Schema(
-                        {
-                            cv.Required(CONF_WIDTH): cv.int_,
-                            cv.Required(CONF_HEIGHT): cv.int_,
-                            cv.Optional(CONF_OFFSET_HEIGHT, default=0): cv.int_,
-                            cv.Optional(CONF_OFFSET_WIDTH, default=0): cv.int_,
-                        }
-                    ),
-                ),
-                cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-                cv.Optional(CONF_COLOR_PALETTE, default="NONE"): COLOR_PALETTE,
-                cv.GenerateID(CONF_COLOR_PALETTE_ID): cv.declare_id(cg.uint8),
-                cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
-                    cv.file_
-                ),
-                cv.Optional(CONF_INVERT_COLORS): cv.boolean,
-                cv.Optional(CONF_COLOR_ORDER): cv.one_of(
-                    *COLOR_ORDERS.keys(), upper=True
-                ),
-                cv.Exclusive(CONF_ROTATION, CONF_ROTATION): validate_rotation,
-                cv.Exclusive(CONF_TRANSFORM, CONF_ROTATION): cv.Schema(
-                    {
-                        cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
-                        cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
-                        cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
-                    }
-                ),
-            },
-            INTERFACE_SCHEMA,
-        )
-    )
-    .extend(cv.polling_component_schema("1s"))
-    .extend(spi.spi_device_schema(False, "40MHz")),
-    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
-    _validate,
 )
 
 
