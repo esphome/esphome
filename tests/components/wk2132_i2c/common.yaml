@@ -10,11 +10,11 @@ wk2132_i2c:
     address: 0x70
     i2c_id: bus_i2c
     uart:
-      - uart_id: wk2132_uart_id_0
+      - id: wk2132_id_0
         channel: 0
         baud_rate: 115200
         stop_bits: 1
         parity: none
-      - uart_id: wk2132_uart_id_1
+      - id: wk2132_id_1
         channel: 1
         baud_rate: 19200
