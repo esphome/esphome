@@ -181,3 +181,11 @@ button:
     on_press:
       remote_transmitter.transmit_mirage:
         code: [0x56, 0x77, 0x00, 0x00, 0x22, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+  - platform: template
+    name: Dooya
+    on_press:
+      remote_transmitter.transmit_dooya:
+        id: 0x123456
+        channel: 1
+        button: 1
+        check: 1
