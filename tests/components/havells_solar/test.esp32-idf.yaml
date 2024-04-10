@@ -12,41 +12,41 @@ sensor:
     update_interval: 60s
     phase_a:
       voltage:
-          name: Phase A Voltage
+        name: Phase A Voltage
       current:
-          name: Phase A Current
+        name: Phase A Current
     phase_b:
       voltage:
-          name: Voltage Phase B
+        name: Voltage Phase B
       current:
-          name: Current Phase B
+        name: Current Phase B
     phase_c:
       voltage:
-          name: Voltage Phase C
+        name: Voltage Phase C
       current:
-          name: Current Phase C
+        name: Current Phase C
     pv1:
       voltage:
-          name: PV1 Voltage
+        name: PV1 Voltage
       current:
-          name: PV1 Current
+        name: PV1 Current
       active_power:
-          name: PV1 Active Power
+        name: PV1 Active Power
       voltage_sampled_by_secondary_cpu:
-          name: PV1 Voltage Sampled By Secondary CPU
+        name: PV1 Voltage Sampled By Secondary CPU
       insulation_of_p_to_ground:
-          name: PV1 Insulation Of +VE To Ground
+        name: PV1 Insulation Of +VE To Ground
     pv2:
       voltage:
-          name: PV2 Voltage
+        name: PV2 Voltage
       current:
-          name: PV2 Current
+        name: PV2 Current
       active_power:
-          name: PV2 Active Power
+        name: PV2 Active Power
       voltage_sampled_by_secondary_cpu:
-          name: PV2 Voltage Sampled By Secondary CPU
+        name: PV2 Voltage Sampled By Secondary CPU
       insulation_of_p_to_ground:
-          name: PV2 Insulation Of +VE To Ground
+        name: PV2 Insulation Of +VE To Ground
     active_power:
       name: Active Power
     reactive_power:
