@@ -4,6 +4,7 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "ili9xxx_defines.h"
 #include "ili9xxx_init.h"
+#include "interfaces.h"
 
 namespace esphome {
 namespace ili9xxx {
@@ -51,6 +52,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
       addr += num_args;
     }
   }
+  void set_interface(IOBus *interface) { this->bus_ = interface; }
 
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
@@ -120,12 +122,9 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   int get_width_internal() override;
   int get_height_internal() override;
 
-  void start_command_();
-  void end_command_();
-  void start_data_();
-  void end_data_();
   void alloc_buffer_();
 
+  IOBus *bus_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *dc_pin_{nullptr};
   GPIOPin *busy_pin_{nullptr};
