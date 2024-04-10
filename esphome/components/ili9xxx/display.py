@@ -266,7 +266,7 @@ CONFIG_SCHEMA = cv.All(
                     }
                 ),
             },
-            cv.Schema(INTERFACE_SCHEMA),
+            INTERFACE_SCHEMA,
         )
     )
     .extend(cv.polling_component_schema("1s"))
