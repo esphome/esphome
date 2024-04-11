@@ -36,8 +36,8 @@ struct DateTimeEntityRestoreState {
   uint8_t minute;
   uint8_t second;
 
-  DateTimeCall to_call(DateTimeEntity *datetime_);
-  void apply(DateTimeEntity *datetime_);
+  DateTimeCall to_call(DateTimeEntity *datetime);
+  void apply(DateTimeEntity *datetime);
 } __attribute__((packed));
 
 class DateTimeEntity : public DateTimeBase {
@@ -84,7 +84,7 @@ class DateTimeCall {
   void perform();
   DateTimeCall &set_datetime(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second);
   DateTimeCall &set_datetime(ESPTime time);
-  DateTimeCall &set_datetime(const std::string &datetime_);
+  DateTimeCall &set_datetime(const std::string &datetime);
 
   DateTimeCall &set_year(uint16_t year) {
     this->year_ = year;

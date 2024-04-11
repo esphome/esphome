@@ -147,9 +147,9 @@ DateTimeCall &DateTimeCall::set_datetime(ESPTime time) {
   return this->set_datetime(time.year, time.month, time.day_of_month, time.hour, time.minute, time.second);
 };
 
-DateTimeCall &DateTimeCall::set_datetime(const std::string &datetime_) {
+DateTimeCall &DateTimeCall::set_datetime(const std::string &datetime) {
   ESPTime val{};
-  if (!ESPTime::strptime(datetime_, val)) {
+  if (!ESPTime::strptime(datetime, val)) {
     ESP_LOGE(TAG, "Could not convert the time string to an ESPTime object");
     return *this;
   }
