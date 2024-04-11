@@ -2,91 +2,91 @@
 # Do not modify its contents.
 
 from esphome.components.libretiny.const import (
-    FAMILY_RTL8710BN,
-    FAMILY_RTL8710BX,
-    FAMILY_RTL8720CF,
+    VARIANT_RTL8710BN,
+    VARIANT_RTL8710BX,
+    VARIANT_RTL8720CF,
 )
 
 RTL87XX_BOARDS = {
     "bw12": {
         "name": "BW12",
-        "variant": FAMILY_RTL8710BX,
+        "variant": VARIANT_RTL8710BX,
     },
     "bw15": {
         "name": "BW15",
-        "variant": FAMILY_RTL8720CF,
+        "variant": VARIANT_RTL8720CF,
     },
     "generic-rtl8710bn-2mb-468k": {
         "name": "Generic - RTL8710BN (2M/468k)",
-        "variant": FAMILY_RTL8710BN,
+        "variant": VARIANT_RTL8710BN,
     },
     "generic-rtl8710bn-2mb-788k": {
         "name": "Generic - RTL8710BN (2M/788k)",
-        "variant": FAMILY_RTL8710BN,
+        "variant": VARIANT_RTL8710BN,
     },
     "generic-rtl8710bx-4mb-980k": {
         "name": "Generic - RTL8710BX (4M/980k)",
-        "variant": FAMILY_RTL8710BX,
+        "variant": VARIANT_RTL8710BX,
     },
     "generic-rtl8720cf-2mb-992k": {
         "name": "Generic - RTL8720CF (2M/992k)",
-        "variant": FAMILY_RTL8720CF,
+        "variant": VARIANT_RTL8720CF,
     },
     "t102-v1.1": {
         "name": "T102_V1.1",
-        "variant": FAMILY_RTL8710BN,
+        "variant": VARIANT_RTL8710BN,
     },
     "t103-v1.0": {
         "name": "T103_V1.0",
-        "variant": FAMILY_RTL8710BX,
+        "variant": VARIANT_RTL8710BX,
     },
     "t112-v1.1": {
         "name": "T112_V1.1",
-        "variant": FAMILY_RTL8710BN,
+        "variant": VARIANT_RTL8710BN,
     },
     "wr1": {
         "name": "WR1 Wi-Fi Module",
-        "variant": FAMILY_RTL8710BN,
+        "variant": VARIANT_RTL8710BN,
     },
     "wr1e": {
         "name": "WR1E Wi-Fi Module",
-        "variant": FAMILY_RTL8710BN,
+        "variant": VARIANT_RTL8710BN,
     },
     "wr2": {
         "name": "WR2 Wi-Fi Module",
-        "variant": FAMILY_RTL8710BN,
+        "variant": VARIANT_RTL8710BN,
     },
     "wr2e": {
         "name": "WR2E Wi-Fi Module",
-        "variant": FAMILY_RTL8710BN,
+        "variant": VARIANT_RTL8710BN,
     },
     "wr2l": {
         "name": "WR2L Wi-Fi Module",
-        "variant": FAMILY_RTL8710BX,
+        "variant": VARIANT_RTL8710BX,
     },
     "wr2le": {
         "name": "WR2LE Wi-Fi Module",
-        "variant": FAMILY_RTL8710BX,
+        "variant": VARIANT_RTL8710BX,
     },
     "wr3": {
         "name": "WR3 Wi-Fi Module",
-        "variant": FAMILY_RTL8710BN,
+        "variant": VARIANT_RTL8710BN,
     },
     "wr3e": {
         "name": "WR3E Wi-Fi Module",
-        "variant": FAMILY_RTL8710BN,
+        "variant": VARIANT_RTL8710BN,
     },
     "wr3l": {
         "name": "WR3L Wi-Fi Module",
-        "variant": FAMILY_RTL8710BX,
+        "variant": VARIANT_RTL8710BX,
     },
     "wr3le": {
         "name": "WR3LE Wi-Fi Module",
-        "variant": FAMILY_RTL8710BX,
+        "variant": VARIANT_RTL8710BX,
     },
     "wr3n": {
         "name": "WR3N Wi-Fi Module",
-        "variant": FAMILY_RTL8710BN,
+        "variant": VARIANT_RTL8710BN,
     },
 }
 

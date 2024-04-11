@@ -32,9 +32,9 @@ from .const import (
     CONF_LOGLEVEL,
     CONF_SDK_SILENT,
     CONF_UART_PORT,
-    FAMILIES,
-    FAMILY_COMPONENT,
-    FAMILY_FRIENDLY,
+    VARIANTS,
+    VARIANT_COMPONENT,
+    VARIANT_FRIENDLY,
     KEY_BOARD,
     KEY_COMPONENT,
     KEY_COMPONENT_DATA,
@@ -66,7 +66,7 @@ def _detect_variant(value):
         value = value.copy()
         value[CONF_VARIANT] = component.boards[board][KEY_VARIANT]
     # read component name matching this family
-    value[CONF_COMPONENT_ID] = FAMILY_COMPONENT[value[CONF_VARIANT]]
+    value[CONF_COMPONENT_ID] = VARIANT_COMPONENT[value[CONF_VARIANT]]
     # make sure the chosen component matches the family
     if value[CONF_COMPONENT_ID] != component.name:
         raise cv.Invalid(
@@ -236,7 +236,7 @@ BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LTComponent),
         cv.Required(CONF_BOARD): cv.string_strict,
-        cv.Optional(CONF_VARIANT): cv.one_of(*FAMILIES, upper=True),
+        cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
         cv.Optional(CONF_FAMILY): cv.invalid("'family' has been replaced by 'variant'"),
         cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
     },
@@ -257,7 +257,7 @@ async def component_to_code(config):
     cg.add_build_flag(f"-DUSE_{config[CONF_COMPONENT_ID].upper()}")
     cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_VARIANT]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    cg.add_define("ESPHOME_VARIANT", FAMILY_FRIENDLY[config[CONF_VARIANT]])
+    cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[config[CONF_VARIANT]])
 
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")
