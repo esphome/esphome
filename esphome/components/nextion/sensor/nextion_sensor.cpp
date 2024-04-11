@@ -76,9 +76,15 @@ void NextionSensor::set_state(float state, bool publish, bool send_to_nextion) {
     }
   }
 
+  float published_state = state;
   if (this->wave_chan_id_ == UINT8_MAX) {
     if (publish) {
-      this->publish_state(state);
+      if (this->precision_ > 0) {
+        double to_multiply = pow(10, -this->precision_);
+        published_state = (float) (state * to_multiply);
+      }
+
+      this->publish_state(published_state);
     } else {
       this->raw_state = state;
       this->state = state;
@@ -87,7 +93,7 @@ void NextionSensor::set_state(float state, bool publish, bool send_to_nextion) {
   }
   this->update_component_settings();
 
-  ESP_LOGN(TAG, "Wrote state for sensor \"%s\" state %lf", this->variable_name_.c_str(), state);
+  ESP_LOGN(TAG, "Wrote state for sensor \"%s\" state %lf", this->variable_name_.c_str(), published_state);
 }
 
 void NextionSensor::wave_update_() {

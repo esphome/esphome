@@ -36,14 +36,14 @@ bool XL9535Component::digital_read(uint8_t pin) {
       return state;
     }
 
-    state = (port & (pin - 10)) != 0;
+    state = (port & (1 << (pin - 10))) != 0;
   } else {
     if (this->read_register(XL9535_INPUT_PORT_0_REGISTER, &port, 1) != i2c::ERROR_OK) {
       this->status_set_warning();
       return state;
     }
 
-    state = (port & pin) != 0;
+    state = (port & (1 << pin)) != 0;
   }
 
   this->status_clear_warning();

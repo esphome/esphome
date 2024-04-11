@@ -2,6 +2,8 @@
 
 #include "remote_base.h"
 
+#include <cinttypes>
+
 /* Based on protocol analysis from
  * https://arduino-irremote.github.io/Arduino-IRremote/ir__MagiQuest_8cpp_source.html
  */

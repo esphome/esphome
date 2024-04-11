@@ -19,6 +19,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     UNIT_MINUTE,
     UNIT_SECOND,
+    CONF_SET_ACTION,
 )
 
 AUTO_LOAD = ["number", "switch"]
@@ -46,7 +47,6 @@ CONF_QUEUE_ENABLE_SWITCH = "queue_enable_switch"
 CONF_REPEAT_NUMBER = "repeat_number"
 CONF_REVERSE_SWITCH = "reverse_switch"
 CONF_RUN_DURATION_NUMBER = "run_duration_number"
-CONF_SET_ACTION = "set_action"
 CONF_STANDBY_SWITCH = "standby_switch"
 CONF_VALVE_NUMBER = "valve_number"
 CONF_VALVE_OPEN_DELAY = "valve_open_delay"
@@ -571,18 +571,12 @@ async def sprinkler_simple_action_to_code(config, action_id, template_arg, args)
 
 async def to_code(config):
     for sprinkler_controller in config:
-        var = cg.new_Pvariable(sprinkler_controller[CONF_ID])
-
-        if CONF_NAME in sprinkler_controller:
-            cg.add(var.set_name(sprinkler_controller[CONF_NAME]))
+        if len(sprinkler_controller[CONF_VALVES]) > 1:
+            name = sprinkler_controller[CONF_MAIN_SWITCH][CONF_NAME]
         else:
-            if len(sprinkler_controller[CONF_VALVES]) > 1:
-                name = sprinkler_controller[CONF_MAIN_SWITCH][CONF_NAME]
-            else:
-                name = sprinkler_controller[CONF_VALVES][0][CONF_VALVE_SWITCH][
-                    CONF_NAME
-                ]
-            cg.add(var.set_name(name))
+            name = sprinkler_controller[CONF_VALVES][0][CONF_VALVE_SWITCH][CONF_NAME]
+        name = sprinkler_controller.get(CONF_NAME, name)
+        var = cg.new_Pvariable(sprinkler_controller[CONF_ID], name)
 
         await cg.register_component(var, sprinkler_controller)
 

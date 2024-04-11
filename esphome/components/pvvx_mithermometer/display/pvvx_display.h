@@ -4,6 +4,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/components/ble_client/ble_client.h"
 
+#include <cinttypes>
+
 #ifdef USE_ESP32
 #include <esp_gattc_api.h>
 #ifdef USE_TIME

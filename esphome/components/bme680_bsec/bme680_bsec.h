@@ -21,6 +21,11 @@ enum IAQMode {
   IAQ_MODE_MOBILE = 1,
 };
 
+enum SupplyVoltage {
+  SUPPLY_VOLTAGE_3V3 = 0,
+  SUPPLY_VOLTAGE_1V8 = 1,
+};
+
 enum SampleRate {
   SAMPLE_RATE_LP = 0,
   SAMPLE_RATE_ULP = 1,
@@ -35,6 +40,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   void set_temperature_offset(float offset) { this->temperature_offset_ = offset; }
   void set_iaq_mode(IAQMode iaq_mode) { this->iaq_mode_ = iaq_mode; }
   void set_state_save_interval(uint32_t interval) { this->state_save_interval_ms_ = interval; }
+  void set_supply_voltage(SupplyVoltage supply_voltage) { this->supply_voltage_ = supply_voltage; }
 
   void set_sample_rate(SampleRate sample_rate) { this->sample_rate_ = sample_rate; }
   void set_temperature_sample_rate(SampleRate sample_rate) { this->temperature_sample_rate_ = sample_rate; }
@@ -109,6 +115,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   std::string device_id_;
   float temperature_offset_{0};
   IAQMode iaq_mode_{IAQ_MODE_STATIC};
+  SupplyVoltage supply_voltage_;
 
   SampleRate sample_rate_{SAMPLE_RATE_LP};  // Core/gas sample rate
   SampleRate temperature_sample_rate_{SAMPLE_RATE_DEFAULT};
