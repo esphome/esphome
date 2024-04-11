@@ -143,8 +143,9 @@ DateTimeCall &DateTimeCall::set_datetime(uint16_t year, uint8_t month, uint8_t d
   return *this;
 };
 
-DateTimeCall &DateTimeCall::set_datetime(ESPTime time) {
-  return this->set_datetime(time.year, time.month, time.day_of_month, time.hour, time.minute, time.second);
+DateTimeCall &DateTimeCall::set_datetime(ESPTime datetime) {
+  return this->set_datetime(datetime.year, datetime.month, datetime.day_of_month, datetime.hour, datetime.minute,
+                            datetime.second);
 };
 
 DateTimeCall &DateTimeCall::set_datetime(const std::string &datetime) {
@@ -156,8 +157,8 @@ DateTimeCall &DateTimeCall::set_datetime(const std::string &datetime) {
   return this->set_datetime(val);
 }
 
-DateTimeCall DateTimeEntityRestoreState::to_call(DateTimeEntity *time) {
-  DateTimeCall call = time->make_call();
+DateTimeCall DateTimeEntityRestoreState::to_call(DateTimeEntity *datetime) {
+  DateTimeCall call = datetime->make_call();
   call.set_datetime(this->year, this->month, this->day, this->hour, this->minute, this->second);
   return call;
 }
