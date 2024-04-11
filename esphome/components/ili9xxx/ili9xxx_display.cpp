@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/components/display/rect.h"
+#include "ili9xxx_defines.h"
 
 namespace esphome {
 namespace ili9xxx {
@@ -39,13 +40,7 @@ void ILI9XXXDisplay::setup() {
   }
 
   this->setup_pins_();
-
-  this->bus_->begin_commands();
   this->init_lcd_();
-
-  this->set_madctl();
-  this->bus_->send_command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
-  this->bus_->end_commands();
 
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
@@ -100,8 +95,8 @@ void ILI9XXXDisplay::dump_config() {
 
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  CS Pin: ", this->cs_);
-  LOG_PIN("  DC Pin: ", this->dc_pin_);
-  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  // LOG_PIN("  DC Pin: ", this->dc_pin_);
+  // LOG_PIN("  Busy Pin: ", this->busy_pin_);
   ESP_LOGCONFIG(TAG, "  Color order: %s", this->color_order_ == display::COLOR_ORDER_BGR ? "BGR" : "RGB");
   ESP_LOGCONFIG(TAG, "  Swap_xy: %s", YESNO(this->swap_xy_));
   ESP_LOGCONFIG(TAG, "  Mirror_x: %s", YESNO(this->mirror_x_));
@@ -237,7 +232,8 @@ void ILI9XXXDisplay::display_() {
     this->set_addr_window_(0, this->y_low_, this->width_ - 1, this->y_high_);
     this->bus_->begin_pixels();
     uint8_t *addr = this->buffer_ + this->y_low_ * this->width_ * 2;
-    this->bus_->send_pixels(display::Rect(0, this->y_low_, this->width_ - 1, this->y_high_), addr, h * this->width_ * 2);
+    this->bus_->send_pixels(display::Rect(0, this->y_low_, this->width_ - 1, this->y_high_), addr,
+                            h * this->width_ * 2);
     this->bus_->end_pixels();
   } else {
     ESP_LOGV(TAG, "Doing multiple write");
@@ -339,15 +335,28 @@ void ILI9XXXDisplay::reset_() {
 
 void ILI9XXXDisplay::init_lcd_() {
   uint8_t cmd, x, num_args;
+  if (this->init_sequence_ == nullptr) {
+    return;
+  }
   const uint8_t *addr = this->init_sequence_;
+  this->bus_->begin_commands();
   while ((cmd = *addr++) > 0) {
     x = *addr++;
     num_args = x & 0x7F;
-    this->send_command(cmd, addr, num_args);
+    this->bus_->send_command(cmd, addr, num_args);
     addr += num_args;
+    if (cmd == ILI9XXX_SWRESET) {
+      delay(6);
+    }
     if (x & 0x80)
       delay(150);  // NOLINT
   }
+  this->set_madctl();
+  this->bus_->send_command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
+
+  this->bus_->end_commands();
+
+
 }
 
 // Tell the display controller where we want to draw pixels.
@@ -382,6 +391,47 @@ void ILI9XXXDisplay::invert_colors(bool invert) {
 
 int ILI9XXXDisplay::get_width_internal() { return this->width_; }
 int ILI9XXXDisplay::get_height_internal() { return this->height_; }
+
+void ILI9XXXILI9488::set_madctl() {
+  uint8_t mad = this->color_order_ == display::COLOR_ORDER_BGR ? MADCTL_BGR : MADCTL_RGB;
+  uint8_t dfun[2] = {0x00, 0x22};
+  this->width_ = 320;
+  this->height_ = 480;
+  if (!(this->swap_xy_ || this->mirror_x_ || this->mirror_y_)) {
+    // no transforms
+  } else if (this->mirror_y_ && this->mirror_x_) {
+    // rotate 180
+    dfun[1] = 0x42;
+  } else if (this->swap_xy_) {
+    this->width_ = 480;
+    this->height_ = 320;
+    mad |= 0x20;
+    if (this->mirror_x_) {
+      dfun[1] = 0x02;
+    } else {
+      dfun[1] = 0x62;
+    }
+  }
+  this->bus_->send_command(ILI9XXX_DFUNCTR, dfun, 2);
+  this->bus_->send_command(ILI9XXX_MADCTL, mad);
+}
+
+void ILI9XXXST7701S::set_madctl() {
+  // st7701 does not appear to support axis swapping
+  uint8_t CMD2_BK0[5] = {0x77, 0x01, 0x00, 0x00, 0x10};
+  this->bus_->send_command(ILI9XXX_BKSEL, CMD2_BK0, sizeof(CMD2_BK0));
+  this->bus_->send_command(ILI9XXX_VMCTR2, this->mirror_x_ ? 0x04 : 0x00);
+  uint8_t val = this->color_order_ == display::COLOR_ORDER_BGR ? 0x08 : 0x00;
+  if (this->mirror_y_)
+    val |= 0x10;
+  this->bus_->send_command(ILI9XXX_MADCTL, val);
+  esph_log_d(TAG, "write MADCTL %X", val);
+  this->bus_->send_command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
+  this->set_timeout(120, [this] {
+    this->bus_->send_command(ILI9XXX_SLPOUT);
+    this->bus_->send_command(ILI9XXX_DISPON);
+  });
+}
 
 }  // namespace ili9xxx
 }  // namespace esphome

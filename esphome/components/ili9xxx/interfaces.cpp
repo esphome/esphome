@@ -103,12 +103,12 @@ void SPI16DBus::data(const uint8_t *value, size_t len) {
 // ======================== RGBbus
 
 #ifdef USE_ESP32_VARIANT_ESP32S3
-void RGBBus::setup(uint16_t width, uint16_t height) {
-  esph_log_config(TAG, "Setting up RPI_DPI_RGB");
+void DPIConfig::dpi_setup(uint16_t width, uint16_t height) {
+  esph_log_config(TAG, "Setting up DPI_Bus");
   esp_lcd_rgb_panel_config_t config{};
   config.flags.fb_in_psram = 1;
-  config.timings.h_res = driver->get_native_width();
-  config.timings.v_res = driver->get_native_height();
+  config.timings.h_res = width;
+  config.timings.v_res = height;
   config.timings.hsync_pulse_width = this->hsync_pulse_width_;
   config.timings.hsync_back_porch = this->hsync_back_porch_;
   config.timings.hsync_front_porch = this->hsync_front_porch_;
@@ -139,15 +139,15 @@ void RGBBus::setup(uint16_t width, uint16_t height) {
   esph_log_config(TAG, "RPI_DPI_RGB setup complete");
 }
 
-void RGBBus::dump_config() {
-  ESP_LOGCONFIG("", "RPI_DPI_RGB LCD");
+void DPIConfig::dpi_dump_config() {
+  ESP_LOGCONFIG("", "DPI Bus LCD");
   LOG_PIN("  DE Pin: ", this->de_pin_);
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
   for (size_t i = 0; i != data_pin_count; i++)
     ESP_LOGCONFIG(TAG, "  Data pin %d: %s", i, (this->data_pins_[i])->dump_summary().c_str());
 }
 
-void RGBBus::send_pixels(Rect window, const uint8_t *data, size_t len) {
+void DPIConfig::draw_pixels(display::Rect window, const uint8_t *data, size_t len) {
   esp_err_t err = esp_lcd_panel_draw_bitmap(this->handle_, window.x, window.y, window.x2(), window.x2(), data);
   if (err != ESP_OK)
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));

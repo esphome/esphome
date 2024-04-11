@@ -5,9 +5,13 @@
 #include "ili9xxx_defines.h"
 #include "ili9xxx_init.h"
 
+// #ifdef USE_ESP32_VARIANT_ESP32S3
+#include "esp_lcd_panel_ops.h"
+#include "esp_lcd_panel_rgb.h"
+/// #endif
+
 namespace esphome {
 namespace ili9xxx {
-
 
 class IOBus {
  public:
@@ -16,14 +20,16 @@ class IOBus {
   virtual void begin_commands(){};
   virtual void end_commands(){};
   inline void send_command(uint8_t command) { this->send_command(command, nullptr, 0); }
+  inline void send_command(uint8_t command, uint8_t data) { this->send_command(command, &data, 1); }
+
   void send_command(uint8_t command, const uint8_t *data, size_t len);
   inline void send_data(const uint8_t data) { this->send_data(&data, 1); }
   void send_data(const uint8_t *data, size_t len = 1);
 
   virtual void begin_pixels() { this->begin_commands(); }
   virtual void end_pixels() { this->end_commands(); }
-  void send_pixels(Rect window, const uint8_t *data) { this->send_pixels(window, data, 1); }
-  virtual void send_pixels(Rect window, const uint8_t *data, size_t len) { this->send_data(data, len); }
+  void send_pixels(display::Rect window, const uint8_t *data) { this->send_pixels(window, data, 1); }
+  virtual void send_pixels(display::Rect window, const uint8_t *data, size_t len) { this->send_data(data, len); }
 
   virtual void dump_config(){};
 
@@ -65,20 +71,21 @@ class SPIBus : public IOBus,
 };
 
 class SPI16DBus : public SPIBus {
+ public:
   void dump_config() override;
 
  protected:
   void data(const uint8_t *value, size_t len) override;
 };
 
-#ifdef USE_ESP32_VARIANT_ESP32S3
-class RGBBus : public SPIBus {
-  void setup(uint16_t width, uint16_t height) override;
-  void dump_config() override;
+// #ifdef USE_ESP32_VARIANT_ESP32S3
 
-  void begin_pixels() override {}
-  void end_pixels() override {}
-  void send_pixels(Rect window, const uint8_t *data, size_t len);
+class DPIConfig {
+ public:
+  void dpi_setup(uint16_t width, uint16_t height);
+  void dpi_dump_config();
+
+  void draw_pixels(display::Rect window, const uint8_t *data, size_t len);
 
   void add_data_pin(InternalGPIOPin *data_pin, size_t index) { this->data_pins_[index] = data_pin; };
   void set_de_pin(InternalGPIOPin *de_pin) { this->de_pin_ = de_pin; }
@@ -98,10 +105,6 @@ class RGBBus : public SPIBus {
   void set_hsync_pulse_width(uint16_t hsync_pulse_width) { this->hsync_pulse_width_ = hsync_pulse_width; }
 
  protected:
-  void data(const uint8_t *value, size_t len) override{};
-  void send_byte(uint8_t data) override{};
-  void send_array(const uint8_t *data, size_t len) override{};
-
   InternalGPIOPin *data_pins_[16] = {};
   InternalGPIOPin *de_pin_{nullptr};
 
@@ -121,7 +124,44 @@ class RGBBus : public SPIBus {
 
   esp_lcd_panel_handle_t handle_{};
 };
-#endif
 
-}  // namespace display
+class DPIBus : public IOBus, DPIConfig {
+ public:
+  void setup(uint16_t width, uint16_t height) override {
+    this->dpi_setup(width, height);
+  };
+  void dump_config() override {
+    this->dpi_dump_config();
+  };
+
+  void begin_pixels() override {}
+  void end_pixels() override {}
+  void send_pixels(display::Rect window, const uint8_t *data, size_t len) override {
+    this->draw_pixels(window, data, len);
+  }
+
+ protected:
+  void data(const uint8_t *value, size_t len) override{};
+  void send_byte(uint8_t data) override{};
+  void send_array(const uint8_t *data, size_t len) override{};
+};
+
+class RGBBus : public SPIBus, DPIConfig {
+ public:
+  void setup(uint16_t width, uint16_t height) override {
+    this->dpi_setup(width, height);
+    SPIBus::setup(width, height);
+  }
+  void dump_config() override {
+    this->dpi_dump_config();
+    SPIBus::dump_config();
+  }
+  void send_pixels(display::Rect window, const uint8_t *data, size_t len) override {
+    this->draw_pixels(window, data, len);
+  }
+
+};
+//#endif
+
+}  // namespace ili9xxx
 }  // namespace esphome

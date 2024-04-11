@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, pins
-from esphome.components import display, spi, font
+from esphome.components import display, spi, font, esp32
 from esphome.components.display import validate_rotation
 from esphome.core import CORE, HexInt
 from esphome.const import (
@@ -28,7 +28,6 @@ from esphome.const import (
     CONF_GREEN,
     CONF_BLUE,
     CONF_DATA_PINS,
-    CONF_TYPE,
     CONF_NUMBER,
     CONF_IGNORE_STRAPPING_WARNING,
 )
@@ -55,10 +54,14 @@ ILI9XXXDisplay = ili9xxx_ns.class_(
 
 
 displayInterface = ili9xxx_ns.class_("displayInterface")
+
 SPI_Interface = ili9xxx_ns.class_("SPIBus", displayInterface)
 SPI16D_Interface = ili9xxx_ns.class_("SPI16DBus", displayInterface)
-RGB_Interface = ili9xxx_ns.class_("RGBBus", SPI_Interface)
 
+DPI_Config = ili9xxx_ns.class_("DPIConfig")
+DPI_Interface = ili9xxx_ns.class_("DPIBus", DPI_Config, displayInterface)
+RGB_Interface = ili9xxx_ns.class_("RGBBus", DPI_Config, SPI_Interface)
+TEST_Interface = ili9xxx_ns.class_("TESTBus", DPI_Config)
 
 ILI9XXXColorMode = ili9xxx_ns.enum("ILI9XXXColorMode")
 ColorOrder = display.display_ns.enum("ColorMode")
@@ -81,6 +84,7 @@ MODELS = {
     "S3BOX": ili9xxx_ns.class_("ILI9XXXS3Box", ILI9XXXDisplay),
     "S3BOX_LITE": ili9xxx_ns.class_("ILI9XXXS3BoxLite", ILI9XXXDisplay),
     "WAVESHARE_RES_3_5": ili9xxx_ns.class_("WAVESHARERES35", ILI9XXXDisplay),
+    "ST7701S": ili9xxx_ns.class_("ILI9XXXST7701S", ILI9XXXDisplay),
 }
 
 COLOR_ORDERS = {
@@ -89,13 +93,16 @@ COLOR_ORDERS = {
 }
 
 COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
-CONF_BUS_ID = "bus_id"
-CONF_DE_PIN = "de_pin"
 
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
 CONF_COLOR_PALETTE_ID = "color_palette_id"
 
 CONF_INTERFACE = "interface"
+CONF_BUS_ID = "bus_id"
+
+CONF_DPI_INTERFACE = "dpi_interface"
+
+CONF_DE_PIN = "de_pin"
 
 CONF_PCLK_PIN = "pclk_pin"
 CONF_PCLK_FREQUENCY = "pclk_frequency"
@@ -110,12 +117,6 @@ CONF_VSYNC_PIN = "vsync_pin"
 CONF_VSYNC_PULSE_WIDTH = "vsync_pulse_width"
 CONF_VSYNC_FRONT_PORCH = "vsync_front_porch"
 CONF_VSYNC_BACK_PORCH = "vsync_back_porch"
-
-CONF_DISPLAY_COLORFORMAT = "disply_colorformat"
-CONF_BUFFER_COLORFORMAT = "buffer_colorformat"
-CONF_COLOR_MODE = "color_mode"
-CONF_BYTE_ALIGNED = "byte_aligned"
-CONF_LITTLE_ENDIAN = "little_endian"
 
 
 def _validate(config):
@@ -173,69 +174,69 @@ def data_pin_set(length):
 
 DPI_INTERFACE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_DATA_PINS): cv.Any(
-            data_pin_set(16),
-            cv.Schema(
-                {
-                    cv.Required(CONF_RED): data_pin_set(5),
-                    cv.Required(CONF_GREEN): data_pin_set(6),
-                    cv.Required(CONF_BLUE): data_pin_set(5),
-                }
-            ),
-        ),
-        cv.Required(CONF_DE_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-        cv.Required(CONF_PCLK_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Optional(CONF_PCLK_INVERTED, default=True): cv.boolean,
-        cv.Optional(CONF_PCLK_FREQUENCY, default="16MHz"): cv.All(
-            cv.frequency, cv.Range(min=4e6, max=30e6)
-        ),
-        cv.Required(CONF_HSYNC_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Optional(CONF_HSYNC_PULSE_WIDTH, default=10): cv.int_,
-        cv.Optional(CONF_HSYNC_BACK_PORCH, default=10): cv.int_,
-        cv.Optional(CONF_HSYNC_FRONT_PORCH, default=20): cv.int_,
-        cv.Required(CONF_VSYNC_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Optional(CONF_VSYNC_PULSE_WIDTH, default=10): cv.int_,
-        cv.Optional(CONF_VSYNC_BACK_PORCH, default=10): cv.int_,
-        cv.Optional(CONF_VSYNC_FRONT_PORCH, default=10): cv.int_,
+        cv.Required(CONF_DPI_INTERFACE): cv.Schema(
+            {
+                cv.Required(CONF_DATA_PINS): cv.Any(
+                    data_pin_set(16),
+                    cv.Schema(
+                        {
+                            cv.Required(CONF_RED): data_pin_set(5),
+                            cv.Required(CONF_GREEN): data_pin_set(6),
+                            cv.Required(CONF_BLUE): data_pin_set(5),
+                        }
+                    ),
+                ),
+                cv.Required(CONF_DE_PIN): pins.internal_gpio_output_pin_schema,
+                cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+                cv.Required(CONF_PCLK_PIN): pins.internal_gpio_output_pin_schema,
+                cv.Optional(CONF_PCLK_INVERTED, default=True): cv.boolean,
+                cv.Optional(CONF_PCLK_FREQUENCY, default="16MHz"): cv.All(
+                    cv.frequency, cv.Range(min=4e6, max=30e6)
+                ),
+                cv.Required(CONF_HSYNC_PIN): pins.internal_gpio_output_pin_schema,
+                cv.Optional(CONF_HSYNC_PULSE_WIDTH, default=10): cv.int_,
+                cv.Optional(CONF_HSYNC_BACK_PORCH, default=10): cv.int_,
+                cv.Optional(CONF_HSYNC_FRONT_PORCH, default=20): cv.int_,
+                cv.Required(CONF_VSYNC_PIN): pins.internal_gpio_output_pin_schema,
+                cv.Optional(CONF_VSYNC_PULSE_WIDTH, default=10): cv.int_,
+                cv.Optional(CONF_VSYNC_BACK_PORCH, default=10): cv.int_,
+                cv.Optional(CONF_VSYNC_FRONT_PORCH, default=10): cv.int_,
+            },
+        )
     },
 )
 
-COMMON_SCHEMA = (
-    display.FULL_DISPLAY_SCHEMA.extend(
-        {
-            cv.GenerateID(): cv.declare_id(ILI9XXXDisplay),
-            cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
-            cv.Optional(CONF_DIMENSIONS): cv.Any(
-                cv.dimensions,
-                cv.Schema(
-                    {
-                        cv.Required(CONF_WIDTH): cv.int_,
-                        cv.Required(CONF_HEIGHT): cv.int_,
-                        cv.Optional(CONF_OFFSET_HEIGHT, default=0): cv.int_,
-                        cv.Optional(CONF_OFFSET_WIDTH, default=0): cv.int_,
-                    }
-                ),
-            ),
-            cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_COLOR_PALETTE, default="NONE"): COLOR_PALETTE,
-            cv.GenerateID(CONF_COLOR_PALETTE_ID): cv.declare_id(cg.uint8),
-            cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
-                cv.file_
-            ),
-            cv.Optional(CONF_INVERT_COLORS): cv.boolean,
-            cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
-            cv.Exclusive(CONF_ROTATION, CONF_ROTATION): validate_rotation,
-            cv.Exclusive(CONF_TRANSFORM, CONF_ROTATION): cv.Schema(
+COMMON_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(ILI9XXXDisplay),
+        cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
+        cv.Optional(CONF_DIMENSIONS): cv.Any(
+            cv.dimensions,
+            cv.Schema(
                 {
-                    cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
-                    cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
-                    cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+                    cv.Required(CONF_WIDTH): cv.int_,
+                    cv.Required(CONF_HEIGHT): cv.int_,
+                    cv.Optional(CONF_OFFSET_HEIGHT, default=0): cv.int_,
+                    cv.Optional(CONF_OFFSET_WIDTH, default=0): cv.int_,
                 }
             ),
-        },
-    ).extend(cv.polling_component_schema("1s"))
-)
+        ),
+        cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_COLOR_PALETTE, default="NONE"): COLOR_PALETTE,
+        cv.GenerateID(CONF_COLOR_PALETTE_ID): cv.declare_id(cg.uint8),
+        cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(cv.file_),
+        cv.Optional(CONF_INVERT_COLORS): cv.boolean,
+        cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
+        cv.Exclusive(CONF_ROTATION, CONF_ROTATION): validate_rotation,
+        cv.Exclusive(CONF_TRANSFORM, CONF_ROTATION): cv.Schema(
+            {
+                cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
+                cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+                cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+            }
+        ),
+    },
+).extend(cv.polling_component_schema("1s"))
 
 
 CONFIG_SCHEMA = cv.All(
@@ -258,14 +259,29 @@ CONFIG_SCHEMA = cv.All(
                 }
             )
             .extend(COMMON_SCHEMA),
-            "DPI_RGB": DPI_INTERFACE_SCHEMA.extend(COMMON_SCHEMA),
-            "SPI_RGB": DPI_INTERFACE_SCHEMA.extend(COMMON_SCHEMA)
-            .extend(
-                {
-                    cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
-                }
-            )
-            .extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6)),
+            "DPI_RGB": cv.All(
+                COMMON_SCHEMA.extend(DPI_INTERFACE_SCHEMA).extend(
+                    {
+                        cv.GenerateID(CONF_BUS_ID): cv.declare_id(DPI_Interface),
+                    }
+                ),
+                cv.only_with_esp_idf,
+                esp32.only_on_variant(supported=[esp32.const.VARIANT_ESP32S3]),
+            ),
+            "SPI_RGB": cv.All(
+                COMMON_SCHEMA.extend(DPI_INTERFACE_SCHEMA)
+                .extend(
+                    {
+                        cv.GenerateID(CONF_BUS_ID): cv.declare_id(RGB_Interface),
+                        cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
+                    }
+                )
+                .extend(
+                    spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6)
+                ),
+                cv.only_with_esp_idf,
+                esp32.only_on_variant(supported=[esp32.const.VARIANT_ESP32S3]),
+            ),
         },
         default_type="SPI",
         key=CONF_INTERFACE,
@@ -276,47 +292,78 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+async def register_dpi_interface(var, config, color_order):
+    cg.add(var.set_hsync_pulse_width(config[CONF_HSYNC_PULSE_WIDTH]))
+    cg.add(var.set_hsync_back_porch(config[CONF_HSYNC_BACK_PORCH]))
+    cg.add(var.set_hsync_front_porch(config[CONF_HSYNC_FRONT_PORCH]))
+    cg.add(var.set_vsync_pulse_width(config[CONF_VSYNC_PULSE_WIDTH]))
+    cg.add(var.set_vsync_back_porch(config[CONF_VSYNC_BACK_PORCH]))
+    cg.add(var.set_vsync_front_porch(config[CONF_VSYNC_FRONT_PORCH]))
+    cg.add(var.set_pclk_inverted(config[CONF_PCLK_INVERTED]))
+    cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY]))
+    index = 0
+    dpins = []
+
+    if CONF_RED in config[CONF_DATA_PINS]:
+        red_pins = config[CONF_DATA_PINS][CONF_RED]
+        green_pins = config[CONF_DATA_PINS][CONF_GREEN]
+        blue_pins = config[CONF_DATA_PINS][CONF_BLUE]
+        if color_order == "BGR":
+            dpins.extend(red_pins)
+            dpins.extend(green_pins)
+            dpins.extend(blue_pins)
+        else:
+            dpins.extend(blue_pins)
+            dpins.extend(green_pins)
+            dpins.extend(red_pins)
+        # swap bytes to match big-endian format
+        dpins = dpins[8:16] + dpins[0:8]
+    else:
+        dpins = config[CONF_DATA_PINS]
+
+    for pin in dpins:
+        data_pin = await cg.gpio_pin_expression(pin)
+        cg.add(var.add_data_pin(data_pin, index))
+        index += 1
+
+    pin = await cg.gpio_pin_expression(config[CONF_DE_PIN])
+    cg.add(var.set_de_pin(pin))
+    pin = await cg.gpio_pin_expression(config[CONF_PCLK_PIN])
+    cg.add(var.set_pclk_pin(pin))
+    pin = await cg.gpio_pin_expression(config[CONF_HSYNC_PIN])
+    cg.add(var.set_hsync_pin(pin))
+    pin = await cg.gpio_pin_expression(config[CONF_VSYNC_PIN])
+    cg.add(var.set_vsync_pin(pin))
+
+
 async def register_display_iobus(var, config):
-    bus_config = config[CONF_INTERFACE]
-    bus = cg.new_Pvariable(bus_config[CONF_BUS_ID])
+
+    bus = cg.new_Pvariable(config[CONF_BUS_ID])
     cg.add(var.set_interface(bus))
 
-    if bus_config[CONF_TYPE] == "SPI":
-        await spi.register_spi_device(bus, bus_config)
-        dc = await cg.gpio_pin_expression(bus_config[CONF_DC_PIN])
+    if config[CONF_INTERFACE] == "SPI":
+        await spi.register_spi_device(bus, config)
+        dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
         cg.add(bus.set_dc_pin(dc))
 
-    elif bus_config[CONF_TYPE] == "SPI16D":
-        await spi.register_spi_device(bus, bus_config)
-        dc = await cg.gpio_pin_expression(bus_config[CONF_DC_PIN])
+    elif config[CONF_INTERFACE] == "SPI16D":
+        await spi.register_spi_device(bus, config)
+        dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
         cg.add(bus.set_dc_pin(dc))
 
-    elif bus_config[CONF_TYPE] == "DPI_RGB":
-        pin = await cg.gpio_pin_expression(config[CONF_HSYNC_PIN])
-        cg.add(bus.set_hsync_pin(pin))
-        cg.add(bus.set_hsync_pulse_width(config[CONF_HSYNC_PULSE_WIDTH]))
-        cg.add(bus.set_hsync_back_porch(config[CONF_HSYNC_BACK_PORCH]))
-        cg.add(bus.set_hsync_front_porch(config[CONF_HSYNC_FRONT_PORCH]))
+    elif config[CONF_INTERFACE] == "DPI_RGB":
+        await register_dpi_interface(
+            bus, config[CONF_DPI_INTERFACE], config[CONF_COLOR_ORDER]
+        )
 
-        pin = await cg.gpio_pin_expression(config[CONF_VSYNC_PIN])
-        cg.add(bus.set_vsync_pin(pin))
-        cg.add(bus.set_vsync_pulse_width(config[CONF_VSYNC_PULSE_WIDTH]))
-        cg.add(bus.set_vsync_back_porch(config[CONF_VSYNC_BACK_PORCH]))
-        cg.add(bus.set_vsync_front_porch(config[CONF_VSYNC_FRONT_PORCH]))
-
-        pin = await cg.gpio_pin_expression(config[CONF_PCLK_PIN])
-        cg.add(bus.set_pclk_pin(pin))
-        cg.add(bus.set_pclk_inverted(config[CONF_PCLK_INVERTED]))
-        cg.add(bus.set_pclk_frequency(config[CONF_PCLK_FREQUENCY]))
-
-        index = 0
-        for pin in config[CONF_DATA_PINS]:
-            data_pin = await cg.gpio_pin_expression(pin)
-            cg.add(bus.add_data_pin(data_pin, index))
-            index += 1
-
-        pin = await cg.gpio_pin_expression(config[CONF_DE_PIN])
-        cg.add(bus.set_de_pin(pin))
+    elif config[CONF_INTERFACE] == "SPI_RGB":
+        await register_dpi_interface(
+            bus, config[CONF_DPI_INTERFACE], config[CONF_COLOR_ORDER]
+        )
+        await spi.register_spi_device(bus, config)
+        if CONF_DC_PIN in config:
+            dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
+            cg.add(bus.set_dc_pin(dc))
 
 
 async def to_code(config):

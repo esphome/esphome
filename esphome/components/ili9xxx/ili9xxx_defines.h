@@ -91,6 +91,6 @@ static const uint8_t ILI9XXX_GMCTRN1 = 0xE1;
 
 static const uint8_t ILI9XXX_CSCON = 0xF0;
 static const uint8_t ILI9XXX_ADJCTL3 = 0xF7;
-
+static const uint8_t ILI9XXX_BKSEL = 0xFF;
 }  // namespace ili9xxx
 }  // namespace esphome
