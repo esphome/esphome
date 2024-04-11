@@ -4,7 +4,7 @@ wifi:
   ssid: "ssid"
 
 bk72xx:
-  board: cb2s
+  board: generic-bk7231n-qfn32-tuya
 
 esphome:
   name: bk72xx-test
@@ -32,3 +32,11 @@ mqtt:
   port: 1883
   discovery: true
   discovery_prefix: homeassistant
+
+light:
+  - platform: beken_spi_led_strip
+    rgb_order: GRB
+    pin: P16
+    num_leds: 30
+    chipset: ws2812
+    name: "My Light"
