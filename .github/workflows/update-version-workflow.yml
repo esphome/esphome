@@ -2,8 +2,8 @@ name: Update file on PR merge
 on:
   pull_request:
     branches:
-      - master
-      - develop
+      - nvds-version
+      - dev
     types: closed
 
 jobs:
