@@ -560,7 +560,7 @@ void VoiceAssistant::signal_stop_() {
 }
 
 void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
-  ESP_LOGD(TAG, "Event Type: %d", msg.event_type);
+  ESP_LOGD(TAG, "Event Type: %lu", msg.event_type);
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_RUN_START:
       ESP_LOGD(TAG, "Assist Pipeline running");
@@ -723,7 +723,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->defer([this]() { this->stt_vad_end_trigger_->trigger(); });
       break;
     default:
-      ESP_LOGD(TAG, "Unhandled event type: %d", msg.event_type);
+      ESP_LOGD(TAG, "Unhandled event type: %lu", msg.event_type);
       break;
   }
 }
