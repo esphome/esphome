@@ -786,7 +786,7 @@ bool APIConnection::send_datetime_state(datetime::DateTimeEntity *datetime) {
   resp.hour = datetime->hour;
   resp.minute = datetime->minute;
   resp.second = datetime->second;
-  return this->send_datetime_state_response(resp);
+  return this->send_date_time_state_response(resp);
 }
 bool APIConnection::send_datetime_info(datetime::DateTimeEntity *datetime) {
   ListEntitiesDateTimeResponse msg;
@@ -799,7 +799,7 @@ bool APIConnection::send_datetime_info(datetime::DateTimeEntity *datetime) {
   msg.disabled_by_default = datetime->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(datetime->get_entity_category());
 
-  return this->send_list_entities_datetime_response(msg);
+  return this->send_list_entities_date_time_response(msg);
 }
 void APIConnection::datetime_command(const DateTimeCommandRequest &msg) {
   datetime::DateTimeEntity *datetime = App.get_datetime_by_key(msg.key);
