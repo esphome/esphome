@@ -207,9 +207,11 @@ def add_key_action(name, action_name, is_required):
             cv.Schema(
                 {
                     cv.GenerateID(): cv.use_id(Keyboard),
-                    cv.Required(CONF_KEYS)
-                    if is_required
-                    else cv.Optional(CONF_KEYS): cv.ensure_list(convert_key_to_code),
+                    (
+                        cv.Required(CONF_KEYS)
+                        if is_required
+                        else cv.Optional(CONF_KEYS)
+                    ): cv.ensure_list(convert_key_to_code),
                     cv.Optional(CONF_TYPE, CONF_KEYBOARD): cv.All(
                         cv.enum(CONF_KEYBOARD_TYPE, lower=True),
                         cv.Length(min=1),
