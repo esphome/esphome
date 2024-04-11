@@ -64,7 +64,6 @@ static void set_spi_config_register(unsigned long bit, bool val) {
   REG_WRITE(SPI_CONFIG, value);
 }
 
-
 void spi_dma_tx_enable(bool enable) {
   GDMA_CFG_ST en_cfg;
   set_spi_config_register(SPI_TX_EN, enable ? 1 : 0);
@@ -152,13 +151,13 @@ void BekenSPILEDStripLightOutput::setup() {
 
   value = PWD_SPI_CLK_BIT;
   sddev_control(ICU_DEV_NAME, CMD_CLK_PWR_UP, &value);
-  
+
   if (spi_data != nullptr) {
     ESP_LOGE(TAG, "SPI device already initialized!");
     this->mark_failed();
     return;
   }
-  
+
   spi_data = (spi_data_t *) calloc(1, sizeof(spi_data_t));
   if (spi_data == nullptr) {
     ESP_LOGE(TAG, "Cannot allocate spi_data!");
@@ -200,34 +199,34 @@ void BekenSPILEDStripLightOutput::setup() {
   GDMA_CFG_ST en_cfg;
   GDMACFG_TPYES_ST init_cfg;
   memset(&init_cfg, 0, sizeof(GDMACFG_TPYES_ST));
-  
+
   init_cfg.dstdat_width = 8;
   init_cfg.srcdat_width = 32;
   init_cfg.dstptr_incr = 0;
   init_cfg.srcptr_incr = 1;
   init_cfg.src_start_addr = this->dma_buf_;
-  init_cfg.dst_start_addr = (void *)SPI_DAT; // SPI_DMA_REG4_TXFIFO
+  init_cfg.dst_start_addr = (void *) SPI_DAT;  // SPI_DMA_REG4_TXFIFO
   init_cfg.channel = SPI_TX_DMA_CHANNEL;
-  init_cfg.prio = 0; // 10
+  init_cfg.prio = 0;  // 10
   init_cfg.u.type4.src_loop_start_addr = this->dma_buf_;
   init_cfg.u.type4.src_loop_end_addr = this->dma_buf_ + dma_buffer_size;
   init_cfg.half_fin_handler = nullptr;
   init_cfg.fin_handler = spi_dma_tx_finish_callback;
   init_cfg.src_module = GDMA_X_SRC_DTCM_RD_REQ;
-  init_cfg.dst_module = GDMA_X_DST_GSPI_TX_REQ; // GDMA_X_DST_HSSPI_TX_REQ
-  sddev_control(GDMA_DEV_NAME, CMD_GDMA_CFG_TYPE4, (void *)&init_cfg);
+  init_cfg.dst_module = GDMA_X_DST_GSPI_TX_REQ;  // GDMA_X_DST_HSSPI_TX_REQ
+  sddev_control(GDMA_DEV_NAME, CMD_GDMA_CFG_TYPE4, (void *) &init_cfg);
   en_cfg.channel = SPI_TX_DMA_CHANNEL;
   en_cfg.param = dma_buffer_size;
-  sddev_control(GDMA_DEV_NAME, CMD_GDMA_SET_TRANS_LENGTH, (void *)&en_cfg);
+  sddev_control(GDMA_DEV_NAME, CMD_GDMA_SET_TRANS_LENGTH, (void *) &en_cfg);
   en_cfg.channel = SPI_TX_DMA_CHANNEL;
   en_cfg.param = 0;
-  sddev_control(GDMA_DEV_NAME, CMD_GDMA_CFG_WORK_MODE, (void *)&en_cfg);
+  sddev_control(GDMA_DEV_NAME, CMD_GDMA_CFG_WORK_MODE, (void *) &en_cfg);
   en_cfg.channel = SPI_TX_DMA_CHANNEL;
   en_cfg.param = 0;
   sddev_control(GDMA_DEV_NAME, CMD_GDMA_CFG_SRCADDR_LOOP, &en_cfg);
 
   spi_dma_tx_enable(0);
-  
+
   value = REG_READ(SPI_CONFIG);
   value &= ~(0xFFF << 8);
   value |= ((dma_buffer_size & 0xFFF) << 8);
@@ -265,21 +264,21 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
     return;
   }
 
-  //GLOBAL_INT_DECLARATION();
-  //GLOBAL_INT_DISABLE();
+  // GLOBAL_INT_DECLARATION();
+  // GLOBAL_INT_DISABLE();
   spi_data->tx_in_progress = true;
-  //GLOBAL_INT_RESTORE();
+  // GLOBAL_INT_RESTORE();
 
   size_t buffer_size = this->get_buffer_size_();
   size_t size = 0;
   uint8_t *psrc = this->buf_;
   uint8_t *pdest = this->dma_buf_;
-  
+
   // Workaround for SPI DMA bug
   for (int i = 0; i < 64; i++) {
-    *pdest++ = 0x00; // 0x80 for debugging
+    *pdest++ = 0x00;  // 0x80 for debugging
   }
-  
+
   while (size < buffer_size) {
     uint8_t b = *psrc;
     for (int i = 0; i < 8; i++) {
@@ -291,7 +290,7 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
 
   // Workaround for SPI DMA bug
   for (int i = 0; i < 64; i++) {
-    *pdest++ = 0x00; // 0xff for debugging
+    *pdest++ = 0x00;  // 0xff for debugging
   }
 
   spi_dma_tx_enable(1);
@@ -300,7 +299,7 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
     ESP_LOGE(TAG, "Timed out waiting for semaphore");
     return;
   }
-  
+
   this->status_clear_warning();
 }
 
