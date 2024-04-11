@@ -264,10 +264,7 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
     return;
   }
 
-  // GLOBAL_INT_DECLARATION();
-  // GLOBAL_INT_DISABLE();
   spi_data->tx_in_progress = true;
-  // GLOBAL_INT_RESTORE();
 
   size_t buffer_size = this->get_buffer_size_();
   size_t size = 0;
