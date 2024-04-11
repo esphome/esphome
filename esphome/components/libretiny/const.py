@@ -46,7 +46,6 @@ KEY_LIBRETINY = "libretiny"
 KEY_BOARD = "board"
 KEY_COMPONENT = "component"
 KEY_COMPONENT_DATA = "component_data"
-KEY_FAMILY = "family"
 
 # COMPONENTS - auto-generated! Do not modify this block.
 COMPONENT_BK72XX = "bk72xx"

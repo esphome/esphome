@@ -11,87 +11,87 @@ from esphome.components.libretiny.const import (
 BK72XX_BOARDS = {
     "cb1s": {
         "name": "CB1S Wi-Fi Module",
-        "family": FAMILY_BK7231N,
+        "variant": FAMILY_BK7231N,
     },
     "cb2l": {
         "name": "CB2L Wi-Fi Module",
-        "family": FAMILY_BK7231N,
+        "variant": FAMILY_BK7231N,
     },
     "cb2s": {
         "name": "CB2S Wi-Fi Module",
-        "family": FAMILY_BK7231N,
+        "variant": FAMILY_BK7231N,
     },
     "cb3l": {
         "name": "CB3L Wi-Fi Module",
-        "family": FAMILY_BK7231N,
+        "variant": FAMILY_BK7231N,
     },
     "cb3s": {
         "name": "CB3S Wi-Fi Module",
-        "family": FAMILY_BK7231N,
+        "variant": FAMILY_BK7231N,
     },
     "cb3se": {
         "name": "CB3SE Wi-Fi Module",
-        "family": FAMILY_BK7231N,
+        "variant": FAMILY_BK7231N,
     },
     "cblc5": {
         "name": "CBLC5 Wi-Fi Module",
-        "family": FAMILY_BK7231N,
+        "variant": FAMILY_BK7231N,
     },
     "cbu": {
         "name": "CBU Wi-Fi Module",
-        "family": FAMILY_BK7231N,
+        "variant": FAMILY_BK7231N,
     },
     "generic-bk7231n-qfn32-tuya": {
         "name": "Generic - BK7231N (Tuya QFN32)",
-        "family": FAMILY_BK7231N,
+        "variant": FAMILY_BK7231N,
     },
     "generic-bk7231t-qfn32-tuya": {
         "name": "Generic - BK7231T (Tuya QFN32)",
-        "family": FAMILY_BK7231T,
+        "variant": FAMILY_BK7231T,
     },
     "generic-bk7252": {
         "name": "Generic - BK7252",
-        "family": FAMILY_BK7252,
+        "variant": FAMILY_BK7252,
     },
     "lsc-lma35": {
         "name": "LSC LMA35 BK7231N",
-        "family": FAMILY_BK7231N,
+        "variant": FAMILY_BK7231N,
     },
     "lsc-lma35-t": {
         "name": "LSC LMA35 BK7231T",
-        "family": FAMILY_BK7231T,
+        "variant": FAMILY_BK7231T,
     },
     "wa2": {
         "name": "WA2 Wi-Fi Module",
-        "family": FAMILY_BK7231Q,
+        "variant": FAMILY_BK7231Q,
     },
     "wb1s": {
         "name": "WB1S Wi-Fi Module",
-        "family": FAMILY_BK7231T,
+        "variant": FAMILY_BK7231T,
     },
     "wb2l": {
         "name": "WB2L Wi-Fi Module",
-        "family": FAMILY_BK7231T,
+        "variant": FAMILY_BK7231T,
     },
     "wb2l-m1": {
         "name": "WB2L_M1 Wi-Fi Module",
-        "family": FAMILY_BK7231N,
+        "variant": FAMILY_BK7231N,
     },
     "wb2s": {
         "name": "WB2S Wi-Fi Module",
-        "family": FAMILY_BK7231T,
+        "variant": FAMILY_BK7231T,
     },
     "wb3l": {
         "name": "WB3L Wi-Fi Module",
-        "family": FAMILY_BK7231T,
+        "variant": FAMILY_BK7231T,
     },
     "wb3s": {
         "name": "WB3S Wi-Fi Module",
-        "family": FAMILY_BK7231T,
+        "variant": FAMILY_BK7231T,
     },
     "wblc5": {
         "name": "WBLC5 Wi-Fi Module",
-        "family": FAMILY_BK7231T,
+        "variant": FAMILY_BK7231T,
     },
 }
 

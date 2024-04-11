@@ -209,7 +209,7 @@ def write_component_boards(
         family = board["build"]["mcu"].upper()
         boards_json[board.name] = {
             "name": board.title,
-            "family": family,
+            "variant": family,
         }
         families[family] = f"FAMILY_{family}"
         if family not in root_families:
