@@ -5,7 +5,7 @@ from esphome.components.libretiny.const import (
     FAMILY_BK7231N,
     FAMILY_BK7231Q,
     FAMILY_BK7231T,
-    FAMILY_BK7251,
+    FAMILY_BK7252,
 )
 
 BK72XX_BOARDS = {
@@ -51,15 +51,15 @@ BK72XX_BOARDS = {
     },
     "generic-bk7252": {
         "name": "Generic - BK7252",
-        "family": FAMILY_BK7251,
-    },
-    "lsc-lma35-t": {
-        "name": "LSC LMA35 BK7231T",
-        "family": FAMILY_BK7231T,
+        "family": FAMILY_BK7252,
     },
     "lsc-lma35": {
         "name": "LSC LMA35 BK7231N",
         "family": FAMILY_BK7231N,
+    },
+    "lsc-lma35-t": {
+        "name": "LSC LMA35 BK7231T",
+        "family": FAMILY_BK7231T,
     },
     "wa2": {
         "name": "WA2 Wi-Fi Module",
@@ -69,13 +69,13 @@ BK72XX_BOARDS = {
         "name": "WB1S Wi-Fi Module",
         "family": FAMILY_BK7231T,
     },
-    "wb2l-m1": {
-        "name": "WB2L_M1 Wi-Fi Module",
-        "family": FAMILY_BK7231N,
-    },
     "wb2l": {
         "name": "WB2L Wi-Fi Module",
         "family": FAMILY_BK7231T,
+    },
+    "wb2l-m1": {
+        "name": "WB2L_M1 Wi-Fi Module",
+        "family": FAMILY_BK7231N,
     },
     "wb2s": {
         "name": "WB2S Wi-Fi Module",
@@ -740,7 +740,7 @@ BK72XX_BOARD_PINS = {
         "A6": 12,
         "A7": 13,
     },
-    "lsc-lma35-t": {
+    "lsc-lma35": {
         "WIRE2_SCL": 0,
         "WIRE2_SDA": 1,
         "SERIAL1_RX": 10,
@@ -795,7 +795,7 @@ BK72XX_BOARD_PINS = {
         "D14": 1,
         "A0": 23,
     },
-    "lsc-lma35": {
+    "lsc-lma35-t": {
         "WIRE2_SCL": 0,
         "WIRE2_SDA": 1,
         "SERIAL1_RX": 10,
@@ -941,7 +941,7 @@ BK72XX_BOARD_PINS = {
         "D10": 23,
         "A0": 23,
     },
-    "wb2l-m1": {
+    "wb2l": {
         "WIRE1_SCL": 20,
         "WIRE1_SDA": 21,
         "WIRE2_SCL": 0,
@@ -992,7 +992,7 @@ BK72XX_BOARD_PINS = {
         "D12": 22,
         "A0": 23,
     },
-    "wb2l": {
+    "wb2l-m1": {
         "WIRE1_SCL": 20,
         "WIRE1_SDA": 21,
         "WIRE2_SCL": 0,

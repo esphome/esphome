@@ -184,7 +184,7 @@ def write_component_boards(
     component_dir: Path,
     component: str,
     boards: list[Board],
-) -> list[Family]:
+) -> list[str]:
     code = BASE_CODE_BOARDS
     variants_dir = Path(LVM.path(), "boards", "variants")
     boards_py = component_dir.joinpath("boards.py")
@@ -192,7 +192,7 @@ def write_component_boards(
     pin_number_regex = r"0*(\d+)$"
 
     # families to import
-    families = set()
+    families = {}
     # found root families
     root_families = []
     # substitution values
@@ -205,14 +205,15 @@ def write_component_boards(
 
     # go through all boards found for this root family
     for board in boards:
-        family = "FAMILY_" + board.family.short_name
+        # family = "FAMILY_" + board.family.short_name
+        family = board["build"]["mcu"].upper()
         boards_json[board.name] = {
             "name": board.title,
             "family": family,
         }
-        families.add(family)
-        if board.family not in root_families:
-            root_families.append(board.family)
+        families[family] = f"FAMILY_{family}"
+        if family not in root_families:
+            root_families.append(family)
 
         board_h = variants_dir.joinpath(f"{board.name}.h")
         board_code = board_h.read_text()
@@ -227,14 +228,16 @@ def write_component_boards(
         pins_json[board.name] = board_pins
 
     # make the JSONs format as non-inline
+    boards_json = dict(sorted(boards_json.items(), key=lambda item: item[0]))
     boards_json = json.dumps(boards_json).replace("}", ",}")
+    pins_json = dict(sorted(pins_json.items(), key=lambda item: item[0]))
     pins_json = json.dumps(pins_json).replace("}", ",}")
     # remove quotes from family constants
-    for family in families:
-        boards_json = boards_json.replace(f'"{family}"', family)
+    for family, repl in families.items():
+        boards_json = boards_json.replace(f'"{family}"', repl)
     code = subst_many(
         code,
-        ("FAMILIES", ", ".join(sorted(families))),
+        ("FAMILIES", ", ".join(sorted(families.values()))),
         ("BOARDS_JSON", boards_json),
         ("PINS_JSON", pins_json),
         *values.items(),
@@ -324,6 +327,6 @@ if __name__ == "__main__":
         components.add(component.upper())
         # add all chip families
         for family in component_families:
-            families[family.short_name] = component.upper()
+            families[family] = component.upper()
     # update libretiny/const.py
     write_const(components_dir, components, families)
