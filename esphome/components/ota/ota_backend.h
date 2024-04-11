@@ -44,5 +44,7 @@ class OTABackend {
   virtual bool supports_compression() = 0;
 };
 
+std::unique_ptr<ota::OTABackend> make_ota_backend();
+
 }  // namespace ota
 }  // namespace esphome

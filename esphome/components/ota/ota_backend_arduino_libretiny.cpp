@@ -9,6 +9,8 @@
 namespace esphome {
 namespace ota {
 
+std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::ArduinoLibreTinyOTABackend>(); }
+
 OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size) {
   bool ret = Update.begin(image_size, U_FLASH);
   if (ret) {

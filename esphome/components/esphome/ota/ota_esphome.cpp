@@ -24,26 +24,6 @@ static constexpr u_int16_t OTA_BLOCK_SIZE = 8192;
 
 OTAESPHomeComponent *global_ota_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-std::unique_ptr<ota::OTABackend> make_ota_backend() {
-#ifdef USE_ARDUINO
-#ifdef USE_ESP8266
-  return make_unique<ota::ArduinoESP8266OTABackend>();
-#endif  // USE_ESP8266
-#ifdef USE_ESP32
-  return make_unique<ota::ArduinoESP32OTABackend>();
-#endif  // USE_ESP32
-#endif  // USE_ARDUINO
-#ifdef USE_ESP_IDF
-  return make_unique<ota::IDFOTABackend>();
-#endif  // USE_ESP_IDF
-#ifdef USE_RP2040
-  return make_unique<ota::ArduinoRP2040OTABackend>();
-#endif  // USE_RP2040
-#ifdef USE_LIBRETINY
-  return make_unique<ota::ArduinoLibreTinyOTABackend>();
-#endif
-}
-
 OTAESPHomeComponent::OTAESPHomeComponent() { global_ota_component = this; }
 
 void OTAESPHomeComponent::setup() {
@@ -172,7 +152,7 @@ void OTAESPHomeComponent::handle_() {
   buf[1] = USE_OTA_VERSION;
   this->writeall_(buf, 2);
 
-  backend = make_ota_backend();
+  backend = ota::make_ota_backend();
 
   // Read features - 1 byte
   if (!this->readall_(buf, 1)) {
