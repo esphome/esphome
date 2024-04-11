@@ -79,7 +79,6 @@ class SPI16DBus : public SPIBus {
 };
 
 // #ifdef USE_ESP32_VARIANT_ESP32S3
-
 class DPIConfig {
  public:
   void dpi_setup(uint16_t width, uint16_t height);
@@ -125,14 +124,10 @@ class DPIConfig {
   esp_lcd_panel_handle_t handle_{};
 };
 
-class DPIBus : public IOBus, DPIConfig {
+class DPIBus : public IOBus, public DPIConfig {
  public:
-  void setup(uint16_t width, uint16_t height) override {
-    this->dpi_setup(width, height);
-  };
-  void dump_config() override {
-    this->dpi_dump_config();
-  };
+  void setup(uint16_t width, uint16_t height) override { this->dpi_setup(width, height); };
+  void dump_config() override { this->dpi_dump_config(); };
 
   void begin_pixels() override {}
   void end_pixels() override {}
@@ -146,7 +141,7 @@ class DPIBus : public IOBus, DPIConfig {
   void send_array(const uint8_t *data, size_t len) override{};
 };
 
-class RGBBus : public SPIBus, DPIConfig {
+class RGBBus : public SPIBus, public DPIConfig {
  public:
   void setup(uint16_t width, uint16_t height) override {
     this->dpi_setup(width, height);
@@ -159,9 +154,8 @@ class RGBBus : public SPIBus, DPIConfig {
   void send_pixels(display::Rect window, const uint8_t *data, size_t len) override {
     this->draw_pixels(window, data, len);
   }
-
 };
-//#endif
+// #endif
 
 }  // namespace ili9xxx
 }  // namespace esphome

@@ -355,8 +355,6 @@ void ILI9XXXDisplay::init_lcd_() {
   this->bus_->send_command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
 
   this->bus_->end_commands();
-
-
 }
 
 // Tell the display controller where we want to draw pixels.
