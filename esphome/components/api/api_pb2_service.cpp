@@ -476,6 +476,14 @@ bool APIServerConnectionBase::send_voice_assistant_request(const VoiceAssistantR
 #endif
 #ifdef USE_VOICE_ASSISTANT
 #endif
+#ifdef USE_VOICE_ASSISTANT
+bool APIServerConnectionBase::send_voice_assistant_audio(const VoiceAssistantAudio &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_voice_assistant_audio: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<VoiceAssistantAudio>(msg, 106);
+}
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
 bool APIServerConnectionBase::send_list_entities_alarm_control_panel_response(
     const ListEntitiesAlarmControlPanelResponse &msg) {
@@ -530,6 +538,24 @@ bool APIServerConnectionBase::send_date_state_response(const DateStateResponse &
 }
 #endif
 #ifdef USE_DATETIME_DATE
+#endif
+#ifdef USE_DATETIME_TIME
+bool APIServerConnectionBase::send_list_entities_time_response(const ListEntitiesTimeResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_time_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesTimeResponse>(msg, 103);
+}
+#endif
+#ifdef USE_DATETIME_TIME
+bool APIServerConnectionBase::send_time_state_response(const TimeStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_time_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<TimeStateResponse>(msg, 104);
+}
+#endif
+#ifdef USE_DATETIME_TIME
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
@@ -974,6 +1000,28 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 105: {
+#ifdef USE_DATETIME_TIME
+      TimeCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_time_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_time_command_request(msg);
+#endif
+      break;
+    }
+    case 106: {
+#ifdef USE_VOICE_ASSISTANT
+      VoiceAssistantAudio msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_voice_assistant_audio: %s", msg.dump().c_str());
+#endif
+      this->on_voice_assistant_audio(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -1258,6 +1306,19 @@ void APIServerConnection::on_date_command_request(const DateCommandRequest &msg)
     return;
   }
   this->date_command(msg);
+}
+#endif
+#ifdef USE_DATETIME_TIME
+void APIServerConnection::on_time_command_request(const TimeCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->time_command(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
