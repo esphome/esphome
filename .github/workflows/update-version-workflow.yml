@@ -1,0 +1,29 @@
+name: Update file on PR merge
+on:
+  pull_request:
+    branches:
+      - master
+      - develop
+    types: closed
+
+jobs:
+  update_date:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          # Fetch full depth, otherwise the last step overwrites the last commit's parent, essentially removing the graph.
+          fetch-depth: 0
+
+      - name: Update version.txt
+        run: |
+          sed -ri 's/(.*FileVersion = )([0-9]+)(.*)/echo "\1$((\2+1))\3"/ge' version.txt
+      - name: Amend the last commit
+        run: |
+          git config --global user.email "gitbot@openrct2.org"
+          git config --global user.name "OpenRCT2 git bot"
+          git commit -a --amend --no-edit
+          git push --force-with-lease
+          echo "Complete"
