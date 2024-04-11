@@ -9,3 +9,4 @@ For issues, please go to [the issue tracker](https://github.com/esphome/issues/i
 For feature requests, please see [feature requests](https://github.com/esphome/feature-requests/issues).
 
 this brange is version controlled when it is okay
+add this point it does not work as well.
