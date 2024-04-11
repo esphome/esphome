@@ -239,6 +239,15 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string time_json(datetime::TimeEntity *obj, JsonDetail start_config);
 #endif
 
+#ifdef USE_DATETIME_DATETIME
+  void on_datetime_update(datetime::DateTimeEntity *obj) override;
+  /// Handle a datetime request under '/datetime/<id>'.
+  void handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the datetime state with its value as a JSON string.
+  std::string datetime_json(datetime::DateTimeEntity *obj, JsonDetail start_config);
+#endif
+
 #ifdef USE_TEXT
   void on_text_update(text::Text *obj, const std::string &state) override;
   /// Handle a text input request under '/text/<id>'.

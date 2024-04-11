@@ -48,6 +48,11 @@ bool InitialStateIterator::on_date(datetime::DateEntity *date) { return this->cl
 #ifdef USE_DATETIME_TIME
 bool InitialStateIterator::on_time(datetime::TimeEntity *time) { return this->client_->send_time_state(time); }
 #endif
+#ifdef USE_DATETIME_DATETIME
+bool InitialStateIterator::on_datetime(datetime::DateTimeEntity *datetime) {
+  return this->client_->send_datetime_state(datetime);
+}
+#endif
 #ifdef USE_TEXT
 bool InitialStateIterator::on_text(text::Text *text) { return this->client_->send_text_state(text, text->state); }
 #endif

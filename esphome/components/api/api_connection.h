@@ -82,6 +82,11 @@ class APIConnection : public APIServerConnection {
   bool send_time_info(datetime::TimeEntity *time);
   void time_command(const TimeCommandRequest &msg) override;
 #endif
+#ifdef USE_DATETIME_DATETIME
+  bool send_datetime_state(datetime::DateTimeEntity *datetime);
+  bool send_datetime_info(datetime::DateTimeEntity *datetime);
+  void datetime_command(const DateTimeCommandRequest &msg) override;
+#endif
 #ifdef USE_TEXT
   bool send_text_state(text::Text *text, std::string state);
   bool send_text_info(text::Text *text);
