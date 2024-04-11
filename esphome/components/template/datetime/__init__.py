@@ -31,6 +31,10 @@ TemplateTime = template_ns.class_(
     "TemplateTime", datetime.TimeEntity, cg.PollingComponent
 )
 
+TemplateDateTime = template_ns.class_(
+    "TemplateDateTime", datetime.DateEntity, cg.PollingComponent
+)
+
 
 def validate(config):
     config = config.copy()
@@ -78,7 +82,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_INITIAL_VALUE): cv.date_time(allowed_date=False),
                 }
             ),
-            "DATETIME": datetime.datetime_schema(TemplateDate)
+            "DATETIME": datetime.datetime_schema(TemplateDateTime)
             .extend(_BASE_SCHEMA)
             .extend(
                 {
