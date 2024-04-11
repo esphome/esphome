@@ -86,7 +86,7 @@ void HTU21DComponent::update() {
       // HTU21D does have a heater module but does not have heater level
       // Setting heater level to 1 in case the heater is ON
       if (this->sensor_model_ == HTU21D_SENSOR_MODEL_HTU21D) {
-        if (is_heater_enabled) {
+        if (this->is_heater_enabled()) {
           heater_level = 1;
         } else {
           heater_level = 0;
