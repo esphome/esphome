@@ -248,11 +248,11 @@ class ESP32BLETracker : public Component,
   SemaphoreHandle_t scan_result_lock_;
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};
-#if CONFIG_SPIRAM
+#if USE_PSRAM
   const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 32;
 #else
   const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 16;
-#endif  // CONFIG_SPIRAM
+#endif  // USE_PSRAM
   esp_ble_gap_cb_param_t::ble_scan_result_evt_param *scan_result_buffer_;
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
