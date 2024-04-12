@@ -248,7 +248,7 @@ class ESP32BLETracker : public Component,
   SemaphoreHandle_t scan_result_lock_;
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};
-#if USE_PSRAM
+#ifdef USE_PSRAM
   const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 32;
 #else
   const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 16;
