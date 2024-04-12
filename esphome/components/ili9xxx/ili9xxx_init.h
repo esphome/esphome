@@ -414,6 +414,10 @@ static const uint8_t PROGMEM INITCMD_ST7701S[] = {
   0x00                  // End of list
 };
 
+tatic const uint8_t PROGMEM INITCMD_RPI_DPI_RGB[] = {};
+
+
+
 // clang-format on
 }  // namespace ili9xxx
 }  // namespace esphome

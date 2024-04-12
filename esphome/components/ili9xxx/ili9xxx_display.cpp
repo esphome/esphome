@@ -335,7 +335,7 @@ void ILI9XXXDisplay::reset_() {
 
 void ILI9XXXDisplay::init_lcd_() {
   uint8_t cmd, x, num_args;
-  if (this->init_sequence_ == nullptr) {
+  if (this->init_sequence_[0] == 0) {
     return;
   }
   const uint8_t *addr = this->init_sequence_;
