@@ -414,7 +414,7 @@ static const uint8_t PROGMEM INITCMD_ST7701S[] = {
   0x00                  // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_RPI_DPI_RGB[] = {};
+static const uint8_t PROGMEM INITCMD_RPI_DPI_RGB[] = {00};
 
 
 
