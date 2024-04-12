@@ -352,8 +352,11 @@ void ILI9XXXDisplay::init_lcd_() {
       delay(150);  // NOLINT
   }
   this->set_madctl();
-  this->bus_->send_command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
 
+  this->bus_->send_command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
+  delay(120);
+  this->bus_->send_command(ILI9XXX_SLPOUT);
+  this->bus_->send_command(ILI9XXX_DISPON);
   this->bus_->end_commands();
 }
 
@@ -383,6 +386,7 @@ void ILI9XXXDisplay::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uin
 void ILI9XXXDisplay::invert_colors(bool invert) {
   this->pre_invertcolors_ = invert;
   if (is_ready()) {
+     esph_log_d(TAG, "set INVERT: %X", invert);
     this->bus_->send_command(invert ? ILI9XXX_INVON : ILI9XXX_INVOFF);
   }
 }
@@ -412,6 +416,7 @@ void ILI9XXXILI9488::set_madctl() {
   }
   this->bus_->send_command(ILI9XXX_DFUNCTR, dfun, 2);
   this->bus_->send_command(ILI9XXX_MADCTL, mad);
+  esph_log_d(TAG, "Wrote MADCTL 0x%02X", mad);
 }
 
 void ILI9XXXST7701S::set_madctl() {
@@ -423,12 +428,7 @@ void ILI9XXXST7701S::set_madctl() {
   if (this->mirror_y_)
     val |= 0x10;
   this->bus_->send_command(ILI9XXX_MADCTL, val);
-  esph_log_d(TAG, "write MADCTL %X", val);
-  this->bus_->send_command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
-  this->set_timeout(120, [this] {
-    this->bus_->send_command(ILI9XXX_SLPOUT);
-    this->bus_->send_command(ILI9XXX_DISPON);
-  });
+  esph_log_d(TAG, "Wrote MADCTL 0x%02X", val);
 }
 
 }  // namespace ili9xxx

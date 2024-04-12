@@ -85,6 +85,7 @@ MODELS = {
     "S3BOX_LITE": ili9xxx_ns.class_("ILI9XXXS3BoxLite", ILI9XXXDisplay),
     "WAVESHARE_RES_3_5": ili9xxx_ns.class_("WAVESHARERES35", ILI9XXXDisplay),
     "ST7701S": ili9xxx_ns.class_("ILI9XXXST7701S", ILI9XXXDisplay),
+    "RPI_DPI_RGB": ili9xxx_ns.class_("ILI9XXXRPI_DPI_RGB", ILI9XXXDisplay),
 }
 
 COLOR_ORDERS = {

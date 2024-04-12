@@ -235,7 +235,7 @@ class ILI9XXXST7701S : public ILI9XXXDisplay {
 };
 
 class ILI9XXXRPI_DPI_RGB : public ILI9XXXDisplay {
-  ILI9XXXRPI_DPI_RGB() : ILI9XXXDisplay(nullptr, 0, 0, true) {}
+  ILI9XXXRPI_DPI_RGB() : ILI9XXXDisplay(nullptr, 800, 480, true) {}
 };
 
 }  // namespace ili9xxx
