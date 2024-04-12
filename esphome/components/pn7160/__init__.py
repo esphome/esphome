@@ -36,7 +36,7 @@ CONF_VEN_PIN = "ven_pin"
 CONF_WKUP_REQ_PIN = "wkup_req_pin"
 
 pn7160_ns = cg.esphome_ns.namespace("pn7160")
-PN7160 = pn7160_ns.class_("PN7160", cg.Component)
+PN7160 = pn7160_ns.class_("PN7160", nfc.Nfcc, cg.Component)
 
 EmulationOffAction = pn7160_ns.class_("EmulationOffAction", automation.Action)
 EmulationOnAction = pn7160_ns.class_("EmulationOnAction", automation.Action)

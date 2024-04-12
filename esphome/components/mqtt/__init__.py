@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_BIRTH_MESSAGE,
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
+    CONF_CLIENT_CERTIFICATE,
+    CONF_CLIENT_CERTIFICATE_KEY,
     CONF_CLIENT_ID,
     CONF_COMMAND_TOPIC,
     CONF_COMMAND_RETAIN,
@@ -111,6 +113,7 @@ MQTTSensorComponent = mqtt_ns.class_("MQTTSensorComponent", MQTTComponent)
 MQTTSwitchComponent = mqtt_ns.class_("MQTTSwitchComponent", MQTTComponent)
 MQTTTextSensor = mqtt_ns.class_("MQTTTextSensor", MQTTComponent)
 MQTTNumberComponent = mqtt_ns.class_("MQTTNumberComponent", MQTTComponent)
+MQTTDatetimeComponent = mqtt_ns.class_("MQTTDatetimeComponent", MQTTComponent)
 MQTTTextComponent = mqtt_ns.class_("MQTTTextComponent", MQTTComponent)
 MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
 MQTTButtonComponent = mqtt_ns.class_("MQTTButtonComponent", MQTTComponent)
@@ -198,6 +201,12 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
                 cv.string, cv.only_with_esp_idf
+            ),
+            cv.Inclusive(CONF_CLIENT_CERTIFICATE, "cert-key-pair"): cv.All(
+                cv.string, cv.only_on_esp32
+            ),
+            cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.All(
+                cv.string, cv.only_on_esp32
             ),
             cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
@@ -378,6 +387,9 @@ async def to_code(config):
     if CONF_CERTIFICATE_AUTHORITY in config:
         cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
         cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+        if CONF_CLIENT_CERTIFICATE in config:
+            cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
+            cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
 
         # prevent error -0x428e
         # See https://github.com/espressif/esp-idf/issues/139
@@ -478,6 +490,8 @@ def get_default_topic_for(data, component_type, name, suffix):
 async def register_mqtt_component(var, config):
     await cg.register_component(var, {})
 
+    if CONF_QOS in config:
+        cg.add(var.set_qos(config[CONF_QOS]))
     if CONF_RETAIN in config:
         cg.add(var.set_retain(config[CONF_RETAIN]))
     if not config.get(CONF_DISCOVERY, True):

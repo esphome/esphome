@@ -13,6 +13,7 @@ import secrets
 import shutil
 import subprocess
 import threading
+import time
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
@@ -39,6 +40,7 @@ from esphome.storage_json import StorageJSON, ext_storage_path, trash_storage_pa
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
+from .const import DASHBOARD_COMMAND
 from .core import DASHBOARD
 from .entries import EntryState, entry_state_to_bool
 from .util.file import write_file
@@ -285,9 +287,6 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         raise NotImplementedError
 
 
-DASHBOARD_COMMAND = ["esphome", "--dashboard"]
-
-
 class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
     """Base class for commands that require a port."""
 
@@ -302,16 +301,28 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         port = json_message["port"]
         if (
             port == "OTA"  # pylint: disable=too-many-boolean-expressions
-            and (mdns := dashboard.mdns_status)
             and (entry := entries.get(config_file))
             and entry.loaded_integrations
             and "api" in entry.loaded_integrations
-            and (address := await mdns.async_resolve_host(entry.name))
         ):
-            # Use the IP address if available but only
-            # if the API is loaded and the device is online
-            # since MQTT logging will not work otherwise
-            port = address
+            if (mdns := dashboard.mdns_status) and (
+                address := await mdns.async_resolve_host(entry.name)
+            ):
+                # Use the IP address if available but only
+                # if the API is loaded and the device is online
+                # since MQTT logging will not work otherwise
+                port = address
+            elif (
+                entry.address
+                and (
+                    address_list := await dashboard.dns_cache.async_resolve(
+                        entry.address, time.monotonic()
+                    )
+                )
+                and not isinstance(address_list, Exception)
+            ):
+                # If mdns is not available, try to use the DNS cache
+                port = address_list[0]
 
         return [
             *DASHBOARD_COMMAND,
@@ -505,7 +516,8 @@ class ImportRequestHandler(BaseHandler):
             self.set_status(500)
             self.write("File already exists")
             return
-        except ValueError:
+        except ValueError as e:
+            _LOGGER.error(e)
             self.set_status(422)
             self.write("Invalid package url")
             return
@@ -676,6 +688,11 @@ class MainRequestHandler(BaseHandler):
     @authenticated
     def get(self) -> None:
         begin = bool(self.get_argument("begin", False))
+        if settings.using_password:
+            # Simply accessing the xsrf_token sets the cookie for us
+            self.xsrf_token  # pylint: disable=pointless-statement
+        else:
+            self.clear_cookie("_xsrf")
 
         self.render(
             "index.template.html",
@@ -795,12 +812,21 @@ class EditRequestHandler(BaseHandler):
     @bind_config
     async def get(self, configuration: str | None = None) -> None:
         """Get the content of a file."""
-        loop = asyncio.get_running_loop()
+        if not configuration.endswith((".yaml", ".yml")):
+            self.send_error(404)
+            return
+
         filename = settings.rel_path(configuration)
+        if Path(filename).resolve().parent != settings.absolute_config_dir:
+            self.send_error(404)
+            return
+
+        loop = asyncio.get_running_loop()
         content = await loop.run_in_executor(
             None, self._read_file, filename, configuration
         )
         if content is not None:
+            self.set_header("Content-Type", "application/yaml")
             self.write(content)
 
     def _read_file(self, filename: str, configuration: str) -> bytes | None:
@@ -822,15 +848,19 @@ class EditRequestHandler(BaseHandler):
     @bind_config
     async def post(self, configuration: str | None = None) -> None:
         """Write the content of a file."""
+        if not configuration.endswith((".yaml", ".yml")):
+            self.send_error(404)
+            return
+
+        filename = settings.rel_path(configuration)
+        if Path(filename).resolve().parent != settings.absolute_config_dir:
+            self.send_error(404)
+            return
+
         loop = asyncio.get_running_loop()
-        config_file = settings.rel_path(configuration)
-        await loop.run_in_executor(
-            None, self._write_file, config_file, self.request.body
-        )
+        await loop.run_in_executor(None, self._write_file, filename, self.request.body)
         # Ensure the StorageJSON is updated as well
-        await async_run_system_command(
-            [*DASHBOARD_COMMAND, "compile", "--only-generate", config_file]
-        )
+        DASHBOARD.entries.async_schedule_storage_json_update(filename)
         self.set_status(200)
 
 
@@ -1077,6 +1107,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
         "log_function": log_function,
         "websocket_ping_interval": 30.0,
         "template_path": get_base_frontend_path(),
+        "xsrf_cookies": settings.using_password,
     }
     rel = settings.relative_url
     return tornado.web.Application(

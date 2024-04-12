@@ -750,6 +750,50 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void filled_circle(int center_x, int center_y, int radius, Color color);
 
+  /**
+   * Draws a QR code in the screen
+   * @param x1 The top left x coordinate to start the QR code.
+   * @param y1 The top left y coordinate to start the QR code.
+   * @param content The content of the QR code (as a plain text - Nextion will generate the QR code).
+   * @param size The size (in pixels) for the QR code. Defaults to 200px.
+   * @param background_color The background color to draw with (as rgb565 integer). Defaults to 65535 (white).
+   * @param foreground_color The foreground color to draw with (as rgb565 integer). Defaults to 0 (black).
+   * @param logo_pic The picture id for the logo in the center of the QR code. Defaults to -1 (no logo).
+   * @param border_width The border width (in pixels) for the QR code. Defaults to 8px.
+   *
+   * Example:
+   * ```cpp
+   * it.qrcode(25, 25, "WIFI:S:MySSID;T:WPA;P:MyPassW0rd;;");
+   * ```
+   *
+   * Draws a QR code with a Wi-Fi network credentials starting at the given coordinates (25,25).
+   */
+  void qrcode(int x1, int y1, const char *content, int size = 200, uint16_t background_color = 65535,
+              uint16_t foreground_color = 0, int logo_pic = -1, uint8_t border_width = 8);
+  /**
+   * Draws a QR code in the screen
+   * @param x1 The top left x coordinate to start the QR code.
+   * @param y1 The top left y coordinate to start the QR code.
+   * @param content The content of the QR code (as a plain text - Nextion will generate the QR code).
+   * @param size The size (in pixels) for the QR code. Defaults to 200px.
+   * @param background_color The background color to draw with (as Color). Defaults to 65535 (white).
+   * @param foreground_color The foreground color to draw with (as Color). Defaults to 0 (black).
+   * @param logo_pic The picture id for the logo in the center of the QR code. Defaults to -1 (no logo).
+   * @param border_width The border width (in pixels) for the QR code. Defaults to 8px.
+   *
+   * Example:
+   * ```cpp
+   * auto blue = Color(0, 0, 255);
+   * auto red = Color(255, 0, 0);
+   * it.qrcode(25, 25, "WIFI:S:MySSID;T:WPA;P:MyPassW0rd;;", 150, blue, red);
+   * ```
+   *
+   * Draws a QR code with a Wi-Fi network credentials starting at the given coordinates (25,25) with size of 150px in
+   * red on a blue background.
+   */
+  void qrcode(int x1, int y1, const char *content, int size, Color background_color = Color(255, 255, 255),
+              Color foreground_color = Color(0, 0, 0), int logo_pic = -1, uint8_t border_width = 8);
+
   /** Set the brightness of the backlight.
    *
    * @param brightness The brightness percentage from 0 to 1.0.
@@ -959,6 +1003,21 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void set_exit_reparse_on_start_internal(bool exit_reparse_on_start) {
     this->exit_reparse_on_start_ = exit_reparse_on_start;
   }
+
+  /**
+   * @brief Retrieves the number of commands pending in the Nextion command queue.
+   *
+   * This function returns the current count of commands that have been queued but not yet processed
+   * for the Nextion display. The Nextion command queue is used to store commands that are sent to
+   * the Nextion display for various operations like updating the display, changing interface elements,
+   * or other interactive features. A larger queue size might indicate a higher processing time or potential
+   * delays in command execution. This function is useful for monitoring the command flow and managing
+   * the execution efficiency of the Nextion display interface.
+   *
+   * @return size_t The number of commands currently in the Nextion queue. This count includes all commands
+   *                that have been added to the queue and are awaiting processing.
+   */
+  size_t queue_size() { return this->nextion_queue_.size(); }
 
  protected:
   std::deque<NextionQueue *> nextion_queue_;
