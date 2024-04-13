@@ -89,17 +89,18 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     int partial_read_len = 0;
     int retries = 0;
     // Attempt to read the chunk with retries.
-    while (retries < 5 && read_len < buffer_size) {
+    while (retries < 15 && read_len < buffer_size) {
       partial_read_len =
           esp_http_client_read(http_client, reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
       if (partial_read_len > 0) {
         read_len += partial_read_len;  // Accumulate the total read length.
+        ESP_LOGV(TAG, "Read %d bytes in this chunk, total read for this range: %d bytes", partial_read_len, read_len);
         // Reset retries on successful read.
         retries = 0;
       } else {
         // If no data was read, increment retries.
         retries++;
-        vTaskDelay(pdMS_TO_TICKS(2));  // NOLINT
+        vTaskDelay(pdMS_TO_TICKS(10));  // NOLINT
       }
       App.feed_wdt();  // Feed the watchdog timer.
     }
