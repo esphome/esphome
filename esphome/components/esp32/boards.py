@@ -1382,6 +1382,10 @@ BOARDS = {
         "name": "Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)",
         "variant": VARIANT_ESP32S3,
     },
+    "esp32-s3-devkitm-1": {
+        "name": "Espressif ESP32-S3-DevKitm-1",
+        "variant": VARIANT_ESP32S3,
+    },
     "esp32-s3-korvo-2": {
         "name": "Espressif ESP32-S3-Korvo-2",
         "variant": VARIANT_ESP32S3,
