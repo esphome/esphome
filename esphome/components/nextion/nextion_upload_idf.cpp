@@ -39,7 +39,6 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   esp_err_t err;
   if ((err = esp_http_client_open(http_client, 0)) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
-    heap_caps_free(range_header);
     return Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_OPEN_CONNECTION;
   }
 
@@ -48,38 +47,35 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   ESP_LOGV(TAG, "content_length = %d", content_length);
   if (content_length <= 0) {
     ESP_LOGE(TAG, "Failed to get content length: %d", content_length);
-    heap_caps_free(range_header);
     return Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_GET_CONTENT_LENGTH;
   }
 
   std::string recv_string;
   while (true) {
     App.feed_wdt();
-    uint16_t buffer_size = std::max(0, std::min(this->content_length_, 4096));  // Limits buffer to the remaining data
+    int buffer_size = std::min(this->content_length_, 4096);  // Limits buffer to the remaining data
     ESP_LOGVV(TAG, "Fetching %d bytes from HTTP", buffer_size);
     int read_len = 0;
     int partial_read_len = 0;
-    uint8_t retries = 0;
+    int retries = 0;
     // Attempt to read the chunk with retries.
-    while (retries < 15 && read_len < buffer_size) {
+    while (retries < 5 && read_len < buffer_size) {
       partial_read_len =
           esp_http_client_read(http_client, reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
       if (partial_read_len > 0) {
         read_len += partial_read_len;  // Accumulate the total read length.
-        ESP_LOGV(TAG, "Read %d bytes in this chunk, total read for this range: %d bytes", partial_read_len, read_len);
         // Reset retries on successful read.
         retries = 0;
       } else {
         // If no data was read, increment retries.
         retries++;
-        vTaskDelay(pdMS_TO_TICKS(10));  // NOLINT
+        vTaskDelay(pdMS_TO_TICKS(2));  // NOLINT
       }
       App.feed_wdt();  // Feed the watchdog timer.
     }
     if (read_len != buffer_size) {
       // Did not receive the full package within the timeout period
       ESP_LOGE(TAG, "Failed to read full package, received only %d of %d bytes", read_len, buffer_size);
-      heap_caps_free(range_header);
       return Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_FETCH_FULL_PACKAGE;
     }
     ESP_LOGVV(TAG, "%d bytes fetched, writing it to UART", read_len);
@@ -89,9 +85,9 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
       App.feed_wdt();
       this->recv_ret_string_(recv_string, upload_first_chunk_sent_ ? 500 : 5000, true);
       this->content_length_ -= read_len;
-      ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %d bytes, free heap (dram/total): %" PRIu32 "/%" PRIu32 " bytes",
+      ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %d bytes, free heap: %" PRIu32 " bytes",
                100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_,
-               heap_caps_get_free_size(MALLOC_CAP_INTERNAL), esp_get_free_heap_size());
+               esp_get_free_heap_size());
       upload_first_chunk_sent_ = true;
       if (recv_string[0] == 0x08 && recv_string.size() == 5) {  // handle partial upload request
         ESP_LOGD(TAG, "recv_string [%s]",
@@ -107,12 +103,10 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
         } else {
           range_start = range_end + 1;
         }
-        heap_caps_free(range_header);
         return Nextion::TFTUploadResult::OK;
       } else if (recv_string[0] != 0x05 and recv_string[0] != 0x08) {  // 0x05 == "ok"
         ESP_LOGE(TAG, "Invalid response from Nextion: [%s]",
                  format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
-        heap_caps_free(range_header);
         return Nextion::TFTUploadResult::NEXTION_ERROR_INVALID_RESPONSE;
       }
 
@@ -126,7 +120,6 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     }
   }
   range_start = range_end + 1;
-  heap_caps_free(range_header);
   return Nextion::TFTUploadResult::OK;
 }
 
@@ -145,14 +138,8 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
     return Nextion::TFTUploadResult::NETWORK_ERROR_NOT_CONNECTED;
   }
 
-  // Buffer memory allocation
-  uint8_t *buffer = (uint8_t *) heap_caps_malloc(4096, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (!buffer) {
-#ifdef USE_PSRAM
-    ESP_LOGW(TAG, "Failed to allocate upload buffer in PSRAM, trying DRAM...");
-#endif
-    buffer = (uint8_t *) malloc(4096);  // Fallback to DRAM if PSRAM allocation fails
-  }
+  // Allocate the buffer dynamically
+  uint8_t *buffer = (uint8_t*)heap_caps_malloc(4096, MALLOC_CAP_8BIT);
   if (!buffer) {
     ESP_LOGE(TAG, "Failed to allocate upload buffer");
     return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
