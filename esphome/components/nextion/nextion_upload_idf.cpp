@@ -368,7 +368,6 @@ Nextion::TFTUploadResult Nextion::upload_end_(Nextion::TFTUploadResult upload_re
   } else {
     ESP_LOGE(TAG, "Nextion TFT upload failed");
   }
-  heap_caps_free(buffer);
   return upload_results;
 }
 
