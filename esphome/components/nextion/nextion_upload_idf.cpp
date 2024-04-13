@@ -54,11 +54,11 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   std::string recv_string;
   while (true) {
     App.feed_wdt();
-    int buffer_size = std::min(this->content_length_, 4096);  // Limits buffer to the remaining data
+    uint16_t buffer_size = std::min(this->content_length_, 4096);  // Limits buffer to the remaining data
     ESP_LOGVV(TAG, "Fetching %d bytes from HTTP", buffer_size);
-    int read_len = 0;
-    int partial_read_len = 0;
-    int retries = 0;
+    uint16_t read_len = 0;
+    uint16_t partial_read_len = 0;
+    uint8_t retries = 0;
     // Attempt to read the chunk with retries.
     while (retries < 5 && read_len < buffer_size) {
       partial_read_len =
