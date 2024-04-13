@@ -57,7 +57,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
   }
 
-  sprintf(range_header, "bytes=%d-%d", range_start, std::min(range_end, range_start + 63));
+  sprintf(range_header, "bytes=%d-%d", range_start, std::min(range_end, range_start + 4095));
   ESP_LOGV(TAG, "Requesting range: %s", range_header);
   esp_http_client_set_header(http_client, "Range", range_header);
   ESP_LOGV(TAG, "Opening HTTP connetion");
