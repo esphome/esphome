@@ -32,7 +32,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     return Nextion::TFTUploadResult::PROCESS_ERROR_INVALID_RANGE;
   }
 
-  char range_header[64];
+  char range_header[32];
   sprintf(range_header, "bytes=%d-%d", range_start, range_end);
   ESP_LOGV(TAG, "Requesting range: %s", range_header);
   esp_http_client_set_header(http_client, "Range", range_header);
@@ -223,7 +223,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   this->tft_size_ = esp_http_client_get_content_length(http_client);
 
   ESP_LOGD(TAG, "TFT file size: %zu bytes", this->tft_size_);
-  if (this->tft_size_ < 4096) {
+  if (this->tft_size_ < 4096 || this->tft_size_ > 134217728) {
     ESP_LOGE(TAG, "File size check failed.");
     ESP_LOGD(TAG, "Close HTTP connection");
     esp_http_client_close(http_client);

@@ -1299,9 +1299,11 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
   WiFiClient *get_wifi_client_();
 #endif
+  std::string tft_url_;
   int content_length_ = 0;
   int tft_size_ = 0;
   uint32_t original_baud_rate_ = 0;
+  bool upload_first_chunk_sent_ = false;
 
   /**
    * @brief Evaluates the HTTP response code received and categorizes it into specific TFTUploadResult errors.
@@ -1398,11 +1400,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   std::string flash_size_;
 
   void remove_front_no_sensors_();
-
-#ifdef USE_NEXTION_TFT_UPLOAD
-  std::string tft_url_;
-  bool upload_first_chunk_sent_ = false;
-#endif
 
 #ifdef NEXTION_PROTOCOL_LOG
   void print_queue_members_();
