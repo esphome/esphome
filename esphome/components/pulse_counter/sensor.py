@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome import automation, pins
 from esphome.components import sensor
 from esphome.components import esp32
+from esphome.components import time
 from esphome.const import (
     CONF_COUNT_MODE,
     CONF_FALLING_EDGE,
@@ -12,6 +13,7 @@ from esphome.const import (
     CONF_PIN,
     CONF_RISING_EDGE,
     CONF_NUMBER,
+    CONF_TIME_ID,
     CONF_TOTAL,
     CONF_VALUE,
     ICON_PULSE,
@@ -125,6 +127,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_STORAGE_ID): cv.declare_id(
                 "pulse_counter::PulseCounterStorageBase"
             ),
+            cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
         },
     )
     .extend(cv.polling_component_schema("60s")),
@@ -170,6 +173,11 @@ async def to_code(config):
     cg.add(var.set_rising_edge_mode(count[CONF_RISING_EDGE]))
     cg.add(var.set_falling_edge_mode(count[CONF_FALLING_EDGE]))
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
+
+    if CONF_TIME_ID in config:
+        cg.add_define("CONF_USE_TIME", True)
+        time_ = await cg.get_variable(config[CONF_TIME_ID])
+        cg.add(var.set_time_id(time_))
 
     if CONF_TOTAL in config:
         sens = await sensor.new_sensor(config[CONF_TOTAL])

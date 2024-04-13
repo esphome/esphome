@@ -4,6 +4,10 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
+#ifdef USE_TIME
+#include "esphome/components/time/real_time_clock.h"
+#endif
+
 #include <cinttypes>
 
 #if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
@@ -24,6 +28,12 @@ enum PulseCounterCountMode {
 using pulse_counter_t = int16_t;
 #else
 using pulse_counter_t = int32_t;
+#endif
+
+#ifdef CONF_USE_TIME
+using timestamp_t = time_t;
+#else
+using timestamp_t = int32_t;
 #endif
 
 struct PulseCounterStorageBase {
@@ -72,6 +82,9 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   void set_falling_edge_mode(PulseCounterCountMode mode) { storage_.falling_edge_mode = mode; }
   void set_filter_us(uint32_t filter) { storage_.filter_us = filter; }
   void set_total_sensor(sensor::Sensor *total_sensor) { total_sensor_ = total_sensor; }
+#ifdef USE_TIME
+  void set_time_id(time::RealTimeClock *time_id) { time_id_ = time_id; }
+#endif
 
   void set_total_pulses(uint32_t pulses);
 
@@ -84,9 +97,12 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
  protected:
   InternalGPIOPin *pin_;
   PulseCounterStorageBase &storage_;
-  uint32_t last_time_{0};
+  timestamp_t last_time_{0};
   uint32_t current_total_{0};
   sensor::Sensor *total_sensor_{nullptr};
+#ifdef USE_TIME
+  time::RealTimeClock *time_id_{nullptr};
+#endif
 };
 
 }  // namespace pulse_counter

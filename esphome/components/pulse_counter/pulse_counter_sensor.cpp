@@ -269,9 +269,18 @@ void PulseCounterSensor::dump_config() {
 
 void PulseCounterSensor::update() {
   pulse_counter_t raw = this->storage_.read_raw_value();
-  uint32_t now = millis();
+  timestamp_t now;
+#ifdef CONF_USE_TIME
+  if (this->time_id_ != nullptr) {
+    now = this->time_id_->timestamp_now() * 1000;
+  } else {
+    now = millis();
+  }
+#else
+  now = millis();
+#endif
   if (this->last_time_ != 0) {
-    uint32_t interval = now - this->last_time_;
+    timestamp_t interval = now - this->last_time_;
     float value = (60000.0f * raw) / float(interval);  // per minute
     ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
     this->publish_state(value);
