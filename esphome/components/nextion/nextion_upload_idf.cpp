@@ -32,7 +32,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   }
 
   // Memory allocation
-  uint8_t *buffer = (uint8_t *) heap_caps_malloc(4096, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  uint8_t *buffer = (uint8_t *) malloc(4096);  // (uint8_t *) heap_caps_malloc(4096, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (buffer == nullptr) {
 #ifdef USE_PSRAM
     ESP_LOGW(TAG, "Failed to allocate upload buffer in PSRAM, trying DRAM...");
@@ -44,7 +44,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
   }
 
-  char *range_header = (char *) heap_caps_malloc(64, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  char *range_header = (char *) malloc(64);  // (char *) heap_caps_malloc(64, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (range_header == nullptr) {
 #ifdef USE_PSRAM
     ESP_LOGW(TAG, "Failed to allocate range_header in PSRAM, trying DRAM...");
