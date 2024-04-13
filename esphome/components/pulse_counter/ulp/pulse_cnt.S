@@ -50,9 +50,14 @@ debounce_counter:
 debounce_max_count:
 	.long 0
 
-	/* Total number of signal edges acquired */
+	/* Number of signal edges acquired since last read */
 	.global edge_count
 edge_count:
+	.long 0
+
+	/* Total number of signal edges acquired */
+	.global edge_count_total
+edge_count_total:
 	.long 0
 
 	/* RTC IO number used to sample the input signal.
@@ -141,6 +146,11 @@ edge_detected:
 	st r2, r3, 0
 	/* Increment edge_count */
 	move r3, edge_count
+	ld r2, r3, 0
+	add r2, r2, 1
+	st r2, r3, 0
+	/* Increment edge_count_total */
+	move r3, edge_count_total
 	ld r2, r3, 0
 	add r2, r2, 1
 	st r2, r3, 0

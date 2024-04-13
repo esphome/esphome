@@ -5,6 +5,7 @@
 #include "ulp_main.h"
 #include "soc/rtc_periph.h"
 #include "driver/rtc_io.h"
+#include <esp_sleep.h>
 #endif
 
 namespace esphome {
@@ -144,8 +145,7 @@ pulse_counter_t HwPulseCounterStorage::read_raw_value() {
 #ifdef CONF_USE_ULP
 
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
-extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
-
+extern const uint8_t ulp_main_bin_end[] asm("_binary_ulp_main_bin_end");
 
 bool UlpPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   this->pin = pin;
@@ -174,6 +174,13 @@ bool UlpPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
     case PULSE_COUNTER_DECREMENT:
       falling = -1;
       break;
+  }
+
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
+    ESP_LOGD(TAG, "Did not wake up from sleep, assuming restart or first boot and setting up ULP program");
+  } else {
+    ESP_LOGD(TAG, "Woke up from sleep, skipping set-up of ULP program");
+    return true;
   }
 
   esp_err_t error = ulp_load_binary(0, ulp_main_bin_start, (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
