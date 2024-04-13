@@ -19,7 +19,7 @@ static const char *const TAG = "nextion.upload.idf";
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
 
-Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, int &range_start) {
+Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, int &range_start, uint8_t *buffer) {
   uint range_size = this->tft_size_ - range_start;
   ESP_LOGV(TAG, "Free heap: %" PRIu32, esp_get_free_heap_size());
   int range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
@@ -32,18 +32,6 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   }
 
   // Memory allocation
-  uint8_t *buffer = (uint8_t *) heap_caps_malloc(4096, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (!buffer) {
-#ifdef USE_PSRAM
-    ESP_LOGW(TAG, "Failed to allocate upload buffer in PSRAM, trying DRAM...");
-#endif
-    buffer = (uint8_t *) malloc(4096);  // Fallback to DRAM if PSRAM allocation fails
-  }
-  if (!buffer) {
-    ESP_LOGE(TAG, "Failed to allocate upload buffer");
-    return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
-  }
-
   char *range_header = (char *) heap_caps_malloc(64, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (!range_header) {
 #ifdef USE_PSRAM
@@ -53,7 +41,6 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   }
   if (!range_header) {
     ESP_LOGE(TAG, "Failed to allocate range_header");
-    heap_caps_free(buffer);
     return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
   }
 
@@ -64,7 +51,6 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   esp_err_t err;
   if ((err = esp_http_client_open(http_client, 0)) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
-    heap_caps_free(buffer);
     heap_caps_free(range_header);
     return Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_OPEN_CONNECTION;
   }
@@ -74,14 +60,12 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   ESP_LOGV(TAG, "content_length = %d", content_length);
   if (content_length <= 0) {
     ESP_LOGE(TAG, "Failed to get content length: %d", content_length);
-    heap_caps_free(buffer);
     heap_caps_free(range_header);
     return Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_GET_CONTENT_LENGTH;
   }
 
   std::string recv_string;
   while (true) {
-    memset(buffer, 0, sizeof(uint8_t) * 4096);
     App.feed_wdt();
     uint16_t buffer_size = std::max(0, std::min(this->content_length_, 4096));  // Limits buffer to the remaining data
     ESP_LOGVV(TAG, "Fetching %d bytes from HTTP", buffer_size);
@@ -107,7 +91,6 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     if (read_len != buffer_size) {
       // Did not receive the full package within the timeout period
       ESP_LOGE(TAG, "Failed to read full package, received only %d of %d bytes", read_len, buffer_size);
-      heap_caps_free(buffer);
       heap_caps_free(range_header);
       return Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_FETCH_FULL_PACKAGE;
     }
@@ -136,13 +119,11 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
         } else {
           range_start = range_end + 1;
         }
-        heap_caps_free(buffer);
         heap_caps_free(range_header);
         return Nextion::TFTUploadResult::OK;
       } else if (recv_string[0] != 0x05 and recv_string[0] != 0x08) {  // 0x05 == "ok"
         ESP_LOGE(TAG, "Invalid response from Nextion: [%s]",
                  format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
-        heap_caps_free(buffer);
         heap_caps_free(range_header);
         return Nextion::TFTUploadResult::NEXTION_ERROR_INVALID_RESPONSE;
       }
@@ -157,7 +138,6 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     }
   }
   range_start = range_end + 1;
-  heap_caps_free(buffer);
   heap_caps_free(range_header);
   return Nextion::TFTUploadResult::OK;
 }
@@ -177,6 +157,19 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
     return Nextion::TFTUploadResult::NETWORK_ERROR_NOT_CONNECTED;
   }
 
+  // Buffer memory allocation
+  uint8_t *buffer = (uint8_t *) heap_caps_malloc(4096, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!buffer) {
+#ifdef USE_PSRAM
+    ESP_LOGW(TAG, "Failed to allocate upload buffer in PSRAM, trying DRAM...");
+#endif
+    buffer = (uint8_t *) malloc(4096);  // Fallback to DRAM if PSRAM allocation fails
+  }
+  if (!buffer) {
+    ESP_LOGE(TAG, "Failed to allocate upload buffer");
+    return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
+  }
+
   this->is_updating_ = true;
 
   // Check if baud rate is supported
@@ -192,6 +185,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
     ESP_LOGD(TAG, "Exiting Nextion reparse mode");
     if (!this->set_protocol_reparse_mode(false)) {
       ESP_LOGW(TAG, "Failed to request Nextion to exit reparse mode");
+      heap_caps_free(buffer);
       return Nextion::TFTUploadResult::NEXTION_ERROR_EXIT_REPARSE_NOT_SENT;
     }
   }
@@ -211,6 +205,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   esp_http_client_handle_t http_client = esp_http_client_init(&config);
   if (!http_client) {
     ESP_LOGE(TAG, "Failed to initialize HTTP client.");
+    heap_caps_free(buffer);
     return this->upload_end_(Nextion::TFTUploadResult::HTTP_ERROR_CLIENT_INITIALIZATION);
   }
 
@@ -218,6 +213,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "HTTP set header failed: %s", esp_err_to_name(err));
     esp_http_client_cleanup(http_client);
+    heap_caps_free(buffer);
     return this->upload_end_(Nextion::TFTUploadResult::HTTP_ERROR_KEEP_ALIVE);
   }
 
@@ -228,6 +224,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "HTTP request failed: %s", esp_err_to_name(err));
     esp_http_client_cleanup(http_client);
+    heap_caps_free(buffer);
     return this->upload_end_(Nextion::TFTUploadResult::HTTP_ERROR_REQUEST_FAILED);
   }
 
@@ -237,6 +234,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   int status_code = esp_http_client_get_status_code(http_client);
   TFTUploadResult response_error = this->handle_http_response_code_(status_code);
   if (response_error != Nextion::TFTUploadResult::OK) {
+    heap_caps_free(buffer);
     return this->upload_end_(response_error);
   }
 
@@ -249,6 +247,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
     esp_http_client_close(http_client);
     esp_http_client_cleanup(http_client);
     ESP_LOGV(TAG, "Connection closed");
+    heap_caps_free(buffer);
     return this->upload_end_(Nextion::TFTUploadResult::HTTP_ERROR_INVALID_FILE_SIZE);
   } else {
     ESP_LOGV(TAG, "File size check passed. Proceeding...");
@@ -304,17 +303,17 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
     esp_http_client_close(http_client);
     esp_http_client_cleanup(http_client);
     ESP_LOGV(TAG, "Connection closed");
+    heap_caps_free(buffer);
     return this->upload_end_(Nextion::TFTUploadResult::NEXTION_ERROR_PREPARATION_FAILED);
   }
 
-#ifdef USE_ESP_IDF
   ESP_LOGV(TAG, "Change the method to GET before starting the download");
   esp_err_t set_method_result = esp_http_client_set_method(http_client, HTTP_METHOD_GET);
   if (set_method_result != ESP_OK) {
     ESP_LOGE(TAG, "Failed to set HTTP method to GET: %s", esp_err_to_name(set_method_result));
+    heap_caps_free(buffer);
     return Nextion::TFTUploadResult::HTTP_ERROR_SET_METHOD_FAILED;
   }
-#endif  // USE_ESP_IDF
 
   ESP_LOGD(TAG, "Uploading TFT to Nextion:");
   ESP_LOGD(TAG, "  URL: %s", this->tft_url_.c_str());
@@ -327,13 +326,14 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
 
   int position = 0;
   while (this->content_length_ > 0) {
-    Nextion::TFTUploadResult upload_result = upload_by_chunks_(http_client, position);
+    Nextion::TFTUploadResult upload_result = upload_by_chunks_(http_client, position, buffer);
     if (upload_result != Nextion::TFTUploadResult::OK) {
       ESP_LOGE(TAG, "Error uploading TFT to Nextion!");
       ESP_LOGD(TAG, "Close HTTP connection");
       esp_http_client_close(http_client);
       esp_http_client_cleanup(http_client);
       ESP_LOGV(TAG, "Connection closed");
+      heap_caps_free(buffer);
       return this->upload_end_(upload_result);
     }
     App.feed_wdt();
@@ -346,6 +346,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   esp_http_client_close(http_client);
   esp_http_client_cleanup(http_client);
   ESP_LOGV(TAG, "Connection closed");
+  heap_caps_free(buffer);
   return upload_end_(Nextion::TFTUploadResult::OK);
 }
 
@@ -367,6 +368,7 @@ Nextion::TFTUploadResult Nextion::upload_end_(Nextion::TFTUploadResult upload_re
   } else {
     ESP_LOGE(TAG, "Nextion TFT upload failed");
   }
+  heap_caps_free(buffer);
   return upload_results;
 }
 

@@ -1355,7 +1355,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 #ifdef ARDUINO
   TFTUploadResult upload_by_chunks_(HTTPClient &http_client, int &range_start);
 #elif defined(USE_ESP_IDF)
-  TFTUploadResult upload_by_chunks_(esp_http_client_handle_t http_client, int &range_start);
+  TFTUploadResult upload_by_chunks_(esp_http_client_handle_t http_client, int &range_start, uint8_t *buffer);
 #endif  // ARDUINO vs USE_ESP_IDF
 
   /**
