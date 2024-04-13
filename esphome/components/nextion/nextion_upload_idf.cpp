@@ -37,7 +37,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     #ifdef USE_PSRAM
     ESP_LOGW(TAG, "Failed to allocate upload buffer in PSRAM, trying DRAM...");
     #endif
-    buffer = (uint8_t*)malloc(4096);  // Fallback to DRAM if PSRAM allocation fails
+    buffer = (uint8_t *) malloc(4096);  // Fallback to DRAM if PSRAM allocation fails
   }
   if (!buffer) {
     ESP_LOGE(TAG, "Failed to allocate upload buffer");
@@ -49,7 +49,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     #ifdef USE_PSRAM
     ESP_LOGW(TAG, "Failed to allocate range_header in PSRAM, trying DRAM...");
     #endif
-    range_header = (char*)malloc(64);  // Fallback to DRAM if PSRAM allocation fails
+    range_header = (char *) malloc(64);  // Fallback to DRAM if PSRAM allocation fails
   }
   if (!range_header) {
     ESP_LOGE(TAG, "Failed to allocate range_header");
