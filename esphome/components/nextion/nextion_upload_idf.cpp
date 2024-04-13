@@ -153,6 +153,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
       ESP_LOGE(TAG, "Failed to read from HTTP client, error code: %d", read_len);
       break;  // Exit the loop on error
     }
+    memset(buffer, 0, sizeof(uint8_t) * 4096);
   }
   range_start = range_end + 1;
   free(buffer);
