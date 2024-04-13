@@ -138,7 +138,7 @@ class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
     char previous_version[VERSION_LENGTH];
     if (pref.load(&previous_version)) {
       if (memcmp(previous_version, current_version, VERSION_LENGTH) != 0)
-        this->trigger(std::string(ESPHOME_PROJECT_VERSION));
+        this->trigger(std::string(previous_version));
     }
     pref.save(&current_version);
     global_preferences->sync();
