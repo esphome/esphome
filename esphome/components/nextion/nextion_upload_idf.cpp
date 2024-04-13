@@ -19,7 +19,8 @@ static const char *const TAG = "nextion.upload.idf";
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
 
-Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, int &range_start, uint8_t *buffer) {
+Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, int &range_start,
+                                                    uint8_t *buffer) {
   uint range_size = this->tft_size_ - range_start;
   ESP_LOGV(TAG, "Free heap: %" PRIu32, esp_get_free_heap_size());
   int range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
@@ -139,7 +140,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   }
 
   // Allocate the buffer dynamically
-  uint8_t *buffer = (uint8_t*)heap_caps_malloc(4096, MALLOC_CAP_8BIT);
+  uint8_t *buffer = (uint8_t *) heap_caps_malloc(4096, MALLOC_CAP_8BIT);
   if (!buffer) {
     ESP_LOGE(TAG, "Failed to allocate upload buffer");
     return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
