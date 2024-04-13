@@ -20,8 +20,6 @@
    it expects to see the same value of input.
    If this condition holds true, the program increments edge_count and starts
    waiting for input signal polarity to change again.
-   When the edge counter reaches certain value (set by the main program),
-   this program running triggers a wake up from deep sleep.
 */
 
 /* ULP assembly files are passed through C preprocessor first, so include directives
@@ -55,12 +53,6 @@ debounce_max_count:
 	/* Total number of signal edges acquired */
 	.global edge_count
 edge_count:
-	.long 0
-
-	/* Number of edges to acquire before waking up the SoC.
-	   Set by the main program. */
-	.global edge_count_to_wake_up
-edge_count_to_wake_up:
 	.long 0
 
 	/* RTC IO number used to sample the input signal.
@@ -152,10 +144,5 @@ edge_detected:
 	ld r2, r3, 0
 	add r2, r2, 1
 	st r2, r3, 0
-	/* Compare edge_count to edge_count_to_wake_up */
-	move r3, edge_count_to_wake_up
-	ld r3, r3, 0
-	sub r3, r3, r2
-	jump wake_up, eq
-	/* Not yet. End program */
+	/* End program */
 	halt
