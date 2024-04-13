@@ -31,20 +31,8 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     return Nextion::TFTUploadResult::PROCESS_ERROR_INVALID_RANGE;
   }
 
-  // Memory allocation
-  char *range_header = (char *) heap_caps_malloc(64, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (!range_header) {
-#ifdef USE_PSRAM
-    ESP_LOGW(TAG, "Failed to allocate range_header in PSRAM, trying DRAM...");
-#endif
-    range_header = (char *) malloc(64);  // Fallback to DRAM if PSRAM allocation fails
-  }
-  if (!range_header) {
-    ESP_LOGE(TAG, "Failed to allocate range_header");
-    return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
-  }
-
-  sprintf(range_header, "bytes=%d-%d", range_start, std::min(range_end, range_start + 4095));
+  char range_header[64];
+  sprintf(range_header, "bytes=%d-%d", range_start, range_end);
   ESP_LOGV(TAG, "Requesting range: %s", range_header);
   esp_http_client_set_header(http_client, "Range", range_header);
   ESP_LOGV(TAG, "Opening HTTP connetion");
