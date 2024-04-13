@@ -851,9 +851,12 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
   return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_id(root, obj, "number-" + obj->get_object_id(), start_config);
     if (start_config == DETAIL_ALL) {
-      root["min_value"] = obj->traits.get_min_value();
-      root["max_value"] = obj->traits.get_max_value();
-      root["step"] = obj->traits.get_step();
+      root["min_value"] =
+          value_accuracy_to_string(obj->traits.get_min_value(), step_to_accuracy_decimals(obj->traits.get_step()));
+      root["max_value"] =
+          value_accuracy_to_string(obj->traits.get_max_value(), step_to_accuracy_decimals(obj->traits.get_step()));
+      root["step"] =
+          value_accuracy_to_string(obj->traits.get_step(), step_to_accuracy_decimals(obj->traits.get_step()));
       root["mode"] = (int) obj->traits.get_mode();
       if (!obj->traits.get_unit_of_measurement().empty())
         root["uom"] = obj->traits.get_unit_of_measurement();
@@ -862,7 +865,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       root["value"] = "\"NaN\"";
       root["state"] = "NA";
     } else {
-      root["value"] = value;
+      root["value"] = value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
       std::string state = value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
       if (!obj->traits.get_unit_of_measurement().empty())
         state += " " + obj->traits.get_unit_of_measurement();
@@ -914,12 +917,58 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
 std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {
     set_json_id(root, obj, "date-" + obj->get_object_id(), start_config);
-    std::string value = str_sprintf("%d-%d-%d", obj->year, obj->month, obj->day);
+    std::string value = str_sprintf("%d-%02d-%02d", obj->year, obj->month, obj->day);
     root["value"] = value;
     root["state"] = value;
   });
 }
 #endif  // USE_DATETIME_DATE
+
+#ifdef USE_DATETIME_TIME
+void WebServer::on_time_update(datetime::TimeEntity *obj) {
+  this->events_.send(this->time_json(obj, DETAIL_STATE).c_str(), "state");
+}
+void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_times()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+    if (request->method() == HTTP_GET && match.method.empty()) {
+      std::string data = this->time_json(obj, DETAIL_STATE);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (!request->hasParam("value")) {
+      request->send(409);
+      return;
+    }
+
+    if (request->hasParam("value")) {
+      std::string value = request->getParam("value")->value().c_str();
+      call.set_time(value);
+    }
+
+    this->schedule_([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject root) {
+    set_json_id(root, obj, "time-" + obj->get_object_id(), start_config);
+    std::string value = str_sprintf("%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
+    root["value"] = value;
+    root["state"] = value;
+  });
+}
+#endif  // USE_DATETIME_TIME
 
 #ifdef USE_TEXT
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
@@ -1320,6 +1369,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_DATETIME_TIME
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "time")
+    return true;
+#endif
+
 #ifdef USE_TEXT
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "text")
     return true;
@@ -1441,6 +1495,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_DATETIME_DATE
   if (match.domain == "date") {
     this->handle_date_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_DATETIME_TIME
+  if (match.domain == "time") {
+    this->handle_time_request(request, match);
     return;
   }
 #endif
