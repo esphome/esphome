@@ -140,7 +140,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   }
 
   // Allocate the buffer dynamically
-  uint8_t *buffer = (uint8_t *) heap_caps_malloc(4096, MALLOC_CAP_8BIT);
+  uint8_t *buffer = (uint8_t *) heap_caps_malloc(4096, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (!buffer) {
     ESP_LOGE(TAG, "Failed to allocate upload buffer");
     return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
