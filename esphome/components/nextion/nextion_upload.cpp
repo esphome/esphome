@@ -4,6 +4,7 @@
 
 namespace esphome {
 namespace nextion {
+static const char *const TAG = "nextion.upload";
 
 const char *Nextion::tft_upload_result_to_string(Nextion::TFTUploadResult result) {
   switch (result) {
@@ -124,7 +125,6 @@ Nextion::TFTUploadResult Nextion::upload_end_(Nextion::TFTUploadResult upload_re
   }
   return upload_results;
 }
-
 
 }  // namespace nextion
 }  // namespace esphome
