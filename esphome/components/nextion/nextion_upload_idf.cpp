@@ -66,6 +66,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
           esp_http_client_read(http_client, reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
       if (partial_read_len > 0) {
         read_len += partial_read_len;  // Accumulate the total read length.
+        ESP_LOGV(TAG, "Fetch %d of %" PRIu16 " bytes from HTTP's chunk (expected %" PRIu16 " bytes)", partial_read_len, read_len, buffer_size);
         // Reset retries on successful read.
         retries = 0;
       } else {
