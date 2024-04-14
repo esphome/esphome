@@ -1,9 +1,9 @@
 #!/usr/bin/with-contenv bashio
 # ==============================================================================
-# This files installs the user ESPHome fork if specified
+# This file installs the user ESPHome fork if specified.
 # The fork must be up to date with the latest ESPHome dev branch
 # and have no conflicts.
-# This config option only exists ont eh ESPHome Dev add-on.
+# This config option only exists in the ESPHome Dev add-on.
 # ==============================================================================
 
 declare esphome_fork
