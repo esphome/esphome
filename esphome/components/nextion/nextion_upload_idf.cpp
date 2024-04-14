@@ -54,7 +54,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   std::string recv_string;
   while (true) {
     App.feed_wdt();
-    uint16_t buffer_size = std::min(this->content_length_, 4096);  // Limits buffer to the remaining data
+    uint16_t buffer_size = this->content_length_ < 4096 ? this->content_length_ : 4096;  // Limits buffer to the remaining data
     ESP_LOGVV(TAG, "Fetching %" PRIu16 " bytes from HTTP", buffer_size);
     uint16_t read_len = 0;
     int partial_read_len = 0;
@@ -254,7 +254,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   // Tells the Nextion the content length of the tft file and baud rate it will be sent at
   // Once the Nextion accepts the command it will wait until the file is successfully uploaded
   // If it fails for any reason a power cycle of the display will be needed
-  sprintf(command, "whmi-wris %d,%" PRIu32 ",1", this->content_length_, baud_rate);
+  sprintf(command, "whmi-wris %" PRIu32 ",%" PRIu32 ",1", this->content_length_, baud_rate);
 
   // Clear serial receive buffer
   ESP_LOGV(TAG, "Clear serial receive buffer");
@@ -302,7 +302,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
 
   ESP_LOGD(TAG, "Uploading TFT to Nextion:");
   ESP_LOGD(TAG, "  URL: %s", this->tft_url_.c_str());
-  ESP_LOGD(TAG, "  File size: %d bytes", this->content_length_);
+  ESP_LOGD(TAG, "  File size: %" PRIu32 " bytes", this->content_length_);
   ESP_LOGD(TAG, "  Free heap: %" PRIu32, esp_get_free_heap_size());
 
   // Proceed with the content download as before
@@ -322,7 +322,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
       return this->upload_end_(upload_result);
     }
     App.feed_wdt();
-    ESP_LOGV(TAG, "Free heap: %" PRIu32 ", Bytes left: %d", esp_get_free_heap_size(), this->content_length_);
+    ESP_LOGV(TAG, "Free heap: %" PRIu32 ", Bytes left: %" PRIu32, esp_get_free_heap_size(), this->content_length_);
   }
 
   ESP_LOGD(TAG, "Successfully uploaded TFT to Nextion!");
