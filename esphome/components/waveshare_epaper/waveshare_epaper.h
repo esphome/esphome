@@ -96,7 +96,7 @@ class WaveshareEPaper7C : public WaveshareEPaperBase {
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   uint32_t get_buffer_length_() override;
-  void init_internal_(uint32_t buffer_length);
+  void init_internal(uint32_t buffer_length);
 
   static const int NUM_BUFFERS = 10;
   uint8_t *buffers_[NUM_BUFFERS];
@@ -317,7 +317,7 @@ class GDEW0154M09 : public WaveshareEPaper {
   void reset_();
   void clear_();
   void write_init_list_(const uint8_t *list);
-  void init_internal_();
+  void init_internal();
 };
 
 class WaveshareEPaper2P9InB : public WaveshareEPaper {

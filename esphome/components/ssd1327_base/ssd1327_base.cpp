@@ -42,7 +42,7 @@ static const uint8_t SSD1327_DEACTIVATESCROLL = 0x2E;
 static const uint8_t SSD1327_ACTIVATESCROLL = 0x2F;
 
 void SSD1327::setup() {
-  this->init_internal_(this->get_buffer_length_());
+  this->init_internal(this->get_buffer_length_());
 
   this->turn_off();                             // display OFF
   this->command(SSD1327_SETFRONTCLOCKDIVIDER);  // set osc division

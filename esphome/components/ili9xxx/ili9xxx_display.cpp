@@ -46,13 +46,13 @@ void ILI9XXXDisplay::setup() {
 
 void ILI9XXXDisplay::alloc_buffer_() {
   if (this->buffer_color_mode_ == BITS_16) {
-    this->init_internal_(this->get_buffer_length_() * 2);
+    this->init_internal(this->get_buffer_length_() * 2);
     if (this->buffer_ != nullptr) {
       return;
     }
     this->buffer_color_mode_ = BITS_8;
   }
-  this->init_internal_(this->get_buffer_length_());
+  this->init_internal(this->get_buffer_length_());
   if (this->buffer_ == nullptr) {
     this->mark_failed();
   }

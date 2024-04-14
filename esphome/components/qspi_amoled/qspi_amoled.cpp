@@ -42,7 +42,7 @@ void QspiAmoLed::draw_absolute_pixel_internal(int x, int y, Color color) {
     return;
   }
   if (this->buffer_ == nullptr)
-    this->init_internal_(this->width_ * this->height_ * 2);
+    this->init_internal(this->width_ * this->height_ * 2);
   if (this->is_failed())
     return;
   uint32_t pos = (y * this->width_) + x;

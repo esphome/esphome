@@ -35,7 +35,7 @@ void ST7920::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ST7920...");
   this->dump_config();
   this->spi_setup();
-  this->init_internal_(this->get_buffer_length_());
+  this->init_internal(this->get_buffer_length_());
   display_init_();
 }
 

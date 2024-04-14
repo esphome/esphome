@@ -112,7 +112,7 @@ static const uint8_t PARTIAL_UPD_2IN9_LUT[PARTIAL_UPD_2IN9_LUT_SIZE] =
 // clang-format on
 
 void WaveshareEPaperBase::setup_pins_() {
-  this->init_internal_(this->get_buffer_length_());
+  this->init_internal(this->get_buffer_length_());
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
   if (this->reset_pin_ != nullptr) {
@@ -174,7 +174,7 @@ void WaveshareEPaper::fill(Color color) {
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
-void WaveshareEPaper7C::init_internal_(uint32_t buffer_length) {
+void WaveshareEPaper7C::init_internal(uint32_t buffer_length) {
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   uint32_t small_buffer_length = buffer_length / NUM_BUFFERS;
 
@@ -193,17 +193,18 @@ void WaveshareEPaper7C::init_internal_(uint32_t buffer_length) {
 }
 uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
   uint8_t hex_code;
-
   if (color.red > 127) {
-    if (color.blue > 127) {
-      if (color.green > 127) {
+    if (color.green > 170) {
+      if (color.blue > 127) {
         hex_code = 0x1;  // White
       } else {
         hex_code = 0x5;  // Yellow
       }
+    } else if (color.green > 85) {
+      hex_code = 0x6;  // Orange
     } else {
-      if (color.green > 85 && color.green < 170) {
-        hex_code = 0x6;  // Orange
+      if (color.blue > 127) {
+        hex_code = 0x4;  // Magenta -> Red
       } else {
         hex_code = 0x4;  // Red
       }
@@ -211,7 +212,7 @@ uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
   } else {
     if (color.green > 127) {
       if (color.blue > 127) {
-        hex_code = 0x3;  // Blue
+        hex_code = 0x3;  // Cyan -> Blue
       } else {
         hex_code = 0x2;  // Green
       }
@@ -1712,7 +1713,7 @@ void GDEY029T94::dump_config() {
 // ========================================================
 
 void GDEW0154M09::initialize() {
-  this->init_internal_();
+  this->init_internal();
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   this->lastbuff_ = allocator.allocate(this->get_buffer_length_());
   if (this->lastbuff_ != nullptr) {
@@ -1731,7 +1732,7 @@ void GDEW0154M09::reset_() {
   }
 }
 
-void GDEW0154M09::init_internal_() {
+void GDEW0154M09::init_internal() {
   this->reset_();
 
   // clang-format off
@@ -1802,7 +1803,7 @@ void GDEW0154M09::clear_() {
 }
 
 void HOT GDEW0154M09::display() {
-  this->init_internal_();
+  this->init_internal();
   // "Mode 0 display" for now
   this->command(CMD_DTM1_DATA_START_TRANS);
   for (int i = 0; i < this->get_buffer_length_(); i++) {

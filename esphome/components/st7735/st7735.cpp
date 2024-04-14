@@ -287,7 +287,7 @@ void ST7735::setup() {
   if (this->invert_colors_)
     sendcommand_(ST77XX_INVON, nullptr, 0);
 
-  this->init_internal_(this->get_buffer_length());
+  this->init_internal(this->get_buffer_length());
   memset(this->buffer_, 0x00, this->get_buffer_length());
 }
 

@@ -25,7 +25,7 @@ class DisplayBuffer : public Display {
  protected:
   virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
 
-  virtual void init_internal_(uint32_t buffer_length);
+  virtual void init_internal(uint32_t buffer_length);
 
   uint8_t *buffer_{nullptr};
 };

@@ -48,7 +48,7 @@ static const uint8_t SSD1322_SETCOMMANDLOCK_UNLOCK = 0x12;
 static const uint8_t SSD1322_SETCOMMANDLOCK_LOCK = 0x16;
 
 void SSD1322::setup() {
-  this->init_internal_(this->get_buffer_length_());
+  this->init_internal(this->get_buffer_length_());
 
   this->command(SSD1322_SETCOMMANDLOCK);
   this->data(SSD1322_SETCOMMANDLOCK_UNLOCK);
