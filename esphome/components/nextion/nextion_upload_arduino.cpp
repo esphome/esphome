@@ -70,8 +70,8 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
     uint32_t start_time = millis();
     while (read_len < buffer_size && millis() - start_time < 5000) {
       if (http_client.getStreamPtr()->available() > 0) {
-        partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer) + read_len,
-                                                                 buffer_size - read_len);
+        partial_read_len =
+            http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
         read_len += partial_read_len;
         if (partial_read_len > 0) {
           App.feed_wdt();
