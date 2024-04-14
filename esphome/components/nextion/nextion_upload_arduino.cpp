@@ -159,7 +159,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
 #ifdef USE_PSRAM
   // Check if PSRAM is available
   if (psramFound()) {
-    buffer = (uint8_t *) ps_malloc(4096); // Try to allocate memory in PSRAM
+    buffer = (uint8_t *) ps_malloc(4096);  // Try to allocate memory in PSRAM
   }
   if (!buffer) {
     ESP_LOGW(TAG, "Failed to allocate upload buffer in PSRAM");
