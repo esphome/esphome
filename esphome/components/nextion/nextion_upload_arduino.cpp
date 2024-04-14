@@ -29,7 +29,7 @@ inline uint32_t Nextion::get_free_heap_() {
 #endif  // ESP32 vs USE_ESP8266
 }
 
-Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start, uint8_t *buffer) {
+Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start, std::vector<uint8_t> &buffer) {
   uint32_t range_size = this->tft_size_ - range_start;
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
   uint32_t range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
@@ -70,8 +70,8 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
     uint32_t start_time = millis();
     while (read_len < buffer_size && millis() - start_time < 5000) {
       if (http_client.getStreamPtr()->available() > 0) {
-        partial_read_len =
-            http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
+        partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer.data()) + read_len,
+                                                                 buffer_size - read_len);
         read_len += partial_read_len;
         if (partial_read_len > 0) {
           App.feed_wdt();
@@ -153,28 +153,8 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
     return Nextion::TFTUploadResult::NETWORK_ERROR_NOT_CONNECTED;
   }
 
-  // Allocate the buffer dynamically
-  uint8_t *buffer = nullptr;
-#ifdef ESP32  // Check if the ESP32 macro is defined, indicating we are compiling for ESP32
-#ifdef USE_PSRAM2
-  // Check if PSRAM is available
-  if (psramFound()) {
-    buffer = (uint8_t *) ps_malloc(4096);  // Try to allocate memory in PSRAM
-  }
-  if (!buffer) {
-    ESP_LOGW(TAG, "Failed to allocate upload buffer in PSRAM");
-  }
-#endif
-  if (!buffer) {
-    buffer = (uint8_t *) malloc(4096);  // Fallback to DRAM if PSRAM allocation fails or isn't available
-  }
-#elif defined(USE_ESP8266)
-  buffer = (uint8_t *) malloc(4096);  // Use regular malloc for non-ESP32 environments
-#endif  // ESP32 vs USE_ESP8266
-  if (!buffer) {
-    ESP_LOGE(TAG, "Failed to allocate upload buffer");
-    return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
-  }
+  // Allocate the buffer
+  std::vector<uint8_t> buffer(4096);  // Initialize buffer with the specified size
 
   this->is_updating_ = true;
 
@@ -191,7 +171,6 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
     ESP_LOGD(TAG, "Exiting Nextion reparse mode");
     if (!this->set_protocol_reparse_mode(false)) {
       ESP_LOGW(TAG, "Failed to request Nextion to exit reparse mode");
-      free(buffer);
       return Nextion::TFTUploadResult::NEXTION_ERROR_EXIT_REPARSE_NOT_SENT;
     }
   }
@@ -219,7 +198,6 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   if (!begin_status) {
     this->is_updating_ = false;
     ESP_LOGD(TAG, "Connection failed");
-    free(buffer);
     return Nextion::TFTUploadResult::HTTP_ERROR_CONNECTION_FAILED;
   } else {
     ESP_LOGD(TAG, "Connected");
@@ -247,7 +225,6 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
 
   TFTUploadResult response_error = this->handle_http_response_code_(code);
   if (response_error != Nextion::TFTUploadResult::OK) {
-    free(buffer);
     return this->upload_end_(response_error);
   }
 
@@ -261,7 +238,6 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
     ESP_LOGD(TAG, "Close HTTP connection");
     http_client.end();
     ESP_LOGV(TAG, "Connection closed");
-    free(buffer);
     return this->upload_end_(Nextion::TFTUploadResult::HTTP_ERROR_INVALID_FILE_SIZE);
   } else {
     ESP_LOGV(TAG, "File size check passed. Proceeding...");
@@ -316,7 +292,6 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
     ESP_LOGD(TAG, "Close HTTP connection");
     http_client.end();
     ESP_LOGV(TAG, "Connection closed");
-    free(buffer);
     return this->upload_end_(Nextion::TFTUploadResult::NEXTION_ERROR_PREPARATION_FAILED);
   }
 
@@ -337,7 +312,6 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
       ESP_LOGD(TAG, "Close HTTP connection");
       http_client.end();
       ESP_LOGV(TAG, "Connection closed");
-      free(buffer);
       return this->upload_end_(upload_result);
     }
     App.feed_wdt();
@@ -349,7 +323,6 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   ESP_LOGD(TAG, "Close HTTP connection");
   http_client.end();
   ESP_LOGV(TAG, "Connection closed");
-  free(buffer);
   return upload_end_(Nextion::TFTUploadResult::OK);
 }
 
