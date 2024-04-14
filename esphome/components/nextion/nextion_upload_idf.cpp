@@ -44,10 +44,10 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   }
 
   ESP_LOGV(TAG, "Fetch content length");
-  int content_length = esp_http_client_fetch_headers(http_client);
-  ESP_LOGV(TAG, "content_length = %d", content_length);
-  if (content_length <= 0) {
-    ESP_LOGE(TAG, "Failed to get content length: %d", content_length);
+  const int chunk_size = esp_http_client_fetch_headers(http_client);
+  ESP_LOGV(TAG, "content_length = %d", chunk_size);
+  if (chunk_size <= 0) {
+    ESP_LOGE(TAG, "Failed to get chunk's content length: %d", chunk_size);
     return Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_GET_CONTENT_LENGTH;
   }
 

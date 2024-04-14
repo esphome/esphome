@@ -51,14 +51,6 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
     return Nextion::TFTUploadResult::HTTP_ERROR_REQUEST_FAILED;
   }
 
-  ESP_LOGV(TAG, "Fetch content length");
-  int content_length = range_end - range_start;
-  ESP_LOGV(TAG, "content_length = %d", content_length);
-  if (content_length <= 0) {
-    ESP_LOGE(TAG, "Failed to get content length: %d", content_length);
-    return Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_GET_CONTENT_LENGTH;
-  }
-
   std::string recv_string;
   while (true) {
     App.feed_wdt();
