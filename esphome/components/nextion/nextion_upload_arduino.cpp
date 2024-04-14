@@ -66,7 +66,6 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
         partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer.data()) + read_len,
                                                                  buffer_size - read_len);
         read_len += partial_read_len;
-        ESP_LOGV(TAG, "Fetch %d of %" PRIu16 " bytes from HTTP's chunk (expected %" PRIu16 " bytes)", partial_read_len, read_len, buffer_size);
         if (partial_read_len > 0) {
           App.feed_wdt();
           delay(2);
