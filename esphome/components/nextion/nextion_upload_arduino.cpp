@@ -156,7 +156,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   // Allocate the buffer dynamically
   uint8_t *buffer = nullptr;
 #ifdef ESP32  // Check if the ESP32 macro is defined, indicating we are compiling for ESP32
-#ifdef USE_PSRAM
+#ifdef USE_PSRAM2
   // Check if PSRAM is available
   if (psramFound()) {
     buffer = (uint8_t *) ps_malloc(4096);  // Try to allocate memory in PSRAM
