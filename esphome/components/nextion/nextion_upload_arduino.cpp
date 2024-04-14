@@ -62,8 +62,12 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
   std::string recv_string;
   while (true) {
     App.feed_wdt();
-    uint16_t buffer_size =
+    const uint16_t buffer_size =
         this->content_length_ < 4096 ? this->content_length_ : 4096;  // Limits buffer to the remaining data
+    if (buffer_size != buffer.size()) {
+      ESP_LOGV(TAG, "Resizing buffer to %" PRIu16, buffer_size);
+      buffer.resize(buffer_size);
+    }
     ESP_LOGV(TAG, "Fetching %" PRIu16 " bytes from HTTP", buffer_size);
     uint16_t read_len = 0;
     int partial_read_len = 0;
