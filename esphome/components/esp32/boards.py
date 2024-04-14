@@ -1556,6 +1556,10 @@ BOARDS = {
         "name": "WEMOS LOLIN C3 Mini",
         "variant": VARIANT_ESP32C3,
     },
+    "lolin_c3_pico": {
+        "name": "WEMOS LOLIN C3 Pico",
+        "variant": VARIANT_ESP32C3,
+    },
     "lolin_d32": {
         "name": "WEMOS LOLIN D32",
         "variant": VARIANT_ESP32,
