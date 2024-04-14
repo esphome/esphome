@@ -191,7 +191,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
     ESP_LOGD(TAG, "Exiting Nextion reparse mode");
     if (!this->set_protocol_reparse_mode(false)) {
       ESP_LOGW(TAG, "Failed to request Nextion to exit reparse mode");
-      heap_caps_free(buffer);
+      free(buffer);
       return Nextion::TFTUploadResult::NEXTION_ERROR_EXIT_REPARSE_NOT_SENT;
     }
   }
@@ -219,7 +219,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   if (!begin_status) {
     this->is_updating_ = false;
     ESP_LOGD(TAG, "Connection failed");
-    heap_caps_free(buffer);
+    free(buffer);
     return Nextion::TFTUploadResult::HTTP_ERROR_CONNECTION_FAILED;
   } else {
     ESP_LOGD(TAG, "Connected");
@@ -247,7 +247,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
 
   TFTUploadResult response_error = this->handle_http_response_code_(code);
   if (response_error != Nextion::TFTUploadResult::OK) {
-    heap_caps_free(buffer);
+    free(buffer);
     return this->upload_end_(response_error);
   }
 
@@ -261,7 +261,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
     ESP_LOGD(TAG, "Close HTTP connection");
     http_client.end();
     ESP_LOGV(TAG, "Connection closed");
-    heap_caps_free(buffer);
+    free(buffer);
     return this->upload_end_(Nextion::TFTUploadResult::HTTP_ERROR_INVALID_FILE_SIZE);
   } else {
     ESP_LOGV(TAG, "File size check passed. Proceeding...");
@@ -316,7 +316,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
     ESP_LOGD(TAG, "Close HTTP connection");
     http_client.end();
     ESP_LOGV(TAG, "Connection closed");
-    heap_caps_free(buffer);
+    free(buffer);
     return this->upload_end_(Nextion::TFTUploadResult::NEXTION_ERROR_PREPARATION_FAILED);
   }
 
@@ -337,7 +337,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
       ESP_LOGD(TAG, "Close HTTP connection");
       http_client.end();
       ESP_LOGV(TAG, "Connection closed");
-      heap_caps_free(buffer);
+      free(buffer);
       return this->upload_end_(upload_result);
     }
     App.feed_wdt();
@@ -349,7 +349,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
   ESP_LOGD(TAG, "Close HTTP connection");
   http_client.end();
   ESP_LOGV(TAG, "Connection closed");
-  heap_caps_free(buffer);
+  free(buffer);
   return upload_end_(Nextion::TFTUploadResult::OK);
 }
 
