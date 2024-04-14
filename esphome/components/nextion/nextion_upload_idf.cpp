@@ -86,14 +86,13 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
       App.feed_wdt();
       this->recv_ret_string_(recv_string, upload_first_chunk_sent_ ? 500 : 5000, true);
       this->content_length_ -= read_len;
+      const float upload_percentage = 100.0f * (this->tft_size_ - this->content_length_) / this->tft_size_;
 #ifdef USE_PSRAM
       ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %" PRIu32 " bytes, free heap: %" PRIu32 " (DRAM) + %" PRIu32 " (PSRAM) bytes",
-               100.0f * (static_cast<float>(this->tft_size_ - this->content_length_) / this->tft_size_), this->content_length_,
-               heap_caps_get_free_size(MALLOC_CAP_INTERNAL), heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+               upload_percentage, this->content_length_, heap_caps_get_free_size(MALLOC_CAP_INTERNAL), heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 #else
       ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %" PRIu32 " bytes, free heap: %" PRIu32 " bytes",
-               100.0f * (static_cast<float>(this->tft_size_ - this->content_length_) / this->tft_size_), this->content_length_,
-               esp_get_free_heap_size());
+               upload_percentage, this->content_length_, esp_get_free_heap_size());
 #endif
       upload_first_chunk_sent_ = true;
       if (recv_string[0] == 0x08 && recv_string.size() == 5) {  // handle partial upload request
