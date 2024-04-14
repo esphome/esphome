@@ -29,7 +29,8 @@ inline uint32_t Nextion::get_free_heap_() {
 #endif  // ESP32 vs USE_ESP8266
 }
 
-Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start, std::vector<uint8_t> &buffer) {
+Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start,
+                                                    std::vector<uint8_t> &buffer) {
   uint32_t range_size = this->tft_size_ - range_start;
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
   uint32_t range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
