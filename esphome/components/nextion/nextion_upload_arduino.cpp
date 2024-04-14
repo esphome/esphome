@@ -70,7 +70,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
     uint32_t start_time = millis();
     while (read_len < buffer_size && millis() - start_time < 5000) {
       if (http_client.getStreamPtr()->available() > 0) {
-        partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer.data()) + read_len,
+        partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer) + read_len,
                                                                  buffer_size - read_len);
         read_len += partial_read_len;
         if (partial_read_len > 0) {
@@ -88,7 +88,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
     ESP_LOGVV(TAG, "%d bytes fetched, writing it to UART", read_len);
     if (read_len > 0) {
       recv_string.clear();
-      this->write_array(buffer);
+      this->write_array(buffer, buffer_size);
       App.feed_wdt();
       this->recv_ret_string_(recv_string, upload_first_chunk_sent_ ? 500 : 5000, true);
       this->content_length_ -= read_len;
@@ -313,7 +313,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
 
   ESP_LOGV(TAG, "Starting transfer by chunks loop");
 
-  int position = 0;
+  uint32_t position = 0;
   while (this->content_length_ > 0) {
     Nextion::TFTUploadResult upload_result = upload_by_chunks_(http_client, position, buffer);
     if (upload_result != Nextion::TFTUploadResult::OK) {
