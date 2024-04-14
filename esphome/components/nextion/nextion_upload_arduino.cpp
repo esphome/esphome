@@ -29,8 +29,7 @@ inline uint32_t Nextion::get_free_heap_() {
 #endif  // ESP32 vs USE_ESP8266
 }
 
-Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start,
-                                                    std::vector<uint8_t> &buffer) {
+Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, int &range_start) {
   uint32_t range_size = this->tft_size_ - range_start;
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
   uint32_t range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
@@ -65,10 +64,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
     App.feed_wdt();
     const uint16_t buffer_size =
         this->content_length_ < 4096 ? this->content_length_ : 4096;  // Limits buffer to the remaining data
-    if (buffer_size != buffer.size()) {
-      ESP_LOGV(TAG, "Resizing buffer to %" PRIu16, buffer_size);
-      buffer.resize(buffer_size);
-    }
+    std::vector<uint8_t> buffer(buffer_size);                         // Initialize buffer with the specified size
     ESP_LOGV(TAG, "Fetching %" PRIu16 " bytes from HTTP", buffer_size);
     uint16_t read_len = 0;
     int partial_read_len = 0;
@@ -157,9 +153,6 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
     ESP_LOGE(TAG, "Network is not connected");
     return Nextion::TFTUploadResult::NETWORK_ERROR_NOT_CONNECTED;
   }
-
-  // Allocate the buffer
-  std::vector<uint8_t> buffer(4096);  // Initialize buffer with the specified size
 
   this->is_updating_ = true;
 
@@ -311,7 +304,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
 
   uint32_t position = 0;
   while (this->content_length_ > 0) {
-    Nextion::TFTUploadResult upload_result = upload_by_chunks_(http_client, position, buffer);
+    Nextion::TFTUploadResult upload_result = upload_by_chunks_(http_client, position);
     if (upload_result != Nextion::TFTUploadResult::OK) {
       ESP_LOGE(TAG, "Error uploading TFT to Nextion!");
       ESP_LOGD(TAG, "Close HTTP connection");
