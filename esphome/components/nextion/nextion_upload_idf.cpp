@@ -33,7 +33,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   }
 
   char range_header[32];
-  sprintf(range_header, "bytes=%d-%d", range_start, range_end);
+  sprintf(range_header, "bytes=%u-%u", range_start, range_end);
   ESP_LOGV(TAG, "Requesting range: %s", range_header);
   esp_http_client_set_header(http_client, "Range", range_header);
   ESP_LOGV(TAG, "Opening HTTP connetion");
@@ -87,12 +87,12 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
       this->recv_ret_string_(recv_string, upload_first_chunk_sent_ ? 500 : 5000, true);
       this->content_length_ -= read_len;
 #ifdef USE_PSRAM
-      ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %u bytes, free heap (dram+psram): %" PRIu32 "+%" PRIu32 " bytes",
-               100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_,
+      ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %u bytes, free heap: %" PRIu32 " (DRAM) + %" PRIu32 " (PSRAM) bytes",
+               100.0f * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_,
                heap_caps_get_free_size(MALLOC_CAP_INTERNAL), heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 #else
       ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %u bytes, free heap: %" PRIu32 " bytes",
-               100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_,
+               100.0f * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_,
                esp_get_free_heap_size());
 #endif
       upload_first_chunk_sent_ = true;
