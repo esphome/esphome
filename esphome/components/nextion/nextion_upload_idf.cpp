@@ -19,15 +19,15 @@ static const char *const TAG = "nextion.upload.idf";
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
 
-Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, int &range_start,
+Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start,
                                                     uint8_t *buffer) {
-  uint range_size = this->tft_size_ - range_start;
+  uint32_t range_size = this->tft_size_ - range_start;
   ESP_LOGV(TAG, "Free heap: %" PRIu32, esp_get_free_heap_size());
-  int range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
-  ESP_LOGD(TAG, "Range start: %i", range_start);
+  uint32_t range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
+  ESP_LOGD(TAG, "Range start: %" PRIu32, range_start);
   if (range_size <= 0 or range_end <= range_start) {
-    ESP_LOGD(TAG, "Range end: %i", range_end);
-    ESP_LOGD(TAG, "Range size: %i", range_size);
+    ESP_LOGD(TAG, "Range end: %" PRIu32, range_end);
+    ESP_LOGD(TAG, "Range size: %" PRIu32, range_size);
     ESP_LOGE(TAG, "Invalid range");
     return Nextion::TFTUploadResult::PROCESS_ERROR_INVALID_RANGE;
   }
@@ -55,9 +55,9 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
   while (true) {
     App.feed_wdt();
     uint16_t buffer_size = std::min(this->content_length_, 4096);  // Limits buffer to the remaining data
-    ESP_LOGVV(TAG, "Fetching %d bytes from HTTP", buffer_size);
+    ESP_LOGVV(TAG, "Fetching %" PRIu16 " bytes from HTTP", buffer_size);
     uint16_t read_len = 0;
-    uint16_t partial_read_len = 0;
+    int partial_read_len = 0;
     uint8_t retries = 0;
     // Attempt to read the chunk with retries.
     while (retries < 5 && read_len < buffer_size) {
@@ -76,7 +76,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     }
     if (read_len != buffer_size) {
       // Did not receive the full package within the timeout period
-      ESP_LOGE(TAG, "Failed to read full package, received only %d of %d bytes", read_len, buffer_size);
+      ESP_LOGE(TAG, "Failed to read full package, received only %" PRIu16 " of %" PRIu16 " bytes", read_len, buffer_size);
       return Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_FETCH_FULL_PACKAGE;
     }
     ESP_LOGVV(TAG, "%d bytes fetched, writing it to UART", read_len);
@@ -87,11 +87,11 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
       this->recv_ret_string_(recv_string, upload_first_chunk_sent_ ? 500 : 5000, true);
       this->content_length_ -= read_len;
 #ifdef USE_PSRAM
-      ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %d bytes, free heap (dram+psram): %" PRIu32 "+%" PRIu32 " bytes",
+      ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %u bytes, free heap (dram+psram): %" PRIu32 "+%" PRIu32 " bytes",
                100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_,
                heap_caps_get_free_size(MALLOC_CAP_INTERNAL), heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 #else
-      ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %d bytes, free heap: %" PRIu32 " bytes",
+      ESP_LOGD(TAG, "Uploaded %0.2f %%, remaining %u bytes, free heap: %" PRIu32 " bytes",
                100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_,
                esp_get_free_heap_size());
 #endif
@@ -122,7 +122,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
       ESP_LOGV(TAG, "End of HTTP response reached");
       break;  // Exit the loop if there is no more data to read
     } else {
-      ESP_LOGE(TAG, "Failed to read from HTTP client, error code: %d", read_len);
+      ESP_LOGE(TAG, "Failed to read from HTTP client, error code: %" PRIu16, read_len);
       break;  // Exit the loop on error
     }
   }
@@ -306,7 +306,7 @@ Nextion::TFTUploadResult Nextion::upload_tft(uint32_t baud_rate, bool exit_repar
 
   ESP_LOGV(TAG, "Starting transfer by chunks loop");
 
-  int position = 0;
+  uint32_t position = 0;
   while (this->content_length_ > 0) {
     Nextion::TFTUploadResult upload_result = upload_by_chunks_(http_client, position, buffer);
     if (upload_result != Nextion::TFTUploadResult::OK) {
