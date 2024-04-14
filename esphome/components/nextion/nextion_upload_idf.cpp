@@ -56,7 +56,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
     App.feed_wdt();
     uint16_t buffer_size =
         this->content_length_ < 4096 ? this->content_length_ : 4096;  // Limits buffer to the remaining data
-    ESP_LOGVV(TAG, "Fetching %" PRIu16 " bytes from HTTP", buffer_size);
+    ESP_LOGV(TAG, "Fetching %" PRIu16 " bytes from HTTP", buffer_size);
     uint16_t read_len = 0;
     int partial_read_len = 0;
     uint8_t retries = 0;
@@ -81,7 +81,7 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(esp_http_client_handle_t htt
                buffer_size);
       return Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_FETCH_FULL_PACKAGE;
     }
-    ESP_LOGVV(TAG, "%d bytes fetched, writing it to UART", read_len);
+    ESP_LOGV(TAG, "%d bytes fetched, writing it to UART", read_len);
     if (read_len > 0) {
       recv_string.clear();
       this->write_array(buffer, buffer_size);
