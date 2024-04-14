@@ -10,15 +10,15 @@ declare esphome_fork
 
 if bashio::config.has_value 'esphome_fork'; then
   esphome_fork=$(bashio::config 'esphome_fork')
-  if [[ $esphome_fork == *":"* ]]; then
-    IFS=':' read -r -a array <<<"$esphome_fork"
-    username=${array[0]}
-    ref=${array[1]}
+  # format: [username][/repository]:ref
+  if [[ "$esphome_fork" =~ ^(([^/]+)(/([^:]+))?:)?([^:/]+)$ ]]; then
+    username="${BASH_REMATCH[2]:-esphome}"
+    repository="${BASH_REMATCH[4]:-esphome}"
+    ref="${BASH_REMATCH[5]}"
   else
-    username="esphome"
-    ref=$esphome_fork
+    bashio::exit.nok "Invalid esphome_fork format: $esphome_fork"
   fi
-  full_url="https://github.com/${username}/esphome/archive/${ref}.tar.gz"
+  full_url="https://github.com/${username}/${repository}/archive/${ref}.tar.gz"
   bashio::log.info "Checking forked ESPHome"
   dev_version=$(python3 -c "from esphome.const import __version__; print(__version__)")
   bashio::log.info "Downloading ESPHome from fork '${esphome_fork}' (${full_url})..."
