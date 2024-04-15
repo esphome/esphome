@@ -860,8 +860,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
 #define READ_VCOM_VALUE 0x81
 #define VCM_DC_SETTING 0x82
 
-    std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; };
-  }
+  std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
 
   protected : int
               get_width_internal() override {
