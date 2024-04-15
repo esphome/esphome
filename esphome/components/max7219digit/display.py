@@ -134,7 +134,7 @@ MAX7219_ON_ACTION_SCHEMA = automation.maybe_simple_id(
     "MAX7219.invert_off", DisplayInvertAction, MAX7219_OFF_ACTION_SCHEMA
 )
 @automation.register_action(
-    "MAX7219.inveert_on", DisplayInvertAction, MAX7219_ON_ACTION_SCHEMA
+    "MAX7219.invert_on", DisplayInvertAction, MAX7219_ON_ACTION_SCHEMA
 )
 async def MAX7219_inveert_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
