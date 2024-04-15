@@ -184,7 +184,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   uint32_t idle_timeout_() override;
 
   bool deep_sleep_between_updates_{false};
-*/
+
 };
 
 
@@ -200,7 +200,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
     WAVESHARE_EPAPER_7_5_INV3,     // added for v3 Displays
     WAVESHARE_EPAPER_7_5_INV3_RB,  // added for v3 Displays Red-Black
   };
-
+*/
   class WaveshareEPaper2P7In : public WaveshareEPaper {
    public:
     void initialize() override;
