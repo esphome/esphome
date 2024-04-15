@@ -194,6 +194,17 @@ void Nextion::update_all_components() {
   }
 }
 
+bool Nextion::send_command(const char *command) {
+  if ((!this->is_setup() && !this->ignore_is_setup_) || this->is_sleeping())
+    return false;
+
+  if (this->send_command_(command)) {
+    this->add_no_result_to_queue_("send_command");
+    return true;
+  }
+  return false;
+}
+
 bool Nextion::send_command_printf(const char *format, ...) {
   if ((!this->is_setup() && !this->ignore_is_setup_) || this->is_sleeping())
     return false;
