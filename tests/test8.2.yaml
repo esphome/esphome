@@ -8,7 +8,6 @@ network:
 
 esp32:
   board: lolin_c3_mini
-  variant: ESP32C3
   framework:
     type: esp-idf
 
