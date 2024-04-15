@@ -51,20 +51,50 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
     return Nextion::TFTUploadResult::HTTP_ERROR_REQUEST_FAILED;
   }
 
+#if defined(USE_ESP32) && defined(USE_PSRAM)
+  uint8_t *buffer = nullptr;
+  // Check if PSRAM is available
+  if (psramFound()) {
+    buffer = (uint8_t *) ps_malloc(4096);  // Try to allocate memory in PSRAM
+  }
+  if (!buffer) {
+    ESP_LOGW(TAG, "Failed to allocate upload buffer in PSRAM");
+    buffer = (uint8_t *) malloc(4096);  // Fallback to DRAM if PSRAM allocation fails or isn't available
+    if (!buffer) {
+      ESP_LOGE(TAG, "Failed to allocate upload buffer");
+      return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
+    }
+  } else {
+    ESP_LOGD(TAG, "Successfully allocated upload buffer in PSRAM");
+  }
+#else
+  std::vector<uint8_t> buffer(4096);  // Initialize buffer
+#endif  // ESP32 & USE_PSRAM
   std::string recv_string;
   while (true) {
     App.feed_wdt();
     const uint16_t buffer_size =
         this->content_length_ < 4096 ? this->content_length_ : 4096;  // Limits buffer to the remaining data
-    std::vector<uint8_t> buffer(buffer_size);                         // Initialize buffer with the specified size
+#if defined(USE_ESP32) && defined(USE_PSRAM)
+#else
+    if (buffer_size != buffer.size()) {
+        ESP_LOGV(TAG, "Resizing buffer to %" PRIu16, buffer_size);
+        buffer.resize(buffer_size);
+    }
+#endif
     ESP_LOGV(TAG, "Fetching %" PRIu16 " bytes from HTTP", buffer_size);
     uint16_t read_len = 0;
     int partial_read_len = 0;
-    uint32_t start_time = millis();
+    const uint32_t start_time = millis();
     while (read_len < buffer_size && millis() - start_time < 5000) {
       if (http_client.getStreamPtr()->available() > 0) {
+#if defined(USE_ESP32) && defined(USE_PSRAM)
+        partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer) + read_len,
+                                                                 buffer_size - read_len);
+#else
         partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer.data()) + read_len,
                                                                  buffer_size - read_len);
+#endif
         read_len += partial_read_len;
         if (partial_read_len > 0) {
           App.feed_wdt();
@@ -76,17 +106,24 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
       // Did not receive the full package within the timeout period
       ESP_LOGE(TAG, "Failed to read full package, received only %" PRIu16 " of %" PRIu16 " bytes", read_len,
                buffer_size);
+#if defined(USE_ESP32) && defined(USE_PSRAM)
+      free(buffer);
+#endif  // ESP32 & USE_PSRAM
       return Nextion::TFTUploadResult::HTTP_ERROR_FAILED_TO_FETCH_FULL_PACKAGE;
     }
     ESP_LOGV(TAG, "%d bytes fetched, writing it to UART", read_len);
     if (read_len > 0) {
       recv_string.clear();
+#if defined(USE_ESP32) && defined(USE_PSRAM)
+      this->write_array(buffer, buffer_size);
+#else
       this->write_array(buffer);
+#endif  // ESP32 & USE_PSRAM
       App.feed_wdt();
       this->recv_ret_string_(recv_string, upload_first_chunk_sent_ ? 500 : 5000, true);
       this->content_length_ -= read_len;
       const float upload_percentage = 100.0f * (this->tft_size_ - this->content_length_) / this->tft_size_;
-#ifdef USE_PSRAM
+#if defined(USE_ESP32) && defined(USE_PSRAM)
       ESP_LOGD(
           TAG,
           "Uploaded %0.2f%%, remaining %" PRIu32 " bytes, free heap: %" PRIu32 " (DRAM) + %" PRIu32 " (PSRAM) bytes",
@@ -111,10 +148,16 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
         } else {
           range_start = range_end + 1;
         }
+#if defined(USE_ESP32) && defined(USE_PSRAM)
+        free(buffer);
+#endif  // ESP32 & USE_PSRAM
         return Nextion::TFTUploadResult::OK;
       } else if (recv_string[0] != 0x05 and recv_string[0] != 0x08) {  // 0x05 == "ok"
         ESP_LOGE(TAG, "Invalid response from Nextion: [%s]",
                  format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
+#if defined(USE_ESP32) && defined(USE_PSRAM)
+        free(buffer);
+#endif  // ESP32 & USE_PSRAM
         return Nextion::TFTUploadResult::NEXTION_ERROR_INVALID_RESPONSE;
       }
 
@@ -128,6 +171,9 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
     }
   }
   range_start = range_end + 1;
+#if defined(USE_ESP32) && defined(USE_PSRAM)
+  free(buffer);
+#endif  // ESP32 & USE_PSRAM
   return Nextion::TFTUploadResult::OK;
 }
 
