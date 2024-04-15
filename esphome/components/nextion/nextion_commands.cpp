@@ -242,7 +242,7 @@ void Nextion::fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t heigh
 }
 
 void Nextion::fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, Color color) {
-  this->add_no_result_to_queue_with_printf_("fill_area", 
+  this->add_no_result_to_queue_with_printf_("fill_area",
                                             "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1, y1,
                                             width, height, display::ColorUtil::color_to_565(color));
 }
