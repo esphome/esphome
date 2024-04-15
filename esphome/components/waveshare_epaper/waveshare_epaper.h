@@ -811,18 +811,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
 
   // 7.5 inches screen supporting black and red color with
   // a v3 label on the back. Called EDP_7in5b_V2 in WaveShare examples.
-  class WaveshareEPaper7P5InV3rb : public WaveshareEPaperPolled {
-   public:
-    void dump_config() override;
-    void initialize() override;
-
-    void power_on() override;
-    void configure() override;
-    void display() override;
-    void power_off() override;
-    void deep_sleep() override;
-
-#define PANEL_SETTING 0x00
+  #define PANEL_SETTING 0x00
 #define POWER_SETTING 0x01
 #define POWER_OFF 0x02
 #define POWER_OFF_SEQUENCE_SETTING 0x03
@@ -860,14 +849,23 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
 #define READ_VCOM_VALUE 0x81
 #define VCM_DC_SETTING 0x82
 
-  std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
+  class WaveshareEPaper7P5InV3rb : public WaveshareEPaperPolled {
+   public:
+    void dump_config() override;
+    void initialize() override;
 
-  protected : int
-              get_width_internal() override {
-    return 800;
-  }
-  int get_height_internal() override { return 480; }
-};
+    void power_on() override;
+    void configure() override;
+    void display() override;
+    void power_off() override;
+    void deep_sleep() override;
+
+    std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
+
+  protected : 
+    int get_width_internal() override { return 800; }
+    int get_height_internal() override { return 480; }
+ };
 
 }  // namespace waveshare_epaper
 }  // namespace esphome
