@@ -126,11 +126,9 @@ void I80Component::setup() {
     this->rd_pin_->setup();
     this->rd_pin_->digital_write(true);
   }
-  if (bus->is_failed()) {
+  if (bus->is_failed())
     this->mark_failed();
-  } else {
-    this->bus_ = bus;
-  }
+  this->bus_ = bus;
 }
 I80Delegate *I80Component::register_device(I80Client *device, GPIOPin *cs_pin, unsigned int data_rate) {
   if (this->devices_.count(device) != 0) {
