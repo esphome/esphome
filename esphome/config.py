@@ -1,10 +1,11 @@
+from __future__ import annotations
 import abc
 import functools
 import heapq
 import logging
 import re
 
-from typing import Optional, Union
+from typing import Union, Any
 
 from contextlib import contextmanager
 import contextvars
@@ -76,7 +77,7 @@ def _path_begins_with(path: ConfigPath, other: ConfigPath) -> bool:
 
 @functools.total_ordering
 class _ValidationStepTask:
-    def __init__(self, priority: float, id_number: int, step: "ConfigValidationStep"):
+    def __init__(self, priority: float, id_number: int, step: ConfigValidationStep):
         self.priority = priority
         self.id_number = id_number
         self.step = step
@@ -130,7 +131,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             )
         self.errors.append(error)
 
-    def add_validation_step(self, step: "ConfigValidationStep"):
+    def add_validation_step(self, step: ConfigValidationStep):
         id_num = self._validation_tasks_id
         self._validation_tasks_id += 1
         heapq.heappush(
@@ -172,7 +173,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             conf = conf[key]
         conf[path[-1]] = value
 
-    def get_error_for_path(self, path: ConfigPath) -> Optional[vol.Invalid]:
+    def get_error_for_path(self, path: ConfigPath) -> vol.Invalid | None:
         for err in self.errors:
             if self.get_deepest_path(err.path) == path:
                 self.errors.remove(err)
@@ -181,7 +182,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
 
     def get_deepest_document_range_for_path(
         self, path: ConfigPath, get_key: bool = False
-    ) -> Optional[ESPHomeDataBase]:
+    ) -> ESPHomeDataBase | None:
         data = self
         doc_range = None
         for index, path_item in enumerate(path):
@@ -733,7 +734,9 @@ class PinUseValidationCheck(ConfigValidationStep):
         pins.PIN_SCHEMA_REGISTRY.final_validate(result)
 
 
-def validate_config(config, command_line_substitutions) -> Config:
+def validate_config(
+    config: dict[str, Any], command_line_substitutions: dict[str, Any]
+) -> Config:
     result = Config()
 
     loader.clear_component_meta_finders()
@@ -897,24 +900,23 @@ class InvalidYAMLError(EsphomeError):
         self.base_exc = base_exc
 
 
-def _load_config(command_line_substitutions):
+def _load_config(command_line_substitutions: dict[str, Any]) -> Config:
+    """Load the configuration file."""
     try:
         config = yaml_util.load_yaml(CORE.config_path)
     except EsphomeError as e:
         raise InvalidYAMLError(e) from e
 
     try:
-        result = validate_config(config, command_line_substitutions)
+        return validate_config(config, command_line_substitutions)
     except EsphomeError:
         raise
     except Exception:
         _LOGGER.error("Unexpected exception while reading configuration:")
         raise
 
-    return result
 
-
-def load_config(command_line_substitutions):
+def load_config(command_line_substitutions: dict[str, Any]) -> Config:
     try:
         return _load_config(command_line_substitutions)
     except vol.Invalid as err:

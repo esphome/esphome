@@ -409,6 +409,7 @@ sensor:
       name: hydreon_total_acc
     r_int:
       name: hydreon_r_int
+    resolution: low
 
   - platform: adc
     pin: VCC
@@ -1299,6 +1300,11 @@ fingerprint_grow:
   sensing_pin:
     allow_other_uses: true
     number: 4
+  sensor_power_pin:
+    allow_other_uses: true
+    number: 5
+    inverted: true
+  idle_period_to_sleep: 5s
   password: 0x12FE37DC
   new_password: 0xA65B9840
   on_finger_scan_start:

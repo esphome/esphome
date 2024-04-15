@@ -1,10 +1,13 @@
 #include "time.h"  // NOLINT
+#include "helpers.h"
+
+#include <cinttypes>
 
 namespace esphome {
 
-static bool is_leap_year(uint32_t year) { return (year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0); }
+bool is_leap_year(uint32_t year) { return (year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0); }
 
-static uint8_t days_in_month(uint8_t month, uint16_t year) {
+uint8_t days_in_month(uint8_t month, uint16_t year) {
   static const uint8_t DAYS_IN_MONTH[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   uint8_t days = DAYS_IN_MONTH[month];
   if (month == 2 && is_leap_year(year))
@@ -59,6 +62,47 @@ std::string ESPTime::strftime(const std::string &format) {
   }
   timestr.resize(len);
   return timestr;
+}
+
+bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
+  uint16_t year;
+  uint8_t month;
+  uint8_t day;
+  uint8_t hour;
+  uint8_t minute;
+  uint8_t second;
+  int num;
+
+  if (sscanf(time_to_parse.c_str(), "%04hu-%02hhu-%02hhu %02hhu:%02hhu:%02hhu %n", &year, &month, &day,  // NOLINT
+             &hour,                                                                                      // NOLINT
+             &minute,                                                                                    // NOLINT
+             &second, &num) == 6 &&                                                                      // NOLINT
+      num == time_to_parse.size()) {
+    esp_time.year = year;
+    esp_time.month = month;
+    esp_time.day_of_month = day;
+    esp_time.hour = hour;
+    esp_time.minute = minute;
+    esp_time.second = second;
+  } else if (sscanf(time_to_parse.c_str(), "%02hhu:%02hhu:%02hhu %n", &hour, &minute, &second, &num) == 3 &&  // NOLINT
+             num == time_to_parse.size()) {
+    esp_time.hour = hour;
+    esp_time.minute = minute;
+    esp_time.second = second;
+  } else if (sscanf(time_to_parse.c_str(), "%02hhu:%02hhu %n", &hour, &minute, &num) == 2 &&  // NOLINT
+             num == time_to_parse.size()) {
+    esp_time.hour = hour;
+    esp_time.minute = minute;
+    esp_time.second = 0;
+  } else if (sscanf(time_to_parse.c_str(), "%04hu-%02hhu-%02hhu %n", &year, &month, &day, &num) == 3 &&  // NOLINT
+             num == time_to_parse.size()) {
+    esp_time.year = year;
+    esp_time.month = month;
+    esp_time.day_of_month = day;
+  } else {
+    return false;
+  }
+  return true;
 }
 
 void ESPTime::increment_second() {
