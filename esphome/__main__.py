@@ -785,6 +785,7 @@ def parse_args(argv):
     parser_logs = subparsers.add_parser(
         "logs",
         help="Validate the configuration and show all logs.",
+        aliases=["log"],
         parents=[mqtt_options],
     )
     parser_logs.add_argument(
