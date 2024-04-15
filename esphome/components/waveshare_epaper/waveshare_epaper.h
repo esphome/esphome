@@ -101,7 +101,7 @@ enum WaveshareEPaperTypeAModel {
 
 class WaveshareEPaperTypeA : public WaveshareEPaper {
  public:
-  WaveshareEPaperTypeA(WaveshareEPaperTypeAModel model_);
+  WaveshareEPaperTypeA(WaveshareEPaperTypeAModel model);
 
   void initialize() override;
 
@@ -132,38 +132,8 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
       this->wait_until_idle_();
     }
   }
-};
 
-  class WaveshareEPaperTypeB : public WaveshareEPaper {
-   public:
-    WaveshareEPaperTypeB(WaveshareEPaperTypeBModel model);
 
-    void initialize() override;
-
-    void dump_config() override;
-
-    void display() override;
-
-    void deep_sleep() override {
-      switch (this->model_) {
-        // Models with specific deep sleep command and data
-        case WAVESHARE_EPAPER_2_13_IN_V2:
-          // COMMAND DEEP SLEEP MODE
-          this->command(0x07);
-          this->data(0xA5);
-          break;
-        // Other models default to simple deep sleep command
-        default:
-          // COMMAND DEEP SLEEP
-          this->command(0x02);
-          break;
-      }
-      if (this->model_ != WAVESHARE_EPAPER_2_13_IN_V2) {
-        // From panel specification:
-        // "After this command initiated, the chip will enter Deep Sleep Mode, BUSY pad will keep output high."
-        this->wait_until_idle_();
-      }
-    }
     void set_full_update_every(uint32_t full_update_every);
 
    protected:
@@ -180,8 +150,8 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
     uint32_t full_update_every_{30};
     uint32_t at_update_{0};
     WaveshareEPaperTypeAModel model_;
-
     // WaveshareEPaperTypeBModel model_;
+
     uint32_t idle_timeout_() override;
 
     bool deep_sleep_between_updates_{false};
@@ -197,8 +167,8 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
     WAVESHARE_EPAPER_7_5_IN,
     WAVESHARE_EPAPER_7_5_INV2,
     WAVESHARE_EPAPER_7_5_IN_B_V2,
-    WAVESHARE_EPAPER_7_5_INV3,     // added for v3 Displays
-    WAVESHARE_EPAPER_7_5_INV3_RB,  // added for v3 Displays Red-Black
+//    WAVESHARE_EPAPER_7_5_INV3,     // added for v3 Displays
+//    WAVESHARE_EPAPER_7_5_INV3_RB,  // added for v3 Displays Red-Black
   };
 
   class WaveshareEPaper2P7In : public WaveshareEPaper {
