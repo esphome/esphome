@@ -78,7 +78,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * This will change the property `value` of the component `gauge` to 50.
    */
-  void set_component_value(const char *component, int value);
+  void set_component_value(const char *component, int32_t value);
   /**
    * Set the picture of an image component.
    * @param component The component name.
@@ -394,7 +394,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * This will move the position of the component `pic` to the x coordinate `55` and y coordinate `100`.
    */
-  void set_component_coordinates(const char *component, int x, int y);
+  void set_component_coordinates(const char *component, uint16_t x, uint16_t y);
   /**
    * Set the font id for a component.
    * @param component The component name.
@@ -492,8 +492,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param channel_number The channel number to write to.
    * @param value The value to write.
    */
-  void add_waveform_data(int component_id, uint8_t channel_number, uint8_t value);
-  void open_waveform_channel(int component_id, uint8_t channel_number, uint8_t value);
+  void add_waveform_data(uint8_t component_id, uint8_t channel_number, uint8_t value);
+  void open_waveform_channel(uint8_t component_id, uint8_t channel_number, uint8_t value);
   /**
    * Display a picture at coordinates.
    * @param picture_id The picture id.
@@ -507,7 +507,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * Displays the picture who has the id `2` at the x coordinates `15` and y coordinates `25`.
    */
-  void display_picture(int picture_id, int x_start, int y_start);
+  void display_picture(uint16_t picture_id, uint16_t x_start, uint16_t y_start);
   /**
    * Fill a rectangle with a color.
    * @param x1 The starting x coordinate.
@@ -526,7 +526,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
    * Nextion HMI colors.
    */
-  void fill_area(int x1, int y1, int width, int height, uint16_t color);
+  void fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, uint16_t color);
   /**
    * Fill a rectangle with a color.
    * @param x1 The starting x coordinate.
@@ -544,7 +544,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * the red color.
    * Use [Nextion Instruction Set](https://nextion.tech/instruction-set/#s5) for a list of Nextion HMI colors constants.
    */
-  void fill_area(int x1, int y1, int width, int height, const char *color);
+  void fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, const char *color);
   /**
    * Fill a rectangle with a color.
    * @param x1 The starting x coordinate.
@@ -562,7 +562,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Fills an area that starts at x coordinate `50` and y coordinate `50` with a height of `100` and width of `100` with
    * blue color.
    */
-  void fill_area(int x1, int y1, int width, int height, Color color);
+  void fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, Color color);
   /**
    * Draw a line on the screen.
    * @param x1 The starting x coordinate.
@@ -581,7 +581,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
    * Nextion HMI colors.
    */
-  void line(int x1, int y1, int x2, int y2, uint16_t color);
+  void line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
   /**
    * Draw a line on the screen.
    * @param x1 The starting x coordinate.
@@ -599,7 +599,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * `75` with the blue color.
    * Use [Nextion Instruction Set](https://nextion.tech/instruction-set/#s5) for a list of Nextion HMI colors constants.
    */
-  void line(int x1, int y1, int x2, int y2, const char *color);
+  void line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, const char *color);
   /**
    * Draw a line on the screen.
    * @param x1 The starting x coordinate.
@@ -617,7 +617,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Makes a line that starts at x coordinate `50` and y coordinate `50` and ends at x coordinate `75` and y coordinate
    * `75` with blue color.
    */
-  void line(int x1, int y1, int x2, int y2, Color color);
+  void line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, Color color);
   /**
    * Draw a rectangle outline.
    * @param x1 The starting x coordinate.
@@ -636,7 +636,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
    * Nextion HMI colors.
    */
-  void rectangle(int x1, int y1, int width, int height, uint16_t color);
+  void rectangle(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, uint16_t color);
   /**
    * Draw a rectangle outline.
    * @param x1 The starting x coordinate.
@@ -654,7 +654,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * length of `50` with the blue color.
    * Use [Nextion Instruction Set](https://nextion.tech/instruction-set/#s5) for a list of Nextion HMI colors constants.
    */
-  void rectangle(int x1, int y1, int width, int height, const char *color);
+  void rectangle(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, const char *color);
   /**
    * Draw a rectangle outline.
    * @param x1 The starting x coordinate.
@@ -672,7 +672,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Makes a outline of a rectangle that starts at x coordinate `25` and y coordinate `35` and has a width of `40` and a
    * length of `50` with blue color.
    */
-  void rectangle(int x1, int y1, int width, int height, Color color);
+  void rectangle(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, Color color);
   /**
    * Draw a circle outline
    * @param center_x The center x coordinate.
@@ -682,7 +682,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
    * Nextion HMI colors.
    */
-  void circle(int center_x, int center_y, int radius, uint16_t color);
+  void circle(uint16_t center_x, uint16_t center_y, uint16_t radius, uint16_t color);
   /**
    * Draw a circle outline
    * @param center_x The center x coordinate.
@@ -691,7 +691,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param color The color to draw with (as a string).
    * Use [Nextion Instruction Set](https://nextion.tech/instruction-set/#s5) for a list of Nextion HMI colors constants.
    */
-  void circle(int center_x, int center_y, int radius, const char *color);
+  void circle(uint16_t center_x, uint16_t center_y, uint16_t radius, const char *color);
   /**
    * Draw a circle outline
    * @param center_x The center x coordinate.
@@ -699,7 +699,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param radius The circle radius.
    * @param color The color to draw with (as Color).
    */
-  void circle(int center_x, int center_y, int radius, Color color);
+  void circle(uint16_t center_x, uint16_t center_y, uint16_t radius, Color color);
   /**
    * Draw a filled circled.
    * @param center_x The center x coordinate.
@@ -716,7 +716,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
    * Nextion HMI colors.
    */
-  void filled_circle(int center_x, int center_y, int radius, uint16_t color);
+  void filled_circle(uint16_t center_x, uint16_t center_y, uint16_t radius, uint16_t color);
   /**
    * Draw a filled circled.
    * @param center_x The center x coordinate.
@@ -732,7 +732,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Makes a filled circle at the x coordinate `25` and y coordinate `25` with a radius of `10` with the blue color.
    * Use [Nextion Instruction Set](https://nextion.tech/instruction-set/#s5) for a list of Nextion HMI colors constants.
    */
-  void filled_circle(int center_x, int center_y, int radius, const char *color);
+  void filled_circle(uint16_t center_x, uint16_t center_y, uint16_t radius, const char *color);
   /**
    * Draw a filled circled.
    * @param center_x The center x coordinate.
@@ -748,7 +748,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * Makes a filled circle at the x coordinate `25` and y coordinate `25` with a radius of `10` with blue color.
    */
-  void filled_circle(int center_x, int center_y, int radius, Color color);
+  void filled_circle(uint16_t center_x, uint16_t center_y, uint16_t radius, Color color);
 
   /**
    * Draws a QR code in the screen
@@ -768,8 +768,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * Draws a QR code with a Wi-Fi network credentials starting at the given coordinates (25,25).
    */
-  void qrcode(int x1, int y1, const char *content, int size = 200, uint16_t background_color = 65535,
-              uint16_t foreground_color = 0, int logo_pic = -1, uint8_t border_width = 8);
+  void qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size = 200, uint16_t background_color = 65535,
+              uint16_t foreground_color = 0, uint8_t logo_pic = -1, uint8_t border_width = 8);
   /**
    * Draws a QR code in the screen
    * @param x1 The top left x coordinate to start the QR code.
@@ -791,8 +791,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Draws a QR code with a Wi-Fi network credentials starting at the given coordinates (25,25) with size of 150px in
    * red on a blue background.
    */
-  void qrcode(int x1, int y1, const char *content, int size, Color background_color = Color(255, 255, 255),
-              Color foreground_color = Color(0, 0, 0), int logo_pic = -1, uint8_t border_width = 8);
+  void qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size, Color background_color = Color(255, 255, 255),
+              Color foreground_color = Color(0, 0, 0), uint8_t logo_pic = -1, uint8_t border_width = 8);
 
   /** Set the brightness of the backlight.
    *
@@ -1187,9 +1187,9 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void set_nextion_sensor_state(NextionQueueType queue_type, const std::string &name, float state);
   void set_nextion_text_state(const std::string &name, const std::string &state);
 
-  void add_no_result_to_queue_with_set(NextionComponentBase *component, int state_value) override;
+  void add_no_result_to_queue_with_set(NextionComponentBase *component, int32_t state_value) override;
   void add_no_result_to_queue_with_set(const std::string &variable_name, const std::string &variable_name_to_send,
-                                       int state_value) override;
+                                       int32_t state_value) override;
 
   void add_no_result_to_queue_with_set(NextionComponentBase *component, const std::string &state_value) override;
   void add_no_result_to_queue_with_set(const std::string &variable_name, const std::string &variable_name_to_send,
@@ -1265,8 +1265,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void process_serial_();
   bool is_updating_ = false;
   uint32_t touch_sleep_timeout_ = 0;
-  int wake_up_page_ = -1;
-  int start_up_page_ = -1;
+  int16_t wake_up_page_ = -1;
+  int16_t start_up_page_ = -1;
   bool auto_wake_on_touch_ = true;
   bool exit_reparse_on_start_ = false;
 
@@ -1284,7 +1284,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
       __attribute__((format(printf, 3, 4)));
 
   void add_no_result_to_queue_with_set_internal_(const std::string &variable_name,
-                                                 const std::string &variable_name_to_send, int state_value,
+                                                 const std::string &variable_name_to_send, int32_t state_value,
                                                  bool is_sleep_safe = false);
 
   void add_no_result_to_queue_with_set_internal_(const std::string &variable_name,
@@ -1408,8 +1408,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   std::string command_data_;
   bool is_connected_ = false;
-  uint32_t startup_override_ms_ = 8000;
-  uint32_t max_q_age_ms_ = 8000;
+  const uint16_t startup_override_ms_ = 8000;
+  const uint16_t max_q_age_ms_ = 8000;
   uint32_t started_ms_ = 0;
   bool sent_setup_commands_ = false;
 };
