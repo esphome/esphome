@@ -2595,7 +2595,7 @@ void HOT WaveshareEPaper7P5InBC::display() {
 
 int WaveshareEPaper7P5InBC::get_width_internal() { return 800; }
 
-int WaveshareEPaper7P5InBC::get_height_internal() { return 400; }
+int WaveshareEPaper7P5InBC::get_height_internal() { return 480; }
 
 void WaveshareEPaper7P5InBC::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
@@ -2929,6 +2929,7 @@ void WaveshareEPaperPolled::set_state_(State state) {
 // Wiki:   https://www.waveshare.com/wiki/7.5inch_e-Paper_HAT_(B)
 // Github: https://github.com/waveshareteam/e-Paper
 
+int WaveshareEPaper7P5InV3rb::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InV3rb::get_height_internal() { return 480; }
 void WaveshareEPaper7P5InV3rb::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
@@ -2941,59 +2942,95 @@ void WaveshareEPaper7P5InV3rb::dump_config() {
 
 void WaveshareEPaper7P5InV3rb::power_on() {
   // COMMAND POWER SETTING
-  this->command(0x01);
-  this->data(0x07);
-  this->data(0x17);
-  this->data(0x3F);
-  this->data(0x3F);
-  // POWER ON
-  this->command(0x04);
+//  this->command(0x04);
+  this->command(POWER_ON);
 }
 
 void WaveshareEPaper7P5InV3rb::configure() {
+
+  // reset 
+  /*    DEV_Digital_Write(EPD_RST_PIN, 1);
+    DEV_Delay_ms(200);
+    DEV_Digital_Write(EPD_RST_PIN, 0);
+    DEV_Delay_ms(2);
+    DEV_Digital_Write(EPD_RST_PIN, 1);
+    DEV_Delay_ms(200);*/
+  // COMMAND PANEL SETTING Power settings
+  this->command(0x01);
+  this->data(0x37); 
+  this->data(0x00); 
+
   // COMMAND PANEL SETTING
-  this->command(0x00);
-  this->data(0x0F);  // KW-3f KWR-2F BWROTP 0f BWOTP 1f
-  // COMMAND RESOLUTION SETTING
-  this->command(0x61);
-  this->data(0x03);
+//  this->command(0x00);  // PANEL_SETTING
+  this->command( PANEL_SETTING );
+  this->data(0x0F); 
+  this->data(0x08); 
+  // PLL CONTROL
+  this->command(0x30);
+  this->data(0x3a); 
+  // VCM_DC_SETTING
+//  this->command(0x82); // VCM_DC_SETTING
+  this->command(VCM_DC_SETTING);
+  this->data(0x28);  //all temperature  range
+
+  // BOOSTER_SOFT_START
+//  this->command(0x06); //BOOSTER_SOFT_START
+  this->command(BOOSTER_SOFT_START);
+  this->data(0xc7); 
+  this->data(0xcc); 
+  this->data(0x15); 
+
+  // VCOM AND DATA INTERVAL SETTING
+//  this->command(0x50); // VCOM_AND_DATA_INTERVAL_SETTING
+  this->command(VCOM_AND_DATA_INTERVAL_SETTING);
+  this->data(0x77); 
+
+  // TCON_SETTING
+//  this->command(0x60);   //TCON_SETTING
+  this->command(TCON_SETTING);
+  this->data(0x22); 
+
+  // FLASH CONTROL
+//  this->command(0x65);   //SPI_FLASH_CONTROL
+  this->command(SPI_FLASH_CONTROL);
+  this->data(0x00); 
+
+  // TCON_RESOLUTION
+//  this->command(0x61);
+  this->command(TCON_RESOLUTION);
+  this->data(0x03);  // source 800
   this->data(0x20);
-  this->data(0x01);
+  this->data(0x01);  // gate 480
   this->data(0xE0);
+
   // COMMAND DUAL SPI MODE
-  this->command(0x15);
-  this->data(0x00);
+//  this->command(0x15);
+//  this->data(0x00);
   // COMMAND VCOM AND DATA INTERVAL SETTING
-  this->command(0x50);
-  this->data(0x11);
-  this->data(0x07);
-  // COMMAND TCON SETTING
-  this->command(0x60);
-  this->data(0x22);
-  // COMMAND RESOLUTION GATE SETTING
-  this->command(0x65);
-  this->data(0x00);
-  this->data(0x00);
-  this->data(0x00);
-  this->data(0x00);
-}
+//  this->command(0x50);
+//  this->data(0x11);
+//  this->data(0x07);
+
 
 void HOT WaveshareEPaper7P5InV3rb::display() {
   uint32_t buf_len = this->get_buffer_length_();
   // COMMAND DATA START TRANSMISSION BLACK
-  this->command(0x10);
+  // this->command(0x10);
+  this->command(DATA_START_TRANSMISSION_1);
   for (uint32_t i = 0; i < buf_len / 2; i++) {
     this->data(this->buffer_[i]);
   }
 
   // COMMAND DATA START TRANSMISSION RED
-  this->command(0x13);
+//  this->command(0x13);
   for (uint32_t i = buf_len / 2; i < buf_len; i++) {
     this->data(~this->buffer_[i]);
   }
 
   // COMMAND DISPLAY REFRESH
-  this->command(0x12);
+  // this->command(0x12);
+  this->command(DISPLAY_REFRESH);
+  
 }
 
 void WaveshareEPaper7P5InV3rb::power_off() {
@@ -3005,8 +3042,9 @@ void WaveshareEPaper7P5InV3rb::deep_sleep() {
   this->data(0xA5);
 }
 
-void WaveshareEPaper7P5InV3rb::initialize() { this->init_display_(); }
-//ToDo: WaveshareEPaper7P5InV3rb::initialize()
+void WaveshareEPaper7P5InV3rb::initialize() {
+  WaveshareEPaper7P5InV3rb::configure();
+}
 
 
 }  // namespace waveshare_epaper
