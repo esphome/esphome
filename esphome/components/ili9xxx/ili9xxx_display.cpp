@@ -25,19 +25,23 @@ void ILI9XXXDisplay::set_madctl() {
     mad |= MADCTL_MX;
   if (this->mirror_y_)
     mad |= MADCTL_MY;
-  this->command(ILI9XXX_MADCTL);
-  this->data(mad);
-  esph_log_d(TAG, "Wrote MADCTL 0x%02X", mad);
+  this->send_command(ILI9XXX_MADCTL, &mad, 1);
+  ESP_LOGD(TAG, "Wrote MADCTL 0x%02X", mad);
 }
 
 void ILI9XXXDisplay::setup() {
   ESP_LOGD(TAG, "Setting up ILI9xxx");
 
-  this->setup_pins_();
+  this->reset_pin_->setup();  // OUTPUT
+  this->reset_pin_->digital_write(true);
+  this->bus_->bus_setup();
+  this->reset_pin_->digital_write(false);
+  delay(20);
+  this->reset_pin_->digital_write(true);
+  delay(20);
   this->init_lcd_();
-
   this->set_madctl();
-  this->command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
+  this->send_command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
   this->x_high_ = 0;
@@ -58,19 +62,6 @@ void ILI9XXXDisplay::alloc_buffer_() {
   }
 }
 
-void ILI9XXXDisplay::setup_pins_() {
-  this->dc_pin_->setup();  // OUTPUT
-  this->dc_pin_->digital_write(false);
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();  // OUTPUT
-    this->reset_pin_->digital_write(true);
-  }
-
-  this->spi_setup();
-
-  this->reset_();
-}
-
 void ILI9XXXDisplay::dump_config() {
   LOG_DISPLAY("", "ili9xxx", this);
   ESP_LOGCONFIG(TAG, "  Width Offset: %u", this->offset_x_);
@@ -89,17 +80,14 @@ void ILI9XXXDisplay::dump_config() {
   if (this->is_18bitdisplay_) {
     ESP_LOGCONFIG(TAG, "  18-Bit Mode: YES");
   }
-  ESP_LOGCONFIG(TAG, "  Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  LOG_PIN("  CS Pin: ", this->cs_);
-  LOG_PIN("  DC Pin: ", this->dc_pin_);
-  LOG_PIN("  Busy Pin: ", this->busy_pin_);
   ESP_LOGCONFIG(TAG, "  Color order: %s", this->color_order_ == display::COLOR_ORDER_BGR ? "BGR" : "RGB");
   ESP_LOGCONFIG(TAG, "  Swap_xy: %s", YESNO(this->swap_xy_));
   ESP_LOGCONFIG(TAG, "  Mirror_x: %s", YESNO(this->mirror_x_));
   ESP_LOGCONFIG(TAG, "  Mirror_y: %s", YESNO(this->mirror_y_));
 
+  this->bus_->dump_config();
   if (this->is_failed()) {
     ESP_LOGCONFIG(TAG, "  => Failed to init Memory: YES!");
   }
@@ -111,7 +99,7 @@ float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::HARDWA
 void ILI9XXXDisplay::fill(Color color) {
   if (!this->check_buffer_())
     return;
-  uint16_t new_color = 0;
+  uint16_t new_color;
   this->x_low_ = 0;
   this->y_low_ = 0;
   this->x_high_ = this->get_width_internal() - 1;
@@ -135,7 +123,6 @@ void ILI9XXXDisplay::fill(Color color) {
         }
       }
       return;
-      break;
     default:
       new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
       break;
@@ -213,11 +200,11 @@ void ILI9XXXDisplay::display_() {
   size_t const w = this->x_high_ - this->x_low_ + 1;
   size_t const h = this->y_high_ - this->y_low_ + 1;
 
-  size_t mhz = this->data_rate_ / 1000000;
   // estimate time for a single write
-  size_t sw_time = this->width_ * h * 16 / mhz + this->width_ * h * 2 / SPI_MAX_BLOCK_SIZE * SPI_SETUP_US * 2;
+  size_t sw_time =
+      this->width_ * h * 2 / this->data_rate_ + this->width_ * h * 2 / SPI_MAX_BLOCK_SIZE * SPI_SETUP_US * 2;
   // estimate time for multiple writes
-  size_t mw_time = (w * h * 16) / mhz + w * h * 2 / ILI9XXX_TRANSFER_BUFFER_SIZE * SPI_SETUP_US;
+  size_t mw_time = (w * h * 2) / this->data_rate_ + w * h * 2 / ILI9XXX_TRANSFER_BUFFER_SIZE * SPI_SETUP_US;
   ESP_LOGV(TAG,
            "Start display(xlow:%d, ylow:%d, xhigh:%d, yhigh:%d, width:%d, "
            "height:%zu, mode=%d, 18bit=%d, sw_time=%zuus, mw_time=%zuus)",
@@ -228,7 +215,7 @@ void ILI9XXXDisplay::display_() {
     // 16 bit mode maps directly to display format
     ESP_LOGV(TAG, "Doing single write of %zu bytes", this->width_ * h * 2);
     set_addr_window_(0, this->y_low_, this->width_ - 1, this->y_high_);
-    this->write_array(this->buffer_ + this->y_low_ * this->width_ * 2, h * this->width_ * 2);
+    this->bus_->write_array(this->buffer_ + this->y_low_ * this->width_ * 2, h * this->width_ * 2);
   } else {
     ESP_LOGV(TAG, "Doing multiple write");
     size_t rem = h * w;  // remaining number of pixels to write
@@ -260,7 +247,7 @@ void ILI9XXXDisplay::display_() {
         idx += 2;
       }
       if (idx == ILI9XXX_TRANSFER_BUFFER_SIZE) {
-        this->write_array(transfer_buffer, idx);
+        this->bus_->write_array(transfer_buffer, idx);
         idx = 0;
         App.feed_wdt();
       }
@@ -272,10 +259,10 @@ void ILI9XXXDisplay::display_() {
     }
     // flush any balance.
     if (idx != 0) {
-      this->write_array(transfer_buffer, idx);
+      this->bus_->write_array(transfer_buffer, idx);
     }
   }
-  this->end_data_();
+  this->bus_->end_transaction();
   ESP_LOGV(TAG, "Data write took %dms", (unsigned) (millis() - now));
   // invalidate watermarks
   this->x_low_ = this->width_;
@@ -302,58 +289,22 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
   // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.
   if (x_offset == 0 && x_pad == 0 && y_offset == 0) {
     // we could deal here with a non-zero y_offset, but if x_offset is zero, y_offset probably will be so don't bother
-    this->write_array(ptr, w * h * 2);
+    this->bus_->write_array(ptr, w * h * 2);
   } else {
     auto stride = x_offset + w + x_pad;
     for (size_t y = 0; y != h; y++) {
-      this->write_array(ptr + (y + y_offset) * stride + x_offset, w * 2);
+      this->bus_->write_array(ptr + (y + y_offset) * stride + x_offset, w * 2);
     }
   }
-  this->end_data_();
+  this->bus_->end_transaction();
 }
 
 // should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
 // values per bit is huge
 uint32_t ILI9XXXDisplay::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal(); }
 
-void ILI9XXXDisplay::command(uint8_t value) {
-  this->start_command_();
-  this->write_byte(value);
-  this->end_command_();
-}
-
-void ILI9XXXDisplay::data(uint8_t value) {
-  this->start_data_();
-  this->write_byte(value);
-  this->end_data_();
-}
-
-void ILI9XXXDisplay::send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes) {
-  this->command(command_byte);  // Send the command byte
-  this->start_data_();
-  this->write_array(data_bytes, num_data_bytes);
-  this->end_data_();
-}
-
-void ILI9XXXDisplay::start_command_() {
-  this->dc_pin_->digital_write(false);
-  this->enable();
-}
-void ILI9XXXDisplay::start_data_() {
-  this->dc_pin_->digital_write(true);
-  this->enable();
-}
-
-void ILI9XXXDisplay::end_command_() { this->disable(); }
-void ILI9XXXDisplay::end_data_() { this->disable(); }
-
-void ILI9XXXDisplay::reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(20);
-    this->reset_pin_->digital_write(true);
-    delay(20);
-  }
+void ILI9XXXDisplay::send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t length) {
+  this->bus_->write_cmd_data(command_byte, data_bytes, length);  // Send the command byte
 }
 
 void ILI9XXXDisplay::init_lcd_() {
@@ -375,24 +326,25 @@ void ILI9XXXDisplay::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uin
   x2 += this->offset_x_;
   y1 += this->offset_y_;
   y2 += this->offset_y_;
-  this->command(ILI9XXX_CASET);
-  this->data(x1 >> 8);
-  this->data(x1 & 0xFF);
-  this->data(x2 >> 8);
-  this->data(x2 & 0xFF);
-  this->command(ILI9XXX_PASET);  // Page address set
-  this->data(y1 >> 8);
-  this->data(y1 & 0xFF);
-  this->data(y2 >> 8);
-  this->data(y2 & 0xFF);
-  this->command(ILI9XXX_RAMWR);  // Write to RAM
-  this->start_data_();
+  uint8_t buf[4];
+  buf[0] = x1 >> 8;
+  buf[1] = x1;
+  buf[2] = x2 >> 8;
+  buf[3] = x2;
+  this->send_command(ILI9XXX_CASET, buf, sizeof buf);
+  buf[0] = y1 >> 8;
+  buf[1] = y1;
+  buf[2] = y2 >> 8;
+  buf[3] = y2;
+  this->send_command(ILI9XXX_PASET, buf, sizeof buf);
+  this->send_command(ILI9XXX_RAMWR);
+  this->bus_->begin_transaction();
 }
 
 void ILI9XXXDisplay::invert_colors(bool invert) {
   this->pre_invertcolors_ = invert;
   if (is_ready()) {
-    this->command(invert ? ILI9XXX_INVON : ILI9XXX_INVOFF);
+    this->send_command(invert ? ILI9XXX_INVON : ILI9XXX_INVOFF);
   }
 }
 

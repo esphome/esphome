@@ -1,0 +1,28 @@
+spi:
+  - id: spi_id_1
+    type: single
+    clk_pin:
+      number: GPIO0
+      ignore_strapping_warning: true
+      allow_other_uses: false
+    mosi_pin: GPIO6
+    interface: hardware
+
+
+i80:
+  dc_pin: 7
+  wr_pin: 8
+  rd_pin: 9
+  data_pins:
+    - 39
+    - 40
+    - 41
+    - 42
+    -
+      ignore_strapping_warning: true
+      number: 45
+    -
+      ignore_strapping_warning: true
+      number: 46
+    - 47
+    - 48

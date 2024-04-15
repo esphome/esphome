@@ -3,6 +3,7 @@ import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
+from esphome.components import byte_bus
 from esphome.components.esp32.const import (
     KEY_ESP32,
     VARIANT_ESP32S2,
@@ -30,6 +31,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
     CONF_DATA_PINS,
+    CONF_CLIENT_ID,
 )
 from esphome.core import (
     coroutine_with_priority,
@@ -37,12 +39,17 @@ from esphome.core import (
 )
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
+AUTO_LOAD = ["byte_bus"]
+
 spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 QuadSPIComponent = spi_ns.class_("QuadSPIComponent", cg.Component)
 SPIDevice = spi_ns.class_("SPIDevice")
+SPIClient = spi_ns.class_("SPIClient")
+SPIByteBus = spi_ns.class_("SPIByteBus", byte_bus.ByteBus)
 SPIDataRate = spi_ns.enum("SPIDataRate")
 SPIMode = spi_ns.enum("SPIMode")
+BitOrder = spi_ns.enum("SPIBitOrder")
 
 SPI_DATA_RATE_OPTIONS = {
     80e6: SPIDataRate.DATA_RATE_80MHZ,
@@ -71,6 +78,11 @@ SPI_MODE_OPTIONS = {
     3: SPIMode.MODE3,
 }
 
+ORDERS = {
+    "msb_first": BitOrder.BIT_ORDER_MSB_FIRST,
+    "lsb_first": BitOrder.BIT_ORDER_LSB_FIRST,
+}
+CONF_BIT_ORDER = "bit_order"
 CONF_SPI_MODE = "spi_mode"
 CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
@@ -361,9 +373,11 @@ def spi_device_schema(
             QuadSPIComponent if quad else SPIComponent
         ),
         cv.Optional(CONF_DATA_RATE, default=default_data_rate): SPI_DATA_RATE_SCHEMA,
+        cv.Optional(CONF_BIT_ORDER, default="msb_first"): cv.enum(ORDERS, lower=True),
         cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(
             SPI_MODE_OPTIONS, upper=True
         ),
+        cv.GenerateID(CONF_CLIENT_ID): cv.declare_id(SPIClient),
     }
     if cs_pin_required:
         schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
@@ -373,8 +387,7 @@ def spi_device_schema(
 
 
 async def register_spi_device(var, config):
-    parent = await cg.get_variable(config[CONF_SPI_ID])
-    cg.add(var.set_spi_parent(parent))
+    await cg.register_parented(var, config[CONF_SPI_ID])
     if CONF_CS_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_CS_PIN])
         cg.add(var.set_cs_pin(pin))
@@ -382,6 +395,21 @@ async def register_spi_device(var, config):
         cg.add(var.set_data_rate(config[CONF_DATA_RATE]))
     if CONF_SPI_MODE in config:
         cg.add(var.set_mode(config[CONF_SPI_MODE]))
+
+
+async def create_spi_client(config):
+    """
+    Create an SPIClient object. Note that this requires a data_rate, so the call to spi_device_schema must specify
+    a default data rate, or make it required.
+    """
+    client_id = config[CONF_CLIENT_ID]
+    var = cg.new_Pvariable(
+        client_id, config[CONF_BIT_ORDER], config[CONF_SPI_MODE], config[CONF_DATA_RATE]
+    )
+    cg.add(var.set_parent(await cg.get_variable(config[CONF_SPI_ID])))
+    if cs_pin := config.get(CONF_CS_PIN):
+        cg.add(var.set_cs_pin(await cg.gpio_pin_expression(cs_pin)))
+    return var
 
 
 def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso: bool):

@@ -6,6 +6,7 @@
 namespace esphome {
 namespace ili9xxx {
 
+#define PROGMEM
 // clang-format off
 static const uint8_t PROGMEM INITCMD_M5STACK[] = {
   0xEF, 3, 0x03, 0x80, 0x02,
@@ -215,15 +216,11 @@ static const uint8_t PROGMEM INITCMD_ST7796[] = {
   ILI9XXX_CSCON, 1, 0xC3,              // ?? Unlock Manufacturer
   ILI9XXX_CSCON, 1, 0x96,
   ILI9XXX_VMCTR1, 1, 0x1C,              //VCOM  Control 1 [1C]
-  ILI9XXX_MADCTL, 1, 0x48,              //Memory Access [00]
   ILI9XXX_PIXFMT, 1, 0x55,              //565
   ILI9XXX_IFMODE, 1, 0x80,              //Interface     [00]
   ILI9XXX_INVCTR, 1, 0x01,              //Inversion Control [01]
-  ILI9XXX_DFUNCTR, 3, 0x80, 0x02, 0x3B,  // Display Function Control [80 02 3B] .kbv SS=1, NL=480
   ILI9XXX_ETMOD, 1, 0xC6,              //Entry Mode      [06]
 
-  ILI9XXX_CSCON, 1, 0x69,              //?? lock manufacturer commands
-  ILI9XXX_CSCON, 1, 0x3C,              //
   ILI9XXX_SLPOUT, 0x80, // Exit Sleep, then delay 150 ms
   ILI9XXX_DISPON, 0x80, // Main screen turn on, delay 150 ms
   0x00                                   // End of list

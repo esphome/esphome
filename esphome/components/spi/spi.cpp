@@ -1,5 +1,6 @@
 #include "spi.h"
 #include "esphome/core/log.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/application.h"
 
 namespace esphome {
@@ -12,8 +13,6 @@ SPIDelegate *const SPIDelegate::NULL_DELEGATE =  // NOLINT(cppcoreguidelines-avo
 // https://bugs.llvm.org/show_bug.cgi?id=48040
 
 bool SPIDelegate::is_ready() { return true; }
-
-GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin) {
@@ -39,9 +38,9 @@ void SPIComponent::setup() {
   ESP_LOGD(TAG, "Setting up SPI bus...");
 
   if (this->sdo_pin_ == nullptr)
-    this->sdo_pin_ = NullPin::NULL_PIN;
+    this->sdo_pin_ = byte_bus::NULL_PIN;
   if (this->sdi_pin_ == nullptr)
-    this->sdi_pin_ = NullPin::NULL_PIN;
+    this->sdi_pin_ = byte_bus::NULL_PIN;
   if (this->clk_pin_ == nullptr) {
     ESP_LOGE(TAG, "No clock pin for SPI");
     this->mark_failed();
@@ -62,6 +61,27 @@ void SPIComponent::setup() {
     this->sdo_pin_->setup();
     this->sdi_pin_->setup();
   }
+}
+
+void SPIByteBus::write_cmd_data(int cmd, const uint8_t *data, size_t length) {
+  ESP_LOGV(TAG, "Write cmd %X, length %d", cmd, (unsigned) length);
+  this->begin_transaction();
+  if (cmd != -1) {
+    this->dc_pin_->digital_write(false);
+    this->client_->write_byte(cmd);
+  }
+  this->dc_pin_->digital_write(true);
+  if (length != 0) {
+    this->write_array(data, length);
+  }
+  this->end_transaction();
+}
+
+void SPIByteBus::dump_config() {
+  ESP_LOGCONFIG(TAG, "  SPI Mode: %u", (unsigned) this->client_->mode_);
+  ESP_LOGCONFIG(TAG, "  Data rate: %dMHz", (unsigned) (this->client_->data_rate_ / 1000000));
+  LOG_PIN("  CS Pin: ", this->client_->cs_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
 }
 
 void SPIComponent::dump_config() {

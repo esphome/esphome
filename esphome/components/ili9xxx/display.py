@@ -1,9 +1,19 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import core, pins
-from esphome.components import display, spi, font
+from esphome import (
+    core,
+    pins,
+)
+from esphome.components import (
+    display,
+    spi,
+    i80,
+)
 from esphome.components.display import validate_rotation
-from esphome.core import CORE, HexInt
+from esphome.core import (
+    CORE,
+    HexInt,
+)
 from esphome.const import (
     CONF_COLOR_PALETTE,
     CONF_DC_PIN,
@@ -25,16 +35,10 @@ from esphome.const import (
     CONF_OFFSET_WIDTH,
     CONF_TRANSFORM,
     CONF_INVERT_COLORS,
+    CONF_DATA_RATE,
 )
 
-DEPENDENCIES = ["spi"]
-
-
-def AUTO_LOAD():
-    if CORE.is_esp32:
-        return ["psram"]
-    return []
-
+DEPENDENCIES = []
 
 CODEOWNERS = ["@nielsnl68", "@clydebarrow"]
 
@@ -42,7 +46,6 @@ ili9xxx_ns = cg.esphome_ns.namespace("ili9xxx")
 ILI9XXXDisplay = ili9xxx_ns.class_(
     "ILI9XXXDisplay",
     cg.PollingComponent,
-    spi.SPIDevice,
     display.Display,
     display.DisplayBuffer,
 )
@@ -80,6 +83,8 @@ COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
 CONF_INVERT_DISPLAY = "invert_display"
+CONF_BUS_TYPE = "bus_type"
+CONF_BYTE_BUS_ID = "byte_bus_id"
 
 
 def _validate(config):
@@ -104,56 +109,73 @@ def _validate(config):
         "ILI9342",
         "ST7789V",
     ]:
-        raise cv.Invalid(
-            "Provided model can't run on ESP8266. Use an ESP32 with PSRAM onboard"
-        )
+        raise cv.Invalid("Selected model can't run on ESP8266; use an ESP32 with PSRAM")
     return config
 
 
-CONFIG_SCHEMA = cv.All(
-    font.validate_pillow_installed,
-    display.FULL_DISPLAY_SCHEMA.extend(
-        {
-            cv.GenerateID(): cv.declare_id(ILI9XXXDisplay),
-            cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
-            cv.Optional(CONF_DIMENSIONS): cv.Any(
-                cv.dimensions,
-                cv.Schema(
-                    {
-                        cv.Required(CONF_WIDTH): cv.int_,
-                        cv.Required(CONF_HEIGHT): cv.int_,
-                        cv.Optional(CONF_OFFSET_HEIGHT, default=0): cv.int_,
-                        cv.Optional(CONF_OFFSET_WIDTH, default=0): cv.int_,
-                    }
-                ),
-            ),
-            cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_LED_PIN): cv.invalid(
-                "This property is removed. To use the backlight use proper light component."
-            ),
-            cv.Optional(CONF_COLOR_PALETTE, default="NONE"): COLOR_PALETTE,
-            cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-            cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
-                cv.file_
-            ),
-            cv.Optional(CONF_INVERT_DISPLAY): cv.invalid(
-                "'invert_display' has been replaced by 'invert_colors'"
-            ),
-            cv.Optional(CONF_INVERT_COLORS): cv.boolean,
-            cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
-            cv.Exclusive(CONF_ROTATION, CONF_ROTATION): validate_rotation,
-            cv.Exclusive(CONF_TRANSFORM, CONF_ROTATION): cv.Schema(
+BASE_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(ILI9XXXDisplay),
+        cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
+        cv.Optional(CONF_DIMENSIONS): cv.Any(
+            cv.dimensions,
+            cv.Schema(
                 {
-                    cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
-                    cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
-                    cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+                    cv.Required(CONF_WIDTH): cv.int_,
+                    cv.Required(CONF_HEIGHT): cv.int_,
+                    cv.Optional(CONF_OFFSET_HEIGHT, default=0): cv.int_,
+                    cv.Optional(CONF_OFFSET_WIDTH, default=0): cv.int_,
                 }
             ),
-        }
-    )
-    .extend(cv.polling_component_schema("1s"))
-    .extend(spi.spi_device_schema(False, "40MHz")),
+        ),
+        cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_LED_PIN): cv.invalid(
+            "This property is removed. To use the backlight use proper light component."
+        ),
+        cv.Optional(CONF_COLOR_PALETTE, default="NONE"): COLOR_PALETTE,
+        cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+        cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(cv.file_),
+        cv.Optional(CONF_INVERT_DISPLAY): cv.invalid(
+            "'invert_display' has been replaced by 'invert_colors'"
+        ),
+        cv.Optional(CONF_INVERT_COLORS): cv.boolean,
+        cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
+        cv.Exclusive(CONF_ROTATION, CONF_ROTATION): validate_rotation,
+        cv.Exclusive(CONF_TRANSFORM, CONF_ROTATION): cv.Schema(
+            {
+                cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
+                cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+                cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+            }
+        ),
+    }
+).extend(cv.polling_component_schema("1s"))
+
+TYPE_SPI = "spi"
+TYPE_I80 = "i80"
+
+CONFIG_SCHEMA = cv.All(
+    cv.typed_schema(
+        {
+            TYPE_SPI: BASE_SCHEMA.extend(
+                spi.spi_device_schema(False, "40MHz", "mode0")
+            ).extend(
+                {
+                    cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
+                    cv.GenerateID(CONF_BYTE_BUS_ID): cv.declare_id(spi.SPIByteBus),
+                }
+            ),
+            TYPE_I80: BASE_SCHEMA.extend(i80.i80_client_schema()).extend(
+                {
+                    cv.Optional(CONF_DC_PIN): cv.invalid(
+                        "DC pin should be specified in the i80 component only"
+                    )
+                }
+            ),
+        },
+        default_type=TYPE_SPI,
+        key=CONF_BUS_TYPE,
+    ),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
     _validate,
 )
@@ -163,10 +185,18 @@ async def to_code(config):
     rhs = MODELS[config[CONF_MODEL]].new()
     var = cg.Pvariable(config[CONF_ID], rhs)
 
+    data_rate = int(max(config[CONF_DATA_RATE] / 1e6, 1))
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
-    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
-    cg.add(var.set_dc_pin(dc))
+    if config[CONF_BUS_TYPE] == TYPE_I80:
+        bus_client = await i80.create_i80_client(config)
+        data_rate = data_rate * 8
+    else:
+        spi_client = await spi.create_spi_client(config)
+        bus_client = cg.new_Pvariable(config[CONF_BYTE_BUS_ID], spi_client)
+    cg.add(var.set_bus(bus_client))
+    cg.add(var.set_data_rate(data_rate))
+    if dc := config.get(CONF_DC_PIN):
+        cg.add(bus_client.set_dc_pin(await cg.gpio_pin_expression(dc)))
     if CONF_COLOR_ORDER in config:
         cg.add(var.set_color_order(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
     if CONF_TRANSFORM in config:

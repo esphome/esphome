@@ -86,6 +86,7 @@
 #define USE_MICROPHONE
 #define USE_SPEAKER
 #define USE_SPI
+#define USE_I80
 
 #ifdef USE_ARDUINO
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(2, 0, 5)
