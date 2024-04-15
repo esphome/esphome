@@ -264,17 +264,20 @@ void Nextion::line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, Color col
 
 void Nextion::rectangle(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, uint16_t color) {
   this->add_no_result_to_queue_with_printf_("draw", "draw %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1,
-                                            y1, x1 + width, y1 + height, color);
+                                            y1, static_cast<uint16_t>(x1 + width), static_cast<uint16_t>(y1 + height),
+                                            color);
 }
 
 void Nextion::rectangle(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, const char *color) {
   this->add_no_result_to_queue_with_printf_("draw", "draw %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%s", x1, y1,
-                                            x1 + width, y1 + height, color);
+                                            static_cast<uint16_t>(x1 + width), static_cast<uint16_t>(y1 + height),
+                                            color);
 }
 
 void Nextion::rectangle(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, Color color) {
   this->add_no_result_to_queue_with_printf_("draw", "draw %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1,
-                                            y1, x1 + width, y1 + height, display::ColorUtil::color_to_565(color));
+                                            y1, static_cast<uint16_t>(x1 + width), static_cast<uint16_t>(y1 + height),
+                                            display::ColorUtil::color_to_565(color));
 }
 
 void Nextion::circle(uint16_t center_x, uint16_t center_y, uint16_t radius, uint16_t color) {
