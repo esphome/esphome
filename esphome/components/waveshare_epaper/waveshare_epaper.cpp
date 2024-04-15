@@ -2593,9 +2593,9 @@ void HOT WaveshareEPaper7P5InBC::display() {
   this->command(0x12);
 }
 
-int WaveshareEPaper7P5InBC::get_width_internal() { return 640; }
+int WaveshareEPaper7P5InBC::get_width_internal() { return 800; }
 
-int WaveshareEPaper7P5InBC::get_height_internal() { return 384; }
+int WaveshareEPaper7P5InBC::get_height_internal() { return 400; }
 
 void WaveshareEPaper7P5InBC::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
