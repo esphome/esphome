@@ -791,8 +791,9 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Draws a QR code with a Wi-Fi network credentials starting at the given coordinates (25,25) with size of 150px in
    * red on a blue background.
    */
-  void qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size, Color background_color = Color(255, 255, 255),
-              Color foreground_color = Color(0, 0, 0), uint8_t logo_pic = -1, uint8_t border_width = 8);
+  void qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size,
+              Color background_color = Color(255, 255, 255), Color foreground_color = Color(0, 0, 0),
+              uint8_t logo_pic = -1, uint8_t border_width = 8);
 
   /** Set the brightness of the backlight.
    *

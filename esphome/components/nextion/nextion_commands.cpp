@@ -232,7 +232,8 @@ void Nextion::display_picture(uint16_t picture_id, uint16_t x_start, uint16_t y_
 }
 
 void Nextion::fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("fill_area", "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1, y1, width, height, color);
+  this->add_no_result_to_queue_with_printf_(
+      "fill_area", "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1, y1, width, height, color);
 }
 
 void Nextion::fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, const char *color) {
@@ -241,8 +242,9 @@ void Nextion::fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t heigh
 }
 
 void Nextion::fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, Color color) {
-  this->add_no_result_to_queue_with_printf_("fill_area", "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1, y1, width, height,
-                                            display::ColorUtil::color_to_565(color));
+  this->add_no_result_to_queue_with_printf_("fill_area", 
+                                            "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1, y1,
+                                            width, height, display::ColorUtil::color_to_565(color));
 }
 
 void Nextion::line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {
@@ -307,8 +309,9 @@ void Nextion::filled_circle(uint16_t center_x, uint16_t center_y, uint16_t radiu
 
 void Nextion::qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size, uint16_t background_color,
                      uint16_t foreground_color, uint8_t logo_pic, uint8_t border_width) {
-  this->add_no_result_to_queue_with_printf_("qrcode", "qrcode %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu8 ",%" PRIu8 ",\"%s\"", x1, y1, size,
-                                            background_color, foreground_color, logo_pic, border_width, content);
+  this->add_no_result_to_queue_with_printf_(
+      "qrcode", "qrcode %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu8 ",%" PRIu8 ",\"%s\"", x1,
+      y1, size, background_color, foreground_color, logo_pic, border_width, content);
 }
 
 void Nextion::qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size, Color background_color,
