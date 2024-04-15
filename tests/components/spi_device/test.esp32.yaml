@@ -1,14 +1,19 @@
 spi:
-  - id: spi_id_1
-    type: single
-    clk_pin:
-      number: GPIO7
-      allow_other_uses: false
-    mosi_pin: GPIO6
+  - id: spi0
+    clk_pin: GPIO18
+    mosi_pin: GPIO23
+    miso_pin: GPIO19
     interface: hardware
+
 spi_device:
-  id: spidev
-  data_rate: 2MHz
-  spi_id: spi_id_1
-  spi_mode: 3
-  bit_order: lsb_first
+  - id: spidev
+    data_rate: 2MHz
+    spi_id: spi0
+    spi_mode: mode3
+    bit_order: lsb_first
+  - id: spidev1
+    data_rate: 2MHz
+    spi_id: spi0
+    spi_mode: mode0
+    bit_order: msb_first
+
