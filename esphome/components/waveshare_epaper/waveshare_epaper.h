@@ -87,7 +87,7 @@ class WaveshareEPaperBWR : public WaveshareEPaperBase {
 };
 
 enum WaveshareEPaperTypeAModel {
-  WAVESHARE_EPAPER_1_54_IN = 0,
+//  WAVESHARE_EPAPER_1_54_IN = 0,
   WAVESHARE_EPAPER_1_54_IN_V2,
   WAVESHARE_EPAPER_2_13_IN,
   WAVESHARE_EPAPER_2_13_IN_V2,
@@ -101,7 +101,7 @@ enum WaveshareEPaperTypeAModel {
 
 class WaveshareEPaperTypeA : public WaveshareEPaper {
  public:
-  WaveshareEPaperTypeA(WaveshareEPaperTypeAModel model);
+  WaveshareEPaperTypeA(WaveshareEPaperTypeAModel model_);
 
   void initialize() override;
 
