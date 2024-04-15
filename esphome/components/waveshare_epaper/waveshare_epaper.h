@@ -178,7 +178,8 @@ class WaveshareEPaperTypeB : public WaveshareEPaper {
   uint32_t full_update_every_{30};
   uint32_t at_update_{0};
   WaveshareEPaperTypeAModel model_;
-  WaveshareEPaperTypeBModel model_;
+  
+  //WaveshareEPaperTypeBModel model_;
   uint32_t idle_timeout_() override;
 
   bool deep_sleep_between_updates_{false};
