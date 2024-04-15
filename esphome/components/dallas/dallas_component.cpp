@@ -60,7 +60,7 @@ void DallasComponent::setup() {
   for (auto *sensor : this->sensors_) {
     if (sensor->get_index().has_value()) {
       if (*sensor->get_index() >= this->found_sensors_.size()) {
-        this->status_set_error();
+        this->status_set_error("Sensor configured by index but not found");
         continue;
       }
       sensor->set_address(this->found_sensors_[*sensor->get_index()]);
@@ -109,8 +109,12 @@ void DallasComponent::update() {
     result = this->one_wire_->reset();
   }
   if (!result) {
-    ESP_LOGE(TAG, "Requesting conversion failed");
-    this->status_set_warning();
+    if (!this->found_sensors_.empty()) {
+      // Only log error if at the start sensors were found (and thus are disconnected during uptime)
+      ESP_LOGE(TAG, "Requesting conversion failed");
+      this->status_set_warning();
+    }
+
     for (auto *sensor : this->sensors_) {
       sensor->publish_state(NAN);
     }
@@ -124,6 +128,12 @@ void DallasComponent::update() {
   }
 
   for (auto *sensor : this->sensors_) {
+    if (sensor->get_address() == 0) {
+      ESP_LOGV(TAG, "'%s' - Indexed sensor not found at startup, skipping update", sensor->get_name().c_str());
+      sensor->publish_state(NAN);
+      continue;
+    }
+
     this->set_timeout(sensor->get_address_name(), sensor->millis_to_wait_for_conversion(), [this, sensor] {
       bool res = sensor->read_scratch_pad();
 
@@ -152,6 +162,8 @@ void DallasTemperatureSensor::set_resolution(uint8_t resolution) { this->resolut
 optional<uint8_t> DallasTemperatureSensor::get_index() const { return this->index_; }
 void DallasTemperatureSensor::set_index(uint8_t index) { this->index_ = index; }
 uint8_t *DallasTemperatureSensor::get_address8() { return reinterpret_cast<uint8_t *>(&this->address_); }
+uint64_t DallasTemperatureSensor::get_address() { return this->address_; }
+
 const std::string &DallasTemperatureSensor::get_address_name() {
   if (this->address_name_.empty()) {
     this->address_name_ = std::string("0x") + format_hex(this->address_);
@@ -168,10 +180,6 @@ bool IRAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
     if (!wire->reset()) {
       return false;
     }
-  }
-
-  {
-    InterruptLock lock;
 
     wire->select(this->address_);
     wire->write8(DALLAS_COMMAND_READ_SCRATCH_PAD);

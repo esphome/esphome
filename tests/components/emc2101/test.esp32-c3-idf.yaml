@@ -1,0 +1,25 @@
+i2c:
+  - id: i2c_emc2101
+    scl: 5
+    sda: 4
+
+emc2101:
+  pwm:
+    resolution: 8
+
+output:
+  - platform: emc2101
+    id: fan_duty_cycle
+
+sensor:
+  - platform: emc2101
+    internal_temperature:
+      id: internal_temperature_sensor
+      name: Internal Temperature Sensor
+    speed:
+      id: speed_sensor
+      name: Speed Sensor
+    duty_cycle:
+      id: duty_cycle_sensor
+      name: Duty Cycle Sensor
+    update_interval: 5s
