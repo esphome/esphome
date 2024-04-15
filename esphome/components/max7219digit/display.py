@@ -110,7 +110,7 @@ async def to_code(config):
 
 
 DisplayInvertAction = max7219_ns.class_("DisplayInvertAction", automation.Action)
-DisplayVisiblityAction = max7219_ns.class_("DisplayVisiblityAction", automation.Action)
+DisplayVisibilityAction = max7219_ns.class_("DisplayVisibilityAction", automation.Action)
 DisplayReverseAction = max7219_ns.class_("DisplayReverseAction", automation.Action)
 DisplayIntensityAction = max7219_ns.class_("DisplayIntensityAction", automation.Action)
 
