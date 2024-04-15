@@ -729,6 +729,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 }
 
 void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
+#ifdef USE_SPEAKER  // We should never get to this function if there is no speaker anyway
   if (this->speaker_buffer_index_ + msg.data.length() < SPEAKER_BUFFER_SIZE) {
     memcpy(this->speaker_buffer_ + this->speaker_buffer_index_, msg.data.data(), msg.data.length());
     this->speaker_buffer_index_ += msg.data.length();
@@ -737,6 +738,7 @@ void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
   } else {
     ESP_LOGE(TAG, "Cannot receive audio, buffer is full");
   }
+#endif
 }
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
