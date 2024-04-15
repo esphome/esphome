@@ -8,7 +8,6 @@ spi:
     mosi_pin: GPIO6
     interface: hardware
 
-
 i80:
   dc_pin: 7
   wr_pin: 8
