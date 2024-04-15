@@ -11,6 +11,7 @@
 #define ESPHOME_BOARD "dummy_board"
 #define ESPHOME_PROJECT_NAME "dummy project"
 #define ESPHOME_PROJECT_VERSION "v2"
+#define ESPHOME_PROJECT_VERSION_30 "v2"
 #define ESPHOME_VARIANT "ESP32"
 
 // Feature flags
@@ -36,6 +37,7 @@
 #define USE_NUMBER
 #define USE_DATETIME
 #define USE_DATETIME_DATE
+#define USE_DATETIME_TIME
 #define USE_OTA
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
