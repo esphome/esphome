@@ -1,6 +1,6 @@
 pylint==3.0.3
 flake8==7.0.0  # also change in .pre-commit-config.yaml when updating
-black==24.2.0  # also change in .pre-commit-config.yaml when updating
+black==24.4.0  # also change in .pre-commit-config.yaml when updating
 pyupgrade==3.15.1  # also change in .pre-commit-config.yaml when updating
 pre-commit
 
