@@ -321,9 +321,8 @@ def _detect_variant(value):
         variant = BOARDS[board][KEY_VARIANT]
         if CONF_VARIANT in value and variant != value[CONF_VARIANT]:
             raise cv.Invalid(f"Option '{CONF_VARIANT}' does not match selected board.")
-        else:
-            value = value.copy()
-            value[CONF_VARIANT] = variant
+        value = value.copy()
+        value[CONF_VARIANT] = variant
     else:
         if CONF_VARIANT not in value:
             raise cv.Invalid(

@@ -73,9 +73,8 @@ def _detect_variant(value):
         family = component.boards[board][KEY_FAMILY]
         if CONF_FAMILY in value and family != value[CONF_FAMILY]:
             raise cv.Invalid(f"Option '{CONF_FAMILY}' does not match selected board.")
-        else:
-            value = value.copy()
-            value[CONF_FAMILY] = family
+        value = value.copy()
+        value[CONF_FAMILY] = family
     # read component name matching this family
     value[CONF_COMPONENT_ID] = FAMILY_COMPONENT[value[CONF_FAMILY]]
     # make sure the chosen component matches the family
