@@ -24,7 +24,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5.1.0
         with:
-          python-version: 3.11
+          python-version: 3.12
 
       - name: Install Home Assistant
         run: |
