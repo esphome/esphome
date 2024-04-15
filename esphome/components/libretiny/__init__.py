@@ -70,12 +70,12 @@ def _detect_variant(value):
             "This board is unknown. Make sure the chosen chip component is correct.",
         )
     else:
-        if CONF_FAMILY in value:
-            raise cv.Invalid(
-                f"Option '{CONF_FAMILY}' is for use with unknown boards only."
-            )
-        value = value.copy()
-        value[CONF_FAMILY] = component.boards[board][KEY_FAMILY]
+        family = component.boards[board][KEY_FAMILY]
+        if CONF_FAMILY in value and family != value[CONF_FAMILY]:
+            raise cv.Invalid(f"Option '{CONF_FAMILY}' does not match selected board.")
+        else:
+            value = value.copy()
+            value[CONF_FAMILY] = family
     # read component name matching this family
     value[CONF_COMPONENT_ID] = FAMILY_COMPONENT[value[CONF_FAMILY]]
     # make sure the chosen component matches the family

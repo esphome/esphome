@@ -8,6 +8,7 @@ network:
 
 esp32:
   board: esp32s3box
+  variant: ESP32S3
   framework:
     type: arduino
 

@@ -318,12 +318,12 @@ def _parse_platform_version(value):
 def _detect_variant(value):
     board = value[CONF_BOARD]
     if board in BOARDS:
-        if CONF_VARIANT in value:
-            raise cv.Invalid(
-                f"Option '{CONF_VARIANT}' is for use with unknown boards only."
-            )
-        value = value.copy()
-        value[CONF_VARIANT] = BOARDS[board][KEY_VARIANT]
+        variant = BOARDS[board][KEY_VARIANT]
+        if CONF_VARIANT in value and variant != value[CONF_VARIANT]:
+            raise cv.Invalid(f"Option '{CONF_VARIANT}' does not match selected board.")
+        else:
+            value = value.copy()
+            value[CONF_VARIANT] = variant
     else:
         if CONF_VARIANT not in value:
             raise cv.Invalid(
