@@ -394,6 +394,7 @@ async def to_code(config):
     if project_conf := config.get(CONF_PROJECT):
         cg.add_define("ESPHOME_PROJECT_NAME", project_conf[CONF_NAME])
         cg.add_define("ESPHOME_PROJECT_VERSION", project_conf[CONF_VERSION])
+        cg.add_define("ESPHOME_PROJECT_VERSION_30", project_conf[CONF_VERSION][:30])
         for conf in project_conf.get(CONF_ON_UPDATE, []):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
             await cg.register_component(trigger, conf)
