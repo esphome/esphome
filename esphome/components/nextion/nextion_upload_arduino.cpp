@@ -78,8 +78,8 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
 #if defined(USE_ESP32) && defined(USE_PSRAM)
 #else
     if (buffer_size != buffer.size()) {
-        ESP_LOGV(TAG, "Resizing buffer to %" PRIu16, buffer_size);
-        buffer.resize(buffer_size);
+      ESP_LOGV(TAG, "Resizing buffer to %" PRIu16, buffer_size);
+      buffer.resize(buffer_size);
     }
 #endif
     ESP_LOGV(TAG, "Fetching %" PRIu16 " bytes from HTTP", buffer_size);
@@ -89,8 +89,8 @@ Nextion::TFTUploadResult Nextion::upload_by_chunks_(HTTPClient &http_client, uin
     while (read_len < buffer_size && millis() - start_time < 5000) {
       if (http_client.getStreamPtr()->available() > 0) {
 #if defined(USE_ESP32) && defined(USE_PSRAM)
-        partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer) + read_len,
-                                                                 buffer_size - read_len);
+        partial_read_len =
+            http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
 #else
         partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer.data()) + read_len,
                                                                  buffer_size - read_len);
