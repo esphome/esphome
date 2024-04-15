@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_BOARD,
     CONF_COMPONENT_ID,
     CONF_DEBUG,
+    CONF_FAMILY,
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_NAME,
@@ -20,9 +21,6 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     __version__,
-    CONF_VARIANT,
-    KEY_VARIANT,
-    CONF_FAMILY,
 )
 from esphome.core import CORE
 
@@ -32,12 +30,13 @@ from .const import (
     CONF_LOGLEVEL,
     CONF_SDK_SILENT,
     CONF_UART_PORT,
-    VARIANTS,
-    VARIANT_COMPONENT,
-    VARIANT_FRIENDLY,
+    FAMILIES,
+    FAMILY_COMPONENT,
+    FAMILY_FRIENDLY,
     KEY_BOARD,
     KEY_COMPONENT,
     KEY_COMPONENT_DATA,
+    KEY_FAMILY,
     KEY_LIBRETINY,
     LT_DEBUG_MODULES,
     LT_LOGLEVELS,
@@ -56,7 +55,7 @@ def _detect_variant(value):
     component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
     board = value[CONF_BOARD]
     # read board-default family if not specified
-    if CONF_VARIANT not in value:
+    if CONF_FAMILY not in value:
         if board not in component.boards:
             raise cv.Invalid(
                 "This board is unknown, please set the family manually. "
@@ -64,14 +63,14 @@ def _detect_variant(value):
                 path=[CONF_BOARD],
             )
         value = value.copy()
-        value[CONF_VARIANT] = component.boards[board][KEY_VARIANT]
+        value[CONF_FAMILY] = component.boards[board][KEY_FAMILY]
     # read component name matching this family
-    value[CONF_COMPONENT_ID] = VARIANT_COMPONENT[value[CONF_VARIANT]]
+    value[CONF_COMPONENT_ID] = FAMILY_COMPONENT[value[CONF_FAMILY]]
     # make sure the chosen component matches the family
     if value[CONF_COMPONENT_ID] != component.name:
         raise cv.Invalid(
             f"The chosen family doesn't belong to '{component.name}' component. The correct component is '{value[CONF_COMPONENT_ID]}'",
-            path=[CONF_VARIANT],
+            path=[CONF_FAMILY],
         )
     # warn anyway if the board wasn't found
     if board not in component.boards:
@@ -89,7 +88,7 @@ def _update_core_data(config):
     )
     CORE.data[KEY_LIBRETINY][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_LIBRETINY][KEY_COMPONENT] = config[CONF_COMPONENT_ID]
-    CORE.data[KEY_LIBRETINY][KEY_VARIANT] = config[CONF_VARIANT]
+    CORE.data[KEY_LIBRETINY][KEY_FAMILY] = config[CONF_FAMILY]
     return config
 
 
@@ -98,7 +97,7 @@ def get_libretiny_component(core_obj=None):
 
 
 def get_libretiny_family(core_obj=None):
-    return (core_obj or CORE).data[KEY_LIBRETINY][KEY_VARIANT]
+    return (core_obj or CORE).data[KEY_LIBRETINY][KEY_FAMILY]
 
 
 def only_on_family(*, supported=None, unsupported=None):
@@ -236,8 +235,7 @@ BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LTComponent),
         cv.Required(CONF_BOARD): cv.string_strict,
-        cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
-        cv.Optional(CONF_FAMILY): cv.invalid("'family' has been replaced by 'variant'"),
+        cv.Optional(CONF_FAMILY): cv.one_of(*FAMILIES, upper=True),
         cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
     },
 )
@@ -252,12 +250,11 @@ async def component_to_code(config):
 
     # setup board config
     cg.add_platformio_option("board", config[CONF_BOARD])
-    cg.add_platformio_option("board_build.mcu", config[CONF_VARIANT].lower())
     cg.add_build_flag("-DUSE_LIBRETINY")
     cg.add_build_flag(f"-DUSE_{config[CONF_COMPONENT_ID].upper()}")
-    cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_VARIANT]}")
+    cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[config[CONF_VARIANT]])
+    cg.add_define("ESPHOME_VARIANT", FAMILY_FRIENDLY[config[CONF_FAMILY]])
 
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")

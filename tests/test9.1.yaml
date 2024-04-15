@@ -5,7 +5,6 @@ wifi:
 
 rtl87xx:
   board: generic-rtl8710bn-2mb-788k
-  variant: rtl8720cf
 
 esphome:
   name: rtl87xx-test

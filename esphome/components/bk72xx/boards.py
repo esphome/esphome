@@ -2,96 +2,96 @@
 # Do not modify its contents.
 
 from esphome.components.libretiny.const import (
-    VARIANT_BK7231N,
-    VARIANT_BK7231Q,
-    VARIANT_BK7231T,
-    VARIANT_BK7252,
+    FAMILY_BK7231N,
+    FAMILY_BK7231Q,
+    FAMILY_BK7231T,
+    FAMILY_BK7251,
 )
 
 BK72XX_BOARDS = {
     "cb1s": {
         "name": "CB1S Wi-Fi Module",
-        "variant": VARIANT_BK7231N,
+        "family": FAMILY_BK7231N,
     },
     "cb2l": {
         "name": "CB2L Wi-Fi Module",
-        "variant": VARIANT_BK7231N,
+        "family": FAMILY_BK7231N,
     },
     "cb2s": {
         "name": "CB2S Wi-Fi Module",
-        "variant": VARIANT_BK7231N,
+        "family": FAMILY_BK7231N,
     },
     "cb3l": {
         "name": "CB3L Wi-Fi Module",
-        "variant": VARIANT_BK7231N,
+        "family": FAMILY_BK7231N,
     },
     "cb3s": {
         "name": "CB3S Wi-Fi Module",
-        "variant": VARIANT_BK7231N,
+        "family": FAMILY_BK7231N,
     },
     "cb3se": {
         "name": "CB3SE Wi-Fi Module",
-        "variant": VARIANT_BK7231N,
+        "family": FAMILY_BK7231N,
     },
     "cblc5": {
         "name": "CBLC5 Wi-Fi Module",
-        "variant": VARIANT_BK7231N,
+        "family": FAMILY_BK7231N,
     },
     "cbu": {
         "name": "CBU Wi-Fi Module",
-        "variant": VARIANT_BK7231N,
+        "family": FAMILY_BK7231N,
     },
     "generic-bk7231n-qfn32-tuya": {
         "name": "Generic - BK7231N (Tuya QFN32)",
-        "variant": VARIANT_BK7231N,
+        "family": FAMILY_BK7231N,
     },
     "generic-bk7231t-qfn32-tuya": {
         "name": "Generic - BK7231T (Tuya QFN32)",
-        "variant": VARIANT_BK7231T,
+        "family": FAMILY_BK7231T,
     },
     "generic-bk7252": {
         "name": "Generic - BK7252",
-        "variant": VARIANT_BK7252,
-    },
-    "lsc-lma35": {
-        "name": "LSC LMA35 BK7231N",
-        "variant": VARIANT_BK7231N,
+        "family": FAMILY_BK7251,
     },
     "lsc-lma35-t": {
         "name": "LSC LMA35 BK7231T",
-        "variant": VARIANT_BK7231T,
+        "family": FAMILY_BK7231T,
+    },
+    "lsc-lma35": {
+        "name": "LSC LMA35 BK7231N",
+        "family": FAMILY_BK7231N,
     },
     "wa2": {
         "name": "WA2 Wi-Fi Module",
-        "variant": VARIANT_BK7231Q,
+        "family": FAMILY_BK7231Q,
     },
     "wb1s": {
         "name": "WB1S Wi-Fi Module",
-        "variant": VARIANT_BK7231T,
-    },
-    "wb2l": {
-        "name": "WB2L Wi-Fi Module",
-        "variant": VARIANT_BK7231T,
+        "family": FAMILY_BK7231T,
     },
     "wb2l-m1": {
         "name": "WB2L_M1 Wi-Fi Module",
-        "variant": VARIANT_BK7231N,
+        "family": FAMILY_BK7231N,
+    },
+    "wb2l": {
+        "name": "WB2L Wi-Fi Module",
+        "family": FAMILY_BK7231T,
     },
     "wb2s": {
         "name": "WB2S Wi-Fi Module",
-        "variant": VARIANT_BK7231T,
+        "family": FAMILY_BK7231T,
     },
     "wb3l": {
         "name": "WB3L Wi-Fi Module",
-        "variant": VARIANT_BK7231T,
+        "family": FAMILY_BK7231T,
     },
     "wb3s": {
         "name": "WB3S Wi-Fi Module",
-        "variant": VARIANT_BK7231T,
+        "family": FAMILY_BK7231T,
     },
     "wblc5": {
         "name": "WBLC5 Wi-Fi Module",
-        "variant": VARIANT_BK7231T,
+        "family": FAMILY_BK7231T,
     },
 }
 
@@ -740,7 +740,7 @@ BK72XX_BOARD_PINS = {
         "A6": 12,
         "A7": 13,
     },
-    "lsc-lma35": {
+    "lsc-lma35-t": {
         "WIRE2_SCL": 0,
         "WIRE2_SDA": 1,
         "SERIAL1_RX": 10,
@@ -795,7 +795,7 @@ BK72XX_BOARD_PINS = {
         "D14": 1,
         "A0": 23,
     },
-    "lsc-lma35-t": {
+    "lsc-lma35": {
         "WIRE2_SCL": 0,
         "WIRE2_SDA": 1,
         "SERIAL1_RX": 10,
@@ -941,7 +941,7 @@ BK72XX_BOARD_PINS = {
         "D10": 23,
         "A0": 23,
     },
-    "wb2l": {
+    "wb2l-m1": {
         "WIRE1_SCL": 20,
         "WIRE1_SDA": 21,
         "WIRE2_SCL": 0,
@@ -992,7 +992,7 @@ BK72XX_BOARD_PINS = {
         "D12": 22,
         "A0": 23,
     },
-    "wb2l-m1": {
+    "wb2l": {
         "WIRE1_SCL": 20,
         "WIRE1_SDA": 21,
         "WIRE2_SCL": 0,
