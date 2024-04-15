@@ -132,60 +132,60 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
       this->wait_until_idle_();
     }
   }
-
-  /*class WaveshareEPaperTypeB : public WaveshareEPaper {
- public:
-  WaveshareEPaperTypeB(WaveshareEPaperTypeBModel model);
-
-  void initialize() override;
-
-  void dump_config() override;
-
-  void display() override;
-
-  void deep_sleep() override {
-    switch (this->model_) {
-      // Models with specific deep sleep command and data
-      case WAVESHARE_EPAPER_2_13_IN_V2:
-        // COMMAND DEEP SLEEP MODE
-        this->command(0x07);
-        this->data(0xA5);
-        break;
-      // Other models default to simple deep sleep command
-      default:
-        // COMMAND DEEP SLEEP
-        this->command(0x02);
-        break;
-    }
-    if (this->model_ != WAVESHARE_EPAPER_2_13_IN_V2) {
-      // From panel specification:
-      // "After this command initiated, the chip will enter Deep Sleep Mode, BUSY pad will keep output high."
-      this->wait_until_idle_();
-    }
-  }
-  void set_full_update_every(uint32_t full_update_every);
-
- protected:
-  void write_lut_(const uint8_t *lut, uint8_t size);
-
-  void init_display_();
-
-  int get_width_internal() override;
-
-  int get_height_internal() override;
-
-  int get_width_controller() override;
-
-  uint32_t full_update_every_{30};
-  uint32_t at_update_{0};
-  WaveshareEPaperTypeAModel model_;
-
-  //WaveshareEPaperTypeBModel model_;
-  uint32_t idle_timeout_() override;
-
-  bool deep_sleep_between_updates_{false};
-
 };
+
+  class WaveshareEPaperTypeB : public WaveshareEPaper {
+   public:
+    WaveshareEPaperTypeB(WaveshareEPaperTypeBModel model);
+
+    void initialize() override;
+
+    void dump_config() override;
+
+    void display() override;
+
+    void deep_sleep() override {
+      switch (this->model_) {
+        // Models with specific deep sleep command and data
+        case WAVESHARE_EPAPER_2_13_IN_V2:
+          // COMMAND DEEP SLEEP MODE
+          this->command(0x07);
+          this->data(0xA5);
+          break;
+        // Other models default to simple deep sleep command
+        default:
+          // COMMAND DEEP SLEEP
+          this->command(0x02);
+          break;
+      }
+      if (this->model_ != WAVESHARE_EPAPER_2_13_IN_V2) {
+        // From panel specification:
+        // "After this command initiated, the chip will enter Deep Sleep Mode, BUSY pad will keep output high."
+        this->wait_until_idle_();
+      }
+    }
+    void set_full_update_every(uint32_t full_update_every);
+
+   protected:
+    void write_lut_(const uint8_t *lut, uint8_t size);
+
+    void init_display_();
+
+    int get_width_internal() override;
+
+    int get_height_internal() override;
+
+    int get_width_controller() override;
+
+    uint32_t full_update_every_{30};
+    uint32_t at_update_{0};
+    WaveshareEPaperTypeAModel model_;
+
+    // WaveshareEPaperTypeBModel model_;
+    uint32_t idle_timeout_() override;
+
+    bool deep_sleep_between_updates_{false};
+  };
 
 
   enum WaveshareEPaperTypeBModel {
@@ -200,7 +200,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
     WAVESHARE_EPAPER_7_5_INV3,     // added for v3 Displays
     WAVESHARE_EPAPER_7_5_INV3_RB,  // added for v3 Displays Red-Black
   };
-*/
+
   class WaveshareEPaper2P7In : public WaveshareEPaper {
    public:
     void initialize() override;
@@ -890,16 +890,14 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
 #define READ_VCOM_VALUE 0x81
 #define VCM_DC_SETTING 0x82
 
-    std::vector<Color> get_supported_colors() override {
-      return {display::COLOR_ON, Color(255, 0, 0, 0)};
-  };
-}
+    std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; };
+  }
 
-protected : int
-            get_width_internal() override {
-  return 800;
-}
-int get_height_internal() override { return 480; }
+  protected : int
+              get_width_internal() override {
+    return 800;
+  }
+  int get_height_internal() override { return 480; }
 };
 
 }  // namespace waveshare_epaper
