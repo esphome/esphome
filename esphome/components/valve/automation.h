@@ -60,6 +60,7 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
       call.set_stop(this->stop_.value(x...));
     if (this->position_.has_value())
       call.set_position(this->position_.value(x...));
+    call.perform();
   }
 
  protected:
