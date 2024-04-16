@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef  USE_LVGL
+#ifdef USE_LVGL
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/key_provider/key_provider.h"
