@@ -239,7 +239,7 @@ async def datetime_datetime_set_to_code(config, action_id, template_arg, args):
     datetime_config = config[CONF_DATETIME]
     if cg.is_template(datetime_config):
         template_ = await cg.templatable(datetime_config, [], cg.ESPTime)
-        cg.add(action_var.set_time(template_))
+        cg.add(action_var.set_datetime(template_))
     else:
         datetime_struct = cg.StructInitializer(
             cg.ESPTime,

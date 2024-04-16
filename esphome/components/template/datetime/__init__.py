@@ -32,7 +32,7 @@ TemplateTime = template_ns.class_(
 )
 
 TemplateDateTime = template_ns.class_(
-    "TemplateDateTime", datetime.DateEntity, cg.PollingComponent
+    "TemplateDateTime", datetime.DateTimeEntity, cg.PollingComponent
 )
 
 
