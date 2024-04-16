@@ -13,7 +13,7 @@
 #if LVGL_USES_IMAGE
 #include "esphome/components/image/image.h"
 #endif
-#if LV_USE_FONT
+#if USE_FONT
 #include "esphome/components/font/font.h"
 #endif
 #if LV_USE_TOUCHSCREEN
@@ -137,7 +137,7 @@ template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
   std::function<void(Ts...)> lamb_;
 };
 
-#if LV_USE_FONT
+#if USE_FONT
 class FontEngine {
  public:
   FontEngine(font::Font *esp_font) : font_(esp_font) {
@@ -218,7 +218,7 @@ class FontEngine {
     return this->last_data_;
   }
 };
-#endif  // LV_USE_FONT
+#endif  // USE_FONT
 
 #if LVGL_USES_IMAGE
 static lv_img_dsc_t *lv_img_from(image::Image *src) {

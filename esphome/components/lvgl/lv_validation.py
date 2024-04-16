@@ -65,6 +65,7 @@ def lv_font(value):
     lv_uses.add("FONT")
     font = cv.use_id(Font)(value)
     esphome_fonts_used.add(font)
+    lvgl_components_required.add("font")
     return f"{font}_as_lv_font_"
 
 

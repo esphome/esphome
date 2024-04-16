@@ -20,7 +20,6 @@ display:
     data_rate: 80MHz
     cs_pin: GPIO22
     dc_pin: GPIO21
-    reset_pin: GPIO18
     auto_clear_enabled: false
     invert_colors: false
     update_interval: never
@@ -41,10 +40,12 @@ touchscreen:
             - lvgl.resume:
 
 image:
-  - file: "cat.png"
+  - file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
     id: cat_image
-  - file: "cat_bowtie.png"
-    id: cat_image_bowtie
+  - id: cat_image_bowtie
+    file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
+    resize: 256x48
+    type: TRANSPARENT_BINARY
 
 lvgl:
   touchscreens:
@@ -52,11 +53,13 @@ lvgl:
   displays:
     - display_id: tft_display
   on_idle:
-    - logger.log: "LVGL is idle"
+    - timeout: 30s
+      then:
+        - logger.log: "LVGL is idle"
   buffer_size: 100%
   log_level: WARN
   color_depth: 16
-  default_font: robi_16
+  default_font: montserrat_14
   bg_color: 0xe5e4dc
   style_definitions:
     - id: style_test
@@ -267,11 +270,11 @@ lvgl:
                       width: 2
                       color: 0xFF0000
                       r_mod: -4
-                on_click:
-                  then:
-                    - lvgl.indicator.line.update:
-                        id: temperature_needle
-                        value: 3
+            on_click:
+              then:
+                - lvgl.indicator.line.update:
+                    id: temperature_needle
+                    value: 3
         - img:
             align: CENTER
             src: cat_image

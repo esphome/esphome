@@ -444,8 +444,6 @@ lv_brightness = LValidator(
 cell_alignments = lv_one_of(LV_CELL_ALIGNMENTS, prefix="LV_GRID_ALIGNMENT_")
 grid_alignments = lv_one_of(LV_GRID_ALIGNMENTS, prefix="LV_GRID_ALIGNMENT_")
 
-# List the LVGL built-in fonts that are available
-
 STYLE_PROPS = {
     "align": lv_one_of(CHILD_ALIGNMENTS, "LV_ALIGN_"),
     "arc_opa": lv_opacity,
