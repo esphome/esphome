@@ -410,6 +410,19 @@ const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::Bluet
 }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
+template<>
+const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::VoiceAssistantSubscribeFlag value) {
+  switch (value) {
+    case enums::VOICE_ASSISTANT_SUBSCRIBE_NONE:
+      return "VOICE_ASSISTANT_SUBSCRIBE_NONE";
+    case enums::VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO:
+      return "VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::VoiceAssistantRequestFlag>(enums::VoiceAssistantRequestFlag value) {
   switch (value) {
     case enums::VOICE_ASSISTANT_REQUEST_NONE:
@@ -716,7 +729,11 @@ bool DeviceInfoResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return true;
     }
     case 14: {
-      this->voice_assistant_version = value.as_uint32();
+      this->legacy_voice_assistant_version = value.as_uint32();
+      return true;
+    }
+    case 17: {
+      this->voice_assistant_feature_flags = value.as_uint32();
       return true;
     }
     default:
@@ -784,7 +801,8 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(15, this->bluetooth_proxy_feature_flags);
   buffer.encode_string(12, this->manufacturer);
   buffer.encode_string(13, this->friendly_name);
-  buffer.encode_uint32(14, this->voice_assistant_version);
+  buffer.encode_uint32(14, this->legacy_voice_assistant_version);
+  buffer.encode_uint32(17, this->voice_assistant_feature_flags);
   buffer.encode_string(16, this->suggested_area);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -850,8 +868,13 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   out.append("'").append(this->friendly_name).append("'");
   out.append("\n");
 
-  out.append("  voice_assistant_version: ");
-  sprintf(buffer, "%" PRIu32, this->voice_assistant_version);
+  out.append("  legacy_voice_assistant_version: ");
+  sprintf(buffer, "%" PRIu32, this->legacy_voice_assistant_version);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  voice_assistant_feature_flags: ");
+  sprintf(buffer, "%" PRIu32, this->voice_assistant_feature_flags);
   out.append(buffer);
   out.append("\n");
 
@@ -6514,17 +6537,29 @@ bool SubscribeVoiceAssistantRequest::decode_varint(uint32_t field_id, ProtoVarIn
       this->subscribe = value.as_bool();
       return true;
     }
+    case 2: {
+      this->flags = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
 }
-void SubscribeVoiceAssistantRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->subscribe); }
+void SubscribeVoiceAssistantRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_bool(1, this->subscribe);
+  buffer.encode_uint32(2, this->flags);
+}
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeVoiceAssistantRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("SubscribeVoiceAssistantRequest {\n");
   out.append("  subscribe: ");
   out.append(YESNO(this->subscribe));
+  out.append("\n");
+
+  out.append("  flags: ");
+  sprintf(buffer, "%" PRIu32, this->flags);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -6749,6 +6784,44 @@ void VoiceAssistantEventResponse::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+  out.append("}");
+}
+#endif
+bool VoiceAssistantAudio::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->end = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool VoiceAssistantAudio::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->data = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantAudio::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->data);
+  buffer.encode_bool(2, this->end);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantAudio::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantAudio {\n");
+  out.append("  data: ");
+  out.append("'").append(this->data).append("'");
+  out.append("\n");
+
+  out.append("  end: ");
+  out.append(YESNO(this->end));
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -7398,6 +7471,225 @@ void DateCommandRequest::dump_to(std::string &out) const {
 
   out.append("  day: ");
   sprintf(buffer, "%" PRIu32, this->day);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool ListEntitiesTimeResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 6: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    case 7: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->object_id = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->unique_id = value.as_string();
+      return true;
+    }
+    case 5: {
+      this->icon = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ListEntitiesTimeResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+  buffer.encode_string(4, this->unique_id);
+  buffer.encode_string(5, this->icon);
+  buffer.encode_bool(6, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ListEntitiesTimeResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ListEntitiesTimeResponse {\n");
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id).append("'");
+  out.append("\n");
+
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  unique_id: ");
+  out.append("'").append(this->unique_id).append("'");
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool TimeStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->missing_state = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->hour = value.as_uint32();
+      return true;
+    }
+    case 4: {
+      this->minute = value.as_uint32();
+      return true;
+    }
+    case 5: {
+      this->second = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool TimeStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void TimeStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_bool(2, this->missing_state);
+  buffer.encode_uint32(3, this->hour);
+  buffer.encode_uint32(4, this->minute);
+  buffer.encode_uint32(5, this->second);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void TimeStateResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("TimeStateResponse {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  missing_state: ");
+  out.append(YESNO(this->missing_state));
+  out.append("\n");
+
+  out.append("  hour: ");
+  sprintf(buffer, "%" PRIu32, this->hour);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  minute: ");
+  sprintf(buffer, "%" PRIu32, this->minute);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  second: ");
+  sprintf(buffer, "%" PRIu32, this->second);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool TimeCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->hour = value.as_uint32();
+      return true;
+    }
+    case 3: {
+      this->minute = value.as_uint32();
+      return true;
+    }
+    case 4: {
+      this->second = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool TimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void TimeCommandRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_uint32(2, this->hour);
+  buffer.encode_uint32(3, this->minute);
+  buffer.encode_uint32(4, this->second);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void TimeCommandRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("TimeCommandRequest {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  hour: ");
+  sprintf(buffer, "%" PRIu32, this->hour);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  minute: ");
+  sprintf(buffer, "%" PRIu32, this->minute);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  second: ");
+  sprintf(buffer, "%" PRIu32, this->second);
   out.append(buffer);
   out.append("\n");
   out.append("}");

@@ -1,0 +1,15 @@
+i2c:
+  - id: i2c_honeywellabp2
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: honeywellabp2_i2c
+    address: 0x28
+    pressure:
+      name: Honeywell2 pressure
+      min_pressure: 0
+      max_pressure: 16000
+      transfer_function: A
+    temperature:
+      name: Honeywell temperature

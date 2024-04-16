@@ -3,11 +3,11 @@
 
 #include <esp_http_server.h>
 
-#include <string>
 #include <functional>
-#include <vector>
 #include <map>
 #include <set>
+#include <string>
+#include <vector>
 
 namespace esphome {
 namespace web_server_idf {
@@ -250,6 +250,8 @@ class AsyncEventSource : public AsyncWebHandler {
   void onConnect(connect_handler_t cb) { this->on_connect_ = std::move(cb); }
 
   void send(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+
+  size_t count() const { return this->sessions_.size(); }
 
  protected:
   std::string url_;
