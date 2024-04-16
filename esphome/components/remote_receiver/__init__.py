@@ -9,8 +9,8 @@ from esphome.const import (
     CONF_ID,
     CONF_IDLE,
     CONF_PIN,
-    CONF_TYPE,
     CONF_TOLERANCE,
+    CONF_TYPE,
     CONF_MEMORY_BLOCKS,
     CONF_RMT_CHANNEL,
     CONF_VALUE,
@@ -46,7 +46,8 @@ TOLERANCE_SCHEMA = cv.typed_schema(
                 )
             }
         ),
-    }
+    },
+    lower=True,
 )
 
 RemoteReceiverComponent = remote_receiver_ns.class_(
