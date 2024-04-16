@@ -13,7 +13,7 @@ display:
     dimensions:
       width: 240
       height: 320
-    transform: 
+    transform:
       swap_xy: false
       mirror_x: true
       mirror_y: true
@@ -302,7 +302,7 @@ lvgl:
                 - lvgl.animimg.stop: anim_id
             on_short_click:
               then:
-                - lvgl.animimg.start: 
+                - lvgl.animimg.start:
                     id: anim_id
         - line:
             points:
