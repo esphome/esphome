@@ -2511,7 +2511,7 @@ void WaveshareEPaper7P5InV2alt::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-/* 7.50in-bc */
+/* -----------------------     7.50in-bc  ---------------------------------------*/
 void WaveshareEPaper7P5InBC::initialize() {
   /* The command sequence is similar to the 7P5In display but differs in subtle ways
   to allow for faster updates. */
@@ -2564,6 +2564,42 @@ void WaveshareEPaper7P5InBC::initialize() {
 }
 
 void HOT WaveshareEPaper7P5InBC::display() {
+  uint32_t buf_len_half = this->get_buffer_length_() >> 1;
+/*
+  // COMMAND DATA START TRANSMISSION 1 (BLACK)
+  this->command(0x10);
+  delay(2);
+  for (uint32_t i = 0; i < buf_len_half; i++) {
+    uint8_t eight_pixels = this->buffer_[i];
+
+    for (uint8_t j = 0; j < 8; j += 2) {
+
+      uint8_t left_nibble = (eight_pixels & 0x80) ? 0x30 : 0x00;
+      eight_pixels <<= 1;
+      uint8_t right_nibble = (eight_pixels & 0x80) ? 0x03 : 0x00;
+      eight_pixels <<= 1;
+      this->write_byte(left_nibble | right_nibble);
+  }
+  this->command(0x11);
+  delay(2);
+
+  // COMMAND DATA START TRANSMISSION 2  (RED)
+  this->command(0x10);
+  delay(2);
+  for (uint32_t i = buf_len_half; i < buf_len_half * 2u; i++) {
+
+    uint8_t eight_pixels = this->buffer_[i];
+
+    for (uint8_t j = 0; j < 8; j += 2) {
+      uint8_t left_nibble = (eight_pixels & 0x80) ? 0x30 : 0x00;
+      eight_pixels <<= 1;
+      uint8_t right_nibble = (eight_pixels & 0x80) ? 0x03 : 0x00;
+      eight_pixels <<= 1;
+      this->write_byte(left_nibble | right_nibble);
+  }
+  this->command(0x11);
+*/
+
   // COMMAND DATA START TRANSMISSION 1
   this->command(0x10);
   this->start_data_();
