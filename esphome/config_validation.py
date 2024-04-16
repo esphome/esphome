@@ -1593,6 +1593,7 @@ def typed_schema(schemas, **kwargs):
     enum_mapping = kwargs.pop("enum", None)
     if enum_mapping is not None:
         assert isinstance(enum_mapping, dict)
+        assert set(enum_mapping.keys()) == set(schemas.keys())
     key_validator = one_of(*schemas, **kwargs)
 
     def validator(value):
