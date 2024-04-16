@@ -860,7 +860,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
     void power_off() override;
     void deep_sleep() override;
 
-    std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
+//    std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
 
   protected : 
     int get_width_internal() override { return 800; }
