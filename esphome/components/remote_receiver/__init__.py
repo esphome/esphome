@@ -48,6 +48,7 @@ TOLERANCE_SCHEMA = cv.typed_schema(
         ),
     },
     lower=True,
+    enum=TOLERANCE_MODE,
 )
 
 RemoteReceiverComponent = remote_receiver_ns.class_(
@@ -57,21 +58,19 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
 
 def validate_tolerance(value):
     if isinstance(value, dict):
-        value = TOLERANCE_SCHEMA(value)
-    else:
-        if "%" in str(value):
-            type_ = TYPE_PERCENTAGE
-        else:
-            type_ = TYPE_TIME
+        return TOLERANCE_SCHEMA(value)
 
-        value = TOLERANCE_SCHEMA(
-            {
-                CONF_VALUE: value,
-                CONF_TYPE: type_,
-            }
-        )
-    value[CONF_TYPE] = cv.enum(TOLERANCE_MODE)(value[CONF_TYPE])
-    return value
+    if "%" in str(value):
+        type_ = TYPE_PERCENTAGE
+    else:
+        type_ = TYPE_TIME
+
+    return TOLERANCE_SCHEMA(
+        {
+            CONF_VALUE: value,
+            CONF_TYPE: type_,
+        }
+    )
 
 
 MULTI_CONF = True
