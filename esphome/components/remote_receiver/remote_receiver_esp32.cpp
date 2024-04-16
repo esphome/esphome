@@ -21,7 +21,7 @@ void RemoteReceiverComponent::setup() {
   } else {
     rmt.rx_config.filter_en = true;
     rmt.rx_config.filter_ticks_thresh =
-        static_cast<uint8_t>(std::min(this->from_microseconds_(this->filter_us_), (uint32_t) 255));
+        static_cast<uint8_t>(std::min(this->from_microseconds_(this->filter_us_) * this->clock_divider_, (uint32_t) 255));
   }
   rmt.rx_config.idle_threshold =
       static_cast<uint16_t>(std::min(this->from_microseconds_(this->idle_us_), (uint32_t) 65535));
