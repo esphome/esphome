@@ -2931,6 +2931,8 @@ void WaveshareEPaperPolled::set_state_(State state) {
 
 int WaveshareEPaper7P5InV3rb::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InV3rb::get_height_internal() { return 480; }
+std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0),display::COLOR_OFF, Color(0, 0, 0, 0),display::COLOR_RED, Color(0, 255, 0, 0)}; }
+
 void WaveshareEPaper7P5InV3rb::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 7.5in V3 Black/Red");
@@ -3011,7 +3013,7 @@ void WaveshareEPaper7P5InV3rb::configure() {
 //  this->command(0x50);
 //  this->data(0x11);
 //  this->data(0x07);
-
+}
 
 void HOT WaveshareEPaper7P5InV3rb::display() {
   uint32_t buf_len = this->get_buffer_length_();

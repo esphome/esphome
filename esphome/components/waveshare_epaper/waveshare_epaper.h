@@ -861,10 +861,11 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
     void deep_sleep() override;
 
 //    std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
+    std::vector<Color> get_supported_colors() override;
 
   protected : 
-    int get_width_internal() override 
-    int get_height_internal() override 
+    int get_width_internal() override;
+    int get_height_internal() override;
  };
 
 }  // namespace waveshare_epaper
