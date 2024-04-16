@@ -2522,7 +2522,7 @@ void WaveshareEPaper7P5InBC::initialize() {
 
   // COMMAND PANEL SETTING
   this->command(0x00);
-  this->data(0xCF);
+  this->data(0x0F);
   this->data(0x08);
 
   // COMMAND PLL CONTROL
@@ -2599,40 +2599,45 @@ void HOT WaveshareEPaper7P5InBC::display() {
   }
   this->command(0x11);
 */
+  // Unlike the 7P5In display, we send the "power on" command here rather than during initialization
+  // COMMAND POWER ON
+  this->command(0x04);
+  delay(2);
 
   // COMMAND DATA START TRANSMISSION 1
   this->command(0x10);
   this->start_data_();
 
-for (uint32_t i = 0; i < buf_len_half; i++) {
-    uint8_t eight_pixels = this->buffer_[i];
+  for (uint32_t i = 0; i < buf_len_half; i++) {
+      uint8_t eight_pixels = this->buffer_[i];
 
-    for (uint8_t j = 0; j < 8; j += 2) {
+      for (uint8_t j = 0; j < 8; j += 2) {
 
-      uint8_t left_nibble = (eight_pixels & 0x80) ? 0x30 : 0x00;
-      eight_pixels <<= 1;
-      uint8_t right_nibble = (eight_pixels & 0x80) ? 0x03 : 0x00;
-      eight_pixels <<= 1;
-      this->write_byte(left_nibble | right_nibble);
+        uint8_t left_nibble = (eight_pixels & 0x80) ? 0x30 : 0x00;
+        eight_pixels <<= 1;
+        uint8_t right_nibble = (eight_pixels & 0x80) ? 0x03 : 0x00;
+        eight_pixels <<= 1;
+        this->write_byte(left_nibble | right_nibble);
+    }
   }
-//  this->command(0x11);
+  //  this->command(0x11);
   delay(2);
 
   // COMMAND DATA START TRANSMISSION 2  (RED)
-//  this->command(0x10);
-//  delay(2);
+  //  this->command(0x10);
+  //  delay(2);
   for (uint32_t i = buf_len_half; i < buf_len_half * 2u; i++) {
 
-    uint8_t eight_pixels = this->buffer_[i];
+      uint8_t eight_pixels = this->buffer_[i];
 
-    for (uint8_t j = 0; j < 8; j += 2) {
-      uint8_t left_nibble = (eight_pixels & 0x80) ? 0x40 : 0x00;
-      eight_pixels <<= 1;
-      uint8_t right_nibble = (eight_pixels & 0x80) ? 0x04 : 0x00;
-      eight_pixels <<= 1;
-      this->write_byte(left_nibble | right_nibble);
+      for (uint8_t j = 0; j < 8; j += 2) {
+        uint8_t left_nibble = (eight_pixels & 0x80) ? 0x40 : 0x00;
+        eight_pixels <<= 1;
+        uint8_t right_nibble = (eight_pixels & 0x80) ? 0x04 : 0x00;
+        eight_pixels <<= 1;
+        this->write_byte(left_nibble | right_nibble);
+    }
   }
-  
   /*for (size_t i = 0; i < this->get_buffer_length_(); i++) {
     // A line of eight source pixels (each a bit in this byte)
     uint8_t eight_pixels = this->buffer_[i];
@@ -2653,9 +2658,7 @@ for (uint32_t i = 0; i < buf_len_half; i++) {
 
   this->end_data_();
 
-  // Unlike the 7P5In display, we send the "power on" command here rather than during initialization
-  // COMMAND POWER ON
-  this->command(0x04);
+
 
   // COMMAND DISPLAY REFRESH
   this->command(0x12);
@@ -3110,7 +3113,6 @@ void HOT WaveshareEPaper7P5InV3rb::display() {
       eight_pixels <<= 1;
       this->write_byte(left_nibble | right_nibble);
     }
-    App.feed_wdt();
   }
   this->end_data_();
 
