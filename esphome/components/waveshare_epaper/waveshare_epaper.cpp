@@ -2580,20 +2580,20 @@ void HOT WaveshareEPaper7P5InBC::display() {
       eight_pixels <<= 1;
       this->write_byte(left_nibble | right_nibble);
   }
-  this->command(0x11);
+//  this->command(0x11);
   delay(2);
 
   // COMMAND DATA START TRANSMISSION 2  (RED)
-  this->command(0x10);
-  delay(2);
+//  this->command(0x10);
+//  delay(2);
   for (uint32_t i = buf_len_half; i < buf_len_half * 2u; i++) {
 
     uint8_t eight_pixels = this->buffer_[i];
 
     for (uint8_t j = 0; j < 8; j += 2) {
-      uint8_t left_nibble = (eight_pixels & 0x80) ? 0x30 : 0x00;
+      uint8_t left_nibble = (eight_pixels & 0x80) ? 0x40 : 0x00;
       eight_pixels <<= 1;
-      uint8_t right_nibble = (eight_pixels & 0x80) ? 0x03 : 0x00;
+      uint8_t right_nibble = (eight_pixels & 0x80) ? 0x04 : 0x00;
       eight_pixels <<= 1;
       this->write_byte(left_nibble | right_nibble);
   }
@@ -2604,22 +2604,53 @@ void HOT WaveshareEPaper7P5InBC::display() {
   this->command(0x10);
   this->start_data_();
 
-  for (size_t i = 0; i < this->get_buffer_length_(); i++) {
+for (uint32_t i = 0; i < buf_len_half; i++) {
+    uint8_t eight_pixels = this->buffer_[i];
+
+    for (uint8_t j = 0; j < 8; j += 2) {
+
+      uint8_t left_nibble = (eight_pixels & 0x80) ? 0x30 : 0x00;
+      eight_pixels <<= 1;
+      uint8_t right_nibble = (eight_pixels & 0x80) ? 0x03 : 0x00;
+      eight_pixels <<= 1;
+      this->write_byte(left_nibble | right_nibble);
+  }
+//  this->command(0x11);
+  delay(2);
+
+  // COMMAND DATA START TRANSMISSION 2  (RED)
+//  this->command(0x10);
+//  delay(2);
+  for (uint32_t i = buf_len_half; i < buf_len_half * 2u; i++) {
+
+    uint8_t eight_pixels = this->buffer_[i];
+
+    for (uint8_t j = 0; j < 8; j += 2) {
+      uint8_t left_nibble = (eight_pixels & 0x80) ? 0x40 : 0x00;
+      eight_pixels <<= 1;
+      uint8_t right_nibble = (eight_pixels & 0x80) ? 0x04 : 0x00;
+      eight_pixels <<= 1;
+      this->write_byte(left_nibble | right_nibble);
+  }
+  
+  /*for (size_t i = 0; i < this->get_buffer_length_(); i++) {
     // A line of eight source pixels (each a bit in this byte)
     uint8_t eight_pixels = this->buffer_[i];
 
     for (uint8_t j = 0; j < 8; j += 2) {
       /* For bichromatic displays, each byte represents two pixels. Each nibble encodes a pixel: 0=white, 3=black,
       4=color. Therefore, e.g. 0x44 = two adjacent color pixels, 0x33 is two adjacent black pixels, etc. If you want
-      to draw using the color pixels, change '0x30' with '0x40' and '0x03' with '0x04' below. */
+      to draw using the color pixels, change '0x30' with '0x40' and '0x03' with '0x04' below. /
       uint8_t left_nibble = (eight_pixels & 0x80) ? 0x40 : 0x00;
       eight_pixels <<= 1;
       uint8_t right_nibble = (eight_pixels & 0x80) ? 0x04 : 0x00;
       eight_pixels <<= 1;
       this->write_byte(left_nibble | right_nibble);
     }
-    App.feed_wdt();
+      App.feed_wdt();
   }
+  */
+
   this->end_data_();
 
   // Unlike the 7P5In display, we send the "power on" command here rather than during initialization
