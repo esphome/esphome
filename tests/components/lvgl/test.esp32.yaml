@@ -1,0 +1,335 @@
+spi:
+  clk_pin: 14
+  mosi_pin: 13
+
+i2c:
+  sda: GPIO18
+  scl: GPIO19
+
+display:
+  - platform: ili9xxx
+    model: st7789v
+    id: tft_display
+    dimensions:
+      width: 240
+      height: 320
+    transform: 
+      swap_xy: false
+      mirror_x: true
+      mirror_y: true
+    data_rate: 80MHz
+    cs_pin: GPIO22
+    dc_pin: GPIO21
+    reset_pin: GPIO18
+    auto_clear_enabled: false
+    invert_colors: false
+    update_interval: never
+
+touchscreen:
+  - platform: ft63x6
+    id: tft_touch
+    display: tft_display
+    update_interval: 50ms
+    threshold: 1
+    calibration:
+      x_max: 240
+      y_max: 320
+    on_release:
+      - if:
+          condition: lvgl.is_paused
+          then:
+            - lvgl.resume:
+
+image:
+  - file: "cat.png"
+    id: cat_image
+  - file: "cat_bowtie.png"
+    id: cat_image_bowtie
+
+lvgl:
+  touchscreens:
+    - touchscreen_id: tft_touch
+  displays:
+    - display_id: tft_display
+  on_idle:
+    - logger.log: "LVGL is idle"
+  buffer_size: 100%
+  log_level: WARN
+  color_depth: 16
+  default_font: robi_16
+  bg_color: 0xe5e4dc
+  style_definitions:
+    - id: style_test
+      bg_color: 0x2F8CD8
+  theme:
+    obj:
+      border_width: 1
+  top_layer:
+    widgets:
+      - label:
+          text: "Test"
+  msgboxes:
+    - id: message_box
+      close_button: true
+      title: Messagebox
+      body:
+        text: "This is a sample messagebox."
+        bg_color: 0x808080
+      buttons:
+        - id: msgbox_apply
+          text: "Apply"
+        - id: msgbox_close
+          text: "\uF00D"
+          on_click:
+            then:
+              - lvgl.widget.hide: message_box
+  pages:
+    - id: main_page
+      skip: false
+      pad_all: 0
+      widgets:
+        - obj:
+            align: TOP_MID
+            styles: style_test
+            widgets:
+              - btn:
+                  checkable: true
+                  widgets:
+                    - label:
+                        align: center
+                        id: my_label_id
+                        text: "Test Toggle Button"
+                        on_click:
+                          then:
+                            - lvgl.widget.update:
+                                id: my_label_id
+                                hidden: true
+            on_scroll:
+              then:
+                - lvgl.widget.show: message_box
+
+        - btnmatrix:
+            x: 10
+            y: 40
+            width: 220
+            items:
+              pressed:
+                bg_color: 0xFFFF00
+            id: b_matrix
+            rows:
+              - buttons:
+                - id: button_1
+                  text: "\uF04B"
+                  control:
+                    checkable: true
+                - id: button_2
+                  text: "\uF04C"
+                  control:
+                    checkable: true
+              - buttons:
+                - id: button_3
+                  text: "A"
+                  control:
+                    popover: true
+                - id: button_4
+                  text: "B"
+                  control:
+                    disabled: true
+              - buttons:
+                - id: button_5
+                  text: "It's #ff0000 red#"
+                  width: 2
+                  control:
+                    recolor: true
+                  on_press:
+                    then:
+                      - lvgl.page.show: main_page
+
+        - switch:
+            x: 10
+            y: 10
+            id: switch_id
+            on_defocus:
+              then:
+                - lvgl.button.update:
+                    id: button_1
+                    width: 1
+                    selected: true
+                    control:
+                      checkable: false
+                - lvgl.btnmatrix.update:
+                    id: b_matrix
+                    state:
+                      disabled: true
+                    items:
+                      bg_color: 0xf0f0f0
+
+        - checkbox:
+            id: checkbox_id
+            text: Checkbox
+            on_focus:
+              then:
+                - lvgl.checkbox.update:
+                    id: checkbox_id
+                    state:
+                      checked: true
+                    text: Checked
+        - dropdown:
+            id: dropdown_id
+            width: 90
+            align: CENTER
+            options:
+              - Violin
+              - Piano
+              - Bassoon
+              - Chello
+              - Drums
+            selected_index: 2
+            on_scroll_end:
+              then:
+                - lvgl.dropdown.update:
+                    id: dropdown_id
+                    selected_index: 5
+        - roller:
+            align: CENTER
+            id: roller_id
+            options:
+              - Violin
+              - Piano
+              - Bassoon
+              - Chello
+              - Drums
+            on_scroll_begin:
+              then:
+                - lvgl.roller.update:
+                    id: roller_id
+                    selected_index: 5
+        - bar:
+            id: bar_id
+            value: 75
+            min_value: 1
+            max_value: 100
+        - slider:
+            width: 220
+            id: slider_id
+            value: 75
+            min_value: 0
+            max_value: 100
+            on_click:
+              then:
+                - lvgl.slider.update:
+                    id: slider_id
+                    knob:
+                      bg_color: 0x00FF00
+                    value: 55
+            on_value:
+              - lvgl.arc.update:
+                  id: arc_id
+                  value: !lambda return x;
+        - arc:
+            id: arc_id
+            value: 75
+            min_value: 0
+            max_value: 100
+            adjustable: true
+            on_release:
+              then:
+                - lvgl.arc.update:
+                    id: arc_id
+                    knob:
+                      bg_color: 0x00FF00
+                    value: 55
+            on_value:
+              - lvgl.slider.update:
+                  id: slider_id
+                  value: !lambda return x;
+        - meter:
+            align: center
+            scales:
+              - ticks:
+                  width: 1
+                  count: 81
+                  length: 5
+                  color: 0x000000
+                  major:
+                    stride: 10
+                    width: 2
+                    length: 8
+                    color: 0xC0C0C0
+                    label_gap: 8
+                range_from: -30
+                range_to: 50
+                angle_range: 240
+                rotation: 150
+                indicators:
+                  - line:
+                      id: temperature_needle
+                      width: 2
+                      color: 0xFF0000
+                      r_mod: -4
+                on_click:
+                  then:
+                    - lvgl.indicator.line.update:
+                        id: temperature_needle
+                        value: 3
+        - img:
+            align: CENTER
+            src: cat_image
+            id: img_id
+            radius: 11
+            clip_corner: true
+            on_click:
+              then:
+                - lvgl.img.update:
+                    id: img_id
+                    src: cat_image_bowtie
+        - animimg:
+            align: CENTER
+            id: anim_id
+            src: [ cat_image, cat_image_bowtie ]
+            duration: 600ms
+            on_click:
+              then:
+                - lvgl.animimg.update:
+                    id: anim_id
+                    repeat_count: 100
+                    duration: 75ms
+            on_long_press:
+              then:
+                - lvgl.animimg.stop: anim_id
+            on_short_click:
+              then:
+                - lvgl.animimg.start: 
+                    id: anim_id
+        - line:
+            points:
+              - 5, 5
+              - 70, 70
+              - 120, 10
+              - 180, 60
+              - 230, 15
+            line_width: 8
+            line_color: 0x0000FF
+            line_rounded: true
+        - led:
+            id: led_id
+            align: CENTER
+            color: 0xFF0000
+            brightness: 70%
+            on_long_press_repeat:
+              then:
+                - lvgl.led.update:
+                    id: led_id
+                    color: 0x00FF00
+        - spinner:
+            align: center
+            spin_time: 2s
+            arc_length: 60deg
+            id: spinner_id
+            indicator:
+              arc_color: 0xd4d4d4
+            on_press:
+              then:
+                - lvgl.spinner.update:
+                    id: spinner_id
+                    arc_color: 0x31de70
