@@ -66,19 +66,13 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=4294967295)),
             ),
+            cv.SplitDefault(CONF_CLOCK_DIVIDER, esp32=80): cv.All(
+                cv.only_on_esp32, cv.Range(min=1, max=255)
+            ),
             cv.Optional(CONF_IDLE, default="10ms"): cv.All(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=4294967295)),
             ),
-            cv.SplitDefault(CONF_MEMORY_BLOCKS, esp32=3): cv.All(
-                cv.only_on_esp32, cv.Range(min=1, max=8)
-            ),
-            cv.SplitDefault(CONF_CLOCK_DIVIDER, esp32=80): cv.All(
-                cv.only_on_esp32, cv.Range(min=1, max=255)
-            ),
-            cv.Optional(
-                CONF_IDLE, default="10ms"
-            ): cv.positive_time_period_microseconds,
             cv.Optional(CONF_MEMORY_BLOCKS, default=3): cv.Range(min=1, max=8),
             cv.Optional(CONF_RMT_CHANNEL): esp32_rmt.validate_rmt_channel(tx=False),
         }
