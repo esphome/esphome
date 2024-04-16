@@ -756,7 +756,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   // Generic Waveshare e-paper component that
   // avoids using any blocking wait to be able to support
   // big screens that are slow to update
-  class WaveshareEPaperPolled : public WaveshareEPaper {
+  class WaveshareEPaperPolled : public WaveshareEPaperBWR {
     // Will request a display refresh
     void update() override;
 

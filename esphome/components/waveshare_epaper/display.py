@@ -71,7 +71,7 @@ WaveshareEPaper7P5InBV2 = waveshare_epaper_ns.class_(
     "WaveshareEPaper7P5InBV2", WaveshareEPaper
 )
 WaveshareEPaper7P5InBV3 = waveshare_epaper_ns.class_(
-    "WaveshareEPaper7P5InBV3", WaveshareEPaper
+    "WaveshareEPaper7P5InBV3", WaveshareEPaperBWR
 )
 WaveshareEPaper7P5InV2 = waveshare_epaper_ns.class_(
     "WaveshareEPaper7P5InV2", WaveshareEPaper
@@ -93,7 +93,7 @@ WaveshareEPaper2P13InV3 = waveshare_epaper_ns.class_(
 )
 # new added for 7.5inch Red-Black v3
 WaveshareEPaper7P5InV3rb = waveshare_epaper_ns.class_(
-    "WaveshareEPaper7P5InV3rb", WaveshareEPaper
+    "WaveshareEPaper7P5InV3rb", WaveshareEPaperBWR
 )
 
 GDEW0154M09 = waveshare_epaper_ns.class_("GDEW0154M09", WaveshareEPaper)
