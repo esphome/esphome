@@ -2626,7 +2626,7 @@ void HOT WaveshareEPaper7P5InBC::display() {
   // COMMAND DATA START TRANSMISSION 2  (RED)
   //  this->command(0x10);
   //  delay(2);
-  for (uint32_t i = buf_len_half; i < buf_len_half * 2u; i++) {
+  /*for (uint32_t i = buf_len_half; i < buf_len_half * 2u; i++) {
 
       uint8_t eight_pixels = this->buffer_[i];
 
@@ -2637,7 +2637,7 @@ void HOT WaveshareEPaper7P5InBC::display() {
         eight_pixels <<= 1;
         this->write_byte(left_nibble | right_nibble);
     }
-  }
+  }*/
   /*for (size_t i = 0; i < this->get_buffer_length_(); i++) {
     // A line of eight source pixels (each a bit in this byte)
     uint8_t eight_pixels = this->buffer_[i];
