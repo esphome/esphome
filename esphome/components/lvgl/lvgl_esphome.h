@@ -74,6 +74,7 @@ typedef lv_switch_t LvSwitchType;
 typedef lv_table_t LvTableType;
 typedef lv_textarea_t LvTextareaType;
 typedef lv_obj_t LvBtnmBtn;
+typedef lv_obj_t LvChartType;
 
 // Parent class for things that wrap an LVGL object
 class LvCompound {

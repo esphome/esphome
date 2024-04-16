@@ -112,13 +112,14 @@ from .defines import (
     LV_GRID_ALIGNMENTS,
     LV_CELL_ALIGNMENTS,
     SIBLING_ALIGNMENTS,
+    CONF_CHART,
+    LvConstant,
 )
 
 from .lv_validation import (
     lv_one_of,
     lv_opacity,
     lv_stop_value,
-    lv_any_of,
     lv_size,
     lv_font,
     lv_angle,
@@ -215,6 +216,7 @@ lv_led_t = cg.MockObjClass("LvLedType", parents=[lv_obj_t])
 lv_switch_t = cg.MockObjClass("LvSwitchType", parents=[lv_obj_t])
 lv_table_t = cg.MockObjClass("LvTableType", parents=[lv_obj_t])
 lv_textarea_t = cg.MockObjClass("LvTextareaType", parents=[lv_obj_t])
+lv_chart_t = cg.MockObjClass("LvChartType", parents=[lv_obj_t])
 lv_btnmatrix_t = cg.MockObjClass(
     "LvBtnmatrixType", parents=[lv_obj_t, KeyProvider, LvCompound]
 )
@@ -332,6 +334,15 @@ WIDGET_TYPES = {
     CONF_BAR: (CONF_MAIN, CONF_INDICATOR),
     CONF_BTNMATRIX: (CONF_MAIN, CONF_ITEMS),
     CONF_CANVAS: (CONF_MAIN,),
+    CONF_CHART: (
+        CONF_MAIN,
+        CONF_SCROLLBAR,
+        CONF_SELECTED,
+        CONF_ITEMS,
+        CONF_INDICATOR,
+        CONF_CURSOR,
+        CONF_TICKS,
+    ),
     CONF_CHECKBOX: (CONF_MAIN, CONF_INDICATOR),
     CONF_DROPDOWN: (CONF_MAIN, CONF_INDICATOR),
     CONF_IMG: (CONF_MAIN,),
@@ -441,11 +452,11 @@ lv_brightness = LValidator(
     cv.percentage, cg.float_, Sensor, "get_state()", retmapper=lambda x: int(x * 255)
 )
 
-cell_alignments = lv_one_of(LV_CELL_ALIGNMENTS, prefix="LV_GRID_ALIGNMENT_")
-grid_alignments = lv_one_of(LV_GRID_ALIGNMENTS, prefix="LV_GRID_ALIGNMENT_")
+cell_alignments = lv_one_of(LV_CELL_ALIGNMENTS)
+grid_alignments = lv_one_of(LV_GRID_ALIGNMENTS)
 
 STYLE_PROPS = {
-    "align": lv_one_of(CHILD_ALIGNMENTS, "LV_ALIGN_"),
+    "align": lv_one_of(CHILD_ALIGNMENTS),
     "arc_opa": lv_opacity,
     "arc_color": lv_color,
     "arc_rounded": lv_bool,
@@ -453,8 +464,10 @@ STYLE_PROPS = {
     "anim_time": lv_milliseconds,
     "bg_color": lv_color,
     "bg_grad_color": lv_color,
-    "bg_dither_mode": lv_one_of(["NONE", "ORDERED", "ERR_DIFF"], "LV_DITHER_"),
-    "bg_grad_dir": lv_one_of(["NONE", "HOR", "VER"], "LV_GRAD_DIR_"),
+    "bg_dither_mode": lv_one_of(
+        LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF")
+    ),
+    "bg_grad_dir": lv_one_of(LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER")),
     "bg_grad_stop": lv_stop_value,
     "bg_img_opa": lv_opacity,
     "bg_img_recolor": lv_color,
@@ -464,8 +477,10 @@ STYLE_PROPS = {
     "border_color": lv_color,
     "border_opa": lv_opacity,
     "border_post": cv.boolean,
-    "border_side": lv_any_of(
-        ["NONE", "TOP", "BOTTOM", "LEFT", "RIGHT", "INTERNAL"], "LV_BORDER_SIDE_"
+    "border_side": lv_one_of(
+        LvConstant(
+            "LV_BORDER_SIDE_", "NONE", "TOP", "BOTTOM", "LEFT", "RIGHT", "INTERNAL"
+        )
     ),
     "border_width": cv.positive_int,
     "clip_corner": lv_bool,
@@ -502,9 +517,13 @@ STYLE_PROPS = {
     "shadow_opa": lv_opacity,
     "shadow_spread": cv.int_,
     "shadow_width": cv.positive_int,
-    "text_align": lv_one_of(["LEFT", "CENTER", "RIGHT", "AUTO"], "LV_TEXT_ALIGN_"),
+    "text_align": lv_one_of(
+        LvConstant("LV_TEXT_ALIGN_", "LEFT", "CENTER", "RIGHT", "AUTO")
+    ),
     "text_color": lv_color,
-    "text_decor": lv_any_of(["NONE", "UNDERLINE", "STRIKETHROUGH"], "LV_TEXT_DECOR_"),
+    "text_decor": lv_one_of(
+        LvConstant("LV_TEXT_DECOR_", "NONE", "UNDERLINE", "STRIKETHROUGH")
+    ),
     "text_font": lv_font,
     "text_letter_space": cv.positive_int,
     "text_line_space": cv.positive_int,
@@ -520,7 +539,7 @@ STYLE_PROPS = {
     "max_width": pixels_or_percent,
     "min_height": pixels_or_percent,
     "min_width": pixels_or_percent,
-    "radius": cv.Any(lv_size, lv_one_of(["CIRCLE"], "LV_RADIUS_")),
+    "radius": cv.Any(lv_size, lv_one_of(LvConstant("LV_RADIUS_", "CIRCLE"))),
     "width": lv_size,
     "x": pixels_or_percent,
     "y": pixels_or_percent,
@@ -660,7 +679,7 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
     {
         cv.Optional(CONF_STYLES): cv.ensure_list(cv.use_id(lv_style_t)),
         cv.Optional(CONF_SCROLLBAR_MODE): lv_one_of(
-            ("OFF", "ON", "ACTIVE", "AUTO"), prefix="LV_SCROLLBAR_MODE_"
+            LvConstant("LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO")
         ),
     }
 )
@@ -669,14 +688,14 @@ STATE_SCHEMA = cv.Schema({cv.Optional(state): STYLE_SCHEMA for state in STATES})
 )
 SET_STATE_SCHEMA = cv.Schema({cv.Optional(state): lv_bool for state in STATES})
 FLAG_SCHEMA = cv.Schema({cv.Optional(flag): cv.boolean for flag in OBJ_FLAGS})
-FLAG_LIST = cv.ensure_list(lv_one_of(OBJ_FLAGS, "LV_OBJ_FLAG_"))
+FLAG_LIST = cv.ensure_list(lv_one_of(LvConstant("LV_OBJ_FLAG_", OBJ_FLAGS)))
 
 BAR_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VALUE): lv_float,
         cv.Optional(CONF_MIN_VALUE, default=0): cv.int_,
         cv.Optional(CONF_MAX_VALUE, default=100): cv.int_,
-        cv.Optional(CONF_MODE, default="NORMAL"): lv_one_of(BAR_MODES, "LV_BAR_MODE_"),
+        cv.Optional(CONF_MODE, default="NORMAL"): lv_one_of(BAR_MODES),
         cv.Optional(CONF_ANIMATED, default=True): lv_animated,
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
             {
@@ -748,7 +767,9 @@ IMG_SCHEMA = {
     cv.Optional(CONF_OFFSET_X): lv_size,
     cv.Optional(CONF_OFFSET_Y): lv_size,
     cv.Optional(CONF_ANTIALIAS): lv_bool,
-    cv.Optional(CONF_MODE): lv_one_of(("VIRTUAL", "REAL"), prefix="LV_IMG_SIZE_MODE_"),
+    cv.Optional(CONF_MODE): lv_one_of(
+        LvConstant("LV_IMG_SIZE_MODE_", "VIRTUAL", "REAL")
+    ),
 }
 
 # Schema for a single button in a btnmatrix
@@ -788,7 +809,7 @@ ARC_SCHEMA = cv.Schema(
         cv.Optional(CONF_END_ANGLE, default=45): lv_angle,
         cv.Optional(CONF_ROTATION, default=0.0): lv_angle,
         cv.Optional(CONF_ADJUSTABLE, default=False): bool,
-        cv.Optional(CONF_MODE, default="NORMAL"): lv_one_of(ARC_MODES, "LV_ARC_MODE_"),
+        cv.Optional(CONF_MODE, default="NORMAL"): lv_one_of(ARC_MODES),
         cv.Optional(CONF_CHANGE_RATE, default=720): cv.uint16_t,
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
             {
@@ -927,7 +948,7 @@ PAGE_SCHEMA = {
 LABEL_SCHEMA = TEXT_SCHEMA.extend(
     {
         cv.Optional(CONF_RECOLOR): lv_bool,
-        cv.Optional(CONF_LONG_MODE): lv_one_of(LV_LONG_MODES, prefix="LV_LABEL_LONG_"),
+        cv.Optional(CONF_LONG_MODE): lv_one_of(LV_LONG_MODES),
     }
 )
 
@@ -937,7 +958,7 @@ DROPDOWN_BASE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_SYMBOL): lv_text,
         cv.Optional(CONF_SELECTED_INDEX): cv.templatable(cv.int_),
-        cv.Optional(CONF_DIR, default="BOTTOM"): lv_one_of(DIRECTIONS, "LV_DIR_"),
+        cv.Optional(CONF_DIR, default="BOTTOM"): lv_one_of(DIRECTIONS),
         cv.Optional(CONF_DROPDOWN_LIST): part_schema(CONF_DROPDOWN_LIST),
     }
 )
@@ -954,9 +975,7 @@ ROLLER_BASE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_SELECTED_INDEX): cv.templatable(cv.int_),
         cv.Optional(CONF_VISIBLE_ROW_COUNT): lv_int,
-        cv.Optional(CONF_MODE, default="NORMAL"): lv_one_of(
-            ROLLER_MODES, "LV_ROLLER_MODE_"
-        ),
+        cv.Optional(CONF_MODE, default="NORMAL"): lv_one_of(ROLLER_MODES),
     }
 )
 
@@ -992,8 +1011,8 @@ def spin_btn_schema(value):
     schema = container_schema(
         CONF_BTN,
         extras={
-            cv.Required(CONF_ACTION): lv_one_of(SPIN_ACTIONS, prefix=""),
-            cv.Required(CONF_ALIGN): lv_one_of(SIBLING_ALIGNMENTS, prefix="LV_ALIGN_"),
+            cv.Required(CONF_ACTION): cv.one_of(SPIN_ACTIONS, upper=True),
+            cv.Required(CONF_ALIGN): lv_one_of(SIBLING_ALIGNMENTS),
         },
     )
     return cv.ensure_list(schema)(value)
@@ -1031,11 +1050,9 @@ LVGL_SCHEMA = cv.Schema(
 def get_layout(layout=cv.UNDEFINED, flow="ROW_WRAP"):
     return cv.Schema(
         {
+            cv.Optional(CONF_FLEX_FLOW, default=flow): lv_one_of(FLEX_FLOWS),
             cv.Optional(CONF_LAYOUT, default=layout): lv_one_of(
-                ["FLEX", "GRID"], "LV_LAYOUT_"
-            ),
-            cv.Optional(CONF_FLEX_FLOW, default=flow): lv_one_of(
-                FLEX_FLOWS, prefix="LV_FLEX_FLOW_"
+                LvConstant("LV_LAYOUT_", "FLEX", "GRID")
             ),
         }
     )
@@ -1045,7 +1062,7 @@ ALIGN_TO_SCHEMA = {
     cv.Optional(CONF_ALIGN_TO): cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(lv_obj_t),
-            cv.Required(CONF_ALIGN): lv_one_of(ALIGN_ALIGNMENTS, prefix="LV_ALIGN_"),
+            cv.Required(CONF_ALIGN): lv_one_of(ALIGN_ALIGNMENTS),
             cv.Optional(CONF_X, default=0): pixels_or_percent,
             cv.Optional(CONF_Y, default=0): pixels_or_percent,
         }
@@ -1061,8 +1078,8 @@ def grid_free_space(value):
     raise cv.Invalid("must be a size in pixels, CONTENT or FR(nn)")
 
 
-grid_spec = cv.Schema(
-    [cv.Any(lv_size, lv_one_of(("CONTENT",), prefix="LV_GRID_"), grid_free_space)]
+grid_spec = cv.Any(
+    lv_size, lv_one_of(LvConstant("LV_GRID_", "CONTENT")), grid_free_space
 )
 
 GRID_CONTAINER_SCHEMA = {
@@ -1411,9 +1428,7 @@ async def led_to_code(var: Widget, config):
 
 SHOW_SCHEMA = LVGL_SCHEMA.extend(
     {
-        cv.Optional(CONF_ANIMATION, default="NONE"): lv_one_of(
-            LV_ANIM, "LV_SCR_LOAD_ANIM_"
-        ),
+        cv.Optional(CONF_ANIMATION, default="NONE"): lv_one_of(LV_ANIM),
         cv.Optional(CONF_TIME, default="50ms"): lv_milliseconds,
     }
 )
@@ -2013,6 +2028,7 @@ async def generate_triggers(lv_component):
 
 
 async def to_code(config):
+    cg.add_library("lvgl/lvgl", "8.4.0")
     add_define("USE_LVGL", "1")
     for comp in lvgl_components_required:
         add_define(f"LVGL_USES_{comp.upper()}")

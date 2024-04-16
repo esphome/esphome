@@ -1,3 +1,12 @@
+class LvConstant:
+    def __init__(self, prefix: str, *choices):
+        self.prefix = prefix
+        self.choices = choices
+
+    def extend(self, *choices):
+        return LvConstant(self.prefix, *(self.choices + choices))
+
+
 # Widgets
 CONF_ANIMIMG = "animimg"
 CONF_ARC = "arc"
@@ -5,6 +14,7 @@ CONF_BAR = "bar"
 CONF_BTN = "btn"
 CONF_BTNMATRIX = "btnmatrix"
 CONF_CANVAS = "canvas"
+CONF_CHART = "chart"
 CONF_CHECKBOX = "checkbox"
 CONF_DROPDOWN = "dropdown"
 CONF_IMG = "img"
@@ -60,7 +70,8 @@ LV_EVENT = {
 
 LV_EVENT_TRIGGERS = list(map(lambda x: "on_" + x.lower(), LV_EVENT))
 
-LV_ANIM = (
+LV_ANIM = LvConstant(
+    "LV_SCR_LOAD_ANIM_",
     "NONE",
     "OVER_LEFT",
     "OVER_RIGHT",
@@ -87,7 +98,8 @@ LOG_LEVELS = (
     "NONE",
 )
 
-LV_LONG_MODES = (
+LV_LONG_MODES = LvConstant(
+    "LV_LABEL_LONG_",
     "WRAP",
     "DOT",
     "SCROLL",
@@ -123,9 +135,10 @@ PARTS = (
     CONF_TEXTAREA_PLACEHOLDER,
 )
 
-ROLLER_MODES = ("NORMAL", "INFINITE")
-DIRECTIONS = ("LEFT", "RIGHT", "BOTTOM", "TOP")
-CHILD_ALIGNMENTS = (
+ROLLER_MODES = LvConstant("LV_ROLLER_MODE_", "NORMAL", "INFINITE")
+DIRECTIONS = LvConstant("LV_DIR_", "LEFT", "RIGHT", "BOTTOM", "TOP")
+CHILD_ALIGNMENTS = LvConstant(
+    "LV_ALIGN_",
     "TOP_LEFT",
     "TOP_MID",
     "TOP_RIGHT",
@@ -137,7 +150,8 @@ CHILD_ALIGNMENTS = (
     "BOTTOM_RIGHT",
 )
 
-SIBLING_ALIGNMENTS = (
+SIBLING_ALIGNMENTS = LvConstant(
+    "LV_ALIGN_",
     "OUT_LEFT_TOP",
     "OUT_TOP_LEFT",
     "OUT_TOP_MID",
@@ -151,9 +165,10 @@ SIBLING_ALIGNMENTS = (
     "OUT_BOTTOM_RIGHT",
     "OUT_RIGHT_BOTTOM",
 )
-ALIGN_ALIGNMENTS = CHILD_ALIGNMENTS + SIBLING_ALIGNMENTS
+ALIGN_ALIGNMENTS = CHILD_ALIGNMENTS.extend(*SIBLING_ALIGNMENTS.choices)
 
-FLEX_FLOWS = (
+FLEX_FLOWS = LvConstant(
+    "LV_FLEX_FLOW_",
     "ROW",
     "COLUMN",
     "ROW_WRAP",
@@ -196,8 +211,8 @@ OBJ_FLAGS = (
     "user_4",
 )
 
-ARC_MODES = ["NORMAL", "REVERSE", "SYMMETRICAL"]
-BAR_MODES = ["NORMAL", "SYMMETRICAL", "RANGE"]
+ARC_MODES = LvConstant("LV_ARC_MODE_", "NORMAL", "REVERSE", "SYMMETRICAL")
+BAR_MODES = LvConstant("LV_BAR_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
 
 BTNMATRIX_CTRLS = (
     "HIDDEN",
@@ -212,14 +227,28 @@ BTNMATRIX_CTRLS = (
     "CUSTOM_2",
 )
 
-LV_CELL_ALIGNMENTS = (
+LV_CELL_ALIGNMENTS = LvConstant(
+    "LV_GRID_ALIGNMENT_",
     "START",
     "CENTER",
     "END",
 )
-LV_GRID_ALIGNMENTS = LV_CELL_ALIGNMENTS + (
+LV_GRID_ALIGNMENTS = LV_CELL_ALIGNMENTS.extend(
     "STRETCH",
     "SPACE_EVENLY",
     "SPACE_AROUND",
     "SPACE_BETWEEN",
+)
+
+LV_CHART_TYPES = (
+    "NONE",
+    "LINE",
+    "BAR",
+    "SCATTER",
+)
+LV_CHART_AXES = (
+    "PRIMARY_Y",
+    "SECONDARY_Y",
+    "PRIMARY_X",
+    "SECONDARY_X",
 )

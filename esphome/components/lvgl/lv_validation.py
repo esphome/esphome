@@ -10,6 +10,7 @@ from .defines import (
     CONF_IMG,
     CONF_ROTARY_ENCODERS,
     CONF_TOUCHSCREENS,
+    LvConstant,
 )
 
 lv_uses = {
@@ -89,7 +90,7 @@ def lv_prefix(value, choices, prefix):
 def lv_animated(value):
     if isinstance(value, bool):
         value = "ON" if value else "OFF"
-    return lv_one_of(["OFF", "ON"], "LV_ANIM_")(value)
+    return lv_one_of(LvConstant("LV_ANIM_", "OFF", "ON"))(value)
 
 
 def lv_key_code(value):
@@ -99,36 +100,21 @@ def lv_key_code(value):
     return value
 
 
-def lv_one_of(choices, prefix):
+def lv_one_of(consts: LvConstant):
     """Allow one of a list of choices, mapped to upper case, and prepend the choice with the prefix.
     It's also permitted to include the prefix in the value"""
 
     @schema_extractor("one_of")
     def validator(value):
         if value == SCHEMA_EXTRACT:
-            return choices
-        return lv_prefix(value, choices, prefix)
+            return consts.choices
+        return lv_prefix(value, consts.choices, consts.prefix)
 
     return validator
 
 
 def join_enums(enums, prefix=""):
     return "|".join(map(lambda e: f"(int){prefix}{e.upper()}", enums))
-
-
-def lv_any_of(choices, prefix):
-    """Allow any of a list of choices, mapped to upper case, and prepend the choice with the prefix.
-    It's also permitted to include the prefix in the value"""
-
-    @schema_extractor("one_of")
-    def validator(value):
-        if value == SCHEMA_EXTRACT:
-            return choices
-        if not isinstance(value, list):
-            value = [value]
-        return "|".join(map(lambda v: "(int)" + lv_prefix(v, choices, prefix), value))
-
-    return validator
 
 
 def lv_id_name(value):
@@ -182,7 +168,9 @@ def lv_size(value):
 def lv_opacity(value):
     if value == SCHEMA_EXTRACT:
         return ["TRANSP", "COVER", "..%"]
-    value = cv.Any(cv.percentage, lv_one_of(["TRANSP", "COVER"], "LV_OPA_"))(value)
+    value = cv.Any(cv.percentage, lv_one_of(LvConstant("LV_OPA_", "TRANSP", "COVER")))(
+        value
+    )
     if isinstance(value, str):
         return value
     return int(value * 255)
