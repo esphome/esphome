@@ -9,9 +9,11 @@ from esphome.const import (
     CONF_ID,
     CONF_IDLE,
     CONF_PIN,
+    CONF_TYPE,
     CONF_TOLERANCE,
     CONF_MEMORY_BLOCKS,
     CONF_RMT_CHANNEL,
+    CONF_VALUE,
 )
 from esphome.core import CORE, TimePeriod
 
@@ -22,10 +24,30 @@ remote_receiver_ns = cg.esphome_ns.namespace("remote_receiver")
 remote_base_ns = cg.esphome_ns.namespace("remote_base")
 
 ToleranceMode = remote_base_ns.enum("ToleranceMode")
+
+TYPE_PERCENTAGE = "percentage"
+TYPE_TIME = "time"
+
 TOLERANCE_MODE = {
-    "percentage": ToleranceMode.TOLERANCE_MODE_PERCENTAGE,
-    "time": ToleranceMode.TOLERANCE_MODE_TIME,
+    TYPE_PERCENTAGE: ToleranceMode.TOLERANCE_MODE_PERCENTAGE,
+    TYPE_TIME: ToleranceMode.TOLERANCE_MODE_TIME,
 }
+
+TOLERANCE_SCHEMA = cv.typed_schema(
+    {
+        TYPE_PERCENTAGE: cv.Schema(
+            {cv.Required(CONF_VALUE): cv.All(cv.percentage_int, cv.uint32_t)}
+        ),
+        TYPE_TIME: cv.Schema(
+            {
+                cv.Required(CONF_VALUE): cv.All(
+                    cv.positive_time_period_microseconds,
+                    cv.Range(max=TimePeriod(microseconds=4294967295)),
+                )
+            }
+        ),
+    }
+)
 
 RemoteReceiverComponent = remote_receiver_ns.class_(
     "RemoteReceiverComponent", remote_base.RemoteReceiverBase, cg.Component
@@ -33,18 +55,22 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
 
 
 def validate_tolerance(value):
-    if "%" in str(value):
-        return (
-            cv.All(cv.percentage_int, cv.uint32_t)(value),
-            cv.enum(TOLERANCE_MODE)("percentage"),
+    if isinstance(value, dict):
+        value = TOLERANCE_SCHEMA(value)
+    else:
+        if "%" in str(value):
+            type_ = TYPE_PERCENTAGE
+        else:
+            type_ = TYPE_TIME
+
+        value = TOLERANCE_SCHEMA(
+            {
+                CONF_VALUE: value,
+                CONF_TYPE: type_,
+            }
         )
-    return (
-        cv.All(
-            cv.positive_time_period_microseconds,
-            cv.Range(max=TimePeriod(microseconds=4294967295)),
-        )(value),
-        cv.enum(TOLERANCE_MODE)("time"),
-    )
+    value[CONF_TYPE] = cv.enum(TOLERANCE_MODE)(value[CONF_TYPE])
+    return value
 
 
 MULTI_CONF = True
@@ -102,7 +128,11 @@ async def to_code(config):
         cg.add(var.register_listener(trigger))
     await cg.register_component(var, config)
 
-    cg.add(var.set_tolerance(config[CONF_TOLERANCE][0], config[CONF_TOLERANCE][1]))
+    cg.add(
+        var.set_tolerance(
+            config[CONF_TOLERANCE][CONF_VALUE], config[CONF_TOLERANCE][CONF_TYPE]
+        )
+    )
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
