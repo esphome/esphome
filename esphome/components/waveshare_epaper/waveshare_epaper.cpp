@@ -2654,8 +2654,8 @@ void WaveshareEPaper7P5InHDB::initialize() {
 
   this->wait_until_idle_();  // waiting for the electronic paper IC to release the idle signal
 
-  this->command(0x46);  // Aut
-  this->data(0xF7);o Write RAM
+  this->command(0x46);  // Auto Write RAM
+  this->data(0xF7);  
 
   this->wait_until_idle_();  // waiting for the electronic paper IC to release the idle signal
 
