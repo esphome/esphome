@@ -34,8 +34,8 @@ RUN \
         python3-wheel=0.38.4-2 \
         iputils-ping=3:20221126-1 \
         git=1:2.39.2-1.1 \
-        curl=7.88.1-10+deb12u4 \
-        openssh-client=1:9.2p1-2+deb12u1 \
+        curl=7.88.1-10+deb12u5 \
+        openssh-client=1:9.2p1-2+deb12u2 \
         python3-cffi=1.15.1-5 \
         libcairo2=1.16.0-7 \
         libmagic1=1:5.44-3 \
@@ -50,7 +50,7 @@ RUN \
           libssl-dev=3.0.11-1~deb12u2 \
           libffi-dev=3.4.4-1 \
           libopenjp2-7=2.5.0-2 \
-          libtiff6=4.5.0-6 \
+          libtiff6=4.5.0-6+deb12u1 \
           cargo=0.66.0+ds1-1 \
           pkg-config=1.8.1-1 \
           gcc-arm-linux-gnueabihf=4:12.2.0-3; \
@@ -81,7 +81,7 @@ RUN \
     fi; \
     pip3 install \
     --break-system-packages --no-cache-dir \
-    platformio==6.1.11 \
+    platformio==6.1.13 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \

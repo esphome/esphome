@@ -197,8 +197,8 @@ void Nextion::disable_component_touch(const char *component) {
   this->add_no_result_to_queue_with_printf_("disable_component_touch", "tsw %s,0", component);
 }
 
-void Nextion::set_component_picture(const char *component, const char *picture) {
-  this->add_no_result_to_queue_with_printf_("set_component_picture", "%s.val=%s", component, picture);
+void Nextion::set_component_picture(const char *component, uint8_t picture_id) {
+  this->add_no_result_to_queue_with_printf_("set_component_picture", "%s.pic=%d", component, picture_id);
 }
 
 void Nextion::set_component_text(const char *component, const char *text) {
@@ -292,6 +292,19 @@ void Nextion::filled_circle(int center_x, int center_y, int radius, const char *
 void Nextion::filled_circle(int center_x, int center_y, int radius, Color color) {
   this->add_no_result_to_queue_with_printf_("cirs", "cirs %d,%d,%d,%d", center_x, center_y, radius,
                                             display::ColorUtil::color_to_565(color));
+}
+
+void Nextion::qrcode(int x1, int y1, const char *content, int size, uint16_t background_color,
+                     uint16_t foreground_color, int logo_pic, uint8_t border_width) {
+  this->add_no_result_to_queue_with_printf_("qrcode", "qrcode %d,%d,%d,%d,%d,%d,%d,\"%s\"", x1, y1, size,
+                                            background_color, foreground_color, logo_pic, border_width, content);
+}
+
+void Nextion::qrcode(int x1, int y1, const char *content, int size, Color background_color, Color foreground_color,
+                     int logo_pic, uint8_t border_width) {
+  this->add_no_result_to_queue_with_printf_(
+      "qrcode", "qrcode %d,%d,%d,%d,%d,%d,%d,\"%s\"", x1, y1, size, display::ColorUtil::color_to_565(background_color),
+      display::ColorUtil::color_to_565(foreground_color), logo_pic, border_width, content);
 }
 
 void Nextion::set_nextion_rtc_time(ESPTime time) {

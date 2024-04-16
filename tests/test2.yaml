@@ -8,7 +8,7 @@ esphome:
 globals:
   - id: my_global_string
     type: std::string
-    restore_value: yes
+    restore_value: true
     max_restore_data_length: 70
     initial_value: '"DefaultValue"'
 
@@ -203,6 +203,18 @@ sensor:
       name: Xiaomi HHCCJCY01 Soil Conductivity
     battery_level:
       name: Xiaomi HHCCJCY01 Battery Level
+  - platform: xiaomi_hhccjcy10
+    mac_address: DD:25:6D:E4:FF:8F
+    temperature:
+      name: "Xiaomi HHCCJCY10 Temperature"
+    moisture:
+      name: "Xiaomi HHCCJCY10 Moisture"
+    illuminance:
+      name: "Xiaomi HHCCJCY10 Illuminance"
+    conductivity:
+      name: "Xiaomi HHCCJCY10 Soil Conductivity"
+    battery_level:
+      name: "Xiaomi HHCCJCY10 Battery Level"
   - platform: xiaomi_lywsdcgq
     mac_address: 7A:80:8E:19:36:BA
     temperature:
@@ -501,6 +513,7 @@ binary_sensor:
   - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
     name: ESP32 BLE Tracker Google Home Mini
+    timeout: 30s
   - platform: ble_presence
     service_uuid: 11aa
     name: BLE Test Service 16 Presence
@@ -786,11 +799,11 @@ image:
   - id: rgb24_image
     file: pnglogo.png
     type: RGB24
-    use_transparency: yes
+    use_transparency: true
   - id: rgb565_image
     file: pnglogo.png
     type: RGB565
-    use_transparency: no
+    use_transparency: false
   - id: web_svg_image
     file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
     resize: 256x48
@@ -810,11 +823,6 @@ image:
   - id: another_alert_icon
     file: mdi:alert-outline
     type: BINARY
-
-font:
-  - file: "gfonts://Roboto"
-    id: roboto
-    size: 20
 
 graph:
   - id: my_graph
